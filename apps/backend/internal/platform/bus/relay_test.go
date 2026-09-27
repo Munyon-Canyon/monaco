@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -262,19 +264,74 @@ func TestRelay_twoRelaysNeverPublishTheSameRowTwice(t *testing.T) {
 	h := newRelayHarness(t)
 	const n = 120
 	h.append(t, n, "hi")
+	published := h.tapPublishes(t)
 	h.start(t)
 	h.run(t, bus.NewRelay(h.bus.Conn, h.outbox, nil, h.clock))
 
 	h.waitDrained(t)
+	got := published(t)
+	slices.Sort(got)
+	if rows := h.eventIDs(t); !slices.Equal(got, rows) {
+		t.Fatalf("two relays published %d messages for %d rows; published twice: %v, never published: %v",
+			len(got), len(rows), duplicates(got), missing(rows, got))
+	}
 	if got := msgs(t, h.bus); got != n {
 		t.Fatalf("stream holds %d messages after two relays drained %d rows, want %d", got, n, n)
 	}
-	var published float64
-	for _, tick := range h.lines(t, "bus.relay.tick") {
-		published += tick["count"].(float64)
+}
+
+func duplicates(sorted []string) []string {
+	var out []string
+	for i := 1; i < len(sorted); i++ {
+		if sorted[i] == sorted[i-1] {
+			out = append(out, sorted[i])
+		}
 	}
-	if published != n {
-		t.Fatalf("tick lines account for %v rows, want %d", published, n)
+	return slices.Compact(out)
+}
+
+func missing(want, got []string) []string {
+	var out []string
+	for _, id := range want {
+		if !slices.Contains(got, id) {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+func (h *relayHarness) tapPublishes(t *testing.T) func(t *testing.T) []string {
+	t.Helper()
+	nc, err := nats.Connect(testkit.NATSURL())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(nc.Close)
+	sub, err := nc.SubscribeSync(h.bus.Conn.Subject("events.>"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := nc.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	return func(t *testing.T) []string {
+		t.Helper()
+		if err := nc.Flush(); err != nil {
+			t.Fatal(err)
+		}
+		pending, _, err := sub.Pending()
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := make([]string, 0, pending)
+		for range pending {
+			msg, err := sub.NextMsg(waitFor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ids = append(ids, msg.Header.Get(jetstream.MsgIDHeader))
+		}
+		return ids
 	}
 }
 
