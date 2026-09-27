@@ -85,13 +85,28 @@ func redactionCases() []redactionCase {
 		redactionCase{"key suffix and token names", keep, []slog.Attr{
 			slog.String("user_email", "u@x.io"), slog.String("privy_token", "opaque-privy"),
 			slog.String("api_key", "opaque-api"), slog.String("phone_number", "+15550199"),
-			slog.String("userEmail", "camel@x.io"), slog.String("idempotency_key", "idem-1"),
+			slog.String("userEmail", "camel@x.io"), slog.String("API_KEY", "opaque-upper"),
 			slog.String("tx_signature", "sig-1"), slog.String("__Secret__", "opaque-underscored"),
 		}},
 		redactionCase{"self referencing struct stops at depth", keep, []slog.Attr{slog.Any("loop", selfLoop())}},
 		redactionCase{"kept: key word inside another word", keep, []slog.Attr{
 			slog.String("monkey", "m"), slog.String("keyboard", "k"), slog.String("cabal_id", "c1"),
 		}},
+		redactionCase{"kept: idempotency key is evidence", keep, []slog.Attr{
+			slog.String("idempotency_key", "idem-1"), slog.String("Idempotency-Key", "idem-2"),
+			slog.String("api_key", "opaque-beside-idem"),
+		}},
+		redactionCase{"slice of structs", keep, []slog.Attr{slog.Any("users", []struct{ Email, Name string }{
+			{Email: "slice@example.com", Name: "ada"}, {Email: "slice2@example.com", Name: "bob"},
+		})}},
+		redactionCase{"slice of maps", keep, []slog.Attr{slog.Any("creds", []map[string]string{
+			{"token": opaque("slice-map"), "cluster": "mainnet"},
+		})}},
+		redactionCase{
+			"array of strings with a jwt",
+			keep,
+			[]slog.Attr{slog.Any("headers", [2]string{"ok", sampleJWT})},
+		},
 		redactionCase{"opaque authorization scheme", keep, []slog.Attr{slog.String("header", "Bearer opaque-bearer")}},
 		redactionCase{"sensitive query params", keep, []slog.Attr{
 			slog.String("url", "https://rpc.example/v1?api_key=opaque-query&cluster=mainnet&Token=opaque-query2"),
@@ -119,7 +134,7 @@ func redactionCases() []redactionCase {
 			slog.String("blob", base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{0xfb}, 64))),
 		}},
 		redactionCase{"kept: nil pointer and slice", keep, []slog.Attr{
-			slog.Any("user", (*contact)(nil)), slog.Any("ids", []string{"a", "b"}),
+			slog.Any("user", (*contact)(nil)), slog.Any("ids", []string{"a", "b"}), slog.Any("none", []string(nil)),
 		}},
 	)
 }
@@ -147,16 +162,21 @@ func TestRedaction_matchesGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := buf.String(); got != string(want) {
-		t.Fatalf("redaction output differs from %s (rerun with -update to accept):\n%s", goldenPath, got)
+		t.Errorf("redaction output differs from %s (rerun with -update to accept):\n%s", goldenPath, got)
 	}
 	for _, secret := range []string{
 		sampleJWT, sampleBase58Secret(), sampleByteArray(), "a@b.c", "+15550100",
-		"u@x.io", "opaque-", "+15550199", "camel@x.io", "idem-1", "sig-1",
+		"u@x.io", "opaque-", "+15550199", "camel@x.io", "sig-1", "slice@example.com", "slice2@example.com",
 		"struct@x.io", "nested@x.io", "ptr@x.io", base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{0xfb}, 64)),
 		"AAAAAAAAAAAA", "[1,2,3",
 	} {
 		if strings.Contains(buf.String(), secret) {
 			t.Errorf("output leaks %q", secret)
+		}
+	}
+	for _, evidence := range []string{`"idempotency_key":"idem-1"`, `"Idempotency-Key":"idem-2"`, `"api_key":"***"`} {
+		if !strings.Contains(buf.String(), evidence) {
+			t.Errorf("output lacks %s", evidence)
 		}
 	}
 }
