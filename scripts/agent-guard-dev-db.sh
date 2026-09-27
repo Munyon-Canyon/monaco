@@ -4,7 +4,11 @@
 # and shows stderr to the agent.
 set -euo pipefail
 
-cmd="$(jq -r '.tool_input.command // empty')"
+if command -v jq >/dev/null 2>&1; then
+  cmd="$(jq -r '.tool_input.command // empty')"
+else
+  cmd="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("tool_input",{}).get("command",""))')"
+fi
 [[ -z "$cmd" ]] && exit 0
 
 lower="$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')"
