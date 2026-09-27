@@ -44,6 +44,9 @@ jobs:
       - name: No bare go statements outside platform and cmd
         run: go run ./internal/platform/lint/nogo/cmd/nogo ./...
 
+      - name: No comments in hand-written Go
+        run: go run ./cmd/monacoctl lint comments
+
       - name: Generated depguard rules are fresh
         run: go generate ./... && git diff --exit-code .golangci.yml
 

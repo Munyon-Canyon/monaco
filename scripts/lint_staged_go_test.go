@@ -23,15 +23,34 @@ func backendRepoWithHook(t *testing.T) string {
 		"apps/backend/go.mod",
 		"apps/backend/.golangci.yml",
 		"apps/backend/go.sum",
-		"apps/backend/internal/platform/lint/nogo/nogo.go",
-		"apps/backend/internal/platform/lint/nogo/cmd/nogo/main.go",
 	} {
 		copyFile(t, filepath.Join(root, rel), filepath.Join(dir, rel))
 	}
+	copyBackendPackages(t, root, dir, "./internal/platform/lint/nogo/cmd/nogo", "./cmd/monacoctl")
 	git(t, dir, "init", "-q")
 	git(t, dir, "add", ".")
 	git(t, dir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "base")
 	return dir
+}
+
+func copyBackendPackages(t *testing.T, root, dir string, pkgs ...string) {
+	t.Helper()
+	backend := filepath.Join(root, "apps/backend")
+	args := append([]string{"list", "-deps", "-f", `{{if .Module}}{{range .GoFiles}}{{$.Dir}}/{{.}}
+{{end}}{{end}}`}, pkgs...)
+	cmd := exec.Command("go", args...)
+	cmd.Dir = backend
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("go list: %v", err)
+	}
+	for _, file := range strings.Fields(string(out)) {
+		rel, err := filepath.Rel(backend, file)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			continue
+		}
+		copyFile(t, file, filepath.Join(dir, "apps/backend", rel))
+	}
 }
 
 func copyFile(t *testing.T, from, to string) {
@@ -107,5 +126,17 @@ func TestLintStagedGo_blocksABareGoStatementInAModule(t *testing.T) {
 	}
 	if !strings.Contains(out, "bare go statement") {
 		t.Fatalf("expected a nogo finding, out=%s", out)
+	}
+}
+
+func TestLintStagedGo_blocksACommentInAStagedFile(t *testing.T) {
+	dir := backendRepoWithHook(t)
+	out, err := stageAndLint(t, dir, "internal/modules/foo/two.go",
+		"package foo\n\nfunc Two() int {\n\treturn 2 // hi\n}\n")
+	if err == nil {
+		t.Fatalf("expected the hook to block, out=%s", out)
+	}
+	if !strings.Contains(out, "internal/modules/foo/two.go:4: comment not allowed") {
+		t.Fatalf("expected a file:line comment finding, out=%s", out)
 	}
 }
