@@ -20,12 +20,14 @@ var (
 	BootConfig    = Msg{Name: "boot.config", Required: []string{"service", "config"}}
 	BootListening = Msg{Name: "boot.listening", Required: []string{"service", "addr"}}
 	BootStopped   = Msg{Name: "boot.stopped", Required: []string{"service", "err"}}
+	HTTPRetry     = Msg{Name: "httpclient.retry", Required: []string{"upstream", "attempt", "status", "delay"}}
 )
 
 var registry = []Msg{
 	BootConfig,
 	BootListening,
 	BootStopped,
+	HTTPRetry,
 }
 
 func WithLogger(ctx context.Context, l *slog.Logger) context.Context {

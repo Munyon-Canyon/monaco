@@ -211,6 +211,9 @@ linters:
       - path: ^internal/platform/httpclient/
         linters: [forbidigo]
         text: outbound HTTP goes through platform/httpclient
+      - path: ^internal/platform/httpclient/
+        linters: [gosec]
+        text: G404|G704
       - path-except: _test\.go$
         linters: [forbidigo]
         text: tests wait on a signal
