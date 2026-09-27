@@ -51,12 +51,12 @@ func TestWriteCatalog_printsTheRegistrySortedByName(t *testing.T) {
 		"| `boot.stopped` | `service`, `err` |\n" +
 		"| `bus.consume_error` | `consumer`, `err` |\n" +
 		"| `bus.deadletter_dropped` | `consumer`, `msg_id`, `err` |\n" +
-		"| `bus.dispatched` | `consumer`, `handler`, `subject`, `outcome`, `code`, `delivery` |\n" +
+		"| `bus.dispatched` | `handler`, `subject`, `outcome`, `code` |\n" +
 		"| `bus.relay.failed` | `code`, `err` |\n" +
 		"| `bus.relay.idle` |  |\n" +
 		"| `bus.relay.publish_failed` | `code`, `err` |\n" +
 		"| `bus.relay.tick` | `count`, `first_id`, `last_id` |\n" +
-		"| `bus.respond_failed` | `consumer`, `verdict`, `err` |\n" +
+		"| `bus.respond_failed` | `verdict`, `err` |\n" +
 		"| `db.lock.lost` | `lock`, `held`, `err` |\n" +
 		"| `http.problem` | `code`, `status`, `err`, `alert` |\n" +
 		"| `http.request` | `method`, `route`, `status`, `duration_ms` |\n" +

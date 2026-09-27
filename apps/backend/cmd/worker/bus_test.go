@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
@@ -170,4 +172,52 @@ func TestStartRelay_wakesOnACommitThroughTheSharedUnitOfWork(t *testing.T) {
 		t.Fatalf("stream holds %d messages after a commit with the clock frozen, want 1 published on the wake",
 			info.State.Msgs)
 	}
+}
+
+func TestStartConsumers_deliversAPublishedEventToARegisteredHandler(t *testing.T) {
+	t.Parallel()
+	b := testkit.NATS(t)
+	pool := testkit.DB(t)
+	clk := testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
+	uow := db.New(pool, ids.Real{}, clk)
+	logs := &testkit.Logs{}
+	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
+	received := make(chan uuid.UUID, 1)
+	handler := bus.Handle("worker.echo", func(_ context.Context, _ db.Tx, e events.SystemPinged) error {
+		received <- e.PingID
+		return nil
+	})
+
+	stopConsumers, err := startConsumers(ctx, b.Conn, uow, clk,
+		[]bus.Consumer{{Durable: "worker", Handlers: []bus.HandlerSpec{handler}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(stopConsumers)
+	stopRelay, err := startRelay(ctx, b.Conn, pool, uow, clk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := stopRelay(); err != nil {
+			t.Error(err)
+		}
+	})
+
+	pingID := ids.Real{}.NewV7()
+	err = uow.Do(observability.WithActor(ctx, "system:test"), func(ctx context.Context, tx db.Tx) error {
+		return tx.Events.Append(ctx, events.SystemPinged{V: 1, PingID: pingID, Note: "boot"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-received:
+		if got != pingID {
+			t.Fatalf("handler received ping %s, want %s", got, pingID)
+		}
+	case <-time.After(20 * time.Second):
+		t.Fatal("the registered handler did not receive the published event within 20s")
+	}
+	waitUntil(t, "the delivery to be acked and logged", func() bool { return hasLine(logs, "bus.dispatched") })
 }

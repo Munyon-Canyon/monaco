@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -13,6 +14,8 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -84,6 +87,12 @@ type Registry struct {
 	clock     clock.Clock
 	consumers map[string]Consumer
 	ackWait   time.Duration
+	durations metric.Float64Histogram
+	gauges    consumerGauges
+}
+
+type consumerGauges struct {
+	pending, ackPending, deadLetters metric.Int64ObservableGauge
 }
 
 type RegistryOption func(*Registry)
@@ -94,10 +103,32 @@ func WithAckWait(d time.Duration) RegistryOption {
 
 func NewRegistry(
 	conn *Conn, uow *db.UnitOfWork, clk clock.Clock, consumers []Consumer, opts ...RegistryOption,
-) *Registry {
+) (*Registry, error) {
+	const op = "bus.NewRegistry"
 	r := &Registry{conn: conn, uow: uow, clock: clk, consumers: make(map[string]Consumer, len(consumers))}
 	for _, opt := range opts {
 		opt(r)
+	}
+	var err error
+	r.durations, err = conn.meter.Float64Histogram("monaco_bus_handler_duration_seconds",
+		metric.WithUnit("s"), metric.WithDescription("Handler wall time per outcome."))
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	for _, g := range []struct {
+		dst  *metric.Int64ObservableGauge
+		name string
+		unit string
+		desc string
+	}{
+		{&r.gauges.pending, "monaco_bus_consumer_pending", "{message}", "Messages not yet delivered to the consumer."},
+		{&r.gauges.ackPending, "monaco_bus_consumer_ack_pending", "{message}", "Messages delivered and not yet acked."},
+		{&r.gauges.deadLetters, "monaco_dead_letters", "{message}", "Messages in DEADLETTER per consumer."},
+	} {
+		*g.dst, err = conn.meter.Int64ObservableGauge(g.name, metric.WithUnit(g.unit), metric.WithDescription(g.desc))
+		if err != nil {
+			return nil, errs.Wrap(err, errs.CodeInternal, op)
+		}
 	}
 	handlers := map[string]struct{}{}
 	for _, c := range consumers {
@@ -112,7 +143,7 @@ func NewRegistry(
 		}
 		r.consumers[c.Durable] = c
 	}
-	return r
+	return r, nil
 }
 
 func backOff() []time.Duration {
@@ -151,8 +182,13 @@ func (r *Registry) Start(ctx context.Context) (func(), error) {
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeUpstreamUnavailable, op)
 	}
+	started := map[string]jetstream.Consumer{}
+	var unregister func() error
 	stop := func() {
 		_ = advisories.Unsubscribe()
+		if unregister != nil {
+			_ = unregister()
+		}
 		for _, cc := range contexts {
 			cc.Stop()
 			<-cc.Closed()
@@ -166,6 +202,7 @@ func (r *Registry) Start(ctx context.Context) (func(), error) {
 			stop()
 			return nil, errs.Wrap(err, errs.CodeUpstreamUnavailable, op, attrs...)
 		}
+		started[durable] = cons
 		cc, err := cons.Consume(
 			func(msg jetstream.Msg) { r.Dispatch(ctx, durable, msg) },
 			jetstream.ConsumeErrHandler(
@@ -178,7 +215,42 @@ func (r *Registry) Start(ctx context.Context) (func(), error) {
 		}
 		contexts = append(contexts, cc)
 	}
+	reg, err := r.conn.meter.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
+		return r.observe(ctx, o, started)
+	}, r.gauges.pending, r.gauges.ackPending, r.gauges.deadLetters)
+	if err != nil {
+		stop()
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	unregister = reg.Unregister
 	return stop, nil
+}
+
+func (r *Registry) observe(ctx context.Context, o metric.Observer, started map[string]jetstream.Consumer) error {
+	const op = "bus.Registry.observe"
+	for durable, cons := range started {
+		info, err := cons.Info(ctx)
+		if err != nil {
+			return errs.Wrap(err, errs.CodeUpstreamUnavailable, op, slog.String("consumer", durable))
+		}
+		set := metric.WithAttributes(attribute.String("consumer", durable))
+		o.ObserveInt64(r.gauges.pending, int64(min(info.NumPending, math.MaxInt64)), set)
+		o.ObserveInt64(r.gauges.ackPending, int64(info.NumAckPending), set)
+	}
+	var info *jetstream.StreamInfo
+	dead, err := r.conn.js.Stream(ctx, r.conn.ns.stream(StreamDeadLetter))
+	if err == nil {
+		info, err = dead.Info(ctx, jetstream.WithSubjectFilter(r.conn.ns.subject("deadletter.>")))
+	}
+	if err != nil {
+		return errs.Wrap(err, errs.CodeUpstreamUnavailable, op)
+	}
+	for subject, n := range info.State.Subjects {
+		consumer := subject[strings.LastIndex(subject, ".")+1:]
+		o.ObserveInt64(r.gauges.deadLetters, int64(min(n, math.MaxInt64)),
+			metric.WithAttributes(attribute.String("consumer", consumer)))
+	}
+	return nil
 }
 
 func maxDeliveriesAdvisory(stream string) string {

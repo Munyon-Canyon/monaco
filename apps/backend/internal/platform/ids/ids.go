@@ -57,6 +57,8 @@ func (id ID[T]) IsZero() bool { return id.u == uuid.Nil }
 
 func (id ID[T]) String() string { return id.u.String() }
 
+func (id ID[T]) UUID() uuid.UUID { return id.u }
+
 func (id ID[T]) MarshalText() ([]byte, error) {
 	if id.IsZero() {
 		return nil, errs.New(errs.CodeInternal, "ids.ID.MarshalText")

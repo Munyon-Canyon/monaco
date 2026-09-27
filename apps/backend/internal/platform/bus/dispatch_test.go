@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -48,22 +50,26 @@ func (b *lockedBuffer) bytes() []byte {
 }
 
 type harness struct {
-	bus   testkit.Bus
-	pool  *pgxpool.Pool
-	uow   *db.UnitOfWork
-	ids   *testkit.IDs
-	clock *testkit.Clock
-	logs  *lockedBuffer
+	bus    testkit.Bus
+	pool   *pgxpool.Pool
+	uow    *db.UnitOfWork
+	ids    *testkit.IDs
+	clock  *testkit.Clock
+	logs   *lockedBuffer
+	reader *sdkmetric.ManualReader
 }
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
+	reader := sdkmetric.NewManualReader()
 	h := &harness{
-		bus:   testkit.NATS(t),
-		pool:  testkit.DB(t),
-		ids:   testkit.NewIDs(1),
-		clock: testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)),
-		logs:  &lockedBuffer{},
+		bus: testkit.NATS(t, testkit.WithBusOptions(
+			bus.WithMeterProvider(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))))),
+		pool:   testkit.DB(t),
+		ids:    testkit.NewIDs(1),
+		clock:  testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)),
+		logs:   &lockedBuffer{},
+		reader: reader,
 	}
 	h.uow = db.New(h.pool, h.ids, h.clock)
 	_, err := h.pool.Exec(t.Context(), `CREATE TABLE handled (handler text NOT NULL, event_id uuid NOT NULL)`)
@@ -81,7 +87,11 @@ func (h *harness) ctx(t *testing.T) context.Context {
 
 func (h *harness) registry(t *testing.T, consumers ...bus.Consumer) *bus.Registry {
 	t.Helper()
-	return bus.NewRegistry(h.bus.Conn, h.uow, h.clock, consumers, bus.WithAckWait(testkit.DefaultAckWait))
+	reg, err := bus.NewRegistry(h.bus.Conn, h.uow, h.clock, consumers, bus.WithAckWait(testkit.DefaultAckWait))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return reg
 }
 
 func (h *harness) recorder(name string) bus.HandlerSpec {
@@ -365,7 +375,7 @@ func TestDispatch_panicTermsWithCodePanicAndCommitsNothing(t *testing.T) {
 
 func contains(v any, want string) bool {
 	s, ok := v.(string)
-	return ok && bytes.Contains([]byte(s), []byte(want))
+	return ok && strings.Contains(s, want)
 }
 
 func TestDispatch_undecodableMessagesTermWithDecodeFailed(t *testing.T) {

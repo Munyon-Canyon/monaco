@@ -228,7 +228,7 @@ linters:
       # A fake OTel meter has to return the metric interfaces it implements.
       - path: ^internal/platform/bus/meter_test\.go$
         linters: [ireturn]
-      - path: ^internal/platform/bus/dispatch_test\.go$
+      - path: ^internal/platform/bus/(dispatch|start_internal)_test\.go$
         linters: [ireturn]
       - path: ^internal/platform/
         linters: [forbidigo]

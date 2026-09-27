@@ -5,15 +5,19 @@ import (
 	"encoding/json"
 	"log/slog"
 	"runtime/debug"
+	"time"
 
-	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability/boundary"
 )
@@ -41,6 +45,10 @@ func (r *Registry) Dispatch(ctx context.Context, durable string, msg jetstream.M
 	if !ok {
 		panic("bus: Dispatch for unregistered consumer " + durable)
 	}
+	delivery := numDelivered(msg)
+	ctx = observability.Extract(ctx, natsCarrier(msg.Headers()))
+	ctx = observability.WithConsumer(ctx, durable, delivery)
+	ctx = withKeepAlive(ctx, msg, r.clock)
 	handlers := r.route(c, msg.Subject())
 	results := make([]result, 0, len(handlers))
 	id, ev, err := r.decode(handlers, msg)
@@ -52,11 +60,51 @@ func (r *Registry) Dispatch(ctx context.Context, durable string, msg jetstream.M
 			results = append(results, failed(h.Name, err))
 		}
 	default:
+		ctx = observability.WithEventID(ctx, id)
 		for _, h := range handlers {
 			results = append(results, r.handle(ctx, h, id, ev))
 		}
 	}
-	r.respond(ctx, durable, msg, results)
+	r.respond(ctx, durable, msg, delivery, results)
+}
+
+type keepAliveKey struct{}
+
+type keepAlive struct {
+	msg   jetstream.Msg
+	clock clock.Clock
+}
+
+const keepAliveEvery = 10 * time.Second
+
+func withKeepAlive(ctx context.Context, msg jetstream.Msg, clk clock.Clock) context.Context {
+	return context.WithValue(ctx, keepAliveKey{}, keepAlive{msg: msg, clock: clk})
+}
+
+func KeepAlive(ctx context.Context) func() {
+	k, ok := ctx.Value(keepAliveKey{}).(keepAlive)
+	if !ok {
+		return func() {}
+	}
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := k.clock.NewTicker(keepAliveEvery)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C():
+				_ = k.msg.InProgress()
+			case <-stop:
+				return
+			}
+		}
+	}()
+	return func() {
+		close(stop)
+		<-done
+	}
 }
 
 func (r *Registry) route(c Consumer, subject string) []HandlerSpec {
@@ -69,25 +117,26 @@ func (r *Registry) route(c Consumer, subject string) []HandlerSpec {
 	return out
 }
 
-func (r *Registry) decode(handlers []HandlerSpec, msg jetstream.Msg) (uuid.UUID, events.Event, error) {
+func (r *Registry) decode(handlers []HandlerSpec, msg jetstream.Msg) (ids.EventID, events.Event, error) {
 	const op = "bus.Dispatch.decode"
+	var none ids.EventID
 	if len(handlers) == 0 {
-		return uuid.Nil, nil, errs.New(errs.CodeDecodeFailed, op, slog.String("subject", msg.Subject()))
+		return none, nil, errs.New(errs.CodeDecodeFailed, op, slog.String("subject", msg.Subject()))
 	}
 	raw := msg.Headers().Get(jetstream.MsgIDHeader)
-	id, err := uuid.Parse(raw)
+	id, err := ids.ParseEventID(raw)
 	if err != nil {
-		return uuid.Nil, nil, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("msg_id", raw))
+		return none, nil, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("msg_id", raw))
 	}
 	var head struct {
 		V int `json:"v"`
 	}
 	if err := json.Unmarshal(msg.Data(), &head); err != nil {
-		return uuid.Nil, nil, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("msg_id", raw))
+		return none, nil, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("msg_id", raw))
 	}
 	ev, err := events.Decode(handlers[0].typ, head.V, msg.Data())
 	if err != nil {
-		return uuid.Nil, nil, err
+		return none, nil, err
 	}
 	return id, ev, nil
 }
@@ -101,19 +150,30 @@ func failed(handler string, err error) result {
 	return res
 }
 
-func (r *Registry) handle(ctx context.Context, h HandlerSpec, id uuid.UUID, ev events.Event) result {
+func (r *Registry) handle(ctx context.Context, h HandlerSpec, id ids.EventID, ev events.Event) result {
+	began := r.clock.Now()
 	duplicate, err := r.run(ctx, h, id, ev)
+	res := result{handler: h.Name, outcome: OutcomeAck, code: deliveryOK}
 	switch {
 	case err != nil:
-		return failed(h.Name, err)
+		res = failed(h.Name, err)
 	case duplicate:
-		return result{handler: h.Name, outcome: OutcomeDuplicate, code: deliveryOK}
-	default:
-		return result{handler: h.Name, outcome: OutcomeAck, code: deliveryOK}
+		res.outcome = OutcomeDuplicate
 	}
+	r.durations.Record(ctx, r.clock.Now().Sub(began).Seconds(), metric.WithAttributes(
+		attribute.String("consumer", observability.ConsumerFrom(ctx)),
+		attribute.String("subject", h.typ.Subject()),
+		attribute.String("outcome", string(res.outcome)),
+	))
+	return res
 }
 
-func (r *Registry) run(ctx context.Context, h HandlerSpec, id uuid.UUID, ev events.Event) (duplicate bool, err error) {
+func (r *Registry) run(
+	ctx context.Context,
+	h HandlerSpec,
+	id ids.EventID,
+	ev events.Event,
+) (duplicate bool, err error) {
 	defer func() {
 		if p := recover(); p != nil {
 			err = errs.New(errs.CodePanic, "bus.Dispatch",
@@ -122,7 +182,7 @@ func (r *Registry) run(ctx context.Context, h HandlerSpec, id uuid.UUID, ev even
 	}()
 	err = r.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		inserted, err := sqlc.New(tx.Queries()).InsertDelivery(ctx, sqlc.InsertDeliveryParams{
-			Handler: h.Name, EventID: id, Code: deliveryOK, HandledAt: r.clock.Now(),
+			Handler: h.Name, EventID: id.UUID(), Code: deliveryOK, HandledAt: r.clock.Now(),
 		})
 		if err != nil {
 			return err
@@ -149,12 +209,13 @@ type deadLetter struct {
 	Advisory json.RawMessage `json:"advisory,omitempty"`
 }
 
-func (r *Registry) respond(ctx context.Context, durable string, msg jetstream.Msg, results []result) {
-	delivery := numDelivered(msg)
+func (r *Registry) respond(
+	ctx context.Context, durable string, msg jetstream.Msg, delivery uint64, results []result,
+) {
 	verdict := OutcomeAck
 	code := ""
 	for _, res := range results {
-		r.log(ctx, durable, msg.Subject(), delivery, res)
+		r.log(ctx, msg.Subject(), res)
 		switch {
 		case res.outcome == OutcomeNak:
 			verdict, code = OutcomeNak, res.code
@@ -177,8 +238,12 @@ func (r *Registry) respond(ctx context.Context, durable string, msg jetstream.Ms
 		err = msg.Ack()
 	}
 	if err != nil {
-		boundary.Error(ctx, observability.BusRespondFailed,
-			slog.String("consumer", durable), slog.String("verdict", string(verdict)), slog.Any("err", err))
+		boundary.Error(
+			ctx,
+			observability.BusRespondFailed,
+			slog.String("verdict", string(verdict)),
+			slog.Any("err", err),
+		)
 	}
 }
 
@@ -209,24 +274,21 @@ func numDelivered(msg jetstream.Msg) uint64 {
 	return meta.NumDelivered
 }
 
-func (r *Registry) log(ctx context.Context, durable, subject string, delivery uint64, res result) {
+func (r *Registry) log(ctx context.Context, subject string, res result) {
 	switch res.outcome {
 	case OutcomeTerm:
 		boundary.Error(ctx, observability.BusDispatched,
-			slog.String("consumer", durable), slog.String("handler", res.handler), slog.String("subject", subject),
+			slog.String("handler", res.handler), slog.String("subject", subject),
 			slog.String("outcome", string(res.outcome)), slog.String("code", res.code),
-			slog.Uint64("delivery", delivery),
 			slog.Any("err", res.err), slog.Bool("alert", errs.Alert(errs.Code(res.code))))
 	case OutcomeNak:
 		boundary.Warn(ctx, observability.BusDispatched,
-			slog.String("consumer", durable), slog.String("handler", res.handler), slog.String("subject", subject),
+			slog.String("handler", res.handler), slog.String("subject", subject),
 			slog.String("outcome", string(res.outcome)), slog.String("code", res.code),
-			slog.Uint64("delivery", delivery),
 			slog.Any("err", res.err))
 	case OutcomeAck, OutcomeDuplicate:
 		observability.Info(ctx, observability.BusDispatched,
-			slog.String("consumer", durable), slog.String("handler", res.handler), slog.String("subject", subject),
-			slog.String("outcome", string(res.outcome)), slog.String("code", res.code),
-			slog.Uint64("delivery", delivery))
+			slog.String("handler", res.handler), slog.String("subject", subject),
+			slog.String("outcome", string(res.outcome)), slog.String("code", res.code))
 	}
 }

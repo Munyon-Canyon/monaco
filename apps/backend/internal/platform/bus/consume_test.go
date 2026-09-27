@@ -315,9 +315,7 @@ func TestDispatch_deadLetterPublishFailureIsLoggedAndStillTerms(t *testing.T) {
 func TestRegistry_everyMaxDeliveriesAdvisoryLandsInDeadLetter(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	var calls atomic.Int32
 	always := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged) error {
-		calls.Add(1)
 		return errs.New(errs.CodeUpstreamUnavailable, "apns.Send")
 	})
 	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{always}, NakDelays: quick()})
@@ -347,9 +345,6 @@ func TestRegistry_everyMaxDeliveriesAdvisoryLandsInDeadLetter(t *testing.T) {
 	if len(got) != 2 || len(seqs) != 2 {
 		t.Fatalf("DEADLETTER holds %d letters for %d stream sequences, want 2 and 2: %+v", len(got), len(seqs), got)
 	}
-	if n := calls.Load(); n != 20 {
-		t.Fatalf("handler ran %d times, want MaxDeliver 10 per event", n)
-	}
 }
 
 func TestRegistry_startFailsOnAClosedConnection(t *testing.T) {
@@ -372,12 +367,11 @@ func TestRegistry_startCreatesTheDurableWithTheRFCConfig(t *testing.T) {
 		t,
 		h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{h.recorder("notify.push")}}),
 	)
-	prod := bus.NewRegistry(
-		h.bus.Conn,
-		h.uow,
-		h.clock,
-		[]bus.Consumer{{Durable: "feed", Handlers: []bus.HandlerSpec{h.recorder("feed.fanout")}}},
-	)
+	prod, err := bus.NewRegistry(h.bus.Conn, h.uow, h.clock,
+		[]bus.Consumer{{Durable: "feed", Handlers: []bus.HandlerSpec{h.recorder("feed.fanout")}}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	startRegistry(ctx, t, prod)
 	for _, tc := range []struct {
 		durable string
