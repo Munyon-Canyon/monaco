@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Compare two `go test -bench` outputs with benchstat and fail on any metric that got more than
-# 10% worse with p < 0.05. docs/architecture/backend-platform.md#ci-gates
-#
-#   scripts/ci/bench-regressions.sh <old.txt> <new.txt>
 set -euo pipefail
 
 old="${1:?usage: bench-regressions.sh <old.txt> <new.txt>}"

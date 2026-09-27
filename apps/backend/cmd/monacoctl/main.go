@@ -26,12 +26,12 @@ func tools(environ []string) map[string]tool {
 	return map[string]tool{
 		"bench":       bench{"go"}.run,
 		"bus":         busTool(environ),
-		"coverage":    coverageTool("."),
+		"coverage":    coverageEnv{moduleDir: ".", goBin: "go", tmpDir: os.TempDir()}.run,
 		"docs":        docs,
 		"flows":       flowsCmd,
 		"gen":         gen,
 		"migrate":     migrateTool(atlas{"../../.bin/atlas", ".atlas-version"}, environ),
-		"mutation":    mutationTool(mutationEnv{moduleDir: ".", gremlins: "gremlins"}),
+		"mutation":    mutationTool(mutationEnv{moduleDir: ".", gremlins: "gremlins", tmpDir: os.TempDir()}),
 		"test-report": testReportCmd,
 		"lint": func(args []string, stdout, stderr io.Writer) int {
 			return run(nil, map[string]tool{"comments": comments.Run}, nil, args, stdout, stderr)

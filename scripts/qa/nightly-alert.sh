@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # Turn a nightly QA result into one GitHub issue labelled nightly-failure.
 #
-#   QA_RESULT=failure|success  RUN_URL=...  [NIGHT_RESULT=...] [BACKEND_RESULT=...]
+#   NIGHTLY_RESULT=failure|success  RUN_URL=...  [QA_JOB_RESULT=...] [BACKEND_RESULT=...]
 #     scripts/qa/nightly-alert.sh [<qa output dir>]
 #
 # failure: comment on the open nightly-failure issue, or open one when there is none.
 # success: comment that main recovered and close the open issue, if any.
 # The message links the run, names the failing night.sh steps (failures.tsv) and quotes the
-# first failing lines from report.md. QA_RESULT is the whole night; NIGHT_RESULT and BACKEND_RESULT
-# say which of night.sh and the backend unbounded suites failed. DRY_RUN=1 prints what it would do and writes nothing.
+# first failing lines from report.md. DRY_RUN=1 prints what it would do and writes nothing.
 # Needs gh with GH_TOKEN (issues: write) and GITHUB_REPOSITORY.
 set -euo pipefail
 
-result="${QA_RESULT:?QA_RESULT must be success or failure}"
+result="${NIGHTLY_RESULT:?NIGHTLY_RESULT must be success or failure}"
+qa_job_result="${QA_JOB_RESULT:-$result}"
 run_url="${RUN_URL:?RUN_URL must be set}"
 repo="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY must be set}"
 sha="${GITHUB_SHA:-unknown}"
@@ -39,7 +39,7 @@ failure_body() {
     echo "The backend unbounded suites failed (100k rapid, fuzz, seed sweep, mutation or benchstat). See the backend job log."
     echo
   fi
-  if [[ "${NIGHT_RESULT:-failure}" != failure ]]; then
+  if [[ "$qa_job_result" != failure ]]; then
     return
   fi
   if [[ -n "$dir" && -f "$failures" ]]; then
@@ -91,7 +91,7 @@ case "$result" in
     fi
     ;;
   *)
-    echo "QA_RESULT must be success or failure, not '$result'" >&2
+    echo "NIGHTLY_RESULT must be success or failure, not '$result'" >&2
     exit 2
     ;;
 esac

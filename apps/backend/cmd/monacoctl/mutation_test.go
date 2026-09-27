@@ -12,18 +12,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
-const fakeGremlins = `#!/bin/sh
-out="$4"
-case "$7" in
-  ./a) status=LIVED ;;
-  ./broken) echo "gremlins exploded" >&2; exit 3 ;;
-  ./garbled) echo "not json" > "$out"; exit 0 ;;
-  ./silent) exit 0 ;;
-  *) status=KILLED ;;
-esac
-printf '{"files":[{"file_name":"x.go","mutations":[{"type":"CONDITIONALS_NEGATION","status":"%s","line":3,"column":5},{"type":"ARITHMETIC_BASE","status":"NOT COVERED","line":4,"column":2}]}]}' "$status" > "$out"
-`
-
 func mutationModule(t *testing.T, allow string, extraPkgs ...string) mutationEnv {
 	t.Helper()
 	dir := t.TempDir()
@@ -35,7 +23,6 @@ func mutationModule(t *testing.T, allow string, extraPkgs ...string) mutationEnv
 		"b/x.go":           "package b\n\nimport \"example.com/m/a\"\n\nfunc B() int { return a.A() }\n",
 		"c/x.go":           "package c\n\nfunc C() int { return 3 }\n",
 		"kit/x.go":         "package kit\n\nimport \"example.com/m/a\"\n\nfunc K() int { return a.A() }\n",
-		"gremlins":         fakeGremlins,
 		"a/testdata/x.txt": "fixture\n",
 	}
 	for _, p := range extraPkgs {
@@ -52,14 +39,15 @@ func mutationModule(t *testing.T, allow string, extraPkgs ...string) mutationEnv
 			t.Fatal(err)
 		}
 	}
-	if err := os.Chmod(filepath.Join(dir, "gremlins"), 0o700); err != nil {
-		t.Fatal(err)
-	}
 	git(t, dir, "init", "-q", "-b", "main")
 	git(t, dir, "add", ".")
 	git(t, dir, "commit", "-q", "-m", "base")
 	git(t, dir, "checkout", "-q", "-b", "feature")
-	return mutationEnv{moduleDir: dir, gremlins: filepath.Join(dir, "gremlins")}
+	gremlins, err := filepath.Abs(filepath.Join("testdata", "gremlins"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return mutationEnv{moduleDir: dir, gremlins: gremlins, tmpDir: t.TempDir()}
 }
 
 func git(t *testing.T, dir string, args ...string) {
@@ -133,6 +121,7 @@ func TestMutationReportsBrokenInputs(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, allow, pkg, change, body, remove string
+		noTmp                                  bool
 		args                                   []string
 		want                                   string
 	}{
@@ -145,24 +134,12 @@ func TestMutationReportsBrokenInputs(t *testing.T) {
 		{name: "go list fails", change: "c/x.go", body: "package c\n\nimport \"example.com/m/missing\"\n", want: "monacoctl.goList: internal"},
 		{name: "unknown base", args: []string{"--base", "nope"}, want: "monacoctl.changedFiles: internal"},
 		{name: "gremlins fails", pkg: "broken", want: "gremlins exploded"},
+		{name: "no temp dir for the report", pkg: "broken", noTmp: true, want: "monacoctl.unleash: internal: open"},
 		{name: "gremlins writes garbage", pkg: "garbled", want: "monacoctl.unleash: decode_failed"},
-		{name: "gremlins writes nothing", pkg: "silent", want: "monacoctl.unleash: internal: open"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			var env mutationEnv
-			if tc.pkg != "" {
-				env = mutationModule(t, tc.allow, tc.pkg)
-				commitFile(t, env, tc.pkg+"/x_test.go", "package "+tc.pkg+"\n")
-			} else {
-				env = mutationModule(t, tc.allow)
-			}
-			if tc.change != "" {
-				commitFile(t, env, tc.change, tc.body)
-			}
-			if tc.remove != "" {
-				removeFile(t, env, tc.remove)
-			}
+			env := brokenModule(t, tc.allow, tc.pkg, tc.change, tc.body, tc.remove, tc.noTmp)
 			var stdout, stderr bytes.Buffer
 			code := mutationTool(env)(tc.args, &stdout, &stderr)
 			if code != 1 || !strings.Contains(stderr.String(), tc.want) {
@@ -170,6 +147,44 @@ func TestMutationReportsBrokenInputs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMutationTreatsAMissingReportAsNoMutants(t *testing.T) {
+	t.Parallel()
+	env := mutationModule(t, "", "silent")
+	commitFile(t, env, "silent/x_test.go", "package silent\n")
+	var stdout, stderr bytes.Buffer
+	if code := mutationTool(
+		env,
+	)(
+		nil,
+		&stdout,
+		&stderr,
+	); code != 0 ||
+		stdout.String() != "mutating 1 packages: silent\n" {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
+func brokenModule(t *testing.T, allow, pkg, change, body, remove string, noTmp bool) mutationEnv {
+	t.Helper()
+	var env mutationEnv
+	if pkg != "" {
+		env = mutationModule(t, allow, pkg)
+		commitFile(t, env, pkg+"/x_test.go", "package "+pkg+"\n")
+	} else {
+		env = mutationModule(t, allow)
+	}
+	if change != "" {
+		commitFile(t, env, change, body)
+	}
+	if remove != "" {
+		removeFile(t, env, remove)
+	}
+	if noTmp {
+		env.tmpDir = filepath.Join(env.tmpDir, "missing")
+	}
+	return env
 }
 
 func removeFile(t *testing.T, env mutationEnv, name string) {

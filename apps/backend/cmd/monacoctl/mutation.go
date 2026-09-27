@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
@@ -26,6 +27,7 @@ const (
 type mutationEnv struct {
 	moduleDir string
 	gremlins  string
+	tmpDir    string
 }
 
 type listedPackage struct {
@@ -167,19 +169,21 @@ func affectedPackages(pkgs []listedPackage, changed []string, all bool, exclude 
 
 func (env mutationEnv) unleash(ctx context.Context, dir string) (gremlinsReport, error) {
 	const op = "monacoctl.unleash"
-	out := filepath.Join(
-		os.TempDir(),
-		fmt.Sprintf("gremlins-%d-%s.json", os.Getpid(), strings.ReplaceAll(dir, "/", "_")),
-	)
+	file, err := os.CreateTemp(env.tmpDir, "gremlins-*.json")
+	if err != nil {
+		return gremlinsReport{}, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	out := file.Name()
+	_ = file.Close()
 	defer func() { _ = os.Remove(out) }()
 	cmd := env.command(ctx, env.gremlins, "unleash", "--silent", "--output", out,
 		"--exclude-files", `\.gen\.go$`, "./"+dir)
 	if msg, err := cmd.CombinedOutput(); err != nil {
-		return gremlinsReport{}, errs.Wrap(fmt.Errorf("%w: %s", err, msg), errs.CodeInternal, op)
+		return gremlinsReport{}, errs.Wrap(fmt.Errorf("%w: %s", err, bytes.TrimSpace(msg)), errs.CodeInternal, op)
 	}
-	data, err := os.ReadFile(out)
-	if err != nil {
-		return gremlinsReport{}, errs.Wrap(err, errs.CodeInternal, op)
+	data, _ := os.ReadFile(out)
+	if len(bytes.TrimSpace(data)) == 0 {
+		return gremlinsReport{}, nil
 	}
 	var report gremlinsReport
 	if err := json.Unmarshal(data, &report); err != nil {

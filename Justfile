@@ -92,7 +92,6 @@ test app:
         fi
         ;;
       mutation)
-        # gremlins on the packages the diff against main touches and their dependents; --all for every package.
         (cd apps/backend && go run ./cmd/monacoctl mutation ${MUTATION_ARGS:-})
         ;;
       mobile)

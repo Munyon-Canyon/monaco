@@ -154,7 +154,6 @@ jobs:
             ~/.cache/go-build
           key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-${{ github.sha }}
 
-  # The unbounded suites from docs/architecture/backend-platform.md#testing. Never on PRs: it runs for hours.
   backend:
     name: Backend unbounded suites (100k rapid, fuzz, seed sweep, mutation, benchstat)
     needs: changed
@@ -238,8 +237,8 @@ jobs:
       - name: Update the nightly-failure issue
         env:
           GH_TOKEN: ${{ github.token }}
-          QA_RESULT: ${{ (needs.qa.result == 'failure' || needs.backend.result == 'failure') && 'failure' || 'success' }}
-          NIGHT_RESULT: ${{ needs.qa.result }}
+          NIGHTLY_RESULT: ${{ (needs.qa.result == 'failure' || needs.backend.result == 'failure') && 'failure' || 'success' }}
+          QA_JOB_RESULT: ${{ needs.qa.result }}
           BACKEND_RESULT: ${{ needs.backend.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           # Only the scheduled run, or a manual run on main, speaks for main.

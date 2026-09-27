@@ -108,9 +108,8 @@ jobs:
       - name: Race tests, the time budget and the flows.tsv check
         run: ../../scripts/test-backend.sh
 
-      # These build and run other binaries, so -short skips them in the 60 s suite.
-      - name: Lint rules and testkit fixtures that run other binaries
-        run: go test -race ./internal/platform/lint/... ./internal/testkit/...
+      - name: Tests that -short skips because they build or run other binaries
+        run: go test -race ./internal/platform/lint/... ./internal/testkit/... ./cmd/monacoctl
 
   mobile-core:
     needs: plan

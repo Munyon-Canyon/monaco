@@ -20,15 +20,17 @@ fi
 
 status=0
 start="$(date +%s)"
-summary='select((.Action == "output" and .Test == null and (.Output | test("^(PASS|-test\\.shuffle )") | not))
+summary='select((.Action == "output" and .Test == null and (.Output | test("^(PASS|-test\\.shuffle |coverage: )") | not))
   or .Action == "build-output") | .Output'
 go test -json -race -shuffle=on -short -coverpkg=./... -coverprofile="$cover" "$@" ./... | tee "$json" | jq -rj --unbuffered "$summary" || status=1
 
 # -race makes sync.Pool drop items at random, so allocation baselines run in a second pass without it.
-allocs="$(find . -name allocs_test.go -not -path '*/testdata/*' -exec dirname {} \; | sort -u | tr '\n' ' ')"
-if [[ -n "$allocs" ]]; then
-  # shellcheck disable=SC2086
-  go test -json -short -run '^TestAllocs' $allocs | tee -a "$json" | jq -rj --unbuffered "$summary" || status=1
+allocs=()
+while IFS= read -r dir; do
+  allocs+=("$dir")
+done < <(find . -name allocs_test.go -not -path '*/testdata/*' -exec dirname {} \; | sort -u)
+if [[ "${#allocs[@]}" -gt 0 ]]; then
+  go test -json -short -run '^TestAllocs' "${allocs[@]}" | tee -a "$json" | jq -rj --unbuffered "$summary" || status=1
 fi
 
 if [[ "$status" -ne 0 ]]; then

@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# The unbounded backend suites from docs/architecture/backend-platform.md#testing that stay out of
-# `just test backend`: 100,000 rapid cases, -fuzz per target, the tests -short skips, a seed sweep,
-# full-module mutation and benchmarks compared against the previous night. Every suite runs even
-# when an earlier one fails; the exit status is 1 if any failed.
-#
-#   OUT=<dir> [PREV_BENCH=<bench.txt>] [FUZZTIME=10m] [SWEEP=20] scripts/ci/nightly-backend.sh
-# Needs the tmpfs test Postgres up (docker compose --profile test up -d --wait postgres-test).
 set -uo pipefail
 
 out="${OUT:?OUT must name a directory for logs and bench.txt}"
@@ -53,8 +46,11 @@ fuzz_all() {
   return "$status"
 }
 
-# shellcheck disable=SC2046
-step rapid env RAPID_CHECKS=100000 go test -timeout 60m $(rapid_packages)
+rapid=()
+while IFS= read -r pkg; do
+  rapid+=("$pkg")
+done < <(rapid_packages)
+step rapid env RAPID_CHECKS=100000 go test -timeout 60m "${rapid[@]}"
 step fuzz fuzz_all
 step long go test -race -shuffle=on -timeout 60m ./...
 step seed-sweep go test -race -shuffle=on -short -count="$sweep" -timeout 60m ./...

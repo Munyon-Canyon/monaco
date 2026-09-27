@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -41,11 +42,11 @@ func (d *dirList) Set(v string) error {
 	return nil
 }
 
-func coverageTool(moduleDir string) tool {
-	return func(args []string, stdout, stderr io.Writer) int { return coverageCmd(moduleDir, args, stdout, stderr) }
+type coverageEnv struct {
+	moduleDir, goBin, tmpDir string
 }
 
-func coverageCmd(moduleDir string, args []string, stdout, stderr io.Writer) int {
+func (env coverageEnv) run(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("coverage", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	profile := fs.String("profile", "", "")
@@ -57,15 +58,15 @@ func coverageCmd(moduleDir string, args []string, stdout, stderr io.Writer) int 
 	}
 	profiles := []string{*profile}
 	if len(covdirs) > 0 {
-		text := filepath.Join(os.TempDir(), fmt.Sprintf("monacoctl-covdata-%d.out", os.Getpid()))
+		text, err := env.covdataText(context.Background(), covdirs)
 		defer func() { _ = os.Remove(text) }()
-		if err := covdataText(context.Background(), covdirs, text); err != nil {
+		if err != nil {
 			_, _ = fmt.Fprintf(stderr, "monacoctl coverage: %v\n", err)
 			return 1
 		}
 		profiles = append(profiles, text)
 	}
-	missed, err := checkCoverage(moduleDir, profiles, stdout)
+	missed, err := checkCoverage(env.moduleDir, profiles, stdout)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "monacoctl coverage: %v\n", err)
 		return 1
@@ -77,12 +78,26 @@ func coverageCmd(moduleDir string, args []string, stdout, stderr io.Writer) int 
 	return 0
 }
 
-func covdataText(ctx context.Context, dirs []string, out string) error {
-	cmd := exec.CommandContext(ctx, "go", "tool", "covdata", "textfmt", "-i="+strings.Join(dirs, ","), "-o="+out)
-	if msg, err := cmd.CombinedOutput(); err != nil {
-		return errs.Wrap(fmt.Errorf("%w: %s", err, msg), errs.CodeInternal, "monacoctl.covdataText")
+func (env coverageEnv) covdataText(ctx context.Context, dirs []string) (string, error) {
+	const op = "monacoctl.covdataText"
+	file, err := os.CreateTemp(env.tmpDir, "covdata-*.out")
+	if err != nil {
+		return "", errs.Wrap(err, errs.CodeInternal, op)
 	}
-	return nil
+	_ = file.Close()
+	cmd := exec.CommandContext(
+		ctx,
+		env.goBin,
+		"tool",
+		"covdata",
+		"textfmt",
+		"-i="+strings.Join(dirs, ","),
+		"-o="+file.Name(),
+	)
+	if msg, err := cmd.CombinedOutput(); err != nil {
+		return file.Name(), errs.Wrap(fmt.Errorf("%w: %s", err, bytes.TrimSpace(msg)), errs.CodeInternal, op)
+	}
+	return file.Name(), nil
 }
 
 func checkCoverage(moduleDir string, profiles []string, stdout io.Writer) (int, error) {

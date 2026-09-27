@@ -181,20 +181,54 @@ func TestCoverageCommand(t *testing.T) {
 			1, "",
 			"monacoctl coverage: monacoctl.readProfile: internal: open " + filepath.Join(dir, "gone.out") + ": no such file or directory\n",
 		},
-		{"missing covdir", []string{"--profile", filepath.Join(dir, "full.out"), "--covdir", filepath.Join(dir, "none")}, 1, "", ""},
+		{
+			"covdir merged",
+			[]string{"--profile", filepath.Join(dir, "full.out"), "--covdir", filepath.Join(dir, "e2e")},
+			1,
+			"cmd/api/main.go:7-8: 1 statements not covered\ncoverage: 66.67% of 3 statements\n",
+			"monacoctl coverage: 1 statements uncovered, the gate is 100%\n",
+		},
+		{
+			"covdata fails",
+			[]string{"--profile", filepath.Join(dir, "full.out"), "--covdir", filepath.Join(dir, "missing")},
+			1, "",
+			"monacoctl coverage: monacoctl.covdataText: internal: exit status 1: covdata: missing input\n",
+		},
 	} {
 		var stdout, stderr bytes.Buffer
-		code := coverageTool(dir)(tc.args, &stdout, &stderr)
-		if code != tc.code || !strings.HasSuffix(stdout.String(), tc.stdout) ||
-			tc.stderr != "" &&
-				stderr.String() != tc.stderr || tc.stderr == "" && tc.code == 1 && !strings.Contains(stderr.String(), "covdataText") {
+		code := fakeGoEnv(t, dir).run(tc.args, &stdout, &stderr)
+		if code != tc.code || !strings.HasSuffix(stdout.String(), tc.stdout) || stderr.String() != tc.stderr {
 			t.Fatalf("%s: code=%d stdout=%q stderr=%q", tc.name, code, stdout.String(), stderr.String())
 		}
 	}
 }
 
+func fakeGoEnv(t *testing.T, dir string) coverageEnv {
+	t.Helper()
+	goBin, err := filepath.Abs(filepath.Join("testdata", "go-covdata"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return coverageEnv{moduleDir: dir, goBin: goBin, tmpDir: t.TempDir()}
+}
+
+func TestCoverageReportsATempDirItCannotWrite(t *testing.T) {
+	t.Parallel()
+	dir := coverDir(t, map[string]string{"full.out": "mode: set\n"})
+	env := fakeGoEnv(t, dir)
+	env.tmpDir = filepath.Join(env.tmpDir, "missing")
+	var stdout, stderr bytes.Buffer
+	code := env.run([]string{"--profile", filepath.Join(dir, "full.out"), "--covdir", dir}, &stdout, &stderr)
+	if code != 1 || !strings.HasPrefix(stderr.String(), "monacoctl coverage: monacoctl.covdataText: internal: open ") {
+		t.Fatalf("code=%d stderr=%q", code, stderr.String())
+	}
+}
+
 func TestCoverageMergesACoverBinarysGOCOVERDIR(t *testing.T) {
 	t.Parallel()
+	if testing.Short() {
+		t.Skip("builds a -cover binary; CI runs it without -short, outside the 10 s package budget")
+	}
 	tmp := t.TempDir()
 	bin, covdir := filepath.Join(tmp, "covered"), filepath.Join(tmp, "covdata")
 	if err := os.Mkdir(covdir, 0o700); err != nil {
@@ -211,9 +245,7 @@ func TestCoverageMergesACoverBinarysGOCOVERDIR(t *testing.T) {
 	}
 	dir := coverDir(t, map[string]string{"unit.out": "mode: set\n"})
 	var stdout, stderr bytes.Buffer
-	code := coverageTool(
-		dir,
-	)(
+	code := coverageEnv{moduleDir: dir, goBin: "go", tmpDir: t.TempDir()}.run(
 		[]string{"--profile", filepath.Join(dir, "unit.out"), "--covdir", covdir},
 		&stdout,
 		&stderr,
