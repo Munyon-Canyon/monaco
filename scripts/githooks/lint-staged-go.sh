@@ -25,3 +25,7 @@ if ! golangci-lint run --new-from-rev=HEAD "${pkgs[@]}"; then
   echo "pre-commit: golangci-lint found issues in staged apps/backend packages." >&2
   exit 1
 fi
+if ! go run ./internal/platform/lint/nogo/cmd/nogo "${pkgs[@]}"; then
+  echo "pre-commit: nogo found bare go statements in staged apps/backend packages." >&2
+  exit 1
+fi

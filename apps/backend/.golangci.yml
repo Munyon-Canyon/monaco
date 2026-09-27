@@ -3,6 +3,10 @@ run:
   timeout: 5m
   tests: true
   relative-path-mode: gomod
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  uniq-by-line: false
 linters:
   default: none
   enable:
@@ -89,7 +93,7 @@ linters:
           msg: platform/db, platform/bus and testkit own connections
         - pattern: '^errors\.New$'
           msg: every error carries a Code; use errs.New
-        - pattern: '^slog\.(Error|Warn)$'
+        - pattern: '^slog\.(Logger\.)?(Error|Warn)(Context)?$'
           msg: modules return errors; boundaries log them once
         - pattern: '^uuid\.(MustParse|Must)$'
           msg: fixtures take ids from the injected generator
@@ -138,11 +142,16 @@ linters:
     rules:
       - path: _test\.go$
         linters: [funlen, err113, wrapcheck]
+      - path: ^internal/platform/lint/.*_test\.go$
+        linters: [gosec]
+      - path: _test\.go$
+        linters: [forbidigo]
+        text: only main, tests and bus roots create root contexts
       - path: main_test\.go$
         linters: [gochecknoglobals]
       - path: ^cmd/
         linters: [forbidigo]
-      - path: ^internal/platform/(db|bus|httpx|observability)/
+      - path: ^internal/platform/(db|bus|httpx|observability|lint)/
         linters: [forbidigo]
       - path: ^internal/errs/
         linters: [forbidigo]
@@ -150,6 +159,8 @@ linters:
         linters: [forbidigo]
       - path: ^scripts/
         linters: [gosec, err113]
+      - path: ^internal/platform/lint/nogo/
+        linters: [nilnil]
       - path: ^internal/platform/clock/
         linters: [forbidigo]
         text: inject platform/clock\.Clock
