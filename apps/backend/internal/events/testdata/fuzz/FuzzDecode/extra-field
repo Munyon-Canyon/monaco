@@ -1,0 +1,4 @@
+go test fuzz v1
+string("system.pinged")
+int(1)
+[]byte("{\"v\":1,\"ping_id\":\"01890a5d-ac96-774b-bcce-b302099a8057\",\"note\":\"x\",\"later\":true}")

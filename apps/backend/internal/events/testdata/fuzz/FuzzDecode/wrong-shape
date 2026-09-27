@@ -1,0 +1,4 @@
+go test fuzz v1
+string("system.pinged")
+int(1)
+[]byte("[1,2,3]")
