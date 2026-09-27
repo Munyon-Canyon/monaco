@@ -55,9 +55,6 @@ func FanOut[T, R any](
 ) ([]R, error) {
 	mustPositive("FanOut", "limit", limit)
 	out := make([]R, len(items))
-	if len(items) == 0 {
-		return out, nil
-	}
 	gctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 	var next atomic.Int64
