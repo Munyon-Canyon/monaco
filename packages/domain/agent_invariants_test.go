@@ -68,6 +68,7 @@ func randomAmount(rng *rand.Rand) int64 {
 }
 
 func TestValidateIntent_randomInputs_acceptedIntentsRespectEveryLimit(t *testing.T) {
+	t.Fatal("planted failure for #456 CI proof")
 	rng := newSeededRand(t, 47)
 	statuses := []AgentStatus{AgentStatusActive, AgentStatusActive, AgentStatusActive, AgentStatusPending, AgentStatusPaused, AgentStatusRevoked, ""}
 	sides := []AgentIntentSide{AgentIntentBuy, AgentIntentSell, "hold", ""}
