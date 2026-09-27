@@ -26,10 +26,7 @@ jobs:
         working-directory: .
         run: find . -path '*/testdata/*' -exec touch -t 200001010000 {} +
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: apps/backend/go.mod
-          cache: false
+      - uses: ./.github/actions/backend-test-env
 
       - name: Read the pinned golangci-lint version
         id: golangci
@@ -55,9 +52,6 @@ jobs:
 
       - name: OpenAPI spec lint
         run: docker run --rm -v "$PWD/api:/api:ro" dshanley/vacuum:v0.30.6 lint -b -q -n warn -r /api/.vacuum.yaml /api/openapi.yaml
-
-      - name: Install the pinned atlas community build
-        run: ../../scripts/install-atlas.sh
 
       - name: Lint the latest migration
         run: go run ./cmd/monacoctl migrate lint
@@ -90,20 +84,7 @@ jobs:
           git show FETCH_HEAD:apps/backend/api/openapi.yaml > "$RUNNER_TEMP/base-openapi.yaml"
           ../../scripts/ci/oasdiff-breaking.sh "$RUNNER_TEMP/base-openapi.yaml" api/openapi.yaml
 
-      # Only the nightly warm-cache job on main saves this cache. PRs restore and never save.
-      - uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-          key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
-          restore-keys: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
-
       - run: go vet ./...
-
-      - name: Start the tmpfs test Postgres that testkit.DB clones from
-        working-directory: .
-        run: docker compose --profile test up -d --wait postgres-test
 
       - name: Race tests, the time budget and the flows.tsv check
         run: ../../scripts/test-backend.sh
@@ -127,25 +108,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: apps/backend/go.mod
-          cache: false
-
-      - uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-          key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
-          restore-keys: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
+      # The same setup as the backend job: gremlins runs each package's tests, and the ones on
+      # testkit.DB need atlas to build the template database on a fresh runner.
+      - uses: ./.github/actions/backend-test-env
 
       - name: Install the pinned gremlins
         run: ../../scripts/install-gremlins.sh
-
-      - name: Start the tmpfs test Postgres
-        working-directory: .
-        run: docker compose --profile test up -d --wait postgres-test
 
       - name: Mutants on the changed packages
         env:
@@ -185,6 +153,7 @@ jobs:
               - 'scripts/install-atlas.sh'
               - 'scripts/install-sqlc.sh'
               - 'scripts/gen-docs.sh'
+              - '.github/actions/backend-test-env/**'
               - 'docs/reference/**'
               - '.github/workflows/ci*.yml'
             backend-go:

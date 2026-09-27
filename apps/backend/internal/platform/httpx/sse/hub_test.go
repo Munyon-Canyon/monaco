@@ -275,6 +275,22 @@ func TestHub_CloseFreesTheSubscriber(t *testing.T) {
 	}
 }
 
+func TestHub_ClosingOneConnectionKeepsTheUsersOtherConnectionRouted(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	phone := f.user(t)
+	first, second := f.register(t, phone), f.register(t, phone)
+
+	first.Close()
+	f.deliver(t, userHint(phone, "balance"), "global.feed")
+
+	for _, w := range []sse.Hint{{Key: sse.UserKey(phone), What: "balance"}, {Key: sse.Global, What: "feed"}} {
+		if got := next(t, second); got != w {
+			t.Fatalf("hint = %+v, want %+v: closing the other connection unrouted this one", got, w)
+		}
+	}
+}
+
 func TestHub_RegisterInFlightSurvivesTheUsersLastConnectionClosing(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)

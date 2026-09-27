@@ -91,6 +91,13 @@ func commitFile(t *testing.T, env mutationEnv, name, body string) {
 }
 
 func fakeExec(_ context.Context, dir, name string, args ...string) ([]byte, error) {
+	if name == "go" && args[0] == "test" {
+		if args[len(args)-1] == "./flaky" {
+			return []byte("ok  \texample.com/m/flaky\t0.1s\n"), nil
+		}
+		return []byte("=== RUN   TestX\ntestkit.Main: build template: atlas not found\n"),
+			errs.New(errs.CodeInternal, "exit status 1")
+	}
 	switch name {
 	case "go":
 		list, err := os.ReadFile(filepath.Join(dir, "golist.txt"))
@@ -120,7 +127,7 @@ func fakeGremlins(pkg, out string) error {
 		"./halfslow":   {"KILLED", "TIMED OUT"},
 	}
 	switch pkg {
-	case "./broken":
+	case "./broken", "./flaky":
 		return errs.New(errs.CodeInternal, "gremlins exploded")
 	case "./garbled":
 		return os.WriteFile(out, []byte("not json"), 0o600)
@@ -217,7 +224,8 @@ func TestMutationReportsBrokenInputs(t *testing.T) {
 		{name: "no exclude file", remove: coverageExclude, want: "monacoctl.mutation: internal: open"},
 		{name: "go list fails", remove: "golist.txt", want: "monacoctl.goList: internal"},
 		{name: "unknown base", args: []string{"--base", "nope"}, want: "monacoctl.changedFiles: internal"},
-		{name: "gremlins fails", pkg: "broken", want: "gremlins exploded"},
+		{name: "gremlins fails", pkg: "broken", want: "gremlins exploded: internal\ngo test ./broken for context:\n=== RUN   TestX\ntestkit.Main: build template: atlas not found\nexit status 1: internal"},
+		{name: "gremlins fails but go test passes", pkg: "flaky", want: "gremlins exploded: internal\ngo test ./flaky for context:\nok  \texample.com/m/flaky\t0.1s\n"},
 		{name: "every mutant timed out", pkg: "slow", want: "monacoctl.mutation: internal: more mutants in slow timed out than were tested; rerun on a quieter machine"},
 		{name: "more mutants timed out than were killed", pkg: "mostlyslow", want: "monacoctl.mutation: internal: more mutants in mostlyslow timed out than were tested"},
 		{name: "no temp dir for the report", pkg: "broken", noTmp: true, want: "monacoctl.unleash: internal: open"},

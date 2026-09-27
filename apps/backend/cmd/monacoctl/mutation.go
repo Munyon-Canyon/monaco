@@ -20,11 +20,12 @@ import (
 )
 
 const (
-	mutationUsage = "usage: monacoctl mutation [--base main | --all]"
-	mutantsAllow  = "mutants.allow"
-	lived         = "LIVED"
-	killed        = "KILLED"
-	timedOut      = "TIMED OUT"
+	mutationUsage   = "usage: monacoctl mutation [--base main | --all]"
+	mutantsAllow    = "mutants.allow"
+	testOutputLines = 40
+	lived           = "LIVED"
+	killed          = "KILLED"
+	timedOut        = "TIMED OUT"
 )
 
 type mutationEnv struct {
@@ -190,7 +191,7 @@ func (env mutationEnv) unleash(ctx context.Context, dir string) (gremlinsReport,
 	defer func() { _ = os.Remove(out) }()
 	if _, err := env.exec(ctx, env.moduleDir, env.gremlins, "unleash", "--silent", "--timeout-coefficient", "50",
 		"--output", out, "--exclude-files", `\.gen\.go$`, "./"+dir); err != nil {
-		return gremlinsReport{}, errs.Wrap(err, errs.CodeInternal, op)
+		return gremlinsReport{}, errs.Wrap(fmt.Errorf("%w\n%s", err, env.testOutput(ctx, dir)), errs.CodeInternal, op)
 	}
 	data, _ := os.ReadFile(out)
 	if len(bytes.TrimSpace(data)) == 0 {
@@ -207,6 +208,16 @@ type timedOutError string
 
 func (e timedOutError) Error() string {
 	return "more mutants in " + string(e) + " timed out than were tested; rerun on a quieter machine"
+}
+
+func (env mutationEnv) testOutput(ctx context.Context, dir string) string {
+	out, err := env.exec(ctx, env.moduleDir, env.goBin, "test", "-count=1", "./"+dir)
+	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	lines = lines[max(0, len(lines)-testOutputLines):]
+	if err != nil {
+		lines = append(lines, err.Error())
+	}
+	return "go test ./" + dir + " for context:\n" + strings.Join(lines, "\n")
 }
 
 func mostlyTimedOut(report gremlinsReport) bool {
