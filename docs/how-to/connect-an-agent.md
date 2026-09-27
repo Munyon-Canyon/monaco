@@ -49,56 +49,6 @@ IDEMPOTENCY_KEY=<key the first run printed> scripts/demo/agent-intent.sh buy AAP
 
 A buy amount is USD, sent as `usd`. A sell amount is shares, sent as `shares`. The script adds a fresh `idempotencyKey`, prints the request with the key redacted, and prints the response.
 
-## Run the reference bot
-
-`agents/momentum-bot` is a small Go program (standard library only) that trades an agent's budget with one rule. It compares each price to where it was one lookback ago. It buys what is up past a threshold, and sells what it bought once that is down past one. It is meant to be read and forked.
-
-```bash
-export MONACO_API=http://127.0.0.1:8080
-export MONACO_AGENT_KEY=<the key from Group → Agent>   # env only; there is no flag for it
-
-cd agents/momentum-bot
-
-# Dry run is the default: real catalog, real prices, nothing sent
-go run . --symbols GOOGLx,NVDAx
-
-# One decision, then exit. A short lookback so a recording does not wait five minutes
-go run . --symbols GOOGLx --once --interval 10s --lookback 1m --buy-pct 0.05
-
-# Real intents. Asks y/N first; --yes skips the question
-go run . --symbols GOOGLx --live --trade-usd 1 --max-spend-usd 5
-```
-
-What it prints:
-
-```
-Monaco momentum bot
-  mode      LIVE, intents will move the cabal's money
-  api       http://127.0.0.1:8080
-  cabal     Tech Bros, as agent Momentum (active)
-  budget    $42.10 of $100.00 available
-  ...
-14:07:10  GOOGLx  $ 352.10  +0.80% over 5m  buy signal
-14:07:10  NVDAx   $ 222.02  +0.02% over 5m  hold
-14:07:10  → buy $1.00 of GOOGLx
-14:07:13  ✓ filled  tx 5b0c…  intent 91ab…  ($1.00 of $5.00 spent)
-```
-
-How it behaves:
-
-- **The key is all it needs.** It reads its cabal and budget from `GET /v1/agent` at startup.
-- **Symbols and prices come from Monaco.** It reads `GET /v1/agent/assets` and watches only routable stocks. Without `--symbols` it takes the first five. Each tick it prices them from `markUsdcMicros` in the same list. A stock with no mark is skipped for that tick.
-- **Keep `--interval` at 30s or more.** Reads refill one every 30 seconds, and the bot reads the catalog once a tick. A `429` makes it wait out `Retry-After`.
-- **Two caps of its own,** `--trade-usd` per buy and `--max-spend-usd` per run. Set the total below the cabal's budget. The server enforces the budget either way. The run total resets on restart; the server's count does not.
-- **One trade per tick, and one per symbol per lookback.** Sells go before buys, then the biggest move wins.
-- **Every intent carries a reason,** such as `momentum +0.80% over 5m, buy rule +0.50%`.
-- **Sells are sized from its own buys.** The bot estimates what each buy returned (less 2%) and sells that. The server refuses any sell beyond what the agent bought.
-- **`401` stops it.** Retrying a bad key only trips the wrong-key throttle. `403` (paused by vote) and `429` make it stand down and keep watching. `422` prints the `rejectReason` and `intentId`; "exceeds agent allocation" ends buying for the run.
-- **An intent is only resent under its idempotency key.** Each trade decision gets a fresh random `idempotencyKey`. On a timeout, a `5xx` or a `409`, the bot resends the identical intent twice, five seconds apart. If the answer names an intent but still has no outcome, the bot reads `GET /v1/agent/intents/{id}`. With still no clear answer, it counts the buy against its cap and points you at the activity feed.
-- **The key is never printed,** in the banner, the log, or an error.
-
-Tests: `cd agents/momentum-bot && go test ./...` covers the strategy, the caps, and every HTTP status above against `httptest` servers.
-
 ## What judges see
 
 - **A vote, not a form.** Adding an agent is a cabal proposal like any buy or sell. Same quorum, same "the cabal decides" model, extended to an autonomous trader.

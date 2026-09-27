@@ -34,7 +34,7 @@ npx wrangler pages dev --binding SUPABASE_URL=… SUPABASE_ANON_KEY=… IP_HASH_
 
 ## Deploy to Cloudflare Pages
 
-Apply the waitlist migrations (`supabase/migrations/000019`–`000022`) to the hosted
+Apply the waitlist migrations (`apps/web/migrations/000026`–`000029`, in order) to the hosted
 database first. Without them `join_waitlist()` does not exist, `/api/health` reports
 `supabase: "waitlist table missing"`, and signups return a 502 rather than storing
 anything.

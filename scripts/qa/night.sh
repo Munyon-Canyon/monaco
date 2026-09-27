@@ -9,8 +9,8 @@
 #   scripts/qa/night.sh --screenshots        # also shoot every sample screen (round 1)
 #
 # What a round does, strictly one heavy job at a time:
-#   1. backend: go vet + go test -p 1 ./...      (needs Postgres; see MONACO_QA_DATABASE_URL)
-#   2. domain + mobile-core host tests
+#   1. backend: skipped by default until the new apps/backend module has tests
+#   2. mobile-core host tests
 #   3. app unit tests, then each UI test class on its own, on one slimmed simulator,
 #      with a watchdog timeout, one retry when the test runner itself is killed,
 #      and a screen recording per class
@@ -40,7 +40,7 @@ cd "$root" || exit 1
 
 rounds=1
 until_time=""
-skip_backend=0
+skip_backend=1
 skip_ui=0
 only_ui=""
 sim="${MONACO_QA_SIM:-}"
@@ -207,14 +207,6 @@ run_ui_class() { # round class
   return 1
 }
 
-backend_tests() {
-  local url="${MONACO_QA_DATABASE_URL:-}"
-  if [[ -n "$url" ]]; then
-    ( cd apps/backend && go vet ./... && DATABASE_URL="$url" go test -p 1 ./... )
-  else
-    just test backend
-  fi
-}
 
 past_deadline() {
   [[ -n "$until_time" ]] || return 1
@@ -240,8 +232,7 @@ while (( round < rounds )); do
   log "=== round $round · free swap ${swap:-(no swap file yet)}${swap:+ MB} ==="
 
   if (( ! skip_backend )); then
-    run_step "$round" backend 2400 backend_tests || true
-    run_step "$round" domain 600 bash -c 'cd packages/domain && go test ./...' || true
+    run_step "$round" backend 2400 just test backend || true
   fi
   run_step "$round" mobile-core 1200 bash -c 'cd packages/mobile-core && swift test' || true
 

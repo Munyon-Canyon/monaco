@@ -64,7 +64,7 @@ Dropped from the 2026-09-26 list:
 - **Cabals** columns `trading_paused_at`, `trading_paused_reason`. Moved to the `funding` pause record.
 - **CabalMembers** column `last_chat_seen_at`. Moved to `chat_seen`.
 
-`waitlist` is marketing, not product, and no module owns it. `schema_migrations` goes with the old runner (`apps/backend/internal/postgres/migrate.go`); atlas keeps its own revision table.
+`waitlist` is marketing, not product, and no module owns it. Its migrations live with the landing page in `apps/web/migrations`. `schema_migrations` goes with the old runner (`apps/backend/internal/postgres/migrate.go`); atlas keeps its own revision table.
 
 ### Types, IDs and migrations
 

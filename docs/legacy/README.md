@@ -18,7 +18,7 @@ Some of it is still accurate. Product rules, the Privy wallet model, the Solana 
 
 | Folder or file | What it was |
 | --- | --- |
-| `milestones/` | The build plan: M0 scaffold through M5 mobile UI, plus the Tessera and PreStocks pre-IPO work. Each file lists tickets, tests and manual checks. `scripts/create_milestone_issues.py` created GitHub issues from these. |
+| `milestones/` | The build plan: M0 scaffold through M5 mobile UI, plus the Tessera and PreStocks pre-IPO work. Each file lists tickets, tests and manual checks. `scripts/create_milestone_issues.py` (deleted in M7) created GitHub issues from these. |
 | `architect/` | Early architecture sketches from three candidate designs, and the synthesis that picked from each |
 | `superpowers/` | Plans and specs for individual features (propose-sell, the home dashboard) |
 | `qa/` | Screenshots and notes from QA passes, by issue number |

@@ -131,7 +131,7 @@ Planned shape, not built yet:
 
 ## Gap between this and the code
 
-The rewrite replaces the old backend rather than refactoring it ([backend-platform.md](backend-platform.md)). What the old backend does today (checked 2026-09-27; `apps/backend/internal/app/governance.go`, `supabase/migrations/000005`, `000009`, `000013`, `000014`, `000015`):
+The rewrite replaces the old backend rather than refactoring it ([backend-platform.md](backend-platform.md)). What the old backend did before M7 deleted it (checked 2026-09-27 at `242c2609`; `apps/backend/internal/app/governance.go` and legacy migrations `000005`, `000009`, `000013`, `000014`, `000015`):
 
 - `proposals`, `votes`, `proposal_comments`, `group_messages` tables. Statuses `open`, `passed`, `failed`, `expired`.
 - Tally after every vote via `domain.TallyProposal` with guarded `UpdateProposalStatusTx`. Cheap and network-free on undecided votes.
