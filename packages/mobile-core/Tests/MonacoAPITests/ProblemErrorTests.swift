@@ -21,6 +21,7 @@ final class ProblemErrorTests: XCTestCase {
         for code in ErrorCode.allCases {
             switch code {
             case .clientClosed,
+                 .dbSchemaBehind,
                  .dbUnavailable,
                  .decodeFailed,
                  .forbidden,
