@@ -43,11 +43,36 @@ func ConsumerSuite(
 	t *testing.T, consumer func(Harness) bus.Consumer, gen func(rng *rand.Rand, i int) events.Event,
 ) {
 	t.Helper()
-	s := &consumerSuite{
-		h:   Harness{Pool: DB(t), IDs: NewIDs(1), Clock: NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))},
-		gen: gen,
+	conn := NATS(t).Conn
+	base := newConsumerSuite(t, conn, consumer, gen)
+	want := base.snapshot(t, chaos.Baseline(base.ctx(t), t, base.reg, base.consumer, base.appendEvents(t)))
+	for _, seed := range chaos.Seeds(t) {
+		t.Run(fmt.Sprintf("seed=%d", seed), func(t *testing.T) {
+			t.Parallel()
+			s := newConsumerSuite(t, conn, consumer, gen)
+			res := chaos.Dispatch(s.ctx(t), t, seed, s.reg, s.consumer, s.appendEvents(t))
+			if diff := diffSnapshots(want, s.snapshot(t, res)); diff != "" {
+				t.Fatalf(
+					"chaos seed %d diverged from the single-delivery run\n%s\nfates:\n%s\nrerun with -chaos.seed=%d",
+					seed,
+					diff,
+					strings.Join(res.Trace, "\n"),
+					seed,
+				)
+			}
+		})
 	}
-	s.conn = NATS(t).Conn
+}
+
+func newConsumerSuite(
+	t *testing.T, conn *bus.Conn, consumer func(Harness) bus.Consumer, gen func(rng *rand.Rand, i int) events.Event,
+) *consumerSuite {
+	t.Helper()
+	s := &consumerSuite{
+		h:    Harness{Pool: DB(t), IDs: NewIDs(1), Clock: NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))},
+		conn: conn,
+		gen:  gen,
+	}
 	s.uow = db.New(s.h.Pool, s.h.IDs, s.h.Clock)
 	s.consumer = consumer(s.h)
 	s.consumer.Handlers = slices.Clone(s.consumer.Handlers)
@@ -61,24 +86,7 @@ func ConsumerSuite(
 		t.Fatalf("testkit.ConsumerSuite: %v", err)
 	}
 	s.reg = reg
-
-	ctx := s.ctx(t)
-	base := chaos.Baseline(ctx, t, s.reg, s.consumer, s.appendEvents(t))
-	want := s.snapshot(t, base)
-	for _, seed := range chaos.Seeds(t) {
-		t.Run(fmt.Sprintf("seed=%d", seed), func(t *testing.T) {
-			res := chaos.Dispatch(s.ctx(t), t, seed, s.reg, s.consumer, s.appendEvents(t))
-			if diff := diffSnapshots(want, s.snapshot(t, res)); diff != "" {
-				t.Fatalf(
-					"chaos seed %d diverged from the single-delivery run\n%s\nfates:\n%s\nrerun with -chaos.seed=%d",
-					seed,
-					diff,
-					strings.Join(res.Trace, "\n"),
-					seed,
-				)
-			}
-		})
-	}
+	return s
 }
 
 func (s *consumerSuite) ctx(t *testing.T) context.Context {
@@ -94,8 +102,6 @@ func handlerSeed(handler, eventID string) uint64 {
 
 func (s *consumerSuite) appendEvents(t *testing.T) []*chaos.Msg {
 	t.Helper()
-	Reset(t, s.h.Pool)
-	s.h.IDs.Reseed(1)
 	rng := rand.New(rand.NewPCG(1, 0))
 	ctx := s.ctx(t)
 	for i := range suiteEvents {
