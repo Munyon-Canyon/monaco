@@ -3,7 +3,7 @@ name: CI
 # A draft skips the ci job, which leaves no "ci / ci-ok" check, so the PR cannot merge.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, tmp/456-rsbase]
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
