@@ -14,7 +14,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.go == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 6
     services:
       postgres:
         image: postgres:16-alpine
@@ -32,14 +32,29 @@ jobs:
     env:
       # Throwaway service container, not a secret. Backend tests derive and migrate a
       # sibling monaco_test database from this URL (internal/postgres/testdb.go).
-      DATABASE_URL: postgres://monaco:monaco@localhost:5432/monaco?sslmode=disable
+      # application_name changes every run. go test keys cached results on the env vars a test
+      # reads, so tests that read DATABASE_URL always rerun and only Postgres-free ones are cached.
+      DATABASE_URL: postgres://monaco:monaco@localhost:5432/monaco?sslmode=disable&application_name=ci-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v4
+
+      # go test keys its result cache on file mtimes, and a fresh checkout gives every file a new one.
+      - name: Pin testdata mtimes
+        run: find . -path '*/testdata/*' -exec touch -t 200001010000 {} +
 
       - uses: actions/setup-go@v5
         with:
           go-version-file: apps/backend/go.mod
-          cache-dependency-path: apps/backend/go.sum
+          cache: false
+
+      # Only the nightly warm-cache job on main saves this cache. PRs restore and never save.
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
+          restore-keys: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
 
       - name: Apply migrations to a clean database
         working-directory: apps/backend
@@ -73,6 +88,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.mobile-core == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     container: swift:6.3-noble
     steps:
       - uses: actions/checkout@v4
@@ -140,7 +156,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.ios == 'true'
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 20
     env:
       DERIVED_DATA: ${{ github.workspace }}/../DerivedData
     steps:
@@ -202,6 +218,7 @@ jobs:
     if: always()
     needs: [plan, go, mobile-core, ios]
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     steps:
       - uses: re-actors/alls-green@release/v1
         with:

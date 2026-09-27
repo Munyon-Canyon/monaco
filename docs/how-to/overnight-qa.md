@@ -12,6 +12,7 @@ nightly GitHub workflow. Per-PR CI builds the app too.
 | Ready PRs to `main` touching `packages/mobile-core/**` or `ci.yml`; manual dispatch | `ci.yml` · `mobile-core` (Linux, `swift:6.3-noble`) | `swift test` in `packages/mobile-core` |
 | Ready PRs to `main` touching `apps/mobile/**`, `packages/mobile-core/**`, `ci.yml` or the scripts it uses | `ci.yml` · `ios` (macOS) | app + test `build-for-testing`, `MonacoTests`, sample-screen manifest check |
 | Nightly 07:00 UTC (03:00 EDT / 02:00 EST), manual dispatch, PRs touching `nightly.yml` or `scripts/qa/**` | `nightly.yml` · `qa` (macOS) | `night.sh --screenshots`: backend, mobile-core, app build, `MonacoTests`, each sample UI test class, screenshot gallery |
+| Nightly and manual dispatch, on `main` only | `nightly.yml` · `warm-cache` (Linux) | builds and runs the `go` job's tests, then saves the Go module and build cache. The only job that saves it; PRs restore it and never save. |
 
 Drafts and PRs based on another branch run nothing. The jobs live in `ci-jobs.yml`, so each check reads `ci / <job>`. `ci / ci-ok` sums up every job above and is the one check `main` requires. When Graphite retargets a PR to `main` without a push, `ci-retarget.yml` runs the same jobs. A Go-only PR runs no macOS job. Both app builds use the placeholder config below, so CI needs
 no secret. The backend rewrite defines its checks in [CI gates](../architecture/backend-platform.md#ci-gates). When CI runs, on which runners, and the planned changes to this table are in [CI](../architecture/ci.md).
