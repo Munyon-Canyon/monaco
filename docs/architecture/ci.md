@@ -69,32 +69,34 @@ Nightly runs `scripts/qa/night.sh` as it does today ([Overnight QA](../how-to/ov
 on:
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review, edited]
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
   plan:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.pull_request.draft == false &&
-       (github.event.action != 'edited' || github.event.changes.base != null))
+    if: ${{ !github.event.pull_request.draft }}
+  ci-ok:
+    if: always()
 ```
 
 - `branches: [main]` matches the PR's base, so only the bottom PR of a stack runs.
-- `edited` is there for one case: Graphite retargets the next PR to `main` after the bottom one merges. The `if:` drops every other edit, such as a title change.
-- Every other job `needs: plan`. On a draft, `plan` is skipped, everything after it is skipped, and each skipped job reports success. A draft cannot merge, so that is safe.
+- Every other job `needs: plan`. On a draft, `plan` is skipped and so is everything after it except `ci-ok`, which fails. A draft cannot merge, so the red check costs nothing.
+- `ci-ok` never skips. GitHub counts a skipped job as a passing required check, and the newest check run with a name wins. A skipped `ci-ok` from a draft push would let the PR merge in the minutes between "Ready for review" and the real `ci-ok`. For the same reason `ci-ok` uses `always()`, not `!cancelled()`: a cancelled run leaves a failed `ci-ok`, not a skipped one.
+- `edited` is not a trigger. An edit run that skipped its jobs would cancel the real run in the same concurrency group and leave a skipped, passing `ci-ok` (seen on #493).
+- Graphite restacks an upstack PR while its base is a temporary `graphite-base/N` branch, then retargets it to `main` with no new push (seen on #452). `ci.yml` saw neither event. `ci-retarget.yml` runs on `edited` with base `main`, and when the base changed it dispatches `ci.yml` on the PR's head branch. The dispatched run's checks attach to the head commit, which is what the required check reads. It skips fork PRs, whose branch is not in this repo. Those rerun on a push or a close and reopen.
 - `pull_request` does not run while a PR has a merge conflict. Resolve the conflict to get CI.
-- `workflow_dispatch` is the manual escape hatch for running CI on a draft or an upstack branch.
+- `workflow_dispatch` is the manual escape hatch for running CI on a draft or an upstack branch. `dorny/paths-filter` then diffs against the merge base with `main`.
 
-Branch protection on `main`:
+Ruleset on `main`:
 
-- Require `ci-ok`.
+- Require `ci-ok` from GitHub Actions (integration 15368), so a commit status with the same name from another source does not count.
 - Require branches to be up to date before merging.
-- Require approval before running workflows from first-time outside contributors.
+- Block force pushes and deletion.
+- Require approval before running workflows from all outside contributors (`fork-pr-contributor-approval`), not only first-time ones.
 
 GitHub's merge queue would let expensive jobs run once per merge instead of once per push. It is not available to repos owned by a personal account ([docs](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)). Revisit it if the repo moves to an organization.
 

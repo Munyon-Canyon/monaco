@@ -2,11 +2,14 @@ name: CI
 
 on:
   pull_request:
-  push:
     branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  # Manual runs, and ci-retarget.yml when Graphite retargets a PR to main without a push.
+  workflow_dispatch:
 
+# Keyed on the branch so a dispatch and a PR run for the same branch cancel each other.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
@@ -15,6 +18,8 @@ permissions:
 jobs:
   go:
     name: Go (backend, domain, reference bot)
+    needs: plan
+    if: needs.plan.outputs.go == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
@@ -71,6 +76,7 @@ jobs:
 
   web:
     name: Web (landing page)
+    needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 5
     defaults:
@@ -85,6 +91,7 @@ jobs:
 
   swift:
     name: Swift (mobile-core)
+    needs: plan
     runs-on: macos-15
     timeout-minutes: 20
     steps:
@@ -97,16 +104,18 @@ jobs:
         working-directory: packages/mobile-core
         run: swift test
 
-  # Decides which of the path-filtered jobs below need to run. A Go-only change skips the
-  # iOS app build; the go and swift jobs above are not filtered.
-  changes:
-    name: Changed paths
+  # Every other job needs plan. On a draft, plan is skipped and so is everything after it,
+  # except ci-ok. docs/architecture/ci.md#triggers
+  plan:
+    name: Plan
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
     outputs:
+      go: ${{ steps.filter.outputs.go }}
       ios: ${{ steps.filter.outputs.ios }}
     steps:
       - uses: actions/checkout@v4
@@ -115,6 +124,14 @@ jobs:
         id: filter
         with:
           filters: |
+            go:
+              - 'apps/backend/**'
+              - 'packages/domain/**'
+              - 'agents/momentum-bot/**'
+              - 'supabase/migrations/**'
+              - 'docs/legacy/api.md'
+              - 'scripts/ci/**'
+              - '.github/workflows/ci.yml'
             ios:
               - 'apps/mobile/**'
               - 'packages/mobile-core/**'
@@ -127,8 +144,8 @@ jobs:
 
   ios:
     name: iOS app (build, MonacoTests)
-    needs: changes
-    if: needs.changes.outputs.ios == 'true'
+    needs: plan
+    if: needs.plan.outputs.ios == 'true'
     runs-on: macos-15
     timeout-minutes: 30
     env:
@@ -184,3 +201,16 @@ jobs:
           path: ${{ runner.temp }}/MonacoTests.xcresult
           if-no-files-found: ignore
           retention-days: 7
+
+  # The only required check. A skipped check passes a required check, so ci-ok never skips: it
+  # fails on a draft (plan skipped) and on a cancelled run. Keep always(), not !cancelled().
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [plan, go, web, swift, ios]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: re-actors/alls-green@release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}
+          allowed-skips: go, ios

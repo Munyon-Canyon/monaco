@@ -1,0 +1,28 @@
+name: CI retarget
+
+# Graphite restacks a PR while its base is a temporary graphite-base/N branch, then retargets
+# it to main without a new push. ci.yml ignores the push (base is not main) and never sees the
+# edit, because an edit run that skips ci-ok would pass the required check. This dispatches
+# ci.yml on the PR's head instead. docs/architecture/ci.md#triggers
+on:
+  pull_request:
+    branches: [main]
+    types: [edited]
+
+permissions:
+  actions: write
+
+jobs:
+  dispatch:
+    name: Dispatch CI after a retarget to main
+    if: >-
+      github.event.changes.base != null &&
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: gh workflow run ci.yml -R "$GITHUB_REPOSITORY" --ref "$HEAD_REF"
