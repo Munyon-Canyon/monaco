@@ -102,8 +102,8 @@ jobs:
         working-directory: .
         run: docker compose --profile test up -d --wait postgres-test
 
-      - name: Race tests and the flows.tsv check
-        run: ../../scripts/test-backend.sh -race
+      - name: Race tests, the time budget and the flows.tsv check
+        run: ../../scripts/test-backend.sh
 
   # The ios job compiles mobile-core on Darwin, which covers the Darwin-only code this skips.
   mobile-core:

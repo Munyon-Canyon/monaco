@@ -24,11 +24,12 @@ func commands() map[string]command {
 
 func tools(environ []string) map[string]tool {
 	return map[string]tool{
-		"bench":   benchCmd,
-		"docs":    docs,
-		"flows":   flowsCmd,
-		"gen":     gen,
-		"migrate": migrateTool(atlas{"../../.bin/atlas", ".atlas-version"}, environ),
+		"bench":       benchCmd,
+		"docs":        docs,
+		"flows":       flowsCmd,
+		"gen":         gen,
+		"migrate":     migrateTool(atlas{"../../.bin/atlas", ".atlas-version"}, environ),
+		"test-report": testReportCmd,
 		"lint": func(args []string, stdout, stderr io.Writer) int {
 			return run(nil, map[string]tool{"comments": comments.Run}, nil, args, stdout, stderr)
 		},
