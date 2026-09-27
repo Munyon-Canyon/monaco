@@ -212,3 +212,22 @@ func StandaloneNATS(t *testing.T) string {
 	t.Cleanup(s.stop)
 	return s.srv.ClientURL()
 }
+
+func NATSSubscriptions(t *testing.T, subject string) int {
+	t.Helper()
+	s := natsCurrent.Load()
+	if s == nil {
+		t.Fatal("testkit.NATSSubscriptions: call testkit.NATSServer(m) from this package's TestMain")
+	}
+	subsz, err := s.srv.Subsz(&natsserver.SubszOptions{Subscriptions: true, Limit: 1 << 16})
+	if err != nil {
+		t.Fatalf("testkit.NATSSubscriptions: %v", err)
+	}
+	n := 0
+	for _, sub := range subsz.Subs {
+		if sub.Subject == subject {
+			n++
+		}
+	}
+	return n
+}
