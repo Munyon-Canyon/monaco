@@ -23,7 +23,7 @@ macOS, Xcode (iOS 18+ simulator), Docker, Go 1.25+, [just](https://github.com/ca
 
 Do not wrap `just` with `dotenvx run` yourself. Recipes that need secrets re-exec under `scripts/with-dotenv-local.sh`.
 
-Local DB is Docker Compose Postgres only (`monaco`, host port `54322`). Never point `just run` / `just test backend` at hosted or production Supabase.
+Local DB is Docker Compose Postgres only (`monaco`, host port `54322`), next to a Compose NATS on `4222`. Tests use a separate throwaway Postgres, `monaco-postgres-test` on `54323`, that `just test backend` starts. The services live in `apps/backend/deployments/compose.yml`. Never point `just run` / `just test backend` at hosted or production Supabase.
 
 ## Privy test logins
 
@@ -63,10 +63,10 @@ To get QA cash back out: **Cash out** of the cabal (USDC returns to the account 
 | `just stop`                  | `just stop backend`, then `just stop mobile`                                                                                                                           |
 | `just stop backend`          | SIGTERM `bin/api` and `bin/worker`, wait for both to exit                                                                                                              |
 | `just stop mobile`           | Terminate Monaco on the resolved sim; stop `xcodebuild` if running                                                                                                     |
-| `just reset`                 | Stop all + wipe local Postgres volume (dotenvx)                                                                                                                        |
+| `just reset`                 | Stop all + wipe the local Postgres and NATS volumes (dotenvx)                                                                                                          |
 | `just reset backend`         | Stop backend + remove `bin/api`, `bin/worker`, `bin/monacoctl`                                                                                                         |
 | `just reset mobile`          | Stop app + `xcodebuild clean` on the resolved sim                                                                                                                      |
-| `just reset db`              | Wipe local Docker Postgres volume and start it empty (localhost only, dotenvx)                                                                                         |
+| `just reset db`              | Wipe the local Docker Postgres volume only and start it empty; NATS data is kept (localhost only, dotenvx)                                                             |
 | `just killports`             | Kill listeners on API port (default 8080; not Postgres 54322)                                                                                                          |
 | `just test backend`          | `go test -race -shuffle=on ./...` in `apps/backend`, then the `scripts/` Go tests                                                                                      |
 | `just test mobile`           | Host `swift test` in `packages/mobile-core` — fast, no secrets                                                                                                         |

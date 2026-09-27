@@ -84,6 +84,8 @@ test app:
     set -euo pipefail
     case "{{app}}" in
       backend)
+        ./scripts/require-docker.sh
+        docker compose --profile test up -d --wait postgres-test
         scripts/test-backend.sh -race -shuffle=on
         if [[ "${SKIP_SCRIPTS_TESTS:-}" != "1" && -f scripts/go.mod ]]; then
           (cd scripts && go test -short ./...)
@@ -121,6 +123,8 @@ run *app:
     case "{{app}}" in
       backend)
         just build backend
+        ./scripts/require-docker.sh
+        docker compose up -d --wait postgres nats
         source ./scripts/run-with-logs.sh
         monaco_init_logs
         env -u MONACO_LOG_DIR -u MONACO_DOTENVX {{_dotenvx}} "$PWD/bin/api" > >(tee -a "${MONACO_LOG_DIR}/api.log") 2>&1 &
@@ -185,7 +189,7 @@ reset *target:
       if [[ "${MONACO_DOTENVX:-}" != "1" ]]; then
         exec {{_dotenvx}} env MONACO_DOTENVX=1 just reset
       fi
-      ./scripts/reset-db.sh
+      ./scripts/reset-db.sh --all
       exit 0
     fi
     case "{{target}}" in

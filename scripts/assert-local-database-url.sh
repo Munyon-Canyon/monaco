@@ -23,3 +23,11 @@ case "$database_url" in
     exit 1
     ;;
 esac
+
+case "$database_url" in
+  *:54323/*|*:54323)
+    echo "error: DATABASE_URL points at monaco-postgres-test (port 54323), the durability-off test database."
+    echo "Dev data belongs in monaco-postgres on ${POSTGRES_PORT:-54322}. Tests read TEST_DATABASE_URL."
+    exit 1
+    ;;
+esac
