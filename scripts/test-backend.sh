@@ -9,7 +9,8 @@ fi
 cd "$(dirname "$0")/../apps/backend"
 json="$(mktemp)"
 cover="$(mktemp)"
-trap 'rm -f "$json" "$cover"' EXIT
+cover_off="$(mktemp)"
+trap 'rm -f "$json" "$cover" "$cover_off"' EXIT
 
 # rapid divides checks by 5 and steps by 2 under -short, so this lands on 100 cases and about 20 steps.
 # Env vars, not -rapid.* flags: a test binary that does not link rapid rejects the flags.
@@ -24,7 +25,11 @@ summary='select((.Action == "output" and .Test == null and (.Output | test("^(PA
   or .Action == "build-output") | .Output'
 # -p 4: at the default -p 8, eight test binaries each run their parallel tests at once and starve each
 # other; packages that take 3 s alone went over the 10 s package budget.
-go test -json -race -shuffle=on -short -p 4 -coverpkg=./... -coverprofile="$cover" "$@" ./... | tee "$json" | jq -rj --unbuffered "$summary" || status=1
+go test -json -tags faultpoints -race -shuffle=on -short -p 4 -coverpkg=./... -coverprofile="$cover" "$@" ./... | tee "$json" | jq -rj --unbuffered "$summary" || status=1
+
+go test -json -race -short -coverpkg=./internal/platform/faultpoint/ -coverprofile="$cover_off" "$@" ./internal/platform/faultpoint/ |
+  tee -a "$json" | jq -rj --unbuffered "$summary" || status=1
+tail -n +2 "$cover_off" >>"$cover"
 
 # -race makes sync.Pool drop items at random, so allocation baselines run in a second pass without it.
 allocs=()

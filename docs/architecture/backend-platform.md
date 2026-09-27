@@ -460,7 +460,7 @@ Also in CI:
 | Acceptance | one scenario per Flows row, in business language | Go scenario DSL (`scenario.New(t).Given(...).When(...).Then(...)`) over HTTP against the in-process app | `just test backend` |
 | E2E | same scenarios against real `api` + `worker` binaries | compose: PG + NATS + fake externals; `-cover` binaries | PR CI |
 | QA | agent-driven: `verify-backend flow <n>` with evidence in the PR | `verify-backend` skill CLI | every backend PR |
-| Crash-point | panic at named points (after create, after sign, after `/execute`, before commit, after publish), restart, assert convergence. A `created` row was never signed or sent, so the sweeper fails it after 2 min; a crash after the send leaves the row `submitted`, which the sweeper resolves through `getSignatureStatuses`. | `faultpoint` hooks compiled in under a build tag | PR CI |
+| Crash-point | panic at named points (after create, after sign, after `/execute`, before commit, after publish), restart, assert convergence. A `created` row was never signed or sent, so the sweeper fails it after 2 min; a crash after the send leaves the row `submitted`, which the sweeper resolves through `getSignatureStatuses`. | `faultpoint` hooks compiled in under the `faultpoints` build tag | `just test backend` in process; E2E in PR CI |
 | Jitter / concurrency | pools, pipelines, relay, consumers under random delays and interleavings | `testing/synctest` + seeded delay injection + `-race` | `just test backend` (fixed seeds), nightly (seed sweep) |
 | Performance (deterministic) | allocations per op on hot paths; query count per request | `testkit.AssertAllocs` (`testing.AllocsPerRun`) in `allocs_test.go`, which runs alone and without `-race`; `testkit.AssertQueries` counts the queries on the test's own `testkit.DB`. Both compare with the package's `testdata/perf/baseline.json`, and `-testkit.perf-update` rewrites it | `just test backend` |
 | Performance (timing) | benchmarks compared against `main`; load on the full stack | `b.Loop` + `benchstat`; `vegeta` against the e2e stack | nightly, and on PRs labelled `perf` |
@@ -495,7 +495,7 @@ Measured on the scaffold (#485, 2026-09-27): 26 test packages, no NATS and no ac
 
 The run gate stays at 60 s: p95 times 1.5 is 71 s, which the RFC budget caps at 60 s. The package gate stays at 10 s. `cmd/monacoctl` goes over it on the loaded laptop in 5 of 8 runs and never on an idle runner, so the next re-measure (#486) either splits its tests into per-tool packages under `internal/tools` or confirms the overrun is load.
 
-Not in `just test backend`: E2E (real binaries, compose), mutation, crash-point, timing benchmarks. Those are PR CI or nightly.
+Not in `just test backend`: E2E (real binaries, compose, including their crash points), mutation, timing benchmarks. Those are PR CI or nightly.
 
 PR CI is three required jobs, each with its own budget (when they run and on what runners is in [ci.md](ci.md)): lint plus unit plus integration (under 3 min, sharded by package), E2E (under 4 min), and mutation on changed packages (under 10 min, or the PR is too big and gets split). Nightly runs everything unbounded.
 

@@ -193,7 +193,7 @@ linters:
       - path: ^internal/platform/config/config\.go$
         linters: [gosec]
         text: "G101: Potential hardcoded credentials: Password in URL"
-      - path: ^internal/(testkit/ids|testkit/chaos/dispatch|platform/db/uow)\.go$
+      - path: ^internal/(testkit/ids|testkit/consumer|testkit/chaos/dispatch|platform/db/uow)\.go$
         linters: [gosec]
         text: G404
       - path: ^internal/platform/db/idempotency\.go$
