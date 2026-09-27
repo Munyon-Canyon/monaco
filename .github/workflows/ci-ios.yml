@@ -83,12 +83,19 @@ jobs:
             CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO \
             -quiet build-for-testing
 
+      # -parallel-testing-enabled YES was tried and reverted: it clones the simulator and runs
+      # workers side by side, and on a shared macOS runner (a handful of vCPUs) that starved
+      # the app's own concurrency-sensitive tests (spinner/cancellation races such as
+      # AssetDetailModelTests and CabalsTabModelTests) of real CPU time, turning them flaky.
+      # Every passing test's reported duration roughly tripled (19-31s for trivial unit tests
+      # that run in well under a second sequentially), confirming CPU contention, not a bug in
+      # the tests. Sequential (the default) is both correct and, per the measurements in
+      # docs/architecture/ci.md, not the bottleneck.
       - name: Run MonacoTests
         run: |
           xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
             -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
             -resultBundlePath "$RUNNER_TEMP/MonacoTests.xcresult" \
-            -parallel-testing-enabled YES \
             CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO \
             -only-testing:MonacoTests test-without-building
 
