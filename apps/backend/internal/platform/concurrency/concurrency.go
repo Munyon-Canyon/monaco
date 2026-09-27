@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 )
 
 type Result[Out any] struct {
@@ -81,7 +82,36 @@ func Stage[In, Out any](
 func FanOut[T, R any](
 	ctx context.Context, limit int, items []T, fn func(context.Context, T) (R, error),
 ) ([]R, error) {
-	panic("unimplemented")
+	mustPositive("FanOut", "limit", limit)
+	out := make([]R, len(items))
+	if len(items) == 0 {
+		return out, nil
+	}
+	gctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	var next atomic.Int64
+	var wg sync.WaitGroup
+	for range min(limit, len(items)) {
+		wg.Go(func() {
+			for gctx.Err() == nil {
+				i := int(next.Add(1) - 1)
+				if i >= len(items) {
+					return
+				}
+				res, err := fn(gctx, items[i])
+				if err != nil {
+					cancel(err)
+					return
+				}
+				out[i] = res
+			}
+		})
+	}
+	wg.Wait()
+	if err := context.Cause(gctx); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func mustPositive(helper, name string, n int) {
