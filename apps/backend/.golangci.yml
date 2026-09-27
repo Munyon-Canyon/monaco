@@ -1,0 +1,172 @@
+version: "2"
+run:
+  timeout: 5m
+  tests: true
+  relative-path-mode: gomod
+linters:
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - unused
+    - nilerr
+    - nilnil
+    - bodyclose
+    - sqlclosecheck
+    - rowserrcheck
+    - durationcheck
+    - makezero
+    - copyloopvar
+    - exhaustive
+    - gosec
+    - musttag
+    - asasalint
+    - reassign
+    - errorlint
+    - wrapcheck
+    - errname
+    - err113
+    - contextcheck
+    - containedctx
+    - fatcontext
+    - noctx
+    - spancheck
+    - depguard
+    - forbidigo
+    - gochecknoglobals
+    - gochecknoinits
+    - ireturn
+    - interfacebloat
+    - cyclop
+    - gocognit
+    - funlen
+    - nestif
+    - maintidx
+    - revive
+    - gocritic
+    - unparam
+    - unconvert
+    - usestdlibvars
+    - intrange
+    - perfsprint
+    - prealloc
+    - sloglint
+    - predeclared
+    - exptostd
+    - testifylint
+    - thelper
+    - tparallel
+    - paralleltest
+    - usetesting
+  settings:
+    cyclop: { max-complexity: 12 }
+    gocognit: { min-complexity: 15 }
+    funlen: { lines: 70, statements: 40 }
+    nestif: { min-complexity: 4 }
+    exhaustive: { default-signifies-exhaustive: false }
+    sloglint: { attr-only: true, context: all, static-msg: true, no-global: all }
+    interfacebloat: { max: 5 }
+    wrapcheck:
+      ignore-package-globs: ["github.com/monaco/monaco/apps/backend/internal/*"]
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: '^(fmt\.Print.*|print|println)$'
+          msg: use slog
+        - pattern: '^context\.(Background|TODO)$'
+          msg: only main, tests and bus roots create root contexts
+        - pattern: '^time\.(Now|Since|Until)$'
+          msg: inject platform/clock.Clock
+        - pattern: '^os\.Getenv$'
+          msg: read config through platform/config at boot
+        - pattern: '^float(32|64)$'
+          msg: money is integer base units (platform/money)
+        - pattern: '^log\.'
+          msg: use slog
+        - pattern: '^(pgxpool\.New|pgx\.Connect|sql\.Open|nats\.Connect)$'
+          msg: platform/db, platform/bus and testkit own connections
+        - pattern: '^errors\.New$'
+          msg: every error carries a Code; use errs.New
+        - pattern: '^slog\.(Error|Warn)$'
+          msg: modules return errors; boundaries log them once
+        - pattern: '^uuid\.(MustParse|Must)$'
+          msg: fixtures take ids from the injected generator
+        - pattern: '^rand\.(Int.*|Uint.*|Float.*|N|NormFloat64|ExpFloat64|Perm|Shuffle|Read|Seed)$'
+          pkg: '^math/rand(/v2)?$'
+          msg: inject the random source from platform
+        - pattern: '^uuid\.New(V7)?$'
+          msg: inject the id generator from platform
+        - pattern: '^time\.Sleep$'
+          msg: tests wait on a signal or advance the fake clock
+        - pattern: '^(pgx\.Tx|pgx\.Conn|pgxpool\.Pool|pgxpool\.Conn|pgxpool\.Tx)\.(Begin|BeginTx|Commit)$'
+          msg: open transactions through platform/db UnitOfWork
+        - pattern: '^pgx\.(BeginFunc|BeginTxFunc)$'
+          msg: open transactions through platform/db UnitOfWork
+        - pattern: '^http\.(DefaultClient|Get|Post|PostForm|Head)$'
+          msg: outbound HTTP goes through platform/httpclient
+    depguard:
+      rules:
+        domain:
+          files: ["**/domain/**"]
+          deny:
+            - { pkg: "github.com/jackc/pgx", desc: "domain is pure" }
+            - { pkg: "github.com/nats-io", desc: "domain is pure" }
+            - { pkg: "net/http", desc: "domain is pure" }
+            - { pkg: "github.com/monaco/monaco/apps/backend/internal/platform/db", desc: "domain is pure" }
+            - { pkg: "github.com/monaco/monaco/apps/backend/internal/platform/bus", desc: "domain is pure" }
+        app:
+          files: ["**/app/**"]
+          deny:
+            - { pkg: "github.com/jackc/pgx", desc: "declare a port" }
+            - { pkg: "github.com/nats-io", desc: "emit via Tx.Events" }
+            - { pkg: "net/http", desc: "use cases are transport-free" }
+        boundary:
+          files:
+            - "$all"
+            - "!**/internal/platform/**"
+            - "!**/internal/testkit/**"
+            - "!**/cmd/**"
+          deny:
+            - pkg: "github.com/monaco/monaco/apps/backend/internal/platform/observability/boundary"
+              desc: "modules return errors; only platform, testkit and cmd log Warn and Error"
+        # BEGIN GENERATED depguard
+        # END GENERATED depguard
+  exclusions:
+    presets: [comments]
+    rules:
+      - path: _test\.go$
+        linters: [funlen, err113, wrapcheck]
+      - path: main_test\.go$
+        linters: [gochecknoglobals]
+      - path: ^cmd/
+        linters: [forbidigo]
+      - path: ^internal/platform/(db|bus|httpx|observability)/
+        linters: [forbidigo]
+      - path: ^internal/errs/
+        linters: [forbidigo]
+      - path: ^internal/testkit/
+        linters: [forbidigo]
+      - path: ^internal/platform/clock/
+        linters: [forbidigo]
+        text: inject platform/clock\.Clock
+      - path: ^internal/platform/clock/
+        linters: [ireturn]
+      - path: ^internal/platform/
+        linters: [forbidigo]
+        text: inject the (random source|id generator) from platform
+      - path: ^internal/platform/httpclient/
+        linters: [forbidigo]
+        text: outbound HTTP goes through platform/httpclient
+      - path-except: _test\.go$
+        linters: [forbidigo]
+        text: tests wait on a signal
+      - path-except: ^internal/(modules|events|platform/money)/
+        linters: [forbidigo]
+        text: money is integer base units
+formatters:
+  enable: [gofumpt, gci, golines]
+  settings:
+    gci: { sections: [standard, default, localmodule] }
+    golines: { max-len: 120 }

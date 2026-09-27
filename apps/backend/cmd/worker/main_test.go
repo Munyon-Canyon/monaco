@@ -9,8 +9,17 @@ import (
 	"time"
 )
 
+func get(ctx context.Context, url string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	return http.DefaultClient.Do(req)
+}
+
 func TestServe_healthzAnswersOkUntilShutdown(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	t.Parallel()
+	ln, err := new(net.ListenConfig).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -19,7 +28,7 @@ func TestServe_healthzAnswersOkUntilShutdown(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- serve(ctx, ln) }()
 
-	resp, err := http.Get(url)
+	resp, err := get(t.Context(), url)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +50,8 @@ func TestServe_healthzAnswersOkUntilShutdown(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("serve did not return within 5s of shutdown")
 	}
-	if _, err := http.Get(url); err == nil {
+	if resp, err := get(t.Context(), url); err == nil {
+		_ = resp.Body.Close()
 		t.Fatal("GET /healthz succeeded after shutdown")
 	}
 }

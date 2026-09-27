@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -15,19 +16,22 @@ import (
 )
 
 func main() {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	if err := run(logger, cmp.Or(os.Getenv("WORKER_HEALTH_ADDR"), ":8081")); err != nil {
+		logger.ErrorContext(context.Background(), "worker stopped", slog.Any("err", err))
+		os.Exit(1)
+	}
+}
+
+func run(logger *slog.Logger, addr string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer stop()
-	addr := cmp.Or(os.Getenv("WORKER_HEALTH_ADDR"), ":8081")
-	ln, err := net.Listen("tcp", addr)
+	ln, err := new(net.ListenConfig).Listen(ctx, "tcp", addr)
 	if err != nil {
-		slog.Error("worker health listen failed", "addr", addr, "err", err)
-		os.Exit(1)
+		return fmt.Errorf("listen on %s: %w", addr, err)
 	}
-	slog.Info("worker health listening", "addr", ln.Addr().String())
-	if err := serve(ctx, ln); err != nil {
-		slog.Error("worker stopped", "err", err)
-		os.Exit(1)
-	}
+	logger.InfoContext(ctx, "worker health listening", slog.String("addr", ln.Addr().String()))
+	return serve(ctx, ln)
 }
 
 func serve(ctx context.Context, ln net.Listener) error {
@@ -46,7 +50,7 @@ func serve(ctx context.Context, ln net.Listener) error {
 	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		return err
+		return fmt.Errorf("shutdown: %w", err)
 	}
 	if err := <-served; !errors.Is(err, http.ErrServerClosed) {
 		return err
