@@ -72,11 +72,11 @@ func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
 		return err
 	}
 	defer pool.Close()
-	stopRelay, err := startRelay(ctx, conn, pool, db.New(pool, ids.Real{}, clock.Real{}), clock.Real{})
+	stopBus, err := startBus(ctx, conn, pool)
 	if err != nil {
 		return err
 	}
-	defer func() { err = errors.Join(err, stopRelay()) }()
+	defer func() { err = errors.Join(err, stopBus()) }()
 	unregister, err := conn.ExportAccountGauges()
 	if err != nil {
 		return err
@@ -110,6 +110,35 @@ func startRelay(
 		<-done
 		return unregister()
 	}, nil
+}
+
+func consumers() []bus.Consumer { return nil }
+
+func startBus(ctx context.Context, conn *bus.Conn, pool *pgxpool.Pool) (func() error, error) {
+	uow := db.New(pool, ids.Real{}, clock.Real{})
+	stopConsumers, err := startConsumers(ctx, conn, uow, clock.Real{}, consumers())
+	if err != nil {
+		return nil, err
+	}
+	stopRelay, err := startRelay(ctx, conn, pool, uow, clock.Real{})
+	if err != nil {
+		stopConsumers()
+		return nil, err
+	}
+	return func() error {
+		stopConsumers()
+		return stopRelay()
+	}, nil
+}
+
+func startConsumers(
+	ctx context.Context, conn *bus.Conn, uow *db.UnitOfWork, clk clock.Clock, consumers []bus.Consumer,
+) (func(), error) {
+	reg, err := bus.NewRegistry(conn, uow, clk, consumers)
+	if err != nil {
+		return nil, err
+	}
+	return reg.Start(ctx)
 }
 
 func serve(ctx context.Context, ln net.Listener, timeouts config.Timeouts) error {
