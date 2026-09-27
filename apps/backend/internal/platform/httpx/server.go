@@ -2,6 +2,7 @@ package httpx
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
@@ -17,6 +18,9 @@ func Handler(d Deps, ssi api.StrictServerInterface) (http.Handler, error) {
 func handler(
 	d Deps, ssi api.StrictServerInterface, spec []byte, mws []api.StrictMiddlewareFunc,
 ) (http.Handler, error) {
+	if d.Idempotency == nil {
+		return nil, errs.New(errs.CodeInternal, "httpx.Handler", slog.String("missing", "Deps.Idempotency"))
+	}
 	validate, err := requestValidator(spec)
 	if err != nil {
 		return nil, err
@@ -32,7 +36,7 @@ func handler(
 	api.HandlerWithOptions(strict, api.StdHTTPServerOptions{
 		BaseRouter:       mux,
 		ErrorHandlerFunc: invalidRequest,
-		Middlewares:      []api.MiddlewareFunc{validate},
+		Middlewares:      []api.MiddlewareFunc{Idempotency(d.Idempotency), validate},
 	})
 	return d.wrap(mux), nil
 }

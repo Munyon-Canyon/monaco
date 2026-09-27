@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -12,8 +13,10 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -40,6 +43,7 @@ func TestServe_healthzAnswersOkUntilShutdown(t *testing.T) {
 	handler, err := httpx.Handler(httpx.Deps{
 		Logger: observability.NewLogger(config.Config{}, io.Discard), Tracer: noop.NewTracerProvider(),
 		Clock: clock.Real{}, IDs: ids.Real{}, MaxBodyBytes: 1 << 10,
+		Idempotency: db.NewIdempotencyStore(testkit.DB(t), clock.Real{}),
 	}, httpx.Health{})
 	if err != nil {
 		t.Fatal(err)
@@ -73,6 +77,44 @@ func TestServe_healthzAnswersOkUntilShutdown(t *testing.T) {
 	if resp, err := get(t.Context(), url); err == nil {
 		_ = resp.Body.Close()
 		t.Fatal("GET /healthz succeeded after shutdown")
+	}
+}
+
+func TestRun_cancelledDuringBootStopsCleanly(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	err := run(ctx, io.Discard, []string{
+		"MONACO_ENV=test", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=" + testkit.NATSURL(),
+		"MONACO_HTTP_ADDR=127.0.0.1:0", "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
+	})
+	if err != nil {
+		t.Fatalf("run with a cancelled context = %v, want nil: a stop during boot is a clean stop", err)
+	}
+}
+
+func TestRun_aShutdownFailureAfterACancelIsReported(t *testing.T) {
+	t.Parallel()
+	url := testkit.StandaloneNATS(t)
+	conn, err := bus.Connect(t.Context(), config.NATS{URL: url}, bus.ProcessMonacoctl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Apply(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	conn.Close(t.Context())
+
+	ctx, cancel := context.WithCancel(t.Context())
+	stop := time.AfterFunc(2*time.Second, cancel)
+	defer stop.Stop()
+	err = run(ctx, io.Discard, []string{
+		"MONACO_ENV=test", "DATABASE_URL=" + testkit.DB(t).Config().ConnString(), "NATS_URL=" + url,
+		"MONACO_HTTP_ADDR=127.0.0.1:0", "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
+		"OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:1", "MONACO_TIMEOUT_SHUTDOWN=1s",
+	})
+	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable || errors.Is(err, context.Canceled) {
+		t.Fatalf("run = %v, want the telemetry flush failure reported after the cancel", err)
 	}
 }
 

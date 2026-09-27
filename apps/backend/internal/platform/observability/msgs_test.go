@@ -54,6 +54,9 @@ func TestWriteCatalog_printsTheRegistrySortedByName(t *testing.T) {
 		"| `bus.relay.publish_failed` | `code`, `err` |\n" +
 		"| `bus.relay.tick` | `count`, `first_id`, `last_id` |\n" +
 		"| `db.lock.lost` | `lock`, `held`, `err` |\n" +
+		"| `http.idempotency.released` | `idempotency_key`, `status` |\n" +
+		"| `http.idempotency.replayed` | `idempotency_key`, `status` |\n" +
+		"| `http.idempotency.store_failed` | `idempotency_key`, `status`, `err` |\n" +
 		"| `http.problem` | `code`, `status`, `err`, `alert` |\n" +
 		"| `http.request` | `method`, `route`, `status`, `duration_ms` |\n" +
 		"| `httpclient.retry` | `upstream`, `attempt`, `status`, `delay` |\n" +

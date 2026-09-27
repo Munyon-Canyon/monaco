@@ -97,6 +97,7 @@ func newHarness(t *testing.T) *harness {
 			Clock:        &stepClock{},
 			IDs:          fixedIDs{generatedID()},
 			MaxBodyBytes: 1 << 20,
+			Idempotency:  stubStore{},
 		},
 		logs:  logs,
 		spans: spans,

@@ -44,7 +44,7 @@ func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
 	}
 	shutdown, err := observability.Setup(ctx, cfg)
 	if err != nil {
-		return err
+		return bootErr(err)
 	}
 	defer func() {
 		flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.Timeouts.Shutdown)
@@ -56,7 +56,7 @@ func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
 	observability.Info(ctx, observability.BootConfig, slog.String("service", "api"), slog.Any("config", cfg.Redacted()))
 	conn, err := bus.Connect(ctx, cfg.NATS, bus.ProcessAPI)
 	if err != nil {
-		return err
+		return bootErr(err)
 	}
 	defer func() {
 		drainCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.Timeouts.Shutdown)
@@ -64,21 +64,21 @@ func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
 		conn.Close(drainCtx)
 	}()
 	if err := conn.VerifyStreams(ctx); err != nil {
-		return err
+		return bootErr(err)
 	}
 	pool, err := db.Open(ctx, cfg.DB)
 	if err != nil {
-		return err
+		return bootErr(err)
 	}
 	defer pool.Close()
 	stopRelay, err := startRelay(ctx, conn, pool, db.New(pool, ids.Real{}, clock.Real{}), clock.Real{})
 	if err != nil {
-		return err
+		return bootErr(err)
 	}
 	defer func() { err = errors.Join(err, stopRelay()) }()
 	ln, err := new(net.ListenConfig).Listen(ctx, "tcp", cfg.HTTP.Addr)
 	if err != nil {
-		return fmt.Errorf("listen on %s: %w", cfg.HTTP.Addr, err)
+		return bootErr(fmt.Errorf("listen on %s: %w", cfg.HTTP.Addr, err))
 	}
 	observability.Info(ctx, observability.BootListening, slog.String("service", "api"),
 		slog.String("addr", ln.Addr().String()))
@@ -88,6 +88,7 @@ func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
 		Clock:        clock.Real{},
 		IDs:          ids.Real{},
 		MaxBodyBytes: int64(cfg.HTTP.MaxBodyBytes),
+		Idempotency:  db.NewIdempotencyStore(pool, clock.Real{}),
 	}, httpx.Health{})
 	if err != nil {
 		return err
@@ -114,6 +115,13 @@ func startRelay(
 		<-done
 		return unregister()
 	}, nil
+}
+
+func bootErr(err error) error {
+	if errors.Is(err, context.Canceled) {
+		return nil
+	}
+	return err
 }
 
 func serve(ctx context.Context, ln net.Listener, srv *http.Server, shutdownTimeout time.Duration) error {

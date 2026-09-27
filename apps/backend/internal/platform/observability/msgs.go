@@ -37,6 +37,14 @@ var (
 	BusRelayFailed        = Msg{Name: "bus.relay.failed", Required: []string{"code", "err"}}
 )
 
+var (
+	HTTPIdempotencyReplayed    = Msg{Name: "http.idempotency.replayed", Required: []string{"idempotency_key", "status"}}
+	HTTPIdempotencyReleased    = Msg{Name: "http.idempotency.released", Required: []string{"idempotency_key", "status"}}
+	HTTPIdempotencyStoreFailed = Msg{
+		Name: "http.idempotency.store_failed", Required: []string{"idempotency_key", "status", "err"},
+	}
+)
+
 var registry = []Msg{
 	BootConfig,
 	BootListening,
@@ -55,6 +63,9 @@ var registry = []Msg{
 	BusRelayIdle,
 	BusRelayPublishFailed,
 	BusRelayFailed,
+	HTTPIdempotencyReplayed,
+	HTTPIdempotencyReleased,
+	HTTPIdempotencyStoreFailed,
 }
 
 func WithLogger(ctx context.Context, l *slog.Logger) context.Context {

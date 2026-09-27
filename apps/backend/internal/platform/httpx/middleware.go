@@ -29,6 +29,7 @@ type Deps struct {
 	Clock        clock.Clock
 	IDs          ids.Generator
 	MaxBodyBytes int64
+	Idempotency  IdempotencyStore
 }
 
 func (d Deps) wrap(next http.Handler) http.Handler {
