@@ -5,8 +5,10 @@ root="$(git rev-parse --show-toplevel)"
 cd "$root"
 
 pkgs=()
+files=()
 while IFS= read -r file; do
   [[ "$file" == */testdata/* ]] && continue
+  files+=("${file#apps/backend/}")
   pkg="./$(dirname "${file#apps/backend/}")"
   [[ " ${pkgs[*]-} " == *" $pkg "* ]] || pkgs+=("$pkg")
 done < <(git diff --cached --name-only --diff-filter=ACM -- 'apps/backend/*.go')
@@ -27,5 +29,9 @@ if ! golangci-lint run --new-from-rev=HEAD "${pkgs[@]}"; then
 fi
 if ! go run ./internal/platform/lint/nogo/cmd/nogo "${pkgs[@]}"; then
   echo "pre-commit: nogo found bare go statements in staged apps/backend packages." >&2
+  exit 1
+fi
+if ! go run ./cmd/monacoctl lint comments "${files[@]}"; then
+  echo "pre-commit: comments found in staged apps/backend Go files. No comments in Go. Use a better name, a type, a test, or an issue." >&2
   exit 1
 fi
