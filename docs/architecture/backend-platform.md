@@ -745,7 +745,7 @@ What lives where:
 | Flow scripts | `internal/testkit/flows/<id>.go` | The same steps as the flow's acceptance scenario, written once and run by both `go test` (in-process) and `verify` (against binaries). |
 | Seed scenarios | `internal/testkit/scenarios/` | Named event sequences replayed into the database before a flow starts (see [Replay and seeded states](#replay-and-seeded-states)). |
 | Evidence | `test/evidence/<flow-id>.json`, committed | One file per flow, stamped with the commit it ran against. |
-| Pre-PR hook | `scripts/agent-guard-pr.sh`, wired in `.claude/settings.json` | Blocks `gh pr create` until evidence is fresh for every touched flow. |
+| Pre-PR hook | `scripts/agent-guard-pr.sh`, wired in `.claude/settings.json` | Blocks `gt submit` and `gh pr create` until evidence is fresh for every touched flow. |
 
 What one run does:
 
@@ -771,7 +771,7 @@ An evidence file holds: the commit SHA and whether the tree was dirty, the flow 
 
 Gates:
 
-- **Before a PR, for agents.** `scripts/agent-guard-pr.sh` runs on `gh pr create`. It maps the branch's changed files to flows and blocks unless each has passing evidence stamped with `HEAD`. The message tells the agent to run `just verify backend`. The Cursor rule says the same.
+- **Before a PR, for agents.** `scripts/agent-guard-pr.sh` runs on `gt submit` and `gh pr create`. It maps the branch's changed files to flows and blocks unless each has passing evidence stamped with `HEAD`. The message tells the agent to run `just verify backend`. The Cursor rule says the same.
 - **In CI, for everyone.** The E2E job reruns `verify` for the touched flows and fails on any difference from the committed evidence in the pass or fail of an invariant. `monacoctl flows check` fails a `verified` flow whose evidence is older than its module's newest commit.
 - **On failure.** The agent fixes the code and reruns. Evidence is never hand-edited: `flows check` recomputes the SHA stamp and rejects a file whose content hash does not match what `verify` wrote.
 
@@ -810,7 +810,38 @@ Rollout step 1 measures a real run on the scaffold and confirms the phase budget
   - `go-concurrency`: when to use `Pool`, `Stage`, `FanOut`, errgroup; the eight concurrency rules; `goleak` and `-race` required. References the Mario Carrión fan-in/fan-out article for the base pattern and the helpers for the house version.
   - `money-change`: checklist for anything touching ledgers, shares, swaps: property test, crash-point test, guarded update, event in same tx.
   - `nats-consumer`: `bus.Dispatch` contract, idempotency via `event_deliveries`, retryable vs term, `InProgress` for long work, `Nats-Msg-Id` on publish, consumer-not-stream per module.
-  - `verify-backend`: the instructions and feature map above. Every backend branch runs `just verify backend` before `gh pr create`, and the pre-PR hook enforces it.
+  - `verify-backend`: the instructions and feature map above. Every backend branch runs `just verify backend` before its PR is opened, and the pre-PR hook enforces it.
+
+## Pull requests: small and stacked
+
+Agents write code faster than people can review it. One large PR hides the change that matters, gets skimmed, and blocks everything behind it until it lands. So work ships as a stack of small PRs, each built on the one below, each reviewable in a few minutes and green on its own. [Graphite](https://graphite.dev) manages the stack.
+
+### Setup
+
+Graphite is a required tool, installed by `./scripts/install-dev.sh` (`just install`) like Go and `just`:
+
+1. `brew install withgraphite/tap/graphite`
+2. `gt auth --token <token>`, with the token from https://app.graphite.com/activate
+3. `gt init --trunk main` once per clone.
+
+Agents in Claude Code on the web or CI install it with `npm install -g @withgraphite/graphite-cli` and read the token from `GRAPHITE_AUTH_TOKEN`.
+
+### Rules
+
+- **One PR is one verifiable unit.** It builds, `just test backend` passes, and `just verify backend` passes for the flows it touches, all without the PRs above it. A PR that only makes sense with the next one gets merged with it.
+- **Order a stack so each PR proves the next.** Delete or rename first. Then schema and migration. Then `domain` and `app` with their tests. Then adapters and HTTP. Last, the `flows.tsv` status change with its evidence. The Rollout steps below are each one stack, not one PR.
+- **Size limit.** Aim for under 300 changed lines. CI fails a PR over 500 changed lines, counting only hand-written code and tests. Generated files, `go.sum`, evidence files and rendered docs don't count. A human reviewer can add the `large-pr` label for a mechanical change such as a rename; an agent never adds it.
+- **Create and push with `gt`, not `gh`.** `gt create -m "<message>"` makes a branch and commit on top of the current one. `gt modify` amends and restacks everything above. `gt submit --stack` pushes the stack and opens or updates every PR with the right base. Plain `git push` or `gh pr create` on a stacked branch sets the wrong base or breaks the stack.
+- **Keep the stack current.** `gt sync` pulls `main` and deletes merged branches. `gt restack` rebases the stack onto it. Resolve each conflict in the branch where it appears, then `gt continue`. Never leave conflict markers staged: run `git diff --check` before `gt add`.
+- **Force-push only after checking the remote.** `gt submit --force` overwrites the remote branch. First confirm the remote has no commits the local stack lacks: `git log --oneline <local>..origin/<branch>` prints nothing. On 2026-09-27 a restack found a remote branch whose hash differed from the local one; the patch was identical, and that check is what proved it safe.
+- **Merge bottom-up.** Merge the lowest PR first, in the Graphite UI or its merge queue, and let Graphite rebase the rest. Never merge a PR whose base is not `main`.
+- **Describe each PR on its own.** Use the `pr-summary` skill: what this PR changes, why, and how it was verified. A reviewer reads one PR, not the stack.
+
+### Enforcement
+
+- **Pre-PR hook.** `scripts/agent-guard-pr.sh` runs on `gt submit` and on `gh pr create`. It blocks `gh pr create` on a branch Graphite tracks and tells the agent to use `gt submit --stack`. For every branch being submitted, it also requires fresh `verify-backend` evidence ([Gates](#verification-skill)).
+- **CI.** It runs the size check above. It also fails a PR whose base branch is not `main` and has no open PR of its own. That is the sign of a stack pushed without Graphite.
+- **Install check.** `just install --check` exits 1 when `gt` is missing, the same as for Go.
 
 ## Rollout
 

@@ -100,6 +100,19 @@ if ! have dotenvx; then
   fi
 fi
 
+if ! have gt; then
+  missing_required=1
+  say "Graphite (gt) is missing. PRs are opened as stacks with gt submit (https://graphite.dev)."
+  if ask_yes "Install Graphite with Homebrew (withgraphite/tap/graphite)?"; then
+    if have brew; then
+      brew install withgraphite/tap/graphite || missing_required=1
+      say "Then run: gt auth --token <token from https://app.graphite.com/activate> && gt init --trunk main"
+    else
+      err "Homebrew is not on PATH."
+    fi
+  fi
+fi
+
 # --- optional SimSlim ---
 if ! have simslim; then
   say "SimSlim is optional. Stock Xcode Simulator works. just run mobile falls back if slim is missing."

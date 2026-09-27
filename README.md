@@ -11,14 +11,14 @@ Monaco lets you create a hedge fund with friends by pooling money to buy stocks 
 
 ## Prereqs
 
-macOS, Xcode (iOS 18+ simulator), Docker, Go 1.25+, [just](https://github.com/casey/just), [dotenvx CLI](https://dotenvx.com/docs/install). SimSlim is optional.
+macOS, Xcode (iOS 18+ simulator), Docker, Go 1.25+, [just](https://github.com/casey/just), [dotenvx CLI](https://dotenvx.com/docs/install), [Graphite CLI](https://graphite.dev/docs/install-the-cli) (`gt`). SimSlim is optional.
 
 ## Clone setup
 
 1. Clone this repo. `cd` into the clone. Do not hard-code another machine's home path.
 2. Place gitignored `.env.keys` in the repo root if a teammate encrypted `.env.local` for you. Also place that `.env.local`. dotenvx reads both from the clone root.
 3. If you have no `.env.local` yet, copy `.env.example` to `.env.local` and set Privy plus relayer values with `dotenvx set KEY value -f .env.local`.
-4. Run `./scripts/install-dev.sh` (or `just install`). It asks before each install (Go, just, dotenvx, optional SimSlim). `just install --check` only reports.
+4. Run `./scripts/install-dev.sh` (or `just install`). It asks before each install (Go, just, dotenvx, Graphite, optional SimSlim). `just install --check` only reports. Then run `gt auth --token <token>` with the token from https://app.graphite.com/activate, and `gt init --trunk main`.
 5. `just run` starts Postgres, the API, and the iOS app. Privy is injected via `scripts/ensure-ios-privy-config.sh` and `SIMCTL_CHILD_*`. If SimSlim is missing, the scripts warn and boot a stock simulator.
 
 Do not wrap `just` with `dotenvx run` yourself. Recipes that need secrets re-exec under `scripts/with-dotenv-local.sh`.
@@ -433,6 +433,21 @@ Do not copy these skills into another machine's home path. Clone the repo; Curso
 Backend tests never touch the app database: they derive `{dbname}_test` from `DATABASE_URL`, create it if missing, and migrate it (`apps/backend/internal/postgres/testdb.go`). Without `just`: export `DATABASE_URL` and run `go test -race -p 1 ./...` from `apps/backend` (`-p 1` because the packages share that one test database).
 
 `.github/workflows/ci.yml` runs on pull requests and pushes to `main`: a Go job (Postgres 16 service container, migrations on a clean database, `go vet`, `go test -race` for `apps/backend`, `packages/domain` and `agents/momentum-bot`), a macOS job (`swift test` in `packages/mobile-core`), a job for the `apps/web` landing page, and an iOS app build and test job on pull requests that touch the app. A nightly run adds UI tests and screenshots. Details: [`docs/how-to/overnight-qa.md`](docs/how-to/overnight-qa.md).
+
+## Pull requests
+
+Changes ship as stacks of small PRs through Graphite, not as one large PR. Each PR builds and passes tests on its own, and aims for under 300 changed lines.
+
+```bash
+gt sync                       # pull main, drop merged branches
+gt create -m "first step"     # new branch + commit on top of the current branch
+gt create -m "next step"      # stacks on the previous one
+gt modify                     # amend the current branch; restacks the branches above
+gt submit --stack             # push the stack; open or update every PR with the right base
+gt restack                    # rebase the stack after main moves
+```
+
+Merge bottom-up. The rules and why they exist: [Pull requests: small and stacked](docs/architecture/backend-platform.md#pull-requests-small-and-stacked).
 
 ## Deploy
 
