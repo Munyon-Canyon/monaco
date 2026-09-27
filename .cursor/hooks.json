@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "postToolUse": [
+      {
+        "command": "./scripts/agent-guard-go-comments.sh",
+        "matcher": "Write"
+      }
+    ]
+  }
+}
