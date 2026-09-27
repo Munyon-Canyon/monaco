@@ -5,6 +5,7 @@ package chaos_test
 import (
 	"context"
 	"math/rand/v2"
+	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -54,6 +55,7 @@ func goTestChaos(t *testing.T, args ...string) (string, error) {
 	cmd := exec.CommandContext(t.Context(), "go", append([]string{
 		"test", "-tags", "faultpoints", "-count=1", "-v", "-run", "^TestCounterWithoutDedupe$", "./testdata/counter",
 	}, args...)...)
+	cmd.Env = append(os.Environ(), "CHAOS_SEEDS=")
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }

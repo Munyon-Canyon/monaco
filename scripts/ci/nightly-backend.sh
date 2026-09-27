@@ -37,12 +37,12 @@ fuzz_all() {
         pkg="$(awk '{ print $2 }' <<<"$line")"
         for name in ${names[@]+"${names[@]}"}; do
           echo "fuzz $pkg $name for $fuzztime"
-          go test -run '^$' -fuzz "^${name}\$" -fuzztime "$fuzztime" "$pkg" || status=1
+          go test -tags faultpoints -run '^$' -fuzz "^${name}\$" -fuzztime "$fuzztime" "$pkg" || status=1
         done
         names=()
         ;;
     esac
-  done < <(go test -list '^Fuzz' ./...)
+  done < <(go test -tags faultpoints -list '^Fuzz' ./...)
   return "$status"
 }
 
@@ -50,10 +50,10 @@ rapid=()
 while IFS= read -r pkg; do
   rapid+=("$pkg")
 done < <(rapid_packages)
-step rapid env RAPID_CHECKS=100000 go test -timeout 60m "${rapid[@]}"
+step rapid env RAPID_CHECKS=100000 go test -tags faultpoints -timeout 60m "${rapid[@]}"
 step fuzz fuzz_all
-step long go test -race -shuffle=on -timeout 60m ./...
-step seed-sweep go test -race -shuffle=on -short -count="$sweep" -timeout 60m ./...
+step long env CHAOS_SEEDS=5000 go test -tags faultpoints -race -shuffle=on -timeout 60m ./...
+step seed-sweep go test -tags faultpoints -race -shuffle=on -short -count="$sweep" -timeout 60m ./...
 step mutation go run ./cmd/monacoctl mutation --all
 step bench go test -run '^$' -bench . -benchmem -count 10 -timeout 60m ./...
 cp "$out/bench.log" "$out/bench.txt"
