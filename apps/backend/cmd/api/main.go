@@ -13,21 +13,23 @@ import (
 	"syscall"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 func main() {
-	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	if err := run(logger, os.Environ()); err != nil {
-		logger.ErrorContext(context.Background(), "api stopped", slog.Any("err", err))
+	if err := run(os.Stderr, os.Environ()); err != nil {
+		observability.NewLogger(config.Config{}, os.Stderr).
+			ErrorContext(context.Background(), "api stopped", slog.Any("err", err))
 		os.Exit(1)
 	}
 }
 
-func run(logger *slog.Logger, environ []string) error {
+func run(stderr io.Writer, environ []string) error {
 	cfg, err := config.Load(environ)
 	if err != nil {
 		return err
 	}
+	logger := observability.NewLogger(cfg, stderr)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer stop()
 	logger.InfoContext(ctx, "api config", slog.Any("config", cfg.Redacted()))

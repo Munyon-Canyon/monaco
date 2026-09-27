@@ -1,0 +1,24 @@
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"key phone","phone":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"key email","email":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"key token","token":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"key key","key":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"key seed","seed":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"key signature","signature":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"key secret","secret":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"key authorization","authorization":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"key EMAIL","EMAIL":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"key Authorization","Authorization":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"key on int value","seed":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"key on group value","secret":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"nested group key","user":{"id":"u1","contact":{"phone":"***"}}}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"base58 secret key value","relayer":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"byte array secret key value","keypair":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"jwt value","header":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"jwt inside error","err":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"jwt from log valuer","session":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"jwt in nested group","req":{"cookie":"***"}}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","token":"***","cabal_id":"c1","case":"with attrs","email":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","privy":{"authorization":"***","case":"with group then attrs","key":"***"}}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"kept: wallet address","wallet":"7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"kept: ordinary values","cabal_id":"c1","have":4000000,"ok":true,"err":"jupiter unavailable"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"kept: key as substring","idempotency_key":"k1"}

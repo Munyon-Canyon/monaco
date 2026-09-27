@@ -1,0 +1,109 @@
+package observability
+
+import (
+	"bytes"
+	"errors"
+	"log/slog"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+)
+
+const (
+	goldenPath   = "testdata/redaction.golden"
+	sampleJWT    = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.c2lnbmF0dXJl"
+	samplePubkey = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+)
+
+func sampleBase58Secret() string { return strings.Repeat("5Kd3", 22) }
+
+func sampleByteArray() string { return "[" + strings.Repeat("12, ", 63) + "255]" }
+
+type jwtHolder struct{}
+
+func (jwtHolder) LogValue() slog.Value { return slog.StringValue(sampleJWT) }
+
+type redactionCase struct {
+	name  string
+	build func(h slog.Handler) slog.Handler
+	attrs []slog.Attr
+}
+
+func redactionCases() []redactionCase {
+	keep := func(h slog.Handler) slog.Handler { return h }
+	var cases []redactionCase
+	for _, key := range []string{
+		"phone", "email", "token", "key", "seed", "signature", "secret", "authorization", "EMAIL", "Authorization",
+	} {
+		cases = append(cases, redactionCase{"key " + key, keep, []slog.Attr{slog.String(key, "plain-value")}})
+	}
+	return append(cases,
+		redactionCase{"key on int value", keep, []slog.Attr{slog.Int("seed", 42)}},
+		redactionCase{"key on group value", keep, []slog.Attr{slog.Group("secret", slog.String("a", "b"))}},
+		redactionCase{"nested group key", keep, []slog.Attr{
+			slog.Group("user", slog.String("id", "u1"), slog.Group("contact", slog.String("phone", "+15550100"))),
+		}},
+		redactionCase{"base58 secret key value", keep, []slog.Attr{slog.String("relayer", sampleBase58Secret())}},
+		redactionCase{"byte array secret key value", keep, []slog.Attr{slog.String("keypair", sampleByteArray())}},
+		redactionCase{"jwt value", keep, []slog.Attr{slog.String("header", "Bearer "+sampleJWT)}},
+		redactionCase{"jwt inside error", keep, []slog.Attr{slog.Any("err", errors.New("privy said "+sampleJWT))}},
+		redactionCase{"jwt from log valuer", keep, []slog.Attr{slog.Any("session", jwtHolder{})}},
+		redactionCase{"jwt in nested group", keep, []slog.Attr{slog.Group("req", slog.String("cookie", sampleJWT))}},
+		redactionCase{"with attrs", func(h slog.Handler) slog.Handler {
+			return h.WithAttrs([]slog.Attr{slog.String("token", "t"), slog.String("cabal_id", "c1")})
+		}, []slog.Attr{slog.String("email", "a@b.c")}},
+		redactionCase{"with group then attrs", func(h slog.Handler) slog.Handler {
+			return h.WithGroup("privy").WithAttrs([]slog.Attr{slog.String("authorization", "Basic x")})
+		}, []slog.Attr{slog.String("key", "k")}},
+		redactionCase{"kept: wallet address", keep, []slog.Attr{slog.String("wallet", samplePubkey)}},
+		redactionCase{"kept: ordinary values", keep, []slog.Attr{
+			slog.String("cabal_id", "c1"), slog.Int64("have", 4_000_000), slog.Bool("ok", true),
+			slog.Any("err", errors.New("jupiter unavailable")),
+		}},
+		redactionCase{"kept: key as substring", keep, []slog.Attr{slog.String("idempotency_key", "k1")}},
+	)
+}
+
+func TestRedaction_matchesGolden(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	at := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	for _, c := range redactionCases() {
+		h := c.build(NewLogger(config.Config{Env: config.EnvProduction}, &buf).Handler())
+		r := slog.NewRecord(at, slog.LevelInfo, "redaction.case", 0)
+		r.AddAttrs(slog.String("case", c.name))
+		r.AddAttrs(c.attrs...)
+		if err := h.Handle(t.Context(), r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if *update {
+		if err := os.WriteFile(goldenPath, buf.Bytes(), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := buf.String(); got != string(want) {
+		t.Fatalf("redaction output differs from %s (rerun with -update to accept):\n%s", goldenPath, got)
+	}
+	for _, secret := range []string{sampleJWT, sampleBase58Secret(), sampleByteArray(), "a@b.c", "+15550100"} {
+		if strings.Contains(buf.String(), secret) {
+			t.Errorf("output leaks %q", secret)
+		}
+	}
+}
+
+func TestRedaction_plantedEmailPrintsMask(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	NewLogger(config.Config{}, &buf).InfoContext(t.Context(), "user.signed_in", slog.String("email", "a@b.c"))
+	if got := buf.String(); !strings.Contains(got, `"email":"***"`) || strings.Contains(got, "a@b.c") {
+		t.Fatalf("line = %s, want email masked as ***", got)
+	}
+}
