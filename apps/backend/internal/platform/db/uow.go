@@ -93,13 +93,9 @@ func (u *UnitOfWork) run(
 		if r == nil {
 			return
 		}
-		rbErr := rollback(ctx, pgtx)
 		observability.Info(ctx, observability.TxRolledBack,
 			slog.String("code", string(errs.CodePanic)), slog.Int("attempt", attempt))
-		if rbErr != nil {
-			panic(fmt.Sprintf("%v (rollback: %v)", r, rbErr))
-		}
-		panic(r)
+		rollbackAndRepanic(ctx, pgtx, r)
 	}()
 	if err := fn(ctx, tx); err != nil {
 		return nil, withRollback(err, rollback(ctx, pgtx))
@@ -127,6 +123,13 @@ func rollback(ctx context.Context, tx pgx.Tx) error {
 		return nil
 	}
 	return classify(err, "db.UnitOfWork.rollback")
+}
+
+func rollbackAndRepanic(ctx context.Context, tx pgx.Tx, r any) {
+	if err := rollback(ctx, tx); err != nil {
+		panic(fmt.Sprintf("%v (rollback: %v)", r, err))
+	}
+	panic(r)
 }
 
 func withRollback(err, rbErr error) error {

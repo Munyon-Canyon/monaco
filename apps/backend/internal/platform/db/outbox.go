@@ -41,6 +41,11 @@ func (o *Outbox) Drain(
 	if err != nil {
 		return Batch{}, classify(err, op)
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			rollbackAndRepanic(ctx, pgtx, r)
+		}
+	}()
 	q := sqlc.New(pgtx)
 	rows, err := q.ListUnpublished(ctx, limit)
 	if err != nil {
