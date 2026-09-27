@@ -4,9 +4,11 @@ go 1.25.0
 
 toolchain go1.25.14
 
+require pgregory.net/rapid v1.3.0
+
 require (
+	github.com/google/uuid v1.6.0
 	golang.org/x/tools v0.49.0
-	pgregory.net/rapid v1.3.0
 )
 
 require (
