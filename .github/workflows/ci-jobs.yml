@@ -92,10 +92,10 @@ jobs:
       - name: Tests that -short skips because they build or run other binaries
         run: go test -race ./internal/platform/lint/... ./internal/testkit/... ./cmd/monacoctl
 
-  # Mutants on the packages this change touches and everything that imports them. A pull request
-  # compares with its base; a manual run compares with the parent commit.
+  # Mutants on the lines this change touches (gremlins --diff). A pull request compares with its base;
+  # a manual run compares with the parent commit. The nightly mutates every line of every package.
   mutation:
-    name: Mutation (changed packages)
+    name: Mutation (changed lines)
     needs: plan
     if: needs.plan.outputs.backend-go == 'true'
     runs-on: ubuntu-latest
@@ -115,7 +115,7 @@ jobs:
       - name: Install the pinned gremlins
         run: ../../scripts/install-gremlins.sh
 
-      - name: Mutants on the changed packages
+      - name: Mutants on the changed lines
         env:
           BASE: ${{ github.event.pull_request.base.sha || 'HEAD~1' }}
         run: go run ./cmd/monacoctl mutation --base "$BASE"

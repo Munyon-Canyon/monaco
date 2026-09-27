@@ -33,11 +33,12 @@ type mutationEnv struct {
 	exec                                       execFunc
 }
 
-type execFunc func(ctx context.Context, dir, name string, args ...string) ([]byte, error)
+type execFunc func(ctx context.Context, dir string, env []string, name string, args ...string) ([]byte, error)
 
-func runCommand(ctx context.Context, dir, name string, args ...string) ([]byte, error) {
+func runCommand(ctx context.Context, dir string, env []string, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), env...)
 	out, err := cmd.Output()
 	var exit *exec.ExitError
 	if errors.As(err, &exit) {
@@ -46,10 +47,7 @@ func runCommand(ctx context.Context, dir, name string, args ...string) ([]byte, 
 	return out, err
 }
 
-type listedPackage struct {
-	Dir, ImportPath string
-	Deps            []string
-}
+type listedPackage struct{ Dir, ImportPath string }
 
 type gremlinsReport struct {
 	Files []struct {
@@ -111,16 +109,18 @@ func (env mutationEnv) run(ctx context.Context, base string, all bool, stdout io
 		return nil, err
 	}
 	var changed []string
+	diffRef := ""
 	if !all {
 		if changed, err = env.changedFiles(ctx, base); err != nil {
 			return nil, err
 		}
+		diffRef = base
 	}
 	dirs := affectedPackages(listed, changed, all, strings.Fields(string(exclude)))
 	_, _ = fmt.Fprintf(stdout, "mutating %d packages: %s\n", len(dirs), strings.Join(dirs, " "))
 	var survivors []string
 	for _, dir := range dirs {
-		report, err := env.unleash(ctx, dir)
+		report, err := env.unleash(ctx, dir, diffRef)
 		if err != nil {
 			return nil, err
 		}
@@ -133,22 +133,33 @@ func (env mutationEnv) run(ctx context.Context, base string, all bool, stdout io
 }
 
 func (env mutationEnv) goList(ctx context.Context) ([]listedPackage, error) {
-	out, err := env.exec(ctx, env.moduleDir, env.goBin,
-		"list", "-f", `{{.Module.Dir}}	{{.Dir}}	{{.ImportPath}}	{{join .Deps " "}}`, "./...")
+	out, err := env.exec(ctx, env.moduleDir, nil, env.goBin,
+		"list", "-f", `{{.Module.Dir}}	{{.Dir}}	{{.ImportPath}}`, "./...")
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, "monacoctl.goList")
 	}
 	var pkgs []listedPackage
 	for line := range strings.Lines(string(out)) {
-		f := strings.SplitN(strings.TrimRight(line, "\n"), "\t", 4)
+		f := strings.SplitN(strings.TrimRight(line, "\n"), "\t", 3)
 		dir := strings.TrimPrefix(strings.TrimPrefix(f[1], f[0]), "/")
-		pkgs = append(pkgs, listedPackage{Dir: filepath.ToSlash(dir), ImportPath: f[2], Deps: strings.Fields(f[3])})
+		pkgs = append(pkgs, listedPackage{Dir: filepath.ToSlash(dir), ImportPath: f[2]})
 	}
 	return pkgs, nil
 }
 
 func (env mutationEnv) changedFiles(ctx context.Context, base string) ([]string, error) {
-	out, err := env.exec(ctx, env.moduleDir, env.gitBin, "diff", "--name-only", "--relative", base+"...HEAD", "--", ".")
+	out, err := env.exec(
+		ctx,
+		env.moduleDir,
+		nil,
+		env.gitBin,
+		"diff",
+		"--name-only",
+		"--relative",
+		base+"...HEAD",
+		"--",
+		".",
+	)
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, "monacoctl.changedFiles")
 	}
@@ -162,17 +173,9 @@ func affectedPackages(pkgs []listedPackage, changed []string, all bool, exclude 
 			changedDirs[path.Dir(f)] = true
 		}
 	}
-	changedPaths := map[string]bool{}
-	for _, p := range pkgs {
-		if changedDirs[p.Dir] {
-			changedPaths[p.ImportPath] = true
-		}
-	}
 	var dirs []string
 	for _, p := range pkgs {
-		hit := all || changedPaths[p.ImportPath] ||
-			slices.ContainsFunc(p.Deps, func(d string) bool { return changedPaths[d] })
-		if hit && !excluded(p.Dir+"/", exclude) {
+		if (all || changedDirs[p.Dir]) && !excluded(p.Dir+"/", exclude) {
 			dirs = append(dirs, p.Dir)
 		}
 	}
@@ -180,7 +183,7 @@ func affectedPackages(pkgs []listedPackage, changed []string, all bool, exclude 
 	return dirs
 }
 
-func (env mutationEnv) unleash(ctx context.Context, dir string) (gremlinsReport, error) {
+func (env mutationEnv) unleash(ctx context.Context, dir, diffRef string) (gremlinsReport, error) {
 	const op = "monacoctl.unleash"
 	file, err := os.CreateTemp(env.tmpDir, "gremlins-*.json")
 	if err != nil {
@@ -189,8 +192,21 @@ func (env mutationEnv) unleash(ctx context.Context, dir string) (gremlinsReport,
 	out := file.Name()
 	_ = file.Close()
 	defer func() { _ = os.Remove(out) }()
-	if _, err := env.exec(ctx, env.moduleDir, env.gremlins, "unleash", "--silent", "--timeout-coefficient", "50",
-		"--output", out, "--exclude-files", `\.gen\.go$`, "./"+dir); err != nil {
+	args := []string{
+		"unleash",
+		"--silent",
+		"--timeout-coefficient",
+		"50",
+		"--output",
+		out,
+		"--exclude-files",
+		`\.gen\.go$`,
+	}
+	if diffRef != "" {
+		args = append(args, "--diff", diffRef)
+	}
+	relativeGitDiff := []string{"GIT_CONFIG_COUNT=1", "GIT_CONFIG_KEY_0=diff.relative", "GIT_CONFIG_VALUE_0=true"}
+	if _, err := env.exec(ctx, filepath.Join(env.moduleDir, dir), relativeGitDiff, env.gremlins, args...); err != nil {
 		return gremlinsReport{}, errs.Wrap(fmt.Errorf("%w\n%s", err, env.testOutput(ctx, dir)), errs.CodeInternal, op)
 	}
 	data, _ := os.ReadFile(out)
@@ -211,7 +227,7 @@ func (e timedOutError) Error() string {
 }
 
 func (env mutationEnv) testOutput(ctx context.Context, dir string) string {
-	out, err := env.exec(ctx, env.moduleDir, env.goBin, "test", "-count=1", "./"+dir)
+	out, err := env.exec(ctx, env.moduleDir, nil, env.goBin, "test", "-count=1", "./"+dir)
 	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
 	lines = lines[max(0, len(lines)-testOutputLines):]
 	if err != nil {

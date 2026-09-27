@@ -5,6 +5,7 @@ import (
 	"io"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -23,6 +24,7 @@ func commands() map[string]command {
 }
 
 func tools(environ []string) map[string]tool {
+	gremlinsBin, _ := filepath.Abs("../../.bin/gremlins")
 	return map[string]tool{
 		"bench":    bench{"go"}.run,
 		"bus":      busTool(environ),
@@ -36,7 +38,7 @@ func tools(environ []string) map[string]tool {
 				moduleDir: ".",
 				goBin:     "go",
 				gitBin:    "git",
-				gremlins:  "../../.bin/gremlins",
+				gremlins:  gremlinsBin,
 				tmpDir:    os.TempDir(),
 				exec:      runCommand,
 			},

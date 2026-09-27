@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -28,13 +29,13 @@ func mutationModule(t *testing.T, allow string, extraPkgs ...string) mutationEnv
 		"a/testdata/x.txt": "fixture\n",
 	}
 	var list strings.Builder
-	list.WriteString("MODDIR\tMODDIR/a\texample.com/m/a\t\n" +
-		"MODDIR\tMODDIR/b\texample.com/m/b\texample.com/m/a\n" +
-		"MODDIR\tMODDIR/c\texample.com/m/c\t\n" +
-		"MODDIR\tMODDIR/kit\texample.com/m/kit\texample.com/m/a\n")
+	list.WriteString("MODDIR\tMODDIR/a\texample.com/m/a\n" +
+		"MODDIR\tMODDIR/b\texample.com/m/b\n" +
+		"MODDIR\tMODDIR/c\texample.com/m/c\n" +
+		"MODDIR\tMODDIR/kit\texample.com/m/kit\n")
 	for _, p := range extraPkgs {
 		files[p+"/x.go"] = "package " + p + "\n\nimport \"example.com/m/a\"\n\nfunc X() int { return a.A() }\n"
-		list.WriteString("MODDIR\tMODDIR/" + p + "\texample.com/m/" + p + "\texample.com/m/a\n")
+		list.WriteString("MODDIR\tMODDIR/" + p + "\texample.com/m/" + p + "\n")
 	}
 	files["golist.txt"] = list.String()
 	for name, body := range files {
@@ -90,7 +91,7 @@ func commitFile(t *testing.T, env mutationEnv, name, body string) {
 	}
 }
 
-func fakeExec(_ context.Context, dir, name string, args ...string) ([]byte, error) {
+func fakeExec(_ context.Context, dir string, env []string, name string, args ...string) ([]byte, error) {
 	if name == "go" && args[0] == "test" {
 		if args[len(args)-1] == "./flaky" {
 			return []byte("ok  \texample.com/m/flaky\t0.1s\n"), nil
@@ -112,8 +113,34 @@ func fakeExec(_ context.Context, dir, name string, args ...string) ([]byte, erro
 		changed, _ := os.ReadFile(filepath.Join(dir, "changed.txt"))
 		return changed, nil
 	default:
-		return nil, fakeGremlins(args[len(args)-1], args[slices.Index(args, "--output")+1])
+		if err := logGremlins(dir, env, args); err != nil {
+			return nil, err
+		}
+		return nil, fakeGremlins("./"+filepath.Base(dir), args[slices.Index(args, "--output")+1])
 	}
+}
+
+func logGremlins(pkgDir string, env, args []string) error {
+	log, err := os.OpenFile(
+		filepath.Join(filepath.Dir(pkgDir), "gremlins.log"),
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
+		0o600,
+	)
+	if err != nil {
+		return errs.Wrap(err, errs.CodeInternal, "fake gremlins log")
+	}
+	defer func() { _ = log.Close() }()
+	_, err = fmt.Fprintf(log, "%s: %s | %s\n", filepath.Base(pkgDir), strings.Join(args, " "), strings.Join(env, " "))
+	return err
+}
+
+func gremlinsCalls(t *testing.T, env mutationEnv) []string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(env.moduleDir, "gremlins.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Split(strings.TrimRight(string(data), "\n"), "\n")
 }
 
 func fakeGremlins(pkg, out string) error {
@@ -154,25 +181,49 @@ func fakeGremlins(pkg, out string) error {
 
 func TestRunCommandReturnsStdoutAndCarriesStderrOnFailure(t *testing.T) {
 	t.Parallel()
-	out, err := runCommand(t.Context(), t.TempDir(), "sh", "-c", "echo out; echo noise >&2")
+	out, err := runCommand(t.Context(), t.TempDir(), []string{"X=out"}, "sh", "-c", "echo $X; echo noise >&2")
 	if err != nil || string(out) != "out\n" {
 		t.Fatalf("runCommand = %q, %v; want stdout only", out, err)
 	}
-	if _, err := runCommand(t.Context(), t.TempDir(), "sh", "-c", "echo boom >&2; exit 3"); err == nil ||
+	if _, err := runCommand(t.Context(), t.TempDir(), nil, "sh", "-c", "echo boom >&2; exit 3"); err == nil ||
 		err.Error() != "exit status 3: boom" {
 		t.Fatalf("runCommand failure = %v, want the exit status and stderr", err)
 	}
 }
 
-func TestMutationFailsOnASurvivorInAChangedPackageAndItsDependents(t *testing.T) {
+func TestMutationFailsOnASurvivorOnTheChangedLinesOfAChangedPackage(t *testing.T) {
 	t.Parallel()
 	env := mutationModule(t, "")
 	commitFile(t, env, "a/x_test.go", "package a\n")
 	var stdout, stderr bytes.Buffer
-	code := mutationTool(env)(nil, &stdout, &stderr)
+	code := mutationTool(env)([]string{"--base", "origin/backend-rewrite"}, &stdout, &stderr)
 	wantErr := "monacoctl mutation: a/x.go:3:5 CONDITIONALS_NEGATION survived; kill it with a test or list it in mutants.allow with a reason\n"
-	if code != 1 || stdout.String() != "mutating 2 packages: a b\n" || stderr.String() != wantErr {
+	if code != 1 || stdout.String() != "mutating 1 packages: a\n" || stderr.String() != wantErr {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	want := "a: unleash --silent --timeout-coefficient 50 --output OUT --exclude-files \\.gen\\.go$ --diff origin/backend-rewrite" +
+		" | GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=diff.relative GIT_CONFIG_VALUE_0=true"
+	if calls := gremlinsCalls(
+		t,
+		env,
+	); len(calls) != 1 ||
+		outputPath.ReplaceAllString(calls[0], "--output OUT") != want {
+		t.Fatalf("gremlins calls = %q, want [%q]", calls, want)
+	}
+}
+
+var outputPath = regexp.MustCompile(`--output \S+`)
+
+func TestMutationAllMutatesEveryLineOfEveryPackage(t *testing.T) {
+	t.Parallel()
+	env := mutationModule(t, "")
+	var stdout, stderr bytes.Buffer
+	if code := mutationTool(env)([]string{"--all"}, &stdout, &stderr); code != 1 {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	calls := gremlinsCalls(t, env)
+	if len(calls) != 3 || slices.ContainsFunc(calls, func(c string) bool { return strings.Contains(c, "--diff") }) {
+		t.Fatalf("gremlins calls = %q, want a, b and c without --diff", calls)
 	}
 }
 
@@ -287,11 +338,19 @@ func TestMutationRunsOnARealModuleWithTheGoAndGitCommands(t *testing.T) {
 		t.Skip("runs go list and git on a scratch module; CI runs it without -short, outside the 10 s package budget")
 	}
 	env := mutationModule(t, "")
-	env.exec = func(ctx context.Context, dir, name string, args ...string) ([]byte, error) {
-		if name == env.gremlins {
-			return fakeExec(ctx, dir, name, args...)
+	env.exec = func(ctx context.Context, dir string, environ []string, name string, args ...string) ([]byte, error) {
+		if name != env.gremlins {
+			return runCommand(ctx, dir, environ, name, args...)
 		}
-		return runCommand(ctx, dir, name, args...)
+		ref := args[slices.Index(args, "--diff")+1]
+		diff, err := runCommand(ctx, dir, environ, "git", "diff", "--name-only", "--merge-base", ref)
+		if err != nil {
+			return nil, err
+		}
+		if string(diff) != "x_test.go\n" {
+			return nil, fmt.Errorf("gremlins would read git diff as %q; want paths relative to %s", diff, dir)
+		}
+		return fakeExec(ctx, dir, environ, name, args...)
 	}
 	git(t, env.moduleDir, "init", "-q", "-b", "main")
 	git(t, env.moduleDir, "add", ".")
@@ -299,7 +358,8 @@ func TestMutationRunsOnARealModuleWithTheGoAndGitCommands(t *testing.T) {
 	git(t, env.moduleDir, "checkout", "-q", "-b", "feature")
 	commitFile(t, env, "a/x_test.go", "package a\n")
 	var stdout, stderr bytes.Buffer
-	if code := mutationTool(env)(nil, &stdout, &stderr); code != 1 || stdout.String() != "mutating 2 packages: a b\n" {
+	if code := mutationTool(env)(nil, &stdout, &stderr); code != 1 || stdout.String() != "mutating 1 packages: a\n" ||
+		!strings.HasPrefix(stderr.String(), "monacoctl mutation: a/x.go:3:5 CONDITIONALS_NEGATION survived") {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 	var nope bytes.Buffer

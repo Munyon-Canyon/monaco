@@ -464,7 +464,7 @@ Also in CI:
 | Jitter / concurrency | pools, pipelines, relay, consumers under random delays and interleavings | `testing/synctest` + seeded delay injection + `-race` | `just test backend` (fixed seeds), nightly (seed sweep) |
 | Performance (deterministic) | allocations per op on hot paths; query count per request | `testkit.AssertAllocs` (`testing.AllocsPerRun`) in `allocs_test.go`, which runs alone and without `-race`; `testkit.AssertQueries` counts the queries on the test's own `testkit.DB`. Both compare with the package's `testdata/perf/baseline.json`, and `-testkit.perf-update` rewrites it | `just test backend` |
 | Performance (timing) | benchmarks compared against `main`; load on the full stack | `b.Loop` + `benchstat`; `vegeta` against the e2e stack | nightly, and on PRs labelled `perf` |
-| Mutation | all non-generated packages | `gremlins` through `just test mutation` (`monacoctl mutation`): the packages the diff against `main` touches and every package that imports them; `--all` for the whole module. A survivor fails unless `mutants.allow` lists it with a reason | PR CI (changed packages), nightly |
+| Mutation | all non-generated packages | `gremlins` through `just test mutation` (`monacoctl mutation`): on a PR, only the lines the diff against its base changes (`gremlins --diff`); `--all` mutates every line of the whole module. A survivor fails unless `mutants.allow` lists it with a reason | PR CI (changed lines), nightly (every line) |
 | Leak | every package | `goleak.VerifyTestMain` | always |
 
 ### Keeping it fast
@@ -497,12 +497,12 @@ The run gate stays at 60 s: p95 times 1.5 is 71 s, which the RFC budget caps at 
 
 Not in `just test backend`: E2E (real binaries, compose, including their crash points), mutation, timing benchmarks. Those are PR CI or nightly.
 
-PR CI is three required jobs, each with its own budget (when they run and on what runners is in [ci.md](ci.md)): lint plus unit plus integration (under 3 min, sharded by package), E2E (under 4 min), and mutation on changed packages (under 10 min, or the PR is too big and gets split). Nightly runs everything unbounded.
+PR CI is three required jobs, each with its own budget (when they run and on what runners is in [ci.md](ci.md)): lint plus unit plus integration (under 3 min, sharded by package), E2E (under 4 min), and mutation on changed lines (under 10 min, or the PR is too big and gets split). Nightly runs everything unbounded.
 
 - **No sleeps.** `time.Sleep` in tests is banned by `forbidigo`. Time-dependent code takes the injected `clock.Clock`, and goroutine timing uses `testing/synctest`, where virtual time advances instantly once every goroutine is blocked. Measured: the full 1 s, 5 s, 30 s, 2 min, 10 min backoff schedule (12m36s of fake time) runs in 19 to 40 µs, and an 8-worker pool covering 12.5 s of fake time in 1 to 4 ms.
 - **Bus timers are real time.** synctest and `clock.Clock` cannot speed up timers inside `nats-server`. Measured: redelivery takes exactly `AckWait` plus 1.5 ms, the max-deliveries advisory takes `MaxDeliver × AckWait`, and proving that `Term` stops redelivery costs the whole wait window. So bus-semantics tests run with `AckWait` 100 ms from `testkit.NATS`, one sample each, in parallel. That is about 0.5 s of mostly idle wall time per package. `testkit.NATS` rejects an `AckWait` over 250 ms.
 - **Everything parallel.** `t.Parallel` is required (`paralleltest` and `tparallel` lint). That only works because every test owns its database and its stream, below.
-- **Run what changed.** On PRs, mutation and long property runs cover only packages affected by the diff (`go list -deps` against changed files).
+- **Run what changed.** On PRs, mutation covers only the lines the diff changes, and long property runs only the packages affected by it (`go list -deps` against changed files). The nightly mutates every line, so a survivor a PR did not write still gets found.
 
 ### Isolating test state
 

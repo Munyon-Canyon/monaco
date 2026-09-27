@@ -166,19 +166,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: apps/backend/go.mod
-          cache: false
+      # atlas for testkit.DB and the tmpfs test Postgres, the same setup as the PR backend job.
+      - uses: ./.github/actions/backend-test-env
 
+      # monacoctl mutation runs the pinned gremlins from .bin, where this script installs it.
       - name: Install gremlins and benchstat
         run: |
-          go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
+          scripts/install-gremlins.sh
           go install golang.org/x/perf/cmd/benchstat@v0.0.0-20260908200009-22c9c6c9d4da
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-
-      - name: Start the tmpfs test Postgres
-        run: docker compose --profile test up -d --wait postgres-test
 
       - name: Download the last green night's benchmarks
         continue-on-error: true
