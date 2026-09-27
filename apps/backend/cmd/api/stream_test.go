@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/metric/noop"
+
 	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
@@ -80,7 +82,7 @@ func TestRun_streamsHintsFromNATSAndShutsDownWithAStreamOpen(t *testing.T) {
 			"MONACO_ENV=test", "DATABASE_URL=" + dsn, "NATS_URL=" + url,
 			"MONACO_DEV_TOKEN_KEY=" + key, "MONACO_HTTP_ADDR=" + addr, "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
 			"MONACO_TIMEOUT_SHUTDOWN=5s",
-		}, openapi.Spec)
+		}, openapi.Spec, noop.NewMeterProvider())
 	}()
 	streamCtx, stopStream := context.WithTimeout(t.Context(), 10*time.Second)
 	defer stopStream()

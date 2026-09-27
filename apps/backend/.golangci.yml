@@ -243,7 +243,7 @@ linters:
       - linters: [ireturn]
         text: returns interface \(github\.com/monaco/monaco/apps/backend/internal/platform/httpx/api\.\w+ResponseObject\)
       # A fake OTel meter has to return the metric interfaces it implements.
-      - path: ^internal/platform/(bus/meter|httpx/sse/hub)_test\.go$
+      - path: ^internal/platform/(bus/meter|httpx/sse/hub)_test\.go$|^internal/testkit/meters\.go$
         linters: [ireturn]
       - path: ^internal/platform/bus/(dispatch|start_internal)_test\.go$
         linters: [ireturn]

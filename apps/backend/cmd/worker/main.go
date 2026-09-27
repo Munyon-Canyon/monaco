@@ -13,6 +13,8 @@ import (
 	"syscall"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -26,7 +28,7 @@ import (
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
-	err := run(ctx, os.Stderr, os.Environ())
+	err := run(ctx, os.Stderr, os.Environ(), otel.GetMeterProvider())
 	stop()
 	if err != nil {
 		ctx := observability.WithLogger(context.Background(), observability.NewLogger(config.Config{}, os.Stderr))
@@ -35,7 +37,7 @@ func main() {
 	}
 }
 
-func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
+func run(ctx context.Context, stderr io.Writer, environ []string, meters metric.MeterProvider) (err error) {
 	cfg, err := config.Load(environ)
 	if err != nil {
 		return err
@@ -56,7 +58,7 @@ func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
 		slog.String("service", "worker"),
 		slog.Any("config", cfg.Redacted()),
 	)
-	conn, err := bus.Connect(ctx, cfg.NATS, bus.ProcessWorker)
+	conn, err := bus.Connect(ctx, cfg.NATS, bus.ProcessWorker, bus.WithMeterProvider(meters))
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,33 @@
+package testkit
+
+import (
+	"strings"
+
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
+)
+
+type FailingGauges struct {
+	noop.MeterProvider
+	Prefix string
+}
+
+func (p FailingGauges) Meter(string, ...metric.MeterOption) metric.Meter {
+	return failingGaugeMeter{prefix: p.Prefix}
+}
+
+type failingGaugeMeter struct {
+	noop.Meter
+	prefix string
+}
+
+func (m failingGaugeMeter) Int64ObservableGauge(
+	name string, opts ...metric.Int64ObservableGaugeOption,
+) (metric.Int64ObservableGauge, error) {
+	if strings.HasPrefix(name, m.prefix) {
+		return nil, errs.New(errs.CodeInternal, "testkit.FailingGauges")
+	}
+	return m.Meter.Int64ObservableGauge(name, opts...)
+}

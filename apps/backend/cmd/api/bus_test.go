@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/metric/noop"
+
 	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -41,7 +43,7 @@ func TestRun_refusesToBootWithoutTheBus(t *testing.T) {
 				"MONACO_ENV=test", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=" + tc.url,
 				"MONACO_DEV_TOKEN_KEY=test-only",
 				"MONACO_HTTP_ADDR=127.0.0.1:0", "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
-			}, openapi.Spec)
+			}, openapi.Spec, noop.NewMeterProvider())
 			if errs.CodeOf(err) != tc.code || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("run = %v, want %s containing %q", err, tc.code, tc.want)
 			}
@@ -77,7 +79,7 @@ func TestRun_bootsWithTheStreamsAppliedAndStopsCleanlyOnCancel(t *testing.T) {
 		done <- run(ctx, io.Discard, []string{
 			"MONACO_ENV=test", "MONACO_DEV_TOKEN_KEY=test-only", "DATABASE_URL=" + pool.Config().ConnString(), "NATS_URL=" + url,
 			"MONACO_HTTP_ADDR=127.0.0.1:0", "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
-		}, openapi.Spec)
+		}, openapi.Spec, noop.NewMeterProvider())
 	}()
 	outbox := db.NewOutbox(pool, clock.Real{})
 	waitUntil(t, "the booted relay publishing the seeded event", func() bool {
@@ -113,7 +115,7 @@ func TestRun_refusesToBootWithoutTheDatabase(t *testing.T) {
 		"NATS_URL=" + url,
 		"MONACO_HTTP_ADDR=127.0.0.1:0",
 		"MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
-	}, openapi.Spec)
+	}, openapi.Spec, noop.NewMeterProvider())
 	if errs.CodeOf(err) != errs.CodeDBUnavailable || !strings.Contains(err.Error(), "db.Open") {
 		t.Fatalf("run without a database = %v, want db_unavailable from db.Open", err)
 	}

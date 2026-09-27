@@ -231,3 +231,21 @@ func NATSSubscriptions(t *testing.T, subject string) int {
 	}
 	return n
 }
+
+func StandaloneNATSWithStream(t *testing.T, name string, subjects ...string) string {
+	t.Helper()
+	url := StandaloneNATS(t)
+	nc, err := nats.Connect(url, nats.Name("monaco-testkit"))
+	if err != nil {
+		t.Fatalf("testkit.StandaloneNATSWithStream: %v", err)
+	}
+	defer nc.Close()
+	js, err := jetstream.New(nc)
+	if err != nil {
+		t.Fatalf("testkit.StandaloneNATSWithStream: %v", err)
+	}
+	if _, err := js.CreateStream(t.Context(), jetstream.StreamConfig{Name: name, Subjects: subjects}); err != nil {
+		t.Fatalf("testkit.StandaloneNATSWithStream: %v", err)
+	}
+	return url
+}

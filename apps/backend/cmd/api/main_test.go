@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/metric/noop"
+
 	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
@@ -58,7 +60,7 @@ func TestMain_exitsOneAndLogsWhyWhenConfigIsMissing(t *testing.T) {
 
 func TestRun_refusesToBootWithoutRequiredConfig(t *testing.T) {
 	t.Parallel()
-	err := run(t.Context(), io.Discard, []string{"PATH=/usr/bin"}, openapi.Spec)
+	err := run(t.Context(), io.Discard, []string{"PATH=/usr/bin"}, openapi.Spec, noop.NewMeterProvider())
 	want := "config.Load: invalid_input: missing MONACO_ENV, DATABASE_URL, NATS_URL"
 	if err == nil || err.Error() != want || errs.CodeOf(err) != errs.CodeInvalidInput {
 		t.Fatalf("run = %v, want %q", err, want)
@@ -70,7 +72,7 @@ func TestRun_refusesToBootWithMalformedOTelEndpoint(t *testing.T) {
 	err := run(t.Context(), io.Discard, []string{
 		"MONACO_ENV=test", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=nats://localhost:4222",
 		"OTEL_EXPORTER_OTLP_ENDPOINT=collector:4318",
-	}, openapi.Spec)
+	}, openapi.Spec, noop.NewMeterProvider())
 	if errs.CodeOf(err) != errs.CodeInvalidInput || !strings.Contains(err.Error(), "observability.Setup") {
 		t.Fatalf("run = %v, want invalid_input from observability.Setup", err)
 	}
@@ -78,7 +80,7 @@ func TestRun_refusesToBootWithMalformedOTelEndpoint(t *testing.T) {
 
 func TestRun_reportsAnAddressItCannotListenOn(t *testing.T) {
 	t.Parallel()
-	err := run(t.Context(), io.Discard, bootEnv(t, "MONACO_HTTP_ADDR=256.0.0.1:1"), openapi.Spec)
+	err := run(t.Context(), io.Discard, bootEnv(t, "MONACO_HTTP_ADDR=256.0.0.1:1"), openapi.Spec, noop.NewMeterProvider())
 	if err == nil || !strings.Contains(err.Error(), "listen on 256.0.0.1:1") {
 		t.Fatalf("run = %v, want a listen error", err)
 	}
@@ -86,7 +88,7 @@ func TestRun_reportsAnAddressItCannotListenOn(t *testing.T) {
 
 func TestRun_refusesToBootWithAnUnparsableSpec(t *testing.T) {
 	t.Parallel()
-	err := run(t.Context(), io.Discard, bootEnv(t), []byte("openapi: [unclosed"))
+	err := run(t.Context(), io.Discard, bootEnv(t), []byte("openapi: [unclosed"), noop.NewMeterProvider())
 	if errs.CodeOf(err) != errs.CodeInvalidInput || !strings.Contains(err.Error(), "httpx.loadContract") {
 		t.Fatalf("run = %v, want invalid_input from httpx.loadContract", err)
 	}
@@ -99,7 +101,7 @@ func TestRun_cancelledDuringBootStopsCleanly(t *testing.T) {
 	err := run(ctx, io.Discard, []string{
 		"MONACO_ENV=test", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=" + testkit.NATSURL(),
 		"MONACO_HTTP_ADDR=127.0.0.1:0", "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0", "MONACO_DEV_TOKEN_KEY=test-only",
-	}, openapi.Spec)
+	}, openapi.Spec, noop.NewMeterProvider())
 	if err != nil {
 		t.Fatalf("run with a cancelled context = %v, want nil: a stop during boot is a clean stop", err)
 	}
@@ -129,7 +131,7 @@ func TestRun_aShutdownFailureAfterACancelIsReported(t *testing.T) {
 		"OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:1",
 		"MONACO_TIMEOUT_SHUTDOWN=1s",
 		"MONACO_DEV_TOKEN_KEY=test-only",
-	}, openapi.Spec)
+	}, openapi.Spec, noop.NewMeterProvider())
 	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable || errors.Is(err, context.Canceled) {
 		t.Fatalf("run = %v, want the telemetry flush failure reported after the cancel", err)
 	}
@@ -159,8 +161,17 @@ func TestRun_refusesTheDevVerifierInProduction(t *testing.T) {
 	err := run(t.Context(), io.Discard, []string{
 		"MONACO_ENV=production", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=nats://localhost:4222",
 		"MONACO_DEV_TOKEN_KEY=dev-only",
-	}, openapi.Spec)
+	}, openapi.Spec, noop.NewMeterProvider())
 	if errs.CodeOf(err) != errs.CodeInvalidInput || !strings.Contains(err.Error(), "auth.NewDevVerifier") {
 		t.Fatalf("run = %v, want invalid_input from auth.NewDevVerifier", err)
+	}
+}
+
+func TestRun_refusesToBootWhenTheRelayBacklogGaugesCannotBeExported(t *testing.T) {
+	t.Parallel()
+	err := run(t.Context(), io.Discard, bootEnv(t, "MONACO_HTTP_ADDR=127.0.0.1:0"), openapi.Spec,
+		testkit.FailingGauges{Prefix: "monaco_events_"})
+	if errs.CodeOf(err) != errs.CodeInternal || !strings.HasPrefix(err.Error(), "bus.Relay.ExportBacklogGauges: ") {
+		t.Fatalf("run = %v, want internal from bus.Relay.ExportBacklogGauges", err)
 	}
 }

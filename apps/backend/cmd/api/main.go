@@ -14,6 +14,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/metric"
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
@@ -30,7 +31,7 @@ import (
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
-	err := run(ctx, os.Stderr, os.Environ(), openapi.Spec)
+	err := run(ctx, os.Stderr, os.Environ(), openapi.Spec, otel.GetMeterProvider())
 	stop()
 	if err != nil {
 		ctx := observability.WithLogger(context.Background(), observability.NewLogger(config.Config{}, os.Stderr))
@@ -39,7 +40,9 @@ func main() {
 	}
 }
 
-func run(ctx context.Context, stderr io.Writer, environ []string, spec []byte) (err error) {
+func run(
+	ctx context.Context, stderr io.Writer, environ []string, spec []byte, meters metric.MeterProvider,
+) (err error) {
 	cfg, err := config.Load(environ)
 	if err != nil {
 		return err
@@ -60,7 +63,7 @@ func run(ctx context.Context, stderr io.Writer, environ []string, spec []byte) (
 		return err
 	}
 	observability.Info(ctx, observability.BootConfig, slog.String("service", "api"), slog.Any("config", cfg.Redacted()))
-	conn, err := connectBus(ctx, cfg)
+	conn, err := connectBus(ctx, cfg, meters)
 	if err != nil {
 		return bootErr(ctx, err)
 	}
@@ -74,7 +77,7 @@ func run(ctx context.Context, stderr io.Writer, environ []string, spec []byte) (
 		return bootErr(ctx, err)
 	}
 	defer pool.Close()
-	stream, stopBackground, err := startBackground(ctx, conn, pool)
+	stream, stopBackground, err := startBackground(ctx, conn, pool, meters)
 	if err != nil {
 		return bootErr(ctx, err)
 	}
@@ -111,8 +114,8 @@ func startRelay(
 	}, nil
 }
 
-func connectBus(ctx context.Context, cfg config.Config) (*bus.Conn, error) {
-	conn, err := bus.Connect(ctx, cfg.NATS, bus.ProcessAPI)
+func connectBus(ctx context.Context, cfg config.Config, meters metric.MeterProvider) (*bus.Conn, error) {
+	conn, err := bus.Connect(ctx, cfg.NATS, bus.ProcessAPI, bus.WithMeterProvider(meters))
 	if err != nil {
 		return nil, err
 	}
@@ -150,12 +153,14 @@ func newHandler(
 	}, routes{Stream: stream}, spec)
 }
 
-func startBackground(ctx context.Context, conn *bus.Conn, pool *pgxpool.Pool) (sse.Stream, func() error, error) {
+func startBackground(
+	ctx context.Context, conn *bus.Conn, pool *pgxpool.Pool, meters metric.MeterProvider,
+) (sse.Stream, func() error, error) {
 	stopRelay, err := startRelay(ctx, conn, pool, db.New(pool, ids.Real{}, clock.Real{}), clock.Real{})
 	if err != nil {
 		return sse.Stream{}, nil, err
 	}
-	stream, stopHub, err := startStream(ctx, conn)
+	stream, stopHub, err := startStream(ctx, conn, meters)
 	if err != nil {
 		return sse.Stream{}, nil, errors.Join(err, stopRelay())
 	}
@@ -165,8 +170,8 @@ func startBackground(ctx context.Context, conn *bus.Conn, pool *pgxpool.Pool) (s
 	}, nil
 }
 
-func startStream(ctx context.Context, conn *bus.Conn) (sse.Stream, func(), error) {
-	hub, err := sse.NewHub(sse.NoMemberships{}, otel.GetMeterProvider())
+func startStream(ctx context.Context, conn *bus.Conn, meters metric.MeterProvider) (sse.Stream, func(), error) {
+	hub, err := sse.NewHub(sse.NoMemberships{}, meters)
 	if err != nil {
 		return sse.Stream{}, nil, err
 	}
