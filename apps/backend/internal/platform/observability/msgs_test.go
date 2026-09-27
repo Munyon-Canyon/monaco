@@ -48,7 +48,8 @@ func TestWriteCatalog_printsTheRegistrySortedByName(t *testing.T) {
 	want := "| Message | Required attrs |\n| --- | --- |\n" +
 		"| `boot.config` | `service`, `config` |\n" +
 		"| `boot.listening` | `service`, `addr` |\n" +
-		"| `boot.stopped` | `service`, `err` |\n"
+		"| `boot.stopped` | `service`, `err` |\n" +
+		"| `httpclient.retry` | `upstream`, `attempt`, `status`, `delay` |\n"
 	if buf.String() != want {
 		t.Fatalf("catalog =\n%s\nwant\n%s", buf.String(), want)
 	}
