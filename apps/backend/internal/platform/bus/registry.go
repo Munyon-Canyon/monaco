@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	maxDeliver    = 10
+	MaxDeliver    = 10
 	maxAckPending = 64
 )
 
@@ -78,7 +78,7 @@ func NakSchedule() []time.Duration {
 	return []time.Duration{time.Second, 5 * time.Second, 30 * time.Second, 2 * time.Minute, 10 * time.Minute}
 }
 
-func (c Consumer) NakDelay(delivery uint64) time.Duration {
+func (c Consumer) nakDelay(delivery uint64) time.Duration {
 	schedule := c.NakDelays
 	if len(schedule) == 0 {
 		schedule = NakSchedule()
@@ -172,7 +172,7 @@ func (r *Registry) consumerConfig(c Consumer) jetstream.ConsumerConfig {
 		FilterSubjects: subjects,
 		DeliverPolicy:  jetstream.DeliverNewPolicy,
 		AckPolicy:      jetstream.AckExplicitPolicy,
-		MaxDeliver:     maxDeliver,
+		MaxDeliver:     MaxDeliver,
 		BackOff:        backOff(),
 		MaxAckPending:  maxAckPending,
 	}

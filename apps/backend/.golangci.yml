@@ -178,7 +178,7 @@ linters:
         linters: [forbidigo]
       - path: ^internal/testkit/
         linters: [forbidigo]
-      - path: ^internal/testkit/(seed|db|nats|perf)\.go$
+      - path: ^internal/testkit/(seed|db|nats|perf|chaos/seeds)\.go$
         linters: [gochecknoglobals]
         text: seedFlag|current|natsCurrent|perfUpdate|baselineMu
       # testing.AllocsPerRun reads the process-wide malloc counter, so allocation tests run alone (#721).
@@ -193,7 +193,7 @@ linters:
       - path: ^internal/platform/config/config\.go$
         linters: [gosec]
         text: "G101: Potential hardcoded credentials: Password in URL"
-      - path: ^internal/(testkit/ids|platform/db/uow)\.go$
+      - path: ^internal/(testkit/ids|testkit/chaos/dispatch|platform/db/uow)\.go$
         linters: [gosec]
         text: G404
       - path: ^internal/platform/db/idempotency\.go$

@@ -235,7 +235,7 @@ func (r *Registry) respond(
 	var err error
 	switch verdict {
 	case OutcomeNak:
-		err = msg.NakWithDelay(r.consumers[durable].NakDelay(delivery))
+		err = msg.NakWithDelay(r.consumers[durable].nakDelay(delivery))
 	case OutcomeTerm:
 		err = msg.TermWithReason(code)
 	case OutcomeAck, OutcomeDuplicate:

@@ -3,7 +3,6 @@ package bus_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -12,19 +11,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
-
-func TestConsumer_nakDelayFollowsItsScheduleAndHoldsTheLastStep(t *testing.T) {
-	t.Parallel()
-	c := bus.Consumer{NakDelays: []time.Duration{time.Second, time.Minute}}
-	for delivery, want := range map[uint64]time.Duration{1: time.Second, 2: time.Minute, 9: time.Minute} {
-		if got := c.NakDelay(delivery); got != want {
-			t.Fatalf("NakDelay(%d) = %s, want %s", delivery, got, want)
-		}
-	}
-	if got := (bus.Consumer{}).NakDelay(1); got != bus.NakSchedule()[0] {
-		t.Fatalf("default NakDelay(1) = %s, want %s", got, bus.NakSchedule()[0])
-	}
-}
 
 func TestHandlerSpec_beforeRunsWithTheEventIDAheadOfTheHandler(t *testing.T) {
 	t.Parallel()
