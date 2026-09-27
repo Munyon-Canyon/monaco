@@ -97,7 +97,7 @@ Each table has one module that writes it. Other modules read it through that mod
 
 | Table | Owner | Rule |
 | --- | --- | --- |
-| `users` | identity | Soft delete through `deleted_at`. Account deletion sets it with `account_status = deleted`, scrubs PII and keeps ledger rows. `first_deposit_at` is set by identity's consumer of `deposit.credited` on the first deposit of at least $10, with a guarded update `WHERE first_deposit_at IS NULL`. Referrals reads it through identity's query port. |
+| `users` | identity | Soft delete through `deleted_at`. Account deletion sets it with `account_status = deleted`, scrubs PII and keeps ledger rows. `first_deposit_at` is set by identity's consumer of `deposit.credited` on the first deposit of at least $10, with a guarded update `WHERE first_deposit_at IS NULL`. Referrals reads it through identity's query port. `handle` is the unique username every user picks in onboarding (decided 2026-09-27). Referrals reads it through the same port, and after the first-deposit unlock the handle also works as a referral code ([referrals.md](referrals.md#codes)). |
 | `user_wallets` | identity | One Privy wallet per user. Sign-in reuses the user's existing Privy wallet and never creates a second. |
 | `treasury_wallets` | cabal | One app-owned treasury wallet per cabal. Kept apart from `user_wallets` so identity and cabal never share a table. |
 | `swaps` | trading | The swap state machine. Treasury never writes it. |
@@ -576,7 +576,7 @@ Adding a flow is one row plus the tests it names. Deleting a flow deletes the ro
 | 15 | Withdraw to address | `Withdraw` | `withdrawal.submitted`, `.confirmed`, `.failed` | treasury (`user_txns`), notify, analytics |
 | 16 | Agent lifecycle | Proposal kinds add / pause / resume / remove agent | `agent.enabled`, `.paused`, `.removed`, `agent.key_revealed` | governance (marks the agent proposal executed on `agent.enabled` / `.paused` / `.removed`), agents, notify, feed |
 | 17 | Agent trade | `SubmitAgentIntent` (key auth, budget check at submit and again at execution) | `agent.intent_created` → same engine as 11 | trading, same as 11 |
-| 18 | Prices | One market poller, every 10 s or slower (fan-out over providers), writes `price_points` | `price.tick` (core NATS only, one batched message per tick, not stored as event); `asset.price_moved` | `price.tick`: ranking, live SSE. `asset.price_moved`: feed, notify |
+| 18 | Prices | One market poller, every 120 s (fan-out over providers), writes `price_points` | `price.tick` (core NATS only, one batched message per tick, not stored as event); `asset.price_moved` | `price.tick`: ranking, live SSE. `asset.price_moved`: feed, notify |
 | 19 | Valuation + leaderboards | Every minute, and on `trade.confirmed`, `cabal.funded`, `cashout.completed` | `ranking.snapshot_written` | live SSE |
 | 20 | Follow / unfollow | `Follow`, `Unfollow` | `follow.created`, `.removed` | notify, feed ranking, analytics |
 | 21 | Feed + comments | `CreateComment` | `comment.created` | notify, live SSE, analytics |
@@ -611,7 +611,7 @@ Personal plan limits, and what the design spends:
 | Subscriptions per connection | 100 | api: 1. worker: ~15 | SSE hub below; worker has one pull consumer per module plus `price.>` and the delivery-failure advisory. |
 | Streams | 10 | 2 | `EVENTS` and `DEADLETTER`, declared in code and applied by `monacoctl bus apply` in the pre-deploy step. api and worker never create streams. No KV buckets or object stores: each is a stream underneath; that state lives in Postgres. |
 | Storage | 5 GiB | 2.5 GiB cap | `MaxBytes` 2 GiB on `EVENTS`, 512 MiB on `DEADLETTER`. `MaxAge` 7 days on `EVENTS`: Postgres `events` is the source of truth, the stream is transport. |
-| Network data | 10 GiB | ~4 GiB/month | Price ticks are one batched `price.tick` message per poll carrying every asset, at 10 s or slower. Per-asset messages at 5 s would be ~20 GiB/month on their own. Domain events are ~1 GiB. |
+| Network data | 10 GiB | ~1.5 GiB/month | Price ticks are one batched `price.tick` message per poll carrying every asset, every 120 s (decided 2026-09-27). That is 12 times fewer ticks than the earlier 10 s cadence, so ticks drop from ~3 GiB to ~0.25 GiB a month. Per-asset messages at 5 s would be ~20 GiB/month on their own. Domain events are ~1 GiB. |
 | HA streams | 0 | 0 | `Replicas: 1`. On Starter, `EVENTS` goes to `Replicas: 3`; nothing else changes. |
 
 Stream and consumer shape:
@@ -917,6 +917,7 @@ None at the moment.
 
 ## Log
 
+- 2026-09-27: Decided 2026-09-27: every user picks a unique `users.handle` in onboarding, owned by identity and read by referrals through identity's query port. The market price poller ticks every 120 s (flow 18, NATS network budget).
 - 2026-09-27: Decided: `users`, `follows` and `cabal_messages` soft delete through `deleted_at`, with a unique partial index for re-follows; no `follow_counts` table, counts are an indexed `count(*)`; no `referral_unlocks` table, `users.first_deposit_at` set by identity as a new flow 5 consumer that replaces referrals there, and read by referrals through identity's query port; `chat_seen` stays in social and is hard-deleted on leave; old treasury funds are test-only and wiped at cutover (Rollout step 7). Added `users`, `follows`, `cabal_messages` and `chat_seen` to the table-ownership table.
 - 2026-09-27: Decided: sign-in is Apple or Google, SMS OTP in dev builds only; cutover starts on an empty database with no backfill or sync, and sign-in reuses existing Privy wallets. Defaults: `money.SignedMicros`; table ownership (trading owns `swaps`, treasury writes ledgers as a consumer, funding owns pause, split wallet tables, one `price_points` table, admin `dead_letters`); ledger checked by `replay --verify`, not rebuilt; relay in api and worker; per-handler `event_deliveries` with 30-day retention; SSE `global` key; `price.tick`, `proposal.executed` (governance also consumes the flow 16 agent events), `asset.price_moved`, `referral.attributed`, `user.nudge_due` and the analytics module in the flows; `after-create` crash point, where a `created` row was never signed or sent because the move to `submitted` commits with the signed bytes before any send, so the sweeper fails it after 2 min; flow 1 referrals consumer only mints the code; no trade safety-net poller; agent budget rechecked at execution; payload `v` field; Ably fake; flow 8 in step 4.
 - 2026-09-27: CI scheduling moved to [ci.md](ci.md): PR CI only on ready PRs based on `main`, one aggregate required check, Linux-first, runner options.
