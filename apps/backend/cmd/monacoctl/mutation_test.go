@@ -149,6 +149,7 @@ func TestMutationReportsBrokenInputs(t *testing.T) {
 		{name: "go list fails", remove: "golist.txt", want: "monacoctl.goList: internal"},
 		{name: "unknown base", args: []string{"--base", "nope"}, want: "monacoctl.changedFiles: internal"},
 		{name: "gremlins fails", pkg: "broken", want: "gremlins exploded"},
+		{name: "every mutant timed out", pkg: "slow", want: "monacoctl.mutation: internal: every mutant in slow timed out, so nothing was tested; rerun on a quieter machine"},
 		{name: "no temp dir for the report", pkg: "broken", noTmp: true, want: "monacoctl.unleash: internal: open"},
 		{name: "gremlins writes garbage", pkg: "garbled", want: "monacoctl.unleash: decode_failed"},
 	} {

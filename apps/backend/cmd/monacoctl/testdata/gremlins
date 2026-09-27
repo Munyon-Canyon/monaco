@@ -1,7 +1,11 @@
 #!/bin/sh
-out="$4"
-case "$7" in
+while [ "$#" -gt 1 ]; do
+  [ "$1" = --output ] && out="$2"
+  shift
+done
+case "$1" in
   ./a) status=LIVED ;;
+  ./slow) status="TIMED OUT" ;;
   ./broken) echo "gremlins exploded" >&2; exit 3 ;;
   ./garbled) echo "not json" > "$out"; exit 0 ;;
   ./silent) exit 0 ;;

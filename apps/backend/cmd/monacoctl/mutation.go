@@ -22,6 +22,8 @@ const (
 	mutationUsage = "usage: monacoctl mutation [--base main | --all]"
 	mutantsAllow  = "mutants.allow"
 	lived         = "LIVED"
+	killed        = "KILLED"
+	timedOut      = "TIMED OUT"
 )
 
 type mutationEnv struct {
@@ -106,6 +108,9 @@ func (env mutationEnv) run(ctx context.Context, base string, all bool, stdout io
 		if err != nil {
 			return nil, err
 		}
+		if onlyTimedOut(report) {
+			return nil, errs.Wrap(allTimedOutError(dir), errs.CodeInternal, op)
+		}
 		survivors = append(survivors, survivingMutants(dir, report, allowed)...)
 	}
 	return survivors, nil
@@ -174,7 +179,7 @@ func (env mutationEnv) unleash(ctx context.Context, dir string) (gremlinsReport,
 	out := file.Name()
 	_ = file.Close()
 	defer func() { _ = os.Remove(out) }()
-	cmd := env.command(ctx, env.gremlins, "unleash", "--silent", "--output", out,
+	cmd := env.command(ctx, env.gremlins, "unleash", "--silent", "--timeout-coefficient", "50", "--output", out,
 		"--exclude-files", `\.gen\.go$`, "./"+dir)
 	if msg, err := cmd.CombinedOutput(); err != nil {
 		return gremlinsReport{}, errs.Wrap(fmt.Errorf("%w: %s", err, bytes.TrimSpace(msg)), errs.CodeInternal, op)
@@ -188,6 +193,27 @@ func (env mutationEnv) unleash(ctx context.Context, dir string) (gremlinsReport,
 		return gremlinsReport{}, errs.Wrap(err, errs.CodeDecodeFailed, op)
 	}
 	return report, nil
+}
+
+type allTimedOutError string
+
+func (e allTimedOutError) Error() string {
+	return "every mutant in " + string(e) + " timed out, so nothing was tested; rerun on a quieter machine"
+}
+
+func onlyTimedOut(report gremlinsReport) bool {
+	timed := false
+	for _, f := range report.Files {
+		for _, m := range f.Mutations {
+			switch m.Status {
+			case killed, lived:
+				return false
+			case timedOut:
+				timed = true
+			}
+		}
+	}
+	return timed
 }
 
 func mutantKey(dir, file string, line, column int, mutator string) string {
