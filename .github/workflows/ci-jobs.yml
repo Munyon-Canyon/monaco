@@ -1,0 +1,206 @@
+name: CI jobs
+
+# Called by ci.yml and ci-retarget.yml through their `ci` job, so every check is named
+# "ci / <job>" and the required check is "ci / ci-ok". docs/architecture/ci.md#triggers
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Go (backend, domain, reference bot)
+    needs: plan
+    if: needs.plan.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: monaco
+          POSTGRES_PASSWORD: monaco
+          POSTGRES_DB: monaco
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U monaco -d monaco"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      # Throwaway service container, not a secret. Backend tests derive and migrate a
+      # sibling monaco_test database from this URL (internal/postgres/testdb.go).
+      DATABASE_URL: postgres://monaco:monaco@localhost:5432/monaco?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/backend/go.mod
+          cache-dependency-path: apps/backend/go.sum
+
+      - name: Apply migrations to a clean database
+        working-directory: apps/backend
+        run: go run ./cmd/migrate
+
+      - name: Vet backend
+        working-directory: apps/backend
+        run: go vet ./...
+
+      # -p 1 matches `just test backend`: packages share one monaco_test database.
+      # -race: pollers, the alert queue and the price chain all share state across goroutines.
+      - name: Test backend
+        working-directory: apps/backend
+        run: go test -race -p 1 ./...
+
+      - name: Vet and test domain
+        working-directory: packages/domain
+        run: |
+          go vet ./...
+          go test -race ./...
+
+      - name: Vet and test reference bot
+        working-directory: agents/momentum-bot
+        run: |
+          go vet ./...
+          go test -race ./...
+
+  web:
+    name: Web (landing page)
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+
+  swift:
+    name: Swift (mobile-core)
+    needs: plan
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Test mobile-core
+        working-directory: packages/mobile-core
+        run: swift test
+
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      go: ${{ steps.filter.outputs.go }}
+      ios: ${{ steps.filter.outputs.ios }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            go:
+              - 'apps/backend/**'
+              - 'packages/domain/**'
+              - 'agents/momentum-bot/**'
+              - 'supabase/migrations/**'
+              - 'docs/legacy/api.md'
+              - 'scripts/ci/**'
+              - '.github/workflows/ci*.yml'
+            ios:
+              - 'apps/mobile/**'
+              - 'packages/mobile-core/**'
+              - 'scripts/ensure-ios-privy-config.sh'
+              - 'scripts/resolve-ios-sim.sh'
+              - 'scripts/ci/select-xcode.sh'
+              - 'scripts/qa/screens.sh'
+              - 'scripts/qa/sample-screens.txt'
+              - '.github/workflows/ci*.yml'
+
+  ios:
+    name: iOS app (build, MonacoTests)
+    needs: plan
+    if: needs.plan.outputs.ios == 'true'
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      DERIVED_DATA: ${{ github.workspace }}/../DerivedData
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: scripts/ci/select-xcode.sh
+
+      # Only the resolved Swift packages are cached. Build products are not: a fresh checkout
+      # gives every source a new mtime, so a restored DerivedData is rebuilt from scratch anyway.
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.DERIVED_DATA }}/SourcePackages
+          key: spm-ios-${{ runner.os }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: spm-ios-${{ runner.os }}-
+
+      # Compile-only Privy config: no .env.local, no secret. Unit tests need no environment.
+      - name: Placeholder app config
+        run: scripts/ensure-ios-privy-config.sh placeholder
+
+      - name: Sample-screen manifest covers every harness
+        run: scripts/qa/screens.sh --check
+
+      # Booting here lets the simulator start while the app compiles.
+      - name: Pick and boot a simulator
+        run: |
+          sim="$(scripts/resolve-ios-sim.sh)"
+          xcrun simctl list devices available | grep -F "$sim"
+          xcrun simctl boot "$sim"
+          echo "SIM=$sim" >> "$GITHUB_ENV"
+
+      - name: Build app and tests
+        run: |
+          xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
+            -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
+            CODE_SIGNING_ALLOWED=NO -quiet build-for-testing
+
+      - name: Run MonacoTests
+        run: |
+          xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
+            -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
+            -resultBundlePath "$RUNNER_TEMP/MonacoTests.xcresult" \
+            CODE_SIGNING_ALLOWED=NO -only-testing:MonacoTests test-without-building
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MonacoTests-xcresult
+          path: ${{ runner.temp }}/MonacoTests.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Required as "ci / ci-ok". A skipped check passes a required check, so ci-ok must never skip
+  # once this workflow starts: keep always(), not !cancelled(), so a cancelled run fails it.
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [plan, go, web, swift, ios]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: re-actors/alls-green@release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}
+          allowed-skips: go, ios
