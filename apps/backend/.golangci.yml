@@ -73,7 +73,13 @@ linters:
     sloglint: { attr-only: true, context: all, static-msg: true, no-global: all }
     interfacebloat: { max: 5 }
     ireturn:
-      allow: [anon, error, empty, stdlib, 'github\.com/monaco/monaco/apps/backend/internal/events\.Event$']
+      allow:
+        - anon
+        - error
+        - empty
+        - stdlib
+        - 'github\.com/monaco/monaco/apps/backend/internal/events\.Event$'
+        - 'github\.com/monaco/monaco/apps/backend/internal/platform/db/sqlc\.DBTX$'
     reassign: { patterns: [".*"] }
     wrapcheck:
       ignore-package-globs: ["github.com/monaco/monaco/apps/backend/internal/*"]
@@ -175,7 +181,7 @@ linters:
       - path: ^internal/platform/config/config\.go$
         linters: [gosec]
         text: "G101: Potential hardcoded credentials: Password in URL"
-      - path: ^internal/testkit/ids\.go$
+      - path: ^internal/(testkit/ids|platform/db/uow)\.go$
         linters: [gosec]
         text: G404
       - path: ^internal/testkit/clock\.go$

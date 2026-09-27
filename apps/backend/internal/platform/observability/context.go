@@ -31,6 +31,11 @@ func WithActor(ctx context.Context, actor string) context.Context {
 	return with(ctx, func(f *fields) { f.actor = actor })
 }
 
+func ActorFrom(ctx context.Context) string {
+	f, _ := ctx.Value(fieldsKey{}).(fields)
+	return f.actor
+}
+
 func WithModule(ctx context.Context, module string) context.Context {
 	return with(ctx, func(f *fields) { f.module = module })
 }

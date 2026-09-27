@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net"
@@ -25,6 +26,8 @@ func TestClassify_mapsEachFailureToOneCode(t *testing.T) {
 		"network":               {&net.OpError{Op: "dial", Err: io.EOF}, errs.CodeDBUnavailable},
 		"safe to retry":         {beforeSendError{}, errs.CodeDBUnavailable},
 		"plain":                 {io.ErrUnexpectedEOF, errs.CodeInternal},
+		"caller gone":           {context.Canceled, errs.CodeDBUnavailable},
+		"deadline":              {context.DeadlineExceeded, errs.CodeDBUnavailable},
 		"already coded":         {errs.New(errs.CodeNotFound, "x"), errs.CodeNotFound},
 	}
 	for name, tc := range cases {
