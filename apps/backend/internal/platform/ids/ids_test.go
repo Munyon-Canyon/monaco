@@ -55,6 +55,14 @@ func TestParse(t *testing.T) {
 	}
 }
 
+func TestEventIDFromKeepsTheUUID(t *testing.T) {
+	t.Parallel()
+	u := ids.Real{}.NewV7()
+	if got := ids.EventIDFrom(u); got.String() != u.String() || got.IsZero() {
+		t.Fatalf("EventIDFrom(%s) = %s", u, got)
+	}
+}
+
 func TestZeroValueIsInvalid(t *testing.T) {
 	t.Parallel()
 	var id ids.UserID

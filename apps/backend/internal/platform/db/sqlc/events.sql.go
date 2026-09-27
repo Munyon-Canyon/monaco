@@ -45,6 +45,24 @@ func (q *Queries) AppendEvent(ctx context.Context, arg AppendEventParams) error 
 	return err
 }
 
+const backlog = `-- name: Backlog :one
+SELECT count(*)::bigint AS unpublished, coalesce(min(created_at), $1::timestamptz)::timestamptz AS oldest_created_at
+FROM events
+WHERE published_at IS NULL
+`
+
+type BacklogRow struct {
+	Unpublished     int64
+	OldestCreatedAt time.Time
+}
+
+func (q *Queries) Backlog(ctx context.Context, now time.Time) (BacklogRow, error) {
+	row := q.db.QueryRow(ctx, backlog, now)
+	var i BacklogRow
+	err := row.Scan(&i.Unpublished, &i.OldestCreatedAt)
+	return i, err
+}
+
 const deleteDeliveriesBefore = `-- name: DeleteDeliveriesBefore :execrows
 DELETE FROM event_deliveries
 WHERE (handler, event_id) IN (

@@ -12,8 +12,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability/boundary"
 )
@@ -62,6 +67,16 @@ func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
 	if err := conn.VerifyStreams(ctx); err != nil {
 		return err
 	}
+	pool, err := db.Open(ctx, cfg.DB)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	stopRelay, err := startRelay(ctx, conn, pool, db.New(pool, ids.Real{}, clock.Real{}), clock.Real{})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, stopRelay()) }()
 	unregister, err := conn.ExportAccountGauges()
 	if err != nil {
 		return err
@@ -74,6 +89,27 @@ func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
 	observability.Info(ctx, observability.BootListening, slog.String("service", "worker"),
 		slog.String("addr", ln.Addr().String()))
 	return serve(ctx, ln, cfg.Timeouts)
+}
+
+func startRelay(
+	ctx context.Context, conn *bus.Conn, pool *pgxpool.Pool, uow *db.UnitOfWork, clk clock.Clock,
+) (func() error, error) {
+	relay := bus.NewRelay(conn, db.NewOutbox(pool, clk), uow.Signal(), clk)
+	unregister, err := relay.ExportBacklogGauges()
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		relay.Run(ctx)
+	}()
+	return func() error {
+		cancel()
+		<-done
+		return unregister()
+	}, nil
 }
 
 func serve(ctx context.Context, ln net.Listener, timeouts config.Timeouts) error {

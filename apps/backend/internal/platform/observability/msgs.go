@@ -30,6 +30,11 @@ var (
 	TxCommitted   = Msg{Name: "tx.committed", Required: []string{"event_ids", "attempt"}}
 	TxRolledBack  = Msg{Name: "tx.rolled_back", Required: []string{"code", "attempt"}}
 	TxRetry       = Msg{Name: "tx.retry", Required: []string{"code", "attempt", "delay"}}
+
+	BusRelayTick          = Msg{Name: "bus.relay.tick", Required: []string{"count", "first_id", "last_id"}}
+	BusRelayIdle          = Msg{Name: "bus.relay.idle"}
+	BusRelayPublishFailed = Msg{Name: "bus.relay.publish_failed", Required: []string{"code", "err"}}
+	BusRelayFailed        = Msg{Name: "bus.relay.failed", Required: []string{"code", "err"}}
 )
 
 var registry = []Msg{
@@ -46,6 +51,10 @@ var registry = []Msg{
 	TxCommitted,
 	TxRolledBack,
 	TxRetry,
+	BusRelayTick,
+	BusRelayIdle,
+	BusRelayPublishFailed,
+	BusRelayFailed,
 }
 
 func WithLogger(ctx context.Context, l *slog.Logger) context.Context {

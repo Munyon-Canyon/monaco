@@ -23,3 +23,8 @@ DELETE FROM event_deliveries
 WHERE (handler, event_id) IN (
   SELECT handler, event_id FROM event_deliveries WHERE handled_at < @before::timestamptz LIMIT @batch
 );
+
+-- name: Backlog :one
+SELECT count(*)::bigint AS unpublished, coalesce(min(created_at), @now::timestamptz)::timestamptz AS oldest_created_at
+FROM events
+WHERE published_at IS NULL;

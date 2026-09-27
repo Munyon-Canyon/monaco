@@ -49,6 +49,10 @@ func TestWriteCatalog_printsTheRegistrySortedByName(t *testing.T) {
 		"| `boot.config` | `service`, `config` |\n" +
 		"| `boot.listening` | `service`, `addr` |\n" +
 		"| `boot.stopped` | `service`, `err` |\n" +
+		"| `bus.relay.failed` | `code`, `err` |\n" +
+		"| `bus.relay.idle` |  |\n" +
+		"| `bus.relay.publish_failed` | `code`, `err` |\n" +
+		"| `bus.relay.tick` | `count`, `first_id`, `last_id` |\n" +
 		"| `db.lock.lost` | `lock`, `held`, `err` |\n" +
 		"| `http.problem` | `code`, `status`, `err`, `alert` |\n" +
 		"| `http.request` | `method`, `route`, `status`, `duration_ms` |\n" +

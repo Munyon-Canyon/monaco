@@ -13,11 +13,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -64,6 +66,16 @@ func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
 	if err := conn.VerifyStreams(ctx); err != nil {
 		return err
 	}
+	pool, err := db.Open(ctx, cfg.DB)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	stopRelay, err := startRelay(ctx, conn, pool, db.New(pool, ids.Real{}, clock.Real{}), clock.Real{})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, stopRelay()) }()
 	ln, err := new(net.ListenConfig).Listen(ctx, "tcp", cfg.HTTP.Addr)
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", cfg.HTTP.Addr, err)
@@ -81,6 +93,27 @@ func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
 		return err
 	}
 	return serve(ctx, ln, httpx.NewServer(handler, cfg.Timeouts), cfg.Timeouts.Shutdown)
+}
+
+func startRelay(
+	ctx context.Context, conn *bus.Conn, pool *pgxpool.Pool, uow *db.UnitOfWork, clk clock.Clock,
+) (func() error, error) {
+	relay := bus.NewRelay(conn, db.NewOutbox(pool, clk), uow.Signal(), clk)
+	unregister, err := relay.ExportBacklogGauges()
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		relay.Run(ctx)
+	}()
+	return func() error {
+		cancel()
+		<-done
+		return unregister()
+	}, nil
 }
 
 func serve(ctx context.Context, ln net.Listener, srv *http.Server, shutdownTimeout time.Duration) error {
