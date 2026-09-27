@@ -1,0 +1,81 @@
+name: CI iOS
+
+# Called from ci-jobs.yml's ios job. Kept in its own file so the `plan` job's `ios` path
+# filter can key on this file instead of every `ci*.yml`, which every backend PR touches.
+# docs/architecture/ci.md#triggers
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    name: iOS app (build, MonacoTests)
+    runs-on: macos-15
+    timeout-minutes: 20
+    env:
+      DERIVED_DATA: ${{ github.workspace }}/../DerivedData
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: scripts/ci/select-xcode.sh
+
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.DERIVED_DATA }}/SourcePackages
+          key: spm-ios-${{ runner.os }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: spm-ios-${{ runner.os }}-
+
+      # Compile-only Privy config: no .env.local, no secret. Unit tests need no environment.
+      - name: Placeholder app config
+        run: scripts/ensure-ios-privy-config.sh placeholder
+
+      - name: Sample-screen manifest covers every harness
+        run: scripts/qa/screens.sh --check
+
+      # Booting here lets the simulator start while the app compiles.
+      - name: Pick and boot a simulator
+        run: |
+          sim="$(scripts/resolve-ios-sim.sh)"
+          xcrun simctl list devices available | grep -F "$sim"
+          xcrun simctl boot "$sim"
+          echo "SIM=$sim" >> "$GITHUB_ENV"
+
+      # ONLY_ACTIVE_ARCH restricts the simulator build to the runner's own arch instead of a
+      # fat binary. COMPILER_INDEX_STORE_ENABLE=NO skips indexing PR CI never reads. The two
+      # -skip flags drop plugin/macro re-validation once packages are already resolved.
+      - name: Build app and tests
+        run: |
+          xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
+            -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
+            -skipMacroValidation -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO \
+            -quiet build-for-testing
+
+      # -parallel-testing-enabled YES was tried and reverted: it clones the simulator and runs
+      # workers side by side, and on a shared macOS runner (a handful of vCPUs) that starved
+      # the app's own concurrency-sensitive tests (spinner/cancellation races such as
+      # AssetDetailModelTests and CabalsTabModelTests) of real CPU time, turning them flaky.
+      # Every passing test's reported duration roughly tripled (19-31s for trivial unit tests
+      # that run in well under a second sequentially), confirming CPU contention, not a bug in
+      # the tests. Sequential (the default) is both correct and, per the measurements in
+      # docs/architecture/ci.md, not the bottleneck.
+      - name: Run MonacoTests
+        run: |
+          xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
+            -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
+            -resultBundlePath "$RUNNER_TEMP/MonacoTests.xcresult" \
+            CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO \
+            -only-testing:MonacoTests test-without-building
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MonacoTests-xcresult
+          path: ${{ runner.temp }}/MonacoTests.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
