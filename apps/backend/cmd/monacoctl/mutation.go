@@ -25,9 +25,7 @@ const (
 )
 
 type mutationEnv struct {
-	moduleDir string
-	gremlins  string
-	tmpDir    string
+	moduleDir, goBin, gremlins, tmpDir string
 }
 
 type listedPackage struct {
@@ -120,7 +118,7 @@ func (env mutationEnv) command(ctx context.Context, name string, args ...string)
 }
 
 func (env mutationEnv) goList(ctx context.Context) ([]listedPackage, error) {
-	out, err := env.command(ctx, "go", "list", "-f", `{{.Module.Dir}}	{{.Dir}}	{{.ImportPath}}	{{join .Deps " "}}`, "./...").
+	out, err := env.command(ctx, env.goBin, "list", "-f", `{{.Module.Dir}}	{{.Dir}}	{{.ImportPath}}	{{join .Deps " "}}`, "./...").
 		Output()
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, "monacoctl.goList")

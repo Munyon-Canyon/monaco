@@ -25,11 +25,15 @@ func mutationModule(t *testing.T, allow string, extraPkgs ...string) mutationEnv
 		"kit/x.go":         "package kit\n\nimport \"example.com/m/a\"\n\nfunc K() int { return a.A() }\n",
 		"a/testdata/x.txt": "fixture\n",
 	}
+	list := "MODDIR\tMODDIR/a\texample.com/m/a\t\n" +
+		"MODDIR\tMODDIR/b\texample.com/m/b\texample.com/m/a\n" +
+		"MODDIR\tMODDIR/c\texample.com/m/c\t\n" +
+		"MODDIR\tMODDIR/kit\texample.com/m/kit\texample.com/m/a\n"
 	for _, p := range extraPkgs {
-		files[p+"/x.go"] = "package " + filepath.Base(
-			p,
-		) + "\n\nimport \"example.com/m/a\"\n\nfunc X() int { return a.A() }\n"
+		files[p+"/x.go"] = "package " + p + "\n\nimport \"example.com/m/a\"\n\nfunc X() int { return a.A() }\n"
+		list += "MODDIR\tMODDIR/" + p + "\texample.com/m/" + p + "\texample.com/m/a\n"
 	}
+	files["golist.txt"] = list
 	for name, body := range files {
 		full := filepath.Join(dir, name)
 		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
@@ -43,11 +47,21 @@ func mutationModule(t *testing.T, allow string, extraPkgs ...string) mutationEnv
 	git(t, dir, "add", ".")
 	git(t, dir, "commit", "-q", "-m", "base")
 	git(t, dir, "checkout", "-q", "-b", "feature")
-	gremlins, err := filepath.Abs(filepath.Join("testdata", "gremlins"))
+	return mutationEnv{
+		moduleDir: dir,
+		goBin:     testdataBin(t, "go-list"),
+		gremlins:  testdataBin(t, "gremlins"),
+		tmpDir:    t.TempDir(),
+	}
+}
+
+func testdataBin(t *testing.T, name string) string {
+	t.Helper()
+	bin, err := filepath.Abs(filepath.Join("testdata", name))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return mutationEnv{moduleDir: dir, gremlins: gremlins, tmpDir: t.TempDir()}
+	return bin
 }
 
 func git(t *testing.T, dir string, args ...string) {
@@ -131,7 +145,7 @@ func TestMutationReportsBrokenInputs(t *testing.T) {
 		},
 		{name: "no allow file", remove: mutantsAllow, want: "monacoctl.readAllow: internal: open"},
 		{name: "no exclude file", remove: coverageExclude, want: "monacoctl.mutation: internal: open"},
-		{name: "go list fails", change: "c/x.go", body: "package c\n\nimport \"example.com/m/missing\"\n", want: "monacoctl.goList: internal"},
+		{name: "go list fails", remove: "golist.txt", want: "monacoctl.goList: internal"},
 		{name: "unknown base", args: []string{"--base", "nope"}, want: "monacoctl.changedFiles: internal"},
 		{name: "gremlins fails", pkg: "broken", want: "gremlins exploded"},
 		{name: "no temp dir for the report", pkg: "broken", noTmp: true, want: "monacoctl.unleash: internal: open"},
@@ -185,6 +199,20 @@ func brokenModule(t *testing.T, allow, pkg, change, body, remove string, noTmp b
 		env.tmpDir = filepath.Join(env.tmpDir, "missing")
 	}
 	return env
+}
+
+func TestMutationListsARealModuleWithTheGoCommand(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("runs go list on a scratch module; CI runs it without -short, outside the 10 s package budget")
+	}
+	env := mutationModule(t, "")
+	env.goBin = "go"
+	commitFile(t, env, "a/x_test.go", "package a\n")
+	var stdout, stderr bytes.Buffer
+	if code := mutationTool(env)(nil, &stdout, &stderr); code != 1 || stdout.String() != "mutating 2 packages: a b\n" {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
 }
 
 func removeFile(t *testing.T, env mutationEnv, name string) {

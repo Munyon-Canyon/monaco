@@ -440,7 +440,7 @@ Also in CI:
 
 ### What counts toward 100%
 
-- One merged profile. Unit and integration tests use `-coverpkg=./...`. E2E and QA runs build the real binaries with `go build -cover` and write to `GOCOVERDIR`. `go tool covdata merge` combines everything, so `cmd/*/main.go` wiring and HTTP adapters are covered by the tests that really exercise them.
+- One merged profile. Unit and integration tests use `-coverpkg=./...`. E2E and QA runs build the real binaries with `go build -cover` and write to `GOCOVERDIR`. `monacoctl coverage --profile <unit profile> --covdir <dir>...` merges them through `go tool covdata`, applies `coverage.exclude`, names every uncovered block as `file:start-end` and fails under 100%. `just test backend` runs it on its own profile. Until E2E exists, each `cmd/*` test re-runs its own test binary as the real `main` (`testkit.RunMain`, `testkit.StartMain`), with `GOCOVERDIR` set to the parent test's coverage directory, so the child's coverage lands in the same profile.
 - Excluded paths are fixed and listed in one file (`coverage.exclude`): generated code (`*.gen.go`, sqlc output, oapi-codegen output) and `internal/testkit`. Nothing else.
 - No ignore pragmas. Code a test can't reach gets deleted or made unrepresentable by a type change. An error branch that only fires on infra failure gets reached through a fake port that returns the error.
 - Go has no branch coverage, and statement coverage can be gamed. Mutation testing closes that gap: a surviving mutant means a line ran but nothing checked its result.
@@ -462,14 +462,14 @@ Also in CI:
 | QA | agent-driven: `verify-backend flow <n>` with evidence in the PR | `verify-backend` skill CLI | every backend PR |
 | Crash-point | panic at named points (after create, after sign, after `/execute`, before commit, after publish), restart, assert convergence. A `created` row was never signed or sent, so the sweeper fails it after 2 min; a crash after the send leaves the row `submitted`, which the sweeper resolves through `getSignatureStatuses`. | `faultpoint` hooks compiled in under a build tag | PR CI |
 | Jitter / concurrency | pools, pipelines, relay, consumers under random delays and interleavings | `testing/synctest` + seeded delay injection + `-race` | `just test backend` (fixed seeds), nightly (seed sweep) |
-| Performance (deterministic) | allocations per op on hot paths; query count per request | `testing.AllocsPerRun`, a query-counting pgx tracer | `just test backend` |
+| Performance (deterministic) | allocations per op on hot paths; query count per request | `testkit.AssertAllocs` (`testing.AllocsPerRun`) in `allocs_test.go`, which runs alone and without `-race`; `testkit.AssertQueries` counts the queries on the test's own `testkit.DB`. Both compare with the package's `testdata/perf/baseline.json`, and `-testkit.perf-update` rewrites it | `just test backend` |
 | Performance (timing) | benchmarks compared against `main`; load on the full stack | `b.Loop` + `benchstat`; `vegeta` against the e2e stack | nightly, and on PRs labelled `perf` |
-| Mutation | all non-generated packages | `gremlins`, diff-scoped on PRs, full nightly | PR CI (changed packages), nightly |
+| Mutation | all non-generated packages | `gremlins` through `just test mutation` (`monacoctl mutation`): the packages the diff against `main` touches and every package that imports them; `--all` for the whole module. A survivor fails unless `mutants.allow` lists it with a reason | PR CI (changed packages), nightly |
 | Leak | every package | `goleak.VerifyTestMain` | always |
 
 ### Keeping it fast
 
-Budget: `just test backend` under 60 s on a laptop, and the required PR checks under 6 min wall clock. The budget is a CI gate, not a hope: `testkit` records each package's wall time from `go test -json`, `monacoctl test-report` prints the ten slowest tests, and a package over 10 s or a run over 60 s fails. A test that breaks the budget gets fixed or moved to nightly, never skipped.
+Budget: `just test backend` under 60 s on a laptop, and the required PR checks under 6 min wall clock. The budget is a CI gate, not a hope: `testkit` records each package's wall time from `go test -json`, `monacoctl test-report` prints the ten slowest tests, and a package over 10 s or a run over 60 s fails. The run limit applies on a laptop only: in CI (`CI` set) `test-report --ci` gates packages but not the run, because a PR runner starts from a cold build cache and the job has its own 3 min budget. A test that breaks the budget gets fixed or moved to nightly, never skipped. Tests that build or run other binaries (the lint-rule fixtures, the `testkit` fixture packages, the `-cover` binary merge) skip under `-short`; CI runs them in their own step and nightly runs them once.
 
 Where the 60 s goes. Every row was measured on 2026-09-27 against throwaway code shaped like the target, on an M2 under background load. Rollout step 1 re-measures on the real scaffold and in CI, and sets the gate from those numbers:
 
