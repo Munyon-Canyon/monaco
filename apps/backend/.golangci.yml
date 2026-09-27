@@ -183,7 +183,7 @@ linters:
       # testing.AllocsPerRun reads the process-wide malloc counter, so allocation tests run alone (#721).
       - path: allocs_test\.go$
         linters: [paralleltest]
-      - path: ^internal/testkit/db\.go$
+      - path: ^internal/testkit/(db|mainproc)\.go$
         linters: [gosec]
         text: G204
       - path: ^internal/testkit/db\.go$
@@ -216,7 +216,7 @@ linters:
       - path: ^cmd/monacoctl/flows(_test)?\.go$
         linters: [gosec]
         text: "G204|G703"
-      - path: ^cmd/monacoctl/migrate(_test)?\.go$
+      - path: ^cmd/monacoctl/(migrate|bench)(_test)?\.go$
         linters: [gosec]
         text: G204|G702|G306|G304
       - path: ^cmd/monacoctl/(coverage|mutation)(_test)?\.go$

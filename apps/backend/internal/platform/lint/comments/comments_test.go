@@ -134,11 +134,18 @@ func TestRun_directoryArgumentChecksOnlyItsOwnFiles(t *testing.T) {
 func TestRun_reportsUnreadableInputOnStderrWithExit2(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
+	locked := filepath.Join(dir, "locked")
+	if err := os.Mkdir(locked, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
 	for _, tc := range []struct {
 		name string
 		arg  string
 	}{
 		{"missing path", filepath.Join(dir, "missing.go")},
+		{"missing tree", filepath.Join(dir, "missing") + "/..."},
+		{"unreadable directory", locked},
 		{"syntax error", writeFile(t, dir, "broken.go", "package p\n\nfunc {\n")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

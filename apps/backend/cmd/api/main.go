@@ -11,11 +11,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel"
 
+	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -30,7 +30,7 @@ import (
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
-	err := run(ctx, os.Stderr, os.Environ())
+	err := run(ctx, os.Stderr, os.Environ(), openapi.Spec)
 	stop()
 	if err != nil {
 		ctx := observability.WithLogger(context.Background(), observability.NewLogger(config.Config{}, os.Stderr))
@@ -39,7 +39,7 @@ func main() {
 	}
 }
 
-func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
+func run(ctx context.Context, stderr io.Writer, environ []string, spec []byte) (err error) {
 	cfg, err := config.Load(environ)
 	if err != nil {
 		return err
@@ -79,15 +79,15 @@ func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
 		return bootErr(ctx, err)
 	}
 	defer func() { err = errors.Join(err, stopBackground()) }()
+	handler, err := newHandler(cfg, logger, pool, verifier, stream, spec)
+	if err != nil {
+		return err
+	}
 	ln, err := listen(ctx, cfg)
 	if err != nil {
 		return bootErr(ctx, err)
 	}
-	handler, err := newHandler(cfg, logger, pool, verifier, stream)
-	if err != nil {
-		return err
-	}
-	return serve(ctx, ln, httpx.NewServer(handler, cfg.Timeouts), cfg.Timeouts.Shutdown)
+	return httpx.Serve(ctx, ln, httpx.NewServer(handler, cfg.Timeouts), cfg.Timeouts.Shutdown)
 }
 
 func startRelay(
@@ -137,6 +137,7 @@ func listen(ctx context.Context, cfg config.Config) (net.Listener, error) {
 
 func newHandler(
 	cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, verifier auth.TokenVerifier, stream sse.Stream,
+	spec []byte,
 ) (http.Handler, error) {
 	return httpx.Handler(httpx.Deps{
 		Logger:       logger,
@@ -146,7 +147,7 @@ func newHandler(
 		MaxBodyBytes: int64(cfg.HTTP.MaxBodyBytes),
 		Idempotency:  db.NewIdempotencyStore(pool, clock.Real{}),
 		Verifier:     verifier,
-	}, routes{Stream: stream})
+	}, routes{Stream: stream}, spec)
 }
 
 func startBackground(ctx context.Context, conn *bus.Conn, pool *pgxpool.Pool) (sse.Stream, func() error, error) {
@@ -196,23 +197,4 @@ func bootErr(ctx context.Context, err error) error {
 		return nil
 	}
 	return err
-}
-
-func serve(ctx context.Context, ln net.Listener, srv *http.Server, shutdownTimeout time.Duration) error {
-	served := make(chan error, 1)
-	go func() { served <- srv.Serve(ln) }()
-	select {
-	case err := <-served:
-		return err
-	case <-ctx.Done():
-	}
-	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
-	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("shutdown: %w", err)
-	}
-	if err := <-served; !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
-	return nil
 }

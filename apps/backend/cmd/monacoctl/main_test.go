@@ -2,12 +2,85 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
+
+func monacoctl(t *testing.T, dir, stdin string, args ...string) (int, string, string) {
+	t.Helper()
+	cmd := testkit.MainCommand(t, os.Environ(), args...)
+	cmd.Dir = dir
+	cmd.Stdin = strings.NewReader(stdin)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	err := cmd.Run()
+	var exit *exec.ExitError
+	if err != nil && !errors.As(err, &exit) {
+		t.Fatalf("monacoctl %q: %v", args, err)
+	}
+	return cmd.ProcessState.ExitCode(), stdout.String(), stderr.String()
+}
+
+func backendRoot(t *testing.T) string {
+	t.Helper()
+	root, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+func TestMain_lintCommentsDefaultsToTheWorkingTree(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "bad.go"), []byte("package p\n\n// hi\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, stdout, stderr := monacoctl(t, dir, "", "lint", "comments")
+	if code != 1 || stdout != "bad.go:3: comment not allowed\n" || stderr != "" {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
+
+func TestMain_docsFlowsRendersTheRepoTSVFromTheBackendDir(t *testing.T) {
+	t.Parallel()
+	var want bytes.Buffer
+	if code := docsFlows(os.DirFS(filepath.Join(backendRoot(t), "../..")), &want, io.Discard); code != 0 {
+		t.Fatalf("docsFlows over the repo = %d", code)
+	}
+	code, stdout, stderr := monacoctl(t, backendRoot(t), "", "docs", "flows")
+	if code != 0 || stdout != want.String() || stderr != "" {
+		t.Fatalf("code=%d stdout=%q stderr=%q, want 0 and %q", code, stdout, stderr, want.String())
+	}
+}
+
+func TestMain_flowsCheckReadsTestResultsFromStdinOrFrom(t *testing.T) {
+	t.Parallel()
+	results := pass("TestFlow999999_NoSuchFlow")
+	from := filepath.Join(t.TempDir(), "go-test.json")
+	if err := os.WriteFile(from, []byte(results), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	want := "test TestFlow999999_NoSuchFlow matches no flow outcome"
+	for name, run := range map[string]func() (int, string, string){
+		"stdin": func() (int, string, string) { return monacoctl(t, backendRoot(t), results, "flows", "check") },
+		"from": func() (int, string, string) {
+			return monacoctl(t, backendRoot(t), "", "flows", "check", "--from", from)
+		},
+	} {
+		if code, stdout, stderr := run(); code != 1 || stdout != "" || !strings.Contains(stderr, want) {
+			t.Fatalf("%s: code=%d stdout=%q stderr=%q, want 1 and %q", name, code, stdout, stderr, want)
+		}
+	}
+}
 
 func TestRun_unknownOrMissingCommandPrintsUsageAndExits2(t *testing.T) {
 	t.Parallel()

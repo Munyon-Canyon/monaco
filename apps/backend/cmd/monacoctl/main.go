@@ -24,7 +24,7 @@ func commands() map[string]command {
 
 func tools(environ []string) map[string]tool {
 	return map[string]tool{
-		"bench":       benchCmd,
+		"bench":       bench{"go"}.run,
 		"bus":         busTool(environ),
 		"coverage":    coverageTool("."),
 		"docs":        docs,

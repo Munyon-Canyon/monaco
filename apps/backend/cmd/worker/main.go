@@ -18,6 +18,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability/boundary"
@@ -88,7 +89,7 @@ func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
 	}
 	observability.Info(ctx, observability.BootListening, slog.String("service", "worker"),
 		slog.String("addr", ln.Addr().String()))
-	return serve(ctx, ln, cfg.Timeouts)
+	return httpx.Serve(ctx, ln, httpx.NewServer(healthMux(), cfg.Timeouts), cfg.Timeouts.Shutdown)
 }
 
 func startRelay(
@@ -141,31 +142,10 @@ func startConsumers(
 	return reg.Start(ctx)
 }
 
-func serve(ctx context.Context, ln net.Listener, timeouts config.Timeouts) error {
+func healthMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, "ok\n")
 	})
-	srv := &http.Server{
-		Handler:           mux,
-		ReadHeaderTimeout: timeouts.HTTPServerRead,
-		ReadTimeout:       timeouts.HTTPServerRead,
-		WriteTimeout:      timeouts.HTTPServerWrite,
-	}
-	served := make(chan error, 1)
-	go func() { served <- srv.Serve(ln) }()
-	select {
-	case err := <-served:
-		return err
-	case <-ctx.Done():
-	}
-	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeouts.Shutdown)
-	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("shutdown: %w", err)
-	}
-	if err := <-served; !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
-	return nil
+	return mux
 }

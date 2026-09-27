@@ -56,18 +56,14 @@ func run(ctx context.Context, environ []string) error {
 
 func serve(ctx context.Context, ln net.Listener) error {
 	srv := &http.Server{Handler: fakes.New(), ReadHeaderTimeout: 5 * time.Second}
-	served := make(chan error, 1)
-	go func() { served <- srv.Serve(ln) }()
-	select {
-	case err := <-served:
-		return err
-	case <-ctx.Done():
+	closed := make(chan error, 1)
+	stop := context.AfterFunc(ctx, func() { closed <- srv.Close() })
+	defer stop()
+	if err := srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("serve: %w", err)
 	}
-	if err := srv.Close(); err != nil {
+	if err := <-closed; err != nil {
 		return fmt.Errorf("close: %w", err)
-	}
-	if err := <-served; !errors.Is(err, http.ErrServerClosed) {
-		return err
 	}
 	return nil
 }

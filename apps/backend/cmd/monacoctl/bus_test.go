@@ -8,6 +8,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	testkit.ChildMain(main)
 	testkit.NATSServer(m)
 }
 

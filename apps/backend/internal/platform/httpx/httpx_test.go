@@ -18,6 +18,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
+	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -134,7 +135,7 @@ func serveRaw(
 
 func mustHandler(t *testing.T, d Deps, ssi api.StrictServerInterface) http.Handler {
 	t.Helper()
-	h, err := Handler(d, ssi)
+	h, err := Handler(d, ssi, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}

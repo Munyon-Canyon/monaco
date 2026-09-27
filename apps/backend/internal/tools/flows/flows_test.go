@@ -1,9 +1,12 @@
 package flows_test
 
 import (
+	"io"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
@@ -114,5 +117,17 @@ func TestTestName_namesOneTestPerOutcome(t *testing.T) {
 		if got := flows.TestName(f, outcome); got != want {
 			t.Errorf("TestName(%s) = %s, want %s", outcome, got, want)
 		}
+	}
+}
+
+func TestParse_reportsAReadErrorAndTheMissingHeader(t *testing.T) {
+	t.Parallel()
+	parsed, problems := flows.Parse(iotest.ErrReader(io.ErrUnexpectedEOF))
+	want := []string{
+		"flows.tsv: read: unexpected EOF",
+		"flows.tsv:1: header must be " + strconv.Quote(flows.Header),
+	}
+	if len(parsed) != 0 || !slices.Equal(lines(problems), want) {
+		t.Fatalf("Parse = %v, %q; want no flows and %q", parsed, lines(problems), want)
 	}
 }

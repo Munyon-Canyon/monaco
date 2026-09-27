@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -79,7 +80,7 @@ func TestRun_streamsHintsFromNATSAndShutsDownWithAStreamOpen(t *testing.T) {
 			"MONACO_ENV=test", "DATABASE_URL=" + dsn, "NATS_URL=" + url,
 			"MONACO_DEV_TOKEN_KEY=" + key, "MONACO_HTTP_ADDR=" + addr, "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
 			"MONACO_TIMEOUT_SHUTDOWN=5s",
-		})
+		}, openapi.Spec)
 	}()
 	streamCtx, stopStream := context.WithTimeout(t.Context(), 10*time.Second)
 	defer stopStream()

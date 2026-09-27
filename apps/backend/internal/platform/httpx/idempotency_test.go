@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -457,7 +458,7 @@ func TestHandler_requiresAnIdempotencyStore(t *testing.T) {
 	t.Parallel()
 	d := newHarness(t).deps
 	d.Idempotency = nil
-	if h, err := Handler(d, healthOnly{}); h != nil || errs.CodeOf(err) != errs.CodeInternal {
+	if h, err := Handler(d, healthOnly{}, openapi.Spec); h != nil || errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("Handler = %v, %v, want internal and no handler", h, err)
 	}
 }

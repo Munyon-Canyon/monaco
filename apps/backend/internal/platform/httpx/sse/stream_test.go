@@ -15,6 +15,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace/noop"
 
+	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -49,7 +50,7 @@ func newServer(t *testing.T, f *fixture, timeouts config.Timeouts) server {
 		Logger: observability.NewLogger(config.Config{}, io.Discard), Tracer: noop.NewTracerProvider(),
 		Clock: clock.Real{}, IDs: ids.Real{}, MaxBodyBytes: 1 << 10,
 		Idempotency: unusedStore{}, Verifier: verifier,
-	}, routes{Stream: sse.NewStream(f.hub, clock.Real{})})
+	}, routes{Stream: sse.NewStream(f.hub, clock.Real{})}, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,8 +3,15 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
+
+func TestMain(m *testing.M) {
+	testkit.RunMain(m, main)
+}
 
 const testConfig = `linters:
   settings:
@@ -138,5 +145,57 @@ func TestGenerate_failsWithoutMarkersOrModuleLine(t *testing.T) {
 				t.Fatal("a failed generate rewrote the config")
 			}
 		})
+	}
+}
+
+func TestGenerate_namesTheInputItCannotReadOrWrite(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		files    map[string]string
+		readOnly bool
+		want     string
+	}{
+		"missing go.mod":    {map[string]string{".golangci.yml": testConfig}, false, "read go.mod: "},
+		"modules is a file": {map[string]string{"go.mod": "module m\n", "internal/modules": "x"}, false, "list modules: "},
+		"missing config":    {map[string]string{"go.mod": "module m\n"}, false, "read config: "},
+		"read-only config": {
+			map[string]string{"go.mod": "module m\n", ".golangci.yml": testConfig}, true, "write config: ",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root := writeTree(t, tc.files)
+			if tc.readOnly {
+				if err := os.Chmod(filepath.Join(root, ".golangci.yml"), 0o400); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := generate(root); err == nil || !strings.HasPrefix(err.Error(), tc.want) {
+				t.Fatalf("generate = %v, want an error starting %q", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestMain_generatesInTheWorkingDirOrExitsOneNamingTheError(t *testing.T) {
+	t.Parallel()
+	root := writeTree(t, map[string]string{
+		"go.mod":                           "module example.com/app\n",
+		".golangci.yml":                    testConfig,
+		"internal/modules/alpha/module.go": "package alpha\n",
+	})
+	cmd := testkit.MainCommand(t, nil)
+	cmd.Dir = root
+	if out, err := cmd.CombinedOutput(); err != nil || len(out) != 0 ||
+		!strings.Contains(readConfig(t, root), "module-alpha:") || strings.Contains(readConfig(t, root), "stale-rule") {
+		t.Fatalf("gen-depguard in %s = %v %q\n%s", root, err, out, readConfig(t, root))
+	}
+
+	missing := filepath.Join(root, "missing")
+	failing := testkit.MainCommand(t, nil, missing)
+	out, _ := failing.CombinedOutput()
+	if code := failing.ProcessState.ExitCode(); code != 1 ||
+		!strings.HasPrefix(string(out), "gen-depguard: read go.mod: ") {
+		t.Fatalf("gen-depguard %s = %d %q", missing, code, out)
 	}
 }

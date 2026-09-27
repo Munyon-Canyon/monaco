@@ -22,6 +22,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	testkit.ChildMain(main)
 	testkit.Main(m, testkit.WithNATS())
 }
 

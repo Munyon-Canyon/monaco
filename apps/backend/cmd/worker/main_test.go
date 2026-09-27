@@ -1,63 +1,51 @@
 package main
 
 import (
-	"context"
+	"errors"
 	"io"
-	"net"
 	"net/http"
+	"os/exec"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-func get(ctx context.Context, url string) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+func bootEnv(t *testing.T, extra ...string) []string {
+	t.Helper()
+	url := testkit.StandaloneNATS(t)
+	conn, err := bus.Connect(t.Context(), config.NATS{URL: url}, bus.ProcessMonacoctl)
 	if err != nil {
-		return nil, err
+		t.Fatal(err)
 	}
-	return http.DefaultClient.Do(req)
+	if _, err := conn.Apply(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	conn.Close(t.Context())
+	return append([]string{"MONACO_ENV=test", "DATABASE_URL=" + testkit.DB(t).Config().ConnString(), "NATS_URL=" + url}, extra...)
 }
 
-func TestServe_healthzAnswersOkUntilShutdown(t *testing.T) {
+func TestMain_servesHealthzUntilSIGTERMThenExitsZero(t *testing.T) {
 	t.Parallel()
-	ln, err := new(net.ListenConfig).Listen(t.Context(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
+	p := testkit.StartMain(t, bootEnv(t, "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0"))
+	if code, body := testkit.Get(t, "http://"+p.Addr+"/healthz"); code != http.StatusOK || body != "ok\n" {
+		t.Fatalf("GET /healthz = %d %q, want 200 %q", code, body, "ok\n")
 	}
-	url := "http://" + ln.Addr().String() + "/healthz"
-	ctx, cancel := context.WithCancel(t.Context())
-	timeouts := config.Timeouts{HTTPServerRead: time.Second, HTTPServerWrite: time.Second, Shutdown: time.Second}
-	done := make(chan error, 1)
-	go func() { done <- serve(ctx, ln, timeouts) }()
+	if stderr, err := p.Terminate(); err != nil {
+		t.Fatalf("worker after SIGTERM: %v\n%s", err, stderr)
+	}
+}
 
-	resp, err := get(t.Context(), url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	body, err := io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp.StatusCode != http.StatusOK || string(body) != "ok\n" {
-		t.Fatalf("GET /healthz = %d %q, want 200 %q", resp.StatusCode, body, "ok\n")
-	}
-
-	cancel()
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("serve returned %v after shutdown, want nil", err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("serve did not return within 5s of shutdown")
-	}
-	if resp, err := get(t.Context(), url); err == nil {
-		_ = resp.Body.Close()
-		t.Fatal("GET /healthz succeeded after shutdown")
+func TestMain_exitsOneAndLogsWhyWhenConfigIsMissing(t *testing.T) {
+	t.Parallel()
+	out, err := testkit.MainCommand(t, nil).CombinedOutput()
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) || exit.ExitCode() != 1 ||
+		!strings.Contains(string(out), `"msg":"boot.stopped"`) || !strings.Contains(string(out), "missing MONACO_ENV") {
+		t.Fatalf("worker without config = %v\n%s", err, out)
 	}
 }
 
@@ -78,5 +66,13 @@ func TestRun_refusesToBootWithMalformedOTelEndpoint(t *testing.T) {
 	})
 	if errs.CodeOf(err) != errs.CodeInvalidInput || !strings.Contains(err.Error(), "observability.Setup") {
 		t.Fatalf("run = %v, want invalid_input from observability.Setup", err)
+	}
+}
+
+func TestRun_reportsAnAddressItCannotListenOn(t *testing.T) {
+	t.Parallel()
+	err := run(t.Context(), io.Discard, bootEnv(t, "MONACO_WORKER_HEALTH_ADDR=256.0.0.1:1"))
+	if err == nil || !strings.Contains(err.Error(), "listen on 256.0.0.1:1") {
+		t.Fatalf("run = %v, want a listen error", err)
 	}
 }

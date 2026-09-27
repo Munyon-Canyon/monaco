@@ -128,3 +128,14 @@ func TestMigrate_rejectsUnknownSubcommandOrExtraArgsWithoutRunningAtlas(t *testi
 		}
 	}
 }
+
+func TestMigrate_explainsAnUnreadablePinnedVersion(t *testing.T) {
+	t.Parallel()
+	a := fakeAtlas("pinned")
+	a.versionFile = filepath.Join(t.TempDir(), "missing")
+	var stdout, stderr bytes.Buffer
+	code := migrateTool(a, nil)([]string{"lint"}, &stdout, &stderr)
+	if code != 1 || stdout.Len() != 0 || !strings.HasPrefix(stderr.String(), "monacoctl: read pinned atlas version: ") {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}

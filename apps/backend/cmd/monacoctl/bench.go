@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"os/exec"
 	"regexp"
 	"slices"
@@ -22,14 +21,16 @@ const (
 	benchPkg   = "./internal/testkit/testdata/bench"
 )
 
-func benchCmd(args []string, stdout, stderr io.Writer) int {
+type bench struct{ goBin string }
+
+func (b bench) run(args []string, stdout, stderr io.Writer) int {
 	if !slices.Equal(args, []string{"db"}) {
 		_, _ = fmt.Fprintln(stderr, benchUsage)
 		return 2
 	}
 	cmd := exec.CommandContext(
 		context.Background(),
-		"go",
+		b.goBin,
 		"test",
 		"-count=1",
 		"-json",
@@ -37,7 +38,7 @@ func benchCmd(args []string, stdout, stderr io.Writer) int {
 		"^TestCloneBench$",
 		benchPkg,
 	)
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = stderr
 	out, runErr := cmd.Output()
 	line, err := benchReport(bytes.NewReader(out))
 	if err != nil || runErr != nil {

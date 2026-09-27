@@ -2,13 +2,22 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/http"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
+
+func TestMain(m *testing.M) {
+	testkit.RunMain(m, main)
+}
 
 func do(ctx context.Context, t *testing.T, method, url, body string) (int, string) {
 	t.Helper()
@@ -63,5 +72,77 @@ func TestRun_reportsAnAddressItCannotListenOn(t *testing.T) {
 	err := run(t.Context(), []string{"FAKES_ADDR=256.0.0.1:1"})
 	if err == nil || !strings.Contains(err.Error(), "listen on 256.0.0.1:1") {
 		t.Fatalf("run = %v, want a listen error", err)
+	}
+}
+
+func TestMain_servesFixturesUntilSIGTERMThenExitsZero(t *testing.T) {
+	t.Parallel()
+	p := testkit.StartMain(t, []string{"FAKES_ADDR=127.0.0.1:0"})
+	if code, body := testkit.Get(t, "http://"+p.Addr+"/privy/_health"); code != http.StatusOK ||
+		!strings.Contains(body, `"upstream": "privy"`) {
+		t.Fatalf("GET /privy/_health = %d %q", code, body)
+	}
+	if stderr, err := p.Terminate(); err != nil {
+		t.Fatalf("fakes after SIGTERM: %v\n%s", err, stderr)
+	}
+}
+
+func TestMain_exitsOneAndLogsWhyWhenItCannotListen(t *testing.T) {
+	t.Parallel()
+	out, err := testkit.MainCommand(t, []string{"FAKES_ADDR=256.0.0.1:1"}).CombinedOutput()
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) || exit.ExitCode() != 1 ||
+		!strings.Contains(
+			string(out),
+			`"msg":"boot.stopped"`,
+		) || !strings.Contains(string(out), "listen on 256.0.0.1:1") {
+		t.Fatalf("fakes on a bad address = %v\n%s", err, out)
+	}
+}
+
+type closeFails struct {
+	net.Listener
+	err error
+}
+
+func (l closeFails) Close() error {
+	_ = l.Listener.Close()
+	return l.err
+}
+
+func TestServe_reportsACloseThatFails(t *testing.T) {
+	t.Parallel()
+	ln, err := new(net.ListenConfig).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	closeErr := errs.New(errs.CodeInternal, "test.listenerClose")
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { done <- serve(ctx, closeFails{ln, closeErr}) }()
+	if code, _ := do(
+		t.Context(),
+		t,
+		http.MethodGet,
+		"http://"+ln.Addr().String()+"/privy/_health",
+		"",
+	); code != http.StatusOK {
+		t.Fatalf("GET /privy/_health = %d, want 200", code)
+	}
+	cancel()
+	if err := <-done; !errors.Is(err, closeErr) || err.Error() != "close: "+closeErr.Error() {
+		t.Fatalf("serve = %v, want the close error", err)
+	}
+}
+
+func TestServe_returnsAtOnceWhenTheListenerIsUnusable(t *testing.T) {
+	t.Parallel()
+	ln, err := new(net.ListenConfig).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = ln.Close()
+	if err := serve(t.Context(), ln); !errors.Is(err, net.ErrClosed) {
+		t.Fatalf("serve = %v, want net.ErrClosed", err)
 	}
 }
