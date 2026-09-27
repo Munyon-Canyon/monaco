@@ -92,10 +92,9 @@ func TestEveryDeclaredCodeHasATableRowAndEveryRowHasACode(t *testing.T) {
 
 func TestRowNameMatchesIdentifierAndWireValueIsItsSnakeCase(t *testing.T) {
 	t.Parallel()
-	rows := table()
 	for ident, code := range declaredCodes(t, "codes.go") {
 		name := strings.TrimPrefix(ident, "Code")
-		if got := rows[code].Name; got != name {
+		if got := Name(code); got != name {
 			t.Errorf("%s: Name = %q, want %q", ident, got, name)
 		}
 		if want := snakeCase(name); string(code) != want {

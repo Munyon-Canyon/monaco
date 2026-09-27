@@ -23,7 +23,8 @@ func commands() map[string]command {
 
 func tools() map[string]tool {
 	return map[string]tool{
-		"docs": docs,
+		"docs":  docs,
+		"flows": flowsCmd,
 		"lint": func(args []string, stdout, stderr io.Writer) int {
 			return run(nil, map[string]tool{"comments": comments.Run}, nil, args, stdout, stderr)
 		},
