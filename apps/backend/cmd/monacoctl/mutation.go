@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	mutationUsage   = "usage: monacoctl mutation [--base main | --all] [--list | --pkg dir]"
+	mutationUsage   = "usage: monacoctl mutation [--base main | --all] [--list | --pkg dir [--report file]]"
 	mutantsAllow    = "mutants.allow"
 	testOutputLines = 40
 	lived           = "LIVED"
@@ -48,11 +48,9 @@ func runCommand(ctx context.Context, dir string, env []string, name string, args
 }
 
 type mutationArgs struct {
-	base, pkg string
-	all, list bool
+	base, pkg, report string
+	all, list         bool
 }
-
-type listedPackage struct{ Dir, ImportPath string }
 
 type gremlinsReport struct {
 	Files []struct {
@@ -78,7 +76,8 @@ func mutationCmd(env mutationEnv, args []string, stdout, stderr io.Writer) int {
 	fs.BoolVar(&a.all, "all", false, "")
 	fs.BoolVar(&a.list, "list", false, "")
 	fs.StringVar(&a.pkg, "pkg", "", "")
-	if fs.Parse(args) != nil || fs.NArg() != 0 || a.list && a.pkg != "" {
+	fs.StringVar(&a.report, "report", "", "")
+	if fs.Parse(args) != nil || fs.NArg() != 0 || a.list && a.pkg != "" || a.report != "" && a.pkg == "" {
 		_, _ = fmt.Fprintln(stderr, mutationUsage)
 		return 2
 	}
@@ -138,7 +137,7 @@ func (env mutationEnv) run(ctx context.Context, a mutationArgs, stdout io.Writer
 	_, _ = fmt.Fprintf(stdout, "mutating %d packages: %s\n", len(dirs), strings.Join(dirs, " "))
 	var survivors []string
 	for _, dir := range dirs {
-		report, err := env.unleash(ctx, dir, diffRef)
+		report, err := env.unleash(ctx, dir, diffRef, a.report)
 		if err != nil {
 			return nil, err
 		}
@@ -150,19 +149,21 @@ func (env mutationEnv) run(ctx context.Context, a mutationArgs, stdout io.Writer
 	return survivors, nil
 }
 
-func (env mutationEnv) goList(ctx context.Context) ([]listedPackage, error) {
+func (env mutationEnv) goList(ctx context.Context) ([]string, error) {
 	out, err := env.exec(ctx, env.moduleDir, nil, env.goBin,
-		"list", "-f", `{{.Module.Dir}}	{{.Dir}}	{{.ImportPath}}`, "./...")
+		"list", "-f", `{{.Module.Dir}}	{{.Dir}}	{{len .GoFiles}}`, "./...")
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, "monacoctl.goList")
 	}
-	var pkgs []listedPackage
+	var dirs []string
 	for line := range strings.Lines(string(out)) {
 		f := strings.SplitN(strings.TrimRight(line, "\n"), "\t", 3)
-		dir := strings.TrimPrefix(strings.TrimPrefix(f[1], f[0]), "/")
-		pkgs = append(pkgs, listedPackage{Dir: filepath.ToSlash(dir), ImportPath: f[2]})
+		if f[2] == "0" {
+			continue
+		}
+		dirs = append(dirs, filepath.ToSlash(strings.TrimPrefix(strings.TrimPrefix(f[1], f[0]), "/")))
 	}
-	return pkgs, nil
+	return dirs, nil
 }
 
 func (env mutationEnv) changedFiles(ctx context.Context, base string) ([]string, error) {
@@ -184,7 +185,7 @@ func (env mutationEnv) changedFiles(ctx context.Context, base string) ([]string,
 	return strings.Fields(string(out)), nil
 }
 
-func affectedPackages(pkgs []listedPackage, changed []string, all bool, exclude []string) []string {
+func affectedPackages(pkgs, changed []string, all bool, exclude []string) []string {
 	changedDirs := map[string]bool{}
 	for _, f := range changed {
 		if strings.HasSuffix(f, ".go") {
@@ -193,23 +194,25 @@ func affectedPackages(pkgs []listedPackage, changed []string, all bool, exclude 
 	}
 	dirs := []string{}
 	for _, p := range pkgs {
-		if (all || changedDirs[p.Dir]) && !excluded(p.Dir+"/", exclude) {
-			dirs = append(dirs, p.Dir)
+		if (all || changedDirs[p]) && !excluded(p+"/", exclude) {
+			dirs = append(dirs, p)
 		}
 	}
 	slices.Sort(dirs)
 	return dirs
 }
 
-func (env mutationEnv) unleash(ctx context.Context, dir, diffRef string) (gremlinsReport, error) {
+func (env mutationEnv) unleash(ctx context.Context, dir, diffRef, out string) (gremlinsReport, error) {
 	const op = "monacoctl.unleash"
-	file, err := os.CreateTemp(env.tmpDir, "gremlins-*.json")
-	if err != nil {
-		return gremlinsReport{}, errs.Wrap(err, errs.CodeInternal, op)
+	if out == "" {
+		file, err := os.CreateTemp(env.tmpDir, "gremlins-*.json")
+		if err != nil {
+			return gremlinsReport{}, errs.Wrap(err, errs.CodeInternal, op)
+		}
+		out = file.Name()
+		_ = file.Close()
+		defer func() { _ = os.Remove(out) }()
 	}
-	out := file.Name()
-	_ = file.Close()
-	defer func() { _ = os.Remove(out) }()
 	args := []string{
 		"unleash",
 		"--silent",

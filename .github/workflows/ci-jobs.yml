@@ -92,71 +92,14 @@ jobs:
       - name: Tests that -short skips because they build or run other binaries
         run: go test -race ./internal/platform/lint/... ./internal/testkit/... ./cmd/monacoctl
 
-  # Mutants on the lines this change touches (gremlins --diff). A pull request compares with its base;
-  # a manual run compares with the parent commit. The nightly mutates every line of every package.
-  # mutation-plan lists the changed packages and mutation runs one job per package, so the wall time
-  # is the slowest package, not the sum.
-  mutation-plan:
-    name: Mutation plan
+  # Mutants on the lines this change touches (gremlins --diff), one job per changed package, so the
+  # wall time is the slowest package, not the sum. The nightly mutates every line of every package.
+  mutation:
     needs: plan
     if: needs.plan.outputs.backend-go == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      packages: ${{ steps.list.outputs.packages }}
-    defaults:
-      run:
-        working-directory: apps/backend
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: apps/backend/go.mod
-          cache: false
-
-      - name: List the packages with changed Go files
-        id: list
-        env:
-          BASE: ${{ github.event.pull_request.base.sha || 'HEAD~1' }}
-        run: |
-          packages=$(go run ./cmd/monacoctl mutation --base "$BASE" --list)
-          echo "$packages"
-          echo "packages=$packages" >> "$GITHUB_OUTPUT"
-
-  # GitHub rejects a matrix built from an empty list, so no changed package skips the job instead.
-  mutation:
-    name: Mutation (${{ matrix.pkg }})
-    needs: mutation-plan
-    if: needs.mutation-plan.outputs.packages != '[]'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        pkg: ${{ fromJSON(needs.mutation-plan.outputs.packages) }}
-    defaults:
-      run:
-        working-directory: apps/backend
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # The same setup as the backend job: gremlins runs each package's tests, and the ones on
-      # testkit.DB need atlas to build the template database on a fresh runner.
-      - uses: ./.github/actions/backend-test-env
-
-      - name: Install the pinned gremlins
-        run: ../../scripts/install-gremlins.sh
-
-      - name: Mutants on the changed lines
-        env:
-          BASE: ${{ github.event.pull_request.base.sha || 'HEAD~1' }}
-          PKG: ${{ matrix.pkg }}
-        run: go run ./cmd/monacoctl mutation --base "$BASE" --pkg "$PKG"
+    uses: ./.github/workflows/mutation.yml
+    with:
+      timeout-minutes: 10
 
   mobile-core:
     needs: plan
@@ -194,6 +137,7 @@ jobs:
               - '.github/actions/backend-test-env/**'
               - 'docs/reference/**'
               - '.github/workflows/ci*.yml'
+              - '.github/workflows/mutation.yml'
             backend-go:
               - 'apps/backend/**/*.go'
               - 'apps/backend/go.mod'
@@ -234,11 +178,11 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [plan, backend, mutation-plan, mutation, mobile-core, ios]
+    needs: [plan, backend, mutation, mobile-core, ios]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - uses: re-actors/alls-green@release/v1
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: backend, mutation-plan, mutation, mobile-core, ios
+          allowed-skips: backend, mutation, mobile-core, ios

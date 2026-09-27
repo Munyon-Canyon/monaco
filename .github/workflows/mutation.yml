@@ -1,0 +1,101 @@
+name: Mutation
+
+# The mutation plan and its per-package matrix, called by ci-jobs.yml for the lines a PR changes
+# and by nightly.yml for every line. docs/architecture/ci.md#what-runs-where
+on:
+  workflow_call:
+    inputs:
+      all:
+        description: Mutate every line of every package instead of the lines changed since the base.
+        type: boolean
+        default: false
+      timeout-minutes:
+        description: The limit for each package's job.
+        type: number
+        required: true
+
+permissions:
+  contents: read
+
+# A pull request compares with its base, a manual run with the parent commit.
+env:
+  SCOPE: ${{ inputs.all && '--all' || format('--base={0}', github.event.pull_request.base.sha || 'HEAD~1') }}
+
+jobs:
+  # A PR labeled integration (a feature branch into main) lists no packages: its ticket PRs were
+  # gated on their way into the feature branch.
+  plan:
+    name: Mutation plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      packages: ${{ steps.list.outputs.packages }}
+    defaults:
+      run:
+        working-directory: apps/backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/backend/go.mod
+          cache: false
+
+      - name: List the packages to mutate
+        id: list
+        env:
+          INTEGRATION: ${{ contains(github.event.pull_request.labels.*.name, 'integration') }}
+        run: |
+          packages='[]'
+          if [ "$INTEGRATION" != true ]; then
+            packages=$(go run ./cmd/monacoctl mutation "$SCOPE" --list)
+          fi
+          echo "$packages"
+          echo "packages=$packages" >> "$GITHUB_OUTPUT"
+
+  # GitHub rejects a matrix built from an empty list, so no listed package skips the job instead.
+  mutation:
+    name: Mutation (${{ matrix.pkg }})
+    needs: plan
+    if: needs.plan.outputs.packages != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    strategy:
+      fail-fast: false
+      matrix:
+        pkg: ${{ fromJSON(needs.plan.outputs.packages) }}
+    defaults:
+      run:
+        working-directory: apps/backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # gremlins runs each package's tests, and the ones on testkit.DB need atlas and the test Postgres.
+      - uses: ./.github/actions/backend-test-env
+
+      - name: Install the pinned gremlins
+        run: ../../scripts/install-gremlins.sh
+
+      - name: Mutants
+        env:
+          PKG: ${{ matrix.pkg }}
+        run: go run ./cmd/monacoctl mutation "$SCOPE" --pkg "$PKG" --report "$RUNNER_TEMP/gremlins.json"
+
+      - name: Name the report after the package
+        if: always()
+        id: name
+        env:
+          PKG: ${{ matrix.pkg }}
+        run: echo "artifact=gremlins-${PKG//\//-}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ steps.name.outputs.artifact }}
+          path: ${{ runner.temp }}/gremlins.json
+          if-no-files-found: ignore
+          retention-days: 14

@@ -36,7 +36,7 @@ failure_body() {
   echo "Nightly QA failed on \`${sha:0:8}\`: $run_url"
   echo
   if [[ "${BACKEND_RESULT:-}" == failure ]]; then
-    echo "The backend unbounded suites failed (100k rapid, fuzz, seed sweep, mutation or benchstat). See the backend job log."
+    echo "The backend unbounded suites failed (100k rapid, fuzz, seed sweep, benchstat, or a mutation package). See the failed job log."
     echo
   fi
   if [[ "$qa_job_result" != failure ]]; then

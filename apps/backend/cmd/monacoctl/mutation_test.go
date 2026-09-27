@@ -27,15 +27,17 @@ func mutationModule(t *testing.T, allow string, extraPkgs ...string) mutationEnv
 		"c/x.go":           "package c\n\nfunc C() int { return 3 }\n",
 		"kit/x.go":         "package kit\n\nimport \"example.com/m/a\"\n\nfunc K() int { return a.A() }\n",
 		"a/testdata/x.txt": "fixture\n",
+		"tonly/x_test.go":  "package tonly_test\n",
 	}
 	var list strings.Builder
-	list.WriteString("MODDIR\tMODDIR/a\texample.com/m/a\n" +
-		"MODDIR\tMODDIR/b\texample.com/m/b\n" +
-		"MODDIR\tMODDIR/c\texample.com/m/c\n" +
-		"MODDIR\tMODDIR/kit\texample.com/m/kit\n")
+	list.WriteString("MODDIR\tMODDIR/a\t1\n" +
+		"MODDIR\tMODDIR/b\t1\n" +
+		"MODDIR\tMODDIR/c\t1\n" +
+		"MODDIR\tMODDIR/kit\t1\n" +
+		"MODDIR\tMODDIR/tonly\t0\n")
 	for _, p := range extraPkgs {
 		files[p+"/x.go"] = "package " + p + "\n\nimport \"example.com/m/a\"\n\nfunc X() int { return a.A() }\n"
-		list.WriteString("MODDIR\tMODDIR/" + p + "\texample.com/m/" + p + "\n")
+		list.WriteString("MODDIR\tMODDIR/" + p + "\t1\n")
 	}
 	files["golist.txt"] = list.String()
 	for name, body := range files {
@@ -357,6 +359,7 @@ func TestMutationRunsOnARealModuleWithTheGoAndGitCommands(t *testing.T) {
 	git(t, env.moduleDir, "commit", "-q", "-m", "base")
 	git(t, env.moduleDir, "checkout", "-q", "-b", "feature")
 	commitFile(t, env, "a/x_test.go", "package a\n")
+	commitFile(t, env, "tonly/x_test.go", "package tonly_test\n\nvar _ = 1\n")
 	var stdout, stderr bytes.Buffer
 	if code := mutationTool(env)(nil, &stdout, &stderr); code != 1 || stdout.String() != "mutating 1 packages: a\n" ||
 		!strings.HasPrefix(stderr.String(), "monacoctl mutation: a/x.go:3:5 CONDITIONALS_NEGATION survived") {
@@ -388,7 +391,7 @@ func removeFile(t *testing.T, env mutationEnv, name string) {
 
 func TestMutationUsage(t *testing.T) {
 	t.Parallel()
-	for _, args := range [][]string{{"extra"}, {"--bogus"}, {"--list", "--pkg", "a"}} {
+	for _, args := range [][]string{{"extra"}, {"--bogus"}, {"--list", "--pkg", "a"}, {"--all", "--report", "r.json"}} {
 		var stdout, stderr bytes.Buffer
 		if code := mutationTool(
 			mutationEnv{},
@@ -463,5 +466,56 @@ func TestMutationPkgRejectsAPackageWithNoChangedGoFiles(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(env.moduleDir, "gremlins.log")); !os.IsNotExist(err) {
 		t.Fatalf("--pkg b ran gremlins: %v", err)
+	}
+}
+
+func TestMutationListLeavesOutPackagesWithOnlyTestFiles(t *testing.T) {
+	t.Parallel()
+	env := mutationModule(t, "")
+	commitFile(t, env, "tonly/x_test.go", "package tonly_test\n\nvar _ = 1\n")
+	var stdout, stderr bytes.Buffer
+	if code := mutationTool(env)([]string{"--list"}, &stdout, &stderr); code != 0 || stdout.String() != "[]\n" {
+		t.Fatalf(
+			"changed test-only package: code=%d stdout=%q stderr=%q, want []",
+			code,
+			stdout.String(),
+			stderr.String(),
+		)
+	}
+	stdout.Reset()
+	if code := mutationTool(env)([]string{"--all", "--list"}, &stdout, &stderr); code != 0 ||
+		stdout.String() != "[\"a\",\"b\",\"c\"]\n" {
+		t.Fatalf("--all --list: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestMutationAllPkgMutatesEveryLineOfOnePackage(t *testing.T) {
+	t.Parallel()
+	env := mutationModule(t, "")
+	var stdout, stderr bytes.Buffer
+	if code := mutationTool(env)([]string{"--all", "--pkg", "b"}, &stdout, &stderr); code != 0 ||
+		stdout.String() != "mutating 1 packages: b\n" {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if calls := gremlinsCalls(
+		t,
+		env,
+	); len(calls) != 1 || !strings.HasPrefix(calls[0], "b: ") ||
+		strings.Contains(calls[0], "--diff") {
+		t.Fatalf("gremlins calls = %q, want one call in b without --diff", calls)
+	}
+}
+
+func TestMutationReportKeepsTheGremlinsReportAtThatPath(t *testing.T) {
+	t.Parallel()
+	env := mutationModule(t, "")
+	report := filepath.Join(t.TempDir(), "gremlins-a.json")
+	var stdout, stderr bytes.Buffer
+	if code := mutationTool(env)([]string{"--all", "--pkg", "a", "--report", report}, &stdout, &stderr); code != 1 {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	data, err := os.ReadFile(report)
+	if err != nil || !strings.Contains(string(data), `"status":"LIVED"`) {
+		t.Fatalf("report = %q, %v; want the gremlins JSON with the survivor", data, err)
 	}
 }

@@ -155,7 +155,7 @@ jobs:
           key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-${{ github.sha }}
 
   backend:
-    name: Backend unbounded suites (100k rapid, fuzz, seed sweep, mutation, benchstat)
+    name: Backend unbounded suites (100k rapid, fuzz, seed sweep, benchstat)
     needs: changed
     if: needs.changed.outputs.run == 'true' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
@@ -169,10 +169,8 @@ jobs:
       # atlas for testkit.DB and the tmpfs test Postgres, the same setup as the PR backend job.
       - uses: ./.github/actions/backend-test-env
 
-      # monacoctl mutation runs the pinned gremlins from .bin, where this script installs it.
-      - name: Install gremlins and benchstat
+      - name: Install benchstat
         run: |
-          scripts/install-gremlins.sh
           go install golang.org/x/perf/cmd/benchstat@v0.0.0-20260908200009-22c9c6c9d4da
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
@@ -207,9 +205,19 @@ jobs:
           path: ${{ runner.temp }}/nightly-backend/
           retention-days: 14
 
+  # Every line of every package, one job per package. db, bus, httpx and httpx/sse each run past
+  # 10 minutes, so each job gets an hour.
+  mutation:
+    needs: changed
+    if: needs.changed.outputs.run == 'true' && github.event_name != 'pull_request'
+    uses: ./.github/workflows/mutation.yml
+    with:
+      all: true
+      timeout-minutes: 60
+
   alert:
     name: Open, update or close the nightly-failure issue
-    needs: [qa, backend]
+    needs: [qa, backend, mutation]
     if: >-
       always() && (needs.qa.result == 'success' || needs.qa.result == 'failure') &&
       needs.backend.result != 'cancelled'
@@ -233,9 +241,9 @@ jobs:
       - name: Update the nightly-failure issue
         env:
           GH_TOKEN: ${{ github.token }}
-          NIGHTLY_RESULT: ${{ (needs.qa.result == 'failure' || needs.backend.result == 'failure') && 'failure' || 'success' }}
+          NIGHTLY_RESULT: ${{ (needs.qa.result == 'failure' || needs.backend.result == 'failure' || needs.mutation.result == 'failure') && 'failure' || 'success' }}
           QA_JOB_RESULT: ${{ needs.qa.result }}
-          BACKEND_RESULT: ${{ needs.backend.result }}
+          BACKEND_RESULT: ${{ (needs.backend.result == 'failure' || needs.mutation.result == 'failure') && 'failure' || needs.backend.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           # Only the scheduled run, or a manual run on main, speaks for main.
           DRY_RUN: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')) && '0' || '1' }}
