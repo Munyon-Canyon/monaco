@@ -149,6 +149,7 @@ jobs:
               - '.github/workflows/ci*.yml'
             mobile-core:
               - 'packages/mobile-core/**'
+              - 'apps/backend/api/openapi.yaml'
               - '.github/workflows/ci*.yml'
             web:
               - 'apps/web/**'
@@ -185,6 +186,10 @@ jobs:
 
       - name: Select Xcode
         run: scripts/ci/select-xcode.sh
+
+      - name: Compile MonacoAPI and its tests on Darwin (the app does not link it)
+        working-directory: packages/mobile-core
+        run: swift build --target MonacoAPITests
 
       # Only the resolved Swift packages are cached. Build products are not: a fresh checkout
       # gives every source a new mtime, so a restored DerivedData is rebuilt from scratch anyway.
