@@ -53,14 +53,14 @@ func (o *Outbox) Drain(
 		}
 		b.Published = append(b.Published, row.ID)
 	}
+	finishCtx, cancel := finishContext(ctx)
+	defer cancel()
 	if len(b.Published) > 0 {
 		params := sqlc.MarkPublishedParams{PublishedAt: o.clock.Now(), Ids: b.Published}
-		if _, err := q.MarkPublished(ctx, params); err != nil {
+		if _, err := q.MarkPublished(finishCtx, params); err != nil {
 			return Batch{}, withRollback(classify(err, op), rollback(ctx, pgtx))
 		}
 	}
-	finishCtx, cancel := finishContext(ctx)
-	defer cancel()
 	if err := pgtx.Commit(finishCtx); err != nil {
 		return Batch{}, withRollback(classify(err, op), rollback(ctx, pgtx))
 	}

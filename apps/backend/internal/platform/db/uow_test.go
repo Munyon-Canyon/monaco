@@ -34,7 +34,7 @@ type harness struct {
 	uow   *db.UnitOfWork
 	ids   *testkit.IDs
 	clock *testkit.Clock
-	logs  *bytes.Buffer
+	logs  *testkit.Logs
 }
 
 func newHarness(t *testing.T) *harness {
@@ -43,7 +43,7 @@ func newHarness(t *testing.T) *harness {
 		pool:  testkit.DB(t),
 		ids:   testkit.NewIDs(1),
 		clock: testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)),
-		logs:  &bytes.Buffer{},
+		logs:  &testkit.Logs{},
 	}
 	h.uow = db.New(h.pool, h.ids, h.clock)
 	_, err := h.pool.Exec(t.Context(), `CREATE TABLE things (id int PRIMARY KEY, status text NOT NULL)`)

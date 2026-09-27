@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -133,29 +134,86 @@ func TestDrain_aPublishFailureCommitsTheAckedPrefixAndKeepsTheRest(t *testing.T)
 	}
 }
 
-func TestDrain_aCancelBetweenPublishAndMarkLeavesEveryRowUnpublished(t *testing.T) {
+func TestDrain_aCancelAfterAPublishStillCommitsTheAckedPrefix(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	ids := h.appendEvents(t, 2)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	var seen []uuid.UUID
-	_, err := db.NewOutbox(h.pool, h.clock).Drain(ctx, 100, func(_ context.Context, row db.OutboxRow) error {
-		seen = append(seen, row.ID)
-		if len(seen) == 2 {
+	b, err := db.NewOutbox(h.pool, h.clock).Drain(ctx, 100, func(ctx context.Context, row db.OutboxRow) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if row.ID == ids[0] {
 			cancel()
 		}
 		return nil
 	})
-	if errs.CodeOf(err) != errs.CodeDBUnavailable {
-		t.Fatalf("drain cancelled before mark = %v, want db_unavailable", err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(b.Published, ids[:1]) || !errors.Is(b.Failed, context.Canceled) {
+		t.Fatalf("batch = %+v, want the acked row %v marked and the cancel as the publish failure", b, ids[0])
+	}
+	if left := h.unpublished(t); !slices.Equal(left, ids[1:]) {
+		t.Fatalf("unpublished = %v after a cancel mid-batch, want only the unacked %v", left, ids[1:])
+	}
+}
+
+func TestDrain_failsBeforePublishingWhenTheEventsTableIsGone(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.appendEvents(t, 1)
+	if _, err := h.pool.Exec(t.Context(), `DROP TABLE event_deliveries; DROP TABLE events`); err != nil {
+		t.Fatal(err)
+	}
+	published := 0
+	b, err := db.NewOutbox(h.pool, h.clock).Drain(t.Context(), 100, func(context.Context, db.OutboxRow) error {
+		published++
+		return nil
+	})
+	if errs.CodeOf(err) != errs.CodeInternal || published != 0 || len(b.Published) != 0 {
+		t.Fatalf("drain without an events table = %+v, %v after %d publishes; want internal and none",
+			b, err, published)
+	}
+}
+
+func TestDrain_reportsAMarkRejectedByAConstraint(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	ids := h.appendEvents(t, 1)
+	if _, err := h.pool.Exec(t.Context(),
+		`ALTER TABLE events ADD CONSTRAINT never_published CHECK (published_at IS NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	b, err := db.NewOutbox(h.pool, h.clock).Drain(t.Context(), 100, recording(new([]uuid.UUID)))
+	var pg *pgconn.PgError
+	if errs.CodeOf(err) != errs.CodeInternal || !errors.As(err, &pg) || pg.Code != "23514" || len(b.Published) != 0 {
+		t.Fatalf("drain with a refused mark = %+v, %v; want internal wrapping 23514 and nothing published", b, err)
 	}
 	if left := h.unpublished(t); !slices.Equal(left, ids) {
-		t.Fatalf("unpublished = %v after a cancel before mark, want all of %v", left, ids)
+		t.Fatalf("unpublished = %v after a failed mark, want %v", left, ids)
 	}
-	if b, err := db.NewOutbox(h.pool, h.clock).Drain(t.Context(), 100, recording(&seen)); err != nil ||
-		!slices.Equal(b.Published, ids) {
-		t.Fatalf("redrain = %+v, %v; want both rows published", b, err)
+}
+
+func TestDrain_reportsACommitRejectedByADeferredConstraint(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	ids := h.appendEvents(t, 1)
+	if _, err := h.pool.Exec(t.Context(), `
+		CREATE FUNCTION refuse_publish() RETURNS trigger LANGUAGE plpgsql AS $$
+		BEGIN RAISE EXCEPTION 'refused' USING ERRCODE = '23514'; END $$;
+		CREATE CONSTRAINT TRIGGER refuse_publish AFTER UPDATE ON events
+		DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION refuse_publish()`); err != nil {
+		t.Fatal(err)
+	}
+	b, err := db.NewOutbox(h.pool, h.clock).Drain(t.Context(), 100, recording(new([]uuid.UUID)))
+	var pg *pgconn.PgError
+	if errs.CodeOf(err) != errs.CodeInternal || !errors.As(err, &pg) || pg.Code != "23514" || len(b.Published) != 0 {
+		t.Fatalf("drain with a deferred refusal = %+v, %v; want internal wrapping 23514 and nothing published", b, err)
+	}
+	if left := h.unpublished(t); !slices.Equal(left, ids) {
+		t.Fatalf("unpublished = %v after a failed commit, want %v", left, ids)
 	}
 }
 
