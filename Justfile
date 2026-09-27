@@ -123,9 +123,9 @@ run *app:
         just build backend
         source ./scripts/run-with-logs.sh
         monaco_init_logs
-        "$PWD/bin/api" > >(tee -a "${MONACO_LOG_DIR}/api.log") 2>&1 &
+        env -u MONACO_LOG_DIR -u MONACO_DOTENVX {{_dotenvx}} "$PWD/bin/api" > >(tee -a "${MONACO_LOG_DIR}/api.log") 2>&1 &
         api_pid=$!
-        "$PWD/bin/worker" > >(tee -a "${MONACO_LOG_DIR}/worker.log") 2>&1 &
+        env -u MONACO_LOG_DIR -u MONACO_DOTENVX {{_dotenvx}} "$PWD/bin/worker" > >(tee -a "${MONACO_LOG_DIR}/worker.log") 2>&1 &
         worker_pid=$!
         trap 'kill -TERM "$api_pid" "$worker_pid" 2>/dev/null || true' INT TERM
         wait "$api_pid" "$worker_pid"
