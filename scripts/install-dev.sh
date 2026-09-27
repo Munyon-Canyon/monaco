@@ -111,6 +111,16 @@ if [[ "$atlas_have" != "atlas community version ${atlas_want}" ]]; then
   fi
 fi
 
+sqlc_want="v$(sed -n 's/^version=//p' scripts/install-sqlc.sh)"
+sqlc_have="$(.bin/sqlc version 2>/dev/null || true)"
+if [[ "$sqlc_have" != "$sqlc_want" ]]; then
+  missing_required=1
+  say "sqlc ${sqlc_want} is missing from .bin/sqlc (found: ${sqlc_have:-none}). It generates apps/backend query code from queries/."
+  if ask_yes "Install sqlc ${sqlc_want} into .bin/?"; then
+    ./scripts/install-sqlc.sh || missing_required=1
+  fi
+fi
+
 if ! have just; then
   missing_required=1
   say "just is missing (https://github.com/casey/just)."
