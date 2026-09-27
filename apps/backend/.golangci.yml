@@ -169,9 +169,9 @@ linters:
         linters: [forbidigo]
       - path: ^internal/testkit/
         linters: [forbidigo]
-      - path: ^internal/testkit/(seed|db)\.go$
+      - path: ^internal/testkit/(seed|db|nats)\.go$
         linters: [gochecknoglobals]
-        text: seedFlag|current
+        text: seedFlag|current|natsCurrent
       - path: ^internal/testkit/db\.go$
         linters: [gosec]
         text: G204
