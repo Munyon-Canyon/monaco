@@ -133,6 +133,7 @@ func TestAccessorsReadTheRow(t *testing.T) {
 		alert     bool
 	}{
 		{CodeInvalidInput, KindInvalid, false, false},
+		{CodeClientClosed, KindInvalid, false, false},
 		{CodeUnauthorized, KindUnauthorized, false, false},
 		{CodeForbidden, KindForbidden, false, false},
 		{CodeNotFound, KindNotFound, false, false},

@@ -11,8 +11,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"go.opentelemetry.io/otel"
+
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability/boundary"
 )
@@ -41,7 +47,8 @@ func run(stderr io.Writer, environ []string) (err error) {
 		defer cancel()
 		err = errors.Join(err, shutdown(flushCtx))
 	}()
-	ctx = observability.WithLogger(ctx, observability.NewLogger(cfg, stderr))
+	logger := observability.NewLogger(cfg, stderr)
+	ctx = observability.WithLogger(ctx, logger)
 	observability.Info(ctx, observability.BootConfig, slog.String("service", "api"), slog.Any("config", cfg.Redacted()))
 	ln, err := new(net.ListenConfig).Listen(ctx, "tcp", cfg.HTTP.Addr)
 	if err != nil {
@@ -49,20 +56,17 @@ func run(stderr io.Writer, environ []string) (err error) {
 	}
 	observability.Info(ctx, observability.BootListening, slog.String("service", "api"),
 		slog.String("addr", ln.Addr().String()))
-	return serve(ctx, ln, cfg.Timeouts)
+	handler := httpx.Handler(httpx.Deps{
+		Logger:       logger,
+		Tracer:       otel.GetTracerProvider(),
+		Clock:        clock.Real{},
+		IDs:          ids.Real{},
+		MaxBodyBytes: int64(cfg.HTTP.MaxBodyBytes),
+	}, httpx.Health{})
+	return serve(ctx, ln, httpx.NewServer(handler, cfg.Timeouts), cfg.Timeouts.Shutdown)
 }
 
-func serve(ctx context.Context, ln net.Listener, timeouts config.Timeouts) error {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = io.WriteString(w, "ok\n")
-	})
-	srv := &http.Server{
-		Handler:           mux,
-		ReadHeaderTimeout: timeouts.HTTPServerRead,
-		ReadTimeout:       timeouts.HTTPServerRead,
-		WriteTimeout:      timeouts.HTTPServerWrite,
-	}
+func serve(ctx context.Context, ln net.Listener, srv *http.Server, shutdownTimeout time.Duration) error {
 	served := make(chan error, 1)
 	go func() { served <- srv.Serve(ln) }()
 	select {
@@ -70,7 +74,7 @@ func serve(ctx context.Context, ln net.Listener, timeouts config.Timeouts) error
 		return err
 	case <-ctx.Done():
 	}
-	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeouts.Shutdown)
+	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("shutdown: %w", err)
