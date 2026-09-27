@@ -121,9 +121,11 @@ jobs:
               - '.github/workflows/ci-mobile-core.yml'
             web:
               - 'apps/web/**'
+            # packages/mobile-core/** is deliberately not in this filter: mobile-core-only
+            # changes run the cheap Linux `mobile-core` job only. The macOS `ios` build (which
+            # also compiles mobile-core on Darwin) runs when apps/mobile itself changes.
             ios:
               - 'apps/mobile/**'
-              - 'packages/mobile-core/**'
               - 'scripts/ensure-ios-privy-config.sh'
               - 'scripts/resolve-ios-sim.sh'
               - 'scripts/ci/select-xcode.sh'
