@@ -31,6 +31,16 @@ jobs:
           go-version-file: apps/backend/go.mod
           cache: false
 
+      - name: Read the pinned golangci-lint version
+        id: golangci
+        run: echo "version=$(cat .golangci-lint-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: ${{ steps.golangci.outputs.version }}
+          working-directory: apps/backend
+          args: ./...
+
       # Only the nightly warm-cache job on main saves this cache. PRs restore and never save.
       - uses: actions/cache/restore@v4
         with:

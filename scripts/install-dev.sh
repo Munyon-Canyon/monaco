@@ -78,6 +78,17 @@ if ! have go; then
   fi
 fi
 
+golangci_want="$(cat apps/backend/.golangci-lint-version)"
+golangci_have="$(golangci-lint version --short 2>/dev/null || true)"
+if [[ "v${golangci_have#v}" != "$golangci_want" ]]; then
+  missing_required=1
+  say "golangci-lint ${golangci_want} is missing (found: ${golangci_have:-none}). It lints apps/backend in CI and pre-commit."
+  if have go && ask_yes "Install golangci-lint ${golangci_want} with go install?"; then
+    go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${golangci_want}" || missing_required=1
+    say "installed into $(go env GOPATH)/bin. Put it ahead of other golangci-lint copies on PATH."
+  fi
+fi
+
 if ! have just; then
   missing_required=1
   say "just is missing (https://github.com/casey/just)."
@@ -139,7 +150,7 @@ fi
 
 # --- git hook ---
 if [[ -d .git && ! -f .git/hooks/pre-commit ]]; then
-  if ask_yes "Install the pre-commit hook (blocks plaintext .env commits)?"; then
+  if ask_yes "Install the pre-commit hook (blocks plaintext .env commits and new golangci-lint findings)?"; then
     chmod +x scripts/githooks/pre-commit scripts/githooks/check-staged-env.sh
     ln -sfn ../../scripts/githooks/pre-commit .git/hooks/pre-commit
     say "installed .git/hooks/pre-commit"
