@@ -49,6 +49,17 @@ func Handle[E events.Event](name string, fn Handler[E]) HandlerSpec {
 	}
 }
 
+func (s HandlerSpec) Type() events.Type { return s.typ }
+
+func (s HandlerSpec) Before(fn func(ctx context.Context, e events.Event)) HandlerSpec {
+	inner := s.run
+	s.run = func(ctx context.Context, tx db.Tx, e events.Event) error {
+		fn(ctx, e)
+		return inner(ctx, tx, e)
+	}
+	return s
+}
+
 type Consumer struct {
 	Durable   string
 	Handlers  []HandlerSpec
@@ -67,7 +78,7 @@ func NakSchedule() []time.Duration {
 	return []time.Duration{time.Second, 5 * time.Second, 30 * time.Second, 2 * time.Minute, 10 * time.Minute}
 }
 
-func (c Consumer) nakDelay(delivery uint64) time.Duration {
+func (c Consumer) NakDelay(delivery uint64) time.Duration {
 	schedule := c.NakDelays
 	if len(schedule) == 0 {
 		schedule = NakSchedule()

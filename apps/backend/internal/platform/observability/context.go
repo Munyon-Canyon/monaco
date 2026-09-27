@@ -29,6 +29,11 @@ func WithEventID(ctx context.Context, id ids.EventID) context.Context {
 	return with(ctx, func(f *fields) { f.eventID = id.String() })
 }
 
+func EventIDFrom(ctx context.Context) string {
+	f, _ := ctx.Value(fieldsKey{}).(fields)
+	return f.eventID
+}
+
 func WithConsumer(ctx context.Context, consumer string, delivery uint64) context.Context {
 	return with(ctx, func(f *fields) { f.consumer, f.delivery = consumer, delivery })
 }
