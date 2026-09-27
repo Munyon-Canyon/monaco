@@ -13,6 +13,27 @@ permissions:
   contents: read
 
 jobs:
+  backend:
+    name: Backend (vet, race tests)
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/backend/go.mod
+          cache: false
+
+      - run: go vet ./...
+
+      - run: go test -race -shuffle=on ./...
+
   web:
     name: Web (landing page)
     runs-on: ubuntu-latest
@@ -41,8 +62,8 @@ jobs:
         working-directory: packages/mobile-core
         run: swift test
 
-  # Decides which of the path-filtered jobs below need to run. A change outside the app skips
-  # the iOS app build; the web and swift jobs above are not filtered.
+  # Decides which path-filtered jobs run: backend on backend or CI changes, ios on app changes.
+  # The web and swift jobs are not filtered.
   changes:
     name: Changed paths
     runs-on: ubuntu-latest
@@ -51,6 +72,7 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
+      backend: ${{ steps.filter.outputs.backend }}
       ios: ${{ steps.filter.outputs.ios }}
     steps:
       - uses: actions/checkout@v4
@@ -59,6 +81,9 @@ jobs:
         id: filter
         with:
           filters: |
+            backend:
+              - 'apps/backend/**'
+              - '.github/workflows/ci.yml'
             ios:
               - 'apps/mobile/**'
               - 'packages/mobile-core/**'

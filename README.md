@@ -56,21 +56,21 @@ To get QA cash back out: **Cash out** of the cabal (USDC returns to the account 
 | `just encrypt`               | `dotenvx encrypt` on `.env.local` (and `.env.production` if present)                                                                                                   |
 | `just decrypt`               | `dotenvx decrypt` on `.env.local` (and `.env.production` if present)                                                                                                   |
 | `just show-env`              | Print decrypted `.env.local` keys/values via dotenvx (`export KEY='value'` lines; `.env.production` omitted). Needs `.env.local`, dotenvx, and `.env.keys` or Keychain |
-| `just run`                   | `just run backend`, then `just run mobile`                                                                                                                             |
-| `just run backend`           | Prints `apps/backend: new module not scaffolded yet` until the new module lands                                                                                        |
+| `just run`                   | `just run backend` in the background, then `just run mobile`                                                                                                           |
+| `just run backend`           | `bin/api` on `API_ADDR` (default `:8080`) and `bin/worker` on `WORKER_HEALTH_ADDR` (default `:8081`); both serve `GET /healthz`                                        |
 | `just run mobile`            | iOS with Privy xcconfig + `SIMCTL_CHILD_*` via `./scripts/ios-sim`                                                                                                     |
-| Logs                         | `just run*` tee stdout/stderr to `.logs/<timestamp>/` (`backend.log`, `mobile.log`)                                                                                    |
+| Logs                         | `just run*` tee stdout/stderr to `.logs/<timestamp>/` (`api.log`, `worker.log`, `mobile.log`)                                                                          |
 | `just stop`                  | `just stop backend`, then `just stop mobile`                                                                                                                           |
-| `just stop backend`          | Prints `apps/backend: new module not scaffolded yet` until the new module lands                                                                                        |
+| `just stop backend`          | SIGTERM `bin/api` and `bin/worker`, wait for both to exit                                                                                                              |
 | `just stop mobile`           | Terminate Monaco on the resolved sim; stop `xcodebuild` if running                                                                                                     |
 | `just reset`                 | Stop all + wipe local Postgres volume (dotenvx)                                                                                                                        |
-| `just reset backend`         | Prints `apps/backend: new module not scaffolded yet` until the new module lands                                                                                        |
+| `just reset backend`         | Stop backend + remove `bin/api`, `bin/worker`, `bin/monacoctl`                                                                                                         |
 | `just reset mobile`          | Stop app + `xcodebuild clean` on the resolved sim                                                                                                                      |
 | `just reset db`              | Wipe local Docker Postgres volume and start it empty (localhost only, dotenvx)                                                                                         |
 | `just killports`             | Kill listeners on API port (default 8080; not Postgres 54322)                                                                                                          |
-| `just test backend`          | Go tests for `scripts/`; the backend module has none until it lands                                                                                                    |
+| `just test backend`          | `go test -race -shuffle=on ./...` in `apps/backend`, then the `scripts/` Go tests                                                                                      |
 | `just test mobile`           | Host `swift test` in `packages/mobile-core` — fast, no secrets                                                                                                         |
-| `just build backend`         | Prints `apps/backend: new module not scaffolded yet` until the new module lands                                                                                        |
+| `just build backend`         | `go build` of `bin/api`, `bin/worker`, `bin/monacoctl`                                                                                                                 |
 | `just build mobile`          | Privy xcconfig, then `xcodebuild` on the resolved sim                                                                                                                  |
 | `./scripts/ios-sim`          | Monaco run with Privy env. Falls back to a stock sim if slim is missing                                                                                                |
 | `./scripts/ios-build`        | Monaco compile with Privy xcconfig                                                                                                                                     |
@@ -293,9 +293,9 @@ Do not copy these skills into another machine's home path. Clone the repo; Curso
 | Backend and `scripts/` Go tests | `just test backend` |
 | Shared Swift logic | `just test mobile` |
 
-The legacy backend, its migrations, its Go domain package and the reference trading bot were deleted in M7. The new module under `apps/backend` is scaffolded next ([backend platform RFC](docs/architecture/backend-platform.md#rollout)).
+The legacy backend, its migrations, its Go domain package and the reference trading bot were deleted in M7. `apps/backend` is now the new module's scaffold: `cmd/api`, `cmd/worker` and `cmd/monacoctl` with no features yet ([backend platform RFC](docs/architecture/backend-platform.md#rollout)).
 
-`.github/workflows/ci.yml` runs on pull requests and pushes to `main`: a macOS job (`swift test` in `packages/mobile-core`), a job for the `apps/web` landing page, and an iOS app build and test job on pull requests that touch the app. A nightly run adds UI tests and screenshots. Details: [`docs/how-to/overnight-qa.md`](docs/how-to/overnight-qa.md).
+`.github/workflows/ci.yml` runs on pull requests and pushes to `main`: a `backend` job (`go vet`, `go test -race` in `apps/backend`, only when it or `ci.yml` changed), a macOS job (`swift test` in `packages/mobile-core`), a job for the `apps/web` landing page, and an iOS app build and test job on pull requests that touch the app. A nightly run adds UI tests and screenshots. Details: [`docs/how-to/overnight-qa.md`](docs/how-to/overnight-qa.md).
 
 ## Pull requests
 
