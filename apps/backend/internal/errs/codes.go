@@ -9,6 +9,7 @@ type Code string
 
 const (
 	CodeInvalidInput        Code = "invalid_input"
+	CodeClientClosed        Code = "client_closed"
 	CodeUnauthorized        Code = "unauthorized"
 	CodeForbidden           Code = "forbidden"
 	CodeNotFound            Code = "not_found"
@@ -36,6 +37,10 @@ func table() map[Code]Row {
 		CodeInvalidInput: {
 			Name: "InvalidInput", Kind: KindInvalid,
 			Message: "The request is not valid.",
+		},
+		CodeClientClosed: {
+			Name: "ClientClosed", Kind: KindInvalid,
+			Message: "The connection closed before the response was sent.",
 		},
 		CodeUnauthorized: {
 			Name: "Unauthorized", Kind: KindUnauthorized,

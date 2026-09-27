@@ -234,7 +234,7 @@ Each error is logged once, at the boundary that stops it, with the same `trace_i
 
 Lint that keeps it to one log: `slog.Error` and `slog.Warn` are allowed only in `platform/httpx`, `platform/bus`, `platform/observability` and `cmd/` (the `forbidigo` pattern with path exclusions in the lint config). Modules return errors; they do not narrate them.
 
-Panics are recovered at exactly three roots: HTTP middleware, `bus.Dispatch`, and the poller tick wrapper. Each converts the panic to `KindInternal` with the stack in `Attrs`, then follows the row above. In tests, the recovered panic is re-raised so the test fails.
+Panics are recovered at exactly three roots: HTTP middleware, `bus.Dispatch`, and the poller tick wrapper. Each converts the panic to `CodePanic` (`KindInternal`) with the stack in `Attrs`, then follows the row above. The recovered panic is not re-raised in tests either: a test catches it through the `panic` problem or the Error line it asserts on. `http.ErrAbortHandler` is the one panic the HTTP root lets through, so `net/http` can abort the response.
 
 ### Reaching every branch
 

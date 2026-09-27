@@ -27,7 +27,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 	}
 	want := config.Config{
 		Env:    config.EnvLocal,
-		HTTP:   config.HTTP{Addr: ":8080"},
+		HTTP:   config.HTTP{Addr: ":8080", MaxBodyBytes: 1 << 20},
 		Worker: config.Worker{HealthAddr: ":8081"},
 		DB:     config.DB{URL: "postgres://monaco@localhost:54322/monaco", MaxConns: 10},
 		NATS:   config.NATS{URL: "nats://localhost:4222", Name: "monaco"},
@@ -52,6 +52,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 	cfg, err := config.Load([]string{
 		"MONACO_ENV=production",
 		"MONACO_HTTP_ADDR=127.0.0.1:9000",
+		"MONACO_HTTP_MAX_BODY_BYTES=4096",
 		"MONACO_WORKER_HEALTH_ADDR=127.0.0.1:9001",
 		"DATABASE_URL=postgres://prod",
 		"MONACO_DB_MAX_CONNS=40",
@@ -73,7 +74,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 	}
 	want := config.Config{
 		Env:    config.EnvProduction,
-		HTTP:   config.HTTP{Addr: "127.0.0.1:9000"},
+		HTTP:   config.HTTP{Addr: "127.0.0.1:9000", MaxBodyBytes: 4096},
 		Worker: config.Worker{HealthAddr: "127.0.0.1:9001"},
 		DB:     config.DB{URL: "postgres://prod", MaxConns: 40},
 		NATS:   config.NATS{URL: "nats://prod:4222", Name: "monaco-api"},
@@ -221,6 +222,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"OTEL_EXPORTER_OTLP_HEADERS", "***"},
 		{"MONACO_ENV", "staging"},
 		{"MONACO_HTTP_ADDR", ":8080"},
+		{"MONACO_HTTP_MAX_BODY_BYTES", "1048576"},
 		{"MONACO_WORKER_HEALTH_ADDR", ":8081"},
 		{"MONACO_DB_MAX_CONNS", "10"},
 		{"MONACO_NATS_NAME", "monaco"},

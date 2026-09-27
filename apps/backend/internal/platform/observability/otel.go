@@ -25,6 +25,8 @@ import (
 
 func Setup(ctx context.Context, cfg config.Config) (func(context.Context) error, error) {
 	if cfg.OTel.Endpoint == "" {
+		otel.SetTracerProvider(sdktrace.NewTracerProvider())
+		otel.SetTextMapPropagator(propagation.TraceContext{})
 		return func(context.Context) error { return nil }, nil
 	}
 	base, endpointErr := parseEndpoint(cfg.OTel.Endpoint)

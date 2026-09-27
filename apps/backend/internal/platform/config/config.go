@@ -29,7 +29,8 @@ type Config struct {
 }
 
 type HTTP struct {
-	Addr string
+	Addr         string
+	MaxBodyBytes int32
 }
 
 type Worker struct {
@@ -167,6 +168,7 @@ func fields() []field {
 	return []field{
 		environment("MONACO_ENV", func(c *Config) *Env { return &c.Env }).required(),
 		text("MONACO_HTTP_ADDR", ":8080", func(c *Config) *string { return &c.HTTP.Addr }),
+		count("MONACO_HTTP_MAX_BODY_BYTES", 1<<20, func(c *Config) *int32 { return &c.HTTP.MaxBodyBytes }),
 		text("MONACO_WORKER_HEALTH_ADDR", ":8081", func(c *Config) *string { return &c.Worker.HealthAddr }),
 		text("DATABASE_URL", "", func(c *Config) *string { return &c.DB.URL }).required().secret(),
 		count("MONACO_DB_MAX_CONNS", 10, func(c *Config) *int32 { return &c.DB.MaxConns }),

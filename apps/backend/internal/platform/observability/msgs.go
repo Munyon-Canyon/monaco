@@ -21,6 +21,8 @@ var (
 	BootListening = Msg{Name: "boot.listening", Required: []string{"service", "addr"}}
 	BootStopped   = Msg{Name: "boot.stopped", Required: []string{"service", "err"}}
 	HTTPRetry     = Msg{Name: "httpclient.retry", Required: []string{"upstream", "attempt", "status", "delay"}}
+	HTTPRequest   = Msg{Name: "http.request", Required: []string{"method", "route", "status", "duration_ms"}}
+	HTTPProblem   = Msg{Name: "http.problem", Required: []string{"code", "status", "err", "alert"}}
 )
 
 var registry = []Msg{
@@ -28,6 +30,8 @@ var registry = []Msg{
 	BootListening,
 	BootStopped,
 	HTTPRetry,
+	HTTPRequest,
+	HTTPProblem,
 }
 
 func WithLogger(ctx context.Context, l *slog.Logger) context.Context {

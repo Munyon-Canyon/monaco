@@ -54,7 +54,7 @@ components:
           trace_id: 4bf92f3577b34da6a3ce929d0e0e4736
           retryable: false
       additionalProperties: false
-      required: [type, title, status, code, message, retryable]
+      required: [type, title, status, code, message, trace_id, retryable]
       properties:
         type:
           type: string
@@ -79,7 +79,7 @@ components:
           examples: [Not found.]
         trace_id:
           type: string
-          description: The W3C trace id of the request, present when tracing is on.
+          description: The W3C trace id of the request. Logs and traces carry the same id.
           pattern: "^[0-9a-f]{32}$"
           examples: [4bf92f3577b34da6a3ce929d0e0e4736]
         retryable:
@@ -92,6 +92,7 @@ components:
       examples: [not_found]
       enum:
         # BEGIN GENERATED ErrorCode
+        - client_closed
         - db_unavailable
         - decode_failed
         - forbidden

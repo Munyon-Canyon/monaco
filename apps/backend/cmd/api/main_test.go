@@ -9,8 +9,14 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/trace/noop"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 func get(ctx context.Context, url string) (*http.Response, error) {
@@ -30,8 +36,12 @@ func TestServe_healthzAnswersOkUntilShutdown(t *testing.T) {
 	url := "http://" + ln.Addr().String() + "/healthz"
 	ctx, cancel := context.WithCancel(t.Context())
 	timeouts := config.Timeouts{HTTPServerRead: time.Second, HTTPServerWrite: time.Second, Shutdown: time.Second}
+	handler := httpx.Handler(httpx.Deps{
+		Logger: observability.NewLogger(config.Config{}, io.Discard), Tracer: noop.NewTracerProvider(),
+		Clock: clock.Real{}, IDs: ids.Real{}, MaxBodyBytes: 1 << 10,
+	}, httpx.Health{})
 	done := make(chan error, 1)
-	go func() { done <- serve(ctx, ln, timeouts) }()
+	go func() { done <- serve(ctx, ln, httpx.NewServer(handler, timeouts), timeouts.Shutdown) }()
 
 	resp, err := get(t.Context(), url)
 	if err != nil {

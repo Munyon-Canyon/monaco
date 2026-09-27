@@ -36,8 +36,30 @@ func (c *otlpCollector) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.requests[r.URL.Path] = append(c.requests[r.URL.Path], otlpRequest{r.Header.Get("Authorization"), string(body)})
 }
 
-func TestSetup_exportsTracesMetricsAndLogsToTheEndpoint(t *testing.T) {
+func TestSetup_mintsTraceIDsWithoutEndpointAndExportsWithOne(t *testing.T) {
 	t.Parallel()
+	setupWithoutEndpointMintsTraceIDs(t)
+	exportsToTheEndpoint(t)
+}
+
+func setupWithoutEndpointMintsTraceIDs(t *testing.T) {
+	t.Helper()
+	local, err := Setup(t.Context(), config.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, localSpan := otel.Tracer("observability_test").Start(t.Context(), "local")
+	localSpan.End()
+	if !localSpan.SpanContext().IsValid() {
+		t.Fatal("span context without an endpoint is invalid, want a real trace id")
+	}
+	if err := local(t.Context()); err != nil {
+		t.Fatalf("local shutdown = %v", err)
+	}
+}
+
+func exportsToTheEndpoint(t *testing.T) {
+	t.Helper()
 	collector := &otlpCollector{requests: map[string][]otlpRequest{}}
 	srv := httptest.NewServer(collector)
 	defer srv.Close()
@@ -85,17 +107,6 @@ func TestSetup_exportsTracesMetricsAndLogsToTheEndpoint(t *testing.T) {
 	}
 	if err := shutdown(t.Context()); errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
 		t.Fatalf("second shutdown = %v, want upstream_unavailable", err)
-	}
-}
-
-func TestSetup_withoutEndpointIsNoop(t *testing.T) {
-	t.Parallel()
-	shutdown, err := Setup(t.Context(), config.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := shutdown(t.Context()); err != nil {
-		t.Fatalf("noop shutdown = %v", err)
 	}
 }
 
