@@ -74,6 +74,7 @@ linters:
     interfacebloat: { max: 5 }
     ireturn:
       allow: [anon, error, empty, stdlib, 'github\.com/monaco/monaco/apps/backend/internal/events\.Event$']
+    reassign: { patterns: [".*"] }
     wrapcheck:
       ignore-package-globs: ["github.com/monaco/monaco/apps/backend/internal/*"]
     forbidigo:
@@ -172,6 +173,13 @@ linters:
         text: G204|G702|G306|G304
       - path: ^internal/platform/lint/nogo/
         linters: [nilnil]
+      # The log message registry is package-level so call sites name a Msg and the registry test can read it.
+      - path: ^internal/platform/observability/msgs\.go$
+        linters: [gochecknoglobals]
+      # The one place that turns a registered Msg into a slog call; call sites pass a Msg, never a string.
+      - path: ^internal/platform/observability/internal/emit/
+        linters: [sloglint]
+        text: message should be a string literal or a constant
       - path: ^internal/platform/clock/
         linters: [forbidigo]
         text: inject platform/clock\.Clock

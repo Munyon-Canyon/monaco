@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"io"
+	"strings"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
@@ -29,7 +31,7 @@ func TestDocsRejectsAnUnknownTopic(t *testing.T) {
 	for _, args := range [][]string{{"docs"}, {"docs", "nope"}, {"docs", "events", "extra"}} {
 		var stdout, stderr bytes.Buffer
 		if code := run(commands(), tools(nil), nil, args, &stdout, &stderr); code != 2 || stdout.Len() != 0 ||
-			stderr.String() != "usage: monacoctl docs events|flows\n" {
+			stderr.String() != "usage: monacoctl docs events|flows|logs\n" {
 			t.Fatalf("%q: code=%d stdout=%q stderr=%q", args, code, stdout.String(), stderr.String())
 		}
 	}
@@ -57,5 +59,30 @@ func TestDocsFlowsRendersTheTSV(t *testing.T) {
 				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 			}
 		})
+	}
+}
+
+func TestDocsLogsPrintsTheMessageCatalogWithoutConfig(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	if code := run(commands(), tools(nil), nil, []string{"docs", "logs"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
+	}
+	if !strings.HasPrefix(stdout.String(), "| Message | Required attrs |\n") ||
+		!strings.Contains(stdout.String(), "| `boot.stopped` | `service`, `err` |\n") {
+		t.Fatalf("stdout = %q, want the registry as a Markdown table", stdout.String())
+	}
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
+
+func TestDocsLogsWriteFailureExits1(t *testing.T) {
+	t.Parallel()
+	var stderr bytes.Buffer
+	code := docsLogs(failingWriter{}, &stderr)
+	if code != 1 || !strings.HasPrefix(stderr.String(), "monacoctl docs logs: observability.WriteCatalog: internal") {
+		t.Fatalf("docs logs = %d %q, want 1 and the wrapped error", code, stderr.String())
 	}
 }

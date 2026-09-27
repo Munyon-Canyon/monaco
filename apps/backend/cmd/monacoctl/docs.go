@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
@@ -19,8 +20,10 @@ func docs(args []string, stdout, stderr io.Writer) int {
 		return 0
 	case slices.Equal(args, []string{"flows"}):
 		return docsFlows(os.DirFS("../.."), stdout, stderr)
+	case slices.Equal(args, []string{"logs"}):
+		return docsLogs(stdout, stderr)
 	default:
-		_, _ = fmt.Fprintln(stderr, "usage: monacoctl docs events|flows")
+		_, _ = fmt.Fprintln(stderr, "usage: monacoctl docs events|flows|logs")
 		return 2
 	}
 }
@@ -38,6 +41,14 @@ func docsFlows(repo fs.FS, stdout, stderr io.Writer) int {
 		return 1
 	}
 	_, _ = io.WriteString(stdout, flows.Markdown(parsed))
+	return 0
+}
+
+func docsLogs(stdout, stderr io.Writer) int {
+	if err := observability.WriteCatalog(stdout); err != nil {
+		_, _ = fmt.Fprintf(stderr, "monacoctl docs logs: %v\n", err)
+		return 1
+	}
 	return 0
 }
 
