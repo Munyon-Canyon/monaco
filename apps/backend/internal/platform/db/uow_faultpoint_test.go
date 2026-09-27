@@ -49,3 +49,18 @@ func TestDo_armedAfterTwoCommitsTwiceThenCrashesTheThird(t *testing.T) {
 		t.Fatalf("things = %d, want the first two committed", n)
 	}
 }
+
+func TestDo_crashBeforeCommitSurvivesAFailedRollback(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	defer func() {
+		if r := recover(); r != (faultpoint.Crash{Name: faultpoint.BeforeCommit}) {
+			t.Fatalf("recovered %v, want Crash{before-commit}", r)
+		}
+	}()
+	_ = h.uow.Do(faultpoint.Armed(h.ctx(t, "user:u1"), faultpoint.BeforeCommit),
+		func(ctx context.Context, tx db.Tx) error {
+			killConnection(ctx, tx)
+			return nil
+		})
+}

@@ -128,7 +128,7 @@ func rollback(ctx context.Context, tx pgx.Tx) error {
 }
 
 func rollbackAndRepanic(ctx context.Context, tx pgx.Tx, r any) {
-	if err := rollback(ctx, tx); err != nil {
+	if err := rollback(ctx, tx); err != nil && !faultpoint.IsCrash(r) {
 		panic(fmt.Sprintf("%v (rollback: %v)", r, err))
 	}
 	panic(r)
