@@ -482,6 +482,19 @@ Where the 60 s goes. Every row was measured on 2026-09-27 against throwaway code
 | Property, model-based, fuzz seeds, jitter | Measured 2026-09-27 on pure domain code: 3 invariants × 100 cases, a model test of 20 steps × 100 runs, 60 fuzz seeds and fixed-seed synctest jitter took 10 to 30 ms in-process together. The package costs about 0.5 s, nearly all of it the fixed per-binary start, and about 1.5 s with `-race`. A model test against the real app layer pays one `testkit.Reset` (31 ms) per run, so 100 runs is about 3 s: those run with fewer runs under `-short`. | `just test backend` runs with `-short` and sets `RAPID_CHECKS=500 RAPID_STEPS=40`, because rapid divides both by its own `-short` factor (5 and 2) to land on 100 cases and about 20 attempted steps. They are env vars, not `-rapid.*` flags, because `go test ./...` passes a flag to every test binary and a binary that does not link rapid rejects it. Corpus seeds only. Fixed jitter seeds. Nightly runs 100,000 cases and `-fuzz` per target. |
 | Acceptance, one per `flows.tsv` outcome, in-process | Measured 2026-09-27 with a light stand-in scenario (own clone, 3 HTTP calls to an in-process `httptest.Server`, one pgx transaction writing two tables, rows asserted): 16.8 ms per scenario amortized at `-parallel 4`, 60 ms median and 80 ms p90 for one scenario on its own. 120 scenarios is about 2 s plus 0.4 s of binary load. Real scenarios do more work; budget 3× until the scaffold measures them. | HTTP against the in-process app, no binaries, no compose. |
 
+Measured on the scaffold (#485, 2026-09-27): 26 test packages, no NATS and no acceptance scenarios yet. `just test backend` runs `go test -json -race -shuffle=on -short -coverpkg=./... -coverprofile`, the non-race allocation pass, `test-report`, `flows check` and `coverage`, with the test cache cleared before each run and the build cache warm. The laptop is an 8-core Apple silicon Mac with a 1-minute load average of 14 to 30 from other agents, so these are loaded numbers:
+
+| Cost | Laptop, 8 runs | CI (`ubuntu-latest`, cold build cache) |
+| --- | --- | --- |
+| Whole run, first `go test` event to last | 26.0 to 47.6 s, median 35.7 s, p95 47.6 s | 64.6 s, most of it compiling with `-race` and coverage |
+| Coverage instrumentation (`-coverpkg=./...`) | no difference outside the noise: 36.1 s median without, 35.7 s with | |
+| Postgres, template clone per test (`platform/db`) | 6.8 to 9.2 s of package time | 2.8 s |
+| Property (`platform/money`, 100 rapid cases) | 2.7 to 6.9 s | 1.3 s |
+| Slowest package (`cmd/monacoctl`, fake `atlas`, `go` and `gremlins` scripts plus git) | 8.4 to 17 s | 2.3 s |
+| NATS, acceptance | not measured: neither exists on the scaffold yet | |
+
+The run gate stays at 60 s: p95 times 1.5 is 71 s, which the RFC budget caps at 60 s. The package gate stays at 10 s. `cmd/monacoctl` goes over it on the loaded laptop in 5 of 8 runs and never on an idle runner, so the next re-measure (#486) either splits its tests into per-tool packages under `internal/tools` or confirms the overrun is load.
+
 Not in `just test backend`: E2E (real binaries, compose), mutation, crash-point, timing benchmarks. Those are PR CI or nightly.
 
 PR CI is three required jobs, each with its own budget (when they run and on what runners is in [ci.md](ci.md)): lint plus unit plus integration (under 3 min, sharded by package), E2E (under 4 min), and mutation on changed packages (under 10 min, or the PR is too big and gets split). Nightly runs everything unbounded.
