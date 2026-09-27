@@ -19,14 +19,15 @@ const (
 )
 
 type Config struct {
-	Env      Env
-	HTTP     HTTP
-	Worker   Worker
-	DB       DB
-	NATS     NATS
-	OTel     OTel
-	Auth     Auth
-	Timeouts Timeouts
+	Env        Env
+	HTTP       HTTP
+	Worker     Worker
+	DB         DB
+	NATS       NATS
+	OTel       OTel
+	Auth       Auth
+	Timeouts   Timeouts
+	Faultpoint string
 }
 
 type Auth struct {
@@ -193,6 +194,7 @@ func fields() []field {
 			func(c *Config) *time.Duration { return &c.Timeouts.HTTPServerWrite }),
 		duration("MONACO_TIMEOUT_SHUTDOWN", 10*time.Second,
 			func(c *Config) *time.Duration { return &c.Timeouts.Shutdown }),
+		text("MONACO_FAULTPOINT", "", func(c *Config) *string { return &c.Faultpoint }),
 	}
 }
 

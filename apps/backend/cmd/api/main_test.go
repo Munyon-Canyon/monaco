@@ -181,3 +181,14 @@ func TestRun_refusesToBootWhenTheRelayBacklogGaugesCannotBeExported(t *testing.T
 		t.Fatalf("run = %v, want internal from bus.Relay.ExportBacklogGauges", err)
 	}
 }
+
+func TestRun_refusesToBootWithAnUnknownFaultpoint(t *testing.T) {
+	t.Parallel()
+	err := run(t.Context(), io.Discard, []string{
+		"MONACO_ENV=test", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=nats://localhost:4222",
+		"MONACO_FAULTPOINT=after-everything",
+	}, openapi.Spec, noop.NewMeterProvider())
+	if err == nil || err.Error() != "faultpoint.Configure: invalid_input" {
+		t.Fatalf("run = %v, want invalid_input from faultpoint.Configure", err)
+	}
+}

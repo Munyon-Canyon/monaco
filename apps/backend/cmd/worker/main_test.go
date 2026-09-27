@@ -98,3 +98,14 @@ func TestRun_refusesToBootNamingTheFirstGaugeExportThatFailed(t *testing.T) {
 		})
 	}
 }
+
+func TestRun_refusesToBootWithAnUnknownFaultpoint(t *testing.T) {
+	t.Parallel()
+	err := run(t.Context(), io.Discard, []string{
+		"MONACO_ENV=test", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=nats://localhost:4222",
+		"MONACO_FAULTPOINT=after-everything",
+	}, noop.NewMeterProvider())
+	if err == nil || err.Error() != "faultpoint.Configure: invalid_input" {
+		t.Fatalf("run = %v, want invalid_input from faultpoint.Configure", err)
+	}
+}

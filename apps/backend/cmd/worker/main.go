@@ -20,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -37,8 +38,19 @@ func main() {
 	}
 }
 
-func run(ctx context.Context, stderr io.Writer, environ []string, meters metric.MeterProvider) (err error) {
+func load(environ []string) (config.Config, error) {
 	cfg, err := config.Load(environ)
+	if err != nil {
+		return config.Config{}, err
+	}
+	if err := faultpoint.Configure(cfg.Faultpoint); err != nil {
+		return config.Config{}, err
+	}
+	return cfg, nil
+}
+
+func run(ctx context.Context, stderr io.Writer, environ []string, meters metric.MeterProvider) (err error) {
+	cfg, err := load(environ)
 	if err != nil {
 		return err
 	}
