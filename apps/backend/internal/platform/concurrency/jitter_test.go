@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/rand/v2"
 	"slices"
+	"strconv"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -54,7 +55,10 @@ func items(n int) []int {
 func TestPoolJitterDeliversTheExactMultiset(t *testing.T) {
 	t.Parallel()
 	for seed := range uint64(jitterSeeds) {
-		synctest.Test(t, func(t *testing.T) { poolSeed(t, seed) })
+		t.Run(strconv.FormatUint(seed, 10), func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) { poolSeed(t, seed) })
+		})
 	}
 }
 
@@ -95,7 +99,10 @@ func poolSeed(t *testing.T, seed uint64) {
 func TestStageJitterPreservesOrder(t *testing.T) {
 	t.Parallel()
 	for seed := range uint64(jitterSeeds) {
-		synctest.Test(t, func(t *testing.T) { stageSeed(t, seed) })
+		t.Run(strconv.FormatUint(seed, 10), func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) { stageSeed(t, seed) })
+		})
 	}
 }
 
@@ -123,7 +130,10 @@ func stageSeed(t *testing.T, seed uint64) {
 func TestFanOutJitterPreservesOrderOrFailsWhole(t *testing.T) {
 	t.Parallel()
 	for seed := range uint64(jitterSeeds) {
-		synctest.Test(t, func(t *testing.T) { fanOutSeed(t, seed) })
+		t.Run(strconv.FormatUint(seed, 10), func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) { fanOutSeed(t, seed) })
+		})
 	}
 }
 

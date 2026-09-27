@@ -172,6 +172,13 @@ func Stage[In, Out any](ctx context.Context, in <-chan In, buf int, fn func(cont
 func FanOut[T, R any](ctx context.Context, limit int, items []T, fn func(context.Context, T) (R, error)) ([]R, error)
 ```
 
+How each behaves, so callers do not rediscover it:
+
+- `Pool` returns two unbuffered channels and closes both after the last worker exits. Read `out` and `errs` in one `select` loop (or in two goroutines). A caller that ranges over `out` alone stalls at the first `fn` error until `ctx` is cancelled, because the worker holding that error is blocked on `errs`. That is backpressure, not a bug.
+- `Stage` runs one goroutine, so its `Result` stream keeps input order. `buf` is its only slack.
+- `FanOut` returns results in input order or nothing. The first `fn` error cancels the derived context with that error as `context.Cause`, items not yet started never run, and the returned error wraps that cause (`errors.Is` matches).
+- `workers`, `buf` and `limit` must be positive; zero or negative panics at the call.
+
 ## Money and types
 
 - USDC and token amounts are `money.Micros` / `money.BaseUnits` (unsigned 64-bit branded ints). Ledger entries and P&L are `money.SignedMicros`, a signed 64-bit branded int. A balance or amount is never negative; a delta or a return can be. Share math multiplies then divides through `math/big` and rounds down, in favour of the pot, in one function.
