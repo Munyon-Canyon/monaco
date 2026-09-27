@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/peterldowns/pgtestdb"
@@ -34,6 +35,7 @@ const (
 	maxNameLen     = 63
 	poolMaxConns   = 4
 	atlasSchema    = "atlas_schema_revisions"
+	lockSpace      = 466
 	instanceMarker = "_inst_"
 )
 
@@ -50,6 +52,11 @@ type server struct {
 
 	templateOnce sync.Once
 	template     pgtestdb.Config
+	holder       *pgx.Conn
+}
+
+type execer interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
 func Main(m *testing.M) {
@@ -69,6 +76,9 @@ type runThenClose struct {
 
 func (r runThenClose) Run() int {
 	code := r.m.Run()
+	if r.s.holder != nil {
+		_ = r.s.holder.Close(context.Background())
+	}
 	r.s.admin.Close()
 	return code
 }
@@ -157,7 +167,7 @@ func DB(t *testing.T) *pgxpool.Pool {
 			t.Logf("testkit: kept %s for debugging at %s", inst.Database, redact(inst.URL()))
 			return
 		}
-		if err := s.drop(ctx, inst.Database); err != nil {
+		if err := drop(ctx, s.admin, inst.Database); err != nil {
 			t.Errorf("testkit.DB: %v", err)
 		}
 	})
@@ -183,12 +193,19 @@ func (s *server) release(name string) {
 func (s *server) templateFor(t *testing.T) pgtestdb.Config {
 	t.Helper()
 	s.templateOnce.Do(func() {
-		inst := pgtestdb.Custom(t, s.base, s.migrator)
-		name, _, ok := strings.Cut(inst.Database, instanceMarker)
-		if !ok {
-			t.Fatalf("testkit.DB: pgtestdb instance %s has no template prefix", inst.Database)
+		ctx := context.Background()
+		name, err := s.currentTemplate()
+		if err != nil {
+			t.Fatalf("testkit.DB: %v", err)
 		}
-		if err := s.drop(context.Background(), inst.Database); err != nil {
+		if err := s.holdTemplate(ctx, name); err != nil {
+			t.Fatalf("testkit.DB: %v", err)
+		}
+		inst := pgtestdb.Custom(t, s.base, s.migrator)
+		if built, _, _ := strings.Cut(inst.Database, instanceMarker); built != name {
+			t.Fatalf("testkit.DB: pgtestdb built template %s, testkit holds %s", built, name)
+		}
+		if err := drop(ctx, s.admin, inst.Database); err != nil {
 			t.Fatalf("testkit.DB: %v", err)
 		}
 		s.template = *inst
@@ -198,6 +215,23 @@ func (s *server) templateFor(t *testing.T) pgtestdb.Config {
 		t.Fatal("testkit.DB: the template database failed to build earlier in this run")
 	}
 	return s.template
+}
+
+func (s *server) holdTemplate(ctx context.Context, name string) error {
+	conn, err := s.admin.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("hold template %s: %w", name, err)
+	}
+	s.holder = conn.Hijack()
+	if _, err := s.holder.Exec(
+		ctx,
+		`SELECT pg_advisory_lock_shared($1::int4, hashtext($2))`,
+		lockSpace,
+		name,
+	); err != nil {
+		return fmt.Errorf("hold template %s: %w", name, err)
+	}
+	return nil
 }
 
 func (s *server) currentTemplate() (string, error) {
@@ -214,8 +248,8 @@ func (s *server) currentTemplate() (string, error) {
 	).String(), nil
 }
 
-func (s *server) drop(ctx context.Context, name string) error {
-	if _, err := s.admin.Exec(
+func drop(ctx context.Context, q execer, name string) error {
+	if _, err := q.Exec(
 		ctx,
 		`UPDATE pg_database SET datistemplate = false WHERE datname = $1`,
 		name,
@@ -223,7 +257,7 @@ func (s *server) drop(ctx context.Context, name string) error {
 		return fmt.Errorf("unmark template %s: %w", name, err)
 	}
 	stmt := fmt.Sprintf(`DROP DATABASE IF EXISTS %s WITH (FORCE)`, pgx.Identifier{name}.Sanitize())
-	if _, err := s.admin.Exec(ctx, stmt); err != nil {
+	if _, err := q.Exec(ctx, stmt); err != nil {
 		return fmt.Errorf("drop %s: %w", name, err)
 	}
 	return nil
@@ -246,12 +280,45 @@ func (s *server) dropStale(ctx context.Context, cutoff time.Time, prefixes ...st
 	if err != nil {
 		return nil, fmt.Errorf("list stale test databases: %w", err)
 	}
+	conn, err := s.admin.Acquire(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("drop stale test databases: %w", err)
+	}
+	defer conn.Release()
+	var dropped []string
 	for _, name := range stale {
-		if err := s.drop(ctx, name); err != nil {
+		ok, err := dropIfUnused(ctx, conn, name)
+		if err != nil {
 			return nil, err
 		}
+		if ok {
+			dropped = append(dropped, name)
+		}
 	}
-	return stale, nil
+	return dropped, nil
+}
+
+func dropIfUnused(ctx context.Context, conn *pgxpool.Conn, name string) (bool, error) {
+	var locked bool
+	err := conn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1::int4, hashtext($2))`, lockSpace, name).Scan(&locked)
+	if err != nil {
+		return false, fmt.Errorf("lock %s: %w", name, err)
+	}
+	if !locked {
+		return false, nil
+	}
+	defer func() {
+		_, _ = conn.Exec(ctx, `SELECT pg_advisory_unlock($1::int4, hashtext($2))`, lockSpace, name)
+	}()
+	var busy bool
+	err = conn.QueryRow(ctx, `SELECT EXISTS (SELECT FROM pg_stat_activity WHERE datname = $1)`, name).Scan(&busy)
+	if err != nil {
+		return false, fmt.Errorf("check connections to %s: %w", name, err)
+	}
+	if busy {
+		return false, nil
+	}
+	return true, drop(ctx, conn, name)
 }
 
 func databaseName(testName string) string {

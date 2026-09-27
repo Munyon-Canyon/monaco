@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -56,7 +58,7 @@ func TestDropStaleDropsOnlyDatabasesOlderThanTheCutoff(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := s.drop(ctx, name); err != nil {
+		if err := drop(ctx, s.admin, name); err != nil {
 			t.Error(err)
 		}
 	})
@@ -71,32 +73,102 @@ func TestDropStaleDropsOnlyDatabasesOlderThanTheCutoff(t *testing.T) {
 	}
 }
 
-func TestDropStaleDropsOldTemplatesButNotTheCurrentOne(t *testing.T) {
-	t.Parallel()
-	s := current.Load()
-	DB(t)
+func createTemplate(t *testing.T, s *server, name string) {
+	t.Helper()
 	ctx := context.Background()
-	stale := "testdb_tpl_" + strings.ToLower(rand.Text())
 	for _, stmt := range []string{"CREATE DATABASE %s", "ALTER DATABASE %s IS_TEMPLATE true"} {
-		if _, err := s.admin.Exec(ctx, fmt.Sprintf(stmt, pgx.Identifier{stale}.Sanitize())); err != nil {
+		if _, err := s.admin.Exec(ctx, fmt.Sprintf(stmt, pgx.Identifier{name}.Sanitize())); err != nil {
 			t.Fatal(err)
 		}
 	}
 	t.Cleanup(func() {
-		if err := s.drop(ctx, stale); err != nil {
+		if err := drop(ctx, s.admin, name); err != nil {
 			t.Error(err)
 		}
 	})
-	if got, err := s.currentTemplate(); err != nil || got != s.template.Database {
-		t.Fatalf("currentTemplate() = %q, %v; pgtestdb built %q", got, err, s.template.Database)
+}
+
+func uniqueTemplateName() string {
+	return "testdb_tpl_testkitfixture_" + strings.ToLower(rand.Text())
+}
+
+func serverWithOwnMigrations(t *testing.T) *server {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "0001.sql"), []byte("-- "+rand.Text()), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	dropped, err := s.dropStale(ctx, time.Now().Add(time.Hour), stale, s.template.Database)
-	if err != nil || !slices.Equal(dropped, []string{stale}) {
-		t.Fatalf("future cutoff dropped %v, %v; want only %s", dropped, err, stale)
+	return &server{admin: current.Load().admin, migrator: atlasMigrator{dir: dir}}
+}
+
+func TestDropStaleDropsOldTemplatesButNotTheCurrentOne(t *testing.T) {
+	t.Parallel()
+	s := serverWithOwnMigrations(t)
+	own, err := s.currentTemplate()
+	if err != nil {
+		t.Fatal(err)
 	}
-	if exists(t, s, stale) || !exists(t, s, s.template.Database) {
-		t.Fatalf("after dropStale: stale template exists %v, current template exists %v",
-			exists(t, s, stale), exists(t, s, s.template.Database))
+	stale := uniqueTemplateName()
+	createTemplate(t, s, own)
+	createTemplate(t, s, stale)
+	dropped, err := s.dropStale(context.Background(), time.Now().Add(time.Hour), stale, own)
+	if err != nil || !slices.Equal(dropped, []string{stale}) || exists(t, s, stale) || !exists(t, s, own) {
+		t.Fatalf("dropStale dropped %v, %v; want only %s gone and %s kept", dropped, err, stale, own)
+	}
+}
+
+func TestDropStaleSkipsATemplateAnotherRunHolds(t *testing.T) {
+	t.Parallel()
+	s := serverWithOwnMigrations(t)
+	held := uniqueTemplateName()
+	createTemplate(t, s, held)
+	other := &server{admin: s.admin}
+	ctx := context.Background()
+	if err := other.holdTemplate(ctx, held); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = other.holder.Close(ctx) }()
+	dropped, err := s.dropStale(ctx, time.Now().Add(time.Hour), held)
+	if err != nil || len(dropped) != 0 || !exists(t, s, held) {
+		t.Fatalf("dropStale dropped %v, %v while another run held %s", dropped, err, held)
+	}
+	if _, err := other.holder.Exec(
+		ctx,
+		`SELECT pg_advisory_unlock_shared($1::int4, hashtext($2))`,
+		lockSpace,
+		held,
+	); err != nil {
+		t.Fatal(err)
+	}
+	dropped, err = s.dropStale(ctx, time.Now().Add(time.Hour), held)
+	if err != nil || !slices.Equal(dropped, []string{held}) || exists(t, s, held) {
+		t.Fatalf("after release dropStale dropped %v, %v; want %s gone", dropped, err, held)
+	}
+}
+
+func TestDropStaleSkipsADatabaseWithOpenConnections(t *testing.T) {
+	t.Parallel()
+	s := serverWithOwnMigrations(t)
+	ctx := context.Background()
+	name := databaseName("open")
+	if _, err := s.admin.Exec(ctx, "CREATE DATABASE "+pgx.Identifier{name}.Sanitize()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := drop(ctx, s.admin, name); err != nil {
+			t.Error(err)
+		}
+	})
+	cfg := s.admin.Config().ConnConfig.Copy()
+	cfg.Database = name
+	conn, err := pgx.ConnectConfig(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
+	dropped, err := s.dropStale(ctx, time.Now().Add(time.Hour), name)
+	if err != nil || len(dropped) != 0 || !exists(t, s, name) {
+		t.Fatalf("dropStale dropped %v, %v while a connection was open to %s", dropped, err, name)
 	}
 }
 
@@ -127,7 +199,7 @@ func TestDBKeepsOnlyTheFirstFiveFailedDatabases(t *testing.T) {
 	kept := regexp.MustCompile(`testkit: kept (t_\w+)`).FindAllStringSubmatch(out, -1)
 	t.Cleanup(func() {
 		for _, m := range kept {
-			if err := s.drop(context.Background(), m[1]); err != nil {
+			if err := drop(context.Background(), s.admin, m[1]); err != nil {
 				t.Error(err)
 			}
 		}
