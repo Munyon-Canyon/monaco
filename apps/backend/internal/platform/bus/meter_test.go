@@ -37,7 +37,7 @@ func (m failingMeter) Int64Counter(name string, opts ...metric.Int64CounterOptio
 func (m failingMeter) Int64ObservableGauge(
 	name string, opts ...metric.Int64ObservableGaugeOption,
 ) (metric.Int64ObservableGauge, error) {
-	if m.fail == "gauge" {
+	if m.fail == "gauge" || m.fail == "gauge:"+name {
 		return nil, errs.New(errs.CodeInternal, "test.Int64ObservableGauge")
 	}
 	return m.Meter.Int64ObservableGauge(name, opts...)
