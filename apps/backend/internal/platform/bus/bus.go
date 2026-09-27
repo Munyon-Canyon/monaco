@@ -6,6 +6,8 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -20,15 +22,22 @@ const (
 )
 
 type Conn struct {
-	nc *nats.Conn
-	js jetstream.JetStream
-	ns namespace
+	nc          *nats.Conn
+	js          jetstream.JetStream
+	ns          namespace
+	meter       metric.Meter
+	hintDropped metric.Int64Counter
 }
 
 type Option func(*options)
 
 type options struct {
-	ns namespace
+	meters metric.MeterProvider
+	ns     namespace
+}
+
+func WithMeterProvider(mp metric.MeterProvider) Option {
+	return func(o *options) { o.meters = mp }
 }
 
 func WithNamespace(ns string) Option {
@@ -37,7 +46,7 @@ func WithNamespace(ns string) Option {
 
 func Connect(ctx context.Context, cfg config.NATS, proc Process, opts ...Option) (*Conn, error) {
 	const op = "bus.Connect"
-	var o options
+	o := options{meters: otel.GetMeterProvider()}
 	for _, opt := range opts {
 		opt(&o)
 	}
@@ -53,7 +62,14 @@ func Connect(ctx context.Context, cfg config.NATS, proc Process, opts ...Option)
 		nc.Close()
 		return nil, errs.Wrap(err, errs.CodeUpstreamUnavailable, op, slog.String("process", string(proc)))
 	}
-	return &Conn{nc: nc, js: js, ns: o.ns}, nil
+	meter := o.meters.Meter("github.com/monaco/monaco/apps/backend/internal/platform/bus")
+	dropped, err := meter.Int64Counter("monaco_bus_hint_dropped_total",
+		metric.WithDescription("Core NATS hints that failed to publish."))
+	if err != nil {
+		nc.Close()
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	return &Conn{nc: nc, js: js, ns: o.ns, meter: meter, hintDropped: dropped}, nil
 }
 
 func (c *Conn) Close(ctx context.Context) {
