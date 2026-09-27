@@ -10,7 +10,7 @@ import (
 func TestDocsEventsPrintsTheRegistryCatalog(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer
-	if code := run(commands(), tools(), nil, []string{"docs", "events"}, &stdout, &stderr); code != 0 {
+	if code := run(commands(), tools(nil), nil, []string{"docs", "events"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
 	}
 	want := "# Event catalog\n\n" +
@@ -28,7 +28,7 @@ func TestDocsRejectsAnUnknownTopic(t *testing.T) {
 	t.Parallel()
 	for _, args := range [][]string{{"docs"}, {"docs", "nope"}, {"docs", "events", "extra"}} {
 		var stdout, stderr bytes.Buffer
-		if code := run(commands(), tools(), nil, args, &stdout, &stderr); code != 2 || stdout.Len() != 0 ||
+		if code := run(commands(), tools(nil), nil, args, &stdout, &stderr); code != 2 || stdout.Len() != 0 ||
 			stderr.String() != "usage: monacoctl docs events|flows\n" {
 			t.Fatalf("%q: code=%d stdout=%q stderr=%q", args, code, stdout.String(), stderr.String())
 		}

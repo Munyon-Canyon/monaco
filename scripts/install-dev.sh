@@ -101,6 +101,16 @@ if ! have jq; then
   fi
 fi
 
+atlas_want="$(cat apps/backend/.atlas-version)"
+atlas_have="$(.bin/atlas version 2>/dev/null | head -1 || true)"
+if [[ "$atlas_have" != "atlas community version ${atlas_want}" ]]; then
+  missing_required=1
+  say "atlas community ${atlas_want} is missing from .bin/atlas (found: ${atlas_have:-none}). monacoctl migrate runs that exact binary."
+  if ask_yes "Install atlas community ${atlas_want} into .bin/?"; then
+    ./scripts/install-atlas.sh || missing_required=1
+  fi
+fi
+
 if ! have just; then
   missing_required=1
   say "just is missing (https://github.com/casey/just)."

@@ -50,6 +50,12 @@ jobs:
       - name: Generated depguard rules are fresh
         run: go generate ./... && git diff --exit-code .golangci.yml
 
+      - name: Install the pinned atlas community build
+        run: ../../scripts/install-atlas.sh
+
+      - name: Lint the latest migration
+        run: go run ./cmd/monacoctl migrate lint
+
       # Only the nightly warm-cache job on main saves this cache. PRs restore and never save.
       - uses: actions/cache/restore@v4
         with:
@@ -103,6 +109,7 @@ jobs:
             backend:
               - 'apps/backend/**'
               - 'scripts/ci/**'
+              - 'scripts/install-atlas.sh'
               - '.github/workflows/ci*.yml'
             mobile-core:
               - 'packages/mobile-core/**'
