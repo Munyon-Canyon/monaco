@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	mutationUsage   = "usage: monacoctl mutation [--base main | --all]"
+	mutationUsage   = "usage: monacoctl mutation [--base main | --all] [--list | --pkg dir]"
 	mutantsAllow    = "mutants.allow"
 	testOutputLines = 40
 	lived           = "LIVED"
@@ -47,6 +47,11 @@ func runCommand(ctx context.Context, dir string, env []string, name string, args
 	return out, err
 }
 
+type mutationArgs struct {
+	base, pkg string
+	all, list bool
+}
+
 type listedPackage struct{ Dir, ImportPath string }
 
 type gremlinsReport struct {
@@ -68,14 +73,16 @@ func mutationTool(env mutationEnv) tool {
 func mutationCmd(env mutationEnv, args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("mutation", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	base := fs.String("base", "main", "")
-	all := fs.Bool("all", false, "")
-	if fs.Parse(args) != nil || fs.NArg() != 0 {
+	var a mutationArgs
+	fs.StringVar(&a.base, "base", "main", "")
+	fs.BoolVar(&a.all, "all", false, "")
+	fs.BoolVar(&a.list, "list", false, "")
+	fs.StringVar(&a.pkg, "pkg", "", "")
+	if fs.Parse(args) != nil || fs.NArg() != 0 || a.list && a.pkg != "" {
 		_, _ = fmt.Fprintln(stderr, mutationUsage)
 		return 2
 	}
-	ctx := context.Background()
-	survivors, err := env.run(ctx, *base, *all, stdout)
+	survivors, err := env.run(context.Background(), a, stdout)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "monacoctl mutation: %v\n", err)
 		return 1
@@ -94,12 +101,8 @@ func mutationCmd(env mutationEnv, args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func (env mutationEnv) run(ctx context.Context, base string, all bool, stdout io.Writer) ([]string, error) {
+func (env mutationEnv) run(ctx context.Context, a mutationArgs, stdout io.Writer) ([]string, error) {
 	const op = "monacoctl.mutation"
-	allowed, err := readAllowFile(filepath.Join(env.moduleDir, mutantsAllow))
-	if err != nil {
-		return nil, err
-	}
 	exclude, err := os.ReadFile(filepath.Join(env.moduleDir, coverageExclude))
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, op)
@@ -110,13 +113,28 @@ func (env mutationEnv) run(ctx context.Context, base string, all bool, stdout io
 	}
 	var changed []string
 	diffRef := ""
-	if !all {
-		if changed, err = env.changedFiles(ctx, base); err != nil {
+	if !a.all {
+		if changed, err = env.changedFiles(ctx, a.base); err != nil {
 			return nil, err
 		}
-		diffRef = base
+		diffRef = a.base
 	}
-	dirs := affectedPackages(listed, changed, all, strings.Fields(string(exclude)))
+	dirs := affectedPackages(listed, changed, a.all, strings.Fields(string(exclude)))
+	if a.list {
+		data, _ := json.Marshal(dirs)
+		_, _ = fmt.Fprintf(stdout, "%s\n", data)
+		return nil, nil
+	}
+	if a.pkg != "" {
+		if !slices.Contains(dirs, a.pkg) {
+			return nil, errs.Wrap(unchangedPackageError(a.pkg), errs.CodeInvalidInput, op)
+		}
+		dirs = []string{a.pkg}
+	}
+	allowed, err := readAllowFile(filepath.Join(env.moduleDir, mutantsAllow))
+	if err != nil {
+		return nil, err
+	}
 	_, _ = fmt.Fprintf(stdout, "mutating %d packages: %s\n", len(dirs), strings.Join(dirs, " "))
 	var survivors []string
 	for _, dir := range dirs {
@@ -173,7 +191,7 @@ func affectedPackages(pkgs []listedPackage, changed []string, all bool, exclude 
 			changedDirs[path.Dir(f)] = true
 		}
 	}
-	var dirs []string
+	dirs := []string{}
 	for _, p := range pkgs {
 		if (all || changedDirs[p.Dir]) && !excluded(p.Dir+"/", exclude) {
 			dirs = append(dirs, p.Dir)
@@ -218,6 +236,12 @@ func (env mutationEnv) unleash(ctx context.Context, dir, diffRef string) (gremli
 		return gremlinsReport{}, errs.Wrap(err, errs.CodeDecodeFailed, op)
 	}
 	return report, nil
+}
+
+type unchangedPackageError string
+
+func (e unchangedPackageError) Error() string {
+	return string(e) + " has no changed Go files to mutate; pick one from --list"
 }
 
 type timedOutError string

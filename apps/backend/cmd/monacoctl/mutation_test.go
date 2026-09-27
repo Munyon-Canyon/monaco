@@ -388,7 +388,7 @@ func removeFile(t *testing.T, env mutationEnv, name string) {
 
 func TestMutationUsage(t *testing.T) {
 	t.Parallel()
-	for _, args := range [][]string{{"extra"}, {"--bogus"}} {
+	for _, args := range [][]string{{"extra"}, {"--bogus"}, {"--list", "--pkg", "a"}} {
 		var stdout, stderr bytes.Buffer
 		if code := mutationTool(
 			mutationEnv{},
@@ -414,5 +414,54 @@ func TestReadAllowRejectsATwoFieldLineAndAnOverlongLine(t *testing.T) {
 	}
 	if _, err := readAllow(strings.NewReader(strings.Repeat("x", 70_000))); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("err = %v, want internal from the scanner", err)
+	}
+}
+
+func TestMutationListPrintsTheChangedPackagesAsJSONWithoutMutating(t *testing.T) {
+	t.Parallel()
+	env := mutationModule(t, "")
+	var stdout, stderr bytes.Buffer
+	if code := mutationTool(env)([]string{"--list"}, &stdout, &stderr); code != 0 || stdout.String() != "[]\n" {
+		t.Fatalf("no changes: code=%d stdout=%q stderr=%q, want []", code, stdout.String(), stderr.String())
+	}
+	commitFile(t, env, "c/x.go", "package c\n\nfunc C() int { return 4 }\n")
+	commitFile(t, env, "a/x_test.go", "package a\n")
+	stdout.Reset()
+	if code := mutationTool(env)([]string{"--base", "main", "--list"}, &stdout, &stderr); code != 0 ||
+		stdout.String() != "[\"a\",\"c\"]\n" || stderr.Len() != 0 {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(env.moduleDir, "gremlins.log")); !os.IsNotExist(err) {
+		t.Fatalf("--list ran gremlins: %v", err)
+	}
+}
+
+func TestMutationPkgMutatesOnlyThatChangedPackageOnItsChangedLines(t *testing.T) {
+	t.Parallel()
+	env := mutationModule(t, "")
+	commitFile(t, env, "c/x.go", "package c\n\nfunc C() int { return 4 }\n")
+	commitFile(t, env, "a/x_test.go", "package a\n")
+	var stdout, stderr bytes.Buffer
+	if code := mutationTool(env)([]string{"--base", "main", "--pkg", "c"}, &stdout, &stderr); code != 0 ||
+		stdout.String() != "mutating 1 packages: c\n" || stderr.Len() != 0 {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	calls := gremlinsCalls(t, env)
+	if len(calls) != 1 || !strings.HasPrefix(calls[0], "c: ") || !strings.Contains(calls[0], "--diff main |") {
+		t.Fatalf("gremlins calls = %q, want one call in c with --diff main", calls)
+	}
+}
+
+func TestMutationPkgRejectsAPackageWithNoChangedGoFiles(t *testing.T) {
+	t.Parallel()
+	env := mutationModule(t, "")
+	commitFile(t, env, "c/x.go", "package c\n\nfunc C() int { return 4 }\n")
+	var stdout, stderr bytes.Buffer
+	want := "monacoctl mutation: monacoctl.mutation: invalid_input: b has no changed Go files to mutate; pick one from --list\n"
+	if code := mutationTool(env)([]string{"--pkg", "b"}, &stdout, &stderr); code != 1 || stderr.String() != want {
+		t.Fatalf("code=%d stdout=%q stderr=%q, want %q", code, stdout.String(), stderr.String(), want)
+	}
+	if _, err := os.Stat(filepath.Join(env.moduleDir, "gremlins.log")); !os.IsNotExist(err) {
+		t.Fatalf("--pkg b ran gremlins: %v", err)
 	}
 }

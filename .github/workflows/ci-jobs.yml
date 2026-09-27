@@ -94,12 +94,49 @@ jobs:
 
   # Mutants on the lines this change touches (gremlins --diff). A pull request compares with its base;
   # a manual run compares with the parent commit. The nightly mutates every line of every package.
-  mutation:
-    name: Mutation (changed lines)
+  # mutation-plan lists the changed packages and mutation runs one job per package, so the wall time
+  # is the slowest package, not the sum.
+  mutation-plan:
+    name: Mutation plan
     needs: plan
     if: needs.plan.outputs.backend-go == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
+    outputs:
+      packages: ${{ steps.list.outputs.packages }}
+    defaults:
+      run:
+        working-directory: apps/backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/backend/go.mod
+          cache: false
+
+      - name: List the packages with changed Go files
+        id: list
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || 'HEAD~1' }}
+        run: |
+          packages=$(go run ./cmd/monacoctl mutation --base "$BASE" --list)
+          echo "$packages"
+          echo "packages=$packages" >> "$GITHUB_OUTPUT"
+
+  # GitHub rejects a matrix built from an empty list, so no changed package skips the job instead.
+  mutation:
+    name: Mutation (${{ matrix.pkg }})
+    needs: mutation-plan
+    if: needs.mutation-plan.outputs.packages != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        pkg: ${{ fromJSON(needs.mutation-plan.outputs.packages) }}
     defaults:
       run:
         working-directory: apps/backend
@@ -118,7 +155,8 @@ jobs:
       - name: Mutants on the changed lines
         env:
           BASE: ${{ github.event.pull_request.base.sha || 'HEAD~1' }}
-        run: go run ./cmd/monacoctl mutation --base "$BASE"
+          PKG: ${{ matrix.pkg }}
+        run: go run ./cmd/monacoctl mutation --base "$BASE" --pkg "$PKG"
 
   mobile-core:
     needs: plan
@@ -196,11 +234,11 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [plan, backend, mutation, mobile-core, ios]
+    needs: [plan, backend, mutation-plan, mutation, mobile-core, ios]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - uses: re-actors/alls-green@release/v1
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: backend, mutation, mobile-core, ios
+          allowed-skips: backend, mutation-plan, mutation, mobile-core, ios
