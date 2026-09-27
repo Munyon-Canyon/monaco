@@ -1,0 +1,4 @@
+go test fuzz v1
+string("system.pinged")
+int(0)
+[]byte("{\"v\":0}")

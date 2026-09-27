@@ -72,6 +72,8 @@ linters:
     exhaustive: { default-signifies-exhaustive: false }
     sloglint: { attr-only: true, context: all, static-msg: true, no-global: all }
     interfacebloat: { max: 5 }
+    ireturn:
+      allow: [anon, error, empty, stdlib, 'github\.com/monaco/monaco/apps/backend/internal/events\.Event$']
     wrapcheck:
       ignore-package-globs: ["github.com/monaco/monaco/apps/backend/internal/*"]
     forbidigo:

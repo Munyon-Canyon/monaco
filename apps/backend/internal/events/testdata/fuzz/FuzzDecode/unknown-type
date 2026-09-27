@@ -1,0 +1,4 @@
+go test fuzz v1
+string("nope.nothing")
+int(1)
+[]byte("{\"v\":1}")
