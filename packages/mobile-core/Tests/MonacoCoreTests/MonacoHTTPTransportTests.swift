@@ -1,4 +1,7 @@
 import XCTest
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 @testable import MonacoCore
 
 final class MonacoHTTPTransportTests: XCTestCase {
@@ -125,7 +128,9 @@ final class MonacoHTTPTransportTests: XCTestCase {
             // provably did not run, so the copy must not call the outcome unknown.
             XCTAssertTrue(error.isTokenRefreshFailure)
             XCTAssertEqual((error as? URLError)?.code, .userAuthenticationRequired)
+            #if canImport(Darwin) // Linux Foundation cannot cast a bridged NSError back to the Swift error.
             XCTAssertTrue((error as NSError).userInfo[NSUnderlyingErrorKey] is AuthProviderDown)
+            #endif
         }
     }
 
@@ -243,7 +248,9 @@ final class MonacoHTTPTransportTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(MonacoRequestTimeout.sessionCeiling, MonacoRequestTimeout.moneyWrite)
         XCTAssertGreaterThanOrEqual(MonacoRequestTimeout.sessionCeiling, MonacoRequestTimeout.upload)
         XCTAssertEqual(URLSession.monaco.configuration.timeoutIntervalForResource, MonacoRequestTimeout.resource)
+        #if !canImport(FoundationNetworking)
         XCTAssertFalse(URLSession.monaco.configuration.waitsForConnectivity)
+        #endif
     }
 
     /// The budgets are only worth anything if URLSession enforces the per-request one. The
@@ -264,6 +271,9 @@ final class MonacoHTTPTransportTests: XCTestCase {
     /// stamp the wrong budget, and the read stops timing out on time.
     func testTimeoutBudget_isEnforced_moneyWriteOutlivesTheReadBudget() async throws {
         let stall = MonacoRequestTimeout.standard + 5
+        #if !canImport(Darwin)
+        try XCTSkipIf(true, "Linux URLSession does not enforce timeouts on custom URLProtocols")
+        #endif
         try XCTSkipUnless(stall < MonacoRequestTimeout.moneyWrite, "budgets no longer straddle the stall")
         StallingURLProtocol.stall = stall
         defer { StallingURLProtocol.stall = 0 }

@@ -103,13 +103,15 @@ func TestHTTPPriceClient_Prices_parsesStockData(t *testing.T) {
 func TestHTTPPriceClient_Prices_parsesISOUpdatedAt(t *testing.T) {
 	t.Parallel()
 
+	// Stamp relative to now so the freshness check below cannot age out.
+	updatedAt := time.Now().UTC().Add(-time.Hour).Truncate(time.Second).Add(297 * time.Millisecond)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{
+		_, _ = fmt.Fprintf(w, `{
 			"mint1": {
 				"usdPrice": 562.18,
-				"stockData": {"price": 746.61, "mcap": 1957785838858, "updatedAt": "2026-09-25T03:15:24.297Z"}
+				"stockData": {"price": 746.61, "mcap": 1957785838858, "updatedAt": %q}
 			}
-		}`))
+		}`, updatedAt.Format("2006-01-02T15:04:05.000Z"))
 	}))
 	defer server.Close()
 
@@ -122,12 +124,12 @@ func TestHTTPPriceClient_Prices_parsesISOUpdatedAt(t *testing.T) {
 	if !ok || price.StockData == nil {
 		t.Fatal("expected stockData on price")
 	}
-	want := time.Date(2026, 9, 25, 3, 15, 24, 0, time.UTC)
+	want := updatedAt.Truncate(time.Second)
 	if !price.StockData.UpdatedAt.Equal(want) {
 		t.Fatalf("UpdatedAt = %s, want %s", price.StockData.UpdatedAt, want)
 	}
-	if !price.StockData.Fresh(48*time.Hour) && time.Since(want) > 48*time.Hour {
-		t.Fatal("expected a parsed timestamp")
+	if !price.StockData.Fresh(48 * time.Hour) {
+		t.Fatal("expected an hour-old quote to be fresh")
 	}
 }
 

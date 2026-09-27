@@ -23,7 +23,7 @@ final class DiagnosticPayloadStoreTests: XCTestCase {
         let file = try store.save(Data(#"{"crash":1}"#.utf8), kind: "diagnostic").get()
 
         XCTAssertEqual(try Data(contentsOf: file), Data(#"{"crash":1}"#.utf8))
-        XCTAssertEqual(file.deletingLastPathComponent().standardizedFileURL, directory.standardizedFileURL)
+        XCTAssertEqual(file.deletingLastPathComponent().standardizedFileURL.path, directory.standardizedFileURL.path)
         XCTAssertTrue(file.lastPathComponent.hasPrefix("20260901T"), file.lastPathComponent)
         XCTAssertTrue(file.lastPathComponent.hasSuffix(".json"))
         XCTAssertTrue(file.lastPathComponent.contains("-diagnostic-"))
@@ -73,12 +73,13 @@ final class DiagnosticPayloadStoreTests: XCTestCase {
         let file = try store.save(Data("{}".utf8), kind: "../../etc/passwd").get()
         let unnamed = try store.save(Data("{}".utf8), kind: "///").get()
 
-        XCTAssertEqual(file.deletingLastPathComponent().standardizedFileURL, root.standardizedFileURL)
+        XCTAssertEqual(file.deletingLastPathComponent().standardizedFileURL.path, root.standardizedFileURL.path)
         XCTAssertTrue(file.lastPathComponent.contains("-etcpasswd-"))
         XCTAssertTrue(unnamed.lastPathComponent.contains("-payload-"))
     }
 
     func testUnwritableDirectoryFailsWithoutThrowing() throws {
+        try XCTSkipIf(geteuid() == 0, "root ignores directory permissions")
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: root.path)
         let store = DiagnosticPayloadStore(directory: root.appending(path: "blocked"))
 
