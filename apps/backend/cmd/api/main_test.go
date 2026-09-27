@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 func get(ctx context.Context, url string) (*http.Response, error) {
@@ -36,12 +37,16 @@ func TestServe_healthzAnswersOkUntilShutdown(t *testing.T) {
 	url := "http://" + ln.Addr().String() + "/healthz"
 	ctx, cancel := context.WithCancel(t.Context())
 	timeouts := config.Timeouts{HTTPServerRead: time.Second, HTTPServerWrite: time.Second, Shutdown: time.Second}
-	handler := httpx.Handler(httpx.Deps{
+	handler, err := httpx.Handler(httpx.Deps{
 		Logger: observability.NewLogger(config.Config{}, io.Discard), Tracer: noop.NewTracerProvider(),
 		Clock: clock.Real{}, IDs: ids.Real{}, MaxBodyBytes: 1 << 10,
 	}, httpx.Health{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	done := make(chan error, 1)
-	go func() { done <- serve(ctx, ln, httpx.NewServer(handler, timeouts), timeouts.Shutdown) }()
+	srv := httpx.NewServer(testkit.HTTP(t, handler), timeouts)
+	go func() { done <- serve(ctx, ln, srv, timeouts.Shutdown) }()
 
 	resp, err := get(t.Context(), url)
 	if err != nil {

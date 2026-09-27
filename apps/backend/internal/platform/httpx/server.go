@@ -4,22 +4,37 @@ import (
 	"context"
 	"net/http"
 
+	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 )
 
-func Handler(d Deps, ssi api.StrictServerInterface) http.Handler {
+func Handler(d Deps, ssi api.StrictServerInterface) (http.Handler, error) {
+	return handler(d, ssi, openapi.Spec, nil)
+}
+
+func handler(
+	d Deps, ssi api.StrictServerInterface, spec []byte, mws []api.StrictMiddlewareFunc,
+) (http.Handler, error) {
+	validate, err := requestValidator(spec)
+	if err != nil {
+		return nil, err
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		Problem(w, r, errs.New(errs.CodeNotFound, "httpx.route"))
 	})
-	strict := api.NewStrictHandlerWithOptions(ssi, nil, api.StrictHTTPServerOptions{
+	strict := api.NewStrictHandlerWithOptions(ssi, mws, api.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  invalidRequest,
 		ResponseErrorHandlerFunc: Problem,
 	})
-	api.HandlerWithOptions(strict, api.StdHTTPServerOptions{BaseRouter: mux, ErrorHandlerFunc: invalidRequest})
-	return d.wrap(mux)
+	api.HandlerWithOptions(strict, api.StdHTTPServerOptions{
+		BaseRouter:       mux,
+		ErrorHandlerFunc: invalidRequest,
+		Middlewares:      []api.MiddlewareFunc{validate},
+	})
+	return d.wrap(mux), nil
 }
 
 func invalidRequest(w http.ResponseWriter, r *http.Request, err error) {

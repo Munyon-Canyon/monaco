@@ -56,13 +56,16 @@ func run(stderr io.Writer, environ []string) (err error) {
 	}
 	observability.Info(ctx, observability.BootListening, slog.String("service", "api"),
 		slog.String("addr", ln.Addr().String()))
-	handler := httpx.Handler(httpx.Deps{
+	handler, err := httpx.Handler(httpx.Deps{
 		Logger:       logger,
 		Tracer:       otel.GetTracerProvider(),
 		Clock:        clock.Real{},
 		IDs:          ids.Real{},
 		MaxBodyBytes: int64(cfg.HTTP.MaxBodyBytes),
 	}, httpx.Health{})
+	if err != nil {
+		return err
+	}
 	return serve(ctx, ln, httpx.NewServer(handler, cfg.Timeouts), cfg.Timeouts.Shutdown)
 }
 

@@ -62,6 +62,31 @@ jobs:
       - name: Generated sqlc code is fresh
         run: ../../scripts/install-sqlc.sh && ../../.bin/sqlc diff
 
+      - name: Install oasdiff
+        working-directory: ${{ runner.temp }}
+        run: |
+          v=1.32.1
+          base="https://github.com/oasdiff/oasdiff/releases/download/v$v"
+          curl -fsSLO "$base/oasdiff_${v}_linux_amd64.tar.gz"
+          curl -fsSL "$base/checksums.txt" | grep " oasdiff_${v}_linux_amd64.tar.gz$" | sha256sum -c -
+          tar -xzf "oasdiff_${v}_linux_amd64.tar.gz" oasdiff
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Breaking-change check passes a new error code and fails a removed path
+        working-directory: .
+        run: scripts/ci/oasdiff-breaking-test.sh
+
+      - name: OpenAPI spec has no breaking changes
+        run: |
+          base="${GITHUB_BASE_REF:-main}"
+          git fetch --no-tags --depth=1 origin "$base"
+          if ! git cat-file -e FETCH_HEAD:apps/backend/api/openapi.yaml 2>/dev/null; then
+            echo "no api/openapi.yaml on $base"
+            exit 0
+          fi
+          git show FETCH_HEAD:apps/backend/api/openapi.yaml > "$RUNNER_TEMP/base-openapi.yaml"
+          ../../scripts/ci/oasdiff-breaking.sh "$RUNNER_TEMP/base-openapi.yaml" api/openapi.yaml
+
       # Only the nightly warm-cache job on main saves this cache. PRs restore and never save.
       - uses: actions/cache/restore@v4
         with:
