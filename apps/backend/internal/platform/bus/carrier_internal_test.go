@@ -37,3 +37,10 @@ func TestNATSCarrier_prefersTheLowercaseKey(t *testing.T) {
 		t.Fatalf("Get on empty headers = %q", got)
 	}
 }
+
+func TestNATSCarrier_skipsAnOtherCaseKeyWithNoValue(t *testing.T) {
+	t.Parallel()
+	if got := natsCarrier(nats.Header{"TRACEPARENT": {}}).Get("traceparent"); got != "" {
+		t.Fatalf("Get with only an empty TRACEPARENT entry = %q, want \"\"", got)
+	}
+}
