@@ -56,6 +56,9 @@ jobs:
       - name: Lint the latest migration
         run: go run ./cmd/monacoctl migrate lint
 
+      - name: Generated sqlc code is fresh
+        run: ../../scripts/install-sqlc.sh && ../../.bin/sqlc diff
+
       # Only the nightly warm-cache job on main saves this cache. PRs restore and never save.
       - uses: actions/cache/restore@v4
         with:
@@ -110,6 +113,7 @@ jobs:
               - 'apps/backend/**'
               - 'scripts/ci/**'
               - 'scripts/install-atlas.sh'
+              - 'scripts/install-sqlc.sh'
               - '.github/workflows/ci*.yml'
             mobile-core:
               - 'packages/mobile-core/**'
