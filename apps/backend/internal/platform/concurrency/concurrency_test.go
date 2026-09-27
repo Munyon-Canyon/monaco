@@ -34,10 +34,10 @@ func failOdd(_ context.Context, v int) (int, error) {
 	return v * 2, nil
 }
 
-func drainPool(out <-chan int, errc <-chan error, readDelay []time.Duration) (vals []int, errs []error) {
+func drainPool(out <-chan int, errc <-chan error, readDelay []time.Duration) (vals []int, fails []error) {
 	for out != nil || errc != nil {
 		if readDelay != nil {
-			<-clock.Real{}.After(readDelay[(len(vals)+len(errs))%len(readDelay)])
+			<-clock.Real{}.After(readDelay[(len(vals)+len(fails))%len(readDelay)])
 		}
 		select {
 		case v, ok := <-out:
@@ -51,10 +51,10 @@ func drainPool(out <-chan int, errc <-chan error, readDelay []time.Duration) (va
 				errc = nil
 				continue
 			}
-			errs = append(errs, err)
+			fails = append(fails, err)
 		}
 	}
-	return vals, errs
+	return vals, fails
 }
 
 func assertPanics(t *testing.T, want string, call func()) {
@@ -72,13 +72,13 @@ func TestPoolDeliversEveryValueAndErrorThenClosesBothChannels(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		out, errc := concurrency.Pool(t.Context(), 3, feed(1, 2, 3, 4, 5, 6), failOdd)
-		vals, errs := drainPool(out, errc, nil)
+		vals, fails := drainPool(out, errc, nil)
 		slices.Sort(vals)
 		if !slices.Equal(vals, []int{4, 8, 12}) {
 			t.Fatalf("out = %v, want [4 8 12]", vals)
 		}
-		if len(errs) != 3 || !errors.Is(errs[0], errBoom) {
-			t.Fatalf("errs = %v, want three errBoom", errs)
+		if len(fails) != 3 || !errors.Is(fails[0], errBoom) {
+			t.Fatalf("fails = %v, want three errBoom", fails)
 		}
 	})
 }
@@ -94,9 +94,9 @@ func TestPoolExitsWhenCancelledWhileBlockedSending(t *testing.T) {
 		synctest.Wait()
 		cancel()
 		synctest.Wait()
-		vals, errs := drainPool(out, errc, nil)
-		if len(vals)+len(errs) != 0 {
-			t.Fatalf("delivered %v %v after cancel with no consumer", vals, errs)
+		vals, fails := drainPool(out, errc, nil)
+		if len(vals)+len(fails) != 0 {
+			t.Fatalf("delivered %v %v after cancel with no consumer", vals, fails)
 		}
 	})
 }
@@ -130,13 +130,13 @@ func TestPoolBlocksProducersBehindAStalledConsumer(t *testing.T) {
 		if got := completed.Load(); got != 2 {
 			t.Fatalf("fn completed %d times before the consumer read, want 2", got)
 		}
-		vals, errs := drainPool(out, errc, nil)
+		vals, fails := drainPool(out, errc, nil)
 		slices.Sort(vals)
 		if !slices.Equal(vals, []int{4, 8, 12, 16, 20}) {
 			t.Fatalf("out = %v, want [4 8 12 16 20]", vals)
 		}
-		if len(errs) != 5 {
-			t.Fatalf("got %d errors, want 5", len(errs))
+		if len(fails) != 5 {
+			t.Fatalf("got %d errors, want 5", len(fails))
 		}
 		if got := completed.Load(); got != 10 {
 			t.Fatalf("fn completed %d times, want 10", got)
