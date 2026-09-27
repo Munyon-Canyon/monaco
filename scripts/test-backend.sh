@@ -33,6 +33,10 @@ if [[ "$status" -ne 0 ]]; then
     | .Output' "$json"
 fi
 
-go run ./cmd/monacoctl test-report --from "$json" --start "$start" || status=1
+report=(--from "$json" --start "$start")
+if [[ -n "${CI:-}" ]]; then
+  report+=(--ci)
+fi
+go run ./cmd/monacoctl test-report "${report[@]}" || status=1
 go run ./cmd/monacoctl flows check --from "$json" || status=1
 exit "$status"

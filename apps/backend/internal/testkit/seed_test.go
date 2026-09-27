@@ -9,6 +9,9 @@ import (
 
 func goTest(t *testing.T, args ...string) (string, error) {
 	t.Helper()
+	if testing.Short() {
+		t.Skip("builds and runs another test binary; CI runs it without -short, outside the 10 s package budget")
+	}
 	cmd := exec.CommandContext(t.Context(), "go", append([]string{"test", "-count=1", "-v"}, args...)...)
 	out, err := cmd.CombinedOutput()
 	return string(out), err

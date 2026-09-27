@@ -151,6 +151,7 @@ func TestTestReportCommand(t *testing.T) {
 		{"directory", []string{"--from", filepath.Dir(file)}, 1, "", "monacoctl test-report: monacoctl.readReport: internal: read " + filepath.Dir(file) + ": is a directory\n"},
 		{"package over budget", []string{"--from", file}, 1, "run: 15.0s", slowB},
 		{"run over budget", []string{"--start", early, "--from", file}, 1, "run: 120.0s", slowB + "monacoctl test-report: run took 120.0s, over the 60s budget\n"},
+		{"run not gated in CI", []string{"--start", early, "--from", file, "--ci"}, 1, "run: 120.0s (not gated in CI; the 60s budget is for a laptop), 10s per package\n", slowB},
 	} {
 		var stdout, stderr bytes.Buffer
 		code := testReportCmd(tc.args, &stdout, &stderr)

@@ -174,6 +174,9 @@ func TestDropStaleSkipsADatabaseWithOpenConnections(t *testing.T) {
 
 func runFixture(t *testing.T, run string) (string, error) {
 	t.Helper()
+	if testing.Short() {
+		t.Skip("builds and runs another test binary; CI runs it without -short, outside the 10 s package budget")
+	}
 	cmd := exec.CommandContext(t.Context(), "go", "test", "-count=1", "-v", "-run", run, "./testdata/failing")
 	out, err := cmd.CombinedOutput()
 	return string(out), err

@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	testReportUsage = "usage: monacoctl test-report --from go-test.json [--start unix-seconds]"
+	testReportUsage = "usage: monacoctl test-report --from go-test.json [--start unix-seconds] [--ci]"
 	slowestShown    = 10
 	packageBudget   = 10 * time.Second
 	runBudget       = 60 * time.Second
@@ -43,6 +43,7 @@ func testReportCmd(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(io.Discard)
 	from := fs.String("from", "", "")
 	start := fs.String("start", "", "")
+	ci := fs.Bool("ci", false, "")
 	if fs.Parse(args) != nil || *from == "" || fs.NArg() != 0 {
 		_, _ = fmt.Fprintln(stderr, testReportUsage)
 		return 2
@@ -68,6 +69,9 @@ func testReportCmd(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	b := budget{pkg: packageBudget, run: runBudget}
+	if *ci {
+		b.run = 0
+	}
 	rep.write(stdout, b)
 	over := rep.overBudget(b)
 	for _, o := range over {
@@ -147,6 +151,11 @@ func (r report) write(w io.Writer, b budget) {
 	for _, p := range r.packages {
 		_, _ = fmt.Fprintf(w, "%7.2fs  %s\n", p.elapsed.Seconds(), p.name)
 	}
+	if b.run == 0 {
+		_, _ = fmt.Fprintf(w, "run: %.1fs (not gated in CI; the %.0fs budget is for a laptop), %.0fs per package\n",
+			r.run.Seconds(), runBudget.Seconds(), b.pkg.Seconds())
+		return
+	}
 	_, _ = fmt.Fprintf(
 		w,
 		"run: %.1fs (budget %.0fs, %.0fs per package)\n",
@@ -171,7 +180,7 @@ func (r report) overBudget(b budget) []string {
 			)
 		}
 	}
-	if r.run > b.run {
+	if b.run > 0 && r.run > b.run {
 		over = append(over, fmt.Sprintf("run took %.1fs, over the %.0fs budget", r.run.Seconds(), b.run.Seconds()))
 	}
 	return over

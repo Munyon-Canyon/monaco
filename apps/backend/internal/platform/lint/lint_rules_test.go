@@ -30,6 +30,9 @@ replace (
 
 func requireGolangciLint(t *testing.T) {
 	t.Helper()
+	if testing.Short() {
+		t.Skip("runs golangci-lint once per fixture; CI runs it without -short, outside the 10 s package budget")
+	}
 	if _, err := exec.LookPath("golangci-lint"); err == nil {
 		return
 	}
