@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"testing"
+
+	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
 func TestDocsEventsPrintsTheRegistryCatalog(t *testing.T) {
@@ -24,11 +26,36 @@ func TestDocsEventsPrintsTheRegistryCatalog(t *testing.T) {
 
 func TestDocsRejectsAnUnknownTopic(t *testing.T) {
 	t.Parallel()
-	for _, args := range [][]string{{"docs"}, {"docs", "flows"}, {"docs", "events", "extra"}} {
+	for _, args := range [][]string{{"docs"}, {"docs", "nope"}, {"docs", "events", "extra"}} {
 		var stdout, stderr bytes.Buffer
 		if code := run(commands(), tools(), nil, args, &stdout, &stderr); code != 2 || stdout.Len() != 0 ||
-			stderr.String() != "usage: monacoctl docs events\n" {
+			stderr.String() != "usage: monacoctl docs events|flows\n" {
 			t.Fatalf("%q: code=%d stdout=%q stderr=%q", args, code, stdout.String(), stderr.String())
 		}
+	}
+}
+
+func TestDocsFlowsRendersTheTSV(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, tsv      string
+		code           int
+		stdout, stderr string
+	}{
+		{
+			"valid", flows.Header + "\n" + pingRow + "\n", 0,
+			"| # | Flow | Command / trigger | Events | Consumers |\n| --- | --- | --- | --- | --- |\n" +
+				"| 01 | Ping | `Ping` on `poller:ping` | `system.pinged` | none |\n", "",
+		},
+		{"malformed", flows.Header + "\n01\tPing\n", 1, "", "flows.tsv:2: has 2 columns, want 10\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var stdout, stderr bytes.Buffer
+			code := docsFlows(envWith(tc.tsv).Repo, &stdout, &stderr)
+			if code != tc.code || stdout.String() != tc.stdout || stderr.String() != tc.stderr {
+				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+			}
+		})
 	}
 }

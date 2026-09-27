@@ -78,7 +78,12 @@ type Problem struct {
 	Msg  string
 }
 
-func (p Problem) String() string { return fmt.Sprintf("%s:%d: %s", File, p.Line, p.Msg) }
+func (p Problem) String() string {
+	if p.Line == 0 {
+		return File + ": " + p.Msg
+	}
+	return fmt.Sprintf("%s:%d: %s", File, p.Line, p.Msg)
+}
 
 func problemf(line int, format string, args ...any) Problem {
 	return Problem{Line: line, Msg: fmt.Sprintf(format, args...)}

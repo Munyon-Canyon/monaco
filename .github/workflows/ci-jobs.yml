@@ -61,7 +61,8 @@ jobs:
 
       - run: go vet ./...
 
-      - run: go test -race ./...
+      - name: Race tests and the flows.tsv check
+        run: ../../scripts/test-backend.sh -race
 
   # The ios job compiles mobile-core on Darwin, which covers the Darwin-only code this skips.
   mobile-core:

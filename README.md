@@ -11,14 +11,14 @@ Monaco lets you create a hedge fund with friends by pooling money to buy stocks 
 
 ## Prereqs
 
-macOS, Xcode (iOS 18+ simulator), Docker, Go 1.25+, [just](https://github.com/casey/just), [dotenvx CLI](https://dotenvx.com/docs/install), [Graphite CLI](https://graphite.dev/docs/install-the-cli) (`gt`). SimSlim is optional.
+macOS, Xcode (iOS 18+ simulator), Docker, Go 1.25+, [just](https://github.com/casey/just), [jq](https://jqlang.org), [dotenvx CLI](https://dotenvx.com/docs/install), [Graphite CLI](https://graphite.dev/docs/install-the-cli) (`gt`). SimSlim is optional.
 
 ## Clone setup
 
 1. Clone this repo. `cd` into the clone. Do not hard-code another machine's home path.
 2. Place gitignored `.env.keys` in the repo root if a teammate encrypted `.env.local` for you. Also place that `.env.local`. dotenvx reads both from the clone root.
 3. If you have no `.env.local` yet, copy `.env.example` to `.env.local` and set Privy plus relayer values with `dotenvx set KEY value -f .env.local`.
-4. Run `./scripts/install-dev.sh` (or `just install`). It asks before each install (Go, just, dotenvx, Graphite, optional SimSlim). `just install --check` only reports. Then run `gt auth --token <token>` with the token from https://app.graphite.com/activate, and `gt init --trunk main`.
+4. Run `./scripts/install-dev.sh` (or `just install`). It asks before each install (Go, golangci-lint, jq, just, dotenvx, Graphite, optional SimSlim). `just install --check` only reports. Then run `gt auth --token <token>` with the token from https://app.graphite.com/activate, and `gt init --trunk main`.
 5. `just run` starts the iOS app. The backend is being rebuilt from scratch ([backend platform RFC](docs/architecture/backend-platform.md)), so until its routes return the app has no working backend; mobile UI work uses sample data. Privy is injected via `scripts/ensure-ios-privy-config.sh` and `SIMCTL_CHILD_*`. If SimSlim is missing, the scripts warn and boot a stock simulator.
 
 Do not wrap `just` with `dotenvx run` yourself. Recipes that need secrets re-exec under `scripts/with-dotenv-local.sh`.
