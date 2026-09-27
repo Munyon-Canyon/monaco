@@ -8,8 +8,9 @@ Read these in order to understand the repo:
 
 1. **[Product](product.md)**: what the app does, the words it uses, and the rules for cabals, votes, shares and money in and out.
 2. **[Architecture](architecture.md)**: the parts of the system that stay true through the backend rewrite: outside services, wallets, and how each money flow works.
-3. **[Backend platform](architecture/backend-platform.md)**: the target design for the rewritten backend. When it and `architecture.md` disagree, this file states the target and `architecture.md` states the present.
-4. **[README](../README.md)**: clone, configure and run everything locally.
+3. **[Architecture decisions](architecture/README.md)**: the decision log, one file per topic, with the reasoning and what the code has not caught up with yet.
+4. **[Backend platform](architecture/backend-platform.md)**: the target design for the rewritten backend. When it and `architecture.md` disagree, this file states the target and `architecture.md` states the present.
+5. **[README](../README.md)**: clone, configure and run everything locally.
 
 ## Reference
 
@@ -47,6 +48,6 @@ Read these in order to understand the repo:
 
 ## Conventions for these docs
 
-- Product rules go in `product.md`. What stays true about the system goes in `architecture.md`. Design decisions for the rewrite go in `architecture/`, one file per topic with a dated Log section. How to run things goes in the README or `how-to/`.
+- Product rules go in `product.md`. What stays true about the system goes in `architecture.md`. Why it is built that way, and decisions the code has not caught up with, go in `architecture/`, one file per topic with a dated Log section. How to run things goes in the README or `how-to/`.
 - Link to code by path rather than copying it.
 - When code changes a rule or a flow, update the doc in the same pull request.
