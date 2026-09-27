@@ -86,11 +86,11 @@ func KeepAlive(ctx context.Context) func() {
 	if !ok {
 		return func() {}
 	}
+	ticker := k.clock.NewTicker(keepAliveEvery)
 	stop := make(chan struct{})
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		ticker := k.clock.NewTicker(keepAliveEvery)
 		defer ticker.Stop()
 		for {
 			select {

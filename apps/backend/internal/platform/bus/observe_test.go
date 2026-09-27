@@ -2,7 +2,7 @@ package bus_test
 
 import (
 	"context"
-	"sync/atomic"
+	"fmt"
 	"testing"
 	"time"
 
@@ -38,60 +38,42 @@ func TestDispatch_extractsTheTraceAndAddsTheJoinKeys(t *testing.T) {
 	})
 }
 
-func TestKeepAlive_holdsTheMessageAcrossThreeAckWaits(t *testing.T) {
+func TestKeepAlive_sendsInProgressOnEveryTickUntilStopped(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	var calls atomic.Int32
-	started := make(chan struct{}, 1)
-	release := make(chan struct{})
-	slow := bus.Handle("notify.push", func(ctx context.Context, tx db.Tx, e events.SystemPinged) error {
-		calls.Add(1)
+	var msg *fakeMsg
+	var afterStop int32
+	slow := bus.Handle("notify.push", func(ctx context.Context, _ db.Tx, _ events.SystemPinged) error {
 		stop := bus.KeepAlive(ctx)
-		defer stop()
-		started <- struct{}{}
-		<-release
-		_, err := tx.Queries().Exec(ctx, `INSERT INTO handled (handler, event_id) VALUES ('notify.push', $1)`, e.PingID)
-		return err
+		for tick := int32(1); tick <= 3; tick++ {
+			h.clock.Advance(10 * time.Second)
+			deadline := time.After(waitLong)
+			for msg.inProgress.Load() != tick {
+				select {
+				case <-deadline:
+					return fmt.Errorf("tick %d sent %d InProgress", tick, msg.inProgress.Load())
+				case <-time.After(time.Millisecond):
+				}
+			}
+		}
+		stop()
+		h.clock.Advance(30 * time.Second)
+		afterStop = msg.inProgress.Load()
+		return nil
 	})
 	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{slow}})
-	startRegistry(h.ctx(t), t, reg)
-	released := false
-	releaseOnce := func() {
-		if !released {
-			released = true
-			close(release)
-		}
+	id, payload := h.appendPing(t)
+	msg = &fakeMsg{
+		subject: h.bus.Conn.Subject(events.TypeSystemPinged.Subject()),
+		header:  nats.Header{jetstream.MsgIDHeader: []string{id.String()}},
+		data:    payload, meta: &jetstream.MsgMetadata{NumDelivered: 1},
 	}
-	t.Cleanup(releaseOnce)
 
-	id := h.publishPing(t)
-	await(t, "the handler to start", started)
-	base := h.consumerInfo(t)
-	for range 12 {
-		h.clock.Advance(10 * time.Second)
-		<-time.After(testkit.DefaultAckWait / 4)
+	reg.Dispatch(h.ctx(t), durable, msg)
+	if msg.verdict != "ack" || afterStop != 3 {
+		t.Fatalf("verdict %q, %d InProgress after stop; want ack and 3, one per 10 s tick and none after stop\n%s",
+			msg.verdict, afterStop, h.logs.bytes())
 	}
-	held := h.consumerInfo(t)
-	if held.Delivered.Consumer != base.Delivered.Consumer || held.NumRedelivered != base.NumRedelivered ||
-		held.NumAckPending != 1 {
-		t.Fatalf(
-			"3 AckWaits with KeepAlive: delivered %d -> %d, redelivered %d -> %d, ack pending %d; want no change and 1",
-			base.Delivered.Consumer,
-			held.Delivered.Consumer,
-			base.NumRedelivered,
-			held.NumRedelivered,
-			held.NumAckPending,
-		)
-	}
-	releaseOnce()
-	settle()
-	if n := calls.Load(); n != 1 {
-		t.Fatalf("handler ran %d times, want 1", n)
-	}
-	if got := h.deliveries(t); len(got) != 1 || got[0].eventID != id {
-		t.Fatalf("event_deliveries = %v, want one row for the event", got)
-	}
-	h.assertLinesThenDuplicates(t, map[string]any{"delivery": 1.0, "outcome": "ack"})
 }
 
 func (h *harness) consumerInfo(t *testing.T) *jetstream.ConsumerInfo {

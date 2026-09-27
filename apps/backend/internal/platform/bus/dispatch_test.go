@@ -238,6 +238,8 @@ type fakeMsg struct {
 	delay   time.Duration
 	reason  string
 	ackErr  error
+
+	inProgress atomic.Int32
 }
 
 func fromMsg(msg jetstream.Msg, delivered uint64) *fakeMsg {
@@ -256,7 +258,7 @@ func (m *fakeMsg) Ack() error                                { return m.respond(
 func (m *fakeMsg) DoubleAck(context.Context) error           { return m.respond("ack") }
 func (m *fakeMsg) Nak() error                                { return m.respond("nak") }
 func (m *fakeMsg) NakWithDelay(d time.Duration) error        { m.delay = d; return m.respond("nak") }
-func (m *fakeMsg) InProgress() error                         { return nil }
+func (m *fakeMsg) InProgress() error                         { m.inProgress.Add(1); return nil }
 func (m *fakeMsg) Term() error                               { return m.respond("term") }
 func (m *fakeMsg) TermWithReason(reason string) error        { m.reason = reason; return m.respond("term") }
 
