@@ -16,8 +16,8 @@ func TestRun_unknownOrMissingCommandPrintsUsageAndExits2(t *testing.T) {
 		args []string
 		want string
 	}{
-		{"unknown", []string{"bogus"}, "monacoctl: unknown command \"bogus\"\nusage: monacoctl <command> [args]\n  docs\n  lint\n"},
-		{"missing", nil, "usage: monacoctl <command> [args]\n  docs\n  lint\n"},
+		{"unknown", []string{"bogus"}, "monacoctl: unknown command \"bogus\"\nusage: monacoctl <command> [args]\n  docs\n  flows\n  lint\n"},
+		{"missing", nil, "usage: monacoctl <command> [args]\n  docs\n  flows\n  lint\n"},
 		{"lint without subcommand", []string{"lint"}, "usage: monacoctl <command> [args]\n  comments\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

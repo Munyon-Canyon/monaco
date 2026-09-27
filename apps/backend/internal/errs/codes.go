@@ -96,6 +96,8 @@ func row(code Code) Row {
 	return rows[CodeInternal]
 }
 
+func Name(code Code) string { return row(code).Name }
+
 func KindOf(code Code) Kind { return row(code).Kind }
 
 func Retryable(code Code) bool { return row(code).Retryable }
