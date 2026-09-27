@@ -13,7 +13,7 @@ just run            # Postgres + API + app
 
 Sign in with a test account from the [README](../../README.md#privy-test-logins), for example `test-8081@privy.io` with code `465354`. Use a second account for step 3.
 
-To demo without real USDC, start the API with `DEMO_MODE=1` (see [architecture.md](../architecture.md#run-modes)).
+To demo without real USDC, start the API with `DEMO_MODE=1` (see [legacy/architecture.md](../legacy/architecture.md#run-modes)). `DEMO_MODE` exists in the old backend only.
 
 ## Checklist
 

@@ -23,4 +23,12 @@ if [[ "$(docker inspect -f '{{.Name}}' "$container_id")" != "/monaco-postgres" ]
   exit 1
 fi
 
-echo "ok: connected to local Docker Postgres (project monaco, not hosted Supabase)"
+durability="$(docker compose exec -T postgres psql -U "$psql_user" -d "$psql_db" -tA -c \
+  "SELECT current_setting('fsync') || current_setting('synchronous_commit') || current_setting('full_page_writes');")"
+if [[ "$durability" != "ononon" ]]; then
+  echo "error: dev Postgres durability is off (fsync, synchronous_commit, full_page_writes = $durability)."
+  echo "A crash in this state corrupts the data directory. Check docker-compose.yml and postgresql.auto.conf."
+  exit 1
+fi
+
+echo "ok: connected to local Docker Postgres (project monaco, not hosted Supabase), durability on"

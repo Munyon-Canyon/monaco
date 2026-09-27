@@ -12,7 +12,7 @@ The loop is: join, put money in, decide, watch the pot, decide again. Leaderboar
 
 | Word | Meaning |
 | --- | --- |
-| **Cabal** | A group with one shared pot. In code and the API it is a `group`. |
+| **Cabal** | A group with one shared pot. Go types, tables and new API routes use `cabal`. Only the old backend's `/v1/groups` routes still say group, until the cutover. |
 | **Account balance** | USDC in the user's own wallet, not yet in any cabal. |
 | **Deposit** | Sending USDC into your account balance from outside Monaco. |
 | **Fund** | Moving USDC from your account balance into a cabal's pot. This is what buys you shares. |

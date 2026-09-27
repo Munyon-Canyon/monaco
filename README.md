@@ -11,14 +11,14 @@ Monaco lets you create a hedge fund with friends by pooling money to buy stocks 
 
 ## Prereqs
 
-macOS, Xcode (iOS 18+ simulator), Docker, Go 1.25+, [just](https://github.com/casey/just), [dotenvx CLI](https://dotenvx.com/docs/install). SimSlim is optional.
+macOS, Xcode (iOS 18+ simulator), Docker, Go 1.25+, [just](https://github.com/casey/just), [dotenvx CLI](https://dotenvx.com/docs/install), [Graphite CLI](https://graphite.dev/docs/install-the-cli) (`gt`). SimSlim is optional.
 
 ## Clone setup
 
 1. Clone this repo. `cd` into the clone. Do not hard-code another machine's home path.
 2. Place gitignored `.env.keys` in the repo root if a teammate encrypted `.env.local` for you. Also place that `.env.local`. dotenvx reads both from the clone root.
 3. If you have no `.env.local` yet, copy `.env.example` to `.env.local` and set Privy plus relayer values with `dotenvx set KEY value -f .env.local`.
-4. Run `./scripts/install-dev.sh` (or `just install`). It asks before each install (Go, just, dotenvx, optional SimSlim). `just install --check` only reports.
+4. Run `./scripts/install-dev.sh` (or `just install`). It asks before each install (Go, just, dotenvx, Graphite, optional SimSlim). `just install --check` only reports. Then run `gt auth --token <token>` with the token from https://app.graphite.com/activate, and `gt init --trunk main`.
 5. `just run` starts Postgres, the API, and the iOS app. Privy is injected via `scripts/ensure-ios-privy-config.sh` and `SIMCTL_CHILD_*`. If SimSlim is missing, the scripts warn and boot a stock simulator.
 
 Do not wrap `just` with `dotenvx run` yourself. Recipes that need secrets re-exec under `scripts/with-dotenv-local.sh`.
@@ -434,6 +434,21 @@ Backend tests never touch the app database: they derive `{dbname}_test` from `DA
 
 `.github/workflows/ci.yml` runs on pull requests and pushes to `main`: a Go job (Postgres 16 service container, migrations on a clean database, `go vet`, `go test -race` for `apps/backend`, `packages/domain` and `agents/momentum-bot`), a macOS job (`swift test` in `packages/mobile-core`), a job for the `apps/web` landing page, and an iOS app build and test job on pull requests that touch the app. A nightly run adds UI tests and screenshots. Details: [`docs/how-to/overnight-qa.md`](docs/how-to/overnight-qa.md).
 
+## Pull requests
+
+Changes ship as stacks of small PRs through Graphite, not as one large PR. Each PR builds and passes tests on its own and stays under 1000 changed lines (CI counts code, tests and docs; a human can add the `large-pr` label for a mechanical change). Titles say what the PR changes, with no issue number or commit-type prefix, and the body follows `.github/pull_request_template.md`: TLDR, Why, What changed, Proof, What came up, Reviewer focus. To split a branch that grew too big, use the `distribute-stack-changes` skill or `gt split --by-hunk`.
+
+```bash
+gt sync                       # pull main, drop merged branches
+gt create -m "first step"     # new branch + commit on top of the current branch
+gt create -m "next step"      # stacks on the previous one
+gt modify                     # amend the current branch; restacks the branches above
+gt submit --stack             # push the stack; open or update every PR with the right base
+gt restack                    # rebase the stack after main moves
+```
+
+Merge bottom-up. The rules and why they exist: [Pull requests: small and stacked](docs/architecture/backend-platform.md#pull-requests-small-and-stacked).
+
 ## Deploy
 
 There is no deploy pipeline in this repo yet; the demo runs the API on a laptop. What a host needs:
@@ -449,9 +464,9 @@ API_ADDR=0.0.0.0:8080 MIGRATIONS_DIR=/path/to/supabase/migrations ./bin/monaco-a
 - Required env: `DATABASE_URL`, `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `PRIVY_VERIFICATION_KEY`, `RELAYER_PRIVATE_KEY`. The API exits at boot if any is missing or malformed. Outside local dev also set `SOLANA_RPC_URL` to a paid RPC (unset falls back to the public mainnet endpoint, which has no SLA and is what confirms sweeps) and `APP_ENV` (`staging`, `prod`), which also switches stderr logs to JSON lines for the host's log collector. The Postgres pool is capped at `DB_MAX_OPEN_CONNS` (default 20); keep it under the database role's connection limit. The full list with comments is in `.env.example`. Use separate Privy apps, relayer keys and databases per environment; production values go in `.env.production` (dotenvx-encrypted), never in the image.
 - The relayer address must hold more than 0.001 SOL or the API exits at boot. See [Relayer](#relayer-fee-payer).
 - The API listens on `API_ADDR` (default `127.0.0.1:8080`). `GET /health` probes Postgres and the access-token verifier (critical, `503` when down), Solana RPC, the relayer's SOL balance, poller liveness, Privy and the price API, and reports `ok`, `degraded` or `down`.
-- Metrics are at `GET /metrics` (Prometheus; bearer `METRICS_TOKEN`, or loopback only when unset). Set `SENTRY_DSN` and `ALERT_WEBHOOK_URL` so panics and money alerts reach a person. What is recorded and what to alert on: [`docs/ops-observability.md`](docs/ops-observability.md).
+- Metrics are at `GET /metrics` (Prometheus; bearer `METRICS_TOKEN`, or loopback only when unset). Set `SENTRY_DSN` and `ALERT_WEBHOOK_URL` so panics and money alerts reach a person. What is recorded and what to alert on: [`docs/legacy/ops-observability.md`](docs/legacy/ops-observability.md) (the rewrite replaces this; see the RFC's Deploy and observability section).
 - Set `PUBLIC_API_BASE_URL` to the API's public https URL. It is not a secret. Monaco puts it in the agent connect instructions and in `GET /v1/agent/skill.md`. Unset, it defaults to `http://127.0.0.1:8080`, which only an agent on the same machine can reach.
-- Routes, rate limits, idempotency keys, body and timeout limits: [`docs/api.md`](docs/api.md).
+- Routes, rate limits, idempotency keys, body and timeout limits: [`docs/legacy/api.md`](docs/legacy/api.md) (the rewrite generates this from `api/openapi.yaml`).
 - The deposit sweep, execute-on-pass and redeem recovery pollers run inside the API process. A panic in a tick is recovered, alerted and counted; the loop keeps running. The deposit sweep poller is safe to run in several instances: it leases each deposit (`FOR UPDATE SKIP LOCKED`) and records the sweep signature before broadcasting, so a crash or a second instance never sweeps a deposit twice. The other two pollers have not been tested with more than one instance.
 
 **iOS.** Archive and upload steps are in [`apps/mobile/TestFlight.md`](apps/mobile/TestFlight.md).
