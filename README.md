@@ -432,7 +432,7 @@ Do not copy these skills into another machine's home path. Clone the repo; Curso
 
 Backend tests never touch the app database: they derive `{dbname}_test` from `DATABASE_URL`, create it if missing, and migrate it (`apps/backend/internal/postgres/testdb.go`). Without `just`: export `DATABASE_URL` and run `go test -race -p 1 ./...` from `apps/backend` (`-p 1` because the packages share that one test database).
 
-`.github/workflows/ci.yml` runs on ready pull requests based on `main`: a Go job (Postgres 16 service container, migrations on a clean database, `go vet`, `go test -race` for `apps/backend`, `packages/domain` and `agents/momentum-bot`), a macOS job (`swift test` in `packages/mobile-core`), a job for the `apps/web` landing page, and an iOS app build and test job on pull requests that touch the app, and `ci / ci-ok`, the one required check. A nightly run adds UI tests and screenshots. Details: [`docs/how-to/overnight-qa.md`](docs/how-to/overnight-qa.md).
+`.github/workflows/ci.yml` runs on ready pull requests based on `main`: a Go job (Postgres 16 service container, migrations on a clean database, `go vet`, `go test -race` for `apps/backend`, `packages/domain` and `agents/momentum-bot`), a Linux `swift test` job for `packages/mobile-core`, the `apps/web` landing page tests, and an iOS app build and test job on pull requests that touch the app, and `ci / ci-ok`, the one required check. A nightly run adds UI tests and screenshots. Details: [`docs/how-to/overnight-qa.md`](docs/how-to/overnight-qa.md).
 
 ## Pull requests
 
