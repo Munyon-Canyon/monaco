@@ -439,6 +439,45 @@ func TestRegistry_startCreatesTheDurableWithTheRFCConfig(t *testing.T) {
 	}
 }
 
+func TestRegistry_warnsWhenTheRunningConsumerIsDeleted(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	ctx := h.ctx(t)
+	startRegistry(
+		ctx,
+		t,
+		h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{h.recorder("notify.push")}}),
+	)
+	deadline := time.After(waitLong)
+	for {
+		cons, err := h.bus.JS.Consumer(ctx, h.bus.Events, durable)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cons.CachedInfo().NumWaiting > 0 {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("the consumer never had a pull request waiting")
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+	if err := h.bus.JS.DeleteConsumer(ctx, h.bus.Events, durable); err != nil {
+		t.Fatal(err)
+	}
+	for len(h.lines(t, "bus.consume_error")) == 0 {
+		select {
+		case <-deadline:
+			t.Fatal("no bus.consume_error line after the consumer was deleted")
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+	if line := h.lines(t, "bus.consume_error")[0]; line["consumer"] != durable || line["level"] != "WARN" {
+		t.Fatalf("line = %v, want a WARN naming %s", line, durable)
+	}
+}
+
 func TestRegistry_startFailsWithoutTheStream(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
