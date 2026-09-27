@@ -32,7 +32,7 @@ func tools(environ []string) map[string]tool {
 		"docs":     docs,
 		"flows":    flowsCmd,
 		"gen":      gen,
-		"migrate":  migrateTool(atlas{"../../.bin/atlas", ".atlas-version"}, environ),
+		"migrate":  locatedMigrateTool(environ),
 		"mutation": mutationTool(
 			mutationEnv{
 				moduleDir: ".",
