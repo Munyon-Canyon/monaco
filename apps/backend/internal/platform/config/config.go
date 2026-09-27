@@ -99,6 +99,18 @@ func Load(environ []string) (Config, error) {
 	return cfg, nil
 }
 
+const DefaultTestDBURL = "postgres://monaco:monaco@localhost:54323/monaco?sslmode=disable"
+
+func TestDBURL(environ []string) string {
+	url := DefaultTestDBURL
+	for _, kv := range environ {
+		if k, v, _ := strings.Cut(kv, "="); k == "TEST_DATABASE_URL" && v != "" {
+			url = v
+		}
+	}
+	return url
+}
+
 func (c Config) Redacted() map[string]string {
 	fs := fields()
 	out := make(map[string]string, len(fs))

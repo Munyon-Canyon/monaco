@@ -163,9 +163,18 @@ linters:
         linters: [forbidigo]
       - path: ^internal/testkit/
         linters: [forbidigo]
-      - path: ^internal/testkit/seed\.go$
+      - path: ^internal/testkit/(seed|db)\.go$
         linters: [gochecknoglobals]
-        text: seedFlag
+        text: seedFlag|current
+      - path: ^internal/testkit/db\.go$
+        linters: [gosec]
+        text: G204
+      - path: ^internal/testkit/db\.go$
+        linters: [revive]
+        text: blank-imports
+      - path: ^internal/platform/config/config\.go$
+        linters: [gosec]
+        text: "G101: Potential hardcoded credentials: Password in URL"
       - path: ^internal/testkit/ids\.go$
         linters: [gosec]
         text: G404
