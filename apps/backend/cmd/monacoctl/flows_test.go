@@ -51,10 +51,11 @@ func TestFlowsCheck(t *testing.T) {
 		},
 		{
 			"live registry and errs table", flows.Header + "\n" +
-				strings.Replace(strings.Replace(pingRow, "system.pinged", "system.pinged;system.exploded", 1), "ok;Internal\tbuilt", "ok;Internal;NoSuchCode\tplanned", 1) + "\n",
+				strings.Replace(strings.Replace(pingRow, "system.pinged", "system.pinged;system.exploded", 1), "ok;Internal\tbuilt", "ok;Internal;NoSuchCode;crash:before-commit;crash:after-lunch\tplanned", 1) + "\n",
 			"", 1,
 			"flows.tsv:2: event system.exploded is not in the events registry\n" +
-				"flows.tsv:2: outcome NoSuchCode is not an errs code name\n",
+				"flows.tsv:2: outcome NoSuchCode is not an errs code name\n" +
+				"flows.tsv:2: outcome crash:after-lunch is not a registered faultpoint\n",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

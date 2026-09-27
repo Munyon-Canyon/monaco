@@ -14,6 +14,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
@@ -99,7 +100,7 @@ func liveEnv(repo fs.FS, fresh flows.Fresh) flows.Env {
 		Triggers:    flows.Unchecked,
 		Commands:    flows.Unchecked,
 		Consumers:   flows.Unchecked,
-		Faultpoints: flows.Unchecked,
+		Faultpoints: func(_ flows.Flow, v string) bool { return faultpoint.Known(v) },
 		Fresh:       fresh,
 	}
 }

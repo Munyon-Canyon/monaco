@@ -38,15 +38,18 @@ func (r *Relay) Run(ctx context.Context) {
 	ticker := r.clock.NewTicker(relayPoll)
 	defer ticker.Stop()
 	for {
-		if r.drain(ctx) {
-			continue
-		}
+		r.Once(ctx)
 		select {
 		case <-ctx.Done():
 			return
 		case <-r.wake:
 		case <-ticker.C():
 		}
+	}
+}
+
+func (r *Relay) Once(ctx context.Context) {
+	for r.drain(ctx) {
 	}
 }
 

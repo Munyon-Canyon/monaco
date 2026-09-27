@@ -7,28 +7,24 @@ import (
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-func TestRelay_crashAfterPublishLeavesTheRowForTheRestartedRelay(t *testing.T) {
+func TestRelay_crashAfterPublishConvergesToOneMessageAndOnePublishedRow(t *testing.T) {
 	t.Parallel()
 	h := newRelayHarness(t)
 	h.append(t, 1, "hi")
-	crashed := func() (p any) {
-		defer func() { p = recover() }()
-		ctx, cancel := context.WithTimeout(faultpoint.Armed(h.ctx(t), faultpoint.AfterPublish), waitFor)
-		defer cancel()
-		h.relay.Run(ctx)
+	testkit.CrashAt(t, faultpoint.AfterPublish, func(ctx context.Context) error {
+		h.relay.Once(ctx)
 		return nil
-	}()
-	if crashed != (faultpoint.Crash{Name: faultpoint.AfterPublish}) {
-		t.Fatalf("Run recovered %v, want Crash{after-publish}", crashed)
+	})
+	var published int
+	err := h.pool.QueryRow(t.Context(), `SELECT count(*) FROM events WHERE published_at IS NOT NULL`).Scan(&published)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if n, left := msgs(t, h.bus), h.unpublished(t); n != 1 || left != 1 {
-		t.Fatalf("after the crash the stream holds %d messages and %d rows are unpublished, want 1 and 1", n, left)
-	}
-	h.start(t)
-	h.waitDrained(t)
-	if n := msgs(t, h.bus); n != 1 {
-		t.Fatalf("the restarted relay left %d messages in the stream, want 1 (deduplicated)", n)
+	if n, left := msgs(t, h.bus), h.unpublished(t); n != 1 || published != 1 || left != 0 {
+		t.Fatalf("the stream holds %d messages, %d rows are published and %d unpublished, want 1, 1 and 0",
+			n, published, left)
 	}
 }
