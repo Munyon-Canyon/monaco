@@ -71,7 +71,7 @@ Set `TRUST_PROXY_HEADERS=true` only behind a proxy that overwrites `X-Forwarded-
 - A `5xx` releases the key, so the retry runs again.
 
 Agent intents do not read the header. They take an `idempotencyKey` field in the body with
-the same replay rules, scoped per agent ([agent trading](agent-trading.md)). Without it, a
+the same replay rules, scoped per agent ([agent trading](../agent-trading.md)). Without it, a
 resent intent is a new trade.
 
 **Limits.** JSON bodies are capped at 64 KiB (chat and comments 16 KiB, `PATCH /v1/me` 4 KiB,
@@ -140,7 +140,7 @@ inside the request; give clients the same patience. Browser origins are refused 
 | `POST /v1/groups/{id}/messages` | Post a chat message. |
 | `GET /v1/transactions/{id}` | One swap. `404 transaction not found` for an unknown id and for a club you cannot read alike. |
 | `POST /v1/transactions/{id}/retry` ● | Retry a failed swap. Members only; a non-member gets the same `404` as an unknown id. |
-| `POST /v1/groups/{id}/agents/intents` | An agent submits a trade. Agent key only. See [agent trading](agent-trading.md). |
+| `POST /v1/groups/{id}/agents/intents` | An agent submits a trade. Agent key only. See [agent trading](../agent-trading.md). |
 | `GET /v1/agent` | The agent's cabal, budget, cash and holdings. Agent key only. |
 | `GET /v1/agent/assets` | Tradable stocks with marks. Agent key only. |
 | `POST /v1/agent/intents` | An agent submits a trade; the key names the cabal. Agent key only. |

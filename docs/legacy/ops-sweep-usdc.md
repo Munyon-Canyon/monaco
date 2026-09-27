@@ -30,7 +30,7 @@ scripts/with-dotenv-local.sh go run -C apps/backend ./cmd/sweep-member-to-addres
   --destination <solana_address> --all --dry-run
 ```
 
-The [backend rewrite](architecture/backend-platform.md#repository-layout) moves this command to `monacoctl sweep`, with the same flags.
+The [backend rewrite](../architecture/backend-platform.md#repository-layout) moves this command to `monacoctl sweep`, with the same flags.
 
 Live (no `--dry-run`) prompts twice. Type exactly:
 

@@ -10,7 +10,7 @@ Read these in order to understand the repo:
 2. **[Architecture](architecture.md)**: the parts of the system that stay true through the backend rewrite: outside services, wallets, and how each money flow works.
 3. **[Architecture decisions](architecture/README.md)**: the decision log, one file per topic, with the reasoning and what the code has not caught up with yet.
 4. **[Backend platform](architecture/backend-platform.md)**: the target design for the rewritten backend. When it and `architecture.md` disagree, this file states the target and `architecture.md` states the present.
-5. **[README](../README.md)**: clone, configure and run everything locally.
+5. **[README](https://github.com/lognorman20/monaco/blob/main/README.md)**: clone, configure and run everything locally.
 
 ## Reference
 
@@ -32,7 +32,7 @@ Read these in order to understand the repo:
 | [Debug login](how-to/debug-login.md) | "I can't sign in" |
 | [Overnight QA](how-to/overnight-qa.md) | The nightly test and screenshot run, and what CI runs |
 | [Read iOS app logs](how-to/read-ios-logs.md) | Matching a Console.app line to an API request, crash diagnostics |
-| [TestFlight](../apps/mobile/TestFlight.md) | Shipping an iOS build |
+| [TestFlight](https://github.com/lognorman20/monaco/blob/main/apps/mobile/TestFlight.md) | Shipping an iOS build |
 
 ## Operations
 

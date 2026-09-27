@@ -1,6 +1,6 @@
 # M3 agent handoff — Jupiter buy/sell
 
-**Read this first.** Pick up Milestone 3 after M2 landed on `milestone-2`. Plan of record: [`docs/milestones/m3-jupiter.md`](milestones/m3-jupiter.md). Prior handoff: [`docs/m2-agent-handoff.md`](m2-agent-handoff.md). Repo root: the clone directory (not a personal home path).
+**Read this first.** Pick up Milestone 3 after M2 landed on `milestone-2`. Plan of record: [`docs/milestones/m3-jupiter.md`](milestones/m3-jupiter.md). Prior handoff: `docs/m2-agent-handoff.md`. Repo root: the clone directory (not a personal home path).
 
 ---
 
@@ -179,7 +179,7 @@ dotenvx run -f .env.local -- just run          # postgres + backend + mobile
 
 **Never** `simctl erase`. **Never** destination by device name (`iPhone 17`). Always `$SIMSLIM_UDID`.
 
-See README **SimSlim** section and [`.cursor/skills/ios-simslim-fast-qa/SKILL.md`](../.cursor/skills/ios-simslim-fast-qa/SKILL.md).
+See README **SimSlim** section and [`.cursor/skills/ios-simslim-fast-qa/SKILL.md`](https://github.com/lognorman20/monaco/blob/main/.cursor/skills/ios-simslim-fast-qa/SKILL.md).
 
 ### Health check
 
@@ -197,7 +197,7 @@ Tickets may say `apps/mobile/Features/*` — actual tree is `apps/mobile/Monaco/
 
 ## 5. Orchestration workflow that worked (M2 → copy for M3)
 
-Skill: [`.cursor/skills/worktree-orchestrate/SKILL.md`](../.cursor/skills/worktree-orchestrate/SKILL.md).
+Skill: [`.cursor/skills/worktree-orchestrate/SKILL.md`](https://github.com/lognorman20/monaco/blob/main/.cursor/skills/worktree-orchestrate/SKILL.md).
 
 **Pattern:**
 
@@ -253,7 +253,7 @@ User wanted leftover USDC returned to Phantom when M3 work is done.
 
 1. Owner logs in on iOS sim (gold `$SIMSLIM_UDID`).
 2. DEBUG `ensureServerSweepSigner` in `PrivyAuthService` — on login, `wallet.addSigner(SignerInput(signerId: j2ygtljjgxmn5tzao5vjov1t))` on **every** `embeddedSolanaWallets` entry (sim users can have multiple; `.first` hit wrong wallet).
-3. Server sweep: `./scripts/sweep-wallets.sh --destination <addr> --dry-run` then live without `--dry-run`. `--all` uses Privy wallet list. See [`docs/ops-sweep-wallets.md`](ops-sweep-wallets.md).
+3. Server sweep: `./scripts/sweep-wallets.sh --destination <addr> --dry-run` then live without `--dry-run`. `--all` uses Privy wallet list. See [`docs/ops-sweep-wallets.md`](https://github.com/lognorman20/monaco/blob/242c2609/docs/ops-sweep-wallets.md).
 
 **Ops only:** DEBUG `ensureServerSweepSigner` and `cmd/sweep-member-to-address` are uncommitted migration helpers — **not** M3 product code. New member wallets still get `additional_signers` at **create** (`EnsureMemberWallet`).
 
@@ -285,7 +285,7 @@ curl -s http://127.0.0.1:8080/health
 **Sim smoke (M2 deposit UI still works):**
 
 - UI test: `MonacoUITests/testM2DepositLinkReachable()` — finds `deposit-usdc-link`
-- Skill: [`.cursor/skills/ios-simslim-fast-qa/SKILL.md`](../.cursor/skills/ios-simslim-fast-qa/SKILL.md)
+- Skill: [`.cursor/skills/ios-simslim-fast-qa/SKILL.md`](https://github.com/lognorman20/monaco/blob/main/.cursor/skills/ios-simslim-fast-qa/SKILL.md)
 
 **Live deposit re-check:**
 
@@ -300,7 +300,7 @@ curl -s http://127.0.0.1:8080/health
 
 ## 9. M3 start checklist
 
-1. **Read** [`docs/milestones/m3-jupiter.md`](milestones/m3-jupiter.md) + this file + [`AGENTS.md`](../AGENTS.md).
+1. **Read** [`docs/milestones/m3-jupiter.md`](milestones/m3-jupiter.md) + this file + [`AGENTS.md`](https://github.com/lognorman20/monaco/blob/main/AGENTS.md).
 2. **Confirm M2 gates** on `milestone-2` (§8 commands).
 3. **Create branch:** `git checkout milestone-2 && git checkout -b milestone-3`.
 4. **Simplify first:** Prove **one** treasury Jupiter buy on mainnet with existing swept USDC before boiling the ocean. Use **tiny** USDC notional.
@@ -374,11 +374,11 @@ supabase/migrations/               transactions table
 |----------|------|
 | M3 plan | [`docs/milestones/m3-jupiter.md`](milestones/m3-jupiter.md) |
 | M2 plan | [`docs/milestones/m2-deposits.md`](milestones/m2-deposits.md) |
-| M2 handoff | [`docs/m2-agent-handoff.md`](m2-agent-handoff.md) |
-| Product brief | [`docs/product.md`](product.md) |
-| Clone / run | [`README.md`](../README.md) |
-| Agent prefs | [`AGENTS.md`](../AGENTS.md) |
-| Worktree orchestrate | [`.cursor/skills/worktree-orchestrate/SKILL.md`](../.cursor/skills/worktree-orchestrate/SKILL.md) |
-| iOS sim QA | [`.cursor/skills/ios-simslim-fast-qa/SKILL.md`](../.cursor/skills/ios-simslim-fast-qa/SKILL.md) |
+| M2 handoff | `docs/m2-agent-handoff.md` |
+| Product brief | [`docs/product.md`](../product.md) |
+| Clone / run | [`README.md`](https://github.com/lognorman20/monaco/blob/main/README.md) |
+| Agent prefs | [`AGENTS.md`](https://github.com/lognorman20/monaco/blob/main/AGENTS.md) |
+| Worktree orchestrate | [`.cursor/skills/worktree-orchestrate/SKILL.md`](https://github.com/lognorman20/monaco/blob/main/.cursor/skills/worktree-orchestrate/SKILL.md) |
+| iOS sim QA | [`.cursor/skills/ios-simslim-fast-qa/SKILL.md`](https://github.com/lognorman20/monaco/blob/main/.cursor/skills/ios-simslim-fast-qa/SKILL.md) |
 | Privy signing | `apps/backend/internal/privy/http.go`, `sweep.go` |
 | M2 deposit UI test | `apps/mobile/MonacoUITests/MonacoUITests.swift` (`testM2DepositLinkReachable`) |

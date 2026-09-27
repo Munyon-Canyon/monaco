@@ -1,6 +1,6 @@
 # Architecture
 
-How Monaco is built: the parts, the outside services it uses, and how money moves through them. Read [product.md](product.md) first if you want the rules from the user's side (what a cabal is, how shares and votes work).
+How Monaco is built: the parts, the outside services it uses, and how money moves through them. Read [product.md](../product.md) first if you want the rules from the user's side (what a cabal is, how shares and votes work).
 
 ## In one paragraph
 
@@ -57,7 +57,7 @@ Two rules hold everywhere:
 | --- | --- | --- |
 | `apps/backend` | The API server, background pollers, and ops commands | Go |
 | `apps/mobile` | The iOS app (SwiftUI, iOS 18+) | Swift |
-| `apps/web` | Waitlist landing page for trymonaco.xyz. Static HTML plus two serverless functions. See its [README](../apps/web/README.md). | JS |
+| `apps/web` | Waitlist landing page for trymonaco.xyz. Static HTML plus two serverless functions. See its [README](https://github.com/lognorman20/monaco/blob/main/apps/web/README.md). | JS |
 | `packages/domain` | Pure money math: share units, NAV, votes, P&L, agent budgets. No database, no network. | Go |
 | `packages/mobile-core` | Swift logic the app uses that can be tested on a Mac without a simulator: API client, JSON models, formatting, copy | Swift |
 | `agents/momentum-bot` | Reference trading agent: reads prices, applies one rule, sends a trade | Go |
@@ -98,7 +98,7 @@ Four kinds of wallet appear in this repo. Only the first three are part of the p
 | **Member wallet** | One per user | Privy (the API can sign) | USDC | The user's deposit address. USDC sitting here is their **account balance**. |
 | **Treasury** | One per cabal | Privy (app-owned) | USDC and stock tokens | The cabal's shared pot. Every trade and every cash out signs from here. |
 | **Relayer** | One per environment | The API (`RELAYER_PRIVATE_KEY`) | SOL | Pays fees for every transaction, so the other wallets never need SOL. |
-| Phantom agent wallet | One per developer | A coding agent's Phantom MCP | USDC, SOL | **Not product.** Used to fund test accounts with real USDC during QA. See the [README](../README.md#agent-qa-phantom-mcp). |
+| Phantom agent wallet | One per developer | A coding agent's Phantom MCP | USDC, SOL | **Not product.** Used to fund test accounts with real USDC during QA. See the [README](https://github.com/lognorman20/monaco/blob/main/README.md#agent-qa-phantom-mcp). |
 
 ## Backend
 
@@ -213,7 +213,7 @@ sequenceDiagram
   Poller->>Poller: price the pot, credit share units
 ```
 
-Shares are credited only after the transfer confirms, and only once per transaction signature. Shares are priced at the pot's current value, so a new member never takes earlier members' gains ([the math](product.md#shares-and-pot-value)).
+Shares are credited only after the transfer confirms, and only once per transaction signature. Shares are priced at the pot's current value, so a new member never takes earlier members' gains ([the math](../product.md#shares-and-pot-value)).
 
 ### Propose, vote, trade
 
@@ -259,7 +259,7 @@ sequenceDiagram
   API-->>Agent: fill
 ```
 
-The agent never holds money or keys to the treasury. Its trades land in the treasury next to the members' trades and show in the cabal's activity feed. Over-budget trades are refused, never partly filled. Details: [agent-trading.md](agent-trading.md). Setup: [how-to/connect-an-agent.md](how-to/connect-an-agent.md).
+The agent never holds money or keys to the treasury. Its trades land in the treasury next to the members' trades and show in the cabal's activity feed. Over-budget trades are refused, never partly filled. Details: [agent-trading.md](../agent-trading.md). Setup: [how-to/connect-an-agent.md](../how-to/connect-an-agent.md).
 
 ### Cash out and withdraw
 
@@ -288,8 +288,8 @@ Every screen, every share credit and every cash out values the pot the same way 
 | --- | --- | --- |
 | Normal | default | Real Privy, real Solana mainnet, real USDC |
 | Demo money | `DEMO_MODE=1` | Real sign-in and wallets, but balances, fills and cash outs live in memory. Nothing reaches Solana. Resets on restart. |
-| Fake data | `just faker <profile>` or `just seed demo` | Fills local Postgres with fake cabals, members, trades and history so screens look alive. Fake rows are flagged and every money path skips them. See the [README](../README.md#demo-data-faker-seed). |
-| Flash swaps | `SWAP_PROVIDER=flash` | Treasury swaps go through Definitive Flash instead of Jupiter. Quotes shown in the app still come from Jupiter. See the [README](../README.md#swap-provider-jupiter-or-definitive-flash). |
+| Fake data | `just faker <profile>` or `just seed demo` | Fills local Postgres with fake cabals, members, trades and history so screens look alive. Fake rows are flagged and every money path skips them. See the [README](https://github.com/lognorman20/monaco/blob/242c2609/README.md#demo-data-faker-seed). |
+| Flash swaps | `SWAP_PROVIDER=flash` | Treasury swaps go through Definitive Flash instead of Jupiter. Quotes shown in the app still come from Jupiter. See the [README](https://github.com/lognorman20/monaco/blob/242c2609/README.md#swap-provider-jupiter-or-definitive-flash). |
 
 ## Safety properties
 
@@ -301,12 +301,12 @@ What the design guarantees, and where each guarantee lives:
 | A retried request never repeats a trade | Money routes take an `Idempotency-Key` header; agent trades take an `idempotencyKey` field. See [api.md](api.md). |
 | A new member cannot take existing gains | Shares are priced at the current pot value (`packages/domain/shares.go`). Rounding always favours the pot. |
 | An agent cannot overspend | Its budget is checked and reserved under a row lock before each swap (`domain.ValidateIntent`). It can only sell what it bought. |
-| Non-members see nothing | Every cabal route checks membership. Covered by `multi_user_authz_test.go` ([multi-user-verification.md](multi-user-verification.md)). |
+| Non-members see nothing | Every cabal route checks membership. Covered by `multi_user_authz_test.go` ([multi-user-verification.md](../multi-user-verification.md)). |
 | The phone cannot move money on its own | All signing happens on the server through Privy. |
 
 ## Known limits
 
 - **Custodial.** The API can sign for every treasury. That was accepted for the demo.
 - **One API instance is the tested setup.** The deposit sweep poller is safe with several instances; the execute and cash-out pollers have not been tested that way.
-- **No deploy pipeline yet.** The API is one Go binary; what a host needs is in the [README](../README.md#deploy).
+- **No deploy pipeline yet.** The API is one Go binary; what a host needs is in the [README](https://github.com/lognorman20/monaco/blob/main/README.md#deploy).
 - **Legal.** Tokenized stocks are on-chain trackers, not shares held at a broker. Pooled custody raises broker-dealer, adviser and money-transmitter questions in the US. A public launch needs counsel first.

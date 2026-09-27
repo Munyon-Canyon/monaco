@@ -26,3 +26,5 @@ build/
 supabase/.temp/
 docs/demo/clips/
 docs/demo/out/
+.venv/
+/site/

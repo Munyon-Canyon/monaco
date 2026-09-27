@@ -141,7 +141,7 @@ dotenvx run -f .env.local -- just run           # postgres + backend + mobile
 
 ## 7. Orchestration workflow (M4 → copy for M5)
 
-Skill: [`.cursor/skills/worktree-orchestrate/SKILL.md`](../.cursor/skills/worktree-orchestrate/SKILL.md).
+Skill: [`.cursor/skills/worktree-orchestrate/SKILL.md`](https://github.com/lognorman20/monaco/blob/main/.cursor/skills/worktree-orchestrate/SKILL.md).
 
 1. **Parent = orchestrator** on `milestone-5`. **No nested orchestrator subagents.**
 2. **Implementers:** `best-of-n-runner`, `model: composer-2.5`, worktrees `feat/m5-t*` from `milestone-5`.
@@ -250,7 +250,7 @@ If blocked: comment the issue with exact error (no secrets). Next unit is a rece
 
 ## 10. M5 start checklist
 
-1. **Read** [`docs/milestones/m5-mobile.md`](milestones/m5-mobile.md) + this file + [`AGENTS.md`](../AGENTS.md).
+1. **Read** [`docs/milestones/m5-mobile.md`](milestones/m5-mobile.md) + this file + [`AGENTS.md`](https://github.com/lognorman20/monaco/blob/main/AGENTS.md).
 2. **Confirm gates** on `milestone-5` (§1).
 3. **Branch:** `gt create milestone-5` from `milestone-4` tip.
 4. **Wave 1:** `feat/m5-t1-auth` ‖ `feat/m5-t2-session-gate`.
@@ -280,7 +280,7 @@ If blocked: comment the issue with exact error (no secrets). Next unit is a rece
 
 - **Parent orchestrator** owns queue; implementers in worktrees only.
 - **Subagents:** default `composer-2.5`; light review `cursor-grok-4.5-high`.
-- **Ticket format:** write-ticket skill ([`.cursor/skills/write-ticket/SKILL.md`](../../.cursor/skills/write-ticket/SKILL.md)).
+- **Ticket format:** write-ticket skill ([`.cursor/skills/write-ticket/SKILL.md`](https://github.com/lognorman20/monaco/blob/main/.cursor/skills/write-ticket/SKILL.md)).
 - **App dirs:** `apps/backend`, `apps/mobile` (not `apps/api` / `apps/ios`).
 - **Commits:** only when user asks (or implementer on feat branch).
 - **Privy dashboard:** use attached browser tab during QA.
@@ -294,6 +294,6 @@ If blocked: comment the issue with exact error (no secrets). Next unit is a rece
 | M5 plan | [`docs/milestones/m5-mobile.md`](milestones/m5-mobile.md) |
 | M4 plan | [`docs/milestones/m4-domain.md`](milestones/m4-domain.md) |
 | M4 handoff | [`docs/m4-agent-handoff.md`](m4-agent-handoff.md) |
-| Worktree orchestrate | [`.cursor/skills/worktree-orchestrate/SKILL.md`](../.cursor/skills/worktree-orchestrate/SKILL.md) |
-| iOS sim QA | [`.cursor/skills/ios-simslim-fast-qa/SKILL.md`](../.cursor/skills/ios-simslim-fast-qa/SKILL.md) |
+| Worktree orchestrate | [`.cursor/skills/worktree-orchestrate/SKILL.md`](https://github.com/lognorman20/monaco/blob/main/.cursor/skills/worktree-orchestrate/SKILL.md) |
+| iOS sim QA | [`.cursor/skills/ios-simslim-fast-qa/SKILL.md`](https://github.com/lognorman20/monaco/blob/main/.cursor/skills/ios-simslim-fast-qa/SKILL.md) |
 | Mobile API client | `apps/mobile/API/MonacoAPIClient.swift` |

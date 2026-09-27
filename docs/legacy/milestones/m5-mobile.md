@@ -1,6 +1,6 @@
 # M5. Mobile product UI
 
-**Goal.** Replace scaffold and debug screens with the demo-ready SwiftUI product. Social investing copy throughout. Invite friends, add money, buy Apple. The [`docs/product.md`](../product.md) hackathon demo checklist is the ship bar.
+**Goal.** Replace scaffold and debug screens with the demo-ready SwiftUI product. Social investing copy throughout. Invite friends, add money, buy Apple. The [`docs/product.md`](../../product.md) hackathon demo checklist is the ship bar.
 
 **Depends on.** M4 domain APIs for the seven demo steps. M1 Privy sign-in. M2 deposit sweep. Hide M1 address debug UI on the main flow. Keep explorer links under Settings, Advanced. M1 email and password login may stay on the launch screen for internal testers.
 
