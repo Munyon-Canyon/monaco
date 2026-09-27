@@ -28,13 +28,21 @@ var (
 )
 
 func sensitiveKey(key string) bool {
-	for _, word := range keyWords(key) {
+	words := keyWords(key)
+	if evidenceKey(words) {
+		return false
+	}
+	for _, word := range words {
 		switch strings.TrimSuffix(word, "s") {
 		case "phone", "email", "token", "key", "seed", "signature", "secret", "authorization", "password", "mnemonic":
 			return true
 		}
 	}
 	return false
+}
+
+func evidenceKey(words []string) bool {
+	return strings.Join(words, "_") == "idempotency_key"
 }
 
 func keyWords(key string) []string {
@@ -113,6 +121,9 @@ func redactAny(x any, depth int) slog.Value {
 		return slog.GroupValue(structAttrs(rv, depth)...)
 	case rv.Kind() == reflect.Map && rv.Type().Key().Kind() == reflect.String:
 		return slog.GroupValue(mapAttrs(rv, depth)...)
+	case (rv.Kind() == reflect.Slice && !rv.IsNil() || rv.Kind() == reflect.Array) &&
+		rv.Type().Elem().Kind() != reflect.Uint8:
+		return slog.AnyValue(elements(rv, depth))
 	}
 	return redactFormatted(x)
 }
@@ -156,6 +167,25 @@ func mapAttrs(rv reflect.Value, depth int) []slog.Attr {
 	}
 	slices.SortFunc(out, func(a, b slog.Attr) int { return strings.Compare(a.Key, b.Key) })
 	return out
+}
+
+func elements(rv reflect.Value, depth int) []any {
+	out := make([]any, rv.Len())
+	for i := range out {
+		out[i] = plain(redactDepth(slog.Any("", rv.Index(i).Interface()), depth+1).Value)
+	}
+	return out
+}
+
+func plain(v slog.Value) any {
+	if v.Kind() != slog.KindGroup {
+		return v.Any()
+	}
+	m := map[string]any{}
+	for _, a := range v.Group() {
+		m[a.Key] = plain(a.Value)
+	}
+	return m
 }
 
 func redactAll(attrs []slog.Attr) []slog.Attr {

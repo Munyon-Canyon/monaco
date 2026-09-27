@@ -21,9 +21,13 @@
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","privy":{"authorization":"***","case":"with group then attrs","key":"***"}}
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"kept: wallet address","wallet":"7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"}
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"kept: ordinary values","cabal_id":"c1","have":4000000,"ok":true,"err":"jupiter unavailable"}
-{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"key suffix and token names","user_email":"***","privy_token":"***","api_key":"***","phone_number":"***","userEmail":"***","idempotency_key":"***","tx_signature":"***","__Secret__":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"key suffix and token names","user_email":"***","privy_token":"***","api_key":"***","phone_number":"***","userEmail":"***","API_KEY":"***","tx_signature":"***","__Secret__":"***"}
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"self referencing struct stops at depth","loop":{"Name":"loop","Email":"***","access_token":"***","Nested":{"Name":"loop","Email":"***","access_token":"***","Nested":{"Name":"loop","Email":"***","access_token":"***","Nested":{"Name":"loop","Email":"***","access_token":"***","Nested":{"Name":"loop","Email":"***","access_token":"***","Nested":{"Name":"loop","Email":"***","access_token":"***","Nested":{"Name":"loop","Email":"***","access_token":"***","Nested":{"Name":"loop","Email":"***","access_token":"***","Nested":{"Name":"***","Email":"***","access_token":"***","Nested":"***"}}}}}}}}}}
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"kept: key word inside another word","monkey":"m","keyboard":"k","cabal_id":"c1"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"kept: idempotency key is evidence","idempotency_key":"idem-1","Idempotency-Key":"idem-2","api_key":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"slice of structs","users":[{"Email":"***","Name":"ada"},{"Email":"***","Name":"bob"}]}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"slice of maps","creds":[{"cluster":"mainnet","token":"***"}]}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"array of strings with a jwt","headers":["ok","***"]}
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"opaque authorization scheme","header":"***"}
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"sensitive query params","url":"https://rpc.example/v1?api_key=***&cluster=mainnet&Token=***"}
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"struct with sensitive fields","user":{"Name":"ada","Email":"***","access_token":"***","Nested":{"Name":"bob","Email":"***","access_token":"***","Nested":null}}}
@@ -31,4 +35,4 @@
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"map with sensitive keys","creds":{"cluster":"mainnet","inner":{"api_key":"***"},"token":"***"}}
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"64 byte key as bytes","relayer":"***","raw":"***","short":"bm90IGEga2V5"}
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"64 byte key as base64","blob":"***"}
-{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"kept: nil pointer and slice","user":null,"ids":["a","b"]}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"kept: nil pointer and slice","user":null,"ids":["a","b"],"none":null}
