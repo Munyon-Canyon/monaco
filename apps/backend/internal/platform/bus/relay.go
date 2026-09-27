@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability/boundary"
@@ -76,7 +77,11 @@ func (r *Relay) publish(ctx context.Context, row db.OutboxRow) error {
 	id := ids.EventIDFrom(row.ID)
 	ctx = observability.WithEventID(ctx, id)
 	ctx = observability.Extract(ctx, propagation.MapCarrier{"traceparent": row.TraceParent.String})
-	return r.conn.Publish(ctx, events.Type(row.Type).Subject(), row.Payload, id)
+	if err := r.conn.Publish(ctx, events.Type(row.Type).Subject(), row.Payload, id); err != nil {
+		return err
+	}
+	faultpoint.Hit(ctx, faultpoint.AfterPublish)
+	return nil
 }
 
 func (r *Relay) ExportBacklogGauges() (func() error, error) {

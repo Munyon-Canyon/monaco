@@ -1,0 +1,51 @@
+//go:build faultpoints
+
+package faultpoint_test
+
+import (
+	"testing"
+
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
+)
+
+func TestEnabled_trueUnderTheTag(t *testing.T) {
+	t.Parallel()
+	if !faultpoint.Enabled {
+		t.Fatal("Enabled = false in a -tags faultpoints build")
+	}
+}
+
+func TestHit_armedContextCrashesOnlyThatContextAtThatPoint(t *testing.T) {
+	t.Parallel()
+	armed := faultpoint.Armed(t.Context(), faultpoint.BeforeCommit)
+	if p := recovered(func() { faultpoint.Hit(armed, faultpoint.AfterPublish) }); p != nil {
+		t.Fatalf("Hit at another point panicked with %v", p)
+	}
+	if p := recovered(func() { faultpoint.Hit(t.Context(), faultpoint.BeforeCommit) }); p != nil {
+		t.Fatalf("Hit on an unarmed context panicked with %v", p)
+	}
+	p := recovered(func() { faultpoint.Hit(armed, faultpoint.BeforeCommit) })
+	if p != (faultpoint.Crash{Name: faultpoint.BeforeCommit}) {
+		t.Fatalf("Hit on the armed point recovered %v, want Crash{before-commit}", p)
+	}
+}
+
+func TestConfigure_armsEveryContextInTheProcessUntilCleared(t *testing.T) {
+	t.Cleanup(func() { _ = faultpoint.Configure("") })
+	if err := faultpoint.Configure(string(faultpoint.AfterSign)); err != nil {
+		t.Fatal(err)
+	}
+	p := recovered(func() { faultpoint.Hit(t.Context(), faultpoint.AfterSign) })
+	if p != (faultpoint.Crash{Name: faultpoint.AfterSign}) {
+		t.Fatalf("Hit after Configure recovered %v, want Crash{after-sign}", p)
+	}
+	if p := recovered(func() { faultpoint.Hit(t.Context(), faultpoint.AfterCreate) }); p != nil {
+		t.Fatalf("Hit at another point panicked with %v", p)
+	}
+	if err := faultpoint.Configure(""); err != nil {
+		t.Fatal(err)
+	}
+	if p := recovered(func() { faultpoint.Hit(t.Context(), faultpoint.AfterSign) }); p != nil {
+		t.Fatalf("Hit after Configure(\"\") panicked with %v", p)
+	}
+}

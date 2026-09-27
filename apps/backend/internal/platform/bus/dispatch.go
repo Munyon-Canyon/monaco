@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability/boundary"
@@ -176,6 +177,9 @@ func (r *Registry) run(
 ) (duplicate bool, err error) {
 	defer func() {
 		if p := recover(); p != nil {
+			if faultpoint.IsCrash(p) {
+				panic(p)
+			}
 			err = errs.New(errs.CodePanic, "bus.Dispatch",
 				slog.Any("panic", p), slog.String("stack", string(debug.Stack())))
 		}

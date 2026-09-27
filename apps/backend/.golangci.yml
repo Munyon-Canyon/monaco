@@ -227,6 +227,15 @@ linters:
       # The log message registry is package-level so call sites name a Msg and the registry test can read it.
       - path: ^internal/platform/observability/msgs\.go$
         linters: [gochecknoglobals]
+      # MONACO_FAULTPOINT arms a crash point for the whole process, so the armed name is process state.
+      - path: ^internal/platform/faultpoint/hit_on\.go$
+        linters: [gochecknoglobals]
+      # Crash is a panic value, not a returned error; the name reads at the recover site.
+      - path: ^internal/platform/faultpoint/faultpoint\.go$
+        linters: [errname]
+      # AllocsPerRun counts process-wide mallocs and Configure arms the process, so these must not overlap parallel tests.
+      - path: ^internal/platform/faultpoint/(alloc|hit_on)_test\.go$
+        linters: [paralleltest]
       # The one place that turns a registered Msg into a slog call; call sites pass a Msg, never a string.
       - path: ^internal/platform/observability/internal/emit/
         linters: [sloglint]

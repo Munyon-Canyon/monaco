@@ -15,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability/boundary"
@@ -103,6 +104,7 @@ func (u *UnitOfWork) run(
 	if err := ctx.Err(); err != nil {
 		return nil, withRollback(err, rollback(ctx, pgtx))
 	}
+	faultpoint.Hit(ctx, faultpoint.BeforeCommit)
 	finishCtx, cancel := finishContext(ctx)
 	defer cancel()
 	if err := pgtx.Commit(finishCtx); err != nil {
