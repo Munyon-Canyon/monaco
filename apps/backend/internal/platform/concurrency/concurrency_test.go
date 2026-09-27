@@ -9,11 +9,12 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/concurrency"
 )
 
-var errBoom = errors.New("boom")
+var errBoom = errs.New(errs.CodeInternal, "test.boom")
 
 func feed(items ...int) <-chan int {
 	in := make(chan int, len(items))
@@ -33,8 +34,11 @@ func failOdd(_ context.Context, v int) (int, error) {
 	return v * 2, nil
 }
 
-func drainPool(out <-chan int, errc <-chan error) (vals []int, errs []error) {
+func drainPool(out <-chan int, errc <-chan error, readDelay []time.Duration) (vals []int, errs []error) {
 	for out != nil || errc != nil {
+		if readDelay != nil {
+			<-clock.Real{}.After(readDelay[(len(vals)+len(errs))%len(readDelay)])
+		}
 		select {
 		case v, ok := <-out:
 			if !ok {
@@ -68,7 +72,7 @@ func TestPoolDeliversEveryValueAndErrorThenClosesBothChannels(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		out, errc := concurrency.Pool(t.Context(), 3, feed(1, 2, 3, 4, 5, 6), failOdd)
-		vals, errs := drainPool(out, errc)
+		vals, errs := drainPool(out, errc, nil)
 		slices.Sort(vals)
 		if !slices.Equal(vals, []int{4, 8, 12}) {
 			t.Fatalf("out = %v, want [4 8 12]", vals)
@@ -89,7 +93,7 @@ func TestPoolExitsWhenCancelledWhileBlockedSending(t *testing.T) {
 		out, errc := concurrency.Pool(ctx, 2, in, failOdd)
 		synctest.Wait()
 		cancel()
-		vals, errs := drainPool(out, errc)
+		vals, errs := drainPool(out, errc, nil)
 		if len(vals)+len(errs) != 0 {
 			t.Fatalf("delivered %v %v after cancel with no consumer", vals, errs)
 		}
@@ -125,7 +129,7 @@ func TestPoolBlocksProducersBehindAStalledConsumer(t *testing.T) {
 		if got := completed.Load(); got != 2 {
 			t.Fatalf("fn completed %d times before the consumer read, want 2", got)
 		}
-		vals, errs := drainPool(out, errc)
+		vals, errs := drainPool(out, errc, nil)
 		slices.Sort(vals)
 		if !slices.Equal(vals, []int{4, 8, 12, 16, 20}) {
 			t.Fatalf("out = %v, want [4 8 12 16 20]", vals)
@@ -261,7 +265,7 @@ func TestFanOutCancelsInFlightAndSkipsUnstartedOnFirstError(t *testing.T) {
 func TestFanOutReturnsParentCauseWhenParentIsCancelled(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
-		parentCause := errors.New("parent stopped")
+		parentCause := errs.New(errs.CodeInternal, "test.parent")
 		ctx, cancel := context.WithCancelCause(t.Context())
 		fn := func(ctx context.Context, _ int) (int, error) {
 			<-ctx.Done()

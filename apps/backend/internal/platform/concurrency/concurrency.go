@@ -20,28 +20,12 @@ func Pool[In, Out any](
 	var wg sync.WaitGroup
 	for range workers {
 		wg.Go(func() {
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case v, ok := <-in:
-					if !ok {
-						return
-					}
-					res, err := fn(ctx, v)
-					if err != nil {
-						select {
-						case <-ctx.Done():
-						case errc <- err:
-						}
-						continue
-					}
-					select {
-					case <-ctx.Done():
-					case out <- res:
-					}
+			pump(ctx, in, fn, func(res Out, err error) bool {
+				if err != nil {
+					return send(ctx, errc, err)
 				}
-			}
+				return send(ctx, out, res)
+			})
 		})
 	}
 	go func() {
@@ -59,22 +43,9 @@ func Stage[In, Out any](
 	out := make(chan Result[Out], buf)
 	go func() {
 		defer close(out)
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case v, ok := <-in:
-				if !ok {
-					return
-				}
-				res, err := fn(ctx, v)
-				select {
-				case <-ctx.Done():
-					return
-				case out <- Result[Out]{Val: res, Err: err}:
-				}
-			}
-		}
+		pump(ctx, in, fn, func(res Out, err error) bool {
+			return send(ctx, out, Result[Out]{Val: res, Err: err})
+		})
 	}()
 	return out
 }
@@ -109,9 +80,36 @@ func FanOut[T, R any](
 	}
 	wg.Wait()
 	if err := context.Cause(gctx); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("concurrency.FanOut: %w", err)
 	}
 	return out, nil
+}
+
+func pump[In, Out any](
+	ctx context.Context, in <-chan In, fn func(context.Context, In) (Out, error), emit func(Out, error) bool,
+) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case v, ok := <-in:
+			if !ok {
+				return
+			}
+			if !emit(fn(ctx, v)) {
+				return
+			}
+		}
+	}
+}
+
+func send[T any](ctx context.Context, ch chan<- T, v T) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case ch <- v:
+		return true
+	}
 }
 
 func mustPositive(helper, name string, n int) {
