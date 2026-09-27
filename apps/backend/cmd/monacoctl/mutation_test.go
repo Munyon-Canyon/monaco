@@ -25,15 +25,16 @@ func mutationModule(t *testing.T, allow string, extraPkgs ...string) mutationEnv
 		"kit/x.go":         "package kit\n\nimport \"example.com/m/a\"\n\nfunc K() int { return a.A() }\n",
 		"a/testdata/x.txt": "fixture\n",
 	}
-	list := "MODDIR\tMODDIR/a\texample.com/m/a\t\n" +
+	var list strings.Builder
+	list.WriteString("MODDIR\tMODDIR/a\texample.com/m/a\t\n" +
 		"MODDIR\tMODDIR/b\texample.com/m/b\texample.com/m/a\n" +
 		"MODDIR\tMODDIR/c\texample.com/m/c\t\n" +
-		"MODDIR\tMODDIR/kit\texample.com/m/kit\texample.com/m/a\n"
+		"MODDIR\tMODDIR/kit\texample.com/m/kit\texample.com/m/a\n")
 	for _, p := range extraPkgs {
 		files[p+"/x.go"] = "package " + p + "\n\nimport \"example.com/m/a\"\n\nfunc X() int { return a.A() }\n"
-		list += "MODDIR\tMODDIR/" + p + "\texample.com/m/" + p + "\texample.com/m/a\n"
+		list.WriteString("MODDIR\tMODDIR/" + p + "\texample.com/m/" + p + "\texample.com/m/a\n")
 	}
-	files["golist.txt"] = list
+	files["golist.txt"] = list.String()
 	for name, body := range files {
 		full := filepath.Join(dir, name)
 		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
