@@ -3,7 +3,6 @@ package httpx
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"log/slog"
 	"net/http"
 
@@ -34,11 +33,7 @@ func Problem(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 func logProblem(ctx context.Context, err error, code errs.Code, status int) {
-	var detail []slog.Attr
-	var e *errs.Error
-	for cur := err; errors.As(cur, &e); cur = e.Err {
-		detail = append(detail, e.Attrs...)
-	}
+	detail := errs.Detail(err)
 	if status >= http.StatusInternalServerError {
 		boundary.Error(ctx, observability.HTTPProblem, slog.String("code", string(code)), slog.Int("status", status),
 			slog.Any("err", err), slog.Bool("alert", errs.Alert(code)), slog.GroupAttrs("detail", detail...))

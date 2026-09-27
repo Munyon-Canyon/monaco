@@ -100,3 +100,26 @@ func TestVerdictIsNakExactlyForRetryableCodes(t *testing.T) {
 		}
 	}
 }
+
+func TestDetailCollectsAttrsFromEveryCodedErrorInTheChain(t *testing.T) {
+	t.Parallel()
+	inner := New(CodeDBSchemaBehind, "db.Open", slog.String("have", "0001"), slog.String("want", "0002"))
+	err := fmt.Errorf(
+		"boot: %w",
+		Wrap(fmt.Errorf("open: %w", inner), CodeInternal, "api.run", slog.String("step", "db")),
+	)
+
+	got := Detail(err)
+	want := []string{"step=db", "have=0001", "want=0002"}
+	if len(got) != len(want) {
+		t.Fatalf("Detail = %v, want %v", got, want)
+	}
+	for i, a := range got {
+		if a.String() != want[i] {
+			t.Errorf("Detail[%d] = %s, want %s", i, a, want[i])
+		}
+	}
+	if d := Detail(errors.New("plain")); len(d) != 0 {
+		t.Errorf("Detail of an uncoded error = %v, want none", d)
+	}
+}

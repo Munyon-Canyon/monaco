@@ -88,3 +88,12 @@ func VerdictFor(code Code) Verdict {
 	}
 	return VerdictTerm
 }
+
+func Detail(err error) []slog.Attr {
+	var detail []slog.Attr
+	var e *Error
+	for cur := err; errors.As(cur, &e); cur = e.Err {
+		detail = append(detail, e.Attrs...)
+	}
+	return detail
+}

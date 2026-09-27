@@ -33,7 +33,7 @@ func main() {
 	stop()
 	if err != nil {
 		ctx := observability.WithLogger(context.Background(), observability.NewLogger(config.Config{}, os.Stderr))
-		boundary.Error(ctx, observability.BootStopped, slog.String("service", "worker"), slog.Any("err", err))
+		boundary.Stopped(ctx, "worker", err)
 		os.Exit(1)
 	}
 }

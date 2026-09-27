@@ -19,6 +19,7 @@ import (
 // Defines values for ErrorCode.
 const (
 	ClientClosed        ErrorCode = "client_closed"
+	DbSchemaBehind      ErrorCode = "db_schema_behind"
 	DbUnavailable       ErrorCode = "db_unavailable"
 	DecodeFailed        ErrorCode = "decode_failed"
 	Forbidden           ErrorCode = "forbidden"
@@ -38,6 +39,8 @@ const (
 func (e ErrorCode) Valid() bool {
 	switch e {
 	case ClientClosed:
+		return true
+	case DbSchemaBehind:
 		return true
 	case DbUnavailable:
 		return true

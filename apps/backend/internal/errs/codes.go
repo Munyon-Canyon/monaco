@@ -19,6 +19,7 @@ const (
 	CodeUpstreamUnavailable Code = "upstream_unavailable"
 	CodeUpstreamTimeout     Code = "upstream_timeout"
 	CodeDBUnavailable       Code = "db_unavailable"
+	CodeDBSchemaBehind      Code = "db_schema_behind"
 	CodeDecodeFailed        Code = "decode_failed"
 	CodeInternal            Code = "internal"
 	CodePanic               Code = "panic"
@@ -76,6 +77,10 @@ func table() map[Code]Row {
 		},
 		CodeDBUnavailable: {
 			Name: "DBUnavailable", Kind: KindUnavailable, Retryable: true,
+			Message: "The service is temporarily unavailable. Try again shortly.",
+		},
+		CodeDBSchemaBehind: {
+			Name: "DBSchemaBehind", Kind: KindUnavailable, Alert: true,
 			Message: "The service is temporarily unavailable. Try again shortly.",
 		},
 		CodeDecodeFailed: {

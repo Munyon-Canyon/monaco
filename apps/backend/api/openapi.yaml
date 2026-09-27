@@ -138,6 +138,7 @@ components:
       enum:
         # BEGIN GENERATED ErrorCode
         - client_closed
+        - db_schema_behind
         - db_unavailable
         - decode_failed
         - forbidden
