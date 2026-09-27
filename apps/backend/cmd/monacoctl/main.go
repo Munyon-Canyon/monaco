@@ -25,6 +25,7 @@ func commands() map[string]command {
 func tools(environ []string) map[string]tool {
 	return map[string]tool{
 		"bench":    bench{"go"}.run,
+		"bus":      busTool(environ),
 		"coverage": coverageEnv{moduleDir: ".", goBin: "go", tmpDir: os.TempDir()}.run,
 		"docs":     docs,
 		"flows":    flowsCmd,
