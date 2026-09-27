@@ -80,7 +80,13 @@ func TestRun_refusesToBootWithMalformedOTelEndpoint(t *testing.T) {
 
 func TestRun_reportsAnAddressItCannotListenOn(t *testing.T) {
 	t.Parallel()
-	err := run(t.Context(), io.Discard, bootEnv(t, "MONACO_HTTP_ADDR=256.0.0.1:1"), openapi.Spec, noop.NewMeterProvider())
+	err := run(
+		t.Context(),
+		io.Discard,
+		bootEnv(t, "MONACO_HTTP_ADDR=256.0.0.1:1"),
+		openapi.Spec,
+		noop.NewMeterProvider(),
+	)
 	if err == nil || !strings.Contains(err.Error(), "listen on 256.0.0.1:1") {
 		t.Fatalf("run = %v, want a listen error", err)
 	}

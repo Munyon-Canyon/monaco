@@ -24,10 +24,19 @@ type failingGaugeMeter struct {
 }
 
 func (m failingGaugeMeter) Int64ObservableGauge(
-	name string, opts ...metric.Int64ObservableGaugeOption,
+	name string, _ ...metric.Int64ObservableGaugeOption,
 ) (metric.Int64ObservableGauge, error) {
 	if strings.HasPrefix(name, m.prefix) {
 		return nil, errs.New(errs.CodeInternal, "testkit.FailingGauges")
 	}
-	return m.Meter.Int64ObservableGauge(name, opts...)
+	return noop.Int64ObservableGauge{}, nil
+}
+
+func (m failingGaugeMeter) Int64UpDownCounter(
+	name string, _ ...metric.Int64UpDownCounterOption,
+) (metric.Int64UpDownCounter, error) {
+	if strings.HasPrefix(name, m.prefix) {
+		return nil, errs.New(errs.CodeInternal, "testkit.FailingGauges")
+	}
+	return noop.Int64UpDownCounter{}, nil
 }

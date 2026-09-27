@@ -84,8 +84,9 @@ func TestRun_reportsAnAddressItCannotListenOn(t *testing.T) {
 func TestRun_refusesToBootNamingTheFirstGaugeExportThatFailed(t *testing.T) {
 	t.Parallel()
 	for prefix, op := range map[string]string{
-		"monaco_events_":      "bus.Relay.ExportBacklogGauges",
-		"monaco_bus_account_": "bus.ExportAccountGauges",
+		"monaco_events_":       "bus.Relay.ExportBacklogGauges",
+		"monaco_bus_account_":  "bus.ExportAccountGauges",
+		"monaco_bus_consumer_": "bus.NewRegistry",
 	} {
 		t.Run(op, func(t *testing.T) {
 			t.Parallel()

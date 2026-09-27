@@ -8,7 +8,8 @@ fi
 
 cd "$(dirname "$0")/../apps/backend"
 json="$(mktemp)"
-trap 'rm -f "$json"' EXIT
+cover="$(mktemp)"
+trap 'rm -f "$json" "$cover"' EXIT
 
 # rapid divides checks by 5 and steps by 2 under -short, so this lands on 100 cases and about 20 steps.
 # Env vars, not -rapid.* flags: a test binary that does not link rapid rejects the flags.
@@ -21,7 +22,7 @@ status=0
 start="$(date +%s)"
 summary='select((.Action == "output" and .Test == null and (.Output | test("^(PASS|-test\\.shuffle )") | not))
   or .Action == "build-output") | .Output'
-go test -json -race -shuffle=on -short "$@" ./... | tee "$json" | jq -rj --unbuffered "$summary" || status=1
+go test -json -race -shuffle=on -short -coverpkg=./... -coverprofile="$cover" "$@" ./... | tee "$json" | jq -rj --unbuffered "$summary" || status=1
 
 # -race makes sync.Pool drop items at random, so allocation baselines run in a second pass without it.
 allocs="$(find . -name allocs_test.go -not -path '*/testdata/*' -exec dirname {} \; | sort -u | tr '\n' ' ')"
@@ -46,4 +47,5 @@ if [[ -n "${CI:-}" ]]; then
 fi
 go run ./cmd/monacoctl test-report "${report[@]}" || status=1
 go run ./cmd/monacoctl flows check --from "$json" || status=1
+go run ./cmd/monacoctl coverage --profile "$cover" | tail -n 40 || status=1
 exit "$status"
