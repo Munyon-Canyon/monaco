@@ -41,6 +41,9 @@ jobs:
           working-directory: apps/backend
           args: ./...
 
+      - name: Generated depguard rules are fresh
+        run: go generate ./... && git diff --exit-code .golangci.yml
+
       # Only the nightly warm-cache job on main saves this cache. PRs restore and never save.
       - uses: actions/cache/restore@v4
         with:
