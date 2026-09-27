@@ -47,8 +47,11 @@ jobs:
       - name: No comments in hand-written Go
         run: go run ./cmd/monacoctl lint comments
 
-      - name: Generated depguard rules are fresh
-        run: go generate ./... && git diff --exit-code .golangci.yml
+      - name: Generated files are fresh
+        run: go generate ./... && git diff --exit-code
+
+      - name: OpenAPI spec lint
+        run: docker run --rm -v "$PWD/api:/api:ro" dshanley/vacuum:v0.30.6 lint -b -q -n warn -r /api/.vacuum.yaml /api/openapi.yaml
 
       - name: Install the pinned atlas community build
         run: ../../scripts/install-atlas.sh
