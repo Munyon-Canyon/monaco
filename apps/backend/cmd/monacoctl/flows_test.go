@@ -79,7 +79,7 @@ func TestFlowsRejectsUnknownArguments(t *testing.T) {
 	t.Parallel()
 	for _, args := range [][]string{{"flows"}, {"flows", "lint"}, {"flows", "check", "--from"}, {"flows", "check", "-x", "f"}} {
 		var stdout, stderr bytes.Buffer
-		code := run(commands(), tools(), nil, args, &stdout, &stderr)
+		code := run(commands(), tools(nil), nil, args, &stdout, &stderr)
 		if code != 2 || stderr.String() != flowsUsage+"\n" {
 			t.Fatalf("%q: code=%d stderr=%q", args, code, stderr.String())
 		}
@@ -92,7 +92,7 @@ func TestFlowsCheck_fromAMissingFileFails(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "go-test.json")
 	if code := run(
 		commands(),
-		tools(),
+		tools(nil),
 		nil,
 		[]string{"flows", "check", "--from", missing},
 		&stdout,

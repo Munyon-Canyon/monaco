@@ -62,6 +62,7 @@ Event payloads are Go types in the `events` package, one file per aggregate, wit
 | `type` | `proposal.passed`, `trade.confirmed`, … Also the NATS subject suffix. |
 | `payload` | JSONB. The facts a consumer needs without a lookup: ids, amounts, before/after status. Every payload carries a `v` field. A handler accepts the current and the previous version (default 2026-09-27). Money events carry every amount the ledger holds, so `monacoctl replay --verify` can check the ledger ([data-model.md](data-model.md#double-entry-ledgers)). |
 | `actor_type`, `actor_id` | `user`, `admin`, `system`, `agent`. |
+| `trace_parent` | The W3C `traceparent` of the request that wrote the row, or null when tracing is off. The relay publishes after the request is gone, so the trace reaches the consumer only if the row stores it ([context rule 9](backend-platform.md#context-rules)). |
 | `created_at` | Commit order is not guaranteed by this; see [Ordering](#ordering). |
 | `published_at` | Null until the relay gets a JetStream ack. Partial index `WHERE published_at IS NULL`. |
 
@@ -239,6 +240,7 @@ None at the moment.
 
 ## Log
 
+- 2026-09-27: Added `events.trace_parent` (#464). The relay publishes after the request has ended, so the row carries the W3C `traceparent` to the consumer.
 - 2026-09-27: Decided 2026-09-27: the price poller publishes `price.tick` every 120 s.
 - 2026-09-27: Decided: `identity` consumes `deposit.credited` (flow 5) to set `users.first_deposit_at`; `referrals` no longer consumes it and reads the column through the `identity` query port.
 - 2026-09-27: Round-2 defaults applied (reversible). Relay runs in both `api` and `worker`. `event_deliveries` keyed by handler name with one durable per module; rows deleted after 30 days. Dead letters go to the `DEADLETTER` stream and an `admin`-owned `dead_letters` table. SSE hub gains a `global` key for feed and leaderboard hints. Payloads carry a `v` field. `governance` emits `proposal.executed` and `proposal.execution_blocked`. Flow rows added for `asset.price_moved`, `user.nudge_due` and `referral.attributed`; `treasury` consumes `deposit.credited` and `withdrawal.confirmed`. New `analytics` module. 15 s trade safety-net poller dropped. The swap row is the `trading`-owned `swaps` table. All open questions closed.

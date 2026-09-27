@@ -16,14 +16,14 @@ func TestRun_unknownOrMissingCommandPrintsUsageAndExits2(t *testing.T) {
 		args []string
 		want string
 	}{
-		{"unknown", []string{"bogus"}, "monacoctl: unknown command \"bogus\"\nusage: monacoctl <command> [args]\n  docs\n  flows\n  lint\n"},
-		{"missing", nil, "usage: monacoctl <command> [args]\n  docs\n  flows\n  lint\n"},
+		{"unknown", []string{"bogus"}, "monacoctl: unknown command \"bogus\"\nusage: monacoctl <command> [args]\n  docs\n  flows\n  lint\n  migrate\n"},
+		{"missing", nil, "usage: monacoctl <command> [args]\n  docs\n  flows\n  lint\n  migrate\n"},
 		{"lint without subcommand", []string{"lint"}, "usage: monacoctl <command> [args]\n  comments\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var stdout, stderr bytes.Buffer
-			if code := run(commands(), tools(), nil, tc.args, &stdout, &stderr); code != 2 {
+			if code := run(commands(), tools(nil), nil, tc.args, &stdout, &stderr); code != 2 {
 				t.Fatalf("exit code = %d, want 2", code)
 			}
 			if stderr.String() != tc.want {

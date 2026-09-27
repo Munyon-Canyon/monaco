@@ -21,10 +21,11 @@ func commands() map[string]command {
 	return map[string]command{}
 }
 
-func tools() map[string]tool {
+func tools(environ []string) map[string]tool {
 	return map[string]tool{
-		"docs":  docs,
-		"flows": flowsCmd,
+		"docs":    docs,
+		"flows":   flowsCmd,
+		"migrate": migrateTool(atlas{"../../.bin/atlas", ".atlas-version"}, environ),
 		"lint": func(args []string, stdout, stderr io.Writer) int {
 			return run(nil, map[string]tool{"comments": comments.Run}, nil, args, stdout, stderr)
 		},
@@ -32,7 +33,8 @@ func tools() map[string]tool {
 }
 
 func main() {
-	os.Exit(run(commands(), tools(), os.Environ(), os.Args[1:], os.Stdout, os.Stderr))
+	environ := os.Environ()
+	os.Exit(run(commands(), tools(environ), environ, os.Args[1:], os.Stdout, os.Stderr))
 }
 
 func run(cmds map[string]command, tls map[string]tool, environ, args []string, stdout, stderr io.Writer) int {

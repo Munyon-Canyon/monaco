@@ -167,6 +167,9 @@ linters:
       - path: ^cmd/monacoctl/flows(_test)?\.go$
         linters: [gosec]
         text: "G204|G703"
+      - path: ^cmd/monacoctl/migrate(_test)?\.go$
+        linters: [gosec]
+        text: G204|G702|G306|G304
       - path: ^internal/platform/lint/nogo/
         linters: [nilnil]
       - path: ^internal/platform/clock/
