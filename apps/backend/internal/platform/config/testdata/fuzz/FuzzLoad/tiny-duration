@@ -1,0 +1,2 @@
+go test fuzz v1
+string("MONACO_TIMEOUT_SHUTDOWN=1ns\nMONACO_TIMEOUT_RPC=0.5ms")

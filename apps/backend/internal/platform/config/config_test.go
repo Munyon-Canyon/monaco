@@ -1,0 +1,252 @@
+package config_test
+
+import (
+	"errors"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+)
+
+func required() []string {
+	return []string{
+		"MONACO_ENV=local",
+		"DATABASE_URL=postgres://monaco@localhost:54322/monaco",
+		"NATS_URL=nats://localhost:4222",
+	}
+}
+
+func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
+	t.Parallel()
+	cfg, err := config.Load(append(required(), "PATH=/usr/bin", "HOME=/home/monaco"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := config.Config{
+		Env:    config.EnvLocal,
+		HTTP:   config.HTTP{Addr: ":8080"},
+		Worker: config.Worker{HealthAddr: ":8081"},
+		DB:     config.DB{URL: "postgres://monaco@localhost:54322/monaco", MaxConns: 10},
+		NATS:   config.NATS{URL: "nats://localhost:4222", Name: "monaco"},
+		OTel:   config.OTel{ServiceName: "monaco"},
+		Timeouts: config.Timeouts{
+			RPC:             5 * time.Second,
+			Privy:           10 * time.Second,
+			JupiterQuote:    5 * time.Second,
+			JupiterExecute:  2 * time.Minute,
+			HTTPServerRead:  10 * time.Second,
+			HTTPServerWrite: 30 * time.Second,
+			Shutdown:        10 * time.Second,
+		},
+	}
+	if !reflect.DeepEqual(cfg, want) {
+		t.Fatalf("Load = %+v, want %+v", cfg, want)
+	}
+}
+
+func TestLoadReadsEveryKey(t *testing.T) {
+	t.Parallel()
+	cfg, err := config.Load([]string{
+		"MONACO_ENV=production",
+		"MONACO_HTTP_ADDR=127.0.0.1:9000",
+		"MONACO_WORKER_HEALTH_ADDR=127.0.0.1:9001",
+		"DATABASE_URL=postgres://prod",
+		"MONACO_DB_MAX_CONNS=40",
+		"NATS_URL=nats://prod:4222",
+		"MONACO_NATS_NAME=monaco-api",
+		"OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.example",
+		"OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic abc",
+		"OTEL_SERVICE_NAME=monaco-api",
+		"MONACO_TIMEOUT_RPC=1s",
+		"MONACO_TIMEOUT_PRIVY=2s",
+		"MONACO_TIMEOUT_JUPITER_QUOTE=3s",
+		"MONACO_TIMEOUT_JUPITER_EXECUTE=4m",
+		"MONACO_TIMEOUT_HTTP_SERVER_READ=5s",
+		"MONACO_TIMEOUT_HTTP_SERVER_WRITE=6s",
+		"MONACO_TIMEOUT_SHUTDOWN=7s",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := config.Config{
+		Env:    config.EnvProduction,
+		HTTP:   config.HTTP{Addr: "127.0.0.1:9000"},
+		Worker: config.Worker{HealthAddr: "127.0.0.1:9001"},
+		DB:     config.DB{URL: "postgres://prod", MaxConns: 40},
+		NATS:   config.NATS{URL: "nats://prod:4222", Name: "monaco-api"},
+		OTel: config.OTel{
+			Endpoint:    "https://otlp.example",
+			Headers:     "Authorization=Basic abc",
+			ServiceName: "monaco-api",
+		},
+		Timeouts: config.Timeouts{
+			RPC:             time.Second,
+			Privy:           2 * time.Second,
+			JupiterQuote:    3 * time.Second,
+			JupiterExecute:  4 * time.Minute,
+			HTTPServerRead:  5 * time.Second,
+			HTTPServerWrite: 6 * time.Second,
+			Shutdown:        7 * time.Second,
+		},
+	}
+	if !reflect.DeepEqual(cfg, want) {
+		t.Fatalf("Load = %+v, want %+v", cfg, want)
+	}
+}
+
+func TestLoadAcceptsEveryEnv(t *testing.T) {
+	t.Parallel()
+	for _, env := range []config.Env{config.EnvLocal, config.EnvTest, config.EnvStaging, config.EnvProduction} {
+		cfg, err := config.Load(append(required(), "MONACO_ENV="+string(env)))
+		if err != nil {
+			t.Fatalf("MONACO_ENV=%s: %v", env, err)
+		}
+		if cfg.Env != env {
+			t.Fatalf("Env = %q, want %q", cfg.Env, env)
+		}
+	}
+}
+
+func TestLoadFailures(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		environ []string
+		want    string
+	}{
+		{
+			name:    "nothing set names every required key",
+			environ: []string{"PATH=/usr/bin"},
+			want:    "config.Load: invalid_input: missing MONACO_ENV, DATABASE_URL, NATS_URL",
+		},
+		{
+			name:    "missing database and nats in one error",
+			environ: []string{"MONACO_ENV=local"},
+			want:    "config.Load: invalid_input: missing DATABASE_URL, NATS_URL",
+		},
+		{
+			name:    "empty value counts as missing",
+			environ: append(required(), "DATABASE_URL="),
+			want:    "config.Load: invalid_input: missing DATABASE_URL",
+		},
+		{
+			name:    "unknown MONACO key",
+			environ: append(required(), "MONACO_FOO=1", "MONACO_BAR", "FOO=1"),
+			want:    "config.Load: invalid_input: unknown MONACO_BAR, MONACO_FOO",
+		},
+		{
+			name:    "env outside the four names",
+			environ: append(required(), "MONACO_ENV=prod"),
+			want:    "config.Load: invalid_input: invalid MONACO_ENV (local, test, staging or production)",
+		},
+		{
+			name: "malformed numbers and durations",
+			environ: append(required(),
+				"MONACO_DB_MAX_CONNS=0",
+				"MONACO_TIMEOUT_RPC=5",
+				"MONACO_TIMEOUT_PRIVY=-1s",
+				"MONACO_TIMEOUT_SHUTDOWN=0s",
+			),
+			want: "config.Load: invalid_input: invalid MONACO_DB_MAX_CONNS (positive integer), " +
+				"MONACO_TIMEOUT_RPC (positive duration like 5s), MONACO_TIMEOUT_PRIVY (positive duration like 5s), " +
+				"MONACO_TIMEOUT_SHUTDOWN (positive duration like 5s)",
+		},
+		{
+			name:    "max conns past int32",
+			environ: append(required(), "MONACO_DB_MAX_CONNS=2147483648"),
+			want:    "config.Load: invalid_input: invalid MONACO_DB_MAX_CONNS (positive integer)",
+		},
+		{
+			name:    "every kind of problem at once",
+			environ: []string{"MONACO_ENV=local", "NATS_URL=nats://x", "MONACO_FOO=1", "MONACO_DB_MAX_CONNS=x"},
+			want: "config.Load: invalid_input: missing DATABASE_URL; unknown MONACO_FOO; " +
+				"invalid MONACO_DB_MAX_CONNS (positive integer)",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cfg, err := config.Load(tt.environ)
+			if err == nil {
+				t.Fatalf("Load = %+v, want error %q", cfg, tt.want)
+			}
+			if err.Error() != tt.want {
+				t.Fatalf("error = %q, want %q", err, tt.want)
+			}
+			if target := (*errs.Error)(nil); !errors.As(err, &target) || errs.CodeOf(err) != errs.CodeInvalidInput {
+				t.Fatalf("error %v is not an *errs.Error with code invalid_input", err)
+			}
+			if !reflect.DeepEqual(cfg, config.Config{}) {
+				t.Fatalf("Load returned %+v with an error, want the zero Config", cfg)
+			}
+		})
+	}
+}
+
+func TestLoadErrorNeverEchoesAValue(t *testing.T) {
+	t.Parallel()
+	const secret = "s3cr3t-value"
+	_, err := config.Load([]string{"DATABASE_URL=" + secret, "MONACO_ENV=" + secret, "MONACO_TIMEOUT_RPC=" + secret})
+	if err == nil || strings.Contains(err.Error(), secret) {
+		t.Fatalf("error %v echoes a value", err)
+	}
+}
+
+func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
+	t.Parallel()
+	secrets := map[string]string{
+		"DATABASE_URL":               "postgres://db-secret@host/db",
+		"NATS_URL":                   "nats://token-secret@host:4222",
+		"OTEL_EXPORTER_OTLP_HEADERS": "Authorization=Basic header-secret",
+	}
+	environ := make([]string, 0, 2+len(secrets))
+	environ = append(environ, "MONACO_ENV=staging", "MONACO_TIMEOUT_JUPITER_EXECUTE=90s")
+	for k, v := range secrets {
+		environ = append(environ, k+"="+v)
+	}
+	cfg, err := config.Load(environ)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := cfg.Redacted()
+	tests := []struct {
+		key  string
+		want string
+	}{
+		{"DATABASE_URL", "***"},
+		{"NATS_URL", "***"},
+		{"OTEL_EXPORTER_OTLP_HEADERS", "***"},
+		{"MONACO_ENV", "staging"},
+		{"MONACO_HTTP_ADDR", ":8080"},
+		{"MONACO_WORKER_HEALTH_ADDR", ":8081"},
+		{"MONACO_DB_MAX_CONNS", "10"},
+		{"MONACO_NATS_NAME", "monaco"},
+		{"OTEL_EXPORTER_OTLP_ENDPOINT", ""},
+		{"OTEL_SERVICE_NAME", "monaco"},
+		{"MONACO_TIMEOUT_RPC", "5s"},
+		{"MONACO_TIMEOUT_PRIVY", "10s"},
+		{"MONACO_TIMEOUT_JUPITER_QUOTE", "5s"},
+		{"MONACO_TIMEOUT_JUPITER_EXECUTE", "1m30s"},
+		{"MONACO_TIMEOUT_HTTP_SERVER_READ", "10s"},
+		{"MONACO_TIMEOUT_HTTP_SERVER_WRITE", "30s"},
+		{"MONACO_TIMEOUT_SHUTDOWN", "10s"},
+	}
+	if len(got) != len(tests) {
+		t.Fatalf("Redacted has %d keys, want %d: %v", len(got), len(tests), got)
+	}
+	for _, tt := range tests {
+		if got[tt.key] != tt.want {
+			t.Errorf("Redacted()[%s] = %q, want %q", tt.key, got[tt.key], tt.want)
+		}
+	}
+	for key, shown := range got {
+		for _, secret := range secrets {
+			if strings.Contains(shown, secret) {
+				t.Errorf("Redacted()[%s] leaks a secret", key)
+			}
+		}
+	}
+}
