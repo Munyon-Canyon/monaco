@@ -81,7 +81,7 @@ func (h *harness) ctx(t *testing.T) context.Context {
 
 func (h *harness) registry(t *testing.T, consumers ...bus.Consumer) *bus.Registry {
 	t.Helper()
-	return bus.NewRegistry(h.bus.Conn, h.uow, h.clock, consumers)
+	return bus.NewRegistry(h.bus.Conn, h.uow, h.clock, consumers, bus.WithAckWait(testkit.DefaultAckWait))
 }
 
 func (h *harness) recorder(name string) bus.HandlerSpec {
@@ -225,6 +225,8 @@ type fakeMsg struct {
 	meta    *jetstream.MsgMetadata
 	metaErr error
 	verdict string
+	delay   time.Duration
+	reason  string
 	ackErr  error
 }
 
@@ -243,10 +245,10 @@ func (m *fakeMsg) Reply() string                             { return "" }
 func (m *fakeMsg) Ack() error                                { return m.respond("ack") }
 func (m *fakeMsg) DoubleAck(context.Context) error           { return m.respond("ack") }
 func (m *fakeMsg) Nak() error                                { return m.respond("nak") }
-func (m *fakeMsg) NakWithDelay(time.Duration) error          { return m.respond("nak") }
+func (m *fakeMsg) NakWithDelay(d time.Duration) error        { m.delay = d; return m.respond("nak") }
 func (m *fakeMsg) InProgress() error                         { return nil }
 func (m *fakeMsg) Term() error                               { return m.respond("term") }
-func (m *fakeMsg) TermWithReason(string) error               { return m.respond("term") }
+func (m *fakeMsg) TermWithReason(reason string) error        { m.reason = reason; return m.respond("term") }
 
 func (m *fakeMsg) respond(verdict string) error {
 	m.verdict = verdict

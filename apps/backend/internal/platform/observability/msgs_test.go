@@ -50,6 +50,7 @@ func TestWriteCatalog_printsTheRegistrySortedByName(t *testing.T) {
 		"| `boot.listening` | `service`, `addr` |\n" +
 		"| `boot.stopped` | `service`, `err` |\n" +
 		"| `bus.consume_error` | `consumer`, `err` |\n" +
+		"| `bus.deadletter_dropped` | `consumer`, `msg_id`, `err` |\n" +
 		"| `bus.dispatched` | `consumer`, `handler`, `subject`, `outcome`, `code`, `delivery` |\n" +
 		"| `bus.relay.failed` | `code`, `err` |\n" +
 		"| `bus.relay.idle` |  |\n" +

@@ -39,8 +39,12 @@ var (
 		Name:     "bus.dispatched",
 		Required: []string{"consumer", "handler", "subject", "outcome", "code", "delivery"},
 	}
-	BusConsumeError  = Msg{Name: "bus.consume_error", Required: []string{"consumer", "err"}}
-	BusRespondFailed = Msg{Name: "bus.respond_failed", Required: []string{"consumer", "verdict", "err"}}
+	BusConsumeError      = Msg{Name: "bus.consume_error", Required: []string{"consumer", "err"}}
+	BusRespondFailed     = Msg{Name: "bus.respond_failed", Required: []string{"consumer", "verdict", "err"}}
+	BusDeadLetterDropped = Msg{
+		Name:     "bus.deadletter_dropped",
+		Required: []string{"consumer", "msg_id", "err"},
+	}
 )
 
 var registry = []Msg{
@@ -64,6 +68,7 @@ var registry = []Msg{
 	BusDispatched,
 	BusConsumeError,
 	BusRespondFailed,
+	BusDeadLetterDropped,
 }
 
 func WithLogger(ctx context.Context, l *slog.Logger) context.Context {

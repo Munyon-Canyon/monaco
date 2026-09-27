@@ -7,6 +7,7 @@ import (
 	"runtime/debug"
 
 	"github.com/google/uuid"
+	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -135,30 +136,68 @@ func (r *Registry) run(ctx context.Context, h HandlerSpec, id uuid.UUID, ev even
 	return duplicate, err
 }
 
+type deadLetter struct {
+	Consumer string          `json:"consumer"`
+	Handler  string          `json:"handler,omitempty"`
+	Subject  string          `json:"subject,omitempty"`
+	MsgID    string          `json:"msg_id,omitempty"`
+	Delivery uint64          `json:"delivery,omitempty"`
+	Code     string          `json:"code,omitempty"`
+	Error    string          `json:"error,omitempty"`
+	Headers  nats.Header     `json:"headers,omitempty"`
+	Data     json.RawMessage `json:"data,omitempty"`
+	Advisory json.RawMessage `json:"advisory,omitempty"`
+}
+
 func (r *Registry) respond(ctx context.Context, durable string, msg jetstream.Msg, results []result) {
 	delivery := numDelivered(msg)
 	verdict := OutcomeAck
+	code := ""
 	for _, res := range results {
 		r.log(ctx, durable, msg.Subject(), delivery, res)
 		switch {
 		case res.outcome == OutcomeNak:
-			verdict = OutcomeNak
+			verdict, code = OutcomeNak, res.code
 		case res.outcome == OutcomeTerm && verdict != OutcomeNak:
-			verdict = OutcomeTerm
+			verdict, code = OutcomeTerm, res.code
+			r.deadLetter(ctx, durable, deadLetter{
+				Consumer: durable, Handler: res.handler, Subject: msg.Subject(),
+				MsgID: msg.Headers().Get(jetstream.MsgIDHeader), Delivery: delivery,
+				Code: res.code, Error: res.err.Error(), Headers: msg.Headers(), Data: rawJSON(msg.Data()),
+			}, res.handler)
 		}
 	}
 	var err error
 	switch verdict {
 	case OutcomeNak:
-		err = msg.Nak()
+		err = msg.NakWithDelay(r.consumers[durable].nakDelay(delivery))
 	case OutcomeTerm:
-		err = msg.Term()
+		err = msg.TermWithReason(code)
 	case OutcomeAck, OutcomeDuplicate:
 		err = msg.Ack()
 	}
 	if err != nil {
 		boundary.Error(ctx, observability.BusRespondFailed,
 			slog.String("consumer", durable), slog.String("verdict", string(verdict)), slog.Any("err", err))
+	}
+}
+
+func rawJSON(data []byte) json.RawMessage {
+	if json.Valid(data) {
+		return data
+	}
+	quoted, _ := json.Marshal(string(data))
+	return quoted
+}
+
+func (r *Registry) deadLetter(ctx context.Context, consumer string, letter deadLetter, dedupe string) {
+	body, _ := json.Marshal(letter)
+	subject := r.conn.ns.subject("deadletter." + consumer)
+	msgID := letter.MsgID + "/" + dedupe
+	_, err := r.conn.js.PublishMsg(ctx, &nats.Msg{Subject: subject, Data: body}, jetstream.WithMsgID(msgID))
+	if err != nil {
+		boundary.Error(ctx, observability.BusDeadLetterDropped,
+			slog.String("consumer", consumer), slog.String("msg_id", letter.MsgID), slog.Any("err", err))
 	}
 }
 
