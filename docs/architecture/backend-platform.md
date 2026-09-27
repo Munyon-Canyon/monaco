@@ -93,8 +93,11 @@ internal/modules/governance/
 
 Each table has one module that writes it. Other modules read it through that module's query port or learn of changes through its events.
 
+`users`, `follows` and `cabal_messages` soft delete: a `deleted_at timestamptz` column, and reads filter `deleted_at IS NULL`. Every other table keeps its current delete behavior. Ledger rows are never deleted.
+
 | Table | Owner | Rule |
 | --- | --- | --- |
+| `users` | identity | Soft delete through `deleted_at`. Account deletion sets it with `account_status = deleted`, scrubs PII and keeps ledger rows. `first_deposit_at` is set by identity's consumer of `deposit.credited` on the first deposit of at least $10, with a guarded update `WHERE first_deposit_at IS NULL`. Referrals reads it through identity's query port. |
 | `user_wallets` | identity | One Privy wallet per user. Sign-in reuses the user's existing Privy wallet and never creates a second. |
 | `treasury_wallets` | cabal | One app-owned treasury wallet per cabal. Kept apart from `user_wallets` so identity and cabal never share a table. |
 | `swaps` | trading | The swap state machine. Treasury never writes it. |
@@ -102,6 +105,9 @@ Each table has one module that writes it. Other modules read it through that mod
 | `user_txns` | treasury | Written by treasury's consumers of `deposit.credited` and `withdrawal.confirmed`, and by fund and cash out. |
 | `cabal_pauses` | funding | The one pause record. Trading and treasury read it through funding's query port at check time. There is no `cabals.trading_paused_at`. An ops pause is a pause record with reason `ops`. |
 | `price_points` | market | One table for every price sample, `price_micros bigint`. The poller writes it; price history and charts read it. Pyth is dropped. |
+| `follows` | social | Soft delete through `deleted_at`. A unique partial index on `(follower_id, followee_id) WHERE deleted_at IS NULL` lets a re-follow insert a new row. Follower and following counts are an indexed `count(*)` over live rows; there is no counts table. |
+| `cabal_messages` | social | Chat messages. Soft delete through `deleted_at`. |
+| `chat_seen` | social | One seen watermark per member per cabal. Rows are hard-deleted when a member leaves; they are not user content. |
 | `dead_letters` | admin | One row per dead-lettered message, with resolve state. |
 | `events`, `event_deliveries` | `platform/bus` | Outbox and per-handler dedupe (see [NATS hosting and budget](#nats-hosting-and-budget)). |
 
@@ -557,7 +563,7 @@ Adding a flow is one row plus the tests it names. Deleting a flow deletes the ro
 | 2 | Create cabal | `CreateCabal` | `cabal.created` | feed, analytics |
 | 3 | Join open cabal / request / invite / approve | `JoinCabal`, `RequestAccess`, `InviteMember`, `DecideAccess` | `cabal.member_joined`, `cabal.access_requested`, `cabal.access_decided` | notify, feed, ranking |
 | 4 | Leave cabal | `LeaveCabal` (guarded: no shares, not last with money, not creator with members) | `cabal.member_left` | feed, ranking |
-| 5 | Crypto deposit | Deposit poller sees USDC in member wallet | `deposit.credited` | treasury (`user_txns`), notify, referrals (first deposit), analytics |
+| 5 | Crypto deposit | Deposit poller sees USDC in member wallet | `deposit.credited` | treasury (`user_txns`), notify, identity (`users.first_deposit_at` on the first deposit of at least $10), analytics |
 | 6 | Card deposit | `CreateOnrampSession`, page PATCHes status | `onramp.status_changed` then flow 5 | analytics |
 | 7 | Fund cabal | `FundCabal` → Privy transfer member→treasury → confirm → mint shares at live price | `cabal.fund_submitted`, `cabal.funded` | treasury positions, ranking, feed, notify, referrals, analytics |
 | 8 | Direct transfer to treasury | Treasury watcher in funding; writes the cabal's pause record in the same transaction; a bounce writes no ledger entries | `cabal.external_deposit_detected`, `cabal.external_deposit_bounced` | notify, admin |
@@ -884,7 +890,7 @@ Agents in Claude Code on the web or CI install it with `npm install -g @withgrap
 4. Governance + trading. Flows 8–13, with crash-point tests. Flow 8 lands here because the pause it writes is what trading checks.
 5. Cash out, withdraw, agents. Flows 14–17.
 6. Market, ranking, social, notify, referrals, admin.
-7. Cut iOS over in one release behind the generated client, and delete the old backend in the same wave. The new backend starts on an empty database. Nothing is backfilled from the old backend and nothing syncs between them. A returning user signs in and gets their existing Privy wallet back; every other row starts fresh.
+7. Cut iOS over in one release behind the generated client, and delete the old backend in the same wave. The new backend starts on an empty database. Nothing is backfilled from the old backend and nothing syncs between them. A returning user signs in and gets their existing Privy wallet back; every other row starts fresh. Funds left in the old treasuries are test funds only. They are wiped at cutover: swept to an ops wallet or written off. Members are not cashed out.
 
 ## Alternatives considered
 
@@ -911,6 +917,7 @@ None at the moment.
 
 ## Log
 
+- 2026-09-27: Decided: `users`, `follows` and `cabal_messages` soft delete through `deleted_at`, with a unique partial index for re-follows; no `follow_counts` table, counts are an indexed `count(*)`; no `referral_unlocks` table, `users.first_deposit_at` set by identity as a new flow 5 consumer that replaces referrals there, and read by referrals through identity's query port; `chat_seen` stays in social and is hard-deleted on leave; old treasury funds are test-only and wiped at cutover (Rollout step 7). Added `users`, `follows`, `cabal_messages` and `chat_seen` to the table-ownership table.
 - 2026-09-27: Decided: sign-in is Apple or Google, SMS OTP in dev builds only; cutover starts on an empty database with no backfill or sync, and sign-in reuses existing Privy wallets. Defaults: `money.SignedMicros`; table ownership (trading owns `swaps`, treasury writes ledgers as a consumer, funding owns pause, split wallet tables, one `price_points` table, admin `dead_letters`); ledger checked by `replay --verify`, not rebuilt; relay in api and worker; per-handler `event_deliveries` with 30-day retention; SSE `global` key; `price.tick`, `proposal.executed` (governance also consumes the flow 16 agent events), `asset.price_moved`, `referral.attributed`, `user.nudge_due` and the analytics module in the flows; `after-create` crash point, where a `created` row was never signed or sent because the move to `submitted` commits with the signed bytes before any send, so the sweeper fails it after 2 min; flow 1 referrals consumer only mints the code; no trade safety-net poller; agent budget rechecked at execution; payload `v` field; Ably fake; flow 8 in step 4.
 - 2026-09-27: CI scheduling moved to [ci.md](ci.md): PR CI only on ready PRs based on `main`, one aggregate required check, Linux-first, runner options.
 - 2026-09-27: Logs as evidence: registered message names, join keys on every line, decisions and inaction logged, before/after on money lines, terminal line from `uow.Do`, replay and seeded scenarios.
