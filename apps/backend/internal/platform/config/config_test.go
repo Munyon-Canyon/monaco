@@ -250,3 +250,17 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		}
 	}
 }
+
+func TestTestDBURLDefaultsToTheTestContainer(t *testing.T) {
+	t.Parallel()
+	if got := config.TestDBURL(required()); got != config.DefaultTestDBURL || !strings.Contains(got, ":54323/") {
+		t.Fatalf("TestDBURL without TEST_DATABASE_URL = %q", got)
+	}
+	if got := config.TestDBURL(append(required(), "TEST_DATABASE_URL=")); got != config.DefaultTestDBURL {
+		t.Fatalf("TestDBURL with an empty TEST_DATABASE_URL = %q", got)
+	}
+	custom := "postgres://ci@127.0.0.1:54323/ci"
+	if got := config.TestDBURL(append(required(), "TEST_DATABASE_URL="+custom)); got != custom {
+		t.Fatalf("TestDBURL = %q, want %q", got, custom)
+	}
+}

@@ -9,6 +9,7 @@ require pgregory.net/rapid v1.3.0
 require (
 	github.com/google/uuid v1.6.0
 	github.com/nats-io/nats.go v1.53.1
+	github.com/peterldowns/pgtestdb v0.1.1
 	go.opentelemetry.io/contrib/bridges/otelslog v0.20.1
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.22.0
@@ -25,6 +26,7 @@ require (
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
 )
 
 require (
