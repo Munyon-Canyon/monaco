@@ -1,6 +1,6 @@
 # Backend platform (Go rewrite)
 
-**Status:** Proposed 2026-09-26. Builds on [event-bus.md](event-bus.md), [trade-execution.md](trade-execution.md), [data-model.md](data-model.md). Ignores the current `apps/backend` code on purpose.
+**Status:** Proposed 2026-09-26. Builds on [event-bus.md](event-bus.md), [trade-execution.md](trade-execution.md), [data-model.md](data-model.md). Ignored the legacy `apps/backend` code on purpose; M7 deleted it before the scaffold.
 
 ## Decision
 
@@ -530,7 +530,7 @@ Lint that makes the shared-state leak a compile-time failure:
 
 ## Flows
 
-Each flow is a command, the events it emits, the consumers that react, and every outcome it can end in. The table below is the target state of the rewrite, not the current code. Most of rows 1 to 17 exist in the old backend in some form; 18 to 28 are partly new. Nothing here is "future reference": every row becomes a test before its module's rollout step closes.
+Each flow is a command, the events it emits, the consumers that react, and every outcome it can end in. The table below is the target state of the rewrite, not the current code. Most of rows 1 to 17 existed in the deleted legacy backend in some form; 18 to 28 are partly new. Nothing here is "future reference": every row becomes a test before its module's rollout step closes.
 
 ### `flows.tsv` is the source of truth
 
@@ -884,13 +884,13 @@ Agents in Claude Code on the web or CI install it with `npm install -g @withgrap
 
 ## Rollout
 
-1. Scaffold: module, lint, comment checker and its agent hook, CI, `platform/*`, `errs`, `testkit`, generators, empty `flows.tsv` with `monacoctl flows check` green, `verify-backend` skill with an empty feature map, mkdocs, CHANGELOG. Delete `agents/momentum-bot`. No features. Prove lint fails on a planted violation of each rule, and measure the test budget table on the scaffold to set the CI gate.
+1. Scaffold: module, lint, comment checker and its agent hook, CI, `platform/*`, `errs`, `testkit`, generators, empty `flows.tsv` with `monacoctl flows check` green, `verify-backend` skill with an empty feature map, mkdocs, CHANGELOG. The legacy backend, its migrations, its Go domain package and the reference trading bot are deleted first, as the step's opening stack. No features. Prove lint fails on a planted violation of each rule, and measure the test budget table on the scaffold to set the CI gate.
 2. Events + relay + `bus.Dispatch` with the bus test suite green on embedded NATS.
 3. Identity, cabal, funding (deposits), treasury (fund, shares). E2E flows 1–7.
 4. Governance + trading. Flows 8–13, with crash-point tests. Flow 8 lands here because the pause it writes is what trading checks.
 5. Cash out, withdraw, agents. Flows 14–17.
 6. Market, ranking, social, notify, referrals, admin.
-7. Cut iOS over in one release behind the generated client, and delete the old backend in the same wave. The new backend starts on an empty database. Nothing is backfilled from the old backend and nothing syncs between them. A returning user signs in and gets their existing Privy wallet back; every other row starts fresh. Funds left in the old treasuries are test funds only. They are wiped at cutover: swept to an ops wallet or written off. Members are not cashed out.
+7. Cut iOS over in one release behind the generated client. The old backend was already deleted in step 1 (M7), so the cutover deletes nothing. The new backend starts on an empty database. Nothing is backfilled from the old backend and nothing syncs between them. A returning user signs in and gets their existing Privy wallet back; every other row starts fresh. Funds left in the old treasuries are test funds only. They are wiped at cutover: swept to an ops wallet or written off. Members are not cashed out.
 
 ## Alternatives considered
 
@@ -906,9 +906,10 @@ Agents in Claude Code on the web or CI install it with `npm install -g @withgrap
 
 ## Decided
 
-- **Module path** is `github.com/<org>/monaco/apps/backend`. `platform/` stays inside it. `agents/momentum-bot` is deleted in Rollout step 1, so nothing outside the module needs `platform/`.
+- **Module path** is `github.com/<org>/monaco/apps/backend`. `platform/` stays inside it. The reference trading bot was deleted with the legacy backend in Rollout step 1, so nothing outside the module needs `platform/`.
 - **Migrations use atlas**, versioned SQL files under `migrations/`, `atlas migrate lint` in CI, `atlas migrate apply` in the deploy's pre-deploy step. Nothing migrates at boot; a binary that finds a schema behind its expectation fails boot with `KindInternal`.
-- **`cabal` everywhere**: Go types, tables, event subjects, and the new HTTP routes (`/v1/cabals/{id}`). The old rule "API routes and types stay `groups`" was for the backend being replaced; it ends when the iOS app cuts over to the generated client (Rollout step 7), which renames the routes on both sides in the same release. Legacy `/v1/groups` routes stay only as long as the old backend does.
+- **`cabal` everywhere**: Go types, tables, event subjects, and the new HTTP routes (`/v1/cabals/{id}`). The old rule "API routes and types stay `groups`" was for the backend being replaced; it ends when the iOS app cuts over to the generated client (Rollout step 7), which renames the routes on both sides in the same release. The legacy `/v1/groups` routes went with the old backend in M7.
+- **The legacy backend is deleted in M7**, at the start of Rollout step 1, not at the iOS cutover. Every later ticket builds on an empty module instead of working around the old code. Accepted consequence: the iOS app has no working backend, local or deployed, until the domain milestone rebuilds its routes; mobile UI work uses sample data or the fakes server.
 - **NATS is Synadia Cloud**, free plan first. See [NATS hosting and budget](#nats-hosting-and-budget).
 
 ## Open questions
@@ -917,6 +918,7 @@ None at the moment.
 
 ## Log
 
+- 2026-09-27: Decided: the legacy backend, its migrations, the Go domain package and the reference bot are deleted in M7 (#457), before the scaffold. Rollout step 7 deletes nothing.
 - 2026-09-27: Decided 2026-09-27: every user picks a unique `users.handle` in onboarding, owned by identity and read by referrals through identity's query port. The market price poller ticks every 120 s (flow 18, NATS network budget).
 - 2026-09-27: Decided: `users`, `follows` and `cabal_messages` soft delete through `deleted_at`, with a unique partial index for re-follows; no `follow_counts` table, counts are an indexed `count(*)`; no `referral_unlocks` table, `users.first_deposit_at` set by identity as a new flow 5 consumer that replaces referrals there, and read by referrals through identity's query port; `chat_seen` stays in social and is hard-deleted on leave; old treasury funds are test-only and wiped at cutover (Rollout step 7). Added `users`, `follows`, `cabal_messages` and `chat_seen` to the table-ownership table.
 - 2026-09-27: Decided: sign-in is Apple or Google, SMS OTP in dev builds only; cutover starts on an empty database with no backfill or sync, and sign-in reuses existing Privy wallets. Defaults: `money.SignedMicros`; table ownership (trading owns `swaps`, treasury writes ledgers as a consumer, funding owns pause, split wallet tables, one `price_points` table, admin `dead_letters`); ledger checked by `replay --verify`, not rebuilt; relay in api and worker; per-handler `event_deliveries` with 30-day retention; SSE `global` key; `price.tick`, `proposal.executed` (governance also consumes the flow 16 agent events), `asset.price_moved`, `referral.attributed`, `user.nudge_due` and the analytics module in the flows; `after-create` crash point, where a `created` row was never signed or sent because the move to `submitted` commits with the signed bytes before any send, so the sweeper fails it after 2 min; flow 1 referrals consumer only mints the code; no trade safety-net poller; agent budget rechecked at execution; payload `v` field; Ably fake; flow 8 in step 4.

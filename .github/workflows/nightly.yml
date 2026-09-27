@@ -28,10 +28,6 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 180
     env:
-      # Same database and URL as the go job in ci.yml. Service containers only run on Linux
-      # runners, so the same Postgres 16 is started from Homebrew below instead.
-      DATABASE_URL: postgres://monaco:monaco@localhost:5432/monaco?sslmode=disable
-      MONACO_QA_DATABASE_URL: postgres://monaco:monaco@localhost:5432/monaco?sslmode=disable
       MONACO_QA_IOS_CONFIG: placeholder
       MONACO_QA_SCREENSHOTS: "1"
       MONACO_QA_DERIVED_DATA: ${{ github.workspace }}/../DerivedData
@@ -46,20 +42,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: apps/backend/go.mod
-          cache-dependency-path: |
-            apps/backend/go.sum
-            packages/domain/go.sum
-
-      - name: Start Postgres 16
-        run: |
-          brew install postgresql@16
-          bin="$(brew --prefix postgresql@16)/bin"
-          brew services start postgresql@16
-          for _ in $(seq 1 30); do "$bin/pg_isready" -h localhost -p 5432 -q && break; sleep 1; done
-          "$bin/psql" -h localhost -d postgres -v ON_ERROR_STOP=1 \
-            -c "CREATE ROLE monaco WITH LOGIN SUPERUSER PASSWORD 'monaco'"
-          "$bin/createdb" -h localhost -O monaco monaco
-          "$bin/pg_isready" -d "$DATABASE_URL"
+          cache: false
 
       - name: Cache Swift packages
         uses: actions/cache@v4

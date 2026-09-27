@@ -121,7 +121,7 @@ How it works:
 
 1. **The cabal votes the agent in** with a name and a USDC budget. When the vote passes, Monaco creates an API key for it.
 2. **A member connects the agent.** In the app, **Group → Agent → Copy connect instructions** copies the key, the API address, and a link to the agent's instructions (`/v1/agent/skill.md`).
-3. **The agent runs somewhere else**, usually on [ClawPump](how-to/connect-an-agent.md#connect-a-clawpump-agent): paste the instructions in as a custom skill and add an hourly automation. The same text works as the prompt for any LLM agent, and `agents/momentum-bot` is a small reference agent in Go.
+3. **The agent runs somewhere else**, usually on [ClawPump](how-to/connect-an-agent.md#connect-a-clawpump-agent): paste the instructions in as a custom skill and add an hourly automation. The same text works as the prompt for any LLM agent.
 4. **The agent sends trades to Monaco.** It reads its budget and prices, then sends buy or sell intents with its key.
 5. **Monaco enforces the vote.** A wrong or removed key, a paused agent, or a trade over budget is refused. Valid trades run through the same swap path as a passed vote and land in the cabal's pot and activity feed.
 

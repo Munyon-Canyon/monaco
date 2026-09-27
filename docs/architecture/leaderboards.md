@@ -74,7 +74,7 @@ Runs in the worker every 2 minutes, and on `trade.confirmed`, `cabal.funded` or 
 3. The latest price of every held asset, read once (`market`).
 4. For ranged boards: each cabal's value and each member's share units at the range start (`ranking`'s own snapshots, and `treasury`'s user ledger).
 
-**Compute** in memory with pure functions in `ranking/domain`, ported from today's `packages/domain` (`ComputePotNAV`, `MemberEquity`, `ComputeMemberPnL`, `BuildGroupBoard`, `BuildPeopleBoard`). Amounts are `money.Micros` and returns are integer basis points; multiply-then-divide goes through `math/big` and rounds down ([Money and types](backend-platform.md#money-and-types)). Doing the math in Go rather than SQL keeps one tested implementation of money math.
+**Compute** in memory with pure functions in `ranking/domain`, ported from the legacy Go domain package deleted in M7 (last present at `242c2609`; `ComputePotNAV`, `MemberEquity`, `ComputeMemberPnL`, `BuildGroupBoard`, `BuildPeopleBoard`). Amounts are `money.Micros` and returns are integer basis points; multiply-then-divide goes through `math/big` and rounds down ([Money and types](backend-platform.md#money-and-types)). Doing the math in Go rather than SQL keeps one tested implementation of money math.
 
 Per-cabal valuation runs as the RFC's pipeline (load holdings, value, write snapshot), with buffered stages of 64 and 4 workers per stage from `platform/concurrency` ([Concurrency rules](backend-platform.md#concurrency-rules)). Ranking runs once over all valued cabals after the pipeline drains.
 
