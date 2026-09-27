@@ -12,26 +12,28 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability/boundary"
 )
 
 func main() {
-	if err := run(os.Stderr, os.Environ()); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
+	err := run(ctx, os.Stderr, os.Environ())
+	stop()
+	if err != nil {
 		ctx := observability.WithLogger(context.Background(), observability.NewLogger(config.Config{}, os.Stderr))
 		boundary.Error(ctx, observability.BootStopped, slog.String("service", "worker"), slog.Any("err", err))
 		os.Exit(1)
 	}
 }
 
-func run(stderr io.Writer, environ []string) (err error) {
+func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
 	cfg, err := config.Load(environ)
 	if err != nil {
 		return err
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
-	defer stop()
 	shutdown, err := observability.Setup(ctx, cfg)
 	if err != nil {
 		return err
@@ -48,6 +50,23 @@ func run(stderr io.Writer, environ []string) (err error) {
 		slog.String("service", "worker"),
 		slog.Any("config", cfg.Redacted()),
 	)
+	conn, err := bus.Connect(ctx, cfg.NATS, bus.ProcessWorker)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		drainCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.Timeouts.Shutdown)
+		defer cancel()
+		conn.Close(drainCtx)
+	}()
+	if err := conn.VerifyStreams(ctx); err != nil {
+		return err
+	}
+	unregister, err := conn.ExportAccountGauges()
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, unregister()) }()
 	ln, err := new(net.ListenConfig).Listen(ctx, "tcp", cfg.Worker.HealthAddr)
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", cfg.Worker.HealthAddr, err)

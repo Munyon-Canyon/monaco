@@ -191,3 +191,13 @@ func natsNamespace(testName string) string {
 	}, testName)
 	return fmt.Sprintf("t_%s_%x", safe, suffix)
 }
+
+func StandaloneNATS(t *testing.T) string {
+	t.Helper()
+	s, err := startNATS()
+	if err != nil {
+		t.Fatalf("testkit.StandaloneNATS: %v", err)
+	}
+	t.Cleanup(s.stop)
+	return s.srv.ClientURL()
+}

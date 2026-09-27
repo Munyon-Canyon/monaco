@@ -144,6 +144,14 @@ linters:
           deny:
             - pkg: "github.com/monaco/monaco/apps/backend/internal/platform/observability/boundary"
               desc: "modules return errors; only platform, testkit and cmd log Warn and Error"
+        nats:
+          files:
+            - "$all"
+            - "!**/internal/platform/bus/**"
+            - "!**/internal/testkit/**"
+          deny:
+            - pkg: "github.com/nats-io/nats.go$"
+              desc: "only platform/bus and testkit open NATS connections; use bus.Connect"
         # BEGIN GENERATED depguard
         # END GENERATED depguard
   exclusions:
