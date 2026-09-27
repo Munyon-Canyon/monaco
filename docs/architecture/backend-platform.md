@@ -439,13 +439,13 @@ Also in CI:
 
 Budget: `just test backend` under 60 s on a laptop, and the required PR checks under 6 min wall clock. The budget is a CI gate, not a hope: `testkit` records each package's wall time from `go test -json`, `monacoctl test-report` prints the ten slowest tests, and a package over 10 s or a run over 60 s fails. A test that breaks the budget gets fixed or moved to nightly, never skipped.
 
-Where the 60 s goes. These are estimates until Rollout step 1 measures them on the scaffold and sets the gate from real numbers:
+Where the 60 s goes. The clone row is measured; the rest are estimates until Rollout step 1 measures them on the scaffold and sets the gate from real numbers:
 
 | Cost | Estimate | What keeps it there |
 | --- | --- | --- |
 | Compile and link about 15 test binaries with `pgx` and embedded `nats-server` | 15 to 25 s cold, near zero warm | Go's build cache. Never `-count=1` locally; `just test backend` lets the test cache skip unchanged packages, and `-shuffle=on` still reseeds. |
 | Postgres | 1 to 2 s | One tuned Postgres already running from `just run` (`fsync=off`, `synchronous_commit=off`, `full_page_writes=off`, data on tmpfs). Migrations run once into `monaco_tmpl`. `just test backend` starts it only if it is down. |
-| Template clone per test | 20 to 50 ms each, so about 500 integration tests cost 10 to 25 s serial and about 3 s across 8 cores | `CREATE DATABASE t_<id> TEMPLATE monaco_tmpl` via `peterldowney/pgtestdb`. Per-test rollback isn't an option because the Unit of Work commits and the relay reads committed rows. |
+| Template clone per test | Measured 2026-09-27 on the Compose Postgres 16 (Apple silicon, 26-table 10 MB template): create 27 ms, drop 19 ms, 13 ms per test amortized across 8 sessions with the tuned settings. A `TRUNCATE` of the same 26 tables is 31 ms, so a clone is cheaper than the alternative. With default `fsync`, drop is 169 ms, which is why the settings matter. 500 tests cost about 7 s of database time spread across the parallel run. CI gets its own number from `monacoctl bench db` in Rollout step 1. | `CREATE DATABASE t_<id> TEMPLATE monaco_tmpl` via `peterldowney/pgtestdb`, drop in `t.Cleanup` off the critical path. Per-test rollback isn't an option because the Unit of Work commits and the relay reads committed rows. |
 | Embedded NATS | 50 to 100 ms per package | One `nats-server` per package in `TestMain`, one stream per test. |
 | Property, model-based, fuzz seeds, jitter | 5 to 10 s | `testing.Short()` sets the case counts: 100 property cases, 20 model steps, corpus seeds only, fixed jitter seeds. Nightly runs the long versions. |
 | Acceptance, one per `flows.tsv` outcome, in-process | 5 to 10 s | HTTP against the in-process app, no binaries, no compose. |
