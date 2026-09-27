@@ -65,7 +65,7 @@ func ConsumerSuite(
 	ctx := s.ctx(t)
 	base := chaos.Baseline(ctx, t, s.reg, s.consumer, s.appendEvents(t))
 	want := s.snapshot(t, base)
-	for _, seed := range chaos.Seeds() {
+	for _, seed := range chaos.Seeds(t) {
 		t.Run(fmt.Sprintf("seed=%d", seed), func(t *testing.T) {
 			res := chaos.Dispatch(s.ctx(t), t, seed, s.reg, s.consumer, s.appendEvents(t))
 			if diff := diffSnapshots(want, s.snapshot(t, res)); diff != "" {
