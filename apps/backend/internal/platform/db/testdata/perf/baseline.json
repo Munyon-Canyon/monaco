@@ -1,0 +1,6 @@
+{
+  "allocs": {},
+  "queries": {
+    "uow.Do one insert and one event": 4
+  }
+}

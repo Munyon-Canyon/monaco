@@ -131,3 +131,13 @@ func TestOpen_stopsAtACancelledContext(t *testing.T) {
 	_, err := db.Open(ctx, dbConfig(testkit.DB(t)))
 	codedError(t, err, errs.CodeDBUnavailable)
 }
+
+func TestOpen_aCancelledContextReportsTheCancellation(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	pool, err := db.Open(ctx, config.DB{URL: config.TestDBURL(nil), MaxConns: 1})
+	if pool != nil || !errors.Is(err, context.Canceled) || errs.CodeOf(err) != errs.CodeDBUnavailable {
+		t.Fatalf("Open = %v, %v, want db_unavailable wrapping context.Canceled", pool, err)
+	}
+}

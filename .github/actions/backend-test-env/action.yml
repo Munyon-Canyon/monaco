@@ -1,0 +1,28 @@
+name: Backend test environment
+description: >-
+  Everything apps/backend tests need on a fresh runner: Go from go.mod, the Go cache nightly saved,
+  the pinned atlas that builds the testkit template database, and the tmpfs test Postgres.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: apps/backend/go.mod
+        cache: false
+
+    # Only the nightly warm-cache job on main saves this cache. PRs restore and never save.
+    - uses: actions/cache/restore@v4
+      with:
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/go-build
+        key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
+        restore-keys: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
+
+    - name: Install the pinned atlas community build
+      shell: bash
+      run: scripts/install-atlas.sh
+
+    - name: Start the tmpfs test Postgres that testkit.DB clones from
+      shell: bash
+      run: docker compose --profile test up -d --wait postgres-test

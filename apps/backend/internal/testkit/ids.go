@@ -20,10 +20,16 @@ type IDs struct {
 var _ ids.Generator = (*IDs)(nil)
 
 func NewIDs(seed uint64) *IDs {
-	return &IDs{
-		rng:  rand.New(rand.NewPCG(seed, 0)),
-		next: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
-	}
+	g := &IDs{}
+	g.Reseed(seed)
+	return g
+}
+
+func (g *IDs) Reseed(seed uint64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.rng = rand.New(rand.NewPCG(seed, 0))
+	g.next = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 }
 
 func (g *IDs) NewV7() uuid.UUID {

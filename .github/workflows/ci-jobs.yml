@@ -26,10 +26,7 @@ jobs:
         working-directory: .
         run: find . -path '*/testdata/*' -exec touch -t 200001010000 {} +
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: apps/backend/go.mod
-          cache: false
+      - uses: ./.github/actions/backend-test-env
 
       - name: Read the pinned golangci-lint version
         id: golangci
@@ -55,9 +52,6 @@ jobs:
 
       - name: OpenAPI spec lint
         run: docker run --rm -v "$PWD/api:/api:ro" dshanley/vacuum:v0.30.6 lint -b -q -n warn -r /api/.vacuum.yaml /api/openapi.yaml
-
-      - name: Install the pinned atlas community build
-        run: ../../scripts/install-atlas.sh
 
       - name: Lint the latest migration
         run: go run ./cmd/monacoctl migrate lint
@@ -90,23 +84,22 @@ jobs:
           git show FETCH_HEAD:apps/backend/api/openapi.yaml > "$RUNNER_TEMP/base-openapi.yaml"
           ../../scripts/ci/oasdiff-breaking.sh "$RUNNER_TEMP/base-openapi.yaml" api/openapi.yaml
 
-      # Only the nightly warm-cache job on main saves this cache. PRs restore and never save.
-      - uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-          key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
-          restore-keys: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
-
       - run: go vet ./...
 
-      - name: Start the tmpfs test Postgres that testkit.DB clones from
-        working-directory: .
-        run: docker compose --profile test up -d --wait postgres-test
+      - name: Race tests, the time budget and the flows.tsv check
+        run: ../../scripts/test-backend.sh
 
-      - name: Race tests and the flows.tsv check
-        run: ../../scripts/test-backend.sh -race
+      - name: Tests that -short skips because they build or run other binaries
+        run: go test -race ./internal/platform/lint/... ./internal/testkit/... ./cmd/monacoctl
+
+  # Mutants on the lines this change touches (gremlins --diff), one job per changed package, so the
+  # wall time is the slowest package, not the sum. The nightly mutates every line of every package.
+  mutation:
+    needs: plan
+    if: needs.plan.outputs.backend-go == 'true'
+    uses: ./.github/workflows/mutation.yml
+    with:
+      timeout-minutes: 10
 
   mobile-core:
     needs: plan
@@ -122,6 +115,7 @@ jobs:
       pull-requests: read
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
+      backend-go: ${{ steps.filter.outputs.backend-go }}
       mobile-core: ${{ steps.filter.outputs.mobile-core }}
       ios: ${{ steps.filter.outputs.ios }}
     steps:
@@ -140,8 +134,14 @@ jobs:
               - 'scripts/install-atlas.sh'
               - 'scripts/install-sqlc.sh'
               - 'scripts/gen-docs.sh'
+              - '.github/actions/backend-test-env/**'
               - 'docs/reference/**'
               - '.github/workflows/ci*.yml'
+              - '.github/workflows/mutation.yml'
+            backend-go:
+              - 'apps/backend/**/*.go'
+              - 'apps/backend/go.mod'
+              - 'apps/backend/mutants.allow'
             mobile-core:
               - 'packages/mobile-core/**'
               - 'apps/backend/api/openapi.yaml'
@@ -178,11 +178,11 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [plan, backend, mobile-core, ios]
+    needs: [plan, backend, mutation, mobile-core, ios]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - uses: re-actors/alls-green@release/v1
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: backend, mobile-core, ios
+          allowed-skips: backend, mutation, mobile-core, ios

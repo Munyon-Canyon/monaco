@@ -37,6 +37,7 @@ func copyBackendPackages(t *testing.T, root, dir string, pkgs ...string) {
 	t.Helper()
 	backend := filepath.Join(root, "apps/backend")
 	args := append([]string{"list", "-deps", "-f", `{{if .Module}}{{range .GoFiles}}{{$.Dir}}/{{.}}
+{{end}}{{range .EmbedFiles}}{{$.Dir}}/{{.}}
 {{end}}{{end}}`}, pkgs...)
 	cmd := exec.Command("go", args...)
 	cmd.Dir = backend

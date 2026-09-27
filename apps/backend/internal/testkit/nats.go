@@ -212,3 +212,40 @@ func StandaloneNATS(t *testing.T) string {
 	t.Cleanup(s.stop)
 	return s.srv.ClientURL()
 }
+
+func NATSSubscriptions(t *testing.T, subject string) int {
+	t.Helper()
+	s := natsCurrent.Load()
+	if s == nil {
+		t.Fatal("testkit.NATSSubscriptions: call testkit.NATSServer(m) from this package's TestMain")
+	}
+	subsz, err := s.srv.Subsz(&natsserver.SubszOptions{Subscriptions: true, Limit: 1 << 16})
+	if err != nil {
+		t.Fatalf("testkit.NATSSubscriptions: %v", err)
+	}
+	n := 0
+	for _, sub := range subsz.Subs {
+		if sub.Subject == subject {
+			n++
+		}
+	}
+	return n
+}
+
+func StandaloneNATSWithStream(t *testing.T, name string, subjects ...string) string {
+	t.Helper()
+	url := StandaloneNATS(t)
+	nc, err := nats.Connect(url, nats.Name("monaco-testkit"))
+	if err != nil {
+		t.Fatalf("testkit.StandaloneNATSWithStream: %v", err)
+	}
+	defer nc.Close()
+	js, err := jetstream.New(nc)
+	if err != nil {
+		t.Fatalf("testkit.StandaloneNATSWithStream: %v", err)
+	}
+	if _, err := js.CreateStream(t.Context(), jetstream.StreamConfig{Name: name, Subjects: subjects}); err != nil {
+		t.Fatalf("testkit.StandaloneNATSWithStream: %v", err)
+	}
+	return url
+}

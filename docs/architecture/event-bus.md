@@ -130,9 +130,9 @@ Several worker processes share one durable consumer name, so JetStream hands eac
 Every error it sees is an `errs.Error`, and the code table decides the verdict: `Retryable` naks, anything else terms ([Errors](backend-platform.md#surfacing)). Panics are recovered here and become `KindInternal`.
 
 1. Decode the payload into the typed event for the subject. A payload that does not decode is terminated and alerted: redelivering it will never help.
-2. Read the event id from the `Nats-Msg-Id` header the relay set. In one DB transaction: `INSERT INTO event_deliveries (handler, event_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, keyed by the handler name, not the durable (default 2026-09-27). If no row was inserted, this handler already handled the event: commit, `msg.Ack()`, return. Otherwise run the handler's DB writes in the same transaction and commit. The row also records the outcome's `errs` code. This is what makes redelivery harmless. Two handlers in one module dedupe independently. A daily job deletes rows older than 30 days, which outlives the 7-day stream and the replay window (default 2026-09-27).
+2. Read the event id from the `Nats-Msg-Id` header the relay set. In one DB transaction: `INSERT INTO event_deliveries (handler, event_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, keyed by the handler name, not the durable (default 2026-09-27). If no row was inserted, this handler already handled the event: commit, `msg.Ack()`, return. Otherwise run the handler's DB writes in the same transaction and commit. The row records `code = "ok"`; a nak or a term writes no row, so a retry runs the handler again and a terminated event can be replayed (decided 2026-09-27, #472). This is what makes redelivery harmless. Two handlers in one module dedupe independently. A daily job deletes rows older than 30 days, which outlives the 7-day stream and the replay window (default 2026-09-27).
 3. Handler success → `msg.Ack()`.
-4. Retryable code (APNs 5xx, Jupiter timeout, DB serialization failure) → `msg.NakWithDelay(d)`, with `d` from the handler's own schedule keyed on `msg.Metadata().NumDelivered` (1 s, 5 s, 30 s, 2 min, …), or from `Retry-After` when the service sent one. Plain `msg.Nak()` is avoided because it redelivers immediately. A nak does not use `BackOff`, which only covers deliveries that were never acked or naked.
+4. Retryable code (APNs 5xx, Jupiter timeout, DB serialization failure) → `msg.NakWithDelay(d)`, with `d` from the handler's own schedule keyed on `msg.Metadata().NumDelivered` (1 s, 5 s, 30 s, 2 min, …), or from `Retry-After` when the service sent one (the `Retry-After` override is not implemented yet; the schedule alone decides, #472). Plain `msg.Nak()` is avoided because it redelivers immediately. A nak does not use `BackOff`, which only covers deliveries that were never acked or naked.
 5. Long work (a swap waiting on Jupiter `/execute` for up to 2 minutes) calls `msg.InProgress()` every 10 s, which resets the ack deadline, so the message is not redelivered mid-trade.
 6. Any other code → `msg.TermWithReason(...)`, publish the message and its error to `DEADLETTER`, and alert on `KindInternal`.
 
@@ -240,6 +240,7 @@ None at the moment.
 
 ## Log
 
+- 2026-09-27: `bus.Dispatch` landed (#472). The `event_deliveries` row records `code = "ok"` and a nak or term writes no row. The `Retry-After` nak override is not implemented; the schedule alone decides. Recovered panics are not re-raised in tests, per backend-platform.md Surfacing.
 - 2026-09-27: Added `events.trace_parent` (#464). The relay publishes after the request has ended, so the row carries the W3C `traceparent` to the consumer.
 - 2026-09-27: Decided 2026-09-27: the price poller publishes `price.tick` every 120 s.
 - 2026-09-27: Decided: `identity` consumes `deposit.credited` (flow 5) to set `users.first_deposit_at`; `referrals` no longer consumes it and reads the column through the `identity` query port.

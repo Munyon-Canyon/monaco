@@ -2,13 +2,16 @@ package main
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
+	"testing/iotest"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
@@ -48,10 +51,11 @@ func TestFlowsCheck(t *testing.T) {
 		},
 		{
 			"live registry and errs table", flows.Header + "\n" +
-				strings.Replace(strings.Replace(pingRow, "system.pinged", "system.pinged;system.exploded", 1), "ok;Internal\tbuilt", "ok;Internal;NoSuchCode\tplanned", 1) + "\n",
+				strings.Replace(strings.Replace(pingRow, "system.pinged", "system.pinged;system.exploded", 1), "ok;Internal\tbuilt", "ok;Internal;NoSuchCode;crash:before-commit;crash:after-lunch\tplanned", 1) + "\n",
 			"", 1,
 			"flows.tsv:2: event system.exploded is not in the events registry\n" +
-				"flows.tsv:2: outcome NoSuchCode is not an errs code name\n",
+				"flows.tsv:2: outcome NoSuchCode is not an errs code name\n" +
+				"flows.tsv:2: outcome crash:after-lunch is not a registered faultpoint\n",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -156,5 +160,23 @@ func TestGitFresh_comparesTheStampWithTheModulesNewestCommit(t *testing.T) {
 	}
 	if _, err := fresh("treasury", strings.Repeat("0", 40)); err == nil {
 		t.Error("fresh(unknown sha) err = nil, want an error")
+	}
+}
+
+func TestGitFresh_failsWhenGitCannotRun(t *testing.T) {
+	t.Parallel()
+	fresh, err := gitFresh(t.Context(), filepath.Join(t.TempDir(), "missing"))("treasury", "abc")
+	if fresh || errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("gitFresh = %v, %v; want false and an internal error", fresh, err)
+	}
+}
+
+func TestFlowsCheck_failsWhenTheTestResultsCannotBeRead(t *testing.T) {
+	t.Parallel()
+	var stderr bytes.Buffer
+	code := flowsCheck(envWith(flows.Header+"\n"), iotest.ErrReader(io.ErrUnexpectedEOF), &stderr)
+	if code != 1 || !strings.HasPrefix(stderr.String(), "monacoctl flows check: ") ||
+		!strings.Contains(stderr.String(), io.ErrUnexpectedEOF.Error()) {
+		t.Fatalf("code=%d stderr=%q", code, stderr.String())
 	}
 }

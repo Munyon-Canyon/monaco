@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 func TestMain(m *testing.M) {
+	testkit.ChildMain(main)
 	testkit.NATSServer(m)
 }
 
@@ -53,5 +55,16 @@ func TestBusApply_failsWhenNATSIsUnreachableOrArgsAreExtra(t *testing.T) {
 				t.Fatalf("stdout %q stderr %q, want stderr starting %q", stdout.String(), stderr.String(), tc.want)
 			}
 		})
+	}
+}
+
+func TestBusApply_failsWhenAForeignStreamHoldsTheSubjects(t *testing.T) {
+	t.Parallel()
+	url := testkit.StandaloneNATSWithStream(t, "FOREIGN", "events.>")
+	environ := []string{"MONACO_ENV=test", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=" + url}
+	var stdout, stderr bytes.Buffer
+	code := run(nil, tools(environ), environ, []string{"bus", "apply"}, &stdout, &stderr)
+	if code != 1 || !strings.HasPrefix(stderr.String(), "monacoctl: bus.Apply: upstream_unavailable") {
+		t.Fatalf("exit %d, stdout %q stderr %q", code, stdout.String(), stderr.String())
 	}
 }

@@ -18,6 +18,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
+	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -30,6 +31,10 @@ type healthz func(ctx context.Context) (api.GetHealthzResponseObject, error)
 
 func (h healthz) GetHealthz(ctx context.Context, _ api.GetHealthzRequestObject) (api.GetHealthzResponseObject, error) {
 	return h(ctx)
+}
+
+func (healthz) GetStream(context.Context, api.GetStreamRequestObject) (api.GetStreamResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetStream")
 }
 
 type stepClock struct {
@@ -97,6 +102,8 @@ func newHarness(t *testing.T) *harness {
 			Clock:        &stepClock{},
 			IDs:          fixedIDs{generatedID()},
 			MaxBodyBytes: 1 << 20,
+			Idempotency:  stubStore{},
+			Verifier:     stubVerifier(nil),
 		},
 		logs:  logs,
 		spans: spans,
@@ -128,7 +135,7 @@ func serveRaw(
 
 func mustHandler(t *testing.T, d Deps, ssi api.StrictServerInterface) http.Handler {
 	t.Helper()
-	h, err := Handler(d, ssi)
+	h, err := Handler(d, ssi, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -371,7 +378,7 @@ func TestRequestID_acceptsAWellFormedHeaderAndGeneratesOtherwise(t *testing.T) {
 			if tc.in != "" {
 				header.Set(RequestIDHeader, tc.in)
 			}
-			resp := h.do(t, mustHandler(t, h.deps, Health{}), http.MethodGet, "/healthz", header)
+			resp := h.do(t, mustHandler(t, h.deps, healthOnly{}), http.MethodGet, "/healthz", header)
 			if got := resp.Header().Get(RequestIDHeader); got != tc.want {
 				t.Fatalf("response %s = %q, want %q", RequestIDHeader, got, tc.want)
 			}
@@ -386,8 +393,15 @@ func TestRequestID_acceptsAWellFormedHeaderAndGeneratesOtherwise(t *testing.T) {
 func TestAccessLog_andSpanNameTheRouteStatusAndDuration(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	if resp := h.do(t, mustHandler(t, h.deps, Health{}), http.MethodGet, "/healthz", nil); resp.Code != http.StatusOK ||
-		resp.Body.String() != "ok\n" || resp.Header().Get("Content-Type") != "text/plain" {
+	if resp := h.do(
+		t,
+		mustHandler(t, h.deps, healthOnly{}),
+		http.MethodGet,
+		"/healthz",
+		nil,
+	); resp.Code != http.StatusOK ||
+		resp.Body.String() != "ok\n" ||
+		resp.Header().Get("Content-Type") != "text/plain" {
 		t.Fatalf("GET /healthz = %d %q", resp.Code, resp.Body)
 	}
 	access := linesNamed(h.logs.lines(t), "http.request")
@@ -431,7 +445,7 @@ func TestUnknownRoute_isANotFoundProblem(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	for _, tc := range []struct{ method, target string }{{"GET", "/nope"}, {"POST", "/healthz"}} {
-		resp := h.do(t, mustHandler(t, h.deps, Health{}), tc.method, tc.target, nil)
+		resp := h.do(t, mustHandler(t, h.deps, healthOnly{}), tc.method, tc.target, nil)
 		if p := decodeProblem(t, resp); resp.Code != http.StatusNotFound || p.Code != "not_found" {
 			t.Fatalf("%s %s = %d %+v, want 404 not_found", tc.method, tc.target, resp.Code, p)
 		}

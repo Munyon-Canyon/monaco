@@ -34,10 +34,19 @@ func (m failingMeter) Int64Counter(name string, opts ...metric.Int64CounterOptio
 	return m.Meter.Int64Counter(name, opts...)
 }
 
+func (m failingMeter) Float64Histogram(
+	name string, opts ...metric.Float64HistogramOption,
+) (metric.Float64Histogram, error) {
+	if m.fail == "histogram" {
+		return nil, errs.New(errs.CodeInternal, "test.Float64Histogram")
+	}
+	return m.Meter.Float64Histogram(name, opts...)
+}
+
 func (m failingMeter) Int64ObservableGauge(
 	name string, opts ...metric.Int64ObservableGaugeOption,
 ) (metric.Int64ObservableGauge, error) {
-	if m.fail == "gauge" {
+	if m.fail == "gauge" || m.fail == "gauge:"+name {
 		return nil, errs.New(errs.CodeInternal, "test.Int64ObservableGauge")
 	}
 	return m.Meter.Int64ObservableGauge(name, opts...)

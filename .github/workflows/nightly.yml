@@ -144,7 +144,7 @@ jobs:
         run: |
           go build ./...
           go vet ./...
-          go test -race ./...
+          RAPID_CHECKS=500 RAPID_STEPS=40 RAPID_NOFAILFILE=1 go test -race -shuffle=on -short ./...
 
       - uses: actions/cache/save@v4
         if: always()
@@ -154,10 +154,73 @@ jobs:
             ~/.cache/go-build
           key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-${{ github.sha }}
 
+  backend:
+    name: Backend unbounded suites (100k rapid, fuzz, seed sweep, benchstat)
+    needs: changed
+    if: needs.changed.outputs.run == 'true' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+
+      # atlas for testkit.DB and the tmpfs test Postgres, the same setup as the PR backend job.
+      - uses: ./.github/actions/backend-test-env
+
+      - name: Install benchstat
+        run: |
+          go install golang.org/x/perf/cmd/benchstat@v0.0.0-20260908200009-22c9c6c9d4da
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Download the last green night's benchmarks
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          id="$(gh run list -R "$GITHUB_REPOSITORY" --workflow nightly.yml --branch main --status success --limit 1 --json databaseId -q '.[0].databaseId')"
+          [[ -n "$id" ]] && gh run download "$id" -R "$GITHUB_REPOSITORY" -n nightly-bench -D "$RUNNER_TEMP/prev"
+
+      - name: Run the unbounded suites
+        env:
+          OUT: ${{ runner.temp }}/nightly-backend
+          PREV_BENCH: ${{ runner.temp }}/prev/bench.txt
+        run: scripts/ci/nightly-backend.sh
+
+      - name: Upload tonight's benchmarks for the next comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-bench
+          path: ${{ runner.temp }}/nightly-backend/bench.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload suite logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-backend-logs
+          path: ${{ runner.temp }}/nightly-backend/
+          retention-days: 14
+
+  # Every line of every package, one job per package. db, bus, httpx and httpx/sse each run past
+  # 10 minutes, so each job gets an hour.
+  mutation:
+    needs: changed
+    if: needs.changed.outputs.run == 'true' && github.event_name != 'pull_request'
+    uses: ./.github/workflows/mutation.yml
+    with:
+      all: true
+      timeout-minutes: 60
+
   alert:
     name: Open, update or close the nightly-failure issue
-    needs: qa
-    if: always() && (needs.qa.result == 'success' || needs.qa.result == 'failure')
+    needs: [qa, backend, mutation]
+    if: >-
+      always() && (needs.qa.result == 'success' || needs.qa.result == 'failure') &&
+      needs.backend.result != 'cancelled'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -178,7 +241,9 @@ jobs:
       - name: Update the nightly-failure issue
         env:
           GH_TOKEN: ${{ github.token }}
-          QA_RESULT: ${{ needs.qa.result }}
+          NIGHTLY_RESULT: ${{ (needs.qa.result == 'failure' || needs.backend.result == 'failure' || needs.mutation.result == 'failure') && 'failure' || 'success' }}
+          QA_JOB_RESULT: ${{ needs.qa.result }}
+          BACKEND_RESULT: ${{ (needs.backend.result == 'failure' || needs.mutation.result == 'failure') && 'failure' || needs.backend.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           # Only the scheduled run, or a manual run on main, speaks for main.
           DRY_RUN: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')) && '0' || '1' }}

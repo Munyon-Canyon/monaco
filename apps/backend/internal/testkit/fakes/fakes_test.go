@@ -75,11 +75,11 @@ func mustCall(ctx context.Context, t *testing.T, c *httpclient.Client, method, p
 	return got
 }
 
-func overHTTP(t *testing.T, timeout time.Duration) *httpclient.Client {
+func overHTTP(t *testing.T) *httpclient.Client {
 	t.Helper()
 	srv := httptest.NewServer(fakes.New())
 	t.Cleanup(srv.Close)
-	return httpclient.New("fakes", httpclient.WithBaseURL(srv.URL), httpclient.WithTimeout(timeout))
+	return httpclient.New("fakes", httpclient.WithBaseURL(srv.URL), httpclient.WithTimeout(10*time.Second))
 }
 
 func inProc(opts ...httpclient.Option) *httpclient.Client {
@@ -103,7 +103,7 @@ func script(ctx context.Context, t *testing.T, c *httpclient.Client, step fakes.
 
 func TestReplay_servesEachUpstreamHealthFixture(t *testing.T) {
 	t.Parallel()
-	c := overHTTP(t, 10*time.Second)
+	c := overHTTP(t)
 	for _, u := range upstreams() {
 		got := mustCall(t.Context(), t, c, http.MethodGet, "/"+u+"/_health", "")
 		want := `{"status": "ok", "upstream": "` + u + `"}`
@@ -115,7 +115,7 @@ func TestReplay_servesEachUpstreamHealthFixture(t *testing.T) {
 
 func TestReplay_routeWithoutFixtureIs501AndUnknownUpstreamIs404(t *testing.T) {
 	t.Parallel()
-	c := overHTTP(t, 10*time.Second)
+	c := overHTTP(t)
 	if got := mustCall(t.Context(), t, c, http.MethodPost, "/privy/api/v1/users", "{}"); got.status != 501 ||
 		!strings.Contains(got.body, "/privy/api/v1/users") {
 		t.Fatalf("unrecorded route = %d %q, want 501 naming the route", got.status, got.body)
@@ -127,7 +127,7 @@ func TestReplay_routeWithoutFixtureIs501AndUnknownUpstreamIs404(t *testing.T) {
 
 func TestScript_failsTheNextNCallsThenReplaysAgain(t *testing.T) {
 	t.Parallel()
-	c := overHTTP(t, 10*time.Second)
+	c := overHTTP(t)
 	script(t.Context(), t, c, fakes.Step{
 		Route: "/jupiter/_health", Action: fakes.ActionFail, Status: http.StatusNotFound,
 		Body: json.RawMessage(`{"error":"gone"}`), Times: 2,
@@ -157,7 +157,7 @@ func TestScript_failsTheNextNCallsThenReplaysAgain(t *testing.T) {
 
 func TestScript_rejectsInvalidSteps(t *testing.T) {
 	t.Parallel()
-	c := overHTTP(t, 10*time.Second)
+	c := overHTTP(t)
 	for body, field := range map[string]string{
 		`{"route":"/privy/_health","action":"explode"}`:             "action",
 		`{"route":"/privy/_health","action":"fail"}`:                "status",
@@ -226,14 +226,17 @@ func TestScript_hangThenCancelReturnsPromptlyWithoutLeaks(t *testing.T) {
 
 func TestScript_hangOverRealHTTPReleasesWhenTheClientTimesOut(t *testing.T) {
 	t.Parallel()
-	c := overHTTP(t, 50*time.Millisecond)
-	script(t.Context(), t, c, fakes.Step{Route: "/ably/_health", Action: fakes.ActionHang})
+	srv := httptest.NewServer(fakes.New())
+	t.Cleanup(srv.Close)
+	impatient := httpclient.New("fakes", httpclient.WithBaseURL(srv.URL), httpclient.WithTimeout(50*time.Millisecond))
+	patient := httpclient.New("fakes", httpclient.WithBaseURL(srv.URL), httpclient.WithTimeout(time.Minute))
+	script(t.Context(), t, patient, fakes.Step{Route: "/ably/_health", Action: fakes.ActionHang})
 
-	_, err := call(t.Context(), t, c, http.MethodGet, "/ably/_health", "")
+	_, err := call(t.Context(), t, impatient, http.MethodGet, "/ably/_health", "")
 	if errs.CodeOf(err) != errs.CodeUpstreamTimeout {
 		t.Fatalf("err = %v, want upstream_timeout", err)
 	}
-	if got := mustCall(t.Context(), t, c, http.MethodGet, "/ably/_health", ""); got.status != http.StatusOK {
+	if got := mustCall(t.Context(), t, patient, http.MethodGet, "/ably/_health", ""); got.status != http.StatusOK {
 		t.Fatalf("after the hang = %d, want the fixture again", got.status)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"io"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -19,17 +20,30 @@ type command func(cfg config.Config, args []string, stdout, stderr io.Writer) in
 type tool func(args []string, stdout, stderr io.Writer) int
 
 func commands() map[string]command {
-	return map[string]command{}
+	return map[string]command{"dev": devCmd}
 }
 
 func tools(environ []string) map[string]tool {
+	gremlinsBin, _ := filepath.Abs("../../.bin/gremlins")
 	return map[string]tool{
-		"bench":   benchCmd,
-		"bus":     busTool(environ),
-		"docs":    docs,
-		"flows":   flowsCmd,
-		"gen":     gen,
-		"migrate": migrateTool(atlas{"../../.bin/atlas", ".atlas-version"}, environ),
+		"bench":    bench{"go"}.run,
+		"bus":      busTool(environ),
+		"coverage": coverageEnv{moduleDir: ".", goBin: "go", tmpDir: os.TempDir()}.run,
+		"docs":     docs,
+		"flows":    flowsCmd,
+		"gen":      gen,
+		"migrate":  migrateTool(atlas{"../../.bin/atlas", ".atlas-version"}, environ),
+		"mutation": mutationTool(
+			mutationEnv{
+				moduleDir: ".",
+				goBin:     "go",
+				gitBin:    "git",
+				gremlins:  gremlinsBin,
+				tmpDir:    os.TempDir(),
+				exec:      runCommand,
+			},
+		),
+		"test-report": testReportCmd,
 		"lint": func(args []string, stdout, stderr io.Writer) int {
 			return run(nil, map[string]tool{"comments": comments.Run}, nil, args, stdout, stderr)
 		},

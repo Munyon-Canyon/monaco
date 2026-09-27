@@ -3,6 +3,7 @@ run:
   timeout: 5m
   tests: true
   relative-path-mode: gomod
+  build-tags: [faultpoints]
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
@@ -177,10 +178,13 @@ linters:
         linters: [forbidigo]
       - path: ^internal/testkit/
         linters: [forbidigo]
-      - path: ^internal/testkit/(seed|db|nats)\.go$
+      - path: ^internal/testkit/(seed|db|nats|perf|chaos/seeds)\.go$
         linters: [gochecknoglobals]
-        text: seedFlag|current|natsCurrent
-      - path: ^internal/testkit/db\.go$
+        text: seedFlag|current|natsCurrent|perfUpdate|baselineMu
+      # testing.AllocsPerRun reads the process-wide malloc counter, so allocation tests run alone (#721).
+      - path: allocs_test\.go$
+        linters: [paralleltest]
+      - path: ^internal/testkit/(db|mainproc)\.go$
         linters: [gosec]
         text: G204
       - path: ^internal/testkit/db\.go$
@@ -189,30 +193,50 @@ linters:
       - path: ^internal/platform/config/config\.go$
         linters: [gosec]
         text: "G101: Potential hardcoded credentials: Password in URL"
-      - path: ^internal/(testkit/ids|platform/db/uow)\.go$
+      - path: ^internal/(testkit/ids|testkit/consumer|testkit/chaos/dispatch|platform/db/uow)\.go$
         linters: [gosec]
         text: G404
+      - path: ^internal/platform/db/idempotency\.go$
+        linters: [gosec]
+        text: G115
       - path: ^internal/testkit/clock\.go$
         linters: [ireturn]
       # A meter double must return the otel instrument interface to exercise NewRunner's error branch.
       - path: ^internal/platform/poller/poller_test\.go$
         linters: [ireturn]
+      - path: ^internal/platform/db/idempotency_test\.go$
+        linters: [ireturn]
       - path: ^internal/testkit/.*_test\.go$
         linters: [gosec]
         text: G204
+      - path: ^internal/testkit/perf(_internal_test)?\.go$
+        linters: [gosec]
+        text: G304
       - path: ^scripts/
         linters: [gosec, err113]
       - path: ^cmd/monacoctl/flows(_test)?\.go$
         linters: [gosec]
         text: "G204|G703"
-      - path: ^cmd/monacoctl/migrate(_test)?\.go$
+      - path: ^cmd/monacoctl/(migrate|bench)(_test)?\.go$
         linters: [gosec]
         text: G204|G702|G306|G304
+      - path: ^cmd/monacoctl/(coverage|mutation)(_test)?\.go$
+        linters: [gosec]
+        text: G204|G304
       - path: ^internal/platform/lint/nogo/
         linters: [nilnil]
       # The log message registry is package-level so call sites name a Msg and the registry test can read it.
       - path: ^internal/platform/observability/msgs\.go$
         linters: [gochecknoglobals]
+      # MONACO_FAULTPOINT arms a crash point for the whole process, so the armed name is process state.
+      - path: ^internal/platform/faultpoint/hit_on\.go$
+        linters: [gochecknoglobals]
+      # Crash is a panic value, not a returned error; the name reads at the recover site.
+      - path: ^internal/platform/faultpoint/faultpoint\.go$
+        linters: [errname]
+      # AllocsPerRun counts process-wide mallocs and Configure arms the process, so these must not overlap parallel tests.
+      - path: ^internal/platform/faultpoint/(alloc|hit_on)_test\.go$
+        linters: [paralleltest]
       # The one place that turns a registered Msg into a slog call; call sites pass a Msg, never a string.
       - path: ^internal/platform/observability/internal/emit/
         linters: [sloglint]
@@ -226,7 +250,9 @@ linters:
       - linters: [ireturn]
         text: returns interface \(github\.com/monaco/monaco/apps/backend/internal/platform/httpx/api\.\w+ResponseObject\)
       # A fake OTel meter has to return the metric interfaces it implements.
-      - path: ^internal/platform/bus/meter_test\.go$
+      - path: ^internal/platform/(bus/meter|httpx/sse/hub)_test\.go$|^internal/testkit/meters\.go$
+        linters: [ireturn]
+      - path: ^internal/platform/bus/(dispatch|start_internal)_test\.go$
         linters: [ireturn]
       - path: ^internal/platform/
         linters: [forbidigo]

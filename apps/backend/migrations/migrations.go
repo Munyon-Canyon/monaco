@@ -9,10 +9,7 @@ import (
 var files embed.FS
 
 func Latest() string {
-	entries, err := files.ReadDir(".")
-	if err != nil {
-		panic(err)
-	}
+	entries, _ := files.ReadDir(".")
 	latest := ""
 	for _, e := range entries {
 		version, _, _ := strings.Cut(e.Name(), "_")

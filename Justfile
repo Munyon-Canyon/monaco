@@ -86,10 +86,13 @@ test app:
       backend)
         ./scripts/require-docker.sh
         docker compose --profile test up -d --wait postgres-test
-        scripts/test-backend.sh -race -shuffle=on
+        scripts/test-backend.sh
         if [[ "${SKIP_SCRIPTS_TESTS:-}" != "1" && -f scripts/go.mod ]]; then
           (cd scripts && go test -short ./...)
         fi
+        ;;
+      mutation)
+        (cd apps/backend && go run ./cmd/monacoctl mutation ${MUTATION_ARGS:-})
         ;;
       mobile)
         if [[ ! -d apps/mobile ]]; then
@@ -104,7 +107,7 @@ test app:
         (cd packages/mobile-core && swift test)
         ;;
       *)
-        echo "error: unknown app '{{app}}' (use backend or mobile)"
+        echo "error: unknown app '{{app}}' (use backend, mutation or mobile)"
         exit 1
         ;;
     esac

@@ -1,6 +1,7 @@
 package testkit_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -39,5 +40,20 @@ func TestIDsAreSortedDistinctV7(t *testing.T) {
 		if i > 0 && got[i-1] >= raw {
 			t.Fatalf("id %d %s does not sort after %s", i, raw, got[i-1])
 		}
+	}
+}
+
+func TestIDsReseedRepeatsTheSequence(t *testing.T) {
+	t.Parallel()
+	g := testkit.NewIDs(3)
+	first := []string{g.NewV7().String(), g.NewV7().String()}
+	g.Reseed(3)
+	again := []string{g.NewV7().String(), g.NewV7().String()}
+	if !slices.Equal(first, again) {
+		t.Fatalf("after Reseed(3) ids = %v, want %v", again, first)
+	}
+	g.Reseed(4)
+	if other := g.NewV7().String(); other == first[0] {
+		t.Fatalf("Reseed(4) repeated seed 3's first id %s", other)
 	}
 }

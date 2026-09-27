@@ -10,7 +10,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+
+	"github.com/oapi-codegen/runtime"
 )
 
 // Defines values for ErrorCode.
@@ -128,11 +131,20 @@ type Problem struct {
 // ProblemType Always about:blank. The code field carries the problem type.
 type ProblemType string
 
+// GetStreamParams defines parameters for GetStream.
+type GetStreamParams struct {
+	// LastEventID The id of the last event the app received before it reconnected.
+	LastEventID *string `json:"Last-Event-ID,omitempty"`
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// GetHealthz Report that the API process is serving.
 	// (GET /healthz)
 	GetHealthz(w http.ResponseWriter, r *http.Request)
+	// GetStream Stream re-fetch hints for the caller.
+	// (GET /v1/stream)
+	GetStream(w http.ResponseWriter, r *http.Request, params GetStreamParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -149,6 +161,47 @@ func (siw *ServerInterfaceWrapper) GetHealthz(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetHealthz(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetStream operation middleware
+func (siw *ServerInterfaceWrapper) GetStream(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetStreamParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Last-Event-ID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Last-Event-ID")]; found {
+		var LastEventID string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Last-Event-ID", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Last-Event-ID", valueList[0], &LastEventID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Last-Event-ID", Err: err})
+			return
+		}
+
+		params.LastEventID = &LastEventID
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetStream(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -279,6 +332,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/healthz", wrapper.GetHealthz)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/stream", wrapper.GetStream)
 
 	return m
 }
@@ -320,11 +374,82 @@ func (response GetHealthzdefaultApplicationProblemPlusJSONResponse) VisitGetHeal
 	return err
 }
 
+type GetStreamRequestObject struct {
+	Params GetStreamParams
+}
+
+type GetStreamResponseObject interface {
+	VisitGetStreamResponse(w http.ResponseWriter) error
+}
+
+type GetStream200TexteventStreamResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetStream200TexteventStreamResponse) VisitGetStreamResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		// If w doesn't support flushing, fall back to io.Copy.
+		_, err := io.Copy(w, response.Body)
+		return err
+	}
+	// text/event-stream messages are typically small; use a
+	// modest buffer and flush after each chunk so clients see
+	// events immediately instead of waiting on OS buffering.
+	buf := make([]byte, 4096)
+	for {
+		n, err := response.Body.Read(buf)
+		if n > 0 {
+			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
+				return writeErr
+			}
+			flusher.Flush()
+		}
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+	}
+}
+
+type GetStreamdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetStreamdefaultApplicationProblemPlusJSONResponse) VisitGetStreamResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetHealthz Report that the API process is serving.
 	// (GET /healthz)
 	GetHealthz(ctx context.Context, request GetHealthzRequestObject) (GetHealthzResponseObject, error)
+	// GetStream Stream re-fetch hints for the caller.
+	// (GET /v1/stream)
+	GetStream(ctx context.Context, request GetStreamRequestObject) (GetStreamResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -383,6 +508,32 @@ func (sh *strictHandler) GetHealthz(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetHealthzResponseObject); ok {
 		if err := validResponse.VisitGetHealthzResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetStream operation middleware
+func (sh *strictHandler) GetStream(w http.ResponseWriter, r *http.Request, params GetStreamParams) {
+	var request GetStreamRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetStream(ctx, request.(GetStreamRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetStream")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetStreamResponseObject); ok {
+		if err := validResponse.VisitGetStreamResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

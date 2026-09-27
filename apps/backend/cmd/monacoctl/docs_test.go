@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
@@ -60,6 +61,15 @@ func TestDocsFlowsRendersTheTSV(t *testing.T) {
 				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 			}
 		})
+	}
+}
+
+func TestDocsFlowsFailsWhenTheTSVIsMissing(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	code := docsFlows(fstest.MapFS{}, &stdout, &stderr)
+	if code != 1 || stdout.Len() != 0 || !strings.HasPrefix(stderr.String(), "monacoctl docs flows: ") {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 }
 

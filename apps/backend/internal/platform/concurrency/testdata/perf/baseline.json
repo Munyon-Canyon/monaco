@@ -1,0 +1,6 @@
+{
+  "allocs": {
+    "concurrency.FanOut 8 items limit 4": 13
+  },
+  "queries": {}
+}

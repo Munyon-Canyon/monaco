@@ -11,6 +11,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/nats-io/nats-server/v2 v2.14.5
 	github.com/nats-io/nats.go v1.53.1
+	github.com/oapi-codegen/runtime v1.6.0
 	github.com/peterldowns/pgtestdb v0.1.1
 	github.com/sony/gobreaker/v2 v2.4.0
 	go.opentelemetry.io/contrib/bridges/otelslog v0.20.1
@@ -28,6 +29,7 @@ require (
 
 require (
 	github.com/antithesishq/antithesis-sdk-go v0.7.2-default-no-op // indirect
+	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/dprotaso/go-yit v0.0.0-20220510233725-9ba8df137936 // indirect
 	github.com/go-openapi/jsonpointer v1.0.0 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect

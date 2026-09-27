@@ -47,7 +47,7 @@ type server struct {
 	migrator atlasMigrator
 
 	mu    sync.Mutex
-	names map[string]bool
+	names map[string]*queryCounter
 	kept  atomic.Int32
 
 	templateOnce sync.Once
@@ -123,7 +123,7 @@ func open(ctx context.Context, rawURL string) (*server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("connect to %s: %w", redact(rawURL), err)
 	}
-	s := &server{admin: admin, base: base, migrator: migrator, names: map[string]bool{}}
+	s := &server{admin: admin, base: base, migrator: migrator, names: map[string]*queryCounter{}}
 	if _, err := s.dropStale(ctx, clock.Real{}.Now().Add(-staleAfter), "t_", "testdb_"); err != nil {
 		admin.Close()
 		return nil, err
@@ -167,7 +167,7 @@ func DB(t *testing.T) *pgxpool.Pool {
 	if s == nil {
 		t.Fatal("testkit.DB: call testkit.Main(m) from this package's TestMain")
 	}
-	s.claim(t.Name())
+	queries := s.claim(t.Name())
 	tmpl := s.templateFor(t)
 	inst := tmpl
 	inst.Database = databaseName(t.Name())
@@ -183,6 +183,7 @@ func DB(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("testkit.DB: %v", err)
 	}
 	cfg.MaxConns = poolMaxConns
+	cfg.ConnConfig.Tracer = queries
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		t.Fatalf("testkit.DB: connect %s: %v", inst.Database, err)
@@ -201,14 +202,22 @@ func DB(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-func (s *server) claim(name string) {
+func (s *server) claim(name string) *queryCounter {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.names[name] {
+	if s.names[name] != nil {
 		panic(fmt.Sprintf("testkit.DB: %s already has a database in this run; "+
 			"call testkit.DB once per test and give every test a unique name", name))
 	}
-	s.names[name] = true
+	c := &queryCounter{}
+	s.names[name] = c
+	return c
+}
+
+func (s *server) counter(name string) *queryCounter {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.names[name]
 }
 
 func (s *server) release(name string) {
@@ -299,7 +308,7 @@ func (s *server) dropStale(ctx context.Context, cutoff time.Time, prefixes ...st
 		SELECT datname FROM pg_database
 		WHERE datname <> $3
 		  AND EXISTS (SELECT 1 FROM unnest($1::text[]) AS p WHERE starts_with(datname, p))
-		  AND (pg_stat_file('base/' || oid || '/PG_VERSION')).modification < $2`, prefixes, cutoff, keep)
+		  AND (pg_stat_file('base/' || oid || '/PG_VERSION', true)).modification < $2`, prefixes, cutoff, keep)
 	if err != nil {
 		return nil, fmt.Errorf("list stale test databases: %w", err)
 	}

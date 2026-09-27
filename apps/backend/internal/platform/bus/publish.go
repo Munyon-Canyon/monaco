@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"slices"
+	"strings"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -53,4 +54,16 @@ func (c *Conn) PublishHint(ctx context.Context, key string, payload []byte) {
 	if err := c.nc.Publish(c.ns.subject("hint."+key), payload); err != nil {
 		c.hintDropped.Add(ctx, 1)
 	}
+}
+
+func (c *Conn) SubscribeHints(ctx context.Context, fn func(ctx context.Context, key string)) error {
+	prefix := c.ns.subject("hint.")
+	_, err := c.nc.Subscribe(prefix+">", func(m *nats.Msg) { fn(ctx, strings.TrimPrefix(m.Subject, prefix)) })
+	if err == nil {
+		err = c.nc.Flush()
+	}
+	if err != nil {
+		return errs.Wrap(err, errs.CodeUpstreamUnavailable, "bus.SubscribeHints")
+	}
+	return nil
 }

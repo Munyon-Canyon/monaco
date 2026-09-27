@@ -2,22 +2,33 @@ package httpx
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net"
 	"net/http"
+	"time"
 
-	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 )
 
-func Handler(d Deps, ssi api.StrictServerInterface) (http.Handler, error) {
-	return handler(d, ssi, openapi.Spec, nil)
+func Handler(d Deps, ssi api.StrictServerInterface, spec []byte) (http.Handler, error) {
+	return handler(d, ssi, spec, nil)
 }
 
 func handler(
 	d Deps, ssi api.StrictServerInterface, spec []byte, mws []api.StrictMiddlewareFunc,
 ) (http.Handler, error) {
-	validate, err := requestValidator(spec)
+	if d.Idempotency == nil || d.Verifier == nil {
+		return nil, errs.New(
+			errs.CodeInternal,
+			"httpx.Handler",
+			slog.String("missing", "Deps.Idempotency or Deps.Verifier"),
+		)
+	}
+	c, err := loadContract(spec)
 	if err != nil {
 		return nil, err
 	}
@@ -32,9 +43,13 @@ func handler(
 	api.HandlerWithOptions(strict, api.StdHTTPServerOptions{
 		BaseRouter:       mux,
 		ErrorHandlerFunc: invalidRequest,
-		Middlewares:      []api.MiddlewareFunc{validate},
+		Middlewares:      middlewares(d, c),
 	})
 	return d.wrap(mux), nil
+}
+
+func middlewares(d Deps, c *contract) []api.MiddlewareFunc {
+	return []api.MiddlewareFunc{Idempotency(d.Idempotency), c.validate, Auth(d.Verifier), c.resolve}
 }
 
 func invalidRequest(w http.ResponseWriter, r *http.Request, err error) {
@@ -48,6 +63,23 @@ func NewServer(h http.Handler, t config.Timeouts) *http.Server {
 		ReadTimeout:       t.HTTPServerRead,
 		WriteTimeout:      t.HTTPServerWrite,
 	}
+}
+
+func Serve(ctx context.Context, ln net.Listener, srv *http.Server, shutdownTimeout time.Duration) error {
+	shutdown := make(chan error, 1)
+	stop := context.AfterFunc(ctx, func() {
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
+		defer cancel()
+		shutdown <- srv.Shutdown(shutdownCtx)
+	})
+	defer stop()
+	if err := srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("serve: %w", err)
+	}
+	if err := <-shutdown; err != nil {
+		return fmt.Errorf("shutdown: %w", err)
+	}
+	return nil
 }
 
 type Health struct{}

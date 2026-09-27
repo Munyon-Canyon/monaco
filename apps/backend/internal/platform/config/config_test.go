@@ -60,6 +60,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.example",
 		"OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic abc",
 		"OTEL_SERVICE_NAME=monaco-api",
+		"MONACO_DEV_TOKEN_KEY=dev-secret",
 		"MONACO_TIMEOUT_RPC=1s",
 		"MONACO_TIMEOUT_PRIVY=2s",
 		"MONACO_TIMEOUT_JUPITER_QUOTE=3s",
@@ -67,6 +68,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"MONACO_TIMEOUT_HTTP_SERVER_READ=5s",
 		"MONACO_TIMEOUT_HTTP_SERVER_WRITE=6s",
 		"MONACO_TIMEOUT_SHUTDOWN=7s",
+		"MONACO_FAULTPOINT=before-commit",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -82,6 +84,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 			Headers:     "Authorization=Basic abc",
 			ServiceName: "monaco-api",
 		},
+		Auth: config.Auth{DevTokenKey: "dev-secret"},
 		Timeouts: config.Timeouts{
 			RPC:             time.Second,
 			Privy:           2 * time.Second,
@@ -91,6 +94,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 			HTTPServerWrite: 6 * time.Second,
 			Shutdown:        7 * time.Second,
 		},
+		Faultpoint: "before-commit",
 	}
 	if !reflect.DeepEqual(cfg, want) {
 		t.Fatalf("Load = %+v, want %+v", cfg, want)
@@ -201,6 +205,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		"DATABASE_URL":               "postgres://db-secret@host/db",
 		"NATS_URL":                   "nats://token-secret@host:4222",
 		"OTEL_EXPORTER_OTLP_HEADERS": "Authorization=Basic header-secret",
+		"MONACO_DEV_TOKEN_KEY":       "dev-token-secret",
 	}
 	environ := make([]string, 0, 2+len(secrets))
 	environ = append(environ, "MONACO_ENV=staging", "MONACO_TIMEOUT_JUPITER_EXECUTE=90s")
@@ -219,6 +224,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"DATABASE_URL", "***"},
 		{"NATS_URL", "***"},
 		{"OTEL_EXPORTER_OTLP_HEADERS", "***"},
+		{"MONACO_DEV_TOKEN_KEY", "***"},
 		{"MONACO_ENV", "staging"},
 		{"MONACO_HTTP_ADDR", ":8080"},
 		{"MONACO_HTTP_MAX_BODY_BYTES", "1048576"},
@@ -233,6 +239,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"MONACO_TIMEOUT_HTTP_SERVER_READ", "10s"},
 		{"MONACO_TIMEOUT_HTTP_SERVER_WRITE", "30s"},
 		{"MONACO_TIMEOUT_SHUTDOWN", "10s"},
+		{"MONACO_FAULTPOINT", ""},
 	}
 	if len(got) != len(tests) {
 		t.Fatalf("Redacted has %d keys, want %d: %v", len(got), len(tests), got)

@@ -12,6 +12,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 )
 
@@ -35,6 +36,11 @@ func specOperations(tb testing.TB) []operation {
 
 type unimplemented struct{ api.StrictServerInterface }
 
+type healthOnly struct {
+	Health
+	unimplemented
+}
+
 func decodedOK(api.StrictHandlerFunc, string) api.StrictHandlerFunc {
 	return func(context.Context, http.ResponseWriter, *http.Request, any) (any, error) { return nil, nil }
 }
@@ -51,8 +57,12 @@ func FuzzRequestBodies(f *testing.F) {
 		op := ops[int(pick)%len(ops)]
 		h := newHarness(t)
 		h.deps.MaxBodyBytes = 1 << 10
+		h.deps.Verifier = stubVerifier(func(context.Context, string) (auth.Actor, error) {
+			return auth.Actor{Kind: auth.ActorUser, ID: "fuzz"}, nil
+		})
 		req := httptest.NewRequestWithContext(t.Context(), op.method, op.path, bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer fuzz")
 		rec := httptest.NewRecorder()
 		served, err := handler(h.deps, unimplemented{}, openapi.Spec, []api.StrictMiddlewareFunc{decodedOK})
 		if err != nil {
