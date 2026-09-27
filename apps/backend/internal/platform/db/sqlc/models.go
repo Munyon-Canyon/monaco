@@ -30,3 +30,15 @@ type EventDelivery struct {
 	Code      string
 	HandledAt time.Time
 }
+
+type IdempotencyKey struct {
+	ActorKey        string
+	Key             string
+	RequestHash     []byte
+	Status          int16
+	ResponseStatus  pgtype.Int4
+	ResponseBody    []byte
+	ResponseHeaders []byte
+	CreatedAt       time.Time
+	CompletedAt     pgtype.Timestamptz
+}

@@ -192,6 +192,9 @@ linters:
       - path: ^internal/(testkit/ids|platform/db/uow)\.go$
         linters: [gosec]
         text: G404
+      - path: ^internal/platform/db/idempotency\.go$
+        linters: [gosec]
+        text: G115
       - path: ^internal/testkit/clock\.go$
         linters: [ireturn]
       # A meter double must return the otel instrument interface to exercise NewRunner's error branch.

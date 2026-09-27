@@ -299,7 +299,7 @@ func (s *server) dropStale(ctx context.Context, cutoff time.Time, prefixes ...st
 		SELECT datname FROM pg_database
 		WHERE datname <> $3
 		  AND EXISTS (SELECT 1 FROM unnest($1::text[]) AS p WHERE starts_with(datname, p))
-		  AND (pg_stat_file('base/' || oid || '/PG_VERSION')).modification < $2`, prefixes, cutoff, keep)
+		  AND (pg_stat_file('base/' || oid || '/PG_VERSION', true)).modification < $2`, prefixes, cutoff, keep)
 	if err != nil {
 		return nil, fmt.Errorf("list stale test databases: %w", err)
 	}
