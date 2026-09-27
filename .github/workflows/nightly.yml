@@ -69,6 +69,9 @@ jobs:
           go-version-file: apps/backend/go.mod
           cache: false
 
+      - name: Install just
+        run: command -v just || brew install just
+
       - name: Cache Swift packages
         uses: actions/cache@v4
         with:
@@ -115,7 +118,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # The only job that saves the Go cache the go job in ci-jobs.yml restores. It runs that job's
+  # The only job that saves the Go cache the backend job in ci-jobs.yml restores. It runs that job's
   # tests with the same flags, so PRs also reuse main's results for packages they do not change.
   warm-cache:
     name: Warm the Go cache for PRs
@@ -135,6 +138,13 @@ jobs:
         with:
           go-version-file: apps/backend/go.mod
           cache: false
+
+      - name: Build and test backend
+        working-directory: apps/backend
+        run: |
+          go build ./...
+          go vet ./...
+          go test -race ./...
 
       - uses: actions/cache/save@v4
         if: always()

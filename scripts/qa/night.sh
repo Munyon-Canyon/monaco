@@ -9,7 +9,7 @@
 #   scripts/qa/night.sh --screenshots        # also shoot every sample screen (round 1)
 #
 # What a round does, strictly one heavy job at a time:
-#   1. backend: skipped by default until the new apps/backend module has tests
+#   1. backend: just test backend
 #   2. mobile-core host tests
 #   3. app unit tests, then each UI test class on its own, on one slimmed simulator,
 #      with a watchdog timeout, one retry when the test runner itself is killed,
@@ -40,7 +40,7 @@ cd "$root" || exit 1
 
 rounds=1
 until_time=""
-skip_backend=1
+skip_backend=0
 skip_ui=0
 only_ui=""
 sim="${MONACO_QA_SIM:-}"

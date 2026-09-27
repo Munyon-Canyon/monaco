@@ -9,6 +9,41 @@ permissions:
   contents: read
 
 jobs:
+  backend:
+    name: Backend (vet, race tests)
+    needs: plan
+    if: needs.plan.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    defaults:
+      run:
+        working-directory: apps/backend
+    steps:
+      - uses: actions/checkout@v4
+
+      # go test keys its result cache on file mtimes, and a fresh checkout gives every file a new one.
+      - name: Pin testdata mtimes
+        working-directory: .
+        run: find . -path '*/testdata/*' -exec touch -t 200001010000 {} +
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/backend/go.mod
+          cache: false
+
+      # Only the nightly warm-cache job on main saves this cache. PRs restore and never save.
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
+          restore-keys: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
+
+      - run: go vet ./...
+
+      - run: go test -race ./...
+
   # The ios job compiles mobile-core on Darwin, which covers the Darwin-only code this skips.
   mobile-core:
     name: Swift (mobile-core, Linux)
@@ -32,6 +67,7 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
+      backend: ${{ steps.filter.outputs.backend }}
       mobile-core: ${{ steps.filter.outputs.mobile-core }}
       ios: ${{ steps.filter.outputs.ios }}
     steps:
@@ -44,6 +80,10 @@ jobs:
         id: filter
         with:
           filters: |
+            backend:
+              - 'apps/backend/**'
+              - 'scripts/ci/**'
+              - '.github/workflows/ci*.yml'
             mobile-core:
               - 'packages/mobile-core/**'
               - '.github/workflows/ci*.yml'
@@ -134,11 +174,11 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [plan, mobile-core, ios]
+    needs: [plan, backend, mobile-core, ios]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - uses: re-actors/alls-green@release/v1
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: mobile-core, ios
+          allowed-skips: backend, mobile-core, ios
