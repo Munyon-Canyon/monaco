@@ -46,6 +46,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: apps/backend/go.mod
+          cache: ${{ github.event_name != 'pull_request' }}
           cache-dependency-path: |
             apps/backend/go.sum
             packages/domain/go.sum
@@ -106,6 +107,70 @@ jobs:
           path: .logs/qa/*/screens/
           if-no-files-found: ignore
           retention-days: 14
+
+  # The only job that saves the Go cache that the go job in ci-jobs.yml restores. It runs the go job's tests
+  # with the same flags, so PRs also reuse main's test results for packages they do not change.
+  warm-cache:
+    name: Warm the Go cache for PRs
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: monaco
+          POSTGRES_PASSWORD: monaco
+          POSTGRES_DB: monaco
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U monaco -d monaco"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://monaco:monaco@localhost:5432/monaco?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pin testdata mtimes
+        run: find . -path '*/testdata/*' -exec touch -t 200001010000 {} +
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/backend/go.mod
+          cache: false
+
+      - name: Apply migrations to a clean database
+        working-directory: apps/backend
+        run: go run ./cmd/migrate
+
+      - name: Build and test backend
+        working-directory: apps/backend
+        run: |
+          go build ./...
+          go test -race -p 1 ./...
+
+      - name: Build and test domain
+        working-directory: packages/domain
+        run: |
+          go build ./...
+          go test -race ./...
+
+      - name: Build and test reference bot
+        working-directory: agents/momentum-bot
+        run: |
+          go build ./...
+          go test -race ./...
+
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-${{ github.sha }}
 
   alert:
     name: Open, update or close the nightly-failure issue
