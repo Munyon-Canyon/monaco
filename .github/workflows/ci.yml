@@ -118,11 +118,8 @@ jobs:
               - 'agents/momentum-bot/**'
               - 'supabase/migrations/**'
               - 'docs/legacy/api.md'
-              - 'scripts/ci/**'
-              - '.github/workflows/ci.yml'
             mobile-core:
               - 'packages/mobile-core/**'
-              - '.github/workflows/ci.yml'
             web:
               - 'apps/web/**'
             ios:
@@ -133,7 +130,6 @@ jobs:
               - 'scripts/ci/select-xcode.sh'
               - 'scripts/qa/screens.sh'
               - 'scripts/qa/sample-screens.txt'
-              - '.github/workflows/ci.yml'
 
       - if: steps.filter.outputs.web == 'true'
         uses: actions/setup-node@v4
