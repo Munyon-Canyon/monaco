@@ -2,9 +2,12 @@ package observability
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"slices"
+
+	"go.opentelemetry.io/contrib/bridges/otelslog"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -15,11 +18,15 @@ func NewLogger(cfg config.Config, w io.Writer) *slog.Logger {
 	if cfg.Env == config.EnvLocal || cfg.Env == config.EnvTest {
 		level = slog.LevelDebug
 	}
-	return slog.New(&handler{next: slog.NewJSONHandler(w, &slog.HandlerOptions{Level: level})})
+	return slog.New(&handler{level: level, sinks: []slog.Handler{
+		slog.NewJSONHandler(w, &slog.HandlerOptions{Level: slog.LevelDebug}),
+		otelslog.NewHandler("github.com/monaco/monaco/apps/backend"),
+	}})
 }
 
 type handler struct {
-	next   slog.Handler
+	level  slog.Level
+	sinks  []slog.Handler
 	groups []group
 }
 
@@ -28,8 +35,8 @@ type group struct {
 	attrs []slog.Attr
 }
 
-func (h *handler) Enabled(ctx context.Context, level slog.Level) bool {
-	return h.next.Enabled(ctx, level)
+func (h *handler) Enabled(_ context.Context, level slog.Level) bool {
+	return level >= h.level
 }
 
 func (h *handler) Handle(ctx context.Context, r slog.Record) error {
@@ -45,7 +52,15 @@ func (h *handler) Handle(ctx context.Context, r slog.Record) error {
 	out := slog.NewRecord(r.Time, r.Level, r.Message, r.PC)
 	out.AddAttrs(joinKeys(ctx)...)
 	out.AddAttrs(attrs...)
-	if err := h.next.Handle(ctx, out); err != nil {
+	var failed []error
+	for _, sink := range h.sinks {
+		if sink.Enabled(ctx, out.Level) {
+			if err := sink.Handle(ctx, out); err != nil {
+				failed = append(failed, err)
+			}
+		}
+	}
+	if err := errors.Join(failed...); err != nil {
 		return errs.Wrap(err, errs.CodeInternal, "observability.handler.Handle")
 	}
 	return nil
@@ -54,17 +69,21 @@ func (h *handler) Handle(ctx context.Context, r slog.Record) error {
 func (h *handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	redacted := redactAll(attrs)
 	if len(h.groups) == 0 {
-		return &handler{next: h.next.WithAttrs(redacted)}
+		sinks := make([]slog.Handler, len(h.sinks))
+		for i, sink := range h.sinks {
+			sinks[i] = sink.WithAttrs(redacted)
+		}
+		return &handler{level: h.level, sinks: sinks}
 	}
 	groups := slices.Clone(h.groups)
 	last := &groups[len(groups)-1]
 	last.attrs = append(slices.Clone(last.attrs), redacted...)
-	return &handler{next: h.next, groups: groups}
+	return &handler{level: h.level, sinks: h.sinks, groups: groups}
 }
 
 func (h *handler) WithGroup(name string) slog.Handler {
 	if name == "" {
 		return h
 	}
-	return &handler{next: h.next, groups: append(slices.Clone(h.groups), group{name: name})}
+	return &handler{level: h.level, sinks: h.sinks, groups: append(slices.Clone(h.groups), group{name: name})}
 }
