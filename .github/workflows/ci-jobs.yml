@@ -41,6 +41,9 @@ jobs:
           working-directory: apps/backend
           args: ./...
 
+      - name: No bare go statements outside platform and cmd
+        run: go run ./internal/platform/lint/nogo/cmd/nogo ./...
+
       - name: Generated depguard rules are fresh
         run: go generate ./... && git diff --exit-code .golangci.yml
 

@@ -19,8 +19,15 @@ func backendRepoWithHook(t *testing.T) string {
 	root := repoRoot(t)
 	dir := t.TempDir()
 	copyFile(t, filepath.Join(root, "scripts/githooks/lint-staged-go.sh"), filepath.Join(dir, "scripts/githooks/lint-staged-go.sh"))
-	copyFile(t, filepath.Join(root, "apps/backend/go.mod"), filepath.Join(dir, "apps/backend/go.mod"))
-	copyFile(t, filepath.Join(root, "apps/backend/.golangci.yml"), filepath.Join(dir, "apps/backend/.golangci.yml"))
+	for _, rel := range []string{
+		"apps/backend/go.mod",
+		"apps/backend/.golangci.yml",
+		"apps/backend/go.sum",
+		"apps/backend/internal/platform/lint/nogo/nogo.go",
+		"apps/backend/internal/platform/lint/nogo/cmd/nogo/main.go",
+	} {
+		copyFile(t, filepath.Join(root, rel), filepath.Join(dir, rel))
+	}
 	git(t, dir, "init", "-q")
 	git(t, dir, "add", ".")
 	git(t, dir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "base")
@@ -88,5 +95,17 @@ func TestLintStagedGo_passesCleanModuleAndIgnoresTestdata(t *testing.T) {
 	out, err = stageAndLint(t, dir, "internal/modules/foo/foo.go", "package foo\n\nfunc Two() int { return 2 }\n")
 	if err != nil {
 		t.Fatalf("expected a clean module to pass, err=%v out=%s", err, out)
+	}
+}
+
+func TestLintStagedGo_blocksABareGoStatementInAModule(t *testing.T) {
+	dir := backendRepoWithHook(t)
+	out, err := stageAndLint(t, dir, "internal/modules/foo/spawn.go",
+		"package foo\n\nfunc Spawn(fn func()) {\n\tgo fn()\n}\n")
+	if err == nil {
+		t.Fatalf("expected the hook to block, out=%s", out)
+	}
+	if !strings.Contains(out, "bare go statement") {
+		t.Fatalf("expected a nogo finding, out=%s", out)
 	}
 }
