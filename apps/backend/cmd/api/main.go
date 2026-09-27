@@ -14,12 +14,13 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability/boundary"
 )
 
 func main() {
 	if err := run(os.Stderr, os.Environ()); err != nil {
-		observability.NewLogger(config.Config{}, os.Stderr).
-			ErrorContext(context.Background(), "api stopped", slog.Any("err", err))
+		ctx := observability.WithLogger(context.Background(), observability.NewLogger(config.Config{}, os.Stderr))
+		boundary.Error(ctx, observability.BootStopped, slog.String("service", "api"), slog.Any("err", err))
 		os.Exit(1)
 	}
 }
@@ -29,15 +30,16 @@ func run(stderr io.Writer, environ []string) error {
 	if err != nil {
 		return err
 	}
-	logger := observability.NewLogger(cfg, stderr)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer stop()
-	logger.InfoContext(ctx, "api config", slog.Any("config", cfg.Redacted()))
+	ctx = observability.WithLogger(ctx, observability.NewLogger(cfg, stderr))
+	observability.Info(ctx, observability.BootConfig, slog.String("service", "api"), slog.Any("config", cfg.Redacted()))
 	ln, err := new(net.ListenConfig).Listen(ctx, "tcp", cfg.HTTP.Addr)
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", cfg.HTTP.Addr, err)
 	}
-	logger.InfoContext(ctx, "api listening", slog.String("addr", ln.Addr().String()))
+	observability.Info(ctx, observability.BootListening, slog.String("service", "api"),
+		slog.String("addr", ln.Addr().String()))
 	return serve(ctx, ln, cfg.Timeouts)
 }
 
