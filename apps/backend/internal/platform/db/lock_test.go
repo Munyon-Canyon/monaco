@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -16,8 +17,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-const terminateLockHolders = `SELECT count(pg_terminate_backend(pid)) FROM pg_locks
+const terminateLockHolders = `SELECT count(*) FILTER (WHERE pg_terminate_backend(pid, $1)) FROM pg_locks
 WHERE locktype = 'advisory' AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`
+
+const terminateWait = 5 * time.Second
 
 func newLock(t *testing.T, pool *pgxpool.Pool, key string) *db.Lock {
 	t.Helper()
@@ -149,9 +152,10 @@ func assertLostLine(t *testing.T, logs *bytes.Buffer, held string) {
 
 func terminateHolders(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	var killed int
-	if err := pool.QueryRow(t.Context(), terminateLockHolders).Scan(&killed); err != nil || killed != 1 {
-		t.Fatalf("terminated %d lock sessions (%v), want 1", killed, err)
+	var gone int
+	err := pool.QueryRow(t.Context(), terminateLockHolders, terminateWait.Milliseconds()).Scan(&gone)
+	if err != nil || gone != 1 {
+		t.Fatalf("%d lock sessions exited within %s of pg_terminate_backend (%v), want 1", gone, terminateWait, err)
 	}
 }
 
