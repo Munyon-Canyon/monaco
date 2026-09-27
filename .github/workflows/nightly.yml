@@ -8,9 +8,10 @@ on:
     # 07:00 UTC = 03:00 US Eastern in summer (EDT), 02:00 in winter (EST).
     - cron: "0 7 * * *"
   workflow_dispatch:
-  # A change to this workflow or to the QA scripts runs it on its own PR. PR runs never
-  # touch issues: the alert job only prints what it would have done.
+  # A change to this workflow or to the QA scripts runs it on its own PR, when that PR is based
+  # on main. PR runs never touch issues: the alert job only prints what it would have done.
   pull_request:
+    branches: [main]
     paths:
       - .github/workflows/nightly.yml
       - scripts/qa/**
@@ -23,8 +24,32 @@ permissions:
   contents: read
 
 jobs:
+  # A scheduled night whose main head already passed a nightly run skips qa and warm-cache.
+  changed:
+    name: Has main changed since the last green night
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      actions: read
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run=true
+          if [[ "$GITHUB_EVENT_NAME" == schedule ]]; then
+            last="$(gh run list -R "$GITHUB_REPOSITORY" --workflow nightly.yml --branch main --status success --limit 1 --json headSha -q '.[0].headSha')"
+            echo "main head $GITHUB_SHA, last green nightly head ${last:-none}"
+            [[ "$last" == "$GITHUB_SHA" ]] && run=false
+          fi
+          echo "run=$run" | tee -a "$GITHUB_OUTPUT"
+
   qa:
     name: night.sh (backend, host tests, app, sample UI tests, screenshots)
+    needs: changed
+    if: needs.changed.outputs.run == 'true'
     runs-on: macos-15
     timeout-minutes: 180
     env:
@@ -108,11 +133,14 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # The only job that saves the Go cache that the go job in ci-jobs.yml restores. It runs the go job's tests
-  # with the same flags, so PRs also reuse main's test results for packages they do not change.
+  # The only job that saves the Go cache the go job in ci-jobs.yml restores. It runs that job's
+  # tests with the same flags, so PRs also reuse main's results for packages they do not change.
   warm-cache:
     name: Warm the Go cache for PRs
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    needs: changed
+    if: >-
+      needs.changed.outputs.run == 'true' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     services:

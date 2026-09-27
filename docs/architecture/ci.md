@@ -194,5 +194,6 @@ Each step is one small PR with its own proof.
 
 ## Log
 
+- 2026-09-27: Rollout steps 1 to 4 implemented in the #456 stack (#493, #497, #498, #499). The jobs moved into the reusable `ci-jobs.yml`, called by `ci.yml` and by `ci-retarget.yml` (which owns `edited`), so the required check is `ci / ci-ok` and a draft or a title edit leaves no `ci / ci-ok` at all. The ticket's `edited` in `ci.yml` let a body edit on #493 cancel CI and replace a failing `ci-ok` with a passing skip. `ios` timeout 20 minutes (12 to 16 minutes measured over the last 4 green runs). `warm-cache` runs the tests, not only compiles them.
 - 2026-09-27: Decided to stay on GitHub's free hosted runners while public. Added the rules that keep it free, a runner-label check, and the steps before going private.
 - 2026-09-27: Proposed. Measured a month of runs, found the repo public (free hosted runners) and the per-job rounding and macOS `swift` job as the waste. CI runs only on ready PRs based on `main`, one aggregate required check, Linux-first, nightly skips idle nights. Runner options surveyed.
