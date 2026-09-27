@@ -25,12 +25,12 @@ Also collect proof from the session or CI: commands run and their output, `just 
 
 ## Title
 
-`#<issue> <what this PR changes>`, present tense, no commit-type prefix.
+What this PR changes, present tense. No issue number and no commit-type prefix; the issue is linked under Why.
 
-- Good: `#212 Add errs code table and problem+json mapping`
-- Bad: `docs: stuff`, `Fix bug`, `feat(treasury): fund`
+- Good: `Add errs code table and problem+json mapping`
+- Bad: `#212 Add errs code table`, `docs: stuff`, `feat(treasury): fund`, `Fix bug`
 
-No issue yet? Open one first in the write-ticket format. Every PR in a stack carries the stack's issue number.
+Link the issue the stack belongs to in the Why section ("Closes #212" or "Part of #212").
 
 ## Output Format
 
@@ -77,12 +77,12 @@ Return the title on its own line, then one copyable markdown code block for the 
 After `gt submit --stack`, set title and body:
 
 ```bash
-gh pr edit <n> --title "#<issue> <what changes>" --body-file <file>
+gh pr edit <n> --title "<what changes>" --body-file <file>
 ```
 
 ## Example
 
-Title: `#212 Replace hand-written test mocks with factories`
+Title: `Replace hand-written test mocks with factories`
 
 ```markdown
 ## TLDR

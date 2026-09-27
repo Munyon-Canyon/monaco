@@ -436,7 +436,7 @@ Backend tests never touch the app database: they derive `{dbname}_test` from `DA
 
 ## Pull requests
 
-Changes ship as stacks of small PRs through Graphite, not as one large PR. Each PR builds and passes tests on its own and stays under 1000 changed lines. Titles are `#<issue> <what changes>`, and the body follows `.github/pull_request_template.md`: TLDR, Why, What changed, Proof, What came up, Reviewer focus. To split a branch that grew too big, use the `distribute-stack-changes` skill or `gt split --by-hunk`.
+Changes ship as stacks of small PRs through Graphite, not as one large PR. Each PR builds and passes tests on its own and stays under 1000 changed lines (CI counts code, tests and docs; a human can add the `large-pr` label for a mechanical change). Titles say what the PR changes, with no issue number or commit-type prefix, and the body follows `.github/pull_request_template.md`: TLDR, Why, What changed, Proof, What came up, Reviewer focus. To split a branch that grew too big, use the `distribute-stack-changes` skill or `gt split --by-hunk`.
 
 ```bash
 gt sync                       # pull main, drop merged branches

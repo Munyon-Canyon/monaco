@@ -1,35 +1,31 @@
 #!/usr/bin/env python3
 """Fail a pull request whose title or body does not follow the repo's PR format.
 
-Title: "#<issue> <what changes>", where <issue> is an open or closed issue (not a PR).
+Title: what the PR changes, present tense. No leading issue number and no
+commit-type prefix such as "docs:" or "feat(x):".
 Body: the six sections of .github/pull_request_template.md, each with real text
 after HTML comments are removed.
 
-Reads PR_TITLE, PR_BODY and GITHUB_REPOSITORY from the environment. Uses the gh CLI
-to confirm the issue exists. Rules: docs/architecture/backend-platform.md
-#pull-requests-small-and-stacked
+Reads PR_TITLE and PR_BODY from the environment. Rules:
+docs/architecture/backend-platform.md#pull-requests-small-and-stacked
 """
 
-import json
 import os
 import re
-import subprocess
 import sys
 
 SECTIONS = ["TLDR", "Why", "What changed", "Proof", "What came up", "Reviewer focus"]
-TITLE_RE = re.compile(r"^#(\d+) \S")
+ISSUE_PREFIX_RE = re.compile(r"^\s*#\d+")
+COMMIT_PREFIX_RE = re.compile(r"^\s*[a-z]+(\([^)]*\))?!?:\s")
 
 
-def title_errors(title: str, repo: str, check_issue) -> list[str]:
-    m = TITLE_RE.match(title)
-    if not m:
-        return [f'title must look like "#<issue> <what changes>", got: "{title}"']
-    number = m.group(1)
-    kind = check_issue(repo, number)
-    if kind == "missing":
-        return [f"title names #{number}, which does not exist in {repo}"]
-    if kind == "pull_request":
-        return [f"title names #{number}, which is a pull request, not an issue"]
+def title_errors(title: str) -> list[str]:
+    if not title.strip():
+        return ["title is empty"]
+    if ISSUE_PREFIX_RE.match(title):
+        return [f'title starts with an issue number; link the issue under Why instead: "{title}"']
+    if COMMIT_PREFIX_RE.match(title):
+        return [f'title starts with a commit-type prefix; say what the PR changes instead: "{title}"']
     return []
 
 
@@ -50,22 +46,8 @@ def body_errors(body: str) -> list[str]:
     return errors
 
 
-def gh_issue_kind(repo: str, number: str) -> str:
-    result = subprocess.run(
-        ["gh", "api", f"repos/{repo}/issues/{number}"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        return "missing"
-    return "pull_request" if "pull_request" in json.loads(result.stdout) else "issue"
-
-
 def main() -> int:
-    title = os.environ.get("PR_TITLE", "")
-    body = os.environ.get("PR_BODY", "")
-    repo = os.environ.get("GITHUB_REPOSITORY", "")
-    errors = title_errors(title, repo, gh_issue_kind) + body_errors(body)
+    errors = title_errors(os.environ.get("PR_TITLE", "")) + body_errors(os.environ.get("PR_BODY", ""))
     if errors:
         print("PR format check failed:")
         for e in errors:

@@ -11,28 +11,25 @@ spec.loader.exec_module(check)
 GOOD_BODY = "\n\n".join(f"## {s}\n\nText for {s}." for s in check.SECTIONS)
 
 
-def issues(kinds):
-    return lambda repo, number: kinds.get(number, "missing")
-
-
 class TitleTest(unittest.TestCase):
-    def test_accepts_issue_number_and_descriptor(self):
-        self.assertEqual(check.title_errors("#212 Add errs code table", "o/r", issues({"212": "issue"})), [])
+    def test_accepts_plain_descriptor(self):
+        self.assertEqual(check.title_errors("Add errs code table and problem+json mapping"), [])
 
-    def test_rejects_conventional_commit_title(self):
-        self.assertEqual(len(check.title_errors("docs: add stuff", "o/r", issues({}))), 1)
+    def test_accepts_issue_reference_later_in_title(self):
+        self.assertEqual(check.title_errors("Fix redeem rounding reported in #212"), [])
 
-    def test_rejects_number_without_space_or_descriptor(self):
-        self.assertEqual(len(check.title_errors("#212", "o/r", issues({"212": "issue"}))), 1)
-        self.assertEqual(len(check.title_errors("#212Add", "o/r", issues({"212": "issue"}))), 1)
+    def test_accepts_colon_that_is_not_a_commit_prefix(self):
+        self.assertEqual(check.title_errors("Backend RFC: errors, logs and tests"), [])
 
-    def test_rejects_missing_issue(self):
-        errors = check.title_errors("#999 Something", "o/r", issues({}))
-        self.assertIn("does not exist", errors[0])
+    def test_rejects_leading_issue_number(self):
+        self.assertIn("issue number", check.title_errors("#212 Add errs code table")[0])
 
-    def test_rejects_pull_request_number(self):
-        errors = check.title_errors("#451 Something", "o/r", issues({"451": "pull_request"}))
-        self.assertIn("pull request", errors[0])
+    def test_rejects_commit_type_prefix(self):
+        self.assertIn("commit-type prefix", check.title_errors("docs: add stuff")[0])
+        self.assertIn("commit-type prefix", check.title_errors("feat(treasury)!: fund cabal")[0])
+
+    def test_rejects_empty_title(self):
+        self.assertEqual(check.title_errors("   "), ["title is empty"])
 
 
 class BodyTest(unittest.TestCase):

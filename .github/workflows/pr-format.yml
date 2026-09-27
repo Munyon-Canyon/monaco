@@ -2,7 +2,7 @@ name: PR format
 
 on:
   pull_request:
-    types: [opened, edited, reopened, synchronize, ready_for_review]
+    types: [opened, edited, reopened, synchronize, ready_for_review, labeled, unlabeled]
 
 concurrency:
   group: pr-format-${{ github.event.pull_request.number }}
@@ -10,7 +10,6 @@ concurrency:
 
 permissions:
   contents: read
-  issues: read
   pull-requests: read
 
 jobs:
@@ -27,5 +26,22 @@ jobs:
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
-          GH_TOKEN: ${{ github.token }}
         run: python3 scripts/check-pr-format.py
+
+  pr-size:
+    name: PR size (under 1000 lines)
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Checker unit tests
+        run: python3 scripts/test_check_pr_size.py
+      - name: Check size
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: python3 scripts/check-pr-size.py

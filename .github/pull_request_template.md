@@ -1,5 +1,6 @@
 <!--
-Title: #<issue> <what this PR changes>, e.g. "#212 Add errs code table and problem+json mapping".
+Title: what this PR changes, present tense, e.g. "Add errs code table and problem+json mapping".
+No issue number and no commit-type prefix in the title; link the issue under Why.
 Write every section for a reviewer who reads nothing but this PR. Delete these comments.
 -->
 
