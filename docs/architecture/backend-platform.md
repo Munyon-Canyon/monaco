@@ -452,7 +452,7 @@ Where the 60 s goes. Every row was measured on 2026-09-27 against throwaway code
 
 Not in `just test backend`: E2E (real binaries, compose), mutation, crash-point, timing benchmarks. Those are PR CI or nightly.
 
-PR CI is three required jobs, each with its own budget: lint plus unit plus integration (under 3 min, sharded by package), E2E (under 4 min), and mutation on changed packages (under 10 min, or the PR is too big and gets split). Nightly runs everything unbounded.
+PR CI is three required jobs, each with its own budget (when they run and on what runners is in [ci.md](ci.md)): lint plus unit plus integration (under 3 min, sharded by package), E2E (under 4 min), and mutation on changed packages (under 10 min, or the PR is too big and gets split). Nightly runs everything unbounded.
 
 - **No sleeps.** `time.Sleep` in tests is banned by `forbidigo`. Time-dependent code takes the injected `clock.Clock`, and goroutine timing uses `testing/synctest`, where virtual time advances instantly once every goroutine is blocked. Measured: the full 1 s, 5 s, 30 s, 2 min, 10 min backoff schedule (12m36s of fake time) runs in 19 to 40 µs, and an 8-worker pool covering 12.5 s of fake time in 1 to 4 ms.
 - **Bus timers are real time.** synctest and `clock.Clock` cannot speed up timers inside `nats-server`. Measured: redelivery takes exactly `AckWait` plus 1.5 ms, the max-deliveries advisory takes `MaxDeliver × AckWait`, and proving that `Term` stops redelivery costs the whole wait window. So bus-semantics tests run with `AckWait` 100 ms from `testkit.NATS`, one sample each, in parallel. That is about 0.5 s of mostly idle wall time per package. `testkit.NATS` rejects an `AckWait` over 250 ms.
@@ -888,6 +888,7 @@ None at the moment.
 
 ## Log
 
+- 2026-09-27: CI scheduling moved to [ci.md](ci.md): PR CI only on ready PRs based on `main`, one aggregate required check, Linux-first, runner options.
 - 2026-09-27: Logs as evidence: registered message names, join keys on every line, decisions and inaction logged, before/after on money lines, terminal line from `uow.Do`, replay and seeded scenarios.
 - 2026-09-27: Errors rewritten around one `errs.Error` type and a code table; boundary-only logging; outcomes column. Testing budget made a gate with a cost table; test isolation by database with the lints that enforce it. `flows.tsv` replaces the hand table as the source of truth. Deploy on Render with OTel to Grafana. Open questions closed: module path, atlas, `cabal` everywhere.
 - 2026-09-27: NATS hosting decided: Synadia Cloud, free plan first. Budget per limit, two streams, one connection per process, SSE hub with one wildcard subscription, `Nats-Msg-Id` on every publish.

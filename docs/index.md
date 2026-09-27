@@ -16,6 +16,7 @@ Read these in order to understand the repo:
 | Doc | Read it when |
 | --- | --- |
 | [architecture/backend-platform.md](architecture/backend-platform.md) | You are building the new backend: rings, lint, tests, flows, NATS, deploy. The rewrite's source of truth |
+| [architecture/ci.md](architecture/ci.md) | You are changing CI: what runs on which PRs, runner choice, minute budget |
 | [agent-trading.md](agent-trading.md) | You are building or debugging a trading agent |
 | [design.md](design.md) | You are changing the iOS UI: colours, type, layout rules |
 | [multi-user-verification.md](multi-user-verification.md) | You changed auth, membership, money or boards and need to re-verify |

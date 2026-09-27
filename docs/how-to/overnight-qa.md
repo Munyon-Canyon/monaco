@@ -13,7 +13,7 @@ nightly GitHub workflow. Per-PR CI builds the app too.
 | Nightly 07:00 UTC (03:00 EDT / 02:00 EST), manual dispatch, PRs touching `nightly.yml` or `scripts/qa/**` | `nightly.yml` · `qa` | `night.sh --screenshots`: backend, mobile-core, app build, `MonacoTests`, each sample UI test class, screenshot gallery |
 
 A Go-only PR skips the `ios` job. Both app builds use the placeholder config below, so CI needs
-no secret. The backend rewrite defines its checks in [CI gates](../architecture/backend-platform.md#ci-gates).
+no secret. The backend rewrite defines its checks in [CI gates](../architecture/backend-platform.md#ci-gates). When CI runs, on which runners, and the planned changes to this table are in [CI](../architecture/ci.md).
 
 ## Running it locally
 
