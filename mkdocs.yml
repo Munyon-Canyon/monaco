@@ -23,6 +23,9 @@ theme:
         icon: material/brightness-4
         name: Light mode
 
+extra_css:
+  - stylesheets/swagger.css
+
 plugins:
   - search
   - render_swagger

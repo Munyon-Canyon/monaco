@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
@@ -15,6 +16,9 @@ import (
 
 func docs(args []string, stdout, stderr io.Writer) int {
 	switch {
+	case slices.Equal(args, []string{"errors"}):
+		_, _ = io.WriteString(stdout, errorTable(errs.All()))
+		return 0
 	case slices.Equal(args, []string{"events"}):
 		_, _ = io.WriteString(stdout, eventCatalog(events.Catalog()))
 		return 0
@@ -23,7 +27,7 @@ func docs(args []string, stdout, stderr io.Writer) int {
 	case slices.Equal(args, []string{"logs"}):
 		return docsLogs(stdout, stderr)
 	default:
-		_, _ = fmt.Fprintln(stderr, "usage: monacoctl docs events|flows|logs")
+		_, _ = fmt.Fprintln(stderr, "usage: monacoctl docs errors|events|flows|logs")
 		return 2
 	}
 }
@@ -68,6 +72,17 @@ func eventCatalog(entries []events.Entry) string {
 		for _, f := range e.Fields {
 			fmt.Fprintf(&b, "| `%s` | `%s` |\n", f.Name, f.GoType)
 		}
+	}
+	return b.String()
+}
+
+func errorTable(codes []errs.Code) string {
+	yesNo := map[bool]string{true: "yes", false: "no"}
+	var b strings.Builder
+	b.WriteString("| Code | HTTP status | Retryable | Alerts | Message |\n| --- | --- | --- | --- | --- |\n")
+	for _, c := range codes {
+		fmt.Fprintf(&b, "| `%s` | %d | %s | %s | %s |\n",
+			c, errs.HTTPStatus(errs.KindOf(c)), yesNo[errs.Retryable(c)], yesNo[errs.Alert(c)], errs.Message(c))
 	}
 	return b.String()
 }

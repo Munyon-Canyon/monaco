@@ -292,6 +292,7 @@ Do not copy these skills into another machine's home path. Clone the repo; Curso
 | --- | --- |
 | Backend and `scripts/` Go tests | `just test backend` |
 | Shared Swift logic | `just test mobile` |
+| Regenerate `docs/reference` (CI fails when stale) | `just gen docs` |
 | Docs site, broken links fail it | `python3.13 -m venv .venv && .venv/bin/pip install -r requirements-docs.txt && .venv/bin/mkdocs build --strict` |
 
 The docs site needs Python 3.10 or newer. `.python-version` pins 3.13, and macOS's system `python3` (3.9) cannot install `requirements-docs.txt`.

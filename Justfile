@@ -222,6 +222,20 @@ reset *target:
         ;;
     esac
 
+# Regenerate checked-in generated files. `just gen docs` rewrites docs/reference from monacoctl.
+gen target:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{target}}" in
+      docs)
+        ./scripts/gen-docs.sh
+        ;;
+      *)
+        echo "error: unknown target '{{target}}' (use docs)"
+        exit 1
+        ;;
+    esac
+
 killports:
     #!/usr/bin/env bash
     set -euo pipefail

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
@@ -31,7 +32,7 @@ func TestDocsRejectsAnUnknownTopic(t *testing.T) {
 	for _, args := range [][]string{{"docs"}, {"docs", "nope"}, {"docs", "events", "extra"}} {
 		var stdout, stderr bytes.Buffer
 		if code := run(commands(), tools(nil), nil, args, &stdout, &stderr); code != 2 || stdout.Len() != 0 ||
-			stderr.String() != "usage: monacoctl docs events|flows|logs\n" {
+			stderr.String() != "usage: monacoctl docs errors|events|flows|logs\n" {
 			t.Fatalf("%q: code=%d stdout=%q stderr=%q", args, code, stdout.String(), stderr.String())
 		}
 	}
@@ -84,5 +85,27 @@ func TestDocsLogsWriteFailureExits1(t *testing.T) {
 	code := docsLogs(failingWriter{}, &stderr)
 	if code != 1 || !strings.HasPrefix(stderr.String(), "monacoctl docs logs: observability.WriteCatalog: internal") {
 		t.Fatalf("docs logs = %d %q, want 1 and the wrapped error", code, stderr.String())
+	}
+}
+
+func TestDocsErrorsPrintsTheCodeTable(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	if code := run(commands(), tools(nil), nil, []string{"docs", "errors"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
+	}
+	out := stdout.String()
+	for _, want := range []string{
+		"| Code | HTTP status | Retryable | Alerts | Message |\n| --- | --- | --- | --- | --- |\n",
+		"| `db_unavailable` | 503 | yes | no | The service is temporarily unavailable. Try again shortly. |\n",
+		"| `version_conflict` | 409 | no | no | This changed since you last loaded it. Refresh and try again. |\n",
+		"| `panic` | 500 | no | yes | Something went wrong. |\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("stdout =\n%s\nwant a line %q", out, want)
+		}
+	}
+	if rows := strings.Count(out, "\n| `"); rows != len(errs.All()) {
+		t.Fatalf("got %d code rows, want %d", rows, len(errs.All()))
 	}
 }

@@ -50,6 +50,9 @@ jobs:
       - name: Generated files are fresh
         run: go generate ./... && git diff --exit-code
 
+      - name: Generated reference docs are fresh
+        run: ../../scripts/gen-docs.sh && git add --intent-to-add ../../docs/reference && git diff --exit-code ../../docs/reference
+
       - name: OpenAPI spec lint
         run: docker run --rm -v "$PWD/api:/api:ro" dshanley/vacuum:v0.30.6 lint -b -q -n warn -r /api/.vacuum.yaml /api/openapi.yaml
 
@@ -146,6 +149,8 @@ jobs:
               - 'scripts/ci/**'
               - 'scripts/install-atlas.sh'
               - 'scripts/install-sqlc.sh'
+              - 'scripts/gen-docs.sh'
+              - 'docs/reference/**'
               - '.github/workflows/ci*.yml'
             mobile-core:
               - 'packages/mobile-core/**'
