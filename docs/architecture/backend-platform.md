@@ -732,10 +732,50 @@ Cost: IDE hover shows no docs. With `internal/`-only code and descriptive names,
 
 ### Verification skill
 
-Agents need to prove backend work runs, not only that it compiles. `.claude/skills/verify-backend/` holds two parts:
+Agents need to prove backend work runs, not only that it compiles and its unit tests pass. `verify-backend` runs the real `api` and `worker` binaries against a real database and bus, drives a flow the way the app would, and writes down what the system did. It is the step between `just test backend` and opening a PR.
 
-1. **A CLI inside the skill** (`verify-backend` built from `cmd/monacoctl verify`). It boots Postgres, NATS and fake externals, starts `api` and `worker`, runs one named flow or all of them through HTTP, and prints evidence: HTTP responses, `events` rows written, consumer acks, ledger balances per asset, dead letters, p95 handler latency. Same command every session, so agents don't write throwaway scripts. Crash-point mode (`--crash-at after-execute`) restarts the worker mid-flow and checks convergence.
-2. **A feature map** (`feature-map.md` in the skill) generated from the Flows table: for each flow, the route or trigger, the command, events, consumers, tables touched, and the `verify-backend flow <n>` line that exercises it. An agent handed "my fund didn't show up" looks up flow 7 and knows which events and tables to inspect. A CI check regenerates it and fails if stale, so it can't drift from the registry.
+What lives where:
+
+| Piece | Path | Contents |
+| --- | --- | --- |
+| Skill instructions | `.claude/skills/verify-backend/SKILL.md` (mirrored to `.cursor/skills/`) | When to run it, the commands, how to read evidence, what counts as a pass, and what to do on a failure. Short; the CLI does the work. |
+| Feature map | `.claude/skills/verify-backend/feature-map.md` | Generated from `flows.tsv` by `monacoctl docs flows`. Per flow: trigger, command, events, consumers, tables, outcomes, and the exact command that verifies it. Checked fresh in CI. |
+| The CLI | `cmd/monacoctl verify`, run as `just verify backend` | Stack, driver, invariant checks, evidence writer. Code, tested like any other code. |
+| Fakes server | `cmd/fakes`, built from `internal/testkit/fakes` | Privy, Jupiter, Solana RPC, Helius, xStocks and APNs over HTTP, replaying recorded fixtures. Scriptable per request: succeed, fail with a given error, delay, or hang. |
+| Flow scripts | `internal/testkit/flows/<id>.go` | The same steps as the flow's acceptance scenario, written once and run by both `go test` (in-process) and `verify` (against binaries). |
+| Seed scenarios | `internal/testkit/scenarios/` | Named event sequences replayed into the database before a flow starts (see [Replay and seeded states](#replay-and-seeded-states)). |
+| Evidence | `test/evidence/<flow-id>.json`, committed | One file per flow, stamped with the commit it ran against. |
+| Pre-PR hook | `scripts/agent-guard-pr.sh`, wired in `.claude/settings.json` | Blocks `gh pr create` until evidence is fresh for every touched flow. |
+
+What one run does:
+
+1. **Stack up.** A throwaway Postgres container on its own port with data on tmpfs, never the dev container. An embedded NATS server. The fakes server. `api` and `worker` built with `-cover` and started with config that points every outside base URL at the fakes. The run fails fast if any piece is not healthy within 10 s.
+2. **Seed.** Replay the flow's starting scenario, for example `cabal-with-members` for flow 7.
+3. **Drive.** Run the flow script over HTTP with real auth headers, `Idempotency-Key`s and the SSE stream open.
+4. **Wait for convergence.** Poll until every event the flow emitted has been acked by every consumer in `flows.tsv`, or time out at 30 s. A timeout is a failure with the stuck consumer named.
+5. **Check invariants.** Ledger entries sum to zero per asset. Share units match the pot. No dead letters. No `KindInternal` in the logs. Every log line the flow must emit (registered in `msgs.go`) is present. The HTTP status and `code` match the expected outcome.
+6. **Write evidence** and print a readable summary.
+7. **Tear down.** Stop the binaries, remove the container, merge coverage into `GOCOVERDIR`.
+
+Modes:
+
+| Command | Runs |
+| --- | --- |
+| `just verify backend` | The flows whose `module` the branch changed, from `git diff main --name-only`. The default before a PR. |
+| `just verify backend flow 07` | One flow, every outcome in its `outcomes` cell. |
+| `just verify backend flow 07 --outcome PrivyUnavailable` | One outcome. The fakes server is scripted to produce it. |
+| `just verify backend flow 07 --crash-at after-sign` | Kills the worker at that fault point, restarts it, and checks the flow converges to the same end state. |
+| `just verify backend all` | Every flow. CI nightly. |
+
+An evidence file holds: the commit SHA and whether the tree was dirty, the flow and outcomes run, each HTTP request and response (secrets redacted by the same slog handler), the `events` rows written, per-consumer acks and redeliveries, ledger balances per asset before and after, dead letters, the required log lines found, p50 and p95 handler latency, and pass or fail per invariant. Evidence from a dirty tree does not count.
+
+Gates:
+
+- **Before a PR, for agents.** `scripts/agent-guard-pr.sh` runs on `gh pr create`. It maps the branch's changed files to flows and blocks unless each has passing evidence stamped with `HEAD`. The message tells the agent to run `just verify backend`. The Cursor rule says the same.
+- **In CI, for everyone.** The E2E job reruns `verify` for the touched flows and fails on any difference from the committed evidence in the pass or fail of an invariant. `monacoctl flows check` fails a `verified` flow whose evidence is older than its module's newest commit.
+- **On failure.** The agent fixes the code and reruns. Evidence is never hand-edited: `flows check` recomputes the SHA stamp and rejects a file whose content hash does not match what `verify` wrote.
+
+Cost: one flow through real binaries is a guess of a few seconds, most of it binary start. A branch that touches one module runs a handful of flows, so 10 to 30 s before a PR. Rollout step 1 measures it.
 
 ## Docs, changelog, agents
 
@@ -748,7 +788,7 @@ Agents need to prove backend work runs, not only that it compiles. `.claude/skil
   - `go-concurrency`: when to use `Pool`, `Stage`, `FanOut`, errgroup; the eight concurrency rules; `goleak` and `-race` required. References the Mario Carrión fan-in/fan-out article for the base pattern and the helpers for the house version.
   - `money-change`: checklist for anything touching ledgers, shares, swaps: property test, crash-point test, guarded update, event in same tx.
   - `nats-consumer`: `bus.Dispatch` contract, idempotency via `event_deliveries`, retryable vs term, `InProgress` for long work, `Nats-Msg-Id` on publish, consumer-not-stream per module.
-  - `verify-backend`: the CLI and feature map above. Every backend task ends with `verify-backend flow <n>` output in the PR.
+  - `verify-backend`: the instructions and feature map above. Every backend branch runs `just verify backend` before `gh pr create`, and the pre-PR hook enforces it.
 
 ## Rollout
 
