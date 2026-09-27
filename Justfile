@@ -86,7 +86,7 @@ test app:
       backend)
         ./scripts/require-docker.sh
         docker compose --profile test up -d --wait postgres-test
-        scripts/test-backend.sh -race -shuffle=on
+        scripts/test-backend.sh
         if [[ "${SKIP_SCRIPTS_TESTS:-}" != "1" && -f scripts/go.mod ]]; then
           (cd scripts && go test -short ./...)
         fi

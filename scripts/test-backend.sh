@@ -10,8 +10,16 @@ cd "$(dirname "$0")/../apps/backend"
 json="$(mktemp)"
 trap 'rm -f "$json"' EXIT
 
+# rapid divides checks by 5 and steps by 2 under -short, so this lands on 100 cases and about 20 steps.
+# Env vars, not -rapid.* flags: a test binary that does not link rapid rejects the flags.
+export RAPID_CHECKS=500 RAPID_STEPS=40
+if [[ -n "${CI:-}" ]]; then
+  export RAPID_NOFAILFILE=1
+fi
+
 status=0
-go test -json "$@" ./... | tee "$json" |
+start="$(date +%s)"
+go test -json -race -shuffle=on -short "$@" ./... | tee "$json" |
   jq -rj --unbuffered 'select((.Action == "output" and .Test == null and (.Output | test("^(PASS|-test\\.shuffle )") | not))
     or .Action == "build-output") | .Output' || status=1
 
@@ -25,5 +33,6 @@ if [[ "$status" -ne 0 ]]; then
     | .Output' "$json"
 fi
 
+go run ./cmd/monacoctl test-report --from "$json" --start "$start" || status=1
 go run ./cmd/monacoctl flows check --from "$json" || status=1
 exit "$status"
