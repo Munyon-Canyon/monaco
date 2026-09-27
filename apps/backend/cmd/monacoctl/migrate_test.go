@@ -223,3 +223,15 @@ func TestMigrate_runsAtlasFromTheModuleRootWithTheRepoPinnedBinary(t *testing.T)
 		t.Fatalf("code=%d stdout=%q stderr=%q, want atlas run in %s", code, stdout.String(), stderr.String(), resolved)
 	}
 }
+
+func TestMigrate_failsAndNamesTheSearchWhenNoBackendModuleIsFound(t *testing.T) {
+	t.Parallel()
+	outside := t.TempDir()
+	var stdout, stderr bytes.Buffer
+	code := locatedMigrateTool(validMigrateEnviron(), outside)([]string{"apply"}, &stdout, &stderr)
+
+	want := "monacoctl: cannot find module " + backendModule + " above " + outside + "\n"
+	if code != 1 || stdout.Len() != 0 || stderr.String() != want {
+		t.Fatalf("code=%d stdout=%q stderr=%q, want %q", code, stdout.String(), stderr.String(), want)
+	}
+}

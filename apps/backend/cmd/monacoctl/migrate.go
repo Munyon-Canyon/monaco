@@ -53,14 +53,7 @@ func isBackendModule(dir string) bool {
 	return err == nil && modfile.ModulePath(data) == backendModule
 }
 
-func locatedMigrateTool(environ []string) tool {
-	var starts []string
-	if wd, err := os.Getwd(); err == nil {
-		starts = append(starts, wd)
-	}
-	if exe, err := os.Executable(); err == nil {
-		starts = append(starts, filepath.Dir(exe))
-	}
+func locatedMigrateTool(environ []string, starts ...string) tool {
 	root, err := moduleRoot(starts...)
 	if err != nil {
 		return func(_ []string, _, stderr io.Writer) int {

@@ -25,6 +25,8 @@ func commands() map[string]command {
 
 func tools(environ []string) map[string]tool {
 	gremlinsBin, _ := filepath.Abs("../../.bin/gremlins")
+	wd, _ := os.Getwd()
+	exe, _ := os.Executable()
 	return map[string]tool{
 		"bench":    bench{"go"}.run,
 		"bus":      busTool(environ),
@@ -32,7 +34,7 @@ func tools(environ []string) map[string]tool {
 		"docs":     docs,
 		"flows":    flowsCmd,
 		"gen":      gen,
-		"migrate":  locatedMigrateTool(environ),
+		"migrate":  locatedMigrateTool(environ, wd, filepath.Dir(exe)),
 		"mutation": mutationTool(
 			mutationEnv{
 				moduleDir: ".",

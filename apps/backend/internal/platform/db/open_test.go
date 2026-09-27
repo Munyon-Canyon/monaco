@@ -111,6 +111,18 @@ func TestOpen_failsWhenTheRevisionTableIsMissing(t *testing.T) {
 	}
 }
 
+func TestOpen_failsAsInternalWhenTheRevisionTableHasAnUnexpectedShape(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	if _, err := pool.Exec(t.Context(), `
+		DROP TABLE atlas_schema_revisions.atlas_schema_revisions;
+		CREATE TABLE atlas_schema_revisions.atlas_schema_revisions (id int)`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := db.Open(t.Context(), dbConfig(pool))
+	codedError(t, err, errs.CodeInternal)
+}
+
 func TestOpen_rejectsBadConfig(t *testing.T) {
 	t.Parallel()
 	ok := testkit.DB(t).Config().ConnString()
