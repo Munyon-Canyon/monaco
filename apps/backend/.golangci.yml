@@ -145,6 +145,9 @@ linters:
       - path: ^internal/platform/lint/.*_test\.go$
         linters: [gosec]
       - path: _test\.go$
+        linters: [gosec]
+        text: G404
+      - path: _test\.go$
         linters: [forbidigo]
         text: only main, tests and bus roots create root contexts
       - path: main_test\.go$
