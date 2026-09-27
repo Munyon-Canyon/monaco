@@ -60,12 +60,7 @@ build app:
     set -euo pipefail
     case "{{app}}" in
       backend)
-        if [[ ! -f apps/backend/go.mod ]]; then
-          echo "error: apps/backend is not scaffolded yet (M0-T3)."
-          exit 1
-        fi
-        mkdir -p bin
-        (cd apps/backend && go build -o ../../bin/monaco-api ./cmd/api)
+        echo "apps/backend: new module not scaffolded yet"
         ;;
       mobile)
         if [[ ! -d apps/mobile ]]; then
@@ -87,20 +82,7 @@ test app:
     set -euo pipefail
     case "{{app}}" in
       backend)
-        if [[ "${MONACO_DOTENVX:-}" != "1" ]]; then
-          exec {{_dotenvx}} env MONACO_DOTENVX=1 just test backend
-        fi
-        ./scripts/require-docker.sh
-        source ./scripts/assert-local-database-url.sh
-        docker compose up -d --wait
-        ./scripts/apply-migrations.sh
-        ./scripts/ensure-test-database.sh
-        ./scripts/verify-local-db.sh
-        if [[ -f apps/backend/go.mod ]]; then
-          (cd apps/backend && go test -race -p 1 ./...)
-        else
-          echo "M0: apps/backend not scaffolded. Local DB smoke test passed."
-        fi
+        echo "apps/backend: new module not scaffolded yet"
         if [[ "${SKIP_SCRIPTS_TESTS:-}" != "1" && -f scripts/go.mod ]]; then
           (cd scripts && go test -short ./...)
         fi
@@ -127,80 +109,13 @@ run *app:
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ -z "{{app}}" ]]; then
-      missing=()
-      if [[ ! -f apps/backend/go.mod ]]; then
-        missing+=("apps/backend (M0-T3)")
-      fi
-      if [[ ! -d apps/mobile ]]; then
-        missing+=("apps/mobile (M0-T4)")
-      fi
-      if [[ ${#missing[@]} -gt 0 ]]; then
-        echo "error: cannot run full stack. Missing:"
-        for item in "${missing[@]}"; do
-          echo "  - ${item}"
-        done
-        echo ""
-        echo "Run per-app recipes once scaffold exists: just run backend | just run mobile"
-        exit 1
-      fi
-      if [[ "${MONACO_DOTENVX:-}" != "1" ]]; then
-        exec {{_dotenvx}} env MONACO_DOTENVX=1 just run
-      fi
-      ./scripts/require-docker.sh
-      source ./scripts/assert-local-database-url.sh
-      docker compose up -d --wait
-      ./scripts/apply-migrations.sh
-      echo ""
-      echo "Local Postgres is ready."
-      echo "  DATABASE_URL=${DATABASE_URL}"
-      echo ""
-      source ./scripts/run-with-logs.sh
-      monaco_init_logs
-      backend_pid=""
-      cleanup() {
-        if [[ -n "${backend_pid}" ]] && kill -0 "${backend_pid}" 2>/dev/null; then
-          kill "${backend_pid}" 2>/dev/null || true
-          wait "${backend_pid}" 2>/dev/null || true
-        fi
-      }
-      # INT/TERM only — ios-sim exits after launch; do not kill API on mobile recipe return.
-      trap cleanup INT TERM
-      echo "Starting backend (background) and mobile (foreground)..."
-      (cd apps/backend && go run ./cmd/api) 2>&1 | tee -a "${MONACO_LOG_DIR}/backend.log" &
-      backend_pid=$!
-      if ! kill -0 "${backend_pid}" 2>/dev/null; then
-        echo "error: backend failed to start"
-        exit 1
-      fi
-      export MONACO_LOG_DIR
+      just run backend
       just run mobile
-      echo ""
-      echo "Simulator launched. Backend still running — Ctrl+C to stop."
-      wait "${backend_pid}" 2>/dev/null || true
-      trap - INT TERM
+      exit 0
     fi
     case "{{app}}" in
       backend)
-        if [[ "${MONACO_DOTENVX:-}" != "1" ]]; then
-          exec {{_dotenvx}} env MONACO_DOTENVX=1 just run backend
-        fi
-        ./scripts/require-docker.sh
-        source ./scripts/assert-local-database-url.sh
-        docker compose up -d --wait
-        ./scripts/apply-migrations.sh
-        echo ""
-        echo "Local Postgres is ready."
-        echo "  DATABASE_URL=${DATABASE_URL}"
-        echo "  psql: docker compose exec postgres psql -U ${POSTGRES_USER:-monaco} -d ${POSTGRES_DB:-monaco}"
-        echo ""
-        source ./scripts/run-with-logs.sh
-        monaco_init_logs
-        if [[ -f apps/backend/go.mod ]]; then
-          (cd apps/backend && go run ./cmd/api) 2>&1 | tee -a "${MONACO_LOG_DIR}/backend.log"
-        else
-          echo "M0: apps/backend not scaffolded yet. DB is up; wire the API in M0-T3."
-          exit 1
-        fi
+        echo "apps/backend: new module not scaffolded yet"
         ;;
       mobile)
         if [[ "${MONACO_DOTENVX:-}" != "1" ]]; then
@@ -225,13 +140,13 @@ stop *app:
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ -z "{{app}}" ]]; then
-      ./scripts/stop-backend.sh
-      ./scripts/stop-mobile.sh
+      just stop backend
+      just stop mobile
       exit 0
     fi
     case "{{app}}" in
       backend)
-        ./scripts/stop-backend.sh
+        echo "apps/backend: new module not scaffolded yet"
         ;;
       mobile)
         ./scripts/stop-mobile.sh
@@ -246,8 +161,7 @@ reset *target:
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ -z "{{target}}" ]]; then
-      ./scripts/stop-backend.sh
-      ./scripts/stop-mobile.sh
+      just stop
       if [[ "${MONACO_DOTENVX:-}" != "1" ]]; then
         exec {{_dotenvx}} env MONACO_DOTENVX=1 just reset
       fi
@@ -256,9 +170,7 @@ reset *target:
     fi
     case "{{target}}" in
       backend)
-        ./scripts/stop-backend.sh
-        rm -f bin/monaco-api
-        echo "removed bin/monaco-api"
+        echo "apps/backend: new module not scaffolded yet"
         ;;
       mobile)
         ./scripts/stop-mobile.sh
@@ -280,71 +192,6 @@ reset *target:
         ;;
       *)
         echo "error: unknown target '{{target}}' (use backend, mobile, or db)"
-        exit 1
-        ;;
-    esac
-
-# Seed #153 demo data into local Postgres: `just faker scale`, `just faker mixed <group_id>`,
-# `just faker all <group_id>`, `just faker demo <group_id> [proposal_id]` (recording variant).
-# Local DATABASE_URL only; never calls Privy/RPC/Jupiter. Refresh path: `just reset db` then `just faker ...`.
-faker profile *ids:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [[ "${MONACO_DOTENVX:-}" != "1" ]]; then
-      exec {{_dotenvx}} env MONACO_DOTENVX=1 just faker {{profile}} {{ids}}
-    fi
-    source ./scripts/assert-local-database-url.sh
-    read -r -a ids <<< "{{ids}}"
-    if (( ${#ids[@]} > 2 )); then
-      echo "error: usage: just faker <profile> [group_id] [proposal_id]" >&2
-      exit 1
-    fi
-    args=(-profile "{{profile}}")
-    if (( ${#ids[@]} >= 1 )); then
-      args+=(-group-id "${ids[0]}")
-    fi
-    if (( ${#ids[@]} == 2 )); then
-      args+=(-proposal-id "${ids[1]}")
-    fi
-    go run -C apps/backend ./cmd/faker-seed "${args[@]}"
-
-relayer target:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    case "{{target}}" in
-      balance)
-        if [[ "${MONACO_DOTENVX:-}" != "1" ]]; then
-          exec {{_dotenvx}} env MONACO_DOTENVX=1 just relayer balance
-        fi
-        go run -C apps/backend ./cmd/print-relayer-pubkey
-        ;;
-      *)
-        echo "error: unknown target '{{target}}' (use balance)"
-        exit 1
-        ;;
-    esac
-
-# Backfill local Postgres with demo cabals (txn history, proposals, nav snapshots).
-# Sign in once via the app (OTP) so a users row exists, then:
-#   just reset db && just run backend   # other terminal
-#   just seed demo
-# Optional: --user-id UUID | --privy-user-id DID | --if-empty=false (after reset db)
-seed target *args:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    case "{{target}}" in
-      demo)
-        if [[ "${MONACO_DOTENVX:-}" != "1" ]]; then
-          exec {{_dotenvx}} env MONACO_DOTENVX=1 just seed demo {{args}}
-        fi
-        ./scripts/require-docker.sh
-        source ./scripts/assert-local-database-url.sh
-        docker compose up -d --wait
-        ./scripts/apply-migrations.sh
-        go run -C apps/backend ./cmd/seed-demo {{args}}
-        ;;
-      *)
-        echo "error: unknown target '{{target}}' (use demo)"
         exit 1
         ;;
     esac

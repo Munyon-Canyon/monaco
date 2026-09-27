@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Wipe local Docker Compose Postgres volume and re-apply migrations (localhost only).
+# Wipe the local Docker Compose Postgres volume and start it empty (localhost only).
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,8 +14,6 @@ docker compose down -v
 echo "starting Postgres..."
 docker compose up -d --wait
 
-./scripts/apply-migrations.sh
-./scripts/ensure-test-database.sh
 ./scripts/verify-local-db.sh
 
 echo "local Postgres reset complete."

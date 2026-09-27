@@ -9,79 +9,6 @@ permissions:
   contents: read
 
 jobs:
-  go:
-    name: Go (backend, domain, reference bot)
-    needs: plan
-    if: needs.plan.outputs.go == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 6
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: monaco
-          POSTGRES_PASSWORD: monaco
-          POSTGRES_DB: monaco
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U monaco -d monaco"
-          --health-interval 2s
-          --health-timeout 5s
-          --health-retries 30
-    env:
-      # Throwaway service container, not a secret. Backend tests derive and migrate a
-      # sibling monaco_test database from this URL (internal/postgres/testdb.go).
-      # application_name changes every run. go test keys cached results on the env vars a test
-      # reads, so tests that read DATABASE_URL always rerun and only Postgres-free ones are cached.
-      DATABASE_URL: postgres://monaco:monaco@localhost:5432/monaco?sslmode=disable&application_name=ci-${{ github.run_id }}-${{ github.run_attempt }}
-    steps:
-      - uses: actions/checkout@v4
-
-      # go test keys its result cache on file mtimes, and a fresh checkout gives every file a new one.
-      - name: Pin testdata mtimes
-        run: find . -path '*/testdata/*' -exec touch -t 200001010000 {} +
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: apps/backend/go.mod
-          cache: false
-
-      # Only the nightly warm-cache job on main saves this cache. PRs restore and never save.
-      - uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-          key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
-          restore-keys: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
-
-      - name: Apply migrations to a clean database
-        working-directory: apps/backend
-        run: go run ./cmd/migrate
-
-      - name: Vet backend
-        working-directory: apps/backend
-        run: go vet ./...
-
-      # -p 1 matches `just test backend`: packages share one monaco_test database.
-      # -race: pollers, the alert queue and the price chain all share state across goroutines.
-      - name: Test backend
-        working-directory: apps/backend
-        run: go test -race -p 1 ./...
-
-      - name: Vet and test domain
-        working-directory: packages/domain
-        run: |
-          go vet ./...
-          go test -race ./...
-
-      - name: Vet and test reference bot
-        working-directory: agents/momentum-bot
-        run: |
-          go vet ./...
-          go test -race ./...
-
   # The ios job compiles mobile-core on Darwin, which covers the Darwin-only code this skips.
   mobile-core:
     name: Swift (mobile-core, Linux)
@@ -105,7 +32,6 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      go: ${{ steps.filter.outputs.go }}
       mobile-core: ${{ steps.filter.outputs.mobile-core }}
       ios: ${{ steps.filter.outputs.ios }}
     steps:
@@ -118,14 +44,6 @@ jobs:
         id: filter
         with:
           filters: |
-            go:
-              - 'apps/backend/**'
-              - 'packages/domain/**'
-              - 'agents/momentum-bot/**'
-              - 'supabase/migrations/**'
-              - 'docs/legacy/api.md'
-              - 'scripts/ci/**'
-              - '.github/workflows/ci*.yml'
             mobile-core:
               - 'packages/mobile-core/**'
               - '.github/workflows/ci*.yml'
@@ -216,11 +134,11 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [plan, go, mobile-core, ios]
+    needs: [plan, mobile-core, ios]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - uses: re-actors/alls-green@release/v1
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: go, mobile-core, ios
+          allowed-skips: mobile-core, ios
