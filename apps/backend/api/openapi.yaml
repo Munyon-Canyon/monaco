@@ -17,6 +17,8 @@ security:
 tags:
   - name: health
     description: Liveness of the API process.
+  - name: stream
+    description: Live re-fetch hints over server-sent events.
 paths:
   /healthz:
     get:
@@ -33,6 +35,38 @@ paths:
               schema:
                 type: string
                 const: "ok\n"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/stream:
+    get:
+      operationId: getStream
+      tags: [stream]
+      summary: Stream re-fetch hints for the caller.
+      description: >-
+        Opens a server-sent event stream. Each `hint` event names a key the caller may read
+        (`user:<id>`, `cabal:<id>` or `global`) and what changed; the app re-fetches that screen
+        through its normal GET. Hints are droppable, so a missed hint costs one re-fetch. A comment
+        line arrives every 15 seconds as a heartbeat. A reconnect that sends Last-Event-ID first
+        gets one `resync` event, telling the app to re-fetch everything it shows.
+      parameters:
+        - name: Last-Event-ID
+          in: header
+          required: false
+          description: The id of the last event the app received before it reconnected.
+          schema:
+            type: string
+            examples: ["42"]
+      responses:
+        "200":
+          description: >-
+            The stream. `event: hint` carries `data: {"key":"cabal:<id>","what":"updated"}` and an
+            `id`. `event: resync` carries `data: {}`.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                examples:
+                  - "id: 1\nevent: hint\ndata: {\"key\":\"global\",\"what\":\"feed\"}\n\n"
         default:
           $ref: "#/components/responses/Problem"
 components:

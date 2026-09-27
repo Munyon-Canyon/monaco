@@ -117,7 +117,13 @@ func TestAuth_openOperationsSkipTheVerifier(t *testing.T) {
 	if len(access) != 1 || access[0]["actor"] != nil {
 		t.Fatalf("access line = %v, want no actor key", access)
 	}
-	if rec := h.do(t, mustHandler(t, h.deps, Health{}), http.MethodGet, "/healthz", nil); rec.Code != http.StatusOK {
+	if rec := h.do(
+		t,
+		mustHandler(t, h.deps, healthOnly{}),
+		http.MethodGet,
+		"/healthz",
+		nil,
+	); rec.Code != http.StatusOK {
 		t.Fatalf("GET /healthz without a token = %d, want 200: security is [] in the spec", rec.Code)
 	}
 }
@@ -226,7 +232,7 @@ func TestHandler_requiresAVerifier(t *testing.T) {
 	t.Parallel()
 	d := newHarness(t).deps
 	d.Verifier = nil
-	if h, err := Handler(d, Health{}); h != nil || errs.CodeOf(err) != errs.CodeInternal {
+	if h, err := Handler(d, healthOnly{}); h != nil || errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("Handler = %v, %v, want internal and no handler", h, err)
 	}
 }

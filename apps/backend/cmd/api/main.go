@@ -22,6 +22,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/sse"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability/boundary"
@@ -73,16 +74,16 @@ func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
 		return bootErr(ctx, err)
 	}
 	defer pool.Close()
-	stopRelay, err := startRelay(ctx, conn, pool, db.New(pool, ids.Real{}, clock.Real{}), clock.Real{})
+	stream, stopBackground, err := startBackground(ctx, conn, pool)
 	if err != nil {
 		return bootErr(ctx, err)
 	}
-	defer func() { err = errors.Join(err, stopRelay()) }()
+	defer func() { err = errors.Join(err, stopBackground()) }()
 	ln, err := listen(ctx, cfg)
 	if err != nil {
 		return bootErr(ctx, err)
 	}
-	handler, err := newHandler(cfg, logger, pool, verifier)
+	handler, err := newHandler(cfg, logger, pool, verifier, stream)
 	if err != nil {
 		return err
 	}
@@ -135,7 +136,7 @@ func listen(ctx context.Context, cfg config.Config) (net.Listener, error) {
 }
 
 func newHandler(
-	cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, verifier auth.TokenVerifier,
+	cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, verifier auth.TokenVerifier, stream sse.Stream,
 ) (http.Handler, error) {
 	return httpx.Handler(httpx.Deps{
 		Logger:       logger,
@@ -145,7 +146,49 @@ func newHandler(
 		MaxBodyBytes: int64(cfg.HTTP.MaxBodyBytes),
 		Idempotency:  db.NewIdempotencyStore(pool, clock.Real{}),
 		Verifier:     verifier,
-	}, httpx.Health{})
+	}, routes{Stream: stream})
+}
+
+func startBackground(ctx context.Context, conn *bus.Conn, pool *pgxpool.Pool) (sse.Stream, func() error, error) {
+	stopRelay, err := startRelay(ctx, conn, pool, db.New(pool, ids.Real{}, clock.Real{}), clock.Real{})
+	if err != nil {
+		return sse.Stream{}, nil, err
+	}
+	stream, stopHub, err := startStream(ctx, conn)
+	if err != nil {
+		return sse.Stream{}, nil, errors.Join(err, stopRelay())
+	}
+	return stream, func() error {
+		stopHub()
+		return stopRelay()
+	}, nil
+}
+
+func startStream(ctx context.Context, conn *bus.Conn) (sse.Stream, func(), error) {
+	hub, err := sse.NewHub(sse.NoMemberships{}, otel.GetMeterProvider())
+	if err != nil {
+		return sse.Stream{}, nil, err
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		hub.Run(ctx)
+		close(done)
+	}()
+	stop := func() {
+		cancel()
+		<-done
+	}
+	if err := conn.SubscribeHints(ctx, hub.Deliver); err != nil {
+		stop()
+		return sse.Stream{}, nil, err
+	}
+	return sse.NewStream(hub, clock.Real{}), stop, nil
+}
+
+type routes struct {
+	httpx.Health
+	sse.Stream
 }
 
 func bootErr(ctx context.Context, err error) error {

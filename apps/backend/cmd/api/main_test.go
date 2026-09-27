@@ -52,7 +52,7 @@ func TestServe_healthzAnswersOkUntilShutdown(t *testing.T) {
 		Clock: clock.Real{}, IDs: ids.Real{}, MaxBodyBytes: 1 << 10,
 		Idempotency: db.NewIdempotencyStore(testkit.DB(t), clock.Real{}),
 		Verifier:    verifier,
-	}, httpx.Health{})
+	}, routes{})
 	if err != nil {
 		t.Fatal(err)
 	}
