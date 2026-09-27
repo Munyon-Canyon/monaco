@@ -48,14 +48,14 @@ jobs:
       # source, so an unchanged tree hits the exact key. A changed tree misses it and falls
       # back through the restore-keys, landing on the closest prior DerivedData; combined
       # with the restored mtimes above, xcodebuild only recompiles what actually changed.
-      - name: Cache DerivedData build products
-        uses: actions/cache@v4
+      - name: Restore DerivedData build products
+        id: derived-data
+        uses: actions/cache/restore@v4
         with:
           path: ${{ env.DERIVED_DATA }}/Build
           key: derived-ios-${{ runner.os }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.pbxproj', 'apps/mobile/Monaco/**', 'apps/mobile/MonacoTests/**', 'packages/mobile-core/**') }}
           restore-keys: |
             derived-ios-${{ runner.os }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-
-            derived-ios-${{ runner.os }}-${{ steps.xcode.outputs.version }}-
 
       # Compile-only Privy config: no .env.local, no secret. Unit tests need no environment.
       - name: Placeholder app config
@@ -107,3 +107,14 @@ jobs:
           path: ${{ runner.temp }}/MonacoTests.xcresult
           if-no-files-found: ignore
           retention-days: 7
+
+      # A separate save, not actions/cache's own post step, because that post step only saves
+      # when the whole job succeeds: a test failure after a good build would otherwise throw
+      # the build's cache away (seen on this PR). always() keeps it either way; it's still
+      # keyed on this run's sources, so a broken build never gets reused as another PR's cache.
+      - name: Save DerivedData build products
+        if: always() && steps.derived-data.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.DERIVED_DATA }}/Build
+          key: ${{ steps.derived-data.outputs.cache-primary-key }}
