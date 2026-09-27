@@ -1,0 +1,109 @@
+openapi: 3.1.0
+info:
+  title: Monaco API
+  version: 0.1.0
+  description: HTTP contract between the Monaco iOS app and the Monaco backend.
+  contact:
+    name: Monaco
+    url: https://github.com/lognorman20/monaco
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: http://localhost:8080
+    description: Local development server.
+tags:
+  - name: health
+    description: Liveness of the API process.
+paths:
+  /healthz:
+    get:
+      operationId: getHealthz
+      tags: [health]
+      summary: Report that the API process is serving.
+      description: Returns ok while the process accepts requests. It checks no dependency.
+      security: []
+      responses:
+        "200":
+          description: The process is serving.
+          content:
+            text/plain:
+              schema:
+                type: string
+                const: "ok\n"
+        default:
+          $ref: "#/components/responses/Problem"
+components:
+  responses:
+    Problem:
+      description: An RFC 9457 problem. Switch on `code`; show `message`.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+  schemas:
+    Problem:
+      type: object
+      description: An RFC 9457 problem details body with a stable Monaco error code.
+      examples:
+        - type: about:blank
+          title: Not Found
+          status: 404
+          code: not_found
+          message: Not found.
+          trace_id: 4bf92f3577b34da6a3ce929d0e0e4736
+          retryable: false
+      additionalProperties: false
+      required: [type, title, status, code, message, trace_id, retryable]
+      properties:
+        type:
+          type: string
+          description: Always about:blank. The code field carries the problem type.
+          const: about:blank
+        title:
+          type: string
+          description: The HTTP status phrase.
+          examples: [Not Found]
+        status:
+          type: integer
+          description: The HTTP status code of this response.
+          minimum: 400
+          maximum: 599
+          examples: [404]
+        code:
+          $ref: "#/components/schemas/ErrorCode"
+          examples: [not_found]
+        message:
+          type: string
+          description: A user-facing sentence the app shows as is.
+          examples: [Not found.]
+        trace_id:
+          type: string
+          description: The W3C trace id of the request. Logs and traces carry the same id.
+          pattern: "^[0-9a-f]{32}$"
+          examples: [4bf92f3577b34da6a3ce929d0e0e4736]
+        retryable:
+          type: boolean
+          description: True when the same request may succeed if sent again later.
+          examples: [false]
+    ErrorCode:
+      type: string
+      description: The closed list of error codes. Generated from the errs table by monacoctl gen errors.
+      examples: [not_found]
+      enum:
+        # BEGIN GENERATED ErrorCode
+        - client_closed
+        - db_unavailable
+        - decode_failed
+        - forbidden
+        - idempotency_in_flight
+        - idempotency_mismatch
+        - internal
+        - invalid_input
+        - not_found
+        - panic
+        - unauthorized
+        - upstream_timeout
+        - upstream_unavailable
+        - version_conflict
+        # END GENERATED ErrorCode

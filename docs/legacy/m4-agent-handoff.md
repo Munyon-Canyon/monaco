@@ -157,7 +157,7 @@ dotenvx run -f .env.local -- just run           # postgres + backend + mobile
 
 ## 5. Orchestration workflow (M3 → copy for M4)
 
-Skill: [`.cursor/skills/worktree-orchestrate/SKILL.md`](../.cursor/skills/worktree-orchestrate/SKILL.md).
+Skill: [`.cursor/skills/worktree-orchestrate/SKILL.md`](https://github.com/lognorman20/monaco/blob/main/.cursor/skills/worktree-orchestrate/SKILL.md).
 
 1. **Parent = orchestrator** on `milestone-4`. **No nested orchestrator subagents.**
 2. **Implementers:** `best-of-n-runner`, `model: composer-2.5`, worktrees `feat/m4-t*` from `milestone-4`.
@@ -240,7 +240,7 @@ ORDER BY created_at DESC LIMIT 5;
 
 ## 9. M4 start checklist
 
-1. **Read** [`docs/milestones/m4-domain.md`](milestones/m4-domain.md) + this file + [`AGENTS.md`](../AGENTS.md).
+1. **Read** [`docs/milestones/m4-domain.md`](milestones/m4-domain.md) + this file + [`AGENTS.md`](https://github.com/lognorman20/monaco/blob/main/AGENTS.md).
 2. **Confirm M3 gates** on `milestone-3` (§8).
 3. **Create branch:** `git checkout milestone-3 && git checkout -b milestone-4`.
 4. **Wave 1:** `feat/m4-t1-schema` (migrations) ‖ `feat/m4-t2-domain` (`packages/domain` types).
@@ -294,7 +294,7 @@ ORDER BY created_at DESC LIMIT 5;
 | M3 plan | [`docs/milestones/m3-jupiter.md`](milestones/m3-jupiter.md) |
 | M3 handoff | [`docs/m3-agent-handoff.md`](m3-agent-handoff.md) |
 | M4 overnight prompt | [`docs/m4-overnight-prompt.md`](m4-overnight-prompt.md) |
-| Worktree orchestrate | [`.cursor/skills/worktree-orchestrate/SKILL.md`](../.cursor/skills/worktree-orchestrate/SKILL.md) |
-| iOS sim QA | [`.cursor/skills/ios-simslim-fast-qa/SKILL.md`](../.cursor/skills/ios-simslim-fast-qa/SKILL.md) |
+| Worktree orchestrate | [`.cursor/skills/worktree-orchestrate/SKILL.md`](https://github.com/lognorman20/monaco/blob/main/.cursor/skills/worktree-orchestrate/SKILL.md) |
+| iOS sim QA | [`.cursor/skills/ios-simslim-fast-qa/SKILL.md`](https://github.com/lognorman20/monaco/blob/main/.cursor/skills/ios-simslim-fast-qa/SKILL.md) |
 | Dev buy UI | `apps/mobile/Monaco/Features/Debug/DevBuyView.swift` |
 | Dev buy API | `apps/backend/internal/httpapi/dev_buy.go` |

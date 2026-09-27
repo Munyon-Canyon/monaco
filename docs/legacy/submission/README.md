@@ -100,9 +100,9 @@ POST /v1/agent/intents    {"side":"buy","symbol":"GOOGLx","usd":"1.00","idempote
 Header: X-Monaco-Agent-Key
 ```
 
-The reference agent is [`agents/momentum-bot`](../../agents/momentum-bot): standard-library Go,
+The reference agent is [`agents/momentum-bot`](https://github.com/lognorman20/monaco/tree/242c2609/agents/momentum-bot): standard-library Go,
 one readable momentum rule, dry run by default. How to run it:
-[`docs/how-to/connect-an-agent.md`](../how-to/connect-an-agent.md).
+[`docs/how-to/connect-an-agent.md`](../../how-to/connect-an-agent.md).
 
 ### Safety model
 
@@ -162,5 +162,5 @@ the balance back to the treasury. There is no Dynamic code in this repository ye
 
 ## Run it
 
-Setup, commands, tests and deployment are in the [top-level README](../../README.md). CI
+Setup, commands, tests and deployment are in the [top-level README](https://github.com/lognorman20/monaco/blob/main/README.md). CI
 (`.github/workflows/ci.yml`) runs the Go and Swift suites on every pull request.

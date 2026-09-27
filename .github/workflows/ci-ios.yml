@@ -22,6 +22,10 @@ jobs:
       - name: Select Xcode
         run: scripts/ci/select-xcode.sh
 
+      - name: Compile MonacoAPI and its tests on Darwin (the app does not link it)
+        working-directory: packages/mobile-core
+        run: swift build --target MonacoAPITests
+
       - name: Cache Swift packages
         uses: actions/cache@v4
         with:

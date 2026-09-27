@@ -1,6 +1,6 @@
 # Solana line redesign — QA gallery
 
-Shot on an iPhone 17 Pro simulator, iOS 26.3, from the Debug sample harnesses (`scripts/qa/screens.sh`) unless marked live. `before` is `integrate/solana-ui` at `ed77437f` plus #441; `after` is `feat/solana-redesign`, rebased onto `integrate/solana-ui` at `30fdda35` (the pre-IPO tokens and the trading agents). Tokens and rules: [`docs/design.md`](../../design.md).
+Shot on an iPhone 17 Pro simulator, iOS 26.3, from the Debug sample harnesses (`scripts/qa/screens.sh`) unless marked live. `before` is `integrate/solana-ui` at `ed77437f` plus #441; `after` is `feat/solana-redesign`, rebased onto `integrate/solana-ui` at `30fdda35` (the pre-IPO tokens and the trading agents). Tokens and rules: [`docs/design.md`](../../../design.md).
 
 | Screen | Before → after |
 | --- | --- |

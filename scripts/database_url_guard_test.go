@@ -44,19 +44,13 @@ func TestDatabaseURLGuard_acceptsLocalhostComposeUrl(t *testing.T) {
 	}
 }
 
-func TestDeriveTestDatabaseURL_appendsTestSuffix(t *testing.T) {
-	root := repoRoot(t)
-	script := filepath.Join(root, "scripts", "derive-test-database-url.sh")
-	cmd := exec.Command("bash", script)
-	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "DATABASE_URL=postgres://monaco:monaco@localhost:54322/monaco?sslmode=disable")
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("derive-test-database-url.sh: %v", err)
-	}
-	got := string(out)
-	want := "postgres://monaco:monaco@localhost:54322/monaco_test?sslmode=disable\n"
-	if got != want {
-		t.Fatalf("got %q, want %q", got, want)
+func TestDatabaseURLGuard_rejectsTheDurabilityOffTestDatabase(t *testing.T) {
+	for _, databaseURL := range []string{
+		"postgres://monaco:monaco@localhost:54323/monaco?sslmode=disable",
+		"postgres://monaco:monaco@127.0.0.1:54323",
+	} {
+		if err := runDatabaseURLGuard(t, databaseURL); err == nil {
+			t.Fatalf("expected error for DATABASE_URL on the test container: %s", databaseURL)
+		}
 	}
 }

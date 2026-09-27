@@ -1,0 +1,170 @@
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
+)
+
+const staleSpec = `components:
+  schemas:
+    ErrorCode:
+      type: string
+      enum:
+        # BEGIN GENERATED ErrorCode
+        - gone
+        # END GENERATED ErrorCode
+    Other:
+      type: string
+`
+
+func writeSpec(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "openapi.yaml")
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func readSpec(t *testing.T, path string) ([]byte, error) {
+	t.Helper()
+	dir, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = dir.Close() }()
+	return dir.ReadFile(filepath.Base(path))
+}
+
+func TestGenErrors_writesEveryCodeBetweenTheMarkersAtTheMarkerIndent(t *testing.T) {
+	t.Parallel()
+	path := writeSpec(t, staleSpec)
+	var stdout, stderr bytes.Buffer
+	if code := run(nil, tools(nil), nil, []string{"gen", "errors", path}, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
+	}
+	got, err := readSpec(t, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var enum strings.Builder
+	for _, code := range errs.All() {
+		enum.WriteString("        - " + string(code) + "\n")
+	}
+	want := strings.Replace(staleSpec, "        - gone\n", enum.String(), 1)
+	if string(got) != want {
+		t.Fatalf("spec =\n%s\nwant\n%s", got, want)
+	}
+	if want := fmt.Sprintf("wrote %d error codes to %s\n", len(errs.All()), path); stdout.String() != want {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestGenErrors_isIdempotent(t *testing.T) {
+	t.Parallel()
+	path := writeSpec(t, staleSpec)
+	var out bytes.Buffer
+	var specs [2][]byte
+	for i := range specs {
+		if code := gen([]string{"errors", path}, &out, &out); code != 0 {
+			t.Fatalf("run %d: exit code = %d, output = %q", i, code, out.String())
+		}
+		var err error
+		if specs[i], err = readSpec(t, path); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if first, second := specs[0], specs[1]; !bytes.Equal(first, second) {
+		t.Fatalf("second run changed the spec:\n%s\nvs\n%s", first, second)
+	}
+}
+
+func TestGenErrors_runsWithoutBootConfig(t *testing.T) {
+	t.Parallel()
+	path := writeSpec(t, staleSpec)
+	var stdout, stderr bytes.Buffer
+	if code := run(commands(), tools(nil), []string{"MONACO_FOO=1"}, []string{"gen", "errors", path}, &stdout,
+		&stderr); code != 0 {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
+	}
+}
+
+func TestGenErrors_refusesSpecsWithoutExactlyOneMarkerPair(t *testing.T) {
+	t.Parallel()
+	for name, body := range map[string]string{
+		"no markers":       "enum: []\n",
+		"end before begin": "# END GENERATED ErrorCode\n# BEGIN GENERATED ErrorCode\n",
+		"two begins":       "# BEGIN GENERATED ErrorCode\n# BEGIN GENERATED ErrorCode\n# END GENERATED ErrorCode\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			path := writeSpec(t, body)
+			var stdout, stderr bytes.Buffer
+			code := gen([]string{"errors", path}, &stdout, &stderr)
+			if code != 1 ||
+				!strings.HasPrefix(stderr.String(), "monacoctl: monacoctl.spliceErrorCodes: invalid_input") {
+				t.Fatalf("gen = %d %q, want 1 and invalid_input", code, stderr.String())
+			}
+			if got, err := readSpec(t, path); err != nil || string(got) != body {
+				t.Fatalf("spec changed to %q (%v)", got, err)
+			}
+		})
+	}
+}
+
+func TestGenErrors_unreadableOrUnwritableSpecExits1(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	var stderr bytes.Buffer
+	for _, missing := range []string{filepath.Join(dir, "missing.yaml"), filepath.Join(dir, "gone", "openapi.yaml")} {
+		stderr.Reset()
+		if code := gen([]string{"errors", missing}, &stderr, &stderr); code != 1 ||
+			!strings.Contains(stderr.String(), "monacoctl.writeErrorCodes: invalid_input") {
+			t.Fatalf("gen errors %s = %d %q", missing, code, stderr.String())
+		}
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root writes through file modes")
+	}
+	path := writeSpec(t, staleSpec)
+	if err := os.Chmod(path, 0o400); err != nil {
+		t.Fatal(err)
+	}
+	stderr.Reset()
+	if code := gen([]string{"errors", path}, &stderr, &stderr); code != 1 ||
+		!strings.Contains(stderr.String(), "monacoctl.writeErrorCodes: internal") {
+		t.Fatalf("read-only spec: gen = %d %q", code, stderr.String())
+	}
+}
+
+func TestCommittedSpecListsEveryErrorCode(t *testing.T) {
+	t.Parallel()
+	spec, err := os.ReadFile("../../api/openapi.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := spliceErrorCodes(string(spec), errs.All())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fresh != string(spec) {
+		t.Fatal("api/openapi.yaml ErrorCode enum differs from errs.All(); run go generate ./cmd/monacoctl")
+	}
+}
+
+func TestGen_otherArgsPrintUsage(t *testing.T) {
+	t.Parallel()
+	for _, args := range [][]string{nil, {"errors"}, {"events", "x"}, {"errors", "a", "b"}} {
+		var stdout, stderr bytes.Buffer
+		if code := gen(args, &stdout, &stderr); code != 2 ||
+			stderr.String() != "usage: monacoctl gen errors <openapi.yaml>\n" {
+			t.Fatalf("gen %v = %d %q, want 2 and usage", args, code, stderr.String())
+		}
+	}
+}

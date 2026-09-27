@@ -11,19 +11,19 @@ Monaco lets you create a hedge fund with friends by pooling money to buy stocks 
 
 ## Prereqs
 
-macOS, Xcode (iOS 18+ simulator), Docker, Go 1.25+, [just](https://github.com/casey/just), [dotenvx CLI](https://dotenvx.com/docs/install), [Graphite CLI](https://graphite.dev/docs/install-the-cli) (`gt`). SimSlim is optional.
+macOS, Xcode (iOS 18+ simulator), Docker, Go 1.25+, [just](https://github.com/casey/just), [jq](https://jqlang.org), [dotenvx CLI](https://dotenvx.com/docs/install), [Graphite CLI](https://graphite.dev/docs/install-the-cli) (`gt`). SimSlim is optional.
 
 ## Clone setup
 
 1. Clone this repo. `cd` into the clone. Do not hard-code another machine's home path.
 2. Place gitignored `.env.keys` in the repo root if a teammate encrypted `.env.local` for you. Also place that `.env.local`. dotenvx reads both from the clone root.
 3. If you have no `.env.local` yet, copy `.env.example` to `.env.local` and set Privy plus relayer values with `dotenvx set KEY value -f .env.local`.
-4. Run `./scripts/install-dev.sh` (or `just install`). It asks before each install (Go, just, dotenvx, Graphite, optional SimSlim). `just install --check` only reports. Then run `gt auth --token <token>` with the token from https://app.graphite.com/activate, and `gt init --trunk main`.
-5. `just run` starts Postgres, the API, and the iOS app. Privy is injected via `scripts/ensure-ios-privy-config.sh` and `SIMCTL_CHILD_*`. If SimSlim is missing, the scripts warn and boot a stock simulator.
+4. Run `./scripts/install-dev.sh` (or `just install`). It asks before each install (Go, golangci-lint, jq, just, dotenvx, Graphite, optional SimSlim). `just install --check` only reports. Then run `gt auth --token <token>` with the token from https://app.graphite.com/activate, and `gt init --trunk main`.
+5. `just run` starts the iOS app. The backend is being rebuilt from scratch ([backend platform RFC](docs/architecture/backend-platform.md)), so until its routes return the app has no working backend; mobile UI work uses sample data. Privy is injected via `scripts/ensure-ios-privy-config.sh` and `SIMCTL_CHILD_*`. If SimSlim is missing, the scripts warn and boot a stock simulator.
 
 Do not wrap `just` with `dotenvx run` yourself. Recipes that need secrets re-exec under `scripts/with-dotenv-local.sh`.
 
-Local DB is Docker Compose Postgres only (`monaco`, host port `54322`). Never point `just run` / `just test backend` at hosted or production Supabase.
+Local DB is Docker Compose Postgres only (`monaco`, host port `54322`), next to a Compose NATS on `4222`. Tests use a separate throwaway Postgres, `monaco-postgres-test` on `54323`, that `just test backend` starts. The services live in `apps/backend/deployments/compose.yml`. Never point `just run` / `just test backend` at hosted or production Supabase.
 
 ## Privy test logins
 
@@ -56,28 +56,24 @@ To get QA cash back out: **Cash out** of the cabal (USDC returns to the account 
 | `just encrypt`               | `dotenvx encrypt` on `.env.local` (and `.env.production` if present)                                                                                                   |
 | `just decrypt`               | `dotenvx decrypt` on `.env.local` (and `.env.production` if present)                                                                                                   |
 | `just show-env`              | Print decrypted `.env.local` keys/values via dotenvx (`export KEY='value'` lines; `.env.production` omitted). Needs `.env.local`, dotenvx, and `.env.keys` or Keychain |
-| `just run`                   | Full stack: Postgres + API + iOS app (dotenvx re-exec, Privy on sim)                                                                                                   |
-| `just run backend`           | API only (dotenvx)                                                                                                                                                     |
+| `just run`                   | `just run backend` in the background, then `just run mobile`                                                                                                           |
+| `just run backend`           | `bin/api` on `API_ADDR` (default `:8080`) and `bin/worker` on `WORKER_HEALTH_ADDR` (default `:8081`); both serve `GET /healthz`                                        |
 | `just run mobile`            | iOS with Privy xcconfig + `SIMCTL_CHILD_*` via `./scripts/ios-sim`                                                                                                     |
-| Logs                         | `just run*` tee stdout/stderr to `.logs/<timestamp>/` (`backend.log`, `mobile.log`)                                                                                    |
-| `just stop`                  | Stop API + iOS app (kill port 8080, `simctl terminate` on the resolved sim)                                                                                            |
-| `just stop backend`          | Stop API only                                                                                                                                                          |
+| Logs                         | `just run*` tee stdout/stderr to `.logs/<timestamp>/` (`api.log`, `worker.log`, `mobile.log`)                                                                          |
+| `just stop`                  | `just stop backend`, then `just stop mobile`                                                                                                                           |
+| `just stop backend`          | SIGTERM `bin/api` and `bin/worker`, wait for both to exit                                                                                                              |
 | `just stop mobile`           | Terminate Monaco on the resolved sim; stop `xcodebuild` if running                                                                                                     |
-| `just reset`                 | Stop all + wipe local Postgres volume + re-apply migrations (dotenvx)                                                                                                  |
-| `just reset backend`         | Stop API + remove `bin/monaco-api`                                                                                                                                     |
+| `just reset`                 | Stop all + wipe the local Postgres and NATS volumes (dotenvx)                                                                                                          |
+| `just reset backend`         | Stop backend + remove `bin/api`, `bin/worker`, `bin/monacoctl`                                                                                                         |
 | `just reset mobile`          | Stop app + `xcodebuild clean` on the resolved sim                                                                                                                      |
-| `just reset db`              | Wipe local Docker Postgres volume + migrations (localhost only, dotenvx)                                                                                               |
+| `just reset db`              | Wipe the local Docker Postgres volume only and start it empty; NATS data is kept (localhost only, dotenvx)                                                             |
 | `just killports`             | Kill listeners on API port (default 8080; not Postgres 54322)                                                                                                          |
-| `just test backend`          | Go tests with the race detector + local DB smoke (dotenvx)                                                                                                             |
+| `just test backend`          | `go test -race -shuffle=on ./...` in `apps/backend`, then the `scripts/` Go tests                                                                                      |
 | `just test mobile`           | Host `swift test` in `packages/mobile-core` — fast, no secrets                                                                                                         |
-| `just build backend`         | `go build` only — no dotenvx                                                                                                                                           |
+| `just build backend`         | `go build` of `bin/api`, `bin/worker`, `bin/monacoctl`                                                                                                                 |
 | `just build mobile`          | Privy xcconfig, then `xcodebuild` on the resolved sim                                                                                                                  |
-| `just relayer balance`       | Fee payer pubkey + mainnet SOL and USDC (dotenvx; no private key)                                                                                                      |
-| `just seed demo`             | Backfill local Postgres with demo cabals, trades, proposals and NAV history for the most recent user. Flags: `--user-id`, `--privy-user-id`, `--if-empty=false`       |
-| `just faker <profile>`       | Seed scale or mixed fake data into local Postgres. See **[Demo data](#demo-data-faker-seed)**                                                                          |
 | `./scripts/ios-sim`          | Monaco run with Privy env. Falls back to a stock sim if slim is missing                                                                                                |
 | `./scripts/ios-build`        | Monaco compile with Privy xcconfig                                                                                                                                     |
-| `./scripts/sweep-wallets.sh` | **Ops.** Sweep USDC out of Privy wallets. See **[Ops: sweep USDC](#sweep-usdc-out-of-privy-wallets)**                                                              |
 
 Simulator UDID is **per machine**. Never commit one. Recipes call `scripts/resolve-ios-sim.sh`.
 
@@ -117,105 +113,7 @@ A pre-commit hook checks **staged** `.env*` files only (not `.worktrees` or the 
 
 The app **fee payer** is a dedicated Solana keypair from `RELAYER_PRIVATE_KEY` (base58 secret in `.env.local`). Not a Privy wallet. Clones that decrypt the same shared env share the same fee payer. Never commit or log the private key.
 
-At API startup the backend derives the public key and refuses to boot unless that address holds **more than 0.001 SOL** on mainnet.
-
-| Item            | Value                                                                                                                    |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Env (secret)    | `RELAYER_PRIVATE_KEY` — base58 Solana secret key (not a JSON `[1,2,...]` array)                                          |
-| Pubkey          | Derived at startup from the secret; logged as `pubkey=` on boot (no private key)                                         |
-| Role            | Jupiter swap `payer`; relayer on deposit sweeps (Privy `SubmitSweep`)                                                    |
-| SOL requirement | Balance **> 0.001 SOL** (`1_000_000` lamports). Fund on [Solana mainnet](https://solscan.io/) before `just run backend`. |
-
-```bash
-just relayer balance
-```
-
-Example:
-
-```text
-address  EpeyGQXFY9vhkxPUZbz1wVRhs5vphRQt8SeJN2Gx1DrX
-sol      0.003044217
-usdc     0.00
-```
-
-## Swap provider (Jupiter or Definitive Flash)
-
-Treasury buys and sells go through `swapprovider.Provider` (`apps/backend/internal/swapprovider`). `SWAP_PROVIDER` picks the venue at API boot; the choice is logged as `swap provider ready`.
-
-| `SWAP_PROVIDER`     | Venue                                                                 | Needs                                  |
-| ------------------- | --------------------------------------------------------------------- | -------------------------------------- |
-| `jupiter` (default) | Jupiter Swap API v2: order → treasury + relayer sign → execute → poll | nothing new                            |
-| `flash`             | [Definitive Flash](https://flash.definitive.fi/docs): quote → sign → order → poll | `FLASH_API_KEY`, Privy authorization key |
-
-Flash on Solana, per trade: `POST /quote` with the treasury as `funderAddress`, the treasury wallet signs the quote's plaintext `svm.orderMessage` (Privy `signMessage`, Ed25519), `POST /order`, then poll `GET /orders/{orderId}` until `ORDER_STATUS_FILLED`. The backend refuses to sign unless the message commits to the mint and atomic amount it asked for, and unless the quote deadline is still ahead.
-
-First Flash trade of a token per treasury also needs an onchain setup: create the token account and `Approve` the Flash program as SPL delegate. The backend sends both in one transaction with the **relayer as fee payer and rent payer** and the treasury as co-signer, then re-quotes until Flash sees it. That costs the relayer about 0.002 SOL per new token account.
-
-Get a key at [app.definitive.fi](https://app.definitive.fi) → More → Flash → Create Flash Key, then set `SWAP_PROVIDER=flash` and `FLASH_API_KEY` in `.env.local`. `FLASH_MAX_SLIPPAGE` (default `0.01`) bounds executed vs quoted output. Unset `SWAP_PROVIDER` to go back to Jupiter; no data migration either way.
-
-Every treasury swap follows the flag, including the sells a cash-out triggers (`RedeemService` calls `SwapService.SellToUSDC`). Still on Jupiter regardless: the price quotes shown in the app, catalog routability probes, and `cmd/sweep-member-to-address`.
-
-## Demo data (faker seed)
-
-Seeds fake-but-realistic data so Home, Groups, proposals, and activity look alive without a
-full Privy setup. Local Postgres only. It never calls Privy, Solana RPC, or Jupiter.
-
-Two profiles:
-
-- **scale**: six fake clubs (Ridgewood Value Club, Night Shift Traders, Harbor Street Fund, plus the
-  smaller Dorm 4B fund, Rent money and Index huggers).
-  Each has a fake creator, five depositors, deposits spread over the last week, a confirmed
-  AAPLx/TSLAx buy, a governed sell (Ridgewood and Night Shift), failed and open proposals, votes,
-  and NAV history for charts. Any signed-in user sees them on Home (group board and people
-  leaderboard) and the Cabals tab (search, leaderboard, P&L history) and can open them read-only. You are never added as a member. Join, fund/deposit,
-  quote, propose (buy, sell, or agent), vote, agent intents, and leave/withdraw return
-  `403 faker_group_read_only`.
-- **mixed**: adds ghost members Maya Chen, Jordan Hale, and Priya Shah to **your own real club**
-  (you must be its creator). They show up on the member board with P&L, deposits, and ghost-only
-  proposals. They never count toward the pot, surplus credits, or the voter set, and they have no
-  wallets or swaps. You can still deposit and propose for real.
-- **demo**: the recording variant of **mixed**. Same ghosts, plus six chat messages from the last
-  90 minutes, a thesis on the ghost Tesla proposal and one ghost comment on it. It skips the
-  pending and failed ghost deposits and the failed and expired ghost proposals, so no "Failed"
-  rows show on screen. Pass a second id, a real member's open proposal in the same club, to add
-  two ghost comments to it (Maya asks, Jordan replies).
-
-```bash
-just reset db                        # optional: start from an empty DB
-just faker scale                     # six fake clubs
-just faker mixed <your_group_id>     # ghosts on your real club
-just faker all <your_group_id>       # both
-just faker demo <your_group_id> [<real_proposal_id>]   # recording setup
-```
-
-Ghost votes cannot make a proposal votable (ghosts are outside the voter set), so the live vote
-in a demo is on a proposal a second real account creates in the app. Seed `demo` first, then
-re-run it with that proposal's id to add the comments. Re-running is safe.
-
-Photos: set `FAKER_PHOTO_BASE_URL` (for example
-`https://<project>.supabase.co/storage/v1/object/public/avatars/faker`) and upload `maya.jpg`,
-`jordan.jpg` and `priya.jpg` (square, 200 KB or less) there; see `docs/ops-profile-photos.md`.
-Without it the ghosts show initials.
-
-Re-running is safe: users are keyed by `faker:user:<name>` and clubs by `groups.faker_key`, so
-a re-run replaces the fake rows and moves the timestamps up to now, with no duplicates.
-`just reset db` wipes the seed data too.
-
-The API can also seed over HTTP when `FAKER_ENABLED=1` (off by default: the route returns 404). It
-only accepts loopback callers with no proxy headers and a local `DATABASE_URL`:
-
-```bash
-curl -s -X POST http://127.0.0.1:8080/v1/dev/faker \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"profile":"all","group_id":"<your_group_id>"}'   # profile: mixed | scale | all | demo
-# demo also takes "proposal_id": a real member's proposal in that club
-```
-
-Safety: faker rows are flagged (`users.is_faker`, `groups.is_faker`, migration 000016). The
-sweep poller, surplus reconcile, execute poller (buys and sells), swap, redeem/withdraw, and
-`sweep-wallets` treasury sources skip them whether or not
-`FAKER_ENABLED` is set, so leftover seed rows stay inert. A DB trigger rejects member wallets
-for faker users.
+The legacy backend that read it was deleted in M7, and `just relayer balance` with it. The balance check returns with the funding module ([backend platform RFC](docs/architecture/backend-platform.md#rollout)).
 
 ## iOS API environments
 
@@ -372,39 +270,6 @@ Phantom MCP cannot pull from Privy. The reverse of deposit is **cash out**, then
 
 After a funding run, leftover **agent-test USDC belongs on the agent Phantom**, not in a group vault and not in a sim user’s inbox.
 
-## Sweep USDC out of Privy wallets
-
-Product path is fund (member wallet → treasury), then cash out and withdraw in the app. Use this script only when USDC is stuck in Privy (inbox or treasury) and you must send it to a known Solana address (usually the agent Phantom).
-
-**Danger.** Mainnet USDC. Wrong `DATABASE_URL` or `--all` against the prod Privy app can empty live pots and break share credits. Relayer still pays SOL fees.
-
-```bash
-# One wallet (or list). Always dry-run first.
-./scripts/sweep-wallets.sh --destination <solana_address> --source <wallet> --dry-run
-./scripts/sweep-wallets.sh --destination <solana_address> --source <wallet_a> --source <wallet_b> --dry-run
-
-# --all = every Solana wallet Privy returns for this app (not just local DB rows).
-./scripts/sweep-wallets.sh --destination <solana_address> --all --dry-run
-
-# Live: same flags without --dry-run. Type exactly:
-#   I UNDERSTAND THIS MAY MESS WITH PROD
-# then paste the destination address again.
-./scripts/sweep-wallets.sh --destination <solana_address> --source <wallet>
-./scripts/sweep-wallets.sh --destination <solana_address> --all
-```
-
-| Flag               | Meaning                                                                                  |
-| ------------------ | ---------------------------------------------------------------------------------------- |
-| `--destination`    | Required. Receives all swept USDC.                                                       |
-| `--source`         | Drain only listed wallet(s). Repeatable; comma-separate in one value. Do not mix with `--all`. |
-| `--all`            | Source of truth = Privy `GET /v1/wallets?chain_type=solana` (paginated). Skips Postgres. |
-| *(omit both)*      | Source = local `member_wallets` + `treasuries` for the `DATABASE_URL` in `.env.local`.   |
-| `--dry-run`        | Print balances and `would sweep` lines. No txs. No confirm prompt.                       |
-
-Needs `.env.local` (`PRIVY_*`, `RELAYER_PRIVATE_KEY`, `DATABASE_URL`). Wrapper is `scripts/with-dotenv-local.sh`. Amounts are micro-USDC (`1000000` = $1). Zero-balance wallets skip. Destination equal to a source skips.
-
-Code: `apps/backend/cmd/sweep-member-to-address`. Full notes: [`docs/ops-sweep-wallets.md`](docs/ops-sweep-wallets.md).
-
 ## Agent skills (Cursor)
 
 Cursor loads repo skills from [`.cursor/skills/`](.cursor/skills/). Attach one in chat, or let the agent pick it from the description. Humans do not need these to `just run`.
@@ -425,14 +290,16 @@ Do not copy these skills into another machine's home path. Clone the repo; Curso
 
 | Suite | Command |
 | --- | --- |
-| Backend (needs Docker Postgres) | `just test backend` |
-| Domain math, no database | `cd packages/domain && go test -race ./...` |
-| Reference trading bot | `cd agents/momentum-bot && go test ./...` |
+| Backend and `scripts/` Go tests | `just test backend` |
 | Shared Swift logic | `just test mobile` |
+| Regenerate `docs/reference` (CI fails when stale) | `just gen docs` |
+| Docs site, broken links fail it | `python3.13 -m venv .venv && .venv/bin/pip install -r requirements-docs.txt && .venv/bin/mkdocs build --strict` |
 
-Backend tests never touch the app database: they derive `{dbname}_test` from `DATABASE_URL`, create it if missing, and migrate it (`apps/backend/internal/postgres/testdb.go`). Without `just`: export `DATABASE_URL` and run `go test -race -p 1 ./...` from `apps/backend` (`-p 1` because the packages share that one test database).
+The docs site needs Python 3.10 or newer. `.python-version` pins 3.13, and macOS's system `python3` (3.9) cannot install `requirements-docs.txt`.
 
-`.github/workflows/ci.yml` runs on ready pull requests based on `main`: a Go job (Postgres 16 service container, migrations on a clean database, `go vet`, `go test -race` for `apps/backend`, `packages/domain` and `agents/momentum-bot`), a Linux `swift test` job for `packages/mobile-core`, the `apps/web` landing page tests, and an iOS app build and test job on pull requests that touch the app, and `ci / ci-ok`, the one required check. A nightly run adds UI tests and screenshots. Details: [`docs/how-to/overnight-qa.md`](docs/how-to/overnight-qa.md).
+The legacy backend, its migrations, its Go domain package and the reference trading bot were deleted in M7. `apps/backend` is now the new module's scaffold: `cmd/api`, `cmd/worker` and `cmd/monacoctl` with no features yet ([backend platform RFC](docs/architecture/backend-platform.md#rollout)).
+
+`.github/workflows/ci.yml` runs on ready pull requests based on `main`: a `backend` job (`go vet`, `go test -race` in `apps/backend`, only when it or the CI files changed), a Linux `swift test` job for `packages/mobile-core`, the `apps/web` landing page tests, an iOS app build and test job on pull requests that touch the app, and `ci / ci-ok`, the one required check. A nightly run adds UI tests and screenshots. Details: [`docs/how-to/overnight-qa.md`](docs/how-to/overnight-qa.md).
 
 ## Pull requests
 
@@ -451,27 +318,11 @@ Merge bottom-up. The rules and why they exist: [Pull requests: small and stacked
 
 ## Deploy
 
-There is no deploy pipeline in this repo yet; the demo runs the API on a laptop. What a host needs:
-
-**API.** One Go binary.
-
-```bash
-just build backend          # bin/monaco-api
-API_ADDR=0.0.0.0:8080 MIGRATIONS_DIR=/path/to/supabase/migrations ./bin/monaco-api
-```
-
-- Migrations in `supabase/migrations` are applied at boot, in filename order, before the server listens. `go run ./cmd/migrate` (from `apps/backend`) applies them without starting the API.
-- Required env: `DATABASE_URL`, `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `PRIVY_VERIFICATION_KEY`, `RELAYER_PRIVATE_KEY`. The API exits at boot if any is missing or malformed. Outside local dev also set `SOLANA_RPC_URL` to a paid RPC (unset falls back to the public mainnet endpoint, which has no SLA and is what confirms sweeps) and `APP_ENV` (`staging`, `prod`), which also switches stderr logs to JSON lines for the host's log collector. The Postgres pool is capped at `DB_MAX_OPEN_CONNS` (default 20); keep it under the database role's connection limit. The full list with comments is in `.env.example`. Use separate Privy apps, relayer keys and databases per environment; production values go in `.env.production` (dotenvx-encrypted), never in the image.
-- The relayer address must hold more than 0.001 SOL or the API exits at boot. See [Relayer](#relayer-fee-payer).
-- The API listens on `API_ADDR` (default `127.0.0.1:8080`). `GET /health` probes Postgres and the access-token verifier (critical, `503` when down), Solana RPC, the relayer's SOL balance, poller liveness, Privy and the price API, and reports `ok`, `degraded` or `down`.
-- Metrics are at `GET /metrics` (Prometheus; bearer `METRICS_TOKEN`, or loopback only when unset). Set `SENTRY_DSN` and `ALERT_WEBHOOK_URL` so panics and money alerts reach a person. What is recorded and what to alert on: [`docs/legacy/ops-observability.md`](docs/legacy/ops-observability.md) (the rewrite replaces this; see the RFC's Deploy and observability section).
-- Set `PUBLIC_API_BASE_URL` to the API's public https URL. It is not a secret. Monaco puts it in the agent connect instructions and in `GET /v1/agent/skill.md`. Unset, it defaults to `http://127.0.0.1:8080`, which only an agent on the same machine can reach.
-- Routes, rate limits, idempotency keys, body and timeout limits: [`docs/legacy/api.md`](docs/legacy/api.md) (the rewrite generates this from `api/openapi.yaml`).
-- The deposit sweep, execute-on-pass and redeem recovery pollers run inside the API process. A panic in a tick is recovered, alerted and counted; the loop keeps running. The deposit sweep poller is safe to run in several instances: it leases each deposit (`FOR UPDATE SKIP LOCKED`) and records the sweep signature before broadcasting, so a crash or a second instance never sweeps a deposit twice. The other two pollers have not been tested with more than one instance.
+There is no deploy pipeline in this repo yet. The backend is being rebuilt; how it deploys is in the RFC's [Deploy and observability](docs/architecture/backend-platform.md#deploy-and-observability) section.
 
 **iOS.** Archive and upload steps are in [`apps/mobile/TestFlight.md`](apps/mobile/TestFlight.md).
 
-**Trading agent.** An agent needs only its key and `PUBLIC_API_BASE_URL`. `agents/momentum-bot` runs anywhere Go runs, and a ClawPump agent connects by pasting the connect instructions. See [`docs/how-to/connect-an-agent.md`](docs/how-to/connect-an-agent.md) and [`docs/agent-trading.md`](docs/agent-trading.md).
+**Trading agent.** An agent needs only its key and `PUBLIC_API_BASE_URL`. A ClawPump agent connects by pasting the connect instructions. See [`docs/how-to/connect-an-agent.md`](docs/how-to/connect-an-agent.md) and [`docs/agent-trading.md`](docs/agent-trading.md).
 
 ## Layout
 
@@ -482,13 +333,10 @@ monaco/
 ├── .env.example
 ├── AGENTS.md
 ├── README.md                 this file
-├── apps/backend/             Go API and background pollers
+├── apps/backend/             Go backend, being rebuilt (docs/architecture/backend-platform.md)
 ├── apps/mobile/              iOS app (SwiftUI)
 ├── apps/web/                 waitlist landing page
-├── packages/domain/          Go money math (shares, votes, P&L)
 ├── packages/mobile-core/     Swift logic tested on the host
-├── agents/momentum-bot/      reference trading agent
-├── supabase/migrations/      database schema
 ├── docs/                     start at docs/index.md
 └── scripts/                  dev scripts behind the just recipes
 ```

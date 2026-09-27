@@ -1,11 +1,26 @@
 #!/bin/bash
-# Claude Code on the web: the container does not run dockerd, and processes started by
-# the environment setup script don't survive into the session. Start it here so
-# `just test backend` / `just run backend` can bring up Compose Postgres.
+# Claude Code on the web: install jq (just test backend reads go test -json with it) and the
+# pinned atlas and sqlc into .bin/ (install-dev.sh is interactive macOS), and start dockerd,
+# because the container does not run it and processes started by the environment setup
+# script don't survive into the session.
 set -euo pipefail
 
 if [[ "${CLAUDE_CODE_REMOTE:-}" != "true" ]]; then
   exit 0
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  apt-get install -y jq >/tmp/jq-install.log 2>&1 || echo "session-start: jq install failed; see /tmp/jq-install.log" >&2
+fi
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+atlas_want="atlas community version $(cat "$root/apps/backend/.atlas-version")"
+if [[ "$("$root/.bin/atlas" version 2>/dev/null | head -1)" != "$atlas_want" ]]; then
+  "$root/scripts/install-atlas.sh" >&2 || echo "session-start: atlas install failed" >&2
+fi
+sqlc_want="v$(sed -n 's/^version=//p' "$root/scripts/install-sqlc.sh")"
+if [[ "$("$root/.bin/sqlc" version 2>/dev/null)" != "$sqlc_want" ]]; then
+  "$root/scripts/install-sqlc.sh" >&2 || echo "session-start: sqlc install failed" >&2
 fi
 
 if docker info >/dev/null 2>&1; then

@@ -78,6 +78,49 @@ if ! have go; then
   fi
 fi
 
+golangci_want="$(cat apps/backend/.golangci-lint-version)"
+golangci_have="$(golangci-lint version --short 2>/dev/null || true)"
+if [[ "v${golangci_have#v}" != "$golangci_want" ]]; then
+  missing_required=1
+  say "golangci-lint ${golangci_want} is missing (found: ${golangci_have:-none}). It lints apps/backend in CI and pre-commit."
+  if have go && ask_yes "Install golangci-lint ${golangci_want} with go install?"; then
+    go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${golangci_want}" || missing_required=1
+    say "installed into $(go env GOPATH)/bin. Put it ahead of other golangci-lint copies on PATH."
+  fi
+fi
+
+if ! have jq; then
+  missing_required=1
+  say "jq is missing. just test backend and CI use it to read go test -json."
+  if [[ "$(uname -s)" == "Linux" ]]; then
+    if ask_yes "Install jq with apt-get?"; then
+      if [[ "$(id -u)" -eq 0 ]]; then apt-get install -y jq || missing_required=1; else sudo apt-get install -y jq || missing_required=1; fi
+    fi
+  elif ask_yes "Install jq with Homebrew (jq)?"; then
+    run_brew jq || missing_required=1
+  fi
+fi
+
+atlas_want="$(cat apps/backend/.atlas-version)"
+atlas_have="$(.bin/atlas version 2>/dev/null | head -1 || true)"
+if [[ "$atlas_have" != "atlas community version ${atlas_want}" ]]; then
+  missing_required=1
+  say "atlas community ${atlas_want} is missing from .bin/atlas (found: ${atlas_have:-none}). monacoctl migrate runs that exact binary."
+  if ask_yes "Install atlas community ${atlas_want} into .bin/?"; then
+    ./scripts/install-atlas.sh || missing_required=1
+  fi
+fi
+
+sqlc_want="v$(sed -n 's/^version=//p' scripts/install-sqlc.sh)"
+sqlc_have="$(.bin/sqlc version 2>/dev/null || true)"
+if [[ "$sqlc_have" != "$sqlc_want" ]]; then
+  missing_required=1
+  say "sqlc ${sqlc_want} is missing from .bin/sqlc (found: ${sqlc_have:-none}). It generates apps/backend query code from queries/."
+  if ask_yes "Install sqlc ${sqlc_want} into .bin/?"; then
+    ./scripts/install-sqlc.sh || missing_required=1
+  fi
+fi
+
 if ! have just; then
   missing_required=1
   say "just is missing (https://github.com/casey/just)."
@@ -139,7 +182,7 @@ fi
 
 # --- git hook ---
 if [[ -d .git && ! -f .git/hooks/pre-commit ]]; then
-  if ask_yes "Install the pre-commit hook (blocks plaintext .env commits)?"; then
+  if ask_yes "Install the pre-commit hook (blocks plaintext .env commits and new golangci-lint findings)?"; then
     chmod +x scripts/githooks/pre-commit scripts/githooks/check-staged-env.sh
     ln -sfn ../../scripts/githooks/pre-commit .git/hooks/pre-commit
     say "installed .git/hooks/pre-commit"

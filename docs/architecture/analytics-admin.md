@@ -121,7 +121,7 @@ Every action:
 4. The `admin` module's consumer on `admin.action` writes the `admin_actions` row (`admin_id`, `action`, `target_type`, `target_id`, `reason`, `before`, `after`, `created_at`) (default 2026-09-27). The `events` row is the atomic record; `admin_actions` is a projection of it, one relay hop behind. This keeps the module walls: the owning module never writes an `admin` table ([Dependency rules](backend-platform.md#dependency-rules-enforced-by-depguard)).
 5. The usual consumers react to the same events and notify affected users (cabal members on pause, proposer on void).
 
-No admin action can move money. Moving funds stays in the ops runbooks ([ops-sweep-wallets.md](../ops-sweep-wallets.md)).
+No admin action can move money. Moving funds stays in the ops runbooks ([ops-sweep-usdc.md](../legacy/ops-sweep-usdc.md), whose script was deleted with the legacy backend).
 
 The `admin` module lands in [Rollout](backend-platform.md#rollout) step 6. The telemetry pipeline lands with the scaffold in step 1.
 

@@ -64,7 +64,7 @@ Dropped from the 2026-09-26 list:
 - **Cabals** columns `trading_paused_at`, `trading_paused_reason`. Moved to the `funding` pause record.
 - **CabalMembers** column `last_chat_seen_at`. Moved to `chat_seen`.
 
-`waitlist` is marketing, not product, and no module owns it. `schema_migrations` goes with the old runner (`apps/backend/internal/postgres/migrate.go`); atlas keeps its own revision table.
+`waitlist` is marketing, not product, and no module owns it. Its migrations live with the landing page in `apps/web/migrations`. `schema_migrations` goes with the old runner (`apps/backend/internal/postgres/migrate.go`); atlas keeps its own revision table.
 
 ### Types, IDs and migrations
 
@@ -73,7 +73,7 @@ These follow [backend-platform.md](backend-platform.md) and are not repeated her
 - IDs are UUIDv7, branded per aggregate in Go ([Money and types](backend-platform.md#money-and-types)).
 - Amounts are integer base units: `money.Micros` for USDC and `money.BaseUnits` for tokens, both unsigned. Ledger entries and P&L use the signed int64 type in `platform/money` (default 2026-09-27). No floats anywhere on the money path.
 - Enums (`status`, `kind`, `direction`, `reason`) are named string types with an exhaustive switch in Go.
-- Queries are `sqlc`, one directory per module under `queries/`.
+- Queries are `sqlc`, one directory per module under `queries/`, generated into a `sqlc` package inside the owning package (`apps/backend/sqlc.yaml`). The platform's `events` and `event_deliveries` queries live in `queries/platform/` and generate into `internal/platform/db/sqlc`. Run `../../.bin/sqlc generate` from `apps/backend` (the pinned build `just install` puts there); CI fails on `../../.bin/sqlc diff`.
 - Migrations are atlas versioned SQL under `apps/backend/migrations/`, applied in the deploy's pre-deploy step, forward only ([Decided](backend-platform.md#decided)).
 
 ## How it works

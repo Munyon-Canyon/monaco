@@ -34,7 +34,7 @@ Simulator (gold, SimSlim):
 
 1. Find your own gold UDID with `./scripts/gold-sim-udid.sh`. It prints `SIMSLIM_UDID` or exits 1. UDIDs are per machine, so export yours in your shell rc or in plain `.env`.
 2. Slim the simulator with [SimSlim](https://github.com/MobAI-App/simslim) without erasing it: `bash scripts/prepare-simulator.sh "$(./scripts/gold-sim-udid.sh)"`. Set `SIMSLIM_BIN=<path>/simslim` if the binary is not on `PATH` or in `.tools/bin`. The script runs `simslim on --no-reboot`, then `verify` and `doctor`, with `scripts/simslim-profile.json`. On iOS 18.0 the overrides last only for the current boot, so run it again after each boot. If your checkout does not have the script yet, run `simslim on <udid> --no-reboot --profile <profile>.json`, then `simslim verify <udid> --profile <profile>.json` and `simslim doctor <udid>` (see the README SimSlim section).
-3. Agents drive taps with [`.cursor/skills/ios-simslim-fast-qa/SKILL.md`](../.cursor/skills/ios-simslim-fast-qa/SKILL.md) (MobAI claim → bridge → DSL) or XcodeBuildMCP with `--simulator-id "$(./scripts/gold-sim-udid.sh)"`. Do not drive taps with AppleScript, CGEvent or coordinates.
+3. Agents drive taps with [`.cursor/skills/ios-simslim-fast-qa/SKILL.md`](https://github.com/lognorman20/monaco/blob/main/.cursor/skills/ios-simslim-fast-qa/SKILL.md) (MobAI claim → bridge → DSL) or XcodeBuildMCP with `--simulator-id "$(./scripts/gold-sim-udid.sh)"`. Do not drive taps with AppleScript, CGEvent or coordinates.
 
 Accounts:
 

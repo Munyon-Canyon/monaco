@@ -6,6 +6,7 @@ apps/mobile/Config/Privy.local.Info.plist
 apps/mobile/Config/Privy.local.Debug.Info.plist
 apps/mobile/Config/Environment.local.xcconfig
 bin/
+.bin/
 *.exe
 .DS_Store
 .idea/
@@ -25,3 +26,5 @@ build/
 supabase/.temp/
 docs/demo/clips/
 docs/demo/out/
+.venv/
+/site/

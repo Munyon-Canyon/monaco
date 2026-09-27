@@ -72,7 +72,7 @@ public struct ProposalVoteProgress: Equatable {
         max(eligibleCount - votedCount, 0)
     }
 
-    /// Yes votes the proposal needs to pass. Mirrors the backend rule in `packages/domain/votes.go`:
+    /// Yes votes the proposal needs to pass. Mirrors the legacy backend vote rule:
     /// majority passes when yes > no + remaining (floor(n/2) + 1), unanimous needs every voter.
     public var yesNeeded: Int {
         threshold == "unanimous" ? eligibleCount : eligibleCount / 2 + 1

@@ -1,0 +1,2 @@
+go test fuzz v1
+string("MONACO_é=\u0000\nMONACO_ENV=local​")

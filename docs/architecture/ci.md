@@ -52,14 +52,14 @@ PR CI jobs, from the [Testing](backend-platform.md#keeping-it-fast) budget:
 | Job | Runner | Runs when | Contents |
 | --- | --- | --- | --- |
 | `plan` | Linux | always | Checks out once, runs `dorny/paths-filter`, and runs the landing page's `npm test` when `apps/web/**` changed. Folding `web` in here removes one billed minute per run. |
-| `backend` | Linux | backend, `packages/domain` or CI files changed | `golangci-lint`, `govulncheck`, generated-code freshness (`sqlc diff`, `oapi-codegen` + `git diff --exit-code`), `atlas migrate lint`, `vacuum lint`, `oasdiff breaking` against `main`, `monacoctl lint comments`, changelog check, `go test -race -shuffle=on` with `goleak`, merged coverage at 100%, `monacoctl flows check` on the `go test -json` output. Under 3 min, sharded by package if it outgrows that. |
+| `backend` | Linux | backend or CI files changed | `golangci-lint`, `govulncheck`, generated-code freshness (`sqlc diff`, `oapi-codegen` + `git diff --exit-code`), `atlas migrate lint`, `vacuum lint`, `oasdiff breaking` against `main`, `monacoctl lint comments`, changelog check, `go test -race -shuffle=on` with `goleak`, merged coverage at 100%, `monacoctl flows check` on the `go test -json` output. Under 3 min, sharded by package if it outgrows that. |
 | `e2e` | Linux | backend changed | Real `api` and `worker` binaries on compose (Postgres, NATS, fake externals), crash-point tests, `verify-backend` evidence for touched flows. Under 4 min. |
 | `mutation` | Linux | backend Go changed | `gremlins` on packages affected by the diff (`go list -deps`). Under 10 min, or the PR is too big and gets split. |
 | `mobile-core` | Linux (`swift` container) | `packages/mobile-core/**` or `ci-mobile-core.yml` changed | `swift test`, called from its own reusable file `ci-mobile-core.yml`. |
 | `ios` | macOS | `apps/mobile/**`, `packages/mobile-core/**`, the iOS scripts, or `ci-ios.yml` changed | `build-for-testing`, `MonacoTests`, sample-screen manifest check, called from its own reusable file `ci-ios.yml`. This build also compiles `mobile-core` on Darwin, which covers the Darwin-only code paths the Linux job skips. |
 | `ci-ok` | Linux | always, `if: always()` | `re-actors/alls-green` over every job above, with path-skipped jobs in `allowed-skips`. The only required check. |
 
-Until [Rollout](backend-platform.md#rollout) step 1 lands the new scaffold, `backend` runs what `go` runs today: migrations on a clean database, `go vet`, and `go test -race -p 1` for the backend, `packages/domain` and `agents/momentum-bot`.
+The legacy backend, its migrations, its Go domain package and the reference bot were deleted in M7 before the new scaffold. Until [Rollout](backend-platform.md#rollout) step 1 adds the gates above, `backend` runs `go vet` and `go test -race` on the scaffold.
 
 Nightly runs `scripts/qa/night.sh` as it does today ([Overnight QA](../how-to/overnight-qa.md)), plus the Linux `warm-cache` job described under [Fast and deterministic](#fast-and-deterministic), plus the unbounded backend suites the RFC assigns to it: 100,000 property cases, `-fuzz` for 10 minutes per target, the jitter seed sweep, full-module mutation, and `benchstat` against the last nightly with an alert on a regression over 10% at p < 0.05.
 

@@ -1,0 +1,12 @@
+extends: [[vacuum:oas, all]]
+rules:
+  camel-case-properties: "off"
+  operation-4xx-response: "off"
+  operation-default-problem:
+    description: Every operation declares a default response, the Problem.
+    message: Operation has no default Problem response.
+    severity: error
+    given: $.paths[*][get,put,post,delete,patch,options,head,trace].responses
+    then:
+      field: default
+      function: truthy
