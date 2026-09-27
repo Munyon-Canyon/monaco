@@ -11,19 +11,26 @@ const Enabled = true
 
 type armedKey struct{}
 
+type armed struct {
+	name Name
+	left atomic.Int64
+}
+
 var process atomic.Pointer[Name]
 
 func Hit(ctx context.Context, name Name) {
 	if p := process.Load(); p != nil && *p == name {
 		panic(Crash{Name: name})
 	}
-	if armed, ok := ctx.Value(armedKey{}).(Name); ok && armed == name {
+	if a, ok := ctx.Value(armedKey{}).(*armed); ok && a.name == name && a.left.Add(-1) < 0 {
 		panic(Crash{Name: name})
 	}
 }
 
-func Armed(ctx context.Context, name Name) context.Context {
-	return context.WithValue(ctx, armedKey{}, name)
+func ArmedAfter(ctx context.Context, name Name, skip int) context.Context {
+	a := &armed{name: name}
+	a.left.Store(int64(skip))
+	return context.WithValue(ctx, armedKey{}, a)
 }
 
 func Configure(name string) error {

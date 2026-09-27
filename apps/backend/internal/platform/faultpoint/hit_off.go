@@ -8,7 +8,7 @@ const Enabled = false
 
 func Hit(context.Context, Name) {}
 
-func Armed(ctx context.Context, _ Name) context.Context {
+func ArmedAfter(ctx context.Context, _ Name, _ int) context.Context {
 	return ctx
 }
 

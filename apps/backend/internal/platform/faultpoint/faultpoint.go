@@ -1,6 +1,7 @@
 package faultpoint
 
 import (
+	"context"
 	"log/slog"
 	"slices"
 
@@ -23,6 +24,10 @@ func Names() []Name {
 
 func Known(name string) bool {
 	return slices.Contains(Names(), Name(name))
+}
+
+func Armed(ctx context.Context, name Name) context.Context {
+	return ArmedAfter(ctx, name, 0)
 }
 
 type Crash struct {

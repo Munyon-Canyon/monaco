@@ -30,6 +30,20 @@ func TestHit_armedContextCrashesOnlyThatContextAtThatPoint(t *testing.T) {
 	}
 }
 
+func TestArmedAfter_crashesFromTheHitAfterTheSkippedOnes(t *testing.T) {
+	t.Parallel()
+	ctx := faultpoint.ArmedAfter(t.Context(), faultpoint.AfterSign, 2)
+	got := make([]any, 0, 4)
+	for range 4 {
+		faultpoint.Hit(ctx, faultpoint.AfterCreate)
+		got = append(got, recovered(func() { faultpoint.Hit(ctx, faultpoint.AfterSign) }))
+	}
+	crash := faultpoint.Crash{Name: faultpoint.AfterSign}
+	if got[0] != nil || got[1] != nil || got[2] != crash || got[3] != crash {
+		t.Fatalf("hits 1..4 recovered %v, want nil, nil, then Crash{after-sign} from the third on", got)
+	}
+}
+
 func TestConfigure_armsEveryContextInTheProcessUntilCleared(t *testing.T) {
 	t.Cleanup(func() { _ = faultpoint.Configure("") })
 	if err := faultpoint.Configure(string(faultpoint.AfterSign)); err != nil {

@@ -19,7 +19,7 @@ func TestArmed_returnsTheContextUnchangedWithoutTheTag(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	armed := faultpoint.Armed(ctx, faultpoint.BeforeCommit)
-	if armed != ctx {
+	if armed != ctx || faultpoint.ArmedAfter(ctx, faultpoint.AfterSign, 1) != ctx {
 		t.Fatal("Armed wrapped the context in a build without -tags faultpoints")
 	}
 	if p := recovered(func() { faultpoint.Hit(armed, faultpoint.BeforeCommit) }); p != nil {
