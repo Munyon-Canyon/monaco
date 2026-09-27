@@ -1,0 +1,9 @@
+name: tmp reuse caller
+on:
+  pull_request:
+    branches: [tmp/456-rsbase]
+    types: [opened, synchronize, edited, ready_for_review]
+jobs:
+  ci:
+    if: github.event.action != 'edited' || github.event.changes.base != null
+    uses: ./.github/workflows/tmp-reuse-inner.yml

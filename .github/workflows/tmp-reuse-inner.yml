@@ -1,0 +1,9 @@
+name: tmp reuse inner
+on:
+  workflow_call:
+jobs:
+  ci-ok:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: echo "event=${{ github.event_name }} action=${{ github.event.action }}"
