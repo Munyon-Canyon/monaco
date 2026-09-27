@@ -4,6 +4,8 @@ An agent trades for one cabal with nothing but its key. It never holds the cabal
 
 The stocks are xStocks on Solana, named by symbol, such as `AAPLx`.
 
+The backend is being rewritten ([backend-platform.md](architecture/backend-platform.md)). This page describes the target contract. Until the cutover, the current backend still answers with the older shapes in [legacy/api.md](legacy/api.md).
+
 ## Setup
 
 1. A member proposes **add agent** with a name and a USDC budget.
@@ -45,8 +47,6 @@ The caller address is the TCP peer, or the left-most `X-Forwarded-For` entry whe
 | `POST /v1/agent/intents` | yes | Buy or sell |
 | `GET /v1/agent/intents/{intentId}` | yes | Where one intent ended up |
 | `GET /v1/agent/skill.md` | no | Instructions written for an LLM agent |
-
-The older `GET /v1/groups/{id}/assets` and `POST /v1/groups/{id}/agents/intents` still work for existing bots. New agents should use the routes above.
 
 Money comes back two ways. Decimal strings (`"10.50"`, `"0.25000000"`) are for people and LLMs. Integer atomic fields (`usdcMicros`, `sharesAtomic`) are for code. USDC has 6 decimals. xStocks have 8.
 
@@ -101,9 +101,10 @@ A buy spends USD. Send exactly one of `usd` (a decimal string, up to 6 decimals)
 ```bash
 curl -sS -X POST \
   -H "X-Monaco-Agent-Key: $MONACO_AGENT_KEY" \
+  -H "Idempotency-Key: 3f1c…" \
   -H "Content-Type: application/json" \
   "$MONACO_API/v1/agent/intents" \
-  -d '{"side":"buy","symbol":"AAPLx","usd":"10.50","idempotencyKey":"3f1c…","reason":"breakout above 20d high"}'
+  -d '{"side":"buy","symbol":"AAPLx","usd":"10.50","reason":"breakout above 20d high"}'
 ```
 
 A sell names shares. Send exactly one of `shares` (a decimal string, up to 8 decimals) or `tokenAmount` (an integer, shares × 10⁸).
@@ -111,16 +112,17 @@ A sell names shares. Send exactly one of `shares` (a decimal string, up to 8 dec
 ```bash
 curl -sS -X POST \
   -H "X-Monaco-Agent-Key: $MONACO_AGENT_KEY" \
+  -H "Idempotency-Key: 9a2e…" \
   -H "Content-Type: application/json" \
   "$MONACO_API/v1/agent/intents" \
-  -d '{"side":"sell","symbol":"AAPLx","shares":"0.25","idempotencyKey":"9a2e…","reason":"lost momentum"}'
+  -d '{"side":"sell","symbol":"AAPLx","shares":"0.25","reason":"lost momentum"}'
 ```
 
 Both forms at once, neither form, or the other side's field is a **422**.
 
 `reason` is optional, up to 280 characters. Monaco stores it with the intent and shows it to the cabal. Say briefly why the agent made the trade.
 
-Success is `{ "intentId", "status": "executed", "transactionId" }`. The swap then shows as pending and then confirmed in cabal activity.
+Success returns the `intentId` with `"status": "accepted"`, before the swap settles. The swap then shows as pending and then confirmed in cabal activity.
 
 `scripts/demo/agent-intent.sh buy AAPLx 1` sends one intent from the terminal. See its `--help`.
 
@@ -132,7 +134,7 @@ curl -sS -H "X-Monaco-Agent-Key: $MONACO_AGENT_KEY" "$MONACO_API/v1/agent/intent
 
 ```json
 {"intentId": "…", "side": "buy", "symbol": "AAPLx", "status": "executed",
- "rejectReason": null, "reason": "breakout", "idempotencyKey": "…",
+ "rejectReason": null, "reason": "breakout",
  "usdcMicros": 10500000, "tokenAmount": null,
  "transactionId": "…", "txSignature": "5x…", "filledTokenAmount": 4560000, "filledUsdcMicros": 10500000,
  "createdAt": "2026-09-24T12:00:00Z"}
@@ -142,55 +144,15 @@ curl -sS -H "X-Monaco-Agent-Key: $MONACO_AGENT_KEY" "$MONACO_API/v1/agent/intent
 
 ## Idempotency and retries
 
-Send an `idempotencyKey` (up to 128 characters, unique per trade decision) on every intent. Without one, every POST is a new trade.
-
-An intent settles its swap before it answers, so a timeout says nothing about whether it traded. Resend the **same body with the same key**. Monaco answers with the first intent's outcome and does not trade again.
-
-| First intent | Answer to the resend |
-|------|---------|
-| executed | **200**, same `intentId` and `transactionId` |
-| rejected | **422**, same `intentId`, `status` and `rejectReason` (only `requestId` changes) |
-| still executing | **409**; ask again shortly |
-| failed | **200** with `"status": "failed"` |
-
-When an answer names an `intentId` but not a final outcome, read `GET /v1/agent/intents/{intentId}` instead of guessing. The same key with a different side, symbol or amount is a **422**. Keys are scoped to the agent.
+Send an `Idempotency-Key` header on every intent, unique per trade decision. The server stores the first response and replays it for a resend with the same key, so a retry never trades twice. An intent goes through the async trade engine, and the response returns before the swap settles. Read `GET /v1/agent/intents/{intentId}` for the outcome. See [Thin client](architecture/backend-platform.md#thin-client) and [Flows](architecture/backend-platform.md#flows).
 
 ## Rate limits
 
-Each key may send 30 intents an hour. Reads (`GET /v1/agent*`) allow a burst of 120 and refill one every 30 seconds. Over either limit, Monaco answers **429** with `Retry-After` in seconds. Wait that long, then continue. A resend under the same `idempotencyKey` still counts as a request.
+Each key may send 30 intents an hour. Reads (`GET /v1/agent*`) allow a burst of 120 and refill one every 30 seconds. Over either limit, Monaco answers **429** with `Retry-After` in seconds. Wait that long, then continue. A resend under the same `Idempotency-Key` still counts as a request.
 
 ## Errors
 
-| HTTP | Meaning |
-|------|---------|
-| **401** | Bad or revoked key |
-| **403** | Agent **paused** |
-| **404** | Unknown intent id, or another agent's intent |
-| **409** | An intent with this `idempotencyKey` is still executing |
-| **422** | Over budget, unknown symbol, treasury short of USDC, selling more than the agent bought, a bad amount form, a `reason` over 280 characters, or an `idempotencyKey` reused for a different intent |
-| **429** | Over a rate limit, or too many wrong keys; wait `Retry-After` seconds |
-| **5xx** | Monaco or the swap failed. With `"status": "failed"` the intent was accepted and its swap failed |
-
-Every error body is `{ "error", "requestId" }`. When Monaco had an outcome for the intent, the body also carries it:
-
-```json
-{
-  "error": "agent intent rejected: trade exceeds agent allocation",
-  "requestId": "…",
-  "intentId": "…",
-  "status": "rejected",
-  "rejectReason": "trade exceeds agent allocation"
-}
-```
-
-| HTTP | `status` | `rejectReason` | `intentId` |
-|------|----------|----------------|------------|
-| **422** | `rejected` | why, e.g. `trade exceeds agent allocation`, `unknown symbol`, `sell exceeds agent position` | yes; absent only when the `idempotencyKey` itself was refused |
-| **403** | `rejected` | `agent is paused` | no; a paused agent's intent is not recorded |
-| **409** | `accepted` | none | yes, the intent still executing |
-| **5xx** after the intent was accepted | `failed` | `execution failed` | yes |
-
-Branch on `status` and `rejectReason`, not on the `error` text. Quote `intentId` and `requestId` when reporting a problem.
+Every error body is RFC 9457 `application/problem+json` with a stable `code`, a user-facing `message`, a `trace_id`, and `retryable`. Branch on `code`, not on the `message` text. Quote `trace_id` when reporting a problem. See [Errors](architecture/backend-platform.md#errors).
 
 ## Budget
 

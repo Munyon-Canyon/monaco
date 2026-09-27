@@ -7,7 +7,7 @@ The product path stays: fund (member wallet → treasury), then cash out and wit
 ## Danger
 
 - Same Privy app as `.env.local`. `--all` lists **every** Solana wallet in that app, including treasuries that hold live pots.
-- Live run can break share credits, pending deposits, and group NAV. Relayer pays SOL fees.
+- Live run can break share credits, pending deposits, and cabal NAV. Relayer pays SOL fees.
 - Confirm `DATABASE_URL` (default local compose) and Privy app id before a live run.
 - `--dry-run` does not send txs. Still talks to Privy + Solana RPC for balances and Jupiter for sell quotes.
 
@@ -23,12 +23,14 @@ From repo root. Loads `.env.local` via dotenvx.
 ./scripts/sweep-wallets.sh --destination <solana_address>
 ```
 
-Equivalent:
+Equivalent, on today's backend:
 
 ```bash
 scripts/with-dotenv-local.sh go run -C apps/backend ./cmd/sweep-member-to-address \
   --destination <solana_address> --all --dry-run
 ```
+
+The [backend rewrite](architecture/backend-platform.md#repository-layout) moves this command to `monacoctl sweep`, with the same flags.
 
 Live (no `--dry-run`) prompts twice. Type exactly:
 
@@ -73,4 +75,4 @@ Skips: zero USDC after sells, source address equal to destination, relayer. Nati
 
 ## After a sweep
 
-Explorer: [solscan.io](https://solscan.io) on printed `tx=`. Group boards will not auto-credit this path. If you drained a treasury that still has share units, fix data or treat it as ops recovery — do not pretend it was a redeem.
+Explorer: [solscan.io](https://solscan.io) on printed `tx=`. Cabal boards will not auto-credit this path. If you drained a treasury that still has share units, fix data or treat it as ops recovery. Do not pretend it was a redeem.

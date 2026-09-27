@@ -7,20 +7,20 @@ nightly GitHub workflow. Per-PR CI builds the app too.
 
 | When | Workflow / job | Runs |
 | --- | --- | --- |
-| Every PR, push to main | `ci.yml` · `go` | backend, domain and reference bot: vet + test against Postgres |
+| Every PR, push to main | `ci.yml` · `go` | backend checks |
 | Every PR, push to main | `ci.yml` · `swift` | `swift test` in `packages/mobile-core` |
 | PRs touching `apps/mobile/**`, `packages/mobile-core/**`, `ci.yml` or the scripts it uses | `ci.yml` · `ios` | app + test `build-for-testing`, `MonacoTests`, sample-screen manifest check |
-| Nightly 07:00 UTC (03:00 EDT / 02:00 EST), manual dispatch, PRs touching `nightly.yml` or `scripts/qa/**` | `nightly.yml` · `qa` | `night.sh --screenshots`: backend, domain, mobile-core, app build, `MonacoTests`, each sample UI test class, screenshot gallery |
+| Nightly 07:00 UTC (03:00 EDT / 02:00 EST), manual dispatch, PRs touching `nightly.yml` or `scripts/qa/**` | `nightly.yml` · `qa` | `night.sh --screenshots`: backend, mobile-core, app build, `MonacoTests`, each sample UI test class, screenshot gallery |
 
 A Go-only PR skips the `ios` job. Both app builds use the placeholder config below, so CI needs
-no secret.
+no secret. The backend rewrite defines its checks in [CI gates](../architecture/backend-platform.md#ci-gates).
 
 ## Running it locally
 
 ```sh
 just qa-night                     # one round
 just qa-night --until 07:30       # loop until 07:30 local time
-just qa-night --rounds 4 --skip-backend
+just qa-night --rounds 4
 just qa-night --only-ui CabalsTabSampleUITests,ProposalFeedSampleUITests
 just qa-night --screenshots       # also shoot every sample screen (round 1)
 MONACO_QA_IOS_CONFIG=placeholder just qa-night   # what the nightly does
@@ -29,14 +29,13 @@ MONACO_QA_IOS_CONFIG=placeholder just qa-night   # what the nightly does
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `MONACO_QA_IOS_CONFIG` | `generate` | `generate`: Privy config from `.env.local`. `placeholder`: compile-only config, no Privy app ID |
-| `MONACO_QA_DATABASE_URL` | unset | Postgres for backend tests; unset uses `just test backend` (Docker) |
 | `MONACO_QA_SIM` / `--sim` | "Monaco Night QA" | Simulator UDID; without either, `scripts/resolve-ios-sim.sh` picks one |
 | `MONACO_QA_SCREENSHOTS` / `--screenshots` | off | Shoot the screenshot gallery |
 | `MONACO_QA_CLASS_TIMEOUT` | 1500 s | Watchdog per UI class |
 | `MONACO_QA_BOOT_TIMEOUT` | 180 s | Wait for the simulator to report booted |
 | `MONACO_QA_MIN_FREE_SWAP_MB` | 256 | Stop starting UI classes below this free swap |
 
-A round runs one heavy job at a time: backend, domain + mobile-core, app build, `MonacoTests`,
+A round runs one heavy job at a time: backend, mobile-core, app build, `MonacoTests`,
 then each sample-data UI class on its own with a screen recording and one retry if the test
 runner itself was killed (reported as flaky, not failing).
 
