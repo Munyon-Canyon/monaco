@@ -12,6 +12,7 @@ import (
 )
 
 //go:generate go run ../../scripts/gen-depguard ../..
+//go:generate go run . gen errors ../../api/openapi.yaml
 
 type command func(cfg config.Config, args []string, stdout, stderr io.Writer) int
 
@@ -26,6 +27,7 @@ func tools(environ []string) map[string]tool {
 		"bench":   benchCmd,
 		"docs":    docs,
 		"flows":   flowsCmd,
+		"gen":     gen,
 		"migrate": migrateTool(atlas{"../../.bin/atlas", ".atlas-version"}, environ),
 		"lint": func(args []string, stdout, stderr io.Writer) int {
 			return run(nil, map[string]tool{"comments": comments.Run}, nil, args, stdout, stderr)
