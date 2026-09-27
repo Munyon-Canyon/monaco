@@ -80,12 +80,12 @@ func poolSeed(t *testing.T, seed uint64) {
 		}
 	}
 	out, errc := concurrency.Pool(t.Context(), workers, feed(items(jitterItems)...), fn)
-	vals, errs := drainPool(out, errc, readDelay)
+	vals, fails := drainPool(out, errc, readDelay)
 	slices.Sort(vals)
-	if !slices.Equal(vals, want) || len(errs) != wantErr {
-		t.Fatalf("seed %d: out = %v (%d errors), want %v (%d errors)", seed, vals, len(errs), want, wantErr)
+	if !slices.Equal(vals, want) || len(fails) != wantErr {
+		t.Fatalf("seed %d: out = %v (%d errors), want %v (%d errors)", seed, vals, len(fails), want, wantErr)
 	}
-	for _, err := range errs {
+	for _, err := range fails {
 		if !errors.Is(err, errBoom) {
 			t.Fatalf("seed %d: err = %v, want errBoom", seed, err)
 		}
