@@ -264,6 +264,28 @@ func TestFanOutCancelsInFlightAndSkipsUnstartedOnFirstError(t *testing.T) {
 	})
 }
 
+func TestFanOutStopsPullingItemsAfterTheFirstError(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		started := make([]bool, 6)
+		fn := func(ctx context.Context, i int) (int, error) {
+			started[i] = true
+			if i == 0 {
+				return 0, errBoom
+			}
+			<-ctx.Done()
+			return i, nil
+		}
+		got, err := concurrency.FanOut(t.Context(), 2, []int{0, 1, 2, 3, 4, 5}, fn)
+		if got != nil || !errors.Is(err, errBoom) {
+			t.Fatalf("FanOut = %v, %v; want nil, errBoom", got, err)
+		}
+		if !started[0] || !slices.Equal(started[2:], []bool{false, false, false, false}) {
+			t.Fatalf("started = %v, want item 0 and at most item 1", started)
+		}
+	})
+}
+
 func TestFanOutReturnsParentCauseWhenParentIsCancelled(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
