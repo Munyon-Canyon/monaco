@@ -438,7 +438,7 @@ func TestRelay_logsAndKeepsRunningWhenTheDatabaseFails(t *testing.T) {
 	defer func() { _ = unregister() }()
 	stop := h.start(t)
 	h.waitLines(t, "bus.relay.idle", 1)
-	h.clock.Advance(time.Second)
+	h.clock.Advance(time.Minute)
 	idle := h.waitLines(t, "bus.relay.idle", 2)
 	if idle[0]["level"] != "DEBUG" {
 		t.Fatalf("idle line = %v, want DEBUG", idle[0])
@@ -456,6 +456,23 @@ func TestRelay_logsAndKeepsRunningWhenTheDatabaseFails(t *testing.T) {
 		t.Fatalf("collect on a closed pool = %v, want internal", err)
 	}
 	stop()
+}
+
+func TestRelay_logsIdleAtMostOnceAMinute(t *testing.T) {
+	t.Parallel()
+	h := newRelayHarness(t)
+	ctx := h.ctx(t)
+	for range 60 {
+		h.relay.Once(ctx)
+		h.clock.Advance(time.Second)
+	}
+	if n := len(h.lines(t, "bus.relay.idle")); n != 1 {
+		t.Fatalf("%d bus.relay.idle lines across 59 idle seconds, want 1", n)
+	}
+	h.relay.Once(ctx)
+	if n := len(h.lines(t, "bus.relay.idle")); n != 2 {
+		t.Fatalf("%d bus.relay.idle lines once a minute has passed, want 2", n)
+	}
 }
 
 func (h *relayHarness) waitLines(t *testing.T, msg string, n int) []map[string]any {
