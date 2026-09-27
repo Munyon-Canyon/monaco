@@ -7,8 +7,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/concurrency"
 )
 
-const fanOutAllocBudget = 14
-
 func BenchmarkPool(b *testing.B) {
 	in := items(64)
 	for b.Loop() {
@@ -31,9 +29,6 @@ func BenchmarkFanOut(b *testing.B) {
 		if _, err := concurrency.FanOut(context.Background(), 4, in, double); err != nil {
 			b.Fatal(err)
 		}
-	}
-	if allocs := testing.AllocsPerRun(200, run); allocs > fanOutAllocBudget {
-		b.Fatalf("FanOut over 8 items with limit 4 allocates %.0f per run, budget %d", allocs, fanOutAllocBudget)
 	}
 	for b.Loop() {
 		run()

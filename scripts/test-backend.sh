@@ -19,9 +19,16 @@ fi
 
 status=0
 start="$(date +%s)"
-go test -json -race -shuffle=on -short "$@" ./... | tee "$json" |
-  jq -rj --unbuffered 'select((.Action == "output" and .Test == null and (.Output | test("^(PASS|-test\\.shuffle )") | not))
-    or .Action == "build-output") | .Output' || status=1
+summary='select((.Action == "output" and .Test == null and (.Output | test("^(PASS|-test\\.shuffle )") | not))
+  or .Action == "build-output") | .Output'
+go test -json -race -shuffle=on -short "$@" ./... | tee "$json" | jq -rj --unbuffered "$summary" || status=1
+
+# -race makes sync.Pool drop items at random, so allocation baselines run in a second pass without it.
+allocs="$(find . -name allocs_test.go -not -path '*/testdata/*' -exec dirname {} \; | sort -u | tr '\n' ' ')"
+if [[ -n "$allocs" ]]; then
+  # shellcheck disable=SC2086
+  go test -json -short -run '^TestAllocs' $allocs | tee -a "$json" | jq -rj --unbuffered "$summary" || status=1
+fi
 
 if [[ "$status" -ne 0 ]]; then
   echo

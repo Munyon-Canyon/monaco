@@ -177,9 +177,12 @@ linters:
         linters: [forbidigo]
       - path: ^internal/testkit/
         linters: [forbidigo]
-      - path: ^internal/testkit/(seed|db|nats)\.go$
+      - path: ^internal/testkit/(seed|db|nats|perf)\.go$
         linters: [gochecknoglobals]
-        text: seedFlag|current|natsCurrent
+        text: seedFlag|current|natsCurrent|perfUpdate|baselineMu
+      # testing.AllocsPerRun reads the process-wide malloc counter, so allocation tests run alone (#721).
+      - path: allocs_test\.go$
+        linters: [paralleltest]
       - path: ^internal/testkit/db\.go$
         linters: [gosec]
         text: G204
@@ -205,6 +208,9 @@ linters:
       - path: ^internal/testkit/.*_test\.go$
         linters: [gosec]
         text: G204
+      - path: ^internal/testkit/perf(_internal_test)?\.go$
+        linters: [gosec]
+        text: G304
       - path: ^scripts/
         linters: [gosec, err113]
       - path: ^cmd/monacoctl/flows(_test)?\.go$
