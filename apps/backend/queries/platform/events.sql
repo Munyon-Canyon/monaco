@@ -19,4 +19,7 @@ VALUES ($1, $2, $3, $4)
 ON CONFLICT DO NOTHING;
 
 -- name: DeleteDeliveriesBefore :execrows
-DELETE FROM event_deliveries WHERE handled_at < $1;
+DELETE FROM event_deliveries
+WHERE (handler, event_id) IN (
+  SELECT handler, event_id FROM event_deliveries WHERE handled_at < @before::timestamptz LIMIT @batch
+);

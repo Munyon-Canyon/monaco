@@ -24,6 +24,9 @@ var (
 	HTTPRetry     = Msg{Name: "httpclient.retry", Required: []string{"upstream", "attempt", "status", "delay"}}
 	HTTPRequest   = Msg{Name: "http.request", Required: []string{"method", "route", "status", "duration_ms"}}
 	HTTPProblem   = Msg{Name: "http.problem", Required: []string{"code", "status", "err", "alert"}}
+	PollerTick    = Msg{Name: "poller.tick", Required: []string{"poller", "scanned", "changed", "duration_ms"}}
+	PollerFailed  = Msg{Name: "poller.tick.failed", Required: []string{"poller", "code", "err", "alert"}}
+	PollerSkipped = Msg{Name: "poller.tick.skipped_locked", Required: []string{"poller"}}
 	TxCommitted   = Msg{Name: "tx.committed", Required: []string{"event_ids", "attempt"}}
 	TxRolledBack  = Msg{Name: "tx.rolled_back", Required: []string{"code", "attempt"}}
 	TxRetry       = Msg{Name: "tx.retry", Required: []string{"code", "attempt", "delay"}}
@@ -37,6 +40,9 @@ var registry = []Msg{
 	HTTPRetry,
 	HTTPRequest,
 	HTTPProblem,
+	PollerTick,
+	PollerFailed,
+	PollerSkipped,
 	TxCommitted,
 	TxRolledBack,
 	TxRetry,

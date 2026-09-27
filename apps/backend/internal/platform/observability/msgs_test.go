@@ -53,6 +53,9 @@ func TestWriteCatalog_printsTheRegistrySortedByName(t *testing.T) {
 		"| `http.problem` | `code`, `status`, `err`, `alert` |\n" +
 		"| `http.request` | `method`, `route`, `status`, `duration_ms` |\n" +
 		"| `httpclient.retry` | `upstream`, `attempt`, `status`, `delay` |\n" +
+		"| `poller.tick` | `poller`, `scanned`, `changed`, `duration_ms` |\n" +
+		"| `poller.tick.failed` | `poller`, `code`, `err`, `alert` |\n" +
+		"| `poller.tick.skipped_locked` | `poller` |\n" +
 		"| `tx.committed` | `event_ids`, `attempt` |\n" +
 		"| `tx.retry` | `code`, `attempt`, `delay` |\n" +
 		"| `tx.rolled_back` | `code`, `attempt` |\n"

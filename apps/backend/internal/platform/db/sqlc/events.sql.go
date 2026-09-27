@@ -46,11 +46,19 @@ func (q *Queries) AppendEvent(ctx context.Context, arg AppendEventParams) error 
 }
 
 const deleteDeliveriesBefore = `-- name: DeleteDeliveriesBefore :execrows
-DELETE FROM event_deliveries WHERE handled_at < $1
+DELETE FROM event_deliveries
+WHERE (handler, event_id) IN (
+  SELECT handler, event_id FROM event_deliveries WHERE handled_at < $1::timestamptz LIMIT $2
+)
 `
 
-func (q *Queries) DeleteDeliveriesBefore(ctx context.Context, handledAt time.Time) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteDeliveriesBefore, handledAt)
+type DeleteDeliveriesBeforeParams struct {
+	Before time.Time
+	Batch  int32
+}
+
+func (q *Queries) DeleteDeliveriesBefore(ctx context.Context, arg DeleteDeliveriesBeforeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDeliveriesBefore, arg.Before, arg.Batch)
 	if err != nil {
 		return 0, err
 	}
