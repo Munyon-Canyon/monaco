@@ -76,3 +76,4 @@ Follow [`docs/how-to/demo-checklist.md`](../../docs/how-to/demo-checklist.md) on
 - [ ] Build uploaded and processed in TestFlight
 - [ ] At least one internal tester invited and can install
 - [ ] `just test mobile` still exits 0 on the release branch
+
