@@ -7,7 +7,7 @@ name: CI retarget
 # workflow_dispatch is no substitute: its checks do not satisfy a required check.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, tmp/456-rsbase]
     types: [edited]
 
 permissions:
