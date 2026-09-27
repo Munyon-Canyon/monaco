@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"testing"
@@ -63,7 +62,7 @@ func TestServe_healthzAnswersOkUntilShutdown(t *testing.T) {
 
 func TestRun_refusesToBootWithoutRequiredConfig(t *testing.T) {
 	t.Parallel()
-	err := run(slog.New(slog.DiscardHandler), []string{"PATH=/usr/bin"})
+	err := run(io.Discard, []string{"PATH=/usr/bin"})
 	want := "config.Load: invalid_input: missing MONACO_ENV, DATABASE_URL, NATS_URL"
 	if err == nil || err.Error() != want || errs.CodeOf(err) != errs.CodeInvalidInput {
 		t.Fatalf("run = %v, want %q", err, want)

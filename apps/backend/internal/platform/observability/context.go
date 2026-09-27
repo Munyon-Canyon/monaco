@@ -1,0 +1,66 @@
+package observability
+
+import (
+	"context"
+	"log/slog"
+
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+)
+
+type fieldsKey struct{}
+
+type fields struct {
+	requestID string
+	eventID   string
+	actor     string
+	module    string
+	op        string
+}
+
+func WithRequestID(ctx context.Context, id string) context.Context {
+	return with(ctx, func(f *fields) { f.requestID = id })
+}
+
+func WithEventID(ctx context.Context, id ids.EventID) context.Context {
+	return with(ctx, func(f *fields) { f.eventID = id.String() })
+}
+
+func WithActor(ctx context.Context, actor string) context.Context {
+	return with(ctx, func(f *fields) { f.actor = actor })
+}
+
+func WithModule(ctx context.Context, module string) context.Context {
+	return with(ctx, func(f *fields) { f.module = module })
+}
+
+func WithOp(ctx context.Context, op string) context.Context {
+	return with(ctx, func(f *fields) { f.op = op })
+}
+
+func with(ctx context.Context, set func(*fields)) context.Context {
+	f, _ := ctx.Value(fieldsKey{}).(fields)
+	set(&f)
+	return context.WithValue(ctx, fieldsKey{}, f)
+}
+
+func joinKeys(ctx context.Context) []slog.Attr {
+	var out []slog.Attr
+	if sc := trace.SpanContextFromContext(ctx); sc.IsValid() {
+		out = append(out, slog.String("trace_id", sc.TraceID().String()), slog.String("span_id", sc.SpanID().String()))
+	}
+	f, _ := ctx.Value(fieldsKey{}).(fields)
+	for _, kv := range [...]struct{ key, value string }{
+		{"request_id", f.requestID},
+		{"event_id", f.eventID},
+		{"actor", f.actor},
+		{"module", f.module},
+		{"op", f.op},
+	} {
+		if kv.value != "" {
+			out = append(out, slog.String(kv.key, kv.value))
+		}
+	}
+	return out
+}
