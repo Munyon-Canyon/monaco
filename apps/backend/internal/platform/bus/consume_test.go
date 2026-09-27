@@ -96,6 +96,48 @@ func (h *harness) deadLetters(t *testing.T) []deadLetter {
 	return out
 }
 
+func (h *harness) waitSettled(t *testing.T) uint64 {
+	t.Helper()
+	deadline := time.After(waitLong)
+	for {
+		ci := h.consumerInfo(t)
+		if ci.NumAckPending == 0 && ci.NumRedelivered == 0 {
+			return ci.Delivered.Consumer
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("the consumer still holds a message: %d pending ack, %d redelivered",
+				ci.NumAckPending, ci.NumRedelivered)
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+}
+
+func (h *harness) assertNoDeliverySince(t *testing.T, delivered uint64) {
+	t.Helper()
+	const maxDeliver uint64 = 10
+	ci := h.consumerInfo(t)
+	if ci.Config.MaxDeliver != int(maxDeliver) {
+		t.Fatalf("consumer MaxDeliver = %d, want %d", ci.Config.MaxDeliver, maxDeliver)
+	}
+	if ci.Delivered.Consumer != delivered || delivered >= maxDeliver {
+		t.Fatalf("delivered %d times by the term, %d after it; want none after it, and fewer than MaxDeliver",
+			delivered, ci.Delivered.Consumer-delivered)
+	}
+}
+
+func waitCalls(t *testing.T, calls *atomic.Uint64, want uint64) {
+	t.Helper()
+	deadline := time.After(waitLong)
+	for calls.Load() != want {
+		select {
+		case <-deadline:
+			t.Fatalf("handler ran %d times for %d deliveries, want once per delivery", calls.Load(), want)
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+}
+
 func (h *harness) waitDeadLetters(t *testing.T, n int) []deadLetter {
 	t.Helper()
 	deadline := time.After(waitLong)
@@ -168,11 +210,14 @@ func (h *harness) assertLinesThenDuplicates(t *testing.T, want ...map[string]any
 func TestDispatch_nonRetryableErrorTermsIntoDeadLetterAndIsNotRedelivered(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	var calls atomic.Int32
+	var calls atomic.Uint64
 	seen := make(chan struct{}, 1)
 	rejecting := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged) error {
 		calls.Add(1)
-		seen <- struct{}{}
+		select {
+		case seen <- struct{}{}:
+		default:
+		}
 		return errs.New(errs.CodeInvalidInput, "notify.Render")
 	})
 	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{rejecting}})
@@ -182,11 +227,10 @@ func TestDispatch_nonRetryableErrorTermsIntoDeadLetterAndIsNotRedelivered(t *tes
 	h.publish(t, id, payload)
 	await(t, "first delivery", seen)
 	got := h.waitDeadLetters(t, 1)
-	termed := calls.Load()
+	delivered := h.waitSettled(t)
 	settle()
-	if n := calls.Load(); n != termed {
-		t.Fatalf("handler ran %d times after the term landed, want %d", n, termed)
-	}
+	h.assertNoDeliverySince(t, delivered)
+	waitCalls(t, &calls, delivered)
 	if got := h.deliveries(t); len(got) != 0 {
 		t.Fatalf("event_deliveries = %v after term, want none", got)
 	}
