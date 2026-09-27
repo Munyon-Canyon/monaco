@@ -54,7 +54,28 @@ func Pool[In, Out any](
 func Stage[In, Out any](
 	ctx context.Context, in <-chan In, buf int, fn func(context.Context, In) (Out, error),
 ) <-chan Result[Out] {
-	panic("unimplemented")
+	mustPositive("Stage", "buf", buf)
+	out := make(chan Result[Out], buf)
+	go func() {
+		defer close(out)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case v, ok := <-in:
+				if !ok {
+					return
+				}
+				res, err := fn(ctx, v)
+				select {
+				case <-ctx.Done():
+					return
+				case out <- Result[Out]{Val: res, Err: err}:
+				}
+			}
+		}
+	}()
+	return out
 }
 
 func FanOut[T, R any](
