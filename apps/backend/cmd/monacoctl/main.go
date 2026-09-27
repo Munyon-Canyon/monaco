@@ -8,6 +8,8 @@ import (
 	"slices"
 )
 
+//go:generate go run ../../scripts/gen-depguard ../..
+
 type command func(args []string, stdout, stderr io.Writer) int
 
 func commands() map[string]command {

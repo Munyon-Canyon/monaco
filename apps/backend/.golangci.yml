@@ -148,6 +148,8 @@ linters:
         linters: [forbidigo]
       - path: ^internal/testkit/
         linters: [forbidigo]
+      - path: ^scripts/
+        linters: [gosec, err113]
       - path: ^internal/platform/clock/
         linters: [forbidigo]
         text: inject platform/clock\.Clock
