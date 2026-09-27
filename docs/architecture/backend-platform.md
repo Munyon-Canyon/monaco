@@ -5,10 +5,10 @@
 ## Decision
 
 1. **Stay on Go.** No Rust rewrite.
-2. **One modular monolith, two entrypoints.** One module, one container image, `cmd/api` (HTTP + SSE) and `cmd/worker` (JetStream consumers, pollers, relay). Modules talk through NATS events, never through each other's packages. Splitting a module into its own service later is a deploy change, not a code change.
+2. **One modular monolith, two entrypoints.** One module, one container image, `cmd/api` (HTTP, SSE, relay) and `cmd/worker` (JetStream consumers, pollers, relay). Modules talk through NATS events, never through each other's packages. Splitting a module into its own service later is a deploy change, not a code change.
 3. **Clean Architecture, three rings, enforced by lint.** `domain` (pure) ← `app` (use cases, ports) ← `adapters` (Postgres, NATS, Jupiter, Privy, HTTP). Import direction is checked in CI by `depguard`, not by review.
 4. **Go channels are in-process only. NATS is the only cross-module path.** "NATS channel based" means JetStream subjects between modules, and bounded Go-channel pipelines inside one handler. Never a Go channel as a substitute for the bus.
-5. **Contracts are generated, not hand-written.** OpenAPI 3.1 spec is the source of truth for the iOS contract (Go server stubs via `oapi-codegen`, Swift client via `swift-openapi-generator`). SQL is the source of truth for rows (`sqlc`). Event payloads are Go types in one `events` package with a subject registry.
+5. **Contracts are generated, not hand-written.** OpenAPI 3.1 spec is the source of truth for the iOS contract (Go server stubs via `oapi-codegen`, Swift client via `swift-openapi-generator`). SQL is the source of truth for rows (`sqlc`). Event payloads are Go types in one `events` package with a subject registry. Every payload carries a `v` field, and a breaking payload change bumps it.
 6. **Harsh `golangci-lint` v2, no inline `//nolint`, no comments.** Exceptions live in `.golangci.yml` with a reason. Hand-written Go carries only machine-read comments. Custom `forbidigo` rules encode Monaco-specific bans (floats for money, `time.Now` in domain, `context.Background` outside `main`).
 
 ## Why
@@ -43,22 +43,23 @@ apps/backend/
 │   │   ├── concurrency/           Pool, Pipeline, FanOut helpers (generic)
 │   │   ├── httpx/                 middleware, error → problem+json, SSE hub
 │   │   ├── observability/         slog, OTel tracer/meter, NATS header propagation
-│   │   └── money/                 Micros, TokenAmount, share math (math/big)
+│   │   └── money/                 Micros, SignedMicros, TokenAmount, share math (math/big)
 │   ├── events/                    every event type + subject registry (one file per aggregate)
 │   ├── modules/
-│   │   ├── identity/              auth session, users, profile
-│   │   ├── cabal/                 cabals, members, access requests, rules
-│   │   ├── governance/            proposals, votes, tally, expiry
-│   │   ├── trading/               trade engine, swap state machine, sweeper
+│   │   ├── identity/              auth session, users, profile, user wallets
+│   │   ├── cabal/                 cabals, members, access requests, rules, treasury wallets
+│   │   ├── governance/            proposals, votes, tally, expiry, execution outcome
+│   │   ├── trading/               trade engine, swaps and their state machine, sweeper
 │   │   ├── treasury/              ledgers (cabal_txns, user_txns), fund, cash out, positions
-│   │   ├── funding/               deposits poller, withdrawals, onramp sessions, bounce
-│   │   ├── market/                assets catalog, prices, provider strategies
+│   │   ├── funding/               deposits poller, withdrawals, onramp sessions, bounce, cabal pauses
+│   │   ├── market/                assets catalog, price poller, price history, provider strategies
 │   │   ├── agents/                agent keys, intents, budget enforcement
 │   │   ├── social/                follows, feed, comments, chat bridge
 │   │   ├── ranking/               valuation snapshots, leaderboards
 │   │   ├── notify/                notifications, device tokens, APNs
 │   │   ├── referrals/
-│   │   └── admin/                 admin actions, dead-letter queue
+│   │   ├── analytics/             PostHog export; consumes events, owns no business tables
+│   │   └── admin/                 admin actions, dead_letters
 │   └── testkit/                   fakes, fixtures, embedded NATS, Postgres container
 ├── migrations/                    atlas versioned SQL, forward-only
 ├── flows.tsv                      every flow, its outcomes, and its test status (see Flows)
@@ -88,15 +89,31 @@ internal/modules/governance/
 | module A | module B | never. Cross-module effects go through an event. Cross-module reads go through a read-only query port that module B exports in `module.go`. |
 | `cmd/*` | everything | nothing imports `cmd` |
 
+### Table ownership
+
+Each table has one module that writes it. Other modules read it through that module's query port or learn of changes through its events.
+
+| Table | Owner | Rule |
+| --- | --- | --- |
+| `user_wallets` | identity | One Privy wallet per user. Sign-in reuses the user's existing Privy wallet and never creates a second. |
+| `treasury_wallets` | cabal | One app-owned treasury wallet per cabal. Kept apart from `user_wallets` so identity and cabal never share a table. |
+| `swaps` | trading | The swap state machine. Treasury never writes it. |
+| `cabal_txns` | treasury | Written by treasury's consumer of `trade.confirmed`, and by fund and cash out. |
+| `user_txns` | treasury | Written by treasury's consumers of `deposit.credited` and `withdrawal.confirmed`, and by fund and cash out. |
+| `cabal_pauses` | funding | The one pause record. Trading and treasury read it through funding's query port at check time. There is no `cabals.trading_paused_at`. An ops pause is a pause record with reason `ops`. |
+| `price_points` | market | One table for every price sample, `price_micros bigint`. The poller writes it; price history and charts read it. Pyth is dropped. |
+| `dead_letters` | admin | One row per dead-lettered message, with resolve state. |
+| `events`, `event_deliveries` | `platform/bus` | Outbox and per-handler dedupe (see [NATS hosting and budget](#nats-hosting-and-budget)). |
+
 ## Patterns, and where each earns its place
 
 | Pattern | Where | Shape |
 | --- | --- | --- |
-| **Unit of Work** | Every write that emits an event. Required by the events-as-outbox rule. | `uow.Do(ctx, func(ctx context.Context, tx Tx) error)`. `Tx` exposes the module's repos and `Events.Append`. Commit wakes the relay. No `Begin/Commit` anywhere else (lint: `forbidigo` on `pgx.Tx.Commit` outside `platform/db`). |
+| **Unit of Work** | Every write that emits an event. Required by the events-as-outbox rule. | `uow.Do(ctx, func(ctx context.Context, tx Tx) error)`. `Tx` exposes the module's repos and `Events.Append`. Commit wakes the relay in the same process. No `Begin/Commit` anywhere else (lint: `forbidigo` on `pgx.Tx.Commit` outside `platform/db`). |
 | **Command** | Every user or agent intent: `ProposeTrade`, `CastVote`, `FundCabal`, `CashOut`, `Withdraw`, `SubmitAgentIntent`, `CreateCabal`. | Typed struct with `IdempotencyKey`, one `Handle(ctx, cmd) (Result, error)` per command. HTTP handler parses → builds command → calls handler. Same command can come from HTTP, an agent key, or `monacoctl`. |
 | **Query (CQRS-lite)** | Every screen read. | Reads hit projections (`cabal_positions`, `leaderboard_entries`, feed) directly via sqlc, bypassing domain. Writes go through commands. No shared "service" object doing both. |
 | **Strategy** | Asset issuers (xStocks, Tessera, PreStocks) and swap venue (Jupiter today). | `type AssetProvider interface { Catalog(ctx); Quote(ctx, Asset, Micros) (Quote, error) }`. Best-price buy runs every provider that lists the asset (fan-out, below) and picks the min. `Venue` interface for execution. |
-| **Registry (creational)** | Providers keyed by `Issuer`; consumers keyed by durable name; events keyed by subject. | Built once in `cmd/*/main.go`. Duplicate key panics at boot. Tests assert every `events` type has at least one registered subject. |
+| **Registry (creational)** | Providers keyed by `Issuer`; consumers keyed by durable name; handlers keyed by handler name; events keyed by subject. | Built once in `cmd/*/main.go`. Duplicate key panics at boot. Tests assert every `events` type has at least one registered subject. |
 | **Smart constructor (creational)** | Every branded type: `UserID`, `CabalID`, `Micros`, `SharesUnits`, `Mint`, `SolanaAddress`. | `ParseX(raw) (X, error)` at the boundary, unexported fields so the zero value can't be forged outside the package. |
 | **Functional options (creational)** | Clients with many knobs: Jupiter, Privy, NATS, HTTP server. | `jupiter.New(baseURL, jupiter.WithTimeout(d), jupiter.WithRetry(p))`. Not for domain types. |
 | **State machine** | Proposal status, swap `created → submitted → confirmed|failed`, onramp session, cash-out job. | Status is a Go type with a `transitions` table; `Next(from, event) (to, error)` is pure. Adapters apply it as a guarded `UPDATE … WHERE status = $from`. `exhaustive` lint fails on a missed case. |
@@ -128,7 +145,7 @@ Where concurrency pays in Monaco, and the pattern for each:
 | Leaderboard valuation per cabal | Pipeline: load holdings → value (needs prices) → write snapshot, each stage a goroutine, buffered channels | buffer 64, workers per stage 4 |
 | Notification fan-out to device tokens | Worker pool, APNs HTTP/2 client shared | 32 |
 | Best-price quote across issuers | Fan-out, first-error cancels, collect all | number of providers |
-| Relay publish batch | Sequential (order and ack matter); parallelism comes from multiple processes and `SKIP LOCKED` | 1 |
+| Relay publish batch | Sequential (order and ack matter); parallelism comes from multiple processes and `SKIP LOCKED`. api and worker each run a relay. | 1 |
 
 Hard rules:
 
@@ -151,7 +168,7 @@ func FanOut[T, R any](ctx context.Context, limit int, items []T, fn func(context
 
 ## Money and types
 
-- USDC and token amounts are `money.Micros` / `money.BaseUnits` (unsigned 64-bit branded ints). Share math multiplies then divides through `math/big` and rounds down, in favour of the pot, in one function.
+- USDC and token amounts are `money.Micros` / `money.BaseUnits` (unsigned 64-bit branded ints). Ledger entries and P&L are `money.SignedMicros`, a signed 64-bit branded int. A balance or amount is never negative; a delta or a return can be. Share math multiplies then divides through `math/big` and rounds down, in favour of the pot, in one function.
 - `float32`/`float64` are banned in `domain`, `app`, `platform/money` (`forbidigo` on `float64` identifiers there). Display formatting is the client's job from integer micros plus decimals.
 - IDs are UUIDv7 branded per aggregate. `CabalID` cannot be passed as `UserID`.
 - Enums are named string types with an exhaustive `switch` (`exhaustive` lint with `default-signifies-exhaustive: false`).
@@ -218,7 +235,7 @@ Error handling that no test reaches is decoration. The rules that make each bran
 
 ### Outcomes as a map
 
-Each flow lists its outcomes in `flows.tsv`: the success path, every `Code` it can return, and every crash point (`after-sign`, `after-execute`, `before-commit`, `after-publish`). One acceptance scenario per outcome, named `TestFlow07_FundCabal_InsufficientFunds`. `monacoctl flows check` reads `go test -json` output and fails CI when an outcome in the TSV has no test that ran and passed. That is the codepath map: the file is the list, the test names are the proof, and the check is what keeps them equal.
+Each flow lists its outcomes in `flows.tsv`: the success path, every `Code` it can return, and every crash point (`after-create`, `after-sign`, `after-execute`, `before-commit`, `after-publish`). `after-create` covers a swap row committed as `created` whose process died before signing. A swap moves `created` → `submitted` in the same guarded write that stores its signed bytes, and that write commits before any send. So a `created` row was never signed or sent, and a crash after the send leaves the row in `submitted`. The trading sweeper fails any `created` row older than 2 min with no chain lookup. It resolves `submitted` rows through `getSignatureStatuses`. The crash-point test proves the flow converges. One acceptance scenario per outcome, named `TestFlow07_FundCabal_InsufficientFunds`. `monacoctl flows check` reads `go test -json` output and fails CI when an outcome in the TSV has no test that ran and passed. That is the codepath map: the file is the list, the test names are the proof, and the check is what keeps them equal.
 
 ## Logs as evidence
 
@@ -229,14 +246,16 @@ Three records exist, and each answers a different question. The `events` table i
 1. **Structured only, stable names.** slog with `attr-only`, `static-msg`, `context: all` (`sloglint`). The message is an identifier, `treasury.fund.rejected`, never a sentence with values in it. Values are attrs. A message name is registered in `internal/observability/msgs.go` next to the attrs it requires, and a test fails on a call site that logs an unregistered name or omits a required attr. That registry is also the log catalog page in the docs.
 2. **Every line carries the join keys.** `trace_id`, `span_id`, `request_id` or `event_id`, `actor`, `module`, `op`. The context logger adds them; a handler never types them. `sloglint context: all` means a call site cannot get a logger without the context.
 3. **Log the decision, not the step.** One line where a branch chooses: a guard refused (the code and the numbers it compared, `have=4_000_000 need=5_000_000`), a retry was scheduled (`attempt=3 delay=30s cause=JupiterUnavailable`), a consumer skipped a duplicate (`event_id delivery=2`), a poller tick found nothing. Inaction is evidence. "Deposit poller ran at 10:04:10, scanned 212 wallets, found 0" is the line that proves a missing deposit was not the poller's fault.
-4. **Money lines carry before and after.** Any line about a balance, share count or position has `before`, `after`, `delta`, `asset`, `cabal_id`. The ledger can be rebuilt from logs alone, and `monacoctl replay --verify` checks that it matches.
+4. **Money lines carry before and after.** Any line about a balance, share count or position has `before`, `after`, `delta`, `asset`, `cabal_id`. The ledger's history can be read from logs alone.
 5. **Truthful means logged after commit.** A line that says "funded" before the transaction commits lies when the commit fails. `uow.Do` itself logs `tx.committed` or `tx.rolled_back` with the cause and the event ids it appended, so every write gets its terminal line without the handler doing it. Inside a transaction closure only `Debug` is allowed. That rule has no lint yet; the `money-change` skill checklist carries it until one exists.
 6. **Levels mean one thing each.** `Debug` is step detail, off in production. `Info` is a decision or an outcome. `Warn` is degraded but handled (retry, fallback provider, stale price used). `Error` is a boundary only, one per failure, per the Errors section.
 7. **Nothing secret, nothing personal.** The slog handler in `platform/observability` redacts by attr key (`phone`, `email`, `token`, `key`, `seed`, `signature`) and by value pattern (base58 secrets, JWTs). A golden test feeds each pattern through the handler and asserts the output. New attr keys that carry PII go on the list in the same PR.
 
 ### Replay and seeded states
 
-The `events` table plus deterministic consumers make state replayable. `monacoctl replay --to <event_id>` rebuilds every projection (`cabal_positions`, `leaderboard_entries`, feed) into a fresh database from the event log, so "what did the leaderboard show at 14:02" is a command, not archaeology. Replay reads events only; it never calls Jupiter, Privy or RPC, which is why consumers keep side effects behind ports.
+The `events` table plus deterministic consumers make state replayable. `monacoctl replay --to <event_id>` rebuilds every projection (`cabal_positions`, `leaderboard_entries`, feed) into a fresh database from the event log, so "what did the leaderboard show at 14:02" is a command, not archaeology.
+
+The ledgers (`cabal_txns`, `user_txns`) are not projections. Each ledger row commits in the same transaction as the event or delivery that caused it, and replay never rebuilds them. `monacoctl replay --verify` recomputes every balance from the event log and fails on any difference from the ledger. Replay reads events only; it never calls Jupiter, Privy or RPC, which is why consumers keep side effects behind ports.
 
 The same mechanism seeds tests. `testkit/scenarios/` holds named event sequences (`cabal-with-pending-trade`, `member-mid-cashout`, `treasury-after-bounce`), each produced by running the real commands once and exporting the resulting `events` rows. `testkit.Seed(t, db, "cabal-with-pending-trade")` replays one into the test's database in milliseconds. Crash-point and acceptance tests start from a seeded state instead of building it by hand. `monacoctl events export --cabal <id> --anonymize` pulls a real cabal's history so a production bug reproduces locally from the same state.
 
@@ -428,7 +447,7 @@ Also in CI:
 | Acceptance | one scenario per Flows row, in business language | Go scenario DSL (`scenario.New(t).Given(...).When(...).Then(...)`) over HTTP against the in-process app | `just test backend` |
 | E2E | same scenarios against real `api` + `worker` binaries | compose: PG + NATS + fake externals; `-cover` binaries | PR CI |
 | QA | agent-driven: `verify-backend flow <n>` with evidence in the PR | `verify-backend` skill CLI | every backend PR |
-| Crash-point | panic at named points (after sign, after `/execute`, before commit, after publish), restart, assert convergence | `faultpoint` hooks compiled in under a build tag | PR CI |
+| Crash-point | panic at named points (after create, after sign, after `/execute`, before commit, after publish), restart, assert convergence. A `created` row was never signed or sent, so the sweeper fails it after 2 min; a crash after the send leaves the row `submitted`, which the sweeper resolves through `getSignatureStatuses`. | `faultpoint` hooks compiled in under a build tag | PR CI |
 | Jitter / concurrency | pools, pipelines, relay, consumers under random delays and interleavings | `testing/synctest` + seeded delay injection + `-race` | `just test backend` (fixed seeds), nightly (seed sweep) |
 | Performance (deterministic) | allocations per op on hot paths; query count per request | `testing.AllocsPerRun`, a query-counting pgx tracer | `just test backend` |
 | Performance (timing) | benchmarks compared against `main`; load on the full stack | `b.Loop` + `benchstat`; `vegeta` against the e2e stack | nightly, and on PRs labelled `perf` |
@@ -505,7 +524,7 @@ Lint that makes the shared-state leak a compile-time failure:
 
 ## Flows
 
-Each flow is a command, the events it emits, the consumers that react, and every outcome it can end in. The table below is the target state of the rewrite, not the current code. Most of rows 1 to 17 exist in the old backend in some form; 18 to 27 are partly new. Nothing here is "future reference": every row becomes a test before its module's rollout step closes.
+Each flow is a command, the events it emits, the consumers that react, and every outcome it can end in. The table below is the target state of the rewrite, not the current code. Most of rows 1 to 17 exist in the old backend in some form; 18 to 28 are partly new. Nothing here is "future reference": every row becomes a test before its module's rollout step closes.
 
 ### `flows.tsv` is the source of truth
 
@@ -534,33 +553,34 @@ Adding a flow is one row plus the tests it names. Deleting a flow deletes the ro
 
 | # | Flow | Command / trigger | Events | Consumers |
 | --- | --- | --- | --- | --- |
-| 1 | Sign in (SMS / email OTP) | `POST /v1/auth/session` with Privy token | `user.created` (first time), `user.auth_state_changed` | analytics, referrals (attribute), social (contact matches) |
+| 1 | Sign in (Apple or Google; SMS OTP in dev builds only, never production) | `POST /v1/auth/session` with Privy token; reuses the user's existing Privy wallet | `user.created` (first time), `user.auth_state_changed` | analytics, referrals (mint code; `AttachReferral` is the only attribution path), social (contact matches) |
 | 2 | Create cabal | `CreateCabal` | `cabal.created` | feed, analytics |
 | 3 | Join open cabal / request / invite / approve | `JoinCabal`, `RequestAccess`, `InviteMember`, `DecideAccess` | `cabal.member_joined`, `cabal.access_requested`, `cabal.access_decided` | notify, feed, ranking |
 | 4 | Leave cabal | `LeaveCabal` (guarded: no shares, not last with money, not creator with members) | `cabal.member_left` | feed, ranking |
-| 5 | Crypto deposit | Deposit poller sees USDC in member wallet | `deposit.credited` | notify, referrals (first deposit), analytics |
+| 5 | Crypto deposit | Deposit poller sees USDC in member wallet | `deposit.credited` | treasury (`user_txns`), notify, referrals (first deposit), analytics |
 | 6 | Card deposit | `CreateOnrampSession`, page PATCHes status | `onramp.status_changed` then flow 5 | analytics |
-| 7 | Fund cabal | `FundCabal` → Privy transfer member→treasury → confirm → mint shares at live price | `cabal.fund_submitted`, `cabal.funded` | treasury positions, ranking, feed, notify, referrals |
-| 8 | Direct transfer to treasury | Treasury watcher | `cabal.external_deposit_detected`, `cabal.external_deposit_bounced` | trading (pause), notify, admin |
+| 7 | Fund cabal | `FundCabal` → Privy transfer member→treasury → confirm → mint shares at live price | `cabal.fund_submitted`, `cabal.funded` | treasury positions, ranking, feed, notify, referrals, analytics |
+| 8 | Direct transfer to treasury | Treasury watcher in funding; writes the cabal's pause record in the same transaction; a bounce writes no ledger entries | `cabal.external_deposit_detected`, `cabal.external_deposit_bounced` | notify, admin |
 | 9 | Propose trade | `ProposeTrade` (advisory route + pot check via market) | `proposal.created` | feed, notify |
-| 10 | Vote / tally | `CastVote`; expiry job | `proposal.passed` / `.failed` / `.expired` | trading, feed, notify |
-| 11 | Execute trade | `trade-engine` consumer on `proposal.passed` | `trade.blocked` / `trade.submitted` / `trade.confirmed` / `trade.failed` | governance (executed), treasury ledger, ranking, feed, notify |
+| 10 | Vote / tally | `CastVote`; expiry job | `proposal.passed` / `.failed` / `.expired` | trading, feed, notify, analytics |
+| 11 | Execute trade | `trade-engine` consumer on `proposal.passed`; reads the pause through funding's query port | `trade.blocked` / `trade.submitted` / `trade.confirmed` / `trade.failed`; governance then emits `proposal.executed` / `proposal.execution_blocked` | governance (on `trade.confirmed` / `trade.blocked`), treasury (`cabal_txns`), ranking, feed, notify, analytics |
 | 12 | Retry failed trade | `RetryTrade` | same as 11 | same |
 | 13 | Withdraw / void proposal | `WithdrawProposal`, admin `VoidProposal` | `proposal.withdrawn`, `.voided` | feed, notify |
-| 14 | Cash out | `CashOut` → burn shares → sell if short → pay USDC to member wallet | `cashout.started`, `cashout.completed` / `.partial` / `.failed` | ranking, feed, notify |
-| 15 | Withdraw to address | `Withdraw` | `withdrawal.submitted`, `.confirmed`, `.failed` | notify, analytics |
-| 16 | Agent lifecycle | Proposal kinds add / pause / resume / remove agent | `agent.enabled`, `.paused`, `.removed`, `agent.key_revealed` | agents, notify, feed |
-| 17 | Agent trade | `SubmitAgentIntent` (key auth, budget check) | `agent.intent_created` → same engine as 11 | trading, same as 11 |
-| 18 | Prices | Poller tick (fan-out over providers) | `price.updated` (core NATS only, not stored as event) | ranking, live SSE |
+| 14 | Cash out | `CashOut` → burn shares → sell if short → pay USDC to member wallet | `cashout.started`, `cashout.completed` / `.partial` / `.failed` | ranking, feed, notify, analytics |
+| 15 | Withdraw to address | `Withdraw` | `withdrawal.submitted`, `.confirmed`, `.failed` | treasury (`user_txns`), notify, analytics |
+| 16 | Agent lifecycle | Proposal kinds add / pause / resume / remove agent | `agent.enabled`, `.paused`, `.removed`, `agent.key_revealed` | governance (marks the agent proposal executed on `agent.enabled` / `.paused` / `.removed`), agents, notify, feed |
+| 17 | Agent trade | `SubmitAgentIntent` (key auth, budget check at submit and again at execution) | `agent.intent_created` → same engine as 11 | trading, same as 11 |
+| 18 | Prices | One market poller, every 10 s or slower (fan-out over providers), writes `price_points` | `price.tick` (core NATS only, one batched message per tick, not stored as event); `asset.price_moved` | `price.tick`: ranking, live SSE. `asset.price_moved`: feed, notify |
 | 19 | Valuation + leaderboards | Every minute, and on `trade.confirmed`, `cabal.funded`, `cashout.completed` | `ranking.snapshot_written` | live SSE |
-| 20 | Follow / unfollow | `Follow`, `Unfollow` | `follow.created`, `.removed` | notify, feed ranking |
-| 21 | Feed + comments | `CreateComment` | `comment.created` | notify, live SSE |
+| 20 | Follow / unfollow | `Follow`, `Unfollow` | `follow.created`, `.removed` | notify, feed ranking, analytics |
+| 21 | Feed + comments | `CreateComment` | `comment.created` | notify, live SSE, analytics |
 | 22 | Chat | Ably for delivery; backend issues token and persists | `chat.message_posted` | notify (mentions) |
 | 23 | Profile edit | `UpdateProfile` | `user.profile_updated` | ranking (names), feed |
 | 24 | Notifications | Consumers write `notifications` row, then send | `notification.sent` | none |
-| 25 | Referrals | Click, sign-up, first deposit | `referral.qualified` | notify, analytics |
+| 25 | Referrals | Click, sign-up, first deposit | `referral.attributed`, `referral.qualified` | `referral.attributed`: social. `referral.qualified`: notify, analytics |
 | 26 | Admin | Any admin command | `admin.action` | notify, audit |
-| 27 | Dead letters | Advisory subscriber | none | admin queue; `monacoctl deadletter retry` |
+| 27 | Dead letters | Advisory subscriber | none | admin writes `dead_letters`; `monacoctl deadletter retry` |
+| 28 | Nudges | Identity nudge job | `user.nudge_due` | notify |
 
 ## Thin client
 
@@ -617,6 +637,8 @@ var streams = []jetstream.StreamConfig{
 - `DiscardNew`, never `DiscardOld`: a full stream rejects the relay's publish and the outbox retries; `DiscardOld` would silently drop events no consumer has read.
 - `Duplicates` only works if `bus.Publish` sets `Nats-Msg-Id` to `events.id` on every publish. The relay does; the `nats-consumer` skill says so.
 - One durable pull consumer per module on `EVENTS` with `FilterSubjects`, `AckExplicit`, `MaxDeliver` 10, `MaxAckPending` 64 (the cross-process concurrency bound from the concurrency rules). A module gets a consumer, never a stream.
+- A module's consumer runs one or more named handlers. `event_deliveries` is keyed by event id and handler name, so each handler dedupes on its own and a redelivery skips only the handlers that already applied it. A daily job deletes `event_deliveries` rows older than 30 days, which outlives both the 7-day `EVENTS` and the 30-day `DEADLETTER` windows.
+- A message that exhausts `MaxDeliver` or is termed goes to `DEADLETTER`, and admin's consumer writes a `dead_letters` row that stays open until someone resolves it. `monacoctl deadletter retry` is the one recovery path. No safety-net poller re-scans stuck trades.
 - Boot fails if `nats.Connect` fails. No `RetryOnFailedConnect`: an instance that passes health checks with a dead bus backs the relay up silently.
 - The worker exports `js.AccountInfo` every minute as OTel gauges (storage used vs limit, stream and consumer counts); alert at 80%. Connection count and egress are not in `AccountInfo`; those are read in the Synadia dashboard.
 
@@ -648,7 +670,7 @@ NATS ──"hint.cabal.42.updated"──▶ api
                      phone A     phone B     phone C
 ```
 
-- The hub is a map from key (`cabal:<id>`, `user:<id>`) to SSE writers. On connect, the api registers the phone under its user id and the cabals it is a member of. On a hint, the hub parses the subject, looks up the key, writes to those phones and no others.
+- The hub is a map from key (`cabal:<id>`, `user:<id>`, `global`) to SSE writers. On connect, the api registers the phone under its user id, the cabals it is a member of, and `global`. Every connection joins `global`, which carries feed and leaderboard hints. On a hint, the hub parses the subject, looks up the key, writes to those phones and no others.
 - Correctness moved from NATS subject permissions to one function, `hub.Register`. It is an authz check and gets a test: a phone in cabal 7 does not receive cabal 42's hint. Membership changes re-register.
 - NATS subscriptions scale with api processes, not phones: one api, one subscription, at any number of connected clients.
 - Hints are core NATS and droppable (concurrency rule 5). A dropped hint costs one missed re-fetch until the next one; the SSE-reconnect fallback covers the rest.
@@ -741,7 +763,7 @@ What lives where:
 | Skill instructions | `.claude/skills/verify-backend/SKILL.md` (mirrored to `.cursor/skills/`) | When to run it, the commands, how to read evidence, what counts as a pass, and what to do on a failure. Short; the CLI does the work. |
 | Feature map | `.claude/skills/verify-backend/feature-map.md` | Generated from `flows.tsv` by `monacoctl docs flows`. Per flow: trigger, command, events, consumers, tables, outcomes, and the exact command that verifies it. Checked fresh in CI. |
 | The CLI | `cmd/monacoctl verify`, run as `just verify backend` | Stack, driver, invariant checks, evidence writer. Code, tested like any other code. |
-| Fakes server | `cmd/fakes`, built from `internal/testkit/fakes` | Privy, Jupiter, Solana RPC, Helius, xStocks and APNs over HTTP, replaying recorded fixtures. Scriptable per request: succeed, fail with a given error, delay, or hang. |
+| Fakes server | `cmd/fakes`, built from `internal/testkit/fakes` | Privy, Jupiter, Solana RPC, Helius, xStocks, APNs and Ably over HTTP, replaying recorded fixtures. Scriptable per request: succeed, fail with a given error, delay, or hang. |
 | Flow scripts | `internal/testkit/flows/<id>.go` | The same steps as the flow's acceptance scenario, written once and run by both `go test` (in-process) and `verify` (against binaries). |
 | Seed scenarios | `internal/testkit/scenarios/` | Named event sequences replayed into the database before a flow starts (see [Replay and seeded states](#replay-and-seeded-states)). |
 | Evidence | `test/evidence/<flow-id>.json`, committed | One file per flow, stamped with the commit it ran against. |
@@ -859,10 +881,10 @@ Agents in Claude Code on the web or CI install it with `npm install -g @withgrap
 1. Scaffold: module, lint, comment checker and its agent hook, CI, `platform/*`, `errs`, `testkit`, generators, empty `flows.tsv` with `monacoctl flows check` green, `verify-backend` skill with an empty feature map, mkdocs, CHANGELOG. Delete `agents/momentum-bot`. No features. Prove lint fails on a planted violation of each rule, and measure the test budget table on the scaffold to set the CI gate.
 2. Events + relay + `bus.Dispatch` with the bus test suite green on embedded NATS.
 3. Identity, cabal, funding (deposits), treasury (fund, shares). E2E flows 1–7.
-4. Governance + trading. Flows 9–13, with crash-point tests.
+4. Governance + trading. Flows 8–13, with crash-point tests. Flow 8 lands here because the pause it writes is what trading checks.
 5. Cash out, withdraw, agents. Flows 14–17.
 6. Market, ranking, social, notify, referrals, admin.
-7. Cut iOS over module by module behind the generated client; delete the old backend in the same wave as the last route moves.
+7. Cut iOS over in one release behind the generated client, and delete the old backend in the same wave. The new backend starts on an empty database. Nothing is backfilled from the old backend and nothing syncs between them. A returning user signs in and gets their existing Privy wallet back; every other row starts fresh.
 
 ## Alternatives considered
 
@@ -880,7 +902,7 @@ Agents in Claude Code on the web or CI install it with `npm install -g @withgrap
 
 - **Module path** is `github.com/<org>/monaco/apps/backend`. `platform/` stays inside it. `agents/momentum-bot` is deleted in Rollout step 1, so nothing outside the module needs `platform/`.
 - **Migrations use atlas**, versioned SQL files under `migrations/`, `atlas migrate lint` in CI, `atlas migrate apply` in the deploy's pre-deploy step. Nothing migrates at boot; a binary that finds a schema behind its expectation fails boot with `KindInternal`.
-- **`cabal` everywhere**: Go types, tables, event subjects, and the new HTTP routes (`/v1/cabals/{id}`). The old rule "API routes and types stay `groups`" was for the backend being replaced; it ends when the iOS app cuts over to the generated client (Rollout step 7), which renames the routes on both sides in one PR per module. Legacy `/v1/groups` routes stay only as long as the old backend does.
+- **`cabal` everywhere**: Go types, tables, event subjects, and the new HTTP routes (`/v1/cabals/{id}`). The old rule "API routes and types stay `groups`" was for the backend being replaced; it ends when the iOS app cuts over to the generated client (Rollout step 7), which renames the routes on both sides in the same release. Legacy `/v1/groups` routes stay only as long as the old backend does.
 - **NATS is Synadia Cloud**, free plan first. See [NATS hosting and budget](#nats-hosting-and-budget).
 
 ## Open questions
@@ -889,6 +911,7 @@ None at the moment.
 
 ## Log
 
+- 2026-09-27: Decided: sign-in is Apple or Google, SMS OTP in dev builds only; cutover starts on an empty database with no backfill or sync, and sign-in reuses existing Privy wallets. Defaults: `money.SignedMicros`; table ownership (trading owns `swaps`, treasury writes ledgers as a consumer, funding owns pause, split wallet tables, one `price_points` table, admin `dead_letters`); ledger checked by `replay --verify`, not rebuilt; relay in api and worker; per-handler `event_deliveries` with 30-day retention; SSE `global` key; `price.tick`, `proposal.executed` (governance also consumes the flow 16 agent events), `asset.price_moved`, `referral.attributed`, `user.nudge_due` and the analytics module in the flows; `after-create` crash point, where a `created` row was never signed or sent because the move to `submitted` commits with the signed bytes before any send, so the sweeper fails it after 2 min; flow 1 referrals consumer only mints the code; no trade safety-net poller; agent budget rechecked at execution; payload `v` field; Ably fake; flow 8 in step 4.
 - 2026-09-27: CI scheduling moved to [ci.md](ci.md): PR CI only on ready PRs based on `main`, one aggregate required check, Linux-first, runner options.
 - 2026-09-27: Logs as evidence: registered message names, join keys on every line, decisions and inaction logged, before/after on money lines, terminal line from `uow.Do`, replay and seeded scenarios.
 - 2026-09-27: Errors rewritten around one `errs.Error` type and a code table; boundary-only logging; outcomes column. Testing budget made a gate with a cost table; test isolation by database with the lints that enforce it. `flows.tsv` replaces the hand table as the source of truth. Deploy on Render with OTel to Grafana. Open questions closed: module path, atlas, `cabal` everywhere.
