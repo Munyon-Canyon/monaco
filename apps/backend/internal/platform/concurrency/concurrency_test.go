@@ -93,6 +93,7 @@ func TestPoolExitsWhenCancelledWhileBlockedSending(t *testing.T) {
 		out, errc := concurrency.Pool(ctx, 2, in, failOdd)
 		synctest.Wait()
 		cancel()
+		synctest.Wait()
 		vals, errs := drainPool(out, errc, nil)
 		if len(vals)+len(errs) != 0 {
 			t.Fatalf("delivered %v %v after cancel with no consumer", vals, errs)
@@ -185,12 +186,13 @@ func TestStageExitsWhenCancelledWhileBlockedSending(t *testing.T) {
 		out := concurrency.Stage(ctx, in, 1, double)
 		synctest.Wait()
 		cancel()
+		synctest.Wait()
 		var n int
 		for range out {
 			n++
 		}
-		if n > 1 {
-			t.Fatalf("stage delivered %d results past its buffer with no consumer", n)
+		if n != 1 {
+			t.Fatalf("stage delivered %d results with no consumer, want only the one its buffer held", n)
 		}
 	})
 }
