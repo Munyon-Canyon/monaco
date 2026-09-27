@@ -120,8 +120,6 @@ jobs:
               - 'agents/momentum-bot/**'
               - 'supabase/migrations/**'
               - 'docs/legacy/api.md'
-              - 'scripts/ci/**'
-              - '.github/workflows/ci*.yml'
             ios:
               - 'apps/mobile/**'
               - 'packages/mobile-core/**'
@@ -130,7 +128,6 @@ jobs:
               - 'scripts/ci/select-xcode.sh'
               - 'scripts/qa/screens.sh'
               - 'scripts/qa/sample-screens.txt'
-              - '.github/workflows/ci*.yml'
 
   ios:
     name: iOS app (build, MonacoTests)
