@@ -225,6 +225,23 @@ reset *target:
         ;;
     esac
 
+# Apply pending migrations to the .env.local database and print its revision. `just run backend` never migrates.
+migrate target:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{target}}" in
+      db)
+        mkdir -p bin
+        (cd apps/backend && go build -o ../../bin/ ./cmd/monacoctl)
+        {{_dotenvx}} "$PWD/bin/monacoctl" migrate apply
+        {{_dotenvx}} "$PWD/bin/monacoctl" migrate status
+        ;;
+      *)
+        echo "error: unknown target '{{target}}' (use db)"
+        exit 1
+        ;;
+    esac
+
 # Regenerate checked-in generated files. `just gen docs` rewrites docs/reference from monacoctl.
 gen target:
     #!/usr/bin/env bash
