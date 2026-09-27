@@ -23,6 +23,7 @@ func commands() map[string]command {
 
 func tools(environ []string) map[string]tool {
 	return map[string]tool{
+		"bench":   benchCmd,
 		"docs":    docs,
 		"flows":   flowsCmd,
 		"migrate": migrateTool(atlas{"../../.bin/atlas", ".atlas-version"}, environ),
