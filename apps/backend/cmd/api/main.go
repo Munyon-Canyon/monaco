@@ -25,13 +25,22 @@ func main() {
 	}
 }
 
-func run(stderr io.Writer, environ []string) error {
+func run(stderr io.Writer, environ []string) (err error) {
 	cfg, err := config.Load(environ)
 	if err != nil {
 		return err
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer stop()
+	shutdown, err := observability.Setup(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.Timeouts.Shutdown)
+		defer cancel()
+		err = errors.Join(err, shutdown(flushCtx))
+	}()
 	ctx = observability.WithLogger(ctx, observability.NewLogger(cfg, stderr))
 	observability.Info(ctx, observability.BootConfig, slog.String("service", "api"), slog.Any("config", cfg.Redacted()))
 	ln, err := new(net.ListenConfig).Listen(ctx, "tcp", cfg.HTTP.Addr)
