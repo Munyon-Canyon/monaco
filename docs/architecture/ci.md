@@ -10,7 +10,7 @@ How Monaco runs continuous integration: which checks run, when they run, on what
 4. **One required check.** A final `ci-ok` job aggregates every other job with `re-actors/alls-green`. It is the only check branch protection names, so jobs can be added, split or path-filtered without touching the protection rule.
 5. **Filter jobs, never workflows.** Path and draft filters go in job-level `if:`. A workflow skipped by a `paths:` filter leaves its required check pending forever; a job skipped by `if:` reports success.
 6. **Linux by default, macOS only for Xcode.** `packages/mobile-core` host tests run on Linux, which it already supports. macOS runs only the iOS app build and `MonacoTests`, and only when iOS paths change.
-7. **Stay on GitHub-hosted runners while the repo is public.** They are free and unmetered for public repos. The runner table below says what to switch to if the repo goes private or the macOS queue gets long.
+7. **Stay on GitHub's free hosted runners while the repo is public.** They are free and unmetered for public repos. [Staying on the free tier](#staying-on-the-free-tier) lists the rules that keep it free, and [Runner options](#runner-options) says what to switch to if the repo goes private or the macOS queue gets long.
 8. **Nightly runs the unbounded suites**, and skips the night when `main` has not moved since the last green nightly.
 
 ## Why
@@ -108,6 +108,16 @@ GitHub's merge queue would let expensive jobs run once per merge instead of once
 - **Caches.** `actions/setup-go` caches modules and `GOCACHE`. After checkout, reset `testdata` mtimes to a fixed date (`find . -path '*/testdata/*' -exec touch -t 200001010000 {} +`), because `go test` keys its result cache on file mtimes and a fresh checkout otherwise misses every time ([golang/go#58571](https://github.com/golang/go/issues/58571)). `golangci-lint-action` caches its own analysis. A PR can restore caches saved on `main` but not caches from other PRs, and with no push-to-`main` run nothing would save them. So nightly gets a small Linux `warm-cache` job on `main` that builds, compiles the test binaries (`go test -run '^$' ./...`) and runs lint, and it is the only job that saves caches. PRs restore and never save. The `ios` job caches Swift packages only; DerivedData is rebuilt from scratch after a fresh checkout anyway.
 - **Few, larger jobs.** Each job pays checkout, setup and a whole-minute rounding. Split a job only when the parallelism shortens time to a result.
 
+## Staying on the free tier
+
+Monaco runs CI on GitHub's standard hosted runners at no cost, because the repo is public. That holds only while these rules hold:
+
+- **Standard runner labels only.** Jobs use `ubuntu-latest`, `ubuntu-24.04`, `ubuntu-24.04-arm` or `macos-15`. Larger runners (more cores, GPU, `-xlarge` macOS) are billed even on public repos, and the plan's free minutes do not cover them. `scripts/ci/check-runners.sh` fails the `plan` job when a workflow names any other label, so this rule does not depend on review.
+- **Concurrency is the limit, not minutes.** The Free plan runs at most 20 jobs at once, and only 5 of them on macOS. Busy days show up as queued `ios` jobs, not as a bill. The gating in [Decision](#decision) exists as much to keep that queue short as to save minutes. If macOS jobs regularly wait more than 5 minutes to start, move `ios` to Namespace or Xcode Cloud ([When to switch](#runner-options)).
+- **Artifacts and caches stay small.** Artifacts expire after 7 days on PRs and 14 on nightly. The Actions cache is capped at 10 GB per repo, and GitHub evicts the oldest entries past that, so only the nightly `warm-cache` job saves caches.
+- **Public means forks.** The [Security](#security) rules apply: no secrets in PR workflows, no `pull_request_target`, no self-hosted runner.
+- **Making the repo private is a CI decision.** At the measured pace the current workflows would use the 2,000 free minutes in about two weeks. Before changing visibility, land the [Rollout](#rollout) steps and the "Repo goes private" row of the switch table in the same week. Setting a $0 Actions spending limit on the account makes an overrun stop CI instead of charging the card.
+
 ## Security
 
 The repo is public, so anyone can open a PR from a fork.
@@ -162,11 +172,12 @@ Every drop-in option is a one-line `runs-on:` change per job, so a switch is one
 Each step is one small PR with its own proof.
 
 1. Gate triggers: `branches: [main]`, the `types` and `if:` above, remove the `push` trigger, add `ci-ok`, and make it the only required check. Proof: a draft PR shows no running jobs, marking it ready starts CI, and an upstack PR runs nothing.
-2. Fold `web` into `plan`. Move `swift` to a Linux `swift` container, filtered on `packages/mobile-core/**`. Proof: a Go-only PR runs no macOS job.
+2. Add `scripts/ci/check-runners.sh` to `plan`: it lists every `runs-on:` in `.github/workflows/` and fails on a label outside the standard set. Fold `web` into `plan`. Move `swift` to a Linux `swift` container, filtered on `packages/mobile-core/**`. Proof: a Go-only PR runs no macOS job, and a planted `runs-on: ubuntu-latest-4-cores` fails `plan`.
 3. Tighten `timeout-minutes`, add the `testdata` mtime reset, add the nightly `warm-cache` job, and stop PRs saving caches. Proof: a second run of an unchanged PR shows cached test results in the `go test` output.
 4. Nightly skips when `main`'s head equals the head SHA of the last successful nightly run (`gh run list --workflow nightly.yml --status success --limit 1 --json headSha`). Proof: a manual dispatch on an unchanged `main` exits in the first step.
 5. At backend-platform Rollout step 1, replace the `go` job with `backend`, `e2e` and `mutation` as above, and set each budget from the times the scaffold measures in CI.
 
 ## Log
 
+- 2026-09-27: Decided to stay on GitHub's free hosted runners while public. Added the rules that keep it free, a runner-label check, and the steps before going private.
 - 2026-09-27: Proposed. Measured a month of runs, found the repo public (free hosted runners) and the per-job rounding and macOS `swift` job as the waste. CI runs only on ready PRs based on `main`, one aggregate required check, Linux-first, nightly skips idle nights. Runner options surveyed.
