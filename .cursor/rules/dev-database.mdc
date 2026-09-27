@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Dev database durability
 
-The dev database container `monaco-postgres` (port 54322) keeps `fsync`, `synchronous_commit` and `full_page_writes` on. `docker-compose.yml` pins them on the command line.
+The dev database container `monaco-postgres` (port 54322) keeps `fsync`, `synchronous_commit` and `full_page_writes` on. `apps/backend/deployments/compose.yml` (included by the root `docker-compose.yml`) pins them on the command line. Tests use `monaco-postgres-test` on 54323 instead.
 
 - Never run `ALTER SYSTEM`, `pg_resetwal`, or any `fsync=off`, `synchronous_commit=off` or `full_page_writes=off` against it.
 - Benchmarks and durability experiments run in a throwaway container on another port, removed afterwards: `docker run --rm -d --name bench-pg -p 54399:5432 -e POSTGRES_PASSWORD=bench postgres:16-alpine -c fsync=off`.

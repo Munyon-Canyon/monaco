@@ -43,3 +43,14 @@ func TestDatabaseURLGuard_acceptsLocalhostComposeUrl(t *testing.T) {
 		t.Fatalf("expected localhost DATABASE_URL to pass guard: %v", err)
 	}
 }
+
+func TestDatabaseURLGuard_rejectsTheDurabilityOffTestDatabase(t *testing.T) {
+	for _, databaseURL := range []string{
+		"postgres://monaco:monaco@localhost:54323/monaco?sslmode=disable",
+		"postgres://monaco:monaco@127.0.0.1:54323",
+	} {
+		if err := runDatabaseURLGuard(t, databaseURL); err == nil {
+			t.Fatalf("expected error for DATABASE_URL on the test container: %s", databaseURL)
+		}
+	}
+}

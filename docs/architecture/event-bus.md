@@ -197,7 +197,7 @@ Chat keeps Ably for client delivery ([chat.md](chat.md)). Clients never connect 
 
 Local dev and tests never touch Synadia.
 
-- The compose file (`apps/backend/deployments/`) gains a `nats` service: `nats:2-alpine` with `-js -sd /data`, port `4222`, a volume, and a health check on the monitoring port `8222`. `just run` starts it with Postgres; `just reset` wipes its volume. None of this exists yet.
+- The compose file (`apps/backend/deployments/`) gains a `nats` service: `nats:2-alpine` with `-js -sd /data`, port `4222`, a volume, and a health check on the monitoring port `8222`. `just run backend` starts it with Postgres; `just reset` wipes its volume and `just reset db` keeps it.
 - `NATS_URL` joins `.env.local` (`nats://localhost:4222`) and `.env.production`. Only `platform/bus` and `testkit` open a connection, once per process, named `monaco-api` or `monaco-worker`.
 - `just test backend` runs one in-process `nats-server` per test package in `TestMain` and one stream per test, with `AckWait` 100 ms ([Keeping it fast](backend-platform.md#keeping-it-fast), [Isolating test state](backend-platform.md#isolating-test-state)). No external NATS needed.
 - Every consumer's tests run through the chaos dispatcher, which duplicates, reorders, delays and redelivers by seed ([Keeping it deterministic](backend-platform.md#keeping-it-deterministic)). That turns the ordering and redelivery rules above into checks.
