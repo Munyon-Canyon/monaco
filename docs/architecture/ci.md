@@ -66,10 +66,11 @@ Nightly runs `scripts/qa/night.sh` as it does today ([Overnight QA](../how-to/ov
 ## Triggers
 
 ```yaml
+# ci.yml
 on:
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review, edited]
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 concurrency:
@@ -77,24 +78,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  plan:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.pull_request.draft == false &&
-       (github.event.action != 'edited' || github.event.changes.base != null))
+  ci:
+    if: ${{ !github.event.pull_request.draft }}
+    uses: ./.github/workflows/ci-jobs.yml
+
+# ci-retarget.yml
+on:
+  pull_request:
+    branches: [main]
+    types: [edited]
+
+jobs:
+  ci:
+    if: github.event.changes.base != null && !github.event.pull_request.draft
+    uses: ./.github/workflows/ci-jobs.yml
 ```
 
+- The jobs live in `ci-jobs.yml`, a reusable workflow. Both callers name their job `ci`, so every check reads `ci / <job>` and the required check is `ci / ci-ok`.
 - `branches: [main]` matches the PR's base, so only the bottom PR of a stack runs.
-- `edited` is there for one case: Graphite retargets the next PR to `main` after the bottom one merges. The `if:` drops every other edit, such as a title change.
-- Every other job `needs: plan`. On a draft, `plan` is skipped, everything after it is skipped, and each skipped job reports success. A draft cannot merge, so that is safe.
+- A draft skips the `ci` job. That leaves one skipped check named `ci` and no `ci / ci-ok`, so the PR cannot merge until it is ready and CI passes. GitHub counts a skipped job as a passing required check, so the gate never depends on a skip.
+- Inside `ci-jobs.yml`, `ci-ok` uses `always()`, not `!cancelled()`. A run cancelled by a newer push then leaves a failed `ci-ok`, not a skipped one.
+- Graphite restacks an upstack PR while its base is a temporary `graphite-base/N` branch, then retargets it to `main` with no new push (seen on #452). `ci.yml` sees neither event. `ci-retarget.yml` runs on the retarget and runs the same jobs.
+- GitHub counts only the newest run of each workflow on a commit. A title or body edit after a retarget, with no push in between, makes a skipped `ci-retarget.yml` run the newest one, and `ci / ci-ok` goes back to "Expected". Rerunning the retarget run does not help. Push the branch to run `ci.yml`. A `ci / ci-ok` from `ci.yml` survives later edits (probed on #648 and #718).
+- `edited` is not in `ci.yml`. An edit run there shares the concurrency group, cancels the real run, and leaves a skipped `ci-ok` as the newest check (seen on #493). In `ci-retarget.yml` a title or body edit skips the caller job and creates only a skipped `ci` check.
+- `workflow_dispatch` checks do not satisfy a required check (a probe ruleset on #501 stayed blocked with a green dispatched `ci-ok`). Dispatch is only for looking at results on a draft or an upstack branch. `dorny/paths-filter` then diffs against the merge base with `main`.
 - `pull_request` does not run while a PR has a merge conflict. Resolve the conflict to get CI.
-- `workflow_dispatch` is the manual escape hatch for running CI on a draft or an upstack branch.
 
-Branch protection on `main`:
+Ruleset on `main`:
 
-- Require `ci-ok`.
+- Require `ci / ci-ok` from GitHub Actions (integration 15368), so a commit status with the same name from another source does not count.
 - Require branches to be up to date before merging.
-- Require approval before running workflows from first-time outside contributors.
+- Block force pushes and deletion.
+- Require approval before running workflows from all outside contributors (`fork-pr-contributor-approval`), not only first-time ones.
 
 GitHub's merge queue would let expensive jobs run once per merge instead of once per push. It is not available to repos owned by a personal account ([docs](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)). Revisit it if the repo moves to an organization.
 
