@@ -69,7 +69,7 @@ func TestAPIRoutes_listMatchesWhatTheMuxRegisters(t *testing.T) {
 
 func TestAPIReference_documentsEveryRegisteredRoute(t *testing.T) {
 	// Arrange
-	path := filepath.Join("..", "..", "..", "..", "docs", "api.md")
+	path := filepath.Join("..", "..", "..", "..", "docs", "legacy", "api.md")
 	reference, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read API reference: %v", err)
@@ -83,11 +83,11 @@ func TestAPIReference_documentsEveryRegisteredRoute(t *testing.T) {
 	// Act + Assert: every route has a row, and no row describes a route that is gone.
 	for _, route := range registeredRoutes(t) {
 		if !documented[route] {
-			t.Errorf("route %q is missing from the route table in docs/api.md", route)
+			t.Errorf("route %q is missing from the route table in docs/legacy/api.md", route)
 		}
 		delete(documented, route)
 	}
 	for route := range documented {
-		t.Errorf("docs/api.md documents %q, which the API does not register", route)
+		t.Errorf("docs/legacy/api.md documents %q, which the API does not register", route)
 	}
 }

@@ -11,7 +11,7 @@ Some of it is still accurate. Product rules, the Privy wallet model, the Solana 
 | File | What it described | What replaces it |
 | --- | --- | --- |
 | [architecture.md](architecture.md) | The current `apps/backend` code: packages, pollers inside the API process, `supabase/migrations` applied at boot, hand-written HTTP structs, the old table names | [architecture/backend-platform.md](../architecture/backend-platform.md) for the target; [docs/architecture.md](../architecture.md) for what carries over |
-| [api.md](api.md) | The hand-maintained route table, `{ "error", "requestId" }` error shape, `idempotencyKey` body field, `/v1/groups` routes | `api/openapi.yaml` in the rewrite, rendered in the docs site; problem+json errors and `Idempotency-Key` header per the RFC |
+| [api.md](api.md) | Still kept in sync with today's backend by `apps/backend/cmd/api/routes_doc_test.go` until the cutover. The hand-maintained route table, `{ "error", "requestId" }` error shape, `idempotencyKey` body field, `/v1/groups` routes | `api/openapi.yaml` in the rewrite, rendered in the docs site; problem+json errors and `Idempotency-Key` header per the RFC |
 | [ops-observability.md](ops-observability.md) | Sentry, Prometheus `/metrics`, the alert webhook, `LOG_FILE`, the old metric and alert names | The RFC's Deploy and observability and Logs as evidence sections; the iOS part moved to [how-to/read-ios-logs.md](../how-to/read-ios-logs.md) |
 
 ## Build history
