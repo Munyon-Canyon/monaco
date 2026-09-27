@@ -31,6 +31,7 @@ func tools(environ []string) map[string]tool {
 		"flows":       flowsCmd,
 		"gen":         gen,
 		"migrate":     migrateTool(atlas{"../../.bin/atlas", ".atlas-version"}, environ),
+		"mutation":    mutationTool(mutationEnv{moduleDir: ".", gremlins: "gremlins"}),
 		"test-report": testReportCmd,
 		"lint": func(args []string, stdout, stderr io.Writer) int {
 			return run(nil, map[string]tool{"comments": comments.Run}, nil, args, stdout, stderr)

@@ -1,0 +1,243 @@
+package main
+
+import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path"
+	"path/filepath"
+	"slices"
+	"strings"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
+)
+
+const (
+	mutationUsage = "usage: monacoctl mutation [--base main | --all]"
+	mutantsAllow  = "mutants.allow"
+	lived         = "LIVED"
+)
+
+type mutationEnv struct {
+	moduleDir string
+	gremlins  string
+}
+
+type listedPackage struct {
+	Dir, ImportPath string
+	Deps            []string
+}
+
+type gremlinsReport struct {
+	Files []struct {
+		Name      string `json:"file_name"`
+		Mutations []struct {
+			Type   string `json:"type"`
+			Status string `json:"status"`
+			Line   int    `json:"line"`
+			Column int    `json:"column"`
+		} `json:"mutations"`
+	} `json:"files"`
+}
+
+func mutationTool(env mutationEnv) tool {
+	return func(args []string, stdout, stderr io.Writer) int { return mutationCmd(env, args, stdout, stderr) }
+}
+
+func mutationCmd(env mutationEnv, args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("mutation", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	base := fs.String("base", "main", "")
+	all := fs.Bool("all", false, "")
+	if fs.Parse(args) != nil || fs.NArg() != 0 {
+		_, _ = fmt.Fprintln(stderr, mutationUsage)
+		return 2
+	}
+	ctx := context.Background()
+	survivors, err := env.run(ctx, *base, *all, stdout)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "monacoctl mutation: %v\n", err)
+		return 1
+	}
+	for _, s := range survivors {
+		_, _ = fmt.Fprintf(
+			stderr,
+			"monacoctl mutation: %s survived; kill it with a test or list it in %s with a reason\n",
+			s,
+			mutantsAllow,
+		)
+	}
+	if len(survivors) > 0 {
+		return 1
+	}
+	return 0
+}
+
+func (env mutationEnv) run(ctx context.Context, base string, all bool, stdout io.Writer) ([]string, error) {
+	const op = "monacoctl.mutation"
+	allowed, err := readAllowFile(filepath.Join(env.moduleDir, mutantsAllow))
+	if err != nil {
+		return nil, err
+	}
+	exclude, err := os.ReadFile(filepath.Join(env.moduleDir, coverageExclude))
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	listed, err := env.goList(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var changed []string
+	if !all {
+		if changed, err = env.changedFiles(ctx, base); err != nil {
+			return nil, err
+		}
+	}
+	dirs := affectedPackages(listed, changed, all, strings.Fields(string(exclude)))
+	_, _ = fmt.Fprintf(stdout, "mutating %d packages: %s\n", len(dirs), strings.Join(dirs, " "))
+	var survivors []string
+	for _, dir := range dirs {
+		report, err := env.unleash(ctx, dir)
+		if err != nil {
+			return nil, err
+		}
+		survivors = append(survivors, survivingMutants(dir, report, allowed)...)
+	}
+	return survivors, nil
+}
+
+func (env mutationEnv) command(ctx context.Context, name string, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = env.moduleDir
+	return cmd
+}
+
+func (env mutationEnv) goList(ctx context.Context) ([]listedPackage, error) {
+	out, err := env.command(ctx, "go", "list", "-f", `{{.Module.Dir}}	{{.Dir}}	{{.ImportPath}}	{{join .Deps " "}}`, "./...").
+		Output()
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, "monacoctl.goList")
+	}
+	var pkgs []listedPackage
+	for line := range strings.Lines(string(out)) {
+		f := strings.SplitN(strings.TrimRight(line, "\n"), "\t", 4)
+		dir := strings.TrimPrefix(strings.TrimPrefix(f[1], f[0]), "/")
+		pkgs = append(pkgs, listedPackage{Dir: filepath.ToSlash(dir), ImportPath: f[2], Deps: strings.Fields(f[3])})
+	}
+	return pkgs, nil
+}
+
+func (env mutationEnv) changedFiles(ctx context.Context, base string) ([]string, error) {
+	out, err := env.command(ctx, "git", "diff", "--name-only", "--relative", base+"...HEAD", "--", ".").Output()
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, "monacoctl.changedFiles")
+	}
+	return strings.Fields(string(out)), nil
+}
+
+func affectedPackages(pkgs []listedPackage, changed []string, all bool, exclude []string) []string {
+	changedDirs := map[string]bool{}
+	for _, f := range changed {
+		if strings.HasSuffix(f, ".go") {
+			changedDirs[path.Dir(f)] = true
+		}
+	}
+	changedPaths := map[string]bool{}
+	for _, p := range pkgs {
+		if changedDirs[p.Dir] {
+			changedPaths[p.ImportPath] = true
+		}
+	}
+	var dirs []string
+	for _, p := range pkgs {
+		hit := all || changedPaths[p.ImportPath] ||
+			slices.ContainsFunc(p.Deps, func(d string) bool { return changedPaths[d] })
+		if hit && !excluded(p.Dir+"/", exclude) {
+			dirs = append(dirs, p.Dir)
+		}
+	}
+	slices.Sort(dirs)
+	return dirs
+}
+
+func (env mutationEnv) unleash(ctx context.Context, dir string) (gremlinsReport, error) {
+	const op = "monacoctl.unleash"
+	out := filepath.Join(
+		os.TempDir(),
+		fmt.Sprintf("gremlins-%d-%s.json", os.Getpid(), strings.ReplaceAll(dir, "/", "_")),
+	)
+	defer func() { _ = os.Remove(out) }()
+	cmd := env.command(ctx, env.gremlins, "unleash", "--silent", "--output", out,
+		"--exclude-files", `\.gen\.go$`, "./"+dir)
+	if msg, err := cmd.CombinedOutput(); err != nil {
+		return gremlinsReport{}, errs.Wrap(fmt.Errorf("%w: %s", err, msg), errs.CodeInternal, op)
+	}
+	data, err := os.ReadFile(out)
+	if err != nil {
+		return gremlinsReport{}, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	var report gremlinsReport
+	if err := json.Unmarshal(data, &report); err != nil {
+		return gremlinsReport{}, errs.Wrap(err, errs.CodeDecodeFailed, op)
+	}
+	return report, nil
+}
+
+func mutantKey(dir, file string, line, column int, mutator string) string {
+	return fmt.Sprintf("%s:%d:%d %s", path.Join(dir, file), line, column, mutator)
+}
+
+func survivingMutants(dir string, report gremlinsReport, allowed map[string]bool) []string {
+	var out []string
+	for _, f := range report.Files {
+		for _, m := range f.Mutations {
+			key := mutantKey(dir, f.Name, m.Line, m.Column, m.Type)
+			if m.Status == lived && !allowed[key] {
+				out = append(out, key)
+			}
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+func readAllowFile(name string) (map[string]bool, error) {
+	file, err := os.Open(name)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, "monacoctl.readAllow")
+	}
+	defer func() { _ = file.Close() }()
+	return readAllow(file)
+}
+
+type allowLineError int
+
+func (e allowLineError) Error() string {
+	return fmt.Sprintf("%s:%d: want file:line:col<TAB>MUTATOR<TAB>reason", mutantsAllow, int(e))
+}
+
+func readAllow(r io.Reader) (map[string]bool, error) {
+	const op = "monacoctl.readAllow"
+	allowed := map[string]bool{}
+	scanner := bufio.NewScanner(r)
+	for n := 1; scanner.Scan(); n++ {
+		line := scanner.Text()
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		fields := strings.SplitN(line, "\t", 3)
+		if len(fields) != 3 || strings.TrimSpace(fields[2]) == "" {
+			return nil, errs.Wrap(allowLineError(n), errs.CodeDecodeFailed, op)
+		}
+		allowed[fields[0]+" "+fields[1]] = true
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	return allowed, nil
+}

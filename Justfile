@@ -91,6 +91,10 @@ test app:
           (cd scripts && go test -short ./...)
         fi
         ;;
+      mutation)
+        # gremlins on the packages the diff against main touches and their dependents; --all for every package.
+        (cd apps/backend && go run ./cmd/monacoctl mutation ${MUTATION_ARGS:-})
+        ;;
       mobile)
         if [[ ! -d apps/mobile ]]; then
           echo "error: apps/mobile is not scaffolded yet (M0-T4)."
@@ -104,7 +108,7 @@ test app:
         (cd packages/mobile-core && swift test)
         ;;
       *)
-        echo "error: unknown app '{{app}}' (use backend or mobile)"
+        echo "error: unknown app '{{app}}' (use backend, mutation or mobile)"
         exit 1
         ;;
     esac
