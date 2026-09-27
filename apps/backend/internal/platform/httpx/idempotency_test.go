@@ -139,6 +139,16 @@ func TestIdempotency_requiresTheHeaderOnMutatingMethodsOnly(t *testing.T) {
 	}
 }
 
+func TestIdempotency_acceptsAKeyAtTheLengthLimit(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	next := &countingHandler{serve: createsThing}
+	rec := send(t, idempotent(h, realStore(t, h), next), http.MethodPost, "/v1/things", strings.Repeat("k", 255), `{}`)
+	if rec.Code != http.StatusCreated || next.calls.Load() != 1 {
+		t.Fatalf("255-byte key = %d after %d handler calls, want 201 and 1", rec.Code, next.calls.Load())
+	}
+}
+
 func expectMissingKeyProblem(t *testing.T, h *harness, rec *httptest.ResponseRecorder) {
 	t.Helper()
 	if p := decodeProblem(t, rec); p.Code != "invalid_input" {
@@ -316,6 +326,12 @@ func TestIdempotency_a5xxOrPanicReleasesTheKeyForARetry(t *testing.T) {
 			},
 			status: 503, msg: "http.idempotency.released",
 		},
+		"500": {
+			serve: func(w http.ResponseWriter, r *http.Request) {
+				Problem(w, r, errs.New(errs.CodeInternal, "x.Y"))
+			},
+			status: 500, msg: "http.idempotency.released",
+		},
 		"panic": {
 			serve:  func(http.ResponseWriter, *http.Request) { panic("boom") },
 			status: 500, msg: "",
@@ -355,7 +371,7 @@ func (tc failingOnce) run(t *testing.T) {
 		return
 	}
 	released := linesNamed(h.logs.lines(t), tc.msg)
-	if len(released) != 1 || released[0]["idempotency_key"] != "k1" || released[0]["status"] != 503.0 {
+	if len(released) != 1 || released[0]["idempotency_key"] != "k1" || released[0]["status"] != float64(tc.status) {
 		t.Fatalf("released lines = %v", released)
 	}
 }
