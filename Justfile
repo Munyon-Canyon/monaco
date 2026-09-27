@@ -60,7 +60,9 @@ build app:
     set -euo pipefail
     case "{{app}}" in
       backend)
-        echo "apps/backend: new module not scaffolded yet"
+        mkdir -p bin
+        (cd apps/backend && go build -o ../../bin/ ./cmd/...)
+        echo "built bin/api bin/worker bin/monacoctl"
         ;;
       mobile)
         if [[ ! -d apps/mobile ]]; then
@@ -82,7 +84,7 @@ test app:
     set -euo pipefail
     case "{{app}}" in
       backend)
-        echo "apps/backend: new module not scaffolded yet"
+        (cd apps/backend && go test -race -shuffle=on ./...)
         if [[ "${SKIP_SCRIPTS_TESTS:-}" != "1" && -f scripts/go.mod ]]; then
           (cd scripts && go test -short ./...)
         fi
@@ -109,13 +111,24 @@ run *app:
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ -z "{{app}}" ]]; then
-      just run backend
+      just run backend &
+      backend_pid=$!
       just run mobile
+      echo "Simulator launched. Backend still running; Ctrl+C or just stop backend to stop it."
+      wait "$backend_pid"
       exit 0
     fi
     case "{{app}}" in
       backend)
-        echo "apps/backend: new module not scaffolded yet"
+        just build backend
+        source ./scripts/run-with-logs.sh
+        monaco_init_logs
+        "$PWD/bin/api" > >(tee -a "${MONACO_LOG_DIR}/api.log") 2>&1 &
+        api_pid=$!
+        "$PWD/bin/worker" > >(tee -a "${MONACO_LOG_DIR}/worker.log") 2>&1 &
+        worker_pid=$!
+        trap 'kill -TERM "$api_pid" "$worker_pid" 2>/dev/null || true' INT TERM
+        wait "$api_pid" "$worker_pid"
         ;;
       mobile)
         if [[ "${MONACO_DOTENVX:-}" != "1" ]]; then
@@ -146,7 +159,14 @@ stop *app:
     fi
     case "{{app}}" in
       backend)
-        echo "apps/backend: new module not scaffolded yet"
+        pattern="^${PWD}/bin/(api|worker)$"
+        pkill -TERM -f "$pattern" || true
+        for _ in $(seq 1 50); do
+          pgrep -f "$pattern" >/dev/null || exit 0
+          sleep 0.2
+        done
+        echo "error: api or worker still running 10s after SIGTERM" >&2
+        exit 1
         ;;
       mobile)
         ./scripts/stop-mobile.sh
@@ -170,7 +190,9 @@ reset *target:
     fi
     case "{{target}}" in
       backend)
-        echo "apps/backend: new module not scaffolded yet"
+        just stop backend
+        rm -f bin/api bin/worker bin/monacoctl
+        echo "removed bin/api bin/worker bin/monacoctl"
         ;;
       mobile)
         ./scripts/stop-mobile.sh
