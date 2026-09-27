@@ -43,8 +43,7 @@ type DB struct {
 }
 
 type NATS struct {
-	URL  string
-	Name string
+	URL string
 }
 
 type OTel struct {
@@ -173,7 +172,6 @@ func fields() []field {
 		text("DATABASE_URL", "", func(c *Config) *string { return &c.DB.URL }).required().secret(),
 		count("MONACO_DB_MAX_CONNS", 10, func(c *Config) *int32 { return &c.DB.MaxConns }),
 		text("NATS_URL", "", func(c *Config) *string { return &c.NATS.URL }).required().secret(),
-		text("MONACO_NATS_NAME", "monaco", func(c *Config) *string { return &c.NATS.Name }),
 		text("OTEL_EXPORTER_OTLP_ENDPOINT", "", func(c *Config) *string { return &c.OTel.Endpoint }),
 		text("OTEL_EXPORTER_OTLP_HEADERS", "", func(c *Config) *string { return &c.OTel.Headers }).secret(),
 		text("OTEL_SERVICE_NAME", "monaco", func(c *Config) *string { return &c.OTel.ServiceName }),

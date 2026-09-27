@@ -30,7 +30,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 		HTTP:   config.HTTP{Addr: ":8080", MaxBodyBytes: 1 << 20},
 		Worker: config.Worker{HealthAddr: ":8081"},
 		DB:     config.DB{URL: "postgres://monaco@localhost:54322/monaco", MaxConns: 10},
-		NATS:   config.NATS{URL: "nats://localhost:4222", Name: "monaco"},
+		NATS:   config.NATS{URL: "nats://localhost:4222"},
 		OTel:   config.OTel{ServiceName: "monaco"},
 		Timeouts: config.Timeouts{
 			RPC:             5 * time.Second,
@@ -57,7 +57,6 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"DATABASE_URL=postgres://prod",
 		"MONACO_DB_MAX_CONNS=40",
 		"NATS_URL=nats://prod:4222",
-		"MONACO_NATS_NAME=monaco-api",
 		"OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.example",
 		"OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic abc",
 		"OTEL_SERVICE_NAME=monaco-api",
@@ -77,7 +76,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		HTTP:   config.HTTP{Addr: "127.0.0.1:9000", MaxBodyBytes: 4096},
 		Worker: config.Worker{HealthAddr: "127.0.0.1:9001"},
 		DB:     config.DB{URL: "postgres://prod", MaxConns: 40},
-		NATS:   config.NATS{URL: "nats://prod:4222", Name: "monaco-api"},
+		NATS:   config.NATS{URL: "nats://prod:4222"},
 		OTel: config.OTel{
 			Endpoint:    "https://otlp.example",
 			Headers:     "Authorization=Basic abc",
@@ -225,7 +224,6 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"MONACO_HTTP_MAX_BODY_BYTES", "1048576"},
 		{"MONACO_WORKER_HEALTH_ADDR", ":8081"},
 		{"MONACO_DB_MAX_CONNS", "10"},
-		{"MONACO_NATS_NAME", "monaco"},
 		{"OTEL_EXPORTER_OTLP_ENDPOINT", ""},
 		{"OTEL_SERVICE_NAME", "monaco"},
 		{"MONACO_TIMEOUT_RPC", "5s"},
