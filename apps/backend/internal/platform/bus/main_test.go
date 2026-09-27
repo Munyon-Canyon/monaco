@@ -1,4 +1,4 @@
-package testkit_test
+package bus_test
 
 import (
 	"testing"
@@ -7,5 +7,5 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	testkit.Main(m, testkit.WithNATS())
+	testkit.NATSServer(m)
 }
