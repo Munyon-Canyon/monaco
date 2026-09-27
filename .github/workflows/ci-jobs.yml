@@ -82,20 +82,10 @@ jobs:
           go vet ./...
           go test -race ./...
 
-  # The ios job compiles mobile-core on Darwin, which covers the Darwin-only code this skips.
   mobile-core:
-    name: Swift (mobile-core, Linux)
     needs: plan
     if: needs.plan.outputs.mobile-core == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    container: swift:6.3-noble
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Test mobile-core
-        working-directory: packages/mobile-core
-        run: swift test
+    uses: ./.github/workflows/ci-mobile-core.yml
 
   plan:
     name: Plan
@@ -128,7 +118,7 @@ jobs:
               - '.github/workflows/ci*.yml'
             mobile-core:
               - 'packages/mobile-core/**'
-              - '.github/workflows/ci*.yml'
+              - '.github/workflows/ci-mobile-core.yml'
             web:
               - 'apps/web/**'
             ios:
@@ -139,7 +129,7 @@ jobs:
               - 'scripts/ci/select-xcode.sh'
               - 'scripts/qa/screens.sh'
               - 'scripts/qa/sample-screens.txt'
-              - '.github/workflows/ci*.yml'
+              - '.github/workflows/ci-ios.yml'
 
       - if: steps.filter.outputs.web == 'true'
         uses: actions/setup-node@v4
@@ -152,64 +142,9 @@ jobs:
         run: npm test
 
   ios:
-    name: iOS app (build, MonacoTests)
     needs: plan
     if: needs.plan.outputs.ios == 'true'
-    runs-on: macos-15
-    timeout-minutes: 20
-    env:
-      DERIVED_DATA: ${{ github.workspace }}/../DerivedData
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Select Xcode
-        run: scripts/ci/select-xcode.sh
-
-      # Only the resolved Swift packages are cached. Build products are not: a fresh checkout
-      # gives every source a new mtime, so a restored DerivedData is rebuilt from scratch anyway.
-      - name: Cache Swift packages
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.DERIVED_DATA }}/SourcePackages
-          key: spm-ios-${{ runner.os }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
-          restore-keys: spm-ios-${{ runner.os }}-
-
-      # Compile-only Privy config: no .env.local, no secret. Unit tests need no environment.
-      - name: Placeholder app config
-        run: scripts/ensure-ios-privy-config.sh placeholder
-
-      - name: Sample-screen manifest covers every harness
-        run: scripts/qa/screens.sh --check
-
-      # Booting here lets the simulator start while the app compiles.
-      - name: Pick and boot a simulator
-        run: |
-          sim="$(scripts/resolve-ios-sim.sh)"
-          xcrun simctl list devices available | grep -F "$sim"
-          xcrun simctl boot "$sim"
-          echo "SIM=$sim" >> "$GITHUB_ENV"
-
-      - name: Build app and tests
-        run: |
-          xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
-            -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
-            CODE_SIGNING_ALLOWED=NO -quiet build-for-testing
-
-      - name: Run MonacoTests
-        run: |
-          xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
-            -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
-            -resultBundlePath "$RUNNER_TEMP/MonacoTests.xcresult" \
-            CODE_SIGNING_ALLOWED=NO -only-testing:MonacoTests test-without-building
-
-      - name: Upload test results
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: MonacoTests-xcresult
-          path: ${{ runner.temp }}/MonacoTests.xcresult
-          if-no-files-found: ignore
-          retention-days: 7
+    uses: ./.github/workflows/ci-ios.yml
 
   # Required as "ci / ci-ok". A skipped check passes a required check, so ci-ok must never skip
   # once this workflow starts: keep always(), not !cancelled(), so a cancelled run fails it.

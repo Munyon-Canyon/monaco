@@ -1,0 +1,24 @@
+name: CI mobile-core
+
+# Called from ci-jobs.yml's mobile-core job. Kept in its own file so the `plan` job's
+# `mobile-core` path filter can key on this file instead of every `ci*.yml`, which every
+# backend PR touches. docs/architecture/ci.md#triggers
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-core:
+    # The ios job compiles mobile-core on Darwin, which covers the Darwin-only code this skips.
+    name: Swift (mobile-core, Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container: swift:6.3-noble
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test mobile-core
+        working-directory: packages/mobile-core
+        run: swift test
