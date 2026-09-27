@@ -23,6 +23,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 type healthz func(ctx context.Context) (api.GetHealthzResponseObject, error)
@@ -106,6 +107,16 @@ func (h *harness) do(
 	t *testing.T, handler http.Handler, method, target string, header http.Header,
 ) *httptest.ResponseRecorder {
 	t.Helper()
+	return serveRaw(t, testkit.HTTP(t, handler), method, target, header)
+}
+
+func serveRaw(
+	t *testing.T,
+	handler http.Handler,
+	method, target string,
+	header http.Header,
+) *httptest.ResponseRecorder {
+	t.Helper()
 	req := httptest.NewRequestWithContext(t.Context(), method, target, nil)
 	for k, v := range header {
 		req.Header[k] = v
@@ -113,6 +124,15 @@ func (h *harness) do(
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	return rec
+}
+
+func mustHandler(t *testing.T, d Deps, ssi api.StrictServerInterface) http.Handler {
+	t.Helper()
+	h, err := Handler(d, ssi)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return h
 }
 
 func decodeProblem(t *testing.T, resp *httptest.ResponseRecorder) api.Problem {
@@ -147,7 +167,7 @@ func linesNamed(lines []map[string]any, msg string) []map[string]any {
 func TestProblem_notFoundIs404ProblemJSONWithCodeAndTraceID(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	handler := Handler(h.deps, healthz(func(context.Context) (api.GetHealthzResponseObject, error) {
+	handler := mustHandler(t, h.deps, healthz(func(context.Context) (api.GetHealthzResponseObject, error) {
 		return nil, errs.New(errs.CodeNotFound, "cabal.Get", slog.String("cabal_id", "c-secret-attr"))
 	}))
 
@@ -185,7 +205,7 @@ func TestProblem_bodyNeverCarriesErrOrAttrs(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	cause := errs.New(errs.CodeDBUnavailable, "db.Begin", slog.String("dsn_host", "attr-leak"))
-	handler := Handler(h.deps, healthz(func(context.Context) (api.GetHealthzResponseObject, error) {
+	handler := mustHandler(t, h.deps, healthz(func(context.Context) (api.GetHealthzResponseObject, error) {
 		return nil, errs.Wrap(cause, errs.CodeUpstreamTimeout, "market.Poll", slog.String("provider", "attr-leak-2"))
 	}))
 	resp := h.do(t, handler, http.MethodGet, "/healthz", nil)
@@ -219,7 +239,7 @@ func TestProblem_statusRetryableAndAlertFollowTheCodeTable(t *testing.T) {
 		t.Run(string(tc.code), func(t *testing.T) {
 			t.Parallel()
 			h := newHarness(t)
-			handler := Handler(h.deps, healthz(func(context.Context) (api.GetHealthzResponseObject, error) {
+			handler := mustHandler(t, h.deps, healthz(func(context.Context) (api.GetHealthzResponseObject, error) {
 				return nil, tc.err
 			}))
 			resp := h.do(t, handler, http.MethodGet, "/healthz", nil)
@@ -268,13 +288,14 @@ func TestPanic_respondsPanicProblemLogsOneErrorAndKeepsServing(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	var calls int
-	srv := httptest.NewServer(Handler(h.deps, healthz(func(context.Context) (api.GetHealthzResponseObject, error) {
-		calls++
-		if calls == 1 {
-			panic("boom")
-		}
-		return api.GetHealthz200TextResponse("ok\n"), nil
-	})))
+	srv := httptest.NewServer(testkit.HTTP(t, mustHandler(t, h.deps, healthz(
+		func(context.Context) (api.GetHealthzResponseObject, error) {
+			calls++
+			if calls == 1 {
+				panic("boom")
+			}
+			return api.GetHealthz200TextResponse("ok\n"), nil
+		}))))
 	defer srv.Close()
 
 	status, header, body := getOver(t, srv, "/healthz")
@@ -309,7 +330,7 @@ func TestPanic_afterTheResponseStartedOnlyLogs(t *testing.T) {
 		w.WriteHeader(http.StatusAccepted)
 		panic("late")
 	}))
-	resp := h.do(t, handler, http.MethodGet, "/x", nil)
+	resp := serveRaw(t, handler, http.MethodGet, "/x", nil)
 	if resp.Code != http.StatusAccepted || resp.Body.Len() != 0 {
 		t.Fatalf("got %d %q, want the 202 already sent and no problem body", resp.Code, resp.Body)
 	}
@@ -332,7 +353,7 @@ func TestPanic_abortHandlerPropagatesToNetHTTP(t *testing.T) {
 			t.Fatalf("recovered %v, want http.ErrAbortHandler", err)
 		}
 	}()
-	h.do(t, handler, http.MethodGet, "/x", nil)
+	serveRaw(t, handler, http.MethodGet, "/x", nil)
 }
 
 func TestRequestID_acceptsAWellFormedHeaderAndGeneratesOtherwise(t *testing.T) {
@@ -350,7 +371,7 @@ func TestRequestID_acceptsAWellFormedHeaderAndGeneratesOtherwise(t *testing.T) {
 			if tc.in != "" {
 				header.Set(RequestIDHeader, tc.in)
 			}
-			resp := h.do(t, Handler(h.deps, Health{}), http.MethodGet, "/healthz", header)
+			resp := h.do(t, mustHandler(t, h.deps, Health{}), http.MethodGet, "/healthz", header)
 			if got := resp.Header().Get(RequestIDHeader); got != tc.want {
 				t.Fatalf("response %s = %q, want %q", RequestIDHeader, got, tc.want)
 			}
@@ -365,7 +386,7 @@ func TestRequestID_acceptsAWellFormedHeaderAndGeneratesOtherwise(t *testing.T) {
 func TestAccessLog_andSpanNameTheRouteStatusAndDuration(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	if resp := h.do(t, Handler(h.deps, Health{}), http.MethodGet, "/healthz", nil); resp.Code != http.StatusOK ||
+	if resp := h.do(t, mustHandler(t, h.deps, Health{}), http.MethodGet, "/healthz", nil); resp.Code != http.StatusOK ||
 		resp.Body.String() != "ok\n" || resp.Header().Get("Content-Type") != "text/plain" {
 		t.Fatalf("GET /healthz = %d %q", resp.Code, resp.Body)
 	}
@@ -391,7 +412,7 @@ func TestAccessLog_andSpanNameTheRouteStatusAndDuration(t *testing.T) {
 func TestSpan_continuesAnIncomingTraceAndMarks5xxAsError(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	handler := Handler(h.deps, healthz(func(context.Context) (api.GetHealthzResponseObject, error) {
+	handler := mustHandler(t, h.deps, healthz(func(context.Context) (api.GetHealthzResponseObject, error) {
 		return nil, errs.New(errs.CodeInternal, "x.Y")
 	}))
 	traceID := "4bf92f3577b34da6a3ce929d0e0e4736"
@@ -410,7 +431,7 @@ func TestUnknownRoute_isANotFoundProblem(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	for _, tc := range []struct{ method, target string }{{"GET", "/nope"}, {"POST", "/healthz"}} {
-		resp := h.do(t, Handler(h.deps, Health{}), tc.method, tc.target, nil)
+		resp := h.do(t, mustHandler(t, h.deps, Health{}), tc.method, tc.target, nil)
 		if p := decodeProblem(t, resp); resp.Code != http.StatusNotFound || p.Code != "not_found" {
 			t.Fatalf("%s %s = %d %+v, want 404 not_found", tc.method, tc.target, resp.Code, p)
 		}
