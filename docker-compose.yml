@@ -4,6 +4,14 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: monaco-postgres
+    command:
+      - postgres
+      - -c
+      - fsync=on
+      - -c
+      - synchronous_commit=on
+      - -c
+      - full_page_writes=on
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-monaco}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-monaco}

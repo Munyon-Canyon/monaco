@@ -1,11 +1,22 @@
 {
   "hooks": {
+<<<<<<< HEAD
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
             "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh"
+=======
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/agent-guard-dev-db.sh",
+            "timeout": 10
+>>>>>>> 97689c75 (fix(dev-db): pin Postgres durability and guard agents against weakening it)
           }
         ]
       }
