@@ -159,9 +159,10 @@ Payouts are always USDC, never stock.
 
 ## Profile
 
-The Profile tab shows the user's photo, display name, join date, account balance, deposit address, and each cabal they are in with its pot, their stake and their return.
+The Profile tab shows the user's photo, display name, `@handle`, join date, account balance, deposit address, and each cabal they are in with its pot, their stake and their return.
 
-- **Display name.** A label, not a unique handle. 1–32 characters, at least one letter or digit, no invisible or control characters. Edits show immediately and roll back with a toast if the server rejects them.
+- **Handle.** Every user picks a unique `@handle` during onboarding, before anything else. 3–20 letters, digits or underscores, case-insensitive. It can change once every 30 days, and a deleted account's handle is never reused. After the user's first deposit of $10 or more, the handle also works as their referral link. Rules: [auth.md](architecture/auth.md#handle).
+- **Display name.** A label, separate from the handle and not unique. 1–32 characters, at least one letter or digit, no invisible or control characters. Edits show immediately and roll back with a toast if the server rejects them.
 - **Photo.** Picked on Profile or Settings. Storage: [ops-profile-photos.md](ops-profile-photos.md).
 - Both are rate limited, and a change updates every board that shows the user.
 
