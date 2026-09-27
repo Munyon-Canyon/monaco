@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/nats-io/nats.go"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -21,7 +21,7 @@ func TestInjectThenExtract_preservesTraceAndSpanIDs(t *testing.T) {
 	sent := trace.NewSpanContext(
 		trace.SpanContextConfig{TraceID: traceID, SpanID: spanID, TraceFlags: trace.FlagsSampled},
 	)
-	h := nats.Header{}
+	h := propagation.HeaderCarrier{}
 	Inject(trace.ContextWithSpanContext(t.Context(), sent), h)
 
 	if got := h.Get("traceparent"); got != "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" {
@@ -31,14 +31,14 @@ func TestInjectThenExtract_preservesTraceAndSpanIDs(t *testing.T) {
 	if got.TraceID() != traceID || got.SpanID() != spanID || !got.IsSampled() || !got.IsRemote() {
 		t.Fatalf("extracted %+v, want trace %s span %s sampled and remote", got, traceID, spanID)
 	}
-	if keys := natsCarrier(h).Keys(); !slices.Equal(keys, []string{"traceparent"}) {
+	if keys := h.Keys(); !slices.Equal(keys, []string{"Traceparent"}) {
 		t.Fatalf("carrier keys = %v, want [traceparent]", keys)
 	}
 }
 
 func TestExtract_withoutHeadersYieldsNoSpan(t *testing.T) {
 	t.Parallel()
-	if sc := trace.SpanContextFromContext(Extract(t.Context(), nats.Header{})); sc.IsValid() {
+	if sc := trace.SpanContextFromContext(Extract(t.Context(), propagation.HeaderCarrier{})); sc.IsValid() {
 		t.Fatalf("extracted %+v from empty headers, want invalid span context", sc)
 	}
 }
