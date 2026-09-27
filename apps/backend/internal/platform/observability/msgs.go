@@ -20,6 +20,7 @@ var (
 	BootConfig    = Msg{Name: "boot.config", Required: []string{"service", "config"}}
 	BootListening = Msg{Name: "boot.listening", Required: []string{"service", "addr"}}
 	BootStopped   = Msg{Name: "boot.stopped", Required: []string{"service", "err"}}
+	DBLockLost    = Msg{Name: "db.lock.lost", Required: []string{"lock", "held", "err"}}
 	HTTPRetry     = Msg{Name: "httpclient.retry", Required: []string{"upstream", "attempt", "status", "delay"}}
 	HTTPRequest   = Msg{Name: "http.request", Required: []string{"method", "route", "status", "duration_ms"}}
 	HTTPProblem   = Msg{Name: "http.problem", Required: []string{"code", "status", "err", "alert"}}
@@ -32,6 +33,7 @@ var registry = []Msg{
 	BootConfig,
 	BootListening,
 	BootStopped,
+	DBLockLost,
 	HTTPRetry,
 	HTTPRequest,
 	HTTPProblem,
