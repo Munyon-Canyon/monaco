@@ -74,31 +74,15 @@ jobs:
           go vet ./...
           go test -race ./...
 
-  web:
-    name: Web (landing page)
+  # The ios job compiles mobile-core on Darwin, which covers the Darwin-only code this skips.
+  mobile-core:
+    name: Swift (mobile-core, Linux)
     needs: plan
+    if: needs.plan.outputs.mobile-core == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    defaults:
-      run:
-        working-directory: apps/web
+    container: swift:6.3-noble
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm test
-
-  swift:
-    name: Swift (mobile-core)
-    needs: plan
-    runs-on: macos-15
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Swift version
-        run: swift --version
 
       - name: Test mobile-core
         working-directory: packages/mobile-core
@@ -116,9 +100,13 @@ jobs:
       pull-requests: read
     outputs:
       go: ${{ steps.filter.outputs.go }}
+      mobile-core: ${{ steps.filter.outputs.mobile-core }}
       ios: ${{ steps.filter.outputs.ios }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Standard runner labels only
+        run: scripts/ci/check-runners.sh
 
       - uses: dorny/paths-filter@v3
         id: filter
@@ -132,6 +120,11 @@ jobs:
               - 'docs/legacy/api.md'
               - 'scripts/ci/**'
               - '.github/workflows/ci.yml'
+            mobile-core:
+              - 'packages/mobile-core/**'
+              - '.github/workflows/ci.yml'
+            web:
+              - 'apps/web/**'
             ios:
               - 'apps/mobile/**'
               - 'packages/mobile-core/**'
@@ -141,6 +134,16 @@ jobs:
               - 'scripts/qa/screens.sh'
               - 'scripts/qa/sample-screens.txt'
               - '.github/workflows/ci.yml'
+
+      - if: steps.filter.outputs.web == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Web landing page tests
+        if: steps.filter.outputs.web == 'true'
+        working-directory: apps/web
+        run: npm test
 
   ios:
     name: iOS app (build, MonacoTests)
@@ -207,10 +210,10 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [plan, go, web, swift, ios]
+    needs: [plan, go, mobile-core, ios]
     runs-on: ubuntu-latest
     steps:
       - uses: re-actors/alls-green@release/v1
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: go, ios
+          allowed-skips: go, mobile-core, ios

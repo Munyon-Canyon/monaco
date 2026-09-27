@@ -7,12 +7,13 @@ nightly GitHub workflow. Per-PR CI builds the app too.
 
 | When | Workflow / job | Runs |
 | --- | --- | --- |
-| Ready PRs to `main` touching the backend, `packages/domain`, `agents/momentum-bot`, migrations, `docs/legacy/api.md` or CI files; manual dispatch | `ci.yml` · `go` | backend checks |
-| Ready PRs to `main`, manual dispatch | `ci.yml` · `swift` | `swift test` in `packages/mobile-core` |
-| Ready PRs to `main` touching `apps/mobile/**`, `packages/mobile-core/**`, `ci.yml` or the scripts it uses | `ci.yml` · `ios` | app + test `build-for-testing`, `MonacoTests`, sample-screen manifest check |
-| Nightly 07:00 UTC (03:00 EDT / 02:00 EST), manual dispatch, PRs touching `nightly.yml` or `scripts/qa/**` | `nightly.yml` · `qa` | `night.sh --screenshots`: backend, mobile-core, app build, `MonacoTests`, each sample UI test class, screenshot gallery |
+| Ready PRs to `main` touching the backend, `packages/domain`, `agents/momentum-bot`, migrations, `docs/legacy/api.md` or CI files; manual dispatch | `ci.yml` · `go` (Linux) | backend checks |
+| Every ready PR to `main`, manual dispatch | `ci.yml` · `plan` (Linux) | runner-label check (`scripts/ci/check-runners.sh`), path filters, and `npm test` for `apps/web` when it changed |
+| Ready PRs to `main` touching `packages/mobile-core/**` or `ci.yml`; manual dispatch | `ci.yml` · `mobile-core` (Linux, `swift:6.3-noble`) | `swift test` in `packages/mobile-core` |
+| Ready PRs to `main` touching `apps/mobile/**`, `packages/mobile-core/**`, `ci.yml` or the scripts it uses | `ci.yml` · `ios` (macOS) | app + test `build-for-testing`, `MonacoTests`, sample-screen manifest check |
+| Nightly 07:00 UTC (03:00 EDT / 02:00 EST), manual dispatch, PRs touching `nightly.yml` or `scripts/qa/**` | `nightly.yml` · `qa` (macOS) | `night.sh --screenshots`: backend, mobile-core, app build, `MonacoTests`, each sample UI test class, screenshot gallery |
 
-PRs based on another branch run nothing. On a draft only `ci.yml` · `ci-ok` runs, and it fails until the PR is ready. `ci-ok` sums up every job above and is the one check `main` requires. When Graphite retargets a PR to `main` without a push, `ci-retarget.yml` dispatches `ci.yml` on it. A Go-only PR skips the `ios` job. Both app builds use the placeholder config below, so CI needs
+PRs based on another branch run nothing. On a draft only `ci.yml` · `ci-ok` runs, and it fails until the PR is ready. `ci-ok` sums up every job above and is the one check `main` requires. When Graphite retargets a PR to `main` without a push, `ci-retarget.yml` dispatches `ci.yml` on it. A Go-only PR runs no macOS job. Both app builds use the placeholder config below, so CI needs
 no secret. The backend rewrite defines its checks in [CI gates](../architecture/backend-platform.md#ci-gates). When CI runs, on which runners, and the planned changes to this table are in [CI](../architecture/ci.md).
 
 ## Running it locally
