@@ -24,6 +24,7 @@ const (
 	DefaultAckWait = 100 * time.Millisecond
 	MaxAckWait     = 250 * time.Millisecond
 	natsReady      = 5 * time.Second
+	natsDeadline   = 30 * time.Second
 )
 
 var natsCurrent atomic.Pointer[natsServer]
@@ -145,14 +146,8 @@ func NATS(t *testing.T, opts ...BusOption) Bus {
 		t.Fatalf("testkit.NATS: %v", err)
 	}
 	ns := natsNamespace(t.Name())
-	ctx := context.Background()
-	conn, err := bus.Connect(ctx, config.NATS{URL: s.srv.ClientURL()}, "test",
-		append([]bus.Option{bus.WithNamespace(ns)}, o.busOpts...)...)
+	conn, err := openBus(s.srv.ClientURL(), natsDeadline, append([]bus.Option{bus.WithNamespace(ns)}, o.busOpts...))
 	if err != nil {
-		t.Fatalf("testkit.NATS: %v", err)
-	}
-	if _, err := conn.Apply(ctx); err != nil {
-		conn.Close(ctx)
 		t.Fatalf("testkit.NATS: %v", err)
 	}
 	b := Bus{
@@ -162,6 +157,8 @@ func NATS(t *testing.T, opts ...BusOption) Bus {
 		Consumer:   consumer,
 	}
 	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), natsDeadline)
+		defer cancel()
 		conn.Close(ctx)
 		for _, name := range []string{b.Events, b.DeadLetter} {
 			if err := s.js.DeleteStream(ctx, name); err != nil {
@@ -170,6 +167,20 @@ func NATS(t *testing.T, opts ...BusOption) Bus {
 		}
 	})
 	return b
+}
+
+func openBus(url string, deadline time.Duration, opts []bus.Option) (*bus.Conn, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), deadline)
+	defer cancel()
+	conn, err := bus.Connect(ctx, config.NATS{URL: url}, "test", opts...)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := conn.Apply(ctx); err != nil {
+		conn.Close(ctx)
+		return nil, err
+	}
+	return conn, nil
 }
 
 func consumerConfig(ackWait time.Duration) (jetstream.ConsumerConfig, error) {
