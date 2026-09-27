@@ -51,6 +51,8 @@ func ParseCabalID(raw string) (CabalID, error) { return Parse[cabal](raw) }
 
 func ParseEventID(raw string) (EventID, error) { return Parse[event](raw) }
 
+func EventIDFrom(u uuid.UUID) EventID { return EventID{u: u} }
+
 func (id ID[T]) IsZero() bool { return id.u == uuid.Nil }
 
 func (id ID[T]) String() string { return id.u.String() }
