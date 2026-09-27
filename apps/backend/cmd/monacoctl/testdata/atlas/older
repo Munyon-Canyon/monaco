@@ -1,0 +1,5 @@
+#!/bin/sh
+if [ "$1" = version ]; then echo 'atlas community version v1.2.0'; echo https://example; exit 0; fi
+printf '%s\n' "$@"
+echo atlas-err >&2
+exit 0

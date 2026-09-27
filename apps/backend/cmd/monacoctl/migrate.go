@@ -65,11 +65,15 @@ func (a atlas) pinned(stderr io.Writer) bool {
 		return false
 	}
 	want := "atlas community version " + strings.TrimSpace(string(version))
-	out, _ := exec.CommandContext(context.Background(), a.bin, "version").Output()
+	out, err := exec.CommandContext(context.Background(), a.bin, "version").Output()
 	got, _, _ := bytes.Cut(out, []byte("\n"))
 	if string(got) != want {
-		_, _ = fmt.Fprintf(stderr, "monacoctl: %s is %q, want %q. Run scripts/install-atlas.sh from the repo root.\n",
-			a.bin, got, want)
+		reported := fmt.Sprintf("%q", got)
+		if err != nil {
+			reported += fmt.Sprintf(" (%v)", err)
+		}
+		_, _ = fmt.Fprintf(stderr, "monacoctl: %s is %s, want %q. Run scripts/install-atlas.sh from the repo root.\n",
+			a.bin, reported, want)
 		return false
 	}
 	return true

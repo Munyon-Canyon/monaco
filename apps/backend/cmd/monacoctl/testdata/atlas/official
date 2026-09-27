@@ -1,0 +1,5 @@
+#!/bin/sh
+if [ "$1" = version ]; then echo 'atlas version v1.3.4-1fc284b-canary'; echo https://example; exit 0; fi
+printf '%s\n' "$@"
+echo atlas-err >&2
+exit 0
