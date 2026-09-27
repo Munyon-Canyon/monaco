@@ -25,7 +25,12 @@ type Config struct {
 	DB       DB
 	NATS     NATS
 	OTel     OTel
+	Auth     Auth
 	Timeouts Timeouts
+}
+
+type Auth struct {
+	DevTokenKey string
 }
 
 type HTTP struct {
@@ -175,6 +180,7 @@ func fields() []field {
 		text("OTEL_EXPORTER_OTLP_ENDPOINT", "", func(c *Config) *string { return &c.OTel.Endpoint }),
 		text("OTEL_EXPORTER_OTLP_HEADERS", "", func(c *Config) *string { return &c.OTel.Headers }).secret(),
 		text("OTEL_SERVICE_NAME", "monaco", func(c *Config) *string { return &c.OTel.ServiceName }),
+		text("MONACO_DEV_TOKEN_KEY", "", func(c *Config) *string { return &c.Auth.DevTokenKey }).secret(),
 		duration("MONACO_TIMEOUT_RPC", 5*time.Second, func(c *Config) *time.Duration { return &c.Timeouts.RPC }),
 		duration("MONACO_TIMEOUT_PRIVY", 10*time.Second, func(c *Config) *time.Duration { return &c.Timeouts.Privy }),
 		duration("MONACO_TIMEOUT_JUPITER_QUOTE", 5*time.Second,

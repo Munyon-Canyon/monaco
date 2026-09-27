@@ -19,7 +19,7 @@ type command func(cfg config.Config, args []string, stdout, stderr io.Writer) in
 type tool func(args []string, stdout, stderr io.Writer) int
 
 func commands() map[string]command {
-	return map[string]command{}
+	return map[string]command{"dev": devCmd}
 }
 
 func tools(environ []string) map[string]tool {

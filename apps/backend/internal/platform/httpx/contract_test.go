@@ -32,7 +32,7 @@ paths:
 
 func validatedThings(t *testing.T, h *harness) (http.Handler, *[]string) {
 	t.Helper()
-	validate, err := requestValidator([]byte(bodySpec))
+	c, err := loadContract([]byte(bodySpec))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,8 +46,8 @@ func validatedThings(t *testing.T, h *harness) (http.Handler, *[]string) {
 		reached = append(reached, string(body))
 		w.WriteHeader(http.StatusNoContent)
 	})
-	mux.Handle("POST /v1/things", validate(next))
-	mux.Handle("POST /v1/unspecified", validate(next))
+	mux.Handle("POST /v1/things", c.resolve(c.validate(next)))
+	mux.Handle("POST /v1/unspecified", c.resolve(c.validate(next)))
 	return h.deps.wrap(mux), &reached
 }
 
@@ -128,5 +128,20 @@ func TestHandler_refusesASpecItCannotLoadOrRoute(t *testing.T) {
 				t.Fatalf("handler = %v, %v, want invalid_input and no handler", h, err)
 			}
 		})
+	}
+}
+
+func TestValidate_withoutAResolvedRouteFailsClosed(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	c, err := loadContract([]byte(bodySpec))
+	if err != nil {
+		t.Fatal(err)
+	}
+	reached := false
+	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { reached = true })
+	rec := postJSON(t, h.deps.wrap(c.validate(next)), "/v1/things", `{"amount":5}`)
+	if p := decodeProblem(t, rec); rec.Code != http.StatusInternalServerError || p.Code != "internal" || reached {
+		t.Fatalf("got %d %+v reached=%v, want 500 internal before the handler", rec.Code, p, reached)
 	}
 }

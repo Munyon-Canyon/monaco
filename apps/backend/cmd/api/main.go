@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel"
 
+	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -53,8 +54,12 @@ func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
 	}()
 	logger := observability.NewLogger(cfg, stderr)
 	ctx = observability.WithLogger(ctx, logger)
+	verifier, err := auth.NewDevVerifier(cfg, clock.Real{})
+	if err != nil {
+		return err
+	}
 	observability.Info(ctx, observability.BootConfig, slog.String("service", "api"), slog.Any("config", cfg.Redacted()))
-	conn, err := bus.Connect(ctx, cfg.NATS, bus.ProcessAPI)
+	conn, err := connectBus(ctx, cfg)
 	if err != nil {
 		return bootErr(err)
 	}
@@ -63,9 +68,6 @@ func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
 		defer cancel()
 		conn.Close(drainCtx)
 	}()
-	if err := conn.VerifyStreams(ctx); err != nil {
-		return bootErr(err)
-	}
 	pool, err := db.Open(ctx, cfg.DB)
 	if err != nil {
 		return bootErr(err)
@@ -76,20 +78,11 @@ func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
 		return bootErr(err)
 	}
 	defer func() { err = errors.Join(err, stopRelay()) }()
-	ln, err := new(net.ListenConfig).Listen(ctx, "tcp", cfg.HTTP.Addr)
+	ln, err := listen(ctx, cfg)
 	if err != nil {
-		return bootErr(fmt.Errorf("listen on %s: %w", cfg.HTTP.Addr, err))
+		return bootErr(err)
 	}
-	observability.Info(ctx, observability.BootListening, slog.String("service", "api"),
-		slog.String("addr", ln.Addr().String()))
-	handler, err := httpx.Handler(httpx.Deps{
-		Logger:       logger,
-		Tracer:       otel.GetTracerProvider(),
-		Clock:        clock.Real{},
-		IDs:          ids.Real{},
-		MaxBodyBytes: int64(cfg.HTTP.MaxBodyBytes),
-		Idempotency:  db.NewIdempotencyStore(pool, clock.Real{}),
-	}, httpx.Health{})
+	handler, err := newHandler(cfg, logger, pool, verifier)
 	if err != nil {
 		return err
 	}
@@ -115,6 +108,44 @@ func startRelay(
 		<-done
 		return unregister()
 	}, nil
+}
+
+func connectBus(ctx context.Context, cfg config.Config) (*bus.Conn, error) {
+	conn, err := bus.Connect(ctx, cfg.NATS, bus.ProcessAPI)
+	if err != nil {
+		return nil, err
+	}
+	if err := conn.VerifyStreams(ctx); err != nil {
+		drainCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.Timeouts.Shutdown)
+		defer cancel()
+		conn.Close(drainCtx)
+		return nil, err
+	}
+	return conn, nil
+}
+
+func listen(ctx context.Context, cfg config.Config) (net.Listener, error) {
+	ln, err := new(net.ListenConfig).Listen(ctx, "tcp", cfg.HTTP.Addr)
+	if err != nil {
+		return nil, fmt.Errorf("listen on %s: %w", cfg.HTTP.Addr, err)
+	}
+	observability.Info(ctx, observability.BootListening, slog.String("service", "api"),
+		slog.String("addr", ln.Addr().String()))
+	return ln, nil
+}
+
+func newHandler(
+	cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, verifier auth.TokenVerifier,
+) (http.Handler, error) {
+	return httpx.Handler(httpx.Deps{
+		Logger:       logger,
+		Tracer:       otel.GetTracerProvider(),
+		Clock:        clock.Real{},
+		IDs:          ids.Real{},
+		MaxBodyBytes: int64(cfg.HTTP.MaxBodyBytes),
+		Idempotency:  db.NewIdempotencyStore(pool, clock.Real{}),
+		Verifier:     verifier,
+	}, httpx.Health{})
 }
 
 func bootErr(err error) error {

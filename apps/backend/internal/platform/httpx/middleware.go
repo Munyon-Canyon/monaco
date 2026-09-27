@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -30,6 +31,7 @@ type Deps struct {
 	IDs          ids.Generator
 	MaxBodyBytes int64
 	Idempotency  IdempotencyStore
+	Verifier     auth.TokenVerifier
 }
 
 func (d Deps) wrap(next http.Handler) http.Handler {
@@ -47,6 +49,7 @@ func (d Deps) wrap(next http.Handler) http.Handler {
 		w.Header().Set(RequestIDHeader, id)
 		rec := &recorder{ResponseWriter: w}
 		ctx = observability.WithLogger(observability.WithRequestID(ctx, id), d.Logger)
+		ctx, actor := withActorSlot(ctx)
 		req := r.WithContext(ctx)
 		req.Body = http.MaxBytesReader(w, r.Body, d.MaxBodyBytes)
 		serveRecovered(ctx, next, rec, req)
@@ -57,7 +60,7 @@ func (d Deps) wrap(next http.Handler) http.Handler {
 		if status >= http.StatusInternalServerError {
 			span.SetStatus(codes.Error, http.StatusText(status))
 		}
-		observability.Info(ctx, observability.HTTPRequest, slog.String("method", r.Method),
+		observability.Info(actor.apply(ctx), observability.HTTPRequest, slog.String("method", r.Method),
 			slog.String("route", route), slog.Int("status", status),
 			slog.Int64("duration_ms", d.Clock.Now().Sub(start).Milliseconds()))
 	})

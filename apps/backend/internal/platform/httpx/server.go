@@ -18,10 +18,14 @@ func Handler(d Deps, ssi api.StrictServerInterface) (http.Handler, error) {
 func handler(
 	d Deps, ssi api.StrictServerInterface, spec []byte, mws []api.StrictMiddlewareFunc,
 ) (http.Handler, error) {
-	if d.Idempotency == nil {
-		return nil, errs.New(errs.CodeInternal, "httpx.Handler", slog.String("missing", "Deps.Idempotency"))
+	if d.Idempotency == nil || d.Verifier == nil {
+		return nil, errs.New(
+			errs.CodeInternal,
+			"httpx.Handler",
+			slog.String("missing", "Deps.Idempotency or Deps.Verifier"),
+		)
 	}
-	validate, err := requestValidator(spec)
+	c, err := loadContract(spec)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +40,7 @@ func handler(
 	api.HandlerWithOptions(strict, api.StdHTTPServerOptions{
 		BaseRouter:       mux,
 		ErrorHandlerFunc: invalidRequest,
-		Middlewares:      []api.MiddlewareFunc{Idempotency(d.Idempotency), validate},
+		Middlewares:      []api.MiddlewareFunc{Idempotency(d.Idempotency), c.validate, Auth(d.Verifier), c.resolve},
 	})
 	return d.wrap(mux), nil
 }

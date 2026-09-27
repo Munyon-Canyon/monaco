@@ -12,6 +12,8 @@ info:
 servers:
   - url: http://localhost:8080
     description: Local development server.
+security:
+  - bearerAuth: []
 tags:
   - name: health
     description: Liveness of the API process.
@@ -34,6 +36,15 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >-
+        A bearer token in the Authorization header. Operations that declare an empty security
+        list, such as /healthz, take no token. The token format belongs to the identity module;
+        local development and tests use HS256 dev tokens from `monacoctl dev token`.
   responses:
     Problem:
       description: An RFC 9457 problem. Switch on `code`; show `message`.

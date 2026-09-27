@@ -37,6 +37,7 @@ func TestRun_refusesToBootWithoutTheBus(t *testing.T) {
 			t.Parallel()
 			err := run(t.Context(), io.Discard, []string{
 				"MONACO_ENV=test", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=" + tc.url,
+				"MONACO_DEV_TOKEN_KEY=test-only",
 				"MONACO_HTTP_ADDR=127.0.0.1:0", "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
 			})
 			if errs.CodeOf(err) != tc.code || !strings.Contains(err.Error(), tc.want) {
@@ -72,7 +73,7 @@ func TestRun_bootsWithTheStreamsAppliedAndStopsCleanlyOnCancel(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		done <- run(ctx, io.Discard, []string{
-			"MONACO_ENV=test", "DATABASE_URL=" + pool.Config().ConnString(), "NATS_URL=" + url,
+			"MONACO_ENV=test", "MONACO_DEV_TOKEN_KEY=test-only", "DATABASE_URL=" + pool.Config().ConnString(), "NATS_URL=" + url,
 			"MONACO_HTTP_ADDR=127.0.0.1:0", "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
 		})
 	}()
@@ -104,8 +105,12 @@ func TestRun_refusesToBootWithoutTheDatabase(t *testing.T) {
 	}
 	conn.Close(t.Context())
 	err = run(t.Context(), io.Discard, []string{
-		"MONACO_ENV=test", "DATABASE_URL=postgres://127.0.0.1:1/monaco?connect_timeout=2", "NATS_URL=" + url,
-		"MONACO_HTTP_ADDR=127.0.0.1:0", "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
+		"MONACO_ENV=test",
+		"MONACO_DEV_TOKEN_KEY=test-only",
+		"DATABASE_URL=postgres://127.0.0.1:1/monaco?connect_timeout=2",
+		"NATS_URL=" + url,
+		"MONACO_HTTP_ADDR=127.0.0.1:0",
+		"MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
 	})
 	if errs.CodeOf(err) != errs.CodeDBUnavailable || !strings.Contains(err.Error(), "db.Open") {
 		t.Fatalf("run without a database = %v, want db_unavailable from db.Open", err)

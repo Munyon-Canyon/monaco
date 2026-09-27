@@ -98,6 +98,7 @@ func newHarness(t *testing.T) *harness {
 			IDs:          fixedIDs{generatedID()},
 			MaxBodyBytes: 1 << 20,
 			Idempotency:  stubStore{},
+			Verifier:     stubVerifier(nil),
 		},
 		logs:  logs,
 		spans: spans,

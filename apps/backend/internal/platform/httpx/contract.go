@@ -1,0 +1,81 @@
+package httpx
+
+import (
+	"context"
+	"net/http"
+
+	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/getkin/kin-openapi/openapi3filter"
+	"github.com/getkin/kin-openapi/routers"
+	"github.com/getkin/kin-openapi/routers/legacy"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
+)
+
+type contract struct {
+	router  routers.Router
+	options *openapi3filter.Options
+}
+
+type routeKey struct{}
+
+type resolved struct {
+	route  *routers.Route
+	params map[string]string
+}
+
+func loadContract(spec []byte) (*contract, error) {
+	doc, err := openapi3.NewLoader().LoadFromData(spec)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInvalidInput, "httpx.loadContract")
+	}
+	doc.Servers = nil
+	router, err := legacy.NewRouter(doc)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInvalidInput, "httpx.loadContract")
+	}
+	options := &openapi3filter.Options{AuthenticationFunc: openapi3filter.NoopAuthenticationFunc, MultiError: true}
+	return &contract{router: router, options: options}, nil
+}
+
+func (c *contract) resolve(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		route, params, err := c.router.FindRoute(r)
+		if err != nil {
+			Problem(w, r, errs.Wrap(err, errs.CodeInternal, "httpx.resolve"))
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), routeKey{}, resolved{route, params})))
+	})
+}
+
+func routeFrom(ctx context.Context) (resolved, bool) {
+	res, ok := ctx.Value(routeKey{}).(resolved)
+	return res, ok
+}
+
+func (c *contract) validate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		res, ok := routeFrom(r.Context())
+		if !ok {
+			Problem(w, r, errs.New(errs.CodeInternal, "httpx.validate"))
+			return
+		}
+		err := openapi3filter.ValidateRequest(r.Context(), &openapi3filter.RequestValidationInput{
+			Request: r, PathParams: res.params, Route: res.route, Options: c.options,
+		})
+		if err != nil {
+			invalidRequest(w, r, err)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func requiresAuth(res resolved) bool {
+	security := res.route.Spec.Security
+	if res.route.Operation.Security != nil {
+		security = *res.route.Operation.Security
+	}
+	return len(security) > 0
+}
