@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"errors"
 	"net"
 	"strings"
@@ -42,6 +43,8 @@ func codeFor(err error) errs.Code {
 		}
 		return errs.CodeInternal
 	case errors.As(err, &netErr), pgconn.SafeToRetry(err):
+		return errs.CodeDBUnavailable
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return errs.CodeDBUnavailable
 	}
 	return errs.CodeInternal

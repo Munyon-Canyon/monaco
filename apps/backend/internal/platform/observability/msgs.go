@@ -23,6 +23,9 @@ var (
 	HTTPRetry     = Msg{Name: "httpclient.retry", Required: []string{"upstream", "attempt", "status", "delay"}}
 	HTTPRequest   = Msg{Name: "http.request", Required: []string{"method", "route", "status", "duration_ms"}}
 	HTTPProblem   = Msg{Name: "http.problem", Required: []string{"code", "status", "err", "alert"}}
+	TxCommitted   = Msg{Name: "tx.committed", Required: []string{"event_ids", "attempt"}}
+	TxRolledBack  = Msg{Name: "tx.rolled_back", Required: []string{"code", "attempt"}}
+	TxRetry       = Msg{Name: "tx.retry", Required: []string{"code", "attempt", "delay"}}
 )
 
 var registry = []Msg{
@@ -32,6 +35,9 @@ var registry = []Msg{
 	HTTPRetry,
 	HTTPRequest,
 	HTTPProblem,
+	TxCommitted,
+	TxRolledBack,
+	TxRetry,
 }
 
 func WithLogger(ctx context.Context, l *slog.Logger) context.Context {
