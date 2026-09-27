@@ -22,7 +22,9 @@ status=0
 start="$(date +%s)"
 summary='select((.Action == "output" and .Test == null and (.Output | test("^(PASS|-test\\.shuffle |coverage: )") | not))
   or .Action == "build-output") | .Output'
-go test -json -race -shuffle=on -short -coverpkg=./... -coverprofile="$cover" "$@" ./... | tee "$json" | jq -rj --unbuffered "$summary" || status=1
+# -p 4: at the default -p 8, eight test binaries each run their parallel tests at once and starve each
+# other; packages that take 3 s alone went over the 10 s package budget.
+go test -json -race -shuffle=on -short -p 4 -coverpkg=./... -coverprofile="$cover" "$@" ./... | tee "$json" | jq -rj --unbuffered "$summary" || status=1
 
 # -race makes sync.Pool drop items at random, so allocation baselines run in a second pass without it.
 allocs=()

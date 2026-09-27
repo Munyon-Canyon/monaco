@@ -111,6 +111,47 @@ jobs:
       - name: Tests that -short skips because they build or run other binaries
         run: go test -race ./internal/platform/lint/... ./internal/testkit/... ./cmd/monacoctl
 
+  # Mutants on the packages this change touches and everything that imports them. A pull request
+  # compares with its base; a manual run compares with the parent commit.
+  mutation:
+    name: Mutation (changed packages)
+    needs: plan
+    if: needs.plan.outputs.backend-go == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/backend/go.mod
+          cache: false
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
+          restore-keys: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
+
+      - name: Install the pinned gremlins
+        run: ../../scripts/install-gremlins.sh
+
+      - name: Start the tmpfs test Postgres
+        working-directory: .
+        run: docker compose --profile test up -d --wait postgres-test
+
+      - name: Mutants on the changed packages
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || 'HEAD~1' }}
+        run: go run ./cmd/monacoctl mutation --base "$BASE"
+
   mobile-core:
     needs: plan
     if: needs.plan.outputs.mobile-core == 'true'
@@ -125,6 +166,7 @@ jobs:
       pull-requests: read
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
+      backend-go: ${{ steps.filter.outputs.backend-go }}
       mobile-core: ${{ steps.filter.outputs.mobile-core }}
       ios: ${{ steps.filter.outputs.ios }}
     steps:
@@ -145,6 +187,10 @@ jobs:
               - 'scripts/gen-docs.sh'
               - 'docs/reference/**'
               - '.github/workflows/ci*.yml'
+            backend-go:
+              - 'apps/backend/**/*.go'
+              - 'apps/backend/go.mod'
+              - 'apps/backend/mutants.allow'
             mobile-core:
               - 'packages/mobile-core/**'
               - 'apps/backend/api/openapi.yaml'
@@ -181,11 +227,11 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [plan, backend, mobile-core, ios]
+    needs: [plan, backend, mutation, mobile-core, ios]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - uses: re-actors/alls-green@release/v1
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: backend, mobile-core, ios
+          allowed-skips: backend, mutation, mobile-core, ios

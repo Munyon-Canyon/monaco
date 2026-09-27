@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -27,7 +28,21 @@ const (
 )
 
 type mutationEnv struct {
-	moduleDir, goBin, gremlins, tmpDir string
+	moduleDir, goBin, gitBin, gremlins, tmpDir string
+	exec                                       execFunc
+}
+
+type execFunc func(ctx context.Context, dir, name string, args ...string) ([]byte, error)
+
+func runCommand(ctx context.Context, dir, name string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		err = fmt.Errorf("%w: %s", err, bytes.TrimSpace(exit.Stderr))
+	}
+	return out, err
 }
 
 type listedPackage struct {
@@ -108,23 +123,17 @@ func (env mutationEnv) run(ctx context.Context, base string, all bool, stdout io
 		if err != nil {
 			return nil, err
 		}
-		if onlyTimedOut(report) {
-			return nil, errs.Wrap(allTimedOutError(dir), errs.CodeInternal, op)
+		if mostlyTimedOut(report) {
+			return nil, errs.Wrap(timedOutError(dir), errs.CodeInternal, op)
 		}
 		survivors = append(survivors, survivingMutants(dir, report, allowed)...)
 	}
 	return survivors, nil
 }
 
-func (env mutationEnv) command(ctx context.Context, name string, args ...string) *exec.Cmd {
-	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Dir = env.moduleDir
-	return cmd
-}
-
 func (env mutationEnv) goList(ctx context.Context) ([]listedPackage, error) {
-	out, err := env.command(ctx, env.goBin, "list", "-f", `{{.Module.Dir}}	{{.Dir}}	{{.ImportPath}}	{{join .Deps " "}}`, "./...").
-		Output()
+	out, err := env.exec(ctx, env.moduleDir, env.goBin,
+		"list", "-f", `{{.Module.Dir}}	{{.Dir}}	{{.ImportPath}}	{{join .Deps " "}}`, "./...")
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, "monacoctl.goList")
 	}
@@ -138,7 +147,7 @@ func (env mutationEnv) goList(ctx context.Context) ([]listedPackage, error) {
 }
 
 func (env mutationEnv) changedFiles(ctx context.Context, base string) ([]string, error) {
-	out, err := env.command(ctx, "git", "diff", "--name-only", "--relative", base+"...HEAD", "--", ".").Output()
+	out, err := env.exec(ctx, env.moduleDir, env.gitBin, "diff", "--name-only", "--relative", base+"...HEAD", "--", ".")
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, "monacoctl.changedFiles")
 	}
@@ -179,10 +188,9 @@ func (env mutationEnv) unleash(ctx context.Context, dir string) (gremlinsReport,
 	out := file.Name()
 	_ = file.Close()
 	defer func() { _ = os.Remove(out) }()
-	cmd := env.command(ctx, env.gremlins, "unleash", "--silent", "--timeout-coefficient", "50", "--output", out,
-		"--exclude-files", `\.gen\.go$`, "./"+dir)
-	if msg, err := cmd.CombinedOutput(); err != nil {
-		return gremlinsReport{}, errs.Wrap(fmt.Errorf("%w: %s", err, bytes.TrimSpace(msg)), errs.CodeInternal, op)
+	if _, err := env.exec(ctx, env.moduleDir, env.gremlins, "unleash", "--silent", "--timeout-coefficient", "50",
+		"--output", out, "--exclude-files", `\.gen\.go$`, "./"+dir); err != nil {
+		return gremlinsReport{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	data, _ := os.ReadFile(out)
 	if len(bytes.TrimSpace(data)) == 0 {
@@ -195,25 +203,25 @@ func (env mutationEnv) unleash(ctx context.Context, dir string) (gremlinsReport,
 	return report, nil
 }
 
-type allTimedOutError string
+type timedOutError string
 
-func (e allTimedOutError) Error() string {
-	return "every mutant in " + string(e) + " timed out, so nothing was tested; rerun on a quieter machine"
+func (e timedOutError) Error() string {
+	return "more mutants in " + string(e) + " timed out than were tested; rerun on a quieter machine"
 }
 
-func onlyTimedOut(report gremlinsReport) bool {
-	timed := false
+func mostlyTimedOut(report gremlinsReport) bool {
+	tested, timed := 0, 0
 	for _, f := range report.Files {
 		for _, m := range f.Mutations {
 			switch m.Status {
 			case killed, lived:
-				return false
+				tested++
 			case timedOut:
-				timed = true
+				timed++
 			}
 		}
 	}
-	return timed
+	return timed > tested
 }
 
 func mutantKey(dir, file string, line, column int, mutator string) string {

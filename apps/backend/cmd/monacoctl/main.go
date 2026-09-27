@@ -32,7 +32,14 @@ func tools(environ []string) map[string]tool {
 		"gen":      gen,
 		"migrate":  migrateTool(atlas{"../../.bin/atlas", ".atlas-version"}, environ),
 		"mutation": mutationTool(
-			mutationEnv{moduleDir: ".", goBin: "go", gremlins: "gremlins", tmpDir: os.TempDir()},
+			mutationEnv{
+				moduleDir: ".",
+				goBin:     "go",
+				gitBin:    "git",
+				gremlins:  "../../.bin/gremlins",
+				tmpDir:    os.TempDir(),
+				exec:      runCommand,
+			},
 		),
 		"test-report": testReportCmd,
 		"lint": func(args []string, stdout, stderr io.Writer) int {

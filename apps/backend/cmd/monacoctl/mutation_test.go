@@ -3,9 +3,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -44,25 +46,14 @@ func mutationModule(t *testing.T, allow string, extraPkgs ...string) mutationEnv
 			t.Fatal(err)
 		}
 	}
-	git(t, dir, "init", "-q", "-b", "main")
-	git(t, dir, "add", ".")
-	git(t, dir, "commit", "-q", "-m", "base")
-	git(t, dir, "checkout", "-q", "-b", "feature")
 	return mutationEnv{
 		moduleDir: dir,
-		goBin:     testdataBin(t, "go-list"),
-		gremlins:  testdataBin(t, "gremlins"),
+		goBin:     "go",
+		gitBin:    "git",
+		gremlins:  "gremlins",
+		exec:      fakeExec,
 		tmpDir:    t.TempDir(),
 	}
-}
-
-func testdataBin(t *testing.T, name string) string {
-	t.Helper()
-	bin, err := filepath.Abs(filepath.Join("testdata", name))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return bin
 }
 
 func git(t *testing.T, dir string, args ...string) {
@@ -84,8 +75,86 @@ func commitFile(t *testing.T, env mutationEnv, name, body string) {
 	if err := os.WriteFile(filepath.Join(env.moduleDir, name), []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	git(t, env.moduleDir, "add", ".")
-	git(t, env.moduleDir, "commit", "-q", "-m", "change")
+	if _, err := os.Stat(filepath.Join(env.moduleDir, ".git")); err == nil {
+		git(t, env.moduleDir, "add", ".")
+		git(t, env.moduleDir, "commit", "-q", "-m", "change")
+		return
+	}
+	changed, err := os.OpenFile(filepath.Join(env.moduleDir, "changed.txt"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = changed.Close() }()
+	if _, err := changed.WriteString(name + "\n"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func fakeExec(_ context.Context, dir, name string, args ...string) ([]byte, error) {
+	switch name {
+	case "go":
+		list, err := os.ReadFile(filepath.Join(dir, "golist.txt"))
+		if err != nil {
+			return nil, errs.Wrap(err, errs.CodeInternal, "fake go list")
+		}
+		return []byte(strings.ReplaceAll(string(list), "MODDIR", dir)), nil
+	case "git":
+		if strings.HasPrefix(args[3], "nope") {
+			return nil, errs.New(errs.CodeInternal, "fake git: bad revision")
+		}
+		changed, _ := os.ReadFile(filepath.Join(dir, "changed.txt"))
+		return changed, nil
+	default:
+		return nil, fakeGremlins(args[len(args)-1], args[slices.Index(args, "--output")+1])
+	}
+}
+
+func fakeGremlins(pkg, out string) error {
+	mutant := func(mutator, status string, line int) string {
+		return fmt.Sprintf(`{"type":%q,"status":%q,"line":%d,"column":5}`, mutator, status, line)
+	}
+	statuses := map[string][]string{
+		"./a":          {"LIVED"},
+		"./slow":       {"TIMED OUT"},
+		"./mostlyslow": {"KILLED", "TIMED OUT", "TIMED OUT"},
+		"./halfslow":   {"KILLED", "TIMED OUT"},
+	}
+	switch pkg {
+	case "./broken":
+		return errs.New(errs.CodeInternal, "gremlins exploded")
+	case "./garbled":
+		return os.WriteFile(out, []byte("not json"), 0o600)
+	case "./silent":
+		return nil
+	}
+	list, ok := statuses[pkg]
+	if !ok {
+		list = []string{"KILLED"}
+	}
+	mutants := []string{mutant("ARITHMETIC_BASE", "NOT COVERED", 9)}
+	for i, st := range list {
+		mutants = append(
+			mutants,
+			mutant([]string{"CONDITIONALS_NEGATION", "ARITHMETIC_BASE", "INCREMENT_DECREMENT"}[i], st, 3+i),
+		)
+	}
+	return os.WriteFile(
+		out,
+		[]byte(`{"files":[{"file_name":"x.go","mutations":[`+strings.Join(mutants, ",")+`]}]}`),
+		0o600,
+	)
+}
+
+func TestRunCommandReturnsStdoutAndCarriesStderrOnFailure(t *testing.T) {
+	t.Parallel()
+	out, err := runCommand(t.Context(), t.TempDir(), "sh", "-c", "echo out; echo noise >&2")
+	if err != nil || string(out) != "out\n" {
+		t.Fatalf("runCommand = %q, %v; want stdout only", out, err)
+	}
+	if _, err := runCommand(t.Context(), t.TempDir(), "sh", "-c", "echo boom >&2; exit 3"); err == nil ||
+		err.Error() != "exit status 3: boom" {
+		t.Fatalf("runCommand failure = %v, want the exit status and stderr", err)
+	}
 }
 
 func TestMutationFailsOnASurvivorInAChangedPackageAndItsDependents(t *testing.T) {
@@ -149,7 +218,8 @@ func TestMutationReportsBrokenInputs(t *testing.T) {
 		{name: "go list fails", remove: "golist.txt", want: "monacoctl.goList: internal"},
 		{name: "unknown base", args: []string{"--base", "nope"}, want: "monacoctl.changedFiles: internal"},
 		{name: "gremlins fails", pkg: "broken", want: "gremlins exploded"},
-		{name: "every mutant timed out", pkg: "slow", want: "monacoctl.mutation: internal: every mutant in slow timed out, so nothing was tested; rerun on a quieter machine"},
+		{name: "every mutant timed out", pkg: "slow", want: "monacoctl.mutation: internal: more mutants in slow timed out than were tested; rerun on a quieter machine"},
+		{name: "more mutants timed out than were killed", pkg: "mostlyslow", want: "monacoctl.mutation: internal: more mutants in mostlyslow timed out than were tested"},
 		{name: "no temp dir for the report", pkg: "broken", noTmp: true, want: "monacoctl.unleash: internal: open"},
 		{name: "gremlins writes garbage", pkg: "garbled", want: "monacoctl.unleash: decode_failed"},
 	} {
@@ -203,16 +273,40 @@ func brokenModule(t *testing.T, allow, pkg, change, body, remove string, noTmp b
 	return env
 }
 
-func TestMutationListsARealModuleWithTheGoCommand(t *testing.T) {
+func TestMutationRunsOnARealModuleWithTheGoAndGitCommands(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
-		t.Skip("runs go list on a scratch module; CI runs it without -short, outside the 10 s package budget")
+		t.Skip("runs go list and git on a scratch module; CI runs it without -short, outside the 10 s package budget")
 	}
 	env := mutationModule(t, "")
-	env.goBin = "go"
+	env.exec = func(ctx context.Context, dir, name string, args ...string) ([]byte, error) {
+		if name == env.gremlins {
+			return fakeExec(ctx, dir, name, args...)
+		}
+		return runCommand(ctx, dir, name, args...)
+	}
+	git(t, env.moduleDir, "init", "-q", "-b", "main")
+	git(t, env.moduleDir, "add", ".")
+	git(t, env.moduleDir, "commit", "-q", "-m", "base")
+	git(t, env.moduleDir, "checkout", "-q", "-b", "feature")
 	commitFile(t, env, "a/x_test.go", "package a\n")
 	var stdout, stderr bytes.Buffer
 	if code := mutationTool(env)(nil, &stdout, &stderr); code != 1 || stdout.String() != "mutating 2 packages: a b\n" {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	var nope bytes.Buffer
+	if code := mutationTool(env)([]string{"--base", "nope"}, &bytes.Buffer{}, &nope); code != 1 ||
+		!strings.Contains(nope.String(), "monacoctl.changedFiles: internal") {
+		t.Fatalf("unknown base with real git: code=%d stderr=%q", code, nope.String())
+	}
+}
+
+func TestMutationAcceptsAsManyTimeoutsAsTestedMutants(t *testing.T) {
+	t.Parallel()
+	env := mutationModule(t, "", "halfslow")
+	commitFile(t, env, "halfslow/x_test.go", "package halfslow\n")
+	var stdout, stderr bytes.Buffer
+	if code := mutationTool(env)(nil, &stdout, &stderr); code != 0 {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 }

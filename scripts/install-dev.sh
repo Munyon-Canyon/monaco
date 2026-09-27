@@ -111,6 +111,16 @@ if [[ "$atlas_have" != "atlas community version ${atlas_want}" ]]; then
   fi
 fi
 
+gremlins_want="$(sed -n 's/^version=//p' scripts/install-gremlins.sh)"
+gremlins_have="$(cat .bin/gremlins.version 2>/dev/null || true)"
+if [[ ! -x .bin/gremlins || "$gremlins_have" != "$gremlins_want" ]]; then
+  missing_required=1
+  say "gremlins ${gremlins_want} is missing from .bin/gremlins (found: ${gremlins_have:-none}). just test mutation runs that exact binary."
+  if ask_yes "Install gremlins ${gremlins_want} into .bin/?"; then
+    ./scripts/install-gremlins.sh || missing_required=1
+  fi
+fi
+
 sqlc_want="v$(sed -n 's/^version=//p' scripts/install-sqlc.sh)"
 sqlc_have="$(.bin/sqlc version 2>/dev/null || true)"
 if [[ "$sqlc_have" != "$sqlc_want" ]]; then

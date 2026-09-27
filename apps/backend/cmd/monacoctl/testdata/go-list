@@ -1,3 +1,0 @@
-#!/bin/sh
-[ -f golist.txt ] || { echo "go: no module list" >&2; exit 1; }
-sed "s|MODDIR|$PWD|g" golist.txt
