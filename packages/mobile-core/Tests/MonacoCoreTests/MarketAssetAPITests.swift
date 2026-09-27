@@ -1,4 +1,7 @@
 import XCTest
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 @testable import MonacoCore
 
 /// The asset routes over the wire: what the client asks for, and what it makes of

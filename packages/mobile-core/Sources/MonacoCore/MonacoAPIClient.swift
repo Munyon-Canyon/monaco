@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 public enum LeaveGroupBlockReason: String, Equatable {
     case shareUnitsRemaining = "share_units_remaining"

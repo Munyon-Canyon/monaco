@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// A `URLProtocol` that accepts a request and then says nothing for `stall` seconds before
 /// answering 200. `MockURLProtocol` answers immediately, so it can only record the timeout

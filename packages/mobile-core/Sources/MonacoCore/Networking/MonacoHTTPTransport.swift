@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Asks the auth layer for a fresh access token after the backend rejected `rejectedToken`.
 /// - Returns: a token, or `nil` when the user is no longer signed in.

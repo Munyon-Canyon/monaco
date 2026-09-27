@@ -1,4 +1,7 @@
 import XCTest
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 @testable import MonacoCore
 
 final class APITelemetryTests: XCTestCase {
@@ -152,6 +155,9 @@ final class APITelemetryTests: XCTestCase {
     }
 
     func testCancelledTaskReportsCancelledAndIsNotAFailure() async throws {
+        #if !canImport(Darwin)
+        try XCTSkipIf(true, "Linux URLSession does not fail an already-cancelled task")
+        #endif
         MockURLProtocol.requestHandler = { [self] request in
             respond(request, status: 200)
         }

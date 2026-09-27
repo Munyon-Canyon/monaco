@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// How long one Monaco request may take before the app gives up on it.
 ///
@@ -77,7 +80,10 @@ extension MonacoRequestTimeout {
         configuration.timeoutIntervalForResource = resource
         // A money POST must fail fast and be retried under its key, not sit queued until
         // the network comes back and land long after the member gave up on the screen.
+        // Darwin-only: Linux Foundation has no settable waitsForConnectivity.
+        #if !canImport(FoundationNetworking)
         configuration.waitsForConnectivity = false
+        #endif
         return configuration
     }
 }
