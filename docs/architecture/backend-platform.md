@@ -775,7 +775,29 @@ Gates:
 - **In CI, for everyone.** The E2E job reruns `verify` for the touched flows and fails on any difference from the committed evidence in the pass or fail of an invariant. `monacoctl flows check` fails a `verified` flow whose evidence is older than its module's newest commit.
 - **On failure.** The agent fixes the code and reruns. Evidence is never hand-edited: `flows check` recomputes the SHA stamp and rejects a file whose content hash does not match what `verify` wrote.
 
-Cost: one flow through real binaries is a guess of a few seconds, most of it binary start. A branch that touches one module runs a handful of flows, so 10 to 30 s before a PR. Rollout step 1 measures it.
+#### Budget: 90 s, enforced
+
+`just verify backend` finishes in under 90 s of wall time, measured from the command starting to the last container removed. That is a failure condition, not a target. The design aims for 45 s so ordinary noise never trips it.
+
+How the budget is enforced:
+
+1. **A hard deadline in the CLI.** `verify` runs under one `context.WithTimeoutCause` of 90 s. When it fires, the run stops, tears down, exits non-zero, and writes evidence with `"result": "over_budget"`. Over-budget evidence counts as a failure everywhere: the pre-PR hook, CI and `flows check`.
+2. **Phase budgets, so a failure says where the time went.** Stack up 10 s. Seeding 2 s per flow. Each flow, all outcomes included, 15 s. Teardown 5 s. A phase over its budget fails the run with the phase named, even when the total is under 90 s. So a slow flow is caught the day it gets slow, not the day the total finally crosses the line.
+3. **Timings are evidence.** Every evidence file records each phase's duration and the machine it ran on (`GOOS`, CPU count, CI or local). `flows check` fails a flow whose recorded duration is over its phase budget, and CI's timing is the one that counts.
+4. **Regression alarm.** CI compares each flow's duration with the median of its last 20 runs on `main` and fails the PR when a flow is more than 50% slower and more than 2 s slower. That catches creep long before the hard limit.
+5. **The enforcer is tested.** `verify`'s own test suite plants a flow that sleeps past its budget and a stack that never becomes healthy, and asserts both fail with the right phase named. The budget cannot break silently.
+6. **No raising the number in a PR.** The 90 s and the phase budgets live in `cmd/monacoctl/verify/budget.go`, and a change to that file needs the `budget-change` label from a human reviewer. An agent that hits the limit fixes the slow code or splits the PR.
+
+How the design stays inside it:
+
+- **One stack, flows in parallel.** The stack starts once. Flows run concurrently on it, 4 at a time, each in its own seeded cabal and users, so they share binaries without sharing data. Invariant checks are scoped to each flow's IDs.
+- **Nothing waits on a real-world clock.** The fakes answer instantly unless scripted to delay. `verify` config sets `AckWait` to 100 ms and Jupiter `/execute` to its fake. Convergence is detected from consumer ack notifications, not by polling with sleeps.
+- **Build once.** Binaries come from Go's build cache; an unchanged tree relinks nothing. Seeds replay events in milliseconds instead of running commands.
+- **Too many flows means too big a PR.** A branch whose touched flows cannot fit in 90 s at 4-way parallelism is split, the same rule as mutation testing's 10-minute limit.
+
+The risk is noise: wall-clock gates are not perfectly deterministic, and a laptop at heavy load can run slow. The 45 s design target is the margin for that, and the evidence file records the load average at the start so a slow local run is easy to tell apart from slow code. `just verify backend all` (every flow, nightly) is exempt from the 90 s total but not from the per-flow budgets.
+
+Rollout step 1 measures a real run on the scaffold and confirms the phase budgets fit.
 
 ## Docs, changelog, agents
 
