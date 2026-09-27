@@ -2,6 +2,8 @@ package observability
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"encoding/base64"
 	"errors"
 	"log/slog"
 	"os"
@@ -22,6 +24,22 @@ func sampleBase58Secret() string { return strings.Repeat("5Kd3", 22) }
 
 func sampleByteArray() string { return "[" + strings.Repeat("12, ", 63) + "255]" }
 
+type contact struct {
+	Name   string
+	Email  string
+	Token  string `json:"access_token"`
+	Nested *contact
+	hidden string
+}
+
+func opaque(s string) string { return "opaque-" + s }
+
+func selfLoop() *contact {
+	c := &contact{Name: "loop"}
+	c.Nested = c
+	return c
+}
+
 type jwtHolder struct{}
 
 func (jwtHolder) LogValue() slog.Value { return slog.StringValue(sampleJWT) }
@@ -40,7 +58,8 @@ func redactionCases() []redactionCase {
 	} {
 		cases = append(cases, redactionCase{"key " + key, keep, []slog.Attr{slog.String(key, "plain-value")}})
 	}
-	return append(cases,
+	return append(
+		cases,
 		redactionCase{"key on int value", keep, []slog.Attr{slog.Int("seed", 42)}},
 		redactionCase{"key on group value", keep, []slog.Attr{slog.Group("secret", slog.String("a", "b"))}},
 		redactionCase{"nested group key", keep, []slog.Attr{
@@ -63,7 +82,45 @@ func redactionCases() []redactionCase {
 			slog.String("cabal_id", "c1"), slog.Int64("have", 4_000_000), slog.Bool("ok", true),
 			slog.Any("err", errors.New("jupiter unavailable")),
 		}},
-		redactionCase{"kept: key as substring", keep, []slog.Attr{slog.String("idempotency_key", "k1")}},
+		redactionCase{"key suffix and token names", keep, []slog.Attr{
+			slog.String("user_email", "u@x.io"), slog.String("privy_token", "opaque-privy"),
+			slog.String("api_key", "opaque-api"), slog.String("phone_number", "+15550199"),
+			slog.String("userEmail", "camel@x.io"), slog.String("idempotency_key", "idem-1"),
+			slog.String("tx_signature", "sig-1"), slog.String("__Secret__", "opaque-underscored"),
+		}},
+		redactionCase{"self referencing struct stops at depth", keep, []slog.Attr{slog.Any("loop", selfLoop())}},
+		redactionCase{"kept: key word inside another word", keep, []slog.Attr{
+			slog.String("monkey", "m"), slog.String("keyboard", "k"), slog.String("cabal_id", "c1"),
+		}},
+		redactionCase{"opaque authorization scheme", keep, []slog.Attr{slog.String("header", "Bearer opaque-bearer")}},
+		redactionCase{"sensitive query params", keep, []slog.Attr{
+			slog.String("url", "https://rpc.example/v1?api_key=opaque-query&cluster=mainnet&Token=opaque-query2"),
+		}},
+		redactionCase{"struct with sensitive fields", keep, []slog.Attr{slog.Any("user", contact{
+			Name: "ada", Email: "struct@x.io", Token: opaque("struct"),
+			Nested: &contact{Name: "bob", Email: "nested@x.io"}, hidden: "h",
+		})}},
+		redactionCase{
+			"pointer to struct",
+			keep,
+			[]slog.Attr{slog.Any("user", &contact{Name: "cy", Email: "ptr@x.io"})},
+		},
+		redactionCase{"map with sensitive keys", keep, []slog.Attr{
+			slog.Any("creds", map[string]any{"token": opaque("map"), "cluster": "mainnet", "inner": map[string]string{
+				"api_key": opaque("inner"),
+			}}),
+		}},
+		redactionCase{"64 byte key as bytes", keep, []slog.Attr{
+			slog.Any("relayer", ed25519.NewKeyFromSeed(make([]byte, ed25519.SeedSize))),
+			slog.Any("raw", [64]byte{1, 2, 3}),
+			slog.Any("short", []byte("not a key")),
+		}},
+		redactionCase{"64 byte key as base64", keep, []slog.Attr{
+			slog.String("blob", base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{0xfb}, 64))),
+		}},
+		redactionCase{"kept: nil pointer and slice", keep, []slog.Attr{
+			slog.Any("user", (*contact)(nil)), slog.Any("ids", []string{"a", "b"}),
+		}},
 	)
 }
 
@@ -92,7 +149,12 @@ func TestRedaction_matchesGolden(t *testing.T) {
 	if got := buf.String(); got != string(want) {
 		t.Fatalf("redaction output differs from %s (rerun with -update to accept):\n%s", goldenPath, got)
 	}
-	for _, secret := range []string{sampleJWT, sampleBase58Secret(), sampleByteArray(), "a@b.c", "+15550100"} {
+	for _, secret := range []string{
+		sampleJWT, sampleBase58Secret(), sampleByteArray(), "a@b.c", "+15550100",
+		"u@x.io", "opaque-", "+15550199", "camel@x.io", "idem-1", "sig-1",
+		"struct@x.io", "nested@x.io", "ptr@x.io", base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{0xfb}, 64)),
+		"AAAAAAAAAAAA", "[1,2,3",
+	} {
 		if strings.Contains(buf.String(), secret) {
 			t.Errorf("output leaks %q", secret)
 		}
