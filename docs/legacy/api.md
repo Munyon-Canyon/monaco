@@ -173,3 +173,4 @@ series.
 `spark` is always served from cache. A list route never fetches price history: a miss
 is a row without a sparkline now and a background warm for the next request, so no
 page of rows can ever wait on a vendor.
+
