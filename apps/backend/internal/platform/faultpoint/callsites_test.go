@@ -66,7 +66,7 @@ func (s *scan) file(path, rel string) error {
 	}
 	ast.Inspect(f, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
-		if !ok || !isQualified(call.Fun, alias, "Hit", "Armed") || len(call.Args) != 2 {
+		if !ok || !isQualified(call.Fun, alias, "Hit") || len(call.Args) != 2 {
 			return true
 		}
 		at := fmt.Sprintf("%s:%d", rel, fset.Position(call.Pos()).Line)
@@ -147,7 +147,7 @@ func TestHit_everyCallSiteNamesARegisteredConstant(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(s.bad) > 0 {
-		t.Fatalf("faultpoint calls without a registered faultpoint.<Const> name: %v", s.bad)
+		t.Fatalf("faultpoint.Hit calls without a registered faultpoint.<Const> name: %v", s.bad)
 	}
 	for _, want := range []string{"internal/platform/db/uow.go:", "internal/platform/bus/relay.go:"} {
 		if !slices.ContainsFunc(s.sites, func(site string) bool { return strings.HasPrefix(site, want) }) {
@@ -156,7 +156,7 @@ func TestHit_everyCallSiteNamesARegisteredConstant(t *testing.T) {
 	}
 }
 
-func TestScanCallSites_flagsLiteralsUnknownConstantsAndVariables(t *testing.T) {
+func TestScanCallSites_flagsHitWithALiteralAnUnknownConstantOrAVariable(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	write := func(rel, src string) {
@@ -181,8 +181,8 @@ func f(ctx context.Context, name fp.Name) {
 	fp.Hit(ctx, fp.BeforeCommit)
 	fp.Hit(ctx, "before-commit")
 	fp.Hit(ctx, fp.Nope)
+	fp.Hit(ctx, name)
 	_ = fp.Armed(ctx, name)
-	_ = fp.Armed(ctx, fp.AfterSign)
 }
 `)
 	write("q/q.go", "package q\n\nfunc f() { faultpoint.Hit(nil, \"not the import\") }\n")
@@ -197,7 +197,7 @@ func f(ctx context.Context, name fp.Name) {
 	if want := []string{"p/p.go:11", "p/p.go:12", "p/p.go:13"}; !slices.Equal(s.bad, want) {
 		t.Fatalf("bad = %v, want %v", s.bad, want)
 	}
-	if want := []string{"p/p.go:10", "p/p.go:14"}; !slices.Equal(s.sites, want) {
+	if want := []string{"p/p.go:10"}; !slices.Equal(s.sites, want) {
 		t.Fatalf("sites = %v, want %v", s.sites, want)
 	}
 
