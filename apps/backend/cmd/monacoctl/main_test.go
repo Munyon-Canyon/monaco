@@ -5,6 +5,8 @@ import (
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 )
 
 func TestRun_unknownOrMissingCommandPrintsUsageAndExits2(t *testing.T) {
@@ -20,7 +22,7 @@ func TestRun_unknownOrMissingCommandPrintsUsageAndExits2(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var stdout, stderr bytes.Buffer
-			if code := run(commands(), tc.args, &stdout, &stderr); code != 2 {
+			if code := run(commands(), nil, tc.args, &stdout, &stderr); code != 2 {
 				t.Fatalf("exit code = %d, want 2", code)
 			}
 			if stderr.String() != tc.want {
@@ -36,23 +38,42 @@ func TestRun_unknownOrMissingCommandPrintsUsageAndExits2(t *testing.T) {
 func TestRun_dispatchesToRegisteredCommandAndListsItInUsage(t *testing.T) {
 	t.Parallel()
 	var got []string
-	cmds := map[string]command{"echo": func(args []string, stdout, _ io.Writer) int {
-		got = args
+	cmds := map[string]command{"echo": func(cfg config.Config, args []string, stdout, _ io.Writer) int {
+		got = append([]string{string(cfg.Env)}, args...)
 		_, _ = io.WriteString(stdout, strings.Join(args, " "))
 		return 0
 	}}
 
 	var stdout, stderr bytes.Buffer
-	if code := run(cmds, []string{"echo", "a", "b"}, &stdout, &stderr); code != 0 {
+	if code := run(cmds, validEnviron(), []string{"echo", "a", "b"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("exit code = %d, want 0", code)
 	}
-	if strings.Join(got, ",") != "a,b" || stdout.String() != "a b" || stderr.Len() != 0 {
+	if strings.Join(got, ",") != "test,a,b" || stdout.String() != "a b" || stderr.Len() != 0 {
 		t.Fatalf("args=%v stdout=%q stderr=%q", got, stdout.String(), stderr.String())
 	}
 
 	stderr.Reset()
-	run(cmds, nil, &stdout, &stderr)
+	run(cmds, nil, nil, &stdout, &stderr)
 	if want := "usage: monacoctl <command> [args]\n  echo\n"; stderr.String() != want {
 		t.Fatalf("usage = %q, want %q", stderr.String(), want)
+	}
+}
+
+func validEnviron() []string {
+	return []string{"MONACO_ENV=test", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=nats://localhost:4222"}
+}
+
+func TestRun_commandFailsBeforeRunningWhenConfigIsInvalid(t *testing.T) {
+	t.Parallel()
+	ran := false
+	cmds := map[string]command{"echo": func(config.Config, []string, io.Writer, io.Writer) int {
+		ran = true
+		return 0
+	}}
+	var stdout, stderr bytes.Buffer
+	code := run(cmds, []string{"MONACO_ENV=test", "MONACO_FOO=1"}, []string{"echo"}, &stdout, &stderr)
+	want := "monacoctl: config.Load: invalid_input: missing DATABASE_URL, NATS_URL; unknown MONACO_FOO\n"
+	if code != 1 || ran || stderr.String() != want || stdout.Len() != 0 {
+		t.Fatalf("code=%d ran=%v stderr=%q stdout=%q", code, ran, stderr.String(), stdout.String())
 	}
 }
