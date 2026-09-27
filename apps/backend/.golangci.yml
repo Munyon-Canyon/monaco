@@ -163,6 +163,17 @@ linters:
         linters: [forbidigo]
       - path: ^internal/testkit/
         linters: [forbidigo]
+      - path: ^internal/testkit/seed\.go$
+        linters: [gochecknoglobals]
+        text: seedFlag
+      - path: ^internal/testkit/ids\.go$
+        linters: [gosec]
+        text: G404
+      - path: ^internal/testkit/clock\.go$
+        linters: [ireturn]
+      - path: ^internal/testkit/.*_test\.go$
+        linters: [gosec]
+        text: G204
       - path: ^scripts/
         linters: [gosec, err113]
       - path: ^cmd/monacoctl/flows(_test)?\.go$
