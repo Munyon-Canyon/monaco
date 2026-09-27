@@ -7,10 +7,10 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -21,6 +21,7 @@ const (
 	idempotencyInFlight  int16 = 1
 	idempotencyCompleted int16 = 2
 	claimAttempts              = 3
+	inFlightTakeover           = 5 * time.Minute
 )
 
 type IdempotencyStore struct {
@@ -28,8 +29,8 @@ type IdempotencyStore struct {
 	clock clock.Clock
 }
 
-func NewIdempotencyStore(pool *pgxpool.Pool, c clock.Clock) *IdempotencyStore {
-	return &IdempotencyStore{q: sqlc.New(pool), clock: c}
+func NewIdempotencyStore(q sqlc.DBTX, c clock.Clock) *IdempotencyStore {
+	return &IdempotencyStore{q: sqlc.New(q), clock: c}
 }
 
 type ClaimOutcome uint8
@@ -55,8 +56,9 @@ type StoredResponse struct {
 func (s *IdempotencyStore) Begin(ctx context.Context, actorKey, key string, requestHash []byte) (Claim, error) {
 	const op = "db.IdempotencyStore.Begin"
 	for range claimAttempts {
+		now := s.clock.Now()
 		n, err := s.q.BeginIdempotencyKey(ctx, sqlc.BeginIdempotencyKeyParams{
-			ActorKey: actorKey, Key: key, RequestHash: requestHash, CreatedAt: s.clock.Now(),
+			ActorKey: actorKey, Key: key, RequestHash: requestHash, CreatedAt: now,
 		})
 		if err != nil {
 			return Claim{}, classify(err, op)
@@ -71,9 +73,33 @@ func (s *IdempotencyStore) Begin(ctx context.Context, actorKey, key string, requ
 		if err != nil {
 			return Claim{}, classify(err, op)
 		}
-		return claimFrom(row, requestHash)
+		if !abandoned(row, requestHash, now) {
+			return claimFrom(row, requestHash)
+		}
+		taken, err := s.takeOver(ctx, actorKey, key, now)
+		if err != nil {
+			return Claim{}, err
+		}
+		if taken {
+			return Claim{Outcome: ClaimOwned}, nil
+		}
 	}
 	return Claim{}, errs.New(errs.CodeInternal, op, slog.Int("attempts", claimAttempts))
+}
+
+func (s *IdempotencyStore) takeOver(ctx context.Context, actorKey, key string, now time.Time) (bool, error) {
+	taken, err := s.q.TakeOverIdempotencyKey(ctx, sqlc.TakeOverIdempotencyKeyParams{
+		ActorKey: actorKey, Key: key, CreatedAt: now, CreatedAt_2: now.Add(-inFlightTakeover),
+	})
+	if err != nil {
+		return false, classify(err, "db.IdempotencyStore.Begin")
+	}
+	return taken == 1, nil
+}
+
+func abandoned(row sqlc.IdempotencyKey, requestHash []byte, now time.Time) bool {
+	return row.Status == idempotencyInFlight && bytes.Equal(row.RequestHash, requestHash) &&
+		row.CreatedAt.Before(now.Add(-inFlightTakeover))
 }
 
 func claimFrom(row sqlc.IdempotencyKey, requestHash []byte) (Claim, error) {
@@ -95,10 +121,7 @@ func claimFrom(row sqlc.IdempotencyKey, requestHash []byte) (Claim, error) {
 
 func (s *IdempotencyStore) Complete(ctx context.Context, actorKey, key string, resp StoredResponse) error {
 	const op = "db.IdempotencyStore.Complete"
-	header, err := json.Marshal(resp.Header)
-	if err != nil {
-		return errs.Wrap(err, errs.CodeInternal, op)
-	}
+	header, _ := json.Marshal(resp.Header)
 	n, err := s.q.CompleteIdempotencyKey(ctx, sqlc.CompleteIdempotencyKeyParams{
 		ActorKey:        actorKey,
 		Key:             key,

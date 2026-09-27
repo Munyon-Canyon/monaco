@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"log/slog"
 	"maps"
@@ -49,9 +50,10 @@ func Idempotency(store IdempotencyStore) api.MiddlewareFunc {
 				return
 			}
 			r.Body = io.NopCloser(bytes.NewReader(body))
+			hash := requestHash(r, body)
 			claimed{
-				store: store, w: w, r: r, key: key, actor: actorKeyFrom(r.Context()),
-				hash: requestHash(r, body),
+				store: store, w: w, r: r, key: key, hash: hash,
+				actor: actorKeyFrom(r.Context(), hash, r.Header.Get("Authorization")),
 			}.serve(r.Context(), next)
 		})
 	}
@@ -65,12 +67,14 @@ func mutating(method string) bool {
 	return true
 }
 
-func actorKeyFrom(ctx context.Context) string {
-	a, ok := auth.ActorFrom(ctx)
-	if !ok {
-		return ""
+func actorKeyFrom(ctx context.Context, requestHash []byte, authorization string) string {
+	if a, ok := auth.ActorFrom(ctx); ok {
+		return a.Key()
 	}
-	return a.Key()
+	h := sha256.New()
+	_, _ = h.Write(requestHash)
+	_, _ = io.WriteString(h, "\n"+authorization)
+	return "anonymous:" + hex.EncodeToString(h.Sum(nil))
 }
 
 func requestHash(r *http.Request, body []byte) []byte {

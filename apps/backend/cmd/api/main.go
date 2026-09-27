@@ -45,7 +45,7 @@ func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
 	}
 	shutdown, err := observability.Setup(ctx, cfg)
 	if err != nil {
-		return bootErr(err)
+		return bootErr(ctx, err)
 	}
 	defer func() {
 		flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.Timeouts.Shutdown)
@@ -61,7 +61,7 @@ func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
 	observability.Info(ctx, observability.BootConfig, slog.String("service", "api"), slog.Any("config", cfg.Redacted()))
 	conn, err := connectBus(ctx, cfg)
 	if err != nil {
-		return bootErr(err)
+		return bootErr(ctx, err)
 	}
 	defer func() {
 		drainCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.Timeouts.Shutdown)
@@ -70,17 +70,17 @@ func run(ctx context.Context, stderr io.Writer, environ []string) (err error) {
 	}()
 	pool, err := db.Open(ctx, cfg.DB)
 	if err != nil {
-		return bootErr(err)
+		return bootErr(ctx, err)
 	}
 	defer pool.Close()
 	stopRelay, err := startRelay(ctx, conn, pool, db.New(pool, ids.Real{}, clock.Real{}), clock.Real{})
 	if err != nil {
-		return bootErr(err)
+		return bootErr(ctx, err)
 	}
 	defer func() { err = errors.Join(err, stopRelay()) }()
 	ln, err := listen(ctx, cfg)
 	if err != nil {
-		return bootErr(err)
+		return bootErr(ctx, err)
 	}
 	handler, err := newHandler(cfg, logger, pool, verifier)
 	if err != nil {
@@ -148,8 +148,8 @@ func newHandler(
 	}, httpx.Health{})
 }
 
-func bootErr(err error) error {
-	if errors.Is(err, context.Canceled) {
+func bootErr(ctx context.Context, err error) error {
+	if ctx.Err() != nil && errors.Is(err, context.Canceled) {
 		return nil
 	}
 	return err

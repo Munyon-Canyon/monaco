@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -127,6 +128,25 @@ func TestRun_aShutdownFailureAfterACancelIsReported(t *testing.T) {
 	})
 	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable || errors.Is(err, context.Canceled) {
 		t.Fatalf("run = %v, want the telemetry flush failure reported after the cancel", err)
+	}
+}
+
+func TestBootErr_onlyOurOwnCancelIsACleanStop(t *testing.T) {
+	t.Parallel()
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+	foreign := fmt.Errorf("pool: %w", context.Canceled)
+	if err := bootErr(cancelled, foreign); err != nil {
+		t.Fatalf("bootErr(cancelled ctx, wrapped Canceled) = %v, want nil", err)
+	}
+	if err := bootErr(t.Context(), foreign); !errors.Is(err, context.Canceled) {
+		t.Fatalf(
+			"bootErr(live ctx, foreign Canceled) = %v, want the error kept: nobody asked this process to stop",
+			err,
+		)
+	}
+	if err := bootErr(cancelled, io.ErrUnexpectedEOF); !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("bootErr(cancelled ctx, other error) = %v, want the error kept", err)
 	}
 }
 

@@ -461,3 +461,57 @@ func TestHandler_requiresAnIdempotencyStore(t *testing.T) {
 		t.Fatalf("Handler = %v, %v, want internal and no handler", h, err)
 	}
 }
+
+func TestIdempotency_anonymousCallersNeverShareAKey(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	next := &countingHandler{serve: createsThing}
+	mux := http.NewServeMux()
+	mux.Handle("/", Idempotency(realStore(t, h))(next))
+	handler := h.deps.wrap(mux)
+	first := send(t, handler, http.MethodPost, "/v1/session", "k1", `{"token":"alice"}`)
+	second := send(t, handler, http.MethodPost, "/v1/session", "k1", `{"token":"bob"}`)
+	if first.Code != http.StatusCreated || second.Code != http.StatusCreated || next.calls.Load() != 2 {
+		t.Fatalf("got %d and %d after %d calls, want two 201s: another client's key is not a mismatch", first.Code,
+			second.Code, next.calls.Load())
+	}
+	replay := send(t, handler, http.MethodPost, "/v1/session", "k1", `{"token":"alice"}`)
+	sameResponse(t, first, replay)
+	if next.calls.Load() != 2 {
+		t.Fatalf("handler ran %d times, want 2: the identical anonymous request replays", next.calls.Load())
+	}
+	for _, credential := range []string{"Bearer one", "Bearer two"} {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/session", strings.NewReader(`{}`))
+		req.Header.Set(IdempotencyKeyHeader, "k2")
+		req.Header.Set("Authorization", credential)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("%s = %d, want 201", credential, rec.Code)
+		}
+	}
+	if next.calls.Load() != 4 {
+		t.Fatalf("handler ran %d times, want 4: the same body under two credentials is two requests", next.calls.Load())
+	}
+}
+
+func TestIdempotency_anAbandonedInFlightKeyIsTakenOverAfterFiveMinutes(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	clk := testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
+	store := db.NewIdempotencyStore(testkit.DB(t), clk)
+	if _, err := store.Begin(t.Context(), "user:u1", "k1", requestHash(
+		httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/things", nil), []byte(`{}`))); err != nil {
+		t.Fatal(err)
+	}
+	next := &countingHandler{serve: createsThing}
+	handler := idempotent(h, store, next)
+	if rec := send(t, handler, http.MethodPost, "/v1/things", "k1", `{}`); rec.Code != http.StatusConflict {
+		t.Fatalf("while in flight = %d, want 409", rec.Code)
+	}
+	clk.Advance(5*time.Minute + time.Second)
+	if rec := send(t, handler, http.MethodPost, "/v1/things", "k1", `{}`); rec.Code != http.StatusCreated ||
+		next.calls.Load() != 1 {
+		t.Fatalf("after the takeover age = %d with %d calls, want 201 and 1", rec.Code, next.calls.Load())
+	}
+}

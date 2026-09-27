@@ -124,3 +124,28 @@ func (q *Queries) ReleaseIdempotencyKey(ctx context.Context, arg ReleaseIdempote
 	}
 	return result.RowsAffected(), nil
 }
+
+const takeOverIdempotencyKey = `-- name: TakeOverIdempotencyKey :execrows
+UPDATE idempotency_keys SET created_at = $3
+WHERE actor_key = $1 AND key = $2 AND status = 1 AND created_at < $4
+`
+
+type TakeOverIdempotencyKeyParams struct {
+	ActorKey    string
+	Key         string
+	CreatedAt   time.Time
+	CreatedAt_2 time.Time
+}
+
+func (q *Queries) TakeOverIdempotencyKey(ctx context.Context, arg TakeOverIdempotencyKeyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, takeOverIdempotencyKey,
+		arg.ActorKey,
+		arg.Key,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}

@@ -40,9 +40,13 @@ func handler(
 	api.HandlerWithOptions(strict, api.StdHTTPServerOptions{
 		BaseRouter:       mux,
 		ErrorHandlerFunc: invalidRequest,
-		Middlewares:      []api.MiddlewareFunc{Idempotency(d.Idempotency), c.validate, Auth(d.Verifier), c.resolve},
+		Middlewares:      middlewares(d, c),
 	})
 	return d.wrap(mux), nil
+}
+
+func middlewares(d Deps, c *contract) []api.MiddlewareFunc {
+	return []api.MiddlewareFunc{Idempotency(d.Idempotency), c.validate, Auth(d.Verifier), c.resolve}
 }
 
 func invalidRequest(w http.ResponseWriter, r *http.Request, err error) {

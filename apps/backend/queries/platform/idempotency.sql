@@ -18,3 +18,7 @@ DELETE FROM idempotency_keys WHERE actor_key = $1 AND key = $2 AND status = 1;
 
 -- name: DeleteIdempotencyKeysBefore :execrows
 DELETE FROM idempotency_keys WHERE created_at < $1;
+
+-- name: TakeOverIdempotencyKey :execrows
+UPDATE idempotency_keys SET created_at = $3
+WHERE actor_key = $1 AND key = $2 AND status = 1 AND created_at < $4;
