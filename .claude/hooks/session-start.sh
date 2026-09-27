@@ -1,11 +1,16 @@
 #!/bin/bash
 # Claude Code on the web: the container does not run dockerd, and processes started by
 # the environment setup script don't survive into the session. Start it here so
-# `just test backend` / `just run backend` can bring up Compose Postgres.
+# `just test backend` / `just run backend` can bring up Compose Postgres. It also installs jq,
+# which `just test backend` needs to read go test -json.
 set -euo pipefail
 
 if [[ "${CLAUDE_CODE_REMOTE:-}" != "true" ]]; then
   exit 0
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  apt-get install -y jq >/tmp/jq-install.log 2>&1 || echo "session-start: jq install failed; see /tmp/jq-install.log" >&2
 fi
 
 if docker info >/dev/null 2>&1; then

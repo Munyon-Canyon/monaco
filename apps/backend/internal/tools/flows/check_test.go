@@ -39,8 +39,8 @@ func check(t *testing.T, body string, env flows.Env) []string {
 	return lines(flows.CheckColumns(parsed, env))
 }
 
-func withCells(row string, edit func(cells []string)) string {
-	cells := strings.Split(row, "\t")
+func fundRowWith(edit func(cells []string)) string {
+	cells := strings.Split(fundRow, "\t")
 	edit(cells)
 	return strings.Join(cells, "\t")
 }
@@ -65,7 +65,7 @@ func TestCheckColumns_eachColumnFailsWithOneLine(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := check(t, tsv(withCells(fundRow, tc.edit)), testEnv())
+			got := check(t, tsv(fundRowWith(tc.edit)), testEnv())
 			if !slices.Equal(got, []string{tc.want}) {
 				t.Fatalf("problems = %q, want %q", got, tc.want)
 			}
@@ -75,7 +75,7 @@ func TestCheckColumns_eachColumnFailsWithOneLine(t *testing.T) {
 
 func TestCheckColumns_validRowsPass(t *testing.T) {
 	t.Parallel()
-	docOnly := withCells(fundRow, func(c []string) { c[0], c[9] = "08", "docs/flows.md" })
+	docOnly := fundRowWith(func(c []string) { c[0], c[9] = "08", "docs/flows.md" })
 	if got := check(t, tsv(fundRow, docOnly), testEnv()); len(got) != 0 {
 		t.Fatalf("problems = %q", got)
 	}
@@ -93,7 +93,7 @@ func TestCheckColumns_uncheckedColumnsAcceptAnything(t *testing.T) {
 	t.Parallel()
 	env := testEnv()
 	env.Triggers, env.Commands, env.Consumers, env.Faultpoints = flows.Unchecked, flows.Unchecked, flows.Unchecked, flows.Unchecked
-	row := withCells(fundRow, func(c []string) { c[3], c[4], c[6], c[7] = "x", "Anything", "y", "ok;crash:any-point" })
+	row := fundRowWith(func(c []string) { c[3], c[4], c[6], c[7] = "x", "Anything", "y", "ok;crash:any-point" })
 	if got := check(t, tsv(row), env); len(got) != 0 {
 		t.Fatalf("problems = %q", got)
 	}

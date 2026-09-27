@@ -84,7 +84,7 @@ test app:
     set -euo pipefail
     case "{{app}}" in
       backend)
-        (cd apps/backend && go test -race -shuffle=on ./...)
+        scripts/test-backend.sh -race -shuffle=on
         if [[ "${SKIP_SCRIPTS_TESTS:-}" != "1" && -f scripts/go.mod ]]; then
           (cd scripts && go test -short ./...)
         fi

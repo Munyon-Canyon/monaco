@@ -164,6 +164,9 @@ linters:
         linters: [forbidigo]
       - path: ^scripts/
         linters: [gosec, err113]
+      - path: ^cmd/monacoctl/flows(_test)?\.go$
+        linters: [gosec]
+        text: "G204|G703"
       - path: ^internal/platform/lint/nogo/
         linters: [nilnil]
       - path: ^internal/platform/clock/

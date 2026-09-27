@@ -89,6 +89,18 @@ if [[ "v${golangci_have#v}" != "$golangci_want" ]]; then
   fi
 fi
 
+if ! have jq; then
+  missing_required=1
+  say "jq is missing. just test backend and CI use it to read go test -json."
+  if [[ "$(uname -s)" == "Linux" ]]; then
+    if ask_yes "Install jq with apt-get?"; then
+      if [[ "$(id -u)" -eq 0 ]]; then apt-get install -y jq || missing_required=1; else sudo apt-get install -y jq || missing_required=1; fi
+    fi
+  elif ask_yes "Install jq with Homebrew (jq)?"; then
+    run_brew jq || missing_required=1
+  fi
+fi
+
 if ! have just; then
   missing_required=1
   say "just is missing (https://github.com/casey/just)."

@@ -3,17 +3,41 @@ package main
 import (
 	"fmt"
 	"io"
+	"io/fs"
+	"os"
+	"slices"
 	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
 func docs(args []string, stdout, stderr io.Writer) int {
-	if len(args) != 1 || args[0] != "events" {
-		_, _ = fmt.Fprintln(stderr, "usage: monacoctl docs events")
+	switch {
+	case slices.Equal(args, []string{"events"}):
+		_, _ = io.WriteString(stdout, eventCatalog(events.Catalog()))
+		return 0
+	case slices.Equal(args, []string{"flows"}):
+		return docsFlows(os.DirFS("../.."), stdout, stderr)
+	default:
+		_, _ = fmt.Fprintln(stderr, "usage: monacoctl docs events|flows")
 		return 2
 	}
-	_, _ = io.WriteString(stdout, eventCatalog(events.Catalog()))
+}
+
+func docsFlows(repo fs.FS, stdout, stderr io.Writer) int {
+	parsed, problems, err := readFlows(repo)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "monacoctl docs flows: %v\n", err)
+		return 1
+	}
+	for _, p := range problems {
+		_, _ = fmt.Fprintln(stderr, p)
+	}
+	if len(problems) > 0 {
+		return 1
+	}
+	_, _ = io.WriteString(stdout, flows.Markdown(parsed))
 	return 0
 }
 
