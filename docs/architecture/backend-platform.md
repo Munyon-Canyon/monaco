@@ -850,7 +850,8 @@ Agents in Claude Code on the web or CI install it with `npm install -g @withgrap
 ### Enforcement
 
 - **Pre-PR hook.** `scripts/agent-guard-pr.sh` runs on `gt submit` and on `gh pr create`. It blocks `gh pr create` on a branch Graphite tracks and tells the agent to use `gt submit --stack`. For every branch being submitted, it also requires fresh `verify-backend` evidence ([Gates](#verification-skill)).
-- **CI.** It runs the size check above. It fails a title that does not match `^#[0-9]+ \S` or names an issue that does not exist, and a body missing any of the six section headings or with an empty Proof section. It also fails a PR whose base branch is not `main` and has no open PR of its own. That is the sign of a stack pushed without Graphite.
+- **CI, live now.** `.github/workflows/pr-format.yml` runs `scripts/check-pr-format.py` on every non-draft PR, again whenever the title or body is edited. It fails a title that does not match `^#[0-9]+ \S`, a title whose number is missing or is a pull request rather than an issue, and a body missing any of the six sections or with a section that holds only the template's comment. Its unit tests run in the same job.
+- **CI, still to build.** The size check above. A check that fails a PR whose base branch is not `main` and has no open PR of its own, the sign of a stack pushed without Graphite.
 - **Install check.** `just install --check` exits 1 when `gt` is missing, the same as for Go.
 
 ## Rollout
