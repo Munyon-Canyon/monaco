@@ -176,6 +176,7 @@ func TestRegistry_gaugesReportPendingAckPendingAndDeadLetters(t *testing.T) {
 	if got := h.gaugeByConsumer(t, "monaco_bus_consumer_pending"); got[durable] != 0 {
 		t.Fatalf("pending = %v, want 0 for %s", got, durable)
 	}
+	h.waitDelivered(t, 3)
 	close(release)
 	h.waitDeadLetters(t, 1)
 	if got := h.gaugeByConsumer(t, "monaco_dead_letters"); got[durable] != 1 {
@@ -183,6 +184,18 @@ func TestRegistry_gaugesReportPendingAckPendingAndDeadLetters(t *testing.T) {
 	}
 	if got := h.gaugeByConsumer(t, "monaco_bus_consumer_ack_pending"); got[durable] != 0 {
 		t.Fatalf("ack pending after term = %v, want 0", got)
+	}
+}
+
+func (h *harness) waitDelivered(t *testing.T, n uint64) {
+	t.Helper()
+	deadline := time.After(waitLong)
+	for h.consumerInfo(t).Delivered.Consumer < n {
+		select {
+		case <-deadline:
+			t.Fatalf("the consumer never delivered %d times", n)
+		case <-time.After(20 * time.Millisecond):
+		}
 	}
 }
 
