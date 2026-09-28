@@ -28,3 +28,5 @@ docs/demo/clips/
 docs/demo/out/
 .venv/
 /site/
+
+.monaco/agents/

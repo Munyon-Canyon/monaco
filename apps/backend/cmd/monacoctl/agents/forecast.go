@@ -1,0 +1,112 @@
+package agents
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"maps"
+	"slices"
+	"strings"
+)
+
+const maxLines = 20
+
+type risk struct {
+	path    string
+	bottoms []int
+}
+
+func forecastCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {
+	if len(args) != 0 {
+		return usageError("forecast")
+	}
+	return printForecast(ctx, env, stdout)
+}
+
+func printForecast(ctx context.Context, env *Env, stdout io.Writer) error {
+	risks, err := forecast(ctx, env)
+	if err != nil {
+		return err
+	}
+	trunk := env.Config.FeatureBranch
+	if len(risks) == 0 {
+		_, _ = fmt.Fprintf(stdout, "no file is touched by more than one open stack into %s\n", trunk)
+		return nil
+	}
+	_, _ = fmt.Fprintf(stdout, "%d files touched by more than one open stack into %s:\n", len(risks), trunk)
+	for i, r := range risks {
+		if i == maxLines-2 {
+			_, _ = fmt.Fprintf(stdout, "  and %d more\n", len(risks)-i)
+			break
+		}
+		_, _ = fmt.Fprintf(stdout, "  %s  %s\n", r.path, prList(r.bottoms))
+	}
+	return nil
+}
+
+func forecast(ctx context.Context, env *Env) ([]risk, error) {
+	open, err := env.GitHub.PRs(ctx, "state=open")
+	if err != nil {
+		return nil, err
+	}
+	touched := map[string]map[int]bool{}
+	for bottom, stack := range stacks(open, env.Config.FeatureBranch) {
+		for _, pr := range stack {
+			if err := touch(ctx, env, pr, bottom, touched); err != nil {
+				return nil, err
+			}
+		}
+	}
+	var risks []risk
+	for _, path := range slices.Sorted(maps.Keys(touched)) {
+		if len(touched[path]) > 1 {
+			risks = append(risks, risk{path, slices.Sorted(maps.Keys(touched[path]))})
+		}
+	}
+	return risks, nil
+}
+
+func touch(ctx context.Context, env *Env, pr PR, bottom int, touched map[string]map[int]bool) error {
+	files, err := env.GitHub.Files(ctx, pr.Number)
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		if touched[f.Filename] == nil {
+			touched[f.Filename] = map[int]bool{}
+		}
+		touched[f.Filename][bottom] = true
+	}
+	return nil
+}
+
+func stacks(open []PR, trunk string) map[int][]PR {
+	byHead := map[string]PR{}
+	for _, pr := range open {
+		byHead[pr.Head.Ref] = pr
+	}
+	out := map[int][]PR{}
+	for _, pr := range open {
+		cur := pr
+		for range open {
+			if cur.Base.Ref == trunk {
+				out[cur.Number] = append(out[cur.Number], pr)
+				break
+			}
+			parent, ok := byHead[cur.Base.Ref]
+			if !ok {
+				break
+			}
+			cur = parent
+		}
+	}
+	return out
+}
+
+func prList(ns []int) string {
+	s := make([]string, len(ns))
+	for i, n := range ns {
+		s[i] = fmt.Sprintf("#%d", n)
+	}
+	return strings.Join(s, " ")
+}

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/monaco/monaco/apps/backend/cmd/monacoctl/agents"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/lint/comments"
 )
@@ -28,6 +29,7 @@ func tools(environ []string) map[string]tool {
 	wd, _ := os.Getwd()
 	exe, _ := os.Executable()
 	return map[string]tool{
+		"agents":   agents.Tool(environ),
 		"bench":    bench{"go"}.run,
 		"bus":      busTool(environ),
 		"coverage": coverageEnv{moduleDir: ".", goBin: "go", tmpDir: os.TempDir()}.run,
