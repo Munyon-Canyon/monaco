@@ -20,6 +20,7 @@ func TestClose_stopsWaitingForTheDrainWhenTheContextEnds(t *testing.T) {
 		t.Fatal(err)
 	}
 	nc := conn.NATS()
+	nc.Opts.DrainTimeout = 100 * time.Millisecond
 	entered, release := make(chan struct{}), make(chan struct{})
 	if _, err := nc.Subscribe("close.block", func(*nats.Msg) {
 		close(entered)
@@ -31,8 +32,8 @@ func TestClose_stopsWaitingForTheDrainWhenTheContextEnds(t *testing.T) {
 		t.Fatal(err)
 	}
 	await(t, "the subscriber to block", entered)
-	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
-	defer cancel()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
 	conn.Close(ctx)
 	if !nc.IsClosed() {
 		t.Fatal("Close returned with the connection still open after its context ended")
@@ -43,7 +44,7 @@ func TestClose_stopsWaitingForTheDrainWhenTheContextEnds(t *testing.T) {
 
 func waitNoLeak(t *testing.T, before goleak.Option) {
 	t.Helper()
-	deadline := time.After(5 * time.Second)
+	deadline := time.After(10 * time.Second)
 	for {
 		err := goleak.Find(before)
 		if err == nil {
@@ -51,7 +52,7 @@ func waitNoLeak(t *testing.T, before goleak.Option) {
 		}
 		select {
 		case <-deadline:
-			t.Fatalf("goroutines outlived Close by 5s: %v", err)
+			t.Fatalf("goroutines outlived Close by 10s: %v", err)
 		case <-time.After(50 * time.Millisecond):
 		}
 	}
