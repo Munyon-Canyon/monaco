@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestEdges_dispatchBlockersAndProcess(t *testing.T) {
@@ -25,7 +24,7 @@ func TestEdges_dispatchBlockersAndProcess(t *testing.T) {
 	if err := env.blockersClear(context.Background(), 4); err == nil || !strings.Contains(err.Error(), "not merged") {
 		t.Fatal(err)
 	}
-	when := time.Now()
+	when := f.now
 	side := commitFile(t, f.dir, "side.go", "x\n")
 	git(t, f.dir, "update-ref", "refs/heads/fb", "HEAD~1")
 	f.hub.on(get("/pulls/8"), PR{MergedAt: &when, MergeCommitSHA: side})
@@ -176,7 +175,7 @@ func TestEdges_uncoveredDispatchAndConflicts(t *testing.T) {
 	if err := dispatchCmd(context.Background(), f.Env(t), []string{"0", "--model", "opus"}, ioDiscard()); err == nil {
 		t.Fatal("zero")
 	}
-	when := time.Now()
+	when := f.now
 	f.hub.on(get("/issues/4"), Issue{Body: "Blocked by #8"})
 	f.hub.on(get("/issues/8"), Issue{State: "open"})
 	f.hub.on(

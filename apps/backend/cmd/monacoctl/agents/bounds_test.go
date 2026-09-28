@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestBounds_killsDispatchSurvivors(t *testing.T) {
@@ -50,7 +49,7 @@ func TestBounds_killsDispatchSurvivors(t *testing.T) {
 	}
 	side := commitFile(t, f.dir, "side.go", "x\n")
 	git(t, f.dir, "update-ref", "refs/heads/fb", "HEAD~1")
-	when := time.Now()
+	when := f.now
 	for _, sha := range []string{side, "not-a-sha"} {
 		f.hub.on(list("/pulls?state=closed"), []PR{{
 			MergedAt: &when, Base: Ref{Ref: "fb"}, Body: "Closes #8", MergeCommitSHA: sha,
