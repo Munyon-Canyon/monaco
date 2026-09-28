@@ -1,0 +1,29 @@
+name: Checkpoint
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  tree-matches:
+    name: Main matches the feature branch
+    if: >-
+      github.event.pull_request.merged &&
+      startsWith(github.event.pull_request.head.ref, 'backend-rewrite') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/ci
+
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          SQUASH: ${{ github.event.pull_request.merge_commit_sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: scripts/ci/checkpoint-tree.sh "$SQUASH" "$HEAD"
