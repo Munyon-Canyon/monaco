@@ -30,7 +30,7 @@ type featureRuleset struct {
 	} `json:"rules"`
 }
 
-func TestFeatureBranchRuleset_gatesTheBranchOnCIAndTheVerifierApp(t *testing.T) {
+func TestFeatureBranchRuleset_gatesTheBranchOnCIPRFormatAndTheVerifierApp(t *testing.T) {
 	out, err := exec.Command("bash", filepath.Join(repoRoot(t), "scripts", "feature-branch.sh"), "ruleset", "backend-rewrite-9").Output()
 	if err != nil {
 		t.Fatalf("feature-branch.sh ruleset: %v", err)
@@ -67,7 +67,7 @@ func TestFeatureBranchRuleset_gatesTheBranchOnCIAndTheVerifierApp(t *testing.T) 
 	for _, c := range checks.Checks {
 		got[c.Context] = c.IntegrationID
 	}
-	if want := map[string]int{"ci / ci-ok": 15368, "verify": 5101392}; !reflect.DeepEqual(got, want) {
+	if want := map[string]int{"ci / ci-ok": 15368, "verify": 5101392, "PR format (title, body and commits)": 15368}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("required checks %v, want %v", got, want)
 	}
 }

@@ -14,18 +14,25 @@ permissions:
 
 jobs:
   pr-format:
-    name: PR format (title and body)
+    name: PR format (title, body and commits)
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Checker unit tests
         run: python3 scripts/test_check_pr_format.py
-      - name: Check title and body
+      - name: Check title, body and commits
         env:
+          GH_TOKEN: ${{ github.token }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: python3 scripts/check-pr-format.py
 
   pr-size:
