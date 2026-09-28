@@ -14,5 +14,5 @@ fi
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 title="$(gh pr view "$pr" --json title --jq .title)"
-PR_TITLE="$title" PR_BODY="$(cat "$file")" python3 "$here/check-pr-format.py" >&2
+PR_TITLE="$title" PR_BODY="$(cat "$file")" python3 "$here/check-pr-format.py" --body-only >&2
 gh pr edit "$pr" --body-file "$file"

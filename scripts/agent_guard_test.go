@@ -356,12 +356,20 @@ exit 0
 		t.Fatalf("gh pr edit ran for a body that fails the format: %q", got)
 	}
 
-	good := filepath.Join(dir, "good.md")
 	var body strings.Builder
 	for _, s := range []string{"TLDR", "Why", "What changed", "Proof", "What came up", "Reviewer focus"} {
 		fmt.Fprintf(&body, "## %s\n\nText.\n\n", s)
 	}
-	if err := os.WriteFile(good, []byte(body.String()), 0o644); err != nil {
+	unlinked := filepath.Join(dir, "unlinked.md")
+	if err := os.WriteFile(unlinked, []byte(body.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := prBody(unlinked); err == nil || !strings.Contains(out, `"## Why" links no ticket`) {
+		t.Fatalf("want a missing ticket link failure, got err=%v out=%q", err, out)
+	}
+	good := filepath.Join(dir, "good.md")
+	linked := strings.Replace(body.String(), "## Why\n\nText.", "## Why\n\nPart of #7.", 1)
+	if err := os.WriteFile(good, []byte(linked), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if out, err := prBody(good); err != nil {
