@@ -188,14 +188,14 @@ func TestMain_generatesInTheWorkingDirOrExitsOneNamingTheError(t *testing.T) {
 	cmd.Dir = root
 	if out, err := cmd.CombinedOutput(); err != nil || len(out) != 0 ||
 		!strings.Contains(readConfig(t, root), "module-alpha:") || strings.Contains(readConfig(t, root), "stale-rule") {
-		t.Fatalf("gen-depguard in %s = %v %q\n%s", root, err, out, readConfig(t, root))
+		t.Fatalf("gen-golangci in %s = %v %q\n%s", root, err, out, readConfig(t, root))
 	}
 
 	missing := filepath.Join(root, "missing")
 	failing := testkit.MainCommand(t, nil, missing)
 	out, _ := failing.CombinedOutput()
 	if code := failing.ProcessState.ExitCode(); code != 1 ||
-		!strings.HasPrefix(string(out), "gen-depguard: read go.mod: ") {
-		t.Fatalf("gen-depguard %s = %d %q", missing, code, out)
+		!strings.HasPrefix(string(out), "gen-golangci: read go.mod: ") {
+		t.Fatalf("gen-golangci %s = %d %q", missing, code, out)
 	}
 }

@@ -35,7 +35,7 @@ func buildTools() (func(), error) {
 	genDepguard = filepath.Join(bin, "gen-depguard")
 	nogoBin = filepath.Join(bin, "nogo")
 	for out, pkg := range map[string]string{
-		genDepguard: "./scripts/gen-depguard",
+		genDepguard: "./scripts/gen-golangci",
 		nogoBin:     "./internal/platform/lint/nogo/cmd/nogo",
 	} {
 		build := exec.CommandContext(context.Background(), "go", "build", "-o", out, pkg)
