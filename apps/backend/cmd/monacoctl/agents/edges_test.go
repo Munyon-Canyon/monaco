@@ -2,6 +2,7 @@ package agents
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -45,7 +46,10 @@ func TestEdges_dispatchBlockersAndProcess(t *testing.T) {
 	}
 	f.hub.on(
 		list("/pulls?state=closed"),
-		[]PR{{MergedAt: &when, Base: Ref{Ref: "fb"}, Body: "Closes #8", MergeCommitSHA: side}},
+		[]PR{
+			{MergedAt: &when, Base: Ref{Ref: "other"}, Body: "no"},
+			{MergedAt: &when, Base: Ref{Ref: "fb"}, Body: "Closes #8", MergeCommitSHA: side},
+		},
 	)
 	git(t, f.dir, "update-ref", "refs/heads/fb", "HEAD")
 	if err := env.blockersClear(context.Background(), 4); err != nil {
@@ -112,65 +116,164 @@ func TestEdges_dispatchBlockersAndProcess(t *testing.T) {
 	}
 }
 
-func TestEdges_uncoveredDispatchAndConflicts(t *testing.T) {
+func TestEdges_watchConflictsStatus(t *testing.T) {
 	t.Parallel()
-	f := prepBranch(t)
+	f := newFixture(t)
 	env := f.Env(t)
-	if code, _, _ := f.agents(t, "conflicts"); code != 2 {
+	if err := watchCmd(context.Background(), env, []string{"x"}, ioDiscard()); err == nil {
 		t.Fatal("usage")
 	}
-	if code, _, _ := f.agents(t, "conflicts", "3"); code != 1 {
-		t.Fatal("pr")
+	writeFile(t, env.Common+"/.monaco/agents", "file")
+	if err := watchCmd(context.Background(), env, nil, ioDiscard()); err == nil {
+		t.Fatal("records")
 	}
-	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "fb")
-	f.hub.on(get("/pulls/3"), headed(3, "dead"))
-	if code, _, _ := f.agents(t, "conflicts", "3"); code != 1 {
-		t.Fatal("sha")
+	if err := os.Remove(env.Common + "/.monaco/agents"); err != nil {
+		t.Fatal(err)
 	}
-	writeFile(t, env.recordPath(40), "{")
-	f.hub.on(get("/pulls/3"), headed(3, f.head(t)))
-	if err := conflictsCmd(context.Background(), env, []string{"3"}, ioDiscard()); err == nil {
-		t.Fatal("bad record")
+	f.owner(t, Record{Ticket: 1, State: Running, Started: time.Now(), Worktree: f.dir})
+	env = f.Env(t)
+	env.Now = time.Now
+	env.Run = func(context.Context, string, string, string, ...string) ([]byte, error) {
+		return nil, failure("git down")
 	}
-	_ = os.Remove(env.recordPath(40))
+	if _, err := env.lastActivity(
+		context.Background(),
+		Record{Ticket: 1, Worktree: f.dir, Started: time.Now()},
+	); err == nil {
+		t.Fatal("commit")
+	}
+	env.Run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
+		if name == "git" && len(args) > 0 && args[0] == "log" {
+			return []byte("nope\n"), nil
+		}
+		if name == "git" {
+			return []byte("topic\n"), nil
+		}
+		return nil, failure("down")
+	}
+	if _, err := env.lastActivity(
+		context.Background(),
+		Record{Ticket: 1, Worktree: f.dir},
+	); err == nil ||
+		!strings.Contains(err.Error(), "commit time") {
+		t.Fatal(err)
+	}
+	env.Run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
+		if name == "git" && len(args) > 3 {
+			return []byte("nope\n"), nil
+		}
+		if name == "git" && len(args) > 0 && args[0] == "log" {
+			return []byte("10\n"), nil
+		}
+		if name == "git" {
+			return []byte("topic\n"), nil
+		}
+		return nil, failure("down")
+	}
+	f.hub.on(get("/issues/1"), Issue{UpdatedAt: time.Now().Add(time.Hour)})
+	later := time.Now().Add(2 * time.Hour)
+	f.hub.on(list("/pulls?state=open"), []PR{{Body: "see #1", UpdatedAt: later}})
+	if _, err := env.lastActivity(
+		context.Background(),
+		Record{Ticket: 1, Started: time.Now(), Worktree: f.dir},
+	); err == nil ||
+		!strings.Contains(err.Error(), "commit time") {
+		t.Fatal(err)
+	}
+	if _, err := env.alive(context.Background(), f.dir); err == nil {
+		t.Fatal("lsof")
+	}
 	var buf strings.Builder
 	files := make([]string, 20)
+	for i := range files {
+		files[i] = "f"
+	}
 	if err := writeRebase(
 		&buf,
 		pr(1, "h", "fb", ""),
-		Record{},
+		Record{Worktree: "w", AgentID: "a"},
 		false,
 		files,
 	); err != nil ||
-		!strings.Contains(buf.String(), "and ") {
+		!strings.Contains(buf.String(), "and 5 more") {
 		t.Fatal(buf.String(), err)
 	}
-	if err := setAgent(env, nil); err == nil {
-		t.Fatal("own usage")
+	if code, _, stderr := f.agents(t, "conflicts"); code != 2 {
+		t.Fatalf("usage %d %q", code, stderr)
 	}
-	if err := setAgent(env, []string{"x", "a"}); err == nil {
-		t.Fatal("own int")
+	if code, _, stderr := f.agents(t, "conflicts", "5"); code != 1 {
+		t.Fatalf("missing %d %q", code, stderr)
 	}
-	env.Run = func(_ context.Context, _ string, _ string, _ string, args ...string) ([]byte, error) {
-		if len(args) > 1 && args[1] == "--verify" {
-			return nil, nil
-		}
-		return nil, failure("merge down")
+	f.hub.on(get("/pulls/5"), headed(5, "missing"))
+	if code, _, stderr := f.agents(t, "conflicts", "5"); code != 1 {
+		t.Fatalf("sha %d %q", code, stderr)
 	}
-	if _, _, err := env.mergeTree(context.Background(), headed(1, "abc")); err == nil {
-		t.Fatal("merge")
+	g := newFixture(t)
+	if _, err := g.Env(t).statusBody(context.Background()); err == nil {
+		t.Fatal("status prs")
 	}
-	miss := newFixture(t)
-	git(t, miss.dir, "commit", "-q", "--allow-empty", "-m", "root")
-	miss.hub.on(get("/issues/4"), Issue{Body: "ready"})
-	miss.hub.on(list("/pulls?state=open"), []PR{})
-	if err := dispatchCmd(
-		context.Background(),
-		miss.Env(t),
-		[]string{"4", "--model", "opus"},
-		ioDiscard(),
-	); err == nil {
+	sha := strings.Repeat("b", 40)
+	g.hub.on(list("/pulls?state=open"), []PR{headed(2, sha)})
+	if _, err := g.Env(t).statusBody(context.Background()); err == nil || !strings.Contains(err.Error(), "check-runs") {
+		t.Fatal(err)
+	}
+	g.hub.on(
+		"GET /repos/o/r/commits/"+sha+"/check-runs?per_page=100",
+		`{"check_runs":[{"name":"other","conclusion":"success"}]}`,
+	)
+	if _, err := g.Env(t).statusBody(context.Background()); err == nil || !strings.Contains(err.Error(), "statuses") {
+		t.Fatal(err)
+	}
+	g.hub.on(list("/commits/"+sha+"/statuses?"), []GHStatus{{Context: "other", State: "pending"}})
+	body, err := g.Env(t).statusBody(context.Background())
+	if err != nil || !strings.Contains(body, "| none | none | none |") {
+		t.Fatal(body, err)
+	}
+	rows := make([]PR, maxLines)
+	for i := range rows {
+		rows[i] = pr(i+1, fmt.Sprintf("h%d", i), "fb", "")
+		rows[i].Head.SHA = sha
+	}
+	g.hub.on(list("/pulls?state=open"), rows)
+	body, err = g.Env(t).statusBody(context.Background())
+	if err != nil || !strings.Contains(body, "and ") {
+		t.Fatal(body, err)
+	}
+	if _, _, err := g.Env(t).statusComment(context.Background()); err == nil {
+		t.Fatal("comments")
+	}
+	if code, _, stderr := g.agents(t, "status", "--publish"); code != 1 {
+		t.Fatalf("status cmd %d %q", code, stderr)
+	}
+}
+
+func TestEdges_remainingBranches(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	env := f.Env(t)
+	if !closes("Closes #2", 2) || closes("nope", 2) || closes("Closes #1", 2) {
+		t.Fatal("closes")
+	}
+	git(t, f.dir, "branch", "-D", "fb")
+	if _, err := env.featureTip(context.Background()); err == nil {
 		t.Fatal("tip")
+	}
+	if _, err := env.ancestor(context.Background(), "HEAD"); err == nil {
+		t.Fatal("ancestor")
+	}
+	git(t, f.dir, "branch", "fb")
+	if err := env.addWorktree(context.Background(), f.dir, "fb"); err == nil {
+		t.Fatal("worktree")
+	}
+	env.Run = func(context.Context, string, string, string, ...string) ([]byte, error) {
+		return nil, failure("ps down")
+	}
+	if _, err := env.caffeinePlan(context.Background(), false); err == nil {
+		t.Fatal("caffeine")
+	}
+	f.hub.on(get("/issues/4"), Issue{Body: "ok"})
+	if err := dispatchCmd(context.Background(), f.Env(t), []string{"4", "--model", "opus"}, ioDiscard()); err == nil {
+		t.Fatal("forecast")
 	}
 	if err := dispatchCmd(context.Background(), f.Env(t), []string{"0", "--model", "opus"}, ioDiscard()); err == nil {
 		t.Fatal("zero")
@@ -183,14 +286,114 @@ func TestEdges_uncoveredDispatchAndConflicts(t *testing.T) {
 		[]PR{{MergedAt: &when, Base: Ref{Ref: "fb"}, Body: "Closes #8", MergeCommitSHA: "missing"}},
 	)
 	if err := f.Env(t).blockersClear(context.Background(), 4); err == nil {
-		t.Fatal("merge sha")
+		t.Fatal("bad merge")
 	}
-	if closes("nope", 1) || !closes("Closes #1", 1) {
-		t.Fatal("closes")
+	env = f.Env(t)
+	future := time.Now().Add(time.Hour).Unix()
+	env.Run = gitStamp(future)
+	f.hub.on(get("/issues/1"), Issue{})
+	f.hub.on(list("/pulls?state=open"), []PR{{Body: "#1", UpdatedAt: time.Now().Add(2 * time.Hour)}})
+	if _, err := env.lastActivity(
+		context.Background(),
+		Record{Ticket: 1, Started: time.Now(), Worktree: f.dir},
+	); err != nil {
+		t.Fatal(err)
 	}
-	bare := newFixture(t)
-	if _, err := bare.Env(t).ancestor(context.Background(), "HEAD"); err == nil {
-		t.Fatal("no ref")
+	f.owner(t, Record{Ticket: 3, State: Running, Started: time.Now(), Worktree: f.dir})
+	env = f.Env(t)
+	env.Now = time.Now
+	env.Run = func(context.Context, string, string, string, ...string) ([]byte, error) {
+		return nil, failure("git down")
+	}
+	if err := watchCmd(context.Background(), env, nil, ioDiscard()); err == nil {
+		t.Fatal("watch activity")
+	}
+	env.Run = f.run
+	writeFile(t, env.recordPath(40), "{")
+	f.hub.on(get("/pulls/6"), headed(6, f.head(t)))
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "fb")
+	if err := conflictsCmd(context.Background(), env, []string{"6"}, ioDiscard()); err == nil {
+		t.Fatal("record")
+	}
+	if err := setAgent(env, []string{"x", "a"}); err == nil {
+		t.Fatal("own")
+	}
+	if err := setAgent(env, []string{"4"}); err == nil {
+		t.Fatal("own usage")
+	}
+	if err := setAgent(env, []string{"5", "a"}); err == nil {
+		t.Fatal("own missing")
+	}
+	h := newFixture(t)
+	if code, _, _ := h.agents(t, "status", "--publish"); code != 1 {
+		t.Fatal("status body")
+	}
+	if code, _, _ := h.agents(t, "dispatch", "4", "--model", "opus", "--dry-run"); code == 0 {
+		t.Fatal("dry")
+	}
+	if err := h.Env(t).writeStatus(context.Background(), 1, true, "x"); err == nil {
+		t.Fatal("patch")
+	}
+	env.Run = func(_ context.Context, _ string, _ string, name string, args ...string) ([]byte, error) {
+		if name == "git" && len(args) > 1 && args[0] == "rev-parse" && args[1] == "--verify" {
+			return []byte("ok\n"), nil
+		}
+		return nil, failure("merge down")
+	}
+	if _, _, err := env.mergeTree(context.Background(), headed(1, "abc")); err == nil {
+		t.Fatal("merge")
+	}
+	env.Run = func(context.Context, string, string, string, ...string) ([]byte, error) {
+		return []byte("10\n"), nil
+	}
+	if _, err := env.lastActivity(
+		context.Background(),
+		Record{Ticket: 99, Started: time.Now(), Worktree: f.dir},
+	); err == nil {
+		t.Fatal("issue")
+	}
+	f.hub.on(get("/issues/99"), Issue{})
+	f.hub.on(list("/pulls?state=open"), "not-json")
+	if _, err := env.lastActivity(
+		context.Background(),
+		Record{Ticket: 99, Started: time.Now(), Worktree: f.dir},
+	); err == nil {
+		t.Fatal("prs")
+	}
+	env.Run = gitStamp(time.Now().Add(24 * time.Hour).Unix())
+	f.hub.on(list("/pulls?state=open"), []PR{})
+	if _, err := env.lastActivity(
+		context.Background(),
+		Record{Ticket: 99, Started: time.Unix(1, 0), Worktree: f.dir},
+	); err != nil {
+		t.Fatal(err)
+	}
+	env.Run = func(_ context.Context, _ string, _ string, name string, args ...string) ([]byte, error) {
+		if len(args) > 0 && args[0] == "rev-parse" {
+			return nil, failure("rev")
+		}
+		return []byte("10\n"), nil
+	}
+	if _, _, err := env.pushTime(context.Background(), f.dir); err == nil {
+		t.Fatal("push")
+	}
+	f.owner(t, Record{Ticket: 8, State: Done, Worktree: f.dir})
+	_ = os.Remove(f.Env(t).recordPath(40))
+	env = f.Env(t)
+	env.Now = time.Now
+	env.Run = func(_ context.Context, _ string, _ string, name string, args ...string) ([]byte, error) {
+		if name == "lsof" {
+			return nil, failure("lsof")
+		}
+		if name == "git" {
+			return []byte("10\n"), nil
+		}
+		return []byte("1\n"), nil
+	}
+	f.hub.on(get("/issues/3"), Issue{})
+	f.hub.on(list("/pulls?state=open"), []PR{})
+	if err := watchCmd(context.Background(), env, nil, ioDiscard()); err == nil {
+		t.Fatal("alive")
 	}
 	tip := f.Env(t)
 	tip.Run = func(_ context.Context, _ string, _ string, _ string, args ...string) ([]byte, error) {
@@ -200,18 +403,41 @@ func TestEdges_uncoveredDispatchAndConflicts(t *testing.T) {
 		return nil, failure("rev down")
 	}
 	if _, err := tip.featureTip(context.Background()); err == nil {
-		t.Fatal("rev")
+		t.Fatal("tip rev")
+	}
+	_ = os.Remove(f.Env(t).recordPath(40))
+	for _, n := range []int{3, 8} {
+		rec, err := f.Env(t).record(n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec.State = Exited
+		if err := f.Env(t).saveRecord(rec); err != nil {
+			t.Fatal(err)
+		}
 	}
 	d := f.Env(t)
-	d.Start = func(string, ...string) error { return nil }
 	d.Run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
 		if name == "ps" {
 			return nil, failure("ps down")
 		}
-		return Exec(ctx, dir, stdin, name, args...)
+		return f.run(ctx, dir, stdin, name, args...)
 	}
 	f.hub.on(get("/issues/4"), Issue{Body: "ready"})
 	f.hub.on(list("/pulls?state=open"), []PR{})
+	miss := newFixture(t)
+	git(t, miss.dir, "commit", "-q", "--allow-empty", "-m", "root")
+	miss.hub.on(get("/issues/4"), Issue{Body: "ready"})
+	miss.hub.on(list("/pulls?state=open"), []PR{})
+	if err := dispatchCmd(
+		context.Background(),
+		miss.Env(t),
+		[]string{"4", "--model", "opus"},
+		ioDiscard(),
+	); err == nil ||
+		!strings.Contains(err.Error(), "fb") {
+		t.Fatal(err)
+	}
 	if err := dispatchCmd(
 		context.Background(),
 		d,
@@ -221,6 +447,8 @@ func TestEdges_uncoveredDispatchAndConflicts(t *testing.T) {
 		!strings.Contains(err.Error(), "ps down") {
 		t.Fatal(err)
 	}
+	d.Run = f.run
+	d.Start = func(string, ...string) error { return nil }
 	d.Run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
 		if name == "ps" {
 			return []byte("1 claude\n"), nil
@@ -231,7 +459,7 @@ func TestEdges_uncoveredDispatchAndConflicts(t *testing.T) {
 		if name == "git" && len(args) > 0 && args[0] == "worktree" {
 			return nil, failure("worktree down")
 		}
-		return Exec(ctx, dir, stdin, name, args...)
+		return f.run(ctx, dir, stdin, name, args...)
 	}
 	if err := dispatchCmd(
 		context.Background(),
@@ -242,23 +470,34 @@ func TestEdges_uncoveredDispatchAndConflicts(t *testing.T) {
 		!strings.Contains(err.Error(), "worktree down") {
 		t.Fatal(err)
 	}
-	if err := setAgent(f.Env(t), []string{"5", "a"}); err == nil {
-		t.Fatal("missing owner")
+	s := newFixture(t)
+	s.hub.on(list("/pulls?state=open"), []PR{})
+	s.hub.on(list("/issues/7/comments?"), []Comment{})
+	if code, _, _ := s.agents(t, "status", "--publish"); code != 1 {
+		t.Fatal("post")
 	}
-	plain := newFixture(t)
-	git(t, plain.dir, "commit", "-q", "--allow-empty", "-m", "root")
-	git(t, plain.dir, "branch", "fb")
-	plain.hub.on(get("/issues/4"), Issue{Body: "ready"})
-	if err := dispatchCmd(
-		context.Background(),
-		plain.Env(t),
-		[]string{"4", "--model", "opus"},
-		ioDiscard(),
-	); err == nil {
-		t.Fatal("forecast")
+	c := prepBranch(t)
+	git(t, c.dir, "update-ref", "refs/remotes/origin/fb", "fb")
+	c.hub.on(get("/pulls/5"), headed(5, "deadbeef"))
+	if code, _, _ := c.agents(t, "conflicts", "5"); code != 1 {
+		t.Fatal("head")
 	}
-	plain.hub.on(get("/pulls/1"), headed(1, "abc"))
-	if code, _, stderr := plain.agents(t, "conflicts", "1"); code != 1 || !strings.Contains(stderr, "origin/fb") {
-		t.Fatalf("no origin %d %q", code, stderr)
+}
+
+func gitStamp(future int64) Runner {
+	return func(_ context.Context, _ string, _ string, name string, args ...string) ([]byte, error) {
+		if name != "git" {
+			return nil, failure("down")
+		}
+		if len(args) > 0 && args[0] == "rev-parse" && len(args) > 2 && args[1] == "--abbrev-ref" {
+			return []byte("topic\n"), nil
+		}
+		if len(args) > 3 {
+			return []byte(fmt.Sprintf("%d\n", future+10)), nil
+		}
+		if len(args) > 0 && args[0] == "log" {
+			return []byte(fmt.Sprintf("%d\n", future)), nil
+		}
+		return []byte("topic\n"), nil
 	}
 }
