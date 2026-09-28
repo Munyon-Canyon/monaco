@@ -876,7 +876,7 @@ Agents in Claude Code on the web or CI install it with `npm install -g @withgrap
 
 ### Rules
 
-- **One PR is one verifiable unit.** It builds, `just test backend` passes, and `just verify backend` passes for the flows it touches, all without the PRs above it. A PR that only makes sense with the next one gets merged with it.
+- **One PR is one verifiable unit.** It builds and passes the checks its changed paths require ([Verification scope](#verification-scope)), all without the PRs above it. For `apps/backend/**` that is `just test backend`, and `just verify backend` for the flows it touches. A PR that only makes sense with the next one gets merged with it.
 - **Order a stack so each PR proves the next.** Delete or rename first. Then schema and migration. Then `domain` and `app` with their tests. Then adapters and HTTP. Last, the `flows.tsv` status change with its evidence. The Rollout steps below are each one stack, not one PR.
 - **Size limit: under 1000 changed lines.** CI fails a PR at 1000 or more changed lines, counting added plus deleted lines in hand-written code, tests and docs. A pure rename counts as zero. Generated Go, `go.sum`, lockfiles, images, `testdata`, evidence files and rendered reference docs don't count; the list is `IGNORED` in `scripts/check-pr-size.py`. A human reviewer can add the `large-pr` label to let an oversized PR through, for example a mechanical change such as a rename; an agent adds it only when a human says to.
 - **Split a branch that grew too big.** When work piled up on one branch or at the top of a stack, split it before submitting. The `distribute-stack-changes` skill does it by copying exact hunks onto the lowest branch that owns each behavior, restacking after each commit, and checking the top branch has zero diff from a saved reference. It never rewrites the work. `gt split --by-hunk` does the same by hand. The skill lives in each person's `~/.agents/skills`, not in the repo.
@@ -894,6 +894,25 @@ Agents in Claude Code on the web or CI install it with `npm install -g @withgrap
 - **Force-push only after checking the remote.** `gt submit --force` overwrites the remote branch. First confirm the remote has no commits the local stack lacks: `git log --oneline <local>..origin/<branch>` prints nothing. On 2026-09-27 a restack found a remote branch whose hash differed from the local one; the patch was identical, and that check is what proved it safe.
 - **Merge bottom-up.** Merge the lowest PR first, in the Graphite UI or its merge queue, and let Graphite rebase the rest. Never merge a PR whose base is not `main`.
 - **Describe each PR on its own.** A reviewer reads one PR, not the stack, so each body stands alone and links its neighbours only for context.
+
+### Verification scope
+
+A PR runs every check its changed paths can affect, and no others. A mixed change runs the union of its rows. Inside that set nothing is skipped or shrunk unless the user says so in the current message. A path that is in no row, or whose readers are unclear, counts as code: grep for what reads it, and if still in doubt run the wider set. CI makes the same choice per job in the `ci / Plan` filters ([ci.md](ci.md)).
+
+| Changed paths | Checks |
+| --- | --- |
+| `*.md` outside `docs/`, `AGENTS.md`, `.claude/**` except `.claude/hooks/**`, `.cursor/**` | None. Reread the diff. |
+| `docs/**`, including the generated `docs/reference/**`; `mkdocs.yml` | `mkdocs build --strict` when it is installed; otherwise the docs CI job covers it. |
+| A shell script nothing runs: not the Justfile, CI, a hook or a `scripts/*_test.go` (for example `scripts/cloud-setup.sh`) | `bash -n` and `shellcheck`. |
+| `scripts/**` read by a `scripts/*_test.go`, `scripts/githooks/**`, `Justfile`, `.claude/hooks/**` | `cd scripts && go test -short ./...` |
+| `scripts/check-pr-*.py`, `scripts/pr-body.sh` | `python3 -m unittest discover -s scripts -p 'test_check_pr_*.py'` |
+| `apps/backend/**`, `scripts/test-backend.sh`, `scripts/ci/**`, `scripts/install-{atlas,sqlc}.sh`, `scripts/gen-docs.sh`, `docker-compose.yml` | `just test backend`, and `just verify backend` for the flows it touches. |
+| `packages/mobile-core/**` | `just test mobile` |
+| `apps/backend/api/openapi.yaml` | `just test backend` and `just test mobile` |
+| `apps/mobile/**` | `just test mobile`, `just build mobile`, gold-sim QA |
+| `.github/**` | The actionlint step in `ci / Plan` runs it; run `rhysd/actionlint` locally when Docker is up. |
+
+The PR's Proof section lists the commands its rows require and what they printed. A PR with no checks says `No code paths affected:` and names the paths.
 
 ### Enforcement
 
