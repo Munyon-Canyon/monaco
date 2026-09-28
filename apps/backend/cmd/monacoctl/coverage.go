@@ -236,3 +236,7 @@ func (c coverage) report(module string, exclude []string, w io.Writer) int {
 	_, _ = fmt.Fprintf(w, "coverage: %.2f%% of %d statements\n", pct, total)
 	return uncovered
 }
+
+func toolCoverage(_ toolEnv) tool {
+	return coverageEnv{moduleDir: ".", goBin: "go", tmpDir: os.TempDir()}.run
+}

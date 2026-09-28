@@ -185,3 +185,5 @@ func (r report) overBudget(b budget) []string {
 	}
 	return over
 }
+
+func toolTestReport(_ toolEnv) tool { return testReportCmd }

@@ -87,7 +87,7 @@ func run(ctx context.Context, stderr io.Writer, environ []string, meters metric.
 		return err
 	}
 	defer pool.Close()
-	stopBus, err := startBus(ctx, conn, pool)
+	stopBus, err := startBus(ctx, cfg, conn, pool)
 	if err != nil {
 		return err
 	}
@@ -127,11 +127,9 @@ func startRelay(
 	}, nil
 }
 
-func consumers() []bus.Consumer { return nil }
-
-func startBus(ctx context.Context, conn *bus.Conn, pool *pgxpool.Pool) (func() error, error) {
+func startBus(ctx context.Context, cfg config.Config, conn *bus.Conn, pool *pgxpool.Pool) (func() error, error) {
 	uow := db.New(pool, ids.Real{}, clock.Real{})
-	stopConsumers, err := startConsumers(ctx, conn, uow, clock.Real{}, consumers())
+	stopConsumers, err := startConsumers(ctx, conn, uow, clock.Real{}, registered.consumers(cfg))
 	if err != nil {
 		return nil, err
 	}

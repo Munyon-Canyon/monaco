@@ -76,7 +76,7 @@ internal/modules/governance/
 ├── domain/        Proposal, Vote, Tally(), status machine. Pure. No ctx, no I/O, no errors from infra.
 ├── app/           commands + queries (use cases). Defines the ports it needs.
 ├── adapters/      postgres repo (sqlc), http handlers (oapi-codegen strict server), consumers
-└── module.go      New(deps) → *Module; registers routes and consumers
+└── module.go      New(deps) → *Module; registers routes. `Consumers(config.Config)` feeds cmd/worker through generated per-module files
 ```
 
 ### Dependency rules (enforced by `depguard`)
@@ -256,7 +256,7 @@ Three records exist, and each answers a different question. The `events` table i
 
 ### Rules
 
-1. **Structured only, stable names.** slog with `attr-only`, `static-msg`, `context: all` (`sloglint`). The message is an identifier, `treasury.fund.rejected`, never a sentence with values in it. Values are attrs. A message name is registered in `internal/observability/msgs.go` next to the attrs it requires, and a test fails on a call site that logs an unregistered name or omits a required attr. That registry is also the log catalog page in the docs.
+1. **Structured only, stable names.** slog with `attr-only`, `static-msg`, `context: all` (`sloglint`). The message is an identifier, `treasury.fund.rejected`, never a sentence with values in it. Values are attrs. A message name is declared in a `msgs_<area>.go` file in `internal/platform/observability` next to the attrs it requires, and `go generate` registers it. A test fails on a call site that logs an unregistered name or omits a required attr. That registry is also the log catalog page in the docs.
 2. **Every line carries the join keys.** `trace_id`, `span_id`, `request_id` or `event_id`, `actor`, `module`, `op`. The context logger adds them; a handler never types them. `sloglint context: all` means a call site cannot get a logger without the context.
 3. **Log the decision, not the step.** One line where a branch chooses: a guard refused (the code and the numbers it compared, `have=4_000_000 need=5_000_000`), a retry was scheduled (`attempt=3 delay=30s cause=JupiterUnavailable`), a consumer skipped a duplicate (`event_id delivery=2`), a poller tick found nothing. Inaction is evidence. "Deposit poller ran at 10:04:10, scanned 212 wallets, found 0" is the line that proves a missing deposit was not the poller's fault.
 4. **Money lines carry before and after.** Any line about a balance, share count or position has `before`, `after`, `delta`, `asset`, `cabal_id`. The ledger's history can be read from logs alone.

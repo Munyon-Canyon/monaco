@@ -230,7 +230,10 @@ linters:
       - path: ^internal/platform/lint/nogo/
         linters: [nilnil]
       # The log message registry is package-level so call sites name a Msg and the registry test can read it.
-      - path: ^internal/platform/observability/msgs\.go$
+      - path: ^internal/platform/observability/msgs(_\w+)?\.go$
+        linters: [gochecknoglobals]
+      # Generated per-file init functions add each tool or module's consumers here, so no shared list conflicts.
+      - path: ^cmd/(monacoctl|worker)/registry\.go$
         linters: [gochecknoglobals]
       # MONACO_FAULTPOINT arms a crash point for the whole process, so the armed name is process state.
       - path: ^internal/platform/faultpoint/hit_on\.go$

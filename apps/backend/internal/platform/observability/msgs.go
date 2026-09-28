@@ -16,67 +16,10 @@ type Msg struct {
 	Required []string
 }
 
-var (
-	BootConfig    = Msg{Name: "boot.config", Required: []string{"service", "config"}}
-	BootListening = Msg{Name: "boot.listening", Required: []string{"service", "addr"}}
-	BootStopped   = Msg{Name: "boot.stopped", Required: []string{"service", "err"}}
-	DBLockLost    = Msg{Name: "db.lock.lost", Required: []string{"lock", "held", "err"}}
-	HTTPRetry     = Msg{Name: "httpclient.retry", Required: []string{"upstream", "attempt", "status", "delay"}}
-	HTTPRequest   = Msg{Name: "http.request", Required: []string{"method", "route", "status", "duration_ms"}}
-	HTTPProblem   = Msg{Name: "http.problem", Required: []string{"code", "status", "err", "alert"}}
-	PollerTick    = Msg{Name: "poller.tick", Required: []string{"poller", "scanned", "changed", "duration_ms"}}
-	PollerFailed  = Msg{Name: "poller.tick.failed", Required: []string{"poller", "code", "err", "alert"}}
-	PollerSkipped = Msg{Name: "poller.tick.skipped_locked", Required: []string{"poller"}}
-	TxCommitted   = Msg{Name: "tx.committed", Required: []string{"event_ids", "attempt"}}
-	TxRolledBack  = Msg{Name: "tx.rolled_back", Required: []string{"code", "attempt"}}
-	TxRetry       = Msg{Name: "tx.retry", Required: []string{"code", "attempt", "delay"}}
+var registry []Msg
 
-	BusRelayTick          = Msg{Name: "bus.relay.tick", Required: []string{"count", "first_id", "last_id"}}
-	BusRelayIdle          = Msg{Name: "bus.relay.idle"}
-	BusRelayPublishFailed = Msg{Name: "bus.relay.publish_failed", Required: []string{"code", "err"}}
-	BusRelayFailed        = Msg{Name: "bus.relay.failed", Required: []string{"code", "err"}}
-	BusDispatched         = Msg{Name: "bus.dispatched", Required: []string{"handler", "subject", "outcome", "code"}}
-	BusConsumeError       = Msg{Name: "bus.consume_error", Required: []string{"consumer", "err"}}
-	BusRespondFailed      = Msg{Name: "bus.respond_failed", Required: []string{"verdict", "err"}}
-	BusDeadLetterDropped  = Msg{
-		Name:     "bus.deadletter_dropped",
-		Required: []string{"consumer", "msg_id", "err"},
-	}
-)
-
-var (
-	HTTPIdempotencyReplayed    = Msg{Name: "http.idempotency.replayed", Required: []string{"idempotency_key", "status"}}
-	HTTPIdempotencyReleased    = Msg{Name: "http.idempotency.released", Required: []string{"idempotency_key", "status"}}
-	HTTPIdempotencyStoreFailed = Msg{
-		Name: "http.idempotency.store_failed", Required: []string{"idempotency_key", "status", "err"},
-	}
-)
-
-var registry = []Msg{
-	BootConfig,
-	BootListening,
-	BootStopped,
-	DBLockLost,
-	HTTPRetry,
-	HTTPRequest,
-	HTTPProblem,
-	PollerTick,
-	PollerFailed,
-	PollerSkipped,
-	TxCommitted,
-	TxRolledBack,
-	TxRetry,
-	BusRelayTick,
-	BusRelayIdle,
-	BusRelayPublishFailed,
-	BusRelayFailed,
-	HTTPIdempotencyReplayed,
-	HTTPIdempotencyReleased,
-	HTTPIdempotencyStoreFailed,
-	BusDispatched,
-	BusConsumeError,
-	BusRespondFailed,
-	BusDeadLetterDropped,
+func register(msgs ...Msg) {
+	registry = append(registry, msgs...)
 }
 
 func WithLogger(ctx context.Context, l *slog.Logger) context.Context {
