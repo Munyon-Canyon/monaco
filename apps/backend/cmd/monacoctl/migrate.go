@@ -156,3 +156,7 @@ func (a atlas) pinned(stderr io.Writer) bool {
 	}
 	return true
 }
+
+func toolMigrate(env toolEnv) tool {
+	return locatedMigrateTool(env.environ, env.wd, filepath.Dir(env.exe))
+}

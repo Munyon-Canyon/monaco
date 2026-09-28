@@ -78,3 +78,5 @@ func markerLine(lines []string, marker string) int {
 	}
 	return found
 }
+
+func toolGen(_ toolEnv) tool { return gen }

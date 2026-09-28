@@ -86,3 +86,5 @@ func errorTable(codes []errs.Code) string {
 	}
 	return b.String()
 }
+
+func toolDocs(_ toolEnv) tool { return docs }

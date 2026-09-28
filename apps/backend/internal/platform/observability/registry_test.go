@@ -20,38 +20,40 @@ const (
 	moduleRoot        = "../../.."
 )
 
-func parseRegistry(t *testing.T) (map[string]Msg, []string) {
+func parseRegistry(t *testing.T) map[string]Msg {
 	t.Helper()
-	f, err := parser.ParseFile(token.NewFileSet(), "msgs.go", nil, parser.SkipObjectResolution)
+	names, err := filepath.Glob("msgs_*.go")
 	if err != nil {
 		t.Fatal(err)
 	}
 	vars := map[string]Msg{}
-	var listed []string
+	for _, name := range names {
+		if strings.HasSuffix(name, "_test.go") || strings.HasSuffix(name, ".gen.go") {
+			continue
+		}
+		f, err := parser.ParseFile(token.NewFileSet(), name, nil, parser.SkipObjectResolution)
+		if err != nil {
+			t.Fatal(err)
+		}
+		readVars(t, f, vars)
+	}
+	return vars
+}
+
+func readVars(t *testing.T, f *ast.File, vars map[string]Msg) {
+	t.Helper()
 	for _, decl := range f.Decls {
-		if gen, ok := decl.(*ast.GenDecl); ok && gen.Tok == token.VAR {
-			for _, spec := range gen.Specs {
-				listed = append(listed, readVarSpec(t, spec.(*ast.ValueSpec), vars)...)
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.VAR {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			vs := spec.(*ast.ValueSpec)
+			for i, id := range vs.Names {
+				vars[id.Name] = msgLiteral(t, vs.Values[i].(*ast.CompositeLit))
 			}
 		}
 	}
-	return vars, listed
-}
-
-func readVarSpec(t *testing.T, vs *ast.ValueSpec, vars map[string]Msg) []string {
-	t.Helper()
-	var listed []string
-	for i, name := range vs.Names {
-		lit := vs.Values[i].(*ast.CompositeLit)
-		if name.Name != "registry" {
-			vars[name.Name] = msgLiteral(t, lit)
-			continue
-		}
-		for _, elt := range lit.Elts {
-			listed = append(listed, elt.(*ast.Ident).Name)
-		}
-	}
-	return listed
 }
 
 func msgLiteral(t *testing.T, lit *ast.CompositeLit) Msg {
@@ -188,30 +190,31 @@ func (c callSiteChecker) check(f *ast.File) []string {
 	return findings
 }
 
-func TestRegistry_listsEveryMessageOnceWithUniqueNames(t *testing.T) {
+func TestRegistry_holdsEveryDeclaredMessageOnceWithUniqueNames(t *testing.T) {
 	t.Parallel()
-	vars, listed := parseRegistry(t)
-	declared := make([]string, 0, len(vars))
-	for name := range vars {
-		declared = append(declared, name)
+	declared := make([]string, 0, len(parseRegistry(t)))
+	for _, m := range parseRegistry(t) {
+		declared = append(declared, m.Name)
+	}
+	registered := make([]string, 0, len(registry))
+	for _, m := range registry {
+		registered = append(registered, m.Name)
 	}
 	slices.Sort(declared)
-	if sorted := slices.Sorted(slices.Values(listed)); !slices.Equal(sorted, declared) {
-		t.Fatalf("registry lists %v, msgs.go declares %v; every Msg var must be listed exactly once", sorted, declared)
+	if slices.Sort(registered); !slices.Equal(registered, declared) {
+		t.Fatalf("registry holds %v, msgs_*.go declares %v; run go generate ./...", registered, declared)
 	}
 	valid := regexp.MustCompile(`^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$`)
-	seen := map[string]bool{}
-	for _, m := range registry {
-		if seen[m.Name] || !valid.MatchString(m.Name) {
-			t.Errorf("message name %q is duplicated or not a dotted lower_snake identifier", m.Name)
+	for i, name := range registered {
+		if i > 0 && registered[i-1] == name || !valid.MatchString(name) {
+			t.Errorf("message name %q is duplicated or not a dotted lower_snake identifier", name)
 		}
-		seen[m.Name] = true
 	}
 }
 
 func TestRegistry_everyCallSiteInTheModuleIsRegistered(t *testing.T) {
 	t.Parallel()
-	vars, _ := parseRegistry(t)
+	vars := parseRegistry(t)
 	c := callSiteChecker{fset: token.NewFileSet(), vars: vars}
 	var findings []string
 	err := filepath.WalkDir(moduleRoot, func(path string, d fs.DirEntry, err error) error {
@@ -235,14 +238,16 @@ func TestRegistry_everyCallSiteInTheModuleIsRegistered(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(findings) > 0 {
-		t.Fatalf("log calls that break the message registry (register the Msg in msgs.go and pass its attrs):\n%s",
-			strings.Join(findings, "\n"))
+		t.Fatalf(
+			"log calls that break the message registry (declare the Msg in a msgs_*.go file and pass its attrs):\n%s",
+			strings.Join(findings, "\n"),
+		)
 	}
 }
 
 func TestRegistryCheck_flagsPlantedViolations(t *testing.T) {
 	t.Parallel()
-	vars, _ := parseRegistry(t)
+	vars := parseRegistry(t)
 	c := callSiteChecker{fset: token.NewFileSet(), vars: vars}
 	f, err := parser.ParseFile(c.fset, "testdata/registry/planted.go", nil, parser.SkipObjectResolution)
 	if err != nil {

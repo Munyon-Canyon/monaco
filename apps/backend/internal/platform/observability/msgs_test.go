@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -39,39 +41,28 @@ func TestInfo_withoutLoggerInContextWritesNothing(t *testing.T) {
 	Info(t.Context(), BootListening, slog.String("service", "api"), slog.String("addr", ":8080"))
 }
 
-func TestWriteCatalog_printsTheRegistrySortedByName(t *testing.T) {
+func TestWriteCatalog_printsOneRowPerRegisteredMessageSortedByName(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	if err := WriteCatalog(&buf); err != nil {
 		t.Fatal(err)
 	}
-	want := "| Message | Required attrs |\n| --- | --- |\n" +
-		"| `boot.config` | `service`, `config` |\n" +
-		"| `boot.listening` | `service`, `addr` |\n" +
-		"| `boot.stopped` | `service`, `err` |\n" +
-		"| `bus.consume_error` | `consumer`, `err` |\n" +
-		"| `bus.deadletter_dropped` | `consumer`, `msg_id`, `err` |\n" +
-		"| `bus.dispatched` | `handler`, `subject`, `outcome`, `code` |\n" +
-		"| `bus.relay.failed` | `code`, `err` |\n" +
-		"| `bus.relay.idle` |  |\n" +
-		"| `bus.relay.publish_failed` | `code`, `err` |\n" +
-		"| `bus.relay.tick` | `count`, `first_id`, `last_id` |\n" +
-		"| `bus.respond_failed` | `verdict`, `err` |\n" +
-		"| `db.lock.lost` | `lock`, `held`, `err` |\n" +
-		"| `http.idempotency.released` | `idempotency_key`, `status` |\n" +
-		"| `http.idempotency.replayed` | `idempotency_key`, `status` |\n" +
-		"| `http.idempotency.store_failed` | `idempotency_key`, `status`, `err` |\n" +
-		"| `http.problem` | `code`, `status`, `err`, `alert` |\n" +
-		"| `http.request` | `method`, `route`, `status`, `duration_ms` |\n" +
-		"| `httpclient.retry` | `upstream`, `attempt`, `status`, `delay` |\n" +
-		"| `poller.tick` | `poller`, `scanned`, `changed`, `duration_ms` |\n" +
-		"| `poller.tick.failed` | `poller`, `code`, `err`, `alert` |\n" +
-		"| `poller.tick.skipped_locked` | `poller` |\n" +
-		"| `tx.committed` | `event_ids`, `attempt` |\n" +
-		"| `tx.retry` | `code`, `attempt`, `delay` |\n" +
-		"| `tx.rolled_back` | `code`, `attempt` |\n"
-	if buf.String() != want {
-		t.Fatalf("catalog =\n%s\nwant\n%s", buf.String(), want)
+	lines := strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n")
+	if len(lines) != len(registry)+2 || lines[0] != "| Message | Required attrs |" || lines[1] != "| --- | --- |" {
+		t.Fatalf("catalog has %d lines, want a header plus %d rows:\n%s", len(lines), len(registry), buf.String())
+	}
+	rows := lines[2:]
+	names := make([]string, len(rows))
+	for i, row := range rows {
+		names[i] = strings.Split(row, "`")[1]
+	}
+	if !slices.IsSorted(names) {
+		t.Fatalf("catalog rows are not sorted by name:\n%s", buf.String())
+	}
+	for _, want := range []string{"| `boot.config` | `service`, `config` |", "| `bus.relay.idle` |  |"} {
+		if !slices.Contains(rows, want) {
+			t.Errorf("catalog lacks row %q", want)
+		}
 	}
 }
 

@@ -135,3 +135,5 @@ func isFresh(ctx context.Context, dir, module, sha string) (bool, error) {
 		return false, errs.Wrap(err, errs.CodeInternal, op)
 	}
 }
+
+func toolFlows(_ toolEnv) tool { return flowsCmd }

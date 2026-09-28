@@ -40,3 +40,5 @@ func busUsage(stderr io.Writer) int {
 	_, _ = fmt.Fprintln(stderr, "usage: monacoctl bus apply")
 	return 2
 }
+
+func toolBus(env toolEnv) tool { return busTool(env.environ) }

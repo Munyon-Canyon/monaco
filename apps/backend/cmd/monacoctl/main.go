@@ -5,14 +5,13 @@ import (
 	"io"
 	"maps"
 	"os"
-	"path/filepath"
 	"slices"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
-	"github.com/monaco/monaco/apps/backend/internal/platform/lint/comments"
 )
 
 //go:generate go run ../../scripts/gen-golangci ../..
+//go:generate go run ../../scripts/gen-registry ../..
 //go:generate go run . gen errors ../../api/openapi.yaml
 
 type command func(cfg config.Config, args []string, stdout, stderr io.Writer) int
@@ -24,32 +23,14 @@ func commands() map[string]command {
 }
 
 func tools(environ []string) map[string]tool {
-	gremlinsBin, _ := filepath.Abs("../../.bin/gremlins")
 	wd, _ := os.Getwd()
 	exe, _ := os.Executable()
-	return map[string]tool{
-		"bench":    bench{"go"}.run,
-		"bus":      busTool(environ),
-		"coverage": coverageEnv{moduleDir: ".", goBin: "go", tmpDir: os.TempDir()}.run,
-		"docs":     docs,
-		"flows":    flowsCmd,
-		"gen":      gen,
-		"migrate":  locatedMigrateTool(environ, wd, filepath.Dir(exe)),
-		"mutation": mutationTool(
-			mutationEnv{
-				moduleDir: ".",
-				goBin:     "go",
-				gitBin:    "git",
-				gremlins:  gremlinsBin,
-				tmpDir:    os.TempDir(),
-				exec:      runCommand,
-			},
-		),
-		"test-report": testReportCmd,
-		"lint": func(args []string, stdout, stderr io.Writer) int {
-			return run(nil, map[string]tool{"comments": comments.Run}, nil, args, stdout, stderr)
-		},
+	env := toolEnv{environ: environ, wd: wd, exe: exe}
+	out := make(map[string]tool, len(toolFactories))
+	for name, factory := range toolFactories {
+		out[name] = factory(env)
 	}
+	return out
 }
 
 func main() {

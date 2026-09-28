@@ -82,3 +82,5 @@ func benchReport(r io.Reader) (string, error) {
 	return fmt.Sprintf("bench db: %d parallel testkit.DB tests in %.2f s, %.1f ms per test amortized",
 		tests, d.Seconds(), float64(d.Microseconds())/1000/float64(tests)), nil
 }
+
+func toolBench(_ toolEnv) tool { return bench{"go"}.run }

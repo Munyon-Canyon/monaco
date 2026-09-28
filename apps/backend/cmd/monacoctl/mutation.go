@@ -331,3 +331,15 @@ func readAllow(r io.Reader) (map[string]bool, error) {
 	}
 	return allowed, nil
 }
+
+func toolMutation(_ toolEnv) tool {
+	gremlinsBin, _ := filepath.Abs("../../.bin/gremlins")
+	return mutationTool(mutationEnv{
+		moduleDir: ".",
+		goBin:     "go",
+		gitBin:    "git",
+		gremlins:  gremlinsBin,
+		tmpDir:    os.TempDir(),
+		exec:      runCommand,
+	})
+}
