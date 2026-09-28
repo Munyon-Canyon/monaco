@@ -147,14 +147,16 @@ jobs:
           filters: |
             backend:
               - 'apps/backend/**'
-              - 'scripts/ci/**'
+              - 'scripts/ci/ready.sh'
+              - 'scripts/ci/oasdiff-*'
               - 'scripts/install-atlas.sh'
               - 'scripts/install-sqlc.sh'
               - 'scripts/gen-docs.sh'
               - '.github/actions/backend-test-env/**'
               - 'docs/reference/**'
-              - '.github/workflows/ci*.yml'
-              - '.github/workflows/mutation.yml'
+            workflows:
+              - '.github/workflows/**'
+              - '.github/actions/**'
             backend-go:
               - 'apps/backend/**/*.go'
               - 'apps/backend/go.mod'
@@ -174,6 +176,11 @@ jobs:
               - 'scripts/qa/screens.sh'
               - 'scripts/qa/sample-screens.txt'
               - '.github/workflows/ci-ios.yml'
+
+      # A workflow-only change runs this lint, not the jobs the workflow defines.
+      - name: Lint workflows
+        if: steps.filter.outputs.workflows == 'true'
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12
 
       - if: steps.filter.outputs.web == 'true'
         uses: actions/setup-node@v4
