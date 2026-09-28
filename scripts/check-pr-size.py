@@ -20,6 +20,7 @@ OVERRIDE_LABEL = "large-pr"
 IGNORED = [
     "*.gen.go",
     "*_gen.go",
+    "apps/backend/.golangci.yml",
     "*.pb.go",
     "go.sum",
     "*/go.sum",

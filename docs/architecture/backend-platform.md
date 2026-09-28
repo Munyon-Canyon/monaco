@@ -9,7 +9,7 @@
 3. **Clean Architecture, three rings, enforced by lint.** `domain` (pure) ← `app` (use cases, ports) ← `adapters` (Postgres, NATS, Jupiter, Privy, HTTP). Import direction is checked in CI by `depguard`, not by review.
 4. **Go channels are in-process only. NATS is the only cross-module path.** "NATS channel based" means JetStream subjects between modules, and bounded Go-channel pipelines inside one handler. Never a Go channel as a substitute for the bus.
 5. **Contracts are generated, not hand-written.** OpenAPI 3.1 spec is the source of truth for the iOS contract (Go server stubs via `oapi-codegen`, Swift client via `swift-openapi-generator`). SQL is the source of truth for rows (`sqlc`). Event payloads are Go types in one `events` package with a subject registry. Every payload carries a `v` field, and a breaking payload change bumps it.
-6. **Harsh `golangci-lint` v2, no inline `//nolint`, no comments.** Exceptions live in `.golangci.yml` with a reason. Hand-written Go carries only machine-read comments. Custom `forbidigo` rules encode Monaco-specific bans (floats for money, `time.Now` in domain, `context.Background` outside `main`).
+6. **Harsh `golangci-lint` v2, no inline `//nolint`, no comments.** Exceptions live in `.golangci.base.yml` or in a module's own `internal/modules/<m>/lint.yml`, each with a reason. `scripts/gen-golangci` renders both into `.golangci.yml`, which is generated. Hand-written Go carries only machine-read comments. Custom `forbidigo` rules encode Monaco-specific bans (floats for money, `time.Now` in domain, `context.Background` outside `main`).
 
 ## Why
 
@@ -26,7 +26,7 @@ Takes `cmd/`, `internal/`, `api/`, `migrations/`, `deployments/`, `scripts/`, `d
 apps/backend/
 ├── AGENTS.md                      hard rules for agents (short; points at lints)
 ├── CHANGELOG.md                   Keep a Changelog, human-written
-├── .golangci.yml
+├── .golangci.base.yml             hand-written lint config; .golangci.yml is generated from it
 ├── go.mod                         go 1.25+, toolchain pinned
 ├── api/
 │   └── openapi.yaml               source of truth for HTTP contract

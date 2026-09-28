@@ -17,7 +17,7 @@ func TestMain(m *testing.M) {
 
 var (
 	backendRoot string
-	genDepguard string
+	genGolangci string
 	nogoBin     string
 )
 
@@ -32,10 +32,10 @@ func buildTools() (func(), error) {
 	}
 	cleanup := func() { _ = os.RemoveAll(bin) }
 	backendRoot = root
-	genDepguard = filepath.Join(bin, "gen-depguard")
+	genGolangci = filepath.Join(bin, "gen-golangci")
 	nogoBin = filepath.Join(bin, "nogo")
 	for out, pkg := range map[string]string{
-		genDepguard: "./scripts/gen-golangci",
+		genGolangci: "./scripts/gen-golangci",
 		nogoBin:     "./internal/platform/lint/nogo/cmd/nogo",
 	} {
 		build := exec.CommandContext(context.Background(), "go", "build", "-o", out, pkg)

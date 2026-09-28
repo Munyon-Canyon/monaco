@@ -1,0 +1,4 @@
+- path: ^internal/modules/alpha/app/print\.go$
+  linters: [forbidigo]
+  text: use slog
+  reason: the fixture proves a module exclusion reaches golangci-lint
