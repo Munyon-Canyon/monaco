@@ -107,7 +107,11 @@ func parseVerdict(args []string) (verdictIn, error) {
 		return verdictIn{}, usageError(use)
 	}
 	if in.model == "fable" {
-		return verdictIn{}, detailErr(errs.CodeInvalidInput, "monacoctl.agents.verdict", "fable is not a verifier model")
+		return verdictIn{}, detailErr(
+			errs.CodeInvalidInput,
+			"monacoctl.agents.verdict",
+			"fable is not a verifier model",
+		)
 	}
 	return in, nil
 }
@@ -136,7 +140,11 @@ func flagPairs(args []string, use string) (map[string]string, error) {
 func checkVerdict(in verdictIn, pr PR, p Plan) error {
 	switch {
 	case p.NoOwner != "":
-		return detailErr(errs.CodeInvalidInput, "monacoctl.agents.verdict", fmt.Sprintf("owner record: %s", p.NoOwner))
+		return detailErr(
+			errs.CodeInvalidInput,
+			"monacoctl.agents.verdict",
+			"owner record: "+p.NoOwner,
+		)
 	case in.model == p.Owner:
 		return detailErr(errs.CodeInvalidInput, "monacoctl.agents.verdict", "verifier model equals the owner")
 	case in.sha != pr.Head.SHA:

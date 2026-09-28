@@ -2,7 +2,7 @@ package agents
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -142,7 +142,7 @@ func TestDispatch_acceptsAClosedIssueAndAMergedPull(t *testing.T) {
 	f.ps("1 claude\n")
 	env := f.Env(t)
 	env.Run = f.run
-	env.Start = func(string, ...string) error { return fmt.Errorf("caffeinate down") }
+	env.Start = func(string, ...string) error { return errors.New("caffeinate down") }
 	if err := dispatchCmd(
 		context.Background(),
 		env,
@@ -287,7 +287,7 @@ func (f *fixture) ps(out string) {
 			return []byte(out), nil
 		}
 		if name == "pgrep" {
-			return nil, fmt.Errorf("none")
+			return nil, errors.New("none")
 		}
 		return prev(ctx, dir, stdin, name, args...)
 	}
@@ -301,7 +301,7 @@ func (f *fixture) watchGit(branch, stamp, alive string) {
 			if alive == "pgrep" {
 				return []byte("1\n"), nil
 			}
-			return nil, fmt.Errorf("none")
+			return nil, errors.New("none")
 		case "lsof":
 			if alive == "pgrep" {
 				return []byte("n/somewhere/else\n"), nil
@@ -313,7 +313,7 @@ func (f *fixture) watchGit(branch, stamp, alive string) {
 			}
 			if len(args) > 0 && args[0] == "log" {
 				if len(args) > 3 && args[3] == "origin/"+branch {
-					return nil, fmt.Errorf("no origin")
+					return nil, errors.New("no origin")
 				}
 				return []byte(stamp + "\n"), nil
 			}

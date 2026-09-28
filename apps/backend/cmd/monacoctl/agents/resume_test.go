@@ -2,7 +2,7 @@ package agents
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -175,7 +175,7 @@ func TestResume_gitDetailsAndAnEmptyTrail(t *testing.T) {
 			return []byte("\n"), nil
 		}
 		if name == "git" && len(args) > 1 && args[1] == "--abbrev-ref" {
-			return nil, fmt.Errorf("no branch")
+			return nil, errors.New("no branch")
 		}
 		return Exec(ctx, dir, stdin, name, args...)
 	}
@@ -187,7 +187,7 @@ func TestResume_gitDetailsAndAnEmptyTrail(t *testing.T) {
 	}
 	env.Run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
 		if name == "git" && len(args) > 0 && args[0] == "status" {
-			return nil, fmt.Errorf("no status")
+			return nil, errors.New("no status")
 		}
 		return Exec(ctx, dir, stdin, name, args...)
 	}
@@ -223,7 +223,7 @@ func TestFailLog_writesTheFullOutputUnderGitAndReportsABlockedPath(t *testing.T)
 	dir := t.TempDir()
 	env := &Env{Common: dir, Config: Config{Milestone: "m7-rest"}}
 	body := strings.Repeat("line\n", 30)
-	if err := logged(env, "forecast", body, fmt.Errorf("boom")); err == nil || err.Error() != "boom" {
+	if err := logged(env, "forecast", body, errors.New("boom")); err == nil || err.Error() != "boom" {
 		t.Fatal(err)
 	}
 	got, err := os.ReadFile(filepath.Join(dir, "pstack", "m7-rest", "logs", "forecast.log"))
@@ -233,12 +233,12 @@ func TestFailLog_writesTheFullOutputUnderGitAndReportsABlockedPath(t *testing.T)
 	if logged(nil, "forecast", body, nil) != nil {
 		t.Fatal("success")
 	}
-	if logged(nil, "forecast", "", fmt.Errorf("x")).Error() != "x" {
+	if logged(nil, "forecast", "", errors.New("x")).Error() != "x" {
 		t.Fatal("no env")
 	}
 	blocked := filepath.Join(t.TempDir(), "notdir")
 	writeFile(t, blocked, "x")
-	err = logged(&Env{Common: blocked, Config: Config{Milestone: "m7-rest"}}, "forecast", body, fmt.Errorf("boom"))
+	err = logged(&Env{Common: blocked, Config: Config{Milestone: "m7-rest"}}, "forecast", body, errors.New("boom"))
 	if err == nil || !strings.Contains(err.Error(), "boom") || !strings.Contains(err.Error(), "write log") {
 		t.Fatal(err)
 	}
@@ -246,7 +246,7 @@ func TestFailLog_writesTheFullOutputUnderGitAndReportsABlockedPath(t *testing.T)
 	if err := os.MkdirAll(filepath.Join(env.Common, "pstack", "m7-rest", "logs", "forecast.log"), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	err = env.writeFailLog("forecast", "full\n", fmt.Errorf("boom"))
+	err = env.writeFailLog("forecast", "full\n", errors.New("boom"))
 	if err == nil || !strings.Contains(err.Error(), "write log") {
 		t.Fatal(err)
 	}

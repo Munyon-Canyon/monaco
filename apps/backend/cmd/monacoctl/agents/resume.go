@@ -84,7 +84,11 @@ func (in resumeIn) path(env *Env, r Record) (string, error) {
 func (env *Env) defaultTranscript(r Record) (string, error) {
 	switch {
 	case r.AgentID == "":
-		return "", detailErr(errs.CodeInvalidInput, "monacoctl.agents.resume", "owner has no transcript; pass --transcript")
+		return "", detailErr(
+			errs.CodeInvalidInput,
+			"monacoctl.agents.resume",
+			"owner has no transcript; pass --transcript",
+		)
 	case env.Home == "":
 		return "", detailErr(errs.CodeInvalidInput, "monacoctl.agents.resume", "HOME is unset")
 	default:

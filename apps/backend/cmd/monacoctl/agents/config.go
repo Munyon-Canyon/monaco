@@ -2,12 +2,18 @@ package agents
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
 	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+)
+
+var (
+	errWantKeyValue = errors.New("want key = value")
+	errUnknownKey   = errors.New("unknown key")
 )
 
 const configPath = ".monaco/agents.toml"
@@ -78,7 +84,7 @@ func applyConfigLine(seen map[string]bool, strs map[string]*string, ints map[str
 func assignConfig(strs map[string]*string, ints map[string]*int, key, raw string, ok bool) error {
 	switch {
 	case !ok:
-		return fmt.Errorf("want key = value")
+		return errWantKeyValue
 	case strs[key] != nil:
 		v, err := strconv.Unquote(raw)
 		if err != nil {
@@ -94,6 +100,12 @@ func assignConfig(strs map[string]*string, ints map[string]*int, key, raw string
 		*ints[key] = v
 		return nil
 	default:
-		return fmt.Errorf("unknown key %q", key)
+		return unknownKeyError{key: key}
 	}
 }
+
+type unknownKeyError struct{ key string }
+
+func (e unknownKeyError) Error() string { return "unknown key " + strconv.Quote(e.key) }
+
+func (e unknownKeyError) Unwrap() error { return errUnknownKey }

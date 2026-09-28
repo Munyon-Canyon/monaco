@@ -3,7 +3,7 @@ package agents
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -108,7 +108,7 @@ func TestGitHub_tokenFailureStopsTheCall(t *testing.T) {
 	f.env = []string{f.env[0]}
 	f.run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
 		if name == "gh" {
-			return nil, fmt.Errorf("gh: not logged in")
+			return nil, errors.New("gh: not logged in")
 		}
 		return Exec(ctx, dir, stdin, name, args...)
 	}

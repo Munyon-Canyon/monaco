@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -443,7 +444,7 @@ func TestVerdict_reportsDownstreamFailures(t *testing.T) {
 	f.env = []string{f.env[0], "HOME=" + f.home}
 	f.run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
 		if name == "gh" {
-			return nil, fmt.Errorf("no gh")
+			return nil, errors.New("no gh")
 		}
 		return Exec(ctx, dir, stdin, name, args...)
 	}
@@ -500,7 +501,7 @@ func TestVerdict_reportsDownstreamFailures(t *testing.T) {
 			), nil
 		}
 		if name == "gh" {
-			return nil, fmt.Errorf("no gh")
+			return nil, errors.New("no gh")
 		}
 		return Exec(ctx, dir, stdin, name, args...)
 	}
@@ -539,7 +540,7 @@ func TestStatusAuth_returnsTheTokenError(t *testing.T) {
 	f := newFixture(t)
 	env := f.Env(t)
 	env.Home = f.home
-	env.GitHub.Token = func(context.Context) (string, error) { return "", fmt.Errorf("no gh") }
+	env.GitHub.Token = func(context.Context) (string, error) { return "", errors.New("no gh") }
 	if _, err := env.statusAuth(context.Background(), ""); err == nil || !strings.Contains(err.Error(), "no gh") {
 		t.Fatal(err)
 	}
@@ -550,7 +551,7 @@ func TestStatusAuth_returnsTheTokenError(t *testing.T) {
 	env.GitHub.Token = func(context.Context) (string, error) {
 		calls++
 		if calls > 1 {
-			return "", fmt.Errorf("no gh")
+			return "", errors.New("no gh")
 		}
 		return "tok", nil
 	}

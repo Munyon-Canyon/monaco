@@ -9,7 +9,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -186,7 +186,7 @@ func TestStatusAuth_fallsBackSignsAndReportsTokenFailures(t *testing.T) {
 	f.env = []string{f.env[0]}
 	f.run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
 		if name == "gh" {
-			return nil, fmt.Errorf("gh: not logged in")
+			return nil, errors.New("gh: not logged in")
 		}
 		return Exec(ctx, dir, stdin, name, args...)
 	}

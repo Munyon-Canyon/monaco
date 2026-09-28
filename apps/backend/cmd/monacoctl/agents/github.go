@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 )
+
+var errGitHubStatus = errors.New("github status")
 
 const (
 	pageSize       = 100
@@ -121,7 +124,7 @@ func (g *GitHub) call(ctx context.Context, method, path, auth string, body, out 
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= http.StatusMultipleChoices {
 		data, _ := io.ReadAll(io.LimitReader(resp.Body, errorBodyLimit))
-		return fmt.Errorf("%s %s: %s: %s", method, path, resp.Status, bytes.TrimSpace(data))
+		return httpStatusError{method, path, resp.Status, string(bytes.TrimSpace(data))}
 	}
 	if out == nil {
 		return nil
@@ -142,3 +145,16 @@ func encodeBody(method, path string, body any) (io.Reader, error) {
 	}
 	return bytes.NewReader(b), nil
 }
+
+type httpStatusError struct {
+	method string
+	path   string
+	status string
+	body   string
+}
+
+func (e httpStatusError) Error() string {
+	return e.method + " " + e.path + ": " + e.status + ": " + e.body
+}
+
+func (e httpStatusError) Unwrap() error { return errGitHubStatus }

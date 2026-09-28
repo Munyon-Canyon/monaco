@@ -136,7 +136,11 @@ func (env *Env) pullBlocker(ctx context.Context, n int) error {
 		return err
 	}
 	if pr.MergedAt == nil {
-		return detailErr(errs.CodeInvalidInput, "monacoctl.agents.dispatch", fmt.Sprintf("blocker #%d is not merged", n))
+		return detailErr(
+			errs.CodeInvalidInput,
+			"monacoctl.agents.dispatch",
+			fmt.Sprintf("blocker #%d is not merged", n),
+		)
 	}
 	return env.mergedIn(ctx, n, pr.MergeCommitSHA)
 }

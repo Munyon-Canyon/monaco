@@ -2,7 +2,7 @@ package agents
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"strconv"
 	"strings"
@@ -19,9 +19,9 @@ func TestBounds_killsDispatchSurvivors(t *testing.T) {
 			case name == "git" && strings.Contains(line, "--verify"):
 				return []byte("ok"), nil
 			case name == "git" && strings.Contains(line, "--is-ancestor") && ancErr:
-				return nil, fmt.Errorf("behind")
+				return nil, errors.New("behind")
 			case name == "git" && strings.Contains(line, "merge-tree"):
-				return nil, fmt.Errorf("tree")
+				return nil, errors.New("tree")
 			default:
 				return nil, nil
 			}
@@ -70,7 +70,7 @@ func TestBounds_killsDispatchSurvivors(t *testing.T) {
 			if name == "ps" {
 				return []byte("0 claude\n"), nil
 			}
-			return nil, fmt.Errorf("no")
+			return nil, errors.New("no")
 		}
 		got, pidErr := env.claudePID(context.Background())
 		wantPID := strings.HasPrefix(line, "2")
