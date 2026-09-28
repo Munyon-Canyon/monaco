@@ -216,3 +216,35 @@ func TestDBKeepsOnlyTheFirstFiveFailedDatabases(t *testing.T) {
 		}
 	}
 }
+
+func TestAtlasMigratorHash_changesWhenAMigrationIsRenamed(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "0001_a.sql"), []byte("SELECT 1;"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	before, err := atlasMigrator{dir: dir}.Hash()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(filepath.Join(dir, "0001_a.sql"), filepath.Join(dir, "20260101000000_a.sql")); err != nil {
+		t.Fatal(err)
+	}
+	after, err := atlasMigrator{dir: dir}.Hash()
+	if err != nil || after == before {
+		t.Fatalf("hash after rename = %q, %v, want it to differ from %q", after, err, before)
+	}
+}
+
+func TestAtlasMigratorHash_reportsAnUnreadableDirectoryOrMigration(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "0001_dir.sql"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range []string{dir, filepath.Join(dir, "missing")} {
+		if _, err := (atlasMigrator{dir: d}).Hash(); err == nil {
+			t.Fatalf("Hash(%s) = nil error, want one", d)
+		}
+	}
+}

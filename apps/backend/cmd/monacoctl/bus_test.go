@@ -10,7 +10,7 @@ import (
 
 func TestMain(m *testing.M) {
 	testkit.ChildMain(main)
-	testkit.NATSServer(m)
+	testkit.Main(m, testkit.WithNATS())
 }
 
 func TestBusApply_createsBothStreamsThenReportsNoChanges(t *testing.T) {
