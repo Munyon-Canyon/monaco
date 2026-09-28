@@ -101,6 +101,10 @@ func TestVerifyPlan_haikuForHygieneDiffs(t *testing.T) {
 			[]File{{Filename: ".github/workflows/ci.yml", Additions: 60}},
 		},
 		{
+			"hygiene at the size boundary", "", "full, verifier haiku\nreason: ci, pr hygiene, or size\n",
+			[]File{{Filename: ".github/workflows/ci.yml", Additions: smallDiff}},
+		},
+		{
 			"mixed with product code", "", "verifier sonnet\nreason: under 50 non-test lines\n",
 			[]File{
 				{Filename: ".github/workflows/ci.yml", Additions: 3},
