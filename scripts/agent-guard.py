@@ -392,10 +392,12 @@ def rule_merge_needs_verify(inv: Invocation) -> str | None:
     selector, repo = gh_selector(inv.argv[3:], valued)
     try:
         view = run(["gh", "pr", "view", *([selector] if selector else []), *repo,
-                    "--json", "headRefOid,number,url"], inv.cwd)
+                    "--json", "baseRefName,headRefOid,number,url"], inv.cwd)
         if view.returncode != 0:
             return f"could not resolve the PR to check its verify status: {view.stderr.strip()}"
         pr = json.loads(view.stdout)
+        if pr["baseRefName"] == "main":
+            return f"PR #{pr['number']} targets main. Only the operator merges into main, by hand in GitHub."
         slug = re.match(r"https://github\.com/([^/]+/[^/]+)/pull/", pr["url"]).group(1)
         statuses = run(["gh", "api", f"repos/{slug}/commits/{pr['headRefOid']}/statuses?per_page=100"], inv.cwd)
         if statuses.returncode != 0:
