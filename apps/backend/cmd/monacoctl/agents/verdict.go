@@ -27,6 +27,9 @@ type verdictIn struct {
 }
 
 func verdictCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {
+	if len(args) > 0 && args[0] == "carry" {
+		return carryCmd(ctx, env, args[1:], stdout)
+	}
 	return postVerdict(ctx, env, args, stdout)
 }
 
@@ -190,6 +193,63 @@ func (env *Env) loadVerdict(pr int) (Verdict, error) {
 		return Verdict{}, fmt.Errorf("decode verdict: %w", err)
 	}
 	return v, nil
+}
+
+func carryCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {
+	n, err := prArg(args, "verdict carry <pr>")
+	if err != nil {
+		return err
+	}
+	rec, err := env.loadVerdict(n)
+	if err != nil {
+		return err
+	}
+	pr, err := env.GitHub.PR(ctx, n)
+	if err != nil {
+		return err
+	}
+	if pr.Head.SHA == rec.SHA {
+		_, _ = fmt.Fprintf(stdout, "#%d head unchanged\n", n)
+		return nil
+	}
+	id, err := env.stablePatch(ctx, pr.Base.Ref, n)
+	if err != nil {
+		return err
+	}
+	if id != rec.PatchID {
+		return failure("patch-id differs from the recorded verdict; verify again")
+	}
+	old := rec.SHA
+	desc := carried(old, rec.Description)
+	auth, err := env.statusAuth(ctx, "")
+	if err != nil {
+		return err
+	}
+	if err := env.postStatus(ctx, auth, pr.Head.SHA, rec.State, desc); err != nil {
+		return err
+	}
+	rec.SHA, rec.Description = pr.Head.SHA, desc
+	if err := env.saveVerdict(rec); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(stdout, "#%d carried from %s\n", n, shortSHA(old))
+	return nil
+}
+
+func carried(old, desc string) string {
+	s := "carried from " + shortSHA(old) + ": " + desc
+	r := []rune(s)
+	if len(r) >= 141 {
+		return string(r[:140])
+	}
+	return s
+}
+
+func shortSHA(sha string) string {
+	if len(sha) > 7 {
+		return sha[:7]
+	}
+	return sha
 }
 
 func (env *Env) stablePatch(ctx context.Context, baseRef string, pr int) (string, error) {
