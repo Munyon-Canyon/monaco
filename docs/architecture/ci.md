@@ -5,7 +5,7 @@ How Monaco runs continuous integration: which checks run, when they run, on what
 ## Decision
 
 1. **CI confirms; it does not discover.** Every check a PR needs runs on the laptop first: `just test backend` (under 60 s), the lint pre-commit hook, and `just verify backend` behind the pre-PR hook. CI reruns the same commands on a clean machine to prove the result does not depend on the author's machine. A red CI run on a ready PR is a bug in the local gate, not a normal step.
-2. **Full CI runs only on PRs that can merge.** A PR runs CI when it is not a draft and its base is `main`. Drafts run nothing. Upstack PRs in a Graphite stack run nothing until Graphite retargets them to `main`.
+2. **Full CI runs only on PRs that can merge.** A PR runs CI when it is not a draft and its base is `main` or a milestone feature branch (`backend-rewrite*`). Drafts run nothing. Upstack PRs in a Graphite stack run nothing until Graphite retargets them to their trunk.
 3. **No CI on push to `main`.** Branch protection requires the branch to be up to date before merging, so the PR run already tested the tree that lands. The nightly run covers `main`.
 4. **One required check.** A final `ci-ok` job aggregates every other job with `re-actors/alls-green`. It is the only check branch protection names, so jobs can be added, split or path-filtered without touching the protection rule.
 5. **Filter jobs, never workflows.** Path and draft filters go in job-level `if:`. A workflow skipped by a `paths:` filter leaves its required check pending forever; a job skipped by `if:` reports success.
@@ -71,8 +71,9 @@ Nightly runs `scripts/qa/night.sh` as it does today ([Overnight QA](../how-to/ov
 # ci.yml
 on:
   pull_request:
-    branches: [main]
+    branches: [main, 'backend-rewrite*']
     types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
   workflow_dispatch:
 
 concurrency:
@@ -87,7 +88,7 @@ jobs:
 # ci-retarget.yml
 on:
   pull_request:
-    branches: [main]
+    branches: [main, 'backend-rewrite*']
     types: [edited]
 
 jobs:
@@ -97,7 +98,8 @@ jobs:
 ```
 
 - The jobs live in `ci-jobs.yml`, a reusable workflow. Both callers name their job `ci`, so every check reads `ci / <job>` and the required check is `ci / ci-ok`. `mobile-core` and `ios` are themselves calls to their own reusable files (`ci-mobile-core.yml`, `ci-ios.yml`), so their checks read `ci / mobile-core / <job>` and `ci / ios / <job>`. That split lets the `plan` job's path filter key each one on its own job-definition file instead of every `ci*.yml`, so a backend PR that only edits `ci-jobs.yml` (nearly every one, since each adds its own steps there) no longer runs the macOS `ios` job or the Linux `mobile-core` job. `ci-ok` still names only job IDs (`plan`, `go`, `mobile-core`, `ios`) in `needs`, so the required check and `allowed-skips` are unaffected by the extra nesting level.
-- `branches: [main]` matches the PR's base, so only the bottom PR of a stack runs.
+- `branches: [main, 'backend-rewrite*']` matches the PR's base, so only the bottom PR of a stack runs, whether its trunk is `main` or a feature branch.
+- `merge_group` is dormant. It fires only for a merge queue, and this repo cannot have one (see below). It stays so that moving the repo to an organization needs no workflow change.
 - A draft skips the `ci` job. That leaves one skipped check named `ci` and no `ci / ci-ok`, so the PR cannot merge until it is ready and CI passes. GitHub counts a skipped job as a passing required check, so the gate never depends on a skip.
 - Inside `ci-jobs.yml`, `ci-ok` uses `always()`, not `!cancelled()`. A run cancelled by a newer push then leaves a failed `ci-ok`, not a skipped one.
 - Graphite restacks an upstack PR while its base is a temporary `graphite-base/N` branch, then retargets it to `main` with no new push (seen on #452). `ci.yml` sees neither event. `ci-retarget.yml` runs on the retarget and runs the same jobs.
@@ -114,6 +116,29 @@ Ruleset on `main`:
 - Require approval before running workflows from all outside contributors (`fork-pr-contributor-approval`), not only first-time ones.
 
 GitHub's merge queue would let expensive jobs run once per merge instead of once per push. It is not available to repos owned by a personal account ([docs](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)). Revisit it if the repo moves to an organization.
+
+## Feature branches
+
+A milestone lands on a feature branch (`backend-rewrite-3` today) through small ticket PRs. The operator then merges the feature branch into `main` as one checkpoint PR labeled `integration`.
+
+`scripts/feature-branch.sh` sets a feature branch up:
+
+- `init <name>` creates `<name>` from `origin/main`, then runs `apply`.
+- `apply <name>` adds `<name>` as a Graphite trunk (`gt trunk --add`), turns on the repo's auto-merge setting, and creates or updates the ruleset `feature branch <name>`.
+- `ruleset <name>` prints that ruleset. `scripts/feature_branch_test.go` checks it.
+
+The ruleset:
+
+- Requires `ci / ci-ok` from GitHub Actions (integration 15368) and `verify` from the `monaco-verifier` App (integration 5101392). A status posted with a personal token does not count.
+- Requires branches to be up to date before merging, so a PR's checks ran on a tree that contains the tip.
+- Requires a pull request and allows only squash merges. Nobody pushes directly, admins included. It has no bypass actors.
+- Blocks force pushes and deletion.
+
+A ticket PR lands with `gh pr merge <n> --auto --squash` once its checks are green. GitHub merges it when `ci / ci-ok` and `verify` pass on its head. Auto-merge never updates a branch that fell behind the tip. The owner restacks with `gt sync`, which pushes a new head, so CI and `verify` run again.
+
+The ruleset has no merge queue, because a personal-account repo cannot have one: the rulesets API rejects a `merge_queue` rule with 422 (probed 2026-09-27). The up-to-date requirement stands in for the queue's retest against the tip.
+
+After the checkpoint PR squash-merges into `main`, `checkpoint.yml` runs `scripts/ci/checkpoint-tree.sh` and fails unless `main`'s squash commit has the same tree as the PR's head. The feature branch then retires. The next milestone starts from `main` with `scripts/feature-branch.sh init <next>`. Merging `main` back into the old branch would need a push that skips the ruleset, and GitHub Actions cannot be a bypass actor on a personal-account repo.
 
 ## Fast and deterministic
 
@@ -196,6 +221,7 @@ Each step is one small PR with its own proof.
 
 ## Log
 
+- 2026-09-27: Added feature branches (#789). `scripts/feature-branch.sh` adds the Graphite trunk and a ruleset that requires `ci / ci-ok` and the verifier App's `verify`, up to date, squash-only PRs, no bypass. `ci.yml` and `ci-retarget.yml` run on PRs into `backend-rewrite*`, and `ci.yml` also on `merge_group`. The rulesets API rejected a merge queue (422), so the up-to-date rule stands in for it. `checkpoint.yml` checks that a checkpoint squash landed the feature branch's exact tree. It does not merge `main` back: that push would need a bypass actor, and GitHub Actions cannot be one here.
 - 2026-09-27: The integration PR #786 failed `mutation` (run 36354851240). The `db`, `bus`, `httpx` and `httpx/sse` jobs ran into the 10-minute timeout. The `internal/platform/lint` job failed in 1m20s: gremlins runs that package's tests without `-short`, they call `golangci-lint`, the mutation job does not install it, and with `CI` set the tests fail instead of skipping. That package has only test files, so it has nothing to mutate, and `monacoctl mutation` now leaves such packages out of its list. The `go test` readout from #485 did print the cause in the job log. Only the first line of an error reaches the job's annotation. PRs labeled `integration` now skip mutation. The nightly's full-module mutation moved out of `nightly-backend.sh`, where it ran every package in one step, into the shared `mutation.yml` matrix with a 60-minute limit per package.
 - 2026-09-27: Split `mutation` into a matrix with one job per changed package. The checkpoint PR #786 touched 21 packages, and the single job mutated them one after another until its 15-minute timeout cancelled it (run 36353277744). `monacoctl mutation` gained `--list` (the changed packages as JSON) and `--pkg` (mutate one of them). The new `mutation-plan` job feeds the matrix.
 - 2026-09-27: Tried and measured `ios` build changes: `ONLY_ACTIVE_ARCH=YES`, `COMPILER_INDEX_STORE_ENABLE=NO`, `-skipMacroValidation -skipPackagePluginValidation` cut a from-scratch `build-for-testing` from 8m09s (#494) to 5m45s. `-parallel-testing-enabled YES` was tried and reverted: it starved the app's own concurrency-sensitive tests of CPU on a shared runner and made two of them flake. A DerivedData build-product cache (keyed on Xcode version, `Package.resolved`, and a source hash, with each file's mtime restored from its last commit) was tried and reverted: restoring and validating it took 9m38s, worse than a plain from-scratch build with the same flags. `packages/mobile-core/**` stays in the `ios` filter: dropping it was considered to shed one macOS job on mobile-core-only PRs, but the Linux `mobile-core` job skips Darwin-only code by design, so a mobile-core change that breaks on Darwin would never be compiled there. mobile-core changes are rare in backend work, so the extra `ios` run costs little.
