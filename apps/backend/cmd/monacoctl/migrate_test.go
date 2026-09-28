@@ -2,10 +2,14 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 func fakeAtlas(name string) atlas {
@@ -13,6 +17,7 @@ func fakeAtlas(name string) atlas {
 	return atlas{
 		bin:         filepath.Join(dir, name),
 		versionFile: filepath.Join(dir, "pinned-version"),
+		beforeDB:    func(context.Context, string) error { return nil },
 	}
 }
 
@@ -74,6 +79,27 @@ func TestMigrate_failsWhenAtlasFails(t *testing.T) {
 	want := "atlas-err\nmonacoctl: atlas migrate apply: exit status 3\n"
 	if code != 1 || stderr.String() != want {
 		t.Fatalf("code=%d stderr=%q", code, stderr.String())
+	}
+}
+
+func TestMigrate_applyAndStatusStopBeforeAtlasWhenTheLegacyRenameFails(t *testing.T) {
+	t.Parallel()
+	a := fakeAtlas("pinned")
+	var got []string
+	a.beforeDB = func(_ context.Context, url string) error {
+		got = append(got, url)
+		return errors.New("rename legacy revisions: boom")
+	}
+	for _, sub := range []string{"apply", "status"} {
+		var stdout, stderr bytes.Buffer
+		code := migrateTool(a, validMigrateEnviron())([]string{sub}, &stdout, &stderr)
+
+		if code != 1 || stdout.Len() != 0 || stderr.String() != "monacoctl: rename legacy revisions: boom\n" {
+			t.Fatalf("%s: code=%d stdout=%q stderr=%q", sub, code, stdout.String(), stderr.String())
+		}
+	}
+	if want := "postgres://monaco@localhost:54323/fresh"; len(got) != 2 || got[0] != want || got[1] != want {
+		t.Fatalf("beforeDB urls = %q, want the config URL twice", got)
 	}
 }
 
@@ -215,8 +241,9 @@ func TestMigrate_runsAtlasFromTheModuleRootWithTheRepoPinnedBinary(t *testing.T)
 	writeFile(t, repo, ".bin/atlas",
 		"#!/bin/sh\nif [ \"$1\" = version ]; then echo 'atlas community version v1.3.0'; exit 0; fi\npwd -P\n", 0o700)
 
+	environ := []string{"MONACO_ENV=test", "DATABASE_URL=" + testkit.DB(t).Config().ConnString(), "NATS_URL=nats://x"}
 	var stdout, stderr bytes.Buffer
-	code := migrateTool(atlasAt(backend), validMigrateEnviron())([]string{"apply"}, &stdout, &stderr)
+	code := migrateTool(atlasAt(backend), environ)([]string{"apply"}, &stdout, &stderr)
 
 	resolved, _ := filepath.EvalSymlinks(backend)
 	if code != 0 || strings.TrimSpace(stdout.String()) != resolved {

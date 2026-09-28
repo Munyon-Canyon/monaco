@@ -409,11 +409,23 @@ func findMigrator() (atlasMigrator, error) {
 }
 
 func (a atlasMigrator) Hash() (string, error) {
-	h, err := common.HashDir(a.dir)
+	entries, err := os.ReadDir(a.dir)
 	if err != nil {
 		return "", fmt.Errorf("hash %s: %w", a.dir, err)
 	}
-	return h, nil
+	h := common.NewRecursiveHash()
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".sql") {
+			continue
+		}
+		contents, err := os.ReadFile(filepath.Join(a.dir, e.Name()))
+		if err != nil {
+			return "", fmt.Errorf("hash %s: %w", a.dir, err)
+		}
+		h.Add([]byte(e.Name()))
+		h.Add(contents)
+	}
+	return h.String(), nil
 }
 
 func (a atlasMigrator) Migrate(ctx context.Context, _ *sql.DB, conf pgtestdb.Config) error {
