@@ -1,22 +1,37 @@
 #!/usr/bin/env python3
-"""Fail a pull request whose title or body does not follow the repo's PR format.
+"""Fail a pull request whose title, body or commits do not follow the repo's PR format.
 
 Title: what the PR changes, present tense. No leading issue number and no
 commit-type prefix such as "docs:" or "feat(x):".
 Body: the six sections of .github/pull_request_template.md, each with real text
-after HTML comments are removed.
+after HTML comments are removed. Why links the ticket with "Part of #n", and only
+the ticket's last PR says "Closes #n" and carries a "## Needs from Logan" section
+whose fenced commands parse. Every commit SHA the body cites is an ancestor of the head.
+Commits: every commit in base..head has a Conventional Commit subject.
 
-Reads PR_TITLE and PR_BODY from the environment. Rules:
+Reads PR_TITLE, PR_BODY, BASE_SHA, HEAD_SHA, BASE_REF and HEAD_REF from the
+environment, and asks gh for the open PRs stacked directly above and below. Rules:
 docs/architecture/backend-platform.md#pull-requests-small-and-stacked
 """
 
+from __future__ import annotations
+
+import json
 import os
 import re
+import subprocess
 import sys
 
 SECTIONS = ["TLDR", "Why", "What changed", "Proof", "What came up", "Reviewer focus"]
 ISSUE_PREFIX_RE = re.compile(r"^\s*#\d+")
 COMMIT_PREFIX_RE = re.compile(r"^\s*[a-z]+(\([^)]*\))?!?:\s")
+NEEDS = "Needs from Logan"
+LINK_RE = re.compile(r"(?i)\b(part of|close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)\b")
+SHA_RE = re.compile(r"(?<![\w-])(?=[0-9a-f]*[0-9])(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}(?![\w-])")
+FENCE_RE = re.compile(r"(?ms)^(`{3,}|~{3,})[ \t]*([\w+-]*)[^\n]*\n(.*?)^\1[ \t]*$")
+SHELL_FENCES = {"", "sh", "bash", "shell", "console", "zsh"}
+CONVENTIONAL_RE = re.compile(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^()\s]+\))?!?: \S")
+SQUASH_RE = re.compile(r"\(#\d+\)$")
 
 
 def title_errors(title: str) -> list[str]:
@@ -29,8 +44,109 @@ def title_errors(title: str) -> list[str]:
     return []
 
 
+def strip_comments(body: str) -> str:
+    return re.sub(r"<!--.*?-->", "", body or "", flags=re.S)
+
+
+def section(body: str, name: str) -> str | None:
+    text = strip_comments(body)
+    m = re.search(rf"(?m)^## {re.escape(name)}[ \t]*$", text)
+    if not m:
+        return None
+    nxt = re.search(r"(?m)^## ", text[m.end():])
+    return text[m.end(): m.end() + nxt.start() if nxt else len(text)]
+
+
+def links(body: str) -> dict[int, bool]:
+    """Ticket number to whether Why closes it rather than being part of it."""
+    found: dict[int, bool] = {}
+    for verb, number in LINK_RE.findall(section(body, "Why") or ""):
+        found[int(number)] = found.get(int(number), False) or verb.lower() != "part of"
+    return found
+
+
+def ticket_errors(body: str, above: list[tuple[int, str]], below: list[tuple[int, str]]) -> list[str]:
+    """above and below are (number, body) of the open PRs stacked directly on and under this one."""
+    mine = links(body)
+    if not mine:
+        return ['"## Why" links no ticket; write "Part of #n", or "Closes #n" on the ticket\'s last PR']
+    errors = []
+    for ticket, closes in sorted(mine.items()):
+        if closes:
+            for number, other in above:
+                if ticket in links(other):
+                    errors.append(
+                        f"this PR closes #{ticket} but #{number} above it is part of #{ticket}; "
+                        f'only the ticket\'s last PR says "Closes #{ticket}", this one says "Part of #{ticket}"'
+                    )
+        for number, other in below:
+            if links(other).get(ticket):
+                errors.append(
+                    f"#{number} below this PR closes #{ticket}; only the ticket's last PR closes it, "
+                    f'so #{number} should say "Part of #{ticket}"'
+                )
+    if any(mine.values()):
+        needs = section(body, NEEDS)
+        if needs is None:
+            errors.append(f'this PR closes its ticket, so it needs a "## {NEEDS}" section ("Nothing." or a checklist)')
+        elif not needs.strip():
+            errors.append(f'"## {NEEDS}" is empty; write "Nothing." or the checklist')
+    return errors
+
+
+def command_errors(body: str) -> list[str]:
+    errors = []
+    for _, lang, code in FENCE_RE.findall(section(body, NEEDS) or ""):
+        if lang.lower() not in SHELL_FENCES:
+            continue
+        run = subprocess.run(["bash", "-n"], input=code, capture_output=True, text=True)
+        if run.returncode != 0:
+            errors.append(f'a command under "## {NEEDS}" does not parse: {run.stderr.strip()}')
+    return errors
+
+
+def sha_errors(body: str, head: str) -> list[str]:
+    errors = []
+    for sha in dict.fromkeys(SHA_RE.findall(strip_comments(body))):
+        full = git("rev-parse", "--verify", "--quiet", f"{sha}^{{commit}}")
+        if full is None:
+            errors.append(f"the body cites {sha}, which is not a commit in this repository")
+        elif git("merge-base", "--is-ancestor", full, head) is None:
+            errors.append(f"the body cites {sha}, which is not an ancestor of the head {head[:12]}; cite the SHA this PR contains")
+    return errors
+
+
+def commit_errors(base: str, head: str) -> list[str]:
+    log = git("log", "--format=%H%x09%P%x09%s", f"{base}..{head}")
+    if log is None:
+        return [f"cannot list the commits in {base[:12]}..{head[:12]}"]
+    errors = []
+    for line in log.splitlines():
+        sha, parents, subject = line.split("\t", 2)
+        if len(parents.split()) > 1 or SQUASH_RE.search(subject) or CONVENTIONAL_RE.match(subject):
+            continue
+        errors.append(
+            f'commit {sha[:12]} "{subject}" is not a Conventional Commit (type(scope)!: subject). '
+            "Reword it with the /commit skill"
+        )
+    return errors
+
+
+def git(*args: str) -> str | None:
+    run = subprocess.run(["git", *args], capture_output=True, text=True)
+    return run.stdout.strip() if run.returncode == 0 else None
+
+
+def stacked(flag: str, ref: str) -> list[tuple[int, str]]:
+    out = subprocess.run(
+        ["gh", "pr", "list", "--state", "open", flag, ref, "--json", "number,body"],
+        capture_output=True, text=True, check=True,
+    ).stdout
+    return [(pr["number"], pr["body"] or "") for pr in json.loads(out)]
+
+
 def body_errors(body: str) -> list[str]:
-    text = re.sub(r"<!--.*?-->", "", body or "", flags=re.S)
+    text = strip_comments(body)
     errors = []
     headings = [(m.group(1).strip(), m.start(), m.end()) for m in re.finditer(r"(?m)^## (.+)$", text)]
     names = [h[0] for h in headings]
@@ -47,7 +163,11 @@ def body_errors(body: str) -> list[str]:
 
 
 def main() -> int:
-    errors = title_errors(os.environ.get("PR_TITLE", "")) + body_errors(os.environ.get("PR_BODY", ""))
+    env = os.environ
+    body = env.get("PR_BODY", "")
+    errors = title_errors(env.get("PR_TITLE", "")) + body_errors(body)
+    errors += ticket_errors(body, stacked("--base", env["HEAD_REF"]), stacked("--head", env["BASE_REF"]))
+    errors += command_errors(body) + sha_errors(body, env["HEAD_SHA"]) + commit_errors(env["BASE_SHA"], env["HEAD_SHA"])
     if errors:
         print("PR format check failed:")
         for e in errors:
