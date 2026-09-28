@@ -223,6 +223,11 @@ linters:
       - path: ^cmd/monacoctl/(migrate|bench)(_test)?\.go$
         linters: [gosec]
         text: G204|G702|G306|G304
+      - path: ^cmd/monacoctl/agents/
+        linters: [gosec]
+        text: G204|G304|G403
+      - path: ^cmd/monacoctl/agents/.*_test\.go$
+        linters: [cyclop, gocognit, maintidx, revive]
       - path: ^cmd/monacoctl/(coverage|mutation)(_test)?\.go$
         linters: [gosec]
         text: G204|G304
