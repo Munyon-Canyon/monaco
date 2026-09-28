@@ -135,7 +135,9 @@ func (h *relayHarness) waitDrained(t *testing.T) {
 
 func (h *relayHarness) fetch(t *testing.T, n int) []jetstream.Msg {
 	t.Helper()
-	c, err := h.bus.JS.CreateOrUpdateConsumer(t.Context(), h.bus.Events, h.bus.Consumer)
+	cfg := h.bus.Consumer
+	cfg.AckPolicy = jetstream.AckNonePolicy
+	c, err := h.bus.JS.CreateOrUpdateConsumer(t.Context(), h.bus.Events, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
