@@ -56,6 +56,7 @@ func commands() map[string]command {
 		"exited":      exitedCmd,
 		"forecast":    forecastCmd,
 		"own":         ownCmd,
+		"resume":      resumeCmd,
 		"status":      statusCmd,
 		"verify-plan": verifyPlanCmd,
 		"watch":       watchCmd,
@@ -89,7 +90,30 @@ func runCLI(
 		err = commands()[args[0]](ctx, env, args[1:], &buf)
 	}
 	writeLimited(stdout, buf.String(), verbose)
-	return exitCode(err, stderr)
+	return exitCode(logged(env, args[0], buf.String(), err), stderr)
+}
+
+func logged(env *Env, command, output string, err error) error {
+	if err == nil || env == nil {
+		return err
+	}
+	if logErr := env.writeFailLog(command, output, err); logErr != nil {
+		return fmt.Errorf("%w; %w", err, logErr)
+	}
+	return err
+}
+
+func (env *Env) writeFailLog(command, output string, err error) error {
+	dir := filepath.Join(env.Common, "pstack", env.Config.Milestone, "logs")
+	if mkErr := os.MkdirAll(dir, 0o750); mkErr != nil {
+		return fmt.Errorf("write log: %w", mkErr)
+	}
+	body := output + err.Error() + "\n"
+	path := filepath.Join(dir, command+".log")
+	if werr := os.WriteFile(path, []byte(body), 0o600); werr != nil {
+		return fmt.Errorf("write log: %w", werr)
+	}
+	return nil
 }
 
 func stripFlag(args []string, flag string) ([]string, bool) {

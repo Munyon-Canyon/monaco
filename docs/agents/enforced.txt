@@ -1,0 +1,11 @@
+# Rules a hook or CI check already enforces. Briefs must not restate these lines.
+conventional commit
+inline pr body
+local mutation
+gremlins
+monacoctl mutation
+git push
+git rebase
+merge without verify
+1000 changed lines
+ready job

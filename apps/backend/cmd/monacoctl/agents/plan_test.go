@@ -77,6 +77,73 @@ func TestVerifyPlan_classifiesTheDiff(t *testing.T) {
 	}
 }
 
+func TestVerifyPlan_haikuForHygieneDiffs(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, owner, want string
+		files             []File
+	}{
+		{
+			"workflow", "", "root-check, verifier haiku\nreason: ci, pr hygiene, or size\n",
+			[]File{{Filename: ".github/workflows/ci.yml", Additions: 3}},
+		},
+		{
+			"checkers", "", "root-check, verifier haiku\nreason: ci, pr hygiene, or size\n",
+			[]File{
+				{Filename: "scripts/check-pr-size.py", Additions: 4},
+				{Filename: "scripts/check-pr-format.py", Additions: 1},
+				{Filename: "scripts/pr-body.sh", Additions: 2},
+				{Filename: ".github/pull_request_template.md", Additions: 1},
+			},
+		},
+		{
+			"large hygiene", "", "full, verifier haiku\nreason: ci, pr hygiene, or size\n",
+			[]File{{Filename: ".github/workflows/ci.yml", Additions: 60}},
+		},
+		{
+			"mixed with product code", "", "verifier sonnet\nreason: under 50 non-test lines\n",
+			[]File{
+				{Filename: ".github/workflows/ci.yml", Additions: 3},
+				{Filename: "a.go", Additions: 1},
+				{Filename: "scripts/check-pr-size.txt", Additions: 1},
+			},
+		},
+		{
+			"haiku owner swaps off haiku", haiku, "verifier opus\nreason: ci, pr hygiene, or size\n",
+			[]File{{Filename: "scripts/check-pr-format.py", Additions: 2}},
+		},
+		{
+			"sonnet owner keeps haiku", sonnet, "verifier haiku\nreason: ci, pr hygiene, or size\n",
+			[]File{{Filename: ".github/workflows/ci.yml", Additions: 2}},
+		},
+		{
+			"opus owner keeps haiku", opus, "verifier haiku\nreason: ci, pr hygiene, or size\n",
+			[]File{{Filename: ".github/workflows/ci.yml", Additions: 2}},
+		},
+		{
+			"sensitive file stays opus",
+			"",
+			"verifier opus\nreason: apps/backend/internal/platform/db/uow.go is in platform/db/\n",
+			[]File{
+				{Filename: ".github/workflows/ci.yml", Additions: 1},
+				{Filename: "apps/backend/internal/platform/db/uow.go", Additions: 1},
+			},
+		},
+	}
+	for _, c := range cases {
+		f := newFixture(t)
+		if c.owner != "" {
+			f.owner(t, Record{Ticket: 40, Model: c.owner, State: Running})
+		}
+		f.hub.on(get("/pulls/5"), pr(5, "h", "fb", "Part of #40"))
+		f.hub.on(list("/pulls/5/files?"), c.files)
+		code, stdout, stderr := f.agents(t, "verify-plan", "5")
+		if code != 0 || stderr != "" || !strings.Contains(stdout, c.want) {
+			t.Errorf("%s: code=%d stderr=%q\n got %q\nwant substring %q", c.name, code, stderr, stdout, c.want)
+		}
+	}
+}
+
 func TestVerifyPlan_neverPicksTheOwnersModel(t *testing.T) {
 	t.Parallel()
 	cases := map[string]struct{ owner, file, want string }{
