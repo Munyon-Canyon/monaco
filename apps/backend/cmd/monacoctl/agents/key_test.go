@@ -1,5 +1,3 @@
-//go:debug rsa1024min=0
-
 package agents
 
 import (
