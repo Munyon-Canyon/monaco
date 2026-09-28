@@ -24,7 +24,7 @@ Status: M7 checkpoint 2 (#786) is on main (6a13e756). The rest of M7 lands on fe
 - #789 PR 1 (#794, ruleset and CI triggers): merged (e55ca161). Ruleset 24089171 now guards `backend-rewrite-3`: `ci / ci-ok` and `verify` (App 5101392) required, up to date, squash only, no direct pushes. No merge queue: GitHub refuses it on a personal-account repo, so PRs land with `gh pr merge --auto --squash`.
 - #789 PR 2 (#796 agent guard hook and pr-body.sh, #799 SubagentStop reaper): merged (f7c99549, 1eba0fd7).
 - #789 PR 3 (#792 ready job, PR-body and commit-subject lint): merged (4338fce4). The ruleset now also requires the PR format check.
-- #789 PR 4 (#797, #798, #804, #800 merged; #805 auto-merging), #807 (bus hang #806 and #801), #808, #809, #810 (CI and landing fixes): merged into `backend-rewrite-3` (tip edb0e1db).
+- #789 PR 4 (#797, #798, #804, #800, #805), #807 (bus hang #806 and #801), #808, #809, #810, #811 (CI and landing fixes; verifier App now optional): merged into `backend-rewrite-3` (tip c24356cf). Orchestrator state: branch `m7-rest-state`.
 - Paused by the operator before the next wave. Handoff: https://github.com/lognorman20/monaco/issues/492#issuecomment-5861913221
 - Next: rest of #789 (retro as CI checks, hooks and `monacoctl agents`), then 479, 480, 481, 482, 483, 484, 486, 490, 491 (partial). #488 stays out.
 

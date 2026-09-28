@@ -4,7 +4,7 @@ This is for the next person to run the root orchestrator loop. You pick up after
 
 ## State on 2026-09-27, 22:00 EDT
 
-- **Feature branch.** `backend-rewrite-3`, tip `edb0e1db`. It is a Graphite trunk. Every ticket PR targets it.
+- **Feature branch.** `backend-rewrite-3`, tip `c24356cf`. It is a Graphite trunk. Every ticket PR targets it.
 - **Merged into it** (oldest first):
   - #790: `just migrate db`, and a schema-behind boot that names the fix.
   - #789 PR 1: ruleset and CI triggers.
@@ -16,7 +16,7 @@ This is for the next person to run the root orchestrator loop. You pick up after
   - #809: each CI job runs only when its own inputs change.
   - #810: merges into `main` are manual.
 - **Merged since:** #805, the last of #789 PR 4 (tip `ba4ea93f`).
-- **In flight.** #811, which makes the verifier App optional. Its ruleset change is already applied, and auto-merge is armed.
+- **Also merged:** #811, which makes the verifier App optional. Tip is now `c24356cf`. Nothing is in flight.
 - **Issues.** #790, #789, #801 and #806 stay open until the checkpoint PR lands on `main`, because their `Closes` lines only fire there.
 - **Status comment.** https://github.com/lognorman20/monaco/issues/492#issuecomment-5854306170. Edit it in place on every merge.
 
