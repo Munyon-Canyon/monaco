@@ -160,9 +160,15 @@ func TestRegistry_gaugesReportPendingAckPendingAndDeadLetters(t *testing.T) {
 	h := newHarness(t)
 	started := make(chan struct{}, 1)
 	release := make(chan struct{})
-	handler := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged) error {
-		started <- struct{}{}
-		<-release
+	handler := bus.Handle("notify.push", func(ctx context.Context, _ db.Tx, _ events.SystemPinged) error {
+		select {
+		case started <- struct{}{}:
+		default:
+		}
+		select {
+		case <-release:
+		case <-ctx.Done():
+		}
 		return errs.New(errs.CodeInvalidInput, "notify.Render")
 	})
 	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{handler}})
