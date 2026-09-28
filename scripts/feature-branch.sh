@@ -40,6 +40,7 @@ ruleset() {
         do_not_enforce_on_create: false,
         required_status_checks: [
           {context: "ci / ci-ok", integration_id: $actions},
+          {context: "PR format (title, body and commits)", integration_id: $actions},
           {context: "verify", integration_id: $verifier}
         ]
       }}

@@ -130,7 +130,7 @@ A milestone lands on a feature branch (`backend-rewrite-3` today) through small 
 
 The ruleset:
 
-- Requires `ci / ci-ok` from GitHub Actions (integration 15368) and `verify` from the `monaco-verifier` App (integration 5101392). A status posted with a personal token does not count.
+- Requires `ci / ci-ok` and `PR format (title, body and commits)` from GitHub Actions (integration 15368), and `verify` from the `monaco-verifier` App (integration 5101392). A status posted with a personal token does not count.
 - Requires branches to be up to date before merging, so a PR's checks ran on a tree that contains the tip.
 - Requires a pull request and allows only squash merges. Nobody pushes directly, admins included. It has no bypass actors.
 - Blocks force pushes and deletion.
