@@ -1,0 +1,16 @@
+ts	phase	decision	why	evidence	result
+2026-09-27T23:55:57Z	start	read brief and #789	owner of PR4 (C11-13)	parent 108d309e	ok
+2026-09-28T00:01:47Z	design	per-registration generated companions (init) + fully generated .golangci.yml with merge=union; interrogate opus+sonnet running	single generated list still conflicts on adjacent inserts	scratchpad/design-789-4.md	pending
+2026-09-28T00:07:07Z	unit	C13 committed 5991ff3d, PR #797	atlas refused renamed files on old DB (42P07); UPDATE of revision rows fixed it	scratchpad/migrate-db-proof.txt, migrations-planted.txt	pass
+2026-09-28T00:07:07Z	finding	testkit template hash ignored file names	after rename tests reused an old-named template (rows 0001/0002)	TestAtlasMigratorHash_changesWhenAMigrationIsRenamed	fixed
+2026-09-28T00:11:14Z	unit	C12 committed 6ea4351e	one TestMain body; testmain analyzer	scratchpad/testmain-planted.txt	pass
+2026-09-28T00:15:16Z	unit	C11a golangci committed bbad6e29 PR #800	fully generated config + union merge; module lint.yml	gen-golangci tests, clean fixture sensitivity (removing lint.yml -> use slog finding)	pass
+2026-09-28T00:34:45Z	push	rebased stack onto e55ca161; remote-only commits are my own pre-rebase SHAs 5991ff3d 6ea4351e bbad6e29	root asked for rebase; nobody else committed	git log b..origin/b	force-with-lease via gt
+2026-09-28T00:37:46Z	pivot	one-line generated YAML per entry	trial union merge collapsed identical lines (deny:, linters:) and dropped module-alpha deny	scratchpad/ac-merge.txt (first run)	fixed
+2026-09-28T00:37:46Z	fix	nogo testmain coverage via child-process test	just test backend failed at 99.42%: testmain.go only ran in subprocess without GOCOVERDIR	just-test-backend.txt	fixed, 100%
+2026-09-28T00:37:46Z	split	inserted rename-only PR 804 below golangci	golangci PR counted 1081 lines because rename+rewrite broke rename detection	check-pr-size: 327/456/14/579/942	pass
+2026-09-28T00:37:46Z	verify	top head 2c720995 gates	just test backend 100%, lint 0, nogo ok, go1.25.14 vet+tests ok, generate clean	scratchpad/gates.txt	pass
+2026-09-28T00:37:46Z	proof	two-module merge and rebase clean; control without union conflicts; hand edit fails tests and ready step		scratchpad/ac-merge.txt	pass
+2026-09-28T00:51:27Z	update	gt sync; repaired diverged golangci/registrations (root restack left stale copies) by cherry-picking own commits onto gen-rename, gt track	backend-rewrite-3 moved to 1eba0fd7 (#796)	gt log short	pushed head 8c596364
+2026-09-28T00:51:27Z	verify	once.sh just test backend at 8c596364		just-test-final.txt	pass 100%
+2026-09-28T01:05:17Z	ci	#797 ci-ok green at 1515cfe0 after one rerun (Mutation cmd/monacoctl: gremlins failed to gather coverage while plain go test passed); top head 8c596364 dispatch run 36363719455 success	flake, not reproduced on rerun or on the top head	runs 36363707318, 36363719455	green

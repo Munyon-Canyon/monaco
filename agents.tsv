@@ -1,0 +1,12 @@
+ticket	role	agent	model	started	expected_min	state
+790	owner	acba06d032fb25181	opus	2026-09-27T23:15:02Z	60	done-exited
+790	verifier	a705b6da9a80d64af	sonnet	2026-09-27T23:30:08Z	45	PASS-exited
+789-1 a0a3578517933652a	owner	2026-09-27T23:56:20Z	opus		120	running
+789-2 a5cf39b2b6550abb8	owner	2026-09-27T23:56:20Z	opus		120	running
+789-3 ae641485c14d7829a	owner	2026-09-27T23:56:20Z	opus		120	running
+789-4 a777f280a0c18d968	owner	2026-09-27T23:56:20Z	opus		120	running
+789-1	verifier	a4a98abec348dcec9	sonnet	2026-09-28T00:13:44Z	45	PASS-exited
+789-7	owner	af9712b2fcbd4006d	opus	2026-09-28T00:21:23Z	180	PARKED-exited
+789-2	verifier	ab31ba802c4b465eb	sonnet	2026-09-28T00:27:32Z	45	running
+bus-hang	owner	ad0c81f38c960a6a0	opus	2026-09-28T00:41:17Z	60	running
+789-4	verifier	a546d0554698f0bef	sonnet	2026-09-28T00:55Z	45	PASS-exited

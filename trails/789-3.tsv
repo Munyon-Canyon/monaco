@@ -1,0 +1,8 @@
+ts	phase	decision	why	evidence	result
+2026-09-27T23:57:32Z	plan	ready job = scripts/ci/ready.sh called from ci-jobs; move freshness+vet steps out of backend job	one copy of each check; CI runs same script as laptop (ci.md)	ci-jobs.yml backend job already had generate/docs/sqlc/vet	started
+2026-09-27T23:57:32Z	plan	PR-body lint: ticket link read from Why; Closes = lastness claim; checked against open PRs stacked directly above and below via gh	lastness of a ticket across parallel owners is not derivable from topology; neighbour check fires on the event that creates the violation	issue 789 B7	started
+2026-09-28T00:04:01Z	build	ready.sh plants	5 violations	scratchpad/789-3/ready-*.log	all exit 1, clean exit 0
+2026-09-28T00:04:01Z	build	pr-format end-to-end	local main() with real git and gh, probe PR 795 in real CI	run 36360698811	all planted violations fail
+2026-09-28T00:04:01Z	verify	just test backend under env -i	budget only failed at load 17	scratchpad/789-3/just-test-backend.log	all tests ok, run 90.7s over 60s budget; rerun pending
+2026-09-28T00:20:34Z	done	PR 792 up, body set, issue comment posted	-	https://github.com/lognorman20/monaco/pull/792	STACK-READY
+2026-09-28T01:01:29Z	done	restacked (gt sync+restack), ruleset requires PR format, flaky SHA test fixed, --body-only for pr-body.sh	CI green	runs 36363768630 36363771497	STACK-READY 98b780b9

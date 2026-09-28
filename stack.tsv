@@ -1,0 +1,6 @@
+ticket	branches	prs	head	verdict	ci	state
+790	m7/790-migrate-db	791	108d309e	PASS(sonnet dd31db7b)+rootplant(108d309e)	36359820463 green	MERGED ff 20:0x
+789-1	789-landing	794	e55ca161	PASS(sonnet; low finding dismissed)	36361027761 green	MERGED ff; ruleset 24089171 applied
+789-2	789-agent-guard-hooks,789-reap-agent-shells	796,799	07c84e2c	verifying(sonnet)	796:36361990006 green; 799 none yet	stack-ready
+789-7	789-7-agents-core,789-7-verify-plan (+uncommitted 789-7-verdict)	802,803	d0bd84b6	none	none	PARKED until PR2+PR4 land
+789-4	registries,testmain,gen-rename,golangci,registrations	797,798,804,800,805	8c596364	verifying(sonnet)	36363719455 green(dispatch)	stack-ready

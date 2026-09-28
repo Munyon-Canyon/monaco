@@ -1,0 +1,12 @@
+ts	phase	decision	why	evidence	result
+2026-09-27T23:58:28Z	start	scope PR2 = E17,E18,E19 + conventional-commit rule (operator add)	brief + coordinator	worktree 789-2 @108d309e	ok
+2026-09-27T23:58:28Z	probe	SubagentStop input carries agent_transcript_path and background_tasks(id,type,status,command); bg shell is zsh child of CLAUDE_PID, own pgid	need attribution of children to one subagent	scratchpad/probe/events.log	design: own shells = running shell tasks whose id appears in agent transcript; kill their pgid
+2026-09-27T23:58:28Z	design	hooks in python3 (shlex tokenizer), Go subprocess tests in scripts/ (run by just test backend)	bash regex cannot split compound cmds/quotes; existing hook tests are Go in scripts/	-	chosen
+2026-09-28T00:02:37Z	push	first snapshot, PR #796 opened	brief: push within 15 min	https://github.com/lognorman20/monaco/pull/796	ok
+2026-09-28T00:06:06Z	test	Go tests drive both hooks and pr-body.sh end to end (stub gh, local bare remote)	test behavior	go test -race -run AgentGuard_|AgentReap|PrBody -> ok; 6 planted defects (creator id, behind check, timeout, cherry-pick, transcript attribution, live ticket) each fail a test	ok
+2026-09-28T00:06:06Z	design	behind check uses rev-list --cherry-pick --right-only src...remote-sha, not literal git log b..origin/b	literal form blocks every rebased force push (old shas); patch-equivalent commits lose no work	TestAgentGuard_blocksAPushThatWouldDropRemoteCommits amend case	deviation noted for PR
+2026-09-28T00:10:29Z	proof	live headless claude -p runs: push, misc, merge-allowed (stub gh), behind (scratch clone), reap (+ control without hook)	AC: blocked-then-allowed transcript per hook	scratchpad/live/*.txt	all hooks blocked planted cmd and allowed partner
+2026-09-28T00:13:25Z	verify	env -i just test backend (run 1)	full suite at head	scratchpad/just-test-backend.log	FAIL: platform/bus goleak (nats drainConnection goroutine), load 15, budget 62.6s>60s; backend untouched by this PR; rerun at top head
+2026-09-28T00:13:25Z	split	diff 1140 lines > 1000; split into guard+pr-body (bottom #796) and reap (top)	PR size cap	git diff --numstat	planned
+2026-09-28T00:25:53Z	rebase	rebased both branches onto origin/backend-rewrite-3@e55ca161 (PR1 merged); push message no longer names a merge queue	coordinator order; ci.md says no merge queue	b121bc2d, 07c84e2c; live transcripts rerun at these heads; env -i just test backend exit 0 30.8s	ok
+2026-09-28T00:27:03Z	report	STACK-READY #796 b121bc2d (ci-ok pass), #799 07c84e2c	local gates + CI green	issuecomment-5861244128	done
