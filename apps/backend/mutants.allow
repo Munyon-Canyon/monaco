@@ -3,3 +3,5 @@ internal/platform/httpx/sse/hub.go:227:12	INCREMENT_DECREMENT	pending only decid
 internal/platform/httpx/sse/hub.go:233:12	INCREMENT_DECREMENT	pending only decides when an empty scope entry is deleted from the map; a wrong count keeps or leaks the entry but routes no hint differently
 internal/platform/httpx/sse/hub.go:248:12	CONDITIONALS_BOUNDARY	equivalent: every ticket comes from nextTicket and is applied once, so apply never sees ticket == sc.ticket
 cmd/monacoctl/agents/verdict.go:85:15	CONDITIONALS_BOUNDARY	equivalent: len(args) <= 3 returns the same usage error, because three arguments never include --kind, --model and --report
+cmd/monacoctl/agents/verdict.go:88:15	CONDITIONALS_BOUNDARY	equivalent: len(args) <= 3 returns the same usage error, because three arguments never include --kind, --model and --report
+cmd/monacoctl/agents/verdict.go:249:14	CONDITIONALS_BOUNDARY	equivalent: len(sha) >= 7 returns the same string, because a 7-byte sha sliced to seven bytes is itself
