@@ -12,8 +12,6 @@ import sys
 from dataclasses import dataclass
 from fnmatch import fnmatch
 
-VERIFIER_BOT_LOGIN = "monaco-verifier[bot]"
-VERIFIER_BOT_ID = 334715092
 FEATURE_BRANCH_GLOB = "backend-rewrite*"
 CONVENTIONAL_TYPES = "feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert"
 CONVENTIONAL_RE = re.compile(rf"^({CONVENTIONAL_TYPES})(\([^()\s]+\))?!?: \S")
@@ -402,17 +400,14 @@ def rule_merge_needs_verify(inv: Invocation) -> str | None:
         statuses = run(["gh", "api", f"repos/{slug}/commits/{pr['headRefOid']}/statuses?per_page=100"], inv.cwd)
         if statuses.returncode != 0:
             return f"could not read statuses for {pr['headRefOid']}: {statuses.stderr.strip()}"
-        verify = [s for s in json.loads(statuses.stdout)
-                  if s.get("context") == "verify"
-                  and (s.get("creator") or {}).get("login") == VERIFIER_BOT_LOGIN
-                  and (s.get("creator") or {}).get("id") == VERIFIER_BOT_ID]
+        verify = [s for s in json.loads(statuses.stdout) if s.get("context") == "verify"]
     except (OSError, ValueError, KeyError, AttributeError, subprocess.SubprocessError) as e:
         return f"could not check the verify status: {e}"
     if verify and verify[0].get("state") == "success":
         return None
     state = verify[0].get("state") if verify else "missing"
-    return (f"PR #{pr['number']} head {pr['headRefOid'][:12]} has no verify success from "
-            f"{VERIFIER_BOT_LOGIN} (latest: {state}). An independent verifier posts it after checking that exact sha.")
+    return (f"PR #{pr['number']} head {pr['headRefOid'][:12]} has no verify success (latest: {state}). "
+            "An independent verifier posts it after checking that exact sha.")
 
 
 def rule_inline_pr_body(inv: Invocation) -> str | None:

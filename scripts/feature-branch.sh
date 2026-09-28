@@ -3,7 +3,6 @@ set -euo pipefail
 
 REPO="${MONACO_REPO:-lognorman20/monaco}"
 ACTIONS_APP_ID=15368
-VERIFIER_APP_ID=5101392
 
 usage() {
   cat >&2 <<'USAGE'
@@ -17,7 +16,7 @@ USAGE
 }
 
 ruleset() {
-  jq -n --arg name "$1" --argjson actions "$ACTIONS_APP_ID" --argjson verifier "$VERIFIER_APP_ID" '{
+  jq -n --arg name "$1" --argjson actions "$ACTIONS_APP_ID" '{
     name: "feature branch \($name)",
     target: "branch",
     enforcement: "active",
@@ -40,8 +39,7 @@ ruleset() {
         do_not_enforce_on_create: false,
         required_status_checks: [
           {context: "ci / ci-ok", integration_id: $actions},
-          {context: "PR format (title, body and commits)", integration_id: $actions},
-          {context: "verify", integration_id: $verifier}
+          {context: "PR format (title, body and commits)", integration_id: $actions}
         ]
       }}
     ]

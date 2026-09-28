@@ -130,14 +130,14 @@ A milestone lands on a feature branch (`backend-rewrite-3` today) through small 
 
 The ruleset:
 
-- Requires `ci / ci-ok` and `PR format (title, body and commits)` from GitHub Actions (integration 15368), and `verify` from the `monaco-verifier` App (integration 5101392). A status posted with a personal token does not count.
-- Does not require branches to be up to date. A PR that passed `ci / ci-ok` and `verify` merges as is, so a clean rebase never reruns CI or the verifier. GitHub still refuses a merge that conflicts.
+- Requires `ci / ci-ok` and `PR format (title, body and commits)` from GitHub Actions (integration 15368). The `verify` commit status is not a ruleset check. The agent guard hook refuses `gh pr merge` until the head's latest `verify` status is `success`, from any poster. The independent verifier posts it with a personal token, or as the optional `monaco-verifier` App (ID 5101392) when its key is on hand.
+- Does not require branches to be up to date. A PR that passed its checks and verdict merges as is, so a clean rebase never reruns CI or the verifier. GitHub still refuses a merge that conflicts.
 - Requires a pull request and allows only squash merges. Nobody pushes directly, admins included. It has no bypass actors.
 - Blocks force pushes and deletion.
 
-A ticket PR lands with `gh pr merge <n> --auto --squash` once its checks are green. GitHub merges it when `ci / ci-ok` and `verify` pass on its head. Auto-merge never updates a branch that fell behind the tip. The owner restacks with `gt sync`, which pushes a new head, so CI and `verify` run again.
+A ticket PR lands with `gh pr merge <n> --auto --squash` once its checks are green. GitHub merges it when the required checks pass on its head. A stacked PR whose parent was squash-merged conflicts until it is restacked with `gt sync`. A restack that leaves each PR's own patch-id unchanged carries the verdict, and only CI reruns on the new head.
 
-The ruleset has no merge queue, because a personal-account repo cannot have one: the rulesets API rejects a `merge_queue` rule with 422 (probed 2026-09-27). The up-to-date requirement stands in for the queue's retest against the tip.
+The ruleset has no merge queue, because a personal-account repo cannot have one: the rulesets API rejects a `merge_queue` rule with 422 (probed 2026-09-27). Nothing retests a PR against the tip before it lands, so check open PRs for shared files before merging. #789 PR 7 adds `scripts/conflict-forecast.sh` for that.
 
 After the checkpoint PR squash-merges into `main`, `checkpoint.yml` runs `scripts/ci/checkpoint-tree.sh` and fails unless `main`'s squash commit has the same tree as the PR's head. The feature branch then retires. The next milestone starts from `main` with `scripts/feature-branch.sh init <next>`. Merging `main` back into the old branch would need a push that skips the ruleset, and GitHub Actions cannot be a bypass actor on a personal-account repo.
 
@@ -234,3 +234,4 @@ Each step is one small PR with its own proof.
 - 2026-09-27: `ci.yml` runs on every PR, so a stacked PR whose base is another ticket branch gets its own filtered CI. Outside a PR, the path filter diffs against the `FEATURE_BRANCH` repo variable that `scripts/feature-branch.sh apply` sets, not `main`, so a dispatched run on a backend branch skips the iOS build. The feature-branch ruleset no longer requires up-to-date branches.
 - 2026-09-27: A job runs only when its own inputs change. The backend jobs no longer run for workflow files or unrelated `scripts/ci/` scripts. A change under `.github/workflows/` or `.github/actions/` runs actionlint in the Plan job instead.
 - 2026-09-27: Only the operator merges into `main`, by hand. `main-merges-by-hand.yml` turns auto-merge off on any PR into `main` as soon as someone enables it, and the agent guard blocks `gh pr merge` on a PR into `main`. Auto-merge stays on for feature branches.
+- 2026-09-27: The `monaco-verifier` App is optional. The ruleset no longer requires `verify`. The agent guard still requires the latest `verify` status to be `success` before `gh pr merge`, and it accepts any poster.

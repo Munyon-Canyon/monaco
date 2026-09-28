@@ -211,32 +211,29 @@ func status(state, login string, id int) string {
 	return fmt.Sprintf(`{"context":"verify","state":%q,"creator":{"login":%q,"id":%d}}`, state, login, id)
 }
 
-func TestAgentGuard_ghPrMergeNeedsVerifySuccessFromTheVerifierApp(t *testing.T) {
+func TestAgentGuard_ghPrMergeNeedsTheLatestVerifyToBeSuccess(t *testing.T) {
 	cwd := t.TempDir()
-	const bot, botID = "monaco-verifier[bot]", 334715092
 	blocked := map[string]string{
-		"no statuses":             `[]`,
-		"verify posted by a user": `[` + status("success", "lognorman20", 1) + `]`,
-		"latest verify failed":    `[` + status("failure", bot, botID) + `,` + status("success", bot, botID) + `]`,
-		"impersonated bot login":  `[` + status("success", bot, 7) + `]`,
+		"no statuses":          `[]`,
+		"latest verify failed": `[` + status("failure", "verifier", 2) + `,` + status("success", "verifier", 2) + `]`,
 	}
 	for name, statuses := range blocked {
 		env, _ := ghStub(t, statuses)
-		assertBlocked(t, guard(t, cwd, "gh pr merge 42 --squash", env...), name, "has no verify success from monaco-verifier[bot]")
+		assertBlocked(t, guard(t, cwd, "gh pr merge 42 --squash", env...), name, "has no verify success")
 	}
-	env, calls := ghStub(t, `[`+status("success", bot, botID)+`,`+status("failure", bot, botID)+`]`)
-	assertAllowed(t, guard(t, cwd, "gh pr merge 42 --squash --auto", env...), "verify success from the app")
+	env, calls := ghStub(t, `[`+status("success", "lognorman20", 1)+`,`+status("failure", "verifier", 2)+`]`)
+	assertAllowed(t, guard(t, cwd, "gh pr merge 42 --squash --auto", env...), "latest verify success, posted by anyone")
 	got, _ := os.ReadFile(calls)
 	if !strings.Contains(string(got), "pr view 42 --json") {
 		t.Errorf("want the PR selector passed to gh pr view, got %q", got)
 	}
-	env, _ = ghStub(t, `[`+status("success", bot, botID)+`]`)
+	env, _ = ghStub(t, `[`+status("success", "lognorman20", 1)+`]`)
 	assertAllowed(t, guard(t, cwd, "gh pr view 42", env...), "gh pr view")
 }
 
 func TestAgentGuard_onlyTheOperatorMergesIntoMain(t *testing.T) {
 	cwd := t.TempDir()
-	env, _ := ghStubOnBase(t, "main", `[`+status("success", "monaco-verifier[bot]", 334715092)+`]`)
+	env, _ := ghStubOnBase(t, "main", `[`+status("success", "lognorman20", 1)+`]`)
 	for _, cmd := range []string{"gh pr merge 42 --squash", "gh pr merge 42 --auto --squash"} {
 		assertBlocked(t, guard(t, cwd, cmd, env...), cmd, "Only the operator merges into main")
 	}
