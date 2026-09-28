@@ -1,18 +1,4 @@
 #!/usr/bin/env python3
-"""Fail a pull request whose title, body or commits do not follow the repo's PR format.
-
-Title: what the PR changes, present tense. No leading issue number and no
-commit-type prefix such as "docs:" or "feat(x):".
-Body: the six sections of .github/pull_request_template.md, each with real text
-after HTML comments are removed. Why links the ticket with "Part of #n", and only
-the ticket's last PR says "Closes #n" and carries a "## Needs from Logan" section
-whose fenced commands parse. Every commit SHA the body cites is an ancestor of the head.
-Commits: every commit in base..head has a Conventional Commit subject.
-
-Reads PR_TITLE, PR_BODY, BASE_SHA, HEAD_SHA, BASE_REF and HEAD_REF from the
-environment, and asks gh for the open PRs stacked directly above and below. Rules:
-docs/architecture/backend-platform.md#pull-requests-small-and-stacked
-"""
 
 from __future__ import annotations
 
@@ -21,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+from typing import NamedTuple
 
 SECTIONS = ["TLDR", "Why", "What changed", "Proof", "What came up", "Reviewer focus"]
 ISSUE_PREFIX_RE = re.compile(r"^\s*#\d+")
@@ -32,6 +19,11 @@ FENCE_RE = re.compile(r"(?ms)^(`{3,}|~{3,})[ \t]*([\w+-]*)[^\n]*\n(.*?)^\1[ \t]*
 SHELL_FENCES = {"", "sh", "bash", "shell", "console", "zsh"}
 CONVENTIONAL_RE = re.compile(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^()\s]+\))?!?: \S")
 SQUASH_RE = re.compile(r"\(#\d+\)$")
+
+
+class StackedPR(NamedTuple):
+    number: int
+    body: str
 
 
 def title_errors(title: str) -> list[str]:
@@ -57,30 +49,28 @@ def section(body: str, name: str) -> str | None:
     return text[m.end(): m.end() + nxt.start() if nxt else len(text)]
 
 
-def links(body: str) -> dict[int, bool]:
-    """Ticket number to whether Why closes it rather than being part of it."""
+def closes_by_ticket(body: str) -> dict[int, bool]:
     found: dict[int, bool] = {}
     for verb, number in LINK_RE.findall(section(body, "Why") or ""):
         found[int(number)] = found.get(int(number), False) or verb.lower() != "part of"
     return found
 
 
-def ticket_errors(body: str, above: list[tuple[int, str]], below: list[tuple[int, str]]) -> list[str]:
-    """above and below are (number, body) of the open PRs stacked directly on and under this one."""
-    mine = links(body)
+def ticket_errors(body: str, stacked_on: list[StackedPR], stacked_under: list[StackedPR]) -> list[str]:
+    mine = closes_by_ticket(body)
     if not mine:
         return ['"## Why" links no ticket; write "Part of #n", or "Closes #n" on the ticket\'s last PR']
     errors = []
     for ticket, closes in sorted(mine.items()):
         if closes:
-            for number, other in above:
-                if ticket in links(other):
+            for number, other in stacked_on:
+                if ticket in closes_by_ticket(other):
                     errors.append(
                         f"this PR closes #{ticket} but #{number} above it is part of #{ticket}; "
                         f'only the ticket\'s last PR says "Closes #{ticket}", this one says "Part of #{ticket}"'
                     )
-        for number, other in below:
-            if links(other).get(ticket):
+        for number, other in stacked_under:
+            if closes_by_ticket(other).get(ticket):
                 errors.append(
                     f"#{number} below this PR closes #{ticket}; only the ticket's last PR closes it, "
                     f'so #{number} should say "Part of #{ticket}"'
@@ -137,12 +127,12 @@ def git(*args: str) -> str | None:
     return run.stdout.strip() if run.returncode == 0 else None
 
 
-def stacked(flag: str, ref: str) -> list[tuple[int, str]]:
+def stacked(flag: str, ref: str) -> list[StackedPR]:
     out = subprocess.run(
         ["gh", "pr", "list", "--state", "open", flag, ref, "--json", "number,body"],
         capture_output=True, text=True, check=True,
     ).stdout
-    return [(pr["number"], pr["body"] or "") for pr in json.loads(out)]
+    return [StackedPR(pr["number"], pr["body"]) for pr in json.loads(out)]
 
 
 def body_errors(body: str) -> list[str]:

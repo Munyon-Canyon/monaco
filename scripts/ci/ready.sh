@@ -19,7 +19,8 @@ fresh() {
 }
 
 cd apps/backend
-GOTOOLCHAIN=go1.25.14 go vet ./...
+toolchain="$(awk '$1 == "toolchain" {print $2}' go.mod)"
+GOTOOLCHAIN="${toolchain:?apps/backend/go.mod has no toolchain line}" go vet ./...
 go mod tidy -diff
 go generate ./...
 fresh "go generate ./..."
@@ -29,4 +30,4 @@ sqlc=../../.bin/sqlc
 ../../scripts/gen-docs.sh
 fresh "scripts/gen-docs.sh"
 go run ./cmd/monacoctl flows check
-echo "ready: vet on go1.25.14, go.mod tidy, generated code, sqlc, reference docs and flows.tsv are all current"
+echo "ready: vet on go.mod's toolchain, go.mod tidy, generated code, sqlc, reference docs and flows.tsv are all current"
