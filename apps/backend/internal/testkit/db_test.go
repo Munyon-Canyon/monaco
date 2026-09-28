@@ -3,6 +3,7 @@ package testkit_test
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -95,8 +96,9 @@ func TestDBConnectsOnlyToTheTestContainer(t *testing.T) {
 		`SELECT current_setting('port')::int, current_database()`).Scan(&port, &name); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(name, "t_testdbconnectsonlytothetestcontainer_") || name != conn.Database {
-		t.Fatalf("database %q (pool says %q), want t_<test name>_<suffix>", name, conn.Database)
+	if !regexp.MustCompile(`^t_[a-z0-9]+_testdbconnectsonlytothetestcontainer_[a-z0-9]+$`).MatchString(name) ||
+		name != conn.Database {
+		t.Fatalf("database %q (pool says %q), want t_<run>_<test name>_<suffix>", name, conn.Database)
 	}
 }
 

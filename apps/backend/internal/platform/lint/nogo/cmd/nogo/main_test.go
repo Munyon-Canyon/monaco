@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -103,6 +104,80 @@ func TestMain_reportsEveryTestMainThatIsNotOneTestkitMainCallInMainTest(t *testi
 	slices.Sort(got)
 	slices.Sort(want)
 	if code := cmd.ProcessState.ExitCode(); code != 3 || !slices.Equal(got, want) {
+		t.Fatalf("nogo = %d\n%s\nwant 3 and\n%s", code, strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+func writeTree(t *testing.T, files map[string]string) string {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rel, src := range files {
+		path := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(src), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
+}
+
+func nogoStderr(t *testing.T, dir string, args ...string) (int, string) {
+	t.Helper()
+	cmd := testkit.MainCommand(t, os.Environ(), append(args, "./...")...)
+	cmd.Dir = dir
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	_ = cmd.Run()
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout %q", stdout.String())
+	}
+	return cmd.ProcessState.ExitCode(), stderr.String()
+}
+
+func TestWallclock_reportsStdlibTimeOnlyOutsideSynctestAndTheTestkitClock(t *testing.T) {
+	t.Parallel()
+	dir := writeTree(t, map[string]string{
+		"go.mod": "module github.com/monaco/monaco/apps/backend\n\ngo 1.25\n",
+		"internal/testkit/clock.go": "package testkit\n\nimport \"time\"\n\ntype Clock struct{}\n\n" +
+			"func NewClock(time.Time) *Clock { return &Clock{} }\n\nfunc (c *Clock) Now() time.Time { return time.Time{} }\n",
+		"internal/prod/p.go": "package prod\n\nimport \"time\"\n\nfunc F() { time.Sleep(time.Second) }\n",
+		"internal/bubble/bubble_test.go": "package bubble\n\nimport (\n\t\"testing\"\n\t\"testing/synctest\"\n\t\"time\"\n)\n\n" +
+			"func TestIn(t *testing.T) {\n\tsynctest.Test(t, func(t *testing.T) {\n\t\ttime.Sleep(time.Second)\n" +
+			"\t\t_ = time.Now()\n\t\t_ = time.After(time.Second)\n\t\ttime.NewTicker(time.Second).Stop()\n" +
+			"\t\tsynctest.Wait()\n\t\t_ = len(\"x\")\n\t\t_ = new(int)\n\t})\n}\n\nfunc TestOut(t *testing.T) {\n\ttime.Sleep(time.Millisecond)\n}\n",
+		"internal/clocked/clock_test.go": "package clocked\n\nimport (\n\t\"testing\"\n\t\"time\"\n\n" +
+			"\t\"github.com/monaco/monaco/apps/backend/internal/testkit\"\n)\n\n" +
+			"func TestClock(t *testing.T) {\n\tc := testkit.NewClock(time.Time{})\n\t_ = c.Now()\n\t_ = time.Now()\n}\n\n" +
+			"func helper() { time.Now() }\n\nfunc takes(c *testkit.Clock) { _ = time.Now(); _ = c }\n",
+		"internal/plain/plain_test.go": "package plain\n\nimport (\n\t\"testing\"\n\t\"time\"\n)\n\nvar _ = time.Now()\n\n" +
+			"func TestWall(t *testing.T) {\n\ttime.Sleep(0)\n\t_ = time.After(0)\n\ttime.NewTicker(time.Second).Stop()\n" +
+			"\t_ = time.Now()\n\t_ = time.Since(time.Time{})\n\tstart := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)\n" +
+			"\t_ = start.After(start)\n}\n",
+		"internal/dot/dot_test.go": "package dot\n\nimport (\n\t\"testing\"\n\t. \"time\"\n)\n\nfunc TestDot(t *testing.T) { Sleep(0) }\n",
+		"internal/testkit/db_test.go": "package testkit_test\n\nimport (\n\t\"testing\"\n\t\"time\"\n)\n\n" +
+			"func TestAllowed(t *testing.T) { time.Sleep(time.Second) }\n",
+	})
+	code, stderr := nogoStderr(t, dir)
+	msg := "wall clock time.%s: use testing/synctest or the testkit clock"
+	want := []string{
+		filepath.Join(dir, "internal/bubble/bubble_test.go") + ":22:2: " + fmt.Sprintf(msg, "Sleep"),
+		filepath.Join(dir, "internal/clocked/clock_test.go") + ":16:17: " + fmt.Sprintf(msg, "Now"),
+		filepath.Join(dir, "internal/dot/dot_test.go") + ":8:30: " + fmt.Sprintf(msg, "Sleep"),
+		filepath.Join(dir, "internal/plain/plain_test.go") + ":8:9: " + fmt.Sprintf(msg, "Now"),
+		filepath.Join(dir, "internal/plain/plain_test.go") + ":11:2: " + fmt.Sprintf(msg, "Sleep"),
+		filepath.Join(dir, "internal/plain/plain_test.go") + ":12:6: " + fmt.Sprintf(msg, "After"),
+		filepath.Join(dir, "internal/plain/plain_test.go") + ":13:2: " + fmt.Sprintf(msg, "NewTicker"),
+		filepath.Join(dir, "internal/plain/plain_test.go") + ":14:6: " + fmt.Sprintf(msg, "Now"),
+	}
+	got := strings.Split(strings.TrimSpace(stderr), "\n")
+	slices.Sort(got)
+	slices.Sort(want)
+	if code != 3 || !slices.Equal(got, want) {
 		t.Fatalf("nogo = %d\n%s\nwant 3 and\n%s", code, strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
