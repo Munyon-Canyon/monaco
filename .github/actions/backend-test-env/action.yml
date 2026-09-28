@@ -19,6 +19,21 @@ runs:
         key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
         restore-keys: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
 
+    - name: Tools the workflows and scripts invoke
+      shell: bash
+      run: |
+        ci_tools=(
+          awk basename bc benchstat brew caffeinate cat chmod cp curl cut date dirname
+          docker dotenvx du ffmpeg ffprobe find gh git go golangci-lint grep gt head id
+          install jq just kill ln ls lsof magick mkdir mktemp npm oasdiff open pgrep
+          pkill python3 rm sed seq sha256sum shasum simslim sleep sort swift sysctl tail
+          tar tee tr uname uuidgen wc xcode-select xcodebuild xcrun
+        )
+        if ! command -v jq >/dev/null 2>&1; then
+          sudo apt-get update
+          sudo apt-get install -y jq
+        fi
+
     - name: Install the pinned atlas community build
       shell: bash
       run: scripts/install-atlas.sh
