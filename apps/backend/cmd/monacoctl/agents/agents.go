@@ -56,12 +56,26 @@ func commands() map[string]command {
 		"exited":      exitedCmd,
 		"forecast":    forecastCmd,
 		"own":         ownCmd,
+		"status":      statusCmd,
 		"verify-plan": verifyPlanCmd,
+		"watch":       watchCmd,
 		"verdict":     verdictCmd,
 	}
 }
 
 func Main(ctx context.Context, environ []string, dir string, run Runner, args []string, stdout, stderr io.Writer) int {
+	return runCLI(ctx, environ, dir, run, args, stdout, stderr, nil)
+}
+
+func runCLI(
+	ctx context.Context,
+	environ []string,
+	dir string,
+	run Runner,
+	args []string,
+	stdout, stderr io.Writer,
+	now func() time.Time,
+) int {
 	args, verbose := stripFlag(args, "--verbose")
 	if len(args) == 0 || commands()[args[0]] == nil {
 		return usage(stderr)
@@ -69,6 +83,9 @@ func Main(ctx context.Context, environ []string, dir string, run Runner, args []
 	env, err := load(ctx, environ, dir, run)
 	var buf bytes.Buffer
 	if err == nil {
+		if now != nil {
+			env.Now = now
+		}
 		err = commands()[args[0]](ctx, env, args[1:], &buf)
 	}
 	writeLimited(stdout, buf.String(), verbose)

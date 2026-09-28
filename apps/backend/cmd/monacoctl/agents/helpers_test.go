@@ -114,7 +114,10 @@ func newFixture(t *testing.T) *fixture {
 func (f *fixture) agents(t *testing.T, args ...string) (int, string, string) {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
-	code := Main(context.Background(), f.env, f.dir, f.run, args, &stdout, &stderr)
+	code := runCLI(
+		context.Background(), f.env, f.dir, f.run, args, &stdout, &stderr,
+		func() time.Time { return f.now },
+	)
 	return code, stdout.String(), stderr.String()
 }
 

@@ -3,6 +3,8 @@ package agents
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -66,7 +68,7 @@ func TestDispatch_refusesBlockersLanesAndModel(t *testing.T) {
 	}
 	f.hub.on(get("/issues/4"), Issue{Body: "Blocked by #8"})
 	f.hub.on(get("/issues/8"), Issue{State: "open"})
-	f.hub.on(list("/pulls?state=closed"), []PR{{Number: 1, Body: "nope", Base: Ref{Ref: "fb"}}})
+	f.hub.on(list("/pulls?state=closed"), []PR{})
 	if code, _, stderr := f.agents(
 		t,
 		"dispatch",
@@ -155,6 +157,41 @@ func TestDispatch_acceptsAClosedIssueAndAMergedPull(t *testing.T) {
 	}
 }
 
+func TestWatch_idleAliveAndCaffeinate(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	old := f.now.Add(-time.Hour)
+	f.owner(t, Record{Ticket: 1, State: Running, Started: old, Worktree: f.dir})
+	f.owner(t, Record{Ticket: 2, State: Done, Worktree: f.dir})
+	f.owner(t, Record{Ticket: 3, State: Exited, Started: old})
+	f.hub.on(get("/issues/1"), Issue{UpdatedAt: old})
+	f.hub.on(list("/pulls?state=open"), []PR{{Number: 4, Body: "Part of #1", UpdatedAt: old}})
+	f.watchGit("HEAD", "1", "")
+	code, stdout, stderr := f.agents(t, "watch")
+	if code != 1 || stderr != "" || !strings.Contains(stdout, "idle: #1") ||
+		!strings.Contains(stdout, "done but alive: #2") ||
+		!strings.Contains(stdout, "missing caffeinate") {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+	if code, _, stderr := f.agents(t, "watch", "x"); code != 2 {
+		t.Fatalf("usage: %d %q", code, stderr)
+	}
+}
+
+func TestWatch_isQuietWhenEveryoneMoved(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.owner(t, Record{Ticket: 1, State: Running, Started: f.now, Worktree: f.dir})
+	f.owner(t, Record{Ticket: 2, State: Done, Worktree: filepath.Join(f.dir, "missing")})
+	f.hub.on(get("/issues/1"), Issue{UpdatedAt: f.now})
+	f.hub.on(list("/pulls?state=open"), []PR{})
+	f.watchGit("topic", strconv.FormatInt(f.now.Unix(), 10), "pgrep")
+	code, stdout, stderr := f.agents(t, "watch")
+	if code != 0 || stdout != "" || stderr != "" {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
+
 func TestConflicts_printsTheRebaseTask(t *testing.T) {
 	t.Parallel()
 	f := prepBranch(t)
@@ -172,6 +209,48 @@ func TestConflicts_printsTheRebaseTask(t *testing.T) {
 		!strings.Contains(stdout, "agent: agt") ||
 		!strings.Contains(stdout, "gt sync --no-interactive then gt restack") {
 		t.Fatalf("code=%d stdout=%q stderr=%q base=%s", code, stdout, stderr, base)
+	}
+}
+
+func TestStatus_publishesAndSkipsAnUnchangedComment(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	sha := strings.Repeat("a", 40)
+	f.hub.on(list("/pulls?state=open"), []PR{headed(5, sha)})
+	f.hub.on(
+		"GET /repos/o/r/commits/"+sha+"/check-runs?per_page=100",
+		`{"check_runs":[{"name":"ci","conclusion":"success"},{"name":"ci-ok","status":"queued"}]}`,
+	)
+	f.hub.on(
+		list("/commits/"+sha+"/statuses?"),
+		[]GHStatus{{Context: "verify", State: "success"}, {Context: "other", State: "failure"}},
+	)
+	f.hub.on(list("/issues/7/comments?"), []Comment{})
+	f.hub.on("POST /repos/o/r/issues/7/comments", "ok")
+	code, stdout, stderr := f.agents(t, "status", "--publish")
+	if code != 0 || stdout != "status comment updated\n" || stderr != "" ||
+		!strings.Contains(f.hub.body("POST /repos/o/r/issues/7/comments"), "monacoctl agents status") {
+		t.Fatalf(
+			"code=%d stdout=%q stderr=%q body=%s",
+			code,
+			stdout,
+			stderr,
+			f.hub.body("POST /repos/o/r/issues/7/comments"),
+		)
+	}
+	plain := statusMarker + "\n| pr | sha | ci | ci-ok | verify |\n| #5 | aaaaaaa | success | queued | success |\n"
+	f.hub.on(list("/issues/7/comments?"), []Comment{{ID: 9, Body: plain}})
+	code, stdout, stderr = f.agents(t, "status", "--publish")
+	if code != 0 || stdout != "status comment unchanged\n" {
+		t.Fatalf("same: %d %q %q", code, stdout, stderr)
+	}
+	f.hub.on(list("/issues/7/comments?"), []Comment{{ID: 9, Body: "other"}})
+	f.hub.on("PATCH /repos/o/r/issues/comments/9", "ok")
+	if code, stdout, stderr = f.agents(t, "status", "--publish"); code != 0 || stdout != "status comment updated\n" {
+		t.Fatalf("patch: %d %q %q", code, stdout, stderr)
+	}
+	if code, _, stderr := f.agents(t, "status"); code != 2 {
+		t.Fatalf("usage: %d %q", code, stderr)
 	}
 }
 
@@ -208,6 +287,35 @@ func (f *fixture) ps(out string) {
 		}
 		if name == "pgrep" {
 			return nil, failure("none")
+		}
+		return prev(ctx, dir, stdin, name, args...)
+	}
+}
+
+func (f *fixture) watchGit(branch, stamp, alive string) {
+	prev := f.run
+	f.run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
+		switch name {
+		case "pgrep":
+			if alive == "pgrep" {
+				return []byte("1\n"), nil
+			}
+			return nil, failure("none")
+		case "lsof":
+			if alive == "pgrep" {
+				return []byte("n/somewhere/else\n"), nil
+			}
+			return []byte("n" + f.dir + "\n"), nil
+		case "git":
+			if len(args) > 2 && args[1] == "--abbrev-ref" {
+				return []byte(branch + "\n"), nil
+			}
+			if len(args) > 0 && args[0] == "log" {
+				if len(args) > 3 && args[3] == "origin/"+branch {
+					return nil, failure("no origin")
+				}
+				return []byte(stamp + "\n"), nil
+			}
 		}
 		return prev(ctx, dir, stdin, name, args...)
 	}
