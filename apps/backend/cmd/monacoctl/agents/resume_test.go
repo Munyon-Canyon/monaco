@@ -196,6 +196,9 @@ func TestResume_gitDetailsAndAnEmptyTrail(t *testing.T) {
 	if capBlock("a\nb\nc\nd", 3, "none") != "a\nb\nc\nand 1 more" {
 		t.Fatal(capBlock("a\nb\nc\nd", 3, "none"))
 	}
+	if capBlock("a\nb\nc", 3, "none") != "a\nb\nc" {
+		t.Fatal(capBlock("a\nb\nc", 3, "none"))
+	}
 	if capBlock("", 3, "none") != "none" {
 		t.Fatal("empty")
 	}
