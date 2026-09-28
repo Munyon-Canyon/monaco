@@ -37,6 +37,15 @@ ask_yes() {
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
+dev_tools=(
+  awk basename bc benchstat brew caffeinate cat chmod cp curl cut date dirname
+  docker dotenvx du ffmpeg ffprobe find gh git go golangci-lint grep gt head id
+  install jq just kill ln ls lsof magick mkdir mktemp npm oasdiff open pgrep
+  pkill python3 rm sed seq sha256sum shasum simslim sleep sort swift sysctl tail
+  tar tee tr uname uuidgen wc xcode-select xcodebuild xcrun
+)
+: "${dev_tools[@]}"
+
 run_brew() {
   local pkg="$1"
   if ! have brew; then

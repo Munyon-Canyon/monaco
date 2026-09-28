@@ -138,6 +138,7 @@ jobs:
       backend-go: ${{ steps.filter.outputs.backend-go }}
       mobile-core: ${{ steps.filter.outputs.mobile-core }}
       ios: ${{ steps.filter.outputs.ios }}
+      backend-tests: ${{ steps.filter.outputs.backend-tests }}
       scripts: ${{ steps.filter.outputs.scripts == 'true' || steps.every.outputs.scripts == 'true' }}
       unknown: ${{ steps.every.outputs.unknown }}
     steps:
@@ -171,6 +172,10 @@ jobs:
               - 'apps/backend/**/*.go'
               - 'apps/backend/go.mod'
               - 'apps/backend/mutants.allow'
+            backend-tests:
+              - 'apps/backend/**/*_test.go'
+              - 'apps/backend/**/testdata/**'
+              - 'scripts/ci/flake-tests.sh'
             mobile-core:
               - 'packages/mobile-core/**'
               - 'apps/backend/api/openapi.yaml'
@@ -178,6 +183,9 @@ jobs:
             web:
               - 'apps/web/**'
             scripts:
+              - 'scripts/**/*.go'
+              - 'scripts/go.mod'
+              - 'scripts/go.sum'
               - 'scripts/githooks/**'
               - 'scripts/testdata/**'
               - 'Justfile'
@@ -250,16 +258,37 @@ jobs:
     if: needs.plan.outputs.ios == 'true' || needs.plan.outputs.unknown == 'true'
     uses: ./.github/workflows/ci-ios.yml
 
+  flake:
+    name: Flake (changed tests, count 20)
+    needs: plan
+    if: needs.plan.outputs.backend-tests == 'true' || needs.plan.outputs.unknown == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BASE_REF: ${{ github.event.pull_request.base.ref || vars.FEATURE_BRANCH || 'main' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch the base branch
+        run: git fetch --no-tags origin "$BASE_REF"
+
+      - uses: ./.github/actions/backend-test-env
+
+      - name: Rerun the changed test files on this host's Postgres
+        run: scripts/ci/flake-tests.sh --base "origin/${BASE_REF}"
+
   # Required as "ci / ci-ok". A skipped check passes a required check, so ci-ok must never skip
   # once this workflow starts: keep always(), not !cancelled(), so a cancelled run fails it.
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [plan, backend, ready, mutation, scripts, mobile-core, ios]
+    needs: [plan, backend, ready, mutation, scripts, mobile-core, ios, flake]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - uses: re-actors/alls-green@release/v1
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: backend, ready, mutation, scripts, mobile-core, ios
+          allowed-skips: backend, ready, mutation, scripts, mobile-core, ios, flake
