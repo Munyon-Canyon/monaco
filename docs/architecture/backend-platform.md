@@ -440,7 +440,7 @@ Also in CI:
 
 ### What counts toward 100%
 
-- One merged profile. Unit and integration tests use `-coverpkg=./...`. E2E and QA runs build the real binaries with `go build -cover` and write to `GOCOVERDIR`. `monacoctl coverage --profile <unit profile> --covdir <dir>...` merges them through `go tool covdata`, applies `coverage.exclude`, names every uncovered block as `file:start-end` and fails under 100%. `just test backend` runs it on its own profile. Until E2E exists, each `cmd/*` test re-runs its own test binary as the real `main` (`testkit.RunMain`, `testkit.StartMain`), with `GOCOVERDIR` set to the parent test's coverage directory, so the child's coverage lands in the same profile.
+- One merged profile. Unit and integration tests use `-coverpkg=./...`. E2E and QA runs build the real binaries with `go build -cover` and write to `GOCOVERDIR`. `monacoctl coverage --profile <unit profile> --covdir <dir>...` merges them through `go tool covdata`, applies `coverage.exclude`, names every uncovered block as `file:start-end` and fails under 100%. `just test backend` runs it on its own profile. Until E2E exists, each `cmd/*` test re-runs its own test binary as the real `main` (`testkit.WithChild`, `testkit.StartMain`), with `GOCOVERDIR` set to the parent test's coverage directory, so the child's coverage lands in the same profile.
 - Excluded paths are fixed and listed in one file (`coverage.exclude`): generated code (`*.gen.go`, sqlc output, oapi-codegen output) and `internal/testkit`. Nothing else.
 - No ignore pragmas. Code a test can't reach gets deleted or made unrepresentable by a type change. An error branch that only fires on infra failure gets reached through a fake port that returns the error.
 - Go has no branch coverage, and statement coverage can be gamed. Mutation testing closes that gap: a surviving mutant means a line ran but nothing checked its result.
@@ -465,7 +465,7 @@ Also in CI:
 | Performance (deterministic) | allocations per op on hot paths; query count per request | `testkit.AssertAllocs` (`testing.AllocsPerRun`) in `allocs_test.go`, which runs alone and without `-race`; `testkit.AssertQueries` counts the queries on the test's own `testkit.DB`. Both compare with the package's `testdata/perf/baseline.json`, and `-testkit.perf-update` rewrites it | `just test backend` |
 | Performance (timing) | benchmarks compared against `main`; load on the full stack | `b.Loop` + `benchstat`; `vegeta` against the e2e stack | nightly, and on PRs labelled `perf` |
 | Mutation | all non-generated packages | `gremlins` through `just test mutation` (`monacoctl mutation`): on a PR, only the lines the diff against its base changes (`gremlins --diff`); `--all` mutates every line of the whole module. A survivor fails unless `mutants.allow` lists it with a reason | PR CI (changed lines), nightly (every line) |
-| Leak | every package | `goleak.VerifyTestMain` | always |
+| Leak | every package | `goleak.VerifyTestMain`, run by `testkit.Main`, the only allowed `TestMain` body (nogo `testmain`) | always |
 
 ### Keeping it fast
 

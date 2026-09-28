@@ -13,7 +13,6 @@ import (
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
-	"go.uber.org/goleak"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -35,27 +34,6 @@ type natsServer struct {
 	admin   *nats.Conn
 	js      jetstream.JetStream
 	startup time.Duration
-}
-
-func NATSServer(m *testing.M) {
-	s, err := startNATS()
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "testkit.NATSServer: %v\n", err)
-		os.Exit(1)
-	}
-	natsCurrent.Store(s)
-	goleak.VerifyTestMain(runThenStop{m: m, s: s})
-}
-
-type runThenStop struct {
-	m *testing.M
-	s *natsServer
-}
-
-func (r runThenStop) Run() int {
-	code := r.m.Run()
-	r.s.stop()
-	return code
 }
 
 func startNATS() (*natsServer, error) {
@@ -135,7 +113,7 @@ func NATS(t *testing.T, opts ...BusOption) Bus {
 	t.Helper()
 	s := natsCurrent.Load()
 	if s == nil {
-		t.Fatal("testkit.NATS: call testkit.NATSServer(m) from this package's TestMain")
+		t.Fatal("testkit.NATS: call testkit.Main(m, testkit.WithNATS()) from this package's TestMain")
 	}
 	o := busOptions{ackWait: DefaultAckWait}
 	for _, opt := range opts {
@@ -217,7 +195,7 @@ func NATSSubscriptions(t *testing.T, subject string) int {
 	t.Helper()
 	s := natsCurrent.Load()
 	if s == nil {
-		t.Fatal("testkit.NATSSubscriptions: call testkit.NATSServer(m) from this package's TestMain")
+		t.Fatal("testkit.NATSSubscriptions: call testkit.Main(m, testkit.WithNATS()) from this package's TestMain")
 	}
 	subsz, err := s.srv.Subsz(&natsserver.SubszOptions{Subscriptions: true, Limit: 1 << 16})
 	if err != nil {

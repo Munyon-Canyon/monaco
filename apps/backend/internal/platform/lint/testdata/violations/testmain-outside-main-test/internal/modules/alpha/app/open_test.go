@@ -1,4 +1,4 @@
-package concurrency_test
+package app_test
 
 import (
 	"testing"
@@ -7,5 +7,5 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	testkit.Main(m, testkit.NoDB())
+	testkit.Main(m)
 }

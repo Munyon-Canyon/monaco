@@ -8,11 +8,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-func TestMain(m *testing.M) {
-	testkit.ChildMain(main)
-	testkit.Main(m, testkit.WithNATS())
-}
-
 func TestBusApply_createsBothStreamsThenReportsNoChanges(t *testing.T) {
 	t.Parallel()
 	environ := []string{"MONACO_ENV=test", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=" + testkit.NATSURL()}

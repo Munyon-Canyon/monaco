@@ -150,6 +150,8 @@ func TestLintRules_eachViolationFailsWithItsLinter(t *testing.T) {
 		{"context-background-in-module", "forbidigo", "only main, tests and bus roots"},
 		{"os-getenv-in-module", "forbidigo", "read config through platform/config"},
 		{"go-statement-in-module", "nogo", "bare go statement"},
+		{"testmain-outside-main-test", "nogo", "TestMain belongs in main_test.go"},
+		{"testmain-custom-body", "nogo", "TestMain body must be exactly testkit.Main(m, opts...)"},
 	} {
 		t.Run(tc.fixture, func(t *testing.T) {
 			t.Parallel()

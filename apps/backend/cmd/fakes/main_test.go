@@ -16,7 +16,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	testkit.RunMain(m, main)
+	testkit.Main(m, testkit.NoDB(), testkit.WithChild(main))
 }
 
 func do(ctx context.Context, t *testing.T, method, url, body string) (int, string) {

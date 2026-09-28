@@ -1,4 +1,4 @@
-package concurrency_test
+package fakes_test
 
 import (
 	"testing"

@@ -13,15 +13,11 @@ import (
 	"testing/synctest"
 	"time"
 
-	"go.uber.org/goleak"
-
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
-
-func TestMain(m *testing.M) { goleak.VerifyTestMain(m) }
 
 func upstreams() []string {
 	return []string{"privy", "jupiter", "rpc", "helius", "xstocks", "apns", "ably"}
