@@ -131,7 +131,7 @@ A milestone lands on a feature branch (`backend-rewrite-3` today) through small 
 The ruleset:
 
 - Requires `ci / ci-ok` and `PR format (title, body and commits)` from GitHub Actions (integration 15368), and `verify` from the `monaco-verifier` App (integration 5101392). A status posted with a personal token does not count.
-- Requires branches to be up to date before merging, so a PR's checks ran on a tree that contains the tip.
+- Does not require branches to be up to date. A PR that passed `ci / ci-ok` and `verify` merges as is, so a clean rebase never reruns CI or the verifier. GitHub still refuses a merge that conflicts.
 - Requires a pull request and allows only squash merges. Nobody pushes directly, admins included. It has no bypass actors.
 - Blocks force pushes and deletion.
 
@@ -231,3 +231,4 @@ Each step is one small PR with its own proof.
 - 2026-09-27: Rollout steps 1 to 4 implemented in the #456 stack (#493, #497, #498, #499). The jobs moved into the reusable `ci-jobs.yml`, called by `ci.yml` and by `ci-retarget.yml` (which owns `edited`), so the required check is `ci / ci-ok` and a draft or a title edit leaves no `ci / ci-ok` at all. The ticket's `edited` in `ci.yml` let a body edit on #493 cancel CI and replace a failing `ci-ok` with a passing skip. `ios` timeout 20 minutes (12 to 16 minutes measured over the last 4 green runs). `warm-cache` runs the tests, not only compiles them.
 - 2026-09-27: Decided to stay on GitHub's free hosted runners while public. Added the rules that keep it free, a runner-label check, and the steps before going private.
 - 2026-09-27: Proposed. Measured a month of runs, found the repo public (free hosted runners) and the per-job rounding and macOS `swift` job as the waste. CI runs only on ready PRs based on `main`, one aggregate required check, Linux-first, nightly skips idle nights. Runner options surveyed.
+- 2026-09-27: `ci.yml` runs on every PR, so a stacked PR whose base is another ticket branch gets its own filtered CI. Outside a PR, the path filter diffs against the `FEATURE_BRANCH` repo variable that `scripts/feature-branch.sh apply` sets, not `main`, so a dispatched run on a backend branch skips the iOS build. The feature-branch ruleset no longer requires up-to-date branches.

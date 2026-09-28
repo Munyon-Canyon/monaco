@@ -60,8 +60,8 @@ func TestFeatureBranchRuleset_gatesTheBranchOnCIPRFormatAndTheVerifierApp(t *tes
 		t.Fatalf("merge methods %v, want squash only", pr.AllowedMergeMethods)
 	}
 	checks := rs.Rules[types["required_status_checks"]].Parameters
-	if !checks.Strict {
-		t.Fatal("branches must be up to date before merging")
+	if checks.Strict {
+		t.Fatal("a verified PR must merge without a rebase that reruns CI and the verifier")
 	}
 	got := map[string]int{}
 	for _, c := range checks.Checks {
