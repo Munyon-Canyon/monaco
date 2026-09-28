@@ -50,7 +50,12 @@ type exitError struct {
 func (e exitError) Error() string { return e.msg }
 func commands() map[string]command {
 	return map[string]command{
+		"conflicts":   conflictsCmd,
+		"dispatch":    dispatchCmd,
+		"done":        doneCmd,
+		"exited":      exitedCmd,
 		"forecast":    forecastCmd,
+		"own":         ownCmd,
 		"verify-plan": verifyPlanCmd,
 		"verdict":     verdictCmd,
 	}
@@ -66,9 +71,7 @@ func Main(ctx context.Context, environ []string, dir string, run Runner, args []
 	if err == nil {
 		err = commands()[args[0]](ctx, env, args[1:], &buf)
 	}
-	if err == nil {
-		writeLimited(stdout, buf.String(), verbose)
-	}
+	writeLimited(stdout, buf.String(), verbose)
 	return exitCode(err, stderr)
 }
 
