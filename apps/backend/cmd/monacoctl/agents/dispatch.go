@@ -9,7 +9,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
+
+const idleAfter = 20 * time.Minute
 
 func blockedLine() *regexp.Regexp { return regexp.MustCompile(`(?im)^blocked by:?\s*(.*)$`) }
 

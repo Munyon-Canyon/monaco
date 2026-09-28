@@ -56,7 +56,9 @@ func commands() map[string]command {
 		"exited":      exitedCmd,
 		"forecast":    forecastCmd,
 		"own":         ownCmd,
+		"status":      statusCmd,
 		"verify-plan": verifyPlanCmd,
+		"watch":       watchCmd,
 		"verdict":     verdictCmd,
 	}
 }
