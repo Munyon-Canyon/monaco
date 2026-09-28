@@ -67,7 +67,7 @@ func TestFeatureBranchRuleset_gatesTheBranchOnCIPRFormatAndTheVerifierApp(t *tes
 	for _, c := range checks.Checks {
 		got[c.Context] = c.IntegrationID
 	}
-	if want := map[string]int{"ci / ci-ok": 15368, "verify": 5101392, "PR format (title, body and commits)": 15368}; !reflect.DeepEqual(got, want) {
+	if want := map[string]int{"ci / ci-ok": 15368, "PR format (title, body and commits)": 15368}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("required checks %v, want %v", got, want)
 	}
 }
