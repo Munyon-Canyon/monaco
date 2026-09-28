@@ -19,7 +19,11 @@ func TestAllowFrom_requiresOneReasonPerLine(t *testing.T) {
 		t.Fatalf("missing reason = %v", err)
 	}
 	_, err = allowFrom("a/b.go reason\na/b.go again\n")
-	if err == nil || !strings.Contains(err.Error(), "allow line 2") || !strings.Contains(err.Error(), "duplicate a/b.go") {
+	if err == nil {
+		t.Fatal("duplicate allow line was accepted")
+	}
+	got := err.Error()
+	if !strings.Contains(got, "allow line 2") || !strings.Contains(got, "duplicate a/b.go") {
 		t.Fatalf("duplicate = %v", err)
 	}
 	orig := wallclockAllow
