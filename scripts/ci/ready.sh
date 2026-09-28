@@ -29,5 +29,5 @@ sqlc=../../.bin/sqlc
 "$sqlc" diff
 ../../scripts/gen-docs.sh
 fresh "scripts/gen-docs.sh"
-go run ./cmd/monacoctl flows check
+go run ./cmd/monacoctl flows check </dev/null
 echo "ready: vet on go.mod's toolchain, go.mod tidy, generated code, sqlc, reference docs and flows.tsv are all current"
