@@ -2,12 +2,13 @@ package agents
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
 type Kind string
@@ -116,8 +117,8 @@ func (env *Env) plan(ctx context.Context, pr PR) (Plan, error) {
 	}
 	r, err := env.record(ticket)
 	switch {
-	case errors.Is(err, failure("no owner record")):
-		p.NoOwner = err.Error()
+	case errs.CodeOf(err) == errs.CodeNotFound:
+		p.NoOwner = cliText(err)
 	case err != nil:
 		return Plan{}, err
 	default:

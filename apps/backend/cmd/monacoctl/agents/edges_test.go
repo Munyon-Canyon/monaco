@@ -23,14 +23,14 @@ func TestEdges_dispatchBlockersAndProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.hub.on(get("/pulls/8"), PR{})
-	if err := env.blockersClear(context.Background(), 4); err == nil || !strings.Contains(err.Error(), "not merged") {
+	if err := env.blockersClear(context.Background(), 4); err == nil || !strings.Contains(cliText(err), "not merged") {
 		t.Fatal(err)
 	}
 	when := f.now
 	side := commitFile(t, f.dir, "side.go", "x\n")
 	git(t, f.dir, "update-ref", "refs/heads/fb", "HEAD~1")
 	f.hub.on(get("/pulls/8"), PR{MergedAt: &when, MergeCommitSHA: side})
-	if err := env.blockersClear(context.Background(), 4); err == nil || !strings.Contains(err.Error(), "not in") {
+	if err := env.blockersClear(context.Background(), 4); err == nil || !strings.Contains(cliText(err), "not in") {
 		t.Fatal(err)
 	}
 	f.hub.on(get("/pulls/8"), PR{MergedAt: &when, MergeCommitSHA: "not-a-sha"})
@@ -72,7 +72,7 @@ func TestEdges_dispatchBlockersAndProcess(t *testing.T) {
 	}
 	env.Run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
 		if name == "ps" {
-			return nil, failure("ps down")
+			return nil, fmt.Errorf("ps down")
 		}
 		return f.run(ctx, dir, stdin, name, args...)
 	}
@@ -89,7 +89,7 @@ func TestEdges_dispatchBlockersAndProcess(t *testing.T) {
 		if _, err := env.claudePID(
 			context.Background(),
 		); err == nil ||
-			!strings.Contains(err.Error(), "missing assertion") {
+			!strings.Contains(cliText(err), "missing assertion") {
 			t.Fatalf("%q: %v", out, err)
 		}
 	}
@@ -134,7 +134,7 @@ func TestEdges_watchConflictsStatus(t *testing.T) {
 	f.owner(t, Record{Ticket: 1, State: Running, Started: f.now, Worktree: f.dir})
 	env = f.Env(t)
 	env.Run = func(context.Context, string, string, string, ...string) ([]byte, error) {
-		return nil, failure("git down")
+		return nil, fmt.Errorf("git down")
 	}
 	if _, err := env.lastActivity(
 		context.Background(),
@@ -149,7 +149,7 @@ func TestEdges_watchConflictsStatus(t *testing.T) {
 		if name == "git" {
 			return []byte("topic\n"), nil
 		}
-		return nil, failure("down")
+		return nil, fmt.Errorf("down")
 	}
 	if _, err := env.lastActivity(
 		context.Background(),
@@ -168,7 +168,7 @@ func TestEdges_watchConflictsStatus(t *testing.T) {
 		if name == "git" {
 			return []byte("topic\n"), nil
 		}
-		return nil, failure("down")
+		return nil, fmt.Errorf("down")
 	}
 	f.hub.on(get("/issues/1"), Issue{UpdatedAt: f.now.Add(time.Hour)})
 	later := f.now.Add(2 * time.Hour)
@@ -266,7 +266,7 @@ func TestEdges_remainingBranches(t *testing.T) {
 		t.Fatal("worktree")
 	}
 	env.Run = func(context.Context, string, string, string, ...string) ([]byte, error) {
-		return nil, failure("ps down")
+		return nil, fmt.Errorf("ps down")
 	}
 	if _, err := env.caffeinePlan(context.Background(), false); err == nil {
 		t.Fatal("caffeine")
@@ -302,7 +302,7 @@ func TestEdges_remainingBranches(t *testing.T) {
 	f.owner(t, Record{Ticket: 3, State: Running, Started: f.now, Worktree: f.dir})
 	env = f.Env(t)
 	env.Run = func(context.Context, string, string, string, ...string) ([]byte, error) {
-		return nil, failure("git down")
+		return nil, fmt.Errorf("git down")
 	}
 	if err := watchCmd(context.Background(), env, nil, ioDiscard()); err == nil {
 		t.Fatal("watch activity")
@@ -337,7 +337,7 @@ func TestEdges_remainingBranches(t *testing.T) {
 		if name == "git" && len(args) > 1 && args[0] == "rev-parse" && args[1] == "--verify" {
 			return []byte("ok\n"), nil
 		}
-		return nil, failure("merge down")
+		return nil, fmt.Errorf("merge down")
 	}
 	if _, _, err := env.mergeTree(context.Background(), headed(1, "abc")); err == nil {
 		t.Fatal("merge")
@@ -369,7 +369,7 @@ func TestEdges_remainingBranches(t *testing.T) {
 	}
 	env.Run = func(_ context.Context, _ string, _ string, name string, args ...string) ([]byte, error) {
 		if len(args) > 0 && args[0] == "rev-parse" {
-			return nil, failure("rev")
+			return nil, fmt.Errorf("rev")
 		}
 		return []byte("10\n"), nil
 	}
@@ -381,7 +381,7 @@ func TestEdges_remainingBranches(t *testing.T) {
 	env = f.Env(t)
 	env.Run = func(_ context.Context, _ string, _ string, name string, args ...string) ([]byte, error) {
 		if name == "lsof" {
-			return nil, failure("lsof")
+			return nil, fmt.Errorf("lsof")
 		}
 		if name == "git" {
 			return []byte("10\n"), nil
@@ -398,7 +398,7 @@ func TestEdges_remainingBranches(t *testing.T) {
 		if len(args) > 1 && args[1] == "--verify" {
 			return nil, nil
 		}
-		return nil, failure("rev down")
+		return nil, fmt.Errorf("rev down")
 	}
 	if _, err := tip.featureTip(context.Background()); err == nil {
 		t.Fatal("tip rev")
@@ -417,7 +417,7 @@ func TestEdges_remainingBranches(t *testing.T) {
 	d := f.Env(t)
 	d.Run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
 		if name == "ps" {
-			return nil, failure("ps down")
+			return nil, fmt.Errorf("ps down")
 		}
 		return f.run(ctx, dir, stdin, name, args...)
 	}
@@ -452,10 +452,10 @@ func TestEdges_remainingBranches(t *testing.T) {
 			return []byte("1 claude\n"), nil
 		}
 		if name == "pgrep" {
-			return nil, failure("none")
+			return nil, fmt.Errorf("none")
 		}
 		if name == "git" && len(args) > 0 && args[0] == "worktree" {
-			return nil, failure("worktree down")
+			return nil, fmt.Errorf("worktree down")
 		}
 		return f.run(ctx, dir, stdin, name, args...)
 	}
@@ -485,7 +485,7 @@ func TestEdges_remainingBranches(t *testing.T) {
 func gitStamp(future int64) Runner {
 	return func(_ context.Context, _ string, _ string, name string, args ...string) ([]byte, error) {
 		if name != "git" {
-			return nil, failure("down")
+			return nil, fmt.Errorf("down")
 		}
 		if len(args) > 0 && args[0] == "rev-parse" && len(args) > 2 && args[1] == "--abbrev-ref" {
 			return []byte("topic\n"), nil

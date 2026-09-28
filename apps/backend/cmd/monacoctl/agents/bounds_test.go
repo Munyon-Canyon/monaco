@@ -2,6 +2,7 @@ package agents
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -18,9 +19,9 @@ func TestBounds_killsDispatchSurvivors(t *testing.T) {
 			case name == "git" && strings.Contains(line, "--verify"):
 				return []byte("ok"), nil
 			case name == "git" && strings.Contains(line, "--is-ancestor") && ancErr:
-				return nil, failure("behind")
+				return nil, fmt.Errorf("behind")
 			case name == "git" && strings.Contains(line, "merge-tree"):
-				return nil, failure("tree")
+				return nil, fmt.Errorf("tree")
 			default:
 				return nil, nil
 			}
@@ -41,7 +42,7 @@ func TestBounds_killsDispatchSurvivors(t *testing.T) {
 	f.hub.on(get("/issues/8"), Issue{State: "closed", StateReason: "completed"})
 	f.hub.on(get("/issues/9"), Issue{State: "open"})
 	f.hub.on(list("/pulls?state=closed"), []PR{})
-	if err = env.blockersClear(context.Background(), 4); err == nil || !strings.Contains(err.Error(), "#9") {
+	if err = env.blockersClear(context.Background(), 4); err == nil || !strings.Contains(cliText(err), "#9") {
 		t.Fatal(err)
 	}
 	if !closes("Closes #1 and closes #8", 8) || closes("Closes #1", 8) {
@@ -55,7 +56,7 @@ func TestBounds_killsDispatchSurvivors(t *testing.T) {
 			MergedAt: &when, Base: Ref{Ref: "fb"}, Body: "Closes #8", MergeCommitSHA: sha,
 		}})
 		err = env.issueBlocker(context.Background(), 8)
-		gotMiss := err != nil && strings.Contains(err.Error(), "not merged into")
+		gotMiss := err != nil && strings.Contains(cliText(err), "not merged into")
 		if gotMiss != (sha == side) {
 			t.Fatal(sha, err)
 		}
@@ -69,12 +70,12 @@ func TestBounds_killsDispatchSurvivors(t *testing.T) {
 			if name == "ps" {
 				return []byte("0 claude\n"), nil
 			}
-			return nil, failure("no")
+			return nil, fmt.Errorf("no")
 		}
 		got, pidErr := env.claudePID(context.Background())
 		wantPID := strings.HasPrefix(line, "2")
 		if (pidErr == nil) != wantPID || (pidErr == nil && got != 2) ||
-			(pidErr != nil && !strings.Contains(pidErr.Error(), "missing assertion")) {
+			(pidErr != nil && !strings.Contains(cliText(pidErr), "missing assertion")) {
 			t.Fatalf("%q %d %v", line, got, pidErr)
 		}
 	}

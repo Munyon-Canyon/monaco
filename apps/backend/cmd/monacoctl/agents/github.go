@@ -121,7 +121,7 @@ func (g *GitHub) call(ctx context.Context, method, path, auth string, body, out 
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= http.StatusMultipleChoices {
 		data, _ := io.ReadAll(io.LimitReader(resp.Body, errorBodyLimit))
-		return failf("%s %s: %s: %s", method, path, resp.Status, bytes.TrimSpace(data))
+		return fmt.Errorf("%s %s: %s: %s", method, path, resp.Status, bytes.TrimSpace(data))
 	}
 	if out == nil {
 		return nil

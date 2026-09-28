@@ -2,6 +2,7 @@ package agents
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -61,7 +62,7 @@ func TestWatch_idlesOnlyPastTwentyMinutes(t *testing.T) {
 			if name == "git" {
 				return []byte("HEAD\n"), nil
 			}
-			return nil, failure("down")
+			return nil, fmt.Errorf("down")
 		}
 		var buf strings.Builder
 		err := watchCmd(context.Background(), env, nil, &buf)
@@ -95,6 +96,6 @@ func pushRun(stamp string) Runner {
 		if name == "git" && len(args) > 0 && args[0] == "log" {
 			return []byte(stamp), nil
 		}
-		return nil, failure("down")
+		return nil, fmt.Errorf("down")
 	}
 }

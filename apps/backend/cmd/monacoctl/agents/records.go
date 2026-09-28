@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
 const recordsDir = ".monaco/agents"
@@ -34,7 +36,11 @@ type Record struct {
 }
 
 func noRecord(ticket int) error {
-	return fmt.Errorf("%w for #%d in %s", failure("no owner record"), ticket, recordsDir)
+	return detailErr(
+		errs.CodeNotFound,
+		"monacoctl.agents.record",
+		fmt.Sprintf("no owner record for #%d in %s", ticket, recordsDir),
+	)
 }
 
 func (env *Env) recordPath(ticket int) string {

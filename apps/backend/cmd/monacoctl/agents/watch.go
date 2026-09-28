@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
 func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {
@@ -31,7 +33,7 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 		_, _ = fmt.Fprintln(stdout, "watchdog: missing caffeinate")
 	}
 	if len(idle) > 0 || len(alive) > 0 {
-		return exitError{code: 1}
+		return errs.New(errs.CodeForbidden, "monacoctl.agents.watch")
 	}
 	return nil
 }

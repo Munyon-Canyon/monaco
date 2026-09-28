@@ -6,6 +6,8 @@ import (
 	"io"
 	"strconv"
 	"strings"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
 const configPath = ".monaco/agents.toml"
@@ -44,7 +46,11 @@ func parseConfig(r io.Reader) (Config, error) {
 		"milestone",
 	} {
 		if !seen[key] {
-			return Config{}, failf("%s: missing %s", configPath, key)
+			return Config{}, detailErr(
+				errs.CodeDecodeFailed,
+				"monacoctl.agents.config",
+				fmt.Sprintf("%s: missing %s", configPath, key),
+			)
 		}
 	}
 	return c, nil
@@ -59,7 +65,11 @@ func applyConfigLine(seen map[string]bool, strs map[string]*string, ints map[str
 	key, raw = strings.TrimSpace(key), strings.TrimSpace(raw)
 	err := assignConfig(strs, ints, key, raw, ok)
 	if err != nil {
-		return fmt.Errorf("%s:%d: %w", configPath, n, err)
+		return detailErr(
+			errs.CodeDecodeFailed,
+			"monacoctl.agents.config",
+			fmt.Sprintf("%s:%d: %s", configPath, n, err.Error()),
+		)
 	}
 	seen[key] = true
 	return nil
@@ -68,7 +78,7 @@ func applyConfigLine(seen map[string]bool, strs map[string]*string, ints map[str
 func assignConfig(strs map[string]*string, ints map[string]*int, key, raw string, ok bool) error {
 	switch {
 	case !ok:
-		return failure("want key = value")
+		return fmt.Errorf("want key = value")
 	case strs[key] != nil:
 		v, err := strconv.Unquote(raw)
 		if err != nil {
@@ -84,6 +94,6 @@ func assignConfig(strs map[string]*string, ints map[string]*int, key, raw string
 		*ints[key] = v
 		return nil
 	default:
-		return failf("unknown key %q", key)
+		return fmt.Errorf("unknown key %q", key)
 	}
 }

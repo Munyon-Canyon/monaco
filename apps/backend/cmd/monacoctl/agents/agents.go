@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net/http"
 	"os"
@@ -15,6 +16,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
 const defaultAPI = "https://api.github.com"
@@ -32,22 +35,33 @@ type Env struct {
 type (
 	Runner  func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error)
 	command func(ctx context.Context, env *Env, args []string, stdout io.Writer) error
-	failure string
 )
 
-func (f failure) Error() string           { return string(f) }
-func failf(format string, a ...any) error { return failure(fmt.Sprintf(format, a...)) }
-
-type usageError string
-
-func (u usageError) Error() string { return "usage: monacoctl agents " + string(u) }
-
-type exitError struct {
-	code int
-	msg  string
+func usageError(use string) error {
+	cmd, _, _ := strings.Cut(use, " ")
+	return detailErr(errs.CodeInvalidInput, "monacoctl.agents."+cmd, "usage: monacoctl agents "+use)
 }
 
-func (e exitError) Error() string { return e.msg }
+func detailErr(code errs.Code, op, detail string) error {
+	return errs.New(code, op, slog.String("detail", detail))
+}
+
+func cliText(err error) string {
+	var e *errs.Error
+	if !errors.As(err, &e) {
+		return err.Error()
+	}
+	for _, attr := range e.Attrs {
+		if attr.Key != "detail" {
+			continue
+		}
+		if text := attr.Value.String(); text != "" {
+			return text
+		}
+	}
+	return ""
+}
+
 func commands() map[string]command {
 	return map[string]command{
 		"conflicts":   conflictsCmd,
@@ -108,7 +122,7 @@ func (env *Env) writeFailLog(command, output string, err error) error {
 	if mkErr := os.MkdirAll(dir, 0o750); mkErr != nil {
 		return fmt.Errorf("write log: %w", mkErr)
 	}
-	body := output + err.Error() + "\n"
+	body := output + cliText(err) + "\n"
 	path := filepath.Join(dir, command+".log")
 	if werr := os.WriteFile(path, []byte(body), 0o600); werr != nil {
 		return fmt.Errorf("write log: %w", werr)
@@ -150,16 +164,12 @@ func exitCode(err error, stderr io.Writer) int {
 	if err == nil {
 		return 0
 	}
-	if err.Error() != "" {
-		_, _ = fmt.Fprintf(stderr, "monacoctl agents: %v\n", err)
+	msg := cliText(err)
+	if msg != "" {
+		_, _ = fmt.Fprintf(stderr, "monacoctl agents: %s\n", msg)
 	}
-	var u usageError
-	if errors.As(err, &u) {
+	if errs.KindOf(errs.CodeOf(err)) == errs.KindInvalid && strings.HasPrefix(msg, "usage:") {
 		return 2
-	}
-	var x exitError
-	if errors.As(err, &x) {
-		return x.code
 	}
 	return 1
 }

@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -315,7 +316,7 @@ func TestStablePatch_reportsEachGitFailure(t *testing.T) {
 		"fb",
 		5,
 	); err == nil ||
-		!strings.Contains(err.Error(), "nothing") {
+		!strings.Contains(cliText(err), "nothing") {
 		t.Fatal(err)
 	}
 }
@@ -442,7 +443,7 @@ func TestVerdict_reportsDownstreamFailures(t *testing.T) {
 	f.env = []string{f.env[0], "HOME=" + f.home}
 	f.run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
 		if name == "gh" {
-			return nil, failure("no gh")
+			return nil, fmt.Errorf("no gh")
 		}
 		return Exec(ctx, dir, stdin, name, args...)
 	}
@@ -499,7 +500,7 @@ func TestVerdict_reportsDownstreamFailures(t *testing.T) {
 			), nil
 		}
 		if name == "gh" {
-			return nil, failure("no gh")
+			return nil, fmt.Errorf("no gh")
 		}
 		return Exec(ctx, dir, stdin, name, args...)
 	}
@@ -538,7 +539,7 @@ func TestStatusAuth_returnsTheTokenError(t *testing.T) {
 	f := newFixture(t)
 	env := f.Env(t)
 	env.Home = f.home
-	env.GitHub.Token = func(context.Context) (string, error) { return "", failure("no gh") }
+	env.GitHub.Token = func(context.Context) (string, error) { return "", fmt.Errorf("no gh") }
 	if _, err := env.statusAuth(context.Background(), ""); err == nil || !strings.Contains(err.Error(), "no gh") {
 		t.Fatal(err)
 	}
@@ -549,7 +550,7 @@ func TestStatusAuth_returnsTheTokenError(t *testing.T) {
 	env.GitHub.Token = func(context.Context) (string, error) {
 		calls++
 		if calls > 1 {
-			return "", failure("no gh")
+			return "", fmt.Errorf("no gh")
 		}
 		return "tok", nil
 	}
@@ -602,7 +603,7 @@ func scripted(fail, ok map[string]string) Runner {
 	return func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
 		if name == "git" && len(args) > 0 {
 			if msg, bad := fail[args[0]]; bad {
-				return nil, failure(msg)
+				return nil, fmt.Errorf("%s", msg)
 			}
 			if s, good := ok[args[0]]; good {
 				return []byte(s), nil
