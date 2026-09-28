@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"os"
@@ -9,17 +10,37 @@ import (
 	"testing"
 )
 
-func TestLoad_outsideARepositoryFails(t *testing.T) {
+func TestMain_usageListsCommandsAndExitsTwo(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	f.dir = t.TempDir()
-	_, err := load(context.Background(), f.env, f.dir, f.run)
-	if err == nil || !strings.Contains(err.Error(), "find the repository: git rev-parse") {
-		t.Fatalf("err=%v", err)
+	for _, args := range [][]string{nil, {"nope"}, {"--verbose"}} {
+		code, stdout, stderr := f.agents(t, args...)
+		if code != 2 || stdout != "" || !strings.Contains(stderr, "  forecast\n") {
+			t.Fatalf("%q: code=%d stdout=%q stderr=%q", args, code, stdout, stderr)
+		}
 	}
 }
 
-func TestLoad_configErrorsNameTheFileAndLine(t *testing.T) {
+func TestMain_badArgumentsExitTwoWithTheCommandUsage(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	code, _, stderr := f.agents(t, "forecast", "x")
+	if code != 2 || !strings.HasPrefix(stderr, "monacoctl agents: usage: monacoctl agents forecast") {
+		t.Fatalf("code=%d stderr=%q", code, stderr)
+	}
+}
+
+func TestMain_outsideARepositoryFails(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.dir = t.TempDir()
+	code, _, stderr := f.agents(t, "forecast")
+	if code != 1 || !strings.Contains(stderr, "find the repository: git rev-parse") {
+		t.Fatalf("code=%d stderr=%q", code, stderr)
+	}
+}
+
+func TestMain_configErrorsNameTheFileAndLine(t *testing.T) {
 	t.Parallel()
 	cases := map[string]string{
 		"":                                    "read config: open",
@@ -38,9 +59,9 @@ func TestLoad_configErrorsNameTheFileAndLine(t *testing.T) {
 		} else {
 			writeFile(t, path, content)
 		}
-		_, err := load(context.Background(), f.env, f.dir, f.run)
-		if err == nil || !strings.Contains(err.Error(), want) {
-			t.Fatalf("%.40q: err=%v want %q", content, err, want)
+		code, _, stderr := f.agents(t, "forecast")
+		if code != 1 || !strings.Contains(stderr, want) {
+			t.Fatalf("%.40q: code=%d stderr=%.200q want %q", content, code, stderr, want)
 		}
 	}
 }
@@ -56,8 +77,8 @@ func TestGitHub_fallsBackToTheGhCLIForAToken(t *testing.T) {
 		return Exec(ctx, dir, stdin, name, args...)
 	}
 	f.hub.on(list("/pulls?state=open"), []PR{})
-	if _, err := f.Env(t).GitHub.PRs(context.Background(), "state=open"); err != nil {
-		t.Fatal(err)
+	if code, _, stderr := f.agents(t, "forecast"); code != 0 {
+		t.Fatalf("code=%d stderr=%q", code, stderr)
 	}
 	if got := f.hub.authOf(list("/pulls?state=open")); got != "token from-gh" {
 		t.Fatalf("Authorization = %q", got)
@@ -69,8 +90,8 @@ func TestGitHub_usesGitHubTokenWhenGHTokenIsUnset(t *testing.T) {
 	f := newFixture(t)
 	f.env = []string{f.env[0], "GITHUB_TOKEN=other", "HOME=" + f.home}
 	f.hub.on(list("/pulls?state=open"), []PR{})
-	if _, err := f.Env(t).GitHub.PRs(context.Background(), "state=open"); err != nil {
-		t.Fatal(err)
+	if code, _, stderr := f.agents(t, "forecast"); code != 0 {
+		t.Fatalf("code=%d stderr=%q", code, stderr)
 	}
 	if got := f.hub.authOf(list("/pulls?state=open")); got != "token other" {
 		t.Fatalf("Authorization = %q", got)
@@ -87,9 +108,9 @@ func TestGitHub_tokenFailureStopsTheCall(t *testing.T) {
 		}
 		return Exec(ctx, dir, stdin, name, args...)
 	}
-	_, err := f.Env(t).GitHub.PRs(context.Background(), "state=open")
-	if err == nil || !strings.Contains(err.Error(), "github token: gh: not logged in") {
-		t.Fatalf("err=%v", err)
+	code, _, stderr := f.agents(t, "forecast")
+	if code != 1 || !strings.Contains(stderr, "github token: gh: not logged in") {
+		t.Fatalf("code=%d stderr=%q", code, stderr)
 	}
 }
 
@@ -199,5 +220,31 @@ func TestSpawn_startsAndReportsAMissingProgram(t *testing.T) {
 	); err == nil ||
 		!strings.Contains(err.Error(), "start monacoctl-no-such-program") {
 		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestWriteLimited_capsPastTwentyLines(t *testing.T) {
+	t.Parallel()
+	var b bytes.Buffer
+	writeLimited(&b, "", false)
+	writeLimited(&b, "a\n", true)
+	writeLimited(&b, "a\n", false)
+	writeLimited(&b, strings.Repeat("x\n", 25), false)
+	got := b.String()
+	if !strings.Contains(got, "a\na\n") || !strings.Contains(got, "and 6 more") {
+		t.Fatalf("got %q", got)
+	}
+	b.Reset()
+	writeLimited(&b, strings.Repeat("z\n", 20)+"tail", false)
+	if !strings.Contains(b.String(), "and 2 more") || strings.Contains(b.String(), "tail") {
+		t.Fatalf("no newline: %q", b.String())
+	}
+}
+
+func TestExitCode_usesTheCodeAndSkipsAnEmptyMessage(t *testing.T) {
+	t.Parallel()
+	var stderr bytes.Buffer
+	if code := exitCode(exitError{code: 7}, &stderr); code != 7 || stderr.Len() != 0 {
+		t.Fatalf("code=%d stderr=%q", code, stderr.String())
 	}
 }

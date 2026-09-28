@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -110,6 +111,13 @@ func newFixture(t *testing.T) *fixture {
 	}
 }
 
+func (f *fixture) agents(t *testing.T, args ...string) (int, string, string) {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	code := Main(context.Background(), f.env, f.dir, f.run, args, &stdout, &stderr)
+	return code, stdout.String(), stderr.String()
+}
+
 func (f *fixture) Env(t *testing.T) *Env {
 	t.Helper()
 	env, err := load(context.Background(), f.env, f.dir, f.run)
@@ -139,5 +147,13 @@ func writeFile(t *testing.T, path, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func pr(n int, head, base, body string) PR {
+	return PR{
+		Number: n, Body: body, State: "open",
+		Head: Ref{Ref: head, SHA: strings.Repeat(string(rune('a'+n%6)), 40)},
+		Base: Ref{Ref: base},
 	}
 }
