@@ -141,6 +141,13 @@ def commit(subject: str) -> str:
 
 class RepoTest(unittest.TestCase):
     def setUp(self):
+        self.env = dict(os.environ)
+        os.environ.update(
+            GIT_AUTHOR_DATE="2026-01-01T00:00:00Z",
+            GIT_COMMITTER_DATE="2026-01-01T00:00:00Z",
+            GIT_CONFIG_GLOBAL=os.devnull,
+            GIT_CONFIG_NOSYSTEM="1",
+        )
         self.cwd = os.getcwd()
         self.dir = tempfile.TemporaryDirectory()
         os.chdir(self.dir.name)
@@ -151,12 +158,15 @@ class RepoTest(unittest.TestCase):
 
     def tearDown(self):
         os.chdir(self.cwd)
+        os.environ.clear()
+        os.environ.update(self.env)
         self.dir.cleanup()
 
 
 class ShaTest(RepoTest):
     def test_accepts_ancestors_short_and_full(self):
         head = commit("feat: head")
+        self.assertRegex(self.base[:8], check.SHA_RE)
         body = pr(f"Part of #789. Parent trunk@{self.base[:8]}.").replace("Text for Proof.", f"Head {head}.")
         self.assertEqual(check.sha_errors(body, head), [])
 
@@ -165,6 +175,7 @@ class ShaTest(RepoTest):
         side = commit("feat: side")
         git("switch", "-q", "trunk")
         head = commit("feat: head")
+        self.assertRegex(side[:10], check.SHA_RE)
         errors = check.sha_errors(pr(f"Part of #789. Built at {side[:10]}."), head)
         self.assertEqual(len(errors), 1)
         self.assertIn("not an ancestor of the head", errors[0])
