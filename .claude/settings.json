@@ -18,6 +18,11 @@
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/agent-guard-dev-db.sh",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/agent-guard.py",
+            "timeout": 90
           }
         ]
       }

@@ -1,0 +1,529 @@
+#!/usr/bin/env python3
+"""Exit 2 blocks the command and shows stderr to the agent."""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import shlex
+import subprocess
+import sys
+from dataclasses import dataclass
+from fnmatch import fnmatch
+
+VERIFIER_BOT_LOGIN = "monaco-verifier[bot]"
+VERIFIER_BOT_ID = 334715092
+FEATURE_BRANCH_GLOB = "backend-rewrite*"
+CONVENTIONAL_TYPES = "feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert"
+CONVENTIONAL_RE = re.compile(rf"^({CONVENTIONAL_TYPES})(\([^()\s]+\))?!?: \S")
+HEREDOC_SUBST_RE = re.compile(r"^\$\(\s*cat\s*<<-?\s*(['\"]?)(\w+)\1[ \t]*\n(.*?)\n\s*\2\s*\)\s*$", re.S)
+HEREDOC_OP_RE = re.compile(r"<<(-?)[ \t]*(['\"]?)([^\s'\";&|<>()]+)\2")
+WRAPPERS = {"nohup", "command", "exec", "time", "builtin"}
+SHELLS = {"bash", "sh", "zsh"}
+
+
+@dataclass
+class Invocation:
+    argv: list[str]
+    cwd: str
+    under_timeout: bool = False
+    stdin: str | None = None
+
+
+def strip_heredocs(src: str) -> tuple[str, list[str]]:
+    out, bodies, pending = [], [], []
+    i, n, quote = 0, len(src), None
+    at_word_start = True
+    while i < n:
+        c = src[i]
+        if quote == "'":
+            out.append(c)
+            quote = None if c == "'" else quote
+            i += 1
+            continue
+        if quote == '"':
+            out.append(c)
+            if c == "\\" and i + 1 < n:
+                out.append(src[i + 1])
+                i += 2
+                continue
+            quote = None if c == '"' else quote
+            i += 1
+            continue
+        if c == "\\" and i + 1 < n:
+            if src[i + 1] != "\n":
+                out.append(src[i : i + 2])
+            i += 2
+            at_word_start = False
+            continue
+        if c in "'\"":
+            quote = c
+            out.append(c)
+            i += 1
+            at_word_start = False
+            continue
+        if c == "#" and at_word_start:
+            while i < n and src[i] != "\n":
+                i += 1
+            continue
+        if src.startswith("<<", i) and not src.startswith("<<<", i):
+            m = HEREDOC_OP_RE.match(src, i)
+            if m:
+                pending.append((m.group(3), m.group(1) == "-", len(bodies)))
+                bodies.append("")
+                out.append(f" @@HEREDOC{len(bodies) - 1}@@ ")
+                i = m.end()
+                continue
+        if c == "\n":
+            out.append(" ; ")
+            i += 1
+            at_word_start = True
+            for delim, strip_tabs, idx in pending:
+                lines = []
+                while i < n:
+                    end = src.find("\n", i)
+                    end = n if end < 0 else end
+                    line = src[i:end]
+                    i = end + 1
+                    if (line.lstrip("\t") if strip_tabs else line) == delim:
+                        break
+                    lines.append(line)
+                bodies[idx] = "\n".join(lines)
+            pending = []
+            continue
+        at_word_start = c in " \t;&|()"
+        out.append(c)
+        i += 1
+    return "".join(out), bodies
+
+
+def tokenize(src: str) -> list[list[str]]:
+    lexer = shlex.shlex(src, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    commands, current, skip_next = [], [], False
+    for tok in lexer:
+        if skip_next:
+            skip_next = False
+            continue
+        if tok and all(ch in "();<>|&" for ch in tok):
+            if "<" in tok or ">" in tok:
+                if current and current[-1].isdigit():
+                    current.pop()
+                skip_next = True
+                continue
+            if current:
+                commands.append(current)
+            current = []
+            continue
+        current.append(tok)
+    if current:
+        commands.append(current)
+    return commands
+
+
+def unwrap(argv: list[str]) -> tuple[list[str], bool]:
+    under_timeout = False
+    while argv:
+        head = os.path.basename(argv[0])
+        if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", argv[0]):
+            argv = argv[1:]
+        elif head in WRAPPERS or head == "heavy.sh":
+            argv = argv[1:]
+        elif head in {"timeout", "gtimeout"}:
+            under_timeout = True
+            rest = argv[1:]
+            while rest and rest[0].startswith("-"):
+                rest = rest[2:] if rest[0] in {"-s", "-k", "--signal", "--kill-after"} else rest[1:]
+            argv = rest[1:]
+        elif head == "nice":
+            rest = argv[1:]
+            if rest and rest[0] == "-n":
+                rest = rest[2:]
+            elif rest and re.match(r"^-(n)?-?\d+$|^--adjustment=", rest[0]):
+                rest = rest[1:]
+            argv = rest
+        elif head == "env":
+            rest = argv[1:]
+            while rest and (rest[0].startswith("-") or "=" in rest[0]):
+                rest = rest[2:] if rest[0] in {"-u", "-C", "-S"} else rest[1:]
+            argv = rest
+        else:
+            break
+    return argv, under_timeout
+
+
+def parse(src: str, cwd: str) -> list[Invocation]:
+    flat, bodies = strip_heredocs(src)
+    parsed: list[Invocation] = []
+    for raw in tokenize(flat):
+        stdin = None
+        argv = []
+        for tok in raw:
+            m = re.fullmatch(r"@@HEREDOC(\d+)@@", tok)
+            if m:
+                stdin = bodies[int(m.group(1))]
+            else:
+                argv.append(tok)
+        argv, under_timeout = unwrap(argv)
+        if not argv:
+            continue
+        head = os.path.basename(argv[0])
+        if head == "cd":
+            if len(argv) > 1 and argv[1] != "-":
+                cwd = os.path.normpath(os.path.join(cwd, os.path.expanduser(os.path.expandvars(argv[1]))))
+            continue
+        if head in SHELLS and "-c" in argv[1:-1]:
+            inner = parse(argv[argv.index("-c") + 1], cwd)
+            for inv in inner:
+                inv.under_timeout = inv.under_timeout or under_timeout
+            parsed.extend(inner)
+            continue
+        parsed.append(Invocation(argv, cwd, under_timeout, stdin))
+    return parsed
+
+
+def run(args: list[str], cwd: str, timeout: int = 20) -> subprocess.CompletedProcess:
+    return subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+
+
+@dataclass
+class Git:
+    cwd: str
+    sub: str
+    args: list[str]
+
+
+def as_git(inv: Invocation) -> Git | None:
+    if os.path.basename(inv.argv[0]) != "git":
+        return None
+    cwd, rest = inv.cwd, inv.argv[1:]
+    while rest and rest[0].startswith("-"):
+        if rest[0] == "-C" and len(rest) > 1:
+            cwd = os.path.normpath(os.path.join(cwd, os.path.expanduser(rest[1])))
+            rest = rest[2:]
+        elif rest[0] in {"-c", "--git-dir", "--work-tree", "--namespace"}:
+            rest = rest[2:]
+        else:
+            rest = rest[1:]
+    if not rest:
+        return None
+    return Git(cwd, rest[0], rest[1:])
+
+
+def short_cluster(arg: str) -> str:
+    return arg[1:] if re.fullmatch(r"-[A-Za-z]+", arg) else ""
+
+
+@dataclass
+class Push:
+    remote: str
+    targets: list[tuple[str, str, bool]]
+    force: bool
+    blanket_lease: bool
+    explicit_leases: set[str]
+    everything: bool
+
+
+def current_branch(cwd: str) -> str:
+    try:
+        return run(["git", "symbolic-ref", "--quiet", "--short", "HEAD"], cwd).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def parse_push(git: Git) -> Push:
+    positionals, force, blanket, leases, everything = [], False, False, set(), False
+    args = list(git.args)
+    while args:
+        a = args.pop(0)
+        if a == "--":
+            positionals.extend(args)
+            break
+        if a == "--force" or "f" in short_cluster(a):
+            force = True
+        elif a.startswith("--force-with-lease"):
+            m = re.fullmatch(r"--force-with-lease=([^:]+):([0-9a-fA-F]{7,40})", a)
+            if m:
+                leases.add(m.group(1).removeprefix("refs/heads/"))
+            else:
+                blanket = True
+        elif a in {"--all", "--mirror", "--branches"}:
+            everything = True
+        elif a in {"--repo", "-o", "--push-option", "--receive-pack", "--exec"}:
+            args = args[1:]
+        elif not a.startswith("-"):
+            positionals.append(a)
+    remote = positionals[0] if positionals else "origin"
+    targets = []
+    for spec in positionals[1:]:
+        plus = spec.startswith("+")
+        spec = spec.removeprefix("+")
+        src, _, dst = spec.partition(":")
+        dst = dst if ":" in spec else src
+        if src == "HEAD":
+            src = current_branch(git.cwd)
+            dst = src if ":" not in spec else dst
+        targets.append((src.removeprefix("refs/heads/"), dst.removeprefix("refs/heads/"), plus))
+    if len(positionals) <= 1 and not everything:
+        branch = current_branch(git.cwd)
+        if branch:
+            targets.append((branch, branch, False))
+    return Push(remote, targets, force, blanket, leases, everything)
+
+
+def is_protected(branch: str, cwd: str) -> bool:
+    names = {"main"}
+    try:
+        common = run(["git", "rev-parse", "--git-common-dir"], cwd).stdout.strip()
+        with open(os.path.join(cwd, common, ".graphite_repo_config")) as f:
+            names |= {t["name"] for t in json.load(f).get("trunks", [])}
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError):
+        pass
+    return branch in names or fnmatch(branch, FEATURE_BRANCH_GLOB)
+
+
+def rule_mutation(inv: Invocation) -> str | None:
+    head, args = os.path.basename(inv.argv[0]), inv.argv[1:]
+    runs_mutation = (
+        head == "gremlins"
+        or (head == "monacoctl" and args[:1] == ["mutation"])
+        or (head == "go" and args[:1] == ["run"] and any(
+            a.rstrip("/").endswith("cmd/monacoctl") and args[i + 1 : i + 2] == ["mutation"]
+            for i, a in enumerate(args)))
+        or (head == "just" and "mutation" in args)
+    )
+    if runs_mutation:
+        return ("mutation testing runs in CI (the Mutation job), not locally. "
+                "A local run keeps a test database per surviving mutant and has filled the shared test Postgres.")
+    return None
+
+
+def rule_push_protected(inv: Invocation) -> str | None:
+    git = as_git(inv)
+    if not git or git.sub != "push":
+        return None
+    push = parse_push(git)
+    if push.everything:
+        return "git push --all/--mirror/--branches can push main or the feature branch. Push one named branch."
+    for _, dst, _ in push.targets:
+        if is_protected(dst, git.cwd):
+            return (f"git push to '{dst}' is not allowed. main and the feature branch change only through "
+                    "squash-merged PRs that pass ci-ok and verify. Push your ticket branch and open a PR.")
+    return None
+
+
+def rule_force_push(inv: Invocation) -> str | None:
+    git = as_git(inv)
+    if not git or git.sub != "push":
+        return None
+    push = parse_push(git)
+    if push.force:
+        return ("git push --force/-f is not allowed. Use --force-with-lease=<branch>:<expected sha>, "
+                "with the sha you last saw on the remote.")
+    if push.blanket_lease:
+        return ("--force-with-lease without <branch>:<sha> trusts whatever a background fetch left in "
+                "origin/<branch>. Name the expected sha: --force-with-lease=<branch>:<sha>.")
+    for _, dst, plus in push.targets:
+        if plus and dst not in push.explicit_leases:
+            return (f"'+{dst}' force-pushes without a lease. Use --force-with-lease={dst}:<expected sha>.")
+    return None
+
+
+def rule_push_behind(inv: Invocation) -> str | None:
+    git = as_git(inv)
+    if not git or git.sub != "push":
+        return None
+    push = parse_push(git)
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", push.remote):
+        return None
+    for src, dst, _ in push.targets:
+        if not src or not dst:
+            continue
+        try:
+            remote = run(["git", "ls-remote", push.remote, f"refs/heads/{dst}"], git.cwd).stdout.split()
+            if not remote:
+                continue
+            sha = remote[0]
+            if run(["git", "cat-file", "-e", f"{sha}^{{commit}}"], git.cwd).returncode != 0:
+                run(["git", "fetch", "--quiet", push.remote, dst], git.cwd, timeout=60)
+            missing = run(["git", "log", "--oneline", "--cherry-pick", "--right-only", "--no-merges",
+                           f"{src}...{sha}"], git.cwd).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            return f"could not compare '{src}' with {push.remote}/{dst}; retry once the remote is reachable."
+        if missing:
+            return (f"{push.remote}/{dst} has commits that '{src}' lacks, so this push would drop them:\n"
+                    f"{missing}\nBring them in first (git pull --rebase, or gt sync), then push.")
+    return None
+
+
+def rule_claude_timeout(inv: Invocation) -> str | None:
+    if os.path.basename(inv.argv[0]) != "claude" or inv.under_timeout:
+        return None
+    if any(a in {"-p", "--print"} for a in inv.argv[1:]):
+        return "claude -p must run under timeout, e.g. `timeout 180 claude -p ...`. A headless run can hang forever."
+    return None
+
+
+def gh_selector(args: list[str], valued: set[str]) -> tuple[str | None, list[str]]:
+    selector, repo = None, []
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a in {"-R", "--repo"} and i + 1 < len(args):
+            repo = ["-R", args[i + 1]]
+            i += 2
+            continue
+        if a.startswith("--repo="):
+            repo = ["-R", a.split("=", 1)[1]]
+        elif a in valued:
+            i += 2
+            continue
+        elif not a.startswith("-") and selector is None:
+            selector = a
+        i += 1
+    return selector, repo
+
+
+def rule_merge_needs_verify(inv: Invocation) -> str | None:
+    if os.path.basename(inv.argv[0]) != "gh" or inv.argv[1:3] != ["pr", "merge"]:
+        return None
+    valued = {"-b", "--body", "-F", "--body-file", "-t", "--subject", "-A", "--author-email", "--match-head-commit"}
+    selector, repo = gh_selector(inv.argv[3:], valued)
+    try:
+        view = run(["gh", "pr", "view", *([selector] if selector else []), *repo,
+                    "--json", "headRefOid,number,url"], inv.cwd)
+        if view.returncode != 0:
+            return f"could not resolve the PR to check its verify status: {view.stderr.strip()}"
+        pr = json.loads(view.stdout)
+        slug = re.match(r"https://github\.com/([^/]+/[^/]+)/pull/", pr["url"]).group(1)
+        statuses = run(["gh", "api", f"repos/{slug}/commits/{pr['headRefOid']}/statuses?per_page=100"], inv.cwd)
+        if statuses.returncode != 0:
+            return f"could not read statuses for {pr['headRefOid']}: {statuses.stderr.strip()}"
+        verify = [s for s in json.loads(statuses.stdout)
+                  if s.get("context") == "verify"
+                  and (s.get("creator") or {}).get("login") == VERIFIER_BOT_LOGIN
+                  and (s.get("creator") or {}).get("id") == VERIFIER_BOT_ID]
+    except (OSError, ValueError, KeyError, AttributeError, subprocess.SubprocessError) as e:
+        return f"could not check the verify status: {e}"
+    if verify and verify[0].get("state") == "success":
+        return None
+    state = verify[0].get("state") if verify else "missing"
+    return (f"PR #{pr['number']} head {pr['headRefOid'][:12]} has no verify success from "
+            f"{VERIFIER_BOT_LOGIN} (latest: {state}). An independent verifier posts it after checking that exact sha.")
+
+
+def rule_inline_pr_body(inv: Invocation) -> str | None:
+    if os.path.basename(inv.argv[0]) != "gh" or inv.argv[1:2] != ["pr"] or inv.argv[2:3] not in (["edit"], ["create"]):
+        return None
+    if any(a in {"-b", "--body"} or a.startswith("--body=") for a in inv.argv[3:]):
+        return ("inline PR bodies are not allowed; a quoted heredoc once ran a command by accident. "
+                "Write the body to a file, then run scripts/pr-body.sh <pr> <file> "
+                "(or gh pr create --body-file <file>).")
+    return None
+
+
+def commit_messages(inv: Invocation) -> list[str | None] | None:
+    head, args = os.path.basename(inv.argv[0]), inv.argv[1:]
+    git = as_git(inv)
+    msg_flags = {"m", "message"}
+    if git and git.sub == "commit":
+        args, cwd, file_flags = git.args, git.cwd, {"F", "file"}
+    elif head == "gt" and args[:1] in (["create"], ["c"], ["modify"], ["m"]):
+        args, cwd, file_flags = args[1:], inv.cwd, set()
+    else:
+        return None
+    messages: list[str | None] = []
+    short_flags = {f for f in msg_flags | file_flags if len(f) == 1}
+    i = 0
+    while i < len(args):
+        a, name, value = args[i], None, None
+        if a.startswith("--"):
+            name, eq, value = a[2:].partition("=")
+            if not eq:
+                value = args[i + 1] if i + 1 < len(args) else None
+                i += 1 if name in msg_flags | file_flags else 0
+        elif a.startswith("-") and len(a) > 1:
+            for j, ch in enumerate(a[1:], start=1):
+                if ch in short_flags:
+                    name, value = ch, a[j + 1 :] or (args[i + 1] if i + 1 < len(args) else None)
+                    i += 0 if a[j + 1 :] else 1
+                    break
+        i += 1
+        if name in msg_flags and value is not None:
+            messages.append(message_text(value))
+        elif name in file_flags and value is not None:
+            messages.append(file_text(value, cwd, inv.stdin))
+    return messages
+
+
+def message_text(value: str) -> str | None:
+    m = HEREDOC_SUBST_RE.match(value)
+    if m:
+        return m.group(3)
+    return None if "$" in value or "`" in value else value
+
+
+def file_text(path: str, cwd: str, stdin: str | None) -> str | None:
+    if path == "-":
+        return stdin
+    try:
+        with open(os.path.join(cwd, os.path.expanduser(path))) as f:
+            return f.read()
+    except OSError:
+        return None
+
+
+def rule_conventional_commit(inv: Invocation) -> str | None:
+    messages = commit_messages(inv)
+    if not messages or messages[0] is None:
+        return None
+    subject = messages[0].strip().splitlines()[0] if messages[0].strip() else ""
+    if CONVENTIONAL_RE.match(subject):
+        return None
+    return (f'commit subject "{subject}" is not a Conventional Commit. Use `type(scope)!: subject` with type one of '
+            f"{CONVENTIONAL_TYPES.replace('|', ', ')}. The /commit skill writes one from the diff.")
+
+
+RULES = [
+    rule_mutation,
+    rule_push_protected,
+    rule_force_push,
+    rule_push_behind,
+    rule_claude_timeout,
+    rule_merge_needs_verify,
+    rule_inline_pr_body,
+    rule_conventional_commit,
+]
+
+
+def verdict(command: str, cwd: str) -> str | None:
+    try:
+        invocations = parse(command, cwd)
+    except ValueError:
+        return None
+    for inv in invocations:
+        for rule in RULES:
+            reason = rule(inv)
+            if reason:
+                return reason
+    return None
+
+
+def main() -> int:
+    try:
+        event = json.load(sys.stdin)
+    except ValueError:
+        return 0
+    command = (event.get("tool_input") or {}).get("command") or ""
+    if not command:
+        return 0
+    reason = verdict(command, event.get("cwd") or os.getcwd())
+    if reason:
+        print(f"blocked by scripts/agent-guard.py: {reason}", file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
