@@ -21,7 +21,7 @@ func main() {
 		root = os.Args[1]
 	}
 	if err := generate(root); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "gen-depguard: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "gen-golangci: %v\n", err)
 		os.Exit(1)
 	}
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/lint/comments"
 )
 
-//go:generate go run ../../scripts/gen-depguard ../..
+//go:generate go run ../../scripts/gen-golangci ../..
 //go:generate go run . gen errors ../../api/openapi.yaml
 
 type command func(cfg config.Config, args []string, stdout, stderr io.Writer) int
