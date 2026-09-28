@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
 type Verdict struct {
@@ -105,7 +107,11 @@ func parseVerdict(args []string) (verdictIn, error) {
 		return verdictIn{}, usageError(use)
 	}
 	if in.model == "fable" {
-		return verdictIn{}, failure("fable is not a verifier model")
+		return verdictIn{}, detailErr(
+			errs.CodeInvalidInput,
+			"monacoctl.agents.verdict",
+			"fable is not a verifier model",
+		)
 	}
 	return in, nil
 }
@@ -134,13 +140,21 @@ func flagPairs(args []string, use string) (map[string]string, error) {
 func checkVerdict(in verdictIn, pr PR, p Plan) error {
 	switch {
 	case p.NoOwner != "":
-		return failf("owner record: %s", p.NoOwner)
+		return detailErr(
+			errs.CodeInvalidInput,
+			"monacoctl.agents.verdict",
+			"owner record: "+p.NoOwner,
+		)
 	case in.model == p.Owner:
-		return failure("verifier model equals the owner")
+		return detailErr(errs.CodeInvalidInput, "monacoctl.agents.verdict", "verifier model equals the owner")
 	case in.sha != pr.Head.SHA:
-		return failure("sha is not the pull request head")
+		return detailErr(errs.CodeInvalidInput, "monacoctl.agents.verdict", "sha is not the pull request head")
 	case Kind(in.kind) == RootCheck && p.Kind == Full:
-		return failf("--kind %s is weaker than %s", in.kind, p.Kind)
+		return detailErr(
+			errs.CodeInvalidInput,
+			"monacoctl.agents.verdict",
+			fmt.Sprintf("--kind %s is weaker than %s", in.kind, p.Kind),
+		)
 	default:
 		return nil
 	}
@@ -217,7 +231,11 @@ func carryCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 		return err
 	}
 	if id != rec.PatchID {
-		return failure("patch-id differs from the recorded verdict; verify again")
+		return detailErr(
+			errs.CodeInvalidInput,
+			"monacoctl.agents.verdict",
+			"patch-id differs from the recorded verdict; verify again",
+		)
 	}
 	old := rec.SHA
 	desc := carried(old, rec.Description)
@@ -281,7 +299,7 @@ func (env *Env) stablePatch(ctx context.Context, baseRef string, pr int) (string
 	}
 	fields := strings.Fields(string(out))
 	if len(fields) == 0 {
-		return "", failure("patch-id returned nothing")
+		return "", detailErr(errs.CodeDecodeFailed, "monacoctl.agents.verdict", "patch-id returned nothing")
 	}
 	return fields[0], nil
 }

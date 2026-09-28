@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -28,7 +29,7 @@ func TestVerifierKey_usesTheFlagOrTheHomeDefault(t *testing.T) {
 		t.Fatalf("default: %q %v", got, err)
 	}
 	env.Home = ""
-	if _, err = env.verifierKey(""); err == nil || !strings.Contains(err.Error(), "HOME is unset") {
+	if _, err = env.verifierKey(""); err == nil || !strings.Contains(cliText(err), "HOME is unset") {
 		t.Fatalf("home: %v", err)
 	}
 }
@@ -108,17 +109,17 @@ func TestLoadKey_acceptsPKCS1AndPKCS8AndRejectsTheRest(t *testing.T) {
 	}
 	ecPath := filepath.Join(dir, "ec.pem")
 	writeFile(t, ecPath, pemBlock("PRIVATE KEY", ecBytes))
-	if _, err = loadKey(ecPath); err == nil || !strings.Contains(err.Error(), "not RSA") {
+	if _, err = loadKey(ecPath); err == nil || !strings.Contains(cliText(err), "not RSA") {
 		t.Fatalf("ec: %v", err)
 	}
 	bad := filepath.Join(dir, "bad.pem")
 	writeFile(t, bad, "not pem\n")
-	if _, err = loadKey(bad); err == nil || !strings.Contains(err.Error(), "not PEM") {
+	if _, err = loadKey(bad); err == nil || !strings.Contains(cliText(err), "not PEM") {
 		t.Fatalf("pem: %v", err)
 	}
 	junk := filepath.Join(dir, "junk.pem")
 	writeFile(t, junk, pemBlock("PRIVATE KEY", []byte("nope")))
-	if _, err = loadKey(junk); err == nil || !strings.Contains(err.Error(), "not PKCS1 or PKCS8") {
+	if _, err = loadKey(junk); err == nil || !strings.Contains(cliText(err), "not PKCS1 or PKCS8") {
 		t.Fatalf("junk: %v", err)
 	}
 	if _, err = loadKey(
@@ -159,7 +160,7 @@ func TestStatusAuth_fallsBackSignsAndReportsTokenFailures(t *testing.T) {
 
 	f.hub.on("POST /app/installations/100/access_tokens", `{"token":""}`)
 	_, err = env.statusAuth(context.Background(), key)
-	if err == nil || !strings.Contains(err.Error(), "installation token was empty") {
+	if err == nil || !strings.Contains(cliText(err), "installation token was empty") {
 		t.Fatalf("empty: %v", err)
 	}
 	f.hub.on("POST /app/installations/100/access_tokens", "")
@@ -170,7 +171,7 @@ func TestStatusAuth_fallsBackSignsAndReportsTokenFailures(t *testing.T) {
 
 	env.Home = ""
 	_, err = env.statusAuth(context.Background(), "")
-	if err == nil || !strings.Contains(err.Error(), "HOME is unset") {
+	if err == nil || !strings.Contains(cliText(err), "HOME is unset") {
 		t.Fatalf("home: %v", err)
 	}
 	short := writeShortKey(t, f)
@@ -185,7 +186,7 @@ func TestStatusAuth_fallsBackSignsAndReportsTokenFailures(t *testing.T) {
 	f.env = []string{f.env[0]}
 	f.run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
 		if name == "gh" {
-			return nil, failure("gh: not logged in")
+			return nil, errors.New("gh: not logged in")
 		}
 		return Exec(ctx, dir, stdin, name, args...)
 	}

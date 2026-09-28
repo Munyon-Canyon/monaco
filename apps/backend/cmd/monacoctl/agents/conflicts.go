@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
 func conflictsCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {
@@ -24,7 +26,7 @@ func conflictsCmd(ctx context.Context, env *Env, args []string, stdout io.Writer
 	rec := Record{}
 	if ok {
 		rec, err = env.record(ticket)
-		if err != nil && !strings.Contains(err.Error(), "no owner record") {
+		if err != nil && errs.CodeOf(err) != errs.CodeNotFound {
 			return err
 		}
 	}

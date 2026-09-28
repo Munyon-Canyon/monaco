@@ -13,6 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
 func (env *Env) verifierKey(flag string) (string, error) {
@@ -20,7 +22,7 @@ func (env *Env) verifierKey(flag string) (string, error) {
 		return flag, nil
 	}
 	if env.Home == "" {
-		return "", failure("HOME is unset")
+		return "", detailErr(errs.CodeInvalidInput, "monacoctl.agents.verifierKey", "HOME is unset")
 	}
 	return filepath.Join(env.Home, ".config", "monaco", "verifier.pem"), nil
 }
@@ -57,7 +59,7 @@ func (env *Env) statusAuth(ctx context.Context, keyFlag string) (string, error) 
 		return "", err
 	}
 	if resp.Token == "" {
-		return "", failure("installation token was empty")
+		return "", detailErr(errs.CodeUnauthorized, "monacoctl.agents.statusAuth", "installation token was empty")
 	}
 	return "token " + resp.Token, nil
 }
@@ -69,18 +71,18 @@ func loadKey(path string) (*rsa.PrivateKey, error) {
 	}
 	block, _ := pem.Decode(b)
 	if block == nil {
-		return nil, failure("verifier key is not PEM")
+		return nil, detailErr(errs.CodeDecodeFailed, "monacoctl.agents.loadKey", "verifier key is not PEM")
 	}
 	if key, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil {
 		return key, nil
 	}
 	parsed, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
-		return nil, failure("verifier key is not PKCS1 or PKCS8")
+		return nil, detailErr(errs.CodeDecodeFailed, "monacoctl.agents.loadKey", "verifier key is not PKCS1 or PKCS8")
 	}
 	key, ok := parsed.(*rsa.PrivateKey)
 	if !ok {
-		return nil, failure("verifier key is not RSA")
+		return nil, detailErr(errs.CodeDecodeFailed, "monacoctl.agents.loadKey", "verifier key is not RSA")
 	}
 	return key, nil
 }

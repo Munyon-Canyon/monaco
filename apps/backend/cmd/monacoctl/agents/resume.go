@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
 const (
@@ -82,9 +84,13 @@ func (in resumeIn) path(env *Env, r Record) (string, error) {
 func (env *Env) defaultTranscript(r Record) (string, error) {
 	switch {
 	case r.AgentID == "":
-		return "", failure("owner has no transcript; pass --transcript")
+		return "", detailErr(
+			errs.CodeInvalidInput,
+			"monacoctl.agents.resume",
+			"owner has no transcript; pass --transcript",
+		)
 	case env.Home == "":
-		return "", failure("HOME is unset")
+		return "", detailErr(errs.CodeInvalidInput, "monacoctl.agents.resume", "HOME is unset")
 	default:
 		slug := strings.NewReplacer("/", "-", "\\", "-").Replace(r.Worktree)
 		return filepath.Join(env.Home, ".claude", "projects", slug, r.AgentID+".jsonl"), nil
@@ -105,7 +111,7 @@ func (env *Env) refuseResume(ctx context.Context, stdout io.Writer, r Record, to
 		return err
 	}
 	_, _ = io.WriteString(stdout, body)
-	return exitError{code: 1, msg: "transcript is over 250k tokens"}
+	return detailErr(errs.CodeInvalidInput, "monacoctl.agents.resume", "transcript is over 250k tokens")
 }
 
 func (env *Env) freshOwner(ctx context.Context, r Record, tokens int) (string, error) {

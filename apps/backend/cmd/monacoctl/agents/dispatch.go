@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
 const idleAfter = 20 * time.Minute
@@ -82,7 +84,11 @@ func parseDispatch(args []string) (dispatchIn, error) {
 		return dispatchIn{}, err
 	}
 	if rest[2] == "" || rest[2] == "fable" {
-		return dispatchIn{}, failure("dispatch model must be set and must not be fable")
+		return dispatchIn{}, detailErr(
+			errs.CodeInvalidInput,
+			"monacoctl.agents.dispatch",
+			"dispatch model must be set and must not be fable",
+		)
 	}
 	in.ticket, in.model = n, rest[2]
 	return in, nil
@@ -99,7 +105,7 @@ func (env *Env) blockersClear(ctx context.Context, ticket int) error {
 	}
 	ids := issueNums().FindAllStringSubmatch(m[1], -1)
 	if len(ids) == 0 {
-		return failure("blocked by line has no issue numbers")
+		return detailErr(errs.CodeInvalidInput, "monacoctl.agents.dispatch", "blocked by line has no issue numbers")
 	}
 	for _, id := range ids {
 		n, _ := strconv.Atoi(id[1])
@@ -130,7 +136,11 @@ func (env *Env) pullBlocker(ctx context.Context, n int) error {
 		return err
 	}
 	if pr.MergedAt == nil {
-		return failf("blocker #%d is not merged", n)
+		return detailErr(
+			errs.CodeInvalidInput,
+			"monacoctl.agents.dispatch",
+			fmt.Sprintf("blocker #%d is not merged", n),
+		)
 	}
 	return env.mergedIn(ctx, n, pr.MergeCommitSHA)
 }
@@ -152,7 +162,11 @@ func (env *Env) issueBlocker(ctx context.Context, n int) error {
 			return nil
 		}
 	}
-	return failf("blocker #%d is not merged into %s", n, env.Config.FeatureBranch)
+	return detailErr(
+		errs.CodeInvalidInput,
+		"monacoctl.agents.dispatch",
+		fmt.Sprintf("blocker #%d is not merged into %s", n, env.Config.FeatureBranch),
+	)
 }
 
 func (env *Env) mergedIn(ctx context.Context, n int, sha string) error {
@@ -161,7 +175,11 @@ func (env *Env) mergedIn(ctx context.Context, n int, sha string) error {
 		return err
 	}
 	if !ok {
-		return failf("blocker #%d is not in %s", n, env.Config.FeatureBranch)
+		return detailErr(
+			errs.CodeInvalidInput,
+			"monacoctl.agents.dispatch",
+			fmt.Sprintf("blocker #%d is not in %s", n, env.Config.FeatureBranch),
+		)
 	}
 	return nil
 }
@@ -223,7 +241,11 @@ func (env *Env) lanesOpen() error {
 		}
 	}
 	if n >= env.Config.Lanes {
-		return failf("%d owners are not exited; lane cap is %d", n, env.Config.Lanes)
+		return detailErr(
+			errs.CodeInvalidInput,
+			"monacoctl.agents.dispatch",
+			fmt.Sprintf("%d owners are not exited; lane cap is %d", n, env.Config.Lanes),
+		)
 	}
 	return nil
 }
@@ -271,16 +293,16 @@ func (env *Env) claudePID(ctx context.Context) (int, error) {
 		}
 		fields := strings.Fields(string(out))
 		if len(fields) < 2 {
-			return 0, failure("watchdog: missing assertion")
+			return 0, detailErr(errs.CodeInvalidInput, "monacoctl.agents.dispatch", "watchdog: missing assertion")
 		}
 		if strings.Contains(fields[1], "claude") {
 			return pid, nil
 		}
 		ppid, err := strconv.Atoi(fields[0])
 		if err != nil || ppid <= 1 {
-			return 0, failure("watchdog: missing assertion")
+			return 0, detailErr(errs.CodeInvalidInput, "monacoctl.agents.dispatch", "watchdog: missing assertion")
 		}
 		pid = ppid
 	}
-	return 0, failure("watchdog: missing assertion")
+	return 0, detailErr(errs.CodeInvalidInput, "monacoctl.agents.dispatch", "watchdog: missing assertion")
 }

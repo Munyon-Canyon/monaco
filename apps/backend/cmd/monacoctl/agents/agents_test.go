@@ -3,11 +3,15 @@ package agents
 import (
 	"bytes"
 	"context"
+	"errors"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
 func TestMain_usageListsCommandsAndExitsTwo(t *testing.T) {
@@ -104,7 +108,7 @@ func TestGitHub_tokenFailureStopsTheCall(t *testing.T) {
 	f.env = []string{f.env[0]}
 	f.run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
 		if name == "gh" {
-			return nil, failure("gh: not logged in")
+			return nil, errors.New("gh: not logged in")
 		}
 		return Exec(ctx, dir, stdin, name, args...)
 	}
@@ -241,10 +245,21 @@ func TestWriteLimited_capsPastTwentyLines(t *testing.T) {
 	}
 }
 
-func TestExitCode_usesTheCodeAndSkipsAnEmptyMessage(t *testing.T) {
+func TestExitCode_invalidInputExitsTwoAndADetailLessErrorIsSilent(t *testing.T) {
 	t.Parallel()
 	var stderr bytes.Buffer
-	if code := exitCode(exitError{code: 7}, &stderr); code != 7 || stderr.Len() != 0 {
-		t.Fatalf("code=%d stderr=%q", code, stderr.String())
+	invalid := errs.New(
+		errs.CodeInvalidInput,
+		"monacoctl.agents.forecast",
+		slog.String("detail", "usage: monacoctl agents forecast"),
+	)
+	if code := exitCode(invalid, &stderr); code != 2 ||
+		stderr.String() != "monacoctl agents: usage: monacoctl agents forecast\n" {
+		t.Fatalf("invalid: code=%d stderr=%q", code, stderr.String())
+	}
+	stderr.Reset()
+	silent := errs.New(errs.CodeForbidden, "monacoctl.agents.watch")
+	if code := exitCode(silent, &stderr); code != 1 || stderr.Len() != 0 {
+		t.Fatalf("silent: code=%d stderr=%q", code, stderr.String())
 	}
 }
