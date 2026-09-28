@@ -19,6 +19,7 @@ const (
 	smallDiff = 50
 	opus      = "opus"
 	sonnet    = "sonnet"
+	haiku     = "haiku"
 )
 
 type Plan struct {
@@ -122,7 +123,7 @@ func (env *Env) plan(ctx context.Context, pr PR) (Plan, error) {
 	default:
 		p.Ticket, p.Owner = ticket, r.Model
 		if p.Model == r.Model {
-			p.Model = map[string]string{opus: sonnet, sonnet: opus}[p.Model]
+			p.Model = map[string]string{opus: sonnet, sonnet: opus, haiku: opus}[p.Model]
 		}
 	}
 	return p, nil
@@ -130,27 +131,55 @@ func (env *Env) plan(ctx context.Context, pr PR) (Plan, error) {
 
 func classify(files []File) Plan {
 	p := Plan{Kind: RootCheck, Model: sonnet, Reason: "test-only"}
+	hygiene := true
 	for _, f := range files {
 		if testFile(f.Filename) {
 			continue
 		}
-		p.Lines += f.Additions + f.Deletions
-		p.Files++
-		if p.Model == opus {
-			continue
-		}
+		hygiene = noteFile(&p, f) && hygiene
+	}
+	return finishPlan(p, hygiene)
+}
+
+func noteFile(p *Plan, f File) bool {
+	p.Lines += f.Additions + f.Deletions
+	p.Files++
+	if p.Model != opus {
 		if area := sensitiveArea(f); area != "" {
 			p.Kind, p.Model, p.Reason = Full, opus, area
 		}
 	}
+	return hygieneFile(f.Filename)
+}
+
+func finishPlan(p Plan, hygiene bool) Plan {
 	switch {
 	case p.Model == opus:
+	case p.Files > 0 && hygiene:
+		p.Model = haiku
+		p.Reason = "ci, pr hygiene, or size"
+		if p.Lines >= smallDiff {
+			p.Kind = Full
+		}
 	case p.Lines >= smallDiff:
 		p.Kind, p.Reason = Full, fmt.Sprintf("%d non-test lines", p.Lines)
 	case p.Files > 0:
 		p.Reason = fmt.Sprintf("under %d non-test lines", smallDiff)
 	}
 	return p
+}
+
+func hygieneFile(name string) bool {
+	switch {
+	case strings.HasPrefix(name, ".github/workflows/"):
+		return true
+	case strings.HasPrefix(name, "scripts/check-pr-") && strings.HasSuffix(name, ".py"):
+		return true
+	case name == "scripts/pr-body.sh" || name == ".github/pull_request_template.md":
+		return true
+	default:
+		return false
+	}
 }
 
 func testFile(name string) bool {

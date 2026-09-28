@@ -17,6 +17,7 @@ type Config struct {
 	Lanes                int
 	VerifierApp          string
 	VerifierInstallation int
+	Milestone            string
 }
 
 func parseConfig(r io.Reader) (Config, error) {
@@ -24,6 +25,7 @@ func parseConfig(r io.Reader) (Config, error) {
 	seen := map[string]bool{}
 	strs := map[string]*string{
 		"repo": &c.Repo, "feature_branch": &c.FeatureBranch, "verifier_app": &c.VerifierApp,
+		"milestone": &c.Milestone,
 	}
 	ints := map[string]*int{
 		"tracking": &c.Tracking, "lanes": &c.Lanes, "verifier_installation": &c.VerifierInstallation,
@@ -39,6 +41,7 @@ func parseConfig(r io.Reader) (Config, error) {
 	}
 	for _, key := range []string{
 		"repo", "feature_branch", "tracking", "lanes", "verifier_app", "verifier_installation",
+		"milestone",
 	} {
 		if !seen[key] {
 			return Config{}, failf("%s: missing %s", configPath, key)

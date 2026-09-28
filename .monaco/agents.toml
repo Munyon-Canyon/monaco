@@ -5,3 +5,4 @@ tracking = 492
 lanes = 8
 verifier_app = "5101392"
 verifier_installation = 165592710
+milestone = "m7-rest"
