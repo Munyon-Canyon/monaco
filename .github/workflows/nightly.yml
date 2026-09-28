@@ -118,8 +118,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # The only job that saves the Go cache the backend job in ci-jobs.yml restores. It runs that job's
-  # tests with the same flags, so PRs also reuse main's results for packages they do not change.
+  # The only job that saves the Go cache the backend job in ci-jobs.yml restores. PRs reuse its
+  # module downloads and compiled packages, not test results: test-backend.sh passes -shuffle=on
+  # and -coverpkg, which are outside go test's cacheable flags, so every PR run executes every test.
   warm-cache:
     name: Warm the Go cache for PRs
     needs: changed
