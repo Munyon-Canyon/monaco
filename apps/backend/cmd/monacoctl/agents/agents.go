@@ -50,7 +50,8 @@ type exitError struct {
 func (e exitError) Error() string { return e.msg }
 func commands() map[string]command {
 	return map[string]command{
-		"forecast": forecastCmd,
+		"forecast":    forecastCmd,
+		"verify-plan": verifyPlanCmd,
 	}
 }
 
