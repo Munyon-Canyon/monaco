@@ -160,9 +160,15 @@ func TestRegistry_gaugesReportPendingAckPendingAndDeadLetters(t *testing.T) {
 	h := newHarness(t)
 	started := make(chan struct{}, 1)
 	release := make(chan struct{})
-	handler := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged) error {
-		started <- struct{}{}
-		<-release
+	handler := bus.Handle("notify.push", func(ctx context.Context, _ db.Tx, _ events.SystemPinged) error {
+		select {
+		case started <- struct{}{}:
+		default:
+		}
+		select {
+		case <-release:
+		case <-ctx.Done():
+		}
 		return errs.New(errs.CodeInvalidInput, "notify.Render")
 	})
 	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{handler}})
@@ -176,6 +182,7 @@ func TestRegistry_gaugesReportPendingAckPendingAndDeadLetters(t *testing.T) {
 	if got := h.gaugeByConsumer(t, "monaco_bus_consumer_pending"); got[durable] != 0 {
 		t.Fatalf("pending = %v, want 0 for %s", got, durable)
 	}
+	h.waitDelivered(t, 3)
 	close(release)
 	h.waitDeadLetters(t, 1)
 	if got := h.gaugeByConsumer(t, "monaco_dead_letters"); got[durable] != 1 {
@@ -183,6 +190,18 @@ func TestRegistry_gaugesReportPendingAckPendingAndDeadLetters(t *testing.T) {
 	}
 	if got := h.gaugeByConsumer(t, "monaco_bus_consumer_ack_pending"); got[durable] != 0 {
 		t.Fatalf("ack pending after term = %v, want 0", got)
+	}
+}
+
+func (h *harness) waitDelivered(t *testing.T, n uint64) {
+	t.Helper()
+	deadline := time.After(waitLong)
+	for h.consumerInfo(t).Delivered.Consumer < n {
+		select {
+		case <-deadline:
+			t.Fatalf("the consumer never delivered %d times", n)
+		case <-time.After(20 * time.Millisecond):
+		}
 	}
 }
 
