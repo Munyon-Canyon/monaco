@@ -188,9 +188,14 @@ func TestAgentGuard_headlessClaudeNeedsTimeout(t *testing.T) {
 
 func ghStub(t *testing.T, statuses string) (env []string, calls string) {
 	t.Helper()
+	return ghStubOnBase(t, "backend-rewrite-3", statuses)
+}
+
+func ghStubOnBase(t *testing.T, base, statuses string) (env []string, calls string) {
+	t.Helper()
 	dir := t.TempDir()
 	calls = filepath.Join(dir, "calls")
-	view := `{"number":42,"headRefOid":"0123456789abcdef0123456789abcdef01234567","url":"https://github.com/o/r/pull/42"}`
+	view := fmt.Sprintf(`{"baseRefName":%q,"number":42,"headRefOid":"0123456789abcdef0123456789abcdef01234567","url":"https://github.com/o/r/pull/42"}`, base)
 	writeExecutable(t, filepath.Join(dir, "bin", "gh"), fmt.Sprintf(`#!/bin/sh
 echo "$*" >> %q
 case "$1 $2" in
@@ -227,6 +232,14 @@ func TestAgentGuard_ghPrMergeNeedsVerifySuccessFromTheVerifierApp(t *testing.T) 
 	}
 	env, _ = ghStub(t, `[`+status("success", bot, botID)+`]`)
 	assertAllowed(t, guard(t, cwd, "gh pr view 42", env...), "gh pr view")
+}
+
+func TestAgentGuard_onlyTheOperatorMergesIntoMain(t *testing.T) {
+	cwd := t.TempDir()
+	env, _ := ghStubOnBase(t, "main", `[`+status("success", "monaco-verifier[bot]", 334715092)+`]`)
+	for _, cmd := range []string{"gh pr merge 42 --squash", "gh pr merge 42 --auto --squash"} {
+		assertBlocked(t, guard(t, cwd, cmd, env...), cmd, "Only the operator merges into main")
+	}
 }
 
 func TestAgentGuard_prBodiesComeFromFiles(t *testing.T) {
