@@ -182,6 +182,28 @@ func runFixture(t *testing.T, run string) (string, error) {
 	return string(out), err
 }
 
+func TestMainWithNoDB_runsSetupThenTestsThenCleanupWithoutPostgres(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("builds and runs another test binary")
+	}
+	run := func(env ...string) (string, error) {
+		cmd := exec.CommandContext(t.Context(), "go", "test", "-count=1", "-v", "./testdata/nodb")
+		cmd.Env = append(os.Environ(), append(env, "TEST_DATABASE_URL=postgres://nowhere:1/none")...)
+		out, err := cmd.CombinedOutput()
+		return string(out), err
+	}
+	out, err := run()
+	order := regexp.MustCompile(`fixture: (\w+)`).FindAllStringSubmatch(out, -1)
+	if err != nil || len(order) != 3 || order[0][1] != "setup" || order[1][1] != "test" || order[2][1] != "cleanup" {
+		t.Fatalf("nodb fixture: err %v, want setup, test, cleanup in order:\n%s", err, out)
+	}
+	out, err = run("NODB_FAIL_SETUP=1")
+	if err == nil || !strings.Contains(out, "testkit.Main: setup refused") || strings.Contains(out, "fixture: test") {
+		t.Fatalf("failing setup: err %v, want exit before any test with the setup error:\n%s", err, out)
+	}
+}
+
 func TestMainFailsAPackageThatLeaksAGoroutine(t *testing.T) {
 	t.Parallel()
 	out, err := runFixture(t, "^TestLeaksAGoroutine$")

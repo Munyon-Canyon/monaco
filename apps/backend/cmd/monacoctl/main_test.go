@@ -14,6 +14,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
+func TestMain(m *testing.M) {
+	testkit.Main(m, testkit.WithChild(main), testkit.WithNATS())
+}
+
 func monacoctl(t *testing.T, dir, stdin string, args ...string) (int, string, string) {
 	t.Helper()
 	cmd := testkit.MainCommand(t, os.Environ(), args...)

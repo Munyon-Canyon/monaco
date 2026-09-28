@@ -22,10 +22,8 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/peterldowns/pgtestdb"
 	"github.com/peterldowns/pgtestdb/migrators/common"
-	"go.uber.org/goleak"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
-	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 )
 
 const (
@@ -57,57 +55,6 @@ type server struct {
 
 type execer interface {
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
-}
-
-type MainOption func(*mainOptions)
-
-type mainOptions struct {
-	nats bool
-}
-
-func WithNATS() MainOption {
-	return func(o *mainOptions) { o.nats = true }
-}
-
-func Main(m *testing.M, opts ...MainOption) {
-	var o mainOptions
-	for _, opt := range opts {
-		opt(&o)
-	}
-	s, err := open(context.Background(), config.TestDBURL(os.Environ()))
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "testkit.Main: %v\n", err)
-		os.Exit(1)
-	}
-	current.Store(s)
-	var ns *natsServer
-	if o.nats {
-		if ns, err = startNATS(); err != nil {
-			s.admin.Close()
-			_, _ = fmt.Fprintf(os.Stderr, "testkit.Main: %v\n", err)
-			os.Exit(1)
-		}
-		natsCurrent.Store(ns)
-	}
-	goleak.VerifyTestMain(runThenClose{m: m, s: s, nats: ns})
-}
-
-type runThenClose struct {
-	m    *testing.M
-	s    *server
-	nats *natsServer
-}
-
-func (r runThenClose) Run() int {
-	code := r.m.Run()
-	if r.s.holder != nil {
-		_ = r.s.holder.Close(context.Background())
-	}
-	if r.nats != nil {
-		r.nats.stop()
-	}
-	r.s.admin.Close()
-	return code
 }
 
 func open(ctx context.Context, rawURL string) (*server, error) {

@@ -10,7 +10,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	testkit.RunMain(m, main)
+	testkit.Main(m, testkit.NoDB(), testkit.WithChild(main))
 }
 
 const testConfig = `linters:

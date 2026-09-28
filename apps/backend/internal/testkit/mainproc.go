@@ -17,12 +17,7 @@ import (
 
 const runMainEnv = "TESTKIT_RUN_MAIN"
 
-func RunMain(m *testing.M, main func()) {
-	ChildMain(main)
-	os.Exit(m.Run())
-}
-
-func ChildMain(main func()) {
+func childMain(main func()) {
 	if os.Getenv(runMainEnv) == "1" {
 		main()
 		os.Exit(0)

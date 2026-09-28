@@ -22,11 +22,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-func TestMain(m *testing.M) {
-	testkit.ChildMain(main)
-	testkit.Main(m, testkit.WithNATS())
-}
-
 func TestRun_refusesToBootWithoutTheBus(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
