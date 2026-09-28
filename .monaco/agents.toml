@@ -1,0 +1,7 @@
+# status --publish rewrites the tracking issue comment that contains "<!-- monacoctl agents status -->".
+repo = "lognorman20/monaco"
+feature_branch = "backend-rewrite-3"
+tracking = 492
+lanes = 8
+verifier_app = "5101392"
+verifier_installation = 165592710
