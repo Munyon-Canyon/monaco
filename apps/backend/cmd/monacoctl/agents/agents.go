@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"maps"
 	"net/http"
 	"os"
 	"os/exec"
@@ -26,13 +29,102 @@ type Env struct {
 	Start  func(name string, args ...string) error
 	Now    func() time.Time
 }
-
-type Runner func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error)
-
-type failure string
+type (
+	Runner  func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error)
+	command func(ctx context.Context, env *Env, args []string, stdout io.Writer) error
+	failure string
+)
 
 func (f failure) Error() string           { return string(f) }
 func failf(format string, a ...any) error { return failure(fmt.Sprintf(format, a...)) }
+
+type usageError string
+
+func (u usageError) Error() string { return "usage: monacoctl agents " + string(u) }
+
+type exitError struct {
+	code int
+	msg  string
+}
+
+func (e exitError) Error() string { return e.msg }
+func commands() map[string]command {
+	return map[string]command{
+		"forecast": forecastCmd,
+	}
+}
+
+func Main(ctx context.Context, environ []string, dir string, run Runner, args []string, stdout, stderr io.Writer) int {
+	args, verbose := stripFlag(args, "--verbose")
+	if len(args) == 0 || commands()[args[0]] == nil {
+		return usage(stderr)
+	}
+	env, err := load(ctx, environ, dir, run)
+	var buf bytes.Buffer
+	if err == nil {
+		err = commands()[args[0]](ctx, env, args[1:], &buf)
+	}
+	if err == nil {
+		writeLimited(stdout, buf.String(), verbose)
+	}
+	return exitCode(err, stderr)
+}
+
+func stripFlag(args []string, flag string) ([]string, bool) {
+	out := make([]string, 0, len(args))
+	found := false
+	for _, a := range args {
+		if a == flag {
+			found = true
+			continue
+		}
+		out = append(out, a)
+	}
+	return out, found
+}
+
+func writeLimited(w io.Writer, s string, verbose bool) {
+	if verbose || s == "" {
+		_, _ = io.WriteString(w, s)
+		return
+	}
+	lines := strings.Split(s, "\n")
+	if strings.HasSuffix(s, "\n") {
+		lines = lines[:len(lines)-1]
+	}
+	if len(lines) <= maxLines {
+		_, _ = io.WriteString(w, s)
+		return
+	}
+	kept := lines[:maxLines-1]
+	_, _ = fmt.Fprintf(w, "%s\n  and %d more\n", strings.Join(kept, "\n"), len(lines)-(maxLines-1))
+}
+
+func exitCode(err error, stderr io.Writer) int {
+	if err == nil {
+		return 0
+	}
+	if err.Error() != "" {
+		_, _ = fmt.Fprintf(stderr, "monacoctl agents: %v\n", err)
+	}
+	var u usageError
+	if errors.As(err, &u) {
+		return 2
+	}
+	var x exitError
+	if errors.As(err, &x) {
+		return x.code
+	}
+	return 1
+}
+
+func usage(stderr io.Writer) int {
+	_, _ = fmt.Fprintln(stderr, "usage: monacoctl agents <command> [args]")
+	for _, name := range slices.Sorted(maps.Keys(commands())) {
+		_, _ = fmt.Fprintf(stderr, "  %s\n", name)
+	}
+	return 2
+}
 
 func load(ctx context.Context, environ []string, dir string, run Runner) (*Env, error) {
 	out, err := run(ctx, dir, "", "git", "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir")
