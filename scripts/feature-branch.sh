@@ -36,7 +36,7 @@ ruleset() {
         allowed_merge_methods: ["squash"]
       }},
       {type: "required_status_checks", parameters: {
-        strict_required_status_checks_policy: true,
+        strict_required_status_checks_policy: false,
         do_not_enforce_on_create: false,
         required_status_checks: [
           {context: "ci / ci-ok", integration_id: $actions},
@@ -52,6 +52,7 @@ apply() {
   local name="$1" id
   gt trunk --add "$name" --no-interactive
   gh api -X PATCH "repos/$REPO" -F allow_auto_merge=true --silent
+  gh variable set FEATURE_BRANCH --repo "$REPO" --body "$name"
   id="$(gh api "repos/$REPO/rulesets" --jq ".[] | select(.name == \"feature branch $name\") | .id")"
   if [[ -n "$id" ]]; then
     ruleset "$name" | gh api -X PUT "repos/$REPO/rulesets/$id" --input - --jq '.id'

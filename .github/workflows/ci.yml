@@ -2,8 +2,8 @@ name: CI
 
 # A draft skips the ci job, which leaves no "ci / ci-ok" check, so the PR cannot merge.
 on:
+  # Every PR, so a stacked PR whose base is another ticket branch gets CI on its own diff.
   pull_request:
-    branches: [main, 'backend-rewrite*']
     types: [opened, synchronize, reopened, ready_for_review]
   # Dormant: a personal-account repo has no merge queue. docs/architecture/ci.md#feature-branches
   merge_group:

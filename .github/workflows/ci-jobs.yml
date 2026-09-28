@@ -142,6 +142,8 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          # Outside a PR the action diffs against the default branch, which runs every job on a feature branch.
+          base: ${{ github.event.pull_request.base.ref || vars.FEATURE_BRANCH || 'main' }}
           filters: |
             backend:
               - 'apps/backend/**'
