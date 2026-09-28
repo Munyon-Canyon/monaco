@@ -335,6 +335,22 @@ func gitOut(t *testing.T, dir string, args ...string) string {
 	return string(out)
 }
 
+func TestAgentGuard_blocksRawRebaseAndMergeInAWorktreeAndAtTheRoot(t *testing.T) {
+	t.Setenv("PYENV_VERSION", "system")
+	worktree := filepath.Join(t.TempDir(), ".worktrees", "lane")
+	for _, cmd := range []string{"git rebase origin/main", "git merge origin/main", "cd " + worktree + " && git rebase"} {
+		assertBlocked(t, guard(t, worktree, cmd), cmd, "gt restack")
+	}
+	root := t.TempDir()
+	git(t, root, "init", "-q")
+	assertBlocked(t, guard(t, root, "git rebase --onto main"), "git rebase --onto main", "gt restack")
+	assertAllowed(t, guard(t, worktree, "gt sync --no-interactive"), "gt sync --no-interactive")
+	assertAllowed(t, guard(t, worktree, "gt restack"), "gt restack")
+	assertAllowed(t, guard(t, root, "gt restack"), "gt restack")
+	elsewhere := t.TempDir()
+	assertAllowed(t, guard(t, elsewhere, "git rebase origin/main"), "git rebase origin/main")
+}
+
 func TestPrBody_setsTheBodyFromAFileOnlyWhenItPassesThePrFormat(t *testing.T) {
 	dir := t.TempDir()
 	calls := filepath.Join(dir, "calls")

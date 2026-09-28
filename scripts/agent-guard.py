@@ -482,6 +482,23 @@ def rule_conventional_commit(inv: Invocation) -> str | None:
             f"{CONVENTIONAL_TYPES.replace('|', ', ')}. The /commit skill writes one from the diff.")
 
 
+def owner_checkout(cwd: str) -> bool:
+    parts = [p for p in os.path.normpath(cwd).split(os.sep) if p]
+    if ".worktrees" in parts and parts.index(".worktrees") + 1 < len(parts):
+        return True
+    return os.path.isdir(os.path.join(cwd, ".git"))
+
+
+def rule_raw_history(inv: Invocation) -> str | None:
+    git = as_git(inv)
+    if git is None or git.sub not in {"rebase", "merge"}:
+        return None
+    if not owner_checkout(git.cwd):
+        return None
+    return ("raw git rebase and git merge are blocked in a checkout. "
+            "Update with gt sync --no-interactive, then gt restack.")
+
+
 RULES = [
     rule_mutation,
     rule_push_protected,
@@ -491,6 +508,7 @@ RULES = [
     rule_merge_needs_verify,
     rule_inline_pr_body,
     rule_conventional_commit,
+    rule_raw_history,
 ]
 
 
