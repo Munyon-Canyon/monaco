@@ -184,6 +184,9 @@ linters:
       # testing.AllocsPerRun reads the process-wide malloc counter, so allocation tests run alone (#721).
       - path: allocs_test\.go$
         linters: [paralleltest]
+      # goleak.IgnoreCurrent snapshots every goroutine, so the Close leak check runs alone (#801).
+      - path: ^internal/platform/bus/close_test\.go$
+        linters: [paralleltest]
       - path: ^internal/testkit/(db|mainproc)\.go$
         linters: [gosec]
         text: G204
