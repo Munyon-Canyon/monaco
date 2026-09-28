@@ -44,20 +44,11 @@ jobs:
       - name: No comments in hand-written Go
         run: go run ./cmd/monacoctl lint comments
 
-      - name: Generated files are fresh
-        run: go generate ./... && git diff --exit-code
-
-      - name: Generated reference docs are fresh
-        run: ../../scripts/gen-docs.sh && git add --intent-to-add ../../docs/reference && git diff --exit-code ../../docs/reference
-
       - name: OpenAPI spec lint
         run: docker run --rm -v "$PWD/api:/api:ro" dshanley/vacuum:v0.30.6 lint -b -q -n warn -r /api/.vacuum.yaml /api/openapi.yaml
 
       - name: Lint the latest migration
         run: go run ./cmd/monacoctl migrate lint
-
-      - name: Generated sqlc code is fresh
-        run: ../../scripts/install-sqlc.sh && ../../.bin/sqlc diff
 
       - name: Install oasdiff
         working-directory: ${{ runner.temp }}
@@ -84,13 +75,39 @@ jobs:
           git show FETCH_HEAD:apps/backend/api/openapi.yaml > "$RUNNER_TEMP/base-openapi.yaml"
           ../../scripts/ci/oasdiff-breaking.sh "$RUNNER_TEMP/base-openapi.yaml" api/openapi.yaml
 
-      - run: go vet ./...
-
       - name: Race tests, the time budget and the flows.tsv check
         run: ../../scripts/test-backend.sh
 
       - name: Tests that -short skips because they build or run other binaries
         run: go test -race ./internal/platform/lint/... ./internal/testkit/... ./cmd/monacoctl
+
+  # The branch is ready to land: nothing generated is stale, go.mod is tidy, and vet passes on the Go
+  # version go.mod names, so a newer local Go cannot hide a stdlib API that go1.25 lacks.
+  ready:
+    name: Ready (vet on go.mod's Go, tidy, generated files)
+    needs: plan
+    if: needs.plan.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/backend/go.mod
+          cache: false
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
+          restore-keys: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
+
+      - run: scripts/install-sqlc.sh
+
+      - run: scripts/ci/ready.sh
 
   # Mutants on the lines this change touches (gremlins --diff), one job per changed package, so the
   # wall time is the slowest package, not the sum. The nightly mutates every line of every package.
@@ -178,11 +195,11 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [plan, backend, mutation, mobile-core, ios]
+    needs: [plan, backend, ready, mutation, mobile-core, ios]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - uses: re-actors/alls-green@release/v1
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: backend, mutation, mobile-core, ios
+          allowed-skips: backend, ready, mutation, mobile-core, ios
