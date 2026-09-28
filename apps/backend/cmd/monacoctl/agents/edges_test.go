@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestEdges_dispatchBlockersAndProcess(t *testing.T) {
@@ -130,15 +131,14 @@ func TestEdges_watchConflictsStatus(t *testing.T) {
 	if err := os.Remove(env.Common + "/.monaco/agents"); err != nil {
 		t.Fatal(err)
 	}
-	f.owner(t, Record{Ticket: 1, State: Running, Started: time.Now(), Worktree: f.dir})
+	f.owner(t, Record{Ticket: 1, State: Running, Started: f.now, Worktree: f.dir})
 	env = f.Env(t)
-	env.Now = time.Now
 	env.Run = func(context.Context, string, string, string, ...string) ([]byte, error) {
 		return nil, failure("git down")
 	}
 	if _, err := env.lastActivity(
 		context.Background(),
-		Record{Ticket: 1, Worktree: f.dir, Started: time.Now()},
+		Record{Ticket: 1, Worktree: f.dir, Started: f.now},
 	); err == nil {
 		t.Fatal("commit")
 	}
@@ -170,12 +170,12 @@ func TestEdges_watchConflictsStatus(t *testing.T) {
 		}
 		return nil, failure("down")
 	}
-	f.hub.on(get("/issues/1"), Issue{UpdatedAt: time.Now().Add(time.Hour)})
-	later := time.Now().Add(2 * time.Hour)
+	f.hub.on(get("/issues/1"), Issue{UpdatedAt: f.now.Add(time.Hour)})
+	later := f.now.Add(2 * time.Hour)
 	f.hub.on(list("/pulls?state=open"), []PR{{Body: "see #1", UpdatedAt: later}})
 	if _, err := env.lastActivity(
 		context.Background(),
-		Record{Ticket: 1, Started: time.Now(), Worktree: f.dir},
+		Record{Ticket: 1, Started: f.now, Worktree: f.dir},
 	); err == nil ||
 		!strings.Contains(err.Error(), "commit time") {
 		t.Fatal(err)
@@ -289,19 +289,18 @@ func TestEdges_remainingBranches(t *testing.T) {
 		t.Fatal("bad merge")
 	}
 	env = f.Env(t)
-	future := time.Now().Add(time.Hour).Unix()
+	future := f.now.Add(time.Hour).Unix()
 	env.Run = gitStamp(future)
 	f.hub.on(get("/issues/1"), Issue{})
-	f.hub.on(list("/pulls?state=open"), []PR{{Body: "#1", UpdatedAt: time.Now().Add(2 * time.Hour)}})
+	f.hub.on(list("/pulls?state=open"), []PR{{Body: "#1", UpdatedAt: f.now.Add(2 * time.Hour)}})
 	if _, err := env.lastActivity(
 		context.Background(),
-		Record{Ticket: 1, Started: time.Now(), Worktree: f.dir},
+		Record{Ticket: 1, Started: f.now, Worktree: f.dir},
 	); err != nil {
 		t.Fatal(err)
 	}
-	f.owner(t, Record{Ticket: 3, State: Running, Started: time.Now(), Worktree: f.dir})
+	f.owner(t, Record{Ticket: 3, State: Running, Started: f.now, Worktree: f.dir})
 	env = f.Env(t)
-	env.Now = time.Now
 	env.Run = func(context.Context, string, string, string, ...string) ([]byte, error) {
 		return nil, failure("git down")
 	}
@@ -348,7 +347,7 @@ func TestEdges_remainingBranches(t *testing.T) {
 	}
 	if _, err := env.lastActivity(
 		context.Background(),
-		Record{Ticket: 99, Started: time.Now(), Worktree: f.dir},
+		Record{Ticket: 99, Started: f.now, Worktree: f.dir},
 	); err == nil {
 		t.Fatal("issue")
 	}
@@ -356,11 +355,11 @@ func TestEdges_remainingBranches(t *testing.T) {
 	f.hub.on(list("/pulls?state=open"), "not-json")
 	if _, err := env.lastActivity(
 		context.Background(),
-		Record{Ticket: 99, Started: time.Now(), Worktree: f.dir},
+		Record{Ticket: 99, Started: f.now, Worktree: f.dir},
 	); err == nil {
 		t.Fatal("prs")
 	}
-	env.Run = gitStamp(time.Now().Add(24 * time.Hour).Unix())
+	env.Run = gitStamp(f.now.Add(24 * time.Hour).Unix())
 	f.hub.on(list("/pulls?state=open"), []PR{})
 	if _, err := env.lastActivity(
 		context.Background(),
@@ -380,7 +379,6 @@ func TestEdges_remainingBranches(t *testing.T) {
 	f.owner(t, Record{Ticket: 8, State: Done, Worktree: f.dir})
 	_ = os.Remove(f.Env(t).recordPath(40))
 	env = f.Env(t)
-	env.Now = time.Now
 	env.Run = func(_ context.Context, _ string, _ string, name string, args ...string) ([]byte, error) {
 		if name == "lsof" {
 			return nil, failure("lsof")

@@ -161,7 +161,7 @@ func TestWatch_idleAliveAndCaffeinate(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	old := f.now.Add(-time.Hour)
-	f.owner(t, Record{Ticket: 1, State: Running, Started: time.Now().Add(-time.Hour), Worktree: f.dir})
+	f.owner(t, Record{Ticket: 1, State: Running, Started: old, Worktree: f.dir})
 	f.owner(t, Record{Ticket: 2, State: Done, Worktree: f.dir})
 	f.owner(t, Record{Ticket: 3, State: Exited, Started: old})
 	f.hub.on(get("/issues/1"), Issue{UpdatedAt: old})
@@ -181,11 +181,11 @@ func TestWatch_idleAliveAndCaffeinate(t *testing.T) {
 func TestWatch_isQuietWhenEveryoneMoved(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	f.owner(t, Record{Ticket: 1, State: Running, Started: time.Now(), Worktree: f.dir})
+	f.owner(t, Record{Ticket: 1, State: Running, Started: f.now, Worktree: f.dir})
 	f.owner(t, Record{Ticket: 2, State: Done, Worktree: filepath.Join(f.dir, "missing")})
 	f.hub.on(get("/issues/1"), Issue{UpdatedAt: f.now})
 	f.hub.on(list("/pulls?state=open"), []PR{})
-	f.watchGit("topic", strconv.FormatInt(time.Now().Unix(), 10), "pgrep")
+	f.watchGit("topic", strconv.FormatInt(f.now.Unix(), 10), "pgrep")
 	code, stdout, stderr := f.agents(t, "watch")
 	if code != 0 || stdout != "" || stderr != "" {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
