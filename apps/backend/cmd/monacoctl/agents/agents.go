@@ -52,6 +52,7 @@ func commands() map[string]command {
 	return map[string]command{
 		"forecast":    forecastCmd,
 		"verify-plan": verifyPlanCmd,
+		"verdict":     verdictCmd,
 	}
 }
 
