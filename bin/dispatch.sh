@@ -14,5 +14,5 @@ for pr in "$@"; do
   fi
 done
 [[ -e "$R/.worktrees/$name" ]] && { echo "dispatch.sh: REFUSED: .worktrees/$name exists" >&2; exit 1; }
-git -C "$R/.worktrees/m7-rest-root" worktree add -q --detach "$R/.worktrees/$name" "$tip"
+git -C "$R" worktree add -q --detach "$R/.worktrees/$name" "$tip"
 echo "$tip"
