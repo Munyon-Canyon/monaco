@@ -15,7 +15,7 @@ func TestMain_usageListsCommandsAndExitsTwo(t *testing.T) {
 	f := newFixture(t)
 	for _, args := range [][]string{nil, {"nope"}} {
 		code, stdout, stderr := f.agents(t, args...)
-		if code != 2 || stdout != "" || !strings.Contains(stderr, "  forecast\n") {
+		if code != 2 || stdout != "" || !strings.Contains(stderr, "  forecast\n  verify-plan\n") {
 			t.Fatalf("%q: code=%d stdout=%q stderr=%q", args, code, stdout, stderr)
 		}
 	}
@@ -24,7 +24,7 @@ func TestMain_usageListsCommandsAndExitsTwo(t *testing.T) {
 func TestMain_badArgumentsExitTwoWithTheCommandUsage(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	for _, args := range [][]string{{"forecast", "x"}} {
+	for _, args := range [][]string{{"forecast", "x"}, {"verify-plan"}, {"verify-plan", "abc"}, {"verify-plan", "0"}} {
 		code, _, stderr := f.agents(t, args...)
 		if code != 2 || !strings.HasPrefix(stderr, "monacoctl agents: usage: monacoctl agents "+args[0]) {
 			t.Fatalf("%q: code=%d stderr=%q", args, code, stderr)

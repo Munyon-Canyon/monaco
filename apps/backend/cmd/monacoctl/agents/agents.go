@@ -43,7 +43,8 @@ func (u usageError) Error() string { return "usage: monacoctl agents " + string(
 
 func commands() map[string]command {
 	return map[string]command{
-		"forecast": forecastCmd,
+		"forecast":    forecastCmd,
+		"verify-plan": verifyPlanCmd,
 	}
 }
 
