@@ -7,5 +7,5 @@ import (
 )
 
 func main() {
-	multichecker.Main(nogo.Analyzer(), nogo.TestMainAnalyzer())
+	multichecker.Main(nogo.Analyzer(), nogo.TestMainAnalyzer(), nogo.WallclockAnalyzer())
 }
