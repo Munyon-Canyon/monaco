@@ -135,6 +135,35 @@ jobs:
       - name: Tests that -short skips because they build or run other binaries
         run: go test -race ./internal/platform/ids/... ./internal/platform/lint/... ./internal/testkit/... ./internal/tools/gen/... ./cmd/monacoctl ./cmd/monacoctl/verify
 
+  e2e:
+    name: E2E (monacoctl verify on the real binaries)
+    needs: plan
+    if: inputs.stage == 'queue' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/backend-test-env
+        with:
+          db: false
+
+      - name: Install the pinned atlas community build
+        run: scripts/install-atlas.sh
+
+      - name: Every flow, then the after-publish crash point, against a throwaway stack
+        run: scripts/ci/e2e.sh
+
+      - name: Upload the verify evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-evidence
+          path: apps/backend/.verify/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7
+
   ready:
     name: Ready (vet on go.mod's Go, tidy, generated files)
     needs: plan
@@ -247,6 +276,7 @@ jobs:
               - 'scripts/install-govulncheck.sh'
               - 'scripts/gen-docs.sh'
               - 'scripts/test-backend.sh'
+              - 'scripts/ci/e2e.sh'
               - 'scripts/require-docker.sh'
               - '.github/actions/backend-test-env/**'
               - 'docker-compose.yml'
@@ -382,7 +412,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [plan, lint, backend, ready, vuln, scripts, mobile-core, ios, flake]
+    needs: [plan, lint, backend, e2e, ready, vuln, scripts, mobile-core, ios, flake]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -392,7 +422,7 @@ jobs:
       - uses: re-actors/alls-green@release/v1
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: lint, backend, ready, vuln, scripts, mobile-core, ios, flake
+          allowed-skips: lint, backend, e2e, ready, vuln, scripts, mobile-core, ios, flake
 
       # The next stage 1 run of this PR reads the patch ID back to decide whether it can reuse this result.
       - name: Record the diff's patch ID on this check run

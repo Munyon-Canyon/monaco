@@ -202,6 +202,16 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      - name: Upload the verify evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-verify-evidence
+          path: apps/backend/.verify/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Upload suite logs
         if: failure()
         uses: actions/upload-artifact@v4
