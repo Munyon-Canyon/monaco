@@ -2,6 +2,8 @@
 
 How Monaco runs continuous integration: which checks run, when they run, on what machines, and what it costs. CI is the last line of verification for the whole repo, so it must be deterministic, fast, and small enough that nobody is tempted to bypass it. The checks themselves are defined in [backend-platform.md, CI gates](backend-platform.md#ci-gates) and [Testing](backend-platform.md#testing); this file decides how they are scheduled and paid for.
 
+For the steps of shipping a ticket or running a milestone through these checks, read [Ship a ticket](../how-to/ship-a-ticket.md) and [Run a milestone](../how-to/run-a-milestone.md).
+
 ## Decision
 
 1. **CI confirms; it does not discover.** Every check a PR needs runs on the laptop first: `just test backend` (under 90 s) and the lint pre-commit hook. CI reruns the same commands on a clean machine to prove the result does not depend on the author's machine. A red CI run on a ready PR is a bug in the local gate, not a normal step. `monacoctl verify`, every flow against the real binaries, runs only in the merge queue's `e2e` job and nightly, never as a laptop or owner step.

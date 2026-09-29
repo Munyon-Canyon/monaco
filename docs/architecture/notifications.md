@@ -149,7 +149,7 @@ Follows are the only batched kind (default 2026-09-27). The first 3 follows of t
 - The Simulator cannot reliably get a real remote device token. To test how a push looks and where a tap goes, drag a `.apns` file onto the Simulator, or run `xcrun simctl push <udid> com.monaco.app payload.json`.
 - To test end to end (backend → APNs → phone), use a physical device running a debug build, which gets a sandbox token.
 - `just test backend` uses the `testkit` fake `Sender` and never calls APNs. Every consumer test runs through the chaos dispatcher, so duplicate and reordered deliveries are tested, not assumed ([Keeping it deterministic](backend-platform.md#keeping-it-deterministic)).
-- `just verify backend flow 24` drives the flow against real binaries with the fakes server standing in for APNs.
+- `monacoctl verify flow 24` drives the flow against real binaries with the fakes server standing in for APNs.
 
 ## Rollout
 
