@@ -1,0 +1,81 @@
+name: Gardener
+
+# The nightly garden report: candidate lint rules, dead code and generator drift, kept in one open
+# issue labelled gardener. docs/how-to/gardener.md
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: gardener
+  cancel-in-progress: false
+
+jobs:
+  report:
+    name: Garden report
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/backend
+    steps:
+      # Schedules run from the default branch, so the job checks out the active trunk to scan it.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ vars.FEATURE_BRANCH || 'backend-rewrite-3' }}
+
+      - uses: ./.github/actions/backend-test-env
+        with:
+          db: 'false'
+
+      # The drift check runs sqlc generate with the pinned sqlc.
+      - name: Install the pinned sqlc
+        run: ../../scripts/install-sqlc.sh
+
+      - name: Read the pinned golangci-lint version
+        id: golangci
+        run: echo "version=$(cat .golangci-lint-version)" >> "$GITHUB_OUTPUT"
+
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: ${{ steps.golangci.outputs.version }}
+          install-only: true
+
+      # deadcode needs no install: the report runs it with go run at the version it pins.
+      - name: Garden report
+        run: go run ./cmd/monacoctl garden report --skip-mutation
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: garden-report
+          path: apps/backend/garden-report.md
+          if-no-files-found: ignore
+          retention-days: 30
+
+      # An issue body holds 65536 characters, so a longer report is cut and points at the artifact.
+      - name: Open or update the gardener issue
+        if: always() && hashFiles('apps/backend/garden-report.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          body="$RUNNER_TEMP/gardener-issue.md"
+          limit=60000
+          head -c "$limit" garden-report.md > "$body"
+          if [ "$(wc -c < garden-report.md)" -gt "$limit" ]; then
+            printf '\n\nThe report is cut here. The full report is the garden-report artifact of the run.\n' >> "$body"
+          fi
+          printf '\nRun: %s\n' "$RUN_URL" >> "$body"
+          gh label create gardener --color 0e8a16 --description "Nightly garden report" --force
+          number="$(gh issue list --label gardener --state open --limit 1 --json number --jq '.[0].number // empty')"
+          if [ -n "$number" ]; then
+            gh issue edit "$number" --body-file "$body"
+          else
+            gh issue create --title "Garden report" --label gardener --body-file "$body"
+          fi

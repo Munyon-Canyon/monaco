@@ -353,8 +353,12 @@ func readAllow(r io.Reader) (map[string]bool, error) {
 }
 
 func toolMutation(_ toolEnv) tool {
+	return mutationTool(defaultMutationEnv())
+}
+
+func defaultMutationEnv() mutationEnv {
 	gremlinsBin, _ := filepath.Abs("../../.bin/gremlins")
-	return mutationTool(mutationEnv{
+	return mutationEnv{
 		moduleDir: ".",
 		goBin:     "go",
 		gitBin:    "git",
@@ -362,5 +366,5 @@ func toolMutation(_ toolEnv) tool {
 		tmpDir:    os.TempDir(),
 		exec:      runCommand,
 		now:       time.Now,
-	})
+	}
 }
