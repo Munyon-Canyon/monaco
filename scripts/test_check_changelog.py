@@ -37,6 +37,8 @@ RENAMED = """# Changelog
 
 ## [Unreleased]
 
+### Added
+
 ## [checkpoint 2] - 2026-10-01
 
 ### Added
@@ -72,7 +74,12 @@ class ProblemsTest(unittest.TestCase):
         self.assertEqual(check.problems([GO, LOG], RENAMED, UNRELEASED), [])
 
     def test_empty_unreleased_over_an_already_released_checkpoint_fails(self):
-        self.assertEqual(len(check.problems([GO, LOG], RENAMED, RENAMED + "\n")), 1)
+        found = check.problems([GO, LOG], RENAMED, RENAMED + "\n")
+        self.assertEqual(len(found), 1)
+        self.assertIn("empty ### Added heading", found[0])
+
+    def test_an_empty_added_heading_is_not_an_entry(self):
+        self.assertEqual(check.sections(RENAMED)["[Unreleased]"], [])
 
     def test_changes_outside_the_backend_pass(self):
         self.assertEqual(check.problems(["apps/mobile/App.swift", "docs/index.md"], None, None), [])

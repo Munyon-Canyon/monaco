@@ -2,7 +2,7 @@
 
 All notable changes to the Monaco backend. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Write one line per change a user or operator would notice, not one per commit, under `### Added`, `### Changed`, `### Fixed`, `### Removed` or `### Security`.
 
-A checkpoint PR into `main` must change this file, and `## [Unreleased]` must hold its entries. The `Changelog (checkpoint into main)` check (`scripts/check-changelog.py`) fails it otherwise. Ticket PRs into the feature branch don't need an entry. At each checkpoint, rename `## [Unreleased]` to `## [checkpoint N] - <date>`, the date the checkpoint merges into `main`, and open a new empty `## [Unreleased]` above it. The check accepts that rename when the new checkpoint section has entries.
+A checkpoint PR into `main` must change this file, and `## [Unreleased]` must hold its entries. The `Changelog (checkpoint into main)` check (`scripts/check-changelog.py`) fails it otherwise. Ticket PRs into the feature branch don't need an entry. At each checkpoint, rename `## [Unreleased]` to `## [checkpoint N] - <date>`, the date the checkpoint merges into `main`, and open a new `## [Unreleased]` above it that holds only an empty `### Added` heading, where `monacoctl gen module` adds its line. The check accepts that rename when the new checkpoint section has entries.
 
 ## [Unreleased]
 

@@ -6,7 +6,8 @@ usage: scripts/check-changelog.py <base> <head>
 Fails when `git diff <base>...<head>` touches apps/backend/** but not
 apps/backend/CHANGELOG.md, or when the changelog at <head> has nothing to release: an
 empty `## [Unreleased]` section and no `## [checkpoint N] - <date>` section that this
-diff added with entries (the checkpoint PR renames [Unreleased] and opens a new, empty one).
+diff added with entries (the checkpoint PR renames [Unreleased] and opens a new one holding only an empty
+`### Added` heading, which counts as empty).
 Rules: apps/backend/CHANGELOG.md preamble and docs/architecture/ci.md#feature-branches.
 """
 
@@ -57,7 +58,8 @@ def problems(changed: list[str], head_text: str | None, base_text: str | None) -
     return [
         f"## {UNRELEASED} in {CHANGELOG} has no entries. Add one line per change a user or "
         f"operator would notice, in {HEADINGS} (Keep a Changelog), or rename it to "
-        f"## [checkpoint N] - <date> and open a new empty ## {UNRELEASED} above it."
+        f"## [checkpoint N] - <date> and open a new ## {UNRELEASED} above it with an empty "
+        f"### Added heading."
     ]
 
 
