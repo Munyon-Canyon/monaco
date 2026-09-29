@@ -7,6 +7,7 @@ All notable changes to the Monaco backend. The format follows [Keep a Changelog]
 ### Added
 
 - The `system` module: `system_pings` and the `RecordPing` command, which writes a ping and appends `system.pinged` (now carrying `user_id`) in one transaction.
+- `POST /v1/system/pings` and `GET /v1/system/pings/{id}`, and the `system.echo` consumer that marks a ping echoed and sends its user a `ping_echoed` hint once the update commits. `db.Tx.AfterCommit` runs a callback only after its transaction commits.
 - New Go backend module at `apps/backend` with `api`, `worker` and `monacoctl` binaries that load typed boot config and fail fast on a bad value.
 - One error code table (`internal/errs`) that drives HTTP status, retry and alert behaviour, and the `ErrorCode` enum in the OpenAPI spec.
 - `api/openapi.yaml` as the HTTP contract. The server is generated from it, errors are `application/problem+json`, and every test response is validated against it.
