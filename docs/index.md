@@ -32,6 +32,7 @@ Read these in order to understand the repo:
 | [Debug login](how-to/debug-login.md) | "I can't sign in" |
 | [Overnight QA](how-to/overnight-qa.md) | The nightly test and screenshot run, and what CI runs |
 | [Read iOS app logs](how-to/read-ios-logs.md) | Matching a Console.app line to an API request, crash diagnostics |
+| [Gardener](how-to/gardener.md) | The nightly dead-code, candidate-lint and generator-drift report |
 | [TestFlight](https://github.com/Munyon-Canyon/monaco/blob/main/apps/mobile/TestFlight.md) | Shipping an iOS build |
 
 ## Operations
