@@ -14,3 +14,5 @@ sql:
             go_type: github.com/google/uuid.UUID
           - db_type: timestamptz
             go_type: time.Time
+  # BEGIN GENERATED modules
+  # END GENERATED modules

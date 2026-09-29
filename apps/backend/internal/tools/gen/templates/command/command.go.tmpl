@@ -1,0 +1,37 @@
+package app
+
+import (
+	"context"
+
+	"github.com/google/uuid"
+
+	"{{.ModPath}}/internal/events"
+	"{{.ModPath}}/internal/platform/db"
+)
+
+type {{.Name}} struct {
+	IdempotencyKey string
+	ID             uuid.UUID
+}
+
+type {{.Name}}Result struct {
+	ID uuid.UUID
+}
+
+type {{.Name}}Handler struct {
+	uow *db.UnitOfWork
+}
+
+func New{{.Name}}Handler(uow *db.UnitOfWork) *{{.Name}}Handler {
+	return &{{.Name}}Handler{uow: uow}
+}
+
+func (h *{{.Name}}Handler) Handle(ctx context.Context, cmd {{.Name}}) ({{.Name}}Result, error) {
+	err := h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		return tx.Events.Append(ctx, events.SystemPinged{V: 1, PingID: cmd.ID, Note: "{{.Module}}.{{.Name}}"})
+	})
+	if err != nil {
+		return {{.Name}}Result{}, err
+	}
+	return {{.Name}}Result{ID: cmd.ID}, nil
+}

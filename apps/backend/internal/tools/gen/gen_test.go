@@ -122,3 +122,110 @@ func TestModule_rejectsBadInput(t *testing.T) {
 		})
 	}
 }
+
+func withModule(t *testing.T) string {
+	t.Helper()
+	root := tree(t, map[string]string{"go.mod": "module example.com/app\n", "CHANGELOG.md": changelog})
+	if _, err := gen.Apply(root, "module", "wallets"); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+func TestCommandAndQuery_writeIntoTheModuleUnderSnakeCaseNames(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		kind, name string
+		want       []string
+	}{
+		{"command", "OpenHTTPWallet", []string{
+			"internal/modules/wallets/app/open_http_wallet.go",
+			"internal/modules/wallets/open_http_wallet_test.go",
+		}},
+		{"query", "GetWallet", []string{
+			"internal/modules/wallets/app/get_wallet_query.go",
+			"queries/wallets/get_wallet.sql",
+		}},
+	} {
+		t.Run(tc.kind, func(t *testing.T) {
+			t.Parallel()
+			root := withModule(t)
+			touched, err := gen.Apply(root, tc.kind, "wallets", tc.name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Join(touched, "\n") != strings.Join(tc.want, "\n") {
+				t.Fatalf("touched %v, want %v", touched, tc.want)
+			}
+		})
+	}
+}
+
+func TestCommand_carriesAnIdempotencyKeyAndAppendsInAUnitOfWork(t *testing.T) {
+	t.Parallel()
+	root := withModule(t)
+	if _, err := gen.Apply(root, "command", "wallets", "OpenWallet"); err != nil {
+		t.Fatal(err)
+	}
+	src := read(t, root, "internal/modules/wallets/app/open_wallet.go")
+	for _, want := range []string{
+		"IdempotencyKey string",
+		"func (h *OpenWalletHandler) Handle(ctx context.Context, cmd OpenWallet) (OpenWalletResult, error)",
+		"h.uow.Do(ctx,",
+		"tx.Events.Append(ctx,",
+	} {
+		if !strings.Contains(src, want) {
+			t.Errorf("open_wallet.go lacks %q:\n%s", want, src)
+		}
+	}
+	test := read(t, root, "internal/modules/wallets/open_wallet_test.go")
+	if !strings.Contains(test, "testkit.DB(t)") || !strings.Contains(test, `t.Fatal("not implemented")`) {
+		t.Errorf("open_wallet_test.go does not start from testkit.DB and fail as not implemented:\n%s", test)
+	}
+}
+
+func TestQuery_namesTheSqlcQueryItCalls(t *testing.T) {
+	t.Parallel()
+	root := withModule(t)
+	if _, err := gen.Apply(root, "query", "wallets", "GetWallet"); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, root, "queries/wallets/get_wallet.sql"); !strings.HasPrefix(got, "-- name: GetWallet :one\n") {
+		t.Errorf("get_wallet.sql =\n%s", got)
+	}
+	if got := read(
+		t,
+		root,
+		"internal/modules/wallets/app/get_wallet_query.go",
+	); !strings.Contains(
+		got,
+		"sqlc.New(q).GetWallet(ctx)",
+	) {
+		t.Errorf("get_wallet_query.go does not call the sqlc query:\n%s", got)
+	}
+}
+
+func TestModuleScopedGenerators_rejectBadNamesAndMissingModules(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []string{"command", "query"} {
+		for name, tc := range map[string]struct{ module, name, want string }{
+			"lower case name": {"wallets", "openWallet", "must match"},
+			"bad module":      {"Wallets", "OpenWallet", "must match"},
+			"missing module":  {"ledger", "OpenWallet", "run gen module ledger first"},
+		} {
+			t.Run(kind+"/"+name, func(t *testing.T) {
+				t.Parallel()
+				root := withModule(t)
+				if _, err := gen.Apply(
+					root,
+					kind,
+					tc.module,
+					tc.name,
+				); err == nil ||
+					!strings.Contains(err.Error(), tc.want) {
+					t.Fatalf("err = %v, want %q", err, tc.want)
+				}
+			})
+		}
+	}
+}

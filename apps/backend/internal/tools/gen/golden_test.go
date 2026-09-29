@@ -26,7 +26,13 @@ type step struct {
 func scenario() []step {
 	return []step{
 		{"module", []string{"example"}},
+		{"command", []string{"example", "DoThing"}},
+		{"query", []string{"example", "GetThing"}},
 	}
+}
+
+func notImplemented() []string {
+	return []string{"TestDoThing_appendsItsEvent"}
 }
 
 func ownedByExample(rel string) bool {
@@ -37,6 +43,7 @@ func ownedByExample(rel string) bool {
 			"cmd/worker/module_example.gen.go",
 			"cmd/monacoctl/module_example.gen.go",
 			".golangci.yml",
+			"sqlc.yaml",
 			"CHANGELOG.md",
 		}, rel)
 }
@@ -46,13 +53,18 @@ func requireTools(t *testing.T) {
 	if testing.Short() {
 		t.Skip("copies the backend and builds, lints and tests it; CI runs it without -short")
 	}
-	if _, err := exec.LookPath("golangci-lint"); err == nil {
-		return
+	for _, tool := range []string{"golangci-lint", "sqlc"} {
+		if _, err := exec.LookPath(tool); err == nil {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join("..", "..", "..", "..", "..", ".bin", tool)); err == nil {
+			continue
+		}
+		if _, ci := os.LookupEnv("CI"); ci {
+			t.Fatal(tool + " must be on PATH in CI")
+		}
+		t.Skip(tool + " is not on PATH; run just install to prove the generators locally")
 	}
-	if _, ci := os.LookupEnv("CI"); ci {
-		t.Fatal("golangci-lint must be on PATH in CI")
-	}
-	t.Skip("golangci-lint is not on PATH; run just install to prove the generators locally")
 }
 
 func copyBackend(t *testing.T) string {
@@ -195,13 +207,21 @@ func assertOnlyNotImplementedFailures(t *testing.T, root string) {
 			failed = append(failed, key)
 		}
 	}
+	var tests []string
 	for _, key := range failed {
 		pkg, test, _ := strings.Cut(key, " ")
+		if test != "" {
+			tests = append(tests, test)
+		}
 		switch {
 		case test != "" && !strings.Contains(output[key].String(), "not implemented"):
 			t.Errorf("%s failed for a reason other than not implemented:\n%s", test, output[key].String())
 		case test == "" && !slices.ContainsFunc(failed, func(k string) bool { return strings.HasPrefix(k, pkg+" Test") }):
 			t.Errorf("%s failed without a failing test:\n%s", pkg, output[key].String())
 		}
+	}
+	slices.Sort(tests)
+	if want := slices.Sorted(slices.Values(notImplemented())); !slices.Equal(tests, want) {
+		t.Errorf("failing generated tests = %v, want exactly %v", tests, want)
 	}
 }

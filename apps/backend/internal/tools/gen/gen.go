@@ -25,7 +25,10 @@ import (
 //go:embed templates
 var templates embed.FS
 
-var modulePattern = regexp.MustCompile(`^[a-z][a-z0-9]*$`)
+var (
+	modulePattern = regexp.MustCompile(`^[a-z][a-z0-9]*$`)
+	exportPattern = regexp.MustCompile(`^[A-Z][A-Za-z0-9]*$`)
+)
 
 type problem string
 
@@ -36,17 +39,19 @@ func invalid(op, format string, args ...any) error {
 }
 
 type Generator struct {
-	Kind       string
-	Args       []string
-	plan       func(root *os.Root, args []string) (Plan, error)
-	regenerate bool
+	Kind string
+	Args []string
+	plan func(root *os.Root, args []string) (Plan, error)
+	post func(ctx context.Context, dir string) error
 }
 
 func (g Generator) Usage() string { return "gen " + g.Kind + " " + strings.Join(g.Args, " ") }
 
 func Generators() []Generator {
 	return []Generator{
-		{Kind: "module", Args: []string{"<name>"}, plan: planModule, regenerate: true},
+		{Kind: "module", Args: []string{"<name>"}, plan: planModule, post: Regenerate},
+		{Kind: "command", Args: []string{"<module>", "<Name>"}, plan: planCommand},
+		{Kind: "query", Args: []string{"<module>", "<Name>"}, plan: planQuery, post: regenerateQueries},
 	}
 }
 
@@ -66,10 +71,10 @@ type Plan struct {
 
 func (g Generator) Run(ctx context.Context, dir string, args []string) ([]string, error) {
 	touched, err := g.write(dir, args)
-	if err != nil || !g.regenerate {
+	if err != nil || g.post == nil {
 		return touched, err
 	}
-	return touched, Regenerate(ctx, dir)
+	return touched, g.post(ctx, dir)
 }
 
 func (g Generator) write(dir string, args []string) ([]string, error) {
@@ -135,6 +140,9 @@ func writeFile(root *os.Root, rel, body string) error {
 
 func Regenerate(ctx context.Context, dir string) error {
 	const op = "gen.Regenerate"
+	if err := syncSqlc(dir); err != nil {
+		return err
+	}
 	for _, cmd := range []*exec.Cmd{
 		exec.CommandContext(ctx, "go", "run", "-trimpath", "./scripts/gen-golangci", "."),
 		exec.CommandContext(ctx, "go", "run", "-trimpath", "./scripts/gen-registry", "."),
@@ -215,17 +223,30 @@ func renderAll(d data, files map[string]string) (map[string]string, error) {
 }
 
 func snake(name string) string {
+	runes := []rune(name)
 	var b strings.Builder
-	for i, r := range name {
-		if unicode.IsUpper(r) {
-			if i > 0 {
-				b.WriteByte('_')
-			}
-			r = unicode.ToLower(r)
+	for i, r := range runes {
+		if i > 0 && unicode.IsUpper(r) &&
+			(unicode.IsLower(runes[i-1]) || (i+1 < len(runes) && unicode.IsLower(runes[i+1]))) {
+			b.WriteByte('_')
 		}
-		b.WriteRune(r)
+		b.WriteRune(unicode.ToLower(r))
 	}
 	return b.String()
+}
+
+func requireModule(root *os.Root, module, name string, pattern *regexp.Regexp) error {
+	const op = "gen.requireModule"
+	if !modulePattern.MatchString(module) {
+		return invalid(op, "module %q must match %s", module, modulePattern)
+	}
+	if !pattern.MatchString(name) {
+		return invalid(op, "name %q must match %s", name, pattern)
+	}
+	if _, err := root.Stat(filepath.Join(moduleDir(module), "module.go")); err != nil {
+		return invalid(op, "module %s does not exist; run gen module %s first", module, module)
+	}
+	return nil
 }
 
 func moduleDir(module string) string { return filepath.Join("internal", "modules", module) }
