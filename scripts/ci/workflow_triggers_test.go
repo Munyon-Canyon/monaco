@@ -229,3 +229,21 @@ func TestWorkflows_fallbackCheckCatchesTheVariableAsTheSoleGate(t *testing.T) {
 		}
 	}
 }
+
+func TestCIJobs_diffsAgainstTheMergeGroupBaseInTheQueue(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join(repoRoot(t), ".github", "workflows", "ci-jobs.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(b)
+	base := "github.event.pull_request.base.ref || github.event.merge_group.base_ref || vars.FEATURE_BRANCH || 'main'"
+	if got := strings.Count(text, "vars.FEATURE_BRANCH"); got != 3 || strings.Count(text, base) != 3 {
+		t.Fatalf("want the three base reads to try the merge group's base before vars.FEATURE_BRANCH; %d reads", got)
+	}
+	flake := workflowJob(t, "ci-jobs.yml", "flake")
+	for _, want := range []string{`origin "${BASE_REF#refs/heads/}"`, `--base "origin/${BASE_REF#refs/heads/}"`} {
+		if !strings.Contains(flake, want) {
+			t.Errorf("the flake job does not strip refs/heads/ from the merge group's base: missing %s", want)
+		}
+	}
+}
