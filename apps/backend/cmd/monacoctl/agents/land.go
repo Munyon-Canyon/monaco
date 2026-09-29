@@ -174,13 +174,13 @@ func (env *Env) graphiteStack(
 		byHead[p.Head] = p
 	}
 	top := walked[len(walked)-1].Number
+	trunk := env.Config.FeatureBranch
+	prev := trunk
 	var stack []stackPR
 	for line := range strings.Lines(string(out)) {
-		for _, f := range strings.Fields(line) {
-			if p, ok := byHead[f]; ok {
-				stack = append(stack, p)
-				break
-			}
+		if p, ok := prOn(line, byHead); ok && (p.Base == trunk || p.Base == prev) {
+			stack = append(stack, p)
+			prev = p.Head
 		}
 		if len(stack) > 0 && stack[len(stack)-1].Number == top {
 			if len(stack) > len(walked) {
@@ -190,6 +190,15 @@ func (env *Env) graphiteStack(
 		}
 	}
 	return walked
+}
+
+func prOn(line string, byHead map[string]stackPR) (stackPR, bool) {
+	for _, f := range strings.Fields(line) {
+		if p, ok := byHead[f]; ok {
+			return p, true
+		}
+	}
+	return stackPR{}, false
 }
 
 func waitingOn(stack []stackPR) []string {
