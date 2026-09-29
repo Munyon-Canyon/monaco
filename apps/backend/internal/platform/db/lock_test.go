@@ -1,7 +1,6 @@
 package db_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"strings"
@@ -83,7 +82,7 @@ func TestLock_holderWhoseSessionDiedTakesTheKeyBackWhenItIsFree(t *testing.T) {
 		t.Fatal("did not take the free key")
 	}
 	terminateHolders(t, pool)
-	logs := &bytes.Buffer{}
+	logs := &testkit.Logs{}
 	held, err := a.Hold(loggedCtx(t, logs))
 	if !held || err != nil {
 		t.Fatalf("Hold after the session died = %v, %v; want the free key taken again", held, err)
@@ -105,7 +104,7 @@ func TestLock_holderWhoseSessionDiedLosesTheKeyToAnotherSession(t *testing.T) {
 	if !hold(t, b) {
 		t.Fatal("key stayed taken after its session died")
 	}
-	logs := &bytes.Buffer{}
+	logs := &testkit.Logs{}
 	if held, err := a.Hold(loggedCtx(t, logs)); held || err != nil {
 		t.Fatalf("old holder Hold = %v, %v; want the key left to the other session", held, err)
 	}
@@ -132,14 +131,14 @@ func TestLock_holderWhoseSessionDiedReportsWhyItCouldNotRetake(t *testing.T) {
 	}
 }
 
-func loggedCtx(t *testing.T, logs *bytes.Buffer) context.Context {
+func loggedCtx(t *testing.T, logs *testkit.Logs) context.Context {
 	t.Helper()
 	return observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
 }
 
-func assertLostLine(t *testing.T, logs *bytes.Buffer, held string) {
+func assertLostLine(t *testing.T, logs *testkit.Logs, held string) {
 	t.Helper()
-	line := logs.String()
+	line := string(logs.Bytes())
 	for _, want := range []string{`"level":"WARN"`, `"msg":"db.lock.lost"`, `"lock":"poller:a"`, `"held":` + held, `"err":`} {
 		if !strings.Contains(line, want) {
 			t.Fatalf("log = %q, want one db.lock.lost Warn line containing %s", line, want)
