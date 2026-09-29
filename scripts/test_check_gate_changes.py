@@ -96,18 +96,25 @@ class CheckTest(unittest.TestCase):
 
     def run_check(self, files, labels="[]"):
         head = self.repo.commit(files)
-        env = {"BASE_SHA": self.repo.base, "HEAD_SHA": head, "PR_LABELS": labels}
+        summary = self.repo.root / "summary.md"
+        summary.write_text("")
+        env = {"BASE_SHA": self.repo.base, "HEAD_SHA": head, "PR_LABELS": labels,
+               "GITHUB_STEP_SUMMARY": str(summary)}
         out = io.StringIO()
         with mock.patch.dict(os.environ, env), contextlib.redirect_stdout(out):
             code = check.main()
+        self.summary = summary.read_text()
         return code, out.getvalue()
 
     def assert_flags(self, files, finding):
         code, out = self.run_check(files)
-        self.assertEqual(code, 1, out)
-        self.assertIn(finding, out)
-        self.assertIn("gate-change-approved", out)
-        self.assertIn("Reviewer focus", out)
+        self.assertEqual(code, 0, out)
+        path, line, what = finding.split(":", 2)
+        self.assertIn(f"::warning file={path},line={line},title=Test gate weakened::{what.strip().replace('%', '%25')}", out)
+        self.assertIn("gate-change-approved` label silences this.", out)
+        self.assertIn(f"- `{path}:{line}` {what.strip()}", self.summary)
+        self.assertIn("gate-change-approved", self.summary)
+        self.assertIn("Reviewer focus", self.summary)
 
     def test_clean_diff_passes(self):
         code, out = self.run_check({
@@ -117,6 +124,8 @@ class CheckTest(unittest.TestCase):
         })
         self.assertEqual(code, 0, out)
         self.assertIn("No test gate weakened.", out)
+        self.assertNotIn("::warning", out)
+        self.assertEqual(self.summary, "")
 
     def test_coverage_exclude_line(self):
         self.assert_flags(
@@ -204,10 +213,30 @@ class CheckTest(unittest.TestCase):
         for rule in ("gate-file", "test-skip", "test-removed"):
             self.assertIn(rule, out)
         self.assertIn("Allowed by the `gate-change-approved` label.", out)
+        self.assertNotIn("::warning", out)
+        self.assertEqual(self.summary, "")
 
     def test_other_labels_do_not_override(self):
-        code, _ = self.run_check({"apps/backend/mutants.allow": "x\n"}, labels='["large-pr"]')
-        self.assertEqual(code, 1)
+        code, out = self.run_check({"apps/backend/mutants.allow": "x\n"}, labels='["large-pr"]')
+        self.assertEqual(code, 0)
+        self.assertIn("::warning file=apps/backend/mutants.allow,line=1,", out)
+
+    def test_annotation_escapes_workflow_command_characters(self):
+        finding = check.Finding("a,b:c.go", 3, "gate-file", "added `50%\nx`")
+        self.assertEqual(
+            check.annotation(finding),
+            "::warning file=a%2Cb%3Ac.go,line=3,title=Test gate weakened::"
+            "gate-file: added `50%25%0Ax`. The `gate-change-approved` label silences this.",
+        )
+
+    def test_checker_crash_fails_the_job(self):
+        env = {**os.environ, "BASE_SHA": self.repo.base, "HEAD_SHA": "0" * 40, "PR_LABELS": "[]"}
+        env.pop("GITHUB_STEP_SUMMARY", None)
+        result = subprocess.run(
+            [sys.executable, str(pathlib.Path(__file__).with_name("check-gate-changes.py"))],
+            cwd=self.repo.root, env=env, capture_output=True, text=True,
+        )
+        self.assertNotEqual(result.returncode, 0, result.stdout)
 
 
 class WorktreeTest(unittest.TestCase):
