@@ -340,6 +340,16 @@ jobs:
 
       - uses: ./.github/actions/backend-test-env
 
+      - name: Read the pinned golangci-lint version
+        id: golangci
+        run: echo "version=$(cat apps/backend/.golangci-lint-version)" >> "$GITHUB_OUTPUT"
+
+      # The lint package's rule tests run golangci-lint and fail in CI when it is missing.
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: ${{ steps.golangci.outputs.version }}
+          install-only: true
+
       - name: Rerun the changed test files on this host's Postgres
         run: scripts/ci/flake-tests.sh --base "origin/${BASE_REF}"
 
