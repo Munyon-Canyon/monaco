@@ -10,9 +10,9 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 
 ## [checkpoint 4] - 2026-09-29
 
-### Fixed
+### Changed
 
-- Checkpoint merge-back checks out the checkpoint PR's head commit and pushes the feature branch back to it, recreating the branch when GitHub auto-deleted it at merge. It refuses when the branch moved after the merge.
+- A feature branch is named `<name>-<N>`, and the `FEATURE_BRANCH` repo variable names the live one. A checkpoint is a PR into `main` from such a branch with the `integration` label. After it squash-merges, `checkpoint.yml` cuts `<name>-<N+1>` at the squash commit and points `FEATURE_BRANCH` at it, instead of merging `main` back into the old branch. `feature_branch = "auto"` in `.monaco/agents.toml` reads the variable, and `scripts/feature-branch.sh apply <branch>` adds `refs/heads/<name>-*` to the merge-queue ruleset.
 
 ### Security
 
