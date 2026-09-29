@@ -31,7 +31,7 @@ func TestFlakeTests_selectsChangedTestFuncs(t *testing.T) {
 		t.Fatalf("flake-tests.sh: %v\n%s", err, out)
 	}
 	got := strings.TrimSpace(string(out))
-	want := "go test -count=20 -cpu=1,2 -run '^(TestLock|TestUnlock)$' ./internal/db"
+	want := "go test -short -count=20 -cpu=1,2 -run '^(TestLock|TestUnlock)$' ./internal/db"
 	if got != want {
 		t.Fatalf("got %q\nwant %q", got, want)
 	}

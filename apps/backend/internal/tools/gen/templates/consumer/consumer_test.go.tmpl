@@ -1,0 +1,32 @@
+package {{.Module}}_test
+
+import (
+	"math/rand/v2"
+	"strconv"
+	"testing"
+
+	"github.com/google/uuid"
+
+	"{{.ModPath}}/internal/events"
+	"{{.ModPath}}/internal/modules/{{.Module}}"
+	"{{.ModPath}}/internal/platform/bus"
+	"{{.ModPath}}/internal/platform/module"
+	"{{.ModPath}}/internal/testkit"
+)
+
+func Test{{.Handler}}_convergesUnderChaos(t *testing.T) {
+	t.Parallel()
+	testkit.ConsumerSuite(t, func(h testkit.Harness) bus.Consumer {
+		for _, c := range {{.Module}}.New(module.Deps{Pool: h.Pool, IDs: h.IDs, Clock: h.Clock}).Consumers() {
+			if c.Durable == "{{.Module}}_{{.File}}" {
+				return c
+			}
+		}
+		t.Fatal("{{.Module}}_{{.File}} is not registered")
+		return bus.Consumer{}
+	}, func(rng *rand.Rand, i int) events.Event {
+		id := uuid.NewSHA1(uuid.Nil, strconv.AppendUint(nil, rng.Uint64(), 10))
+		return events.SystemPinged{V: 1, PingID: id, Note: strconv.Itoa(i)}
+	})
+	t.Fatal("not implemented")
+}

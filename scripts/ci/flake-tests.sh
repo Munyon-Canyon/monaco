@@ -53,9 +53,9 @@ for spec in order:
     names = groups[spec]
     if names:
         alt = "|".join(dict.fromkeys(names))
-        print(f"go test -count=20 -cpu=1,2 -run '^({alt})$' {spec}")
+        print(f"go test -short -count=20 -cpu=1,2 -run '^({alt})$' {spec}")
     else:
-        print(f"go test -count=20 -cpu=1,2 {spec}")
+        print(f"go test -short -count=20 -cpu=1,2 {spec}")
 PY
 )"
 

@@ -242,8 +242,8 @@ migrate target:
         ;;
     esac
 
-# Regenerate checked-in generated files. `just gen docs` rewrites docs/reference from monacoctl.
-gen target:
+# Regenerate checked-in files (`just gen docs`) or scaffold backend code (`just gen module <name>`; `just gen help` lists every generator).
+gen target *args:
     #!/usr/bin/env bash
     set -euo pipefail
     case "{{target}}" in
@@ -251,8 +251,7 @@ gen target:
         ./scripts/gen-docs.sh
         ;;
       *)
-        echo "error: unknown target '{{target}}' (use docs)"
-        exit 1
+        cd apps/backend && go run ./cmd/monacoctl gen {{target}} {{args}}
         ;;
     esac
 

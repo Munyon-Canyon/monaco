@@ -1,0 +1,16 @@
+package app
+
+import (
+	"context"
+
+	"{{.ModPath}}/internal/errs"
+	"{{.ModPath}}/internal/modules/{{.Module}}/sqlc"
+)
+
+func {{.Name}}(ctx context.Context, q sqlc.DBTX) (int64, error) {
+	id, err := sqlc.New(q).{{.Name}}(ctx)
+	if err != nil {
+		return 0, errs.Wrap(err, errs.CodeInternal, "{{.Module}}.{{.Name}}")
+	}
+	return id, nil
+}

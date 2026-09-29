@@ -1,0 +1,23 @@
+package {{.Module}}_test
+
+import (
+	"testing"
+	"time"
+
+	"{{.ModPath}}/internal/modules/{{.Module}}/app"
+	"{{.ModPath}}/internal/platform/db"
+	"{{.ModPath}}/internal/platform/observability"
+	"{{.ModPath}}/internal/testkit"
+)
+
+func Test{{.Name}}_appendsItsEvent(t *testing.T) {
+	t.Parallel()
+	ids := testkit.NewIDs(1)
+	uow := db.New(testkit.DB(t), ids, testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)))
+	ctx := observability.WithActor(t.Context(), "system:test")
+	cmd := app.{{.Name}}{IdempotencyKey: "{{.File}}-1", ID: ids.NewV7()}
+	if _, err := app.New{{.Name}}Handler(uow).Handle(ctx, cmd); err != nil {
+		t.Fatal(err)
+	}
+	t.Fatal("not implemented")
+}
