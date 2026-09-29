@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
@@ -56,6 +57,15 @@ func mutationModule(t *testing.T, allow string, extraPkgs ...string) mutationEnv
 		gremlins:  "gremlins",
 		exec:      fakeExec,
 		tmpDir:    t.TempDir(),
+		now:       ninetySecondTicks(),
+	}
+}
+
+func ninetySecondTicks() func() time.Time {
+	var at time.Time
+	return func() time.Time {
+		at = at.Add(90 * time.Second)
+		return at
 	}
 }
 
@@ -200,7 +210,8 @@ func TestMutationFailsOnASurvivorOnTheChangedLinesOfAChangedPackage(t *testing.T
 	var stdout, stderr bytes.Buffer
 	code := mutationTool(env)([]string{"--base", "origin/backend-rewrite"}, &stdout, &stderr)
 	wantErr := "monacoctl mutation: a/x.go:3:5 CONDITIONALS_NEGATION survived; kill it with a test or list it in mutants.allow with a reason\n"
-	if code != 1 || stdout.String() != "mutating 1 packages: a\n" || stderr.String() != wantErr {
+	wantOut := "mutating 1 packages: a\nmutation summary: 1 packages, 1 tested, 0 killed, 1 lived, 0 timed out, wall 1m30s\n"
+	if code != 1 || stdout.String() != wantOut || stderr.String() != wantErr {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 	want := "a: unleash --silent --timeout-coefficient 50 --output OUT --exclude-files \\.gen\\.go$ --diff origin/backend-rewrite" +
@@ -245,7 +256,14 @@ func TestMutationSkipsUnchangedPackagesNonGoFilesAndExcludedPaths(t *testing.T) 
 	commitFile(t, env, "a/testdata/x.txt", "changed\n")
 	commitFile(t, env, "c/x.go", "package c\n\nfunc C() int { return 4 }\n")
 	var stdout, stderr bytes.Buffer
-	if code := mutationTool(env)(nil, &stdout, &stderr); code != 0 || stdout.String() != "mutating 1 packages: c\n" {
+	if code := mutationTool(
+		env,
+	)(
+		nil,
+		&stdout,
+		&stderr,
+	); code != 0 ||
+		stdout.String() != "mutating 1 packages: c\nmutation summary: 1 packages, 1 tested, 1 killed, 0 lived, 0 timed out, wall 1m30s\n" {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 	stdout.Reset()
@@ -256,7 +274,7 @@ func TestMutationSkipsUnchangedPackagesNonGoFilesAndExcludedPaths(t *testing.T) 
 		&stdout,
 		&stderr,
 	); code != 1 ||
-		stdout.String() != "mutating 3 packages: a b c\n" {
+		stdout.String() != "mutating 3 packages: a b c\nmutation summary: 3 packages, 3 tested, 2 killed, 1 lived, 0 timed out, wall 1m30s\n" {
 		t.Fatalf("--all: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 }
@@ -308,7 +326,7 @@ func TestMutationTreatsAMissingReportAsNoMutants(t *testing.T) {
 		&stdout,
 		&stderr,
 	); code != 0 ||
-		stdout.String() != "mutating 1 packages: silent\n" {
+		stdout.String() != "mutating 1 packages: silent\nmutation summary: 1 packages, 0 tested, 0 killed, 0 lived, 0 timed out, wall 1m30s\n" {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 }
@@ -361,7 +379,8 @@ func TestMutationRunsOnARealModuleWithTheGoAndGitCommands(t *testing.T) {
 	commitFile(t, env, "a/x_test.go", "package a\n")
 	commitFile(t, env, "tonly/x_test.go", "package tonly_test\n\nvar _ = 1\n")
 	var stdout, stderr bytes.Buffer
-	if code := mutationTool(env)(nil, &stdout, &stderr); code != 1 || stdout.String() != "mutating 1 packages: a\n" ||
+	if code := mutationTool(env)(nil, &stdout, &stderr); code != 1 ||
+		stdout.String() != "mutating 1 packages: a\nmutation summary: 1 packages, 1 tested, 0 killed, 1 lived, 0 timed out, wall 1m30s\n" ||
 		!strings.HasPrefix(stderr.String(), "monacoctl mutation: a/x.go:3:5 CONDITIONALS_NEGATION survived") {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
@@ -377,7 +396,8 @@ func TestMutationAcceptsAsManyTimeoutsAsTestedMutants(t *testing.T) {
 	env := mutationModule(t, "", "halfslow")
 	commitFile(t, env, "halfslow/x_test.go", "package halfslow\n")
 	var stdout, stderr bytes.Buffer
-	if code := mutationTool(env)(nil, &stdout, &stderr); code != 0 {
+	want := "mutating 1 packages: halfslow\nmutation summary: 1 packages, 1 tested, 1 killed, 0 lived, 1 timed out, wall 1m30s\n"
+	if code := mutationTool(env)(nil, &stdout, &stderr); code != 0 || stdout.String() != want {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 }
@@ -446,7 +466,7 @@ func TestMutationPkgMutatesOnlyThatChangedPackageOnItsChangedLines(t *testing.T)
 	commitFile(t, env, "a/x_test.go", "package a\n")
 	var stdout, stderr bytes.Buffer
 	if code := mutationTool(env)([]string{"--base", "main", "--pkg", "c"}, &stdout, &stderr); code != 0 ||
-		stdout.String() != "mutating 1 packages: c\n" || stderr.Len() != 0 {
+		stdout.String() != "mutating 1 packages: c\nmutation summary: 1 packages, 1 tested, 1 killed, 0 lived, 0 timed out, wall 1m30s\n" || stderr.Len() != 0 {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 	calls := gremlinsCalls(t, env)
@@ -494,7 +514,7 @@ func TestMutationAllPkgMutatesEveryLineOfOnePackage(t *testing.T) {
 	env := mutationModule(t, "")
 	var stdout, stderr bytes.Buffer
 	if code := mutationTool(env)([]string{"--all", "--pkg", "b"}, &stdout, &stderr); code != 0 ||
-		stdout.String() != "mutating 1 packages: b\n" {
+		stdout.String() != "mutating 1 packages: b\nmutation summary: 1 packages, 1 tested, 1 killed, 0 lived, 0 timed out, wall 1m30s\n" {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 	if calls := gremlinsCalls(
@@ -517,5 +537,28 @@ func TestMutationReportKeepsTheGremlinsReportAtThatPath(t *testing.T) {
 	data, err := os.ReadFile(report)
 	if err != nil || !strings.Contains(string(data), `"status":"LIVED"`) {
 		t.Fatalf("report = %q, %v; want the gremlins JSON with the survivor", data, err)
+	}
+}
+
+func TestMutationPrintsTheSummaryBeforeFailingOnMostlyTimedOutMutants(t *testing.T) {
+	t.Parallel()
+	env := mutationModule(t, "", "mostlyslow")
+	var stdout, stderr bytes.Buffer
+	code := mutationTool(env)([]string{"--all", "--pkg", "mostlyslow"}, &stdout, &stderr)
+	want := "mutating 1 packages: mostlyslow\nmutation summary: 1 packages, 1 tested, 1 killed, 0 lived, 2 timed out, wall 1m30s\n"
+	if code != 1 || stdout.String() != want ||
+		!strings.Contains(stderr.String(), "more mutants in mostlyslow timed out") {
+		t.Fatalf("code=%d stdout=%q stderr=%q, want stdout %q", code, stdout.String(), stderr.String(), want)
+	}
+}
+
+func TestMutationSummaryCountsThePackagesMutatedBeforeGremlinsFailed(t *testing.T) {
+	t.Parallel()
+	env := mutationModule(t, "", "broken")
+	var stdout, stderr bytes.Buffer
+	code := mutationTool(env)([]string{"--all"}, &stdout, &stderr)
+	want := "mutating 4 packages: a b broken c\nmutation summary: 2 packages, 2 tested, 1 killed, 1 lived, 0 timed out, wall 1m30s\n"
+	if code != 1 || stdout.String() != want || !strings.Contains(stderr.String(), "gremlins exploded") {
+		t.Fatalf("code=%d stdout=%q stderr=%q, want stdout %q", code, stdout.String(), stderr.String(), want)
 	}
 }
