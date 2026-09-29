@@ -36,6 +36,16 @@ func TestBatch_defersEachOffenderByName(t *testing.T) {
 			"deferred #2: blocker #8 is not merged into fb\n",
 		},
 		{
+			"second blocker not merged",
+			[]string{anchor, "**Blocked by:** #9, #8 · **Touches:** `b/**`"},
+			"deferred #2: blocker #8 is not merged into fb\n",
+		},
+		{
+			"second blocker in the same batch",
+			[]string{anchor, "**Blocked by:** #9 and #1 · **Touches:** `b/**`"},
+			"deferred #2: blocked by #1 in the same batch\n",
+		},
+		{
 			"blocker without a number",
 			[]string{anchor, "**Blocked by:** the retro · **Touches:** `b/**`"},
 			"deferred #2: Blocked by line has no issue numbers\n",
@@ -56,6 +66,9 @@ func TestBatch_defersEachOffenderByName(t *testing.T) {
 			t.Parallel()
 			f := prepBranch(t)
 			f.hub.on(get("/issues/8"), Issue{State: "open"})
+			f.hub.on(get("/issues/9"), Issue{PullRequest: &struct{}{}})
+			merged := f.now
+			f.hub.on(get("/pulls/9"), PR{MergedAt: &merged, MergeCommitSHA: f.head(t)})
 			f.hub.on(list("/pulls?state=closed"), []PR{})
 			args := []string{"batch"}
 			for i, body := range tc.bodies {
