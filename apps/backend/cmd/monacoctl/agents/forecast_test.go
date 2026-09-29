@@ -62,3 +62,48 @@ func TestStacks_stopsOnABaseCycle(t *testing.T) {
 		t.Fatalf("stacks = %v", got)
 	}
 }
+
+func retargetedStack(t *testing.T, landsLine string, fileOf20 ...File) *fixture {
+	t.Helper()
+	f := newFixture(t)
+	f.hub.on(list("/pulls?state=open"), []PR{
+		pr(1, "s1", "fb", ""),
+		pr(2, "s2", "fb", ""),
+		pr(3, "s3", "fb", landsLine+"\n\n## TLDR"),
+		pr(20, "other", "fb", ""),
+	})
+	f.hub.on(list("/pulls/1/files?"), []File{{Filename: "a.go"}})
+	f.hub.on(list("/pulls/2/files?"), []File{{Filename: "a.go"}, {Filename: "b.go"}})
+	f.hub.on(list("/pulls/3/files?"), []File{{Filename: "a.go"}, {Filename: "b.go"}})
+	f.hub.on(list("/pulls/20/files?"), append([]File{{Filename: "c.go"}}, fileOf20...))
+	return f
+}
+
+func TestForecast_countsARetargetedStackOnce(t *testing.T) {
+	t.Parallel()
+	f := retargetedStack(t, "Lands stack: #1 #2 #3")
+	code, stdout, stderr := f.agents(t, "forecast")
+	if code != 0 || stdout != "no file is touched by more than one open stack into fb\n" || stderr != "" {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
+
+func TestForecast_reportsARealOverlapWithARetargetedStack(t *testing.T) {
+	t.Parallel()
+	f := retargetedStack(t, "Lands stack: #1 #2 #3", File{Filename: "a.go"})
+	code, stdout, stderr := f.agents(t, "forecast")
+	want := "1 files touched by more than one open stack into fb:\n  a.go  #1 #20\n"
+	if code != 0 || stdout != want || stderr != "" {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
+
+func TestForecast_ignoresAMalformedLandsStackLine(t *testing.T) {
+	t.Parallel()
+	f := retargetedStack(t, "Lands stack: #x")
+	code, stdout, stderr := f.agents(t, "forecast")
+	want := "2 files touched by more than one open stack into fb:\n  a.go  #1 #2 #3\n  b.go  #2 #3\n"
+	if code != 0 || stdout != want || stderr != "" {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
