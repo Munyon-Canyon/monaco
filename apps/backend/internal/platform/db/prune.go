@@ -33,3 +33,11 @@ func PruneIdempotencyKeys(ctx context.Context, pool *pgxpool.Pool, before time.T
 	}
 	return int(n), nil
 }
+
+func PruneRateLimitBuckets(ctx context.Context, pool *pgxpool.Pool, idleBefore time.Time) (int, error) {
+	n, err := sqlc.New(pool).DeleteRateLimitBucketsIdleBefore(ctx, idleBefore)
+	if err != nil {
+		return 0, classify(err, "db.PruneRateLimitBuckets")
+	}
+	return int(n), nil
+}

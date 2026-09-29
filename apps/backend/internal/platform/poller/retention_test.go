@@ -26,10 +26,21 @@ SELECT $1 || n, '00000000-0000-7000-8000-000000000001', 'ok', $3::timestamptz FR
 const seedKey = `INSERT INTO idempotency_keys (actor_key, key, request_hash, status, created_at)
 VALUES ('user:u1', $1, '\x00', 2, $2)`
 
+const seedBucket = `INSERT INTO rate_limit_buckets (key, tokens_milli, updated_at) VALUES ($1, 0, $2)`
+
 func seedKeys(t *testing.T, pool *pgxpool.Pool, at map[string]time.Time) {
 	t.Helper()
 	for key, created := range at {
 		if _, err := pool.Exec(t.Context(), seedKey, key, created); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func seedBuckets(t *testing.T, pool *pgxpool.Pool, at map[string]time.Time) {
+	t.Helper()
+	for key, updated := range at {
+		if _, err := pool.Exec(t.Context(), seedBucket, key, updated); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -64,7 +75,8 @@ func TestRetention_deletesDeliveriesOlderThanThirtyDaysAndKeysOlderThanADay(t *t
 	want := slog.GroupValue(
 		slog.GroupAttrs("event_deliveries",
 			slog.Int("deleted", 2500), slog.Time("before", epoch().Add(-30*day)), slog.Int("batches", 3)),
-		slog.GroupAttrs("idempotency_keys", slog.Int("deleted", 1), slog.Time("before", epoch().Add(-day))))
+		slog.GroupAttrs("idempotency_keys", slog.Int("deleted", 1), slog.Time("before", epoch().Add(-day))),
+		slog.GroupAttrs("rate_limit_buckets", slog.Int("deleted", 0), slog.Time("before", epoch().Add(-day))))
 	if got := slog.GroupValue(report.Attrs...); !got.Equal(want) {
 		t.Fatalf("report attrs = %v, want %v", got, want)
 	}
@@ -74,6 +86,23 @@ func TestRetention_deletesDeliveriesOlderThanThirtyDaysAndKeysOlderThanADay(t *t
 	if keys := column(t, pool, `SELECT key FROM idempotency_keys ORDER BY key`); len(keys) != 2 ||
 		keys[0] != "edge" || keys[1] != "fresh" {
 		t.Fatalf("keys left = %v, want edge and fresh", keys)
+	}
+}
+
+func TestRetention_deletesRateLimitBucketsIdleForMoreThanADay(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	seedBuckets(t, pool, map[string]time.Time{
+		"op:x:ip:idle": epoch().Add(-day - time.Second), "op:x:ip:edge": epoch().Add(-day),
+		"op:x:ip:active": epoch().Add(-time.Minute),
+	})
+	report, err := poller.NewRetention(pool, testkit.NewClock(epoch())).Tick(t.Context())
+	if err != nil || report.Changed != 1 {
+		t.Fatalf("Tick = %+v, %v, want one bucket deleted", report, err)
+	}
+	if buckets := column(t, pool, `SELECT key FROM rate_limit_buckets ORDER BY key`); len(buckets) != 2 ||
+		buckets[0] != "op:x:ip:active" || buckets[1] != "op:x:ip:edge" {
+		t.Fatalf("buckets left = %v, want active and edge", buckets)
 	}
 }
 
@@ -117,5 +146,17 @@ func TestRetention_reportsTheKeyPruneFailingAfterTheDeliveriesPrune(t *testing.T
 	_, err := poller.NewRetention(pool, testkit.NewClock(epoch())).Tick(t.Context())
 	if err == nil || !strings.HasPrefix(err.Error(), "db.PruneIdempotencyKeys: ") {
 		t.Fatalf("Tick without the idempotency table = %v, want the error from db.PruneIdempotencyKeys", err)
+	}
+}
+
+func TestRetention_reportsTheBucketPruneFailingAfterTheKeyPrune(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	if _, err := pool.Exec(t.Context(), `DROP TABLE rate_limit_buckets`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := poller.NewRetention(pool, testkit.NewClock(epoch())).Tick(t.Context())
+	if err == nil || !strings.HasPrefix(err.Error(), "db.PruneRateLimitBuckets: ") {
+		t.Fatalf("Tick without the bucket table = %v, want the error from db.PruneRateLimitBuckets", err)
 	}
 }

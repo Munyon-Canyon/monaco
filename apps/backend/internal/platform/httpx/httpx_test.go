@@ -251,6 +251,7 @@ func TestProblem_statusRetryableAndAlertFollowTheCodeTable(t *testing.T) {
 	}{
 		{errs.New(errs.CodeUpstreamUnavailable, "jupiter.Quote"), 503, "upstream_unavailable", true, "ERROR", false},
 		{errs.New(errs.CodeVersionConflict, "cabal.Rename"), 409, "version_conflict", false, "INFO", false},
+		{errs.New(errs.CodeRateLimited, "ratelimit.Middleware"), 429, "rate_limited", true, "INFO", false},
 		{io.ErrUnexpectedEOF, 500, "internal", false, "ERROR", true},
 	} {
 		t.Run(string(tc.code), func(t *testing.T) {

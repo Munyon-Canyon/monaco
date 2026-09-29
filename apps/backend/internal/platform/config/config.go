@@ -40,8 +40,9 @@ type Auth struct {
 }
 
 type HTTP struct {
-	Addr         string
-	MaxBodyBytes int32
+	Addr              string
+	MaxBodyBytes      int32
+	TrustProxyHeaders bool
 }
 
 type Worker struct {
@@ -209,6 +210,7 @@ func fields() []field {
 		environment("MONACO_ENV", func(c *Config) *Env { return &c.Env }).required(),
 		text("MONACO_HTTP_ADDR", ":8080", func(c *Config) *string { return &c.HTTP.Addr }),
 		count("MONACO_HTTP_MAX_BODY_BYTES", 1<<20, func(c *Config) *int32 { return &c.HTTP.MaxBodyBytes }),
+		boolean("TRUST_PROXY_HEADERS", func(c *Config) *bool { return &c.HTTP.TrustProxyHeaders }),
 		text("MONACO_WORKER_HEALTH_ADDR", ":8081", func(c *Config) *string { return &c.Worker.HealthAddr }),
 		text("DATABASE_URL", "", func(c *Config) *string { return &c.DB.URL }).required().secret(),
 		count("MONACO_DB_MAX_CONNS", 10, func(c *Config) *int32 { return &c.DB.MaxConns }),
@@ -322,6 +324,20 @@ func count(key string, fallback int32, at func(*Config) *int32) field {
 			return err == nil && n > 0
 		},
 		get: func(c *Config) string { return strconv.Itoa(int(*at(c))) },
+	}
+}
+
+func boolean(key string, at func(*Config) *bool) field {
+	return field{
+		key:      key,
+		fallback: "false",
+		want:     "true or false",
+		set: func(c *Config, v string) bool {
+			b, err := strconv.ParseBool(v)
+			*at(c) = b
+			return err == nil
+		},
+		get: func(c *Config) string { return strconv.FormatBool(*at(c)) },
 	}
 }
 

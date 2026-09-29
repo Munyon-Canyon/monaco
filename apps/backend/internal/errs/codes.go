@@ -16,6 +16,7 @@ const (
 	CodeIdempotencyMismatch Code = "idempotency_mismatch"
 	CodeIdempotencyInFlight Code = "idempotency_in_flight"
 	CodeVersionConflict     Code = "version_conflict"
+	CodeRateLimited         Code = "rate_limited"
 	CodeUpstreamUnavailable Code = "upstream_unavailable"
 	CodeUpstreamTimeout     Code = "upstream_timeout"
 	CodeJupiterUnavailable  Code = "jupiter_unavailable"
@@ -27,6 +28,7 @@ const (
 	CodeDBUnavailable       Code = "db_unavailable"
 	CodeDBSchemaBehind      Code = "db_schema_behind"
 	CodeDecodeFailed        Code = "decode_failed"
+	CodeInvalidConfig       Code = "invalid_config"
 	CodeInternal            Code = "internal"
 	CodePanic               Code = "panic"
 )
@@ -60,6 +62,10 @@ func table() map[Code]Row {
 		CodeVersionConflict: {
 			Name: "VersionConflict", Kind: KindConflict,
 			Message: "This changed since you last loaded it. Refresh and try again.",
+		},
+		CodeRateLimited: {
+			Name: "RateLimited", Kind: KindRateLimited, Retryable: true,
+			Message: "Too many requests. Try again in a moment.",
 		},
 		CodeUpstreamUnavailable: {
 			Name: "UpstreamUnavailable", Kind: KindUnavailable, Retryable: true,
@@ -98,9 +104,10 @@ func table() map[Code]Row {
 			Name: "DBSchemaBehind", Kind: KindUnavailable, Alert: true,
 			Message: "The service is temporarily unavailable. Try again shortly.",
 		},
-		CodeDecodeFailed: {Name: "DecodeFailed", Kind: KindInternal, Alert: true, Message: "Something went wrong."},
-		CodeInternal:     {Name: "Internal", Kind: KindInternal, Alert: true, Message: "Something went wrong."},
-		CodePanic:        {Name: "Panic", Kind: KindInternal, Alert: true, Message: "Something went wrong."},
+		CodeInvalidConfig: {Name: "InvalidConfig", Kind: KindInternal, Alert: true, Message: "Something went wrong."},
+		CodeDecodeFailed:  {Name: "DecodeFailed", Kind: KindInternal, Alert: true, Message: "Something went wrong."},
+		CodeInternal:      {Name: "Internal", Kind: KindInternal, Alert: true, Message: "Something went wrong."},
+		CodePanic:         {Name: "Panic", Kind: KindInternal, Alert: true, Message: "Something went wrong."},
 	}
 }
 

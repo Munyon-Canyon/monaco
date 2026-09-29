@@ -211,6 +211,9 @@ linters:
         linters: [ireturn]
       - path: ^internal/platform/db/idempotency_test\.go$
         linters: [ireturn]
+      # A failing sqlc.DBTX double has to return the pgx row interfaces to reach Take's store-error branches.
+      - path: ^internal/platform/httpx/ratelimit/take_test\.go$
+        linters: [ireturn]
       - path: ^internal/testkit/.*_test\.go$
         linters: [gosec]
         text: G204

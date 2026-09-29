@@ -77,6 +77,7 @@ func TestHTTPStatusCoversEveryKind(t *testing.T) {
 		KindNotFound:     http.StatusNotFound,
 		KindConflict:     http.StatusConflict,
 		KindBlocked:      http.StatusUnprocessableEntity,
+		KindRateLimited:  http.StatusTooManyRequests,
 		KindUnavailable:  http.StatusServiceUnavailable,
 		KindInternal:     http.StatusInternalServerError,
 		Kind(0):          http.StatusInternalServerError,

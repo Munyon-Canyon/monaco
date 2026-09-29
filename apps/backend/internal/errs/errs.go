@@ -15,6 +15,7 @@ const (
 	KindNotFound
 	KindConflict
 	KindBlocked
+	KindRateLimited
 	KindUnavailable
 	KindInternal
 )
@@ -66,6 +67,8 @@ func HTTPStatus(kind Kind) int {
 		return http.StatusConflict
 	case KindBlocked:
 		return http.StatusUnprocessableEntity
+	case KindRateLimited:
+		return http.StatusTooManyRequests
 	case KindUnavailable:
 		return http.StatusServiceUnavailable
 	case KindInternal:

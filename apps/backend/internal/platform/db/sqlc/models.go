@@ -43,6 +43,12 @@ type IdempotencyKey struct {
 	CompletedAt     pgtype.Timestamptz
 }
 
+type RateLimitBucket struct {
+	Key         string
+	TokensMilli int64
+	UpdatedAt   time.Time
+}
+
 type SystemPing struct {
 	ID       uuid.UUID
 	UserID   uuid.UUID
