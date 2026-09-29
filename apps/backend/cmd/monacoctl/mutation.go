@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
@@ -31,6 +32,7 @@ const (
 type mutationEnv struct {
 	moduleDir, goBin, gitBin, gremlins, tmpDir string
 	exec                                       execFunc
+	now                                        func() time.Time
 }
 
 type execFunc func(ctx context.Context, dir string, env []string, name string, args ...string) ([]byte, error)
@@ -135,13 +137,16 @@ func (env mutationEnv) run(ctx context.Context, a mutationArgs, stdout io.Writer
 		return nil, err
 	}
 	_, _ = fmt.Fprintf(stdout, "mutating %d packages: %s\n", len(dirs), strings.Join(dirs, " "))
+	var total mutantCounts
+	start := env.now()
+	defer func() { total.print(stdout, env.now().Sub(start)) }()
 	var survivors []string
 	for _, dir := range dirs {
 		report, err := env.unleash(ctx, dir, diffRef, a.report)
 		if err != nil {
 			return nil, err
 		}
-		if mostlyTimedOut(report) {
+		if pkg := total.add(report); pkg.timedOut > pkg.tested() {
 			return nil, errs.Wrap(timedOutError(dir), errs.CodeInternal, op)
 		}
 		survivors = append(survivors, survivingMutants(dir, report, allowed)...)
@@ -263,19 +268,34 @@ func (env mutationEnv) testOutput(ctx context.Context, dir string) string {
 	return "go test ./" + dir + " for context:\n" + strings.Join(lines, "\n")
 }
 
-func mostlyTimedOut(report gremlinsReport) bool {
-	tested, timed := 0, 0
+type mutantCounts struct{ packages, killed, lived, timedOut int }
+
+func (c mutantCounts) tested() int { return c.killed + c.lived }
+
+func (c *mutantCounts) add(report gremlinsReport) mutantCounts {
+	pkg := mutantCounts{packages: 1}
 	for _, f := range report.Files {
 		for _, m := range f.Mutations {
 			switch m.Status {
-			case killed, lived:
-				tested++
+			case killed:
+				pkg.killed++
+			case lived:
+				pkg.lived++
 			case timedOut:
-				timed++
+				pkg.timedOut++
 			}
 		}
 	}
-	return timed > tested
+	c.packages += pkg.packages
+	c.killed += pkg.killed
+	c.lived += pkg.lived
+	c.timedOut += pkg.timedOut
+	return pkg
+}
+
+func (c mutantCounts) print(w io.Writer, wall time.Duration) {
+	_, _ = fmt.Fprintf(w, "mutation summary: %d packages, %d tested, %d killed, %d lived, %d timed out, wall %s\n",
+		c.packages, c.tested(), c.killed, c.lived, c.timedOut, wall.Round(time.Second))
 }
 
 func mutantKey(dir, file string, line, column int, mutator string) string {
@@ -341,5 +361,6 @@ func toolMutation(_ toolEnv) tool {
 		gremlins:  gremlinsBin,
 		tmpDir:    os.TempDir(),
 		exec:      runCommand,
+		now:       time.Now,
 	})
 }
