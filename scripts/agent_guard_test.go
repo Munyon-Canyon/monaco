@@ -122,7 +122,7 @@ func TestAgentGuard_blocksPushesToMainTheFeatureBranchAndGraphiteTrunks(t *testi
 		"bash -c 'git push origin main'",
 	} {
 		r := guard(t, work, cmd)
-		if r.code != 2 || !(strings.Contains(r.stderr, "squash-merged PRs") || strings.Contains(r.stderr, "--all")) {
+		if r.code != 2 || !(strings.Contains(r.stderr, "only through the merge queue") || strings.Contains(r.stderr, "--all")) {
 			t.Errorf("%q: want blocked, got %d %q", cmd, r.code, r.stderr)
 		}
 	}
@@ -403,5 +403,35 @@ exit 0
 	}
 	if got, _ := os.ReadFile(calls); !strings.Contains(string(got), "pr edit 7 --body-file "+good) {
 		t.Fatalf("want gh pr edit 7 --body-file, got %q", got)
+	}
+}
+
+func TestAgentGuard_autoMergeNeedsAFeatureBranchBase(t *testing.T) {
+	cwd := t.TempDir()
+	env, _ := ghStubOnBase(t, "831-f-land-stack", `[`+status("success", "verifier", 2)+`]`)
+	for _, cmd := range []string{"gh pr merge 42 --auto", "gh pr merge --auto 42 --squash"} {
+		assertBlocked(t, guard(t, cwd, cmd, env...), cmd, "not the feature branch, so auto-merge would merge it into its parent")
+	}
+	env, _ = ghStubOnBase(t, "backend-rewrite-3", `[`+status("success", "verifier", 2)+`]`)
+	assertAllowed(t, guard(t, cwd, "gh pr merge 42 --auto", env...), "auto-merge on the feature branch")
+}
+
+func TestAgentGuard_onlyLandStackChangesABase(t *testing.T) {
+	cwd := t.TempDir()
+	for _, cmd := range []string{
+		"gh pr edit 5 --base backend-rewrite-3",
+		"gh pr edit 5 -B backend-rewrite-3",
+		"gh pr edit --base=backend-rewrite-3 5",
+		"cd /tmp && gh pr edit 5 --title t --base b",
+	} {
+		assertBlocked(t, guard(t, cwd, cmd), cmd, "gh pr edit --base runs only inside `monacoctl agents land-stack")
+	}
+	for _, cmd := range []string{
+		"gh pr edit 5 --title t",
+		"gh pr edit 5 --body-file body.md",
+		"gh pr view 5 --json baseRefName",
+		"cd apps/backend && go run ./cmd/monacoctl agents land-stack 5",
+	} {
+		assertAllowed(t, guard(t, cwd, cmd), cmd)
 	}
 }

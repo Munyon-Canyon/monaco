@@ -318,8 +318,9 @@ def rule_push_protected(inv: Invocation) -> str | None:
         return "git push --all/--mirror/--branches can push main or the feature branch. Push one named branch."
     for _, dst, _ in push.targets:
         if is_protected(dst, git.cwd):
-            return (f"git push to '{dst}' is not allowed. main and the feature branch change only through "
-                    "squash-merged PRs that pass ci-ok and verify. Push your ticket branch and open a PR.")
+            return (f"git push to '{dst}' is not allowed. main changes only through the operator's checkpoint PR, "
+                    "and the feature branch only through the merge queue after ci-ok and verify pass. "
+                    "Push your ticket branch with gt submit --stack.")
     return None
 
 
@@ -408,6 +409,10 @@ def rule_merge_needs_verify(inv: Invocation) -> str | None:
         pr = json.loads(view.stdout)
         if pr["baseRefName"] == "main":
             return f"PR #{pr['number']} targets main. Only the operator merges into main, by hand in GitHub."
+        if "--auto" in inv.argv[3:] and not fnmatch(pr["baseRefName"], FEATURE_BRANCH_GLOB):
+            return (f"PR #{pr['number']} is based on {pr['baseRefName']}, not the feature branch, so auto-merge "
+                    "would merge it into its parent branch. Land a stack with "
+                    "`monacoctl agents land-stack <top-pr>`.")
         slug = re.match(r"https://github\.com/([^/]+/[^/]+)/pull/", pr["url"]).group(1)
         statuses = run(["gh", "api", f"repos/{slug}/commits/{pr['headRefOid']}/statuses?per_page=100"], inv.cwd)
         if statuses.returncode != 0:
@@ -420,6 +425,15 @@ def rule_merge_needs_verify(inv: Invocation) -> str | None:
     state = verify[0].get("state") if verify else "missing"
     return (f"PR #{pr['number']} head {pr['headRefOid'][:12]} has no verify success (latest: {state}). "
             "An independent verifier posts it after checking that exact sha.")
+
+
+def rule_edit_base(inv: Invocation) -> str | None:
+    if os.path.basename(inv.argv[0]) != "gh" or inv.argv[1:3] != ["pr", "edit"]:
+        return None
+    if any(a in {"-B", "--base"} or a.startswith("--base=") for a in inv.argv[3:]):
+        return ("gh pr edit --base runs only inside `monacoctl agents land-stack <top-pr>`, which moves a verified "
+                "stack onto the feature branch. Graphite owns every other base: gt submit --stack sets them.")
+    return None
 
 
 def rule_inline_pr_body(inv: Invocation) -> str | None:
@@ -508,13 +522,14 @@ def rule_raw_history(inv: Invocation) -> str | None:
     if not owner_checkout(git.cwd):
         return None
     return ("raw git rebase and git merge are blocked in a checkout. "
-            "Update with gt sync --no-interactive, then gt restack.")
+            "Update with gt sync --no-interactive --no-restack, then gt restack.")
 
 
 @dataclass
 class Role:
     top: str
     common: str
+    queued: dict | None = None
 
 
 @lru_cache(maxsize=None)
@@ -534,11 +549,12 @@ def agent_role(cwd: str) -> Role | None:
     for name in names:
         try:
             with open(os.path.join(records, name)) as f:
-                worktree = json.load(f).get("worktree") or ""
+                record = json.load(f)
+            worktree = record.get("worktree") or ""
         except (OSError, ValueError, AttributeError):
             continue
         if worktree and os.path.realpath(worktree) == os.path.realpath(top):
-            return Role(top, common)
+            return Role(top, common, record.get("queued"))
     return None
 
 
@@ -568,6 +584,19 @@ def rule_role_push_needs_check(inv: Invocation) -> str | None:
         return None
     return (f"`monacoctl agents check` has not passed on this tree ({tree[:12] or 'unknown'}). "
             "Commit, run `cd apps/backend && go run ./cmd/monacoctl agents check`, then push.")
+
+
+def rule_queued_stack(inv: Invocation) -> str | None:
+    if os.path.basename(inv.argv[0]) != "gt" or inv.argv[1:2] not in (["submit"], ["s"], ["ss"], ["modify"], ["m"],
+                                                                      ["restack"], ["r"]):
+        return None
+    role = agent_role(inv.cwd)
+    if role is None or not isinstance(role.queued, dict):
+        return None
+    top = role.queued.get("top")
+    return (f"this stack is in the merge queue as #{top}. gt {inv.argv[1]} would reset its bases and pull it out "
+            f"of the queue. When #{top} merges or leaves the queue, run `monacoctl agents land-stack {top}` to "
+            "clear the mark, then fix the stack.")
 
 
 def flag_on(args: list[str], name: str) -> bool:
@@ -641,9 +670,11 @@ RULES = [
     rule_push_behind,
     rule_claude_timeout,
     rule_merge_needs_verify,
+    rule_edit_base,
     rule_inline_pr_body,
     rule_conventional_commit,
     rule_raw_history,
+    rule_queued_stack,
     rule_role_push_needs_check,
     rule_role_heavy_tests,
     rule_role_ci_polling,
