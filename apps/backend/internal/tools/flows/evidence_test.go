@@ -159,6 +159,19 @@ func freshIf(want string) flows.Fresh {
 	return func(module, sha string) (bool, error) { return module == "treasury" && sha == want, nil }
 }
 
+func TestScriptName_isTheFlowTestNameWithoutTheTestPrefix(t *testing.T) {
+	t.Parallel()
+	f := flows.Flow{ID: "00", Command: "RecordPing"}
+	for o, want := range map[flows.Outcome]string{
+		"ok": "F00RecordPingOK", "InvalidInput": "F00RecordPingInvalidInput",
+		"crash:after-publish": "F00RecordPingCrashAfterPublish",
+	} {
+		if got := flows.ScriptName(f, o); got != want {
+			t.Errorf("ScriptName(%s) = %s, want %s", o, got, want)
+		}
+	}
+}
+
 func TestMarkdown_rendersTheRFCTable(t *testing.T) {
 	t.Parallel()
 	dead := "27\tDead letters | advisory\tadmin\tconsumer:$JS.EVENT.ADVISORY\t\t\t\tok\tplanned\tdocs/flows.md"

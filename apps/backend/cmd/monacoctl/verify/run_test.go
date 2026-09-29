@@ -2,10 +2,17 @@ package verify
 
 import (
 	"bytes"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
+	tools "github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
 func TestParseArgs(t *testing.T) {
@@ -48,6 +55,23 @@ for b in api worker fakes; do printf '#!/bin/sh\nexec "%s" "$@"\n' "`+exe+`" > "
 `)
 }
 
+const plantedFlows = tools.Header + "\n" +
+	"90\tHealth\tsystem\tGET /healthz\tHealth\t\t\tok;crash:after-publish\tbuilt\tdocs/x.md#health\n" +
+	"91\tLater\tsystem\tGET /later\tLater\t\t\tok\tplanned\tdocs/x.md#later\n"
+
+func plantedScripts() map[string]flows.Script {
+	health := func(s *scenario.Scenario) {
+		s.When(scenario.Anonymous(), scenario.Get("/healthz"), scenario.ExpectStatus(http.StatusOK))
+	}
+	return map[string]flows.Script{
+		"F90HealthOK": health,
+		"F90HealthCrashAfterPublish": func(s *scenario.Scenario) {
+			health(s)
+			s.Then(scenario.PublishCrashingAt(faultpoint.AfterPublish))
+		},
+	}
+}
+
 func testConfig(t *testing.T, mode string) (Config, *bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
 	o := testOptions(t, mode)
@@ -55,29 +79,46 @@ func testConfig(t *testing.T, mode string) (Config, *bytes.Buffer, *bytes.Buffer
 	if err := os.Symlink(filepath.Join(o.Dir, "migrations"), filepath.Join(dir, "migrations")); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(dir, tools.File), []byte(plantedFlows), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	var stdout, stderr bytes.Buffer
 	return Config{
-		Dir: dir, Environ: o.Environ, Go: fakeGo(t), Atlas: o.Atlas,
-		Budget: o.Budget, Postgres: o.Postgres, Stdout: &stdout, Stderr: &stderr,
+		Dir: dir, Environ: o.Environ, Go: fakeGo(t), Atlas: o.Atlas, Budget: o.Budget, Postgres: o.Postgres,
+		Modules: func(module.Deps) module.Set { return nil }, Scripts: plantedScripts(),
+		Stdout: &stdout, Stderr: &stderr,
 	}, &stdout, &stderr
 }
 
-func TestRun_buildsTheBinariesBringsTheStackUpAndTearsItDown(t *testing.T) {
+func TestRun_buildsTheBinariesRunsEveryOutcomeAndTearsTheStackDown(t *testing.T) {
 	t.Parallel()
-	cfg, stdout, stderr := testConfig(t, "ok")
-	if code := Run(t.Context(), cfg, Target{CrashAt: "after-publish"}); code != 0 {
-		t.Fatalf("Run = %d\n%s", code, stderr)
-	}
-	if !strings.Contains(stdout.String(), "healthy: api http://127.0.0.1:") {
-		t.Fatalf("stdout = %q", stdout)
-	}
-	args, err := os.ReadFile(filepath.Join(filepath.Dir(cfg.Go), "args"))
-	if err != nil || !strings.HasPrefix(string(args), "build -cover -tags faultpoints -o ") ||
-		!strings.Contains(string(args), "./cmd/api ./cmd/worker ./cmd/fakes") {
-		t.Fatalf("go args = %q, %v", args, err)
-	}
-	if _, err := os.Stat(filepath.Join(cfg.Dir, ".verify", "cover")); err != nil {
-		t.Fatalf("coverage dir: %v", err)
+	for _, tc := range []struct {
+		name   string
+		target Target
+		tags   string
+		want   string
+	}{
+		{"all", Target{}, "build -cover -o ", "PASS flow 90 ok ("},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg, stdout, stderr := testConfig(t, "ok")
+			if code := Run(t.Context(), cfg, tc.target); code != 0 {
+				t.Fatalf("Run = %d\n%s\n%s", code, stdout, stderr)
+			}
+			if !strings.Contains(stdout.String(), "healthy: api http://127.0.0.1:") ||
+				!strings.Contains(stdout.String(), tc.want) {
+				t.Fatalf("stdout = %q, want %q", stdout, tc.want)
+			}
+			args, err := os.ReadFile(filepath.Join(filepath.Dir(cfg.Go), "args"))
+			if err != nil || !strings.HasPrefix(string(args), tc.tags) ||
+				!strings.Contains(string(args), "./cmd/api ./cmd/worker ./cmd/fakes") {
+				t.Fatalf("go args = %q, %v", args, err)
+			}
+			if _, err := os.Stat(filepath.Join(cfg.Dir, ".verify", "cover")); err != nil {
+				t.Fatalf("coverage dir: %v", err)
+			}
+		})
 	}
 }
 
@@ -108,6 +149,18 @@ func TestRun_failsWithTheReasonAndExitOne(t *testing.T) {
 			}
 		}, "coverage dir"},
 		{"stack", func(_ *testing.T, cfg *Config) { cfg.Atlas = "/nonexistent/atlas" }, "migrate apply"},
+		{"flows", func(t *testing.T, cfg *Config) {
+			t.Helper()
+			if err := os.Remove(filepath.Join(cfg.Dir, tools.File)); err != nil {
+				t.Fatal(err)
+			}
+		}, "read flows.tsv"},
+		{"script", func(_ *testing.T, cfg *Config) { cfg.Scripts = nil }, "flow 90 outcome ok has no script F90HealthOK"},
+		{"flow", func(_ *testing.T, cfg *Config) {
+			cfg.Scripts["F90HealthOK"] = func(s *scenario.Scenario) {
+				s.When(scenario.Get("/nope"), scenario.ExpectStatus(http.StatusOK))
+			}
+		}, "1 of 1 flow outcomes failed"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

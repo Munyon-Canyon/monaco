@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -16,7 +17,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	testkit.Main(m, testkit.WithChild(fakeMain))
+	testkit.Main(m, testkit.WithChild(fakeMain), testkit.WithNATS())
 }
 
 const (
@@ -32,29 +33,19 @@ func fakeMain() {
 	if mode == fakeMute {
 		os.Exit(3)
 	}
-	addr := ""
-	for _, key := range []string{"FAKES_ADDR", "MONACO_HTTP_ADDR", "MONACO_WORKER_HEALTH_ADDR"} {
-		if v := os.Getenv(key); v != "" {
-			addr = v
-		}
-	}
-	ln, err := new(net.ListenConfig).Listen(context.Background(), "tcp", addr)
+	ln, err := new(net.ListenConfig).Listen(context.Background(), "tcp", fakeAddr())
 	if err != nil {
 		os.Exit(4)
 	}
-	status := http.StatusOK
-	if mode == fakeSick {
-		status = http.StatusServiceUnavailable
-	}
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(status) })
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: time.Second}
-	go func() { _ = srv.Serve(ln) }()
+	checked := serveFake(ln, mode)
 	if mode != fakeQuiet {
 		_, _ = fmt.Fprintf(os.Stderr, "partial ")
 		for range 2 {
 			_, _ = fmt.Fprintf(os.Stderr, "line\n{\"msg\":\"boot.listening\",\"addr\":%q}\n", ln.Addr().String())
 		}
+	}
+	if point := os.Getenv("MONACO_FAULTPOINT"); point != "" {
+		go crashAfter(checked, point)
 	}
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGTERM)
@@ -63,6 +54,45 @@ func fakeMain() {
 		select {}
 	}
 	<-stop
+}
+
+func fakeAddr() string {
+	addr := ""
+	for _, key := range []string{"FAKES_ADDR", "MONACO_HTTP_ADDR", "MONACO_WORKER_HEALTH_ADDR"} {
+		if v := os.Getenv(key); v != "" {
+			addr = v
+		}
+	}
+	return addr
+}
+
+func serveFake(ln net.Listener, mode string) <-chan struct{} {
+	status := http.StatusOK
+	if mode == fakeSick {
+		status = http.StatusServiceUnavailable
+	}
+	mux := http.NewServeMux()
+	checked, once := make(chan struct{}), sync.Once{}
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(status)
+		once.Do(func() { close(checked) })
+		_, _ = fmt.Fprintf(os.Stderr,
+			`{"msg":"http.request","method":"GET","route":"/healthz","status":%d,"duration_ms":0}`+"\n", status)
+	})
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: time.Second}
+	go func() { _ = srv.Serve(ln) }()
+	return checked
+}
+
+func crashAfter(checked <-chan struct{}, point string) {
+	unchecked := time.NewTimer(time.Second)
+	select {
+	case <-checked:
+		<-time.NewTimer(300 * time.Millisecond).C
+	case <-unchecked.C:
+	}
+	_, _ = fmt.Fprintf(os.Stderr, "panic: faultpoint: crash at %s\n", point)
+	os.Exit(2)
 }
 
 func fakeEnviron(mode string) []string {

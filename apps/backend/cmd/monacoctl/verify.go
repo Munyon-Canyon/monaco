@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/monaco/monaco/apps/backend/cmd/monacoctl/verify"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 )
 
 func verifyTool(environ []string, wd, goBin string) tool {
@@ -28,7 +29,8 @@ func verifyTool(environ []string, wd, goBin string) tool {
 		return verify.Run(ctx, verify.Config{
 			Dir: root, Environ: environ, Go: goBin, Docker: "docker",
 			Atlas:  filepath.Join(root, "..", "..", ".bin", "atlas"),
-			Budget: verify.DefaultBudget(), Stdout: stdout, Stderr: stderr,
+			Budget: verify.DefaultBudget(), Modules: registered.Build, Scripts: flows.Scripts(),
+			Stdout: stdout, Stderr: stderr,
 		}, target)
 	}
 }

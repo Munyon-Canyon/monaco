@@ -11,6 +11,7 @@ import (
 	"path"
 	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
@@ -76,6 +77,10 @@ func CheckTests(flows []Flow, results TestResults) []Problem {
 		}
 	}
 	return problems
+}
+
+func ScriptName(f Flow, o Outcome) string {
+	return "F" + strings.ReplaceAll(strings.TrimPrefix(TestName(f, o), "TestFlow"), "_", "")
 }
 
 var (

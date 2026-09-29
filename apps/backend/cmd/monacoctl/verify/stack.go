@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -53,6 +54,7 @@ type Stack struct {
 	TokenKey string
 	Pool     *pgxpool.Pool
 	NATS     *testkit.EmbeddedNATS
+	Bus      *bus.Conn
 	Logs     *Logs
 
 	opts   Options
@@ -97,7 +99,9 @@ func (s *Stack) dockerPostgres(ctx context.Context, runID string) (string, func(
 }
 
 func (s *Stack) nats() (err error) {
-	s.NATS, err = testkit.StartEmbeddedNATS()
+	if s.NATS, err = testkit.StartEmbeddedNATS(); err == nil {
+		s.Bus, err = bus.Connect(context.Background(), config.NATS{URL: s.NATS.URL}, bus.ProcessMonacoctl)
+	}
 	return err
 }
 
@@ -209,6 +213,9 @@ func (s *Stack) Down(ctx context.Context) error {
 	}
 	if s.Pool != nil {
 		s.Pool.Close()
+	}
+	if s.Bus != nil {
+		s.Bus.Close(ctx)
 	}
 	s.NATS.Stop()
 	if s.remove != nil {
