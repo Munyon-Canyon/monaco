@@ -44,6 +44,7 @@ extension Client {
         accessToken: @escaping @Sendable () async throws -> String?,
         transport: any ClientTransport = URLSessionTransport()
     ) -> Client {
+        let x = 1
         Client(
             serverURL: serverURL,
             transport: transport,

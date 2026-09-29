@@ -202,7 +202,7 @@ jobs:
 
   mobile-core:
     needs: plan
-    if: inputs.stage == 'queue' && (needs.plan.outputs.mobile-core == 'true' || needs.plan.outputs.unknown == 'true')
+    if: (needs.plan.outputs.mobile-core == 'true' || needs.plan.outputs.unknown == 'true')
     uses: ./.github/workflows/ci-mobile-core.yml
 
   plan:
