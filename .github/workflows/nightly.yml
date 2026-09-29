@@ -156,7 +156,7 @@ jobs:
           key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-${{ github.sha }}
 
   backend:
-    name: Backend unbounded suites (100k rapid, fuzz, seed sweep, benchstat)
+    name: Backend unbounded suites (govulncheck, 100k rapid, fuzz, seed sweep, benchstat)
     needs: changed
     if: needs.changed.outputs.run == 'true' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
@@ -169,6 +169,10 @@ jobs:
 
       # atlas for testkit.DB and the tmpfs test Postgres, the same setup as the PR backend job.
       - uses: ./.github/actions/backend-test-env
+
+      # A new advisory can hit code that has not changed, which no PR run would see.
+      - name: Install the pinned govulncheck
+        run: scripts/install-govulncheck.sh
 
       - name: Install benchstat
         run: |
