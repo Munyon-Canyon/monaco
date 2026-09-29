@@ -876,7 +876,7 @@ Agents in Claude Code on the web or CI install it with `npm install -g @withgrap
 
 ### Rules
 
-- **One PR is one verifiable unit.** It builds and passes the checks its changed paths require ([Verification scope](#verification-scope)), all without the PRs above it. For `apps/backend/**` that is `just test backend`, and `just verify backend` for the flows it touches. A PR that only makes sense with the next one gets merged with it.
+- **One PR is one verifiable unit.** It passes stage 0 (`monacoctl agents check`) and stage 1 on its own, without the PRs above it ([Verification scope](#verification-scope)). A PR that only makes sense with the next one gets merged with it.
 - **Order a stack so each PR proves the next.** Delete or rename first. Then schema and migration. Then `domain` and `app` with their tests. Then adapters and HTTP. Last, the `flows.tsv` status change with its evidence. The Rollout steps below are each one stack, not one PR.
 - **Size limit: under 1000 changed lines.** CI fails a PR at 1000 or more changed lines, counting added plus deleted lines in hand-written code, tests and docs. A pure rename counts as zero. Generated Go, `go.sum`, lockfiles, images, `testdata`, evidence files and rendered reference docs don't count; the list is `IGNORED` in `scripts/check-pr-size.py`. A human reviewer can add the `large-pr` label to let an oversized PR through, for example a mechanical change such as a rename; an agent adds it only when a human says to.
 - **Split a branch that grew too big.** When work piled up on one branch or at the top of a stack, split it before submitting. The `distribute-stack-changes` skill does it by copying exact hunks onto the lowest branch that owns each behavior, restacking after each commit, and checking the top branch has zero diff from a saved reference. It never rewrites the work. `gt split --by-hunk` does the same by hand. The skill lives in each person's `~/.agents/skills`, not in the repo.
@@ -897,22 +897,30 @@ Agents in Claude Code on the web or CI install it with `npm install -g @withgrap
 
 ### Verification scope
 
-A PR runs every check its changed paths can affect, and no others. A mixed change runs the union of its rows. Inside that set nothing is skipped or shrunk unless the user says so in the current message. A path that is in no row, or whose readers are unclear, counts as code: grep for what reads it, and if still in doubt run the wider set. CI makes the same choice per job in the `ci / Plan` filters ([ci.md](ci.md)).
+Checks run in three stages, and each stage runs only what the stage before it skipped. The operator approved this split on 2026-09-28, so a check that runs in a later stage is not skipped.
 
-| Changed paths | Checks |
-| --- | --- |
-| `*.md` outside `docs/`, `AGENTS.md`, `.claude/**` except `.claude/hooks/**`, `.cursor/**` | None. Reread the diff. |
-| `docs/**`, including the generated `docs/reference/**`; `mkdocs.yml` | `mkdocs build --strict` when it is installed; otherwise the docs CI job covers it. |
-| A shell script nothing runs: not the Justfile, CI, a hook or a `scripts/*_test.go` (for example `scripts/cloud-setup.sh`) | `bash -n` and `shellcheck`. |
-| `scripts/**` read by a `scripts/*_test.go`, `scripts/githooks/**`, `Justfile`, `.claude/hooks/**` | `cd scripts && go test -short ./...` |
-| `scripts/check-pr-*.py`, `scripts/pr-body.sh` | `python3 -m unittest discover -s scripts -p 'test_check_pr_*.py'` |
-| `apps/backend/**`, `scripts/test-backend.sh`, `scripts/ci/**`, `scripts/install-{atlas,sqlc}.sh`, `scripts/gen-docs.sh`, `docker-compose.yml` | `just test backend`, and `just verify backend` for the flows it touches. |
-| `packages/mobile-core/**` | `just test mobile` |
-| `apps/backend/api/openapi.yaml` | `just test backend` and `just test mobile` |
-| `apps/mobile/**` | `just test mobile`, `just build mobile`, gold-sim QA |
-| `.github/**` | The actionlint step in `ci / Plan` runs it; run `rhysd/actionlint` locally when Docker is up. |
+| Stage | Where | Runs | Budget | Runs how often |
+| --- | --- | --- | --- | --- |
+| 0. Agent check | Owner's worktree, `monacoctl agents check` | `go build` and `go vet` on affected packages, then `go test -short -count=1` on affected packages, no `-race`. For non-Go paths, the cheap row for that path (`bash -n` and shellcheck; `cd scripts && go test -short` on the touched test files; `python3 -m unittest …`; `swift test` for `packages/mobile-core`) | ≤60s | Once before each push (hook-enforced) |
+| 1. PR check | CI, `pull_request` | Only what stage 0 skips because it needs the whole repo or is slower: `plan`, golangci-lint, nogo, the comment lint, OpenAPI lint and oasdiff, migration lint, `ready` (tidy, generated files, sqlc, docs), PR format. **No tests.** | ≤2 min | Once per change to the PR's diff. A push with the same diff reuses the last green result. |
+| 2. Queue check | CI, `merge_group` | The full suite: `scripts/test-backend.sh` (race, all packages, time budget), the `-short`-skipped tests, `flake` on changed tests, `just verify backend`, `scripts` tests, and mobile-core and iOS only when their paths changed | ≤6 min backend-only (iOS adds ~12) | Once per queue entry. A stack is one entry. Reruns only after an ejection. |
 
-The PR's Proof section lists the commands its rows require and what they printed. A PR with no checks says `No code paths affected:` and names the paths.
+Stage 1 runs no tests because stage 0 already ran the tests the change can affect, on exactly the pushed code, and stage 2 runs every test against the real feature-branch tip with all queued changes combined before anything lands. The verifier reviews in parallel with stage 1 and runs no tests.
+
+Stage 0 diffs `HEAD` against `origin/<feature branch>` and picks its rows from the changed paths:
+
+- `apps/backend/**`: the packages `monacoctl ci affected` prints, which is `./...` when `go.mod`, `go.sum`, `internal/testkit/**` or a non-Go file changed.
+- A `.sh` file, or an extensionless file with a `bash`, `sh` or `zsh` shebang: `bash -n` and `shellcheck`.
+- Any path: the `scripts/**/*_test.go` tests and `scripts/**/test_*.py` files that the diff touches or that name the changed file's basename in a string literal, for example `"agent-guard.py"`.
+- `packages/mobile-core/**`: `swift test`.
+
+A path in no row runs nothing in stage 0. The paths with no checks in any stage are `docs/**`, `**/*.md`, `.claude/**`, `.cursor/**`, `.github/**` (actionlint runs in `ci / Plan`), `scripts/cloud-setup.sh` and `.env.local`; `ci / Plan` treats them as inert ([ci.md](ci.md)). `apps/mobile/**` still needs `just build mobile` and gold-sim QA from whoever changes it.
+
+`monacoctl agents check` prints at most 20 lines, writes the full log under `.git/pstack/<milestone>/logs/`, and exits 1 naming the slowest package when it runs over 60s. On a pass it records `git rev-parse HEAD^{tree}` in `.git/pstack/<milestone>/checks/`. It refuses a working tree that differs from `HEAD`, since it records `HEAD`'s tree.
+
+`scripts/agent-guard.py` holds owners and verifiers to stage 0. It applies when `.git/.monaco/agents/<ticket>.json` names the calling worktree, so the operator and the root session are unaffected. It blocks `gt submit` and `git push` until `agents check` has passed on the current tree; the heavy tests (`just test backend`, `just verify backend`, `scripts/test-backend.sh`, `go test` with `-race` or without `-short`, `go test ./...` from `apps/backend`); and CI polling (`gh run watch`, `gh pr checks --watch`, `gh pr checks` in a loop, `sleep` over 10s). `gh run rerun <id> --failed` stays allowed.
+
+The PR's Proof section pastes the `monacoctl agents check` output and says that CI covers the rest. A PR with no checks says `No code paths affected:` and names the paths.
 
 ### Enforcement
 
