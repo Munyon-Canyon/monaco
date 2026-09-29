@@ -16,7 +16,7 @@ command -v dotenvx >/dev/null || npm install -g @dotenvx/dotenvx
 # Swift (for `just test mobile` = host `swift test` in packages/mobile-core).
 # Tarball + gpg check instead of swiftly: swift.org serves its keys gzip-encoded,
 # which breaks swiftly's key import, so fetch them with --compressed.
-SWIFT_VERSION=6.1.3
+SWIFT_VERSION=6.3.3
 if ! command -v swift >/dev/null; then
   tmp=$(mktemp -d)
   base="https://download.swift.org/swift-${SWIFT_VERSION}-release/ubuntu2404/swift-${SWIFT_VERSION}-RELEASE/swift-${SWIFT_VERSION}-RELEASE-ubuntu24.04.tar.gz"
