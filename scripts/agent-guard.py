@@ -364,7 +364,7 @@ def rule_push_behind(inv: Invocation) -> str | None:
             return f"could not compare '{src}' with {push.remote}/{dst}; retry once the remote is reachable."
         if missing:
             return (f"{push.remote}/{dst} has commits that '{src}' lacks, so this push would drop them:\n"
-                    f"{missing}\nBring them in first (git pull --rebase, or gt sync), then push.")
+                    f"{missing}\nBring them in first (git pull --rebase, or gt sync --no-restack and gt restack), then push.")
     return None
 
 
@@ -525,6 +525,18 @@ def rule_raw_history(inv: Invocation) -> str | None:
             "Update with gt sync --no-interactive --no-restack, then gt restack.")
 
 
+def rule_sync_restacks(inv: Invocation) -> str | None:
+    if os.path.basename(inv.argv[0]) != "gt":
+        return None
+    args = inv.argv[1:]
+    while args and args[0].startswith("-"):
+        args = args[2:] if args[0] == "--cwd" else args[1:]
+    if args[:1] != ["sync"] or "--no-restack" in args:
+        return None
+    return ("plain gt sync restacks every tracked branch, including other agents' stacks mid-build. "
+            "Run gt sync --no-interactive --no-restack, then gt restack on your own stack.")
+
+
 @dataclass
 class Role:
     top: str
@@ -674,6 +686,7 @@ RULES = [
     rule_inline_pr_body,
     rule_conventional_commit,
     rule_raw_history,
+    rule_sync_restacks,
     rule_queued_stack,
     rule_role_push_needs_check,
     rule_role_heavy_tests,

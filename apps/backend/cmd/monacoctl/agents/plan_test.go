@@ -70,7 +70,12 @@ func TestVerifyPlan_classifiesTheDiff(t *testing.T) {
 		f.hub.on(get("/pulls/5"), pr(5, "h", "fb", "Part of #40"))
 		f.hub.on(list("/pulls/5/files?"), c.files)
 		code, stdout, stderr := f.agents(t, "verify-plan", "#5")
-		want := c.want + "owner: unknown (no owner record for #40 in .monaco/agents)\n"
+		model := sonnet
+		if strings.Contains(c.want, "verifier opus") {
+			model = opus
+		}
+		want := c.want + "owner: unknown (no owner record for #40 in .monaco/agents)\n" +
+			verifierSpawn(model, "unknown")
 		if code != 0 || stdout != want || stderr != "" {
 			t.Errorf("%s: code=%d stderr=%q\n got %q\nwant %q", c.name, code, stderr, stdout, want)
 		}
@@ -158,7 +163,8 @@ func TestVerifyPlan_neverPicksTheOwnersModel(t *testing.T) {
 		f.hub.on(get("/pulls/5"), pr(5, "h", "fb", "Closes #40"))
 		f.hub.on(list("/pulls/5/files?"), []File{{Filename: c.file, Additions: 60}})
 		code, stdout, _ := f.agents(t, "verify-plan", "5")
-		if code != 0 || !strings.Contains(stdout, c.want) || !strings.HasSuffix(stdout, "owner: #40 "+c.owner+"\n") {
+		tail := "owner: #40 " + c.owner + "\n" + verifierSpawn(strings.TrimPrefix(c.want, "verifier "), "40")
+		if code != 0 || !strings.Contains(stdout, c.want) || !strings.HasSuffix(stdout, tail) {
 			t.Errorf("%s: code=%d stdout=%q", name, code, stdout)
 		}
 	}
@@ -170,7 +176,10 @@ func TestVerifyPlan_reportsAMissingTicketAndBadRecords(t *testing.T) {
 	f.hub.on(get("/pulls/5"), pr(5, "h", "fb", "no ticket"))
 	f.hub.on(list("/pulls/5/files?"), []File{})
 	code, stdout, _ := f.agents(t, "verify-plan", "5")
-	if code != 0 || !strings.HasSuffix(stdout, "owner: unknown (the PR body names no Part of or Closes ticket)\n") {
+	if code != 0 || !strings.HasSuffix(
+		stdout,
+		"owner: unknown (the PR body names no Part of or Closes ticket)\n"+verifierSpawn(sonnet, "unknown"),
+	) {
 		t.Fatalf("code=%d stdout=%q", code, stdout)
 	}
 	if code, _, stderr := f.agents(t, "verify-plan"); code != 2 || !strings.Contains(stderr, "verify-plan <pr>") {
@@ -185,6 +194,11 @@ func TestVerifyPlan_reportsAMissingTicketAndBadRecords(t *testing.T) {
 	if code, _, stderr := f.agents(t, "verify-plan", "6"); code != 1 || !strings.Contains(stderr, "decode ") {
 		t.Fatalf("code=%d stderr=%q", code, stderr)
 	}
+}
+
+func verifierSpawn(model, ticket string) string {
+	return "spawn: Agent subagent_type=pstack:poteto-agent model=" + model +
+		" run_in_background=true, prompt:\npr: 5\nticket: " + ticket + "\nbrief: docs/agents/verifier.md\n"
 }
 
 func TestVerifyPlan_failsWhenGitHubFails(t *testing.T) {
@@ -255,7 +269,7 @@ func TestMain_aWorktreeReadsItsOwnConfigAndTheSharedRecords(t *testing.T) {
 	f.hub.on(list("/pulls/5/files?"), []File{})
 	f.dir = wt
 	code, stdout, stderr := f.agents(t, "verify-plan", "5")
-	if code != 0 || !strings.HasSuffix(stdout, "owner: #40 opus\n") || stderr != "" {
+	if code != 0 || !strings.HasSuffix(stdout, "owner: #40 opus\n"+verifierSpawn(sonnet, "40")) || stderr != "" {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
 }

@@ -459,6 +459,20 @@ func TestEdges_remainingBranches(t *testing.T) {
 		!strings.Contains(err.Error(), "worktree down") {
 		t.Fatal(err)
 	}
+	d.Run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
+		if name == "git" && len(args) > 0 && args[0] == "worktree" {
+			return nil, os.MkdirAll(d.recordPath(4), 0o750)
+		}
+		if name == "ps" {
+			return []byte("1 claude\n"), nil
+		}
+		return f.run(ctx, dir, stdin, name, args...)
+	}
+	var out strings.Builder
+	if err := dispatchCmd(context.Background(), d, []string{"4", "--model", "opus"}, &out); err == nil ||
+		!strings.Contains(err.Error(), "write owner record") || strings.Contains(out.String(), "spawn:") {
+		t.Fatalf("err=%v out=%q", err, out.String())
+	}
 	s := newFixture(t)
 	s.hub.on(list("/pulls?state=open"), []PR{})
 	s.hub.on(list("/issues/7/comments?"), []Comment{})

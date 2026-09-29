@@ -3,6 +3,7 @@ package agents
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -19,11 +20,20 @@ func TestDispatch_dryRunWritesNothing(t *testing.T) {
 	merged := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
 	f.hub.on(get("/issues/3"), Issue{Number: 3, PullRequest: &struct{}{}})
 	f.hub.on(get("/pulls/3"), PR{Number: 3, MergedAt: &merged, MergeCommitSHA: f.head(t)})
-	f.hub.on(list("/pulls?state=open"), []PR{})
+	f.hub.on(list("/pulls?state=open"), []PR{pr(1, "a", "fb", ""), pr(2, "b", "fb", "")})
+	shared := make([]File, 0, 30)
+	for i := range 30 {
+		shared = append(shared, File{Filename: fmt.Sprintf("shared%02d.go", i)})
+	}
+	f.hub.on(list("/pulls/1/files?"), shared)
+	f.hub.on(list("/pulls/2/files?"), shared)
 	f.ps()
 	code, stdout, stderr := f.agents(t, "dispatch", "12", "--model", "opus", "--dry-run")
 	if code != 0 || stderr != "" || !strings.Contains(stdout, "dry-run: would add worktree") ||
-		!strings.Contains(stdout, "would start caffeinate") {
+		!strings.Contains(stdout, "would start caffeinate") ||
+		!strings.Contains(stdout, "subagent_type=pstack:poteto-agent model=opus run_in_background=true, prompt:\n"+
+			"ticket: 12\nworktree: ") || !strings.Contains(stdout, "brief: docs/agents/owner.md\n30 files") ||
+		!strings.HasSuffix(stdout, " more\n") {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
 	if _, err := os.Stat(f.Env(t).recordPath(12)); !os.IsNotExist(err) {
@@ -45,8 +55,12 @@ func TestDispatch_refusesBlockersLanesAndModel(t *testing.T) {
 		"--model",
 		"fable",
 	); code != 1 ||
-		!strings.Contains(stderr, "fable") {
+		!strings.Contains(stderr, `must be opus or sonnet, got "fable"`) {
 		t.Fatalf("fable: %d %q", code, stderr)
+	}
+	if code, _, stderr := f.agents(t, "dispatch", "4", "--model", "haiku"); code != 1 ||
+		!strings.Contains(stderr, `got "haiku"`) {
+		t.Fatalf("haiku: %d %q", code, stderr)
 	}
 	if code, _, stderr := f.agents(
 		t,
@@ -130,6 +144,11 @@ func TestDispatch_startsAWorktreeWhenTheBlockerIsInTheBranch(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "shared.go") {
 		t.Fatal(stdout.String())
+	}
+	spawn := "spawn: Agent subagent_type=pstack:poteto-agent model=opus run_in_background=true, prompt:\n" +
+		"ticket: 12\nworktree: " + rec.Worktree + "\nparent: " + tip + "\nbrief: docs/agents/owner.md\n"
+	if !strings.HasPrefix(stdout.String(), spawn) {
+		t.Fatalf("stdout=%q want prefix %q", stdout.String(), spawn)
 	}
 }
 

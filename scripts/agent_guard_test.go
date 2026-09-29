@@ -344,11 +344,23 @@ func TestAgentGuard_blocksRawRebaseAndMergeInAWorktreeAndAtTheRoot(t *testing.T)
 	root := t.TempDir()
 	git(t, root, "init", "-q")
 	assertBlocked(t, guard(t, root, "git rebase --onto main"), "git rebase --onto main", "gt restack")
-	assertAllowed(t, guard(t, worktree, "gt sync --no-interactive"), "gt sync --no-interactive")
+	assertAllowed(t, guard(t, worktree, "gt sync --no-interactive --no-restack"), "gt sync --no-restack")
 	assertAllowed(t, guard(t, worktree, "gt restack"), "gt restack")
 	assertAllowed(t, guard(t, root, "gt restack"), "gt restack")
 	elsewhere := t.TempDir()
 	assertAllowed(t, guard(t, elsewhere, "git rebase origin/main"), "git rebase origin/main")
+}
+
+func TestAgentGuard_gtSyncLeavesOtherStacksUnrestacked(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	py := "PYENV_VERSION=system"
+	for _, cmd := range []string{"gt sync", "gt sync --no-interactive", "cd /tmp && gt sync -f", "gt --cwd /w sync"} {
+		assertBlocked(t, guard(t, dir, cmd, py), cmd, "gt sync --no-interactive --no-restack")
+	}
+	for _, cmd := range []string{"gt sync --no-interactive --no-restack", "gt restack --upstack", "gt submit --stack"} {
+		assertAllowed(t, guard(t, dir, cmd, py), cmd)
+	}
 }
 
 func TestPrBody_setsTheBodyFromAFileOnlyWhenItPassesThePrFormat(t *testing.T) {

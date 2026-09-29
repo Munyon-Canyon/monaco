@@ -307,7 +307,7 @@ The legacy backend, its migrations, its Go domain package and the reference trad
 Changes ship as stacks of small PRs through Graphite, not as one large PR. Each PR builds and passes tests on its own and stays under 1000 changed lines (CI counts code, tests and docs; a human can add the `large-pr` label for a mechanical change). Titles say what the PR changes, with no issue number or commit-type prefix, and the body follows `.github/pull_request_template.md`: TLDR, Why, What changed, Proof, What came up, Reviewer focus. To split a branch that grew too big, use the `distribute-stack-changes` skill or `gt split --by-hunk`.
 
 ```bash
-gt sync                       # pull main, drop merged branches
+gt sync --no-restack          # pull main, drop merged branches, leave other stacks alone
 gt create -m "first step"     # new branch + commit on top of the current branch
 gt create -m "next step"      # stacks on the previous one
 gt modify                     # amend the current branch; restacks the branches above

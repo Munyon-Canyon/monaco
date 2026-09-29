@@ -922,6 +922,8 @@ A path in no row runs nothing in stage 0. The paths with no checks in any stage 
 
 `scripts/agent-guard.py` holds owners and verifiers to stage 0. It applies when `.git/.monaco/agents/<ticket>.json` names the calling worktree, so the operator and the root session are unaffected. It blocks `gt submit` and `git push` until `agents check` has passed on the current tree; the heavy tests (`just test backend`, `just verify backend`, `scripts/test-backend.sh`, `go test` with `-race` or without `-short`, `go test ./...` from `apps/backend`); and CI polling (`gh run watch`, `gh pr checks --watch`, `gh pr checks` in a loop, `sleep` over 10s). `gh run rerun <id> --failed` stays allowed.
 
+The same hook blocks `gt sync` without `--no-restack` for every session, because a plain sync restacks other agents' stacks mid-build. `scripts/agent-guard-dispatch.py`, a PreToolUse hook on the Agent tool, holds the spawn itself. A prompt with a `brief: docs/agents/owner.md` or `brief: docs/agents/verifier.md` line must run as `pstack:poteto-agent` with an explicit `opus` or `sonnet` model, and an owner's `ticket: <n>` needs the record `monacoctl agents dispatch` writes after it checks that every blocker has merged. `dispatch` prints the owner's spawn line and prompt, and `verify-plan` prints the verifier's. Spawns without the brief line, such as a skill's explorers, pass untouched.
+
 The PR's Proof section pastes the `monacoctl agents check` output and says that CI covers the rest. A PR with no checks says `No code paths affected:` and names the paths.
 
 ### Enforcement
