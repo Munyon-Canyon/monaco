@@ -35,17 +35,15 @@ func dispatchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer)
 	if err != nil {
 		return err
 	}
-	if _, err := env.Run(ctx, env.Work, "", "git", "fetch", "origin", env.Config.FeatureBranch); err != nil {
-		return err
-	}
-	if err := env.dispatchable(ctx, in); err != nil {
+	branch, err := env.dispatchable(ctx, in, stdout)
+	if err != nil {
 		return err
 	}
 	var risks strings.Builder
-	if err := printForecast(ctx, env, &risks); err != nil {
+	if err := printForecast(ctx, env, []string{branch}, &risks); err != nil {
 		return err
 	}
-	tip, err := env.featureTip(ctx)
+	tip, err := env.featureTip(ctx, branch)
 	if err != nil {
 		return err
 	}
@@ -115,16 +113,27 @@ func parseDispatch(args []string) (dispatchIn, error) {
 	return in, nil
 }
 
-func (env *Env) dispatchable(ctx context.Context, in dispatchIn) error {
+func (env *Env) dispatchable(ctx context.Context, in dispatchIn, notice io.Writer) (string, error) {
 	if !in.urgent {
 		if err := env.inBatch(in.ticket); err != nil {
-			return err
+			return "", err
 		}
 	}
-	if err := env.blockersClear(ctx, in.ticket); err != nil {
-		return err
+	is, err := env.GitHub.Issue(ctx, in.ticket)
+	if err != nil {
+		return "", err
 	}
-	return env.lanesOpen()
+	branch, err := env.ticketBranch(ctx, in.ticket, is.Body, notice)
+	if err != nil {
+		return "", err
+	}
+	if _, err := env.Run(ctx, env.Work, "", "git", "fetch", "origin", branch); err != nil {
+		return "", err
+	}
+	if err := env.blockersClear(ctx, in.ticket, branch); err != nil {
+		return "", err
+	}
+	return branch, env.lanesOpen()
 }
 
 func (env *Env) logUrgent(ctx context.Context, in dispatchIn, stdout io.Writer) error {
@@ -143,12 +152,12 @@ func (env *Env) logUrgent(ctx context.Context, in dispatchIn, stdout io.Writer) 
 	return env.writeComment(ctx, env.Config.Tracking, 0, false, body)
 }
 
-func (env *Env) blockersClear(ctx context.Context, ticket int) error {
+func (env *Env) blockersClear(ctx context.Context, ticket int, branch string) error {
 	is, err := env.GitHub.Issue(ctx, ticket)
 	if err != nil {
 		return err
 	}
-	reason, err := env.blockedReason(ctx, is.Body, nil)
+	reason, err := env.blockedReason(ctx, is.Body, nil, branch)
 	if err != nil {
 		return err
 	}
@@ -158,21 +167,21 @@ func (env *Env) blockersClear(ctx context.Context, ticket int) error {
 	return nil
 }
 
-func (env *Env) blockerMerged(ctx context.Context, n int) error {
+func (env *Env) blockerMerged(ctx context.Context, n int, branch string) error {
 	is, err := env.GitHub.Issue(ctx, n)
 	if err != nil {
 		return err
 	}
 	if is.PullRequest != nil {
-		return env.pullBlocker(ctx, n)
+		return env.pullBlocker(ctx, n, branch)
 	}
 	if is.State == "closed" && is.StateReason == "completed" {
 		return nil
 	}
-	return env.issueBlocker(ctx, n)
+	return env.issueBlocker(ctx, n, branch)
 }
 
-func (env *Env) pullBlocker(ctx context.Context, n int) error {
+func (env *Env) pullBlocker(ctx context.Context, n int, branch string) error {
 	pr, err := env.GitHub.PR(ctx, n)
 	if err != nil {
 		return err
@@ -184,19 +193,19 @@ func (env *Env) pullBlocker(ctx context.Context, n int) error {
 			fmt.Sprintf("blocker #%d is not merged", n),
 		)
 	}
-	return env.mergedIn(ctx, n, pr.MergeCommitSHA)
+	return env.mergedIn(ctx, n, pr.MergeCommitSHA, branch)
 }
 
-func (env *Env) issueBlocker(ctx context.Context, n int) error {
+func (env *Env) issueBlocker(ctx context.Context, n int, branch string) error {
 	closed, err := env.GitHub.PRs(ctx, "state=closed")
 	if err != nil {
 		return err
 	}
 	for _, pr := range closed {
-		if pr.MergedAt == nil || pr.Base.Ref != env.Config.FeatureBranch || !closes(pr.Body, n) {
+		if pr.MergedAt == nil || pr.Base.Ref != branch || !closes(pr.Body, n) {
 			continue
 		}
-		ok, err := env.ancestor(ctx, pr.MergeCommitSHA)
+		ok, err := env.ancestor(ctx, pr.MergeCommitSHA, branch)
 		if err != nil {
 			return err
 		}
@@ -207,12 +216,12 @@ func (env *Env) issueBlocker(ctx context.Context, n int) error {
 	return detailErr(
 		errs.CodeInvalidInput,
 		"monacoctl.agents.dispatch",
-		fmt.Sprintf("blocker #%d is not merged into %s", n, env.Config.FeatureBranch),
+		fmt.Sprintf("blocker #%d is not merged into %s", n, branch),
 	)
 }
 
-func (env *Env) mergedIn(ctx context.Context, n int, sha string) error {
-	ok, err := env.ancestor(ctx, sha)
+func (env *Env) mergedIn(ctx context.Context, n int, sha, branch string) error {
+	ok, err := env.ancestor(ctx, sha, branch)
 	if err != nil {
 		return err
 	}
@@ -220,7 +229,7 @@ func (env *Env) mergedIn(ctx context.Context, n int, sha string) error {
 		return detailErr(
 			errs.CodeInvalidInput,
 			"monacoctl.agents.dispatch",
-			fmt.Sprintf("blocker #%d is not in %s", n, env.Config.FeatureBranch),
+			fmt.Sprintf("blocker #%d is not in %s", n, branch),
 		)
 	}
 	return nil
@@ -235,20 +244,20 @@ func closes(body string, n int) bool {
 	return false
 }
 
-func (env *Env) ancestor(ctx context.Context, sha string) (bool, error) {
+func (env *Env) ancestor(ctx context.Context, sha, branch string) (bool, error) {
 	if _, err := env.Run(ctx, env.Work, "", "git", "cat-file", "-t", sha); err != nil {
 		return false, err
 	}
-	_, err := env.Run(ctx, env.Work, "", "git", "merge-base", "--is-ancestor", sha, env.featureRef())
+	_, err := env.Run(ctx, env.Work, "", "git", "merge-base", "--is-ancestor", sha, featureRef(branch))
 	return err == nil, nil
 }
 
-func (env *Env) featureRef() string {
-	return "refs/remotes/origin/" + env.Config.FeatureBranch
+func featureRef(branch string) string {
+	return "refs/remotes/origin/" + branch
 }
 
-func (env *Env) featureTip(ctx context.Context) (string, error) {
-	out, err := env.Run(ctx, env.Work, "", "git", "rev-parse", "--verify", "--quiet", env.featureRef())
+func (env *Env) featureTip(ctx context.Context, branch string) (string, error) {
+	out, err := env.Run(ctx, env.Work, "", "git", "rev-parse", "--verify", "--quiet", featureRef(branch))
 	if err != nil {
 		return "", err
 	}

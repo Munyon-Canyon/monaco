@@ -118,7 +118,7 @@ func TestFailures_parsesQueueRemovalsAndRedStage1(t *testing.T) {
 				t.Fatal(err)
 			}
 			got := make([]want, 0, len(tc.want))
-			for _, f := range failures(prs, "fb-checkpoint-1", since) {
+			for _, f := range failures(prs, []string{"fb-checkpoint-1"}, since) {
 				got = append(got, want{f.Why, f.Job.DatabaseID})
 			}
 			if !slices.Equal(got, tc.want) {

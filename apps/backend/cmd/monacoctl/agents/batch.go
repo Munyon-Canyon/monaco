@@ -43,7 +43,7 @@ func batchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	b := Batch{Created: env.Now()}
 	var deferred []deferral
 	for _, n := range asked {
-		touches, reason, err := env.admit(ctx, n, asked, b.Tickets)
+		touches, reason, err := env.admit(ctx, n, asked, b.Tickets, stdout)
 		if err != nil {
 			return err
 		}
@@ -99,16 +99,22 @@ func parseBatch(args []string) ([]int, error) {
 	return out, nil
 }
 
-func (env *Env) admit(ctx context.Context, n int, asked []int, accepted []BatchTicket) ([]string, string, error) {
+func (env *Env) admit(
+	ctx context.Context, n int, asked []int, accepted []BatchTicket, notice io.Writer,
+) ([]string, string, error) {
 	is, err := env.GitHub.Issue(ctx, n)
 	if err != nil {
 		return nil, "", err
+	}
+	branch, err := env.ticketBranch(ctx, n, is.Body, notice)
+	if err != nil {
+		return nil, cliText(err), nil
 	}
 	touches := touchGlobs(is.Body)
 	if len(touches) == 0 {
 		return nil, "no Touches line", nil
 	}
-	reason, err := env.blockedReason(ctx, is.Body, asked)
+	reason, err := env.blockedReason(ctx, is.Body, asked, branch)
 	if err != nil || reason != "" {
 		return nil, reason, err
 	}
@@ -123,7 +129,7 @@ func (env *Env) admit(ctx context.Context, n int, asked []int, accepted []BatchT
 	return touches, "", nil
 }
 
-func (env *Env) blockedReason(ctx context.Context, body string, asked []int) (string, error) {
+func (env *Env) blockedReason(ctx context.Context, body string, asked []int, branch string) (string, error) {
 	value, ok := headerField(body, "Blocked by")
 	lead := strings.ToLower(strings.TrimSpace(value))
 	if !ok || strings.HasPrefix(lead, "none") || strings.HasPrefix(lead, "nothing") {
@@ -138,7 +144,7 @@ func (env *Env) blockedReason(ctx context.Context, body string, asked []int) (st
 		if slices.Contains(asked, b) {
 			return fmt.Sprintf("blocked by #%d in the same batch", b), nil
 		}
-		err := env.blockerMerged(ctx, b)
+		err := env.blockerMerged(ctx, b, branch)
 		if err != nil && errs.CodeOf(err) == errs.CodeInvalidInput {
 			return cliText(err), nil
 		}

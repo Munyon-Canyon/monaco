@@ -56,12 +56,18 @@ type checkRun struct {
 }
 
 func checkCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {
-	base := "origin/" + env.Config.FeatureBranch
+	var base string
 	switch {
 	case len(args) == 2 && args[0] == "--base":
 		base = args[1]
 	case len(args) != 0:
 		return usageError("check [--base <ref>]")
+	default:
+		branch, err := env.worktreeBranch(ctx, stdout)
+		if err != nil {
+			return err
+		}
+		base = "origin/" + branch
 	}
 	tree, head, err := env.cleanHead(ctx)
 	if err != nil {
@@ -130,7 +136,7 @@ func (env *Env) writeState(sub, name string, body []byte) (string, error) {
 func (env *Env) stackParent(ctx context.Context, base string) string {
 	out, err := env.Run(ctx, env.Work, "", "gt", "parent", "--no-interactive")
 	parent, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
-	if err != nil || parent == "" || parent == env.Config.FeatureBranch {
+	if err != nil || parent == "" || featureBranchRE.MatchString(parent) {
 		return base
 	}
 	return parent

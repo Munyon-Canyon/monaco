@@ -61,5 +61,4 @@ jobs:
         working-directory: apps/backend
         env:
           GH_TOKEN: ${{ github.token }}
-          MONACO_FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH }}
         run: go run ./cmd/monacoctl agents status --publish

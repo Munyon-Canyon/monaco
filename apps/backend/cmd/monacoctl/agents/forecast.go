@@ -20,37 +20,42 @@ func forecastCmd(ctx context.Context, env *Env, args []string, stdout io.Writer)
 	if len(args) != 0 {
 		return usageError("forecast")
 	}
-	return printForecast(ctx, env, stdout)
-}
-
-func printForecast(ctx context.Context, env *Env, stdout io.Writer) error {
-	risks, err := forecast(ctx, env)
+	trunks, err := env.trunks(ctx)
 	if err != nil {
 		return err
 	}
-	trunk := env.Config.FeatureBranch
-	if len(risks) == 0 {
-		_, _ = fmt.Fprintf(stdout, "no file is touched by more than one open stack into %s\n", trunk)
-		return nil
+	return printForecast(ctx, env, trunks, stdout)
+}
+
+func printForecast(ctx context.Context, env *Env, trunks []string, stdout io.Writer) error {
+	open, err := env.GitHub.PRs(ctx, "state=open")
+	if err != nil {
+		return err
 	}
-	_, _ = fmt.Fprintf(stdout, "%d files touched by more than one open stack into %s:\n", len(risks), trunk)
-	for i, r := range risks {
-		if i == maxLines-2 {
-			_, _ = fmt.Fprintf(stdout, "  and %d more\n", len(risks)-i)
-			break
+	for _, trunk := range trunks {
+		risks, err := forecast(ctx, env, open, trunk)
+		if err != nil {
+			return err
 		}
-		_, _ = fmt.Fprintf(stdout, "  %s  %s\n", r.path, prList(r.bottoms))
+		if len(risks) == 0 {
+			_, _ = fmt.Fprintf(stdout, "no file is touched by more than one open stack into %s\n", trunk)
+			continue
+		}
+		_, _ = fmt.Fprintf(stdout, "%d files touched by more than one open stack into %s:\n", len(risks), trunk)
+		for i, r := range risks {
+			if i == maxLines-2 {
+				_, _ = fmt.Fprintf(stdout, "  and %d more\n", len(risks)-i)
+				break
+			}
+			_, _ = fmt.Fprintf(stdout, "  %s  %s\n", r.path, prList(r.bottoms))
+		}
 	}
 	return nil
 }
 
-func forecast(ctx context.Context, env *Env) ([]risk, error) {
-	open, err := env.GitHub.PRs(ctx, "state=open")
-	if err != nil {
-		return nil, err
-	}
+func forecast(ctx context.Context, env *Env, open []PR, trunk string) ([]risk, error) {
 	touched := map[string]map[int]bool{}
-	for bottom, stack := range stacks(open, env.Config.FeatureBranch) {
+	for bottom, stack := range stacks(open, trunk) {
 		for _, pr := range stack {
 			if err := touch(ctx, env, pr, bottom, touched); err != nil {
 				return nil, err
@@ -80,7 +85,7 @@ func touch(ctx context.Context, env *Env, pr PR, bottom int, touched map[string]
 	return nil
 }
 
-func stacks(open []PR, trunk string) map[int][]PR {
+func stacks(open []PR, trunks ...string) map[int][]PR {
 	byHead := map[string]PR{}
 	for _, pr := range open {
 		byHead[pr.Head.Ref] = pr
@@ -95,7 +100,7 @@ func stacks(open []PR, trunk string) map[int][]PR {
 	}
 	out := map[int][]PR{}
 	for _, pr := range open {
-		if bottom, ok := stackBottom(pr, byHead, trunk, len(open)); ok {
+		if bottom, ok := stackBottom(pr, byHead, trunks, len(open)); ok {
 			if first, landed := landsWith[bottom]; landed {
 				bottom = first
 			}
@@ -105,10 +110,10 @@ func stacks(open []PR, trunk string) map[int][]PR {
 	return out
 }
 
-func stackBottom(pr PR, byHead map[string]PR, trunk string, limit int) (int, bool) {
+func stackBottom(pr PR, byHead map[string]PR, trunks []string, limit int) (int, bool) {
 	cur := pr
 	for range limit {
-		if cur.Base.Ref == trunk {
+		if slices.Contains(trunks, cur.Base.Ref) {
 			return cur.Number, true
 		}
 		parent, ok := byHead[cur.Base.Ref]

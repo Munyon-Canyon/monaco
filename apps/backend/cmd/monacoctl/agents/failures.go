@@ -86,13 +86,13 @@ func (c gqlCommit) failedJob() gqlContext {
 	return agg
 }
 
-func failures(prs []watchPR, trunk string, since time.Time) []failure {
+func failures(prs []watchPR, trunks []string, since time.Time) []failure {
 	flat := make([]PR, len(prs))
 	for i, p := range prs {
 		flat[i] = PR{Number: p.Number, Head: Ref{Ref: p.HeadRefName}, Base: Ref{Ref: p.BaseRefName}}
 	}
 	inStack := map[int]bool{}
-	for _, stack := range stacks(flat, trunk) {
+	for _, stack := range stacks(flat, trunks...) {
 		for _, p := range stack {
 			inStack[p.Number] = true
 		}
@@ -155,7 +155,11 @@ func (env *Env) failures(ctx context.Context) ([]failure, error) {
 	if _, err := env.writeState("watch", lastRunState, []byte(stamp+"\n")); err != nil {
 		return nil, err
 	}
-	return failures(data.Repository.PullRequests.Nodes, env.Config.FeatureBranch, since), nil
+	trunks, err := env.trunks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return failures(data.Repository.PullRequests.Nodes, trunks, since), nil
 }
 
 func (env *Env) lastRun() (time.Time, error) {

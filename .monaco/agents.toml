@@ -1,7 +1,5 @@
 # status --publish rewrites the tracking issue comment that contains "<!-- monacoctl agents status -->".
 repo = "Munyon-Canyon/monaco"
-# "auto" is MONACO_FEATURE_BRANCH, else the FEATURE_BRANCH repo variable, which each checkpoint moves to <name>-<N+1>.
-feature_branch = "auto"
 tracking = 492
 lanes = 6
 batch = 6

@@ -42,7 +42,12 @@ func TestBounds_killsDispatchSurvivors(t *testing.T) {
 	f.hub.on(get("/issues/8"), Issue{State: "closed", StateReason: "completed"})
 	f.hub.on(get("/issues/9"), Issue{State: "open"})
 	f.hub.on(list("/pulls?state=closed"), []PR{})
-	if err = env.blockersClear(context.Background(), 4); err == nil || !strings.Contains(cliText(err), "#9") {
+	if err = env.blockersClear(
+		context.Background(),
+		4,
+		"fb-checkpoint-1",
+	); err == nil ||
+		!strings.Contains(cliText(err), "#9") {
 		t.Fatal(err)
 	}
 	if !closes("Closes #1 and closes #8", 8) || closes("Closes #1", 8) {
@@ -55,7 +60,7 @@ func TestBounds_killsDispatchSurvivors(t *testing.T) {
 		f.hub.on(list("/pulls?state=closed"), []PR{{
 			MergedAt: &when, Base: Ref{Ref: "fb-checkpoint-1"}, Body: "Closes #8", MergeCommitSHA: sha,
 		}})
-		err = env.issueBlocker(context.Background(), 8)
+		err = env.issueBlocker(context.Background(), 8, "fb-checkpoint-1")
 		gotMiss := err != nil && strings.Contains(cliText(err), "not merged into")
 		if gotMiss != (sha == side) {
 			t.Fatal(sha, err)

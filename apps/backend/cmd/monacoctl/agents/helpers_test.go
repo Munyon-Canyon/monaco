@@ -219,7 +219,7 @@ func (f *fixture) agents(t *testing.T, args ...string) (int, string, string) {
 
 func (f *fixture) Env(t *testing.T) *Env {
 	t.Helper()
-	env, err := load(context.Background(), f.env, f.dir, f.cached(f.run))
+	env, err := load(context.Background(), f.env, f.dir, f.cached(f.run), "")
 	if err != nil {
 		t.Fatal(err)
 	}

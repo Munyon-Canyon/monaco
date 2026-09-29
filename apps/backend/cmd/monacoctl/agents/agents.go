@@ -32,6 +32,7 @@ type Env struct {
 	Start   func(name string, args ...string) error
 	Now     func() time.Time
 	Actions bool
+	Branch  string
 }
 type (
 	Runner  func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error)
@@ -98,10 +99,11 @@ func runCLI(
 	now func() time.Time,
 ) int {
 	args, verbose := stripFlag(args, "--verbose")
-	if len(args) == 0 || commands()[args[0]] == nil {
+	args, branch, ok := stripValue(args, "--branch")
+	if !ok || len(args) == 0 || commands()[args[0]] == nil {
 		return usage(stderr)
 	}
-	env, err := load(ctx, environ, dir, run)
+	env, err := load(ctx, environ, dir, run, branch)
 	var buf bytes.Buffer
 	if err == nil {
 		if now != nil {
@@ -188,7 +190,7 @@ func usage(stderr io.Writer) int {
 	return 2
 }
 
-func load(ctx context.Context, environ []string, dir string, run Runner) (*Env, error) {
+func load(ctx context.Context, environ []string, dir string, run Runner, branch string) (*Env, error) {
 	out, err := run(ctx, dir, "", "git", "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir")
 	if err != nil {
 		return nil, fmt.Errorf("find the repository: %w", err)
@@ -203,7 +205,7 @@ func load(ctx context.Context, environ []string, dir string, run Runner) (*Env, 
 	if err != nil {
 		return nil, err
 	}
-	if cfg.FeatureBranch, err = resolveFeatureBranch(ctx, run, environ, top, cfg); err != nil {
+	if branch, err = overrideBranch(branch, environ, cfg); err != nil {
 		return nil, err
 	}
 	api := cmp.Or(lookup(environ, "MONACO_GITHUB_API"), defaultAPI)
@@ -219,6 +221,7 @@ func load(ctx context.Context, environ []string, dir string, run Runner) (*Env, 
 		GitHub: &GitHub{API: api, Repo: cfg.Repo, Token: token, HTTP: &http.Client{Timeout: 30 * time.Second}},
 		Run:    run, Start: spawn, Now: time.Now,
 		Actions: lookup(environ, "GITHUB_ACTIONS") == "true",
+		Branch:  branch,
 	}, nil
 }
 
@@ -250,4 +253,15 @@ func spawn(name string, args ...string) error {
 		return fmt.Errorf("start %s: %w", name, err)
 	}
 	return nil
+}
+
+func stripValue(args []string, flag string) (rest []string, value string, ok bool) {
+	i := slices.Index(args, flag)
+	if i < 0 {
+		return args, "", true
+	}
+	if i+1 == len(args) {
+		return args, "", false
+	}
+	return slices.Concat(args[:i], args[i+2:]), args[i+1], true
 }

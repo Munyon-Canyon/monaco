@@ -327,7 +327,8 @@ func TestStatus_publishesAndSkipsAnUnchangedComment(t *testing.T) {
 			f.hub.body("POST /repos/o/r/issues/7/comments"),
 		)
 	}
-	plain := statusMarker + "\n| pr | sha | ci | ci-ok | verify |\n| #5 | aaaaaaa | success | queued | success |\n"
+	plain := statusMarker + "\n| pr | feature branch | sha | ci | ci-ok | verify |\n" +
+		"| #5 | fb-checkpoint-1 | aaaaaaa | success | queued | success |\n"
 	f.hub.on(list("/issues/7/comments?"), []Comment{authored(9, plain, ghUser, "MEMBER")})
 	code, stdout, stderr = f.agents(t, "status", "--publish")
 	if code != 0 || stdout != "status comment unchanged\n" {
@@ -339,7 +340,10 @@ func TestStatus_publishesAndSkipsAnUnchangedComment(t *testing.T) {
 		posted(t, f, "PATCH /repos/o/r/issues/comments/9") != plain {
 		t.Fatalf("patch: %d %q %q", code, stdout, stderr)
 	}
-	if code, _, stderr := f.agents(t, "status"); code != 2 {
+	if code, stdout, stderr := f.agents(t, "status"); code != 0 || stdout != plain {
+		t.Fatalf("read-only: %d %q %q", code, stdout, stderr)
+	}
+	if code, _, stderr := f.agents(t, "status", "--push"); code != 2 {
 		t.Fatalf("usage: %d %q", code, stderr)
 	}
 }

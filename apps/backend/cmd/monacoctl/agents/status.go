@@ -51,8 +51,13 @@ type GHStatus struct {
 }
 
 func statusCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {
-	if len(args) != 1 || args[0] != "--publish" {
-		return usageError("status --publish")
+	switch {
+	case len(args) == 0:
+		body, err := env.statusBody(ctx, "")
+		_, _ = io.WriteString(stdout, body)
+		return err
+	case len(args) != 1 || args[0] != "--publish":
+		return usageError("status [--publish]")
 	}
 	all, err := env.comments(ctx)
 	if err != nil {
@@ -132,24 +137,39 @@ func (env *Env) statusBody(ctx context.Context, published string) (string, error
 	if err != nil {
 		return "", err
 	}
-	var rows []PR
-	for _, stack := range stacks(open, env.Config.FeatureBranch) {
-		rows = append(rows, stack...)
+	trunks, err := env.trunks(ctx)
+	if err != nil {
+		return "", err
 	}
-	slices.SortFunc(rows, func(a, b PR) int { return a.Number - b.Number })
+	type row struct {
+		pr    PR
+		trunk string
+	}
+	var rows []row
+	for _, trunk := range trunks {
+		var group []PR
+		for _, stack := range stacks(open, trunk) {
+			group = append(group, stack...)
+		}
+		slices.SortFunc(group, func(a, b PR) int { return a.Number - b.Number })
+		for _, pr := range group {
+			rows = append(rows, row{pr, trunk})
+		}
+	}
 	var b strings.Builder
-	_, _ = fmt.Fprintf(&b, "%s\n| pr | sha | ci | ci-ok | verify |\n", statusMarker)
+	_, _ = fmt.Fprintf(&b, "%s\n| pr | feature branch | sha | ci | ci-ok | verify |\n", statusMarker)
 	limit := maxLines - 3
-	for i, pr := range rows {
+	for i, r := range rows {
 		if i == limit {
 			_, _ = fmt.Fprintf(&b, "| and %d more |\n", len(rows)-i)
 			break
 		}
-		ci, ciok, verify, err := env.checks(ctx, pr.Head.SHA)
+		ci, ciok, verify, err := env.checks(ctx, r.pr.Head.SHA)
 		if err != nil {
 			return "", err
 		}
-		_, _ = fmt.Fprintf(&b, "| #%d | %s | %s | %s | %s |\n", pr.Number, shortSHA(pr.Head.SHA), ci, ciok, verify)
+		_, _ = fmt.Fprintf(&b, "| #%d | %s | %s | %s | %s | %s |\n",
+			r.pr.Number, r.trunk, shortSHA(r.pr.Head.SHA), ci, ciok, verify)
 	}
 	batch, err := env.batchBoard(ctx, published)
 	return b.String() + batch, err

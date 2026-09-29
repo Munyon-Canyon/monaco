@@ -31,7 +31,11 @@ func handoffCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) 
 	if err != nil {
 		return err
 	}
-	body := handoffBody(env, views, rs)
+	trunks, err := env.trunks(ctx)
+	if err != nil {
+		return err
+	}
+	body := handoffBody(env, trunks, views, rs)
 	if err := env.publishComment(ctx, env.Config.Tracking, all, handoffMarker, body); err != nil {
 		return err
 	}
@@ -39,10 +43,10 @@ func handoffCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) 
 	return nil
 }
 
-func handoffBody(env *Env, views []ticketView, rs []Record) string {
+func handoffBody(env *Env, trunks []string, views []ticketView, rs []Record) string {
 	var b strings.Builder
 	_, _ = fmt.Fprintf(&b, "%s\nHandoff at %s. Feature branch `%s`.\n\n**Batch**\n\n",
-		handoffMarker, env.Now().UTC().Format(time.RFC3339), env.Config.FeatureBranch)
+		handoffMarker, env.Now().UTC().Format(time.RFC3339), strings.Join(trunks, "`, `"))
 	if len(views) == 0 {
 		b.WriteString("No batch.\n")
 	} else {

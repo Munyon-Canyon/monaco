@@ -2,7 +2,6 @@ package agents
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -47,7 +46,7 @@ type Config struct {
 }
 
 func parseConfig(r io.Reader) (Config, error) {
-	c := Config{Budget: defaultBudget()}
+	c := Config{FeatureBranch: autoFeatureBranch, Budget: defaultBudget()}
 	section := ""
 	seen := map[string]bool{}
 	strs := map[string]*string{
@@ -67,7 +66,7 @@ func parseConfig(r io.Reader) (Config, error) {
 		return Config{}, fmt.Errorf("read %s: %w", configPath, err)
 	}
 	for _, key := range []string{
-		"repo", "feature_branch", "tracking", "lanes", "batch", "verifier_app", "verifier_installation",
+		"repo", "tracking", "lanes", "batch", "verifier_app", "verifier_installation",
 		"milestone",
 	} {
 		if !seen[key] {
@@ -155,35 +154,3 @@ func assignBudget(budget map[string]time.Duration, kind, raw string, ok bool) er
 type unknownKeyError struct{ key string }
 
 func (e unknownKeyError) Error() string { return "unknown key " + strconv.Quote(e.key) }
-
-const (
-	autoFeatureBranch = "auto"
-	featureBranchEnv  = "MONACO_FEATURE_BRANCH"
-	featureBranchVar  = "FEATURE_BRANCH"
-)
-
-func resolveFeatureBranch(ctx context.Context, run Runner, environ []string, dir string, cfg Config) (string, error) {
-	if cfg.FeatureBranch != autoFeatureBranch {
-		return cfg.FeatureBranch, nil
-	}
-	if name := lookup(environ, featureBranchEnv); name != "" {
-		return name, nil
-	}
-	out, err := run(ctx, dir, "", "gh", "variable", "get", featureBranchVar, "--repo", cfg.Repo)
-	name := strings.TrimSpace(string(out))
-	if err == nil && name != "" {
-		return name, nil
-	}
-	reason := "printed nothing"
-	if err != nil {
-		reason = err.Error()
-	}
-	return "", detailErr(
-		errs.CodeNotFound,
-		"monacoctl.agents.config",
-		fmt.Sprintf(
-			"%s: feature_branch = %q, but %s is unset and gh variable get %s --repo %s %s",
-			configPath, autoFeatureBranch, featureBranchEnv, featureBranchVar, cfg.Repo, reason,
-		),
-	)
-}

@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -77,7 +78,7 @@ func landStackCmd(ctx context.Context, env *Env, args []string, stdout io.Writer
 	return env.land(ctx, rec, stack, stdout)
 }
 
-func walkStack(open []stackPR, top int, trunk string) ([]stackPR, error) {
+func walkStack(open []stackPR, top int, trunks []string) ([]stackPR, error) {
 	byHead := map[string]stackPR{}
 	var cur stackPR
 	for _, p := range open {
@@ -90,10 +91,11 @@ func walkStack(open []stackPR, top int, trunk string) ([]stackPR, error) {
 		return nil, landErr(fmt.Sprintf("#%d is not an open PR", top))
 	}
 	stack := []stackPR{cur}
-	for cur.Base != trunk {
+	for !slices.Contains(trunks, cur.Base) {
 		parent, ok := byHead[cur.Base]
 		if !ok || len(stack) > len(open) {
-			return nil, landErr(fmt.Sprintf("#%d's base %s is neither %s nor an open PR", cur.Number, cur.Base, trunk))
+			return nil, landErr(fmt.Sprintf("#%d's base %s is neither %s nor an open PR",
+				cur.Number, cur.Base, strings.Join(trunks, " nor ")))
 		}
 		stack = append([]stackPR{parent}, stack...)
 		cur = parent
@@ -106,7 +108,11 @@ func (env *Env) stackOf(ctx context.Context, worktree string, top int, stdout io
 	if err != nil {
 		return nil, err
 	}
-	walked, err := walkStack(open, top, env.Config.FeatureBranch)
+	trunks, err := env.trunks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	walked, err := walkStack(open, top, trunks)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +183,7 @@ func (env *Env) graphiteStack(
 		byHead[p.Head] = p
 	}
 	top := walked[len(walked)-1].Number
-	trunk := env.Config.FeatureBranch
+	trunk := walked[0].Base
 	prev := trunk
 	var stack []stackPR
 	for line := range strings.Lines(string(out)) {
@@ -234,7 +240,7 @@ func (env *Env) land(ctx context.Context, rec Record, stack []stackPR, stdout io
 	for i, p := range stack {
 		nums[i] = p.Number
 	}
-	fb := env.Config.FeatureBranch
+	fb := stack[0].Base
 	for _, p := range stack[1:] {
 		if p.Base == fb {
 			continue
