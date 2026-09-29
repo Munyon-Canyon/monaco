@@ -42,6 +42,11 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 			Shutdown:        10 * time.Second,
 		},
 		Jupiter: config.Jupiter{SwapBaseURL: "https://api.jup.ag/swap/v2", PriceBaseURL: "https://api.jup.ag/price/v3"},
+		Privy:   config.Privy{BaseURL: "https://api.privy.io"},
+		Solana: config.Solana{
+			RPCURL:   "https://api.mainnet-beta.solana.com",
+			USDCMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+		},
 	}
 	if !reflect.DeepEqual(cfg, want) {
 		t.Fatalf("Load = %+v, want %+v", cfg, want)
@@ -72,6 +77,16 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"MONACO_JUPITER_SWAP_BASE_URL=http://fakes/jupiter/swap/v2",
 		"MONACO_JUPITER_PRICE_BASE_URL=http://fakes/jupiter/price/v3",
 		"JUPITER_API_KEY=jup-secret",
+		"PRIVY_APP_ID=app-id",
+		"PRIVY_APP_SECRET=app-secret",
+		"PRIVY_VERIFICATION_KEY=verification-pem",
+		"PRIVY_AUTHORIZATION_PRIVATE_KEY=wallet-auth:key",
+		"PRIVY_AUTHORIZATION_KEY_ID=quorum-id",
+		"PRIVY_WEBHOOK_SECRET=whsec_x",
+		"PRIVY_BASE_URL=http://fakes/privy",
+		"SOLANA_RPC_URL=http://fakes/rpc",
+		"SOLANA_USDC_MINT=mint",
+		"RELAYER_PRIVATE_KEY=relayer-key",
 		"MONACO_FAULTPOINT=before-commit",
 	})
 	if err != nil {
@@ -103,6 +118,13 @@ func TestLoadReadsEveryKey(t *testing.T) {
 			PriceBaseURL: "http://fakes/jupiter/price/v3",
 			APIKey:       "jup-secret",
 		},
+		Privy: config.Privy{
+			AppID: "app-id", AppSecret: "app-secret", VerificationKey: "verification-pem",
+			AuthorizationPrivateKey: "wallet-auth:key", AuthorizationKeyID: "quorum-id",
+			WebhookSecret: "whsec_x", BaseURL: "http://fakes/privy",
+		},
+		Solana:     config.Solana{RPCURL: "http://fakes/rpc", USDCMint: "mint"},
+		Relayer:    config.Relayer{PrivateKey: "relayer-key"},
 		Faultpoint: "before-commit",
 	}
 	if !reflect.DeepEqual(cfg, want) {
@@ -211,11 +233,16 @@ func TestLoadErrorNeverEchoesAValue(t *testing.T) {
 func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 	t.Parallel()
 	secrets := map[string]string{
-		"DATABASE_URL":               "postgres://db-secret@host/db",
-		"NATS_URL":                   "nats://token-secret@host:4222",
-		"OTEL_EXPORTER_OTLP_HEADERS": "Authorization=Basic header-secret",
-		"MONACO_DEV_TOKEN_KEY":       "dev-token-secret",
-		"JUPITER_API_KEY":            "jup-secret",
+		"DATABASE_URL":                    "postgres://db-secret@host/db",
+		"NATS_URL":                        "nats://token-secret@host:4222",
+		"OTEL_EXPORTER_OTLP_HEADERS":      "Authorization=Basic header-secret",
+		"MONACO_DEV_TOKEN_KEY":            "dev-token-secret",
+		"JUPITER_API_KEY":                 "jup-secret",
+		"PRIVY_APP_SECRET":                "privy-app-secret",
+		"PRIVY_AUTHORIZATION_PRIVATE_KEY": "wallet-auth:privy-auth-secret",
+		"PRIVY_WEBHOOK_SECRET":            "webhook-signing-secret",
+		"SOLANA_RPC_URL":                  "https://rpc.example/rpc-secret",
+		"RELAYER_PRIVATE_KEY":             "relayer-secret",
 	}
 	environ := make([]string, 0, 2+len(secrets))
 	environ = append(environ, "MONACO_ENV=staging", "MONACO_TIMEOUT_JUPITER_EXECUTE=90s")
@@ -252,6 +279,16 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"MONACO_TIMEOUT_HTTP_SERVER_READ", "10s"},
 		{"MONACO_TIMEOUT_HTTP_SERVER_WRITE", "30s"},
 		{"MONACO_TIMEOUT_SHUTDOWN", "10s"},
+		{"PRIVY_APP_SECRET", "***"},
+		{"PRIVY_AUTHORIZATION_PRIVATE_KEY", "***"},
+		{"PRIVY_WEBHOOK_SECRET", "***"},
+		{"SOLANA_RPC_URL", "***"},
+		{"RELAYER_PRIVATE_KEY", "***"},
+		{"PRIVY_APP_ID", ""},
+		{"PRIVY_VERIFICATION_KEY", ""},
+		{"PRIVY_AUTHORIZATION_KEY_ID", ""},
+		{"PRIVY_BASE_URL", "https://api.privy.io"},
+		{"SOLANA_USDC_MINT", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"},
 		{"MONACO_FAULTPOINT", ""},
 	}
 	if len(got) != len(tests) {
