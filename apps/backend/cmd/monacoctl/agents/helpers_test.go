@@ -131,7 +131,7 @@ func snapshotRepo(steps ...[]string) (repoSnapshot, error) {
 		return snap, err
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
-	for _, step := range append([][]string{{"init", "-q", "-b", "main"}}, steps...) {
+	for _, step := range append([][]string{{"init", "-q", "--template=", "-b", "main"}}, steps...) {
 		if _, err := Exec(context.Background(), dir, "", "git", gitArgs(step...)...); err != nil {
 			return snap, err
 		}
