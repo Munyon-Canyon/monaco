@@ -1,0 +1,5 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {"id": "wallet-legacy", "address": "BGQoQgGkjSQc6c5YjsyRjuj4M5LbYJMHVCdS8BJSrr2R", "chain_type": "solana", "owner_id": "did:privy:member-legacy", "additional_signers": [], "policy_ids": [], "created_at": 1780000000}
+}

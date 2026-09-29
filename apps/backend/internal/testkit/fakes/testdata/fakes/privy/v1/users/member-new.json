@@ -1,0 +1,12 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {
+    "id": "did:privy:member-new",
+    "created_at": 1790000500,
+    "linked_accounts": [
+      {"type": "google_oauth", "subject": "10987654321", "email": "new.member@gmail.com", "name": "New Member", "verified_at": 1790000500},
+      {"type": "wallet", "address": "0x4b3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d", "chain_type": "ethereum", "wallet_client_type": "metamask", "connector_type": "injected", "verified_at": 1790000500}
+    ]
+  }
+}

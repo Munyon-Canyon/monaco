@@ -14,6 +14,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -33,6 +34,15 @@ func load(environ []string) (config.Config, error) {
 		return config.Config{}, err
 	}
 	return cfg, nil
+}
+
+func preflight(ctx context.Context, cfg config.Config) (*auth.DevVerifier, error) {
+	verifier, err := auth.NewDevVerifier(cfg, clock.Real{})
+	if err != nil {
+		return nil, err
+	}
+	observability.Info(ctx, observability.BootConfig, slog.String("service", "api"), slog.Any("config", cfg.Redacted()))
+	return verifier, bootErr(ctx, relayer.CheckBoot(ctx, cfg))
 }
 
 func connectBus(ctx context.Context, cfg config.Config, meters metric.MeterProvider) (*bus.Conn, error) {

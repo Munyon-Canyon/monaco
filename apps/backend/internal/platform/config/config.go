@@ -28,6 +28,9 @@ type Config struct {
 	Auth       Auth
 	Timeouts   Timeouts
 	Jupiter    Jupiter
+	Privy      Privy
+	Solana     Solana
+	Relayer    Relayer
 	Faultpoint string
 }
 
@@ -63,6 +66,25 @@ type Jupiter struct {
 	SwapBaseURL  string
 	PriceBaseURL string
 	APIKey       string
+}
+
+type Privy struct {
+	AppID                   string
+	AppSecret               string
+	VerificationKey         string
+	AuthorizationPrivateKey string
+	AuthorizationKeyID      string
+	WebhookSecret           string
+	BaseURL                 string
+}
+
+type Solana struct {
+	RPCURL   string
+	USDCMint string
+}
+
+type Relayer struct {
+	PrivateKey string
 }
 
 type Timeouts struct {
@@ -206,6 +228,19 @@ func fields() []field {
 		text("MONACO_JUPITER_PRICE_BASE_URL", "https://api.jup.ag/price/v3",
 			func(c *Config) *string { return &c.Jupiter.PriceBaseURL }),
 		text("JUPITER_API_KEY", "", func(c *Config) *string { return &c.Jupiter.APIKey }).secret(),
+		text("PRIVY_APP_ID", "", func(c *Config) *string { return &c.Privy.AppID }),
+		text("PRIVY_APP_SECRET", "", func(c *Config) *string { return &c.Privy.AppSecret }).secret(),
+		text("PRIVY_VERIFICATION_KEY", "", func(c *Config) *string { return &c.Privy.VerificationKey }),
+		text("PRIVY_AUTHORIZATION_PRIVATE_KEY", "",
+			func(c *Config) *string { return &c.Privy.AuthorizationPrivateKey }).secret(),
+		text("PRIVY_AUTHORIZATION_KEY_ID", "", func(c *Config) *string { return &c.Privy.AuthorizationKeyID }),
+		text("PRIVY_WEBHOOK_SECRET", "", func(c *Config) *string { return &c.Privy.WebhookSecret }).secret(),
+		text("PRIVY_BASE_URL", "https://api.privy.io", func(c *Config) *string { return &c.Privy.BaseURL }),
+		text("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com",
+			func(c *Config) *string { return &c.Solana.RPCURL }).secret(),
+		text("SOLANA_USDC_MINT", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+			func(c *Config) *string { return &c.Solana.USDCMint }),
+		text("RELAYER_PRIVATE_KEY", "", func(c *Config) *string { return &c.Relayer.PrivateKey }).secret(),
 		text("MONACO_FAULTPOINT", "", func(c *Config) *string { return &c.Faultpoint }),
 	}
 }

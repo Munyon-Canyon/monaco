@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
@@ -49,6 +50,9 @@ func run(
 	ctx = observability.WithLogger(ctx, logger)
 	observability.Info(ctx, observability.BootConfig, slog.String("service", "worker"),
 		slog.Any("config", cfg.Redacted()))
+	if err := relayer.CheckBoot(ctx, cfg); err != nil {
+		return err
+	}
 	pool, err := db.Open(ctx, cfg.DB)
 	if err != nil {
 		return err

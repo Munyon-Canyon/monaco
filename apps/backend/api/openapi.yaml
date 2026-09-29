@@ -242,11 +242,15 @@ components:
         - idempotency_in_flight
         - idempotency_mismatch
         - internal
+        - invalid_address
         - invalid_input
         - jupiter_rejected
         - jupiter_unavailable
         - not_found
         - panic
+        - privy_unavailable
+        - relayer_underfunded
+        - rpc_unavailable
         - unauthorized
         - upstream_timeout
         - upstream_unavailable

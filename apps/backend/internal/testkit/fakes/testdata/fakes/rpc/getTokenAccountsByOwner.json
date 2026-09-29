@@ -1,0 +1,8 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {"jsonrpc": "2.0", "id": 1, "result": {"context": {"slot": 451000000}, "value": [
+    {"pubkey": "2RBAGnTRBpBoHaR71gAcz6ppSPrdV62woV3WTGKrUrKy", "account": {"lamports": 2039280, "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", "data": {"program": "spl-token", "parsed": {"type": "account", "info": {"mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "owner": "5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP", "state": "initialized", "tokenAmount": {"amount": "25000000", "decimals": 6, "uiAmountString": "25"}}}}}},
+    {"pubkey": "9ixcyg5nNxGCJLtSyJYibP7EgQBw4BfpNLbDe7GQ14eh", "account": {"lamports": 2039280, "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", "data": {"program": "spl-token", "parsed": {"type": "account", "info": {"mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "owner": "5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP", "state": "initialized", "tokenAmount": {"amount": "500000", "decimals": 6, "uiAmountString": "0.5"}}}}}}
+  ]}}
+}

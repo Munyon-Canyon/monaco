@@ -1,0 +1,12 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {
+    "id": "did:privy:member-legacy",
+    "created_at": 1780000000,
+    "linked_accounts": [
+      {"type": "email", "address": "legacy@example.com", "verified_at": 1780000000},
+      {"type": "wallet", "id": "wallet-legacy", "address": "BGQoQgGkjSQc6c5YjsyRjuj4M5LbYJMHVCdS8BJSrr2R", "chain_type": "solana", "wallet_client_type": "privy", "connector_type": "embedded", "verified_at": 1780000000}
+    ]
+  }
+}
