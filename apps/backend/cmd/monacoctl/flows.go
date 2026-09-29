@@ -22,12 +22,15 @@ import (
 
 const (
 	backendDir = "apps/backend"
-	flowsUsage = "usage: monacoctl flows check [--from go-test.json]"
+	flowsUsage = "usage: monacoctl flows check [--from go-test.json | --structure-only]"
 )
 
 func flowsCmd(args []string, _, stderr io.Writer) int {
 	var tests io.Reader
+	structureOnly := false
 	switch {
+	case slices.Equal(args, []string{"check", "--structure-only"}):
+		structureOnly = true
 	case slices.Equal(args, []string{"check"}):
 		if info, err := os.Stdin.Stat(); err == nil && info.Mode()&os.ModeCharDevice == 0 {
 			tests = os.Stdin
@@ -45,10 +48,10 @@ func flowsCmd(args []string, _, stderr io.Writer) int {
 		return 2
 	}
 	env := liveEnv(os.DirFS("../.."), ".", registered.Build(module.Deps{}), gitFresh(context.Background(), "."))
-	return flowsCheck(env, tests, stderr)
+	return flowsCheck(env, tests, structureOnly, stderr)
 }
 
-func flowsCheck(env flows.Env, tests io.Reader, stderr io.Writer) int {
+func flowsCheck(env flows.Env, tests io.Reader, structureOnly bool, stderr io.Writer) int {
 	parsed, problems, err := readFlows(env.Repo)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "monacoctl flows check: %v\n", err)
@@ -62,7 +65,9 @@ func flowsCheck(env flows.Env, tests io.Reader, stderr io.Writer) int {
 		}
 	}
 	problems = append(problems, flows.CheckColumns(parsed, env)...)
-	problems = append(problems, flows.CheckTests(parsed, results)...)
+	if !structureOnly {
+		problems = append(problems, flows.CheckTests(parsed, results)...)
+	}
 	problems = append(problems, flows.CheckEvidence(parsed, env)...)
 	slices.SortStableFunc(problems, func(a, b flows.Problem) int { return a.Line - b.Line })
 	for _, p := range problems {
@@ -99,6 +104,9 @@ func liveEnv(repo fs.FS, backend string, mods module.Set, fresh flows.Fresh) flo
 	durables := make([]string, 0, len(consumers))
 	for _, c := range consumers {
 		durables = append(durables, c.Durable)
+		for _, h := range c.Handlers {
+			durables = append(durables, h.Name)
+		}
 	}
 	pollers := mods.Pollers()
 	pollerNames := make([]string, 0, len(pollers))

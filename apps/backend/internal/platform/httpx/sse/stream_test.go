@@ -30,6 +30,7 @@ import (
 type routes struct {
 	httpx.Health
 	sse.Stream
+	httpx.SystemRoutes
 }
 
 type unusedStore struct{ httpx.IdempotencyStore }

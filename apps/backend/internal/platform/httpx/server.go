@@ -86,6 +86,12 @@ func Serve(ctx context.Context, ln net.Listener, srv *http.Server, shutdownTimeo
 type Routes struct {
 	Health
 	sse.Stream
+	SystemRoutes
+}
+
+type SystemRoutes interface {
+	PostSystemPing(context.Context, api.PostSystemPingRequestObject) (api.PostSystemPingResponseObject, error)
+	GetSystemPing(context.Context, api.GetSystemPingRequestObject) (api.GetSystemPingResponseObject, error)
 }
 
 var _ api.StrictServerInterface = Routes{}

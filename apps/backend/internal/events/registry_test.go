@@ -122,7 +122,7 @@ func TestCatalog(t *testing.T) {
 		t.Fatalf("Catalog() has %d entries, want 1", len(got))
 	}
 	e := got[0]
-	want := []Field{{"v", "int"}, {"ping_id", "uuid.UUID"}, {"note", "string"}}
+	want := []Field{{"v", "int"}, {"ping_id", "uuid.UUID"}, {"user_id", "uuid.UUID"}, {"note", "string"}}
 	if e.Type != TypeSystemPinged || e.Subject != "events.system.pinged" || e.Version != 1 ||
 		!slices.Equal(e.Fields, want) {
 		t.Fatalf("Catalog()[0] = %+v", e)

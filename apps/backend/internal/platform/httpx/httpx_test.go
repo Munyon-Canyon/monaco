@@ -37,6 +37,16 @@ func (healthz) GetStream(context.Context, api.GetStreamRequestObject) (api.GetSt
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetStream")
 }
 
+func (healthz) PostSystemPing(
+	context.Context, api.PostSystemPingRequestObject,
+) (api.PostSystemPingResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostSystemPing")
+}
+
+func (healthz) GetSystemPing(context.Context, api.GetSystemPingRequestObject) (api.GetSystemPingResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetSystemPing")
+}
+
 type stepClock struct {
 	clock.Real
 	mu  sync.Mutex

@@ -7,6 +7,7 @@ const TypeSystemPinged Type = "system.pinged"
 type SystemPinged struct {
 	V      int       `json:"v"`
 	PingID uuid.UUID `json:"ping_id"`
+	UserID uuid.UUID `json:"user_id"`
 	Note   string    `json:"note"`
 }
 

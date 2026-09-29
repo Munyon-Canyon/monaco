@@ -37,9 +37,12 @@ type UnitOfWork struct {
 type Tx struct {
 	tx     pgx.Tx
 	Events *Events
+	after  *[]func(context.Context)
 }
 
 func (t Tx) Queries() sqlc.DBTX { return t.tx }
+
+func (t Tx) AfterCommit(fn func(ctx context.Context)) { *t.after = append(*t.after, fn) }
 
 func New(pool *pgxpool.Pool, g ids.Generator, c clock.Clock) *UnitOfWork {
 	return &UnitOfWork{pool: pool, ids: g, clock: c, signal: make(chan struct{}, 1)}
@@ -50,14 +53,17 @@ func (u *UnitOfWork) Signal() <-chan struct{} { return u.signal }
 func (u *UnitOfWork) Do(ctx context.Context, fn func(ctx context.Context, tx Tx) error) error {
 	const op = "db.UnitOfWork.Do"
 	for attempt := 1; ; attempt++ {
-		appended, err := u.run(ctx, fn, attempt)
+		committed, err := u.run(ctx, fn, attempt)
 		if err == nil {
 			select {
 			case u.signal <- struct{}{}:
 			default:
 			}
 			observability.Info(ctx, observability.TxCommitted,
-				slog.Any("event_ids", appended), slog.Int("attempt", attempt))
+				slog.Any("event_ids", committed.appended), slog.Int("attempt", attempt))
+			for _, after := range committed.after {
+				after(ctx)
+			}
 			return nil
 		}
 		err = classify(err, op)
@@ -81,14 +87,20 @@ func backoff(attempt int) time.Duration {
 	return retryBase<<(attempt-1) + rand.N(retryBase)
 }
 
+type committed struct {
+	appended []uuid.UUID
+	after    []func(context.Context)
+}
+
 func (u *UnitOfWork) run(
 	ctx context.Context, fn func(ctx context.Context, tx Tx) error, attempt int,
-) ([]uuid.UUID, error) {
+) (committed, error) {
 	pgtx, err := u.pool.Begin(ctx)
 	if err != nil {
-		return nil, classify(err, "db.UnitOfWork.Do")
+		return committed{}, classify(err, "db.UnitOfWork.Do")
 	}
-	tx := Tx{tx: pgtx, Events: &Events{q: sqlc.New(pgtx), ids: u.ids, clock: u.clock}}
+	var after []func(context.Context)
+	tx := Tx{tx: pgtx, Events: &Events{q: sqlc.New(pgtx), ids: u.ids, clock: u.clock}, after: &after}
 	defer func() {
 		r := recover()
 		if r == nil {
@@ -99,18 +111,18 @@ func (u *UnitOfWork) run(
 		rollbackAndRepanic(ctx, pgtx, r)
 	}()
 	if err := fn(ctx, tx); err != nil {
-		return nil, withRollback(err, rollback(ctx, pgtx))
+		return committed{}, withRollback(err, rollback(ctx, pgtx))
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, withRollback(err, rollback(ctx, pgtx))
+		return committed{}, withRollback(err, rollback(ctx, pgtx))
 	}
 	faultpoint.Hit(ctx, faultpoint.BeforeCommit)
 	finishCtx, cancel := finishContext(ctx)
 	defer cancel()
 	if err := pgtx.Commit(finishCtx); err != nil {
-		return nil, withRollback(err, rollback(ctx, pgtx))
+		return committed{}, withRollback(err, rollback(ctx, pgtx))
 	}
-	return tx.Events.appended, nil
+	return committed{appended: tx.Events.appended, after: after}, nil
 }
 
 func finishContext(ctx context.Context) (context.Context, context.CancelFunc) {
