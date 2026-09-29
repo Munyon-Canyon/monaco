@@ -13,8 +13,12 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  actions: read
+  checks: write
 
 jobs:
   ci:
     if: github.event.changes.base != null && !github.event.pull_request.draft
     uses: ./.github/workflows/ci-jobs.yml
+    with:
+      stage: pr

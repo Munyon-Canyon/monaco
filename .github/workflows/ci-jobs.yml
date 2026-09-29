@@ -2,31 +2,48 @@ name: CI jobs
 
 # Called by ci.yml and ci-retarget.yml through their `ci` job, so every check is named
 # "ci / <job>" and the required check is "ci / ci-ok". docs/architecture/ci.md#triggers
+# `stage: pr` runs stage 1, the repo-wide checks and no tests. `stage: queue` runs stage 2, stage 1
+# plus every test. docs/architecture/ci.md#check-stages
 on:
   workflow_call:
+    inputs:
+      stage:
+        description: pr (pull_request) or queue (merge_group).
+        type: string
+        required: true
 
 permissions:
   contents: read
 
 jobs:
-  backend:
-    name: Backend (vet, race tests)
+  lint:
+    name: Lint (golangci-lint, nogo, comments, OpenAPI, migrations)
     needs: plan
-    if: needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true'
+    if: needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: apps/backend
     steps:
       - uses: actions/checkout@v4
 
-      # go test keys its result cache on file mtimes, and a fresh checkout gives every file a new one.
-      - name: Pin testdata mtimes
-        working-directory: .
-        run: find . -path '*/testdata/*' -exec touch -t 200001010000 {} +
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/backend/go.mod
+          cache: false
 
-      - uses: ./.github/actions/backend-test-env
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
+          restore-keys: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
+
+      - name: Install the pinned atlas community build
+        working-directory: .
+        run: scripts/install-atlas.sh
 
       - name: Read the pinned golangci-lint version
         id: golangci
@@ -45,7 +62,13 @@ jobs:
         run: go run ./cmd/monacoctl lint comments
 
       - name: OpenAPI spec lint
-        run: docker run --rm -v "$PWD/api:/api:ro" dshanley/vacuum:v0.30.6 lint -b -q -n warn -r /api/.vacuum.yaml /api/openapi.yaml
+        run: |
+          for attempt in 1 2 3; do
+            docker pull -q dshanley/vacuum:v0.30.6 && break
+            [ "$attempt" = 3 ] && exit 1
+            sleep 5
+          done
+          docker run --rm -v "$PWD/api:/api:ro" dshanley/vacuum:v0.30.6 lint -b -q -n warn -r /api/.vacuum.yaml /api/openapi.yaml
 
       - name: Lint the latest migration
         run: go run ./cmd/monacoctl migrate lint
@@ -65,8 +88,10 @@ jobs:
         run: scripts/ci/oasdiff-breaking-test.sh
 
       - name: OpenAPI spec has no breaking changes
+        env:
+          BASE_REF: ${{ github.base_ref || github.event.merge_group.base_ref || 'main' }}
         run: |
-          base="${GITHUB_BASE_REF:-main}"
+          base="${BASE_REF#refs/heads/}"
           git fetch --no-tags --depth=1 origin "$base"
           if ! git cat-file -e FETCH_HEAD:apps/backend/api/openapi.yaml 2>/dev/null; then
             echo "no api/openapi.yaml on $base"
@@ -75,16 +100,45 @@ jobs:
           git show FETCH_HEAD:apps/backend/api/openapi.yaml > "$RUNNER_TEMP/base-openapi.yaml"
           ../../scripts/ci/oasdiff-breaking.sh "$RUNNER_TEMP/base-openapi.yaml" api/openapi.yaml
 
+  backend:
+    name: Backend tests (race, time budget, -short-skipped)
+    needs: plan
+    if: inputs.stage == 'queue' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/backend
+    steps:
+      - uses: actions/checkout@v4
+
+      # go test keys its result cache on file mtimes, and a fresh checkout gives every file a new one.
+      - name: Pin testdata mtimes
+        working-directory: .
+        run: find . -path '*/testdata/*' -exec touch -t 200001010000 {} +
+
+      - uses: ./.github/actions/backend-test-env
+
+      - name: Read the pinned golangci-lint version
+        id: golangci
+        run: echo "version=$(cat .golangci-lint-version)" >> "$GITHUB_OUTPUT"
+
+      # The lint package's rule tests run golangci-lint and fail in CI when it is missing.
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: ${{ steps.golangci.outputs.version }}
+          install-only: true
+
       - name: Race tests, the time budget and the flows.tsv check
         run: ../../scripts/test-backend.sh
 
       - name: Tests that -short skips because they build or run other binaries
-        run: go test -race ./internal/platform/lint/... ./internal/testkit/... ./cmd/monacoctl
+        run: go test -race ./internal/platform/ids/... ./internal/platform/lint/... ./internal/testkit/... ./cmd/monacoctl
 
   ready:
     name: Ready (vet on go.mod's Go, tidy, generated files)
     needs: plan
-    if: needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true'
+    if: needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -107,23 +161,14 @@ jobs:
 
       - run: scripts/ci/ready.sh
 
-  # Mutants on the lines this change touches (gremlins --diff), one job per changed package, so the
-  # wall time is the slowest package, not the sum. The nightly mutates every line of every package.
-  mutation:
-    needs: plan
-    if: needs.plan.outputs.backend-go == 'true' || needs.plan.outputs.unknown == 'true'
-    uses: ./.github/workflows/mutation.yml
-    with:
-      timeout-minutes: 10
-
   scripts:
     needs: plan
-    if: needs.plan.outputs.scripts == 'true' || needs.plan.outputs.unknown == 'true'
+    if: inputs.stage == 'queue' && (needs.plan.outputs.scripts == 'true' || needs.plan.outputs.unknown == 'true')
     uses: ./.github/workflows/ci-scripts.yml
 
   mobile-core:
     needs: plan
-    if: needs.plan.outputs.mobile-core == 'true' || needs.plan.outputs.unknown == 'true'
+    if: inputs.stage == 'queue' && (needs.plan.outputs.mobile-core == 'true' || needs.plan.outputs.unknown == 'true')
     uses: ./.github/workflows/ci-mobile-core.yml
 
   plan:
@@ -133,9 +178,12 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      actions: read
+      checks: read
     outputs:
+      reuse: ${{ steps.reuse.outputs.reuse }}
+      patch-id: ${{ steps.reuse.outputs.patch-id }}
       backend: ${{ steps.filter.outputs.backend }}
-      backend-go: ${{ steps.filter.outputs.backend-go }}
       mobile-core: ${{ steps.filter.outputs.mobile-core }}
       ios: ${{ steps.filter.outputs.ios }}
       backend-tests: ${{ steps.filter.outputs.backend-tests }}
@@ -143,8 +191,22 @@ jobs:
       unknown: ${{ steps.every.outputs.unknown }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Stage 2 never reuses: it tests the combined queue entry, not one PR's diff.
+      - name: Reuse the last green stage 1 when the diff is unchanged
+        id: reuse
+        if: inputs.stage == 'pr' && github.event.pull_request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: scripts/ci/stage1-reuse.sh
 
       - name: Standard runner labels only
+        if: steps.reuse.outputs.reuse != 'true'
         run: scripts/ci/check-runners.sh
 
       - uses: dorny/paths-filter@v3
@@ -168,10 +230,6 @@ jobs:
             workflows:
               - '.github/workflows/**'
               - '.github/actions/**'
-            backend-go:
-              - 'apps/backend/**/*.go'
-              - 'apps/backend/go.mod'
-              - 'apps/backend/mutants.allow'
             backend-tests:
               - 'apps/backend/**/*_test.go'
               - 'apps/backend/**/testdata/**'
@@ -188,6 +246,7 @@ jobs:
               - 'scripts/go.sum'
               - 'scripts/githooks/**'
               - 'scripts/testdata/**'
+              - 'scripts/ci/stage1-reuse.sh'
               - 'Justfile'
               - '.claude/settings.json'
               - '.claude/hooks/**'
@@ -240,33 +299,33 @@ jobs:
 
       # A workflow-only change runs this lint, not the jobs the workflow defines.
       - name: Lint workflows
-        if: steps.filter.outputs.workflows == 'true'
+        if: steps.reuse.outputs.reuse != 'true' && steps.filter.outputs.workflows == 'true'
         run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12
 
       - name: Required workflows have no workflow-level path filter
-        if: steps.filter.outputs.workflows == 'true'
+        if: steps.reuse.outputs.reuse != 'true' && steps.filter.outputs.workflows == 'true'
         working-directory: scripts
         run: go test -short -count=1 ./ci/
 
-      - if: steps.filter.outputs.web == 'true'
+      - if: inputs.stage == 'queue' && steps.filter.outputs.web == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
       - name: Web landing page tests
-        if: steps.filter.outputs.web == 'true'
+        if: inputs.stage == 'queue' && steps.filter.outputs.web == 'true'
         working-directory: apps/web
         run: npm test
 
   ios:
     needs: plan
-    if: needs.plan.outputs.ios == 'true' || needs.plan.outputs.unknown == 'true'
+    if: inputs.stage == 'queue' && (needs.plan.outputs.ios == 'true' || needs.plan.outputs.unknown == 'true')
     uses: ./.github/workflows/ci-ios.yml
 
   flake:
     name: Flake (changed tests, count 20)
     needs: plan
-    if: needs.plan.outputs.backend-tests == 'true' || needs.plan.outputs.unknown == 'true'
+    if: inputs.stage == 'queue' && (needs.plan.outputs.backend-tests == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -289,11 +348,27 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [plan, backend, ready, mutation, scripts, mobile-core, ios, flake]
+    needs: [plan, lint, backend, ready, scripts, mobile-core, ios, flake]
     runs-on: ubuntu-latest
     timeout-minutes: 2
+    permissions:
+      actions: read
+      checks: write
     steps:
       - uses: re-actors/alls-green@release/v1
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: backend, ready, mutation, scripts, mobile-core, ios, flake
+          allowed-skips: lint, backend, ready, scripts, mobile-core, ios, flake
+
+      # The next stage 1 run of this PR reads the patch ID back to decide whether it can reuse this result.
+      - name: Record the diff's patch ID on this check run
+        if: inputs.stage == 'pr' && needs.plan.outputs.patch-id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PATCH_ID: ${{ needs.plan.outputs.patch-id }}
+        run: |
+          id="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs" --paginate \
+            --jq '.jobs[] | select(.name == "ci / ci-ok") | .check_run_url | split("/") | last')"
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" \
+            -f "output[title]=stage 1" -f "output[summary]=patch-id: $PATCH_ID" >/dev/null ||
+            echo "::warning::could not record the patch ID; the next unchanged push reruns stage 1"

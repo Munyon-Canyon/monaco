@@ -151,12 +151,51 @@ func TestTestReportCommand(t *testing.T) {
 		{"directory", []string{"--from", filepath.Dir(file)}, 1, "", "monacoctl test-report: monacoctl.readReport: internal: read " + filepath.Dir(file) + ": is a directory\n"},
 		{"package over budget", []string{"--from", file}, 1, "run: 15.0s", slowB},
 		{"run over budget", []string{"--start", early, "--from", file}, 1, "run: 120.0s", slowB + "monacoctl test-report: run took 120.0s, over the 60s budget\n"},
-		{"run not gated in CI", []string{"--start", early, "--from", file, "--ci"}, 1, "run: 120.0s (not gated in CI; the 60s budget is for a laptop), 10s per package\n", slowB},
+		{"run not gated in CI", []string{"--start", early, "--from", file, "--ci"}, 0, "run: 120.0s (not gated in CI; the 60s budget is for a laptop), 15s per package\n", ""},
 	} {
 		var stdout, stderr bytes.Buffer
 		code := testReportCmd(tc.args, &stdout, &stderr)
 		if code != tc.code || !strings.Contains(stdout.String(), tc.stdoutHas) || stderr.String() != tc.stderr {
 			t.Fatalf("%s: code=%d stdout=%q stderr=%q", tc.name, code, stdout.String(), stderr.String())
 		}
+	}
+}
+
+func TestTestReportCIWarnsFromTenSecondsAndFailsPastFifteen(t *testing.T) {
+	t.Parallel()
+	warn := "::warning::monacoctl test-report: package m/p took 12.00s, over the 10s per-package budget (CI fails at 15s)\n"
+	for _, tc := range []struct {
+		name    string
+		elapsed string
+		ci      bool
+		code    int
+		warning string
+		stderr  string
+	}{
+		{"ci 9s is quiet", "9", true, 0, "", ""},
+		{"ci 12s warns", "12", true, 0, warn, ""},
+		{"ci 16s fails", "16", true, 1, "", "monacoctl test-report: package m/p took 16.00s, over the 15s per-package budget\n"},
+		{"local 12s fails", "12", false, 1, "", "monacoctl test-report: package m/p took 12.00s, over the 10s per-package budget\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			file := filepath.Join(t.TempDir(), "go-test.json")
+			event := `{"Time":"2026-09-27T10:00:00Z","Action":"pass","Package":"m/p","Elapsed":` + tc.elapsed + "}\n"
+			if err := os.WriteFile(file, []byte(event), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			args := []string{"--from", file}
+			if tc.ci {
+				args = append(args, "--ci")
+			}
+			var stdout, stderr bytes.Buffer
+			code := testReportCmd(args, &stdout, &stderr)
+			warned := strings.Contains(stdout.String(), "::warning::")
+			if code != tc.code || warned != (tc.warning != "") || !strings.HasSuffix(stdout.String(), tc.warning) ||
+				stderr.String() != tc.stderr {
+				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+			}
+			t.Logf("exit %d\nstdout:\n%sstderr:\n%s", code, stdout.String(), stderr.String())
+		})
 	}
 }
