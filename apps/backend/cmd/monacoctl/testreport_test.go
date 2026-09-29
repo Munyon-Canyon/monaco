@@ -34,7 +34,7 @@ func TestReadReportRanksTopLevelTestsAndPackagesByElapsed(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	rep.write(&out, budget{warn: 10 * time.Second, fail: 20 * time.Second, run: 60 * time.Second})
+	rep.write(&out, budget{warn: 10 * time.Second, fail: 20 * time.Second, run: 90 * time.Second})
 	want := `slowest tests:
    3.00s  m/a TestSlow
    1.25s  m/b TestBroken
@@ -43,7 +43,7 @@ packages:
   11.00s  m/b
    4.20s  m/a
    0.00s  m/c
-run: 15.0s (budget 60s), packages warn at 10s, fail at 20s
+run: 15.0s (budget 90s), packages warn at 10s, fail at 20s
 `
 	if out.String() != want {
 		t.Fatalf("report:\n%s\nwant:\n%s", out.String(), want)
@@ -128,6 +128,7 @@ func TestTestReportCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	early := strconv.FormatInt(time.Date(2026, 9, 27, 9, 58, 20, 0, time.UTC).Unix(), 10)
+	seventy := strconv.FormatInt(time.Date(2026, 9, 27, 9, 59, 10, 0, time.UTC).Unix(), 10)
 	fast := filepath.Join(t.TempDir(), "fast.json")
 	if err := os.WriteFile(
 		fast,
@@ -150,9 +151,10 @@ func TestTestReportCommand(t *testing.T) {
 		{"bad start", []string{"--from", file, "--start", "soon"}, 2, "", testReportUsage + "\n"},
 		{"missing file", []string{"--from", file + ".gone"}, 1, "", "monacoctl test-report: open " + file + ".gone: no such file or directory\n"},
 		{"directory", []string{"--from", filepath.Dir(file)}, 1, "", "monacoctl test-report: monacoctl.readReport: internal: read " + filepath.Dir(file) + ": is a directory\n"},
-		{"package in the warning band", []string{"--from", file}, 0, "run: 15.0s (budget 60s), packages warn at 10s, fail at 20s\n" + warnB, ""},
-		{"run over budget", []string{"--start", early, "--from", file}, 1, "run: 120.0s", "monacoctl test-report: run took 120.0s, over the 60s budget\n"},
-		{"run not gated in CI", []string{"--start", early, "--from", file, "--ci"}, 0, "run: 120.0s (not gated in CI; the 60s budget is for a laptop), packages warn at 10s, fail at 20s\n::warning::" + warnB, ""},
+		{"package in the warning band", []string{"--from", file}, 0, "run: 15.0s (budget 90s), packages warn at 10s, fail at 20s\n" + warnB, ""},
+		{"run of 70s within the laptop budget", []string{"--start", seventy, "--from", file}, 0, "run: 70.0s (budget 90s), packages warn at 10s, fail at 20s\n" + warnB, ""},
+		{"run over budget", []string{"--start", early, "--from", file}, 1, "run: 120.0s", "monacoctl test-report: run took 120.0s, over the 90s budget\n"},
+		{"run not gated in CI", []string{"--start", early, "--from", file, "--ci"}, 0, "run: 120.0s (not gated in CI; the 90s budget is for a laptop), packages warn at 10s, fail at 20s\n::warning::" + warnB, ""},
 	} {
 		var stdout, stderr bytes.Buffer
 		code := testReportCmd(tc.args, &stdout, &stderr)

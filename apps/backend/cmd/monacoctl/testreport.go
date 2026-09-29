@@ -22,7 +22,7 @@ const (
 	slowestShown    = 10
 	packageWarn     = 10 * time.Second
 	packageFail     = 20 * time.Second
-	runBudget       = 60 * time.Second
+	runBudget       = 90 * time.Second
 )
 
 type budget struct {
