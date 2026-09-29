@@ -51,6 +51,22 @@ func Handle[E events.Event](name string, fn Handler[E]) HandlerSpec {
 
 func (s HandlerSpec) Type() events.Type { return s.typ }
 
+func (s HandlerSpec) Apply(ctx context.Context, tx db.Tx, e events.Event) error {
+	return s.run(ctx, tx, e)
+}
+
+func (s HandlerSpec) OnCommit(fn func(ctx context.Context, e events.Event)) HandlerSpec {
+	inner := s.run
+	s.run = func(ctx context.Context, tx db.Tx, e events.Event) error {
+		if err := inner(ctx, tx, e); err != nil {
+			return err
+		}
+		tx.AfterCommit(func(ctx context.Context) { fn(ctx, e) })
+		return nil
+	}
+	return s
+}
+
 func (s HandlerSpec) Before(fn func(ctx context.Context, e events.Event)) HandlerSpec {
 	inner := s.run
 	s.run = func(ctx context.Context, tx db.Tx, e events.Event) error {

@@ -20,6 +20,7 @@ import (
 )
 
 type fixture struct {
+	now  time.Time
 	pool *pgxpool.Pool
 	ids  *testkit.IDs
 	uow  *db.UnitOfWork
@@ -30,10 +31,12 @@ func newFixture(t *testing.T) fixture {
 	t.Helper()
 	g := testkit.NewIDs(1)
 	pool := testkit.DB(t)
+	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	return fixture{
+		now:  now,
 		pool: pool,
 		ids:  g,
-		uow:  db.New(pool, g, testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))),
+		uow:  db.New(pool, g, testkit.NewClock(now)),
 		user: userID(t, g),
 	}
 }

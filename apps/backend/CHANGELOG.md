@@ -8,6 +8,7 @@ All notable changes to the Monaco backend. The format follows [Keep a Changelog]
 
 - The `system` module: `system_pings` and the `RecordPing` command, which writes a ping and appends `system.pinged` (now carrying `user_id`) in one transaction.
 - `POST /v1/system/pings` and `GET /v1/system/pings/{id}`, and the `system.echo` consumer that marks a ping echoed and sends its user a `ping_echoed` hint once the update commits. `db.Tx.AfterCommit` runs a callback only after its transaction commits.
+- The acceptance scenario DSL (`internal/testkit/scenario`), which drives the api and worker components in one process over HTTP and waits on consumer commits and SSE hints instead of sleeping; `testkit.Seed`, which replays a named event sequence from `internal/testkit/scenarios` through the consumers; and the flow 00 script in `internal/testkit/flows`.
 - New Go backend module at `apps/backend` with `api`, `worker` and `monacoctl` binaries that load typed boot config and fail fast on a bad value.
 - One error code table (`internal/errs`) that drives HTTP status, retry and alert behaviour, and the `ErrorCode` enum in the OpenAPI spec.
 - `api/openapi.yaml` as the HTTP contract. The server is generated from it, errors are `application/problem+json`, and every test response is validated against it.
