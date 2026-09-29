@@ -903,7 +903,7 @@ Checks run in three stages, and each stage runs only what the stage before it sk
 
 | Stage | Where | Runs | Budget | Runs how often |
 | --- | --- | --- | --- | --- |
-| 0. Agent check | Owner's worktree, `monacoctl agents check` | `go build` and `go vet` on affected packages, then golangci-lint, nogo and the comment lint, then `go test -short -count=1` on affected packages, no `-race`. For non-Go paths, the cheap row for that path (`bash -n` and shellcheck; `cd scripts && go test -short` on the touched test files; `python3 -m unittest …`; `swift test` for `packages/mobile-core`) | ≤60s | Once before each push (hook-enforced) |
+| 0. Agent check | Owner's worktree, `monacoctl agents check` | `go build` and `go vet` on affected packages, then golangci-lint, nogo and the comment lint, then `go test -short -count=1` on affected packages, no `-race`. For non-Go paths, the cheap row for that path (`bash -n` and shellcheck; `cd scripts && go test -short` on the touched test files; `python3 -m unittest …`; `swift test` for `packages/mobile-core`). Path-triggered rows mirror CI's `ready`, migration lint, OpenAPI lint and oasdiff, and `mkdocs --strict` | ≤60s | Once before each push (hook-enforced) |
 | 1. PR check | CI, `pull_request` | The repo-wide checks, including those stage 0 runs on the changed paths only: `plan`, golangci-lint, nogo, the comment lint, OpenAPI lint and oasdiff, migration lint, `ready` (tidy, generated files, sqlc, docs), PR format. **No tests.** | ≤2 min | Once per change to the PR's diff. A push with the same diff reuses the last green result. |
 | 2. Queue check | CI, `merge_group` | The full suite: `scripts/test-backend.sh` (race, all packages, time budget), the `-short`-skipped tests, `flake` on changed tests, `just verify backend`, `scripts` tests, and mobile-core and iOS only when their paths changed | ≤6 min backend-only (iOS adds ~12) | Once per queue entry. A stack is one entry. Reruns only after an ejection. |
 
@@ -915,6 +915,12 @@ Stage 0 diffs `HEAD` against `origin/<feature branch>` and picks its rows from t
 - A `.sh` file, or an extensionless file with a `bash`, `sh` or `zsh` shebang: `bash -n` and `shellcheck`.
 - Any path: the `scripts/**/*_test.go` tests and `scripts/**/test_*.py` files that the diff touches or that name the changed file's basename in a string literal, for example `"agent-guard.py"`.
 - `packages/mobile-core/**`: `swift test`.
+- `apps/backend/**`, `scripts/ci/ready.sh`, `scripts/gen-docs.sh` or `scripts/install-sqlc.sh`: `scripts/ci/ready.sh`, as the CI ready job runs it.
+- `apps/backend/migrations/**`, `atlas.hcl` or `.atlas-version`: `monacoctl migrate lint`.
+- `apps/backend/api/openapi.yaml`, `.vacuum.yaml` or `scripts/ci/oasdiff-*`: the pinned vacuum lint in Docker, the oasdiff self-test, and oasdiff against the stack parent's spec.
+- `docs/**`, `mkdocs.yml`, `requirements-docs.txt` or `openapi.yaml`: `mkdocs build --strict` from the README's `.venv`, in the worktree or the main checkout. Without one the row prints `skip` and the install hint.
+
+The ready and migrate rows first run `scripts/install-sqlc.sh` or `scripts/install-atlas.sh` when `.bin/` lacks the tool, as CI does. The stack parent is `gt parent`, or the `--base` ref when Graphite does not track the branch or its parent is the feature branch.
 
 A path in no row runs nothing in stage 0. The paths with no checks in any stage are `docs/**`, `**/*.md`, `.claude/**`, `.cursor/**`, `.github/**` (actionlint runs in `ci / Plan`), `scripts/cloud-setup.sh` and `.env.local`; `ci / Plan` treats them as inert ([ci.md](ci.md)). `apps/mobile/**` still needs `just build mobile` and gold-sim QA from whoever changes it.
 

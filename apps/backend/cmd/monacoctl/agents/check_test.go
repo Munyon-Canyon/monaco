@@ -48,7 +48,7 @@ func newCheckHarness(t *testing.T) *checkHarness {
 }
 
 func (h *checkHarness) run(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
-	line := filepath.Base(name) + " " + strings.Join(args, " ")
+	line := strings.TrimSpace(filepath.Base(name) + " " + strings.Join(args, " "))
 	if len(args) > 1 && args[0] == "ci" && args[1] == "affected" {
 		line = strings.Join(args, " ")
 	} else if name == "git" {
@@ -70,8 +70,11 @@ func (h *checkHarness) run(ctx context.Context, dir, stdin, name string, args ..
 			return []byte(r.out), r.err
 		}
 	}
-	if line == "golangci-lint version --short" {
+	switch line {
+	case "golangci-lint version --short":
 		return []byte(h.lint), nil
+	case "gt parent --no-interactive":
+		return nil, nil
 	}
 	h.clock = h.clock.Add(time.Second)
 	return nil, nil
@@ -147,6 +150,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
 	want := []string{
+		".: gt parent --no-interactive",
 		"apps/backend: ci affected --base origin/fb",
 		"apps/backend: golangci-lint version --short",
 		"apps/backend: go build -tags faultpoints ./internal/x ./cmd/api",
@@ -163,6 +167,8 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		"scripts: go test -short -count=1 -run ^(TestReadsFoo)$ ./ci",
 		".: python3 -m unittest scripts/test_new.py scripts/test_tool.py",
 		"packages/mobile-core: swift test",
+		".: install-sqlc.sh",
+		".: ready.sh",
 	}
 	if got := strings.Join(h.calls, "\n"); got != strings.Join(want, "\n") {
 		t.Fatalf("calls:\n%s\nwant:\n%s", got, strings.Join(want, "\n"))
@@ -367,7 +373,15 @@ func TestCheck_mirroredCommandsStillMatchTheirWorkflows(t *testing.T) {
 			"args: ./...",
 			"go run ./internal/platform/lint/nogo/cmd/nogo ./...",
 			"go run ./cmd/monacoctl lint comments",
+			"run: scripts/install-sqlc.sh",
+			"run: scripts/ci/ready.sh",
+			"run: scripts/install-atlas.sh",
+			"go run ./cmd/monacoctl migrate lint",
+			vacuumLint,
+			"run: scripts/ci/oasdiff-breaking-test.sh",
+			"../../scripts/ci/oasdiff-breaking.sh",
 		},
+		"docs.yml": {"NO_MKDOCS_2_WARNING: 'true'", "mkdocs build --strict --site-dir site"},
 	} {
 		body, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "..", ".github", "workflows", file))
 		if err != nil {
@@ -378,6 +392,85 @@ func TestCheck_mirroredCommandsStillMatchTheirWorkflows(t *testing.T) {
 				t.Errorf("%s no longer runs %q; make agents check run what CI runs", file, step)
 			}
 		}
+	}
+}
+
+func TestCheck_pathRowsRunTheCIStepsForTheirPathsAgainstTheStackParent(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{openAPISpec: "openapi: 3.1.0\n"})
+	git(t, h.dir, "branch", "parent")
+	h.commit(t, map[string]string{
+		openAPISpec:                           "openapi: 3.1.1\n",
+		"apps/backend/migrations/1_a.sql":     "select 1;\n",
+		"docs/index.md":                       "hi\n",
+		"apps/backend/api/.vacuum.yaml.notes": "x\n",
+	})
+	h.replies = []reply{{prefix: "gt parent", out: "parent\n"}}
+	code, stdout, stderr := h.check(t)
+	if code != 0 || !strings.Contains(stdout, "(base origin/fb, parent parent)\n") ||
+		!strings.Contains(stdout, "  mkdocs          skip  no .venv/bin/mkdocs here or in the main checkout") {
+		t.Fatalf("check: %d %q %q", code, stdout, stderr)
+	}
+	spec := filepath.Join(h.stateDir(t, "openapi"), h.head(t)[:12]+".yaml")
+	want := []string{
+		".: install-sqlc.sh",
+		".: ready.sh",
+		"apps/backend: install-atlas.sh",
+		"apps/backend: go run ./cmd/monacoctl migrate lint",
+		".: docker run --rm -v " + filepath.Join(h.work, "apps", "backend", "api") + ":/api:ro " + vacuumLint,
+		".: oasdiff-breaking-test.sh",
+		".: oasdiff-breaking.sh " + spec + " " + openAPISpec,
+	}
+	if got := h.calls[len(h.calls)-len(want):]; !slices.Equal(got, want) {
+		t.Fatalf("calls:\n%s\nwant tail:\n%s", strings.Join(h.calls, "\n"), strings.Join(want, "\n"))
+	}
+	if b, err := os.ReadFile(spec); err != nil || string(b) != "openapi: 3.1.0\n" {
+		t.Fatalf("parent spec: %q %v", b, err)
+	}
+
+	for _, bin := range []string{".bin/sqlc", ".bin/atlas", ".venv/bin/mkdocs"} {
+		writeFile(t, filepath.Join(h.dir, bin), "#!/bin/sh\n")
+	}
+	h.commit(t, map[string]string{"docs/index.md": "hi again\n", "apps/backend/migrations/1_a.sql": "select 2;\n"})
+	h.calls, h.replies = nil, []reply{{prefix: "gt parent", err: errors.New("untracked branch")}}
+	if code, stdout, stderr := h.check(
+		t,
+	); code != 0 ||
+		!strings.Contains(stdout, "(base origin/fb, parent origin/fb)") {
+		t.Fatalf("installed tools: %d %q %q", code, stdout, stderr)
+	}
+	for _, c := range []string{
+		".: ready.sh",
+		"apps/backend: go run ./cmd/monacoctl migrate lint",
+		".: env NO_MKDOCS_2_WARNING=true " + filepath.Join(h.work, ".venv", "bin", "mkdocs") +
+			" build --strict --site-dir site",
+	} {
+		if !slices.Contains(h.calls, c) {
+			t.Errorf("missing %q in\n%s", c, strings.Join(h.calls, "\n"))
+		}
+	}
+	if slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, "install-") }) {
+		t.Errorf("installed a tool .bin already has: %v", h.calls)
+	}
+}
+
+func TestCheck_theOpenAPIRowSkipsOasdiffWhenTheParentHasNoSpec(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{openAPISpec: "openapi: 3.1.0\n"})
+	h.replies = []reply{{prefix: "gt parent", out: "fb\n"}}
+	if code, stdout, stderr := h.check(t); code != 0 || !strings.Contains(stdout, "parent origin/fb)") ||
+		!slices.Contains(h.calls, ".: oasdiff-breaking-test.sh") ||
+		slices.ContainsFunc(h.calls, func(c string) bool { return strings.HasPrefix(c, ".: oasdiff-breaking.sh") }) {
+		t.Fatalf("no parent spec: %d %q %q %v", code, stdout, stderr, h.calls)
+	}
+
+	h.commit(t, map[string]string{openAPISpec: "openapi: 3.1.1\n"})
+	git(t, h.dir, "update-ref", "refs/remotes/origin/fb", "HEAD~1")
+	writeFile(t, h.stateDir(t, "openapi"), "")
+	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "write "+h.stateDir(t, "openapi")) {
+		t.Fatalf("unwritable spec: %d %q", code, stderr)
 	}
 }
 
