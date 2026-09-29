@@ -142,7 +142,7 @@ func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkR
 		return nil, fmt.Errorf("diff against %s: %w", base, err)
 	}
 	changed := strings.Fields(string(out))
-	var rows []checkRow
+	rows := env.prRows(parent, head)
 	if slices.ContainsFunc(changed, func(f string) bool { return strings.HasPrefix(f, "apps/backend/") }) {
 		goRows, err := env.goRows(ctx, base)
 		if err != nil {
@@ -161,6 +161,18 @@ func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkR
 		})
 	}
 	return env.pathRows(ctx, rows, changed, parent, head)
+}
+
+func (env *Env) prRows(parent, head string) []checkRow {
+	vars := []string{"env", "BASE_SHA=" + parent, "HEAD_SHA=" + head, "PR_LABELS=[]", "python3"}
+	return []checkRow{
+		{label: "pr size", kind: "pr", dir: env.Work, cmds: [][]string{
+			append(slices.Clone(vars), "scripts/check-pr-size.py"),
+		}},
+		{label: "gate changes", kind: "pr", dir: env.Work, cmds: [][]string{
+			append(slices.Clone(vars), "scripts/check-gate-changes.py"),
+		}},
+	}
 }
 
 func (env *Env) pathRows(
@@ -457,8 +469,10 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 	ctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
 	rowStart, first := r.env.Now(), len(r.timings)
+	warnings := 0
 	for _, cmd := range row.cmds {
 		text, err := r.exec(ctx, row, cmd)
+		warnings += strings.Count(text, "::warning ")
 		if r.env.Now().Sub(rowStart) > budget {
 			return r.overBudget(stdout, row, budget, rowStart, r.timings[first:])
 		}
@@ -470,7 +484,11 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 			return detailErr(errs.CodeInvalidInput, "monacoctl.agents.check", row.label+" failed; see the log")
 		}
 	}
-	_, _ = fmt.Fprintf(stdout, "  %-15s ok    %.1fs\n", row.label, r.env.Now().Sub(rowStart).Seconds())
+	note := ""
+	if warnings > 0 {
+		note = fmt.Sprintf("  %d warnings in the log", warnings)
+	}
+	_, _ = fmt.Fprintf(stdout, "  %-15s ok    %.1fs%s\n", row.label, r.env.Now().Sub(rowStart).Seconds(), note)
 	return nil
 }
 

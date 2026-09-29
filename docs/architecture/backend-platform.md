@@ -911,6 +911,7 @@ Stage 1 runs no tests because stage 0 already ran the tests the change can affec
 
 Stage 0 diffs `HEAD` against `origin/<feature branch>` and picks its rows from the changed paths:
 
+- Every diff: `scripts/check-pr-size.py` and `scripts/check-gate-changes.py` with `BASE_SHA` set to the stack parent, so an upstack PR is measured against its own parent, as CI measures it. A gate-changes warning shows as a count on the passing row.
 - `apps/backend/**`: the packages `monacoctl ci affected` prints, which is `./...` when `go.mod`, `go.sum`, `internal/testkit/**` or a non-Go file changed. The lint row runs the CI lint job's golangci-lint, nogo and `monacoctl lint comments` on them, and refuses a golangci-lint that differs from `apps/backend/.golangci-lint-version`.
 - A `.sh` file, or an extensionless file with a `bash`, `sh` or `zsh` shebang: `bash -n` and `shellcheck`.
 - Any path: the `scripts/**/*_test.go` tests and `scripts/**/test_*.py` files that the diff touches or that name the changed file's basename in a string literal, for example `"agent-guard.py"`.

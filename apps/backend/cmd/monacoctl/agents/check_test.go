@@ -149,10 +149,13 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	if code != 0 {
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
+	pr := ".: env BASE_SHA=origin/fb HEAD_SHA=" + h.head(t) + " PR_LABELS=[] python3 scripts/"
 	want := []string{
 		".: gt parent --no-interactive",
 		"apps/backend: ci affected --base origin/fb",
 		"apps/backend: golangci-lint version --short",
+		pr + "check-pr-size.py",
+		pr + "check-gate-changes.py",
 		"apps/backend: go build -tags faultpoints ./internal/x ./cmd/api",
 		"apps/backend: go vet -tags faultpoints ./internal/x ./internal/t ./cmd/api",
 		"apps/backend: golangci-lint run ./internal/x ./internal/t ./cmd/api",
@@ -213,7 +216,7 @@ func TestCheck_overBudgetExitsOneNamingTheSlowestPackageAndRecordsNothing(t *tes
 	}}
 
 	code, stdout, stderr := h.check(t, "--base", "fb")
-	want := "go test -short row over the 1m0s go budget after 75s; slowest: ./internal/slow (77.0s)"
+	want := "go test -short row over the 1m0s go budget after 75s; slowest: ./internal/slow (79.0s)"
 	if code != 1 || !strings.Contains(stderr, want) {
 		t.Fatalf("over budget: %d %q %q", code, stdout, stderr)
 	}
@@ -381,7 +384,8 @@ func TestCheck_mirroredCommandsStillMatchTheirWorkflows(t *testing.T) {
 			"run: scripts/ci/oasdiff-breaking-test.sh",
 			"../../scripts/ci/oasdiff-breaking.sh",
 		},
-		"docs.yml": {"NO_MKDOCS_2_WARNING: 'true'", "mkdocs build --strict --site-dir site"},
+		"pr-format.yml": {"run: python3 scripts/check-pr-size.py", "run: python3 scripts/check-gate-changes.py"},
+		"docs.yml":      {"NO_MKDOCS_2_WARNING: 'true'", "mkdocs build --strict --site-dir site"},
 	} {
 		body, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "..", ".github", "workflows", file))
 		if err != nil {
@@ -413,6 +417,14 @@ func TestCheck_pathRowsRunTheCIStepsForTheirPathsAgainstTheStackParent(t *testin
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
 	spec := filepath.Join(h.stateDir(t, "openapi"), h.head(t)[:12]+".yaml")
+	if size := ".: env BASE_SHA=parent HEAD_SHA=" + h.head(
+		t,
+	) + " PR_LABELS=[] python3 scripts/check-pr-size.py"; !slices.Contains(
+		h.calls,
+		size,
+	) {
+		t.Fatalf("size against the stack parent: want %q in\n%s", size, strings.Join(h.calls, "\n"))
+	}
 	want := []string{
 		".: install-sqlc.sh",
 		".: ready.sh",
@@ -452,6 +464,34 @@ func TestCheck_pathRowsRunTheCIStepsForTheirPathsAgainstTheStackParent(t *testin
 	}
 	if slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, "install-") }) {
 		t.Errorf("installed a tool .bin already has: %v", h.calls)
+	}
+}
+
+func TestCheck_prRowsStopAnOversizedDiffAndCountGateWarnings(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"README.md": "hi\n"})
+	pr := "env BASE_SHA=origin/fb HEAD_SHA=" + h.head(t) + " PR_LABELS=[] python3 scripts/"
+	h.replies = []reply{{
+		prefix: pr + "check-gate-changes.py",
+		out:    "::warning file=a_test.go,line=3::test-skip\n::warning file=b,line=1::gate-file\n",
+	}}
+	if code, stdout, stderr := h.check(t); code != 0 ||
+		!strings.Contains(stdout, "  gate changes    ok    0.0s  2 warnings in the log\n") ||
+		!strings.Contains(stdout, "  pr size         ok    1.0s\n") {
+		t.Fatalf("gate warnings: %d %q %q", code, stdout, stderr)
+	}
+
+	h.commit(t, map[string]string{"README.md": "hi again\n"})
+	pr = "env BASE_SHA=origin/fb HEAD_SHA=" + h.head(t) + " PR_LABELS=[] python3 scripts/"
+	h.calls, h.replies = nil, []reply{{
+		prefix: pr + "check-pr-size.py", out: "1204 changed lines counted (limit 1000).",
+		err: errors.New("exit status 1"),
+	}}
+	code, stdout, stderr := h.check(t)
+	if code != 1 || !strings.Contains(stderr, "pr size failed") || !strings.Contains(stdout, "1204 changed lines") ||
+		slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, "gate") }) {
+		t.Fatalf("oversized: %d %q %q %v", code, stdout, stderr, h.calls)
 	}
 }
 
