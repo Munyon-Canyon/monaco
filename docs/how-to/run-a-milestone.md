@@ -33,7 +33,7 @@ Do these once per milestone.
         cd .worktrees/root
         just build backend
 
-    `just build backend` writes `bin/monacoctl`. The commands below run as `bin/monacoctl agents <command>` from that worktree. Rebuild after any merge that changes `apps/backend/cmd/monacoctl/agents`. Every worktree of the clone shares the records under `.git/.monaco/agents/` and `.git/pstack/<milestone>/`, so any worktree works.
+    `just build backend` writes `bin/monacoctl`. The commands below run as `bin/monacoctl agents <command>` from that worktree. Rebuild after any merge that changes `apps/backend/cmd/monacoctl/agents`. Every worktree of the clone shares the records under `.git/.monaco/agents/` and `.git/pstack/<milestone>/`, so any worktree works. Each owner record is also a comment on its ticket, marked `<!-- monacoctl agents record -->`. `dispatch` posts it, and `done`, `exited` and `verdict` update it. A command that needs a record this clone lacks rebuilds it from the newest such comment, with the worktree path set to this clone's `.worktrees/<n>`.
 
 5. Confirm the `MERGE_BACK_TOKEN` repo secret exists (`gh secret list`). `checkpoint.yml` needs it. The verifier's statuses post as the verifier App when `~/.config/monaco/verifier.pem` exists, and as your `gh` user otherwise.
 
@@ -83,7 +83,7 @@ Do these once per milestone.
 
     It fetches the feature branch and refuses a ticket outside the batch (unless you pass `--urgent`), a ticket with an unmerged blocker, and a dispatch past the `lanes` cap. It then creates `.worktrees/<n>` detached at the tip, writes the owner record, starts `caffeinate` for the calling Claude Code process, and prints the spawn line, the prompt and a conflict forecast. `--dry-run` prints the same without changing anything. `--urgent` also logs the dispatch on the tracking issue. `dispatch` must run inside a Claude Code session, because it ties `caffeinate` to that process.
 
-5. Spawn the owner exactly as printed: `subagent_type` `pstack:poteto-agent`, the printed model, in the background, with the four-line prompt. The `scripts/agent-guard-dispatch.py` hook refuses a spawn that carries a `brief:` line with another agent type, a model other than `opus` or `sonnet`, or no dispatch record. Then record the agent ID:
+5. Spawn the owner exactly as printed: `subagent_type` `pstack:poteto-agent`, the printed model, in the background, with the five-line prompt. The `scripts/agent-guard-dispatch.py` hook refuses a spawn that carries a `brief:` line with another agent type, a model other than `opus` or `sonnet`, or no dispatch record. Then record the agent ID:
 
         bin/monacoctl agents own <n> <agent-id>
 
@@ -185,8 +185,25 @@ A checkpoint squash-merges the feature branch into `main`. Only the operator mer
 
 ## Hand off
 
-- `bin/monacoctl agents handoff` writes a comment on the tracking issue with the batch board, the running agents and the next command to run.
-- `bin/monacoctl agents resume <n>` says whether an owner's transcript is small enough to resume (250k tokens or fewer). Past that, it prints a prompt for a fresh owner with the branch and the failed verdicts.
+A milestone or a ticket can change hands at any point. Everything the next person needs lives on GitHub and in the repo, so the incoming orchestrator can work from a fresh clone.
+
+The outgoing orchestrator:
+
+1. Commits the milestone decision log (`docs/milestones/<milestone>.md`) and pushes its branch.
+2. Makes sure every in-flight owner's branch is pushed. A draft PR is fine. Its "What came up" section records where the owner stopped and what comes next. For an owner that is still running, stop it first and push what it has with `gt submit --stack --no-interactive --draft` from its worktree.
+3. Refreshes the board and writes the handoff comment on the tracking issue. The handoff names the batch board, the running agents and the next command to run.
+
+        bin/monacoctl agents status --publish
+        bin/monacoctl agents handoff
+
+The incoming orchestrator:
+
+1. Sets up the clone ([Agent workflow setup](../agents/setup.md)), then makes the root worktree and builds `bin/monacoctl` as [Set up the milestone](#set-up-the-milestone) step 4 says.
+2. Reads the handoff comment, the status board on the tracking issue and the decision log.
+3. Runs `bin/monacoctl agents watch` to see ejections and idle owners.
+4. Carries on. Owner records rebuild from their ticket comments the first time a command needs them, so `resume`, `verdict` and `land-stack` work on in-flight tickets. A record is trusted only from a comment whose author is a repo owner, member or collaborator, because anyone can comment on a public repo. Each person's commands edit only their own record comment and post a new one otherwise. `bin/monacoctl agents resume <n> --transcript <file>` says whether a transcript is small enough to resume (250k tokens or fewer). A transcript from another machine is usually unavailable, so give the ticket a fresh owner on its pushed branch. The fresh owner's worktree starts from the branch, not from the parent SHA.
+
+One ticket changes hands the same way. [Hand off a ticket](ship-a-ticket.md#hand-off-a-ticket) has the owner's side.
 
 ## Lessons from M7
 

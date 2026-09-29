@@ -3,8 +3,11 @@ package agents
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"os"
 	"strconv"
 	"strings"
 
@@ -47,7 +50,7 @@ func landStackCmd(ctx context.Context, env *Env, args []string, stdout io.Writer
 	if !ok {
 		return landErr(fmt.Sprintf("#%d links no ticket; its body needs \"Part of #N\" or \"Closes #N\"", n))
 	}
-	rec, err := env.record(ticket)
+	rec, err := env.record(ctx, ticket)
 	if err != nil {
 		return err
 	}
@@ -59,7 +62,7 @@ func landStackCmd(ctx context.Context, env *Env, args []string, stdout io.Writer
 			return env.settle(ctx, rec, tops[0], stdout)
 		}
 		_, _ = fmt.Fprintf(stdout, "#%d left the queue; relanding its stack\n", n)
-		if err := env.unmark(rec); err != nil {
+		if err := env.unmark(ctx, rec); err != nil {
 			return err
 		}
 	}
@@ -258,7 +261,7 @@ func (env *Env) land(ctx context.Context, rec Record, stack []stackPR, stdout io
 	}
 	rec.Queued = &Queue{Top: top.Number, PRs: nums}
 	rec.Changed = env.Now()
-	if err := env.saveRecord(rec); err != nil {
+	if err := env.storeRecord(ctx, rec); err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintf(stdout, "queued #%d. %s\n", top.Number, line)
@@ -289,6 +292,12 @@ func (env *Env) settle(ctx context.Context, rec Record, top stackPR, stdout io.W
 		}
 		_, _ = fmt.Fprintf(stdout, "closed #%d: %s\n", p.Number, note)
 	}
+	if _, err := os.Stat(rec.Worktree); errors.Is(err, fs.ErrNotExist) {
+		_, _ = fmt.Fprintf(
+			stdout, "#%d merged as %s; no worktree at %s, skipped gt sync\n", top.Number, sha, rec.Worktree,
+		)
+		return env.unmark(ctx, rec)
+	}
 	if _, err := env.Run(
 		ctx,
 		rec.Worktree,
@@ -302,7 +311,7 @@ func (env *Env) settle(ctx context.Context, rec Record, top stackPR, stdout io.W
 		return err
 	}
 	_, _ = fmt.Fprintf(stdout, "#%d merged as %s; gt sync ran in %s\n", top.Number, sha, rec.Worktree)
-	return env.unmark(rec)
+	return env.unmark(ctx, rec)
 }
 
 func (p stackPR) position() int {
@@ -316,10 +325,10 @@ func (p stackPR) ejected() bool {
 	return p.State != "MERGED" && !p.InQueue && p.AutoMerge == nil
 }
 
-func (env *Env) unmark(rec Record) error {
+func (env *Env) unmark(ctx context.Context, rec Record) error {
 	rec.Queued = nil
 	rec.Changed = env.Now()
-	return env.saveRecord(rec)
+	return env.storeRecord(ctx, rec)
 }
 
 func (env *Env) unqueueEjected(ctx context.Context, rs []Record, stdout io.Writer) error {
@@ -336,7 +345,7 @@ func (env *Env) unqueueEjected(ctx context.Context, rs []Record, stdout io.Write
 		}
 		_, _ = fmt.Fprintf(stdout, "unqueued: #%d; #%d left the queue. Fix the stack with gt modify and "+
 			"gt submit --stack --draft, then run land-stack %d\n", r.Ticket, r.Queued.Top, r.Queued.Top)
-		if err := env.unmark(r); err != nil {
+		if err := env.unmark(ctx, r); err != nil {
 			return err
 		}
 	}

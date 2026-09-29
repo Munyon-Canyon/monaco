@@ -67,6 +67,7 @@ func TestVerifyPlan_classifiesTheDiff(t *testing.T) {
 	}
 	for _, c := range cases {
 		f := newFixture(t)
+		f.ownerComments(40)
 		f.hub.on(get("/pulls/5"), pr(5, "h", "fb", "Part of #40"))
 		f.hub.on(list("/pulls/5/files?"), c.files)
 		code, stdout, stderr := f.agents(t, "verify-plan", "#5")
@@ -137,6 +138,7 @@ func TestVerifyPlan_sonnetForHygieneDiffs(t *testing.T) {
 	}
 	for _, c := range cases {
 		f := newFixture(t)
+		f.ownerComments(40)
 		if c.owner != "" {
 			f.owner(t, Record{Ticket: 40, Model: c.owner, State: Running})
 		}
@@ -279,4 +281,5 @@ func (f *fixture) owner(t *testing.T, r Record) {
 	if err := f.Env(t).saveRecord(r); err != nil {
 		t.Fatal(err)
 	}
+	f.ownerComments(r.Ticket)
 }

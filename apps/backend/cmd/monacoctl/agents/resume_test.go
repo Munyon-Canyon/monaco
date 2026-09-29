@@ -111,6 +111,7 @@ func TestResume_usesTheDefaultTranscriptAndReportsUsage(t *testing.T) {
 	if code, _, stderr := f.agents(t, "resume", "0"); code != 2 {
 		t.Fatalf("zero: code=%d stderr=%q", code, stderr)
 	}
+	f.ownerComments(41)
 	code, _, stderr = f.agents(t, "resume", "41", "--transcript", path)
 	if code != 1 || !strings.Contains(stderr, "no owner record") {
 		t.Fatalf("missing: code=%d stderr=%q", code, stderr)

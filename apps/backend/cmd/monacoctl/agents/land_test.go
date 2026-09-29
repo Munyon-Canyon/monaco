@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -147,7 +148,7 @@ func (s *stackGH) lines() []string {
 
 func (f *fixture) owned(t *testing.T) Record {
 	t.Helper()
-	r, err := f.Env(t).record(40)
+	r, err := f.Env(t).localRecord(40)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +164,7 @@ func TestLandStack_refusesNamingEveryPRItWaitsOnAndChangesNothing(t *testing.T) 
 		stackOf(t, 3, "b3", "b2", "pending", "SUCCESS"),
 		stackOf(t, 4, "b4", "b3", "", "PENDING"),
 	)
-	f.record(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
 	code, stdout, stderr := f.agents(t, "land-stack", "4")
 	want := "not landing #4; waiting on #1 (verify failure), #2 (verify missing), #3 (stage 1 pending), " +
 		"#4 (stage 1 missing, verify pending)\n"
@@ -187,7 +188,7 @@ func TestLandStack_pointsTheStackAtTheFeatureBranchSetsTheBodyAndQueuesOnlyTheTo
 		green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"), top,
 		green(t, 7, "other", "fb"), green(t, 8, "above-other", "other"),
 	)
-	f.record(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
 	code, stdout, stderr := f.agents(t, "land-stack", "3")
 	if code != 0 || stdout != "queued #3. Lands stack: #1 #2 #3\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
@@ -206,6 +207,11 @@ func TestLandStack_pointsTheStackAtTheFeatureBranchSetsTheBodyAndQueuesOnlyTheTo
 	}
 	if q := f.owned(t).Queued; q == nil || q.Top != 3 || !slices.Equal(q.PRs, []int{1, 2, 3}) {
 		t.Fatalf("queued %+v", q)
+	}
+	if got := posted(t, f, "POST /repos/o/r/issues/40/comments"); !strings.Contains(
+		got, `"queued":{"top":3,"prs":[1,2,3]}`,
+	) {
+		t.Fatalf("published %q", got)
 	}
 	code, stdout, _ = f.agents(t, "land-stack", "3")
 	if code != 0 || stdout != "#3 waits for its checks, then enters the queue\n" || len(s.lines()) != len(want) {
@@ -251,7 +257,7 @@ func TestLandStack_readsEveryCheckAndTheNewestRunOfEach(t *testing.T) {
 			paged := pagedStack(t, 1, "b1", "fb", ciOK("FAILURE", 1), ciOK("SUCCESS", 2))
 			s := newStackGH(t, f, paged, green(t, 2, "b2", "b1"))
 			s.pages = map[string]string{"b1": tc.rest}
-			f.record(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+			f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
 			if code, stdout, stderr := f.agents(t, "land-stack", "2"); code != 0 || stdout != tc.stdout {
 				t.Fatalf("%d %q %q", code, stdout, stderr)
 			}
@@ -277,7 +283,7 @@ func TestLandStack_failsWhenPagingChecksFails(t *testing.T) {
 			}
 			s := newStackGH(t, f, top, tc.other(t))
 			s.pages = map[string]string{tc.lost: `{"data":{"repository":{"c0":null}}}`}
-			f.record(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+			f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
 			code, _, stderr := f.agents(t, "land-stack", "1")
 			if code != 1 || !strings.Contains(stderr, "commit "+tc.lost+" lost its checks") || len(s.lines()) != 0 {
 				t.Fatalf("%d %q %v", code, stderr, s.lines())
@@ -290,7 +296,7 @@ func TestLandStack_aSinglePRSkipsTheBaseEdits(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	s := newStackGH(t, f, green(t, 5, "b5", "fb"))
-	f.record(t, Record{Ticket: 40, Worktree: "/w/40"})
+	f.owner(t, Record{Ticket: 40, Worktree: "/w/40"})
 	if code, stdout, stderr := f.agents(t, "land-stack", "5"); code != 0 || stdout != "queued #5. Lands stack: #5\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
@@ -311,17 +317,27 @@ func TestLandStack_settlesTheQueuedStack(t *testing.T) {
 		stdout     string
 		calls      []string
 		stillQueue bool
+		gone       bool
 	}{
 		{
 			name: "merged",
 			top: func(p *stackPR) {
 				p.State, p.MergeCommit.OID = "MERGED", "abcdef0123456789abcdef0123456789abcdef01"
 			},
-			stdout: "closed #2: Landed in #3 (abcdef0)\n#3 merged as abcdef0; gt sync ran in /w/40\n",
+			stdout: "closed #2: Landed in #3 (abcdef0)\n#3 merged as abcdef0; gt sync ran in WT\n",
 			calls: []string{
 				"gh pr close 2 --comment Landed in #3 (abcdef0) -R o/r",
 				"gt sync --no-interactive --delete-all --no-restack",
 			},
+		},
+		{
+			name: "merged in a clone without the worktree",
+			top: func(p *stackPR) {
+				p.State, p.MergeCommit.OID = "MERGED", "abcdef0123456789abcdef0123456789abcdef01"
+			},
+			stdout: "closed #2: Landed in #3 (abcdef0)\n#3 merged as abcdef0; no worktree at WT, skipped gt sync\n",
+			calls:  []string{"gh pr close 2 --comment Landed in #3 (abcdef0) -R o/r"},
+			gone:   true,
 		},
 		{
 			name: "in the queue",
@@ -348,16 +364,20 @@ func TestLandStack_settlesTheQueuedStack(t *testing.T) {
 			merged.State = "MERGED"
 			tt.top(top)
 			s := newStackGH(t, f, merged, green(t, 2, "b2", "fb"), top)
-			f.record(t, Record{Ticket: 40, Worktree: "/w/40", Queued: &Queue{Top: 3, PRs: []int{1, 2, 3}}})
+			wt := t.TempDir()
+			if tt.gone {
+				wt = filepath.Join(wt, "gone")
+			}
+			f.owner(t, Record{Ticket: 40, Worktree: wt, Queued: &Queue{Top: 3, PRs: []int{1, 2, 3}}})
 			code, stdout, stderr := f.agents(t, "land-stack", "3")
-			if code != 0 || stdout != tt.stdout {
+			if code != 0 || stdout != strings.ReplaceAll(tt.stdout, "WT", wt) {
 				t.Fatalf("%d %q %q", code, stdout, stderr)
 			}
 			if got := s.lines(); !slices.Equal(got, tt.calls) {
 				t.Fatalf("calls %v", got)
 			}
 			for _, c := range s.calls {
-				if strings.HasPrefix(c.line, "gt ") && c.dir != "/w/40" {
+				if strings.HasPrefix(c.line, "gt ") && c.dir != wt {
 					t.Fatalf("gt ran in %q", c.dir)
 				}
 			}
@@ -440,12 +460,13 @@ func TestLandStack_failures(t *testing.T) {
 			}
 			s := newStackGH(t, f, prs...)
 			s.fail, s.raw = tt.fail, tt.raw
+			f.ownerComments(40)
 			rec := Record{Ticket: 40, Worktree: "/w/40"}
 			if tt.rec != nil {
 				rec = *tt.rec
 			}
 			if rec.Ticket != 0 {
-				f.record(t, rec)
+				f.owner(t, rec)
 			}
 			code, _, stderr := f.agents(t, append([]string{"land-stack"}, tt.args...)...)
 			if code != tt.code || !strings.Contains(stderr, tt.stderr) {
@@ -465,7 +486,7 @@ func TestLandStack_settleFailures(t *testing.T) {
 			top.State = "MERGED"
 			s := newStackGH(t, f, green(t, 1, "b1", "fb"), top)
 			s.fail = fail
-			f.record(t, Record{Ticket: 40, Worktree: "/w/40", Queued: &Queue{Top: 2, PRs: []int{1, 2}}})
+			f.owner(t, Record{Ticket: 40, Worktree: t.TempDir(), Queued: &Queue{Top: 2, PRs: []int{1, 2}}})
 			if code, _, stderr := f.agents(
 				t,
 				"land-stack",
@@ -485,7 +506,7 @@ func TestLandStack_settleFailures(t *testing.T) {
 		top := green(t, 2, "b2", "fb")
 		top.State = "MERGED"
 		newStackGH(t, f, top)
-		f.record(t, Record{Ticket: 40, Queued: &Queue{Top: 2, PRs: []int{1, 2}}})
+		f.owner(t, Record{Ticket: 40, Queued: &Queue{Top: 2, PRs: []int{1, 2}}})
 		if code, _, stderr := f.agents(t, "land-stack", "2"); code != 1 || !strings.Contains(stderr, "#1 is not a PR") {
 			t.Fatalf("%d %q", code, stderr)
 		}
@@ -496,7 +517,7 @@ func TestLandStack_unwritableRecordFailsAfterQueueing(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	newStackGH(t, f, green(t, 5, "b5", "fb"))
-	f.record(t, Record{Ticket: 40})
+	f.owner(t, Record{Ticket: 40})
 	path := f.Env(t).recordPath(40)
 	if err := os.Chmod(path, 0o400); err != nil {
 		t.Fatal(err)
@@ -526,7 +547,7 @@ func ejectedStack(t *testing.T, f *fixture, lands string) *stackGH {
 	top.Base = "fb"
 	top.Body = lands + "\n\nPart of #40\n\n## TLDR\nx"
 	s := newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "fb"), top)
-	f.record(t, Record{Ticket: 40, Worktree: "/w/40", State: Done, Queued: &Queue{Top: 3, PRs: []int{1, 2, 3}}})
+	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done, Queued: &Queue{Top: 3, PRs: []int{1, 2, 3}}})
 	return s
 }
 
@@ -650,7 +671,7 @@ func TestLandStack_withoutALandsLineReadsTheStackFromGraphite(t *testing.T) {
 				stackOf(t, 9, "fb", "main", "SUCCESS", ""),
 			)
 			s.gtLog, s.fail = tc.gtLog, tc.fail
-			f.record(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+			f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
 			if code, stdout, stderr := f.agents(t, "land-stack", "3"); code != 0 || stdout != tc.out {
 				t.Fatalf("%d %q %q", code, stdout, stderr)
 			}
@@ -699,7 +720,7 @@ func TestWatch_clearsTheQueuedMarkOfAnEjectedStack(t *testing.T) {
 	for _, p := range []*stackPR{queued, waiting, merged} {
 		s.prs[p.Number] = p
 	}
-	f.record(t, Record{Ticket: 40, State: Exited, Queued: &Queue{Top: 3, PRs: []int{1, 2, 3}}})
+	f.owner(t, Record{Ticket: 40, State: Exited, Queued: &Queue{Top: 3, PRs: []int{1, 2, 3}}})
 	f.record(t, Record{Ticket: 41, State: Exited, Queued: &Queue{Top: 5, PRs: []int{5}}})
 	f.record(t, Record{Ticket: 42, State: Exited, Queued: &Queue{Top: 6, PRs: []int{6}}})
 	f.record(t, Record{Ticket: 43, State: Exited, Queued: &Queue{Top: 8, PRs: []int{8}}})
@@ -712,13 +733,16 @@ func TestWatch_clearsTheQueuedMarkOfAnEjectedStack(t *testing.T) {
 	}
 	env := f.Env(t)
 	for ticket, queued := range map[int]bool{40: false, 41: true, 42: true, 43: true} {
-		r, err := env.record(ticket)
+		r, err := env.localRecord(ticket)
 		if err != nil || (r.Queued != nil) != queued {
 			t.Fatalf("#%d queued %+v %v", ticket, r.Queued, err)
 		}
 	}
 	if calls := s.lines(); len(calls) != 0 {
 		t.Fatalf("watch ran %v", calls)
+	}
+	if got := posted(t, f, "POST /repos/o/r/issues/40/comments"); !strings.Contains(got, `"queued":null`) {
+		t.Fatalf("published %q", got)
 	}
 }
 
