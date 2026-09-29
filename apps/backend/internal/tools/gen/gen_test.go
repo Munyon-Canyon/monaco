@@ -341,3 +341,64 @@ func TestProvider_writesAClientAPortFakeAndAFakesFixture(t *testing.T) {
 		t.Fatalf("err = %v, want must match", err)
 	}
 }
+
+const flowsHeader = "id\tflow\tmodule\ttrigger\tcommand\tevents\tconsumers\toutcomes\tstatus\tdoc\n"
+
+func withFlows(t *testing.T, rows string) string {
+	t.Helper()
+	root := withModule(t)
+	if err := os.WriteFile(filepath.Join(root, "flows.tsv"), []byte(flowsHeader+rows), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+func TestFlow_writesOneNotImplementedTestPerOutcome(t *testing.T) {
+	t.Parallel()
+	root := withFlows(
+		t,
+		"7\tOpen a wallet\twallets\tPOST /v1/wallets\tOpenWallet\t\t\tok;invalid_input;crash:before-commit\tplanned\tdocs/x.md\n",
+	)
+	touched, err := gen.Apply(root, "flow", "7")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{
+		"internal/modules/wallets/flow7_test.go",
+	}; strings.Join(
+		touched,
+		"\n",
+	) != strings.Join(
+		want,
+		"\n",
+	) {
+		t.Fatalf("touched %v, want %v", touched, want)
+	}
+	src := read(t, root, "internal/modules/wallets/flow7_test.go")
+	for _, name := range []string{"TestFlow7_OpenWallet_OK", "TestFlow7_OpenWallet_invalid_input", "TestFlow7_OpenWallet_CrashBeforeCommit"} {
+		if !strings.Contains(src, "func "+name+"(t *testing.T) {\n\tt.Parallel()\n\tt.Fatal(\"not implemented\")\n}") {
+			t.Errorf("flow7_test.go lacks a not implemented %s:\n%s", name, src)
+		}
+	}
+	if got := strings.Count(src, "func Test"); got != 3 {
+		t.Errorf("flow7_test.go has %d tests, want 3", got)
+	}
+}
+
+func TestFlow_rejectsRowsItCannotNameTestsFor(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct{ rows, id, want string }{
+		"unknown id":     {"", "7", `no valid row with id "7"`},
+		"invalid row":    {"7\tOpen\twallets\t\tOpenWallet\t\t\t\tplanned\tdocs/x.md\n", "7", `no valid row with id "7" (1 problems)`},
+		"no command":     {"7\tOpen\twallets\t\t\t\t\tok\tplanned\tdocs/x.md\n", "7", "has no command"},
+		"missing module": {"7\tOpen\tledger\t\tPost\t\t\tok\tplanned\tdocs/x.md\n", "7", "run gen module ledger first"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root := withFlows(t, tc.rows)
+			if _, err := gen.Apply(root, "flow", tc.id); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("err = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}

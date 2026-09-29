@@ -30,11 +30,18 @@ func scenario() []step {
 		{"query", []string{"example", "GetThing"}},
 		{"consumer", []string{"example", "onThing"}},
 		{"provider", []string{"example"}},
+		{"flow", []string{"1"}},
 	}
 }
 
 func notImplemented() []string {
-	return []string{"TestDoThing_appendsItsEvent", "TestOnThing_convergesUnderChaos"}
+	return []string{
+		"TestDoThing_appendsItsEvent",
+		"TestOnThing_convergesUnderChaos",
+		"TestFlow1_DoThing_OK",
+		"TestFlow1_DoThing_invalid_input",
+		"TestFlow1_DoThing_CrashBeforeCommit",
+	}
 }
 
 func generatedDirs() []string {
@@ -142,6 +149,22 @@ func must(t *testing.T, root, name string, args ...string) {
 	}
 }
 
+func addFlow(t *testing.T, root string) {
+	t.Helper()
+	row := "1\tExample does a thing\texample\tPOST /v1/example\tDoThing\tsystem.pinged\t\t" +
+		"ok;invalid_input;crash:before-commit\tplanned\tdocs/architecture/backend-platform.md\n"
+	f, err := os.OpenFile(filepath.Join(root, "flows.tsv"), os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString(row); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func runScenario(t *testing.T, root string) {
 	t.Helper()
 	for _, s := range scenario() {
@@ -170,6 +193,7 @@ func TestGolden_everyGeneratorEmitsCodeThatBuildsLintsCleanAndIsReversible(t *te
 	t.Parallel()
 	requireTools(t)
 	root := copyBackend(t)
+	addFlow(t, root)
 	before := snapshot(t, root)
 	runScenario(t, root)
 	for _, rel := range changed(before, snapshot(t, root)) {
