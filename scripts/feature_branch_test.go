@@ -119,7 +119,7 @@ func TestMainRuleset_staysSquashOnlyWithNoQueue(t *testing.T) {
 	if rs.rule(t, "required_status_checks")["strict_required_status_checks_policy"] != true {
 		t.Fatal("main requires the checkpoint PR to be up to date")
 	}
-	if got, want := rs.requiredChecks(t), map[string]float64{"ci / ci-ok": 15368}; !reflect.DeepEqual(got, want) {
+	if got, want := rs.requiredChecks(t), map[string]float64{"ci / ci-ok": 15368, "Changelog (checkpoint into main)": 15368}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("required checks %v, want %v", got, want)
 	}
 }
