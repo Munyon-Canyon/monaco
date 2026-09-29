@@ -34,7 +34,7 @@ final class DiagnosticPayloadStoreTests: XCTestCase {
         let store = DiagnosticPayloadStore(directory: root, maxFiles: 3, now: { clock.tick() })
 
         for index in 0..<7 {
-            try store.save(Data("\(index)".utf8), kind: "diagnostic").get()
+            _ = try store.save(Data("\(index)".utf8), kind: "diagnostic").get()
         }
 
         let kept = try store.storedFiles().map { String(decoding: try Data(contentsOf: $0), as: UTF8.self) }
@@ -45,9 +45,9 @@ final class DiagnosticPayloadStoreTests: XCTestCase {
         let old = DiagnosticPayloadStore(directory: root, maxFiles: 2, now: { Date(timeIntervalSince1970: 1_000) })
         let recent = DiagnosticPayloadStore(directory: root, maxFiles: 2, now: { Date(timeIntervalSince1970: 9_000) })
 
-        try recent.save(Data("recent-a".utf8), kind: "diagnostic").get()
-        try recent.save(Data("recent-b".utf8), kind: "diagnostic").get()
-        try old.save(Data("old".utf8), kind: "diagnostic").get()
+        _ = try recent.save(Data("recent-a".utf8), kind: "diagnostic").get()
+        _ = try recent.save(Data("recent-b".utf8), kind: "diagnostic").get()
+        _ = try old.save(Data("old".utf8), kind: "diagnostic").get()
 
         let kept = try Set(old.storedFiles().map { String(decoding: try Data(contentsOf: $0), as: UTF8.self) })
         XCTAssertEqual(kept, ["recent-a", "recent-b"])
