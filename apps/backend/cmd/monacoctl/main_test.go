@@ -12,6 +12,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
 func TestMain(m *testing.M) {
@@ -66,23 +67,53 @@ func TestMain_docsFlowsRendersTheRepoTSVFromTheBackendDir(t *testing.T) {
 	}
 }
 
-func TestMain_flowsCheckReadsTestResultsFromStdinOrFrom(t *testing.T) {
+func TestMain_flowsCheckReadsTestResultsFromStdinOrFromUnlessStructureOnly(t *testing.T) {
 	t.Parallel()
-	results := pass("TestFlow999999_NoSuchFlow")
+	repo := t.TempDir()
+	backend := filepath.Join(repo, backendDir)
+	for file, body := range map[string]string{
+		filepath.Join(backend, flows.File):                            flows.Header + "\n00\tPing\tsystem\tGET /healthz\tPing\t\t\tok\tbuilt\tdocs/flows.md#ping\n",
+		filepath.Join(backend, "go.mod"):                              "module fixture\n",
+		filepath.Join(backend, "internal/modules/system/app/ping.go"): "package app\n\ntype Ping struct{}\n",
+		filepath.Join(repo, "docs/flows.md"):                          "# Ping\n",
+	} {
+		if err := os.MkdirAll(filepath.Dir(file), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(file, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	results := pass("TestFlow00_Ping_OK", "TestFlow999999_NoSuchFlow")
 	from := filepath.Join(t.TempDir(), "go-test.json")
 	if err := os.WriteFile(from, []byte(results), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	want := "test TestFlow999999_NoSuchFlow matches no flow outcome"
-	for name, run := range map[string]func() (int, string, string){
-		"stdin": func() (int, string, string) { return monacoctl(t, backendRoot(t), results, "flows", "check") },
-		"from": func() (int, string, string) {
-			return monacoctl(t, backendRoot(t), "", "flows", "check", "--from", from)
+	want := "flows.tsv: test TestFlow999999_NoSuchFlow matches no flow outcome; delete the test or add its row\n"
+	for _, tc := range []struct {
+		name   string
+		stdin  string
+		args   []string
+		code   int
+		stderr string
+	}{
+		{"stdin", results, []string{"flows", "check"}, 1, want},
+		{"from", "", []string{"flows", "check", "--from", from}, 1, want},
+		{
+			"no results", "",
+			[]string{"flows", "check"},
+			1,
+			"flows.tsv:2: outcome ok has no test TestFlow00_Ping_OK in the go test -json input\n",
 		},
+		{"structure only skips the test check", "", []string{"flows", "check", "--structure-only"}, 0, ""},
 	} {
-		if code, stdout, stderr := run(); code != 1 || stdout != "" || !strings.Contains(stderr, want) {
-			t.Fatalf("%s: code=%d stdout=%q stderr=%q, want 1 and %q", name, code, stdout, stderr, want)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			code, stdout, stderr := monacoctl(t, backend, tc.stdin, tc.args...)
+			if code != tc.code || stdout != "" || stderr != tc.stderr {
+				t.Fatalf("code=%d stdout=%q stderr=%q, want %d and %q", code, stdout, stderr, tc.code, tc.stderr)
+			}
+		})
 	}
 }
 

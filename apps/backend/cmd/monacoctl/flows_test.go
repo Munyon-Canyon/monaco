@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"os"
 	"os/exec"
@@ -12,7 +13,9 @@ import (
 	"testing/iotest"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
@@ -27,7 +30,10 @@ func (echoModule) Name() string { return "system" }
 
 func (echoModule) Routes(*httpx.Routes) {}
 
-func (echoModule) Consumers() []bus.Consumer { return []bus.Consumer{{Durable: "system.echo"}} }
+func (echoModule) Consumers() []bus.Consumer {
+	echo := bus.Handle("system.echo", func(context.Context, db.Tx, events.SystemPinged) error { return nil })
+	return []bus.Consumer{{Durable: "system_echo", Handlers: []bus.HandlerSpec{echo}}}
+}
 
 func (echoModule) Pollers() []poller.Poller { return []poller.Poller{poller.NewRetention(nil, nil)} }
 
@@ -65,22 +71,30 @@ func pass(names ...string) string {
 func TestFlowsCheck(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name   string
-		tsv    string
-		tests  string
-		code   int
-		stderr string
+		name          string
+		tsv           string
+		tests         string
+		structureOnly bool
+		code          int
+		stderr        string
 	}{
-		{"header only", flows.Header + "\n", "", 0, ""},
-		{"built row with every test passing", flows.Header + "\n" + pingRow + "\n", pass("TestFlow01_Ping_OK", "TestFlow01_Ping_Internal"), 0, ""},
+		{"header only", flows.Header + "\n", "", false, 0, ""},
+		{"built row with every test passing", flows.Header + "\n" + pingRow + "\n", pass("TestFlow01_Ping_OK", "TestFlow01_Ping_Internal"), false, 0, ""},
 		{
-			"built row missing a test", flows.Header + "\n" + pingRow + "\n", pass("TestFlow01_Ping_OK"), 1,
+			"built row missing a test", flows.Header + "\n" + pingRow + "\n", pass("TestFlow01_Ping_OK"), false, 1,
 			"flows.tsv:2: outcome Internal has no test TestFlow01_Ping_Internal in the go test -json input\n",
+		},
+		{"structure only skips the test check", flows.Header + "\n" + pingRow + "\n", "", true, 0, ""},
+		{
+			"structure only still checks the columns", flows.Header + "\n" +
+				strings.Replace(pingRow, "system.pinged", "system.exploded", 1) + "\n",
+			"", true, 1,
+			"flows.tsv:2: event system.exploded is not in the events registry\n",
 		},
 		{
 			"live registry and errs table", flows.Header + "\n" +
 				strings.Replace(strings.Replace(pingRow, "system.pinged", "system.pinged;system.exploded", 1), "ok;Internal\tbuilt", "ok;Internal;NoSuchCode;crash:before-commit;crash:after-lunch\tplanned", 1) + "\n",
-			"", 1,
+			"", false, 1,
 			"flows.tsv:2: event system.exploded is not in the events registry\n" +
 				"flows.tsv:2: outcome NoSuchCode is not an errs code name\n" +
 				"flows.tsv:2: outcome crash:after-lunch is not a registered faultpoint\n",
@@ -89,8 +103,8 @@ func TestFlowsCheck(t *testing.T) {
 			"live routes, commands and consumers", flows.Header + "\n" +
 				"02\tPong\tsystem\tPOST /v1/pong\tPong\t\tghost.durable\tok\tplanned\tdocs/flows.md#ping\n" +
 				"03\tHealth\tsystem\tGET /healthz\tPing\t\t\tok\tplanned\tdocs/flows.md#ping\n" +
-				"04\tPinged\tsystem\tconsumer:system.pinged\tPing\t\tsystem.echo\tok\tplanned\tdocs/flows.md#ping\n",
-			"", 1,
+				"04\tPinged\tsystem\tconsumer:system.pinged\tPing\t\tsystem.echo;system_echo\tok\tplanned\tdocs/flows.md#ping\n",
+			"", false, 1,
 			"flows.tsv:2: trigger POST /v1/pong is not a route, subject or poller\n" +
 				"flows.tsv:2: command Pong is not a type in internal/modules/system/app\n" +
 				"flows.tsv:2: consumer ghost.durable is not a registered durable\n",
@@ -99,7 +113,7 @@ func TestFlowsCheck(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var stderr bytes.Buffer
-			code := flowsCheck(envWith(t, tc.tsv), strings.NewReader(tc.tests), &stderr)
+			code := flowsCheck(envWith(t, tc.tsv), strings.NewReader(tc.tests), tc.structureOnly, &stderr)
 			if code != tc.code || stderr.String() != tc.stderr {
 				t.Fatalf("code=%d stderr=\n%s\nwant code=%d stderr=\n%s", code, stderr.String(), tc.code, tc.stderr)
 			}
@@ -112,14 +126,14 @@ func TestFlowsCheck_missingFileFails(t *testing.T) {
 	env := envWith(t, "")
 	env.Repo = fstest.MapFS{}
 	var stderr bytes.Buffer
-	if code := flowsCheck(env, nil, &stderr); code != 1 || !strings.Contains(stderr.String(), "flows.tsv") {
+	if code := flowsCheck(env, nil, false, &stderr); code != 1 || !strings.Contains(stderr.String(), "flows.tsv") {
 		t.Fatalf("code=%d stderr=%q", code, stderr.String())
 	}
 }
 
 func TestFlowsRejectsUnknownArguments(t *testing.T) {
 	t.Parallel()
-	for _, args := range [][]string{{"flows"}, {"flows", "lint"}, {"flows", "check", "--from"}, {"flows", "check", "-x", "f"}} {
+	for _, args := range [][]string{{"flows"}, {"flows", "lint"}, {"flows", "check", "--from"}, {"flows", "check", "-x", "f"}, {"flows", "check", "--structure-only", "x"}} {
 		var stdout, stderr bytes.Buffer
 		code := run(commands(), tools(nil), nil, args, &stdout, &stderr)
 		if code != 2 || stderr.String() != flowsUsage+"\n" {
@@ -212,7 +226,7 @@ func TestGitFresh_failsWhenGitCannotRun(t *testing.T) {
 func TestFlowsCheck_failsWhenTheTestResultsCannotBeRead(t *testing.T) {
 	t.Parallel()
 	var stderr bytes.Buffer
-	code := flowsCheck(envWith(t, flows.Header+"\n"), iotest.ErrReader(io.ErrUnexpectedEOF), &stderr)
+	code := flowsCheck(envWith(t, flows.Header+"\n"), iotest.ErrReader(io.ErrUnexpectedEOF), false, &stderr)
 	if code != 1 || !strings.HasPrefix(stderr.String(), "monacoctl flows check: ") ||
 		!strings.Contains(stderr.String(), io.ErrUnexpectedEOF.Error()) {
 		t.Fatalf("code=%d stderr=%q", code, stderr.String())
