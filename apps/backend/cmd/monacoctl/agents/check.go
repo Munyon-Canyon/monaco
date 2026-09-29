@@ -26,6 +26,7 @@ import (
 const (
 	excerptLines = 8
 	openAPISpec  = "apps/backend/api/openapi.yaml"
+	vacuumLint   = "dshanley/vacuum:v0.30.6 lint -b -q -n warn -r /api/.vacuum.yaml /api/openapi.yaml"
 )
 
 var (
@@ -39,6 +40,7 @@ type checkRow struct {
 	dir    string
 	cmds   [][]string
 	goJSON bool
+	skip   string
 }
 
 type timing struct {
@@ -69,11 +71,12 @@ func checkCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 		_, _ = fmt.Fprintf(stdout, "stage 0 already passed on tree %s\n", tree[:12])
 		return nil
 	}
-	rows, err := env.stage0(ctx, base)
+	parent := env.stackParent(ctx, base)
+	rows, err := env.stage0(ctx, base, parent, head)
 	if err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintf(stdout, "stage 0 on tree %s (base %s)\n", tree[:12], base)
+	_, _ = fmt.Fprintf(stdout, "stage 0 on tree %s (base %s, parent %s)\n", tree[:12], base, parent)
 	run := &checkRun{env: env, start: env.Now()}
 	runErr := run.rows(ctx, rows, stdout)
 	logPath, err := env.writeState("logs", "check-"+tree[:12]+".log", run.log.Bytes())
@@ -124,13 +127,22 @@ func (env *Env) writeState(sub, name string, body []byte) (string, error) {
 	return p, nil
 }
 
-func (env *Env) stage0(ctx context.Context, base string) ([]checkRow, error) {
+func (env *Env) stackParent(ctx context.Context, base string) string {
+	out, err := env.Run(ctx, env.Work, "", "gt", "parent", "--no-interactive")
+	parent, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
+	if err != nil || parent == "" || parent == env.Config.FeatureBranch {
+		return base
+	}
+	return parent
+}
+
+func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkRow, error) {
 	out, err := env.Run(ctx, env.Work, "", "git", "diff", "--name-only", "--diff-filter=d", base+"...HEAD")
 	if err != nil {
 		return nil, fmt.Errorf("diff against %s: %w", base, err)
 	}
 	changed := strings.Fields(string(out))
-	var rows []checkRow
+	rows := env.prRows(parent, head)
 	if slices.ContainsFunc(changed, func(f string) bool { return strings.HasPrefix(f, "apps/backend/") }) {
 		goRows, err := env.goRows(ctx, base)
 		if err != nil {
@@ -148,7 +160,131 @@ func (env *Env) stage0(ctx context.Context, base string) ([]checkRow, error) {
 			cmds: [][]string{{"swift", "test"}},
 		})
 	}
+	return env.pathRows(ctx, rows, changed, parent, head)
+}
+
+func (env *Env) prRows(parent, head string) []checkRow {
+	vars := []string{"env", "BASE_SHA=" + parent, "HEAD_SHA=" + head, "PR_LABELS=[]", "python3"}
+	return []checkRow{
+		{label: "pr size", kind: "pr", dir: env.Work, cmds: [][]string{
+			append(slices.Clone(vars), "scripts/check-pr-size.py"),
+		}},
+		{label: "gate changes", kind: "pr", dir: env.Work, cmds: [][]string{
+			append(slices.Clone(vars), "scripts/check-gate-changes.py"),
+		}},
+	}
+}
+
+func (env *Env) pathRows(
+	ctx context.Context,
+	rows []checkRow,
+	changed []string,
+	parent, head string,
+) ([]checkRow, error) {
+	for _, r := range []struct {
+		paths []string
+		build func() (checkRow, error)
+	}{
+		{
+			[]string{"apps/backend/", "scripts/ci/ready.sh", "scripts/gen-docs.sh", "scripts/install-sqlc.sh"},
+			env.readyRow,
+		},
+		{
+			[]string{
+				"apps/backend/migrations/", "apps/backend/atlas.hcl", "apps/backend/.atlas-version",
+				"scripts/install-atlas.sh",
+			},
+			env.migrateRow,
+		},
+		{
+			[]string{
+				openAPISpec, "apps/backend/api/.vacuum.yaml", "scripts/ci/oasdiff-breaking.sh",
+				"scripts/ci/oasdiff-breaking-test.sh", "scripts/ci/oasdiff-levels.txt",
+			},
+			func() (checkRow, error) { return env.openAPIRow(ctx, parent, head) },
+		},
+		{[]string{"docs/", "mkdocs.yml", "requirements-docs.txt", openAPISpec}, env.docsRow},
+	} {
+		if !slices.ContainsFunc(changed, func(f string) bool { return underAny(f, r.paths) }) {
+			continue
+		}
+		row, err := r.build()
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, row)
+	}
 	return rows, nil
+}
+
+func underAny(file string, paths []string) bool {
+	return slices.ContainsFunc(paths, func(p string) bool {
+		return file == p || strings.HasSuffix(p, "/") && strings.HasPrefix(file, p)
+	})
+}
+
+func (env *Env) readyRow() (checkRow, error) {
+	return checkRow{
+		label: "ready", kind: "ready", dir: env.Work,
+		cmds: append(env.installUnlessPresent("sqlc"), []string{"scripts/ci/ready.sh"}),
+	}, nil
+}
+
+func (env *Env) migrateRow() (checkRow, error) {
+	return checkRow{
+		label: "migrate lint", kind: "migrate", dir: filepath.Join(env.Work, "apps", "backend"),
+		cmds: append(env.installUnlessPresent("atlas"), []string{"go", "run", "./cmd/monacoctl", "migrate", "lint"}),
+	}, nil
+}
+
+func (env *Env) installUnlessPresent(tool string) [][]string {
+	if isFile(filepath.Join(env.Work, ".bin", tool)) {
+		return nil
+	}
+	return [][]string{{filepath.Join(env.Work, "scripts", "install-"+tool+".sh")}}
+}
+
+func isFile(name string) bool {
+	info, err := os.Stat(name)
+	return err == nil && info.Mode().IsRegular()
+}
+
+func (env *Env) openAPIRow(ctx context.Context, parent, head string) (checkRow, error) {
+	api := filepath.Join(env.Work, "apps", "backend", "api")
+	row := checkRow{label: "openapi", kind: "openapi", dir: env.Work, cmds: [][]string{
+		slices.Concat([]string{"docker", "run", "--rm", "-v", api + ":/api:ro"}, strings.Fields(vacuumLint)),
+		{"scripts/ci/oasdiff-breaking-test.sh"},
+	}}
+	spec := env.specAt(ctx, parent)
+	if spec == nil {
+		return row, nil
+	}
+	file, err := env.writeState("openapi", head[:12]+".yaml", spec)
+	if err != nil {
+		return checkRow{}, err
+	}
+	row.cmds = append(row.cmds, []string{"scripts/ci/oasdiff-breaking.sh", file, openAPISpec})
+	return row, nil
+}
+
+func (env *Env) specAt(ctx context.Context, ref string) []byte {
+	spec, err := env.Run(ctx, env.Work, "", "git", "show", ref+":"+openAPISpec)
+	if err != nil {
+		return nil
+	}
+	return spec
+}
+
+func (env *Env) docsRow() (checkRow, error) {
+	row := checkRow{label: "mkdocs", kind: "docs", dir: env.Work}
+	for _, root := range []string{env.Work, filepath.Dir(env.Common)} {
+		if bin := filepath.Join(root, ".venv", "bin", "mkdocs"); isFile(bin) {
+			row.cmds = [][]string{{"env", "NO_MKDOCS_2_WARNING=true", bin, "build", "--strict", "--site-dir", "site"}}
+			return row, nil
+		}
+	}
+	row.skip = "no .venv/bin/mkdocs here or in the main checkout; README's docs site row installs it"
+	return row, nil
 }
 
 func (env *Env) goRows(ctx context.Context, base string) ([]checkRow, error) {
@@ -169,12 +305,17 @@ func (env *Env) goRows(ctx context.Context, base string) ([]checkRow, error) {
 	running := len(slices.DeleteFunc(records, func(r Record) bool { return r.State == Exited }))
 	p := strconv.Itoa(testParallelism(runtime.NumCPU(), running))
 	tags := []string{"-tags", "faultpoints"}
+	lint, err := env.lintRow(ctx, backend, pkgs)
+	if err != nil {
+		return nil, err
+	}
 	return []checkRow{
 		{
 			label: "go build", kind: "go", dir: backend,
 			cmds: [][]string{slices.Concat([]string{"go", "build"}, tags, buildable(backend, pkgs))},
 		},
 		{label: "go vet", kind: "go", dir: backend, cmds: [][]string{slices.Concat([]string{"go", "vet"}, tags, pkgs)}},
+		lint,
 		{
 			label: "go test -short", kind: "go", dir: backend, goJSON: true,
 			cmds: [][]string{slices.Concat(
@@ -182,6 +323,29 @@ func (env *Env) goRows(ctx context.Context, base string) ([]checkRow, error) {
 			)},
 		},
 	}, nil
+}
+
+func (env *Env) lintRow(ctx context.Context, backend string, pkgs []string) (checkRow, error) {
+	pin, err := os.ReadFile(filepath.Join(backend, ".golangci-lint-version"))
+	if err != nil {
+		return checkRow{}, fmt.Errorf("read the golangci-lint pin: %w", err)
+	}
+	want := strings.TrimSpace(string(pin))
+	out, err := env.Run(ctx, backend, "", "golangci-lint", "version", "--short")
+	have := "v" + strings.TrimPrefix(strings.TrimSpace(string(out)), "v")
+	if err != nil {
+		have = "none"
+	}
+	if have != want {
+		install := "go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@" + want
+		return checkRow{}, detailErr(errs.CodeInvalidInput, "monacoctl.agents.check",
+			fmt.Sprintf("golangci-lint on PATH is %s and CI pins %s; run: %s", have, want, install))
+	}
+	return checkRow{label: "go lint", kind: "lint", dir: backend, cmds: [][]string{
+		slices.Concat([]string{"golangci-lint", "run"}, pkgs),
+		slices.Concat([]string{"go", "run", "./internal/platform/lint/nogo/cmd/nogo"}, pkgs),
+		{"go", "run", "./cmd/monacoctl", "lint", "comments"},
+	}}, nil
 }
 
 func testParallelism(cpus, running int) int {
@@ -296,12 +460,19 @@ func (r *checkRun) rows(ctx context.Context, rows []checkRow, stdout io.Writer) 
 }
 
 func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) error {
+	if row.skip != "" {
+		_, _ = fmt.Fprintf(stdout, "  %-15s skip  %s\n", row.label, row.skip)
+		_, _ = fmt.Fprintf(&r.log, "skip %s: %s\n", row.label, row.skip)
+		return nil
+	}
 	budget := r.env.Config.Budget[row.kind]
 	ctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
 	rowStart, first := r.env.Now(), len(r.timings)
+	warnings := 0
 	for _, cmd := range row.cmds {
 		text, err := r.exec(ctx, row, cmd)
+		warnings += strings.Count(text, "::warning ")
 		if r.env.Now().Sub(rowStart) > budget {
 			return r.overBudget(stdout, row, budget, rowStart, r.timings[first:])
 		}
@@ -313,7 +484,11 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 			return detailErr(errs.CodeInvalidInput, "monacoctl.agents.check", row.label+" failed; see the log")
 		}
 	}
-	_, _ = fmt.Fprintf(stdout, "  %-15s ok    %.1fs\n", row.label, r.env.Now().Sub(rowStart).Seconds())
+	note := ""
+	if warnings > 0 {
+		note = fmt.Sprintf("  %d warnings in the log", warnings)
+	}
+	_, _ = fmt.Fprintf(stdout, "  %-15s ok    %.1fs%s\n", row.label, r.env.Now().Sub(rowStart).Seconds(), note)
 	return nil
 }
 
