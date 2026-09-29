@@ -163,7 +163,8 @@ func TestGen_otherArgsPrintUsage(t *testing.T) {
 	for _, args := range [][]string{nil, {"errors"}, {"events", "x"}, {"errors", "a", "b"}} {
 		var stdout, stderr bytes.Buffer
 		if code := gen(args, &stdout, &stderr); code != 2 ||
-			stderr.String() != "usage: monacoctl gen errors <openapi.yaml>\n" {
+			!strings.HasPrefix(stderr.String(), "usage: monacoctl gen errors <openapi.yaml>\n") ||
+			!strings.Contains(stderr.String(), "\n       monacoctl gen module <name>\n") {
 			t.Fatalf("gen %v = %d %q, want 2 and usage", args, code, stderr.String())
 		}
 	}

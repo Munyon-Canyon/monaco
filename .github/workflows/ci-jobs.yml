@@ -133,7 +133,7 @@ jobs:
         run: ../../scripts/test-backend.sh
 
       - name: Tests that -short skips because they build or run other binaries
-        run: go test -race ./internal/platform/ids/... ./internal/platform/lint/... ./internal/testkit/... ./cmd/monacoctl
+        run: go test -race ./internal/platform/ids/... ./internal/platform/lint/... ./internal/testkit/... ./internal/tools/gen/... ./cmd/monacoctl
 
   ready:
     name: Ready (vet on go.mod's Go, tidy, generated files)

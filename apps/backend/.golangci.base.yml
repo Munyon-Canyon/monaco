@@ -160,7 +160,7 @@ linters:
     rules:
       - path: _test\.go$
         linters: [funlen, err113, wrapcheck]
-      - path: ^internal/platform/lint/.*_test\.go$
+      - path: ^internal/(platform/lint|tools/gen)/.*_test\.go$
         linters: [gosec]
       - path: _test\.go$
         linters: [gosec]
