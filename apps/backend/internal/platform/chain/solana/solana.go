@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -19,6 +20,7 @@ import (
 
 const (
 	maxBody     = 4 << 20
+	mintTTL     = time.Hour
 	maxStatuses = 256
 )
 
@@ -26,6 +28,13 @@ type Client struct {
 	rpc   *httpclient.Client
 	path  string
 	clock clock.Clock
+	mu    sync.Mutex
+	mints map[chain.SolanaAddress]cachedMint
+}
+
+type cachedMint struct {
+	cfg MintConfig
+	at  time.Time
 }
 
 func New(cfg config.Config, clk clock.Clock, opts ...httpclient.Option) *Client {
@@ -42,6 +51,7 @@ func New(cfg config.Config, clk clock.Clock, opts ...httpclient.Option) *Client 
 		}, opts...)...),
 		path:  path,
 		clock: clk,
+		mints: map[chain.SolanaAddress]cachedMint{},
 	}
 }
 
