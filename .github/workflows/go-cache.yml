@@ -1,0 +1,41 @@
+name: Warm the Go cache for the feature branch
+
+# PR and merge-queue runs restore the Go cache through backend-test-env and never save it. They can
+# restore only caches saved on their base branch, so a go.mod or go.sum change on the base saves a
+# fresh one here. The key matches nightly.yml's warm-cache job.
+on:
+  push:
+    branches: [backend-rewrite-3, main]
+    paths:
+      - apps/backend/go.mod
+      - apps/backend/go.sum
+      - .github/workflows/go-cache.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  warm:
+    name: Build apps/backend and save the Go cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/backend-test-env
+        with:
+          db: 'false'
+
+      - name: Build apps/backend
+        working-directory: apps/backend
+        run: go build ./...
+
+      - uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-${{ github.sha }}

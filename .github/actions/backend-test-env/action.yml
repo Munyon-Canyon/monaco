@@ -1,6 +1,6 @@
 name: Backend test environment
 description: >-
-  Everything apps/backend tests need on a fresh runner: Go from go.mod, the Go cache nightly saved,
+  Everything apps/backend tests need on a fresh runner: Go from go.mod, the Go cache go-cache.yml saved,
   the pinned atlas that builds the testkit template database, the pinned sqlc, and the tmpfs test Postgres.
   With db false, only Go and the Go cache.
 inputs:
@@ -16,7 +16,8 @@ runs:
         go-version-file: apps/backend/go.mod
         cache: false
 
-    # Only the nightly warm-cache job on main saves this cache. PRs restore and never save.
+    # go-cache.yml (on a push to backend-rewrite-3 or main) and the nightly warm-cache job save this
+    # cache. PRs and the merge queue restore and never save.
     - uses: actions/cache/restore@v4
       with:
         path: |
@@ -24,6 +25,17 @@ runs:
           ~/.cache/go-build
         key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
         restore-keys: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
+
+    - name: Download Go modules, retrying proxy errors
+      shell: bash
+      working-directory: apps/backend
+      run: |
+        for attempt in 1 2 3; do
+          go mod download && exit 0
+          echo "::warning::go mod download failed (attempt $attempt of 3)"
+          sleep $((attempt * 10))
+        done
+        exit 1
 
     - name: Tools the workflows and scripts invoke
       shell: bash
