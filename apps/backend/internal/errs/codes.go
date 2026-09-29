@@ -18,6 +18,8 @@ const (
 	CodeVersionConflict     Code = "version_conflict"
 	CodeUpstreamUnavailable Code = "upstream_unavailable"
 	CodeUpstreamTimeout     Code = "upstream_timeout"
+	CodeJupiterUnavailable  Code = "jupiter_unavailable"
+	CodeJupiterRejected     Code = "jupiter_rejected"
 	CodeDBUnavailable       Code = "db_unavailable"
 	CodeDBSchemaBehind      Code = "db_schema_behind"
 	CodeDecodeFailed        Code = "decode_failed"
@@ -74,6 +76,14 @@ func table() map[Code]Row {
 		CodeUpstreamTimeout: {
 			Name: "UpstreamTimeout", Kind: KindUnavailable, Retryable: true,
 			Message: "A provider timed out. Try again shortly.",
+		},
+		CodeJupiterUnavailable: {
+			Name: "JupiterUnavailable", Kind: KindUnavailable, Retryable: true,
+			Message: "The swap venue is unavailable. Try again shortly.",
+		},
+		CodeJupiterRejected: {
+			Name: "JupiterRejected", Kind: KindBlocked,
+			Message: "The swap venue refused this trade.",
 		},
 		CodeDBUnavailable: {
 			Name: "DBUnavailable", Kind: KindUnavailable, Retryable: true,

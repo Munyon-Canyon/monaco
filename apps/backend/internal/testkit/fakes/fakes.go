@@ -27,12 +27,13 @@ const (
 )
 
 type Step struct {
-	Route  string          `json:"route"`
-	Action Action          `json:"action"`
-	Status int             `json:"status,omitempty"`
-	Body   json.RawMessage `json:"body,omitempty"`
-	Delay  string          `json:"delay,omitempty"`
-	Times  int             `json:"times,omitempty"`
+	Route   string          `json:"route"`
+	Action  Action          `json:"action"`
+	Status  int             `json:"status,omitempty"`
+	Body    json.RawMessage `json:"body,omitempty"`
+	Delay   string          `json:"delay,omitempty"`
+	Times   int             `json:"times,omitempty"`
+	Fixture string          `json:"fixture,omitempty"`
 }
 
 type fixture struct {
@@ -42,11 +43,12 @@ type fixture struct {
 }
 
 type scripted struct {
-	action Action
-	status int
-	body   []byte
-	delay  time.Duration
-	left   int
+	action  Action
+	status  int
+	body    []byte
+	delay   time.Duration
+	left    int
+	fixture string
 }
 
 type fieldError string
@@ -90,6 +92,9 @@ func (s *Server) script(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sc, err := parse(step, s.upstreams)
+	if err == nil && !s.replayable(step) {
+		err = fieldError("fixture")
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -108,7 +113,9 @@ func parse(step Step, upstreams []string) (*scripted, error) {
 	if step.Times < 0 {
 		return nil, fieldError("times")
 	}
-	sc := &scripted{action: step.Action, status: step.Status, body: step.Body, left: max(step.Times, 1)}
+	sc := &scripted{
+		action: step.Action, status: step.Status, body: step.Body, left: max(step.Times, 1), fixture: step.Fixture,
+	}
 	switch step.Action {
 	case ActionSucceed, ActionHang:
 	case ActionFail:
@@ -125,6 +132,15 @@ func parse(step Step, upstreams []string) (*scripted, error) {
 		return nil, fieldError("action")
 	}
 	return sc, nil
+}
+
+func (s *Server) replayable(step Step) bool {
+	if step.Fixture == "" {
+		return true
+	}
+	upstream, _, _ := strings.Cut(strings.TrimPrefix(step.Route, "/"), "/")
+	_, ok := s.fixtures[step.Fixture]
+	return ok && step.Action == ActionSucceed && strings.HasPrefix(step.Fixture, "/"+upstream+"/")
 }
 
 func (s *Server) next(route string) scripted {
@@ -166,6 +182,9 @@ func (s *Server) replay(upstream string) http.HandlerFunc {
 			case <-t.C:
 			}
 		case ActionSucceed:
+		}
+		if step.fixture != "" {
+			route = step.fixture
 		}
 		f, ok := s.fixtures[route]
 		if !ok {
