@@ -1,0 +1,21 @@
+# Rules a hook or CI check already enforces. Briefs must not restate these lines.
+conventional commit
+inline pr body
+gt submit --publish
+gh pr ready
+local mutation
+gremlins
+monacoctl mutation
+git push
+git rebase
+merge without verify
+1000 changed lines
+ready job
+poteto-agent
+subagent_type
+general-purpose
+fable
+land, then write
+gt sync
+gh run watch
+pr checks --watch

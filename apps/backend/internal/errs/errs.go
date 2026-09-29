@@ -15,6 +15,7 @@ const (
 	KindNotFound
 	KindConflict
 	KindBlocked
+	KindRateLimited
 	KindUnavailable
 	KindInternal
 )
@@ -66,6 +67,8 @@ func HTTPStatus(kind Kind) int {
 		return http.StatusConflict
 	case KindBlocked:
 		return http.StatusUnprocessableEntity
+	case KindRateLimited:
+		return http.StatusTooManyRequests
 	case KindUnavailable:
 		return http.StatusServiceUnavailable
 	case KindInternal:
@@ -87,4 +90,13 @@ func VerdictFor(code Code) Verdict {
 		return VerdictNak
 	}
 	return VerdictTerm
+}
+
+func Detail(err error) []slog.Attr {
+	var detail []slog.Attr
+	var e *Error
+	for cur := err; errors.As(cur, &e); cur = e.Err {
+		detail = append(detail, e.Attrs...)
+	}
+	return detail
 }

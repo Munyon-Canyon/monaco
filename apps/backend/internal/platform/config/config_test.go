@@ -31,6 +31,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 		Worker: config.Worker{HealthAddr: ":8081"},
 		DB:     config.DB{URL: "postgres://monaco@localhost:54322/monaco", MaxConns: 10},
 		NATS:   config.NATS{URL: "nats://localhost:4222"},
+		Bus:    config.Bus{APIRelay: true},
 		OTel:   config.OTel{ServiceName: "monaco"},
 		Timeouts: config.Timeouts{
 			RPC:             5 * time.Second,
@@ -40,6 +41,12 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 			HTTPServerRead:  10 * time.Second,
 			HTTPServerWrite: 30 * time.Second,
 			Shutdown:        10 * time.Second,
+		},
+		Jupiter: config.Jupiter{SwapBaseURL: "https://api.jup.ag/swap/v2", PriceBaseURL: "https://api.jup.ag/price/v3"},
+		Privy:   config.Privy{BaseURL: "https://api.privy.io"},
+		Solana: config.Solana{
+			RPCURL:   "https://api.mainnet-beta.solana.com",
+			USDCMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
 		},
 	}
 	if !reflect.DeepEqual(cfg, want) {
@@ -53,6 +60,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"MONACO_ENV=production",
 		"MONACO_HTTP_ADDR=127.0.0.1:9000",
 		"MONACO_HTTP_MAX_BODY_BYTES=4096",
+		"TRUST_PROXY_HEADERS=true",
 		"MONACO_WORKER_HEALTH_ADDR=127.0.0.1:9001",
 		"DATABASE_URL=postgres://prod",
 		"MONACO_DB_MAX_CONNS=40",
@@ -68,17 +76,33 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"MONACO_TIMEOUT_HTTP_SERVER_READ=5s",
 		"MONACO_TIMEOUT_HTTP_SERVER_WRITE=6s",
 		"MONACO_TIMEOUT_SHUTDOWN=7s",
+		"MONACO_JUPITER_SWAP_BASE_URL=http://fakes/jupiter/swap/v2",
+		"MONACO_JUPITER_PRICE_BASE_URL=http://fakes/jupiter/price/v3",
+		"JUPITER_API_KEY=jup-secret",
+		"PRIVY_APP_ID=app-id",
+		"PRIVY_APP_SECRET=app-secret",
+		"PRIVY_VERIFICATION_KEY=verification-pem",
+		"PRIVY_AUTHORIZATION_PRIVATE_KEY=wallet-auth:key",
+		"PRIVY_AUTHORIZATION_KEY_ID=quorum-id",
+		"PRIVY_WEBHOOK_SECRET=whsec_x",
+		"PRIVY_BASE_URL=http://fakes/privy",
+		"SOLANA_RPC_URL=http://fakes/rpc",
+		"SOLANA_USDC_MINT=mint",
+		"RELAYER_PRIVATE_KEY=relayer-key",
 		"MONACO_FAULTPOINT=before-commit",
+		"MONACO_BUS_ACK_WAIT=100ms",
+		"MONACO_BUS_API_RELAY=off",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := config.Config{
 		Env:    config.EnvProduction,
-		HTTP:   config.HTTP{Addr: "127.0.0.1:9000", MaxBodyBytes: 4096},
+		HTTP:   config.HTTP{Addr: "127.0.0.1:9000", MaxBodyBytes: 4096, TrustProxyHeaders: true},
 		Worker: config.Worker{HealthAddr: "127.0.0.1:9001"},
 		DB:     config.DB{URL: "postgres://prod", MaxConns: 40},
 		NATS:   config.NATS{URL: "nats://prod:4222"},
+		Bus:    config.Bus{AckWait: 100 * time.Millisecond},
 		OTel: config.OTel{
 			Endpoint:    "https://otlp.example",
 			Headers:     "Authorization=Basic abc",
@@ -94,6 +118,18 @@ func TestLoadReadsEveryKey(t *testing.T) {
 			HTTPServerWrite: 6 * time.Second,
 			Shutdown:        7 * time.Second,
 		},
+		Jupiter: config.Jupiter{
+			SwapBaseURL:  "http://fakes/jupiter/swap/v2",
+			PriceBaseURL: "http://fakes/jupiter/price/v3",
+			APIKey:       "jup-secret",
+		},
+		Privy: config.Privy{
+			AppID: "app-id", AppSecret: "app-secret", VerificationKey: "verification-pem",
+			AuthorizationPrivateKey: "wallet-auth:key", AuthorizationKeyID: "quorum-id",
+			WebhookSecret: "whsec_x", BaseURL: "http://fakes/privy",
+		},
+		Solana:     config.Solana{RPCURL: "http://fakes/rpc", USDCMint: "mint"},
+		Relayer:    config.Relayer{PrivateKey: "relayer-key"},
 		Faultpoint: "before-commit",
 	}
 	if !reflect.DeepEqual(cfg, want) {
@@ -159,6 +195,17 @@ func TestLoadFailures(t *testing.T) {
 				"MONACO_TIMEOUT_SHUTDOWN (positive duration like 5s)",
 		},
 		{
+			name:    "bus knobs",
+			environ: append(required(), "MONACO_BUS_ACK_WAIT=0s", "MONACO_BUS_API_RELAY=maybe"),
+			want: "config.Load: invalid_input: invalid MONACO_BUS_ACK_WAIT (empty or a positive duration like 100ms), " +
+				"MONACO_BUS_API_RELAY (on or off)",
+		},
+		{
+			name:    "trust proxy headers not a boolean",
+			environ: append(required(), "TRUST_PROXY_HEADERS=render"),
+			want:    "config.Load: invalid_input: invalid TRUST_PROXY_HEADERS (true or false)",
+		},
+		{
 			name:    "max conns past int32",
 			environ: append(required(), "MONACO_DB_MAX_CONNS=2147483648"),
 			want:    "config.Load: invalid_input: invalid MONACO_DB_MAX_CONNS (positive integer)",
@@ -202,10 +249,16 @@ func TestLoadErrorNeverEchoesAValue(t *testing.T) {
 func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 	t.Parallel()
 	secrets := map[string]string{
-		"DATABASE_URL":               "postgres://db-secret@host/db",
-		"NATS_URL":                   "nats://token-secret@host:4222",
-		"OTEL_EXPORTER_OTLP_HEADERS": "Authorization=Basic header-secret",
-		"MONACO_DEV_TOKEN_KEY":       "dev-token-secret",
+		"DATABASE_URL":                    "postgres://db-secret@host/db",
+		"NATS_URL":                        "nats://token-secret@host:4222",
+		"OTEL_EXPORTER_OTLP_HEADERS":      "Authorization=Basic header-secret",
+		"MONACO_DEV_TOKEN_KEY":            "dev-token-secret",
+		"JUPITER_API_KEY":                 "jup-secret",
+		"PRIVY_APP_SECRET":                "privy-app-secret",
+		"PRIVY_AUTHORIZATION_PRIVATE_KEY": "wallet-auth:privy-auth-secret",
+		"PRIVY_WEBHOOK_SECRET":            "webhook-signing-secret",
+		"SOLANA_RPC_URL":                  "https://rpc.example/rpc-secret",
+		"RELAYER_PRIVATE_KEY":             "relayer-secret",
 	}
 	environ := make([]string, 0, 2+len(secrets))
 	environ = append(environ, "MONACO_ENV=staging", "MONACO_TIMEOUT_JUPITER_EXECUTE=90s")
@@ -225,6 +278,9 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"NATS_URL", "***"},
 		{"OTEL_EXPORTER_OTLP_HEADERS", "***"},
 		{"MONACO_DEV_TOKEN_KEY", "***"},
+		{"JUPITER_API_KEY", "***"},
+		{"MONACO_JUPITER_SWAP_BASE_URL", "https://api.jup.ag/swap/v2"},
+		{"MONACO_JUPITER_PRICE_BASE_URL", "https://api.jup.ag/price/v3"},
 		{"MONACO_ENV", "staging"},
 		{"MONACO_HTTP_ADDR", ":8080"},
 		{"MONACO_HTTP_MAX_BODY_BYTES", "1048576"},
@@ -239,7 +295,20 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"MONACO_TIMEOUT_HTTP_SERVER_READ", "10s"},
 		{"MONACO_TIMEOUT_HTTP_SERVER_WRITE", "30s"},
 		{"MONACO_TIMEOUT_SHUTDOWN", "10s"},
+		{"PRIVY_APP_SECRET", "***"},
+		{"PRIVY_AUTHORIZATION_PRIVATE_KEY", "***"},
+		{"PRIVY_WEBHOOK_SECRET", "***"},
+		{"SOLANA_RPC_URL", "***"},
+		{"RELAYER_PRIVATE_KEY", "***"},
+		{"PRIVY_APP_ID", ""},
+		{"PRIVY_VERIFICATION_KEY", ""},
+		{"PRIVY_AUTHORIZATION_KEY_ID", ""},
+		{"PRIVY_BASE_URL", "https://api.privy.io"},
+		{"SOLANA_USDC_MINT", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"},
 		{"MONACO_FAULTPOINT", ""},
+		{"MONACO_BUS_ACK_WAIT", ""},
+		{"MONACO_BUS_API_RELAY", "on"},
+		{"TRUST_PROXY_HEADERS", "false"},
 	}
 	if len(got) != len(tests) {
 		t.Fatalf("Redacted has %d keys, want %d: %v", len(got), len(tests), got)
@@ -255,6 +324,17 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 				t.Errorf("Redacted()[%s] leaks a secret", key)
 			}
 		}
+	}
+}
+
+func TestLoad_busKnobsRoundTripThroughRedacted(t *testing.T) {
+	t.Parallel()
+	cfg, err := config.Load(append(required(), "MONACO_BUS_ACK_WAIT=100ms", "MONACO_BUS_API_RELAY=off"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Redacted(); got["MONACO_BUS_ACK_WAIT"] != "100ms" || got["MONACO_BUS_API_RELAY"] != "off" {
+		t.Fatalf("Redacted = %v, want the ack wait and relay switch as set", got)
 	}
 }
 

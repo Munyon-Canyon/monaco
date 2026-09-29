@@ -139,11 +139,7 @@ func (r *Runner) fail(ctx context.Context, name string, err error) {
 		1,
 		metric.WithAttributes(attribute.String("poller", name), attribute.String("code", string(code))),
 	)
-	var detail []slog.Attr
-	var e *errs.Error
-	for cur := err; errors.As(cur, &e); cur = e.Err {
-		detail = append(detail, e.Attrs...)
-	}
+	detail := errs.Detail(err)
 	boundary.Error(ctx, observability.PollerFailed, slog.String("poller", name), slog.String("code", string(code)),
 		slog.Any("err", err), slog.Bool("alert", errs.Alert(code)), slog.GroupAttrs("detail", detail...))
 }

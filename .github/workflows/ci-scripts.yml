@@ -1,0 +1,39 @@
+name: CI scripts
+
+# Called from ci-jobs.yml's scripts job. Kept in its own file so the `plan` job's `scripts` path
+# filter can key on it, the same as ci-mobile-core.yml. docs/architecture/ci.md#triggers
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  scripts:
+    name: Go tests (scripts)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      # The staged-lint hook test lints an apps/backend package, so it needs the backend's Go.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/backend/go.mod
+          cache: false
+
+      - name: Read the pinned golangci-lint version
+        id: golangci
+        run: echo "version=$(cat apps/backend/.golangci-lint-version)" >> "$GITHUB_OUTPUT"
+
+      # lint_staged_go_test.go fails in CI without golangci-lint; the Justfile tests skip without just.
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: ${{ steps.golangci.outputs.version }}
+          install-only: true
+
+      - uses: extractions/setup-just@v4
+
+      - name: Test scripts
+        working-directory: scripts
+        run: go test -short ./...

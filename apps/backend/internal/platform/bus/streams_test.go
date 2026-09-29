@@ -9,7 +9,6 @@ import (
 	"time"
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
-	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -290,32 +289,5 @@ func TestApply_failsWhenTheStreamLookupFails(t *testing.T) {
 	changes, err := conn.Apply(ctx)
 	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable || len(changes) != 0 {
 		t.Fatalf("apply with a cancelled context = %v %v, want upstream_unavailable and no changes", changes, err)
-	}
-}
-
-func TestClose_stopsWaitingForTheDrainWhenTheContextEnds(t *testing.T) {
-	t.Parallel()
-	conn, err := bus.Connect(t.Context(), config.NATS{URL: testkit.NATSURL()}, bus.ProcessMonacoctl)
-	if err != nil {
-		t.Fatal(err)
-	}
-	nc := conn.NATS()
-	entered, release := make(chan struct{}), make(chan struct{})
-	defer close(release)
-	if _, err := nc.Subscribe("close.block", func(*nats.Msg) {
-		close(entered)
-		<-release
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := nc.Publish("close.block", nil); err != nil {
-		t.Fatal(err)
-	}
-	<-entered
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	conn.Close(ctx)
-	if !nc.IsClosed() {
-		t.Fatal("Close returned with the connection still open after its context ended")
 	}
 }

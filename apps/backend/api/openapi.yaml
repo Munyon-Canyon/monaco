@@ -5,7 +5,7 @@ info:
   description: HTTP contract between the Monaco iOS app and the Monaco backend.
   contact:
     name: Monaco
-    url: https://github.com/lognorman20/monaco
+    url: https://github.com/Munyon-Canyon/monaco
   license:
     name: Proprietary
     identifier: LicenseRef-Proprietary
@@ -19,6 +19,8 @@ tags:
     description: Liveness of the API process.
   - name: stream
     description: Live re-fetch hints over server-sent events.
+  - name: system
+    description: The reference flow that exercises every backend layer end to end.
 paths:
   /healthz:
     get:
@@ -69,7 +71,71 @@ paths:
                   - "id: 1\nevent: hint\ndata: {\"key\":\"global\",\"what\":\"feed\"}\n\n"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/system/pings:
+    post:
+      operationId: postSystemPing
+      tags: [system]
+      x-idempotent: true
+      summary: Record a ping for the caller.
+      description: >-
+        Writes a ping and appends `system.pinged`. The `system.echo` consumer then marks the ping
+        echoed and sends the caller a `ping_echoed` hint on `/v1/stream`. A replay with the same
+        Idempotency-Key returns the first response and records nothing new.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The note to record with the ping.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PingRequest"
+      responses:
+        "201":
+          description: The ping was recorded. `echoed` is false until the consumer runs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ping"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/system/pings/{id}:
+    get:
+      operationId: getSystemPing
+      tags: [system]
+      summary: Read one of the caller's pings.
+      description: Returns the ping with `echoed` computed on the server. Another user's ping is not_found.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The ping id from the create response.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The ping.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ping"
+        default:
+          $ref: "#/components/responses/Problem"
 components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >-
+        A key the app generates once per user action. The server stores the first response under
+        it and replays that response for any retry with the same key and body.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+        examples: ["6f1c1a52-3a4e-4d0e-9d7b-2f7f3f5b9d10"]
   securitySchemes:
     bearerAuth:
       type: http
@@ -87,6 +153,37 @@ components:
           schema:
             $ref: "#/components/schemas/Problem"
   schemas:
+    PingRequest:
+      type: object
+      description: A note to record with the ping.
+      additionalProperties: false
+      required: [note]
+      properties:
+        note:
+          type: string
+          description: Free text, at most 140 characters.
+          maxLength: 140
+          examples: [hi]
+    Ping:
+      type: object
+      description: A recorded ping.
+      additionalProperties: false
+      required: [id, note, echoed]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The ping id.
+          examples: [01890a5d-ac96-774b-bcce-b302099a8057]
+        note:
+          type: string
+          description: The note sent with the ping.
+          maxLength: 140
+          examples: [hi]
+        echoed:
+          type: boolean
+          description: True once the `system.echo` consumer has handled the ping.
+          examples: [true]
     Problem:
       type: object
       description: An RFC 9457 problem details body with a stable Monaco error code.
@@ -138,15 +235,24 @@ components:
       enum:
         # BEGIN GENERATED ErrorCode
         - client_closed
+        - db_schema_behind
         - db_unavailable
         - decode_failed
         - forbidden
         - idempotency_in_flight
         - idempotency_mismatch
         - internal
+        - invalid_address
+        - invalid_config
         - invalid_input
+        - jupiter_rejected
+        - jupiter_unavailable
         - not_found
         - panic
+        - privy_unavailable
+        - rate_limited
+        - relayer_underfunded
+        - rpc_unavailable
         - unauthorized
         - upstream_timeout
         - upstream_unavailable

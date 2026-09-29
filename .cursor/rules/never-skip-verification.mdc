@@ -7,10 +7,12 @@ alwaysApply: true
 
 **NEVER** skip verification steps unless the user explicitly says to skip in the **current** message.
 
-Verification includes:
+Verification runs in three stages, per `docs/architecture/backend-platform.md#verification-scope`: agents run `monacoctl agents check`, CI stage 1 runs the repo-wide checks, and the full suite runs in the merge queue before anything lands. The operator approved this split on 2026-09-28, so it is not skipping.
+
+Verification includes, when the change touches what they cover:
 - Ticket Done-when / verification commands
 - Milestone "Manual verification" / demo scripts (e.g. `docs/legacy/milestones/m4-domain.md`, `docs/how-to/demo-checklist.md`)
-- `just test` / `just build` gates
+- `monacoctl agents check` (stage 0) and `just build mobile` gates
 - Gold-sim QA / tap-through (UDID `7B30D45E-62FD-42E2-871A-787B19D38CCF`)
 - Browser verification for web UI
 

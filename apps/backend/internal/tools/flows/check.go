@@ -12,8 +12,6 @@ import (
 
 type Lookup func(f Flow, value string) bool
 
-func Unchecked(Flow, string) bool { return true }
-
 type Env struct {
 	Repo        fs.FS
 	BackendDir  string
@@ -23,7 +21,7 @@ type Env struct {
 	Commands    Lookup
 	Consumers   Lookup
 	Faultpoints Lookup
-	Fresh       Fresh
+	Scripts     Lookup
 }
 
 func CheckColumns(flows []Flow, env Env) []Problem {

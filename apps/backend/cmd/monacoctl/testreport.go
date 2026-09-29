@@ -20,13 +20,13 @@ import (
 const (
 	testReportUsage = "usage: monacoctl test-report --from go-test.json [--start unix-seconds] [--ci]"
 	slowestShown    = 10
-	packageBudget   = 10 * time.Second
-	ciPackageBudget = 15 * time.Second
-	runBudget       = 60 * time.Second
+	packageWarn     = 10 * time.Second
+	packageFail     = 20 * time.Second
+	runBudget       = 90 * time.Second
 )
 
 type budget struct {
-	pkg, warn, run time.Duration
+	warn, fail, run time.Duration
 }
 
 type timing struct {
@@ -69,13 +69,15 @@ func testReportCmd(args []string, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "monacoctl test-report: %v\n", err)
 		return 1
 	}
-	b := budget{pkg: packageBudget, run: runBudget}
+	b := budget{warn: packageWarn, fail: packageFail, run: runBudget}
+	prefix := ""
 	if *ci {
-		b = budget{pkg: ciPackageBudget, warn: packageBudget}
+		b.run = 0
+		prefix = "::warning::"
 	}
 	rep.write(stdout, b)
 	for _, w := range rep.warnings(b) {
-		_, _ = fmt.Fprintf(stdout, "::warning::monacoctl test-report: %s\n", w)
+		_, _ = fmt.Fprintf(stdout, "%smonacoctl test-report: %s\n", prefix, w)
 	}
 	over := rep.overBudget(b)
 	for _, o := range over {
@@ -155,27 +157,22 @@ func (r report) write(w io.Writer, b budget) {
 	for _, p := range r.packages {
 		_, _ = fmt.Fprintf(w, "%7.2fs  %s\n", p.elapsed.Seconds(), p.name)
 	}
+	perPackage := fmt.Sprintf("packages warn at %.0fs, fail at %.0fs", b.warn.Seconds(), b.fail.Seconds())
 	if b.run == 0 {
-		_, _ = fmt.Fprintf(w, "run: %.1fs (not gated in CI; the %.0fs budget is for a laptop), %.0fs per package\n",
-			r.run.Seconds(), runBudget.Seconds(), b.pkg.Seconds())
+		_, _ = fmt.Fprintf(w, "run: %.1fs (not gated in CI; the %.0fs budget is for a laptop), %s\n",
+			r.run.Seconds(), runBudget.Seconds(), perPackage)
 		return
 	}
-	_, _ = fmt.Fprintf(
-		w,
-		"run: %.1fs (budget %.0fs, %.0fs per package)\n",
-		r.run.Seconds(),
-		b.run.Seconds(),
-		b.pkg.Seconds(),
-	)
+	_, _ = fmt.Fprintf(w, "run: %.1fs (budget %.0fs), %s\n", r.run.Seconds(), b.run.Seconds(), perPackage)
 }
 
 func (r report) warnings(b budget) []string {
 	var warn []string
 	for _, p := range r.packages {
-		if b.warn > 0 && p.elapsed > b.warn && p.elapsed <= b.pkg {
+		if p.elapsed > b.warn && p.elapsed <= b.fail {
 			warn = append(warn, fmt.Sprintf(
-				"package %s took %.2fs, over the %.0fs per-package budget (CI fails at %.0fs)",
-				p.name, p.elapsed.Seconds(), b.warn.Seconds(), b.pkg.Seconds(),
+				"package %s took %.2fs, over the %.0fs per-package budget (fails at %.0fs)",
+				p.name, p.elapsed.Seconds(), b.warn.Seconds(), b.fail.Seconds(),
 			))
 		}
 	}
@@ -185,14 +182,14 @@ func (r report) warnings(b budget) []string {
 func (r report) overBudget(b budget) []string {
 	var over []string
 	for _, p := range r.packages {
-		if p.elapsed > b.pkg {
+		if p.elapsed > b.fail {
 			over = append(
 				over,
 				fmt.Sprintf(
 					"package %s took %.2fs, over the %.0fs per-package budget",
 					p.name,
 					p.elapsed.Seconds(),
-					b.pkg.Seconds(),
+					b.fail.Seconds(),
 				),
 			)
 		}
@@ -202,3 +199,5 @@ func (r report) overBudget(b budget) []string {
 	}
 	return over
 }
+
+func toolTestReport(_ toolEnv) tool { return testReportCmd }

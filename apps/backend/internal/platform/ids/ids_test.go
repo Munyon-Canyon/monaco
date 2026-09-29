@@ -132,6 +132,9 @@ func TestSQLRoundTrip(t *testing.T) {
 
 func TestCabalIDIsNotAssignableToUserID(t *testing.T) {
 	t.Parallel()
+	if testing.Short() {
+		t.Skip("runs go vet on fixtures; CI runs it without -short, outside the package budget")
+	}
 	match, err := exec.CommandContext(t.Context(), "go", "vet", "./testdata/match").CombinedOutput()
 	if err != nil {
 		t.Fatalf("control fixture passing a UserID failed go vet: %v\n%s", err, match)

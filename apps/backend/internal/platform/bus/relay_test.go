@@ -123,19 +123,14 @@ func (h *relayHarness) unpublished(t *testing.T) int64 {
 
 func (h *relayHarness) waitDrained(t *testing.T) {
 	t.Helper()
-	deadline := time.After(waitFor)
-	for h.unpublished(t) != 0 {
-		select {
-		case <-deadline:
-			t.Fatalf("%d rows still unpublished after %s", h.unpublished(t), waitFor)
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
+	testkit.Eventually(t, func() bool { return h.unpublished(t) == 0 }, waitFor)
 }
 
 func (h *relayHarness) fetch(t *testing.T, n int) []jetstream.Msg {
 	t.Helper()
-	c, err := h.bus.JS.CreateOrUpdateConsumer(t.Context(), h.bus.Events, h.bus.Consumer)
+	cfg := h.bus.Consumer
+	cfg.AckPolicy = jetstream.AckNonePolicy
+	c, err := h.bus.JS.CreateOrUpdateConsumer(t.Context(), h.bus.Events, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -438,7 +433,7 @@ func TestRelay_logsAndKeepsRunningWhenTheDatabaseFails(t *testing.T) {
 	defer func() { _ = unregister() }()
 	stop := h.start(t)
 	h.waitLines(t, "bus.relay.idle", 1)
-	h.clock.Advance(time.Second)
+	h.clock.Advance(time.Minute)
 	idle := h.waitLines(t, "bus.relay.idle", 2)
 	if idle[0]["level"] != "DEBUG" {
 		t.Fatalf("idle line = %v, want DEBUG", idle[0])
@@ -458,16 +453,26 @@ func TestRelay_logsAndKeepsRunningWhenTheDatabaseFails(t *testing.T) {
 	stop()
 }
 
+func TestRelay_logsIdleAtMostOnceAMinute(t *testing.T) {
+	t.Parallel()
+	h := newRelayHarness(t)
+	ctx := h.ctx(t)
+	for range 60 {
+		h.relay.Once(ctx)
+		h.clock.Advance(time.Second)
+	}
+	if n := len(h.lines(t, "bus.relay.idle")); n != 1 {
+		t.Fatalf("%d bus.relay.idle lines across 59 idle seconds, want 1", n)
+	}
+	h.relay.Once(ctx)
+	if n := len(h.lines(t, "bus.relay.idle")); n != 2 {
+		t.Fatalf("%d bus.relay.idle lines once a minute has passed, want 2", n)
+	}
+}
+
 func (h *relayHarness) waitLines(t *testing.T, msg string, n int) []map[string]any {
 	t.Helper()
-	deadline := time.After(waitFor)
-	for len(h.lines(t, msg)) < n {
-		select {
-		case <-deadline:
-			t.Fatalf("%d %s lines after %s, want %d", len(h.lines(t, msg)), msg, waitFor, n)
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
+	testkit.Eventually(t, func() bool { return len(h.lines(t, msg)) >= n }, waitFor)
 	return h.lines(t, msg)
 }
 

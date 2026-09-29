@@ -461,3 +461,40 @@ func TestAppend_refusesWhatItCannotWrite(t *testing.T) {
 		t.Fatalf("%d events written by refused appends", h.count(t, "events"))
 	}
 }
+
+func TestAfterCommit_runsOnlyTheCommittedAttemptsCallbacksAfterTheCommit(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	uow := db.New(h.pool, h.ids, clock.Real{})
+	var seen []string
+	err := uow.Do(h.ctx(t, "user:u1"), func(ctx context.Context, tx db.Tx) error {
+		attempt := len(seen) + 1
+		seen = append(seen, "")
+		tx.AfterCommit(func(ctx context.Context) {
+			var n int
+			if err := h.pool.QueryRow(ctx, `SELECT count(*) FROM things`).Scan(&n); err != nil {
+				t.Error(err)
+			}
+			seen[attempt-1] = strings.Repeat("x", n)
+		})
+		if err := h.insertThing(ctx, tx, attempt); err != nil {
+			return err
+		}
+		if attempt == 1 {
+			return &pgconn.PgError{Code: "40001"}
+		}
+		return nil
+	})
+	if err != nil || len(seen) != 2 || seen[0] != "" || seen[1] != "x" {
+		t.Fatalf("Do = %v, callbacks saw %q; want only the second attempt's, run after its row committed", err, seen)
+	}
+	refused := errs.New(errs.CodeNotFound, "thing.Find")
+	ran := false
+	err = uow.Do(h.ctx(t, "user:u1"), func(_ context.Context, tx db.Tx) error {
+		tx.AfterCommit(func(context.Context) { ran = true })
+		return refused
+	})
+	if !errors.Is(err, refused) || ran {
+		t.Fatalf("Do = %v, callback ran %v; want the refusal and no callback", err, ran)
+	}
+}

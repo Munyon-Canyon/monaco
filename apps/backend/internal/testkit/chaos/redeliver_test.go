@@ -27,7 +27,7 @@ func TestDispatch_aDroppedAckRedeliversIntoTheDedupeRowSoTheHandlerRunsOnce(t *t
 	conn := testkit.NATS(t).Conn
 	uow := db.New(pool, testkit.NewIDs(1), clk)
 	ran := map[string]int{}
-	count := func(ctx context.Context, _ db.Tx, _ events.SystemPinged) error {
+	count := func(ctx context.Context, _ db.Tx, _ events.SystemPinged, _ time.Time) error {
 		ran[observability.EventIDFrom(ctx)]++
 		return nil
 	}

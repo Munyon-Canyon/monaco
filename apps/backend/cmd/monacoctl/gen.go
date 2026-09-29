@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	codegen "github.com/monaco/monaco/apps/backend/internal/tools/gen"
 )
 
 const (
@@ -17,10 +19,40 @@ const (
 	errorCodeEnd   = "# END GENERATED ErrorCode"
 )
 
+func toolGen(env toolEnv) tool {
+	return func(args []string, stdout, stderr io.Writer) int {
+		if len(args) > 0 {
+			if g, ok := codegen.Find(args[0]); ok {
+				return scaffold(g, env.wd, args[1:], stdout, stderr)
+			}
+		}
+		return gen(args, stdout, stderr)
+	}
+}
+
+func scaffold(g codegen.Generator, root string, args []string, stdout, stderr io.Writer) int {
+	touched, err := g.Run(context.Background(), root, args)
+	for _, rel := range touched {
+		_, _ = fmt.Fprintln(stdout, rel)
+	}
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "monacoctl: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func genUsage(stderr io.Writer) int {
+	_, _ = fmt.Fprintln(stderr, "usage: monacoctl gen errors <openapi.yaml>")
+	for _, g := range codegen.Generators() {
+		_, _ = fmt.Fprintln(stderr, "       monacoctl "+g.Usage())
+	}
+	return 2
+}
+
 func gen(args []string, stdout, stderr io.Writer) int {
 	if len(args) != 2 || args[0] != "errors" {
-		_, _ = fmt.Fprintln(stderr, "usage: monacoctl gen errors <openapi.yaml>")
-		return 2
+		return genUsage(stderr)
 	}
 	if err := writeErrorCodes(args[1], errs.All()); err != nil {
 		_, _ = fmt.Fprintf(stderr, "monacoctl: %v\n", err)

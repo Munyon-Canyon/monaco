@@ -27,12 +27,13 @@ const (
 )
 
 type Step struct {
-	Route  string          `json:"route"`
-	Action Action          `json:"action"`
-	Status int             `json:"status,omitempty"`
-	Body   json.RawMessage `json:"body,omitempty"`
-	Delay  string          `json:"delay,omitempty"`
-	Times  int             `json:"times,omitempty"`
+	Route   string          `json:"route"`
+	Action  Action          `json:"action"`
+	Status  int             `json:"status,omitempty"`
+	Body    json.RawMessage `json:"body,omitempty"`
+	Delay   string          `json:"delay,omitempty"`
+	Times   int             `json:"times,omitempty"`
+	Fixture string          `json:"fixture,omitempty"`
 }
 
 type fixture struct {
@@ -42,11 +43,12 @@ type fixture struct {
 }
 
 type scripted struct {
-	action Action
-	status int
-	body   []byte
-	delay  time.Duration
-	left   int
+	action  Action
+	status  int
+	body    []byte
+	delay   time.Duration
+	left    int
+	fixture string
 }
 
 type fieldError string
@@ -54,25 +56,42 @@ type fieldError string
 func (f fieldError) Error() string { return "invalid step field: " + string(f) }
 
 type Server struct {
-	mux      *http.ServeMux
-	fixtures map[string]fixture
-	mu       sync.Mutex
-	scripts  map[string][]*scripted
-}
-
-func upstreams() []string {
-	return []string{"privy", "jupiter", "rpc", "helius", "xstocks", "apns", "ably"}
+	mux       *http.ServeMux
+	live      *http.ServeMux
+	fixtures  map[string]fixture
+	mu        sync.Mutex
+	scripts   map[string][]*scripted
+	upstreams []string
+	wallets   map[string]privyWallet
 }
 
 func New() *Server { return newFrom(fixtures, "testdata/fakes") }
 
 func newFrom(fsys fs.FS, root string) *Server {
-	s := &Server{mux: http.NewServeMux(), fixtures: loadFixtures(fsys, root), scripts: map[string][]*scripted{}}
+	s := &Server{
+		mux:       http.NewServeMux(),
+		live:      http.NewServeMux(),
+		fixtures:  loadFixtures(fsys, root),
+		scripts:   map[string][]*scripted{},
+		wallets:   map[string]privyWallet{},
+		upstreams: upstreamsIn(fsys, root),
+	}
 	s.mux.HandleFunc("POST /_script", s.script)
-	for _, name := range upstreams() {
+	s.live.HandleFunc("POST /rpc/sendTransaction", sendTransaction)
+	s.live.HandleFunc("GET /privy/v1/users/{id}", s.privyUser)
+	s.live.HandleFunc("GET /privy/v1/wallets", s.privyWallets)
+	s.live.HandleFunc("POST /privy/v1/wallets", s.privyCreateWallet)
+	s.live.HandleFunc("POST /privy/v1/wallets/{id}/rpc", s.privySign)
+	for _, name := range s.upstreams {
+		replay := s.replay(name)
 		upstream := http.NewServeMux()
-		upstream.HandleFunc("/", s.replay(name))
+		upstream.HandleFunc("/", replay)
 		s.mux.Handle("/"+name+"/", http.StripPrefix("/"+name, upstream))
+		s.mux.HandleFunc("/"+name, func(w http.ResponseWriter, r *http.Request) {
+			r = r.Clone(r.Context())
+			r.URL.Path, r.URL.RawPath = "/", ""
+			replay(w, r)
+		})
 	}
 	return s
 }
@@ -87,7 +106,10 @@ func (s *Server) script(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "decode: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	sc, err := parse(step)
+	sc, err := parse(step, s.upstreams)
+	if err == nil && !s.replayable(step) {
+		err = fieldError("fixture")
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -98,15 +120,17 @@ func (s *Server) script(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func parse(step Step) (*scripted, error) {
+func parse(step Step, upstreams []string) (*scripted, error) {
 	upstream, _, _ := strings.Cut(strings.TrimPrefix(step.Route, "/"), "/")
-	if !strings.HasPrefix(step.Route, "/"+upstream+"/") || !slices.Contains(upstreams(), upstream) {
+	if !strings.HasPrefix(step.Route, "/"+upstream+"/") || !slices.Contains(upstreams, upstream) {
 		return nil, fieldError("route")
 	}
 	if step.Times < 0 {
 		return nil, fieldError("times")
 	}
-	sc := &scripted{action: step.Action, status: step.Status, body: step.Body, left: max(step.Times, 1)}
+	sc := &scripted{
+		action: step.Action, status: step.Status, body: step.Body, left: max(step.Times, 1), fixture: step.Fixture,
+	}
 	switch step.Action {
 	case ActionSucceed, ActionHang:
 	case ActionFail:
@@ -123,6 +147,15 @@ func parse(step Step) (*scripted, error) {
 		return nil, fieldError("action")
 	}
 	return sc, nil
+}
+
+func (s *Server) replayable(step Step) bool {
+	if step.Fixture == "" {
+		return true
+	}
+	upstream, _, _ := strings.Cut(strings.TrimPrefix(step.Route, "/"), "/")
+	_, ok := s.fixtures[step.Fixture]
+	return ok && step.Action == ActionSucceed && strings.HasPrefix(step.Fixture, "/"+upstream+"/")
 }
 
 func (s *Server) next(route string) scripted {
@@ -142,7 +175,7 @@ func (s *Server) next(route string) scripted {
 
 func (s *Server) replay(upstream string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		route := "/" + upstream + r.URL.Path
+		route, keys := routeOf(upstream, r)
 		step := s.next(route)
 		switch step.action {
 		case ActionHang:
@@ -165,17 +198,55 @@ func (s *Server) replay(upstream string) http.HandlerFunc {
 			}
 		case ActionSucceed:
 		}
-		f, ok := s.fixtures[route]
-		if !ok {
-			http.Error(w, "no fixture for "+route, http.StatusNotImplemented)
+		if step.fixture != "" {
+			keys = []string{step.fixture}
+		} else if live := liveRequest(r, route); s.isLive(live) {
+			s.live.ServeHTTP(w, live)
 			return
+		}
+		s.serveFixture(w, keys)
+	}
+}
+
+func (s *Server) serveFixture(w http.ResponseWriter, keys []string) {
+	for _, key := range keys {
+		f, ok := s.fixtures[key]
+		if !ok {
+			continue
 		}
 		for k, v := range f.Headers {
 			w.Header().Set(k, v)
 		}
 		w.WriteHeader(f.Status)
 		_, _ = w.Write(f.Body)
+		return
 	}
+	http.Error(w, "no fixture for "+keys[len(keys)-1], http.StatusNotImplemented)
+}
+
+func (s *Server) isLive(r *http.Request) bool {
+	_, pattern := s.live.Handler(r)
+	return pattern != ""
+}
+
+func liveRequest(r *http.Request, route string) *http.Request {
+	c := r.Clone(r.Context())
+	c.URL.Path, c.URL.RawPath = route, ""
+	return c
+}
+
+func upstreamsIn(fsys fs.FS, root string) []string {
+	entries, err := fs.ReadDir(fsys, root)
+	if err != nil {
+		panic(errs.Wrap(err, errs.CodeDecodeFailed, "fakes.upstreamsIn", slog.String("root", root)))
+	}
+	var out []string
+	for _, e := range entries {
+		if e.IsDir() {
+			out = append(out, e.Name())
+		}
+	}
+	return out
 }
 
 func loadFixtures(fsys fs.FS, root string) map[string]fixture {

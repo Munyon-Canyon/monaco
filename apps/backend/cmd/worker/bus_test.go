@@ -18,14 +18,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
-
-func TestMain(m *testing.M) {
-	testkit.ChildMain(main)
-	testkit.Main(m, testkit.WithNATS())
-}
 
 func TestRun_refusesToBootWithoutTheBus(t *testing.T) {
 	t.Parallel()
@@ -40,9 +36,9 @@ func TestRun_refusesToBootWithoutTheBus(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			err := run(t.Context(), io.Discard, []string{
-				"MONACO_ENV=test", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=" + tc.url,
+				"MONACO_ENV=test", "DATABASE_URL=" + testkit.DB(t).Config().ConnString(), "NATS_URL=" + tc.url,
 				"MONACO_HTTP_ADDR=127.0.0.1:0", "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
-			}, noop.NewMeterProvider())
+			}, noop.NewMeterProvider(), &module.Registry{})
 			if errs.CodeOf(err) != tc.code || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("run = %v, want %s containing %q", err, tc.code, tc.want)
 			}
@@ -78,7 +74,7 @@ func TestRun_bootsWithTheStreamsAppliedAndStopsCleanlyOnCancel(t *testing.T) {
 		done <- run(ctx, io.Discard, []string{
 			"MONACO_ENV=test", "DATABASE_URL=" + pool.Config().ConnString(), "NATS_URL=" + url,
 			"MONACO_HTTP_ADDR=127.0.0.1:0", "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
-		}, noop.NewMeterProvider())
+		}, noop.NewMeterProvider(), &module.Registry{})
 	}()
 	outbox := db.NewOutbox(pool, clock.Real{})
 	waitUntil(t, "the booted relay publishing the seeded event", func() bool {
@@ -110,7 +106,7 @@ func TestRun_refusesToBootWithoutTheDatabase(t *testing.T) {
 	err = run(t.Context(), io.Discard, []string{
 		"MONACO_ENV=test", "DATABASE_URL=postgres://127.0.0.1:1/monaco?connect_timeout=2", "NATS_URL=" + url,
 		"MONACO_HTTP_ADDR=127.0.0.1:0", "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
-	}, noop.NewMeterProvider())
+	}, noop.NewMeterProvider(), &module.Registry{})
 	if errs.CodeOf(err) != errs.CodeDBUnavailable || !strings.Contains(err.Error(), "db.Open") {
 		t.Fatalf("run without a database = %v, want db_unavailable from db.Open", err)
 	}
@@ -122,14 +118,8 @@ func hasLine(logs *testkit.Logs, msg string) bool {
 
 func waitUntil(t *testing.T, what string, ok func() bool) {
 	t.Helper()
-	deadline := time.After(20 * time.Second)
-	for !ok() {
-		select {
-		case <-deadline:
-			t.Fatalf("%s did not happen within 20s", what)
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
+	t.Logf("waiting for %s", what)
+	testkit.Eventually(t, ok, 20*time.Second)
 }
 
 func TestStartRelay_wakesOnACommitThroughTheSharedUnitOfWork(t *testing.T) {
@@ -162,6 +152,7 @@ func TestStartRelay_wakesOnACommitThroughTheSharedUnitOfWork(t *testing.T) {
 		backlog, err := outbox.Backlog(t.Context())
 		return err == nil && backlog.Unpublished == 0
 	})
+	waitUntil(t, "the relay logging the woken tick", func() bool { return hasLine(logs, "bus.relay.tick") })
 	s, err := b.JS.Stream(t.Context(), b.Events)
 	if err != nil {
 		t.Fatal(err)
@@ -170,7 +161,7 @@ func TestStartRelay_wakesOnACommitThroughTheSharedUnitOfWork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.State.Msgs != 1 || !hasLine(logs, "bus.relay.tick") {
+	if info.State.Msgs != 1 {
 		t.Fatalf("stream holds %d messages after a commit with the clock frozen, want 1 published on the wake",
 			info.State.Msgs)
 	}
@@ -185,7 +176,7 @@ func TestStartConsumers_deliversAPublishedEventToARegisteredHandler(t *testing.T
 	logs := &testkit.Logs{}
 	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
 	received := make(chan uuid.UUID, 1)
-	handler := bus.Handle("worker.echo", func(_ context.Context, _ db.Tx, e events.SystemPinged) error {
+	handler := bus.Handle("worker.echo", func(_ context.Context, _ db.Tx, e events.SystemPinged, _ time.Time) error {
 		received <- e.PingID
 		return nil
 	})
@@ -195,7 +186,7 @@ func TestStartConsumers_deliversAPublishedEventToARegisteredHandler(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(stopConsumers)
+	t.Cleanup(func() { stopConsumers(t.Context()) })
 	stopRelay, err := startRelay(ctx, b.Conn, pool, uow, clk)
 	if err != nil {
 		t.Fatal(err)

@@ -23,16 +23,18 @@ func docs(args []string, stdout, stderr io.Writer) int {
 		_, _ = io.WriteString(stdout, eventCatalog(events.Catalog()))
 		return 0
 	case slices.Equal(args, []string{"flows"}):
-		return docsFlows(os.DirFS("../.."), stdout, stderr)
+		return docsFlows(os.DirFS("../.."), flows.Markdown, stdout, stderr)
+	case slices.Equal(args, []string{"flows", "--feature-map"}):
+		return docsFlows(os.DirFS("../.."), flows.FeatureMap, stdout, stderr)
 	case slices.Equal(args, []string{"logs"}):
 		return docsLogs(stdout, stderr)
 	default:
-		_, _ = fmt.Fprintln(stderr, "usage: monacoctl docs errors|events|flows|logs")
+		_, _ = fmt.Fprintln(stderr, "usage: monacoctl docs errors|events|flows [--feature-map]|logs")
 		return 2
 	}
 }
 
-func docsFlows(repo fs.FS, stdout, stderr io.Writer) int {
+func docsFlows(repo fs.FS, render func([]flows.Flow) string, stdout, stderr io.Writer) int {
 	parsed, problems, err := readFlows(repo)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "monacoctl docs flows: %v\n", err)
@@ -44,7 +46,7 @@ func docsFlows(repo fs.FS, stdout, stderr io.Writer) int {
 	if len(problems) > 0 {
 		return 1
 	}
-	_, _ = io.WriteString(stdout, flows.Markdown(parsed))
+	_, _ = io.WriteString(stdout, render(parsed))
 	return 0
 }
 
@@ -86,3 +88,5 @@ func errorTable(codes []errs.Code) string {
 	}
 	return b.String()
 }
+
+func toolDocs(_ toolEnv) tool { return docs }

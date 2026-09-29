@@ -16,7 +16,7 @@ macOS, Xcode (iOS 18+ simulator), Docker, Go 1.25+, [just](https://github.com/ca
 ## Clone setup
 
 1. Clone this repo. `cd` into the clone. Do not hard-code another machine's home path.
-2. Place gitignored `.env.keys` in the repo root if a teammate encrypted `.env.local` for you. Also place that `.env.local`. dotenvx reads both from the clone root.
+2. Place the encrypted `.env.local` a teammate shares in the repo root. Give dotenvx its private key in one of these ways, which `scripts/with-dotenv-local.sh` tries in this order: gitignored `.env.keys` in the checkout, `.env.keys` in the primary clone (so worktrees under `.worktrees/` need no copy), `DOTENV_PRIVATE_KEY_LOCAL` or `DOTENV_PRIVATE_KEY` in the environment, then Dotenvx Armor (`dotenvx armor`).
 3. If you have no `.env.local` yet, copy `.env.example` to `.env.local` and set Privy plus relayer values with `dotenvx set KEY value -f .env.local`.
 4. Run `./scripts/install-dev.sh` (or `just install`). It asks before each install (Go, golangci-lint, jq, just, dotenvx, Graphite, optional SimSlim). `just install --check` only reports. Then run `gt auth --token <token>` with the token from https://app.graphite.com/activate, and `gt init --trunk main`.
 5. `just run` starts the iOS app. The backend is being rebuilt from scratch ([backend platform RFC](docs/architecture/backend-platform.md)), so until its routes return the app has no working backend; mobile UI work uses sample data. Privy is injected via `scripts/ensure-ios-privy-config.sh` and `SIMCTL_CHILD_*`. If SimSlim is missing, the scripts warn and boot a stock simulator.
@@ -67,8 +67,9 @@ To get QA cash back out: **Cash out** of the cabal (USDC returns to the account 
 | `just reset backend`         | Stop backend + remove `bin/api`, `bin/worker`, `bin/monacoctl`                                                                                                         |
 | `just reset mobile`          | Stop app + `xcodebuild clean` on the resolved sim                                                                                                                      |
 | `just reset db`              | Wipe the local Docker Postgres volume only and start it empty; NATS data is kept (localhost only, dotenvx)                                                             |
+| `just migrate db`            | Apply pending migrations to the `.env.local` database, then print its revision. `just run backend` never migrates; a behind database stops boot with `db_schema_behind` |
 | `just killports`             | Kill listeners on API port (default 8080; not Postgres 54322)                                                                                                          |
-| `just test backend`          | `go test -race -shuffle=on -short ./...` in `apps/backend`, the slowest-ten report and 60 s budget, then the `scripts/` Go tests                                       |
+| `just test backend`          | `go test -race -shuffle=on -short ./...` in `apps/backend`, the slowest-ten report and 90 s budget, then the `scripts/` Go tests                                       |
 | `just test mobile`           | Host `swift test` in `packages/mobile-core` — fast, no secrets                                                                                                         |
 | `just build backend`         | `go build` of `bin/api`, `bin/worker`, `bin/monacoctl`                                                                                                                 |
 | `just build mobile`          | Privy xcconfig, then `xcodebuild` on the resolved sim                                                                                                                  |
@@ -270,6 +271,15 @@ Phantom MCP cannot pull from Privy. The reverse of deposit is **cash out**, then
 
 After a funding run, leftover **agent-test USDC belongs on the agent Phantom**, not in a group vault and not in a sim user’s inbox.
 
+## Agent workflow setup
+
+Agent owners and verifiers ship tickets in Claude Code with the pstack plugin, a set of model roles and the repo's skills and rules. `just install` writes the model roles. Trusting the folder in Claude Code enables the plugins from `.claude/settings.json`.
+
+- [Agent workflow setup](docs/agents/setup.md): the plugins, model roles and skills, and the one-time steps.
+- [Ship a ticket](docs/how-to/ship-a-ticket.md): one ticket from its issue to a merge, for a person or an agent owner.
+- [Run a milestone](docs/how-to/run-a-milestone.md): batches, dispatch, verification, landing and handoff, for the orchestrator.
+- [Standing orders](docs/agents/standing-orders.md): the rules every owner, verifier and orchestrator follows.
+
 ## Agent skills (Cursor)
 
 Cursor loads repo skills from [`.cursor/skills/`](.cursor/skills/). Attach one in chat, or let the agent pick it from the description. Humans do not need these to `just run`.
@@ -306,11 +316,12 @@ The legacy backend, its migrations, its Go domain package and the reference trad
 Changes ship as stacks of small PRs through Graphite, not as one large PR. Each PR builds and passes tests on its own and stays under 1000 changed lines (CI counts code, tests and docs; a human can add the `large-pr` label for a mechanical change). Titles say what the PR changes, with no issue number or commit-type prefix, and the body follows `.github/pull_request_template.md`: TLDR, Why, What changed, Proof, What came up, Reviewer focus. To split a branch that grew too big, use the `distribute-stack-changes` skill or `gt split --by-hunk`.
 
 ```bash
-gt sync                       # pull main, drop merged branches
+gt sync --no-restack          # pull main, drop merged branches, leave other stacks alone
 gt create -m "first step"     # new branch + commit on top of the current branch
 gt create -m "next step"      # stacks on the previous one
 gt modify                     # amend the current branch; restacks the branches above
-gt submit --stack             # push the stack; open or update every PR with the right base
+gt submit --stack --draft     # push the stack; open new PRs as drafts with the right base
+scripts/pr-body.sh <n> "<title>" body.md  # check title, body and commits, then mark ready
 gt restack                    # rebase the stack after main moves
 ```
 

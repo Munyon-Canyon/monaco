@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -22,10 +23,8 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/peterldowns/pgtestdb"
 	"github.com/peterldowns/pgtestdb/migrators/common"
-	"go.uber.org/goleak"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
-	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 )
 
 const (
@@ -46,9 +45,11 @@ type server struct {
 	base     pgtestdb.Config
 	migrator atlasMigrator
 
-	mu    sync.Mutex
-	names map[string]*queryCounter
-	kept  atomic.Int32
+	mu        sync.Mutex
+	names     map[string]*queryCounter
+	kept      atomic.Int32
+	runPrefix string
+	disk      diskUsage
 
 	templateOnce sync.Once
 	template     pgtestdb.Config
@@ -59,56 +60,11 @@ type execer interface {
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
-type MainOption func(*mainOptions)
+type diskUsage func(context.Context) (used, total int64, err error)
 
-type mainOptions struct {
-	nats bool
-}
+const testDiskBytes int64 = 2 << 30
 
-func WithNATS() MainOption {
-	return func(o *mainOptions) { o.nats = true }
-}
-
-func Main(m *testing.M, opts ...MainOption) {
-	var o mainOptions
-	for _, opt := range opts {
-		opt(&o)
-	}
-	s, err := open(context.Background(), config.TestDBURL(os.Environ()))
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "testkit.Main: %v\n", err)
-		os.Exit(1)
-	}
-	current.Store(s)
-	var ns *natsServer
-	if o.nats {
-		if ns, err = startNATS(); err != nil {
-			s.admin.Close()
-			_, _ = fmt.Fprintf(os.Stderr, "testkit.Main: %v\n", err)
-			os.Exit(1)
-		}
-		natsCurrent.Store(ns)
-	}
-	goleak.VerifyTestMain(runThenClose{m: m, s: s, nats: ns})
-}
-
-type runThenClose struct {
-	m    *testing.M
-	s    *server
-	nats *natsServer
-}
-
-func (r runThenClose) Run() int {
-	code := r.m.Run()
-	if r.s.holder != nil {
-		_ = r.s.holder.Close(context.Background())
-	}
-	if r.nats != nil {
-		r.nats.stop()
-	}
-	r.s.admin.Close()
-	return code
-}
+var errDiskTotal = errors.New("testkit: disk total is not positive")
 
 func open(ctx context.Context, rawURL string) (*server, error) {
 	base, err := parseTestURL(rawURL)
@@ -123,7 +79,11 @@ func open(ctx context.Context, rawURL string) (*server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("connect to %s: %w", redact(rawURL), err)
 	}
-	s := &server{admin: admin, base: base, migrator: migrator, names: map[string]*queryCounter{}}
+	s := &server{
+		admin: admin, base: base, migrator: migrator,
+		names: map[string]*queryCounter{}, runPrefix: runPrefix(),
+	}
+	s.disk = s.containerDisk
 	if _, err := s.dropStale(ctx, clock.Real{}.Now().Add(-staleAfter), "t_", "testdb_"); err != nil {
 		admin.Close()
 		return nil, err
@@ -170,7 +130,7 @@ func DB(t *testing.T) *pgxpool.Pool {
 	queries := s.claim(t.Name())
 	tmpl := s.templateFor(t)
 	inst := tmpl
-	inst.Database = databaseName(t.Name())
+	inst.Database = databaseName(s.runPrefix, t.Name())
 	ctx := context.Background()
 	create := fmt.Sprintf(`CREATE DATABASE %s TEMPLATE %s OWNER %s`,
 		pgx.Identifier{inst.Database}.Sanitize(), pgx.Identifier{tmpl.Database}.Sanitize(),
@@ -191,12 +151,13 @@ func DB(t *testing.T) *pgxpool.Pool {
 	t.Cleanup(func() {
 		pool.Close()
 		s.release(t.Name())
-		if t.Failed() && s.kept.Add(1) <= keepFailed {
-			t.Logf("testkit: kept %s for debugging at %s", inst.Database, redact(inst.URL()))
+		kept, err := s.releaseDB(ctx, inst.Database, t.Failed())
+		if err != nil {
+			t.Errorf("testkit.DB: %v", err)
 			return
 		}
-		if err := drop(ctx, s.admin, inst.Database); err != nil {
-			t.Errorf("testkit.DB: %v", err)
+		if kept {
+			t.Logf("testkit: kept %s for debugging at %s", inst.Database, redact(inst.URL()))
 		}
 	})
 	return pool
@@ -357,11 +318,109 @@ func dropIfUnused(ctx context.Context, conn *pgxpool.Conn, name string) (bool, e
 	return true, drop(ctx, conn, name)
 }
 
-func databaseName(testName string) string {
+func runPrefix() string {
+	return "t_" + strings.ToLower(rand.Text()[:8]) + "_"
+}
+
+func (s *server) containerDisk(ctx context.Context) (int64, int64, error) {
+	var used int64
+	err := s.admin.QueryRow(ctx,
+		`SELECT coalesce(sum(pg_database_size(oid)), 0)::bigint FROM pg_database`).Scan(&used)
+	if err != nil {
+		return 0, 0, fmt.Errorf("testkit: disk usage under run prefix %s: %w", s.runPrefix, err)
+	}
+	return used, testDiskBytes, nil
+}
+
+func (s *server) diskOver(ctx context.Context) (bool, error) {
+	if s.disk == nil {
+		return false, nil
+	}
+	used, total, err := s.disk(ctx)
+	if err != nil {
+		return false, fmt.Errorf("testkit: disk usage under run prefix %s: %w", s.runPrefix, err)
+	}
+	if total <= 0 {
+		return false, fmt.Errorf("testkit: disk total %d under run prefix %s: %w", total, s.runPrefix, errDiskTotal)
+	}
+	return used > total/2, nil
+}
+
+func (s *server) guardPrefix(name string) {
+	if s.runPrefix == "" || !strings.HasPrefix(name, s.runPrefix) {
+		panic(fmt.Sprintf("testkit: DROP DATABASE %s is outside run prefix %q", name, s.runPrefix))
+	}
+}
+
+func (s *server) dropOwned(ctx context.Context, q execer, name string) error {
+	s.guardPrefix(name)
+	return drop(ctx, q, name)
+}
+
+func (s *server) releaseDB(ctx context.Context, name string, failed bool) (bool, error) {
+	over, err := s.diskOver(ctx)
+	if err != nil {
+		return false, err
+	}
+	if over {
+		if _, err := s.cleanKept(ctx); err != nil {
+			return false, err
+		}
+		return false, s.dropOwned(ctx, s.admin, name)
+	}
+	if failed && s.kept.Add(1) <= keepFailed {
+		return true, nil
+	}
+	return false, s.dropOwned(ctx, s.admin, name)
+}
+
+func (s *server) cleanKept(ctx context.Context) ([]string, error) {
+	over, err := s.diskOver(ctx)
+	if err != nil || !over {
+		return nil, err
+	}
+	if s.runPrefix == "" {
+		panic(`testkit: DROP DATABASE cleaner has an empty run prefix ""`)
+	}
+	rows, err := s.admin.Query(ctx, `
+		SELECT datname FROM pg_database
+		WHERE starts_with(datname, $1)
+		ORDER BY datname`, s.runPrefix)
+	if err != nil {
+		return nil, fmt.Errorf("testkit: list kept databases under %s: %w", s.runPrefix, err)
+	}
+	names, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return nil, fmt.Errorf("testkit: list kept databases under %s: %w", s.runPrefix, err)
+	}
+	conn, err := s.admin.Acquire(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("testkit: drop kept databases under %s: %w", s.runPrefix, err)
+	}
+	defer conn.Release()
+	var dropped []string
+	for _, name := range names {
+		s.guardPrefix(name)
+		ok, err := dropIfUnused(ctx, conn, name)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			dropped = append(dropped, name)
+		}
+	}
+	return dropped, nil
+}
+
+func databaseName(prefix, testName string) string {
 	suffix := "_" + strings.ToLower(rand.Text()[:8])
 	slug := strings.Trim(regexp.MustCompile(`[^a-z0-9]+`).ReplaceAllString(strings.ToLower(testName), "_"), "_")
-	slug = strings.TrimRight(slug[:min(len(slug), maxNameLen-len("t_")-len(suffix))], "_")
-	return "t_" + slug + suffix
+	room := maxNameLen - len(prefix) - len(suffix)
+	if room < 0 {
+		room = 0
+	}
+	slug = strings.TrimRight(slug[:min(len(slug), room)], "_")
+	return prefix + slug + suffix
 }
 
 func Reset(t *testing.T, db *pgxpool.Pool) {
@@ -409,11 +468,23 @@ func findMigrator() (atlasMigrator, error) {
 }
 
 func (a atlasMigrator) Hash() (string, error) {
-	h, err := common.HashDir(a.dir)
+	entries, err := os.ReadDir(a.dir)
 	if err != nil {
 		return "", fmt.Errorf("hash %s: %w", a.dir, err)
 	}
-	return h, nil
+	h := common.NewRecursiveHash()
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".sql") {
+			continue
+		}
+		contents, err := os.ReadFile(filepath.Join(a.dir, e.Name()))
+		if err != nil {
+			return "", fmt.Errorf("hash %s: %w", a.dir, err)
+		}
+		h.Add([]byte(e.Name()))
+		h.Add(contents)
+	}
+	return h.String(), nil
 }
 
 func (a atlasMigrator) Migrate(ctx context.Context, _ *sql.DB, conf pgtestdb.Config) error {

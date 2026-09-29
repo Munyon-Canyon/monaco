@@ -118,8 +118,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # The only job that saves the Go cache the backend job in ci-jobs.yml restores. It runs that job's
-  # tests with the same flags, so PRs also reuse main's results for packages they do not change.
+  # The only job that saves the Go cache the backend job in ci-jobs.yml restores. PRs reuse its
+  # module downloads and compiled packages, not test results: test-backend.sh passes -shuffle=on
+  # and -coverpkg, which are outside go test's cacheable flags, so every PR run executes every test.
   warm-cache:
     name: Warm the Go cache for PRs
     needs: changed
@@ -155,7 +156,7 @@ jobs:
           key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-${{ github.sha }}
 
   backend:
-    name: Backend unbounded suites (100k rapid, fuzz, seed sweep, benchstat)
+    name: Backend unbounded suites (govulncheck, 100k rapid, fuzz, seed sweep, benchstat)
     needs: changed
     if: needs.changed.outputs.run == 'true' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
@@ -168,6 +169,10 @@ jobs:
 
       # atlas for testkit.DB and the tmpfs test Postgres, the same setup as the PR backend job.
       - uses: ./.github/actions/backend-test-env
+
+      # A new advisory can hit code that has not changed, which no PR run would see.
+      - name: Install the pinned govulncheck
+        run: scripts/install-govulncheck.sh
 
       - name: Install benchstat
         run: |
@@ -194,6 +199,16 @@ jobs:
         with:
           name: nightly-bench
           path: ${{ runner.temp }}/nightly-backend/bench.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload the verify evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-verify-evidence
+          path: apps/backend/.verify/
+          include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 14
 

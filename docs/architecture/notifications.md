@@ -118,7 +118,7 @@ Error kinds and their bus verdicts come from the one `errs` code table ([Errors]
 
 ### Flow: trade confirmed
 
-1. The `trading` module's swap state machine moves the `cabal_txns` header to `confirmed`. In the same `uow.Do` it appends `trade.confirmed` with `{txn_id, cabal_id, ...}` (flow 11; [trade-execution.md](trade-execution.md), step 3). The relay publishes it with `Nats-Msg-Id` set to the event id.
+1. The `trading` module's swap state machine moves the `swaps` row to `confirmed`. In the same `uow.Do` it appends `trade.confirmed` with `{txn_id, cabal_id, ...}` (flow 11; [trade-execution.md](trade-execution.md), step 3). The relay publishes it with `Nats-Msg-Id` set to the event id.
 2. The `notify` consumer receives it through `bus.Dispatch`.
 3. The handler loads the cabal's members through the read-only query port the `cabal` module exports ([Dependency rules](backend-platform.md#dependency-rules-enforced-by-depguard)). It writes one NotificationBroadcast and one Notification per member, in the same transaction as the `event_deliveries` row, and commits. A redelivered event finds the `event_deliveries` row and does not notify twice.
 4. After commit, for each Notification, the handler sends to every active `device_tokens` row of that user and records the result as in the table above. APNs is never called inside the transaction ([event-bus.md](event-bus.md#consumers-and-handlers)). A crash between send and `delivered_at` can send twice; `apns-collapse-id` makes the phone show one.
@@ -137,19 +137,19 @@ Push only for MVP (default 2026-09-27). There is no in-app notification list and
 | A proposal you voted on passed | `proposal.passed` (flow 10) | Its voters | default 2026-09-27 |
 | Deposit credited | `deposit.credited` (flow 5) | The depositor | default 2026-09-27 |
 | Reply to your comment | `comment.created` (flow 21) | The parent comment's author | default 2026-09-27 |
-| Cabal paused or resumed | `funding`'s pause events ([deposits-withdrawals.md](deposits-withdrawals.md)) | Every member | decided 2026-09-27 |
+| Cabal paused or resumed | `cabal.paused`, `cabal.resumed` (flow 8), appended by `funding` when the first pause reason opens and the last closes ([deposits-withdrawals.md](deposits-withdrawals.md#pause)) | Every member | decided 2026-09-27 |
 | New follower | `follow.created` (flow 20) | The followee | decided 2026-09-27; batched, below |
-| Chat mention or reply in your thread | `chat.message_posted` (flow 22) | The mentioned user, the thread's participants | decided 2026-09-27 ([chat.md](chat.md)) |
+| Chat mention or reply in your thread | `chat.message_posted` (flow 22) | The users in its `mentioned_user_ids`, the thread's participants | decided 2026-09-27 ([chat.md](chat.md)) |
 | Onboarding nudge | `user.nudge_due` ([auth.md](auth.md#nudges)) | The user | decided 2026-09-27 |
 
-Everything else the RFC routes to `notify` writes no push for now. Unfollows never notify.
+No other event pushes, so the RFC's [flows table](backend-platform.md#flows) lists `notify` as a consumer only of the events in this table. Referral attribution and qualification, price moves, funding, cash outs, withdrawals, agent lifecycle and admin actions send no push. Unfollows never notify.
 
 Follows are the only batched kind (default 2026-09-27). The first 3 follows of the day push one by one; past that they collapse into one "5 people followed you" push per day. No other kind is capped or batched.
 
 - The Simulator cannot reliably get a real remote device token. To test how a push looks and where a tap goes, drag a `.apns` file onto the Simulator, or run `xcrun simctl push <udid> com.monaco.app payload.json`.
 - To test end to end (backend → APNs → phone), use a physical device running a debug build, which gets a sandbox token.
 - `just test backend` uses the `testkit` fake `Sender` and never calls APNs. Every consumer test runs through the chaos dispatcher, so duplicate and reordered deliveries are tested, not assumed ([Keeping it deterministic](backend-platform.md#keeping-it-deterministic)).
-- `just verify backend flow 24` drives the flow against real binaries with the fakes server standing in for APNs.
+- `monacoctl verify flow 24` drives the flow against real binaries with the fakes server standing in for APNs.
 
 ## Rollout
 
@@ -175,6 +175,7 @@ None.
 
 ## Log
 
+- 2026-09-29: Pause pushes come from `cabal.paused` and `cabal.resumed`, appended by `funding`. The flows table names `notify` only for events in [What notifies](#what-notifies-mvp); no push on `referral.attributed` (default; see #535). The trade-confirmed walkthrough moves the `swaps` row, not a `cabal_txns` header.
 - 2026-09-27: Decided 2026-09-27: the cabal pause, new follower, chat mention and onboarding nudge pushes are confirmed.
 - 2026-09-27: Closed the last open questions (default 2026-09-27): 3 single follow pushes per day, then one batched push. The core list is default 38; the pause, follower, chat and nudge rows stay. Push copy moved to a TODO.
 - 2026-09-27: Applied defaults. MVP pushes: trade filled or failed, proposal created, voted proposal passed, deposit credited, reply to your comment, plus cabal pause (every member), new follower, chat mentions and thread replies, onboarding nudges. No mute settings, no badge, no in-app list, no push for your own action, no unfollow push; only follows are batched past a daily cap; no push in the old backend. Open: copy and the follow cap number.

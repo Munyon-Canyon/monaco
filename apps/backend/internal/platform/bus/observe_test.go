@@ -43,17 +43,18 @@ func TestKeepAlive_sendsInProgressOnEveryTickUntilStopped(t *testing.T) {
 	h := newHarness(t)
 	var msg *fakeMsg
 	var afterStop int32
-	slow := bus.Handle("notify.push", func(ctx context.Context, _ db.Tx, _ events.SystemPinged) error {
+	slow := bus.Handle("notify.push", func(ctx context.Context, _ db.Tx, _ events.SystemPinged, _ time.Time) error {
 		stop := bus.KeepAlive(ctx)
+		deadline := time.After(waitLong)
 		for tick := int32(1); tick <= 3; tick++ {
 			h.clock.Advance(10 * time.Second)
-			deadline := time.After(waitLong)
-			for msg.inProgress.Load() != tick {
-				select {
-				case <-deadline:
-					return fmt.Errorf("tick %d sent %d InProgress", tick, msg.inProgress.Load())
-				case <-time.After(time.Millisecond):
-				}
+			select {
+			case <-msg.progressed:
+			case <-deadline:
+				return fmt.Errorf("tick %d sent %d InProgress", tick, msg.inProgress.Load())
+			}
+			if n := msg.inProgress.Load(); n != tick {
+				return fmt.Errorf("tick %d sent %d InProgress", tick, n)
 			}
 		}
 		stop()
@@ -67,6 +68,7 @@ func TestKeepAlive_sendsInProgressOnEveryTickUntilStopped(t *testing.T) {
 		subject: h.bus.Conn.Subject(events.TypeSystemPinged.Subject()),
 		header:  nats.Header{jetstream.MsgIDHeader: []string{id.String()}},
 		data:    payload, meta: &jetstream.MsgMetadata{NumDelivered: 1},
+		progressed: make(chan struct{}, 8),
 	}
 
 	reg.Dispatch(h.ctx(t), durable, msg)
@@ -127,7 +129,7 @@ func (h *harness) gaugeByConsumer(t *testing.T, name string) map[string]int64 {
 func TestDispatch_recordsHandlerDurationPerOutcome(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	rejecting := bus.Handle("notify.mail", func(context.Context, db.Tx, events.SystemPinged) error {
+	rejecting := bus.Handle("notify.mail", func(context.Context, db.Tx, events.SystemPinged, time.Time) error {
 		return errs.New(errs.CodeInvalidInput, "mail.Render")
 	})
 	reg := h.registry(
@@ -160,9 +162,15 @@ func TestRegistry_gaugesReportPendingAckPendingAndDeadLetters(t *testing.T) {
 	h := newHarness(t)
 	started := make(chan struct{}, 1)
 	release := make(chan struct{})
-	handler := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged) error {
-		started <- struct{}{}
-		<-release
+	handler := bus.Handle("notify.push", func(ctx context.Context, _ db.Tx, _ events.SystemPinged, _ time.Time) error {
+		select {
+		case started <- struct{}{}:
+		default:
+		}
+		select {
+		case <-release:
+		case <-ctx.Done():
+		}
 		return errs.New(errs.CodeInvalidInput, "notify.Render")
 	})
 	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{handler}})
@@ -176,6 +184,7 @@ func TestRegistry_gaugesReportPendingAckPendingAndDeadLetters(t *testing.T) {
 	if got := h.gaugeByConsumer(t, "monaco_bus_consumer_pending"); got[durable] != 0 {
 		t.Fatalf("pending = %v, want 0 for %s", got, durable)
 	}
+	h.waitDelivered(t, 3)
 	close(release)
 	h.waitDeadLetters(t, 1)
 	if got := h.gaugeByConsumer(t, "monaco_dead_letters"); got[durable] != 1 {
@@ -184,6 +193,11 @@ func TestRegistry_gaugesReportPendingAckPendingAndDeadLetters(t *testing.T) {
 	if got := h.gaugeByConsumer(t, "monaco_bus_consumer_ack_pending"); got[durable] != 0 {
 		t.Fatalf("ack pending after term = %v, want 0", got)
 	}
+}
+
+func (h *harness) waitDelivered(t *testing.T, n uint64) {
+	t.Helper()
+	testkit.Eventually(t, func() bool { return h.consumerInfo(t).Delivered.Consumer >= n }, waitLong)
 }
 
 func TestRegistry_gaugesFailWhenTheConsumerOrTheStreamIsGone(t *testing.T) {

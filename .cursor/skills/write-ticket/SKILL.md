@@ -14,6 +14,7 @@ Use this skill whenever writing a ticket body or creating a issue through MCP.
 - Use the full six-section body unless the user clearly asks for brevity with words like "quick issue", "one-liner", "just the AC", "brief"
 - Keep `Context` and `Problem` distinct. `Context` explains why this work matters now, what prior work or workflow led here, and who or what is affected. `Problem` states the concrete current failure, gap, or messy behavior without repeating the motivation.
 - If the user gives only a title, draft the description from the full template yourself. Ask follow-up questions only when missing context would make the ticket misleading. Do research in the codebase when necessary to fully comprehend.
+- Every issue body starts with the header line shown in the template. `**Touches:**` is required: list the path globs the ticket may change, each in backticks (a bare `**` breaks GitHub markdown), separated by commas. `monacoctl agents batch` defers a ticket without it and keeps two tickets whose globs overlap out of one batch. `**Blocked by:**` lists issue numbers, or `none`.
 - Every issue description must include `## Acceptance Criteria` with at least 2 concrete, testable checklist items.
 - Before MCP issue creation, validate that the body has non-empty content, at least 120 characters excluding headings, an Acceptance Criteria heading, and at least 2 non-placeholder AC bullets.
   - Ask the user where the issue should go if not already specified (e.g. engineering triage queue, a specific project, etc...)
@@ -28,6 +29,8 @@ Copy this skeleton into the `description` argument of `create-issue`, `create-su
 
 ```markdown
 **Title:** <title>
+
+**Milestone:** <milestone> · **Blocked by:** <#N, #M or none> · **Tracking:** <#N> · **Base branch:** `<branch>` · **Touches:** `<path/glob/**>`, `<path/file.go>`
 
 ## Context
 

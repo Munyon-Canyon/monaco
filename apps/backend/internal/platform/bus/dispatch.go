@@ -124,7 +124,7 @@ func (r *Registry) decode(handlers []HandlerSpec, msg jetstream.Msg) (ids.EventI
 	if len(handlers) == 0 {
 		return none, nil, errs.New(errs.CodeDecodeFailed, op, slog.String("subject", msg.Subject()))
 	}
-	raw := msg.Headers().Get(jetstream.MsgIDHeader)
+	raw := eventIDOf(msg.Headers())
 	id, err := ids.ParseEventID(raw)
 	if err != nil {
 		return none, nil, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("msg_id", raw))
@@ -169,8 +169,14 @@ func (r *Registry) handle(ctx context.Context, h HandlerSpec, id ids.EventID, ev
 	return res
 }
 
-func (r *Registry) run(
+func (r *Registry) run(ctx context.Context, h HandlerSpec, id ids.EventID, ev events.Event) (bool, error) {
+	return Deliver(ctx, r.uow, r.clock, h, id, ev)
+}
+
+func Deliver(
 	ctx context.Context,
+	uow *db.UnitOfWork,
+	clk clock.Clock,
 	h HandlerSpec,
 	id ids.EventID,
 	ev events.Event,
@@ -184,9 +190,10 @@ func (r *Registry) run(
 				slog.Any("panic", p), slog.String("stack", string(debug.Stack())))
 		}
 	}()
-	err = r.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+	at := clk.Now()
+	err = uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		inserted, err := sqlc.New(tx.Queries()).InsertDelivery(ctx, sqlc.InsertDeliveryParams{
-			Handler: h.Name, EventID: id.UUID(), Code: deliveryOK, HandledAt: r.clock.Now(),
+			Handler: h.Name, EventID: id.UUID(), Code: deliveryOK, HandledAt: at,
 		})
 		if err != nil {
 			return err
@@ -195,12 +202,13 @@ func (r *Registry) run(
 			duplicate = true
 			return nil
 		}
-		return h.run(ctx, tx, ev)
+		return h.run(ctx, tx, ev, at)
 	})
 	return duplicate, err
 }
 
-type deadLetter struct {
+type DeadLetter struct {
+	Seq      uint64          `json:"-"`
 	Consumer string          `json:"consumer"`
 	Handler  string          `json:"handler,omitempty"`
 	Subject  string          `json:"subject,omitempty"`
@@ -225,7 +233,7 @@ func (r *Registry) respond(
 			verdict, code = OutcomeNak, res.code
 		case res.outcome == OutcomeTerm && verdict != OutcomeNak:
 			verdict, code = OutcomeTerm, res.code
-			r.deadLetter(ctx, durable, deadLetter{
+			r.deadLetter(ctx, durable, DeadLetter{
 				Consumer: durable, Handler: res.handler, Subject: msg.Subject(),
 				MsgID: msg.Headers().Get(jetstream.MsgIDHeader), Delivery: delivery,
 				Code: res.code, Error: res.err.Error(), Headers: msg.Headers(), Data: rawJSON(msg.Data()),
@@ -259,7 +267,7 @@ func rawJSON(data []byte) json.RawMessage {
 	return quoted
 }
 
-func (r *Registry) deadLetter(ctx context.Context, consumer string, letter deadLetter, dedupe string) {
+func (r *Registry) deadLetter(ctx context.Context, consumer string, letter DeadLetter, dedupe string) {
 	body, _ := json.Marshal(letter)
 	subject := r.conn.ns.subject("deadletter." + consumer)
 	msgID := letter.MsgID + "/" + dedupe

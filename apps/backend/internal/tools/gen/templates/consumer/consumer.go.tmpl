@@ -1,0 +1,18 @@
+package adapters
+
+import (
+	"context"
+	"time"
+
+	"{{.ModPath}}/internal/events"
+	"{{.ModPath}}/internal/platform/bus"
+	"{{.ModPath}}/internal/platform/db"
+)
+
+type {{.Handler}} struct {
+	Bus *bus.Conn
+}
+
+func ({{.Handler}}) Handle(context.Context, db.Tx, events.SystemPinged, time.Time) error {
+	return nil
+}

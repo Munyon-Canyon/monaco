@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -19,6 +20,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
+
+func TestMain(m *testing.M) {
+	testkit.Main(m, testkit.WithChild(main), testkit.WithNATS())
+}
 
 func bootEnv(t *testing.T, extra ...string) []string {
 	t.Helper()
@@ -95,8 +100,30 @@ func TestRun_reportsAnAddressItCannotListenOn(t *testing.T) {
 func TestRun_refusesToBootWithAnUnparsableSpec(t *testing.T) {
 	t.Parallel()
 	err := run(t.Context(), io.Discard, bootEnv(t), []byte("openapi: [unclosed"), noop.NewMeterProvider())
-	if errs.CodeOf(err) != errs.CodeInvalidInput || !strings.Contains(err.Error(), "httpx.loadContract") {
-		t.Fatalf("run = %v, want invalid_input from httpx.loadContract", err)
+	if errs.CodeOf(err) != errs.CodeInvalidConfig || !strings.HasPrefix(err.Error(), "ratelimit.Load: ") {
+		t.Fatalf("run = %v, want invalid_config from ratelimit.Load", err)
+	}
+}
+
+func TestRun_refusesToBootWithAMalformedRateLimit(t *testing.T) {
+	t.Parallel()
+	const anchor = "      operationId: postSystemPing\n"
+	spec := bytes.Replace(openapi.Spec, []byte(anchor),
+		[]byte(anchor+"      x-rate-limit: {ip: {rate: 0, per: 1m, burst: 1}}\n"), 1)
+	if bytes.Equal(spec, openapi.Spec) {
+		t.Fatalf("anchor %q is not in api/openapi.yaml", anchor)
+	}
+	err := run(t.Context(), io.Discard, bootEnv(t), spec, noop.NewMeterProvider())
+	if errs.CodeOf(err) != errs.CodeInvalidConfig || !strings.HasPrefix(err.Error(), "ratelimit.Load: ") {
+		t.Fatalf("run = %v, want invalid_config from ratelimit.Load", err)
+	}
+}
+
+func TestRun_refusesToBootWhenTheRateLimitCountersCannotBeCreated(t *testing.T) {
+	t.Parallel()
+	err := run(t.Context(), io.Discard, bootEnv(t), openapi.Spec, testkit.FailingGauges{Prefix: "monaco_ratelimit_"})
+	if errs.CodeOf(err) != errs.CodeInternal || !strings.HasPrefix(err.Error(), "ratelimit.New: ") {
+		t.Fatalf("run = %v, want internal from ratelimit.New", err)
 	}
 }
 

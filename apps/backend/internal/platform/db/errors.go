@@ -16,6 +16,7 @@ const (
 	pgDeadlockDetected     = "40P01"
 	pgConnectionClass      = "08"
 	pgOperatorIntervention = "57P"
+	pgUndefinedTable       = "42P01"
 )
 
 func transient(err error) bool {

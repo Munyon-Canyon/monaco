@@ -37,6 +37,15 @@ ask_yes() {
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
+dev_tools=(
+  awk basename bc benchstat brew caffeinate cat chmod cp curl cut date dirname
+  docker dotenvx du ffmpeg ffprobe find gh git go golangci-lint grep gt head id
+  install jq just kill ln ls lsof magick mkdir mktemp npm oasdiff open pgrep
+  pkill python3 rm sed seq sha256sum shasum simslim sleep sort swift sysctl tail
+  tar tee tr uname uuidgen wc xcode-select xcodebuild xcrun
+)
+: "${dev_tools[@]}"
+
 run_brew() {
   local pkg="$1"
   if ! have brew; then
@@ -121,6 +130,16 @@ if [[ ! -x .bin/gremlins || "$gremlins_have" != "$gremlins_want" ]]; then
   fi
 fi
 
+govulncheck_want="$(sed -n 's/^version=//p' scripts/install-govulncheck.sh)"
+govulncheck_have="$(cat .bin/govulncheck.version 2>/dev/null || true)"
+if [[ ! -x .bin/govulncheck || "$govulncheck_have" != "$govulncheck_want" ]]; then
+  missing_required=1
+  say "govulncheck ${govulncheck_want} is missing from .bin/govulncheck (found: ${govulncheck_have:-none}). just test vuln runs that exact binary."
+  if ask_yes "Install govulncheck ${govulncheck_want} into .bin/?"; then
+    ./scripts/install-govulncheck.sh || missing_required=1
+  fi
+fi
+
 sqlc_want="v$(sed -n 's/^version=//p' scripts/install-sqlc.sh)"
 sqlc_have="$(.bin/sqlc version 2>/dev/null || true)"
 if [[ "$sqlc_have" != "$sqlc_want" ]]; then
@@ -188,6 +207,13 @@ if [[ "$check_only" -eq 0 ]]; then
     say "4. Fund the agent address on Solana mainnet only when you need live deposit QA. Refund leftover USDC when done."
     say ""
   fi
+fi
+
+# --- agent workflow (docs/agents/setup.md) ---
+agent_plan="$(./scripts/setup-agent-env.sh --dry-run 2>&1 || true)"
+say "$agent_plan"
+if [[ "$agent_plan" == *"would "* ]] && ask_yes "Write the pstack model roles into ~/.claude?"; then
+  ./scripts/setup-agent-env.sh || say "left ~/.claude/pstack-models.md as it is. Rerun scripts/setup-agent-env.sh --force to replace it."
 fi
 
 # --- git hook ---

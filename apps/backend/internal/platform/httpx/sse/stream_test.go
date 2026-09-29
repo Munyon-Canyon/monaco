@@ -30,6 +30,7 @@ import (
 type routes struct {
 	httpx.Health
 	sse.Stream
+	httpx.SystemRoutes
 }
 
 type unusedStore struct{ httpx.IdempotencyStore }
@@ -196,7 +197,11 @@ func TestStream_outlivesTheServerTimeouts(t *testing.T) {
 	phone := f.user(t)
 	stream := srv.open(t.Context(), t, phone, nil).stream(t)
 
-	<-time.After(3 * timeout)
+	select {
+	case e := <-stream:
+		t.Fatalf("stream sent %q or ended within 3x the server timeouts, want it idle and open", e)
+	case <-time.After(3 * timeout):
+	}
 	f.deliver(t, userHint(phone, "balance"))
 
 	if got, want := nextEvent(t, stream), hintEvent("1", "user:"+phone.String(), "balance"); got != want {
@@ -321,13 +326,8 @@ func TestStream_endsOnAFailedWriteOrDeadline(t *testing.T) {
 	} {
 		done := visit(t.Context(), t, f, w)
 		f.deliver(t, "global.feed")
-		select {
-		case err := <-done:
-			if err != nil {
-				t.Fatalf("%s: Visit = %v, want nil", name, err)
-			}
-		case <-time.After(5 * time.Second):
-			t.Fatalf("%s: Visit still serving after 5s", name)
+		if err := waitVisit(t, name, done); err != nil {
+			t.Fatalf("%s: Visit = %v, want nil", name, err)
 		}
 	}
 	if n := f.sum(t, "monaco_sse_connections"); n != 0 {
@@ -350,5 +350,16 @@ func TestStream_refusesCallersTheHubRejects(t *testing.T) {
 	agent := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorAgent, ID: f.user(t).String()})
 	if _, err := stream.GetStream(agent, api.GetStreamRequestObject{}); errs.CodeOf(err) != errs.CodeForbidden {
 		t.Fatalf("GetStream as an agent = %v, want forbidden", err)
+	}
+}
+
+func waitVisit(t *testing.T, name string, done <-chan error) error {
+	t.Helper()
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(5 * time.Second):
+		t.Fatalf("%s: Visit still serving after 5s", name)
+		return nil
 	}
 }

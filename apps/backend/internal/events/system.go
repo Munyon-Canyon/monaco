@@ -7,7 +7,8 @@ const TypeSystemPinged Type = "system.pinged"
 type SystemPinged struct {
 	V      int       `json:"v"`
 	PingID uuid.UUID `json:"ping_id"`
-	Note   string    `json:"note"`
+	UserID uuid.UUID `json:"user_id" pii:"true"`
+	Note   string    `json:"note"    pii:"true"`
 }
 
 func (SystemPinged) Type() Type { return TypeSystemPinged }

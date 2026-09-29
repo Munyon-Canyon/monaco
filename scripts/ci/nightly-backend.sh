@@ -6,7 +6,7 @@ fuzztime="${FUZZTIME:-10m}"
 sweep="${SWEEP:-20}"
 mkdir -p "$out"
 out="$(cd "$out" && pwd)"
-cd "$(dirname "$0")/../../apps/backend"
+cd "$(dirname "$0")/../../apps/backend" || exit 1
 export RAPID_NOFAILFILE=1
 failed=()
 
@@ -46,6 +46,8 @@ fuzz_all() {
   return "$status"
 }
 
+step vuln ../../.bin/govulncheck ./...
+
 rapid=()
 while IFS= read -r pkg; do
   rapid+=("$pkg")
@@ -54,6 +56,7 @@ step rapid env RAPID_CHECKS=100000 go test -tags faultpoints -timeout 60m "${rap
 step fuzz fuzz_all
 step long env CHAOS_SEEDS=5000 go test -tags faultpoints -race -shuffle=on -timeout 60m ./...
 step seed-sweep go test -tags faultpoints -race -shuffle=on -short -count="$sweep" -timeout 60m ./...
+step verify go run ./cmd/monacoctl verify all
 step bench go test -run '^$' -bench . -benchmem -count 10 -timeout 60m ./...
 cp "$out/bench.log" "$out/bench.txt"
 if [[ -n "${PREV_BENCH:-}" && -s "${PREV_BENCH}" ]]; then

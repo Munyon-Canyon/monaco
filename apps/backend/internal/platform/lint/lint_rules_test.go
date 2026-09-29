@@ -61,11 +61,11 @@ func fixtureGoMod(t *testing.T) []byte {
 func fixtureModule(t *testing.T, fixture string) string {
 	t.Helper()
 	dir := t.TempDir()
-	cfg, err := os.ReadFile(filepath.Join(backendRoot, ".golangci.yml"))
+	cfg, err := os.ReadFile(filepath.Join(backendRoot, ".golangci.base.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, ".golangci.yml"), cfg, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, ".golangci.base.yml"), cfg, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), fixtureGoMod(t), 0o600); err != nil {
@@ -77,8 +77,8 @@ func fixtureModule(t *testing.T, fixture string) string {
 	if err := os.CopyFS(dir, os.DirFS(filepath.Join("testdata", fixture))); err != nil {
 		t.Fatal(err)
 	}
-	if out, err := exec.CommandContext(t.Context(), genDepguard, dir).CombinedOutput(); err != nil {
-		t.Fatalf("gen-depguard: %v\n%s", err, out)
+	if out, err := exec.CommandContext(t.Context(), genGolangci, dir).CombinedOutput(); err != nil {
+		t.Fatalf("gen-golangci: %v\n%s", err, out)
 	}
 	return dir
 }
@@ -145,11 +145,14 @@ func TestLintRules_eachViolationFailsWithItsLinter(t *testing.T) {
 		{"http-default-client-in-module", "forbidigo", "outbound HTTP goes through platform/httpclient"},
 		{"math-rand-global", "forbidigo", "inject the random source"},
 		{"uuid-new-outside-platform", "forbidigo", "inject the id generator"},
-		{"time-sleep-in-test", "forbidigo", "tests wait on a signal"},
+		{"time-sleep-in-test", "forbidigo", "use synctest.Test, testkit.Eventually or testkit.AssertNoRedelivery"},
 		{"pgx-begin-outside-db", "forbidigo", "open transactions through platform/db"},
 		{"context-background-in-module", "forbidigo", "only main, tests and bus roots"},
 		{"os-getenv-in-module", "forbidigo", "read config through platform/config"},
 		{"go-statement-in-module", "nogo", "bare go statement"},
+		{"testmain-outside-main-test", "nogo", "TestMain belongs in main_test.go"},
+		{"testmain-custom-body", "nogo", "TestMain body must be exactly testkit.Main(m, opts...)"},
+		{"testwait-fixed-wait", "nogo", "fixed wait <-time.After"},
 	} {
 		t.Run(tc.fixture, func(t *testing.T) {
 			t.Parallel()

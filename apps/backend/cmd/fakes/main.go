@@ -32,7 +32,7 @@ func start() bool {
 	defer stop()
 	ctx = observability.WithLogger(ctx, observability.NewLogger(config.Config{}, os.Stderr))
 	if err := run(ctx, os.Environ()); err != nil {
-		boundary.Error(ctx, observability.BootStopped, slog.String("service", "fakes"), slog.Any("err", err))
+		boundary.Stopped(ctx, "fakes", err)
 		return false
 	}
 	return true

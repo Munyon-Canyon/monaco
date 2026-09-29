@@ -14,20 +14,30 @@ import (
 	"net/http"
 
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // Defines values for ErrorCode.
 const (
 	ClientClosed        ErrorCode = "client_closed"
+	DbSchemaBehind      ErrorCode = "db_schema_behind"
 	DbUnavailable       ErrorCode = "db_unavailable"
 	DecodeFailed        ErrorCode = "decode_failed"
 	Forbidden           ErrorCode = "forbidden"
 	IdempotencyInFlight ErrorCode = "idempotency_in_flight"
 	IdempotencyMismatch ErrorCode = "idempotency_mismatch"
 	Internal            ErrorCode = "internal"
+	InvalidAddress      ErrorCode = "invalid_address"
+	InvalidConfig       ErrorCode = "invalid_config"
 	InvalidInput        ErrorCode = "invalid_input"
+	JupiterRejected     ErrorCode = "jupiter_rejected"
+	JupiterUnavailable  ErrorCode = "jupiter_unavailable"
 	NotFound            ErrorCode = "not_found"
 	Panic               ErrorCode = "panic"
+	PrivyUnavailable    ErrorCode = "privy_unavailable"
+	RateLimited         ErrorCode = "rate_limited"
+	RelayerUnderfunded  ErrorCode = "relayer_underfunded"
+	RpcUnavailable      ErrorCode = "rpc_unavailable"
 	Unauthorized        ErrorCode = "unauthorized"
 	UpstreamTimeout     ErrorCode = "upstream_timeout"
 	UpstreamUnavailable ErrorCode = "upstream_unavailable"
@@ -38,6 +48,8 @@ const (
 func (e ErrorCode) Valid() bool {
 	switch e {
 	case ClientClosed:
+		return true
+	case DbSchemaBehind:
 		return true
 	case DbUnavailable:
 		return true
@@ -51,11 +63,27 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case Internal:
 		return true
+	case InvalidAddress:
+		return true
+	case InvalidConfig:
+		return true
 	case InvalidInput:
+		return true
+	case JupiterRejected:
+		return true
+	case JupiterUnavailable:
 		return true
 	case NotFound:
 		return true
 	case Panic:
+		return true
+	case PrivyUnavailable:
+		return true
+	case RateLimited:
+		return true
+	case RelayerUnderfunded:
+		return true
+	case RpcUnavailable:
 		return true
 	case Unauthorized:
 		return true
@@ -89,6 +117,32 @@ func (e ProblemType) Valid() bool {
 //
 // Examples: not_found
 type ErrorCode string
+
+// Ping A recorded ping.
+type Ping struct {
+	// Echoed True once the `system.echo` consumer has handled the ping.
+	//
+	// Examples: true
+	Echoed bool `json:"echoed"`
+
+	// Id The ping id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+	Id openapi_types.UUID `json:"id"`
+
+	// Note The note sent with the ping.
+	//
+	// Examples: hi
+	Note string `json:"note"`
+}
+
+// PingRequest A note to record with the ping.
+type PingRequest struct {
+	// Note Free text, at most 140 characters.
+	//
+	// Examples: hi
+	Note string `json:"note"`
+}
 
 // Problem An RFC 9457 problem details body with a stable Monaco error code.
 //
@@ -131,11 +185,23 @@ type Problem struct {
 // ProblemType Always about:blank. The code field carries the problem type.
 type ProblemType string
 
+// IdempotencyKey Examples: 6f1c1a52-3a4e-4d0e-9d7b-2f7f3f5b9d10
+type IdempotencyKey = string
+
 // GetStreamParams defines parameters for GetStream.
 type GetStreamParams struct {
 	// LastEventID The id of the last event the app received before it reconnected.
 	LastEventID *string `json:"Last-Event-ID,omitempty"`
 }
+
+// PostSystemPingParams defines parameters for PostSystemPing.
+type PostSystemPingParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// PostSystemPingJSONRequestBody defines body for PostSystemPing for application/json ContentType.
+type PostSystemPingJSONRequestBody = PingRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -145,6 +211,12 @@ type ServerInterface interface {
 	// GetStream Stream re-fetch hints for the caller.
 	// (GET /v1/stream)
 	GetStream(w http.ResponseWriter, r *http.Request, params GetStreamParams)
+	// PostSystemPing Record a ping for the caller.
+	// (POST /v1/system/pings)
+	PostSystemPing(w http.ResponseWriter, r *http.Request, params PostSystemPingParams)
+	// GetSystemPing Read one of the caller's pings.
+	// (GET /v1/system/pings/{id})
+	GetSystemPing(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -202,6 +274,77 @@ func (siw *ServerInterfaceWrapper) GetStream(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetStream(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostSystemPing operation middleware
+func (siw *ServerInterfaceWrapper) PostSystemPing(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostSystemPingParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostSystemPing(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSystemPing operation middleware
+func (siw *ServerInterfaceWrapper) GetSystemPing(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSystemPing(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -333,6 +476,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/healthz", wrapper.GetHealthz)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/stream", wrapper.GetStream)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/system/pings", wrapper.PostSystemPing)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/system/pings/{id}", wrapper.GetSystemPing)
 
 	return m
 }
@@ -442,6 +587,85 @@ func (response GetStreamdefaultApplicationProblemPlusJSONResponse) VisitGetStrea
 	return err
 }
 
+type PostSystemPingRequestObject struct {
+	Params PostSystemPingParams
+	Body   *PostSystemPingJSONRequestBody
+}
+
+type PostSystemPingResponseObject interface {
+	VisitPostSystemPingResponse(w http.ResponseWriter) error
+}
+
+type PostSystemPing201JSONResponse Ping
+
+func (response PostSystemPing201JSONResponse) VisitPostSystemPingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostSystemPingdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PostSystemPingdefaultApplicationProblemPlusJSONResponse) VisitPostSystemPingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSystemPingRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetSystemPingResponseObject interface {
+	VisitGetSystemPingResponse(w http.ResponseWriter) error
+}
+
+type GetSystemPing200JSONResponse Ping
+
+func (response GetSystemPing200JSONResponse) VisitGetSystemPingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSystemPingdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetSystemPingdefaultApplicationProblemPlusJSONResponse) VisitGetSystemPingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetHealthz Report that the API process is serving.
@@ -450,6 +674,12 @@ type StrictServerInterface interface {
 	// GetStream Stream re-fetch hints for the caller.
 	// (GET /v1/stream)
 	GetStream(ctx context.Context, request GetStreamRequestObject) (GetStreamResponseObject, error)
+	// PostSystemPing Record a ping for the caller.
+	// (POST /v1/system/pings)
+	PostSystemPing(ctx context.Context, request PostSystemPingRequestObject) (PostSystemPingResponseObject, error)
+	// GetSystemPing Read one of the caller's pings.
+	// (GET /v1/system/pings/{id})
+	GetSystemPing(ctx context.Context, request GetSystemPingRequestObject) (GetSystemPingResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -534,6 +764,65 @@ func (sh *strictHandler) GetStream(w http.ResponseWriter, r *http.Request, param
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetStreamResponseObject); ok {
 		if err := validResponse.VisitGetStreamResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostSystemPing operation middleware
+func (sh *strictHandler) PostSystemPing(w http.ResponseWriter, r *http.Request, params PostSystemPingParams) {
+	var request PostSystemPingRequestObject
+
+	request.Params = params
+
+	var body PostSystemPingJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostSystemPing(ctx, request.(PostSystemPingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostSystemPing")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostSystemPingResponseObject); ok {
+		if err := validResponse.VisitPostSystemPingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSystemPing operation middleware
+func (sh *strictHandler) GetSystemPing(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetSystemPingRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSystemPing(ctx, request.(GetSystemPingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSystemPing")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSystemPingResponseObject); ok {
+		if err := validResponse.VisitGetSystemPingResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

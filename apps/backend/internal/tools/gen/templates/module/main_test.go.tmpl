@@ -1,0 +1,11 @@
+package {{.Module}}_test
+
+import (
+	"testing"
+
+	"{{.ModPath}}/internal/testkit"
+)
+
+func TestMain(m *testing.M) {
+	testkit.Main(m)
+}

@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -33,12 +34,12 @@ func TestConsumerSuite_aDedupedConsumerConvergesOnEverySeed(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		count := func(ctx context.Context, tx db.Tx, e events.SystemPinged) error {
+		count := func(ctx context.Context, tx db.Tx, e events.SystemPinged, _ time.Time) error {
 			_, err := tx.Queries().Exec(ctx,
 				`INSERT INTO counter_hits (id, ping_id) VALUES ($1, $2)`, h.IDs.NewV7(), e.PingID)
 			return err
 		}
-		echo := func(ctx context.Context, tx db.Tx, e events.SystemPinged) error {
+		echo := func(ctx context.Context, tx db.Tx, e events.SystemPinged, _ time.Time) error {
 			return tx.Events.Append(ctx, events.SystemPinged{V: 1, PingID: h.IDs.NewV7(), Note: "echo " + e.Note})
 		}
 		return bus.Consumer{Durable: "counter", Handlers: []bus.HandlerSpec{

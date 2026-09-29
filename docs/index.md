@@ -10,7 +10,7 @@ Read these in order to understand the repo:
 2. **[Architecture](architecture.md)**: the parts of the system that stay true through the backend rewrite: outside services, wallets, and how each money flow works.
 3. **[Architecture decisions](architecture/README.md)**: the decision log, one file per topic, with the reasoning and what the code has not caught up with yet.
 4. **[Backend platform](architecture/backend-platform.md)**: the target design for the rewritten backend. When it and `architecture.md` disagree, this file states the target and `architecture.md` states the present.
-5. **[README](https://github.com/lognorman20/monaco/blob/main/README.md)**: clone, configure and run everything locally.
+5. **[README](https://github.com/Munyon-Canyon/monaco/blob/main/README.md)**: clone, configure and run everything locally.
 
 ## Reference
 
@@ -26,13 +26,17 @@ Read these in order to understand the repo:
 
 | Guide | For |
 | --- | --- |
+| [Agent workflow setup](agents/setup.md) | Giving a clone the plugins, model roles, skills and rules the agent workflow runs with |
+| [Ship a ticket](how-to/ship-a-ticket.md) | Taking one ticket from its issue to a merge on the feature branch, as a person or an agent owner |
+| [Run a milestone](how-to/run-a-milestone.md) | Orchestrating a milestone: tickets, batches, owners and verifiers, landing, restacks and the checkpoint into `main` |
 | [Connect a trading agent](how-to/connect-an-agent.md) | Hooking up ClawPump or any LLM agent |
 | [Demo checklist](how-to/demo-checklist.md) | A manual end-to-end pass before a demo |
 | [Run on the local simulator](how-to/local-simulator.md) | Simulator signing and keychain issues |
 | [Debug login](how-to/debug-login.md) | "I can't sign in" |
 | [Overnight QA](how-to/overnight-qa.md) | The nightly test and screenshot run, and what CI runs |
 | [Read iOS app logs](how-to/read-ios-logs.md) | Matching a Console.app line to an API request, crash diagnostics |
-| [TestFlight](https://github.com/lognorman20/monaco/blob/main/apps/mobile/TestFlight.md) | Shipping an iOS build |
+| [Gardener](how-to/gardener.md) | The nightly dead-code, candidate-lint and generator-drift report |
+| [TestFlight](https://github.com/Munyon-Canyon/monaco/blob/main/apps/mobile/TestFlight.md) | Shipping an iOS build |
 
 ## Operations
 

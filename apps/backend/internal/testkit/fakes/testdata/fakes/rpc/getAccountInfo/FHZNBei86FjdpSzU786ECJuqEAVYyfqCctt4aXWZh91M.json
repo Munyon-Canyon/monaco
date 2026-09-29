@@ -1,0 +1,10 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {"jsonrpc": "2.0", "id": 1, "result": {"context": {"slot": 451000000}, "value": {"lamports": 4500000, "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb", "executable": false, "space": 278, "data": {"program": "spl-token-2022", "space": 278, "parsed": {"type": "mint", "info": {"decimals": 8, "isInitialized": true, "supply": "100000000000", "mintAuthority": null, "freezeAuthority": null, "extensions": [
+    {"extension": "metadataPointer", "state": {"authority": null, "metadataAddress": "FHZNBei86FjdpSzU786ECJuqEAVYyfqCctt4aXWZh91M"}},
+    {"extension": "transferFeeConfig", "state": {"transferFeeConfigAuthority": null, "withdrawWithheldAuthority": null, "withheldAmount": 0,
+      "olderTransferFee": {"epoch": 700, "maximumFee": 1000000, "transferFeeBasisPoints": 25},
+      "newerTransferFee": {"epoch": 860, "maximumFee": 5000000, "transferFeeBasisPoints": 50}}}
+  ]}}}}}}
+}

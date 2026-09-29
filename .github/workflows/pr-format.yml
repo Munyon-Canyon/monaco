@@ -3,34 +3,51 @@ name: PR format
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize, ready_for_review, labeled, unlabeled]
+  # The queue waits for every required check on the group commit. Each PR was checked on its own head.
+  merge_group:
+    types: [checks_requested]
 
 concurrency:
-  group: pr-format-${{ github.event.pull_request.number }}
+  group: pr-format-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
   pull-requests: read
+  statuses: read
 
 jobs:
   pr-format:
-    name: PR format (title and body)
+    name: PR format (title, body and commits)
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
+      - name: Pass the merge group
+        if: github.event_name == 'merge_group'
+        run: echo "Each PR in the group passed this check on its own head."
       - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
       - name: Checker unit tests
+        if: github.event_name == 'pull_request'
         run: python3 scripts/test_check_pr_format.py
-      - name: Check title and body
+      - name: Check title, body and commits
+        if: github.event_name == 'pull_request'
         env:
+          GH_TOKEN: ${{ github.token }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: python3 scripts/check-pr-format.py
 
   pr-size:
     name: PR size (under 1000 lines)
-    if: ${{ !github.event.pull_request.draft }}
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -44,4 +61,52 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
         run: python3 scripts/check-pr-size.py
+
+  gate-changes:
+    name: Gate changes (no weakened test gate)
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Checker unit tests
+        run: python3 scripts/test_check_gate_changes.py
+      - name: Check gate changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: python3 scripts/check-gate-changes.py
+
+  changelog:
+    name: Changelog (checkpoint into main)
+    if: >-
+      github.event_name == 'merge_group' ||
+      (!github.event.pull_request.draft &&
+      github.event.pull_request.base.ref == 'main' &&
+      startsWith(github.event.pull_request.head.ref, 'backend-rewrite'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Pass the merge group
+        if: github.event_name == 'merge_group'
+        run: echo "Each checkpoint PR passed this check on its own head."
+      - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+      - name: Checker unit tests
+        if: github.event_name == 'pull_request'
+        run: python3 scripts/test_check_changelog.py
+      - name: Check the backend CHANGELOG
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/check-changelog.py "$BASE_SHA" "$HEAD_SHA"

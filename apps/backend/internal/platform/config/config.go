@@ -24,9 +24,14 @@ type Config struct {
 	Worker     Worker
 	DB         DB
 	NATS       NATS
+	Bus        Bus
 	OTel       OTel
 	Auth       Auth
 	Timeouts   Timeouts
+	Jupiter    Jupiter
+	Privy      Privy
+	Solana     Solana
+	Relayer    Relayer
 	Faultpoint string
 }
 
@@ -35,8 +40,9 @@ type Auth struct {
 }
 
 type HTTP struct {
-	Addr         string
-	MaxBodyBytes int32
+	Addr              string
+	MaxBodyBytes      int32
+	TrustProxyHeaders bool
 }
 
 type Worker struct {
@@ -52,10 +58,40 @@ type NATS struct {
 	URL string
 }
 
+type Bus struct {
+	AckWait  time.Duration
+	APIRelay bool
+}
+
 type OTel struct {
 	Endpoint    string
 	Headers     string
 	ServiceName string
+}
+
+type Jupiter struct {
+	SwapBaseURL  string
+	PriceBaseURL string
+	APIKey       string
+}
+
+type Privy struct {
+	AppID                   string
+	AppSecret               string
+	VerificationKey         string
+	AuthorizationPrivateKey string
+	AuthorizationKeyID      string
+	WebhookSecret           string
+	BaseURL                 string
+}
+
+type Solana struct {
+	RPCURL   string
+	USDCMint string
+}
+
+type Relayer struct {
+	PrivateKey string
 }
 
 type Timeouts struct {
@@ -174,6 +210,7 @@ func fields() []field {
 		environment("MONACO_ENV", func(c *Config) *Env { return &c.Env }).required(),
 		text("MONACO_HTTP_ADDR", ":8080", func(c *Config) *string { return &c.HTTP.Addr }),
 		count("MONACO_HTTP_MAX_BODY_BYTES", 1<<20, func(c *Config) *int32 { return &c.HTTP.MaxBodyBytes }),
+		boolean("TRUST_PROXY_HEADERS", func(c *Config) *bool { return &c.HTTP.TrustProxyHeaders }),
 		text("MONACO_WORKER_HEALTH_ADDR", ":8081", func(c *Config) *string { return &c.Worker.HealthAddr }),
 		text("DATABASE_URL", "", func(c *Config) *string { return &c.DB.URL }).required().secret(),
 		count("MONACO_DB_MAX_CONNS", 10, func(c *Config) *int32 { return &c.DB.MaxConns }),
@@ -194,7 +231,63 @@ func fields() []field {
 			func(c *Config) *time.Duration { return &c.Timeouts.HTTPServerWrite }),
 		duration("MONACO_TIMEOUT_SHUTDOWN", 10*time.Second,
 			func(c *Config) *time.Duration { return &c.Timeouts.Shutdown }),
+		text("MONACO_JUPITER_SWAP_BASE_URL", "https://api.jup.ag/swap/v2",
+			func(c *Config) *string { return &c.Jupiter.SwapBaseURL }),
+		text("MONACO_JUPITER_PRICE_BASE_URL", "https://api.jup.ag/price/v3",
+			func(c *Config) *string { return &c.Jupiter.PriceBaseURL }),
+		text("JUPITER_API_KEY", "", func(c *Config) *string { return &c.Jupiter.APIKey }).secret(),
+		text("PRIVY_APP_ID", "", func(c *Config) *string { return &c.Privy.AppID }),
+		text("PRIVY_APP_SECRET", "", func(c *Config) *string { return &c.Privy.AppSecret }).secret(),
+		text("PRIVY_VERIFICATION_KEY", "", func(c *Config) *string { return &c.Privy.VerificationKey }),
+		text("PRIVY_AUTHORIZATION_PRIVATE_KEY", "",
+			func(c *Config) *string { return &c.Privy.AuthorizationPrivateKey }).secret(),
+		text("PRIVY_AUTHORIZATION_KEY_ID", "", func(c *Config) *string { return &c.Privy.AuthorizationKeyID }),
+		text("PRIVY_WEBHOOK_SECRET", "", func(c *Config) *string { return &c.Privy.WebhookSecret }).secret(),
+		text("PRIVY_BASE_URL", "https://api.privy.io", func(c *Config) *string { return &c.Privy.BaseURL }),
+		text("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com",
+			func(c *Config) *string { return &c.Solana.RPCURL }).secret(),
+		text("SOLANA_USDC_MINT", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+			func(c *Config) *string { return &c.Solana.USDCMint }),
+		text("RELAYER_PRIVATE_KEY", "", func(c *Config) *string { return &c.Relayer.PrivateKey }).secret(),
 		text("MONACO_FAULTPOINT", "", func(c *Config) *string { return &c.Faultpoint }),
+		optionalDuration("MONACO_BUS_ACK_WAIT", func(c *Config) *time.Duration { return &c.Bus.AckWait }),
+		toggle("MONACO_BUS_API_RELAY", true, func(c *Config) *bool { return &c.Bus.APIRelay }),
+	}
+}
+
+func optionalDuration(key string, at func(*Config) *time.Duration) field {
+	return field{
+		key:  key,
+		want: "empty or a positive duration like 100ms",
+		set: func(c *Config, v string) bool {
+			if v == "" {
+				*at(c) = 0
+				return true
+			}
+			d, err := time.ParseDuration(v)
+			*at(c) = d
+			return err == nil && d > 0
+		},
+		get: func(c *Config) string {
+			if *at(c) == 0 {
+				return ""
+			}
+			return at(c).String()
+		},
+	}
+}
+
+func toggle(key string, fallback bool, at func(*Config) *bool) field {
+	name := map[bool]string{true: "on", false: "off"}
+	return field{
+		key:      key,
+		fallback: name[fallback],
+		want:     "on or off",
+		set: func(c *Config, v string) bool {
+			*at(c) = v == "on"
+			return v == "on" || v == "off"
+		},
+		get: func(c *Config) string { return name[*at(c)] },
 	}
 }
 
@@ -231,6 +324,20 @@ func count(key string, fallback int32, at func(*Config) *int32) field {
 			return err == nil && n > 0
 		},
 		get: func(c *Config) string { return strconv.Itoa(int(*at(c))) },
+	}
+}
+
+func boolean(key string, at func(*Config) *bool) field {
+	return field{
+		key:      key,
+		fallback: "false",
+		want:     "true or false",
+		set: func(c *Config, v string) bool {
+			b, err := strconv.ParseBool(v)
+			*at(c) = b
+			return err == nil
+		},
+		get: func(c *Config) string { return strconv.FormatBool(*at(c)) },
 	}
 }
 

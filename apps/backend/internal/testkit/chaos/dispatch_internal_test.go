@@ -78,7 +78,7 @@ func (f *fakeReg) Dispatch(ctx context.Context, _ string, msg jetstream.Msg) {
 }
 
 func twoHandlers() bus.Consumer {
-	noop := func(context.Context, db.Tx, events.SystemPinged) error { return nil }
+	noop := func(context.Context, db.Tx, events.SystemPinged, time.Time) error { return nil }
 	return bus.Consumer{Durable: "d", Handlers: []bus.HandlerSpec{bus.Handle("a", noop), bus.Handle("b", noop)}}
 }
 

@@ -81,9 +81,16 @@ func TestOpen_failsWhenTheDatabaseIsBehindTheBinary(t *testing.T) {
 	if opened != nil {
 		t.Fatal("Open returned a pool for a database behind the binary")
 	}
-	attrs := codedError(t, err, errs.CodeInternal)
-	if have, got := attr(attrs, "have"), attr(attrs, "want"); have != "" || got != want {
-		t.Fatalf("attrs have=%q want=%q, expected have=\"\" want=%q", have, got, want)
+	attrs := codedError(t, err, errs.CodeDBSchemaBehind)
+	if have, got, hint := attr(attrs, "have"), attr(attrs, "want"), attr(attrs, "hint"); have != "" || got != want ||
+		hint != "run: just migrate db" {
+		t.Fatalf(
+			"attrs have=%q want=%q hint=%q, expected have=\"\" want=%q and the migrate hint",
+			have,
+			got,
+			hint,
+			want,
+		)
 	}
 }
 
@@ -94,11 +101,26 @@ func TestOpen_failsWhenTheRevisionTableIsMissing(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := db.Open(t.Context(), dbConfig(pool))
-	codedError(t, err, errs.CodeInternal)
+	attrs := codedError(t, err, errs.CodeDBSchemaBehind)
+	if hint := attr(attrs, "hint"); hint != "run: just migrate db" {
+		t.Fatalf("hint = %q, want the migrate hint", hint)
+	}
 	var pg *pgconn.PgError
 	if !errors.As(err, &pg) || pg.Code != "42P01" {
 		t.Fatalf("err = %v, want to wrap undefined_table", err)
 	}
+}
+
+func TestOpen_failsAsInternalWhenTheRevisionTableHasAnUnexpectedShape(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	if _, err := pool.Exec(t.Context(), `
+		DROP TABLE atlas_schema_revisions.atlas_schema_revisions;
+		CREATE TABLE atlas_schema_revisions.atlas_schema_revisions (id int)`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := db.Open(t.Context(), dbConfig(pool))
+	codedError(t, err, errs.CodeInternal)
 }
 
 func TestOpen_rejectsBadConfig(t *testing.T) {

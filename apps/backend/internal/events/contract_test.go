@@ -28,8 +28,12 @@ func fixtures(t *testing.T) map[events.Type]events.Event {
 	if err != nil {
 		t.Fatal(err)
 	}
+	user, err := uuid.Parse("01890a5d-ac96-774b-bcce-b302099a8058")
+	if err != nil {
+		t.Fatal(err)
+	}
 	return map[events.Type]events.Event{
-		events.TypeSystemPinged: events.SystemPinged{V: 1, PingID: id, Note: "reference flow"},
+		events.TypeSystemPinged: events.SystemPinged{V: 1, PingID: id, UserID: user, Note: "reference flow"},
 	}
 }
 

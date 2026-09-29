@@ -1,0 +1,27 @@
+# status --publish rewrites the tracking issue comment that contains "<!-- monacoctl agents status -->".
+repo = "Munyon-Canyon/monaco"
+feature_branch = "backend-rewrite-3"
+tracking = 492
+lanes = 6
+batch = 6
+verifier_app = "5101392"
+verifier_installation = 166018497
+milestone = "m7-rest"
+
+# agents check gives each row its own budget, except `go test -short`, which is budgeted per package
+# (`package`, the same 20 s that fails a package in `monacoctl test-report`). The go budget applies to
+# go build and go vet separately; lint covers golangci-lint, nogo and the comment lint.
+[check.budget]
+go = "60s"
+package = "20s"
+lint = "60s"
+swift = "60s"
+# The agent-guard tests run serially and take 30 to 100 s under load when scripts/agent-guard.py changes.
+scripts = "120s"
+python = "15s"
+shell = "10s"
+ready = "90s"
+migrate = "30s"
+openapi = "30s"
+docs = "30s"
+pr = "15s"

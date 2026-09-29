@@ -1,0 +1,11 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {
+    "status": "Success",
+    "signature": "5VfYmGBjvQKe3fgLtUq6Wr2mDzcYbUo8ZqQoYTmT4Qx1cS7yVJnEM8o2KcTnPDeYh8f9GZyRsAvQ7wHzNHbTzJtE",
+    "code": 0,
+    "inputAmountResult": "25000000",
+    "outputAmountResult": "10987654"
+  }
+}

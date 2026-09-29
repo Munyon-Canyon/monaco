@@ -1,0 +1,292 @@
+package scenario
+
+import (
+	"context"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/nats-io/nats.go/jetstream"
+	"go.opentelemetry.io/otel/metric/noop"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
+
+	openapi "github.com/monaco/monaco/apps/backend/api"
+	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
+	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/ratelimit"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/sse"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
+)
+
+type app struct {
+	tb        *testing.T
+	logger    *slog.Logger
+	pool      *pgxpool.Pool
+	db        *db.UnitOfWork
+	bus       testkit.Bus
+	ids       *testkit.IDs
+	verifier  *auth.DevVerifier
+	server    *httptest.Server
+	relay     *bus.Relay
+	held      atomic.Bool
+	consumers []bus.Consumer
+
+	note      *notifier
+	committed map[string]map[string]bool
+}
+
+func start(t *testing.T, o options) *app {
+	t.Helper()
+	pool := testkit.DB(t)
+	a := &app{
+		tb: t, bus: testkit.NATS(t), ids: testkit.NewIDs(1), note: newNotifier(),
+		committed: map[string]map[string]bool{},
+	}
+	a.pool = pool
+	a.db = db.New(pool, a.ids, clock.Real{})
+	verifier, err := auth.NewDevVerifier(
+		config.Config{Env: config.EnvTest, Auth: config.Auth{DevTokenKey: tokenKey}}, clock.Real{})
+	must(t, err)
+	a.verifier = verifier
+	logs := o.logs
+	if logs == nil {
+		logs = io.Discard
+	}
+	a.logger = observability.NewLogger(config.Config{Env: config.EnvTest}, logs)
+	ctx, cancel := context.WithCancel(observability.WithLogger(context.WithoutCancel(t.Context()), a.logger))
+	stops := make([]func(), 0, 4)
+	t.Cleanup(func() {
+		for i := len(stops) - 1; i >= 0; i-- {
+			stops[i]()
+		}
+		cancel()
+	})
+	hub, err := sse.NewHub(sse.NoMemberships{}, noop.NewMeterProvider())
+	must(t, err)
+	stops = append(stops, background(ctx, hub.Run))
+	must(t, a.bus.Conn.SubscribeHints(ctx, hub.Deliver))
+	var reg module.Registry
+	for _, m := range o.modules {
+		reg.Add(m)
+	}
+	set := reg.Build(module.Deps{
+		Clock: clock.Real{}, IDs: a.ids, Pool: pool, UoW: a.db, Bus: a.bus.Conn, Hub: hub,
+	})
+	a.consumers = a.observe(set.Consumers())
+	registry, err := bus.NewRegistry(a.bus.Conn, a.db, clock.Real{}, a.consumers)
+	must(t, err)
+	stopConsumers, err := registry.Start(ctx)
+	must(t, err)
+	stops = append(stops, stopConsumers)
+	a.relay = bus.NewRelay(a.bus.Conn, db.NewOutbox(pool, clock.Real{}), nil, clock.Real{})
+	stops = append(stops, background(ctx, a.runRelay))
+	a.server = httptest.NewServer(a.handler(t, pool, set.Routes(), o.spec))
+	stops = append(stops, a.server.Close)
+	return a
+}
+
+func must(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("scenario: start the app: %v", err)
+	}
+}
+
+func (a *app) handler(t *testing.T, pool *pgxpool.Pool, routes httpx.Routes, spec []byte) http.Handler {
+	t.Helper()
+	if spec == nil {
+		spec = openapi.Spec
+	}
+	policies, err := ratelimit.Load(spec)
+	must(t, err)
+	limiter, err := ratelimit.New(pool, clock.Real{}, noop.NewMeterProvider())
+	must(t, err)
+	h, err := httpx.Handler(httpx.Deps{
+		Logger:       a.logger,
+		Tracer:       tracenoop.NewTracerProvider(),
+		Clock:        clock.Real{},
+		IDs:          a.ids,
+		MaxBodyBytes: 1 << 20,
+		Idempotency:  db.NewIdempotencyStore(pool, clock.Real{}),
+		Verifier:     a.verifier,
+		RateLimit:    ratelimit.Middleware(limiter, policies, httpx.ActorKey, false),
+	}, routes, spec)
+	must(t, err)
+	checked := testkit.HTTP(t, h)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/stream" {
+			h.ServeHTTP(w, r)
+			return
+		}
+		checked.ServeHTTP(w, r)
+	})
+}
+
+func (a *app) runRelay(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-a.db.Signal():
+		}
+		if !a.held.Load() {
+			a.relay.Once(ctx)
+		}
+	}
+}
+
+func (a *app) observe(consumers []bus.Consumer) []bus.Consumer {
+	out := make([]bus.Consumer, len(consumers))
+	for i, c := range consumers {
+		c.Handlers = append([]bus.HandlerSpec(nil), c.Handlers...)
+		for j, h := range c.Handlers {
+			c.Handlers[j] = h.OnCommit(func(ctx context.Context, _ events.Event) {
+				a.record(h.Name, observability.EventIDFrom(ctx))
+			})
+		}
+		out[i] = c
+	}
+	return out
+}
+
+func (a *app) record(handler, eventID string) {
+	a.note.update(func() {
+		if a.committed[handler] == nil {
+			a.committed[handler] = map[string]bool{}
+		}
+		a.committed[handler][eventID] = true
+	})
+}
+
+func (a *app) handlersOf(typ events.Type) []string {
+	var names []string
+	for _, c := range a.consumers {
+		for _, h := range c.Handlers {
+			if h.Type() == typ {
+				names = append(names, h.Name)
+			}
+		}
+	}
+	return names
+}
+
+func (a *app) handledAll(handlers, eventIDs []string) bool {
+	for _, h := range handlers {
+		for _, id := range eventIDs {
+			if !a.committed[h][id] {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (a *app) backend() *backend {
+	return &backend{
+		baseURL: a.server.URL, client: a.server.Client(), note: a.note, mint: a.mint, newUserID: a.newUserID,
+		enter: func(Stage) {}, exchanged: func(Exchange) {}, events: a.events, awaitHandled: a.awaitHandled,
+		published: a.published, hold: a.hold, crashAt: a.crashAt, seed: a.seed,
+	}
+}
+
+func (a *app) mint(id ids.UserID) string {
+	return a.verifier.Mint(id.String(), time.Now().Add(time.Hour))
+}
+
+func (a *app) newUserID() (ids.UserID, error) { return ids.ParseUserID(a.ids.NewV7().String()) }
+
+func (a *app) events(t T, typ events.Type, _ []string) []string {
+	t.Helper()
+	rows, err := a.pool.Query(t.Context(), `SELECT id::text FROM events WHERE type = $1`, string(typ))
+	return scanIDs(t, typ, rows, err)
+}
+
+func scanIDs(t T, typ events.Type, rows pgx.Rows, err error) []string {
+	t.Helper()
+	var got []string
+	for err == nil && rows.Next() {
+		var id string
+		err = rows.Scan(&id)
+		got = append(got, id)
+	}
+	if err == nil {
+		rows.Close()
+		err = rows.Err()
+	}
+	if err != nil {
+		t.Fatalf("scenario: read %s events: %v", typ, err)
+	}
+	return got
+}
+
+func (a *app) awaitHandled(t T, typ events.Type, eventIDs []string) {
+	t.Helper()
+	handlers := a.handlersOf(typ)
+	a.note.await(t, "every handler of "+string(typ)+" committing "+strings.Join(eventIDs, ", "), func() bool {
+		return a.handledAll(handlers, eventIDs)
+	})
+}
+
+func (a *app) published(t T, typ events.Type, _ []string) uint64 {
+	t.Helper()
+	stream, err := a.bus.JS.Stream(t.Context(), a.bus.Events)
+	var info *jetstream.StreamInfo
+	if err == nil {
+		info, err = stream.Info(t.Context(), jetstream.WithSubjectFilter(a.bus.Conn.Subject(typ.Subject())))
+	}
+	if err != nil {
+		t.Fatalf("scenario: read the events stream: %v", err)
+	}
+	return info.State.Subjects[a.bus.Conn.Subject(typ.Subject())]
+}
+
+func (a *app) hold() { a.held.Store(true) }
+
+func (a *app) crashAt(_ T, point faultpoint.Name) {
+	testkit.CrashAt(a.tb, point, func(ctx context.Context) error {
+		a.relay.Once(ctx)
+		return nil
+	})
+	a.held.Store(false)
+}
+
+func (a *app) seed(t T, name string) []testkit.Seeded {
+	t.Helper()
+	return testkit.Seed(t, a.pool, name, a.consumers...)
+}
+
+type Served struct {
+	URL, TokenKey, Events, DeadLetter string
+	Pool                              *pgxpool.Pool
+	JS                                jetstream.JetStream
+	Consumers                         []bus.Consumer
+}
+
+func Serve(t *testing.T, opts ...Option) Served {
+	t.Helper()
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+	a := start(t, o)
+	return Served{
+		URL: a.server.URL, TokenKey: tokenKey, Events: a.bus.Events, DeadLetter: a.bus.DeadLetter,
+		Pool: a.pool, JS: a.bus.JS, Consumers: a.consumers,
+	}
+}

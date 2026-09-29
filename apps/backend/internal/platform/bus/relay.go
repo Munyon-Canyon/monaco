@@ -21,6 +21,7 @@ import (
 const (
 	relayBatch = 100
 	relayPoll  = time.Second
+	relayQuiet = time.Minute
 )
 
 type Relay struct {
@@ -28,6 +29,7 @@ type Relay struct {
 	outbox *db.Outbox
 	wake   <-chan struct{}
 	clock  clock.Clock
+	idleAt time.Time
 }
 
 func NewRelay(conn *Conn, outbox *db.Outbox, wake <-chan struct{}, c clock.Clock) *Relay {
@@ -65,7 +67,8 @@ func (r *Relay) drain(ctx context.Context) bool {
 			slog.String("code", string(errs.CodeOf(b.Failed))), slog.Any("err", b.Failed))
 	}
 	if len(b.Published) == 0 {
-		if b.Failed == nil {
+		if now := r.clock.Now(); b.Failed == nil && now.Sub(r.idleAt) >= relayQuiet {
+			r.idleAt = now
 			observability.Debug(ctx, observability.BusRelayIdle)
 		}
 		return false

@@ -1,10 +1,13 @@
 name: CI
 
 # A draft skips the ci job, which leaves no "ci / ci-ok" check, so the PR cannot merge.
+# So does a PR based on Graphite's temporary graphite-base/N branch: Graphite deletes that base
+# after the restack and ci-retarget.yml runs on the retarget to the real trunk.
 on:
+  # Every PR, so a stacked PR whose base is another ticket branch gets CI on its own diff.
   pull_request:
-    branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
   workflow_dispatch:
 
 concurrency:
@@ -14,8 +17,12 @@ concurrency:
 permissions:
   contents: read
   pull-requests: read
+  actions: read
+  checks: write
 
 jobs:
   ci:
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ !github.event.pull_request.draft && !startsWith(github.base_ref, 'graphite-base/') }}
     uses: ./.github/workflows/ci-jobs.yml
+    with:
+      stage: ${{ github.event_name == 'merge_group' && 'queue' || 'pr' }}

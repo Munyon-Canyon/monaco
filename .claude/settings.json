@@ -1,4 +1,38 @@
 {
+  "extraKnownMarketplaces": {
+    "pstack-claude": {
+      "source": {
+        "source": "github",
+        "repo": "michael-denyer/pstack-claude"
+      }
+    },
+    "compound-engineering-plugin": {
+      "source": {
+        "source": "github",
+        "repo": "EveryInc/compound-engineering-plugin"
+      }
+    },
+    "swiftui-agent-skill": {
+      "source": {
+        "source": "github",
+        "repo": "twostraws/SwiftUI-Agent-Skill"
+      }
+    },
+    "swiftui-expert-skill": {
+      "source": {
+        "source": "github",
+        "repo": "AvdLee/SwiftUI-Agent-Skill"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "pstack@pstack-claude": true,
+    "superpowers@claude-plugins-official": true,
+    "compound-engineering@compound-engineering-plugin": true,
+    "swift-lsp@claude-plugins-official": true,
+    "swiftui-pro@swiftui-agent-skill": true,
+    "swiftui-expert@swiftui-expert-skill": true
+  },
   "hooks": {
     "SessionStart": [
       {
@@ -18,6 +52,21 @@
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/agent-guard-dev-db.sh",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/agent-guard.py",
+            "timeout": 90
+          }
+        ]
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/agent-guard-dispatch.py",
+            "timeout": 10
           }
         ]
       }
@@ -30,6 +79,22 @@
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/agent-guard-go-comments.sh",
             "timeout": 60
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/agent-guard-gates.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/agent-reap.py",
+            "timeout": 30
           }
         ]
       }

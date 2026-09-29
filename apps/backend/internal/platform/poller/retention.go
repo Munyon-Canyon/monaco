@@ -12,8 +12,10 @@ import (
 )
 
 const (
-	retentionInterval = 24 * time.Hour
-	deliveryRetention = 30 * 24 * time.Hour
+	retentionInterval    = 24 * time.Hour
+	deliveryRetention    = 30 * 24 * time.Hour
+	idempotencyRetention = 24 * time.Hour
+	rateLimitRetention   = 24 * time.Hour
 )
 
 type Retention struct {
@@ -30,12 +32,26 @@ func (*Retention) Name() string { return "platform.retention" }
 func (*Retention) Interval() time.Duration { return retentionInterval }
 
 func (r *Retention) Tick(ctx context.Context) (Report, error) {
-	before := r.clock.Now().Add(-deliveryRetention)
-	deleted, batches, err := db.PruneDeliveries(ctx, r.pool, before)
+	now := r.clock.Now()
+	deliveriesBefore, keysBefore := now.Add(-deliveryRetention), now.Add(-idempotencyRetention)
+	bucketsBefore := now.Add(-rateLimitRetention)
+	deliveries, batches, err := db.PruneDeliveries(ctx, r.pool, deliveriesBefore)
 	if err != nil {
 		return Report{}, err
 	}
+	keys, err := db.PruneIdempotencyKeys(ctx, r.pool, keysBefore)
+	if err != nil {
+		return Report{}, err
+	}
+	buckets, err := db.PruneRateLimitBuckets(ctx, r.pool, bucketsBefore)
+	if err != nil {
+		return Report{}, err
+	}
+	deleted := deliveries + keys + buckets
 	return Report{Scanned: deleted, Changed: deleted, Attrs: []slog.Attr{
-		slog.String("table", "event_deliveries"), slog.Time("before", before), slog.Int("batches", batches),
+		slog.GroupAttrs("event_deliveries",
+			slog.Int("deleted", deliveries), slog.Time("before", deliveriesBefore), slog.Int("batches", batches)),
+		slog.GroupAttrs("idempotency_keys", slog.Int("deleted", keys), slog.Time("before", keysBefore)),
+		slog.GroupAttrs("rate_limit_buckets", slog.Int("deleted", buckets), slog.Time("before", bucketsBefore)),
 	}}, nil
 }

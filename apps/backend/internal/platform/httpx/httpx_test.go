@@ -37,6 +37,16 @@ func (healthz) GetStream(context.Context, api.GetStreamRequestObject) (api.GetSt
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetStream")
 }
 
+func (healthz) PostSystemPing(
+	context.Context, api.PostSystemPingRequestObject,
+) (api.PostSystemPingResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostSystemPing")
+}
+
+func (healthz) GetSystemPing(context.Context, api.GetSystemPingRequestObject) (api.GetSystemPingResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetSystemPing")
+}
+
 type stepClock struct {
 	clock.Real
 	mu  sync.Mutex
@@ -241,6 +251,7 @@ func TestProblem_statusRetryableAndAlertFollowTheCodeTable(t *testing.T) {
 	}{
 		{errs.New(errs.CodeUpstreamUnavailable, "jupiter.Quote"), 503, "upstream_unavailable", true, "ERROR", false},
 		{errs.New(errs.CodeVersionConflict, "cabal.Rename"), 409, "version_conflict", false, "INFO", false},
+		{errs.New(errs.CodeRateLimited, "ratelimit.Middleware"), 429, "rate_limited", true, "INFO", false},
 		{io.ErrUnexpectedEOF, 500, "internal", false, "ERROR", true},
 	} {
 		t.Run(string(tc.code), func(t *testing.T) {

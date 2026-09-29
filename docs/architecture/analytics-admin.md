@@ -101,6 +101,7 @@ The list of flows lives here; adding a screen means adding its steps here and in
 - Separate web app at `admin.monacolabs.xyz`, not reachable from the consumer app.
 - Login with Privy (Google), then the backend checks the user against an `admins` table (`user_id`, `role`: `viewer`, `moderator`, `operator`). No admin rights from a client flag or an env list baked into the frontend.
 - Admin API under `/v1/admin/*`, same backend, separate middleware: admin role check, per-admin rate limit, all requests logged. Routes live in `api/openapi.yaml` like every other route. A failed role check is a `KindForbidden` code (403) from the `errs` table ([Errors](backend-platform.md#errors)). The `admin` module owns `admins`, `admin_actions` and the dead-letter queue ([Repository layout](backend-platform.md#repository-layout)).
+- Each admin route lives in the HTTP adapter of the module that owns the data it changes (an ops pause in `funding`, a proposal void in `governance`), mounted under `/v1/admin/*` behind the shared admin middleware that `admin` exports. `admin` does not proxy other modules' commands.
 
 ### Actions
 
@@ -119,7 +120,7 @@ Every action:
 2. Is a Command with an `IdempotencyKey`, handled by the module that owns the state (for example `governance`'s `VoidProposal`, flow 13), with the same guarded updates the product uses. The request context carries actor `admin` ([Context rules](backend-platform.md#context-rules)). The admin API adds no second path for changing state.
 3. Appends `admin.action` (flow 26), plus the domain event such as `proposal.voided`, inside the same `uow.Do` as the state change.
 4. The `admin` module's consumer on `admin.action` writes the `admin_actions` row (`admin_id`, `action`, `target_type`, `target_id`, `reason`, `before`, `after`, `created_at`) (default 2026-09-27). The `events` row is the atomic record; `admin_actions` is a projection of it, one relay hop behind. This keeps the module walls: the owning module never writes an `admin` table ([Dependency rules](backend-platform.md#dependency-rules-enforced-by-depguard)).
-5. The usual consumers react to the same events and notify affected users (cabal members on pause, proposer on void).
+5. The usual consumers react to the same domain events. Only events in [What notifies](notifications.md#what-notifies-mvp) push: an ops pause pushes cabal members through `cabal.paused`; a void pushes nobody for MVP.
 
 No admin action can move money. Moving funds stays in the ops runbooks ([ops-sweep-usdc.md](../legacy/ops-sweep-usdc.md), whose script was deleted with the legacy backend).
 
@@ -154,6 +155,7 @@ None.
 
 ## Log
 
+- 2026-09-29: Admin routes live in the owning module's HTTP adapter behind shared admin middleware from `admin` (default; see #535).
 - 2026-09-27: Decided: `users`, chat messages and `follows` soft delete through `deleted_at`; other tables keep their current delete behavior; ledger rows are never deleted. Narrowed the hard-delete alternative to match.
 - 2026-09-27: Closed the last open question (default 2026-09-27): PostHog Cloud runs in the US region.
 - 2026-09-27: Applied decisions. Decided: banned users can withdraw and cash out. Defaults: new `analytics` module owns the PostHog export and dashboards; ops pause is a `funding` pause record with `reason = ops`, no `trading_paused_at`; `admin_actions` written by an `admin` consumer of `admin.action`; `dead_letters` table with resolve state next to the `DEADLETTER` stream; `analytics` added to flows 7, 10, 11, 14, 20, 21 in the RFC; Retool first; banned-cabal wind-down through cash out; two-person approval for cabal bans only; PostHog Cloud; session replay off; user reporting deferred. Open question left: PostHog region.

@@ -30,10 +30,6 @@ func await(t *testing.T, what string, done <-chan struct{}) {
 	}
 }
 
-func settle() {
-	<-time.After(3 * testkit.DefaultAckWait)
-}
-
 func startRegistry(ctx context.Context, t *testing.T, reg *bus.Registry) {
 	t.Helper()
 	stop, err := reg.Start(ctx)
@@ -96,21 +92,13 @@ func (h *harness) deadLetters(t *testing.T) []deadLetter {
 	return out
 }
 
-func (h *harness) waitSettled(t *testing.T) uint64 {
+func (h *harness) assertNoRedelivery(t *testing.T) uint64 {
 	t.Helper()
-	deadline := time.After(waitLong)
-	for {
-		ci := h.consumerInfo(t)
-		if ci.NumAckPending == 0 && ci.NumRedelivered == 0 {
-			return ci.Delivered.Consumer
-		}
-		select {
-		case <-deadline:
-			t.Fatalf("the consumer still holds a message: %d pending ack, %d redelivered",
-				ci.NumAckPending, ci.NumRedelivered)
-		case <-time.After(20 * time.Millisecond):
-		}
+	cons, err := h.bus.JS.Consumer(t.Context(), h.bus.Events, durable)
+	if err != nil {
+		t.Fatal(err)
 	}
+	return testkit.AssertNoRedelivery(t, cons).Delivered.Consumer
 }
 
 func (h *harness) assertNoDeliverySince(t *testing.T, delivered uint64) {
@@ -128,29 +116,17 @@ func (h *harness) assertNoDeliverySince(t *testing.T, delivered uint64) {
 
 func waitCalls(t *testing.T, calls *atomic.Uint64, want uint64) {
 	t.Helper()
-	deadline := time.After(waitLong)
-	for calls.Load() != want {
-		select {
-		case <-deadline:
-			t.Fatalf("handler ran %d times for %d deliveries, want once per delivery", calls.Load(), want)
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
+	testkit.Eventually(t, func() bool { return calls.Load() == want }, waitLong)
 }
 
 func (h *harness) waitDeadLetters(t *testing.T, n int) []deadLetter {
 	t.Helper()
-	deadline := time.After(waitLong)
-	for {
-		if got := h.deadLetters(t); len(got) >= n {
-			return got
-		}
-		select {
-		case <-deadline:
-			t.Fatalf("DEADLETTER never reached %d messages", n)
-		case <-time.After(20 * time.Millisecond):
-		}
-	}
+	var got []deadLetter
+	testkit.Eventually(t, func() bool {
+		got = h.deadLetters(t)
+		return len(got) >= n
+	}, waitLong)
+	return got
 }
 
 func TestDispatch_retryableErrorNaksAndTheRedeliverySucceeds(t *testing.T) {
@@ -158,7 +134,7 @@ func TestDispatch_retryableErrorNaksAndTheRedeliverySucceeds(t *testing.T) {
 	h := newHarness(t)
 	var calls atomic.Int32
 	done := make(chan struct{})
-	flaky := bus.Handle("notify.push", func(ctx context.Context, tx db.Tx, e events.SystemPinged) error {
+	flaky := bus.Handle("notify.push", func(ctx context.Context, tx db.Tx, e events.SystemPinged, _ time.Time) error {
 		if calls.Add(1) == 1 {
 			return errs.New(errs.CodeUpstreamUnavailable, "apns.Send")
 		}
@@ -171,7 +147,7 @@ func TestDispatch_retryableErrorNaksAndTheRedeliverySucceeds(t *testing.T) {
 
 	id := h.publishPing(t)
 	await(t, "second delivery", done)
-	settle()
+	h.assertNoRedelivery(t)
 	if got := h.deliveries(t); !slices.Equal(got, []row{{"notify.push", id, "ok"}}) {
 		t.Fatalf("event_deliveries = %v, want the one ok row", got)
 	}
@@ -212,7 +188,7 @@ func TestDispatch_nonRetryableErrorTermsIntoDeadLetterAndIsNotRedelivered(t *tes
 	h := newHarness(t)
 	var calls atomic.Uint64
 	seen := make(chan struct{}, 1)
-	rejecting := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged) error {
+	rejecting := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged, time.Time) error {
 		calls.Add(1)
 		select {
 		case seen <- struct{}{}:
@@ -227,8 +203,7 @@ func TestDispatch_nonRetryableErrorTermsIntoDeadLetterAndIsNotRedelivered(t *tes
 	h.publish(t, id, payload)
 	await(t, "first delivery", seen)
 	got := h.waitDeadLetters(t, 1)
-	delivered := h.waitSettled(t)
-	settle()
+	delivered := h.assertNoRedelivery(t)
 	h.assertNoDeliverySince(t, delivered)
 	waitCalls(t, &calls, delivered)
 	if got := h.deliveries(t); len(got) != 0 {
@@ -253,12 +228,12 @@ func TestDispatch_twoHandlersInOneConsumerDedupeIndependently(t *testing.T) {
 	h := newHarness(t)
 	var pushCalls, mailCalls atomic.Int32
 	done := make(chan struct{})
-	push := bus.Handle("notify.push", func(ctx context.Context, tx db.Tx, e events.SystemPinged) error {
+	push := bus.Handle("notify.push", func(ctx context.Context, tx db.Tx, e events.SystemPinged, _ time.Time) error {
 		pushCalls.Add(1)
 		_, err := tx.Queries().Exec(ctx, `INSERT INTO handled (handler, event_id) VALUES ('notify.push', $1)`, e.PingID)
 		return err
 	})
-	mail := bus.Handle("notify.mail", func(ctx context.Context, tx db.Tx, e events.SystemPinged) error {
+	mail := bus.Handle("notify.mail", func(ctx context.Context, tx db.Tx, e events.SystemPinged, _ time.Time) error {
 		if mailCalls.Add(1) == 1 {
 			return errs.New(errs.CodeUpstreamTimeout, "mail.Send")
 		}
@@ -271,7 +246,7 @@ func TestDispatch_twoHandlersInOneConsumerDedupeIndependently(t *testing.T) {
 
 	id := h.publishPing(t)
 	await(t, "mail's second delivery", done)
-	settle()
+	h.assertNoRedelivery(t)
 	want := []row{{"notify.mail", id, "ok"}, {"notify.push", id, "ok"}}
 	if got := h.deliveries(t); !slices.Equal(got, want) {
 		t.Fatalf("event_deliveries = %v, want %v", got, want)
@@ -288,7 +263,7 @@ func TestDispatch_nakDelayFollowsTheScheduleAndTermCarriesTheCode(t *testing.T) 
 	t.Parallel()
 	h := newHarness(t)
 	var calls atomic.Int32
-	failing := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged) error {
+	failing := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged, time.Time) error {
 		if calls.Add(1) <= 6 {
 			return errs.New(errs.CodeUpstreamUnavailable, "apns.Send")
 		}
@@ -359,7 +334,7 @@ func TestDispatch_deadLetterPublishFailureIsLoggedAndStillTerms(t *testing.T) {
 func TestRegistry_everyMaxDeliveriesAdvisoryLandsInDeadLetter(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	always := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged) error {
+	always := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged, time.Time) error {
 		return errs.New(errs.CodeUpstreamUnavailable, "apns.Send")
 	})
 	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{always}, NakDelays: quick()})
@@ -436,6 +411,25 @@ func TestRegistry_startCreatesTheDurableWithTheRFCConfig(t *testing.T) {
 			!slices.Equal(cfg.FilterSubjects, []string{h.bus.Conn.Subject("events.system.pinged")}) {
 			t.Fatalf("%s config = %+v", tc.durable, cfg)
 		}
+	}
+}
+
+func TestRegistry_warnsWhenTheRunningConsumerIsDeleted(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	ctx := h.ctx(t)
+	startRegistry(
+		ctx,
+		t,
+		h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{h.recorder("notify.push")}}),
+	)
+	testkit.Eventually(t, func() bool { return h.consumerInfo(t).NumWaiting > 0 }, waitLong)
+	if err := h.bus.JS.DeleteConsumer(ctx, h.bus.Events, durable); err != nil {
+		t.Fatal(err)
+	}
+	testkit.Eventually(t, func() bool { return len(h.lines(t, "bus.consume_error")) > 0 }, waitLong)
+	if line := h.lines(t, "bus.consume_error")[0]; line["consumer"] != durable || line["level"] != "WARN" {
+		t.Fatalf("line = %v, want a WARN naming %s", line, durable)
 	}
 }
 

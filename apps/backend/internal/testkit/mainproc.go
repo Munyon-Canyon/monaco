@@ -17,12 +17,7 @@ import (
 
 const runMainEnv = "TESTKIT_RUN_MAIN"
 
-func RunMain(m *testing.M, main func()) {
-	ChildMain(main)
-	os.Exit(m.Run())
-}
-
-func ChildMain(main func()) {
+func childMain(main func()) {
 	if os.Getenv(runMainEnv) == "1" {
 		main()
 		os.Exit(0)
@@ -36,11 +31,22 @@ func MainCommand(t *testing.T, env []string, args ...string) *exec.Cmd {
 		t.Fatal(err)
 	}
 	cmd := exec.CommandContext(t.Context(), exe, args...)
-	cmd.Env = append(slices.Clone(env), runMainEnv+"=1")
+	cmd.Env = append(withoutRaceExitSleep(env), runMainEnv+"=1")
 	if dir := flag.Lookup("test.gocoverdir"); dir != nil && dir.Value.String() != "" {
 		cmd.Env = append(cmd.Env, "GOCOVERDIR="+dir.Value.String())
 	}
 	return cmd
+}
+
+func withoutRaceExitSleep(env []string) []string {
+	out := slices.Clone(env)
+	for i := len(out) - 1; i >= 0; i-- {
+		if opts, ok := strings.CutPrefix(out[i], "GORACE="); ok {
+			out[i] = "GORACE=" + strings.TrimSpace(opts+" atexit_sleep_ms=0")
+			return out
+		}
+	}
+	return append(out, "GORACE=atexit_sleep_ms=0")
 }
 
 type MainProcess struct {

@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/sse"
 )
 
 func Handler(d Deps, ssi api.StrictServerInterface, spec []byte) (http.Handler, error) {
@@ -49,7 +50,11 @@ func handler(
 }
 
 func middlewares(d Deps, c *contract) []api.MiddlewareFunc {
-	return []api.MiddlewareFunc{Idempotency(d.Idempotency), c.validate, Auth(d.Verifier), c.resolve}
+	mws := []api.MiddlewareFunc{Idempotency(d.Idempotency), c.validate}
+	if d.RateLimit != nil {
+		mws = append(mws, d.RateLimit)
+	}
+	return append(mws, Auth(d.Verifier), c.resolve)
 }
 
 func invalidRequest(w http.ResponseWriter, r *http.Request, err error) {
@@ -81,6 +86,19 @@ func Serve(ctx context.Context, ln net.Listener, srv *http.Server, shutdownTimeo
 	}
 	return nil
 }
+
+type Routes struct {
+	Health
+	sse.Stream
+	SystemRoutes
+}
+
+type SystemRoutes interface {
+	PostSystemPing(context.Context, api.PostSystemPingRequestObject) (api.PostSystemPingResponseObject, error)
+	GetSystemPing(context.Context, api.GetSystemPingRequestObject) (api.GetSystemPingResponseObject, error)
+}
+
+var _ api.StrictServerInterface = Routes{}
 
 type Health struct{}
 

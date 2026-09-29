@@ -1,31 +1,33 @@
 package main
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path"
 	"slices"
-	"strings"
 
+	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	testflows "github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
 const (
 	backendDir = "apps/backend"
-	flowsUsage = "usage: monacoctl flows check [--from go-test.json]"
+	flowsUsage = "usage: monacoctl flows check [--from go-test.json | --structure-only]"
 )
 
 func flowsCmd(args []string, _, stderr io.Writer) int {
 	var tests io.Reader
+	structureOnly := false
 	switch {
+	case slices.Equal(args, []string{"check", "--structure-only"}):
+		structureOnly = true
 	case slices.Equal(args, []string{"check"}):
 		if info, err := os.Stdin.Stat(); err == nil && info.Mode()&os.ModeCharDevice == 0 {
 			tests = os.Stdin
@@ -42,10 +44,11 @@ func flowsCmd(args []string, _, stderr io.Writer) int {
 		_, _ = fmt.Fprintln(stderr, flowsUsage)
 		return 2
 	}
-	return flowsCheck(liveEnv(os.DirFS("../.."), gitFresh(context.Background(), ".")), tests, stderr)
+	env := liveEnv(os.DirFS("../.."), ".", registered.Build(module.Deps{}))
+	return flowsCheck(env, tests, structureOnly, stderr)
 }
 
-func flowsCheck(env flows.Env, tests io.Reader, stderr io.Writer) int {
+func flowsCheck(env flows.Env, tests io.Reader, structureOnly bool, stderr io.Writer) int {
 	parsed, problems, err := readFlows(env.Repo)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "monacoctl flows check: %v\n", err)
@@ -59,8 +62,10 @@ func flowsCheck(env flows.Env, tests io.Reader, stderr io.Writer) int {
 		}
 	}
 	problems = append(problems, flows.CheckColumns(parsed, env)...)
-	problems = append(problems, flows.CheckTests(parsed, results)...)
-	problems = append(problems, flows.CheckEvidence(parsed, env)...)
+	if !structureOnly {
+		problems = append(problems, flows.CheckTests(parsed, results)...)
+	}
+	problems = append(problems, flows.CheckScripts(parsed, env)...)
 	slices.SortStableFunc(problems, func(a, b flows.Problem) int { return a.Line - b.Line })
 	for _, p := range problems {
 		_, _ = fmt.Fprintln(stderr, p)
@@ -81,7 +86,7 @@ func readFlows(repo fs.FS) ([]flows.Flow, []flows.Problem, error) {
 	return parsed, problems, nil
 }
 
-func liveEnv(repo fs.FS, fresh flows.Fresh) flows.Env {
+func liveEnv(repo fs.FS, backend string, mods module.Set) flows.Env {
 	catalog := events.Catalog()
 	eventTypes := make([]string, 0, len(catalog))
 	for _, e := range catalog {
@@ -92,46 +97,33 @@ func liveEnv(repo fs.FS, fresh flows.Fresh) flows.Env {
 	for _, c := range codes {
 		codeNames = append(codeNames, errs.Name(c))
 	}
+	consumers := mods.Consumers()
+	durables := make([]string, 0, len(consumers))
+	for _, c := range consumers {
+		durables = append(durables, c.Durable)
+		for _, h := range c.Handlers {
+			durables = append(durables, h.Name)
+		}
+	}
+	pollers := mods.Pollers()
+	pollerNames := make([]string, 0, len(pollers))
+	for _, p := range pollers {
+		pollerNames = append(pollerNames, p.Name())
+	}
 	return flows.Env{
 		Repo:        repo,
 		BackendDir:  backendDir,
-		Events:      func(_ flows.Flow, v string) bool { return slices.Contains(eventTypes, v) },
-		Codes:       func(_ flows.Flow, v string) bool { return slices.Contains(codeNames, v) },
-		Triggers:    flows.Unchecked,
-		Commands:    flows.Unchecked,
-		Consumers:   flows.Unchecked,
+		Events:      flows.Members(eventTypes),
+		Codes:       flows.Members(codeNames),
+		Triggers:    flows.Triggers(openapi.Spec, eventTypes, pollerNames),
+		Commands:    flows.Commands(backend),
+		Consumers:   flows.Members(durables),
 		Faultpoints: func(_ flows.Flow, v string) bool { return faultpoint.Known(v) },
-		Fresh:       fresh,
+		Scripts: func(_ flows.Flow, name string) bool {
+			_, ok := testflows.Scripts()[name]
+			return ok
+		},
 	}
 }
 
-func gitFresh(ctx context.Context, dir string) flows.Fresh {
-	return func(module, sha string) (bool, error) { return isFresh(ctx, dir, module, sha) }
-}
-
-func isFresh(ctx context.Context, dir, module, sha string) (bool, error) {
-	const op = "monacoctl.gitFresh"
-	git := func(args ...string) *exec.Cmd {
-		cmd := exec.CommandContext(ctx, "git", args...)
-		cmd.Dir = dir
-		return cmd
-	}
-	out, err := git("log", "-1", "--format=%H", "--", path.Join("internal/modules", module)).Output()
-	if err != nil {
-		return false, errs.Wrap(err, errs.CodeInternal, op)
-	}
-	head := strings.TrimSpace(string(out))
-	if head == "" {
-		return true, nil
-	}
-	err = git("merge-base", "--is-ancestor", head, sha).Run()
-	var exit *exec.ExitError
-	switch {
-	case err == nil:
-		return true, nil
-	case errors.As(err, &exit) && exit.ExitCode() == 1:
-		return false, nil
-	default:
-		return false, errs.Wrap(err, errs.CodeInternal, op)
-	}
-}
+func toolFlows(_ toolEnv) tool { return flowsCmd }

@@ -1,0 +1,9 @@
+package {{.Module}}_test
+
+import "testing"
+{{range .Tests}}
+func {{.}}(t *testing.T) {
+	t.Parallel()
+	t.Fatal("not implemented")
+}
+{{end}}

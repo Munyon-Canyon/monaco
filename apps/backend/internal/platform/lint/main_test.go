@@ -2,50 +2,53 @@ package lint_test
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
-)
 
-var (
-	backendRoot string
-	genDepguard string
-	nogoBin     string
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 func TestMain(m *testing.M) {
-	code, err := runWithTools(m)
-	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	os.Exit(code)
+	testkit.Main(m, testkit.NoDB(), testkit.WithSetup(buildTools))
 }
 
-func runWithTools(m *testing.M) (int, error) {
+var (
+	backendRoot string
+	genGolangci string
+	nogoBin     string
+)
+
+func buildTools() (func(), error) {
+	flag.Parse()
+	if testing.Short() {
+		return func() {}, nil
+	}
 	root, err := filepath.Abs("../../..")
 	if err != nil {
-		return 0, fmt.Errorf("backend root: %w", err)
+		return nil, fmt.Errorf("backend root: %w", err)
 	}
 	bin, err := os.MkdirTemp("", "lint-rules-")
 	if err != nil {
-		return 0, fmt.Errorf("temp dir: %w", err)
+		return nil, fmt.Errorf("temp dir: %w", err)
 	}
-	defer func() { _ = os.RemoveAll(bin) }()
+	cleanup := func() { _ = os.RemoveAll(bin) }
 	backendRoot = root
-	genDepguard = filepath.Join(bin, "gen-depguard")
+	genGolangci = filepath.Join(bin, "gen-golangci")
 	nogoBin = filepath.Join(bin, "nogo")
 	for out, pkg := range map[string]string{
-		genDepguard: "./scripts/gen-depguard",
+		genGolangci: "./scripts/gen-golangci",
 		nogoBin:     "./internal/platform/lint/nogo/cmd/nogo",
 	} {
 		build := exec.CommandContext(context.Background(), "go", "build", "-o", out, pkg)
 		build.Dir = root
 		if b, err := build.CombinedOutput(); err != nil {
-			return 0, fmt.Errorf("go build %s: %w\n%s", pkg, err, b)
+			cleanup()
+			return nil, fmt.Errorf("go build %s: %w\n%s", pkg, err, b)
 		}
 	}
-	return m.Run(), nil
+	return cleanup, nil
 }

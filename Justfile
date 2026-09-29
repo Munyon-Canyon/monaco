@@ -94,6 +94,12 @@ test app:
       mutation)
         (cd apps/backend && go run ./cmd/monacoctl mutation ${MUTATION_ARGS:-})
         ;;
+      vuln)
+        if [[ "$(cat .bin/govulncheck.version 2>/dev/null)" != "$(sed -n 's/^version=//p' scripts/install-govulncheck.sh)" ]]; then
+          scripts/install-govulncheck.sh
+        fi
+        (cd apps/backend && ../../.bin/govulncheck ./...)
+        ;;
       mobile)
         if [[ ! -d apps/mobile ]]; then
           echo "error: apps/mobile is not scaffolded yet (M0-T4)."
@@ -107,7 +113,7 @@ test app:
         (cd packages/mobile-core && swift test)
         ;;
       *)
-        echo "error: unknown app '{{app}}' (use backend, mutation or mobile)"
+        echo "error: unknown app '{{app}}' (use backend, mutation, vuln or mobile)"
         exit 1
         ;;
     esac
@@ -225,8 +231,25 @@ reset *target:
         ;;
     esac
 
-# Regenerate checked-in generated files. `just gen docs` rewrites docs/reference from monacoctl.
-gen target:
+# Apply pending migrations to the .env.local database and print its revision. `just run backend` never migrates.
+migrate target:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{target}}" in
+      db)
+        mkdir -p bin
+        (cd apps/backend && go build -o ../../bin/ ./cmd/monacoctl)
+        {{_dotenvx}} "$PWD/bin/monacoctl" migrate apply
+        {{_dotenvx}} "$PWD/bin/monacoctl" migrate status
+        ;;
+      *)
+        echo "error: unknown target '{{target}}' (use db)"
+        exit 1
+        ;;
+    esac
+
+# Regenerate checked-in files (`just gen docs`) or scaffold backend code (`just gen module <name>`; `just gen help` lists every generator).
+gen target *args:
     #!/usr/bin/env bash
     set -euo pipefail
     case "{{target}}" in
@@ -234,8 +257,7 @@ gen target:
         ./scripts/gen-docs.sh
         ;;
       *)
-        echo "error: unknown target '{{target}}' (use docs)"
-        exit 1
+        cd apps/backend && go run ./cmd/monacoctl gen {{target}} {{args}}
         ;;
     esac
 

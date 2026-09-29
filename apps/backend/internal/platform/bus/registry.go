@@ -30,12 +30,12 @@ const (
 	maxAckPending = 64
 )
 
-type Handler[E events.Event] func(ctx context.Context, tx db.Tx, e E) error
+type Handler[E events.Event] func(ctx context.Context, tx db.Tx, e E, at time.Time) error
 
 type HandlerSpec struct {
 	Name string
 	typ  events.Type
-	run  func(ctx context.Context, tx db.Tx, e events.Event) error
+	run  func(ctx context.Context, tx db.Tx, e events.Event, at time.Time) error
 }
 
 func Handle[E events.Event](name string, fn Handler[E]) HandlerSpec {
@@ -43,19 +43,35 @@ func Handle[E events.Event](name string, fn Handler[E]) HandlerSpec {
 	return HandlerSpec{
 		Name: name,
 		typ:  zero.Type(),
-		run: func(ctx context.Context, tx db.Tx, e events.Event) error {
-			return fn(ctx, tx, e.(E))
+		run: func(ctx context.Context, tx db.Tx, e events.Event, at time.Time) error {
+			return fn(ctx, tx, e.(E), at)
 		},
 	}
 }
 
 func (s HandlerSpec) Type() events.Type { return s.typ }
 
+func (s HandlerSpec) Apply(ctx context.Context, tx db.Tx, e events.Event, at time.Time) error {
+	return s.run(ctx, tx, e, at)
+}
+
+func (s HandlerSpec) OnCommit(fn func(ctx context.Context, e events.Event)) HandlerSpec {
+	inner := s.run
+	s.run = func(ctx context.Context, tx db.Tx, e events.Event, at time.Time) error {
+		if err := inner(ctx, tx, e, at); err != nil {
+			return err
+		}
+		tx.AfterCommit(func(ctx context.Context) { fn(ctx, e) })
+		return nil
+	}
+	return s
+}
+
 func (s HandlerSpec) Before(fn func(ctx context.Context, e events.Event)) HandlerSpec {
 	inner := s.run
-	s.run = func(ctx context.Context, tx db.Tx, e events.Event) error {
+	s.run = func(ctx context.Context, tx db.Tx, e events.Event, at time.Time) error {
 		fn(ctx, e)
-		return inner(ctx, tx, e)
+		return inner(ctx, tx, e, at)
 	}
 	return s
 }
@@ -274,7 +290,7 @@ func (r *Registry) forwardAdvisory(ctx context.Context, msg *nats.Msg) {
 		StreamSeq uint64 `json:"stream_seq"`
 	}
 	_ = json.Unmarshal(msg.Data, &advisory)
-	letter := deadLetter{Consumer: consumer, MsgID: consumer + "/" + strconv.FormatUint(advisory.StreamSeq, 10)}
+	letter := DeadLetter{Consumer: consumer, MsgID: consumer + "/" + strconv.FormatUint(advisory.StreamSeq, 10)}
 	letter.Advisory = rawJSON(msg.Data)
 	r.deadLetter(ctx, consumer, letter, "advisory")
 }

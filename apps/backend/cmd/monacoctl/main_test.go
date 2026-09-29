@@ -12,7 +12,12 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
+
+func TestMain(m *testing.M) {
+	testkit.Main(m, testkit.WithChild(main), testkit.WithNATS())
+}
 
 func monacoctl(t *testing.T, dir, stdin string, args ...string) (int, string, string) {
 	t.Helper()
@@ -53,7 +58,8 @@ func TestMain_lintCommentsDefaultsToTheWorkingTree(t *testing.T) {
 func TestMain_docsFlowsRendersTheRepoTSVFromTheBackendDir(t *testing.T) {
 	t.Parallel()
 	var want bytes.Buffer
-	if code := docsFlows(os.DirFS(filepath.Join(backendRoot(t), "../..")), &want, io.Discard); code != 0 {
+	repo := os.DirFS(filepath.Join(backendRoot(t), "../.."))
+	if code := docsFlows(repo, flows.Markdown, &want, io.Discard); code != 0 {
 		t.Fatalf("docsFlows over the repo = %d", code)
 	}
 	code, stdout, stderr := monacoctl(t, backendRoot(t), "", "docs", "flows")
@@ -62,23 +68,53 @@ func TestMain_docsFlowsRendersTheRepoTSVFromTheBackendDir(t *testing.T) {
 	}
 }
 
-func TestMain_flowsCheckReadsTestResultsFromStdinOrFrom(t *testing.T) {
+func TestMain_flowsCheckReadsTestResultsFromStdinOrFromUnlessStructureOnly(t *testing.T) {
 	t.Parallel()
-	results := pass("TestFlow999999_NoSuchFlow")
+	repo := t.TempDir()
+	backend := filepath.Join(repo, backendDir)
+	for file, body := range map[string]string{
+		filepath.Join(backend, flows.File):                            flows.Header + "\n00\tPing\tsystem\tGET /healthz\tPing\t\t\tok\tbuilt\tdocs/flows.md#ping\n",
+		filepath.Join(backend, "go.mod"):                              "module fixture\n",
+		filepath.Join(backend, "internal/modules/system/app/ping.go"): "package app\n\ntype Ping struct{}\n",
+		filepath.Join(repo, "docs/flows.md"):                          "# Ping\n",
+	} {
+		if err := os.MkdirAll(filepath.Dir(file), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(file, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	results := pass("TestFlow00_Ping_OK", "TestFlow999999_NoSuchFlow")
 	from := filepath.Join(t.TempDir(), "go-test.json")
 	if err := os.WriteFile(from, []byte(results), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	want := "test TestFlow999999_NoSuchFlow matches no flow outcome"
-	for name, run := range map[string]func() (int, string, string){
-		"stdin": func() (int, string, string) { return monacoctl(t, backendRoot(t), results, "flows", "check") },
-		"from": func() (int, string, string) {
-			return monacoctl(t, backendRoot(t), "", "flows", "check", "--from", from)
+	want := "flows.tsv: test TestFlow999999_NoSuchFlow matches no flow outcome; delete the test or add its row\n"
+	for _, tc := range []struct {
+		name   string
+		stdin  string
+		args   []string
+		code   int
+		stderr string
+	}{
+		{"stdin", results, []string{"flows", "check"}, 1, want},
+		{"from", "", []string{"flows", "check", "--from", from}, 1, want},
+		{
+			"no results", "",
+			[]string{"flows", "check"},
+			1,
+			"flows.tsv:2: outcome ok has no test TestFlow00_Ping_OK in the go test -json input\n",
 		},
+		{"structure only skips the test check", "", []string{"flows", "check", "--structure-only"}, 0, ""},
 	} {
-		if code, stdout, stderr := run(); code != 1 || stdout != "" || !strings.Contains(stderr, want) {
-			t.Fatalf("%s: code=%d stdout=%q stderr=%q, want 1 and %q", name, code, stdout, stderr, want)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			code, stdout, stderr := monacoctl(t, backend, tc.stdin, tc.args...)
+			if code != tc.code || stdout != "" || stderr != tc.stderr {
+				t.Fatalf("code=%d stdout=%q stderr=%q, want %d and %q", code, stdout, stderr, tc.code, tc.stderr)
+			}
+		})
 	}
 }
 
@@ -89,8 +125,8 @@ func TestRun_unknownOrMissingCommandPrintsUsageAndExits2(t *testing.T) {
 		args []string
 		want string
 	}{
-		{"unknown", []string{"bogus"}, "monacoctl: unknown command \"bogus\"\nusage: monacoctl <command> [args]\n  bench\n  bus\n  coverage\n  dev\n  docs\n  flows\n  gen\n  lint\n  migrate\n  mutation\n  test-report\n"},
-		{"missing", nil, "usage: monacoctl <command> [args]\n  bench\n  bus\n  coverage\n  dev\n  docs\n  flows\n  gen\n  lint\n  migrate\n  mutation\n  test-report\n"},
+		{"unknown", []string{"bogus"}, "monacoctl: unknown command \"bogus\"\nusage: monacoctl <command> [args]\n  agents\n  backfill\n  bench\n  bus\n  ci\n  coverage\n  deadletter\n  dev\n  docs\n  events\n  flows\n  garden\n  gen\n  lint\n  migrate\n  mutation\n  replay\n  test-report\n  verify\n"},
+		{"missing", nil, "usage: monacoctl <command> [args]\n  agents\n  backfill\n  bench\n  bus\n  ci\n  coverage\n  deadletter\n  dev\n  docs\n  events\n  flows\n  garden\n  gen\n  lint\n  migrate\n  mutation\n  replay\n  test-report\n  verify\n"},
 		{"lint without subcommand", []string{"lint"}, "usage: monacoctl <command> [args]\n  comments\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

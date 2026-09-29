@@ -20,7 +20,7 @@ Two rules hold everywhere:
 | --- | --- | --- |
 | `apps/backend` | The API server and ops commands. Being rewritten; see [backend-platform.md](architecture/backend-platform.md#repository-layout). | Go |
 | `apps/mobile` | The iOS app (SwiftUI, iOS 18+) | Swift |
-| `apps/web` | Waitlist landing page for trymonaco.xyz. Static HTML plus two serverless functions. See its [README](https://github.com/lognorman20/monaco/blob/main/apps/web/README.md). | JS |
+| `apps/web` | Waitlist landing page for trymonaco.xyz. Static HTML plus two serverless functions. See its [README](https://github.com/Munyon-Canyon/monaco/blob/main/apps/web/README.md). | JS |
 | `packages/mobile-core` | Swift logic the app uses that can be tested on a Mac without a simulator: API client, JSON models, formatting, copy | Swift |
 | `scripts` | Dev scripts behind the `just` recipes: env loading, simulator, database, QA | Bash |
 | `docs` | These docs | |
@@ -58,7 +58,7 @@ Four kinds of wallet appear in this repo. Only the first three are part of the p
 | **Member wallet** | One per user | Privy (the API can sign) | USDC | The user's deposit address. USDC sitting here is their **account balance**. |
 | **Treasury** | One per cabal | Privy (app-owned) | USDC and stock tokens | The cabal's shared pot. Every trade and every cash out signs from here. |
 | **Relayer** | One per environment | The API (`RELAYER_PRIVATE_KEY`) | SOL | Pays fees for every transaction, so the other wallets never need SOL. |
-| Phantom agent wallet | One per developer | A coding agent's Phantom MCP | USDC, SOL | **Not product.** Used to fund test accounts with real USDC during QA. See the [README](https://github.com/lognorman20/monaco/blob/main/README.md#agent-qa-phantom-mcp). |
+| Phantom agent wallet | One per developer | A coding agent's Phantom MCP | USDC, SOL | **Not product.** Used to fund test accounts with real USDC during QA. See the [README](https://github.com/Munyon-Canyon/monaco/blob/main/README.md#agent-qa-phantom-mcp). |
 
 ## Flows
 

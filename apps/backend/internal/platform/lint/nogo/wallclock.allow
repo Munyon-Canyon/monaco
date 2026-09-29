@@ -1,0 +1,21 @@
+# path reason
+cmd/api/bus_test.go NATS redelivery follows real AckWait; synctest cannot advance nats-server timers
+cmd/api/stream_test.go the SSE handler is a real HTTP server, so the test waits on the socket
+cmd/fakes/main_test.go waits until the fake upstream process accepts a connection
+cmd/monacoctl/dev_test.go the issued token is stamped with wall time and checked 23h and 25h later
+cmd/worker/bus_test.go NATS redelivery follows real AckWait; synctest cannot advance nats-server timers
+cmd/worker/shutdown_test.go the worker's health server, NATS disconnect and shutdown are observed on real sockets
+internal/platform/bus/close_test.go closing the bus is observed through a real connection, not a fake clock
+internal/platform/bus/consume_test.go consumer redelivery and ack waits run on nats-server timers
+internal/platform/bus/dispatch_test.go Term is proved by waiting out real AckWait
+internal/platform/bus/hints_test.go a published hint is read from a real subscription
+internal/platform/bus/observe_test.go calls outside the synctest bubble wait on the embedded server
+internal/platform/bus/publish_test.go publish acknowledgement comes from the embedded server
+internal/platform/bus/relay_test.go the relay loop is paced by nats-server, not the testkit clock
+internal/platform/httpx/serve_test.go server shutdown is waited out on a real listener
+internal/platform/httpx/sse/hub_test.go a subscriber is waited out on a real hub goroutine
+internal/platform/httpx/sse/stream_test.go calls outside the synctest bubble wait on a real event stream
+internal/platform/poller/harness_test.go the poller uses the testkit clock; this deadline only caps a log line
+internal/testkit/db_test.go two parallel tests rendezvous on a channel; After is only a hang cap
+internal/testkit/live_instance_internal_test.go the cutoff is compared with a Postgres file mtime
+internal/testkit/stall_internal_test.go the proxy stalls a real TCP stream past the NATS client deadline

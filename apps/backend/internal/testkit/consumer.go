@@ -28,6 +28,7 @@ type Harness struct {
 	Pool  *pgxpool.Pool
 	IDs   *IDs
 	Clock *Clock
+	Bus   *bus.Conn
 }
 
 type consumerSuite struct {
@@ -69,7 +70,9 @@ func newConsumerSuite(
 ) *consumerSuite {
 	t.Helper()
 	s := &consumerSuite{
-		h:    Harness{Pool: DB(t), IDs: NewIDs(1), Clock: NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))},
+		h: Harness{
+			Pool: DB(t), IDs: NewIDs(1), Clock: NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)), Bus: conn,
+		},
 		conn: conn,
 		gen:  gen,
 	}
