@@ -20,8 +20,8 @@ Write every section for a reviewer who reads nothing but this PR. Delete these c
 
 <!--
 Exact commands and what they printed, for the checks the changed paths require
-(docs/architecture/backend-platform.md#verification-scope): just test backend, just verify backend
-(evidence summary), measurements with their conditions, screenshots for UI. A PR with no checks
+(docs/architecture/backend-platform.md#verification-scope): the monacoctl agents check output,
+measurements with their conditions, screenshots for UI. A PR with no checks
 says "No code paths affected:" and names the paths. Say plainly what was not verified.
 -->
 
