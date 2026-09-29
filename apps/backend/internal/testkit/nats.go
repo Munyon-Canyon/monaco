@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -225,6 +226,18 @@ func StandaloneNATS(t *testing.T) string {
 	}
 	t.Cleanup(s.stop)
 	return s.srv.ClientURL()
+}
+
+func StoppableNATS(t *testing.T) (url string, stop func()) {
+	t.Helper()
+	s, err := startNATS()
+	if err != nil {
+		t.Fatalf("testkit.StoppableNATS: %v", err)
+	}
+	var once sync.Once
+	stop = func() { once.Do(s.stop) }
+	t.Cleanup(stop)
+	return s.srv.ClientURL(), stop
 }
 
 func NATSSubscriptions(t *testing.T, subject string) int {
