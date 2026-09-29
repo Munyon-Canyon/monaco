@@ -38,23 +38,24 @@ func freeAddr(t *testing.T) string {
 
 func openStream(ctx context.Context, t *testing.T, url, token string) *http.Response {
 	t.Helper()
-	deadline := time.After(10 * time.Second)
-	for {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		req.Header.Set("Authorization", "Bearer "+token)
-		resp, err := http.DefaultClient.Do(req)
-		if err == nil {
-			return resp
-		}
-		select {
-		case <-deadline:
-			t.Fatalf("GET %s never answered: %v", url, err)
-		case <-time.After(20 * time.Millisecond):
-		}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		t.Fatal(err)
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	testkit.Eventually(t, func() bool {
+		conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", req.URL.Host)
+		if err != nil {
+			return false
+		}
+		_ = conn.Close()
+		return true
+	}, 10*time.Second)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET %s: %v", url, err)
+	}
+	return resp
 }
 
 func TestRun_streamsHintsFromNATSAndShutsDownWithAStreamOpen(t *testing.T) {
