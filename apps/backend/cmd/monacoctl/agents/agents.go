@@ -70,6 +70,7 @@ func commands() map[string]command {
 		"done":        doneCmd,
 		"exited":      exitedCmd,
 		"forecast":    forecastCmd,
+		"handoff":     handoffCmd,
 		"own":         ownCmd,
 		"resume":      resumeCmd,
 		"status":      statusCmd,
