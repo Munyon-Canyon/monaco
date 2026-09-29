@@ -244,6 +244,9 @@ linters:
       # Generated per-file init functions add each tool or module here, so no shared list conflicts.
       - path: ^cmd/(api|monacoctl|worker)/registry\.go$
         linters: [gochecknoglobals]
+      # Money modules register ledger checks at init, so replay --verify runs every one without a shared list.
+      - path: ^internal/tools/ops/replay/ledger\.go$
+        linters: [gochecknoglobals]
       # MONACO_FAULTPOINT arms a crash point for the whole process, so the armed name is process state.
       - path: ^internal/platform/faultpoint/hit_on\.go$
         linters: [gochecknoglobals]

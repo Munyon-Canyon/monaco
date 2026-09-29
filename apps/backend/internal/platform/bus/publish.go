@@ -51,6 +51,9 @@ func storageFull() []jetstream.ErrorCode {
 }
 
 func (c *Conn) PublishHint(ctx context.Context, key string, payload []byte) {
+	if c == nil {
+		return
+	}
 	if err := c.nc.Publish(c.ns.subject("hint."+key), payload); err != nil {
 		c.hintDropped.Add(ctx, 1)
 	}

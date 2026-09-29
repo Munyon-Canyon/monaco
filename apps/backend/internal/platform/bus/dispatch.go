@@ -169,8 +169,14 @@ func (r *Registry) handle(ctx context.Context, h HandlerSpec, id ids.EventID, ev
 	return res
 }
 
-func (r *Registry) run(
+func (r *Registry) run(ctx context.Context, h HandlerSpec, id ids.EventID, ev events.Event) (bool, error) {
+	return Deliver(ctx, r.uow, r.clock, h, id, ev)
+}
+
+func Deliver(
 	ctx context.Context,
+	uow *db.UnitOfWork,
+	clk clock.Clock,
 	h HandlerSpec,
 	id ids.EventID,
 	ev events.Event,
@@ -184,9 +190,9 @@ func (r *Registry) run(
 				slog.Any("panic", p), slog.String("stack", string(debug.Stack())))
 		}
 	}()
-	err = r.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+	err = uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		inserted, err := sqlc.New(tx.Queries()).InsertDelivery(ctx, sqlc.InsertDeliveryParams{
-			Handler: h.Name, EventID: id.UUID(), Code: deliveryOK, HandledAt: r.clock.Now(),
+			Handler: h.Name, EventID: id.UUID(), Code: deliveryOK, HandledAt: clk.Now(),
 		})
 		if err != nil {
 			return err
