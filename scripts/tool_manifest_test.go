@@ -95,6 +95,10 @@ func invokedBinaries(t *testing.T, root string) []string {
 		t.Fatal(err)
 	}
 	for _, path := range append(sh, nested...) {
+		// cloud-setup.sh runs only in the Claude Code on the web container and installs every tool it uses.
+		if filepath.Base(path) == "cloud-setup.sh" {
+			continue
+		}
 		srcs = append(srcs, mustRead(t, path))
 	}
 	srcs = append(srcs, justfileShell(mustRead(t, filepath.Join(root, "Justfile"))))
