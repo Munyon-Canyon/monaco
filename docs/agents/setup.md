@@ -12,6 +12,17 @@ This page sets up a clone so that Claude Code runs the same agent workflow the M
 
 4. Run `/plugin` in Claude Code and confirm that each plugin in the table below is listed and enabled.
 
+## Secrets in worktrees
+
+`.env.local` is committed encrypted. `scripts/with-dotenv-local.sh`, which `just run backend`, `just test backend` and the other secret recipes use, finds the dotenvx private key in this order:
+
+1. `.env.keys` in the current checkout.
+2. `.env.keys` in the primary clone, the checkout that holds `.git`. The script passes its path to dotenvx with `-fk`.
+3. `DOTENV_PRIVATE_KEY_LOCAL` or `DOTENV_PRIVATE_KEY` in the environment.
+4. Dotenvx Armor (`dotenvx armor`).
+
+A keys file counts only when it has a `DOTENV_PRIVATE_KEY_LOCAL=` line. The script prints the source it used to stderr and never reads or prints the key. A worktree under `.worktrees/` needs nothing extra. Never copy or symlink `.env.keys` into a worktree.
+
 ## Plugins
 
 `.claude/settings.json` declares these plugins under `enabledPlugins` and their marketplaces under `extraKnownMarketplaces`. `claude-plugins-official` needs no marketplace entry, because Claude Code knows it by default. The M7 flow ran on the versions listed.
