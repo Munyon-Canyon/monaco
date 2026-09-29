@@ -92,6 +92,11 @@ func readAllChecks(ctx context.Context, query func(context.Context, string, any)
 					fmt.Sprintf("commit %s lost its checks while they were paged", c.OID))
 			}
 			rest := next.StatusCheckRollup.Contexts
+			was := c.StatusCheckRollup.Contexts.PageInfo.EndCursor
+			if rest.PageInfo.HasNextPage && len(rest.Nodes) == 0 && rest.PageInfo.EndCursor == was {
+				return detailErr(errs.CodeUpstreamUnavailable, "monacoctl.agents.graphql",
+					fmt.Sprintf("commit %s returned an empty page of checks without moving past cursor %s", c.OID, was))
+			}
 			c.StatusCheckRollup.Contexts.Nodes = append(c.StatusCheckRollup.Contexts.Nodes, rest.Nodes...)
 			c.StatusCheckRollup.Contexts.PageInfo = rest.PageInfo
 		}
