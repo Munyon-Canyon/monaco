@@ -1,0 +1,5 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {"jsonrpc": "2.0", "id": 1, "result": {"absoluteSlot": 451000000, "blockHeight": 380000000, "epoch": 870, "slotIndex": 1000, "slotsInEpoch": 432000}}
+}

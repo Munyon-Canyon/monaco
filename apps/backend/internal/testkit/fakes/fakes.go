@@ -57,6 +57,7 @@ func (f fieldError) Error() string { return "invalid step field: " + string(f) }
 
 type Server struct {
 	mux       *http.ServeMux
+	live      *http.ServeMux
 	fixtures  map[string]fixture
 	mu        sync.Mutex
 	scripts   map[string][]*scripted
@@ -68,15 +69,23 @@ func New() *Server { return newFrom(fixtures, "testdata/fakes") }
 func newFrom(fsys fs.FS, root string) *Server {
 	s := &Server{
 		mux:       http.NewServeMux(),
+		live:      http.NewServeMux(),
 		fixtures:  loadFixtures(fsys, root),
 		scripts:   map[string][]*scripted{},
 		upstreams: upstreamsIn(fsys, root),
 	}
 	s.mux.HandleFunc("POST /_script", s.script)
+	s.live.HandleFunc("POST /rpc/sendTransaction", sendTransaction)
 	for _, name := range s.upstreams {
+		replay := s.replay(name)
 		upstream := http.NewServeMux()
-		upstream.HandleFunc("/", s.replay(name))
+		upstream.HandleFunc("/", replay)
 		s.mux.Handle("/"+name+"/", http.StripPrefix("/"+name, upstream))
+		s.mux.HandleFunc("/"+name, func(w http.ResponseWriter, r *http.Request) {
+			r = r.Clone(r.Context())
+			r.URL.Path, r.URL.RawPath = "/", ""
+			replay(w, r)
+		})
 	}
 	return s
 }
@@ -160,7 +169,7 @@ func (s *Server) next(route string) scripted {
 
 func (s *Server) replay(upstream string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		route := "/" + upstream + r.URL.Path
+		route, keys := routeOf(upstream, r)
 		step := s.next(route)
 		switch step.action {
 		case ActionHang:
@@ -184,19 +193,35 @@ func (s *Server) replay(upstream string) http.HandlerFunc {
 		case ActionSucceed:
 		}
 		if step.fixture != "" {
-			route = step.fixture
-		}
-		f, ok := s.fixtures[route]
-		if !ok {
-			http.Error(w, "no fixture for "+route, http.StatusNotImplemented)
+			keys = []string{step.fixture}
+		} else if h, pattern := s.live.Handler(liveRequest(r, route)); pattern != "" {
+			h.ServeHTTP(w, r)
 			return
+		}
+		s.serveFixture(w, keys)
+	}
+}
+
+func (s *Server) serveFixture(w http.ResponseWriter, keys []string) {
+	for _, key := range keys {
+		f, ok := s.fixtures[key]
+		if !ok {
+			continue
 		}
 		for k, v := range f.Headers {
 			w.Header().Set(k, v)
 		}
 		w.WriteHeader(f.Status)
 		_, _ = w.Write(f.Body)
+		return
 	}
+	http.Error(w, "no fixture for "+keys[len(keys)-1], http.StatusNotImplemented)
+}
+
+func liveRequest(r *http.Request, route string) *http.Request {
+	c := r.Clone(r.Context())
+	c.URL.Path, c.URL.RawPath = route, ""
+	return c
 }
 
 func upstreamsIn(fsys fs.FS, root string) []string {
