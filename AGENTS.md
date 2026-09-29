@@ -13,6 +13,7 @@
 - Never skip verification steps (ticket Done-when, milestone manual verification, `just test`/`just build`, gold-sim QA) unless the user explicitly says to skip in the current message.
 - When the user says they'll build or run themselves, verify code changes only and skip sim, build, or run in that session unless they ask in the current message.
 - Product UI: prefer toasts over main-UI popups or banners for action confirmations; never hyphenate wallet addresses; show human-readable stock names or symbols, not raw mint addresses or "xStock" branding. User-facing copy uses "cabal" (not club/group); API routes and types stay `groups`. Use "deposit" for inbound USDC to platform balance; "fund this cabal" for sweeping platform USDC into a group treasury; partial cabal stake sales use a sell flow without leaving the group.
+- For a CI flake with no code change, rerun only the failed jobs with `gh run rerun <run-id> --failed`; don't rerun the whole run. A fix commit starts a new run on its own; don't also trigger a rerun.
 
 ## Learned Workspace Facts
 
