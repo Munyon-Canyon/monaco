@@ -15,7 +15,7 @@ How Monaco runs continuous integration: which checks run, when they run, on what
 
 ## Why
 
-**The 2,000-minute limit does not apply today.** `lognorman20/monaco` is public. Standard GitHub-hosted runners, macOS included, are free with no minute cap in public repos ([GitHub billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)). The Free plan's 2,000 minutes and 500 MB of artifact storage apply only to private repos. What does bind a public repo is concurrency: 20 jobs at once, and only 5 of them on macOS ([limits](https://docs.github.com/en/actions/reference/limits)).
+**The 2,000-minute limit does not apply today.** `Munyon-Canyon/monaco` is public. Standard GitHub-hosted runners, macOS included, are free with no minute cap in public repos ([GitHub billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)). The Free plan's 2,000 minutes and 500 MB of artifact storage apply only to private repos. What does bind a public repo is concurrency: 20 jobs at once, and only 5 of them on macOS ([limits](https://docs.github.com/en/actions/reference/limits)).
 
 **It would apply the day the repo goes private.** Measured from the last 100 workflow runs (2026-09-23 to 2026-09-27, 3.4 days), with each job rounded up to a whole minute as GitHub bills it ([pricing](https://docs.github.com/en/billing/reference/actions-runner-pricing)):
 
