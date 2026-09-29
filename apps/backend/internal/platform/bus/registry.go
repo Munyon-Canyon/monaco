@@ -290,7 +290,7 @@ func (r *Registry) forwardAdvisory(ctx context.Context, msg *nats.Msg) {
 		StreamSeq uint64 `json:"stream_seq"`
 	}
 	_ = json.Unmarshal(msg.Data, &advisory)
-	letter := deadLetter{Consumer: consumer, MsgID: consumer + "/" + strconv.FormatUint(advisory.StreamSeq, 10)}
+	letter := DeadLetter{Consumer: consumer, MsgID: consumer + "/" + strconv.FormatUint(advisory.StreamSeq, 10)}
 	letter.Advisory = rawJSON(msg.Data)
 	r.deadLetter(ctx, consumer, letter, "advisory")
 }

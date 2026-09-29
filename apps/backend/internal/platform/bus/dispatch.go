@@ -124,7 +124,7 @@ func (r *Registry) decode(handlers []HandlerSpec, msg jetstream.Msg) (ids.EventI
 	if len(handlers) == 0 {
 		return none, nil, errs.New(errs.CodeDecodeFailed, op, slog.String("subject", msg.Subject()))
 	}
-	raw := msg.Headers().Get(jetstream.MsgIDHeader)
+	raw := eventIDOf(msg.Headers())
 	id, err := ids.ParseEventID(raw)
 	if err != nil {
 		return none, nil, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("msg_id", raw))
@@ -206,7 +206,8 @@ func Deliver(
 	return duplicate, err
 }
 
-type deadLetter struct {
+type DeadLetter struct {
+	Seq      uint64          `json:"-"`
 	Consumer string          `json:"consumer"`
 	Handler  string          `json:"handler,omitempty"`
 	Subject  string          `json:"subject,omitempty"`
@@ -231,7 +232,7 @@ func (r *Registry) respond(
 			verdict, code = OutcomeNak, res.code
 		case res.outcome == OutcomeTerm && verdict != OutcomeNak:
 			verdict, code = OutcomeTerm, res.code
-			r.deadLetter(ctx, durable, deadLetter{
+			r.deadLetter(ctx, durable, DeadLetter{
 				Consumer: durable, Handler: res.handler, Subject: msg.Subject(),
 				MsgID: msg.Headers().Get(jetstream.MsgIDHeader), Delivery: delivery,
 				Code: res.code, Error: res.err.Error(), Headers: msg.Headers(), Data: rawJSON(msg.Data()),
@@ -265,7 +266,7 @@ func rawJSON(data []byte) json.RawMessage {
 	return quoted
 }
 
-func (r *Registry) deadLetter(ctx context.Context, consumer string, letter deadLetter, dedupe string) {
+func (r *Registry) deadLetter(ctx context.Context, consumer string, letter DeadLetter, dedupe string) {
 	body, _ := json.Marshal(letter)
 	subject := r.conn.ns.subject("deadletter." + consumer)
 	msgID := letter.MsgID + "/" + dedupe
