@@ -24,12 +24,10 @@ protocol ProposalFeedService: AnyObject {
 final class LiveProposalFeedService: ProposalFeedService {
     private let client: MonacoCore.MonacoAPIClient
 
-    init(auth: PrivyAuthService, baseURL: URL = Config.apiBaseURL) {
+    init(auth: PrivyAuthService, baseURL: URL? = nil) {
         client = MonacoCore.MonacoAPIClient(
-            baseURL: baseURL,
-            accessTokenProvider: { [weak auth] in
-                await MainActor.run { auth?.accessToken }
-            }
+            baseURL: baseURL ?? Config.apiBaseURL,
+            accessTokenProvider: { @MainActor [weak auth] in auth?.accessToken }
         )
     }
 

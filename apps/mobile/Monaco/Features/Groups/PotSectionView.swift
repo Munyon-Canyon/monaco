@@ -112,7 +112,7 @@ struct PotSectionView: View {
         return "\(row.units) \(unit)"
     }
 
-    static func isCash(_ row: PotRowDTO) -> Bool {
+    nonisolated static func isCash(_ row: PotRowDTO) -> Bool {
         row.symbol.uppercased() == "USDC"
     }
 }

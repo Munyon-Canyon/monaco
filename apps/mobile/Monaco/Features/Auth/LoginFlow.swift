@@ -27,7 +27,7 @@ struct LoginFlow: Equatable {
         }
     }
 
-    enum Phase: Equatable {
+    nonisolated enum Phase: Equatable {
         /// Launch: a previous sign-in exists and Privy is restoring it. The gate shows
         /// a splash, not the login form, until this resolves.
         case restoring

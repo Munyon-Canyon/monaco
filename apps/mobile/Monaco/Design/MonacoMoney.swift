@@ -284,7 +284,7 @@ private struct HeroTypeCap: ViewModifier {
     }
 }
 
-enum PnLTone {
+nonisolated enum PnLTone {
     case profit, loss, flat
 
     init(dollarPnl: String) {
@@ -296,7 +296,9 @@ enum PnLTone {
             self = .profit
         }
     }
+}
 
+extension PnLTone {
     var color: Color {
         switch self {
         case .profit: return MonacoTheme.profit

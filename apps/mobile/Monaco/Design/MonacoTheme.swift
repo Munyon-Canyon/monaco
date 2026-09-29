@@ -312,49 +312,10 @@ enum MonacoTheme {
     /// White initials clear 4.5:1 on every fill in both schemes, where the old palette met only the
     /// 3:1 large-text bar in dark. That was defensible for 15pt bold initials; holding the body bar
     /// costs nothing here and means `fill` is safe behind small white text too.
-    enum CabalTint: CaseIterable {
+    nonisolated enum CabalTint: CaseIterable {
         // Order is the identity mapping: a cabal's tint is its id hashed mod 5, so these stay in
         // their slots and no existing cabal changes which of the five it gets.
         case pine, ochre, plum, indigo, moss
-
-        /// Mark tile, accent stripe, chart key.
-        var fill: Color {
-            switch self {
-            case .pine: return Color.adaptive(light: 0x0E6E6A, dark: 0x11827D)
-            case .ochre: return Color.adaptive(light: 0x8F6410, dark: 0x9A6C11)
-            case .plum: return Color.adaptive(light: 0x7A3A66, dark: 0xB15494)
-            case .indigo: return Color.adaptive(light: 0x2F5788, dark: 0x4076B9)
-            case .moss: return Color.adaptive(light: 0x4E5817, dark: 0x545F19)
-            }
-        }
-
-        /// Initials and glyphs drawn on `fill`.
-        var onFill: Color { .white }
-
-        /// Low-alpha wash of `fill` for tinted surfaces that still carry ink text.
-        var soft: Color { fill.opacity(0.12) }
-
-        /// Brighter than `fill` so the tint still reads as a mark or stripe on a deep ink hero card.
-        var onInk: Color {
-            switch self {
-            case .pine: return Color(hex: 0x35C4BD)
-            case .ochre: return Color(hex: 0xE2B04A)
-            case .plum: return Color(hex: 0xD68CC2)
-            case .indigo: return Color(hex: 0x7DAFE0)
-            case .moss: return Color(hex: 0xB8CC63)
-            }
-        }
-
-        /// Chart line colour for this cabal.
-        var stroke: Color {
-            switch self {
-            case .pine: return Color.adaptive(light: 0x0E6E6A, dark: 0x35C4BD)
-            case .ochre: return Color.adaptive(light: 0x8F6410, dark: 0xE2B04A)
-            case .plum: return Color.adaptive(light: 0x7A3A66, dark: 0xD68CC2)
-            case .indigo: return Color.adaptive(light: 0x2F5788, dark: 0x7DAFE0)
-            case .moss: return Color.adaptive(light: 0x4E5817, dark: 0xB8CC63)
-            }
-        }
 
         /// The one tint function for a cabal. Every surface (rows, strip cards, hero, chat header, profile)
         /// passes the cabal's `groupId`, never its name, so a cabal is the same colour everywhere.
@@ -365,21 +326,6 @@ enum MonacoTheme {
             let all = CabalTint.allCases
             let key = groupId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             return all[Int(fnv1a64(key) % UInt64(all.count))]
-        }
-
-        /// Background fill for a cabal: `CabalTint.forGroupId(groupId).fill`.
-        static func fill(forGroupId groupId: String) -> Color {
-            forGroupId(groupId).fill
-        }
-
-        /// Low-alpha wash for a cabal: `CabalTint.forGroupId(groupId).soft`.
-        static func soft(forGroupId groupId: String) -> Color {
-            forGroupId(groupId).soft
-        }
-
-        /// Chart line colour for a cabal: `CabalTint.forGroupId(groupId).stroke`.
-        static func stroke(forGroupId groupId: String) -> Color {
-            forGroupId(groupId).stroke
         }
 
         static func fnv1a64(_ string: String) -> UInt64 {
@@ -490,6 +436,62 @@ enum MonacoTheme {
         static let title = Typo.title
         static let body = Typo.body
         static let caption = Typo.caption
+    }
+}
+
+extension MonacoTheme.CabalTint {
+    /// Mark tile, accent stripe, chart key.
+    var fill: Color {
+        switch self {
+        case .pine: return Color.adaptive(light: 0x0E6E6A, dark: 0x11827D)
+        case .ochre: return Color.adaptive(light: 0x8F6410, dark: 0x9A6C11)
+        case .plum: return Color.adaptive(light: 0x7A3A66, dark: 0xB15494)
+        case .indigo: return Color.adaptive(light: 0x2F5788, dark: 0x4076B9)
+        case .moss: return Color.adaptive(light: 0x4E5817, dark: 0x545F19)
+        }
+    }
+
+    /// Initials and glyphs drawn on `fill`.
+    var onFill: Color { .white }
+
+    /// Low-alpha wash of `fill` for tinted surfaces that still carry ink text.
+    var soft: Color { fill.opacity(0.12) }
+
+    /// Brighter than `fill` so the tint still reads as a mark or stripe on a deep ink hero card.
+    var onInk: Color {
+        switch self {
+        case .pine: return Color(hex: 0x35C4BD)
+        case .ochre: return Color(hex: 0xE2B04A)
+        case .plum: return Color(hex: 0xD68CC2)
+        case .indigo: return Color(hex: 0x7DAFE0)
+        case .moss: return Color(hex: 0xB8CC63)
+        }
+    }
+
+    /// Chart line colour for this cabal.
+    var stroke: Color {
+        switch self {
+        case .pine: return Color.adaptive(light: 0x0E6E6A, dark: 0x35C4BD)
+        case .ochre: return Color.adaptive(light: 0x8F6410, dark: 0xE2B04A)
+        case .plum: return Color.adaptive(light: 0x7A3A66, dark: 0xD68CC2)
+        case .indigo: return Color.adaptive(light: 0x2F5788, dark: 0x7DAFE0)
+        case .moss: return Color.adaptive(light: 0x4E5817, dark: 0xB8CC63)
+        }
+    }
+
+    /// Background fill for a cabal: `CabalTint.forGroupId(groupId).fill`.
+    static func fill(forGroupId groupId: String) -> Color {
+        forGroupId(groupId).fill
+    }
+
+    /// Low-alpha wash for a cabal: `CabalTint.forGroupId(groupId).soft`.
+    static func soft(forGroupId groupId: String) -> Color {
+        forGroupId(groupId).soft
+    }
+
+    /// Chart line colour for a cabal: `CabalTint.forGroupId(groupId).stroke`.
+    static func stroke(forGroupId groupId: String) -> Color {
+        forGroupId(groupId).stroke
     }
 }
 

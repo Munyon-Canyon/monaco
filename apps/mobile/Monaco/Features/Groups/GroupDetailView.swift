@@ -21,7 +21,7 @@ enum GroupDetailRoute: Hashable {
 }
 
 /// What a refresh of the cabal screen is allowed to show while it runs.
-private enum GroupDetailRefreshMode {
+private nonisolated enum GroupDetailRefreshMode {
     /// The screen has nothing yet: a skeleton while it waits, and an error if it fails.
     case initial
     /// The member pulled down. No skeleton over content they can already see, but a failure is
