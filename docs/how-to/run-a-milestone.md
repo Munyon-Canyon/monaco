@@ -52,11 +52,12 @@ Do these once per milestone.
 
 3. Set the ticket's milestone and add its row to the tracking issue's wave table.
 
-4. Mirror the header in GitHub's native "Blocked by" links. The header is the source of truth. The links only drive GitHub's UI. No script in the repo syncs them, so do it with `gh api`:
+4. Mirror the header in GitHub's native "Blocked by" links. The header is the source of truth. The links only drive GitHub's UI. `scripts/sync-blocked-by.py` compares the two for every open ticket in the milestone, skipping the tracking issue. It prints the plan by default and changes links only with `--apply`:
 
-        gh api repos/<owner>/<repo>/issues/<n>/dependencies/blocked_by --jq '.[].number'
-        gh api repos/<owner>/<repo>/issues/<n>/dependencies/blocked_by -X POST -F issue_id=$(gh api repos/<owner>/<repo>/issues/<blocker> --jq .id)
-        gh api repos/<owner>/<repo>/issues/<n>/dependencies/blocked_by/<blocker id> -X DELETE
+        scripts/sync-blocked-by.py --milestone "<milestone title>" --tracking <n>
+        scripts/sync-blocked-by.py --milestone "<milestone title>" --tracking <n> --apply
+
+    Run it after you add a ticket or change a `Blocked by` line.
 
 5. When a ticket's scope changes, edit its body and add a comment that says why. A ticket must never describe work that no longer matches the plan.
 
