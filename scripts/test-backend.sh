@@ -71,11 +71,18 @@ run_suite() {
   json="$(mktemp)"
   cover="$(mktemp)"
   cover_off="$(mktemp)"
-  trap 'rm -f "$json" "$cover" "$cover_off"' EXIT
+  git_dir="$(mktemp -d)"
+  trap 'rm -f "$json" "$cover" "$cover_off"; rm -rf "$git_dir"' EXIT
 
   # rapid divides checks by 5 and steps by 2 under -short, so this lands on 100 cases and about 20 steps.
   # Env vars, not -rapid.* flags: a test binary that does not link rapid rejects the flags.
   export RAPID_CHECKS=500 RAPID_STEPS=40
+  # On macOS /usr/bin/git is an xcrun trampoline that costs about 16 ms of CPU per call, three times
+  # git's own work. Tests run git a few hundred times, so put the real binary first on PATH.
+  if [[ "$(uname -s)" == Darwin ]] && git_bin="$(xcrun -f git 2>/dev/null)"; then
+    ln -s "$git_bin" "$git_dir/git"
+    export PATH="$git_dir:$PATH"
+  fi
   if [[ -n "${CI:-}" ]]; then
     export RAPID_NOFAILFILE=1
   fi

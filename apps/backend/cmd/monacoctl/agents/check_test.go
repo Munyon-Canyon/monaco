@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -117,6 +120,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	})
 	tree := h.commit(t, map[string]string{
 		"apps/backend/internal/x/x.go":           "package x\n",
+		"apps/backend/internal/t/t_test.go":      "package t\n",
 		"scripts/foo.sh":                         "echo hi\n",
 		"scripts/hook":                           "#!/usr/bin/env bash\necho hi\n",
 		"scripts/tool.py":                        "print(1)\n",
@@ -126,8 +130,8 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		"packages/mobile-core/Sources/A/a.swift": "let a = 1\n",
 		"README.md":                              "hi\n",
 	})
-	h.affected = "./internal/x\n./cmd/api\n"
-	h.replies = []reply{{prefix: "go test -short -count=1 -json", took: 3 * time.Second, out: strings.Join([]string{
+	h.affected = "./internal/x\n./internal/t\n./cmd/api\n"
+	h.replies = []reply{{prefix: "go test -tags faultpoints", took: 3 * time.Second, out: strings.Join([]string{
 		`{"Time":"2026-09-27T12:00:01Z","Action":"start","Package":"github.com/monaco/monaco/apps/backend/internal/x"}`,
 		`{"Action":"output","Package":"github.com/monaco/monaco/apps/backend/internal/x","Test":"TestX","Output":"=== RUN   TestX\n"}`,
 		`{"Action":"pass","Package":"github.com/monaco/monaco/apps/backend/internal/x","Elapsed":1.5,"Output":"ok  \tx\t1.5s\n"}`,
@@ -139,9 +143,10 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	}
 	want := []string{
 		"apps/backend: ci affected --base origin/fb",
-		"apps/backend: go build ./internal/x ./cmd/api",
-		"apps/backend: go vet ./internal/x ./cmd/api",
-		"apps/backend: go test -short -count=1 -json ./internal/x ./cmd/api",
+		"apps/backend: go build -tags faultpoints ./internal/x ./cmd/api",
+		"apps/backend: go vet -tags faultpoints ./internal/x ./internal/t ./cmd/api",
+		"apps/backend: go test -tags faultpoints -short -count=1 -p " + strconv.Itoa(max(2, runtime.NumCPU())) +
+			" -json ./internal/x ./internal/t ./cmd/api",
 		".: bash -n scripts/foo.sh",
 		".: bash -n scripts/hook",
 		".: shellcheck scripts/foo.sh scripts/hook",
@@ -193,7 +198,8 @@ func TestCheck_overBudgetExitsOneNamingTheSlowestPackageAndRecordsNothing(t *tes
 	}}
 
 	code, stdout, stderr := h.check(t, "--base", "fb")
-	if code != 1 || !strings.Contains(stderr, "over the 1m0s budget after 77s; slowest: ./internal/slow (74.0s)") {
+	want := "go test -short row over the 1m0s go budget after 75s; slowest: ./internal/slow (74.0s)"
+	if code != 1 || !strings.Contains(stderr, want) {
 		t.Fatalf("over budget: %d %q %q", code, stdout, stderr)
 	}
 	if !strings.Contains(stdout, "go test -short  over budget") {
@@ -216,7 +222,10 @@ func TestCheck_aFailingRowStopsTheRunWithAnExcerpt(t *testing.T) {
 	h.replies = []reply{{prefix: "go vet", err: errors.New("exit status 1: internal/a/a.go:3:1: unreachable code")}}
 	code, stdout, stderr := h.check(t)
 	if code != 1 || !strings.Contains(stderr, "go vet failed; see the log") ||
-		!strings.Contains(stdout, "go vet          FAIL  go vet ./internal/a\n    exit status 1: internal/a/a.go:3:1") {
+		!strings.Contains(
+			stdout,
+			"go vet          FAIL  go vet -tags faultpoints ./internal/a\n    exit status 1: internal/a/a.go:3:1",
+		) {
 		t.Fatalf("vet: %d %q %q", code, stdout, stderr)
 	}
 	if strings.Contains(strings.Join(h.calls, "\n"), "go test") {
@@ -326,6 +335,101 @@ func TestCheck_shellShebangNeedsAnExtensionlessReadableFile(t *testing.T) {
 	for file, want := range map[string]bool{"run.py": false, "plain": true, "dangling": false} {
 		if got := env.hasShellShebang(file); got != want {
 			t.Errorf("%s: got %v want %v", file, got, want)
+		}
+	}
+}
+
+func TestCheck_eachRowHasItsOwnBudgetAndTheRunHasNone(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{
+		"apps/backend/internal/a/a.go":           "package a\n",
+		"packages/mobile-core/Sources/A/a.swift": "let a = 1\n",
+	})
+	h.affected = "./internal/a\n"
+	h.replies = []reply{{prefix: "go test", took: 50 * time.Second}, {prefix: "swift test", took: 34 * time.Second}}
+	if code, stdout, stderr := h.check(t); code != 0 || !strings.Contains(stdout, "swift test      ok    34.0s") {
+		t.Fatalf("a 50 s go row and a 34 s swift row pass: %d %q %q", code, stdout, stderr)
+	}
+
+	h.commit(t, map[string]string{"packages/mobile-core/Sources/A/a.swift": "let a = 2\n"})
+	h.replies = []reply{{prefix: "swift test", took: 61 * time.Second, err: errors.New("signal: killed")}}
+	code, stdout, stderr := h.check(t)
+	if code != 1 || !strings.Contains(stdout, "swift test      over budget") ||
+		!strings.Contains(stderr, "swift test row over the 1m0s swift budget after 61s; slowest: swift test (61.0s)") {
+		t.Fatalf("an over-budget swift row names swift: %d %q %q", code, stdout, stderr)
+	}
+
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a // quiet\n"})
+	h.replies = []reply{{prefix: "go test", took: 61 * time.Second}}
+	if code, _, stderr := h.check(t); code != 1 ||
+		!strings.Contains(stderr, "slowest: go test -short (61.0s)") {
+		t.Fatalf("a go test with no package events names the row: %d %q", code, stderr)
+	}
+}
+
+func TestCheck_theOpenAPISpecAloneRunsTheSwiftRow(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{openAPISpec: "openapi: 3.1.0\n"})
+	if code, stdout, stderr := h.check(t); code != 0 ||
+		!slices.Contains(h.calls, "packages/mobile-core: swift test") {
+		t.Fatalf("openapi.yaml runs swift test: %d %q %q %v", code, stdout, stderr, h.calls)
+	}
+}
+
+func TestCheck_goTestParallelismSplitsTheCPUsBetweenRunningOwners(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct{ cpus, running, want int }{{8, 6, 2}, {8, 0, 8}, {16, 2, 8}, {2, 1, 2}, {1, 0, 2}} {
+		if got := testParallelism(c.cpus, c.running); got != c.want {
+			t.Errorf("testParallelism(%d, %d) = %d, want %d", c.cpus, c.running, got, c.want)
+		}
+	}
+
+	h := newCheckHarness(t)
+	env := h.Env(t)
+	for ticket := range 7 {
+		state := Running
+		if ticket == 6 {
+			state = Exited
+		}
+		if err := env.saveRecord(Record{Ticket: ticket + 1, State: state, Started: h.now}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.affected = "./internal/a\n"
+	want := "apps/backend: go test -tags faultpoints -short -count=1 -p " +
+		strconv.Itoa(testParallelism(runtime.NumCPU(), 6)) + " -json ./internal/a"
+	if code, _, stderr := h.check(t); code != 0 || !slices.Contains(h.calls, want) {
+		t.Fatalf("six running owners: %d %q\n%s\nwant %s", code, stderr, strings.Join(h.calls, "\n"), want)
+	}
+
+	writeFile(t, env.recordPath(9), "{")
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a // again\n"})
+	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "decode ") {
+		t.Fatalf("a broken record fails the check: %d %q", code, stderr)
+	}
+}
+
+func TestParseConfig_readsTheCheckBudgetSection(t *testing.T) {
+	t.Parallel()
+	c, err := parseConfig(strings.NewReader(testConfig + "\n[check.budget]\n# per row\nswift = \"90s\"\n"))
+	if err != nil || c.Budget["swift"] != 90*time.Second || c.Budget["go"] != time.Minute ||
+		c.Budget["shell"] != 10*time.Second {
+		t.Fatalf("budget: %v %v", c.Budget, err)
+	}
+	for body, want := range map[string]string{
+		"[check.other]\n":                 `:10: unknown section [check.other]`,
+		"[check.budget]\nrust = \"1s\"\n": `:11: unknown key "check.budget.rust"`,
+		"[check.budget]\ngo\n":            ":11: want key = value",
+		"[check.budget]\ngo = 60s\n":      ":11: quote: invalid syntax",
+		"[check.budget]\ngo = \"soon\"\n": `:11: budget go: want a positive duration such as "60s", got "soon"`,
+		"[check.budget]\ngo = \"0s\"\n":   `:11: budget go: want a positive duration`,
+	} {
+		if _, err := parseConfig(strings.NewReader(testConfig + "\n" + body)); err == nil ||
+			!strings.Contains(cliText(err), configPath+want) {
+			t.Errorf("%q: %v", body, err)
 		}
 	}
 }

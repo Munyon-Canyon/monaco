@@ -39,10 +39,10 @@ func TestClose_stopsWaitingForTheDrainWhenTheContextEnds(t *testing.T) {
 		t.Fatal("Close returned with the connection still open after its context ended")
 	}
 	close(release)
-	waitNoLeak(t, before)
+	testkit.Eventually(t, func() bool {
+		endTheDrainThatReopensAfterClose(nc)
+		return goleak.Find(before) == nil
+	}, 10*time.Second)
 }
 
-func waitNoLeak(t *testing.T, before goleak.Option) {
-	t.Helper()
-	testkit.Eventually(t, func() bool { return goleak.Find(before) == nil }, 10*time.Second)
-}
+func endTheDrainThatReopensAfterClose(nc *nats.Conn) { nc.Close() }

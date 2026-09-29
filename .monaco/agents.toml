@@ -7,3 +7,12 @@ batch = 6
 verifier_app = "5101392"
 verifier_installation = 166018497
 milestone = "m7-rest"
+
+# agents check gives each row its own budget; the run as a whole has no cap. The go budget applies to
+# each Go row (build, vet, test -short) separately.
+[check.budget]
+go = "60s"
+swift = "60s"
+scripts = "30s"
+python = "15s"
+shell = "10s"
