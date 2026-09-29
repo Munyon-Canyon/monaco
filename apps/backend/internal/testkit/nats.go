@@ -70,7 +70,25 @@ func startNATS() (*natsServer, error) {
 		_ = os.RemoveAll(dir)
 		return nil, fmt.Errorf("admin jetstream: %w", err)
 	}
+	if err := keepStreamsDirNonEmpty(js); err != nil {
+		admin.Close()
+		srv.Shutdown()
+		_ = os.RemoveAll(dir)
+		return nil, err
+	}
 	return &natsServer{srv: srv, dir: dir, admin: admin, js: js, startup: startup}, nil
+}
+
+func keepStreamsDirNonEmpty(js jetstream.JetStream) error {
+	ctx, cancel := context.WithTimeout(context.Background(), natsReady)
+	defer cancel()
+	_, err := js.CreateStream(ctx, jetstream.StreamConfig{
+		Name: "TESTKIT_KEEPALIVE", Subjects: []string{"testkit.keepalive"}, Storage: jetstream.FileStorage,
+	})
+	if err != nil {
+		return fmt.Errorf("keepalive stream: %w", err)
+	}
+	return nil
 }
 
 type stderrProblems struct{}
