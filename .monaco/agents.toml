@@ -8,10 +8,12 @@ verifier_app = "5101392"
 verifier_installation = 166018497
 milestone = "m7-rest"
 
-# agents check gives each row its own budget; the run as a whole has no cap. The go budget applies to
-# each Go row (build, vet, test -short) separately; lint covers golangci-lint, nogo and the comment lint.
+# agents check gives each row its own budget, except `go test -short`, which is budgeted per package
+# (`package`, the same 20 s that fails a package in `monacoctl test-report`). The go budget applies to
+# go build and go vet separately; lint covers golangci-lint, nogo and the comment lint.
 [check.budget]
 go = "60s"
+package = "20s"
 lint = "60s"
 swift = "60s"
 # The agent-guard tests run serially and take 30 to 100 s under load when scripts/agent-guard.py changes.

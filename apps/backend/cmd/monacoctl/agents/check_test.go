@@ -161,7 +161,8 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		"apps/backend: golangci-lint run ./internal/x ./internal/t ./cmd/api",
 		"apps/backend: go run ./internal/platform/lint/nogo/cmd/nogo ./internal/x ./internal/t ./cmd/api",
 		"apps/backend: go run ./cmd/monacoctl lint comments",
-		"apps/backend: go test -tags faultpoints -short -count=1 -p " + strconv.Itoa(max(2, runtime.NumCPU())) +
+		"apps/backend: go test -tags faultpoints -short -count=1 -timeout 20s -p " +
+			strconv.Itoa(max(2, runtime.NumCPU())) +
 			" -json ./internal/x ./internal/t ./cmd/api",
 		".: bash -n scripts/foo.sh",
 		".: bash -n scripts/hook",
@@ -216,7 +217,7 @@ func TestCheck_overBudgetExitsOneNamingTheSlowestPackageAndRecordsNothing(t *tes
 	}}
 
 	code, stdout, stderr := h.check(t, "--base", "fb")
-	want := "go test -short row over the 1m0s go budget after 75s; slowest: ./internal/slow (79.0s)"
+	want := "go test -short: package ./internal/slow took 79.0s, over the 20s per-package budget"
 	if code != 1 || !strings.Contains(stderr, want) {
 		t.Fatalf("over budget: %d %q %q", code, stdout, stderr)
 	}
@@ -552,10 +553,52 @@ func TestCheck_eachRowHasItsOwnBudgetAndTheRunHasNone(t *testing.T) {
 	}
 
 	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a // quiet\n"})
-	h.replies = []reply{{prefix: "go test", took: 61 * time.Second}}
-	if code, _, stderr := h.check(t); code != 1 ||
-		!strings.Contains(stderr, "slowest: go test -short (61.0s)") {
-		t.Fatalf("a go test with no package events names the row: %d %q", code, stderr)
+	h.replies = []reply{{prefix: "go build", took: 61 * time.Second}}
+	if code, stdout, stderr := h.check(t); code != 1 || !strings.Contains(stdout, "go build        over budget") ||
+		!strings.Contains(stderr, "go build row over the 1m0s go budget after 61s; slowest: go build (61.0s)") {
+		t.Fatalf("go build still has the go row budget: %d %q %q", code, stdout, stderr)
+	}
+}
+
+func packageEvents(took ...time.Duration) string {
+	lines := make([]string, 0, len(took))
+	for i, d := range took {
+		lines = append(lines, fmt.Sprintf(
+			`{"Action":"pass","Package":"github.com/monaco/monaco/apps/backend/internal/p%d","Elapsed":%g}`,
+			i, d.Seconds()))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func TestCheck_theGoTestRowIsBudgetedPerPackageNotPerRow(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.affected = "./internal/a\n"
+	many := slices.Repeat([]time.Duration{5 * time.Second}, 35)
+	h.replies = []reply{{prefix: "go test", took: 175 * time.Second, out: packageEvents(many...)}}
+	if code, stdout, stderr := h.check(t); code != 0 || !strings.Contains(stdout, "go test -short  ok    175.0s") {
+		t.Fatalf("35 packages at 5 s each over 175 s pass: %d %q %q", code, stdout, stderr)
+	}
+
+	tree := h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a // slow\n"})
+	h.replies = []reply{{
+		prefix: "go test", took: 30 * time.Second, err: errors.New("exit status 1"),
+		out: packageEvents(3*time.Second, 21*time.Second, 20500*time.Millisecond),
+	}}
+	code, stdout, stderr := h.check(t)
+	if code != 1 || !strings.Contains(stdout, "go test -short  over budget") ||
+		!strings.Contains(stderr, "go test -short: package ./internal/p1 took 21.0s, over the 20s per-package budget") {
+		t.Fatalf("one package over 20 s fails the row naming it: %d %q %q", code, stdout, stderr)
+	}
+	if _, err := os.Stat(filepath.Join(h.stateDir(t, "checks"), tree)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("an over-budget package recorded the tree: %v", err)
+	}
+
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a // at the line\n"})
+	h.replies = []reply{{prefix: "go test", took: 20 * time.Second, out: packageEvents(20 * time.Second)}}
+	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "package ./internal/p0 took 20.0s") {
+		t.Fatalf("a package at exactly 20 s fails: %d %q", code, stderr)
 	}
 }
 
@@ -590,7 +633,7 @@ func TestCheck_goTestParallelismSplitsTheCPUsBetweenRunningOwners(t *testing.T) 
 	}
 	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
 	h.affected = "./internal/a\n"
-	want := "apps/backend: go test -tags faultpoints -short -count=1 -p " +
+	want := "apps/backend: go test -tags faultpoints -short -count=1 -timeout 20s -p " +
 		strconv.Itoa(testParallelism(runtime.NumCPU(), 6)) + " -json ./internal/a"
 	if code, _, stderr := h.check(t); code != 0 || !slices.Contains(h.calls, want) {
 		t.Fatalf("six running owners: %d %q\n%s\nwant %s", code, stderr, strings.Join(h.calls, "\n"), want)
@@ -605,9 +648,11 @@ func TestCheck_goTestParallelismSplitsTheCPUsBetweenRunningOwners(t *testing.T) 
 
 func TestParseConfig_readsTheCheckBudgetSection(t *testing.T) {
 	t.Parallel()
-	c, err := parseConfig(strings.NewReader(testConfig + "\n[check.budget]\n# per row\nswift = \"90s\"\n"))
+	c, err := parseConfig(strings.NewReader(
+		testConfig + "\n[check.budget]\n# per row\nswift = \"90s\"\npackage = \"30s\"\n",
+	))
 	if err != nil || c.Budget["swift"] != 90*time.Second || c.Budget["go"] != time.Minute ||
-		c.Budget["shell"] != 10*time.Second {
+		c.Budget["shell"] != 10*time.Second || c.Budget["package"] != 30*time.Second {
 		t.Fatalf("budget: %v %v", c.Budget, err)
 	}
 	for body, want := range map[string]string{

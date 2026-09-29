@@ -22,7 +22,7 @@ Each module under `internal/modules` has `domain`, `app` and `adapters`, and imp
 
 ## Before a push
 
-Run `go run ./cmd/monacoctl agents check` from `apps/backend`. It builds, vets and runs the short tests of the packages affected since the base, within a 60 s budget. If only the budget fails on a loaded machine, rerun it later. The merge queue runs the full suite and `monacoctl verify` on the real binaries. Do not run them yourself.
+Run `go run ./cmd/monacoctl agents check` from `apps/backend`. It builds, vets and runs the short tests of the packages affected since the base, with each package held to 20 s. If only the budget fails on a loaded machine, rerun it later. The merge queue runs the full suite and `monacoctl verify` on the real binaries. Do not run them yourself.
 
 ## Where to read next
 
