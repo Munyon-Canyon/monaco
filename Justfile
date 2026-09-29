@@ -110,7 +110,7 @@ test app:
           exit 1
         fi
         # Host unit tests only (swift test on macOS). iOS sim UI tests stay on just build/run mobile.
-        (cd packages/mobile-core && swift test)
+        (cd packages/mobile-core && swift test -Xswiftc -warnings-as-errors)
         ;;
       *)
         echo "error: unknown app '{{app}}' (use backend, mutation, vuln or mobile)"

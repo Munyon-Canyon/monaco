@@ -157,7 +157,7 @@ func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkR
 	}) {
 		rows = append(rows, checkRow{
 			label: "swift test", kind: "swift", dir: filepath.Join(env.Work, "packages", "mobile-core"),
-			cmds: [][]string{{"swift", "test"}},
+			cmds: [][]string{{"swift", "test", "-Xswiftc", "-warnings-as-errors"}},
 		})
 	}
 	return env.pathRows(ctx, rows, changed, parent, head)

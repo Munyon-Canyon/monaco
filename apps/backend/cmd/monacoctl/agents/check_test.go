@@ -170,7 +170,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		"scripts: go test -short -count=1 -run ^(TestOwnA|TestOwnB)$ ./",
 		"scripts: go test -short -count=1 -run ^(TestReadsFoo)$ ./ci",
 		".: python3 -m unittest scripts/test_new.py scripts/test_tool.py",
-		"packages/mobile-core: swift test",
+		"packages/mobile-core: swift test -Xswiftc -warnings-as-errors",
 		".: install-sqlc.sh",
 		".: ready.sh",
 	}
@@ -189,7 +189,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	}
 	log, err := os.ReadFile(filepath.Join(h.stateDir(t, "logs"), "check-"+tree[:12]+".log"))
 	if err != nil || !strings.Contains(string(log), "=== RUN   TestX\nok  \tx\t1.5s\n") ||
-		!strings.Contains(string(log), "&& swift test)") {
+		!strings.Contains(string(log), "&& swift test -Xswiftc -warnings-as-errors)") {
 		t.Fatalf("log: %q %v", log, err)
 	}
 
@@ -607,7 +607,7 @@ func TestCheck_theOpenAPISpecAloneRunsTheSwiftRow(t *testing.T) {
 	h := newCheckHarness(t)
 	h.commit(t, map[string]string{openAPISpec: "openapi: 3.1.0\n"})
 	if code, stdout, stderr := h.check(t); code != 0 ||
-		!slices.Contains(h.calls, "packages/mobile-core: swift test") {
+		!slices.Contains(h.calls, "packages/mobile-core: swift test -Xswiftc -warnings-as-errors") {
 		t.Fatalf("openapi.yaml runs swift test: %d %q %q %v", code, stdout, stderr, h.calls)
 	}
 }

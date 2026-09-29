@@ -5,7 +5,7 @@ public struct QuoteProviderDTO: Codable, Equatable, Hashable, Sendable {
     public let issuerName: String?
 }
 
-public struct BuyQuoteDTO: Codable, Equatable, Sendable {
+public struct BuyQuoteDTO: Codable, Equatable, Hashable, Sendable {
     public let symbol: String
     /// Buy or sell (`"buy"` / `"sell"`).
     public let kind: String?
