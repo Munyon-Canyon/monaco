@@ -146,6 +146,8 @@ components:
         - idempotency_mismatch
         - internal
         - invalid_input
+        - jupiter_rejected
+        - jupiter_unavailable
         - not_found
         - panic
         - unauthorized

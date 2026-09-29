@@ -27,6 +27,7 @@ type Config struct {
 	OTel       OTel
 	Auth       Auth
 	Timeouts   Timeouts
+	Jupiter    Jupiter
 	Faultpoint string
 }
 
@@ -56,6 +57,12 @@ type OTel struct {
 	Endpoint    string
 	Headers     string
 	ServiceName string
+}
+
+type Jupiter struct {
+	SwapBaseURL  string
+	PriceBaseURL string
+	APIKey       string
 }
 
 type Timeouts struct {
@@ -194,6 +201,11 @@ func fields() []field {
 			func(c *Config) *time.Duration { return &c.Timeouts.HTTPServerWrite }),
 		duration("MONACO_TIMEOUT_SHUTDOWN", 10*time.Second,
 			func(c *Config) *time.Duration { return &c.Timeouts.Shutdown }),
+		text("MONACO_JUPITER_SWAP_BASE_URL", "https://api.jup.ag/swap/v2",
+			func(c *Config) *string { return &c.Jupiter.SwapBaseURL }),
+		text("MONACO_JUPITER_PRICE_BASE_URL", "https://api.jup.ag/price/v3",
+			func(c *Config) *string { return &c.Jupiter.PriceBaseURL }),
+		text("JUPITER_API_KEY", "", func(c *Config) *string { return &c.Jupiter.APIKey }).secret(),
 		text("MONACO_FAULTPOINT", "", func(c *Config) *string { return &c.Faultpoint }),
 	}
 }

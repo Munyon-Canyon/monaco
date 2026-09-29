@@ -41,6 +41,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 			HTTPServerWrite: 30 * time.Second,
 			Shutdown:        10 * time.Second,
 		},
+		Jupiter: config.Jupiter{SwapBaseURL: "https://api.jup.ag/swap/v2", PriceBaseURL: "https://api.jup.ag/price/v3"},
 	}
 	if !reflect.DeepEqual(cfg, want) {
 		t.Fatalf("Load = %+v, want %+v", cfg, want)
@@ -68,6 +69,9 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"MONACO_TIMEOUT_HTTP_SERVER_READ=5s",
 		"MONACO_TIMEOUT_HTTP_SERVER_WRITE=6s",
 		"MONACO_TIMEOUT_SHUTDOWN=7s",
+		"MONACO_JUPITER_SWAP_BASE_URL=http://fakes/jupiter/swap/v2",
+		"MONACO_JUPITER_PRICE_BASE_URL=http://fakes/jupiter/price/v3",
+		"JUPITER_API_KEY=jup-secret",
 		"MONACO_FAULTPOINT=before-commit",
 	})
 	if err != nil {
@@ -93,6 +97,11 @@ func TestLoadReadsEveryKey(t *testing.T) {
 			HTTPServerRead:  5 * time.Second,
 			HTTPServerWrite: 6 * time.Second,
 			Shutdown:        7 * time.Second,
+		},
+		Jupiter: config.Jupiter{
+			SwapBaseURL:  "http://fakes/jupiter/swap/v2",
+			PriceBaseURL: "http://fakes/jupiter/price/v3",
+			APIKey:       "jup-secret",
 		},
 		Faultpoint: "before-commit",
 	}
@@ -206,6 +215,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		"NATS_URL":                   "nats://token-secret@host:4222",
 		"OTEL_EXPORTER_OTLP_HEADERS": "Authorization=Basic header-secret",
 		"MONACO_DEV_TOKEN_KEY":       "dev-token-secret",
+		"JUPITER_API_KEY":            "jup-secret",
 	}
 	environ := make([]string, 0, 2+len(secrets))
 	environ = append(environ, "MONACO_ENV=staging", "MONACO_TIMEOUT_JUPITER_EXECUTE=90s")
@@ -225,6 +235,9 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"NATS_URL", "***"},
 		{"OTEL_EXPORTER_OTLP_HEADERS", "***"},
 		{"MONACO_DEV_TOKEN_KEY", "***"},
+		{"JUPITER_API_KEY", "***"},
+		{"MONACO_JUPITER_SWAP_BASE_URL", "https://api.jup.ag/swap/v2"},
+		{"MONACO_JUPITER_PRICE_BASE_URL", "https://api.jup.ag/price/v3"},
 		{"MONACO_ENV", "staging"},
 		{"MONACO_HTTP_ADDR", ":8080"},
 		{"MONACO_HTTP_MAX_BODY_BYTES", "1048576"},

@@ -29,6 +29,8 @@ final class ProblemErrorTests: XCTestCase {
                  .idempotencyMismatch,
                  ._internal,
                  .invalidInput,
+                 .jupiterRejected,
+                 .jupiterUnavailable,
                  .notFound,
                  .panic,
                  .unauthorized,

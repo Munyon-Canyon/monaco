@@ -27,6 +27,8 @@ const (
 	IdempotencyMismatch ErrorCode = "idempotency_mismatch"
 	Internal            ErrorCode = "internal"
 	InvalidInput        ErrorCode = "invalid_input"
+	JupiterRejected     ErrorCode = "jupiter_rejected"
+	JupiterUnavailable  ErrorCode = "jupiter_unavailable"
 	NotFound            ErrorCode = "not_found"
 	Panic               ErrorCode = "panic"
 	Unauthorized        ErrorCode = "unauthorized"
@@ -55,6 +57,10 @@ func (e ErrorCode) Valid() bool {
 	case Internal:
 		return true
 	case InvalidInput:
+		return true
+	case JupiterRejected:
+		return true
+	case JupiterUnavailable:
 		return true
 	case NotFound:
 		return true

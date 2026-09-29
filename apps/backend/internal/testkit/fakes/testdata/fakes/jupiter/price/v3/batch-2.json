@@ -1,0 +1,38 @@
+{
+  "status": 200,
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "Xs51PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 367.296307051,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs52PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 374.419764052,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs53PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 381.543221053,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs54PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 388.666678054,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs55PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 395.790135055,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    }
+  }
+}

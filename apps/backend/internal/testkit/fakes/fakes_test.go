@@ -265,3 +265,39 @@ func TestNew_servesFixturesFromTheGivenFS(t *testing.T) {
 		t.Fatalf("GET /rpc/getSlot = %d %q", rec.Code, rec.Body.String())
 	}
 }
+
+func TestScript_succeedWithFixtureReplaysThatFixtureThenTheRouteDefault(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(fakes.NewFrom(fstest.MapFS{
+		"fx/rpc/getSlot.json":      {Data: []byte(`{"status":200,"body":{"slot":7}}`)},
+		"fx/rpc/getSlot/late.json": {Data: []byte(`{"status":200,"body":{"slot":9}}`)},
+	}, "fx"))
+	t.Cleanup(srv.Close)
+	c := httpclient.New("fakes", httpclient.WithBaseURL(srv.URL), httpclient.WithTimeout(10*time.Second))
+	script(t.Context(), t, c, fakes.Step{
+		Route: "/rpc/getSlot", Action: fakes.ActionSucceed, Fixture: "/rpc/getSlot/late", Times: 2,
+	})
+
+	got := make([]string, 0, 3)
+	for range 3 {
+		got = append(got, mustCall(t.Context(), t, c, http.MethodGet, "/rpc/getSlot", "").body)
+	}
+	if want := []string{`{"slot":9}`, `{"slot":9}`, `{"slot":7}`}; strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("bodies = %v, want %v", got, want)
+	}
+}
+
+func TestScript_rejectsAFixtureItCannotServe(t *testing.T) {
+	t.Parallel()
+	c := overHTTP(t)
+	for _, body := range []string{
+		`{"route":"/jupiter/_health","action":"succeed","fixture":"/jupiter/missing"}`,
+		`{"route":"/jupiter/_health","action":"succeed","fixture":"/privy/_health"}`,
+		`{"route":"/jupiter/_health","action":"hang","fixture":"/jupiter/_health"}`,
+	} {
+		got := mustCall(t.Context(), t, c, http.MethodPost, "/_script", body)
+		if got.status != http.StatusBadRequest || !strings.Contains(got.body, "fixture") {
+			t.Fatalf("POST /_script %s = %d %q, want 400 naming fixture", body, got.status, got.body)
+		}
+	}
+}

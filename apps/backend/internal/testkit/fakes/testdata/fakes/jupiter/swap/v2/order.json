@@ -1,0 +1,15 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {
+    "requestId": "req-buy-aaplx-1",
+    "inputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "outputMint": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
+    "inAmount": "25000000",
+    "outAmount": "11000000",
+    "router": "iris",
+    "priceImpactPct": "0.12",
+    "routePlan": [{"swapInfo": {"label": "Meteora DLMM"}, "percent": 100}],
+    "transaction": "dW5zaWduZWQtYnV5LXR4"
+  }
+}

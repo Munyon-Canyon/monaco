@@ -1,0 +1,13 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {
+    "requestId": "req-no-route-1",
+    "inAmount": "25000000",
+    "outAmount": "0",
+    "routePlan": [],
+    "transaction": null,
+    "errorCode": 1,
+    "errorMessage": "No routes found"
+  }
+}
