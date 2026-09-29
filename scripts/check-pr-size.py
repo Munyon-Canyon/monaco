@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Fail a pull request with 1000 or more changed lines of hand-written code, tests or docs.
+"""Fail a pull request with 1000 or more changed lines of hand-written code, tests or docs,
+or with a committed binary file.
 
 Counts added plus deleted lines from `git diff --numstat -M <base>...<head>`, so a pure
 rename counts as zero. Skips generated and machine-written files (see IGNORED). A PR
 labelled `large-pr` passes; only a human reviewer adds that label. A PR whose body starts
 with `Lands stack: #a #b #c` (written by `monacoctl agents land-stack`) passes when it is
 the last PR listed, each listed PR is under the limit against its own parent, and each
-head has a `verify` success.
+head has a `verify` success. A binary file fails the PR whatever its size or label, unless it
+sits under a `testdata/` directory or has a media or document extension (MEDIA_SUFFIXES).
+The rule stops committed build output, which has no such extension.
 
 Reads BASE_SHA, HEAD_SHA, PR_LABELS (JSON list of label names), PR_BODY, PR_NUMBER and
 GITHUB_REPOSITORY from the environment.
@@ -46,6 +49,10 @@ IGNORED = [
     "docs/reference/*",
     "*/testdata/*",
 ]
+MEDIA_SUFFIXES = (
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".svg", ".pdf",
+    ".ttf", ".otf", ".woff", ".woff2", ".mp4", ".mov",
+)
 
 
 def renamed_path(path: str) -> str:
@@ -60,6 +67,23 @@ def renamed_path(path: str) -> str:
 
 def ignored(path: str) -> bool:
     return any(fnmatch.fnmatch(path, pattern) for pattern in IGNORED)
+
+
+def binary_allowed(path: str) -> bool:
+    if "/testdata/" in "/" + path:
+        return True
+    return path.lower().endswith(MEDIA_SUFFIXES)
+
+
+def binaries(numstat: str) -> list[str]:
+    found = []
+    for line in numstat.splitlines():
+        parts = line.split("\t", 2)
+        if len(parts) == 3 and parts[0] == "-" and parts[1] == "-":
+            path = renamed_path(parts[2])
+            if not binary_allowed(path):
+                found.append(path)
+    return found
 
 
 def count(numstat: str) -> tuple[int, list[tuple[int, str]]]:
@@ -142,7 +166,14 @@ def stack_errors(numbers: list[int], pr: int, base: str, repo: Repo) -> list[str
 
 def main() -> int:
     labels = json.loads(os.environ.get("PR_LABELS") or "[]")
-    total, counted = count(numstat(os.environ["BASE_SHA"], os.environ["HEAD_SHA"]))
+    diff = numstat(os.environ["BASE_SHA"], os.environ["HEAD_SHA"])
+    rejected = binaries(diff)
+    if rejected:
+        print("PR commits binary files. Remove them; build output belongs in bin/ or /dev/null:")
+        for path in rejected:
+            print(f"  {path}")
+        return 1
+    total, counted = count(diff)
     print(f"{total} changed lines counted (limit {LIMIT}). Largest files:")
     for lines, path in counted[:10]:
         print(f"  {lines:6d}  {path}")
