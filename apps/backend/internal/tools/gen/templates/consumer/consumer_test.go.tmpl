@@ -17,7 +17,7 @@ import (
 func Test{{.Handler}}_convergesUnderChaos(t *testing.T) {
 	t.Parallel()
 	testkit.ConsumerSuite(t, func(h testkit.Harness) bus.Consumer {
-		for _, c := range {{.Module}}.New(module.Deps{Pool: h.Pool, IDs: h.IDs, Clock: h.Clock}).Consumers() {
+		for _, c := range {{.Module}}.New(module.Deps{Pool: h.Pool, IDs: h.IDs, Clock: h.Clock, Bus: h.Bus}).Consumers() {
 			if c.Durable == "{{.Module}}_{{.File}}" {
 				return c
 			}

@@ -247,7 +247,9 @@ func TestConsumer_registersItsHandlerInModuleGoAndStartsNATSForTheSuite(t *testi
 	mod := read(t, root, "internal/modules/wallets/module.go")
 	for _, want := range []string{
 		`"example.com/app/internal/modules/wallets/adapters"`,
-		`{Durable: "wallets_on_deposit", Handlers: []bus.HandlerSpec{bus.Handle("wallets.on_deposit", adapters.OnDeposit)}},`,
+		"func New(d module.Deps) *Module { return &Module{deps: d} }",
+		`Durable: "wallets_on_deposit",`,
+		`bus.Handle("wallets.on_deposit", adapters.OnDeposit{Bus: m.deps.Bus}.Handle),`,
 	} {
 		if !strings.Contains(mod, want) {
 			t.Errorf("module.go lacks %q:\n%s", want, mod)
@@ -263,15 +265,11 @@ func TestConsumer_registersItsHandlerInModuleGoAndStartsNATSForTheSuite(t *testi
 	) {
 		t.Errorf("main_test.go does not start NATS:\n%s", got)
 	}
-	if got := read(
-		t,
-		root,
-		"internal/modules/wallets/on_deposit_test.go",
-	); !strings.Contains(
+	if got := read(t, root, "internal/modules/wallets/on_deposit_test.go"); !strings.Contains(
 		got,
 		"testkit.ConsumerSuite(t,",
-	) {
-		t.Errorf("on_deposit_test.go does not run the consumer suite:\n%s", got)
+	) || !strings.Contains(got, "Bus: h.Bus}") {
+		t.Errorf("on_deposit_test.go does not run the consumer suite on the harness bus:\n%s", got)
 	}
 
 	if _, err := gen.Apply(root, "consumer", "wallets", "onWithdrawal"); err != nil {

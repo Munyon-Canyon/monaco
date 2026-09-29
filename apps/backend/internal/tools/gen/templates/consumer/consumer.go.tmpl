@@ -4,9 +4,14 @@ import (
 	"context"
 
 	"{{.ModPath}}/internal/events"
+	"{{.ModPath}}/internal/platform/bus"
 	"{{.ModPath}}/internal/platform/db"
 )
 
-func {{.Handler}}(context.Context, db.Tx, events.SystemPinged) error {
+type {{.Handler}} struct {
+	Bus *bus.Conn
+}
+
+func ({{.Handler}}) Handle(context.Context, db.Tx, events.SystemPinged) error {
 	return nil
 }
