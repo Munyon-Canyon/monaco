@@ -629,6 +629,11 @@ func TestLandStack_withoutALandsLineReadsTheStackFromGraphite(t *testing.T) {
 			gtLog: "◯  fb\n◯  b1\n◯  b2 (needs restack)\n◉  b3\n◯  b4\n",
 			out:   "queued #3. Lands stack: #1 #2 #3\n",
 		},
+		{
+			name:  "gt lists the trunk, whose own PR targets main",
+			gtLog: "◯  fb\n◯  b0\n◯  b1\n◉  b3\n",
+			out:   "queued #3. Lands stack: #1 #3\n",
+		},
 		{name: "gt names only the top", gtLog: "◯  fb\n◉  b3\n", out: "queued #3. Lands stack: #3\n"},
 		{name: "gt is on another stack", gtLog: "◯  fb\n◯  b1\n◉  b7\n", out: "queued #3. Lands stack: #3\n"},
 		{
@@ -641,7 +646,8 @@ func TestLandStack_withoutALandsLineReadsTheStackFromGraphite(t *testing.T) {
 			t.Parallel()
 			f := newFixture(t)
 			s := newStackGH(t, f,
-				green(t, 1, "b1", "fb"), green(t, 2, "b2", "fb"), green(t, 3, "b3", "fb"), green(t, 7, "b7", "fb"),
+				green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"), green(t, 3, "b3", "fb"), green(t, 7, "b7", "fb"),
+				stackOf(t, 9, "fb", "main", "SUCCESS", ""),
 			)
 			s.gtLog, s.fail = tc.gtLog, tc.fail
 			f.record(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
