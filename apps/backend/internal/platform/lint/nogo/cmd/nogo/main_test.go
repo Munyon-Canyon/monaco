@@ -181,3 +181,44 @@ func TestWallclock_reportsStdlibTimeOnlyOutsideSynctestAndTheTestkitClock(t *tes
 		t.Fatalf("nogo = %d\n%s\nwant 3 and\n%s", code, strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
+
+func TestTestwait_reportsFixedWaitsAndPollLoopsOutsideSynctestAndTestkit(t *testing.T) {
+	t.Parallel()
+	imports := "import (\n\t\"testing\"\n\t\"testing/synctest\"\n\t\"time\"\n)\n\nvar _ = synctest.Wait\n\n"
+	dir := writeTree(t, map[string]string{
+		"go.mod":             "module github.com/monaco/monaco/apps/backend\n\ngo 1.25\n",
+		"internal/prod/p.go": "package prod\n\nimport \"time\"\n\nfunc F() {\n\tfor {\n\t\t<-time.After(time.Second)\n\t}\n}\n",
+		"internal/testkit/eventually.go": "package testkit\n\nimport \"time\"\n\n" +
+			"func Eventually() {\n\tfor range 3 {\n\t\t<-time.After(time.Millisecond)\n\t}\n}\n",
+		"internal/testkit/sub/s_test.go": "package sub\n\nimport (\n\t\"testing\"\n\t\"time\"\n)\n\n" +
+			"func TestS(t *testing.T) {\n\t<-time.After(0)\n}\n",
+		"internal/w/w_test.go": "package w\n\n" + imports +
+			"func TestFixed(t *testing.T) {\n\t<-time.After(time.Millisecond)\n}\n\n" +
+			"func TestPoll(t *testing.T) {\n\tdone := make(chan struct{})\n\tfor {\n\t\tselect {\n" +
+			"\t\tcase <-done:\n\t\t\treturn\n\t\tcase <-time.After(time.Millisecond):\n\t\t}\n\t}\n}\n\n" +
+			"func TestTickers(t *testing.T) {\n\tfor range 3 {\n\t\ttime.NewTicker(time.Second).Stop()\n\t\t_ = time.Tick(time.Second)\n\t}\n}\n\n" +
+			"func TestDeadline(t *testing.T) {\n\tdone := make(chan struct{})\n\tselect {\n\tcase <-done:\n" +
+			"\tcase <-time.After(5 * time.Second):\n\t\tt.Fatal(\"timeout\")\n\t}\n\t_ = time.After(0)\n" +
+			"\tfor range 3 {\n\t\tgo func() { <-done; _ = time.After(0) }()\n\t}\n}\n\n" +
+			"func TestBubble(t *testing.T) {\n\tsynctest.Test(t, func(t *testing.T) {\n\t\t<-time.After(time.Second)\n" +
+			"\t\tfor range 3 {\n\t\t\t_ = time.Tick(time.Second)\n\t\t}\n\t})\n}\n",
+		"internal/w/dot_test.go": "package w\n\nimport (\n\t\"testing\"\n\t. \"time\"\n)\n\n" +
+			"func TestDot(t *testing.T) {\n\t<-After(Millisecond)\n}\n",
+	})
+	code, stderr := nogoStderr(t, dir, "-testwait", "-nogo=false")
+	fix := "wait on a signal, use synctest.Test, testkit.Eventually or testkit.AssertNoRedelivery"
+	w := filepath.Join(dir, "internal/w/w_test.go")
+	want := []string{
+		filepath.Join(dir, "internal/w/dot_test.go") + ":9:2: fixed wait <-time.After: " + fix,
+		w + ":12:2: fixed wait <-time.After: " + fix,
+		w + ":21:10: poll loop time.After in a for loop: " + fix,
+		w + ":28:3: poll loop time.NewTicker in a for loop: " + fix,
+		w + ":29:7: poll loop time.Tick in a for loop: " + fix,
+	}
+	got := strings.Split(strings.TrimSpace(stderr), "\n")
+	slices.Sort(got)
+	slices.Sort(want)
+	if code != 3 || !slices.Equal(got, want) {
+		t.Fatalf("nogo = %d\n%s\nwant 3 and\n%s", code, strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}

@@ -113,7 +113,7 @@ linters:
         - pattern: '^uuid\.New(V7)?$'
           msg: inject the id generator from platform
         - pattern: '^time\.Sleep$'
-          msg: tests wait on a signal or advance the fake clock
+          msg: tests wait on a signal; use synctest.Test, testkit.Eventually or testkit.AssertNoRedelivery
         - pattern: '^(pgx\.Tx|pgx\.Conn|pgxpool\.Pool|pgxpool\.Conn|pgxpool\.Tx)\.(Begin|BeginTx|Commit)$'
           msg: open transactions through platform/db UnitOfWork
         - pattern: '^pgx\.(BeginFunc|BeginTxFunc)$'
