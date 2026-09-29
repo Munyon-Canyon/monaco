@@ -3,6 +3,7 @@ package verify
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -61,6 +62,40 @@ func TestUp_namesTheProcessThatExitsBeforeListening(t *testing.T) {
 	}
 }
 
+func TestUp_namesTheFakesProcessThatNeverLogsListening(t *testing.T) {
+	t.Parallel()
+	o := testOptions(t, fakeQuiet)
+	stopWaiting := errors.New("test stopped waiting")
+	s, err := Up(stopWhenFakesStart(t, &o, stopWaiting), o)
+	if downErr := s.Down(t.Context()); downErr != nil {
+		t.Errorf("Down: %v", downErr)
+	}
+	if !errors.Is(err, stopWaiting) || !strings.Contains(err.Error(), "fakes never logged boot.listening") {
+		t.Fatalf("Up = %v, want fakes named as never listening", err)
+	}
+}
+
+func stopWhenFakesStart(t *testing.T, o *Options, cause error) context.Context {
+	t.Helper()
+	ln, err := new(net.ListenConfig).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancelCause(t.Context())
+	t.Cleanup(func() {
+		cancel(nil)
+		_ = ln.Close()
+	})
+	o.Environ = append(o.Environ, fakeStartedEnv+"="+ln.Addr().String())
+	go func() {
+		if conn, err := ln.Accept(); err == nil {
+			_ = conn.Close()
+			cancel(cause)
+		}
+	}()
+	return ctx
+}
+
 func TestUp_failsWhenTheAPIOrWorkerCannotStart(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -115,10 +150,6 @@ func TestUp_reportsSchemaAndPostgresFailures(t *testing.T) {
 				return "", nil, errors.New("gave up")
 			}
 		}, "over budget: stack-up took longer than 100ms: gave up"},
-		{"silent", func(o *Options) {
-			o.Budget.Stack = time.Second
-			o.Environ = fakeEnviron(fakeQuiet)
-		}, "fakes never logged boot.listening: over budget: stack-up"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

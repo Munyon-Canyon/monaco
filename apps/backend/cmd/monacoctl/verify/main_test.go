@@ -41,6 +41,8 @@ const (
 	fakeDeaf  = "deaf"
 	fakeMute  = "mute"
 	fakeQuiet = "quiet"
+
+	fakeStartedEnv = "VERIFY_FAKE_STARTED"
 )
 
 func fakeMain() {
@@ -57,6 +59,11 @@ func fakeMain() {
 		_, _ = fmt.Fprintf(os.Stderr, "partial ")
 		for range 2 {
 			_, _ = fmt.Fprintf(os.Stderr, "line\n{\"msg\":\"boot.listening\",\"addr\":%q}\n", ln.Addr().String())
+		}
+	}
+	if addr := os.Getenv(fakeStartedEnv); addr != "" {
+		if conn, err := new(net.Dialer).DialContext(context.Background(), "tcp", addr); err == nil {
+			_ = conn.Close()
 		}
 	}
 	if point := os.Getenv("MONACO_FAULTPOINT"); point != "" {
