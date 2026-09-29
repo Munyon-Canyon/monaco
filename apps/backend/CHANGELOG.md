@@ -29,6 +29,12 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 - The stage 2 `e2e` CI job. The merge queue runs `monacoctl verify all` and `monacoctl verify all --crash-at after-publish` on every backend change, `ci-ok` requires it, and the evidence uploads as `verify-evidence`. The backend nightly also runs `monacoctl verify all`.
 - The `Changelog (checkpoint into main)` check, which fails a checkpoint PR into `main` that changes `apps/backend` without an entry here.
 - `monacoctl garden report [--skip-mutation]`, which lists dead code, candidate lints, surviving mutants and generator drift in `garden-report.md`. The nightly `gardener` workflow runs it with `--skip-mutation` and keeps the result in one open `gardener` issue.
+- The rate limiter in `platform/httpx/ratelimit`. An operation's `x-rate-limit` extension in `openapi.yaml` sets a per-actor bucket, a per-IP bucket or both, kept in Postgres, and a request over the limit gets 429 `rate_limited` with `Retry-After`. `TRUST_PROXY_HEADERS=true` keys the per-IP bucket on the rightmost `X-Forwarded-For` entry. The retention poller deletes buckets idle for more than 24 hours. The api does not mount the middleware yet (#1002).
+- `monacoctl agents dispatch` posts the owner record as a comment on the ticket, and a clone without the record rebuilds it from that comment, so another machine can resume, verdict or land an in-flight ticket.
+- `just install` runs `scripts/setup-agent-env.sh`, which writes the pstack model roles, and a fresh clone in Claude Code enables the team plugins. The `commit` skill ships with the repo.
+- `scripts/sync-blocked-by.py` mirrors each ticket's `Blocked by` header into GitHub's blocked-by links. It is a dry run unless given `--apply`.
+- The workflow docs: `docs/how-to/ship-a-ticket.md`, `docs/how-to/run-a-milestone.md`, `docs/agents/standing-orders.md` and the M7 closeout log in `docs/milestones/m7-closeout.md`.
+- `go-cache.yml` saves the Go module and build cache on a push to `backend-rewrite-3` or `main` that changes `go.mod` or `go.sum`, so backend CI on the feature branch starts warm. `backend-test-env` retries `go mod download` 3 times.
 
 ### Changed
 
@@ -41,13 +47,19 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 - `monacoctl gen consumer` wires the module's `Bus` into the consumer it generates, so a consumer that publishes hints or events needs no hand edits.
 - `monacoctl flows check` calls a flow `verified` when every outcome has a registered verify script. Flow 00 is `verified`.
 - The PR size check fails a committed binary unless it sits under `testdata/` or has a media extension. The `large-pr` label does not override it.
-- CI skips PRs based on Graphite's temporary `graphite-base/` branches. `agents status` runs queue in one concurrency group per PR instead of cancelling each other. The flake job reruns changed tests with `-tags faultpoints`.
+- CI skips PRs based on Graphite's temporary `graphite-base/` branches. `agents status` runs queue in one concurrency group per PR instead of cancelling each other. The flake job reruns changed tests with `-tags faultpoints` and skips `_test.go` fixtures under `testdata/`.
+- A bus handler takes the delivery time as its last argument, read once per delivery, so it stores the same time as `event_deliveries.handled_at`. `monacoctl gen consumer` generates the new signature.
+- `monacoctl agents check` budgets its `go test -short` row per package (20 s each) instead of 60 s for the whole row.
+- `monacoctl agents forecast` and `agents dispatch` count a landed stack once, so its files no longer overlap with themselves.
+- The PR format check skips the commit-subject rule on checkpoint PRs into `main`. Ticket PRs still get it.
 
 ### Fixed
 
 - Three flaky bus tests that hung, leaked a drain goroutine or read duplicates, and a race between stream creates and the shared test nats-server's cleanup.
 - The scripts CI job, which failed on every PR once `scripts/cloud-setup.sh` came over from `main`.
 - Flakes that ejected merge queue entries: `ETXTBSY` in the monacoctl migrate and bench tests, and the bus apply stream test on repeated runs.
+- `Transfers.Build` returns `internal` and no transaction when the relayer's fee-payer signature fails, instead of a transaction with an all-zero signature.
+- When `monacoctl verify` runs out of its teardown budget, the error names the child that spent it, and says each child stopped after it was killed without a graceful stop.
 
 ## [checkpoint 2] - 2026-09-27
 

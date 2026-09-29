@@ -471,7 +471,7 @@ Also in CI:
 
 Budget: `just test backend` under 90 s on a laptop, and the required PR checks under 6 min wall clock. The budget is a CI gate, not a hope: `testkit` records each package's wall time from `go test -json`, `monacoctl test-report` prints the ten slowest tests, a package over 10 s gets a warning, and a package over 20 s or a run over 90 s fails. The package limits are the same on a laptop and in CI. The run limit applies on a laptop only: in CI (`CI` set) `test-report --ci` gates packages but not the run, because a PR runner starts from a cold build cache and the job has its own 3 min budget. A test that breaks the budget gets fixed or moved to nightly, never skipped. `just test backend` runs `go test -p 4`: at the default of one test binary per core, every binary runs its parallel tests at once, and on an 8-core laptop packages that take 3.5 s alone took 10 to 13 s. With `-p 4` the same suite took 28.8 s instead of 41.1 s and every package stayed under 8 s (2026-09-27, load 8 to 10). Tests that build or run other binaries (the lint-rule fixtures and the tools they build, the `ids` type-check fixtures, the `testkit` fixture packages, the `-cover` binary merge) skip under `-short`; CI runs them in their own step and nightly runs them once.
 
-Where the 60 s goes. Every row was measured on 2026-09-27 against throwaway code shaped like the target, on an M2 under background load. Rollout step 1 re-measures on the real scaffold and in CI, and sets the gate from those numbers:
+Where the time went under the original 60 s budget. Every row was measured on 2026-09-27 against throwaway code shaped like the target, on an M2 under background load. Rollout step 1 re-measures on the real scaffold and in CI, and sets the gate from those numbers:
 
 | Cost | Estimate | What keeps it there |
 | --- | --- | --- |
@@ -493,7 +493,7 @@ Measured on the scaffold (#485, 2026-09-27): 26 test packages, no NATS and no ac
 | Slowest package (`cmd/monacoctl`, fake `atlas`, `go` and `gremlins` scripts plus git) | 8.4 to 17 s | 2.3 s |
 | NATS, acceptance | not measured: neither exists on the scaffold yet | |
 
-The run gate stays at 60 s: p95 times 1.5 is 71 s, which the RFC budget caps at 60 s. The package gate stays at 10 s. `cmd/monacoctl` goes over it on the loaded laptop in 5 of 8 runs and never on an idle runner, so the next re-measure (#486) either splits its tests into per-tool packages under `internal/tools` or confirms the overrun is load. On 2026-09-29 the run gate rose to 90 s and the package gate to a 10 s warning and a 20 s failure (#831; see the ci.md log).
+The laptop run gate is 90 s. A test package warns at 10 s and fails at 20 s (`cmd/monacoctl/testreport.go`). Both rose on 2026-09-29 (#831; see the ci.md log). At the time of this measurement the gates were 60 s for the run (p95 times 1.5 is 71 s, which the RFC budget capped at 60 s) and 10 s for a package. `cmd/monacoctl` went over 10 s on the loaded laptop in 5 of 8 runs and never on an idle runner.
 
 Not in `just test backend`: E2E (real binaries, compose, including their crash points), mutation, timing benchmarks. Those are PR CI or nightly.
 
@@ -902,7 +902,7 @@ Checks run in three stages, and each stage runs only what the stage before it sk
 
 | Stage | Where | Runs | Budget | Runs how often |
 | --- | --- | --- | --- | --- |
-| 0. Agent check | Owner's worktree, `monacoctl agents check` | `go build` and `go vet` on affected packages, then golangci-lint, nogo and the comment lint, then `go test -short -count=1` on affected packages, no `-race`. For non-Go paths, the cheap row for that path (`bash -n` and shellcheck; `cd scripts && go test -short` on the touched test files; `python3 -m unittest …`; `swift test` for `packages/mobile-core`). Path-triggered rows mirror CI's `ready`, migration lint, OpenAPI lint and oasdiff, and `mkdocs --strict` | ≤60s | Once before each push (hook-enforced) |
+| 0. Agent check | Owner's worktree, `monacoctl agents check` | `go build` and `go vet` on affected packages, then golangci-lint, nogo and the comment lint, then `go test -short -count=1` on affected packages, no `-race`. For non-Go paths, the cheap row for that path (`bash -n` and shellcheck; `cd scripts && go test -short` on the touched test files; `python3 -m unittest …`; `swift test` for `packages/mobile-core`). Path-triggered rows mirror CI's `ready`, migration lint, OpenAPI lint and oasdiff, and `mkdocs --strict` | per row, under `[check.budget]` in `.monaco/agents.toml`; no cap on the whole run | Once before each push (hook-enforced) |
 | 1. PR check | CI, `pull_request` | The repo-wide checks, including those stage 0 runs on the changed paths only: `plan`, golangci-lint, nogo, the comment lint, OpenAPI lint and oasdiff, migration lint, `ready` (tidy, generated files, sqlc, docs), PR format. **No tests.** | ≤2 min | Once per change to the PR's diff. A push with the same diff reuses the last green result. |
 | 2. Queue check | CI, `merge_group` | The full suite: `scripts/test-backend.sh` (race, all packages, time budget), the `-short`-skipped tests, `flake` on changed tests, `monacoctl verify` (`scripts/ci/e2e.sh`), `scripts` tests, and mobile-core and iOS only when their paths changed | ≤6 min backend-only (iOS adds ~12) | Once per queue entry. A stack is one entry. Reruns only after an ejection. |
 
