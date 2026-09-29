@@ -180,6 +180,41 @@ func (t *ticketPR) note(c gqlContext) {
 	}
 }
 
+func (t ticketPR) ejected() bool {
+	if len(t.Queued) == 0 {
+		return false
+	}
+	last := t.Queued[len(t.Queued)-1]
+	return !last.Added && last.At.After(t.Head)
+}
+
+func (v ticketView) state() string {
+	var open []ticketPR
+	for _, p := range v.PRs {
+		if p.Merged.IsZero() {
+			open = append(open, p)
+		}
+	}
+	switch {
+	case len(v.PRs) == 0:
+		return "building"
+	case len(open) == 0:
+		return "merged"
+	}
+	for _, p := range open {
+		if p.Queue > 0 {
+			return fmt.Sprintf("queued (#%d)", p.Queue)
+		}
+	}
+	if slices.ContainsFunc(open, ticketPR.ejected) {
+		return "ejected"
+	}
+	if slices.ContainsFunc(open, func(p ticketPR) bool { return p.Stage1 != "success" }) {
+		return "stage 1"
+	}
+	return "verifying"
+}
+
 func (v ticketView) lastOfAll(at func(ticketPR) (time.Time, bool)) time.Time {
 	var last time.Time
 	for _, p := range v.PRs {
@@ -206,6 +241,17 @@ func (v ticketView) merged() time.Time {
 	return v.lastOfAll(func(p ticketPR) (time.Time, bool) { return p.Merged, !p.Merged.IsZero() })
 }
 
+func (v ticketView) elapsed(now time.Time) string {
+	if v.Dispatched.IsZero() {
+		return "-"
+	}
+	end := now
+	if m := v.merged(); !m.IsZero() {
+		end = m
+	}
+	return span(end.Sub(v.Dispatched))
+}
+
 func latest(a, b time.Time) time.Time {
 	if b.After(a) {
 		return b
@@ -227,4 +273,13 @@ func span(d time.Duration) string {
 		return fmt.Sprintf("%dm", m)
 	}
 	return fmt.Sprintf("%dh%02dm", h, m)
+}
+
+func boardRows(views []ticketView, now time.Time) string {
+	var b strings.Builder
+	b.WriteString("| ticket | state | since dispatch |\n| --- | --- | --- |\n")
+	for _, v := range views {
+		_, _ = fmt.Fprintf(&b, "| #%d | %s | %s |\n", v.Ticket, v.state(), v.elapsed(now))
+	}
+	return b.String()
 }

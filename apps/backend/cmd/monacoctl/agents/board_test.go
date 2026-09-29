@@ -2,6 +2,7 @@ package agents
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -75,6 +76,48 @@ func TestViews_failsOnHTTPAndGraphQLErrors(t *testing.T) {
 	}
 }
 
+func TestTicketState(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	ago := func(m int) time.Time { return now.Add(-time.Duration(m) * time.Minute) }
+	green := ticketPR{Number: 1, Head: ago(60), Stage1: "success"}
+	merged := ticketPR{Number: 2, Merged: ago(5)}
+	with := func(p ticketPR, edit func(*ticketPR)) ticketPR { edit(&p); return p }
+	tests := []struct {
+		name string
+		prs  []ticketPR
+		want string
+	}{
+		{"no PR yet", nil, "building"},
+		{"every PR merged, even after a queue removal", []ticketPR{
+			merged, with(merged, func(p *ticketPR) { p.Queued = []queueEvent{{false, ago(5)}} }),
+		}, "merged"},
+		{"in the queue", []ticketPR{merged, with(green, func(p *ticketPR) { p.Queue = 3 })}, "queued (#3)"},
+		{"removed with no push since", []ticketPR{
+			with(green, func(p *ticketPR) { p.Queued = []queueEvent{{true, ago(30)}, {false, ago(10)}} }),
+		}, "ejected"},
+		{"pushed after the removal", []ticketPR{
+			with(green, func(p *ticketPR) { p.Queued = []queueEvent{{false, ago(70)}}; p.Stage1 = "pending" }),
+		}, "stage 1"},
+		{
+			"queued again",
+			[]ticketPR{with(green, func(p *ticketPR) { p.Queued = []queueEvent{{true, ago(5)}} })},
+			"verifying",
+		},
+		{"stage 1 red", []ticketPR{with(green, func(p *ticketPR) { p.Stage1 = "failure" })}, "stage 1"},
+		{"one stacked PR still running stage 1", []ticketPR{green, {Number: 3}}, "stage 1"},
+		{"stage 1 green, verdict pending", []ticketPR{green, merged}, "verifying"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := (ticketView{PRs: tt.prs}).state(); got != tt.want {
+				t.Fatalf("state = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestNote_readsStage1AndVerify(t *testing.T) {
 	t.Parallel()
 	var p ticketPR
@@ -85,9 +128,126 @@ func TestNote_readsStage1AndVerify(t *testing.T) {
 	}
 }
 
+func TestElapsedAndSpan(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		view ticketView
+		want string
+	}{
+		{ticketView{}, "-"},
+		{ticketView{Dispatched: now.Add(-5 * time.Minute)}, "5m"},
+		{
+			ticketView{Dispatched: now.Add(-65 * time.Minute), PRs: []ticketPR{{Merged: now.Add(-3 * time.Minute)}}},
+			"1h02m",
+		},
+		{
+			ticketView{
+				Dispatched: now.Add(-3 * time.Hour),
+				PRs:        []ticketPR{{Merged: now}, {Merged: now.Add(-time.Hour)}},
+			},
+			"3h00m",
+		},
+		{ticketView{Dispatched: now.Add(-3 * time.Hour), PRs: []ticketPR{{Merged: now}, {}}}, "3h00m"},
+	}
+	for _, tt := range tests {
+		if got := tt.view.elapsed(now); got != tt.want {
+			t.Fatalf("elapsed = %q, want %q", got, tt.want)
+		}
+	}
+}
+
 func (f *fixture) record(t *testing.T, r Record) {
 	t.Helper()
 	if err := f.Env(t).saveRecord(r); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func posted(t *testing.T, f *fixture, route string) string {
+	t.Helper()
+	var p struct {
+		Body string `json:"body"`
+	}
+	if err := json.Unmarshal([]byte(f.hub.body(route)), &p); err != nil {
+		t.Fatal(route, err)
+	}
+	return p.Body
+}
+
+func TestStatus_publishesTheBatchAndCIReadsItBack(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.batch(t, 5, 6, 7)
+	f.record(t, Record{Ticket: 5, State: Done, Started: f.now.Add(-2 * time.Hour)})
+	f.board(t)
+	f.hub.on(list("/pulls?state=open"), []PR{})
+	f.hub.on(list("/issues/7/comments?"), []Comment{})
+	f.hub.on("POST /repos/o/r/issues/7/comments", "ok")
+	if code, stdout, stderr := f.agents(t, "status", "--publish"); code != 0 || stdout != "status comment updated\n" {
+		t.Fatalf("local: %d %q %q", code, stdout, stderr)
+	}
+	body := posted(t, f, "POST /repos/o/r/issues/7/comments")
+	rows := "| ticket | state | since dispatch |\n| --- | --- | --- |\n" +
+		"| #5 | merged | 1h30m |\n| #6 | queued (#2) | - |\n| #7 | building | - |\n"
+	if !strings.Contains(body, "|\n\n"+rows+batchMarker) || !strings.HasSuffix(body, " -->\n"+activeMarker+"\n") {
+		t.Fatalf("body:\n%s", body)
+	}
+
+	ci := newFixture(t)
+	ci.board(t)
+	ci.hub.on(list("/pulls?state=open"), []PR{})
+	ci.hub.on(list("/issues/7/comments?"), []Comment{{ID: 4, Body: body}})
+	if code, stdout, stderr := ci.agents(
+		t,
+		"status",
+		"--publish",
+	); code != 0 ||
+		stdout != "status comment unchanged\n" {
+		t.Fatalf("ci: %d %q %q", code, stdout, stderr)
+	}
+
+	settled := strings.Replace(body, `{"ticket":6`, `{"ticket":5`, 1)
+	settled = strings.Replace(settled, `{"ticket":7`, `{"ticket":5`, 1)
+	ci.hub.on(list("/issues/7/comments?"), []Comment{{ID: 4, Body: settled}})
+	ci.hub.on("PATCH /repos/o/r/issues/comments/4", "ok")
+	if code, _, stderr := ci.agents(t, "status", "--publish"); code != 0 {
+		t.Fatalf("settled: %d %q", code, stderr)
+	}
+	if got := posted(t, ci, "PATCH /repos/o/r/issues/comments/4"); strings.Contains(got, activeMarker) ||
+		!strings.Contains(got, "| #5 | merged | 1h30m |\n| #5 | merged | - |\n") {
+		t.Fatalf("settled body:\n%s", got)
+	}
+}
+
+func TestStatus_batchFailures(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.hub.on(list("/pulls?state=open"), []PR{})
+	env := f.Env(t)
+	f.batch(t, 5)
+	f.hub.on(list("/issues/7/comments?"), []Comment{})
+	if code, _, stderr := f.agents(t, "status", "--publish"); code != 1 || !strings.Contains(stderr, "graphql") {
+		t.Fatalf("cmd: %d %q", code, stderr)
+	}
+	if _, err := env.statusBody(context.Background(), ""); err == nil || !strings.Contains(err.Error(), "graphql") {
+		t.Fatal(err)
+	}
+	writeFile(t, env.recordPath(9), "{")
+	if _, err := env.statusBody(context.Background(), ""); err == nil || !strings.Contains(err.Error(), "9.json") {
+		t.Fatal(err)
+	}
+	writeFile(t, env.batchPath(), "{")
+	if _, err := env.statusBody(context.Background(), ""); err == nil || !strings.Contains(err.Error(), "batch.json") {
+		t.Fatal(err)
+	}
+	for body, want := range map[string]int{
+		"":                    0,
+		batchMarker + "{ -->": 0,
+		batchMarker + `{"tickets":[{"ticket":3}]} -->`: 1,
+	} {
+		if got := publishedBatch(body); len(got.Tickets) != want {
+			t.Fatalf("%q -> %+v", body, got)
+		}
 	}
 }

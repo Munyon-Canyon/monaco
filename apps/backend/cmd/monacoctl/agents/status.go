@@ -2,13 +2,18 @@ package agents
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"slices"
 	"strings"
 )
 
-const statusMarker = "<!-- monacoctl agents status -->"
+const (
+	statusMarker = "<!-- monacoctl agents status -->"
+	batchMarker  = "<!-- monacoctl agents batch "
+	activeMarker = "<!-- monacoctl agents active batch -->"
+)
 
 type Comment struct {
 	ID   int64  `json:"id"`
@@ -30,11 +35,12 @@ func statusCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) e
 	if len(args) != 1 || args[0] != "--publish" {
 		return usageError("status --publish")
 	}
-	body, err := env.statusBody(ctx)
+	all, err := env.comments(ctx)
 	if err != nil {
 		return err
 	}
-	c, ok, err := env.statusComment(ctx)
+	c, ok := marked(all, statusMarker)
+	body, err := env.statusBody(ctx, c.Body)
 	if err != nil {
 		return err
 	}
@@ -49,17 +55,17 @@ func statusCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) e
 	return nil
 }
 
-func (env *Env) statusComment(ctx context.Context) (Comment, bool, error) {
-	all, err := pages[Comment](ctx, env.GitHub, env.GitHub.repo("/issues/%d/comments?", env.Config.Tracking))
-	if err != nil {
-		return Comment{}, false, err
-	}
+func (env *Env) comments(ctx context.Context) ([]Comment, error) {
+	return pages[Comment](ctx, env.GitHub, env.GitHub.repo("/issues/%d/comments?", env.Config.Tracking))
+}
+
+func marked(all []Comment, marker string) (Comment, bool) {
 	for _, c := range all {
-		if strings.Contains(c.Body, statusMarker) {
-			return c, true, nil
+		if strings.Contains(c.Body, marker) {
+			return c, true
 		}
 	}
-	return Comment{}, false, nil
+	return Comment{}, false
 }
 
 func (env *Env) writeStatus(ctx context.Context, id int64, found bool, body string) error {
@@ -78,7 +84,7 @@ func (env *Env) writeStatus(ctx context.Context, id int64, found bool, body stri
 	return env.GitHub.call(ctx, "PATCH", path, "", payload, nil)
 }
 
-func (env *Env) statusBody(ctx context.Context) (string, error) {
+func (env *Env) statusBody(ctx context.Context, published string) (string, error) {
 	open, err := env.GitHub.PRs(ctx, "state=open")
 	if err != nil {
 		return "", err
@@ -102,7 +108,44 @@ func (env *Env) statusBody(ctx context.Context) (string, error) {
 		}
 		_, _ = fmt.Fprintf(&b, "| #%d | %s | %s | %s | %s |\n", pr.Number, shortSHA(pr.Head.SHA), ci, ciok, verify)
 	}
-	return b.String(), nil
+	batch, err := env.batchBoard(ctx, published)
+	return b.String() + batch, err
+}
+
+func (env *Env) batchBoard(ctx context.Context, published string) (string, error) {
+	b, err := env.currentBatch(published)
+	if err != nil || len(b.Tickets) == 0 {
+		return "", err
+	}
+	views, err := env.views(ctx, b)
+	if err != nil {
+		return "", err
+	}
+	raw, _ := json.Marshal(b)
+	out := "\n" + boardRows(views, env.Now()) + batchMarker + string(raw) + " -->\n"
+	if slices.ContainsFunc(views, func(v ticketView) bool { return v.state() != "merged" }) {
+		out += activeMarker + "\n"
+	}
+	return out, nil
+}
+
+func (env *Env) currentBatch(published string) (Batch, error) {
+	prev := publishedBatch(published)
+	b, ok, err := loadBatch(env.batchPath())
+	if err != nil || !ok {
+		return prev, err
+	}
+	return env.withDispatch(b, prev)
+}
+
+func publishedBatch(body string) Batch {
+	_, rest, ok := strings.Cut(body, batchMarker)
+	raw, _, _ := strings.Cut(rest, " -->")
+	var b Batch
+	if !ok || json.Unmarshal([]byte(raw), &b) != nil {
+		return Batch{}
+	}
+	return b
 }
 
 func (env *Env) checks(ctx context.Context, sha string) (string, string, string, error) {
@@ -128,7 +171,7 @@ func (env *Env) checks(ctx context.Context, sha string) (string, string, string,
 		switch run.Name {
 		case "ci":
 			ci = got
-		case "ci-ok":
+		case stage1Check:
 			ciok = got
 		}
 	}
