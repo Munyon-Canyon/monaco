@@ -1,0 +1,308 @@
+{
+  "status": 200,
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "Xs01PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 17.123457001,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs02PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 24.246914002,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs03PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 31.370371003,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs04PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 38.493828004,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs05PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 45.617285005,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs06PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 52.740742006,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs07PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 59.864199007,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs08PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 66.987656008,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs09PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 73.111113009,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs10PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 80.234570010,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs11PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 87.358027011,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs12PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 94.481484012,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs13PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 101.604941013,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs14PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 108.728398014,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs15PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 115.851855015,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs16PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 122.975312016,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs17PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 129.098769017,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs18PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 136.222226018,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs19PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 143.345683019,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs20PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 150.469140020,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs21PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 157.592597021,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs22PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 164.716054022,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs23PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 171.839511023,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs24PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 178.962968024,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs25PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 185.086425025,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs26PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 192.209882026,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs27PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 199.333339027,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs28PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 206.456796028,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs29PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 213.580253029,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs30PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 220.703710030,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs31PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 227.827167031,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs32PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 234.950624032,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs33PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 241.074081033,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs34PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 248.197538034,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs35PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 255.320995035,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs36PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 262.444452036,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs37PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 269.567909037,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs38PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 276.691366038,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs39PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 283.814823039,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs40PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 290.938280040,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs41PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 297.061737041,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs42PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 304.185194042,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs43PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 311.308651043,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs44PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 318.432108044,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs45PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 325.555565045,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs46PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 332.679022046,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs47PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 339.802479047,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs48PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 346.925936048,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs49PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 353.049393049,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    },
+    "Xs50PriceFixtureMint1111111111111111111111": {
+      "usdPrice": 360.172850050,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.5
+    }
+  }
+}

@@ -78,6 +78,7 @@ const (
 type Client struct {
 	swap    *httpclient.Client
 	execute *httpclient.Client
+	price   *httpclient.Client
 	apiKey  string
 	clock   clock.Clock
 	window  time.Duration
@@ -94,6 +95,7 @@ func New(cfg config.Config, clk clock.Clock, opts ...httpclient.Option) *Client 
 	return &Client{
 		swap:    upstream("jupiter-swap", cfg.Jupiter.SwapBaseURL, cfg.Timeouts.JupiterQuote),
 		execute: upstream("jupiter-execute", cfg.Jupiter.SwapBaseURL, cfg.Timeouts.JupiterExecute),
+		price:   upstream("jupiter-price", cfg.Jupiter.PriceBaseURL, cfg.Timeouts.JupiterQuote),
 		apiKey:  cfg.Jupiter.APIKey,
 		clock:   clk,
 		window:  cfg.Timeouts.JupiterExecute,
