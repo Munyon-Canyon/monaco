@@ -4,7 +4,7 @@ How Monaco runs continuous integration: which checks run, when they run, on what
 
 ## Decision
 
-1. **CI confirms; it does not discover.** Every check a PR needs runs on the laptop first: `just test backend` (under 60 s), the lint pre-commit hook, and `just verify backend` behind the pre-PR hook. CI reruns the same commands on a clean machine to prove the result does not depend on the author's machine. A red CI run on a ready PR is a bug in the local gate, not a normal step.
+1. **CI confirms; it does not discover.** Every check a PR needs runs on the laptop first: `just test backend` (under 90 s), the lint pre-commit hook, and `just verify backend` behind the pre-PR hook. CI reruns the same commands on a clean machine to prove the result does not depend on the author's machine. A red CI run on a ready PR is a bug in the local gate, not a normal step.
 2. **Full CI runs only on PRs that can merge.** A PR runs CI when it is not a draft and its base is `main` or a milestone feature branch (`backend-rewrite*`). Drafts run nothing. Upstack PRs in a Graphite stack run nothing until Graphite retargets them to their trunk.
 3. **No CI on push to `main`.** Branch protection requires the branch to be up to date before merging, so the PR run already tested the tree that lands. The nightly run covers `main`.
 4. **One required check.** A final `ci-ok` job aggregates every other job with `re-actors/alls-green`. It is the only check branch protection names, so jobs can be added, split or path-filtered without touching the protection rule.
@@ -42,7 +42,7 @@ Each check runs in exactly one tier as its gate, and in the tier below it only w
 
 | Tier | When | Runs | Budget |
 | --- | --- | --- | --- |
-| Local, every save or commit | pre-commit hook, `just test backend` | `golangci-lint` on changed packages, unit + integration + acceptance, fixed-seed property and jitter tests, fuzz seeds | 60 s |
+| Local, every save or commit | pre-commit hook, `just test backend` | `golangci-lint` on changed packages, unit + integration + acceptance, fixed-seed property and jitter tests, fuzz seeds | 90 s |
 | Local, before PR | pre-PR hook (`scripts/agent-guard-pr.sh`) | `just verify backend` for every flow the branch touches; fresh evidence stamped with `HEAD` | 90 s |
 | Stage 1, PR check | non-draft PR (`pull_request`) | the repo-wide checks below, no tests | 2 min |
 | Stage 2, queue check | merge queue entry (`merge_group`) | every job below | 6 min backend-only, iOS adds about 12 |
@@ -261,6 +261,8 @@ Each step is one small PR with its own proof.
 
 ## Log
 
+- 2026-09-29: The laptop run budget for `just test backend` rose from 60 s to 90 s (#831). CI still does not gate the run.
+- 2026-09-29: The per-package test budget warns at 10 s and fails at 20 s, the same on a laptop and in CI (#831). Before, a laptop failed at 10 s and CI warned at 10 s and failed at 15 s. Per-package wall time under `go test -race -p 4` with whole-module coverage measures contention as much as the package: packages that take 4 s alone read 10 to 13 s in the full suite. The 60 s laptop run budget is unchanged, and CI still does not gate the run.
 - 2026-09-29: `gate-changes` warns instead of failing; a finding is an annotation, not a red X (#782).
 - 2026-09-29: `scripts/feature-branch.sh apply backend-rewrite-3` failed with 422: GitHub rejects GitHub Actions (integration 15368) as a ruleset bypass actor. The feature branch ruleset now lets org admins bypass, and `checkpoint.yml` pushes the merge-back with the `MERGE_BACK_TOKEN` secret, an org admin's fine-grained PAT (#831).
 - 2026-09-29: Added the `gate-changes` job and the `gate-change-approved` label (#782).

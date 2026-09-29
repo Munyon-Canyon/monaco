@@ -69,7 +69,7 @@ To get QA cash back out: **Cash out** of the cabal (USDC returns to the account 
 | `just reset db`              | Wipe the local Docker Postgres volume only and start it empty; NATS data is kept (localhost only, dotenvx)                                                             |
 | `just migrate db`            | Apply pending migrations to the `.env.local` database, then print its revision. `just run backend` never migrates; a behind database stops boot with `db_schema_behind` |
 | `just killports`             | Kill listeners on API port (default 8080; not Postgres 54322)                                                                                                          |
-| `just test backend`          | `go test -race -shuffle=on -short ./...` in `apps/backend`, the slowest-ten report and 60 s budget, then the `scripts/` Go tests                                       |
+| `just test backend`          | `go test -race -shuffle=on -short ./...` in `apps/backend`, the slowest-ten report and 90 s budget, then the `scripts/` Go tests                                       |
 | `just test mobile`           | Host `swift test` in `packages/mobile-core` — fast, no secrets                                                                                                         |
 | `just build backend`         | `go build` of `bin/api`, `bin/worker`, `bin/monacoctl`                                                                                                                 |
 | `just build mobile`          | Privy xcconfig, then `xcodebuild` on the resolved sim                                                                                                                  |
