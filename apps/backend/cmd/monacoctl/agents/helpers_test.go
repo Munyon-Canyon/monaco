@@ -19,7 +19,7 @@ import (
 
 const (
 	testRepo   = "o/r"
-	testConfig = "repo = \"o/r\"\nfeature_branch = \"fb\"\ntracking = 7\nlanes = 2\n" +
+	testConfig = "repo = \"o/r\"\nfeature_branch = \"fb\"\ntracking = 7\nlanes = 2\nbatch = 2\n" +
 		"verifier_app = \"99\"\nverifier_installation = 100\nmilestone = \"ms\"\n"
 )
 
@@ -166,5 +166,16 @@ func pr(n int, head, base, body string) PR {
 		Number: n, Body: body, State: "open",
 		Head: Ref{Ref: head, SHA: strings.Repeat(string(rune('a'+n%6)), 40)},
 		Base: Ref{Ref: base},
+	}
+}
+
+func (f *fixture) batch(t *testing.T, tickets ...int) {
+	t.Helper()
+	b := Batch{Created: f.now}
+	for _, n := range tickets {
+		b.Tickets = append(b.Tickets, BatchTicket{Ticket: n, Touches: []string{"x/**"}})
+	}
+	if err := f.Env(t).saveBatch(b); err != nil {
+		t.Fatal(err)
 	}
 }

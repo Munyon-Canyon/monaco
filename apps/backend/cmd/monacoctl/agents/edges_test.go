@@ -251,6 +251,7 @@ func TestEdges_watchConflictsStatus(t *testing.T) {
 func TestEdges_remainingBranches(t *testing.T) {
 	t.Parallel()
 	f := prepBranch(t)
+	f.batch(t, 4)
 	env := f.Env(t)
 	if !closes("Closes #2", 2) || closes("nope", 2) || closes("Closes #1", 2) {
 		t.Fatal("closes")
@@ -426,6 +427,7 @@ func TestEdges_remainingBranches(t *testing.T) {
 	f.hub.on(list("/pulls?state=open"), []PR{})
 	miss := newFixture(t)
 	git(t, miss.dir, "commit", "-q", "--allow-empty", "-m", "root")
+	miss.batch(t, 4)
 	miss.hub.on(get("/issues/4"), Issue{Body: "ready"})
 	miss.hub.on(list("/pulls?state=open"), []PR{})
 	if err := dispatchCmd(

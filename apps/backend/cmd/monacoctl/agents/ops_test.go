@@ -14,12 +14,13 @@ import (
 func TestDispatch_dryRunWritesNothing(t *testing.T) {
 	t.Parallel()
 	f := prepBranch(t)
+	f.batch(t, 12)
 	f.hub.on(get("/issues/12"), Issue{Number: 12, Body: "Blocked by #3"})
 	merged := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
 	f.hub.on(get("/issues/3"), Issue{Number: 3, PullRequest: &struct{}{}})
 	f.hub.on(get("/pulls/3"), PR{Number: 3, MergedAt: &merged, MergeCommitSHA: f.head(t)})
 	f.hub.on(list("/pulls?state=open"), []PR{})
-	f.ps("1 claude\n")
+	f.ps()
 	code, stdout, stderr := f.agents(t, "dispatch", "12", "--model", "opus", "--dry-run")
 	if code != 0 || stderr != "" || !strings.Contains(stdout, "dry-run: would add worktree") ||
 		!strings.Contains(stdout, "would start caffeinate") {
@@ -33,6 +34,7 @@ func TestDispatch_dryRunWritesNothing(t *testing.T) {
 func TestDispatch_refusesBlockersLanesAndModel(t *testing.T) {
 	t.Parallel()
 	f := prepBranch(t)
+	f.batch(t, 4)
 	if code, _, stderr := f.agents(t, "dispatch"); code != 2 || !strings.Contains(stderr, "dispatch <ticket>") {
 		t.Fatalf("usage: %d %q", code, stderr)
 	}
@@ -98,12 +100,13 @@ func TestDispatch_refusesBlockersLanesAndModel(t *testing.T) {
 func TestDispatch_startsAWorktreeWhenTheBlockerIsInTheBranch(t *testing.T) {
 	t.Parallel()
 	f := prepBranch(t)
+	f.batch(t, 12)
 	tip := f.head(t)
 	f.hub.on(get("/issues/12"), Issue{Body: "no blockers"})
 	f.hub.on(list("/pulls?state=open"), []PR{pr(1, "a", "fb", ""), pr(2, "b", "fb", "")})
 	f.hub.on(list("/pulls/1/files?"), []File{{Filename: "shared.go"}})
 	f.hub.on(list("/pulls/2/files?"), []File{{Filename: "shared.go"}})
-	f.ps("1 claude\n")
+	f.ps()
 	var started []string
 	env := f.Env(t)
 	env.Start = func(name string, args ...string) error {
@@ -133,13 +136,14 @@ func TestDispatch_startsAWorktreeWhenTheBlockerIsInTheBranch(t *testing.T) {
 func TestDispatch_acceptsAClosedIssueAndAMergedPull(t *testing.T) {
 	t.Parallel()
 	f := prepBranch(t)
+	f.batch(t, 12)
 	merged := f.now
 	f.hub.on(get("/issues/12"), Issue{Body: "Blocked by #8, #9"})
 	f.hub.on(get("/issues/8"), Issue{State: "closed", StateReason: "completed"})
 	f.hub.on(get("/issues/9"), Issue{PullRequest: &struct{}{}})
 	f.hub.on(get("/pulls/9"), PR{MergedAt: &merged, MergeCommitSHA: f.head(t)})
 	f.hub.on(list("/pulls?state=open"), []PR{})
-	f.ps("1 claude\n")
+	f.ps()
 	env := f.Env(t)
 	env.Run = f.run
 	env.Start = func(string, ...string) error { return errors.New("caffeinate down") }
@@ -280,11 +284,11 @@ func TestOwnDoneExited(t *testing.T) {
 	}
 }
 
-func (f *fixture) ps(out string) {
+func (f *fixture) ps() {
 	prev := f.run
 	f.run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
 		if name == "ps" {
-			return []byte(out), nil
+			return []byte("1 claude\n"), nil
 		}
 		if name == "pgrep" {
 			return nil, errors.New("none")

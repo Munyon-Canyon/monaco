@@ -9,7 +9,8 @@ Run the command named for the step.
 
 | Step | Command |
 | --- | --- |
-| dispatch | `monacoctl agents dispatch` |
+| batch | `monacoctl agents batch <issue>...` |
+| dispatch | `monacoctl agents dispatch` (`--urgent` for a ticket outside the batch) |
 | verify | `monacoctl agents verify-plan` and `just verify backend` |
 | verdict | `monacoctl agents verdict` |
 | merging | `gh pr merge --auto --squash` into the feature branch |
