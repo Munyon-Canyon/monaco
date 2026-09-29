@@ -15,7 +15,7 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 		files []string
 		jobs  []string
 	}{
-		{"backend-only", []string{"apps/backend/internal/platform/db/db.go"}, []string{"backend", "ready", "mutation"}},
+		{"backend-only", []string{"apps/backend/internal/platform/db/db.go"}, []string{"lint", "ready", "backend"}},
 		{"mobile-core-only", []string{"packages/mobile-core/Sources/Foo.swift"}, []string{"mobile-core", "ios"}},
 		{"ios-only", []string{"apps/mobile/App.swift"}, []string{"ios"}},
 		{"ci-only", []string{".github/workflows/ci.yml"}, []string{"actionlint"}},
@@ -49,10 +49,7 @@ func jobsFor(filters map[string][]string, files []string) []string {
 	}
 	var jobs []string
 	if hit["backend"] {
-		jobs = append(jobs, "backend", "ready")
-	}
-	if hit["backend-go"] {
-		jobs = append(jobs, "mutation")
+		jobs = append(jobs, "lint", "ready", "backend")
 	}
 	if hit["mobile-core"] {
 		jobs = append(jobs, "mobile-core")

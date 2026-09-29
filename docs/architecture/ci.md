@@ -26,7 +26,7 @@ How Monaco runs continuous integration: which checks run, when they run, on what
 | `web` | Linux | 57 | 0.1 min | 55 |
 | nightly `alert` | Linux | 11 | 0.1 min | 11 |
 | `swift` (mobile-core) | macOS | 89 | 0.8 min | 126 |
-| `ios` | macOS | 57 | 2.0 min | 124 |
+| `ios` | 2 | macOS | 57 | 2.0 min | 124 |
 | nightly `qa` | macOS | 11 | 13.1 min | 152 |
 
 At that pace a 30-day month is about 2,000 Linux minutes and 3,500 macOS minutes (extrapolated, not measured). As a private repo that exhausts the free quota on Linux alone and adds about $220 a month of macOS at $0.062 per minute. Two findings drive the decisions above:
@@ -44,29 +44,52 @@ Each check runs in exactly one tier as its gate, and in the tier below it only w
 | --- | --- | --- | --- |
 | Local, every save or commit | pre-commit hook, `just test backend` | `golangci-lint` on changed packages, unit + integration + acceptance, fixed-seed property and jitter tests, fuzz seeds | 60 s |
 | Local, before PR | pre-PR hook (`scripts/agent-guard-pr.sh`) | `just verify backend` for every flow the branch touches; fresh evidence stamped with `HEAD` | 90 s |
-| PR CI | non-draft PR, base `main` | the jobs below | 6 min wall clock for the first two jobs, 10 min for each mutation package |
+| Stage 1, PR check | non-draft PR (`pull_request`) | the repo-wide checks below, no tests | 2 min |
+| Stage 2, queue check | merge queue entry (`merge_group`) | every job below | 6 min backend-only, iOS adds about 12 |
 | Nightly | 07:00 UTC, only if `main` moved | everything unbounded | 180 min |
 
-PR CI jobs, from the [Testing](backend-platform.md#keeping-it-fast) budget:
+CI jobs, from the [Testing](backend-platform.md#keeping-it-fast) budget. The Stage column says which [check stage](#check-stages) runs the job. Stage 2 also runs every stage 1 job.
 
-| Job | Runner | Runs when | Contents |
-| --- | --- | --- | --- |
-| `plan` | Linux | always | Checks out once, runs `dorny/paths-filter`, and runs the landing page's `npm test` when `apps/web/**` changed. Folding `web` in here removes one billed minute per run. |
-| `backend` | Linux | backend or CI files changed | `golangci-lint`, `govulncheck`, `atlas migrate lint`, `vacuum lint`, `oasdiff breaking` against `main`, `monacoctl lint comments`, changelog check, `just test backend` (`go test -race -shuffle=on -short` with `goleak`, `monacoctl test-report`, merged coverage at 100%, `monacoctl flows check` on the `go test -json` output), then the tests `-short` skips because they build or run other binaries. Under 3 min, sharded by package if it outgrows that. |
-| `ready` | Linux | backend or CI files changed | `scripts/ci/ready.sh`, which the laptop runs the same way on a committed tree: `go vet` on go1.25.14 (so a newer local Go cannot hide a stdlib API that go.mod's version lacks), `go mod tidy -diff`, `go generate` and `scripts/gen-docs.sh` with no change to the tree after, `sqlc diff`, and `monacoctl flows check`. No Postgres, so it reports in about a minute. |
-| `e2e` | Linux | backend changed | Real `api` and `worker` binaries on compose (Postgres, NATS, fake externals), crash-point tests, `verify-backend` evidence for touched flows. Under 4 min. |
-| `mutation` | Linux | backend Go changed | Calls the reusable `mutation.yml`. Its `plan` job runs `monacoctl mutation --base <base> --list`, which prints the packages with changed Go files as a JSON array and leaves out packages with only test files, since they have no code to mutate. A manual run compares with the parent commit. A PR labeled `integration` lists no packages. Its matrix runs one job per listed package, `fail-fast: false`: `monacoctl mutation --base <base> --pkg <dir>` runs `gremlins --diff` on the lines the PR changed in that package. The wall time is the slowest package, not the sum. Survivors the PR did not write are left to the nightly, which mutates every line. Fails on a survivor not in `mutants.allow`, and on a package where more mutants timed out than were tested. An empty list skips the matrix, because GitHub rejects a matrix built from an empty list. Each package job uploads its gremlins JSON report as the artifact `gremlins-<dir>`. `timeout-minutes: 10` per package. |
-| `scripts` | Linux | `scripts/` Go tests or the files they read changed: top-level `scripts/*` except `cloud-setup.sh`, `scripts/githooks/**`, `scripts/testdata/**`, `Justfile`, `.claude/settings.json`, `.claude/hooks/**`, `ci-scripts.yml` | `go test -short ./...` in the `scripts` module (the PR size and format guards, the agent guard, the staged-lint hook, the Justfile tests), called from its own reusable file `ci-scripts.yml`. |
-| `mobile-core` | Linux (`swift` container) | `packages/mobile-core/**` or `ci-mobile-core.yml` changed | `swift test`, called from its own reusable file `ci-mobile-core.yml`. |
-| `ios` | macOS | `apps/mobile/**`, `packages/mobile-core/**`, the iOS scripts, or `ci-ios.yml` changed | `build-for-testing`, `MonacoTests`, sample-screen manifest check, called from its own reusable file `ci-ios.yml`. This build also compiles `mobile-core` on Darwin, which covers the Darwin-only code paths the Linux job skips. |
-| (any job) | | a changed file no filter owns and no inert rule names | Every job above runs. The `plan` job's second filter step (`predicate-quantifier: every`) computes `unknown`: all changed files minus every path a job filter owns and minus the no-check rows of [Verification scope](backend-platform.md#verification-scope) (`docs/**`, `**/*.md`, `.claude/**`, `.cursor/**`, `.github/**` for actionlint, `scripts/cloud-setup.sh`, `.env.local`). A new top-level file or app therefore runs everything until someone adds it to a filter, instead of passing `ci-ok` with nothing tested. |
-| `ci-ok` | Linux | always, `if: always()` | `re-actors/alls-green` over every job above, with path-skipped jobs in `allowed-skips`. The only required check. |
-
-The `integration` label marks a feature branch's PR into `main`, such as `backend-rewrite` into `main`. The operator applies it when opening that PR. Its diff is the sum of ticket PRs that already passed `mutation` on their way into the feature branch, so mutating it again repeats that work, and the slowest packages run past the 10-minute timeout. Apply the label before the push that should skip: a label change alone does not start CI, and a rerun keeps the labels of the event that started it. Code that merged before the gate existed is covered by the nightly's full sweep, which blocks no PR.
+| Job | Stage | Runner | Runs when | Contents |
+| --- | --- | --- | --- | --- |
+| `plan` | 1 | Linux | always | Checks out once, decides [stage 1 reuse](#check-stages), runs `dorny/paths-filter` and actionlint. In stage 2 it also runs the landing page's `npm test` when `apps/web/**` changed. Folding `web` in here removes one billed minute per run. |
+| `lint` | 1 | Linux | backend or CI files changed | `golangci-lint`, nogo, `monacoctl lint comments`, `vacuum lint`, `atlas migrate lint`, and `oasdiff breaking` against the PR's base (the feature branch in the queue). No Postgres. |
+| `backend` | 2 | Linux | backend or CI files changed | `scripts/test-backend.sh` (`go test -race -shuffle=on -short` with `goleak`, `monacoctl test-report` with the per-package time budget, merged coverage at 100%, `monacoctl flows check` on the `go test -json` output), then the tests `-short` skips because they build or run other binaries. Under 3 min, sharded by package if it outgrows that. |
+| `ready` | 1 | Linux | backend or CI files changed | `scripts/ci/ready.sh`, which the laptop runs the same way on a committed tree: `go vet` on go1.25.14 (so a newer local Go cannot hide a stdlib API that go.mod's version lacks), `go mod tidy -diff`, `go generate` and `scripts/gen-docs.sh` with no change to the tree after, `sqlc diff`, and `monacoctl flows check`. No Postgres, so it reports in about a minute. |
+| `e2e` | 2 | Linux | backend changed | Real `api` and `worker` binaries on compose (Postgres, NATS, fake externals), crash-point tests, `verify-backend` evidence for touched flows. Under 4 min. |
+| `flake` | 2 | Linux | backend tests or `scripts/ci/flake-tests.sh` changed | `scripts/ci/flake-tests.sh` reruns the changed test files 20 times against the base. |
+| `scripts` | 2 | Linux | `scripts/` Go tests or the files they read changed: top-level `scripts/*` except `cloud-setup.sh`, `scripts/githooks/**`, `scripts/testdata/**`, `Justfile`, `.claude/settings.json`, `.claude/hooks/**`, `ci-scripts.yml` | `go test -short ./...` in the `scripts` module (the PR size and format guards, the agent guard, the staged-lint hook, the Justfile tests), called from its own reusable file `ci-scripts.yml`. |
+| `mobile-core` | 2 | Linux (`swift` container) | `packages/mobile-core/**` or `ci-mobile-core.yml` changed | `swift test`, called from its own reusable file `ci-mobile-core.yml`. |
+| `ios` | 2 | macOS | `apps/mobile/**`, `packages/mobile-core/**`, the iOS scripts, or `ci-ios.yml` changed | `build-for-testing`, `MonacoTests`, sample-screen manifest check, called from its own reusable file `ci-ios.yml`. This build also compiles `mobile-core` on Darwin, which covers the Darwin-only code paths the Linux job skips. |
+| (any job) | | | a changed file no filter owns and no inert rule names | Every job above runs. The `plan` job's second filter step (`predicate-quantifier: every`) computes `unknown`: all changed files minus every path a job filter owns and minus the no-check rows of [Verification scope](backend-platform.md#verification-scope) (`docs/**`, `**/*.md`, `.claude/**`, `.cursor/**`, `.github/**` for actionlint, `scripts/cloud-setup.sh`, `.env.local`). A new top-level file or app therefore runs everything until someone adds it to a filter, instead of passing `ci-ok` with nothing tested. |
+| `ci-ok` | 1 | Linux | always, `if: always()` | `re-actors/alls-green` over every job above, with path-skipped and stage-skipped jobs in `allowed-skips`. In stage 1 it then records the diff's patch ID in its own check run's output summary. The only CI check the rulesets require. |
 
 The legacy backend, its migrations, its Go domain package and the reference bot were deleted in M7 before the new scaffold. Until [Rollout](backend-platform.md#rollout) step 1 adds the gates above, `backend` runs `go vet` and `go test -race` on the scaffold.
 
 Nightly runs `scripts/qa/night.sh` as it does today ([Overnight QA](../how-to/overnight-qa.md)), plus the Linux `warm-cache` job described under [Fast and deterministic](#fast-and-deterministic), plus the unbounded backend suites the RFC assigns to it: 100,000 property cases, `-fuzz` for 10 minutes per target, the tests `-short` skips, a seed sweep (`-count=20 -short`, new `testkit.RandSeed` seeds each pass), and `benchstat` against the last nightly with an alert on a regression over 10% at p < 0.05. `scripts/ci/nightly-backend.sh` runs all of them in the nightly `backend` job, which keeps `bench.txt` as an artifact for the next night. The nightly `mutation` job calls the same `mutation.yml` with `all: true`: one job per package runs `monacoctl mutation --all --pkg <dir>` on every line, with `timeout-minutes: 60`, because `db`, `bus`, `httpx` and `httpx/sse` each take more than 10 minutes. A failed package fails the night like a failed backend suite.
+
+## Check stages
+
+A change passes three check stages. Each stage runs only what the stage before it skipped.
+
+| Stage | Where | Runs |
+| --- | --- | --- |
+| 0. Agent check | The owner's worktree, before each push | `go build`, `go vet` and `go test -short -count=1` on the packages `monacoctl ci affected --base <feature branch>` prints. |
+| 1. PR check | CI on `pull_request`, `stage: pr` | The stage 1 jobs in [What runs where](#what-runs-where): lint, `ready` and PR format. No tests. |
+| 2. Queue check | CI on `merge_group`, `stage: queue` | Every job: stage 1 plus the full race suite, the tests `-short` skips, `flake`, `scripts`, and `mobile-core` and `ios` when their paths changed. |
+
+`ci.yml` sets the `stage` input of `ci-jobs.yml` from `github.event_name`: `merge_group` is `queue`, and every other event is `pr`. `ci-retarget.yml` always passes `pr`. Mutation testing runs only in the nightly.
+
+`monacoctl ci affected --base <ref>` prints the packages that `<ref>...HEAD` changes, plus every package that imports one of them, one per line. A package whose tests import a changed package also counts. The command reads reverse dependencies from `go list -deps -json ./...`. It prints `./...` when `go.mod`, `go.sum`, a file under `internal/testkit/`, or any file outside a Go package changed.
+
+Stage 1 reuses a green result for an unchanged diff:
+
+1. `ci / Plan` computes the patch ID of the PR's diff: `git diff <base>...<head> | git patch-id --stable`. A restack that leaves the diff unchanged keeps the patch ID.
+2. It finds this PR's last green `ci / ci-ok` and reads the patch ID stored in that check run's output summary.
+3. If the two patch IDs match, every stage 1 job skips and `ci-ok` passes.
+4. `ci-ok` stores the current patch ID in its own output summary.
+
+Stage 2 never reuses a result. A stage 2 failure removes only the failing entry from the queue. With `grouping_strategy: ALLGREEN`, GitHub then builds the group again without that entry, and the other entries still merge.
 
 ## Triggers
 
@@ -87,6 +110,8 @@ jobs:
   ci:
     if: ${{ !github.event.pull_request.draft }}
     uses: ./.github/workflows/ci-jobs.yml
+    with:
+      stage: ${{ github.event_name == 'merge_group' && 'queue' || 'pr' }}
 
 # ci-retarget.yml
 on:
@@ -98,6 +123,8 @@ jobs:
   ci:
     if: github.event.changes.base != null && !github.event.pull_request.draft
     uses: ./.github/workflows/ci-jobs.yml
+    with:
+      stage: pr
 ```
 
 - The jobs live in `ci-jobs.yml`, a reusable workflow. Both callers name their job `ci`, so every check reads `ci / <job>` and the required check is `ci / ci-ok`. `mobile-core` and `ios` are themselves calls to their own reusable files (`ci-mobile-core.yml`, `ci-ios.yml`), so their checks read `ci / mobile-core / <job>` and `ci / ios / <job>`. That split lets the `plan` job's path filter key each one on its own job-definition file instead of every `ci*.yml`, so a backend PR that only edits `ci-jobs.yml` (nearly every one, since each adds its own steps there) no longer runs the macOS `ios` job or the Linux `mobile-core` job. `ci-ok` still names only job IDs (`plan`, `go`, `mobile-core`, `ios`) in `needs`, so the required check and `allowed-skips` are unaffected by the extra nesting level.
@@ -155,7 +182,7 @@ After the checkpoint PR squash-merges into `main`, `checkpoint.yml` runs two job
 - **No network in PR CI.** Tests use stubs for Jupiter, Privy, Helius and Pyth, as `just test backend` requires today. PR CI has no secrets, so a test that reaches for one fails instead of passing on a live service.
 - **Seeds are fixed and printed.** `-shuffle=on` prints its seed. Rapid, fuzz and jitter log theirs on failure. CI sets `RAPID_NOFAILFILE=1` so it never writes to the tree.
 - **No retries.** A failed job is not rerun to get green. A flaky test is fixed the same day or moved to nightly with an issue, per the [Testing](backend-platform.md#keeping-it-fast) rule "fixed or moved to nightly, never skipped".
-- **Tight timeouts.** Each job's `timeout-minutes` is about twice its budget (`backend` 6, `e2e` 8, `mutation` 10 per package, `ios` 20). The default is 360, which lets a hung Postgres burn six hours.
+- **Tight timeouts.** Each job's `timeout-minutes` is about twice its budget (`lint` 10 for a cold golangci-lint cache, `backend` 10, `e2e` 8, `mutation` 10 per package, `ios` 20). The default is 360, which lets a hung Postgres burn six hours.
 - **Caches.** `actions/setup-go` caches modules and `GOCACHE`. After checkout, reset `testdata` mtimes to a fixed date (`find . -path '*/testdata/*' -exec touch -t 200001010000 {} +`), because `go test` keys its result cache on file mtimes and a fresh checkout otherwise misses every time ([golang/go#58571](https://github.com/golang/go/issues/58571)). `golangci-lint-action` caches its own analysis. A PR can restore caches saved on `main` but not caches from other PRs, and with no push-to-`main` run nothing would save them. So nightly gets a small Linux `warm-cache` job on `main` that builds and runs the `go` job's tests with the same flags, and it is the only job that saves caches. Running the tests, not only compiling them (`go test -run '^$'`), is what puts test results in the cache: `-run` is part of the result cache key, so a compile-only run never makes a PR's `go test` print `(cached)`. The `go` job's `DATABASE_URL` carries an `application_name` unique to the run. `go test` keys cached results on the env vars a test reads, so a test that uses Postgres always reruns against the migrations in the PR, and only Postgres-free packages are cached. PRs restore and never save. The `ios` job caches Swift packages only. A DerivedData build-product cache was tried and measured worse, not better: restoring it and validating it against a freshly checked-out tree (even with each file's mtime set back to its last commit time) took 9m38s, against 5m45s for a plain from-scratch build with the same build flags. DerivedData is rebuilt from scratch every run.
 - **Few, larger jobs.** Each job pays checkout, setup and a whole-minute rounding. Split a job only when the parallelism shortens time to a result.
 
@@ -245,3 +272,4 @@ Each step is one small PR with its own proof.
 - 2026-09-27: Only the operator merges into `main`, by hand. `main-merges-by-hand.yml` turns auto-merge off on any PR into `main` as soon as someone enables it, and the agent guard blocks `gh pr merge` on a PR into `main`. Auto-merge stays on for feature branches.
 - 2026-09-27: The `monaco-verifier` App is optional. The ruleset no longer requires `verify`. The agent guard still requires the latest `verify` status to be `success` before `gh pr merge`, and it accepts any poster.
 - 2026-09-28: A changed file that no job filter owns now runs every job (the `unknown` filter), so editing `scripts/test-backend.sh`, `Justfile` or `docker-compose.yml` can no longer pass `ci-ok` with zero tests; those three also joined the `backend` filter. Added the `scripts` job for the `scripts/` Go module, which no PR job ran before. `docs/reference/**` left the `backend` filter: the pages are generated from backend code, whose changes already run the freshness check in `ready`. `docs.yml` deploys on a push to `main` only when its inputs changed. Corrected the `warm-cache` comment: `-shuffle=on` and `-coverpkg` are outside `go test`'s cacheable flags, so PRs reuse compiles, not test results (#814).
+- 2026-09-29: Split CI into check stages (#831 B6 to B9). Pull requests run stage 1, the repo-wide checks with no tests, and reuse a green result when the diff's patch ID is unchanged. The merge queue runs stage 2, every job. The `backend` job split into `lint` (stage 1) and `backend` tests (stage 2). `mutation` left PR CI and runs only in the nightly. Added `monacoctl ci affected`.

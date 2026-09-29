@@ -15,8 +15,12 @@ concurrency:
 permissions:
   contents: read
   pull-requests: read
+  actions: read
+  checks: write
 
 jobs:
   ci:
     if: ${{ !github.event.pull_request.draft }}
     uses: ./.github/workflows/ci-jobs.yml
+    with:
+      stage: ${{ github.event_name == 'merge_group' && 'queue' || 'pr' }}

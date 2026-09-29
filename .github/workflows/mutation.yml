@@ -1,7 +1,6 @@
 name: Mutation
 
-# The mutation plan and its per-package matrix, called by ci-jobs.yml for the lines a PR changes
-# and by nightly.yml for every line. docs/architecture/ci.md#what-runs-where
+# The mutation plan and its per-package matrix, called by nightly.yml for every line. docs/architecture/ci.md#what-runs-where
 on:
   workflow_call:
     inputs:
