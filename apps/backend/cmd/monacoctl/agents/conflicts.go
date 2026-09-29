@@ -74,7 +74,7 @@ func writeRebase(stdout io.Writer, pr PR, rec Record, behind bool, files []strin
 		_, _ = fmt.Fprintf(stdout, "file: %s\n", f)
 	}
 	_, _ = fmt.Fprintln(stdout, "update: after the root's gt sync --no-interactive --no-restack, run gt restack, "+
-		"monacoctl agents check and gt submit --stack --no-interactive in the worktree")
+		"monacoctl agents check and gt submit --stack --no-interactive --draft in the worktree")
 	return nil
 }
 

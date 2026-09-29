@@ -25,6 +25,9 @@ LOOP_RE = re.compile(r"(^|[\s;&|(])(while|until|for)\s")
 SLEEP_RE = re.compile(r"(\d+(?:\.\d*)?|\.\d+)([smhd]?)")
 SLEEP_UNITS = {"": 1, "s": 1, "m": 60, "h": 3600, "d": 86400}
 MAX_SLEEP_SECONDS = 10
+PR_BODY_USAGE = "scripts/pr-body.sh <pr> <title> <body-file>"
+READY_FLOW = (f"Open PRs with `gt submit --stack --no-interactive --draft`, then run `{PR_BODY_USAGE}` for each: "
+              "it runs the full PR format check locally and only then sets the title and body and marks the PR ready.")
 
 
 @dataclass
@@ -441,8 +444,7 @@ def rule_inline_pr_body(inv: Invocation) -> str | None:
         return None
     if any(a in {"-b", "--body"} or a.startswith("--body=") for a in inv.argv[3:]):
         return ("inline PR bodies are not allowed; a quoted heredoc once ran a command by accident. "
-                "Write the body to a file, then run scripts/pr-body.sh <pr> <file> "
-                "(or gh pr create --body-file <file>).")
+                f"Write the body to a file, then run {PR_BODY_USAGE}.")
     return None
 
 
@@ -675,6 +677,30 @@ def rule_role_ci_polling(inv: Invocation) -> str | None:
             "`gh pr checks <n>`.")
 
 
+def rule_role_submit_draft(inv: Invocation) -> str | None:
+    if os.path.basename(inv.argv[0]) != "gt" or inv.argv[1:2] not in (["submit"], ["s"], ["ss"]):
+        return None
+    args = inv.argv[2:]
+    shorts = "".join(short_cluster(a) for a in args)
+    if flag_on(args, "publish") or "p" in shorts:
+        reason = "gt submit --publish marks every submitted PR ready before its title and body are checked."
+    elif flag_on(args, "draft") or "d" in shorts:
+        return None
+    else:
+        reason = "gt submit without --draft opens a new PR ready, titled with the commit subject and an empty body."
+    if agent_role(inv.cwd) is None:
+        return None
+    return f"{reason} {READY_FLOW}"
+
+
+def rule_role_pr_ready(inv: Invocation) -> str | None:
+    if os.path.basename(inv.argv[0]) != "gh" or inv.argv[1:3] != ["pr", "ready"] or "--undo" in inv.argv[3:]:
+        return None
+    if agent_role(inv.cwd) is None:
+        return None
+    return f"gh pr ready skips the local PR format check. {READY_FLOW}"
+
+
 RULES = [
     rule_mutation,
     rule_push_protected,
@@ -691,6 +717,8 @@ RULES = [
     rule_role_push_needs_check,
     rule_role_heavy_tests,
     rule_role_ci_polling,
+    rule_role_submit_draft,
+    rule_role_pr_ready,
 ]
 
 

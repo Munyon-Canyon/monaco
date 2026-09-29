@@ -311,7 +311,8 @@ gt sync --no-restack          # pull main, drop merged branches, leave other sta
 gt create -m "first step"     # new branch + commit on top of the current branch
 gt create -m "next step"      # stacks on the previous one
 gt modify                     # amend the current branch; restacks the branches above
-gt submit --stack             # push the stack; open or update every PR with the right base
+gt submit --stack --draft     # push the stack; open new PRs as drafts with the right base
+scripts/pr-body.sh <n> "<title>" body.md  # check title, body and commits, then mark ready
 gt restack                    # rebase the stack after main moves
 ```
 

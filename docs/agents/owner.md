@@ -5,6 +5,6 @@ The dispatch prompt has four fields: the ticket number, the worktree, the parent
 ## Done
 
 1. `monacoctl agents check` passes.
-2. Run `gt submit --stack --no-interactive --publish`.
-3. Set each PR body from a file with `scripts/pr-body.sh <pr> <file>`.
+2. Run `gt submit --stack --no-interactive --draft`.
+3. For each PR, write the body to a file and run `scripts/pr-body.sh <pr> "<title>" <file>`. It checks the title, body and commits, then marks the PR ready.
 4. Exit. The owner never calls `gh pr merge`.
