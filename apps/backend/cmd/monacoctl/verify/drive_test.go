@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/system"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 	tools "github.com/monaco/monaco/apps/backend/internal/tools/flows"
@@ -131,6 +134,49 @@ func TestDriver_stopsAFlowWhenTheRunIsCancelled(t *testing.T) {
 	if res.Over == nil || res.Over.Phase != PhaseTotal {
 		t.Fatalf("result = %+v, want the total budget named", res)
 	}
+}
+
+func connTracker(t *testing.T) (string, func() []http.ConnState) {
+	t.Helper()
+	var mu sync.Mutex
+	conns := map[net.Conn]http.ConnState{}
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	srv.Config.ConnState = func(c net.Conn, st http.ConnState) {
+		mu.Lock()
+		defer mu.Unlock()
+		conns[c] = st
+	}
+	srv.Start()
+	t.Cleanup(srv.Close)
+	return srv.URL, func() []http.ConnState {
+		mu.Lock()
+		defer mu.Unlock()
+		var open []http.ConnState
+		for _, st := range conns {
+			if st != http.StateClosed && st != http.StateHijacked {
+				open = append(open, st)
+			}
+		}
+		return open
+	}
+}
+
+func TestDriver_aFinishedFlowLeavesNoConnectionOpenSoTheAPIShutsDownAtOnce(t *testing.T) {
+	t.Parallel()
+	env := servedEnv(t)
+	var open func() []http.ConnState
+	env.API, open = connTracker(t)
+	d, err := newDriver(env, DefaultBudget())
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := d.run(t.Context(), plantedUnit("ok", func(s *scenario.Scenario) {
+		s.Given(scenario.Anonymous()).When(scenario.Get("/slow"), scenario.ExpectStatus(http.StatusOK))
+	}))
+	if len(res.Exchanges) != 1 || res.Exchanges[0].Status != http.StatusOK {
+		t.Fatalf("exchanges = %+v, want one GET /slow answered 200", res.Exchanges)
+	}
+	testkit.Eventually(t, func() bool { return len(open()) == 0 }, time.Second)
 }
 
 func TestDriver_convergenceTimesOutNamingTheStuckConsumer(t *testing.T) {

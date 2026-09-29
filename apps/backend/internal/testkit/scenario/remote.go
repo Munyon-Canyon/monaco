@@ -26,8 +26,10 @@ type Remote struct {
 
 func Against(t T, r Remote) *Scenario {
 	rm := &remote{Remote: r}
+	client := &http.Client{Transport: http.DefaultTransport.(*http.Transport).Clone()}
+	t.Cleanup(client.CloseIdleConnections)
 	return newScenario(t, &backend{
-		baseURL: r.URL, client: &http.Client{}, note: newNotifier(),
+		baseURL: r.URL, client: client, note: newNotifier(),
 		mint:      func(id ids.UserID) string { return r.Mint(id.String()) },
 		newUserID: func() (ids.UserID, error) { return ids.ParseUserID(ids.Real{}.NewV7().String()) },
 		enter:     r.Enter, exchanged: r.Exchanged, events: rm.events, awaitHandled: rm.awaitHandled,
