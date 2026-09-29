@@ -110,11 +110,14 @@ One `uow.Do`:
 
 1. Insert `external_deposits` row: `signature` (unique), `cabal_id`, `sender` (owner of the source token account), `mint`, `amount` (`money.BaseUnits`), `status = detected`. An unresolved row is itself the pause (below).
 2. Append `cabal.external_deposit_detected`.
-3. Nothing else. Consumers do the rest ([flow 8](backend-platform.md#flows)): `funding` sends the bounce, `notify` tells every cabal member (and the sender if they are a Monaco user), and `admin` shows it.
+3. Write the pause reason and, when it is the cabal's first open reason, append `cabal.paused` ([Pause](#pause)).
+4. Nothing else. Consumers do the rest ([flow 8](backend-platform.md#flows)): `funding` sends the bounce, `admin` shows it, and `notify` tells every cabal member from `cabal.paused`.
 
 ### Pause
 
-`funding` owns the pause. A cabal is paused while it has an unresolved external deposit or an ops pause, both recorded in funding with a reason (`external_deposit` or `ops`). Ops pauses go through funding too. `trading` and `treasury` read the pause through funding's query port at check time, so the pause takes effect in the same transaction that records it, with no event lag. There is no `cabals.trading_paused_at` column, and resuming needs no event: the pause ends when its last reason resolves.
+`funding` owns the pause. A cabal is paused while it has an unresolved external deposit or an ops pause, both recorded in funding with a reason (`external_deposit` or `ops`). Ops pauses go through funding too. `trading` and `treasury` read the pause through funding's query port at check time, so the pause takes effect in the same transaction that records it, with no event lag. There is no `cabals.trading_paused_at` column. The pause ends when its last reason resolves.
+
+**Pause events.** `funding` appends `cabal.paused` in the transaction that opens a cabal's first pause reason, and `cabal.resumed` in the transaction that closes its last one. Opening a second reason or closing one of several appends nothing. Nothing reads these events to decide whether a cabal is paused; the query port stays the check. `notify` consumes both to push every member ([notifications.md](notifications.md#what-notifies-mvp)).
 
 **While paused**, every member is notified, and: no proposal executes (the trade engine's `CabalPaused` check, [trade-execution.md](trade-execution.md#stage-2-trade-engine)), no fund-to-cabal sweeps and no cash outs (`CabalPaused` on flows 7 and 14). Voting, chat and comments continue. The reason: until the stray money is gone, the treasury holds value no one owns, so pot value, share price, every mint of share units and every cash-out payout would be wrong.
 
@@ -122,7 +125,7 @@ One `uow.Do`:
 
 The `funding` module's consumer of `cabal.external_deposit_detected` sends the **same mint and amount** back to the sender, from the treasury, signed through Privy with the app authorization key, fee paid by the relayer. Its state lives on the `external_deposits` row: signature stored before broadcast, then the same guarded update and sweeper recovery as a swap ([trade-execution.md](trade-execution.md#stage-3-swap-layer)). Exactly one bounce per external deposit, enforced by a guarded update from `detected`. The bounce writes no ledger entries. The stray inflow never entered the treasury ledger, so inflow and return net to nothing, and `cabal_txns` holds only Monaco's own movements.
 
-On confirm, one `uow.Do` sets `external_deposits.status = returned` and appends `cabal.external_deposit_bounced`. When the cabal has no other unresolved external deposits and no ops pause, the pause ends, and `notify` tells every member that trading resumed.
+On confirm, one `uow.Do` sets `external_deposits.status = returned` and appends `cabal.external_deposit_bounced`. When the cabal has no other unresolved external deposits and no ops pause, the pause ends in that transaction, which also appends `cabal.resumed`; `notify` tells every member that trading resumed.
 
 ### Edge cases
 
@@ -143,13 +146,17 @@ Behavior unchanged for the user. Both are rebuilt in Rollout step 5. A banned or
 
 ### Cash out
 
-[Flow 14](backend-platform.md#flows), `treasury` module: `CashOut` burns the member's share units, sells holdings if the treasury is short on USDC, and pays USDC to the member wallet, where it is platform balance again. Events `cashout.started`, then `cashout.completed`, `cashout.partial` or `cashout.failed`. Cash out is refused with `CabalPaused` while the cabal is paused, but not because the member is banned. The old route is `POST /v1/groups/{id}/withdraw-to-balance`; the new route sits under `/v1/cabals/{id}` in `api/openapi.yaml` ([`cabal` naming](backend-platform.md#decided)).
+[Flow 14](backend-platform.md#flows), `treasury` module: `CashOut` burns the member's share units, sells holdings if the treasury is short on USDC, and pays USDC to the member wallet, where it is platform balance again. Events `cashout.started`, then `cashout.completed`, `cashout.partial` or `cashout.failed`. Cash out is refused with `CabalPaused` while the cabal is paused, but not because the member is banned. The route is `POST /v1/cabals/{id}/cashouts` with an `Idempotency-Key` ([`cabal` naming](backend-platform.md#decided)).
 
 ### Withdraw
 
 [Flow 15](backend-platform.md#flows), `funding` module: `Withdraw` sends platform balance to any Solana address the user pastes, from `POST /v1/me/withdrawals` with an `Idempotency-Key`. Events `withdrawal.submitted`, then `withdrawal.confirmed` or `withdrawal.failed`. These replace `withdrawal.sent` in [event-bus.md](event-bus.md#who-publishes-who-subscribes). `treasury` consumes `withdrawal.confirmed` and writes the `user_txns` withdrawal entry.
 
 No fiat off-ramp in MVP: withdrawals are crypto only. Privy's on-ramp docs cover funding only, and a provider off-ramp is a separate decision after MVP.
+
+### Balance
+
+`GET /v1/me/balance` is owned by `funding`. It returns the member wallet's on-chain USDC minus the amounts of the caller's in-flight fund transfers and withdrawals, so money already on its way out is never shown as spendable. In-flight withdrawals come from `funding`'s own `withdrawals` rows; in-flight fund transfers come from `treasury`'s query port, which owns `fund_transfers` ([data-model.md](data-model.md#decision)).
 
 ## Alternatives considered
 
@@ -183,6 +190,7 @@ None.
 
 ## Log
 
+- 2026-09-29: `GET /v1/me/balance` is owned by `funding`: on-chain USDC minus in-flight fund transfers and withdrawals (default; see #535). `funding` appends `cabal.paused` when a cabal's first pause reason opens and `cabal.resumed` when its last closes, and `notify` pushes from those events (default; see #535). Cash out route is `POST /v1/cabals/{id}/cashouts` (default; see #535).
 - 2026-09-27: Decided 2026-09-27: Privy `fund()` takes the wallet address we specify, so the member wallet is the card-deposit destination and the direct-provider fallback is dropped. App Store 3.1.5 review is deferred. No checks remain. The first-deposit unlock now applies to the user's handle as a referral code, not a custom code.
 - 2026-09-27: Decided: old treasury funds are test-only and wiped at cutover, swept to an ops wallet or written off, with no cash-out to members. `identity` replaces `referrals` as the flow 5 consumer that records the first deposit.
 - 2026-09-27: Default 2026-09-27 (reversible): a bounce writes no ledger entries.

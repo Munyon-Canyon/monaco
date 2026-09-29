@@ -103,7 +103,7 @@ Relay, streams (`EVENTS`, `DEADLETTER`), consumer settings, retries and dedupe o
 
 ### Retry and manual paths
 
-- `RetryTrade` ([flow 12](backend-platform.md#flows)) re-runs the engine for the proposal: re-check, then a new swap row. Allowed only when the latest `swaps` row is `failed`. It takes an `Idempotency-Key` like every mutating call ([Thin client](backend-platform.md#thin-client)). The trade parameters come from the failed `swaps` row, not from governance tables. The old route `POST /v1/transactions/{id}/retry` exists today; the new route lives in `api/openapi.yaml` under the `cabal` naming.
+- `RetryTrade` ([flow 12](backend-platform.md#flows)) re-runs the engine for the proposal: re-check, then a new swap row. Allowed only when the latest `swaps` row is `failed`. It takes an `Idempotency-Key` like every mutating call ([Thin client](backend-platform.md#thin-client)). The trade parameters come from the failed `swaps` row, not from governance tables. The route is `POST /v1/swaps/{id}/retry` (flow 12 in the [flows table](backend-platform.md#flows)).
 - An ops command to force-resolve a stuck `submitted` row by signature, going through the same guarded update. It runs from `monacoctl` or the admin module ([flow 26](backend-platform.md#flows)). Useful when Jupiter and RPC disagree.
 
 ## Alternatives considered
@@ -142,6 +142,7 @@ None.
 
 ## Log
 
+- 2026-09-29: `RetryTrade` route is `POST /v1/swaps/{id}/retry` (default; see #535).
 - 2026-09-27: Decided 2026-09-27: pre-IPO transfer-fee handling is deferred. The headroom rule stays as written, because it reads any mint's transfer-fee config. No checks remain.
 - 2026-09-27: Default 2026-09-27 (reversible): A17 restated. The sweeper fails `created` rows older than 2 minutes with `never_submitted`, with no on-chain lookup. It is safe because the signed bytes, `requestId` and the `submitted` status commit in one guarded write before any send, so a `created` row was never signed or sent. `submitted` rows keep the `getSignatureStatuses` path. A chain-check variant was drafted and withdrawn the same day.
 - 2026-09-27: Applied the 2026-09-27 decisions. Default 2026-09-27 (reversible): trading owns a `swaps` table and treasury writes `cabal_txns` as a consumer of `trade.confirmed`, in the same transaction as its own event; the pause is owned by `funding` and read through its query port at check time, ops pauses included; governance emits `proposal.executed` and `proposal.execution_blocked`; the sweeper fails `created` rows older than 2 minutes (new `after-insert` crash point); the 15 s safety-net poller is dropped in favor of `DEADLETTER` plus `monacoctl deadletter retry`; the engine re-checks agent budget; `InsufficientFunds` never auto-retries; slippage is measured against the proposal-time quote; fee headroom comes from the mint's transfer-fee config. Open: verify pre-IPO mints expose that config.

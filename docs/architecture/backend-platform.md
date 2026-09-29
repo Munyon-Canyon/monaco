@@ -564,7 +564,7 @@ The table below is a render. The file is `apps/backend/flows.tsv`, one line per 
 | `trigger` | `POST /v1/cabals/{id}/fund` or `consumer:proposal.passed` or `poller:deposits` | route in `openapi.yaml`, subject in registry, or poller registered |
 | `command` | `FundCabal` | Go type exists in `module/app` |
 | `events` | `cabal.fund_submitted;cabal.funded` | each in the `events` registry |
-| `consumers` | `treasury.positions;ranking;feed;notify;referrals` | each a registered durable |
+| `consumers` | `treasury.positions;ranking;feed;referrals` | each a registered durable |
 | `outcomes` | `ok;InsufficientFunds;CabalPaused;PrivyUnavailable;crash:after-sign;crash:before-commit` | each `Code` in the `errs` table; each crash point a registered `faultpoint` |
 | `status` | `planned`, `built`, `verified` | `built` needs every outcome test present; `verified` needs evidence (below) |
 | `doc` | `docs/architecture/deposits-withdrawals.md#fund` | file and anchor exist |
@@ -577,34 +577,36 @@ Generated from the TSV, checked fresh in CI: the table below (`monacoctl docs fl
 
 Adding a flow is one row plus the tests it names. Deleting a flow deletes the row, and the check fails until its tests go too.
 
+`notify` appears in a consumers cell only when that event sends a push ([notifications.md](notifications.md#what-notifies-mvp)). A consumer's own ticket appends its durable name to the cell when it lands.
+
 | # | Flow | Command / trigger | Events | Consumers |
 | --- | --- | --- | --- | --- |
 | 1 | Sign in (Apple or Google; SMS OTP in dev builds only, never production) | `POST /v1/auth/session` with Privy token; reuses the user's existing Privy wallet | `user.created` (first time), `user.auth_state_changed` | analytics, referrals (mint code; `AttachReferral` is the only attribution path), social (contact matches) |
 | 2 | Create cabal | `CreateCabal` | `cabal.created` | feed, analytics |
-| 3 | Join open cabal / request / invite / approve | `JoinCabal`, `RequestAccess`, `InviteMember`, `DecideAccess` | `cabal.member_joined`, `cabal.access_requested`, `cabal.access_decided` | notify, feed, ranking |
-| 4 | Leave cabal | `LeaveCabal` (guarded: no shares, not last with money, not creator with members) | `cabal.member_left` | feed, ranking |
+| 3 | Join open cabal / request / invite / approve | `JoinCabal`, `RequestAccess`, `InviteMember`, `DecideAccess` | `cabal.member_joined`, `cabal.access_requested`, `cabal.access_decided` | feed, ranking |
+| 4 | Leave cabal | `LeaveCabal` (guarded: the member holds zero shares, so the app routes them to cash out first; not creator with members) | `cabal.member_left` | feed, ranking |
 | 5 | Crypto deposit | Deposit poller sees USDC in member wallet | `deposit.credited` | treasury (`user_txns`), notify, identity (`users.first_deposit_at` on the first deposit of at least $10), analytics |
 | 6 | Card deposit | `CreateOnrampSession`, page PATCHes status | `onramp.status_changed` then flow 5 | analytics |
-| 7 | Fund cabal | `FundCabal` → Privy transfer member→treasury → confirm → mint shares at live price | `cabal.fund_submitted`, `cabal.funded` | treasury positions, ranking, feed, notify, referrals, analytics |
-| 8 | Direct transfer to treasury | Treasury watcher in funding; writes the cabal's pause record in the same transaction; a bounce writes no ledger entries | `cabal.external_deposit_detected`, `cabal.external_deposit_bounced` | notify, admin |
+| 7 | Fund cabal | `FundCabal` → Privy transfer member→treasury → confirm → mint shares at live price | `cabal.fund_submitted`, `cabal.funded` | treasury positions, ranking, feed, referrals, analytics |
+| 8 | Direct transfer to treasury | Treasury watcher in funding; writes the cabal's pause record in the same transaction; a bounce writes no ledger entries | `cabal.external_deposit_detected`, `cabal.external_deposit_bounced`; `cabal.paused` when the cabal's first pause reason opens and `cabal.resumed` when its last closes, both appended by funding | `cabal.external_deposit_*`: admin. `cabal.paused`, `cabal.resumed`: notify |
 | 9 | Propose trade | `ProposeTrade` (advisory route + pot check via market) | `proposal.created` | feed, notify |
 | 10 | Vote / tally | `CastVote`; expiry job | `proposal.passed` / `.failed` / `.expired` | trading, feed, notify, analytics |
-| 11 | Execute trade | `trade-engine` consumer on `proposal.passed`; reads the pause through funding's query port | `trade.blocked` / `trade.submitted` / `trade.confirmed` / `trade.failed`; governance then emits `proposal.executed` / `proposal.execution_blocked` | governance (on `trade.confirmed` / `trade.blocked`), treasury (`cabal_txns`), ranking, feed, notify, analytics |
-| 12 | Retry failed trade | `RetryTrade` | same as 11 | same |
-| 13 | Withdraw / void proposal | `WithdrawProposal`, admin `VoidProposal` | `proposal.withdrawn`, `.voided` | feed, notify |
-| 14 | Cash out | `CashOut` → burn shares → sell if short → pay USDC to member wallet | `cashout.started`, `cashout.completed` / `.partial` / `.failed` | ranking, feed, notify, analytics |
-| 15 | Withdraw to address | `Withdraw` | `withdrawal.submitted`, `.confirmed`, `.failed` | treasury (`user_txns`), notify, analytics |
-| 16 | Agent lifecycle | Proposal kinds add / pause / resume / remove agent | `agent.enabled`, `.paused`, `.removed`, `agent.key_revealed` | governance (marks the agent proposal executed on `agent.enabled` / `.paused` / `.removed`), agents, notify, feed |
+| 11 | Execute trade | `trade-engine` consumer on `proposal.passed`; reads the pause through funding's query port | `trade.blocked` / `trade.submitted` (appended by the swap layer on submit) / `trade.confirmed` / `trade.failed`; governance then emits `proposal.executed` / `proposal.execution_blocked` | governance (on `trade.confirmed` / `trade.blocked`), treasury (`cabal_txns`), ranking, feed, notify, analytics |
+| 12 | Retry failed trade | `RetryTrade` from `POST /v1/swaps/{id}/retry` | same as 11; the swap layer appends `trade.submitted` on resubmit | same |
+| 13 | Withdraw / void proposal | `WithdrawProposal`, admin `VoidProposal` | `proposal.withdrawn`, `.voided` | feed |
+| 14 | Cash out | `CashOut` from `POST /v1/cabals/{id}/cashouts` → burn shares → sell if short → pay USDC to member wallet | `cashout.started`, `cashout.completed` / `.partial` / `.failed` | ranking, feed, analytics |
+| 15 | Withdraw to address | `Withdraw` | `withdrawal.submitted`, `.confirmed`, `.failed` | treasury (`user_txns`), analytics |
+| 16 | Agent lifecycle | Proposal kinds add / pause / resume / remove agent | `agent.enabled`, `.paused`, `.removed`, `agent.key_revealed` | governance (marks the agent proposal executed on `agent.enabled` / `.paused` / `.removed`), agents, feed |
 | 17 | Agent trade | `SubmitAgentIntent` (key auth, budget check at submit and again at execution) | `agent.intent_created` → same engine as 11 | trading, same as 11 |
-| 18 | Prices | One market poller, every 120 s (fan-out over providers), writes `price_points` | `price.tick` (core NATS only, one batched message per tick, not stored as event); `asset.price_moved` | `price.tick`: ranking, live SSE. `asset.price_moved`: feed, notify |
-| 19 | Valuation + leaderboards | Every minute, and on `trade.confirmed`, `cabal.funded`, `cashout.completed` | `ranking.snapshot_written` | live SSE |
+| 18 | Prices | One market poller, every 120 s (fan-out over providers), writes `price_points` | `price.tick` (core NATS only, one batched message per tick, not stored as event); `asset.price_moved`, appended by the same poller (there is no second poller) | `price.tick`: ranking, live SSE. `asset.price_moved`: feed |
+| 19 | Valuation + leaderboards | Every 2 minutes, and on `trade.confirmed`, `cabal.funded`, `cashout.completed` | `ranking.snapshot_written` | live SSE |
 | 20 | Follow / unfollow | `Follow`, `Unfollow` | `follow.created`, `.removed` | notify, feed ranking, analytics |
 | 21 | Feed + comments | `CreateComment` | `comment.created` | notify, live SSE, analytics |
 | 22 | Chat | Ably for delivery; backend issues token and persists | `chat.message_posted` | notify (mentions) |
 | 23 | Profile edit | `UpdateProfile` | `user.profile_updated` | ranking (names), feed |
 | 24 | Notifications | Consumers write `notifications` row, then send | `notification.sent` | none |
-| 25 | Referrals | Click, sign-up, first deposit | `referral.attributed`, `referral.qualified` | `referral.attributed`: social. `referral.qualified`: notify, analytics |
-| 26 | Admin | Any admin command | `admin.action` | notify, audit |
+| 25 | Referrals | Click, sign-up, first deposit | `referral.attributed`, `referral.qualified` | `referral.attributed`: social. `referral.qualified`: analytics |
+| 26 | Admin | Any admin command | `admin.action` | audit |
 | 27 | Dead letters | Advisory subscriber | none | admin writes `dead_letters`; `monacoctl deadletter retry` |
 | 28 | Nudges | Identity nudge job | `user.nudge_due` | notify |
 
@@ -954,10 +956,11 @@ The PR's Proof section pastes the `monacoctl agents check` output and says that 
 ## Decided
 
 - **Module path** is `github.com/<org>/monaco/apps/backend`. `platform/` stays inside it. The reference trading bot was deleted with the legacy backend in Rollout step 1, so nothing outside the module needs `platform/`.
-- **Migrations use atlas**, versioned SQL files under `migrations/` named `YYYYMMDDHHMMSS_name.sql`, `atlas migrate lint` in CI, `atlas migrate apply` in the deploy's pre-deploy step. The pinned build is atlas community (`apps/backend/.atlas-version`), because from v0.38 the official build requires a login for `migrate lint`. `scripts/install-atlas.sh` (run by `just install`) puts it at the repo's gitignored `.bin/atlas`. `monacoctl migrate apply|status|lint` finds the `apps/backend` module from the working directory or its own executable, runs that exact path there, never the `atlas` first on `PATH`, and refuses to run when `atlas version` is not the pinned community build. `just migrate db` runs it against `.env.local`. Nothing migrates at boot; a binary that finds a schema behind its expectation fails boot with `db_schema_behind` and logs `have`, `want` and the hint `run: just migrate db`.
+- **Migrations use atlas**, versioned SQL files under `migrations/` named `YYYYMMDDHHMMSS_name.sql`, `atlas migrate lint` in CI (a rebase that brings in another branch's migration regenerates `atlas.sum` with `atlas migrate hash`), `atlas migrate apply` in the deploy's pre-deploy step. The pinned build is atlas community (`apps/backend/.atlas-version`), because from v0.38 the official build requires a login for `migrate lint`. `scripts/install-atlas.sh` (run by `just install`) puts it at the repo's gitignored `.bin/atlas`. `monacoctl migrate apply|status|lint` finds the `apps/backend` module from the working directory or its own executable, runs that exact path there, never the `atlas` first on `PATH`, and refuses to run when `atlas version` is not the pinned community build. `just migrate db` runs it against `.env.local`. Nothing migrates at boot; a binary that finds a schema behind its expectation fails boot with `db_schema_behind` and logs `have`, `want` and the hint `run: just migrate db`.
 - **`cabal` everywhere**: Go types, tables, event subjects, and the new HTTP routes (`/v1/cabals/{id}`). The old rule "API routes and types stay `groups`" was for the backend being replaced; it ends when the iOS app cuts over to the generated client (Rollout step 7), which renames the routes on both sides in the same release. The legacy `/v1/groups` routes went with the old backend in M7.
 - **The legacy backend is deleted in M7**, at the start of Rollout step 1, not at the iOS cutover. Every later ticket builds on an empty module instead of working around the old code. Accepted consequence: the iOS app has no working backend, local or deployed, until the domain milestone rebuilds its routes; mobile UI work uses sample data or the fakes server.
 - **NATS is Synadia Cloud**, free plan first. See [NATS hosting and budget](#nats-hosting-and-budget).
+- **JSON is snake_case.** API request and response fields and event payload fields are snake_case. Go and Swift identifiers follow their own language's conventions; the generated clients map between them.
 
 ## Open questions
 
@@ -965,6 +968,7 @@ None at the moment.
 
 ## Log
 
+- 2026-09-29: Settled the flows table and names with the MVP tickets (#535). Flow 19 runs every 2 minutes. Flow 18: the market price poller appends `asset.price_moved`; there is no second poller. Flows 11 and 12: the swap layer appends `trade.submitted` on submit. Flow 12 route is `POST /v1/swaps/{id}/retry` and flow 14 route is `POST /v1/cabals/{id}/cashouts` (default; see #535). Flow 4: leave requires zero shares, and the app routes to cash out first. `notify` appears in a consumers cell only when the event pushes, so it left flows 3, 7, 13 to 16, 18, 25 and 26. Flow 8 gains `cabal.paused` and `cabal.resumed`, appended by funding. Decided adds snake_case JSON and regenerating `atlas.sum` on rebase.
 - 2026-09-27: Decided: the legacy backend, its migrations, the Go domain package and the reference bot are deleted in M7 (#457), before the scaffold. Rollout step 7 deletes nothing.
 - 2026-09-27: Decided 2026-09-27: every user picks a unique `users.handle` in onboarding, owned by identity and read by referrals through identity's query port. The market price poller ticks every 120 s (flow 18, NATS network budget).
 - 2026-09-27: Decided: `users`, `follows` and `cabal_messages` soft delete through `deleted_at`, with a unique partial index for re-follows; no `follow_counts` table, counts are an indexed `count(*)`; no `referral_unlocks` table, `users.first_deposit_at` set by identity as a new flow 5 consumer that replaces referrals there, and read by referrals through identity's query port; `chat_seen` stays in social and is hard-deleted on leave; old treasury funds are test-only and wiped at cutover (Rollout step 7). Added `users`, `follows`, `cabal_messages` and `chat_seen` to the table-ownership table.

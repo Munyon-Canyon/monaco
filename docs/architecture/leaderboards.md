@@ -59,6 +59,8 @@ Valuation needs, per cabal: units of each asset held, USDC held, total share uni
 
 `ranking` reads them through `treasury`'s query port. It never joins `treasury` or `market` tables in its own SQL.
 
+**Pot value is `treasury`'s.** `treasury` exports `PotValue(ctx, cabalID) (money.Micros, error)` on its query port: the cabal's USDC plus every holding at the latest `market` price. `ranking`, `governance` (the propose-time pot check, [proposals.md](proposals.md#crud-surface)) and `cabal` read pot value there and never compute it themselves. The batch job below applies the same definition in memory from one price read, so every row on a board shares `prices_as_of`.
+
 Treasury USDC comes from the ledger, **not an RPC**. A reconcile job (per cabal, every few minutes, staggered) compares on-chain balances to the ledger. A mismatch it cannot explain is either an external deposit (bounced, see [deposits-withdrawals.md](deposits-withdrawals.md#direct-transfers-to-a-cabal-treasury-are-not-allowed)) or a bug; either way the cabal is flagged and excluded from boards until resolved. The flag reaches `ranking` through the same port.
 
 Cost basis is stored on `cabal_positions`, not recomputed with a query per holding.
@@ -114,6 +116,7 @@ return        = gain / (start_equity + time-weighted net_flows)      -- modified
 - Each response carries `computed_at` and `prices_as_of`, so the app can show "live" or "updated 2 min ago" honestly. Every value, rank and display name is computed on the server; the app only formats ([Thin client](backend-platform.md#thin-client)).
 - `ranking.snapshot_written` becomes a hint on `/v1/stream` with `{board, range, run_id}`, under the SSE hub's `global` key, which every connection joins (platform default 2026-09-27). Boards are global, so every open app may learn a run finished. The app refetches that board and animates rank changes. Ranks and values change only on a run.
 - On app open, the first read is immediate from precomputed rows. No cold valuation.
+- **Portfolio and P&L routes are `ranking`'s**, read from the same precomputed rows and `cabal_value_snapshots`: `GET /v1/me/portfolio` (the caller's stakes across cabals), `GET /v1/me/pnl?range=` (the caller's P&L over a range) and `GET /v1/cabals/{id}/value?range=` (a cabal's value series over a range). `range` takes the board ranges `1H`, `1D`, `1W`, `1M`, `ALL`.
 - **Boards:** cabals, people (lifetime and ranged), members within a cabal, and friends-only (default 2026-09-27). Friends-only is the people board filtered at read time to the people the viewer follows, which the route gets from `social`'s query port ([followers.md](followers.md)). It needs no extra valuation.
 
 ## Validity rules
@@ -167,6 +170,7 @@ None at the moment.
 
 ## Log
 
+- 2026-09-29: Pot value is `treasury`'s `PotValue(ctx, cabalID) (money.Micros, error)` on its query port, read by ranking, governance and cabal (default; see #535). `ranking` owns `GET /v1/me/portfolio`, `GET /v1/me/pnl?range=` and `GET /v1/cabals/{id}/value?range=` (default; see #535). Valuation cadence is 2 minutes everywhere, matching flow 19.
 - 2026-09-27: Decided 2026-09-27: the price poller ticks every 120 s and valuation runs every 2 minutes to match. Price-to-board freshness is up to 4 minutes. The 5-minute staleness rule stays; it now tolerates one missed tick.
 - 2026-09-27: Pre-IPO tokens value at the latest sample at all times (default). No open questions left.
 - 2026-09-27: Defaults applied: one `market` poller writing `price_points` (`price_micros` bigint, Pyth dropped, 10 s or slower); boards value at the close price while the US market is shut, while sampling continues; valuation every minute; rank by % return with minimum size, $ tab later; friends-only board added. P&L, gain and returns use `money.SignedMicros`. Board hints use the SSE hub's `global` key. Closed the off-hours, cadence, metric, boards, signed type and hint routing questions. Added the pre-IPO close-price question.
