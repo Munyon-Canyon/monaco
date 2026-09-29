@@ -24,10 +24,20 @@ jobs:
       run:
         working-directory: apps/backend
     steps:
+      - name: Require the FEATURE_BRANCH repo variable
+        working-directory: .
+        env:
+          FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH }}
+        run: |
+          if [ -z "$FEATURE_BRANCH" ]; then
+            echo "::error::Set the FEATURE_BRANCH repo variable to the current feature branch <name>-<N>: gh variable set FEATURE_BRANCH --body <name>-<N>"
+            exit 1
+          fi
+
       # Schedules run from the default branch, so the job checks out the active trunk to scan it.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ vars.FEATURE_BRANCH || 'backend-rewrite-3' }}
+          ref: ${{ vars.FEATURE_BRANCH }}
 
       - uses: ./.github/actions/backend-test-env
         with:

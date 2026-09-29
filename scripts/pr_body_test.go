@@ -45,7 +45,7 @@ func (s prBodySandbox) head(t *testing.T) string {
 
 func (s prBodySandbox) run(t *testing.T, draft bool, base, title, body string) (string, error) {
 	t.Helper()
-	view := fmt.Sprintf("%t\tbackend-rewrite-3\tticket\t%s\t%s\n", draft, base, s.head(t))
+	view := fmt.Sprintf("%t\tbackend-rewrite-9\tticket\t%s\t%s\n", draft, base, s.head(t))
 	if err := os.WriteFile(s.view, []byte(view), 0o600); err != nil {
 		t.Fatal(err)
 	}

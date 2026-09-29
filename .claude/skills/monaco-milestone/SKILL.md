@@ -23,7 +23,7 @@ Owners run stage 0 from apps/backend as `go run ./cmd/monacoctl agents check`. T
 | watching | `monacoctl agents watch`, `monacoctl agents forecast`, `monacoctl agents conflicts <pr>` |
 | status | `monacoctl agents status --publish`, after each batch, dispatch, merge and ejection |
 | restack | root only: `gt sync --no-interactive --no-restack`, `gt restack --upstack` in the stack's worktree, then stage 0 on every branch |
-| checkpoint | the `CHANGELOG.md` rename PR, then one PR from the feature branch into `main` labeled `integration`; the operator merges it and `checkpoint.yml` runs `tree-matches` and `merge-back` |
+| checkpoint | the `CHANGELOG.md` rename PR, then one PR from the feature branch into `main` labeled `integration`; the operator merges it and `checkpoint.yml` runs `tree-matches` and `next-branch`, which cuts `<name>-<N+1>` from `main`; move open stacks onto it with `gt trunk --add` and `gt track --parent` |
 | handoff | `monacoctl agents handoff`; `monacoctl agents resume <ticket>` before reusing an owner |
 | timeline | `monacoctl agents timeline` |
 

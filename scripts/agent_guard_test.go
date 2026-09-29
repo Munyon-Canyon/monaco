@@ -116,6 +116,7 @@ func TestAgentGuard_blocksPushesToMainTheFeatureBranchAndGraphiteTrunks(t *testi
 		"git push origin main",
 		"git push origin HEAD:main",
 		"git push origin ticket:refs/heads/backend-rewrite-4",
+		"git push origin ticket:domain-core-12",
 		"git push origin milestone-9",
 		"git push -u origin ticket:milestone-9 2>&1 | tail -3",
 		"git -C . push --all origin",
@@ -188,7 +189,7 @@ func TestAgentGuard_headlessClaudeNeedsTimeout(t *testing.T) {
 
 func ghStub(t *testing.T, statuses string) (env []string, calls string) {
 	t.Helper()
-	return ghStubOnBase(t, "backend-rewrite-3", statuses)
+	return ghStubOnBase(t, "backend-rewrite-9", statuses)
 }
 
 func ghStubOnBase(t *testing.T, base, statuses string) (env []string, calls string) {
@@ -365,20 +366,24 @@ func TestAgentGuard_gtSyncLeavesOtherStacksUnrestacked(t *testing.T) {
 
 func TestAgentGuard_autoMergeNeedsAFeatureBranchBase(t *testing.T) {
 	cwd := t.TempDir()
-	env, _ := ghStubOnBase(t, "831-f-land-stack", `[`+status("success", "verifier", 2)+`]`)
-	for _, cmd := range []string{"gh pr merge 42 --auto", "gh pr merge --auto 42 --squash"} {
-		assertBlocked(t, guard(t, cwd, cmd, env...), cmd, "not the feature branch, so auto-merge would merge it into its parent")
+	for _, base := range []string{"831-f-land-stack", "982-workflow-docs", "backend-rewrite"} {
+		env, _ := ghStubOnBase(t, base, `[`+status("success", "verifier", 2)+`]`)
+		for _, cmd := range []string{"gh pr merge 42 --auto", "gh pr merge --auto 42 --squash"} {
+			assertBlocked(t, guard(t, cwd, cmd, env...), base+": "+cmd, "not the feature branch, so auto-merge would merge it into its parent")
+		}
 	}
-	env, _ = ghStubOnBase(t, "backend-rewrite-3", `[`+status("success", "verifier", 2)+`]`)
-	assertAllowed(t, guard(t, cwd, "gh pr merge 42 --auto", env...), "auto-merge on the feature branch")
+	for _, base := range []string{"backend-rewrite-9", "domain-core-12"} {
+		env, _ := ghStubOnBase(t, base, `[`+status("success", "verifier", 2)+`]`)
+		assertAllowed(t, guard(t, cwd, "gh pr merge 42 --auto", env...), "auto-merge on the feature branch "+base)
+	}
 }
 
 func TestAgentGuard_onlyLandStackChangesABase(t *testing.T) {
 	cwd := t.TempDir()
 	for _, cmd := range []string{
-		"gh pr edit 5 --base backend-rewrite-3",
-		"gh pr edit 5 -B backend-rewrite-3",
-		"gh pr edit --base=backend-rewrite-3 5",
+		"gh pr edit 5 --base backend-rewrite-9",
+		"gh pr edit 5 -B backend-rewrite-9",
+		"gh pr edit --base=backend-rewrite-9 5",
 		"cd /tmp && gh pr edit 5 --title t --base b",
 	} {
 		assertBlocked(t, guard(t, cwd, cmd), cmd, "gh pr edit --base runs only inside `monacoctl agents land-stack")

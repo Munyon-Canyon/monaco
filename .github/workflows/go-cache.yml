@@ -5,7 +5,7 @@ name: Warm the Go cache for the feature branch
 # fresh one here. The key matches nightly.yml's warm-cache job.
 on:
   push:
-    branches: [backend-rewrite-3, main]
+    branches: [main, '*-[0-9]*']
     paths:
       - apps/backend/go.mod
       - apps/backend/go.sum
@@ -18,6 +18,7 @@ permissions:
 jobs:
   warm:
     name: Build apps/backend and save the Go cache
+    if: github.event_name == 'workflow_dispatch' || github.ref_name == 'main' || github.ref_name == vars.FEATURE_BRANCH
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

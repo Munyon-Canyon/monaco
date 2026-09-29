@@ -43,6 +43,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
         run: python3 scripts/check-pr-format.py
 
   pr-size:
@@ -90,7 +91,7 @@ jobs:
       github.event_name == 'merge_group' ||
       (!github.event.pull_request.draft &&
       github.event.pull_request.base.ref == 'main' &&
-      startsWith(github.event.pull_request.head.ref, 'backend-rewrite'))
+      contains(github.event.pull_request.labels.*.name, 'integration'))
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -101,11 +102,23 @@ jobs:
         if: github.event_name == 'pull_request'
         with:
           fetch-depth: 0
-      - name: Checker unit tests
+      # Expressions have no regex, so the head's <name>-<N> check runs here.
+      - name: Detect a checkpoint
+        id: detect
         if: github.event_name == 'pull_request'
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if scripts/ci/feature-branch-name.sh "$HEAD_REF" >/dev/null; then
+            echo "checkpoint=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::$HEAD_REF is not a feature branch <name>-<N>, so this PR is not a checkpoint."
+          fi
+      - name: Checker unit tests
+        if: steps.detect.outputs.checkpoint == 'true'
         run: python3 scripts/test_check_changelog.py
       - name: Check the backend CHANGELOG
-        if: github.event_name == 'pull_request'
+        if: steps.detect.outputs.checkpoint == 'true'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}

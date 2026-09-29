@@ -19,6 +19,8 @@ FENCE_RE = re.compile(r"(?ms)^(`{3,}|~{3,})[ \t]*([\w+-]*)[^\n]*\n(.*?)^\1[ \t]*
 SHELL_FENCES = {"", "sh", "bash", "shell", "console", "zsh"}
 CONVENTIONAL_RE = re.compile(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^()\s]+\))?!?: \S")
 SQUASH_RE = re.compile(r"\(#\d+\)$")
+# A feature branch is <name>-<N>. scripts/ci/feature-branch-name.sh holds the same pattern.
+FEATURE_BRANCH_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*-[0-9]+$")
 
 
 class StackedPR(NamedTuple):
@@ -152,6 +154,10 @@ def body_errors(body: str) -> list[str]:
     return errors
 
 
+def is_checkpoint(base_ref: str, head_ref: str, labels: list[str]) -> bool:
+    return base_ref == "main" and bool(FEATURE_BRANCH_RE.fullmatch(head_ref)) and "integration" in labels
+
+
 def main(argv: list[str]) -> int:
     env = os.environ
     body = env.get("PR_BODY", "")
@@ -162,7 +168,7 @@ def main(argv: list[str]) -> int:
     errors += ticket_errors(body, stacked("--base", env["HEAD_REF"]), stacked("--head", env["BASE_REF"]))
     errors += sha_errors(body, env["HEAD_SHA"])
     # A checkpoint's range is the whole milestone: each commit passed this check in its ticket PR or predates the rule.
-    if not (env["BASE_REF"] == "main" and env["HEAD_REF"].startswith("backend-rewrite")):
+    if not is_checkpoint(env["BASE_REF"], env["HEAD_REF"], json.loads(env.get("PR_LABELS") or "[]")):
         errors += commit_errors(env["BASE_SHA"], env["HEAD_SHA"])
     if errors:
         print("PR format check failed:")

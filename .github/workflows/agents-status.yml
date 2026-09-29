@@ -6,8 +6,9 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, closed, enqueued, dequeued]
   merge_group:
+  # Feature branches are <name>-<N>. The job skips a push to any other branch the pattern catches.
   push:
-    branches: ['backend-rewrite*']
+    branches: [main, '*-[0-9]*']
   # GitHub runs schedules from the default branch's copy of this file.
   schedule:
     - cron: '*/10 * * * *'
@@ -28,6 +29,7 @@ permissions:
 
 jobs:
   status:
+    if: github.event_name != 'push' || github.ref_name == 'main' || github.ref_name == vars.FEATURE_BRANCH
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -59,4 +61,5 @@ jobs:
         working-directory: apps/backend
         env:
           GH_TOKEN: ${{ github.token }}
+          MONACO_FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH }}
         run: go run ./cmd/monacoctl agents status --publish

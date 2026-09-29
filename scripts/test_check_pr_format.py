@@ -221,13 +221,14 @@ class CommitTest(RepoTest):
 
 
 class CheckpointTest(RepoTest):
-    def run_check(self, base_ref: str, head_ref: str) -> tuple[int, str]:
+    def run_check(self, base_ref: str, head_ref: str, labels: str = '["integration"]') -> tuple[int, str]:
         commit("Log bus.relay.idle at most once a minute")
         os.environ.update(
             PR_TITLE="Merge the backend rewrite",
             PR_BODY=pr("Part of #789."),
             BASE_REF=base_ref,
             HEAD_REF=head_ref,
+            PR_LABELS=labels,
             BASE_SHA=self.base,
             HEAD_SHA=git("rev-parse", "HEAD"),
         )
@@ -237,10 +238,22 @@ class CheckpointTest(RepoTest):
         return code, out.getvalue()
 
     def test_checkpoint_into_main_skips_the_commit_check(self):
-        self.assertEqual(self.run_check("main", "backend-rewrite-3"), (0, "PR format ok\n"))
+        for head in ("backend-rewrite-9", "domain-core-12"):
+            self.assertEqual(self.run_check("main", head), (0, "PR format ok\n"), head)
+
+    def test_feature_branch_into_main_without_the_integration_label_still_fails(self):
+        for labels in ("[]", '["docs"]', ""):
+            self.assertEqual(self.run_check("main", "domain-core-12", labels)[0], 1, labels)
+
+    def test_is_checkpoint_needs_main_the_convention_and_the_label(self):
+        for head in ("backend-rewrite-3", "domain-core-12"):
+            self.assertTrue(check.is_checkpoint("main", head, ["integration"]), head)
+        for head in ("backend-rewrite", "982-workflow-docs", "main", "Domain-Core-2"):
+            self.assertFalse(check.is_checkpoint("main", head, ["integration"]), head)
+        self.assertFalse(check.is_checkpoint("domain-core-11", "domain-core-12", ["integration"]))
 
     def test_ticket_pr_still_fails_on_a_non_conventional_commit(self):
-        code, out = self.run_check("backend-rewrite-3", "989-checkpoint-commit-check")
+        code, out = self.run_check("backend-rewrite-9", "989-checkpoint-commit-check")
         self.assertEqual(code, 1)
         self.assertIn('"Log bus.relay.idle at most once a minute" is not a Conventional Commit', out)
 

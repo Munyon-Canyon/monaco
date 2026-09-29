@@ -7,7 +7,7 @@ name: CI retarget
 # workflow_dispatch is no substitute: its checks do not satisfy a required check.
 on:
   pull_request:
-    branches: [main, 'backend-rewrite*']
+    branches: [main, '*-[0-9]*']
     types: [edited]
 
 permissions:
@@ -18,7 +18,9 @@ permissions:
 
 jobs:
   ci:
-    if: github.event.changes.base != null && !github.event.pull_request.draft && !startsWith(github.base_ref, 'graphite-base/')
+    if: >-
+      github.event.changes.base != null && !github.event.pull_request.draft &&
+      (github.base_ref == 'main' || github.base_ref == vars.FEATURE_BRANCH)
     uses: ./.github/workflows/ci-jobs.yml
     with:
       stage: pr
