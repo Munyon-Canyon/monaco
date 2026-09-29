@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   mobile-core:
-    # The ios job compiles mobile-core on Darwin, which covers the Darwin-only code this skips.
+    # The macOS job below compiles the Darwin-only code this skips.
     name: Swift (mobile-core, Linux)
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -22,3 +22,19 @@ jobs:
       - name: Test mobile-core
         working-directory: packages/mobile-core
         run: swift test -Xswiftc -warnings-as-errors
+
+  mobile-core-macos:
+    # Xcode builds MonacoCore with -suppress-warnings, so only a SwiftPM build fails on a warning
+    # in Darwin-only code. docs/architecture/ci.md#what-runs-where
+    name: Swift (mobile-core, macOS)
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: scripts/ci/select-xcode.sh
+
+      - name: Build mobile-core and its tests
+        working-directory: packages/mobile-core
+        run: swift build --build-tests -Xswiftc -warnings-as-errors
