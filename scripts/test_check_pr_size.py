@@ -47,6 +47,31 @@ class CountTest(unittest.TestCase):
         self.assertEqual(check.LIMIT, 1000)
 
 
+class BinaryTest(unittest.TestCase):
+    def test_names_each_binary_that_is_not_media_or_testdata(self):
+        numstat = (
+            "-\t-\tapps/backend/api\n"
+            "-\t-\tapps/backend/internal/x/testdata/blob.bin\n"
+            "-\t-\ttestdata/root.bin\n"
+            "-\t-\tdocs/legacy/qa/home.png\n"
+            "-\t-\tapps/web/assets/x.png\n"
+            "-\t-\t.qa-screenshots/home.JPEG\n"
+            "-\t-\tapps/mobile/Monaco/Assets/icon.jpg\n"
+            "-\t-\tdocs/rfc.pdf\n"
+            "-\t-\tapps/web/fonts/inter.woff2\n"
+            "-\t-\tapps/backend/internal/db/schema.gen\n"
+            "-\t-\tapps/backend/lib/libfoo.so\n"
+            "-\t-\t{bin => apps/backend/cmd}/worker\n"
+            "7\t1\tapps/backend/internal/app/fund.go\n"
+        )
+        self.assertEqual(check.binaries(numstat), [
+            "apps/backend/api",
+            "apps/backend/internal/db/schema.gen",
+            "apps/backend/lib/libfoo.so",
+            "apps/backend/cmd/worker",
+        ])
+
+
 class FakeRepo:
     def __init__(self, lines=None, unverified=(), off=()):
         self.heads = {11: "h11", 12: "h12", 13: "h13"}
@@ -113,13 +138,28 @@ class RepoTest(unittest.TestCase):
 class MainTest(unittest.TestCase):
     ENV = {"BASE_SHA": "base", "HEAD_SHA": "h13", "PR_NUMBER": "13", "GITHUB_REPOSITORY": "o/r", "PR_LABELS": "[]"}
 
-    def run_main(self, body, repo, labels="[]", size=2000):
+    def run_main(self, body, repo, labels="[]", size=2000, extra=""):
         env = dict(self.ENV, PR_BODY=body, PR_LABELS=labels)
         out = io.StringIO()
         with mock.patch.dict(os.environ, env, clear=True), \
-                mock.patch.object(check, "numstat", return_value=f"{size}\t0\tapps/backend/x.go\n"), \
+                mock.patch.object(check, "numstat", return_value=f"{size}\t0\tapps/backend/x.go\n{extra}"), \
                 mock.patch.object(check, "Repo", return_value=repo), contextlib.redirect_stdout(out):
             return check.main(), out.getvalue()
+
+    def test_a_binary_under_apps_backend_fails_whatever_the_label(self):
+        code, out = self.run_main("## TLDR", FakeRepo(), labels='["large-pr"]', size=10,
+                                  extra="-\t-\tapps/backend/worker\n")
+        self.assertEqual(code, 1)
+        self.assertIn("  apps/backend/worker\n", out)
+
+    def test_a_png_under_apps_web_passes(self):
+        code, _ = self.run_main("## TLDR", FakeRepo(), size=10, extra="-\t-\tapps/web/assets/x.png\n")
+        self.assertEqual(code, 0)
+
+    def test_a_binary_under_testdata_passes(self):
+        code, _ = self.run_main("## TLDR", FakeRepo(), size=10,
+                                extra="-\t-\tapps/backend/internal/x/testdata/blob.bin\n")
+        self.assertEqual(code, 0)
 
     def test_under_the_limit_passes(self):
         self.assertEqual(self.run_main("## TLDR", FakeRepo(), size=999)[0], 0)
