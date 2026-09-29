@@ -58,7 +58,8 @@ func TestMain_lintCommentsDefaultsToTheWorkingTree(t *testing.T) {
 func TestMain_docsFlowsRendersTheRepoTSVFromTheBackendDir(t *testing.T) {
 	t.Parallel()
 	var want bytes.Buffer
-	if code := docsFlows(os.DirFS(filepath.Join(backendRoot(t), "../..")), &want, io.Discard); code != 0 {
+	repo := os.DirFS(filepath.Join(backendRoot(t), "../.."))
+	if code := docsFlows(repo, flows.Markdown, &want, io.Discard); code != 0 {
 		t.Fatalf("docsFlows over the repo = %d", code)
 	}
 	code, stdout, stderr := monacoctl(t, backendRoot(t), "", "docs", "flows")
