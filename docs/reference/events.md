@@ -10,4 +10,5 @@ Subject `events.system.pinged`, version 1.
 | --- | --- |
 | `v` | `int` |
 | `ping_id` | `uuid.UUID` |
+| `user_id` | `uuid.UUID` |
 | `note` | `string` |

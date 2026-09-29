@@ -155,6 +155,7 @@ linters:
             - pkg: "github.com/nats-io/nats.go$"
               desc: "only platform/bus and testkit open NATS connections; use bus.Connect"
         # BEGIN GENERATED depguard
+        module-system: { list-mode: lax, files: ["**/internal/modules/system/**"], allow: ["github.com/monaco/monaco/apps/backend/internal/modules/system$", "github.com/monaco/monaco/apps/backend/internal/modules/system/"], deny: [{ pkg: "github.com/monaco/monaco/apps/backend/internal/modules/", desc: "modules never import each other; send an event or use a query port" }] }
         # END GENERATED depguard
   exclusions:
     presets: [comments]

@@ -22,7 +22,7 @@ func TestDocsEventsPrintsTheRegistryCatalog(t *testing.T) {
 		"## `system.pinged`\n\n" +
 		"Subject `events.system.pinged`, version 1.\n\n" +
 		"| Field | Go type |\n| --- | --- |\n" +
-		"| `v` | `int` |\n| `ping_id` | `uuid.UUID` |\n| `note` | `string` |\n"
+		"| `v` | `int` |\n| `ping_id` | `uuid.UUID` |\n| `user_id` | `uuid.UUID` |\n| `note` | `string` |\n"
 	if stdout.String() != want {
 		t.Fatalf("stdout =\n%s\nwant\n%s", stdout.String(), want)
 	}
