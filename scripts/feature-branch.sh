@@ -6,26 +6,26 @@ ACTIONS_APP_ID=15368
 
 usage() {
   cat >&2 <<'USAGE'
-usage: scripts/feature-branch.sh init|apply|ruleset <name>-<N> | main-ruleset
-  init <branch>     create <branch> from origin/main, then apply
+usage: scripts/feature-branch.sh init|apply|ruleset <feature>-checkpoint-<N> | main-ruleset
+  init <branch>     create <branch> from origin/main, then apply; start a feature
+                    with init <feature>-checkpoint-1
   apply <branch>    add the Graphite trunk, turn on auto-merge and merge commits,
-                    point FEATURE_BRANCH at <branch>, add refs/heads/<name>-* to the
+                    point FEATURE_BRANCH at <branch>, add refs/heads/<branch> to the
                     feature branch ruleset, create or update both rulesets
-  ruleset <branch>  print a feature branch ruleset body that targets <name>-*
+  ruleset <branch>  print a feature branch ruleset body that targets refs/heads/<branch>
   main-ruleset      print the main ruleset body
 See docs/architecture/ci.md#feature-branches.
 USAGE
   exit 2
 }
 
-# The ref pattern that covers every checkpoint of <branch>'s milestone, or a usage error.
-pattern() {
-  local parsed
-  parsed="$("$(dirname "$0")/ci/feature-branch-name.sh" "$1")" || {
-    echo "$1 is not a feature branch <name>-<N> (lowercase slug, hyphen, number)" >&2
+# A merge_queue rule takes exact ref names only, so the ruleset lists each feature branch.
+ref() {
+  "$(dirname "$0")/ci/feature-branch-name.sh" "$1" >/dev/null || {
+    echo "$1 is not a feature branch <feature>-checkpoint-<N> (lowercase slug, hyphen, number)" >&2
     exit 2
   }
-  echo "refs/heads/${parsed% *}-*"
+  echo "refs/heads/$1"
 }
 
 ruleset() {
@@ -112,9 +112,9 @@ put_ruleset() {
   fi
 }
 
-# One ruleset covers every milestone: apply adds <name>-* to its include list and keeps the patterns there.
-# "^feature branch" also matches an older per-branch ruleset ("feature branch <branch>"), which apply renames
-# and widens in place.
+# One ruleset covers every feature branch: apply adds refs/heads/<branch> to its include list and keeps the
+# refs there. "^feature branch" also matches an older per-branch ruleset ("feature branch <branch>"), which
+# apply renames in place.
 apply() {
   local name="$1" include="[\"$2\"]" id
   gt trunk --add "$name" --no-interactive
@@ -145,9 +145,9 @@ case "$#:${1:-}" in
   2:ruleset | 2:init | 2:apply) ;;
   *) usage ;;
 esac
-pattern="$(pattern "$2")"
+ref="$(ref "$2")"
 case "$1" in
-  ruleset) ruleset "[\"$pattern\"]" ;;
-  init) init "$2" "$pattern" ;;
-  apply) apply "$2" "$pattern" ;;
+  ruleset) ruleset "[\"$ref\"]" ;;
+  init) init "$2" "$ref" ;;
+  apply) apply "$2" "$ref" ;;
 esac

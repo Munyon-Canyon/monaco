@@ -12,7 +12,7 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 
 ### Changed
 
-- A feature branch is named `<name>-<N>`, and the `FEATURE_BRANCH` repo variable names the live one. A checkpoint is a PR into `main` from such a branch with the `integration` label. After it squash-merges, `checkpoint.yml` cuts `<name>-<N+1>` at the squash commit and points `FEATURE_BRANCH` at it, instead of merging `main` back into the old branch. `feature_branch = "auto"` in `.monaco/agents.toml` reads the variable, and `scripts/feature-branch.sh apply <branch>` adds `refs/heads/<name>-*` to the merge-queue ruleset.
+- A feature branch is named `<feature>-checkpoint-<N>` (the older `<feature>-<N>` still parses), and the `FEATURE_BRANCH` repo variable names the live one. A checkpoint is a PR into `main` from such a branch with the `integration` label. After it squash-merges, `checkpoint.yml` cuts `<feature>-checkpoint-<N+1>` at the squash commit and points `FEATURE_BRANCH` at it, instead of merging `main` back into the old branch. `feature_branch = "auto"` in `.monaco/agents.toml` reads the variable, `scripts/feature-branch.sh apply <branch>` adds the exact `refs/heads/<branch>` to the merge-queue ruleset, and `checkpoint.yml` adds each `<feature>-checkpoint-<N+1>` it cuts, since a merge-queue ruleset takes exact ref names only.
 
 ### Security
 
