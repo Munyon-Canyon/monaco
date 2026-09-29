@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -22,7 +23,10 @@ const (
 	configPath    = ".monaco/agents.toml"
 	budgetSection = "[check.budget]"
 	budgetPrefix  = "check.budget."
+	featuresKey   = "features."
 )
+
+var featureNameRE = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 func defaultBudget() map[string]time.Duration {
 	return map[string]time.Duration{
@@ -37,6 +41,7 @@ type Config struct {
 	Repo                 string
 	FeatureBranch        string
 	Tracking             int
+	Features             map[string]int
 	Lanes                int
 	Batch                int
 	VerifierApp          string
@@ -46,7 +51,7 @@ type Config struct {
 }
 
 func parseConfig(r io.Reader) (Config, error) {
-	c := Config{FeatureBranch: autoFeatureBranch, Budget: defaultBudget()}
+	c := Config{FeatureBranch: autoFeatureBranch, Features: map[string]int{}, Budget: defaultBudget()}
 	section := ""
 	seen := map[string]bool{}
 	strs := map[string]*string{
@@ -66,7 +71,7 @@ func parseConfig(r io.Reader) (Config, error) {
 		return Config{}, fmt.Errorf("read %s: %w", configPath, err)
 	}
 	for _, key := range []string{
-		"repo", "tracking", "lanes", "batch", "verifier_app", "verifier_installation",
+		"repo", "lanes", "batch", "verifier_app", "verifier_installation",
 		"milestone",
 	} {
 		if !seen[key] {
@@ -94,10 +99,16 @@ func applyConfigLine(
 	case line == budgetSection:
 		*section = budgetPrefix
 		return nil
+	case strings.HasPrefix(line, "["+featuresKey) && strings.HasSuffix(line, "]") &&
+		featureNameRE.MatchString(line[len(featuresKey)+1:len(line)-1]):
+		*section = line[1:len(line)-1] + "."
+		return nil
 	case strings.HasPrefix(line, "["):
 		err = fmt.Errorf("%w %s", errUnknownSection, line)
 	case strings.HasPrefix(key, budgetPrefix):
 		err = assignBudget(c.Budget, strings.TrimPrefix(key, budgetPrefix), raw, ok)
+	case strings.HasPrefix(key, featuresKey):
+		err = assignTracking(c.Features, key, raw, ok)
 	default:
 		err = assignConfig(strs, ints, key, raw, ok)
 	}
@@ -148,6 +159,19 @@ func assignBudget(budget map[string]time.Duration, kind, raw string, ok bool) er
 		return fmt.Errorf("budget %s: %w, got %q", kind, errBadBudget, v)
 	}
 	budget[kind] = d
+	return nil
+}
+
+func assignTracking(features map[string]int, key, raw string, ok bool) error {
+	feature, field, _ := strings.Cut(strings.TrimPrefix(key, featuresKey), ".")
+	if field != "tracking" {
+		return unknownKeyError{key: key}
+	}
+	var n int
+	if err := assignConfig(nil, map[string]*int{key: &n}, key, raw, ok); err != nil {
+		return err
+	}
+	features[feature] = n
 	return nil
 }
 

@@ -1,11 +1,13 @@
 # status --publish rewrites the tracking issue comment that contains "<!-- monacoctl agents status -->".
 repo = "Munyon-Canyon/monaco"
-tracking = 492
 lanes = 6
 batch = 6
 verifier_app = "5101392"
 verifier_installation = 166018497
 milestone = "m7-rest"
+
+[features.backend-rewrite]
+tracking = 492
 
 # agents check gives each row its own budget, except `go test -short`, which is budgeted per package
 # (`package`, the same 20 s that fails a package in `monacoctl test-report`). The go budget applies to

@@ -20,8 +20,8 @@ import (
 
 const (
 	testRepo   = "o/r"
-	testConfig = "repo = \"o/r\"\nfeature_branch = \"fb-checkpoint-1\"\ntracking = 7\nlanes = 2\nbatch = 2\n" +
-		"verifier_app = \"99\"\nverifier_installation = 100\nmilestone = \"ms\"\n"
+	testConfig = "repo = \"o/r\"\nfeature_branch = \"fb-checkpoint-1\"\nlanes = 2\nbatch = 2\n" +
+		"verifier_app = \"99\"\nverifier_installation = 100\nmilestone = \"ms\"\n[features.fb]\ntracking = 7\n"
 )
 
 type hub struct {
@@ -265,4 +265,16 @@ func (f *fixture) batch(t *testing.T, tickets ...int) {
 	if err := f.Env(t).saveBatch(b); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func (env *Env) statusText(ctx context.Context) (string, error) {
+	open, err := env.GitHub.PRs(ctx, "state=open")
+	if err != nil {
+		return "", err
+	}
+	trunks, err := env.trunks(ctx)
+	if err != nil {
+		return "", err
+	}
+	return env.statusBody(ctx, open, trunks, "")
 }

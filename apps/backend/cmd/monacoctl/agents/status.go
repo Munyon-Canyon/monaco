@@ -7,6 +7,8 @@ import (
 	"io"
 	"slices"
 	"strings"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
 const (
@@ -51,36 +53,91 @@ type GHStatus struct {
 }
 
 func statusCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {
-	switch {
-	case len(args) == 0:
-		body, err := env.statusBody(ctx, "")
-		_, _ = io.WriteString(stdout, body)
-		return err
-	case len(args) != 1 || args[0] != "--publish":
+	publish := len(args) == 1 && args[0] == "--publish"
+	if len(args) != 0 && !publish {
 		return usageError("status [--publish]")
 	}
-	all, err := env.comments(ctx)
+	open, err := env.GitHub.PRs(ctx, "state=open")
+	if err != nil {
+		return err
+	}
+	trunks, err := env.trunks(ctx)
+	if err != nil {
+		return err
+	}
+	if !publish {
+		body, err := env.statusBody(ctx, open, trunks, "")
+		_, _ = io.WriteString(stdout, body)
+		return err
+	}
+	boards, err := env.statusBoards(ctx, open, trunks, stdout)
+	if err != nil {
+		return err
+	}
+	for _, board := range boards {
+		if err := env.publishStatus(ctx, open, board, stdout); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type statusBoard struct {
+	issue  int
+	trunks []string
+}
+
+func (env *Env) statusBoards(ctx context.Context, open []PR, trunks []string, notice io.Writer) ([]statusBoard, error) {
+	var boards []statusBoard
+	for _, trunk := range trunks {
+		issue, err := env.trackingIssue(ctx, trunk, stackTickets(open, trunk)...)
+		if errs.CodeOf(err) == errs.CodeNotFound {
+			_, _ = fmt.Fprintf(notice, "skipped %s: %s\n", trunk, cliText(err))
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if i := slices.IndexFunc(boards, func(b statusBoard) bool { return b.issue == issue }); i >= 0 {
+			boards[i].trunks = append(boards[i].trunks, trunk)
+			continue
+		}
+		boards = append(boards, statusBoard{issue, []string{trunk}})
+	}
+	return boards, nil
+}
+
+func stackTickets(open []PR, trunk string) []int {
+	var tickets []int
+	for _, stack := range stacks(open, trunk) {
+		for _, pr := range stack {
+			if n, ok := pr.Ticket(); ok && !slices.Contains(tickets, n) {
+				tickets = append(tickets, n)
+			}
+		}
+	}
+	return tickets
+}
+
+func (env *Env) publishStatus(ctx context.Context, open []PR, board statusBoard, stdout io.Writer) error {
+	all, err := env.issueComments(ctx, board.issue)
 	if err != nil {
 		return err
 	}
 	c, ok := newestTrusted(all, statusMarker)
-	body, err := env.statusBody(ctx, c.Body)
+	body, err := env.statusBody(ctx, open, board.trunks, c.Body)
 	if err != nil {
 		return err
 	}
 	if ok && c.Body == body {
-		_, _ = fmt.Fprintln(stdout, "status comment unchanged")
+		_, _ = fmt.Fprintf(stdout, "status comment unchanged on #%d\n", board.issue)
 		return nil
 	}
-	if err := env.publishComment(ctx, env.Config.Tracking, all, statusMarker, body); err != nil {
+	if err := env.publishComment(ctx, board.issue, all, statusMarker, body); err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintln(stdout, "status comment updated")
+	_, _ = fmt.Fprintf(stdout, "status comment updated on #%d\n", board.issue)
 	return nil
-}
-
-func (env *Env) comments(ctx context.Context) ([]Comment, error) {
-	return env.issueComments(ctx, env.Config.Tracking)
 }
 
 func (env *Env) issueComments(ctx context.Context, issue int) ([]Comment, error) {
@@ -132,20 +189,12 @@ func (env *Env) writeComment(ctx context.Context, issue int, id int64, found boo
 	return env.GitHub.call(ctx, "PATCH", path, "", payload, nil)
 }
 
-func (env *Env) statusBody(ctx context.Context, published string) (string, error) {
-	open, err := env.GitHub.PRs(ctx, "state=open")
-	if err != nil {
-		return "", err
-	}
-	trunks, err := env.trunks(ctx)
-	if err != nil {
-		return "", err
-	}
+func (env *Env) statusBody(ctx context.Context, open []PR, trunks []string, published string) (string, error) {
 	type row struct {
 		pr    PR
 		trunk string
 	}
-	var rows []row
+	rows := make([]row, 0, len(open))
 	for _, trunk := range trunks {
 		var group []PR
 		for _, stack := range stacks(open, trunk) {
@@ -171,13 +220,13 @@ func (env *Env) statusBody(ctx context.Context, published string) (string, error
 		_, _ = fmt.Fprintf(&b, "| #%d | %s | %s | %s | %s | %s |\n",
 			r.pr.Number, r.trunk, shortSHA(r.pr.Head.SHA), ci, ciok, verify)
 	}
-	batch, err := env.batchBoard(ctx, published)
+	batch, err := env.batchBoard(ctx, published, trunks)
 	return b.String() + batch, err
 }
 
-func (env *Env) batchBoard(ctx context.Context, published string) (string, error) {
+func (env *Env) batchBoard(ctx context.Context, published string, trunks []string) (string, error) {
 	b, err := env.currentBatch(published)
-	if err != nil || len(b.Tickets) == 0 {
+	if err != nil || len(b.Tickets) == 0 || (b.Branch != "" && !slices.Contains(trunks, b.Branch)) {
 		return "", err
 	}
 	views, err := env.views(ctx, b)

@@ -34,7 +34,7 @@ The drift check changes files, so it refuses a dirty tree. `garden-report.md` is
 
 ## The workflow
 
-`.github/workflows/gardener.yml` runs on the nightly schedule and on `workflow_dispatch`. GitHub runs schedules from the default branch only, so the job checks out the active feature branch: the `FEATURE_BRANCH` repository variable, which each checkpoint's `next-branch` job points at the new `<name>-<N>`. The job fails and says so when the variable is unset. It installs the pinned tools the way the other jobs do (`backend-test-env` without the database, the pinned `sqlc` and `golangci-lint`), runs the report with `--skip-mutation`, uploads `garden-report.md` as the `garden-report` artifact, and writes the report into the open `gardener` issue. When no such issue is open, it opens one. It uses only `GITHUB_TOKEN`.
+`.github/workflows/gardener.yml` runs on the nightly schedule and on `workflow_dispatch`. GitHub runs schedules from the default branch, and the job scans `main`, which holds every feature branch's last checkpoint. Several feature branches run at once, so no one of them is the branch to scan. It installs the pinned tools the way the other jobs do (`backend-test-env` without the database, the pinned `sqlc` and `golangci-lint`), runs the report with `--skip-mutation`, uploads `garden-report.md` as the `garden-report` artifact, and writes the report into the open `gardener` issue. When no such issue is open, it opens one. It uses only `GITHUB_TOKEN`.
 
 To run it by hand:
 

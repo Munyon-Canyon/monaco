@@ -23,10 +23,12 @@ Owners run stage 0 from apps/backend as `go run ./cmd/monacoctl agents check`. T
 | watching | `monacoctl agents watch`, `monacoctl agents forecast`, `monacoctl agents conflicts <pr>` |
 | status | `monacoctl agents status --publish`, after each batch, dispatch, merge and ejection |
 | restack | root only: `gt sync --no-interactive --no-restack`, `gt restack --upstack` in the stack's worktree, then stage 0 on every branch |
-| checkpoint | the `CHANGELOG.md` rename PR, then one PR from the feature branch into `main` labeled `integration`; the operator merges it and `checkpoint.yml` runs `tree-matches` and `next-branch`, which cuts `<name>-<N+1>` from `main`; move open stacks onto it with `gt trunk --add` and `gt track --parent` |
+| checkpoint | the `CHANGELOG.md` rename PR, then one PR from the feature branch into `main` labeled `integration`; the operator merges it and `checkpoint.yml` runs `tree-matches` and `next-branch`, which cuts `<feature>-checkpoint-<N+1>` from `main` for that feature only; move open stacks onto it with `gt trunk --add` and `gt track --parent` |
 | handoff | `monacoctl agents handoff`; `monacoctl agents resume <ticket>` before reusing an owner |
 | timeline | `monacoctl agents timeline` |
 
 A dispatch prompt carries only the ticket number, the worktree, the parent SHA, and the brief path (`docs/agents/owner.md` or `docs/agents/verifier.md`). `monacoctl agents dispatch` prints the owner's spawn line and prompt, and `monacoctl agents verify-plan` the verifier's; pass them as printed.
+
+Several milestones run at once, each on its own feature branch `<feature>-checkpoint-<N>`. The agents commands read each ticket's `**Base branch:**` header and each stack's base chain, so no command names a current feature branch; pass `--branch <feature>-checkpoint-<N>` to override. Each feature posts to its own tracking issue, `[features.<feature>]` in `.monaco/agents.toml`.
 
 The status comment on the tracking issue carries the batch, so CI keeps it current. A handoff is a tracking-issue comment from `monacoctl agents handoff`. Nothing goes on a side branch.

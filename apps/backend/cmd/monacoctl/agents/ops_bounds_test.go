@@ -28,7 +28,7 @@ func TestStatus_sortsPullsAndCountsTheRemainder(t *testing.T) {
 	f.hub.on(list("/pulls?state=open"), open)
 	f.hub.on("GET /repos/o/r/commits/"+sha+"/check-runs?per_page=100", `{"check_runs":[]}`)
 	f.hub.on(list("/commits/"+sha+"/statuses?"), []GHStatus{})
-	body, err := f.Env(t).statusBody(context.Background(), "")
+	body, err := f.Env(t).statusText(context.Background())
 	if err != nil || !strings.Contains(body, "and 1 more") {
 		t.Fatal(body, err)
 	}

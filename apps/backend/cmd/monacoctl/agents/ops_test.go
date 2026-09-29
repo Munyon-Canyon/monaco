@@ -317,7 +317,7 @@ func TestStatus_publishesAndSkipsAnUnchangedComment(t *testing.T) {
 	f.hub.on(list("/issues/7/comments?"), []Comment{})
 	f.hub.on("POST /repos/o/r/issues/7/comments", "ok")
 	code, stdout, stderr := f.agents(t, "status", "--publish")
-	if code != 0 || stdout != "status comment updated\n" || stderr != "" ||
+	if code != 0 || stdout != "status comment updated on #7\n" || stderr != "" ||
 		!strings.Contains(f.hub.body("POST /repos/o/r/issues/7/comments"), "monacoctl agents status") {
 		t.Fatalf(
 			"code=%d stdout=%q stderr=%q body=%s",
@@ -331,12 +331,17 @@ func TestStatus_publishesAndSkipsAnUnchangedComment(t *testing.T) {
 		"| #5 | fb-checkpoint-1 | aaaaaaa | success | queued | success |\n"
 	f.hub.on(list("/issues/7/comments?"), []Comment{authored(9, plain, ghUser, "MEMBER")})
 	code, stdout, stderr = f.agents(t, "status", "--publish")
-	if code != 0 || stdout != "status comment unchanged\n" {
+	if code != 0 || stdout != "status comment unchanged on #7\n" {
 		t.Fatalf("same: %d %q %q", code, stdout, stderr)
 	}
 	f.hub.on(list("/issues/7/comments?"), []Comment{authored(9, statusMarker+"\nstale", ghUser, "MEMBER")})
 	f.hub.on("PATCH /repos/o/r/issues/comments/9", "ok")
-	if code, stdout, stderr = f.agents(t, "status", "--publish"); code != 0 || stdout != "status comment updated\n" ||
+	if code, stdout, stderr = f.agents(
+		t,
+		"status",
+		"--publish",
+	); code != 0 ||
+		stdout != "status comment updated on #7\n" ||
 		posted(t, f, "PATCH /repos/o/r/issues/comments/9") != plain {
 		t.Fatalf("patch: %d %q %q", code, stdout, stderr)
 	}

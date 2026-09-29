@@ -28,7 +28,12 @@ func TestStatus_readsATeammatesBoardAndIgnoresAForgedBatch(t *testing.T) {
 	f.hub.on("POST /repos/o/r/issues/7/comments", "ok")
 	f.hub.on("PATCH /repos/o/r/issues/comments/4", "ok")
 	f.hub.on("PATCH /repos/o/r/issues/comments/8", "ok")
-	if code, stdout, stderr := f.agents(t, "status", "--publish"); code != 0 || stdout != "status comment updated\n" {
+	if code, stdout, stderr := f.agents(
+		t,
+		"status",
+		"--publish",
+	); code != 0 ||
+		stdout != "status comment updated on #7\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	body := posted(t, f, "POST /repos/o/r/issues/7/comments")

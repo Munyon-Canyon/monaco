@@ -646,6 +646,14 @@ func TestCheck_goTestParallelismSplitsTheCPUsBetweenRunningOwners(t *testing.T) 
 	}
 }
 
+func TestParseConfig_readsATrackingIssuePerFeature(t *testing.T) {
+	t.Parallel()
+	c, err := parseConfig(strings.NewReader(testConfig + "[features.leaderboards]\ntracking = 12\n"))
+	if err != nil || c.Features["fb"] != 7 || c.Features["leaderboards"] != 12 || c.Tracking != 0 {
+		t.Fatalf("features: %v %v", c.Features, err)
+	}
+}
+
 func TestParseConfig_readsTheCheckBudgetSection(t *testing.T) {
 	t.Parallel()
 	c, err := parseConfig(strings.NewReader(
@@ -656,12 +664,15 @@ func TestParseConfig_readsTheCheckBudgetSection(t *testing.T) {
 		t.Fatalf("budget: %v %v", c.Budget, err)
 	}
 	for body, want := range map[string]string{
-		"[check.other]\n":                 `:10: unknown section [check.other]`,
-		"[check.budget]\nrust = \"1s\"\n": `:11: unknown key "check.budget.rust"`,
-		"[check.budget]\ngo\n":            ":11: want key = value",
-		"[check.budget]\ngo = 60s\n":      ":11: quote: invalid syntax",
-		"[check.budget]\ngo = \"soon\"\n": `:11: budget go: want a positive duration such as "60s", got "soon"`,
-		"[check.budget]\ngo = \"0s\"\n":   `:11: budget go: want a positive duration`,
+		"[check.other]\n":                              `:11: unknown section [check.other]`,
+		"[check.budget]\nrust = \"1s\"\n":              `:12: unknown key "check.budget.rust"`,
+		"[check.budget]\ngo\n":                         ":12: want key = value",
+		"[check.budget]\ngo = 60s\n":                   ":12: quote: invalid syntax",
+		"[check.budget]\ngo = \"soon\"\n":              `:12: budget go: want a positive duration such as "60s", got "soon"`,
+		"[check.budget]\ngo = \"0s\"\n":                `:12: budget go: want a positive duration`,
+		"[features.Leaderboards]\n":                    `:11: unknown section [features.Leaderboards]`,
+		"[features.leaderboards]\nlanes = 1\n":         `:12: unknown key "features.leaderboards.lanes"`,
+		"[features.leaderboards]\ntracking = \"12\"\n": ":12: int: ",
 	} {
 		if _, err := parseConfig(strings.NewReader(testConfig + "\n" + body)); err == nil ||
 			!strings.Contains(cliText(err), configPath+want) {

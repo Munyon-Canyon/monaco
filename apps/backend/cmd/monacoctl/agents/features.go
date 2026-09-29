@@ -17,6 +17,7 @@ var (
 	featureBranchRE = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*-checkpoint-[0-9]+$`)
 	legacyBranchRE  = regexp.MustCompile(`^([a-z0-9]+(?:-[a-z0-9]+)*)-[0-9]+$`)
 	baseHeaderRE    = regexp.MustCompile("\\*\\*Base branch:\\*\\*\\s*`([^`]+)`")
+	trackingRE      = regexp.MustCompile(`\*\*Tracking:\*\*\s*#([0-9]+)`)
 )
 
 const (
@@ -182,4 +183,26 @@ func (env *Env) worktreeBranch(ctx context.Context, notice io.Writer) (string, e
 		return "", err
 	}
 	return env.ticketBranch(ctx, ticket, is.Body, notice)
+}
+
+func (env *Env) trackingIssue(ctx context.Context, branch string, tickets ...int) (int, error) {
+	feature, _ := featureOf(branch)
+	if n := env.Config.Features[feature]; n > 0 {
+		return n, nil
+	}
+	for _, ticket := range tickets {
+		is, err := env.GitHub.Issue(ctx, ticket)
+		if err != nil {
+			return 0, err
+		}
+		if m := trackingRE.FindStringSubmatch(is.Body); m != nil {
+			n, _ := strconv.Atoi(m[1])
+			return n, nil
+		}
+	}
+	if env.Config.Tracking > 0 {
+		return env.Config.Tracking, nil
+	}
+	return 0, detailErr(errs.CodeNotFound, "monacoctl.agents.config", fmt.Sprintf(
+		"%s has no tracking issue; add [features.%s] with tracking = <issue> to %s", branch, feature, configPath))
 }

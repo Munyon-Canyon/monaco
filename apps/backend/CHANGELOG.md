@@ -8,6 +8,10 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 
 ### Added
 
+### Changed
+
+- Several feature branches run at once. A feature branch is only `<feature>-checkpoint-<N>`, and workflows and `monacoctl agents` find it from context: the PR's base, the ticket's `**Base branch:**` header or the stack's base chain. Each feature posts to its own tracking issue, `[features.<feature>]` in `.monaco/agents.toml`. `--branch` overrides, and the `FEATURE_BRANCH` repo variable is only the last fallback.
+
 ## [checkpoint 4] - 2026-09-29
 
 ### Changed

@@ -52,7 +52,7 @@ func dispatchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer)
 	if err != nil {
 		return err
 	}
-	if err := env.logUrgent(ctx, in, stdout); err != nil {
+	if err := env.logUrgent(ctx, in, branch, stdout); err != nil {
 		return err
 	}
 	if in.dry {
@@ -136,12 +136,16 @@ func (env *Env) dispatchable(ctx context.Context, in dispatchIn, notice io.Write
 	return branch, env.lanesOpen()
 }
 
-func (env *Env) logUrgent(ctx context.Context, in dispatchIn, stdout io.Writer) error {
-	switch {
-	case !in.urgent:
+func (env *Env) logUrgent(ctx context.Context, in dispatchIn, branch string, stdout io.Writer) error {
+	if !in.urgent {
 		return nil
-	case in.dry:
-		_, _ = fmt.Fprintf(stdout, "dry-run: would log the urgent dispatch to #%d\n", env.Config.Tracking)
+	}
+	issue, err := env.trackingIssue(ctx, branch, in.ticket)
+	if err != nil {
+		return err
+	}
+	if in.dry {
+		_, _ = fmt.Fprintf(stdout, "dry-run: would log the urgent dispatch to #%d\n", issue)
 		return nil
 	}
 	body := fmt.Sprintf(
@@ -149,7 +153,7 @@ func (env *Env) logUrgent(ctx context.Context, in dispatchIn, stdout io.Writer) 
 		in.ticket,
 		env.Now().UTC().Format(time.RFC3339),
 	)
-	return env.writeComment(ctx, env.Config.Tracking, 0, false, body)
+	return env.writeComment(ctx, issue, 0, false, body)
 }
 
 func (env *Env) blockersClear(ctx context.Context, ticket int, branch string) error {

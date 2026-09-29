@@ -207,7 +207,12 @@ func TestStatus_publishesTheBatchAndCIReadsItBack(t *testing.T) {
 	f.hub.on(list("/pulls?state=open"), []PR{})
 	f.hub.on(list("/issues/7/comments?"), []Comment{})
 	f.hub.on("POST /repos/o/r/issues/7/comments", "ok")
-	if code, stdout, stderr := f.agents(t, "status", "--publish"); code != 0 || stdout != "status comment updated\n" {
+	if code, stdout, stderr := f.agents(
+		t,
+		"status",
+		"--publish",
+	); code != 0 ||
+		stdout != "status comment updated on #7\n" {
 		t.Fatalf("local: %d %q %q", code, stdout, stderr)
 	}
 	body := posted(t, f, "POST /repos/o/r/issues/7/comments")
@@ -227,7 +232,7 @@ func TestStatus_publishesTheBatchAndCIReadsItBack(t *testing.T) {
 		"status",
 		"--publish",
 	); code != 0 ||
-		stdout != "status comment unchanged\n" {
+		stdout != "status comment unchanged on #7\n" {
 		t.Fatalf("ci: %d %q %q", code, stdout, stderr)
 	}
 
@@ -254,15 +259,15 @@ func TestStatus_batchFailures(t *testing.T) {
 	if code, _, stderr := f.agents(t, "status", "--publish"); code != 1 || !strings.Contains(stderr, "graphql") {
 		t.Fatalf("cmd: %d %q", code, stderr)
 	}
-	if _, err := env.statusBody(context.Background(), ""); err == nil || !strings.Contains(err.Error(), "graphql") {
+	if _, err := env.statusText(context.Background()); err == nil || !strings.Contains(err.Error(), "graphql") {
 		t.Fatal(err)
 	}
 	writeFile(t, env.recordPath(9), "{")
-	if _, err := env.statusBody(context.Background(), ""); err == nil || !strings.Contains(err.Error(), "9.json") {
+	if _, err := env.statusText(context.Background()); err == nil || !strings.Contains(err.Error(), "9.json") {
 		t.Fatal(err)
 	}
 	writeFile(t, env.batchPath(), "{")
-	if _, err := env.statusBody(context.Background(), ""); err == nil || !strings.Contains(err.Error(), "batch.json") {
+	if _, err := env.statusText(context.Background()); err == nil || !strings.Contains(err.Error(), "batch.json") {
 		t.Fatal(err)
 	}
 	for body, want := range map[string]int{

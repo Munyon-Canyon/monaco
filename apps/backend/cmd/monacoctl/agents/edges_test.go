@@ -225,13 +225,13 @@ func TestEdges_watchConflictsStatus(t *testing.T) {
 		t.Fatalf("sha %d %q", code, stderr)
 	}
 	g := newFixture(t)
-	if _, err := g.Env(t).statusBody(context.Background(), ""); err == nil {
+	if _, err := g.Env(t).statusText(context.Background()); err == nil {
 		t.Fatal("status prs")
 	}
 	sha := strings.Repeat("b", 40)
 	g.hub.on(list("/pulls?state=open"), []PR{headed(2, sha)})
 	if _, err := g.Env(t).
-		statusBody(context.Background(), ""); err == nil ||
+		statusText(context.Background()); err == nil ||
 		!strings.Contains(err.Error(), "check-runs") {
 		t.Fatal(err)
 	}
@@ -240,12 +240,12 @@ func TestEdges_watchConflictsStatus(t *testing.T) {
 		`{"check_runs":[{"name":"other","conclusion":"success"}]}`,
 	)
 	if _, err := g.Env(t).
-		statusBody(context.Background(), ""); err == nil ||
+		statusText(context.Background()); err == nil ||
 		!strings.Contains(err.Error(), "statuses") {
 		t.Fatal(err)
 	}
 	g.hub.on(list("/commits/"+sha+"/statuses?"), []GHStatus{{Context: "other", State: "pending"}})
-	body, err := g.Env(t).statusBody(context.Background(), "")
+	body, err := g.Env(t).statusText(context.Background())
 	if err != nil || !strings.Contains(body, "| none | none | none |") {
 		t.Fatal(body, err)
 	}
@@ -255,11 +255,11 @@ func TestEdges_watchConflictsStatus(t *testing.T) {
 		rows[i].Head.SHA = sha
 	}
 	g.hub.on(list("/pulls?state=open"), rows)
-	body, err = g.Env(t).statusBody(context.Background(), "")
+	body, err = g.Env(t).statusText(context.Background())
 	if err != nil || !strings.Contains(body, "and ") {
 		t.Fatal(body, err)
 	}
-	if _, err := g.Env(t).comments(context.Background()); err == nil {
+	if _, err := g.Env(t).issueComments(context.Background(), 7); err == nil {
 		t.Fatal("comments")
 	}
 	if code, _, stderr := g.agents(t, "status", "--publish"); code != 1 {

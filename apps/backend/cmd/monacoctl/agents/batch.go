@@ -21,6 +21,7 @@ import (
 
 type Batch struct {
 	Created time.Time     `json:"created"`
+	Branch  string        `json:"branch,omitempty"`
 	Tickets []BatchTicket `json:"tickets"`
 }
 
@@ -43,7 +44,7 @@ func batchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	b := Batch{Created: env.Now()}
 	var deferred []deferral
 	for _, n := range asked {
-		touches, reason, err := env.admit(ctx, n, asked, b.Tickets, stdout)
+		touches, reason, err := env.admit(ctx, n, asked, &b, stdout)
 		if err != nil {
 			return err
 		}
@@ -99,16 +100,17 @@ func parseBatch(args []string) ([]int, error) {
 	return out, nil
 }
 
-func (env *Env) admit(
-	ctx context.Context, n int, asked []int, accepted []BatchTicket, notice io.Writer,
-) ([]string, string, error) {
+func (env *Env) admit(ctx context.Context, n int, asked []int, b *Batch, notice io.Writer) ([]string, string, error) {
 	is, err := env.GitHub.Issue(ctx, n)
 	if err != nil {
 		return nil, "", err
 	}
 	branch, err := env.ticketBranch(ctx, n, is.Body, notice)
-	if err != nil {
+	switch {
+	case err != nil:
 		return nil, cliText(err), nil
+	case b.Branch != "" && branch != b.Branch:
+		return nil, fmt.Sprintf("lands on %s, not the batch's %s", branch, b.Branch), nil
 	}
 	touches := touchGlobs(is.Body)
 	if len(touches) == 0 {
@@ -118,14 +120,15 @@ func (env *Env) admit(
 	if err != nil || reason != "" {
 		return nil, reason, err
 	}
-	for _, a := range accepted {
+	for _, a := range b.Tickets {
 		if mine, theirs, ok := overlap(touches, a.Touches); ok {
 			return nil, fmt.Sprintf("Touches %s overlaps #%d %s", mine, a.Ticket, theirs), nil
 		}
 	}
-	if len(accepted) >= env.Config.Batch {
+	if len(b.Tickets) >= env.Config.Batch {
 		return nil, fmt.Sprintf("batch is full at %d", env.Config.Batch), nil
 	}
+	b.Branch = branch
 	return touches, "", nil
 }
 
