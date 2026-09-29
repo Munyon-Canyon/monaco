@@ -330,7 +330,7 @@ func TestEdges_remainingBranches(t *testing.T) {
 	if code, _, _ := h.agents(t, "dispatch", "4", "--model", "opus", "--dry-run"); code == 0 {
 		t.Fatal("dry")
 	}
-	if err := h.Env(t).writeStatus(context.Background(), 1, true, "x"); err == nil {
+	if err := h.Env(t).writeComment(context.Background(), 7, 1, true, "x"); err == nil {
 		t.Fatal("patch")
 	}
 	env.Run = func(_ context.Context, _ string, _ string, name string, args ...string) ([]byte, error) {

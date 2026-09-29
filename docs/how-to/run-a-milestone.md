@@ -25,7 +25,7 @@ Do these once per milestone.
 
 2. Set `.monaco/agents.toml`: `repo`, `feature_branch`, `tracking` (the tracking issue number), `lanes` (the most owners running at once), `batch` (the most tickets per batch), `milestone` (the name of the local state directory under `.git/pstack/`), and the verifier App's `verifier_app` and `verifier_installation`. `[check.budget]` holds the stage 0 budget of each row.
 
-3. Open the tracking issue. Its body holds the wave table: one row per ticket with its wave, issue, title and blockers. `monacoctl agents status --publish` adds the status comment.
+3. Open the tracking issue. Its body holds the wave table: one row per ticket with its wave, issue, title and blockers. `monacoctl agents status --publish` adds the status comment. `monacoctl agents` reads only status, batch and handoff comments written by an owner, member or collaborator of the repository or by `github-actions[bot]`, and edits only its own. Anyone else's comment with the same marker is ignored, and a new comment is posted instead.
 
 4. Make a worktree at the feature-branch tip for the root's own commands, and build the tools there:
 

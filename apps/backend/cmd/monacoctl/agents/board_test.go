@@ -218,9 +218,10 @@ func TestStatus_publishesTheBatchAndCIReadsItBack(t *testing.T) {
 	}
 
 	ci := newFixture(t)
+	ci.env = append(ci.env, "GITHUB_ACTIONS=true")
 	ci.board(t)
 	ci.hub.on(list("/pulls?state=open"), []PR{})
-	ci.hub.on(list("/issues/7/comments?"), []Comment{{ID: 4, Body: body}})
+	ci.hub.on(list("/issues/7/comments?"), []Comment{authored(4, body, actionsBot, "NONE")})
 	if code, stdout, stderr := ci.agents(
 		t,
 		"status",
@@ -232,7 +233,7 @@ func TestStatus_publishesTheBatchAndCIReadsItBack(t *testing.T) {
 
 	settled := strings.Replace(body, `{"ticket":6`, `{"ticket":5`, 1)
 	settled = strings.Replace(settled, `{"ticket":7`, `{"ticket":5`, 1)
-	ci.hub.on(list("/issues/7/comments?"), []Comment{{ID: 4, Body: settled}})
+	ci.hub.on(list("/issues/7/comments?"), []Comment{authored(4, settled, actionsBot, "NONE")})
 	ci.hub.on("PATCH /repos/o/r/issues/comments/4", "ok")
 	if code, _, stderr := ci.agents(t, "status", "--publish"); code != 0 {
 		t.Fatalf("settled: %d %q", code, stderr)

@@ -140,7 +140,7 @@ func (env *Env) logUrgent(ctx context.Context, in dispatchIn, stdout io.Writer) 
 		in.ticket,
 		env.Now().UTC().Format(time.RFC3339),
 	)
-	return env.writeStatus(ctx, 0, false, body)
+	return env.writeComment(ctx, env.Config.Tracking, 0, false, body)
 }
 
 func (env *Env) blockersClear(ctx context.Context, ticket int) error {

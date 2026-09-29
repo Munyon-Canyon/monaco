@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -43,21 +42,12 @@ func recordBody(r Record) string {
 	)
 }
 
-func newestTrustedRecord(all []Comment) (Comment, bool) {
-	for _, c := range slices.Backward(all) {
-		if c.trusted() && strings.Contains(c.Body, recordMarker) {
-			return c, true
-		}
-	}
-	return Comment{}, false
-}
-
 func (env *Env) rebuildRecord(ctx context.Context, ticket int) (Record, error) {
 	all, err := env.issueComments(ctx, ticket)
 	if err != nil {
 		return Record{}, err
 	}
-	c, ok := newestTrustedRecord(all)
+	c, ok := newestTrusted(all, recordMarker)
 	if !ok {
 		return Record{}, noRecord(ticket)
 	}
@@ -83,15 +73,7 @@ func (env *Env) publishRecord(ctx context.Context, r Record) error {
 	if err != nil {
 		return err
 	}
-	c, ok := newestTrustedRecord(all)
-	if ok {
-		me, err := env.Run(ctx, env.Work, "", "gh", "api", "user", "--jq", ".login")
-		if err != nil {
-			return err
-		}
-		ok = c.User.Login == strings.TrimSpace(string(me))
-	}
-	return env.writeComment(ctx, r.Ticket, c.ID, ok, recordBody(r))
+	return env.publishComment(ctx, r.Ticket, all, recordMarker, recordBody(r))
 }
 
 func (env *Env) storeRecord(ctx context.Context, r Record) error {

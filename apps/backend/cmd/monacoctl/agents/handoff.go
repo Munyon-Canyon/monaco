@@ -18,7 +18,7 @@ func handoffCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) 
 	if err != nil {
 		return err
 	}
-	status, _ := marked(all, statusMarker)
+	status, _ := newestTrusted(all, statusMarker)
 	b, err := env.currentBatch(status.Body)
 	if err != nil {
 		return err
@@ -32,8 +32,7 @@ func handoffCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) 
 		return err
 	}
 	body := handoffBody(env, views, rs)
-	c, ok := marked(all, handoffMarker)
-	if err := env.writeStatus(ctx, c.ID, ok, body); err != nil {
+	if err := env.publishComment(ctx, env.Config.Tracking, all, handoffMarker, body); err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintf(stdout, "handoff posted to #%d\n", env.Config.Tracking)
