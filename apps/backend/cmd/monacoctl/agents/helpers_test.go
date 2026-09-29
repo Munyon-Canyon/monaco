@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -107,8 +108,15 @@ func newFixture(t *testing.T) *fixture {
 	return &fixture{
 		dir: dir, hub: h, home: home,
 		env: []string{"MONACO_GITHUB_API=" + srv.URL, "GH_TOKEN=tok", "HOME=" + home},
-		run: Exec, now: time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC),
+		run: hostless, now: time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC),
 	}
+}
+
+func hostless(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
+	if name == "pgrep" {
+		return nil, errors.New("pgrep: no process")
+	}
+	return Exec(ctx, dir, stdin, name, args...)
 }
 
 func (f *fixture) agents(t *testing.T, args ...string) (int, string, string) {

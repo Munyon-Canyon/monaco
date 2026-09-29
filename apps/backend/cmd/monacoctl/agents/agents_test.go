@@ -263,3 +263,16 @@ func TestExitCode_invalidInputExitsTwoAndADetailLessErrorIsSilent(t *testing.T) 
 		t.Fatalf("silent: code=%d stderr=%q", code, stderr.String())
 	}
 }
+
+func TestCliText_readsDetailPastOtherAttrs(t *testing.T) {
+	t.Parallel()
+	err := errs.New(
+		errs.CodeInvalidInput,
+		"monacoctl.agents.test",
+		slog.String("pr", "4"),
+		slog.String("detail", "want this"),
+	)
+	if got := cliText(err); got != "want this" {
+		t.Fatalf("cliText = %q", got)
+	}
+}

@@ -11,10 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
-var (
-	errWantKeyValue = errors.New("want key = value")
-	errUnknownKey   = errors.New("unknown key")
-)
+var errWantKeyValue = errors.New("want key = value")
 
 const configPath = ".monaco/agents.toml"
 
@@ -107,5 +104,3 @@ func assignConfig(strs map[string]*string, ints map[string]*int, key, raw string
 type unknownKeyError struct{ key string }
 
 func (e unknownKeyError) Error() string { return "unknown key " + strconv.Quote(e.key) }
-
-func (e unknownKeyError) Unwrap() error { return errUnknownKey }
