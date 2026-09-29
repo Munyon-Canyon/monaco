@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   ci:
-    if: github.event.changes.base != null && !github.event.pull_request.draft
+    if: github.event.changes.base != null && !github.event.pull_request.draft && !startsWith(github.base_ref, 'graphite-base/')
     uses: ./.github/workflows/ci-jobs.yml
     with:
       stage: pr

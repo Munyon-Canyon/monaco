@@ -13,9 +13,11 @@ on:
     - cron: '*/10 * * * *'
   workflow_dispatch:
 
+# Runs queue instead of cancelling: a cancelled run leaves a red status check on its PR, and
+# the publish is idempotent.
 concurrency:
   group: agents-status
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
