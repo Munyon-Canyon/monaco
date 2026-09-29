@@ -3,17 +3,19 @@ package scenario
 import (
 	"context"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"sync"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/nats-io/nats.go/jetstream"
 	"go.opentelemetry.io/otel/metric/noop"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
-	"golang.org/x/sync/errgroup"
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -22,16 +24,18 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/sse"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-const convergeWithin = 10 * time.Second
-
 type app struct {
+	tb        *testing.T
+	logger    *slog.Logger
 	pool      *pgxpool.Pool
 	db        *db.UnitOfWork
 	bus       testkit.Bus
@@ -42,25 +46,29 @@ type app struct {
 	held      atomic.Bool
 	consumers []bus.Consumer
 
-	mu        sync.Mutex
-	changed   chan struct{}
+	note      *notifier
 	committed map[string]map[string]bool
 }
 
-func start(t *testing.T, mods []func(module.Deps) module.Module) *app {
+func start(t *testing.T, o options) *app {
 	t.Helper()
 	pool := testkit.DB(t)
 	a := &app{
-		bus: testkit.NATS(t), ids: testkit.NewIDs(1), changed: make(chan struct{}),
+		tb: t, bus: testkit.NATS(t), ids: testkit.NewIDs(1), note: newNotifier(),
 		committed: map[string]map[string]bool{},
 	}
 	a.pool = pool
 	a.db = db.New(pool, a.ids, clock.Real{})
 	verifier, err := auth.NewDevVerifier(
-		config.Config{Env: config.EnvTest, Auth: config.Auth{DevTokenKey: "scenario"}}, clock.Real{})
+		config.Config{Env: config.EnvTest, Auth: config.Auth{DevTokenKey: tokenKey}}, clock.Real{})
 	must(t, err)
 	a.verifier = verifier
-	ctx, cancel := context.WithCancel(context.WithoutCancel(t.Context()))
+	logs := o.logs
+	if logs == nil {
+		logs = io.Discard
+	}
+	a.logger = observability.NewLogger(config.Config{Env: config.EnvTest}, logs)
+	ctx, cancel := context.WithCancel(observability.WithLogger(context.WithoutCancel(t.Context()), a.logger))
 	stops := make([]func(), 0, 4)
 	t.Cleanup(func() {
 		for i := len(stops) - 1; i >= 0; i-- {
@@ -73,7 +81,7 @@ func start(t *testing.T, mods []func(module.Deps) module.Module) *app {
 	stops = append(stops, background(ctx, hub.Run))
 	must(t, a.bus.Conn.SubscribeHints(ctx, hub.Deliver))
 	var reg module.Registry
-	for _, m := range mods {
+	for _, m := range o.modules {
 		reg.Add(m)
 	}
 	set := reg.Build(module.Deps{
@@ -99,23 +107,10 @@ func must(t *testing.T, err error) {
 	}
 }
 
-func background(ctx context.Context, run func(context.Context)) func() {
-	ctx, cancel := context.WithCancel(ctx)
-	var g errgroup.Group
-	g.Go(func() error {
-		run(ctx)
-		return nil
-	})
-	return func() {
-		cancel()
-		_ = g.Wait()
-	}
-}
-
 func (a *app) handler(t *testing.T, pool *pgxpool.Pool, routes httpx.Routes) http.Handler {
 	t.Helper()
 	h, err := httpx.Handler(httpx.Deps{
-		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),
+		Logger:       a.logger,
 		Tracer:       tracenoop.NewTracerProvider(),
 		Clock:        clock.Real{},
 		IDs:          a.ids,
@@ -162,20 +157,12 @@ func (a *app) observe(consumers []bus.Consumer) []bus.Consumer {
 }
 
 func (a *app) record(handler, eventID string) {
-	a.update(func() {
+	a.note.update(func() {
 		if a.committed[handler] == nil {
 			a.committed[handler] = map[string]bool{}
 		}
 		a.committed[handler][eventID] = true
 	})
-}
-
-func (a *app) update(change func()) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	change()
-	close(a.changed)
-	a.changed = make(chan struct{})
 }
 
 func (a *app) handlersOf(typ events.Type) []string {
@@ -201,21 +188,96 @@ func (a *app) handledAll(handlers, eventIDs []string) bool {
 	return true
 }
 
-func (a *app) await(t *testing.T, what string, done func() bool) {
+func (a *app) backend() *backend {
+	return &backend{
+		baseURL: a.server.URL, client: a.server.Client(), note: a.note, mint: a.mint, newUserID: a.newUserID,
+		enter: func(Stage) {}, exchanged: func(Exchange) {}, events: a.events, awaitHandled: a.awaitHandled,
+		published: a.published, hold: a.hold, crashAt: a.crashAt, seed: a.seed,
+	}
+}
+
+func (a *app) mint(id ids.UserID) string {
+	return a.verifier.Mint(id.String(), time.Now().Add(time.Hour))
+}
+
+func (a *app) newUserID() (ids.UserID, error) { return ids.ParseUserID(a.ids.NewV7().String()) }
+
+func (a *app) events(t T, typ events.Type, _ []string) []string {
 	t.Helper()
-	deadline := time.NewTimer(convergeWithin)
-	defer deadline.Stop()
-	for {
-		a.mu.Lock()
-		ok, changed := done(), a.changed
-		a.mu.Unlock()
-		if ok {
-			return
-		}
-		select {
-		case <-changed:
-		case <-deadline.C:
-			t.Fatalf("scenario: %s did not happen within %s", what, convergeWithin)
-		}
+	rows, err := a.pool.Query(t.Context(), `SELECT id::text FROM events WHERE type = $1`, string(typ))
+	return scanIDs(t, typ, rows, err)
+}
+
+func scanIDs(t T, typ events.Type, rows pgx.Rows, err error) []string {
+	t.Helper()
+	var got []string
+	for err == nil && rows.Next() {
+		var id string
+		err = rows.Scan(&id)
+		got = append(got, id)
+	}
+	if err == nil {
+		rows.Close()
+		err = rows.Err()
+	}
+	if err != nil {
+		t.Fatalf("scenario: read %s events: %v", typ, err)
+	}
+	return got
+}
+
+func (a *app) awaitHandled(t T, typ events.Type, eventIDs []string) {
+	t.Helper()
+	handlers := a.handlersOf(typ)
+	a.note.await(t, "every handler of "+string(typ)+" committing "+strings.Join(eventIDs, ", "), func() bool {
+		return a.handledAll(handlers, eventIDs)
+	})
+}
+
+func (a *app) published(t T, typ events.Type, _ []string) uint64 {
+	t.Helper()
+	stream, err := a.bus.JS.Stream(t.Context(), a.bus.Events)
+	var info *jetstream.StreamInfo
+	if err == nil {
+		info, err = stream.Info(t.Context(), jetstream.WithSubjectFilter(a.bus.Conn.Subject(typ.Subject())))
+	}
+	if err != nil {
+		t.Fatalf("scenario: read the events stream: %v", err)
+	}
+	return info.State.Subjects[a.bus.Conn.Subject(typ.Subject())]
+}
+
+func (a *app) hold() { a.held.Store(true) }
+
+func (a *app) crashAt(_ T, point faultpoint.Name) {
+	testkit.CrashAt(a.tb, point, func(ctx context.Context) error {
+		a.relay.Once(ctx)
+		return nil
+	})
+	a.held.Store(false)
+}
+
+func (a *app) seed(t T, name string) []testkit.Seeded {
+	t.Helper()
+	return testkit.Seed(t, a.pool, name, a.consumers...)
+}
+
+type Served struct {
+	URL, TokenKey, Events, DeadLetter string
+	Pool                              *pgxpool.Pool
+	JS                                jetstream.JetStream
+	Consumers                         []bus.Consumer
+}
+
+func Serve(t *testing.T, opts ...Option) Served {
+	t.Helper()
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+	a := start(t, o)
+	return Served{
+		URL: a.server.URL, TokenKey: tokenKey, Events: a.bus.Events, DeadLetter: a.bus.DeadLetter,
+		Pool: a.pool, JS: a.bus.JS, Consumers: a.consumers,
 	}
 }

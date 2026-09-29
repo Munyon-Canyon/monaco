@@ -2,6 +2,7 @@ package scenario
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -10,13 +11,56 @@ import (
 	"testing"
 	"time"
 
+	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
+type T interface {
+	Helper()
+	Fatal(args ...any)
+	Fatalf(format string, args ...any)
+	Context() context.Context
+	Cleanup(f func())
+}
+
+type Stage string
+
+const (
+	StageGiven Stage = "given"
+	StageWhen  Stage = "when"
+	StageThen  Stage = "then"
+)
+
+type Exchange struct {
+	Method, Path, IdempotencyKey string
+	Request, Response            []byte
+	Status                       int
+	Started                      time.Time
+	Took                         time.Duration
+}
+
+type backend struct {
+	baseURL      string
+	client       *http.Client
+	note         *notifier
+	mint         func(id ids.UserID) string
+	newUserID    func() (ids.UserID, error)
+	enter        func(stage Stage)
+	exchanged    func(e Exchange)
+	events       func(t T, typ events.Type, actors []string) []string
+	awaitHandled func(t T, typ events.Type, eventIDs []string)
+	published    func(t T, typ events.Type, eventIDs []string) uint64
+	hold         func()
+	crashAt      func(t T, point faultpoint.Name)
+	seed         func(t T, name string) []testkit.Seeded
+}
+
 type Scenario struct {
-	t        *testing.T
-	app      *app
+	t        T
+	app      *backend
 	users    map[string]*user
 	actor    *user
 	last     *response
@@ -47,6 +91,11 @@ type Option func(*options)
 
 type options struct {
 	modules []func(module.Deps) module.Module
+	logs    io.Writer
+}
+
+func WithLogs(w io.Writer) Option {
+	return func(o *options) { o.logs = w }
 }
 
 func WithModules(mods ...func(module.Deps) module.Module) Option {
@@ -59,17 +108,22 @@ func New(t *testing.T, opts ...Option) *Scenario {
 	for _, opt := range opts {
 		opt(&o)
 	}
-	return &Scenario{t: t, app: start(t, o.modules), users: map[string]*user{}, remember: map[string]string{}}
+	return newScenario(t, start(t, o).backend())
 }
 
-func (s *Scenario) Given(steps ...Step) *Scenario { return s.run(steps) }
+func newScenario(t T, b *backend) *Scenario {
+	return &Scenario{t: t, app: b, users: map[string]*user{}, remember: map[string]string{}}
+}
 
-func (s *Scenario) When(steps ...Step) *Scenario { return s.run(steps) }
+func (s *Scenario) Given(steps ...Step) *Scenario { return s.run(StageGiven, steps) }
 
-func (s *Scenario) Then(steps ...Step) *Scenario { return s.run(steps) }
+func (s *Scenario) When(steps ...Step) *Scenario { return s.run(StageWhen, steps) }
 
-func (s *Scenario) run(steps []Step) *Scenario {
+func (s *Scenario) Then(steps ...Step) *Scenario { return s.run(StageThen, steps) }
+
+func (s *Scenario) run(stage Stage, steps []Step) *Scenario {
 	s.t.Helper()
+	s.app.enter(stage)
 	for _, step := range steps {
 		step(s)
 	}
@@ -81,7 +135,7 @@ func (s *Scenario) user(name string) *user {
 	if u, ok := s.users[name]; ok {
 		return u
 	}
-	id, err := ids.ParseUserID(s.app.ids.NewV7().String())
+	id, err := s.app.newUserID()
 	if err != nil {
 		s.t.Fatalf("scenario: user %s: %v", name, err)
 	}
@@ -90,10 +144,18 @@ func (s *Scenario) user(name string) *user {
 
 func (s *Scenario) addUser(name string, id ids.UserID) *user {
 	s.t.Helper()
-	u := &user{id: id, token: s.app.verifier.Mint(id.String(), time.Now().Add(time.Hour))}
-	u.stream = s.app.openStream(s.t, u.token)
+	u := &user{id: id, token: s.app.mint(id)}
+	u.stream = openStream(s.t, s.app, u.token)
 	s.users[name] = u
 	return u
+}
+
+func (s *Scenario) actors() []string {
+	out := make([]string, 0, len(s.users))
+	for _, u := range s.users {
+		out = append(out, u.id.String())
+	}
+	return out
 }
 
 func (s *Scenario) path(p string) string {
@@ -105,7 +167,7 @@ func (s *Scenario) path(p string) string {
 
 func (s *Scenario) send(req request) {
 	s.t.Helper()
-	r, err := http.NewRequestWithContext(s.t.Context(), req.method, s.app.server.URL+req.path,
+	r, err := http.NewRequestWithContext(s.t.Context(), req.method, s.app.baseURL+req.path,
 		strings.NewReader(req.body))
 	if err != nil {
 		s.t.Fatalf("scenario: %s %s: %v", req.method, req.path, err)
@@ -117,7 +179,8 @@ func (s *Scenario) send(req request) {
 	if req.key != "" {
 		r.Header.Set("Idempotency-Key", req.key)
 	}
-	resp, err := s.app.server.Client().Do(r)
+	started := time.Now()
+	resp, err := s.app.client.Do(r)
 	if err != nil {
 		s.t.Fatalf("scenario: %s %s: %v", req.method, req.path, err)
 	}
@@ -126,6 +189,10 @@ func (s *Scenario) send(req request) {
 	if err != nil {
 		s.t.Fatalf("scenario: %s %s: %v", req.method, req.path, err)
 	}
+	s.app.exchanged(Exchange{
+		Method: req.method, Path: req.path, IdempotencyKey: req.key, Request: []byte(req.body),
+		Response: body, Status: resp.StatusCode, Started: started, Took: time.Since(started),
+	})
 	s.last = &response{req: req, status: resp.StatusCode, header: resp.Header, body: body}
 }
 
