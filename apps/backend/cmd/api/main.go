@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,7 +12,6 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
-	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -54,11 +52,10 @@ func run(
 	}()
 	logger := observability.NewLogger(cfg, stderr)
 	ctx = observability.WithLogger(ctx, logger)
-	verifier, err := auth.NewDevVerifier(cfg, clock.Real{})
+	verifier, err := preflight(ctx, cfg)
 	if err != nil {
 		return err
 	}
-	observability.Info(ctx, observability.BootConfig, slog.String("service", "api"), slog.Any("config", cfg.Redacted()))
 	pool, err := db.Open(ctx, cfg.DB)
 	if err != nil {
 		return bootErr(ctx, err)

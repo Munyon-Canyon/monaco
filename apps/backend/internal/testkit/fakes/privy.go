@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
@@ -68,4 +69,9 @@ func privyError(w http.ResponseWriter, status int, msg string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
+}
+
+func FixtureKey(label string) ed25519.PrivateKey {
+	seed := sha256.Sum256([]byte("monaco-fixture/" + label))
+	return ed25519.NewKeyFromSeed(seed[:])
 }
