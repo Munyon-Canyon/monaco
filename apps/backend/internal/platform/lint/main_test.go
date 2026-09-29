@@ -2,6 +2,7 @@ package lint_test
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -22,6 +23,10 @@ var (
 )
 
 func buildTools() (func(), error) {
+	flag.Parse()
+	if testing.Short() {
+		return func() {}, nil
+	}
 	root, err := filepath.Abs("../../..")
 	if err != nil {
 		return nil, fmt.Errorf("backend root: %w", err)
