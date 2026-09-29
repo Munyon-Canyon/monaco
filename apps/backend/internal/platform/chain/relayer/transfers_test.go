@@ -202,3 +202,19 @@ func TestTransfersBuild_upstreamFailures(t *testing.T) {
 		}
 	}
 }
+
+func TestTransfersBuild_relayerSignFailureReturnsNoBytes(t *testing.T) {
+	t.Parallel()
+	s := overFakes(t, "relayer")
+	member := signerFunc(func(_ context.Context, _ string, b []byte) ([]byte, error) {
+		tx, _ := chain.DecodeTransaction(b)
+		_ = tx.Sign(fakes.PrivyWalletKey("wallet-member"))
+		return tx.Encode(), nil
+	})
+	stranger := relayer.WithKey(s.relayer, fakes.FixtureKey("stranger"))
+	signed, err := relayer.NewTransfers(stranger, member).Build(t.Context(), fund(1))
+	wantCode(t, err, errs.CodeInternal)
+	if signed.Bytes != nil || signed.Signature != "" || signed.LastValidBlockHeight != 0 {
+		t.Fatalf("signed = %+v, want the zero SignedTx", signed)
+	}
+}
