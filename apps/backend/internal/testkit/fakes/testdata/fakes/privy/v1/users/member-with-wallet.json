@@ -1,0 +1,16 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {
+    "id": "did:privy:member-with-wallet",
+    "created_at": 1790000000,
+    "has_accepted_terms": true,
+    "is_guest": false,
+    "linked_accounts": [
+      {"type": "apple_oauth", "subject": "000123.apple", "email": "member@privaterelay.appleid.com", "verified_at": 1790000000},
+      {"type": "phone", "number": "+14155550100", "phoneNumber": "+14155550100", "verified_at": 1790000000},
+      {"type": "twitter_oauth", "subject": "1234567890", "username": "monaco_member", "name": "Member", "verified_at": 1790000000},
+      {"type": "wallet", "id": "wallet-member", "address": "Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf", "chain_type": "solana", "wallet_client_type": "privy", "connector_type": "embedded", "delegated": false, "imported": false, "wallet_index": 0, "verified_at": 1790000000}
+    ]
+  }
+}

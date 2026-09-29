@@ -76,6 +76,7 @@ func newFrom(fsys fs.FS, root string) *Server {
 	}
 	s.mux.HandleFunc("POST /_script", s.script)
 	s.live.HandleFunc("POST /rpc/sendTransaction", sendTransaction)
+	s.live.HandleFunc("GET /privy/v1/users/{id}", s.privyUser)
 	for _, name := range s.upstreams {
 		replay := s.replay(name)
 		upstream := http.NewServeMux()
@@ -194,8 +195,8 @@ func (s *Server) replay(upstream string) http.HandlerFunc {
 		}
 		if step.fixture != "" {
 			keys = []string{step.fixture}
-		} else if h, pattern := s.live.Handler(liveRequest(r, route)); pattern != "" {
-			h.ServeHTTP(w, r)
+		} else if live := liveRequest(r, route); s.isLive(live) {
+			s.live.ServeHTTP(w, live)
 			return
 		}
 		s.serveFixture(w, keys)
@@ -216,6 +217,11 @@ func (s *Server) serveFixture(w http.ResponseWriter, keys []string) {
 		return
 	}
 	http.Error(w, "no fixture for "+keys[len(keys)-1], http.StatusNotImplemented)
+}
+
+func (s *Server) isLive(r *http.Request) bool {
+	_, pattern := s.live.Handler(r)
+	return pattern != ""
 }
 
 func liveRequest(r *http.Request, route string) *http.Request {
