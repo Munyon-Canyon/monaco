@@ -32,7 +32,12 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	if running && !env.caffeinated(ctx) {
 		_, _ = fmt.Fprintln(stdout, "watchdog: missing caffeinate")
 	}
-	if len(idle) > 0 || len(alive) > 0 {
+	failed, err := env.failures(ctx)
+	if err != nil {
+		return err
+	}
+	env.writeFailures(ctx, failed, stdout)
+	if len(idle)+len(alive)+len(failed) > 0 {
 		return errs.New(errs.CodeForbidden, "monacoctl.agents.watch")
 	}
 	return nil

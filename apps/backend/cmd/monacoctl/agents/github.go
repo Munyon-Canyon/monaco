@@ -147,7 +147,13 @@ func (g *GitHub) call(ctx context.Context, method, path, auth string, body, out 
 		data, _ := io.ReadAll(io.LimitReader(resp.Body, errorBodyLimit))
 		return httpStatusError{method, path, resp.Status, string(bytes.TrimSpace(data))}
 	}
-	if out == nil {
+	switch raw := out.(type) {
+	case nil:
+		return nil
+	case *[]byte:
+		if *raw, err = io.ReadAll(resp.Body); err != nil {
+			return fmt.Errorf("read %s %s: %w", method, path, err)
+		}
 		return nil
 	}
 	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {

@@ -45,6 +45,7 @@ func TestWatch_idlesOnlyPastTwentyMinutes(t *testing.T) {
 	f.owner(t, Record{Ticket: 1, State: Running, Started: started, Worktree: f.dir})
 	f.hub.on(get("/issues/1"), Issue{UpdatedAt: started})
 	f.hub.on(list("/pulls?state=open"), []PR{})
+	f.noFailures()
 	stamp := []byte(strconv.FormatInt(started.Unix(), 10) + "\n")
 	for _, tc := range []struct {
 		now  time.Time
