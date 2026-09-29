@@ -31,6 +31,7 @@ type Record struct {
 	Base     string    `json:"base"`
 	State    State     `json:"state"`
 	AgentID  string    `json:"agent_id,omitempty"`
+	Queued   *Queue    `json:"queued,omitempty"`
 	Started  time.Time `json:"started"`
 	Changed  time.Time `json:"changed"`
 }
