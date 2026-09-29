@@ -7,13 +7,29 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
-var errWantKeyValue = errors.New("want key = value")
+var (
+	errWantKeyValue   = errors.New("want key = value")
+	errUnknownSection = errors.New("unknown section")
+	errBadBudget      = errors.New("want a positive duration such as \"60s\"")
+)
 
-const configPath = ".monaco/agents.toml"
+const (
+	configPath    = ".monaco/agents.toml"
+	budgetSection = "[check.budget]"
+	budgetPrefix  = "check.budget."
+)
+
+func defaultBudget() map[string]time.Duration {
+	return map[string]time.Duration{
+		"go": 60 * time.Second, "swift": 60 * time.Second, "scripts": 30 * time.Second,
+		"python": 15 * time.Second, "shell": 10 * time.Second,
+	}
+}
 
 type Config struct {
 	Repo                 string
@@ -24,10 +40,12 @@ type Config struct {
 	VerifierApp          string
 	VerifierInstallation int
 	Milestone            string
+	Budget               map[string]time.Duration
 }
 
 func parseConfig(r io.Reader) (Config, error) {
-	var c Config
+	c := Config{Budget: defaultBudget()}
+	section := ""
 	seen := map[string]bool{}
 	strs := map[string]*string{
 		"repo": &c.Repo, "feature_branch": &c.FeatureBranch, "verifier_app": &c.VerifierApp,
@@ -38,7 +56,7 @@ func parseConfig(r io.Reader) (Config, error) {
 	}
 	sc := bufio.NewScanner(r)
 	for n := 1; sc.Scan(); n++ {
-		if err := applyConfigLine(seen, strs, ints, n, sc.Text()); err != nil {
+		if err := applyConfigLine(&c, &section, seen, strs, ints, n, sc.Text()); err != nil {
 			return Config{}, err
 		}
 	}
@@ -60,14 +78,27 @@ func parseConfig(r io.Reader) (Config, error) {
 	return c, nil
 }
 
-func applyConfigLine(seen map[string]bool, strs map[string]*string, ints map[string]*int, n int, text string) error {
+func applyConfigLine(
+	c *Config, section *string, seen map[string]bool, strs map[string]*string, ints map[string]*int, n int, text string,
+) error {
 	line := strings.TrimSpace(text)
 	if line == "" || strings.HasPrefix(line, "#") {
 		return nil
 	}
 	key, raw, ok := strings.Cut(line, "=")
-	key, raw = strings.TrimSpace(key), strings.TrimSpace(raw)
-	err := assignConfig(strs, ints, key, raw, ok)
+	key, raw = *section+strings.TrimSpace(key), strings.TrimSpace(raw)
+	var err error
+	switch {
+	case line == budgetSection:
+		*section = budgetPrefix
+		return nil
+	case strings.HasPrefix(line, "["):
+		err = fmt.Errorf("%w %s", errUnknownSection, line)
+	case strings.HasPrefix(key, budgetPrefix):
+		err = assignBudget(c.Budget, strings.TrimPrefix(key, budgetPrefix), raw, ok)
+	default:
+		err = assignConfig(strs, ints, key, raw, ok)
+	}
 	if err != nil {
 		return detailErr(
 			errs.CodeDecodeFailed,
@@ -100,6 +131,22 @@ func assignConfig(strs map[string]*string, ints map[string]*int, key, raw string
 	default:
 		return unknownKeyError{key: key}
 	}
+}
+
+func assignBudget(budget map[string]time.Duration, kind, raw string, ok bool) error {
+	if _, known := budget[kind]; !known || !ok {
+		return assignConfig(nil, nil, budgetPrefix+kind, raw, ok)
+	}
+	v, err := strconv.Unquote(raw)
+	if err != nil {
+		return fmt.Errorf("quote: %w", err)
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		return fmt.Errorf("budget %s: %w, got %q", kind, errBadBudget, v)
+	}
+	budget[kind] = d
+	return nil
 }
 
 type unknownKeyError struct{ key string }

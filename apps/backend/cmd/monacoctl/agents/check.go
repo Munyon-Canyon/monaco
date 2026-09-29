@@ -14,7 +14,9 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,8 +24,8 @@ import (
 )
 
 const (
-	checkBudget  = 60 * time.Second
 	excerptLines = 8
+	openAPISpec  = "apps/backend/api/openapi.yaml"
 )
 
 var (
@@ -33,6 +35,7 @@ var (
 
 type checkRow struct {
 	label  string
+	kind   string
 	dir    string
 	cmds   [][]string
 	goJSON bool
@@ -137,9 +140,11 @@ func (env *Env) stage0(ctx context.Context, base string) ([]checkRow, error) {
 	}
 	rows = append(rows, env.shellRows(changed)...)
 	rows = append(rows, env.testFileRows(changed)...)
-	if slices.ContainsFunc(changed, func(f string) bool { return strings.HasPrefix(f, "packages/mobile-core/") }) {
+	if slices.ContainsFunc(changed, func(f string) bool {
+		return strings.HasPrefix(f, "packages/mobile-core/") || f == openAPISpec
+	}) {
 		rows = append(rows, checkRow{
-			label: "swift test", dir: filepath.Join(env.Work, "packages", "mobile-core"),
+			label: "swift test", kind: "swift", dir: filepath.Join(env.Work, "packages", "mobile-core"),
 			cmds: [][]string{{"swift", "test"}},
 		})
 	}
@@ -157,17 +162,30 @@ func (env *Env) goRows(ctx context.Context, base string) ([]checkRow, error) {
 	if len(pkgs) == 0 {
 		return nil, nil
 	}
+	records, err := env.records()
+	if err != nil {
+		return nil, err
+	}
+	running := len(slices.DeleteFunc(records, func(r Record) bool { return r.State == Exited }))
+	p := strconv.Itoa(testParallelism(runtime.NumCPU(), running))
+	tags := []string{"-tags", "faultpoints"}
 	return []checkRow{
 		{
-			label: "go build", dir: backend,
-			cmds: [][]string{append([]string{"go", "build"}, buildable(backend, pkgs)...)},
+			label: "go build", kind: "go", dir: backend,
+			cmds: [][]string{slices.Concat([]string{"go", "build"}, tags, buildable(backend, pkgs))},
 		},
-		{label: "go vet", dir: backend, cmds: [][]string{append([]string{"go", "vet"}, pkgs...)}},
+		{label: "go vet", kind: "go", dir: backend, cmds: [][]string{slices.Concat([]string{"go", "vet"}, tags, pkgs)}},
 		{
-			label: "go test -short", dir: backend, goJSON: true,
-			cmds: [][]string{append([]string{"go", "test", "-short", "-count=1", "-json"}, pkgs...)},
+			label: "go test -short", kind: "go", dir: backend, goJSON: true,
+			cmds: [][]string{slices.Concat(
+				[]string{"go", "test"}, tags, []string{"-short", "-count=1", "-p", p, "-json"}, pkgs,
+			)},
 		},
 	}, nil
+}
+
+func testParallelism(cpus, running int) int {
+	return max(2, cpus/max(1, running))
 }
 
 func buildable(backend string, pkgs []string) []string {
@@ -189,11 +207,16 @@ func (env *Env) shellRows(changed []string) []checkRow {
 	if len(scripts) == 0 {
 		return nil
 	}
-	syntax := checkRow{label: "bash -n", dir: env.Work}
+	syntax := checkRow{label: "bash -n", kind: "shell", dir: env.Work}
 	for _, s := range scripts {
 		syntax.cmds = append(syntax.cmds, []string{"bash", "-n", s})
 	}
-	lint := checkRow{label: "shellcheck", dir: env.Work, cmds: [][]string{append([]string{"shellcheck"}, scripts...)}}
+	lint := checkRow{
+		label: "shellcheck",
+		kind:  "shell",
+		dir:   env.Work,
+		cmds:  [][]string{append([]string{"shellcheck"}, scripts...)},
+	}
 	return []checkRow{syntax, lint}
 }
 
@@ -214,7 +237,7 @@ func (env *Env) testFileRows(changed []string) []checkRow {
 	goTests, pyTests := env.affectedTests(changed)
 	var rows []checkRow
 	if len(goTests) > 0 {
-		row := checkRow{label: "scripts tests", dir: filepath.Join(env.Work, "scripts")}
+		row := checkRow{label: "scripts tests", kind: "scripts", dir: filepath.Join(env.Work, "scripts")}
 		for _, pkg := range slices.Sorted(maps.Keys(goTests)) {
 			run := "^(" + strings.Join(goTests[pkg], "|") + ")$"
 			row.cmds = append(
@@ -226,7 +249,7 @@ func (env *Env) testFileRows(changed []string) []checkRow {
 	}
 	if len(pyTests) > 0 {
 		rows = append(rows, checkRow{
-			label: "python tests", dir: env.Work,
+			label: "python tests", kind: "python", dir: env.Work,
 			cmds: [][]string{append([]string{"python3", "-m", "unittest"}, pyTests...)},
 		})
 	}
@@ -264,25 +287,33 @@ func (env *Env) affectedTests(changed []string) (goTests map[string][]string, py
 }
 
 func (r *checkRun) rows(ctx context.Context, rows []checkRow, stdout io.Writer) error {
-	ctx, cancel := context.WithTimeout(ctx, checkBudget)
-	defer cancel()
 	for _, row := range rows {
-		rowStart := r.env.Now()
-		for _, cmd := range row.cmds {
-			text, err := r.exec(ctx, row, cmd)
-			if r.env.Now().Sub(r.start) > checkBudget {
-				return r.overBudget(stdout, row)
-			}
-			if err != nil {
-				_, _ = fmt.Fprintf(stdout, "  %-15s FAIL  %s\n", row.label, strings.Join(cmd, " "))
-				for _, line := range excerpt(text + "\n" + err.Error()) {
-					_, _ = fmt.Fprintf(stdout, "    %s\n", line)
-				}
-				return detailErr(errs.CodeInvalidInput, "monacoctl.agents.check", row.label+" failed; see the log")
-			}
+		if err := r.row(ctx, row, stdout); err != nil {
+			return err
 		}
-		_, _ = fmt.Fprintf(stdout, "  %-15s ok    %.1fs\n", row.label, r.env.Now().Sub(rowStart).Seconds())
 	}
+	return nil
+}
+
+func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) error {
+	budget := r.env.Config.Budget[row.kind]
+	ctx, cancel := context.WithTimeout(ctx, budget)
+	defer cancel()
+	rowStart, first := r.env.Now(), len(r.timings)
+	for _, cmd := range row.cmds {
+		text, err := r.exec(ctx, row, cmd)
+		if r.env.Now().Sub(rowStart) > budget {
+			return r.overBudget(stdout, row, budget, rowStart, r.timings[first:])
+		}
+		if err != nil {
+			_, _ = fmt.Fprintf(stdout, "  %-15s FAIL  %s\n", row.label, strings.Join(cmd, " "))
+			for _, line := range excerpt(text + "\n" + err.Error()) {
+				_, _ = fmt.Fprintf(stdout, "    %s\n", line)
+			}
+			return detailErr(errs.CodeInvalidInput, "monacoctl.agents.check", row.label+" failed; see the log")
+		}
+	}
+	_, _ = fmt.Fprintf(stdout, "  %-15s ok    %.1fs\n", row.label, r.env.Now().Sub(rowStart).Seconds())
 	return nil
 }
 
@@ -291,13 +322,14 @@ func (r *checkRun) exec(ctx context.Context, row checkRow, cmd []string) (string
 	_, _ = fmt.Fprintf(&r.log, "$ (cd %s && %s)\n", row.dir, strings.Join(cmd, " "))
 	out, err := r.env.Run(ctx, row.dir, "", cmd[0], cmd[1:]...)
 	text := string(out)
+	var timings []timing
 	if row.goJSON {
-		var timings []timing
 		text, timings = goTestTimings(out, r.env.Now())
-		r.timings = append(r.timings, timings...)
-	} else {
-		r.timings = append(r.timings, timing{cmdName(row, cmd), r.env.Now().Sub(start)})
 	}
+	if len(timings) == 0 {
+		timings = []timing{{cmdName(row, cmd), r.env.Now().Sub(start)}}
+	}
+	r.timings = append(r.timings, timings...)
 	r.log.WriteString(text)
 	if err != nil {
 		_, _ = fmt.Fprintf(&r.log, "%v\n", err)
@@ -305,12 +337,14 @@ func (r *checkRun) exec(ctx context.Context, row checkRow, cmd []string) (string
 	return text, err
 }
 
-func (r *checkRun) overBudget(stdout io.Writer, row checkRow) error {
-	slowest := slices.MaxFunc(r.timings, func(a, b timing) int { return cmp.Compare(a.took, b.took) })
+func (r *checkRun) overBudget(
+	stdout io.Writer, row checkRow, budget time.Duration, rowStart time.Time, timings []timing,
+) error {
+	slowest := slices.MaxFunc(timings, func(a, b timing) int { return cmp.Compare(a.took, b.took) })
 	_, _ = fmt.Fprintf(stdout, "  %-15s over budget\n", row.label)
 	return detailErr(errs.CodeUpstreamTimeout, "monacoctl.agents.check", fmt.Sprintf(
-		"over the %s budget after %.0fs; slowest: %s (%.1fs)",
-		checkBudget, r.env.Now().Sub(r.start).Seconds(), slowest.name, slowest.took.Seconds()))
+		"%s row over the %s %s budget after %.0fs; slowest: %s (%.1fs)",
+		row.label, budget, row.kind, r.env.Now().Sub(rowStart).Seconds(), slowest.name, slowest.took.Seconds()))
 }
 
 func cmdName(row checkRow, cmd []string) string {
