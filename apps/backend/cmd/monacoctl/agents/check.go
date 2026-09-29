@@ -169,12 +169,17 @@ func (env *Env) goRows(ctx context.Context, base string) ([]checkRow, error) {
 	running := len(slices.DeleteFunc(records, func(r Record) bool { return r.State == Exited }))
 	p := strconv.Itoa(testParallelism(runtime.NumCPU(), running))
 	tags := []string{"-tags", "faultpoints"}
+	lint, err := env.lintRow(ctx, backend, pkgs)
+	if err != nil {
+		return nil, err
+	}
 	return []checkRow{
 		{
 			label: "go build", kind: "go", dir: backend,
 			cmds: [][]string{slices.Concat([]string{"go", "build"}, tags, buildable(backend, pkgs))},
 		},
 		{label: "go vet", kind: "go", dir: backend, cmds: [][]string{slices.Concat([]string{"go", "vet"}, tags, pkgs)}},
+		lint,
 		{
 			label: "go test -short", kind: "go", dir: backend, goJSON: true,
 			cmds: [][]string{slices.Concat(
@@ -182,6 +187,29 @@ func (env *Env) goRows(ctx context.Context, base string) ([]checkRow, error) {
 			)},
 		},
 	}, nil
+}
+
+func (env *Env) lintRow(ctx context.Context, backend string, pkgs []string) (checkRow, error) {
+	pin, err := os.ReadFile(filepath.Join(backend, ".golangci-lint-version"))
+	if err != nil {
+		return checkRow{}, fmt.Errorf("read the golangci-lint pin: %w", err)
+	}
+	want := strings.TrimSpace(string(pin))
+	out, err := env.Run(ctx, backend, "", "golangci-lint", "version", "--short")
+	have := "v" + strings.TrimPrefix(strings.TrimSpace(string(out)), "v")
+	if err != nil {
+		have = "none"
+	}
+	if have != want {
+		install := "go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@" + want
+		return checkRow{}, detailErr(errs.CodeInvalidInput, "monacoctl.agents.check",
+			fmt.Sprintf("golangci-lint on PATH is %s and CI pins %s; run: %s", have, want, install))
+	}
+	return checkRow{label: "go lint", kind: "lint", dir: backend, cmds: [][]string{
+		slices.Concat([]string{"golangci-lint", "run"}, pkgs),
+		slices.Concat([]string{"go", "run", "./internal/platform/lint/nogo/cmd/nogo"}, pkgs),
+		{"go", "run", "./cmd/monacoctl", "lint", "comments"},
+	}}, nil
 }
 
 func testParallelism(cpus, running int) int {

@@ -26,7 +26,7 @@ const (
 
 func defaultBudget() map[string]time.Duration {
 	return map[string]time.Duration{
-		"go": 60 * time.Second, "swift": 60 * time.Second, "scripts": 30 * time.Second,
+		"go": 60 * time.Second, "lint": 60 * time.Second, "swift": 60 * time.Second, "scripts": 30 * time.Second,
 		"python": 15 * time.Second, "shell": 10 * time.Second,
 	}
 }

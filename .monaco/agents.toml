@@ -9,9 +9,10 @@ verifier_installation = 166018497
 milestone = "m7-rest"
 
 # agents check gives each row its own budget; the run as a whole has no cap. The go budget applies to
-# each Go row (build, vet, test -short) separately.
+# each Go row (build, vet, test -short) separately; lint covers golangci-lint, nogo and the comment lint.
 [check.budget]
 go = "60s"
+lint = "60s"
 swift = "60s"
 scripts = "30s"
 python = "15s"

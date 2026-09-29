@@ -26,6 +26,7 @@ type checkHarness struct {
 	*fixture
 	clock       time.Time
 	work        string
+	lint        string
 	calls       []string
 	affected    string
 	affectedErr error
@@ -40,8 +41,9 @@ func newCheckHarness(t *testing.T) *checkHarness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &checkHarness{fixture: f, clock: f.now, work: work}
+	h := &checkHarness{fixture: f, clock: f.now, work: work, lint: "2.14.0\n"}
 	f.run = h.run
+	h.base(t, map[string]string{"apps/backend/.golangci-lint-version": "v2.14.0\n"})
 	return h
 }
 
@@ -67,6 +69,9 @@ func (h *checkHarness) run(ctx context.Context, dir, stdin, name string, args ..
 			h.clock = h.clock.Add(r.took)
 			return []byte(r.out), r.err
 		}
+	}
+	if line == "golangci-lint version --short" {
+		return []byte(h.lint), nil
 	}
 	h.clock = h.clock.Add(time.Second)
 	return nil, nil
@@ -143,8 +148,12 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	}
 	want := []string{
 		"apps/backend: ci affected --base origin/fb",
+		"apps/backend: golangci-lint version --short",
 		"apps/backend: go build -tags faultpoints ./internal/x ./cmd/api",
 		"apps/backend: go vet -tags faultpoints ./internal/x ./internal/t ./cmd/api",
+		"apps/backend: golangci-lint run ./internal/x ./internal/t ./cmd/api",
+		"apps/backend: go run ./internal/platform/lint/nogo/cmd/nogo ./internal/x ./internal/t ./cmd/api",
+		"apps/backend: go run ./cmd/monacoctl lint comments",
 		"apps/backend: go test -tags faultpoints -short -count=1 -p " + strconv.Itoa(max(2, runtime.NumCPU())) +
 			" -json ./internal/x ./internal/t ./cmd/api",
 		".: bash -n scripts/foo.sh",
@@ -198,7 +207,7 @@ func TestCheck_overBudgetExitsOneNamingTheSlowestPackageAndRecordsNothing(t *tes
 	}}
 
 	code, stdout, stderr := h.check(t, "--base", "fb")
-	want := "go test -short row over the 1m0s go budget after 75s; slowest: ./internal/slow (74.0s)"
+	want := "go test -short row over the 1m0s go budget after 75s; slowest: ./internal/slow (77.0s)"
 	if code != 1 || !strings.Contains(stderr, want) {
 		t.Fatalf("over budget: %d %q %q", code, stdout, stderr)
 	}
@@ -320,6 +329,55 @@ func TestCheck_refusesBadInputAndReportsItsOwnFailures(t *testing.T) {
 	}
 	if code, stdout, stderr := h.check(t); code != 0 || strings.Contains(stdout, "  go") {
 		t.Fatalf("no affected packages runs no go rows: %d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestCheck_refusesAGolangciLintThatDiffersFromThePin(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.affected = "./internal/a\n"
+	for have, want := range map[string]string{"v2.13.1\n": "v2.13.1", "": "v"} {
+		h.lint = have
+		code, _, stderr := h.check(t)
+		if code != 1 ||
+			!strings.Contains(stderr, "golangci-lint on PATH is "+want+" and CI pins v2.14.0; run: go install") {
+			t.Fatalf("%q: %d %q", have, code, stderr)
+		}
+	}
+	h.replies = []reply{{prefix: "golangci-lint version", err: errors.New("not found")}}
+	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "is none and CI pins v2.14.0") {
+		t.Fatalf("missing: %d %q", code, stderr)
+	}
+	if slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, "go build") }) {
+		t.Fatalf("ran a row with the wrong golangci-lint: %v", h.calls)
+	}
+	git(t, h.dir, "rm", "-q", "apps/backend/.golangci-lint-version")
+	git(t, h.dir, "commit", "-q", "-m", "unpin")
+	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "read the golangci-lint pin") {
+		t.Fatalf("no pin: %d %q", code, stderr)
+	}
+}
+
+func TestCheck_mirroredCommandsStillMatchTheirWorkflows(t *testing.T) {
+	t.Parallel()
+	for file, steps := range map[string][]string{
+		"ci-jobs.yml": {
+			"version=$(cat .golangci-lint-version)",
+			"args: ./...",
+			"go run ./internal/platform/lint/nogo/cmd/nogo ./...",
+			"go run ./cmd/monacoctl lint comments",
+		},
+	} {
+		body, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "..", ".github", "workflows", file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, step := range steps {
+			if !strings.Contains(string(body), step) {
+				t.Errorf("%s no longer runs %q; make agents check run what CI runs", file, step)
+			}
+		}
 	}
 }
 
