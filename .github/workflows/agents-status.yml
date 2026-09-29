@@ -1,0 +1,60 @@
+name: Agents status
+
+# Rewrites the tracking issue's status comment, so the operator reads it instead of asking.
+# batch.json lives under .git/pstack/ on the root's machine, so CI reads the batch the root last embedded in that comment.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, closed, enqueued, dequeued]
+  merge_group:
+  push:
+    branches: ['backend-rewrite*']
+  # GitHub runs schedules from the default branch's copy of this file.
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: agents-status
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  checks: read
+  statuses: read
+  pull-requests: read
+  issues: write
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'schedule' && vars.FEATURE_BRANCH || '' }}
+
+      - name: Skip a scheduled run once every batch ticket merged
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tracking=$(sed -n 's/^tracking = //p' .monaco/agents.toml)
+          if [ "$GITHUB_EVENT_NAME" != schedule ] ||
+            gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$tracking/comments" \
+              --jq '.[].body | select(contains("<!-- monacoctl agents status -->"))' |
+            grep -qF '<!-- monacoctl agents active batch -->'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-go@v5
+        if: steps.gate.outputs.run == 'true'
+        with:
+          go-version-file: apps/backend/go.mod
+          cache-dependency-path: apps/backend/go.sum
+
+      - name: Publish the status comment
+        if: steps.gate.outputs.run == 'true'
+        working-directory: apps/backend
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: go run ./cmd/monacoctl agents status --publish

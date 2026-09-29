@@ -224,7 +224,7 @@ func TestStatus_publishesAndSkipsAnUnchangedComment(t *testing.T) {
 	f.hub.on(list("/pulls?state=open"), []PR{headed(5, sha)})
 	f.hub.on(
 		"GET /repos/o/r/commits/"+sha+"/check-runs?per_page=100",
-		`{"check_runs":[{"name":"ci","conclusion":"success"},{"name":"ci-ok","status":"queued"}]}`,
+		`{"check_runs":[{"name":"ci","conclusion":"success"},{"name":"ci / ci-ok","status":"queued"}]}`,
 	)
 	f.hub.on(
 		list("/commits/"+sha+"/statuses?"),

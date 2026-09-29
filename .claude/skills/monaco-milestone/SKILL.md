@@ -15,8 +15,10 @@ Run the command named for the step.
 | verdict | `monacoctl agents verdict` |
 | merging | `gh pr merge --auto --squash` into the feature branch |
 | watching | `monacoctl agents watch` |
-| status | `monacoctl agents status` |
+| status | `monacoctl agents status --publish`, after each batch and dispatch |
 | timeline | `monacoctl agents timeline` |
 | checkpoint | the integration label |
 
 A dispatch prompt carries only the ticket number, the worktree, the parent SHA, and the brief path (`docs/agents/owner.md` or `docs/agents/verifier.md`).
+
+The status comment on the tracking issue carries the batch, so CI keeps it current.
