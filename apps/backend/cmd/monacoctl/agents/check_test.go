@@ -31,9 +31,7 @@ type checkHarness struct {
 
 func newCheckHarness(t *testing.T) *checkHarness {
 	t.Helper()
-	f := newFixture(t)
-	git(t, f.dir, "commit", "-q", "--allow-empty", "-m", "root")
-	git(t, f.dir, "branch", "fb")
+	f := newFixtureFrom(t, rootedRepo)
 	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "fb")
 	work, err := filepath.EvalSymlinks(f.dir)
 	if err != nil {
@@ -75,7 +73,7 @@ func (h *checkHarness) check(t *testing.T, args ...string) (int, string, string)
 	t.Helper()
 	var stdout, stderr bytes.Buffer
 	code := runCLI(
-		context.Background(), h.env, h.dir, h.run, append([]string{"check"}, args...), &stdout, &stderr,
+		context.Background(), h.env, h.dir, h.cached(h.run), append([]string{"check"}, args...), &stdout, &stderr,
 		func() time.Time { return h.clock },
 	)
 	return code, stdout.String(), stderr.String()

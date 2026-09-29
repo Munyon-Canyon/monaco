@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -90,25 +91,91 @@ func list(path string) string {
 func get(path string) string { return "GET /repos/" + testRepo + path }
 
 type fixture struct {
-	dir  string
-	hub  *hub
-	env  []string
-	run  Runner
-	now  time.Time
-	home string
+	dir    string
+	hub    *hub
+	env    []string
+	run    Runner
+	now    time.Time
+	home   string
+	repo   string
+	lookup []byte
+}
+
+type repoSnapshot struct {
+	dirs  []string
+	files map[string][]byte
+}
+
+const repoLookup = "rev-parse --path-format=absolute --show-toplevel --git-common-dir"
+
+func gitArgs(args ...string) []string {
+	return append([]string{"-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"}, args...)
+}
+
+func snapshotRepo(steps ...[]string) (repoSnapshot, error) {
+	snap := repoSnapshot{files: map[string][]byte{}}
+	dir, err := os.MkdirTemp("", "agents-repo")
+	if err != nil {
+		return snap, err
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+	for _, step := range append([][]string{{"init", "-q", "-b", "main"}}, steps...) {
+		if _, err := Exec(context.Background(), dir, "", "git", gitArgs(step...)...); err != nil {
+			return snap, err
+		}
+	}
+	err = fs.WalkDir(os.DirFS(dir), ".git", func(path string, d fs.DirEntry, err error) error {
+		switch {
+		case err != nil:
+			return err
+		case d.IsDir():
+			snap.dirs = append(snap.dirs, path)
+			return nil
+		default:
+			snap.files[path], err = os.ReadFile(filepath.Join(dir, path))
+			return err
+		}
+	})
+	return snap, err
 }
 
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
+	return newFixtureFrom(t, emptyRepo)
+}
+
+func newFixtureFrom(t *testing.T, snap repoSnapshot) *fixture {
+	t.Helper()
 	dir := t.TempDir()
 	home := t.TempDir()
-	git(t, dir, "init", "-q", "-b", "main")
+	for _, sub := range snap.dirs {
+		if err := os.MkdirAll(filepath.Join(dir, sub), 0o750); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for path, b := range snap.files {
+		writeFile(t, filepath.Join(dir, path), string(b))
+	}
+	top, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	writeFile(t, filepath.Join(dir, configPath), testConfig)
 	h, srv := newHub(t)
 	return &fixture{
 		dir: dir, hub: h, home: home,
 		env: []string{"MONACO_GITHUB_API=" + srv.URL, "GH_TOKEN=tok", "HOME=" + home},
 		run: hostless, now: time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC),
+		repo: dir, lookup: []byte(top + "\n" + filepath.Join(top, ".git") + "\n"),
+	}
+}
+
+func (f *fixture) cached(run Runner) Runner {
+	return func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
+		if name == "git" && dir == f.repo && strings.Join(args, " ") == repoLookup {
+			return f.lookup, nil
+		}
+		return run(ctx, dir, stdin, name, args...)
 	}
 }
 
@@ -123,7 +190,7 @@ func (f *fixture) agents(t *testing.T, args ...string) (int, string, string) {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
 	code := runCLI(
-		context.Background(), f.env, f.dir, f.run, args, &stdout, &stderr,
+		context.Background(), f.env, f.dir, f.cached(f.run), args, &stdout, &stderr,
 		func() time.Time { return f.now },
 	)
 	return code, stdout.String(), stderr.String()
@@ -131,7 +198,7 @@ func (f *fixture) agents(t *testing.T, args ...string) (int, string, string) {
 
 func (f *fixture) Env(t *testing.T) *Env {
 	t.Helper()
-	env, err := load(context.Background(), f.env, f.dir, f.run)
+	env, err := load(context.Background(), f.env, f.dir, f.cached(f.run))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,8 +209,7 @@ func (f *fixture) Env(t *testing.T) *Env {
 
 func git(t *testing.T, dir string, args ...string) {
 	t.Helper()
-	full := append([]string{"-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"}, args...)
-	cmd := exec.CommandContext(t.Context(), "git", full...)
+	cmd := exec.CommandContext(t.Context(), "git", gitArgs(args...)...)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {

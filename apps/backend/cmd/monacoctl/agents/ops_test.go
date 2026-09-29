@@ -330,10 +330,7 @@ func (f *fixture) watchGit(branch, stamp, alive string) {
 
 func prepBranch(t *testing.T) *fixture {
 	t.Helper()
-	f := newFixture(t)
-	git(t, f.dir, "commit", "-q", "--allow-empty", "-m", "root")
-	git(t, f.dir, "branch", "fb")
-	return f
+	return newFixtureFrom(t, rootedRepo)
 }
 
 func (f *fixture) head(t *testing.T) string {
