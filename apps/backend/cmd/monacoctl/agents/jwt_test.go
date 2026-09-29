@@ -32,7 +32,7 @@ func TestSignJWT_rejectsAKeyShorterThanTheDigest(t *testing.T) {
 	writeFile(t, path, pemBlock("RSA PRIVATE KEY", der))
 	sha := strings.Repeat("f", 40)
 	f.owner(t, Record{Ticket: 40, Model: opus, State: Running})
-	head := pr(5, "h", "fb", "Part of #40")
+	head := pr(5, "h", "fb-checkpoint-1", "Part of #40")
 	head.Head.SHA = sha
 	f.hub.on(get("/pulls/5"), head)
 	f.hub.on(list("/pulls/5/files?"), []File{{Filename: "a.go", Additions: 1}})

@@ -159,7 +159,7 @@ func TestLandStack_refusesNamingEveryPRItWaitsOnAndChangesNothing(t *testing.T) 
 	t.Parallel()
 	f := newFixture(t)
 	s := newStackGH(t, f,
-		stackOf(t, 1, "b1", "fb", "SUCCESS", "FAILURE"),
+		stackOf(t, 1, "b1", "fb-checkpoint-1", "SUCCESS", "FAILURE"),
 		stackOf(t, 2, "b2", "b1", "SUCCESS", ""),
 		stackOf(t, 3, "b3", "b2", "pending", "SUCCESS"),
 		stackOf(t, 4, "b4", "b3", "", "PENDING"),
@@ -185,8 +185,8 @@ func TestLandStack_pointsTheStackAtTheFeatureBranchSetsTheBodyAndQueuesOnlyTheTo
 	top := green(t, 3, "b3", "b2")
 	top.Body = "Lands stack: #9\n\nPart of #40\n\n## TLDR\nx"
 	s := newStackGH(t, f,
-		green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"), top,
-		green(t, 7, "other", "fb"), green(t, 8, "above-other", "other"),
+		green(t, 1, "b1", "fb-checkpoint-1"), green(t, 2, "b2", "b1"), top,
+		green(t, 7, "other", "fb-checkpoint-1"), green(t, 8, "above-other", "other"),
 	)
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
 	code, stdout, stderr := f.agents(t, "land-stack", "3")
@@ -194,8 +194,8 @@ func TestLandStack_pointsTheStackAtTheFeatureBranchSetsTheBodyAndQueuesOnlyTheTo
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	want := []string{
-		"gh pr edit 2 --base fb -R o/r",
-		"gh pr edit 3 --base fb -R o/r",
+		"gh pr edit 2 --base fb-checkpoint-1 -R o/r",
+		"gh pr edit 3 --base fb-checkpoint-1 -R o/r",
 		"gh pr edit 3 --body-file - -R o/r",
 		"gh pr merge 3 --auto -R o/r",
 	}
@@ -254,7 +254,7 @@ func TestLandStack_readsEveryCheckAndTheNewestRunOfEach(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			f := newFixture(t)
-			paged := pagedStack(t, 1, "b1", "fb", ciOK("FAILURE", 1), ciOK("SUCCESS", 2))
+			paged := pagedStack(t, 1, "b1", "fb-checkpoint-1", ciOK("FAILURE", 1), ciOK("SUCCESS", 2))
 			s := newStackGH(t, f, paged, green(t, 2, "b2", "b1"))
 			s.pages = map[string]string{"b1": tc.rest}
 			f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
@@ -271,15 +271,15 @@ func TestLandStack_failsWhenPagingChecksFails(t *testing.T) {
 		name, lost string
 		other      func(t *testing.T) *stackPR
 	}{
-		{"the top's checks", "b1", func(t *testing.T) *stackPR { t.Helper(); return green(t, 7, "b7", "fb") }},
-		{"another open PR's checks", "b7", func(t *testing.T) *stackPR { t.Helper(); return pagedStack(t, 7, "b7", "fb") }},
+		{"the top's checks", "b1", func(t *testing.T) *stackPR { t.Helper(); return green(t, 7, "b7", "fb-checkpoint-1") }},
+		{"another open PR's checks", "b7", func(t *testing.T) *stackPR { t.Helper(); return pagedStack(t, 7, "b7", "fb-checkpoint-1") }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			f := newFixture(t)
-			top := pagedStack(t, 1, "b1", "fb")
+			top := pagedStack(t, 1, "b1", "fb-checkpoint-1")
 			if tc.lost == "b7" {
-				top = green(t, 1, "b1", "fb")
+				top = green(t, 1, "b1", "fb-checkpoint-1")
 			}
 			s := newStackGH(t, f, top, tc.other(t))
 			s.pages = map[string]string{tc.lost: `{"data":{"repository":{"c0":null}}}`}
@@ -295,7 +295,7 @@ func TestLandStack_failsWhenPagingChecksFails(t *testing.T) {
 func TestLandStack_aSinglePRSkipsTheBaseEdits(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	s := newStackGH(t, f, green(t, 5, "b5", "fb"))
+	s := newStackGH(t, f, green(t, 5, "b5", "fb-checkpoint-1"))
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40"})
 	if code, stdout, stderr := f.agents(t, "land-stack", "5"); code != 0 || stdout != "queued #5. Lands stack: #5\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
@@ -360,10 +360,10 @@ func TestLandStack_settlesTheQueuedStack(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			f := newFixture(t)
-			merged, top := green(t, 1, "b1", "fb"), green(t, 3, "b3", "fb")
+			merged, top := green(t, 1, "b1", "fb-checkpoint-1"), green(t, 3, "b3", "fb-checkpoint-1")
 			merged.State = "MERGED"
 			tt.top(top)
-			s := newStackGH(t, f, merged, green(t, 2, "b2", "fb"), top)
+			s := newStackGH(t, f, merged, green(t, 2, "b2", "fb-checkpoint-1"), top)
 			wt := t.TempDir()
 			if tt.gone {
 				wt = filepath.Join(wt, "gone")
@@ -392,7 +392,7 @@ func TestLandStack_failures(t *testing.T) {
 	t.Parallel()
 	stack := func(t *testing.T) []*stackPR {
 		t.Helper()
-		return []*stackPR{green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1")}
+		return []*stackPR{green(t, 1, "b1", "fb-checkpoint-1"), green(t, 2, "b2", "b1")}
 	}
 	for _, tt := range []struct {
 		name   string
@@ -413,7 +413,7 @@ func TestLandStack_failures(t *testing.T) {
 			name: "no ticket", args: []string{"2"}, code: 1, stderr: `#2 links no ticket`,
 			prs: func(t *testing.T) []*stackPR {
 				t.Helper()
-				p := green(t, 2, "b2", "fb")
+				p := green(t, 2, "b2", "fb-checkpoint-1")
 				p.Body = "## TLDR"
 				return []*stackPR{p}
 			},
@@ -427,13 +427,13 @@ func TestLandStack_failures(t *testing.T) {
 			name: "top not open", args: []string{"2"}, code: 1, stderr: "#2 is not an open PR",
 			prs: func(t *testing.T) []*stackPR {
 				t.Helper()
-				p := green(t, 2, "b2", "fb")
+				p := green(t, 2, "b2", "fb-checkpoint-1")
 				p.State = "MERGED"
 				return []*stackPR{p}
 			},
 		},
 		{
-			name: "orphan base", args: []string{"2"}, code: 1, stderr: "#2's base gone is neither fb nor an open PR",
+			name: "orphan base", args: []string{"2"}, code: 1, stderr: "#2's base gone is neither fb-checkpoint-1 nor an open PR",
 			prs: func(t *testing.T) []*stackPR {
 				t.Helper()
 				t.Helper()
@@ -441,7 +441,7 @@ func TestLandStack_failures(t *testing.T) {
 			},
 		},
 		{
-			name: "base cycle", args: []string{"2"}, code: 1, stderr: "is neither fb nor an open PR",
+			name: "base cycle", args: []string{"2"}, code: 1, stderr: "is neither fb-checkpoint-1 nor an open PR",
 			prs: func(t *testing.T) []*stackPR {
 				t.Helper()
 				return []*stackPR{green(t, 1, "b1", "b2"), green(t, 2, "b2", "b1")}
@@ -482,9 +482,9 @@ func TestLandStack_settleFailures(t *testing.T) {
 		t.Run(fail, func(t *testing.T) {
 			t.Parallel()
 			f := newFixture(t)
-			top := green(t, 2, "b2", "fb")
+			top := green(t, 2, "b2", "fb-checkpoint-1")
 			top.State = "MERGED"
-			s := newStackGH(t, f, green(t, 1, "b1", "fb"), top)
+			s := newStackGH(t, f, green(t, 1, "b1", "fb-checkpoint-1"), top)
 			s.fail = fail
 			f.owner(t, Record{Ticket: 40, Worktree: t.TempDir(), Queued: &Queue{Top: 2, PRs: []int{1, 2}}})
 			if code, _, stderr := f.agents(
@@ -503,7 +503,7 @@ func TestLandStack_settleFailures(t *testing.T) {
 	t.Run("queued PR vanished", func(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t)
-		top := green(t, 2, "b2", "fb")
+		top := green(t, 2, "b2", "fb-checkpoint-1")
 		top.State = "MERGED"
 		newStackGH(t, f, top)
 		f.owner(t, Record{Ticket: 40, Queued: &Queue{Top: 2, PRs: []int{1, 2}}})
@@ -516,7 +516,7 @@ func TestLandStack_settleFailures(t *testing.T) {
 func TestLandStack_unwritableRecordFailsAfterQueueing(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	newStackGH(t, f, green(t, 5, "b5", "fb"))
+	newStackGH(t, f, green(t, 5, "b5", "fb-checkpoint-1"))
 	f.owner(t, Record{Ticket: 40})
 	path := f.Env(t).recordPath(40)
 	if err := os.Chmod(path, 0o400); err != nil {
@@ -544,9 +544,9 @@ func TestLandsBody(t *testing.T) {
 func ejectedStack(t *testing.T, f *fixture, lands string) *stackGH {
 	t.Helper()
 	top := green(t, 3, "b3", "b2")
-	top.Base = "fb"
+	top.Base = "fb-checkpoint-1"
 	top.Body = lands + "\n\nPart of #40\n\n## TLDR\nx"
-	s := newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "fb"), top)
+	s := newStackGH(t, f, green(t, 1, "b1", "fb-checkpoint-1"), green(t, 2, "b2", "fb-checkpoint-1"), top)
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done, Queued: &Queue{Top: 3, PRs: []int{1, 2, 3}}})
 	return s
 }
@@ -647,16 +647,16 @@ func TestLandStack_withoutALandsLineReadsTheStackFromGraphite(t *testing.T) {
 	}{
 		{
 			name:  "gt names the lower PRs",
-			gtLog: "◯  fb\n◯  b1\n◯  b2 (needs restack)\n◉  b3\n◯  b4\n",
+			gtLog: "◯  fb-checkpoint-1\n◯  b1\n◯  b2 (needs restack)\n◉  b3\n◯  b4\n",
 			out:   "queued #3. Lands stack: #1 #2 #3\n",
 		},
 		{
 			name:  "gt lists the trunk, whose own PR targets main",
-			gtLog: "◯  fb\n◯  b0\n◯  b1\n◉  b3\n",
+			gtLog: "◯  fb-checkpoint-1\n◯  b0\n◯  b1\n◉  b3\n",
 			out:   "queued #3. Lands stack: #1 #3\n",
 		},
-		{name: "gt names only the top", gtLog: "◯  fb\n◉  b3\n", out: "queued #3. Lands stack: #3\n"},
-		{name: "gt is on another stack", gtLog: "◯  fb\n◯  b1\n◉  b7\n", out: "queued #3. Lands stack: #3\n"},
+		{name: "gt names only the top", gtLog: "◯  fb-checkpoint-1\n◉  b3\n", out: "queued #3. Lands stack: #3\n"},
+		{name: "gt is on another stack", gtLog: "◯  fb-checkpoint-1\n◯  b1\n◉  b7\n", out: "queued #3. Lands stack: #3\n"},
 		{
 			name: "gt fails",
 			fail: "gt log",
@@ -666,9 +666,19 @@ func TestLandStack_withoutALandsLineReadsTheStackFromGraphite(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			f := newFixture(t)
-			s := newStackGH(t, f,
-				green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"), green(t, 3, "b3", "fb"), green(t, 7, "b7", "fb"),
-				stackOf(t, 9, "fb", "main", "SUCCESS", ""),
+			s := newStackGH(
+				t,
+				f,
+				green(
+					t,
+					1,
+					"b1",
+					"fb-checkpoint-1",
+				),
+				green(t, 2, "b2", "b1"),
+				green(t, 3, "b3", "fb-checkpoint-1"),
+				green(t, 7, "b7", "fb-checkpoint-1"),
+				stackOf(t, 9, "fb-checkpoint-1", "main", "SUCCESS", ""),
 			)
 			s.gtLog, s.fail = tc.gtLog, tc.fail
 			f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
@@ -710,11 +720,11 @@ func TestLandStack_anUnwritableRecordStopsTheReland(t *testing.T) {
 func TestWatch_clearsTheQueuedMarkOfAnEjectedStack(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	queued := green(t, 5, "b5", "fb")
+	queued := green(t, 5, "b5", "fb-checkpoint-1")
 	queued.InQueue = true
-	waiting := green(t, 6, "b6", "fb")
+	waiting := green(t, 6, "b6", "fb-checkpoint-1")
 	waiting.AutoMerge = &struct{}{}
-	merged := green(t, 8, "b8", "fb")
+	merged := green(t, 8, "b8", "fb-checkpoint-1")
 	merged.State = "MERGED"
 	s := ejectedStack(t, f, "Lands stack: #1 #2 #3")
 	for _, p := range []*stackPR{queued, waiting, merged} {

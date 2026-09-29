@@ -19,7 +19,7 @@ func TestStatus_sortsPullsAndCountsTheRemainder(t *testing.T) {
 		num := n - i
 		p := headed(num, sha)
 		p.Head.Ref = "h" + strconv.Itoa(num)
-		p.Base.Ref = "fb"
+		p.Base.Ref = "fb-checkpoint-1"
 		if num != n {
 			p.Base.Ref = "h" + strconv.Itoa(num+1)
 		}

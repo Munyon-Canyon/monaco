@@ -32,7 +32,7 @@ func TestBounds_killsDispatchSurvivors(t *testing.T) {
 		}
 	}
 	var buf strings.Builder
-	err := writeRebase(&buf, pr(1, "h", "fb", ""), Record{}, false, make([]string, maxLines))
+	err := writeRebase(&buf, pr(1, "h", "fb-checkpoint-1", ""), Record{}, false, make([]string, maxLines))
 	if err != nil || !strings.Contains(buf.String(), "and 5 more files") {
 		t.Fatal(buf.String(), err)
 	}
@@ -49,11 +49,11 @@ func TestBounds_killsDispatchSurvivors(t *testing.T) {
 		t.Fatal("closes")
 	}
 	side := commitFile(t, f.dir, "side.go", "x\n")
-	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "HEAD~1")
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb-checkpoint-1", "HEAD~1")
 	when := f.now
 	for _, sha := range []string{side, "not-a-sha"} {
 		f.hub.on(list("/pulls?state=closed"), []PR{{
-			MergedAt: &when, Base: Ref{Ref: "fb"}, Body: "Closes #8", MergeCommitSHA: sha,
+			MergedAt: &when, Base: Ref{Ref: "fb-checkpoint-1"}, Body: "Closes #8", MergeCommitSHA: sha,
 		}})
 		err = env.issueBlocker(context.Background(), 8)
 		gotMiss := err != nil && strings.Contains(cliText(err), "not merged into")

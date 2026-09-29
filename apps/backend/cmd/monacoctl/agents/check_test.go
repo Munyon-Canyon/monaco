@@ -36,7 +36,7 @@ type checkHarness struct {
 func newCheckHarness(t *testing.T) *checkHarness {
 	t.Helper()
 	f := newFixtureFrom(t, rootedRepo)
-	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "fb")
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb-checkpoint-1", "fb-checkpoint-1")
 	work, err := filepath.EvalSymlinks(f.dir)
 	if err != nil {
 		t.Fatal(err)
@@ -93,8 +93,8 @@ func (h *checkHarness) check(t *testing.T, args ...string) (int, string, string)
 func (h *checkHarness) base(t *testing.T, files map[string]string) {
 	t.Helper()
 	h.commit(t, files)
-	git(t, h.dir, "branch", "-f", "fb")
-	git(t, h.dir, "update-ref", "refs/remotes/origin/fb", "fb")
+	git(t, h.dir, "branch", "-f", "fb-checkpoint-1")
+	git(t, h.dir, "update-ref", "refs/remotes/origin/fb-checkpoint-1", "fb-checkpoint-1")
 }
 
 func (h *checkHarness) commit(t *testing.T, files map[string]string) string {
@@ -149,10 +149,10 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	if code != 0 {
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
-	pr := ".: env BASE_SHA=origin/fb HEAD_SHA=" + h.head(t) + " PR_LABELS=[] python3 scripts/"
+	pr := ".: env BASE_SHA=origin/fb-checkpoint-1 HEAD_SHA=" + h.head(t) + " PR_LABELS=[] python3 scripts/"
 	want := []string{
 		".: gt parent --no-interactive",
-		"apps/backend: ci affected --base origin/fb",
+		"apps/backend: ci affected --base origin/fb-checkpoint-1",
 		"apps/backend: golangci-lint version --short",
 		pr + "check-pr-size.py",
 		pr + "check-gate-changes.py",
@@ -184,7 +184,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		t.Fatalf("stdout: %s", stdout)
 	}
 	record, err := os.ReadFile(filepath.Join(h.stateDir(t, "checks"), tree))
-	if err != nil || !strings.HasPrefix(string(record), "head "+h.head(t)+"\nbase origin/fb\n") {
+	if err != nil || !strings.HasPrefix(string(record), "head "+h.head(t)+"\nbase origin/fb-checkpoint-1\n") {
 		t.Fatalf("record: %q %v", record, err)
 	}
 	log, err := os.ReadFile(filepath.Join(h.stateDir(t, "logs"), "check-"+tree[:12]+".log"))
@@ -216,7 +216,7 @@ func TestCheck_overBudgetExitsOneNamingTheSlowestPackageAndRecordsNothing(t *tes
 		}, "\n"),
 	}}
 
-	code, stdout, stderr := h.check(t, "--base", "fb")
+	code, stdout, stderr := h.check(t, "--base", "fb-checkpoint-1")
 	want := "go test -short: package ./internal/slow took 79.0s, over the 20s per-package budget"
 	if code != 1 || !strings.Contains(stderr, want) {
 		t.Fatalf("over budget: %d %q %q", code, stdout, stderr)
@@ -413,7 +413,7 @@ func TestCheck_pathRowsRunTheCIStepsForTheirPathsAgainstTheStackParent(t *testin
 	})
 	h.replies = []reply{{prefix: "gt parent", out: "parent\n"}}
 	code, stdout, stderr := h.check(t)
-	if code != 0 || !strings.Contains(stdout, "(base origin/fb, parent parent)\n") ||
+	if code != 0 || !strings.Contains(stdout, "(base origin/fb-checkpoint-1, parent parent)\n") ||
 		!strings.Contains(stdout, "  mkdocs          skip  no .venv/bin/mkdocs here or in the main checkout") {
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
@@ -450,7 +450,7 @@ func TestCheck_pathRowsRunTheCIStepsForTheirPathsAgainstTheStackParent(t *testin
 	if code, stdout, stderr := h.check(
 		t,
 	); code != 0 ||
-		!strings.Contains(stdout, "(base origin/fb, parent origin/fb)") {
+		!strings.Contains(stdout, "(base origin/fb-checkpoint-1, parent origin/fb-checkpoint-1)") {
 		t.Fatalf("installed tools: %d %q %q", code, stdout, stderr)
 	}
 	for _, c := range []string{
@@ -472,7 +472,7 @@ func TestCheck_prRowsStopAnOversizedDiffAndCountGateWarnings(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
 	h.commit(t, map[string]string{"README.md": "hi\n"})
-	pr := "env BASE_SHA=origin/fb HEAD_SHA=" + h.head(t) + " PR_LABELS=[] python3 scripts/"
+	pr := "env BASE_SHA=origin/fb-checkpoint-1 HEAD_SHA=" + h.head(t) + " PR_LABELS=[] python3 scripts/"
 	h.replies = []reply{{
 		prefix: pr + "check-gate-changes.py",
 		out:    "::warning file=a_test.go,line=3::test-skip\n::warning file=b,line=1::gate-file\n",
@@ -484,7 +484,7 @@ func TestCheck_prRowsStopAnOversizedDiffAndCountGateWarnings(t *testing.T) {
 	}
 
 	h.commit(t, map[string]string{"README.md": "hi again\n"})
-	pr = "env BASE_SHA=origin/fb HEAD_SHA=" + h.head(t) + " PR_LABELS=[] python3 scripts/"
+	pr = "env BASE_SHA=origin/fb-checkpoint-1 HEAD_SHA=" + h.head(t) + " PR_LABELS=[] python3 scripts/"
 	h.calls, h.replies = nil, []reply{{
 		prefix: pr + "check-pr-size.py", out: "1204 changed lines counted (limit 1000).",
 		err: errors.New("exit status 1"),
@@ -500,15 +500,15 @@ func TestCheck_theOpenAPIRowSkipsOasdiffWhenTheParentHasNoSpec(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
 	h.commit(t, map[string]string{openAPISpec: "openapi: 3.1.0\n"})
-	h.replies = []reply{{prefix: "gt parent", out: "fb\n"}}
-	if code, stdout, stderr := h.check(t); code != 0 || !strings.Contains(stdout, "parent origin/fb)") ||
+	h.replies = []reply{{prefix: "gt parent", out: "fb-checkpoint-1\n"}}
+	if code, stdout, stderr := h.check(t); code != 0 || !strings.Contains(stdout, "parent origin/fb-checkpoint-1)") ||
 		!slices.Contains(h.calls, ".: oasdiff-breaking-test.sh") ||
 		slices.ContainsFunc(h.calls, func(c string) bool { return strings.HasPrefix(c, ".: oasdiff-breaking.sh") }) {
 		t.Fatalf("no parent spec: %d %q %q %v", code, stdout, stderr, h.calls)
 	}
 
 	h.commit(t, map[string]string{openAPISpec: "openapi: 3.1.1\n"})
-	git(t, h.dir, "update-ref", "refs/remotes/origin/fb", "HEAD~1")
+	git(t, h.dir, "update-ref", "refs/remotes/origin/fb-checkpoint-1", "HEAD~1")
 	writeFile(t, h.stateDir(t, "openapi"), "")
 	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "write "+h.stateDir(t, "openapi")) {
 		t.Fatalf("unwritable spec: %d %q", code, stderr)

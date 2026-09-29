@@ -21,8 +21,8 @@ func TestVerdict_refusesAWeakerKindTheOwnerModelOrTheWrongSHA(t *testing.T) {
 	f := newFixture(t)
 	sha := strings.Repeat("a", 40)
 	f.owner(t, Record{Ticket: 40, Model: opus, State: Running})
-	f.hub.on(get("/pulls/5"), pr(5, "h", "fb", "Part of #40"))
-	head := pr(5, "h", "fb", "Part of #40")
+	f.hub.on(get("/pulls/5"), pr(5, "h", "fb-checkpoint-1", "Part of #40"))
+	head := pr(5, "h", "fb-checkpoint-1", "Part of #40")
 	head.Head.SHA = sha
 	f.hub.on(get("/pulls/5"), head)
 	f.hub.on(list("/pulls/5/files?"), []File{{Filename: "a.go", Additions: 60}})
@@ -64,14 +64,14 @@ func TestVerdict_refusesAWeakerKindTheOwnerModelOrTheWrongSHA(t *testing.T) {
 	if code, _, stderr := f.agents(t, weak...); code != 1 || !strings.Contains(stderr, "weaker than full") {
 		t.Fatalf("kind: %d %q", code, stderr)
 	}
-	f.hub.on(get("/pulls/8"), pr(8, "h", "fb", "no ticket"))
+	f.hub.on(get("/pulls/8"), pr(8, "h", "fb-checkpoint-1", "no ticket"))
 	f.hub.on(list("/pulls/8/files?"), []File{})
 	if code, _, stderr := f.agents(
 		t,
 		"verdict",
 		"fail",
 		"8",
-		pr(8, "h", "fb", "").Head.SHA,
+		pr(8, "h", "fb-checkpoint-1", "").Head.SHA,
 		"--kind",
 		"light",
 		"--model",
@@ -89,7 +89,7 @@ func TestVerdict_postsWithTheGhTokenWhenTheKeyIsAbsent(t *testing.T) {
 	f := newFixture(t)
 	sha := strings.Repeat("c", 40)
 	f.owner(t, Record{Ticket: 40, Model: opus, State: Running})
-	head := pr(5, "h", "fb", "Part of #40")
+	head := pr(5, "h", "fb-checkpoint-1", "Part of #40")
 	head.Head.SHA = sha
 	f.hub.on(get("/pulls/5"), head)
 	f.hub.on(list("/pulls/5/files?"), []File{{Filename: "a.go", Additions: 1}})
@@ -136,7 +136,7 @@ func TestVerdict_signsAnInstallationToken(t *testing.T) {
 	})
 	sha := strings.Repeat("d", 40)
 	f.owner(t, Record{Ticket: 40, Model: sonnet, State: Running})
-	head := pr(5, "h", "fb", "Part of #40")
+	head := pr(5, "h", "fb-checkpoint-1", "Part of #40")
 	head.Head.SHA = sha
 	f.hub.on(get("/pulls/5"), head)
 	f.hub.on(list("/pulls/5/files?"), []File{{Filename: "a.go", Additions: 1}})
@@ -182,7 +182,7 @@ func TestVerdict_keyAndTokenFailures(t *testing.T) {
 	f := newFixture(t)
 	sha := strings.Repeat("e", 40)
 	f.owner(t, Record{Ticket: 40, Model: opus, State: Running})
-	head := pr(5, "h", "fb", "Part of #40")
+	head := pr(5, "h", "fb-checkpoint-1", "Part of #40")
 	head.Head.SHA = sha
 	f.hub.on(get("/pulls/5"), head)
 	f.hub.on(list("/pulls/5/files?"), []File{{Filename: "a.go", Additions: 1}})
@@ -303,7 +303,7 @@ func TestStablePatch_reportsEachGitFailure(t *testing.T) {
 		)
 		if _, err := env.stablePatch(
 			context.Background(),
-			"fb",
+			"fb-checkpoint-1",
 			5,
 		); err == nil ||
 			!strings.Contains(err.Error(), step+" down") {
@@ -315,7 +315,7 @@ func TestStablePatch_reportsEachGitFailure(t *testing.T) {
 	env.Run = scripted(nil, map[string]string{"fetch": "", "merge-base": "a\n", "diff": "d\n", "patch-id": "\n"})
 	if _, err := env.stablePatch(
 		context.Background(),
-		"fb",
+		"fb-checkpoint-1",
 		5,
 	); err == nil ||
 		!strings.Contains(cliText(err), "nothing") {
@@ -632,7 +632,7 @@ func (f *fixture) point(t *testing.T, base, head string) {
 }
 
 func headed(n int, sha string) PR {
-	p := pr(n, "h", "fb", "Part of #40")
+	p := pr(n, "h", "fb-checkpoint-1", "Part of #40")
 	p.Head.SHA = sha
 	return p
 }

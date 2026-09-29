@@ -29,7 +29,7 @@ func TestEdges_dispatchBlockersAndProcess(t *testing.T) {
 	}
 	when := f.now
 	side := commitFile(t, f.dir, "side.go", "x\n")
-	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "HEAD~1")
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb-checkpoint-1", "HEAD~1")
 	f.hub.on(get("/pulls/8"), PR{MergedAt: &when, MergeCommitSHA: side})
 	if err := env.blockersClear(context.Background(), 4); err == nil || !strings.Contains(cliText(err), "not in") {
 		t.Fatal(err)
@@ -50,14 +50,14 @@ func TestEdges_dispatchBlockersAndProcess(t *testing.T) {
 		list("/pulls?state=closed"),
 		[]PR{
 			{MergedAt: &when, Base: Ref{Ref: "other"}, Body: "no"},
-			{MergedAt: &when, Base: Ref{Ref: "fb"}, Body: "Closes #8", MergeCommitSHA: side},
+			{MergedAt: &when, Base: Ref{Ref: "fb-checkpoint-1"}, Body: "Closes #8", MergeCommitSHA: side},
 		},
 	)
-	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "HEAD")
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb-checkpoint-1", "HEAD")
 	if err := env.blockersClear(context.Background(), 4); err != nil {
 		t.Fatal(err)
 	}
-	git(t, f.dir, "update-ref", "-d", "refs/remotes/origin/fb")
+	git(t, f.dir, "update-ref", "-d", "refs/remotes/origin/fb-checkpoint-1")
 	if ok, err := env.ancestor(context.Background(), side); ok || err != nil {
 		t.Fatal(ok, err)
 	}
@@ -185,7 +185,7 @@ func TestEdges_watchConflictsStatus(t *testing.T) {
 	}
 	if err := writeRebase(
 		&buf,
-		pr(1, "h", "fb", ""),
+		pr(1, "h", "fb-checkpoint-1", ""),
 		Record{Worktree: "w", AgentID: "a"},
 		false,
 		files,
@@ -230,7 +230,7 @@ func TestEdges_watchConflictsStatus(t *testing.T) {
 	}
 	rows := make([]PR, maxLines)
 	for i := range rows {
-		rows[i] = pr(i+1, fmt.Sprintf("h%d", i), "fb", "")
+		rows[i] = pr(i+1, fmt.Sprintf("h%d", i), "fb-checkpoint-1", "")
 		rows[i].Head.SHA = sha
 	}
 	g.hub.on(list("/pulls?state=open"), rows)
@@ -254,15 +254,15 @@ func TestEdges_remainingBranches(t *testing.T) {
 	if !closes("Closes #2", 2) || closes("nope", 2) || closes("Closes #1", 2) {
 		t.Fatal("closes")
 	}
-	git(t, f.dir, "update-ref", "-d", "refs/remotes/origin/fb")
+	git(t, f.dir, "update-ref", "-d", "refs/remotes/origin/fb-checkpoint-1")
 	if _, err := env.featureTip(context.Background()); err == nil {
 		t.Fatal("tip")
 	}
 	if _, err := env.ancestor(context.Background(), "missing"); err == nil {
 		t.Fatal("ancestor")
 	}
-	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "fb")
-	if err := env.addWorktree(context.Background(), f.dir, "fb"); err == nil {
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb-checkpoint-1", "fb-checkpoint-1")
+	if err := env.addWorktree(context.Background(), f.dir, "fb-checkpoint-1"); err == nil {
 		t.Fatal("worktree")
 	}
 	env.Run = func(context.Context, string, string, string, ...string) ([]byte, error) {
@@ -283,7 +283,7 @@ func TestEdges_remainingBranches(t *testing.T) {
 	f.hub.on(get("/issues/8"), Issue{State: "open"})
 	f.hub.on(
 		list("/pulls?state=closed"),
-		[]PR{{MergedAt: &when, Base: Ref{Ref: "fb"}, Body: "Closes #8", MergeCommitSHA: "missing"}},
+		[]PR{{MergedAt: &when, Base: Ref{Ref: "fb-checkpoint-1"}, Body: "Closes #8", MergeCommitSHA: "missing"}},
 	)
 	if err := f.Env(t).blockersClear(context.Background(), 4); err == nil {
 		t.Fatal("bad merge")
@@ -310,7 +310,7 @@ func TestEdges_remainingBranches(t *testing.T) {
 	env.Run = f.run
 	writeFile(t, env.recordPath(40), "{")
 	f.hub.on(get("/pulls/6"), headed(6, f.head(t)))
-	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "fb")
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb-checkpoint-1", "fb-checkpoint-1")
 	if err := conflictsCmd(context.Background(), env, []string{"6"}, ioDiscard()); err == nil {
 		t.Fatal("record")
 	}
@@ -424,7 +424,7 @@ func TestEdges_remainingBranches(t *testing.T) {
 		[]string{"4", "--model", "opus"},
 		ioDiscard(),
 	); err == nil ||
-		!strings.Contains(err.Error(), "fb") {
+		!strings.Contains(err.Error(), "fb-checkpoint-1") {
 		t.Fatal(err)
 	}
 	if err := dispatchCmd(
@@ -480,7 +480,7 @@ func TestEdges_remainingBranches(t *testing.T) {
 		t.Fatal("post")
 	}
 	c := prepBranch(t)
-	git(t, c.dir, "update-ref", "refs/remotes/origin/fb", "fb")
+	git(t, c.dir, "update-ref", "refs/remotes/origin/fb-checkpoint-1", "fb-checkpoint-1")
 	c.hub.on(get("/pulls/5"), headed(5, "deadbeef"))
 	if code, _, _ := c.agents(t, "conflicts", "5"); code != 1 {
 		t.Fatal("head")

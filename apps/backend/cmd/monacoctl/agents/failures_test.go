@@ -55,56 +55,56 @@ func TestFailures_parsesQueueRemovalsAndRedStage1(t *testing.T) {
 	}{
 		{
 			"failed checks since the last run name the failing job, not ci-ok",
-			[]string{watchNode(1, "fb", rollup(greenOK), removal(after, "FAILED_CHECKS", rollup(okJob, redOK, flakeJob)))},
+			[]string{watchNode(1, "fb-checkpoint-1", rollup(greenOK), removal(after, "FAILED_CHECKS", rollup(okJob, redOK, flakeJob)))},
 			[]want{{"removed from the merge queue (failed_checks)", 11}},
 		},
 		{
 			"a removal before the last run is not news",
-			[]string{watchNode(1, "fb", rollup(greenOK), removal(before, "failed_checks", rollup(flakeJob)))},
+			[]string{watchNode(1, "fb-checkpoint-1", rollup(greenOK), removal(before, "failed_checks", rollup(flakeJob)))},
 			nil,
 		},
 		{
 			"merged and manual removals need no owner",
 			[]string{
-				watchNode(1, "fb", rollup(greenOK), removal(after, "merged", rollup())),
-				watchNode(2, "fb", rollup(greenOK), removal(after, "manual", rollup())),
+				watchNode(1, "fb-checkpoint-1", rollup(greenOK), removal(after, "merged", rollup())),
+				watchNode(2, "fb-checkpoint-1", rollup(greenOK), removal(after, "manual", rollup())),
 			},
 			nil,
 		},
 		{
 			"only the latest removal counts",
-			[]string{watchNode(1, "fb", noRollup,
+			[]string{watchNode(1, "fb-checkpoint-1", noRollup,
 				removal(after, "failed_checks", rollup(flakeJob))+","+removal(after, "manual", rollup()))},
 			nil,
 		},
 		{
 			"a red stage 1 names its failing job every run",
-			[]string{watchNode(1, "fb", rollup(redOK, lintJob), removal(before, "failed_checks", rollup()))},
+			[]string{watchNode(1, "fb-checkpoint-1", rollup(redOK, lintJob), removal(before, "failed_checks", rollup()))},
 			[]want{{"stage 1 is red", 12}},
 		},
 		{
 			"a red ci-ok alone names ci-ok",
-			[]string{watchNode(1, "fb", rollup(okJob, redOK), "")},
+			[]string{watchNode(1, "fb-checkpoint-1", rollup(okJob, redOK), "")},
 			[]want{{"stage 1 is red", 14}},
 		},
 		{
 			"a removal with no failed run has no job",
-			[]string{watchNode(1, "fb", noRollup, removal(after, "conflict", noRollup))},
+			[]string{watchNode(1, "fb-checkpoint-1", noRollup, removal(after, "conflict", noRollup))},
 			[]want{{"removed from the merge queue (conflict)", 0}},
 		},
 		{
 			"green, pending and unrelated failures stay quiet",
 			[]string{
-				watchNode(1, "fb", rollup(greenOK, flakeJob), ""),
-				watchNode(2, "fb", rollup(`{"name":"ci / ci-ok","conclusion":""}`), ""),
-				watchNode(3, "fb", noRollup, ""),
+				watchNode(1, "fb-checkpoint-1", rollup(greenOK, flakeJob), ""),
+				watchNode(2, "fb-checkpoint-1", rollup(`{"name":"ci / ci-ok","conclusion":""}`), ""),
+				watchNode(3, "fb-checkpoint-1", noRollup, ""),
 			},
 			nil,
 		},
 		{
 			"a stacked PR counts and a PR off the feature branch does not",
 			[]string{
-				watchNode(1, "fb", rollup(greenOK), ""),
+				watchNode(1, "fb-checkpoint-1", rollup(greenOK), ""),
 				watchNode(2, "b1", rollup(redOK), ""),
 				watchNode(3, "main", rollup(redOK), ""),
 			},
@@ -118,7 +118,7 @@ func TestFailures_parsesQueueRemovalsAndRedStage1(t *testing.T) {
 				t.Fatal(err)
 			}
 			got := make([]want, 0, len(tc.want))
-			for _, f := range failures(prs, "fb", since) {
+			for _, f := range failures(prs, "fb-checkpoint-1", since) {
 				got = append(got, want{f.Why, f.Job.DatabaseID})
 			}
 			if !slices.Equal(got, tc.want) {
@@ -132,8 +132,8 @@ func TestWatch_readsEveryCheckAndTheNewestRunOfEach(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	f.hub.on(graphqlRoute, failureData(
-		watchNode(5, "fb", firstPage("h5", ciOK("FAILURE", 1), flakeJob), ""),
-		watchNode(6, "fb", firstPage("h6", ciOK("SUCCESS", 1)), ""),
+		watchNode(5, "fb-checkpoint-1", firstPage("h5", ciOK("FAILURE", 1), flakeJob), ""),
+		watchNode(6, "fb-checkpoint-1", firstPage("h6", ciOK("SUCCESS", 1)), ""),
 	))
 	f.hub.onQuery(`c1: object(oid:\"h6\")`, `{"data":{"repository":{`+
 		`"c0":`+rollup(ciOK("SUCCESS", 3), `{"name":"ci / Flake","conclusion":"SUCCESS","completedAt":"2026-09-29T11:03:00Z"}`)+
@@ -159,8 +159,13 @@ func TestWatch_printsAFreshOwnerPromptForAnEjectedEntryOnce(t *testing.T) {
 	f := newFixture(t)
 	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: "/wt/40"})
 	f.hub.on(graphqlRoute, failureData(
-		watchNode(5, "fb", rollup(greenOK), removal(f.now.Add(-time.Minute), "FAILED_CHECKS", rollup(flakeJob))),
-		strings.Replace(watchNode(6, "fb", rollup(redOK, lintJob), ""), "Part of #40", "no ticket", 1),
+		watchNode(
+			5,
+			"fb-checkpoint-1",
+			rollup(greenOK),
+			removal(f.now.Add(-time.Minute), "FAILED_CHECKS", rollup(flakeJob)),
+		),
+		strings.Replace(watchNode(6, "fb-checkpoint-1", rollup(redOK, lintJob), ""), "Part of #40", "no ticket", 1),
 	))
 	f.hub.on(get("/actions/jobs/11/logs"), "--- FAIL: TestFlaky\n")
 	code, stdout, stderr := f.agents(t, "watch", "--verbose")

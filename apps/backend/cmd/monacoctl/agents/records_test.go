@@ -69,7 +69,7 @@ func TestRecords_aFreshCloneRebuildsTheOwnerFromTheTicket(t *testing.T) {
 		t.Fatalf("patched %q", patched)
 	}
 
-	newStackGH(t, f, green(t, 6, "b6", "fb"))
+	newStackGH(t, f, green(t, 6, "b6", "fb-checkpoint-1"))
 	if code, stdout, stderr := f.agents(t, "land-stack", "6"); code != 0 || stdout != "queued #6. Lands stack: #6\n" {
 		t.Fatalf("land: %d %q %q", code, stdout, stderr)
 	}

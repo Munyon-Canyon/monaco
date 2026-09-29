@@ -20,7 +20,7 @@ func TestDispatch_dryRunWritesNothing(t *testing.T) {
 	merged := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
 	f.hub.on(get("/issues/3"), Issue{Number: 3, PullRequest: &struct{}{}})
 	f.hub.on(get("/pulls/3"), PR{Number: 3, MergedAt: &merged, MergeCommitSHA: f.head(t)})
-	f.hub.on(list("/pulls?state=open"), []PR{pr(1, "a", "fb", ""), pr(2, "b", "fb", "")})
+	f.hub.on(list("/pulls?state=open"), []PR{pr(1, "a", "fb-checkpoint-1", ""), pr(2, "b", "fb-checkpoint-1", "")})
 	shared := make([]File, 0, 30)
 	for i := range 30 {
 		shared = append(shared, File{Filename: fmt.Sprintf("shared%02d.go", i)})
@@ -118,7 +118,7 @@ func TestDispatch_startsAWorktreeWhenTheBlockerIsInTheBranch(t *testing.T) {
 	f.batch(t, 12)
 	tip := f.head(t)
 	f.hub.on(get("/issues/12"), Issue{Body: "no blockers"})
-	f.hub.on(list("/pulls?state=open"), []PR{pr(1, "a", "fb", ""), pr(2, "b", "fb", "")})
+	f.hub.on(list("/pulls?state=open"), []PR{pr(1, "a", "fb-checkpoint-1", ""), pr(2, "b", "fb-checkpoint-1", "")})
 	f.hub.on(list("/pulls/1/files?"), []File{{Filename: "shared.go"}})
 	f.hub.on(list("/pulls/2/files?"), []File{{Filename: "shared.go"}})
 	f.ownerComments(12)
@@ -181,9 +181,9 @@ func TestDispatch_startsFromOriginWhenTheLocalBranchIsBehind(t *testing.T) {
 				return nil, fetchErr
 			}
 			if target == "" {
-				return Exec(ctx, f.dir, "", "git", "update-ref", "-d", "refs/remotes/origin/fb")
+				return Exec(ctx, f.dir, "", "git", "update-ref", "-d", "refs/remotes/origin/fb-checkpoint-1")
 			}
-			return Exec(ctx, f.dir, "", "git", "update-ref", "refs/remotes/origin/fb", target)
+			return Exec(ctx, f.dir, "", "git", "update-ref", "refs/remotes/origin/fb-checkpoint-1", target)
 		}
 		return f.run(ctx, dir, stdin, name, args...)
 	}
@@ -199,7 +199,7 @@ func TestDispatch_startsFromOriginWhenTheLocalBranchIsBehind(t *testing.T) {
 	if err := dispatchCmd(context.Background(), env, []string{"12", "--model", "opus"}, ioDiscard()); err != nil {
 		t.Fatal(err)
 	}
-	if len(fetched) != 3 || fetched[2] != "fetch origin fb" {
+	if len(fetched) != 3 || fetched[2] != "fetch origin fb-checkpoint-1" {
 		t.Fatalf("fetched=%q", fetched)
 	}
 	rec, err := env.localRecord(12)
@@ -210,8 +210,8 @@ func TestDispatch_startsFromOriginWhenTheLocalBranchIsBehind(t *testing.T) {
 	if err != nil || strings.TrimSpace(string(out)) != ahead {
 		t.Fatalf("worktree head %q err=%v", out, err)
 	}
-	if local := strings.TrimSpace(gitOut(t, f.dir, "rev-parse", "fb")); local != stale {
-		t.Fatalf("local fb moved to %s", local)
+	if local := strings.TrimSpace(gitOut(t, f.dir, "rev-parse", "fb-checkpoint-1")); local != stale {
+		t.Fatalf("local fb-checkpoint-1 moved to %s", local)
 	}
 }
 
@@ -287,9 +287,9 @@ func TestConflicts_printsTheRebaseTask(t *testing.T) {
 	base := f.head(t)
 	git(t, f.dir, "checkout", "-q", "-b", "side")
 	left := commitFile(t, f.dir, "c.go", "left\n")
-	git(t, f.dir, "checkout", "-q", "fb")
+	git(t, f.dir, "checkout", "-q", "fb-checkpoint-1")
 	_ = commitFile(t, f.dir, "c.go", "right\n")
-	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "fb")
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb-checkpoint-1", "fb-checkpoint-1")
 	f.owner(t, Record{Ticket: 40, Worktree: f.dir, AgentID: "agt"})
 	f.hub.on(get("/pulls/5"), headed(5, left))
 	code, stdout, stderr := f.agents(t, "conflicts", "5")
@@ -417,7 +417,7 @@ func prepBranch(t *testing.T) *fixture {
 	t.Helper()
 	f := newFixtureFrom(t, rootedRepo)
 	git(t, f.dir, "remote", "add", "origin", f.dir)
-	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "fb")
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb-checkpoint-1", "fb-checkpoint-1")
 	return f
 }
 

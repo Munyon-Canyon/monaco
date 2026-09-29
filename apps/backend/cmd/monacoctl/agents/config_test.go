@@ -80,7 +80,7 @@ func TestLoad_resolvesAnAutoFeatureBranchForEveryCommand(t *testing.T) {
 		{"", "", ""},
 	} {
 		f := newFixture(t)
-		writeFile(t, filepath.Join(f.dir, configPath), strings.Replace(testConfig, `"fb"`, `"auto"`, 1))
+		writeFile(t, filepath.Join(f.dir, configPath), strings.Replace(testConfig, `"fb-checkpoint-1"`, `"auto"`, 1))
 		f.run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
 			if name == "gh" && len(args) > 1 && args[0] == "variable" {
 				return []byte(tc.variable), nil

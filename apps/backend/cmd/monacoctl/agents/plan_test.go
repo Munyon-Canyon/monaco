@@ -68,7 +68,7 @@ func TestVerifyPlan_classifiesTheDiff(t *testing.T) {
 	for _, c := range cases {
 		f := newFixture(t)
 		f.ownerComments(40)
-		f.hub.on(get("/pulls/5"), pr(5, "h", "fb", "Part of #40"))
+		f.hub.on(get("/pulls/5"), pr(5, "h", "fb-checkpoint-1", "Part of #40"))
 		f.hub.on(list("/pulls/5/files?"), c.files)
 		code, stdout, stderr := f.agents(t, "verify-plan", "#5")
 		model := sonnet
@@ -142,7 +142,7 @@ func TestVerifyPlan_sonnetForHygieneDiffs(t *testing.T) {
 		if c.owner != "" {
 			f.owner(t, Record{Ticket: 40, Model: c.owner, State: Running})
 		}
-		f.hub.on(get("/pulls/5"), pr(5, "h", "fb", "Part of #40"))
+		f.hub.on(get("/pulls/5"), pr(5, "h", "fb-checkpoint-1", "Part of #40"))
 		f.hub.on(list("/pulls/5/files?"), c.files)
 		code, stdout, stderr := f.agents(t, "verify-plan", "5")
 		if code != 0 || stderr != "" || !strings.Contains(stdout, c.want) {
@@ -162,7 +162,7 @@ func TestVerifyPlan_neverPicksTheOwnersModel(t *testing.T) {
 	for name, c := range cases {
 		f := newFixture(t)
 		f.owner(t, Record{Ticket: 40, Model: c.owner, State: Running})
-		f.hub.on(get("/pulls/5"), pr(5, "h", "fb", "Closes #40"))
+		f.hub.on(get("/pulls/5"), pr(5, "h", "fb-checkpoint-1", "Closes #40"))
 		f.hub.on(list("/pulls/5/files?"), []File{{Filename: c.file, Additions: 60}})
 		code, stdout, _ := f.agents(t, "verify-plan", "5")
 		tail := "owner: #40 " + c.owner + "\n" + verifierSpawn(strings.TrimPrefix(c.want, "verifier "), "40")
@@ -175,7 +175,7 @@ func TestVerifyPlan_neverPicksTheOwnersModel(t *testing.T) {
 func TestVerifyPlan_reportsAMissingTicketAndBadRecords(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	f.hub.on(get("/pulls/5"), pr(5, "h", "fb", "no ticket"))
+	f.hub.on(get("/pulls/5"), pr(5, "h", "fb-checkpoint-1", "no ticket"))
 	f.hub.on(list("/pulls/5/files?"), []File{})
 	code, stdout, _ := f.agents(t, "verify-plan", "5")
 	if code != 0 || !strings.HasSuffix(
@@ -190,7 +190,7 @@ func TestVerifyPlan_reportsAMissingTicketAndBadRecords(t *testing.T) {
 	if code, _, stderr := f.agents(t, "verify-plan", "0"); code != 2 {
 		t.Fatalf("zero: code=%d stderr=%q", code, stderr)
 	}
-	f.hub.on(get("/pulls/6"), pr(6, "h", "fb", "Part of #41"))
+	f.hub.on(get("/pulls/6"), pr(6, "h", "fb-checkpoint-1", "Part of #41"))
 	f.hub.on(list("/pulls/6/files?"), []File{})
 	writeFile(t, f.Env(t).recordPath(41), "{")
 	if code, _, stderr := f.agents(t, "verify-plan", "6"); code != 1 || !strings.Contains(stderr, "decode ") {
@@ -209,7 +209,7 @@ func TestVerifyPlan_failsWhenGitHubFails(t *testing.T) {
 	if code, _, stderr := f.agents(t, "verify-plan", "5"); code != 1 || !strings.Contains(stderr, "pulls/5: 404") {
 		t.Fatalf("pr: code=%d stderr=%q", code, stderr)
 	}
-	f.hub.on(get("/pulls/5"), pr(5, "h", "fb", ""))
+	f.hub.on(get("/pulls/5"), pr(5, "h", "fb-checkpoint-1", ""))
 	if code, _, stderr := f.agents(t, "verify-plan", "5"); code != 1 || !strings.Contains(stderr, "pulls/5/files") {
 		t.Fatalf("files: code=%d stderr=%q", code, stderr)
 	}
@@ -267,7 +267,7 @@ func TestMain_aWorktreeReadsItsOwnConfigAndTheSharedRecords(t *testing.T) {
 	wt := filepath.Join(f.dir, ".worktrees", "9")
 	git(t, f.dir, "worktree", "add", "-q", "--detach", wt)
 	writeFile(t, filepath.Join(f.dir, configPath), "broken")
-	f.hub.on(get("/pulls/5"), pr(5, "h", "fb", "Part of #40"))
+	f.hub.on(get("/pulls/5"), pr(5, "h", "fb-checkpoint-1", "Part of #40"))
 	f.hub.on(list("/pulls/5/files?"), []File{})
 	f.dir = wt
 	code, stdout, stderr := f.agents(t, "verify-plan", "5")

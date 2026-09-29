@@ -33,12 +33,12 @@ func TestBatch_defersEachOffenderByName(t *testing.T) {
 		{
 			"blocker not merged",
 			[]string{anchor, "**Blocked by:** #8 (open) · **Touches:** `b/**`"},
-			"deferred #2: blocker #8 is not merged into fb\n",
+			"deferred #2: blocker #8 is not merged into fb-checkpoint-1\n",
 		},
 		{
 			"second blocker not merged",
 			[]string{anchor, "**Blocked by:** #9, #8 · **Touches:** `b/**`"},
-			"deferred #2: blocker #8 is not merged into fb\n",
+			"deferred #2: blocker #8 is not merged into fb-checkpoint-1\n",
 		},
 		{
 			"second blocker in the same batch",

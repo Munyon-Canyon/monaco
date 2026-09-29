@@ -21,7 +21,7 @@ func TestHandoff_postsThenEditsTheTrackingComment(t *testing.T) {
 	if code, stdout, stderr := f.agents(t, "handoff"); code != 0 || stdout != "handoff posted to #7\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	want := handoffMarker + "\nHandoff at 2026-09-27T12:00:00Z. Feature branch `fb`.\n\n**Batch**\n\n" +
+	want := handoffMarker + "\nHandoff at 2026-09-27T12:00:00Z. Feature branch `fb-checkpoint-1`.\n\n**Batch**\n\n" +
 		"| ticket | state | since dispatch |\n| --- | --- | --- |\n" +
 		"| #5 | merged | 1h30m |\n| #6 | queued (#2) | - |\n| #7 | building | - |\n" +
 		"\n**Running agents**\n\n- #5 opus running in `/w/5`, agent `a1`\n" +

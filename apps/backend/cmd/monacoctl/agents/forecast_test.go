@@ -10,9 +10,9 @@ func TestForecast_listsFilesTouchedByTwoStacksNotTwoPRsOfOneStack(t *testing.T) 
 	t.Parallel()
 	f := newFixture(t)
 	f.hub.on(list("/pulls?state=open"), []PR{
-		pr(10, "a1", "fb", ""),
+		pr(10, "a1", "fb-checkpoint-1", ""),
 		pr(11, "a2", "a1", ""),
-		pr(20, "b1", "fb", "Part of #2"),
+		pr(20, "b1", "fb-checkpoint-1", "Part of #2"),
 		pr(30, "c1", "main", ""),
 		pr(31, "c2", "c1", ""),
 	})
@@ -20,7 +20,7 @@ func TestForecast_listsFilesTouchedByTwoStacksNotTwoPRsOfOneStack(t *testing.T) 
 	f.hub.on(list("/pulls/11/files?"), []File{{Filename: "stack-a.go"}, {Filename: "late.go"}})
 	f.hub.on(list("/pulls/20/files?"), []File{{Filename: "shared.go"}, {Filename: "late.go"}})
 	code, stdout, stderr := f.agents(t, "forecast")
-	want := "2 files touched by more than one open stack into fb:\n  late.go  #10 #20\n  shared.go  #10 #20\n"
+	want := "2 files touched by more than one open stack into fb-checkpoint-1:\n  late.go  #10 #20\n  shared.go  #10 #20\n"
 	if code != 0 || stdout != want || stderr != "" {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
@@ -29,7 +29,7 @@ func TestForecast_listsFilesTouchedByTwoStacksNotTwoPRsOfOneStack(t *testing.T) 
 func TestForecast_capsTheListAtTwentyLines(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	f.hub.on(list("/pulls?state=open"), []PR{pr(1, "a", "fb", ""), pr(2, "b", "fb", "")})
+	f.hub.on(list("/pulls?state=open"), []PR{pr(1, "a", "fb-checkpoint-1", ""), pr(2, "b", "fb-checkpoint-1", "")})
 	files := make([]File, 0, 25)
 	for i := range 25 {
 		files = append(files, File{Filename: fmt.Sprintf("f%02d.go", i)})
@@ -49,7 +49,7 @@ func TestForecast_failsWhenGitHubFails(t *testing.T) {
 	if code, _, stderr := f.agents(t, "forecast"); code != 1 || !strings.Contains(stderr, "pulls?state=open") {
 		t.Fatalf("list: code=%d stderr=%q", code, stderr)
 	}
-	f.hub.on(list("/pulls?state=open"), []PR{pr(1, "a", "fb", "")})
+	f.hub.on(list("/pulls?state=open"), []PR{pr(1, "a", "fb-checkpoint-1", "")})
 	if code, _, stderr := f.agents(t, "forecast"); code != 1 || !strings.Contains(stderr, "pulls/1/files") {
 		t.Fatalf("files: code=%d stderr=%q", code, stderr)
 	}
@@ -57,7 +57,7 @@ func TestForecast_failsWhenGitHubFails(t *testing.T) {
 
 func TestStacks_stopsOnABaseCycle(t *testing.T) {
 	t.Parallel()
-	got := stacks([]PR{pr(1, "a", "b", ""), pr(2, "b", "a", "")}, "fb")
+	got := stacks([]PR{pr(1, "a", "b", ""), pr(2, "b", "a", "")}, "fb-checkpoint-1")
 	if len(got) != 0 {
 		t.Fatalf("stacks = %v", got)
 	}
@@ -67,10 +67,10 @@ func retargetedStack(t *testing.T, landsLine string, fileOf20 ...File) *fixture 
 	t.Helper()
 	f := newFixture(t)
 	f.hub.on(list("/pulls?state=open"), []PR{
-		pr(1, "s1", "fb", ""),
-		pr(2, "s2", "fb", ""),
-		pr(3, "s3", "fb", landsLine+"\n\n## TLDR"),
-		pr(20, "other", "fb", ""),
+		pr(1, "s1", "fb-checkpoint-1", ""),
+		pr(2, "s2", "fb-checkpoint-1", ""),
+		pr(3, "s3", "fb-checkpoint-1", landsLine+"\n\n## TLDR"),
+		pr(20, "other", "fb-checkpoint-1", ""),
 	})
 	f.hub.on(list("/pulls/1/files?"), []File{{Filename: "a.go"}})
 	f.hub.on(list("/pulls/2/files?"), []File{{Filename: "a.go"}, {Filename: "b.go"}})
@@ -83,7 +83,7 @@ func TestForecast_countsARetargetedStackOnce(t *testing.T) {
 	t.Parallel()
 	f := retargetedStack(t, "Lands stack: #1 #2 #3")
 	code, stdout, stderr := f.agents(t, "forecast")
-	if code != 0 || stdout != "no file is touched by more than one open stack into fb\n" || stderr != "" {
+	if code != 0 || stdout != "no file is touched by more than one open stack into fb-checkpoint-1\n" || stderr != "" {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
 }
@@ -92,7 +92,7 @@ func TestForecast_reportsARealOverlapWithARetargetedStack(t *testing.T) {
 	t.Parallel()
 	f := retargetedStack(t, "Lands stack: #1 #2 #3", File{Filename: "a.go"})
 	code, stdout, stderr := f.agents(t, "forecast")
-	want := "1 files touched by more than one open stack into fb:\n  a.go  #1 #20\n"
+	want := "1 files touched by more than one open stack into fb-checkpoint-1:\n  a.go  #1 #20\n"
 	if code != 0 || stdout != want || stderr != "" {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
@@ -102,7 +102,7 @@ func TestForecast_ignoresAMalformedLandsStackLine(t *testing.T) {
 	t.Parallel()
 	f := retargetedStack(t, "Lands stack: #x")
 	code, stdout, stderr := f.agents(t, "forecast")
-	want := "2 files touched by more than one open stack into fb:\n  a.go  #1 #2 #3\n  b.go  #2 #3\n"
+	want := "2 files touched by more than one open stack into fb-checkpoint-1:\n  a.go  #1 #2 #3\n  b.go  #2 #3\n"
 	if code != 0 || stdout != want || stderr != "" {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
