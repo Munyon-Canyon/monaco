@@ -28,16 +28,26 @@ func scenario() []step {
 		{"module", []string{"example"}},
 		{"command", []string{"example", "DoThing"}},
 		{"query", []string{"example", "GetThing"}},
+		{"consumer", []string{"example", "onThing"}},
+		{"provider", []string{"example"}},
 	}
 }
 
 func notImplemented() []string {
-	return []string{"TestDoThing_appendsItsEvent"}
+	return []string{"TestDoThing_appendsItsEvent", "TestOnThing_convergesUnderChaos"}
+}
+
+func generatedDirs() []string {
+	return []string{
+		"internal/modules/example",
+		"queries/example",
+		"internal/providers/example",
+		"internal/testkit/fakes/testdata/fakes/example",
+	}
 }
 
 func ownedByExample(rel string) bool {
-	return strings.HasPrefix(rel, "internal/modules/example/") ||
-		strings.HasPrefix(rel, "queries/example/") ||
+	return slices.ContainsFunc(generatedDirs(), func(dir string) bool { return strings.HasPrefix(rel, dir+"/") }) ||
 		slices.Contains([]string{
 			"cmd/api/module_example.gen.go",
 			"cmd/worker/module_example.gen.go",
@@ -132,11 +142,8 @@ func must(t *testing.T, root, name string, args ...string) {
 	}
 }
 
-func TestGolden_everyGeneratorEmitsCodeThatBuildsLintsCleanAndIsReversible(t *testing.T) {
-	t.Parallel()
-	requireTools(t)
-	root := copyBackend(t)
-	before := snapshot(t, root)
+func runScenario(t *testing.T, root string) {
+	t.Helper()
 	for _, s := range scenario() {
 		g, ok := gen.Find(s.kind)
 		if !ok {
@@ -146,6 +153,25 @@ func TestGolden_everyGeneratorEmitsCodeThatBuildsLintsCleanAndIsReversible(t *te
 			t.Fatalf("gen %s %v: %v", s.kind, s.args, err)
 		}
 	}
+}
+
+func assertLintClean(t *testing.T, root string, pkgs []string) {
+	t.Helper()
+	must(t, root, "golangci-lint", append([]string{"run", "--allow-parallel-runners"}, pkgs...)...)
+	for _, pkg := range pkgs {
+		var findings bytes.Buffer
+		if code := comments.Run([]string{filepath.Join(root, pkg)}, &findings, &findings); code != 0 {
+			t.Errorf("generated code has comments:\n%s", findings.String())
+		}
+	}
+}
+
+func TestGolden_everyGeneratorEmitsCodeThatBuildsLintsCleanAndIsReversible(t *testing.T) {
+	t.Parallel()
+	requireTools(t)
+	root := copyBackend(t)
+	before := snapshot(t, root)
+	runScenario(t, root)
 	for _, rel := range changed(before, snapshot(t, root)) {
 		if !ownedByExample(rel) {
 			t.Errorf("the generators touched %s, outside the example module's files", rel)
@@ -153,18 +179,11 @@ func TestGolden_everyGeneratorEmitsCodeThatBuildsLintsCleanAndIsReversible(t *te
 	}
 
 	must(t, root, "go", "build", "-trimpath", "./...")
-	must(t, root, "golangci-lint", "run", "--allow-parallel-runners", "./internal/modules/example/...")
-	var findings bytes.Buffer
-	if code := comments.Run(
-		[]string{filepath.Join(root, "internal", "modules", "example") + "/..."},
-		&findings,
-		&findings,
-	); code != 0 {
-		t.Errorf("generated code has comments:\n%s", findings.String())
-	}
-	assertOnlyNotImplementedFailures(t, root)
+	pkgs := []string{"./internal/modules/example/...", "./internal/providers/example/..."}
+	assertLintClean(t, root, pkgs)
+	assertOnlyNotImplementedFailures(t, root, pkgs)
 
-	for _, dir := range []string{filepath.Join("internal", "modules", "example"), filepath.Join("queries", "example")} {
+	for _, dir := range generatedDirs() {
 		if err := os.RemoveAll(filepath.Join(root, dir)); err != nil {
 			t.Fatal(err)
 		}
@@ -184,9 +203,12 @@ type testEvent struct {
 	Output  string `json:"Output"`
 }
 
-func assertOnlyNotImplementedFailures(t *testing.T, root string) {
+func assertOnlyNotImplementedFailures(t *testing.T, root string, pkgs []string) {
 	t.Helper()
-	cmd := exec.CommandContext(t.Context(), "go", "test", "-json", "-count=1", "./internal/modules/example/...")
+	cmd := exec.CommandContext(
+		t.Context(),
+		"go",
+		append([]string{"test", "-tags", "faultpoints", "-json", "-count=1"}, pkgs...)...)
 	cmd.Dir = root
 	out, _ := cmd.Output()
 	output := map[string]*strings.Builder{}

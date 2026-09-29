@@ -1,0 +1,27 @@
+package {{.Name}}fake
+
+import (
+	"context"
+
+	"{{.ModPath}}/internal/errs"
+	"{{.ModPath}}/internal/providers/{{.Name}}"
+	"{{.ModPath}}/internal/testkit"
+)
+
+var _ {{.Name}}.Port = (*Fake)(nil)
+
+type Fake struct {
+	testkit.Faults
+	Things map[string]{{.Name}}.Thing
+}
+
+func (f *Fake) Thing(_ context.Context, id string) ({{.Name}}.Thing, error) {
+	if err := f.Check("Thing"); err != nil {
+		return {{.Name}}.Thing{}, err
+	}
+	t, ok := f.Things[id]
+	if !ok {
+		return {{.Name}}.Thing{}, errs.New(errs.CodeNotFound, "{{.Name}}fake.Thing")
+	}
+	return t, nil
+}

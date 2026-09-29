@@ -229,3 +229,115 @@ func TestModuleScopedGenerators_rejectBadNamesAndMissingModules(t *testing.T) {
 		}
 	}
 }
+
+func TestConsumer_registersItsHandlerInModuleGoAndStartsNATSForTheSuite(t *testing.T) {
+	t.Parallel()
+	root := withModule(t)
+	touched, err := gen.Apply(root, "consumer", "wallets", "onDeposit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"internal/modules/wallets/adapters/on_deposit.go",
+		"internal/modules/wallets/on_deposit_test.go",
+		"internal/modules/wallets/main_test.go",
+		"internal/modules/wallets/module.go",
+	}
+	if strings.Join(touched, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("touched %v, want %v", touched, want)
+	}
+	mod := read(t, root, "internal/modules/wallets/module.go")
+	for _, want := range []string{
+		`"example.com/app/internal/modules/wallets/adapters"`,
+		`{Durable: "wallets_on_deposit", Handlers: []bus.HandlerSpec{bus.Handle("wallets.on_deposit", adapters.OnDeposit)}},`,
+	} {
+		if !strings.Contains(mod, want) {
+			t.Errorf("module.go lacks %q:\n%s", want, mod)
+		}
+	}
+	if got := read(
+		t,
+		root,
+		"internal/modules/wallets/main_test.go",
+	); !strings.Contains(
+		got,
+		"testkit.Main(m, testkit.WithNATS())",
+	) {
+		t.Errorf("main_test.go does not start NATS:\n%s", got)
+	}
+	if got := read(
+		t,
+		root,
+		"internal/modules/wallets/on_deposit_test.go",
+	); !strings.Contains(
+		got,
+		"testkit.ConsumerSuite(t,",
+	) {
+		t.Errorf("on_deposit_test.go does not run the consumer suite:\n%s", got)
+	}
+
+	if _, err := gen.Apply(root, "consumer", "wallets", "onWithdrawal"); err != nil {
+		t.Fatal(err)
+	}
+	mod = read(t, root, "internal/modules/wallets/module.go")
+	if strings.Count(mod, "adapters.On") != 2 || strings.Count(mod, "/adapters\"") != 1 {
+		t.Errorf("a second consumer did not append once and reuse the import:\n%s", mod)
+	}
+	if got := read(t, root, "internal/modules/wallets/main_test.go"); strings.Count(got, "WithNATS") != 1 {
+		t.Errorf("a second consumer changed main_test.go again:\n%s", got)
+	}
+}
+
+func TestConsumer_refusesAHandEditedConsumersMethod(t *testing.T) {
+	t.Parallel()
+	root := withModule(t)
+	path := filepath.Join(root, "internal/modules/wallets/module.go")
+	edited := strings.Replace(read(t, root, "internal/modules/wallets/module.go"),
+		"return []bus.Consumer{}", "out := []bus.Consumer{}\n\treturn out", 1)
+	if err := os.WriteFile(path, []byte(edited), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gen.Apply(root, "consumer", "wallets", "onDeposit"); err == nil ||
+		!strings.Contains(err.Error(), "Consumers must be a single return of a slice literal") {
+		t.Fatalf("err = %v, want the Consumers shape named", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "internal/modules/wallets/adapters/on_deposit.go")); !os.IsNotExist(err) {
+		t.Fatalf("a refused consumer wrote its handler: %v", err)
+	}
+}
+
+func TestProvider_writesAClientAPortFakeAndAFakesFixture(t *testing.T) {
+	t.Parallel()
+	root := tree(t, map[string]string{"go.mod": "module example.com/app\n"})
+	touched, err := gen.Apply(root, "provider", "quotes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"internal/providers/quotes/client.go",
+		"internal/providers/quotes/client_test.go",
+		"internal/providers/quotes/main_test.go",
+		"internal/providers/quotes/quotesfake/fake.go",
+		"internal/testkit/fakes/testdata/fakes/quotes/_health.json",
+		"internal/testkit/fakes/testdata/fakes/quotes/things/t1.json",
+	}
+	if strings.Join(touched, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("touched %v, want %v", touched, want)
+	}
+	if got := read(
+		t,
+		root,
+		"internal/providers/quotes/quotesfake/fake.go",
+	); !strings.Contains(
+		got,
+		"\ttestkit.Faults\n",
+	) {
+		t.Errorf("the port fake does not embed testkit.Faults:\n%s", got)
+	}
+	if got := read(t, root, "internal/providers/quotes/client.go"); !strings.Contains(got, "type thingWire struct") {
+		t.Errorf("the client has no unexported wire type:\n%s", got)
+	}
+	if _, err := gen.Apply(root, "provider", "Quotes"); err == nil || !strings.Contains(err.Error(), "must match") {
+		t.Fatalf("err = %v, want must match", err)
+	}
+}

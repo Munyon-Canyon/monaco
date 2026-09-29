@@ -1,0 +1,54 @@
+package {{.Name}}
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/url"
+
+	"{{.ModPath}}/internal/errs"
+	"{{.ModPath}}/internal/platform/httpclient"
+)
+
+type Thing struct {
+	ID string
+}
+
+type Port interface {
+	Thing(ctx context.Context, id string) (Thing, error)
+}
+
+type Client struct {
+	http *httpclient.Client
+}
+
+func New(c *httpclient.Client) *Client { return &Client{http: c} }
+
+type thingWire struct {
+	ID   string `json:"id"`
+	Kind string `json:"kind"`
+}
+
+func (c *Client) Thing(ctx context.Context, id string) (Thing, error) {
+	const op = "{{.Name}}.Client.Thing"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/things/"+url.PathEscape(id), nil)
+	if err != nil {
+		return Thing{}, errs.Wrap(err, errs.CodeInvalidInput, op)
+	}
+	resp, err := c.http.Do(ctx, req)
+	if err != nil {
+		return Thing{}, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusNotFound {
+		return Thing{}, errs.New(errs.CodeNotFound, op)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return Thing{}, errs.New(errs.CodeUpstreamUnavailable, op)
+	}
+	var w thingWire
+	if err := json.NewDecoder(resp.Body).Decode(&w); err != nil {
+		return Thing{}, errs.Wrap(err, errs.CodeDecodeFailed, op)
+	}
+	return Thing{ID: w.ID}, nil
+}

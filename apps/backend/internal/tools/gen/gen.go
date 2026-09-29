@@ -52,6 +52,8 @@ func Generators() []Generator {
 		{Kind: "module", Args: []string{"<name>"}, plan: planModule, post: Regenerate},
 		{Kind: "command", Args: []string{"<module>", "<Name>"}, plan: planCommand},
 		{Kind: "query", Args: []string{"<module>", "<Name>"}, plan: planQuery, post: regenerateQueries},
+		{Kind: "consumer", Args: []string{"<module>", "<name>"}, plan: planConsumer},
+		{Kind: "provider", Args: []string{"<name>"}, plan: planProvider},
 	}
 }
 
@@ -166,6 +168,7 @@ type data struct {
 	Module  string
 	Name    string
 	File    string
+	Handler string
 }
 
 func newData(root *os.Root, module, name string) (data, error) {
