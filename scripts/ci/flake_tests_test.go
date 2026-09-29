@@ -11,9 +11,10 @@ import (
 func TestFlakeTests_rerunsChangedTestFuncsWithTheFaultpointsTag(t *testing.T) {
 	root := t.TempDir()
 	for name, body := range map[string]string{
-		"apps/backend/internal/db/lock_test.go":     "package db\n\nfunc TestLock(t *testing.T) {}\nfunc TestUnlock(t *testing.T) {}\nfunc helper() {}\n",
-		"apps/backend/internal/db/note.go":          "package db\n",
-		"apps/backend/internal/app/helpers_test.go": "package app\n",
+		"apps/backend/internal/db/lock_test.go":                                     "package db\n\nfunc TestLock(t *testing.T) {}\nfunc TestUnlock(t *testing.T) {}\nfunc helper() {}\n",
+		"apps/backend/internal/db/note.go":                                          "package db\n",
+		"apps/backend/internal/app/helpers_test.go":                                 "package app\n",
+		"apps/backend/internal/platform/bus/chaos/testdata/counter/counter_test.go": "package counter\n\nfunc TestCounterWithoutDedupe(t *testing.T) {}\n",
 	} {
 		path := filepath.Join(root, name)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -34,6 +35,14 @@ func TestFlakeTests_rerunsChangedTestFuncsWithTheFaultpointsTag(t *testing.T) {
 		},
 		{
 			[]string{"apps/backend/internal/app/helpers_test.go"},
+			"go test -tags faultpoints -short -count=20 -cpu=1,2 ./internal/app",
+		},
+		{
+			[]string{"apps/backend/internal/platform/bus/chaos/testdata/counter/counter_test.go"},
+			"",
+		},
+		{
+			[]string{"apps/backend/internal/platform/bus/chaos/testdata/counter/counter_test.go", "apps/backend/internal/app/helpers_test.go"},
 			"go test -tags faultpoints -short -count=20 -cpu=1,2 ./internal/app",
 		},
 	} {

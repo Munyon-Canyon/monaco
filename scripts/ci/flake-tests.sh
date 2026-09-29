@@ -23,7 +23,7 @@ cd "$root"
 if [[ ${#files[@]} -eq 0 && -n "$base" ]]; then
   while IFS= read -r f; do
     [[ -n "$f" ]] && files+=("$f")
-  done < <(git diff --name-only --diff-filter=d "$base"...HEAD -- 'apps/backend/**/*_test.go')
+  done < <(git diff --name-only --diff-filter=d "$base"...HEAD -- 'apps/backend/**/*_test.go' ':(exclude)*/testdata/*')
 fi
 
 if [[ ${#files[@]} -eq 0 ]]; then
@@ -37,7 +37,7 @@ groups = {}
 order = []
 for f in sys.argv[1:]:
     rel = f[2:] if f.startswith("./") else f
-    if not rel.startswith("apps/backend/") or not rel.endswith("_test.go"):
+    if not rel.startswith("apps/backend/") or not rel.endswith("_test.go") or "/testdata/" in rel:
         continue
     inside = rel[len("apps/backend/"):]
     pkg = os.path.dirname(inside) or "."
