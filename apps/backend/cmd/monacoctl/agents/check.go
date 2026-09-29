@@ -25,6 +25,7 @@ import (
 
 const (
 	excerptLines = 8
+	packageKind  = "package"
 	openAPISpec  = "apps/backend/api/openapi.yaml"
 	vacuumLint   = "dshanley/vacuum:v0.30.6 lint -b -q -n warn -r /api/.vacuum.yaml /api/openapi.yaml"
 )
@@ -35,12 +36,11 @@ var (
 )
 
 type checkRow struct {
-	label  string
-	kind   string
-	dir    string
-	cmds   [][]string
-	goJSON bool
-	skip   string
+	label string
+	kind  string
+	dir   string
+	cmds  [][]string
+	skip  string
 }
 
 type timing struct {
@@ -317,10 +317,10 @@ func (env *Env) goRows(ctx context.Context, base string) ([]checkRow, error) {
 		{label: "go vet", kind: "go", dir: backend, cmds: [][]string{slices.Concat([]string{"go", "vet"}, tags, pkgs)}},
 		lint,
 		{
-			label: "go test -short", kind: "go", dir: backend, goJSON: true,
-			cmds: [][]string{slices.Concat(
-				[]string{"go", "test"}, tags, []string{"-short", "-count=1", "-p", p, "-json"}, pkgs,
-			)},
+			label: "go test -short", kind: packageKind, dir: backend,
+			cmds: [][]string{slices.Concat([]string{"go", "test"}, tags, []string{
+				"-short", "-count=1", "-timeout", env.Config.Budget[packageKind].String(), "-p", p, "-json",
+			}, pkgs)},
 		},
 	}, nil
 }
@@ -466,15 +466,18 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 		return nil
 	}
 	budget := r.env.Config.Budget[row.kind]
-	ctx, cancel := context.WithTimeout(ctx, budget)
-	defer cancel()
+	if row.kind != packageKind {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, budget)
+		defer cancel()
+	}
 	rowStart, first := r.env.Now(), len(r.timings)
 	warnings := 0
 	for _, cmd := range row.cmds {
 		text, err := r.exec(ctx, row, cmd)
 		warnings += strings.Count(text, "::warning ")
-		if r.env.Now().Sub(rowStart) > budget {
-			return r.overBudget(stdout, row, budget, rowStart, r.timings[first:])
+		if err := r.overBudget(stdout, row, budget, rowStart, r.timings[first:]); err != nil {
+			return err
 		}
 		if err != nil {
 			_, _ = fmt.Fprintf(stdout, "  %-15s FAIL  %s\n", row.label, strings.Join(cmd, " "))
@@ -497,12 +500,9 @@ func (r *checkRun) exec(ctx context.Context, row checkRow, cmd []string) (string
 	_, _ = fmt.Fprintf(&r.log, "$ (cd %s && %s)\n", row.dir, strings.Join(cmd, " "))
 	out, err := r.env.Run(ctx, row.dir, "", cmd[0], cmd[1:]...)
 	text := string(out)
-	var timings []timing
-	if row.goJSON {
+	timings := []timing{{cmdName(row, cmd), r.env.Now().Sub(start)}}
+	if row.kind == packageKind {
 		text, timings = goTestTimings(out, r.env.Now())
-	}
-	if len(timings) == 0 {
-		timings = []timing{{cmdName(row, cmd), r.env.Now().Sub(start)}}
 	}
 	r.timings = append(r.timings, timings...)
 	r.log.WriteString(text)
@@ -515,11 +515,30 @@ func (r *checkRun) exec(ctx context.Context, row checkRow, cmd []string) (string
 func (r *checkRun) overBudget(
 	stdout io.Writer, row checkRow, budget time.Duration, rowStart time.Time, timings []timing,
 ) error {
-	slowest := slices.MaxFunc(timings, func(a, b timing) int { return cmp.Compare(a.took, b.took) })
+	var detail string
+	if row.kind == packageKind {
+		slow := slices.DeleteFunc(slices.Clone(timings), func(t timing) bool { return t.took < budget })
+		if len(slow) == 0 {
+			return nil
+		}
+		s := slowest(slow)
+		detail = fmt.Sprintf("%s: package %s took %.1fs, over the %s per-package budget",
+			row.label, s.name, s.took.Seconds(), budget)
+	} else {
+		took := r.env.Now().Sub(rowStart)
+		if took <= budget {
+			return nil
+		}
+		s := slowest(timings)
+		detail = fmt.Sprintf("%s row over the %s %s budget after %.0fs; slowest: %s (%.1fs)",
+			row.label, budget, row.kind, took.Seconds(), s.name, s.took.Seconds())
+	}
 	_, _ = fmt.Fprintf(stdout, "  %-15s over budget\n", row.label)
-	return detailErr(errs.CodeUpstreamTimeout, "monacoctl.agents.check", fmt.Sprintf(
-		"%s row over the %s %s budget after %.0fs; slowest: %s (%.1fs)",
-		row.label, budget, row.kind, r.env.Now().Sub(rowStart).Seconds(), slowest.name, slowest.took.Seconds()))
+	return detailErr(errs.CodeUpstreamTimeout, "monacoctl.agents.check", detail)
+}
+
+func slowest(timings []timing) timing {
+	return slices.MaxFunc(timings, func(a, b timing) int { return cmp.Compare(a.took, b.took) })
 }
 
 func cmdName(row checkRow, cmd []string) string {
