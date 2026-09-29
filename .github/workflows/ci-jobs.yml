@@ -355,7 +355,7 @@ jobs:
 
   ios:
     needs: plan
-    if: inputs.stage == 'queue' && (needs.plan.outputs.ios == 'true' || needs.plan.outputs.unknown == 'true')
+    if: (needs.plan.outputs.ios == 'true' || needs.plan.outputs.unknown == 'true')
     uses: ./.github/workflows/ci-ios.yml
 
   flake:

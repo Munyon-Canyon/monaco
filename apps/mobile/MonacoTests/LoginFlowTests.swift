@@ -13,6 +13,7 @@ struct LoginFlowTests {
     }
 
     @Test func sendingACodeMovesToTheCodeStep() {
+        let x = 1
         let flow = onCodeStep()
         #expect(flow.isCodeEntry)
         #expect(flow.destination == "+15555550123")
