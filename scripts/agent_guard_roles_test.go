@@ -136,3 +136,24 @@ func TestAgentGuard_anOwnerDoesNotWaitOnCI(t *testing.T) {
 		assertAllowed(t, guard(t, r.primary, cmd), "operator: "+cmd)
 	}
 }
+
+func TestAgentGuard_aQueuedStackRefusesGraphiteRewrites(t *testing.T) {
+	r := newRoleRepo(t)
+	record := filepath.Join(r.primary, ".git", ".monaco", "agents", "9.json")
+	writeRoleFile(t, record, `{"ticket":9,"worktree":"`+r.lane+`","queued":{"top":12,"prs":[11,12]}}`)
+	r.markChecked(t)
+	rewrites := []string{
+		"gt submit --stack --no-interactive --publish", "gt ss", "gt s", "gt modify -a", "gt m", "gt restack", "gt r",
+	}
+	for _, cmd := range rewrites {
+		assertBlocked(t, guard(t, r.lane, cmd), cmd, "this stack is in the merge queue as #12")
+		assertAllowed(t, guard(t, r.primary, cmd), "operator: "+cmd)
+	}
+	for _, cmd := range []string{"gt log", "gt checkout ticket", "git status"} {
+		assertAllowed(t, guard(t, r.lane, cmd), cmd)
+	}
+	writeRoleFile(t, record, `{"ticket":9,"worktree":"`+r.lane+`"}`)
+	for _, cmd := range rewrites {
+		assertAllowed(t, guard(t, r.lane, cmd), "unmarked: "+cmd)
+	}
+}

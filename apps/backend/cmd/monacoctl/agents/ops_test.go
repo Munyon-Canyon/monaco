@@ -214,7 +214,7 @@ func TestConflicts_printsTheRebaseTask(t *testing.T) {
 	if code != 0 || stderr != "" || !strings.Contains(stdout, "behind: yes") ||
 		!strings.Contains(stdout, "file: c.go") ||
 		!strings.Contains(stdout, "agent: agt") ||
-		!strings.Contains(stdout, "gt sync --no-interactive then gt restack") {
+		!strings.Contains(stdout, "gt sync --no-interactive --no-restack, run gt restack, monacoctl agents check") {
 		t.Fatalf("code=%d stdout=%q stderr=%q base=%s", code, stdout, stderr, base)
 	}
 }

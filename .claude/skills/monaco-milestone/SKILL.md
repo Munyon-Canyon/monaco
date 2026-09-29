@@ -13,7 +13,7 @@ Run the command named for the step.
 | dispatch | `monacoctl agents dispatch` (`--urgent` for a ticket outside the batch) |
 | verify | `monacoctl agents verify-plan` and `just verify backend` |
 | verdict | `monacoctl agents verdict` |
-| merging | `gh pr merge --auto --squash` into the feature branch |
+| merging | `gh pr merge <n> --auto` for a single PR; `monacoctl agents land-stack <top-pr>` for a stack |
 | watching | `monacoctl agents watch` |
 | status | `monacoctl agents status --publish`, after each batch and dispatch |
 | handoff | `monacoctl agents handoff` |
