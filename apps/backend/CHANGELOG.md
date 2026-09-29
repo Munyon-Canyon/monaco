@@ -29,7 +29,8 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 - The stage 2 `e2e` CI job. The merge queue runs `monacoctl verify all` and `monacoctl verify all --crash-at after-publish` on every backend change, `ci-ok` requires it, and the evidence uploads as `verify-evidence`. The backend nightly also runs `monacoctl verify all`.
 - The `Changelog (checkpoint into main)` check, which fails a checkpoint PR into `main` that changes `apps/backend` without an entry here.
 - `monacoctl garden report [--skip-mutation]`, which lists dead code, candidate lints, surviving mutants and generator drift in `garden-report.md`. The nightly `gardener` workflow runs it with `--skip-mutation` and keeps the result in one open `gardener` issue.
-- The rate limiter in `platform/httpx/ratelimit`. An operation's `x-rate-limit` extension in `openapi.yaml` sets a per-actor bucket, a per-IP bucket or both, kept in Postgres, and a request over the limit gets 429 `rate_limited` with `Retry-After`. `TRUST_PROXY_HEADERS=true` keys the per-IP bucket on the rightmost `X-Forwarded-For` entry. The retention poller deletes buckets idle for more than 24 hours. The api does not mount the middleware yet (#1002).
+- The rate limiter in `platform/httpx/ratelimit`. An operation's `x-rate-limit` extension in `openapi.yaml` sets a per-actor bucket, a per-IP bucket or both, kept in Postgres, and a request over the limit gets 429 `rate_limited` with `Retry-After`. `TRUST_PROXY_HEADERS=true` keys the per-IP bucket on the rightmost `X-Forwarded-For` entry. The retention poller deletes buckets idle for more than 24 hours.
+- The api mounts `ratelimit.Middleware` on every route, after `Auth` and before request validation and `Idempotency`, so a replay or a malformed body still spends a token. Boot loads the policies from each operation's `x-rate-limit` in the spec and fails with `invalid_config` when one is malformed or a public non-GET operation declares none.
 - `monacoctl agents dispatch` posts the owner record as a comment on the ticket, and a clone without the record rebuilds it from that comment, so another machine can resume, verdict or land an in-flight ticket.
 - `just install` runs `scripts/setup-agent-env.sh`, which writes the pstack model roles, and a fresh clone in Claude Code enables the team plugins. The `commit` skill ships with the repo.
 - `scripts/sync-blocked-by.py` mirrors each ticket's `Blocked by` header into GitHub's blocked-by links. It is a dry run unless given `--apply`.
@@ -52,6 +53,7 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 - `monacoctl agents check` budgets its `go test -short` row per package (20 s each) instead of 60 s for the whole row.
 - `monacoctl agents forecast` and `agents dispatch` count a landed stack once, so its files no longer overlap with themselves.
 - The PR format check skips the commit-subject rule on checkpoint PRs into `main`. Ticket PRs still get it.
+- `scripts/with-dotenv-local.sh` looks for the dotenvx key in this order: `.env.keys` in the checkout, `.env.keys` in the primary clone (so a worktree needs no copy), `DOTENV_PRIVATE_KEY_LOCAL` or `DOTENV_PRIVATE_KEY` in the environment, then Dotenvx Armor. It prints the key source, never the key, on stderr.
 
 ### Fixed
 
