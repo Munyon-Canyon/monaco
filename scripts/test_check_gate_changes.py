@@ -210,6 +210,74 @@ class CheckTest(unittest.TestCase):
         self.assertEqual(code, 1)
 
 
+class WorktreeTest(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = pathlib.Path(tmp.name)
+        self.repo = Repo(self.root)
+        scripts = pathlib.Path(__file__).parent
+        for name in ("check-gate-changes.py", "agent-guard-gates.sh"):
+            target = self.root / "scripts" / name
+            target.parent.mkdir(exist_ok=True)
+            target.write_text((scripts / name).read_text())
+            target.chmod(0o755)
+        self.repo.commit({})
+
+    def hook(self, path):
+        stdin = '{"hook_event_name": "PostToolUse", "tool_input": {"file_path": "%s"}}' % (self.root / path)
+        return subprocess.run(
+            [str(self.root / "scripts" / "agent-guard-gates.sh")],
+            input=stdin, capture_output=True, text=True, cwd=self.root,
+        )
+
+    def test_added_skip_returns_exit_2_with_the_finding(self):
+        path = "apps/backend/internal/app/fund_test.go"
+        self.repo.write({path: TESTS.replace("\tif 1+1", '\tt.Skip("flaky")\n\tif 1+1')})
+        result = self.hook(path)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(
+            result.stderr,
+            f'{path}:6: test-skip: added `t.Skip("flaky")`. This weakens a regression gate. Revert it unless '
+            "the user asked for it in this session; if they did, say so under Reviewer focus in the PR.\n",
+        )
+
+    def test_new_test_function_and_new_test_file_pass_silently(self):
+        path = "apps/backend/internal/app/fund_test.go"
+        new = "apps/backend/internal/app/new_test.go"
+        self.repo.write({
+            path: TESTS + "\nfunc TestWithdraw(t *testing.T) {}\n",
+            new: "package fund\n\nfunc TestNew(t *testing.T) {}\n",
+        })
+        for p in (path, new):
+            result = self.hook(p)
+            self.assertEqual((result.returncode, result.stderr), (0, ""))
+
+    def test_untracked_test_file_with_skip_is_flagged(self):
+        new = "apps/backend/internal/app/new_test.go"
+        self.repo.write({new: 'package fund\n\nfunc TestNew(t *testing.T) {\n\tt.SkipNow()\n}\n'})
+        result = self.hook(new)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn(f"{new}:4: test-skip", result.stderr)
+
+    def test_deleted_function_and_gate_file_line(self):
+        self.repo.write({
+            "apps/backend/internal/app/fund_test.go": TESTS.replace("func FuzzAmount(f *testing.F) {}\n", ""),
+            "apps/backend/mutants.allow": "internal/app/fund.go:1 X\n",
+        })
+        self.assertIn("test-removed: `FuzzAmount` is gone", self.hook("apps/backend/internal/app/fund_test.go").stderr)
+        self.assertIn("mutants.allow:1: gate-file", self.hook("apps/backend/mutants.allow").stderr)
+
+    def test_findings_are_limited_to_the_edited_path(self):
+        self.repo.write({"apps/backend/mutants.allow": "internal/app/fund.go:1 X\n"})
+        result = self.hook("apps/backend/internal/app/fund_test.go")
+        self.assertEqual((result.returncode, result.stderr), (0, ""))
+
+    def test_non_gate_path_is_ignored(self):
+        self.repo.write({"apps/backend/internal/app/fund.go": "package fund\n"})
+        self.assertEqual(self.hook("apps/backend/internal/app/fund.go").returncode, 0)
+
+
 class ExclusionLinesTest(unittest.TestCase):
     def test_block_ends_at_sibling_key(self):
         self.assertEqual(check.exclusion_lines(GOLANGCI), {4, 5, 6})

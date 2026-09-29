@@ -11,6 +11,9 @@ Diffs BASE_SHA...HEAD_SHA and reports each finding as `path:line: <rule>: <what>
   head, unless its base file still has at least as many of them (a rename).
 
 Reads BASE_SHA, HEAD_SHA and PR_LABELS (JSON list of label names) from the environment.
+`--worktree [path...]` instead diffs the working tree (untracked files included) against HEAD,
+limits findings to the given paths, skips the label check, and exits 1 on any finding. The
+Claude Code hook scripts/agent-guard-gates.sh calls it after each edit.
 Rules: docs/architecture/ci.md#what-runs-where
 """
 
@@ -113,13 +116,13 @@ def skip_findings(added: list[Added]) -> list[Finding]:
     ]
 
 
-def test_funcs(grep: str) -> list[tuple[str, int, str]]:
+def test_funcs(grep: str, rev: bool) -> list[tuple[str, int, str]]:
     funcs = []
     for row in grep.splitlines():
-        parts = row.split(":", 3)
-        if len(parts) != 4:
+        parts = row.split(":", 3 if rev else 2)[1 if rev else 0:]
+        if len(parts) != 3:
             continue
-        _, path, line, text = parts
+        path, line, text = parts
         funcs.append((path, int(line), re.match(r"func (\w+)", text).group(1)))
     return funcs
 
@@ -135,21 +138,38 @@ def removed_findings(base: list[tuple[str, int, str]], head: list[tuple[str, int
     ]
 
 
-def grep_tests(rev: str) -> list[tuple[str, int, str]]:
-    return test_funcs(git("grep", "-n", "-E", TEST_FUNC, rev, "--", "*_test.go", ok=(0, 1)))
+def grep_tests(rev: str | None) -> list[tuple[str, int, str]]:
+    args = ["-e", TEST_FUNC, rev] if rev else ["--untracked", "-e", TEST_FUNC]
+    return test_funcs(git("grep", "-n", "-E", *args, "--", "*_test.go", ok=(0, 1)), bool(rev))
+
+
+def diff(*args: str) -> list[Added]:
+    return added_lines(git("diff", "-U0", "-M", "--no-color", "--no-ext-diff", *args))
+
+
+def check(added: list[Added], golangci: str, base_tests, head_tests) -> list[Finding]:
+    exclusions = exclusion_lines(golangci) if any(a.path == GOLANGCI for a in added) else set()
+    return gate_findings(added, exclusions) + skip_findings(added) + removed_findings(base_tests, head_tests)
 
 
 def findings(base: str, head: str) -> list[Finding]:
-    added = added_lines(git("diff", "-U0", "-M", "--no-color", "--no-ext-diff", f"{base}...{head}"))
-    exclusions = set()
-    if any(a.path == GOLANGCI for a in added):
-        exclusions = exclusion_lines(git("show", f"{head}:{GOLANGCI}"))
+    added = diff(f"{base}...{head}")
+    golangci = git("show", f"{head}:{GOLANGCI}") if any(a.path == GOLANGCI for a in added) else ""
     merge_base = git("merge-base", base, head).strip()
-    return (
-        gate_findings(added, exclusions)
-        + skip_findings(added)
-        + removed_findings(grep_tests(merge_base), grep_tests(head))
-    )
+    return check(added, golangci, grep_tests(merge_base), grep_tests(head))
+
+
+def worktree_findings(paths: list[str]) -> list[Finding]:
+    added = diff("HEAD", "--", *paths)
+    for path in git("ls-files", "--others", "--exclude-standard", "--", *paths).splitlines():
+        with open(path, errors="replace") as f:
+            added += [Added(path, n, text, True) for n, text in enumerate(f.read().splitlines(), 1)]
+    golangci = ""
+    if any(a.path == GOLANGCI for a in added):
+        with open(GOLANGCI) as f:
+            golangci = f.read()
+    found = check(added, golangci, grep_tests("HEAD"), grep_tests(None))
+    return [f for f in found if not paths or f.path in paths]
 
 
 def ensure_commit(sha: str) -> None:
@@ -158,6 +178,11 @@ def ensure_commit(sha: str) -> None:
 
 
 def main() -> int:
+    if sys.argv[1:2] == ["--worktree"]:
+        found = worktree_findings(sys.argv[2:])
+        for f in found:
+            print(f)
+        return 1 if found else 0
     labels = json.loads(os.environ.get("PR_LABELS") or "[]")
     base, head = os.environ["BASE_SHA"], os.environ["HEAD_SHA"]
     for sha in (base, head):
