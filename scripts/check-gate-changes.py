@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail a pull request that weakens a test gate, unless a human adds `gate-change-approved`.
+"""Warn on a pull request that weakens a test gate, unless a human adds `gate-change-approved`.
 
 Diffs BASE_SHA...HEAD_SHA and reports each finding as `path:line: <rule>: <what>`:
 
@@ -11,6 +11,8 @@ Diffs BASE_SHA...HEAD_SHA and reports each finding as `path:line: <rule>: <what>
   head, unless its base file still has at least as many of them (a rename).
 
 Reads BASE_SHA, HEAD_SHA and PR_LABELS (JSON list of label names) from the environment.
+Each finding becomes a GitHub `::warning` annotation plus a line in $GITHUB_STEP_SUMMARY, and
+the job still passes: the check is advisory. A crash of the checker itself exits non-zero.
 `--worktree [path...]` instead diffs the working tree (untracked files included) against HEAD,
 limits findings to the given paths, skips the label check, and exits 1 on any finding. The
 Claude Code hook scripts/agent-guard-gates.sh calls it after each edit.
@@ -177,6 +179,23 @@ def ensure_commit(sha: str) -> None:
         subprocess.run(["git", "-c", "maintenance.auto=false", "-c", "gc.auto=0", "fetch", "--quiet", "--no-tags", "origin", sha], check=True)
 
 
+def escape(text: str, prop: bool = False) -> str:
+    text = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    return text.replace(":", "%3A").replace(",", "%2C") if prop else text
+
+
+def annotation(f: Finding) -> str:
+    return (f"::warning file={escape(f.path, True)},line={f.line},title=Test gate weakened::"
+            + escape(f"{f.rule}: {f.what}. The `{OVERRIDE_LABEL}` label silences this."))
+
+
+def step_summary(found: list[Finding]) -> str:
+    rows = "".join(f"- `{f.path}:{f.line}` {f.rule}: {f.what}\n" for f in found)
+    return (f"### This PR weakens a test gate\n\n{rows}\nRevert the change, or explain it under "
+            f"\"Reviewer focus\" and ask a human reviewer for the `{OVERRIDE_LABEL}` label, "
+            "which silences this warning. Only a human adds it. The check never blocks the merge.\n")
+
+
 def main() -> int:
     if sys.argv[1:2] == ["--worktree"]:
         found = worktree_findings(sys.argv[2:])
@@ -191,14 +210,18 @@ def main() -> int:
     if not found:
         print("No test gate weakened.")
         return 0
-    for f in found:
-        print(f)
     if OVERRIDE_LABEL in labels:
+        for f in found:
+            print(f)
         print(f"Allowed by the `{OVERRIDE_LABEL}` label.")
         return 0
-    print(f"This PR weakens a test gate. Revert the change, or explain it under \"Reviewer focus\" "
-          f"and ask a human reviewer for the `{OVERRIDE_LABEL}` label. Only a human adds it.")
-    return 1
+    for f in found:
+        print(annotation(f))
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a") as out:
+            out.write(step_summary(found))
+    return 0
 
 
 if __name__ == "__main__":
