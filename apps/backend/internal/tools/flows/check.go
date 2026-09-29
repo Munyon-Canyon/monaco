@@ -12,8 +12,6 @@ import (
 
 type Lookup func(f Flow, value string) bool
 
-func Unchecked(Flow, string) bool { return true }
-
 type Env struct {
 	Repo        fs.FS
 	BackendDir  string

@@ -294,7 +294,7 @@ func planModule(root, modPath, name string, p plan) error {
 		strconv.Quote(modPath + "/" + platformMod),
 	}
 	body := "func init() {\n\tregistered.Add(func(d module.Deps) module.Module { return " + name + ".New(d) })\n}\n"
-	for _, dir := range []string{apiDir, workerDir} {
+	for _, dir := range []string{apiDir, toolsDir, workerDir} {
 		p.add(filepath.Join(dir, "module_"+name+genSuffix), "main", imports, body)
 	}
 	return nil

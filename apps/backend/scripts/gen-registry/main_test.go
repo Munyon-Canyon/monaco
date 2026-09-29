@@ -79,8 +79,9 @@ func TestGenerate_writesOneCompanionPerRegistrationFileAndDropsStaleOnes(t *test
 			"func init() {\n\tregister(\n\t\tBootA,\n\t\tBootB,\n\t)\n}\n",
 		"cmd/monacoctl/report.gen.go": header + "\npackage main\n\n" +
 			"func init() {\n\tregisterTool(\"test-report\", toolTestReport)\n}\n",
-		"cmd/api/module_alpha.gen.go":    moduleAlpha,
-		"cmd/worker/module_alpha.gen.go": moduleAlpha,
+		"cmd/api/module_alpha.gen.go":       moduleAlpha,
+		"cmd/monacoctl/module_alpha.gen.go": moduleAlpha,
+		"cmd/worker/module_alpha.gen.go":    moduleAlpha,
 	} {
 		if got := read(t, root, rel); got != want {
 			t.Errorf("%s =\n%s\nwant\n%s", rel, got, want)

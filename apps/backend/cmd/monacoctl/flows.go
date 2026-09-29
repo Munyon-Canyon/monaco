@@ -12,9 +12,11 @@ import (
 	"slices"
 	"strings"
 
+	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
@@ -42,7 +44,8 @@ func flowsCmd(args []string, _, stderr io.Writer) int {
 		_, _ = fmt.Fprintln(stderr, flowsUsage)
 		return 2
 	}
-	return flowsCheck(liveEnv(os.DirFS("../.."), gitFresh(context.Background(), ".")), tests, stderr)
+	env := liveEnv(os.DirFS("../.."), ".", registered.Build(module.Deps{}), gitFresh(context.Background(), "."))
+	return flowsCheck(env, tests, stderr)
 }
 
 func flowsCheck(env flows.Env, tests io.Reader, stderr io.Writer) int {
@@ -81,7 +84,7 @@ func readFlows(repo fs.FS) ([]flows.Flow, []flows.Problem, error) {
 	return parsed, problems, nil
 }
 
-func liveEnv(repo fs.FS, fresh flows.Fresh) flows.Env {
+func liveEnv(repo fs.FS, backend string, mods module.Set, fresh flows.Fresh) flows.Env {
 	catalog := events.Catalog()
 	eventTypes := make([]string, 0, len(catalog))
 	for _, e := range catalog {
@@ -92,14 +95,24 @@ func liveEnv(repo fs.FS, fresh flows.Fresh) flows.Env {
 	for _, c := range codes {
 		codeNames = append(codeNames, errs.Name(c))
 	}
+	consumers := mods.Consumers()
+	durables := make([]string, 0, len(consumers))
+	for _, c := range consumers {
+		durables = append(durables, c.Durable)
+	}
+	pollers := mods.Pollers()
+	pollerNames := make([]string, 0, len(pollers))
+	for _, p := range pollers {
+		pollerNames = append(pollerNames, p.Name())
+	}
 	return flows.Env{
 		Repo:        repo,
 		BackendDir:  backendDir,
-		Events:      func(_ flows.Flow, v string) bool { return slices.Contains(eventTypes, v) },
-		Codes:       func(_ flows.Flow, v string) bool { return slices.Contains(codeNames, v) },
-		Triggers:    flows.Unchecked,
-		Commands:    flows.Unchecked,
-		Consumers:   flows.Unchecked,
+		Events:      flows.Members(eventTypes),
+		Codes:       flows.Members(codeNames),
+		Triggers:    flows.Triggers(openapi.Spec, eventTypes, pollerNames),
+		Commands:    flows.Commands(backend),
+		Consumers:   flows.Members(durables),
 		Faultpoints: func(_ flows.Flow, v string) bool { return faultpoint.Known(v) },
 		Fresh:       fresh,
 	}
