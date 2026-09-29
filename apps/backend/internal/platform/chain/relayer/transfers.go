@@ -74,7 +74,9 @@ func (t *Transfers) Build(ctx context.Context, spec TransferSpec) (SignedTx, err
 			slog.String("wallet_id", spec.FromWallet.ID),
 		)
 	}
-	_ = tx.Sign(t.relayer.key)
+	if err := tx.Sign(t.relayer.key); err != nil {
+		return SignedTx{}, errs.Wrap(err, errs.CodeInternal, op)
+	}
 	return SignedTx{
 		Bytes:                tx.Encode(),
 		Signature:            chain.SignatureOf(tx.Signatures[0]),
