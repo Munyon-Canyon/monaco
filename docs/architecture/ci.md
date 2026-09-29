@@ -262,6 +262,7 @@ Each step is one small PR with its own proof.
 
 ## Log
 
+- 2026-09-29: `agents-status.yml` uses one concurrency group per PR, `agents-status-${{ github.event.pull_request.number || github.ref }}`, still with `cancel-in-progress: false` (#929). GitHub keeps one pending run per group and cancels the pending run a newer one replaces, whatever `cancel-in-progress` says, so the single `agents-status` group from #891 still left red `status` checks on a stack submit of three or more PRs. Two runs can now publish the status comment at once, and an older snapshot can land last until the next event or the 10-minute schedule rewrites it.
 - 2026-09-29: Added the stage 2 `e2e` job (#483). `scripts/ci/e2e.sh` runs `monacoctl verify all` and `monacoctl verify all --crash-at after-publish` and uploads `apps/backend/.verify/` as an artifact; evidence is never committed. The nightly backend job runs `monacoctl verify all` too. The planned `just` recipe and pre-PR evidence hook are dropped: verify is a queue and nightly step, not an owner step.
 - 2026-09-29: Checkpoint PRs into `main` must update `apps/backend/CHANGELOG.md`. The `Changelog (checkpoint into main)` job runs `scripts/check-changelog.py`, and the `main` ruleset requires it (#890).
 - 2026-09-29: The laptop run budget for `just test backend` rose from 60 s to 90 s (#831). CI still does not gate the run.
