@@ -62,7 +62,13 @@ jobs:
         run: go run ./cmd/monacoctl lint comments
 
       - name: OpenAPI spec lint
-        run: docker run --rm -v "$PWD/api:/api:ro" dshanley/vacuum:v0.30.6 lint -b -q -n warn -r /api/.vacuum.yaml /api/openapi.yaml
+        run: |
+          for attempt in 1 2 3; do
+            docker pull -q dshanley/vacuum:v0.30.6 && break
+            [ "$attempt" = 3 ] && exit 1
+            sleep 5
+          done
+          docker run --rm -v "$PWD/api:/api:ro" dshanley/vacuum:v0.30.6 lint -b -q -n warn -r /api/.vacuum.yaml /api/openapi.yaml
 
       - name: Lint the latest migration
         run: go run ./cmd/monacoctl migrate lint
@@ -112,6 +118,16 @@ jobs:
         run: find . -path '*/testdata/*' -exec touch -t 200001010000 {} +
 
       - uses: ./.github/actions/backend-test-env
+
+      - name: Read the pinned golangci-lint version
+        id: golangci
+        run: echo "version=$(cat .golangci-lint-version)" >> "$GITHUB_OUTPUT"
+
+      # The lint package's rule tests run golangci-lint and fail in CI when it is missing.
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: ${{ steps.golangci.outputs.version }}
+          install-only: true
 
       - name: Race tests, the time budget and the flows.tsv check
         run: ../../scripts/test-backend.sh
