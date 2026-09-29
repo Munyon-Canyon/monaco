@@ -6,6 +6,7 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
 
 ## Before you start
 
+- Set up the clone once with [Agent workflow setup](../agents/setup.md), and read the [standing orders](../agents/standing-orders.md). They apply to a person as well as to an agent.
 - Install the tools with `just install`: Go, `just`, `gh` and Graphite (`gt`). Authenticate `gh` and run `gt auth --token <token>` once.
 - `.monaco/agents.toml` names the feature branch (`feature_branch`), the tracking issue (`tracking`) and the per-row check budgets. The examples below use `backend-rewrite-3`, the feature branch today.
 - An agent owner gets a dispatch prompt with four fields: `ticket`, `worktree`, `parent` and `brief`. The brief is [`docs/agents/owner.md`](../agents/owner.md). The worktree already exists at the parent SHA, and `.git/.monaco/agents/<ticket>.json` registers it, so the agent guard hooks apply to it.
@@ -58,6 +59,8 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
     - It refuses a dirty tree, because it records `HEAD`'s tree. On a pass it writes `.git/pstack/<milestone>/checks/<tree>`, and the hook lets an owner's push through only when that record matches the current tree.
     - Run it again after every `gt modify`. A tree that already passed prints `stage 0 already passed`.
     - If only a budget fails and the machine is loaded (check `uptime`), rerun it once the load drops. Run the named package on its own to prove the code is fine: `go test -short -count=1 ./<pkg>`.
+
+    - Before stage 0, run what the change must regenerate, and commit the output. CI's `ready` job (`scripts/ci/ready.sh`) fails on a stale `go generate ./...`, `go mod tidy`, sqlc output, `scripts/gen-docs.sh` output or the `verify-backend` feature map. `scripts/ci/ready.sh` runs the same steps locally on a committed tree.
 
     Never run `just test backend`, `go test -race` or `go test ./...` from `apps/backend` as an owner. Never run mutation testing locally. The merge queue runs the full suite, and the nightly runs mutation.
 

@@ -1,6 +1,6 @@
 # Agent workflow setup
 
-This page sets up a clone so that Claude Code runs the same agent workflow the M7 milestone ran: the same plugins, model roles, skills and rules. After it, follow [Ship a ticket](../how-to/ship-a-ticket.md) to own one ticket, or [Run a milestone](../how-to/run-a-milestone.md) to orchestrate many.
+This page sets up a clone so that Claude Code runs the same agent workflow the M7 milestone ran: the same plugins, model roles, skills and rules. The rules the workflow runs by are in [Standing orders](standing-orders.md). After setup, follow [Ship a ticket](../how-to/ship-a-ticket.md) to own one ticket, or [Run a milestone](../how-to/run-a-milestone.md) to orchestrate many.
 
 ## Set up a clone
 

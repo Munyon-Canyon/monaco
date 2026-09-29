@@ -271,6 +271,15 @@ Phantom MCP cannot pull from Privy. The reverse of deposit is **cash out**, then
 
 After a funding run, leftover **agent-test USDC belongs on the agent Phantom**, not in a group vault and not in a sim user’s inbox.
 
+## Agent workflow setup
+
+Agent owners and verifiers ship tickets in Claude Code with the pstack plugin, a set of model roles and the repo's skills and rules. `just install` writes the model roles. Trusting the folder in Claude Code enables the plugins from `.claude/settings.json`.
+
+- [Agent workflow setup](docs/agents/setup.md): the plugins, model roles and skills, and the one-time steps.
+- [Ship a ticket](docs/how-to/ship-a-ticket.md): one ticket from its issue to a merge, for a person or an agent owner.
+- [Run a milestone](docs/how-to/run-a-milestone.md): batches, dispatch, verification, landing and handoff, for the orchestrator.
+- [Standing orders](docs/agents/standing-orders.md): the rules every owner, verifier and orchestrator follows.
+
 ## Agent skills (Cursor)
 
 Cursor loads repo skills from [`.cursor/skills/`](.cursor/skills/). Attach one in chat, or let the agent pick it from the description. Humans do not need these to `just run`.

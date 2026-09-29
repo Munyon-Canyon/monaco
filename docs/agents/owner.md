@@ -2,6 +2,8 @@
 
 The full procedure, with fixes for failed checks, is [Ship a ticket](../how-to/ship-a-ticket.md).
 
+Read the [standing orders](standing-orders.md) first. Never ask the operator a question. Pick the option that best serves fast and correct, and record it under "What came up".
+
 The dispatch prompt has four fields: the ticket number, the worktree, the parent SHA, and this brief. Read the GitHub issue for that ticket. Change files only in the worktree. Stack from the parent SHA with `gt create`.
 
 ## Done

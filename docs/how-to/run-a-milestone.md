@@ -2,7 +2,7 @@
 
 This page is for the orchestrator of a milestone, a person or an agent session called the root. The root turns the milestone's tickets into merged PRs on the feature branch, then into a checkpoint on `main`. It writes no ticket code itself. Each ticket's owner follows [Ship a ticket](ship-a-ticket.md).
 
-The rules behind these steps are in [Pull requests: small and stacked](../architecture/backend-platform.md#pull-requests-small-and-stacked) and [CI](../architecture/ci.md). This page says what to run and when.
+Set up the clone with [Agent workflow setup](../agents/setup.md). The [standing orders](../agents/standing-orders.md) bind the root as well as every owner and verifier. The rules behind these steps are in [Pull requests: small and stacked](../architecture/backend-platform.md#pull-requests-small-and-stacked) and [CI](../architecture/ci.md). This page says what to run and when.
 
 ## Roles
 
@@ -36,6 +36,8 @@ Do these once per milestone.
     `just build backend` writes `bin/monacoctl`. The commands below run as `bin/monacoctl agents <command>` from that worktree. Rebuild after any merge that changes `apps/backend/cmd/monacoctl/agents`. Every worktree of the clone shares the records under `.git/.monaco/agents/` and `.git/pstack/<milestone>/`, so any worktree works.
 
 5. Confirm the `MERGE_BACK_TOKEN` repo secret exists (`gh secret list`). `checkpoint.yml` needs it. The verifier's statuses post as the verifier App when `~/.config/monaco/verifier.pem` exists, and as your `gh` user otherwise.
+
+6. Start the milestone's decision log at `docs/milestones/<milestone>.md`. Every milestone orchestrator keeps one, like the [M7 closeout log](../milestones/m7-closeout.md). Write one line per decision as it happens: the time, what was decided and why, and what broke and how it was fixed. Keep the log on its own branch with a draft PR, commit each batch of entries with `gt modify`, push with `gt submit --stack --no-interactive --draft`, and land it at each handoff and checkpoint. A log that exists only in one session is lost when that session ends.
 
 ## Write tickets
 
