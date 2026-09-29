@@ -2,7 +2,7 @@
 set -euo pipefail
 
 [[ $# -eq 2 ]] || { echo "usage: scripts/ci/checkpoint-tree.sh <squash-sha> <head-sha>" >&2; exit 2; }
-REPO="${GITHUB_REPOSITORY:-lognorman20/monaco}"
+REPO="${GITHUB_REPOSITORY:-Munyon-Canyon/monaco}"
 
 tree_sha() { gh api "repos/$REPO/git/commits/$1" --jq .tree.sha; }
 

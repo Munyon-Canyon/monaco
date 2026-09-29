@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="${MONACO_REPO:-lognorman20/monaco}"
+REPO="${MONACO_REPO:-Munyon-Canyon/monaco}"
 ACTIONS_APP_ID=15368
 
 usage() {

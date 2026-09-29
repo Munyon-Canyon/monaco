@@ -41,7 +41,7 @@ anything.
 
 | Setting | Value |
 |---|---|
-| Project source | Connect to Git, repo `lognorman20/monaco`, production branch `main` |
+| Project source | Connect to Git, repo `Munyon-Canyon/monaco`, production branch `main` |
 | Root directory | `apps/web` |
 | Framework preset | None |
 | Build command | *(empty — there is no build step)* |

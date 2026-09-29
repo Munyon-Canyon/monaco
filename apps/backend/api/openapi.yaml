@@ -5,7 +5,7 @@ info:
   description: HTTP contract between the Monaco iOS app and the Monaco backend.
   contact:
     name: Monaco
-    url: https://github.com/lognorman20/monaco
+    url: https://github.com/Munyon-Canyon/monaco
   license:
     name: Proprietary
     identifier: LicenseRef-Proprietary
