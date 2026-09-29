@@ -101,6 +101,7 @@ struct LoginView: View {
                     .frame(height: MonacoButtonMetrics.minimumHeight)
                     .clipShape(Capsule())
                     .allowsHitTesting(false)
+                    .contentShape(Capsule())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Sign in with Apple")
