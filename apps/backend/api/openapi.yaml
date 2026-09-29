@@ -243,12 +243,14 @@ components:
         - idempotency_mismatch
         - internal
         - invalid_address
+        - invalid_config
         - invalid_input
         - jupiter_rejected
         - jupiter_unavailable
         - not_found
         - panic
         - privy_unavailable
+        - rate_limited
         - relayer_underfunded
         - rpc_unavailable
         - unauthorized

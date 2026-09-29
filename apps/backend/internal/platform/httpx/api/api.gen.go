@@ -28,12 +28,14 @@ const (
 	IdempotencyMismatch ErrorCode = "idempotency_mismatch"
 	Internal            ErrorCode = "internal"
 	InvalidAddress      ErrorCode = "invalid_address"
+	InvalidConfig       ErrorCode = "invalid_config"
 	InvalidInput        ErrorCode = "invalid_input"
 	JupiterRejected     ErrorCode = "jupiter_rejected"
 	JupiterUnavailable  ErrorCode = "jupiter_unavailable"
 	NotFound            ErrorCode = "not_found"
 	Panic               ErrorCode = "panic"
 	PrivyUnavailable    ErrorCode = "privy_unavailable"
+	RateLimited         ErrorCode = "rate_limited"
 	RelayerUnderfunded  ErrorCode = "relayer_underfunded"
 	RpcUnavailable      ErrorCode = "rpc_unavailable"
 	Unauthorized        ErrorCode = "unauthorized"
@@ -63,6 +65,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case InvalidAddress:
 		return true
+	case InvalidConfig:
+		return true
 	case InvalidInput:
 		return true
 	case JupiterRejected:
@@ -74,6 +78,8 @@ func (e ErrorCode) Valid() bool {
 	case Panic:
 		return true
 	case PrivyUnavailable:
+		return true
+	case RateLimited:
 		return true
 	case RelayerUnderfunded:
 		return true
