@@ -12,18 +12,46 @@ import (
 	"testing/iotest"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
-const pingRow = "01\tPing\tsystem\tpoller:ping\tPing\tsystem.pinged\t\tok;Internal\tbuilt\tdocs/flows.md#ping"
+const pingRow = "01\tPing\tsystem\tpoller:platform.retention\tPing\tsystem.pinged\t\tok;Internal\tbuilt\tdocs/flows.md#ping"
 
-func envWith(tsv string) flows.Env {
+type echoModule struct{}
+
+func (echoModule) Name() string { return "system" }
+
+func (echoModule) Routes(*httpx.Routes) {}
+
+func (echoModule) Consumers() []bus.Consumer { return []bus.Consumer{{Durable: "system.echo"}} }
+
+func (echoModule) Pollers() []poller.Poller { return []poller.Poller{poller.NewRetention(nil, nil)} }
+
+func envWith(t *testing.T, tsv string) flows.Env {
+	t.Helper()
+	backend := t.TempDir()
+	for name, body := range map[string]string{
+		"go.mod":                             "module example.com/backend\n\ngo 1.25\n",
+		"internal/modules/system/app/app.go": "package app\n\ntype Ping struct{}\n",
+	} {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(backend, name)), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(backend, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	repo := fstest.MapFS{
 		"apps/backend/flows.tsv":                          {Data: []byte(tsv)},
 		"apps/backend/internal/modules/system/app/app.go": {Data: []byte("package app\n")},
 		"docs/flows.md":                                   {Data: []byte("## Ping\n")},
 	}
-	return liveEnv(repo, func(string, string) (bool, error) { return true, nil })
+	mods := module.NewSet(echoModule{})
+	return liveEnv(repo, backend, mods, func(string, string) (bool, error) { return true, nil })
 }
 
 func pass(names ...string) string {
@@ -57,11 +85,21 @@ func TestFlowsCheck(t *testing.T) {
 				"flows.tsv:2: outcome NoSuchCode is not an errs code name\n" +
 				"flows.tsv:2: outcome crash:after-lunch is not a registered faultpoint\n",
 		},
+		{
+			"live routes, commands and consumers", flows.Header + "\n" +
+				"02\tPong\tsystem\tPOST /v1/pong\tPong\t\tghost.durable\tok\tplanned\tdocs/flows.md#ping\n" +
+				"03\tHealth\tsystem\tGET /healthz\tPing\t\t\tok\tplanned\tdocs/flows.md#ping\n" +
+				"04\tPinged\tsystem\tconsumer:system.pinged\tPing\t\tsystem.echo\tok\tplanned\tdocs/flows.md#ping\n",
+			"", 1,
+			"flows.tsv:2: trigger POST /v1/pong is not a route, subject or poller\n" +
+				"flows.tsv:2: command Pong is not a type in internal/modules/system/app\n" +
+				"flows.tsv:2: consumer ghost.durable is not a registered durable\n",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var stderr bytes.Buffer
-			code := flowsCheck(envWith(tc.tsv), strings.NewReader(tc.tests), &stderr)
+			code := flowsCheck(envWith(t, tc.tsv), strings.NewReader(tc.tests), &stderr)
 			if code != tc.code || stderr.String() != tc.stderr {
 				t.Fatalf("code=%d stderr=\n%s\nwant code=%d stderr=\n%s", code, stderr.String(), tc.code, tc.stderr)
 			}
@@ -71,7 +109,7 @@ func TestFlowsCheck(t *testing.T) {
 
 func TestFlowsCheck_missingFileFails(t *testing.T) {
 	t.Parallel()
-	env := envWith("")
+	env := envWith(t, "")
 	env.Repo = fstest.MapFS{}
 	var stderr bytes.Buffer
 	if code := flowsCheck(env, nil, &stderr); code != 1 || !strings.Contains(stderr.String(), "flows.tsv") {
@@ -174,7 +212,7 @@ func TestGitFresh_failsWhenGitCannotRun(t *testing.T) {
 func TestFlowsCheck_failsWhenTheTestResultsCannotBeRead(t *testing.T) {
 	t.Parallel()
 	var stderr bytes.Buffer
-	code := flowsCheck(envWith(flows.Header+"\n"), iotest.ErrReader(io.ErrUnexpectedEOF), &stderr)
+	code := flowsCheck(envWith(t, flows.Header+"\n"), iotest.ErrReader(io.ErrUnexpectedEOF), &stderr)
 	if code != 1 || !strings.HasPrefix(stderr.String(), "monacoctl flows check: ") ||
 		!strings.Contains(stderr.String(), io.ErrUnexpectedEOF.Error()) {
 		t.Fatalf("code=%d stderr=%q", code, stderr.String())

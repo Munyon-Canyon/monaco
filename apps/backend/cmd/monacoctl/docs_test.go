@@ -49,14 +49,14 @@ func TestDocsFlowsRendersTheTSV(t *testing.T) {
 		{
 			"valid", flows.Header + "\n" + pingRow + "\n", 0,
 			"| # | Flow | Command / trigger | Events | Consumers |\n| --- | --- | --- | --- | --- |\n" +
-				"| 01 | Ping | `Ping` on `poller:ping` | `system.pinged` | none |\n", "",
+				"| 01 | Ping | `Ping` on `poller:platform.retention` | `system.pinged` | none |\n", "",
 		},
 		{"malformed", flows.Header + "\n01\tPing\n", 1, "", "flows.tsv:2: has 2 columns, want 10\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var stdout, stderr bytes.Buffer
-			code := docsFlows(envWith(tc.tsv).Repo, &stdout, &stderr)
+			code := docsFlows(envWith(t, tc.tsv).Repo, &stdout, &stderr)
 			if code != tc.code || stdout.String() != tc.stdout || stderr.String() != tc.stderr {
 				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 			}

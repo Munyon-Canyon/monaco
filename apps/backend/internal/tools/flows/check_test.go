@@ -89,16 +89,6 @@ func TestCheckColumns_duplicateIDNamesTheFirstLine(t *testing.T) {
 	}
 }
 
-func TestCheckColumns_uncheckedColumnsAcceptAnything(t *testing.T) {
-	t.Parallel()
-	env := testEnv()
-	env.Triggers, env.Commands, env.Consumers, env.Faultpoints = flows.Unchecked, flows.Unchecked, flows.Unchecked, flows.Unchecked
-	row := fundRowWith(func(c []string) { c[3], c[4], c[6], c[7] = "x", "Anything", "y", "ok;crash:any-point" })
-	if got := check(t, tsv(row), env); len(got) != 0 {
-		t.Fatalf("problems = %q", got)
-	}
-}
-
 func TestAnchors_followGitHubSlugRules(t *testing.T) {
 	t.Parallel()
 	md := strings.Join([]string{
