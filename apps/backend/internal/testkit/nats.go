@@ -276,3 +276,31 @@ func StandaloneNATSWithStream(t *testing.T, name string, subjects ...string) str
 	}
 	return url
 }
+
+type EmbeddedNATS struct {
+	URL string
+	JS  jetstream.JetStream
+	s   *natsServer
+}
+
+func StartEmbeddedNATS() (*EmbeddedNATS, error) {
+	s, err := startNATS()
+	if err != nil {
+		return nil, err
+	}
+	conn, err := openBus(s.srv.ClientURL(), natsDeadline, nil)
+	if err != nil {
+		s.stop()
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), natsDeadline)
+	defer cancel()
+	conn.Close(ctx)
+	return &EmbeddedNATS{URL: s.srv.ClientURL(), JS: s.js, s: s}, nil
+}
+
+func (e *EmbeddedNATS) Stop() {
+	if e != nil {
+		e.s.stop()
+	}
+}

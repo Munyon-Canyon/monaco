@@ -231,6 +231,9 @@ linters:
       - path: ^cmd/monacoctl/(coverage|mutation)(_test)?\.go$
         linters: [gosec]
         text: G204|G304
+      - path: ^cmd/monacoctl/verify/
+        linters: [gosec]
+        text: G101|G204|G304|G306
       - path: ^internal/platform/lint/nogo/
         linters: [nilnil]
       # The log message registry is package-level so call sites name a Msg and the registry test can read it.
