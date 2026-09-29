@@ -22,7 +22,7 @@ ruleset() {
     name: "feature branch \($name)",
     target: "branch",
     enforcement: "active",
-    bypass_actors: [{actor_id: $actions, actor_type: "Integration", bypass_mode: "always"}],
+    bypass_actors: [{actor_id: 1, actor_type: "OrganizationAdmin", bypass_mode: "always"}],
     conditions: {ref_name: {include: ["refs/heads/\($name)"], exclude: []}},
     rules: [
       {type: "deletion"},
