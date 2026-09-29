@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -35,7 +37,7 @@ func TestRun_refusesToBootWithoutTheBus(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			err := run(t.Context(), io.Discard, []string{
-				"MONACO_ENV=test", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=" + tc.url,
+				"MONACO_ENV=test", "DATABASE_URL=" + testkit.DB(t).Config().ConnString(), "NATS_URL=" + tc.url,
 				"MONACO_DEV_TOKEN_KEY=test-only",
 				"MONACO_HTTP_ADDR=127.0.0.1:0", "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
 			}, openapi.Spec, noop.NewMeterProvider())
@@ -162,6 +164,7 @@ func TestStartRelay_wakesOnACommitThroughTheSharedUnitOfWork(t *testing.T) {
 		backlog, err := outbox.Backlog(t.Context())
 		return err == nil && backlog.Unpublished == 0
 	})
+	waitUntil(t, "the relay logging the woken tick", func() bool { return hasLine(logs, "bus.relay.tick") })
 	s, err := b.JS.Stream(t.Context(), b.Events)
 	if err != nil {
 		t.Fatal(err)
@@ -170,8 +173,25 @@ func TestStartRelay_wakesOnACommitThroughTheSharedUnitOfWork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.State.Msgs != 1 || !hasLine(logs, "bus.relay.tick") {
+	if info.State.Msgs != 1 {
 		t.Fatalf("stream holds %d messages after a commit with the clock frozen, want 1 published on the wake",
 			info.State.Msgs)
+	}
+}
+
+func TestRun_refusesToBootWhenTheSchemaIsBehindNamingTheFix(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	if _, err := pool.Exec(t.Context(), `DELETE FROM atlas_schema_revisions.atlas_schema_revisions`); err != nil {
+		t.Fatal(err)
+	}
+	err := run(t.Context(), io.Discard, []string{
+		"MONACO_ENV=test", "MONACO_DEV_TOKEN_KEY=test-only", "DATABASE_URL=" + pool.Config().ConnString(),
+		"NATS_URL=" + testkit.NATSURL(), "MONACO_HTTP_ADDR=127.0.0.1:0",
+	}, openapi.Spec, noop.NewMeterProvider())
+	hint := slog.String("hint", "run: just migrate db")
+	if errs.CodeOf(err) != errs.CodeDBSchemaBehind || !slices.ContainsFunc(errs.Detail(err), hint.Equal) {
+		t.Fatalf("run against a database behind the binary = %v (%v), want db_schema_behind with %v",
+			err, errs.Detail(err), hint)
 	}
 }

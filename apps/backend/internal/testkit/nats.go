@@ -49,6 +49,7 @@ func startNATS() (*natsServer, error) {
 		_ = os.RemoveAll(dir)
 		return nil, fmt.Errorf("new server: %w", err)
 	}
+	srv.SetLoggerV2(stderrProblems{}, false, false, false)
 	srv.Start()
 	if !srv.ReadyForConnections(natsReady) {
 		srv.Shutdown()
@@ -69,7 +70,42 @@ func startNATS() (*natsServer, error) {
 		_ = os.RemoveAll(dir)
 		return nil, fmt.Errorf("admin jetstream: %w", err)
 	}
+	if err := keepStreamsDirNonEmpty(js); err != nil {
+		admin.Close()
+		srv.Shutdown()
+		_ = os.RemoveAll(dir)
+		return nil, err
+	}
 	return &natsServer{srv: srv, dir: dir, admin: admin, js: js, startup: startup}, nil
+}
+
+func keepStreamsDirNonEmpty(js jetstream.JetStream) error {
+	ctx, cancel := context.WithTimeout(context.Background(), natsReady)
+	defer cancel()
+	_, err := js.CreateStream(ctx, jetstream.StreamConfig{
+		Name: "TESTKIT_KEEPALIVE", Subjects: []string{"testkit.keepalive"}, Storage: jetstream.FileStorage,
+	})
+	if err != nil {
+		return fmt.Errorf("keepalive stream: %w", err)
+	}
+	return nil
+}
+
+type stderrProblems struct{}
+
+func (stderrProblems) Noticef(string, ...any) {}
+func (stderrProblems) Debugf(string, ...any)  {}
+func (stderrProblems) Tracef(string, ...any)  {}
+func (stderrProblems) Warnf(format string, v ...any) {
+	_, _ = fmt.Fprintf(os.Stderr, "nats-server warning: "+format+"\n", v...)
+}
+
+func (stderrProblems) Errorf(format string, v ...any) {
+	_, _ = fmt.Fprintf(os.Stderr, "nats-server error: "+format+"\n", v...)
+}
+
+func (stderrProblems) Fatalf(format string, v ...any) {
+	_, _ = fmt.Fprintf(os.Stderr, "nats-server fatal: "+format+"\n", v...)
 }
 
 func (s *natsServer) stop() {

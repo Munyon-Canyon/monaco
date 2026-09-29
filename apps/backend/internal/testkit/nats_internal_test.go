@@ -1,12 +1,15 @@
 package testkit
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestConsumerConfig_defaultsTo100msAndRejectsOver250ms(t *testing.T) {
@@ -63,5 +66,39 @@ func TestStartNATS_startsAndStopsCleanly(t *testing.T) {
 	s.stop()
 	if _, err := os.Stat(dir); !os.IsNotExist(err) {
 		t.Fatalf("store dir %s survived stop: %v", dir, err)
+	}
+}
+
+func TestStartNATS_createsStreamsWhileTheServerPrunesAnEmptyStreamsDir(t *testing.T) {
+	t.Parallel()
+	s, err := startNATS()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.stop()
+	streamsDir := filepath.Join(s.dir, "jetstream", "$G", "streams")
+	stop := make(chan struct{})
+	var pruner errgroup.Group
+	pruner.Go(func() error {
+		for {
+			select {
+			case <-stop:
+				return nil
+			default:
+				_ = os.Remove(streamsDir)
+			}
+		}
+	})
+	defer func() { _ = pruner.Wait() }()
+	defer close(stop)
+	for i := range 20 {
+		name := fmt.Sprintf("RACE_%d", i)
+		cfg := jetstream.StreamConfig{Name: name, Subjects: []string{name}}
+		if _, err := s.js.CreateStream(t.Context(), cfg); err != nil {
+			t.Fatalf("create stream %d while the streams dir is being pruned: %v", i, err)
+		}
+		if err := s.js.DeleteStream(t.Context(), name); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

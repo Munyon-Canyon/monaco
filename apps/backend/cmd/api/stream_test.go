@@ -18,7 +18,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/sse"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -118,13 +119,10 @@ func TestRun_streamsHintsFromNATSAndShutsDownWithAStreamOpen(t *testing.T) {
 func TestStartBackground_stopsTheRelayWhenTheHubCannotStart(t *testing.T) {
 	t.Parallel()
 	b := testkit.NATS(t)
-	stream, stop, err := startBackground(
-		t.Context(),
-		b.Conn,
-		testkit.DB(t),
-		testkit.FailingGauges{Prefix: "monaco_sse_"},
-	)
-	if errs.CodeOf(err) != errs.CodeInternal || stop != nil || stream != (sse.Stream{}) {
+	pool := testkit.DB(t)
+	hub, stop, err := startBackground(t.Context(), b.Conn, pool, db.New(pool, ids.Real{}, clock.Real{}),
+		testkit.FailingGauges{Prefix: "monaco_sse_"})
+	if errs.CodeOf(err) != errs.CodeInternal || stop != nil || hub != nil {
 		t.Fatalf(
 			"startBackground with the hub's instruments failing = %v (stop set: %v); want internal and nothing to stop",
 			err,
@@ -133,16 +131,16 @@ func TestStartBackground_stopsTheRelayWhenTheHubCannotStart(t *testing.T) {
 	}
 }
 
-func TestStartStream_failsWhenTheHintSubscriptionCannotBeMade(t *testing.T) {
+func TestStartHub_failsWhenTheHintSubscriptionCannotBeMade(t *testing.T) {
 	t.Parallel()
 	conn, err := bus.Connect(t.Context(), config.NATS{URL: testkit.NATSURL()}, bus.ProcessAPI)
 	if err != nil {
 		t.Fatal(err)
 	}
 	conn.Close(t.Context())
-	_, stop, err := startStream(t.Context(), conn, noop.NewMeterProvider())
+	_, stop, err := startHub(t.Context(), conn, noop.NewMeterProvider())
 	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable || !strings.Contains(err.Error(), "bus.SubscribeHints") ||
 		stop != nil {
-		t.Fatalf("startStream on a closed connection = %v, want upstream_unavailable from bus.SubscribeHints", err)
+		t.Fatalf("startHub on a closed connection = %v, want upstream_unavailable from bus.SubscribeHints", err)
 	}
 }
