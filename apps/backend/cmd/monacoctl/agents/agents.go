@@ -64,6 +64,7 @@ func cliText(err error) string {
 
 func commands() map[string]command {
 	return map[string]command{
+		"batch":       batchCmd,
 		"conflicts":   conflictsCmd,
 		"dispatch":    dispatchCmd,
 		"done":        doneCmd,

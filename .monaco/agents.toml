@@ -2,7 +2,8 @@
 repo = "Munyon-Canyon/monaco"
 feature_branch = "backend-rewrite-3"
 tracking = 492
-lanes = 8
+lanes = 6
+batch = 6
 verifier_app = "5101392"
 verifier_installation = 166018497
 milestone = "m7-rest"

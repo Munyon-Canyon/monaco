@@ -20,6 +20,7 @@ type Config struct {
 	FeatureBranch        string
 	Tracking             int
 	Lanes                int
+	Batch                int
 	VerifierApp          string
 	VerifierInstallation int
 	Milestone            string
@@ -33,7 +34,7 @@ func parseConfig(r io.Reader) (Config, error) {
 		"milestone": &c.Milestone,
 	}
 	ints := map[string]*int{
-		"tracking": &c.Tracking, "lanes": &c.Lanes, "verifier_installation": &c.VerifierInstallation,
+		"tracking": &c.Tracking, "lanes": &c.Lanes, "batch": &c.Batch, "verifier_installation": &c.VerifierInstallation,
 	}
 	sc := bufio.NewScanner(r)
 	for n := 1; sc.Scan(); n++ {
@@ -45,7 +46,7 @@ func parseConfig(r io.Reader) (Config, error) {
 		return Config{}, fmt.Errorf("read %s: %w", configPath, err)
 	}
 	for _, key := range []string{
-		"repo", "feature_branch", "tracking", "lanes", "verifier_app", "verifier_installation",
+		"repo", "feature_branch", "tracking", "lanes", "batch", "verifier_app", "verifier_installation",
 		"milestone",
 	} {
 		if !seen[key] {

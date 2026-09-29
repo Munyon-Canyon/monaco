@@ -26,6 +26,7 @@ type dispatchIn struct {
 	ticket int
 	model  string
 	dry    bool
+	urgent bool
 }
 
 func dispatchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {
@@ -33,10 +34,7 @@ func dispatchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer)
 	if err != nil {
 		return err
 	}
-	if err := env.blockersClear(ctx, in.ticket); err != nil {
-		return err
-	}
-	if err := env.lanesOpen(); err != nil {
+	if err := env.dispatchable(ctx, in); err != nil {
 		return err
 	}
 	if err := printForecast(ctx, env, stdout); err != nil {
@@ -49,6 +47,9 @@ func dispatchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer)
 	path := env.worktreePath(in.ticket)
 	note, err := env.caffeinePlan(ctx, in.dry)
 	if err != nil {
+		return err
+	}
+	if err := env.logUrgent(ctx, in, stdout); err != nil {
 		return err
 	}
 	if in.dry {
@@ -66,32 +67,54 @@ func dispatchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer)
 }
 
 func parseDispatch(args []string) (dispatchIn, error) {
-	use := "dispatch <ticket> --model <name> [--dry-run]"
+	use := "dispatch <ticket> --model <name> [--dry-run] [--urgent]"
 	var in dispatchIn
-	var rest []string
-	for _, a := range args {
-		if a == "--dry-run" {
-			in.dry = true
-			continue
-		}
-		rest = append(rest, a)
-	}
-	if len(rest) != 3 || rest[1] != "--model" {
+	args, in.dry = stripFlag(args, "--dry-run")
+	args, in.urgent = stripFlag(args, "--urgent")
+	if len(args) != 3 || args[1] != "--model" {
 		return dispatchIn{}, usageError(use)
 	}
-	n, err := positiveInt(rest[0], use)
+	n, err := positiveInt(args[0], use)
 	if err != nil {
 		return dispatchIn{}, err
 	}
-	if rest[2] == "" || rest[2] == "fable" {
+	if args[2] == "" || args[2] == "fable" {
 		return dispatchIn{}, detailErr(
 			errs.CodeInvalidInput,
 			"monacoctl.agents.dispatch",
 			"dispatch model must be set and must not be fable",
 		)
 	}
-	in.ticket, in.model = n, rest[2]
+	in.ticket, in.model = n, args[2]
 	return in, nil
+}
+
+func (env *Env) dispatchable(ctx context.Context, in dispatchIn) error {
+	if !in.urgent {
+		if err := env.inBatch(in.ticket); err != nil {
+			return err
+		}
+	}
+	if err := env.blockersClear(ctx, in.ticket); err != nil {
+		return err
+	}
+	return env.lanesOpen()
+}
+
+func (env *Env) logUrgent(ctx context.Context, in dispatchIn, stdout io.Writer) error {
+	switch {
+	case !in.urgent:
+		return nil
+	case in.dry:
+		_, _ = fmt.Fprintf(stdout, "dry-run: would log the urgent dispatch to #%d\n", env.Config.Tracking)
+		return nil
+	}
+	body := fmt.Sprintf(
+		"monacoctl agents dispatch --urgent: #%d dispatched outside batch.json at %s",
+		in.ticket,
+		env.Now().UTC().Format(time.RFC3339),
+	)
+	return env.writeStatus(ctx, 0, false, body)
 }
 
 func (env *Env) blockersClear(ctx context.Context, ticket int) error {
