@@ -27,3 +27,26 @@ jobs:
           SQUASH: ${{ github.event.pull_request.merge_commit_sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
         run: scripts/ci/checkpoint-tree.sh "$SQUASH" "$HEAD"
+
+  merge-back:
+    name: Merge main back into the feature branch
+    needs: tree-matches
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      # The trees match, so "ours" records main as merged without changing the branch's files.
+      - env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          SQUASH: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git merge --no-edit -s ours -m "chore: merge main back into $BRANCH" "$SQUASH"
+          git push origin "HEAD:refs/heads/$BRANCH"

@@ -3,9 +3,12 @@ name: PR format
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize, ready_for_review, labeled, unlabeled]
+  # The queue waits for every required check on the group commit. Each PR was checked on its own head.
+  merge_group:
+    types: [checks_requested]
 
 concurrency:
-  group: pr-format-${{ github.event.pull_request.number }}
+  group: pr-format-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -19,12 +22,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
+      - name: Pass the merge group
+        if: github.event_name == 'merge_group'
+        run: echo "Each PR in the group passed this check on its own head."
       - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request'
         with:
           fetch-depth: 0
       - name: Checker unit tests
+        if: github.event_name == 'pull_request'
         run: python3 scripts/test_check_pr_format.py
       - name: Check title, body and commits
+        if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_TITLE: ${{ github.event.pull_request.title }}
@@ -37,7 +46,7 @@ jobs:
 
   pr-size:
     name: PR size (under 1000 lines)
-    if: ${{ !github.event.pull_request.draft }}
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:

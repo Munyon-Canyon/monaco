@@ -102,7 +102,7 @@ jobs:
 
 - The jobs live in `ci-jobs.yml`, a reusable workflow. Both callers name their job `ci`, so every check reads `ci / <job>` and the required check is `ci / ci-ok`. `mobile-core` and `ios` are themselves calls to their own reusable files (`ci-mobile-core.yml`, `ci-ios.yml`), so their checks read `ci / mobile-core / <job>` and `ci / ios / <job>`. That split lets the `plan` job's path filter key each one on its own job-definition file instead of every `ci*.yml`, so a backend PR that only edits `ci-jobs.yml` (nearly every one, since each adds its own steps there) no longer runs the macOS `ios` job or the Linux `mobile-core` job. `ci-ok` still names only job IDs (`plan`, `go`, `mobile-core`, `ios`) in `needs`, so the required check and `allowed-skips` are unaffected by the extra nesting level.
 - `branches: [main, 'backend-rewrite*']` matches the PR's base, so only the bottom PR of a stack runs, whether its trunk is `main` or a feature branch.
-- `merge_group` is dormant. It fires only for a merge queue, and this repo cannot have one (see below). It stays so that moving the repo to an organization needs no workflow change.
+- `merge_group` runs the jobs on the feature branch's merge queue group commit. Every workflow behind a required check must run on `merge_group`, or the queue waits out its 30-minute timeout. `pr-format.yml` also runs on it, and its `PR format (title, body and commits)` job passes without checking, since each PR passed it on its own head. `scripts/ci/workflow_triggers_test.go` fails if a workflow with a required job filters on `paths` or `paths-ignore` at the workflow level. The Plan job runs it whenever a workflow changes.
 - A draft skips the `ci` job. That leaves one skipped check named `ci` and no `ci / ci-ok`, so the PR cannot merge until it is ready and CI passes. GitHub counts a skipped job as a passing required check, so the gate never depends on a skip.
 - Inside `ci-jobs.yml`, `ci-ok` uses `always()`, not `!cancelled()`. A run cancelled by a newer push then leaves a failed `ci-ok`, not a skipped one.
 - Graphite restacks an upstack PR while its base is a temporary `graphite-base/N` branch, then retargets it to `main` with no new push (seen on #452). `ci.yml` sees neither event. `ci-retarget.yml` runs on the retarget and runs the same jobs.
@@ -117,8 +117,7 @@ Ruleset on `main`:
 - Require branches to be up to date before merging.
 - Block force pushes and deletion.
 - Require approval before running workflows from all outside contributors (`fork-pr-contributor-approval`), not only first-time ones.
-
-GitHub's merge queue would let expensive jobs run once per merge instead of once per push. It is not available to repos owned by a personal account ([docs](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)). Revisit it if the repo moves to an organization.
+- Require a pull request, and allow only squash merges, so `main` gets one commit per checkpoint. `main` has no merge queue. Only the operator merges into it, by hand.
 
 ## Feature branches
 
@@ -127,21 +126,28 @@ A milestone lands on a feature branch (`backend-rewrite-3` today) through small 
 `scripts/feature-branch.sh` sets a feature branch up:
 
 - `init <name>` creates `<name>` from `origin/main`, then runs `apply`.
-- `apply <name>` adds `<name>` as a Graphite trunk (`gt trunk --add`), turns on the repo's auto-merge setting, and creates or updates the ruleset `feature branch <name>`.
-- `ruleset <name>` prints that ruleset. `scripts/feature_branch_test.go` checks it.
+- `apply <name>` adds `<name>` as a Graphite trunk (`gt trunk --add`), turns on the repo's auto-merge and "Allow merge commits" settings, and creates or updates two rulesets: `feature branch <name>` and `main`.
+- `ruleset <name>` and `main-ruleset` print those rulesets. `scripts/feature_branch_test.go` checks both.
 
-The ruleset:
+The feature branch ruleset:
 
-- Requires `ci / ci-ok` and `PR format (title, body and commits)` from GitHub Actions (integration 15368). The `verify` commit status is not a ruleset check. The agent guard hook refuses `gh pr merge` until the head's latest `verify` status is `success`, from any poster. The independent verifier posts it with a personal token, or as the optional `monaco-verifier` App (ID 5101392) when its key is on hand.
-- Does not require branches to be up to date. A PR that passed its checks and verdict merges as is, so a clean rebase never reruns CI or the verifier. GitHub still refuses a merge that conflicts.
-- Requires a pull request and allows only squash merges. Nobody pushes directly, admins included. It has no bypass actors.
+- Requires `ci / ci-ok` and `PR format (title, body and commits)` from GitHub Actions (integration 15368). The `verify` commit status is not a ruleset check. The agent guard hook refuses `gh pr merge` until the head's latest `verify` status is `success`, from any poster.
+- Lands every PR through a merge queue (`merge_queue` rule):
+  - `merge_method: MERGE`. A merge commit keeps a stack's commits unchanged, so GitHub marks the lower PRs of a stack as merged when the top one lands.
+  - `grouping_strategy: ALLGREEN`. Each entry lands only when its group passes.
+  - Up to 5 entries build in parallel (`max_entries_to_build: 5`), and a group merges 1 to 5 entries (`min_entries_to_merge: 1`, `max_entries_to_merge: 5`) with no wait (`min_entries_to_merge_wait_minutes: 0`), so an entry starts testing as soon as it is queued.
+  - A required check that does not report within 30 minutes (`check_response_timeout_minutes: 30`) drops the entry.
+- Does not require branches to be up to date. The queue tests each entry on top of the tip and the entries ahead of it, which replaces that rule.
+- Requires a pull request and allows only merge commits. Nobody pushes directly, admins included.
+- Has one bypass actor, GitHub Actions (integration 15368), for the checkpoint merge-back below.
 - Blocks force pushes and deletion.
 
-A ticket PR lands with `gh pr merge <n> --auto --squash` once its checks are green. GitHub merges it when the required checks pass on its head. A stacked PR whose parent was squash-merged conflicts until it is restacked with `gt sync`. A restack that leaves each PR's own patch-id unchanged carries the verdict, and only CI reruns on the new head.
+A ticket PR lands with `gh pr merge <n> --auto` once its verdict passes. GitHub adds it to the queue when its own checks pass. The queue builds a `gh-readonly-queue/<branch>/...` commit, runs the required checks on it through `merge_group`, and merges it when they pass. A failing entry leaves the queue, and the entries behind it rebuild without it.
 
-The ruleset has no merge queue, because a personal-account repo cannot have one: the rulesets API rejects a `merge_queue` rule with 422 (probed 2026-09-27). Nothing retests a PR against the tip before it lands, so check open PRs for shared files before merging. #789 PR 7 adds `scripts/conflict-forecast.sh` for that.
+After the checkpoint PR squash-merges into `main`, `checkpoint.yml` runs two jobs:
 
-After the checkpoint PR squash-merges into `main`, `checkpoint.yml` runs `scripts/ci/checkpoint-tree.sh` and fails unless `main`'s squash commit has the same tree as the PR's head. The feature branch then retires. The next milestone starts from `main` with `scripts/feature-branch.sh init <next>`. Merging `main` back into the old branch would need a push that skips the ruleset, and GitHub Actions cannot be a bypass actor on a personal-account repo.
+1. `tree-matches` runs `scripts/ci/checkpoint-tree.sh` and fails unless `main`'s squash commit has the same tree as the PR's head.
+2. `merge-back` merges `main` back into the feature branch with `git merge -s ours` and pushes it as GitHub Actions. The trees match, so the merge changes no file and only records `main` as merged. The next checkpoint PR then shows only the new work. If `tree-matches` fails, `merge-back` does not run.
 
 ## Fast and deterministic
 
@@ -224,6 +230,7 @@ Each step is one small PR with its own proof.
 
 ## Log
 
+- 2026-09-29: Added the feature branch merge queue (#831). The repo moved to the `Munyon-Canyon` organization, so the rulesets API accepts a `merge_queue` rule. `scripts/feature-branch.sh apply` adds it with merge commits, turns on "Allow merge commits", and makes `main` squash-only. `pr-format.yml` runs on `merge_group`. `checkpoint.yml` merges `main` back into the feature branch after a checkpoint, with GitHub Actions as the ruleset's one bypass actor (#789).
 - 2026-09-27: Added the `ready` job (#789). The generated-code, reference-doc, sqlc and vet steps moved out of `backend` into `scripts/ci/ready.sh`, which adds `go mod tidy -diff`, a standalone `monacoctl flows check`, and catches new untracked generated files that `git diff --exit-code` missed. `PR format` now also checks the ticket link, `Needs from Logan`, cited SHAs and Conventional Commit subjects.
 - 2026-09-27: Added feature branches (#789). `scripts/feature-branch.sh` adds the Graphite trunk and a ruleset that requires `ci / ci-ok` and the verifier App's `verify`, up to date, squash-only PRs, no bypass. `ci.yml` and `ci-retarget.yml` run on PRs into `backend-rewrite*`, and `ci.yml` also on `merge_group`. The rulesets API rejected a merge queue (422), so the up-to-date rule stands in for it. `checkpoint.yml` checks that a checkpoint squash landed the feature branch's exact tree. It does not merge `main` back: that push would need a bypass actor, and GitHub Actions cannot be one here.
 - 2026-09-27: The integration PR #786 failed `mutation` (run 36354851240). The `db`, `bus`, `httpx` and `httpx/sse` jobs ran into the 10-minute timeout. The `internal/platform/lint` job failed in 1m20s: gremlins runs that package's tests without `-short`, they call `golangci-lint`, the mutation job does not install it, and with `CI` set the tests fail instead of skipping. That package has only test files, so it has nothing to mutate, and `monacoctl mutation` now leaves such packages out of its list. The `go test` readout from #485 did print the cause in the job log. Only the first line of an error reaches the job's annotation. PRs labeled `integration` now skip mutation. The nightly's full-module mutation moved out of `nightly-backend.sh`, where it ran every package in one step, into the shared `mutation.yml` matrix with a 60-minute limit per package.
