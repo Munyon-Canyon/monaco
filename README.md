@@ -9,6 +9,31 @@ Monaco lets you create a hedge fund with friends by pooling money to buy stocks 
 <img width="339" height="677" alt="image" src="https://github.com/user-attachments/assets/59c70f26-8049-4bc2-9c39-2946bb8013e7" />
 
 
+## Contents
+
+- [Prereqs](#prereqs)
+- [Clone setup](#clone-setup)
+- [Privy test logins](#privy-test-logins)
+- [Deposits](#deposits)
+- [Commands](#commands)
+- [Local env](#local-env)
+- [Relayer (fee payer)](#relayer-fee-payer)
+- [iOS API environments](#ios-api-environments)
+- [Simulator](#simulator)
+  - [SimSlim (optional)](#simslim-optional)
+- [Agent QA: Phantom MCP](#agent-qa-phantom-mcp)
+  - [Create a Phantom wallet](#create-a-phantom-wallet)
+  - [Install the Phantom MCP (agent wallet)](#install-the-phantom-mcp-agent-wallet)
+  - [Fund the agent wallet (~\$1 SOL + ~\$4 USDC on Solana)](#fund-the-agent-wallet-1-sol--4-usdc-on-solana)
+  - [Send USDC into Monaco (member inbox → vault)](#send-usdc-into-monaco-member-inbox--vault)
+  - [Sweep leftover back to the agent wallet (vault → Phantom)](#sweep-leftover-back-to-the-agent-wallet-vault--phantom)
+- [Agent workflow setup](#agent-workflow-setup)
+- [Agent skills (Cursor)](#agent-skills-cursor)
+- [Tests and CI](#tests-and-ci)
+- [Pull requests](#pull-requests)
+- [Deploy](#deploy)
+- [Layout](#layout)
+
 ## Prereqs
 
 macOS, Xcode (iOS 18+ simulator), Docker, Go 1.25+, [just](https://github.com/casey/just), [jq](https://jqlang.org), [dotenvx CLI](https://dotenvx.com/docs/install), [Graphite CLI](https://graphite.dev/docs/install-the-cli) (`gt`). SimSlim is optional.

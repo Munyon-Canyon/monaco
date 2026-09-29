@@ -8,6 +8,20 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 
 ### Added
 
+## [checkpoint 4] - 2026-09-29
+
+### Fixed
+
+- Checkpoint merge-back checks out the checkpoint PR's head commit and pushes the feature branch back to it, recreating the branch when GitHub auto-deleted it at merge. It refuses when the branch moved after the merge.
+
+### Security
+
+- `monacoctl agents` reads the status board, the batch block and the handoff only from comments by an owner, member or collaborator of the repo, or by the CI bot, and edits only a comment it wrote.
+
+## [checkpoint 3] - 2026-09-29
+
+### Added
+
 - The `system` module: `system_pings` and the `RecordPing` command, which writes a ping and appends `system.pinged` (now carrying `user_id`) in one transaction.
 - `POST /v1/system/pings` and `GET /v1/system/pings/{id}`, and the `system.echo` consumer that marks a ping echoed and sends its user a `ping_echoed` hint once the update commits. `db.Tx.AfterCommit` runs a callback only after its transaction commits.
 - The acceptance scenario DSL (`internal/testkit/scenario`), which drives the api and worker components in one process over HTTP and waits on consumer commits and SSE hints instead of sleeping; `testkit.Seed`, which replays a named event sequence from `internal/testkit/scenarios` through the consumers; and the flow 00 script in `internal/testkit/flows`.
