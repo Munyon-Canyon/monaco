@@ -5,7 +5,6 @@ on:
   # Every PR, so a stacked PR whose base is another ticket branch gets CI on its own diff.
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-  # Dormant: a personal-account repo has no merge queue. docs/architecture/ci.md#feature-branches
   merge_group:
   workflow_dispatch:
 
