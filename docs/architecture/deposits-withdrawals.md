@@ -180,7 +180,6 @@ The rewrite replaces the old backend rather than refactoring it ([backend-platfo
 - Nothing migrates at cutover: the new backend starts on an empty database. Privy wallets carry over because they live on-chain and in Privy.
 - Old treasury funds are test funds only (decided 2026-09-27). At cutover they are wiped: swept to an ops wallet or written off. Members are not cashed out ([Rollout](backend-platform.md#rollout) step 7, [data-model.md](data-model.md#cutover)).
 - Routes: `GET /v1/me/balance`, `POST /v1/me/withdrawals`, `POST /v1/groups/{id}/withdraw-to-balance`.
-- `docs/product.md` says unmatched treasury USDC "is not anyone's gain until it is reconciled"; update it to say it is returned.
 
 ## Open questions
 
@@ -190,6 +189,7 @@ None.
 
 ## Log
 
+- 2026-09-29: `docs/product.md` now says stray treasury USDC is returned, so the gap line asking for that edit is gone.
 - 2026-09-29: `GET /v1/me/balance` is owned by `funding`: on-chain USDC minus in-flight fund transfers and withdrawals (default; see #535). `funding` appends `cabal.paused` when a cabal's first pause reason opens and `cabal.resumed` when its last closes, and `notify` pushes from those events (default; see #535). Cash out route is `POST /v1/cabals/{id}/cashouts` (default; see #535).
 - 2026-09-27: Decided 2026-09-27: Privy `fund()` takes the wallet address we specify, so the member wallet is the card-deposit destination and the direct-provider fallback is dropped. App Store 3.1.5 review is deferred. No checks remain. The first-deposit unlock now applies to the user's handle as a referral code, not a custom code.
 - 2026-09-27: Decided: old treasury funds are test-only and wiped at cutover, swept to an ops wallet or written off, with no cash-out to members. `identity` replaces `referrals` as the flow 5 consumer that records the first deposit.

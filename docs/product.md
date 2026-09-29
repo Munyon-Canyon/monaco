@@ -79,7 +79,7 @@ Fine print, all enforced in code:
 
 - Shares and payouts round down, in favour of the pot.
 - Minting shares or paying out needs a live price for every holding. Without one, a fund waits and retries, and a cash out fails with the shares returned. Screens may show the purchase price instead so they still render.
-- USDC that lands in a treasury without a matching fund is not anyone's gain until it is reconciled.
+- USDC that lands in a treasury without a matching fund is not anyone's gain. It is returned to the sender, and the cabal's trading pauses until it is.
 - If the stock token still trades after the US market closes, the app shows an after-hours label.
 
 ## Trading
