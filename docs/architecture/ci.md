@@ -262,6 +262,7 @@ Each step is one small PR with its own proof.
 ## Log
 
 - 2026-09-29: `gate-changes` warns instead of failing; a finding is an annotation, not a red X (#782).
+- 2026-09-29: The per-package test budget warns at 10 s and fails at 20 s, the same on a laptop and in CI (#831). Before, a laptop failed at 10 s and CI warned at 10 s and failed at 15 s. Per-package wall time under `go test -race -p 4` with whole-module coverage measures contention as much as the package: packages that take 4 s alone read 10 to 13 s in the full suite. The 60 s laptop run budget is unchanged, and CI still does not gate the run.
 - 2026-09-29: `scripts/feature-branch.sh apply backend-rewrite-3` failed with 422: GitHub rejects GitHub Actions (integration 15368) as a ruleset bypass actor. The feature branch ruleset now lets org admins bypass, and `checkpoint.yml` pushes the merge-back with the `MERGE_BACK_TOKEN` secret, an org admin's fine-grained PAT (#831).
 - 2026-09-29: Added the `gate-changes` job and the `gate-change-approved` label (#782).
 - 2026-09-29: Stacks land as one queue entry (#831 F). `monacoctl agents land-stack <top-pr>` retargets the upper PRs and queues the top one, `check-pr-size.py` accepts its combined size through the `Lands stack:` line, and the agent guard hook keeps base changes inside `land-stack`. The checkpoint 3 restack, carry and land-chain scripts are deleted.

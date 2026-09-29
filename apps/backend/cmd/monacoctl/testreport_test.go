@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -33,7 +34,7 @@ func TestReadReportRanksTopLevelTestsAndPackagesByElapsed(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	rep.write(&out, budget{pkg: 10 * time.Second, run: 60 * time.Second})
+	rep.write(&out, budget{warn: 10 * time.Second, fail: 20 * time.Second, run: 60 * time.Second})
 	want := `slowest tests:
    3.00s  m/a TestSlow
    1.25s  m/b TestBroken
@@ -42,7 +43,7 @@ packages:
   11.00s  m/b
    4.20s  m/a
    0.00s  m/c
-run: 15.0s (budget 60s, 10s per package)
+run: 15.0s (budget 60s), packages warn at 10s, fail at 20s
 `
 	if out.String() != want {
 		t.Fatalf("report:\n%s\nwant:\n%s", out.String(), want)
@@ -89,7 +90,7 @@ func TestReportWritesOnlyTheTenSlowestTests(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	rep.write(&out, budget{pkg: time.Second, run: time.Second})
+	rep.write(&out, budget{fail: time.Second, run: time.Second})
 	if got := strings.Count(out.String(), "  m T"); got != 10 {
 		t.Fatalf("listed %d tests, want 10:\n%s", got, out.String())
 	}
@@ -106,12 +107,12 @@ func TestReportOverBudgetNamesEachSlowPackageAndTheRun(t *testing.T) {
 		b    budget
 		want []string
 	}{
-		{"within", budget{pkg: 11 * time.Second, run: 15 * time.Second}, nil},
-		{"package over", budget{pkg: 4 * time.Second, run: time.Minute}, []string{
+		{"within", budget{fail: 11 * time.Second, run: 15 * time.Second}, nil},
+		{"package over", budget{fail: 4 * time.Second, run: time.Minute}, []string{
 			"package m/b took 11.00s, over the 4s per-package budget",
 			"package m/a took 4.20s, over the 4s per-package budget",
 		}},
-		{"run over", budget{pkg: time.Minute, run: 14 * time.Second}, []string{"run took 15.0s, over the 14s budget"}},
+		{"run over", budget{fail: time.Minute, run: 14 * time.Second}, []string{"run took 15.0s, over the 14s budget"}},
 	} {
 		got := rep.overBudget(tc.b)
 		if strings.Join(got, "\n") != strings.Join(tc.want, "\n") {
@@ -135,7 +136,7 @@ func TestTestReportCommand(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	slowB := "monacoctl test-report: package m/b took 11.00s, over the 10s per-package budget\n"
+	warnB := "monacoctl test-report: package m/b took 11.00s, over the 10s per-package budget (fails at 20s)\n"
 	for _, tc := range []struct {
 		name      string
 		args      []string
@@ -149,9 +150,9 @@ func TestTestReportCommand(t *testing.T) {
 		{"bad start", []string{"--from", file, "--start", "soon"}, 2, "", testReportUsage + "\n"},
 		{"missing file", []string{"--from", file + ".gone"}, 1, "", "monacoctl test-report: open " + file + ".gone: no such file or directory\n"},
 		{"directory", []string{"--from", filepath.Dir(file)}, 1, "", "monacoctl test-report: monacoctl.readReport: internal: read " + filepath.Dir(file) + ": is a directory\n"},
-		{"package over budget", []string{"--from", file}, 1, "run: 15.0s", slowB},
-		{"run over budget", []string{"--start", early, "--from", file}, 1, "run: 120.0s", slowB + "monacoctl test-report: run took 120.0s, over the 60s budget\n"},
-		{"run not gated in CI", []string{"--start", early, "--from", file, "--ci"}, 0, "run: 120.0s (not gated in CI; the 60s budget is for a laptop), 15s per package\n", ""},
+		{"package in the warning band", []string{"--from", file}, 0, "run: 15.0s (budget 60s), packages warn at 10s, fail at 20s\n" + warnB, ""},
+		{"run over budget", []string{"--start", early, "--from", file}, 1, "run: 120.0s", "monacoctl test-report: run took 120.0s, over the 60s budget\n"},
+		{"run not gated in CI", []string{"--start", early, "--from", file, "--ci"}, 0, "run: 120.0s (not gated in CI; the 60s budget is for a laptop), packages warn at 10s, fail at 20s\n::warning::" + warnB, ""},
 	} {
 		var stdout, stderr bytes.Buffer
 		code := testReportCmd(tc.args, &stdout, &stderr)
@@ -161,23 +162,29 @@ func TestTestReportCommand(t *testing.T) {
 	}
 }
 
-func TestTestReportCIWarnsFromTenSecondsAndFailsPastFifteen(t *testing.T) {
+func TestTestReportWarnsPastTenSecondsAndFailsPastTwentyOnTheLaptopAndInCI(t *testing.T) {
 	t.Parallel()
-	warn := "::warning::monacoctl test-report: package m/p took 12.00s, over the 10s per-package budget (CI fails at 15s)\n"
+	warning := func(elapsed string) string {
+		return "monacoctl test-report: package m/p took " + elapsed + ".00s, over the 10s per-package budget (fails at 20s)\n"
+	}
+	fail := "monacoctl test-report: package m/p took 21.00s, over the 20s per-package budget\n"
 	for _, tc := range []struct {
-		name    string
 		elapsed string
 		ci      bool
 		code    int
 		warning string
 		stderr  string
 	}{
-		{"ci 9s is quiet", "9", true, 0, "", ""},
-		{"ci 12s warns", "12", true, 0, warn, ""},
-		{"ci 16s fails", "16", true, 1, "", "monacoctl test-report: package m/p took 16.00s, over the 15s per-package budget\n"},
-		{"local 12s fails", "12", false, 1, "", "monacoctl test-report: package m/p took 12.00s, over the 10s per-package budget\n"},
+		{"9", false, 0, "", ""},
+		{"12", false, 0, warning("12"), ""},
+		{"19", false, 0, warning("19"), ""},
+		{"21", false, 1, "", fail},
+		{"9", true, 0, "", ""},
+		{"12", true, 0, "::warning::" + warning("12"), ""},
+		{"19", true, 0, "::warning::" + warning("19"), ""},
+		{"21", true, 1, "", fail},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(fmt.Sprintf("ci=%v %ss", tc.ci, tc.elapsed), func(t *testing.T) {
 			t.Parallel()
 			file := filepath.Join(t.TempDir(), "go-test.json")
 			event := `{"Time":"2026-09-27T10:00:00Z","Action":"pass","Package":"m/p","Elapsed":` + tc.elapsed + "}\n"
@@ -190,9 +197,10 @@ func TestTestReportCIWarnsFromTenSecondsAndFailsPastFifteen(t *testing.T) {
 			}
 			var stdout, stderr bytes.Buffer
 			code := testReportCmd(args, &stdout, &stderr)
-			warned := strings.Contains(stdout.String(), "::warning::")
-			if code != tc.code || warned != (tc.warning != "") || !strings.HasSuffix(stdout.String(), tc.warning) ||
-				stderr.String() != tc.stderr {
+			warned := strings.Contains(stdout.String(), "(fails at 20s)")
+			annotated := strings.Contains(stdout.String(), "::warning::")
+			if code != tc.code || warned != (tc.warning != "") || annotated != (tc.ci && warned) ||
+				!strings.HasSuffix(stdout.String(), tc.warning) || stderr.String() != tc.stderr {
 				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 			}
 			t.Logf("exit %d\nstdout:\n%sstderr:\n%s", code, stdout.String(), stderr.String())
