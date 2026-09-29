@@ -32,6 +32,7 @@ type Deps struct {
 	MaxBodyBytes int64
 	Idempotency  IdempotencyStore
 	Verifier     auth.TokenVerifier
+	RateLimit    func(http.Handler) http.Handler
 }
 
 func (d Deps) wrap(next http.Handler) http.Handler {

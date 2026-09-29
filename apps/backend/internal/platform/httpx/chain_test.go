@@ -4,11 +4,13 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 )
 
@@ -125,5 +127,39 @@ func TestMiddlewares_authRunsBeforeIdempotencySoActorsDoNotShareKeys(t *testing.
 	sameResponse(t, first, postChained(t, handler, alice, "k1", `{"amount":5}`))
 	if next.calls.Load() != 2 {
 		t.Fatalf("handler ran %d times, want 2 after alice's replay", next.calls.Load())
+	}
+}
+
+func TestMiddlewares_rateLimitRunsAfterAuthAndBeforeValidationAndIdempotency(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	v := devVerifier(t, "k1", now)
+	h.deps.Verifier = v
+	var limited []string
+	h.deps.RateLimit = func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			key, _ := ActorKey(r)
+			limited = append(limited, key)
+			Problem(w, r, errs.New(errs.CodeRateLimited, "test.limit"))
+		})
+	}
+	handler, next, store := chained(t, h)
+	alice := v.Mint("alice", now.Add(time.Hour))
+
+	if rec := postChained(t, handler, "", "k1", `{"amount":5}`); rec.Code != http.StatusUnauthorized ||
+		len(limited) != 0 {
+		t.Fatalf("no token = %d after %d limit checks, want 401 before the limit", rec.Code, len(limited))
+	}
+	if rec := postChained(t, handler, alice, "k1", `{"amount":0}`); rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("invalid body over the limit = %d, want 429: the limit runs before validation", rec.Code)
+	}
+	if rec := postChained(t, handler, alice, "k1", `{"amount":5}`); rec.Code != http.StatusTooManyRequests ||
+		store.begins.Load() != 0 || next.calls.Load() != 0 {
+		t.Fatalf("over the limit = %d after %d Begin and %d handler calls, want 429 with no claim and no run",
+			rec.Code, store.begins.Load(), next.calls.Load())
+	}
+	if want := []string{"user:alice", "user:alice"}; !slices.Equal(limited, want) {
+		t.Fatalf("limit saw actors %v, want %v", limited, want)
 	}
 }

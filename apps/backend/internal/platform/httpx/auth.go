@@ -35,6 +35,11 @@ func withActor(ctx context.Context, a auth.Actor) context.Context {
 	return auth.WithActor(ctx, a)
 }
 
+func ActorKey(r *http.Request) (string, bool) {
+	a, ok := auth.ActorFrom(r.Context())
+	return a.Key(), ok
+}
+
 func Auth(v auth.TokenVerifier) api.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

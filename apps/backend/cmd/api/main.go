@@ -79,7 +79,7 @@ func run(
 	handler, err := newHandler(cfg, logger, pool, verifier, registered.Build(module.Deps{
 		Config: cfg, Logger: logger, Clock: clock.Real{}, IDs: ids.Real{}, Pool: pool, UoW: uow, Bus: conn,
 		HTTPClient: httpclient.New, Hub: hub,
-	}).Routes(), spec)
+	}).Routes(), spec, meters)
 	if err != nil {
 		return err
 	}
