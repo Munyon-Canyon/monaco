@@ -76,6 +76,29 @@ func TestViews_failsOnHTTPAndGraphQLErrors(t *testing.T) {
 	}
 }
 
+func TestViews_readsEveryCheckAndTheNewestRunOfEach(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.hub.on(graphqlRoute, `{"data":{"repository":{"t5":{"timelineItems":{"nodes":[{"source":`+
+		`{"number":11,"body":"Part of #5","state":"OPEN","commits":{"nodes":[{"commit":`+
+		firstPage("h11", ciOK("FAILURE", 1), verifyAt("PENDING", 1))+`}]}}}]}}}}}`)
+	f.hub.onQuery(`object(oid:\"h11\")`, lastPage(ciOK("SUCCESS", 3), verifyAt("SUCCESS", 4)))
+	b := Batch{Tickets: []BatchTicket{{Ticket: 5}}}
+	views, err := f.Env(t).views(context.Background(), b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := views[0].PRs[0]
+	if p.Stage1 != "success" || !p.Stage1At.Equal(checkAt(3)) || p.Verify != "success" ||
+		views[0].state() != "verifying" {
+		t.Fatalf("pr %+v", p)
+	}
+	f.hub.onQuery(`object(oid:\"h11\")`, `{"data":null,"errors":[{"message":"rate limited"}]}`)
+	if _, err := f.Env(t).views(context.Background(), b); cliText(err) != "graphql: rate limited" {
+		t.Fatal(err)
+	}
+}
+
 func TestTicketState(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)

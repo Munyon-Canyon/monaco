@@ -14,8 +14,7 @@ import (
 const (
 	landsPrefix = "Lands stack:"
 	stackFields = `number state baseRefName headRefName body mergeCommit{oid} autoMergeRequest{enabledAt}
-mergeQueueEntry{position} commits(last:1){nodes{commit{statusCheckRollup{contexts(first:50){nodes{
-... on CheckRun{name status conclusion completedAt} ... on StatusContext{context state createdAt}}}}}}}`
+mergeQueueEntry{position} commits(last:1){nodes{commit{` + commitChecks + `}}}`
 	repoQuery = "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){"
 )
 
@@ -231,25 +230,36 @@ func (env *Env) graphqlGH(ctx context.Context, query string, out any) error {
 	if err != nil {
 		return err
 	}
-	if err := json.Unmarshal(raw, out); err != nil {
+	if err := json.Unmarshal(raw, &struct {
+		Data any `json:"data"`
+	}{out}); err != nil {
 		return fmt.Errorf("decode gh api graphql: %w", err)
 	}
 	return nil
 }
 
 func (env *Env) openPulls(ctx context.Context) ([]stackPR, error) {
-	var resp struct {
-		Data struct {
-			Repository struct {
-				Open struct {
-					Nodes []stackPR `json:"nodes"`
-				} `json:"open"`
-			} `json:"repository"`
-		} `json:"data"`
+	var data struct {
+		Repository struct {
+			Open struct {
+				Nodes []stackPR `json:"nodes"`
+			} `json:"open"`
+		} `json:"repository"`
 	}
 	q := repoQuery + "open: pullRequests(states:OPEN,first:100){nodes{" + stackFields + "}}}}"
-	err := env.graphqlGH(ctx, q, &resp)
-	return resp.Data.Repository.Open.Nodes, err
+	if err := env.graphqlGH(ctx, q, &data); err != nil {
+		return nil, err
+	}
+	open := data.Repository.Open.Nodes
+	return open, env.readStackChecks(ctx, open)
+}
+
+func (env *Env) readStackChecks(ctx context.Context, prs []stackPR) error {
+	var commits []*gqlCommit
+	for i := range prs {
+		commits = append(commits, prs[i].commits()...)
+	}
+	return readAllChecks(ctx, env.graphqlGH, commits)
 }
 
 func (env *Env) stackPulls(ctx context.Context, nums []int) ([]stackPR, error) {
@@ -259,23 +269,21 @@ func (env *Env) stackPulls(ctx context.Context, nums []int) ([]stackPR, error) {
 		_, _ = fmt.Fprintf(&b, "p%d: pullRequest(number:%d){...pr} ", n, n)
 	}
 	b.WriteString("}}\nfragment pr on PullRequest{" + stackFields + "}")
-	var resp struct {
-		Data struct {
-			Repository map[string]*stackPR `json:"repository"`
-		} `json:"data"`
+	var data struct {
+		Repository map[string]*stackPR `json:"repository"`
 	}
-	if err := env.graphqlGH(ctx, b.String(), &resp); err != nil {
+	if err := env.graphqlGH(ctx, b.String(), &data); err != nil {
 		return nil, err
 	}
 	out := make([]stackPR, len(nums))
 	for i, n := range nums {
-		p := resp.Data.Repository["p"+strconv.Itoa(n)]
+		p := data.Repository["p"+strconv.Itoa(n)]
 		if p == nil {
 			return nil, detailErr(errs.CodeNotFound, "monacoctl.agents.land-stack", fmt.Sprintf("#%d is not a PR", n))
 		}
 		out[i] = *p
 	}
-	return out, nil
+	return out, env.readStackChecks(ctx, out)
 }
 
 func landErr(detail string) error {

@@ -128,6 +128,26 @@ func TestFailures_parsesQueueRemovalsAndRedStage1(t *testing.T) {
 	}
 }
 
+func TestWatch_readsEveryCheckAndTheNewestRunOfEach(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.hub.on(graphqlRoute, failureData(
+		watchNode(5, "fb", firstPage("h5", ciOK("FAILURE", 1), flakeJob), ""),
+		watchNode(6, "fb", firstPage("h6", ciOK("SUCCESS", 1)), ""),
+	))
+	f.hub.onQuery(`c1: object(oid:\"h6\")`, `{"data":{"repository":{`+
+		`"c0":`+rollup(ciOK("SUCCESS", 3), `{"name":"ci / Flake","conclusion":"SUCCESS","completedAt":"2026-09-29T11:03:00Z"}`)+
+		`,"c1":`+rollup(ciOK("FAILURE", 3), lintJob)+`}}}`)
+	failed, err := f.Env(t).failures(context.Background())
+	if err != nil || len(failed) != 1 || failed[0].PR != 6 || failed[0].Job.DatabaseID != 12 {
+		t.Fatalf("%+v %v", failed, err)
+	}
+	f.hub.onQuery(`c1: object(oid:\"h6\")`, `{"data":null,"errors":[{"message":"rate limited"}]}`)
+	if _, err := f.Env(t).failures(context.Background()); cliText(err) != "graphql: rate limited" {
+		t.Fatal(err)
+	}
+}
+
 func failureData(nodes ...string) string {
 	return `{"data":{"repository":{"pullRequests":{"nodes":[` + strings.Join(nodes, ",") + `]}}}}`
 }

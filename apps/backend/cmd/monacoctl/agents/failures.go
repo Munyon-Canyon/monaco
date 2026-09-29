@@ -19,24 +19,8 @@ const (
 		`commits(last:1){nodes{commit{...runs}}} ` +
 		`timelineItems(itemTypes:[REMOVED_FROM_MERGE_QUEUE_EVENT],last:5){nodes{` +
 		`... on RemovedFromMergeQueueEvent{createdAt reason beforeCommit{...runs}}}}}}}}` +
-		"\nfragment runs on Commit{statusCheckRollup{contexts(first:50){nodes{" +
-		"... on CheckRun{name conclusion databaseId detailsUrl}}}}}"
+		"\nfragment runs on Commit{" + commitChecks + "}"
 )
-
-type gqlRun struct {
-	Name       string `json:"name"`
-	Conclusion string `json:"conclusion"`
-	DatabaseID int64  `json:"databaseId"`
-	DetailsURL string `json:"detailsUrl"`
-}
-
-type gqlCommit struct {
-	StatusCheckRollup *struct {
-		Contexts struct {
-			Nodes []gqlRun `json:"nodes"`
-		} `json:"contexts"`
-	} `json:"statusCheckRollup"`
-}
 
 type watchPR struct {
 	Number      int    `json:"number"`
@@ -63,20 +47,24 @@ type failure struct {
 	Head string
 	Body string
 	Why  string
-	Job  gqlRun
+	Job  gqlContext
 }
 
-func (c gqlCommit) runs() []gqlRun {
-	if c.StatusCheckRollup == nil {
-		return nil
+func (p *watchPR) commits() []*gqlCommit {
+	out := make([]*gqlCommit, 0, len(p.Commits.Nodes)+len(p.TimelineItems.Nodes))
+	for i := range p.Commits.Nodes {
+		out = append(out, &p.Commits.Nodes[i].Commit)
 	}
-	return c.StatusCheckRollup.Contexts.Nodes
+	for i := range p.TimelineItems.Nodes {
+		out = append(out, &p.TimelineItems.Nodes[i].BeforeCommit)
+	}
+	return out
 }
 
-func red(r gqlRun) bool { return r.Conclusion == "FAILURE" || r.Conclusion == "TIMED_OUT" }
+func red(r gqlContext) bool { return r.Conclusion == "FAILURE" || r.Conclusion == "TIMED_OUT" }
 
 func (c gqlCommit) stage1Red() bool {
-	for _, r := range c.runs() {
+	for _, r := range c.latest() {
 		if r.Name == stage1Check {
 			return red(r)
 		}
@@ -84,9 +72,9 @@ func (c gqlCommit) stage1Red() bool {
 	return false
 }
 
-func (c gqlCommit) failedJob() gqlRun {
-	var agg gqlRun
-	for _, r := range c.runs() {
+func (c gqlCommit) failedJob() gqlContext {
+	var agg gqlContext
+	for _, r := range c.latest() {
 		switch {
 		case !red(r):
 		case r.Name == stage1Check:
@@ -154,6 +142,13 @@ func (env *Env) failures(ctx context.Context) ([]failure, error) {
 		} `json:"repository"`
 	}
 	if err := env.GitHub.graphql(ctx, failureQuery, &data); err != nil {
+		return nil, err
+	}
+	var commits []*gqlCommit
+	for i := range data.Repository.PullRequests.Nodes {
+		commits = append(commits, data.Repository.PullRequests.Nodes[i].commits()...)
+	}
+	if err := readAllChecks(ctx, env.GitHub.graphql, commits); err != nil {
 		return nil, err
 	}
 	stamp := env.Now().UTC().Format(time.RFC3339Nano)

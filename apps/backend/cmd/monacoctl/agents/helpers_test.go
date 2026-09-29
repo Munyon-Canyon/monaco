@@ -28,6 +28,7 @@ type hub struct {
 	t      *testing.T
 	mu     sync.Mutex
 	routes map[string]string
+	pages  [][2]string
 	sent   map[string]string
 	auth   map[string]string
 }
@@ -54,6 +55,12 @@ func (h *hub) on(route string, v any) {
 	h.routes[route] = string(b)
 }
 
+func (h *hub) onQuery(has, resp string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.pages = append(h.pages, [2]string{has, resp})
+}
+
 func (h *hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	route := r.Method + " " + r.URL.RequestURI()
 	body, _ := io.ReadAll(r.Body)
@@ -61,6 +68,11 @@ func (h *hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.sent[route] = string(body)
 	h.auth[route] = r.Header.Get("Authorization")
 	resp, ok := h.routes[route]
+	for _, p := range h.pages {
+		if strings.Contains(string(body), p[0]) {
+			resp, ok = p[1], true
+		}
+	}
 	h.mu.Unlock()
 	if !ok {
 		http.Error(w, `{"message":"Not Found"}`, http.StatusNotFound)
