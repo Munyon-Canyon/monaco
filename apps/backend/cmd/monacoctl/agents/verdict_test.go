@@ -49,7 +49,8 @@ func TestVerdict_refusesAWeakerKindTheOwnerModelOrTheWrongSHA(t *testing.T) {
 	}
 	owned := append([]string{}, args...)
 	owned[7] = opus
-	if code, _, stderr := f.agents(t, owned...); code != 1 || !strings.Contains(stderr, "equals the owner") {
+	if code, _, stderr := f.agents(t, owned...); code != 1 ||
+		!strings.Contains(stderr, "verifier model opus equals the owner model opus on #40") {
 		t.Fatalf("owner: %d %q", code, stderr)
 	}
 	wrong := append([]string{}, args...)

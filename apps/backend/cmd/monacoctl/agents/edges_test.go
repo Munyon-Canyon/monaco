@@ -15,7 +15,7 @@ func TestEdges_dispatchBlockersAndProcess(t *testing.T) {
 	f := prepBranch(t)
 	env := f.Env(t)
 	env.Run = f.run
-	f.hub.on(get("/issues/4"), Issue{Body: "Blocked by #8"})
+	f.hub.on(get("/issues/4"), Issue{Body: "**Milestone:** M7 · **Blocked by:** #8 · **Touches:** `a`"})
 	if err := env.blockersClear(context.Background(), 4); err == nil || !strings.Contains(err.Error(), "issues/8") {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func TestEdges_dispatchBlockersAndProcess(t *testing.T) {
 	}
 	when := f.now
 	side := commitFile(t, f.dir, "side.go", "x\n")
-	git(t, f.dir, "update-ref", "refs/heads/fb", "HEAD~1")
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "HEAD~1")
 	f.hub.on(get("/pulls/8"), PR{MergedAt: &when, MergeCommitSHA: side})
 	if err := env.blockersClear(context.Background(), 4); err == nil || !strings.Contains(cliText(err), "not in") {
 		t.Fatal(err)
@@ -53,20 +53,14 @@ func TestEdges_dispatchBlockersAndProcess(t *testing.T) {
 			{MergedAt: &when, Base: Ref{Ref: "fb"}, Body: "Closes #8", MergeCommitSHA: side},
 		},
 	)
-	git(t, f.dir, "update-ref", "refs/heads/fb", "HEAD")
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "HEAD")
 	if err := env.blockersClear(context.Background(), 4); err != nil {
 		t.Fatal(err)
 	}
-	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "HEAD")
-	git(t, f.dir, "branch", "-D", "fb")
-	if _, err := env.ancestor(context.Background(), side); err != nil {
-		t.Fatal(err)
-	}
 	git(t, f.dir, "update-ref", "-d", "refs/remotes/origin/fb")
-	if _, err := env.featureRef(context.Background()); err == nil {
-		t.Fatal("missing ref")
+	if ok, err := env.ancestor(context.Background(), side); ok || err != nil {
+		t.Fatal(ok, err)
 	}
-	git(t, f.dir, "branch", "fb")
 	writeFile(t, env.Common+"/.monaco/agents", "file")
 	if err := env.lanesOpen(); err == nil {
 		t.Fatal("lanes")
@@ -260,14 +254,14 @@ func TestEdges_remainingBranches(t *testing.T) {
 	if !closes("Closes #2", 2) || closes("nope", 2) || closes("Closes #1", 2) {
 		t.Fatal("closes")
 	}
-	git(t, f.dir, "branch", "-D", "fb")
+	git(t, f.dir, "update-ref", "-d", "refs/remotes/origin/fb")
 	if _, err := env.featureTip(context.Background()); err == nil {
 		t.Fatal("tip")
 	}
-	if _, err := env.ancestor(context.Background(), "HEAD"); err == nil {
+	if _, err := env.ancestor(context.Background(), "missing"); err == nil {
 		t.Fatal("ancestor")
 	}
-	git(t, f.dir, "branch", "fb")
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "fb")
 	if err := env.addWorktree(context.Background(), f.dir, "fb"); err == nil {
 		t.Fatal("worktree")
 	}
@@ -285,7 +279,7 @@ func TestEdges_remainingBranches(t *testing.T) {
 		t.Fatal("zero")
 	}
 	when := f.now
-	f.hub.on(get("/issues/4"), Issue{Body: "Blocked by #8"})
+	f.hub.on(get("/issues/4"), Issue{Body: "**Milestone:** M7 · **Blocked by:** #8 · **Touches:** `a`"})
 	f.hub.on(get("/issues/8"), Issue{State: "open"})
 	f.hub.on(
 		list("/pulls?state=closed"),
@@ -398,16 +392,6 @@ func TestEdges_remainingBranches(t *testing.T) {
 	f.hub.on(list("/pulls?state=open"), []PR{})
 	if err := watchCmd(context.Background(), env, nil, ioDiscard()); err == nil {
 		t.Fatal("alive")
-	}
-	tip := f.Env(t)
-	tip.Run = func(_ context.Context, _ string, _ string, _ string, args ...string) ([]byte, error) {
-		if len(args) > 1 && args[1] == "--verify" {
-			return nil, nil
-		}
-		return nil, errors.New("rev down")
-	}
-	if _, err := tip.featureTip(context.Background()); err == nil {
-		t.Fatal("tip rev")
 	}
 	_ = os.Remove(f.Env(t).recordPath(40))
 	for _, n := range []int{3, 8} {

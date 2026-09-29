@@ -77,18 +77,18 @@ func TestVerifyPlan_classifiesTheDiff(t *testing.T) {
 	}
 }
 
-func TestVerifyPlan_haikuForHygieneDiffs(t *testing.T) {
+func TestVerifyPlan_sonnetForHygieneDiffs(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name, owner, want string
 		files             []File
 	}{
 		{
-			"workflow", "", "light, verifier haiku\nreason: ci, pr hygiene, or size\n",
+			"workflow", "", "light, verifier sonnet\nreason: ci, pr hygiene, or size\n",
 			[]File{{Filename: ".github/workflows/ci.yml", Additions: 3}},
 		},
 		{
-			"checkers", "", "light, verifier haiku\nreason: ci, pr hygiene, or size\n",
+			"checkers", "", "light, verifier sonnet\nreason: ci, pr hygiene, or size\n",
 			[]File{
 				{Filename: "scripts/check-pr-size.py", Additions: 4},
 				{Filename: "scripts/check-pr-format.py", Additions: 1},
@@ -97,11 +97,11 @@ func TestVerifyPlan_haikuForHygieneDiffs(t *testing.T) {
 			},
 		},
 		{
-			"large hygiene", "", "full, verifier haiku\nreason: ci, pr hygiene, or size\n",
+			"large hygiene", "", "full, verifier sonnet\nreason: ci, pr hygiene, or size\n",
 			[]File{{Filename: ".github/workflows/ci.yml", Additions: 60}},
 		},
 		{
-			"hygiene at the size boundary", "", "full, verifier haiku\nreason: ci, pr hygiene, or size\n",
+			"hygiene at the size boundary", "", "full, verifier sonnet\nreason: ci, pr hygiene, or size\n",
 			[]File{{Filename: ".github/workflows/ci.yml", Additions: smallDiff}},
 		},
 		{
@@ -113,15 +113,11 @@ func TestVerifyPlan_haikuForHygieneDiffs(t *testing.T) {
 			},
 		},
 		{
-			"haiku owner swaps off haiku", haiku, "verifier opus\nreason: ci, pr hygiene, or size\n",
+			"sonnet owner swaps to opus", sonnet, "verifier opus\nreason: ci, pr hygiene, or size\n",
 			[]File{{Filename: "scripts/check-pr-format.py", Additions: 2}},
 		},
 		{
-			"sonnet owner keeps haiku", sonnet, "verifier haiku\nreason: ci, pr hygiene, or size\n",
-			[]File{{Filename: ".github/workflows/ci.yml", Additions: 2}},
-		},
-		{
-			"opus owner keeps haiku", opus, "verifier haiku\nreason: ci, pr hygiene, or size\n",
+			"opus owner keeps sonnet", opus, "verifier sonnet\nreason: ci, pr hygiene, or size\n",
 			[]File{{Filename: ".github/workflows/ci.yml", Additions: 2}},
 		},
 		{
@@ -151,10 +147,10 @@ func TestVerifyPlan_haikuForHygieneDiffs(t *testing.T) {
 func TestVerifyPlan_neverPicksTheOwnersModel(t *testing.T) {
 	t.Parallel()
 	cases := map[string]struct{ owner, file, want string }{
-		"opus owner, plain diff":      {opus, "a.go", "verifier sonnet"},
-		"sonnet owner, plain diff":    {sonnet, "a.go", "verifier opus"},
-		"opus owner, sensitive diff":  {opus, "apps/backend/internal/platform/bus/relay.go", "verifier sonnet"},
-		"haiku owner, sensitive diff": {"haiku", "apps/backend/internal/platform/money/u.go", "verifier opus"},
+		"opus owner, plain diff":       {opus, "a.go", "verifier sonnet"},
+		"sonnet owner, plain diff":     {sonnet, "a.go", "verifier opus"},
+		"opus owner, sensitive diff":   {opus, "apps/backend/internal/platform/bus/relay.go", "verifier sonnet"},
+		"sonnet owner, sensitive diff": {sonnet, "apps/backend/internal/platform/money/u.go", "verifier opus"},
 	}
 	for name, c := range cases {
 		f := newFixture(t)

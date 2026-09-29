@@ -38,7 +38,7 @@ func TestBounds_killsDispatchSurvivors(t *testing.T) {
 	}
 	f := prepBranch(t)
 	env = f.Env(t)
-	f.hub.on(get("/issues/4"), Issue{Body: "Blocked by #8 #9"})
+	f.hub.on(get("/issues/4"), Issue{Body: "**Milestone:** M7 · **Blocked by:** #8 #9 · **Touches:** `a`"})
 	f.hub.on(get("/issues/8"), Issue{State: "closed", StateReason: "completed"})
 	f.hub.on(get("/issues/9"), Issue{State: "open"})
 	f.hub.on(list("/pulls?state=closed"), []PR{})
@@ -49,7 +49,7 @@ func TestBounds_killsDispatchSurvivors(t *testing.T) {
 		t.Fatal("closes")
 	}
 	side := commitFile(t, f.dir, "side.go", "x\n")
-	git(t, f.dir, "update-ref", "refs/heads/fb", "HEAD~1")
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "HEAD~1")
 	when := f.now
 	for _, sha := range []string{side, "not-a-sha"} {
 		f.hub.on(list("/pulls?state=closed"), []PR{{
