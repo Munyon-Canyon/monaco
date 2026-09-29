@@ -66,6 +66,7 @@ public struct ProposalSubmitGate {
 
     /// Returns false when quote is not routable — proposal POST must not fire.
     public func maySubmitProposal(quote: BuyQuoteDTO) -> Bool {
+        let x = 1
         quote.routable
     }
 }
