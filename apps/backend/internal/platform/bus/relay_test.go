@@ -123,14 +123,7 @@ func (h *relayHarness) unpublished(t *testing.T) int64 {
 
 func (h *relayHarness) waitDrained(t *testing.T) {
 	t.Helper()
-	deadline := time.After(waitFor)
-	for h.unpublished(t) != 0 {
-		select {
-		case <-deadline:
-			t.Fatalf("%d rows still unpublished after %s", h.unpublished(t), waitFor)
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
+	testkit.Eventually(t, func() bool { return h.unpublished(t) == 0 }, waitFor)
 }
 
 func (h *relayHarness) fetch(t *testing.T, n int) []jetstream.Msg {
@@ -479,14 +472,7 @@ func TestRelay_logsIdleAtMostOnceAMinute(t *testing.T) {
 
 func (h *relayHarness) waitLines(t *testing.T, msg string, n int) []map[string]any {
 	t.Helper()
-	deadline := time.After(waitFor)
-	for len(h.lines(t, msg)) < n {
-		select {
-		case <-deadline:
-			t.Fatalf("%d %s lines after %s, want %d", len(h.lines(t, msg)), msg, waitFor, n)
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
+	testkit.Eventually(t, func() bool { return len(h.lines(t, msg)) >= n }, waitFor)
 	return h.lines(t, msg)
 }
 

@@ -30,10 +30,6 @@ func await(t *testing.T, what string, done <-chan struct{}) {
 	}
 }
 
-func settle() {
-	<-time.After(3 * testkit.DefaultAckWait)
-}
-
 func startRegistry(ctx context.Context, t *testing.T, reg *bus.Registry) {
 	t.Helper()
 	stop, err := reg.Start(ctx)
@@ -96,21 +92,13 @@ func (h *harness) deadLetters(t *testing.T) []deadLetter {
 	return out
 }
 
-func (h *harness) waitSettled(t *testing.T) uint64 {
+func (h *harness) assertNoRedelivery(t *testing.T) uint64 {
 	t.Helper()
-	deadline := time.After(waitLong)
-	for {
-		ci := h.consumerInfo(t)
-		if ci.NumAckPending == 0 && ci.NumRedelivered == 0 {
-			return ci.Delivered.Consumer
-		}
-		select {
-		case <-deadline:
-			t.Fatalf("the consumer still holds a message: %d pending ack, %d redelivered",
-				ci.NumAckPending, ci.NumRedelivered)
-		case <-time.After(20 * time.Millisecond):
-		}
+	cons, err := h.bus.JS.Consumer(t.Context(), h.bus.Events, durable)
+	if err != nil {
+		t.Fatal(err)
 	}
+	return testkit.AssertNoRedelivery(t, cons).Delivered.Consumer
 }
 
 func (h *harness) assertNoDeliverySince(t *testing.T, delivered uint64) {
@@ -128,29 +116,17 @@ func (h *harness) assertNoDeliverySince(t *testing.T, delivered uint64) {
 
 func waitCalls(t *testing.T, calls *atomic.Uint64, want uint64) {
 	t.Helper()
-	deadline := time.After(waitLong)
-	for calls.Load() != want {
-		select {
-		case <-deadline:
-			t.Fatalf("handler ran %d times for %d deliveries, want once per delivery", calls.Load(), want)
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
+	testkit.Eventually(t, func() bool { return calls.Load() == want }, waitLong)
 }
 
 func (h *harness) waitDeadLetters(t *testing.T, n int) []deadLetter {
 	t.Helper()
-	deadline := time.After(waitLong)
-	for {
-		if got := h.deadLetters(t); len(got) >= n {
-			return got
-		}
-		select {
-		case <-deadline:
-			t.Fatalf("DEADLETTER never reached %d messages", n)
-		case <-time.After(20 * time.Millisecond):
-		}
-	}
+	var got []deadLetter
+	testkit.Eventually(t, func() bool {
+		got = h.deadLetters(t)
+		return len(got) >= n
+	}, waitLong)
+	return got
 }
 
 func TestDispatch_retryableErrorNaksAndTheRedeliverySucceeds(t *testing.T) {
@@ -171,7 +147,7 @@ func TestDispatch_retryableErrorNaksAndTheRedeliverySucceeds(t *testing.T) {
 
 	id := h.publishPing(t)
 	await(t, "second delivery", done)
-	settle()
+	h.assertNoRedelivery(t)
 	if got := h.deliveries(t); !slices.Equal(got, []row{{"notify.push", id, "ok"}}) {
 		t.Fatalf("event_deliveries = %v, want the one ok row", got)
 	}
@@ -227,8 +203,7 @@ func TestDispatch_nonRetryableErrorTermsIntoDeadLetterAndIsNotRedelivered(t *tes
 	h.publish(t, id, payload)
 	await(t, "first delivery", seen)
 	got := h.waitDeadLetters(t, 1)
-	delivered := h.waitSettled(t)
-	settle()
+	delivered := h.assertNoRedelivery(t)
 	h.assertNoDeliverySince(t, delivered)
 	waitCalls(t, &calls, delivered)
 	if got := h.deliveries(t); len(got) != 0 {
@@ -271,7 +246,7 @@ func TestDispatch_twoHandlersInOneConsumerDedupeIndependently(t *testing.T) {
 
 	id := h.publishPing(t)
 	await(t, "mail's second delivery", done)
-	settle()
+	h.assertNoRedelivery(t)
 	want := []row{{"notify.mail", id, "ok"}, {"notify.push", id, "ok"}}
 	if got := h.deliveries(t); !slices.Equal(got, want) {
 		t.Fatalf("event_deliveries = %v, want %v", got, want)
@@ -448,31 +423,11 @@ func TestRegistry_warnsWhenTheRunningConsumerIsDeleted(t *testing.T) {
 		t,
 		h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{h.recorder("notify.push")}}),
 	)
-	deadline := time.After(waitLong)
-	for {
-		cons, err := h.bus.JS.Consumer(ctx, h.bus.Events, durable)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if cons.CachedInfo().NumWaiting > 0 {
-			break
-		}
-		select {
-		case <-deadline:
-			t.Fatal("the consumer never had a pull request waiting")
-		case <-time.After(20 * time.Millisecond):
-		}
-	}
+	testkit.Eventually(t, func() bool { return h.consumerInfo(t).NumWaiting > 0 }, waitLong)
 	if err := h.bus.JS.DeleteConsumer(ctx, h.bus.Events, durable); err != nil {
 		t.Fatal(err)
 	}
-	for len(h.lines(t, "bus.consume_error")) == 0 {
-		select {
-		case <-deadline:
-			t.Fatal("no bus.consume_error line after the consumer was deleted")
-		case <-time.After(20 * time.Millisecond):
-		}
-	}
+	testkit.Eventually(t, func() bool { return len(h.lines(t, "bus.consume_error")) > 0 }, waitLong)
 	if line := h.lines(t, "bus.consume_error")[0]; line["consumer"] != durable || line["level"] != "WARN" {
 		t.Fatalf("line = %v, want a WARN naming %s", line, durable)
 	}

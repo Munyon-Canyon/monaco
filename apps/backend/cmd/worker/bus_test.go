@@ -118,14 +118,8 @@ func hasLine(logs *testkit.Logs, msg string) bool {
 
 func waitUntil(t *testing.T, what string, ok func() bool) {
 	t.Helper()
-	deadline := time.After(20 * time.Second)
-	for !ok() {
-		select {
-		case <-deadline:
-			t.Fatalf("%s did not happen within 20s", what)
-		case <-time.After(10 * time.Millisecond):
-		}
-	}
+	t.Logf("waiting for %s", what)
+	testkit.Eventually(t, ok, 20*time.Second)
 }
 
 func TestStartRelay_wakesOnACommitThroughTheSharedUnitOfWork(t *testing.T) {

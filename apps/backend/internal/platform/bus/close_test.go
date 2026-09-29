@@ -44,16 +44,5 @@ func TestClose_stopsWaitingForTheDrainWhenTheContextEnds(t *testing.T) {
 
 func waitNoLeak(t *testing.T, before goleak.Option) {
 	t.Helper()
-	deadline := time.After(10 * time.Second)
-	for {
-		err := goleak.Find(before)
-		if err == nil {
-			return
-		}
-		select {
-		case <-deadline:
-			t.Fatalf("goroutines outlived Close by 10s: %v", err)
-		case <-time.After(50 * time.Millisecond):
-		}
-	}
+	testkit.Eventually(t, func() bool { return goleak.Find(before) == nil }, 10*time.Second)
 }
