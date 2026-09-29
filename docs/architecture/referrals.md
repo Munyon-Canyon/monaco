@@ -37,6 +37,7 @@ Every user has a **random code** from account creation. After the unlock, their 
 | Route | Does |
 | --- | --- |
 | `GET /v1/me/referral-code` | The user's random code and link, plus the handle link once unlocked. |
+| `GET /v1/referrals/{code}` | Public, no auth. The referrer's display name and photo for a code, or not found. The `/r/<code>` web page calls it ([Web](#web)). |
 
 Handle availability and changes are `identity` routes ([auth.md](auth.md#handle)).
 
@@ -98,7 +99,7 @@ Backend checks, in one `uow.Do` ([Patterns](backend-platform.md#patterns-and-whe
 
 `AttachReferral` is the only attribution path (default 2026-09-27). Universal Link, clipboard and manual codes all arrive after the session exists, so one command covers all three sources. The `referrals` consumer of `user.created` (flow 1) only mints the random code; it never attributes.
 
-On success: insert `referrals` row (`status = attributed`) and append the `events` row `referral.attributed` in the same transaction. Consumers do the rest. `social` auto-follows both ways (`follows.source = 'referral'`, [followers.md](followers.md)); `referrals` never writes `follows`. `notify` tells the referrer ("Sam joined from your invite"). Failure returns an `errs` code whose table message the app shows in a toast ("That code isn't valid").
+On success: insert `referrals` row (`status = attributed`) and append the `events` row `referral.attributed` in the same transaction. Consumers do the rest. `social` auto-follows both ways (`follows.source = 'referral'`, [followers.md](followers.md)); `referrals` never writes `follows`. No push on attribution for MVP ([notifications.md](notifications.md#what-notifies-mvp)). Failure returns an `errs` code whose table message the app shows in a toast ("That code isn't valid").
 
 `referral.attributed` has its own row in the flows table, with `social` as a consumer (platform default 2026-09-27).
 
@@ -106,7 +107,7 @@ On success: insert `referrals` row (`status = attributed`) and append the `event
 
 A referral moves `attributed → qualified`, or `rejected`. Nothing is paid or granted on qualifying.
 
-- **Qualified** when the referee first funds a cabal with at least $10 (`10_000_000` micros), default 2026-09-27. Funding a cabal is real use, which a deposit alone is not. Triggered by the `referrals` consumer of `cabal.funded` (flow 7), never from the client. Qualifying appends `referral.qualified`, whose consumers are `notify` and `analytics` (flow 25). `deposit.credited` (flow 5) only unlocks the handle as a code, through `identity`'s consumer. `referrals` does not consume it.
+- **Qualified** when the referee first funds a cabal with at least $10 (`10_000_000` micros), default 2026-09-27. Funding a cabal is real use, which a deposit alone is not. Triggered by the `referrals` consumer of `cabal.funded` (flow 7), never from the client. Qualifying appends `referral.qualified`, whose consumer is `analytics` (flow 25); it sends no push. `deposit.credited` (flow 5) only unlocks the handle as a code, through `identity`'s consumer. `referrals` does not consume it.
 - **Honest counts.** Qualification also requires the referee's phone to be verified ([auth.md](auth.md)); verified phones are unique, so one person cannot inflate a referrer's numbers with extra Apple IDs. Bursts from one referrer are flagged for review in the admin panel.
 - **If a reward comes later**, it is a new consumer of `referral.qualified`. A cash reward moves money, so that consumer would live in the module that owns member balances, not in `referrals`.
 
@@ -131,7 +132,7 @@ The handle unlock is `users.first_deposit_at`, owned by `identity` ([Codes](#cod
 
 ## Web
 
-- `monacolabs.xyz/r/<code>` is a server-rendered route in `apps/web` (Cloudflare function): looks up the referrer's display name and photo from the API, renders the page, and sets Open Graph tags so the link preview in Messages shows "Alex invited you to Monaco" with their photo.
+- `monacolabs.xyz/r/<code>` is a server-rendered route in `apps/web` (Cloudflare function): looks up the referrer's display name and photo from the API with `GET /v1/referrals/{code}`, renders the page, and sets Open Graph tags so the link preview in Messages shows "Alex invited you to Monaco" with their photo.
 - Unknown code: generic "Get Monaco" page, still links to the App Store, copies nothing.
 - `apple-app-site-association` lists `/r/*` for `com.monaco.app`. The app declares `applinks:monacolabs.xyz` in its entitlements.
 
@@ -154,6 +155,7 @@ None at the moment. When an Android app exists, the Play Install Referrer API re
 
 ## Log
 
+- 2026-09-29: No push on `referral.attributed` or `referral.qualified` for MVP; `notify` is not a consumer of either (default; see #535). The public lookup is `GET /v1/referrals/{code}` (default; see #535).
 - 2026-09-27: Default 2026-09-27: dropped `referral_grants` and the admin grant. The first deposit of $10 or more is the only unlock. Old handles no longer resolve after a rename.
 - 2026-09-27: Decided 2026-09-27: every user picks a unique handle in onboarding, owned by `identity` on `users.handle`. The random code is still minted at signup. After the first deposit of $10 or more, the handle also works as a referral code. Custom codes, `ClaimReferralCode` and the availability route are gone; handle rules, changes and admin revoke or reassign move to [auth.md](auth.md#handle). `referral_codes` holds random codes only. Default 2026-09-27 (reversible): the admin deposit-skip becomes a `referral_grants` row.
 - 2026-09-27: Decided: dropped `referral_unlocks`. `users.first_deposit_at` stays on `users`, set by `identity`'s consumer of `deposit.credited` with a guarded update, and read by `referrals` through the `identity` query port. The admin grant is now an admin-assigned custom code that skips the deposit check.

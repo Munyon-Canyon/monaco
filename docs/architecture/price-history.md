@@ -67,6 +67,10 @@ The `market` price poller in `cmd/worker` is the only one (flow 18). On each 120
 
 Prices are sampled always, including when the equity market is shut (default 2026-09-27). Charts draw the live token price and mark after-hours at read. Leaderboards value holdings at the last regular-session close while the market is shut, so weekend moves in a thin market do not reshuffle boards ([leaderboards.md](leaderboards.md)).
 
+The same tick appends `asset.price_moved` when an asset's change since its previous close crosses a feed threshold ([feed.md](feed.md#writing-feed-items)). There is no second poller.
+
+**Market calendar.** Whether the US market is open, and when the last session closed, comes from a static NYSE calendar in `market`'s code: regular hours plus a table of NYSE holidays and early closes, updated once a year. No calendar vendor is called (default 2026-09-29; see #535).
+
 Poller rules from the RFC apply. It takes a Postgres advisory lock per tick, so only one worker samples ([Deploy rule 1](backend-platform.md#deploy-and-observability)). A failed tick is logged, counted in `poller_errors_total{poller,code}`, and never stops the loop ([Surfacing](backend-platform.md#surfacing)). A tick that wrote nothing still logs that it ran ([Logs as evidence](backend-platform.md#rules)). The Jupiter call goes through the `market` adapter with its configured deadline, circuit breaker and retry.
 
 Once the table is the source, sparklines are a DB read and nothing needs pre-warming against a vendor. Today's `SparkWarmer` has no counterpart in the rewrite.
@@ -157,6 +161,7 @@ None.
 
 ## Log
 
+- 2026-09-29: The market calendar is a static NYSE holiday table in code, updated yearly (default; see #535). The price poller appends `asset.price_moved`; there is no second poller. Valuation cadence is 2 minutes everywhere.
 - 2026-09-27: Decided 2026-09-27: the price poller ticks every 120 s. Samples are stored one row per mint per 2-minute bucket, the 1D cache TTL is 120 s, and the poller makes 1 Jupiter call a minute (~22k a month). Supersedes the 10 s default.
 - 2026-09-27: Closed the last open question (default 2026-09-27): the price poller ticks every 10 s. The Jupiter free tier allows 60 requests a minute shared across Price, Swap and Token calls ([Jupiter rate limits](https://developers.jup.ag/docs/portal/rate-limits)); the poller uses 12.
 - 2026-09-27: Applied defaults. One `market` poller and one table, `price_points` with `price_micros bigint`, shared with leaderboards; Pyth dropped for boards too; subject `price.tick`; tick cadence per the RFC, stored at one row per mint per minute; no Yahoo in the rewrite, CoinGecko backfill before cutover; no paid 2-year backfill; sample always, boards value at the close while the market is shut; P&L curve reads `cabal_value_snapshots`. Open: Jupiter rate limit at a 10 s tick.

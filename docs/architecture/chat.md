@@ -87,12 +87,13 @@ Refusals (not a member, parent in another cabal, parent is itself a reply, empty
    - checks the parent rules, if `parent_id` is set;
    - inserts the row;
    - for a reply, updates the parent: `reply_count = reply_count + 1, last_reply_at = now()`;
-   - appends the `events` row `chat.message_posted` (ids only, no body).
+   - parses mentions: each `@handle` in the body that matches a current cabal member's handle, looked up through the `identity` query port, becomes a mentioned user ID. Unknown handles and non-members are plain text;
+   - appends the `events` row `chat.message_posted` with ids only, no body: the message, cabal, author and parent IDs, and `mentioned_user_ids`.
 3. After the commit, the backend publishes `message.created` on `cabal:{cabal_id}` with the full message (id, author, body, created_at, parent_id, also_in_channel). For a reply it also publishes `thread.updated` with the parent's new `reply_count` and `last_reply_at`.
 4. The handler returns `201` with the stored message. The app swaps its pending row for the real one. When its own `message.created` echo arrives, the app drops it because it already has that id.
 5. If the Ably publish fails, the handler still returns `201` and logs the decision as a registered message with the message id and cause ([Logs as evidence](backend-platform.md#logs-as-evidence)). The message is stored, and the other clients will see it on their next catch-up fetch.
 
-The relay publishes `chat.message_posted` on the NATS event bus ([event-bus.md](event-bus.md)). Side effects that must not be lost are bus consumers of that event. `notify` pushes for @mentions and for replies in threads you started or replied in, and nothing else (default 2026-09-27). There is no digest for other messages. `analytics` can take the event too. See [notifications.md](notifications.md).
+The relay publishes `chat.message_posted` on the NATS event bus ([event-bus.md](event-bus.md)). Side effects that must not be lost are bus consumers of that event. `notify` pushes for @mentions, to the users in `mentioned_user_ids`, and for replies in threads you started or replied in, and nothing else (default 2026-09-27). There is no digest for other messages. `analytics` can take the event too. See [notifications.md](notifications.md).
 
 The Ably publish in step 3 is a deliberate exception to the rule that side effects are bus consumers. It stays inside the `social` module, so it crosses no module wall. Routing it through a consumer would add a hop to every message for no gain: a lost chat event is harmless because the reconnect fetch covers it. Clients never connect to NATS, so Ably stays the client transport.
 
@@ -193,6 +194,7 @@ None at the moment.
 
 ## Log
 
+- 2026-09-29: Mentions are parsed `@handle` matched against cabal members, and `chat.message_posted` carries `mentioned_user_ids` (default; see #535).
 - 2026-09-27: Decided: `cabal_messages` soft deletes through `deleted_at`. `chat_seen` stays a `social` table, and its rows are hard-deleted when a member leaves.
 - 2026-09-27: Defaults applied: seen covers the channel only; Ably token TTL 15 minutes, `subscribe` only; no typing or presence in MVP; soft delete only, no editing (`deleted_at`, `DELETE` route, `message.deleted`); pushes for @mentions and replies in your threads, no digest; unread badge on the cabal row, computed by the server; proposal cards are messages with `proposal_id` through `message.created`. `cmd/fakes` has an Ably fake. All open questions closed.
 - 2026-09-27: Reconciled with [backend-platform.md](backend-platform.md). Owner is the `social` module, flow 22, rollout step 6. Tables and routes renamed to `cabal_messages`, `cabal_id` and `/v1/cabals/{id}`. Event renamed `chat.message_created` to `chat.message_posted`, appended inside `uow.Do`. The seen watermark moves from `group_members.last_chat_seen_at` to a `social`-owned `chat_seen` table, cleared on `cabal.member_left`. Membership checks use the `cabal` query port. `seen.updated` carries the server-computed count. Ably sits behind a port with a `testkit` fake; `cmd/fakes` needs an Ably endpoint. Corrected the claim that today's send route is idempotent. Closed the "one transport or two" question: the RFC keeps Ably for chat and the SSE hub for everything else.
