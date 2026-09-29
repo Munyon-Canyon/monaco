@@ -74,10 +74,11 @@ Return the title on its own line, then one copyable markdown code block for the 
 
 ## Applying it
 
-After `gt submit --stack`, set title and body:
+Open the stack as drafts, then set title and body per PR. The script runs the same PR format check as CI, including the commits, and marks the draft ready only when it passes:
 
 ```bash
-gh pr edit <n> --title "<what changes>" --body-file <file>
+gt submit --stack --no-interactive --draft
+scripts/pr-body.sh <n> "<what changes>" <file>
 ```
 
 ## Example

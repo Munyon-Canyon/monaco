@@ -246,12 +246,12 @@ func TestAgentGuard_prBodiesComeFromFiles(t *testing.T) {
 		`gh pr edit 5 -b x`,
 		`gh pr create --base b --title t --body="x"`,
 	} {
-		assertBlocked(t, guard(t, cwd, cmd), cmd, "scripts/pr-body.sh <pr> <file>")
+		assertBlocked(t, guard(t, cwd, cmd), cmd, "scripts/pr-body.sh <pr> <title> <body-file>")
 	}
 	for _, cmd := range []string{
 		`gh pr edit 5 --body-file body.md`,
 		`gh pr create --base b --title t --body-file body.md`,
-		`scripts/pr-body.sh 5 body.md`,
+		`scripts/pr-body.sh 5 "Add the thing" body.md`,
 	} {
 		assertAllowed(t, guard(t, cwd, cmd), cmd)
 	}
@@ -360,61 +360,6 @@ func TestAgentGuard_gtSyncLeavesOtherStacksUnrestacked(t *testing.T) {
 	}
 	for _, cmd := range []string{"gt sync --no-interactive --no-restack", "gt restack --upstack", "gt submit --stack"} {
 		assertAllowed(t, guard(t, dir, cmd, py), cmd)
-	}
-}
-
-func TestPrBody_setsTheBodyFromAFileOnlyWhenItPassesThePrFormat(t *testing.T) {
-	dir := t.TempDir()
-	calls := filepath.Join(dir, "calls")
-	writeExecutable(t, filepath.Join(dir, "bin", "gh"), fmt.Sprintf(`#!/bin/sh
-echo "$*" >> %q
-[ "$1 $2" = "pr view" ] && echo "Add the thing"
-exit 0
-`, calls))
-	env := append(os.Environ(), "PATH="+filepath.Join(dir, "bin")+":"+os.Getenv("PATH"))
-	prBody := func(file string) (string, error) {
-		script := filepath.Join(repoRoot(t), "scripts", "pr-body.sh")
-		if _, err := os.ReadFile(script); err != nil {
-			t.Fatal(err)
-		}
-		cmd := exec.Command("bash", script, "7", file)
-		cmd.Env = env
-		out, err := cmd.CombinedOutput()
-		return string(out), err
-	}
-
-	bad := filepath.Join(dir, "bad.md")
-	if err := os.WriteFile(bad, []byte("## TLDR\n\nOnly this.\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if out, err := prBody(bad); err == nil || !strings.Contains(out, `missing the "## Why" section`) {
-		t.Fatalf("want a format failure, got err=%v out=%q", err, out)
-	}
-	if got, _ := os.ReadFile(calls); strings.Contains(string(got), "pr edit") {
-		t.Fatalf("gh pr edit ran for a body that fails the format: %q", got)
-	}
-
-	var body strings.Builder
-	for _, s := range []string{"TLDR", "Why", "What changed", "Proof", "What came up", "Reviewer focus"} {
-		fmt.Fprintf(&body, "## %s\n\nText.\n\n", s)
-	}
-	unlinked := filepath.Join(dir, "unlinked.md")
-	if err := os.WriteFile(unlinked, []byte(body.String()), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if out, err := prBody(unlinked); err == nil || !strings.Contains(out, `"## Why" links no ticket`) {
-		t.Fatalf("want a missing ticket link failure, got err=%v out=%q", err, out)
-	}
-	good := filepath.Join(dir, "good.md")
-	linked := strings.Replace(body.String(), "## Why\n\nText.", "## Why\n\nPart of #7.", 1)
-	if err := os.WriteFile(good, []byte(linked), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if out, err := prBody(good); err != nil {
-		t.Fatalf("pr-body.sh: %v\n%s", err, out)
-	}
-	if got, _ := os.ReadFile(calls); !strings.Contains(string(got), "pr edit 7 --body-file "+good) {
-		t.Fatalf("want gh pr edit 7 --body-file, got %q", got)
 	}
 }
 

@@ -706,7 +706,7 @@ func TestWatch_clearsTheQueuedMarkOfAnEjectedStack(t *testing.T) {
 	f.record(t, Record{Ticket: 44, State: Exited})
 	f.noFailures()
 	code, stdout, stderr := f.agents(t, "watch")
-	want := "unqueued: #40; #3 left the queue. Fix the stack with gt modify and gt submit --stack, then run land-stack 3\n"
+	want := "unqueued: #40; #3 left the queue. Fix the stack with gt modify and gt submit --stack --draft, then run land-stack 3\n"
 	if code != 0 || stdout != want {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}

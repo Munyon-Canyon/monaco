@@ -335,7 +335,7 @@ func (env *Env) unqueueEjected(ctx context.Context, rs []Record, stdout io.Write
 			continue
 		}
 		_, _ = fmt.Fprintf(stdout, "unqueued: #%d; #%d left the queue. Fix the stack with gt modify and "+
-			"gt submit --stack, then run land-stack %d\n", r.Ticket, r.Queued.Top, r.Queued.Top)
+			"gt submit --stack --draft, then run land-stack %d\n", r.Ticket, r.Queued.Top, r.Queued.Top)
 		if err := env.unmark(r); err != nil {
 			return err
 		}
@@ -431,6 +431,6 @@ func landErr(detail string) error {
 }
 
 func landFailed(err error) error {
-	return fmt.Errorf("%w; the stack is not marked queued: run gt submit --stack in its worktree "+
+	return fmt.Errorf("%w; the stack is not marked queued: run gt submit --stack --draft in its worktree "+
 		"to restore the bases, then land-stack again", err)
 }

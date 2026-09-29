@@ -53,7 +53,7 @@ func (r roleRepo) markChecked(t *testing.T) {
 
 func TestAgentGuard_anOwnerPushesOnlyATreeThatAgentsCheckPassed(t *testing.T) {
 	r := newRoleRepo(t)
-	pushes := []string{"gt submit --stack --no-interactive --publish", "gt ss", "git push origin ticket"}
+	pushes := []string{"gt submit --stack --no-interactive --draft", "gt ss -d", "git push origin ticket"}
 	for _, cmd := range pushes {
 		assertBlocked(t, guard(t, r.lane, cmd), cmd, "`monacoctl agents check` has not passed on this tree")
 		assertAllowed(t, guard(t, r.primary, cmd), "operator: "+cmd)
@@ -64,7 +64,7 @@ func TestAgentGuard_anOwnerPushesOnlyATreeThatAgentsCheckPassed(t *testing.T) {
 	}
 	assertAllowed(t, guard(t, r.primary, "git -C "+r.lane+" push origin ticket"), "git -C into the checked lane")
 	commitFile(t, r.lane, "more.txt", "feat: more")
-	assertBlocked(t, guard(t, r.lane, "gt submit --stack"), "gt submit after a new commit", "has not passed")
+	assertBlocked(t, guard(t, r.lane, "gt submit --stack --draft"), "gt submit after a new commit", "has not passed")
 	assertBlocked(t, guard(t, r.primary, "cd "+r.lane+" && git push origin ticket"), "cd into the lane", "has not passed")
 }
 
@@ -143,7 +143,7 @@ func TestAgentGuard_aQueuedStackRefusesGraphiteRewrites(t *testing.T) {
 	writeRoleFile(t, record, `{"ticket":9,"worktree":"`+r.lane+`","queued":{"top":12,"prs":[11,12]}}`)
 	r.markChecked(t)
 	rewrites := []string{
-		"gt submit --stack --no-interactive --publish", "gt ss", "gt s", "gt modify -a", "gt m", "gt restack", "gt r",
+		"gt submit --stack --no-interactive --draft", "gt ss -d", "gt s -d", "gt modify -a", "gt m", "gt restack", "gt r",
 	}
 	for _, cmd := range rewrites {
 		assertBlocked(t, guard(t, r.lane, cmd), cmd, "this stack is in the merge queue as #12")
@@ -155,5 +155,38 @@ func TestAgentGuard_aQueuedStackRefusesGraphiteRewrites(t *testing.T) {
 	writeRoleFile(t, record, `{"ticket":9,"worktree":"`+r.lane+`"}`)
 	for _, cmd := range rewrites {
 		assertAllowed(t, guard(t, r.lane, cmd), "unmarked: "+cmd)
+	}
+}
+
+func TestAgentGuard_anOwnerOpensDraftsAndMarksThemReadyOnlyThroughPrBody(t *testing.T) {
+	r := newRoleRepo(t)
+	r.markChecked(t)
+	for cmd, want := range map[string]string{
+		"gt submit --stack --no-interactive --publish":   "--publish marks every submitted PR ready",
+		"gt ss --draft --publish":                        "--publish marks every submitted PR ready",
+		"gt submit -dp":                                  "--publish marks every submitted PR ready",
+		"gt submit --stack --no-interactive":             "without --draft opens a new PR ready",
+		"gt ss":                                          "without --draft opens a new PR ready",
+		"gt s --no-edit":                                 "without --draft opens a new PR ready",
+		"gt submit --stack --draft=false":                "without --draft opens a new PR ready",
+		"gh pr ready 5":                                  "gh pr ready skips the local PR format check",
+		"gh pr ready":                                    "gh pr ready skips the local PR format check",
+		"gh pr edit 5 --body-file b.md && gh pr ready 5": "gh pr ready skips the local PR format check",
+	} {
+		assertBlocked(t, guard(t, r.lane, cmd), cmd, "scripts/pr-body.sh <pr> <title> <body-file>")
+		assertBlocked(t, guard(t, r.lane, cmd), cmd, want)
+		assertAllowed(t, guard(t, r.primary, cmd), "operator: "+cmd)
+	}
+	assertBlocked(t, guard(t, r.primary, "cd "+r.lane+" && gt ss"), "cd into the lane", "without --draft")
+	for _, cmd := range []string{
+		"gt submit --stack --no-interactive --draft",
+		"gt ss -d",
+		"gt submit -nd --stack",
+		"gt s --draft=true",
+		`scripts/pr-body.sh 5 "Add the thing" body.md`,
+		"gh pr ready 5 --undo",
+		"gh pr view 5 --json isDraft",
+	} {
+		assertAllowed(t, guard(t, r.lane, cmd), cmd)
 	}
 }

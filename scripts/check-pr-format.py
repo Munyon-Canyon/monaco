@@ -155,15 +155,12 @@ def body_errors(body: str) -> list[str]:
 def main(argv: list[str]) -> int:
     env = os.environ
     body = env.get("PR_BODY", "")
-    errors = title_errors(env.get("PR_TITLE", "")) + body_errors(body) + command_errors(body)
-    if argv == ["--body-only"]:
-        errors += ticket_errors(body, [], [])
-    elif not argv:
-        errors += ticket_errors(body, stacked("--base", env["HEAD_REF"]), stacked("--head", env["BASE_REF"]))
-        errors += sha_errors(body, env["HEAD_SHA"]) + commit_errors(env["BASE_SHA"], env["HEAD_SHA"])
-    else:
-        print("usage: check-pr-format.py [--body-only]", file=sys.stderr)
+    if argv:
+        print("usage: check-pr-format.py", file=sys.stderr)
         return 2
+    errors = title_errors(env.get("PR_TITLE", "")) + body_errors(body) + command_errors(body)
+    errors += ticket_errors(body, stacked("--base", env["HEAD_REF"]), stacked("--head", env["BASE_REF"]))
+    errors += sha_errors(body, env["HEAD_SHA"]) + commit_errors(env["BASE_SHA"], env["HEAD_SHA"])
     if errors:
         print("PR format check failed:")
         for e in errors:
