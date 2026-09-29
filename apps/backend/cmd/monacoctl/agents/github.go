@@ -8,7 +8,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
 var errGitHubStatus = errors.New("github status")
@@ -72,6 +75,24 @@ func (g *GitHub) PRs(ctx context.Context, query string) ([]PR, error) {
 
 func (g *GitHub) Files(ctx context.Context, n int) ([]File, error) {
 	return pages[File](ctx, g, g.repo("/pulls/%d/files?", n))
+}
+
+func (g *GitHub) graphql(ctx context.Context, query string, out any) error {
+	owner, name, _ := strings.Cut(g.Repo, "/")
+	resp := struct {
+		Data   any `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}{Data: out}
+	body := map[string]any{"query": query, "variables": map[string]string{"owner": owner, "name": name}}
+	if err := g.call(ctx, http.MethodPost, "/graphql", "", body, &resp); err != nil {
+		return err
+	}
+	if len(resp.Errors) > 0 {
+		return detailErr(errs.CodeUpstreamUnavailable, "monacoctl.agents.graphql", "graphql: "+resp.Errors[0].Message)
+	}
+	return nil
 }
 
 func (g *GitHub) repo(format string, a ...any) string {

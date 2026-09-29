@@ -106,8 +106,12 @@ func TestBatch_writesTheAcceptedTicketsWithTheirGlobs(t *testing.T) {
 	if err := json.Unmarshal(data, &got); err != nil {
 		t.Fatal(err)
 	}
-	want := `[{5 [a/**]} {6 [b/x.go cmd/ci*.go]}]`
-	if !got.Created.Equal(f.now) || fmt.Sprint(got.Tickets) != want {
+	seen := make([]any, 0, 2*len(got.Tickets))
+	for _, tk := range got.Tickets {
+		seen = append(seen, tk.Ticket, tk.Touches)
+	}
+	want := `[5 [a/**] 6 [b/x.go cmd/ci*.go]]`
+	if !got.Created.Equal(f.now) || fmt.Sprint(seen) != want || strings.Contains(string(data), "dispatched") {
 		t.Fatalf("batch = %+v", got)
 	}
 }

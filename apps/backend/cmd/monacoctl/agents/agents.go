@@ -73,6 +73,7 @@ func commands() map[string]command {
 		"own":         ownCmd,
 		"resume":      resumeCmd,
 		"status":      statusCmd,
+		"timeline":    timelineCmd,
 		"verify-plan": verifyPlanCmd,
 		"watch":       watchCmd,
 		"verdict":     verdictCmd,
