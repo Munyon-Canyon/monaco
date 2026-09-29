@@ -7,7 +7,7 @@ nightly GitHub workflow. Per-PR CI builds the app too.
 
 | When | Workflow / job | Runs |
 | --- | --- | --- |
-| Ready PRs to `main` touching the backend, `packages/domain`, `agents/momentum-bot`, migrations, `docs/legacy/api.md` or CI files; manual dispatch | `ci.yml` · `go` (Linux) | backend checks |
+| Ready PRs touching the `backend` filter in `ci-jobs.yml` (`apps/backend/**`, the backend install, test and CI scripts, `Justfile`, `docker-compose.yml`) or a file no filter owns; manual dispatch | `ci-jobs.yml` · `lint`, `ready`, `vuln` (Linux); `backend` and `e2e` in the merge queue | backend checks, by stage in [CI](../architecture/ci.md#check-stages) |
 | Every ready PR to `main`, manual dispatch | `ci.yml` · `plan` (Linux) | runner-label check (`scripts/ci/check-runners.sh`), path filters, and `npm test` for `apps/web` when it changed |
 | Ready PRs to `main` touching `packages/mobile-core/**` or `ci.yml`; manual dispatch | `ci.yml` · `mobile-core` (Linux, `swift:6.3-noble`) | `swift test` in `packages/mobile-core` |
 | Ready PRs to `main` touching `apps/mobile/**`, `packages/mobile-core/**`, `ci.yml` or the scripts it uses | `ci.yml` · `ios` (macOS) | app + test `build-for-testing`, `MonacoTests`, sample-screen manifest check |
