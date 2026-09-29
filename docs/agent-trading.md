@@ -1,6 +1,6 @@
 # Agent trading operator guide
 
-An agent trades for one cabal with nothing but its key. It never holds the cabal's money. It sends buy and sell intents to Monaco. Monaco checks each one against the agent's budget and executes it from the cabal treasury, through the same swap provider (Jupiter by default, Definitive Flash when `SWAP_PROVIDER=flash`) and Privy treasury path as a member vote. Fills stay in the **cabal treasury**.
+An agent trades for one cabal with nothing but its key. It never holds the cabal's money. It sends buy and sell intents to Monaco. Monaco checks each one against the agent's budget and executes it from the cabal treasury, through the same Jupiter swap and Privy treasury path as a member vote. Fills stay in the **cabal treasury**.
 
 The stocks are xStocks on Solana, named by symbol, such as `AAPLx`.
 
@@ -14,8 +14,6 @@ The backend is being rewritten ([backend-platform.md](architecture/backend-platf
 
 The key is readable by cabal members until the agent is removed. Revoking the agent wipes it. **Never log the key.**
 
-Five-character keys minted before this format keep working. They can be guessed, so rotate them. Vote the agent out and back in to get a long key.
-
 ## API base URL
 
 The API base is `PUBLIC_API_BASE_URL`. Local dev uses `http://127.0.0.1:8080`. A deployed API sets it to its public https URL, and the connect instructions carry the same value.
@@ -28,13 +26,14 @@ Send the key on every call:
 X-Monaco-Agent-Key: monaco_ak_k7m2p9x4…
 ```
 
-The key alone names the agent and its cabal. No group id and no member login are needed. A missing, unknown or revoked key gets **401**.
+The key alone names the agent and its cabal. No cabal id and no member login are needed. A missing, unknown or revoked key gets **401**.
+
+The backend reads `X-Monaco-Agent-Key` beside the bearer auth that app users send. A valid key produces an `agent` actor in the request context ([Context rules](architecture/backend-platform.md#context-rules)), so every command and event records that the agent acted, not a member. A request carries one or the other; agent routes accept only the key.
 
 Only wrong keys are counted, 10 per cabal and 10 per caller address, refilling one a minute:
 
 - An **address** that has used its 10 gets **429** with `Retry-After` on every call, whatever key it sends. An agent only lands here by sending wrong keys itself.
-- Wrong keys aimed at your **cabal** from elsewhere never lock out an agent on a long key. A call with a `monaco_ak_…` key is always checked, and passes if the key is right.
-- An agent still on a five-character key is refused with **429** while its cabal's allowance is spent. Rotate to a long key to be rid of it.
+- Wrong keys aimed at your **cabal** from elsewhere never lock out your agent. A call with a `monaco_ak_…` key is always checked, and passes if the key is right.
 
 The caller address is the TCP peer, or the left-most `X-Forwarded-For` entry when the API runs with `TRUST_PROXY_HEADERS=true`.
 
@@ -48,7 +47,7 @@ The caller address is the TCP peer, or the left-most `X-Forwarded-For` entry whe
 | `GET /v1/agent/intents/{intentId}` | yes | Where one intent ended up |
 | `GET /v1/agent/skill.md` | no | Instructions written for an LLM agent |
 
-Money comes back two ways. Decimal strings (`"10.50"`, `"0.25000000"`) are for people and LLMs. Integer atomic fields (`usdcMicros`, `sharesAtomic`) are for code. USDC has 6 decimals. xStocks have 8.
+Money comes back two ways. Decimal strings (`"10.50"`, `"0.25000000"`) are for people and LLMs. Integer atomic fields (`usdc_micros`, `shares_atomic`) are for code. USDC has 6 decimals. xStocks have 8.
 
 ## Read the agent
 
@@ -58,25 +57,25 @@ curl -sS -H "X-Monaco-Agent-Key: $MONACO_AGENT_KEY" "$MONACO_API/v1/agent"
 
 ```json
 {
-  "cabalName": "Tech Bros",
-  "agentName": "Momentum",
+  "cabal_name": "Tech Bros",
+  "agent_name": "Scout",
   "status": "active",
   "budget": {
-    "allocationUsd": "100.00", "allocationUsdcMicros": 100000000,
-    "availableUsd": "42.10", "availableUsdcMicros": 42100000
+    "allocation_usd": "100.00", "allocation_usdc_micros": 100000000,
+    "available_usd": "42.10", "available_usdc_micros": 42100000
   },
-  "cashAvailableUsd": "42.10", "cashAvailableUsdcMicros": 42100000,
+  "cash_available_usd": "42.10", "cash_available_usdc_micros": 42100000,
   "holdings": [
-    {"symbol": "AAPLx", "name": "Apple xStock", "shares": "0.25000000", "sharesAtomic": 25000000,
-     "markUsd": "230.12", "markUsdcMicros": 230120000, "valueUsd": "57.53", "valueUsdcMicros": 57530000}
+    {"symbol": "AAPLx", "name": "Apple xStock", "shares": "0.25000000", "shares_atomic": 25000000,
+     "mark_usd": "230.12", "mark_usdc_micros": 230120000, "value_usd": "57.53", "value_usdc_micros": 57530000}
   ],
-  "limits": {"intentsPerHour": 30, "reasonMaxChars": 280},
-  "docsUrl": "http://127.0.0.1:8080/v1/agent/skill.md"
+  "limits": {"intents_per_hour": 30, "reason_max_chars": 280},
+  "docs_url": "http://127.0.0.1:8080/v1/agent/skill.md"
 }
 ```
 
 - `status` is `active` or `paused`.
-- `cashAvailableUsd` is what the agent can spend right now. It is the smaller of its available budget and the treasury's USDC.
+- `cash_available_usd` is what the agent can spend right now. It is the smaller of its available budget and the treasury's USDC.
 - `holdings` lists only what the agent itself bought and still holds. The mark fields are null when Monaco has no price for that stock right now.
 
 ## List assets
@@ -86,17 +85,17 @@ curl -sS -H "X-Monaco-Agent-Key: $MONACO_AGENT_KEY" "$MONACO_API/v1/agent/assets
 ```
 
 ```json
-{"assets": [{"symbol": "AAPLx", "name": "Apple xStock", "solanaMint": "Xs…", "routable": true,
-             "markUsd": "230.12", "markUsdcMicros": 230120000}], "hasMore": false}
+{"assets": [{"symbol": "AAPLx", "name": "Apple xStock", "solana_mint": "Xs…", "routable": true,
+             "mark_usd": "230.12", "mark_usdc_micros": 230120000}], "has_more": false}
 ```
 
-Optional query parameters are `query`, `limit` (max 100) and `offset`. Only routable stocks are listed. `markUsd` is null for a stock whose price is unavailable, and the list still returns 200.
+Optional query parameters are `query`, `limit` (max 100) and `offset`. Only routable stocks are listed. `mark_usd` is null for a stock whose price is unavailable, and the list still returns 200.
 
 Use these symbols and prices. Do not call Jupiter, xStocks or Solana from the agent.
 
 ## Post an intent
 
-A buy spends USD. Send exactly one of `usd` (a decimal string, up to 6 decimals) or `usdcMicros` (an integer, USD × 10⁶).
+A buy spends USD. Send exactly one of `usd` (a decimal string, up to 6 decimals) or `usdc_micros` (an integer, USD × 10⁶).
 
 ```bash
 curl -sS -X POST \
@@ -107,7 +106,7 @@ curl -sS -X POST \
   -d '{"side":"buy","symbol":"AAPLx","usd":"10.50","reason":"breakout above 20d high"}'
 ```
 
-A sell names shares. Send exactly one of `shares` (a decimal string, up to 8 decimals) or `tokenAmount` (an integer, shares × 10⁸).
+A sell names shares. Send exactly one of `shares` (a decimal string, up to 8 decimals) or `token_amount` (an integer, shares × 10⁸).
 
 ```bash
 curl -sS -X POST \
@@ -115,14 +114,14 @@ curl -sS -X POST \
   -H "Idempotency-Key: 9a2e…" \
   -H "Content-Type: application/json" \
   "$MONACO_API/v1/agent/intents" \
-  -d '{"side":"sell","symbol":"AAPLx","shares":"0.25","reason":"lost momentum"}'
+  -d '{"side":"sell","symbol":"AAPLx","shares":"0.25","reason":"took profit"}'
 ```
 
 Both forms at once, neither form, or the other side's field is a **422**.
 
 `reason` is optional, up to 280 characters. Monaco stores it with the intent and shows it to the cabal. Say briefly why the agent made the trade.
 
-Success returns the `intentId` with `"status": "accepted"`, before the swap settles. The swap then shows as pending and then confirmed in cabal activity.
+Success returns the `intent_id` with `"status": "accepted"`, before the swap settles. The swap then shows as pending and then confirmed in cabal activity.
 
 `scripts/demo/agent-intent.sh buy AAPLx 1` sends one intent from the terminal. See its `--help`.
 
@@ -133,11 +132,11 @@ curl -sS -H "X-Monaco-Agent-Key: $MONACO_AGENT_KEY" "$MONACO_API/v1/agent/intent
 ```
 
 ```json
-{"intentId": "…", "side": "buy", "symbol": "AAPLx", "status": "executed",
- "rejectReason": null, "reason": "breakout",
- "usdcMicros": 10500000, "tokenAmount": null,
- "transactionId": "…", "txSignature": "5x…", "filledTokenAmount": 4560000, "filledUsdcMicros": 10500000,
- "createdAt": "2026-09-24T12:00:00Z"}
+{"intent_id": "…", "side": "buy", "symbol": "AAPLx", "status": "executed",
+ "reject_reason": null, "reason": "breakout",
+ "usdc_micros": 10500000, "token_amount": null,
+ "transaction_id": "…", "tx_signature": "5x…", "filled_token_amount": 4560000, "filled_usdc_micros": 10500000,
+ "created_at": "2026-09-24T12:00:00Z"}
 ```
 
 `status` is `accepted` while the swap is in flight, then `executed`, `rejected` or `failed`. Another agent's intent and an unknown id are both **404**.
@@ -175,3 +174,7 @@ Each is a cabal vote. A **paused** agent keeps its key, and its intents get **40
 ## Security
 
 Keep the key in a secret store. To rotate it, revoke the agent and vote in a new one.
+
+## Log
+
+- 2026-09-29: Agent auth is the `X-Monaco-Agent-Key` header beside bearer auth, producing an `agent` actor (default; see #535). JSON fields are snake_case, per the RFC's [Decided](architecture/backend-platform.md#decided). Removed Definitive Flash, five-character keys and the momentum bot example.

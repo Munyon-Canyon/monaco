@@ -8,6 +8,10 @@ The feed is one table, **FeedObject**, holding every kind of item the app shows 
 
 The `social` module owns the feed, its comments and its mutes ([Repository layout](backend-platform.md#repository-layout)). Feed items are written by the module's `feed` consumer as side effects of events from other modules, never by clients directly. The consumer runs through `bus.Dispatch`, so a redelivered event is a no-op through `event_deliveries` ([event-bus.md](event-bus.md#consumers-and-handlers)). Comments are the only thing users write to the feed. Creating one is flow 21 in [`flows.tsv`](backend-platform.md#flows).
 
+## In the app
+
+The feed is a fifth bottom tab, **Feed**, between Home and Cabals (default 2026-09-29; see #535).
+
 ## Item kinds
 
 | Kind | Source | Created when | MVP |
@@ -26,8 +30,8 @@ The `social` module owns the feed, its comments and its mutes ([Repository layou
 ```
 feed_objects
   id             uuid      UUIDv7
-  kind           text      proposal | trade | price_move | news
-  ref_type       text      proposals | cabal_txns | assets | news_items
+  kind           text      trade | proposal | cabal_created | member_joined | price_move
+  ref_type       text      swaps | proposals | cabals | cabal_members | assets
   ref_id         uuid      source row
   cabal_id       uuid?     null for price_move and news
   actor_id       uuid?     proposer, or null for system items
@@ -49,7 +53,7 @@ Unique on `(ref_type, ref_id, kind)` so a redelivered event cannot create a dupl
 
 `payload` is a snapshot so the list renders from one table without joins. Amounts in it are integer base units (`money.Micros`), and percentages are integer basis points, never floats ([Money and types](backend-platform.md#money-and-types)). The server renders `title` and every display string, so the app only formats ([Thin client](backend-platform.md#thin-client)). When the source changes (a proposal passes or executes), the `feed` consumer updates the feed row's `status` and `payload`. Tapping an item fetches the live source detail.
 
-The source rows (`proposals`, `cabal_txns`, `assets`) belong to other modules. `ref_type` and `ref_id` are identifiers only. The feed never joins those tables; it reads what the event payload carried, or a module's read-only query port ([Dependency rules](backend-platform.md#dependency-rules-enforced-by-depguard)).
+The source rows (`swaps`, `proposals`, `cabals`, `cabal_members`, `assets`) belong to other modules. A `trade` item points at trading's `swaps` row, not at a ledger row. `news` joins `kind` when news ships. `ref_type` and `ref_id` are identifiers only. The feed never joins those tables; it reads what the event payload carried, or a module's read-only query port ([Dependency rules](backend-platform.md#dependency-rules-enforced-by-depguard)).
 
 ## Writing feed items
 
@@ -58,7 +62,7 @@ All through the `feed` consumer on the event bus. Each source module appends its
 - **Proposal created** → `proposal.created` (flow 9) → insert `proposal` item.
 - **Proposal status change** → `proposal.{passed,failed,expired}` (flow 10), `proposal.{withdrawn,voided}` (flow 13), `proposal.executed` and `proposal.execution_blocked`, and `trade.failed` (flow 11) → update that item. `governance` emits `proposal.executed` and `proposal.execution_blocked` when it consumes `trade.confirmed` and `trade.blocked` (platform default 2026-09-27), so the feed reads proposal status from `governance` alone.
 - **Trade confirmed** → `trade.confirmed` (flow 11) → insert `trade` item.
-- **Price move** → a price-move poller in the `market` module (every 5 min in market hours) compares each asset's mark with its previous close. The window is the change since the previous close only, with no rolling intraday window (default 2026-09-27). Crossing a threshold (proposal: ±5% and ±10%) appends an `asset.price_moved` event, once per asset, per threshold, per day (dedupe key `(asset_id, threshold, trading_day)`). The `feed` consumer inserts the item; `notify` can take the same event. This event must be stored, because a feed item is durable work. The `price.tick` message is core NATS only (flow 18) and cannot drive it. `asset.price_moved` has its own row in the flows table (market → social feed, notify).
+- **Price move** → the `market` price poller (flow 18, every 120 s) compares each asset's new sample with its previous close on every tick. There is no second poller. The window is the change since the previous close only, with no rolling intraday window (default 2026-09-27). Crossing a threshold (proposal: ±5% and ±10%) appends an `asset.price_moved` event, once per asset, per threshold, per day (dedupe key `(asset_id, threshold, trading_day)`). The `feed` consumer inserts the item. It sends no push for MVP ([notifications.md](notifications.md#what-notifies-mvp)). This event must be stored, because a feed item is durable work. The `price.tick` message is core NATS only (flow 18) and cannot drive it. `asset.price_moved` is in flow 18's row of the flows table (market → social feed).
 - **Cabal created** → `cabal.created` (flow 2) → insert `cabal_created` item.
 - **Member joined** → `cabal.member_joined` (flow 3) → insert `member_joined` item.
 - **News** (deferred) → an ingest job pulls from a provider and inserts items tagged by `asset_id`.
@@ -110,14 +114,9 @@ Fallback when the stream drops: the app re-fetches from its newest cursor on rec
 
 Every feed hint goes under the hub's `global` key, which every connection joins (platform default 2026-09-27). Every cabal is public, so any connection may learn that a feed item changed; the `GET` still applies scope and mutes. The hub's `user:<id>` and `cabal:<id>` keys stay for hints that only concern one person or one cabal.
 
-## Notifications (TBD)
+## Notifications
 
-Some feed events should also notify. Candidates, pending the Notifications decision:
-
-- A proposal is created in a cabal you belong to.
-- A proposal you voted on passes, executes or is blocked.
-- Someone replies to your comment or comments on your proposal.
-- A stock your cabal holds crosses a price-move threshold.
+Which feed events push in MVP is decided in [notifications.md](notifications.md#what-notifies-mvp): proposal created, a voted proposal passing, and a reply to your comment. Price moves do not push.
 
 The `feed` consumer (in `social`) and the `notify` module each have their own durable consumer off the same event, so neither depends on the other. Which of these push in MVP is decided in [notifications.md](notifications.md) (defaults 2026-09-27), not here.
 
@@ -139,6 +138,7 @@ None at the moment.
 
 ## Log
 
+- 2026-09-29: `kind` is `trade | proposal | cabal_created | member_joined | price_move`, matching [data-model.md](data-model.md); `ref_type` names `swaps`, not `cabal_txns`. The feed is a fifth tab, Feed, between Home and Cabals (default; see #535). The market price poller appends `asset.price_moved`; no second poller, and no push on price moves.
 - 2026-09-27: Decided every cabal is public in the feed, with no private flag. Defaults applied: non-members view but do not comment on other cabals' proposals until moderation ships; moderation is report, admin removal and a per-user rate limit; `cabal_created` and `member_joined` items with no money amounts, and no funding or cash-out items; price move is change since previous close; `top` is comments plus votes over 24 h; news deferred. Proposal status comes from `governance`'s `proposal.executed` and `proposal.execution_blocked`. `asset.price_moved` has a flows row. Feed hints use the SSE hub's `global` key. Notification choices point at notifications.md. `proposal_comments` no longer migrates, since the new backend starts empty. All open questions closed.
 - 2026-09-27: Reconciled with [backend-platform.md](backend-platform.md). Owner is the `social` module, rollout step 6. Event subjects match the RFC flows table (`proposal.withdrawn`, `trade.failed`; `proposal.executed` dropped for `trade.confirmed`). Price moves come from `market`. `CreateComment` is a command with `Idempotency-Key` and `comment.created` in the same `uow.Do`. Realtime moves from `live.feed` and `/v1/feed/stream` to `hint.>` and the RFC's single `/v1/stream` hub. Payload amounts are integer micros; server renders display strings. Added open questions on new item kinds and global hint routing.
 - 2026-09-26: Feed items written by the `feed` consumer on the NATS event bus; realtime hints moved from Postgres `NOTIFY` to core NATS `live.feed` ([event-bus.md](event-bus.md)). Price moves emit `asset.price_moved`.
