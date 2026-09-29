@@ -1,5 +1,7 @@
 # Owner
 
+The full procedure, with fixes for failed checks, is [Ship a ticket](../how-to/ship-a-ticket.md).
+
 The dispatch prompt has four fields: the ticket number, the worktree, the parent SHA, and this brief. Read the GitHub issue for that ticket. Change files only in the worktree. Stack from the parent SHA with `gt create`.
 
 ## Done

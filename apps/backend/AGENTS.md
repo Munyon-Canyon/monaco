@@ -36,4 +36,5 @@ Paths below are from the repo root.
 | A consumer or a new event | `.claude/skills/nats-consumer/SKILL.md` |
 | A failed `e2e` job or a flow moving to verified | `.claude/skills/verify-backend/SKILL.md` |
 | Owning a ticket | `docs/agents/owner.md` |
+| Shipping a ticket or running a milestone, step by step | `docs/how-to/ship-a-ticket.md`, `docs/how-to/run-a-milestone.md` |
 | Why the platform looks like this | `docs/architecture/backend-platform.md` |

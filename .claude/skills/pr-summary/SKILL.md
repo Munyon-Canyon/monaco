@@ -21,7 +21,7 @@ Then run:
 - `git log --oneline $(git merge-base HEAD <base>)..HEAD` for commit context
 - `gh issue view <n>` for the issue the stack belongs to
 
-Also collect proof from the session or CI: commands run and their output, `just verify backend` evidence summaries, test counts, measurements and their conditions, screenshots.
+Also collect proof from the session or CI: commands run and their output, the `monacoctl agents check` output, the `e2e` job's `verify-evidence` summary, test counts, measurements and their conditions, screenshots.
 
 ## Title
 
@@ -100,7 +100,7 @@ Tests use `CabalFactory`, `UserFactory` and `TransactionFactory` instead of lite
 
 ## Proof
 
-`just test backend`: 31 packages ok, 0 failures. `just verify backend`: flows 05 and 07 pass, evidence in `test/evidence/`.
+`go run ./cmd/monacoctl agents check`: go build, go vet, lint and go test -short ok on 31 packages, passed in 41.2s. CI runs the race suite and `monacoctl verify` in the queue.
 
 ## What came up
 

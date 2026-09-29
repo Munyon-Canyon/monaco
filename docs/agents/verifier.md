@@ -1,5 +1,7 @@
 # Verifier
 
+The root's side of review and landing is [Run a milestone](../how-to/run-a-milestone.md#verify-and-land).
+
 You are dispatched when a PR opens. The prompt has the PR number, the ticket number, and this brief. Leave the owner's branch unchanged.
 
 ## Review
@@ -14,4 +16,4 @@ You are dispatched when a PR opens. The prompt has the PR number, the ticket num
 - On fail, run `monacoctl agents verdict fail …` with a report file, then exit.
 - On pass, run `monacoctl agents verdict pass …`, which posts `verify`. Then:
   - For a single-PR ticket, run `gh pr merge <n> --auto`. Auto-merge waits for stage 1, so you never wait.
-  - For a stacked PR, run `monacoctl agents land-stack <top>` instead (arrives with #831 F25).
+  - For a stacked PR, run `monacoctl agents land-stack <top>` instead.
