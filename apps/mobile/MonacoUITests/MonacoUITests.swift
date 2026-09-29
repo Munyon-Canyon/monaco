@@ -113,6 +113,10 @@ final class MonacoUITests: XCTestCase {
         addressField: String,
         address: String
     ) {
+        let devLink = app.buttons["devTextMessageLoginButton"]
+        XCTAssertTrue(devLink.waitForExistence(timeout: 15))
+        devLink.tap()
+
         let field = app.textFields[addressField]
         XCTAssertTrue(field.waitForExistence(timeout: 15))
         field.tap()
@@ -416,25 +420,6 @@ final class MonacoUITests: XCTestCase {
 
         app.buttons["fund-cabal-submit-button"].tap()
         attachScreenshot(app, name: "m2-t13-xbmcp-05-fund-submitted")
-    }
-
-    @MainActor
-    func testAlfredEmailLoginMigratesSigner() throws {
-        let app = XCUIApplication()
-        app.launchEnvironment = privyLaunchEnvironment()
-        app.launch()
-
-        if app.buttons["Sign out"].waitForExistence(timeout: 5) {
-            app.buttons["Sign out"].tap()
-        }
-
-        if app.buttons["Email"].waitForExistence(timeout: 5) {
-            app.buttons["Email"].tap()
-        }
-
-        completeOTPLogin(app, prefix: "email", addressField: "emailAddressField", address: "test-8081@privy.io")
-
-        XCTAssertTrue(appLandedInApp(app, timeout: 60), "expected Home tab or account after email login")
     }
 
     @MainActor

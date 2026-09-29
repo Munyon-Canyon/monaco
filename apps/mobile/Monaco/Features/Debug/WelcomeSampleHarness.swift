@@ -7,16 +7,14 @@ import SwiftUI
 /// can screenshot every step of it without Privy or a backend. Launch with
 /// `-MonacoWelcomeSample <scenario>`; the bare flag means `code`.
 ///
-/// The sign-in scenarios drive the real `LoginView` through `SampleSignIn`, the service with the network taken out:
-/// sending a code succeeds after a beat and every code is turned down, so the screen stays put to
-/// be looked at. The gate scenarios draw the gate's own restoring, loading and failure views.
+/// The sign-in scenarios drive the real `LoginView` through `SampleSignIn`, the service with the
+/// network taken out, and `SampleTextMessage`: sending a code succeeds after a beat and every code
+/// is turned down, so the screen stays put to be looked at. The gate scenarios draw the gate's own restoring, loading and failure views.
 enum WelcomeSampleScenario: String, CaseIterable {
     /// Back on login after the session ended, with the reason over the form.
     case signedOut
     /// A code went to a phone number; the code field is empty.
     case code
-    /// A code went to an email address.
-    case emailCode
     /// The six digits typed in were turned down.
     case codeRejected
     /// Launch, restoring a saved sign-in: the launch mark, held.
@@ -53,12 +51,16 @@ struct WelcomeSampleHarness: View {
 
     var body: some View {
         switch scenario {
-        case .signedOut, .code:
-            LoginView(auth: signIn, methods: [.sms, .email])
+        case .signedOut:
+            LoginView(auth: signIn)
+        case .code:
+            LoginView(auth: signIn, textMessage: SampleTextMessage(flow: .onCodeStep(sentTo: "+15551234567")))
         case .codeRejected:
-            LoginView(auth: signIn, methods: [.sms, .email], initialCode: "465354")
-        case .emailCode:
-            LoginView(auth: signIn, methods: [.sms, .email], initialMethod: .email)
+            LoginView(
+                auth: signIn,
+                textMessage: SampleTextMessage(flow: .rejected(sentTo: "+15551234567")),
+                initialCode: "465354"
+            )
         case .restoring:
             SessionRestoringView()
         case .restoreFailed:
@@ -84,63 +86,48 @@ struct WelcomeSampleHarness: View {
     }
 }
 
-/// A canned sign-in: the real service with the network taken out. Sending a code always goes
-/// through after a beat; checking one always fails as a wrong code, so a sample never leaves
-/// the login screen.
+/// A canned sign-in: the real service with the network taken out, so a sample never leaves the
+/// login screen.
 final class SampleSignIn: PrivyAuthService {
     init(scenario: WelcomeSampleScenario) {
         super.init(settings: Config.privy)
-        switch scenario {
-        case .signedOut:
-            flow = LoginFlow()
+        phase = .idle
+        if scenario == .signedOut {
             lastSignOutReason = LoginFailureCopy.sessionExpired
-        case .code:
-            flow = SampleSignIn.onCodeStep(sentTo: "+15551234567")
-        case .emailCode:
-            flow = SampleSignIn.onCodeStep(sentTo: "logan.norman@example.com")
-        case .codeRejected:
-            var rejected = SampleSignIn.onCodeStep(sentTo: "+15551234567")
-            _ = rejected.beginVerify()
-            rejected.verifyFailed(message: OTPCode.rejectedMessage)
-            flow = rejected
-        case .restoring, .restoreFailed, .gateLoading, .gateFailed, .emptyStates:
-            flow = LoginFlow()
         }
     }
+}
 
-    override func sendSMSCode(to phoneNumberE164: String) async {
-        await pretendToSend(to: phoneNumberE164)
+/// A canned text-message form. Sending a code always goes through after a beat; checking one
+/// always fails as a wrong code.
+final class SampleTextMessage: OTPSession {
+    init(flow: OTPFlow) {
+        super.init()
+        self.flow = flow
     }
 
-    override func loginWithSMSCode(_ code: String, sentTo phoneNumberE164: String) async {
-        await turnDownCode()
-    }
-
-    override func sendEmailCode(to email: String) async {
-        await pretendToSend(to: email)
-    }
-
-    override func loginWithEmailCode(_ code: String, sentTo email: String) async {
-        await turnDownCode()
-    }
-
-    private func pretendToSend(to destination: String) async {
-        guard flow.beginSend() else { return }
-        lastSignOutReason = nil
+    override func deliverCode(to destination: String) async throws {
         try? await Task.sleep(for: .milliseconds(600))
-        flow.sendSucceeded(destination: destination)
     }
 
-    private func turnDownCode() async {
-        guard flow.beginVerify() else { return }
+    override func redeemCode(_ code: String, sentTo destination: String) async throws {
         try? await Task.sleep(for: .milliseconds(600))
-        flow.verifyFailed(message: OTPCode.rejectedMessage)
+        throw LoginFailure.codeRejected
     }
+}
 
-    private static func onCodeStep(sentTo destination: String) -> LoginFlow {
-        var flow = LoginFlow()
+private extension OTPFlow {
+    static func onCodeStep(sentTo destination: String) -> OTPFlow {
+        var flow = OTPFlow()
         _ = flow.beginSend()
         flow.sendSucceeded(destination: destination)
+        return flow
+    }
+
+    static func rejected(sentTo destination: String) -> OTPFlow {
+        var flow = onCodeStep(sentTo: destination)
+        _ = flow.beginVerify()
+        flow.verifyFailed(message: OTPCode.rejectedMessage)
         return flow
     }
 }

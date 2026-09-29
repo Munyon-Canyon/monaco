@@ -1,3 +1,4 @@
+import AuthenticationServices
 import Foundation
 import MonacoCore
 import PrivySDK
@@ -43,6 +44,41 @@ struct LoginErrorClassificationTests {
         let failure = PrivyAuthService.loginFailure(from: ApiError.malformedResponse, step: .verifyCode)
         #expect(failure == .other(detail: nil))
         #expect(LoginFailureCopy.message(for: failure, step: .verifyCode) == "Couldn't sign you in. Try again.")
+    }
+
+    @Test func closingTheAppleOrGoogleSheetIsACancel() {
+        let google = ASWebAuthenticationSessionError(.canceledLogin)
+        let apple = ASAuthorizationError(.canceled)
+        #expect(PrivyAuthService.loginFailure(from: google, step: .authorize) == .cancelled)
+        #expect(PrivyAuthService.loginFailure(from: apple, step: .authorize) == .cancelled)
+        #expect(PrivyAuthService.loginFailure(from: CancellationError(), step: .authorize) == .cancelled)
+    }
+
+    @Test func aCancelledSheetLandsOnIdleWithNoToast() {
+        var phase = LoginPhase.idle
+        _ = phase.beginAuthorizing(.google)
+        phase.authorizationFailed(PrivyAuthService.loginFailure(from: ASWebAuthenticationSessionError(.canceledLogin), step: .authorize))
+        #expect(phase == .idle)
+        #expect(phase.toastMessage == nil)
+    }
+
+    @Test func aFailedAppleSignInToasts() {
+        var phase = LoginPhase.idle
+        _ = phase.beginAuthorizing(.apple)
+        phase.authorizationFailed(PrivyAuthService.loginFailure(from: ASAuthorizationError(.failed), step: .authorize))
+        #expect(phase.toastMessage == "Couldn't sign you in. Try again.")
+    }
+
+    @Test func anOAuthNetworkFailureToastsOffline() {
+        var phase = LoginPhase.idle
+        _ = phase.beginAuthorizing(.google)
+        phase.authorizationFailed(PrivyAuthService.loginFailure(from: URLError(.notConnectedToInternet), step: .authorize))
+        #expect(phase.toastMessage == "No connection. Check your internet and try again.")
+    }
+
+    @Test func aProviderRejectionOnTheSheetIsNotACodeRejection() {
+        let error = ApiError.apiError(httpCode: 403, errorCode: "oauth_denied", description: "Access denied")
+        #expect(PrivyAuthService.loginFailure(from: error, step: .authorize) == .other(detail: "Access denied"))
     }
 
     @Test func unknownErrorsFallBackToGenericCopy() {

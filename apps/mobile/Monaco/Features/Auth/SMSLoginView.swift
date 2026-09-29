@@ -1,15 +1,18 @@
+#if DEBUG
+import MonacoCore
 import SwiftUI
 
-/// SMS one-time-code sign-in via Privy: the main way in.
+/// Dev builds only: text-message sign-in through the Privy dev app, so agents and simulators can
+/// sign in without an Apple or Google account. Production never offers it.
 struct SMSLoginView: View {
-    @ObservedObject var auth: PrivyAuthService
+    @ObservedObject var session: OTPSession
     let scroll: ScrollViewProxy
     /// Debug harness only: the code the form opens with.
     var initialCode = ""
 
     var body: some View {
         OTPLoginForm(
-            auth: auth,
+            session: session,
             destination: .sms,
             scroll: scroll,
             initialCode: initialCode
@@ -17,9 +20,28 @@ struct SMSLoginView: View {
     }
 }
 
+/// The dev text-message login against Privy.
+final class PrivySMSLogin: OTPSession {
+    private let auth: PrivyAuthService
+
+    init(auth: PrivyAuthService) {
+        self.auth = auth
+    }
+
+    override func deliverCode(to destination: String) async throws {
+        try await auth.sendSMSCode(to: destination)
+    }
+
+    override func redeemCode(_ code: String, sentTo destination: String) async throws {
+        try await auth.loginWithSMSCode(code, sentTo: destination)
+        // Privy took the code but the session token could not be fetched; the login screen
+        // toasts why, and the code box stays for another try.
+        guard case .authenticated = auth.phase else { throw LoginFailure.other(detail: nil) }
+    }
+}
+
 extension OTPDestination {
     static let sms = OTPDestination(
-        channel: .sms,
         caption: "We'll text you a code to sign in.",
         prompt: "Phone number",
         keyboardType: .phonePad,
@@ -52,7 +74,8 @@ enum PhoneReadBack {
 
 #Preview {
     ScrollViewReader { proxy in
-        SMSLoginView(auth: PrivyAuthService(), scroll: proxy)
+        SMSLoginView(session: PrivySMSLogin(auth: PrivyAuthService()), scroll: proxy)
             .padding()
     }
 }
+#endif

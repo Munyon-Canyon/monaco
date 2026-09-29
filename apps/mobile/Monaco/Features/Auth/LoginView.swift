@@ -1,3 +1,4 @@
+import MonacoCore
 import SwiftUI
 
 // The login views take `PrivyAuthService` itself. They used to be generic over a protocol so
@@ -6,53 +7,35 @@ import SwiftUI
 // did not help). The harness now subclasses the service instead, which is plain class
 // dispatch and works.
 
-/// The two ways in. Which of them are on comes from the build (`Config.privy`).
-enum LoginMethod: String, CaseIterable, Identifiable {
-    case sms = "Text message"
-    case email = "Email"
-
-    var id: String { rawValue }
-
-    /// The methods turned on, texting first.
-    static func available(sms: Bool, email: Bool) -> [LoginMethod] {
-        allCases.filter { $0 == .sms ? sms : email }
-    }
-
-    static var configured: [LoginMethod] {
-        available(sms: Config.privy.smsLoginEnabled, email: Config.privy.emailLoginEnabled)
-    }
+enum LoginCopy {
+    #if DEBUG
+    static let devTextMessage = "Dev: text message"
+    #endif
 }
 
-/// Sign-in, as one composition from the top of the screen down: the brand, then the method, the
-/// field and the button. The form keeps its button above the keyboard while a field is in use,
-/// so the phone pad (which has no return key) never hides the only way forward.
+/// Sign-in, as one composition from the top of the screen down: the brand, then the ways in.
 struct LoginView: View {
     @ObservedObject var auth: PrivyAuthService
 
-    private let methods: [LoginMethod]
+    #if DEBUG
+    /// The dev text-message form, once "Dev: text message" is tapped.
+    @State private var textMessage: OTPSession?
     /// Debug harness only: the code the form opens with, to shoot a typed code.
     private let initialCode: String
 
-    @State private var selectedMethod: LoginMethod
-
-    init(
-        auth: PrivyAuthService,
-        methods: [LoginMethod] = LoginMethod.configured,
-        initialMethod: LoginMethod? = nil,
-        initialCode: String = ""
-    ) {
+    init(auth: PrivyAuthService, textMessage: OTPSession? = nil, initialCode: String = "") {
         self.auth = auth
-        self.methods = methods
+        _textMessage = State(initialValue: textMessage)
         self.initialCode = initialCode
-        _selectedMethod = State(initialValue: initialMethod ?? methods.first ?? .sms)
     }
+    #endif
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     LaunchScreenView()
-                    form(scroll: proxy)
+                    waysIn(scroll: proxy)
                         .padding(.top, 40)
                 }
                 .padding(.horizontal, MonacoTheme.Space.gutter)
@@ -65,15 +48,12 @@ struct LoginView: View {
         .authScreenBackground()
         .tint(MonacoTheme.accent)
         .foregroundStyle(MonacoTheme.primaryText)
-        .onChange(of: selectedMethod) { _, _ in
-            auth.resetLoginFlow()
-        }
     }
 
-    private func form(scroll: ScrollViewProxy) -> some View {
+    private func waysIn(scroll: ScrollViewProxy) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Why the member is here without having signed out: a quiet line over the form,
-            // not a banner, gone with the next code they ask for.
+            // Why the member is here without having signed out: a quiet line over the buttons,
+            // not a banner, gone with the next sign-in attempt.
             if let reason = auth.lastSignOutReason {
                 Text(reason)
                     .font(MonacoTheme.Typo.caption)
@@ -83,29 +63,33 @@ struct LoginView: View {
                     .padding(.bottom, MonacoTheme.Space.sm)
             }
 
-            if methods.count > 1 {
-                MonacoSegmented(methods, selection: $selectedMethod) { $0.rawValue }
-                    .accessibilityLabel("Sign-in method")
-                    // Switching method mid-send would leave the in-flight request to report
-                    // success against the other form: an email screen showing a code step
-                    // whose code was texted to a phone number.
-                    .disabled(auth.flow.isBusy)
-                    .padding(.bottom, MonacoTheme.Space.l)
+            #if DEBUG
+            if let textMessage {
+                SMSLoginView(session: textMessage, scroll: scroll, initialCode: initialCode)
+            } else if Config.privy.smsLoginEnabled {
+                devTextMessageLink
             }
-
-            switch effectiveMethod {
-            case .sms:
-                SMSLoginView(auth: auth, scroll: scroll, initialCode: initialCode)
-            case .email:
-                EmailLoginView(auth: auth, scroll: scroll, initialCode: initialCode)
-            }
+            #endif
         }
         .monacoFullWidthButtons()
     }
 
-    private var effectiveMethod: LoginMethod {
-        methods.contains(selectedMethod) ? selectedMethod : (methods.first ?? .sms)
+    #if DEBUG
+    private var devTextMessageLink: some View {
+        Button {
+            textMessage = PrivySMSLogin(auth: auth)
+        } label: {
+            Text(LoginCopy.devTextMessage)
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.muted)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(auth.phase.isBusy)
+        .accessibilityIdentifier("devTextMessageLoginButton")
     }
+    #endif
 }
 
 #Preview {

@@ -11,7 +11,7 @@ struct OTPFieldCaptionTests {
     private let hint = OTPDestination.sms.invalidHint
 
     private func caption(
-        _ phase: LoginFlow.Phase,
+        _ phase: OTPFlow.Phase,
         codeStep: Bool = false,
         invalid: Bool = false,
         resent: Bool = false
@@ -95,20 +95,6 @@ struct PhoneReadBackTests {
     }
 }
 
-/// Which ways in the form offers.
-@MainActor
-struct LoginMethodTests {
-    @Test func textingComesFirstWhenBothAreOn() {
-        #expect(LoginMethod.available(sms: true, email: true) == [.sms, .email])
-    }
-
-    @Test func onlyTheMethodsTurnedOnAreOffered() {
-        #expect(LoginMethod.available(sms: false, email: true) == [.email])
-        #expect(LoginMethod.available(sms: true, email: false) == [.sms])
-        #expect(LoginMethod.available(sms: false, email: false).isEmpty)
-    }
-}
-
 /// The words on the way in.
 @MainActor
 struct WelcomeCopyTests {
@@ -131,13 +117,15 @@ struct WelcomeCopyTests {
             OTPDestination.sms.caption,
             OTPDestination.sms.invalidHint,
             OTPDestination.sms.changeLabel,
-            OTPDestination.email.caption,
-            OTPDestination.email.invalidHint,
-            OTPDestination.email.changeLabel,
+            LoginCopy.devTextMessage,
             OTPPrimaryAction.title(phase: .idle, isCodeStep: false),
             OTPPrimaryAction.title(phase: .sendingCode, isCodeStep: false),
             OTPPrimaryAction.title(phase: .awaitingCode, isCodeStep: true),
             OTPPrimaryAction.title(phase: .verifyingCode, isCodeStep: true),
+            LoginFailureCopy.message(for: .other(detail: nil), step: .authorize),
+            LoginFailureCopy.message(for: .offline, step: .authorize),
+            LoginFailureCopy.message(for: .rateLimited, step: .authorize),
+            LoginFailureCopy.tokenUnavailable,
         ]
         #expect(MainFlowCopyAudit.stringsAreClean(strings))
     }

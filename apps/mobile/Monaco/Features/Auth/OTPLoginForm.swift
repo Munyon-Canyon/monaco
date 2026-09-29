@@ -1,17 +1,11 @@
+import Combine
 import MonacoCore
+import os
 import SwiftUI
 import UIKit
 
-/// What a one-time-code form asks for before it can send a code. `.sms` and `.email` are defined
-/// next to their views.
-/// Which of the service's two one-time-code paths a destination goes through.
-enum OTPChannel {
-    case sms
-    case email
-}
-
+/// What a one-time-code form asks for before it can send a code. `.sms` is defined next to its view.
 struct OTPDestination {
-    let channel: OTPChannel
     /// Under the empty field: what the button will do.
     let caption: String
     let prompt: String
@@ -28,7 +22,7 @@ struct OTPDestination {
     let display: (String) -> String
 }
 
-/// The code's rules and look, shared by both methods.
+/// The code's rules and look.
 enum OTPCode {
     static let length = 6
     /// Wide, so six digits read as a code to copy across rather than as an amount.
@@ -67,7 +61,7 @@ enum OTPFieldCaption: Equatable {
     }
 
     static func resolve(
-        phase: LoginFlow.Phase,
+        phase: OTPFlow.Phase,
         isCodeStep: Bool,
         explainer: String,
         invalidHint: String?,
@@ -86,25 +80,76 @@ enum OTPFieldCaption: Equatable {
 
 /// The button's words: what it will do, or what it is doing.
 enum OTPPrimaryAction {
-    static func title(phase: LoginFlow.Phase, isCodeStep: Bool) -> String {
+    static func title(phase: OTPFlow.Phase, isCodeStep: Bool) -> String {
         if isCodeStep {
             // A resend in flight is not the member signing in: the button keeps its name.
-            return phase == .verifyingCode ? "Signing you in\u{2026}" : "Continue"
+            return phase == .verifyingCode || phase == .verified ? "Signing you in\u{2026}" : "Continue"
         }
         return phase == .sendingCode ? "Sending code\u{2026}" : "Send code"
     }
 }
 
-/// One-time-code sign-in: an address, then the code, then in. SMS and email differ only in the
-/// address they ask for, so both run through this one form, and the code rules (6 digits, digits
-/// only, auto-submit) live in a single place.
+/// Drives a one-time-code form: owns its `OTPFlow` and turns the delivery a subclass provides into
+/// its transitions. Subclasses override `deliverCode(to:)` and `redeemCode(_:sentTo:)`; a thrown
+/// error becomes the caption under the field.
+///
+/// A class and not injected closures: the stored `(String) async -> Void` the form used to take
+/// went through reabstraction thunks that crashed with a bus error in `swift_retain` on the first
+/// send. Subclass dispatch does not.
+@MainActor
+class OTPSession: ObservableObject {
+    @Published var flow = OTPFlow()
+
+    func deliverCode(to destination: String) async throws {
+        preconditionFailure("\(Self.self) must override deliverCode(to:)")
+    }
+
+    func redeemCode(_ code: String, sentTo destination: String) async throws {
+        preconditionFailure("\(Self.self) must override redeemCode(_:sentTo:)")
+    }
+
+    final func send(to destination: String) async {
+        guard flow.beginSend() else { return }
+        do {
+            try await deliverCode(to: destination)
+            flow.sendSucceeded(destination: destination)
+        } catch {
+            AppLogger.session.error("Send code failed: \(String(describing: error), privacy: .public)")
+            // Note the failure, but leave the member where they are: a throttled resend must not
+            // take away a code box they are about to use.
+            flow.sendFailed(message: Self.message(for: error, step: .sendCode))
+        }
+    }
+
+    final func verify(_ code: String, sentTo destination: String) async {
+        guard flow.beginVerify() else { return }
+        do {
+            try await redeemCode(code, sentTo: destination)
+            flow.verified()
+        } catch {
+            AppLogger.session.error("Verify code failed: \(String(describing: error), privacy: .public)")
+            flow.verifyFailed(message: Self.message(for: error, step: .verifyCode))
+        }
+    }
+
+    final func changeDestination() {
+        flow.returnToAddressEntry()
+    }
+
+    private static func message(for error: Error, step: LoginStep) -> String {
+        LoginFailureCopy.message(for: PrivyAuthService.loginFailure(from: error, step: step), step: step)
+    }
+}
+
+/// One-time-code entry: an address, then the code. The code rules (6 digits, digits only,
+/// auto-submit) live here in a single place.
 ///
 /// The code step reads the address back rather than leaving a greyed-out copy of the field on
 /// screen, takes the code in the market's mono with wide tracking, and keeps "Send a new code" and
 /// "Change number" as text under the button. Whatever needs saying goes in the caption line under
 /// the field.
 struct OTPLoginForm: View {
-    @ObservedObject var auth: PrivyAuthService
+    @ObservedObject var session: OTPSession
     let destination: OTPDestination
     /// The login screen's scroll view, so the button can be kept above the keyboard.
     let scroll: ScrollViewProxy
@@ -123,38 +168,21 @@ struct OTPLoginForm: View {
     }
 
     init(
-        auth: PrivyAuthService,
+        session: OTPSession,
         destination: OTPDestination,
         scroll: ScrollViewProxy,
         initialCode: String = ""
     ) {
-        self.auth = auth
+        self.session = session
         self.destination = destination
         self.scroll = scroll
         _otpCode = State(initialValue: initialCode)
     }
 
-    // The form calls the service itself rather than through closures the two login views
-    // handed it: the stored `(String) async -> Void` went through reabstraction thunks that
-    // crashed with a bus error in `swift_retain` on the first send.
-    private func send(_ address: String) async {
-        switch destination.channel {
-        case .sms: await auth.sendSMSCode(to: address)
-        case .email: await auth.sendEmailCode(to: address)
-        }
-    }
-
-    private func verify(_ code: String, sentTo address: String) async {
-        switch destination.channel {
-        case .sms: await auth.loginWithSMSCode(code, sentTo: address)
-        case .email: await auth.loginWithEmailCode(code, sentTo: address)
-        }
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if isCodeStep {
-                if let sentTo = auth.flow.destination {
+                if let sentTo = session.flow.destination {
                     readBack(sentTo)
                         .padding(.bottom, MonacoTheme.Space.sm)
                 }
@@ -184,7 +212,7 @@ struct OTPLoginForm: View {
             tracking: revealKey,
             proxy: scroll
         )
-        .onChange(of: auth.flow.phase) { _, phase in
+        .onChange(of: session.flow.phase) { _, phase in
             guard case .failed(let message) = phase else { return }
             Haptics.warning()
             AccessibilityNotification.Announcement(message).post()
@@ -263,7 +291,7 @@ struct OTPLoginForm: View {
 
     @ViewBuilder
     private var primaryButton: some View {
-        let title = OTPPrimaryAction.title(phase: auth.flow.phase, isCodeStep: isCodeStep)
+        let title = OTPPrimaryAction.title(phase: session.flow.phase, isCodeStep: isCodeStep)
         if isCodeStep {
             Button {
                 Task { await submitCode(otpCode) }
@@ -305,12 +333,12 @@ struct OTPLoginForm: View {
         Button(action: action) {
             Text(title)
                 .font(MonacoTheme.Typo.calloutStrong)
-                .foregroundStyle(auth.flow.isBusy ? MonacoTheme.muted : MonacoTheme.brand)
+                .foregroundStyle(session.flow.isBusy ? MonacoTheme.muted : MonacoTheme.brand)
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(auth.flow.isBusy)
+        .disabled(session.flow.isBusy)
         .accessibilityIdentifier(identifier)
     }
 
@@ -318,8 +346,8 @@ struct OTPLoginForm: View {
 
     private func sendCode() async {
         guard let normalized = destination.normalize(address) else { return }
-        await send(normalized)
-        if case .awaitingCode = auth.flow.phase {
+        await session.send(to: normalized)
+        if case .awaitingCode = session.flow.phase {
             focusedField = .code
         }
     }
@@ -328,8 +356,8 @@ struct OTPLoginForm: View {
     /// resend used to wipe the field it was about to be typed into.
     private func resendCode() async {
         guard let sentTo = sentDestination else { return }
-        await send(sentTo)
-        if case .awaitingCode = auth.flow.phase {
+        await session.send(to: sentTo)
+        if case .awaitingCode = session.flow.phase {
             otpCode = ""
             resent = true
             focusedField = .code
@@ -339,7 +367,7 @@ struct OTPLoginForm: View {
     private func changeAddress() {
         otpCode = ""
         resent = false
-        auth.resetLoginFlow()
+        session.changeDestination()
         // Next turn of the run loop: the address field is only back on screen after this update.
         DispatchQueue.main.async {
             focusedField = .address
@@ -355,25 +383,24 @@ struct OTPLoginForm: View {
             resent = false
         }
         // Autofill drops all six digits in at once: don't make them tap Continue too.
-        guard sanitized.count == OTPCode.length, !auth.flow.isBusy else { return }
+        guard sanitized.count == OTPCode.length, !session.flow.isBusy else { return }
         Task { await submitCode(sanitized) }
     }
 
     private func submitCode(_ code: String) async {
-        guard code.count == OTPCode.length, !auth.flow.isBusy, let sentTo = sentDestination else { return }
-        await verify(code, sentTo: sentTo)
+        guard code.count == OTPCode.length, !session.flow.isBusy, let sentTo = sentDestination else { return }
+        await session.verify(code, sentTo: sentTo)
     }
 
     // MARK: Derived state
 
     /// The address the code actually went to, not whatever is in the field now.
     private var sentDestination: String? {
-        auth.flow.destination ?? destination.normalize(address)
+        session.flow.destination ?? destination.normalize(address)
     }
 
     private var isCodeStep: Bool {
-        if case .authenticated = auth.flow.phase { return true }
-        return auth.flow.isCodeEntry
+        session.flow.isCodeEntry
     }
 
     private var showsAddressHint: Bool {
@@ -383,21 +410,21 @@ struct OTPLoginForm: View {
     }
 
     private var isSendDisabled: Bool {
-        destination.normalize(address) == nil || auth.flow.isBusy
+        destination.normalize(address) == nil || session.flow.isBusy
     }
 
     private var isVerifyDisabled: Bool {
-        otpCode.count != OTPCode.length || auth.flow.isBusy
+        otpCode.count != OTPCode.length || session.flow.isBusy
     }
 
     /// Only a turned-down code marks the field; "no connection" is not about what is in it.
     private var codeWasRejected: Bool {
-        auth.flow.phase == .failed(message: OTPCode.rejectedMessage)
+        session.flow.phase == .failed(message: OTPCode.rejectedMessage)
     }
 
     private var caption: OTPFieldCaption? {
         OTPFieldCaption.resolve(
-            phase: auth.flow.phase,
+            phase: session.flow.phase,
             isCodeStep: isCodeStep,
             explainer: destination.caption,
             invalidHint: showsAddressHint ? destination.invalidHint : nil,
