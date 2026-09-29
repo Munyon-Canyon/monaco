@@ -17,9 +17,10 @@ const (
 	Light Kind = "light"
 	Full  Kind = "full"
 
-	smallDiff = 50
-	opus      = "opus"
-	sonnet    = "sonnet"
+	smallDiff     = 50
+	verifierBrief = "docs/agents/verifier.md"
+	opus          = "opus"
+	sonnet        = "sonnet"
 )
 
 type Plan struct {
@@ -81,11 +82,14 @@ func writePlan(stdout io.Writer, n int, p Plan) {
 		p.Lines,
 		p.Files,
 	)
+	ticket := "unknown"
 	if p.NoOwner != "" {
 		_, _ = fmt.Fprintf(stdout, "owner: unknown (%s)\n", p.NoOwner)
-		return
+	} else {
+		ticket = strconv.Itoa(p.Ticket)
+		_, _ = fmt.Fprintf(stdout, "owner: #%d %s\n", p.Ticket, p.Owner)
 	}
-	_, _ = fmt.Fprintf(stdout, "owner: #%d %s\n", p.Ticket, p.Owner)
+	writeSpawn(stdout, p.Model, fmt.Sprintf("pr: %d\nticket: %s\nbrief: %s\n", n, ticket, verifierBrief))
 }
 
 func prArg(args []string, use string) (int, error) {

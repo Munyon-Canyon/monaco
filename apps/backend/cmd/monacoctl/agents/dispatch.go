@@ -14,7 +14,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
-const idleAfter = 20 * time.Minute
+const (
+	idleAfter = 20 * time.Minute
+	agentType = "pstack:poteto-agent"
+)
 
 func issueNums() *regexp.Regexp { return regexp.MustCompile(`#(\d+)`) }
 
@@ -38,7 +41,8 @@ func dispatchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer)
 	if err := env.dispatchable(ctx, in); err != nil {
 		return err
 	}
-	if err := printForecast(ctx, env, stdout); err != nil {
+	var risks strings.Builder
+	if err := printForecast(ctx, env, &risks); err != nil {
 		return err
 	}
 	tip, err := env.featureTip(ctx)
@@ -56,15 +60,33 @@ func dispatchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer)
 	if in.dry {
 		_, _ = fmt.Fprintf(stdout, "dry-run: would add worktree %s at %s\n", path, tip)
 		_, _ = fmt.Fprintf(stdout, "dry-run: would record #%d model %s state running\n%s\n", in.ticket, in.model, note)
+		writeOwnerSpawn(stdout, in, path, tip, risks.String())
 		return nil
 	}
 	if err := env.addWorktree(ctx, path, tip); err != nil {
 		return err
 	}
-	return env.saveRecord(Record{
+	if err := env.saveRecord(Record{
 		Ticket: in.ticket, Model: in.model, Worktree: path, Base: tip,
 		State: Running, Started: env.Now(), Changed: env.Now(),
-	})
+	}); err != nil {
+		return err
+	}
+	writeOwnerSpawn(stdout, in, path, tip, risks.String())
+	return nil
+}
+
+func writeOwnerSpawn(stdout io.Writer, in dispatchIn, path, tip, risks string) {
+	writeSpawn(stdout, in.model, fmt.Sprintf(
+		"ticket: %d\nworktree: %s\nparent: %s\nbrief: %s\n", in.ticket, path, tip, ownerBrief,
+	))
+	_, _ = io.WriteString(stdout, risks)
+}
+
+func writeSpawn(stdout io.Writer, model, prompt string) {
+	_, _ = fmt.Fprintf(
+		stdout, "spawn: Agent subagent_type=%s model=%s run_in_background=true, prompt:\n%s", agentType, model, prompt,
+	)
 }
 
 func parseDispatch(args []string) (dispatchIn, error) {
@@ -79,11 +101,11 @@ func parseDispatch(args []string) (dispatchIn, error) {
 	if err != nil {
 		return dispatchIn{}, err
 	}
-	if args[2] == "" || args[2] == "fable" {
+	if args[2] != opus && args[2] != sonnet {
 		return dispatchIn{}, detailErr(
 			errs.CodeInvalidInput,
 			"monacoctl.agents.dispatch",
-			"dispatch model must be set and must not be fable",
+			fmt.Sprintf("dispatch model must be %s or %s, got %q", opus, sonnet, args[2]),
 		)
 	}
 	in.ticket, in.model = n, args[2]

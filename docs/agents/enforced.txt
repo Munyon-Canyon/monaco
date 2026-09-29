@@ -9,3 +9,11 @@ git rebase
 merge without verify
 1000 changed lines
 ready job
+poteto-agent
+subagent_type
+general-purpose
+fable
+land, then write
+gt sync
+gh run watch
+pr checks --watch
