@@ -92,6 +92,11 @@ type Option func(*options)
 type options struct {
 	modules []func(module.Deps) module.Module
 	logs    io.Writer
+	spec    []byte
+}
+
+func WithSpec(spec []byte) Option {
+	return func(o *options) { o.spec = spec }
 }
 
 func WithLogs(w io.Writer) Option {

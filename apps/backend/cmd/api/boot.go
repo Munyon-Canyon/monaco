@@ -20,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/ratelimit"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/sse"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -125,8 +126,16 @@ func startHub(ctx context.Context, conn *bus.Conn, meters metric.MeterProvider) 
 
 func newHandler(
 	cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, verifier auth.TokenVerifier, routes httpx.Routes,
-	spec []byte,
+	spec []byte, meters metric.MeterProvider,
 ) (http.Handler, error) {
+	policies, err := ratelimit.Load(spec)
+	if err != nil {
+		return nil, err
+	}
+	limiter, err := ratelimit.New(pool, clock.Real{}, meters)
+	if err != nil {
+		return nil, err
+	}
 	return httpx.Handler(httpx.Deps{
 		Logger:       logger,
 		Tracer:       otel.GetTracerProvider(),
@@ -135,6 +144,7 @@ func newHandler(
 		MaxBodyBytes: int64(cfg.HTTP.MaxBodyBytes),
 		Idempotency:  db.NewIdempotencyStore(pool, clock.Real{}),
 		Verifier:     verifier,
+		RateLimit:    ratelimit.Middleware(limiter, policies, httpx.ActorKey, cfg.HTTP.TrustProxyHeaders),
 	}, routes, spec)
 }
 

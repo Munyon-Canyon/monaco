@@ -50,7 +50,11 @@ func handler(
 }
 
 func middlewares(d Deps, c *contract) []api.MiddlewareFunc {
-	return []api.MiddlewareFunc{Idempotency(d.Idempotency), c.validate, Auth(d.Verifier), c.resolve}
+	mws := []api.MiddlewareFunc{Idempotency(d.Idempotency), c.validate}
+	if d.RateLimit != nil {
+		mws = append(mws, d.RateLimit)
+	}
+	return append(mws, Auth(d.Verifier), c.resolve)
 }
 
 func invalidRequest(w http.ResponseWriter, r *http.Request, err error) {

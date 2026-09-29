@@ -26,6 +26,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/ratelimit"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/sse"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -95,7 +96,7 @@ func start(t *testing.T, o options) *app {
 	stops = append(stops, stopConsumers)
 	a.relay = bus.NewRelay(a.bus.Conn, db.NewOutbox(pool, clock.Real{}), nil, clock.Real{})
 	stops = append(stops, background(ctx, a.runRelay))
-	a.server = httptest.NewServer(a.handler(t, pool, set.Routes()))
+	a.server = httptest.NewServer(a.handler(t, pool, set.Routes(), o.spec))
 	stops = append(stops, a.server.Close)
 	return a
 }
@@ -107,8 +108,15 @@ func must(t *testing.T, err error) {
 	}
 }
 
-func (a *app) handler(t *testing.T, pool *pgxpool.Pool, routes httpx.Routes) http.Handler {
+func (a *app) handler(t *testing.T, pool *pgxpool.Pool, routes httpx.Routes, spec []byte) http.Handler {
 	t.Helper()
+	if spec == nil {
+		spec = openapi.Spec
+	}
+	policies, err := ratelimit.Load(spec)
+	must(t, err)
+	limiter, err := ratelimit.New(pool, clock.Real{}, noop.NewMeterProvider())
+	must(t, err)
 	h, err := httpx.Handler(httpx.Deps{
 		Logger:       a.logger,
 		Tracer:       tracenoop.NewTracerProvider(),
@@ -117,7 +125,8 @@ func (a *app) handler(t *testing.T, pool *pgxpool.Pool, routes httpx.Routes) htt
 		MaxBodyBytes: 1 << 20,
 		Idempotency:  db.NewIdempotencyStore(pool, clock.Real{}),
 		Verifier:     a.verifier,
-	}, routes, openapi.Spec)
+		RateLimit:    ratelimit.Middleware(limiter, policies, httpx.ActorKey, false),
+	}, routes, spec)
 	must(t, err)
 	checked := testkit.HTTP(t, h)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
