@@ -1,22 +1,19 @@
 package main
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path"
 	"slices"
-	"strings"
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	testflows "github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
@@ -47,7 +44,7 @@ func flowsCmd(args []string, _, stderr io.Writer) int {
 		_, _ = fmt.Fprintln(stderr, flowsUsage)
 		return 2
 	}
-	env := liveEnv(os.DirFS("../.."), ".", registered.Build(module.Deps{}), gitFresh(context.Background(), "."))
+	env := liveEnv(os.DirFS("../.."), ".", registered.Build(module.Deps{}))
 	return flowsCheck(env, tests, structureOnly, stderr)
 }
 
@@ -68,7 +65,7 @@ func flowsCheck(env flows.Env, tests io.Reader, structureOnly bool, stderr io.Wr
 	if !structureOnly {
 		problems = append(problems, flows.CheckTests(parsed, results)...)
 	}
-	problems = append(problems, flows.CheckEvidence(parsed, env)...)
+	problems = append(problems, flows.CheckScripts(parsed, env)...)
 	slices.SortStableFunc(problems, func(a, b flows.Problem) int { return a.Line - b.Line })
 	for _, p := range problems {
 		_, _ = fmt.Fprintln(stderr, p)
@@ -89,7 +86,7 @@ func readFlows(repo fs.FS) ([]flows.Flow, []flows.Problem, error) {
 	return parsed, problems, nil
 }
 
-func liveEnv(repo fs.FS, backend string, mods module.Set, fresh flows.Fresh) flows.Env {
+func liveEnv(repo fs.FS, backend string, mods module.Set) flows.Env {
 	catalog := events.Catalog()
 	eventTypes := make([]string, 0, len(catalog))
 	for _, e := range catalog {
@@ -122,38 +119,10 @@ func liveEnv(repo fs.FS, backend string, mods module.Set, fresh flows.Fresh) flo
 		Commands:    flows.Commands(backend),
 		Consumers:   flows.Members(durables),
 		Faultpoints: func(_ flows.Flow, v string) bool { return faultpoint.Known(v) },
-		Fresh:       fresh,
-	}
-}
-
-func gitFresh(ctx context.Context, dir string) flows.Fresh {
-	return func(module, sha string) (bool, error) { return isFresh(ctx, dir, module, sha) }
-}
-
-func isFresh(ctx context.Context, dir, module, sha string) (bool, error) {
-	const op = "monacoctl.gitFresh"
-	git := func(args ...string) *exec.Cmd {
-		cmd := exec.CommandContext(ctx, "git", args...)
-		cmd.Dir = dir
-		return cmd
-	}
-	out, err := git("log", "-1", "--format=%H", "--", path.Join("internal/modules", module)).Output()
-	if err != nil {
-		return false, errs.Wrap(err, errs.CodeInternal, op)
-	}
-	head := strings.TrimSpace(string(out))
-	if head == "" {
-		return true, nil
-	}
-	err = git("merge-base", "--is-ancestor", head, sha).Run()
-	var exit *exec.ExitError
-	switch {
-	case err == nil:
-		return true, nil
-	case errors.As(err, &exit) && exit.ExitCode() == 1:
-		return false, nil
-	default:
-		return false, errs.Wrap(err, errs.CodeInternal, op)
+		Scripts: func(_ flows.Flow, name string) bool {
+			_, ok := testflows.Scripts()[name]
+			return ok
+		},
 	}
 }
 

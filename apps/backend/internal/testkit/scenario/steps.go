@@ -1,12 +1,10 @@
 package scenario
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strings"
-
-	"github.com/nats-io/nats.go/jetstream"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -14,7 +12,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/sse"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
-	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 func AsUser(name string) Step {
@@ -103,42 +100,20 @@ func Remember(field, as string) Step {
 func ExpectEvents(typ events.Type, n int) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
-		if got := s.events(typ); len(got) != n {
+		if got := s.app.events(s.t, typ, s.actors()); len(got) != n {
 			s.t.Fatalf("scenario: %d %s events appended, want %d", len(got), typ, n)
 		}
 	}
 }
 
-func (s *Scenario) events(typ events.Type) []string {
-	s.t.Helper()
-	rows, err := s.app.pool.Query(s.t.Context(), `SELECT id::text FROM events WHERE type = $1`, string(typ))
-	var got []string
-	for err == nil && rows.Next() {
-		var id string
-		err = rows.Scan(&id)
-		got = append(got, id)
-	}
-	if err == nil {
-		rows.Close()
-		err = rows.Err()
-	}
-	if err != nil {
-		s.t.Fatalf("scenario: read %s events: %v", typ, err)
-	}
-	return got
-}
-
 func EventuallyEvent(typ events.Type) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
-		appended := s.events(typ)
+		appended := s.app.events(s.t, typ, s.actors())
 		if len(appended) == 0 {
 			s.t.Fatalf("scenario: no %s event was appended", typ)
 		}
-		handlers := s.app.handlersOf(typ)
-		s.app.await(s.t, "every handler of "+string(typ)+" committing "+strings.Join(appended, ", "), func() bool {
-			return s.app.handledAll(handlers, appended)
-		})
+		s.app.awaitHandled(s.t, typ, appended)
 	}
 }
 
@@ -150,44 +125,27 @@ func EventuallyHint(what string) Step {
 		}
 		u := s.actor
 		want := sse.Hint{Key: sse.UserKey(u.id), What: what}
-		s.app.await(s.t, "hint "+string(want.Key)+" "+what, func() bool {
-			for _, h := range u.stream.hints {
-				if h == want {
-					return true
-				}
-			}
-			return false
+		s.app.note.await(s.t, "hint "+string(want.Key)+" "+what, func() bool {
+			return slices.Contains(u.stream.hints, want)
 		})
 	}
 }
 
 func HoldRelay() Step {
-	return func(s *Scenario) { s.app.held.Store(true) }
+	return func(s *Scenario) { s.app.hold() }
 }
 
 func PublishCrashingAt(point faultpoint.Name) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
-		testkit.CrashAt(s.t, point, func(ctx context.Context) error {
-			s.app.relay.Once(ctx)
-			return nil
-		})
-		s.app.held.Store(false)
+		s.app.crashAt(s.t, point)
 	}
 }
 
 func ExpectPublished(typ events.Type, n uint64) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
-		stream, err := s.app.bus.JS.Stream(s.t.Context(), s.app.bus.Events)
-		var info *jetstream.StreamInfo
-		if err == nil {
-			info, err = stream.Info(s.t.Context(), jetstream.WithSubjectFilter(s.app.bus.Conn.Subject(typ.Subject())))
-		}
-		if err != nil {
-			s.t.Fatalf("scenario: read the events stream: %v", err)
-		}
-		if got := info.State.Subjects[s.app.bus.Conn.Subject(typ.Subject())]; got != n {
+		if got := s.app.published(s.t, typ, s.app.events(s.t, typ, s.actors())); got != n {
 			s.t.Fatalf("scenario: %d %s messages on the stream, want %d", got, typ, n)
 		}
 	}
@@ -197,7 +155,7 @@ func Seeded(name string, users ...string) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
 		seen := map[string]bool{}
-		for _, ev := range testkit.Seed(s.t, s.app.pool, name, s.app.consumers...) {
+		for _, ev := range s.app.seed(s.t, name) {
 			s.remember[string(ev.Event.Type())] = ev.Event.AggregateID().String()
 			kind, id, _ := strings.Cut(ev.Actor, ":")
 			if kind != "user" || seen[id] || len(seen) == len(users) {

@@ -7,7 +7,6 @@ import (
 	"embed"
 	"encoding/json"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,7 +37,13 @@ type seedLine struct {
 	Payload   json.RawMessage `json:"payload"`
 }
 
-func Seed(t *testing.T, pool *pgxpool.Pool, name string, consumers ...bus.Consumer) []Seeded {
+type SeedT interface {
+	Helper()
+	Fatalf(format string, args ...any)
+	Context() context.Context
+}
+
+func Seed(t SeedT, pool *pgxpool.Pool, name string, consumers ...bus.Consumer) []Seeded {
 	t.Helper()
 	raw, err := scenarios.ReadFile("scenarios/" + name + ".jsonl")
 	if err != nil {
@@ -74,7 +79,7 @@ func Seed(t *testing.T, pool *pgxpool.Pool, name string, consumers ...bus.Consum
 	return seeded
 }
 
-func parseSeedLine(t *testing.T, name string, n int, raw []byte) (seedLine, events.Event) {
+func parseSeedLine(t SeedT, name string, n int, raw []byte) (seedLine, events.Event) {
 	t.Helper()
 	var line seedLine
 	var head struct {

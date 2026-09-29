@@ -122,13 +122,27 @@ func TestStartBackground_stopsTheRelayWhenTheHubCannotStart(t *testing.T) {
 	b := testkit.NATS(t)
 	pool := testkit.DB(t)
 	hub, stop, err := startBackground(t.Context(), b.Conn, pool, db.New(pool, ids.Real{}, clock.Real{}),
-		testkit.FailingGauges{Prefix: "monaco_sse_"})
+		testkit.FailingGauges{Prefix: "monaco_sse_"}, true)
 	if errs.CodeOf(err) != errs.CodeInternal || stop != nil || hub != nil {
 		t.Fatalf(
 			"startBackground with the hub's instruments failing = %v (stop set: %v); want internal and nothing to stop",
 			err,
 			stop != nil,
 		)
+	}
+}
+
+func TestStartBackground_withTheRelaySwitchedOffStartsNoRelay(t *testing.T) {
+	t.Parallel()
+	b := testkit.NATS(t)
+	pool := testkit.DB(t)
+	hub, stop, err := startBackground(t.Context(), b.Conn, pool, db.New(pool, ids.Real{}, clock.Real{}),
+		testkit.FailingGauges{Prefix: "monaco_events_"}, false)
+	if err != nil || hub == nil {
+		t.Fatalf("startBackground without the relay = %v; want the hub and no relay gauges registered", err)
+	}
+	if err := stop(); err != nil {
+		t.Fatal(err)
 	}
 }
 

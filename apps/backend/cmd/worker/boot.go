@@ -106,7 +106,8 @@ func startWork(
 		return health{}, err
 	}
 	set := mods.Build(d)
-	stopConsumers, err := startConsumers(ctx, d.Bus, d.UoW, d.Clock, set.Consumers())
+	stopConsumers, err := startConsumers(ctx, d.Bus, d.UoW, d.Clock, set.Consumers(),
+		bus.WithAckWait(d.Config.Bus.AckWait))
 	if err != nil {
 		return health{}, err
 	}
@@ -121,8 +122,9 @@ func startWork(
 
 func startConsumers(
 	ctx context.Context, conn *bus.Conn, uow *db.UnitOfWork, clk clock.Clock, consumers []bus.Consumer,
+	opts ...bus.RegistryOption,
 ) (func(context.Context), error) {
-	reg, err := bus.NewRegistry(conn, uow, clk, consumers)
+	reg, err := bus.NewRegistry(conn, uow, clk, consumers, opts...)
 	if err != nil {
 		return nil, err
 	}

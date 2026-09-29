@@ -31,6 +31,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 		Worker: config.Worker{HealthAddr: ":8081"},
 		DB:     config.DB{URL: "postgres://monaco@localhost:54322/monaco", MaxConns: 10},
 		NATS:   config.NATS{URL: "nats://localhost:4222"},
+		Bus:    config.Bus{APIRelay: true},
 		OTel:   config.OTel{ServiceName: "monaco"},
 		Timeouts: config.Timeouts{
 			RPC:             5 * time.Second,
@@ -88,6 +89,8 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"SOLANA_USDC_MINT=mint",
 		"RELAYER_PRIVATE_KEY=relayer-key",
 		"MONACO_FAULTPOINT=before-commit",
+		"MONACO_BUS_ACK_WAIT=100ms",
+		"MONACO_BUS_API_RELAY=off",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -98,6 +101,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		Worker: config.Worker{HealthAddr: "127.0.0.1:9001"},
 		DB:     config.DB{URL: "postgres://prod", MaxConns: 40},
 		NATS:   config.NATS{URL: "nats://prod:4222"},
+		Bus:    config.Bus{AckWait: 100 * time.Millisecond},
 		OTel: config.OTel{
 			Endpoint:    "https://otlp.example",
 			Headers:     "Authorization=Basic abc",
@@ -188,6 +192,12 @@ func TestLoadFailures(t *testing.T) {
 			want: "config.Load: invalid_input: invalid MONACO_DB_MAX_CONNS (positive integer), " +
 				"MONACO_TIMEOUT_RPC (positive duration like 5s), MONACO_TIMEOUT_PRIVY (positive duration like 5s), " +
 				"MONACO_TIMEOUT_SHUTDOWN (positive duration like 5s)",
+		},
+		{
+			name:    "bus knobs",
+			environ: append(required(), "MONACO_BUS_ACK_WAIT=0s", "MONACO_BUS_API_RELAY=maybe"),
+			want: "config.Load: invalid_input: invalid MONACO_BUS_ACK_WAIT (empty or a positive duration like 100ms), " +
+				"MONACO_BUS_API_RELAY (on or off)",
 		},
 		{
 			name:    "max conns past int32",
@@ -290,6 +300,8 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"PRIVY_BASE_URL", "https://api.privy.io"},
 		{"SOLANA_USDC_MINT", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"},
 		{"MONACO_FAULTPOINT", ""},
+		{"MONACO_BUS_ACK_WAIT", ""},
+		{"MONACO_BUS_API_RELAY", "on"},
 	}
 	if len(got) != len(tests) {
 		t.Fatalf("Redacted has %d keys, want %d: %v", len(got), len(tests), got)
@@ -305,6 +317,17 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 				t.Errorf("Redacted()[%s] leaks a secret", key)
 			}
 		}
+	}
+}
+
+func TestLoad_busKnobsRoundTripThroughRedacted(t *testing.T) {
+	t.Parallel()
+	cfg, err := config.Load(append(required(), "MONACO_BUS_ACK_WAIT=100ms", "MONACO_BUS_API_RELAY=off"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Redacted(); got["MONACO_BUS_ACK_WAIT"] != "100ms" || got["MONACO_BUS_API_RELAY"] != "off" {
+		t.Fatalf("Redacted = %v, want the ack wait and relay switch as set", got)
 	}
 }
 

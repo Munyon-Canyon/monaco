@@ -24,6 +24,7 @@ type Config struct {
 	Worker     Worker
 	DB         DB
 	NATS       NATS
+	Bus        Bus
 	OTel       OTel
 	Auth       Auth
 	Timeouts   Timeouts
@@ -54,6 +55,11 @@ type DB struct {
 
 type NATS struct {
 	URL string
+}
+
+type Bus struct {
+	AckWait  time.Duration
+	APIRelay bool
 }
 
 type OTel struct {
@@ -242,6 +248,44 @@ func fields() []field {
 			func(c *Config) *string { return &c.Solana.USDCMint }),
 		text("RELAYER_PRIVATE_KEY", "", func(c *Config) *string { return &c.Relayer.PrivateKey }).secret(),
 		text("MONACO_FAULTPOINT", "", func(c *Config) *string { return &c.Faultpoint }),
+		optionalDuration("MONACO_BUS_ACK_WAIT", func(c *Config) *time.Duration { return &c.Bus.AckWait }),
+		toggle("MONACO_BUS_API_RELAY", true, func(c *Config) *bool { return &c.Bus.APIRelay }),
+	}
+}
+
+func optionalDuration(key string, at func(*Config) *time.Duration) field {
+	return field{
+		key:  key,
+		want: "empty or a positive duration like 100ms",
+		set: func(c *Config, v string) bool {
+			if v == "" {
+				*at(c) = 0
+				return true
+			}
+			d, err := time.ParseDuration(v)
+			*at(c) = d
+			return err == nil && d > 0
+		},
+		get: func(c *Config) string {
+			if *at(c) == 0 {
+				return ""
+			}
+			return at(c).String()
+		},
+	}
+}
+
+func toggle(key string, fallback bool, at func(*Config) *bool) field {
+	name := map[bool]string{true: "on", false: "off"}
+	return field{
+		key:      key,
+		fallback: name[fallback],
+		want:     "on or off",
+		set: func(c *Config, v string) bool {
+			*at(c) = v == "on"
+			return v == "on" || v == "off"
+		},
+		get: func(c *Config) string { return name[*at(c)] },
 	}
 }
 

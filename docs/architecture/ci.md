@@ -4,7 +4,7 @@ How Monaco runs continuous integration: which checks run, when they run, on what
 
 ## Decision
 
-1. **CI confirms; it does not discover.** Every check a PR needs runs on the laptop first: `just test backend` (under 90 s), the lint pre-commit hook, and `just verify backend` behind the pre-PR hook. CI reruns the same commands on a clean machine to prove the result does not depend on the author's machine. A red CI run on a ready PR is a bug in the local gate, not a normal step.
+1. **CI confirms; it does not discover.** Every check a PR needs runs on the laptop first: `just test backend` (under 90 s) and the lint pre-commit hook. CI reruns the same commands on a clean machine to prove the result does not depend on the author's machine. A red CI run on a ready PR is a bug in the local gate, not a normal step. `monacoctl verify`, every flow against the real binaries, runs only in the merge queue's `e2e` job and nightly, never as a laptop or owner step.
 2. **Full CI runs only on PRs that can merge.** A PR runs CI when it is not a draft and its base is `main` or a milestone feature branch (`backend-rewrite*`). Drafts run nothing. Upstack PRs in a Graphite stack run nothing until Graphite retargets them to their trunk.
 3. **No CI on push to `main`.** Branch protection requires the branch to be up to date before merging, so the PR run already tested the tree that lands. The nightly run covers `main`.
 4. **One required check.** A final `ci-ok` job aggregates every other job with `re-actors/alls-green`. It is the only check branch protection names, so jobs can be added, split or path-filtered without touching the protection rule.
@@ -43,7 +43,6 @@ Each check runs in exactly one tier as its gate, and in the tier below it only w
 | Tier | When | Runs | Budget |
 | --- | --- | --- | --- |
 | Local, every save or commit | pre-commit hook, `just test backend` | `golangci-lint` on changed packages, unit + integration + acceptance, fixed-seed property and jitter tests, fuzz seeds | 90 s |
-| Local, before PR | pre-PR hook (`scripts/agent-guard-pr.sh`) | `just verify backend` for every flow the branch touches; fresh evidence stamped with `HEAD` | 90 s |
 | Stage 1, PR check | non-draft PR (`pull_request`) | the repo-wide checks below, no tests | 2 min |
 | Stage 2, queue check | merge queue entry (`merge_group`) | every job below | 6 min backend-only, iOS adds about 12 |
 | Nightly | 07:00 UTC, only if `main` moved | everything unbounded | 180 min |
@@ -57,7 +56,7 @@ CI jobs, from the [Testing](backend-platform.md#keeping-it-fast) budget. The Sta
 | `backend` | 2 | Linux | backend or CI files changed | `scripts/test-backend.sh` (`go test -race -shuffle=on -short` with `goleak`, `monacoctl test-report` with the per-package time budget, merged coverage at 100%, `monacoctl flows check` on the `go test -json` output), then the tests `-short` skips because they build or run other binaries. Under 3 min, sharded by package if it outgrows that. |
 | `ready` | 1 | Linux | backend or CI files changed | `scripts/ci/ready.sh`, which the laptop runs the same way on a committed tree: `go vet` on go1.25.14 (so a newer local Go cannot hide a stdlib API that go.mod's version lacks), `go mod tidy -diff`, `go generate` and `scripts/gen-docs.sh` with no change to the tree after, `sqlc diff`, and `monacoctl flows check`. No Postgres, so it reports in about a minute. |
 | `vuln` | 1 | Linux | backend or CI files changed | `govulncheck ./...` in `apps/backend` with the version `scripts/install-govulncheck.sh` pins. It fails on a vulnerability the code can reach, with no allow list: upgrade the dependency, stop calling the symbol, or file a ticket. Go and the Go cache only (`backend-test-env` with `db: false`). Under 90 s. `just test vuln` runs it locally; it is not in `just test backend`, because it downloads the database from vuln.go.dev. |
-| `e2e` | 2 | Linux | backend changed | Real `api` and `worker` binaries on compose (Postgres, NATS, fake externals), crash-point tests, `verify-backend` evidence for touched flows. Under 4 min. |
+| `e2e` | 2 | Linux | backend changed | `scripts/ci/e2e.sh` runs `monacoctl verify all`, then `monacoctl verify all --crash-at after-publish`. Each run builds `api`, `worker` and `fakes` with `-cover`, starts a throwaway Postgres container on a random port with tmpfs, embedded NATS and the fakes, drives every flow script over HTTP with SSE open, waits for every listed consumer to ack, and checks the invariants. Each run has a 90 s budget from stack-up to teardown (`cmd/monacoctl/verify/budget.go`); the build before it is timed but not budgeted. `apps/backend/.verify/` (one evidence file per flow, plus coverage data) uploads as the `verify-evidence` artifact for 7 days. `timeout-minutes: 8`. |
 | `flake` | 2 | Linux | backend tests or `scripts/ci/flake-tests.sh` changed | `scripts/ci/flake-tests.sh` reruns the changed test files 20 times against the base with `-short`, so tests that `-short` skips (they run once in the queue check's `-short`-skipped step) are not rerun. |
 | `scripts` | 2 | Linux | `scripts/` Go tests or the files they read changed: top-level `scripts/*` except `cloud-setup.sh`, `scripts/githooks/**`, `scripts/testdata/**`, `Justfile`, `.claude/settings.json`, `.claude/hooks/**`, `ci-scripts.yml` | `go test -short ./...` in the `scripts` module (the PR size and format guards, the agent guard, the staged-lint hook, the Justfile tests), called from its own reusable file `ci-scripts.yml`. |
 | `mobile-core` | 2 | Linux (`swift` container) | `packages/mobile-core/**` or `ci-mobile-core.yml` changed | `swift test`, called from its own reusable file `ci-mobile-core.yml`. |
@@ -78,7 +77,7 @@ A change passes three check stages. Each stage runs only what the stage before i
 | --- | --- | --- |
 | 0. Agent check | The owner's worktree, before each push | `go build`, `go vet` and `go test -short -count=1` on the packages `monacoctl ci affected --base <feature branch>` prints. |
 | 1. PR check | CI on `pull_request`, `stage: pr` | The stage 1 jobs in [What runs where](#what-runs-where): lint, `ready`, `vuln` and PR format. No tests. |
-| 2. Queue check | CI on `merge_group`, `stage: queue` | Every job: stage 1 plus the full race suite, the tests `-short` skips, `flake`, `scripts`, and `mobile-core` and `ios` when their paths changed. |
+| 2. Queue check | CI on `merge_group`, `stage: queue` | Every job: stage 1 plus the full race suite, the tests `-short` skips, `e2e` (`monacoctl verify` against the real binaries), `flake`, `scripts`, and `mobile-core` and `ios` when their paths changed. |
 
 `ci.yml` sets the `stage` input of `ci-jobs.yml` from `github.event_name`: `merge_group` is `queue`, and every other event is `pr`. `ci-retarget.yml` always passes `pr`. Mutation testing runs only in the nightly.
 
@@ -263,6 +262,7 @@ Each step is one small PR with its own proof.
 
 ## Log
 
+- 2026-09-29: Added the stage 2 `e2e` job (#483). `scripts/ci/e2e.sh` runs `monacoctl verify all` and `monacoctl verify all --crash-at after-publish` and uploads `apps/backend/.verify/` as an artifact; evidence is never committed. The nightly backend job runs `monacoctl verify all` too. The planned `just` recipe and pre-PR evidence hook are dropped: verify is a queue and nightly step, not an owner step.
 - 2026-09-29: Checkpoint PRs into `main` must update `apps/backend/CHANGELOG.md`. The `Changelog (checkpoint into main)` job runs `scripts/check-changelog.py`, and the `main` ruleset requires it (#890).
 - 2026-09-29: The laptop run budget for `just test backend` rose from 60 s to 90 s (#831). CI still does not gate the run.
 - 2026-09-29: The per-package test budget warns at 10 s and fails at 20 s, the same on a laptop and in CI (#831). Before, a laptop failed at 10 s and CI warned at 10 s and failed at 15 s. Per-package wall time under `go test -race -p 4` with whole-module coverage measures contention as much as the package: packages that take 4 s alone read 10 to 13 s in the full suite. The 60 s laptop run budget is unchanged, and CI still does not gate the run.
