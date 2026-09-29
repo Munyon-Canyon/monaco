@@ -17,13 +17,13 @@ Set up the clone with [Agent workflow setup](../agents/setup.md). The [standing 
 
 Do these once per milestone.
 
-1. Pick the milestone's `<name>`: a lowercase slug such as `domain-core`. Its feature branches are `<name>-<N>`, which must match `^[a-z0-9]+(-[a-z0-9]+)*-[0-9]+$`. The first is `<name>-1`, and each checkpoint cuts the next.
+1. Pick the `<feature>` name: a lowercase slug such as `leaderboards`. Its feature branches are `<feature>-checkpoint-<N>`, such as `leaderboards-checkpoint-1`, and must match `^[a-z0-9]+(-[a-z0-9]+)*-[0-9]+$`. The first is `<feature>-checkpoint-1`, and each checkpoint cuts the next. A branch in the older `<feature>-<N>` form, such as `backend-rewrite-3`, still parses, and its checkpoint cuts `<feature>-checkpoint-<N+1>`.
 
-2. Create `<name>-1` from `main`, protect it and point `FEATURE_BRANCH` at it. This needs an org admin token.
+2. Create `<feature>-checkpoint-1` from `main`, protect it and point `FEATURE_BRANCH` at it. This needs an org admin token.
 
-        scripts/feature-branch.sh init <name>-1
+        scripts/feature-branch.sh init <feature>-checkpoint-1
 
-    `init` creates `<name>-1` at `origin/main`, then runs `scripts/feature-branch.sh apply <name>-1`. `apply` adds the Graphite trunk, turns on auto-merge and merge commits, sets the `FEATURE_BRANCH` repo variable to `<name>-1`, and adds `refs/heads/<name>-*` to the include list of the one feature branch ruleset, so every later checkpoint branch is protected from its first push. If `<name>-1` already exists, run `apply <name>-1` alone. Check the variable with `gh variable get FEATURE_BRANCH`. [Feature branches](../architecture/ci.md#feature-branches) describes both rulesets.
+    `init` creates `<feature>-checkpoint-1` at `origin/main`, then runs `scripts/feature-branch.sh apply <feature>-checkpoint-1`. `apply` adds the Graphite trunk, turns on auto-merge and merge commits, sets the `FEATURE_BRANCH` repo variable to `<feature>-checkpoint-1`, and adds the exact `refs/heads/<feature>-checkpoint-1` to the include list of the one feature branch ruleset. A ruleset with a merge queue takes exact ref names only, so each checkpoint's `next-branch` job adds the branch it cuts. If `<feature>-checkpoint-1` already exists, run `apply <feature>-checkpoint-1` alone. Check the variable with `gh variable get FEATURE_BRANCH`. [Feature branches](../architecture/ci.md#feature-branches) describes both rulesets.
 
 3. Set `.monaco/agents.toml`: `repo`, `feature_branch` (`"auto"` reads the `MONACO_FEATURE_BRANCH` env, then the `FEATURE_BRANCH` repo variable; name a branch to pin it), `tracking` (the tracking issue number), `lanes` (the most owners running at once), `batch` (the most tickets per batch), `milestone` (the name of the local state directory under `.git/pstack/`), and the verifier App's `verifier_app` and `verifier_installation`. `[check.budget]` holds the stage 0 budget of each row.
 
@@ -37,7 +37,7 @@ Do these once per milestone.
 
     `just build backend` writes `bin/monacoctl`. The commands below run as `bin/monacoctl agents <command>` from that worktree. Rebuild after any merge that changes `apps/backend/cmd/monacoctl/agents`. Every worktree of the clone shares the records under `.git/.monaco/agents/` and `.git/pstack/<milestone>/`, so any worktree works. Each owner record is also a comment on its ticket, marked `<!-- monacoctl agents record -->`. `dispatch` posts it, and `done`, `exited` and `verdict` update it. A command that needs a record this clone lacks rebuilds it from the newest such comment, with the worktree path set to this clone's `.worktrees/<n>`.
 
-6. Confirm the `MERGE_BACK_TOKEN` repo secret exists (`gh secret list`). `checkpoint.yml` needs it to cut the next feature branch, and needs its `Variables: write` permission to update `FEATURE_BRANCH`. The verifier's statuses post as the verifier App when `~/.config/monaco/verifier.pem` exists, and as your `gh` user otherwise.
+6. Confirm the `MERGE_BACK_TOKEN` repo secret exists (`gh secret list`). `checkpoint.yml` needs it to cut the next feature branch, its `Variables: write` permission to update `FEATURE_BRANCH`, and its `Administration: write` permission to add the new branch to the feature branch ruleset. The verifier's statuses post as the verifier App when `~/.config/monaco/verifier.pem` exists, and as your `gh` user otherwise.
 
 7. Start the milestone's decision log at `docs/milestones/<milestone>.md`. Every milestone orchestrator keeps one, like the [M7 closeout log](../milestones/m7-closeout.md). Write one line per decision as it happens: the time, what was decided and why, and what broke and how it was fixed. Keep the log on its own branch with a draft PR, commit each batch of entries with `gt modify`, push with `gt submit --stack --no-interactive --draft`, and land it at each handoff and checkpoint. A log that exists only in one session is lost when that session ends.
 
@@ -47,7 +47,7 @@ Do these once per milestone.
 
 2. Start the body with the header line. `batch` and `dispatch` parse it:
 
-        **Milestone:** M7 Backend platform · **Blocked by:** #483, #536 · **Tracking:** #492 · **Base branch:** `<name>-<N>` · **Touches:** `apps/backend/cmd/monacoctl/agents/**`, `docs/architecture/ci.md`
+        **Milestone:** M7 Backend platform · **Blocked by:** #483, #536 · **Tracking:** #492 · **Base branch:** `<feature>-checkpoint-<N>` · **Touches:** `apps/backend/cmd/monacoctl/agents/**`, `docs/architecture/ci.md`
 
     - Put every `Touches` glob in backticks. A bare `**` breaks GitHub Markdown. `batch` defers a ticket with no `Touches` and keeps two tickets whose globs overlap out of one batch.
     - `Blocked by` lists issue or PR numbers, or `none`. An issue blocker counts as merged when it is closed as completed, or when a PR merged into the feature branch says `Closes #<n>`. A PR blocker counts when its merge commit is on the feature branch.
@@ -183,9 +183,9 @@ A checkpoint squash-merges the feature branch into `main`. Only the operator mer
 
     `gh pr create` is right here, since the PR is not a Graphite stack. `scripts/pr-body.sh` refuses a checkpoint, because the PR format check reads every commit since `main`, including old ones without Conventional subjects. That check is not required on `main`: only `ci / ci-ok` and the changelog check are. List the `large-pr` label and the merge under "Needs from Logan" for the operator.
 
-6. After the operator merges, check `checkpoint.yml`: `gh run list --workflow checkpoint.yml --limit 1`. `tree-matches` proves `main` got the feature branch's exact tree, and `next-branch` creates `<name>-<N+1>` from the squash commit on `main` and points the `FEATURE_BRANCH` variable at it. If either fails, or `next-branch` warns about the variable or about a PR now based on `main`, report it and move that PR onto the new branch as in the next step. Never push to `main` or a feature branch yourself.
+6. After the operator merges, check `checkpoint.yml`: `gh run list --workflow checkpoint.yml --limit 1`. `tree-matches` proves `main` got the feature branch's exact tree, and `next-branch` creates `<feature>-checkpoint-<N+1>` from the squash commit on `main` and points the `FEATURE_BRANCH` variable at it. `next-branch` also adds `refs/heads/<feature>-checkpoint-<N+1>` to the feature branch ruleset. If it warns that it could not, run `scripts/feature-branch.sh apply <feature>-checkpoint-<N+1>` with an org admin token. If either job fails, or `next-branch` warns about the variable or about a PR now based on `main`, report it and move that PR onto the new branch as in the next step. Never push to `main` or a feature branch yourself.
 
-7. Continue on the new branch. GitHub deletes `<name>-<N>` with the merge and leaves it deleted. Run `gt trunk --add <name>-<N+1>`, move each open stack onto it with `gt track --parent <name>-<N+1>`, `gt restack --upstack` and `gt submit --stack --no-interactive --draft`, and base new tickets on it. [Feature branches](../architecture/ci.md#feature-branches) has the details.
+7. Continue on the new branch. GitHub deletes `<feature>-checkpoint-<N>` with the merge and leaves it deleted. Run `gt trunk --add <feature>-checkpoint-<N+1>`, move each open stack onto it with `gt track --parent <feature>-checkpoint-<N+1>`, `gt restack --upstack` and `gt submit --stack --no-interactive --draft`, and base new tickets on it. [Feature branches](../architecture/ci.md#feature-branches) has the details.
 
 8. GitHub runs `schedule` and `workflow_dispatch` workflows only from the default branch. A workflow added on the feature branch cannot run until its checkpoint lands. Then start it with `gh workflow run <file>`.
 

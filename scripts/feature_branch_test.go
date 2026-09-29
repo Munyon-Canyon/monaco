@@ -71,10 +71,10 @@ func printRuleset(t *testing.T, args ...string) ruleset {
 }
 
 func TestFeatureBranchRuleset_landsEveryPRThroughTheMergeQueue(t *testing.T) {
-	rs := printRuleset(t, "ruleset", "domain-core-12")
+	rs := printRuleset(t, "ruleset", "following-checkpoint-12")
 
-	if want := []string{"refs/heads/domain-core-*"}; !reflect.DeepEqual(rs.Conditions.RefName.Include, want) {
-		t.Fatalf("targets %v, want %v, so the branch each checkpoint cuts is protected from its first push", rs.Conditions.RefName.Include, want)
+	if want := []string{"refs/heads/following-checkpoint-12"}; !reflect.DeepEqual(rs.Conditions.RefName.Include, want) {
+		t.Fatalf("targets %v, want %v, because a merge_queue rule takes exact ref names only", rs.Conditions.RefName.Include, want)
 	}
 	if len(rs.BypassActors) != 1 || rs.BypassActors[0].ActorID != 1 || rs.BypassActors[0].ActorType != "OrganizationAdmin" || rs.BypassActors[0].BypassMode != "always" {
 		t.Fatalf("bypass actors %+v, want only org admins, whose token cuts the next feature branch at a checkpoint", rs.BypassActors)
@@ -130,7 +130,7 @@ func TestMainRuleset_staysSquashOnlyWithNoQueue(t *testing.T) {
 func TestFeatureBranch_rejectsAMissingNameOrOneOffTheConvention(t *testing.T) {
 	for _, args := range [][]string{
 		{"apply"}, {"init", ""}, {"ruleset"}, {"main-ruleset", "x-1"},
-		{"apply", "backend-rewrite"}, {"apply", "982-workflow-docs"}, {"init", "main"}, {"ruleset", "Domain-Core-2"},
+		{"apply", "leaderboards-checkpoint"}, {"apply", "982-workflow-docs"}, {"init", "main"}, {"ruleset", "Leaderboards-Checkpoint-2"},
 	} {
 		err := exec.Command("bash", append([]string{filepath.Join(repoRoot(t), "scripts", "feature-branch.sh")}, args...)...).Run()
 		var exit *exec.ExitError
@@ -154,33 +154,33 @@ if [[ "$*" == *"--input -"* ]]; then
 fi
 `
 
-func TestFeatureBranchApply_addsTheMilestonePatternToTheOneRuleset(t *testing.T) {
+func TestFeatureBranchApply_addsTheExactBranchToTheOneRuleset(t *testing.T) {
 	const (
-		perBranch = `{"id": 24089171, "name": "feature branch backend-rewrite-3", "conditions": {"ref_name": {"include": ["refs/heads/backend-rewrite-3"]}}}`
-		widened   = `{"id": 24089171, "name": "feature branches", "conditions": {"ref_name": {"include": ["refs/heads/backend-rewrite-3", "refs/heads/backend-rewrite-*"]}}}`
+		perBranch = `{"id": 24089171, "name": "feature branch leaderboards-checkpoint-1", "conditions": {"ref_name": {"include": ["refs/heads/leaderboards-checkpoint-1"]}}}`
+		renamed   = `{"id": 24089171, "name": "feature branches", "conditions": {"ref_name": {"include": ["refs/heads/leaderboards-checkpoint-1"]}}}`
 		others    = `{"id": 5, "name": "main"}, {"id": 6, "name": "maintenance"}`
 	)
 	for _, tc := range []struct {
 		name, branch, existing, want string
 	}{
 		{
-			"widens the per-branch ruleset in place", "backend-rewrite-4", perBranch,
+			"renames the per-branch ruleset in place", "leaderboards-checkpoint-1", perBranch,
 			"PUT repos/o/r/rulesets/24089171 --input - --jq .id\n" +
-				`{"name":"feature branches","include":["refs/heads/backend-rewrite-3","refs/heads/backend-rewrite-*"]}`,
+				`{"name":"feature branches","include":["refs/heads/leaderboards-checkpoint-1"]}`,
 		},
 		{
-			"adds a new milestone and keeps the old patterns", "domain-core-1", widened,
+			"adds the next branch and keeps the old refs", "leaderboards-checkpoint-2", renamed,
 			"PUT repos/o/r/rulesets/24089171 --input - --jq .id\n" +
-				`{"name":"feature branches","include":["refs/heads/backend-rewrite-3","refs/heads/backend-rewrite-*","refs/heads/domain-core-*"]}`,
+				`{"name":"feature branches","include":["refs/heads/leaderboards-checkpoint-1","refs/heads/leaderboards-checkpoint-2"]}`,
 		},
 		{
-			"leaves a pattern already there alone", "backend-rewrite-5", widened,
+			"adds a new feature", "following-checkpoint-1", renamed,
 			"PUT repos/o/r/rulesets/24089171 --input - --jq .id\n" +
-				`{"name":"feature branches","include":["refs/heads/backend-rewrite-3","refs/heads/backend-rewrite-*"]}`,
+				`{"name":"feature branches","include":["refs/heads/leaderboards-checkpoint-1","refs/heads/following-checkpoint-1"]}`,
 		},
 		{
-			"creates the ruleset when there is none", "domain-core-1", "",
-			"POST repos/o/r/rulesets --input - --jq .id\n" + `{"name":"feature branches","include":["refs/heads/domain-core-*"]}`,
+			"creates the ruleset when there is none", "following-checkpoint-1", "",
+			"POST repos/o/r/rulesets --input - --jq .id\n" + `{"name":"feature branches","include":["refs/heads/following-checkpoint-1"]}`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -232,15 +232,16 @@ const featureBranchPattern = `^[a-z0-9]+(-[a-z0-9]+)*-[0-9]+$`
 func TestFeatureBranchName_parsesOnlyNameDashNumber(t *testing.T) {
 	script := filepath.Join(repoRoot(t), "scripts", "ci", "feature-branch-name.sh")
 	for ref, want := range map[string]string{
-		"backend-rewrite-3":   "backend-rewrite 3\n",
-		"domain-core-12":      "domain-core 12\n",
-		"ledger-1":            "ledger 1\n",
-		"backend-rewrite":     "",
-		"982-workflow-docs":   "",
-		"main":                "",
-		"Domain-Core-2":       "",
-		"domain-core-12\nx-1": "",
-		"graphite-base/1015":  "",
+		"leaderboards-checkpoint-1":      "leaderboards 1\n",
+		"following-checkpoint-9":         "following 9\n",
+		"following-checkpoint-10":        "following 10\n",
+		"backend-rewrite-3":              "backend-rewrite 3\n",
+		"leaderboards-checkpoint":        "",
+		"982-workflow-docs":              "",
+		"main":                           "",
+		"Leaderboards-Checkpoint-2":      "",
+		"leaderboards-checkpoint-1\nx-1": "",
+		"graphite-base/1015":             "",
 	} {
 		out, err := exec.Command("bash", script, ref).Output()
 		var exit *exec.ExitError
