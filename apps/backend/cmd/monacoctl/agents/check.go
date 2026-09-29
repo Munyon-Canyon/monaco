@@ -158,7 +158,10 @@ func (env *Env) goRows(ctx context.Context, base string) ([]checkRow, error) {
 		return nil, nil
 	}
 	return []checkRow{
-		{label: "go build", dir: backend, cmds: [][]string{append([]string{"go", "build"}, pkgs...)}},
+		{
+			label: "go build", dir: backend,
+			cmds: [][]string{append([]string{"go", "build"}, buildable(backend, pkgs)...)},
+		},
 		{label: "go vet", dir: backend, cmds: [][]string{append([]string{"go", "vet"}, pkgs...)}},
 		{
 			label: "go test -short", dir: backend, goJSON: true,
@@ -166,6 +169,15 @@ func (env *Env) goRows(ctx context.Context, base string) ([]checkRow, error) {
 		},
 	}, nil
 }
+
+func buildable(backend string, pkgs []string) []string {
+	return slices.DeleteFunc(slices.Clone(pkgs), func(pkg string) bool {
+		files, _ := filepath.Glob(filepath.Join(backend, pkg, "*.go"))
+		return len(files) > 0 && !slices.ContainsFunc(files, isSource)
+	})
+}
+
+func isSource(file string) bool { return !strings.HasSuffix(file, "_test.go") }
 
 func (env *Env) shellRows(changed []string) []checkRow {
 	var scripts []string

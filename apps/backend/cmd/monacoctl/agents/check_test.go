@@ -117,6 +117,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	})
 	tree := h.commit(t, map[string]string{
 		"apps/backend/internal/x/x.go":           "package x\n",
+		"apps/backend/internal/t/t_test.go":      "package t\n",
 		"scripts/foo.sh":                         "echo hi\n",
 		"scripts/hook":                           "#!/usr/bin/env bash\necho hi\n",
 		"scripts/tool.py":                        "print(1)\n",
@@ -126,7 +127,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		"packages/mobile-core/Sources/A/a.swift": "let a = 1\n",
 		"README.md":                              "hi\n",
 	})
-	h.affected = "./internal/x\n./cmd/api\n"
+	h.affected = "./internal/x\n./internal/t\n./cmd/api\n"
 	h.replies = []reply{{prefix: "go test -short -count=1 -json", took: 3 * time.Second, out: strings.Join([]string{
 		`{"Time":"2026-09-27T12:00:01Z","Action":"start","Package":"github.com/monaco/monaco/apps/backend/internal/x"}`,
 		`{"Action":"output","Package":"github.com/monaco/monaco/apps/backend/internal/x","Test":"TestX","Output":"=== RUN   TestX\n"}`,
@@ -140,8 +141,8 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	want := []string{
 		"apps/backend: ci affected --base origin/fb",
 		"apps/backend: go build ./internal/x ./cmd/api",
-		"apps/backend: go vet ./internal/x ./cmd/api",
-		"apps/backend: go test -short -count=1 -json ./internal/x ./cmd/api",
+		"apps/backend: go vet ./internal/x ./internal/t ./cmd/api",
+		"apps/backend: go test -short -count=1 -json ./internal/x ./internal/t ./cmd/api",
 		".: bash -n scripts/foo.sh",
 		".: bash -n scripts/hook",
 		".: shellcheck scripts/foo.sh scripts/hook",
