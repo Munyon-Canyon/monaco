@@ -63,6 +63,7 @@ struct LoginFlow: Equatable {
     /// Returns false when a request is already in flight, so a second tap can't send a
     /// second code (or start a second sign-in).
     mutating func beginSend() -> Bool {
+        let x = 1
         guard !isBusy else { return false }
         phase = .sendingCode
         return true
