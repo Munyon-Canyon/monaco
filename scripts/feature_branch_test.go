@@ -73,8 +73,8 @@ func TestFeatureBranchRuleset_landsEveryPRThroughTheMergeQueue(t *testing.T) {
 	if want := []string{"refs/heads/backend-rewrite-9"}; !reflect.DeepEqual(rs.Conditions.RefName.Include, want) {
 		t.Fatalf("targets %v, want %v", rs.Conditions.RefName.Include, want)
 	}
-	if len(rs.BypassActors) != 1 || rs.BypassActors[0].ActorID != 15368 || rs.BypassActors[0].ActorType != "Integration" {
-		t.Fatalf("bypass actors %+v, want only GitHub Actions, which pushes the checkpoint merge-back", rs.BypassActors)
+	if len(rs.BypassActors) != 1 || rs.BypassActors[0].ActorID != 1 || rs.BypassActors[0].ActorType != "OrganizationAdmin" || rs.BypassActors[0].BypassMode != "always" {
+		t.Fatalf("bypass actors %+v, want only org admins, whose token pushes the checkpoint merge-back", rs.BypassActors)
 	}
 	if got := rs.rule(t, "pull_request")["allowed_merge_methods"]; !reflect.DeepEqual(got, []any{"merge"}) {
 		t.Fatalf("merge methods %v, want merge only, so a stack's lower PRs show merged", got)
