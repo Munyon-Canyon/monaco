@@ -25,3 +25,11 @@ func PruneDeliveries(ctx context.Context, pool *pgxpool.Pool, before time.Time) 
 		}
 	}
 }
+
+func PruneIdempotencyKeys(ctx context.Context, pool *pgxpool.Pool, before time.Time) (int, error) {
+	n, err := sqlc.New(pool).DeleteIdempotencyKeysBefore(ctx, before)
+	if err != nil {
+		return 0, classify(err, "db.PruneIdempotencyKeys")
+	}
+	return int(n), nil
+}

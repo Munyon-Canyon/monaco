@@ -86,6 +86,8 @@ func (c *Conn) Close(ctx context.Context) {
 	}
 }
 
+func (c *Conn) Connected() bool { return c.nc.IsConnected() }
+
 func (c *Conn) Stream(name string) string { return c.ns.stream(name) }
 
 func (c *Conn) Subject(subject string) string { return c.ns.subject(subject) }

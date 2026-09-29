@@ -40,3 +40,10 @@ func (m failingGaugeMeter) Int64UpDownCounter(
 	}
 	return noop.Int64UpDownCounter{}, nil
 }
+
+func (m failingGaugeMeter) Int64Counter(name string, _ ...metric.Int64CounterOption) (metric.Int64Counter, error) {
+	if strings.HasPrefix(name, m.prefix) {
+		return nil, errs.New(errs.CodeInternal, "testkit.FailingGauges")
+	}
+	return noop.Int64Counter{}, nil
+}
