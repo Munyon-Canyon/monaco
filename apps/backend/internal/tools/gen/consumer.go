@@ -35,7 +35,7 @@ func planConsumer(root *os.Root, modPath string, args []string) (Plan, error) {
 		}),
 		Edit: map[string]func(string) (string, error){
 			filepath.Join(dir, "module.go"): func(old string) (string, error) {
-				return appendToReturn(withImport(old, adapters), "Consumers", entry)
+				return appendToReturn(withDeps(withImport(old, adapters)), "Consumers", entry)
 			},
 			filepath.Join(dir, "main_test.go"): func(old string) (string, error) {
 				return strings.Replace(old, mainWithoutNATS, mainWithNATS, 1), nil
@@ -49,6 +49,17 @@ func withImport(src, path string) string {
 		return src
 	}
 	return strings.Replace(src, "import (\n", "import (\n\t"+path+"\n", 1)
+}
+
+func withDeps(src string) string {
+	return strings.NewReplacer(
+		"type Module struct{}",
+		"type Module struct {\n\tdeps module.Deps\n}",
+		"func New(module.Deps) *Module { return &Module{} }",
+		"func New(d module.Deps) *Module { return &Module{deps: d} }",
+		"func (*Module) Consumers() []bus.Consumer",
+		"func (m *Module) Consumers() []bus.Consumer",
+	).Replace(src)
 }
 
 func appendToReturn(src, method, entry string) (string, error) {

@@ -1,1 +1,6 @@
-{Durable: "{{.Module}}_{{.File}}", Handlers: []bus.HandlerSpec{bus.Handle("{{.Module}}.{{.File}}", adapters.{{.Handler}})}}
+{
+	Durable: "{{.Module}}_{{.File}}",
+	Handlers: []bus.HandlerSpec{
+		bus.Handle("{{.Module}}.{{.File}}", adapters.{{.Handler}}{Bus: m.deps.Bus}.Handle),
+	},
+}
