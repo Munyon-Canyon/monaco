@@ -10,6 +10,7 @@ import (
 	"testing"
 	"testing/fstest"
 	"testing/iotest"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
@@ -29,7 +30,7 @@ func (echoModule) Name() string { return "system" }
 func (echoModule) Routes(*httpx.Routes) {}
 
 func (echoModule) Consumers() []bus.Consumer {
-	echo := bus.Handle("system.echo", func(context.Context, db.Tx, events.SystemPinged) error { return nil })
+	echo := bus.Handle("system.echo", func(context.Context, db.Tx, events.SystemPinged, time.Time) error { return nil })
 	return []bus.Consumer{{Durable: "system_echo", Handlers: []bus.HandlerSpec{echo}}}
 }
 

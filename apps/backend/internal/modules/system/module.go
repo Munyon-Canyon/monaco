@@ -22,7 +22,7 @@ func (m *Module) Routes(r *httpx.Routes) {
 }
 
 func (m *Module) Consumers() []bus.Consumer {
-	echo := adapters.Echo{Clock: m.deps.Clock, Hints: m.deps.Bus}
+	echo := adapters.Echo{Hints: m.deps.Bus}
 	return []bus.Consumer{
 		{Durable: "system_echo", Handlers: []bus.HandlerSpec{bus.Handle("system.echo", echo.Handle)}},
 	}

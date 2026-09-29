@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -54,11 +55,14 @@ func TestHandlerSpec_onCommitRunsOnlyAfterTheHandlerCommits(t *testing.T) {
 	refused := errs.New(errs.CodeNotFound, "test.refuse")
 	for _, spec := range []bus.HandlerSpec{
 		h.recorder("notify.push").OnCommit(notify),
-		bus.Handle("notify.refuse", func(context.Context, db.Tx, events.SystemPinged) error { return refused }).
+		bus.Handle("notify.refuse", func(context.Context, db.Tx, events.SystemPinged, time.Time) error { return refused }).
 			OnCommit(notify),
 	} {
 		ev := events.SystemPinged{V: 1, PingID: h.ids.NewV7()}
-		err := h.uow.Do(h.ctx(t), func(ctx context.Context, tx db.Tx) error { return spec.Apply(ctx, tx, ev) })
+		err := h.uow.Do(
+			h.ctx(t),
+			func(ctx context.Context, tx db.Tx) error { return spec.Apply(ctx, tx, ev, time.Time{}) },
+		)
 		if spec.Name == "notify.refuse" && !errors.Is(err, refused) {
 			t.Fatalf("Apply(%s) = %v, want the refusal", spec.Name, err)
 		}

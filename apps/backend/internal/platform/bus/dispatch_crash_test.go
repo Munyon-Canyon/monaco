@@ -3,6 +3,7 @@ package bus_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
 
@@ -21,13 +22,17 @@ func dispatchRecovering(ctx context.Context, reg *bus.Registry, msg jetstream.Ms
 func TestDispatch_aCrashPanicsThroughWithoutAVerdictOrACommit(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	crashing := bus.Handle("notify.push", func(ctx context.Context, tx db.Tx, e events.SystemPinged) error {
-		_, err := tx.Queries().Exec(ctx, `INSERT INTO handled (handler, event_id) VALUES ('notify.push', $1)`, e.PingID)
-		if err != nil {
-			return err
-		}
-		panic(faultpoint.Crash{Name: faultpoint.AfterExecute})
-	})
+	crashing := bus.Handle(
+		"notify.push",
+		func(ctx context.Context, tx db.Tx, e events.SystemPinged, _ time.Time) error {
+			_, err := tx.Queries().
+				Exec(ctx, `INSERT INTO handled (handler, event_id) VALUES ('notify.push', $1)`, e.PingID)
+			if err != nil {
+				return err
+			}
+			panic(faultpoint.Crash{Name: faultpoint.AfterExecute})
+		},
+	)
 	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{crashing}})
 	h.publishPing(t)
 	msg := fromMsg(h.fetch(t, h.consumer(t)), 1)

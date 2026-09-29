@@ -271,7 +271,7 @@ func TestRun_failsWhenALedgerCheckFails(t *testing.T) {
 func TestRun_failsOnAHandlerErrorAndOnAnUndecodablePayload(t *testing.T) {
 	t.Parallel()
 	f := echoedFlow00(t)
-	boom := bus.Handle("boom", func(context.Context, db.Tx, events.SystemPinged) error {
+	boom := bus.Handle("boom", func(context.Context, db.Tx, events.SystemPinged, time.Time) error {
 		return errs.New(errs.CodeInternal, "fixture.boom")
 	})
 	t.Run("target", func(t *testing.T) {

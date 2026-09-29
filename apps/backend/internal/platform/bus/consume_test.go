@@ -134,7 +134,7 @@ func TestDispatch_retryableErrorNaksAndTheRedeliverySucceeds(t *testing.T) {
 	h := newHarness(t)
 	var calls atomic.Int32
 	done := make(chan struct{})
-	flaky := bus.Handle("notify.push", func(ctx context.Context, tx db.Tx, e events.SystemPinged) error {
+	flaky := bus.Handle("notify.push", func(ctx context.Context, tx db.Tx, e events.SystemPinged, _ time.Time) error {
 		if calls.Add(1) == 1 {
 			return errs.New(errs.CodeUpstreamUnavailable, "apns.Send")
 		}
@@ -188,7 +188,7 @@ func TestDispatch_nonRetryableErrorTermsIntoDeadLetterAndIsNotRedelivered(t *tes
 	h := newHarness(t)
 	var calls atomic.Uint64
 	seen := make(chan struct{}, 1)
-	rejecting := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged) error {
+	rejecting := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged, time.Time) error {
 		calls.Add(1)
 		select {
 		case seen <- struct{}{}:
@@ -228,12 +228,12 @@ func TestDispatch_twoHandlersInOneConsumerDedupeIndependently(t *testing.T) {
 	h := newHarness(t)
 	var pushCalls, mailCalls atomic.Int32
 	done := make(chan struct{})
-	push := bus.Handle("notify.push", func(ctx context.Context, tx db.Tx, e events.SystemPinged) error {
+	push := bus.Handle("notify.push", func(ctx context.Context, tx db.Tx, e events.SystemPinged, _ time.Time) error {
 		pushCalls.Add(1)
 		_, err := tx.Queries().Exec(ctx, `INSERT INTO handled (handler, event_id) VALUES ('notify.push', $1)`, e.PingID)
 		return err
 	})
-	mail := bus.Handle("notify.mail", func(ctx context.Context, tx db.Tx, e events.SystemPinged) error {
+	mail := bus.Handle("notify.mail", func(ctx context.Context, tx db.Tx, e events.SystemPinged, _ time.Time) error {
 		if mailCalls.Add(1) == 1 {
 			return errs.New(errs.CodeUpstreamTimeout, "mail.Send")
 		}
@@ -263,7 +263,7 @@ func TestDispatch_nakDelayFollowsTheScheduleAndTermCarriesTheCode(t *testing.T) 
 	t.Parallel()
 	h := newHarness(t)
 	var calls atomic.Int32
-	failing := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged) error {
+	failing := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged, time.Time) error {
 		if calls.Add(1) <= 6 {
 			return errs.New(errs.CodeUpstreamUnavailable, "apns.Send")
 		}
@@ -334,7 +334,7 @@ func TestDispatch_deadLetterPublishFailureIsLoggedAndStillTerms(t *testing.T) {
 func TestRegistry_everyMaxDeliveriesAdvisoryLandsInDeadLetter(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	always := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged) error {
+	always := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged, time.Time) error {
 		return errs.New(errs.CodeUpstreamUnavailable, "apns.Send")
 	})
 	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{always}, NakDelays: quick()})

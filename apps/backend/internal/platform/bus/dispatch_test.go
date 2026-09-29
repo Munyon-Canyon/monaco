@@ -95,7 +95,7 @@ func (h *harness) registry(t *testing.T, consumers ...bus.Consumer) *bus.Registr
 }
 
 func (h *harness) recorder(name string) bus.HandlerSpec {
-	return bus.Handle(name, func(ctx context.Context, tx db.Tx, e events.SystemPinged) error {
+	return bus.Handle(name, func(ctx context.Context, tx db.Tx, e events.SystemPinged, _ time.Time) error {
 		_, err := tx.Queries().Exec(ctx, `INSERT INTO handled (handler, event_id) VALUES ($1, $2)`, name, e.PingID)
 		return err
 	})
@@ -280,7 +280,7 @@ func TestDispatch_verdictFollowsTheErrorCode(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	var calls atomic.Int32
-	failing := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged) error {
+	failing := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged, time.Time) error {
 		if calls.Add(1) == 1 {
 			return errs.New(errs.CodeUpstreamUnavailable, "apns.Send")
 		}
@@ -351,13 +351,17 @@ func (h *harness) pingID(t *testing.T, eventID uuid.UUID) uuid.UUID {
 func TestDispatch_panicTermsWithCodePanicAndCommitsNothing(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	exploding := bus.Handle("notify.push", func(ctx context.Context, tx db.Tx, e events.SystemPinged) error {
-		_, err := tx.Queries().Exec(ctx, `INSERT INTO handled (handler, event_id) VALUES ('notify.push', $1)`, e.PingID)
-		if err != nil {
-			return err
-		}
-		panic("boom")
-	})
+	exploding := bus.Handle(
+		"notify.push",
+		func(ctx context.Context, tx db.Tx, e events.SystemPinged, _ time.Time) error {
+			_, err := tx.Queries().
+				Exec(ctx, `INSERT INTO handled (handler, event_id) VALUES ('notify.push', $1)`, e.PingID)
+			if err != nil {
+				return err
+			}
+			panic("boom")
+		},
+	)
 	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{exploding}})
 	h.publishPing(t)
 	msg := fromMsg(h.fetch(t, h.consumer(t)), 1)

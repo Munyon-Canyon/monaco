@@ -83,7 +83,7 @@ func TestRun_finishesAnInFlightHandlerAfterSIGTERMAndAcksItBeforeExiting(t *test
 	applyStreams(t, url)
 	pool, addr, logs := testkit.DB(t), freeAddr(t), &testkit.Logs{}
 	started, release := make(chan struct{}), make(chan struct{})
-	slow := bus.Handle("worker.slow", func(ctx context.Context, _ db.Tx, _ events.SystemPinged) error {
+	slow := bus.Handle("worker.slow", func(ctx context.Context, _ db.Tx, _ events.SystemPinged, _ time.Time) error {
 		close(started)
 		<-release
 		return ctx.Err()
@@ -148,7 +148,7 @@ func TestStartConsumers_cancelsAHandlerStillRunningWhenTheShutdownBudgetRunsOut(
 	pool := testkit.DB(t)
 	uow := db.New(pool, ids.Real{}, clock.Real{})
 	started, cancelled := make(chan struct{}), make(chan error, 1)
-	stuck := bus.Handle("worker.stuck", func(ctx context.Context, _ db.Tx, _ events.SystemPinged) error {
+	stuck := bus.Handle("worker.stuck", func(ctx context.Context, _ db.Tx, _ events.SystemPinged, _ time.Time) error {
 		close(started)
 		<-ctx.Done()
 		cancelled <- ctx.Err()
