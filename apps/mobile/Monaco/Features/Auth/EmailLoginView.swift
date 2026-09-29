@@ -32,7 +32,7 @@ extension OTPDestination {
         display: { $0 }
     )
 
-    private static func normalizedEmail(_ input: String) -> String? {
+    private nonisolated static func normalizedEmail(_ input: String) -> String? {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         // Deliberately loose: the provider is the real judge of an address.
         let parts = trimmed.split(separator: "@", omittingEmptySubsequences: false)

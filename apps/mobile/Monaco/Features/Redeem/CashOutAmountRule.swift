@@ -12,7 +12,7 @@ import MonacoCore
 /// So the rule is not "may I submit" but "what is this amount": the screen shows the reason, and a
 /// sale that would strand dust is promoted to a full exit instead.
 enum CashOutAmountRule {
-    enum Verdict: Equatable {
+    nonisolated enum Verdict: Equatable {
         /// Nothing typed yet.
         case noAmount
         /// Under the floor, so it cannot be sold at all.
@@ -61,7 +61,7 @@ enum CashOutAmountRule {
     }
 
     /// What a sale puts on the wire.
-    enum Sale: Equatable {
+    nonisolated enum Sale: Equatable {
         /// Close the position outright: the request carries no share amount at all. Sending a
         /// share amount for a full exit is what strands dust in the first place, because those
         /// units are a rounded conversion of a dollar figure and land a hair short of the slice.

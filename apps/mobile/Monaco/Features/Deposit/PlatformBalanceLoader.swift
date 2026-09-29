@@ -40,7 +40,8 @@ final class PlatformBalanceLoader: ObservableObject {
         self.fetch = fetch
     }
 
-    convenience init(apiClient: MonacoAPIClient = MonacoAPIClient()) {
+    convenience init(apiClient: MonacoAPIClient? = nil) {
+        let apiClient = apiClient ?? MonacoAPIClient()
         self.init { token in try await apiClient.getPlatformBalance(accessToken: token) }
     }
 

@@ -39,7 +39,7 @@ extension OTPDestination {
 /// the country code that says it went to the right country. Any other number reads in its E.164
 /// form, because where its spaces go depends on a country this app does not look up.
 enum PhoneReadBack {
-    static func format(_ e164: String) -> String {
+    nonisolated static func format(_ e164: String) -> String {
         let digits = e164.dropFirst()
         guard e164.hasPrefix("+1"),
               digits.count == 11,

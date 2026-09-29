@@ -87,8 +87,8 @@ final class AppSessionStore {
     /// cannot put the old name back.
     private var profileWriteGeneration = 0
 
-    init(apiClient: AppSessionDataSource = MonacoAPIClient()) {
-        self.apiClient = apiClient
+    init(apiClient: AppSessionDataSource? = nil) {
+        self.apiClient = apiClient ?? MonacoAPIClient()
     }
 
     var joinedCabals: [HomeGroupBoardRowDTO] {

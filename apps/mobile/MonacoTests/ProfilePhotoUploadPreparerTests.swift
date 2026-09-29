@@ -117,8 +117,12 @@ final class ProfilePhotoUploadPreparerTests: XCTestCase {
         _ data: Data
     ) async -> (Result<ProfilePhotoUploadPreparer.Prepared, ProfilePhotoUploadPreparer.Failure>, Bool) {
         await Task.detached(priority: .userInitiated) {
-            (ProfilePhotoUploadPreparer.prepare(from: data), Thread.isMainThread)
+            (ProfilePhotoUploadPreparer.prepare(from: data), isOnMainThread())
         }.value
+    }
+
+    private nonisolated static func isOnMainThread() -> Bool {
+        Thread.isMainThread
     }
 
     private static func unwrap(
