@@ -135,7 +135,7 @@ func TestUp_reportsSchemaAndPostgresFailures(t *testing.T) {
 	}
 }
 
-func TestDown_killsAProcessThatIgnoresSIGTERMAndSaysSo(t *testing.T) {
+func TestDown_namesTheProcessThatSpentTheTeardownBudget(t *testing.T) {
 	t.Parallel()
 	o := testOptions(t, fakeDeaf)
 	o.Budget.Teardown = 300 * time.Millisecond
@@ -145,8 +145,20 @@ func TestDown_killsAProcessThatIgnoresSIGTERMAndSaysSo(t *testing.T) {
 	}
 	err = s.Down(t.Context())
 	var over *OverBudgetError
-	if !errors.As(err, &over) || over.Phase != PhaseTeardown || !strings.Contains(err.Error(), "ignored SIGTERM") {
+	if !errors.As(err, &over) || over.Phase != PhaseTeardown {
 		t.Fatalf("Down = %v, want the teardown budget named", err)
+	}
+	for _, want := range []string{
+		"worker did not exit within the budget after SIGTERM",
+		"api was killed without a graceful stop because the budget was already spent",
+		"fakes was killed without a graceful stop because the budget was already spent",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("Down = %v, want %q", err, want)
+		}
+	}
+	if strings.Contains(err.Error(), "ignored") {
+		t.Errorf("Down = %v, want no process blamed for ignoring the signal", err)
 	}
 	for name, p := range s.procs {
 		if p.running() {
