@@ -23,7 +23,7 @@ cd "$root"
 if [[ ${#files[@]} -eq 0 && -n "$base" ]]; then
   while IFS= read -r f; do
     [[ -n "$f" ]] && files+=("$f")
-  done < <(git diff --name-only "$base"...HEAD -- 'apps/backend/**/*_test.go')
+  done < <(git diff --name-only --diff-filter=d "$base"...HEAD -- 'apps/backend/**/*_test.go')
 fi
 
 if [[ ${#files[@]} -eq 0 ]]; then
