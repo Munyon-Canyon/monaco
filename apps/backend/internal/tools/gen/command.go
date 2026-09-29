@@ -5,19 +5,15 @@ import (
 	"path/filepath"
 )
 
-func planCommand(root *os.Root, args []string) (Plan, error) {
+func planCommand(root *os.Root, modPath string, args []string) (Plan, error) {
 	module, name := args[0], args[1]
 	if err := requireModule(root, module, name, exportPattern); err != nil {
 		return Plan{}, err
 	}
-	d, err := newData(root, module, name)
-	if err != nil {
-		return Plan{}, err
-	}
+	d := newData(modPath, module, name)
 	dir := moduleDir(module)
-	create, err := renderAll(d, map[string]string{
+	return Plan{Create: renderAll(d, map[string]string{
 		filepath.Join(dir, "app", d.File+".go"): "command/command.go.tmpl",
 		filepath.Join(dir, d.File+"_test.go"):   "command/command_test.go.tmpl",
-	})
-	return Plan{Create: create}, err
+	})}, nil
 }

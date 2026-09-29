@@ -10,7 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
-func planFlow(root *os.Root, args []string) (Plan, error) {
+func planFlow(root *os.Root, modPath string, args []string) (Plan, error) {
 	const op = "gen.planFlow"
 	raw, err := root.ReadFile(flows.File)
 	if err != nil {
@@ -28,15 +28,11 @@ func planFlow(root *os.Root, args []string) (Plan, error) {
 	if err := requireModule(root, f.Module, f.Command, exportPattern); err != nil {
 		return Plan{}, err
 	}
-	d, err := newData(root, f.Module, f.Command)
-	if err != nil {
-		return Plan{}, err
-	}
+	d := newData(modPath, f.Module, f.Command)
 	for _, o := range f.Outcomes {
 		d.Tests = append(d.Tests, flows.TestName(f, o))
 	}
-	create, err := renderAll(d, map[string]string{
+	return Plan{Create: renderAll(d, map[string]string{
 		filepath.Join(moduleDir(f.Module), "flow"+f.ID+"_test.go"): "flow/flow_test.go.tmpl",
-	})
-	return Plan{Create: create}, err
+	})}, nil
 }

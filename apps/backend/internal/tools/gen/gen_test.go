@@ -207,22 +207,20 @@ func TestQuery_namesTheSqlcQueryItCalls(t *testing.T) {
 
 func TestModuleScopedGenerators_rejectBadNamesAndMissingModules(t *testing.T) {
 	t.Parallel()
-	for _, kind := range []string{"command", "query"} {
+	for _, kind := range []string{"command", "query", "consumer"} {
 		for name, tc := range map[string]struct{ module, name, want string }{
-			"lower case name": {"wallets", "openWallet", "must match"},
-			"bad module":      {"Wallets", "OpenWallet", "must match"},
-			"missing module":  {"ledger", "OpenWallet", "run gen module ledger first"},
+			"bad name":       {"wallets", "open-wallet", "must match"},
+			"bad module":     {"Wallets", "OpenWallet", "must match"},
+			"missing module": {"ledger", "OpenWallet", "run gen module ledger first"},
 		} {
 			t.Run(kind+"/"+name, func(t *testing.T) {
 				t.Parallel()
-				root := withModule(t)
-				if _, err := gen.Apply(
-					root,
-					kind,
-					tc.module,
-					tc.name,
-				); err == nil ||
-					!strings.Contains(err.Error(), tc.want) {
+				name := tc.name
+				if kind == "consumer" {
+					name = strings.ToLower(name[:1]) + name[1:]
+				}
+				_, err := gen.Apply(withModule(t), kind, tc.module, name)
+				if err == nil || !strings.Contains(err.Error(), tc.want) {
 					t.Fatalf("err = %v, want %q", err, tc.want)
 				}
 			})
@@ -402,3 +400,25 @@ func TestFlow_rejectsRowsItCannotNameTestsFor(t *testing.T) {
 		})
 	}
 }
+
+func TestFlow_needsFlowsTSV(t *testing.T) {
+	t.Parallel()
+	if _, err := gen.Apply(withModule(t), "flow", "1"); err == nil || !strings.Contains(err.Error(), "flows.tsv") {
+		t.Fatalf("err = %v, want flows.tsv named", err)
+	}
+}
+
+func TestCheck_panicsNamingTheTemplateBug(t *testing.T) {
+	t.Parallel()
+	gen.Check("fine", nil)
+	defer func() {
+		if got := recover(); got != "gen: template x: boom" {
+			t.Fatalf("recover = %v", got)
+		}
+	}()
+	gen.Check("template x", boomError("boom"))
+}
+
+type boomError string
+
+func (p boomError) Error() string { return string(p) }

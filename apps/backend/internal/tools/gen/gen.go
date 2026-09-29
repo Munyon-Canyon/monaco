@@ -41,7 +41,7 @@ func invalid(op, format string, args ...any) error {
 type Generator struct {
 	Kind string
 	Args []string
-	plan func(root *os.Root, args []string) (Plan, error)
+	plan func(root *os.Root, modPath string, args []string) (Plan, error)
 	post func(ctx context.Context, dir string) error
 }
 
@@ -90,7 +90,11 @@ func (g Generator) write(dir string, args []string) ([]string, error) {
 		return nil, errs.Wrap(err, errs.CodeInvalidInput, op)
 	}
 	defer func() { _ = root.Close() }()
-	p, err := g.plan(root, args)
+	modPath, err := modulePath(root)
+	if err != nil {
+		return nil, err
+	}
+	p, err := g.plan(root, modPath, args)
 	if err != nil {
 		return nil, err
 	}
@@ -151,15 +155,16 @@ func Regenerate(ctx context.Context, dir string) error {
 		exec.CommandContext(ctx, "go", "run", "-trimpath", "./scripts/gen-registry", "."),
 	} {
 		cmd.Dir = dir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return errs.Wrap(
-				problem(string(out)),
-				errs.CodeInternal,
-				op,
-				slog.String("cmd", cmd.String()),
-				slog.Any("err", err),
-			)
+		if err := runQuiet(cmd, op); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+func runQuiet(cmd *exec.Cmd, op string) error {
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return errs.Wrap(problem(cmd.String()+": "+err.Error()+"\n"+string(out)), errs.CodeInternal, op)
 	}
 	return nil
 }
@@ -173,12 +178,8 @@ type data struct {
 	Tests   []string
 }
 
-func newData(root *os.Root, module, name string) (data, error) {
-	modPath, err := modulePath(root)
-	if err != nil {
-		return data{}, err
-	}
-	return data{ModPath: modPath, Module: module, Name: name, File: snake(name)}, nil
+func newData(modPath, module, name string) data {
+	return data{ModPath: modPath, Module: module, Name: name, File: snake(name)}
 }
 
 func modulePath(root *os.Root) (string, error) {
@@ -195,36 +196,34 @@ func modulePath(root *os.Root) (string, error) {
 	return "", invalid(op, "go.mod has no module line")
 }
 
-func render(name string, d data) (string, error) {
-	const op = "gen.render"
-	tmpl, err := template.ParseFS(templates, "templates/"+name)
-	if err != nil {
-		return "", errs.Wrap(err, errs.CodeInternal, op, slog.String("template", name))
-	}
+func render(name string, d data) string {
+	tmpl := template.Must(template.ParseFS(templates, "templates/"+name))
 	var out bytes.Buffer
-	if err := tmpl.Execute(&out, d); err != nil {
-		return "", errs.Wrap(err, errs.CodeInternal, op, slog.String("template", name))
-	}
+	check("template "+name, tmpl.Execute(&out, d))
 	if !strings.HasSuffix(name, ".go.tmpl") {
-		return out.String(), nil
+		return out.String()
 	}
-	src, err := format.Source(out.Bytes())
-	if err != nil {
-		return "", errs.Wrap(err, errs.CodeInternal, op, slog.String("template", name))
-	}
-	return string(src), nil
+	return gofmt(out.String())
 }
 
-func renderAll(d data, files map[string]string) (map[string]string, error) {
+func gofmt(src string) string {
+	out, err := format.Source([]byte(src))
+	check("generated Go does not parse:\n"+src, err)
+	return string(out)
+}
+
+func check(what string, err error) {
+	if err != nil {
+		panic("gen: " + what + ": " + err.Error())
+	}
+}
+
+func renderAll(d data, files map[string]string) map[string]string {
 	out := make(map[string]string, len(files))
 	for rel, tmpl := range files {
-		body, err := render(tmpl, d)
-		if err != nil {
-			return nil, err
-		}
-		out[rel] = body
+		out[rel] = render(tmpl, d)
 	}
-	return out, nil
+	return out
 }
 
 func snake(name string) string {

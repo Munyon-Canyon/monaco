@@ -8,30 +8,23 @@ import (
 
 const changelogAdded = "### Added\n\n"
 
-func planModule(root *os.Root, args []string) (Plan, error) {
+func planModule(_ *os.Root, modPath string, args []string) (Plan, error) {
 	name := args[0]
 	if !modulePattern.MatchString(name) {
 		return Plan{}, invalid("gen.planModule", "module %q must match %s", name, modulePattern)
 	}
-	d, err := newData(root, name, name)
-	if err != nil {
-		return Plan{}, err
-	}
+	d := newData(modPath, name, name)
 	dir := moduleDir(name)
-	create, err := renderAll(d, map[string]string{
-		filepath.Join(dir, "module.go"):               "module/module.go.tmpl",
-		filepath.Join(dir, "main_test.go"):            "module/main_test.go.tmpl",
-		filepath.Join(dir, "domain", "domain.go"):     "module/domain.go.tmpl",
-		filepath.Join(dir, "app", "app.go"):           "module/app.go.tmpl",
-		filepath.Join(dir, "adapters", "adapters.go"): "module/adapters.go.tmpl",
-		filepath.Join("queries", name, ".gitkeep"):    "module/gitkeep.tmpl",
-	})
-	if err != nil {
-		return Plan{}, err
-	}
 	return Plan{
-		Create: create,
-		Edit:   map[string]func(string) (string, error){"CHANGELOG.md": changelogStub(name)},
+		Create: renderAll(d, map[string]string{
+			filepath.Join(dir, "module.go"):               "module/module.go.tmpl",
+			filepath.Join(dir, "main_test.go"):            "module/main_test.go.tmpl",
+			filepath.Join(dir, "domain", "domain.go"):     "module/domain.go.tmpl",
+			filepath.Join(dir, "app", "app.go"):           "module/app.go.tmpl",
+			filepath.Join(dir, "adapters", "adapters.go"): "module/adapters.go.tmpl",
+			filepath.Join("queries", name, ".gitkeep"):    "module/gitkeep.tmpl",
+		}),
+		Edit: map[string]func(string) (string, error){"CHANGELOG.md": changelogStub(name)},
 	}, nil
 }
 

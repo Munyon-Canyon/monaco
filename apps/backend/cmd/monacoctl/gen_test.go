@@ -169,3 +169,37 @@ func TestGen_otherArgsPrintUsage(t *testing.T) {
 		}
 	}
 }
+
+func TestGen_scaffoldsIntoTheWorkingDirAndPrintsWhatItWrote(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/app\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gen := toolGen(toolEnv{wd: root})
+	var stdout, stderr bytes.Buffer
+	if code := gen([]string{"provider", "quotes"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("gen provider = %d, stderr %q", code, stderr.String())
+	}
+	if !strings.HasPrefix(stdout.String(), "internal/providers/quotes/client.go\n") ||
+		strings.Count(stdout.String(), "\n") != 6 {
+		t.Fatalf("stdout = %q, want the six written files", stdout.String())
+	}
+	stdout.Reset()
+	if code := gen([]string{"flow", "1"}, &stdout, &stderr); code != 1 || stdout.Len() != 0 ||
+		!strings.HasPrefix(
+			stderr.String(),
+			"monacoctl: gen.planFlow",
+		) || !strings.Contains(stderr.String(), "flows.tsv") {
+		t.Fatalf("gen flow without flows.tsv = %d %q %q, want 1 and the error", code, stdout.String(), stderr.String())
+	}
+	stderr.Reset()
+	if code := gen(
+		[]string{"nope"},
+		&stdout,
+		&stderr,
+	); code != 2 ||
+		!strings.Contains(stderr.String(), "monacoctl gen flow <id>") {
+		t.Fatalf("gen nope = %d %q, want 2 and usage", code, stderr.String())
+	}
+}

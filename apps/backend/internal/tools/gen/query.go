@@ -3,7 +3,6 @@ package gen
 import (
 	"context"
 	"io/fs"
-	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -37,20 +36,16 @@ const (
 `
 )
 
-func planQuery(root *os.Root, args []string) (Plan, error) {
+func planQuery(root *os.Root, modPath string, args []string) (Plan, error) {
 	module, name := args[0], args[1]
 	if err := requireModule(root, module, name, exportPattern); err != nil {
 		return Plan{}, err
 	}
-	d, err := newData(root, module, name)
-	if err != nil {
-		return Plan{}, err
-	}
-	create, err := renderAll(d, map[string]string{
+	d := newData(modPath, module, name)
+	return Plan{Create: renderAll(d, map[string]string{
 		filepath.Join("queries", module, d.File+".sql"):             "query/query.sql.tmpl",
 		filepath.Join(moduleDir(module), "app", d.File+"_query.go"): "query/query.go.tmpl",
-	})
-	return Plan{Create: create}, err
+	})}, nil
 }
 
 func regenerateQueries(ctx context.Context, dir string) error {
@@ -62,10 +57,7 @@ func regenerateQueries(ctx context.Context, dir string) error {
 		cmd = exec.CommandContext(ctx, "../../.bin/sqlc", "generate")
 	}
 	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return errs.Wrap(problem(string(out)), errs.CodeInternal, "gen.regenerateQueries", slog.Any("err", err))
-	}
-	return nil
+	return runQuiet(cmd, "gen.regenerateQueries")
 }
 
 func syncSqlc(dir string) error {

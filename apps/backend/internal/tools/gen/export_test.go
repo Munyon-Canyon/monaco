@@ -9,3 +9,5 @@ func Apply(root, kind string, args ...string) ([]string, error) {
 	}
 	return g.write(root, args)
 }
+
+func Check(what string, err error) { check(what, err) }

@@ -2,7 +2,6 @@ package gen
 
 import (
 	"go/ast"
-	"go/format"
 	"go/parser"
 	"go/token"
 	"os"
@@ -19,37 +18,30 @@ const (
 	mainWithNATS    = "testkit.Main(m, testkit.WithNATS())"
 )
 
-func planConsumer(root *os.Root, args []string) (Plan, error) {
+func planConsumer(root *os.Root, modPath string, args []string) (Plan, error) {
 	module, name := args[0], args[1]
 	if err := requireModule(root, module, name, lowerPattern); err != nil {
 		return Plan{}, err
 	}
-	d, err := newData(root, module, name)
-	if err != nil {
-		return Plan{}, err
-	}
+	d := newData(modPath, module, name)
 	d.Handler = string(unicode.ToUpper(rune(name[0]))) + name[1:]
 	dir := moduleDir(module)
-	create, err := renderAll(d, map[string]string{
-		filepath.Join(dir, "adapters", d.File+".go"): "consumer/consumer.go.tmpl",
-		filepath.Join(dir, d.File+"_test.go"):        "consumer/consumer_test.go.tmpl",
-	})
-	if err != nil {
-		return Plan{}, err
-	}
-	entry, err := render("consumer/entry.tmpl", d)
-	if err != nil {
-		return Plan{}, err
-	}
-	adapters := `"` + d.ModPath + "/internal/modules/" + module + `/adapters"`
-	return Plan{Create: create, Edit: map[string]func(string) (string, error){
-		filepath.Join(dir, "module.go"): func(old string) (string, error) {
-			return appendToReturn(withImport(old, adapters), "Consumers", strings.TrimSpace(entry))
+	entry := strings.TrimSpace(render("consumer/entry.tmpl", d))
+	adapters := `"` + modPath + "/internal/modules/" + module + `/adapters"`
+	return Plan{
+		Create: renderAll(d, map[string]string{
+			filepath.Join(dir, "adapters", d.File+".go"): "consumer/consumer.go.tmpl",
+			filepath.Join(dir, d.File+"_test.go"):        "consumer/consumer_test.go.tmpl",
+		}),
+		Edit: map[string]func(string) (string, error){
+			filepath.Join(dir, "module.go"): func(old string) (string, error) {
+				return appendToReturn(withImport(old, adapters), "Consumers", entry)
+			},
+			filepath.Join(dir, "main_test.go"): func(old string) (string, error) {
+				return strings.Replace(old, mainWithoutNATS, mainWithNATS, 1), nil
+			},
 		},
-		filepath.Join(dir, "main_test.go"): func(old string) (string, error) {
-			return strings.Replace(old, mainWithoutNATS, mainWithNATS, 1), nil
-		},
-	}}, nil
+	}, nil
 }
 
 func withImport(src, path string) string {
@@ -79,10 +71,10 @@ func appendToReturn(src, method, entry string) (string, error) {
 	if lit == nil {
 		return "", invalid(op, "%s must be a single return of a slice literal", method)
 	}
-	at := fset.Position(lit.Rbrace).Offset
-	out, err := format.Source([]byte(src[:at] + "\n" + entry + ",\n" + src[at:]))
-	if err != nil {
-		return "", invalid(op, "format: %v", err)
+	if len(lit.Elts) == 0 {
+		at := fset.Position(lit.Rbrace).Offset
+		return gofmt(src[:at] + "\n" + entry + ",\n" + src[at:]), nil
 	}
-	return string(out), nil
+	at := fset.Position(lit.Elts[len(lit.Elts)-1].End()).Offset
+	return gofmt(src[:at] + ",\n" + entry + src[at:]), nil
 }
