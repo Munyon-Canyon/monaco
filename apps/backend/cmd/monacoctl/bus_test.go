@@ -10,7 +10,8 @@ import (
 
 func TestBusApply_createsBothStreamsThenReportsNoChanges(t *testing.T) {
 	t.Parallel()
-	environ := []string{"MONACO_ENV=test", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=" + testkit.NATSURL()}
+	url := testkit.StandaloneNATS(t)
+	environ := []string{"MONACO_ENV=test", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=" + url}
 	want := []string{
 		"EVENTS: created\nDEADLETTER: created\n",
 		"EVENTS: no changes\nDEADLETTER: no changes\n",
