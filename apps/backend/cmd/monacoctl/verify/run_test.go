@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -157,10 +159,8 @@ func TestRun_failsWithTheReasonAndExitOne(t *testing.T) {
 		}, "read flows.tsv"},
 		{"script", func(_ *testing.T, cfg *Config) { cfg.Scripts = nil }, "flow 90 outcome ok has no script F90HealthOK"},
 		{"flow", func(_ *testing.T, cfg *Config) {
-			cfg.Scripts["F90HealthOK"] = func(s *scenario.Scenario) {
-				s.When(scenario.Get("/nope"), scenario.ExpectStatus(http.StatusOK))
-			}
-		}, "1 of 1 flow outcomes failed"},
+			cfg.Scripts["F90HealthOK"] = func(s *scenario.Scenario) { s.When(scenario.Get("/nope")) }
+		}, "1 of 1 flow outcomes failed, 0 run invariants failed"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -168,6 +168,62 @@ func TestRun_failsWithTheReasonAndExitOne(t *testing.T) {
 			tc.edit(t, &cfg)
 			if code := Run(t.Context(), cfg, Target{}); code != 1 || !strings.Contains(stderr.String(), tc.want) {
 				t.Fatalf("Run = %d, stderr %q, want 1 and %q", code, stderr, tc.want)
+			}
+		})
+	}
+}
+
+func gitInit(t *testing.T, dir string) string {
+	t.Helper()
+	git := func(args ...string) string {
+		base := []string{
+			"-C", dir, "-c", "user.name=verify", "-c", "user.email=verify@example.com", "-c", "commit.gpgsign=false",
+		}
+		out, err := exec.CommandContext(t.Context(), "git", append(base, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("/.verify/\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	git("init", "-q")
+	git("add", "-A")
+	git("commit", "-q", "-m", "flows")
+	return git("rev-parse", "HEAD")
+}
+
+func TestRun_stampsEvidenceWithTheCommitAndDirtyFlagEvenOverBudget(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		edit   func(t *testing.T, cfg *Config)
+		code   int
+		dirty  bool
+		result string
+	}{
+		{"clean", func(*testing.T, *Config) {}, 0, false, resultPass},
+		{"dirty", func(t *testing.T, cfg *Config) {
+			t.Helper()
+			if err := os.WriteFile(filepath.Join(cfg.Dir, "wip"), nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}, 0, true, resultPass},
+		{"over budget", func(_ *testing.T, cfg *Config) { cfg.Budget.Total = time.Nanosecond }, 1, false, resultOverBudget},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg, stdout, stderr := testConfig(t, "ok")
+			head := gitInit(t, cfg.Dir)
+			tc.edit(t, &cfg)
+			if code := Run(t.Context(), cfg, Target{Flow: "90"}); code != tc.code {
+				t.Fatalf("Run = %d, want %d\n%s\n%s", code, tc.code, stdout, stderr)
+			}
+			ev := readEvidence(t, filepath.Join(cfg.Dir, ".verify", "90.json"))
+			if ev.Commit != head || ev.Dirty != tc.dirty || ev.Result != tc.result {
+				t.Fatalf("evidence commit %q dirty %v result %q, want %q %v %q",
+					ev.Commit, ev.Dirty, ev.Result, head, tc.dirty, tc.result)
 			}
 		})
 	}

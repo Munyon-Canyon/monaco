@@ -44,7 +44,9 @@ type Result struct {
 	Users     []string
 	Events    []string
 
-	mu sync.Mutex
+	rows     []EventEvidence
+	logLines []string
+	mu       sync.Mutex
 }
 
 func (r *Result) Pass() bool { return r.Failure == "" }

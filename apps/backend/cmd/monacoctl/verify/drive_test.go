@@ -3,11 +3,14 @@ package verify
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/system"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
@@ -54,7 +57,7 @@ func TestVerifyUnits_flow00PassesOverHTTPWithAuthIdempotencyKeysAndSSE(t *testin
 		t.Context(),
 		cfg,
 		servedEnv(t),
-		flow00(t, Target{Flow: "00"}),
+		newReport(t.Context(), Target{}, flow00(t, Target{Flow: "00"})),
 		parallelFlows,
 	); err != nil {
 		t.Fatalf("verifyUnits: %v\n%s", err, out)
@@ -150,5 +153,92 @@ func TestDriver_convergenceTimesOutNamingTheStuckConsumer(t *testing.T) {
 	want := "consumer ghost handler ghost.echo has not handled event"
 	if res.Over == nil || res.Over.Phase != PhaseConverge || !strings.Contains(res.Failure, want) {
 		t.Fatalf("result = %+v, want %q", res, want)
+	}
+}
+
+func TestDriver_reportsInvariantFailures(t *testing.T) {
+	t.Parallel()
+	post := func(s *scenario.Scenario) {
+		s.Given(scenario.AsUser("alice")).When(scenario.Post("/v1/system/pings", `{"note":"hi"}`))
+	}
+	for _, tc := range []struct {
+		name    string
+		outcome string
+		script  flows.Script
+		edit    func(*Env, *Unit)
+		want    string
+	}{
+		{
+			"no trigger", "ok", func(s *scenario.Scenario) { s.When(scenario.Get("/healthz")) }, nil,
+			"no POST /v1/system/pings request was sent",
+		},
+		{"error status", "ok", func(s *scenario.Scenario) {
+			s.When(scenario.Anonymous(), scenario.Post("/v1/system/pings", `{}`))
+		}, nil, "answered 401, want a 2xx for outcome ok"},
+		{"wrong code", "InvalidInput", post, nil, `answered 201 code "", want 400 code "invalid_input"`},
+		{"missing logs", "ok", post, func(e *Env, _ *Unit) { e.Logs = &Logs{} }, "no http.request log line"},
+		{"missing attr", "ok", post, func(e *Env, _ *Unit) {
+			e.Logs = &Logs{}
+			e.Logs.add("api", `{"msg":"http.request","method":"POST","route":"/v1/system/pings"}`)
+		}, `http.request log line from api lacks required attr "status"`},
+		{"missing consumer", "ok", post, func(e *Env, u *Unit) {
+			e.Consumers = []bus.Consumer{{Durable: "nobody", Handlers: e.Consumers[0].Handlers}}
+			u.Flow.Consumers = []string{"nobody"}
+		}, "consumer nobody:"},
+		{
+			"failed script", "ok", func(s *scenario.Scenario) { s.Then(scenario.ExpectStatus(http.StatusOK)) }, nil,
+			"scenario: no request has been sent",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			env := servedEnv(t)
+			u := flow00(t, Target{Flow: "00", Outcome: "ok"})[0]
+			u.Outcome, u.Script = tools.Outcome(tc.outcome), tc.script
+			if tc.edit != nil {
+				tc.edit(&env, &u)
+			}
+			d, err := newDriver(env, DefaultBudget())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res := d.run(t.Context(), u); res.Pass() || !strings.Contains(res.Failure, tc.want) {
+				t.Fatalf("result = %+v, want %q", res, tc.want)
+			}
+		})
+	}
+}
+
+func TestVerifyUnits_failsOnDeadLettersInternalErrorsAndLedgerChecks(t *testing.T) {
+	t.Parallel()
+	env := servedEnv(t)
+	ns := strings.TrimSuffix(env.DeadLetter, "_"+bus.StreamDeadLetter)
+	if _, err := env.JS.Publish(t.Context(), ns+".deadletter.system_echo", []byte("{}")); err != nil {
+		t.Fatal(err)
+	}
+	env.Logs.add("worker", `{"msg":"bus.dispatched","code":"internal"}`)
+	cfg, out := driveConfig(DefaultBudget())
+	cfg.Ledger = []LedgerCheck{{Name: "cabal", Check: func(context.Context, *pgxpool.Pool) error {
+		return errors.New("balance off by 1")
+	}}}
+	err := verifyUnits(
+		t.Context(),
+		cfg,
+		env,
+		newReport(t.Context(), Target{}, flow00(t, Target{Flow: "00", Outcome: "Unauthorized"})),
+		1,
+	)
+	if !errors.Is(err, errFailed) {
+		t.Fatalf("verifyUnits = %v, want a failure", err)
+	}
+	for _, want := range []string{
+		"PASS flow 00 Unauthorized",
+		"FAIL invariant: 1 dead letters in",
+		"FAIL invariant: worker logged an internal error",
+		"FAIL invariant: ledger cabal: balance off by 1",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
 	}
 }

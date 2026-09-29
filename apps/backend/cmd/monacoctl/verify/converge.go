@@ -40,17 +40,6 @@ func (d *driver) flowEvents(ctx context.Context, users []string) ([]string, erro
 	return ids, nil
 }
 
-func (d *driver) settle(ctx context.Context, res *Result) error {
-	query, cancel := detached(ctx)
-	defer cancel()
-	ids, err := d.flowEvents(query, res.Users)
-	res.Events = ids
-	if err != nil {
-		return err
-	}
-	return d.converge(ctx, res.Unit, ids)
-}
-
 func (d *driver) converge(ctx context.Context, u Unit, eventIDs []string) error {
 	tick := time.NewTicker(pollEvery)
 	defer tick.Stop()

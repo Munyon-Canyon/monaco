@@ -83,6 +83,7 @@ type Config struct {
 	Postgres PostgresFunc
 	Modules  func(module.Deps) module.Set
 	Scripts  map[string]flows.Script
+	Ledger   []LedgerCheck
 	Stdout   io.Writer
 	Stderr   io.Writer
 }
@@ -104,16 +105,33 @@ func run(ctx context.Context, cfg Config, target Target) (err error) {
 	if err != nil {
 		return err
 	}
+	rep := newReport(ctx, target, units)
+	defer func() {
+		writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.Budget.Teardown)
+		defer cancel()
+		err = errors.Join(err, rep.write(writeCtx, cfg.Dir, err))
+	}()
+	began := time.Now()
 	bins, cover, cleanup, err := prepare(ctx, cfg, target)
 	defer func() { err = errors.Join(err, cleanup()) }()
+	rep.phases[PhaseBuild] = time.Since(began)
 	if err != nil {
 		return err
 	}
-	stack, err := Up(ctx, Options{
+	runCtx, cancel := context.WithTimeoutCause(ctx, cfg.Budget.Total,
+		&OverBudgetError{Phase: PhaseTotal, Budget: cfg.Budget.Total})
+	defer cancel()
+	began = time.Now()
+	stack, err := Up(runCtx, Options{
 		Dir: cfg.Dir, Atlas: cfg.Atlas, Docker: cfg.Docker, Environ: cfg.Environ, Bins: bins,
 		Budget: cfg.Budget, Postgres: cfg.Postgres, CoverDir: cover,
 	})
-	defer func() { err = errors.Join(err, stack.Down(ctx)) }()
+	rep.phases[PhaseStack] = time.Since(began)
+	defer func() {
+		began := time.Now()
+		err = errors.Join(err, stack.Down(runCtx))
+		rep.phases[PhaseTeardown] = time.Since(began)
+	}()
 	if err != nil {
 		return err
 	}
@@ -122,11 +140,11 @@ func run(ctx context.Context, cfg Config, target Target) (err error) {
 		Clock: clock.Real{}, IDs: ids.Real{}, Pool: stack.Pool, Bus: stack.Bus,
 		UoW: db.New(stack.Pool, ids.Real{}, clock.Real{}),
 	}).Consumers()
-	return verifyUnits(ctx, cfg, Env{
+	return verifyUnits(runCtx, cfg, Env{
 		API: stack.API, TokenKey: stack.TokenKey, Pool: stack.Pool, JS: stack.NATS.JS,
 		Events: bus.StreamEvents, DeadLetter: bus.StreamDeadLetter, Consumers: consumers, Logs: stack.Logs,
 		Crash: stack.crash,
-	}, units, parallelFlows)
+	}, rep, parallelFlows)
 }
 
 func prepare(ctx context.Context, cfg Config, target Target) (Binaries, string, func() error, error) {
@@ -151,15 +169,15 @@ func prepare(ctx context.Context, cfg Config, target Target) (Binaries, string, 
 	return bins, cover, cleanup, nil
 }
 
-func verifyUnits(ctx context.Context, cfg Config, env Env, units []Unit, parallel int) error {
+func verifyUnits(ctx context.Context, cfg Config, env Env, rep *report, parallel int) error {
 	d, err := newDriver(env, cfg.Budget)
 	if err != nil {
 		return err
 	}
-	results := d.runAll(ctx, units, parallel)
+	rep.results = d.runAll(ctx, rep.units, parallel)
 	failed := 0
 	var over error
-	for _, r := range results {
+	for _, r := range rep.results {
 		phases := fmt.Sprintf("seed %s, flow %s, converge %s", r.Phases[PhaseSeed].Round(time.Millisecond),
 			r.Phases[PhaseFlow].Round(time.Millisecond), r.Phases[PhaseConverge].Round(time.Millisecond))
 		if r.Pass() {
@@ -172,8 +190,17 @@ func verifyUnits(ctx context.Context, cfg Config, env Env, units []Unit, paralle
 		}
 		_, _ = fmt.Fprintf(cfg.Stdout, "FAIL flow %s (%s): %s\n", r.Unit.Name(), phases, r.Failure)
 	}
-	if failed > 0 {
-		return errors.Join(fmt.Errorf("%w: %d of %d flow outcomes failed", errFailed, failed, len(results)), over)
+	global := d.global(ctx, cfg.Ledger, rep)
+	for _, err := range global {
+		rep.global = append(rep.global, err.Error())
+		_, _ = fmt.Fprintf(cfg.Stdout, "FAIL %v\n", err)
+	}
+	if err := d.collect(ctx, rep); err != nil {
+		return err
+	}
+	if failed+len(global) > 0 {
+		return errors.Join(fmt.Errorf("%w: %d of %d flow outcomes failed, %d run invariants failed",
+			errFailed, failed, len(rep.results), len(global)), over)
 	}
 	return nil
 }

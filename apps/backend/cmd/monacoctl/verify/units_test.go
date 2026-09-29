@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/nats-io/nats.go/jetstream"
 
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 	tools "github.com/monaco/monaco/apps/backend/internal/tools/flows"
@@ -63,6 +64,24 @@ func TestReadFlows_rejectsAMalformedFile(t *testing.T) {
 	}
 }
 
+func TestInvariantHelpers(t *testing.T) {
+	t.Parallel()
+	if pathMatches("/v1/x/{id}", "/v1/x/1/y") || !pathMatches("/v1/x/{id}", "/v1/x/1") ||
+		pathMatches("/v1/x", "/v1/y") {
+		t.Error("pathMatches")
+	}
+	if codeNamed("NoSuchCode") != "NoSuchCode" || codeNamed("InvalidInput") != "invalid_input" {
+		t.Error("codeNamed")
+	}
+	if LedgerChecks() != nil {
+		t.Error("LedgerChecks has entries; give each a test")
+	}
+	if got := (&InvariantError{Msg: "x"}).Error(); got != "invariant: x" {
+		t.Errorf("InvariantError = %q", got)
+	}
+	(&flowT{}).Helper()
+}
+
 func servedDriver(t *testing.T) (*driver, *Result) {
 	t.Helper()
 	d, err := newDriver(servedEnv(t), DefaultBudget())
@@ -98,13 +117,44 @@ func TestDriver_reportsDatabaseFailures(t *testing.T) {
 	}
 }
 
-func TestDriver_failsWithoutATokenKey(t *testing.T) {
+func TestDriver_ignoresOtherTypesAndNamesAnIdleConsumer(t *testing.T) {
+	t.Parallel()
+	d, res := servedDriver(t)
+	other := []watched{{durable: "x", handler: "x", typ: "other"}}
+	if stuck, err := d.stuck(t.Context(), other, res.Events); stuck != "" || err != nil {
+		t.Errorf("stuck with a handler of another type = %q, %v", stuck, err)
+	}
+	if _, err := d.env.JS.CreateConsumer(t.Context(), d.env.Events, jetstream.ConsumerConfig{
+		Durable: "idle", AckPolicy: jetstream.AckExplicitPolicy,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	idle := []watched{{durable: "idle", handler: "system.echo", typ: "system.pinged"}}
+	if stuck, err := d.stuck(t.Context(), idle, res.Events); !strings.Contains(stuck, "consumer idle has 1 pending") ||
+		err != nil {
+		t.Errorf("stuck with an idle consumer = %q, %v", stuck, err)
+	}
+}
+
+func TestDriver_reportsNATSArmAndTokenFailures(t *testing.T) {
 	t.Parallel()
 	env := servedEnv(t)
+	d, err := newDriver(env, DefaultBudget())
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.env.DeadLetter = "MISSING"
+	if got := d.global(
+		t.Context(),
+		nil,
+		&report{},
+	); len(got) != 1 ||
+		!strings.Contains(got[0].Error(), "read MISSING") {
+		t.Errorf("global without the dead letter stream = %v", got)
+	}
 	cfg, _ := driveConfig(DefaultBudget())
 	env.TokenKey = ""
-	if err := verifyUnits(t.Context(), cfg, env, nil, 1); err == nil {
+	if err := verifyUnits(t.Context(), cfg, env, &report{}, 1); err == nil {
 		t.Error("verifyUnits without a token key succeeded")
 	}
-	(&flowT{}).Helper()
 }
