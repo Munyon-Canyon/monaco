@@ -34,6 +34,19 @@ func TestMain_badArgumentsExitTwoWithTheCommandUsage(t *testing.T) {
 	}
 }
 
+func TestFixture_seedsTheRepositoryLookupGitPrints(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	want, err := Exec(context.Background(), f.dir, "", "git", strings.Fields(repoLookup)...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := f.cached(nil)(context.Background(), f.dir, "", "git", strings.Fields(repoLookup)...)
+	if err != nil || string(got) != string(want) {
+		t.Fatalf("seeded %q, %v; git prints %q", got, err, want)
+	}
+}
+
 func TestMain_outsideARepositoryFails(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)

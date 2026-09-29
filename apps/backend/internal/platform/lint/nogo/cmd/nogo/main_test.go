@@ -204,6 +204,7 @@ func TestTestwait_reportsFixedWaitsAndPollLoopsOutsideSynctestAndTestkit(t *test
 			"\t\tfor range 3 {\n\t\t\t_ = time.Tick(time.Second)\n\t\t}\n\t})\n}\n",
 		"internal/w/dot_test.go": "package w\n\nimport (\n\t\"testing\"\n\t. \"time\"\n)\n\n" +
 			"func TestDot(t *testing.T) {\n\t<-After(Millisecond)\n}\n",
+		"internal/w/var_test.go": "package w\n\nimport \"time\"\n\nvar tick = time.Tick(time.Second)\n",
 	})
 	code, stderr := nogoStderr(t, dir, "-testwait", "-nogo=false")
 	fix := "wait on a signal, use synctest.Test, testkit.Eventually or testkit.AssertNoRedelivery"
