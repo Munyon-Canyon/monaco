@@ -16,8 +16,6 @@ runs:
         go-version-file: apps/backend/go.mod
         cache: false
 
-    # go-cache.yml (on a push to the current feature branch, vars.FEATURE_BRANCH, or main) and the nightly
-    # warm-cache job save this cache. PRs and the merge queue restore and never save.
     - uses: actions/cache/restore@v4
       with:
         path: |

@@ -115,8 +115,8 @@ func TestAgentGuard_blocksPushesToMainTheFeatureBranchAndGraphiteTrunks(t *testi
 	for _, cmd := range []string{
 		"git push origin main",
 		"git push origin HEAD:main",
-		"git push origin ticket:refs/heads/backend-rewrite-4",
-		"git push origin ticket:domain-core-12",
+		"git push origin ticket:refs/heads/backend-rewrite-checkpoint-4",
+		"git push origin ticket:domain-core-checkpoint-12",
 		"git push origin milestone-9",
 		"git push -u origin ticket:milestone-9 2>&1 | tail -3",
 		"git -C . push --all origin",
@@ -127,8 +127,10 @@ func TestAgentGuard_blocksPushesToMainTheFeatureBranchAndGraphiteTrunks(t *testi
 			t.Errorf("%q: want blocked, got %d %q", cmd, r.code, r.stderr)
 		}
 	}
-	git(t, work, "switch", "-q", "-c", "backend-rewrite-7")
-	assertBlocked(t, guard(t, work, "git push"), "git push on backend-rewrite-7", "'backend-rewrite-7' is not allowed")
+	git(t, work, "switch", "-q", "-c", "backend-rewrite-checkpoint-7")
+	assertBlocked(t, guard(t, work, "git push"), "git push on backend-rewrite-checkpoint-7", "'backend-rewrite-checkpoint-7' is not allowed")
+	git(t, work, "switch", "-q", "-c", "980-1-cloud-swift-633")
+	assertAllowed(t, guard(t, work, "git push"), "git push on the ticket branch 980-1-cloud-swift-633")
 	git(t, work, "switch", "-q", "ticket")
 	assertAllowed(t, guard(t, work, "git push origin ticket"), "git push origin ticket")
 	assertAllowed(t, guard(t, t.TempDir(), "cd "+work+" && git push"), "cd work && git push")
@@ -189,7 +191,7 @@ func TestAgentGuard_headlessClaudeNeedsTimeout(t *testing.T) {
 
 func ghStub(t *testing.T, statuses string) (env []string, calls string) {
 	t.Helper()
-	return ghStubOnBase(t, "backend-rewrite-9", statuses)
+	return ghStubOnBase(t, "backend-rewrite-checkpoint-9", statuses)
 }
 
 func ghStubOnBase(t *testing.T, base, statuses string) (env []string, calls string) {
@@ -366,13 +368,13 @@ func TestAgentGuard_gtSyncLeavesOtherStacksUnrestacked(t *testing.T) {
 
 func TestAgentGuard_autoMergeNeedsAFeatureBranchBase(t *testing.T) {
 	cwd := t.TempDir()
-	for _, base := range []string{"831-f-land-stack", "982-workflow-docs", "backend-rewrite"} {
+	for _, base := range []string{"831-f-land-stack", "982-workflow-docs", "backend-rewrite", "backend-rewrite-3", "980-1-cloud-swift-633"} {
 		env, _ := ghStubOnBase(t, base, `[`+status("success", "verifier", 2)+`]`)
 		for _, cmd := range []string{"gh pr merge 42 --auto", "gh pr merge --auto 42 --squash"} {
 			assertBlocked(t, guard(t, cwd, cmd, env...), base+": "+cmd, "not the feature branch, so auto-merge would merge it into its parent")
 		}
 	}
-	for _, base := range []string{"backend-rewrite-9", "domain-core-12"} {
+	for _, base := range []string{"backend-rewrite-checkpoint-9", "domain-core-checkpoint-12"} {
 		env, _ := ghStubOnBase(t, base, `[`+status("success", "verifier", 2)+`]`)
 		assertAllowed(t, guard(t, cwd, "gh pr merge 42 --auto", env...), "auto-merge on the feature branch "+base)
 	}

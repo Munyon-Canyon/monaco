@@ -27,26 +27,27 @@ else
   echo "Created $next at $squash"
 fi
 
-if ! gh variable set FEATURE_BRANCH --repo "$REPO" --body "$next"; then
+if [[ "$(gh variable get FEATURE_BRANCH --repo "$REPO" 2>/dev/null)" == "$head_ref" ]] &&
+  ! gh variable set FEATURE_BRANCH --repo "$REPO" --body "$next"; then
   echo "::warning::Could not set the FEATURE_BRANCH repo variable to $next. Give MERGE_BACK_TOKEN the Variables: write repository permission, or run: gh variable set FEATURE_BRANCH --body $next"
 fi
 
-# A merge_queue rule takes exact ref names only, so the new branch joins the feature branch ruleset by name.
 add_to_ruleset() {
   local id body
   id="$(gh api "repos/$REPO/rulesets" --jq '[.[] | select(.name | test("^feature branch"))][0].id // empty')" || return 1
   [[ -n "$id" ]] || return 1
   body="$(gh api "repos/$REPO/rulesets/$id")" || return 1
-  if jq -e --arg ref "$ref" '.conditions.ref_name.include | any(.[]; . == $ref)' <<<"$body" >/dev/null; then
+  if jq -e --arg ref "$ref" --arg old "$old" '.conditions.ref_name.include | any(.[]; . == $ref) and all(.[]; . != $old)' <<<"$body" >/dev/null; then
     printf -v ruleset_result "The feature branch ruleset already includes \`%s\`." "$ref"
     return
   fi
-  jq --arg ref "$ref" '{name, target, enforcement, bypass_actors, conditions, rules} | .conditions.ref_name.include += [$ref]' <<<"$body" |
+  jq --arg ref "$ref" --arg old "$old" '{name, target, enforcement, bypass_actors, conditions, rules} |
+    .conditions.ref_name.include |= (map(select(. != $old and . != $ref)) + [$ref])' <<<"$body" |
     gh api -X PUT "repos/$REPO/rulesets/$id" --input - --silent || return 1
-  printf -v ruleset_result "Added \`%s\` to the feature branch ruleset." "$ref"
+  printf -v ruleset_result "Added \`%s\` to the feature branch ruleset in place of \`%s\`." "$ref" "$old"
 }
 
-ref="refs/heads/$next"
+ref="refs/heads/$next" old="refs/heads/$head_ref"
 if add_to_ruleset; then
   echo "$ruleset_result"
 else

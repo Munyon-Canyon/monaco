@@ -12,8 +12,7 @@ import sys
 from dataclasses import dataclass
 from functools import lru_cache
 
-# A feature branch is <name>-<N>. scripts/ci/feature-branch-name.sh holds the same pattern.
-FEATURE_BRANCH_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*-[0-9]+$")
+FEATURE_BRANCH_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*-checkpoint-[0-9]+$")
 CONVENTIONAL_TYPES = "feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert"
 CONVENTIONAL_RE = re.compile(rf"^({CONVENTIONAL_TYPES})(\([^()\s]+\))?!?: \S")
 HEREDOC_SUBST_RE = re.compile(r"^\$\(\s*cat\s*<<-?\s*(['\"]?)(\w+)\1[ \t]*\n(.*?)\n\s*\2\s*\)\s*$", re.S)

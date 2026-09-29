@@ -1,6 +1,5 @@
 name: Checkpoint
 
-# A checkpoint is a PR into main from a feature branch <name>-<N> that carries the integration label.
 # docs/architecture/ci.md#feature-branches
 on:
   pull_request:
@@ -33,7 +32,7 @@ jobs:
           if scripts/ci/feature-branch-name.sh "$HEAD_REF" >/dev/null; then
             echo "checkpoint=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::notice::$HEAD_REF is not a feature branch <name>-<N>, so this merge is not a checkpoint."
+            echo "::notice::$HEAD_REF is not a feature branch <feature>-checkpoint-<N>, so this merge is not a checkpoint."
           fi
 
   tree-matches:

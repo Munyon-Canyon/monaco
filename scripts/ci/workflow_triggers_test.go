@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -59,7 +60,7 @@ func readWorkflow(t *testing.T, path string) workflow {
 
 func requiredJobs(t *testing.T, root string) []string {
 	t.Helper()
-	out, err := exec.Command("bash", filepath.Join(root, "scripts", "feature-branch.sh"), "ruleset", "example-1").Output()
+	out, err := exec.Command("bash", filepath.Join(root, "scripts", "feature-branch.sh"), "ruleset", "example-checkpoint-1").Output()
 	if err != nil {
 		t.Fatalf("feature-branch.sh ruleset: %v", err)
 	}
@@ -130,5 +131,101 @@ func TestRequiredWorkflows_catchAPlantedPathsFilter(t *testing.T) {
 	offenders, _ := pathFilteredRequiredWorkflows(t, dir, []string{"ci", "filter"})
 	if len(offenders) != 1 || !strings.HasPrefix(offenders[0], "ci.yml: paths-ignore") {
 		t.Fatalf("offenders %v, want only the planted workflow-level paths-ignore in ci.yml", offenders)
+	}
+}
+
+var (
+	inlineExpr = regexp.MustCompile(`\$\{\{(.*?)\}\}`)
+	ifKey      = regexp.MustCompile(`^(\s*)(?:- )?if:\s*(.*)$`)
+	literal    = regexp.MustCompile(`^'[^']*'$`)
+)
+
+func expressions(text string) []string {
+	var out []string
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		for _, m := range inlineExpr.FindAllStringSubmatch(line, -1) {
+			out = append(out, m[1])
+		}
+		m := ifKey.FindStringSubmatch(line)
+		if m == nil || strings.Contains(line, "${{") {
+			continue
+		}
+		expr := m[2]
+		if expr == ">-" || expr == "|" || expr == ">" {
+			expr = ""
+			for _, next := range lines[i+1:] {
+				if strings.TrimSpace(next) == "" || len(next)-len(strings.TrimLeft(next, " ")) <= len(m[1]) {
+					break
+				}
+				expr += " " + strings.TrimSpace(next)
+			}
+		}
+		out = append(out, expr)
+	}
+	return out
+}
+
+func gatedOnSchedule(term string) bool {
+	return strings.Contains(term, "github.event_name == 'schedule' &&")
+}
+
+func fallbackOffenders(text string) []string {
+	var bad []string
+	for _, expr := range expressions(text) {
+		terms := strings.Split(expr, "||")
+		at := slices.IndexFunc(terms, func(term string) bool { return strings.Contains(term, "vars.FEATURE_BRANCH") })
+		if at < 0 || gatedOnSchedule(terms[at]) {
+			continue
+		}
+		last := at > 0
+		for _, rest := range terms[at+1:] {
+			last = last && literal.MatchString(strings.Trim(rest, " ()"))
+		}
+		if !last {
+			bad = append(bad, strings.TrimSpace(expr))
+		}
+	}
+	return bad
+}
+
+func TestWorkflows_readTheFeatureBranchVariableOnlyAsTheFinalFallback(t *testing.T) {
+	root := repoRoot(t)
+	files, err := filepath.Glob(filepath.Join(root, ".github", "workflows", "*.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	actions, err := filepath.Glob(filepath.Join(root, ".github", "actions", "*", "action.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	reads := 0
+	for _, file := range append(files, actions...) {
+		b, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reads += strings.Count(string(b), "vars.FEATURE_BRANCH")
+		for _, expr := range fallbackOffenders(string(b)) {
+			t.Errorf("%s reads vars.FEATURE_BRANCH before the event's own branch: %s", filepath.Base(file), expr)
+		}
+	}
+	if reads == 0 {
+		t.Fatal("no workflow reads vars.FEATURE_BRANCH; drop this test with the variable")
+	}
+}
+
+func TestWorkflows_fallbackCheckCatchesTheVariableAsTheSoleGate(t *testing.T) {
+	for text, want := range map[string]int{
+		"    if: github.ref_name == vars.FEATURE_BRANCH\n":                                                                 1,
+		"      base: ${{ vars.FEATURE_BRANCH || github.event.pull_request.base.ref }}\n":                                   1,
+		"    if: >-\n      github.base_ref == vars.FEATURE_BRANCH ||\n      github.base_ref == 'main'\n":                   1,
+		"      base: ${{ github.event.pull_request.base.ref || vars.FEATURE_BRANCH || 'main' }}\n":                         0,
+		"    if: >-\n      !cancelled() && (github.ref_name == 'main' ||\n      github.ref_name == vars.FEATURE_BRANCH)\n": 0,
+		"          ref: ${{ github.event_name == 'schedule' && vars.FEATURE_BRANCH || '' }}\n":                             0,
+	} {
+		if got := fallbackOffenders(text); len(got) != want {
+			t.Errorf("%q: offenders %q, want %d", text, got, want)
+		}
 	}
 }

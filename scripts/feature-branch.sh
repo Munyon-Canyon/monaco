@@ -10,8 +10,8 @@ usage: scripts/feature-branch.sh init|apply|ruleset <feature>-checkpoint-<N> | m
   init <branch>     create <branch> from origin/main, then apply; start a feature
                     with init <feature>-checkpoint-1
   apply <branch>    add the Graphite trunk, turn on auto-merge and merge commits,
-                    point FEATURE_BRANCH at <branch>, add refs/heads/<branch> to the
-                    feature branch ruleset, create or update both rulesets
+                    add refs/heads/<branch> to the feature branch ruleset, create
+                    or update both rulesets
   ruleset <branch>  print a feature branch ruleset body that targets refs/heads/<branch>
   main-ruleset      print the main ruleset body
 See docs/architecture/ci.md#feature-branches.
@@ -119,7 +119,6 @@ apply() {
   local name="$1" include="[\"$2\"]" id
   gt trunk --add "$name" --no-interactive
   gh api -X PATCH "repos/$REPO" -F allow_auto_merge=true -F allow_merge_commit=true --silent
-  gh variable set FEATURE_BRANCH --repo "$REPO" --body "$name"
   id="$(ruleset_id "^feature branch")"
   if [[ -n "$id" ]]; then
     include="$(gh api "repos/$REPO/rulesets/$id" \

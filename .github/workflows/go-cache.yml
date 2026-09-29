@@ -1,11 +1,11 @@
-name: Warm the Go cache for the feature branch
+name: Warm the Go cache for main and the feature branches
 
 # PR and merge-queue runs restore the Go cache through backend-test-env and never save it. They can
 # restore only caches saved on their base branch, so a go.mod or go.sum change on the base saves a
 # fresh one here. The key matches nightly.yml's warm-cache job.
 on:
   push:
-    branches: [main, '*-[0-9]*']
+    branches: [main, '*-checkpoint-[0-9]*']
     paths:
       - apps/backend/go.mod
       - apps/backend/go.sum
@@ -16,9 +16,32 @@ permissions:
   contents: read
 
 jobs:
+  detect:
+    name: Detect a feature branch
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      feature: ${{ steps.name.outputs.feature }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/ci
+
+      - id: name
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if scripts/ci/feature-branch-name.sh "$REF_NAME" >/dev/null; then
+            echo "feature=true" >> "$GITHUB_OUTPUT"
+          fi
+
   warm:
     name: Build apps/backend and save the Go cache
-    if: github.event_name == 'workflow_dispatch' || github.ref_name == 'main' || github.ref_name == vars.FEATURE_BRANCH
+    needs: detect
+    if: >-
+      !cancelled() && (github.event_name == 'workflow_dispatch' || github.ref_name == 'main' ||
+      needs.detect.outputs.feature == 'true' || github.ref_name == vars.FEATURE_BRANCH)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

@@ -19,8 +19,7 @@ FENCE_RE = re.compile(r"(?ms)^(`{3,}|~{3,})[ \t]*([\w+-]*)[^\n]*\n(.*?)^\1[ \t]*
 SHELL_FENCES = {"", "sh", "bash", "shell", "console", "zsh"}
 CONVENTIONAL_RE = re.compile(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^()\s]+\))?!?: \S")
 SQUASH_RE = re.compile(r"\(#\d+\)$")
-# A feature branch is <name>-<N>. scripts/ci/feature-branch-name.sh holds the same pattern.
-FEATURE_BRANCH_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*-[0-9]+$")
+FEATURE_BRANCH_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*-checkpoint-[0-9]+$")
 
 
 class StackedPR(NamedTuple):

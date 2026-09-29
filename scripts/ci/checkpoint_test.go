@@ -13,6 +13,7 @@ const nextBranchGH = `#!/usr/bin/env bash
 echo "gh $*" >>"$STUB_LOG"
 case "$1 $2" in
   "api repos/o/r/git/ref/"*) [[ -n "$STUB_EXISTING" ]] || exit 1; echo "$STUB_EXISTING" ;;
+  "variable get") echo "$STUB_VARIABLE" ;;
   "variable set") exit "${STUB_VARIABLE_EXIT:-0}" ;;
   "pr list") [[ -z "$STUB_PR_LIST_FAIL" ]] || exit 1; jq -r "${@: -1}" <<<"${STUB_PRS:-[]}" ;;
   "api repos/o/r/rulesets") jq -r "${@: -1}" <<<'[{"id": 5, "name": "main"}, {"id": 24089171, "name": "feature branches"}]' ;;
@@ -43,7 +44,7 @@ func runNextBranch(t *testing.T, headRef string, env ...string) nextBranchRun {
 	cmd := exec.Command("bash", filepath.Join(root, "scripts", "ci", "next-branch.sh"), headRef, squash)
 	cmd.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"), "GITHUB_REPOSITORY=o/r", "GH_TOKEN=tok",
 		"STUB_LOG="+log, "GITHUB_STEP_SUMMARY="+summary, "STUB_EXISTING=", "STUB_PRS=", "STUB_PR_LIST_FAIL=",
-		"STUB_RULESET="+featureBranches, "STUB_PUT_EXIT=")
+		"STUB_RULESET="+featureBranches, "STUB_PUT_EXIT=", "STUB_VARIABLE=")
 	cmd.Env = append(cmd.Env, env...)
 	out, err := cmd.CombinedOutput()
 	run := nextBranchRun{out: string(out)}
@@ -59,14 +60,13 @@ func runNextBranch(t *testing.T, headRef string, env ...string) nextBranchRun {
 	return run
 }
 
-func TestNextBranch_cutsNPlusOneAtTheSquashAndPointsTheVariableAtIt(t *testing.T) {
+func TestNextBranch_cutsNPlusOneAtTheSquashAndMovesTheVariableThatNamedTheHead(t *testing.T) {
 	for head, next := range map[string]string{
 		"leaderboards-checkpoint-1": "leaderboards-checkpoint-2",
 		"following-checkpoint-9":    "following-checkpoint-10",
 		"following-checkpoint-09":   "following-checkpoint-10",
-		"backend-rewrite-3":         "backend-rewrite-checkpoint-4",
 	} {
-		run := runNextBranch(t, head)
+		run := runNextBranch(t, head, "STUB_VARIABLE="+head)
 		if run.code != 0 {
 			t.Fatalf("%s: exit %d\n%s", head, run.code, run.out)
 		}
@@ -88,13 +88,26 @@ func TestNextBranch_addsTheExactNewBranchToTheFeatureBranchRuleset(t *testing.T)
 	run := runNextBranch(t, "leaderboards-checkpoint-1")
 	want := "gh api -X PUT repos/o/r/rulesets/24089171 --input - --silent\n" +
 		`{"name":"feature branches","target":"branch","enforcement":"active","bypass_actors":[{"actor_id":1}],` +
-		`"conditions":{"ref_name":{"include":["refs/heads/leaderboards-checkpoint-1","refs/heads/leaderboards-checkpoint-2"],"exclude":[]}},` +
+		`"conditions":{"ref_name":{"include":["refs/heads/leaderboards-checkpoint-2"],"exclude":[]}},` +
 		`"rules":[{"type":"merge_queue"}]}`
 	if run.code != 0 || !strings.Contains(run.log, want) || strings.Count(run.log, "-X PUT") != 1 {
 		t.Fatalf("exit %d, want one PUT of %s in\n%s", run.code, want, run.log)
 	}
-	if !strings.Contains(run.report, "Added `refs/heads/leaderboards-checkpoint-2` to the feature branch ruleset.") {
+	if !strings.Contains(run.report, "Added `refs/heads/leaderboards-checkpoint-2` to the feature branch ruleset in place of `refs/heads/leaderboards-checkpoint-1`.") {
 		t.Errorf("summary does not report the ruleset:\n%s", run.report)
+	}
+}
+
+func TestNextBranch_checkpointOfOneFeatureLeavesTheOthersAlone(t *testing.T) {
+	others := `{"name": "feature branches", "target": "branch", "enforcement": "active", "bypass_actors": [], "rules": [],
+		"conditions": {"ref_name": {"include": ["refs/heads/leaderboards-checkpoint-2", "refs/heads/following-checkpoint-5"], "exclude": []}}}`
+	run := runNextBranch(t, "following-checkpoint-5", "STUB_RULESET="+others, "STUB_VARIABLE=leaderboards-checkpoint-2")
+	want := `"include":["refs/heads/leaderboards-checkpoint-2","refs/heads/following-checkpoint-6"]`
+	if run.code != 0 || !strings.Contains(run.log, want) {
+		t.Fatalf("exit %d, want %s in\n%s", run.code, want, run.log)
+	}
+	if strings.Contains(run.log, "variable set") || strings.Contains(run.out, "FEATURE_BRANCH") {
+		t.Errorf("a following checkpoint moved the variable that names leaderboards:\n%s\n%s", run.log, run.out)
 	}
 }
 
@@ -123,7 +136,7 @@ func TestNextBranch_warnsAndCarriesOnWhenTheRulesetWriteFails(t *testing.T) {
 }
 
 func TestNextBranch_leavesABranchAlreadyAtTheSquash(t *testing.T) {
-	run := runNextBranch(t, "leaderboards-checkpoint-1", "STUB_EXISTING="+squash)
+	run := runNextBranch(t, "leaderboards-checkpoint-1", "STUB_EXISTING="+squash, "STUB_VARIABLE=leaderboards-checkpoint-1")
 	if run.code != 0 || strings.Contains(run.log, "git/refs -f") {
 		t.Fatalf("a rerun must not recreate the branch: exit %d\n%s\n%s", run.code, run.log, run.out)
 	}
@@ -143,7 +156,7 @@ func TestNextBranch_refusesABranchAtAnotherCommit(t *testing.T) {
 }
 
 func TestNextBranch_warnsWhenTheTokenCannotWriteVariables(t *testing.T) {
-	run := runNextBranch(t, "leaderboards-checkpoint-1", "STUB_VARIABLE_EXIT=1")
+	run := runNextBranch(t, "leaderboards-checkpoint-1", "STUB_VARIABLE_EXIT=1", "STUB_VARIABLE=leaderboards-checkpoint-1")
 	if run.code != 0 || !strings.Contains(run.out, "::warning::Could not set the FEATURE_BRANCH repo variable to leaderboards-checkpoint-2") ||
 		!strings.Contains(run.out, "Variables: write") {
 		t.Fatalf("exit %d\n%s", run.code, run.out)
@@ -193,7 +206,10 @@ func TestNextBranch_onlyWarnsWhenItCannotListPRs(t *testing.T) {
 }
 
 func TestNextBranch_failsWithoutACheckpointHeadOrAToken(t *testing.T) {
-	for _, head := range []string{"leaderboards-checkpoint-1a", "leaderboards-checkpoint", "982-workflow-docs", "main", "Leaderboards-Checkpoint-2"} {
+	for _, head := range []string{
+		"leaderboards-checkpoint-1a", "leaderboards-checkpoint", "982-workflow-docs", "main", "Leaderboards-Checkpoint-2",
+		"backend-rewrite-3", "980-1-cloud-swift-633",
+	} {
 		want := "::error::The checkpoint head " + head + " is not a feature branch <feature>-checkpoint-<N>"
 		if run := runNextBranch(t, head); run.code != 1 || !strings.Contains(run.out, want) || run.log != "" {
 			t.Errorf("%s: exit %d\n%s\n%s", head, run.code, run.out, run.log)

@@ -102,7 +102,6 @@ jobs:
         if: github.event_name == 'pull_request'
         with:
           fetch-depth: 0
-      # Expressions have no regex, so the head's <name>-<N> check runs here.
       - name: Detect a checkpoint
         id: detect
         if: github.event_name == 'pull_request'
@@ -112,7 +111,7 @@ jobs:
           if scripts/ci/feature-branch-name.sh "$HEAD_REF" >/dev/null; then
             echo "checkpoint=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::notice::$HEAD_REF is not a feature branch <name>-<N>, so this PR is not a checkpoint."
+            echo "::notice::$HEAD_REF is not a feature branch <feature>-checkpoint-<N>, so this PR is not a checkpoint."
           fi
       - name: Checker unit tests
         if: steps.detect.outputs.checkpoint == 'true'

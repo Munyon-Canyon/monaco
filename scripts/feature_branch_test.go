@@ -212,13 +212,15 @@ func TestFeatureBranchApply_addsTheExactBranchToTheOneRuleset(t *testing.T) {
 			got := string(b)
 			for _, want := range []string{
 				"gt trunk --add " + tc.branch + " --no-interactive",
-				"gh variable set FEATURE_BRANCH --repo o/r --body " + tc.branch,
 				tc.want,
 				"PUT repos/o/r/rulesets/5 --input - --jq .id\n" + `{"name":"main","include":["~DEFAULT_BRANCH"]}`,
 			} {
 				if !strings.Contains(got, want) {
 					t.Errorf("apply did not run %q:\n%s", want, got)
 				}
+			}
+			if strings.Contains(got, "variable set") {
+				t.Errorf("apply set a repo variable; each feature branch is found by name, not through one global:\n%s", got)
 			}
 			if strings.Count(got, "--input -") != 2 || strings.Contains(got, "rulesets/6") {
 				t.Errorf("apply wrote an extra ruleset or touched an unrelated one:\n%s", got)
@@ -227,15 +229,17 @@ func TestFeatureBranchApply_addsTheExactBranchToTheOneRuleset(t *testing.T) {
 	}
 }
 
-const featureBranchPattern = `^[a-z0-9]+(-[a-z0-9]+)*-[0-9]+$`
+const featureBranchPattern = `^[a-z0-9]+(-[a-z0-9]+)*-checkpoint-[0-9]+$`
 
-func TestFeatureBranchName_parsesOnlyNameDashNumber(t *testing.T) {
+func TestFeatureBranchName_parsesOnlyNameDashCheckpointDashNumber(t *testing.T) {
 	script := filepath.Join(repoRoot(t), "scripts", "ci", "feature-branch-name.sh")
 	for ref, want := range map[string]string{
 		"leaderboards-checkpoint-1":      "leaderboards 1\n",
 		"following-checkpoint-9":         "following 9\n",
 		"following-checkpoint-10":        "following 10\n",
-		"backend-rewrite-3":              "backend-rewrite 3\n",
+		"a-checkpoint-b-checkpoint-3":    "a-checkpoint-b 3\n",
+		"backend-rewrite-3":              "",
+		"980-1-cloud-swift-633":          "",
 		"leaderboards-checkpoint":        "",
 		"982-workflow-docs":              "",
 		"main":                           "",
@@ -255,7 +259,9 @@ func TestFeatureBranchName_parsesOnlyNameDashNumber(t *testing.T) {
 }
 
 func TestFeatureBranchPattern_isTheSameInEveryChecker(t *testing.T) {
-	for _, file := range []string{"ci/feature-branch-name.sh", "agent-guard.py", "check-pr-format.py"} {
+	for _, file := range []string{
+		"ci/feature-branch-name.sh", "agent-guard.py", "check-pr-format.py", "../apps/backend/cmd/monacoctl/agents/features.go",
+	} {
 		b, err := os.ReadFile(filepath.Join(repoRoot(t), "scripts", file))
 		if err != nil {
 			t.Fatal(err)
