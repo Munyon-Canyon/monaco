@@ -40,3 +40,18 @@ The roles use `opus` for every judgment role and `opus, sonnet` for the panel ro
     scripts/setup-agent-env.sh --force     # also replace a sheet that differs
 
 The script is idempotent: a second run changes nothing. When `~/.claude/pstack-models.md` already exists and differs from the committed copy, the script prints the diff and exits 1 without writing. Pass `--force` to replace it. To change a role for the team, edit `docs/agents/pstack-models.md` in a PR.
+
+## Skills
+
+Repo skills live in `.claude/skills/`, and `.cursor/skills/` mirrors each one with a symlink. They load with the repo, so a clone needs nothing more. The machine that ran M7 also had six skills in a personal skills folder. The table says which ones the repo now holds and where to get the rest.
+
+| Skill | Decision | Source | Why |
+| --- | --- | --- | --- |
+| `commit` | Vendored to `.claude/skills/commit` | This repo | It writes the Conventional Commit subject that the PR format check requires. The copy names the check's exact pattern and the owner's `gt modify` flow. |
+| `ship-pr` | Not vendored | Personal | [Ship a ticket](../how-to/ship-a-ticket.md) replaces it. It commits with plain git, sets bodies with `gh pr edit` and moves PRs back to draft, which the owner flow forbids. |
+| `orchestration` | Listed | `stablyai/orca` | Drives Orca workers. The M7 flow dispatched owners with `monacoctl agents dispatch` and the Agent tool instead. |
+| `solana-dev` | Listed | `solana-foundation/solana-dev-skill` | General Solana reference for chain work. Install it with `npx skills add solana-foundation/solana-dev-skill`. |
+| `controlling-mobile-devices` | Listed | MobAI | Drives simulators through the MobAI MCP server. `.cursor/skills/ios-simslim-fast-qa` is the repo's QA loop that uses it. |
+| `slimming-simulators` | Listed | MobAI (`simslim`) | The `simslim` command line. `just install` offers `simslim` itself. |
+
+The plugins in [Plugins](#plugins) bring their own skills, such as `pstack:poteto-mode`, `superpowers:systematic-debugging` and `compound-engineering:ce-code-review`.
