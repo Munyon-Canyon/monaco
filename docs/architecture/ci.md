@@ -171,6 +171,8 @@ The feature branch ruleset:
 
 A ticket PR lands with `gh pr merge <n> --auto` once its verdict passes. GitHub adds it to the queue when its own checks pass. The queue builds a `gh-readonly-queue/<branch>/...` commit, runs the required checks on it through `merge_group`, and merges it when they pass. A failing entry leaves the queue, and the entries behind it rebuild without it.
 
+A Graphite stack lands as one entry through `monacoctl agents land-stack <top-pr>` ([Pull requests](backend-platform.md#pull-requests-small-and-stacked)). It changes the upper PRs' bases to the feature branch and queues only the top PR, so stage 2 runs once for the stack. The merge commit keeps every commit of the stack, and GitHub marks the lower PRs merged.
+
 After the checkpoint PR squash-merges into `main`, `checkpoint.yml` runs two jobs:
 
 1. `tree-matches` runs `scripts/ci/checkpoint-tree.sh` and fails unless `main`'s squash commit has the same tree as the PR's head.
@@ -258,6 +260,7 @@ Each step is one small PR with its own proof.
 ## Log
 
 - 2026-09-29: `scripts/feature-branch.sh apply backend-rewrite-3` failed with 422: GitHub rejects GitHub Actions (integration 15368) as a ruleset bypass actor. The feature branch ruleset now lets org admins bypass, and `checkpoint.yml` pushes the merge-back with the `MERGE_BACK_TOKEN` secret, an org admin's fine-grained PAT (#831).
+- 2026-09-29: Stacks land as one queue entry (#831 F). `monacoctl agents land-stack <top-pr>` retargets the upper PRs and queues the top one, `check-pr-size.py` accepts its combined size through the `Lands stack:` line, and the agent guard hook keeps base changes inside `land-stack`. The checkpoint 3 restack, carry and land-chain scripts are deleted.
 - 2026-09-29: Added the feature branch merge queue (#831). The repo moved to the `Munyon-Canyon` organization, so the rulesets API accepts a `merge_queue` rule. `scripts/feature-branch.sh apply` adds it with merge commits, turns on "Allow merge commits", and makes `main` squash-only. `pr-format.yml` runs on `merge_group`. `checkpoint.yml` merges `main` back into the feature branch after a checkpoint, with GitHub Actions as the ruleset's one bypass actor (#789).
 - 2026-09-27: Added the `ready` job (#789). The generated-code, reference-doc, sqlc and vet steps moved out of `backend` into `scripts/ci/ready.sh`, which adds `go mod tidy -diff`, a standalone `monacoctl flows check`, and catches new untracked generated files that `git diff --exit-code` missed. `PR format` now also checks the ticket link, `Needs from Logan`, cited SHAs and Conventional Commit subjects.
 - 2026-09-27: Added feature branches (#789). `scripts/feature-branch.sh` adds the Graphite trunk and a ruleset that requires `ci / ci-ok` and the verifier App's `verify`, up to date, squash-only PRs, no bypass. `ci.yml` and `ci-retarget.yml` run on PRs into `backend-rewrite*`, and `ci.yml` also on `merge_group`. The rulesets API rejected a merge queue (422), so the up-to-date rule stands in for it. `checkpoint.yml` checks that a checkpoint squash landed the feature branch's exact tree. It does not merge `main` back: that push would need a bypass actor, and GitHub Actions cannot be one here.
