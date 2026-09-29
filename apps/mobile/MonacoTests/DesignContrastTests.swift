@@ -91,10 +91,10 @@ enum OKLCh {
         let l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
         let m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b
         let s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b
-        let l_ = cbrt(l), m_ = cbrt(m), s_ = cbrt(s)
-        let lightness = 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_
-        let a = 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_
-        let bb = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
+        let lRoot = cbrt(l), mRoot = cbrt(m), sRoot = cbrt(s)
+        let lightness = 0.2104542553 * lRoot + 0.7936177850 * mRoot - 0.0040720468 * sRoot
+        let a = 1.9779984951 * lRoot - 2.4285922050 * mRoot + 0.4505937099 * sRoot
+        let bb = 0.0259040371 * lRoot + 0.7827717662 * mRoot - 0.8086757660 * sRoot
         return Value(
             lightness: lightness,
             chroma: (a * a + bb * bb).squareRoot(),

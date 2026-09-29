@@ -65,7 +65,9 @@ private final class StubLeaderboardSource: HomeLeaderboardDashboardSource {
     private func resumeStartWaiters() {
         let waiters = startWaiters
         startWaiters.removeAll()
-        waiters.forEach { $0.resume() }
+        for waiter in waiters {
+            waiter.resume()
+        }
     }
 
     private func signalFinish() {
