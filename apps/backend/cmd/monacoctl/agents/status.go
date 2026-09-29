@@ -26,7 +26,12 @@ type Author struct {
 	Login string `json:"login"`
 }
 
+const actionsBot = "github-actions[bot]"
+
 func (c Comment) trusted() bool {
+	if c.User.Login == actionsBot {
+		return true
+	}
 	switch c.AuthorAssociation {
 	case "OWNER", "MEMBER", "COLLABORATOR":
 		return true
@@ -53,7 +58,7 @@ func statusCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) e
 	if err != nil {
 		return err
 	}
-	c, ok := marked(all, statusMarker)
+	c, ok := newestTrusted(all, statusMarker)
 	body, err := env.statusBody(ctx, c.Body)
 	if err != nil {
 		return err
@@ -62,7 +67,7 @@ func statusCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) e
 		_, _ = fmt.Fprintln(stdout, "status comment unchanged")
 		return nil
 	}
-	if err := env.writeStatus(ctx, c.ID, ok, body); err != nil {
+	if err := env.publishComment(ctx, env.Config.Tracking, all, statusMarker, body); err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintln(stdout, "status comment updated")
@@ -77,17 +82,33 @@ func (env *Env) issueComments(ctx context.Context, issue int) ([]Comment, error)
 	return pages[Comment](ctx, env.GitHub, env.GitHub.repo("/issues/%d/comments?", issue))
 }
 
-func marked(all []Comment, marker string) (Comment, bool) {
-	for _, c := range all {
-		if strings.Contains(c.Body, marker) {
+func newestTrusted(all []Comment, marker string) (Comment, bool) {
+	for _, c := range slices.Backward(all) {
+		if c.trusted() && strings.Contains(c.Body, marker) {
 			return c, true
 		}
 	}
 	return Comment{}, false
 }
 
-func (env *Env) writeStatus(ctx context.Context, id int64, found bool, body string) error {
-	return env.writeComment(ctx, env.Config.Tracking, id, found, body)
+func (env *Env) publishComment(ctx context.Context, issue int, all []Comment, marker, body string) error {
+	c, ok := newestTrusted(all, marker)
+	if ok {
+		me, err := env.login(ctx)
+		if err != nil {
+			return err
+		}
+		ok = c.User.Login == me
+	}
+	return env.writeComment(ctx, issue, c.ID, ok, body)
+}
+
+func (env *Env) login(ctx context.Context) (string, error) {
+	if env.Actions {
+		return actionsBot, nil
+	}
+	me, err := env.Run(ctx, env.Work, "", "gh", "api", "user", "--jq", ".login")
+	return strings.TrimSpace(string(me)), err
 }
 
 func (env *Env) writeComment(ctx context.Context, issue int, id int64, found bool, body string) error {

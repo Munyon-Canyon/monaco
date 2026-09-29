@@ -29,7 +29,7 @@ func TestHandoff_postsThenEditsTheTrackingComment(t *testing.T) {
 	if got := posted(t, f, "POST /repos/o/r/issues/7/comments"); got != want {
 		t.Fatalf("body:\n%s", got)
 	}
-	f.hub.on(list("/issues/7/comments?"), []Comment{{ID: 3, Body: want}})
+	f.hub.on(list("/issues/7/comments?"), []Comment{authored(3, want, ghUser, "MEMBER")})
 	f.hub.on("PATCH /repos/o/r/issues/comments/3", "ok")
 	if code, _, stderr := f.agents(t, "handoff"); code != 0 || f.hub.body("PATCH /repos/o/r/issues/comments/3") == "" {
 		t.Fatalf("edit: %d %q", code, stderr)

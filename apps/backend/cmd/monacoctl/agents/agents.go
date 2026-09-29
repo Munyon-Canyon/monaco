@@ -23,14 +23,15 @@ import (
 const defaultAPI = "https://api.github.com"
 
 type Env struct {
-	Work   string
-	Common string
-	Home   string
-	Config Config
-	GitHub *GitHub
-	Run    Runner
-	Start  func(name string, args ...string) error
-	Now    func() time.Time
+	Work    string
+	Common  string
+	Home    string
+	Config  Config
+	GitHub  *GitHub
+	Run     Runner
+	Start   func(name string, args ...string) error
+	Now     func() time.Time
+	Actions bool
 }
 type (
 	Runner  func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error)
@@ -202,6 +203,9 @@ func load(ctx context.Context, environ []string, dir string, run Runner) (*Env, 
 	if err != nil {
 		return nil, err
 	}
+	if cfg.FeatureBranch, err = resolveFeatureBranch(ctx, run, environ, top, cfg); err != nil {
+		return nil, err
+	}
 	api := cmp.Or(lookup(environ, "MONACO_GITHUB_API"), defaultAPI)
 	token := func(ctx context.Context) (string, error) {
 		if t := cmp.Or(lookup(environ, "GH_TOKEN"), lookup(environ, "GITHUB_TOKEN")); t != "" {
@@ -214,6 +218,7 @@ func load(ctx context.Context, environ []string, dir string, run Runner) (*Env, 
 		Work: top, Common: common, Home: lookup(environ, "HOME"), Config: cfg,
 		GitHub: &GitHub{API: api, Repo: cfg.Repo, Token: token, HTTP: &http.Client{Timeout: 30 * time.Second}},
 		Run:    run, Start: spawn, Now: time.Now,
+		Actions: lookup(environ, "GITHUB_ACTIONS") == "true",
 	}, nil
 }
 
