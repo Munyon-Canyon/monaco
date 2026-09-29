@@ -240,6 +240,7 @@ type fakeMsg struct {
 	ackErr  error
 
 	inProgress atomic.Int32
+	progressed chan struct{}
 }
 
 func fromMsg(msg jetstream.Msg, delivered uint64) *fakeMsg {
@@ -258,9 +259,17 @@ func (m *fakeMsg) Ack() error                                { return m.respond(
 func (m *fakeMsg) DoubleAck(context.Context) error           { return m.respond("ack") }
 func (m *fakeMsg) Nak() error                                { return m.respond("nak") }
 func (m *fakeMsg) NakWithDelay(d time.Duration) error        { m.delay = d; return m.respond("nak") }
-func (m *fakeMsg) InProgress() error                         { m.inProgress.Add(1); return nil }
-func (m *fakeMsg) Term() error                               { return m.respond("term") }
-func (m *fakeMsg) TermWithReason(reason string) error        { m.reason = reason; return m.respond("term") }
+
+func (m *fakeMsg) InProgress() error {
+	m.inProgress.Add(1)
+	if m.progressed != nil {
+		m.progressed <- struct{}{}
+	}
+	return nil
+}
+
+func (m *fakeMsg) Term() error                        { return m.respond("term") }
+func (m *fakeMsg) TermWithReason(reason string) error { m.reason = reason; return m.respond("term") }
 
 func (m *fakeMsg) respond(verdict string) error {
 	m.verdict = verdict
@@ -306,15 +315,7 @@ func TestDispatch_handlesTheEventOnceAndAcksARedelivery(t *testing.T) {
 	msg := h.fetch(t, cons)
 
 	reg.Dispatch(h.ctx(t), durable, msg)
-	<-time.After(3 * testkit.DefaultAckWait)
-	info, err := cons.Info(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info.NumAckPending != 0 || info.NumRedelivered != 0 {
-		t.Fatalf("ack pending = %d, redelivered = %d after dispatch, want 0 and 0",
-			info.NumAckPending, info.NumRedelivered)
-	}
+	testkit.AssertNoRedelivery(t, cons)
 	want := []row{{"notify.push", id, "ok"}}
 	if got := h.deliveries(t); !slices.Equal(got, want) {
 		t.Fatalf("event_deliveries = %v, want %v", got, want)

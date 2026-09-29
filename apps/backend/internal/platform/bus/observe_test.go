@@ -45,15 +45,16 @@ func TestKeepAlive_sendsInProgressOnEveryTickUntilStopped(t *testing.T) {
 	var afterStop int32
 	slow := bus.Handle("notify.push", func(ctx context.Context, _ db.Tx, _ events.SystemPinged) error {
 		stop := bus.KeepAlive(ctx)
+		deadline := time.After(waitLong)
 		for tick := int32(1); tick <= 3; tick++ {
 			h.clock.Advance(10 * time.Second)
-			deadline := time.After(waitLong)
-			for msg.inProgress.Load() != tick {
-				select {
-				case <-deadline:
-					return fmt.Errorf("tick %d sent %d InProgress", tick, msg.inProgress.Load())
-				case <-time.After(time.Millisecond):
-				}
+			select {
+			case <-msg.progressed:
+			case <-deadline:
+				return fmt.Errorf("tick %d sent %d InProgress", tick, msg.inProgress.Load())
+			}
+			if n := msg.inProgress.Load(); n != tick {
+				return fmt.Errorf("tick %d sent %d InProgress", tick, n)
 			}
 		}
 		stop()
@@ -67,6 +68,7 @@ func TestKeepAlive_sendsInProgressOnEveryTickUntilStopped(t *testing.T) {
 		subject: h.bus.Conn.Subject(events.TypeSystemPinged.Subject()),
 		header:  nats.Header{jetstream.MsgIDHeader: []string{id.String()}},
 		data:    payload, meta: &jetstream.MsgMetadata{NumDelivered: 1},
+		progressed: make(chan struct{}, 8),
 	}
 
 	reg.Dispatch(h.ctx(t), durable, msg)
@@ -195,14 +197,7 @@ func TestRegistry_gaugesReportPendingAckPendingAndDeadLetters(t *testing.T) {
 
 func (h *harness) waitDelivered(t *testing.T, n uint64) {
 	t.Helper()
-	deadline := time.After(waitLong)
-	for h.consumerInfo(t).Delivered.Consumer < n {
-		select {
-		case <-deadline:
-			t.Fatalf("the consumer never delivered %d times", n)
-		case <-time.After(20 * time.Millisecond):
-		}
-	}
+	testkit.Eventually(t, func() bool { return h.consumerInfo(t).Delivered.Consumer >= n }, waitLong)
 }
 
 func TestRegistry_gaugesFailWhenTheConsumerOrTheStreamIsGone(t *testing.T) {
