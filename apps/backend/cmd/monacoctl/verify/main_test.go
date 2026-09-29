@@ -114,3 +114,12 @@ func testOptions(t *testing.T, mode string) Options {
 		Postgres: testPostgres(t),
 	}
 }
+
+func writeScript(t *testing.T, name, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(path, []byte("#!/bin/sh\n"+body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}

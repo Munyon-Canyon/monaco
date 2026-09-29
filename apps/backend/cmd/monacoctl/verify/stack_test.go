@@ -104,6 +104,10 @@ func TestUp_reportsSchemaAndPostgresFailures(t *testing.T) {
 			}
 		}, "postgres never accepted connections"},
 		{"atlas", func(o *Options) { o.Atlas = "/nonexistent/atlas" }, "/nonexistent/atlas migrate apply"},
+		{"docker", func(o *Options) {
+			o.Postgres = nil
+			o.Docker = Docker(writeScript(t, "docker", `[ "$1" = rm ] && exit 0; echo "no daemon" >&2; exit 1`))
+		}, "docker run: exit status 1: no daemon"},
 		{"budget", func(o *Options) {
 			o.Budget.Stack = 100 * time.Millisecond
 			o.Postgres = func(ctx context.Context, _ string) (string, func(context.Context) error, error) {

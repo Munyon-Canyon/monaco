@@ -37,6 +37,7 @@ type PostgresFunc func(ctx context.Context, runID string) (url string, remove fu
 type Options struct {
 	Dir      string
 	Atlas    string
+	Docker   Docker
 	Environ  []string
 	Bins     Binaries
 	Budget   Budget
@@ -63,6 +64,9 @@ type Stack struct {
 func Up(ctx context.Context, o Options) (*Stack, error) {
 	s := &Stack{RunID: newRunID(), Logs: &Logs{}, opts: o, procs: map[string]*process{}}
 	s.TokenKey = "verify-" + s.RunID
+	if s.opts.Postgres == nil {
+		s.opts.Postgres = s.dockerPostgres
+	}
 	ctx, cancel := context.WithTimeoutCause(
 		ctx,
 		o.Budget.Stack,
@@ -85,6 +89,11 @@ func Up(ctx context.Context, o Options) (*Stack, error) {
 func (s *Stack) postgres(ctx context.Context) (err error) {
 	s.DBURL, s.remove, err = s.opts.Postgres(ctx, s.RunID)
 	return err
+}
+
+func (s *Stack) dockerPostgres(ctx context.Context, runID string) (string, func(context.Context) error, error) {
+	pg, err := startPostgres(ctx, s.opts.Docker, runID)
+	return pg.url, pg.remove, err
 }
 
 func (s *Stack) nats() (err error) {
