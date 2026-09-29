@@ -77,13 +77,16 @@ func CheckBoot(ctx context.Context, cfg config.Config, opts ...httpclient.Option
 }
 
 func (r *Relayer) CoSign(_ context.Context, raw []byte) ([]byte, error) {
+	const op = "relayer.CoSign"
 	tx, err := chain.DecodeTransaction(raw)
 	if err != nil {
 		return nil, err
 	}
 	if tx.Signers[0] != r.address {
-		return nil, errs.New(errs.CodeInvalidInput, "relayer.CoSign", slog.String("fee_payer", string(tx.Signers[0])))
+		return nil, errs.New(errs.CodeInvalidInput, op, slog.String("fee_payer", string(tx.Signers[0])))
 	}
-	_ = tx.Sign(r.key)
+	if err := tx.Sign(r.key); err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
 	return tx.Encode(), nil
 }

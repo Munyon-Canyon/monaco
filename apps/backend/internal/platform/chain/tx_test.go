@@ -69,6 +69,7 @@ func TestDecodeTransaction_refusesMalformedBytes(t *testing.T) {
 		"too few keys":      unsigned(2, message(nil, 2, a)),
 		"keys cut short":    unsigned(1, append(message(nil, 1)[:4], 1, 2, 3)),
 		"key count missing": unsigned(1, []byte{1, 0, 0}),
+		"no signatures":     unsigned(0, message(nil, 0, a)),
 	} {
 		if _, err := chain.DecodeTransaction(raw); errs.CodeOf(err) != errs.CodeInvalidInput {
 			t.Fatalf("%s: err = %v, want invalid_input", name, err)
