@@ -1,0 +1,28 @@
+# Candidate rules for `monacoctl garden report` (docs/how-to/gardener.md).
+# The gardener merges this file over .golangci.yml before it runs golangci-lint:
+# maps merge key by key, lists append and scalars here win. So this file holds only
+# what is stricter than the enforced config. Promoting a rule moves it into
+# .golangci.base.yml and deletes it here.
+version: "2"
+linters:
+  enable:
+    - asciicheck
+    - bidichk
+    - dupl
+    - errchkjson
+    - forcetypeassert
+    - gocheckcompilerdirectives
+    - goconst
+    - mirror
+    - misspell
+    - modernize
+    - nilnesserr
+    - recvcheck
+    - wastedassign
+  settings:
+    cyclop: { max-complexity: 10 }
+    funlen: { lines: 60 }
+  exclusions:
+    rules:
+      - path: _test\.go$
+        linters: [goconst]

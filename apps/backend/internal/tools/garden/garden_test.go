@@ -1,0 +1,191 @@
+package garden_test
+
+import (
+	"context"
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+
+	"gopkg.in/yaml.v3"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/tools/garden"
+)
+
+const plantedDeadcode = `[{"Name":"planted","Path":"example.com/m/internal/planted","Funcs":[
+	{"Name":"planted","Position":{"File":"internal/planted/planted.go","Line":3,"Col":6},"Generated":false},
+	{"Name":"generatedHelper","Position":{"File":"internal/planted/x.gen.go","Line":9,"Col":6},"Generated":true}]}]`
+
+type fakeTools struct {
+	results map[string][]garden.Result
+	calls   []string
+}
+
+func (f *fakeTools) exec(_ context.Context, _, name string, args ...string) (garden.Result, error) {
+	call := strings.Join(append([]string{filepath.Base(name)}, args...), " ")
+	f.calls = append(f.calls, call)
+	for prefix, queue := range f.results {
+		if strings.HasPrefix(call, prefix) && len(queue) > 0 {
+			f.results[prefix] = queue[1:]
+			return queue[0], nil
+		}
+	}
+	return garden.Result{}, nil
+}
+
+func cleanTree() map[string][]garden.Result {
+	return map[string][]garden.Result{
+		"git rev-parse": {{Stdout: []byte("/repo\napps/backend/\n")}},
+		"golangci-lint": {{Stdout: []byte(`{"Issues":[]}`)}},
+		"go run":        {{Stdout: []byte("[]")}},
+	}
+}
+
+func moduleDir(t *testing.T) string {
+	t.Helper()
+	dir, err := filepath.Abs(filepath.Join("..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func run(t *testing.T, tools *fakeTools, mutants func(context.Context) ([]garden.Finding, error)) garden.Report {
+	t.Helper()
+	report, err := garden.Run(t.Context(), garden.Config{
+		ModuleDir:    moduleDir(t),
+		GolangciLint: "golangci-lint",
+		Sqlc:         "/repo/.bin/sqlc",
+		TempDir:      t.TempDir(),
+		Exec:         tools.exec,
+		Mutants:      mutants,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return report
+}
+
+func TestRun_listsAPlantedUnusedFunctionUnderDeadCode(t *testing.T) {
+	t.Parallel()
+	results := cleanTree()
+	results["go run"] = []garden.Result{{Stdout: []byte(plantedDeadcode)}}
+	tools := &fakeTools{results: results}
+	md := run(t, tools, nil).Markdown()
+	want := "## Dead code (1)\n\n- `apps/backend/internal/planted/planted.go:3` unreachable func planted\n"
+	if !strings.Contains(md, want) {
+		t.Fatalf("report lacks the planted function under dead code:\n%s", md)
+	}
+	if !slices.Contains(tools.calls, "go run "+garden.Deadcode+" -test -json ./...") {
+		t.Fatalf(
+			"deadcode not run over the whole module with tests as roots; calls:\n%s",
+			strings.Join(tools.calls, "\n"),
+		)
+	}
+}
+
+func TestRun_groupsLintByLinterAndDriftByFileWithTheFirstChangedLine(t *testing.T) {
+	t.Parallel()
+	results := cleanTree()
+	results["golangci-lint"] = []garden.Result{{Code: 1, Stdout: []byte(`{"Issues":[
+		{"FromLinter":"funlen","Text":"Function 'a' is too long (61 > 60)","Pos":{"Filename":"internal/a/a.go","Line":7}},
+		{"FromLinter":"goconst","Text":"string ` + "`x`" + ` has 3 occurrences","Pos":{"Filename":"internal/b/b.go","Line":2}}]}`)}}
+	results["git status"] = []garden.Result{
+		{},
+		{Stdout: []byte(" M apps/backend/internal/x/x.gen.go\n?? docs/reference/new.md\n")},
+	}
+	results["git diff"] = []garden.Result{
+		{Stdout: []byte("diff --git a/apps/backend/internal/x/x.gen.go b/apps/backend/internal/x/x.gen.go\n" +
+			"--- a/apps/backend/internal/x/x.gen.go\n+++ b/apps/backend/internal/x/x.gen.go\n@@ -12 +12,2 @@ func x\n-a\n+b\n@@ -40 +41 @@\n")},
+	}
+	tools := &fakeTools{results: results}
+	md := run(t, tools, nil).Markdown()
+	for _, want := range []string{
+		"| Dead code | 0 |\n| Candidate lint | 2 |\n| Surviving mutants | skipped |\n| Generator drift | 2 |\n",
+		"### funlen (1)\n\n- `apps/backend/internal/a/a.go:7` Function 'a' is too long (61 > 60)\n\n### goconst (1)\n",
+		"- `apps/backend/internal/x/x.gen.go:12` the committed file differs from what the generators write\n",
+		"- `docs/reference/new.md:1` a generator writes this file and it is not committed\n",
+	} {
+		if !strings.Contains(md, want) {
+			t.Fatalf("report lacks %q:\n%s", want, md)
+		}
+	}
+	generators := []string{"go generate ./...", "sqlc generate", "bash /repo/scripts/gen-docs.sh"}
+	for _, g := range generators {
+		if !slices.Contains(tools.calls, g) {
+			t.Fatalf("generator %q not run; calls:\n%s", g, strings.Join(tools.calls, "\n"))
+		}
+	}
+}
+
+func TestRun_recordsAFailedCheckAndStillRunsTheRest(t *testing.T) {
+	t.Parallel()
+	results := cleanTree()
+	results["git status"] = []garden.Result{{Stdout: []byte(" M apps/backend/go.mod\n")}}
+	results["go run"] = []garden.Result{{Code: 1, Stderr: "go: cannot find module"}}
+	tools := &fakeTools{results: results}
+	mutants := func(context.Context) ([]garden.Finding, error) {
+		return []garden.Finding{
+			{Rule: "CONDITIONALS_NEGATION", File: "internal/a/a.go", Line: 4, Text: "survived"},
+		}, nil
+	}
+	report := run(t, tools, mutants)
+	failed := report.Failed()
+	if len(failed) != 2 || failed[0].Kind != garden.KindDeadCode || failed[1].Kind != garden.KindDrift {
+		t.Fatalf("failed sections %+v, want dead code and drift", failed)
+	}
+	md := report.Markdown()
+	if !strings.Contains(md, "- `apps/backend/internal/a/a.go:4` survived\n") {
+		t.Fatalf("mutant not listed with a repo path:\n%s", md)
+	}
+	if slices.Contains(tools.calls, "go generate ./...") {
+		t.Fatal("generators ran on a dirty tree")
+	}
+}
+
+func TestRun_failsWhenTheToolCannotStart(t *testing.T) {
+	t.Parallel()
+	exec := func(context.Context, string, string, ...string) (garden.Result, error) {
+		return garden.Result{}, errs.New(errs.CodeInternal, "test.exec")
+	}
+	_, err := garden.Run(t.Context(), garden.Config{ModuleDir: moduleDir(t), Exec: exec})
+	if err == nil || errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("err %v, want the exec failure", err)
+	}
+}
+
+func TestCandidateConfig_tightensTheEnforcedConfig(t *testing.T) {
+	t.Parallel()
+	out, err := garden.CandidateConfig(moduleDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg struct {
+		Linters struct {
+			Enable   []string `yaml:"enable"`
+			Settings struct {
+				Cyclop map[string]int `yaml:"cyclop"`
+				Funlen map[string]int `yaml:"funlen"`
+			} `yaml:"settings"`
+			Exclusions struct {
+				Rules []any `yaml:"rules"`
+			} `yaml:"exclusions"`
+		} `yaml:"linters"`
+	}
+	if err := yaml.Unmarshal(out, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	l := cfg.Linters
+	if l.Settings.Cyclop["max-complexity"] != 10 || l.Settings.Funlen["lines"] != 60 ||
+		l.Settings.Funlen["statements"] != 40 {
+		t.Fatalf("settings %+v, want cyclop 10, funlen 60 lines and the enforced 40 statements", l.Settings)
+	}
+	if !slices.Contains(l.Enable, "errcheck") || !slices.Contains(l.Enable, "dupl") || len(l.Exclusions.Rules) == 0 {
+		t.Fatalf("enable %v with %d exclusion rules, want the enforced linters, the candidates and the exclusions",
+			l.Enable, len(l.Exclusions.Rules))
+	}
+	if len(slices.Compact(slices.Sorted(slices.Values(l.Enable)))) != len(l.Enable) {
+		t.Fatalf("a linter is enabled twice: %v", l.Enable)
+	}
+}
