@@ -11,7 +11,7 @@ Run the command named for the step.
 | --- | --- |
 | batch | `monacoctl agents batch <issue>...` |
 | dispatch | `monacoctl agents dispatch` (`--urgent` for a ticket outside the batch) |
-| verify | `monacoctl agents verify-plan` and `just verify backend` |
+| verify | `monacoctl agents verify-plan`; the stage 2 CI job `e2e` runs `scripts/ci/e2e.sh` |
 | verdict | `monacoctl agents verdict` |
 | merging | `gh pr merge <n> --auto` for a single PR; `monacoctl agents land-stack <top-pr>` for a stack |
 | watching | `monacoctl agents watch` |

@@ -188,8 +188,8 @@ func documentedJust(t *testing.T, repo string) map[string]bool {
 	for _, m := range regexp.MustCompile("`just ([a-z0-9-]+)").FindAllStringSubmatch(text, -1) {
 		out[m[1]] = true
 	}
-	if !out["verify"] {
-		t.Fatal("docs no longer name just verify")
+	if !out["test"] {
+		t.Fatal("docs no longer name just test")
 	}
 	return out
 }
