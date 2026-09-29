@@ -328,14 +328,15 @@ func TestStatus_publishesAndSkipsAnUnchangedComment(t *testing.T) {
 		)
 	}
 	plain := statusMarker + "\n| pr | sha | ci | ci-ok | verify |\n| #5 | aaaaaaa | success | queued | success |\n"
-	f.hub.on(list("/issues/7/comments?"), []Comment{{ID: 9, Body: plain}})
+	f.hub.on(list("/issues/7/comments?"), []Comment{authored(9, plain, ghUser, "MEMBER")})
 	code, stdout, stderr = f.agents(t, "status", "--publish")
 	if code != 0 || stdout != "status comment unchanged\n" {
 		t.Fatalf("same: %d %q %q", code, stdout, stderr)
 	}
-	f.hub.on(list("/issues/7/comments?"), []Comment{{ID: 9, Body: "other"}})
+	f.hub.on(list("/issues/7/comments?"), []Comment{authored(9, statusMarker+"\nstale", ghUser, "MEMBER")})
 	f.hub.on("PATCH /repos/o/r/issues/comments/9", "ok")
-	if code, stdout, stderr = f.agents(t, "status", "--publish"); code != 0 || stdout != "status comment updated\n" {
+	if code, stdout, stderr = f.agents(t, "status", "--publish"); code != 0 || stdout != "status comment updated\n" ||
+		posted(t, f, "PATCH /repos/o/r/issues/comments/9") != plain {
 		t.Fatalf("patch: %d %q %q", code, stdout, stderr)
 	}
 	if code, _, stderr := f.agents(t, "status"); code != 2 {
