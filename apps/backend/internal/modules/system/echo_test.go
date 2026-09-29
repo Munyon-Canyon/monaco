@@ -11,7 +11,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/system/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/system/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
-	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 type hints struct {
@@ -27,7 +26,9 @@ func (h *hints) PublishHint(_ context.Context, key string, _ []byte) {
 
 func (f fixture) echo(t *testing.T, e adapters.Echo, ev events.SystemPinged) error {
 	t.Helper()
-	return f.uow.Do(t.Context(), func(ctx context.Context, tx db.Tx) error { return e.Handle(ctx, tx, ev) })
+	return f.uow.Do(t.Context(), func(ctx context.Context, tx db.Tx) error {
+		return e.Handle(ctx, tx, ev, time.Date(2026, 3, 1, 12, 0, 1, 0, time.UTC))
+	})
 }
 
 func TestEcho_marksThePingEchoedOnceAndHintsItsUserAfterCommit(t *testing.T) {
@@ -38,7 +39,7 @@ func TestEcho_marksThePingEchoedOnceAndHintsItsUserAfterCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	sent := &hints{}
-	e := adapters.Echo{Clock: testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 1, 0, time.UTC)), Hints: sent}
+	e := adapters.Echo{Hints: sent}
 	ev := events.SystemPinged{V: 1, PingID: ping.ID, UserID: f.user.UUID(), Note: "hi"}
 	for range 2 {
 		if err := f.echo(t, e, ev); err != nil {
@@ -56,7 +57,7 @@ func TestEcho_rebuildsAPingItHasNotSeenFromTheEvent(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	id := f.ids.NewV7()
-	e := adapters.Echo{Clock: testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 1, 0, time.UTC)), Hints: &hints{}}
+	e := adapters.Echo{Hints: &hints{}}
 	if err := f.echo(t, e, events.SystemPinged{V: 1, PingID: id, UserID: f.user.UUID(), Note: "replayed"}); err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +80,7 @@ func TestEcho_returnsTheWriteErrorAndHintsNothing(t *testing.T) {
 				t.Fatal(err)
 			}
 			sent := &hints{}
-			e := adapters.Echo{Clock: testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 1, 0, time.UTC)), Hints: sent}
+			e := adapters.Echo{Hints: sent}
 			err := f.echo(t, e, events.SystemPinged{V: 1, PingID: f.ids.NewV7(), UserID: f.user.UUID()})
 			if errs.CodeOf(err) != errs.CodeInternal || len(sent.keys) != 0 {
 				t.Fatalf("echo = %v with hints %q, want internal and none", err, sent.keys)

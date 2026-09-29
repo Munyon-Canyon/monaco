@@ -57,11 +57,11 @@ func startEcho(t *testing.T, failAs errs.Code) *echoWorker {
 	w.failAs.Store(failAs)
 	w.uow = db.New(w.pool, w.ids, clock.Real{})
 	echo := system.New(module.Deps{Clock: clock.Real{}, Pool: w.pool, UoW: w.uow, Bus: conn}).Consumers()[0].Handlers[0]
-	flaky := bus.Handle(echo.Name, func(ctx context.Context, tx db.Tx, e events.SystemPinged) error {
+	flaky := bus.Handle(echo.Name, func(ctx context.Context, tx db.Tx, e events.SystemPinged, at time.Time) error {
 		if code := w.failAs.Load().(errs.Code); code != "" {
 			return errs.New(code, "fixture.echo")
 		}
-		if err := echo.Apply(ctx, tx, e); err != nil {
+		if err := echo.Apply(ctx, tx, e, at); err != nil {
 			return err
 		}
 		w.applied.Add(1)

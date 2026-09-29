@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -25,7 +26,7 @@ func TestCounterWithoutDedupe(t *testing.T) {
 		if _, err := h.Pool.Exec(t.Context(), `CREATE TABLE counter_hits (ping_id uuid NOT NULL)`); err != nil {
 			t.Fatal(err)
 		}
-		count := func(ctx context.Context, _ db.Tx, e events.SystemPinged) error {
+		count := func(ctx context.Context, _ db.Tx, e events.SystemPinged, _ time.Time) error {
 			_, err := h.Pool.Exec(ctx, `INSERT INTO counter_hits (ping_id) VALUES ($1)`, e.PingID)
 			return err
 		}

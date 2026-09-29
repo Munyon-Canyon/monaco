@@ -176,7 +176,7 @@ func TestStartConsumers_deliversAPublishedEventToARegisteredHandler(t *testing.T
 	logs := &testkit.Logs{}
 	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
 	received := make(chan uuid.UUID, 1)
-	handler := bus.Handle("worker.echo", func(_ context.Context, _ db.Tx, e events.SystemPinged) error {
+	handler := bus.Handle("worker.echo", func(_ context.Context, _ db.Tx, e events.SystemPinged, _ time.Time) error {
 		received <- e.PingID
 		return nil
 	})

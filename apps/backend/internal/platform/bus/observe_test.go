@@ -43,7 +43,7 @@ func TestKeepAlive_sendsInProgressOnEveryTickUntilStopped(t *testing.T) {
 	h := newHarness(t)
 	var msg *fakeMsg
 	var afterStop int32
-	slow := bus.Handle("notify.push", func(ctx context.Context, _ db.Tx, _ events.SystemPinged) error {
+	slow := bus.Handle("notify.push", func(ctx context.Context, _ db.Tx, _ events.SystemPinged, _ time.Time) error {
 		stop := bus.KeepAlive(ctx)
 		deadline := time.After(waitLong)
 		for tick := int32(1); tick <= 3; tick++ {
@@ -129,7 +129,7 @@ func (h *harness) gaugeByConsumer(t *testing.T, name string) map[string]int64 {
 func TestDispatch_recordsHandlerDurationPerOutcome(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	rejecting := bus.Handle("notify.mail", func(context.Context, db.Tx, events.SystemPinged) error {
+	rejecting := bus.Handle("notify.mail", func(context.Context, db.Tx, events.SystemPinged, time.Time) error {
 		return errs.New(errs.CodeInvalidInput, "mail.Render")
 	})
 	reg := h.registry(
@@ -162,7 +162,7 @@ func TestRegistry_gaugesReportPendingAckPendingAndDeadLetters(t *testing.T) {
 	h := newHarness(t)
 	started := make(chan struct{}, 1)
 	release := make(chan struct{})
-	handler := bus.Handle("notify.push", func(ctx context.Context, _ db.Tx, _ events.SystemPinged) error {
+	handler := bus.Handle("notify.push", func(ctx context.Context, _ db.Tx, _ events.SystemPinged, _ time.Time) error {
 		select {
 		case started <- struct{}{}:
 		default:

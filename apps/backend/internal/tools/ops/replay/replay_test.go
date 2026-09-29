@@ -145,6 +145,52 @@ func TestRun_verifyReportsZeroDiffsOnFlow00State(t *testing.T) {
 	})
 }
 
+type tickingClock struct{ *testkit.Clock }
+
+func (c tickingClock) Now() time.Time {
+	c.Advance(time.Microsecond)
+	return c.Clock.Now()
+}
+
+func TestRun_verifyReportsZeroDiffsOnLiveDispatchedState(t *testing.T) {
+	t.Parallel()
+	f := newFlow00(t, testkit.DB(t))
+	f.ping(t, "hi")
+	f.ping(t, "there")
+	tick := tickingClock{testkit.NewClock(time.Date(2026, 3, 1, 13, 0, 0, 0, time.UTC))}
+	uow := db.New(f.pool, testkit.NewIDs(3), tick)
+	echo := replay.Handlers(system.New(module.Deps{Clock: tick, Pool: f.pool, UoW: uow}).Consumers())[0]
+	for _, id := range f.events {
+		var payload []byte
+		row := f.pool.QueryRow(t.Context(), `SELECT payload FROM events WHERE id = $1`, id)
+		if err := row.Scan(&payload); err != nil {
+			t.Fatal(err)
+		}
+		ev, err := events.Decode(events.TypeSystemPinged, 1, payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := bus.Deliver(t.Context(), uow, tick, echo, ids.EventIDFrom(id), ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Run("target", func(t *testing.T) {
+		t.Parallel()
+		target := testkit.DB(t)
+		rep, err := replayInto(t.Context(), f.pool, target, replay.Options{Verify: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rep.Events != 2 || rep.Applied != 2 || len(rep.Diffs) != 0 {
+			t.Fatalf("report = %+v, want 2 events, 2 applied, no diffs", rep)
+		}
+		want, got := echoedAt(t, f.pool), echoedAt(t, target)
+		if strings.Join(got, "|") != strings.Join(want, "|") || len(got) != 2 {
+			t.Fatalf("replayed echoed_at = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestRun_stopsAtToAndVerifyNamesTheRowsReplayDidNotBuild(t *testing.T) {
 	t.Parallel()
 	f := echoedFlow00(t)
@@ -225,7 +271,7 @@ func TestRun_failsWhenALedgerCheckFails(t *testing.T) {
 func TestRun_failsOnAHandlerErrorAndOnAnUndecodablePayload(t *testing.T) {
 	t.Parallel()
 	f := echoedFlow00(t)
-	boom := bus.Handle("boom", func(context.Context, db.Tx, events.SystemPinged) error {
+	boom := bus.Handle("boom", func(context.Context, db.Tx, events.SystemPinged, time.Time) error {
 		return errs.New(errs.CodeInternal, "fixture.boom")
 	})
 	t.Run("target", func(t *testing.T) {

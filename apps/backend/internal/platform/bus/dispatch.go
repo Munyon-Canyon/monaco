@@ -190,9 +190,10 @@ func Deliver(
 				slog.Any("panic", p), slog.String("stack", string(debug.Stack())))
 		}
 	}()
+	at := clk.Now()
 	err = uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		inserted, err := sqlc.New(tx.Queries()).InsertDelivery(ctx, sqlc.InsertDeliveryParams{
-			Handler: h.Name, EventID: id.UUID(), Code: deliveryOK, HandledAt: clk.Now(),
+			Handler: h.Name, EventID: id.UUID(), Code: deliveryOK, HandledAt: at,
 		})
 		if err != nil {
 			return err
@@ -201,7 +202,7 @@ func Deliver(
 			duplicate = true
 			return nil
 		}
-		return h.run(ctx, tx, ev)
+		return h.run(ctx, tx, ev, at)
 	})
 	return duplicate, err
 }

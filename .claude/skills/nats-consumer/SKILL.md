@@ -32,9 +32,10 @@ A module reacts to an event through a consumer that it owns. Cross-module effect
 A handler has this shape:
 
 ```go
-func (h Echo) Handle(ctx context.Context, tx db.Tx, e events.SystemPinged) error
+func (h Echo) Handle(ctx context.Context, tx db.Tx, e events.SystemPinged, at time.Time) error
 ```
 
+- `at` is the delivery time. Dispatch stamps it on `event_deliveries.handled_at`. Use it for any time the handler stores.
 - Dispatch opens the transaction. It first inserts the `(handler, event_id)` row into `event_deliveries`. When the row already exists, the event was handled, so Dispatch commits and acks without calling the handler.
 - The handler runs inside that same transaction. Its writes and the delivery row commit together, or neither does.
 - The handler writes through `tx`. It appends follow-on events with `tx.Events.Append`. Side effects that must wait for the commit, such as live hints, go in `tx.AfterCommit`.
