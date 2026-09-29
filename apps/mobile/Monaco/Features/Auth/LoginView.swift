@@ -1,3 +1,4 @@
+import AuthenticationServices
 import MonacoCore
 import SwiftUI
 
@@ -8,6 +9,7 @@ import SwiftUI
 // dispatch and works.
 
 enum LoginCopy {
+    static let continueWithGoogle = "Continue with Google"
     #if DEBUG
     static let devTextMessage = "Dev: text message"
     #endif
@@ -16,6 +18,8 @@ enum LoginCopy {
 /// Sign-in, as one composition from the top of the screen down: the brand, then the ways in.
 struct LoginView: View {
     @ObservedObject var auth: PrivyAuthService
+
+    @State private var toast: MonacoToast?
 
     #if DEBUG
     /// The dev text-message form, once "Dev: text message" is tapped.
@@ -48,6 +52,11 @@ struct LoginView: View {
         .authScreenBackground()
         .tint(MonacoTheme.accent)
         .foregroundStyle(MonacoTheme.primaryText)
+        .monacoToast($toast)
+        .onChange(of: auth.phase) { _, phase in
+            guard let message = phase.toastMessage else { return }
+            toast = MonacoToast(message: message)
+        }
     }
 
     private func waysIn(scroll: ScrollViewProxy) -> some View {
@@ -66,12 +75,46 @@ struct LoginView: View {
             #if DEBUG
             if let textMessage {
                 SMSLoginView(session: textMessage, scroll: scroll, initialCode: initialCode)
-            } else if Config.privy.smsLoginEnabled {
-                devTextMessageLink
+            } else {
+                providerButtons
+                if Config.privy.smsLoginEnabled {
+                    devTextMessageLink
+                        .padding(.top, MonacoTheme.Space.s)
+                }
             }
+            #else
+            providerButtons
             #endif
         }
         .monacoFullWidthButtons()
+    }
+
+    private var providerButtons: some View {
+        VStack(spacing: MonacoTheme.Space.s) {
+            // Privy runs the Apple request itself, so the system button is only drawn: the tap
+            // goes to the Button around it.
+            Button {
+                Task { await auth.loginWithApple() }
+            } label: {
+                SignInWithAppleButton(.signIn, onRequest: { _ in }, onCompletion: { _ in })
+                    .signInWithAppleButtonStyle(.black)
+                    .frame(height: MonacoButtonMetrics.minimumHeight)
+                    .clipShape(Capsule())
+                    .allowsHitTesting(false)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Sign in with Apple")
+            .accessibilityIdentifier("signInWithAppleButton")
+
+            Button {
+                Task { await auth.loginWithGoogle() }
+            } label: {
+                Text(LoginCopy.continueWithGoogle)
+            }
+            .buttonStyle(.monacoSecondary)
+            .accessibilityIdentifier("continueWithGoogleButton")
+        }
+        .disabled(auth.phase.isBusy)
     }
 
     #if DEBUG

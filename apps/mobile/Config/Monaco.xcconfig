@@ -8,6 +8,9 @@
 #include "Environments/Staging.xcconfig"
 #include "Environments/Production.xcconfig"
 
+// Sign in with Apple. #946 adds push and associated domains to the same file.
+CODE_SIGN_ENTITLEMENTS = Monaco/Monaco.entitlements
+
 // Debug talks to the backend on this Mac; Release (archive / TestFlight) is production.
 // Pick another one per build:  xcodebuild ... MONACO_ENVIRONMENT=staging
 MONACO_ENVIRONMENT_DEFAULT_Debug = local
