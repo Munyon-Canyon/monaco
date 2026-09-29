@@ -101,4 +101,10 @@ func TestCoSign_addsTheFeePayerSignature(t *testing.T) {
 	wantCode(t, err, errs.CodeInvalidInput)
 	_, err = r.CoSign(t.Context(), []byte{9})
 	wantCode(t, err, errs.CodeInvalidInput)
+	_, err = r.CoSign(t.Context(), build())
+	wantCode(t, err, errs.CodeInvalidInput)
+	signed, err = relayer.WithKey(r, fakes.FixtureKey("stranger")).CoSign(t.Context(), build(payer, other))
+	if signed != nil || errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("CoSign with a key that cannot sign = %x, %v; want no bytes and internal", signed, err)
+	}
 }

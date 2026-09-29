@@ -46,6 +46,73 @@ func TestTransfersBuild_SignatureKnownBeforeBroadcast(t *testing.T) {
 	}
 }
 
+func TestTransfersBuild_token2022MintUsesTheToken2022Program(t *testing.T) {
+	t.Parallel()
+	s := overFakes(t, "relayer")
+	spec := fund(0)
+	spec.Mint, spec.Amount = chain.Mint{Address: feeMint, Decimals: 8}, money.NewBaseUnits(1_000, 8)
+	signed, err := s.transfers.Build(t.Context(), spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, _ := chain.DecodeTransaction(signed.Bytes)
+	keys, ixs := compiled(t, tx.Message)
+	if len(ixs) != 2 {
+		t.Fatalf("%d instructions, want the ATA create then TransferChecked", len(ixs))
+	}
+	create, transfer := ixs[0], ixs[1]
+	source, _ := chain.AssociatedTokenAccount(memberWallet, feeMint, chain.SPL2022Program)
+	dest, _ := chain.AssociatedTokenAccount(treasury, feeMint, chain.SPL2022Program)
+	for name, pair := range map[string][2]chain.SolanaAddress{
+		"create program":       {keys[create.program], chain.ATAProgram},
+		"create token program": {keys[create.accounts[5]], chain.SPL2022Program},
+		"create ata":           {keys[create.accounts[1]], dest},
+		"transfer program":     {keys[transfer.program], chain.SPL2022Program},
+		"transfer source":      {keys[transfer.accounts[0]], source},
+		"transfer dest":        {keys[transfer.accounts[2]], dest},
+	} {
+		if pair[0] != pair[1] {
+			t.Fatalf("%s = %s, want %s", name, pair[0], pair[1])
+		}
+	}
+	if slices.Contains(keys, chain.SPLProgram) {
+		t.Fatal("a Token-2022 transfer references the SPL Token program")
+	}
+}
+
+type compiledInstruction struct {
+	program  byte
+	accounts []byte
+}
+
+func compiled(t *testing.T, msg []byte) ([]chain.SolanaAddress, []compiledInstruction) {
+	t.Helper()
+	next := func(n int) []byte {
+		if len(msg) < n {
+			t.Fatalf("message cut short")
+		}
+		out := msg[:n]
+		msg = msg[n:]
+		return out
+	}
+	next(3)
+	keyCount := next(1)[0]
+	keys := make([]chain.SolanaAddress, 0, keyCount)
+	for range keyCount {
+		keys = append(keys, chain.AddressOf(next(32)))
+	}
+	next(32)
+	ixCount := next(1)[0]
+	ixs := make([]compiledInstruction, 0, ixCount)
+	for range ixCount {
+		ix := compiledInstruction{program: next(1)[0]}
+		ix.accounts = next(int(next(1)[0]))
+		next(int(next(1)[0]))
+		ixs = append(ixs, ix)
+	}
+	return keys, ixs
+}
+
 func addr(a chain.SolanaAddress) []byte {
 	b, _ := a.Bytes()
 	return b

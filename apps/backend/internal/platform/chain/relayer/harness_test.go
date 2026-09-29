@@ -27,6 +27,7 @@ const (
 	memberWallet = chain.SolanaAddress("Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf")
 	treasury     = chain.SolanaAddress("9ixcyg5nNxGCJLtSyJYibP7EgQBw4BfpNLbDe7GQ14eh")
 	usdcMint     = chain.SolanaAddress("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+	feeMint      = chain.SolanaAddress("FHZNBei86FjdpSzU786ECJuqEAVYyfqCctt4aXWZh91M")
 )
 
 func usdc() chain.Mint { return chain.Mint{Address: usdcMint, Decimals: 6} }
