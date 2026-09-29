@@ -168,7 +168,7 @@ func TestMigrate_explainsAnUnreadablePinnedVersion(t *testing.T) {
 	}
 }
 
-func writeFile(t *testing.T, repo, rel, body string, mode os.FileMode) {
+func writeFile(t *testing.T, repo, rel, body string) {
 	t.Helper()
 	root, err := os.OpenRoot(repo)
 	if err != nil {
@@ -178,7 +178,7 @@ func writeFile(t *testing.T, repo, rel, body string, mode os.FileMode) {
 	if err := root.MkdirAll(filepath.Dir(rel), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := root.WriteFile(rel, []byte(body), mode); err != nil {
+	if err := root.WriteFile(rel, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -187,9 +187,9 @@ func fakeRepo(t *testing.T) (repo, backend string) {
 	t.Helper()
 	repo = t.TempDir()
 	backend = filepath.Join(repo, "apps", "backend")
-	writeFile(t, repo, "apps/backend/go.mod", "module "+backendModule+"\n\ngo 1.25.0\n", 0o600)
-	writeFile(t, repo, "scripts/go.mod", "module github.com/monaco/monaco/scripts\n", 0o600)
-	writeFile(t, repo, "apps/backend/internal/db/x.go", "package db\n", 0o600)
+	writeFile(t, repo, "apps/backend/go.mod", "module "+backendModule+"\n\ngo 1.25.0\n")
+	writeFile(t, repo, "scripts/go.mod", "module github.com/monaco/monaco/scripts\n")
+	writeFile(t, repo, "apps/backend/internal/db/x.go", "package db\n")
 	return repo, backend
 }
 
@@ -237,9 +237,8 @@ func TestMigrate_runsAtlasFromTheModuleRootWithTheRepoPinnedBinary(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeFile(t, repo, "apps/backend/.atlas-version", string(pinned), 0o600)
-	writeFile(t, repo, ".bin/atlas",
-		"#!/bin/sh\nif [ \"$1\" = version ]; then echo 'atlas community version v1.3.0'; exit 0; fi\npwd -P\n", 0o700)
+	writeFile(t, repo, "apps/backend/.atlas-version", string(pinned))
+	symlinkCommittedScript(t, filepath.Join("atlas", "pwd"), filepath.Join(repo, ".bin", "atlas"))
 
 	environ := []string{"MONACO_ENV=test", "DATABASE_URL=" + testkit.DB(t).Config().ConnString(), "NATS_URL=nats://x"}
 	var stdout, stderr bytes.Buffer
