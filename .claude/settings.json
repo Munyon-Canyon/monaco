@@ -35,6 +35,11 @@
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/agent-guard-go-comments.sh",
             "timeout": 60
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/agent-guard-gates.sh",
+            "timeout": 10
           }
         ]
       }
