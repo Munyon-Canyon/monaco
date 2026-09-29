@@ -25,8 +25,9 @@ type Batch struct {
 }
 
 type BatchTicket struct {
-	Ticket  int      `json:"ticket"`
-	Touches []string `json:"touches"`
+	Ticket     int       `json:"ticket"`
+	Touches    []string  `json:"touches"`
+	Dispatched time.Time `json:"dispatched,omitzero"`
 }
 
 type deferral struct {
@@ -223,21 +224,32 @@ func (env *Env) saveBatch(b Batch) error {
 	return nil
 }
 
-func (env *Env) inBatch(ticket int) error {
-	data, err := os.ReadFile(env.batchPath())
+func loadBatch(path string) (Batch, bool, error) {
+	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
+		return Batch{}, false, nil
+	}
+	if err != nil {
+		return Batch{}, false, fmt.Errorf("read batch: %w", err)
+	}
+	var b Batch
+	if err := json.Unmarshal(data, &b); err != nil {
+		return Batch{}, false, fmt.Errorf("decode %s: %w", path, err)
+	}
+	return b, true, nil
+}
+
+func (env *Env) inBatch(ticket int) error {
+	b, ok, err := loadBatch(env.batchPath())
+	if err != nil {
+		return err
+	}
+	if !ok {
 		return detailErr(
 			errs.CodeInvalidInput,
 			"monacoctl.agents.dispatch",
 			fmt.Sprintf("no batch at %s; run monacoctl agents batch, or pass --urgent", env.batchPath()),
 		)
-	}
-	if err != nil {
-		return fmt.Errorf("read batch: %w", err)
-	}
-	var b Batch
-	if err := json.Unmarshal(data, &b); err != nil {
-		return fmt.Errorf("decode %s: %w", env.batchPath(), err)
 	}
 	for _, t := range b.Tickets {
 		if t.Ticket == ticket {

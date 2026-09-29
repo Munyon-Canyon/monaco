@@ -16,6 +16,7 @@ Run the command named for the step.
 | merging | `gh pr merge --auto --squash` into the feature branch |
 | watching | `monacoctl agents watch` |
 | status | `monacoctl agents status` |
+| timeline | `monacoctl agents timeline` |
 | checkpoint | the integration label |
 
 A dispatch prompt carries only the ticket number, the worktree, the parent SHA, and the brief path (`docs/agents/owner.md` or `docs/agents/verifier.md`).
