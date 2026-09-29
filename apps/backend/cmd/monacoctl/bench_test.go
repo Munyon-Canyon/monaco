@@ -55,15 +55,13 @@ func TestBenchRejectsUnknownTargets(t *testing.T) {
 func fakeGo(t *testing.T, stdout, exitCode string) string {
 	t.Helper()
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "stream"), []byte(stdout), 0o600); err != nil {
-		t.Fatal(err)
+	for name, body := range map[string]string{"stream": stdout, "exit": exitCode} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 	bin := filepath.Join(dir, "go")
-	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" > " + filepath.Join(dir, "args") +
-		"\ncat " + filepath.Join(dir, "stream") + "\necho go-err >&2\nexit " + exitCode + "\n"
-	if err := os.WriteFile(bin, []byte(script), 0o700); err != nil {
-		t.Fatal(err)
-	}
+	symlinkCommittedScript(t, filepath.Join("go", "fake"), bin)
 	return bin
 }
 
