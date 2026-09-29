@@ -14,8 +14,8 @@ import (
 type Kind string
 
 const (
-	RootCheck Kind = "root-check"
-	Full      Kind = "full"
+	Light Kind = "light"
+	Full  Kind = "full"
 
 	smallDiff = 50
 	opus      = "opus"
@@ -131,7 +131,7 @@ func (env *Env) plan(ctx context.Context, pr PR) (Plan, error) {
 }
 
 func classify(files []File) Plan {
-	p := Plan{Kind: RootCheck, Model: sonnet, Reason: "test-only"}
+	p := Plan{Kind: Light, Model: sonnet, Reason: "test-only"}
 	hygiene := true
 	for _, f := range files {
 		if testFile(f.Filename) {
