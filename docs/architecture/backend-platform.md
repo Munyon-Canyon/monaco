@@ -459,7 +459,7 @@ Also in CI:
 | Contract | server responses match `openapi.yaml`; event payloads match golden JSON | `kin-openapi` validator middleware in every HTTP test; golden files with `-update` | `just test backend` |
 | Acceptance | one scenario per Flows row, in business language | Go scenario DSL (`scenario.New(t).Given(...).When(...).Then(...)`) over HTTP against the in-process app | `just test backend` |
 | E2E | same scenarios against real `api` + `worker` binaries | compose: PG + NATS + fake externals; `-cover` binaries | PR CI |
-| QA | agent-driven: `verify-backend flow <n>` with evidence in the PR | `verify-backend` skill CLI | every backend PR |
+| QA | `monacoctl verify` on the real binaries; evidence is the `verify-evidence` CI artifact | `cmd/monacoctl verify` | stage 2 (merge queue) and nightly |
 | Crash-point | panic at named points (after create, after sign, after `/execute`, before commit, after publish), restart, assert convergence. A `created` row was never signed or sent, so the sweeper fails it after 2 min; a crash after the send leaves the row `submitted`, which the sweeper resolves through `getSignatureStatuses`. | `faultpoint` hooks compiled in under the `faultpoints` build tag | `just test backend` in process; E2E in PR CI |
 | Jitter / concurrency | pools, pipelines, relay, consumers under random delays and interleavings | `testing/synctest` + seeded delay injection + `-race` | `just test backend` (fixed seeds), nightly (seed sweep) |
 | Performance (deterministic) | allocations per op on hot paths; query count per request | `testkit.AssertAllocs` (`testing.AllocsPerRun`) in `allocs_test.go`, which runs alone and without `-race`; `testkit.AssertQueries` counts the queries on the test's own `testkit.DB`. Both compare with the package's `testdata/perf/baseline.json`, and `-testkit.perf-update` rewrites it | `just test backend` |
@@ -566,12 +566,12 @@ The table below is a render. The file is `apps/backend/flows.tsv`, one line per 
 | `events` | `cabal.fund_submitted;cabal.funded` | each in the `events` registry |
 | `consumers` | `treasury.positions;ranking;feed;referrals` | each a registered durable |
 | `outcomes` | `ok;InsufficientFunds;CabalPaused;PrivyUnavailable;crash:after-sign;crash:before-commit` | each `Code` in the `errs` table; each crash point a registered `faultpoint` |
-| `status` | `planned`, `built`, `verified` | `built` needs every outcome test present; `verified` needs evidence (below) |
+| `status` | `planned`, `built`, `verified` | `built` needs every outcome test present; `verified` needs a flow script per outcome (below) |
 | `doc` | `docs/architecture/deposits-withdrawals.md#fund` | file and anchor exist |
 
 `monacoctl flows check` runs in CI and fails on any column's check. It also reads `go test -json` from the run and requires, for each flow with `status` ≥ `built`, a passing test named `TestFlow<id>_<Command>_<Outcome>` per outcome. A flow row with no test is a red build, not a backlog item. The check is what makes the file a map of the system instead of a wish list.
 
-`status = verified` means `verify-backend flow <id>` ran against real binaries and wrote `test/evidence/<id>.json` (responses, `events` rows, acks, ledger balances, and the log lines the flow must emit). The E2E job produces that file on every PR that touches the flow's module, so `verified` cannot go stale silently: the check fails a `verified` flow whose evidence file is older than the module's newest commit.
+`status = verified` means every outcome has a flow script registered in `Scripts()` (`internal/testkit/flows/scripts.go`), so `monacoctl verify all` drives it against the real binaries in stage 2. `monacoctl flows check` fails a `verified` flow with an outcome that has no script.
 
 Generated from the TSV, checked fresh in CI: the table below (`monacoctl docs flows`), the `verify-backend` feature map, and the acceptance test skeletons (`just gen flow <id>` writes one failing test per outcome).
 
@@ -782,7 +782,7 @@ Cost: IDE hover shows no docs. With `internal/`-only code and descriptive names,
 
 ### Verification skill
 
-Agents need to prove backend work runs, not only that it compiles and its unit tests pass. `verify-backend` runs the real `api` and `worker` binaries against a real database and bus, drives a flow the way the app would, and writes down what the system did. It is the step between `just test backend` and opening a PR.
+Agents need to prove backend work runs, not only that it compiles and its unit tests pass. `verify-backend` runs the real `api` and `worker` binaries against a real database and bus, drives a flow the way the app would, and writes down what the system did. It runs in the merge queue (stage 2) and nightly, after the tests.
 
 What lives where:
 
@@ -790,12 +790,11 @@ What lives where:
 | --- | --- | --- |
 | Skill instructions | `.claude/skills/verify-backend/SKILL.md` (mirrored to `.cursor/skills/`) | When to run it, the commands, how to read evidence, what counts as a pass, and what to do on a failure. Short; the CLI does the work. |
 | Feature map | `.claude/skills/verify-backend/feature-map.md` | Generated from `flows.tsv` by `monacoctl docs flows`. Per flow: trigger, command, events, consumers, tables, outcomes, and the exact command that verifies it. Checked fresh in CI. |
-| The CLI | `cmd/monacoctl verify`, run as `just verify backend` | Stack, driver, invariant checks, evidence writer. Code, tested like any other code. |
+| The CLI | `cmd/monacoctl verify` | Stack, driver, invariant checks, evidence writer. Code, tested like any other code. |
 | Fakes server | `cmd/fakes`, built from `internal/testkit/fakes` | Privy, Jupiter, Solana RPC, Helius, xStocks, APNs and Ably over HTTP, replaying recorded fixtures. Scriptable per request: succeed, fail with a given error, delay, or hang. |
 | Flow scripts | `internal/testkit/flows/<id>.go` | The same steps as the flow's acceptance scenario, written once and run by both `go test` (in-process) and `verify` (against binaries). |
 | Seed scenarios | `internal/testkit/scenarios/` | Named event sequences replayed into the database before a flow starts (see [Replay and seeded states](#replay-and-seeded-states)). |
-| Evidence | `test/evidence/<flow-id>.json`, committed | One file per flow, stamped with the commit it ran against. |
-| Pre-PR hook | `scripts/agent-guard-pr.sh`, wired in `.claude/settings.json` | Blocks `gt submit` and `gh pr create` until evidence is fresh for every touched flow. |
+| Evidence | `apps/backend/.verify/<flow-id>.json`, git-ignored; CI uploads it as the `verify-evidence` artifact | One file per flow, or `<flow-id>-crash-<point>.json` for a crash run, stamped with the commit and whether the tree was dirty. |
 
 What one run does:
 
@@ -811,30 +810,30 @@ Modes:
 
 | Command | Runs |
 | --- | --- |
-| `just verify backend` | The flows whose `module` the branch changed, from `git diff main --name-only`. The default before a PR. |
-| `just verify backend flow 07` | One flow, every outcome in its `outcomes` cell. |
-| `just verify backend flow 07 --outcome PrivyUnavailable` | One outcome. The fakes server is scripted to produce it. |
-| `just verify backend flow 07 --crash-at after-sign` | Kills the worker at that fault point, restarts it, and checks the flow converges to the same end state. |
-| `just verify backend all` | Every flow. CI nightly. |
+| `go run ./cmd/monacoctl verify all` | Every outcome of every `built` or `verified` flow, crash points excepted. |
+| `go run ./cmd/monacoctl verify flow 00` | One flow, every outcome in its `outcomes` cell except crash points. |
+| `go run ./cmd/monacoctl verify flow 00 --outcome InvalidInput` | One outcome. The fakes server is scripted to produce it. |
+| `go run ./cmd/monacoctl verify all --crash-at after-publish` | The `after-publish` crash point of every flow that has one. Kills the worker there, restarts it, and checks the flow converges to the same end state. |
+
+`scripts/ci/e2e.sh` runs `verify all`, then `verify all --crash-at after-publish`.
 
 An evidence file holds: the commit SHA and whether the tree was dirty, the flow and outcomes run, each HTTP request and response (secrets redacted by the same slog handler), the `events` rows written, per-consumer acks and redeliveries, ledger balances per asset before and after, dead letters, the required log lines found, p50 and p95 handler latency, and pass or fail per invariant. Evidence from a dirty tree does not count.
 
 Gates:
 
-- **Before a PR, for agents.** `scripts/agent-guard-pr.sh` runs on `gt submit` and `gh pr create`. It maps the branch's changed files to flows and blocks unless each has passing evidence stamped with `HEAD`. The message tells the agent to run `just verify backend`. The Cursor rule says the same.
-- **In CI, for everyone.** The E2E job reruns `verify` for the touched flows and fails on any difference from the committed evidence in the pass or fail of an invariant. `monacoctl flows check` fails a `verified` flow whose evidence is older than its module's newest commit.
-- **On failure.** The agent fixes the code and reruns. Evidence is never hand-edited: `flows check` recomputes the SHA stamp and rejects a file whose content hash does not match what `verify` wrote.
+- **In the merge queue.** The `e2e` job runs `scripts/ci/e2e.sh` on every backend queue entry and fails on any failed invariant or budget. Owners do not run `verify`; stage 0 is `monacoctl agents check`.
+- **On failure.** Fix the code and let the queue rerun it. Read the `verify-evidence` artifact to see what the system did. Never weaken an invariant or raise a budget to get green.
 
 #### Budget: 90 s, enforced
 
-`just verify backend` finishes in under 90 s of wall time, measured from the command starting to the last container removed. That is a failure condition, not a target. The design aims for 45 s so ordinary noise never trips it.
+`monacoctl verify all` finishes in under 90 s of wall time, measured from the command starting to the last container removed. That is a failure condition, not a target. The design aims for 45 s so ordinary noise never trips it.
 
 How the budget is enforced:
 
-1. **A hard deadline in the CLI.** `verify` runs under one `context.WithTimeoutCause` of 90 s. When it fires, the run stops, tears down, exits non-zero, and writes evidence with `"result": "over_budget"`. Over-budget evidence counts as a failure everywhere: the pre-PR hook, CI and `flows check`.
+1. **A hard deadline in the CLI.** `verify` runs under one `context.WithTimeoutCause` of 90 s. When it fires, the run stops, tears down, exits non-zero, and writes evidence with `"result": "over_budget"`, which fails the job.
 2. **Phase budgets, so a failure says where the time went.** Stack up 10 s. Seeding 2 s per flow. Each flow, all outcomes included, 15 s. Teardown 5 s. A phase over its budget fails the run with the phase named, even when the total is under 90 s. So a slow flow is caught the day it gets slow, not the day the total finally crosses the line.
-3. **Timings are evidence.** Every evidence file records each phase's duration and the machine it ran on (`GOOS`, CPU count, CI or local). `flows check` fails a flow whose recorded duration is over its phase budget, and CI's timing is the one that counts.
-4. **Regression alarm.** CI compares each flow's duration with the median of its last 20 runs on `main` and fails the PR when a flow is more than 50% slower and more than 2 s slower. That catches creep long before the hard limit.
+3. **Timings are evidence.** Every evidence file records each phase's duration and the machine it ran on (`GOOS`, CPU count, CI or local).
+4. **Not built yet.** **Regression alarm.** CI compares each flow's duration with the median of its last 20 runs on `main` and fails the PR when a flow is more than 50% slower and more than 2 s slower. That catches creep long before the hard limit.
 5. **The enforcer is tested.** `verify`'s own test suite plants a flow that sleeps past its budget and a stack that never becomes healthy, and asserts both fail with the right phase named. The budget cannot break silently.
 6. **No raising the number in a PR.** The 90 s and the phase budgets live in `cmd/monacoctl/verify/budget.go`, and a change to that file needs the `budget-change` label from a human reviewer. An agent that hits the limit fixes the slow code or splits the PR.
 
@@ -845,7 +844,7 @@ How the design stays inside it:
 - **Build once.** Binaries come from Go's build cache; an unchanged tree relinks nothing. Seeds replay events in milliseconds instead of running commands.
 - **Too many flows means too big a PR.** A branch whose touched flows cannot fit in 90 s at 4-way parallelism is split, the same rule as mutation testing's 10-minute limit.
 
-The risk is noise: wall-clock gates are not perfectly deterministic, and a laptop at heavy load can run slow. The 45 s design target is the margin for that, and the evidence file records the load average at the start so a slow local run is easy to tell apart from slow code. `just verify backend all` (every flow, nightly) is exempt from the 90 s total but not from the per-flow budgets.
+The risk is noise: wall-clock gates are not perfectly deterministic, and a laptop at heavy load can run slow. The 45 s design target is the margin for that, and the evidence file records the load average at the start so a slow local run is easy to tell apart from slow code. `monacoctl verify all` is exempt from the 90 s total but not from the per-flow budgets.
 
 Rollout step 1 measures a real run on the scaffold and confirms the phase budgets fit.
 
@@ -860,7 +859,7 @@ Rollout step 1 measures a real run on the scaffold and confirms the phase budget
   - `go-concurrency`: when to use `Pool`, `Stage`, `FanOut`, errgroup; the eight concurrency rules; `goleak` and `-race` required. References the Mario Carrión fan-in/fan-out article for the base pattern and the helpers for the house version.
   - `money-change`: checklist for anything touching ledgers, shares, swaps: property test, crash-point test, guarded update, event in same tx.
   - `nats-consumer`: `bus.Dispatch` contract, idempotency via `event_deliveries`, retryable vs term, `InProgress` for long work, `Nats-Msg-Id` on publish, consumer-not-stream per module.
-  - `verify-backend`: the instructions and feature map above. Every backend branch runs `just verify backend` before its PR is opened, and the pre-PR hook enforces it.
+  - `verify-backend`: the instructions and feature map above. The merge queue runs it on every backend entry.
 
 ## Pull requests: small and stacked
 
@@ -879,7 +878,7 @@ Agents in Claude Code on the web or CI install it with `npm install -g @withgrap
 ### Rules
 
 - **One PR is one verifiable unit.** It passes stage 0 (`monacoctl agents check`) and stage 1 on its own, without the PRs above it ([Verification scope](#verification-scope)). A PR that only makes sense with the next one gets merged with it.
-- **Order a stack so each PR proves the next.** Delete or rename first. Then schema and migration. Then `domain` and `app` with their tests. Then adapters and HTTP. Last, the `flows.tsv` status change with its evidence. The Rollout steps below are each one stack, not one PR.
+- **Order a stack so each PR proves the next.** Delete or rename first. Then schema and migration. Then `domain` and `app` with their tests. Then adapters and HTTP. Last, the `flows.tsv` status change with its flow scripts. The Rollout steps below are each one stack, not one PR.
 - **Size limit: under 1000 changed lines.** CI fails a PR at 1000 or more changed lines, counting added plus deleted lines in hand-written code, tests and docs. A pure rename counts as zero. Generated Go, `go.sum`, lockfiles, images, `testdata`, evidence files and rendered reference docs don't count; the list is `IGNORED` in `scripts/check-pr-size.py`. A human reviewer can add the `large-pr` label to let an oversized PR through, for example a mechanical change such as a rename; an agent adds it only when a human says to. A stack that lands as one queue entry passes without the label: its top PR's body starts with `Lands stack: #a #b #c`, and each listed PR is under the limit against its own parent and has a `verify` success on its head.
 - **Split a branch that grew too big.** When work piled up on one branch or at the top of a stack, split it before submitting. The `distribute-stack-changes` skill does it by copying exact hunks onto the lowest branch that owns each behavior, restacking after each commit, and checking the top branch has zero diff from a saved reference. It never rewrites the work. `gt split --by-hunk` does the same by hand. The skill lives in each person's `~/.agents/skills`, not in the repo.
 - **Title: what the PR changes.** For example `Add errs code table and problem+json mapping`: present tense, no issue number, no commit-type prefix such as `docs:` or `feat(x):`. Every stack starts from a GitHub issue in the write-ticket format, and each PR links it under Why (`Closes #212` or `Part of #212`).
@@ -887,7 +886,7 @@ Agents in Claude Code on the web or CI install it with `npm install -g @withgrap
   - **TLDR:** what changed and its effect, in one or two sentences.
   - **Why:** the problem, and what breaks or stays slow without this PR.
   - **What changed:** grouped by behavior, not by file.
-  - **Proof:** the exact commands run and what they printed. Include the `verify-backend` evidence summary, test counts, and measurements with their conditions. Say what was not verified.
+  - **Proof:** the exact commands run and what they printed. Include test counts, and measurements with their conditions. Say what was not verified.
   - **What came up:** surprises, wrong assumptions, decisions made along the way, and follow-ups filed as issues. A reviewer should learn here what the author learned.
   - **Reviewer focus:** where to look hardest.
   Open PRs as drafts with `gt submit --stack --no-interactive --draft`: without `--draft`, a new PR opens ready with the commit subject as its title and the empty template as its body, and PR format fails its first run. Then run `scripts/pr-body.sh <n> "<title>" <file>` for each PR. It runs the full `scripts/check-pr-format.py` locally (title, body, commits and stacked neighbours, with the base and head read from `gh pr view`), and only when that passes sets the title and body and runs `gh pr ready`. On a PR that is already ready it updates the title and body only.
@@ -905,7 +904,7 @@ Checks run in three stages, and each stage runs only what the stage before it sk
 | --- | --- | --- | --- | --- |
 | 0. Agent check | Owner's worktree, `monacoctl agents check` | `go build` and `go vet` on affected packages, then golangci-lint, nogo and the comment lint, then `go test -short -count=1` on affected packages, no `-race`. For non-Go paths, the cheap row for that path (`bash -n` and shellcheck; `cd scripts && go test -short` on the touched test files; `python3 -m unittest …`; `swift test` for `packages/mobile-core`). Path-triggered rows mirror CI's `ready`, migration lint, OpenAPI lint and oasdiff, and `mkdocs --strict` | ≤60s | Once before each push (hook-enforced) |
 | 1. PR check | CI, `pull_request` | The repo-wide checks, including those stage 0 runs on the changed paths only: `plan`, golangci-lint, nogo, the comment lint, OpenAPI lint and oasdiff, migration lint, `ready` (tidy, generated files, sqlc, docs), PR format. **No tests.** | ≤2 min | Once per change to the PR's diff. A push with the same diff reuses the last green result. |
-| 2. Queue check | CI, `merge_group` | The full suite: `scripts/test-backend.sh` (race, all packages, time budget), the `-short`-skipped tests, `flake` on changed tests, `just verify backend`, `scripts` tests, and mobile-core and iOS only when their paths changed | ≤6 min backend-only (iOS adds ~12) | Once per queue entry. A stack is one entry. Reruns only after an ejection. |
+| 2. Queue check | CI, `merge_group` | The full suite: `scripts/test-backend.sh` (race, all packages, time budget), the `-short`-skipped tests, `flake` on changed tests, `monacoctl verify` (`scripts/ci/e2e.sh`), `scripts` tests, and mobile-core and iOS only when their paths changed | ≤6 min backend-only (iOS adds ~12) | Once per queue entry. A stack is one entry. Reruns only after an ejection. |
 
 Stage 1 runs no tests because stage 0 already ran the tests the change can affect, on exactly the pushed code, and stage 2 runs every test against the real feature-branch tip with all queued changes combined before anything lands. The verifier reviews in parallel with stage 1 and runs no tests.
 
@@ -927,7 +926,7 @@ A path in no row runs nothing in stage 0. The paths with no checks in any stage 
 
 `monacoctl agents check` prints at most 20 lines, writes the full log under `.git/pstack/<milestone>/logs/`, and exits 1 naming the slowest package when a row runs over its kind's budget, or a package in the go test -short row runs over the per-package budget in `.monaco/agents.toml` `[check.budget]`. On a pass it records `git rev-parse HEAD^{tree}` in `.git/pstack/<milestone>/checks/`. It refuses a working tree that differs from `HEAD`, since it records `HEAD`'s tree.
 
-`scripts/agent-guard.py` holds owners and verifiers to stage 0. It applies when `.git/.monaco/agents/<ticket>.json` names the calling worktree, so the operator and the root session are unaffected. It blocks `gt submit` and `git push` until `agents check` has passed on the current tree; the heavy tests (`just test backend`, `just verify backend`, `scripts/test-backend.sh`, `go test` with `-race` or without `-short`, `go test ./...` from `apps/backend`); CI polling (`gh run watch`, `gh pr checks --watch`, `gh pr checks` in a loop, `sleep` over 10s); `gt submit` with `--publish` or without `--draft`; and a raw `gh pr ready`, since only `scripts/pr-body.sh` marks a PR ready. `gh run rerun <id> --failed` and `gh pr ready --undo` stay allowed.
+`scripts/agent-guard.py` holds owners and verifiers to stage 0. It applies when `.git/.monaco/agents/<ticket>.json` names the calling worktree, so the operator and the root session are unaffected. It blocks `gt submit` and `git push` until `agents check` has passed on the current tree; the heavy tests (`just test backend`, `scripts/test-backend.sh`, `go test` with `-race` or without `-short`, `go test ./...` from `apps/backend`); CI polling (`gh run watch`, `gh pr checks --watch`, `gh pr checks` in a loop, `sleep` over 10s); `gt submit` with `--publish` or without `--draft`; and a raw `gh pr ready`, since only `scripts/pr-body.sh` marks a PR ready. `gh run rerun <id> --failed` and `gh pr ready --undo` stay allowed.
 
 The same hook blocks `gt sync` without `--no-restack` for every session, because a plain sync restacks other agents' stacks mid-build. `scripts/agent-guard-dispatch.py`, a PreToolUse hook on the Agent tool, holds the spawn itself. A prompt with a `brief: docs/agents/owner.md` or `brief: docs/agents/verifier.md` line must run as `pstack:poteto-agent` with an explicit `opus` or `sonnet` model, and an owner's `ticket: <n>` needs the record `monacoctl agents dispatch` writes after it checks that every blocker has merged. `dispatch` prints the owner's spawn line and prompt, and `verify-plan` prints the verifier's. Spawns without the brief line, such as a skill's explorers, pass untouched.
 
@@ -935,7 +934,7 @@ The PR's Proof section pastes the `monacoctl agents check` output and says that 
 
 ### Enforcement
 
-- **Pre-PR hook.** `scripts/agent-guard-pr.sh` runs on `gt submit` and on `gh pr create`. It blocks `gh pr create` on a branch Graphite tracks and tells the agent to use `gt submit --stack`. For every branch being submitted, it also requires fresh `verify-backend` evidence ([Gates](#verification-skill)).
+- **Agent guard.** `scripts/agent-guard.py` runs before every agent shell command. For PRs, it blocks `gh pr edit --base` outside `monacoctl agents land-stack` and an inline `--body` on `gh pr create` or `gh pr edit`. In an owner or verifier worktree, it also holds `gt submit` to the draft flow.
 - **CI, live now.** `.github/workflows/pr-format.yml` runs `scripts/check-pr-format.py` on every non-draft PR, again whenever the title or body is edited. It fails a title that starts with an issue number or a commit-type prefix, and a body missing any of the six sections or with a section that holds only the template's comment. It also fails when Why links no ticket (`Part of #n`, or `Closes #n` on the ticket's last PR), when a PR closes a ticket that an open PR stacked directly above it is part of, when the closing PR has no `## Needs from Logan` section or a fenced command there fails `bash -n`, when the body cites a SHA that is not an ancestor of the head, and when a commit in base..head has no Conventional Commit subject (`type(scope)!: subject`; merge commits and squash merges ending in `(#n)` are exempt). Write commits with the `/commit` skill. `scripts/pr-body.sh` runs the same checker with the PR's base and head before it sets a title and body or marks a draft ready. Its unit tests run in the same job. A second job runs `scripts/check-pr-size.py` for the size limit, reruns when a label is added or removed or the body is edited, and prints the ten largest counted files. It accepts an oversized PR only with the `large-pr` label or a `Lands stack:` first line that holds (see the size limit above).
 - **CI, still to build.** A check that fails a PR whose base branch is not `main` and has no open PR of its own, the sign of a stack pushed without Graphite.
 - **Install check.** `just install --check` exits 1 when `gt` is missing, the same as for Go.
@@ -977,6 +976,7 @@ None at the moment.
 
 ## Log
 
+- 2026-09-29: verify runs in stage 2 only. Evidence is a CI artifact, not a committed file. The pre-PR evidence hook and the `just` recipe for verify were dropped (#483).
 - 2026-09-29: Settled the flows table and names with the MVP tickets (#535). Flow 19 runs every 2 minutes. Flow 18: the market price poller appends `asset.price_moved`; there is no second poller. Flows 11 and 12: the swap layer appends `trade.submitted` on submit. Flow 12 route is `POST /v1/swaps/{id}/retry` and flow 14 route is `POST /v1/cabals/{id}/cashouts` (default; see #535). Flow 4: leave requires zero shares, and the app routes to cash out first. `notify` appears in a consumers cell only when the event pushes, so it left flows 3, 7, 13 to 16, 18, 25 and 26. Flow 8 gains `cabal.paused` and `cabal.resumed`, appended by funding. Decided adds snake_case JSON and regenerating `atlas.sum` on rebase.
 - 2026-09-27: Decided: the legacy backend, its migrations, the Go domain package and the reference bot are deleted in M7 (#457), before the scaffold. Rollout step 7 deletes nothing.
 - 2026-09-27: Decided 2026-09-27: every user picks a unique `users.handle` in onboarding, owned by identity and read by referrals through identity's query port. The market price poller ticks every 120 s (flow 18, NATS network budget).
