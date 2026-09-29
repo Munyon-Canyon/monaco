@@ -130,13 +130,23 @@ func (p *process) stop(ctx context.Context) error {
 	if !p.running() {
 		return nil
 	}
+	if ctx.Err() != nil {
+		p.kill()
+		return fmt.Errorf("%s was killed without a graceful stop because the budget was already spent: %w",
+			p.name, context.Cause(ctx))
+	}
 	_ = p.cmd.Process.Signal(syscall.SIGTERM)
 	select {
 	case <-p.exited:
 		return nil
 	case <-ctx.Done():
-		_ = p.cmd.Process.Kill()
-		<-p.exited
-		return fmt.Errorf("%s ignored SIGTERM and was killed: %w", p.name, context.Cause(ctx))
+		p.kill()
+		return fmt.Errorf("%s did not exit within the budget after SIGTERM and was killed: %w",
+			p.name, context.Cause(ctx))
 	}
+}
+
+func (p *process) kill() {
+	_ = p.cmd.Process.Kill()
+	<-p.exited
 }
