@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -32,12 +33,26 @@ type Decision struct {
 }
 
 type Limiter struct {
-	q     *sqlc.Queries
-	clock clock.Clock
+	q           *sqlc.Queries
+	clock       clock.Clock
+	rejected    metric.Int64Counter
+	storeErrors metric.Int64Counter
 }
 
-func New(db sqlc.DBTX, c clock.Clock) *Limiter {
-	return &Limiter{q: sqlc.New(db), clock: c}
+func New(db sqlc.DBTX, c clock.Clock, mp metric.MeterProvider) (*Limiter, error) {
+	const op = "ratelimit.New"
+	meter := mp.Meter("github.com/monaco/monaco/apps/backend/internal/platform/httpx/ratelimit")
+	rejected, err := meter.Int64Counter("monaco_ratelimit_rejected_total",
+		metric.WithDescription("Requests refused with 429 by operation and scope."))
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	storeErrors, err := meter.Int64Counter("monaco_ratelimit_errors_total",
+		metric.WithDescription("Rate limit checks that failed open on a store error."))
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	return &Limiter{q: sqlc.New(db), clock: c, rejected: rejected, storeErrors: storeErrors}, nil
 }
 
 func (l *Limiter) Take(ctx context.Context, key string, p Policy, cost int64) (Decision, error) {

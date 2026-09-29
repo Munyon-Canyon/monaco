@@ -60,6 +60,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"MONACO_ENV=production",
 		"MONACO_HTTP_ADDR=127.0.0.1:9000",
 		"MONACO_HTTP_MAX_BODY_BYTES=4096",
+		"TRUST_PROXY_HEADERS=true",
 		"MONACO_WORKER_HEALTH_ADDR=127.0.0.1:9001",
 		"DATABASE_URL=postgres://prod",
 		"MONACO_DB_MAX_CONNS=40",
@@ -97,7 +98,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 	}
 	want := config.Config{
 		Env:    config.EnvProduction,
-		HTTP:   config.HTTP{Addr: "127.0.0.1:9000", MaxBodyBytes: 4096},
+		HTTP:   config.HTTP{Addr: "127.0.0.1:9000", MaxBodyBytes: 4096, TrustProxyHeaders: true},
 		Worker: config.Worker{HealthAddr: "127.0.0.1:9001"},
 		DB:     config.DB{URL: "postgres://prod", MaxConns: 40},
 		NATS:   config.NATS{URL: "nats://prod:4222"},
@@ -198,6 +199,11 @@ func TestLoadFailures(t *testing.T) {
 			environ: append(required(), "MONACO_BUS_ACK_WAIT=0s", "MONACO_BUS_API_RELAY=maybe"),
 			want: "config.Load: invalid_input: invalid MONACO_BUS_ACK_WAIT (empty or a positive duration like 100ms), " +
 				"MONACO_BUS_API_RELAY (on or off)",
+		},
+		{
+			name:    "trust proxy headers not a boolean",
+			environ: append(required(), "TRUST_PROXY_HEADERS=render"),
+			want:    "config.Load: invalid_input: invalid TRUST_PROXY_HEADERS (true or false)",
 		},
 		{
 			name:    "max conns past int32",
@@ -302,6 +308,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"MONACO_FAULTPOINT", ""},
 		{"MONACO_BUS_ACK_WAIT", ""},
 		{"MONACO_BUS_API_RELAY", "on"},
+		{"TRUST_PROXY_HEADERS", "false"},
 	}
 	if len(got) != len(tests) {
 		t.Fatalf("Redacted has %d keys, want %d: %v", len(got), len(tests), got)

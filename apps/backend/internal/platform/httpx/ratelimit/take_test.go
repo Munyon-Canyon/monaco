@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"go.opentelemetry.io/otel/metric/noop"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
@@ -20,6 +21,15 @@ import (
 func epoch() time.Time { return time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC) }
 
 func perMinute() ratelimit.Policy { return ratelimit.Policy{Rate: 10, Per: time.Minute, Burst: 10} }
+
+func newLimiter(t *testing.T, db sqlc.DBTX, clk *testkit.Clock) *ratelimit.Limiter {
+	t.Helper()
+	l, err := ratelimit.New(db, clk, noop.NewMeterProvider())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return l
+}
 
 func take(t *testing.T, l *ratelimit.Limiter, key string, p ratelimit.Policy, cost int64) ratelimit.Decision {
 	t.Helper()
@@ -32,7 +42,7 @@ func take(t *testing.T, l *ratelimit.Limiter, key string, p ratelimit.Policy, co
 
 func TestTake_ConcurrentBurst(t *testing.T) {
 	t.Parallel()
-	l := ratelimit.New(testkit.DB(t), testkit.NewClock(epoch()))
+	l := newLimiter(t, testkit.DB(t), testkit.NewClock(epoch()))
 	var allowed, refused atomic.Int64
 	var wg sync.WaitGroup
 	start := make(chan struct{})
@@ -60,7 +70,7 @@ func TestTake_ConcurrentBurst(t *testing.T) {
 func TestTake_Refill(t *testing.T) {
 	t.Parallel()
 	clk := testkit.NewClock(epoch())
-	l := ratelimit.New(testkit.DB(t), clk)
+	l := newLimiter(t, testkit.DB(t), clk)
 	for i := range 10 {
 		if d := take(t, l, "refill", perMinute(), 1); !d.Allowed {
 			t.Fatalf("take %d refused inside the burst", i)
@@ -81,7 +91,7 @@ func TestTake_Refill(t *testing.T) {
 func TestTake_RetryAfterIsTheTimeUntilTheDeficitRefills(t *testing.T) {
 	t.Parallel()
 	clk := testkit.NewClock(epoch())
-	l := ratelimit.New(testkit.DB(t), clk)
+	l := newLimiter(t, testkit.DB(t), clk)
 	p := ratelimit.Policy{Rate: 3, Per: time.Second, Burst: 4}
 	if d := take(t, l, "deficit", p, 4); !d.Allowed {
 		t.Fatalf("take of the whole burst = %+v, want allowed", d)
@@ -100,7 +110,7 @@ func TestTake_RetryAfterIsTheTimeUntilTheDeficitRefills(t *testing.T) {
 func TestTake_RefillStopsAtTheBurst(t *testing.T) {
 	t.Parallel()
 	clk := testkit.NewClock(epoch())
-	l := ratelimit.New(testkit.DB(t), clk)
+	l := newLimiter(t, testkit.DB(t), clk)
 	take(t, l, "cap", perMinute(), 1)
 	clk.Advance(time.Hour)
 	if d := take(t, l, "cap", perMinute(), 10); !d.Allowed {
@@ -114,7 +124,7 @@ func TestTake_RefillStopsAtTheBurst(t *testing.T) {
 func TestTake_ClockBehindTheBucketRefillsNothing(t *testing.T) {
 	t.Parallel()
 	clk := testkit.NewClock(epoch())
-	l := ratelimit.New(testkit.DB(t), clk)
+	l := newLimiter(t, testkit.DB(t), clk)
 	take(t, l, "skew", perMinute(), 10)
 	clk.Advance(-time.Minute)
 	d := take(t, l, "skew", perMinute(), 1)
@@ -125,7 +135,7 @@ func TestTake_ClockBehindTheBucketRefillsNothing(t *testing.T) {
 
 func TestTake_KeysAreIndependent(t *testing.T) {
 	t.Parallel()
-	l := ratelimit.New(testkit.DB(t), testkit.NewClock(epoch()))
+	l := newLimiter(t, testkit.DB(t), testkit.NewClock(epoch()))
 	take(t, l, "a", perMinute(), 10)
 	if d := take(t, l, "b", perMinute(), 10); !d.Allowed {
 		t.Fatalf("take on a fresh key = %+v, want allowed", d)
@@ -134,7 +144,7 @@ func TestTake_KeysAreIndependent(t *testing.T) {
 
 func TestTake_rejectsAPolicyOrCostItCannotServe(t *testing.T) {
 	t.Parallel()
-	l := ratelimit.New(nil, testkit.NewClock(epoch()))
+	l := newLimiter(t, nil, testkit.NewClock(epoch()))
 	for name, tc := range map[string]struct {
 		p    ratelimit.Policy
 		cost int64
@@ -161,7 +171,7 @@ func TestTake_rejectsAPolicyOrCostItCannotServe(t *testing.T) {
 
 func TestTake_acceptsTheLargestPolicy(t *testing.T) {
 	t.Parallel()
-	l := ratelimit.New(testkit.DB(t), testkit.NewClock(epoch()))
+	l := newLimiter(t, testkit.DB(t), testkit.NewClock(epoch()))
 	p := ratelimit.Policy{Rate: 100_000, Per: 24 * time.Hour, Burst: 100_000}
 	if d := take(t, l, "max", p, 100_000); !d.Allowed {
 		t.Fatalf("take of the largest burst = %+v, want allowed", d)
@@ -202,7 +212,7 @@ func TestTake_storeErrorsAreDBUnavailable(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			d, err := ratelimit.New(db, testkit.NewClock(epoch())).Take(t.Context(), "k", perMinute(), 1)
+			d, err := newLimiter(t, db, testkit.NewClock(epoch())).Take(t.Context(), "k", perMinute(), 1)
 			if errs.CodeOf(err) != errs.CodeDBUnavailable || d != (ratelimit.Decision{}) {
 				t.Fatalf("Take = %+v, %v, want db_unavailable", d, err)
 			}
@@ -213,7 +223,7 @@ func TestTake_storeErrorsAreDBUnavailable(t *testing.T) {
 func TestDeleteRateLimitBucketsIdleBefore_deletesOnlyIdleBuckets(t *testing.T) {
 	t.Parallel()
 	pool, clk := testkit.DB(t), testkit.NewClock(epoch())
-	l := ratelimit.New(pool, clk)
+	l := newLimiter(t, pool, clk)
 	take(t, l, "idle", perMinute(), 1)
 	clk.Advance(time.Hour)
 	take(t, l, "active", perMinute(), 1)
