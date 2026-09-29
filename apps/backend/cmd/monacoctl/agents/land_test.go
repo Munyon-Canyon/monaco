@@ -23,6 +23,7 @@ type stackGH struct {
 	t     *testing.T
 	mu    sync.Mutex
 	prs   map[int]*stackPR
+	pages map[string]string
 	calls []ghCall
 	fail  string
 	raw   string
@@ -66,7 +67,10 @@ func green(t *testing.T, n int, head, base string) *stackPR {
 	return stackOf(t, n, head, base, "SUCCESS", "SUCCESS")
 }
 
-var aliasRE = regexp.MustCompile(`p(\d+): pullRequest`)
+var (
+	aliasRE = regexp.MustCompile(`p(\d+): pullRequest`)
+	pageRE  = regexp.MustCompile(`c0: object\(oid:"(\w+)"\)`)
+)
 
 func (s *stackGH) run(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
 	if name != "gh" && name != "gt" {
@@ -105,6 +109,9 @@ func (s *stackGH) run(ctx context.Context, dir, stdin, name string, args ...stri
 func (s *stackGH) graphql(query string) ([]byte, error) {
 	if s.raw != "" {
 		return []byte(s.raw), nil
+	}
+	if m := pageRE.FindStringSubmatch(query); m != nil {
+		return []byte(s.pages[m[1]]), nil
 	}
 	repo := map[string]any{}
 	if strings.Contains(query, "open: pullRequests(states:OPEN") {
@@ -202,6 +209,79 @@ func TestLandStack_pointsTheStackAtTheFeatureBranchSetsTheBodyAndQueuesOnlyTheTo
 	code, stdout, _ = f.agents(t, "land-stack", "3")
 	if code != 0 || stdout != "#3 waits for its checks, then enters the queue\n" || len(s.lines()) != len(want) {
 		t.Fatalf("second call: %d %q %v", code, stdout, s.lines())
+	}
+}
+
+func pagedStack(t *testing.T, n int, head, base string, first ...string) *stackPR {
+	t.Helper()
+	raw := fmt.Sprintf(`{"number":%d,"state":"OPEN","baseRefName":%q,"headRefName":%q,`+
+		`"body":"Part of #40\n\n## TLDR\nx","commits":{"nodes":[{"commit":%s}]}}`, n, base, head, firstPage(head, first...))
+	var p stackPR
+	if err := json.Unmarshal([]byte(raw), &p); err != nil {
+		t.Fatal(err)
+	}
+	return &p
+}
+
+func TestLandStack_readsEveryCheckAndTheNewestRunOfEach(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, rest, stdout string
+	}{
+		{
+			"the newest ci-ok and verify sit past the first page",
+			lastPage(ciOK("SUCCESS", 3), verifyAt("SUCCESS", 4)),
+			"queued #2. Lands stack: #1 #2\n",
+		},
+		{
+			"a newer ci-ok failed",
+			lastPage(ciOK("FAILURE", 3), verifyAt("SUCCESS", 4)),
+			"not landing #2; waiting on #1 (stage 1 failure)\n",
+		},
+		{
+			"a rerun of ci-ok is still going",
+			lastPage(ciOK("", 0), verifyAt("SUCCESS", 4)),
+			"not landing #2; waiting on #1 (stage 1 pending)\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			paged := pagedStack(t, 1, "b1", "fb", ciOK("FAILURE", 1), ciOK("SUCCESS", 2))
+			s := newStackGH(t, f, paged, green(t, 2, "b2", "b1"))
+			s.pages = map[string]string{"b1": tc.rest}
+			f.record(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+			if code, stdout, stderr := f.agents(t, "land-stack", "2"); code != 0 || stdout != tc.stdout {
+				t.Fatalf("%d %q %q", code, stdout, stderr)
+			}
+		})
+	}
+}
+
+func TestLandStack_failsWhenPagingChecksFails(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, lost string
+		other      func(t *testing.T) *stackPR
+	}{
+		{"the top's checks", "b1", func(t *testing.T) *stackPR { t.Helper(); return green(t, 7, "b7", "fb") }},
+		{"another open PR's checks", "b7", func(t *testing.T) *stackPR { t.Helper(); return pagedStack(t, 7, "b7", "fb") }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			top := pagedStack(t, 1, "b1", "fb")
+			if tc.lost == "b7" {
+				top = green(t, 1, "b1", "fb")
+			}
+			s := newStackGH(t, f, top, tc.other(t))
+			s.pages = map[string]string{tc.lost: `{"data":{"repository":{"c0":null}}}`}
+			f.record(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+			code, _, stderr := f.agents(t, "land-stack", "1")
+			if code != 1 || !strings.Contains(stderr, "commit "+tc.lost+" lost its checks") || len(s.lines()) != 0 {
+				t.Fatalf("%d %q %v", code, stderr, s.lines())
+			}
+		})
 	}
 }
 

@@ -12,8 +12,7 @@ const (
 	stage1Check   = "ci / ci-ok"
 	verifyContext = "verify"
 	prFields      = `number body createdAt state mergedAt mergeQueueEntry{position}
-commits(last:1){nodes{commit{committedDate statusCheckRollup{contexts(first:50){nodes{
-... on CheckRun{name status conclusion completedAt} ... on StatusContext{context state createdAt}}}}}}}
+commits(last:1){nodes{commit{committedDate ` + commitChecks + `}}}
 timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT,REMOVED_FROM_MERGE_QUEUE_EVENT],last:50){nodes{__typename
 ... on AddedToMergeQueueEvent{createdAt} ... on RemovedFromMergeQueueEvent{createdAt}}}`
 )
@@ -29,14 +28,7 @@ type gqlPR struct {
 	} `json:"mergeQueueEntry"`
 	Commits struct {
 		Nodes []struct {
-			Commit struct {
-				CommittedDate     time.Time `json:"committedDate"`
-				StatusCheckRollup *struct {
-					Contexts struct {
-						Nodes []gqlContext `json:"nodes"`
-					} `json:"contexts"`
-				} `json:"statusCheckRollup"`
-			} `json:"commit"`
+			Commit gqlCommit `json:"commit"`
 		} `json:"nodes"`
 	} `json:"commits"`
 	TimelineItems struct {
@@ -47,14 +39,12 @@ type gqlPR struct {
 	} `json:"timelineItems"`
 }
 
-type gqlContext struct {
-	Name        string    `json:"name"`
-	Status      string    `json:"status"`
-	Conclusion  string    `json:"conclusion"`
-	CompletedAt time.Time `json:"completedAt"`
-	Context     string    `json:"context"`
-	State       string    `json:"state"`
-	CreatedAt   time.Time `json:"createdAt"`
+type ticketTimeline struct {
+	TimelineItems struct {
+		Nodes []struct {
+			Source gqlPR `json:"source"`
+		} `json:"nodes"`
+	} `json:"timelineItems"`
 }
 
 type ticketPR struct {
@@ -101,15 +91,12 @@ func (env *Env) views(ctx context.Context, b Batch) ([]ticketView, error) {
 		nums[i] = t.Ticket
 	}
 	var data struct {
-		Repository map[string]struct {
-			TimelineItems struct {
-				Nodes []struct {
-					Source gqlPR `json:"source"`
-				} `json:"nodes"`
-			} `json:"timelineItems"`
-		} `json:"repository"`
+		Repository map[string]ticketTimeline `json:"repository"`
 	}
 	if err := env.GitHub.graphql(ctx, ticketQuery(nums), &data); err != nil {
+		return nil, err
+	}
+	if err := readAllChecks(ctx, env.GitHub.graphql, timelineCommits(data.Repository)); err != nil {
 		return nil, err
 	}
 	out := make([]ticketView, 0, len(b.Tickets))
@@ -127,6 +114,17 @@ func (env *Env) views(ctx context.Context, b Batch) ([]ticketView, error) {
 		out = append(out, v)
 	}
 	return out, nil
+}
+
+func timelineCommits(tickets map[string]ticketTimeline) []*gqlCommit {
+	var out []*gqlCommit
+	for _, t := range tickets {
+		nodes := t.TimelineItems.Nodes
+		for i := range nodes {
+			out = append(out, nodes[i].Source.commits()...)
+		}
+	}
+	return out
 }
 
 func (env *Env) withDispatch(b, prev Batch) (Batch, error) {
@@ -149,6 +147,14 @@ func (env *Env) withDispatch(b, prev Batch) (Batch, error) {
 	return b, nil
 }
 
+func (p *gqlPR) commits() []*gqlCommit {
+	out := make([]*gqlCommit, len(p.Commits.Nodes))
+	for i := range p.Commits.Nodes {
+		out[i] = &p.Commits.Nodes[i].Commit
+	}
+	return out
+}
+
 func (p gqlPR) flat() ticketPR {
 	t := ticketPR{Number: p.Number, Opened: p.CreatedAt, Merged: p.MergedAt}
 	if p.MergeQueueEntry != nil {
@@ -156,10 +162,7 @@ func (p gqlPR) flat() ticketPR {
 	}
 	for _, c := range p.Commits.Nodes {
 		t.Head = c.Commit.CommittedDate
-		if c.Commit.StatusCheckRollup == nil {
-			continue
-		}
-		for _, x := range c.Commit.StatusCheckRollup.Contexts.Nodes {
+		for _, x := range c.Commit.latest() {
 			t.note(x)
 		}
 	}
