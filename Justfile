@@ -94,6 +94,12 @@ test app:
       mutation)
         (cd apps/backend && go run ./cmd/monacoctl mutation ${MUTATION_ARGS:-})
         ;;
+      vuln)
+        if [[ "$(cat .bin/govulncheck.version 2>/dev/null)" != "$(sed -n 's/^version=//p' scripts/install-govulncheck.sh)" ]]; then
+          scripts/install-govulncheck.sh
+        fi
+        (cd apps/backend && ../../.bin/govulncheck ./...)
+        ;;
       mobile)
         if [[ ! -d apps/mobile ]]; then
           echo "error: apps/mobile is not scaffolded yet (M0-T4)."
@@ -107,7 +113,7 @@ test app:
         (cd packages/mobile-core && swift test)
         ;;
       *)
-        echo "error: unknown app '{{app}}' (use backend, mutation or mobile)"
+        echo "error: unknown app '{{app}}' (use backend, mutation, vuln or mobile)"
         exit 1
         ;;
     esac
