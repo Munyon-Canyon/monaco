@@ -29,6 +29,7 @@ func servedEnv(t *testing.T) Env {
 	return Env{
 		API: sv.URL, TokenKey: sv.TokenKey, Pool: sv.Pool, JS: sv.JS, Events: sv.Events,
 		DeadLetter: sv.DeadLetter, Consumers: sv.Consumers, Logs: logs,
+		Arm: func(context.Context) error { return nil },
 	}
 }
 

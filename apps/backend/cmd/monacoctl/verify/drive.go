@@ -33,6 +33,7 @@ type Env struct {
 	Consumers  []bus.Consumer
 	Logs       *Logs
 	Crash      func(ctx context.Context, point faultpoint.Name) error
+	Arm        func(ctx context.Context) error
 }
 
 type Result struct {
@@ -89,6 +90,10 @@ func (d *driver) runAll(ctx context.Context, units []Unit, parallel int) []*Resu
 
 func (d *driver) run(ctx context.Context, u Unit) *Result {
 	res := &Result{Unit: u, Phases: map[Phase]time.Duration{}}
+	if err := d.env.Arm(ctx); err != nil {
+		res.fail(err)
+		return res
+	}
 	if err := d.script(ctx, u, res); err != nil {
 		res.fail(err)
 		return res

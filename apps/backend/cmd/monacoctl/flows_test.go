@@ -5,14 +5,12 @@ import (
 	"context"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
 	"testing/iotest"
 
-	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -57,7 +55,7 @@ func envWith(t *testing.T, tsv string) flows.Env {
 		"docs/flows.md":                                   {Data: []byte("## Ping\n")},
 	}
 	mods := module.NewSet(echoModule{})
-	return liveEnv(repo, backend, mods, func(string, string) (bool, error) { return true, nil })
+	return liveEnv(repo, backend, mods)
 }
 
 func pass(names ...string) string {
@@ -85,6 +83,13 @@ func TestFlowsCheck(t *testing.T) {
 			"flows.tsv:2: outcome Internal has no test TestFlow01_Ping_Internal in the go test -json input\n",
 		},
 		{"structure only skips the test check", flows.Header + "\n" + pingRow + "\n", "", true, 0, ""},
+		{
+			"verified row needs a script per outcome",
+			flows.Header + "\n" + strings.Replace(pingRow, "\tbuilt\t", "\tverified\t", 1) + "\n", "", true, 1,
+			"flows.tsv:2: verified flow outcome ok has no script F01PingOK in internal/testkit/flows for monacoctl verify all\n" +
+				"flows.tsv:2: verified flow outcome Internal has no script F01PingInternal in internal/testkit/flows for " +
+				"monacoctl verify all\n",
+		},
 		{
 			"structure only still checks the columns", flows.Header + "\n" +
 				strings.Replace(pingRow, "system.pinged", "system.exploded", 1) + "\n",
@@ -155,71 +160,6 @@ func TestFlowsCheck_fromAMissingFileFails(t *testing.T) {
 		&stderr,
 	); code != 1 {
 		t.Fatalf("code=%d stderr=%q", code, stderr.String())
-	}
-}
-
-func TestGitFresh_comparesTheStampWithTheModulesNewestCommit(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	git := func(args ...string) string {
-		t.Helper()
-		cmd := exec.CommandContext(t.Context(), "git", args...)
-		cmd.Dir = dir
-		cmd.Env = append(
-			os.Environ(),
-			"GIT_AUTHOR_NAME=t",
-			"GIT_AUTHOR_EMAIL=t@t",
-			"GIT_COMMITTER_NAME=t",
-			"GIT_COMMITTER_EMAIL=t@t",
-		)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-		return strings.TrimSpace(string(out))
-	}
-	commit := func(file string) string {
-		t.Helper()
-		full := filepath.Join(dir, file)
-		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(full, []byte(file+git("rev-list", "--all", "--count")), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		git("add", ".")
-		git("commit", "-q", "-m", file)
-		return git("rev-parse", "HEAD")
-	}
-	git("init", "-q")
-	before := commit("internal/modules/treasury/app/fund.go")
-	moduleHead := commit("internal/modules/treasury/app/fund.go")
-	after := commit("test/evidence/07.json")
-
-	fresh := gitFresh(t.Context(), dir)
-	for _, tc := range []struct {
-		module, sha string
-		want        bool
-	}{
-		{"treasury", before, false},
-		{"treasury", moduleHead, true},
-		{"treasury", after, true},
-		{"ghost", before, true},
-	} {
-		if got, err := fresh(tc.module, tc.sha); err != nil || got != tc.want {
-			t.Errorf("fresh(%s, %s) = %v, %v; want %v", tc.module, tc.sha, got, err, tc.want)
-		}
-	}
-	if _, err := fresh("treasury", strings.Repeat("0", 40)); err == nil {
-		t.Error("fresh(unknown sha) err = nil, want an error")
-	}
-}
-
-func TestGitFresh_failsWhenGitCannotRun(t *testing.T) {
-	t.Parallel()
-	fresh, err := gitFresh(t.Context(), filepath.Join(t.TempDir(), "missing"))("treasury", "abc")
-	if fresh || errs.CodeOf(err) != errs.CodeInternal {
-		t.Fatalf("gitFresh = %v, %v; want false and an internal error", fresh, err)
 	}
 }
 

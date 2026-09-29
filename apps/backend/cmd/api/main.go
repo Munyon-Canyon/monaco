@@ -74,7 +74,7 @@ func run(
 		conn.Close(drainCtx)
 	}()
 	uow := db.New(pool, ids.Real{}, clock.Real{})
-	hub, stopBackground, err := startBackground(ctx, conn, pool, uow, meters)
+	hub, stopBackground, err := startBackground(ctx, conn, pool, uow, meters, cfg.Bus.APIRelay)
 	if err != nil {
 		return bootErr(ctx, err)
 	}

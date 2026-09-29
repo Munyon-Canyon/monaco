@@ -51,10 +51,14 @@ func connectBus(ctx context.Context, cfg config.Config, meters metric.MeterProvi
 
 func startBackground(
 	ctx context.Context, conn *bus.Conn, pool *pgxpool.Pool, uow *db.UnitOfWork, meters metric.MeterProvider,
+	relay bool,
 ) (*sse.Hub, func() error, error) {
-	stopRelay, err := startRelay(ctx, conn, pool, uow, clock.Real{})
-	if err != nil {
-		return nil, nil, err
+	stopRelay := func() error { return nil }
+	if relay {
+		var err error
+		if stopRelay, err = startRelay(ctx, conn, pool, uow, clock.Real{}); err != nil {
+			return nil, nil, err
+		}
 	}
 	hub, stopHub, err := startHub(ctx, conn, meters)
 	if err != nil {

@@ -16,8 +16,23 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
+var dispatcher string
+
 func TestMain(m *testing.M) {
-	testkit.Main(m, testkit.WithChild(fakeMain), testkit.WithNATS())
+	testkit.Main(m, testkit.WithChild(fakeMain), testkit.WithNATS(), testkit.WithSetup(writeDispatcher))
+}
+
+func writeDispatcher() (func(), error) {
+	dir, err := os.MkdirTemp("", "verify-fakes-")
+	if err != nil {
+		return nil, err
+	}
+	dispatcher = filepath.Join(dir, "fake")
+	if err := os.WriteFile(dispatcher, []byte("#!/bin/sh\n. \"$0.mode\"\n"), 0o755); err != nil {
+		_ = os.RemoveAll(dir)
+		return nil, err
+	}
+	return func() { _ = os.RemoveAll(dir) }, nil
 }
 
 const (
@@ -148,7 +163,10 @@ func testOptions(t *testing.T, mode string) Options {
 func writeScript(t *testing.T, name, body string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), name)
-	if err := os.WriteFile(path, []byte("#!/bin/sh\n"+body), 0o755); err != nil {
+	if err := os.WriteFile(path+".mode", []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(dispatcher, path); err != nil {
 		t.Fatal(err)
 	}
 	return path

@@ -124,13 +124,14 @@ func run(ctx context.Context, cfg Config, target Target) (err error) {
 	began = time.Now()
 	stack, err := Up(runCtx, Options{
 		Dir: cfg.Dir, Atlas: cfg.Atlas, Docker: cfg.Docker, Environ: cfg.Environ, Bins: bins,
-		Budget: cfg.Budget, Postgres: cfg.Postgres, CoverDir: cover,
+		Budget: cfg.Budget, Postgres: cfg.Postgres, CoverDir: cover, Faultpoint: target.CrashAt,
 	})
 	rep.phases[PhaseStack] = time.Since(began)
 	defer func() {
 		began := time.Now()
 		err = errors.Join(err, stack.Down(runCtx))
 		rep.phases[PhaseTeardown] = time.Since(began)
+		rep.crashes = stack.Crashes
 	}()
 	if err != nil {
 		return err
@@ -140,11 +141,15 @@ func run(ctx context.Context, cfg Config, target Target) (err error) {
 		Clock: clock.Real{}, IDs: ids.Real{}, Pool: stack.Pool, Bus: stack.Bus,
 		UoW: db.New(stack.Pool, ids.Real{}, clock.Real{}),
 	}).Consumers()
+	parallel := parallelFlows
+	if target.CrashAt != "" {
+		parallel = 1
+	}
 	return verifyUnits(runCtx, cfg, Env{
 		API: stack.API, TokenKey: stack.TokenKey, Pool: stack.Pool, JS: stack.NATS.JS,
 		Events: bus.StreamEvents, DeadLetter: bus.StreamDeadLetter, Consumers: consumers, Logs: stack.Logs,
-		Crash: stack.crash,
-	}, rep, parallelFlows)
+		Crash: stack.crash, Arm: stack.arm,
+	}, rep, parallel)
 }
 
 func prepare(ctx context.Context, cfg Config, target Target) (Binaries, string, func() error, error) {

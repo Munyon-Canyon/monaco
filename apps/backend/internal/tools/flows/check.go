@@ -21,7 +21,7 @@ type Env struct {
 	Commands    Lookup
 	Consumers   Lookup
 	Faultpoints Lookup
-	Fresh       Fresh
+	Scripts     Lookup
 }
 
 func CheckColumns(flows []Flow, env Env) []Problem {

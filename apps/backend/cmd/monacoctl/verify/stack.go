@@ -36,14 +36,15 @@ type Binaries struct {
 type PostgresFunc func(ctx context.Context, runID string) (url string, remove func(context.Context) error, err error)
 
 type Options struct {
-	Dir      string
-	Atlas    string
-	Docker   Docker
-	Environ  []string
-	Bins     Binaries
-	Budget   Budget
-	CoverDir string
-	Postgres PostgresFunc
+	Dir        string
+	Atlas      string
+	Docker     Docker
+	Environ    []string
+	Bins       Binaries
+	Budget     Budget
+	CoverDir   string
+	Faultpoint string
+	Postgres   PostgresFunc
 }
 
 type Stack struct {
@@ -56,11 +57,13 @@ type Stack struct {
 	NATS     *testkit.EmbeddedNATS
 	Bus      *bus.Conn
 	Logs     *Logs
+	Crashes  int
 
 	opts   Options
 	env    []string
 	procs  map[string]*process
 	remove func(context.Context) error
+	armed  bool
 }
 
 func Up(ctx context.Context, o Options) (*Stack, error) {
@@ -133,13 +136,20 @@ func (s *Stack) processes(ctx context.Context) error {
 		"MONACO_DEV_TOKEN_KEY="+s.TokenKey,
 		"MONACO_JUPITER_SWAP_BASE_URL=http://"+fakes.addr+"/jupiter/swap/v2",
 		"MONACO_JUPITER_PRICE_BASE_URL=http://"+fakes.addr+"/jupiter/price/v3",
+		"MONACO_BUS_ACK_WAIT=100ms",
 	)
-	api, err := s.start(ctx, procAPI, s.opts.Bins.API, "MONACO_HTTP_ADDR=127.0.0.1:0")
+	apiEnv, workerEnv := []string{"MONACO_HTTP_ADDR=127.0.0.1:0"}, []string(nil)
+	if s.opts.Faultpoint != "" {
+		apiEnv = append(apiEnv, "MONACO_BUS_API_RELAY=off")
+		workerEnv = append(workerEnv, "MONACO_FAULTPOINT="+s.opts.Faultpoint)
+		s.armed = true
+	}
+	api, err := s.start(ctx, procAPI, s.opts.Bins.API, apiEnv...)
 	if err != nil {
 		return err
 	}
 	s.API = "http://" + api.addr
-	return s.startWorker(ctx)
+	return s.startWorker(ctx, workerEnv...)
 }
 
 func (s *Stack) startWorker(ctx context.Context, extra ...string) error {

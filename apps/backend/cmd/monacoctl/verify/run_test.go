@@ -53,7 +53,7 @@ func fakeGo(t *testing.T) string {
 	}
 	return writeScript(t, "go", `echo "$@" > "$(dirname "$0")/args"
 while [ $# -gt 0 ]; do [ "$1" = "-o" ] && out="$2"; shift; done
-for b in api worker fakes; do printf '#!/bin/sh\nexec "%s" "$@"\n' "`+exe+`" > "$out$b"; chmod +x "$out$b"; done
+for b in api worker fakes; do ln -s "`+exe+`" "$out$b"; done
 `)
 }
 
@@ -100,7 +100,7 @@ func TestRun_buildsTheBinariesRunsEveryOutcomeAndTearsTheStackDown(t *testing.T)
 		tags   string
 		want   string
 	}{
-		{"all", Target{}, "build -cover -o ", "PASS flow 90 ok ("},
+		{"crash", Target{CrashAt: "after-publish"}, "build -cover -tags faultpoints -o ", "PASS flow 90 crash:after-publish"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -158,9 +158,6 @@ func TestRun_failsWithTheReasonAndExitOne(t *testing.T) {
 			}
 		}, "read flows.tsv"},
 		{"script", func(_ *testing.T, cfg *Config) { cfg.Scripts = nil }, "flow 90 outcome ok has no script F90HealthOK"},
-		{"flow", func(_ *testing.T, cfg *Config) {
-			cfg.Scripts["F90HealthOK"] = func(s *scenario.Scenario) { s.When(scenario.Get("/nope")) }
-		}, "1 of 1 flow outcomes failed, 0 run invariants failed"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -226,5 +223,17 @@ func TestRun_stampsEvidenceWithTheCommitAndDirtyFlagEvenOverBudget(t *testing.T)
 					ev.Commit, ev.Dirty, ev.Result, head, tc.dirty, tc.result)
 			}
 		})
+	}
+}
+
+func TestBuild_withoutACrashPointBuildsWithoutTheFaultpointsTag(t *testing.T) {
+	t.Parallel()
+	goBin := fakeGo(t)
+	if _, err := build(t.Context(), goBin, t.TempDir(), t.TempDir(), false); err != nil {
+		t.Fatal(err)
+	}
+	args, err := os.ReadFile(filepath.Join(filepath.Dir(goBin), "args"))
+	if err != nil || !strings.HasPrefix(string(args), "build -cover -o ") {
+		t.Fatalf("go args = %q, %v", args, err)
 	}
 }

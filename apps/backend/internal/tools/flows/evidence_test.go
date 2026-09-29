@@ -4,9 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"testing/fstest"
 
-	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
@@ -101,62 +99,31 @@ func TestCheckTests_builtFlowsNeedAPassingTestPerOutcome(t *testing.T) {
 	}
 }
 
-const (
-	sha1 = "1111111111111111111111111111111111111111"
-	sha2 = "2222222222222222222222222222222222222222"
-)
-
-func TestCheckEvidence_verifiedFlowsNeedAFreshStamp(t *testing.T) {
+func TestCheckScripts_verifiedFlowsNeedAScriptForEveryOutcome(t *testing.T) {
 	t.Parallel()
-	const path = "apps/backend/test/evidence/07.json"
 	for _, tc := range []struct {
-		name     string
-		status   string
-		evidence string
-		fresh    flows.Fresh
-		want     []string
+		name, status string
+		scripts      []string
+		want         []string
 	}{
-		{"built needs no evidence", "built", "", nil, nil},
-		{"fresh stamp", "verified", `{"sha":"` + sha1 + `","responses":[]}`, freshIf(sha1), nil},
-		{
-			"option-shaped stamp", "verified", `{"sha":"--output=/tmp/x"}`, nil,
-			[]string{`flows.tsv:2: test/evidence/07.json sha stamp "--output=/tmp/x" is not a full git object id`},
-		},
-		{"missing file", "verified", "", nil, []string{"flows.tsv:2: verified flow has no test/evidence/07.json"}},
-		{"no stamp", "verified", `{"responses":[]}`, nil, []string{"flows.tsv:2: test/evidence/07.json has no sha stamp"}},
-		{"not json", "verified", `sha=abc`, nil, []string{"flows.tsv:2: test/evidence/07.json has no sha stamp"}},
-		{
-			"stale stamp", "verified", `{"sha":"` + sha2 + `"}`, freshIf(sha1),
-			[]string{"flows.tsv:2: test/evidence/07.json stamp " + sha2 + " is older than the newest commit in internal/modules/treasury"},
-		},
-		{
-			"history error", "verified", `{"sha":"` + sha1 + `"}`,
-			func(string, string) (bool, error) { return false, errs.New(errs.CodeInternal, "git") },
-			[]string{"flows.tsv:2: test/evidence/07.json stamp " + sha1 + ": git: internal"},
-		},
+		{"built needs no script", "built", nil, nil},
+		{"every outcome scripted", "verified", []string{"F07FundCabalOK", "F07FundCabalCrashAfterSign"}, nil},
+		{"missing script", "verified", []string{"F07FundCabalOK"}, []string{
+			"flows.tsv:2: verified flow outcome crash:after-sign has no script F07FundCabalCrashAfterSign " +
+				"in internal/testkit/flows for monacoctl verify all",
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			env := testEnv()
-			repo, ok := env.Repo.(fstest.MapFS)
-			if !ok {
-				t.Fatal("testEnv repo is not a MapFS")
-			}
-			if tc.evidence != "" {
-				repo[path] = &fstest.MapFile{Data: []byte(tc.evidence)}
-			}
-			env.Fresh = tc.fresh
-			row := fundRowWith(func(c []string) { c[8] = tc.status })
+			env.Scripts = func(_ flows.Flow, name string) bool { return slices.Contains(tc.scripts, name) }
+			row := fundRowWith(func(c []string) { c[7] = "ok;crash:after-sign"; c[8] = tc.status })
 			parsed, _ := flows.Parse(strings.NewReader(tsv(row)))
-			if got := lines(flows.CheckEvidence(parsed, env)); !slices.Equal(got, tc.want) {
+			if got := lines(flows.CheckScripts(parsed, env)); !slices.Equal(got, tc.want) {
 				t.Fatalf("problems = %q, want %q", got, tc.want)
 			}
 		})
 	}
-}
-
-func freshIf(want string) flows.Fresh {
-	return func(module, sha string) (bool, error) { return module == "treasury" && sha == want, nil }
 }
 
 func TestScriptName_isTheFlowTestNameWithoutTheTestPrefix(t *testing.T) {
