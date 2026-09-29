@@ -146,7 +146,11 @@ func checkVerdict(in verdictIn, pr PR, p Plan) error {
 			"owner record: "+p.NoOwner,
 		)
 	case in.model == p.Owner:
-		return detailErr(errs.CodeInvalidInput, "monacoctl.agents.verdict", "verifier model equals the owner")
+		return detailErr(
+			errs.CodeInvalidInput,
+			"monacoctl.agents.verdict",
+			fmt.Sprintf("verifier model %s equals the owner model %s on #%d", in.model, p.Owner, p.Ticket),
+		)
 	case in.sha != pr.Head.SHA:
 		return detailErr(errs.CodeInvalidInput, "monacoctl.agents.verdict", "sha is not the pull request head")
 	case Kind(in.kind) == Light && p.Kind == Full:

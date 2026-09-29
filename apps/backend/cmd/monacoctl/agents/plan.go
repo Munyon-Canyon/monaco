@@ -20,7 +20,6 @@ const (
 	smallDiff = 50
 	opus      = "opus"
 	sonnet    = "sonnet"
-	haiku     = "haiku"
 )
 
 type Plan struct {
@@ -124,7 +123,7 @@ func (env *Env) plan(ctx context.Context, pr PR) (Plan, error) {
 	default:
 		p.Ticket, p.Owner = ticket, r.Model
 		if p.Model == r.Model {
-			p.Model = map[string]string{opus: sonnet, sonnet: opus, haiku: opus}[p.Model]
+			p.Model = map[string]string{opus: sonnet, sonnet: opus}[p.Model]
 		}
 	}
 	return p, nil
@@ -157,7 +156,6 @@ func finishPlan(p Plan, hygiene bool) Plan {
 	switch {
 	case p.Model == opus:
 	case p.Files > 0 && hygiene:
-		p.Model = haiku
 		p.Reason = "ci, pr hygiene, or size"
 		if p.Lines >= smallDiff {
 			p.Kind = Full

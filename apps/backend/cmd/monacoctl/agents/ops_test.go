@@ -15,7 +15,7 @@ func TestDispatch_dryRunWritesNothing(t *testing.T) {
 	t.Parallel()
 	f := prepBranch(t)
 	f.batch(t, 12)
-	f.hub.on(get("/issues/12"), Issue{Number: 12, Body: "Blocked by #3"})
+	f.hub.on(get("/issues/12"), Issue{Number: 12, Body: "**Milestone:** M7 · **Blocked by:** #3 · **Touches:** `a`"})
 	merged := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
 	f.hub.on(get("/issues/3"), Issue{Number: 3, PullRequest: &struct{}{}})
 	f.hub.on(get("/pulls/3"), PR{Number: 3, MergedAt: &merged, MergeCommitSHA: f.head(t)})
@@ -58,7 +58,7 @@ func TestDispatch_refusesBlockersLanesAndModel(t *testing.T) {
 		!strings.Contains(stderr, "issues/4") {
 		t.Fatalf("issue: %d %q", code, stderr)
 	}
-	f.hub.on(get("/issues/4"), Issue{Body: "Blocked by nothing"})
+	f.hub.on(get("/issues/4"), Issue{Body: "**Milestone:** M7 · **Blocked by:** the retro"})
 	if code, _, stderr := f.agents(
 		t,
 		"dispatch",
@@ -69,7 +69,7 @@ func TestDispatch_refusesBlockersLanesAndModel(t *testing.T) {
 		!strings.Contains(stderr, "no issue numbers") {
 		t.Fatalf("empty: %d %q", code, stderr)
 	}
-	f.hub.on(get("/issues/4"), Issue{Body: "Blocked by #8"})
+	f.hub.on(get("/issues/4"), Issue{Body: "**Milestone:** M7 · **Blocked by:** #8 · **Touches:** `a`"})
 	f.hub.on(get("/issues/8"), Issue{State: "open"})
 	f.hub.on(list("/pulls?state=closed"), []PR{})
 	if code, _, stderr := f.agents(
@@ -133,12 +133,66 @@ func TestDispatch_startsAWorktreeWhenTheBlockerIsInTheBranch(t *testing.T) {
 	}
 }
 
+func TestDispatch_startsFromOriginWhenTheLocalBranchIsBehind(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	f.batch(t, 12)
+	stale := f.head(t)
+	ahead := commitFile(t, f.dir, "ahead.go", "x\n")
+	f.hub.on(get("/issues/12"), Issue{Body: "**Milestone:** M7 · **Blocked by:** none · **Touches:** `a`"})
+	f.hub.on(list("/pulls?state=open"), []PR{})
+	f.ps()
+	env := f.Env(t)
+	var fetched []string
+	fetchErr := errors.New("offline")
+	target := ""
+	env.Run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
+		if name == "git" && len(args) > 0 && args[0] == "fetch" {
+			fetched = append(fetched, strings.Join(args, " "))
+			if fetchErr != nil {
+				return nil, fetchErr
+			}
+			if target == "" {
+				return Exec(ctx, f.dir, "", "git", "update-ref", "-d", "refs/remotes/origin/fb")
+			}
+			return Exec(ctx, f.dir, "", "git", "update-ref", "refs/remotes/origin/fb", target)
+		}
+		return f.run(ctx, dir, stdin, name, args...)
+	}
+	args := []string{"12", "--model", "opus"}
+	if err := dispatchCmd(context.Background(), env, args, ioDiscard()); !errors.Is(err, fetchErr) {
+		t.Fatalf("fetch: %v", err)
+	}
+	fetchErr = nil
+	if err := dispatchCmd(context.Background(), env, []string{"12", "--model", "opus"}, ioDiscard()); err == nil {
+		t.Fatal("expected a missing origin ref")
+	}
+	target = ahead
+	if err := dispatchCmd(context.Background(), env, []string{"12", "--model", "opus"}, ioDiscard()); err != nil {
+		t.Fatal(err)
+	}
+	if len(fetched) != 3 || fetched[2] != "fetch origin fb" {
+		t.Fatalf("fetched=%q", fetched)
+	}
+	rec, err := env.record(12)
+	if err != nil || rec.Base != ahead || rec.Base == stale {
+		t.Fatalf("rec=%+v err=%v", rec, err)
+	}
+	out, err := Exec(context.Background(), rec.Worktree, "", "git", "rev-parse", "HEAD")
+	if err != nil || strings.TrimSpace(string(out)) != ahead {
+		t.Fatalf("worktree head %q err=%v", out, err)
+	}
+	if local := strings.TrimSpace(gitOut(t, f.dir, "rev-parse", "fb")); local != stale {
+		t.Fatalf("local fb moved to %s", local)
+	}
+}
+
 func TestDispatch_acceptsAClosedIssueAndAMergedPull(t *testing.T) {
 	t.Parallel()
 	f := prepBranch(t)
 	f.batch(t, 12)
 	merged := f.now
-	f.hub.on(get("/issues/12"), Issue{Body: "Blocked by #8, #9"})
+	f.hub.on(get("/issues/12"), Issue{Body: "**Blocked by:** #8, #9"})
 	f.hub.on(get("/issues/8"), Issue{State: "closed", StateReason: "completed"})
 	f.hub.on(get("/issues/9"), Issue{PullRequest: &struct{}{}})
 	f.hub.on(get("/pulls/9"), PR{MergedAt: &merged, MergeCommitSHA: f.head(t)})
@@ -330,7 +384,10 @@ func (f *fixture) watchGit(branch, stamp, alive string) {
 
 func prepBranch(t *testing.T) *fixture {
 	t.Helper()
-	return newFixtureFrom(t, rootedRepo)
+	f := newFixtureFrom(t, rootedRepo)
+	git(t, f.dir, "remote", "add", "origin", f.dir)
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "fb")
+	return f
 }
 
 func (f *fixture) head(t *testing.T) string {

@@ -16,8 +16,6 @@ import (
 
 const idleAfter = 20 * time.Minute
 
-func blockedLine() *regexp.Regexp { return regexp.MustCompile(`(?im)^blocked by:?\s*(.*)$`) }
-
 func issueNums() *regexp.Regexp { return regexp.MustCompile(`#(\d+)`) }
 
 func closesRef() *regexp.Regexp { return regexp.MustCompile(`(?i)\bcloses\s+#(\d+)\b`) }
@@ -32,6 +30,9 @@ type dispatchIn struct {
 func dispatchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {
 	in, err := parseDispatch(args)
 	if err != nil {
+		return err
+	}
+	if _, err := env.Run(ctx, env.Work, "", "git", "fetch", "origin", env.Config.FeatureBranch); err != nil {
 		return err
 	}
 	if err := env.dispatchable(ctx, in); err != nil {
@@ -122,19 +123,12 @@ func (env *Env) blockersClear(ctx context.Context, ticket int) error {
 	if err != nil {
 		return err
 	}
-	m := blockedLine().FindStringSubmatch(is.Body)
-	if m == nil {
-		return nil
+	reason, err := env.blockedReason(ctx, is.Body, nil)
+	if err != nil {
+		return err
 	}
-	ids := issueNums().FindAllStringSubmatch(m[1], -1)
-	if len(ids) == 0 {
-		return detailErr(errs.CodeInvalidInput, "monacoctl.agents.dispatch", "blocked by line has no issue numbers")
-	}
-	for _, id := range ids {
-		n, _ := strconv.Atoi(id[1])
-		if err := env.blockerMerged(ctx, n); err != nil {
-			return err
-		}
+	if reason != "" {
+		return detailErr(errs.CodeInvalidInput, "monacoctl.agents.dispatch", reason)
 	}
 	return nil
 }
@@ -217,35 +211,19 @@ func closes(body string, n int) bool {
 }
 
 func (env *Env) ancestor(ctx context.Context, sha string) (bool, error) {
-	ref, err := env.featureRef(ctx)
-	if err != nil {
-		return false, err
-	}
 	if _, err := env.Run(ctx, env.Work, "", "git", "cat-file", "-t", sha); err != nil {
 		return false, err
 	}
-	_, err = env.Run(ctx, env.Work, "", "git", "merge-base", "--is-ancestor", sha, ref)
+	_, err := env.Run(ctx, env.Work, "", "git", "merge-base", "--is-ancestor", sha, env.featureRef())
 	return err == nil, nil
 }
 
-func (env *Env) featureRef(ctx context.Context) (string, error) {
-	ref := "refs/heads/" + env.Config.FeatureBranch
-	if _, err := env.Run(ctx, env.Work, "", "git", "rev-parse", "--verify", "--quiet", ref); err == nil {
-		return ref, nil
-	}
-	remote := "refs/remotes/origin/" + env.Config.FeatureBranch
-	if _, err := env.Run(ctx, env.Work, "", "git", "rev-parse", "--verify", "--quiet", remote); err != nil {
-		return "", err
-	}
-	return remote, nil
+func (env *Env) featureRef() string {
+	return "refs/remotes/origin/" + env.Config.FeatureBranch
 }
 
 func (env *Env) featureTip(ctx context.Context) (string, error) {
-	ref, err := env.featureRef(ctx)
-	if err != nil {
-		return "", err
-	}
-	out, err := env.Run(ctx, env.Work, "", "git", "rev-parse", ref)
+	out, err := env.Run(ctx, env.Work, "", "git", "rev-parse", "--verify", "--quiet", env.featureRef())
 	if err != nil {
 		return "", err
 	}
