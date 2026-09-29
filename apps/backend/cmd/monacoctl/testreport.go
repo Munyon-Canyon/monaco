@@ -21,11 +21,12 @@ const (
 	testReportUsage = "usage: monacoctl test-report --from go-test.json [--start unix-seconds] [--ci]"
 	slowestShown    = 10
 	packageBudget   = 10 * time.Second
+	ciPackageBudget = 15 * time.Second
 	runBudget       = 60 * time.Second
 )
 
 type budget struct {
-	pkg, run time.Duration
+	pkg, warn, run time.Duration
 }
 
 type timing struct {
@@ -70,9 +71,12 @@ func testReportCmd(args []string, stdout, stderr io.Writer) int {
 	}
 	b := budget{pkg: packageBudget, run: runBudget}
 	if *ci {
-		b.run = 0
+		b = budget{pkg: ciPackageBudget, warn: packageBudget}
 	}
 	rep.write(stdout, b)
+	for _, w := range rep.warnings(b) {
+		_, _ = fmt.Fprintf(stdout, "::warning::monacoctl test-report: %s\n", w)
+	}
 	over := rep.overBudget(b)
 	for _, o := range over {
 		_, _ = fmt.Fprintf(stderr, "monacoctl test-report: %s\n", o)
@@ -163,6 +167,19 @@ func (r report) write(w io.Writer, b budget) {
 		b.run.Seconds(),
 		b.pkg.Seconds(),
 	)
+}
+
+func (r report) warnings(b budget) []string {
+	var warn []string
+	for _, p := range r.packages {
+		if b.warn > 0 && p.elapsed > b.warn && p.elapsed <= b.pkg {
+			warn = append(warn, fmt.Sprintf(
+				"package %s took %.2fs, over the %.0fs per-package budget (CI fails at %.0fs)",
+				p.name, p.elapsed.Seconds(), b.warn.Seconds(), b.pkg.Seconds(),
+			))
+		}
+	}
+	return warn
 }
 
 func (r report) overBudget(b budget) []string {
