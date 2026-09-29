@@ -104,10 +104,10 @@ func TestEdges_dispatchBlockersAndProcess(t *testing.T) {
 	if _, err := positiveInt("nope", "dispatch <ticket>"); err == nil {
 		t.Fatal("int")
 	}
-	if err := setState(env, []string{"x"}, Done, "done <ticket>"); err == nil {
+	if err := setState(t.Context(), env, []string{"x"}, Done, "done <ticket>"); err == nil {
 		t.Fatal("state")
 	}
-	if err := setState(env, nil, Done, "done <ticket>"); err == nil {
+	if err := setState(t.Context(), env, nil, Done, "done <ticket>"); err == nil {
 		t.Fatal("usage")
 	}
 }
@@ -314,13 +314,13 @@ func TestEdges_remainingBranches(t *testing.T) {
 	if err := conflictsCmd(context.Background(), env, []string{"6"}, ioDiscard()); err == nil {
 		t.Fatal("record")
 	}
-	if err := setAgent(env, []string{"x", "a"}); err == nil {
+	if err := setAgent(t.Context(), env, []string{"x", "a"}); err == nil {
 		t.Fatal("own")
 	}
-	if err := setAgent(env, []string{"4"}); err == nil {
+	if err := setAgent(t.Context(), env, []string{"4"}); err == nil {
 		t.Fatal("own usage")
 	}
-	if err := setAgent(env, []string{"5", "a"}); err == nil {
+	if err := setAgent(t.Context(), env, []string{"5", "a"}); err == nil {
 		t.Fatal("own missing")
 	}
 	h := newFixture(t)
@@ -395,7 +395,7 @@ func TestEdges_remainingBranches(t *testing.T) {
 	}
 	_ = os.Remove(f.Env(t).recordPath(40))
 	for _, n := range []int{3, 8} {
-		rec, err := f.Env(t).record(n)
+		rec, err := f.Env(t).localRecord(n)
 		if err != nil {
 			t.Fatal(err)
 		}

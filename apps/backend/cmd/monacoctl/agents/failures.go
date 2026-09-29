@@ -183,7 +183,7 @@ func (env *Env) freshOwnerFor(ctx context.Context, f failure) string {
 	ticket, worktree := "unknown", "unknown"
 	if n, ok := (PR{Body: f.Body}).Ticket(); ok {
 		ticket = strconv.Itoa(n)
-		if r, err := env.record(n); err == nil {
+		if r, err := env.record(ctx, n); err == nil {
 			worktree = r.Worktree
 		}
 	}

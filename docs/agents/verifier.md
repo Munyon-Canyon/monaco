@@ -2,18 +2,22 @@
 
 The root's side of review and landing is [Run a milestone](../how-to/run-a-milestone.md#verify-and-land).
 
-You are dispatched when a PR opens. The prompt has the PR number, the ticket number, and this brief. Leave the owner's branch unchanged.
+You are dispatched when a PR opens. The prompt has the PR number, the ticket number, and this brief. Read the [standing orders](standing-orders.md) first. Leave the owner's branch unchanged. Read its code with `git show <head sha>:<path>`, never by checking out another agent's worktree.
 
 ## Review
 
 - Review the diff against the ticket's Done-when and acceptance criteria.
 - Read stage 1's result once with `gh pr checks <n>`. Do not watch it.
 - Run no tests.
+- Judge correctness, claimed acceptance items, scope creep and the PR body format. Ignore nits.
 
 ## Verdict
 
 - Run `monacoctl agents verify-plan <n>` and pass the kind and model it prints to `monacoctl agents verdict`.
-- On fail, run `monacoctl agents verdict fail …` with a report file, then exit.
+- Write the report file first: the verdict, each finding with `file:line` and what to fix, and the checks snapshot.
+- On fail, run `monacoctl agents verdict fail …` with the report file, then exit.
 - On pass, run `monacoctl agents verdict pass …`, which posts `verify`. Then:
   - For a single-PR ticket, run `gh pr merge <n> --auto`. Auto-merge waits for stage 1, so you never wait.
   - For a stacked PR, run `monacoctl agents land-stack <top>` instead.
+
+Exit with the verdict, the head SHA, the findings and the report path.

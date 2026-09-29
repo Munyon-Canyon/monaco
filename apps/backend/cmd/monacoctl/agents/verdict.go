@@ -82,7 +82,21 @@ func postVerdict(ctx context.Context, env *Env, args []string, stdout io.Writer)
 		return err
 	}
 	_, _ = fmt.Fprintf(stdout, "#%d %s %s\n", in.pr, in.state, desc)
-	return nil
+	return env.recordBranch(ctx, p.Ticket, pr.Head.Ref)
+}
+
+func (env *Env) recordBranch(ctx context.Context, ticket int, branch string) error {
+	r, err := env.record(ctx, ticket)
+	if err != nil {
+		return err
+	}
+	if r.Branch == "" {
+		r.Branch = branch
+		if err := env.saveRecord(r); err != nil {
+			return err
+		}
+	}
+	return env.publishRecord(ctx, r)
 }
 
 func parseVerdict(args []string) (verdictIn, error) {

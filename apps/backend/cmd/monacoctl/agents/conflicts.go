@@ -25,7 +25,7 @@ func conflictsCmd(ctx context.Context, env *Env, args []string, stdout io.Writer
 	ticket, ok := pr.Ticket()
 	rec := Record{}
 	if ok {
-		rec, err = env.record(ticket)
+		rec, err = env.record(ctx, ticket)
 		if err != nil && errs.CodeOf(err) != errs.CodeNotFound {
 			return err
 		}
@@ -78,11 +78,11 @@ func writeRebase(stdout io.Writer, pr PR, rec Record, behind bool, files []strin
 	return nil
 }
 
-func ownCmd(_ context.Context, env *Env, args []string, _ io.Writer) error {
-	return setAgent(env, args)
+func ownCmd(ctx context.Context, env *Env, args []string, _ io.Writer) error {
+	return setAgent(ctx, env, args)
 }
 
-func setAgent(env *Env, args []string) error {
+func setAgent(ctx context.Context, env *Env, args []string) error {
 	const use = "own <ticket> <agent-id>"
 	if len(args) != 2 {
 		return usageError(use)
@@ -91,7 +91,7 @@ func setAgent(env *Env, args []string) error {
 	if err != nil {
 		return err
 	}
-	r, err := env.record(n)
+	r, err := env.record(ctx, n)
 	if err != nil {
 		return err
 	}
@@ -100,15 +100,15 @@ func setAgent(env *Env, args []string) error {
 	return env.saveRecord(r)
 }
 
-func doneCmd(_ context.Context, env *Env, args []string, _ io.Writer) error {
-	return setState(env, args, Done, "done <ticket>")
+func doneCmd(ctx context.Context, env *Env, args []string, _ io.Writer) error {
+	return setState(ctx, env, args, Done, "done <ticket>")
 }
 
-func exitedCmd(_ context.Context, env *Env, args []string, _ io.Writer) error {
-	return setState(env, args, Exited, "exited <ticket>")
+func exitedCmd(ctx context.Context, env *Env, args []string, _ io.Writer) error {
+	return setState(ctx, env, args, Exited, "exited <ticket>")
 }
 
-func setState(env *Env, args []string, state State, use string) error {
+func setState(ctx context.Context, env *Env, args []string, state State, use string) error {
 	if len(args) != 1 {
 		return usageError(use)
 	}
@@ -116,11 +116,11 @@ func setState(env *Env, args []string, state State, use string) error {
 	if err != nil {
 		return err
 	}
-	r, err := env.record(n)
+	r, err := env.record(ctx, n)
 	if err != nil {
 		return err
 	}
 	r.State = state
 	r.Changed = env.Now()
-	return env.saveRecord(r)
+	return env.storeRecord(ctx, r)
 }

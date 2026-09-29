@@ -12,6 +12,8 @@ import (
 
 var backendSkills = []string{"go-backend-module", "go-concurrency", "money-change", "nats-consumer", "verify-backend"}
 
+var mirroredSkills = append([]string{"commit"}, backendSkills...)
+
 var codeSpan = regexp.MustCompile("`([^`\n]+)`")
 
 func pathSpans(markdown string) []string {
@@ -65,7 +67,7 @@ func missingPaths(t *testing.T, root, markdown string) []string {
 
 func TestSkillPaths_everyBacktickedPathInABackendSkillExists(t *testing.T) {
 	root := repoRoot(t)
-	for _, skill := range backendSkills {
+	for _, skill := range mirroredSkills {
 		files, err := filepath.Glob(filepath.Join(root, ".claude", "skills", skill, "*.md"))
 		if err != nil || !slices.Contains(files, filepath.Join(root, ".claude", "skills", skill, "SKILL.md")) {
 			t.Fatalf("%s: no SKILL.md (files %v, err %v)", skill, files, err)
@@ -86,9 +88,9 @@ func TestSkillPaths_everyBacktickedPathInABackendSkillExists(t *testing.T) {
 	}
 }
 
-func TestSkillPaths_eachBackendSkillIsUnder150LinesAndMirroredForCursor(t *testing.T) {
+func TestSkillPaths_eachMirroredSkillIsUnder150LinesAndMirroredForCursor(t *testing.T) {
 	root := repoRoot(t)
-	for _, skill := range backendSkills {
+	for _, skill := range mirroredSkills {
 		claude := filepath.Join(root, ".claude", "skills", skill, "SKILL.md")
 		body, err := os.ReadFile(claude)
 		if err != nil {

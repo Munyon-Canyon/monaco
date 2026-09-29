@@ -59,17 +59,19 @@ func dispatchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer)
 	}
 	if in.dry {
 		_, _ = fmt.Fprintf(stdout, "dry-run: would add worktree %s at %s\n", path, tip)
-		_, _ = fmt.Fprintf(stdout, "dry-run: would record #%d model %s state running\n%s\n", in.ticket, in.model, note)
+		_, _ = fmt.Fprintf(stdout, "dry-run: would record #%d model %s state running\n", in.ticket, in.model)
+		_, _ = fmt.Fprintf(stdout, "dry-run: would post the owner record on #%d\n%s\n", in.ticket, note)
 		writeOwnerSpawn(stdout, in, path, tip, risks.String())
 		return nil
 	}
 	if err := env.addWorktree(ctx, path, tip); err != nil {
 		return err
 	}
-	if err := env.saveRecord(Record{
+	rec := Record{
 		Ticket: in.ticket, Model: in.model, Worktree: path, Base: tip,
 		State: Running, Started: env.Now(), Changed: env.Now(),
-	}); err != nil {
+	}
+	if err := env.storeRecord(ctx, rec); err != nil {
 		return err
 	}
 	writeOwnerSpawn(stdout, in, path, tip, risks.String())
@@ -78,7 +80,8 @@ func dispatchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer)
 
 func writeOwnerSpawn(stdout io.Writer, in dispatchIn, path, tip, risks string) {
 	writeSpawn(stdout, in.model, fmt.Sprintf(
-		"ticket: %d\nworktree: %s\nparent: %s\nbrief: %s\n", in.ticket, path, tip, ownerBrief,
+		"ticket: %d\nworktree: %s\nparent: %s\nbrief: %s\norders: %s\n",
+		in.ticket, path, tip, ownerBrief, standingOrders,
 	))
 	_, _ = io.WriteString(stdout, risks)
 }

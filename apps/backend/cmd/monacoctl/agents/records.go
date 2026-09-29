@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,6 +29,7 @@ type Record struct {
 	Ticket   int       `json:"ticket"`
 	Model    string    `json:"model"`
 	Worktree string    `json:"worktree"`
+	Branch   string    `json:"branch,omitempty"`
 	Base     string    `json:"base"`
 	State    State     `json:"state"`
 	AgentID  string    `json:"agent_id,omitempty"`
@@ -48,7 +50,15 @@ func (env *Env) recordPath(ticket int) string {
 	return filepath.Join(env.Common, recordsDir, strconv.Itoa(ticket)+".json")
 }
 
-func (env *Env) record(ticket int) (Record, error) {
+func (env *Env) record(ctx context.Context, ticket int) (Record, error) {
+	r, err := env.localRecord(ticket)
+	if errs.CodeOf(err) != errs.CodeNotFound {
+		return r, err
+	}
+	return env.rebuildRecord(ctx, ticket)
+}
+
+func (env *Env) localRecord(ticket int) (Record, error) {
 	data, err := os.ReadFile(env.recordPath(ticket))
 	if errors.Is(err, fs.ErrNotExist) {
 		return Record{}, noRecord(ticket)
@@ -89,7 +99,7 @@ func (env *Env) records() ([]Record, error) {
 		if err != nil || !strings.HasSuffix(e.Name(), ".json") {
 			continue
 		}
-		r, err := env.record(n)
+		r, err := env.localRecord(n)
 		if err != nil {
 			return nil, err
 		}

@@ -111,12 +111,15 @@ type fixture struct {
 	home   string
 	repo   string
 	lookup []byte
+	whoami error
 }
 
 type repoSnapshot struct {
 	dirs  []string
 	files map[string][]byte
 }
+
+const ghUser = "me"
 
 const repoLookup = "rev-parse --path-format=absolute --show-toplevel --git-common-dir"
 
@@ -186,6 +189,12 @@ func (f *fixture) cached(run Runner) Runner {
 	return func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
 		if name == "git" && dir == f.repo && strings.Join(args, " ") == repoLookup {
 			return f.lookup, nil
+		}
+		if name == "gh" && strings.Join(args, " ") == "api user --jq .login" {
+			if f.whoami != nil {
+				return nil, f.whoami
+			}
+			return []byte(ghUser + "\n"), nil
 		}
 		return run(ctx, dir, stdin, name, args...)
 	}

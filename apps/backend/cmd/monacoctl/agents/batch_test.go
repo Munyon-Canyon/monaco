@@ -216,6 +216,7 @@ func TestDispatch_urgentSkipsTheBatchAndLogsToTracking(t *testing.T) {
 	f := prepBranch(t)
 	f.hub.on(get("/issues/12"), Issue{Body: "no blockers"})
 	f.hub.on(list("/pulls?state=open"), []PR{})
+	f.ownerComments(12)
 	f.ps()
 	code, stdout, stderr := f.agents(t, "dispatch", "12", "--model", "opus", "--urgent", "--dry-run")
 	if code != 0 || stderr != "" || !strings.Contains(stdout, "dry-run: would log the urgent dispatch to #7") {
@@ -236,7 +237,7 @@ func TestDispatch_urgentSkipsTheBatchAndLogsToTracking(t *testing.T) {
 	if !strings.Contains(logged, "#12 dispatched outside batch.json at 2026-09-27T12:00:00Z") {
 		t.Fatal(logged)
 	}
-	if rec, err := env.record(12); err != nil || rec.State != Running {
+	if rec, err := env.localRecord(12); err != nil || rec.State != Running {
 		t.Fatalf("rec=%+v err=%v", rec, err)
 	}
 }

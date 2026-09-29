@@ -17,6 +17,7 @@ import (
 const (
 	resumeTokenCap = 250_000
 	ownerBrief     = "docs/agents/owner.md"
+	standingOrders = "docs/agents/standing-orders.md"
 )
 
 type resumeIn struct {
@@ -29,7 +30,7 @@ func resumeCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) e
 	if err != nil {
 		return err
 	}
-	r, err := env.record(in.ticket)
+	r, err := env.record(ctx, in.ticket)
 	if err != nil {
 		return err
 	}

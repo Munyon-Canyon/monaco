@@ -16,8 +16,22 @@ const (
 )
 
 type Comment struct {
-	ID   int64  `json:"id"`
-	Body string `json:"body"`
+	ID                int64  `json:"id"`
+	Body              string `json:"body"`
+	User              Author `json:"user"`
+	AuthorAssociation string `json:"author_association"`
+}
+
+type Author struct {
+	Login string `json:"login"`
+}
+
+func (c Comment) trusted() bool {
+	switch c.AuthorAssociation {
+	case "OWNER", "MEMBER", "COLLABORATOR":
+		return true
+	}
+	return false
 }
 
 type CheckRun struct {
@@ -56,7 +70,11 @@ func statusCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) e
 }
 
 func (env *Env) comments(ctx context.Context) ([]Comment, error) {
-	return pages[Comment](ctx, env.GitHub, env.GitHub.repo("/issues/%d/comments?", env.Config.Tracking))
+	return env.issueComments(ctx, env.Config.Tracking)
+}
+
+func (env *Env) issueComments(ctx context.Context, issue int) ([]Comment, error) {
+	return pages[Comment](ctx, env.GitHub, env.GitHub.repo("/issues/%d/comments?", issue))
 }
 
 func marked(all []Comment, marker string) (Comment, bool) {
@@ -69,12 +87,16 @@ func marked(all []Comment, marker string) (Comment, bool) {
 }
 
 func (env *Env) writeStatus(ctx context.Context, id int64, found bool, body string) error {
+	return env.writeComment(ctx, env.Config.Tracking, id, found, body)
+}
+
+func (env *Env) writeComment(ctx context.Context, issue int, id int64, found bool, body string) error {
 	payload := map[string]string{"body": body}
 	if !found {
 		return env.GitHub.call(
 			ctx,
 			"POST",
-			env.GitHub.repo("/issues/%d/comments", env.Config.Tracking),
+			env.GitHub.repo("/issues/%d/comments", issue),
 			"",
 			payload,
 			nil,

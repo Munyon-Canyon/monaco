@@ -26,6 +26,7 @@ Read these in order to understand the repo:
 
 | Guide | For |
 | --- | --- |
+| [Agent workflow setup](agents/setup.md) | Giving a clone the plugins, model roles, skills and rules the agent workflow runs with |
 | [Ship a ticket](how-to/ship-a-ticket.md) | Taking one ticket from its issue to a merge on the feature branch, as a person or an agent owner |
 | [Run a milestone](how-to/run-a-milestone.md) | Orchestrating a milestone: tickets, batches, owners and verifiers, landing, restacks and the checkpoint into `main` |
 | [Connect a trading agent](how-to/connect-an-agent.md) | Hooking up ClawPump or any LLM agent |

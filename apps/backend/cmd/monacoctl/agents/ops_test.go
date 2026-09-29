@@ -32,7 +32,8 @@ func TestDispatch_dryRunWritesNothing(t *testing.T) {
 	if code != 0 || stderr != "" || !strings.Contains(stdout, "dry-run: would add worktree") ||
 		!strings.Contains(stdout, "would start caffeinate") ||
 		!strings.Contains(stdout, "subagent_type=pstack:poteto-agent model=opus run_in_background=true, prompt:\n"+
-			"ticket: 12\nworktree: ") || !strings.Contains(stdout, "brief: docs/agents/owner.md\n30 files") ||
+			"ticket: 12\nworktree: ") || !strings.Contains(stdout, "dry-run: would post the owner record on #12\n") ||
+		!strings.Contains(stdout, "brief: docs/agents/owner.md\norders: docs/agents/standing-orders.md\n30 files") ||
 		!strings.HasSuffix(stdout, " more\n") {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
@@ -120,6 +121,7 @@ func TestDispatch_startsAWorktreeWhenTheBlockerIsInTheBranch(t *testing.T) {
 	f.hub.on(list("/pulls?state=open"), []PR{pr(1, "a", "fb", ""), pr(2, "b", "fb", "")})
 	f.hub.on(list("/pulls/1/files?"), []File{{Filename: "shared.go"}})
 	f.hub.on(list("/pulls/2/files?"), []File{{Filename: "shared.go"}})
+	f.ownerComments(12)
 	f.ps()
 	var started []string
 	env := f.Env(t)
@@ -135,7 +137,7 @@ func TestDispatch_startsAWorktreeWhenTheBlockerIsInTheBranch(t *testing.T) {
 	if len(started) != 1 || !strings.HasPrefix(started[0], "caffeinate -dimsu -w ") {
 		t.Fatalf("started=%v", started)
 	}
-	rec, err := env.record(12)
+	rec, err := env.localRecord(12)
 	if err != nil || rec.Model != opus || rec.State != Running || rec.Base != tip {
 		t.Fatalf("rec=%+v err=%v", rec, err)
 	}
@@ -146,9 +148,15 @@ func TestDispatch_startsAWorktreeWhenTheBlockerIsInTheBranch(t *testing.T) {
 		t.Fatal(stdout.String())
 	}
 	spawn := "spawn: Agent subagent_type=pstack:poteto-agent model=opus run_in_background=true, prompt:\n" +
-		"ticket: 12\nworktree: " + rec.Worktree + "\nparent: " + tip + "\nbrief: docs/agents/owner.md\n"
+		"ticket: 12\nworktree: " + rec.Worktree + "\nparent: " + tip + "\nbrief: docs/agents/owner.md\n" +
+		"orders: docs/agents/standing-orders.md\n"
 	if !strings.HasPrefix(stdout.String(), spawn) {
 		t.Fatalf("stdout=%q want prefix %q", stdout.String(), spawn)
+	}
+	posted := posted(t, f, "POST /repos/o/r/issues/12/comments")
+	if !strings.HasPrefix(posted, recordMarker+"\nOwner record for #12: model opus, state running, branch none yet") ||
+		strings.Contains(posted, rec.Worktree) || strings.Contains(posted, "worktree") {
+		t.Fatalf("record comment %q", posted)
 	}
 }
 
@@ -160,6 +168,7 @@ func TestDispatch_startsFromOriginWhenTheLocalBranchIsBehind(t *testing.T) {
 	ahead := commitFile(t, f.dir, "ahead.go", "x\n")
 	f.hub.on(get("/issues/12"), Issue{Body: "**Milestone:** M7 · **Blocked by:** none · **Touches:** `a`"})
 	f.hub.on(list("/pulls?state=open"), []PR{})
+	f.ownerComments(12)
 	f.ps()
 	env := f.Env(t)
 	var fetched []string
@@ -193,7 +202,7 @@ func TestDispatch_startsFromOriginWhenTheLocalBranchIsBehind(t *testing.T) {
 	if len(fetched) != 3 || fetched[2] != "fetch origin fb" {
 		t.Fatalf("fetched=%q", fetched)
 	}
-	rec, err := env.record(12)
+	rec, err := env.localRecord(12)
 	if err != nil || rec.Base != ahead || rec.Base == stale {
 		t.Fatalf("rec=%+v err=%v", rec, err)
 	}
@@ -344,16 +353,18 @@ func TestOwnDoneExited(t *testing.T) {
 	if code, _, stderr := f.agents(t, "done", "4"); code != 0 {
 		t.Fatalf("done: %d %q", code, stderr)
 	}
-	if code, _, stderr := f.agents(t, "exited", "4"); code != 0 {
+	if code, _, stderr := f.agents(t, "exited", "4"); code != 0 ||
+		!strings.Contains(posted(t, f, "POST /repos/o/r/issues/4/comments"), `"state":"exited"`) {
 		t.Fatalf("exited: %d %q", code, stderr)
 	}
-	rec, err := f.Env(t).record(4)
+	rec, err := f.Env(t).localRecord(4)
 	if err != nil || rec.AgentID != "agt" || rec.State != Exited {
 		t.Fatalf("%+v %v", rec, err)
 	}
 	if code, _, stderr := f.agents(t, "own", "4"); code != 2 {
 		t.Fatalf("usage: %d %q", code, stderr)
 	}
+	f.ownerComments(9)
 	if code, _, stderr := f.agents(t, "done", "9"); code != 1 || !strings.Contains(stderr, "no owner record") {
 		t.Fatalf("missing: %d %q", code, stderr)
 	}

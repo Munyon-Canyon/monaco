@@ -209,6 +209,13 @@ if [[ "$check_only" -eq 0 ]]; then
   fi
 fi
 
+# --- agent workflow (docs/agents/setup.md) ---
+agent_plan="$(./scripts/setup-agent-env.sh --dry-run 2>&1 || true)"
+say "$agent_plan"
+if [[ "$agent_plan" == *"would "* ]] && ask_yes "Write the pstack model roles into ~/.claude?"; then
+  ./scripts/setup-agent-env.sh || say "left ~/.claude/pstack-models.md as it is. Rerun scripts/setup-agent-env.sh --force to replace it."
+fi
+
 # --- git hook ---
 if [[ -d .git && ! -f .git/hooks/pre-commit ]]; then
   if ask_yes "Install the pre-commit hook (blocks plaintext .env commits and new golangci-lint findings)?"; then
