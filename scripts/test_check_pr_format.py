@@ -6,6 +6,9 @@ import pathlib
 import subprocess
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
+from unittest import mock
 
 spec = importlib.util.spec_from_file_location(
     "check_pr_format", pathlib.Path(__file__).with_name("check-pr-format.py")
@@ -215,6 +218,34 @@ class CommitTest(RepoTest):
         commit("Rewrite the backend on the M7 platform (#786)")
         git("merge", "-q", "--no-ff", "-m", "Merge branch 'side' into trunk", "side")
         self.assertEqual(check.commit_errors(self.base, git("rev-parse", "HEAD")), [])
+
+
+class CheckpointTest(RepoTest):
+    def run_check(self, base_ref: str, head_ref: str) -> tuple[int, str]:
+        commit("Log bus.relay.idle at most once a minute")
+        os.environ.update(
+            PR_TITLE="Merge the backend rewrite",
+            PR_BODY=pr("Part of #789."),
+            BASE_REF=base_ref,
+            HEAD_REF=head_ref,
+            BASE_SHA=self.base,
+            HEAD_SHA=git("rev-parse", "HEAD"),
+        )
+        out = StringIO()
+        with mock.patch.object(check, "stacked", return_value=[]), redirect_stdout(out):
+            code = check.main([])
+        return code, out.getvalue()
+
+    def test_checkpoint_into_main_skips_the_commit_check(self):
+        self.assertEqual(self.run_check("main", "backend-rewrite-3"), (0, "PR format ok\n"))
+
+    def test_ticket_pr_still_fails_on_a_non_conventional_commit(self):
+        code, out = self.run_check("backend-rewrite-3", "989-checkpoint-commit-check")
+        self.assertEqual(code, 1)
+        self.assertIn('"Log bus.relay.idle at most once a minute" is not a Conventional Commit', out)
+
+    def test_other_branch_into_main_still_fails(self):
+        self.assertEqual(self.run_check("main", "hotfix")[0], 1)
 
 
 if __name__ == "__main__":
