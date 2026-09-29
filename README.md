@@ -16,7 +16,7 @@ macOS, Xcode (iOS 18+ simulator), Docker, Go 1.25+, [just](https://github.com/ca
 ## Clone setup
 
 1. Clone this repo. `cd` into the clone. Do not hard-code another machine's home path.
-2. Place gitignored `.env.keys` in the repo root if a teammate encrypted `.env.local` for you. Also place that `.env.local`. dotenvx reads both from the clone root.
+2. Place the encrypted `.env.local` a teammate shares in the repo root. Give dotenvx its private key in one of these ways, which `scripts/with-dotenv-local.sh` tries in this order: gitignored `.env.keys` in the checkout, `.env.keys` in the primary clone (so worktrees under `.worktrees/` need no copy), `DOTENV_PRIVATE_KEY_LOCAL` or `DOTENV_PRIVATE_KEY` in the environment, then Dotenvx Armor (`dotenvx armor`).
 3. If you have no `.env.local` yet, copy `.env.example` to `.env.local` and set Privy plus relayer values with `dotenvx set KEY value -f .env.local`.
 4. Run `./scripts/install-dev.sh` (or `just install`). It asks before each install (Go, golangci-lint, jq, just, dotenvx, Graphite, optional SimSlim). `just install --check` only reports. Then run `gt auth --token <token>` with the token from https://app.graphite.com/activate, and `gt init --trunk main`.
 5. `just run` starts the iOS app. The backend is being rebuilt from scratch ([backend platform RFC](docs/architecture/backend-platform.md)), so until its routes return the app has no working backend; mobile UI work uses sample data. Privy is injected via `scripts/ensure-ios-privy-config.sh` and `SIMCTL_CHILD_*`. If SimSlim is missing, the scripts warn and boot a stock simulator.

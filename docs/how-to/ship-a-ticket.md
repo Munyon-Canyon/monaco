@@ -28,6 +28,8 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
 
     Use absolute paths inside the worktree. An agent's shell may reset its working directory between commands.
 
+    The worktree needs no secrets setup. The secret recipes find the key in this order: `.env.keys` in the worktree, `.env.keys` in the primary clone, `DOTENV_PRIVATE_KEY_LOCAL` or `DOTENV_PRIVATE_KEY`, then Dotenvx Armor. See [Secrets in worktrees](../agents/setup.md#secrets-in-worktrees). Never copy `.env.keys` into a worktree.
+
 3. Start the first branch and track it on the feature branch:
 
         git switch -c <n>-<slug>
