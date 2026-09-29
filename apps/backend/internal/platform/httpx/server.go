@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/sse"
 )
 
 func Handler(d Deps, ssi api.StrictServerInterface, spec []byte) (http.Handler, error) {
@@ -81,6 +82,13 @@ func Serve(ctx context.Context, ln net.Listener, srv *http.Server, shutdownTimeo
 	}
 	return nil
 }
+
+type Routes struct {
+	Health
+	sse.Stream
+}
+
+var _ api.StrictServerInterface = Routes{}
 
 type Health struct{}
 

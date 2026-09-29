@@ -21,8 +21,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability/boundary"
 )
@@ -63,7 +65,8 @@ func run(ctx context.Context, stderr io.Writer, environ []string, meters metric.
 		defer cancel()
 		err = errors.Join(err, shutdown(flushCtx))
 	}()
-	ctx = observability.WithLogger(ctx, observability.NewLogger(cfg, stderr))
+	logger := observability.NewLogger(cfg, stderr)
+	ctx = observability.WithLogger(ctx, logger)
 	observability.Info(
 		ctx,
 		observability.BootConfig,
@@ -87,7 +90,10 @@ func run(ctx context.Context, stderr io.Writer, environ []string, meters metric.
 		return err
 	}
 	defer pool.Close()
-	stopBus, err := startBus(ctx, cfg, conn, pool)
+	stopBus, err := startBus(ctx, module.Deps{
+		Config: cfg, Logger: logger, Clock: clock.Real{}, IDs: ids.Real{}, Pool: pool,
+		UoW: db.New(pool, ids.Real{}, clock.Real{}), Bus: conn, HTTPClient: httpclient.New,
+	})
 	if err != nil {
 		return err
 	}
@@ -97,12 +103,10 @@ func run(ctx context.Context, stderr io.Writer, environ []string, meters metric.
 		return err
 	}
 	defer func() { err = errors.Join(err, unregister()) }()
-	ln, err := new(net.ListenConfig).Listen(ctx, "tcp", cfg.Worker.HealthAddr)
+	ln, err := listen(ctx, cfg.Worker.HealthAddr)
 	if err != nil {
-		return fmt.Errorf("listen on %s: %w", cfg.Worker.HealthAddr, err)
+		return err
 	}
-	observability.Info(ctx, observability.BootListening, slog.String("service", "worker"),
-		slog.String("addr", ln.Addr().String()))
 	return httpx.Serve(ctx, ln, httpx.NewServer(healthMux(), cfg.Timeouts), cfg.Timeouts.Shutdown)
 }
 
@@ -127,13 +131,12 @@ func startRelay(
 	}, nil
 }
 
-func startBus(ctx context.Context, cfg config.Config, conn *bus.Conn, pool *pgxpool.Pool) (func() error, error) {
-	uow := db.New(pool, ids.Real{}, clock.Real{})
-	stopConsumers, err := startConsumers(ctx, conn, uow, clock.Real{}, registered.consumers(cfg))
+func startBus(ctx context.Context, d module.Deps) (func() error, error) {
+	stopConsumers, err := startConsumers(ctx, d.Bus, d.UoW, d.Clock, registered.Build(d).Consumers())
 	if err != nil {
 		return nil, err
 	}
-	stopRelay, err := startRelay(ctx, conn, pool, uow, clock.Real{})
+	stopRelay, err := startRelay(ctx, d.Bus, d.Pool, d.UoW, d.Clock)
 	if err != nil {
 		stopConsumers()
 		return nil, err
@@ -152,6 +155,16 @@ func startConsumers(
 		return nil, err
 	}
 	return reg.Start(ctx)
+}
+
+func listen(ctx context.Context, addr string) (net.Listener, error) {
+	ln, err := new(net.ListenConfig).Listen(ctx, "tcp", addr)
+	if err != nil {
+		return nil, fmt.Errorf("listen on %s: %w", addr, err)
+	}
+	observability.Info(ctx, observability.BootListening, slog.String("service", "worker"),
+		slog.String("addr", ln.Addr().String()))
+	return ln, nil
 }
 
 func healthMux() *http.ServeMux {
