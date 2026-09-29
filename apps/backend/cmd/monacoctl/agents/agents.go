@@ -71,6 +71,7 @@ func commands() map[string]command {
 		"exited":      exitedCmd,
 		"forecast":    forecastCmd,
 		"handoff":     handoffCmd,
+		"land-stack":  landStackCmd,
 		"own":         ownCmd,
 		"resume":      resumeCmd,
 		"status":      statusCmd,
