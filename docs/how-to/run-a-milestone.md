@@ -13,21 +13,23 @@ Set up the clone with [Agent workflow setup](../agents/setup.md). The [standing 
 | Owner | an agent on `opus`, one per ticket | Builds the ticket's stack, runs stage 0, submits drafts, sets bodies, exits. |
 | Verifier | an agent on another model (`sonnet` for an `opus` owner) | Reviews each PR against its ticket, posts `verify`, lands a passing PR. Runs no tests. |
 
-## Set up the milestone
+## Start a milestone
 
 Do these once per milestone.
 
-1. Create the feature branch and its rulesets. This needs an org admin token.
+1. Pick the milestone's `<name>`: a lowercase slug such as `domain-core`. Its feature branches are `<name>-<N>`, which must match `^[a-z0-9]+(-[a-z0-9]+)*-[0-9]+$`. The first is `<name>-1`, and each checkpoint cuts the next.
 
-        scripts/feature-branch.sh init <name>
+2. Create `<name>-1` from `main`, protect it and point `FEATURE_BRANCH` at it. This needs an org admin token.
 
-    `init` branches from `origin/main` and runs `apply`, which adds the Graphite trunk, turns on auto-merge and merge commits, and writes the feature-branch ruleset with its merge queue. [Feature branches](../architecture/ci.md#feature-branches) describes both rulesets.
+        scripts/feature-branch.sh init <name>-1
 
-2. Set `.monaco/agents.toml`: `repo`, `feature_branch`, `tracking` (the tracking issue number), `lanes` (the most owners running at once), `batch` (the most tickets per batch), `milestone` (the name of the local state directory under `.git/pstack/`), and the verifier App's `verifier_app` and `verifier_installation`. `[check.budget]` holds the stage 0 budget of each row.
+    `init` creates `<name>-1` at `origin/main`, then runs `scripts/feature-branch.sh apply <name>-1`. `apply` adds the Graphite trunk, turns on auto-merge and merge commits, sets the `FEATURE_BRANCH` repo variable to `<name>-1`, and adds `refs/heads/<name>-*` to the include list of the one feature branch ruleset, so every later checkpoint branch is protected from its first push. If `<name>-1` already exists, run `apply <name>-1` alone. Check the variable with `gh variable get FEATURE_BRANCH`. [Feature branches](../architecture/ci.md#feature-branches) describes both rulesets.
 
-3. Open the tracking issue. Its body holds the wave table: one row per ticket with its wave, issue, title and blockers. `monacoctl agents status --publish` adds the status comment. `monacoctl agents` reads only status, batch and handoff comments written by an owner, member or collaborator of the repository or by `github-actions[bot]`, and edits only its own. Anyone else's comment with the same marker is ignored, and a new comment is posted instead.
+3. Set `.monaco/agents.toml`: `repo`, `feature_branch` (`"auto"` reads the `MONACO_FEATURE_BRANCH` env, then the `FEATURE_BRANCH` repo variable; name a branch to pin it), `tracking` (the tracking issue number), `lanes` (the most owners running at once), `batch` (the most tickets per batch), `milestone` (the name of the local state directory under `.git/pstack/`), and the verifier App's `verifier_app` and `verifier_installation`. `[check.budget]` holds the stage 0 budget of each row.
 
-4. Make a worktree at the feature-branch tip for the root's own commands, and build the tools there:
+4. Open the tracking issue. Its body holds the wave table: one row per ticket with its wave, issue, title and blockers. `monacoctl agents status --publish` adds the status comment. `monacoctl agents` reads only status, batch and handoff comments written by an owner, member or collaborator of the repository or by `github-actions[bot]`, and edits only its own. Anyone else's comment with the same marker is ignored, and a new comment is posted instead.
+
+5. Make a worktree at the feature-branch tip for the root's own commands, and build the tools there:
 
         git worktree add --detach .worktrees/root origin/<feature branch>
         cd .worktrees/root
@@ -35,9 +37,9 @@ Do these once per milestone.
 
     `just build backend` writes `bin/monacoctl`. The commands below run as `bin/monacoctl agents <command>` from that worktree. Rebuild after any merge that changes `apps/backend/cmd/monacoctl/agents`. Every worktree of the clone shares the records under `.git/.monaco/agents/` and `.git/pstack/<milestone>/`, so any worktree works. Each owner record is also a comment on its ticket, marked `<!-- monacoctl agents record -->`. `dispatch` posts it, and `done`, `exited` and `verdict` update it. A command that needs a record this clone lacks rebuilds it from the newest such comment, with the worktree path set to this clone's `.worktrees/<n>`.
 
-5. Confirm the `MERGE_BACK_TOKEN` repo secret exists (`gh secret list`). `checkpoint.yml` needs it. The verifier's statuses post as the verifier App when `~/.config/monaco/verifier.pem` exists, and as your `gh` user otherwise.
+6. Confirm the `MERGE_BACK_TOKEN` repo secret exists (`gh secret list`). `checkpoint.yml` needs it to cut the next feature branch, and needs its `Variables: write` permission to update `FEATURE_BRANCH`. The verifier's statuses post as the verifier App when `~/.config/monaco/verifier.pem` exists, and as your `gh` user otherwise.
 
-6. Start the milestone's decision log at `docs/milestones/<milestone>.md`. Every milestone orchestrator keeps one, like the [M7 closeout log](../milestones/m7-closeout.md). Write one line per decision as it happens: the time, what was decided and why, and what broke and how it was fixed. Keep the log on its own branch with a draft PR, commit each batch of entries with `gt modify`, push with `gt submit --stack --no-interactive --draft`, and land it at each handoff and checkpoint. A log that exists only in one session is lost when that session ends.
+7. Start the milestone's decision log at `docs/milestones/<milestone>.md`. Every milestone orchestrator keeps one, like the [M7 closeout log](../milestones/m7-closeout.md). Write one line per decision as it happens: the time, what was decided and why, and what broke and how it was fixed. Keep the log on its own branch with a draft PR, commit each batch of entries with `gt modify`, push with `gt submit --stack --no-interactive --draft`, and land it at each handoff and checkpoint. A log that exists only in one session is lost when that session ends.
 
 ## Write tickets
 
@@ -45,7 +47,7 @@ Do these once per milestone.
 
 2. Start the body with the header line. `batch` and `dispatch` parse it:
 
-        **Milestone:** M7 Backend platform · **Blocked by:** #483, #536 · **Tracking:** #492 · **Base branch:** `backend-rewrite-3` · **Touches:** `apps/backend/cmd/monacoctl/agents/**`, `docs/architecture/ci.md`
+        **Milestone:** M7 Backend platform · **Blocked by:** #483, #536 · **Tracking:** #492 · **Base branch:** `<name>-<N>` · **Touches:** `apps/backend/cmd/monacoctl/agents/**`, `docs/architecture/ci.md`
 
     - Put every `Touches` glob in backticks. A bare `**` breaks GitHub Markdown. `batch` defers a ticket with no `Touches` and keeps two tickets whose globs overlap out of one batch.
     - `Blocked by` lists issue or PR numbers, or `none`. An issue blocker counts as merged when it is closed as completed, or when a PR merged into the feature branch says `Closes #<n>`. A PR blocker counts when its merge commit is on the feature branch.
@@ -171,17 +173,21 @@ A checkpoint squash-merges the feature branch into `main`. Only the operator mer
 
 2. Land a PR on the feature branch that renames `## [Unreleased]` in `apps/backend/CHANGELOG.md` to `## [checkpoint N] - <date>` and opens a new `## [Unreleased]` with only an empty `### Added` heading. The `Changelog (checkpoint into main)` check requires it.
 
-3. Check for an open checkpoint PR: `gh pr list --base main --head <feature branch>`. GitHub allows one open PR per head and base. An open one already shows every later merge, so update its body instead of opening another.
+3. Drain the feature branch. No ticket PR or stack may still be open on it: `gh pr list --base <feature branch> --state open` prints nothing. Land each open PR, or park it by closing it with a comment. GitHub deletes the feature branch with the checkpoint merge and retargets any PR still open on it to `main`, where its diff is wrong. `next-branch` warns about each ticket PR it finds on `main` after the cut, but that warning is only the backstop.
 
-4. Open the PR with a body file that follows the template and lists the tickets merged since the last checkpoint:
+4. Check for an open checkpoint PR: `gh pr list --base main --head <feature branch>`. GitHub allows one open PR per head and base. An open one already shows every later merge, so update its body instead of opening another.
+
+5. Open the PR with a body file that follows the template and lists the tickets merged since the last checkpoint:
 
         gh pr create --base main --head <feature branch> --label integration --title "<what the checkpoint ships>" --body-file <file>
 
     `gh pr create` is right here, since the PR is not a Graphite stack. `scripts/pr-body.sh` refuses a checkpoint, because the PR format check reads every commit since `main`, including old ones without Conventional subjects. That check is not required on `main`: only `ci / ci-ok` and the changelog check are. List the `large-pr` label and the merge under "Needs from Logan" for the operator.
 
-5. After the operator merges, check `checkpoint.yml`: `gh run list --workflow checkpoint.yml --limit 1`. `tree-matches` proves `main` got the feature branch's exact tree, and `merge-back` merges `main` back into the feature branch. If either fails, report it. Never push to `main` or the feature branch yourself.
+6. After the operator merges, check `checkpoint.yml`: `gh run list --workflow checkpoint.yml --limit 1`. `tree-matches` proves `main` got the feature branch's exact tree, and `next-branch` creates `<name>-<N+1>` from the squash commit on `main` and points the `FEATURE_BRANCH` variable at it. If either fails, or `next-branch` warns about the variable or about a PR now based on `main`, report it and move that PR onto the new branch as in the next step. Never push to `main` or a feature branch yourself.
 
-6. GitHub runs `schedule` and `workflow_dispatch` workflows only from the default branch. A workflow added on the feature branch cannot run until its checkpoint lands. Then start it with `gh workflow run <file>`.
+7. Continue on the new branch. GitHub deletes `<name>-<N>` with the merge and leaves it deleted. Run `gt trunk --add <name>-<N+1>`, move each open stack onto it with `gt track --parent <name>-<N+1>`, `gt restack --upstack` and `gt submit --stack --no-interactive --draft`, and base new tickets on it. [Feature branches](../architecture/ci.md#feature-branches) has the details.
+
+8. GitHub runs `schedule` and `workflow_dispatch` workflows only from the default branch. A workflow added on the feature branch cannot run until its checkpoint lands. Then start it with `gh workflow run <file>`.
 
 ## Hand off
 
@@ -198,7 +204,7 @@ The outgoing orchestrator:
 
 The incoming orchestrator:
 
-1. Sets up the clone ([Agent workflow setup](../agents/setup.md)), then makes the root worktree and builds `bin/monacoctl` as [Set up the milestone](#set-up-the-milestone) step 4 says.
+1. Sets up the clone ([Agent workflow setup](../agents/setup.md)), then makes the root worktree and builds `bin/monacoctl` as [Start a milestone](#start-a-milestone) step 5 says.
 2. Reads the handoff comment, the status board on the tracking issue and the decision log.
 3. Runs `bin/monacoctl agents watch` to see ejections and idle owners.
 4. Carries on. Owner records rebuild from their ticket comments the first time a command needs them, so `resume`, `verdict` and `land-stack` work on in-flight tickets. A record is trusted only from a comment whose author is a repo owner, member or collaborator, because anyone can comment on a public repo. Each person's commands edit only their own record comment and post a new one otherwise. `bin/monacoctl agents resume <n> --transcript <file>` says whether a transcript is small enough to resume (250k tokens or fewer). A transcript from another machine is usually unavailable, so give the ticket a fresh owner on its pushed branch. The fresh owner's worktree starts from the branch, not from the parent SHA.

@@ -59,7 +59,7 @@ func readWorkflow(t *testing.T, path string) workflow {
 
 func requiredJobs(t *testing.T, root string) []string {
 	t.Helper()
-	out, err := exec.Command("bash", filepath.Join(root, "scripts", "feature-branch.sh"), "ruleset", "probe").Output()
+	out, err := exec.Command("bash", filepath.Join(root, "scripts", "feature-branch.sh"), "ruleset", "example-1").Output()
 	if err != nil {
 		t.Fatalf("feature-branch.sh ruleset: %v", err)
 	}

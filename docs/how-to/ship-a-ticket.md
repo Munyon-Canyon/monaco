@@ -8,7 +8,7 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
 
 - Set up the clone once with [Agent workflow setup](../agents/setup.md), and read the [standing orders](../agents/standing-orders.md). They apply to a person as well as to an agent.
 - Install the tools with `just install`: Go, `just`, `gh` and Graphite (`gt`). Authenticate `gh` and run `gt auth --token <token>` once.
-- `.monaco/agents.toml` names the feature branch (`feature_branch`), the tracking issue (`tracking`) and the per-row check budgets. The examples below use `backend-rewrite-3`, the feature branch today.
+- `.monaco/agents.toml` names the feature branch (`feature_branch`), the tracking issue (`tracking`) and the per-row check budgets. `feature_branch = "auto"` means the `FEATURE_BRANCH` repo variable (or the `MONACO_FEATURE_BRANCH` env when set), which each checkpoint moves to the next `<name>-<N>`. The examples below write it as `<name>-<N>`. `gh variable get FEATURE_BRANCH` prints the current name.
 - An agent owner gets a dispatch prompt with five fields: `ticket`, `worktree`, `parent`, `brief` and `orders`. The brief is [`docs/agents/owner.md`](../agents/owner.md), and `orders` names [`docs/agents/standing-orders.md`](../agents/standing-orders.md). The worktree already exists at the parent SHA, and `.git/.monaco/agents/<ticket>.json` registers it, so the agent guard hooks apply to it.
 - A person owning a ticket makes the worktree by hand (step 2). The Claude Code hooks do not run in a plain terminal, so a person follows the same rules without the guard.
 
@@ -22,8 +22,8 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
 
 2. Work in a worktree under `.worktrees/`, never in the primary checkout. A dispatched agent `cd`s into the `worktree` path from its prompt. A person makes one at the feature-branch tip:
 
-        git fetch origin backend-rewrite-3
-        git worktree add --detach .worktrees/<n> origin/backend-rewrite-3
+        git fetch origin <name>-<N>
+        git worktree add --detach .worktrees/<n> origin/<name>-<N>
         cd .worktrees/<n>
 
     Use absolute paths inside the worktree. An agent's shell may reset its working directory between commands.
@@ -33,7 +33,7 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
 3. Start the first branch and track it on the feature branch:
 
         git switch -c <n>-<slug>
-        gt track --parent backend-rewrite-3
+        gt track --parent <name>-<N>
 
     Each further PR of the stack starts with `gt create <branch> -m "<subject>"`. Amend the current branch with `gt modify`, which also restacks the branches above it. Order the stack so each PR proves the next: deletions and renames, then schema, then `domain` and `app`, then adapters and HTTP, then the `flows.tsv` status change.
 
@@ -54,7 +54,7 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
         cd apps/backend
         go run ./cmd/monacoctl agents check
 
-    It diffs `HEAD` against `origin/backend-rewrite-3` and runs one row per kind of changed path: PR size and gate changes always, then `go build`, `go vet`, the lint row and `go test -short -count=1` on the affected packages, and the shell, `scripts`, Python, Swift, `ready`, migration, OpenAPI and `mkdocs` rows when their paths changed. [Verification scope](../architecture/backend-platform.md#verification-scope) lists every row and its trigger.
+    It diffs `HEAD` against `origin/<name>-<N>` and runs one row per kind of changed path: PR size and gate changes always, then `go build`, `go vet`, the lint row and `go test -short -count=1` on the affected packages, and the shell, `scripts`, Python, Swift, `ready`, migration, OpenAPI and `mkdocs` rows when their paths changed. [Verification scope](../architecture/backend-platform.md#verification-scope) lists every row and its trigger.
 
     - Each row has its own budget under `[check.budget]` in `.monaco/agents.toml`. The `go test -short` row has none as a whole. Instead each package gets the `package` budget (20 s), the same limit that fails a package in CI.
     - It prints at most 20 lines. The full log is the `log:` path it prints, under `.git/pstack/<milestone>/logs/`.
@@ -99,7 +99,7 @@ When you stop before the ticket is done, leave it so another person or agent can
 
 The next owner reads the ticket, its comments and the draft PR. It makes a worktree at the feature-branch tip, pulls the stack into it by its top PR, and carries on from step 4 of [Steps](#steps):
 
-    git worktree add --detach .worktrees/<n> origin/backend-rewrite-3
+    git worktree add --detach .worktrees/<n> origin/<name>-<N>
     cd .worktrees/<n>
     gt get <top pr> --no-interactive
 

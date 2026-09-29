@@ -6,24 +6,35 @@ ACTIONS_APP_ID=15368
 
 usage() {
   cat >&2 <<'USAGE'
-usage: scripts/feature-branch.sh init|apply|ruleset <name> | main-ruleset
-  init <name>     create <name> from origin/main, then apply
-  apply <name>    add the Graphite trunk, turn on auto-merge and merge commits,
-                  create or update the feature branch and main rulesets
-  ruleset <name>  print the feature branch ruleset body
-  main-ruleset    print the main ruleset body
+usage: scripts/feature-branch.sh init|apply|ruleset <name>-<N> | main-ruleset
+  init <branch>     create <branch> from origin/main, then apply
+  apply <branch>    add the Graphite trunk, turn on auto-merge and merge commits,
+                    point FEATURE_BRANCH at <branch>, add refs/heads/<name>-* to the
+                    feature branch ruleset, create or update both rulesets
+  ruleset <branch>  print a feature branch ruleset body that targets <name>-*
+  main-ruleset      print the main ruleset body
 See docs/architecture/ci.md#feature-branches.
 USAGE
   exit 2
 }
 
+# The ref pattern that covers every checkpoint of <branch>'s milestone, or a usage error.
+pattern() {
+  local parsed
+  parsed="$("$(dirname "$0")/ci/feature-branch-name.sh" "$1")" || {
+    echo "$1 is not a feature branch <name>-<N> (lowercase slug, hyphen, number)" >&2
+    exit 2
+  }
+  echo "refs/heads/${parsed% *}-*"
+}
+
 ruleset() {
-  jq -n --arg name "$1" --argjson actions "$ACTIONS_APP_ID" '{
-    name: "feature branch \($name)",
+  jq -n --argjson include "$1" --argjson actions "$ACTIONS_APP_ID" '{
+    name: "feature branches",
     target: "branch",
     enforcement: "active",
     bypass_actors: [{actor_id: 1, actor_type: "OrganizationAdmin", bypass_mode: "always"}],
-    conditions: {ref_name: {include: ["refs/heads/\($name)"], exclude: []}},
+    conditions: {ref_name: {include: $include, exclude: []}},
     rules: [
       {type: "deletion"},
       {type: "non_fast_forward"},
@@ -88,9 +99,12 @@ main_ruleset() {
   }'
 }
 
+ruleset_id() {
+  gh api "repos/$REPO/rulesets" --jq "[.[] | select(.name | test(\"$1\"))][0].id // empty"
+}
+
 put_ruleset() {
-  local name="$1" id
-  id="$(gh api "repos/$REPO/rulesets" --jq ".[] | select(.name == \"$name\") | .id")"
+  local id="$1"
   if [[ -n "$id" ]]; then
     gh api -X PUT "repos/$REPO/rulesets/$id" --input - --jq '.id'
   else
@@ -98,13 +112,21 @@ put_ruleset() {
   fi
 }
 
+# One ruleset covers every milestone: apply adds <name>-* to its include list and keeps the patterns there.
+# "^feature branch" also matches an older per-branch ruleset ("feature branch <branch>"), which apply renames
+# and widens in place.
 apply() {
-  local name="$1"
+  local name="$1" include="[\"$2\"]" id
   gt trunk --add "$name" --no-interactive
   gh api -X PATCH "repos/$REPO" -F allow_auto_merge=true -F allow_merge_commit=true --silent
   gh variable set FEATURE_BRANCH --repo "$REPO" --body "$name"
-  ruleset "$name" | put_ruleset "feature branch $name"
-  main_ruleset | put_ruleset main
+  id="$(ruleset_id "^feature branch")"
+  if [[ -n "$id" ]]; then
+    include="$(gh api "repos/$REPO/rulesets/$id" \
+      --jq ".conditions.ref_name.include as \$i | if any(\$i[]; . == \"$2\") then \$i else \$i + [\"$2\"] end")"
+  fi
+  ruleset "$include" | put_ruleset "$id"
+  main_ruleset | put_ruleset "$(ruleset_id "^main$")"
 }
 
 init() {
@@ -115,14 +137,17 @@ init() {
   fi
   git fetch --quiet origin "$name"
   git branch --force "$name" "origin/$name"
-  apply "$name"
+  apply "$name" "$2"
 }
 
-[[ $# -eq 1 && "$1" == main-ruleset ]] && { main_ruleset; exit; }
-[[ $# -eq 2 && -n "$2" ]] || usage
-case "$1" in
-  init) init "$2" ;;
-  apply) apply "$2" ;;
-  ruleset) ruleset "$2" ;;
+case "$#:${1:-}" in
+  1:main-ruleset) main_ruleset; exit ;;
+  2:ruleset | 2:init | 2:apply) ;;
   *) usage ;;
+esac
+pattern="$(pattern "$2")"
+case "$1" in
+  ruleset) ruleset "[\"$pattern\"]" ;;
+  init) init "$2" "$pattern" ;;
+  apply) apply "$2" "$pattern" ;;
 esac

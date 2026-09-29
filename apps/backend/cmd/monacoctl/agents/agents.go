@@ -203,6 +203,9 @@ func load(ctx context.Context, environ []string, dir string, run Runner) (*Env, 
 	if err != nil {
 		return nil, err
 	}
+	if cfg.FeatureBranch, err = resolveFeatureBranch(ctx, run, environ, top, cfg); err != nil {
+		return nil, err
+	}
 	api := cmp.Or(lookup(environ, "MONACO_GITHUB_API"), defaultAPI)
 	token := func(ctx context.Context) (string, error) {
 		if t := cmp.Or(lookup(environ, "GH_TOKEN"), lookup(environ, "GITHUB_TOKEN")); t != "" {

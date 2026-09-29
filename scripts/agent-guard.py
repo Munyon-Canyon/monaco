@@ -10,10 +10,10 @@ import shlex
 import subprocess
 import sys
 from dataclasses import dataclass
-from fnmatch import fnmatch
 from functools import lru_cache
 
-FEATURE_BRANCH_GLOB = "backend-rewrite*"
+# A feature branch is <name>-<N>. scripts/ci/feature-branch-name.sh holds the same pattern.
+FEATURE_BRANCH_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*-[0-9]+$")
 CONVENTIONAL_TYPES = "feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert"
 CONVENTIONAL_RE = re.compile(rf"^({CONVENTIONAL_TYPES})(\([^()\s]+\))?!?: \S")
 HEREDOC_SUBST_RE = re.compile(r"^\$\(\s*cat\s*<<-?\s*(['\"]?)(\w+)\1[ \t]*\n(.*?)\n\s*\2\s*\)\s*$", re.S)
@@ -293,7 +293,7 @@ def is_protected(branch: str, cwd: str) -> bool:
             names |= {t["name"] for t in json.load(f).get("trunks", [])}
     except (OSError, ValueError, KeyError, subprocess.SubprocessError):
         pass
-    return branch in names or fnmatch(branch, FEATURE_BRANCH_GLOB)
+    return branch in names or bool(FEATURE_BRANCH_RE.fullmatch(branch))
 
 
 def rule_mutation(inv: Invocation) -> str | None:
@@ -412,7 +412,7 @@ def rule_merge_needs_verify(inv: Invocation) -> str | None:
         pr = json.loads(view.stdout)
         if pr["baseRefName"] == "main":
             return f"PR #{pr['number']} targets main. Only the operator merges into main, by hand in GitHub."
-        if "--auto" in inv.argv[3:] and not fnmatch(pr["baseRefName"], FEATURE_BRANCH_GLOB):
+        if "--auto" in inv.argv[3:] and not FEATURE_BRANCH_RE.fullmatch(pr["baseRefName"]):
             return (f"PR #{pr['number']} is based on {pr['baseRefName']}, not the feature branch, so auto-merge "
                     "would merge it into its parent branch. Land a stack with "
                     "`monacoctl agents land-stack <top-pr>`.")

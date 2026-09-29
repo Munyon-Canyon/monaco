@@ -7,7 +7,7 @@ For the steps of shipping a ticket or running a milestone through these checks, 
 ## Decision
 
 1. **CI confirms; it does not discover.** Every check a PR needs runs on the laptop first: `just test backend` (under 90 s) and the lint pre-commit hook. CI reruns the same commands on a clean machine to prove the result does not depend on the author's machine. A red CI run on a ready PR is a bug in the local gate, not a normal step. `monacoctl verify`, every flow against the real binaries, runs only in the merge queue's `e2e` job and nightly, never as a laptop or owner step.
-2. **Full CI runs only on PRs that can merge.** A PR runs CI when it is not a draft and its base is `main` or a milestone feature branch (`backend-rewrite*`). Drafts run nothing. Upstack PRs in a Graphite stack run nothing until Graphite retargets them to their trunk.
+2. **Full CI runs only on PRs that can merge.** A PR runs CI when it is not a draft and its base is `main` or a milestone feature branch (`<name>-<N>`). Drafts run nothing. Upstack PRs in a Graphite stack run nothing until Graphite retargets them to their trunk.
 3. **No CI on push to `main`.** Branch protection requires the branch to be up to date before merging, so the PR run already tested the tree that lands. The nightly run covers `main`.
 4. **One required check.** A final `ci-ok` job aggregates every other job with `re-actors/alls-green`. It is the only check branch protection names, so jobs can be added, split or path-filtered without touching the protection rule.
 5. **Filter jobs, never workflows.** Path and draft filters go in job-level `if:`. A workflow skipped by a `paths:` filter leaves its required check pending forever; a job skipped by `if:` reports success.
@@ -100,7 +100,6 @@ Stage 2 never reuses a result. A stage 2 failure removes only the failing entry 
 # ci.yml
 on:
   pull_request:
-    branches: [main, 'backend-rewrite*']
     types: [opened, synchronize, reopened, ready_for_review]
   merge_group:
   workflow_dispatch:
@@ -119,19 +118,21 @@ jobs:
 # ci-retarget.yml
 on:
   pull_request:
-    branches: [main, 'backend-rewrite*']
+    branches: [main, '*-[0-9]*']
     types: [edited]
 
 jobs:
   ci:
-    if: github.event.changes.base != null && !github.event.pull_request.draft && !startsWith(github.base_ref, 'graphite-base/')
+    if: >-
+      github.event.changes.base != null && !github.event.pull_request.draft &&
+      (github.base_ref == 'main' || github.base_ref == vars.FEATURE_BRANCH)
     uses: ./.github/workflows/ci-jobs.yml
     with:
       stage: pr
 ```
 
 - The jobs live in `ci-jobs.yml`, a reusable workflow. Both callers name their job `ci`, so every check reads `ci / <job>` and the required check is `ci / ci-ok`. `mobile-core` and `ios` are themselves calls to their own reusable files (`ci-mobile-core.yml`, `ci-ios.yml`), so their checks read `ci / mobile-core / <job>` and `ci / ios / <job>`. That split lets the `plan` job's path filter key each one on its own job-definition file instead of every `ci*.yml`, so a backend PR that only edits `ci-jobs.yml` (nearly every one, since each adds its own steps there) no longer runs the macOS `ios` job or the Linux `mobile-core` job. `ci-ok` still names only job IDs (`plan`, `go`, `mobile-core`, `ios`) in `needs`, so the required check and `allowed-skips` are unaffected by the extra nesting level.
-- `branches: [main, 'backend-rewrite*']` matches the PR's base, so only the bottom PR of a stack runs, whether its trunk is `main` or a feature branch.
+- `ci.yml` runs on every PR, so a stacked PR whose base is another ticket branch gets CI on its own diff. `ci-retarget.yml`'s `branches: [main, '*-[0-9]*']` matches the PR's base, and its job runs only when that base is `main` or the current feature branch, `vars.FEATURE_BRANCH`. No workflow trigger names a milestone.
 - `merge_group` runs the jobs on the feature branch's merge queue group commit. Every workflow behind a required check must run on `merge_group`, or the queue waits out its 30-minute timeout. `pr-format.yml` also runs on it, and its `PR format (title, body and commits)` job passes without checking, since each PR passed it on its own head. `scripts/ci/workflow_triggers_test.go` fails if a workflow with a required job filters on `paths` or `paths-ignore` at the workflow level. The Plan job runs it whenever a workflow changes.
 - A draft skips the `ci` job. That leaves one skipped check named `ci` and no `ci / ci-ok`, so the PR cannot merge until it is ready and CI passes. GitHub counts a skipped job as a passing required check, so the gate never depends on a skip.
 - Inside `ci-jobs.yml`, `ci-ok` uses `always()`, not `!cancelled()`. A run cancelled by a newer push then leaves a failed `ci-ok`, not a skipped one.
@@ -151,15 +152,21 @@ Ruleset on `main`:
 
 ## Feature branches
 
-A milestone lands on a feature branch (`backend-rewrite-3` today) through small ticket PRs. The operator then merges the feature branch into `main` as one checkpoint PR labeled `integration`.
+A feature branch is `<name>-<N>`: a lowercase slug, a hyphen, then a positive integer, matching `^[a-z0-9]+(-[a-z0-9]+)*-[0-9]+$`. `backend-rewrite-3` and `domain-core-12` are feature branches. `backend-rewrite`, `982-workflow-docs` and `main` are not. `scripts/ci/feature-branch-name.sh <ref>` parses one, and `scripts/agent-guard.py` and `scripts/check-pr-format.py` hold the same pattern, which `scripts/feature_branch_test.go` keeps equal.
+
+A milestone starts at `<name>-1` ([Start a milestone](../how-to/run-a-milestone.md#start-a-milestone)) and lands on its current feature branch through small ticket PRs. The operator then merges the feature branch into `main` as one checkpoint PR. A PR is a checkpoint when its base is `main`, its head is a feature branch and it carries the `integration` label; `checkpoint.yml`, the `Changelog (checkpoint into main)` job and `scripts/check-pr-format.py` all use that rule. Each checkpoint ends `<name>-<N>` and starts `<name>-<N+1>` from `main`.
+
+The `FEATURE_BRANCH` repo variable names the current feature branch and is the source of truth. `feature_branch = "auto"` in `.monaco/agents.toml` resolves to the `MONACO_FEATURE_BRANCH` env when set, then to `gh variable get FEATURE_BRANCH`, and fails naming both when neither gives a name. `agents-status.yml` passes the variable in as `MONACO_FEATURE_BRANCH`. `go-cache.yml` and `agents-status.yml` trigger on pushes to `main` and `*-[0-9]*` and skip a branch that is not `main` or `vars.FEATURE_BRANCH`. `gardener.yml` checks out `vars.FEATURE_BRANCH` and fails when it is unset.
 
 `scripts/feature-branch.sh` sets a feature branch up:
 
-- `init <name>` creates `<name>` from `origin/main`, then runs `apply`.
-- `apply <name>` adds `<name>` as a Graphite trunk (`gt trunk --add`), turns on the repo's auto-merge and "Allow merge commits" settings, and creates or updates two rulesets: `feature branch <name>` and `main`.
-- `ruleset <name>` and `main-ruleset` print those rulesets. `scripts/feature_branch_test.go` checks both.
+- `init <name>-<N>` creates the branch from `origin/main`, then runs `apply`.
+- `apply <name>-<N>` adds the branch as a Graphite trunk (`gt trunk --add`), turns on the repo's auto-merge and "Allow merge commits" settings, sets the `FEATURE_BRANCH` repo variable to it, and creates or updates two rulesets: `feature branches` and `main`. There is one feature branch ruleset for every milestone. `apply` adds `refs/heads/<name>-*` to its include list, keeps the patterns already there and adds none twice, and updates it in place. It updates the first ruleset whose name starts with `feature branch`, so it also renames and widens an older per-branch ruleset instead of adding a second one. Each command refuses a branch that is not `<name>-<N>`.
+- `ruleset <name>-<N>` prints a feature branch ruleset that targets `refs/heads/<name>-*`, and `main-ruleset` prints the main ruleset. `scripts/feature_branch_test.go` checks both and the include-list merge.
 
 The feature branch ruleset:
+
+- Targets `refs/heads/<name>-*` for every milestone `apply` has run for, so the branch each checkpoint cuts has the required checks, the merge queue and deletion protection from its first push.
 
 - Requires `ci / ci-ok` and `PR format (title, body and commits)` from GitHub Actions (integration 15368). The `verify` commit status is not a ruleset check. The agent guard hook refuses `gh pr merge` until the head's latest `verify` status is `success`, from any poster.
 - Lands every PR through a merge queue (`merge_queue` rule):
@@ -169,19 +176,26 @@ The feature branch ruleset:
   - A required check that does not report within 30 minutes (`check_response_timeout_minutes: 30`) drops the entry.
 - Does not require branches to be up to date. The queue tests each entry on top of the tip and the entries ahead of it, which replaces that rule.
 - Requires a pull request and allows only merge commits. Nobody pushes directly, admins included.
-- Has one bypass actor, org admins (`OrganizationAdmin`), for the checkpoint merge-back below. GitHub rejects GitHub Actions as a bypass actor on this repo (422, "must be part of the ruleset source or owner organization").
+- Has one bypass actor, org admins (`OrganizationAdmin`), whose token cuts the next feature branch at a checkpoint (below). GitHub rejects GitHub Actions as a bypass actor on this repo (422, "must be part of the ruleset source or owner organization").
 - Blocks force pushes and deletion.
 
 A ticket PR lands with `gh pr merge <n> --auto` once its verdict passes. GitHub adds it to the queue when its own checks pass. The queue builds a `gh-readonly-queue/<branch>/...` commit, runs the required checks on it through `merge_group`, and merges it when they pass. A failing entry leaves the queue, and the entries behind it rebuild without it.
 
 A Graphite stack lands as one entry through `monacoctl agents land-stack <top-pr>` ([Pull requests](backend-platform.md#pull-requests-small-and-stacked)). It changes the upper PRs' bases to the feature branch and queues only the top PR, so stage 2 runs once for the stack. The merge commit keeps every commit of the stack, and GitHub marks the lower PRs merged.
 
-A checkpoint PR (base `main`, head `backend-rewrite*`) must carry a backend changelog entry. The `Changelog (checkpoint into main)` job in `pr-format.yml` runs `scripts/check-changelog.py <base> <head>`, which fails when the diff changes `apps/backend/**` without changing `apps/backend/CHANGELOG.md`, or when that file has an empty `## [Unreleased]` section and no `## [checkpoint N] - <date>` section added by this diff. Before merging a checkpoint, land a PR on the feature branch that renames `[Unreleased]` to `[checkpoint N] - <date>` and opens a new `[Unreleased]` holding only an empty `### Added` heading, which `monacoctl gen module` needs. The check counts only `- ` entries, so that heading alone is still an empty section. Every other PR skips the job, and a skipped required check counts as passing. It passes without checking on `merge_group`.
+A checkpoint PR must carry a backend changelog entry. The `Changelog (checkpoint into main)` job in `pr-format.yml` runs `scripts/check-changelog.py <base> <head>`, which fails when the diff changes `apps/backend/**` without changing `apps/backend/CHANGELOG.md`, or when that file has an empty `## [Unreleased]` section and no `## [checkpoint N] - <date>` section added by this diff. Before merging a checkpoint, land a PR on the feature branch that renames `[Unreleased]` to `[checkpoint N] - <date>` and opens a new `[Unreleased]` holding only an empty `### Added` heading, which `monacoctl gen module` needs. The check counts only `- ` entries, so that heading alone is still an empty section. A PR into `main` without the `integration` label skips the job, and a skipped required check counts as passing. Expressions have no regex, so for a labelled PR whose head is not `<name>-<N>` the job runs, finds it is not a checkpoint, and passes without checking. It passes without checking on `merge_group`.
 
-After the checkpoint PR squash-merges into `main`, `checkpoint.yml` runs two jobs:
+After a PR squash-merges into `main`, `checkpoint.yml` runs three jobs:
 
-1. `tree-matches` runs `scripts/ci/checkpoint-tree.sh` and fails unless `main`'s squash commit has the same tree as the PR's head.
-2. `merge-back` merges `main` back into the feature branch with `git merge -s ours` and pushes it with the `MERGE_BACK_TOKEN` repo secret, a fine-grained PAT from an org admin with `contents: write`, so the push bypasses the ruleset. Without the secret the job fails and names it. The trees match, so the merge changes no file and only records `main` as merged. The next checkpoint PR then shows only the new work. If `tree-matches` fails, `merge-back` does not run.
+1. `detect` runs when the merged PR carries the `integration` label and came from this repo. It runs `scripts/ci/feature-branch-name.sh` on the head and marks the merge a checkpoint only when the head is `<name>-<N>`. The other jobs run only for a checkpoint.
+2. `tree-matches` runs `scripts/ci/checkpoint-tree.sh` and fails unless `main`'s squash commit has the same tree as the PR's head.
+3. `next-branch` runs `scripts/ci/next-branch.sh` after `tree-matches` passes. It reads `<name>` and `<N>` from the PR's head (and fails on a head that is not `<name>-<N>`) and creates `<name>-<N+1>` at the squash commit with the `MERGE_BACK_TOKEN` repo secret, a fine-grained PAT from an org admin with `contents: write`, so the push bypasses the ruleset. Without the secret the job fails and names it. A rerun leaves a branch already at the squash commit alone, and fails if the branch exists at another commit. The job then sets the `FEATURE_BRANCH` repo variable to the new name. That needs the token's `Variables: write` permission; without it the job warns and passes, and the root sets the variable by hand. Last, it lists the open PRs based on `main` and emits a warning for each without the `integration` label, naming the commands that move it onto the new branch, and lists them in the step summary. A failed listing warns and passes, since the branch is already cut. The step summary names the new branch. If `tree-matches` fails, `next-branch` does not run.
+
+The repo deletes a head branch when its PR merges, so GitHub deletes `<name>-<N>` with the checkpoint and retargets PRs still open on it to `main`. Before opening a checkpoint PR, drain the feature branch: land or close every ticket PR and stack open on it. The `next-branch` warning is the backstop for a PR that slipped through; it cannot tell a retargeted PR from one meant for `main`, so it warns and moves nothing. Old feature branches are left alone. Then, locally:
+
+1. Run `gt trunk --add <name>-<N+1>` and `git fetch origin`.
+2. Move each open stack onto the new branch: `gt track --parent <name>-<N+1>` on its bottom branch, `gt restack --upstack`, then `gt submit --stack --no-interactive --draft`, which points the PRs' bases at the new trunk.
+3. Base new tickets on `<name>-<N+1>`.
 
 ## Fast and deterministic
 
@@ -190,7 +204,7 @@ After the checkpoint PR squash-merges into `main`, `checkpoint.yml` runs two job
 - **Seeds are fixed and printed.** `-shuffle=on` prints its seed. Rapid, fuzz and jitter log theirs on failure. CI sets `RAPID_NOFAILFILE=1` so it never writes to the tree.
 - **No retries.** A failed job is not rerun to get green. A flaky test is fixed the same day or moved to nightly with an issue, per the [Testing](backend-platform.md#keeping-it-fast) rule "fixed or moved to nightly, never skipped".
 - **Tight timeouts.** Each job's `timeout-minutes` is about twice its budget (`lint` 10 for a cold golangci-lint cache, `backend` 10, `e2e` 8, `mutation` 10 per package, `ios` 20). The default is 360, which lets a hung Postgres burn six hours.
-- **Caches.** `actions/setup-go` caches modules and `GOCACHE`. After checkout, reset `testdata` mtimes to a fixed date (`find . -path '*/testdata/*' -exec touch -t 200001010000 {} +`), because `go test` keys its result cache on file mtimes and a fresh checkout otherwise misses every time ([golang/go#58571](https://github.com/golang/go/issues/58571)). `golangci-lint-action` caches its own analysis. A PR can restore caches saved on `main` but not caches from other PRs, and with no push-to-`main` run nothing would save them. So nightly gets a small Linux `warm-cache` job on `main` that builds and runs the `go` job's tests with the same flags. `go-cache.yml` also saves the module and build cache on a push to `backend-rewrite-3` or `main` that changes `go.mod` or `go.sum`, because nightly runs only on `main` and a feature branch's `go.sum` differs from it. Those two are the only jobs that save caches. `backend-test-env` retries `go mod download` 3 times, so one proxy error does not fail a job. Running the tests, not only compiling them (`go test -run '^$'`), is what puts test results in the cache: `-run` is part of the result cache key, so a compile-only run never makes a PR's `go test` print `(cached)`. The `go` job's `DATABASE_URL` carries an `application_name` unique to the run. `go test` keys cached results on the env vars a test reads, so a test that uses Postgres always reruns against the migrations in the PR, and only Postgres-free packages are cached. PRs restore and never save. The `ios` job caches Swift packages only. A DerivedData build-product cache was tried and measured worse, not better: restoring it and validating it against a freshly checked-out tree (even with each file's mtime set back to its last commit time) took 9m38s, against 5m45s for a plain from-scratch build with the same build flags. DerivedData is rebuilt from scratch every run.
+- **Caches.** `actions/setup-go` caches modules and `GOCACHE`. After checkout, reset `testdata` mtimes to a fixed date (`find . -path '*/testdata/*' -exec touch -t 200001010000 {} +`), because `go test` keys its result cache on file mtimes and a fresh checkout otherwise misses every time ([golang/go#58571](https://github.com/golang/go/issues/58571)). `golangci-lint-action` caches its own analysis. A PR can restore caches saved on `main` but not caches from other PRs, and with no push-to-`main` run nothing would save them. So nightly gets a small Linux `warm-cache` job on `main` that builds and runs the `go` job's tests with the same flags. `go-cache.yml` also saves the module and build cache on a push to the current feature branch (`vars.FEATURE_BRANCH`) or `main` that changes `go.mod` or `go.sum`, because nightly runs only on `main` and a feature branch's `go.sum` differs from it. Those two are the only jobs that save caches. `backend-test-env` retries `go mod download` 3 times, so one proxy error does not fail a job. Running the tests, not only compiling them (`go test -run '^$'`), is what puts test results in the cache: `-run` is part of the result cache key, so a compile-only run never makes a PR's `go test` print `(cached)`. The `go` job's `DATABASE_URL` carries an `application_name` unique to the run. `go test` keys cached results on the env vars a test reads, so a test that uses Postgres always reruns against the migrations in the PR, and only Postgres-free packages are cached. PRs restore and never save. The `ios` job caches Swift packages only. A DerivedData build-product cache was tried and measured worse, not better: restoring it and validating it against a freshly checked-out tree (even with each file's mtime set back to its last commit time) took 9m38s, against 5m45s for a plain from-scratch build with the same build flags. DerivedData is rebuilt from scratch every run.
 - **Few, larger jobs.** Each job pays checkout, setup and a whole-minute rounding. Split a job only when the parallelism shortens time to a result.
 
 ## Staying on the free tier
@@ -264,6 +278,7 @@ Each step is one small PR with its own proof.
 
 ## Log
 
+- 2026-09-29: Each checkpoint cuts the next feature branch instead of merging `main` back into the old one, and no milestone name is hardcoded (#1007). The repo auto-deletes a merged head branch, so `merge-back` failed after checkpoint 3 (run 36617742130). A feature branch is `<name>-<N>`, and a checkpoint is an `integration`-labelled PR into `main` from one. `checkpoint.yml`'s `next-branch` job creates `<name>-<N+1>` at the squash commit and sets `FEATURE_BRANCH`, which is the source of truth that `feature_branch = "auto"` reads. `scripts/feature-branch.sh apply <name>-<N>` adds `refs/heads/<name>-*` to the one feature branch ruleset's include list. Workflow triggers use `*-[0-9]*` and gate on `vars.FEATURE_BRANCH`.
 - 2026-09-29: `agents-status.yml` uses one concurrency group per PR, `agents-status-${{ github.event.pull_request.number || github.ref }}`, still with `cancel-in-progress: false` (#929). GitHub keeps one pending run per group and cancels the pending run a newer one replaces, whatever `cancel-in-progress` says, so the single `agents-status` group from #891 still left red `status` checks on a stack submit of three or more PRs. Two runs can now publish the status comment at once, and an older snapshot can land last until the next event or the 10-minute schedule rewrites it.
 - 2026-09-29: Added the stage 2 `e2e` job (#483). `scripts/ci/e2e.sh` runs `monacoctl verify all` and `monacoctl verify all --crash-at after-publish` and uploads `apps/backend/.verify/` as an artifact; evidence is never committed. The nightly backend job runs `monacoctl verify all` too. The planned `just` recipe and pre-PR evidence hook are dropped: verify is a queue and nightly step, not an owner step.
 - 2026-09-29: Checkpoint PRs into `main` must update `apps/backend/CHANGELOG.md`. The `Changelog (checkpoint into main)` job runs `scripts/check-changelog.py`, and the `main` ruleset requires it (#890).
