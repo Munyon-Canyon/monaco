@@ -186,6 +186,12 @@ func TestPublishHint_deliversOnCoreNATSAndCountsDrops(t *testing.T) {
 	}
 }
 
+func TestPublishHint_onANilConnDropsTheHint(t *testing.T) {
+	t.Parallel()
+	var c *bus.Conn
+	c.PublishHint(t.Context(), "cabal.42.updated", nil)
+}
+
 func TestExportAccountGauges_reportsStreamsAndStorage(t *testing.T) {
 	t.Parallel()
 	reader := sdkmetric.NewManualReader()

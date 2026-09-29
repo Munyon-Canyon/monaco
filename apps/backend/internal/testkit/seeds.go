@@ -49,6 +49,11 @@ func Seed(t SeedT, pool *pgxpool.Pool, name string, consumers ...bus.Consumer) [
 	if err != nil {
 		t.Fatalf("testkit.Seed: %v", err)
 	}
+	return SeedJSONL(t, pool, name, raw, consumers...)
+}
+
+func SeedJSONL(t SeedT, pool *pgxpool.Pool, name string, raw []byte, consumers ...bus.Consumer) []Seeded {
+	t.Helper()
 	uow := db.New(pool, NewIDs(1), clock.Real{})
 	var seeded []Seeded
 	lines := bufio.NewScanner(bytes.NewReader(raw))
