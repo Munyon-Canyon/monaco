@@ -126,6 +126,12 @@ func TestReadAllChecks_failsWhenAPageDoesNot(t *testing.T) {
 		{"query error", "", "boom", errors.New("boom")},
 		{"commit gone", `{"repository":{"c0":null}}`, "commit a1 lost its checks while they were paged", nil},
 		{"rollup gone", `{"repository":{"c0":{"statusCheckRollup":null}}}`, "commit a1 lost its checks while they were paged", nil},
+		{
+			"an empty page that does not move the cursor",
+			`{"repository":{"c0":{"statusCheckRollup":{"contexts":{"pageInfo":{"hasNextPage":true,"endCursor":"NTA"},"nodes":[]}}}}}`,
+			"commit a1 returned an empty page of checks without moving past cursor NTA",
+			nil,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

@@ -14,7 +14,7 @@ import (
 const (
 	landsPrefix = "Lands stack:"
 	stackFields = `number state baseRefName headRefName body mergeCommit{oid} autoMergeRequest{enabledAt}
-mergeQueueEntry{position} commits(last:1){nodes{commit{` + commitChecks + `}}}`
+isInMergeQueue mergeQueueEntry{position} commits(last:1){nodes{commit{` + commitChecks + `}}}`
 	repoQuery = "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){"
 )
 
@@ -31,6 +31,7 @@ type stackPR struct {
 		OID string `json:"oid"`
 	} `json:"mergeCommit"`
 	AutoMerge *struct{} `json:"autoMergeRequest"`
+	InQueue   bool      `json:"isInMergeQueue"`
 }
 
 func landStackCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {
@@ -54,13 +55,15 @@ func landStackCmd(ctx context.Context, env *Env, args []string, stdout io.Writer
 		if rec.Queued.Top != n {
 			return landErr(fmt.Sprintf("#%d already has #%d queued", ticket, rec.Queued.Top))
 		}
-		return env.settle(ctx, rec, stdout)
+		if !tops[0].ejected() {
+			return env.settle(ctx, rec, tops[0], stdout)
+		}
+		_, _ = fmt.Fprintf(stdout, "#%d left the queue; relanding its stack\n", n)
+		if err := env.unmark(rec); err != nil {
+			return err
+		}
 	}
-	open, err := env.openPulls(ctx)
-	if err != nil {
-		return err
-	}
-	stack, err := walkStack(open, n, env.Config.FeatureBranch)
+	stack, err := env.stackOf(ctx, rec.Worktree, n, stdout)
 	if err != nil {
 		return err
 	}
@@ -95,6 +98,100 @@ func walkStack(open []stackPR, top int, trunk string) ([]stackPR, error) {
 	return stack, nil
 }
 
+func (env *Env) stackOf(ctx context.Context, worktree string, top int, stdout io.Writer) ([]stackPR, error) {
+	open, err := env.openPulls(ctx)
+	if err != nil {
+		return nil, err
+	}
+	walked, err := walkStack(open, top, env.Config.FeatureBranch)
+	if err != nil {
+		return nil, err
+	}
+	return env.wholeStack(ctx, worktree, open, walked, stdout)
+}
+
+func (env *Env) wholeStack(
+	ctx context.Context,
+	worktree string,
+	open, walked []stackPR,
+	stdout io.Writer,
+) ([]stackPR, error) {
+	top := walked[len(walked)-1]
+	nums, ok, err := landsNums(top.Body)
+	switch {
+	case err != nil:
+		return nil, err
+	case !ok:
+		return env.graphiteStack(ctx, worktree, open, walked, stdout), nil
+	case len(nums) <= len(walked):
+		return walked, nil
+	case nums[len(nums)-1] != top.Number:
+		return nil, landErr(fmt.Sprintf("#%d's %q line does not end with #%d", top.Number, landsPrefix, top.Number))
+	}
+	prs, err := env.stackPulls(ctx, nums)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range prs {
+		if p.State != "OPEN" {
+			return nil, landErr(fmt.Sprintf("#%d from #%d's %q line is %s; only open PRs reland",
+				p.Number, top.Number, landsPrefix, strings.ToLower(p.State)))
+		}
+	}
+	return prs, nil
+}
+
+func landsNums(body string) ([]int, bool, error) {
+	first, _, _ := strings.Cut(body, "\n")
+	rest, ok := strings.CutPrefix(first, landsPrefix)
+	if !ok {
+		return nil, false, nil
+	}
+	var nums []int
+	for _, ref := range strings.Fields(rest) {
+		n, err := strconv.Atoi(strings.TrimPrefix(ref, "#"))
+		if err != nil {
+			return nil, true, landErr(fmt.Sprintf("%q is not a PR in %q", ref, first))
+		}
+		nums = append(nums, n)
+	}
+	return nums, true, nil
+}
+
+func (env *Env) graphiteStack(
+	ctx context.Context,
+	worktree string,
+	open, walked []stackPR,
+	stdout io.Writer,
+) []stackPR {
+	out, err := env.Run(ctx, worktree, "", "gt", "log", "short", "--stack", "--reverse", "--no-interactive")
+	if err != nil {
+		_, _ = fmt.Fprintf(stdout, "gt log in %s failed (%v); landing the GitHub base chain\n", worktree, err)
+		return walked
+	}
+	byHead := map[string]stackPR{}
+	for _, p := range open {
+		byHead[p.Head] = p
+	}
+	top := walked[len(walked)-1].Number
+	var stack []stackPR
+	for line := range strings.Lines(string(out)) {
+		for _, f := range strings.Fields(line) {
+			if p, ok := byHead[f]; ok {
+				stack = append(stack, p)
+				break
+			}
+		}
+		if len(stack) > 0 && stack[len(stack)-1].Number == top {
+			if len(stack) > len(walked) {
+				return stack
+			}
+			break
+		}
+	}
+	return walked
+}
+
 func waitingOn(stack []stackPR) []string {
 	var out []string
 	for _, p := range stack {
@@ -127,6 +224,9 @@ func (env *Env) land(ctx context.Context, rec Record, stack []stackPR, stdout io
 	}
 	fb := env.Config.FeatureBranch
 	for _, p := range stack[1:] {
+		if p.Base == fb {
+			continue
+		}
 		if err := env.gh(ctx, "", "pr", "edit", strconv.Itoa(p.Number), "--base", fb); err != nil {
 			return landFailed(err)
 		}
@@ -156,51 +256,82 @@ func (env *Env) land(ctx context.Context, rec Record, stack []stackPR, stdout io
 	return nil
 }
 
-func (env *Env) settle(ctx context.Context, rec Record, stdout io.Writer) error {
+func (env *Env) settle(ctx context.Context, rec Record, top stackPR, stdout io.Writer) error {
+	switch {
+	case top.InQueue:
+		_, _ = fmt.Fprintf(stdout, "#%d is queued at position %d\n", top.Number, top.position())
+		return nil
+	case top.State != "MERGED":
+		_, _ = fmt.Fprintf(stdout, "#%d waits for its checks, then enters the queue\n", top.Number)
+		return nil
+	}
 	prs, err := env.stackPulls(ctx, rec.Queued.PRs)
 	if err != nil {
 		return err
 	}
-	top := prs[len(prs)-1]
-	switch {
-	case top.State == "MERGED":
-		sha := shortSHA(top.MergeCommit.OID)
-		for _, p := range prs[:len(prs)-1] {
-			if p.State != "OPEN" {
-				continue
-			}
-			note := fmt.Sprintf("Landed in #%d (%s)", top.Number, sha)
-			if err := env.gh(ctx, "", "pr", "close", strconv.Itoa(p.Number), "--comment", note); err != nil {
-				return err
-			}
-			_, _ = fmt.Fprintf(stdout, "closed #%d: %s\n", p.Number, note)
+	sha := shortSHA(top.MergeCommit.OID)
+	for _, p := range prs[:len(prs)-1] {
+		if p.State != "OPEN" {
+			continue
 		}
-		if _, err := env.Run(
-			ctx,
-			rec.Worktree,
-			"",
-			"gt",
-			"sync",
-			"--no-interactive",
-			"--delete-all",
-			"--no-restack",
-		); err != nil {
+		note := fmt.Sprintf("Landed in #%d (%s)", top.Number, sha)
+		if err := env.gh(ctx, "", "pr", "close", strconv.Itoa(p.Number), "--comment", note); err != nil {
 			return err
 		}
-		_, _ = fmt.Fprintf(stdout, "#%d merged as %s; gt sync ran in %s\n", top.Number, sha, rec.Worktree)
-	case top.State == "OPEN" && top.MergeQueueEntry != nil:
-		_, _ = fmt.Fprintf(stdout, "#%d is queued at position %d\n", top.Number, top.MergeQueueEntry.Position)
-		return nil
-	case top.State == "OPEN" && top.AutoMerge != nil:
-		_, _ = fmt.Fprintf(stdout, "#%d waits for its checks, then enters the queue\n", top.Number)
-		return nil
-	default:
-		_, _ = fmt.Fprintf(stdout, "#%d left the queue; the stack is unmarked. "+
-			"Fix it with gt modify and gt submit --stack, then run land-stack again\n", top.Number)
+		_, _ = fmt.Fprintf(stdout, "closed #%d: %s\n", p.Number, note)
 	}
+	if _, err := env.Run(
+		ctx,
+		rec.Worktree,
+		"",
+		"gt",
+		"sync",
+		"--no-interactive",
+		"--delete-all",
+		"--no-restack",
+	); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(stdout, "#%d merged as %s; gt sync ran in %s\n", top.Number, sha, rec.Worktree)
+	return env.unmark(rec)
+}
+
+func (p stackPR) position() int {
+	if p.MergeQueueEntry == nil {
+		return 0
+	}
+	return p.MergeQueueEntry.Position
+}
+
+func (p stackPR) ejected() bool {
+	return p.State != "MERGED" && !p.InQueue && p.AutoMerge == nil
+}
+
+func (env *Env) unmark(rec Record) error {
 	rec.Queued = nil
 	rec.Changed = env.Now()
 	return env.saveRecord(rec)
+}
+
+func (env *Env) unqueueEjected(ctx context.Context, rs []Record, stdout io.Writer) error {
+	for _, r := range rs {
+		if r.Queued == nil {
+			continue
+		}
+		tops, err := env.stackPulls(ctx, []int{r.Queued.Top})
+		if err != nil {
+			return err
+		}
+		if !tops[0].ejected() {
+			continue
+		}
+		_, _ = fmt.Fprintf(stdout, "unqueued: #%d; #%d left the queue. Fix the stack with gt modify and "+
+			"gt submit --stack, then run land-stack %d\n", r.Ticket, r.Queued.Top, r.Queued.Top)
+		if err := env.unmark(r); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func landsLine(nums []int) string {

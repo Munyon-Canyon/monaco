@@ -19,6 +19,9 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	if err != nil {
 		return err
 	}
+	if err := env.unqueueEjected(ctx, rs, stdout); err != nil {
+		return err
+	}
 	idle, alive, running, err := env.watchLists(ctx, rs)
 	if err != nil {
 		return err
