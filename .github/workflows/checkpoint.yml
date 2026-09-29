@@ -44,18 +44,30 @@ jobs:
             exit 1
           fi
 
+      # GitHub may delete the head branch at merge, so check out the PR's head commit and push the branch back by name.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           token: ${{ secrets.MERGE_BACK_TOKEN }}
 
       # The trees match, so "ours" records main as merged without changing the branch's files.
       - env:
           BRANCH: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           SQUASH: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
+          tip=$(git ls-remote origin "refs/heads/$BRANCH" | cut -f1)
+          if [ -n "$tip" ] && [ "$tip" != "$HEAD_SHA" ]; then
+            echo "::error::$BRANCH moved to $tip after the checkpoint merged at $HEAD_SHA. Merge main back into it by hand."
+            exit 1
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git merge --no-edit -s ours -m "chore: merge main back into $BRANCH" "$SQUASH"
           git push origin "HEAD:refs/heads/$BRANCH"
+          if [ -z "$tip" ]; then
+            echo "Recreated \`$BRANCH\` (GitHub deleted it at merge) at $(git rev-parse HEAD), with main merged back." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Updated \`$BRANCH\` to $(git rev-parse HEAD), with main merged back." >> "$GITHUB_STEP_SUMMARY"
+          fi

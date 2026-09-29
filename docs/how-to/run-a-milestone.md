@@ -179,7 +179,7 @@ A checkpoint squash-merges the feature branch into `main`. Only the operator mer
 
     `gh pr create` is right here, since the PR is not a Graphite stack. `scripts/pr-body.sh` refuses a checkpoint, because the PR format check reads every commit since `main`, including old ones without Conventional subjects. That check is not required on `main`: only `ci / ci-ok` and the changelog check are. List the `large-pr` label and the merge under "Needs from Logan" for the operator.
 
-5. After the operator merges, check `checkpoint.yml`: `gh run list --workflow checkpoint.yml --limit 1`. `tree-matches` proves `main` got the feature branch's exact tree, and `merge-back` merges `main` back into the feature branch. If either fails, report it. Never push to `main` or the feature branch yourself.
+5. After the operator merges, check `checkpoint.yml`: `gh run list --workflow checkpoint.yml --limit 1`. `tree-matches` proves `main` got the feature branch's exact tree, and `merge-back` merges `main` back into the feature branch. GitHub deletes the feature branch when the checkpoint merges, and `merge-back` recreates it at the merge, so the feature branch shows as deleted for a minute or two. The job's summary says whether it recreated or updated the branch. If either job fails, report it. Never push to `main` or the feature branch yourself.
 
 6. GitHub runs `schedule` and `workflow_dispatch` workflows only from the default branch. A workflow added on the feature branch cannot run until its checkpoint lands. Then start it with `gh workflow run <file>`.
 
@@ -214,6 +214,7 @@ Each rule below came from a failure in the M7 run.
 - **One ejection from a proxy or runner error is an infra flake, not a code defect.** Docker Hub, Go proxy and `curl` 500 errors ejected #843, #933 and #934. Each landed on requeue with no code change.
 - **Build every branch after a restack.** The #482 stack restacked cleanly and still failed to compile, because the tip had renamed a helper that #903 called.
 - **Only one checkpoint PR can be open per head and base.** Checkpoint 4 could not open while checkpoint 3 (#894) was open. Its live head carried the later batches instead.
+- **GitHub deletes a checkpoint's head branch at merge.** `backend-rewrite-3` disappeared two seconds after #894 merged, and `merge-back` failed until the root recreated it by hand. `merge-back` now restores the branch itself (#1007).
 - **GitHub dispatches and schedules workflows only from the default branch.** Dispatching the gardener from the feature branch returned 404 until its checkpoint reached `main`.
 - **Never run plain `gt sync` during a batch.** It restacked owners' in-progress branches twice.
 - **Cite no SHA that a restack can change.** Amended SHAs and `agents check` tree hashes in bodies failed PR format on #838 and #848. Write tree hashes as `<tree>`.

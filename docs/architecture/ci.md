@@ -183,6 +183,10 @@ After the checkpoint PR squash-merges into `main`, `checkpoint.yml` runs two job
 1. `tree-matches` runs `scripts/ci/checkpoint-tree.sh` and fails unless `main`'s squash commit has the same tree as the PR's head.
 2. `merge-back` merges `main` back into the feature branch with `git merge -s ours` and pushes it with the `MERGE_BACK_TOKEN` repo secret, a fine-grained PAT from an org admin with `contents: write`, so the push bypasses the ruleset. Without the secret the job fails and names it. The trees match, so the merge changes no file and only records `main` as merged. The next checkpoint PR then shows only the new work. If `tree-matches` fails, `merge-back` does not run.
 
+GitHub deletes the head branch when the checkpoint merges, because the repo automatically deletes head branches and the ruleset's `deletion` rule does not stop it. `merge-back` therefore checks out the PR's head commit, not its branch, and pushes the merge to `refs/heads/<branch>`. The push recreates a deleted branch, or fast-forwards one that still exists, since the merge's first parent is the old tip. If the branch exists at any other commit, someone pushed after the merge, and the job fails without pushing. The step summary says whether the branch was recreated or updated. `scripts/ci/checkpoint_test.go` runs the job's script against a local remote in all three cases.
+
+For a merged PR, GitHub runs `checkpoint.yml` from the merge commit on `main`. A squash commit carries the feature branch's tree, so each checkpoint runs its own copy of the workflow.
+
 ## Fast and deterministic
 
 - **Same commands as the laptop.** Every CI step calls a `just` recipe or a script the laptop also runs. CI YAML holds no test logic, so a CI failure reproduces locally with the same command.
@@ -264,6 +268,7 @@ Each step is one small PR with its own proof.
 
 ## Log
 
+- 2026-09-29: `merge-back` restores a head branch that GitHub deleted at merge (#1007). When checkpoint 3 (#894) merged, GitHub deleted `backend-rewrite-3` two seconds later, and `merge-back` failed because it checked the branch out by name (run 36617742130). The job now checks out the PR's head commit, pushes the merge to the branch by name, and fails if the branch moved after the merge.
 - 2026-09-29: `agents-status.yml` uses one concurrency group per PR, `agents-status-${{ github.event.pull_request.number || github.ref }}`, still with `cancel-in-progress: false` (#929). GitHub keeps one pending run per group and cancels the pending run a newer one replaces, whatever `cancel-in-progress` says, so the single `agents-status` group from #891 still left red `status` checks on a stack submit of three or more PRs. Two runs can now publish the status comment at once, and an older snapshot can land last until the next event or the 10-minute schedule rewrites it.
 - 2026-09-29: Added the stage 2 `e2e` job (#483). `scripts/ci/e2e.sh` runs `monacoctl verify all` and `monacoctl verify all --crash-at after-publish` and uploads `apps/backend/.verify/` as an artifact; evidence is never committed. The nightly backend job runs `monacoctl verify all` too. The planned `just` recipe and pre-PR evidence hook are dropped: verify is a queue and nightly step, not an owner step.
 - 2026-09-29: Checkpoint PRs into `main` must update `apps/backend/CHANGELOG.md`. The `Changelog (checkpoint into main)` job runs `scripts/check-changelog.py`, and the `main` ruleset requires it (#890).
