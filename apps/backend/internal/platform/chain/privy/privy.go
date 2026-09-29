@@ -1,9 +1,11 @@
 package privy
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"io"
@@ -27,6 +29,7 @@ type Client struct {
 	cfg       config.Privy
 	clock     clock.Clock
 	verifyKey *ecdsa.PublicKey
+	authKey   *ecdsa.PrivateKey
 }
 
 func New(cfg config.Config, clk clock.Clock, opts ...httpclient.Option) *Client {
@@ -39,6 +42,7 @@ func New(cfg config.Config, clk clock.Clock, opts ...httpclient.Option) *Client 
 		cfg:       cfg.Privy,
 		clock:     clk,
 		verifyKey: publicKey(cfg.Privy.VerificationKey),
+		authKey:   authorizationKey(cfg.Privy.AuthorizationPrivateKey),
 	}
 }
 
@@ -55,16 +59,40 @@ func publicKey(raw string) *ecdsa.PublicKey {
 	return pub
 }
 
+func authorizationKey(raw string) *ecdsa.PrivateKey {
+	der, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(strings.TrimSpace(raw), "wallet-auth:"))
+	if err != nil {
+		return nil
+	}
+	key, err := x509.ParsePKCS8PrivateKey(der)
+	if err != nil {
+		return nil
+	}
+	priv, _ := key.(*ecdsa.PrivateKey)
+	return priv
+}
+
 type call struct {
-	op     string
-	method string
-	path   string
+	op      string
+	method  string
+	path    string
+	body    any
+	headers map[string]string
 }
 
 func (c *Client) do(ctx context.Context, in call, into any) error {
-	req, _ := http.NewRequestWithContext(ctx, in.method, in.path, nil)
+	var body io.Reader
+	if in.body != nil {
+		raw, _ := json.Marshal(in.body)
+		body = bytes.NewReader(raw)
+	}
+	req, _ := http.NewRequestWithContext(ctx, in.method, in.path, body)
 	req.SetBasicAuth(c.cfg.AppID, c.cfg.AppSecret)
 	req.Header.Set("privy-app-id", c.cfg.AppID)
+	req.Header.Set("Content-Type", "application/json")
+	for k, v := range in.headers {
+		req.Header.Set(k, v)
+	}
 	resp, err := c.api.Do(ctx, req)
 	if err != nil {
 		code := errs.CodePrivyUnavailable

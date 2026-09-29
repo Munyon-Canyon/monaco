@@ -82,8 +82,10 @@ func testConfig() config.Config {
 	return config.Config{
 		Privy: config.Privy{
 			AppID: appID, AppSecret: appHidden, BaseURL: "http://privy.test/privy",
-			VerificationKey: fakes.PrivyVerificationKey(),
-			WebhookSecret:   "whsec_" + webhookKey,
+			VerificationKey:         fakes.PrivyVerificationKey(),
+			AuthorizationPrivateKey: fakes.PrivyAuthorizationKeyConfig(),
+			AuthorizationKeyID:      fakes.PrivyAuthorizationKeyID,
+			WebhookSecret:           "whsec_" + webhookKey,
 		},
 		Timeouts: config.Timeouts{Privy: 10 * time.Second},
 	}
@@ -124,7 +126,7 @@ func replying(status int, body string) *upstream {
 
 func wantCode(t *testing.T, err error, code errs.Code) {
 	t.Helper()
-	if errs.CodeOf(err) != code {
+	if err == nil || errs.CodeOf(err) != code {
 		t.Fatalf("err = %v, want %s", err, code)
 	}
 }

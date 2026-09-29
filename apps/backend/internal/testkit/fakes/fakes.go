@@ -62,6 +62,7 @@ type Server struct {
 	mu        sync.Mutex
 	scripts   map[string][]*scripted
 	upstreams []string
+	wallets   map[string]privyWallet
 }
 
 func New() *Server { return newFrom(fixtures, "testdata/fakes") }
@@ -72,11 +73,15 @@ func newFrom(fsys fs.FS, root string) *Server {
 		live:      http.NewServeMux(),
 		fixtures:  loadFixtures(fsys, root),
 		scripts:   map[string][]*scripted{},
+		wallets:   map[string]privyWallet{},
 		upstreams: upstreamsIn(fsys, root),
 	}
 	s.mux.HandleFunc("POST /_script", s.script)
 	s.live.HandleFunc("POST /rpc/sendTransaction", sendTransaction)
 	s.live.HandleFunc("GET /privy/v1/users/{id}", s.privyUser)
+	s.live.HandleFunc("GET /privy/v1/wallets", s.privyWallets)
+	s.live.HandleFunc("POST /privy/v1/wallets", s.privyCreateWallet)
+	s.live.HandleFunc("POST /privy/v1/wallets/{id}/rpc", s.privySign)
 	for _, name := range s.upstreams {
 		replay := s.replay(name)
 		upstream := http.NewServeMux()
