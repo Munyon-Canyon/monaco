@@ -2,6 +2,12 @@ name: Backend test environment
 description: >-
   Everything apps/backend tests need on a fresh runner: Go from go.mod, the Go cache nightly saved,
   the pinned atlas that builds the testkit template database, the pinned sqlc, and the tmpfs test Postgres.
+  With db false, only Go and the Go cache.
+inputs:
+  db:
+    description: Install atlas and sqlc and start the test Postgres.
+    required: false
+    default: 'true'
 runs:
   using: composite
   steps:
@@ -35,13 +41,16 @@ runs:
         fi
 
     - name: Install the pinned atlas community build
+      if: inputs.db == 'true'
       shell: bash
       run: scripts/install-atlas.sh
 
     - name: Install the pinned sqlc that the query generator's golden test runs
+      if: inputs.db == 'true'
       shell: bash
       run: scripts/install-sqlc.sh
 
     - name: Start the tmpfs test Postgres that testkit.DB clones from
+      if: inputs.db == 'true'
       shell: bash
       run: docker compose --profile test up -d --wait postgres-test

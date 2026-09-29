@@ -6,7 +6,7 @@ fuzztime="${FUZZTIME:-10m}"
 sweep="${SWEEP:-20}"
 mkdir -p "$out"
 out="$(cd "$out" && pwd)"
-cd "$(dirname "$0")/../../apps/backend"
+cd "$(dirname "$0")/../../apps/backend" || exit 1
 export RAPID_NOFAILFILE=1
 failed=()
 
@@ -45,6 +45,8 @@ fuzz_all() {
   done < <(go test -tags faultpoints -list '^Fuzz' ./...)
   return "$status"
 }
+
+step vuln ../../.bin/govulncheck ./...
 
 rapid=()
 while IFS= read -r pkg; do

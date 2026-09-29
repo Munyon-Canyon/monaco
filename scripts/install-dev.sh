@@ -130,6 +130,16 @@ if [[ ! -x .bin/gremlins || "$gremlins_have" != "$gremlins_want" ]]; then
   fi
 fi
 
+govulncheck_want="$(sed -n 's/^version=//p' scripts/install-govulncheck.sh)"
+govulncheck_have="$(cat .bin/govulncheck.version 2>/dev/null || true)"
+if [[ ! -x .bin/govulncheck || "$govulncheck_have" != "$govulncheck_want" ]]; then
+  missing_required=1
+  say "govulncheck ${govulncheck_want} is missing from .bin/govulncheck (found: ${govulncheck_have:-none}). just test vuln runs that exact binary."
+  if ask_yes "Install govulncheck ${govulncheck_want} into .bin/?"; then
+    ./scripts/install-govulncheck.sh || missing_required=1
+  fi
+fi
+
 sqlc_want="v$(sed -n 's/^version=//p' scripts/install-sqlc.sh)"
 sqlc_have="$(.bin/sqlc version 2>/dev/null || true)"
 if [[ "$sqlc_have" != "$sqlc_want" ]]; then

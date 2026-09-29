@@ -1,6 +1,6 @@
 #!/bin/bash
 # Claude Code on the web: install jq (just test backend reads go test -json with it) and the
-# pinned atlas and sqlc into .bin/ (install-dev.sh is interactive macOS), and start dockerd,
+# pinned atlas, sqlc and govulncheck into .bin/ (install-dev.sh is interactive macOS), and start dockerd,
 # because the container does not run it and processes started by the environment setup
 # script don't survive into the session.
 set -euo pipefail
@@ -21,6 +21,10 @@ fi
 sqlc_want="v$(sed -n 's/^version=//p' "$root/scripts/install-sqlc.sh")"
 if [[ "$("$root/.bin/sqlc" version 2>/dev/null)" != "$sqlc_want" ]]; then
   "$root/scripts/install-sqlc.sh" >&2 || echo "session-start: sqlc install failed" >&2
+fi
+govulncheck_want="$(sed -n 's/^version=//p' "$root/scripts/install-govulncheck.sh")"
+if [[ ! -x "$root/.bin/govulncheck" || "$(cat "$root/.bin/govulncheck.version" 2>/dev/null)" != "$govulncheck_want" ]]; then
+  "$root/scripts/install-govulncheck.sh" >&2 || echo "session-start: govulncheck install failed" >&2
 fi
 
 if docker info >/dev/null 2>&1; then
