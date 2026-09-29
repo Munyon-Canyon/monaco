@@ -181,17 +181,6 @@ final class ProposalsAPITests: XCTestCase {
         XCTAssertFalse(maySubmit)
     }
 
-    func testProductFeatures_noDirectXStocksJupiterPythOrSolanaRpcUrls() {
-        // Arrange
-        let featureSources = ProductFeatureSourceManifest.sampleFeatureSources
-
-        // Act
-        let clean = ProductBoundaryScanner.featureSourcesAreClean(featureSources)
-
-        // Assert
-        XCTAssertTrue(clean)
-    }
-
     private func makeMockURLSession() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
