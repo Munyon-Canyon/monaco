@@ -21,12 +21,12 @@ func TestVerifyPlan_classifiesTheDiff(t *testing.T) {
 				{Filename: "x/testdata/y.json", Additions: 5},
 				{Filename: "testdata/z.json", Additions: 1},
 			},
-			"#5: root-check, verifier sonnet\nreason: test-only\nnon-test lines: 0 in 0 files\n",
+			"#5: light, verifier sonnet\nreason: test-only\nnon-test lines: 0 in 0 files\n",
 		},
 		{
 			"small",
 			[]File{{Filename: "a.go", Additions: 30, Deletions: 19}, {Filename: "a_test.go", Additions: 400}},
-			"#5: root-check, verifier sonnet\nreason: under 50 non-test lines\nnon-test lines: 49 in 1 files\n",
+			"#5: light, verifier sonnet\nreason: under 50 non-test lines\nnon-test lines: 49 in 1 files\n",
 		},
 		{
 			"large",
@@ -57,12 +57,12 @@ func TestVerifyPlan_classifiesTheDiff(t *testing.T) {
 			[]File{
 				{Filename: "apps/backend/internal/platform/bus/relay_test.go", Additions: 3, Patch: "+ sync.WaitGroup"},
 			},
-			"#5: root-check, verifier sonnet\nreason: test-only\nnon-test lines: 0 in 0 files\n",
+			"#5: light, verifier sonnet\nreason: test-only\nnon-test lines: 0 in 0 files\n",
 		},
 		{
 			"removed concurrency",
 			[]File{{Filename: "w.go", Deletions: 1, Patch: "-\tvar mu sync.Mutex\n"}},
-			"#5: root-check, verifier sonnet\nreason: under 50 non-test lines\nnon-test lines: 1 in 1 files\n",
+			"#5: light, verifier sonnet\nreason: under 50 non-test lines\nnon-test lines: 1 in 1 files\n",
 		},
 	}
 	for _, c := range cases {
@@ -84,11 +84,11 @@ func TestVerifyPlan_haikuForHygieneDiffs(t *testing.T) {
 		files             []File
 	}{
 		{
-			"workflow", "", "root-check, verifier haiku\nreason: ci, pr hygiene, or size\n",
+			"workflow", "", "light, verifier haiku\nreason: ci, pr hygiene, or size\n",
 			[]File{{Filename: ".github/workflows/ci.yml", Additions: 3}},
 		},
 		{
-			"checkers", "", "root-check, verifier haiku\nreason: ci, pr hygiene, or size\n",
+			"checkers", "", "light, verifier haiku\nreason: ci, pr hygiene, or size\n",
 			[]File{
 				{Filename: "scripts/check-pr-size.py", Additions: 4},
 				{Filename: "scripts/check-pr-format.py", Additions: 1},

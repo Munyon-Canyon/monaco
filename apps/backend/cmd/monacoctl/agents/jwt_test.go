@@ -43,7 +43,7 @@ func TestSignJWT_rejectsAKeyShorterThanTheDigest(t *testing.T) {
 		"5",
 		sha,
 		"--kind",
-		"root-check",
+		"light",
 		"--model",
 		"sonnet",
 		"--report",

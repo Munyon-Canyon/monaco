@@ -59,7 +59,7 @@ func TestVerdict_refusesAWeakerKindTheOwnerModelOrTheWrongSHA(t *testing.T) {
 	}
 	f.hub.on(list("/pulls/5/files?"), []File{{Filename: "apps/backend/internal/platform/db/u.go", Additions: 1}})
 	weak := append([]string{}, args...)
-	weak[5] = string(RootCheck)
+	weak[5] = string(Light)
 	if code, _, stderr := f.agents(t, weak...); code != 1 || !strings.Contains(stderr, "weaker than full") {
 		t.Fatalf("kind: %d %q", code, stderr)
 	}
@@ -72,7 +72,7 @@ func TestVerdict_refusesAWeakerKindTheOwnerModelOrTheWrongSHA(t *testing.T) {
 		"8",
 		pr(8, "h", "fb", "").Head.SHA,
 		"--kind",
-		"root-check",
+		"light",
 		"--model",
 		"sonnet",
 		"--report",
@@ -153,7 +153,7 @@ func TestVerdict_signsAnInstallationToken(t *testing.T) {
 		"5",
 		sha,
 		"--kind",
-		"root-check",
+		"light",
 		"--model",
 		"opus",
 		"--report",
@@ -192,7 +192,7 @@ func TestVerdict_keyAndTokenFailures(t *testing.T) {
 		"5",
 		sha,
 		"--kind",
-		"root-check",
+		"light",
 		"--model",
 		"sonnet",
 		"--report",
@@ -278,7 +278,7 @@ func TestVerdict_keyAndTokenFailures(t *testing.T) {
 		"5",
 		sha,
 		"--kind",
-		"root-check",
+		"light",
 		"--model",
 		"sonnet",
 		"--report",
@@ -341,7 +341,7 @@ func TestVerdict_carryRepostsOrRefuses(t *testing.T) {
 		"5",
 		sha,
 		"--kind",
-		"root-check",
+		"light",
 		"--model",
 		"sonnet",
 		"--report",
@@ -411,7 +411,7 @@ func TestVerdict_reportsDownstreamFailures(t *testing.T) {
 		"5",
 		sha,
 		"--kind",
-		"root-check",
+		"light",
 		"--model",
 		"sonnet",
 		"--report",

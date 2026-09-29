@@ -7,9 +7,9 @@ import (
 
 func TestDescribe_cutsAt141Runes(t *testing.T) {
 	t.Parallel()
-	prefix := []rune("root-check by sonnet: ")
+	prefix := []rune("light by sonnet: ")
 	body := strings.Repeat("å", 141-len(prefix))
-	got := describe(RootCheck, "sonnet", body)
+	got := describe(Light, "sonnet", body)
 	if len([]rune(got)) != 140 {
 		t.Fatalf("len=%d %q", len([]rune(got)), got)
 	}

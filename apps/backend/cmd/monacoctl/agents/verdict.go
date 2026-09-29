@@ -86,7 +86,7 @@ func postVerdict(ctx context.Context, env *Env, args []string, stdout io.Writer)
 }
 
 func parseVerdict(args []string) (verdictIn, error) {
-	use := "verdict pass|fail <pr> <sha> --kind root-check|full --model <name> --report <file>"
+	use := "verdict pass|fail <pr> <sha> --kind light|full --model <name> --report <file>"
 	if len(args) < 3 || (args[0] != "pass" && args[0] != "fail") {
 		return verdictIn{}, usageError(use)
 	}
@@ -117,7 +117,7 @@ func parseVerdict(args []string) (verdictIn, error) {
 }
 
 func invalidVerdict(in verdictIn) bool {
-	badKind := in.kind != string(RootCheck) && in.kind != string(Full)
+	badKind := in.kind != string(Light) && in.kind != string(Full)
 	return badKind || in.model == "" || in.report == "" || in.sha == ""
 }
 
@@ -149,7 +149,7 @@ func checkVerdict(in verdictIn, pr PR, p Plan) error {
 		return detailErr(errs.CodeInvalidInput, "monacoctl.agents.verdict", "verifier model equals the owner")
 	case in.sha != pr.Head.SHA:
 		return detailErr(errs.CodeInvalidInput, "monacoctl.agents.verdict", "sha is not the pull request head")
-	case Kind(in.kind) == RootCheck && p.Kind == Full:
+	case Kind(in.kind) == Light && p.Kind == Full:
 		return detailErr(
 			errs.CodeInvalidInput,
 			"monacoctl.agents.verdict",
