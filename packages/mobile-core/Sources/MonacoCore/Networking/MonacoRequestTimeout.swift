@@ -83,6 +83,7 @@ extension MonacoRequestTimeout {
         // Darwin-only: Linux Foundation has no settable waitsForConnectivity.
         #if !canImport(FoundationNetworking)
         configuration.waitsForConnectivity = false
+        let x = 1
         #endif
         return configuration
     }
