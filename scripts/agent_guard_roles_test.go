@@ -1,0 +1,138 @@
+package scripts_test
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+type roleRepo struct {
+	primary, lane, checks string
+}
+
+func newRoleRepo(t *testing.T) roleRepo {
+	t.Helper()
+	t.Setenv("PYENV_VERSION", "system")
+	dir := t.TempDir()
+	primary, lane, remote := filepath.Join(dir, "primary"), filepath.Join(dir, "lane"), filepath.Join(dir, "remote.git")
+	git(t, dir, "init", "-q", "--bare", "-b", "main", remote)
+	git(t, dir, "init", "-q", "-b", "main", primary)
+	for _, kv := range [][2]string{{"user.email", "a@example.com"}, {"user.name", "a"}, {"commit.gpgsign", "false"}} {
+		git(t, primary, "config", kv[0], kv[1])
+	}
+	writeRoleFile(t, filepath.Join(primary, ".monaco", "agents.toml"), "milestone = \"ms\"\n")
+	writeRoleFile(t, filepath.Join(primary, "apps", "backend", "go.mod"), "module x\n")
+	writeRoleFile(t, filepath.Join(primary, "scripts", "go.mod"), "module y\n")
+	git(t, primary, "add", "-A")
+	git(t, primary, "commit", "-q", "-m", "chore: root")
+	git(t, primary, "remote", "add", "origin", remote)
+	git(t, primary, "worktree", "add", "-q", "-b", "ticket", lane)
+	common := filepath.Join(primary, ".git")
+	writeRoleFile(t, filepath.Join(common, ".monaco", "agents", "1.json"), `{"ticket":1,"worktree":"/elsewhere"}`)
+	writeRoleFile(t, filepath.Join(common, ".monaco", "agents", "2.json"), `not json`)
+	writeRoleFile(t, filepath.Join(common, ".monaco", "agents", "9.json"), `{"ticket":9,"worktree":"`+lane+`"}`)
+	return roleRepo{primary, lane, filepath.Join(common, "pstack", "ms", "checks")}
+}
+
+func writeRoleFile(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (r roleRepo) markChecked(t *testing.T) {
+	t.Helper()
+	tree := strings.TrimSpace(gitOut(t, r.lane, "rev-parse", "HEAD^{tree}"))
+	writeRoleFile(t, filepath.Join(r.checks, tree), "head x\n")
+}
+
+func TestAgentGuard_anOwnerPushesOnlyATreeThatAgentsCheckPassed(t *testing.T) {
+	r := newRoleRepo(t)
+	pushes := []string{"gt submit --stack --no-interactive --publish", "gt ss", "git push origin ticket"}
+	for _, cmd := range pushes {
+		assertBlocked(t, guard(t, r.lane, cmd), cmd, "`monacoctl agents check` has not passed on this tree")
+		assertAllowed(t, guard(t, r.primary, cmd), "operator: "+cmd)
+	}
+	r.markChecked(t)
+	for _, cmd := range pushes {
+		assertAllowed(t, guard(t, r.lane, cmd), "checked: "+cmd)
+	}
+	assertAllowed(t, guard(t, r.primary, "git -C "+r.lane+" push origin ticket"), "git -C into the checked lane")
+	commitFile(t, r.lane, "more.txt", "feat: more")
+	assertBlocked(t, guard(t, r.lane, "gt submit --stack"), "gt submit after a new commit", "has not passed")
+	assertBlocked(t, guard(t, r.primary, "cd "+r.lane+" && git push origin ticket"), "cd into the lane", "has not passed")
+}
+
+func TestAgentGuard_anOwnerRunsNoHeavyTests(t *testing.T) {
+	r := newRoleRepo(t)
+	backend := filepath.Join(r.lane, "apps", "backend")
+	heavy := map[string]string{
+		"just test backend":                        r.lane,
+		"just verify backend":                      r.lane,
+		"just test":                                r.lane,
+		"scripts/test-backend.sh":                  r.lane,
+		"bash scripts/test-backend.sh -run X":      r.lane,
+		"go test -race ./internal/x":               backend,
+		"go test -short -race=true ./internal/x":   backend,
+		"go test -count=1 ./internal/x":            backend,
+		"go test -short=false ./internal/x":        backend,
+		"go test -short ./...":                     backend,
+		"cd apps/backend && go test -short ./...":  r.lane,
+		"cd scripts && go test ./...":              r.lane,
+		"if true; then just test backend; fi":      r.lane,
+		"timeout 300 go test -race -short ./x/...": backend,
+	}
+	for cmd, cwd := range heavy {
+		assertBlocked(t, guard(t, cwd, cmd), cmd, "do not run the full suite")
+		assertAllowed(t, guard(t, filepath.Join(r.primary, strings.TrimPrefix(cwd, r.lane)), cmd), "operator: "+cmd)
+	}
+	for cmd, cwd := range map[string]string{
+		"just test mobile": r.lane,
+		"go test -short -count=1 ./internal/x ./cmd/api":     backend,
+		"go test -short -race=false -count=1 ./internal/...": backend,
+		"cd scripts && go test -short -count=1 ./...":        r.lane,
+		"go vet ./...": backend,
+	} {
+		assertAllowed(t, guard(t, cwd, cmd), cmd)
+	}
+}
+
+func TestAgentGuard_anOwnerDoesNotWaitOnCI(t *testing.T) {
+	r := newRoleRepo(t)
+	for _, cmd := range []string{
+		"gh run watch 123",
+		"gh pr checks 5 --watch",
+		"gh pr checks 5 --watch --fail-fast",
+		"while true; do gh pr checks 5; sleep 5; done",
+		"until gh pr checks 5 >/dev/null; do sleep 5; done",
+		"for i in 1 2 3; do gh pr checks 5; done",
+		"watch -n 30 gh pr checks 5",
+		"sleep 60",
+		"sleep 11",
+		"sleep 1m",
+		"sleep 5 6",
+		"sleep infinity",
+		"gh pr view 5 && sleep 300",
+	} {
+		assertBlocked(t, guard(t, r.lane, cmd), cmd, "do not wait on CI")
+	}
+	for _, cmd := range []string{
+		"gh pr checks 5",
+		"gh pr checks 5 --json name,state",
+		"sleep 10",
+		"sleep 2.5 && echo",
+		"sleep $DELAY",
+		"gh run rerun 123 --failed",
+		"gh run view 123 --log-failed",
+	} {
+		assertAllowed(t, guard(t, r.lane, cmd), cmd)
+	}
+	for _, cmd := range []string{"sleep 60", "gh run watch 123", "while true; do gh pr checks 5; done"} {
+		assertAllowed(t, guard(t, r.primary, cmd), "operator: "+cmd)
+	}
+}

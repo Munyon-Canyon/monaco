@@ -11,6 +11,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from fnmatch import fnmatch
+from functools import lru_cache
 
 FEATURE_BRANCH_GLOB = "backend-rewrite*"
 CONVENTIONAL_TYPES = "feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert"
@@ -18,7 +19,12 @@ CONVENTIONAL_RE = re.compile(rf"^({CONVENTIONAL_TYPES})(\([^()\s]+\))?!?: \S")
 HEREDOC_SUBST_RE = re.compile(r"^\$\(\s*cat\s*<<-?\s*(['\"]?)(\w+)\1[ \t]*\n(.*?)\n\s*\2\s*\)\s*$", re.S)
 HEREDOC_OP_RE = re.compile(r"<<(-?)[ \t]*(['\"]?)([^\s'\";&|<>()]+)\2")
 WRAPPERS = {"nohup", "command", "exec", "time", "builtin"}
+SHELL_KEYWORDS = {"do", "then", "else", "elif", "if", "while", "until", "!", "{"}
 SHELLS = {"bash", "sh", "zsh"}
+LOOP_RE = re.compile(r"(^|[\s;&|(])(while|until|for)\s")
+SLEEP_RE = re.compile(r"(\d+(?:\.\d*)?|\.\d+)([smhd]?)")
+SLEEP_UNITS = {"": 1, "s": 1, "m": 60, "h": 3600, "d": 86400}
+MAX_SLEEP_SECONDS = 10
 
 
 @dataclass
@@ -27,6 +33,7 @@ class Invocation:
     cwd: str
     under_timeout: bool = False
     stdin: str | None = None
+    in_loop: bool = False
 
 
 def strip_heredocs(src: str) -> tuple[str, list[str]]:
@@ -126,7 +133,7 @@ def unwrap(argv: list[str]) -> tuple[list[str], bool]:
         head = os.path.basename(argv[0])
         if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", argv[0]):
             argv = argv[1:]
-        elif head in WRAPPERS or head == "heavy.sh":
+        elif head in WRAPPERS or head in SHELL_KEYWORDS or head == "heavy.sh":
             argv = argv[1:]
         elif head in {"timeout", "gtimeout"}:
             under_timeout = True
@@ -153,6 +160,7 @@ def unwrap(argv: list[str]) -> tuple[list[str], bool]:
 
 def parse(src: str, cwd: str) -> list[Invocation]:
     flat, bodies = strip_heredocs(src)
+    in_loop = bool(LOOP_RE.search(flat))
     parsed: list[Invocation] = []
     for raw in tokenize(flat):
         stdin = None
@@ -175,9 +183,13 @@ def parse(src: str, cwd: str) -> list[Invocation]:
             inner = parse(argv[argv.index("-c") + 1], cwd)
             for inv in inner:
                 inv.under_timeout = inv.under_timeout or under_timeout
+                inv.in_loop = inv.in_loop or in_loop
             parsed.extend(inner)
             continue
-        parsed.append(Invocation(argv, cwd, under_timeout, stdin))
+        looped = in_loop
+        if head == "watch" and "gh" in argv:
+            argv, looped = argv[argv.index("gh") :], True
+        parsed.append(Invocation(argv, cwd, under_timeout, stdin, looped))
     return parsed
 
 
@@ -499,6 +511,129 @@ def rule_raw_history(inv: Invocation) -> str | None:
             "Update with gt sync --no-interactive, then gt restack.")
 
 
+@dataclass
+class Role:
+    top: str
+    common: str
+
+
+@lru_cache(maxsize=None)
+def agent_role(cwd: str) -> Role | None:
+    try:
+        out = run(["git", "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir"], cwd)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if out.returncode != 0:
+        return None
+    top, common = out.stdout.split("\n")[:2]
+    records = os.path.join(common, ".monaco", "agents")
+    try:
+        names = sorted(n for n in os.listdir(records) if n.endswith(".json"))
+    except OSError:
+        return None
+    for name in names:
+        try:
+            with open(os.path.join(records, name)) as f:
+                worktree = json.load(f).get("worktree") or ""
+        except (OSError, ValueError, AttributeError):
+            continue
+        if worktree and os.path.realpath(worktree) == os.path.realpath(top):
+            return Role(top, common)
+    return None
+
+
+def checked_tree(role: Role, cwd: str) -> tuple[str, bool]:
+    tree = run(["git", "rev-parse", "HEAD^{tree}"], cwd).stdout.strip()
+    try:
+        with open(os.path.join(role.top, ".monaco", "agents.toml")) as f:
+            m = re.search(r'^\s*milestone\s*=\s*"([^"]+)"', f.read(), re.M)
+    except OSError:
+        m = None
+    if not tree or not m:
+        return tree, False
+    return tree, os.path.isfile(os.path.join(role.common, "pstack", m.group(1), "checks", tree))
+
+
+def rule_role_push_needs_check(inv: Invocation) -> str | None:
+    git = as_git(inv)
+    submits = os.path.basename(inv.argv[0]) == "gt" and inv.argv[1:2] in (["submit"], ["ss"])
+    if not submits and not (git and git.sub == "push"):
+        return None
+    cwd = git.cwd if git else inv.cwd
+    role = agent_role(cwd)
+    if role is None:
+        return None
+    tree, passed = checked_tree(role, cwd)
+    if passed:
+        return None
+    return (f"`monacoctl agents check` has not passed on this tree ({tree[:12] or 'unknown'}). "
+            "Commit, run `cd apps/backend && go run ./cmd/monacoctl agents check`, then push.")
+
+
+def flag_on(args: list[str], name: str) -> bool:
+    on = False
+    for a in args:
+        flag, eq, value = a.lstrip("-").partition("=")
+        if a.startswith("-") and flag == name:
+            on = not eq or value.lower() in {"true", "1"}
+    return on
+
+
+def heavy_test(inv: Invocation) -> bool:
+    head, args = os.path.basename(inv.argv[0]), inv.argv[1:]
+    if head == "test-backend.sh" or (head in SHELLS and any(os.path.basename(a) == "test-backend.sh" for a in args)):
+        return True
+    if head == "just":
+        words = [a for a in args if not a.startswith("-")]
+        return words[:1] in (["test"], ["verify"]) and words[1:2] in ([], ["backend"])
+    if head != "go" or args[:1] != ["test"]:
+        return False
+    if flag_on(args, "race") or not flag_on(args, "short"):
+        return True
+    role = agent_role(inv.cwd)
+    backend = role and os.path.realpath(inv.cwd) == os.path.realpath(os.path.join(role.top, "apps", "backend"))
+    return bool(backend) and "./..." in args
+
+
+def rule_role_heavy_tests(inv: Invocation) -> str | None:
+    if not heavy_test(inv) or agent_role(inv.cwd) is None:
+        return None
+    return ("owners and verifiers do not run the full suite: CI stage 1 runs the repo-wide checks and the merge "
+            "queue runs every test before anything lands. Run `monacoctl agents check` (stage 0) instead.")
+
+
+def sleep_seconds(args: list[str]) -> float | None:
+    total = 0.0
+    for a in args:
+        if a == "infinity":
+            return float("inf")
+        m = SLEEP_RE.fullmatch(a)
+        if not m:
+            return None
+        total += float(m.group(1)) * SLEEP_UNITS[m.group(2)]
+    return total
+
+
+def polls_ci(inv: Invocation) -> bool:
+    head, args = os.path.basename(inv.argv[0]), inv.argv[1:]
+    if head == "sleep":
+        seconds = sleep_seconds(args)
+        return seconds is not None and seconds > MAX_SLEEP_SECONDS
+    if head != "gh":
+        return False
+    if args[:2] == ["run", "watch"]:
+        return True
+    return args[:2] == ["pr", "checks"] and (inv.in_loop or "--watch" in args)
+
+
+def rule_role_ci_polling(inv: Invocation) -> str | None:
+    if not polls_ci(inv) or agent_role(inv.cwd) is None:
+        return None
+    return (f"owners and verifiers do not wait on CI (no gh run watch, no gh pr checks --watch or in a loop, "
+            f"no sleep over {MAX_SLEEP_SECONDS}s). Push, set the PR body, and exit; read checks once with "
+            "`gh pr checks <n>`.")
+
+
 RULES = [
     rule_mutation,
     rule_push_protected,
@@ -509,6 +644,9 @@ RULES = [
     rule_inline_pr_body,
     rule_conventional_commit,
     rule_raw_history,
+    rule_role_push_needs_check,
+    rule_role_heavy_tests,
+    rule_role_ci_polling,
 ]
 
 
