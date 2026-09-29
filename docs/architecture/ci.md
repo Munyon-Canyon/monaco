@@ -76,7 +76,7 @@ A change passes three check stages. Each stage runs only what the stage before i
 
 | Stage | Where | Runs |
 | --- | --- | --- |
-| 0. Agent check | The owner's worktree, before each push | `go build`, `go vet` and `go test -short -count=1` on the packages `monacoctl ci affected --base <feature branch>` prints. |
+| 0. Agent check | The owner's worktree, before each push | `monacoctl agents check`: `go build`, `go vet` and `go test -short -count=1`, all with `-tags faultpoints`, on the packages `monacoctl ci affected --base <feature branch>` prints; `swift test` when `packages/mobile-core/**` or `apps/backend/api/openapi.yaml` changed; and the shell, `scripts` Go and Python rows for changed files. Each row has its own budget under `[check.budget]` in `.monaco/agents.toml`: `go` 60 s (each Go row), `swift` 60 s, `scripts` 30 s, `python` 15 s, `shell` 10 s. The run as a whole has no cap. |
 | 1. PR check | CI on `pull_request`, `stage: pr` | The stage 1 jobs in [What runs where](#what-runs-where): lint, `ready`, `vuln` and PR format. No tests. |
 | 2. Queue check | CI on `merge_group`, `stage: queue` | Every job: stage 1 plus the full race suite, the tests `-short` skips, `flake`, `scripts`, and `mobile-core` and `ios` when their paths changed. |
 
@@ -110,7 +110,7 @@ concurrency:
 
 jobs:
   ci:
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ !github.event.pull_request.draft && !startsWith(github.base_ref, 'graphite-base/') }}
     uses: ./.github/workflows/ci-jobs.yml
     with:
       stage: ${{ github.event_name == 'merge_group' && 'queue' || 'pr' }}
@@ -123,7 +123,7 @@ on:
 
 jobs:
   ci:
-    if: github.event.changes.base != null && !github.event.pull_request.draft
+    if: github.event.changes.base != null && !github.event.pull_request.draft && !startsWith(github.base_ref, 'graphite-base/')
     uses: ./.github/workflows/ci-jobs.yml
     with:
       stage: pr
@@ -134,7 +134,7 @@ jobs:
 - `merge_group` runs the jobs on the feature branch's merge queue group commit. Every workflow behind a required check must run on `merge_group`, or the queue waits out its 30-minute timeout. `pr-format.yml` also runs on it, and its `PR format (title, body and commits)` job passes without checking, since each PR passed it on its own head. `scripts/ci/workflow_triggers_test.go` fails if a workflow with a required job filters on `paths` or `paths-ignore` at the workflow level. The Plan job runs it whenever a workflow changes.
 - A draft skips the `ci` job. That leaves one skipped check named `ci` and no `ci / ci-ok`, so the PR cannot merge until it is ready and CI passes. GitHub counts a skipped job as a passing required check, so the gate never depends on a skip.
 - Inside `ci-jobs.yml`, `ci-ok` uses `always()`, not `!cancelled()`. A run cancelled by a newer push then leaves a failed `ci-ok`, not a skipped one.
-- Graphite restacks an upstack PR while its base is a temporary `graphite-base/N` branch, then retargets it to `main` with no new push (seen on #452). `ci.yml` sees neither event. `ci-retarget.yml` runs on the retarget and runs the same jobs.
+- Graphite restacks an upstack PR while its base is a temporary `graphite-base/N` branch, then retargets it to `main` with no new push (seen on #452). `ci.yml` sees neither event. `ci-retarget.yml` runs on the retarget and runs the same jobs. Both skip the `ci` job while the base is `graphite-base/`: Graphite deletes that branch after the restack, and a run against it left a stale failed `ci-ok` (#838, #839).
 - GitHub counts only the newest run of each workflow on a commit. A title or body edit after a retarget, with no push in between, makes a skipped `ci-retarget.yml` run the newest one, and `ci / ci-ok` goes back to "Expected". Rerunning the retarget run does not help. Push the branch to run `ci.yml`. A `ci / ci-ok` from `ci.yml` survives later edits (probed on #648 and #718).
 - `edited` is not in `ci.yml`. An edit run there shares the concurrency group, cancels the real run, and leaves a skipped `ci-ok` as the newest check (seen on #493). In `ci-retarget.yml` a title or body edit skips the caller job and creates only a skipped `ci` check.
 - `workflow_dispatch` checks do not satisfy a required check (a probe ruleset on #501 stayed blocked with a green dispatched `ci-ok`). Dispatch is only for looking at results on a draft or an upstack branch. `dorny/paths-filter` has no PR base on a dispatch run, so with no `base:` input it falls back to its documented default for non-`pull_request` events: `git merge-base` against the repository's default branch (`main`). The `filter` step in `ci-jobs.yml` sets no `base:`, so a dispatch run already gets that default and does not run every job unfiltered; no change was needed here.
@@ -265,6 +265,7 @@ Each step is one small PR with its own proof.
 
 - 2026-09-29: Checkpoint PRs into `main` must update `apps/backend/CHANGELOG.md`. The `Changelog (checkpoint into main)` job runs `scripts/check-changelog.py`, and the `main` ruleset requires it (#890).
 - 2026-09-29: The laptop run budget for `just test backend` rose from 60 s to 90 s (#831). CI still does not gate the run.
+- 2026-09-29: Cut CI noise that no code change caused (#891). `ci.yml` and `ci-retarget.yml` skip the `ci` job on a PR based on `graphite-base/`, so a restack no longer leaves a stale failed `ci-ok` that needed a close and reopen. `flake-tests.sh` passes `-tags faultpoints`, so a changed faultpoint test is rerun. `check-pr-size.py` fails on any binary file that is neither under a `testdata/` directory nor an image, font, PDF or video by extension (`MEDIA_SUFFIXES`, case-insensitive), whatever the label; build output has no such extension (two 35 MB binaries were pushed in #837 and #869). `agents-status.yml` keeps its concurrency group with `cancel-in-progress: false`, so a run no longer cancels the one in progress and leaves a red `status` check. Stage 0 is now `monacoctl agents check` with a budget per row and a Swift row on `openapi.yaml` changes (#886).
 - 2026-09-29: The per-package test budget warns at 10 s and fails at 20 s, the same on a laptop and in CI (#831). Before, a laptop failed at 10 s and CI warned at 10 s and failed at 15 s. Per-package wall time under `go test -race -p 4` with whole-module coverage measures contention as much as the package: packages that take 4 s alone read 10 to 13 s in the full suite. The 60 s laptop run budget is unchanged, and CI still does not gate the run.
 - 2026-09-29: `gate-changes` warns instead of failing; a finding is an annotation, not a red X (#782).
 - 2026-09-29: `scripts/feature-branch.sh apply backend-rewrite-3` failed with 422: GitHub rejects GitHub Actions (integration 15368) as a ruleset bypass actor. The feature branch ruleset now lets org admins bypass, and `checkpoint.yml` pushes the merge-back with the `MERGE_BACK_TOKEN` secret, an org admin's fine-grained PAT (#831).
