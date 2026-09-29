@@ -32,10 +32,11 @@ func changelogStub(name string) func(string) (string, error) {
 	line := "- The `" + name + "` module.\n"
 	const op = "gen.changelogStub"
 	return func(old string) (string, error) {
-		_, unreleased, ok := strings.Cut(old, "## [Unreleased]")
-		if !ok {
+		heading := strings.Index("\n"+old, "\n## [Unreleased]\n")
+		if heading < 0 {
 			return "", invalid(op, "no ## [Unreleased] section")
 		}
+		unreleased := old[heading+len("## [Unreleased]"):]
 		at := strings.Index(unreleased, changelogAdded)
 		if next := strings.Index(unreleased, "\n## "); at < 0 || (next >= 0 && next < at) {
 			return "", invalid(op, "the Unreleased section has no ### Added list")

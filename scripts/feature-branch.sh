@@ -80,7 +80,8 @@ main_ruleset() {
         strict_required_status_checks_policy: true,
         do_not_enforce_on_create: false,
         required_status_checks: [
-          {context: "ci / ci-ok", integration_id: $actions}
+          {context: "ci / ci-ok", integration_id: $actions},
+          {context: "Changelog (checkpoint into main)", integration_id: $actions}
         ]
       }}
     ]

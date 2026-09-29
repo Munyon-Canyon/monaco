@@ -83,3 +83,30 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
         run: python3 scripts/check-gate-changes.py
+
+  changelog:
+    name: Changelog (checkpoint into main)
+    if: >-
+      github.event_name == 'merge_group' ||
+      (!github.event.pull_request.draft &&
+      github.event.pull_request.base.ref == 'main' &&
+      startsWith(github.event.pull_request.head.ref, 'backend-rewrite'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Pass the merge group
+        if: github.event_name == 'merge_group'
+        run: echo "Each checkpoint PR passed this check on its own head."
+      - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+      - name: Checker unit tests
+        if: github.event_name == 'pull_request'
+        run: python3 scripts/test_check_changelog.py
+      - name: Check the backend CHANGELOG
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/check-changelog.py "$BASE_SHA" "$HEAD_SHA"

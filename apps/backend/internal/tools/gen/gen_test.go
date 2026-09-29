@@ -9,7 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/tools/gen"
 )
 
-const changelog = "# Changelog\n\n## [Unreleased]\n\n### Added\n\n- Old line.\n\n## [0.1.0]\n\n### Added\n\n- Released.\n"
+const changelog = "# Changelog\n\nAt each checkpoint, rename `## [Unreleased]` and open a new one.\n\n## [Unreleased]\n\n### Added\n\n- Old line.\n\n## [0.1.0]\n\n### Added\n\n- Released.\n"
 
 func tree(t *testing.T, files map[string]string) string {
 	t.Helper()

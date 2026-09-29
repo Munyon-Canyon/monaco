@@ -142,7 +142,7 @@ jobs:
 
 Ruleset on `main`:
 
-- Require `ci / ci-ok` from GitHub Actions (integration 15368), so a commit status with the same name from another source does not count.
+- Require `ci / ci-ok` and `Changelog (checkpoint into main)` from GitHub Actions (integration 15368), so a commit status with the same name from another source does not count.
 - Require branches to be up to date before merging.
 - Block force pushes and deletion.
 - Require approval before running workflows from all outside contributors (`fork-pr-contributor-approval`), not only first-time ones.
@@ -174,6 +174,8 @@ The feature branch ruleset:
 A ticket PR lands with `gh pr merge <n> --auto` once its verdict passes. GitHub adds it to the queue when its own checks pass. The queue builds a `gh-readonly-queue/<branch>/...` commit, runs the required checks on it through `merge_group`, and merges it when they pass. A failing entry leaves the queue, and the entries behind it rebuild without it.
 
 A Graphite stack lands as one entry through `monacoctl agents land-stack <top-pr>` ([Pull requests](backend-platform.md#pull-requests-small-and-stacked)). It changes the upper PRs' bases to the feature branch and queues only the top PR, so stage 2 runs once for the stack. The merge commit keeps every commit of the stack, and GitHub marks the lower PRs merged.
+
+A checkpoint PR (base `main`, head `backend-rewrite*`) must carry a backend changelog entry. The `Changelog (checkpoint into main)` job in `pr-format.yml` runs `scripts/check-changelog.py <base> <head>`, which fails when the diff changes `apps/backend/**` without changing `apps/backend/CHANGELOG.md`, or when that file has an empty `## [Unreleased]` section and no `## [checkpoint N] - <date>` section added by this diff. Before merging a checkpoint, land a PR on the feature branch that renames `[Unreleased]` to `[checkpoint N] - <date>` and opens a new `[Unreleased]` holding only an empty `### Added` heading, which `monacoctl gen module` needs. The check counts only `- ` entries, so that heading alone is still an empty section. Every other PR skips the job, and a skipped required check counts as passing. It passes without checking on `merge_group`.
 
 After the checkpoint PR squash-merges into `main`, `checkpoint.yml` runs two jobs:
 
@@ -261,6 +263,7 @@ Each step is one small PR with its own proof.
 
 ## Log
 
+- 2026-09-29: Checkpoint PRs into `main` must update `apps/backend/CHANGELOG.md`. The `Changelog (checkpoint into main)` job runs `scripts/check-changelog.py`, and the `main` ruleset requires it (#890).
 - 2026-09-29: The laptop run budget for `just test backend` rose from 60 s to 90 s (#831). CI still does not gate the run.
 - 2026-09-29: The per-package test budget warns at 10 s and fails at 20 s, the same on a laptop and in CI (#831). Before, a laptop failed at 10 s and CI warned at 10 s and failed at 15 s. Per-package wall time under `go test -race -p 4` with whole-module coverage measures contention as much as the package: packages that take 4 s alone read 10 to 13 s in the full suite. The 60 s laptop run budget is unchanged, and CI still does not gate the run.
 - 2026-09-29: `gate-changes` warns instead of failing; a finding is an annotation, not a red X (#782).
