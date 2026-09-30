@@ -2,6 +2,7 @@ import XCTest
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+import MonacoAPI
 @testable import MonacoCore
 
 final class MoneyFlowCopyTests: XCTestCase {

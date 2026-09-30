@@ -10,6 +10,7 @@ let package = Package(
     products: [
         .library(name: "MonacoCore", targets: ["MonacoCore"]),
         .library(name: "MonacoAPI", targets: ["MonacoAPI"]),
+        .library(name: "MonacoTestSupport", targets: ["MonacoTestSupport"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-http-types", from: "1.8.0"),
@@ -18,7 +19,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-openapi-urlsession", from: "1.3.1"),
     ],
     targets: [
-        .target(name: "MonacoCore"),
+        .target(name: "MonacoCore", dependencies: ["MonacoAPI"]),
         // Sources/MonacoAPI/openapi.yaml is a symlink to apps/backend/api/openapi.yaml, not a
         // copy: the generator plugin reads it through the sandbox in swift build, Xcode and the
         // Linux container, so there is no second file to keep fresh.
@@ -33,9 +34,17 @@ let package = Package(
                 .plugin(name: "OpenAPIGenerator", package: "swift-openapi-generator"),
             ]
         ),
+        .target(
+            name: "MonacoTestSupport",
+            dependencies: [
+                "MonacoAPI",
+                .product(name: "HTTPTypes", package: "swift-http-types"),
+                .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
+            ]
+        ),
         .testTarget(
             name: "MonacoCoreTests",
-            dependencies: ["MonacoCore"],
+            dependencies: ["MonacoCore", "MonacoAPI"],
             resources: [
                 .process("Fixtures"),
             ]
@@ -44,6 +53,7 @@ let package = Package(
             name: "MonacoAPITests",
             dependencies: [
                 "MonacoAPI",
+                "MonacoTestSupport",
                 .product(name: "HTTPTypes", package: "swift-http-types"),
                 .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
                 .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),

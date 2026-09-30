@@ -1,6 +1,7 @@
 import Foundation
 import HTTPTypes
 @testable import MonacoAPI
+import MonacoTestSupport
 import OpenAPIRuntime
 import XCTest
 

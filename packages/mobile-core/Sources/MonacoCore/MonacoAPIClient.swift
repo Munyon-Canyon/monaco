@@ -2,6 +2,7 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+import MonacoAPI
 
 public enum LeaveGroupBlockReason: String, Equatable {
     case shareUnitsRemaining = "share_units_remaining"

@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		B463064130590361008E7964 /* Privy in Frameworks */ = {isa = PBXBuildFile; productRef = B463064030590361008E7964 /* Privy */; };
 		C0DE000330590361008E7964 /* MonacoCore in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE000230590361008E7964 /* MonacoCore */; };
+		C0DE000530590361008E7964 /* MonacoAPI in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE000430590361008E7964 /* MonacoAPI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -61,6 +62,7 @@
 			files = (
 				B463064130590361008E7964 /* Privy in Frameworks */,
 				C0DE000330590361008E7964 /* MonacoCore in Frameworks */,
+				C0DE000530590361008E7964 /* MonacoAPI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -133,6 +135,7 @@
 			packageProductDependencies = (
 				B463064030590361008E7964 /* Privy */,
 				C0DE000230590361008E7964 /* MonacoCore */,
+				C0DE000430590361008E7964 /* MonacoAPI */,
 			);
 			productName = Monaco;
 			productReference = B46306133059035D008E7964 /* Monaco.app */;
@@ -642,6 +645,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C0DE000130590361008E7964 /* XCLocalSwiftPackageReference "../../packages/mobile-core" */;
 			productName = MonacoCore;
+		};
+		C0DE000430590361008E7964 /* MonacoAPI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0DE000130590361008E7964 /* XCLocalSwiftPackageReference "../../packages/mobile-core" */;
+			productName = MonacoAPI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

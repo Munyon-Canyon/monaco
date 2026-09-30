@@ -174,7 +174,7 @@ prepare_sim() {
 
 xcode_test() { # extra xcodebuild args...
   "$lock" xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
-    -destination "platform=iOS Simulator,id=$sim" -derivedDataPath "$derived" \
+    -destination "platform=iOS Simulator,id=$sim" -derivedDataPath "$derived" -skipPackagePluginValidation \
     CODE_SIGNING_ALLOWED=NO "$@"
 }
 

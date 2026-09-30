@@ -2,6 +2,7 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+import MonacoAPI
 
 /// How long one Monaco request may take before the app gives up on it.
 ///
