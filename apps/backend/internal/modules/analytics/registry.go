@@ -84,6 +84,9 @@ func (x exporter) send(
 	if c, err = complete(ctx, tx, c); err != nil {
 		return err
 	}
+	if err := CheckNoPII(c); err != nil {
+		return err
+	}
 	if err := x.port.Capture(ctx, []Capture{c}); err != nil {
 		observability.Info(ctx, observability.AnalyticsCaptureFailed, slog.String("event", c.Event),
 			slog.String("uuid", c.UUID.String()), slog.String("code", string(errs.CodeOf(err))), slog.Any("err", err))

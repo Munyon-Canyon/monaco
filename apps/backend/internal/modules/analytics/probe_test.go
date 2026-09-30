@@ -142,6 +142,14 @@ func TestAnalytics_Handler_turnsWhatTheMapperReturnsIntoAVerdict(t *testing.T) {
 			exporting(analytics.Capture{}, true, errs.New(errs.CodeNotFound, "test.mapper")),
 			verdict{bus.OutcomeTerm, string(errs.CodeNotFound), 0},
 		},
+		"leaking a banned key": {
+			exporting(analytics.Capture{Event: "leaky", Properties: map[string]any{"email": "x"}}, true, nil),
+			verdict{bus.OutcomeTerm, string(errs.CodeAnalyticsPII), 0},
+		},
+		"leaking a banned value": {
+			exporting(analytics.Capture{Event: "leaky", Properties: map[string]any{"note": "a@b.co"}}, true, nil),
+			verdict{bus.OutcomeTerm, string(errs.CodeAnalyticsPII), 0},
+		},
 		"no event name": {
 			exporting(analytics.Capture{}, true, nil), verdict{bus.OutcomeTerm, string(errs.CodeInternal), 0},
 		},
