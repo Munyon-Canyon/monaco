@@ -61,6 +61,10 @@ const (
 	CodeLedgerUnbalanced Code = "ledger_unbalanced"
 )
 
+const (
+	CodeAssetNotFound Code = "asset_not_found"
+)
+
 type Row struct {
 	Name      string
 	Kind      Kind
@@ -69,8 +73,8 @@ type Row struct {
 	Message   string
 }
 
-func rowGroups() [3]func() map[Code]Row {
-	return [...]func() map[Code]Row{platformRows, identityRows, treasuryRows}
+func rowGroups() [4]func() map[Code]Row {
+	return [...]func() map[Code]Row{platformRows, identityRows, treasuryRows, marketRows}
 }
 
 func table() map[Code]Row {
@@ -210,6 +214,14 @@ func treasuryRows() map[Code]Row {
 		CodePotValueZero: {Name: "PotValueZero", Kind: KindBlocked, Message: "This cabal's pot has no value."},
 		CodeLedgerUnbalanced: {
 			Name: "LedgerUnbalanced", Kind: KindInternal, Alert: true, Message: "Something went wrong.",
+		},
+	}
+}
+
+func marketRows() map[Code]Row {
+	return map[Code]Row{
+		CodeAssetNotFound: {
+			Name: "AssetNotFound", Kind: KindNotFound, Message: "That asset is not in the catalog.",
 		},
 	}
 }

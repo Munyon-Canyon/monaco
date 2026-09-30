@@ -25,6 +25,7 @@ const (
 	AccountHasPositions     ErrorCode = "account_has_positions"
 	AccountStatusTransition ErrorCode = "account_status_transition"
 	AccountSuspended        ErrorCode = "account_suspended"
+	AssetNotFound           ErrorCode = "asset_not_found"
 	AuthStateTransition     ErrorCode = "auth_state_transition"
 	ClientClosed            ErrorCode = "client_closed"
 	DbSchemaBehind          ErrorCode = "db_schema_behind"
@@ -80,6 +81,8 @@ func (e ErrorCode) Valid() bool {
 	case AccountStatusTransition:
 		return true
 	case AccountSuspended:
+		return true
+	case AssetNotFound:
 		return true
 	case AuthStateTransition:
 		return true

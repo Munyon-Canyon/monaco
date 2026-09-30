@@ -11,6 +11,25 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Asset struct {
+	ID               uuid.UUID
+	Symbol           string
+	Mint             string
+	Decimals         int16
+	Issuer           string
+	Kind             string
+	DisplayName      string
+	LogoUrl          pgtype.Text
+	UiMultiplierNum  int64
+	UiMultiplierDen  int64
+	IssuerTradable   bool
+	TradableOverride pgtype.Bool
+	PopularRank      pgtype.Int2
+	CompanyKey       string
+	FirstSeenAt      time.Time
+	UpdatedAt        time.Time
+}
+
 type CabalPosition struct {
 	CabalID         uuid.UUID
 	Asset           string

@@ -27,6 +27,7 @@ final class ProblemErrorTests: XCTestCase {
                  .accountHasPositions,
                  .accountStatusTransition,
                  .accountSuspended,
+                 .assetNotFound,
                  .authStateTransition,
                  .clientClosed,
                  .dbSchemaBehind,
