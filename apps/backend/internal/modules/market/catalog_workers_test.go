@@ -32,17 +32,21 @@ import (
 )
 
 type upstream struct {
-	url      string
-	requests *atomic.Int32
+	url, rpc     string
+	catalogReads *atomic.Int32
+	rpcCalls     *atomic.Int32
 }
 
 func fakeUpstream(t *testing.T, steps ...fakes.Step) upstream {
 	t.Helper()
 	srv := fakes.New()
-	var requests atomic.Int32
+	var catalogReads, rpcCalls atomic.Int32
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/_script" {
-			requests.Add(1)
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/xstocks/"):
+			catalogReads.Add(1)
+		case strings.HasPrefix(r.URL.Path, "/rpc/"):
+			rpcCalls.Add(1)
 		}
 		srv.ServeHTTP(w, r)
 	}))
@@ -62,7 +66,7 @@ func fakeUpstream(t *testing.T, steps ...fakes.Step) upstream {
 		}
 		_ = resp.Body.Close()
 	}
-	return upstream{url: ts.URL + "/xstocks", requests: &requests}
+	return upstream{url: ts.URL + "/xstocks", rpc: ts.URL + "/rpc/", catalogReads: &catalogReads, rpcCalls: &rpcCalls}
 }
 
 type worker struct {
@@ -78,6 +82,7 @@ func startWorker(t *testing.T, pool *pgxpool.Pool, clk *testkit.Clock, up upstre
 	ids := testkit.NewIDs(uint64(clk.Now().UnixNano()))
 	cfg := moduleConfig()
 	cfg.XStocks.BaseURL, cfg.Timeouts.XStocks = up.url, 10*time.Second
+	cfg.Solana.RPCURL, cfg.Timeouts.RPC = up.rpc, 10*time.Second
 	pollers := slices.DeleteFunc(market.New(module.Deps{
 		Config: cfg, Clock: clk, IDs: ids, Pool: pool, UoW: db.New(pool, ids, clk), HTTPClient: httpclient.New,
 	}).Pollers(), func(p poller.Poller) bool { return p.Name() != "market.catalog" })
@@ -159,8 +164,8 @@ func TestCatalogPoller_twoWorkersOnOneDatabaseRunOneTickPerHour(t *testing.T) {
 	pool, clk := testkit.DB(t), testkit.NewClock(clock.Real{}.Now().UTC())
 	up := fakeUpstream(t)
 	a := startWorker(t, pool, clk, up)
-	if tick := a.expect(t, "poller.tick"); tick["scanned"] != 3.0 || tick["changed"] != 3.0 {
-		t.Fatalf("first tick = %v, want the three fixture assets inserted", tick)
+	if tick := a.expect(t, "poller.tick"); tick["scanned"] != 3.0 || tick["changed"] != 6.0 {
+		t.Fatalf("first tick = %v, want the three fixture assets inserted and checked against the chain", tick)
 	}
 	b := startWorker(t, pool, clk, up)
 	b.expect(t, "poller.tick.skipped_locked")
@@ -169,12 +174,15 @@ func TestCatalogPoller_twoWorkersOnOneDatabaseRunOneTickPerHour(t *testing.T) {
 		a.expect(t, "poller.tick")
 		b.expect(t, "poller.tick.skipped_locked")
 	}
-	if got := up.requests.Load(); got != 3 {
+	if got := up.catalogReads.Load(); got != 3 {
 		t.Fatalf("xStocks requests = %d, want 3: one catalog read per hour across both workers", got)
 	}
+	if got := up.rpcCalls.Load(); got != 3 {
+		t.Fatalf("RPC calls = %d, want 3: each fixture mint asked once, not every hour", got)
+	}
 	all, err := market.New(module.Deps{Pool: pool}).Catalog().ListAll(t.Context())
-	if err != nil || len(all) != 3 {
-		t.Fatalf("ListAll = %v, %v, want the three fixture assets", symbols(all), err)
+	if err != nil || len(all) != 3 || slices.ContainsFunc(all, func(a market.Asset) bool { return !a.ChainChecked }) {
+		t.Fatalf("ListAll = %v, %v, want the three fixture assets, all checked", symbols(all), err)
 	}
 }
 
@@ -192,5 +200,26 @@ func TestCatalogPoller_providerFailureCountsInPollerErrors(t *testing.T) {
 	clk.Advance(time.Hour)
 	if tick := w.expect(t, "poller.tick"); tick["scanned"] != 3.0 {
 		t.Fatalf("recovered tick = %v, want the fixture catalog applied", tick)
+	}
+}
+
+func TestCatalogPoller_anRPCFailureCountsInPollerErrorsAndTheNextTickChecksThatMint(t *testing.T) {
+	t.Parallel()
+	pool, clk := testkit.DB(t), testkit.NewClock(clock.Real{}.Now().UTC())
+	up := fakeUpstream(t, fakes.Step{Route: "/rpc/getAccountInfo", Action: fakes.ActionFail, Status: 500})
+	w := startWorker(t, pool, clk, up)
+	if failed := w.expect(t, "poller.tick.failed"); failed["code"] != "rpc_unavailable" {
+		t.Fatalf("failed line = %v, want rpc_unavailable", failed)
+	}
+	if got := w.errors(t, "rpc_unavailable"); got != 1 {
+		t.Fatalf("poller_errors_total{market.catalog, rpc_unavailable} = %d, want 1", got)
+	}
+	clk.Advance(time.Hour)
+	if tick := w.expect(t, "poller.tick"); tick["changed"] != 1.0 {
+		t.Fatalf("retry tick = %v, want the one mint the RPC failed on checked", tick)
+	}
+	all, err := market.New(module.Deps{Pool: pool}).Catalog().ListAll(t.Context())
+	if err != nil || len(all) != 3 || slices.ContainsFunc(all, func(a market.Asset) bool { return !a.ChainChecked }) {
+		t.Fatalf("ListAll = %v, %v, want the three fixture assets, all checked", all, err)
 	}
 }

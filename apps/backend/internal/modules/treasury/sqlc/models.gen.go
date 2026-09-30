@@ -28,6 +28,7 @@ type Asset struct {
 	CompanyKey       string
 	FirstSeenAt      time.Time
 	UpdatedAt        time.Time
+	ChainCheckedAt   pgtype.Timestamptz
 }
 
 type Cabal struct {

@@ -2,6 +2,7 @@ package domain
 
 import (
 	"log/slog"
+	"math"
 	"strings"
 	"time"
 
@@ -83,6 +84,14 @@ type Multiplier struct {
 	Num, Den int64
 }
 
+func NewMultiplier(num, den uint64) (Multiplier, error) {
+	if num == 0 || den == 0 || num > math.MaxInt64 || den > math.MaxInt64 {
+		return Multiplier{}, errs.New(errs.CodeDecodeFailed, "market.NewMultiplier",
+			slog.Uint64("num", num), slog.Uint64("den", den))
+	}
+	return Multiplier{Num: int64(num), Den: int64(den)}, nil
+}
+
 type Asset struct {
 	ID             AssetID
 	Symbol         string
@@ -93,6 +102,7 @@ type Asset struct {
 	DisplayName    string
 	LogoURL        string
 	UIMultiplier   Multiplier
+	ChainChecked   bool
 	IssuerTradable bool
 	Override       Override
 	PopularRank    int16
