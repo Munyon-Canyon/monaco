@@ -138,6 +138,7 @@ func TestTestReportCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	warnB := "monacoctl test-report: package m/b took 11.00s, over the 10s per-package budget (fails at 20s)\n"
+	failedB := "failed: m/b TestBroken\nfailed: m/b\n"
 	for _, tc := range []struct {
 		name      string
 		args      []string
@@ -149,12 +150,12 @@ func TestTestReportCommand(t *testing.T) {
 		{"usage", nil, 2, "", testReportUsage + "\n"},
 		{"unknown flag", []string{"--from", file, "--bogus"}, 2, "", testReportUsage + "\n"},
 		{"bad start", []string{"--from", file, "--start", "soon"}, 2, "", testReportUsage + "\n"},
-		{"missing file", []string{"--from", file + ".gone"}, 1, "", "monacoctl test-report: open " + file + ".gone: no such file or directory\n"},
+		{"missing file", []string{"--from", file + ".gone"}, 1, "", "monacoctl test-report: monacoctl.readReport: internal: open " + file + ".gone: no such file or directory\n"},
 		{"directory", []string{"--from", filepath.Dir(file)}, 1, "", "monacoctl test-report: monacoctl.readReport: internal: read " + filepath.Dir(file) + ": is a directory\n"},
-		{"package in the warning band", []string{"--from", file}, 0, "run: 15.0s (budget 90s), packages warn at 10s, fail at 20s\n" + warnB, ""},
-		{"run of 70s within the laptop budget", []string{"--start", seventy, "--from", file}, 0, "run: 70.0s (budget 90s), packages warn at 10s, fail at 20s\n" + warnB, ""},
-		{"run over budget", []string{"--start", early, "--from", file}, 1, "run: 120.0s", "monacoctl test-report: run took 120.0s, over the 90s budget\n"},
-		{"run not gated in CI", []string{"--start", early, "--from", file, "--ci"}, 0, "run: 120.0s (not gated in CI; the 90s budget is for a laptop), packages warn at 10s, fail at 20s\n::warning::" + warnB, ""},
+		{"package in the warning band", []string{"--from", file}, 1, "run: 15.0s (budget 90s), packages warn at 10s, fail at 20s\n" + warnB, failedB},
+		{"run of 70s within the laptop budget", []string{"--start", seventy, "--from", file}, 1, "run: 70.0s (budget 90s), packages warn at 10s, fail at 20s\n" + warnB, failedB},
+		{"run over budget", []string{"--start", early, "--from", file}, 1, "run: 120.0s", "monacoctl test-report: run took 120.0s, over the 90s budget\n" + failedB},
+		{"run not gated in CI", []string{"--start", early, "--from", file, "--ci"}, 1, "run: 120.0s (not gated in CI; the 90s budget is for a laptop), packages warn at 10s, fail at 20s\n::warning::" + warnB, failedB},
 	} {
 		var stdout, stderr bytes.Buffer
 		code := testReportCmd(tc.args, &stdout, &stderr)
@@ -207,5 +208,79 @@ func TestTestReportWarnsPastTenSecondsAndFailsPastTwentyOnTheLaptopAndInCI(t *te
 			}
 			t.Logf("exit %d\nstdout:\n%sstderr:\n%s", code, stdout.String(), stderr.String())
 		})
+	}
+}
+
+func TestTestReportFailsAfterTheBudgetReportWithOneLinePerFailedTest(t *testing.T) {
+	t.Parallel()
+	stream := fmt.Sprintf(`{"ImportPath":"m/b [m/b.test]","Action":"build-fail"}
+{"Time":%[1]q,"Action":"fail","Package":"m/b","Elapsed":0,"FailedBuild":"m/b [m/b.test]"}
+{"Time":%[1]q,"Action":"fail","Package":"m/s","Test":"TestZ/case","Elapsed":0}
+{"Time":%[1]q,"Action":"fail","Package":"m/s","Test":"TestZ","Elapsed":0}
+{"Time":%[1]q,"Action":"fail","Package":"m/s","Elapsed":0.2}
+{"Time":%[1]q,"Action":"fail","Package":"m/x","Elapsed":0.5}
+{"Time":%[1]q,"Action":"pass","Package":"m/ok","Test":"TestOK","Elapsed":0}
+{"Time":%[1]q,"Action":"skip","Package":"m/ok","Test":"TestSkipped","Elapsed":0}
+{"Time":%[1]q,"Action":"pass","Package":"m/ok","Elapsed":0.7}
+{"Time":%[1]q,"Action":"fail","Package":"m/s","Test":"TestZ","Elapsed":0}
+{"Time":%[1]q,"Action":"fail","Package":"m/s","Elapsed":0.3}
+`, "2026-09-27T10:00:00Z")
+	file := filepath.Join(t.TempDir(), "go-test.json")
+	if err := os.WriteFile(file, []byte(stream), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := testReportCmd([]string{"--from", file}, &stdout, &stderr)
+	want := "failed: m/b\nfailed: m/s TestZ/case\nfailed: m/s TestZ\nfailed: m/s\nfailed: m/x\n"
+	if code != 1 || stderr.String() != want || !strings.Contains(stdout.String(), "   0.70s  m/ok\n") {
+		t.Fatalf("code=%d stdout=%q stderr=%q; want 1, the report, and one failed line per failed test", code,
+			stdout.String(), stderr.String())
+	}
+}
+
+func TestTestReportPrintsBudgetExemptTimesWithoutGatingThemAndStillFailsTheirTests(t *testing.T) {
+	t.Parallel()
+	write := func(name string, lines ...string) string {
+		file := filepath.Join(t.TempDir(), name)
+		if err := os.WriteFile(file, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return file
+	}
+	event := func(at, action, pkg, test, elapsed string) string {
+		return fmt.Sprintf(`{"Time":"2026-09-27T10:%s:00Z","Action":%q,"Package":%q,"Test":%q,"Elapsed":%s}`,
+			at, action, pkg, test, elapsed)
+	}
+	fast := write("short.json", event("00", "pass", "m/p", "", "1"), event("01", "pass", "m/q", "", "2"))
+	slowP := write("short.json", event("00", "pass", "m/p", "", "21"), event("01", "pass", "m/q", "", "2"))
+	full := write("full.json", event("02", "pass", "m/p", "", "45"), event("09", "pass", "m/gen", "", "60"))
+	failing := write("full.json", event("02", "fail", "m/p", "TestLong", "40"), event("02", "fail", "m/p", "", "45"))
+	exemptBlock := "packages exempt from the budget:\n  60.00s  m/gen\n  45.00s  m/p\n" +
+		"run: 60.0s (budget 90s), packages warn at 10s, fail at 20s\n"
+	for _, tc := range []struct {
+		name, from, exempt string
+		code               int
+		stdoutHas, stderr  string
+	}{
+		{"exempt times print, gate nothing and leave the run alone", fast, full, 0, exemptBlock, ""},
+		{
+			"the from stream keeps its budget for a package the exempt stream also ran", slowP, full, 1, exemptBlock,
+			"monacoctl test-report: package m/p took 21.00s, over the 20s per-package budget\n",
+		},
+		{
+			"an exempt stream's failed test fails the report", fast, failing, 1, "packages exempt from the budget:\n  45.00s  m/p\n",
+			"failed: m/p TestLong\nfailed: m/p\n",
+		},
+		{
+			"missing exempt stream", fast, full + ".gone", 1, "",
+			"monacoctl test-report: monacoctl.readReport: internal: open " + full + ".gone: no such file or directory\n",
+		},
+	} {
+		var stdout, stderr bytes.Buffer
+		code := testReportCmd([]string{"--from", tc.from, "--budget-exempt", tc.exempt}, &stdout, &stderr)
+		if code != tc.code || !strings.Contains(stdout.String(), tc.stdoutHas) || stderr.String() != tc.stderr ||
+			strings.Contains(stdout.String(), "m/gen took") || strings.Contains(stdout.String(), "m/p took 45") {
+			t.Fatalf("%s: code=%d stdout=%q stderr=%q", tc.name, code, stdout.String(), stderr.String())
+		}
 	}
 }

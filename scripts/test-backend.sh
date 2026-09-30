@@ -62,6 +62,7 @@ run_cached() {
 }
 
 run_suite() {
+  set -o pipefail
   if ! command -v jq >/dev/null 2>&1; then
     echo "error: jq is missing. Install it (brew install jq) and rerun." >&2
     return 1
@@ -69,10 +70,12 @@ run_suite() {
 
   cd "$(dirname "$0")/../apps/backend"
   json="$(mktemp)"
+  json_full="$(mktemp)"
   cover="$(mktemp)"
   cover_off="$(mktemp)"
+  cover_full="$(mktemp)"
   git_dir="$(mktemp -d)"
-  trap 'rm -f "$json" "$cover" "$cover_off"; rm -rf "$git_dir"' EXIT
+  trap 'rm -f "$json" "$json_full" "$cover" "$cover_off" "$cover_full"; rm -rf "$git_dir"' EXIT
 
   # rapid divides checks by 5 and steps by 2 under -short, so this lands on 100 cases and about 20 steps.
   # Env vars, not -rapid.* flags: a test binary that does not link rapid rejects the flags.
@@ -108,6 +111,11 @@ run_suite() {
     go test -json -short -run '^TestAllocs' "${allocs[@]}" | tee -a "$json" | jq -rj --unbuffered "$summary" || status=1
   fi
 
+  go test -json -race -coverpkg=./... -coverprofile="$cover_full" "$@" ./internal/platform/ids/... \
+    ./internal/platform/lint/... ./internal/testkit/... ./internal/tools/gen/... ./cmd/monacoctl ./cmd/monacoctl/verify |
+    tee "$json_full" | jq -rj --unbuffered "$summary" || status=1
+  tail -n +2 "$cover_full" >>"$cover"
+
   if [[ "$status" -ne 0 ]]; then
     echo
     echo "--- output of failed tests ---"
@@ -115,10 +123,10 @@ run_suite() {
       | .[] | select(.Action == "output")
       | select(if .Test == null then (.Output | startswith("-test.shuffle ")) and ("\(.Package) " | IN($failed[]))
         else "\(.Package) \(.Test)" | IN($failed[]) end)
-      | .Output' "$json"
+      | .Output' "$json" "$json_full"
   fi
 
-  report=(--from "$json" --start "$start")
+  report=(--from "$json" --budget-exempt "$json_full" --start "$start")
   if [[ -n "${CI:-}" ]]; then
     report+=(--ci)
   fi

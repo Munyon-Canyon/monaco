@@ -57,14 +57,22 @@ func TestMain_lintCommentsDefaultsToTheWorkingTree(t *testing.T) {
 
 func TestMain_docsFlowsRendersTheRepoTSVFromTheBackendDir(t *testing.T) {
 	t.Parallel()
-	var want bytes.Buffer
 	repo := os.DirFS(filepath.Join(backendRoot(t), "../.."))
-	if code := docsFlows(repo, flows.Markdown, &want, io.Discard); code != 0 {
-		t.Fatalf("docsFlows over the repo = %d", code)
-	}
-	code, stdout, stderr := monacoctl(t, backendRoot(t), "", "docs", "flows")
-	if code != 0 || stdout != want.String() || stderr != "" {
-		t.Fatalf("code=%d stdout=%q stderr=%q, want 0 and %q", code, stdout, stderr, want.String())
+	for _, tc := range []struct {
+		args   []string
+		render func([]flows.Flow) string
+	}{
+		{[]string{"docs", "flows"}, flows.Markdown},
+		{[]string{"docs", "flows", "--feature-map"}, flows.FeatureMap},
+	} {
+		var want bytes.Buffer
+		if code := docsFlows(repo, tc.render, &want, io.Discard); code != 0 {
+			t.Fatalf("docsFlows over the repo = %d", code)
+		}
+		code, stdout, stderr := monacoctl(t, backendRoot(t), "", tc.args...)
+		if code != 0 || stdout != want.String() || stderr != "" {
+			t.Fatalf("%v: code=%d stdout=%q stderr=%q, want 0 and %q", tc.args, code, stdout, stderr, want.String())
+		}
 	}
 }
 
