@@ -110,7 +110,7 @@ Do these once per milestone.
 3. Land a passing PR.
 
     - A single PR: `gh pr merge <pr> --auto`. The hook refuses it without a `verify` success on the head. Auto-merge queues the PR once stage 1 passes.
-    - A stack: post a verdict on every PR, then run `bin/monacoctl agents land-stack <top-pr>`. It points the upper PRs at the feature branch, writes `Lands stack: #a #b #c` as the top body's first line, and queues only the top PR, so stage 2 runs once. If a PR still lacks stage 1 or `verify`, it prints `not landing #<n>; waiting on ...` and exits 0. Run it again later.
+    - A stack: post a verdict on every PR, then run `bin/monacoctl agents land-stack <top-pr>`. It points the upper PRs at the feature branch, writes `Lands stack: #a #b #c` as the top body's first line, and queues only the top PR, so stage 2 runs once. Before it queues, it waits up to 90 seconds for GitHub to recompute the top PR's merge commit on the new base. If a PR still lacks stage 1 or `verify`, it prints `not landing #<n>; waiting on ...` and exits 0. If GitHub has not recomputed in time, it prints `not landing #<n>; GitHub has not recomputed ...` and exits 0. Run it again later. A conflict with the feature branch is an error that names the PR.
 
 4. After a stack merges, run `land-stack <top-pr>` once more. It closes any lower PR GitHub did not mark merged, runs `gt sync` in the stack's worktree and clears the queued mark.
 

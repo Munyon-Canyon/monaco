@@ -108,6 +108,7 @@ type fixture struct {
 	env    []string
 	run    Runner
 	now    time.Time
+	waited []time.Duration
 	home   string
 	repo   string
 	lookup []byte
@@ -210,11 +211,21 @@ func hostless(ctx context.Context, dir, stdin, name string, args ...string) ([]b
 func (f *fixture) agents(t *testing.T, args ...string) (int, string, string) {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
-	code := runCLI(
-		context.Background(), f.env, f.dir, f.cached(f.run), args, &stdout, &stderr,
-		func() time.Time { return f.now },
-	)
+	code := runCLI(context.Background(), f.env, f.dir, f.cached(f.run), args, &stdout, &stderr, f.clock)
 	return code, stdout.String(), stderr.String()
+}
+
+func (f *fixture) clock(env *Env) {
+	env.Now = func() time.Time { return f.now }
+	env.After = f.after
+}
+
+func (f *fixture) after(d time.Duration) <-chan time.Time {
+	f.now = f.now.Add(d)
+	f.waited = append(f.waited, d)
+	fired := make(chan time.Time, 1)
+	fired <- f.now
+	return fired
 }
 
 func (f *fixture) Env(t *testing.T) *Env {
@@ -223,7 +234,7 @@ func (f *fixture) Env(t *testing.T) *Env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	env.Now = func() time.Time { return f.now }
+	f.clock(env)
 	env.Start = func(string, ...string) error { return nil }
 	return env
 }

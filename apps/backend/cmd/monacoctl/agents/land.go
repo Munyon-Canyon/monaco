@@ -8,8 +8,10 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
@@ -19,6 +21,9 @@ const (
 	stackFields = `number state baseRefName headRefName body mergeCommit{oid} autoMergeRequest{enabledAt}
 isInMergeQueue mergeQueueEntry{position} commits(last:1){nodes{commit{` + commitChecks + `}}}`
 	repoQuery = "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){"
+
+	recomputeEvery = 3 * time.Second
+	recomputeFor   = 90 * time.Second
 )
 
 type Queue struct {
@@ -35,6 +40,24 @@ type stackPR struct {
 	} `json:"mergeCommit"`
 	AutoMerge *struct{} `json:"autoMergeRequest"`
 	InQueue   bool      `json:"isInMergeQueue"`
+}
+
+type gqlOID struct {
+	OID string `json:"oid"`
+}
+
+type mergeView struct {
+	Repository struct {
+		PullRequest struct {
+			Mergeable string `json:"mergeable"`
+			BaseOID   string `json:"baseRefOid"`
+			Merge     struct {
+				Parents struct {
+					Nodes []gqlOID `json:"nodes"`
+				} `json:"parents"`
+			} `json:"potentialMergeCommit"`
+		} `json:"pullRequest"`
+	} `json:"repository"`
 }
 
 func landStackCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {
@@ -256,6 +279,15 @@ func (env *Env) land(ctx context.Context, rec Record, stack []stackPR, stdout io
 			return landFailed(err)
 		}
 	}
+	ready, err := env.awaitMergeable(ctx, top.Number)
+	switch {
+	case err != nil:
+		return err
+	case !ready:
+		_, _ = fmt.Fprintf(stdout, "not landing #%d; GitHub has not recomputed its merge commit onto %s in %s. "+
+			"Run land-stack %d again\n", top.Number, fb, recomputeFor, top.Number)
+		return nil
+	}
 	if err := env.gh(ctx, "", "pr", "merge", strconv.Itoa(top.Number), "--auto"); err != nil {
 		return landFailed(err)
 	}
@@ -266,6 +298,46 @@ func (env *Env) land(ctx context.Context, rec Record, stack []stackPR, stdout io
 	}
 	_, _ = fmt.Fprintf(stdout, "queued #%d. %s\n", top.Number, line)
 	return nil
+}
+
+func (env *Env) awaitMergeable(ctx context.Context, top int) (bool, error) {
+	deadline := env.Now().Add(recomputeFor)
+	for {
+		var view mergeView
+		err := env.graphqlGH(ctx, mergeQuery(top), &view)
+		switch {
+		case err != nil:
+			return false, landFailed(err)
+		case view.conflicting():
+			return false, landErr(fmt.Sprintf("#%d conflicts with %s. Fix the conflicts with gt modify and "+
+				"gt submit --stack --draft, then run land-stack %d", top, env.Config.FeatureBranch, top))
+		case view.ready():
+			return true, nil
+		case !env.Now().Before(deadline):
+			return false, nil
+		}
+		select {
+		case <-ctx.Done():
+			return false, landFailed(context.Cause(ctx))
+		case <-env.After(recomputeEvery):
+		}
+	}
+}
+
+func mergeQuery(top int) string {
+	return fmt.Sprintf(
+		"%spullRequest(number:%d){mergeable baseRefOid potentialMergeCommit{parents(first:2){nodes{oid}}}}}}",
+		repoQuery, top,
+	)
+}
+
+func (v mergeView) conflicting() bool {
+	return v.Repository.PullRequest.Mergeable == "CONFLICTING"
+}
+
+func (v mergeView) ready() bool {
+	pr := v.Repository.PullRequest
+	return pr.Mergeable == "MERGEABLE" && slices.Contains(pr.Merge.Parents.Nodes, gqlOID{pr.BaseOID})
 }
 
 func (env *Env) settle(ctx context.Context, rec Record, top stackPR, stdout io.Writer) error {

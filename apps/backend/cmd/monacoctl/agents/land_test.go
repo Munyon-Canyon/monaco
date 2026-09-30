@@ -14,11 +14,22 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 type ghCall struct {
 	dir, stdin, line string
 }
+
+type mergeAnswer struct {
+	mergeable, onto string
+}
+
+const (
+	newBaseOID  = "new-base"
+	oldBaseOID  = "old-base"
+	movedTipOID = "moved-tip"
+)
 
 type stackGH struct {
 	t     *testing.T
@@ -29,11 +40,16 @@ type stackGH struct {
 	fail  string
 	raw   string
 	gtLog string
+
+	merges       map[int][]mergeAnswer
+	polls        int
+	pollsAtEdit  int
+	pollsAtMerge int
 }
 
 func newStackGH(t *testing.T, f *fixture, prs ...*stackPR) *stackGH {
 	t.Helper()
-	s := &stackGH{t: t, prs: map[int]*stackPR{}}
+	s := &stackGH{t: t, prs: map[int]*stackPR{}, merges: map[int][]mergeAnswer{}}
 	for _, p := range prs {
 		s.prs[p.Number] = p
 	}
@@ -72,6 +88,7 @@ func green(t *testing.T, n int, head, base string) *stackPR {
 var (
 	aliasRE = regexp.MustCompile(`p(\d+): pullRequest`)
 	pageRE  = regexp.MustCompile(`c0: object\(oid:"(\w+)"\)`)
+	mergeRE = regexp.MustCompile(`pullRequest\(number:(\d+)\)`)
 )
 
 func (s *stackGH) run(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
@@ -98,10 +115,12 @@ func (s *stackGH) run(ctx context.Context, dir, stdin, name string, args ...stri
 	switch args[1] + " " + args[3] {
 	case "edit --base":
 		p.Base = args[4]
+		s.pollsAtEdit = s.polls
 	case "edit --body-file":
 		p.Body = stdin
 	case "merge --auto":
 		p.AutoMerge = &struct{}{}
+		s.pollsAtMerge = s.polls
 	case "close --comment":
 		p.State = "CLOSED"
 	}
@@ -111,6 +130,9 @@ func (s *stackGH) run(ctx context.Context, dir, stdin, name string, args ...stri
 func (s *stackGH) graphql(query string) ([]byte, error) {
 	if s.raw != "" {
 		return []byte(s.raw), nil
+	}
+	if strings.Contains(query, "potentialMergeCommit") {
+		return s.mergeReply(query)
 	}
 	if m := pageRE.FindStringSubmatch(query); m != nil {
 		return []byte(s.pages[m[1]]), nil
@@ -133,6 +155,39 @@ func (s *stackGH) graphql(query string) ([]byte, error) {
 			repo["p"+m[1]] = nil
 		}
 	}
+	return json.Marshal(map[string]any{"data": map[string]any{"repository": repo}})
+}
+
+func (s *stackGH) mergeReply(query string) ([]byte, error) {
+	m := mergeRE.FindStringSubmatch(query)
+	if m == nil {
+		return nil, fmt.Errorf("unexpected merge query %q", query)
+	}
+	n, _ := strconv.Atoi(m[1])
+	repo := map[string]any{}
+	if strings.Contains(query, "qualifiedName") {
+		repo["ref"] = map[string]any{"target": map[string]string{"oid": movedTipOID}}
+	}
+	if p, ok := s.prs[n]; ok {
+		base := oldBaseOID
+		if p.Base == "fb" {
+			base = newBaseOID
+		}
+		answer := mergeAnswer{"MERGEABLE", base}
+		if script := s.merges[n]; len(script) > 0 {
+			answer = script[min(s.polls, len(script)-1)]
+		}
+		var commit any
+		if answer.onto != "" {
+			commit = map[string]any{"parents": map[string]any{
+				"nodes": []map[string]string{{"oid": answer.onto}, {"oid": "head"}},
+			}}
+		}
+		repo["pullRequest"] = map[string]any{
+			"mergeable": answer.mergeable, "baseRefOid": base, "potentialMergeCommit": commit,
+		}
+	}
+	s.polls++
 	return json.Marshal(map[string]any{"data": map[string]any{"repository": repo}})
 }
 
@@ -309,6 +364,154 @@ func TestLandStack_aSinglePRSkipsTheBaseEdits(t *testing.T) {
 	}
 }
 
+func waits(n int) []time.Duration {
+	return slices.Repeat([]time.Duration{3 * time.Second}, n)
+}
+
+func waitingStack(t *testing.T, f *fixture, script ...mergeAnswer) *stackGH {
+	t.Helper()
+	s := newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+	s.merges[2] = script
+	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+	return s
+}
+
+func TestLandStack_queuesOnlyOnceGitHubReportsTheTopMergeableOntoItsNewBase(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		script []mergeAnswer
+		polls  int
+	}{
+		{"the merge commit is on the new base at once, whatever the feature branch tip has moved to", nil, 1},
+		{
+			"unknown twice, then mergeable",
+			[]mergeAnswer{{"UNKNOWN", ""}, {"UNKNOWN", ""}, {"MERGEABLE", newBaseOID}},
+			3,
+		},
+		{
+			"mergeable on the merge commit built on the old base",
+			[]mergeAnswer{{"MERGEABLE", oldBaseOID}, {"MERGEABLE", oldBaseOID}, {"MERGEABLE", newBaseOID}},
+			3,
+		},
+		{
+			"mergeable once GitHub drops the merge commit it showed before",
+			[]mergeAnswer{{"UNKNOWN", newBaseOID}, {"MERGEABLE", ""}, {"MERGEABLE", newBaseOID}},
+			3,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			s := waitingStack(t, f, tc.script...)
+			code, stdout, stderr := f.agents(t, "land-stack", "2")
+			if code != 0 || stdout != "queued #2. Lands stack: #1 #2\n" {
+				t.Fatalf("%d %q %q", code, stdout, stderr)
+			}
+			if s.polls != tc.polls || s.pollsAtMerge != tc.polls || s.pollsAtEdit != 0 {
+				t.Fatalf("polls %d, at the base edit %d, at the merge request %d, want %d after the edit",
+					s.polls, s.pollsAtEdit, s.pollsAtMerge, tc.polls)
+			}
+			if !slices.Equal(f.waited, waits(tc.polls-1)) {
+				t.Fatalf("waited %v", f.waited)
+			}
+		})
+	}
+}
+
+func TestLandStack_givesUpAfterNinetySecondsWithoutQueuing(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		answer mergeAnswer
+	}{
+		{"GitHub keeps answering unknown", mergeAnswer{"UNKNOWN", ""}},
+		{"unknown, with a merge commit on the new base", mergeAnswer{"UNKNOWN", newBaseOID}},
+		{"mergeable, on the merge commit built on the old base", mergeAnswer{"MERGEABLE", oldBaseOID}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			s := waitingStack(t, f, tc.answer)
+			start := f.now
+			code, stdout, stderr := f.agents(t, "land-stack", "2")
+			want := "not landing #2; GitHub has not recomputed its merge commit onto fb in 1m30s. " +
+				"Run land-stack 2 again\n"
+			if code != 0 || stdout != want || stderr != "" {
+				t.Fatalf("%d %q %q", code, stdout, stderr)
+			}
+			edits := []string{"gh pr edit 2 --body-file - -R o/r", "gh pr edit 2 --base fb -R o/r"}
+			if got := s.lines(); !slices.Equal(got, edits) {
+				t.Fatalf("calls %v", got)
+			}
+			if f.now.Sub(start) != 90*time.Second || !slices.Equal(f.waited, waits(len(f.waited))) ||
+				s.polls != len(f.waited)+1 {
+				t.Fatalf("waited %v (%s in all) over %d polls", f.waited, f.now.Sub(start), s.polls)
+			}
+			if f.owned(t).Queued != nil {
+				t.Fatal("marked the stack queued")
+			}
+		})
+	}
+}
+
+func TestLandStack_aRerunAfterATimeoutQueuesOnceGitHubHasRecomputed(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := waitingStack(t, f, mergeAnswer{"UNKNOWN", ""})
+	code, stdout, stderr := f.agents(t, "land-stack", "2")
+	if code != 0 || !strings.HasPrefix(stdout, "not landing #2;") {
+		t.Fatalf("first run: %d %q %q", code, stdout, stderr)
+	}
+	s.merges[2] = nil
+	code, stdout, stderr = f.agents(t, "land-stack", "2")
+	if code != 0 || stdout != "queued #2. Lands stack: #1 #2\n" {
+		t.Fatalf("rerun: %d %q %q", code, stdout, stderr)
+	}
+	want := []string{
+		"gh pr edit 2 --body-file - -R o/r", "gh pr edit 2 --base fb -R o/r",
+		"gh pr edit 2 --body-file - -R o/r", "gh pr merge 2 --auto -R o/r",
+	}
+	if got := s.lines(); !slices.Equal(got, want) {
+		t.Fatalf("calls %v", got)
+	}
+	if q := f.owned(t).Queued; q == nil || q.Top != 2 {
+		t.Fatalf("queued %+v", q)
+	}
+}
+
+func TestLandStack_refusesATopThatConflictsWithTheFeatureBranch(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := waitingStack(t, f, mergeAnswer{"UNKNOWN", ""}, mergeAnswer{"CONFLICTING", ""})
+	code, stdout, stderr := f.agents(t, "land-stack", "2")
+	if code != 1 || stdout != "" || !strings.Contains(stderr, "#2 conflicts with fb") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	if slices.Contains(s.lines(), "gh pr merge 2 --auto -R o/r") || s.polls != 2 {
+		t.Fatalf("polled %d times, calls %v", s.polls, s.lines())
+	}
+	if f.owned(t).Queued != nil {
+		t.Fatal("marked the stack queued")
+	}
+}
+
+func TestLandStack_stopsWaitingWhenTheContextEnds(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := waitingStack(t, f, mergeAnswer{"UNKNOWN", ""})
+	ctx, cancel := context.WithCancel(t.Context())
+	env := f.Env(t)
+	env.After = func(time.Duration) <-chan time.Time {
+		cancel()
+		return make(chan time.Time)
+	}
+	err := landStackCmd(ctx, env, []string{"2"}, &strings.Builder{})
+	if !errors.Is(err, context.Canceled) || s.polls != 1 || f.owned(t).Queued != nil {
+		t.Fatalf("%v after %d polls", err, s.polls)
+	}
+}
+
 func TestLandStack_settlesTheQueuedStack(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -450,6 +653,10 @@ func TestLandStack_failures(t *testing.T) {
 		{name: "base edit fails", args: []string{"2"}, prs: stack, fail: "gh pr edit 2 --base", code: 1, stderr: "gt submit --stack"},
 		{name: "body edit fails", args: []string{"2"}, prs: stack, fail: "gh pr edit 2 --body-file", code: 1, stderr: "not marked queued"},
 		{name: "merge fails", args: []string{"2"}, prs: stack, fail: "gh pr merge", code: 1, stderr: "restore the bases"},
+		{
+			name: "mergeability read fails", args: []string{"2"}, prs: stack, code: 1, stderr: "not marked queued",
+			fail: "gh api graphql -f query=" + repoQuery + "pullRequest(",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

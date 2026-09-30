@@ -85,7 +85,7 @@ func (h *checkHarness) check(t *testing.T, args ...string) (int, string, string)
 	var stdout, stderr bytes.Buffer
 	code := runCLI(
 		context.Background(), h.env, h.dir, h.cached(h.run), append([]string{"check"}, args...), &stdout, &stderr,
-		func() time.Time { return h.clock },
+		func(env *Env) { env.Now = func() time.Time { return h.clock } },
 	)
 	return code, stdout.String(), stderr.String()
 }
