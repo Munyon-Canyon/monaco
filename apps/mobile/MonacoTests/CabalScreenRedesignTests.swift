@@ -2,6 +2,7 @@ import Foundation
 import MonacoCore
 import SwiftUI
 import Testing
+
 @testable import Monaco
 
 /// The pot's curve on the cabal hero: what the slot shows for what came back.
@@ -13,7 +14,9 @@ struct GroupHeroChartTests {
             name: "Weekend investors",
             range: "1M",
             points: (0..<count).map {
-                GroupPnLPointDTO(at: Date(timeIntervalSince1970: Double($0) * 86_400), potValueUsd: "100", netInUsd: "90", dollarPnl: "+\($0).00")
+                GroupPnLPointDTO(
+                    at: Date(timeIntervalSince1970: Double($0) * 86_400), potValueUsd: "100", netInUsd: "90",
+                    dollarPnl: "+\($0).00")
             }
         )
     }
@@ -56,7 +59,9 @@ struct GroupPnLHistoryModelTests {
             name: "Weekend investors",
             range: range.rawValue,
             points: (0..<count).map {
-                GroupPnLPointDTO(at: Date(timeIntervalSince1970: Double($0) * 3600), potValueUsd: "100", netInUsd: "90", dollarPnl: "+\($0).50")
+                GroupPnLPointDTO(
+                    at: Date(timeIntervalSince1970: Double($0) * 3600), potValueUsd: "100", netInUsd: "90",
+                    dollarPnl: "+\($0).50")
             }
         )
     }
@@ -76,7 +81,8 @@ struct GroupPnLHistoryModelTests {
         #expect(model.chart == .sparse)
 
         model.range = .oneMonth
-        #expect(model.chart == .curve(series(range: .oneMonth, count: 5).points), "coming back to a drawn range is instant")
+        #expect(
+            model.chart == .curve(series(range: .oneMonth, count: 5).points), "coming back to a drawn range is instant")
     }
 
     @Test func aFailedFirstReadIsReportedAndARetryClearsIt() async {

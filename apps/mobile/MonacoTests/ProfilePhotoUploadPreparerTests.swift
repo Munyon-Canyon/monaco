@@ -2,6 +2,7 @@ import ImageIO
 import MonacoCore
 import UIKit
 import XCTest
+
 @testable import Monaco
 
 @MainActor
@@ -103,10 +104,11 @@ final class ProfilePhotoUploadPreparerTests: XCTestCase {
             ProfilePhotoUploadPreparer.Failure.tooLarge.memberMessage,
             "That photo is too big to upload. Try another."
         )
-        XCTAssertTrue(MainFlowCopyAudit.stringsAreClean([
-            ProfilePhotoUploadPreparer.Failure.unreadable.memberMessage,
-            ProfilePhotoUploadPreparer.Failure.tooLarge.memberMessage,
-        ]))
+        XCTAssertTrue(
+            MainFlowCopyAudit.stringsAreClean([
+                ProfilePhotoUploadPreparer.Failure.unreadable.memberMessage,
+                ProfilePhotoUploadPreparer.Failure.tooLarge.memberMessage,
+            ]))
     }
 
     // MARK: - Helpers
@@ -140,9 +142,9 @@ final class ProfilePhotoUploadPreparerTests: XCTestCase {
     /// Reads the stored dimensions without decoding, so the assertion is about real pixels.
     private static func pixelSize(of data: Data) -> (width: Int, height: Int)? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
-              let width = properties[kCGImagePropertyPixelWidth] as? Int,
-              let height = properties[kCGImagePropertyPixelHeight] as? Int
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+            let width = properties[kCGImagePropertyPixelWidth] as? Int,
+            let height = properties[kCGImagePropertyPixelHeight] as? Int
         else { return nil }
         return (width, height)
     }

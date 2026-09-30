@@ -248,7 +248,6 @@ enum MonacoTheme {
     /// The wash behind the leader's row on a board.
     static let goldWash = Color.adaptive(light: 0xC9A24A, lightAlpha: 0.16, dark: 0xD9B85A, darkAlpha: 0.16)
 
-
     /// Green for gains, red for losses, muted for zero / missing.
     /// Accepts ASCII "-" and the typographic minus "−" (U+2212) as a loss sign.
     static func signed(_ raw: String?) -> Color {
@@ -264,7 +263,8 @@ enum MonacoTheme {
         }
         if isNegative { return loss }
         if trimmed.hasPrefix("+") { return profit }
-        let numeric = trimmed
+        let numeric =
+            trimmed
             .replacingOccurrences(of: "%", with: "")
             .replacingOccurrences(of: ",", with: "")
             .replacingOccurrences(of: "$", with: "")
@@ -418,7 +418,6 @@ enum MonacoTheme {
         static let bubble: CGFloat = 18
     }
 
-
     enum Space {
         static let xs: CGFloat = 4
         static let s: CGFloat = 8
@@ -510,7 +509,6 @@ enum MonacoTypeface {
         }
     }
 }
-
 
 extension Color {
     /// A single fixed colour from an 0xRRGGBB literal — same in both schemes.

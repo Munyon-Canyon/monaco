@@ -2,6 +2,7 @@ import Foundation
 import MonacoCore
 import SwiftUI
 import Testing
+
 @testable import Monaco
 
 /// The words and figures the propose screens work out for themselves.
@@ -53,8 +54,13 @@ struct ProposeScreenCopyTests {
     /// The receipt heads the reason the way the proposal's screen will, so the member sees what
     /// the cabal will see.
     @Test func theReceiptHeadsTheReasonAsTheProposalDoes() {
-        #expect(ProposeScreenCopy.reasonTitle(isSell: false) == ProposalFeedCopy.reasonTitle(for: ProposalDTO(id: "b", symbol: "AAPLx", status: "open")))
-        #expect(ProposeScreenCopy.reasonTitle(isSell: true) == ProposalFeedCopy.reasonTitle(for: ProposalDTO(id: "s", symbol: "AAPLx", status: "open", kind: "sell")))
+        #expect(
+            ProposeScreenCopy.reasonTitle(isSell: false)
+                == ProposalFeedCopy.reasonTitle(for: ProposalDTO(id: "b", symbol: "AAPLx", status: "open")))
+        #expect(
+            ProposeScreenCopy.reasonTitle(isSell: true)
+                == ProposalFeedCopy.reasonTitle(
+                    for: ProposalDTO(id: "s", symbol: "AAPLx", status: "open", kind: "sell")))
     }
 
     @Test func thePickerAsksWhichCabalForTheStock() {

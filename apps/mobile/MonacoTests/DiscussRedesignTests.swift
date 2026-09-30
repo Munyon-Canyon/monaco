@@ -2,6 +2,7 @@ import Foundation
 import MonacoCore
 import SwiftUI
 import Testing
+
 @testable import Monaco
 
 private func ballot(_ id: String, _ name: String, _ choice: String, castAt: String? = nil) -> ProposalVoteDTO {
@@ -39,13 +40,18 @@ struct ProposalYesVotersTests {
     }
 
     @Test func pastThreeNamesTheRestAreCounted() {
-        #expect(ProposalYesVoters.sentence(["Ada Park", "Ben Ortiz", "Cy Lin", "Dee Shah"]) == "Ada, Ben, Cy and 1 other voted yes")
-        #expect(ProposalYesVoters.sentence(["Ada Park", "Ben Ortiz", "Cy Lin", "Dee Shah", "Mia"]) == "Ada, Ben, Cy and 2 others voted yes")
+        #expect(
+            ProposalYesVoters.sentence(["Ada Park", "Ben Ortiz", "Cy Lin", "Dee Shah"])
+                == "Ada, Ben, Cy and 1 other voted yes")
+        #expect(
+            ProposalYesVoters.sentence(["Ada Park", "Ben Ortiz", "Cy Lin", "Dee Shah", "Mia"])
+                == "Ada, Ben, Cy and 2 others voted yes")
     }
 
     /// Two Adas would make "Ada and Ada voted yes", which says nothing about who.
     @Test func aSharedFirstNameKeepsItsSurname() {
-        #expect(ProposalYesVoters.sentence(["Ada Park", "Ada Lin", "Ben Ortiz"]) == "Ada Park, Ada Lin and Ben voted yes")
+        #expect(
+            ProposalYesVoters.sentence(["Ada Park", "Ada Lin", "Ben Ortiz"]) == "Ada Park, Ada Lin and Ben voted yes")
     }
 
     @Test func aOneWordNameIsItsOwnFirstName() {
@@ -79,17 +85,25 @@ struct ProposalCardCornerTests {
     }
 
     @Test func anOpenVoteShowsItsCountdown() {
-        #expect(ProposalCardCorner.of(proposal(status: "open", expiresIn: 20 * 3600 + 60), now: now) == .countdown("Closes in 20h", closesSoon: false))
+        #expect(
+            ProposalCardCorner.of(proposal(status: "open", expiresIn: 20 * 3600 + 60), now: now)
+                == .countdown("Closes in 20h", closesSoon: false))
     }
 
     @Test func theLastHourIsFlagged() {
-        #expect(ProposalCardCorner.of(proposal(status: "open", expiresIn: 30 * 60), now: now) == .countdown("Closes in 30m", closesSoon: true))
+        #expect(
+            ProposalCardCorner.of(proposal(status: "open", expiresIn: 30 * 60), now: now)
+                == .countdown("Closes in 30m", closesSoon: true))
     }
 
     @Test func aClosedVoteShowsOneChipAndNoCountdown() {
         #expect(ProposalCardCorner.of(proposal(status: "failed", expiresIn: 3600), now: now) == .chip("Didn't pass"))
-        #expect(ProposalCardCorner.of(proposal(status: "passed", expiresIn: nil, execution: "confirmed"), now: now) == .chip("Bought"))
-        #expect(ProposalCardCorner.of(proposal(status: "passed", expiresIn: nil, execution: "pending"), now: now) == .chip("Buying"))
+        #expect(
+            ProposalCardCorner.of(proposal(status: "passed", expiresIn: nil, execution: "confirmed"), now: now)
+                == .chip("Bought"))
+        #expect(
+            ProposalCardCorner.of(proposal(status: "passed", expiresIn: nil, execution: "pending"), now: now)
+                == .chip("Buying"))
     }
 
     @Test func anOpenVoteWithNoReadableDeadlineShowsNothing() {
@@ -144,7 +158,9 @@ struct ProposalBallotListTests {
     }
 
     @Test func namedBallotsThenTheViewerThenEveryoneElse() {
-        let open = proposal(votes: [ballot("a", "Ada Park", "yes", castAt: "2026-09-24T10:00:00Z"), ballot("c", "Cy Lin", "no")], yes: 1, no: 1)
+        let open = proposal(
+            votes: [ballot("a", "Ada Park", "yes", castAt: "2026-09-24T10:00:00Z"), ballot("c", "Cy Lin", "no")],
+            yes: 1, no: 1)
         let lines = ProposalBallotList.lines(for: open, viewerId: "viewer", viewerChoice: nil)
         #expect(lines.map(\.name) == ["Ada Park", "Cy Lin", "You", "2 more members"])
         #expect(lines.map(\.choice) == [.yes, .no, .waiting, .waiting])
@@ -158,13 +174,18 @@ struct ProposalBallotListTests {
     @Test func theViewersBallotIsTheirs() {
         let voted = proposal(canVote: false, votes: [ballot("viewer", "Logan Norman", "yes")], yes: 1, no: 0)
         let lines = ProposalBallotList.lines(for: voted, viewerId: "viewer", viewerChoice: "yes")
-        #expect(lines.first == ProposalBallotLine(id: "ballot-viewer", name: "You", faceName: "Logan Norman", faceSeed: "viewer", choice: .yes, castAt: nil, isViewer: true))
+        #expect(
+            lines.first
+                == ProposalBallotLine(
+                    id: "ballot-viewer", name: "You", faceName: "Logan Norman", faceSeed: "viewer", choice: .yes,
+                    castAt: nil, isViewer: true))
         #expect(lines.last?.name == "4 more members")
     }
 
     @Test func oneLeftIsSingular() {
         let votes = ["a", "b", "c", "viewer"].map { ballot($0, "Member \($0)", "yes") }
-        let lines = ProposalBallotList.lines(for: proposal(canVote: false, votes: votes, yes: 4, no: 0), viewerId: "viewer", viewerChoice: "yes")
+        let lines = ProposalBallotList.lines(
+            for: proposal(canVote: false, votes: votes, yes: 4, no: 0), viewerId: "viewer", viewerChoice: "yes")
         #expect(lines.last?.name == "1 more member")
     }
 
@@ -185,23 +206,28 @@ struct ProposalBallotListTests {
 @MainActor
 struct CommentThreadLayoutTests {
     private func comment(_ id: String, parent: String? = nil) -> ProposalCommentDTO {
-        ProposalCommentDTO(id: id, proposalId: "p", parentId: parent, authorId: "a", authorName: "Ada Park", body: "Why?", createdAt: "2026-09-24T10:00:00Z")
+        ProposalCommentDTO(
+            id: id, proposalId: "p", parentId: parent, authorId: "a", authorName: "Ada Park", body: "Why?",
+            createdAt: "2026-09-24T10:00:00Z")
     }
 
     @Test func eachLevelStepsInByOneIndent() {
         #expect(CommentThreadLayout.avatarLeading(level: 0) == MonacoTheme.Space.m)
         #expect(CommentThreadLayout.avatarLeading(level: 1) == MonacoTheme.Space.m + CommentThreadLayout.indentWidth)
-        #expect(CommentThreadLayout.textLeading(level: 0) == MonacoTheme.Space.m + CommentThreadLayout.avatarSize + MonacoTheme.Space.sm)
+        #expect(
+            CommentThreadLayout.textLeading(level: 0) == MonacoTheme.Space.m + CommentThreadLayout.avatarSize
+                + MonacoTheme.Space.sm)
     }
 
     /// A reply's rules hang under the middle of each ancestor's face.
     @Test func threadRulesSitUnderTheAncestorsFaces() {
         #expect(CommentThreadLayout.threadRuleOffsets(level: 0).isEmpty)
         let offsets = CommentThreadLayout.threadRuleOffsets(level: 2)
-        #expect(offsets == [
-            CommentThreadLayout.avatarLeading(level: 0) + CommentThreadLayout.avatarSize / 2,
-            CommentThreadLayout.avatarLeading(level: 1) + CommentThreadLayout.avatarSize / 2,
-        ])
+        #expect(
+            offsets == [
+                CommentThreadLayout.avatarLeading(level: 0) + CommentThreadLayout.avatarSize / 2,
+                CommentThreadLayout.avatarLeading(level: 1) + CommentThreadLayout.avatarSize / 2,
+            ])
     }
 
     @Test func aRowStartsARuleOnlyWhenTheNextRowAnswersIt() {

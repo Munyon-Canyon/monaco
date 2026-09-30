@@ -1,5 +1,6 @@
 import UIKit
 import XCTest
+
 @testable import Monaco
 
 @MainActor
@@ -11,13 +12,16 @@ final class MonacoRemoteImageStoreTests: XCTestCase {
 
     func testDownsample_capsTheLongestEdge() throws {
         let data = try XCTUnwrap(Self.jpeg(width: 1600, height: 1200))
-        let image = try XCTUnwrap(MonacoRemoteImageStore.downsampledImage(from: data, maxPixelSize: MonacoRemoteImageStore.avatarMaxPixelSize))
+        let image = try XCTUnwrap(
+            MonacoRemoteImageStore.downsampledImage(from: data, maxPixelSize: MonacoRemoteImageStore.avatarMaxPixelSize)
+        )
         XCTAssertEqual(max(image.size.width, image.size.height), CGFloat(MonacoRemoteImageStore.avatarMaxPixelSize))
         XCTAssertEqual(image.size.width / image.size.height, 1600.0 / 1200.0, accuracy: 0.01)
     }
 
     func testDownsample_malformedDataIsNil() {
-        XCTAssertNil(MonacoRemoteImageStore.downsampledImage(from: Data("<html>not an image</html>".utf8), maxPixelSize: 320))
+        XCTAssertNil(
+            MonacoRemoteImageStore.downsampledImage(from: Data("<html>not an image</html>".utf8), maxPixelSize: 320))
         XCTAssertNil(MonacoRemoteImageStore.downsampledImage(from: Data(), maxPixelSize: 320))
     }
 

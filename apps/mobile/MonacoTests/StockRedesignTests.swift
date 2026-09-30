@@ -1,6 +1,7 @@
 import MonacoCore
 import SwiftUI
 import Testing
+
 @testable import Monaco
 
 /// "12 shares · $556.92 yours": the holding row's share count on the stock screen.
@@ -53,7 +54,8 @@ struct AssetHoldingShareLabelTests {
 /// The line under the member's slice on the stock screen.
 struct AssetPositionTotalsCopyTests {
     private func holding(_ name: String) -> AssetHoldingDTO {
-        AssetHoldingDTO(groupId: name, name: name, units: "1", valueUsd: "10.00", costBasisUsd: "9.00", dollarPnl: "+1.00")
+        AssetHoldingDTO(
+            groupId: name, name: name, units: "1", valueUsd: "10.00", costBasisUsd: "9.00", dollarPnl: "+1.00")
     }
 
     /// "Across your cabals" under one cabal read as a sentence written for someone else.

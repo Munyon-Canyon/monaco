@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import Monaco
 
 /// Signing out hands Privy's `user.logout()` to a background revoke. A new sign-in waits for

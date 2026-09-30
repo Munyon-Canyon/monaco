@@ -1,5 +1,6 @@
 import Testing
 import UIKit
+
 @testable import Monaco
 
 /// A member without a photo is one of eight pixel animals, the same one every time.

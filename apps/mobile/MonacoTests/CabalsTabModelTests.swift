@@ -1,6 +1,7 @@
 import Foundation
 import MonacoCore
 import Testing
+
 @testable import Monaco
 
 /// Holds a fake read open until the test lets it finish, one caller at a time
@@ -230,7 +231,7 @@ struct CabalsTabModelTests {
         // the interleaving the test's choice rather than the scheduler's.
         let source = RecordingDataSource()
         source.seriesByRange = [
-            .threeMonths: [sampleSeries(id: "a", points: 8), sampleSeries(id: "b", points: 6)],
+            .threeMonths: [sampleSeries(id: "a", points: 8), sampleSeries(id: "b", points: 6)]
         ]
         let gate = CallGate()
         source.pnlGate = { await gate.wait() }
@@ -264,7 +265,7 @@ struct CabalsTabModelTests {
         // load's spinner and the chart section dropped out mid-load.
         let source = RecordingDataSource()
         source.seriesByRange = [
-            .oneMonth: [sampleSeries(id: "a", points: 8), sampleSeries(id: "b", points: 6)],
+            .oneMonth: [sampleSeries(id: "a", points: 8), sampleSeries(id: "b", points: 6)]
         ]
         let gate = CallGate()
         source.pnlGate = { await gate.wait() }
@@ -299,7 +300,7 @@ struct CabalsTabModelTests {
         // Arrange: 1M is drawn.
         let source = RecordingDataSource()
         source.seriesByRange = [
-            .oneMonth: [sampleSeries(id: "a", points: 8), sampleSeries(id: "b", points: 6)],
+            .oneMonth: [sampleSeries(id: "a", points: 8), sampleSeries(id: "b", points: 6)]
         ]
         let model = CabalsTabModel(dataSource: source)
         await model.reload()
@@ -324,7 +325,7 @@ struct CabalsTabModelTests {
         // highlighted chip, so keep them rather than blanking a good chart.
         let source = RecordingDataSource()
         source.seriesByRange = [
-            .oneMonth: [sampleSeries(id: "a", points: 8), sampleSeries(id: "b", points: 6)],
+            .oneMonth: [sampleSeries(id: "a", points: 8), sampleSeries(id: "b", points: 6)]
         ]
         let model = CabalsTabModel(dataSource: source)
         await model.reload()

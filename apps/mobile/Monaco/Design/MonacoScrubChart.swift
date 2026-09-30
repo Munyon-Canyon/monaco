@@ -201,7 +201,8 @@ struct MonacoScrubChart: View {
         DragGesture(minimumDistance: 10)
             .onChanged { value in
                 if dragIntent == .undecided {
-                    dragIntent = abs(value.translation.height) > abs(value.translation.width)
+                    dragIntent =
+                        abs(value.translation.height) > abs(value.translation.width)
                         ? .scrolling
                         : .scrubbing
                 }
@@ -266,9 +267,10 @@ struct MonacoScrubChart: View {
     @ViewBuilder
     private func liveDot(_ proxy: ChartProxy, in geometry: GeometryProxy) -> some View {
         if let last = points.last,
-           let plotAnchor = proxy.plotFrame,
-           let x = proxy.position(forX: last.date),
-           let y = proxy.position(forY: last.value) {
+            let plotAnchor = proxy.plotFrame,
+            let x = proxy.position(forX: last.date),
+            let y = proxy.position(forY: last.value)
+        {
             let plot = geometry[plotAnchor]
             ZStack {
                 Circle()

@@ -1,4 +1,5 @@
 import Testing
+
 @testable import Monaco
 
 /// Stands in for `AppSessionStore`: it records what Home asked for and, like
@@ -238,7 +239,8 @@ struct HomeLeaderboardRangeEchoTests {
     @Test func everyRangeTheBackendEchoesDecodes() {
         let echoed = ["1H", "1D", "1W", "1M", "ALL"]
         for raw in echoed {
-            #expect(HomeLeaderboardRange(rawValue: raw) != nil, "the backend echoes \(raw) and this build cannot read it")
+            #expect(
+                HomeLeaderboardRange(rawValue: raw) != nil, "the backend echoes \(raw) and this build cannot read it")
         }
         #expect(Set(echoed) == Set(HomeLeaderboardRange.allCases.map(\.rawValue)))
     }

@@ -26,7 +26,9 @@ enum MonacoWalletAddressFormatting {
     /// Monospaced system font at the Dynamic Type size of `textStyle`.
     static func font(for textStyle: UIFont.TextStyle) -> UIFont {
         let base = UIFont.monospacedSystemFont(
-            ofSize: UIFont.preferredFont(forTextStyle: textStyle, compatibleWith: UITraitCollection(preferredContentSizeCategory: .large)).pointSize,
+            ofSize: UIFont.preferredFont(
+                forTextStyle: textStyle, compatibleWith: UITraitCollection(preferredContentSizeCategory: .large)
+            ).pointSize,
             weight: .regular
         )
         return UIFontMetrics(forTextStyle: textStyle).scaledFont(for: base)

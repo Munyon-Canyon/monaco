@@ -1,6 +1,7 @@
 import Foundation
 import MonacoCore
 import Testing
+
 @testable import Monaco
 
 /// A discovery row resolves to one route, once, at tap time (#293).
@@ -30,6 +31,10 @@ struct CabalsRouteTests {
             row: "g4", name: "Semis or bust", isJoined: false, joinMode: .open,
             memberCount: 5, pictureUrl: "https://example.com/semis.png"
         )
-        #expect(route == .join(id: "g4", name: "Semis or bust", mode: .open, memberCount: 5, pictureUrl: "https://example.com/semis.png"))
+        #expect(
+            route
+                == .join(
+                    id: "g4", name: "Semis or bust", mode: .open, memberCount: 5,
+                    pictureUrl: "https://example.com/semis.png"))
     }
 }

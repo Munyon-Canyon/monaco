@@ -32,7 +32,10 @@ final class MonacoRemoteImageStore {
     private let session: URLSession
     private let maxPixelSize: Int
 
-    init(session: URLSession = .shared, maxPixelSize: Int = MonacoRemoteImageStore.avatarMaxPixelSize, countLimit: Int = 200) {
+    init(
+        session: URLSession = .shared, maxPixelSize: Int = MonacoRemoteImageStore.avatarMaxPixelSize,
+        countLimit: Int = 200
+    ) {
         self.session = session
         self.maxPixelSize = maxPixelSize
         cache.countLimit = countLimit
@@ -52,7 +55,8 @@ final class MonacoRemoteImageStore {
         let maxPixelSize = maxPixelSize
         let task = Task.detached(priority: .utility) { () -> UIImage? in
             guard let (data, response) = try? await session.data(from: url),
-                  (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true else {
+                (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true
+            else {
                 return nil
             }
             return Self.downsampledImage(from: data, maxPixelSize: maxPixelSize)
@@ -70,12 +74,13 @@ final class MonacoRemoteImageStore {
     nonisolated static func downsampledImage(from data: Data, maxPixelSize: Int) -> UIImage? {
         let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else { return nil }
-        let thumbnailOptions = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
-        ] as CFDictionary
+        let thumbnailOptions =
+            [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceShouldCacheImmediately: true,
+                kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+            ] as CFDictionary
         guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions) else { return nil }
         return UIImage(cgImage: thumbnail)
     }

@@ -114,7 +114,6 @@ struct MonacoRule: View {
     }
 }
 
-
 /// Leading 44pt mark, title over subtitle, trailing figures. Wrap in a `Button` or `NavigationLink`
 /// with `.buttonStyle(.monacoRow)` for the pressed state.
 struct MonacoRow<Leading: View, Trailing: View>: View {
@@ -148,7 +147,6 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
         self.leading = leading()
         self.trailing = trailing()
     }
-
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body)

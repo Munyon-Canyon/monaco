@@ -1,6 +1,7 @@
 import Foundation
 import MonacoCore
 import Testing
+
 @testable import Monaco
 
 struct ProposeErrorCopyTests {
@@ -60,7 +61,8 @@ struct ProposeErrorCopyTests {
     }
 
     @Test func aLongReasonSaysSoOnBuyAndOnSell() {
-        #expect(ProposeErrorCopy.propose(refusal(400, "thesis exceeds maximum length")) == ProposeFlowCopy.reasonTooLong)
+        #expect(
+            ProposeErrorCopy.propose(refusal(400, "thesis exceeds maximum length")) == ProposeFlowCopy.reasonTooLong)
         #expect(
             ProposeErrorCopy.propose(refusal(400, "thesis exceeds maximum length"), isSell: true)
                 == ProposeFlowCopy.reasonTooLong
@@ -69,7 +71,8 @@ struct ProposeErrorCopyTests {
 
     @Test func aRefusalTheAppDoesNotKnowFallsBackToTryAgain() {
         #expect(ProposeErrorCopy.propose(refusal(500, "internal server error")) == ProposeFlowCopy.sendFailed)
-        #expect(ProposeErrorCopy.propose(Monaco.MonacoAPIError.httpStatus(400), isSell: true) == ProposeFlowCopy.sendFailed)
+        #expect(
+            ProposeErrorCopy.propose(Monaco.MonacoAPIError.httpStatus(400), isSell: true) == ProposeFlowCopy.sendFailed)
     }
 
     @Test func beingOfflineSaysToCheckTheConnection() {

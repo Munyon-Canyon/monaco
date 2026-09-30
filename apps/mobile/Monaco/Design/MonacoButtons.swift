@@ -53,8 +53,8 @@ private struct MonacoButtonLabel: ViewModifier {
     }
 }
 
-private extension View {
-    func monacoButtonLabel() -> some View {
+extension View {
+    fileprivate func monacoButtonLabel() -> some View {
         modifier(MonacoButtonLabel())
     }
 }
