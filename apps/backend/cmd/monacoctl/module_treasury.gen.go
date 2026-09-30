@@ -5,8 +5,10 @@ package main
 import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/tools/ops/replay"
 )
 
 func init() {
 	registered.Add(func(d module.Deps) module.Module { return treasury.New(d) })
+	replay.RegisterLedgerCheck(treasury.LedgerCheck())
 }

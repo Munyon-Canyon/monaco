@@ -55,6 +55,74 @@ func (q *Queries) CabalPositionDrift(ctx context.Context) ([]CabalPositionDriftR
 	return items, nil
 }
 
+const ledgerBalances = `-- name: LedgerBalances :many
+SELECT ('wallet:' || t.user_id::text)::text AS owner, e.asset, sum(e.amount)::text AS balance
+FROM user_txn_entries e JOIN user_txns t ON t.id = e.txn_id
+WHERE e.account = 'wallet'
+GROUP BY t.user_id, e.asset
+UNION ALL
+SELECT 'treasury:' || t.cabal_id::text, e.asset, sum(e.amount)::text
+FROM cabal_txn_entries e JOIN cabal_txns t ON t.id = e.txn_id
+WHERE e.account = 'treasury'
+GROUP BY t.cabal_id, e.asset
+ORDER BY 1, 2
+`
+
+type LedgerBalancesRow struct {
+	Owner   string
+	Asset   string
+	Balance string
+}
+
+func (q *Queries) LedgerBalances(ctx context.Context) ([]LedgerBalancesRow, error) {
+	rows, err := q.db.Query(ctx, ledgerBalances)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LedgerBalancesRow
+	for rows.Next() {
+		var i LedgerBalancesRow
+		if err := rows.Scan(&i.Owner, &i.Asset, &i.Balance); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const moneyEvents = `-- name: MoneyEvents :many
+SELECT type, payload FROM events WHERE type = ANY($1::text[]) ORDER BY id
+`
+
+type MoneyEventsRow struct {
+	Type    string
+	Payload []byte
+}
+
+func (q *Queries) MoneyEvents(ctx context.Context, types []string) ([]MoneyEventsRow, error) {
+	rows, err := q.db.Query(ctx, moneyEvents, types)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MoneyEventsRow
+	for rows.Next() {
+		var i MoneyEventsRow
+		if err := rows.Scan(&i.Type, &i.Payload); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const splitTransfers = `-- name: SplitTransfers :many
 SELECT s.transfer_id::text AS transfer_id, string_agg(DISTINCT s.status, ',' ORDER BY s.status)::text AS statuses
 FROM (

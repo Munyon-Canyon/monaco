@@ -50,3 +50,18 @@ FROM sums s FULL JOIN user_positions p ON p.user_id = s.user_id AND p.cabal_id =
 WHERE (coalesce(s.shares, 0), coalesce(s.contributed, 0), coalesce(s.withdrawn, 0))
   IS DISTINCT FROM (coalesce(p.share_units, 0), coalesce(p.contributed_micros, 0), coalesce(p.withdrawn_micros, 0))
 ORDER BY 1, 2;
+
+-- name: LedgerBalances :many
+SELECT ('wallet:' || t.user_id::text)::text AS owner, e.asset, sum(e.amount)::text AS balance
+FROM user_txn_entries e JOIN user_txns t ON t.id = e.txn_id
+WHERE e.account = 'wallet'
+GROUP BY t.user_id, e.asset
+UNION ALL
+SELECT 'treasury:' || t.cabal_id::text, e.asset, sum(e.amount)::text
+FROM cabal_txn_entries e JOIN cabal_txns t ON t.id = e.txn_id
+WHERE e.account = 'treasury'
+GROUP BY t.cabal_id, e.asset
+ORDER BY 1, 2;
+
+-- name: MoneyEvents :many
+SELECT type, payload FROM events WHERE type = ANY(sqlc.arg(types)::text[]) ORDER BY id;

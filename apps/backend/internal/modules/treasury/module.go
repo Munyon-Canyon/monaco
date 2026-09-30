@@ -1,10 +1,12 @@
 package treasury
 
 import (
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
+	"github.com/monaco/monaco/apps/backend/internal/tools/ops/replay"
 )
 
 type Module struct{}
@@ -18,3 +20,13 @@ func (*Module) Routes(*httpx.Routes) {}
 func (*Module) Consumers() []bus.Consumer { return nil }
 
 func (*Module) Pollers() []poller.Poller { return nil }
+
+func LedgerCheck() replay.LedgerCheck {
+	return replay.LedgerCheck{
+		Name: "treasury",
+		Tables: []string{
+			"cabal_txns", "cabal_txn_entries", "user_txns", "user_txn_entries", "cabal_positions", "user_positions",
+		},
+		Check: adapters.CheckLedger(nil),
+	}
+}

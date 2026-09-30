@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
+	"github.com/monaco/monaco/apps/backend/internal/tools/ops/replay"
 )
 
 type LedgerCheck struct {
@@ -20,7 +21,25 @@ type LedgerCheck struct {
 	Check func(ctx context.Context, pool *pgxpool.Pool) error
 }
 
-func LedgerChecks() []LedgerCheck { return nil }
+func LedgerChecks() []LedgerCheck { return fromReplay(replay.LedgerChecks()) }
+
+type LedgerDiffsError []string
+
+func (d LedgerDiffsError) Error() string { return strings.Join(d, "; ") }
+
+func fromReplay(checks []replay.LedgerCheck) []LedgerCheck {
+	out := make([]LedgerCheck, 0, len(checks))
+	for _, c := range checks {
+		out = append(out, LedgerCheck{Name: c.Name, Check: func(ctx context.Context, pool *pgxpool.Pool) error {
+			diffs, err := c.Check(ctx, pool)
+			if err != nil || len(diffs) == 0 {
+				return err
+			}
+			return LedgerDiffsError(diffs)
+		}})
+	}
+	return out
+}
 
 type InvariantError struct {
 	Flow, Msg string
