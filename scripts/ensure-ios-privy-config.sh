@@ -14,6 +14,21 @@ PLIST_OUT="$ROOT/apps/mobile/Config/Privy.local.Info.plist"
 DEBUG_PLIST_OUT="$ROOT/apps/mobile/Config/Privy.local.Debug.Info.plist"
 ENVIRONMENT_OUT="$ROOT/apps/mobile/Config/Environment.local.xcconfig"
 ENV_FILE="$ROOT/.env.local"
+# Reset with the guard. A second source in the same shell must look up the
+# key file again; leaving dotenv_keys_resolved set would skip that lookup
+# and run dotenvx get with an empty keys_args.
+keys_args=()
+dotenv_keys_resolved=""
+
+# One dotenvx get, with -fk when a keys file was resolved. A failing get
+# becomes an empty value, matching the previous `|| true`.
+dotenvx_get() {
+  local value=""
+  if ! value="$(cd "$ROOT" && dotenvx get "$1" -f .env.local ${keys_args[@]+"${keys_args[@]}"} 2>/dev/null)"; then
+    value=""
+  fi
+  printf '%s' "$value"
+}
 
 load_privy_env() {
   if [[ ! -f "$ENV_FILE" ]]; then
@@ -24,17 +39,41 @@ load_privy_env() {
     echo "error: dotenvx not on PATH. Install: https://dotenvx.com/docs/install" >&2
     exit 1
   fi
+  # Same key lookup as with-dotenv-local.sh. Run git from ROOT inside the
+  # substitution so sourcing this script does not change the caller's directory.
+  # A keys file counts only when it holds DOTENV_PRIVATE_KEY_LOCAL; otherwise
+  # leave -fk unset so an exported DOTENV_PRIVATE_KEY_LOCAL / DOTENV_PRIVATE_KEY
+  # still works for cloud agents.
+  if [[ -z "${dotenv_keys_resolved:-}" ]]; then
+    dotenv_keys_resolved=1
+    has_local_key() {
+      [[ -f "$1" ]] && grep -q '^DOTENV_PRIVATE_KEY_LOCAL=' "$1"
+    }
+
+    primary_root="$(dirname "$(cd "$ROOT" && { git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "$ROOT/.git"; })")"
+    keys_args=()
+    if has_local_key "$ROOT/.env.keys"; then
+      keys_args=(-fk "$ROOT/.env.keys")
+      key_source=".env.keys in this checkout"
+    elif has_local_key "$primary_root/.env.keys"; then
+      keys_args=(-fk "$primary_root/.env.keys")
+      key_source=".env.keys in the primary clone at $primary_root"
+    else
+      key_source="DOTENV_PRIVATE_KEY* env or Dotenvx Armor"
+    fi
+    echo "ensure-ios-privy-config: key source: $key_source" >&2
+  fi
   # Always read from .env.local. dotenvx get/run both honor existing shell exports,
   # so clear stale Privy keys before fetching decrypted values.
   unset PRIVY_APP_ID PRIVY_APP_CLIENT_ID PRIVY_AUTH_ID \
     PRIVY_SMS_LOGIN_ENABLED PRIVY_EMAIL_LOGIN_ENABLED PRIVY_AUTHORIZATION_KEY_ID
 
-  PRIVY_APP_ID="$(cd "$ROOT" && dotenvx get PRIVY_APP_ID -f .env.local 2>/dev/null || true)"
-  PRIVY_APP_CLIENT_ID="$(cd "$ROOT" && dotenvx get PRIVY_APP_CLIENT_ID -f .env.local 2>/dev/null || true)"
-  PRIVY_AUTH_ID="$(cd "$ROOT" && dotenvx get PRIVY_AUTH_ID -f .env.local 2>/dev/null || true)"
-  PRIVY_SMS_LOGIN_ENABLED="$(cd "$ROOT" && dotenvx get PRIVY_SMS_LOGIN_ENABLED -f .env.local 2>/dev/null || true)"
-  PRIVY_EMAIL_LOGIN_ENABLED="$(cd "$ROOT" && dotenvx get PRIVY_EMAIL_LOGIN_ENABLED -f .env.local 2>/dev/null || true)"
-  PRIVY_AUTHORIZATION_KEY_ID="$(cd "$ROOT" && dotenvx get PRIVY_AUTHORIZATION_KEY_ID -f .env.local 2>/dev/null || true)"
+  PRIVY_APP_ID="$(dotenvx_get PRIVY_APP_ID)"
+  PRIVY_APP_CLIENT_ID="$(dotenvx_get PRIVY_APP_CLIENT_ID)"
+  PRIVY_AUTH_ID="$(dotenvx_get PRIVY_AUTH_ID)"
+  PRIVY_SMS_LOGIN_ENABLED="$(dotenvx_get PRIVY_SMS_LOGIN_ENABLED)"
+  PRIVY_EMAIL_LOGIN_ENABLED="$(dotenvx_get PRIVY_EMAIL_LOGIN_ENABLED)"
+  PRIVY_AUTHORIZATION_KEY_ID="$(dotenvx_get PRIVY_AUTHORIZATION_KEY_ID)"
   PRIVY_SMS_LOGIN_ENABLED="${PRIVY_SMS_LOGIN_ENABLED:-true}"
   PRIVY_EMAIL_LOGIN_ENABLED="${PRIVY_EMAIL_LOGIN_ENABLED:-true}"
 }
@@ -101,7 +140,7 @@ EOF
 # refuses anything else in Release, so fail here instead of at launch on a tester's phone.
 remote_api_base_url() {
   local key="$1" value
-  value="$(cd "$ROOT" && dotenvx get "$key" -f .env.local 2>/dev/null || true)"
+  value="$(dotenvx_get "$key")"
   if [[ -n "$value" && "$value" != https://?* ]]; then
     echo "error: $key must be an https:// URL (got: $value)" >&2
     exit 1
@@ -111,6 +150,7 @@ remote_api_base_url() {
 
 # xcconfig reads `//` as the start of a comment; `/$()/` expands back to `//`.
 xcconfig_escape_url() {
+  # shellcheck disable=SC2016 # single quotes keep $() literal for xcconfig
   local slashes='//' escaped='/$()/'
   printf '%s' "${1//$slashes/$escaped}"
 }
