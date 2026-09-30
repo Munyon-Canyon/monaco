@@ -35,6 +35,8 @@ var (
 	shebangRE  = regexp.MustCompile(`^#!(/usr/bin/env\s+|\S*/)(ba|z)?sh\b`)
 )
 
+const toolManifestTestGlobs = "scripts/*.sh\nscripts/*/*.sh\nJustfile\n.github/workflows/*.yml"
+
 type checkRow struct {
 	label string
 	kind  string
@@ -434,7 +436,7 @@ func (env *Env) affectedTests(changed []string) (goTests map[string][]string, py
 		}
 		body, _ := fs.ReadFile(scripts, p)
 		if !slices.ContainsFunc(changed, func(f string) bool {
-			return f == "scripts/"+p || bytes.Contains(body, []byte(`"`+path.Base(f)+`"`))
+			return f == "scripts/"+p || bytes.Contains(body, []byte(`"`+path.Base(f)+`"`)) || scannedGlobHit(p, f)
 		}) {
 			return nil
 		}
@@ -448,6 +450,18 @@ func (env *Env) affectedTests(changed []string) (goTests map[string][]string, py
 		return nil
 	})
 	return goTests, pyTests
+}
+
+func scannedGlobHit(testFile, changed string) bool {
+	globs := map[string][]string{
+		"tool_manifest_test.go": strings.Split(toolManifestTestGlobs, "\n"),
+	}
+	for _, glob := range globs[path.Base(testFile)] {
+		if ok, err := path.Match(glob, changed); err == nil && ok {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *checkRun) rows(ctx context.Context, rows []checkRow, stdout io.Writer) error {
