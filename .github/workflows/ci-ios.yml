@@ -23,9 +23,14 @@ jobs:
       - name: Select Xcode
         run: scripts/ci/select-xcode.sh
 
+      - name: Install the pinned xcsift
+        run: scripts/install-xcsift.sh
+
       - name: Compile MonacoAPI and its tests on Darwin (the app does not link it)
         working-directory: packages/mobile-core
-        run: swift build --target MonacoAPITests
+        shell: bash
+        # swift build --target prints no success line xcsift knows, so pipefail carries the exit code.
+        run: swift build --target MonacoAPITests 2>&1 | ../../.bin/xcsift
 
       - name: Cache Swift packages
         uses: actions/cache@v4
@@ -53,12 +58,13 @@ jobs:
       # fat binary. COMPILER_INDEX_STORE_ENABLE=NO skips indexing PR CI never reads. The two
       # -skip flags drop plugin/macro re-validation once packages are already resolved.
       - name: Build app and tests
+        shell: bash
         run: |
           xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
             -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
             -skipMacroValidation -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO \
-            -quiet build-for-testing
+            build-for-testing 2>&1 | .bin/xcsift --exit-on-failure
 
       # -parallel-testing-enabled YES was tried and reverted: it clones the simulator and runs
       # workers side by side, and on a shared macOS runner (a handful of vCPUs) that starved
@@ -69,12 +75,13 @@ jobs:
       # the tests. Sequential (the default) is both correct and, per the measurements in
       # docs/architecture/ci.md, not the bottleneck.
       - name: Run MonacoTests
+        shell: bash
         run: |
           xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
             -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
             -resultBundlePath "$RUNNER_TEMP/MonacoTests.xcresult" \
             CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO \
-            -only-testing:MonacoTests test-without-building
+            -only-testing:MonacoTests test-without-building 2>&1 | .bin/xcsift --exit-on-failure
 
       - name: Upload test results
         if: failure()

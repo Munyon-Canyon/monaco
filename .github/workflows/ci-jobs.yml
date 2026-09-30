@@ -273,6 +273,7 @@ jobs:
             mobile-core:
               - 'packages/mobile-core/**'
               - 'apps/backend/api/openapi.yaml'
+              - 'scripts/install-xcsift.sh'
               - '.github/workflows/ci-mobile-core.yml'
             web:
               - 'apps/web/**'
@@ -293,6 +294,7 @@ jobs:
               - 'scripts/ensure-ios-privy-config.sh'
               - 'scripts/resolve-ios-sim.sh'
               - 'scripts/ci/select-xcode.sh'
+              - 'scripts/install-xcsift.sh'
               - 'scripts/qa/screens.sh'
               - 'scripts/qa/sample-screens.txt'
               - '.github/workflows/ci-ios.yml'

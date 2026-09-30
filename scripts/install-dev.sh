@@ -38,7 +38,7 @@ ask_yes() {
 have() { command -v "$1" >/dev/null 2>&1; }
 
 dev_tools=(
-  awk basename bc benchstat brew caffeinate cat chmod cp curl cut date dirname
+  apt-get awk basename bc benchstat brew caffeinate cat chmod cp curl cut date dirname
   docker dotenvx du ffmpeg ffprobe find gh git go golangci-lint grep gt head id
   install jq just kill ln ls lsof magick mkdir mktemp npm oasdiff open pgrep
   pkill python3 rm sed seq sha256sum shasum simslim sleep sort swift sysctl tail
@@ -147,6 +147,16 @@ if [[ "$sqlc_have" != "$sqlc_want" ]]; then
   say "sqlc ${sqlc_want} is missing from .bin/sqlc (found: ${sqlc_have:-none}). It generates apps/backend query code from queries/."
   if ask_yes "Install sqlc ${sqlc_want} into .bin/?"; then
     ./scripts/install-sqlc.sh || missing_required=1
+  fi
+fi
+
+xcsift_want="$(sed -n 's/^version=//p' scripts/install-xcsift.sh)"
+xcsift_have="$(.bin/xcsift --version 2>/dev/null || true)"
+if [[ "$xcsift_have" != "$xcsift_want" ]]; then
+  missing_required=1
+  say "xcsift ${xcsift_want} is missing from .bin/xcsift (found: ${xcsift_have:-none}). CI pipes xcodebuild and swift output through it."
+  if ask_yes "Install xcsift ${xcsift_want} into .bin/?"; then
+    ./scripts/install-xcsift.sh || missing_required=1
   fi
 fi
 
