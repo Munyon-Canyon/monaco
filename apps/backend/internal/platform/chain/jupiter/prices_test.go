@@ -1,7 +1,9 @@
 package jupiter_test
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"math/big"
@@ -148,6 +150,40 @@ func TestPrices_oneFailedBatchFailsTheCall(t *testing.T) {
 	}
 	if _, err := client(u).Prices(t.Context(), mints); errs.CodeOf(err) != errs.CodeJupiterRejected {
 		t.Fatalf("err = %v, want jupiter_rejected", err)
+	}
+}
+
+func TestPrices_keepsTheBatchesThatAnsweredAndReturnsTheFailedBatchsCode(t *testing.T) {
+	t.Parallel()
+	first := fixtureBody(t, "v3.json")
+	u := &upstream{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Query().Get("ids"), fixtureMint(51).Address) {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		_, _ = w.Write([]byte(first))
+	})}
+	mints := make([]jupiter.Mint, 51)
+	for i := range mints {
+		mints[i] = fixtureMint(i + 1)
+	}
+	got, err := client(u).Prices(t.Context(), mints)
+	if errs.CodeOf(err) != errs.CodeJupiterUnavailable || attr(err, "failed_batches") != "1" {
+		t.Fatalf("err = %v, want jupiter_unavailable from one failed batch", err)
+	}
+	if _, ok := got[fixtureMint(51)]; ok || len(got) != 50 || got[fixtureMint(1)].USDMicros.Uint64() != 17_123_457 {
+		t.Fatalf("Prices kept %d prices, want the 50 of the batch that answered", len(got))
+	}
+}
+
+func TestPrices_cancelledCallAsksNothing(t *testing.T) {
+	t.Parallel()
+	u := replying(http.StatusOK, `{}`)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	got, err := client(u).Prices(ctx, []jupiter.Mint{fixtureMint(1)})
+	if !errors.Is(err, context.Canceled) || got != nil || len(u.requests()) != 0 {
+		t.Fatalf("Prices on a cancelled context = %v, %v after %d calls", got, err, len(u.requests()))
 	}
 }
 

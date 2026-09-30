@@ -3,6 +3,7 @@ package jupiter
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"maps"
 	"math/big"
@@ -32,17 +33,35 @@ const (
 	priceCalls    = 2
 )
 
+type batchAnswer struct {
+	prices map[Mint]Price
+	err    error
+}
+
 func (c *Client) Prices(ctx context.Context, mints []Mint) (map[Mint]Price, error) {
 	batches := slices.Collect(slices.Chunk(mints, pricesPerCall))
-	got, err := concurrency.FanOut(ctx, priceCalls, batches, c.priceBatch)
+	answers, err := concurrency.FanOut(ctx, priceCalls, batches, c.answerBatch)
 	if err != nil {
 		return nil, err
 	}
 	out := make(map[Mint]Price, len(mints))
-	for _, batch := range got {
-		maps.Copy(out, batch)
+	failed := make([]error, 0, len(answers))
+	for _, a := range answers {
+		maps.Copy(out, a.prices)
+		if a.err != nil {
+			failed = append(failed, a.err)
+		}
+	}
+	if len(failed) > 0 {
+		return out, errs.Wrap(errors.Join(failed...), errs.CodeOf(failed[0]), "jupiter.Prices",
+			slog.Int("failed_batches", len(failed)), slog.Int("batches", len(batches)))
 	}
 	return out, nil
+}
+
+func (c *Client) answerBatch(ctx context.Context, batch []Mint) (batchAnswer, error) {
+	prices, err := c.priceBatch(ctx, batch)
+	return batchAnswer{prices: prices, err: err}, nil
 }
 
 func (c *Client) priceBatch(ctx context.Context, batch []Mint) (map[Mint]Price, error) {

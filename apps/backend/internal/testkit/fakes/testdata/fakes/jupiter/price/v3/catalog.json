@@ -1,0 +1,20 @@
+{
+  "status": 200,
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp": {
+      "usdPrice": 254.371234,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": 0.41
+    },
+    "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB": {
+      "usdPrice": 436.1205,
+      "blockId": 348004023,
+      "decimals": 8,
+      "priceChange24h": -1.2
+    }
+  }
+}
