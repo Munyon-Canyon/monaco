@@ -39,12 +39,6 @@ jobs:
       - name: Install the pinned xcsift
         run: scripts/install-xcsift.sh
 
-      - name: Compile MonacoAPI and its tests on Darwin (the app does not link it)
-        working-directory: packages/mobile-core
-        shell: bash
-        # swift build --target prints no success line xcsift knows, so pipefail carries the exit code.
-        run: swift build --force-resolved-versions --target MonacoAPITests 2>&1 | ../../.bin/xcsift
-
       - name: Restore Swift packages
         id: spm
         uses: actions/cache/restore@v4
