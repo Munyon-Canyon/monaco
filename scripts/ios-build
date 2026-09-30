@@ -12,9 +12,11 @@ udid="$(./scripts/resolve-ios-sim.sh)"
 # build (CODE_SIGNING_ALLOWED=NO) can't hold a keychain-access-group entitlement, so the
 # Privy session is silently dropped on every relaunch or reinstall. Automatic signing needs
 # the team's own certificate, which not every contributor's machine has; "-" self-signs
-# locally without one.
+# locally without one. -skipPackagePluginValidation runs MonacoAPI's OpenAPI generator
+# without the one-time "Trust & Enable" click Xcode asks for per machine.
 xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco \
   -destination "platform=iOS Simulator,id=${udid}" \
   -configuration Debug \
+  -skipPackagePluginValidation \
   CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=YES \
   build

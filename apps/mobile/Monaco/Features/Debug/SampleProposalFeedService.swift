@@ -1,5 +1,6 @@
 #if DEBUG
 import Foundation
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 

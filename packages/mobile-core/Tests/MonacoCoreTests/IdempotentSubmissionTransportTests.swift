@@ -2,9 +2,10 @@ import XCTest
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+import MonacoAPI
 @testable import MonacoCore
 
-final class IdempotentSubmissionTests: XCTestCase {
+final class IdempotentSubmissionTransportTests: XCTestCase {
     private let fundResponse = #"{"depositId":"dep-1","groupId":"g1","amount":5000000,"status":"pending","fromAddress":"Wallet111"}"#
     private let withdrawalResponse = #"{"withdrawalId":"w-1","amount":5000000,"toAddress":"Dest111","status":"pending","createdAt":"2026-01-01T00:00:00Z"}"#
 
@@ -287,19 +288,6 @@ final class IdempotentSubmissionTests: XCTestCase {
 
         submission.record(response: Self.response(for: request, status: 400), forKey: "key-1")
         XCTAssertEqual(submission.key(for: request), "key-2")
-    }
-
-    func testLateAnswerForSupersededKeyDoesNotDropCurrentKey() throws {
-        let counter = KeyCounter()
-        let submission = IdempotentSubmission(makeKey: { counter.next() })
-        let first = Self.request(path: "/v1/groups/g1/fund", body: #"{"amount":1}"#)
-        let second = Self.request(path: "/v1/groups/g1/fund", body: #"{"amount":2}"#)
-
-        XCTAssertEqual(submission.key(for: first), "key-1")
-        XCTAssertEqual(submission.key(for: second), "key-2")
-        submission.record(response: Self.response(for: first, status: 200), forKey: "key-1")
-
-        XCTAssertEqual(submission.key(for: second), "key-2")
     }
 
     /// `hasPendingKey` is what the money screens are asked to gate an edit on, so its two

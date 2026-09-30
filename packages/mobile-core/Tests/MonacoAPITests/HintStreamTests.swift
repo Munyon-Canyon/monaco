@@ -1,5 +1,6 @@
 import Foundation
 @testable import MonacoAPI
+import MonacoTestSupport
 import XCTest
 
 final class HintStreamTests: XCTestCase {

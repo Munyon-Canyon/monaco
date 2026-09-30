@@ -2,75 +2,25 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+import MonacoAPI
 
-/// The `Idempotency-Key` for one money action the user confirmed.
-///
-/// The backend runs a money POST at most once per key, so the key has to mean "this
-/// submission": it is minted when the request is first sent, reused for every retry while
-/// the outcome is unknown (timeout, dropped connection, 5xx, the first attempt still
-/// running), and dropped once the server gives a final answer. A changed payload is a new
-/// submission and gets a new key.
-///
-/// Screens own one instance per money action (SwiftUI `@State`) and hand it to the API
-/// client, which does the bookkeeping. API clients are created ad hoc, so the key cannot
-/// live in them.
-public final class IdempotentSubmission: @unchecked Sendable {
-    public static let keyHeader = "Idempotency-Key"
+extension IdempotentSubmission {
     /// Set by the backend on responses it did not produce by running the request.
     public static let statusHeader = "Idempotency-Status"
     /// `statusHeader` value on the 409 sent while the first attempt is still running.
     public static let inProgressStatus = "in_progress"
 
-    private let lock = NSLock()
-    private let makeKey: @Sendable () -> String
-    private var key: String?
-    private var fingerprint: Data?
-
-    /// - Parameter makeKey: key source, replaced in tests for deterministic keys.
-    public init(makeKey: @escaping @Sendable () -> String = { UUID().uuidString.lowercased() }) {
-        self.makeKey = makeKey
-    }
-
-    /// True while a submission is waiting for a final answer. A retry of the same payload
-    /// is a replay the backend has already seen; a changed payload is a second submission,
-    /// so a screen should say so before it lets the member edit the amount.
-    ///
-    /// This is a snapshot taken under the lock, not a reservation. The key is minted inside
-    /// the send, so it reads false between the member's tap and the request being built: a
-    /// screen that gates an edit on it must read it on the same actor that owns the
-    /// submission (the `@MainActor` screen that drives the send), or it can observe the gap
-    /// and let the edit through while a send is starting.
-    public var hasPendingKey: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return key != nil
-    }
-
     /// The key to send with `request`: the pending one when `request` repeats the pending
     /// submission (same method, URL and body), a fresh one otherwise.
     public func key(for request: URLRequest) -> String {
-        let requestFingerprint = Self.fingerprint(of: request)
-        lock.lock()
-        defer { lock.unlock() }
-        if let key, fingerprint == requestFingerprint {
-            return key
-        }
-        let fresh = makeKey()
-        key = fresh
-        fingerprint = requestFingerprint
-        return fresh
+        key(fingerprint: Self.fingerprint(of: request))
     }
 
-    /// Records the server's answer to a request sent under `key`. Anything that is not a
-    /// final answer keeps the key so the next attempt is recognised as a retry. A failed
-    /// send (no response at all) needs no call: the key simply stays pending.
+    /// Records the server's answer to a request sent under `key`. A failed send (no
+    /// response at all) needs no call: the key simply stays pending.
     public func record(response: URLResponse, forKey sentKey: String) {
-        guard let http = response as? HTTPURLResponse, Self.isFinal(http) else { return }
-        lock.lock()
-        defer { lock.unlock() }
-        guard key == sentKey else { return }
-        key = nil
-        fingerprint = nil
+        guard let http = response as? HTTPURLResponse else { return }
+        record(final: Self.isFinal(http), forKey: sentKey)
     }
 
     /// 2xx and 4xx are the request's result. 5xx is never stored by the backend, 401 and 429

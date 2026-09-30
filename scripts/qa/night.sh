@@ -174,7 +174,7 @@ prepare_sim() {
 
 xcode_test() { # extra xcodebuild args...
   "$lock" xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
-    -destination "platform=iOS Simulator,id=$sim" -derivedDataPath "$derived" \
+    -destination "platform=iOS Simulator,id=$sim" -derivedDataPath "$derived" -skipPackagePluginValidation \
     CODE_SIGNING_ALLOWED=NO "$@"
 }
 
@@ -200,7 +200,7 @@ run_ui_class() { # round class
     kill -INT "$rec" 2>/dev/null; wait "$rec" 2>/dev/null
     # Retry only when the runner died (memory pressure), not on a real assertion failure.
     grep -qE 'signal kill|Test crashed|failed to launch|Lost connection' \
-      "$out"/r${round}-ui-${class}*.log 2>/dev/null || return 1
+      "$out"/r"${round}"-ui-"${class}"*.log 2>/dev/null || return 1
     log "runner crashed during $class; re-slimming and retrying once"
     prepare_sim
   done

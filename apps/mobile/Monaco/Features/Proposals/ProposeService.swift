@@ -1,4 +1,5 @@
 import Foundation
+import MonacoAPI
 import MonacoCore
 
 /// A stock the propose flow can show: catalog search rows carry no price, popular rows do.

@@ -108,7 +108,11 @@ public actor HintStream: HintSource {
     }
 
     private func connect(_ bearer: String?) async throws -> Duration {
-        let client = Client.monaco(serverURL: serverURL, accessToken: { bearer }, transport: transport)
+        let client = Client(
+            serverURL: serverURL,
+            transport: transport,
+            middlewares: [HeadersMiddleware(accessToken: { bearer }), ProblemMiddleware()]
+        )
         let body = try await client.getStream(headers: .init(lastEventID: lastEventID)).ok.body.textEventStream
         guard !Task.isCancelled else { return .zero }
         let connectedAt = timer.elapsed()

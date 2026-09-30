@@ -1,5 +1,5 @@
 import Foundation
-import MonacoAPI
+@testable import MonacoAPI
 import OpenAPIRuntime
 import OpenAPIURLSession
 import XCTest
@@ -25,7 +25,11 @@ final class HintStreamIntegrationTests: XCTestCase {
         defer { Task { await stream.stop() } }
         _ = await hints.first(1)
 
-        let client = Client.monaco(serverURL: serverURL, accessToken: { token })
+        let client = Client(
+            serverURL: serverURL,
+            transport: URLSessionTransport(),
+            middlewares: [HeadersMiddleware(accessToken: { token }), ProblemMiddleware()]
+        )
         let started = ContinuousClock.now
         _ = try await client.postSystemPing(
             headers: .init(idempotencyKey: UUID().uuidString),
