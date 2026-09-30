@@ -36,6 +36,7 @@ type timing struct {
 
 type report struct {
 	tests, packages []timing
+	failed          []string
 	run             time.Duration
 }
 
@@ -76,14 +77,21 @@ func testReportCmd(args []string, stdout, stderr io.Writer) int {
 		prefix = "::warning::"
 	}
 	rep.write(stdout, b)
-	for _, w := range rep.warnings(b) {
+	return rep.gate(b, prefix, stdout, stderr)
+}
+
+func (r report) gate(b budget, prefix string, stdout, stderr io.Writer) int {
+	for _, w := range r.warnings(b) {
 		_, _ = fmt.Fprintf(stdout, "%smonacoctl test-report: %s\n", prefix, w)
 	}
-	over := rep.overBudget(b)
+	over := r.overBudget(b)
 	for _, o := range over {
 		_, _ = fmt.Fprintf(stderr, "monacoctl test-report: %s\n", o)
 	}
-	if len(over) > 0 {
+	for _, name := range r.failed {
+		_, _ = fmt.Fprintf(stderr, "failed: %s\n", name)
+	}
+	if len(over) > 0 || len(r.failed) > 0 {
 		return 1
 	}
 	return 0
@@ -127,6 +135,9 @@ func readReport(r io.Reader, start time.Time) (report, error) {
 
 func (r *report) add(ev reportEvent) {
 	t, ok := ev.timing()
+	if ev.Action == "fail" && !slices.Contains(r.failed, t.name) {
+		r.failed = append(r.failed, t.name)
+	}
 	switch {
 	case !ok || strings.Contains(ev.Test, "/"):
 	case ev.Test == "":
