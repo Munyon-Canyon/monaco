@@ -30,9 +30,8 @@ func TestLedger_aCanceledContextStopsEveryWriteAtItsFirstStatement(t *testing.T)
 			cancel()
 			return write(ctx, tx)
 		})
-		if errs.CodeOf(err) != errs.CodeDBUnavailable {
-			t.Fatalf("%s = %v, want db_unavailable", name, err)
-		}
+		t.Logf("%s: %v", name, err)
+		wantCode(t, err, errs.CodeDBUnavailable)
 	}
 }
 
@@ -47,13 +46,9 @@ func TestLedger_theDatabaseRefusesDuplicateHeaders(t *testing.T) {
 	if err := f.postPair(u, c); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.postCabal(c); errs.CodeOf(err) != errs.CodeInternal {
-		t.Fatalf("duplicate cabal header = %v, want internal", err)
-	}
+	wantCode(t, f.postCabal(c), errs.CodeInternal)
 	err = f.do(func(ctx context.Context, tx db.Tx) error { return f.ledger.PostUserTxn(ctx, tx, u) })
-	if errs.CodeOf(err) != errs.CodeInternal {
-		t.Fatalf("duplicate user header = %v, want internal", err)
-	}
+	wantCode(t, err, errs.CodeInternal)
 	if drift := f.drift(t); len(drift) != 0 || f.count(t, "user_txns") != 1 || f.count(t, "cabal_txns") != 1 {
 		t.Fatalf("drift %q; want only the first fund pair stored", drift)
 	}
@@ -78,9 +73,7 @@ func TestLedger_theDatabaseRefusesUnknownAccountsAndShareOverdrafts(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := f.postCabal(bogus); errs.CodeOf(err) != errs.CodeInternal {
-		t.Fatalf("unknown cabal account = %v, want internal", err)
-	}
+	wantCode(t, f.postCabal(bogus), errs.CodeInternal)
 	deposit := domain.UserTxnHeader{
 		ID: f.ids.NewV7(), UserID: user, Kind: domain.UserDeposit, Status: domain.TxnSettled,
 	}
@@ -92,16 +85,12 @@ func TestLedger_theDatabaseRefusesUnknownAccountsAndShareOverdrafts(t *testing.T
 		t.Fatal(err)
 	}
 	err = f.do(func(ctx context.Context, tx db.Tx) error { return f.ledger.PostUserTxn(ctx, tx, strange) })
-	if errs.CodeOf(err) != errs.CodeInternal {
-		t.Fatalf("unknown user account = %v, want internal", err)
-	}
+	wantCode(t, err, errs.CodeInternal)
 	out, back, err := f.cashOut(user, cabal, 1, 11, domain.TxnSettled)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := f.postPair(out, back); errs.CodeOf(err) != errs.CodeInternal {
-		t.Fatalf("cashing out more shares than held = %v, want internal", err)
-	}
+	wantCode(t, f.postPair(out, back), errs.CodeInternal)
 	if drift := f.drift(t); len(drift) != 0 || f.count(t, "user_txns") != 1 || f.count(t, "cabal_txns") != 1 {
 		t.Fatalf("drift %q; want only the first fund pair stored", drift)
 	}

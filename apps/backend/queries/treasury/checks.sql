@@ -29,6 +29,30 @@ FROM sums s FULL JOIN cabal_positions p ON p.cabal_id = s.cabal_id AND p.asset =
 WHERE coalesce(s.units, 0) <> coalesce(p.units, 0)
 ORDER BY 1, 2;
 
+-- name: CabalCosts :many
+WITH legs AS (
+  SELECT t.cabal_id, t.id AS txn_id, t.created_at, e.asset, sum(e.amount) AS units
+  FROM cabal_txn_entries e JOIN cabal_txns t ON t.id = e.txn_id
+  WHERE e.account = 'treasury'
+  GROUP BY t.cabal_id, t.id, t.created_at, e.asset
+  HAVING sum(e.amount) <> 0
+), costs AS (
+  SELECT l.cabal_id, l.asset, l.created_at, l.txn_id, false AS stored, l.units::text AS units,
+    (CASE
+      WHEN l.units < 0 THEN 0
+      WHEN l.asset = sqlc.arg(usdc)::text THEN l.units
+      ELSE coalesce(-(sum(l.units) FILTER (WHERE l.asset = sqlc.arg(usdc)::text AND l.units < 0)
+        OVER (PARTITION BY l.txn_id)), 0)
+    END)::text AS cost
+  FROM legs l
+  UNION ALL
+  SELECT p.cabal_id, p.asset, NULL::timestamptz, NULL::uuid, true, '0', p.cost_basis_micros::text
+  FROM cabal_positions p
+)
+SELECT cabal_id::text AS cabal_id, asset, stored, units, cost
+FROM costs
+ORDER BY cabal_id, asset, created_at, txn_id;
+
 -- name: UserPositionDrift :many
 WITH sums AS (
   SELECT t.user_id, t.cabal_id,

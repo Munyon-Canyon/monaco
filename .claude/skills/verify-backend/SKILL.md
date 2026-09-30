@@ -40,7 +40,7 @@ Per run:
 
 - **No dead letters.** The dead-letter stream is empty.
 - **No internal errors.** No log line carries an internal-kind `errs` code.
-- **Ledger checks.** `verify.LedgerChecks` is empty until the first money flow lands. It adds balance invariants.
+- **Ledger checks.** `verify.LedgerChecks` holds the treasury ledger check. It asserts that every header sums to zero per asset, that both headers of a transfer share a status, and that the cabal and user positions, cost basis included, equal their entries. The balance comparison with the money events joins it when the first money event registers a balance rule.
 
 ## Budgets
 

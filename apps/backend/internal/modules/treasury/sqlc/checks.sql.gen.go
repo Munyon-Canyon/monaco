@@ -9,6 +9,65 @@ import (
 	"context"
 )
 
+const cabalCosts = `-- name: CabalCosts :many
+WITH legs AS (
+  SELECT t.cabal_id, t.id AS txn_id, t.created_at, e.asset, sum(e.amount) AS units
+  FROM cabal_txn_entries e JOIN cabal_txns t ON t.id = e.txn_id
+  WHERE e.account = 'treasury'
+  GROUP BY t.cabal_id, t.id, t.created_at, e.asset
+  HAVING sum(e.amount) <> 0
+), costs AS (
+  SELECT l.cabal_id, l.asset, l.created_at, l.txn_id, false AS stored, l.units::text AS units,
+    (CASE
+      WHEN l.units < 0 THEN 0
+      WHEN l.asset = $1::text THEN l.units
+      ELSE coalesce(-(sum(l.units) FILTER (WHERE l.asset = $1::text AND l.units < 0)
+        OVER (PARTITION BY l.txn_id)), 0)
+    END)::text AS cost
+  FROM legs l
+  UNION ALL
+  SELECT p.cabal_id, p.asset, NULL::timestamptz, NULL::uuid, true, '0', p.cost_basis_micros::text
+  FROM cabal_positions p
+)
+SELECT cabal_id::text AS cabal_id, asset, stored, units, cost
+FROM costs
+ORDER BY cabal_id, asset, created_at, txn_id
+`
+
+type CabalCostsRow struct {
+	CabalID string
+	Asset   string
+	Stored  bool
+	Units   string
+	Cost    string
+}
+
+func (q *Queries) CabalCosts(ctx context.Context, usdc string) ([]CabalCostsRow, error) {
+	rows, err := q.db.Query(ctx, cabalCosts, usdc)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabalCostsRow
+	for rows.Next() {
+		var i CabalCostsRow
+		if err := rows.Scan(
+			&i.CabalID,
+			&i.Asset,
+			&i.Stored,
+			&i.Units,
+			&i.Cost,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const cabalPositionDrift = `-- name: CabalPositionDrift :many
 WITH sums AS (
   SELECT t.cabal_id, e.asset, sum(e.amount) AS units

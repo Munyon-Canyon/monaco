@@ -54,7 +54,8 @@ func TestLedgerProperty_everyAcceptedHeaderSumsToZeroPerAsset(t *testing.T) {
 		txn, err := domain.NewCabalTxn(domain.CabalTxnHeader{Kind: domain.CabalSwap}, entries)
 		switch {
 		case !zeroPerAsset(entries):
-			if code := errs.CodeOf(err); code != errs.CodeLedgerUnbalanced && code != errs.CodeInvalidInput {
+			code := errs.CodeOf(err)
+			if err == nil || (code != errs.CodeLedgerUnbalanced && code != errs.CodeInvalidInput) {
 				t.Fatalf("unbalanced header = %v, want ledger_unbalanced", err)
 			}
 		case err != nil:

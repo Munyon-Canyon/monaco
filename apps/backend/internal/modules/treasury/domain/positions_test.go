@@ -67,16 +67,14 @@ func TestPositionDeltas_skipsANetZeroAssetAndRejectsWhatItCannotCost(t *testing.
 		leg(domain.CabalTreasury, aapl, 1), leg(domain.CabalVenue, aapl, -1),
 		leg(domain.CabalTreasury, tsla, 1), leg(domain.CabalVenue, tsla, -1),
 	)
-	if _, err := two.PositionDeltas(usdc); errs.CodeOf(err) != errs.CodeInvalidInput {
-		t.Fatalf("two buys for one payment = %v, want invalid_input", err)
-	}
+	_, err := two.PositionDeltas(usdc)
+	wantCode(t, err, errs.CodeInvalidInput)
 	huge := cabalTxn(t,
 		leg(domain.CabalTreasury, aapl, math.MaxInt64), leg(domain.CabalTreasury, aapl, 1),
 		leg(domain.CabalVenue, aapl, math.MinInt64),
 	)
-	if _, err := huge.PositionDeltas(usdc); errs.CodeOf(err) != errs.CodeInvalidInput {
-		t.Fatalf("overflowing deltas = %v, want invalid_input", err)
-	}
+	_, err = huge.PositionDeltas(usdc)
+	wantCode(t, err, errs.CodeInvalidInput)
 }
 
 func TestUserPositionDelta_countsSharesContributionsAndWithdrawals(t *testing.T) {
@@ -109,7 +107,32 @@ func TestUserPositionDelta_countsSharesContributionsAndWithdrawals(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := huge.PositionDelta(); errs.CodeOf(err) != errs.CodeInvalidInput {
-		t.Fatalf("overflowing shares = %v, want invalid_input", err)
+	_, err = huge.PositionDelta()
+	wantCode(t, err, errs.CodeInvalidInput)
+}
+
+func TestUserPositionDelta_refusesContributionsAndWithdrawalsPastUint64(t *testing.T) {
+	t.Parallel()
+	cabal := cabalID(t, 6)
+	legs := func(dir int64) []domain.UserEntry {
+		out := make([]domain.UserEntry, 0, 8)
+		for range 4 {
+			out = append(out,
+				domain.UserEntry{Account: domain.UserCabal, Asset: usdc, Amount: amount(dir * (1 << 62))},
+				domain.UserEntry{Account: domain.UserWallet, Asset: usdc, Amount: amount(-dir * (1 << 62))},
+			)
+		}
+		return out
+	}
+	for name, sign := range map[string]int64{"contributed": 1, "withdrawn": -1} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			txn, err := domain.NewUserTxn(domain.UserTxnHeader{CabalID: cabal, Kind: domain.UserFund}, legs(sign))
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = txn.PositionDelta()
+			wantCode(t, err, errs.CodeInvalidInput)
+		})
 	}
 }

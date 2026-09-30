@@ -54,9 +54,7 @@ func TestSharesUnitsEncodeLikeMicros(t *testing.T) {
 	if err := json.Unmarshal(raw, &back); err != nil || back != in {
 		t.Fatalf("round trip = %+v, %v", back, err)
 	}
-	if err := json.Unmarshal([]byte(`{"shares":"-1"}`), &back); errs.CodeOf(err) != errs.CodeInvalidInput {
-		t.Fatalf("Unmarshal(-1) = %v, want invalid_input", err)
-	}
+	wantCode(t, json.Unmarshal([]byte(`{"shares":"-1"}`), &back), errs.CodeInvalidInput)
 }
 
 func TestSharesUnitsSQLMatchesMicros(t *testing.T) {
