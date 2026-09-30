@@ -91,6 +91,17 @@ func (q *Queries) InsertProposal(ctx context.Context, arg InsertProposalParams) 
 	return result.RowsAffected(), nil
 }
 
+const statusByID = `-- name: StatusByID :one
+SELECT status FROM proposals WHERE id = $1
+`
+
+func (q *Queries) StatusByID(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, statusByID, id)
+	var status string
+	err := row.Scan(&status)
+	return status, err
+}
+
 const transition = `-- name: Transition :execrows
 UPDATE proposals
 SET status = $1::text,

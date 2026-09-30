@@ -3,6 +3,7 @@ package events
 import (
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -35,8 +36,10 @@ func mustPanic(t *testing.T, want string, fn func()) {
 func TestSubjects(t *testing.T) {
 	t.Parallel()
 	want := []string{
-		"events.system.pinged", "events.trade.blocked", "events.trade.confirmed", "events.trade.failed",
-		"events.trade.submitted",
+		"events.proposal.created", "events.proposal.executed", "events.proposal.execution_blocked",
+		"events.proposal.expired", "events.proposal.failed", "events.proposal.passed", "events.proposal.voided",
+		"events.proposal.withdrawn", "events.system.pinged", "events.trade.blocked", "events.trade.confirmed",
+		"events.trade.failed", "events.trade.submitted",
 	}
 	if got := Subjects(); !slices.Equal(got, want) {
 		t.Fatalf("Subjects() = %q, want %q", got, want)
@@ -127,15 +130,17 @@ func TestCatalog(t *testing.T) {
 		types = append(types, e.Type)
 	}
 	if want := []Type{
+		TypeProposalCreated, TypeProposalExecuted, TypeProposalExecutionBlocked, TypeProposalExpired,
+		TypeProposalFailed, TypeProposalPassed, TypeProposalVoided, TypeProposalWithdrawn,
 		TypeSystemPinged, TypeTradeBlocked, TypeTradeConfirmed, TypeTradeFailed, TypeTradeSubmitted,
 	}; !slices.Equal(types, want) {
 		t.Fatalf("Catalog() types = %q, want %q", types, want)
 	}
-	e := got[0]
+	e := got[slices.Index(types, TypeSystemPinged)]
 	want := []Field{{"v", "int"}, {"ping_id", "uuid.UUID"}, {"user_id", "uuid.UUID"}, {"note", "string"}}
 	if e.Type != TypeSystemPinged || e.Subject != "events.system.pinged" || e.Version != 1 ||
 		!slices.Equal(e.Fields, want) {
-		t.Fatalf("Catalog()[0] = %+v", e)
+		t.Fatalf("Catalog() system.pinged = %+v", e)
 	}
 }
 
@@ -176,6 +181,29 @@ func TestTradeEventAggregates(t *testing.T) {
 		if tc.ev.Type() != tc.typ || tc.ev.AggregateType() != tc.aggType || tc.ev.AggregateID() != tc.aggregID {
 			t.Errorf("%T aggregate = %s %s %s, want %s %s %s", tc.ev, tc.ev.Type(), tc.ev.AggregateType(),
 				tc.ev.AggregateID(), tc.typ, tc.aggType, tc.aggregID)
+		}
+	}
+}
+
+func TestProposalEventsAggregateOnTheProposal(t *testing.T) {
+	t.Parallel()
+	id, err := uuid.Parse("01890a5d-ac96-774b-bcce-b302099a8060")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range []Event{
+		ProposalCreated{ProposalID: id},
+		ProposalPassed{ProposalID: id},
+		ProposalFailed{ProposalID: id},
+		ProposalExpired{ProposalID: id},
+		ProposalWithdrawn{ProposalID: id},
+		ProposalVoided{ProposalID: id},
+		ProposalExecuted{ProposalID: id},
+		ProposalExecutionBlocked{ProposalID: id},
+	} {
+		if ev.AggregateType() != "proposal" || ev.AggregateID() != id ||
+			!strings.HasPrefix(string(ev.Type()), "proposal.") {
+			t.Errorf("%T aggregate = %s %s %s", ev, ev.Type(), ev.AggregateType(), ev.AggregateID())
 		}
 	}
 }

@@ -73,6 +73,17 @@ const (
 	CodeSwapFailed       Code = "swap_failed"
 )
 
+const (
+	CodeProposalNotFound   Code = "proposal_not_found"
+	CodeProposalClosed     Code = "proposal_closed"
+	CodeNotAVoter          Code = "not_a_voter"
+	CodeNotProposer        Code = "not_proposer"
+	CodeWithdrawNotAllowed Code = "withdraw_not_allowed"
+	CodeLiveSwapExists     Code = "live_swap_exists"
+	CodePotExceeded        Code = "pot_exceeded"
+	CodeNotCabalMember     Code = "not_cabal_member"
+)
+
 type Row struct {
 	Name      string
 	Kind      Kind
@@ -81,8 +92,11 @@ type Row struct {
 	Message   string
 }
 
-func rowGroups() [5]func() map[Code]Row {
-	return [...]func() map[Code]Row{platformRows, identityRows, treasuryRows, marketRows, tradingRows}
+func rowGroups() [6]func() map[Code]Row {
+	return [...]func() map[Code]Row{
+		platformRows, identityRows, treasuryRows, marketRows,
+		tradingRows, governanceRows,
+	}
 }
 
 func table() map[Code]Row {
@@ -250,6 +264,34 @@ func tradingRows() map[Code]Row {
 			Message: "No route for this trade right now. Try a smaller amount.",
 		},
 		CodeSwapFailed: {Name: "SwapFailed", Kind: KindBlocked, Message: "The trade did not go through."},
+	}
+}
+
+func governanceRows() map[Code]Row {
+	return map[Code]Row{
+		CodeProposalNotFound: {Name: "ProposalNotFound", Kind: KindNotFound, Message: "That proposal was not found."},
+		CodeProposalClosed: {
+			Name: "ProposalClosed", Kind: KindBlocked, Message: "Voting on this proposal has closed.",
+		},
+		CodeNotAVoter: {
+			Name: "NotAVoter", Kind: KindForbidden,
+			Message: "Only members of the cabal when this proposal opened can vote on it.",
+		},
+		CodeNotProposer: {
+			Name: "NotProposer", Kind: KindForbidden,
+			Message: "Only the member who made this proposal can withdraw it.",
+		},
+		CodeWithdrawNotAllowed: {
+			Name: "WithdrawNotAllowed", Kind: KindBlocked,
+			Message: "This proposal can no longer be withdrawn.",
+		},
+		CodeLiveSwapExists: {
+			Name: "LiveSwapExists", Kind: KindBlocked, Message: "This proposal's trade is already underway.",
+		},
+		CodePotExceeded: {Name: "PotExceeded", Kind: KindBlocked, Message: "That amount is more than the cabal holds."},
+		CodeNotCabalMember: {
+			Name: "NotCabalMember", Kind: KindForbidden, Message: "Only members of this cabal can do that.",
+		},
 	}
 }
 

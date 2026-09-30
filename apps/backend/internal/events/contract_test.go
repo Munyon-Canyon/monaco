@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -19,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 const (
@@ -68,11 +70,44 @@ func fixtures(t *testing.T) map[events.Type]events.Event {
 	}
 }
 
+func proposalFixtures(t *testing.T) map[events.Type]events.Event {
+	t.Helper()
+	g := testkit.NewIDs(528)
+	proposal, cabal, proposer, swap := g.NewV7(), g.NewV7(), g.NewV7(), g.NewV7()
+	return map[events.Type]events.Event{
+		events.TypeProposalCreated: events.ProposalCreated{
+			V: 1, ProposalID: proposal, CabalID: cabal, ProposerID: proposer, Kind: "buy", Symbol: "AAPLx",
+			Mint: aaplxMint, USDCMicros: money.MicrosFromUint64(25_000_000), QuoteOutAmount: 105_000_000,
+			ExpiresAt: time.Date(2026, 3, 2, 12, 0, 0, 0, time.UTC), VoterCount: 3,
+		},
+		events.TypeProposalPassed: events.ProposalPassed{
+			V: 1, ProposalID: proposal, CabalID: cabal, Kind: "sell", Symbol: "AAPLx", Mint: aaplxMint,
+			TokenAmount: 300_000_000, QuoteOutAmount: 71_250_000, ProposerID: proposer,
+		},
+		events.TypeProposalFailed:  events.ProposalFailed{V: 1, ProposalID: proposal, CabalID: cabal},
+		events.TypeProposalExpired: events.ProposalExpired{V: 1, ProposalID: proposal, CabalID: cabal},
+		events.TypeProposalWithdrawn: events.ProposalWithdrawn{
+			V:          1,
+			ProposalID: proposal,
+			CabalID:    cabal,
+			ProposerID: proposer,
+		},
+		events.TypeProposalVoided: events.ProposalVoided{
+			V: 1, ProposalID: proposal, CabalID: cabal, ActorType: "admin", Reason: "Duplicate of another proposal.",
+		},
+		events.TypeProposalExecuted: events.ProposalExecuted{V: 1, ProposalID: proposal, CabalID: cabal, SwapID: swap},
+		events.TypeProposalExecutionBlocked: events.ProposalExecutionBlocked{
+			V: 1, ProposalID: proposal, CabalID: cabal, Code: errs.CodePotExceeded,
+		},
+	}
+}
+
 func goldenName(t events.Type, v int) string { return fmt.Sprintf("%s.v%d.json", t, v) }
 
 func TestGoldenPayloads(t *testing.T) {
 	t.Parallel()
 	fx := fixtures(t)
+	maps.Copy(fx, proposalFixtures(t))
 	for _, entry := range events.Catalog() {
 		ev, ok := fx[entry.Type]
 		if !ok {

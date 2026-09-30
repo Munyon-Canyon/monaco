@@ -15,6 +15,7 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 - `monacoctl market tradable <symbol> on|off|auto` sets or clears an asset's `tradable_override`, which wins over the issuer's flag until it is set back to `auto`.
 - The `trading` module.
 - The `governance` module.
+- The `proposal.*` events and the governance error codes.
 
 ## [checkpoint 4] - 2026-09-29
 

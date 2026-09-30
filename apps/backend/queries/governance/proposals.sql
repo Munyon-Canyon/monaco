@@ -35,3 +35,6 @@ SET status = @to_status::text,
   void_reason = CASE WHEN @to_status::text = 'voided' THEN sqlc.narg(reason)::text END,
   updated_at = @at::timestamptz
 WHERE id = @id AND status = @from_status::text;
+
+-- name: StatusByID :one
+SELECT status FROM proposals WHERE id = @id;

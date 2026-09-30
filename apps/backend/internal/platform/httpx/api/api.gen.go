@@ -47,14 +47,21 @@ const (
 	JupiterRejected         ErrorCode = "jupiter_rejected"
 	JupiterUnavailable      ErrorCode = "jupiter_unavailable"
 	LedgerUnbalanced        ErrorCode = "ledger_unbalanced"
+	LiveSwapExists          ErrorCode = "live_swap_exists"
 	LoginMethodNotAllowed   ErrorCode = "login_method_not_allowed"
 	NoRoute                 ErrorCode = "no_route"
+	NotAVoter               ErrorCode = "not_a_voter"
+	NotCabalMember          ErrorCode = "not_cabal_member"
 	NotFound                ErrorCode = "not_found"
+	NotProposer             ErrorCode = "not_proposer"
 	Panic                   ErrorCode = "panic"
 	PhoneNotLinked          ErrorCode = "phone_not_linked"
 	PhotoInvalid            ErrorCode = "photo_invalid"
+	PotExceeded             ErrorCode = "pot_exceeded"
 	PotValueZero            ErrorCode = "pot_value_zero"
 	PrivyUnavailable        ErrorCode = "privy_unavailable"
+	ProposalClosed          ErrorCode = "proposal_closed"
+	ProposalNotFound        ErrorCode = "proposal_not_found"
 	RateLimited             ErrorCode = "rate_limited"
 	RelayerUnderfunded      ErrorCode = "relayer_underfunded"
 	RpcUnavailable          ErrorCode = "rpc_unavailable"
@@ -69,6 +76,7 @@ const (
 	UserNotFound            ErrorCode = "user_not_found"
 	VersionConflict         ErrorCode = "version_conflict"
 	WalletMismatch          ErrorCode = "wallet_mismatch"
+	WithdrawNotAllowed      ErrorCode = "withdraw_not_allowed"
 	XNotLinked              ErrorCode = "x_not_linked"
 )
 
@@ -131,11 +139,19 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case LedgerUnbalanced:
 		return true
+	case LiveSwapExists:
+		return true
 	case LoginMethodNotAllowed:
 		return true
 	case NoRoute:
 		return true
+	case NotAVoter:
+		return true
+	case NotCabalMember:
+		return true
 	case NotFound:
+		return true
+	case NotProposer:
 		return true
 	case Panic:
 		return true
@@ -143,9 +159,15 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case PhotoInvalid:
 		return true
+	case PotExceeded:
+		return true
 	case PotValueZero:
 		return true
 	case PrivyUnavailable:
+		return true
+	case ProposalClosed:
+		return true
+	case ProposalNotFound:
 		return true
 	case RateLimited:
 		return true
@@ -174,6 +196,8 @@ func (e ErrorCode) Valid() bool {
 	case VersionConflict:
 		return true
 	case WalletMismatch:
+		return true
+	case WithdrawNotAllowed:
 		return true
 	case XNotLinked:
 		return true

@@ -262,14 +262,21 @@ components:
         - jupiter_rejected
         - jupiter_unavailable
         - ledger_unbalanced
+        - live_swap_exists
         - login_method_not_allowed
         - no_route
+        - not_a_voter
+        - not_cabal_member
         - not_found
+        - not_proposer
         - panic
         - phone_not_linked
         - photo_invalid
+        - pot_exceeded
         - pot_value_zero
         - privy_unavailable
+        - proposal_closed
+        - proposal_not_found
         - rate_limited
         - relayer_underfunded
         - rpc_unavailable
@@ -284,5 +291,6 @@ components:
         - user_not_found
         - version_conflict
         - wallet_mismatch
+        - withdraw_not_allowed
         - x_not_linked
         # END GENERATED ErrorCode
