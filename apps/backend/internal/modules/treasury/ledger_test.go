@@ -260,6 +260,36 @@ func TestLedger_positionDeltaErrorsStopThePost(t *testing.T) {
 	wantCode(t, err, errs.CodeInvalidInput)
 }
 
+func TestLedger_refusesATxnWithNoEntriesBeforeAnyWrite(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	cabal := f.cabal(t)
+	cabalTxn := domain.CabalTxn{CabalTxnHeader: domain.CabalTxnHeader{
+		ID: f.ids.NewV7(), CabalID: cabal, Kind: domain.CabalFund, Status: domain.TxnSettled,
+	}}
+	userTxn := domain.UserTxn{UserTxnHeader: domain.UserTxnHeader{
+		ID: f.ids.NewV7(), UserID: f.user(t), CabalID: cabal, Kind: domain.UserFund, Status: domain.TxnSettled,
+	}}
+	var cabalErr, userErr error
+	err := f.do(func(ctx context.Context, tx db.Tx) error {
+		cabalErr = f.ledger.PostCabalTxn(ctx, tx, cabalTxn)
+		userErr = f.ledger.PostUserTxn(ctx, tx, userTxn)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCode(t, cabalErr, errs.CodeInvalidInput)
+	wantCode(t, userErr, errs.CodeInvalidInput)
+	for _, table := range []string{
+		"cabal_txns", "cabal_txn_entries", "cabal_positions", "user_txns", "user_txn_entries", "user_positions", "events",
+	} {
+		if n := f.count(t, table); n != 0 {
+			t.Fatalf("%s has %d rows after the refused posts committed, want none", table, n)
+		}
+	}
+}
+
 func (f fixture) spend(cabal ids.CabalID, held, release chan struct{}) error {
 	swap, err := f.swap(cabal, 60, 3)
 	if err != nil {

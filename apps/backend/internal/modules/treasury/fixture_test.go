@@ -2,16 +2,15 @@ package treasury_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
-	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -31,6 +30,7 @@ type fixture struct {
 	pool   *pgxpool.Pool
 	ids    *testkit.IDs
 	uow    *db.UnitOfWork
+	clock  *testkit.Clock
 	ledger app.Ledger
 	logs   *testkit.Logs
 }
@@ -41,7 +41,7 @@ func newFixture(t *testing.T) fixture {
 	pool := testkit.DB(t)
 	clk := testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
 	return fixture{
-		t: t, pool: pool, ids: g, uow: db.New(pool, g, clk),
+		t: t, pool: pool, ids: g, uow: db.New(pool, g, clk), clock: clk,
 		ledger: app.NewLedger(usdcMint, clk), logs: &testkit.Logs{},
 	}
 }
@@ -72,8 +72,6 @@ func (f fixture) do(fn func(ctx context.Context, tx db.Tx) error) error {
 	return f.uow.Do(f.ctx(), fn)
 }
 
-func (f fixture) queries() *sqlc.Queries { return sqlc.New(f.pool) }
-
 func (f fixture) count(t *testing.T, table string) int {
 	t.Helper()
 	var n int
@@ -93,25 +91,7 @@ func (f fixture) drift(t *testing.T) []string {
 }
 
 func (f fixture) findDrift(ctx context.Context) ([]string, error) {
-	q := f.queries()
-	unbalanced, err := q.UnbalancedTxns(ctx)
-	split, err2 := q.SplitTransfers(ctx)
-	cabals, err3 := q.CabalPositionDrift(ctx)
-	users, err4 := q.UserPositionDrift(ctx)
-	out := make([]string, 0, len(unbalanced)+len(split)+len(cabals)+len(users))
-	for _, r := range unbalanced {
-		out = append(out, "unbalanced "+r.TxnID+" "+r.Asset+" "+r.Total)
-	}
-	for _, r := range split {
-		out = append(out, "split "+r.TransferID+" "+r.Statuses)
-	}
-	for _, r := range cabals {
-		out = append(out, "cabal "+r.CabalID+" "+r.Asset+" "+r.Entries+" != "+r.Position)
-	}
-	for _, r := range users {
-		out = append(out, "user "+r.UserID+" "+r.CabalID+" "+r.Entries+" != "+r.Position)
-	}
-	return out, errors.Join(err, err2, err3, err4)
+	return treasury.LedgerCheck().Check(ctx, f.pool)
 }
 
 func amount(v int64) money.SignedMicros { return money.SignedMicrosFromInt64(v) }

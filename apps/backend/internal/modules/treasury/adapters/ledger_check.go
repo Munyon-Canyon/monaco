@@ -11,6 +11,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -23,10 +24,12 @@ type Balance struct {
 
 type BalanceRule func(payload []byte) ([]Balance, error)
 
-func CheckLedger(rules map[events.Type]BalanceRule) func(context.Context, *pgxpool.Pool) ([]string, error) {
+func CheckLedger(
+	usdc domain.Asset, rules map[events.Type]BalanceRule,
+) func(context.Context, *pgxpool.Pool) ([]string, error) {
 	return func(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 		q := sqlc.New(pool)
-		diffs, err := invariants(ctx, q)
+		diffs, err := invariants(ctx, q, usdc)
 		if err != nil || len(rules) == 0 {
 			return diffs, err
 		}
@@ -35,7 +38,7 @@ func CheckLedger(rules map[events.Type]BalanceRule) func(context.Context, *pgxpo
 	}
 }
 
-func invariants(ctx context.Context, q *sqlc.Queries) ([]string, error) {
+func invariants(ctx context.Context, q *sqlc.Queries, usdc domain.Asset) ([]string, error) {
 	const op = "treasury.CheckLedger"
 	unbalanced, err := q.UnbalancedTxns(ctx)
 	if err != nil {
@@ -53,7 +56,11 @@ func invariants(ctx context.Context, q *sqlc.Queries) ([]string, error) {
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	out := make([]string, 0, len(unbalanced)+len(split)+len(cabals)+len(users))
+	costs, err := costBasisDrift(ctx, q, usdc)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(unbalanced)+len(split)+len(cabals)+len(costs)+len(users))
 	for _, r := range unbalanced {
 		out = append(out, r.Ledger+" "+r.TxnID+" sums to "+r.Total+" in "+r.Asset)
 	}
@@ -63,6 +70,7 @@ func invariants(ctx context.Context, q *sqlc.Queries) ([]string, error) {
 	for _, r := range cabals {
 		out = append(out, "cabal_positions "+r.CabalID+" "+r.Asset+": entries "+r.Entries+", position "+r.Position)
 	}
+	out = append(out, costs...)
 	for _, r := range users {
 		out = append(out, "user_positions "+r.UserID+" "+r.CabalID+": entries "+r.Entries+", position "+r.Position)
 	}

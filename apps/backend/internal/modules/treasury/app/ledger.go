@@ -31,6 +31,10 @@ func (Ledger) LockCabal(ctx context.Context, tx db.Tx, cabal ids.CabalID) error 
 
 func (l Ledger) PostCabalTxn(ctx context.Context, tx db.Tx, t domain.CabalTxn) error {
 	const op = "treasury.Ledger.PostCabalTxn"
+	entries := t.Entries()
+	if len(entries) == 0 {
+		return errs.New(errs.CodeInvalidInput, op, slog.Int("entries", len(entries)))
+	}
 	deltas, err := t.PositionDeltas(l.usdc)
 	if err != nil {
 		return err
@@ -50,7 +54,7 @@ func (l Ledger) PostCabalTxn(ctx context.Context, tx db.Tx, t domain.CabalTxn) e
 		return statusSplit(op, t.TransferID, t.Status)
 	}
 	var seq int16
-	for _, e := range t.Entries() {
+	for _, e := range entries {
 		if err := q.InsertCabalEntry(ctx, sqlc.InsertCabalEntryParams{
 			TxnID: t.ID, Seq: seq, Account: string(e.Account), Asset: string(e.Asset), Amount: e.Amount.Int64(),
 		}); err != nil {
@@ -75,6 +79,10 @@ func (l Ledger) PostCabalTxn(ctx context.Context, tx db.Tx, t domain.CabalTxn) e
 
 func (l Ledger) PostUserTxn(ctx context.Context, tx db.Tx, t domain.UserTxn) error {
 	const op = "treasury.Ledger.PostUserTxn"
+	entries := t.Entries()
+	if len(entries) == 0 {
+		return errs.New(errs.CodeInvalidInput, op, slog.Int("entries", len(entries)))
+	}
 	delta, err := t.PositionDelta()
 	if err != nil {
 		return err
@@ -96,7 +104,7 @@ func (l Ledger) PostUserTxn(ctx context.Context, tx db.Tx, t domain.UserTxn) err
 		return statusSplit(op, t.TransferID, t.Status)
 	}
 	var seq int16
-	for _, e := range t.Entries() {
+	for _, e := range entries {
 		if err := q.InsertUserEntry(ctx, sqlc.InsertUserEntryParams{
 			TxnID: t.ID, Seq: seq, Account: string(e.Account), Asset: string(e.Asset), Amount: e.Amount.Int64(),
 		}); err != nil {

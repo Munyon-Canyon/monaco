@@ -11,6 +11,7 @@ import (
 func TestReplay_verifyPassesOnASeededTreasuryLedgerAndFailsOnPlantedDrift(t *testing.T) {
 	t.Parallel()
 	const mint = "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp"
+	const usdc = string(testkit.USDCMint)
 	g := testkit.NewIDs(11)
 	user, err := ids.ParseUserID(g.NewV7().String())
 	if err != nil {
@@ -31,6 +32,14 @@ func TestReplay_verifyPassesOnASeededTreasuryLedgerAndFailsOnPlantedDrift(t *tes
 			code:  1,
 			stdout: "replayed 0 events: 0 applied, 0 duplicate\n" +
 				"ledger treasury: cabal_positions " + cabal.String() + " " + mint + ": entries 4, position 5\n" +
+				"verify: 1 diffs\n",
+		},
+		"cost drifted": {
+			plant: `UPDATE cabal_positions SET cost_basis_micros = cost_basis_micros - 1 WHERE asset = '` + usdc + `'`,
+			code:  1,
+			stdout: "replayed 0 events: 0 applied, 0 duplicate\n" +
+				"ledger treasury: cabal_positions " + cabal.String() + " " + usdc +
+				": cost basis entries 25000000, position 24999999\n" +
 				"verify: 1 diffs\n",
 		},
 	} {
