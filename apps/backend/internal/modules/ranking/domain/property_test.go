@@ -3,11 +3,14 @@ package domain_test
 import (
 	"math"
 	"math/big"
+	"reflect"
 	"testing"
+	"time"
 
 	"pgregory.net/rapid"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
@@ -55,6 +58,57 @@ func TestProperty_CabalNAVNeverExceedsTheExactValue(t *testing.T) {
 		if !in.TotalShares.IsZero() &&
 			rat(got.PerShare.Uint64()).Cmp(perShare(rat(got.Value.Uint64()), in.TotalShares)) > 0 {
 			t.Fatalf("PerShare %v exceeds the exact price of Value %v", got.PerShare, got.Value)
+		}
+	})
+}
+
+func TestProperty_ModifiedDietzWithNoFlowsIsTheSimpleReturn(t *testing.T) {
+	t.Parallel()
+	t1 := clock.Real{}.Now().UTC()
+	rapid.Check(t, func(t *rapid.T) {
+		start := rapid.Uint64Range(0, 1<<40).Draw(t, "start")
+		end := rapid.Uint64Range(0, 1<<40).Draw(t, "end")
+		span := time.Duration(rapid.Int64Range(1, int64(365*24*time.Hour)).Draw(t, "span"))
+		gain, ret, err := domain.ModifiedDietz(
+			domain.DietzInput{T0: t1.Add(-span), T1: t1, Start: usd(start), End: usd(end)},
+		)
+		want := new(big.Int).Sub(u(end), u(start))
+		if err != nil || gain.Int64() != want.Int64() {
+			t.Fatalf("ModifiedDietz gain = %v, %v, want %v", gain, err, want)
+		}
+		if start == 0 {
+			if ret != nil {
+				t.Fatalf("ModifiedDietz ret = %d from an empty start, want nil", *ret)
+			}
+			return
+		}
+		simple := want.Div(want.Mul(want, big.NewInt(10_000)), u(start))
+		if ret == nil || int64(*ret) != simple.Int64() {
+			t.Fatalf("ModifiedDietz ret = %v, want %v", fmtBps(ret), simple)
+		}
+	})
+}
+
+func TestProperty_RankIgnoresInputOrder(t *testing.T) {
+	t.Parallel()
+	base := clock.Real{}.Now().UTC()
+	rapid.Check(t, func(t *rapid.T) {
+		ids := rapid.SliceOfNDistinct(rapid.StringMatching(`[a-z]{1,4}`), 0, 30, rapid.ID[string]).Draw(t, "ids")
+		cands := make([]domain.Candidate, len(ids))
+		for i, id := range ids {
+			cands[i] = domain.Candidate{
+				SubjectID: id,
+				CreatedAt: base.Add(time.Duration(rapid.IntRange(0, 3).Draw(t, "age")) * time.Second),
+			}
+			if rapid.Bool().Draw(t, "ranked") {
+				cands[i].Return = bps(domain.Bps(rapid.Int64Range(-3, 3).Draw(t, "return")))
+			}
+		}
+		keep := rapid.Bool().Draw(t, "keep_unranked")
+		want := domain.Rank(cands, keep)
+		got := domain.Rank(rapid.Permutation(cands).Draw(t, "order"), keep)
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("Rank of a permutation = %+v, want %+v", got, want)
 		}
 	})
 }
