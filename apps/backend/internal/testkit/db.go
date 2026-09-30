@@ -47,6 +47,7 @@ type server struct {
 
 	mu        sync.Mutex
 	names     map[string]*queryCounter
+	held      map[string]bool
 	kept      atomic.Int32
 	runPrefix string
 	disk      diskUsage
@@ -131,6 +132,7 @@ func DB(t *testing.T) *pgxpool.Pool {
 	tmpl := s.templateFor(t)
 	inst := tmpl
 	inst.Database = databaseName(s.runPrefix, t.Name())
+	s.hold(inst.Database, true)
 	ctx := context.Background()
 	create := fmt.Sprintf(`CREATE DATABASE %s TEMPLATE %s OWNER %s`,
 		pgx.Identifier{inst.Database}.Sanitize(), pgx.Identifier{tmpl.Database}.Sanitize(),
@@ -151,6 +153,7 @@ func DB(t *testing.T) *pgxpool.Pool {
 	t.Cleanup(func() {
 		pool.Close()
 		s.release(t.Name())
+		s.hold(inst.Database, false)
 		kept, err := s.releaseDB(ctx, inst.Database, t.Failed())
 		if err != nil {
 			t.Errorf("testkit.DB: %v", err)
@@ -185,6 +188,25 @@ func (s *server) release(name string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.names, name)
+}
+
+func (s *server) hold(db string, live bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.held == nil {
+		s.held = map[string]bool{}
+	}
+	if live {
+		s.held[db] = true
+		return
+	}
+	delete(s.held, db)
+}
+
+func (s *server) holds(db string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.held[db]
 }
 
 func (s *server) templateFor(t *testing.T) pgtestdb.Config {
@@ -401,6 +423,9 @@ func (s *server) cleanKept(ctx context.Context) ([]string, error) {
 	var dropped []string
 	for _, name := range names {
 		s.guardPrefix(name)
+		if s.holds(name) {
+			continue
+		}
 		ok, err := dropIfUnused(ctx, conn, name)
 		if err != nil {
 			return nil, err
