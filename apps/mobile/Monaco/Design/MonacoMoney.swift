@@ -13,7 +13,6 @@ enum MoneyVoice {
 enum MoneyStyle {
     case hero, large, row, caption
 
-
     /// Design size at the default text size.
     var baseSize: CGFloat {
         switch self {
@@ -63,7 +62,6 @@ struct MoneyFont: ViewModifier {
     var weightOverride: Font.Weight?
     var voice: MoneyVoice = .own
 
-
     // `@ScaledMetric` needs its text style and base size as literals in the property wrapper, so
     // there is one per role rather than one driven by `style`. The sizes come from `MoneyStyle`
     // so the two cannot drift; the text styles are asserted against it in `MoneyStyleScalingTests`.
@@ -111,7 +109,6 @@ extension View {
     }
 }
 
-
 /// "$1,248.50" in tabular SF Pro. Rolls digits on change unless Reduce Motion is on.
 struct MoneyText: View {
     private let text: String
@@ -134,7 +131,8 @@ struct MoneyText: View {
         self.voice = voice
         let trimmed = decimalString.trimmingCharacters(in: .whitespacesAndNewlines)
         if let decimal = Decimal(string: trimmed, locale: Locale(identifier: "en_US_POSIX")),
-           trimmed.allSatisfy({ $0.isNumber || $0 == "." || $0 == "-" || $0 == "+" }) {
+            trimmed.allSatisfy({ $0.isNumber || $0 == "." || $0 == "-" || $0 == "+" })
+        {
             text = UsdAmountFormatter.format(decimal: decimal)
             numericValue = (decimal as NSDecimalNumber).doubleValue
             self.color = color
@@ -370,7 +368,8 @@ enum PnLSpeech {
     }
 
     static func percentValue(_ formatted: String) -> Double? {
-        let normalised = formatted
+        let normalised =
+            formatted
             .replacingOccurrences(of: "\u{2212}", with: "-")
             .replacingOccurrences(of: "%", with: "")
             .replacingOccurrences(of: "+", with: "")
@@ -380,7 +379,8 @@ enum PnLSpeech {
     static func percent(_ formatted: String) -> String {
         guard let value = percentValue(formatted) else { return "unavailable" }
         if value == 0 { return "0 percent" }
-        let magnitude = formatted
+        let magnitude =
+            formatted
             .replacingOccurrences(of: "\u{2212}", with: "")
             .replacingOccurrences(of: "+", with: "")
             .replacingOccurrences(of: "%", with: "")
@@ -391,7 +391,8 @@ enum PnLSpeech {
         let dollars = Self.dollars(dollarPnl)
         let formatted = PercentReturnFormatter.format(percentReturn)
         guard formatted != "—", percentValue(formatted) != nil else { return dollars }
-        let magnitude = formatted
+        let magnitude =
+            formatted
             .replacingOccurrences(of: "\u{2212}", with: "")
             .replacingOccurrences(of: "+", with: "")
             .replacingOccurrences(of: "%", with: "")

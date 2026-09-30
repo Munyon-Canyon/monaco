@@ -1,6 +1,7 @@
 import SwiftUI
 import Testing
 import UIKit
+
 @testable import Monaco
 
 /// WCAG 2.1 contrast over resolved design tokens.
@@ -87,11 +88,15 @@ enum OKLCh {
         func linear(_ v: Double) -> Double {
             v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
         }
-        let r = linear(rgba.red), g = linear(rgba.green), b = linear(rgba.blue)
+        let r = linear(rgba.red)
+        let g = linear(rgba.green)
+        let b = linear(rgba.blue)
         let l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
         let m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b
         let s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b
-        let lRoot = cbrt(l), mRoot = cbrt(m), sRoot = cbrt(s)
+        let lRoot = cbrt(l)
+        let mRoot = cbrt(m)
+        let sRoot = cbrt(s)
         let lightness = 0.2104542553 * lRoot + 0.7936177850 * mRoot - 0.0040720468 * sRoot
         let a = 1.9779984951 * lRoot - 2.4285922050 * mRoot + 0.4505937099 * sRoot
         let bb = 0.0259040371 * lRoot + 0.7827717662 * mRoot - 0.8086757660 * sRoot
@@ -104,10 +109,14 @@ enum OKLCh {
 
     /// Euclidean distance in OKLab. Roughly 0.02 is a just-noticeable difference.
     static func distance(_ first: Color, _ second: Color, _ scheme: UIUserInterfaceStyle) -> Double {
-        let a = value(first, scheme), b = value(second, scheme)
-        let aa = a.chroma * cos(a.hue * .pi / 180), ab = a.chroma * sin(a.hue * .pi / 180)
-        let ba = b.chroma * cos(b.hue * .pi / 180), bb = b.chroma * sin(b.hue * .pi / 180)
-        return ((a.lightness - b.lightness) * (a.lightness - b.lightness)
+        let a = value(first, scheme)
+        let b = value(second, scheme)
+        let aa = a.chroma * cos(a.hue * .pi / 180)
+        let ab = a.chroma * sin(a.hue * .pi / 180)
+        let ba = b.chroma * cos(b.hue * .pi / 180)
+        let bb = b.chroma * sin(b.hue * .pi / 180)
+        return
+            ((a.lightness - b.lightness) * (a.lightness - b.lightness)
             + (aa - ba) * (aa - ba) + (ab - bb) * (ab - bb)).squareRoot()
     }
 }
@@ -164,37 +173,42 @@ struct MonacoContrastTests {
         pairs.append(Pair("onBrand", MonacoTheme.onBrand, on: [MonacoTheme.brandFill]))
         // The same pair through the role aliases, so repointing a role is caught even if the
         // token it aliased stayed put.
-        pairs.append(Pair(
-            "primaryButtonLabel",
-            MonacoTheme.primaryButtonLabel,
-            on: [MonacoTheme.primaryButtonFill]
-        ))
-        pairs.append(Pair(
-            "secondaryButtonLabel",
-            MonacoTheme.secondaryButtonLabel,
-            on: [MonacoTheme.secondaryButtonFill]
-        ))
+        pairs.append(
+            Pair(
+                "primaryButtonLabel",
+                MonacoTheme.primaryButtonLabel,
+                on: [MonacoTheme.primaryButtonFill]
+            ))
+        pairs.append(
+            Pair(
+                "secondaryButtonLabel",
+                MonacoTheme.secondaryButtonLabel,
+                on: [MonacoTheme.secondaryButtonFill]
+            ))
         pairs.append(Pair("onHero", MonacoTheme.onHero, on: [MonacoTheme.heroInk]))
         pairs.append(Pair("onHeroMuted", MonacoTheme.onHeroMuted, on: [MonacoTheme.heroInk]))
         pairs.append(Pair("profitOnHero", MonacoTheme.profitOnHero, on: [MonacoTheme.heroInk]))
         pairs.append(Pair("lossOnHero", MonacoTheme.lossOnHero, on: [MonacoTheme.heroInk]))
-        pairs.append(Pair(
-            "profitOnHero on wash",
-            MonacoTheme.profitOnHero,
-            on: [MonacoTheme.heroInk, MonacoTheme.profitWashOnHero]
-        ))
-        pairs.append(Pair(
-            "lossOnHero on wash",
-            MonacoTheme.lossOnHero,
-            on: [MonacoTheme.heroInk, MonacoTheme.lossWashOnHero]
-        ))
+        pairs.append(
+            Pair(
+                "profitOnHero on wash",
+                MonacoTheme.profitOnHero,
+                on: [MonacoTheme.heroInk, MonacoTheme.profitWashOnHero]
+            ))
+        pairs.append(
+            Pair(
+                "lossOnHero on wash",
+                MonacoTheme.lossOnHero,
+                on: [MonacoTheme.heroInk, MonacoTheme.lossWashOnHero]
+            ))
         // A flat figure on the hero card, over its own wash.
         pairs.append(Pair("flat on hero", PnLTone.flat.inkCardColor, on: [MonacoTheme.heroInk]))
-        pairs.append(Pair(
-            "flat on hero wash",
-            PnLTone.flat.inkCardColor,
-            on: [MonacoTheme.heroInk, PnLTone.flat.inkCardWash]
-        ))
+        pairs.append(
+            Pair(
+                "flat on hero wash",
+                PnLTone.flat.inkCardColor,
+                on: [MonacoTheme.heroInk, PnLTone.flat.inkCardWash]
+            ))
         // The toast.
         pairs.append(Pair("toastLabel", MonacoTheme.toastLabel, on: [MonacoTheme.toastFill]))
         return pairs

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import Monaco
 
 @MainActor
@@ -38,7 +39,7 @@ struct PlatformBalanceLoaderTests {
 
     /// Lets the loads in flight make progress. Bounded, so a test fails rather than hangs.
     private func settle(until condition: () -> Bool) async {
-        for _ in 0 ..< 10_000 {
+        for _ in 0..<10_000 {
             if condition() { return }
             await Task.yield()
         }

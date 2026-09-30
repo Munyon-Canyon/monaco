@@ -245,9 +245,9 @@ extension MonacoRowCard where Leading == MonacoRowIcon {
     }
 }
 
-private extension View {
+extension View {
     @ViewBuilder
-    func monacoOptionalAccessibilityIdentifier(_ identifier: String?) -> some View {
+    fileprivate func monacoOptionalAccessibilityIdentifier(_ identifier: String?) -> some View {
         if let identifier {
             accessibilityIdentifier(identifier)
         } else {

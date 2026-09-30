@@ -22,9 +22,14 @@ enum MonacoAppearance {
 
         // Chevron-only back button: the title is drawn clear and at a near-zero size so it takes no width.
         let backButton = UIBarButtonItemAppearance(style: .plain)
-        backButton.normal.titleTextAttributes = [.foregroundColor: UIColor.clear, .font: UIFont.systemFont(ofSize: 0.1)]
-        backButton.highlighted.titleTextAttributes = [.foregroundColor: UIColor.clear, .font: UIFont.systemFont(ofSize: 0.1)]
-        let backImage = UIImage(systemName: "chevron.left", withConfiguration: UIImage.SymbolConfiguration(weight: .semibold))
+        backButton.normal.titleTextAttributes = [
+            .foregroundColor: UIColor.clear, .font: UIFont.systemFont(ofSize: 0.1),
+        ]
+        backButton.highlighted.titleTextAttributes = [
+            .foregroundColor: UIColor.clear, .font: UIFont.systemFont(ofSize: 0.1),
+        ]
+        let backImage = UIImage(
+            systemName: "chevron.left", withConfiguration: UIImage.SymbolConfiguration(weight: .semibold))
 
         // Scrolled: opaque canvas with a hairline, so content never slides under the title.
         let standard = UINavigationBarAppearance()
@@ -135,13 +140,13 @@ extension View {
     /// High-contrast segmented control strip for board tabs.
     func monacoSegmentedBoardPicker() -> some View {
         padding(.horizontal, MonacoTheme.Space.m)
-        .padding(.vertical, 12)
-        .background(MonacoTheme.surface)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(MonacoTheme.hairline)
-                .frame(height: 1)
-        }
+            .padding(.vertical, 12)
+            .background(MonacoTheme.surface)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(MonacoTheme.hairline)
+                    .frame(height: 1)
+            }
     }
 
     /// Toolbar / nav bar SF Symbol — ink tint, readable weight.

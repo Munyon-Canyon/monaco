@@ -1,4 +1,5 @@
 import Testing
+
 @testable import Monaco
 
 @MainActor
@@ -12,7 +13,8 @@ struct HomeBalanceDisplayTests {
     }
 
     @Test func aLoadedBalanceShowsItsAmount() {
-        #expect(HomeBalanceDisplay.resolve(balance: balance(micros: 248_500_000), isLoading: false) == .amount(248_500_000))
+        #expect(
+            HomeBalanceDisplay.resolve(balance: balance(micros: 248_500_000), isLoading: false) == .amount(248_500_000))
     }
 
     @Test func aFirstLoadInFlightShowsLoading() {

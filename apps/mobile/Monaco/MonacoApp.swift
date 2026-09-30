@@ -4,8 +4,8 @@
 //
 
 import MonacoCore
-import os
 import SwiftUI
+import os
 
 @main
 struct MonacoApp: App {

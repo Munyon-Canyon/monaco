@@ -20,11 +20,17 @@ struct APILogTelemetry: APITelemetry {
         let serverRequestID = event.serverRequestID ?? "-"
 
         if event.isFailure {
-            logger.error("\(event.method) \(event.route) failed: \(outcome) in \(durationMs)ms id=\(event.requestID, privacy: .public) server_id=\(serverRequestID, privacy: .public)")
+            logger.error(
+                "\(event.method) \(event.route) failed: \(outcome) in \(durationMs)ms id=\(event.requestID, privacy: .public) server_id=\(serverRequestID, privacy: .public)"
+            )
         } else if event.durationMs > Self.slowRequestThresholdMs {
-            logger.notice("\(event.method) \(event.route) slow: \(outcome) in \(durationMs)ms id=\(event.requestID, privacy: .public) server_id=\(serverRequestID, privacy: .public)")
+            logger.notice(
+                "\(event.method) \(event.route) slow: \(outcome) in \(durationMs)ms id=\(event.requestID, privacy: .public) server_id=\(serverRequestID, privacy: .public)"
+            )
         } else {
-            logger.debug("\(event.method) \(event.route) \(outcome) in \(durationMs)ms id=\(event.requestID, privacy: .public) server_id=\(serverRequestID, privacy: .public)")
+            logger.debug(
+                "\(event.method) \(event.route) \(outcome) in \(durationMs)ms id=\(event.requestID, privacy: .public) server_id=\(serverRequestID, privacy: .public)"
+            )
         }
     }
 

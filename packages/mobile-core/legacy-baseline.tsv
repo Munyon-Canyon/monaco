@@ -18,7 +18,7 @@ lines	apps/mobile/Monaco/API/DTOs/PlatformWithdrawalDTO.swift	15
 lines	apps/mobile/Monaco/API/DTOs/RedeemJobDTO.swift	6
 lines	apps/mobile/Monaco/API/DTOs/TransactionDetailDTO.swift	72
 lines	apps/mobile/Monaco/API/DTOs/WithdrawToBalanceDTO.swift	17
-lines	apps/mobile/Monaco/API/MonacoAPIClient.swift	971
+lines	apps/mobile/Monaco/API/MonacoAPIClient.swift	994
 urlrequest	apps/mobile/Monaco/API/MonacoAPIClient.swift	35
 poll	apps/mobile/Monaco/Features/Assets/AssetDetailView.swift	2
 poll	apps/mobile/Monaco/Features/Deposit/DepositView.swift	1

@@ -1,6 +1,7 @@
 import Foundation
 import MonacoCore
 import Testing
+
 @testable import Monaco
 
 /// The one line under a sign-in field: whichever of the error, the hint and the explainer is
@@ -113,32 +114,34 @@ struct LoginMethodTests {
 @MainActor
 struct WelcomeCopyTests {
     @Test func firstRunSaysWhatHappensAfterTheName() {
-        #expect(FirstRunCopy.nextSteps == [
-            "Start a cabal or join one",
-            "Add money to the pot",
-            "Vote on every buy",
-        ])
+        #expect(
+            FirstRunCopy.nextSteps == [
+                "Start a cabal or join one",
+                "Add money to the pot",
+                "Vote on every buy",
+            ])
     }
 
     /// Nothing on the way in says wallet, group, treasury or the rest of the banned list.
     @Test func theWayInUsesTheProductsWords() {
-        let strings = FirstRunCopy.nextSteps + [
-            FirstRunCopy.nextStepsTitle,
-            SessionGateCopy.restoreFailedTitle,
-            SessionGateCopy.openFailedTitle,
-            OTPFieldCaption.sendingNewCode,
-            OTPFieldCaption.newCodeSent,
-            OTPDestination.sms.caption,
-            OTPDestination.sms.invalidHint,
-            OTPDestination.sms.changeLabel,
-            OTPDestination.email.caption,
-            OTPDestination.email.invalidHint,
-            OTPDestination.email.changeLabel,
-            OTPPrimaryAction.title(phase: .idle, isCodeStep: false),
-            OTPPrimaryAction.title(phase: .sendingCode, isCodeStep: false),
-            OTPPrimaryAction.title(phase: .awaitingCode, isCodeStep: true),
-            OTPPrimaryAction.title(phase: .verifyingCode, isCodeStep: true),
-        ]
+        let strings =
+            FirstRunCopy.nextSteps + [
+                FirstRunCopy.nextStepsTitle,
+                SessionGateCopy.restoreFailedTitle,
+                SessionGateCopy.openFailedTitle,
+                OTPFieldCaption.sendingNewCode,
+                OTPFieldCaption.newCodeSent,
+                OTPDestination.sms.caption,
+                OTPDestination.sms.invalidHint,
+                OTPDestination.sms.changeLabel,
+                OTPDestination.email.caption,
+                OTPDestination.email.invalidHint,
+                OTPDestination.email.changeLabel,
+                OTPPrimaryAction.title(phase: .idle, isCodeStep: false),
+                OTPPrimaryAction.title(phase: .sendingCode, isCodeStep: false),
+                OTPPrimaryAction.title(phase: .awaitingCode, isCodeStep: true),
+                OTPPrimaryAction.title(phase: .verifyingCode, isCodeStep: true),
+            ]
         #expect(MainFlowCopyAudit.stringsAreClean(strings))
     }
 

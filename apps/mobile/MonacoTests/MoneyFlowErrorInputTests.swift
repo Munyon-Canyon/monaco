@@ -1,5 +1,6 @@
 import MonacoCore
 import XCTest
+
 @testable import Monaco
 
 final class MoneyFlowErrorInputTests: XCTestCase {
@@ -97,8 +98,11 @@ final class MoneyFlowErrorInputTests: XCTestCase {
 
     func testAmbiguousFailures_areUnconfirmed() {
         XCTAssertEqual(MoneyFlowCopy.cashOutFailure(FlowErrorInput(URLError(.timedOut))), MoneyFlowCopy.unconfirmed)
-        XCTAssertEqual(MoneyFlowCopy.cashOutFailure(FlowErrorInput(URLError(.networkConnectionLost))), MoneyFlowCopy.unconfirmed)
-        XCTAssertEqual(MoneyFlowCopy.fundCabalFailure(FlowErrorInput(Monaco.MonacoAPIError.invalidResponse)), MoneyFlowCopy.unconfirmed)
+        XCTAssertEqual(
+            MoneyFlowCopy.cashOutFailure(FlowErrorInput(URLError(.networkConnectionLost))), MoneyFlowCopy.unconfirmed)
+        XCTAssertEqual(
+            MoneyFlowCopy.fundCabalFailure(FlowErrorInput(Monaco.MonacoAPIError.invalidResponse)),
+            MoneyFlowCopy.unconfirmed)
         let malformed = DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "bad json"))
         XCTAssertEqual(MoneyFlowCopy.sellStakeFailure(FlowErrorInput(malformed)), MoneyFlowCopy.unconfirmed)
     }

@@ -1,5 +1,6 @@
 import MonacoCore
 import Testing
+
 @testable import Monaco
 
 // The app target shadows these MonacoCore DTOs; pin the tests to the ones the views use.
@@ -290,10 +291,12 @@ struct AssetDetailModelTests {
     @Test func aTinyMoveIsWrittenInFixedPoint() async throws {
         let source = StubAssetDetailDataSource()
         // +0.005%, small enough that Double's own description goes exponential.
-        source.points = [.oneDay: [
-            AssetChartPointDTO(timestamp: 1_000, priceUsdcMicros: 100_000_000),
-            AssetChartPointDTO(timestamp: 2_000, priceUsdcMicros: 100_005_000),
-        ]]
+        source.points = [
+            .oneDay: [
+                AssetChartPointDTO(timestamp: 1_000, priceUsdcMicros: 100_000_000),
+                AssetChartPointDTO(timestamp: 2_000, priceUsdcMicros: 100_005_000),
+            ]
+        ]
         let model = AssetDetailModel(symbol: "AAPLx", dataSource: source)
 
         await model.loadChart(range: .oneDay)

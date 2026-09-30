@@ -1,5 +1,6 @@
 import SwiftUI
 import Testing
+
 @testable import Monaco
 
 struct MonacoToastTimingTests {
@@ -24,10 +25,12 @@ struct MonacoToastTimingTests {
 
     @Test func dwellIsCappedSoAToastNeverSticks() {
         let message = String(repeating: "a", count: 4000)
-        #expect(MonacoToastTiming.dwell(message: message, isSuccess: false, voiceOverRunning: false)
-            == MonacoToastTiming.ceiling)
-        #expect(MonacoToastTiming.dwell(message: message, isSuccess: false, voiceOverRunning: true)
-            == MonacoToastTiming.voiceOverCeiling)
+        #expect(
+            MonacoToastTiming.dwell(message: message, isSuccess: false, voiceOverRunning: false)
+                == MonacoToastTiming.ceiling)
+        #expect(
+            MonacoToastTiming.dwell(message: message, isSuccess: false, voiceOverRunning: true)
+                == MonacoToastTiming.voiceOverCeiling)
     }
 
     @Test func voiceOverGetsMoreTime() {
@@ -128,10 +131,12 @@ struct MonacoToastPlacementTests {
     }
 
     @Test func screenBottomIgnoresTheBottomBar() {
-        #expect(MonacoToastPlacement.screenBottom.bottomInset(scaledLabelLineHeight: defaultLine)
-            == MonacoToastPlacement.gap)
-        #expect(MonacoToastPlacement.screenBottom.bottomInset(scaledLabelLineHeight: accessibilityLine)
-            == MonacoToastPlacement.gap)
+        #expect(
+            MonacoToastPlacement.screenBottom.bottomInset(scaledLabelLineHeight: defaultLine)
+                == MonacoToastPlacement.gap)
+        #expect(
+            MonacoToastPlacement.screenBottom.bottomInset(scaledLabelLineHeight: accessibilityLine)
+                == MonacoToastPlacement.gap)
     }
 
     @Test func aboveBottomCTAClearsTheBarAtTheDefaultTextSize() {

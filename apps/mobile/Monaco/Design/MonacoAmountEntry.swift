@@ -170,7 +170,11 @@ struct AmountEntry: View {
     /// "$50" button finds exactly one.
     private var presetRow: some View {
         VStack(spacing: 0) {
-            ForEach(Array(AmountEntryText.presetRows(presets.count, stacked: dynamicTypeSize.isAccessibilitySize).enumerated()), id: \.offset) { _, row in
+            ForEach(
+                Array(
+                    AmountEntryText.presetRows(presets.count, stacked: dynamicTypeSize.isAccessibilitySize).enumerated()
+                ), id: \.offset
+            ) { _, row in
                 HStack(spacing: MonacoTheme.Space.s) {
                     ForEach(row, id: \.self) { index in
                         presetChip(presets[index])

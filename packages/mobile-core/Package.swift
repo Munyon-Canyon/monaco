@@ -31,7 +31,7 @@ let package = Package(
                 .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
             ],
             plugins: [
-                .plugin(name: "OpenAPIGenerator", package: "swift-openapi-generator"),
+                .plugin(name: "OpenAPIGenerator", package: "swift-openapi-generator")
             ]
         ),
         .target(
@@ -46,7 +46,7 @@ let package = Package(
             name: "MonacoCoreTests",
             dependencies: ["MonacoCore", "MonacoAPI"],
             resources: [
-                .process("Fixtures"),
+                .process("Fixtures")
             ]
         ),
         .testTarget(

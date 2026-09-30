@@ -1,7 +1,9 @@
+import Testing
+
 // Only MeDTO: importing all of MonacoCore would make the DTO names the app also
 // declares (HomeDashboardDTO, HomeLeaderboardRange…) ambiguous in this file.
 import struct MonacoCore.MeDTO
-import Testing
+
 @testable import Monaco
 
 /// Records what the store asked the server for, lets a test hold a response back so two

@@ -50,7 +50,7 @@ extension PnLTone {
         switch sparkTint {
         case .reportedDayChange:
             self.init(change24h: change24h)
-        case let .series(rising, flat):
+        case .series(let rising, let flat):
             self = flat ? .flat : (rising ? .profit : .loss)
         }
     }
@@ -75,7 +75,7 @@ struct DayChangePill: View {
     /// than blanking when the mode flips.
     private var label: String {
         guard mode == .dollars,
-              let dollars = DayChangeFigures.dollarText(change24h: change24h, priceUsdcMicros: priceUsdcMicros)
+            let dollars = DayChangeFigures.dollarText(change24h: change24h, priceUsdcMicros: priceUsdcMicros)
         else { return percentText }
         return dollars
     }
@@ -108,7 +108,8 @@ struct DayChangePill: View {
             .highPriorityGesture(TapGesture().onEnded { toggle() })
             .padding(-DayChangePill.tapTargetPadding)
             .accessibilityLabel("Day change")
-            .accessibilityValue(DayChangeSpeech.value(change24h: change24h, priceUsdcMicros: priceUsdcMicros, mode: mode))
+            .accessibilityValue(
+                DayChangeSpeech.value(change24h: change24h, priceUsdcMicros: priceUsdcMicros, mode: mode))
     }
 
     private func toggle() {
@@ -123,7 +124,7 @@ enum DayChangeSpeech {
     static func value(change24h: String?, priceUsdcMicros: Int64?, mode: DayChangeMode) -> String {
         let percent = PnLSpeech.percent(PercentReturnFormatter.format(change24h))
         guard mode == .dollars,
-              let dollars = DayChangeFigures.dollarDelta(change24h: change24h, priceUsdcMicros: priceUsdcMicros)
+            let dollars = DayChangeFigures.dollarDelta(change24h: change24h, priceUsdcMicros: priceUsdcMicros)
         else { return percent }
         return PnLSpeech.dollars(dollars)
     }
@@ -259,8 +260,11 @@ struct StockListRow: View {
     static let subtitleLineLimit = 2
 
     private var mark: some View {
-        StockMark(symbol: asset.symbol, displayName: asset.name, assetKind: asset.resolvedKind, size: StockListRow.markSize, logoURL: asset.logoURL)
-            .frame(width: StockListRow.markSize, height: StockListRow.markSize)
+        StockMark(
+            symbol: asset.symbol, displayName: asset.name, assetKind: asset.resolvedKind, size: StockListRow.markSize,
+            logoURL: asset.logoURL
+        )
+        .frame(width: StockListRow.markSize, height: StockListRow.markSize)
     }
 
     /// Set in the market's voice: `AAPL` the way a tape prints it, which is also what
@@ -319,7 +323,8 @@ struct StockListRowSkeleton: View {
 
     var body: some View {
         HStack(spacing: MonacoTheme.Space.sm) {
-            SkeletonBlock(width: StockListRow.markSize, height: StockListRow.markSize, radius: StockListRow.markSize / 2)
+            SkeletonBlock(
+                width: StockListRow.markSize, height: StockListRow.markSize, radius: StockListRow.markSize / 2)
             VStack(alignment: .leading, spacing: 8) {
                 SkeletonBlock(width: 52, height: 14, radius: 3)
                 if hasSubtitle {
@@ -340,7 +345,8 @@ struct StockListRowSkeleton: View {
                 MonacoRule()
                     .padding(
                         .leading,
-                        MonacoRowLayout(dynamicTypeSize: dynamicTypeSize).separatorLeadingInset(markSize: StockListRow.markSize)
+                        MonacoRowLayout(dynamicTypeSize: dynamicTypeSize).separatorLeadingInset(
+                            markSize: StockListRow.markSize)
                     )
             }
         }
@@ -383,7 +389,9 @@ struct StockMoverCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             HStack(spacing: MonacoTheme.Space.s) {
-                StockMark(symbol: asset.symbol, displayName: asset.name, assetKind: asset.resolvedKind, size: 28, logoURL: asset.logoURL)
+                StockMark(
+                    symbol: asset.symbol, displayName: asset.name, assetKind: asset.resolvedKind, size: 28,
+                    logoURL: asset.logoURL)
                 Text(AssetSymbolFormatter.display(asset.symbol, kind: asset.resolvedKind))
                     .font(MonacoTheme.Typo.ticker)
                     .foregroundStyle(MonacoTheme.ink)

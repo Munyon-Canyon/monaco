@@ -1,6 +1,7 @@
 import Foundation
 import MonacoCore
 import Testing
+
 @testable import Monaco
 
 /// The rules on the Start a cabal screen: each choice carries a caption that says what it
@@ -51,15 +52,20 @@ struct CabalRulesCopyTests {
 @MainActor
 struct JoinCabalScreenCopyTests {
     @Test func theButtonMatchesTheCabalsPolicy() {
-        #expect(JoinCabalScreenCopy.actionTitle(joinMode: .request, isJoining: false, requestPending: false) == "Ask to join")
+        #expect(
+            JoinCabalScreenCopy.actionTitle(joinMode: .request, isJoining: false, requestPending: false)
+                == "Ask to join")
         #expect(JoinCabalScreenCopy.actionTitle(joinMode: .open, isJoining: false, requestPending: false) == "Join")
         #expect(JoinCabalScreenCopy.actionTitle(joinMode: nil, isJoining: false, requestPending: false) == "Join cabal")
     }
 
     @Test func theButtonSaysWhatIsHappening() {
-        #expect(JoinCabalScreenCopy.actionTitle(joinMode: .request, isJoining: true, requestPending: false) == "Sending…")
+        #expect(
+            JoinCabalScreenCopy.actionTitle(joinMode: .request, isJoining: true, requestPending: false) == "Sending…")
         #expect(JoinCabalScreenCopy.actionTitle(joinMode: .open, isJoining: true, requestPending: false) == "Joining…")
-        #expect(JoinCabalScreenCopy.actionTitle(joinMode: .request, isJoining: false, requestPending: true) == "Request sent")
+        #expect(
+            JoinCabalScreenCopy.actionTitle(joinMode: .request, isJoining: false, requestPending: true)
+                == "Request sent")
     }
 
     @Test func theMemberLineIsOnlyWhatTheRowKnew() {

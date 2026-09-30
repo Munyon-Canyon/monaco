@@ -91,8 +91,8 @@ struct SparklineShape: Shape {
     }
 }
 
-private extension Double {
-    func clamped(to range: ClosedRange<Double>) -> Double {
+extension Double {
+    fileprivate func clamped(to range: ClosedRange<Double>) -> Double {
         Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
     }
 }
@@ -100,7 +100,8 @@ private extension Double {
 #Preview {
     VStack(alignment: .leading, spacing: 16) {
         Sparkline(series: SparklineSeries(usdcMicros: MarketSampleData.spark())!, tone: .profit)
-        Sparkline(series: SparklineSeries(usdcMicros: MarketSampleData.spark(driftUsdcMicros: -8_000_000))!, tone: .loss)
+        Sparkline(
+            series: SparklineSeries(usdcMicros: MarketSampleData.spark(driftUsdcMicros: -8_000_000))!, tone: .loss)
         Sparkline(series: SparklineSeries(usdcMicros: Array(repeating: 100_000, count: 12))!, tone: .flat)
     }
     .padding()

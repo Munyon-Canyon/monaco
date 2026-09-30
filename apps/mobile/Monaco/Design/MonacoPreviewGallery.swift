@@ -12,8 +12,8 @@ enum MonacoDesignGallery {
     static var initialTab: GalleryTab {
         let arguments = ProcessInfo.processInfo.arguments
         guard let index = arguments.firstIndex(of: "-MonacoDesignGalleryTab"),
-              arguments.indices.contains(index + 1),
-              let tab = GalleryTab(rawValue: arguments[index + 1])
+            arguments.indices.contains(index + 1),
+            let tab = GalleryTab(rawValue: arguments[index + 1])
         else { return .primitives }
         return tab
     }
@@ -110,8 +110,11 @@ private struct GalleryPrimitivesPage: View {
                                 ) {
                                     CabalMark(groupId: cabal.id, name: cabal.name)
                                 } trailing: {
-                                    PnLText(dollarPnl: ["+48.20", "-7.60", "+0.00", "-0.001", "+1204.5"][index], style: .row)
-                                    PercentText(percentReturn: ["0.096", "-0.036", "0", nil, "0.412"][index], style: .caption)
+                                    PnLText(
+                                        dollarPnl: ["+48.20", "-7.60", "+0.00", "-0.001", "+1204.5"][index], style: .row
+                                    )
+                                    PercentText(
+                                        percentReturn: ["0.096", "-0.036", "0", nil, "0.412"][index], style: .caption)
                                 }
                             }
                             .buttonStyle(.monacoRow)
@@ -265,7 +268,10 @@ private struct GalleryMoneyPage: View {
 }
 
 private struct GalleryControlsPage: View {
-    enum Range: String, CaseIterable { case open = "Open", closed = "Closed" }
+    enum Range: String, CaseIterable {
+        case open = "Open"
+        case closed = "Closed"
+    }
 
     @State private var amount = "50"
     @State private var range: Range = .open
@@ -372,8 +378,8 @@ private struct GalleryToastPage: View {
     }
 }
 
-private extension Decimal {
-    var rounded2: Decimal {
+extension Decimal {
+    fileprivate var rounded2: Decimal {
         var source = self
         var result = Decimal()
         NSDecimalRound(&result, &source, 2, .plain)

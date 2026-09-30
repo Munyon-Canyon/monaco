@@ -30,9 +30,13 @@ final class DiagnosticsSubscriber: NSObject, MXMetricManagerSubscriber {
 
             switch store.save(payload.jsonRepresentation(), kind: "diagnostic") {
             case .success(let file):
-                AppLogger.diagnostics.error("Diagnostics received: crashes=\(crashes, privacy: .public) hangs=\(hangs, privacy: .public) cpu=\(cpuExceptions, privacy: .public) disk_writes=\(diskWrites, privacy: .public) saved=\(file.lastPathComponent, privacy: .public)")
+                AppLogger.diagnostics.error(
+                    "Diagnostics received: crashes=\(crashes, privacy: .public) hangs=\(hangs, privacy: .public) cpu=\(cpuExceptions, privacy: .public) disk_writes=\(diskWrites, privacy: .public) saved=\(file.lastPathComponent, privacy: .public)"
+                )
             case .failure(let error):
-                AppLogger.diagnostics.error("Diagnostics received: crashes=\(crashes, privacy: .public) hangs=\(hangs, privacy: .public) cpu=\(cpuExceptions, privacy: .public) disk_writes=\(diskWrites, privacy: .public) not saved: \(String(describing: error), privacy: .public)")
+                AppLogger.diagnostics.error(
+                    "Diagnostics received: crashes=\(crashes, privacy: .public) hangs=\(hangs, privacy: .public) cpu=\(cpuExceptions, privacy: .public) disk_writes=\(diskWrites, privacy: .public) not saved: \(String(describing: error), privacy: .public)"
+                )
             }
         }
     }

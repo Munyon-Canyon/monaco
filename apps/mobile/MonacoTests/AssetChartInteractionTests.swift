@@ -1,6 +1,7 @@
 import MonacoCore
 import SwiftUI
 import Testing
+
 @testable import Monaco
 
 /// The parts of the scrubbing chart that are decisions rather than drawing: where a
@@ -113,6 +114,7 @@ struct AssetChartDrawOnKeyTests {
 
     /// A different window is a different curve, and that is what the wipe is for.
     @Test func aDifferentRangeReplaysTheDrawOn() {
-        #expect(AssetChartCard.drawOnKey(series(.oneDay, bars: 78)) != AssetChartCard.drawOnKey(series(.oneYear, bars: 78)))
+        #expect(
+            AssetChartCard.drawOnKey(series(.oneDay, bars: 78)) != AssetChartCard.drawOnKey(series(.oneYear, bars: 78)))
     }
 }

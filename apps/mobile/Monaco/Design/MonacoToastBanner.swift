@@ -205,11 +205,13 @@ private struct MonacoToastModifier: ViewModifier {
                 // A drag that was cancelled rather than ended leaves this set; a new toast must not
                 // inherit it, or it starts its life already held.
                 isDragging = false
-                await dismiss(current, after: MonacoToastTiming.dwell(
-                    message: current.message,
-                    isSuccess: current.isSuccess,
-                    voiceOverRunning: voiceOverEnabled
-                ))
+                await dismiss(
+                    current,
+                    after: MonacoToastTiming.dwell(
+                        message: current.message,
+                        isSuccess: current.isSuccess,
+                        voiceOverRunning: voiceOverEnabled
+                    ))
             }
             .onDisappear { isDragging = false }
     }

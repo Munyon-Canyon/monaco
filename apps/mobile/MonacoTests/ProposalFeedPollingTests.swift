@@ -1,5 +1,6 @@
 import MonacoCore
 import Testing
+
 @testable import Monaco
 
 struct ProposalFeedPollingTests {
@@ -29,7 +30,8 @@ struct ProposalFeedPollingTests {
     }
 
     @Test func aQuietTickChangesNothing() {
-        #expect(!ProposalFeedPolling.openListLostAProposal(previousOpen: open(["a", "b"]), freshOpen: open(["a", "b"])))
+        #expect(
+            !ProposalFeedPolling.openListLostAProposal(previousOpen: open(["a", "b"]), freshOpen: open(["a", "b"])))
     }
 
     @Test func aProposalLeavingTheOpenListMeansTheClosedTabIsStale() {
@@ -54,7 +56,8 @@ struct ProposalFeedPollingTests {
             closedIsStale = true
         }
         previousOpen = fresh
-        #expect(ProposalFeedPolling.shouldReloadClosed(visibleTab: .open, hasClosed: true, closedIsStale: closedIsStale))
+        #expect(
+            ProposalFeedPolling.shouldReloadClosed(visibleTab: .open, hasClosed: true, closedIsStale: closedIsStale))
 
         // Tick 2: nothing left the list this time, but the Closed tab is still wrong.
         fresh = open(["b"])
@@ -62,10 +65,12 @@ struct ProposalFeedPollingTests {
             closedIsStale = true
         }
         previousOpen = fresh
-        #expect(ProposalFeedPolling.shouldReloadClosed(visibleTab: .open, hasClosed: true, closedIsStale: closedIsStale))
+        #expect(
+            ProposalFeedPolling.shouldReloadClosed(visibleTab: .open, hasClosed: true, closedIsStale: closedIsStale))
 
         // The read lands: the tab is fresh again and quiet ticks stop re-reading it.
         closedIsStale = false
-        #expect(!ProposalFeedPolling.shouldReloadClosed(visibleTab: .open, hasClosed: true, closedIsStale: closedIsStale))
+        #expect(
+            !ProposalFeedPolling.shouldReloadClosed(visibleTab: .open, hasClosed: true, closedIsStale: closedIsStale))
     }
 }

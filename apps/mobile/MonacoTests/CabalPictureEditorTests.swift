@@ -82,7 +82,8 @@ final class CabalPictureEditorTests: XCTestCase {
     /// on screen would tell the member something untrue.
     func testSetPicture_failureKeepsTheCurrentPicture() async {
         let writer = StubCabalPictureWriter()
-        writer.uploadResult = .failure(MonacoCore.MonacoAPIError.rejected(status: 413, message: "picture must be at most 2MB"))
+        writer.uploadResult = .failure(
+            MonacoCore.MonacoAPIError.rejected(status: 413, message: "picture must be at most 2MB"))
         let editor = makeEditor(pictureUrl: "https://cdn.test/groups/g1/first.jpg", writer: writer)
 
         let outcome = await editor.setPicture(imageData: image, mimeType: "image/jpeg")
@@ -193,14 +194,16 @@ final class CabalPictureEditorTests: XCTestCase {
 
         XCTAssertEqual(
             CabalPictureEditor.failureMessage(
-                for: MonacoCore.MonacoAPIError.rejected(status: 400, message: "picture must be a jpeg, png, or webp image"),
+                for: MonacoCore.MonacoAPIError.rejected(
+                    status: 400, message: "picture must be a jpeg, png, or webp image"),
                 fallback: fallback
             ),
             "picture must be a jpeg, png, or webp image",
             "server copy names the rule that was broken; this screen cannot"
         )
         XCTAssertEqual(
-            CabalPictureEditor.failureMessage(for: MonacoCore.MonacoAPIError.rateLimited(retryAfterSeconds: 12), fallback: fallback),
+            CabalPictureEditor.failureMessage(
+                for: MonacoCore.MonacoAPIError.rateLimited(retryAfterSeconds: 12), fallback: fallback),
             "Too many changes. Try again in 12s."
         )
         XCTAssertEqual(

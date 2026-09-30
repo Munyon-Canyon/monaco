@@ -54,7 +54,8 @@ struct CabalMark: View {
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: MarkGeometry.radius(for: size), style: .continuous)
-        return shape
+        return
+            shape
             .fill(onInk ? tint.onInk : tint.fill)
             .frame(width: size, height: size)
             .overlay {
@@ -112,7 +113,9 @@ struct CabalMark: View {
     }
 
     /// Connectors and articles never become initials ("Semis or bust" → "SB", not "SO").
-    static let skippedWords: Set<String> = ["or", "of", "the", "and", "a", "an", "&", "+", "to", "in", "on", "for", "with", "at", "by"]
+    static let skippedWords: Set<String> = [
+        "or", "of", "the", "and", "a", "an", "&", "+", "to", "in", "on", "for", "with", "at", "by",
+    ]
 
     /// First letters of the first and last significant words, uppercased: "Weekend investors" → "WI",
     /// "Semis or bust" → "SB". One significant word gives one letter ("Rent" → "R").
@@ -120,7 +123,8 @@ struct CabalMark: View {
     /// back to their first grapheme. Empty names render an empty tile.
     static func initials(for name: String) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let words = trimmed
+        let words =
+            trimmed
             .split(whereSeparator: { $0.isWhitespace })
             .filter { word in word.first.map { $0.isLetter || $0.isNumber } ?? false }
         let significant = words.filter { !skippedWords.contains($0.lowercased()) }
@@ -171,7 +175,10 @@ struct StockMark: View {
     private let size: CGFloat
     private let logoURL: URL?
 
-    init(symbol: String, displayName: String? = nil, assetKind: AssetKind = .stock, size: CGFloat = 44, logoURL: URL? = nil) {
+    init(
+        symbol: String, displayName: String? = nil, assetKind: AssetKind = .stock, size: CGFloat = 44,
+        logoURL: URL? = nil
+    ) {
         let ticker = AssetSymbolFormatter.display(symbol, kind: assetKind)
         if ticker.uppercased() == "USDC" {
             content = .symbol("dollarsign")

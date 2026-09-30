@@ -1,11 +1,12 @@
 import Foundation
 import MonacoCore
 import Testing
+
 @testable import Monaco
 
 struct CashOutAmountRuleTests {
-    private let floor = RedeemDustMinimum.usdcMicros // $0.10
-    private let slice: Int64 = 50_000_000 // $50.00
+    private let floor = RedeemDustMinimum.usdcMicros  // $0.10
+    private let slice: Int64 = 50_000_000  // $50.00
 
     @Test func aPartialSaleThatLeavesAWorkableRemainderIsOrdinary() {
         #expect(CashOutAmountRule.verdict(enteredMicros: 20_000_000, sliceMicros: slice) == .ok)

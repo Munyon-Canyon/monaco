@@ -1,6 +1,7 @@
 import Foundation
 import MonacoCore
 import Testing
+
 @testable import Monaco
 
 // The app target shadows this MonacoCore DTO; pin the tests to the one the screens use.
@@ -13,7 +14,8 @@ private let outsideAddress = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
 @MainActor
 private enum Fixture {
     static func balance(_ micros: Int64, pending: Int64 = 0) -> PlatformBalanceDTO {
-        PlatformBalanceDTO(availableUsdcMicros: micros, memberWalletAddress: ownAddress, pendingAllocationMicros: pending)
+        PlatformBalanceDTO(
+            availableUsdcMicros: micros, memberWalletAddress: ownAddress, pendingAllocationMicros: pending)
     }
 }
 
@@ -37,7 +39,8 @@ struct FundCabalFormTests {
     /// The helper under the figure says what there is to fund with, and what is already on
     /// its way to a cabal, rather than the old "From your account balance" with no figure.
     @Test func theHelperSaysWhatIsAvailable() {
-        #expect(FundCabalForm(amountText: "", balance: Fixture.balance(248_500_000)).availability == "$248.50 available")
+        #expect(
+            FundCabalForm(amountText: "", balance: Fixture.balance(248_500_000)).availability == "$248.50 available")
         #expect(
             FundCabalForm(amountText: "", balance: Fixture.balance(198_500_000, pending: 50_000_000)).availability
                 == "$198.50 available · $50.00 funding a cabal"
@@ -48,15 +51,19 @@ struct FundCabalFormTests {
     /// With a cabal to pick, the picker sits under the pad, so the line under the figure is
     /// what says where the money goes while the member types.
     @Test func theNoteNamesTheCabalWhenThereIsAChoice() {
-        #expect(FundCabalForm.note(into: nil)
-            == "The money leaves your account balance and joins the pot. Your slice grows by the same amount.")
-        #expect(FundCabalForm.note(into: "Semis or bust")
-            == "The money leaves your account balance and joins the Semis or bust pot. Your slice grows by the same amount.")
+        #expect(
+            FundCabalForm.note(into: nil)
+                == "The money leaves your account balance and joins the pot. Your slice grows by the same amount.")
+        #expect(
+            FundCabalForm.note(into: "Semis or bust")
+                == "The money leaves your account balance and joins the Semis or bust pot. Your slice grows by the same amount."
+        )
         #expect(FundCabalForm.note(into: "") == FundCabalForm.note(into: nil))
     }
 
     @Test func maxIsTheWholeBalanceAndNothingWhenEmpty() {
-        #expect(FundCabalForm(amountText: "", balance: Fixture.balance(248_500_000)).maxDollars == Decimal(string: "248.5"))
+        #expect(
+            FundCabalForm(amountText: "", balance: Fixture.balance(248_500_000)).maxDollars == Decimal(string: "248.5"))
         #expect(FundCabalForm(amountText: "", balance: Fixture.balance(0)).maxDollars == nil)
     }
 }
@@ -66,8 +73,9 @@ struct FundCabalFormTests {
 struct FundCabalStageTests {
     @Test func aFirstLoadIsLoadingOrItsFailure() {
         #expect(FundCabalStage.resolve(phase: .loading, hasCabals: true) == .loading)
-        #expect(FundCabalStage.resolve(phase: .failed("No connection. Check your internet."), hasCabals: true)
-            == .failed("No connection. Check your internet."))
+        #expect(
+            FundCabalStage.resolve(phase: .failed("No connection. Check your internet."), hasCabals: true)
+                == .failed("No connection. Check your internet."))
     }
 
     @Test func noCabalWinsOverAnyBalance() {
@@ -92,23 +100,40 @@ struct FundCabalStageTests {
 @MainActor
 struct WithdrawFormTests {
     @Test func continueNeedsAnAmountWithinTheBalanceAndAUsableAddress() {
-        #expect(WithdrawForm(amountText: "100", destinationAddress: outsideAddress, balance: Fixture.balance(248_500_000)).canContinue)
-        #expect(!WithdrawForm(amountText: "", destinationAddress: outsideAddress, balance: Fixture.balance(248_500_000)).canContinue)
-        #expect(!WithdrawForm(amountText: "300", destinationAddress: outsideAddress, balance: Fixture.balance(248_500_000)).canContinue)
-        #expect(!WithdrawForm(amountText: "100", destinationAddress: "", balance: Fixture.balance(248_500_000)).canContinue)
-        #expect(!WithdrawForm(amountText: "100", destinationAddress: ownAddress, balance: Fixture.balance(248_500_000)).canContinue)
+        #expect(
+            WithdrawForm(amountText: "100", destinationAddress: outsideAddress, balance: Fixture.balance(248_500_000))
+                .canContinue)
+        #expect(
+            !WithdrawForm(amountText: "", destinationAddress: outsideAddress, balance: Fixture.balance(248_500_000))
+                .canContinue)
+        #expect(
+            !WithdrawForm(amountText: "300", destinationAddress: outsideAddress, balance: Fixture.balance(248_500_000))
+                .canContinue)
+        #expect(
+            !WithdrawForm(amountText: "100", destinationAddress: "", balance: Fixture.balance(248_500_000)).canContinue)
+        #expect(
+            !WithdrawForm(amountText: "100", destinationAddress: ownAddress, balance: Fixture.balance(248_500_000))
+                .canContinue)
     }
 
     /// Nothing is said about an empty field; a pasted address that can't be used says why.
     @Test func theFieldOnlySpeaksUpAboutAnAddressItCannotUse() {
         #expect(WithdrawForm(amountText: "", destinationAddress: "", balance: Fixture.balance(1)).addressProblem == nil)
-        #expect(WithdrawForm(amountText: "", destinationAddress: outsideAddress, balance: Fixture.balance(1)).addressProblem == nil)
-        #expect(WithdrawForm(amountText: "", destinationAddress: "0xabc", balance: Fixture.balance(1)).addressProblem != nil)
-        #expect(WithdrawForm(amountText: "", destinationAddress: ownAddress, balance: Fixture.balance(1)).addressProblem != nil)
+        #expect(
+            WithdrawForm(amountText: "", destinationAddress: outsideAddress, balance: Fixture.balance(1)).addressProblem
+                == nil)
+        #expect(
+            WithdrawForm(amountText: "", destinationAddress: "0xabc", balance: Fixture.balance(1)).addressProblem != nil
+        )
+        #expect(
+            WithdrawForm(amountText: "", destinationAddress: ownAddress, balance: Fixture.balance(1)).addressProblem
+                != nil)
     }
 
     @Test func theHelperSaysWhatIsAvailable() {
-        #expect(WithdrawForm(amountText: "", destinationAddress: "", balance: Fixture.balance(248_500_000)).balanceHelper == "$248.50 available")
+        #expect(
+            WithdrawForm(amountText: "", destinationAddress: "", balance: Fixture.balance(248_500_000)).balanceHelper
+                == "$248.50 available")
     }
 }
 
@@ -117,15 +142,20 @@ struct WithdrawFormTests {
 struct DepositAddressCardContentTests {
     @Test func aLoadInFlightWinsThenAnAddressThenWhatWentWrong() {
         #expect(DepositAddressCard.Content.resolve(isLoading: true, address: ownAddress, errorMessage: nil) == .loading)
-        #expect(DepositAddressCard.Content.resolve(isLoading: false, address: ownAddress, errorMessage: nil) == .ready(ownAddress))
-        #expect(DepositAddressCard.Content.resolve(isLoading: false, address: nil, errorMessage: "Couldn't load your deposit address.")
-            == .unavailable("Couldn't load your deposit address."))
+        #expect(
+            DepositAddressCard.Content.resolve(isLoading: false, address: ownAddress, errorMessage: nil)
+                == .ready(ownAddress))
+        #expect(
+            DepositAddressCard.Content.resolve(
+                isLoading: false, address: nil, errorMessage: "Couldn't load your deposit address.")
+                == .unavailable("Couldn't load your deposit address."))
     }
 
     /// A cancelled load says nothing went wrong, and the card still offers a way on.
     @Test func noAddressAndNoReasonIsNotReadyYet() {
-        #expect(DepositAddressCard.Content.resolve(isLoading: false, address: nil, errorMessage: nil)
-            == .unavailable("Deposit address not ready yet."))
+        #expect(
+            DepositAddressCard.Content.resolve(isLoading: false, address: nil, errorMessage: nil)
+                == .unavailable("Deposit address not ready yet."))
     }
 }
 
@@ -199,13 +229,14 @@ struct AmountEntryPresetRowTests {
 @MainActor
 struct MoneyFlowCopyTests {
     @Test func theNewCopyPassesTheMainFlowAudit() {
-        let strings = DepositContent.steps + [
-            DepositAddressCard.networkNote,
-            FundCabalForm.note(into: nil),
-            FundCabalForm.note(into: "Weekend investors"),
-            WithdrawForm.caveat,
-            PlatformBalanceCard.pendingLine(micros: 50_000_000) ?? "",
-        ]
+        let strings =
+            DepositContent.steps + [
+                DepositAddressCard.networkNote,
+                FundCabalForm.note(into: nil),
+                FundCabalForm.note(into: "Weekend investors"),
+                WithdrawForm.caveat,
+                PlatformBalanceCard.pendingLine(micros: 50_000_000) ?? "",
+            ]
         #expect(MainFlowCopyAudit.stringsAreClean(strings))
     }
 
