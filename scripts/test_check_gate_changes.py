@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from unittest import mock
 
 spec = importlib.util.spec_from_file_location(
@@ -143,14 +144,29 @@ class Repo:
         return self.sha()
 
 
+_FIXTURES = {}
+
+
+def fixture(name, extra=None):
+    # One repo per process. The suite runs tests in a process pool, and each
+    # worker resets this repo instead of running git init for every test.
+    if name not in _FIXTURES:
+        tmp = tempfile.TemporaryDirectory()
+        repo = Repo(pathlib.Path(tmp.name), name, extra)
+        _FIXTURES[name] = (tmp, repo, repo.base)
+    return _FIXTURES[name]
+
+
 class CheckTest(unittest.TestCase):
     def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
         cwd = os.getcwd()
         self.addCleanup(os.chdir, cwd)
-        os.chdir(tmp.name)
-        self.repo = Repo(pathlib.Path(tmp.name))
+        _, repo, origin = fixture("base")
+        os.chdir(repo.root)
+        self.repo = repo
+        self.repo.git("reset", "-q", "--hard", origin)
+        self.repo.git("clean", "-q", "-fd")
+        self.repo.base = origin
 
     def run_check(self, files, labels="[]"):
         head = self.repo.commit(files)
@@ -510,10 +526,12 @@ def add_scripts(repo):
 
 class WorktreeTest(unittest.TestCase):
     def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.root = pathlib.Path(tmp.name)
-        self.repo = Repo(self.root, "hooked", add_scripts)
+        _, repo, origin = fixture("hooked", add_scripts)
+        self.root = repo.root
+        self.repo = repo
+        self.repo.git("reset", "-q", "--hard", origin)
+        self.repo.git("clean", "-q", "-fd")
+        self.repo.base = origin
 
     def hook(self, path):
         stdin = '{"hook_event_name": "PostToolUse", "tool_input": {"file_path": "%s"}}' % (self.root / path)
@@ -604,6 +622,63 @@ class WorktreeTest(unittest.TestCase):
 class ExclusionLinesTest(unittest.TestCase):
     def test_block_ends_at_sibling_key(self):
         self.assertEqual(check.exclusion_lines(GOLANGCI), {4, 5, 6})
+
+
+def _flatten(suite):
+    for item in suite:
+        if isinstance(item, unittest.TestSuite):
+            yield from _flatten(item)
+        else:
+            yield item
+
+
+def _run_one(test_id):
+    os.environ["GATE_TEST_WORKER"] = "1"
+    stream = io.StringIO()
+    suite = unittest.defaultTestLoader.loadTestsFromName(test_id)
+    result = unittest.TextTestRunner(stream=stream, verbosity=0).run(suite)
+    if result.wasSuccessful():
+        return "ok", ""
+    if result.failures:
+        return "fail", result.failures[0][1]
+    if result.errors:
+        return "error", result.errors[0][1]
+    return "fail", stream.getvalue()
+
+
+class ParallelSuite(unittest.TestSuite):
+    def run(self, result, debug=False):
+        os.environ["GATE_TEST_WORKER"] = "1"
+        cases = list(_flatten(self))
+        workers = min(8, os.cpu_count() or 4)
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            futures = {pool.submit(_run_one, case.id()): case for case in cases}
+            for future in as_completed(futures):
+                case = futures[future]
+                result.startTest(case)
+                try:
+                    kind, text = future.result()
+                except Exception:
+                    result.addError(case, sys.exc_info())
+                else:
+                    if kind == "ok":
+                        result.addSuccess(case)
+                    else:
+                        try:
+                            raise AssertionError(text)
+                        except AssertionError:
+                            if kind == "error":
+                                result.addError(case, sys.exc_info())
+                            else:
+                                result.addFailure(case, sys.exc_info())
+                result.stopTest(case)
+        return result
+
+
+def load_tests(loader, tests, pattern):
+    if os.environ.get("GATE_TEST_WORKER") == "1":
+        return tests
+    return ParallelSuite(tests)
 
 
 if __name__ == "__main__":
