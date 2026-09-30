@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import MonacoCore
 
 final class ProposalFeedFormatterTests: XCTestCase {
@@ -42,7 +43,9 @@ final class ProposalFeedFormatterTests: XCTestCase {
     func testVoteProgress_yesNeeded_matchesBackendPassRule() {
         // Majority passes when yes > no + remaining, i.e. floor(n/2) + 1; unanimous needs everyone.
         func needed(_ n: Int, _ threshold: String) -> Int {
-            ProposalVoteProgress(summary: ProposalVoteSummaryDTO(yesCount: 0, noCount: 0, eligibleCount: n, threshold: threshold)).yesNeeded
+            ProposalVoteProgress(
+                summary: ProposalVoteSummaryDTO(yesCount: 0, noCount: 0, eligibleCount: n, threshold: threshold)
+            ).yesNeeded
         }
         XCTAssertEqual(needed(1, "majority"), 1)
         XCTAssertEqual(needed(2, "majority"), 2)
@@ -95,7 +98,10 @@ final class ProposalFeedFormatterTests: XCTestCase {
         // Assert
         XCTAssertNil(progress.dots)
         XCTAssertEqual(progress.caption, "6 of 13 voted · 7 yes to pass")
-        XCTAssertEqual(ProposalVoteProgress(summary: ProposalVoteSummaryDTO(yesCount: 0, noCount: 0, eligibleCount: 12, threshold: "majority")).dots?.count, 12)
+        XCTAssertEqual(
+            ProposalVoteProgress(
+                summary: ProposalVoteSummaryDTO(yesCount: 0, noCount: 0, eligibleCount: 12, threshold: "majority")
+            ).dots?.count, 12)
     }
 
     func testClosesLabel_hoursLeft() {
@@ -189,7 +195,8 @@ final class ProposalFeedFormatterTests: XCTestCase {
     /// as one it does, which is the point — the label never depends on the lookup table.
     func testTitle_tradeIsTheTicker() {
         XCTAssertEqual(ProposalFeedCopy.title(for: ProposalDTO(id: "p", symbol: "AAPLx", status: "open")), "AAPL")
-        XCTAssertEqual(ProposalFeedCopy.title(for: ProposalDTO(id: "p", symbol: "NVDAx", status: "open", kind: "sell")), "NVDA")
+        XCTAssertEqual(
+            ProposalFeedCopy.title(for: ProposalDTO(id: "p", symbol: "NVDAx", status: "open", kind: "sell")), "NVDA")
         XCTAssertEqual(ProposalFeedCopy.title(for: ProposalDTO(id: "p", symbol: "ZZZZx", status: "open")), "ZZZZ")
     }
 
@@ -197,19 +204,23 @@ final class ProposalFeedFormatterTests: XCTestCase {
     /// "AAPL" over "AAPL · Buy" said the same thing twice in the space of one line.
     func testSubtitle_tradeIsJustTheSide() {
         XCTAssertEqual(ProposalFeedCopy.subtitle(for: ProposalDTO(id: "p", symbol: "AAPLx", status: "open")), "Buy")
-        XCTAssertEqual(ProposalFeedCopy.subtitle(for: ProposalDTO(id: "p", symbol: "AAPLx", status: "open", kind: "sell")), "Sell")
         XCTAssertEqual(
-            ProposalFeedCopy.subtitle(for: ProposalDTO(id: "p", symbol: "", status: "open", kind: "add_agent", allocationUsdcMicros: "500000000")),
+            ProposalFeedCopy.subtitle(for: ProposalDTO(id: "p", symbol: "AAPLx", status: "open", kind: "sell")), "Sell")
+        XCTAssertEqual(
+            ProposalFeedCopy.subtitle(
+                for: ProposalDTO(
+                    id: "p", symbol: "", status: "open", kind: "add_agent", allocationUsdcMicros: "500000000")),
             "New trading bot · Budget from the pot"
         )
     }
 
     func testClosedLabel_perOutcome() {
         func label(_ status: String, kind: String = "buy", execution: String? = nil) -> String? {
-            ProposalFeedCopy.closedLabel(for: ProposalDTO(
-                id: "p", symbol: "AAPLx", status: status, kind: kind,
-                execution: execution.map { ProposalExecutionDTO(state: $0) }
-            ))
+            ProposalFeedCopy.closedLabel(
+                for: ProposalDTO(
+                    id: "p", symbol: "AAPLx", status: status, kind: kind,
+                    execution: execution.map { ProposalExecutionDTO(state: $0) }
+                ))
         }
         XCTAssertNil(label("open"))
         XCTAssertEqual(label("passed", execution: "confirmed"), "Bought")
@@ -233,10 +244,11 @@ final class ProposalFeedFormatterTests: XCTestCase {
 
     func testExecutionStage_tracksVoteThenSwap() {
         func stage(_ status: String, kind: String = "buy", execution: String? = nil) -> ProposalExecutionStage? {
-            ProposalExecutionStage.of(ProposalDTO(
-                id: "p", symbol: "AAPLx", status: status, kind: kind,
-                execution: execution.map { ProposalExecutionDTO(state: $0) }
-            ))
+            ProposalExecutionStage.of(
+                ProposalDTO(
+                    id: "p", symbol: "AAPLx", status: status, kind: kind,
+                    execution: execution.map { ProposalExecutionDTO(state: $0) }
+                ))
         }
         XCTAssertEqual(stage("open"), .voting)
         XCTAssertEqual(stage("passed", execution: "pending"), .executing)
@@ -251,9 +263,12 @@ final class ProposalFeedFormatterTests: XCTestCase {
     }
 
     func testAwaitingExecution_onlyWhilePending() {
-        let pending = ProposalDTO(id: "p", symbol: "AAPLx", status: "passed", execution: ProposalExecutionDTO(state: "pending"))
-        let done = ProposalDTO(id: "p", symbol: "AAPLx", status: "passed", execution: ProposalExecutionDTO(state: "confirmed"))
-        let failed = ProposalDTO(id: "p", symbol: "AAPLx", status: "passed", execution: ProposalExecutionDTO(state: "failed"))
+        let pending = ProposalDTO(
+            id: "p", symbol: "AAPLx", status: "passed", execution: ProposalExecutionDTO(state: "pending"))
+        let done = ProposalDTO(
+            id: "p", symbol: "AAPLx", status: "passed", execution: ProposalExecutionDTO(state: "confirmed"))
+        let failed = ProposalDTO(
+            id: "p", symbol: "AAPLx", status: "passed", execution: ProposalExecutionDTO(state: "failed"))
         let open = ProposalDTO(id: "p", symbol: "AAPLx", status: "open")
         XCTAssertTrue(pending.isAwaitingExecution)
         XCTAssertFalse(done.isAwaitingExecution)
@@ -262,10 +277,12 @@ final class ProposalFeedFormatterTests: XCTestCase {
     }
 
     func testViewerChoice_matchesViewerBallotOnly() {
-        let proposal = ProposalDTO(id: "p", symbol: "AAPLx", status: "open", votes: [
-            ProposalVoteDTO(voterId: "b", displayName: "Bea", choice: "yes"),
-            ProposalVoteDTO(voterId: "me", displayName: "Logan", choice: "No"),
-        ])
+        let proposal = ProposalDTO(
+            id: "p", symbol: "AAPLx", status: "open",
+            votes: [
+                ProposalVoteDTO(voterId: "b", displayName: "Bea", choice: "yes"),
+                ProposalVoteDTO(voterId: "me", displayName: "Logan", choice: "No"),
+            ])
         XCTAssertEqual(proposal.viewerChoice(viewerId: "me"), "no")
         XCTAssertNil(proposal.viewerChoice(viewerId: "someone"))
         XCTAssertNil(proposal.viewerChoice(viewerId: nil))
@@ -304,7 +321,9 @@ final class ProposalFeedFormatterTests: XCTestCase {
 
     func testHeadline_addAgentProposal_namesAgentAndBudget() {
         // Arrange
-        let proposal = ProposalDTO(id: "p", symbol: "", status: "open", kind: "add_agent", agentDisplayName: "Scout", allocationUsdcMicros: "500000000")
+        let proposal = ProposalDTO(
+            id: "p", symbol: "", status: "open", kind: "add_agent", agentDisplayName: "Scout",
+            allocationUsdcMicros: "500000000")
 
         // Act
         let headline = ProposalFeedCopy.headline(for: proposal)

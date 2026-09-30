@@ -1,8 +1,10 @@
 import XCTest
+
+@testable import MonacoCore
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-@testable import MonacoCore
 
 final class ProposalCommentsAPITests: XCTestCase {
     override func tearDown() {
@@ -22,7 +24,8 @@ final class ProposalCommentsAPITests: XCTestCase {
     }
 
     private static func respond(_ request: URLRequest, status: Int, body: String) -> (HTTPURLResponse, Data) {
-        let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
+        let response = HTTPURLResponse(
+            url: request.url!, statusCode: status, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
         return (response, Data(body.utf8))
     }
 
@@ -49,14 +52,19 @@ final class ProposalCommentsAPITests: XCTestCase {
         MockURLProtocol.requestHandler = { request in
             capturedPath = request.url?.path
             capturedAuth = request.value(forHTTPHeaderField: "Authorization")
-            capturedJSON = Self.httpBody(from: request).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
-            return Self.respond(request, status: 201, body: """
-            {"id":"c2","proposalId":"prop-1","parentId":"c1","authorId":"u1","authorName":"Ada","body":"Lower drawdown.","createdAt":"2026-09-18T01:05:00Z"}
-            """)
+            capturedJSON = Self.httpBody(from: request).flatMap {
+                try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
+            }
+            return Self.respond(
+                request, status: 201,
+                body: """
+                    {"id":"c2","proposalId":"prop-1","parentId":"c1","authorId":"u1","authorName":"Ada","body":"Lower drawdown.","createdAt":"2026-09-18T01:05:00Z"}
+                    """)
         }
 
         // Act
-        let created = try await makeClient().postProposalComment(proposalId: "prop-1", body: "Lower drawdown.", parentId: "c1")
+        let created = try await makeClient().postProposalComment(
+            proposalId: "prop-1", body: "Lower drawdown.", parentId: "c1")
 
         // Assert
         XCTAssertEqual(capturedPath, "/v1/proposals/prop-1/comments")
@@ -70,10 +78,14 @@ final class ProposalCommentsAPITests: XCTestCase {
         // Arrange
         var capturedJSON: [String: Any]?
         MockURLProtocol.requestHandler = { request in
-            capturedJSON = Self.httpBody(from: request).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
-            return Self.respond(request, status: 201, body: """
-            {"id":"c1","proposalId":"prop-1","authorId":"u1","authorName":"Ben","body":"Why Apple?","createdAt":"2026-09-18T01:00:00Z"}
-            """)
+            capturedJSON = Self.httpBody(from: request).flatMap {
+                try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
+            }
+            return Self.respond(
+                request, status: 201,
+                body: """
+                    {"id":"c1","proposalId":"prop-1","authorId":"u1","authorName":"Ben","body":"Why Apple?","createdAt":"2026-09-18T01:00:00Z"}
+                    """)
         }
 
         // Act

@@ -1,9 +1,11 @@
+import MonacoAPI
 import XCTest
+
+@testable import MonacoCore
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import MonacoAPI
-@testable import MonacoCore
 
 final class ProposalsAPITests: XCTestCase {
     override func tearDown() {
@@ -23,8 +25,8 @@ final class ProposalsAPITests: XCTestCase {
                 capturedQuery = URLComponents(url: url, resolvingAgainstBaseURL: false)?.query
             }
             let body = """
-            {"assets":[{"symbol":"AAPLx","name":"Apple xStock"}],"hasMore":false}
-            """
+                {"assets":[{"symbol":"AAPLx","name":"Apple xStock"}],"hasMore":false}
+                """
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: 200,
@@ -62,8 +64,8 @@ final class ProposalsAPITests: XCTestCase {
             capturedPath = request.url?.path
             capturedBody = Self.httpBody(from: request)
             let body = """
-            {"symbol":"AAPLx","usdcMicros":"5000000","routable":true}
-            """
+                {"symbol":"AAPLx","usdcMicros":"5000000","routable":true}
+                """
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: 200,
@@ -98,8 +100,8 @@ final class ProposalsAPITests: XCTestCase {
         MockURLProtocol.requestHandler = { request in
             capturedBody = Self.httpBody(from: request)
             let body = """
-            {"symbol":"AAPLx","kind":"sell","tokenAmount":"50000000","routable":true,"outputUsdcMicros":"1500000"}
-            """
+                {"symbol":"AAPLx","kind":"sell","tokenAmount":"50000000","routable":true,"outputUsdcMicros":"1500000"}
+                """
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: 200,
@@ -138,8 +140,8 @@ final class ProposalsAPITests: XCTestCase {
         MockURLProtocol.requestHandler = { request in
             capturedBody = Self.httpBody(from: request)
             let body = """
-            {"proposalId":"prop-1"}
-            """
+                {"proposalId":"prop-1"}
+                """
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: 200,

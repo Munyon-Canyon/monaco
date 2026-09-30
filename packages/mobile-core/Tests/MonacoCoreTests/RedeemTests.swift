@@ -1,9 +1,11 @@
+import MonacoAPI
 import XCTest
+
+@testable import MonacoCore
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import MonacoAPI
-@testable import MonacoCore
 
 final class RedeemTests: XCTestCase {
     override func tearDown() {
@@ -34,8 +36,8 @@ final class RedeemTests: XCTestCase {
         MockURLProtocol.requestHandler = { request in
             capturedBody = Self.httpBody(from: request)
             let body = """
-            {"id":"job-1","status":"debited"}
-            """
+                {"id":"job-1","status":"debited"}
+                """
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: 200,
@@ -83,9 +85,13 @@ final class RedeemTests: XCTestCase {
                 return (response, Data("{\"groups\":[],\"people\":[]}".utf8))
             }
             if request.url?.path.contains("/view") == true {
-                return (response, Data("""
-                {"id":"g1","name":"Club","pot":[],"you":{"shareUnits":"0","equityUsd":"0","slicePercent":"0","dollarPnl":"0","percentReturn":null},"members":[]}
-                """.utf8))
+                return (
+                    response,
+                    Data(
+                        """
+                        {"id":"g1","name":"Club","pot":[],"you":{"shareUnits":"0","equityUsd":"0","slicePercent":"0","dollarPnl":"0","percentReturn":null},"members":[]}
+                        """.utf8)
+                )
             }
             return (response, Data("{\"id\":\"job-1\",\"status\":\"debited\"}".utf8))
         }

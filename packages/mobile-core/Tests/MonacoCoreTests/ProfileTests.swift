@@ -1,8 +1,10 @@
 import XCTest
+
+@testable import MonacoCore
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-@testable import MonacoCore
 
 final class ProfileAPITests: XCTestCase {
     override func tearDown() {
@@ -11,14 +13,14 @@ final class ProfileAPITests: XCTestCase {
     }
 
     private let meBody = """
-    {
-      "userId": "550e8400-e29b-41d4-a716-446655440000",
-      "displayName": "Logan Norman",
-      "memberWalletAddress": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
-      "profilePhotoUrl": null,
-      "createdAt": "2026-09-01T14:30:00Z"
-    }
-    """
+        {
+          "userId": "550e8400-e29b-41d4-a716-446655440000",
+          "displayName": "Logan Norman",
+          "memberWalletAddress": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+          "profilePhotoUrl": null,
+          "createdAt": "2026-09-01T14:30:00Z"
+        }
+        """
 
     func testUpdateProfile_sendsPatchWithJSONBodyAndAuth() async throws {
         // Arrange
@@ -49,7 +51,10 @@ final class ProfileAPITests: XCTestCase {
 
     func testUpdateProfile_400_surfacesServerMessage() async {
         MockURLProtocol.requestHandler = { request in
-            (Self.response(request, status: 400), Data(#"{"error":"Display name must include a letter or number."}"#.utf8))
+            (
+                Self.response(request, status: 400),
+                Data(#"{"error":"Display name must include a letter or number."}"#.utf8)
+            )
         }
 
         do {
@@ -65,7 +70,10 @@ final class ProfileAPITests: XCTestCase {
 
     func testUpdateProfile_429_readsRetryAfter() async {
         MockURLProtocol.requestHandler = { request in
-            (Self.response(request, status: 429, headers: ["Retry-After": "12"]), Data(#"{"error":"too many requests"}"#.utf8))
+            (
+                Self.response(request, status: 429, headers: ["Retry-After": "12"]),
+                Data(#"{"error":"too many requests"}"#.utf8)
+            )
         }
 
         do {
@@ -169,7 +177,8 @@ final class ProfileAPITests: XCTestCase {
         )
     }
 
-    private static func response(_ request: URLRequest, status: Int, headers: [String: String] = [:]) -> HTTPURLResponse {
+    private static func response(_ request: URLRequest, status: Int, headers: [String: String] = [:]) -> HTTPURLResponse
+    {
         var allHeaders = ["Content-Type": "application/json"]
         allHeaders.merge(headers) { _, new in new }
         return HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: allHeaders)!
@@ -207,7 +216,8 @@ final class MeDTOTests: XCTestCase {
     }
 
     func testDecode_blankPhotoAndFractionalCreatedAt() throws {
-        let json = #"{"userId":"u1","displayName":"A","memberWalletAddress":"addr","profilePhotoUrl":"  ","createdAt":"2026-09-01T14:30:00.250Z"}"#
+        let json =
+            #"{"userId":"u1","displayName":"A","memberWalletAddress":"addr","profilePhotoUrl":"  ","createdAt":"2026-09-01T14:30:00.250Z"}"#
 
         let dto = try JSONDecoder().decode(MeDTO.self, from: Data(json.utf8))
 
@@ -238,7 +248,8 @@ final class MeDTOTests: XCTestCase {
     }
 
     func testWithDisplayName_keepsOtherFields() {
-        let original = MeDTO(userId: "u1", displayName: "Old", memberWalletAddress: "addr", profilePhotoUrl: "p", createdAt: nil)
+        let original = MeDTO(
+            userId: "u1", displayName: "Old", memberWalletAddress: "addr", profilePhotoUrl: "p", createdAt: nil)
 
         let renamed = original.withDisplayName("New")
 
@@ -250,11 +261,13 @@ final class MeDTOTests: XCTestCase {
     func testBoardDTOs_decodeProfilePhotoUrl() throws {
         let homeURL = try XCTUnwrap(Bundle.module.url(forResource: "home_view", withExtension: "json"))
         let home = try JSONDecoder().decode(HomeViewDTO.self, from: Data(contentsOf: homeURL))
-        XCTAssertEqual(home.people[0].profilePhotoUrl, "https://example.supabase.co/storage/v1/object/public/avatars/u1/a1.jpg")
+        XCTAssertEqual(
+            home.people[0].profilePhotoUrl, "https://example.supabase.co/storage/v1/object/public/avatars/u1/a1.jpg")
 
         let groupURL = try XCTUnwrap(Bundle.module.url(forResource: "group_view", withExtension: "json"))
         let group = try JSONDecoder().decode(GroupViewDTO.self, from: Data(contentsOf: groupURL))
-        XCTAssertEqual(group.members[0].profilePhotoUrl, "https://example.supabase.co/storage/v1/object/public/avatars/u1/a1.jpg")
+        XCTAssertEqual(
+            group.members[0].profilePhotoUrl, "https://example.supabase.co/storage/v1/object/public/avatars/u1/a1.jpg")
         XCTAssertNil(group.members[1].profilePhotoUrl)
     }
 
@@ -320,7 +333,8 @@ final class DisplayNameRulesTests: XCTestCase {
 
     func testNormalize_rejectsStackedCombiningMarks() {
         let zalgo = "Lox" + scalar(0x0301) + scalar(0x0302) + scalar(0x0303) + "gan"
-        XCTAssertEqual(DisplayNameRules.validationMessage(for: zalgo), DisplayNameValidationError.invalidCharacters.message)
+        XCTAssertEqual(
+            DisplayNameRules.validationMessage(for: zalgo), DisplayNameValidationError.invalidCharacters.message)
     }
 
     func testValidationMessage_matchesServerCopy() {
@@ -349,7 +363,11 @@ final class AvatarInitialsTests: XCTestCase {
         let date = Date(timeIntervalSince1970: 1_788_228_000)
         let locale = Locale(identifier: "en_US")
 
-        XCTAssertEqual(MemberSinceFormatter.format(date, timeZone: TimeZone(identifier: "UTC")!, locale: locale), "Member since Sep 2026")
-        XCTAssertEqual(MemberSinceFormatter.format(date, timeZone: TimeZone(identifier: "America/Los_Angeles")!, locale: locale), "Member since Aug 2026")
+        XCTAssertEqual(
+            MemberSinceFormatter.format(date, timeZone: TimeZone(identifier: "UTC")!, locale: locale),
+            "Member since Sep 2026")
+        XCTAssertEqual(
+            MemberSinceFormatter.format(date, timeZone: TimeZone(identifier: "America/Los_Angeles")!, locale: locale),
+            "Member since Aug 2026")
     }
 }

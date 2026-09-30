@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import MonacoCore
 
 final class ProposalCommentTests: XCTestCase {
@@ -17,13 +18,13 @@ final class ProposalCommentTests: XCTestCase {
     func testProposalCommentsResponse_decodesTopLevelAndReply() throws {
         // Arrange
         let json = """
-        {
-          "comments": [
-            {"id":"c1","proposalId":"prop-1","authorId":"u1","authorName":"Ben","body":"Why Apple?","createdAt":"2026-09-18T01:00:00Z"},
-            {"id":"c2","proposalId":"prop-1","parentId":"c1","authorId":"u2","authorName":"Ada","body":"Lower drawdown.","createdAt":"2026-09-18T01:05:00Z"}
-          ]
-        }
-        """
+            {
+              "comments": [
+                {"id":"c1","proposalId":"prop-1","authorId":"u1","authorName":"Ben","body":"Why Apple?","createdAt":"2026-09-18T01:00:00Z"},
+                {"id":"c2","proposalId":"prop-1","parentId":"c1","authorId":"u2","authorName":"Ada","body":"Lower drawdown.","createdAt":"2026-09-18T01:05:00Z"}
+              ]
+            }
+            """
 
         // Act
         let decoded = try JSONDecoder().decode(ProposalCommentsResponseDTO.self, from: Data(json.utf8))
