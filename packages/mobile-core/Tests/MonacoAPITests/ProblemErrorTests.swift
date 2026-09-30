@@ -37,6 +37,7 @@ final class ProblemErrorTests: XCTestCase {
                 .authStateTransition,
                 .cabalBanned,
                 .cabalNotFound,
+                .calendarExpired,
                 .cannotRevokeAccess,
                 .clientClosed,
                 .conservationBroken,
