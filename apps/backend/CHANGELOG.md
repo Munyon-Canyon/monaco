@@ -8,6 +8,8 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 
 ### Added
 
+- The `identity` module.
+
 ## [checkpoint 4] - 2026-09-29
 
 ### Changed
