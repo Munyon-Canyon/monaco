@@ -1,6 +1,7 @@
 import contextlib
 import importlib.util
 import io
+import multiprocessing
 import os
 import pathlib
 import shutil
@@ -126,7 +127,7 @@ class Repo:
         return subprocess.run(["git", *args], cwd=self.root, check=True, capture_output=True, text=True).stdout
 
     def sha(self):
-        return (self.root / ".git" / "refs" / "heads" / "main").read_text().strip()
+        return self.git("rev-parse", "HEAD").strip()
 
     def write(self, files):
         for path, text in files.items():
@@ -651,7 +652,10 @@ class ParallelSuite(unittest.TestSuite):
         os.environ["GATE_TEST_WORKER"] = "1"
         cases = list(_flatten(self))
         workers = min(8, os.cpu_count() or 4)
-        with ProcessPoolExecutor(max_workers=workers) as pool:
+        # Linux forks by default and every worker would init the same template
+        # repo. spawn gives each worker its own, which is what macOS already does.
+        ctx = multiprocessing.get_context("spawn")
+        with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as pool:
             futures = {pool.submit(_run_one, case.id()): case for case in cases}
             for future in as_completed(futures):
                 case = futures[future]
