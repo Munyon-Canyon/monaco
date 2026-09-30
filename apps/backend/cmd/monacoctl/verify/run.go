@@ -20,8 +20,9 @@ import (
 )
 
 var (
-	errArgs   = errors.New("bad arguments")
-	errFailed = errors.New("verify failed")
+	errArgs      = errors.New("bad arguments")
+	errFailed    = errors.New("verify failed")
+	errWorkerEnv = errors.New("worker environment")
 )
 
 const Usage = "usage: monacoctl verify [flow <id> | all] [--outcome X] [--crash-at P]"
@@ -83,6 +84,7 @@ type Config struct {
 	Postgres PostgresFunc
 	Modules  func(module.Deps) module.Set
 	Scripts  map[string]flows.Script
+	Env      map[string][]string
 	Ledger   []LedgerCheck
 	Stdout   io.Writer
 	Stderr   io.Writer
@@ -105,6 +107,10 @@ func run(ctx context.Context, cfg Config, target Target) (err error) {
 	if err != nil {
 		return err
 	}
+	env, err := workerEnv(units, cfg.Env)
+	if err != nil {
+		return err
+	}
 	rep := newReport(ctx, target, units)
 	defer func() {
 		writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.Budget.Teardown)
@@ -124,7 +130,7 @@ func run(ctx context.Context, cfg Config, target Target) (err error) {
 	began = time.Now()
 	stack, err := Up(runCtx, Options{
 		Dir: cfg.Dir, Atlas: cfg.Atlas, Docker: cfg.Docker, Environ: cfg.Environ, Bins: bins,
-		Budget: cfg.Budget, Postgres: cfg.Postgres, CoverDir: cover, Faultpoint: target.CrashAt,
+		Budget: cfg.Budget, Postgres: cfg.Postgres, CoverDir: cover, Faultpoint: target.CrashAt, WorkerEnv: env,
 	})
 	rep.phases[PhaseStack] = time.Since(began)
 	defer func() {

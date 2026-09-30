@@ -74,9 +74,9 @@ func plantedScripts() map[string]flows.Script {
 	}
 }
 
-func testConfig(t *testing.T, mode string) (Config, *bytes.Buffer, *bytes.Buffer) {
+func testConfig(t *testing.T) (Config, *bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
-	o := testOptions(t, mode)
+	o := testOptions(t, "ok")
 	dir := t.TempDir()
 	if err := os.Symlink(filepath.Join(o.Dir, "migrations"), filepath.Join(dir, "migrations")); err != nil {
 		t.Fatal(err)
@@ -104,7 +104,7 @@ func TestRun_buildsTheBinariesRunsEveryOutcomeAndTearsTheStackDown(t *testing.T)
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			cfg, stdout, stderr := testConfig(t, "ok")
+			cfg, stdout, stderr := testConfig(t)
 			if code := Run(t.Context(), cfg, tc.target); code != 0 {
 				t.Fatalf("Run = %d\n%s\n%s", code, stdout, stderr)
 			}
@@ -161,7 +161,7 @@ func TestRun_failsWithTheReasonAndExitOne(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			cfg, _, stderr := testConfig(t, "ok")
+			cfg, _, stderr := testConfig(t)
 			tc.edit(t, &cfg)
 			if code := Run(t.Context(), cfg, Target{}); code != 1 || !strings.Contains(stderr.String(), tc.want) {
 				t.Fatalf("Run = %d, stderr %q, want 1 and %q", code, stderr, tc.want)
@@ -211,7 +211,7 @@ func TestRun_stampsEvidenceWithTheCommitAndDirtyFlagEvenOverBudget(t *testing.T)
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			cfg, stdout, stderr := testConfig(t, "ok")
+			cfg, stdout, stderr := testConfig(t)
 			head := gitInit(t, cfg.Dir)
 			tc.edit(t, &cfg)
 			if code := Run(t.Context(), cfg, Target{Flow: "90"}); code != tc.code {
