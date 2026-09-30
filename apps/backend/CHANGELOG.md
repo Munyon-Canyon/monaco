@@ -17,6 +17,7 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 - The `governance` module.
 - The `proposal.*` events and the governance error codes.
 - The `ranking` module.
+- The `internal/platform/apns` client sends pushes to APNs. Staging and production now refuse to boot without `APNS_KEY_P8`, `APNS_KEY_ID` and `APNS_TEAM_ID`.
 
 ## [checkpoint 4] - 2026-09-29
 
