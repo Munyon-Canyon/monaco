@@ -80,7 +80,8 @@ struct ProposeAmountView: View {
     var body: some View {
         ScrollViewReader { proxy in
             form
-                .revealsWhileActive(ProposeReasonField.scrollID, isActive: reasonFocused, tracking: reason, proxy: proxy)
+                .revealsWhileActive(
+                    ProposeReasonField.scrollID, isActive: reasonFocused, tracking: reason, proxy: proxy)
         }
         .background(MonacoTheme.canvas.ignoresSafeArea())
         .navigationTitle(ProposeFlowCopy.amountTitle)
@@ -366,7 +367,10 @@ struct ProposeReasonField: View {
             .lineLimit(lineLimit)
             .focused(focused)
             .padding(MonacoTheme.Space.m)
-            .background(MonacoTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.field, style: .continuous))
+            .background(
+                MonacoTheme.surfaceSunken,
+                in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.field, style: .continuous)
+            )
             .overlay {
                 RoundedRectangle(cornerRadius: MonacoTheme.Radius.field, style: .continuous)
                     .strokeBorder(focused.wrappedValue ? MonacoTheme.ink : .clear, lineWidth: 1)
@@ -410,12 +414,16 @@ struct ProposeBuyReview: Hashable, Identifiable {
     }
 
     var shares: Decimal? {
-        quote.outputAmount.flatMap { ProposeMath.shares(fromAtomics: $0, decimals: quote.resolvedDecimals, multiplier: quote.resolvedUiMultiplier) }
+        quote.outputAmount.flatMap {
+            ProposeMath.shares(
+                fromAtomics: $0, decimals: quote.resolvedDecimals, multiplier: quote.resolvedUiMultiplier)
+        }
     }
 
     var sharesLabel: String? {
         quote.outputAmount.map {
-            ProposalShareFormatter.sharesLabel(fromAtomics: $0, decimals: quote.resolvedDecimals, kind: quote.resolvedAssetKind)
+            ProposalShareFormatter.sharesLabel(
+                fromAtomics: $0, decimals: quote.resolvedDecimals, kind: quote.resolvedAssetKind)
         }
     }
 }

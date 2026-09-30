@@ -1,6 +1,6 @@
 import MonacoCore
-import os
 import SwiftUI
+import os
 
 /// Where a "Top investors" row leads: the cabals the viewer shares with that member.
 ///

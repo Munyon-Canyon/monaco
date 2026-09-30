@@ -38,17 +38,19 @@ struct CabalsLeaderboardSection: View {
                 MonacoGroupedList {
                     ForEach(Array(model.leaderboard.enumerated()), id: \.element.id) { index, row in
                         Button {
-                            onSelect(CabalsRoute(
-                                row: row.groupID, name: row.name, isJoined: row.isJoined, joinMode: row.joinMode,
-                                memberCount: row.memberCount, pictureUrl: row.pictureUrl
-                            ))
+                            onSelect(
+                                CabalsRoute(
+                                    row: row.groupID, name: row.name, isJoined: row.isJoined, joinMode: row.joinMode,
+                                    memberCount: row.memberCount, pictureUrl: row.pictureUrl
+                                ))
                         } label: {
                             CabalDiscoveryRowContent(
                                 rank: row.rank,
                                 groupId: row.groupID,
                                 name: row.name,
                                 pictureUrl: row.pictureUrl,
-                                detail: cabalRowDetail(memberCount: row.memberCount, isJoined: row.isJoined, joinMode: row.joinMode),
+                                detail: cabalRowDetail(
+                                    memberCount: row.memberCount, isJoined: row.isJoined, joinMode: row.joinMode),
                                 potValueUsd: row.potValueUsd,
                                 percentReturn: row.percentReturn,
                                 isViewer: row.isJoined,

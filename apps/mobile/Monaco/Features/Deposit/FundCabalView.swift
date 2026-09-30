@@ -92,7 +92,9 @@ struct FundCabalView: View {
         guard !isSubmitting else { return }
         guard let token = auth.accessToken else { return }
         guard let groupId = selectedGroupId else { return }
-        guard let value = AmountEntryText.decimal(amountText), value > 0, let micros = AmountEntryText.micros(amountText) else {
+        guard let value = AmountEntryText.decimal(amountText), value > 0,
+            let micros = AmountEntryText.micros(amountText)
+        else {
             toast = MonacoToast(message: "Enter a valid amount.", isSuccess: false)
             return
         }
@@ -106,7 +108,8 @@ struct FundCabalView: View {
 
         let fundedAmountLabel = AmountEntryText.display(amountText)
         do {
-            let fund = try await apiClient.fundGroup(accessToken: token, groupId: groupId, amount: micros, submission: fundSubmission)
+            let fund = try await apiClient.fundGroup(
+                accessToken: token, groupId: groupId, amount: micros, submission: fundSubmission)
             Haptics.success()
             let name = selectedCabalName ?? "your cabal"
             toast = MonacoToast(message: "Adding \(fundedAmountLabel) to \(name)…", isSuccess: true)
@@ -118,7 +121,8 @@ struct FundCabalView: View {
             sweep = FundSweep(depositId: fund.depositId, cabalName: name, amountLabel: fundedAmountLabel)
         } catch {
             if error.isRequestCancellation { return }
-            toast = MonacoToast(message: MoneyFlowCopy.fundCabalFailure(FlowErrorInput(error)).summary, isSuccess: false)
+            toast = MonacoToast(
+                message: MoneyFlowCopy.fundCabalFailure(FlowErrorInput(error)).summary, isSuccess: false)
         }
     }
 
@@ -231,7 +235,8 @@ struct FundCabalForm: Equatable {
         guard let cabalName, !cabalName.isEmpty else {
             return "The money leaves your account balance and joins the pot. Your slice grows by the same amount."
         }
-        return "The money leaves your account balance and joins the \(cabalName) pot. Your slice grows by the same amount."
+        return
+            "The money leaves your account balance and joins the \(cabalName) pot. Your slice grows by the same amount."
     }
 }
 
@@ -398,10 +403,12 @@ struct FundCabalContent: View {
 
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 MonacoSectionHeader("Add money first")
-                Text("Send USDC on Solana to your deposit address. Your account balance updates when it arrives, then you can fund \(isSingleCabalContext ? "this cabal" : "a cabal").")
-                    .font(MonacoTheme.Typo.callout)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    "Send USDC on Solana to your deposit address. Your account balance updates when it arrives, then you can fund \(isSingleCabalContext ? "this cabal" : "a cabal")."
+                )
+                .font(MonacoTheme.Typo.callout)
+                .foregroundStyle(MonacoTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, MonacoTheme.Space.m)
 

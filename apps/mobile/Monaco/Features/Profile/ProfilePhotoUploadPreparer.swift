@@ -80,24 +80,27 @@ nonisolated enum ProfilePhotoUploadPreparer {
     }
 
     private static func downsample(_ source: CGImageSource, maxPixelSize: Int) -> CGImage? {
-        let options = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            // Applies the EXIF orientation, which `image.draw(in:)` used to handle.
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
-        ] as CFDictionary
+        let options =
+            [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                // Applies the EXIF orientation, which `image.draw(in:)` used to handle.
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceShouldCacheImmediately: true,
+                kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+            ] as CFDictionary
         return CGImageSourceCreateThumbnailAtIndex(source, 0, options)
     }
 
     private static func encodeJPEG(_ image: CGImage, quality: CGFloat) -> Data? {
         let buffer = NSMutableData()
-        guard let destination = CGImageDestinationCreateWithData(
-            buffer,
-            UTType.jpeg.identifier as CFString,
-            1,
-            nil
-        ) else { return nil }
+        guard
+            let destination = CGImageDestinationCreateWithData(
+                buffer,
+                UTType.jpeg.identifier as CFString,
+                1,
+                nil
+            )
+        else { return nil }
         CGImageDestinationAddImage(
             destination,
             image,

@@ -18,7 +18,10 @@ struct PlatformBalanceCard: View {
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    init(display: HomeBalanceDisplay, pendingAllocationMicros: Int64 = 0, valueIdentifier: String = "platform-balance-value") {
+    init(
+        display: HomeBalanceDisplay, pendingAllocationMicros: Int64 = 0,
+        valueIdentifier: String = "platform-balance-value"
+    ) {
         self.display = display
         self.pendingAllocationMicros = pendingAllocationMicros
         self.valueIdentifier = valueIdentifier

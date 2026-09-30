@@ -27,7 +27,9 @@ struct CommentThreadView: View {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                     ForEach(0..<2, id: \.self) { _ in
                         HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
-                            SkeletonBlock(width: CommentThreadLayout.avatarSize, height: CommentThreadLayout.avatarSize, radius: CommentThreadLayout.avatarSize / 2)
+                            SkeletonBlock(
+                                width: CommentThreadLayout.avatarSize, height: CommentThreadLayout.avatarSize,
+                                radius: CommentThreadLayout.avatarSize / 2)
                             VStack(alignment: .leading, spacing: 6) {
                                 SkeletonBlock(width: 110, height: 13)
                                 SkeletonBlock(height: 13)
@@ -136,7 +138,9 @@ struct CommentRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
-            MonacoAvatar(photoURL: nil, displayName: row.comment.authorName, size: CommentThreadLayout.avatarSize, seed: row.comment.authorId)
+            MonacoAvatar(
+                photoURL: nil, displayName: row.comment.authorName, size: CommentThreadLayout.avatarSize,
+                seed: row.comment.authorId)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
                     Text(row.comment.authorName)
@@ -160,7 +164,10 @@ struct CommentRow: View {
                     Text(ProposalFeedCopy.reply)
                         .font(MonacoTheme.Typo.captionStrong)
                         .foregroundStyle(MonacoTheme.brand)
-                        .frame(minWidth: CommentRowMetrics.replyTarget, minHeight: CommentRowMetrics.replyTarget, alignment: .leading)
+                        .frame(
+                            minWidth: CommentRowMetrics.replyTarget, minHeight: CommentRowMetrics.replyTarget,
+                            alignment: .leading
+                        )
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -201,7 +208,8 @@ struct CommentRow: View {
                     .frame(width: 1)
                     .frame(maxHeight: .infinity)
                     .padding(.top, MonacoTheme.Space.sm + CommentThreadLayout.avatarSize + MonacoTheme.Space.xs)
-                    .offset(x: CommentThreadLayout.avatarLeading(level: level) + CommentThreadLayout.avatarSize / 2 - 0.5)
+                    .offset(
+                        x: CommentThreadLayout.avatarLeading(level: level) + CommentThreadLayout.avatarSize / 2 - 0.5)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

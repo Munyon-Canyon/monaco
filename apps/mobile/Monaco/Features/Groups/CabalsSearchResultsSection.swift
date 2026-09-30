@@ -22,7 +22,8 @@ struct CabalsSearchResultsSection: View {
                     .accessibilityIdentifier("cabals-search-loading")
             case .empty:
                 EmptyState(
-                    title: "No cabal called \u{201C}\(model.query.trimmingCharacters(in: .whitespacesAndNewlines))\u{201D}."
+                    title:
+                        "No cabal called \u{201C}\(model.query.trimmingCharacters(in: .whitespacesAndNewlines))\u{201D}."
                 )
                 .accessibilityIdentifier("cabals-search-empty")
             case .failed:
@@ -44,7 +45,8 @@ struct CabalsSearchResultsSection: View {
 
                 ForEach(Array(model.results.enumerated()), id: \.element.id) { index, row in
                     Button {
-                        onSelect(CabalsRoute(
+                        onSelect(
+                            CabalsRoute(
                                 row: row.groupID, name: row.name, isJoined: row.isJoined, joinMode: row.joinMode,
                                 memberCount: row.memberCount, pictureUrl: row.pictureUrl
                             ))
@@ -54,7 +56,8 @@ struct CabalsSearchResultsSection: View {
                             groupId: row.groupID,
                             name: row.name,
                             pictureUrl: row.pictureUrl,
-                            detail: cabalRowDetail(memberCount: row.memberCount, isJoined: row.isJoined, joinMode: row.joinMode),
+                            detail: cabalRowDetail(
+                                memberCount: row.memberCount, isJoined: row.isJoined, joinMode: row.joinMode),
                             potValueUsd: row.potValueUsd,
                             percentReturn: row.percentReturn,
                             isLast: index == model.results.count - 1

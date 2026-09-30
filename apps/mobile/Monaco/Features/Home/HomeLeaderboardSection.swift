@@ -79,7 +79,6 @@ struct HomeLeaderboardSection: View {
         }
     }
 
-
     /// An empty board is almost never "nobody has joined": ranged windows drop everyone whose
     /// cabal has no snapshot from before the window started, which is every brand-new cabal.
     @ViewBuilder
@@ -128,7 +127,8 @@ struct HomeLeaderboardSection: View {
                         dollarPnl: row.dollarPnl,
                         isLast: row.userId == people.last?.userId
                     ) {
-                        MonacoAvatar(photoURL: row.profilePhotoUrl, displayName: row.displayName, size: 40, seed: row.userId)
+                        MonacoAvatar(
+                            photoURL: row.profilePhotoUrl, displayName: row.displayName, size: 40, seed: row.userId)
                     }
                 }
                 .buttonStyle(.monacoRow)

@@ -39,8 +39,6 @@ struct HomeBalanceRowSection: View {
     /// Which outer rules to draw; Profile stacks this directly under its ruled stat band.
     var rules: MonacoListRules = .both
 
-
-
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var display: HomeBalanceDisplay {

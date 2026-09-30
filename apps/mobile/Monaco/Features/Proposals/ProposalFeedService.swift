@@ -60,7 +60,9 @@ final class LiveProposalFeedService: ProposalFeedService {
 /// Callers reload the proposal afterwards so counts come from the server, not a local guess.
 enum ProposalVoting {
     @MainActor
-    static func cast(_ choice: ProposalVoteChoice, proposalId: String, service: ProposalFeedService) async -> (succeeded: Bool, toast: MonacoToast) {
+    static func cast(_ choice: ProposalVoteChoice, proposalId: String, service: ProposalFeedService) async -> (
+        succeeded: Bool, toast: MonacoToast
+    ) {
         do {
             try await service.castVote(proposalId: proposalId, choice: choice)
             return (true, MonacoToast(message: ProposalFeedCopy.voteRecorded, isSuccess: true))

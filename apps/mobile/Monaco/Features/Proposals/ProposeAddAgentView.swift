@@ -22,7 +22,9 @@ struct ProposeAddAgentView: View {
     @State private var proposeSubmission = IdempotentSubmission()
     @State private var errorMessage: String?
 
-    init(service: ProposeService, groupId: String, pot: ProposePot?, onProposed: ((_ proposalId: String) -> Void)? = nil) {
+    init(
+        service: ProposeService, groupId: String, pot: ProposePot?, onProposed: ((_ proposalId: String) -> Void)? = nil
+    ) {
         self.service = service
         self.groupId = groupId
         self.onProposed = onProposed
@@ -127,7 +129,9 @@ struct ProposeAddAgentView: View {
         errorMessage = nil
         defer { isSending = false }
         do {
-            let id = try await service.propose(groupId: groupId, draft: .addAgent(name: trimmedName, allocationMicros: budgetMicros), submission: proposeSubmission)
+            let id = try await service.propose(
+                groupId: groupId, draft: .addAgent(name: trimmedName, allocationMicros: budgetMicros),
+                submission: proposeSubmission)
             if let onProposed {
                 onProposed(id)
             } else {
@@ -184,7 +188,10 @@ struct ProposeAgentLifecycleView: View {
     @State private var proposeSubmission = IdempotentSubmission()
     @State private var errorMessage: String?
 
-    init(service: ProposeService, groupId: String, kind: String, botName: String, onProposed: ((_ proposalId: String) -> Void)? = nil) {
+    init(
+        service: ProposeService, groupId: String, kind: String, botName: String,
+        onProposed: ((_ proposalId: String) -> Void)? = nil
+    ) {
         self.service = service
         self.groupId = groupId
         self.kind = kind
@@ -256,7 +263,8 @@ struct ProposeAgentLifecycleView: View {
         errorMessage = nil
         defer { isSending = false }
         do {
-            let id = try await service.propose(groupId: groupId, draft: .agentLifecycle(kind: kind), submission: proposeSubmission)
+            let id = try await service.propose(
+                groupId: groupId, draft: .agentLifecycle(kind: kind), submission: proposeSubmission)
             if let onProposed {
                 onProposed(id)
             } else {

@@ -53,7 +53,11 @@ struct FacePickerSheet: View {
             .padding(.horizontal, MonacoTheme.Space.m)
             .padding(.bottom, MonacoTheme.Space.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+            .onGeometryChange(for: CGFloat.self) {
+                $0.size.height
+            } action: {
+                contentHeight = $0
+            }
         }
         .scrollBounceBehavior(.basedOnSize)
         .monacoCanvas()

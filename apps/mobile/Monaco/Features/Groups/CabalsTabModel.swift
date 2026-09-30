@@ -29,7 +29,9 @@ struct LiveCabalsTabDataSource: CabalsTabDataSource {
     }
 
     func search(query: String, cursor: String?) async throws -> GroupSearchResponseDTO {
-        try await auth.withAccessToken { try await apiClient.searchGroups(accessToken: $0, query: query, limit: 20, cursor: cursor) }
+        try await auth.withAccessToken {
+            try await apiClient.searchGroups(accessToken: $0, query: query, limit: 20, cursor: cursor)
+        }
     }
 }
 
@@ -330,7 +332,8 @@ final class CabalsTabModel {
     /// changing the query cancels it.
     func loadMore() {
         guard let cursor = nextCursor, !isLoadingMore,
-              let normalized = GroupSearchQuery.normalized(query) else { return }
+            let normalized = GroupSearchQuery.normalized(query)
+        else { return }
         let generation = searchGeneration
         isLoadingMore = true
         loadMoreFailed = false
@@ -369,8 +372,8 @@ final class CabalsTabModel {
     }
 }
 
-private extension GroupLeaderboardRowDTO {
-    func markingJoined() -> GroupLeaderboardRowDTO {
+extension GroupLeaderboardRowDTO {
+    fileprivate func markingJoined() -> GroupLeaderboardRowDTO {
         GroupLeaderboardRowDTO(
             rank: rank, groupID: groupID, name: name, memberCount: memberCount,
             potValueUsd: potValueUsd, percentReturn: percentReturn, dollarPnl: dollarPnl,
@@ -379,8 +382,8 @@ private extension GroupLeaderboardRowDTO {
     }
 }
 
-private extension GroupDiscoveryRowDTO {
-    func markingJoined() -> GroupDiscoveryRowDTO {
+extension GroupDiscoveryRowDTO {
+    fileprivate func markingJoined() -> GroupDiscoveryRowDTO {
         GroupDiscoveryRowDTO(
             groupID: groupID, name: name, memberCount: memberCount, potValueUsd: potValueUsd,
             percentReturn: percentReturn, dollarPnl: dollarPnl, isJoined: true, joinMode: joinMode

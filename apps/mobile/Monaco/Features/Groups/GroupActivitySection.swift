@@ -175,16 +175,16 @@ struct GroupActivityRow: View {
     }
 
     private var amount: some View {
-            Group {
-                if let micros = GroupActivityRules.amountMicros(item) {
-                    MoneyText(micros: micros, style: .row)
-                } else {
-                    Text(GroupActivityRules.amountLabel(item))
-                        .font(MonacoTheme.Typo.moneyRow)
-                        .foregroundStyle(MonacoTheme.ink)
-                }
+        Group {
+            if let micros = GroupActivityRules.amountMicros(item) {
+                MoneyText(micros: micros, style: .row)
+            } else {
+                Text(GroupActivityRules.amountLabel(item))
+                    .font(MonacoTheme.Typo.moneyRow)
+                    .foregroundStyle(MonacoTheme.ink)
             }
-            .lineLimit(1)
+        }
+        .lineLimit(1)
     }
 }
 
@@ -220,8 +220,10 @@ enum GroupActivityRules {
     /// "Bought Apple", "Buying Apple", "Money added"; agent kinds keep the shared formatter's copy.
     static func title(for item: GroupActivityItemDTO) -> String {
         let status = item.status.lowercased()
-        let stock = item.symbol.map { AssetDisplayNames.name(forSymbol: $0) ?? AssetSymbolFormatter.display($0) } ?? "stock"
-        let byAgent = item.initiatedBy?.lowercased() == "agent"
+        let stock =
+            item.symbol.map { AssetDisplayNames.name(forSymbol: $0) ?? AssetSymbolFormatter.display($0) } ?? "stock"
+        let byAgent =
+            item.initiatedBy?.lowercased() == "agent"
             ? item.agentDisplayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             : ""
         let prefix = byAgent.isEmpty ? "" : "\(byAgent) · "
@@ -229,9 +231,11 @@ enum GroupActivityRules {
         case "deposit":
             return status == "confirmed" ? "Money added" : "Adding money"
         case "buy":
-            return prefix + (status == "confirmed" ? "Bought \(stock)" : status == "failed" ? "Buy \(stock)" : "Buying \(stock)")
+            return prefix
+                + (status == "confirmed" ? "Bought \(stock)" : status == "failed" ? "Buy \(stock)" : "Buying \(stock)")
         case "sell":
-            return prefix + (status == "confirmed" ? "Sold \(stock)" : status == "failed" ? "Sell \(stock)" : "Selling \(stock)")
+            return prefix
+                + (status == "confirmed" ? "Sold \(stock)" : status == "failed" ? "Sell \(stock)" : "Selling \(stock)")
         default:
             break
         }

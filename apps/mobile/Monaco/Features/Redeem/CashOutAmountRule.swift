@@ -122,7 +122,8 @@ enum CashOutAmountRule {
     static func explainer(for verdict: Verdict) -> String {
         switch verdict {
         case .sellsWholeSlice:
-            return "This cashes out your whole slice. The cash moves to your account balance, and you stay in the cabal with nothing in the pot."
+            return
+                "This cashes out your whole slice. The cash moves to your account balance, and you stay in the cabal with nothing in the pot."
         case .noAmount, .belowMinimum, .overSlice, .ok:
             return "We sell this much of your slice and move the cash to your account balance. You stay in the cabal."
         }

@@ -74,7 +74,8 @@ struct GroupDetailsSheet: View {
                 .foregroundStyle(MonacoTheme.muted)
                 .fixedSize(horizontal: false, vertical: true)
 
-            let actions = dynamicTypeSize.isAccessibilitySize
+            let actions =
+                dynamicTypeSize.isAccessibilitySize
                 ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.sm))
                 : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
             actions {
@@ -136,8 +137,10 @@ struct GroupDetailsSheet: View {
                     Text(CabalDetailsCopy.accountTitle)
                         .font(MonacoTheme.Typo.rowTitle)
                         .foregroundStyle(MonacoTheme.ink)
-                    MonacoWalletAddressText(address: address, textStyle: .footnote, foreground: MonacoTheme.secondaryText)
-                        .accessibilityIdentifier("group-treasury-address-value")
+                    MonacoWalletAddressText(
+                        address: address, textStyle: .footnote, foreground: MonacoTheme.secondaryText
+                    )
+                    .accessibilityIdentifier("group-treasury-address-value")
                     developerActions(address)
                 }
                 .padding(.horizontal, MonacoTheme.Space.m)
@@ -152,7 +155,8 @@ struct GroupDetailsSheet: View {
 
     @ViewBuilder
     private func developerActions(_ address: String) -> some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
+        let layout =
+            dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
             : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.l))
         layout {
@@ -213,9 +217,9 @@ enum CabalDetailsCopy {
     ]
 }
 
-private extension View {
+extension View {
     /// A demoted action: brand ink, no capsule, still a 44pt target.
-    func textAction() -> some View {
+    fileprivate func textAction() -> some View {
         font(MonacoTheme.Typo.calloutStrong)
             .foregroundStyle(MonacoTheme.brand)
             .frame(minHeight: 44)

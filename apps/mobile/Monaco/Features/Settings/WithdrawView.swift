@@ -62,7 +62,8 @@ struct WithdrawView: View {
         guard !isSubmitting else { return }
         guard let token = auth.accessToken else { return }
         guard let value = AmountEntryText.decimal(amountText), value > 0,
-              let micros = AmountEntryText.micros(amountText) else {
+            let micros = AmountEntryText.micros(amountText)
+        else {
             toast = MonacoToast(message: "Enter a valid amount.", isSuccess: false)
             return
         }
@@ -253,7 +254,8 @@ private struct WithdrawAddressField: View {
     private static let placeholder = "USDC address on Solana"
 
     var body: some View {
-        MonacoAddressField(placeholder: Self.placeholder, text: $text, accessibilityIdentifier: "withdraw-address-field")
+        MonacoAddressField(
+            placeholder: Self.placeholder, text: $text, accessibilityIdentifier: "withdraw-address-field")
     }
 }
 

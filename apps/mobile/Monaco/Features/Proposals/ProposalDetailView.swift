@@ -183,7 +183,9 @@ struct ProposalDetailView: View {
                 case .done:
                     // When it landed, as the stamp it is. The chip at the top of the screen
                     // already says "Bought"; this says when.
-                    if let executedAt = proposal.execution?.executedAt, let date = ProposalTimeFormatter.parse(executedAt) {
+                    if let executedAt = proposal.execution?.executedAt,
+                        let date = ProposalTimeFormatter.parse(executedAt)
+                    {
                         Text(date.formatted(date: .abbreviated, time: .shortened))
                             .font(MonacoTheme.Typo.stamp)
                             .foregroundStyle(MonacoTheme.tertiaryText)
@@ -339,7 +341,6 @@ struct ProposalDetailView: View {
         }
     }
 }
-
 
 /// Voting → Buying → Done as three nodes on a rule. Steps behind are filled with a check, the
 /// step in play is an ink ring with a dot at its centre (breathing while the swap runs), and steps
@@ -523,27 +524,29 @@ enum ProposalBallotList {
         let pending = proposal.voteSummary.map { ProposalVoteProgress(summary: $0).pendingCount } ?? 0
         let othersWaiting = max(pending - (viewerWaiting ? 1 : 0), 0)
         if viewerWaiting {
-            lines.append(ProposalBallotLine(
-                id: "ballot-viewer-waiting",
-                name: ProposalDiscussionCopy.you,
-                faceName: "",
-                // Their own animal, not the one an empty seed hashes to: the row read as a
-                // stranger's face until the ballot named them.
-                faceSeed: viewerId,
-                choice: .waiting,
-                castAt: nil,
-                isViewer: true
-            ))
+            lines.append(
+                ProposalBallotLine(
+                    id: "ballot-viewer-waiting",
+                    name: ProposalDiscussionCopy.you,
+                    faceName: "",
+                    // Their own animal, not the one an empty seed hashes to: the row read as a
+                    // stranger's face until the ballot named them.
+                    faceSeed: viewerId,
+                    choice: .waiting,
+                    castAt: nil,
+                    isViewer: true
+                ))
         }
         if proposal.isOpen, othersWaiting > 0 {
-            lines.append(ProposalBallotLine(
-                id: "ballot-others-waiting",
-                name: ProposalDiscussionCopy.moreMembers(othersWaiting),
-                faceName: nil,
-                choice: .waiting,
-                castAt: nil,
-                isViewer: false
-            ))
+            lines.append(
+                ProposalBallotLine(
+                    id: "ballot-others-waiting",
+                    name: ProposalDiscussionCopy.moreMembers(othersWaiting),
+                    faceName: nil,
+                    choice: .waiting,
+                    castAt: nil,
+                    isViewer: false
+                ))
         }
         return lines
     }
@@ -585,7 +588,9 @@ private struct BallotRow: View {
         .background(line.isViewer ? MonacoTheme.brandWash : Color.clear)
         .overlay(alignment: .bottom) {
             if !isLast {
-                MonacoRule().padding(.leading, isStacked ? MonacoTheme.Space.m : MonacoTheme.Space.m + Self.faceSize + MonacoTheme.Space.sm)
+                MonacoRule().padding(
+                    .leading,
+                    isStacked ? MonacoTheme.Space.m : MonacoTheme.Space.m + Self.faceSize + MonacoTheme.Space.sm)
             }
         }
         .accessibilityElement(children: .ignore)

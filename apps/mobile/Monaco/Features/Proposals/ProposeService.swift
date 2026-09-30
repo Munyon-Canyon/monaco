@@ -107,7 +107,9 @@ struct ProposePot: Equatable {
 protocol ProposeService: AnyObject {
     func pot(groupId: String) async throws -> ProposePot
     func popularStocks() async throws -> [ProposeStock]
-    func searchStocks(groupId: String, query: String, offset: Int, limit: Int) async throws -> (stocks: [ProposeStock], hasMore: Bool)
+    func searchStocks(groupId: String, query: String, offset: Int, limit: Int) async throws -> (
+        stocks: [ProposeStock], hasMore: Bool
+    )
     /// Latest price per share in USDC micros, nil when the market has none.
     func priceMicros(symbol: String) async throws -> Int64?
     func assetDetail(symbol: String) async throws -> AssetDetailDTO
@@ -140,7 +142,9 @@ final class LiveProposeService: ProposeService {
         try await client.getPopularAssets(accessToken: try token(), limit: 10).assets.map(ProposeStock.init(market:))
     }
 
-    func searchStocks(groupId: String, query: String, offset: Int, limit: Int) async throws -> (stocks: [ProposeStock], hasMore: Bool) {
+    func searchStocks(groupId: String, query: String, offset: Int, limit: Int) async throws -> (
+        stocks: [ProposeStock], hasMore: Bool
+    ) {
         let response = try await client.searchAssets(
             accessToken: try token(), groupId: groupId, query: query, limit: limit, offset: offset
         )
@@ -156,12 +160,15 @@ final class LiveProposeService: ProposeService {
     }
 
     func buyQuote(groupId: String, symbol: String, usdcMicros: Int64) async throws -> BuyQuoteDTO {
-        try await client.postQuote(accessToken: try token(), groupId: groupId, symbol: symbol, kind: "buy", usdc: usdcMicros, selectBestVariant: true)
+        try await client.postQuote(
+            accessToken: try token(), groupId: groupId, symbol: symbol, kind: "buy", usdc: usdcMicros,
+            selectBestVariant: true)
     }
 
     func sellQuote(groupId: String, symbol: String, tokenAmount: Int64) async throws -> BuyQuoteDTO {
         try await client.postQuote(
-            accessToken: try token(), groupId: groupId, symbol: symbol, kind: "sell", usdc: nil, tokenAmount: tokenAmount
+            accessToken: try token(), groupId: groupId, symbol: symbol, kind: "sell", usdc: nil,
+            tokenAmount: tokenAmount
         )
     }
 
@@ -169,24 +176,27 @@ final class LiveProposeService: ProposeService {
         let token = try token()
         let response: CreateProposalResponse
         switch draft {
-        case let .buy(symbol, usdcMicros, thesis):
+        case .buy(let symbol, let usdcMicros, let thesis):
             response = try await client.createProposal(
-                accessToken: token, groupId: groupId, kind: "buy", symbol: symbol, usdcMicros: usdcMicros, thesis: thesis.isEmpty ? nil : thesis,
+                accessToken: token, groupId: groupId, kind: "buy", symbol: symbol, usdcMicros: usdcMicros,
+                thesis: thesis.isEmpty ? nil : thesis,
                 submission: submission
             )
-        case let .sell(symbol, tokenAmount, thesis):
+        case .sell(let symbol, let tokenAmount, let thesis):
             response = try await client.createProposal(
-                accessToken: token, groupId: groupId, kind: "sell", symbol: symbol, tokenAmount: tokenAmount, thesis: thesis.isEmpty ? nil : thesis,
+                accessToken: token, groupId: groupId, kind: "sell", symbol: symbol, tokenAmount: tokenAmount,
+                thesis: thesis.isEmpty ? nil : thesis,
                 submission: submission
             )
-        case let .addAgent(name, allocationMicros):
+        case .addAgent(let name, let allocationMicros):
             response = try await client.createProposal(
                 accessToken: token, groupId: groupId, kind: "add_agent",
                 agentDisplayName: name, allocationUsdcMicros: allocationMicros,
                 submission: submission
             )
-        case let .agentLifecycle(kind):
-            response = try await client.createProposal(accessToken: token, groupId: groupId, kind: kind, submission: submission)
+        case .agentLifecycle(let kind):
+            response = try await client.createProposal(
+                accessToken: token, groupId: groupId, kind: kind, submission: submission)
         }
         return response.proposalId
     }
@@ -226,7 +236,8 @@ enum ProposeErrorCopy {
         // telling us something we cannot read, and "the cabal doesn't hold that much anymore" is
         // not advice a member buying a stock can act on.
         case "amount exceeds treasury holding": return isSell ? ProposeFlowCopy.sellNoLongerAvailable : nil
-        case "amount exceeds treasury total available": return isSell ? ProposeFlowCopy.overHoldings : ProposeFlowCopy.overPot
+        case "amount exceeds treasury total available":
+            return isSell ? ProposeFlowCopy.overHoldings : ProposeFlowCopy.overPot
         case "thesis exceeds maximum length": return ProposeFlowCopy.reasonTooLong
         case "quote not routable":
             // The backend collapses "no route", "below the minimum size" and "not routable" into
@@ -243,7 +254,8 @@ enum ProposeErrorCopy {
 
     private static func isOffline(_ error: Error) -> Bool {
         guard let urlError = error as? URLError else { return false }
-        return [.notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotConnectToHost].contains(urlError.code)
+        return [.notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotConnectToHost].contains(
+            urlError.code)
     }
 }
 
@@ -256,7 +268,10 @@ enum ProposeMath {
     }
 
     static func micros(fromUsd raw: String) -> Int64? {
-        guard let value = Decimal(string: raw.trimmingCharacters(in: .whitespaces), locale: Locale(identifier: "en_US_POSIX")) else {
+        guard
+            let value = Decimal(
+                string: raw.trimmingCharacters(in: .whitespaces), locale: Locale(identifier: "en_US_POSIX"))
+        else {
             return nil
         }
         return micros(fromUsd: value)
@@ -274,19 +289,28 @@ enum ProposeMath {
     /// Amount text from the decimal pad, in USDC micros. Nil for empty, zero, or unreadable input.
     static func micros(fromAmountText text: String) -> Int64? {
         let trimmed = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
-        guard !trimmed.isEmpty, let value = Decimal(string: trimmed, locale: Locale(identifier: "en_US_POSIX")), value > 0,
-              let micros = micros(fromUsd: value), micros > 0 else { return nil }
+        guard !trimmed.isEmpty, let value = Decimal(string: trimmed, locale: Locale(identifier: "en_US_POSIX")),
+            value > 0,
+            let micros = micros(fromUsd: value), micros > 0
+        else { return nil }
         return micros
     }
 
-    static func shares(fromAtomics raw: String, decimals: Int = ProposalShareFormatter.defaultDecimals, multiplier: Decimal = 1) -> Decimal? {
-        guard let qty = TokenQuantityFormatter.quantity(fromAtomics: raw, decimals: decimals), multiplier > 0 else { return nil }
+    static func shares(
+        fromAtomics raw: String, decimals: Int = ProposalShareFormatter.defaultDecimals, multiplier: Decimal = 1
+    ) -> Decimal? {
+        guard let qty = TokenQuantityFormatter.quantity(fromAtomics: raw, decimals: decimals), multiplier > 0 else {
+            return nil
+        }
         return qty * multiplier
     }
 
     /// Token atomics for a dollar amount of a holding at its mark, rounded down so a sell never
     /// asks for more than the cabal holds.
-    static func atomics(forUsd usd: Decimal, markUsd: Decimal, ceiling: Int64, decimals: Int = ProposalShareFormatter.defaultDecimals, multiplier: Decimal = 1) -> Int64? {
+    static func atomics(
+        forUsd usd: Decimal, markUsd: Decimal, ceiling: Int64, decimals: Int = ProposalShareFormatter.defaultDecimals,
+        multiplier: Decimal = 1
+    ) -> Int64? {
         guard markUsd > 0, usd > 0, multiplier > 0 else { return nil }
         let scale = shareScale(decimals: decimals)
         let raw = rounded(usd / markUsd * scale / multiplier, mode: .down) ?? 0
@@ -294,9 +318,12 @@ enum ProposeMath {
         return clamped > 0 ? clamped : nil
     }
 
-    static func atomics(fromShares text: String, decimals: Int = ProposalShareFormatter.defaultDecimals, multiplier: Decimal = 1) -> Int64? {
+    static func atomics(
+        fromShares text: String, decimals: Int = ProposalShareFormatter.defaultDecimals, multiplier: Decimal = 1
+    ) -> Int64? {
         let trimmed = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
-        guard let value = Decimal(string: trimmed, locale: Locale(identifier: "en_US_POSIX")), value > 0, multiplier > 0 else { return nil }
+        guard let value = Decimal(string: trimmed, locale: Locale(identifier: "en_US_POSIX")), value > 0, multiplier > 0
+        else { return nil }
         let scale = shareScale(decimals: decimals)
         let atomics = rounded(value / multiplier * scale, mode: .down) ?? 0
         return atomics > 0 ? atomics : nil

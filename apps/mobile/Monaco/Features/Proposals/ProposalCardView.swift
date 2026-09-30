@@ -188,7 +188,8 @@ struct ProposalCardView<Destination: View>: View {
     @ViewBuilder
     private var premiumNudge: some View {
         if let bps = proposal.premiumBps,
-           PreIpoCopy.showsPremiumNudge(premiumBps: bps, assetKind: proposal.resolvedAssetKind) {
+            PreIpoCopy.showsPremiumNudge(premiumBps: bps, assetKind: proposal.resolvedAssetKind)
+        {
             Text(PreIpoCopy.tradingPremiumNudge(bps: bps))
                 .font(MonacoTheme.Typo.callout)
                 .foregroundStyle(MonacoTheme.muted)
@@ -208,10 +209,10 @@ struct ProposalCardView<Destination: View>: View {
                         kind: proposal.resolvedAssetKind
                     )
                 )
-                    .moneyFont(.large)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
+                .moneyFont(.large)
+                .foregroundStyle(MonacoTheme.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
             case "buy":
                 if let micros = proposal.usdcMicros.flatMap({ Int64($0) }) {
                     MoneyText(micros: micros, style: .large)
@@ -429,8 +430,8 @@ enum ProposalStampedLine {
         return who
             + Text("  ")
             + Text(stamp)
-                .font(MonacoTheme.Typo.stamp)
-                .foregroundStyle(MonacoTheme.tertiaryText)
+            .font(MonacoTheme.Typo.stamp)
+            .foregroundStyle(MonacoTheme.tertiaryText)
     }
 }
 
@@ -447,8 +448,8 @@ enum ProposalCardCorner: Equatable {
             return .chip(closed)
         }
         guard proposal.isOpen,
-              let expiresAt = proposal.expiresAt,
-              let label = ProposalTimeFormatter.closesLabel(expiresAt: expiresAt, now: now)
+            let expiresAt = proposal.expiresAt,
+            let label = ProposalTimeFormatter.closesLabel(expiresAt: expiresAt, now: now)
         else { return .none }
         return .countdown(label, closesSoon: ProposalTimeFormatter.closesSoon(expiresAt: expiresAt, now: now))
     }

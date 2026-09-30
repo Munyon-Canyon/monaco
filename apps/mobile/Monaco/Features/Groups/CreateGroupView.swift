@@ -105,7 +105,10 @@ enum CabalRulesCopy {
     static let creating = "Creating…"
 
     static var auditedStrings: [String] {
-        [screenTitle, namePlaceholder, nameHint, sectionTitle, joinTitle, votersTitle, thresholdTitle, expiryTitle, create, creating]
+        [
+            screenTitle, namePlaceholder, nameHint, sectionTitle, joinTitle, votersTitle, thresholdTitle, expiryTitle,
+            create, creating,
+        ]
             + JoinPolicyMode.allCases.flatMap { [$0.label, $0.caption] }
             + VoterSetMode.allCases.flatMap { [$0.label, $0.caption] }
             + VoteThresholdMode.allCases.flatMap { [$0.label, $0.caption] }

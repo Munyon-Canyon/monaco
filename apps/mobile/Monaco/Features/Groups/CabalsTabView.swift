@@ -90,12 +90,15 @@ struct CabalsTabView: View {
                 .accessibilityIdentifier("cabals-new-button")
             }
         }
-        .sheet(isPresented: $showNewCabalSheet, onDismiss: {
-            if let routeAfterSheet {
-                route = routeAfterSheet
-                self.routeAfterSheet = nil
+        .sheet(
+            isPresented: $showNewCabalSheet,
+            onDismiss: {
+                if let routeAfterSheet {
+                    route = routeAfterSheet
+                    self.routeAfterSheet = nil
+                }
             }
-        }) {
+        ) {
             NewCabalSheet(
                 onCreate: {
                     routeAfterSheet = .create
@@ -208,7 +211,11 @@ struct NewCabalSheet: View {
             }
             .padding(.bottom, MonacoTheme.Space.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+            .onGeometryChange(for: CGFloat.self) {
+                $0.size.height
+            } action: {
+                contentHeight = $0
+            }
         }
         .scrollBounceBehavior(.basedOnSize)
         .monacoCanvas()

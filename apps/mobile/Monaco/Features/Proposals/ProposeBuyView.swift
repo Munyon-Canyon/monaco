@@ -37,8 +37,13 @@ struct ProposeBuyView: View {
 
     /// Entry from Stock detail's cabal picker (no chooser sheet): on success the flow pops back
     /// here and confirms with a toast.
-    init(auth: PrivyAuthService, groupId: String, initialSymbol: String? = nil, onProposed: ((_ proposalId: String) -> Void)? = nil) {
-        self.init(service: LiveProposeService(auth: auth), groupId: groupId, pot: nil, initialSymbol: initialSymbol, onProposed: onProposed)
+    init(
+        auth: PrivyAuthService, groupId: String, initialSymbol: String? = nil,
+        onProposed: ((_ proposalId: String) -> Void)? = nil
+    ) {
+        self.init(
+            service: LiveProposeService(auth: auth), groupId: groupId, pot: nil, initialSymbol: initialSymbol,
+            onProposed: onProposed)
     }
 
     init(
@@ -199,8 +204,11 @@ struct ProposeBuyView: View {
     private func applyInitialSymbolIfNeeded() {
         guard !didApplyInitialSymbol, let initialSymbol, !initialSymbol.isEmpty else { return }
         didApplyInitialSymbol = true
-        let known = (session?.popularAssets ?? []).first { $0.symbol.caseInsensitiveCompare(initialSymbol) == .orderedSame }
-        picked = known.map { ProposeStock(market: $0) }
+        let known = (session?.popularAssets ?? []).first {
+            $0.symbol.caseInsensitiveCompare(initialSymbol) == .orderedSame
+        }
+        picked =
+            known.map { ProposeStock(market: $0) }
             ?? ProposeStock(symbol: initialSymbol, kind: initialKind, tokenDecimals: initialDecimals)
     }
 
@@ -271,7 +279,10 @@ struct ProposeBuyView: View {
             return
         } catch {
             if error.isRequestCancellation { return }
-            if reset { searchFailed = true; results = [] }
+            if reset {
+                searchFailed = true
+                results = []
+            }
             hasMore = false
         }
     }
@@ -287,8 +298,10 @@ private struct ProposePotUnavailable: View {
     var body: some View {
         VStack {
             if failed {
-                EmptyState(title: ProposeFlowCopy.potLoadFailed, actionTitle: ProposalFeedCopy.tryAgain, action: onRetry)
-                    .accessibilityIdentifier("propose-pot-error")
+                EmptyState(
+                    title: ProposeFlowCopy.potLoadFailed, actionTitle: ProposalFeedCopy.tryAgain, action: onRetry
+                )
+                .accessibilityIdentifier("propose-pot-error")
             } else {
                 ProposeAmountSkeleton()
                     .frame(maxHeight: .infinity, alignment: .top)
@@ -407,9 +420,12 @@ struct ProposeStockRow: View {
     }
 
     private var mark: some View {
-        StockMark(symbol: stock.symbol, displayName: stock.name, assetKind: stock.assetKind, size: Self.markSize, logoURL: logoURL)
-            .frame(width: Self.markSize, height: Self.markSize)
-            .opacity(stock.isTradable ? 1 : 0.45)
+        StockMark(
+            symbol: stock.symbol, displayName: stock.name, assetKind: stock.assetKind, size: Self.markSize,
+            logoURL: logoURL
+        )
+        .frame(width: Self.markSize, height: Self.markSize)
+        .opacity(stock.isTradable ? 1 : 0.45)
     }
 
     private var labels: some View {
@@ -462,7 +478,9 @@ struct ProposeStockSkeleton: View {
         MonacoGroupedList {
             ForEach(0..<rows, id: \.self) { index in
                 HStack(spacing: MonacoTheme.Space.sm) {
-                    SkeletonBlock(width: ProposeStockRow.markSize, height: ProposeStockRow.markSize, radius: ProposeStockRow.markSize / 2)
+                    SkeletonBlock(
+                        width: ProposeStockRow.markSize, height: ProposeStockRow.markSize,
+                        radius: ProposeStockRow.markSize / 2)
                     VStack(alignment: .leading, spacing: 6) {
                         SkeletonBlock(width: 64, height: 14)
                         SkeletonBlock(width: 96, height: 12)
@@ -477,7 +495,8 @@ struct ProposeStockSkeleton: View {
                 .frame(minHeight: 64)
                 .overlay(alignment: .bottom) {
                     if index < rows - 1 {
-                        MonacoRule().padding(.leading, MonacoTheme.Space.m + ProposeStockRow.markSize + MonacoTheme.Space.sm)
+                        MonacoRule().padding(
+                            .leading, MonacoTheme.Space.m + ProposeStockRow.markSize + MonacoTheme.Space.sm)
                     }
                 }
             }

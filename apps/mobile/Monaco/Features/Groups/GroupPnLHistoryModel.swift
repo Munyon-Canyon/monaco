@@ -19,7 +19,9 @@ struct LiveGroupPnLHistorySource: GroupPnLHistorySource {
     }
 
     func history(groupId: String, range: GroupPnLRange) async throws -> GroupPnLSeriesDTO {
-        try await auth.withAccessToken { try await apiClient.groupPnLHistory(accessToken: $0, groupId: groupId, range: range) }
+        try await auth.withAccessToken {
+            try await apiClient.groupPnLHistory(accessToken: $0, groupId: groupId, range: range)
+        }
     }
 }
 

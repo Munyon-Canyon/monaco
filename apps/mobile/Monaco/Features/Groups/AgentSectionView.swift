@@ -25,7 +25,8 @@ struct AgentSectionView: View {
                     MonacoRow(
                         title: agent.agentDisplayName,
                         // A removed bot has no budget to speak of; its status says what happened.
-                        subtitle: status.isRemoved ? nil : TradingBotCopy.budgetLine(allocationUsdcMicros: agent.allocationUsdcMicros),
+                        subtitle: status.isRemoved
+                            ? nil : TradingBotCopy.budgetLine(allocationUsdcMicros: agent.allocationUsdcMicros),
                         chevron: true,
                         isLast: true
                     ) {
@@ -105,7 +106,9 @@ enum TradingBotCopy {
     /// "$100.00 budget" under the bot's name. Nil when the server's figure does not parse,
     /// rather than a made-up zero.
     static func budgetLine(allocationUsdcMicros: String) -> String? {
-        guard let micros = Int64(allocationUsdcMicros.trimmingCharacters(in: .whitespacesAndNewlines)) else { return nil }
+        guard let micros = Int64(allocationUsdcMicros.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return nil
+        }
         return "\(UsdAmountFormatter.format(micros: micros)) budget"
     }
 

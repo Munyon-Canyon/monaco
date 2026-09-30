@@ -150,11 +150,13 @@ struct ProposalFeedView: View {
         }
         apply(open, to: .open)
 
-        guard ProposalFeedPolling.shouldReloadClosed(
-            visibleTab: tab,
-            hasClosed: proposals[.closed] != nil,
-            closedIsStale: closedIsStale
-        ) else { return }
+        guard
+            ProposalFeedPolling.shouldReloadClosed(
+                visibleTab: tab,
+                hasClosed: proposals[.closed] != nil,
+                closedIsStale: closedIsStale
+            )
+        else { return }
         let closed = try await service.listProposals(groupId: groupId, tab: .closed)
         guard generation == loadGeneration, votingIDs.isEmpty, !Task.isCancelled else { return }
         apply(closed, to: .closed)

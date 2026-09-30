@@ -96,7 +96,8 @@ struct TransactionDetailView: View {
             if isDeposit {
                 deposit = try await apiClient.getDeposit(accessToken: token, depositId: activityItem.id)
             } else {
-                let latest = try await apiClient.getTransactionDetail(accessToken: token, transactionId: activityItem.id)
+                let latest = try await apiClient.getTransactionDetail(
+                    accessToken: token, transactionId: activityItem.id)
                 QuietUpdate.apply(latest, over: transaction) { transaction = $0 }
             }
         } catch is CancellationError {
@@ -138,7 +139,10 @@ struct TransactionReceipt: Equatable {
         var id: String { label }
     }
 
-    enum Status: Equatable { case confirmed, pending, failed, other(String) }
+    enum Status: Equatable {
+        case confirmed, pending, failed
+        case other(String)
+    }
 
     let glyph: String
     let headline: String
@@ -156,11 +160,12 @@ struct TransactionReceipt: Equatable {
         status = Self.status(deposit.status)
         // The same words the activity row uses, so a deposit still on its way into the pot is
         // not headed "Money added" above a Pending chip.
-        headline = switch status {
-        case .confirmed: "Money added"
-        case .failed: "Couldn't add money"
-        default: "Adding money"
-        }
+        headline =
+            switch status {
+            case .confirmed: "Money added"
+            case .failed: "Couldn't add money"
+            default: "Adding money"
+            }
         amountMicros = deposit.amount
         fallbackHero = nil
         rows = [Row(label: "Date", value: Self.date(deposit.createdAt))]
@@ -178,24 +183,29 @@ struct TransactionReceipt: Equatable {
         case "buy":
             let name = Self.stockName(transaction.outputSymbol)
             glyph = "arrow.down"
-            headline = switch status {
-            case .confirmed: "Bought \(name)"
-            case .failed: "Couldn't buy \(name)"
-            default: "Buying \(name)"
-            }
+            headline =
+                switch status {
+                case .confirmed: "Bought \(name)"
+                case .failed: "Couldn't buy \(name)"
+                default: "Buying \(name)"
+                }
             amountMicros = transaction.amountMicros
             fallbackHero = nil
             var rows: [Row] = []
             if let atomics = transaction.costBasisAmount, atomics > 0,
-               let quantity = TokenQuantityFormatter.quantity(fromAtomics: String(atomics), decimals: transaction.resolvedTokenDecimals),
-               quantity > 0 {
+                let quantity = TokenQuantityFormatter.quantity(
+                    fromAtomics: String(atomics), decimals: transaction.resolvedTokenDecimals),
+                quantity > 0
+            {
                 let isToken = transaction.resolvedAssetKind == .preIpo
-                rows.append(Row(label: isToken ? PreIpoCopy.tokensRowLabel : "Shares", value: Self.quantityFigure(quantity)))
+                rows.append(
+                    Row(label: isToken ? PreIpoCopy.tokensRowLabel : "Shares", value: Self.quantityFigure(quantity)))
                 if let spent = transaction.costBasisPrice, spent > 0 {
-                    rows.append(Row(
-                        label: isToken ? "Price a \(PreIpoCopy.tokenLabelSingular)" : "Price a share",
-                        value: UsdAmountFormatter.format(micros: Self.perUnitMicros(spent, quantity: quantity))
-                    ))
+                    rows.append(
+                        Row(
+                            label: isToken ? "Price a \(PreIpoCopy.tokenLabelSingular)" : "Price a share",
+                            value: UsdAmountFormatter.format(micros: Self.perUnitMicros(spent, quantity: quantity))
+                        ))
                 }
             }
             rows.append(dateRow)
@@ -203,31 +213,36 @@ struct TransactionReceipt: Equatable {
         case "sell":
             let name = Self.stockName(transaction.inputSymbol)
             glyph = "arrow.up"
-            headline = switch status {
-            case .confirmed: "Sold \(name)"
-            case .failed: "Couldn't sell \(name)"
-            default: "Selling \(name)"
-            }
+            headline =
+                switch status {
+                case .confirmed: "Sold \(name)"
+                case .failed: "Couldn't sell \(name)"
+                default: "Selling \(name)"
+                }
             let proceeds = transaction.proceedsUsdcMicros ?? transaction.costBasisAmount
             let sold = String(transaction.amountMicros)
-            let quantity = TokenQuantityFormatter.quantity(fromAtomics: sold, decimals: transaction.resolvedTokenDecimals) ?? 0
+            let quantity =
+                TokenQuantityFormatter.quantity(fromAtomics: sold, decimals: transaction.resolvedTokenDecimals) ?? 0
             let isToken = transaction.resolvedAssetKind == .preIpo
             if let proceeds, proceeds > 0 {
                 amountMicros = proceeds
                 fallbackHero = nil
             } else {
                 amountMicros = nil
-                fallbackHero = TokenQuantityFormatter.label(fromAtomics: sold, decimals: transaction.resolvedTokenDecimals, kind: transaction.resolvedAssetKind)
+                fallbackHero = TokenQuantityFormatter.label(
+                    fromAtomics: sold, decimals: transaction.resolvedTokenDecimals, kind: transaction.resolvedAssetKind)
             }
             var rows: [Row] = []
             // When the hero already shows the count, don't repeat it as a row.
             if quantity > 0, fallbackHero == nil {
-                rows.append(Row(label: isToken ? PreIpoCopy.tokensRowLabel : "Shares", value: Self.quantityFigure(quantity)))
+                rows.append(
+                    Row(label: isToken ? PreIpoCopy.tokensRowLabel : "Shares", value: Self.quantityFigure(quantity)))
                 if let proceeds, proceeds > 0 {
-                    rows.append(Row(
-                        label: isToken ? "Price a \(PreIpoCopy.tokenLabelSingular)" : "Price a share",
-                        value: UsdAmountFormatter.format(micros: Self.perUnitMicros(proceeds, quantity: quantity))
-                    ))
+                    rows.append(
+                        Row(
+                            label: isToken ? "Price a \(PreIpoCopy.tokenLabelSingular)" : "Price a share",
+                            value: UsdAmountFormatter.format(micros: Self.perUnitMicros(proceeds, quantity: quantity))
+                        ))
                 }
             }
             rows.append(dateRow)
@@ -245,7 +260,8 @@ struct TransactionReceipt: Equatable {
     /// Solscan only for real signatures (base58); seeded rows carry placeholders.
     var solscanURL: URL? {
         guard let signature, !signature.isEmpty,
-              signature.allSatisfy({ $0.isLetter || $0.isNumber }) else { return nil }
+            signature.allSatisfy({ $0.isLetter || $0.isNumber })
+        else { return nil }
         return URL(string: "https://solscan.io/tx/\(signature)")
     }
 

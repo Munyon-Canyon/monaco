@@ -22,7 +22,10 @@ struct ProposeSellView: View {
     @State private var didApplyInitialSymbol = false
 
     /// Entry from Stock detail's cabal picker.
-    init(auth: PrivyAuthService, groupId: String, holdings: [PotRowDTO], initialSymbol: String? = nil, onProposed: ((_ proposalId: String) -> Void)? = nil) {
+    init(
+        auth: PrivyAuthService, groupId: String, holdings: [PotRowDTO], initialSymbol: String? = nil,
+        onProposed: ((_ proposalId: String) -> Void)? = nil
+    ) {
         self.service = LiveProposeService(auth: auth)
         self.groupId = groupId
         self.holdings = holdings
@@ -30,7 +33,10 @@ struct ProposeSellView: View {
         self.onProposed = onProposed
     }
 
-    init(service: ProposeService, groupId: String, pot: ProposePot, initialSymbol: String? = nil, onProposed: ((_ proposalId: String) -> Void)? = nil) {
+    init(
+        service: ProposeService, groupId: String, pot: ProposePot, initialSymbol: String? = nil,
+        onProposed: ((_ proposalId: String) -> Void)? = nil
+    ) {
         self.service = service
         self.groupId = groupId
         self.holdings = pot.holdings
@@ -82,7 +88,8 @@ struct ProposeSellView: View {
         .task {
             if !didApplyInitialSymbol, let initialSymbol {
                 didApplyInitialSymbol = true
-                picked = holdings
+                picked =
+                    holdings
                     .first { $0.symbol.caseInsensitiveCompare(initialSymbol) == .orderedSame }
                     .map(PickedHolding.init(row:))
             }
@@ -133,7 +140,8 @@ struct ProposeHoldingRow: View {
         ) {
             StockMark(
                 symbol: row.symbol,
-                displayName: AssetCatalogDisplayName.format(catalogName: "", symbol: row.symbol, kind: row.resolvedAssetKind),
+                displayName: AssetCatalogDisplayName.format(
+                    catalogName: "", symbol: row.symbol, kind: row.resolvedAssetKind),
                 assetKind: row.resolvedAssetKind,
                 logoURL: row.logoURL
             )
@@ -212,7 +220,11 @@ struct ProposeSellAmountView: View {
                 multiplier: holding.resolvedUiMultiplier
             )
         }
-        guard let atomics = ProposeMath.atomics(fromShares: amountText, decimals: holding.resolvedTokenDecimals, multiplier: holding.resolvedUiMultiplier), atomics <= ceilingAtomics else { return nil }
+        guard
+            let atomics = ProposeMath.atomics(
+                fromShares: amountText, decimals: holding.resolvedTokenDecimals,
+                multiplier: holding.resolvedUiMultiplier), atomics <= ceilingAtomics
+        else { return nil }
         return atomics
     }
 
@@ -223,13 +235,17 @@ struct ProposeSellAmountView: View {
     private var isOverHoldings: Bool {
         guard let entered = enteredValue else { return false }
         if entersDollars, let valueUsd { return entered > valueUsd }
-        return (ProposeMath.atomics(fromShares: amountText, decimals: holding.resolvedTokenDecimals, multiplier: holding.resolvedUiMultiplier) ?? 0) > ceilingAtomics
+        return
+            (ProposeMath.atomics(
+                fromShares: amountText, decimals: holding.resolvedTokenDecimals,
+                multiplier: holding.resolvedUiMultiplier) ?? 0) > ceilingAtomics
     }
 
     var body: some View {
         ScrollViewReader { proxy in
             form
-                .revealsWhileActive(ProposeReasonField.scrollID, isActive: reasonFocused, tracking: reason, proxy: proxy)
+                .revealsWhileActive(
+                    ProposeReasonField.scrollID, isActive: reasonFocused, tracking: reason, proxy: proxy)
         }
         .background(MonacoTheme.canvas.ignoresSafeArea())
         .navigationTitle(ProposeFlowCopy.amountTitle)
@@ -276,7 +292,10 @@ struct ProposeSellAmountView: View {
                             )
                             ProposePresetChips(
                                 amountText: $amountText,
-                                presets: [.fraction(0.25, label: "25%"), .fraction(0.5, label: "50%"), .fraction(1, label: "All")],
+                                presets: [
+                                    .fraction(0.25, label: "25%"), .fraction(0.5, label: "50%"),
+                                    .fraction(1, label: "All"),
+                                ],
                                 max: valueUsd
                             )
                         }
@@ -284,13 +303,17 @@ struct ProposeSellAmountView: View {
                         VStack(spacing: MonacoTheme.Space.s) {
                             MonacoTextField(quantityRowLabel, text: $amountText, keyboard: .decimalPad)
                                 .accessibilityIdentifier("proposal-sell-amount")
-                            Text(isOverHoldings ? ProposeFlowCopy.overHoldings : ProposalShareFormatter.sharesLabel(
-                            fromAtomics: holding.tokenAmount ?? "0",
-                            decimals: holding.resolvedTokenDecimals,
-                            kind: holding.resolvedAssetKind
-                        ))
-                                .font(MonacoTheme.Typo.callout)
-                                .foregroundStyle(isOverHoldings ? MonacoTheme.loss : MonacoTheme.muted)
+                            Text(
+                                isOverHoldings
+                                    ? ProposeFlowCopy.overHoldings
+                                    : ProposalShareFormatter.sharesLabel(
+                                        fromAtomics: holding.tokenAmount ?? "0",
+                                        decimals: holding.resolvedTokenDecimals,
+                                        kind: holding.resolvedAssetKind
+                                    )
+                            )
+                            .font(MonacoTheme.Typo.callout)
+                            .foregroundStyle(isOverHoldings ? MonacoTheme.loss : MonacoTheme.muted)
                         }
                     }
                 }
@@ -337,9 +360,11 @@ struct ProposeSellAmountView: View {
                 Haptics.warning()
                 return
             }
-            let estimate = quote.outputUsdcMicros.flatMap { Int64($0) }
+            let estimate =
+                quote.outputUsdcMicros.flatMap { Int64($0) }
                 ?? markUsd.flatMap { mark in
-                    ProposeMath.shares(fromAtomics: String(tokenAmount), decimals: holding.resolvedTokenDecimals).flatMap { ProposeMath.micros(fromUsd: $0 * mark) }
+                    ProposeMath.shares(fromAtomics: String(tokenAmount), decimals: holding.resolvedTokenDecimals)
+                        .flatMap { ProposeMath.micros(fromUsd: $0 * mark) }
                 }
             review = ProposeSellReview(
                 symbol: holding.symbol,
@@ -402,7 +427,10 @@ struct ProposeSellReviewView: View {
     @State private var proposeSubmission = IdempotentSubmission()
     @State private var errorMessage: String?
 
-    init(service: ProposeService, groupId: String, review: ProposeSellReview, onProposed: @escaping (_ proposalId: String) -> Void) {
+    init(
+        service: ProposeService, groupId: String, review: ProposeSellReview,
+        onProposed: @escaping (_ proposalId: String) -> Void
+    ) {
         self.service = service
         self.groupId = groupId
         self.review = review
