@@ -30,6 +30,17 @@ func TestRealGeneratesDistinctV7(t *testing.T) {
 	}
 }
 
+func TestNewUserIDTakesTheGeneratorsUUID(t *testing.T) {
+	t.Parallel()
+	u, err := uuid.Parse(validV7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id := ids.NewUserID(fixedGen{u}); id.UUID() != u || id.String() != validV7 {
+		t.Fatalf("NewUserID = %s, want %s", id, validV7)
+	}
+}
+
 func TestParse(t *testing.T) {
 	t.Parallel()
 	id, err := ids.ParseCabalID(validV7)

@@ -115,12 +115,32 @@ func proposalFixtures(t *testing.T) map[events.Type]any {
 	}
 }
 
+func userFixtures(t *testing.T) map[events.Type]any {
+	t.Helper()
+	g := testkit.NewIDs(572)
+	user := g.NewV7()
+	return map[events.Type]any{
+		events.TypeUserCreated: events.UserCreated{
+			V: 1, UserID: user, LoginProvider: "sms", CreatedAt: time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC),
+		},
+		events.TypeUserAuthStateChanged: events.UserAuthStateChanged{
+			V: 1, UserID: user, From: "ONBOARDING_COMPLETED", To: "AWAITING_PHONE", Cause: "unlink",
+			At: time.Date(2026, 3, 2, 9, 30, 0, 0, time.UTC),
+		},
+		events.TypeUserProfileUpdated: events.UserProfileUpdated{
+			V: 1, UserID: user, Fields: []string{"handle", "photo"}, Handle: "kaicenat", DisplayName: "Kai Cenat",
+			PhotoURL: "https://cdn.example.com/photos/kai.jpg",
+		},
+	}
+}
+
 func goldenName(t events.Type, v int) string { return fmt.Sprintf("%s.v%d.json", t, v) }
 
 func TestGoldenPayloads(t *testing.T) {
 	t.Parallel()
 	fx := fixtures(t)
 	maps.Copy(fx, proposalFixtures(t))
+	maps.Copy(fx, userFixtures(t))
 	for _, entry := range events.Catalog() {
 		ev, ok := fx[entry.Type]
 		if !ok {

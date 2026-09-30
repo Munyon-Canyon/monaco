@@ -116,7 +116,8 @@ func TestPrivyUsers_mapsLinkedAccountsIntoIdentityTerms(t *testing.T) {
 			ID: "did:privy:member-with-wallet", AppleEmail: "member@privaterelay.appleid.com",
 			PhoneE164: "+14155550100", X: &app.XAccount{UserID: "1234567890", Username: "monaco_member"},
 		},
-		"did:privy:member-new": {ID: "did:privy:member-new", GoogleEmail: "new.member@gmail.com"},
+		"did:privy:member-new":    {ID: "did:privy:member-new", GoogleEmail: "new.member@gmail.com"},
+		"did:privy:member-legacy": {ID: "did:privy:member-legacy", Email: "legacy@example.com"},
 	} {
 		got, err := users.User(t.Context(), id)
 		if err != nil || !reflect.DeepEqual(got, want) {

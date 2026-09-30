@@ -277,3 +277,40 @@ Subject `events.trade.submitted`, version 1.
 | `out_mint` | `chain.SolanaAddress` |
 | `in_amount` | `uint64` |
 | `tx_signature` | `chain.Signature` |
+
+## `user.auth_state_changed`
+
+Subject `events.user.auth_state_changed`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `user_id` | `uuid.UUID` |
+| `from` | `string` |
+| `to` | `string` |
+| `cause` | `string` |
+| `at` | `time.Time` |
+
+## `user.created`
+
+Subject `events.user.created`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `user_id` | `uuid.UUID` |
+| `login_provider` | `string` |
+| `created_at` | `time.Time` |
+
+## `user.profile_updated`
+
+Subject `events.user.profile_updated`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `user_id` | `uuid.UUID` |
+| `fields` | `[]string` |
+| `handle` | `string` |
+| `display_name` | `string` |
+| `photo_url` | `string` |

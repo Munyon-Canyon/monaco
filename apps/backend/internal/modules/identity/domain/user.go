@@ -23,8 +23,6 @@ type NewUser struct {
 	ID            ids.UserID
 	PrivyUserID   string
 	LoginProvider LoginProvider
-	Email         string
-	Wallet        *Wallet
 }
 
 type User struct {

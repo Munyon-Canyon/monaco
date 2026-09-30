@@ -40,7 +40,8 @@ func (u Users) User(ctx context.Context, id app.PrivyUserID) (app.PrivyUser, err
 		return app.PrivyUser{}, err
 	}
 	user := app.PrivyUser{
-		ID: app.PrivyUserID(got.ID), AppleEmail: got.AppleEmail, GoogleEmail: got.GoogleEmail, PhoneE164: phone,
+		ID: app.PrivyUserID(got.ID), Email: got.Email, AppleEmail: got.AppleEmail, GoogleEmail: got.GoogleEmail,
+		PhoneE164: phone,
 	}
 	if got.X != nil {
 		user.X = &app.XAccount{UserID: got.X.UserID, Username: got.X.Username}

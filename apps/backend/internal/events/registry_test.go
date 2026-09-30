@@ -41,7 +41,8 @@ func TestSubjects(t *testing.T) {
 		"events.proposal.created", "events.proposal.executed", "events.proposal.execution_blocked",
 		"events.proposal.expired", "events.proposal.failed", "events.proposal.passed", "events.proposal.voided",
 		"events.proposal.withdrawn", "events.system.pinged", "events.trade.blocked", "events.trade.confirmed",
-		"events.trade.failed", "events.trade.submitted",
+		"events.trade.failed", "events.trade.submitted", "events.user.auth_state_changed", "events.user.created",
+		"events.user.profile_updated",
 	}
 	if got := Subjects(); !slices.Equal(got, want) {
 		t.Fatalf("Subjects() = %q, want %q", got, want)
@@ -156,6 +157,7 @@ func TestCatalog(t *testing.T) {
 		TypeProposalCreated, TypeProposalExecuted, TypeProposalExecutionBlocked, TypeProposalExpired,
 		TypeProposalFailed, TypeProposalPassed, TypeProposalVoided, TypeProposalWithdrawn,
 		TypeSystemPinged, TypeTradeBlocked, TypeTradeConfirmed, TypeTradeFailed, TypeTradeSubmitted,
+		TypeUserAuthStateChanged, TypeUserCreated, TypeUserProfileUpdated,
 	}; !slices.Equal(types, want) {
 		t.Fatalf("Catalog() types = %q, want %q", types, want)
 	}
@@ -236,6 +238,23 @@ func TestProposalEventsAggregateOnTheProposal(t *testing.T) {
 	} {
 		if ev.AggregateType() != "proposal" || ev.AggregateID() != id ||
 			!strings.HasPrefix(string(ev.Type()), "proposal.") {
+			t.Errorf("%T aggregate = %s %s %s", ev, ev.Type(), ev.AggregateType(), ev.AggregateID())
+		}
+	}
+}
+
+func TestUserEventsAggregateOnTheUser(t *testing.T) {
+	t.Parallel()
+	id, err := uuid.Parse("01890a5d-ac96-774b-bcce-b302099a8061")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range []Event{
+		UserCreated{UserID: id},
+		UserAuthStateChanged{UserID: id},
+		UserProfileUpdated{UserID: id},
+	} {
+		if ev.AggregateType() != "user" || ev.AggregateID() != id || !strings.HasPrefix(string(ev.Type()), "user.") {
 			t.Errorf("%T aggregate = %s %s %s", ev, ev.Type(), ev.AggregateType(), ev.AggregateID())
 		}
 	}

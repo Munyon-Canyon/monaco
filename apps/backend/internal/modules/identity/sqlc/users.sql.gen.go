@@ -13,6 +13,58 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const attachUserWallet = `-- name: AttachUserWallet :execrows
+INSERT INTO user_wallets (user_id, privy_wallet_id, address, created_at)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT DO NOTHING
+`
+
+type AttachUserWalletParams struct {
+	UserID        uuid.UUID
+	PrivyWalletID string
+	Address       string
+	CreatedAt     time.Time
+}
+
+func (q *Queries) AttachUserWallet(ctx context.Context, arg AttachUserWalletParams) (int64, error) {
+	result, err := q.db.Exec(ctx, attachUserWallet,
+		arg.UserID,
+		arg.PrivyWalletID,
+		arg.Address,
+		arg.CreatedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const createUser = `-- name: CreateUser :execrows
+INSERT INTO users (id, privy_user_id, login_provider, auth_state_changed_at, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $4, $4)
+ON CONFLICT (privy_user_id) DO NOTHING
+`
+
+type CreateUserParams struct {
+	ID            uuid.UUID
+	PrivyUserID   string
+	LoginProvider string
+	Now           time.Time
+}
+
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (int64, error) {
+	result, err := q.db.Exec(ctx, createUser,
+		arg.ID,
+		arg.PrivyUserID,
+		arg.LoginProvider,
+		arg.Now,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const findUserByID = `-- name: FindUserByID :one
 SELECT u.id, u.privy_user_id, u.handle, u.auth_state, u.account_status, w.privy_wallet_id, w.address
 FROM users u
@@ -77,50 +129,52 @@ func (q *Queries) FindUserByPrivyUserID(ctx context.Context, privyUserID string)
 	return i, err
 }
 
-const insertUser = `-- name: InsertUser :exec
-INSERT INTO users (id, privy_user_id, login_provider, email, auth_state_changed_at, created_at, updated_at)
-VALUES ($1, $2, $3, $4,
-  $5, $5, $5)
+const lockUserByPrivyUserID = `-- name: LockUserByPrivyUserID :one
+SELECT u.id, u.privy_user_id, u.handle, u.auth_state, u.account_status, w.privy_wallet_id, w.address
+FROM users u
+LEFT JOIN user_wallets w ON w.user_id = u.id
+WHERE u.privy_user_id = $1
+FOR UPDATE OF u
 `
 
-type InsertUserParams struct {
+type LockUserByPrivyUserIDRow struct {
 	ID            uuid.UUID
 	PrivyUserID   string
-	LoginProvider string
-	Email         pgtype.Text
-	Now           time.Time
+	Handle        pgtype.Text
+	AuthState     string
+	AccountStatus string
+	PrivyWalletID pgtype.Text
+	Address       pgtype.Text
 }
 
-func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) error {
-	_, err := q.db.Exec(ctx, insertUser,
-		arg.ID,
-		arg.PrivyUserID,
-		arg.LoginProvider,
-		arg.Email,
-		arg.Now,
+func (q *Queries) LockUserByPrivyUserID(ctx context.Context, privyUserID string) (LockUserByPrivyUserIDRow, error) {
+	row := q.db.QueryRow(ctx, lockUserByPrivyUserID, privyUserID)
+	var i LockUserByPrivyUserIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.PrivyUserID,
+		&i.Handle,
+		&i.AuthState,
+		&i.AccountStatus,
+		&i.PrivyWalletID,
+		&i.Address,
 	)
-	return err
+	return i, err
 }
 
-const insertUserWallet = `-- name: InsertUserWallet :exec
-INSERT INTO user_wallets (user_id, privy_wallet_id, address, created_at)
-VALUES ($1, $2, $3, $4)
+const setUserEmail = `-- name: SetUserEmail :exec
+UPDATE users SET email = $1, updated_at = $2
+WHERE id = $3 AND email IS DISTINCT FROM $1
 `
 
-type InsertUserWalletParams struct {
-	UserID        uuid.UUID
-	PrivyWalletID string
-	Address       string
-	CreatedAt     time.Time
+type SetUserEmailParams struct {
+	Email pgtype.Text
+	Now   time.Time
+	ID    uuid.UUID
 }
 
-func (q *Queries) InsertUserWallet(ctx context.Context, arg InsertUserWalletParams) error {
-	_, err := q.db.Exec(ctx, insertUserWallet,
-		arg.UserID,
-		arg.PrivyWalletID,
-		arg.Address,
-		arg.CreatedAt,
-	)
+func (q *Queries) SetUserEmail(ctx context.Context, arg SetUserEmailParams) error {
+	_, err := q.db.Exec(ctx, setUserEmail, arg.Email, arg.Now, arg.ID)
 	return err
 }
 

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
@@ -15,11 +16,20 @@ type XAccount struct {
 
 type PrivyUser struct {
 	ID          PrivyUserID
+	Email       string
 	AppleEmail  string
 	GoogleEmail string
 	PhoneE164   string
 	X           *XAccount
 }
+
+func (u PrivyUser) LoginMethods() domain.LoginMethods {
+	return domain.LoginMethods{
+		Phone: u.PhoneE164 != "", Email: u.Email != "", Apple: u.AppleEmail != "", Google: u.GoogleEmail != "",
+	}
+}
+
+func (u PrivyUser) ContactEmail() string { return cmp.Or(u.Email, u.AppleEmail, u.GoogleEmail) }
 
 type PrivyWallet struct {
 	domain.Wallet

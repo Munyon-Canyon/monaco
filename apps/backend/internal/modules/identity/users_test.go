@@ -33,7 +33,7 @@ func newUsersFixture(t *testing.T) usersFixture {
 	g := testkit.NewIDs(testkit.RandSeed(t))
 	pool := testkit.DB(t)
 	c := testkit.NewClock(clock.Real{}.Now().UTC().Truncate(time.Microsecond))
-	return usersFixture{pool: pool, ids: g, clock: c, uow: db.New(pool, g, c), users: adapters.Users{Clock: c}}
+	return usersFixture{pool: pool, ids: g, clock: c, uow: db.New(pool, g, c), users: adapters.Users{}}
 }
 
 func (f usersFixture) newUserID(t *testing.T) ids.UserID {
@@ -45,24 +45,39 @@ func (f usersFixture) newUserID(t *testing.T) ids.UserID {
 	return id
 }
 
-func (f usersFixture) insert(t *testing.T, u domain.NewUser) error {
+func (f usersFixture) create(t *testing.T, u domain.NewUser) (bool, error) {
 	t.Helper()
-	return f.uow.Do(t.Context(), func(ctx context.Context, tx db.Tx) error {
-		return f.users.Insert(ctx, tx.Queries(), u)
+	var created bool
+	err := f.uow.Do(t.Context(), func(ctx context.Context, tx db.Tx) error {
+		var err error
+		created, err = f.users.Create(ctx, tx.Queries(), u, f.clock.Now())
+		return err
 	})
+	return created, err
+}
+
+func (f usersFixture) attachWallet(t *testing.T, id ids.UserID, w domain.Wallet) (bool, error) {
+	t.Helper()
+	var attached bool
+	err := f.uow.Do(t.Context(), func(ctx context.Context, tx db.Tx) error {
+		var err error
+		attached, err = f.users.AttachWallet(ctx, tx.Queries(), id, w, f.clock.Now())
+		return err
+	})
+	return attached, err
 }
 
 func (f usersFixture) updateAuthState(t *testing.T, id ids.UserID, expected, next domain.AuthState) error {
 	t.Helper()
 	return f.uow.Do(t.Context(), func(ctx context.Context, tx db.Tx) error {
-		return f.users.UpdateAuthState(ctx, tx.Queries(), id, expected, next)
+		return f.users.UpdateAuthState(ctx, tx.Queries(), id, expected, next, f.clock.Now())
 	})
 }
 
 func (f usersFixture) updateAccountStatus(t *testing.T, id ids.UserID, expected, next domain.AccountStatus) error {
 	t.Helper()
 	return f.uow.Do(t.Context(), func(ctx context.Context, tx db.Tx) error {
-		return f.users.UpdateAccountStatus(ctx, tx.Queries(), id, expected, next)
+		return f.users.UpdateAccountStatus(ctx, tx.Queries(), id, expected, next, f.clock.Now())
 	})
 }
 
@@ -122,62 +137,156 @@ func sameUser(t *testing.T, got domain.User, err error, want domain.User) {
 	}
 }
 
-func TestUsers_insertThenFindReturnsTheUserAndItsWallet(t *testing.T) {
+func TestUsers_createThenAttachThenFindReturnsTheUserAndItsWallet(t *testing.T) {
 	t.Parallel()
 	f := newUsersFixture(t)
 	id := f.newUserID(t)
-	wallet := &domain.Wallet{PrivyWalletID: "wallet-1", Address: address(t, 7)}
-	if err := f.insert(t, domain.NewUser{
-		ID: id, PrivyUserID: "did:privy:one", LoginProvider: domain.LoginEmail, Email: "one@x.io", Wallet: wallet,
-	}); err != nil {
-		t.Fatalf("Insert: %v", err)
+	wallet := domain.Wallet{PrivyWalletID: "wallet-1", Address: address(t, 7)}
+	if created, err := f.create(
+		t,
+		domain.NewUser{ID: id, PrivyUserID: "did:privy:one", LoginProvider: domain.LoginEmail},
+	); !created ||
+		err != nil {
+		t.Fatalf("Create = %v, %v, want created", created, err)
+	}
+	if attached, err := f.attachWallet(t, id, wallet); !attached || err != nil {
+		t.Fatalf("AttachWallet = %v, %v, want attached", attached, err)
 	}
 	want := domain.User{
 		ID: id, PrivyUserID: "did:privy:one", AuthState: domain.AuthCreated, AccountStatus: domain.AccountActive,
-		Wallet: wallet,
+		Wallet: &wallet,
 	}
 	byPrivy, err := f.users.FindByPrivyUserID(t.Context(), f.pool, "did:privy:one")
 	sameUser(t, byPrivy, err, want)
 	byID, err := f.users.FindByID(t.Context(), f.pool, id)
 	sameUser(t, byID, err, want)
-	var email string
-	var changedAt time.Time
-	if err := f.pool.QueryRow(t.Context(), `SELECT email, auth_state_changed_at FROM users WHERE id = $1`,
-		id.UUID()).Scan(&email, &changedAt); err != nil || email != "one@x.io" || !changedAt.Equal(f.clock.Now()) {
-		t.Fatalf("stored email %q, auth_state_changed_at %s, %v; want one@x.io at %s", email, changedAt, err,
-			f.clock.Now())
+	locked, err := f.users.Lock(t.Context(), f.pool, "did:privy:one")
+	sameUser(t, locked, err, want)
+	var provider string
+	var changedAt, createdAt time.Time
+	if err := f.pool.QueryRow(t.Context(), `SELECT login_provider, auth_state_changed_at, created_at FROM users
+		WHERE id = $1`, id.UUID()).Scan(&provider, &changedAt, &createdAt); err != nil || provider != "email" ||
+		!changedAt.Equal(f.clock.Now()) || !createdAt.Equal(f.clock.Now()) {
+		t.Fatalf("stored provider %q, changed %s, created %s, %v; want email at %s", provider, changedAt, createdAt,
+			err, f.clock.Now())
 	}
 }
 
-func TestUsers_insertWithoutWalletOrEmailStoresNulls(t *testing.T) {
+func TestUsers_createLeavesAnExistingPrivyUserUntouched(t *testing.T) {
 	t.Parallel()
 	f := newUsersFixture(t)
-	id := f.newUserID(t)
-	err := f.insert(t, domain.NewUser{ID: id, PrivyUserID: "did:privy:two", LoginProvider: domain.LoginSMS})
-	if err != nil {
-		t.Fatalf("Insert: %v", err)
+	first, second := f.newUserID(t), f.newUserID(t)
+	if created, err := f.create(
+		t,
+		domain.NewUser{ID: first, PrivyUserID: "did:privy:dup", LoginProvider: domain.LoginSMS},
+	); !created ||
+		err != nil {
+		t.Fatalf("first Create = %v, %v", created, err)
 	}
-	u, err := f.users.FindByID(t.Context(), f.pool, id)
-	if err != nil || u.Wallet != nil {
-		t.Fatalf("FindByID = %+v, %v, want no wallet", u, err)
+	created, err := f.create(
+		t,
+		domain.NewUser{ID: second, PrivyUserID: "did:privy:dup", LoginProvider: domain.LoginEmail},
+	)
+	if created || err != nil {
+		t.Fatalf("second Create = %v, %v, want no row and no error", created, err)
 	}
-	var emailIsNull bool
-	if err := f.pool.QueryRow(t.Context(), `SELECT email IS NULL FROM users WHERE id = $1`, id.UUID()).
-		Scan(&emailIsNull); err != nil || !emailIsNull {
-		t.Fatalf("email IS NULL = %v, %v", emailIsNull, err)
+	u, err := f.users.FindByPrivyUserID(t.Context(), f.pool, "did:privy:dup")
+	if err != nil || u.ID != first {
+		t.Fatalf("FindByPrivyUserID = %+v, %v, want the first user", u, err)
+	}
+	if _, err := f.users.FindByID(t.Context(), f.pool, second); errs.CodeOf(err) != errs.CodeUserNotFound {
+		t.Fatalf("FindByID(second) = %v, want user_not_found", err)
 	}
 }
 
-func TestUsers_insertRollsBackTheUserWhenTheWalletCollides(t *testing.T) {
+func TestUsers_attachWalletKeepsTheFirstWalletAndRefusesAnAddressAnotherUserHolds(t *testing.T) {
 	t.Parallel()
 	f := newUsersFixture(t)
 	seeded := testkit.SeedUser(t, f.pool, testkit.UserOpts{WithWallet: true})
-	err := f.insert(t, domain.NewUser{
-		ID: f.newUserID(t), PrivyUserID: "did:privy:late", LoginProvider: domain.LoginSMS,
-		Wallet: &domain.Wallet{PrivyWalletID: "wallet-other", Address: seeded.Address},
-	})
-	uniqueViolation(t, err, "user_wallets_address_key")
-	_, err = f.users.FindByPrivyUserID(t.Context(), f.pool, "did:privy:late")
+	id := f.newUserID(t)
+	if created, err := f.create(
+		t,
+		domain.NewUser{ID: id, PrivyUserID: "did:privy:late", LoginProvider: domain.LoginSMS},
+	); !created ||
+		err != nil {
+		t.Fatalf("Create = %v, %v", created, err)
+	}
+	stolen := domain.Wallet{PrivyWalletID: "wallet-other", Address: seeded.Address}
+	if attached, err := f.attachWallet(t, id, stolen); attached || err != nil {
+		t.Fatalf("AttachWallet with another user's address = %v, %v, want no row and no error", attached, err)
+	}
+	mine := domain.Wallet{PrivyWalletID: "wallet-mine", Address: address(t, 9)}
+	if attached, err := f.attachWallet(t, id, mine); !attached || err != nil {
+		t.Fatalf("AttachWallet = %v, %v", attached, err)
+	}
+	if attached, err := f.attachWallet(
+		t,
+		id,
+		domain.Wallet{PrivyWalletID: "wallet-new", Address: address(t, 10)},
+	); attached ||
+		err != nil {
+		t.Fatalf("second AttachWallet = %v, %v, want the first wallet kept", attached, err)
+	}
+	u, err := f.users.FindByID(t.Context(), f.pool, id)
+	if err != nil || u.Wallet == nil || *u.Wallet != mine {
+		t.Fatalf("FindByID = %+v, %v, want the first wallet", u, err)
+	}
+}
+
+func TestUsers_refreshEmailWritesOnlyWhenTheEmailChanges(t *testing.T) {
+	t.Parallel()
+	f := newUsersFixture(t)
+	id := f.newUserID(t)
+	if _, err := f.create(
+		t,
+		domain.NewUser{ID: id, PrivyUserID: "did:privy:mail", LoginProvider: domain.LoginSMS},
+	); err != nil {
+		t.Fatal(err)
+	}
+	refresh := func(email string) (*string, time.Time) {
+		t.Helper()
+		f.clock.Advance(time.Minute)
+		if err := f.uow.Do(t.Context(), func(ctx context.Context, tx db.Tx) error {
+			return f.users.RefreshEmail(ctx, tx.Queries(), id, email, f.clock.Now())
+		}); err != nil {
+			t.Fatal(err)
+		}
+		var stored *string
+		var updatedAt time.Time
+		if err := f.pool.QueryRow(t.Context(), `SELECT email, updated_at FROM users WHERE id = $1`, id.UUID()).
+			Scan(&stored, &updatedAt); err != nil {
+			t.Fatal(err)
+		}
+		return stored, updatedAt.UTC()
+	}
+	set, changedAt := refresh("a@example.com")
+	if set == nil || *set != "a@example.com" || !changedAt.Equal(f.clock.Now()) {
+		t.Fatalf("after the first refresh: %v at %s, want a@example.com at %s", set, changedAt, f.clock.Now())
+	}
+	same, sameAt := refresh("a@example.com")
+	if same == nil || *same != "a@example.com" || !sameAt.Equal(changedAt) {
+		t.Fatalf(
+			"after a refresh with the same email: %v at %s, want a@example.com still at %s",
+			same,
+			sameAt,
+			changedAt,
+		)
+	}
+	cleared, clearedAt := refresh("")
+	if cleared != nil || !clearedAt.Equal(f.clock.Now()) {
+		t.Fatalf("after clearing: %v at %s, want NULL at %s", cleared, clearedAt, f.clock.Now())
+	}
+}
+
+func TestUsers_lockFindsTheRowIncludingADeletedUserAndNotFoundOtherwise(t *testing.T) {
+	t.Parallel()
+	f := newUsersFixture(t)
+	seeded := testkit.SeedUser(t, f.pool, testkit.UserOpts{Handle: "gone", WithWallet: true, AccountStatus: "deleted"})
+	got, err := f.users.Lock(t.Context(), f.pool, seeded.PrivyUserID)
+	if err != nil || got.ID != seeded.ID || got.AccountStatus != domain.AccountDeleted || got.Wallet == nil {
+		t.Fatalf("Lock = %+v, %v, want the deleted user with its wallet", got, err)
+	}
+	_, err = f.users.Lock(t.Context(), f.pool, "did:privy:nobody")
 	wantCode(t, err, errs.CodeUserNotFound)
 }
 
@@ -253,13 +362,32 @@ func TestUsers_databaseErrorsPassThrough(t *testing.T) {
 	f := newUsersFixture(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	id := f.newUserID(t)
+	id, at := f.newUserID(t), f.clock.Now()
+	_, create := f.users.Create(ctx, f.pool, domain.NewUser{ID: id, LoginProvider: domain.LoginSMS}, at)
+	_, attach := f.users.AttachWallet(ctx, f.pool, id, domain.Wallet{}, at)
 	checks := map[string]error{
-		"Insert":              f.users.Insert(ctx, f.pool, domain.NewUser{ID: id, LoginProvider: domain.LoginSMS}),
-		"UpdateAuthState":     f.users.UpdateAuthState(ctx, f.pool, id, domain.AuthCreated, domain.AuthAwaitingPhone),
-		"UpdateAccountStatus": f.users.UpdateAccountStatus(ctx, f.pool, id, domain.AccountActive, domain.AccountBanned),
+		"Create":       create,
+		"AttachWallet": attach,
+		"RefreshEmail": f.users.RefreshEmail(ctx, f.pool, id, "a@example.com", at),
+		"UpdateAuthState": f.users.UpdateAuthState(
+			ctx,
+			f.pool,
+			id,
+			domain.AuthCreated,
+			domain.AuthAwaitingPhone,
+			at,
+		),
+		"UpdateAccountStatus": f.users.UpdateAccountStatus(
+			ctx,
+			f.pool,
+			id,
+			domain.AccountActive,
+			domain.AccountBanned,
+			at,
+		),
 	}
 	_, checks["FindByPrivyUserID"] = f.users.FindByPrivyUserID(ctx, f.pool, "did:privy:x")
+	_, checks["Lock"] = f.users.Lock(ctx, f.pool, "did:privy:x")
 	_, checks["FindByID"] = f.users.FindByID(ctx, f.pool, id)
 	for name, err := range checks {
 		if !errors.Is(err, context.Canceled) {

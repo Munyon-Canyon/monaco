@@ -1,17 +1,29 @@
--- name: InsertUser :exec
-INSERT INTO users (id, privy_user_id, login_provider, email, auth_state_changed_at, created_at, updated_at)
-VALUES (sqlc.arg(id), sqlc.arg(privy_user_id), sqlc.arg(login_provider), sqlc.narg(email),
-  sqlc.arg(now), sqlc.arg(now), sqlc.arg(now));
+-- name: CreateUser :execrows
+INSERT INTO users (id, privy_user_id, login_provider, auth_state_changed_at, created_at, updated_at)
+VALUES (sqlc.arg(id), sqlc.arg(privy_user_id), sqlc.arg(login_provider), sqlc.arg(now), sqlc.arg(now), sqlc.arg(now))
+ON CONFLICT (privy_user_id) DO NOTHING;
 
--- name: InsertUserWallet :exec
+-- name: AttachUserWallet :execrows
 INSERT INTO user_wallets (user_id, privy_wallet_id, address, created_at)
-VALUES ($1, $2, $3, $4);
+VALUES ($1, $2, $3, $4)
+ON CONFLICT DO NOTHING;
+
+-- name: SetUserEmail :exec
+UPDATE users SET email = sqlc.narg(email), updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id) AND email IS DISTINCT FROM sqlc.narg(email);
 
 -- name: FindUserByPrivyUserID :one
 SELECT u.id, u.privy_user_id, u.handle, u.auth_state, u.account_status, w.privy_wallet_id, w.address
 FROM users u
 LEFT JOIN user_wallets w ON w.user_id = u.id
 WHERE u.privy_user_id = $1;
+
+-- name: LockUserByPrivyUserID :one
+SELECT u.id, u.privy_user_id, u.handle, u.auth_state, u.account_status, w.privy_wallet_id, w.address
+FROM users u
+LEFT JOIN user_wallets w ON w.user_id = u.id
+WHERE u.privy_user_id = $1
+FOR UPDATE OF u;
 
 -- name: FindUserByID :one
 SELECT u.id, u.privy_user_id, u.handle, u.auth_state, u.account_status, w.privy_wallet_id, w.address
