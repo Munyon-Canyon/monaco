@@ -109,3 +109,10 @@ func ParseFailureCode(raw string) (FailureCode, error) {
 func unknown(op, raw string) error {
 	return errs.New(errs.CodeDecodeFailed, op, slog.String("raw", raw))
 }
+
+func ParseAmount(v int64) (uint64, error) {
+	if v < 0 {
+		return 0, errs.New(errs.CodeDecodeFailed, "trading.ParseAmount", slog.Int64("raw", v))
+	}
+	return uint64(v), nil
+}

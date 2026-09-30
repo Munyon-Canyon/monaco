@@ -1,6 +1,10 @@
 package domain
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/google/uuid"
+)
 
 type SourceKind string
 
@@ -32,4 +36,9 @@ func ParseAction(raw string) (Action, error) {
 		return "", unknown("trading.ParseAction", raw)
 	}
 	return Action(raw), nil
+}
+
+type Source struct {
+	Kind SourceKind
+	ID   uuid.UUID
 }

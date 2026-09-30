@@ -122,6 +122,23 @@ type Swap struct {
 	UpdatedAt        time.Time
 }
 
+type SwapView struct {
+	ID          uuid.UUID
+	CabalID     uuid.UUID
+	SourceKind  string
+	SourceID    uuid.UUID
+	Action      string
+	Symbol      string
+	InAmount    int64
+	OutAmount   pgtype.Int8
+	Status      string
+	FailureCode pgtype.Text
+	TxSignature pgtype.Text
+	CreatedAt   time.Time
+	ConfirmedAt pgtype.Timestamptz
+	Retryable   pgtype.Bool
+}
+
 type SystemPing struct {
 	ID       uuid.UUID
 	UserID   uuid.UUID
