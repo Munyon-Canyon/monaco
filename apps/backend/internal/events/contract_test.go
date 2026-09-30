@@ -9,6 +9,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strconv"
 	"testing"
@@ -34,7 +35,7 @@ const (
 
 func golden() fs.FS { return os.DirFS(goldenDir) }
 
-func fixtures(t *testing.T) map[events.Type]events.Event {
+func fixtures(t *testing.T) map[events.Type]any {
 	t.Helper()
 	id, err := uuid.Parse("01890a5d-ac96-774b-bcce-b302099a8057")
 	if err != nil {
@@ -44,9 +45,14 @@ func fixtures(t *testing.T) map[events.Type]events.Event {
 	if err != nil {
 		t.Fatal(err)
 	}
+	sampled := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	cabal := newCabalFixtures(t)
-	return map[events.Type]events.Event{
-		events.TypeSystemPinged:         events.SystemPinged{V: 1, PingID: id, UserID: user, Note: "reference flow"},
+	return map[events.Type]any{
+		events.TypeSystemPinged: events.SystemPinged{V: 1, PingID: id, UserID: user, Note: "reference flow"},
+		events.TypePriceTick: events.PriceTick{V: 1, AsOf: sampled, Prices: []events.TickPrice{{
+			Mint: "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp", AssetID: id,
+			PriceMicros: money.MicrosFromUint64(254_371_234), ObservedAt: sampled.Add(-2 * time.Minute),
+		}}},
 		events.TypeCabalCreated:         cabal.created,
 		events.TypeCabalMemberJoined:    cabal.memberJoined,
 		events.TypeCabalAccessRequested: cabal.accessRequested,
@@ -77,11 +83,11 @@ func fixtures(t *testing.T) map[events.Type]events.Event {
 	}
 }
 
-func proposalFixtures(t *testing.T) map[events.Type]events.Event {
+func proposalFixtures(t *testing.T) map[events.Type]any {
 	t.Helper()
 	g := testkit.NewIDs(528)
 	proposal, cabal, proposer, swap := g.NewV7(), g.NewV7(), g.NewV7(), g.NewV7()
-	return map[events.Type]events.Event{
+	return map[events.Type]any{
 		events.TypeProposalCreated: events.ProposalCreated{
 			V: 1, ProposalID: proposal, CabalID: cabal, ProposerID: proposer, Kind: "buy", Symbol: "AAPLx",
 			Mint: aaplxMint, USDCMicros: money.MicrosFromUint64(25_000_000), QuoteOutAmount: 105_000_000,
@@ -149,8 +155,10 @@ func TestEveryGoldenFileDecodesAsARegisteredVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	current := map[events.Type]int{}
+	core := map[events.Type]bool{}
 	for _, entry := range events.Catalog() {
 		current[entry.Type] = entry.Version
+		core[entry.Type] = entry.Core
 	}
 	name := regexp.MustCompile(`^(.+)\.v([0-9]+)\.json$`)
 	for _, path := range files {
@@ -165,6 +173,10 @@ func TestEveryGoldenFileDecodesAsARegisteredVersion(t *testing.T) {
 			t.Errorf("%s has no registered type", path)
 			continue
 		}
+		if core[typ] {
+			delete(current, typ)
+			continue
+		}
 		payload, err := fs.ReadFile(golden(), path)
 		if err != nil {
 			t.Fatal(err)
@@ -177,6 +189,31 @@ func TestEveryGoldenFileDecodesAsARegisteredVersion(t *testing.T) {
 	}
 	for typ := range current {
 		t.Errorf("%s has no golden file", typ)
+	}
+}
+
+func TestCorePayloadsRoundTripThroughTheirGoType(t *testing.T) {
+	t.Parallel()
+	fx := fixtures(t)
+	for _, entry := range events.Catalog() {
+		if !entry.Core {
+			continue
+		}
+		want, err := fs.ReadFile(golden(), goldenName(entry.Type, entry.Version))
+		if err != nil {
+			t.Fatal(err)
+		}
+		decoded := reflect.New(reflect.TypeOf(fx[entry.Type]))
+		if err := json.Unmarshal(want, decoded.Interface()); err != nil {
+			t.Fatalf("%s: %v", entry.Type, err)
+		}
+		got, err := json.MarshalIndent(decoded.Elem().Interface(), "", "  ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got = append(got, '\n'); !bytes.Equal(got, want) {
+			t.Errorf("%s did not survive a decode\n got: %s\nwant: %s", entry.Type, got, want)
+		}
 	}
 }
 

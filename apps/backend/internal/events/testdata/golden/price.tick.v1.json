@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "as_of": "2026-03-01T12:00:00Z",
+  "prices": [
+    {
+      "mint": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
+      "asset_id": "01890a5d-ac96-774b-bcce-b302099a8057",
+      "price_micros": "254371234",
+      "observed_at": "2026-03-01T11:58:00Z"
+    }
+  ]
+}

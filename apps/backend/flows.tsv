@@ -1,2 +1,3 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
 00	Ping	system	POST /v1/system/pings	RecordPing	system.pinged	system.echo	ok;InvalidInput;Unauthorized;crash:after-publish	verified	docs/architecture/backend-platform.md#flows
+18	Prices	market	poller:market.prices	SamplePrices	price.tick		ok;JupiterUnavailable;UpstreamTimeout	planned	docs/architecture/price-history.md#writer-1-live-sampler

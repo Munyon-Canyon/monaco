@@ -126,6 +126,13 @@ type IdempotencyKey struct {
 	CompletedAt     pgtype.Timestamptz
 }
 
+type PricePoint struct {
+	Mint        string
+	Ts          time.Time
+	PriceMicros int64
+	Source      string
+}
+
 type Proposal struct {
 	ID             uuid.UUID
 	CabalID        uuid.UUID

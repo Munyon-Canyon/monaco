@@ -65,6 +65,24 @@ func TestRegisterRejectsATypeTheEventDoesNotReport(t *testing.T) {
 	})
 }
 
+type widgetTicked struct {
+	V int `json:"v"`
+}
+
+func (widgetTicked) Type() Type { return "widget.ticked" }
+
+func (widgetTicked) core() {}
+
+func TestRegisterCoreChecksTheTypeAndVersionLikeRegister(t *testing.T) {
+	t.Parallel()
+	mustPanic(t, "events: widget.ticked registered as widget.poked", func() {
+		RegisterCore[widgetTicked]("widget.poked", 1)
+	})
+	mustPanic(t, "events: widget.ticked registered at version 0", func() {
+		RegisterCore[widgetTicked]("widget.ticked", 0)
+	})
+}
+
 func TestRegisterRejectsAVersionBelowOne(t *testing.T) {
 	t.Parallel()
 	mustPanic(t, "events: widget.bumped registered at version 0", func() {
@@ -115,6 +133,7 @@ func TestDecodeFailures(t *testing.T) {
 		{"missing v", TypeSystemPinged, 1, `{"note":"hi"}`},
 		{"payload v disagrees", TypeSystemPinged, 1, `{"v":2}`},
 		{"bad field", TypeSystemPinged, 1, `{"v":1,"ping_id":"not-a-uuid"}`},
+		{"core subject", TypePriceTick, 1, `{"v":1,"as_of":"2026-03-01T12:00:00Z","prices":[]}`},
 	} {
 		ev, err := Decode(tc.typ, tc.v, []byte(tc.payload))
 		var e *errs.Error
@@ -133,7 +152,7 @@ func TestCatalog(t *testing.T) {
 	}
 	if want := []Type{
 		TypeCabalAccessDecided, TypeCabalAccessRequested, TypeCabalCreated, TypeCabalMemberJoined,
-		TypeCabalMemberLeft, TypeCabalUpdated,
+		TypeCabalMemberLeft, TypeCabalUpdated, TypePriceTick,
 		TypeProposalCreated, TypeProposalExecuted, TypeProposalExecutionBlocked, TypeProposalExpired,
 		TypeProposalFailed, TypeProposalPassed, TypeProposalVoided, TypeProposalWithdrawn,
 		TypeSystemPinged, TypeTradeBlocked, TypeTradeConfirmed, TypeTradeFailed, TypeTradeSubmitted,
@@ -141,10 +160,20 @@ func TestCatalog(t *testing.T) {
 		t.Fatalf("Catalog() types = %q, want %q", types, want)
 	}
 	e := got[slices.Index(types, TypeSystemPinged)]
+	checkPriceTick(t, got[slices.Index(types, TypePriceTick)])
 	want := []Field{{"v", "int"}, {"ping_id", "uuid.UUID"}, {"user_id", "uuid.UUID"}, {"note", "string"}}
-	if e.Type != TypeSystemPinged || e.Subject != "events.system.pinged" || e.Version != 1 ||
+	if e.Type != TypeSystemPinged || e.Subject != "events.system.pinged" || e.Core || e.Version != 1 ||
 		!slices.Equal(e.Fields, want) {
 		t.Fatalf("Catalog() system.pinged = %+v", e)
+	}
+}
+
+func checkPriceTick(t *testing.T, tick Entry) {
+	t.Helper()
+	tickFields := []Field{{"v", "int"}, {"as_of", "time.Time"}, {"prices", "[]events.TickPrice"}}
+	if tick.Type != TypePriceTick || tick.Subject != "price.tick" || !tick.Core || tick.Version != 1 ||
+		!slices.Equal(tick.Fields, tickFields) {
+		t.Fatalf("Catalog() price.tick = %+v, want the core price.tick", tick)
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -21,7 +22,6 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
-	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -76,13 +76,11 @@ type worker struct {
 func startWorker(t *testing.T, pool *pgxpool.Pool, clk *testkit.Clock, up upstream) *worker {
 	t.Helper()
 	ids := testkit.NewIDs(uint64(clk.Now().UnixNano()))
-	cfg := config.Config{
-		XStocks:  config.XStocks{BaseURL: up.url},
-		Timeouts: config.Timeouts{XStocks: 10 * time.Second},
-	}
-	pollers := market.New(module.Deps{
+	cfg := moduleConfig()
+	cfg.XStocks.BaseURL, cfg.Timeouts.XStocks = up.url, 10*time.Second
+	pollers := slices.DeleteFunc(market.New(module.Deps{
 		Config: cfg, Clock: clk, IDs: ids, Pool: pool, UoW: db.New(pool, ids, clk), HTTPClient: httpclient.New,
-	}).Pollers()
+	}).Pollers(), func(p poller.Poller) bool { return p.Name() != "market.catalog" })
 	reader := sdkmetric.NewManualReader()
 	runner, err := poller.NewRunner(pool, clk, sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("t"))
 	if err != nil {

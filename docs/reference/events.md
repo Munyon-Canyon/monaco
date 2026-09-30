@@ -82,6 +82,16 @@ Subject `events.cabal.updated`, version 1.
 | `actor_id` | `uuid.UUID` |
 | `changes` | `events.CabalChanges` |
 
+## `price.tick`
+
+Core NATS subject `price.tick`, version 1, never stored.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `as_of` | `time.Time` |
+| `prices` | `[]events.TickPrice` |
+
 ## `proposal.created`
 
 Subject `events.proposal.created`, version 1.

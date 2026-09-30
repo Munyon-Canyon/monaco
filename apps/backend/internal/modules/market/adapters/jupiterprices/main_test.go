@@ -1,4 +1,4 @@
-package market_test
+package jupiterprices_test
 
 import (
 	"testing"
@@ -7,5 +7,5 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	testkit.Main(m, testkit.WithNATS())
+	testkit.Main(m, testkit.NoDB())
 }
