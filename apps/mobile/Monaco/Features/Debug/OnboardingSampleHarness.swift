@@ -22,8 +22,7 @@ enum OnboardingSampleScenario: String, CaseIterable {
 
     static let launchArgument = "-MonacoOnboardingSample"
 
-    static var requested: OnboardingSampleScenario? {
-        let arguments = ProcessInfo.processInfo.arguments
+    static func matching(_ arguments: [String]) -> OnboardingSampleScenario? {
         guard let flag = arguments.firstIndex(of: launchArgument) else { return nil }
         guard arguments.indices.contains(flag + 1),
             let scenario = OnboardingSampleScenario(rawValue: arguments[flag + 1])
@@ -82,6 +81,14 @@ struct OnboardingSampleHarness: View {
             createdAt: Date()
         )
         return session
+    }
+}
+
+final class OnboardingSampleHarnessEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
+        guard let scenario = OnboardingSampleScenario.matching(arguments) else { return nil }
+        return AnyView(OnboardingSampleHarness(scenario: scenario, auth: auth))
     }
 }
 #endif

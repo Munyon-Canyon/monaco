@@ -41,8 +41,7 @@ enum GroupNavSampleEntry: String, CaseIterable {
 
     static let launchArgument = "-MonacoGroupNavSample"
 
-    static var requested: GroupNavSampleEntry? {
-        let arguments = ProcessInfo.processInfo.arguments
+    static func matching(_ arguments: [String]) -> GroupNavSampleEntry? {
         guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else {
             return nil
         }
@@ -471,6 +470,14 @@ private struct CreateGroupSampleForm<Cabal: View>: View {
             .navigationDestination(item: $createdCabal) { _ in
                 cabalScreen()
             }
+    }
+}
+
+final class GroupNavSampleHarnessEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
+        guard let entry = GroupNavSampleEntry.matching(arguments) else { return nil }
+        return AnyView(GroupNavSampleHarness(entry: entry, auth: auth))
     }
 }
 #endif

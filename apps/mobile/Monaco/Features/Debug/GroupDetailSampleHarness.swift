@@ -29,8 +29,7 @@ enum GroupDetailSampleScenario: String, CaseIterable {
 
     static let launchArgument = "-MonacoGroupDetailSample"
 
-    static var requested: GroupDetailSampleScenario? {
-        let arguments = ProcessInfo.processInfo.arguments
+    static func matching(_ arguments: [String]) -> GroupDetailSampleScenario? {
         guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else {
             return nil
         }
@@ -416,6 +415,14 @@ struct SampleCabalPictureWriter: CabalPictureWriting {
             throw MonacoCore.MonacoAPIError.httpStatus(503)
         }
         return nil
+    }
+}
+
+final class GroupDetailSampleHarnessEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
+        guard let scenario = GroupDetailSampleScenario.matching(arguments) else { return nil }
+        return AnyView(GroupDetailSampleHarness(scenario: scenario, auth: auth))
     }
 }
 #endif

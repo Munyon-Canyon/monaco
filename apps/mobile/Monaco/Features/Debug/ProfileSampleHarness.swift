@@ -24,8 +24,7 @@ enum ProfileSampleScenario: String, CaseIterable {
     case loading
     case error
 
-    static var requested: ProfileSampleScenario? {
-        let arguments = ProcessInfo.processInfo.arguments
+    static func matching(_ arguments: [String]) -> ProfileSampleScenario? {
         guard let flag = arguments.firstIndex(of: "-MonacoProfileSample"),
             arguments.indices.contains(flag + 1)
         else { return nil }
@@ -189,6 +188,14 @@ private struct AcceptingNameStore: DisplayNameSaving {
         guard normalized != current.displayName else { return .unchanged }
         session.me = current.withDisplayName(normalized)
         return .saved
+    }
+}
+
+final class ProfileSampleHarnessEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
+        guard let scenario = ProfileSampleScenario.matching(arguments) else { return nil }
+        return AnyView(ProfileSampleHarness(scenario: scenario, auth: auth))
     }
 }
 #endif

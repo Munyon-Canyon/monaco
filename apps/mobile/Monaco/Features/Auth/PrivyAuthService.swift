@@ -53,6 +53,12 @@ class PrivyAuthService: ObservableObject {
 
     let privy: Privy
 
+    #if DEBUG
+    /// The first service this process created. Tests reuse it: `PrivySdk.initialize` traps
+    /// if it runs a second time.
+    static var processInstance: PrivyAuthService?
+    #endif
+
     init(settings: PrivyAuthSettings) {
         let config = PrivyConfig(
             appId: settings.appID,
@@ -65,6 +71,9 @@ class PrivyAuthService: ObservableObject {
         AccessTokenRefreshRegistry.shared.register { [weak self] rejectedToken in
             try await self?.refreshedAccessToken(replacing: rejectedToken)
         }
+        #if DEBUG
+        if Self.processInstance == nil { Self.processInstance = self }
+        #endif
     }
 
     convenience init() {

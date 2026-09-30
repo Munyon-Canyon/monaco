@@ -31,8 +31,7 @@ enum MoneyFlowSampleScenario: String, CaseIterable {
 
     static let launchArgument = "-MonacoMoneyFlowSample"
 
-    static var requested: MoneyFlowSampleScenario? {
-        let arguments = ProcessInfo.processInfo.arguments
+    static func matching(_ arguments: [String]) -> MoneyFlowSampleScenario? {
         guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else {
             return nil
         }
@@ -194,6 +193,14 @@ enum MoneyFlowSampleData {
         case .withdraw: return "100"
         default: return ""
         }
+    }
+}
+
+final class MoneyFlowSampleHarnessEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
+        guard let scenario = MoneyFlowSampleScenario.matching(arguments) else { return nil }
+        return AnyView(MoneyFlowSampleHarness(scenario: scenario, auth: auth))
     }
 }
 #endif

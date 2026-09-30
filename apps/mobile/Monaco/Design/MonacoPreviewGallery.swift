@@ -7,7 +7,9 @@ import SwiftUI
 /// - `-MonacoDesignGallery` — opens the gallery instead of the app.
 /// - `-MonacoDesignGalleryTab <primitives|money|controls|toast>` — initial tab.
 enum MonacoDesignGallery {
-    static var isEnabled: Bool { ProcessInfo.processInfo.arguments.contains("-MonacoDesignGallery") }
+    static func matches(_ arguments: [String]) -> Bool {
+        arguments.contains("-MonacoDesignGallery")
+    }
 
     static var initialTab: GalleryTab {
         let arguments = ProcessInfo.processInfo.arguments
@@ -391,4 +393,12 @@ extension Decimal {
 #Preview("Money") { NavigationStack { GalleryMoneyPage() } }
 #Preview("Controls") { NavigationStack { GalleryControlsPage() } }
 #Preview("Toast") { MonacoDesignGallery.rootView() }
+
+final class MonacoDesignGalleryEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
+        guard MonacoDesignGallery.matches(arguments) else { return nil }
+        return AnyView(MonacoDesignGallery.rootView())
+    }
+}
 #endif
