@@ -2,12 +2,12 @@
 repo = "Munyon-Canyon/monaco"
 # "auto" is MONACO_FEATURE_BRANCH, else the FEATURE_BRANCH repo variable, which each checkpoint moves to <name>-<N+1>.
 feature_branch = "auto"
-tracking = 492
+tracking = 508
 lanes = 6
 batch = 6
 verifier_app = "5101392"
 verifier_installation = 166018497
-milestone = "m7-rest"
+milestone = "m8"
 
 # agents check gives each row its own budget, except `go test -short`, which is budgeted per package
 # (`package`, the same 20 s that fails a package in `monacoctl test-report`). The go budget applies to
