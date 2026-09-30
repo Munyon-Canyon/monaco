@@ -95,6 +95,33 @@ type RateLimitBucket struct {
 	UpdatedAt   time.Time
 }
 
+type Swap struct {
+	ID               uuid.UUID
+	SourceKind       string
+	SourceID         uuid.UUID
+	CabalID          uuid.UUID
+	TreasuryAddress  string
+	Action           string
+	Symbol           string
+	InMint           string
+	OutMint          string
+	InAmount         int64
+	QuoteOutAmount   pgtype.Int8
+	OutAmount        pgtype.Int8
+	FeeMicros        pgtype.Int8
+	SlippageBps      int32
+	Status           string
+	FailureCode      pgtype.Text
+	ExecuteRequestID pgtype.Text
+	SignedTx         []byte
+	TxSignature      pgtype.Text
+	CreatedAt        time.Time
+	SubmittedAt      pgtype.Timestamptz
+	ConfirmedAt      pgtype.Timestamptz
+	FailedAt         pgtype.Timestamptz
+	UpdatedAt        time.Time
+}
+
 type SystemPing struct {
 	ID       uuid.UUID
 	UserID   uuid.UUID
