@@ -41,6 +41,45 @@ paths:
                 const: "ok\n"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/auth/session:
+    post:
+      operationId: postAuthSession
+      tags: [identity]
+      security: []
+      x-idempotent: false
+      x-rate-limit:
+        ip:
+          rate: 60
+          per: 1m
+          burst: 60
+      summary: Open a session from a Privy access token.
+      description: >-
+        Verifies the Privy access token in the Authorization header, finds or creates the user by
+        their Privy id, reuses the user's one member wallet and returns the account. The first call
+        for a Privy user creates the account and appends `user.created`. Calling it again changes
+        nothing, so it takes no Idempotency-Key. It also brings the account back in line with the
+        phone and X accounts linked in Privy. Sign-in is by phone number or email through Privy; a
+        Privy user with neither is login_method_not_allowed, and a deleted account is account_deleted.
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: >-
+            The Privy access token as `Bearer <token>`. The route is public because no account exists
+            on the first call, so the server verifies this header itself and answers unauthorized when
+            it is missing or invalid.
+          schema:
+            type: string
+            examples: ["Bearer eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkaWQ6cHJpdnk6cWEtMSJ9.c2lnbmF0dXJl"]
+      responses:
+        "200":
+          description: The caller's account, with its `auth_state`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/me:
     get:
       operationId: getMe

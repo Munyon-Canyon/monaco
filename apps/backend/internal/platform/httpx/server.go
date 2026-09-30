@@ -95,6 +95,7 @@ type Routes struct {
 }
 
 type IdentityRoutes interface {
+	PostAuthSession(context.Context, api.PostAuthSessionRequestObject) (api.PostAuthSessionResponseObject, error)
 	GetMe(context.Context, api.GetMeRequestObject) (api.GetMeResponseObject, error)
 }
 

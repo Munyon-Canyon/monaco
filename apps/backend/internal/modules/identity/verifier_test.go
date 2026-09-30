@@ -241,6 +241,12 @@ type actorProbe struct {
 	seen []auth.Actor
 }
 
+func (p *actorProbe) PostAuthSession(context.Context, api.PostAuthSessionRequestObject) (
+	api.PostAuthSessionResponseObject, error,
+) {
+	return nil, errs.New(errs.CodeNotFound, "actorProbe.PostAuthSession")
+}
+
 func (p *actorProbe) GetMe(context.Context, api.GetMeRequestObject) (api.GetMeResponseObject, error) {
 	return nil, errs.New(errs.CodeNotFound, "actorProbe.GetMe")
 }

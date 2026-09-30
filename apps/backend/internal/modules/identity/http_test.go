@@ -1,6 +1,7 @@
 package identity_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -25,12 +27,15 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/privyfake"
 )
 
 type httpFixture struct {
 	portFixture
 	handler  http.Handler
 	verifier *auth.DevVerifier
+	privy    *privyfake.Users
+	wallets  *privyfake.Wallets
 }
 
 func newHTTPFixture(t *testing.T) httpFixture {
@@ -42,8 +47,12 @@ func newHTTPFixture(t *testing.T) httpFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	fakeUsers, fakeWallets := &privyfake.Users{}, &privyfake.Wallets{}
 	var routes httpx.Routes
-	identity.New(module.Deps{Pool: f.pool, Clock: clk}).Routes(&routes)
+	identity.New(
+		module.Deps{Pool: f.pool, UoW: db.New(f.pool, f.ids, clk), IDs: f.ids, Clock: clk},
+		identity.WithPrivy(fakeUsers, fakeWallets),
+	).Routes(&routes)
 	h, err := httpx.Handler(httpx.Deps{
 		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),
 		Tracer:       noop.NewTracerProvider(),
@@ -56,14 +65,27 @@ func newHTTPFixture(t *testing.T) httpFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return httpFixture{portFixture: f, handler: testkit.HTTP(t, h), verifier: verifier}
+	return httpFixture{
+		portFixture: f, handler: testkit.HTTP(t, h), verifier: verifier, privy: fakeUsers, wallets: fakeWallets,
+	}
 }
 
-func (f httpFixture) get(t *testing.T, path string, user ids.UserID) *httptest.ResponseRecorder {
+func (f httpFixture) getMe(t *testing.T, user ids.UserID) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/me", nil)
 	if user != (ids.UserID{}) {
 		req.Header.Set("Authorization", "Bearer "+f.verifier.Mint(user.String(), f.now.Add(time.Hour)))
+	}
+	rec := httptest.NewRecorder()
+	f.handler.ServeHTTP(rec, req)
+	return rec
+}
+
+func (f httpFixture) openSession(t *testing.T, authorization string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/auth/session", nil)
+	if authorization != "" {
+		req.Header.Set("Authorization", authorization)
 	}
 	rec := httptest.NewRecorder()
 	f.handler.ServeHTTP(rec, req)
@@ -101,7 +123,7 @@ func TestGetMe_overHTTPServesTheAccount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rec := f.get(t, "/v1/me", u.ID)
+	rec := f.getMe(t, u.ID)
 	handle, photo, x := "kaicenat", "https://img.example/kai.png", "kai_on_x"
 	changeable := changed.Add(domain.HandleChangeInterval)
 	want := api.Me{
@@ -129,7 +151,7 @@ func TestGetMe_overHTTPOmitsWhatIsUnset(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	bare := f.seed(t, portSeed{wallet: true})
-	rec := f.get(t, "/v1/me", bare.ID)
+	rec := f.getMe(t, bare.ID)
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(rec.Body.Bytes(), &fields); err != nil || rec.Code != http.StatusOK {
 		t.Fatalf("GET /v1/me for a new user = %d %s, %v", rec.Code, rec.Body, err)
@@ -156,7 +178,7 @@ func TestGetMe_overHTTPRefusesWhoIsNotASignedInUser(t *testing.T) {
 		"no token":                 {ids.UserID{}, http.StatusUnauthorized, api.Unauthorized},
 		"token without an account": {f.newID(t), http.StatusNotFound, api.UserNotFound},
 	} {
-		rec := f.get(t, "/v1/me", tc.user)
+		rec := f.getMe(t, tc.user)
 		if got := decodeProblem(t, rec); rec.Code != tc.status || got.Code != tc.code {
 			t.Errorf("%s: GET /v1/me = %d %s, want %d %s", name, rec.Code, rec.Body, tc.status, tc.code)
 		}
@@ -182,5 +204,71 @@ func TestHTTP_getMeRefusesCallersThatAreNotAUser(t *testing.T) {
 		if _, err := h.GetMe(ctx, api.GetMeRequestObject{}); errs.CodeOf(err) != tc.want {
 			t.Errorf("%s: GetMe err = %v, want %s", name, err, tc.want)
 		}
+	}
+}
+
+func TestPostAuthSession_opensASessionWithNeitherAnIdempotencyKeyNorAnActor(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	f.privy.Seed(app.PrivyUser{ID: alice, PhoneE164: "+14155550100", Email: "alice@example.com"})
+	rec := f.openSession(t, "Bearer "+string(alice))
+	me := decodeMe(t, rec)
+	if rec.Code != http.StatusOK || me.AuthState != api.AuthState(domain.AuthCreated) ||
+		me.AccountStatus != api.AccountStatus(domain.AccountActive) || me.PhoneLinked || me.MemberWalletAddress == "" {
+		t.Fatalf("POST /v1/auth/session = %d %s, want a CREATED active account with its wallet", rec.Code, rec.Body)
+	}
+	if bytes.Contains(rec.Body.Bytes(), []byte("alice@example.com")) ||
+		bytes.Contains(rec.Body.Bytes(), []byte("4155550100")) {
+		t.Fatalf("the response carries the email or the phone: %s", rec.Body)
+	}
+}
+
+func TestPostAuthSession_aSecondCallAndGetMeReturnTheSameAccount(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	f.privy.Seed(app.PrivyUser{ID: alice, PhoneE164: "+14155550100"})
+	first := f.openSession(t, "Bearer "+string(alice))
+	again := f.openSession(t, "bearer "+string(alice))
+	if first.Code != http.StatusOK || again.Code != http.StatusOK || again.Body.String() != first.Body.String() {
+		t.Fatalf("POST twice = %d %s then %d %s, want the same account", first.Code, first.Body, again.Code, again.Body)
+	}
+	user, err := ids.ParseUserID(decodeMe(t, first).Id.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if read := f.getMe(t, user); read.Code != http.StatusOK || read.Body.String() != first.Body.String() {
+		t.Fatalf("GET /v1/me = %d %s, want the account the session returned", read.Code, read.Body)
+	}
+}
+
+func TestPostAuthSession_refusesWhatItCannotSignIn(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		setup         func(f httpFixture)
+		authorization string
+		status        int
+		code          api.ErrorCode
+	}{
+		"no header":     {func(httpFixture) {}, "", http.StatusUnauthorized, api.Unauthorized},
+		"not a bearer":  {func(httpFixture) {}, "Basic YWxpY2U6eA==", http.StatusUnauthorized, api.Unauthorized},
+		"empty bearer":  {func(httpFixture) {}, "Bearer ", http.StatusUnauthorized, api.Unauthorized},
+		"unknown token": {func(httpFixture) {}, "Bearer nobody", http.StatusUnauthorized, api.Unauthorized},
+		"no login method": {func(f httpFixture) {
+			f.privy.Seed(app.PrivyUser{ID: alice, X: &app.XAccount{UserID: "1", Username: "a"}})
+		}, "Bearer " + string(alice), http.StatusForbidden, api.LoginMethodNotAllowed},
+		"privy down": {func(f httpFixture) {
+			f.privy.Seed(app.PrivyUser{ID: alice, PhoneE164: "+14155550100"})
+			f.privy.Fail("User", errs.New(errs.CodePrivyUnavailable, "test"))
+		}, "Bearer " + string(alice), http.StatusServiceUnavailable, api.PrivyUnavailable},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newHTTPFixture(t)
+			tc.setup(f)
+			rec := f.openSession(t, tc.authorization)
+			if got := decodeProblem(t, rec); rec.Code != tc.status || got.Code != tc.code {
+				t.Fatalf("POST /v1/auth/session = %d %s, want %d %s", rec.Code, rec.Body, tc.status, tc.code)
+			}
+		})
 	}
 }

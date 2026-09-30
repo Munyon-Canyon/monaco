@@ -626,7 +626,7 @@ Adding a flow is one row plus the tests it names. Deleting a flow deletes the ro
 The iOS app renders; the server decides.
 
 - One `GET` per screen returning everything that screen shows, already computed: pot value, share price, your stake, returns, display names, human-readable asset names, formatted-ready integer amounts with decimals. No math in Swift beyond formatting.
-- Every mutating call takes an `Idempotency-Key` header; the server stores the response and replays it.
+- Every mutating call takes an `Idempotency-Key` header; the server stores the response and replays it. The one exception is `POST /v1/auth/session`, which sets `x-idempotent: false` in `api/openapi.yaml` because finding or creating the user by `privy_user_id` is already idempotent.
 - Server-sent events (`/v1/stream`) push "this changed, re-fetch" hints from core NATS. The app never polls on a timer except as SSE-reconnect fallback. Fan-out is in-process (see [SSE hub](#sse-hub)), never one NATS subscription per phone.
 - Errors carry a stable `code` and user-facing `message`. The app shows `message` in a toast; it switches on `code` only for flows that branch.
 - Swift client is generated from `api/openapi.yaml`. A route change that breaks the client fails `oasdiff breaking` in CI.

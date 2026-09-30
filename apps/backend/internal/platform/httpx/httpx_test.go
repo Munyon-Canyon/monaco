@@ -37,6 +37,12 @@ func (healthz) GetStream(context.Context, api.GetStreamRequestObject) (api.GetSt
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetStream")
 }
 
+func (healthz) PostAuthSession(
+	context.Context, api.PostAuthSessionRequestObject,
+) (api.PostAuthSessionResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostAuthSession")
+}
+
 func (healthz) GetMe(context.Context, api.GetMeRequestObject) (api.GetMeResponseObject, error) {
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetMe")
 }
