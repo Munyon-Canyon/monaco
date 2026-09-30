@@ -43,7 +43,7 @@ func TestUp_startsAHealthyStackAndDownStopsEveryProcess(t *testing.T) {
 func TestUp_aStackThatNeverGetsHealthyFailsNamingStackUp(t *testing.T) {
 	t.Parallel()
 	o := testOptions(t, fakeSick)
-	o.Budget.Stack = 5 * time.Second
+	o.Budget.Stack = 2 * time.Second
 	s, err := Up(t.Context(), o)
 	defer func() { _ = s.Down(t.Context()) }()
 	var over *OverBudgetError

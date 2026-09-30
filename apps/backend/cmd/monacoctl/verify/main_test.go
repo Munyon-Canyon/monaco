@@ -44,6 +44,8 @@ const (
 
 	fakeStartedEnv = "VERIFY_FAKE_STARTED"
 	fakeNeedsEnv   = "VERIFY_FAKE_WORKER_NEEDS"
+
+	noRaceExitSleep = "GORACE=atexit_sleep_ms=0"
 )
 
 func fakeMain() {
@@ -127,7 +129,9 @@ func crashAfter(checked <-chan struct{}, point string) {
 }
 
 func fakeEnviron(mode string) []string {
-	return []string{"TESTKIT_RUN_MAIN=1", fakeEnv + "=" + mode, "MONACO_ENV=local", "PATH=" + os.Getenv("PATH")}
+	return []string{
+		"TESTKIT_RUN_MAIN=1", fakeEnv + "=" + mode, "MONACO_ENV=local", "PATH=" + os.Getenv("PATH"), noRaceExitSleep,
+	}
 }
 
 func fakeBinaries(t *testing.T) Binaries {
