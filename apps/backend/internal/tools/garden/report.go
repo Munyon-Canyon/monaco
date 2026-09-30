@@ -48,8 +48,8 @@ func (s Section) write(b *strings.Builder) {
 		return cmp.Or(cmp.Compare(a.Rule, b.Rule), cmp.Compare(a.File, b.File), cmp.Compare(a.Line, b.Line))
 	})
 	sep := ""
-	for rule, group := range byRule(findings) {
-		if rule != "" {
+	for _, group := range byRule(findings) {
+		if rule := group[0].Rule; rule != "" {
 			_, _ = fmt.Fprintf(b, "%s### %s (%d)\n\n", sep, rule, len(group))
 			sep = "\n"
 		}
@@ -59,17 +59,15 @@ func (s Section) write(b *strings.Builder) {
 	}
 }
 
-func byRule(sorted []Finding) func(yield func(string, []Finding) bool) {
-	return func(yield func(string, []Finding) bool) {
-		for start := 0; start < len(sorted); {
-			end := start + 1
-			for end < len(sorted) && sorted[end].Rule == sorted[start].Rule {
-				end++
-			}
-			if !yield(sorted[start].Rule, sorted[start:end]) {
-				return
-			}
-			start = end
+func byRule(sorted []Finding) [][]Finding {
+	var groups [][]Finding
+	for start := 0; start < len(sorted); {
+		end := start + 1
+		for end < len(sorted) && sorted[end].Rule == sorted[start].Rule {
+			end++
 		}
+		groups = append(groups, sorted[start:end])
+		start = end
 	}
+	return groups
 }

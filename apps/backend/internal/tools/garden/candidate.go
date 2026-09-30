@@ -32,10 +32,7 @@ func CandidateConfig(moduleDir string) ([]byte, error) {
 		}
 		merged = overlay(merged, layer)
 	}
-	out, err := yaml.Marshal(merged)
-	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeInternal, op)
-	}
+	out, _ := yaml.Marshal(merged)
 	return out, nil
 }
 

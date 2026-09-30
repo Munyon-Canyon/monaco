@@ -3,6 +3,7 @@ package garden
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -177,13 +178,10 @@ func (s session) lint(ctx context.Context) ([]Finding, error) {
 		return nil, err
 	}
 	file, err := os.CreateTemp(s.TempDir, "golangci-candidate-*.yml")
-	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeInternal, op)
-	}
-	defer func() { _ = os.Remove(file.Name()) }()
-	_, err = file.Write(config)
-	if closeErr := file.Close(); err == nil {
-		err = closeErr
+	if err == nil {
+		defer func() { _ = os.Remove(file.Name()) }()
+		_, err = file.Write(config)
+		err = errors.Join(err, file.Close())
 	}
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, op)
