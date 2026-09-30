@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
 const staleSpec = `components:
@@ -201,5 +202,50 @@ func TestGen_scaffoldsIntoTheWorkingDirAndPrintsWhatItWrote(t *testing.T) {
 	); code != 2 ||
 		!strings.Contains(stderr.String(), "monacoctl gen flow <id>") {
 		t.Fatalf("gen nope = %d %q, want 2 and usage", code, stderr.String())
+	}
+}
+
+func TestGen_flowWithALetterSuffixWritesItsTestFileIntoTheModule(t *testing.T) {
+	t.Parallel()
+	dir, err := os.OpenRoot(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = dir.Close() }()
+	row := "01a\tSet handle\tidentity\tPOST /v1/me/handle\tSetHandle\t\t\tok;InvalidInput;crash:before-commit\tplanned\tdocs/x.md\n"
+	if err := dir.MkdirAll("internal/modules/identity", 0o750); err != nil {
+		t.Fatal(err)
+	}
+	for rel, body := range map[string]string{
+		"go.mod":                              "module example.com/app\n",
+		flows.File:                            flows.Header + "\n" + row,
+		"internal/modules/identity/module.go": "package identity\n",
+	} {
+		if err := dir.WriteFile(rel, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var stdout, stderr bytes.Buffer
+	if code := toolGen(toolEnv{wd: dir.Name()})([]string{"flow", "01a"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("gen flow 01a = %d, stderr %q", code, stderr.String())
+	}
+	const written = "internal/modules/identity/flow01a_test.go"
+	if stdout.String() != written+"\n" {
+		t.Fatalf("stdout = %q, want %q", stdout.String(), written+"\n")
+	}
+	src, err := dir.ReadFile(written)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{
+		"TestFlow01a_SetHandle_OK", "TestFlow01a_SetHandle_InvalidInput", "TestFlow01a_SetHandle_CrashBeforeCommit",
+	} {
+		want := "func " + name + "(t *testing.T) {\n\tt.Parallel()\n\tt.Fatal(\"not implemented\")\n}"
+		if !strings.Contains(string(src), want) {
+			t.Errorf("%s lacks a failing %s:\n%s", written, name, src)
+		}
+	}
+	if got := strings.Count(string(src), "func Test"); got != 3 {
+		t.Errorf("%s has %d tests, want 3", written, got)
 	}
 }

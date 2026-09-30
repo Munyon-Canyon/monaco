@@ -72,9 +72,9 @@ func TestParse_rejectsMalformedRowsWithTheirLineNumber(t *testing.T) {
 		{"blank line", tsv(""), []string{"flows.tsv:2: blank line"}},
 		{
 			"bad cells",
-			tsv("7a\t\t\t\tfundCabal\t\t\t\tdone\t"),
+			tsv("7A\t\t\t\tfundCabal\t\t\t\tdone\t"),
 			[]string{
-				`flows.tsv:2: id "7a" must be digits`,
+				`flows.tsv:2: id "7A" must be digits with at most one lowercase letter after them`,
 				"flows.tsv:2: flow is empty",
 				"flows.tsv:2: module is empty",
 				"flows.tsv:2: doc is empty",
@@ -90,6 +90,16 @@ func TestParse_rejectsMalformedRowsWithTheirLineNumber(t *testing.T) {
 				"flows.tsv:2: command is empty on a built flow",
 				"flows.tsv:2: outcome crash:After_Sign must name a kebab-case crash point",
 			},
+		},
+		{
+			"two letters after the digits",
+			tsv(fundRowWith(func(c []string) { c[0] = "01ab" })),
+			[]string{`flows.tsv:2: id "01ab" must be digits with at most one lowercase letter after them`},
+		},
+		{
+			"a letter without digits",
+			tsv(fundRowWith(func(c []string) { c[0] = "a" })),
+			[]string{`flows.tsv:2: id "a" must be digits with at most one lowercase letter after them`},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -117,6 +127,30 @@ func TestTestName_namesOneTestPerOutcome(t *testing.T) {
 		if got := flows.TestName(f, outcome); got != want {
 			t.Errorf("TestName(%s) = %s, want %s", outcome, got, want)
 		}
+	}
+}
+
+func TestSubRow_aLetterSuffixIsADistinctFlowWithItsOwnNames(t *testing.T) {
+	t.Parallel()
+	parent := fundRowWith(func(c []string) { c[0] = "01" })
+	sub := fundRowWith(func(c []string) { c[0], c[4], c[7] = "01a", "SetHandle", "ok" })
+	parsed, problems := flows.Parse(strings.NewReader(tsv(parent, sub)))
+	if len(problems) != 0 || len(parsed) != 2 {
+		t.Fatalf("flows = %+v, problems = %v", parsed, lines(problems))
+	}
+	if ids := []string{parsed[0].ID, parsed[1].ID}; !slices.Equal(ids, []string{"01", "01a"}) {
+		t.Fatalf("ids = %q, want [01 01a]", ids)
+	}
+	if got, want := flows.TestName(parsed[1], flows.OutcomeOK), "TestFlow01a_SetHandle_OK"; got != want {
+		t.Errorf("TestName = %s, want %s", got, want)
+	}
+	if got, want := flows.ScriptName(parsed[1], flows.OutcomeOK), "F01aSetHandleOK"; got != want {
+		t.Errorf("ScriptName = %s, want %s", got, want)
+	}
+	env := testEnv()
+	env.Commands = set("FundCabal", "SetHandle")
+	if got := lines(flows.CheckColumns(parsed, env)); len(got) != 0 {
+		t.Errorf("CheckColumns problems = %q, want none", got)
 	}
 }
 
