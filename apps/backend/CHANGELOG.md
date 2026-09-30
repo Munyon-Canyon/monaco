@@ -14,6 +14,7 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 - The `market.catalog` poller refreshes `assets` hourly from every registered `AssetProvider`, starting with xStocks (`XSTOCKS_BASE_URL`, `MONACO_TIMEOUT_XSTOCKS`). A halted or delisted mint turns untradable, and a provider that fails or returns nothing leaves its issuer's rows untouched and counts in `poller_errors_total`.
 - `monacoctl market tradable <symbol> on|off|auto` sets or clears an asset's `tradable_override`, which wins over the issuer's flag until it is set back to `auto`.
 - The `trading` module.
+- The `governance` module.
 
 ## [checkpoint 4] - 2026-09-29
 

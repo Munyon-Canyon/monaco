@@ -89,6 +89,30 @@ type IdempotencyKey struct {
 	CompletedAt     pgtype.Timestamptz
 }
 
+type Proposal struct {
+	ID             uuid.UUID
+	CabalID        uuid.UUID
+	ProposerID     uuid.UUID
+	Kind           string
+	Symbol         string
+	Mint           string
+	UsdcMicros     pgtype.Int8
+	TokenAmount    pgtype.Int8
+	Thesis         pgtype.Text
+	QuoteOutAmount int64
+	Status         string
+	StatusReason   pgtype.Text
+	VoidReason     pgtype.Text
+	ExpiresAt      time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type ProposalVoter struct {
+	ProposalID uuid.UUID
+	VoterID    uuid.UUID
+}
+
 type RateLimitBucket struct {
 	Key         string
 	TokensMilli int64
@@ -203,4 +227,11 @@ type UserWallet struct {
 	PrivyWalletID string
 	Address       string
 	CreatedAt     time.Time
+}
+
+type Vote struct {
+	ProposalID uuid.UUID
+	VoterID    uuid.UUID
+	Choice     string
+	CastAt     time.Time
 }
