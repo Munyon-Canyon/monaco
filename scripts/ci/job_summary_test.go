@@ -1,7 +1,6 @@
 package ci_test
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,66 +11,14 @@ import (
 func TestJobSummary_timingTestsAndFailureTail(t *testing.T) {
 	root := filepath.Join("..", "..")
 	script := filepath.Join(root, "scripts", "ci", "job-summary.sh")
-	dir := t.TempDir()
+	data := filepath.Join(root, "scripts", "ci", "testdata")
 
-	build := filepath.Join(dir, "build.log")
-	if err := os.WriteFile(build, []byte(strings.Join([]string{
-		"noise before",
-		"Build Timing Summary",
-		"SwiftCompile (48 tasks) | 10.000 seconds",
-		"Ld (3 tasks) | 30.500 seconds",
-		"SwiftCompile normal arm64 Compiling Foo.swift (in target 'Monaco' from project 'Monaco')",
-		"    98.250 seconds",
-		"Copy (1 task) | 0.050 seconds",
-		"** BUILD SUCCEEDED **",
-		"",
-	}, "\n")), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	tests := filepath.Join(dir, "tests.log")
-	if err := os.WriteFile(tests, []byte(strings.Join([]string{
-		"✔ Test example() passed after 0.001 seconds.",
-		"✔ Suite Big passed after 9.000 seconds.",
-		"✔ Test slowOne() passed after 3.500 seconds.",
-		"Test Case '-[MonacoTests.Foo testBar]' passed (1.250 seconds).",
-		"✔ Test medium() passed after 2.000 seconds.",
-		"✔ exampleCLI() (4.000 seconds)",
-		"✔ Test slowOne() passed after 0.010 seconds.",
-	}, "\n")), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	times := filepath.Join(dir, "times.tsv")
-	if err := os.WriteFile(times, []byte("Resolve Swift packages\t12\nBuild app and tests\t500\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	var raw strings.Builder
-	for i := 1; i <= 70; i++ {
-		fmt.Fprintf(&raw, "line %d\n", i)
-	}
-	failLog := filepath.Join(dir, "fail.log")
-	if err := os.WriteFile(failLog, []byte(raw.String()), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	failList := filepath.Join(dir, "fail.tsv")
-	if err := os.WriteFile(failList, []byte("Build app and tests\t"+failLog+"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	cmd := exec.Command("bash", script)
-	cmd.Env = append(os.Environ(),
-		"STEP_TIMES="+times,
-		"BUILD_LOG="+build,
-		"TEST_LOG="+tests,
-		"FAIL_LOGS="+failList,
-	)
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(out)
+	text := runSummary(t, script, []string{
+		"STEP_TIMES=" + filepath.Join(data, "job-summary-times.tsv"),
+		"BUILD_LOG=" + filepath.Join(data, "job-summary-build.log"),
+		"TEST_LOG=" + filepath.Join(data, "job-summary-tests.log"),
+		"FAIL_LOGS=" + failList(t, filepath.Join(data, "job-summary-fail.log")),
+	})
 	for _, want := range []string{
 		"Resolve Swift packages\t12",
 		"Build app and tests\t500",
@@ -82,7 +29,8 @@ func TestJobSummary_timingTestsAndFailureTail(t *testing.T) {
 		"3.500\tslowOne()",
 		"2.000\tmedium()",
 		"1.250\t-[MonacoTests.Foo testBar]",
-		"Last 60 lines of Build app and tests",
+		"<details>",
+		"<summary>Last 60 lines of Build app and tests</summary>",
 		"line 11",
 		"line 70",
 	} {
@@ -96,14 +44,66 @@ func TestJobSummary_timingTestsAndFailureTail(t *testing.T) {
 	if strings.Contains(text, "line 10\n") {
 		t.Fatalf("failure tail kept more than 60 lines\n%s", text)
 	}
-	slowIdx := strings.Index(text, "98.250 seconds")
-	ldIdx := strings.Index(text, "30.500 seconds")
-	if slowIdx < 0 || ldIdx < slowIdx {
+	if got := failureTailLines(t, text); got != 60 {
+		t.Fatalf("failure tail has %d lines, want 60\n%s", got, text)
+	}
+	if strings.Index(text, "98.250 seconds") > strings.Index(text, "30.500 seconds") {
 		t.Fatalf("timing lines are not ordered by time\n%s", text)
 	}
-	firstSlow := strings.Index(text, "4.000\texampleCLI()")
-	secondSlow := strings.Index(text, "3.500\tslowOne()")
-	if firstSlow < 0 || secondSlow < firstSlow {
+	if strings.Index(text, "4.000\texampleCLI()") > strings.Index(text, "3.500\tslowOne()") {
 		t.Fatalf("tests are not ordered by time\n%s", text)
 	}
+
+	passing := runSummary(t, script, []string{
+		"STEP_TIMES=" + filepath.Join(data, "job-summary-times.tsv"),
+		"BUILD_LOG=" + filepath.Join(data, "job-summary-build.log"),
+		"TEST_LOG=" + filepath.Join(data, "job-summary-tests.log"),
+	})
+	if strings.Contains(passing, "<details>") {
+		t.Fatalf("passing run included a failure tail\n%s", passing)
+	}
+}
+
+func runSummary(t *testing.T, script string, env []string) string {
+	t.Helper()
+	cmd := exec.Command("bash", script)
+	cmd.Env = append(os.Environ(), env...)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(out)
+}
+
+func failList(t *testing.T, logPath string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "fail.tsv")
+	if err := os.WriteFile(path, []byte("Build app and tests\t"+logPath+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func failureTailLines(t *testing.T, text string) int {
+	t.Helper()
+	const open = "<summary>Last 60 lines of Build app and tests</summary>"
+	i := strings.Index(text, open)
+	if i < 0 {
+		t.Fatal("missing failure details")
+	}
+	rest := text[i+len(open):]
+	fence := strings.Index(rest, "```\n")
+	if fence < 0 {
+		t.Fatal("missing opening fence")
+	}
+	rest = rest[fence+4:]
+	end := strings.Index(rest, "```")
+	if end < 0 {
+		t.Fatal("missing closing fence")
+	}
+	body := strings.Trim(rest[:end], "\n")
+	if body == "" {
+		return 0
+	}
+	return len(strings.Split(body, "\n"))
 }
