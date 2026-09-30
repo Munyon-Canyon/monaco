@@ -31,3 +31,24 @@ jobs:
     uses: ./.github/workflows/ci-mobile-core.yml
     with:
       save-cache: true
+
+  # One Actions cache per prefix on this ref. xcode-cas-* and spm-ios-* artifacts
+  # uploaded by ci-ios.yml are outside the 10 GB cache and are not pruned.
+  # ci-ios.yml restores spm-ios- and does not save it, so that prefix is absent.
+  # A list or delete error must not fail the warm run.
+  prune:
+    needs: [ios, mobile-core]
+    if: success()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prune superseded mobile caches
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ github.ref }}
+        run: scripts/ci/prune-caches.sh "$REF" xcode-cas-macOS- swiftpm-linux-6.3- swiftpm-macos-
