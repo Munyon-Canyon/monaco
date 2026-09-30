@@ -62,6 +62,7 @@ run_cached() {
 }
 
 run_suite() {
+  set -o pipefail
   if ! command -v jq >/dev/null 2>&1; then
     echo "error: jq is missing. Install it (brew install jq) and rerun." >&2
     return 1
