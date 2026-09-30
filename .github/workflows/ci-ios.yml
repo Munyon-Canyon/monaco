@@ -5,7 +5,17 @@ name: CI iOS
 # workflow_dispatch runs it alone on a branch, to measure the build. docs/architecture/ci.md#triggers
 on:
   workflow_call:
+    inputs:
+      save-cache:
+        description: Save the compilation cache. PRs restore and never save.
+        type: boolean
+        default: false
   workflow_dispatch:
+    inputs:
+      save-cache:
+        description: Save the compilation cache.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -15,10 +25,13 @@ jobs:
     name: iOS app (build, MonacoTests)
     runs-on: macos-26
     timeout-minutes: 20
-    env:
-      DERIVED_DATA: ${{ github.workspace }}/../DerivedData
     steps:
       - uses: actions/checkout@v4
+
+      # actions/cache rejects a path with `..` in it, so this resolves github.workspace/../DerivedData
+      # to the same directory without one. The path must not change between runs.
+      - name: Resolve the DerivedData path
+        run: echo "DERIVED_DATA=$(cd "$GITHUB_WORKSPACE/.." && pwd -P)/DerivedData" >> "$GITHUB_ENV"
 
       - name: Select Xcode
         run: scripts/ci/select-xcode.sh
@@ -30,14 +43,29 @@ jobs:
         working-directory: packages/mobile-core
         shell: bash
         # swift build --target prints no success line xcsift knows, so pipefail carries the exit code.
-        run: swift build --target MonacoAPITests 2>&1 | ../../.bin/xcsift
+        run: swift build --force-resolved-versions --target MonacoAPITests 2>&1 | ../../.bin/xcsift
 
-      - name: Cache Swift packages
-        uses: actions/cache@v4
+      - name: Restore Swift packages
+        id: spm
+        uses: actions/cache/restore@v4
         with:
           path: ${{ env.DERIVED_DATA }}/SourcePackages
           key: spm-ios-${{ runner.os }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
           restore-keys: spm-ios-${{ runner.os }}-
+
+      # The compilation cache keys each compile on content, so it hits after a fresh checkout, but
+      # only while the DerivedData path and the checkout path stay the same between runs. The
+      # saved key ends in the commit because a cache key is immutable: a fixed key would keep the
+      # first save forever while the app source moves on.
+      - name: Restore the compilation cache
+        id: cas
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.DERIVED_DATA }}/CompilationCache.noindex
+          key: xcode-cas-${{ runner.os }}-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-${{ github.sha }}
+          restore-keys: |
+            xcode-cas-${{ runner.os }}-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-
+            xcode-cas-${{ runner.os }}-${{ hashFiles('.xcode-version') }}-
 
       # Compile-only Privy config: no .env.local, no secret. Unit tests need no environment.
       - name: Placeholder app config
@@ -57,14 +85,35 @@ jobs:
       # ONLY_ACTIVE_ARCH restricts the simulator build to the runner's own arch instead of a
       # fat binary. COMPILER_INDEX_STORE_ENABLE=NO skips indexing PR CI never reads. The two
       # -skip flags drop plugin/macro re-validation once packages are already resolved.
+      # Warning flags stay off this command line: they would also reach the local MonacoCore
+      # package, which Xcode compiles with -suppress-warnings, and the two conflict.
       - name: Build app and tests
         shell: bash
         run: |
           xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
             -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
-            -skipMacroValidation -skipPackagePluginValidation \
+            -onlyUsePackageVersionsFromResolvedFile -skipMacroValidation -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO \
-            build-for-testing 2>&1 | .bin/xcsift --exit-on-failure
+            COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_CAS_PATH="$DERIVED_DATA/CompilationCache.noindex" \
+            COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES \
+            build-for-testing 2>&1 | tee "$RUNNER_TEMP/build-for-testing.log" | .bin/xcsift --exit-on-failure
+
+      - name: Compilation cache hits
+        if: always()
+        env:
+          RESTORED: ${{ steps.cas.outputs.cache-matched-key }}
+        run: |
+          log="$RUNNER_TEMP/build-for-testing.log"
+          [[ -f "$log" ]] || exit 0
+          read -r hits misses < <(awk 'tolower($0) ~ /replay cache hit/ {h++} tolower($0) ~ /replay cache miss/ {m++} END {print h+0, m+0}' "$log")
+          echo "compilation cache: $hits hits, $misses misses (restored: ${RESTORED:-nothing})" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Save the compilation cache
+        if: inputs.save-cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.DERIVED_DATA }}/CompilationCache.noindex
+          key: ${{ steps.cas.outputs.cache-primary-key }}
 
       # -parallel-testing-enabled YES was tried and reverted: it clones the simulator and runs
       # workers side by side, and on a shared macOS runner (a handful of vCPUs) that starved
@@ -79,9 +128,21 @@ jobs:
         run: |
           xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
             -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
-            -resultBundlePath "$RUNNER_TEMP/MonacoTests.xcresult" \
+            -resultBundlePath "$RUNNER_TEMP/MonacoTests.xcresult" -onlyUsePackageVersionsFromResolvedFile \
             CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO \
+            COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_CAS_PATH="$DERIVED_DATA/CompilationCache.noindex" \
             -only-testing:MonacoTests test-without-building 2>&1 | .bin/xcsift --exit-on-failure
+
+      # xcsift keeps only errors and warnings; the raw log holds the rest, such as why package
+      # resolution failed and the compilation cache remarks.
+      - name: Upload the build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-for-testing-log
+          path: ${{ runner.temp }}/build-for-testing.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload test results
         if: failure()

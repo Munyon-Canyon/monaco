@@ -6,7 +6,17 @@ name: CI mobile-core
 # docs/architecture/ci.md#triggers
 on:
   workflow_call:
+    inputs:
+      save-cache:
+        description: Save the .build cache. PRs restore and never save.
+        type: boolean
+        default: false
   workflow_dispatch:
+    inputs:
+      save-cache:
+        description: Save the .build cache.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -26,10 +36,25 @@ jobs:
           apt-get update -qq && apt-get install -y -qq --no-install-recommends curl >/dev/null
           scripts/install-xcsift.sh
 
+      - name: Restore .build
+        id: build
+        uses: actions/cache/restore@v4
+        with:
+          path: packages/mobile-core/.build
+          key: swiftpm-linux-6.3-${{ hashFiles('packages/mobile-core/Package.resolved') }}
+          restore-keys: swiftpm-linux-6.3-
+
       - name: Test mobile-core
         working-directory: packages/mobile-core
         shell: bash
-        run: swift test -Xswiftc -warnings-as-errors 2>&1 | ../../.bin/xcsift --exit-on-failure
+        run: swift test --force-resolved-versions -Xswiftc -warnings-as-errors 2>&1 | ../../.bin/xcsift --exit-on-failure
+
+      - name: Save .build
+        if: inputs.save-cache && steps.build.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: packages/mobile-core/.build
+          key: ${{ steps.build.outputs.cache-primary-key }}
 
   mobile-core-macos:
     # Xcode builds MonacoCore with -suppress-warnings, so only a SwiftPM build fails on a warning
@@ -46,8 +71,22 @@ jobs:
       - name: Install the pinned xcsift
         run: scripts/install-xcsift.sh
 
+      - name: Restore .build
+        id: build
+        uses: actions/cache/restore@v4
+        with:
+          path: packages/mobile-core/.build
+          key: swiftpm-macos-${{ hashFiles('.xcode-version') }}-${{ hashFiles('packages/mobile-core/Package.resolved') }}
+
       - name: Build mobile-core and its tests
         working-directory: packages/mobile-core
         shell: bash
         # swift build --build-tests prints "Build complete!", which xcsift treats as success.
-        run: swift build --build-tests -Xswiftc -warnings-as-errors 2>&1 | ../../.bin/xcsift --exit-on-failure
+        run: swift build --build-tests --force-resolved-versions -Xswiftc -warnings-as-errors 2>&1 | ../../.bin/xcsift --exit-on-failure
+
+      - name: Save .build
+        if: inputs.save-cache && steps.build.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: packages/mobile-core/.build
+          key: ${{ steps.build.outputs.cache-primary-key }}
