@@ -29,6 +29,7 @@ type Config struct {
 	Auth       Auth
 	Timeouts   Timeouts
 	Jupiter    Jupiter
+	XStocks    XStocks
 	Privy      Privy
 	Solana     Solana
 	Relayer    Relayer
@@ -75,6 +76,10 @@ type Jupiter struct {
 	APIKey       string
 }
 
+type XStocks struct {
+	BaseURL string
+}
+
 type Privy struct {
 	AppID                   string
 	AppSecret               string
@@ -99,6 +104,7 @@ type Timeouts struct {
 	Privy           time.Duration
 	JupiterQuote    time.Duration
 	JupiterExecute  time.Duration
+	XStocks         time.Duration
 	HTTPServerRead  time.Duration
 	HTTPServerWrite time.Duration
 	Shutdown        time.Duration
@@ -225,6 +231,11 @@ func fields() []field {
 			func(c *Config) *time.Duration { return &c.Timeouts.JupiterQuote }),
 		duration("MONACO_TIMEOUT_JUPITER_EXECUTE", 2*time.Minute,
 			func(c *Config) *time.Duration { return &c.Timeouts.JupiterExecute }),
+		duration(
+			"MONACO_TIMEOUT_XSTOCKS",
+			15*time.Second,
+			func(c *Config) *time.Duration { return &c.Timeouts.XStocks },
+		),
 		duration("MONACO_TIMEOUT_HTTP_SERVER_READ", 10*time.Second,
 			func(c *Config) *time.Duration { return &c.Timeouts.HTTPServerRead }),
 		duration("MONACO_TIMEOUT_HTTP_SERVER_WRITE", 30*time.Second,
@@ -236,6 +247,7 @@ func fields() []field {
 		text("MONACO_JUPITER_PRICE_BASE_URL", "https://api.jup.ag/price/v3",
 			func(c *Config) *string { return &c.Jupiter.PriceBaseURL }),
 		text("JUPITER_API_KEY", "", func(c *Config) *string { return &c.Jupiter.APIKey }).secret(),
+		text("XSTOCKS_BASE_URL", "https://api.xstocks.fi", func(c *Config) *string { return &c.XStocks.BaseURL }),
 		text("PRIVY_APP_ID", "", func(c *Config) *string { return &c.Privy.AppID }),
 		text("PRIVY_APP_SECRET", "", func(c *Config) *string { return &c.Privy.AppSecret }).secret(),
 		text("PRIVY_VERIFICATION_KEY", "", func(c *Config) *string { return &c.Privy.VerificationKey }),

@@ -136,6 +136,7 @@ func (s *Stack) processes(ctx context.Context) error {
 		"MONACO_DEV_TOKEN_KEY="+s.TokenKey,
 		"MONACO_JUPITER_SWAP_BASE_URL=http://"+fakes.addr+"/jupiter/swap/v2",
 		"MONACO_JUPITER_PRICE_BASE_URL=http://"+fakes.addr+"/jupiter/price/v3",
+		"XSTOCKS_BASE_URL=http://"+fakes.addr+"/xstocks",
 		"MONACO_BUS_ACK_WAIT=100ms",
 	)
 	apiEnv, workerEnv := []string{"MONACO_HTTP_ADDR=127.0.0.1:0"}, []string(nil)

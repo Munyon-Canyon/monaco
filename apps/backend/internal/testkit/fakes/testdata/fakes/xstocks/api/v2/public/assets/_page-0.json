@@ -1,0 +1,51 @@
+{
+  "status": 200,
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "nodes": [
+      {
+        "id": "0997ed45-6a34-4f26-be92-28d8e0f9f28a",
+        "name": "NVIDIA xStock",
+        "symbol": "NVDAx",
+        "isin": "CH1436219195",
+        "underlyingSymbol": "NVDA",
+        "logo": "https://xstocks-metadata.backed.fi/logos/tokens/NVDAx.png",
+        "isTradingHalted": false,
+        "deployments": [
+          {
+            "address": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+            "network": "Solana",
+            "supportsAtomicSwaps": true
+          },
+          {
+            "address": "0xc845b2894dbddd03858fd2d643b4ef725fe0849d",
+            "network": "Ethereum",
+            "supportsAtomicSwaps": true
+          }
+        ]
+      },
+      {
+        "id": "c133dd2d-9614-4cd8-bda0-65b3d63c2685",
+        "name": "Xerox xStock",
+        "symbol": "XRXx",
+        "isin": "CH1588664644",
+        "underlyingSymbol": "XRX",
+        "logo": "https://xstocks-metadata.backed.fi/logos/tokens/XRXx.png",
+        "isTradingHalted": false,
+        "deployments": [
+          {
+            "address": "0x19b7680118fd54b8d52ef922afb3bbb13e3ad47f",
+            "network": "Ethereum",
+            "supportsAtomicSwaps": true
+          }
+        ]
+      }
+    ],
+    "page": {
+      "currentPage": 0,
+      "hasNextPage": true
+    }
+  }
+}

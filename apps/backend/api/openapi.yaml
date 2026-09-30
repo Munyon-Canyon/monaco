@@ -240,6 +240,7 @@ components:
         - account_has_positions
         - account_status_transition
         - account_suspended
+        - asset_not_found
         - auth_state_transition
         - client_closed
         - db_schema_behind

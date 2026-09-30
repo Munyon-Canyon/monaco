@@ -11,7 +11,9 @@ import (
 	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	testflows "github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
@@ -44,8 +46,13 @@ func flowsCmd(args []string, _, stderr io.Writer) int {
 		_, _ = fmt.Fprintln(stderr, flowsUsage)
 		return 2
 	}
-	env := liveEnv(os.DirFS("../.."), ".", registered.Build(module.Deps{}))
+	env := liveEnv(os.DirFS("../.."), ".", registered.Build(declaringDeps()))
 	return flowsCheck(env, tests, structureOnly, stderr)
+}
+
+func declaringDeps() module.Deps {
+	cfg, _ := config.Load([]string{"MONACO_ENV=test", "DATABASE_URL=unused", "NATS_URL=unused"})
+	return module.Deps{Config: cfg, HTTPClient: httpclient.New}
 }
 
 func flowsCheck(env flows.Env, tests io.Reader, structureOnly bool, stderr io.Writer) int {
