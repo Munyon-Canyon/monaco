@@ -17,6 +17,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -36,7 +37,7 @@ func newPortFixture(t *testing.T) portFixture {
 	pool := testkit.DB(t)
 	return portFixture{
 		pool: pool,
-		port: identity.New(module.Deps{Pool: pool}).Queries(),
+		port: port.New(pool),
 		ids:  testkit.NewIDs(testkit.RandSeed(t)),
 		now:  clock.Real{}.Now().UTC().Truncate(time.Microsecond),
 	}
@@ -603,5 +604,16 @@ func TestQueries_databaseFailuresAreInternalAndKeepTheirCause(t *testing.T) {
 		if errs.CodeOf(err) != errs.CodeInternal || !errors.Is(err, context.Canceled) {
 			t.Errorf("%s err = %v, want internal wrapping the context error", name, err)
 		}
+	}
+}
+
+func TestQueries_theModuleServesThePortOverItsOwnPool(t *testing.T) {
+	t.Parallel()
+	f := newPortFixture(t)
+	seeded := f.seed(t, portSeed{handle: "module_reader"})
+	card, err := identity.New(module.Deps{Pool: f.pool}).Queries().UserByHandle(t.Context(), "module_reader")
+	portOK(t, err)
+	if card.ID != seeded.ID {
+		t.Fatalf("Module.Queries().UserByHandle = %+v, want the user seeded in the module's pool %v", card, seeded.ID)
 	}
 }

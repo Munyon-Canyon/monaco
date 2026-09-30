@@ -1,4 +1,4 @@
-package adapters
+package port
 
 import (
 	"cmp"
@@ -11,22 +11,23 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
-	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
-type Queries struct {
+type Postgres struct {
 	q *sqlc.Queries
 }
 
-func NewQueries(db sqlc.DBTX) Queries { return Queries{q: sqlc.New(db)} }
+var _ Queries = Postgres{}
 
-func (r Queries) UsersByID(ctx context.Context, userIDs []ids.UserID) (map[ids.UserID]app.UserCard, error) {
+func New(db sqlc.DBTX) Postgres { return Postgres{q: sqlc.New(db)} }
+
+func (r Postgres) UsersByID(ctx context.Context, userIDs []ids.UserID) (map[ids.UserID]UserCard, error) {
 	const op = "identity.UsersByID"
-	if err := sized(op, len(userIDs), 0, app.MaxUsersByID); err != nil {
+	if err := sized(op, len(userIDs), 0, MaxUsersByID); err != nil {
 		return nil, err
 	}
 	asked := make(map[uuid.UUID]ids.UserID, len(userIDs))
@@ -39,7 +40,7 @@ func (r Queries) UsersByID(ctx context.Context, userIDs []ids.UserID) (map[ids.U
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	cards := make(map[ids.UserID]app.UserCard, len(rows))
+	cards := make(map[ids.UserID]UserCard, len(rows))
 	for _, row := range rows {
 		id := asked[row.ID]
 		cards[id] = cardOf(id, row)
@@ -47,29 +48,29 @@ func (r Queries) UsersByID(ctx context.Context, userIDs []ids.UserID) (map[ids.U
 	return cards, nil
 }
 
-func (r Queries) UserByHandle(ctx context.Context, handle string) (app.UserCard, error) {
+func (r Postgres) UserByHandle(ctx context.Context, handle string) (UserCard, error) {
 	const op = "identity.UserByHandle"
 	key, ok := handleKey(handle)
 	if !ok {
-		return app.UserCard{}, errs.New(errs.CodeUserNotFound, op)
+		return UserCard{}, errs.New(errs.CodeUserNotFound, op)
 	}
 	row, err := r.q.UserCardByHandle(ctx, key)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		return app.UserCard{}, errs.New(errs.CodeUserNotFound, op)
+		return UserCard{}, errs.New(errs.CodeUserNotFound, op)
 	case err != nil:
-		return app.UserCard{}, errs.Wrap(err, errs.CodeInternal, op)
+		return UserCard{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	id, err := userID(op, row.ID)
 	if err != nil {
-		return app.UserCard{}, err
+		return UserCard{}, err
 	}
 	return cardOf(id, sqlc.UserCardsByIDRow(row)), nil
 }
 
-func (r Queries) UserIDsByHandles(ctx context.Context, handles []string) (map[string]ids.UserID, error) {
+func (r Postgres) UserIDsByHandles(ctx context.Context, handles []string) (map[string]ids.UserID, error) {
 	const op = "identity.UserIDsByHandles"
-	if err := sized(op, len(handles), 0, app.MaxHandles); err != nil {
+	if err := sized(op, len(handles), 0, MaxHandles); err != nil {
 		return nil, err
 	}
 	stored := make(map[string]string, len(handles))
@@ -99,9 +100,9 @@ func (r Queries) UserIDsByHandles(ctx context.Context, handles []string) (map[st
 	return found, nil
 }
 
-func (r Queries) UsersByPhoneHashes(ctx context.Context, hashes [][]byte) (map[string]ids.UserID, error) {
+func (r Postgres) UsersByPhoneHashes(ctx context.Context, hashes [][]byte) (map[string]ids.UserID, error) {
 	const op = "identity.UsersByPhoneHashes"
-	if err := sized(op, len(hashes), 0, app.MaxPhoneHashes); err != nil {
+	if err := sized(op, len(hashes), 0, MaxPhoneHashes); err != nil {
 		return nil, err
 	}
 	rows, err := r.q.UserIDsByPhoneHashes(ctx, hashes)
@@ -113,9 +114,9 @@ func (r Queries) UsersByPhoneHashes(ctx context.Context, hashes [][]byte) (map[s
 	})
 }
 
-func (r Queries) UsersByXUserIDs(ctx context.Context, xUserIDs []string) (map[string]ids.UserID, error) {
+func (r Postgres) UsersByXUserIDs(ctx context.Context, xUserIDs []string) (map[string]ids.UserID, error) {
 	const op = "identity.UsersByXUserIDs"
-	if err := sized(op, len(xUserIDs), 0, app.MaxXUserIDs); err != nil {
+	if err := sized(op, len(xUserIDs), 0, MaxXUserIDs); err != nil {
 		return nil, err
 	}
 	rows, err := r.q.UserIDsByXUserIDs(ctx, xUserIDs)
@@ -127,28 +128,28 @@ func (r Queries) UsersByXUserIDs(ctx context.Context, xUserIDs []string) (map[st
 	})
 }
 
-func (r Queries) MemberWallet(ctx context.Context, id ids.UserID) (app.MemberWallet, error) {
+func (r Postgres) MemberWallet(ctx context.Context, id ids.UserID) (MemberWallet, error) {
 	const op = "identity.MemberWallet"
 	row, err := r.q.MemberWalletByUserID(ctx, id.UUID())
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		return app.MemberWallet{}, errs.New(errs.CodeUserNotFound, op)
+		return MemberWallet{}, errs.New(errs.CodeUserNotFound, op)
 	case err != nil:
-		return app.MemberWallet{}, errs.Wrap(err, errs.CodeInternal, op)
+		return MemberWallet{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	return walletOf(id, row.PrivyWalletID, row.Address), nil
 }
 
-func (r Queries) MemberWallets(ctx context.Context, after ids.UserID, limit int) ([]app.MemberWallet, error) {
+func (r Postgres) MemberWallets(ctx context.Context, after ids.UserID, limit int) ([]MemberWallet, error) {
 	const op = "identity.MemberWallets"
-	if err := sized(op, limit, 1, app.MaxWalletPage); err != nil {
+	if err := sized(op, limit, 1, MaxWalletPage); err != nil {
 		return nil, err
 	}
 	rows, err := r.q.MemberWalletsAfter(ctx, sqlc.MemberWalletsAfterParams{After: after.UUID(), PageSize: int64(limit)})
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	page := make([]app.MemberWallet, 0, len(rows))
+	page := make([]MemberWallet, 0, len(rows))
 	for _, row := range rows {
 		id, err := userID(op, row.UserID)
 		if err != nil {
@@ -192,8 +193,8 @@ func idsByKey[R any](op string, rows []R, keyed func(R) (string, uuid.UUID)) (ma
 	return found, nil
 }
 
-func cardOf(id ids.UserID, row sqlc.UserCardsByIDRow) app.UserCard {
-	card := app.UserCard{
+func cardOf(id ids.UserID, row sqlc.UserCardsByIDRow) UserCard {
+	card := UserCard{
 		ID: id, AuthState: domain.AuthState(row.AuthState), AccountStatus: domain.AccountStatus(row.AccountStatus),
 		PhoneVerified: row.PhoneVerified, XLinked: row.XLinked, CreatedAt: row.CreatedAt.UTC(), Deleted: row.Deleted,
 	}
@@ -208,6 +209,6 @@ func cardOf(id ids.UserID, row sqlc.UserCardsByIDRow) app.UserCard {
 	return card
 }
 
-func walletOf(id ids.UserID, privyWalletID, address string) app.MemberWallet {
-	return app.MemberWallet{UserID: id, PrivyWalletID: privyWalletID, Address: chain.SolanaAddress(address)}
+func walletOf(id ids.UserID, privyWalletID, address string) MemberWallet {
+	return MemberWallet{UserID: id, PrivyWalletID: privyWalletID, Address: chain.SolanaAddress(address)}
 }

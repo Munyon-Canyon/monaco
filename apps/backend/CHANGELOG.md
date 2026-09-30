@@ -22,6 +22,10 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 - The `analytics` module, which exports events to PostHog. A module registers a mapping from an event subject to a capture with `analytics.Export`, and the `analytics` consumer sends each capture with the event id as PostHog's `uuid`, so a redelivery does not double count. `analytics.CheckNoPII` refuses any capture that carries a banned key or an email, phone number or wallet key. Failures use the `post_hog_unavailable` (retried), `post_hog_rejected` and `analytics_pii` (both dead-lettered) error codes.
 - `POSTHOG_API_KEY`, `POSTHOG_HOST` and `MONACO_TIMEOUT_POSTHOG` config keys. Production boot refuses an empty `POSTHOG_API_KEY`; every other environment treats an empty key as export off.
 
+### Changed
+
+- identity's query port moved to `internal/modules/identity/port`; `identity.Queries` and its types are aliases of it.
+
 ## [checkpoint 4] - 2026-09-29
 
 ### Changed
