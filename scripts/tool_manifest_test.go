@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -28,6 +29,39 @@ func TestToolManifest_everyInvokedBinaryIsInstalled(t *testing.T) {
 	}
 	if len(missing) > 0 {
 		t.Fatalf("binaries missing from just install and backend-test-env: %s", strings.Join(missing, " "))
+	}
+}
+
+func TestShellBins_skipsCasePatterns(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		src  string
+		want []string
+	}{
+		{
+			name: "spaced alternation",
+			src:  "case $x in\nJustfile | foo) ;;\nesac\n",
+		},
+		{
+			name: "command after the pattern",
+			src:  "case $x in\na|b) run-x ;;\nesac\n",
+			want: []string{"run-x"},
+		},
+		{
+			name: "command outside any case",
+			src:  "run-x\n",
+			want: []string{"run-x"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := shellBins(tc.src, nil)
+			if !slices.Equal(got, tc.want) {
+				t.Fatalf("shellBins() = %#v, want %#v", got, tc.want)
+			}
+		})
 	}
 }
 
@@ -189,6 +223,7 @@ func shellBins(src string, funcs map[string]bool) []string {
 	var bins []string
 	delim := ""
 	inSingle := false
+	caseDepth := 0
 	for _, line := range strings.Split(src, "\n") {
 		trim := strings.TrimSpace(line)
 		if delim != "" {
@@ -222,6 +257,17 @@ func shellBins(src string, funcs map[string]bool) []string {
 		if i := indexComment(scan); i >= 0 {
 			scan = scan[:i]
 		}
+		delta := caseDepthDelta(scan)
+		if caseDepth > 0 {
+			if cmd, arm := caseArmCommand(scan); arm {
+				scan = cmd
+			}
+		}
+		if caseDepth+delta < 0 {
+			caseDepth = 0
+		} else {
+			caseDepth += delta
+		}
 		scan = strings.ReplaceAll(scan, "&&", " ; ")
 		scan = strings.ReplaceAll(scan, "||", " ; ")
 		for _, seg := range strings.Split(scan, ";") {
@@ -242,6 +288,102 @@ func shellBins(src string, funcs map[string]bool) []string {
 		}
 	}
 	return bins
+}
+
+func caseDepthDelta(line string) int {
+	words := shellWords(line)
+	delta := 0
+	for i := 0; i < len(words); i++ {
+		switch words[i] {
+		case "esac":
+			delta--
+		case "case":
+			for _, next := range words[i+1:] {
+				if next == "in" {
+					delta++
+					break
+				}
+			}
+		}
+	}
+	return delta
+}
+
+func caseArmCommand(line string) (string, bool) {
+	inSingle, inDouble := false, false
+	paren := 0
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		switch {
+		case inSingle:
+			if c == '\'' {
+				inSingle = false
+			}
+		case inDouble:
+			if c == '\\' && i+1 < len(line) {
+				i++
+				continue
+			}
+			if c == '"' {
+				inDouble = false
+			}
+		case c == '\\' && i+1 < len(line):
+			i++
+		case c == '\'':
+			inSingle = true
+		case c == '"':
+			inDouble = true
+		case c == '(':
+			paren++
+		case c == ')' && paren > 0:
+			paren--
+		case c == ')':
+			rest := strings.TrimSpace(line[i+1:])
+			rest = strings.TrimSpace(strings.TrimSuffix(rest, ";;"))
+			return rest, true
+		}
+	}
+	return "", false
+}
+
+func shellWords(line string) []string {
+	var words []string
+	var b strings.Builder
+	inSingle, inDouble := false, false
+	flush := func() {
+		if b.Len() == 0 {
+			return
+		}
+		words = append(words, b.String())
+		b.Reset()
+	}
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		switch {
+		case inSingle:
+			if c == '\'' {
+				inSingle = false
+			}
+		case inDouble:
+			if c == '\\' && i+1 < len(line) {
+				i++
+				continue
+			}
+			if c == '"' {
+				inDouble = false
+			}
+		case c == '\'':
+			inSingle = true
+		case c == '"':
+			inDouble = true
+		case c == ' ' || c == '\t' || c == ';' || c == '&' || c == '|' || c == '(' || c == ')':
+			flush()
+		default:
+			b.WriteByte(c)
+		}
+	}
+	flush()
+	return words
 }
 
 func commandWord(seg string, builtin, funcs map[string]bool) []string {

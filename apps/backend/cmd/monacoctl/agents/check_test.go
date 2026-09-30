@@ -116,6 +116,30 @@ func (h *checkHarness) stateDir(t *testing.T, sub string) string {
 	return filepath.Join(h.Env(t).Common, "pstack", "ms", sub)
 }
 
+func TestAffectedTests_selectsAGlobTheTestFileDeclares(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "scripts", "tool_manifest_test.go"), ""+
+		"package scripts_test\n\n"+
+		"func TestToolManifest_everyInvokedBinaryIsInstalled(t *testing.T) {}\n"+
+		"func TestToolManifest_plantedUnknownBinaryFails(t *testing.T) {}\n")
+	env := &Env{Work: dir}
+	want := []string{
+		"TestToolManifest_everyInvokedBinaryIsInstalled",
+		"TestToolManifest_plantedUnknownBinaryFails",
+	}
+	for _, changed := range []string{"scripts/foo.sh", "Justfile", ".github/workflows/x.yml"} {
+		got, py := env.affectedTests([]string{changed})
+		if len(py) != 0 || !slices.Equal(got["."], want) {
+			t.Fatalf("%s: tests %#v python %#v", changed, got, py)
+		}
+	}
+	got, py := env.affectedTests([]string{"docs/x.md"})
+	if len(got) != 0 || len(py) != 0 {
+		t.Fatalf("docs/x.md: tests %#v python %#v", got, py)
+	}
+}
+
 func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
