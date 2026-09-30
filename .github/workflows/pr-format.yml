@@ -17,6 +17,11 @@ permissions:
   statuses: read
 
 jobs:
+  # pr-format and pr-size take their verdict from the checkers at the base commit. The merge ref carries the PR's own
+  # copy, and GitHub keeps serving the old merge ref for a while after a base change, so a job on it ran an old checker
+  # on the new base. The unit tests run from the head, so a PR that edits a checker still runs its own tests. They run
+  # after the verdict, even a failed one, because the head's tests import the head's checker. Run first, that code
+  # could rewrite the copy that judges the PR.
   pr-format:
     name: PR format (title, body and commits)
     if: ${{ !github.event.pull_request.draft }}
@@ -29,10 +34,13 @@ jobs:
       - uses: actions/checkout@v4
         if: github.event_name == 'pull_request'
         with:
+          ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 0
-      - name: Checker unit tests
+      - name: Fetch the head commit
         if: github.event_name == 'pull_request'
-        run: python3 scripts/test_check_pr_format.py
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: git fetch --no-tags origin "$HEAD_SHA"
       - name: Check title, body and commits
         if: github.event_name == 'pull_request'
         env:
@@ -45,6 +53,13 @@ jobs:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
         run: python3 scripts/check-pr-format.py
+      - name: Checker unit tests
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/head" "$HEAD_SHA"
+          python3 "$RUNNER_TEMP/head/scripts/test_check_pr_format.py"
 
   pr-size:
     name: PR size (under 1000 lines)
@@ -54,9 +69,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 0
-      - name: Checker unit tests
-        run: python3 scripts/test_check_pr_size.py
+      - name: Fetch the head commit
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: git fetch --no-tags origin "$HEAD_SHA"
       - name: Check size
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -66,6 +84,13 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/check-pr-size.py
+      - name: Checker unit tests
+        if: ${{ !cancelled() }}
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/head" "$HEAD_SHA"
+          python3 "$RUNNER_TEMP/head/scripts/test_check_pr_size.py"
 
   gate-changes:
     name: Gate changes (no weakened test gate)
