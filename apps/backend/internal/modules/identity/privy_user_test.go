@@ -18,7 +18,7 @@ func TestPrivyUser_loginMethodsAreTheLinkedAccountsThatSignTheUserIn(t *testing.
 		"email":            {app.PrivyUser{Email: "a@example.com"}, domain.LoginMethods{Email: true}},
 		"apple":            {app.PrivyUser{AppleEmail: "a@privaterelay.appleid.com"}, domain.LoginMethods{Apple: true}},
 		"google":           {app.PrivyUser{GoogleEmail: "a@gmail.com"}, domain.LoginMethods{Google: true}},
-		"x is not a login": {app.PrivyUser{X: &app.XAccount{UserID: "1", Username: "a"}}, domain.LoginMethods{}},
+		"x is not a login": {app.PrivyUser{X: &domain.XAccount{UserID: "1", Username: "a"}}, domain.LoginMethods{}},
 	} {
 		if got := tc.user.LoginMethods(); got != tc.want {
 			t.Errorf("%s: LoginMethods = %+v, want %+v", name, got, tc.want)

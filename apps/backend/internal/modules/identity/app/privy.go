@@ -9,18 +9,13 @@ import (
 
 type PrivyUserID string
 
-type XAccount struct {
-	UserID   string
-	Username string
-}
-
 type PrivyUser struct {
 	ID          PrivyUserID
 	Email       string
 	AppleEmail  string
 	GoogleEmail string
 	PhoneE164   string
-	X           *XAccount
+	X           *domain.XAccount
 }
 
 func (u PrivyUser) LoginMethods() domain.LoginMethods {

@@ -254,7 +254,7 @@ func TestPostAuthSession_refusesWhatItCannotSignIn(t *testing.T) {
 		"empty bearer":  {func(httpFixture) {}, "Bearer ", http.StatusUnauthorized, api.Unauthorized},
 		"unknown token": {func(httpFixture) {}, "Bearer nobody", http.StatusUnauthorized, api.Unauthorized},
 		"no login method": {func(f httpFixture) {
-			f.privy.Seed(app.PrivyUser{ID: alice, X: &app.XAccount{UserID: "1", Username: "a"}})
+			f.privy.Seed(app.PrivyUser{ID: alice, X: &domain.XAccount{UserID: "1", Username: "a"}})
 		}, "Bearer " + string(alice), http.StatusForbidden, api.LoginMethodNotAllowed},
 		"privy down": {func(f httpFixture) {
 			f.privy.Seed(app.PrivyUser{ID: alice, PhoneE164: "+14155550100"})

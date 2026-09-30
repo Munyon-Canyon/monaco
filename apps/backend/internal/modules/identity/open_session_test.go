@@ -215,7 +215,7 @@ func TestOpenSession_theLoginProviderFollowsWhatIsLinked(t *testing.T) {
 	}
 	for _, u := range []app.PrivyUser{
 		{ID: "did:privy:phone", PhoneE164: "+14155550100", Email: "a@example.com"},
-		{ID: "did:privy:email", Email: "b@example.com", X: &app.XAccount{UserID: "1", Username: "b"}},
+		{ID: "did:privy:email", Email: "b@example.com", X: &domain.XAccount{UserID: "1", Username: "b"}},
 		{ID: "did:privy:apple", AppleEmail: "c@privaterelay.appleid.com"},
 		{ID: "did:privy:google", GoogleEmail: "d@gmail.com"},
 	} {
@@ -268,7 +268,7 @@ func TestOpenSession_refusesWhatItCannotSignIn(t *testing.T) {
 		"wallet api down":       {func(f *sessionFixture) { f.wallets.Fail("FindOrCreate", down) }, alice, errs.CodePrivyUnavailable},
 		"privy forgot the user": {func(f *sessionFixture) { f.privy.FailOnce("User", gone) }, alice, errs.CodeUnauthorized},
 		"no login method": {func(f *sessionFixture) {
-			f.privy.Seed(app.PrivyUser{ID: alice, X: &app.XAccount{UserID: "1", Username: "a"}})
+			f.privy.Seed(app.PrivyUser{ID: alice, X: &domain.XAccount{UserID: "1", Username: "a"}})
 		}, alice, errs.CodeLoginMethodNotAllowed},
 	} {
 		t.Run(name, func(t *testing.T) {

@@ -44,7 +44,7 @@ func (u Users) User(ctx context.Context, id app.PrivyUserID) (app.PrivyUser, err
 		PhoneE164: phone,
 	}
 	if got.X != nil {
-		user.X = &app.XAccount{UserID: got.X.UserID, Username: got.X.Username}
+		user.X = &domain.XAccount{UserID: got.X.UserID, Username: got.X.Username}
 	}
 	return user, nil
 }
