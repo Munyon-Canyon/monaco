@@ -349,6 +349,24 @@ func TestCleanKeptDropsUnusedDatabasesPastHalfAndLeavesAHeldOne(t *testing.T) {
 	}
 }
 
+func TestCleanKeptLeavesTheDatabaseOfATestStillRunning(t *testing.T) {
+	t.Parallel()
+	prefix := "t_live_" + strings.ToLower(rand.Text()[:8]) + "_"
+	s := &server{admin: current.Load().admin, runPrefix: prefix}
+	live, done := prefix+"live", prefix+"done"
+	createOwned(t, s, live)
+	createOwned(t, s, done)
+	s.hold(live, true)
+	s.hold(done, true)
+	s.hold(done, false)
+	s.disk = func(context.Context) (int64, int64, error) { return 51, 100, nil }
+	dropped, err := s.cleanKept(context.Background())
+	if err != nil || !slices.Equal(dropped, []string{done}) || !exists(t, s, live) {
+		t.Fatalf("past half, cleanKept dropped %v, %v; want only %s gone and the idle but running %s kept",
+			dropped, err, done, live)
+	}
+}
+
 func TestCleanKeptPanicsWhenTheRunPrefixIsEmpty(t *testing.T) {
 	t.Parallel()
 	s := &server{disk: func(context.Context) (int64, int64, error) { return 51, 100, nil }}
