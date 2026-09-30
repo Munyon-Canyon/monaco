@@ -19,6 +19,10 @@ func required() []string {
 	}
 }
 
+func apnsKeys() []string {
+	return []string{"APNS_KEY_P8=p8-key", "APNS_KEY_ID=key-id", "APNS_TEAM_ID=team-id"}
+}
+
 func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 	t.Parallel()
 	cfg, err := config.Load(append(required(), "PATH=/usr/bin", "HOME=/home/monaco"))
@@ -36,6 +40,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 		Timeouts: config.Timeouts{
 			RPC:             5 * time.Second,
 			Privy:           10 * time.Second,
+			APNs:            10 * time.Second,
 			JupiterQuote:    5 * time.Second,
 			JupiterExecute:  2 * time.Minute,
 			XStocks:         15 * time.Second,
@@ -46,6 +51,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 		Jupiter: config.Jupiter{SwapBaseURL: "https://api.jup.ag/swap/v2", PriceBaseURL: "https://api.jup.ag/price/v3"},
 		XStocks: config.XStocks{BaseURL: "https://api.xstocks.fi"},
 		Privy:   config.Privy{BaseURL: "https://api.privy.io"},
+		APNs:    config.APNs{Topic: "com.monaco.app"},
 		Solana: config.Solana{
 			RPCURL:   "https://api.mainnet-beta.solana.com",
 			USDCMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
@@ -73,6 +79,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"MONACO_DEV_TOKEN_KEY=dev-secret",
 		"MONACO_TIMEOUT_RPC=1s",
 		"MONACO_TIMEOUT_PRIVY=2s",
+		"MONACO_TIMEOUT_APNS=8s",
 		"MONACO_TIMEOUT_JUPITER_QUOTE=3s",
 		"MONACO_TIMEOUT_JUPITER_EXECUTE=4m",
 		"MONACO_TIMEOUT_XSTOCKS=8s",
@@ -93,6 +100,10 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"SOLANA_RPC_URL=http://fakes/rpc",
 		"SOLANA_USDC_MINT=mint",
 		"RELAYER_PRIVATE_KEY=relayer-key",
+		"APNS_KEY_P8=p8-key",
+		"APNS_KEY_ID=key-id",
+		"APNS_TEAM_ID=team-id",
+		"APNS_TOPIC=com.example.app",
 		"MONACO_FAULTPOINT=before-commit",
 		"MONACO_BUS_ACK_WAIT=100ms",
 		"MONACO_BUS_API_RELAY=off",
@@ -116,6 +127,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		Timeouts: config.Timeouts{
 			RPC:             time.Second,
 			Privy:           2 * time.Second,
+			APNs:            8 * time.Second,
 			JupiterQuote:    3 * time.Second,
 			JupiterExecute:  4 * time.Minute,
 			XStocks:         8 * time.Second,
@@ -136,6 +148,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		},
 		Solana:     config.Solana{RPCURL: "http://fakes/rpc", USDCMint: "mint"},
 		Relayer:    config.Relayer{PrivateKey: "relayer-key"},
+		APNs:       config.APNs{KeyP8: "p8-key", KeyID: "key-id", TeamID: "team-id", Topic: "com.example.app"},
 		Faultpoint: "before-commit",
 	}
 	if !reflect.DeepEqual(cfg, want) {
@@ -146,7 +159,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 func TestLoadAcceptsEveryEnv(t *testing.T) {
 	t.Parallel()
 	for _, env := range []config.Env{config.EnvLocal, config.EnvTest, config.EnvStaging, config.EnvProduction} {
-		cfg, err := config.Load(append(required(), "MONACO_ENV="+string(env)))
+		cfg, err := config.Load(append(append(required(), apnsKeys()...), "MONACO_ENV="+string(env)))
 		if err != nil {
 			t.Fatalf("MONACO_ENV=%s: %v", env, err)
 		}
@@ -207,6 +220,41 @@ func TestLoadFailures(t *testing.T) {
 				"MONACO_BUS_API_RELAY (on or off)",
 		},
 		{
+			name:    "staging without the APNs key names every missing key",
+			environ: append(required(), "MONACO_ENV=staging"),
+			want:    "config.Load: invalid_input: missing APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID",
+		},
+		{
+			name:    "production with a partial APNs key",
+			environ: append(required(), "MONACO_ENV=production", "APNS_KEY_ID=key-id"),
+			want:    "config.Load: invalid_input: missing APNS_KEY_P8, APNS_TEAM_ID",
+		},
+		{
+			name:    "a local APNs key needs its ids",
+			environ: append(required(), "APNS_KEY_P8=p8-key"),
+			want:    "config.Load: invalid_input: missing APNS_KEY_ID, APNS_TEAM_ID",
+		},
+		{
+			name: "production refuses an APNs base URL",
+			environ: append(
+				append(required(), apnsKeys()...),
+				"MONACO_ENV=production",
+				"APNS_BASE_URL=http://fakes/apns",
+			),
+			want: "config.Load: invalid_input: invalid APNS_BASE_URL (not allowed in production)",
+		},
+		{
+			name:    "missing keys and a production base URL in one error",
+			environ: append(required(), "MONACO_ENV=production", "APNS_BASE_URL=http://fakes/apns"),
+			want: "config.Load: invalid_input: missing APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID; " +
+				"invalid APNS_BASE_URL (not allowed in production)",
+		},
+		{
+			name:    "APNs timeout that is not a positive duration",
+			environ: append(required(), "MONACO_TIMEOUT_APNS=0s"),
+			want:    "config.Load: invalid_input: invalid MONACO_TIMEOUT_APNS (positive duration like 5s)",
+		},
+		{
 			name:    "trust proxy headers not a boolean",
 			environ: append(required(), "TRUST_PROXY_HEADERS=render"),
 			want:    "config.Load: invalid_input: invalid TRUST_PROXY_HEADERS (true or false)",
@@ -265,9 +313,11 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		"PRIVY_WEBHOOK_SECRET":            "webhook-signing-secret",
 		"SOLANA_RPC_URL":                  "https://rpc.example/rpc-secret",
 		"RELAYER_PRIVATE_KEY":             "relayer-secret",
+		"APNS_KEY_P8":                     "p8-secret",
 	}
 	environ := make([]string, 0, 2+len(secrets))
-	environ = append(environ, "MONACO_ENV=staging", "MONACO_TIMEOUT_JUPITER_EXECUTE=90s")
+	environ = append(environ, "MONACO_ENV=staging", "MONACO_TIMEOUT_JUPITER_EXECUTE=90s",
+		"APNS_KEY_ID=key-id", "APNS_TEAM_ID=team-id")
 	for k, v := range secrets {
 		environ = append(environ, k+"="+v)
 	}
@@ -308,6 +358,12 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"PRIVY_WEBHOOK_SECRET", "***"},
 		{"SOLANA_RPC_URL", "***"},
 		{"RELAYER_PRIVATE_KEY", "***"},
+		{"APNS_KEY_P8", "***"},
+		{"APNS_KEY_ID", "key-id"},
+		{"APNS_TEAM_ID", "team-id"},
+		{"APNS_TOPIC", "com.monaco.app"},
+		{"APNS_BASE_URL", ""},
+		{"MONACO_TIMEOUT_APNS", "10s"},
 		{"PRIVY_APP_ID", ""},
 		{"PRIVY_VERIFICATION_KEY", ""},
 		{"PRIVY_AUTHORIZATION_KEY_ID", ""},

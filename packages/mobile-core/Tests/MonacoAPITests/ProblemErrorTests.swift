@@ -28,6 +28,8 @@ final class ProblemErrorTests: XCTestCase {
                 .accountHasPositions,
                 .accountStatusTransition,
                 .accountSuspended,
+                .apnsAuthFailed,
+                .apnsUnavailable,
                 .assetNotFound,
                 .authStateTransition,
                 .clientClosed,

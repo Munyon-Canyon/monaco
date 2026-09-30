@@ -25,6 +25,8 @@ const (
 	AccountHasPositions     ErrorCode = "account_has_positions"
 	AccountStatusTransition ErrorCode = "account_status_transition"
 	AccountSuspended        ErrorCode = "account_suspended"
+	ApnsAuthFailed          ErrorCode = "apns_auth_failed"
+	ApnsUnavailable         ErrorCode = "apns_unavailable"
 	AssetNotFound           ErrorCode = "asset_not_found"
 	AuthStateTransition     ErrorCode = "auth_state_transition"
 	ClientClosed            ErrorCode = "client_closed"
@@ -95,6 +97,10 @@ func (e ErrorCode) Valid() bool {
 	case AccountStatusTransition:
 		return true
 	case AccountSuspended:
+		return true
+	case ApnsAuthFailed:
+		return true
+	case ApnsUnavailable:
 		return true
 	case AssetNotFound:
 		return true

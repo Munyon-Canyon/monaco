@@ -88,6 +88,11 @@ const (
 	CodeConservationBroken Code = "conservation_broken"
 )
 
+const (
+	CodeAPNSUnavailable Code = "apns_unavailable"
+	CodeAPNSAuthFailed  Code = "apns_auth_failed"
+)
+
 type Row struct {
 	Name      string
 	Kind      Kind
@@ -96,10 +101,10 @@ type Row struct {
 	Message   string
 }
 
-func rowGroups() [7]func() map[Code]Row {
+func rowGroups() [8]func() map[Code]Row {
 	return [...]func() map[Code]Row{
 		platformRows, identityRows, treasuryRows, marketRows,
-		tradingRows, governanceRows, rankingRows,
+		tradingRows, governanceRows, rankingRows, apnsRows,
 	}
 }
 
@@ -305,6 +310,19 @@ func rankingRows() map[Code]Row {
 			Name:    "ConservationBroken",
 			Kind:    KindInternal,
 			Alert:   true,
+			Message: "Something went wrong.",
+		},
+	}
+}
+
+func apnsRows() map[Code]Row {
+	return map[Code]Row{
+		CodeAPNSUnavailable: {
+			Name: "APNSUnavailable", Kind: KindUnavailable, Retryable: true,
+			Message: "The push service is unavailable. Try again shortly.",
+		},
+		CodeAPNSAuthFailed: {
+			Name: "APNSAuthFailed", Kind: KindInternal, Alert: true,
 			Message: "Something went wrong.",
 		},
 	}

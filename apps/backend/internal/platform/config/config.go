@@ -33,6 +33,7 @@ type Config struct {
 	Privy      Privy
 	Solana     Solana
 	Relayer    Relayer
+	APNs       APNs
 	Faultpoint string
 }
 
@@ -99,9 +100,18 @@ type Relayer struct {
 	PrivateKey string
 }
 
+type APNs struct {
+	KeyP8   string
+	KeyID   string
+	TeamID  string
+	Topic   string
+	BaseURL string
+}
+
 type Timeouts struct {
 	RPC             time.Duration
 	Privy           time.Duration
+	APNs            time.Duration
 	JupiterQuote    time.Duration
 	JupiterExecute  time.Duration
 	XStocks         time.Duration
@@ -135,6 +145,7 @@ func Load(environ []string) (Config, error) {
 			bad.invalid = append(bad.invalid, f.key+" ("+f.want+")")
 		}
 	}
+	bad.checkAPNs(cfg)
 	for k := range vars {
 		if strings.HasPrefix(k, "MONACO_") && !known[k] {
 			bad.unknown = append(bad.unknown, k)
@@ -227,6 +238,7 @@ func fields() []field {
 		text("MONACO_DEV_TOKEN_KEY", "", func(c *Config) *string { return &c.Auth.DevTokenKey }).secret(),
 		duration("MONACO_TIMEOUT_RPC", 5*time.Second, func(c *Config) *time.Duration { return &c.Timeouts.RPC }),
 		duration("MONACO_TIMEOUT_PRIVY", 10*time.Second, func(c *Config) *time.Duration { return &c.Timeouts.Privy }),
+		duration("MONACO_TIMEOUT_APNS", 10*time.Second, func(c *Config) *time.Duration { return &c.Timeouts.APNs }),
 		duration("MONACO_TIMEOUT_JUPITER_QUOTE", 5*time.Second,
 			func(c *Config) *time.Duration { return &c.Timeouts.JupiterQuote }),
 		duration("MONACO_TIMEOUT_JUPITER_EXECUTE", 2*time.Minute,
@@ -261,6 +273,11 @@ func fields() []field {
 		text("SOLANA_USDC_MINT", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
 			func(c *Config) *string { return &c.Solana.USDCMint }),
 		text("RELAYER_PRIVATE_KEY", "", func(c *Config) *string { return &c.Relayer.PrivateKey }).secret(),
+		text("APNS_KEY_P8", "", func(c *Config) *string { return &c.APNs.KeyP8 }).secret(),
+		text("APNS_KEY_ID", "", func(c *Config) *string { return &c.APNs.KeyID }),
+		text("APNS_TEAM_ID", "", func(c *Config) *string { return &c.APNs.TeamID }),
+		text("APNS_TOPIC", "com.monaco.app", func(c *Config) *string { return &c.APNs.Topic }),
+		text("APNS_BASE_URL", "", func(c *Config) *string { return &c.APNs.BaseURL }),
 		text("MONACO_FAULTPOINT", "", func(c *Config) *string { return &c.Faultpoint }),
 		optionalDuration("MONACO_BUS_ACK_WAIT", func(c *Config) *time.Duration { return &c.Bus.AckWait }),
 		toggle("MONACO_BUS_API_RELAY", true, func(c *Config) *bool { return &c.Bus.APIRelay }),

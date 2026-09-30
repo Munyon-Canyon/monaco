@@ -145,6 +145,8 @@ func TestAccessorsReadTheRow(t *testing.T) {
 		{CodeUpstreamTimeout, KindUnavailable, true, false},
 		{CodePrivyUnavailable, KindUnavailable, true, false},
 		{CodeRPCUnavailable, KindUnavailable, true, false},
+		{CodeAPNSUnavailable, KindUnavailable, true, false},
+		{CodeAPNSAuthFailed, KindInternal, false, true},
 		{CodeRelayerUnderfunded, KindUnavailable, false, true},
 		{CodeInvalidAddress, KindInvalid, false, false},
 		{CodePotValueZero, KindBlocked, false, false},

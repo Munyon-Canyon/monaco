@@ -240,6 +240,8 @@ components:
         - account_has_positions
         - account_status_transition
         - account_suspended
+        - apns_auth_failed
+        - apns_unavailable
         - asset_not_found
         - auth_state_transition
         - client_closed
