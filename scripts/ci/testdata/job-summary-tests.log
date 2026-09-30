@@ -1,0 +1,7 @@
+✔ Test example() passed after 0.001 seconds.
+✔ Suite Big passed after 9.000 seconds.
+✔ Test slowOne() passed after 3.500 seconds.
+Test Case '-[MonacoTests.Foo testBar]' passed (1.250 seconds).
+✔ Test medium() passed after 2.000 seconds.
+✔ exampleCLI() (4.000 seconds)
+✔ Test slowOne() passed after 0.010 seconds.

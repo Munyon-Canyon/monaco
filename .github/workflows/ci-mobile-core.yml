@@ -45,9 +45,32 @@ jobs:
           restore-keys: swiftpm-linux-6.3-
 
       - name: Test mobile-core
+        id: test
         working-directory: packages/mobile-core
         shell: bash
-        run: swift test --force-resolved-versions -Xswiftc -warnings-as-errors 2>&1 | ../../.bin/xcsift --exit-on-failure
+        run: set +e; start=$(date +%s); swift test --force-resolved-versions -Xswiftc -warnings-as-errors 2>&1 | tee "$RUNNER_TEMP/mobile-core.log" | ../../.bin/xcsift --exit-on-failure; status=$?; set -e; printf 'Test mobile-core\t%s\n' "$(( $(date +%s) - start ))" >> "$RUNNER_TEMP/step-times.tsv"; exit "$status"
+
+      - name: Write the job summary
+        if: always()
+        shell: bash
+        env:
+          CACHE_KEY: ${{ steps.build.outputs.cache-matched-key }}
+          TEST_OUTCOME: ${{ steps.test.outcome }}
+        run: |
+          echo "compilation cache: not used (build cache restored: ${CACHE_KEY:-nothing})" >> "$GITHUB_STEP_SUMMARY"
+          fail="$RUNNER_TEMP/fail-logs.tsv"
+          : > "$fail"
+          if [[ "$TEST_OUTCOME" == "failure" ]]; then printf 'Test mobile-core\t%s\n' "$RUNNER_TEMP/mobile-core.log" >> "$fail"; fi
+          FAIL_LOGS="$fail" STEP_TIMES="$RUNNER_TEMP/step-times.tsv" TEST_LOG="$RUNNER_TEMP/mobile-core.log" scripts/ci/job-summary.sh >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-core-linux-log
+          path: ${{ runner.temp }}/mobile-core.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Save .build
         if: inputs.save-cache && steps.build.outputs.cache-hit != 'true'
@@ -79,10 +102,35 @@ jobs:
           key: swiftpm-macos-${{ hashFiles('.xcode-version') }}-${{ hashFiles('packages/mobile-core/Package.resolved') }}
 
       - name: Build mobile-core and its tests
+        id: buildtests
         working-directory: packages/mobile-core
         shell: bash
         # swift build --build-tests prints "Build complete!", which xcsift treats as success.
-        run: swift build --build-tests --force-resolved-versions -Xswiftc -warnings-as-errors 2>&1 | ../../.bin/xcsift --exit-on-failure
+        run: set +e; start=$(date +%s); swift build --build-tests --force-resolved-versions -Xswiftc -warnings-as-errors 2>&1 | tee "$RUNNER_TEMP/mobile-core.log" | ../../.bin/xcsift --exit-on-failure; status=$?; set -e; printf 'Build mobile-core and its tests\t%s\n' "$(( $(date +%s) - start ))" >> "$RUNNER_TEMP/step-times.tsv"; exit "$status"
+
+      - name: Write the job summary
+        if: always()
+        shell: bash
+        env:
+          STEP_TIMES: ${{ runner.temp }}/step-times.tsv
+          TEST_LOG: ${{ runner.temp }}/mobile-core.log
+          CACHE_KEY: ${{ steps.build.outputs.cache-matched-key }}
+          BUILD_OUTCOME: ${{ steps.buildtests.outcome }}
+        run: |
+          echo "compilation cache: not used (build cache restored: ${CACHE_KEY:-nothing})" >> "$GITHUB_STEP_SUMMARY"
+          fail="$RUNNER_TEMP/fail-logs.tsv"
+          : > "$fail"
+          if [[ "$BUILD_OUTCOME" == "failure" ]]; then printf 'Build mobile-core and its tests\t%s\n' "$RUNNER_TEMP/mobile-core.log" >> "$fail"; fi
+          FAIL_LOGS="$fail" scripts/ci/job-summary.sh >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-core-macos-log
+          path: ${{ runner.temp }}/mobile-core.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Save .build
         if: inputs.save-cache && steps.build.outputs.cache-hit != 'true'

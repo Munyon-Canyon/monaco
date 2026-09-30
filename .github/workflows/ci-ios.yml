@@ -10,12 +10,20 @@ on:
         description: Save the compilation cache. PRs restore and never save.
         type: boolean
         default: false
+      restore-cache:
+        description: Restore the compilation cache. A dispatch can turn this off to measure a cold build.
+        type: boolean
+        default: true
   workflow_dispatch:
     inputs:
       save-cache:
         description: Save the compilation cache.
         type: boolean
         default: false
+      restore-cache:
+        description: Restore the compilation cache.
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -53,6 +61,7 @@ jobs:
       # first save forever while the app source moves on.
       - name: Restore the compilation cache
         id: cas
+        if: inputs.restore-cache
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.DERIVED_DATA }}/CompilationCache.noindex
@@ -76,34 +85,57 @@ jobs:
           xcrun simctl boot "$sim"
           echo "SIM=$sim" >> "$GITHUB_ENV"
 
+      # Its own step so package resolution is not buried in the build. Same DerivedData as the
+      # build, so the build reuses these checkouts.
+      - name: Resolve Swift packages
+        id: resolve
+        shell: bash
+        run: |
+          set +e
+          start=$(date +%s)
+          xcodebuild -resolvePackageDependencies -project apps/mobile/Monaco.xcodeproj -scheme Monaco -derivedDataPath "$DERIVED_DATA" -onlyUsePackageVersionsFromResolvedFile 2>&1 | tee "$RUNNER_TEMP/resolve.log"
+          status=$?
+          set -e
+          printf 'Resolve Swift packages\t%s\n' "$(( $(date +%s) - start ))" >> "$RUNNER_TEMP/step-times.tsv"
+          exit "$status"
+
       # ONLY_ACTIVE_ARCH restricts the simulator build to the runner's own arch instead of a
       # fat binary. COMPILER_INDEX_STORE_ENABLE=NO skips indexing PR CI never reads. The two
       # -skip flags drop plugin/macro re-validation once packages are already resolved.
       # Warning flags stay off this command line: they would also reach the local MonacoCore
       # package, which Xcode compiles with -suppress-warnings, and the two conflict.
+      # -showBuildTimingSummary prints the per-phase times the job summary keeps.
       - name: Build app and tests
+        id: build
         shell: bash
         run: |
+          set +e
+          start=$(date +%s)
           xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
             -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
             -onlyUsePackageVersionsFromResolvedFile -skipMacroValidation -skipPackagePluginValidation \
+            -showBuildTimingSummary \
             CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO \
             COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_CAS_PATH="$DERIVED_DATA/CompilationCache.noindex" \
             COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES \
-            build-for-testing 2>&1 | tee "$RUNNER_TEMP/build-for-testing.log" | .bin/xcsift --exit-on-failure
+            build-for-testing 2>&1 | tee "$RUNNER_TEMP/build.log" | .bin/xcsift --exit-on-failure
+          status=$?
+          set -e
+          printf 'Build app and tests\t%s\n' "$(( $(date +%s) - start ))" >> "$RUNNER_TEMP/step-times.tsv"
+          exit "$status"
 
       - name: Compilation cache hits
         if: always()
         env:
           RESTORED: ${{ steps.cas.outputs.cache-matched-key }}
         run: |
-          log="$RUNNER_TEMP/build-for-testing.log"
+          log="$RUNNER_TEMP/build.log"
           [[ -f "$log" ]] || exit 0
           read -r hits misses < <(awk 'tolower($0) ~ /replay cache hit/ {h++} tolower($0) ~ /replay cache miss/ {m++} END {print h+0, m+0}' "$log")
           echo "compilation cache: $hits hits, $misses misses (restored: ${RESTORED:-nothing})" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Save the compilation cache
-        if: inputs.save-cache
+        if: inputs.save-cache && inputs.restore-cache
         uses: actions/cache/save@v4
         with:
           path: ${{ env.DERIVED_DATA }}/CompilationCache.noindex
@@ -118,14 +150,38 @@ jobs:
       # the tests. Sequential (the default) is both correct and, per the measurements in
       # docs/architecture/ci.md, not the bottleneck.
       - name: Run MonacoTests
+        id: tests
         shell: bash
         run: |
+          set +e
+          start=$(date +%s)
           xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
             -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
             -resultBundlePath "$RUNNER_TEMP/MonacoTests.xcresult" -onlyUsePackageVersionsFromResolvedFile \
             CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO \
             COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_CAS_PATH="$DERIVED_DATA/CompilationCache.noindex" \
-            -only-testing:MonacoTests test-without-building 2>&1 | .bin/xcsift --exit-on-failure
+            -only-testing:MonacoTests test-without-building 2>&1 | tee "$RUNNER_TEMP/MonacoTests.log" | .bin/xcsift --exit-on-failure
+          status=$?
+          set -e
+          printf 'Run MonacoTests\t%s\n' "$(( $(date +%s) - start ))" >> "$RUNNER_TEMP/step-times.tsv"
+          exit "$status"
+
+      - name: Write the job summary
+        if: always()
+        env:
+          STEP_TIMES: ${{ runner.temp }}/step-times.tsv
+          BUILD_LOG: ${{ runner.temp }}/build.log
+          TEST_LOG: ${{ runner.temp }}/MonacoTests.log
+          RESOLVE_OUTCOME: ${{ steps.resolve.outcome }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          TESTS_OUTCOME: ${{ steps.tests.outcome }}
+        run: |
+          fail="$RUNNER_TEMP/fail-logs.tsv"
+          : > "$fail"
+          if [[ "$RESOLVE_OUTCOME" == "failure" ]]; then printf 'Resolve Swift packages\t%s\n' "$RUNNER_TEMP/resolve.log" >> "$fail"; fi
+          if [[ "$BUILD_OUTCOME" == "failure" ]]; then printf 'Build app and tests\t%s\n' "$RUNNER_TEMP/build.log" >> "$fail"; fi
+          if [[ "$TESTS_OUTCOME" == "failure" ]]; then printf 'Run MonacoTests\t%s\n' "$RUNNER_TEMP/MonacoTests.log" >> "$fail"; fi
+          FAIL_LOGS="$fail" scripts/ci/job-summary.sh >> "$GITHUB_STEP_SUMMARY"
 
       # xcsift keeps only errors and warnings; the raw log holds the rest, such as why package
       # resolution failed and the compilation cache remarks.
@@ -133,13 +189,22 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-for-testing-log
-          path: ${{ runner.temp }}/build-for-testing.log
+          name: ios-build-log
+          path: ${{ runner.temp }}/build.log
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Upload the test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MonacoTests-log
+          path: ${{ runner.temp }}/MonacoTests.log
           if-no-files-found: ignore
           retention-days: 7
 
       - name: Upload test results
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: MonacoTests-xcresult
