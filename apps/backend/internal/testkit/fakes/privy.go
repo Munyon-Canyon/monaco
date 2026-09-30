@@ -13,12 +13,16 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 )
 
 func PrivyTokenKey() *ecdsa.PrivateKey { return fixtureP256("monaco-fakes/privy-es256") }
 
-func PrivyVerificationKey() string {
-	der, _ := x509.MarshalPKIXPublicKey(&PrivyTokenKey().PublicKey)
+func PrivyVerificationKey() string { return privy.FixtureVerificationKey }
+
+func OtherPrivyVerificationKey() string {
+	der, _ := x509.MarshalPKIXPublicKey(&fixtureP256("monaco-fakes/privy-other").PublicKey)
 	return string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}))
 }
 
