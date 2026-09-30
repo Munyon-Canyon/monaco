@@ -50,6 +50,16 @@ func TestSend_neverPutsTheDeviceTokenInAnErrorOrALogLine(t *testing.T) {
 			_, err := newClient(t, &upstream{replies: []reply{unreachable}}).Send(t.Context(), push(apns.Sandbox))
 			return err
 		},
+		"open breaker": func(t *testing.T) error {
+			t.Helper()
+			u := &upstream{replies: []reply{rejected(http.StatusInternalServerError, "InternalServerError")}}
+			c := newClient(t, u)
+			for range 5 {
+				mustSend(t, c, push(apns.Production))
+			}
+			_, err := c.Send(t.Context(), push(apns.Production))
+			return err
+		},
 		"body that is not json": func(t *testing.T) error {
 			t.Helper()
 			u := &upstream{replies: []reply{respond(http.StatusBadGateway, "<html>bad gateway</html>")}}

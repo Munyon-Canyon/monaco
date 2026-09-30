@@ -15,33 +15,56 @@ import (
 	"github.com/sideshow/apns2"
 	"github.com/sideshow/apns2/payload"
 	"github.com/sideshow/apns2/token"
+	"github.com/sony/gobreaker/v2"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 )
 
 const (
-	opNew         = "apns.New"
-	opSend        = "apns.Send"
-	maxRetryAfter = time.Hour
-	maxCollapseID = 64
+	tracerName     = "github.com/monaco/monaco/apps/backend/internal/platform/apns"
+	opNew          = "apns.New"
+	opSend         = "apns.Send"
+	maxRetryAfter  = time.Hour
+	maxCollapseID  = 64
+	breakerOpenFor = 30 * time.Second
+	tripAfter      = 5
 )
 
 type Option func(*Client)
 
+func WithBreaker(st gobreaker.Settings) Option { return func(c *Client) { c.settings = st } }
+
 func WithTimeout(d time.Duration) Option { return func(c *Client) { c.timeout = d } }
 
+type endpoint struct {
+	client  *apns2.Client
+	breaker *gobreaker.TwoStepCircuitBreaker[struct{}]
+}
+
 type Client struct {
-	topic     string
-	timeout   time.Duration
-	transport http.RoundTripper
-	endpoints map[Environment]*apns2.Client
+	topic      string
+	timeout    time.Duration
+	settings   gobreaker.Settings
+	transport  http.RoundTripper
+	callerGone error
+	aborted    error
+	endpoints  map[Environment]*endpoint
 }
 
 var _ Sender = (*Client)(nil)
 
 func New(cfg config.Config, opts ...Option) (*Client, error) {
-	c := &Client{topic: cfg.APNs.Topic, timeout: cfg.Timeouts.APNs}
+	c := &Client{
+		topic:      cfg.APNs.Topic,
+		timeout:    cfg.Timeouts.APNs,
+		callerGone: errs.New(errs.CodeAPNSUnavailable, "apns.callerGone"),
+		aborted:    errs.New(errs.CodePanic, opSend),
+	}
 	for _, opt := range opts {
 		opt(c)
 	}
@@ -56,9 +79,9 @@ func New(cfg config.Config, opts ...Option) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.endpoints = make(map[Environment]*apns2.Client, len(hosts))
+	c.endpoints = make(map[Environment]*endpoint, len(hosts))
 	for env, host := range hosts {
-		c.endpoints[env] = c.newEndpoint(auth, host, cfg.APNs.BaseURL != "")
+		c.endpoints[env] = c.newEndpoint(env, auth, host, cfg.APNs.BaseURL != "")
 	}
 	return c, nil
 }
@@ -101,7 +124,7 @@ func reachableSafely(u *url.URL) bool {
 	return u.Scheme == "http" && (u.Hostname() == "localhost" || ip != nil && ip.IsLoopback())
 }
 
-func (c *Client) newEndpoint(auth *token.Token, host string, plain bool) *apns2.Client {
+func (c *Client) newEndpoint(env Environment, auth *token.Token, host string, plain bool) *endpoint {
 	client := apns2.NewTokenClient(auth)
 	client.Host = host
 	rt := client.HTTPClient.Transport
@@ -114,11 +137,25 @@ func (c *Client) newEndpoint(auth *token.Token, host string, plain bool) *apns2.
 	}
 	client.HTTPClient.Timeout = 0
 	client.HTTPClient.Transport = tap{base: rt}
-	return client
+	settings := c.settings
+	if settings.Timeout == 0 {
+		settings.Timeout = breakerOpenFor
+	}
+	if settings.ReadyToTrip == nil {
+		settings.ReadyToTrip = tripAtFive
+	}
+	settings.Name = "apns-" + string(env)
+	excluded := settings.IsExcluded
+	settings.IsExcluded = func(err error) bool {
+		return errors.Is(err, c.callerGone) || excluded != nil && excluded(err)
+	}
+	return &endpoint{client: client, breaker: gobreaker.NewTwoStepCircuitBreaker[struct{}](settings)}
 }
 
+func tripAtFive(counts gobreaker.Counts) bool { return counts.ConsecutiveFailures >= tripAfter }
+
 func (c *Client) Send(ctx context.Context, p Push) (Result, error) {
-	client, ok := c.endpoints[p.Environment]
+	ep, ok := c.endpoints[p.Environment]
 	if !ok {
 		return Result{}, errs.New(errs.CodeInvalidInput, opSend,
 			slog.String("reason", "environment is not sandbox or production"))
@@ -133,15 +170,24 @@ func (c *Client) Send(ctx context.Context, p Push) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	callCtx, cancel := context.WithTimeout(ctx, c.timeout)
-	defer cancel()
-	h := &hint{}
-	resp, err := client.PushWithContext(context.WithValue(callCtx, hintKey{}, h), n)
-	if err != nil {
-		return Result{}, errs.Wrap(withoutURL(err), errs.CodeAPNSUnavailable, opSend,
-			slog.String("environment", string(p.Environment)))
+	tp := otel.GetTracerProvider()
+	if parent := trace.SpanFromContext(ctx); parent.IsRecording() {
+		tp = parent.TracerProvider()
 	}
-	return Result{Status: resp.StatusCode, Reason: resp.Reason, APNsID: resp.ApnsID, RetryAfter: h.retryAfter}, nil
+	ctx, span := tp.Tracer(tracerName).Start(ctx, "apns Send", trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(attribute.String("upstream", "apns"), attribute.String("apns.environment", string(p.Environment))),
+	)
+	defer span.End()
+	res, err := c.deliver(ctx, ep, n, p.Environment)
+	if err != nil {
+		span.SetStatus(codes.Error, "send failed")
+		return Result{}, err
+	}
+	span.SetAttributes(attribute.Int("http.response.status_code", res.Status))
+	if serverFault(res) {
+		span.SetStatus(codes.Error, http.StatusText(res.Status))
+	}
+	return res, nil
 }
 
 func (c *Client) notification(p Push) (*apns2.Notification, error) {
@@ -153,6 +199,46 @@ func (c *Client) notification(p Push) (*apns2.Notification, error) {
 		body.Custom(k, v)
 	}
 	return &apns2.Notification{DeviceToken: p.Token, Topic: c.topic, CollapseID: p.CollapseID, Payload: body}, nil
+}
+
+func (c *Client) deliver(
+	ctx context.Context, ep *endpoint, n *apns2.Notification, env Environment,
+) (Result, error) {
+	environment := slog.String("environment", string(env))
+	done, err := ep.breaker.Allow()
+	if err != nil {
+		return Result{}, errs.Wrap(err, errs.CodeAPNSUnavailable, opSend, environment)
+	}
+	verdict := c.aborted
+	defer func() { done(verdict) }()
+	callCtx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	h := &hint{}
+	resp, err := ep.client.PushWithContext(context.WithValue(callCtx, hintKey{}, h), n)
+	if err != nil {
+		err = errs.Wrap(withoutURL(err), errs.CodeAPNSUnavailable, opSend, environment)
+		verdict = c.failure(ctx, err)
+		return Result{}, err
+	}
+	res := Result{Status: resp.StatusCode, Reason: resp.Reason, APNsID: resp.ApnsID, RetryAfter: h.retryAfter}
+	verdict = statusFault(res)
+	return res, nil
+}
+
+func (c *Client) failure(ctx context.Context, err error) error {
+	if ctx.Err() != nil {
+		return c.callerGone
+	}
+	return err
+}
+
+func serverFault(r Result) bool { return r.Status/100 == 5 }
+
+func statusFault(r Result) error {
+	if serverFault(r) {
+		return errs.New(errs.CodeAPNSUnavailable, opSend, slog.Int("status", r.Status))
+	}
+	return nil
 }
 
 func isDeviceToken(s string) bool {
