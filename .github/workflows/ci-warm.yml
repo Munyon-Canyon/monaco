@@ -1,0 +1,30 @@
+name: Warm the mobile caches
+
+# PR runs restore the mobile caches and never save them, and a run can restore only caches saved
+# on its own branch or its base branch. So a push to a base branch saves them here. No required
+# check runs in this workflow, so it may filter on paths. docs/architecture/ci.md#fast-and-deterministic
+on:
+  push:
+    branches: [main, 'backend-rewrite*']
+    paths:
+      - apps/mobile/**
+      - packages/mobile-core/**
+      - apps/backend/api/openapi.yaml
+      - .xcode-version
+      - .github/workflows/ci-warm.yml
+      - .github/workflows/ci-ios.yml
+      - .github/workflows/ci-mobile-core.yml
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    uses: ./.github/workflows/ci-ios.yml
+    with:
+      save-cache: true
+
+  mobile-core:
+    uses: ./.github/workflows/ci-mobile-core.yml
+    with:
+      save-cache: true

@@ -2,7 +2,7 @@ name: CI jobs
 
 # Called by ci.yml and ci-retarget.yml through their `ci` job, so every check is named
 # "ci / <job>" and the required check is "ci / ci-ok". docs/architecture/ci.md#triggers
-# `stage: pr` runs stage 1, the repo-wide checks and no tests. `stage: queue` runs stage 2, stage 1
+# `stage: pr` runs stage 1, the repo-wide checks and no tests except mobile-core and ios. `stage: queue` runs stage 2, stage 1
 # plus every test. docs/architecture/ci.md#check-stages
 on:
   workflow_call:
@@ -202,7 +202,7 @@ jobs:
 
   mobile-core:
     needs: plan
-    if: inputs.stage == 'queue' && (needs.plan.outputs.mobile-core == 'true' || needs.plan.outputs.unknown == 'true')
+    if: needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.mobile-core == 'true' || needs.plan.outputs.unknown == 'true')
     uses: ./.github/workflows/ci-mobile-core.yml
 
   plan:
@@ -273,6 +273,9 @@ jobs:
             mobile-core:
               - 'packages/mobile-core/**'
               - 'apps/backend/api/openapi.yaml'
+              - 'scripts/install-xcsift.sh'
+              - '.xcode-version'
+              - 'scripts/ci/select-xcode.sh'
               - '.github/workflows/ci-mobile-core.yml'
             web:
               - 'apps/web/**'
@@ -290,9 +293,12 @@ jobs:
             ios:
               - 'apps/mobile/**'
               - 'packages/mobile-core/**'
+              - 'apps/backend/api/openapi.yaml'
+              - '.xcode-version'
               - 'scripts/ensure-ios-privy-config.sh'
               - 'scripts/resolve-ios-sim.sh'
               - 'scripts/ci/select-xcode.sh'
+              - 'scripts/install-xcsift.sh'
               - 'scripts/qa/screens.sh'
               - 'scripts/qa/sample-screens.txt'
               - '.github/workflows/ci-ios.yml'
@@ -327,6 +333,7 @@ jobs:
               - '!mkdocs.yml'
               - '!requirements-docs.txt'
               - '!.python-version'
+              - '!.xcode-version'
               - '!.gitignore'
               - '!.env.local'
               - '!.env.example'
@@ -355,7 +362,7 @@ jobs:
 
   ios:
     needs: plan
-    if: inputs.stage == 'queue' && (needs.plan.outputs.ios == 'true' || needs.plan.outputs.unknown == 'true')
+    if: needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.ios == 'true' || needs.plan.outputs.unknown == 'true')
     uses: ./.github/workflows/ci-ios.yml
 
   flake:

@@ -50,7 +50,7 @@ jobs:
     name: night.sh (backend, host tests, app, sample UI tests, screenshots)
     needs: changed
     if: needs.changed.outputs.run == 'true'
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 180
     env:
       MONACO_QA_IOS_CONFIG: placeholder

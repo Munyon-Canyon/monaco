@@ -4,7 +4,7 @@
 set -euo pipefail
 
 dir="${1:-.github/workflows}"
-allowed=" ubuntu-latest ubuntu-24.04 ubuntu-24.04-arm macos-15 "
+allowed=" ubuntu-latest ubuntu-24.04 ubuntu-24.04-arm macos-15 macos-26 "
 bad=0
 
 while IFS=: read -r file _ value; do
