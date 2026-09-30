@@ -108,11 +108,23 @@ func newSampleRig(t *testing.T, source func(clock.Clock) app.PriceSource, assets
 	t.Helper()
 	pool := testkit.DB(t)
 	bucket := clock.Real{}.Now().UTC().Truncate(domain.SampleBucket)
+	seedAssets(t, pool, bucket, assets...)
+	clk := testkit.NewClock(bucket.Add(37 * time.Second))
+	ids := testkit.NewIDs(11)
+	ticks := &tickRecorder{}
+	return &sampleRig{
+		pool: pool, clock: clk, bucket: bucket, ticks: ticks,
+		poller: app.NewSamplePrices(db.New(pool, ids, clk), pool, clk, source(clk), ticks, 2*time.Minute),
+	}
+}
+
+func seedAssets(t *testing.T, pool *pgxpool.Pool, at time.Time, assets ...market.Asset) {
+	t.Helper()
 	rows := make([][]any, len(assets))
 	for i, a := range assets {
 		rows[i] = []any{
 			a.ID.UUID(), a.Symbol, a.Mint.String(), int16(a.Decimals), string(a.Issuer), string(a.Kind),
-			a.DisplayName, a.IssuerTradable, a.CompanyKey, bucket, bucket,
+			a.DisplayName, a.IssuerTradable, a.CompanyKey, at, at,
 		}
 	}
 	columns := []string{
@@ -121,13 +133,6 @@ func newSampleRig(t *testing.T, source func(clock.Clock) app.PriceSource, assets
 	}
 	if _, err := pool.CopyFrom(t.Context(), pgx.Identifier{"assets"}, columns, pgx.CopyFromRows(rows)); err != nil {
 		t.Fatal(err)
-	}
-	clk := testkit.NewClock(bucket.Add(37 * time.Second))
-	ids := testkit.NewIDs(11)
-	ticks := &tickRecorder{}
-	return &sampleRig{
-		pool: pool, clock: clk, bucket: bucket, ticks: ticks,
-		poller: app.NewSamplePrices(db.New(pool, ids, clk), pool, clk, source(clk), ticks, 2*time.Minute),
 	}
 }
 

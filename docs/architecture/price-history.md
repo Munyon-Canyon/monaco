@@ -1,6 +1,6 @@
 # Price history and charts
 
-**Status:** Decided 2026-09-26. Not built; see [Gap between this and the code](#gap-between-this-and-the-code). The backend shape (modules, pollers, NATS, rollout) follows [backend-platform.md](backend-platform.md), which wins where the two differ. [leaderboards.md](leaderboards.md#1-prices-from-market) reads the same table from the same poller (default 2026-09-27).
+**Status:** Decided 2026-09-26. The `price_points` table and the live sampler (build steps 1 and 2 below) are built; the rest is not. See [Gap between this and the code](#gap-between-this-and-the-code). The backend shape (modules, pollers, NATS, rollout) follows [backend-platform.md](backend-platform.md), which wins where the two differ. [leaderboards.md](leaderboards.md#1-prices-from-market) reads the same table from the same poller (default 2026-09-27).
 
 ## Decision
 
@@ -161,6 +161,7 @@ None.
 
 ## Log
 
+- 2026-09-30: Built the table and the sampler (#545). A jump over 20% from the previous sample is held for one sample at read, over each mint's newest three samples, so every reader gets the same price. A tick that loses a Jupiter batch still writes and publishes what came back, then fails with that batch's code. `price.tick` carries each asset's accepted price with its observed time and is published every tick, including one that sampled nothing.
 - 2026-09-29: The market calendar is a static NYSE holiday table in code, updated yearly (default; see #535). The price poller appends `asset.price_moved`; there is no second poller. Valuation cadence is 2 minutes everywhere.
 - 2026-09-27: Decided 2026-09-27: the price poller ticks every 120 s. Samples are stored one row per mint per 2-minute bucket, the 1D cache TTL is 120 s, and the poller makes 1 Jupiter call a minute (~22k a month). Supersedes the 10 s default.
 - 2026-09-27: Closed the last open question (default 2026-09-27): the price poller ticks every 10 s. The Jupiter free tier allows 60 requests a minute shared across Price, Swap and Token calls ([Jupiter rate limits](https://developers.jup.ag/docs/portal/rate-limits)); the poller uses 12.
