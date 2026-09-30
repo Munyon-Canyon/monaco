@@ -20,7 +20,6 @@ func TestClose_stopsWaitingForTheDrainWhenTheContextEnds(t *testing.T) {
 		t.Fatal(err)
 	}
 	nc := conn.NATS()
-	nc.Opts.DrainTimeout = 100 * time.Millisecond
 	entered, release := make(chan struct{}), make(chan struct{})
 	if _, err := nc.Subscribe("close.block", func(*nats.Msg) {
 		close(entered)
@@ -32,17 +31,12 @@ func TestClose_stopsWaitingForTheDrainWhenTheContextEnds(t *testing.T) {
 		t.Fatal(err)
 	}
 	await(t, "the subscriber to block", entered)
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
 	conn.Close(ctx)
 	if !nc.IsClosed() {
 		t.Fatal("Close returned with the connection still open after its context ended")
 	}
 	close(release)
-	testkit.Eventually(t, func() bool {
-		endTheDrainThatReopensAfterClose(nc)
-		return goleak.Find(before) == nil
-	}, 10*time.Second)
+	goleak.VerifyNone(t, before)
 }
-
-func endTheDrainThatReopensAfterClose(nc *nats.Conn) { nc.Close() }
