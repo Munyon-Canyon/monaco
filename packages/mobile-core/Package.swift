@@ -45,6 +45,7 @@ let package = Package(
         .testTarget(
             name: "MonacoCoreTests",
             dependencies: ["MonacoCore", "MonacoAPI"],
+            exclude: ["RepoRulesAllowlist.txt"],
             resources: [
                 .process("Fixtures")
             ]

@@ -1,0 +1,10 @@
+test-sleep	apps/mobile/MonacoTests/AssetDetailModelTests.swift	7
+test-sleep	apps/mobile/MonacoTests/CabalPictureEditorTests.swift	1
+test-sleep	apps/mobile/MonacoTests/CabalsTabModelTests.swift	4
+test-sleep	apps/mobile/MonacoTests/PendingRevokeTests.swift	1
+test-sleep	apps/mobile/MonacoTests/StocksTabModelTests.swift	7
+test-sleep	packages/mobile-core/Tests/MonacoAPITests/FakeStreamTransport.swift	1
+test-sleep	packages/mobile-core/Tests/MonacoAPITests/Watched.swift	1
+test-sleep	packages/mobile-core/Tests/MonacoCoreTests/LiveRefreshSchedulingTests.swift	4
+test-sleep	packages/mobile-core/Tests/MonacoCoreTests/MonacoHTTPTransportTests.swift	1
+test-sleep	packages/mobile-core/Tests/MonacoCoreTests/StallingURLProtocol.swift	1
