@@ -30,6 +30,43 @@ type Asset struct {
 	UpdatedAt        time.Time
 }
 
+type Cabal struct {
+	ID                    uuid.UUID
+	Name                  string
+	PictureUrl            pgtype.Text
+	CreatorID             uuid.UUID
+	JoinMode              string
+	VoterMode             string
+	Threshold             string
+	ProposalExpirySeconds int32
+	SlippageBps           int32
+	InviteCode            string
+	Status                string
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+}
+
+type CabalAccessRequest struct {
+	ID        uuid.UUID
+	CabalID   uuid.UUID
+	UserID    uuid.UUID
+	Direction string
+	InvitedBy pgtype.UUID
+	Status    string
+	ExpiresAt pgtype.Timestamptz
+	DecidedBy pgtype.UUID
+	CreatedAt time.Time
+	DecidedAt pgtype.Timestamptz
+}
+
+type CabalMember struct {
+	CabalID  uuid.UUID
+	UserID   uuid.UUID
+	Role     string
+	CanVote  bool
+	JoinedAt time.Time
+}
+
 type CabalPosition struct {
 	CabalID         uuid.UUID
 	Asset           string
@@ -168,6 +205,13 @@ type SystemPing struct {
 	UserID   uuid.UUID
 	Note     string
 	EchoedAt pgtype.Timestamptz
+}
+
+type TreasuryWallet struct {
+	CabalID       uuid.UUID
+	PrivyWalletID string
+	Address       string
+	CreatedAt     time.Time
 }
 
 type User struct {
