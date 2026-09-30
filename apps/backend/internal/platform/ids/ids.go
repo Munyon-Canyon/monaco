@@ -13,19 +13,21 @@ import (
 type ID[T any] struct{ u uuid.UUID }
 
 type (
-	user     struct{}
-	cabal    struct{}
-	event    struct{}
-	swap     struct{}
-	proposal struct{}
+	user          struct{}
+	cabal         struct{}
+	event         struct{}
+	swap          struct{}
+	proposal      struct{}
+	accessRequest struct{}
 )
 
 type (
-	UserID     = ID[user]
-	CabalID    = ID[cabal]
-	EventID    = ID[event]
-	SwapID     = ID[swap]
-	ProposalID = ID[proposal]
+	UserID          = ID[user]
+	CabalID         = ID[cabal]
+	EventID         = ID[event]
+	SwapID          = ID[swap]
+	ProposalID      = ID[proposal]
+	AccessRequestID = ID[accessRequest]
 )
 
 type Generator interface {
@@ -54,6 +56,8 @@ func ParseUserID(raw string) (UserID, error) { return Parse[user](raw) }
 func ParseCabalID(raw string) (CabalID, error) { return Parse[cabal](raw) }
 
 func ParseEventID(raw string) (EventID, error) { return Parse[event](raw) }
+
+func ParseAccessRequestID(raw string) (AccessRequestID, error) { return Parse[accessRequest](raw) }
 
 func EventIDFrom(u uuid.UUID) EventID { return EventID{u: u} }
 
