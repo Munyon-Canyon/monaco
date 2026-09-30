@@ -26,6 +26,7 @@ Durable record of the design decisions behind Monaco, one file per topic. Each f
 | Chat | [chat.md](chat.md) | Decided 2026-09-27 |
 | Referrals | [referrals.md](referrals.md) | Decided 2026-09-26; amended 2026-09-27 |
 | Cabals | [cabals.md](cabals.md) | Decided 2026-09-27 |
+| iOS app | [ios.md](ios.md) | Proposed 2026-09-30. Source of truth for the app |
 
 Status values: **Not started**, **In discussion** (file exists, holds open questions), **Proposed** (written up in full, awaiting sign-off), **Decided** (with date; a note names any external check still pending), **Superseded** (points at the replacement).
 
