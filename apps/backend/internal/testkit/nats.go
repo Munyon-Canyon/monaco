@@ -25,6 +25,7 @@ const (
 	MaxAckWait     = 250 * time.Millisecond
 	natsReady      = 5 * time.Second
 	natsDeadline   = 30 * time.Second
+	natsMaxStore   = 1 << 40
 )
 
 var natsCurrent atomic.Pointer[natsServer]
@@ -44,7 +45,13 @@ func startNATS() (*natsServer, error) {
 	}
 	began := clock.Real{}.Now()
 	srv, err := natsserver.NewServer(&natsserver.Options{
-		Host: "127.0.0.1", Port: natsserver.RANDOM_PORT, JetStream: true, StoreDir: dir, NoLog: true, NoSigs: true,
+		Host:              "127.0.0.1",
+		Port:              natsserver.RANDOM_PORT,
+		JetStream:         true,
+		JetStreamMaxStore: natsMaxStore,
+		StoreDir:          dir,
+		NoLog:             true,
+		NoSigs:            true,
 	})
 	if err != nil {
 		_ = os.RemoveAll(dir)
