@@ -32,6 +32,9 @@ func sensitiveKey(key string) bool {
 	if evidenceKey(words) {
 		return false
 	}
+	if xAccountKey(words) {
+		return true
+	}
 	for _, word := range words {
 		switch strings.TrimSuffix(word, "s") {
 		case "phone", "email", "token", "key", "seed", "signature", "secret", "authorization", "password", "mnemonic":
@@ -43,6 +46,11 @@ func sensitiveKey(key string) bool {
 
 func evidenceKey(words []string) bool {
 	return strings.Join(words, "_") == "idempotency_key"
+}
+
+func xAccountKey(words []string) bool {
+	joined := "_" + strings.Join(words, "_") + "_"
+	return strings.Contains(joined, "_x_user_id_") || strings.Contains(joined, "_x_username_")
 }
 
 func keyWords(key string) []string {
