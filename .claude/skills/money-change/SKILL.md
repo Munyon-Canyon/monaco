@@ -45,6 +45,7 @@ The relayer package is `apps/backend/internal/platform/chain/relayer`.
 - **Crash-point test.** Name the fault point in the flow's `outcomes` cell as `crash:<point>`, register a new point in `apps/backend/internal/platform/faultpoint/faultpoint.go`, and hit it with `faultpoint.Hit` where the process could die. Test it with `testkit.CrashAt` from `apps/backend/internal/testkit/crash.go`, or with a flow script like `F00RecordPingCrashAfterPublish` in `apps/backend/internal/testkit/flows/f00.go`. The run crashes at the point, restarts, and must reach the same end state with no double spend. Crash tests carry `//go:build faultpoints`.
 - **Guarded-update test.** Run the same transition twice and assert the second changes zero rows and moves no money.
 - **Failure outcomes.** Each `errs` code the flow can return is an outcome in `apps/backend/flows.tsv` with its own `TestFlow<id>_<Command>_<Outcome>` test.
+- **Ledger check.** Ledger rows go through `treasury`'s `app.Ledger` (`PostCabalTxn`, `PostUserTxn`, `SetStatus`), and tests seed a ledger with `testkit.NewLedger`. A module that owns a ledger exports `LedgerCheck() replay.LedgerCheck` from its package, and `scripts/gen-registry` registers it, so `monacoctl replay --verify` and `monacoctl verify` both run it.
 - Money code gets 100% statement coverage. `apps/backend/coverage.exclude` lists no money package.
 
 ## Checklist

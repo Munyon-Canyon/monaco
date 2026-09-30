@@ -56,6 +56,11 @@ const (
 	CodeWalletMismatch          Code = "wallet_mismatch"
 )
 
+const (
+	CodePotValueZero     Code = "pot_value_zero"
+	CodeLedgerUnbalanced Code = "ledger_unbalanced"
+)
+
 type Row struct {
 	Name      string
 	Kind      Kind
@@ -64,8 +69,8 @@ type Row struct {
 	Message   string
 }
 
-func rowGroups() [2]func() map[Code]Row {
-	return [...]func() map[Code]Row{platformRows, identityRows}
+func rowGroups() [3]func() map[Code]Row {
+	return [...]func() map[Code]Row{platformRows, identityRows, treasuryRows}
 }
 
 func table() map[Code]Row {
@@ -197,6 +202,15 @@ func identityRows() map[Code]Row {
 			Message: "Something went wrong. Try again.",
 		},
 		CodeWalletMismatch: {Name: "WalletMismatch", Kind: KindInternal, Alert: true, Message: "Something went wrong."},
+	}
+}
+
+func treasuryRows() map[Code]Row {
+	return map[Code]Row{
+		CodePotValueZero: {Name: "PotValueZero", Kind: KindBlocked, Message: "This cabal's pot has no value."},
+		CodeLedgerUnbalanced: {
+			Name: "LedgerUnbalanced", Kind: KindInternal, Alert: true, Message: "Something went wrong.",
+		},
 	}
 }
 

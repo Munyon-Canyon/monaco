@@ -73,7 +73,7 @@ func TestInvariantHelpers(t *testing.T) {
 	if codeNamed("NoSuchCode") != "NoSuchCode" || codeNamed("InvalidInput") != "invalid_input" {
 		t.Error("codeNamed")
 	}
-	if LedgerChecks() != nil {
+	if len(LedgerChecks()) != 0 {
 		t.Error("LedgerChecks has entries; give each a test")
 	}
 	if got := (&InvariantError{Msg: "x"}).Error(); got != "invariant: x" {

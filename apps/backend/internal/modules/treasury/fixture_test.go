@@ -1,0 +1,177 @@
+package treasury_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
+)
+
+const (
+	usdcMint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+	usdc     = domain.Asset(usdcMint)
+	aapl     = domain.Asset("XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp")
+)
+
+type fixture struct {
+	t      *testing.T
+	pool   *pgxpool.Pool
+	ids    *testkit.IDs
+	uow    *db.UnitOfWork
+	ledger app.Ledger
+	logs   *testkit.Logs
+}
+
+func newFixture(t *testing.T) fixture {
+	t.Helper()
+	g := testkit.NewIDs(7)
+	pool := testkit.DB(t)
+	clk := testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
+	return fixture{
+		t: t, pool: pool, ids: g, uow: db.New(pool, g, clk),
+		ledger: app.NewLedger(usdcMint, clk), logs: &testkit.Logs{},
+	}
+}
+
+func (f fixture) ctx() context.Context {
+	return observability.WithLogger(f.t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, f.logs))
+}
+
+func (f fixture) cabal(t *testing.T) ids.CabalID {
+	t.Helper()
+	id, err := ids.ParseCabalID(f.ids.NewV7().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func (f fixture) user(t *testing.T) ids.UserID {
+	t.Helper()
+	id, err := ids.ParseUserID(f.ids.NewV7().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func (f fixture) do(fn func(ctx context.Context, tx db.Tx) error) error {
+	return f.uow.Do(f.ctx(), fn)
+}
+
+func (f fixture) queries() *sqlc.Queries { return sqlc.New(f.pool) }
+
+func (f fixture) count(t *testing.T, table string) int {
+	t.Helper()
+	var n int
+	if err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM `+table).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+func (f fixture) drift(t *testing.T) []string {
+	t.Helper()
+	out, err := f.findDrift(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+func (f fixture) findDrift(ctx context.Context) ([]string, error) {
+	q := f.queries()
+	unbalanced, err := q.UnbalancedTxns(ctx)
+	split, err2 := q.SplitTransfers(ctx)
+	cabals, err3 := q.CabalPositionDrift(ctx)
+	users, err4 := q.UserPositionDrift(ctx)
+	out := make([]string, 0, len(unbalanced)+len(split)+len(cabals)+len(users))
+	for _, r := range unbalanced {
+		out = append(out, "unbalanced "+r.TxnID+" "+r.Asset+" "+r.Total)
+	}
+	for _, r := range split {
+		out = append(out, "split "+r.TransferID+" "+r.Statuses)
+	}
+	for _, r := range cabals {
+		out = append(out, "cabal "+r.CabalID+" "+r.Asset+" "+r.Entries+" != "+r.Position)
+	}
+	for _, r := range users {
+		out = append(out, "user "+r.UserID+" "+r.CabalID+" "+r.Entries+" != "+r.Position)
+	}
+	return out, errors.Join(err, err2, err3, err4)
+}
+
+func amount(v int64) money.SignedMicros { return money.SignedMicrosFromInt64(v) }
+
+func (f fixture) fund(
+	user ids.UserID, cabal ids.CabalID, micros, shares int64, status domain.TxnStatus,
+) (domain.UserTxn, domain.CabalTxn, error) {
+	id := f.ids.NewV7()
+	s := domain.SharesAsset(cabal)
+	u, err := domain.NewUserTxn(domain.UserTxnHeader{
+		ID: f.ids.NewV7(), UserID: user, CabalID: cabal, Kind: domain.UserFund, Status: status, TransferID: id,
+	}, []domain.UserEntry{
+		{Account: domain.UserWallet, Asset: usdc, Amount: amount(-micros)},
+		{Account: domain.UserCabal, Asset: usdc, Amount: amount(micros)},
+		{Account: domain.UserHolder, Asset: s, Amount: amount(shares)},
+		{Account: domain.UserIssuer, Asset: s, Amount: amount(-shares)},
+	})
+	if err != nil {
+		return domain.UserTxn{}, domain.CabalTxn{}, err
+	}
+	c, err := domain.NewCabalTxn(domain.CabalTxnHeader{
+		ID: f.ids.NewV7(), CabalID: cabal, Kind: domain.CabalFund, Status: status, TransferID: id,
+	}, []domain.CabalEntry{
+		{Account: domain.CabalMembers, Asset: usdc, Amount: amount(-micros)},
+		{Account: domain.CabalTreasury, Asset: usdc, Amount: amount(micros)},
+	})
+	return u, c, err
+}
+
+func (f fixture) cashOut(
+	user ids.UserID, cabal ids.CabalID, micros, shares int64, status domain.TxnStatus,
+) (domain.UserTxn, domain.CabalTxn, error) {
+	u, c, err := f.fund(user, cabal, -micros, -shares, status)
+	if err != nil {
+		return u, c, err
+	}
+	u.Kind, c.Kind = domain.UserCashOut, domain.CabalCashOut
+	return u, c, nil
+}
+
+func (f fixture) swap(cabal ids.CabalID, micros, units int64) (domain.CabalTxn, error) {
+	return domain.NewCabalTxn(domain.CabalTxnHeader{
+		ID: f.ids.NewV7(), CabalID: cabal, Kind: domain.CabalSwap, Status: domain.TxnSettled, SwapID: f.ids.NewV7(),
+		TxSignature: "5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW",
+	}, []domain.CabalEntry{
+		{Account: domain.CabalTreasury, Asset: usdc, Amount: amount(-micros)},
+		{Account: domain.CabalVenue, Asset: usdc, Amount: amount(micros)},
+		{Account: domain.CabalTreasury, Asset: aapl, Amount: amount(units)},
+		{Account: domain.CabalVenue, Asset: aapl, Amount: amount(-units)},
+	})
+}
+
+func (f fixture) postPair(u domain.UserTxn, c domain.CabalTxn) error {
+	return f.do(func(ctx context.Context, tx db.Tx) error {
+		if err := f.ledger.PostUserTxn(ctx, tx, u); err != nil {
+			return err
+		}
+		return f.ledger.PostCabalTxn(ctx, tx, c)
+	})
+}
+
+func (f fixture) postCabal(c domain.CabalTxn) error {
+	return f.do(func(ctx context.Context, tx db.Tx) error { return f.ledger.PostCabalTxn(ctx, tx, c) })
+}

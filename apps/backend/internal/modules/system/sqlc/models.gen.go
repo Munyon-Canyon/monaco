@@ -11,6 +11,33 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type CabalPosition struct {
+	CabalID         uuid.UUID
+	Asset           string
+	Units           pgtype.Numeric
+	CostBasisMicros pgtype.Numeric
+	UpdatedAt       time.Time
+}
+
+type CabalTxn struct {
+	ID          uuid.UUID
+	CabalID     uuid.UUID
+	Kind        string
+	Status      string
+	SwapID      pgtype.UUID
+	TransferID  pgtype.UUID
+	TxSignature pgtype.Text
+	CreatedAt   time.Time
+}
+
+type CabalTxnEntry struct {
+	TxnID   uuid.UUID
+	Seq     int16
+	Account string
+	Asset   string
+	Amount  int64
+}
+
 type Event struct {
 	ID            uuid.UUID
 	AggregateType string
@@ -78,6 +105,34 @@ type User struct {
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 	DeletedAt          pgtype.Timestamptz
+}
+
+type UserPosition struct {
+	UserID            uuid.UUID
+	CabalID           uuid.UUID
+	ShareUnits        pgtype.Numeric
+	ContributedMicros pgtype.Numeric
+	WithdrawnMicros   pgtype.Numeric
+	UpdatedAt         time.Time
+}
+
+type UserTxn struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	CabalID     pgtype.UUID
+	Kind        string
+	Status      string
+	TransferID  pgtype.UUID
+	TxSignature pgtype.Text
+	CreatedAt   time.Time
+}
+
+type UserTxnEntry struct {
+	TxnID   uuid.UUID
+	Seq     int16
+	Account string
+	Asset   string
+	Amount  int64
 }
 
 type UserWallet struct {

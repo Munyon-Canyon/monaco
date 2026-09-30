@@ -26,6 +26,7 @@ const (
 	workerDir   = "cmd/worker"
 	platformMod = "internal/platform/module"
 	modulesDir  = "internal/modules"
+	replayPkg   = "internal/tools/ops/replay"
 	genSuffix   = ".gen.go"
 	testSuffix  = "_test.go"
 	toolPattern = `^tool[A-Z]\w*$`
@@ -286,25 +287,32 @@ func planModule(root, modPath, name string, p plan) error {
 	if err != nil {
 		return err
 	}
-	if !slices.ContainsFunc(files, declaresNew) {
+	if !slices.ContainsFunc(files, declares("New")) {
 		return nil
 	}
 	imports := []string{
 		strconv.Quote(modPath + "/" + modulesDir + "/" + name),
 		strconv.Quote(modPath + "/" + platformMod),
 	}
-	body := "func init() {\n\tregistered.Add(func(d module.Deps) module.Module { return " + name + ".New(d) })\n}\n"
-	for _, dir := range []string{apiDir, toolsDir, workerDir} {
-		p.add(filepath.Join(dir, "module_"+name+genSuffix), "main", imports, body)
+	add := "\tregistered.Add(func(d module.Deps) module.Module { return " + name + ".New(d) })\n"
+	for _, dir := range []string{apiDir, workerDir} {
+		p.add(filepath.Join(dir, "module_"+name+genSuffix), "main", imports, "func init() {\n"+add+"}\n")
 	}
+	if slices.ContainsFunc(files, declares("LedgerCheck")) {
+		imports = append(imports, strconv.Quote(modPath+"/"+replayPkg))
+		add += "\treplay.RegisterLedgerCheck(" + name + ".LedgerCheck())\n"
+	}
+	p.add(filepath.Join(toolsDir, "module_"+name+genSuffix), "main", imports, "func init() {\n"+add+"}\n")
 	return nil
 }
 
-func declaresNew(f *ast.File) bool {
-	return slices.ContainsFunc(f.Decls, func(d ast.Decl) bool {
-		fn, ok := d.(*ast.FuncDecl)
-		return ok && fn.Recv == nil && fn.Name.Name == "New"
-	})
+func declares(name string) func(*ast.File) bool {
+	return func(f *ast.File) bool {
+		return slices.ContainsFunc(f.Decls, func(d ast.Decl) bool {
+			fn, ok := d.(*ast.FuncDecl)
+			return ok && fn.Recv == nil && fn.Name.Name == name
+		})
+	}
 }
 
 func companion(rel string) string {

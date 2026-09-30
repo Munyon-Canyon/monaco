@@ -260,11 +260,13 @@ components:
         - invalid_input
         - jupiter_rejected
         - jupiter_unavailable
+        - ledger_unbalanced
         - login_method_not_allowed
         - not_found
         - panic
         - phone_not_linked
         - photo_invalid
+        - pot_value_zero
         - privy_unavailable
         - rate_limited
         - relayer_underfunded
