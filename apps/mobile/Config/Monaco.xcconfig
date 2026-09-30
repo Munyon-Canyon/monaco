@@ -16,6 +16,16 @@ MONACO_ENVIRONMENT = $(MONACO_ENVIRONMENT_DEFAULT_$(CONFIGURATION))
 
 MONACO_API_BASE_URL = $(MONACO_API_BASE_URL_$(MONACO_ENVIRONMENT))
 
+// Push entitlement stays `development` in the file; archive export re-signs it as
+// production. The Info.plist key uses Apple's sandbox/production names.
+MONACO_APS_ENVIRONMENT_Debug = sandbox
+MONACO_APS_ENVIRONMENT_Release = production
+MONACO_APS_ENVIRONMENT = $(MONACO_APS_ENVIRONMENT_$(CONFIGURATION))
+
+INFOPLIST_KEY_NSContactsUsageDescription = Monaco checks which of your contacts are on Monaco. Numbers are hashed on your phone and never uploaded.
+
+CODE_SIGN_ENTITLEMENTS = Monaco/Monaco.entitlements
+
 // Gitignored, written by scripts/ensure-ios-privy-config.sh from .env.local:
 // MONACO_STAGING_API_BASE_URL / MONACO_PRODUCTION_API_BASE_URL. Included last so it
 // wins over the placeholders above.
