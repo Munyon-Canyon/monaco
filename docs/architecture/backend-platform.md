@@ -592,7 +592,7 @@ Adding a flow is one row plus the tests it names. Deleting a flow deletes the ro
 
 | # | Flow | Command / trigger | Events | Consumers |
 | --- | --- | --- | --- | --- |
-| 1 | Sign in (Apple or Google; SMS OTP in dev builds only, never production) | `POST /v1/auth/session` with Privy token; reuses the user's existing Privy wallet | `user.created` (first time), `user.auth_state_changed` | analytics, referrals (mint code; `AttachReferral` is the only attribution path), social (contact matches) |
+| 1 | Sign in (SMS or email OTP in every build; Apple and Google come with #541) | `POST /v1/auth/session` with Privy token; reuses the user's existing Privy wallet | `user.created` (first time), `user.auth_state_changed` | analytics, referrals (mint code; `AttachReferral` is the only attribution path), social (contact matches) |
 | 2 | Create cabal | `CreateCabal` | `cabal.created` | feed, analytics |
 | 3 | Join open cabal / request / invite / approve | `JoinCabal`, `RequestAccess`, `InviteMember`, `DecideAccess` | `cabal.member_joined`, `cabal.access_requested`, `cabal.access_decided` | feed, ranking |
 | 4 | Leave cabal | `LeaveCabal` (guarded: the member holds zero shares, so the app routes them to cash out first; not creator with members) | `cabal.member_left` | feed, ranking |
@@ -989,6 +989,7 @@ None at the moment.
 
 - 2026-09-30: A module's `port` package holds only the query interface and its read types and imports only its own `domain`. The Postgres implementation moved to `adapters`, `Module.Queries()` returns the `port` interface, and depguard no longer lets `port` import `sqlc`.
 - 2026-09-30: Query ports live in `<m>/port`, a leaf package, so modules inside a read cycle (identity and funding, funding and treasury, treasury and cabal) compile; `module.go` re-exports the port; readers on one side of a cycle take the port as a constructor argument from their `app` package (#1173).
+- 2026-09-30: Flow 1 signs in with SMS OTP or email OTP in every build, as the operator decided 2026-09-29. Apple and Google are deferred to #541. This replaces the login half of the 2026-09-27 entry below (#572).
 - 2026-09-29: verify runs in stage 2 only. Evidence is a CI artifact, not a committed file. The pre-PR evidence hook and the `just` recipe for verify were dropped (#483).
 - 2026-09-29: Settled the flows table and names with the MVP tickets (#535). Flow 19 runs every 2 minutes. Flow 18: the market price poller appends `asset.price_moved`; there is no second poller. Flows 11 and 12: the swap layer appends `trade.submitted` on submit. Flow 12 route is `POST /v1/swaps/{id}/retry` and flow 14 route is `POST /v1/cabals/{id}/cashouts` (default; see #535). Flow 4: leave requires zero shares, and the app routes to cash out first. `notify` appears in a consumers cell only when the event pushes, so it left flows 3, 7, 13 to 16, 18, 25 and 26. Flow 8 gains `cabal.paused` and `cabal.resumed`, appended by funding. Decided adds snake_case JSON and regenerating `atlas.sum` on rebase.
 - 2026-09-27: Decided: the legacy backend, its migrations, the Go domain package and the reference bot are deleted in M7 (#457), before the scaffold. Rollout step 7 deletes nothing.

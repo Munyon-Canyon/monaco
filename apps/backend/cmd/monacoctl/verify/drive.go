@@ -25,6 +25,8 @@ const parallelFlows = 4
 
 type Env struct {
 	API        string
+	Fakes      string
+	PrivyAppID string
 	TokenKey   string
 	Pool       *pgxpool.Pool
 	JS         jetstream.JetStream
@@ -120,7 +122,8 @@ func (d *driver) script(ctx context.Context, u Unit, res *Result) error {
 	stages := make(chan scenario.Stage, 16)
 	done := make(chan struct{})
 	remote := scenario.Remote{
-		URL: d.env.API, Pool: d.env.Pool, Consumers: d.env.Consumers,
+		URL: d.env.API, FakesURL: d.env.Fakes, PrivyAppID: d.env.PrivyAppID, Pool: d.env.Pool,
+		Consumers: d.env.Consumers,
 		Mint: func(id string) string {
 			res.mu.Lock()
 			res.Users = append(res.Users, id)

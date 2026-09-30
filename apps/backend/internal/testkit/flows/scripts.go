@@ -10,6 +10,13 @@ func Scripts() map[string]Script {
 		"F00RecordPingInvalidInput":      F00RecordPingInvalidInput,
 		"F00RecordPingUnauthorized":      F00RecordPingUnauthorized,
 		"F00RecordPingCrashAfterPublish": F00RecordPingCrashAfterPublish,
+
+		"F01OpenSessionOK":                    F01OpenSessionOK,
+		"F01OpenSessionUnauthorized":          F01OpenSessionUnauthorized,
+		"F01OpenSessionLoginMethodNotAllowed": F01OpenSessionLoginMethodNotAllowed,
+		"F01OpenSessionAccountDeleted":        F01OpenSessionAccountDeleted,
+		"F01OpenSessionPrivyUnavailable":      F01OpenSessionPrivyUnavailable,
+		"F01OpenSessionCrashBeforeCommit":     F01OpenSessionCrashBeforeCommit,
 	}
 }
 

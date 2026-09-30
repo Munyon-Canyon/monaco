@@ -1,10 +1,10 @@
 # Auth & onboarding
 
-**Status:** Decided 2026-09-26; login and account-standing rules decided 2026-09-27. X follow import is deferred past MVP. The backend shape (modules, events, errors, rollout) follows [backend-platform.md](backend-platform.md), which wins where the two differ.
+**Status:** Decided 2026-09-26; login and account-standing rules decided 2026-09-27; login methods changed 2026-09-29. X follow import is deferred past MVP. The backend shape (modules, events, errors, rollout) follows [backend-platform.md](backend-platform.md), which wins where the two differ.
 
 ## Decision
 
-- **Login is Apple or Google only**, through Privy. No email or SMS OTP login in the product. Dev builds also allow SMS OTP login, so agents and simulators can sign in without an Apple or Google account; production never does (decided 2026-09-27). Dev uses its own Privy app with SMS login on; the production Privy app has SMS login disabled, so production cannot accept an SMS login even if backend config is wrong (default 2026-09-27).
+- **Login is SMS OTP or email OTP**, through Privy, in every build including production (decided 2026-09-29). Apple and Google sign-in are deferred (#541). Agents and simulators sign in the same way as users.
 - After first login, onboarding asks for three things on separate screens:
   1. **Username (handle)**, unique across Monaco and required (decided 2026-09-27). It lives on `users.handle` and `identity` owns it. See [Handle](#handle).
   2. **Phone number**, verified by SMS code and linked to the same Privy user.
@@ -12,12 +12,12 @@
 - Phone and X are used to build the user's **social graph**: match their phone contacts and X follows against Monaco users, recommend people to follow, and seed an internal graph.
 - The `users` row carries an **`auth_state`** column for onboarding progress (`CREATED`, `AWAITING_PHONE`, `AWAITING_SOCIALS`, `ONBOARDING_COMPLETED`) and a separate **`account_status`** column for standing (`active`, `suspended`, `banned`, `deleted`) (default 2026-09-27). The app reads both to decide what to show. Notifications and in-app banners read `auth_state` to nudge users to finish giving phone and X. Analytics read its history to see how users engage socially.
 - **Suspended and banned users can still withdraw and cash out** (decided 2026-09-27). The money is theirs.
-- **No migration for existing users** (decided 2026-09-27). All user data is wiped at cutover and the new backend starts on an empty database. A returning user signs in with Apple or Google and gets a fresh `users` row. Their Privy wallet lives on-chain and in Privy, so sign-in reuses it and never recreates it.
+- **No migration for existing users** (decided 2026-09-27). All user data is wiped at cutover and the new backend starts on an empty database. A returning user signs in with an SMS or email code and gets a fresh `users` row. Their Privy wallet lives on-chain and in Privy, so sign-in reuses it and never recreates it.
 
 ## Why
 
-- **Apple and Google** are one-tap on iOS, need no code entry, and give a verified email. Apple login is also an App Store requirement once any third-party social login is offered (guideline 4.8).
-- **Phone and X are for the graph, not for login.** Separating them from login keeps sign-in to one tap and lets users skip the data asks, with the app nudging them later.
+- **OTP login** needs no Apple or Google account and works the same in every environment. Adding Apple later satisfies App Store guideline 4.8 once any third-party social login is offered.
+- **Phone and X are for the graph.** A phone used to sign in is not stored as the contact-matching number until the user finishes the phone step. The X link stays a separate, skippable ask, and the app nudges it later.
 - **Stored state columns** give the app, notifications and analytics a single, indexable answer to "where is this user", instead of each re-deriving it from linked accounts. Two columns, not one, because onboarding progress and account standing change independently: a banned user keeps their onboarding state, and "banned users who never gave a phone" stays answerable.
 
 ## Login
@@ -25,20 +25,29 @@
 Privy Swift SDK:
 
 ```swift
-try await privy.oAuth.login(with: .apple, appUrlScheme: "monaco")   // native Sign in with Apple
-try await privy.oAuth.login(with: .google, appUrlScheme: "monaco")
+try await privy.sms.sendCode(to: phone)
+try await privy.sms.loginWithCode(code, sentTo: phone)
+try await privy.email.sendCode(to: email)
+try await privy.email.loginWithCode(code, sentTo: email)
 ```
 
-Then, unchanged from today, the app calls `POST /v1/auth/session` with the Privy access token. The backend verifies the token, finds or creates the `users` row by `privy_user_id`, reuses or creates the one member wallet (never recreates), and returns the user including `auth_state`.
+Then the app calls `POST /v1/auth/session` with the Privy access token. The route is public, because no account exists on the first call, and takes no `Idempotency-Key`: finding or creating the user by `privy_user_id` is already idempotent. It is limited to 60 calls a minute per IP. The backend:
 
-In the rewrite this is flow 1 in [`flows.tsv`](backend-platform.md#flows), owned by the `identity` module. A first sign-in appends `user.created`; every state change appends `user.auth_state_changed`. Both go through `uow.Do` in the same transaction as the row ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). The `analytics`, `referrals` and `social` consumers react. Flow 1 in the RFC reads Apple / Google, with SMS OTP in dev builds only.
+1. Verifies the token and reads the Privy user. A Privy outage is `PrivyUnavailable`.
+2. Picks `login_provider` from what Privy links, in this order: `sms` for a phone, `email` for an email, `apple`, `google`. A Privy user with none of them is `LoginMethodNotAllowed`.
+3. Refuses a deleted account with `AccountDeleted` and creates no new row for it.
+4. Reuses the user's one member wallet, and asks Privy for one only when no `user_wallets` row exists (never recreates). That call happens before the transaction.
+5. In one transaction, creates the `users` row if the `privy_user_id` is new, attaches the wallet, refreshes `email`, and resyncs the links (see [`auth_state`](#auth_state)). A stored wallet whose address differs from Privy's is `WalletMismatch` and is never overwritten.
+6. After the commit, publishes the `me_changed` hint when anything changed, and returns `Me`. A suspended or banned user gets `Me` too, so the app can show the notice screen.
 
-Privy dashboard: enable Apple and Google, disable email as a **login** method. SMS stays enabled for **linking** in every environment, and for **login** in dev only. Bundle `com.monaco.app` stays on the Privy iOS client.
+In the rewrite this is flow 1 in [`flows.tsv`](backend-platform.md#flows), owned by the `identity` module. A first sign-in appends `user.created`; every state change appends `user.auth_state_changed`. Both go through `uow.Do` in the same transaction as the row ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). The `analytics`, `referrals` and `social` consumers react.
+
+Privy dashboard: enable SMS and email as **login** methods in every environment, and keep Apple and Google off until #541. Bundle `com.monaco.app` stays on the Privy iOS client.
 
 ## Onboarding
 
 ```
-Apple / Google login, then handle picked (required)
+SMS or email login, then handle picked (required)
         │
         ▼
    ┌─────────┐   phone verified    ┌────────────────────┐   X linked    ┌───────────────────────┐
@@ -99,7 +108,7 @@ Rules:
 - **Only the backend writes `auth_state` and `account_status`**, from verified Privy data or ops actions. The client never sends either.
 - Each column is a state machine in `identity/domain`: a Go type with a `transitions` table and a pure `Next(from, event)` ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). The adapter applies it as a guarded update (`WHERE auth_state = $expected`, or `account_status`) inside `uow.Do`. An `auth_state` change appends `user.auth_state_changed` with from, to, and cause (`onboarding`, `link`, `unlink`). That history is what analytics reads. An `account_status` change is an admin command and appends its own event plus `admin.action` ([analytics-admin.md](analytics-admin.md#actions)).
 - `suspended` and `banned` are enforced in the auth middleware on every request, not only in the app. They block funding, voting, proposing and commenting with a `KindForbidden` code (403). Withdraw (flow 15) and cash out (flow 14) stay open to them (decided 2026-09-27).
-- If a user unlinks phone or X in Privy, the next session call moves them back to the matching `AWAITING_*` state.
+- If a user unlinks phone or X in Privy, the next session call clears its columns and moves them back to the matching `AWAITING_*` state, with cause `unlink`. A phone or X linked in Privy after onboarding is stored at the next session call with cause `link`. During `CREATED` the onboarding commands own that step. A number or X account another user already stores is skipped, and the next call tries again.
 
 ### Deletion
 
@@ -151,8 +160,8 @@ The following endpoint is on a paid X API tier with low monthly caps, which is w
 | `auth_state` | Enum above, default `CREATED`, indexed. |
 | `account_status` | Enum above, default `active`, indexed. |
 | `auth_state_changed_at` | For "stuck in onboarding for 7 days" queries. |
-| `login_provider` | `apple` or `google`; `sms` only in dev. |
-| `email` | From the OAuth provider. Apple may give a private relay address. |
+| `login_provider` | `sms`, `email`, `apple` or `google`. Sign-in uses `sms` or `email` until #541. |
+| `email` | The email Privy links, from email login, or from Apple or Google once #541 lands. Refreshed at every sign-in. Apple may give a private relay address. |
 | `phone_e164`, `phone_hash`, `phone_verified_at` | Verified via Privy only. `phone_hash` unique. |
 | `x_user_id`, `x_username`, `x_linked_at` | From Privy's linked X account. `x_user_id` unique. |
 | `handle` | Unique username picked in onboarding ([Handle](#handle)). Lowercase, unique index `WHERE handle IS NOT NULL` with no `deleted_at` filter, so deleted users keep their handle. Null only before onboarding picks it or after an admin revoke. Decided 2026-09-27. |
@@ -185,6 +194,7 @@ None.
 
 ## Log
 
+- 2026-09-30: Login is SMS OTP or email OTP through Privy in every build, and Apple and Google are deferred to #541, as decided 2026-09-29. The Decision, Why, Login, Privy dashboard and Data text now say so. `POST /v1/auth/session` is built as flow 1: it picks `login_provider` from what Privy links, takes no idempotency key, and resyncs the phone and X links.
 - 2026-09-27: Default 2026-09-27: dropped `retired_handles`. The unique index on `users.handle` covers deleted rows, so a deleted user's handle is never reused. A rename frees the old handle immediately. The advisory lock is dropped too; the single unique index settles races.
 - 2026-09-27: Decided 2026-09-27: every user picks a unique handle as the first onboarding screen, with no Skip. `users.handle` belongs to `identity`, with the naming rules that used to govern custom referral codes. Changing a handle retires the old one into `retired_handles`. `referrals` reads handles through `identity`'s query port, and a handle works as a referral code after the first-deposit unlock.
 - 2026-09-27: Decided: `users` soft deletes through `deleted_at`, set with `account_status = deleted` on account deletion. Added `first_deposit_at`, set by `identity` from the first `deposit.credited` and read by `referrals`.

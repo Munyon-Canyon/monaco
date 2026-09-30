@@ -14,10 +14,13 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/system"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 	tools "github.com/monaco/monaco/apps/backend/internal/tools/flows"
@@ -38,6 +41,76 @@ func servedEnvWith(t *testing.T, mods ...func(module.Deps) module.Module) Env {
 		API: sv.URL, TokenKey: sv.TokenKey, Pool: sv.Pool, JS: sv.JS, Events: sv.Events,
 		DeadLetter: sv.DeadLetter, Subject: sv.Subject, Consumers: sv.Consumers, Logs: logs,
 		Arm: func(context.Context) error { return nil },
+	}
+}
+
+func servedIdentityEnv(t *testing.T) Env {
+	t.Helper()
+	upstream := httptest.NewServer(fakes.New())
+	t.Cleanup(upstream.Close)
+	cfg := config.Config{
+		Privy: config.Privy{
+			AppID: PrivyAppID, BaseURL: upstream.URL + "/privy", VerificationKey: fakes.PrivyVerificationKey(),
+			AuthorizationKeyID: fakes.PrivyAuthorizationKeyID,
+		},
+		Timeouts: config.Timeouts{Privy: 10 * time.Second},
+	}
+	logs := &Logs{}
+	sv := scenario.Serve(t,
+		scenario.WithModules(func(d module.Deps) module.Module {
+			d.Config = cfg
+			return identity.New(d)
+		}),
+		scenario.WithLogs(&lineWriter{line: func(s string) { logs.add("app", s) }}))
+	return Env{
+		API: sv.URL, Fakes: upstream.URL, PrivyAppID: PrivyAppID, TokenKey: sv.TokenKey, Pool: sv.Pool, JS: sv.JS,
+		Events: sv.Events, DeadLetter: sv.DeadLetter, Consumers: sv.Consumers, Logs: logs,
+		Arm: func(context.Context) error { return nil },
+	}
+}
+
+func flow01(t *testing.T, target Target) []Unit {
+	t.Helper()
+	all, err := readFlows(backendDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	units, err := selectUnits(all, target, flows.Scripts())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return units
+}
+
+func TestVerifyUnits_flow01PassesOverHTTPAgainstThePrivyFakes(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		target Target
+		want   []string
+	}{
+		"every outcome": {
+			Target{Flow: "01"}, []string{"PASS flow 01 ok (", "PASS flow 01 AccountDeleted", "PASS flow 01 PrivyUnavailable"},
+		},
+		"crash before commit": {Target{Flow: "01", CrashAt: "before-commit"}, []string{"PASS flow 01 crash:before-commit"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			cfg, out := driveConfig(DefaultBudget())
+			if err := verifyUnits(
+				t.Context(),
+				cfg,
+				servedIdentityEnv(t),
+				newReport(t.Context(), tc.target, flow01(t, tc.target)),
+				parallelFlows,
+			); err != nil {
+				t.Fatalf("verifyUnits: %v\n%s", err, out)
+			}
+			for _, want := range tc.want {
+				if !strings.Contains(out.String(), want) {
+					t.Errorf("output lacks %q:\n%s", want, out)
+				}
+			}
+		})
 	}
 }
 

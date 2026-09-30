@@ -1,0 +1,13 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {
+    "id": "did:privy:qa-1",
+    "created_at": 1790001000,
+    "linked_accounts": [
+      {"type": "email", "address": "qa-1@example.com", "verified_at": 1790001000},
+      {"type": "phone", "number": "+14155550101", "phoneNumber": "+14155550101", "verified_at": 1790001000},
+      {"type": "wallet", "id": "wallet-qa-1", "address": "HfdqMGQucGtrpetjphtvTJJizZMxX9QKHNvz8k7wf4Vr", "chain_type": "solana", "wallet_client_type": "privy", "connector_type": "embedded", "delegated": false, "imported": false, "wallet_index": 0, "verified_at": 1790001000}
+    ]
+  }
+}

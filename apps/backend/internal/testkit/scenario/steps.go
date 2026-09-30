@@ -1,10 +1,12 @@
 package scenario
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -12,7 +14,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/sse"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
+
+const publishPoll = 20 * time.Millisecond
 
 func AsUser(name string) Step {
 	return func(s *Scenario) { s.actor = s.user(name) }
@@ -27,6 +32,38 @@ func (s *Scenario) token() string {
 		return ""
 	}
 	return s.actor.token
+}
+
+func SignIn(sub string) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		s.send(request{method: http.MethodPost, path: "/v1/auth/session", token: s.app.privyToken(sub)})
+		if s.last.status < http.StatusOK || s.last.status >= http.StatusMultipleChoices {
+			return
+		}
+		var me struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(s.last.body, &me); err != nil {
+			s.t.Fatalf("scenario: sign-in response %s: %v", s.last.body, err)
+		}
+		id, err := ids.ParseUserID(me.ID)
+		if err != nil {
+			s.t.Fatalf("scenario: sign-in response %s has no user id: %v", s.last.body, err)
+		}
+		if known, ok := s.users[sub]; ok && known.id == id {
+			s.actor = known
+			return
+		}
+		s.actor = s.addUser(sub, id)
+	}
+}
+
+func FakeUpstream(step fakes.Step) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		s.app.script(s.t.Context(), s.t, step)
+	}
 }
 
 func Post(path, body string) Step {
@@ -82,6 +119,17 @@ func ExpectJSON(field string, want any) Step {
 		s.t.Helper()
 		if got := s.field(field); !equalJSON(got, mustMarshal(want)) {
 			s.t.Fatalf("scenario: response field %s = %s, want %v", field, got, want)
+		}
+	}
+}
+
+func ExpectRemembered(field, name string) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		var got string
+		if err := json.Unmarshal(s.field(field), &got); err != nil || got != s.remember[name] {
+			s.t.Fatalf("scenario: response field %s = %s, want the remembered %s %q", field, s.field(field), name,
+				s.remember[name])
 		}
 	}
 }
@@ -147,6 +195,25 @@ func ExpectPublished(typ events.Type, n uint64) Step {
 		s.t.Helper()
 		if got := s.app.published(s.t, typ, s.app.events(s.t, typ, s.actors())); got != n {
 			s.t.Fatalf("scenario: %d %s messages on the stream, want %d", got, typ, n)
+		}
+	}
+}
+
+func EventuallyPublished(typ events.Type, n uint64) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		deadline := time.NewTimer(convergeWithin)
+		defer deadline.Stop()
+		tick := time.NewTicker(publishPoll)
+		defer tick.Stop()
+		for s.app.published(s.t, typ, s.app.events(s.t, typ, s.actors())) != n {
+			select {
+			case <-deadline.C:
+				s.t.Fatalf("scenario: %d %s messages were not published within %s", n, typ, convergeWithin)
+			case <-tick.C:
+			case <-s.t.Context().Done():
+				s.t.Fatalf("scenario: %d %s messages were not published: %v", n, typ, context.Cause(s.t.Context()))
+			}
 		}
 	}
 }

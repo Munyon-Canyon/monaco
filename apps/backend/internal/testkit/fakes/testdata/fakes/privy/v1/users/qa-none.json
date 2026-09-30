@@ -1,0 +1,11 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {
+    "id": "did:privy:qa-none",
+    "created_at": 1790001000,
+    "linked_accounts": [
+      {"type": "twitter_oauth", "subject": "7770001", "username": "qa_none", "name": "QA None", "verified_at": 1790001000}
+    ]
+  }
+}

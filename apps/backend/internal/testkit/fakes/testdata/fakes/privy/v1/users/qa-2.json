@@ -1,0 +1,11 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {
+    "id": "did:privy:qa-2",
+    "created_at": 1790001000,
+    "linked_accounts": [
+      {"type": "phone", "number": "+14155550105", "phoneNumber": "+14155550105", "verified_at": 1790001000}
+    ]
+  }
+}
