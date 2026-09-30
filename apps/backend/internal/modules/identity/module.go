@@ -1,6 +1,7 @@
 package identity
 
 import (
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/authn"
 	privyadapter "github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/privy"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
@@ -29,7 +30,7 @@ func (*Module) Consumers() []bus.Consumer {
 
 func (*Module) Pollers() []poller.Poller { return nil }
 
-func (m *Module) Queries() port.Postgres { return port.New(m.deps.Pool) }
+func (m *Module) Queries() port.Queries { return adapters.NewQueries(m.deps.Pool) }
 
 type (
 	UserCard      = app.UserCard

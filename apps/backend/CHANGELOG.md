@@ -25,6 +25,7 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 ### Changed
 
 - identity's query port moved to `internal/modules/identity/port`; `identity.Queries` and its types are aliases of it.
+- identity's Postgres query implementation moved from `identity/port` to `identity/adapters`, and `identity.Module.Queries()` returns the `port.Queries` interface. A `port` package may import only its own module's `domain`.
 
 ## [checkpoint 4] - 2026-09-29
 
