@@ -41,10 +41,10 @@ private final class StubCabalPictureWriter: CabalPictureWriting {
     }
 }
 
-@MainActor
-final class CabalPictureEditorTests: XCTestCase {
+nonisolated final class CabalPictureEditorTests: XCTestCase {
     private let image = Data(repeating: 0xAB, count: 128)
 
+    @MainActor
     private func makeEditor(
         pictureUrl: String? = nil,
         writer: StubCabalPictureWriter
@@ -54,6 +54,7 @@ final class CabalPictureEditorTests: XCTestCase {
 
     // MARK: - Setting a picture
 
+    @MainActor
     func testSetPicture_adoptsTheSavedUrlAndReportsIt() async {
         let writer = StubCabalPictureWriter()
         writer.uploadResult = .success("https://cdn.test/groups/g1/new.jpg")
@@ -68,6 +69,7 @@ final class CabalPictureEditorTests: XCTestCase {
         XCTAssertEqual(writer.calls, [.upload(groupId: "g1", bytes: 128, mimeType: "image/jpeg")])
     }
 
+    @MainActor
     func testSetPicture_replacingSwapsTheUrl() async {
         let writer = StubCabalPictureWriter()
         writer.uploadResult = .success("https://cdn.test/groups/g1/second.jpg")
@@ -80,6 +82,7 @@ final class CabalPictureEditorTests: XCTestCase {
 
     /// The write failed, so the cabal still has the picture it had. Clearing it
     /// on screen would tell the member something untrue.
+    @MainActor
     func testSetPicture_failureKeepsTheCurrentPicture() async {
         let writer = StubCabalPictureWriter()
         writer.uploadResult = .failure(
@@ -96,6 +99,7 @@ final class CabalPictureEditorTests: XCTestCase {
 
     // MARK: - Removing
 
+    @MainActor
     func testRemovePicture_clearsIt() async {
         let writer = StubCabalPictureWriter()
         writer.removeResult = .success(nil)
@@ -108,6 +112,7 @@ final class CabalPictureEditorTests: XCTestCase {
         XCTAssertEqual(writer.calls, [.remove(groupId: "g1")])
     }
 
+    @MainActor
     func testRemovePicture_failureKeepsIt() async {
         let writer = StubCabalPictureWriter()
         writer.removeResult = .failure(MonacoCore.MonacoAPIError.httpStatus(403))
@@ -121,6 +126,7 @@ final class CabalPictureEditorTests: XCTestCase {
 
     // MARK: - One write at a time
 
+    @MainActor
     func testSecondWriteWhileOneIsInFlightIsRefusedNotQueued() async {
         let writer = StubCabalPictureWriter()
         writer.shouldWait = true
@@ -142,6 +148,7 @@ final class CabalPictureEditorTests: XCTestCase {
 
     /// A refresh that started before the upload must not land after it and put
     /// the old picture back.
+    @MainActor
     func testRefreshDoesNotOverwriteAWriteInFlight() async {
         let writer = StubCabalPictureWriter()
         writer.shouldWait = true
@@ -159,6 +166,7 @@ final class CabalPictureEditorTests: XCTestCase {
         XCTAssertEqual(editor.pictureUrl, "https://cdn.test/groups/g1/new.jpg")
     }
 
+    @MainActor
     func testRefreshAdoptsThePictureWhenNothingIsInFlight() async {
         let editor = makeEditor(pictureUrl: nil, writer: StubCabalPictureWriter())
 
@@ -169,6 +177,7 @@ final class CabalPictureEditorTests: XCTestCase {
 
     // MARK: - Normalising
 
+    @MainActor
     func testBlankUrlsBecomeNoPicture() async {
         XCTAssertNil(CabalPictureEditor.normalised(nil))
         XCTAssertNil(CabalPictureEditor.normalised(""))
@@ -176,6 +185,7 @@ final class CabalPictureEditorTests: XCTestCase {
         XCTAssertEqual(CabalPictureEditor.normalised("  https://cdn.test/a.jpg "), "https://cdn.test/a.jpg")
     }
 
+    @MainActor
     func testABlankSavedUrlIsTreatedAsARemoval() async {
         let writer = StubCabalPictureWriter()
         writer.uploadResult = .success("   ")
@@ -189,6 +199,7 @@ final class CabalPictureEditorTests: XCTestCase {
 
     // MARK: - Failure copy
 
+    @MainActor
     func testFailureMessages() {
         let fallback = "fallback copy"
 
@@ -233,6 +244,7 @@ final class CabalPictureEditorTests: XCTestCase {
 
     /// Polls the main actor until `condition` holds, so a test can observe state
     /// while an async write is parked.
+    @MainActor
     private func waitUntil(
         timeout: TimeInterval = 2,
         _ condition: @MainActor () -> Bool

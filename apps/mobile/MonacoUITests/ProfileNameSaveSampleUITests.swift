@@ -9,9 +9,8 @@
 
 import XCTest
 
-final class ProfileNameSaveSampleUITests: XCTestCase {
-
-    override func setUpWithError() throws {
+nonisolated final class ProfileNameSaveSampleUITests: XCTestCase {
+    nonisolated override func setUpWithError() throws {
         continueAfterFailure = false
     }
 
@@ -32,6 +31,7 @@ final class ProfileNameSaveSampleUITests: XCTestCase {
     }
 
     /// Identifiers can land on a container rather than the control, so match any type.
+    @MainActor
     private func anyElement(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }

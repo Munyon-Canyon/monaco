@@ -13,9 +13,8 @@
 
 import XCTest
 
-final class ChatClosedSampleUITests: XCTestCase {
-
-    override func setUpWithError() throws {
+nonisolated final class ChatClosedSampleUITests: XCTestCase {
+    nonisolated override func setUpWithError() throws {
         continueAfterFailure = false
     }
 
@@ -35,10 +34,12 @@ final class ChatClosedSampleUITests: XCTestCase {
         add(attachment)
     }
 
+    @MainActor
     private func closedBanner(_ app: XCUIApplication) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: "group-chat-closed").firstMatch
     }
 
+    @MainActor
     private func composer(_ app: XCUIApplication) -> XCUIElement {
         app.textFields["group-chat-composer"]
     }

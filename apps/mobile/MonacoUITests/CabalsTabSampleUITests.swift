@@ -10,9 +10,8 @@
 
 import XCTest
 
-final class CabalsTabSampleUITests: XCTestCase {
-
-    override func setUpWithError() throws {
+nonisolated final class CabalsTabSampleUITests: XCTestCase {
+    nonisolated override func setUpWithError() throws {
         continueAfterFailure = false
     }
 
@@ -40,6 +39,7 @@ final class CabalsTabSampleUITests: XCTestCase {
     /// surface as the same XCUIElementType), mirroring the
     /// `identifier BEGINSWITH` pattern already used for cabal rows elsewhere
     /// in this UI test target.
+    @MainActor
     private func anyElement(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }

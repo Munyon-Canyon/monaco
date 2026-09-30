@@ -3,16 +3,18 @@ import XCTest
 /// Drives the proposal feed on in-memory sample data (`-MonacoProposalFeedSample`, Debug only):
 /// vote from a card, open the thread, post a comment, reply. No Privy session or backend needed.
 /// Set `MONACO_QA_SCREENSHOT_DIR` (via `TEST_RUNNER_MONACO_QA_SCREENSHOT_DIR`) to save PNGs for docs/qa.
-final class ProposalFeedSampleUITests: XCTestCase {
-    private var app: XCUIApplication!
+nonisolated final class ProposalFeedSampleUITests: XCTestCase {
+    @MainActor private var app: XCUIApplication!
 
-    override func setUpWithError() throws {
+    @MainActor
+    private func launch() {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchArguments = ["-MonacoProposalFeedSample"]
         app.launch()
     }
 
+    @MainActor
     private func capture(_ name: String) {
         let shot = XCUIScreen.main.screenshot()
         let attachment = XCTAttachment(screenshot: shot)
@@ -24,17 +26,21 @@ final class ProposalFeedSampleUITests: XCTestCase {
         }
     }
 
+    @MainActor
     private func element(_ id: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: id).firstMatch
     }
 
     /// On screen and not behind the keyboard or the pinned composer.
+    @MainActor
     private func waitUntilHittable(_ element: XCUIElement, timeout: TimeInterval = 5) -> Bool {
         let hittable = expectation(for: NSPredicate(format: "isHittable == true"), evaluatedWith: element)
         return XCTWaiter().wait(for: [hittable], timeout: timeout) == .completed
     }
 
+    @MainActor
     func testFeed_voteFromCard_thenCommentAndReplyInThread() throws {
+        launch()
         // Feed renders cards with vote summary and inline voting.
         let yes = element("proposal-card-vote-yes-sample-0")
         XCTAssertTrue(yes.waitForExistence(timeout: 10))
@@ -118,7 +124,9 @@ final class ProposalFeedSampleUITests: XCTestCase {
         capture("06-reply-posted")
     }
 
+    @MainActor
     func testComposer_whitespaceOnly_keepsPostDisabled() throws {
+        launch()
         let open = element("proposal-card-open-sample-1")
         XCTAssertTrue(open.waitForExistence(timeout: 10))
         open.tap()
@@ -132,7 +140,9 @@ final class ProposalFeedSampleUITests: XCTestCase {
         XCTAssertTrue(element("comment-thread-empty").exists)
     }
 
+    @MainActor
     func testReadOnlyProposal_showsTallyWithoutButtons() throws {
+        launch()
         let card = element("proposal-card-sample-3")
         var swipes = 0
         while !card.exists && swipes < 6 {
@@ -148,20 +158,23 @@ final class ProposalFeedSampleUITests: XCTestCase {
 
 /// Drives the propose sheet on sample data (`-MonacoProposalFeedSample -MonacoProposeSample`):
 /// chooser → pick a stock → amount preset → review → send, then the toast on the cabal screen.
-final class ProposeFlowSampleUITests: XCTestCase {
-    private var app: XCUIApplication!
+nonisolated final class ProposeFlowSampleUITests: XCTestCase {
+    @MainActor private var app: XCUIApplication!
 
-    override func setUpWithError() throws {
+    @MainActor
+    private func launch() {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchArguments = ["-MonacoProposalFeedSample", "-MonacoProposeSample"]
         app.launch()
     }
 
+    @MainActor
     private func element(_ id: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: id).firstMatch
     }
 
+    @MainActor
     private func capture(_ name: String) {
         let shot = XCUIScreen.main.screenshot()
         let attachment = XCTAttachment(screenshot: shot)
@@ -174,6 +187,7 @@ final class ProposeFlowSampleUITests: XCTestCase {
     }
 
     /// With the keyboard up, the reason field sits fully above the pinned Review button.
+    @MainActor
     private func assertAboveReview(_ field: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
         let review = app.buttons["Review"]
         XCTAssertTrue(field.isHittable, "reason field is covered", file: file, line: line)
@@ -181,7 +195,9 @@ final class ProposeFlowSampleUITests: XCTestCase {
             field.frame.maxY, review.frame.minY, "reason field runs under Review", file: file, line: line)
     }
 
+    @MainActor
     func testBuy_threeSteps_sendsToCabal() throws {
+        launch()
         let propose = element("group-action-propose")
         XCTAssertTrue(propose.waitForExistence(timeout: 10))
         propose.tap()
@@ -238,7 +254,9 @@ final class ProposeFlowSampleUITests: XCTestCase {
 
     /// Once a flow is pushed the sheet stays full height: dragging it down does not drop it to
     /// half height, where "Add a reason" and Review would sit below the fold.
+    @MainActor
     func testFlow_keepsSheetFullHeightWhenDragged() throws {
+        launch()
         let propose = element("group-action-propose")
         XCTAssertTrue(propose.waitForExistence(timeout: 10))
         propose.tap()
@@ -266,7 +284,9 @@ final class ProposeFlowSampleUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Review"].isHittable)
     }
 
+    @MainActor
     func testSell_dollarsToShares_reviewShowsEstimate() throws {
+        launch()
         let propose = element("group-action-propose")
         XCTAssertTrue(propose.waitForExistence(timeout: 10))
         propose.tap()
@@ -304,9 +324,10 @@ final class ProposeFlowSampleUITests: XCTestCase {
 
 /// The Stock detail entry into the buy flow, where no pot is handed down and the stock is already
 /// picked (`-MonacoProposeSampleStock`). `-MonacoProposePotFails` fails the first pot read.
-final class ProposeFromStockSampleUITests: XCTestCase {
-    private var app: XCUIApplication!
+nonisolated final class ProposeFromStockSampleUITests: XCTestCase {
+    @MainActor private var app: XCUIApplication!
 
+    @MainActor
     private func launch(_ extraArguments: [String]) {
         continueAfterFailure = false
         app = XCUIApplication()
@@ -314,10 +335,12 @@ final class ProposeFromStockSampleUITests: XCTestCase {
         app.launch()
     }
 
+    @MainActor
     private func element(_ id: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: id).firstMatch
     }
 
+    @MainActor
     func testStockEntry_reachesTheAmountStepWithThePot() throws {
         launch([])
         XCTAssertTrue(element("amount-entry-field").waitForExistence(timeout: 10))
@@ -326,6 +349,7 @@ final class ProposeFromStockSampleUITests: XCTestCase {
 
     /// A failed pot read used to leave a dead amount step: Review disabled for good, and helper
     /// text saying "Try again" that was not a button. Now it is a real retry.
+    @MainActor
     func testStockEntry_potFails_retryReachesTheAmountStep() throws {
         launch(["-MonacoProposePotFails"])
 

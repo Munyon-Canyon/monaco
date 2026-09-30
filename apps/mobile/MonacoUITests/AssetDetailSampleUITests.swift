@@ -10,9 +10,8 @@
 
 import XCTest
 
-final class AssetDetailSampleUITests: XCTestCase {
-
-    override func setUpWithError() throws {
+nonisolated final class AssetDetailSampleUITests: XCTestCase {
+    nonisolated override func setUpWithError() throws {
         continueAfterFailure = false
     }
 
@@ -38,6 +37,7 @@ final class AssetDetailSampleUITests: XCTestCase {
     /// The screen's identifiers sit on SwiftUI containers whose XCUIElement type is
     /// not stable across states, so ask by identifier and let the type be whatever
     /// it is.
+    @MainActor
     private func anyElement(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }

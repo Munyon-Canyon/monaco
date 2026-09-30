@@ -15,9 +15,8 @@
 
 import XCTest
 
-final class GroupLeaveProgressSampleUITests: XCTestCase {
-
-    override func setUpWithError() throws {
+nonisolated final class GroupLeaveProgressSampleUITests: XCTestCase {
+    nonisolated override func setUpWithError() throws {
         continueAfterFailure = false
     }
 
@@ -29,6 +28,7 @@ final class GroupLeaveProgressSampleUITests: XCTestCase {
         return app
     }
 
+    @MainActor
     private func anyElement(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }

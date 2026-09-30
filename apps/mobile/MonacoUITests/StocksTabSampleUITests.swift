@@ -16,9 +16,8 @@
 
 import XCTest
 
-final class StocksTabSampleUITests: XCTestCase {
-
-    override func setUpWithError() throws {
+nonisolated final class StocksTabSampleUITests: XCTestCase {
+    nonisolated override func setUpWithError() throws {
         continueAfterFailure = false
     }
 
@@ -41,6 +40,7 @@ final class StocksTabSampleUITests: XCTestCase {
         add(attachment)
     }
 
+    @MainActor
     private func anyElement(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
