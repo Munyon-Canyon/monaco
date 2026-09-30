@@ -147,6 +147,8 @@ func TestAccessorsReadTheRow(t *testing.T) {
 		{CodeRPCUnavailable, KindUnavailable, true, false},
 		{CodeRelayerUnderfunded, KindUnavailable, false, true},
 		{CodeInvalidAddress, KindInvalid, false, false},
+		{CodePotValueZero, KindBlocked, false, false},
+		{CodeLedgerUnbalanced, KindInternal, false, true},
 		{CodeDBUnavailable, KindUnavailable, true, false},
 		{CodeInvalidConfig, KindInternal, false, true},
 		{CodeDecodeFailed, KindInternal, false, true},

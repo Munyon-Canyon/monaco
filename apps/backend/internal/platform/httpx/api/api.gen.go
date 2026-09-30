@@ -45,11 +45,13 @@ const (
 	InvalidInput            ErrorCode = "invalid_input"
 	JupiterRejected         ErrorCode = "jupiter_rejected"
 	JupiterUnavailable      ErrorCode = "jupiter_unavailable"
+	LedgerUnbalanced        ErrorCode = "ledger_unbalanced"
 	LoginMethodNotAllowed   ErrorCode = "login_method_not_allowed"
 	NotFound                ErrorCode = "not_found"
 	Panic                   ErrorCode = "panic"
 	PhoneNotLinked          ErrorCode = "phone_not_linked"
 	PhotoInvalid            ErrorCode = "photo_invalid"
+	PotValueZero            ErrorCode = "pot_value_zero"
 	PrivyUnavailable        ErrorCode = "privy_unavailable"
 	RateLimited             ErrorCode = "rate_limited"
 	RelayerUnderfunded      ErrorCode = "relayer_underfunded"
@@ -119,6 +121,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case JupiterUnavailable:
 		return true
+	case LedgerUnbalanced:
+		return true
 	case LoginMethodNotAllowed:
 		return true
 	case NotFound:
@@ -128,6 +132,8 @@ func (e ErrorCode) Valid() bool {
 	case PhoneNotLinked:
 		return true
 	case PhotoInvalid:
+		return true
+	case PotValueZero:
 		return true
 	case PrivyUnavailable:
 		return true
