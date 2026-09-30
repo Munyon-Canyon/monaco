@@ -132,17 +132,22 @@ func TestDevPrivyToken_mintsAnHourLongTokenThatThePrintedKeyVerifies(t *testing.
 	}
 }
 
-func TestDevPrivyToken_refusesProductionAndBadArguments(t *testing.T) {
+func TestDevPrivyToken_refusesDeployedEnvsAndBadArguments(t *testing.T) {
 	t.Parallel()
-	refused := "monacoctl dev privy-token: refused with MONACO_ENV=production\n"
+	refused := func(env config.Env) string {
+		return "monacoctl dev privy-token: refused with MONACO_ENV=" + string(env) + "\n"
+	}
+	staging, production := devConfig(config.EnvStaging), devConfig(config.EnvProduction)
 	for name, tc := range map[string]struct {
 		cfg  config.Config
 		args []string
 		code int
 		want string
 	}{
-		"production token": {devConfig(config.EnvProduction), []string{"privy-token", "--sub", "did:privy:x"}, 1, refused},
-		"production key":   {devConfig(config.EnvProduction), []string{"privy-token", "--print-public-key"}, 1, refused},
+		"staging token":    {staging, []string{"privy-token", "--sub", "did:privy:x"}, 1, refused(config.EnvStaging)},
+		"staging key":      {staging, []string{"privy-token", "--print-public-key"}, 1, refused(config.EnvStaging)},
+		"production token": {production, []string{"privy-token", "--sub", "did:privy:x"}, 1, refused(config.EnvProduction)},
+		"production key":   {production, []string{"privy-token", "--print-public-key"}, 1, refused(config.EnvProduction)},
 		"neither":          {devConfig(config.EnvLocal), []string{"privy-token"}, 2, devUsage + "\n"},
 		"both": {
 			devConfig(config.EnvLocal), []string{"privy-token", "--sub", "x", "--print-public-key"}, 2, devUsage + "\n",

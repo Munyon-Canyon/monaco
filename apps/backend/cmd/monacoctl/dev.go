@@ -52,8 +52,8 @@ func devPrivyToken(cfg config.Config, args []string, stdout, stderr io.Writer) i
 		_, _ = fmt.Fprintln(stderr, devUsage)
 		return 2
 	}
-	if cfg.Env == config.EnvProduction {
-		_, _ = fmt.Fprintln(stderr, "monacoctl dev privy-token: refused with MONACO_ENV=production")
+	if cfg.Env.Deployed() {
+		_, _ = fmt.Fprintf(stderr, "monacoctl dev privy-token: refused with MONACO_ENV=%s\n", cfg.Env)
 		return 1
 	}
 	if *publicKey {

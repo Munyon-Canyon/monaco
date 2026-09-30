@@ -18,6 +18,8 @@ const (
 	EnvProduction Env = "production"
 )
 
+func (e Env) Deployed() bool { return e == EnvStaging || e == EnvProduction }
+
 type Config struct {
 	Env        Env
 	HTTP       HTTP

@@ -180,6 +180,21 @@ func TestLoadAcceptsEveryEnv(t *testing.T) {
 	}
 }
 
+func TestEnvDeployedIsStagingAndProductionOnly(t *testing.T) {
+	t.Parallel()
+	for env, want := range map[config.Env]bool{
+		config.EnvLocal:      false,
+		config.EnvTest:       false,
+		config.EnvStaging:    true,
+		config.EnvProduction: true,
+		"":                   false,
+	} {
+		if got := env.Deployed(); got != want {
+			t.Errorf("Env(%q).Deployed() = %v, want %v", env, got, want)
+		}
+	}
+}
+
 func TestLoadFailures(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
