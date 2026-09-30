@@ -19,34 +19,68 @@ import (
 
 // Defines values for ErrorCode.
 const (
-	ClientClosed        ErrorCode = "client_closed"
-	DbSchemaBehind      ErrorCode = "db_schema_behind"
-	DbUnavailable       ErrorCode = "db_unavailable"
-	DecodeFailed        ErrorCode = "decode_failed"
-	Forbidden           ErrorCode = "forbidden"
-	IdempotencyInFlight ErrorCode = "idempotency_in_flight"
-	IdempotencyMismatch ErrorCode = "idempotency_mismatch"
-	Internal            ErrorCode = "internal"
-	InvalidAddress      ErrorCode = "invalid_address"
-	InvalidConfig       ErrorCode = "invalid_config"
-	InvalidInput        ErrorCode = "invalid_input"
-	JupiterRejected     ErrorCode = "jupiter_rejected"
-	JupiterUnavailable  ErrorCode = "jupiter_unavailable"
-	NotFound            ErrorCode = "not_found"
-	Panic               ErrorCode = "panic"
-	PrivyUnavailable    ErrorCode = "privy_unavailable"
-	RateLimited         ErrorCode = "rate_limited"
-	RelayerUnderfunded  ErrorCode = "relayer_underfunded"
-	RpcUnavailable      ErrorCode = "rpc_unavailable"
-	Unauthorized        ErrorCode = "unauthorized"
-	UpstreamTimeout     ErrorCode = "upstream_timeout"
-	UpstreamUnavailable ErrorCode = "upstream_unavailable"
-	VersionConflict     ErrorCode = "version_conflict"
+	AccountBanned           ErrorCode = "account_banned"
+	AccountDeleted          ErrorCode = "account_deleted"
+	AccountHasBalance       ErrorCode = "account_has_balance"
+	AccountHasPositions     ErrorCode = "account_has_positions"
+	AccountStatusTransition ErrorCode = "account_status_transition"
+	AccountSuspended        ErrorCode = "account_suspended"
+	AuthStateTransition     ErrorCode = "auth_state_transition"
+	ClientClosed            ErrorCode = "client_closed"
+	DbSchemaBehind          ErrorCode = "db_schema_behind"
+	DbUnavailable           ErrorCode = "db_unavailable"
+	DecodeFailed            ErrorCode = "decode_failed"
+	DisplayNameInvalid      ErrorCode = "display_name_invalid"
+	Forbidden               ErrorCode = "forbidden"
+	HandleInvalid           ErrorCode = "handle_invalid"
+	HandleRequired          ErrorCode = "handle_required"
+	HandleReserved          ErrorCode = "handle_reserved"
+	HandleTaken             ErrorCode = "handle_taken"
+	HandleTooSoon           ErrorCode = "handle_too_soon"
+	IdempotencyInFlight     ErrorCode = "idempotency_in_flight"
+	IdempotencyMismatch     ErrorCode = "idempotency_mismatch"
+	Internal                ErrorCode = "internal"
+	InvalidAddress          ErrorCode = "invalid_address"
+	InvalidConfig           ErrorCode = "invalid_config"
+	InvalidInput            ErrorCode = "invalid_input"
+	JupiterRejected         ErrorCode = "jupiter_rejected"
+	JupiterUnavailable      ErrorCode = "jupiter_unavailable"
+	LoginMethodNotAllowed   ErrorCode = "login_method_not_allowed"
+	NotFound                ErrorCode = "not_found"
+	Panic                   ErrorCode = "panic"
+	PhoneNotLinked          ErrorCode = "phone_not_linked"
+	PhotoInvalid            ErrorCode = "photo_invalid"
+	PrivyUnavailable        ErrorCode = "privy_unavailable"
+	RateLimited             ErrorCode = "rate_limited"
+	RelayerUnderfunded      ErrorCode = "relayer_underfunded"
+	RpcUnavailable          ErrorCode = "rpc_unavailable"
+	SessionRequired         ErrorCode = "session_required"
+	Unauthorized            ErrorCode = "unauthorized"
+	UpstreamTimeout         ErrorCode = "upstream_timeout"
+	UpstreamUnavailable     ErrorCode = "upstream_unavailable"
+	UserNotFound            ErrorCode = "user_not_found"
+	VersionConflict         ErrorCode = "version_conflict"
+	WalletMismatch          ErrorCode = "wallet_mismatch"
+	XNotLinked              ErrorCode = "x_not_linked"
 )
 
 // Valid indicates whether the value is a known member of the ErrorCode enum.
 func (e ErrorCode) Valid() bool {
 	switch e {
+	case AccountBanned:
+		return true
+	case AccountDeleted:
+		return true
+	case AccountHasBalance:
+		return true
+	case AccountHasPositions:
+		return true
+	case AccountStatusTransition:
+		return true
+	case AccountSuspended:
+		return true
+	case AuthStateTransition:
+		return true
 	case ClientClosed:
 		return true
 	case DbSchemaBehind:
@@ -55,7 +89,19 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case DecodeFailed:
 		return true
+	case DisplayNameInvalid:
+		return true
 	case Forbidden:
+		return true
+	case HandleInvalid:
+		return true
+	case HandleRequired:
+		return true
+	case HandleReserved:
+		return true
+	case HandleTaken:
+		return true
+	case HandleTooSoon:
 		return true
 	case IdempotencyInFlight:
 		return true
@@ -73,9 +119,15 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case JupiterUnavailable:
 		return true
+	case LoginMethodNotAllowed:
+		return true
 	case NotFound:
 		return true
 	case Panic:
+		return true
+	case PhoneNotLinked:
+		return true
+	case PhotoInvalid:
 		return true
 	case PrivyUnavailable:
 		return true
@@ -85,13 +137,21 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case RpcUnavailable:
 		return true
+	case SessionRequired:
+		return true
 	case Unauthorized:
 		return true
 	case UpstreamTimeout:
 		return true
 	case UpstreamUnavailable:
 		return true
+	case UserNotFound:
+		return true
 	case VersionConflict:
+		return true
+	case WalletMismatch:
+		return true
+	case XNotLinked:
 		return true
 	default:
 		return false

@@ -55,3 +55,34 @@ type SystemPing struct {
 	Note     string
 	EchoedAt pgtype.Timestamptz
 }
+
+type User struct {
+	ID                 uuid.UUID
+	PrivyUserID        string
+	Handle             pgtype.Text
+	HandleChangedAt    pgtype.Timestamptz
+	DisplayName        string
+	PhotoUrl           pgtype.Text
+	Email              pgtype.Text
+	LoginProvider      string
+	PhoneE164          pgtype.Text
+	PhoneHash          []byte
+	PhoneVerifiedAt    pgtype.Timestamptz
+	XUserID            pgtype.Text
+	XUsername          pgtype.Text
+	XLinkedAt          pgtype.Timestamptz
+	AuthState          string
+	AuthStateChangedAt time.Time
+	AccountStatus      string
+	FirstDepositAt     pgtype.Timestamptz
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	DeletedAt          pgtype.Timestamptz
+}
+
+type UserWallet struct {
+	UserID        uuid.UUID
+	PrivyWalletID string
+	Address       string
+	CreatedAt     time.Time
+}

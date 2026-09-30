@@ -60,6 +60,14 @@ func redactionCases() []redactionCase {
 	}
 	return append(
 		cases,
+		redactionCase{"identity keys", keep, []slog.Attr{
+			slog.String("email", "identity@x.io"), slog.String("phone_e164", "+15550142"),
+			slog.Any("phone_hash", []byte("hash-of-the-phone")), slog.String("x_user_id", "x-id-9001"),
+			slog.String("x_username", "xhandle_leak"), slog.String("xUsername", "camel_xhandle"),
+		}},
+		redactionCase{"kept: x words that are not an x account", keep, []slog.Attr{
+			slog.String("tx_user_id", "u1"), slog.String("username", "not_an_x_handle"),
+		}},
 		redactionCase{"key on int value", keep, []slog.Attr{slog.Int("seed", 42)}},
 		redactionCase{"key on group value", keep, []slog.Attr{slog.Group("secret", slog.String("a", "b"))}},
 		redactionCase{"nested group key", keep, []slog.Attr{
@@ -168,7 +176,8 @@ func TestRedaction_matchesGolden(t *testing.T) {
 		sampleJWT, sampleBase58Secret(), sampleByteArray(), "a@b.c", "+15550100",
 		"u@x.io", "opaque-", "+15550199", "camel@x.io", "sig-1", "slice@example.com", "slice2@example.com",
 		"struct@x.io", "nested@x.io", "ptr@x.io", base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{0xfb}, 64)),
-		"AAAAAAAAAAAA", "[1,2,3",
+		"AAAAAAAAAAAA", "[1,2,3", "identity@x.io", "+15550142", "hash-of-the-phone", "aGFzaC1vZi10aGUtcGhvbmU",
+		"x-id-9001", "xhandle_leak", "camel_xhandle",
 	} {
 		if strings.Contains(buf.String(), secret) {
 			t.Errorf("output leaks %q", secret)

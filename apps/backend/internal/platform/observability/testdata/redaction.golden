@@ -8,6 +8,8 @@
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"key authorization","authorization":"***"}
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"key EMAIL","EMAIL":"***"}
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"key Authorization","Authorization":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"identity keys","email":"***","phone_e164":"***","phone_hash":"***","x_user_id":"***","x_username":"***","xUsername":"***"}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"kept: x words that are not an x account","tx_user_id":"u1","username":"not_an_x_handle"}
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"key on int value","seed":"***"}
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"key on group value","secret":"***"}
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"nested group key","user":{"id":"u1","contact":{"phone":"***"}}}

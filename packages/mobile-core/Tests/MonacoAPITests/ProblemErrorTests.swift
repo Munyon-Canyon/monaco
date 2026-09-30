@@ -21,11 +21,24 @@ final class ProblemErrorTests: XCTestCase {
     func testANewErrorCodeFailsThisBuildUntilListed() {
         for code in ErrorCode.allCases {
             switch code {
-            case .clientClosed,
+            case .accountBanned,
+                 .accountDeleted,
+                 .accountHasBalance,
+                 .accountHasPositions,
+                 .accountStatusTransition,
+                 .accountSuspended,
+                 .authStateTransition,
+                 .clientClosed,
                  .dbSchemaBehind,
                  .dbUnavailable,
                  .decodeFailed,
+                 .displayNameInvalid,
                  .forbidden,
+                 .handleInvalid,
+                 .handleRequired,
+                 .handleReserved,
+                 .handleTaken,
+                 .handleTooSoon,
                  .idempotencyInFlight,
                  .idempotencyMismatch,
                  ._internal,
@@ -34,16 +47,23 @@ final class ProblemErrorTests: XCTestCase {
                  .invalidInput,
                  .jupiterRejected,
                  .jupiterUnavailable,
+                 .loginMethodNotAllowed,
                  .notFound,
                  .panic,
+                 .phoneNotLinked,
+                 .photoInvalid,
                  .privyUnavailable,
                  .rateLimited,
                  .relayerUnderfunded,
                  .rpcUnavailable,
+                 .sessionRequired,
                  .unauthorized,
                  .upstreamTimeout,
                  .upstreamUnavailable,
-                 .versionConflict:
+                 .userNotFound,
+                 .versionConflict,
+                 .walletMismatch,
+                 .xNotLinked:
                 break
             }
         }
