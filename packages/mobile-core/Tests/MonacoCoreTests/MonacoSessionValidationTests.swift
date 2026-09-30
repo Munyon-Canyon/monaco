@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import MonacoCore
 
 final class MonacoSessionValidationTests: XCTestCase {
@@ -11,6 +12,7 @@ final class MonacoSessionValidationTests: XCTestCase {
     }
 
     func testShouldInvalidateSession_mismatchedUserId_isTrue() {
-        XCTAssertTrue(MonacoSessionValidation.shouldInvalidateSession(storedUserId: "user-old", serverUserId: "user-new"))
+        XCTAssertTrue(
+            MonacoSessionValidation.shouldInvalidateSession(storedUserId: "user-old", serverUserId: "user-new"))
     }
 }

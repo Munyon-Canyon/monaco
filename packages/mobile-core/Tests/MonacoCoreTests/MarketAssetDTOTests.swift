@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import MonacoCore
 
 final class MarketAssetDTOTests: XCTestCase {
@@ -52,11 +53,11 @@ final class MarketAssetDTOTests: XCTestCase {
 
     func testAssetChart_decodesEmptySeriesWithReason() throws {
         let json = """
-        {
-          "points": [],
-          "emptyReason": "price history unavailable"
-        }
-        """
+            {
+              "points": [],
+              "emptyReason": "price history unavailable"
+            }
+            """
         let dto = try JSONDecoder().decode(AssetChartDTO.self, from: Data(json.utf8))
         XCTAssertEqual(dto.points, [])
         XCTAssertEqual(dto.emptyReason, "price history unavailable")

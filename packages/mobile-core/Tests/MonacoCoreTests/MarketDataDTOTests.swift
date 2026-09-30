@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import MonacoCore
 
 /// Decoding tests for the market data the stock screens are built on: the stats
@@ -15,24 +16,26 @@ final class MarketDataDTOTests: XCTestCase {
     // MARK: - Stats
 
     func testAssetDetail_decodesTheFullStatsGrid() throws {
-        let dto = try decode(AssetDetailDTO.self, """
-        {
-          "symbol":"AAPLx","name":"Apple","solanaMint":"Xsb","routable":true,
-          "priceUsdcMicros":232050000,
-          "liquidity":{"label":"Via Jupiter","routable":true,"buyProbeUsdcMicros":1000000},
-          "marketSession":"open","afterHours":false,
-          "stats":{
-            "openUsdcMicros":229000000,
-            "highUsdcMicros":231800000,
-            "lowUsdcMicros":228200000,
-            "previousCloseUsdcMicros":226500000,
-            "week52HighUsdcMicros":262000000,
-            "week52LowUsdcMicros":163000000,
-            "spreadBps":12,
-            "confUsdcMicros":30000
-          }
-        }
-        """)
+        let dto = try decode(
+            AssetDetailDTO.self,
+            """
+            {
+              "symbol":"AAPLx","name":"Apple","solanaMint":"Xsb","routable":true,
+              "priceUsdcMicros":232050000,
+              "liquidity":{"label":"Via Jupiter","routable":true,"buyProbeUsdcMicros":1000000},
+              "marketSession":"open","afterHours":false,
+              "stats":{
+                "openUsdcMicros":229000000,
+                "highUsdcMicros":231800000,
+                "lowUsdcMicros":228200000,
+                "previousCloseUsdcMicros":226500000,
+                "week52HighUsdcMicros":262000000,
+                "week52LowUsdcMicros":163000000,
+                "spreadBps":12,
+                "confUsdcMicros":30000
+              }
+            }
+            """)
 
         let stats = try XCTUnwrap(dto.stats)
         XCTAssertEqual(stats.openUsdcMicros, 229_000_000)
@@ -48,13 +51,15 @@ final class MarketDataDTOTests: XCTestCase {
     func testAssetDetail_partialStatsKeepTheCellsThatExist() throws {
         // A stock listed last month: a session, but no year behind it and no Pyth
         // feed. The cells that cannot be sourced are simply absent.
-        let dto = try decode(AssetDetailDTO.self, """
-        {
-          "symbol":"NEWx","name":"Newly listed","solanaMint":"NEW","routable":true,
-          "liquidity":{"label":"Via Jupiter","routable":true,"buyProbeUsdcMicros":1000000},
-          "stats":{"openUsdcMicros":41200000,"previousCloseUsdcMicros":41000000,"spreadBps":48}
-        }
-        """)
+        let dto = try decode(
+            AssetDetailDTO.self,
+            """
+            {
+              "symbol":"NEWx","name":"Newly listed","solanaMint":"NEW","routable":true,
+              "liquidity":{"label":"Via Jupiter","routable":true,"buyProbeUsdcMicros":1000000},
+              "stats":{"openUsdcMicros":41200000,"previousCloseUsdcMicros":41000000,"spreadBps":48}
+            }
+            """)
 
         let stats = try XCTUnwrap(dto.stats)
         XCTAssertEqual(stats.openUsdcMicros, 41_200_000)
@@ -64,31 +69,35 @@ final class MarketDataDTOTests: XCTestCase {
     }
 
     func testAssetDetail_anEmptyStatsObjectCollapsesToNoGrid() throws {
-        let dto = try decode(AssetDetailDTO.self, """
-        {
-          "symbol":"NEWx","name":"Newly listed","solanaMint":"NEW","routable":true,
-          "liquidity":{"label":"Via Jupiter","routable":true,"buyProbeUsdcMicros":1000000},
-          "stats":{}
-        }
-        """)
+        let dto = try decode(
+            AssetDetailDTO.self,
+            """
+            {
+              "symbol":"NEWx","name":"Newly listed","solanaMint":"NEW","routable":true,
+              "liquidity":{"label":"Via Jupiter","routable":true,"buyProbeUsdcMicros":1000000},
+              "stats":{}
+            }
+            """)
         XCTAssertNil(dto.stats, "an object with nothing in it must not become a grid of dashes")
     }
 
     // MARK: - Stock vs token
 
     func testStockVsToken_decodesBothLiveLegsAndThePremium() throws {
-        let dto = try decode(AssetDetailDTO.self, """
-        {
-          "symbol":"AAPLx","name":"Apple","solanaMint":"Xsb","routable":true,
-          "liquidity":{"label":"Via Jupiter","routable":true,"buyProbeUsdcMicros":1000000},
-          "stockVsToken":{
-            "equity":{"source":"pyth_equity","status":"live","priceUsdcMicros":231400000,"confUsdcMicros":30000,"publishedAt":"2026-09-22T13:59:52Z"},
-            "token":{"source":"pyth_crypto","status":"live","priceUsdcMicros":232050000,"confUsdcMicros":50000,"publishedAt":"2026-09-22T13:59:58Z"},
-            "premiumBps":28,
-            "asOf":"2026-09-22T14:00:00Z"
-          }
-        }
-        """)
+        let dto = try decode(
+            AssetDetailDTO.self,
+            """
+            {
+              "symbol":"AAPLx","name":"Apple","solanaMint":"Xsb","routable":true,
+              "liquidity":{"label":"Via Jupiter","routable":true,"buyProbeUsdcMicros":1000000},
+              "stockVsToken":{
+                "equity":{"source":"pyth_equity","status":"live","priceUsdcMicros":231400000,"confUsdcMicros":30000,"publishedAt":"2026-09-22T13:59:52Z"},
+                "token":{"source":"pyth_crypto","status":"live","priceUsdcMicros":232050000,"confUsdcMicros":50000,"publishedAt":"2026-09-22T13:59:58Z"},
+                "premiumBps":28,
+                "asOf":"2026-09-22T14:00:00Z"
+              }
+            }
+            """)
 
         let card = try XCTUnwrap(dto.stockVsToken)
         XCTAssertEqual(card.equity.source, .pythEquity)
@@ -101,14 +110,16 @@ final class MarketDataDTOTests: XCTestCase {
     }
 
     func testStockVsToken_staleEquityKeepsItsPriceAndItsPublishTime() throws {
-        let card = try decode(StockVsTokenDTO.self, """
-        {
-          "equity":{"source":"pyth_equity","status":"stale","priceUsdcMicros":231400000,"publishedAt":"2026-09-22T20:00:00Z"},
-          "token":{"source":"pyth_crypto","status":"live","priceUsdcMicros":234800000,"publishedAt":"2026-09-22T23:00:00Z"},
-          "premiumBps":147,
-          "asOf":"2026-09-22T23:00:00Z"
-        }
-        """)
+        let card = try decode(
+            StockVsTokenDTO.self,
+            """
+            {
+              "equity":{"source":"pyth_equity","status":"stale","priceUsdcMicros":231400000,"publishedAt":"2026-09-22T20:00:00Z"},
+              "token":{"source":"pyth_crypto","status":"live","priceUsdcMicros":234800000,"publishedAt":"2026-09-22T23:00:00Z"},
+              "premiumBps":147,
+              "asOf":"2026-09-22T23:00:00Z"
+            }
+            """)
 
         XCTAssertEqual(card.equity.status, .stale)
         XCTAssertTrue(card.equity.isPriced, "a frozen print is still a real price")
@@ -117,13 +128,15 @@ final class MarketDataDTOTests: XCTestCase {
     }
 
     func testStockVsToken_unavailableLegCarriesAReasonAndNoPrice() throws {
-        let card = try decode(StockVsTokenDTO.self, """
-        {
-          "equity":{"source":"pyth_equity","status":"unavailable","reason":"not_entitled"},
-          "token":{"source":"pyth_crypto","status":"live","priceUsdcMicros":232050000},
-          "asOf":"2026-09-22T14:00:00Z"
-        }
-        """)
+        let card = try decode(
+            StockVsTokenDTO.self,
+            """
+            {
+              "equity":{"source":"pyth_equity","status":"unavailable","reason":"not_entitled"},
+              "token":{"source":"pyth_crypto","status":"live","priceUsdcMicros":232050000},
+              "asOf":"2026-09-22T14:00:00Z"
+            }
+            """)
 
         XCTAssertEqual(card.equity.status, .unavailable)
         XCTAssertEqual(card.equity.unavailableReason, .notEntitled)
@@ -133,36 +146,42 @@ final class MarketDataDTOTests: XCTestCase {
     }
 
     func testStockVsToken_jupiterFallbackIsDistinguishableFromPyth() throws {
-        let card = try decode(StockVsTokenDTO.self, """
-        {
-          "equity":{"source":"pyth_equity","status":"live","priceUsdcMicros":178200000},
-          "token":{"source":"jupiter","status":"live","priceUsdcMicros":179050000},
-          "premiumBps":47,
-          "asOf":"2026-09-22T14:00:00Z"
-        }
-        """)
+        let card = try decode(
+            StockVsTokenDTO.self,
+            """
+            {
+              "equity":{"source":"pyth_equity","status":"live","priceUsdcMicros":178200000},
+              "token":{"source":"jupiter","status":"live","priceUsdcMicros":179050000},
+              "premiumBps":47,
+              "asOf":"2026-09-22T14:00:00Z"
+            }
+            """)
 
         XCTAssertEqual(card.token.source, .jupiter)
         XCTAssertNil(card.token.confUsdcMicros, "Jupiter publishes no confidence interval")
     }
 
     func testStockVsToken_unknownSourceAndStatusDoNotFailDecoding() throws {
-        let card = try decode(StockVsTokenDTO.self, """
-        {
-          "equity":{"source":"chainlink","status":"degraded","priceUsdcMicros":178200000},
-          "token":{"source":"jupiter","status":"live","priceUsdcMicros":179050000},
-          "asOf":"2026-09-22T14:00:00Z"
-        }
-        """)
+        let card = try decode(
+            StockVsTokenDTO.self,
+            """
+            {
+              "equity":{"source":"chainlink","status":"degraded","priceUsdcMicros":178200000},
+              "token":{"source":"jupiter","status":"live","priceUsdcMicros":179050000},
+              "asOf":"2026-09-22T14:00:00Z"
+            }
+            """)
 
         XCTAssertEqual(card.equity.source, .unknown)
         XCTAssertEqual(card.equity.status, .unknown)
     }
 
     func testStockVsToken_unknownReasonStringSurvivesAsRawText() throws {
-        let quote = try decode(ReferenceQuoteDTO.self, """
-        {"source":"pyth_equity","status":"unavailable","reason":"feed_retired"}
-        """)
+        let quote = try decode(
+            ReferenceQuoteDTO.self,
+            """
+            {"source":"pyth_equity","status":"unavailable","reason":"feed_retired"}
+            """)
         XCTAssertNil(quote.unavailableReason)
         XCTAssertEqual(quote.reason, "feed_retired")
     }
@@ -170,26 +189,31 @@ final class MarketDataDTOTests: XCTestCase {
     func testStockVsToken_missingALegThrows() {
         // The card is a comparison; one side of it is not a partial card, it is a
         // malformed response the screen should treat as no card.
-        XCTAssertThrowsError(try decode(StockVsTokenDTO.self, """
-        {"equity":{"source":"pyth_equity","status":"live","priceUsdcMicros":178200000},"asOf":"2026-09-22T14:00:00Z"}
-        """))
+        XCTAssertThrowsError(
+            try decode(
+                StockVsTokenDTO.self,
+                """
+                {"equity":{"source":"pyth_equity","status":"live","priceUsdcMicros":178200000},"asOf":"2026-09-22T14:00:00Z"}
+                """))
     }
 
     // MARK: - Charts
 
     func testAssetChart_decodesCandlesPreviousCloseAndSource() throws {
-        let dto = try decode(AssetChartDTO.self, """
-        {
-          "points":[
-            {"timestamp":1790410000,"priceUsdcMicros":229400000,"openUsdcMicros":229000000,"highUsdcMicros":229500000,"lowUsdcMicros":228200000},
-            {"timestamp":1790410300,"priceUsdcMicros":231400000,"openUsdcMicros":231000000,"highUsdcMicros":231800000,"lowUsdcMicros":230400000}
-          ],
-          "previousCloseUsdcMicros":226500000,
-          "range":"1D",
-          "source":"benchmarks",
-          "market":{"session":"open","isOpen":true,"afterHours":false,"asOf":"2026-09-22T14:00:00Z"}
-        }
-        """)
+        let dto = try decode(
+            AssetChartDTO.self,
+            """
+            {
+              "points":[
+                {"timestamp":1790410000,"priceUsdcMicros":229400000,"openUsdcMicros":229000000,"highUsdcMicros":229500000,"lowUsdcMicros":228200000},
+                {"timestamp":1790410300,"priceUsdcMicros":231400000,"openUsdcMicros":231000000,"highUsdcMicros":231800000,"lowUsdcMicros":230400000}
+              ],
+              "previousCloseUsdcMicros":226500000,
+              "range":"1D",
+              "source":"benchmarks",
+              "market":{"session":"open","isOpen":true,"afterHours":false,"asOf":"2026-09-22T14:00:00Z"}
+            }
+            """)
 
         XCTAssertEqual(dto.points.count, 2)
         XCTAssertEqual(dto.previousCloseUsdcMicros, 226_500_000)
@@ -201,9 +225,11 @@ final class MarketDataDTOTests: XCTestCase {
     }
 
     func testAssetChart_closeOnlyFallbackHasNoCandles() throws {
-        let dto = try decode(AssetChartDTO.self, """
-        {"points":[{"timestamp":1790410000,"priceUsdcMicros":229400000}],"range":"1M","source":"hermes"}
-        """)
+        let dto = try decode(
+            AssetChartDTO.self,
+            """
+            {"points":[{"timestamp":1790410000,"priceUsdcMicros":229400000}],"range":"1M","source":"hermes"}
+            """)
 
         XCTAssertEqual(dto.source, .hermes)
         XCTAssertFalse(dto.points[0].hasCandle)
@@ -213,9 +239,11 @@ final class MarketDataDTOTests: XCTestCase {
 
     func testAssetChart_everyRangeRoundTrips() throws {
         for range in AssetChartRange.allCases {
-            let dto = try decode(AssetChartDTO.self, """
-            {"points":[],"emptyReason":"price history unavailable","range":"\(range.rawValue)"}
-            """)
+            let dto = try decode(
+                AssetChartDTO.self,
+                """
+                {"points":[],"emptyReason":"price history unavailable","range":"\(range.rawValue)"}
+                """)
             XCTAssertEqual(dto.range, range)
         }
         XCTAssertEqual(AssetChartRange.allCases.map(\.rawValue), ["1D", "1W", "1M", "3M", "1Y", "ALL"])
@@ -225,57 +253,70 @@ final class MarketDataDTOTests: XCTestCase {
 
     func testAssetChart_missingPointsArrayDecodesToEmpty() throws {
         // A response without the key at all should read as "no history", not throw.
-        let dto = try decode(AssetChartDTO.self, """
-        {"emptyReason":"price history unavailable","range":"ALL"}
-        """)
+        let dto = try decode(
+            AssetChartDTO.self,
+            """
+            {"emptyReason":"price history unavailable","range":"ALL"}
+            """)
         XCTAssertTrue(dto.points.isEmpty)
         XCTAssertEqual(dto.emptyReason, "price history unavailable")
     }
 
     func testAssetChart_unknownRangeNameDecodesToNilNotAThrow() throws {
-        let dto = try decode(AssetChartDTO.self, """
-        {"points":[],"range":"5Y"}
-        """)
+        let dto = try decode(
+            AssetChartDTO.self,
+            """
+            {"points":[],"range":"5Y"}
+            """)
         XCTAssertNil(dto.range)
     }
 
     func testAssetChart_pointMissingItsPriceThrows() {
         // A point with a timestamp and no price cannot be plotted; silently
         // dropping it would move the line without saying so.
-        XCTAssertThrowsError(try decode(AssetChartDTO.self, """
-        {"points":[{"timestamp":1790410000}]}
-        """))
+        XCTAssertThrowsError(
+            try decode(
+                AssetChartDTO.self,
+                """
+                {"points":[{"timestamp":1790410000}]}
+                """))
     }
 
     // MARK: - Envelopes
 
     func testListAndPopular_carryTheMarketStatus() throws {
-        let listed = try decode(ListMarketAssetsResponseDTO.self, """
-        {
-          "assets":[{"symbol":"AAPLx","name":"Apple","solanaMint":"Xsb","routable":true,"priceUsdcMicros":232050000}],
-          "hasMore":false,
-          "market":{"session":"after_hours","isOpen":false,"afterHours":true,"nextSession":"closed","asOf":"2026-09-22T21:00:00Z"}
-        }
-        """)
+        let listed = try decode(
+            ListMarketAssetsResponseDTO.self,
+            """
+            {
+              "assets":[{"symbol":"AAPLx","name":"Apple","solanaMint":"Xsb","routable":true,"priceUsdcMicros":232050000}],
+              "hasMore":false,
+              "market":{"session":"after_hours","isOpen":false,"afterHours":true,"nextSession":"closed","asOf":"2026-09-22T21:00:00Z"}
+            }
+            """)
         XCTAssertEqual(listed.market?.session, .afterHours)
         XCTAssertTrue(listed.market?.afterHours ?? false)
 
-        let popular = try decode(PopularAssetsResponseDTO.self, """
-        {"assets":[],"market":{"session":"open","isOpen":true,"afterHours":false,"asOf":"2026-09-22T14:00:00Z"}}
-        """)
+        let popular = try decode(
+            PopularAssetsResponseDTO.self,
+            """
+            {"assets":[],"market":{"session":"open","isOpen":true,"afterHours":false,"asOf":"2026-09-22T14:00:00Z"}}
+            """)
         XCTAssertEqual(popular.market?.session, .open)
     }
 
     // MARK: - Backward compatibility
 
     func testAssetDetail_decodesAResponseFromABackendWithoutAnyOfTheNewFields() throws {
-        let dto = try decode(AssetDetailDTO.self, """
-        {
-          "symbol":"AAPLx","name":"Apple","solanaMint":"Xsb","routable":true,
-          "priceUsdcMicros":185000000,"change24h":"0.027027",
-          "liquidity":{"label":"Via Jupiter","routable":true,"buyProbeUsdcMicros":1000000,"spreadBps":12}
-        }
-        """)
+        let dto = try decode(
+            AssetDetailDTO.self,
+            """
+            {
+              "symbol":"AAPLx","name":"Apple","solanaMint":"Xsb","routable":true,
+              "priceUsdcMicros":185000000,"change24h":"0.027027",
+              "liquidity":{"label":"Via Jupiter","routable":true,"buyProbeUsdcMicros":1000000,"spreadBps":12}
+            }
+            """)
 
         XCTAssertEqual(dto.priceUsdcMicros, 185_000_000)
         XCTAssertNil(dto.marketSession)
@@ -288,21 +329,25 @@ final class MarketDataDTOTests: XCTestCase {
     func testAssetDetail_marketSessionFallsBackToTheEnvelope() throws {
         // If a backend ships the envelope but not the mirrored fields, the header
         // still knows what session it is.
-        let dto = try decode(AssetDetailDTO.self, """
-        {
-          "symbol":"AAPLx","name":"Apple","solanaMint":"Xsb","routable":true,
-          "liquidity":{"label":"Via Jupiter","routable":true,"buyProbeUsdcMicros":1000000},
-          "market":{"session":"after_hours","isOpen":false,"afterHours":true,"asOf":"2026-09-22T21:00:00Z"}
-        }
-        """)
+        let dto = try decode(
+            AssetDetailDTO.self,
+            """
+            {
+              "symbol":"AAPLx","name":"Apple","solanaMint":"Xsb","routable":true,
+              "liquidity":{"label":"Via Jupiter","routable":true,"buyProbeUsdcMicros":1000000},
+              "market":{"session":"after_hours","isOpen":false,"afterHours":true,"asOf":"2026-09-22T21:00:00Z"}
+            }
+            """)
         XCTAssertEqual(dto.marketSession, .afterHours)
         XCTAssertTrue(dto.afterHours)
     }
 
     func testListResponse_withoutMarketStatusStillDecodes() throws {
-        let dto = try decode(ListMarketAssetsResponseDTO.self, """
-        {"assets":[],"hasMore":true}
-        """)
+        let dto = try decode(
+            ListMarketAssetsResponseDTO.self,
+            """
+            {"assets":[],"hasMore":true}
+            """)
         XCTAssertNil(dto.market)
         XCTAssertTrue(dto.hasMore)
     }
@@ -359,14 +404,16 @@ final class MarketDataDTOTests: XCTestCase {
         // price is the token's. They differ by the premium, so the token price can
         // sit above "the day's high" — which reads as a bug unless the grid says
         // which instrument it is about.
-        let dto = try decode(AssetDetailDTO.self, """
-        {
-          "symbol":"AAPLx","name":"Apple","solanaMint":"Xsb","routable":true,
-          "priceUsdcMicros":232050000,
-          "liquidity":{"label":"Via Jupiter","routable":true,"buyProbeUsdcMicros":1000000},
-          "stats":{"highUsdcMicros":231800000,"basis":"underlying","basisSymbol":"AAPL"}
-        }
-        """)
+        let dto = try decode(
+            AssetDetailDTO.self,
+            """
+            {
+              "symbol":"AAPLx","name":"Apple","solanaMint":"Xsb","routable":true,
+              "priceUsdcMicros":232050000,
+              "liquidity":{"label":"Via Jupiter","routable":true,"buyProbeUsdcMicros":1000000},
+              "stats":{"highUsdcMicros":231800000,"basis":"underlying","basisSymbol":"AAPL"}
+            }
+            """)
 
         let stats = try XCTUnwrap(dto.stats)
         XCTAssertEqual(stats.basis, .underlying)
@@ -384,7 +431,8 @@ final class MarketDataDTOTests: XCTestCase {
         XCTAssertNil(stats.basis)
         XCTAssertNil(stats.basisCaption)
 
-        let futureBasis = try decode(AssetStatsDTO.self, #"{"highUsdcMicros":1,"basis":"something_new","basisSymbol":"AAPL"}"#)
+        let futureBasis = try decode(
+            AssetStatsDTO.self, #"{"highUsdcMicros":1,"basis":"something_new","basisSymbol":"AAPL"}"#)
         XCTAssertEqual(futureBasis.basis, .unknown, "a basis added server-side must not take the screen down")
         XCTAssertNil(futureBasis.basisCaption)
     }
@@ -395,10 +443,12 @@ final class MarketDataDTOTests: XCTestCase {
     }
 
     func testAssetChart_carriesTheInstrumentTheCurveIs() throws {
-        let chart = try decode(AssetChartDTO.self, """
-        {"points":[{"timestamp":1,"priceUsdcMicros":2}],"range":"1D","source":"benchmarks",
-         "basis":"underlying","basisSymbol":"AAPL"}
-        """)
+        let chart = try decode(
+            AssetChartDTO.self,
+            """
+            {"points":[{"timestamp":1,"priceUsdcMicros":2}],"range":"1D","source":"benchmarks",
+             "basis":"underlying","basisSymbol":"AAPL"}
+            """)
         XCTAssertEqual(chart.basis, .underlying)
         XCTAssertEqual(chart.basisSymbol, "AAPL")
     }

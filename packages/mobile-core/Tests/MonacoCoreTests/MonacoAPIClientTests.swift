@@ -1,9 +1,11 @@
+import MonacoAPI
 import XCTest
+
+@testable import MonacoCore
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import MonacoAPI
-@testable import MonacoCore
 
 final class MonacoAPIClientTests: XCTestCase {
     override func tearDown() {
@@ -20,14 +22,14 @@ final class MonacoAPIClientTests: XCTestCase {
         MockURLProtocol.requestHandler = { request in
             capturedAuthorization = request.value(forHTTPHeaderField: "Authorization")
             let responseBody = """
-            {
-              "userId": "550e8400-e29b-41d4-a716-446655440000",
-              "displayName": "Alfred",
-              "memberWalletAddress": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
-              "profilePhotoUrl": null,
-              "createdAt": "2026-09-01T14:30:00Z"
-            }
-            """
+                {
+                  "userId": "550e8400-e29b-41d4-a716-446655440000",
+                  "displayName": "Alfred",
+                  "memberWalletAddress": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+                  "profilePhotoUrl": null,
+                  "createdAt": "2026-09-01T14:30:00Z"
+                }
+                """
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: 200,
@@ -61,11 +63,11 @@ final class MonacoAPIClientTests: XCTestCase {
             capturedPath = request.url?.path
             capturedAuthorization = request.value(forHTTPHeaderField: "Authorization")
             let responseBody = """
-            {
-              "groups": [],
-              "people": []
-            }
-            """
+                {
+                  "groups": [],
+                  "people": []
+                }
+                """
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: 200,
@@ -269,22 +271,30 @@ final class MonacoAPIClientTests: XCTestCase {
             let response = HTTPURLResponse(url: request.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!
             return (response, Data())
         }
-        let client = MonacoAPIClient(baseURL: URL(string: "https://api.test")!, session: makeMockURLSession(), accessTokenProvider: { TestFixtures.fixtureSessionToken })
+        let client = MonacoAPIClient(
+            baseURL: URL(string: "https://api.test")!, session: makeMockURLSession(),
+            accessTokenProvider: { TestFixtures.fixtureSessionToken })
         try await client.leaveGroup(groupId: "550e8400-e29b-41d4-a716-446655440000", submission: IdempotentSubmission())
     }
 
     func testAPIClient_leaveGroup_conflictWithRequestId_throwsLeaveBlockedReason() async throws {
         // Arrange: the 409 is the shared error shape (error + requestId) plus `reason`.
         MockURLProtocol.requestHandler = { request in
-            let response = HTTPURLResponse(url: request.url!, statusCode: 409, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
-            let body = #"{"error":"redeem your slice before leaving the cabal","requestId":"req-123","reason":"share_units_remaining"}"#
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 409, httpVersion: nil, headerFields: ["Content-Type": "application/json"]
+            )!
+            let body =
+                #"{"error":"redeem your slice before leaving the cabal","requestId":"req-123","reason":"share_units_remaining"}"#
             return (response, Data(body.utf8))
         }
-        let client = MonacoAPIClient(baseURL: URL(string: "https://api.test")!, session: makeMockURLSession(), accessTokenProvider: { TestFixtures.fixtureSessionToken })
+        let client = MonacoAPIClient(
+            baseURL: URL(string: "https://api.test")!, session: makeMockURLSession(),
+            accessTokenProvider: { TestFixtures.fixtureSessionToken })
 
         // Act / Assert
         do {
-            try await client.leaveGroup(groupId: "550e8400-e29b-41d4-a716-446655440000", submission: IdempotentSubmission())
+            try await client.leaveGroup(
+                groupId: "550e8400-e29b-41d4-a716-446655440000", submission: IdempotentSubmission())
             XCTFail("expected leaveBlocked")
         } catch MonacoAPIError.leaveBlocked(let reason) {
             XCTAssertEqual(reason, .shareUnitsRemaining)

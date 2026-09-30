@@ -106,21 +106,21 @@ final class MarketRowBasisTests: XCTestCase {
 
     func testBasisDecodesFromTheWireAlongsideTheSeries() throws {
         let json = """
-        {
-          "symbol": "AAPLx",
-          "name": "Apple xStock",
-          "solanaMint": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
-          "routable": true,
-          "priceUsdcMicros": 232050000,
-          "change24h": "-0.0083",
-          "spark": [226500000, 231400000],
-          "sparkBasis": "underlying",
-          "sparkBasisSymbol": "AAPL",
-          "changeBasis": "token",
-          "changeBasisSymbol": "AAPLx",
-          "logoUrl": "https://xstocks-metadata.backed.fi/logos/tokens/AAPLx.png"
-        }
-        """.data(using: .utf8)!
+            {
+              "symbol": "AAPLx",
+              "name": "Apple xStock",
+              "solanaMint": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
+              "routable": true,
+              "priceUsdcMicros": 232050000,
+              "change24h": "-0.0083",
+              "spark": [226500000, 231400000],
+              "sparkBasis": "underlying",
+              "sparkBasisSymbol": "AAPL",
+              "changeBasis": "token",
+              "changeBasisSymbol": "AAPLx",
+              "logoUrl": "https://xstocks-metadata.backed.fi/logos/tokens/AAPLx.png"
+            }
+            """.data(using: .utf8)!
 
         let asset = try JSONDecoder().decode(MarketAssetDTO.self, from: json)
         XCTAssertEqual(asset.sparkBasis, .underlying)
@@ -139,8 +139,8 @@ final class MarketRowBasisTests: XCTestCase {
     /// looks like a product decision.
     func testRoutableIsRequiredWhileTheDecorationIsNot() throws {
         let withoutDecoration = """
-        {"symbol":"AAPLx","name":"Apple","solanaMint":"m","routable":true}
-        """.data(using: .utf8)!
+            {"symbol":"AAPLx","name":"Apple","solanaMint":"m","routable":true}
+            """.data(using: .utf8)!
         let asset = try JSONDecoder().decode(MarketAssetDTO.self, from: withoutDecoration)
         XCTAssertTrue(asset.routable)
         XCTAssertEqual(asset.sparkUsdcMicros, [])
@@ -148,8 +148,8 @@ final class MarketRowBasisTests: XCTestCase {
         XCTAssertNil(asset.sparkBasis)
 
         let withoutRoutable = """
-        {"symbol":"AAPLx","name":"Apple","solanaMint":"m"}
-        """.data(using: .utf8)!
+            {"symbol":"AAPLx","name":"Apple","solanaMint":"m"}
+            """.data(using: .utf8)!
         XCTAssertThrowsError(
             try JSONDecoder().decode(MarketAssetDTO.self, from: withoutRoutable),
             "a missing routable must fail loudly rather than disable Buy everywhere"

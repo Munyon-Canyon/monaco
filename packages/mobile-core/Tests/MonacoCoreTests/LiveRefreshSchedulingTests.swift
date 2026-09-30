@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import MonacoCore
 
 /// The scheduling behind "the screen keeps itself fresh": cadence and backoff, pause and resume,
@@ -11,8 +12,11 @@ final class LiveRefreshSchedulingTests: XCTestCase {
 
     func testCadence_fiveSecondsWhileAProposalIsOpenOrExecuting_fifteenOtherwise() {
         let open = ProposalDTO(id: "p1", symbol: "AAPLx", status: "open")
-        let executing = ProposalDTO(id: "p2", symbol: "AAPLx", status: "passed", kind: "buy", execution: ProposalExecutionDTO(state: "pending"))
-        let done = ProposalDTO(id: "p3", symbol: "AAPLx", status: "passed", kind: "buy", execution: ProposalExecutionDTO(state: "confirmed"))
+        let executing = ProposalDTO(
+            id: "p2", symbol: "AAPLx", status: "passed", kind: "buy", execution: ProposalExecutionDTO(state: "pending"))
+        let done = ProposalDTO(
+            id: "p3", symbol: "AAPLx", status: "passed", kind: "buy",
+            execution: ProposalExecutionDTO(state: "confirmed"))
         let rejected = ProposalDTO(id: "p4", symbol: "AAPLx", status: "failed")
 
         XCTAssertEqual(LiveRefreshCadence.watching([done, open]), .seconds(5))
@@ -355,7 +359,10 @@ final class LiveRefreshSchedulingTests: XCTestCase {
             guard !responses.isEmpty else { return .stop }
             switch responses.removeFirst() {
             case .success(let fresh):
-                QuietUpdate.apply(fresh, over: onScreen) { onScreen = $0; writes += 1 }
+                QuietUpdate.apply(fresh, over: onScreen) {
+                    onScreen = $0
+                    writes += 1
+                }
                 return .refreshed
             case .failure:
                 seenDuringOutage.append(onScreen)
