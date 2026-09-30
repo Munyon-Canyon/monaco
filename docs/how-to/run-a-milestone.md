@@ -216,6 +216,7 @@ One ticket changes hands the same way. [Hand off a ticket](ship-a-ticket.md#hand
 Each rule below came from a failure in the M7 run.
 
 - **A PR format failure caused by the body is fixed by editing the body.** `gh run rerun --failed` replays the original event with the old body, and it failed again on #895 and #962.
+- **A checker fix reaches a PR only through its base.** `PR format` and `PR size` run `scripts/check-pr-format.py` and `scripts/check-pr-size.py` from the PR's base commit, so a PR's own edit to a checker does not change that PR's verdict, and an upper PR of a stack picks up a checker fix only after a restack. #1090 failed `PR size` on a merge ref that still had the old checker.
 - **Order the queue so a fix lands ahead of the PRs it unblocks.** Three PRs queued ahead of the teardown fix #952 would have failed on the same defect. They were dequeued and requeued behind it.
 - **One ejection from a proxy or runner error is an infra flake, not a code defect.** Docker Hub, Go proxy and `curl` 500 errors ejected #843, #933 and #934. Each landed on requeue with no code change.
 - **Build every branch after a restack.** The #482 stack restacked cleanly and still failed to compile, because the tip had renamed a helper that #903 called.
