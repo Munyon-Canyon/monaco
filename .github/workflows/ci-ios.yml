@@ -11,9 +11,13 @@ on:
         type: boolean
         default: false
       restore-cache:
-        description: Restore the compilation cache. A dispatch can turn this off to measure a cold build.
+        description: Restore the compilation cache and the warm artifacts. A dispatch can turn this off to measure a cold build.
         type: boolean
         default: true
+      collapse-resolve:
+        description: On an exact SourcePackages restore, skip the separate resolve step and pass its skip flags to build-for-testing.
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       save-cache:
@@ -21,9 +25,13 @@ on:
         type: boolean
         default: false
       restore-cache:
-        description: Restore the compilation cache.
+        description: Restore the compilation cache and the warm artifacts. Turn this off to measure a cold build.
         type: boolean
         default: true
+      collapse-resolve:
+        description: On an exact SourcePackages restore, skip the separate resolve step and pass its skip flags to build-for-testing.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -63,20 +71,6 @@ jobs:
           key: spm-ios-${{ runner.os }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
           restore-keys: spm-ios-${{ runner.os }}-
 
-      # actions/cache misses on a merge-queue ref and on a stacked PR. The artifact
-      # uploaded by ci-warm.yml is the fallback, and it has to land before resolve.
-      - name: Fetch the Swift package artifact
-        id: spm-artifact
-        if: steps.spm.outputs.cache-matched-key == ''
-        continue-on-error: true
-        shell: bash
-        env:
-          FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          line="$(scripts/ci/fetch-warm-cache.sh "$SPM_ARTIFACT_NAME" "$DERIVED_DATA/SourcePackages")"
-          echo "source=$line" >> "$GITHUB_OUTPUT"
-
       # The compilation cache keys each compile on content, so it hits after a fresh checkout, but
       # only while the DerivedData path and the checkout path stay the same between runs. The
       # saved key ends in the commit because a cache key is immutable: a fixed key would keep the
@@ -92,17 +86,44 @@ jobs:
             xcode-cas-${{ runner.os }}-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-
             xcode-cas-${{ runner.os }}-${{ hashFiles('.xcode-version') }}-
 
-      - name: Fetch the compilation cache artifact
-        id: cas-artifact
-        if: inputs.restore-cache && steps.cas.outputs.cache-matched-key == ''
+      # actions/cache misses on a merge-queue ref and on a stacked PR. ci-warm.yml's
+      # artifacts are the fallback. Both downloads run together; each is best effort.
+      # restore-cache false skips them so a cold dispatch still resolves from the network.
+      - name: Fetch the warm cache artifacts
+        id: warm-artifacts
+        if: inputs.restore-cache && (steps.spm.outputs.cache-matched-key == '' || steps.cas.outputs.cache-matched-key == '')
         continue-on-error: true
         shell: bash
         env:
           FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH }}
           GH_TOKEN: ${{ github.token }}
+          SPM_KEY: ${{ steps.spm.outputs.cache-matched-key }}
+          CAS_KEY: ${{ steps.cas.outputs.cache-matched-key }}
         run: |
-          line="$(scripts/ci/fetch-warm-cache.sh "$CAS_ARTIFACT_NAME" "$DERIVED_DATA/CompilationCache.noindex")"
-          echo "source=$line" >> "$GITHUB_OUTPUT"
+          set +e
+          start=$(date +%s)
+          spm_file="$RUNNER_TEMP/spm-fetch.txt"
+          cas_file="$RUNNER_TEMP/cas-fetch.txt"
+          : > "$spm_file"
+          : > "$cas_file"
+          pids=()
+          if [[ -z "$SPM_KEY" ]]; then
+            scripts/ci/fetch-warm-cache.sh "$SPM_ARTIFACT_NAME" "$DERIVED_DATA/SourcePackages" > "$spm_file" &
+            pids+=($!)
+          fi
+          if [[ -z "$CAS_KEY" ]]; then
+            scripts/ci/fetch-warm-cache.sh "$CAS_ARTIFACT_NAME" "$DERIVED_DATA/CompilationCache.noindex" > "$cas_file" &
+            pids+=($!)
+          fi
+          for pid in "${pids[@]}"; do
+            wait "$pid" || true
+          done
+          {
+            echo "spm_source=$(tr -d '\n' < "$spm_file")"
+            echo "cas_source=$(tr -d '\n' < "$cas_file")"
+          } >> "$GITHUB_OUTPUT"
+          printf 'Fetch the warm cache artifacts\t%s\n' "$(( $(date +%s) - start ))" >> "$RUNNER_TEMP/step-times.tsv"
+          exit 0
 
       # Compile-only Privy config: no .env.local, no secret. Unit tests need no environment.
       - name: Placeholder app config
@@ -119,15 +140,44 @@ jobs:
           xcrun simctl boot "$sim"
           echo "SIM=$sim" >> "$GITHUB_ENV"
 
-      # Its own step so package resolution is not buried in the build. Same DerivedData as the
-      # build, so the build reuses these checkouts.
+      # exact: SourcePackages came from this Package.resolved (primary cache key or the
+      # warm artifact named with that hash) and workspace-state.json is present.
+      # A prefix restore can leave the state file from a different resolved file.
+      - name: Decide Swift package resolve mode
+        id: spm-mode
+        shell: bash
+        env:
+          SPM_HIT: ${{ steps.spm.outputs.cache-hit }}
+          SPM_FETCH: ${{ steps.warm-artifacts.outputs.spm_source }}
+          STATE_FILE: ${{ env.DERIVED_DATA }}/SourcePackages/workspace-state.json
+        run: |
+          mode="$(scripts/ci/spm-resolve-mode.sh)"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "spm resolve mode: $mode"
+
+      # Its own step so a cold resolve's time stays visible. Same DerivedData as the
+      # build, so the build reuses these checkouts. Most of this step is xcodebuild
+      # start-up before "Command line invocation" (80-190 s, flags or not). The flags
+      # cut only the package part, after that line, from 28-87 s to 25 s. They apply
+      # only for an exact restore. A cold run, or a prefix restore, keeps only
+      # -onlyUsePackageVersionsFromResolvedFile. collapse-resolve skips this step on
+      # an exact restore and passes the same flags to build-for-testing, so xcodebuild
+      # starts once. The cold path keeps this step.
       - name: Resolve Swift packages
         id: resolve
+        if: ${{ !(inputs.collapse-resolve && steps.spm-mode.outputs.mode == 'exact') }}
         shell: bash
+        env:
+          SPM_MODE: ${{ steps.spm-mode.outputs.mode }}
         run: |
           set +e
           start=$(date +%s)
-          xcodebuild -resolvePackageDependencies -project apps/mobile/Monaco.xcodeproj -scheme Monaco -derivedDataPath "$DERIVED_DATA" -onlyUsePackageVersionsFromResolvedFile 2>&1 | tee "$RUNNER_TEMP/resolve.log"
+          flags=(-onlyUsePackageVersionsFromResolvedFile)
+          if [[ "$SPM_MODE" == "exact" ]]; then
+            flags+=(-skipPackageUpdates -disableAutomaticPackageResolution)
+          fi
+          echo "resolve flags: ${flags[*]}"
+          xcodebuild -resolvePackageDependencies -project apps/mobile/Monaco.xcodeproj -scheme Monaco -derivedDataPath "$DERIVED_DATA" "${flags[@]}" 2>&1 | tee "$RUNNER_TEMP/resolve.log"
           status=$?
           set -e
           printf 'Resolve Swift packages\t%s\n' "$(( $(date +%s) - start ))" >> "$RUNNER_TEMP/step-times.tsv"
@@ -136,18 +186,29 @@ jobs:
       # ONLY_ACTIVE_ARCH restricts the simulator build to the runner's own arch instead of a
       # fat binary. COMPILER_INDEX_STORE_ENABLE=NO skips indexing PR CI never reads. The two
       # -skip flags drop plugin/macro re-validation once packages are already resolved.
+      # -skipPackageUpdates and -disableAutomaticPackageResolution stay on the
+      # resolve step unless collapse-resolve skipped it. On build-for-testing they
+      # once accompanied a much slower step that still reported a full compilation-cache hit.
       # Warning flags stay off this command line: they would also reach the local MonacoCore
       # package, which Xcode compiles with -suppress-warnings, and the two conflict.
       # -showBuildTimingSummary prints the per-phase times the job summary keeps.
       - name: Build app and tests
         id: build
         shell: bash
+        env:
+          SPM_MODE: ${{ steps.spm-mode.outputs.mode }}
+          COLLAPSE_RESOLVE: ${{ inputs.collapse-resolve }}
         run: |
           set +e
           start=$(date +%s)
+          pkg_flags=(-onlyUsePackageVersionsFromResolvedFile)
+          if [[ "$COLLAPSE_RESOLVE" == "true" && "$SPM_MODE" == "exact" ]]; then
+            pkg_flags+=(-skipPackageUpdates -disableAutomaticPackageResolution)
+          fi
+          echo "build package flags: ${pkg_flags[*]}"
           xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
             -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
-            -onlyUsePackageVersionsFromResolvedFile -skipMacroValidation -skipPackagePluginValidation \
+            "${pkg_flags[@]}" -skipMacroValidation -skipPackagePluginValidation \
             -showBuildTimingSummary \
             CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO \
             COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_CAS_PATH="$DERIVED_DATA/CompilationCache.noindex" \
@@ -163,9 +224,9 @@ jobs:
         shell: bash
         env:
           CAS_KEY: ${{ steps.cas.outputs.cache-matched-key }}
-          CAS_FETCH: ${{ steps.cas-artifact.outputs.source }}
+          CAS_FETCH: ${{ steps.warm-artifacts.outputs.cas_source }}
           SPM_KEY: ${{ steps.spm.outputs.cache-matched-key }}
-          SPM_FETCH: ${{ steps.spm-artifact.outputs.source }}
+          SPM_FETCH: ${{ steps.warm-artifacts.outputs.spm_source }}
         run: |
           cache_source() {
             local key="$1" fetched="$2"
