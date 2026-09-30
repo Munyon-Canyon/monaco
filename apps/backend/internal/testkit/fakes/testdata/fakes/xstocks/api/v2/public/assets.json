@@ -1,0 +1,77 @@
+{
+  "status": 200,
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "nodes": [
+      {
+        "id": "9e43a778-fdc8-44f1-87de-f2e7420bb7f7",
+        "name": "Apple xStock",
+        "symbol": "AAPLx",
+        "isin": "CH1436219187",
+        "underlyingSymbol": "AAPL",
+        "logo": "https://xstocks-metadata.backed.fi/logos/tokens/AAPLx.png",
+        "isTradingHalted": false,
+        "deployments": [
+          {
+            "address": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
+            "network": "Solana",
+            "supportsAtomicSwaps": true
+          },
+          {
+            "address": "0x9d275685dc284c8eb1c79f6aba7a63dc75ec890a",
+            "network": "Ethereum",
+            "supportsAtomicSwaps": true
+          }
+        ]
+      },
+      {
+        "id": "96f43a87-976b-4076-ac84-394966c32a90",
+        "name": "Tesla xStock",
+        "symbol": "TSLAx",
+        "isin": "CH1436219252",
+        "underlyingSymbol": "TSLA",
+        "logo": "https://xstocks-metadata.backed.fi/logos/tokens/TSLAx.png",
+        "isTradingHalted": false,
+        "deployments": [
+          {
+            "address": "0x8ad3c73f833d3f9a523ab01476625f269aeb7cf0",
+            "network": "Ethereum",
+            "supportsAtomicSwaps": true
+          },
+          {
+            "address": "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
+            "network": "Solana",
+            "supportsAtomicSwaps": true
+          }
+        ]
+      },
+      {
+        "id": "1654d280-5f3d-4f5b-a57d-388f47a92e98",
+        "name": "JPMorgan Ultra-Short Income xStock",
+        "symbol": "JPSTx",
+        "isin": "CH1564487200",
+        "underlyingSymbol": "JPST",
+        "logo": "https://xstocks-metadata.backed.fi/logos/tokens/JPSTx.png",
+        "isTradingHalted": true,
+        "deployments": [
+          {
+            "address": "XsCAXu7xTaZMG9b9KJhNWYapuvNjxPuE4SysZq8uvMq",
+            "network": "Solana",
+            "supportsAtomicSwaps": true
+          },
+          {
+            "address": "0xe49922893496b17ac12fdd7c74720a92010d889d",
+            "network": "Ethereum",
+            "supportsAtomicSwaps": true
+          }
+        ]
+      }
+    ],
+    "page": {
+      "currentPage": 0,
+      "hasNextPage": false
+    }
+  }
+}

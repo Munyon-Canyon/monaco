@@ -1,0 +1,8 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {
+    "nodes": [{"symbol": "BADx", "name": "Bad xStock", "deployments": [{"address": "not-base58!", "network": "Solana"}]}],
+    "page": {"currentPage": 0, "hasNextPage": false}
+  }
+}
