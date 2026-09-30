@@ -44,7 +44,7 @@ Generated stubs are placeholders. The command and consumer templates append or t
 
 1. Run `just gen command <module> <Name>`.
 2. Give the command struct the fields the caller supplies. The template adds an `IdempotencyKey` field. Drop it when the only caller is HTTP: the `Idempotency-Key` header is deduped by the middleware in `apps/backend/internal/platform/httpx/idempotency.go`, which is why `RecordPing` has no such field. Parse raw input into domain types at the adapter, as `domain.ParseNote` does. The app layer takes typed values.
-3. Do the write inside `h.uow.Do`. Use the module's sqlc queries through `sqlc.New(tx.Queries())`. Append the event with `tx.Events.Append` in the same function, so the row and the event commit together.
+3. Do the write inside `h.uow.Do`. Use the module's sqlc queries through `sqlc.New(tx.Queries())`. Append the event with `tx.Events.Append` in the same function, so the row and the event commit together. The event's actor comes from the context, and a poller tick runs as `system:poller.<name>`, so a poller never sets its own actor.
 4. Add the event if the command needs a new one. Follow "Add an event" in the `nats-consumer` skill; it touches five files besides the event type.
 5. Add the SQL. Put the statement in `queries/<module>/*.sql` and regenerate with `../../.bin/sqlc generate` (installed by `scripts/install-sqlc.sh`). A state change is a guarded update: `UPDATE ... WHERE id = $1 AND <expected state>` with `:execrows`, and zero rows means the state moved.
 6. A schema change is a new atlas migration in `apps/backend/migrations/`. Never edit an applied one.
