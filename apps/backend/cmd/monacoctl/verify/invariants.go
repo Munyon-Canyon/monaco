@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -69,12 +70,27 @@ func (d *driver) settle(ctx context.Context, res *Result) error {
 	if msg := d.outcomeMismatch(res); msg != "" {
 		return &InvariantError{Flow: res.Unit.Name(), Msg: msg}
 	}
-	found, msg := logsMissing(d.env.Logs.Lines()[res.logFrom:], d.requiredLogs(res.Unit))
+	found, msg := d.awaitLogs(ctx, res.logFrom, d.requiredLogs(res.Unit))
 	res.logLines = found
 	if msg != "" {
 		return &InvariantError{Flow: res.Unit.Name(), Msg: msg}
 	}
 	return nil
+}
+
+func (d *driver) awaitLogs(ctx context.Context, from int, needs []logNeed) ([]string, string) {
+	tick := time.NewTicker(logPollEvery)
+	defer tick.Stop()
+	for {
+		found, msg := logsMissing(d.env.Logs.Lines()[from:], needs)
+		if msg == "" || ctx.Err() != nil {
+			return found, msg
+		}
+		select {
+		case <-ctx.Done():
+		case <-tick.C:
+		}
+	}
 }
 
 func (d *driver) outcomeMismatch(res *Result) string {

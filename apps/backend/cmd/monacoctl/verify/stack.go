@@ -23,10 +23,11 @@ import (
 )
 
 const (
-	pollEvery  = 50 * time.Millisecond
-	procFakes  = "fakes"
-	procAPI    = "api"
-	procWorker = "worker"
+	pollEvery    = 50 * time.Millisecond
+	logPollEvery = 10 * time.Millisecond
+	procFakes    = "fakes"
+	procAPI      = "api"
+	procWorker   = "worker"
 )
 
 type Binaries struct {
