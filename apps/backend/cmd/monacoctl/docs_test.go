@@ -22,7 +22,38 @@ func TestDocsEventsPrintsTheRegistryCatalog(t *testing.T) {
 		"## `system.pinged`\n\n" +
 		"Subject `events.system.pinged`, version 1.\n\n" +
 		"| Field | Go type |\n| --- | --- |\n" +
-		"| `v` | `int` |\n| `ping_id` | `uuid.UUID` |\n| `user_id` | `uuid.UUID` |\n| `note` | `string` |\n"
+		"| `v` | `int` |\n| `ping_id` | `uuid.UUID` |\n| `user_id` | `uuid.UUID` |\n| `note` | `string` |\n\n" +
+		"## `trade.blocked`\n\nSubject `events.trade.blocked`, version 1.\n\n" +
+		"| Field | Go type |\n| --- | --- |\n| `v` | `int` |\n" +
+		"| `cabal_id` | `uuid.UUID` |\n| `source` | `events.TradeSource` |\n" +
+		"| `source_batch_size` | `int` |\n| `action` | `string` |\n" +
+		"| `symbol` | `string` |\n| `code` | `errs.Code` |\n" +
+		"| `have` | `uint64` |\n| `need` | `uint64` |\n\n" +
+		"## `trade.confirmed`\n\nSubject `events.trade.confirmed`, version 1.\n\n" +
+		"| Field | Go type |\n| --- | --- |\n| `v` | `int` |\n" +
+		"| `swap_id` | `uuid.UUID` |\n| `cabal_id` | `uuid.UUID` |\n" +
+		"| `source` | `events.TradeSource` |\n| `source_batch_size` | `int` |\n" +
+		"| `action` | `string` |\n| `symbol` | `string` |\n" +
+		"| `in_mint` | `chain.SolanaAddress` |\n| `in_amount` | `uint64` |\n" +
+		"| `out_mint` | `chain.SolanaAddress` |\n| `out_amount` | `uint64` |\n" +
+		"| `usdc_micros` | `money.Micros` |\n| `fee_micros` | `money.Micros` |\n" +
+		"| `tx_signature` | `chain.Signature` |\n" +
+		"| `confirmed_at` | `time.Time` |\n\n" +
+		"## `trade.failed`\n\nSubject `events.trade.failed`, version 1.\n\n" +
+		"| Field | Go type |\n| --- | --- |\n| `v` | `int` |\n" +
+		"| `swap_id` | `uuid.UUID` |\n| `cabal_id` | `uuid.UUID` |\n" +
+		"| `source` | `events.TradeSource` |\n| `source_batch_size` | `int` |\n" +
+		"| `action` | `string` |\n| `symbol` | `string` |\n" +
+		"| `in_mint` | `chain.SolanaAddress` |\n| `in_amount` | `uint64` |\n" +
+		"| `failure_code` | `string` |\n| `jupiter_code` | `string` |\n\n" +
+		"## `trade.submitted`\n\nSubject `events.trade.submitted`, version 1.\n\n" +
+		"| Field | Go type |\n| --- | --- |\n| `v` | `int` |\n" +
+		"| `swap_id` | `uuid.UUID` |\n| `cabal_id` | `uuid.UUID` |\n" +
+		"| `source` | `events.TradeSource` |\n| `source_batch_size` | `int` |\n" +
+		"| `action` | `string` |\n| `symbol` | `string` |\n" +
+		"| `in_mint` | `chain.SolanaAddress` |\n" +
+		"| `out_mint` | `chain.SolanaAddress` |\n| `in_amount` | `uint64` |\n" +
+		"| `tx_signature` | `chain.Signature` |\n"
 	if stdout.String() != want {
 		t.Fatalf("stdout =\n%s\nwant\n%s", stdout.String(), want)
 	}

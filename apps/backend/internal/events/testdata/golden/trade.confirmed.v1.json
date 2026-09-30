@@ -1,0 +1,20 @@
+{
+  "v": 1,
+  "swap_id": "01890a5d-ac96-774b-bcce-b302099a8057",
+  "cabal_id": "01890a5d-ac96-774b-bcce-b302099a8058",
+  "source": {
+    "kind": "cashout",
+    "id": "01890a5d-ac96-774b-bcce-b302099a8058"
+  },
+  "source_batch_size": 2,
+  "action": "sell",
+  "symbol": "AAPLx",
+  "in_mint": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
+  "in_amount": "105000000",
+  "out_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "out_amount": "24950000",
+  "usdc_micros": "24950000",
+  "fee_micros": "5000",
+  "tx_signature": "5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW",
+  "confirmed_at": "2026-03-01T12:00:30Z"
+}

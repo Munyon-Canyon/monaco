@@ -65,6 +65,14 @@ const (
 	CodeAssetNotFound Code = "asset_not_found"
 )
 
+const (
+	CodeSwapNotFound     Code = "swap_not_found"
+	CodeSwapNotRetryable Code = "swap_not_retryable"
+	CodeSlippageExceeded Code = "slippage_exceeded"
+	CodeNoRoute          Code = "no_route"
+	CodeSwapFailed       Code = "swap_failed"
+)
+
 type Row struct {
 	Name      string
 	Kind      Kind
@@ -73,8 +81,8 @@ type Row struct {
 	Message   string
 }
 
-func rowGroups() [4]func() map[Code]Row {
-	return [...]func() map[Code]Row{platformRows, identityRows, treasuryRows, marketRows}
+func rowGroups() [5]func() map[Code]Row {
+	return [...]func() map[Code]Row{platformRows, identityRows, treasuryRows, marketRows, tradingRows}
 }
 
 func table() map[Code]Row {
@@ -223,6 +231,25 @@ func marketRows() map[Code]Row {
 		CodeAssetNotFound: {
 			Name: "AssetNotFound", Kind: KindNotFound, Message: "That asset is not in the catalog.",
 		},
+	}
+}
+
+func tradingRows() map[Code]Row {
+	return map[Code]Row{
+		CodeSwapNotFound: {Name: "SwapNotFound", Kind: KindNotFound, Message: "That trade was not found."},
+		CodeSwapNotRetryable: {
+			Name: "SwapNotRetryable", Kind: KindBlocked,
+			Message: "This trade can't be retried. Only the latest failed trade can be.",
+		},
+		CodeSlippageExceeded: {
+			Name: "SlippageExceeded", Kind: KindBlocked,
+			Message: "The price moved past the cabal's slippage limit.",
+		},
+		CodeNoRoute: {
+			Name: "NoRoute", Kind: KindBlocked,
+			Message: "No route for this trade right now. Try a smaller amount.",
+		},
+		CodeSwapFailed: {Name: "SwapFailed", Kind: KindBlocked, Message: "The trade did not go through."},
 	}
 }
 

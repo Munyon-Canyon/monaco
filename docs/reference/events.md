@@ -12,3 +12,77 @@ Subject `events.system.pinged`, version 1.
 | `ping_id` | `uuid.UUID` |
 | `user_id` | `uuid.UUID` |
 | `note` | `string` |
+
+## `trade.blocked`
+
+Subject `events.trade.blocked`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `cabal_id` | `uuid.UUID` |
+| `source` | `events.TradeSource` |
+| `source_batch_size` | `int` |
+| `action` | `string` |
+| `symbol` | `string` |
+| `code` | `errs.Code` |
+| `have` | `uint64` |
+| `need` | `uint64` |
+
+## `trade.confirmed`
+
+Subject `events.trade.confirmed`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `swap_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `source` | `events.TradeSource` |
+| `source_batch_size` | `int` |
+| `action` | `string` |
+| `symbol` | `string` |
+| `in_mint` | `chain.SolanaAddress` |
+| `in_amount` | `uint64` |
+| `out_mint` | `chain.SolanaAddress` |
+| `out_amount` | `uint64` |
+| `usdc_micros` | `money.Micros` |
+| `fee_micros` | `money.Micros` |
+| `tx_signature` | `chain.Signature` |
+| `confirmed_at` | `time.Time` |
+
+## `trade.failed`
+
+Subject `events.trade.failed`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `swap_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `source` | `events.TradeSource` |
+| `source_batch_size` | `int` |
+| `action` | `string` |
+| `symbol` | `string` |
+| `in_mint` | `chain.SolanaAddress` |
+| `in_amount` | `uint64` |
+| `failure_code` | `string` |
+| `jupiter_code` | `string` |
+
+## `trade.submitted`
+
+Subject `events.trade.submitted`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `swap_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `source` | `events.TradeSource` |
+| `source_batch_size` | `int` |
+| `action` | `string` |
+| `symbol` | `string` |
+| `in_mint` | `chain.SolanaAddress` |
+| `out_mint` | `chain.SolanaAddress` |
+| `in_amount` | `uint64` |
+| `tx_signature` | `chain.Signature` |

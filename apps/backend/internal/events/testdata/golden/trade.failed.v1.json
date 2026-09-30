@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "swap_id": "01890a5d-ac96-774b-bcce-b302099a8057",
+  "cabal_id": "01890a5d-ac96-774b-bcce-b302099a8058",
+  "source": {
+    "kind": "proposal",
+    "id": "01890a5d-ac96-774b-bcce-b302099a8058"
+  },
+  "source_batch_size": 1,
+  "action": "buy",
+  "symbol": "AAPLx",
+  "in_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "in_amount": "25000000",
+  "failure_code": "jupiter_failed",
+  "jupiter_code": "-1004"
+}

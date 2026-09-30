@@ -263,6 +263,7 @@ components:
         - jupiter_unavailable
         - ledger_unbalanced
         - login_method_not_allowed
+        - no_route
         - not_found
         - panic
         - phone_not_linked
@@ -273,6 +274,10 @@ components:
         - relayer_underfunded
         - rpc_unavailable
         - session_required
+        - slippage_exceeded
+        - swap_failed
+        - swap_not_found
+        - swap_not_retryable
         - unauthorized
         - upstream_timeout
         - upstream_unavailable

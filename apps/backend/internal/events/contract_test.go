@@ -11,14 +11,24 @@ import (
 	"regexp"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
-const goldenDir = "testdata/golden"
+const (
+	goldenDir   = "testdata/golden"
+	usdcMint    = chain.SolanaAddress("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+	aaplxMint   = chain.SolanaAddress("XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp")
+	txSignature = chain.Signature(
+		"5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW",
+	)
+)
 
 func golden() fs.FS { return os.DirFS(goldenDir) }
 
@@ -34,6 +44,27 @@ func fixtures(t *testing.T) map[events.Type]events.Event {
 	}
 	return map[events.Type]events.Event{
 		events.TypeSystemPinged: events.SystemPinged{V: 1, PingID: id, UserID: user, Note: "reference flow"},
+		events.TypeTradeBlocked: events.TradeBlocked{
+			V: 1, CabalID: user, Source: events.TradeSource{Kind: "proposal", ID: id}, SourceBatchSize: 1,
+			Action: "buy", Symbol: "AAPLx", Code: errs.CodeSlippageExceeded, Have: 104_000_000, Need: 104_475_000,
+		},
+		events.TypeTradeSubmitted: events.TradeSubmitted{
+			V: 1, SwapID: id, CabalID: user, Source: events.TradeSource{Kind: "proposal", ID: user}, SourceBatchSize: 1,
+			Action: "buy", Symbol: "AAPLx", InMint: usdcMint, OutMint: aaplxMint, InAmount: 25_000_000,
+			TxSignature: txSignature,
+		},
+		events.TypeTradeConfirmed: events.TradeConfirmed{
+			V: 1, SwapID: id, CabalID: user, Source: events.TradeSource{Kind: "cashout", ID: user}, SourceBatchSize: 2,
+			Action: "sell", Symbol: "AAPLx", InMint: aaplxMint, InAmount: 105_000_000, OutMint: usdcMint,
+			OutAmount: 24_950_000, USDCMicros: money.MicrosFromUint64(24_950_000),
+			FeeMicros: money.MicrosFromUint64(5_000), TxSignature: txSignature,
+			ConfirmedAt: time.Date(2026, 3, 1, 12, 0, 30, 0, time.UTC),
+		},
+		events.TypeTradeFailed: events.TradeFailed{
+			V: 1, SwapID: id, CabalID: user, Source: events.TradeSource{Kind: "proposal", ID: user}, SourceBatchSize: 1,
+			Action: "buy", Symbol: "AAPLx", InMint: usdcMint, InAmount: 25_000_000, FailureCode: "jupiter_failed",
+			JupiterCode: "-1004",
+		},
 	}
 }
 

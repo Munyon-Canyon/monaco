@@ -15,6 +15,10 @@ import (
 func registrations() []Registration {
 	return []Registration{
 		Register[SystemPinged](TypeSystemPinged, 1),
+		Register[TradeBlocked](TypeTradeBlocked, 1),
+		Register[TradeSubmitted](TypeTradeSubmitted, 1),
+		Register[TradeConfirmed](TypeTradeConfirmed, 1),
+		Register[TradeFailed](TypeTradeFailed, 1),
 	}
 }
 

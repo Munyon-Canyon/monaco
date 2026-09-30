@@ -48,6 +48,7 @@ const (
 	JupiterUnavailable      ErrorCode = "jupiter_unavailable"
 	LedgerUnbalanced        ErrorCode = "ledger_unbalanced"
 	LoginMethodNotAllowed   ErrorCode = "login_method_not_allowed"
+	NoRoute                 ErrorCode = "no_route"
 	NotFound                ErrorCode = "not_found"
 	Panic                   ErrorCode = "panic"
 	PhoneNotLinked          ErrorCode = "phone_not_linked"
@@ -58,6 +59,10 @@ const (
 	RelayerUnderfunded      ErrorCode = "relayer_underfunded"
 	RpcUnavailable          ErrorCode = "rpc_unavailable"
 	SessionRequired         ErrorCode = "session_required"
+	SlippageExceeded        ErrorCode = "slippage_exceeded"
+	SwapFailed              ErrorCode = "swap_failed"
+	SwapNotFound            ErrorCode = "swap_not_found"
+	SwapNotRetryable        ErrorCode = "swap_not_retryable"
 	Unauthorized            ErrorCode = "unauthorized"
 	UpstreamTimeout         ErrorCode = "upstream_timeout"
 	UpstreamUnavailable     ErrorCode = "upstream_unavailable"
@@ -128,6 +133,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case LoginMethodNotAllowed:
 		return true
+	case NoRoute:
+		return true
 	case NotFound:
 		return true
 	case Panic:
@@ -147,6 +154,14 @@ func (e ErrorCode) Valid() bool {
 	case RpcUnavailable:
 		return true
 	case SessionRequired:
+		return true
+	case SlippageExceeded:
+		return true
+	case SwapFailed:
+		return true
+	case SwapNotFound:
+		return true
+	case SwapNotRetryable:
 		return true
 	case Unauthorized:
 		return true
