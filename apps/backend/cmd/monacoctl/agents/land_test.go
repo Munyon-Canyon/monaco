@@ -179,7 +179,7 @@ func TestLandStack_refusesNamingEveryPRItWaitsOnAndChangesNothing(t *testing.T) 
 	}
 }
 
-func TestLandStack_pointsTheStackAtTheFeatureBranchSetsTheBodyAndQueuesOnlyTheTop(t *testing.T) {
+func TestLandStack_setsTheBodyThenPointsTheStackAtTheFeatureBranchThenQueuesOnlyTheTop(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	top := green(t, 3, "b3", "b2")
@@ -194,9 +194,9 @@ func TestLandStack_pointsTheStackAtTheFeatureBranchSetsTheBodyAndQueuesOnlyTheTo
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	want := []string{
+		"gh pr edit 3 --body-file - -R o/r",
 		"gh pr edit 2 --base fb -R o/r",
 		"gh pr edit 3 --base fb -R o/r",
-		"gh pr edit 3 --body-file - -R o/r",
 		"gh pr merge 3 --auto -R o/r",
 	}
 	if got := s.lines(); !slices.Equal(got, want) {

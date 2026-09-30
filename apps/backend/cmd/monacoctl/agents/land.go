@@ -234,15 +234,6 @@ func (env *Env) land(ctx context.Context, rec Record, stack []stackPR, stdout io
 	for i, p := range stack {
 		nums[i] = p.Number
 	}
-	fb := env.Config.FeatureBranch
-	for _, p := range stack[1:] {
-		if p.Base == fb {
-			continue
-		}
-		if err := env.gh(ctx, "", "pr", "edit", strconv.Itoa(p.Number), "--base", fb); err != nil {
-			return landFailed(err)
-		}
-	}
 	top := stack[len(stack)-1]
 	line := landsLine(nums)
 	if err := env.gh(
@@ -255,6 +246,15 @@ func (env *Env) land(ctx context.Context, rec Record, stack []stackPR, stdout io
 		"-",
 	); err != nil {
 		return landFailed(err)
+	}
+	fb := env.Config.FeatureBranch
+	for _, p := range stack[1:] {
+		if p.Base == fb {
+			continue
+		}
+		if err := env.gh(ctx, "", "pr", "edit", strconv.Itoa(p.Number), "--base", fb); err != nil {
+			return landFailed(err)
+		}
 	}
 	if err := env.gh(ctx, "", "pr", "merge", strconv.Itoa(top.Number), "--auto"); err != nil {
 		return landFailed(err)

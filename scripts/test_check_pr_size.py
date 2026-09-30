@@ -73,10 +73,11 @@ class BinaryTest(unittest.TestCase):
 
 
 class FakeRepo:
-    def __init__(self, lines=None, unverified=(), off=()):
+    def __init__(self, lines=None, unverified=(), off=(), lander=None):
         self.heads = {11: "h11", 12: "h12", 13: "h13"}
         self.sizes = lines or {("base", "h11"): 400, ("h11", "h12"): 900, ("h12", "h13"): 300}
         self.unverified, self.off = set(unverified), set(off)
+        self.lander = lander
 
     def head(self, number):
         return self.heads[number]
@@ -89,6 +90,9 @@ class FakeRepo:
 
     def on_top_of(self, parent, sha):
         return (parent, sha) not in self.off
+
+    def landed_by(self, pr):
+        return self.lander if self.lander and pr in self.lander[1] else None
 
 
 class StackTest(unittest.TestCase):
@@ -134,12 +138,32 @@ class RepoTest(unittest.TestCase):
         self.assertFalse(self.verified('[{"context":"verify","state":"failure"},{"context":"verify","state":"success"}]'))
         self.assertFalse(self.verified('[{"context":"ci","state":"success"}]'))
 
+    def landed_by(self, pr, open_prs):
+        done = mock.Mock(stdout=open_prs)
+        with mock.patch.object(check.subprocess, "run", return_value=done) as run:
+            got = check.Repo("o/r").landed_by(pr)
+        self.assertEqual(
+            run.call_args[0][0],
+            ["gh", "pr", "list", "-R", "o/r", "--state", "open", "--json", "number,body", "--limit", "200"],
+        )
+        return got
+
+    def test_the_open_pr_whose_first_line_lists_a_pr_lands_it(self):
+        open_prs = (
+            '[{"number":20,"body":"## TLDR\\nLands stack: #11 #12 #20"},'
+            '{"number":21,"body":""},'
+            '{"number":13,"body":"Lands stack: #11 #12 #13\\n\\n## TLDR"}]'
+        )
+        self.assertEqual(self.landed_by(12, open_prs), (13, [11, 12, 13]))
+        self.assertIsNone(self.landed_by(99, open_prs))
+
 
 class MainTest(unittest.TestCase):
     ENV = {"BASE_SHA": "base", "HEAD_SHA": "h13", "PR_NUMBER": "13", "GITHUB_REPOSITORY": "o/r", "PR_LABELS": "[]"}
+    LANDS = (13, [11, 12, 13])
 
-    def run_main(self, body, repo, labels="[]", size=2000, extra=""):
-        env = dict(self.ENV, PR_BODY=body, PR_LABELS=labels)
+    def run_main(self, body, repo, labels="[]", size=2000, extra="", pr=13):
+        env = dict(self.ENV, PR_BODY=body, PR_LABELS=labels, PR_NUMBER=str(pr), HEAD_SHA=f"h{pr}")
         out = io.StringIO()
         with mock.patch.dict(os.environ, env, clear=True), \
                 mock.patch.object(check, "numstat", return_value=f"{size}\t0\tapps/backend/x.go\n{extra}"), \
@@ -183,6 +207,52 @@ class MainTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("#12 has no verify success on its head", out)
         self.assertIn("large-pr", out)
+
+    def test_a_middle_pr_that_an_open_top_lists_passes_on_its_own_parent(self):
+        code, out = self.run_main("## TLDR", FakeRepo(lander=self.LANDS), pr=12)
+        self.assertEqual(code, 0)
+        self.assertIn("Over the limit against the feature branch", out)
+        self.assertIn("#13 lands it in a verified stack", out)
+        self.assertIn("900 lines against its own parent", out)
+
+    def test_the_first_listed_pr_is_measured_against_the_feature_branch(self):
+        code, out = self.run_main("## TLDR", FakeRepo(lander=self.LANDS), pr=11)
+        self.assertEqual(code, 0)
+        self.assertIn("400 lines against its own parent", out)
+
+    def test_a_middle_pr_at_the_limit_against_its_own_parent_fails(self):
+        repo = FakeRepo(lines={("base", "h11"): 400, ("h11", "h12"): 1000, ("h12", "h13"): 300}, lander=self.LANDS)
+        code, out = self.run_main("## TLDR", repo, pr=12)
+        self.assertEqual(code, 1)
+        self.assertIn("The `Lands stack:` line of #13 does not hold for this PR:", out)
+        self.assertIn("#12 is 1000 lines against its parent", out)
+        self.assertIn("large-pr", out)
+
+    def test_a_listed_pr_below_it_without_a_verify_success_fails(self):
+        code, out = self.run_main("## TLDR", FakeRepo(unverified={"h11"}, lander=self.LANDS), pr=12)
+        self.assertEqual(code, 1)
+        self.assertIn("#11 has no verify success on its head", out)
+
+    def test_only_the_list_up_to_this_pr_counts(self):
+        repo = FakeRepo(unverified={"h13"}, off={("h12", "h13")}, lander=self.LANDS)
+        self.assertEqual(self.run_main("## TLDR", repo, pr=12)[0], 0)
+
+    def test_an_oversized_pr_that_no_open_pr_lists_fails_as_before(self):
+        code, out = self.run_main("## TLDR", FakeRepo(lander=self.LANDS), pr=14)
+        self.assertEqual(code, 1)
+        self.assertIn("Split it into a Graphite stack", out)
+        self.assertNotIn("does not hold", out)
+
+    def test_a_run_without_a_pr_number_looks_up_no_open_pr(self):
+        env = {"BASE_SHA": "base", "HEAD_SHA": "h13", "PR_LABELS": "[]"}
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, env, clear=True), \
+                mock.patch.object(check, "numstat", return_value="2000\t0\tapps/backend/x.go\n"), \
+                mock.patch.object(check, "Repo", side_effect=AssertionError("looked up a PR")), \
+                contextlib.redirect_stdout(out):
+            code = check.main()
+        self.assertEqual(code, 1)
+        self.assertIn("Split it into a Graphite stack", out.getvalue())
 
 
 if __name__ == "__main__":
