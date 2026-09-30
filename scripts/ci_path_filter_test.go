@@ -18,6 +18,8 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 		{"backend-only", []string{"apps/backend/internal/platform/db/db.go"}, []string{"lint", "ready", "backend"}},
 		{"mobile-core-only", []string{"packages/mobile-core/Sources/Foo.swift"}, []string{"mobile-core", "ios"}},
 		{"ios-only", []string{"apps/mobile/App.swift"}, []string{"ios"}},
+		{"openapi-only", []string{"apps/backend/api/openapi.yaml"}, []string{"lint", "ready", "backend", "mobile-core", "ios"}},
+		{"xcode-version-only", []string{".xcode-version"}, []string{"ios"}},
 		{"ci-only", []string{".github/workflows/ci.yml"}, []string{"actionlint"}},
 	}
 	for _, tc := range cases {

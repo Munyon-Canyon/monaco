@@ -15,9 +15,14 @@ func TestPreReport_printsLocalGatesFromTheCIFilters(t *testing.T) {
 		want  string
 	}{
 		{
-			"openapi runs the linux mobile-core tests",
+			"openapi runs mobile-core and the app build",
 			[]string{"apps/backend/api/openapi.yaml"},
-			"just test backend\ncd packages/mobile-core && swift test\n",
+			"just test backend\ncd packages/mobile-core && swift test\njust build mobile\n",
+		},
+		{
+			"xcode-version runs the app build",
+			[]string{".xcode-version"},
+			"just build mobile\n",
 		},
 		{
 			"error codes stay on the backend gate",
