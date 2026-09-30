@@ -1,9 +1,10 @@
 import Foundation
+import HTTPTypes
+import OpenAPIRuntime
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import HTTPTypes
-import OpenAPIRuntime
 
 struct HeadersMiddleware: ClientMiddleware {
     let accessToken: @Sendable () async throws -> String?
@@ -40,7 +41,7 @@ struct RefreshMiddleware: ClientMiddleware {
         let (response, responseBody) = try await next(request, body, baseURL)
         guard response.status == .unauthorized else { return (response, responseBody) }
         guard let sent = request.headerFields[.authorization], sent.hasPrefix(Self.bearerPrefix),
-              let fresh = try await tokens.refreshedToken(replacing: String(sent.dropFirst(Self.bearerPrefix.count)))
+            let fresh = try await tokens.refreshedToken(replacing: String(sent.dropFirst(Self.bearerPrefix.count)))
         else {
             throw APIError.signedOut
         }

@@ -304,8 +304,8 @@ public enum SignedUsdFormatter {
         }
         if trimmed.hasPrefix("$") { trimmed.removeFirst() }
         guard !trimmed.isEmpty,
-              trimmed.allSatisfy({ $0.isASCII && ($0.isNumber || $0 == ".") }),
-              let magnitude = Decimal(string: trimmed, locale: posix)
+            trimmed.allSatisfy({ $0.isASCII && ($0.isNumber || $0 == ".") }),
+            let magnitude = Decimal(string: trimmed, locale: posix)
         else { return nil }
         return negative ? -magnitude : magnitude
     }

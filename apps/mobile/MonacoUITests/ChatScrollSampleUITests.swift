@@ -61,7 +61,8 @@ final class ChatScrollSampleUITests: XCTestCase {
 
         let newest = anyElement(app, newestSampleMessage)
         if !newest.waitForExistence(timeout: 30) {
-            XCTFail("the sample thread should open at its newest message. On screen:\n\(app.debugDescription.suffix(9000))")
+            XCTFail(
+                "the sample thread should open at its newest message. On screen:\n\(app.debugDescription.suffix(9000))")
             return
         }
 
@@ -72,7 +73,9 @@ final class ChatScrollSampleUITests: XCTestCase {
         // The poll runs every 4s and the sample posts a message from Ana on each tick.
         let pill = newMessagesPill(app)
         if !pill.waitForExistence(timeout: 40) {
-            XCTFail("an arrival while scrolled up should be offered as a pill, not forced on the reader. On screen:\n\(app.debugDescription.suffix(9000))")
+            XCTFail(
+                "an arrival while scrolled up should be offered as a pill, not forced on the reader. On screen:\n\(app.debugDescription.suffix(9000))"
+            )
             return
         }
         attachScreenshot(app, name: "02-new-messages-pill")
@@ -123,7 +126,8 @@ final class ChatScrollSampleUITests: XCTestCase {
 
         let newest = anyElement(app, newestSampleMessage)
         if !newest.waitForExistence(timeout: 40) {
-            XCTFail("the sample thread should open at its newest message. On screen:\n\(app.debugDescription.suffix(9000))")
+            XCTFail(
+                "the sample thread should open at its newest message. On screen:\n\(app.debugDescription.suffix(9000))")
             return
         }
 
@@ -146,7 +150,8 @@ final class ChatScrollSampleUITests: XCTestCase {
         )
         let firstArrival = arrivals.element(boundBy: 0)
         if !firstArrival.waitForExistence(timeout: 40) {
-            XCTFail("the busy sample should post a message on each poll. On screen:\n\(app.debugDescription.suffix(9000))")
+            XCTFail(
+                "the busy sample should post a message on each poll. On screen:\n\(app.debugDescription.suffix(9000))")
             return
         }
 

@@ -1,10 +1,11 @@
 import Foundation
-#if canImport(FoundationNetworking)
-import FoundationNetworking
-#endif
 import MonacoAPI
 import MonacoTestSupport
 import XCTest
+
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 final class IdempotentSubmissionTests: XCTestCase {
     private let fund = Data(#"fundGroup {"amount":1}"#.utf8)

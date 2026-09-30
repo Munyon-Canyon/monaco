@@ -1,9 +1,10 @@
 import Foundation
 import HTTPTypes
-@testable import MonacoAPI
 import MonacoTestSupport
 import OpenAPIRuntime
 import XCTest
+
+@testable import MonacoAPI
 
 final class ProblemErrorTests: XCTestCase {
     typealias ErrorCode = Components.Schemas.ErrorCode
@@ -22,65 +23,65 @@ final class ProblemErrorTests: XCTestCase {
         for code in ErrorCode.allCases {
             switch code {
             case .accountBanned,
-                 .accountDeleted,
-                 .accountHasBalance,
-                 .accountHasPositions,
-                 .accountStatusTransition,
-                 .accountSuspended,
-                 .assetNotFound,
-                 .authStateTransition,
-                 .clientClosed,
-                 .conservationBroken,
-                 .dbSchemaBehind,
-                 .dbUnavailable,
-                 .decodeFailed,
-                 .displayNameInvalid,
-                 .forbidden,
-                 .handleInvalid,
-                 .handleRequired,
-                 .handleReserved,
-                 .handleTaken,
-                 .handleTooSoon,
-                 .idempotencyInFlight,
-                 .idempotencyMismatch,
-                 ._internal,
-                 .invalidAddress,
-                 .invalidConfig,
-                 .invalidInput,
-                 .jupiterRejected,
-                 .jupiterUnavailable,
-                 .ledgerUnbalanced,
-                 .liveSwapExists,
-                 .loginMethodNotAllowed,
-                 .noRoute,
-                 .notAVoter,
-                 .notCabalMember,
-                 .notFound,
-                 .notProposer,
-                 .panic,
-                 .phoneNotLinked,
-                 .photoInvalid,
-                 .potExceeded,
-                 .potValueZero,
-                 .privyUnavailable,
-                 .proposalClosed,
-                 .proposalNotFound,
-                 .rateLimited,
-                 .relayerUnderfunded,
-                 .rpcUnavailable,
-                 .sessionRequired,
-                 .slippageExceeded,
-                 .swapFailed,
-                 .swapNotFound,
-                 .swapNotRetryable,
-                 .unauthorized,
-                 .upstreamTimeout,
-                 .upstreamUnavailable,
-                 .userNotFound,
-                 .versionConflict,
-                 .walletMismatch,
-                 .withdrawNotAllowed,
-                 .xNotLinked:
+                .accountDeleted,
+                .accountHasBalance,
+                .accountHasPositions,
+                .accountStatusTransition,
+                .accountSuspended,
+                .assetNotFound,
+                .authStateTransition,
+                .clientClosed,
+                .conservationBroken,
+                .dbSchemaBehind,
+                .dbUnavailable,
+                .decodeFailed,
+                .displayNameInvalid,
+                .forbidden,
+                .handleInvalid,
+                .handleRequired,
+                .handleReserved,
+                .handleTaken,
+                .handleTooSoon,
+                .idempotencyInFlight,
+                .idempotencyMismatch,
+                ._internal,
+                .invalidAddress,
+                .invalidConfig,
+                .invalidInput,
+                .jupiterRejected,
+                .jupiterUnavailable,
+                .ledgerUnbalanced,
+                .liveSwapExists,
+                .loginMethodNotAllowed,
+                .noRoute,
+                .notAVoter,
+                .notCabalMember,
+                .notFound,
+                .notProposer,
+                .panic,
+                .phoneNotLinked,
+                .photoInvalid,
+                .potExceeded,
+                .potValueZero,
+                .privyUnavailable,
+                .proposalClosed,
+                .proposalNotFound,
+                .rateLimited,
+                .relayerUnderfunded,
+                .rpcUnavailable,
+                .sessionRequired,
+                .slippageExceeded,
+                .swapFailed,
+                .swapNotFound,
+                .swapNotRetryable,
+                .unauthorized,
+                .upstreamTimeout,
+                .upstreamUnavailable,
+                .userNotFound,
+                .versionConflict,
+                .walletMismatch,
+                .withdrawNotAllowed,
+                .xNotLinked:
                 break
             }
         }
@@ -102,10 +103,10 @@ final class ProblemErrorTests: XCTestCase {
 
     func testAnUnknownCodeDecodesToTheUnrecognizedFallback() async throws {
         let body = """
-        {"type":"about:blank","title":"Unprocessable Content","status":422,\
-        "code":"code_from_a_newer_server","message":"Voting has closed.",\
-        "trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","retryable":false}
-        """
+            {"type":"about:blank","title":"Unprocessable Content","status":422,\
+            "code":"code_from_a_newer_server","message":"Voting has closed.",\
+            "trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","retryable":false}
+            """
         let client = APIClient(
             serverURL: testServerURL,
             tokens: StubTokenProvider(token: nil),
@@ -148,7 +149,9 @@ final class ProblemErrorTests: XCTestCase {
     }
 
     func testASuccessPassesThrough() async throws {
-        let client = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: nil), transport: StubTransport.ok("ok\n")).client
+        let client = APIClient(
+            serverURL: testServerURL, tokens: StubTokenProvider(token: nil), transport: StubTransport.ok("ok\n")
+        ).client
 
         let body = try await client.getHealthz().ok.body.plainText
 

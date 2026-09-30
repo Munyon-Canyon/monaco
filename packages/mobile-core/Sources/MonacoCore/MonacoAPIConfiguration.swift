@@ -33,13 +33,16 @@ public enum MonacoAPIConfigurationError: Error, Equatable, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .missingEnvironment:
-            return "MONACO_ENVIRONMENT is missing from Info.plist. Regenerate apps/mobile/Config with scripts/ensure-ios-privy-config.sh."
+            return
+                "MONACO_ENVIRONMENT is missing from Info.plist. Regenerate apps/mobile/Config with scripts/ensure-ios-privy-config.sh."
         case .unknownEnvironment(let raw):
             return "MONACO_ENVIRONMENT \"\(raw)\" is not one of local, staging, production."
         case .missingBaseURL:
-            return "MONACO_API_BASE_URL is empty for the selected environment. Set MONACO_STAGING_API_BASE_URL / MONACO_PRODUCTION_API_BASE_URL (see apps/mobile/TestFlight.md)."
+            return
+                "MONACO_API_BASE_URL is empty for the selected environment. Set MONACO_STAGING_API_BASE_URL / MONACO_PRODUCTION_API_BASE_URL (see apps/mobile/TestFlight.md)."
         case .malformedBaseURL(let raw):
-            return "MONACO_API_BASE_URL \"\(raw)\" is not an absolute http(s) URL with a host and no credentials, query, or fragment."
+            return
+                "MONACO_API_BASE_URL \"\(raw)\" is not an absolute http(s) URL with a host and no credentials, query, or fragment."
         case .insecureScheme(let raw):
             return "MONACO_API_BASE_URL \"\(raw)\" must use https in Release builds."
         case .localHost(let raw):
@@ -153,7 +156,8 @@ public struct MonacoAPIConfiguration: Equatable, Sendable {
     }
 
     private static func isLocalHost(_ host: String) -> Bool {
-        let normalized = host
+        let normalized =
+            host
             .trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
             .lowercased()
         if ["localhost", "::1", "0.0.0.0", "::"].contains(normalized) {

@@ -125,7 +125,8 @@ public struct MarketAssetDTO: Codable, Equatable, Sendable, Identifiable {
         case sparkUsdcMicros = "spark"
         case sparkBasis, sparkBasisSymbol, changeBasis, changeBasisSymbol
         case logoUrl
-        case kind, source, issuer, underlyingId, tokenDecimals, sector, alwaysOpen, referenceMarkUsdcMicros, referenceValuationUsd, referenceUpdatedAt, premiumBps, holders, variantCount
+        case kind, source, issuer, underlyingId, tokenDecimals, sector, alwaysOpen, referenceMarkUsdcMicros,
+            referenceValuationUsd, referenceUpdatedAt, premiumBps, holders, variantCount
     }
 
     public init(from decoder: Decoder) throws {
@@ -599,7 +600,8 @@ public struct AssetDetailDTO: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case symbol, name, solanaMint, routable, priceUsdcMicros, change24h, liquidity
         case marketSession, afterHours, market, stats, stockVsToken
-        case kind, source, issuer, underlyingId, tokenDecimals, sector, logoUrl, alwaysOpen, referenceMarkUsdcMicros, referenceValuationUsd, referenceUpdatedAt, premiumBps, holders, variantCount, variants
+        case kind, source, issuer, underlyingId, tokenDecimals, sector, logoUrl, alwaysOpen, referenceMarkUsdcMicros,
+            referenceValuationUsd, referenceUpdatedAt, premiumBps, holders, variantCount, variants
     }
 
     public init(from decoder: Decoder) throws {

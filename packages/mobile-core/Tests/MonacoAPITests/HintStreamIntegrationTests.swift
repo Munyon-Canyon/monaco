@@ -1,16 +1,18 @@
 import Foundation
-@testable import MonacoAPI
 import OpenAPIRuntime
 import OpenAPIURLSession
 import XCTest
+
+@testable import MonacoAPI
 
 final class HintStreamIntegrationTests: XCTestCase {
     func testPingEchoArrivesAsAUserHint() async throws {
         let env = ProcessInfo.processInfo.environment
         guard let base = env["MONACO_API_URL"], let serverURL = URL(string: base),
-              let token = env["MONACO_DEV_TOKEN"], let user = env["MONACO_DEV_USER"]
+            let token = env["MONACO_DEV_TOKEN"], let user = env["MONACO_DEV_USER"]
         else {
-            throw XCTSkip("integration: set MONACO_API_URL, MONACO_DEV_TOKEN and MONACO_DEV_USER against just run backend")
+            throw XCTSkip(
+                "integration: set MONACO_API_URL, MONACO_DEV_TOKEN and MONACO_DEV_USER against just run backend")
         }
         let stream = HintStream(
             serverURL: serverURL,

@@ -1,8 +1,9 @@
 import Foundation
+import MonacoAPI
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import MonacoAPI
 
 public enum LeaveGroupBlockReason: String, Equatable {
     case shareUnitsRemaining = "share_units_remaining"
@@ -41,8 +42,8 @@ public enum MonacoAPIError: Error, Equatable {
     public var requestID: String? {
         switch self {
         case .httpStatus(_, let requestID),
-             .rejected(_, _, let requestID),
-             .rateLimited(_, let requestID):
+            .rejected(_, _, let requestID),
+            .rateLimited(_, let requestID):
             return requestID
         case .invalidResponse, .leaveBlocked:
             return nil
@@ -113,7 +114,9 @@ public final class MonacoAPIClient: @unchecked Sendable {
         return try JSONDecoder().decode(PlatformBalanceDTO.self, from: response.data)
     }
 
-    public func fundGroup(groupId: String, amount: Int64, submission: IdempotentSubmission) async throws -> FundGroupResponseDTO {
+    public func fundGroup(groupId: String, amount: Int64, submission: IdempotentSubmission) async throws
+        -> FundGroupResponseDTO
+    {
         let url = baseURL.appending(path: "v1/groups/\(groupId)/fund")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -177,7 +180,8 @@ public final class MonacoAPIClient: @unchecked Sendable {
         try await applyAuthorizationHeader(to: &request)
         request.httpBody = ProfilePhotoMultipart.body(imageData: imageData, mimeType: mimeType, boundary: boundary)
 
-        let response = try await session.send(request, route: "/v1/me/profile-photo", timeout: MonacoRequestTimeout.upload)
+        let response = try await session.send(
+            request, route: "/v1/me/profile-photo", timeout: MonacoRequestTimeout.upload)
         try Self.requireOK(response)
         return try JSONDecoder().decode(MeDTO.self, from: response.data)
     }
@@ -251,8 +255,9 @@ public final class MonacoAPIClient: @unchecked Sendable {
             return .rateLimited(retryAfterSeconds: retryAfter, requestID: requestID)
         }
         if (400..<500).contains(http.statusCode), http.statusCode != 401,
-           let body = try? JSONDecoder().decode(APIErrorBody.self, from: response.data),
-           !body.error.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let body = try? JSONDecoder().decode(APIErrorBody.self, from: response.data),
+            !body.error.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
             return .rejected(status: http.statusCode, message: body.error, requestID: requestID)
         }
         return .httpStatus(http.statusCode, requestID: requestID)
@@ -302,7 +307,7 @@ public final class MonacoAPIClient: @unchecked Sendable {
             resolvingAgainstBaseURL: false
         )!
         components.queryItems = [
-            URLQueryItem(name: "leaderboardRange", value: leaderboardRange.rawValue),
+            URLQueryItem(name: "leaderboardRange", value: leaderboardRange.rawValue)
         ]
         guard let url = components.url else {
             throw MonacoAPIError.invalidResponse
@@ -321,7 +326,7 @@ public final class MonacoAPIClient: @unchecked Sendable {
             resolvingAgainstBaseURL: false
         )!
         components.queryItems = [
-            URLQueryItem(name: "range", value: range.rawValue),
+            URLQueryItem(name: "range", value: range.rawValue)
         ]
         guard let url = components.url else {
             throw MonacoAPIError.invalidResponse
@@ -410,7 +415,7 @@ public final class MonacoAPIClient: @unchecked Sendable {
             resolvingAgainstBaseURL: false
         )!
         components.queryItems = [
-            URLQueryItem(name: "limit", value: String(limit)),
+            URLQueryItem(name: "limit", value: String(limit))
         ]
         guard let url = components.url else {
             throw MonacoAPIError.invalidResponse
@@ -456,7 +461,7 @@ public final class MonacoAPIClient: @unchecked Sendable {
             resolvingAgainstBaseURL: false
         )!
         components.queryItems = [
-            URLQueryItem(name: "range", value: range.rawValue),
+            URLQueryItem(name: "range", value: range.rawValue)
         ]
         guard let url = components.url else {
             throw MonacoAPIError.invalidResponse
@@ -562,7 +567,9 @@ public final class MonacoAPIClient: @unchecked Sendable {
     }
 
     /// Posts a top-level comment, or a reply when `parentId` is set. Server trims and validates the body.
-    public func postProposalComment(proposalId: String, body: String, parentId: String? = nil) async throws -> ProposalCommentDTO {
+    public func postProposalComment(proposalId: String, body: String, parentId: String? = nil) async throws
+        -> ProposalCommentDTO
+    {
         let url = baseURL.appending(path: "v1/proposals/\(proposalId)/comments")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -574,26 +581,32 @@ public final class MonacoAPIClient: @unchecked Sendable {
         return try JSONDecoder().decode(ProposalCommentDTO.self, from: response.data)
     }
 
-    public func leaveGroup(groupId: String, withdrawStake: Bool = false, submission: IdempotentSubmission) async throws {
+    public func leaveGroup(groupId: String, withdrawStake: Bool = false, submission: IdempotentSubmission) async throws
+    {
         let url = baseURL.appending(path: "v1/groups/\(groupId)/leave")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         try await applyAuthorizationHeader(to: &request)
-        request.httpBody = try MonacoHTTPTransport.idempotentBodyEncoder().encode(LeaveGroupRequestDTO(withdrawStake: withdrawStake))
-        let response = try await send(request, route: "/v1/groups/{id}/leave", accepting: [204, 409], submission: submission)
+        request.httpBody = try MonacoHTTPTransport.idempotentBodyEncoder().encode(
+            LeaveGroupRequestDTO(withdrawStake: withdrawStake))
+        let response = try await send(
+            request, route: "/v1/groups/{id}/leave", accepting: [204, 409], submission: submission)
         if response.statusCode == 409 {
             throw MonacoAPIError.leaveBlocked(parseLeaveConflict(from: response.data))
         }
     }
 
-    public func withdrawToBalance(groupId: String, shareAmountMicros: Int64? = nil, submission: IdempotentSubmission) async throws -> WithdrawToBalanceJobDTO {
+    public func withdrawToBalance(groupId: String, shareAmountMicros: Int64? = nil, submission: IdempotentSubmission)
+        async throws -> WithdrawToBalanceJobDTO
+    {
         let url = baseURL.appending(path: "v1/groups/\(groupId)/withdraw-to-balance")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         try await applyAuthorizationHeader(to: &request)
-        request.httpBody = try MonacoHTTPTransport.idempotentBodyEncoder().encode(WithdrawToBalanceRequestDTO(shareAmountMicros: shareAmountMicros))
+        request.httpBody = try MonacoHTTPTransport.idempotentBodyEncoder().encode(
+            WithdrawToBalanceRequestDTO(shareAmountMicros: shareAmountMicros))
         let response = try await send(request, route: "/v1/groups/{id}/withdraw-to-balance", submission: submission)
         return try JSONDecoder().decode(WithdrawToBalanceJobDTO.self, from: response.data)
     }
@@ -613,7 +626,9 @@ public final class MonacoAPIClient: @unchecked Sendable {
     /// Case-insensitive name search. `query` must be 2...64 characters after
     /// trimming (see `GroupSearchQuery`); pass the previous page's
     /// `nextCursor` to continue.
-    public func searchGroups(query: String, limit: Int = 20, cursor: String? = nil) async throws -> GroupSearchResponseDTO {
+    public func searchGroups(query: String, limit: Int = 20, cursor: String? = nil) async throws
+        -> GroupSearchResponseDTO
+    {
         var items = [
             URLQueryItem(name: "q", value: query),
             URLQueryItem(name: "limit", value: String(limit)),
@@ -621,7 +636,8 @@ public final class MonacoAPIClient: @unchecked Sendable {
         if let cursor {
             items.append(URLQueryItem(name: "cursor", value: cursor))
         }
-        return try await getJSON(path: "v1/groups/search", route: "/v1/groups/search", queryItems: items, as: GroupSearchResponseDTO.self)
+        return try await getJSON(
+            path: "v1/groups/search", route: "/v1/groups/search", queryItems: items, as: GroupSearchResponseDTO.self)
     }
 
     /// Platform-wide cabals ranked by percent return (server caps limit at 50).
@@ -765,7 +781,9 @@ public final class MonacoAPIClient: @unchecked Sendable {
 
     private func parseLeaveConflict(from data: Data) -> LeaveGroupBlockReason {
         struct Body: Decodable { let reason: String? }
-        guard let body = try? JSONDecoder().decode(Body.self, from: data), let reason = body.reason, let parsed = LeaveGroupBlockReason(rawValue: reason) else { return .unknown }
+        guard let body = try? JSONDecoder().decode(Body.self, from: data), let reason = body.reason,
+            let parsed = LeaveGroupBlockReason(rawValue: reason)
+        else { return .unknown }
         return parsed
     }
 

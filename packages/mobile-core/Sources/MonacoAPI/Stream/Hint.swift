@@ -23,8 +23,8 @@ public enum HintKey: Hashable, Sendable, CustomStringConvertible {
 
     public var description: String {
         switch self {
-        case let .user(id): "user:\(id)"
-        case let .cabal(id): "cabal:\(id)"
+        case .user(let id): "user:\(id)"
+        case .cabal(let id): "cabal:\(id)"
         case .global: "global"
         }
     }
@@ -46,16 +46,17 @@ public enum Hint: Hashable, Sendable, CustomStringConvertible {
     /// The log form: `cabal:<id>/<what>`, `user:<id>/<what>`, `global/<what>` or `resync`.
     public var description: String {
         switch self {
-        case let .changed(key, what, _): "\(key)/\(what)"
+        case .changed(let key, let what, _): "\(key)/\(what)"
         case .resync: "resync"
         }
     }
 
     private static func isToken(_ what: String) -> Bool {
-        !what.isEmpty && what.utf8.allSatisfy { byte in
-            (UInt8(ascii: "a")...UInt8(ascii: "z")).contains(byte)
-                || (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(byte)
-                || byte == UInt8(ascii: "_")
-        }
+        !what.isEmpty
+            && what.utf8.allSatisfy { byte in
+                (UInt8(ascii: "a")...UInt8(ascii: "z")).contains(byte)
+                    || (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(byte)
+                    || byte == UInt8(ascii: "_")
+            }
     }
 }

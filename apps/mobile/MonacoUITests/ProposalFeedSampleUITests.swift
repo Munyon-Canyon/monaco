@@ -91,7 +91,8 @@ final class ProposalFeedSampleUITests: XCTestCase {
         // The keyboard stands down once the comment lands and the thread scrolls to it, so the
         // member sees what they posted and Reply can be reached without dismissing anything first.
         if keyboardWasUp {
-            XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5), "the keyboard stayed up over the thread")
+            XCTAssertTrue(
+                app.keyboards.firstMatch.waitForNonExistence(timeout: 5), "the keyboard stayed up over the thread")
         }
         XCTAssertTrue(
             waitUntilHittable(app.staticTexts["Count me in if we cap it at $25."]),
@@ -176,7 +177,8 @@ final class ProposeFlowSampleUITests: XCTestCase {
     private func assertAboveReview(_ field: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
         let review = app.buttons["Review"]
         XCTAssertTrue(field.isHittable, "reason field is covered", file: file, line: line)
-        XCTAssertLessThanOrEqual(field.frame.maxY, review.frame.minY, "reason field runs under Review", file: file, line: line)
+        XCTAssertLessThanOrEqual(
+            field.frame.maxY, review.frame.minY, "reason field runs under Review", file: file, line: line)
     }
 
     func testBuy_threeSteps_sendsToCabal() throws {
@@ -253,7 +255,9 @@ final class ProposeFlowSampleUITests: XCTestCase {
         let title = app.navigationBars["Amount"]
         let before = title.frame.minY
         title.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-            .press(forDuration: 0.1, thenDragTo: app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)))
+            .press(
+                forDuration: 0.1,
+                thenDragTo: app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)))
         sleep(1)
         capture("16-flow-after-drag")
         XCTAssertTrue(title.exists, "the sheet closed")

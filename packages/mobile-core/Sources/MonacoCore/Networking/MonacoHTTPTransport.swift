@@ -1,4 +1,5 @@
 import Foundation
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -133,8 +134,8 @@ public struct MonacoHTTPTransport: Sendable {
         let (data, response) = try await session.data(for: request)
 
         guard (response as? HTTPURLResponse)?.statusCode == 401,
-              let rejectedToken = Self.bearerToken(in: request),
-              let refresh = refresher ?? AccessTokenRefreshRegistry.shared.current
+            let rejectedToken = Self.bearerToken(in: request),
+            let refresh = refresher ?? AccessTokenRefreshRegistry.shared.current
         else {
             return (data, response)
         }

@@ -49,8 +49,9 @@ public enum SolanaAddress {
             return .failure(.notAnAccountAddress)
         }
         if let own = ownDepositAddress?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !own.isEmpty,
-           own == trimmed {
+            !own.isEmpty,
+            own == trimmed
+        {
             return .failure(.ownDepositAddress)
         }
         return .success(trimmed)

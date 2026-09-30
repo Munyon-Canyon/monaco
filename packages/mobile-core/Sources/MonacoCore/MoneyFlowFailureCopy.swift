@@ -260,7 +260,8 @@ public enum MoneyFlowCopy {
             )
         }
         if let status = input.status, (400..<500).contains(status),
-           let message = memberFacingMessage(input.serverMessage) {
+            let message = memberFacingMessage(input.serverMessage)
+        {
             return FlowFailure(message: message, recovery: .none)
         }
         guard input.status != nil else { return unconfirmed }

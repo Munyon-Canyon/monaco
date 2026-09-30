@@ -1,9 +1,10 @@
 import Foundation
+import MonacoAPI
+import XCTest
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import MonacoAPI
-import XCTest
 
 final class ToastCopyTests: XCTestCase {
     func testAProblemShowsTheServerMessage() {
@@ -19,7 +20,8 @@ final class ToastCopyTests: XCTestCase {
     }
 
     func testEveryOtherErrorHasFixedCopy() {
-        XCTAssertEqual(ToastCopy.message(for: .transport(URLError(.notConnectedToInternet))), "You're offline. Try again.")
+        XCTAssertEqual(
+            ToastCopy.message(for: .transport(URLError(.notConnectedToInternet))), "You're offline. Try again.")
         XCTAssertEqual(ToastCopy.message(for: .inFlight), "Still working on it.")
         XCTAssertEqual(ToastCopy.message(for: .decoding("bad json")), "Something went wrong. Try again.")
         XCTAssertEqual(ToastCopy.message(for: .signedOut), "Please sign in again.")

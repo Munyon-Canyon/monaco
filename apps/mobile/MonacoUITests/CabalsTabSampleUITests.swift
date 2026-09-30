@@ -229,7 +229,8 @@ final class CabalsTabSampleUITests: XCTestCase {
         XCTAssertEqual(joinName.label, "Tesla or bust")
 
         let askToJoin = app.buttons["Ask to join"]
-        XCTAssertTrue(askToJoin.waitForExistence(timeout: 5), "button should be titled 'Ask to join' for approval cabals")
+        XCTAssertTrue(
+            askToJoin.waitForExistence(timeout: 5), "button should be titled 'Ask to join' for approval cabals")
 
         // Do NOT tap join-group-submit: there is no backend behind this sample harness.
         attachScreenshot(app, name: "05-join-approval")

@@ -1,7 +1,8 @@
 import Foundation
-@testable import MonacoAPI
 import MonacoTestSupport
 import XCTest
+
+@testable import MonacoAPI
 
 final class HintStreamTests: XCTestCase {
     private let clock = TestClock()
@@ -66,12 +67,14 @@ final class HintStreamTests: XCTestCase {
         second.send(hint(1, "cabal:42", "voted"))
 
         let received = await hints.first(4)
-        XCTAssertEqual(received, [
-            .resync,
-            .changed(.cabal("42"), what: "updated", id: "1"),
-            .resync,
-            .changed(.cabal("42"), what: "voted", id: "1"),
-        ])
+        XCTAssertEqual(
+            received,
+            [
+                .resync,
+                .changed(.cabal("42"), what: "updated", id: "1"),
+                .resync,
+                .changed(.cabal("42"), what: "voted", id: "1"),
+            ])
         await stream.stop()
     }
 
@@ -140,12 +143,15 @@ final class HintStreamTests: XCTestCase {
     }
 
     func testBackoffResetsAfterAMinuteConnected() async throws {
-        let transport = FakeStreamTransport([.unreachable, .stream, .unreachable, .stream], then: .unreachable, clock: clock)
+        let transport = FakeStreamTransport(
+            [.unreachable, .stream, .unreachable, .stream], then: .unreachable, clock: clock)
         let stream = makeStream(transport, random: { 0.5 })
         let hints = Collector(stream.hints(matching: .global(what: nil)))
         let halfCeilings: [Duration] = [.milliseconds(500), .seconds(1), .seconds(2), .seconds(4)]
         let backoffs = { (state: TestClock.State) in state.requested.filter(halfCeilings.contains) }
-        let heartbeats = { (state: TestClock.State) in state.requested.filter { $0 == HintStream.heartbeatTimeout }.count }
+        let heartbeats = { (state: TestClock.State) in
+            state.requested.filter { $0 == HintStream.heartbeatTimeout }.count
+        }
         await stream.start()
 
         _ = await clock.state.until { backoffs($0).count == 1 }
@@ -205,10 +211,12 @@ final class HintStreamTests: XCTestCase {
     func testFirst401RefreshesAndReconnects() async throws {
         let transport = FakeStreamTransport([.unauthorized], clock: clock)
         let refreshed = Watched<[String]>([])
-        let stream = makeStream(transport, token: { "stale" }, refresh: { rejected in
-            refreshed.mutate { $0.append(rejected) }
-            return "fresh"
-        })
+        let stream = makeStream(
+            transport, token: { "stale" },
+            refresh: { rejected in
+                refreshed.mutate { $0.append(rejected) }
+                return "fresh"
+            })
         let hints = Collector(stream.hints(matching: .global(what: nil)))
         await stream.start()
 
@@ -224,10 +232,12 @@ final class HintStreamTests: XCTestCase {
     func testSecond401StopsSignedOut() async throws {
         let transport = FakeStreamTransport([.unauthorized, .unauthorized], clock: clock)
         let refreshed = Watched<[String]>([])
-        let stream = makeStream(transport, token: { "stale" }, refresh: { rejected in
-            refreshed.mutate { $0.append(rejected) }
-            return "fresh"
-        })
+        let stream = makeStream(
+            transport, token: { "stale" },
+            refresh: { rejected in
+                refreshed.mutate { $0.append(rejected) }
+                return "fresh"
+            })
         await stream.start()
 
         let signedOut = await eventually { await stream.state == .signedOut }

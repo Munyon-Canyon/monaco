@@ -79,7 +79,9 @@ final class ChatClosedSampleUITests: XCTestCase {
 
         let retry = app.buttons["group-chat-retry"]
         if !retry.waitForExistence(timeout: 40) {
-            XCTFail("a closed thread must leave the member something to tap. On screen:\n\(app.debugDescription.suffix(9000))")
+            XCTFail(
+                "a closed thread must leave the member something to tap. On screen:\n\(app.debugDescription.suffix(9000))"
+            )
             return
         }
         // The sentence itself is asserted in GroupChatTests; here it only has to be on screen.

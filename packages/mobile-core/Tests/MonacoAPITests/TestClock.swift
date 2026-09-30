@@ -34,7 +34,9 @@ final class TestClock: Clock, @unchecked Sendable {
     func advance(by duration: Duration) {
         let due = state.mutate { state in
             state.now = state.now.advanced(by: duration)
-            let due = state.sleepers.filter { $0.value.deadline <= state.now }.sorted { $0.value.deadline < $1.value.deadline }
+            let due = state.sleepers.filter { $0.value.deadline <= state.now }.sorted {
+                $0.value.deadline < $1.value.deadline
+            }
             for (id, _) in due { state.sleepers[id] = nil }
             return due.map(\.value.continuation)
         }

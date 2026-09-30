@@ -36,7 +36,8 @@ public enum SharedFormatters {
     static func utcTimestamp(_ raw: String) -> Date? {
         let b = Array(raw.utf8)
         guard b.count >= 20, b[4] == 45, b[7] == 45, b[10] == 84, b[13] == 58, b[16] == 58,
-              b[b.count - 1] == 90 else { return nil }
+            b[b.count - 1] == 90
+        else { return nil }
         func number(_ from: Int, _ to: Int) -> Int? {
             var value = 0
             for i in from..<to {
@@ -47,8 +48,9 @@ public enum SharedFormatters {
             return value
         }
         guard let year = number(0, 4), let month = number(5, 7), let day = number(8, 10),
-              let hour = number(11, 13), let minute = number(14, 16), let second = number(17, 19),
-              (1...12).contains(month), hour < 24, minute < 60, second < 60 else { return nil }
+            let hour = number(11, 13), let minute = number(14, 16), let second = number(17, 19),
+            (1...12).contains(month), hour < 24, minute < 60, second < 60
+        else { return nil }
         var fraction = 0.0
         if b.count > 20 {
             guard b[19] == 46, b.count > 21 else { return nil }

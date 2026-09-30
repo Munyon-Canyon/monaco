@@ -1,8 +1,9 @@
 import Foundation
+import OpenAPIRuntime
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import OpenAPIRuntime
 
 /// Every failure an `APIClient` call throws. Show `ToastCopy.message(for:)`; switch on
 /// `ProblemError.code` only where a flow branches.
@@ -51,7 +52,7 @@ public enum APIError: Error, Sendable, Hashable {
     /// leave the outcome unknown.
     var isFinalAnswer: Bool {
         switch self {
-        case let .problem(problem):
+        case .problem(let problem):
             return (400..<500).contains(problem.status) && problem.status != 401 && problem.status != 429
         case .accountDeleted:
             return true

@@ -286,9 +286,11 @@ public struct StockVsTokenCard: Equatable, Sendable {
             return "Without a \(tokenTicker) price there is nothing to compare against \(underlying)."
         }
         if !equity.isLive && token.isLive {
-            return "\(underlying) stopped printing at the bell. \(tokenTicker) keeps trading on Solana, which is why the two can drift apart."
+            return
+                "\(underlying) stopped printing at the bell. \(tokenTicker) keeps trading on Solana, which is why the two can drift apart."
         }
-        return "\(tokenTicker) is a token that tracks \(underlying). Supply and demand on Solana move it a little either side of the stock."
+        return
+            "\(tokenTicker) is a token that tracks \(underlying). Supply and demand on Solana move it a little either side of the stock."
     }
 
     // MARK: - Time

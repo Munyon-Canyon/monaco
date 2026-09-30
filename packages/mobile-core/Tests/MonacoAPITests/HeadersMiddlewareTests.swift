@@ -1,9 +1,10 @@
 import Foundation
 import HTTPTypes
-@testable import MonacoAPI
 import MonacoTestSupport
 import OpenAPIRuntime
 import XCTest
+
+@testable import MonacoAPI
 
 final class HeadersMiddlewareTests: XCTestCase {
     private func send(

@@ -126,8 +126,8 @@ public struct AssetChartSeries: Equatable, Sendable {
 
     private var previousCloseBaselineUsdcMicros: Int64? {
         guard range.showsPreviousCloseBaseline,
-              let previousClose = previousCloseUsdcMicros,
-              previousClose > 0
+            let previousClose = previousCloseUsdcMicros,
+            previousClose > 0
         else { return nil }
         return previousClose
     }

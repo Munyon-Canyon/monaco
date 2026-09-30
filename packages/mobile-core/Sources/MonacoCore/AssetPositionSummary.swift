@@ -122,7 +122,8 @@ public struct AssetPositionSummary: Equatable, Sendable {
     /// words. Three names, then a count: a sentence naming nine people is not a
     /// sentence anyone listens to.
     public static func yesVoterSentence(_ voters: [AssetVoterDTO]) -> String? {
-        let names = voters
+        let names =
+            voters
             .map { $0.displayName.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
         guard !names.isEmpty else { return nil }

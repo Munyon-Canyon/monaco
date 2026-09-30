@@ -19,10 +19,12 @@ public enum ProductBoundaryScanner {
     /// Every regular file under `directory`, sorted by path. Walks with `FileManager` so it runs the
     /// same on macOS and Linux.
     public static func sourceFiles(under directory: URL) -> [URL] {
-        guard let walk = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey]) else {
+        guard let walk = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey])
+        else {
             return []
         }
-        return walk
+        return
+            walk
             .compactMap { $0 as? URL }
             .filter { (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true }
             .sorted { $0.path < $1.path }
