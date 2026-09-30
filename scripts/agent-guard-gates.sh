@@ -28,6 +28,13 @@ fi
 case "$path" in
   *_test.go | apps/backend/coverage.exclude | apps/backend/mutants.allow | apps/backend/.golangci.yml) ;;
   */testdata/perf/baseline.json | */testdata/golden/*) ;;
+  packages/mobile-core/Tests/*.swift | apps/mobile/MonacoTests/*.swift | apps/mobile/MonacoUITests/*.swift) ;;
+  .swift-format | */.swift-format | .swiftlint.yml | */.swiftlint.yml | .swiftlint-baseline.tsv) ;;
+  packages/mobile-core/legacy-baseline.tsv | packages/mobile-core/tsan-suppressions.txt) ;;
+  packages/mobile-core/coverage-floor.txt | packages/mobile-core/Package.swift) ;;
+  */RepoRulesAllowlist.txt | */AccessibilityAuditAllowlist.txt) ;;
+  apps/mobile/Monaco.xcodeproj/project.pbxproj | apps/mobile/Config/*.xcconfig) ;;
+  Justfile | .github/workflows/ci-mobile-core.yml | apps/backend/cmd/monacoctl/agents/check.go | scripts/mobile-core-test.sh) ;;
   *) pass ;;
 esac
 

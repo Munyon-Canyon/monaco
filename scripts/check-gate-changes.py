@@ -4,11 +4,20 @@
 Diffs BASE_SHA...HEAD_SHA and reports each finding as `path:line: <rule>: <what>`:
 
 - gate-file: an added line in a gate file (coverage.exclude, mutants.allow, a perf baseline,
-  a golden file, or the `exclusions:` block of apps/backend/.golangci.yml). A newly created
-  baseline or golden file is not a finding: it adds a gate, it does not loosen one.
-- test-skip: an added line in a *_test.go that calls t.Skip, t.Skipf, t.SkipNow or b.Skip*.
-- test-removed: a Test, Fuzz or Benchmark function present at base and absent everywhere at
-  head, unless its base file still has at least as many of them (a rename).
+  a golden file, the `exclusions:` block of apps/backend/.golangci.yml, .swift-format or
+  .swiftlint.yml); a new row or a raised count in a Swift row file (ROW_FILES); a lowered value
+  in packages/mobile-core/coverage-floor.txt. A newly created gate file is not a finding: it
+  adds a gate, it does not loosen one.
+- test-skip: an added line in a *_test.go that calls t.Skip, t.Skipf, t.SkipNow or b.Skip*, or
+  in a Swift test file that adds XCTSkip, .disabled( or withKnownIssue.
+- test-removed: a Go Test, Fuzz or Benchmark function, or a Swift `func test…(` or `@Test`
+  function, present at base and absent everywhere at head, unless its base file still has at
+  least as many of them (a rename).
+- strictness: an added Xcode setting that loosens SWIFT_VERSION (below 6),
+  SWIFT_TREAT_WARNINGS_AS_ERRORS (NO) or SWIFT_STRICT_CONCURRENCY (not complete); an added `.v5`
+  language mode, unsafeFlags or treatAllWarnings in packages/mobile-core/Package.swift; or a
+  `-warnings-as-errors` removed from a call site in a WARNINGS_FLAG_FILES file, unless that
+  same line now calls scripts/mobile-core-test.sh, which carries the flag.
 
 Reads BASE_SHA, HEAD_SHA and PR_LABELS (JSON list of label names) from the environment.
 Each finding becomes a GitHub `::warning` annotation plus a line in $GITHUB_STEP_SUMMARY, and
@@ -21,6 +30,7 @@ Rules: docs/architecture/ci.md#what-runs-where
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -36,6 +46,37 @@ NEW_FILE_GATES = re.compile(r"(^|/)testdata/(perf/baseline\.json$|golden/)")
 SKIP_CALL = re.compile(r"\b[tb]\.Skip(f|Now)?\(")
 TEST_FUNC = r"^func (Test|Fuzz|Benchmark)[A-Za-z0-9_]+\("
 HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
+
+SWIFT_TEST_DIRS = ("packages/mobile-core/Tests/", "apps/mobile/MonacoTests/", "apps/mobile/MonacoUITests/")
+SWIFT_SKIP = re.compile(r"\bXCTSkip|\.disabled\(|\bwithKnownIssue\b")
+SWIFT_TEST_ATTR = re.compile(r"@Test\b")
+SWIFT_FUNC = re.compile(r"\bfunc (\w+)\s*[(<]")
+SWIFT_CONFIGS = {".swift-format", ".swiftlint.yml"}
+ROW_FILES = {
+    ".swiftlint-baseline.tsv",
+    "packages/mobile-core/Tests/MonacoCoreTests/RepoRulesAllowlist.txt",
+    "packages/mobile-core/legacy-baseline.tsv",
+    "apps/mobile/MonacoUITests/AccessibilityAuditAllowlist.txt",
+    "packages/mobile-core/tsan-suppressions.txt",
+}
+COVERAGE_FLOOR = "packages/mobile-core/coverage-floor.txt"
+XCODE_SETTINGS = re.compile(r"^apps/mobile/(Monaco\.xcodeproj/project\.pbxproj|Config/.+\.xcconfig)$")
+SETTING = r"\b{}(\[[^\]]*\])?\s*=\s*\"?"
+LOOSER_XCODE = (
+    re.compile(SETTING.format("SWIFT_VERSION") + r"[0-5](\.\d+)*\b"),
+    re.compile(SETTING.format("SWIFT_TREAT_WARNINGS_AS_ERRORS") + r"NO\b"),
+    re.compile(SETTING.format("SWIFT_STRICT_CONCURRENCY") + r"(?!complete\b)\w"),
+)
+PACKAGE_SWIFT = "packages/mobile-core/Package.swift"
+LOOSER_MANIFEST = re.compile(r"\.v[45]\b|\bunsafeFlags\b|\btreatAllWarnings\b")
+WARNINGS_FLAG = "-warnings-as-errors"
+TEST_SCRIPT = "scripts/mobile-core-test.sh"
+WARNINGS_FLAG_FILES = (
+    "Justfile",
+    ".github/workflows/ci-mobile-core.yml",
+    "apps/backend/cmd/monacoctl/agents/check.go",
+    TEST_SCRIPT,
+)
 
 
 @dataclass(frozen=True)
@@ -64,14 +105,19 @@ def git(*args: str, ok=(0,)) -> str:
     return result.stdout
 
 
-def added_lines(diff: str) -> list[Added]:
+def diff_lines(diff: str) -> tuple[list[Added], list[Added]]:
     added: list[Added] = []
-    path, new_file, line = "", False, 0
+    removed: list[Added] = []
+    path, old_path, new_file, line = "", "", False, 0
     for raw in diff.splitlines():
         if raw.startswith("diff --git "):
-            path, new_file = "", False
+            path, old_path, new_file = "", "", False
         elif raw.startswith("new file mode"):
             new_file = True
+        elif raw.startswith("rename from "):
+            removed.append(Added(raw[len("rename from "):], 1, "", False))
+        elif raw.startswith("--- "):
+            old_path = raw[6:] if raw.startswith("--- a/") else ""
         elif raw.startswith("+++ "):
             path = raw[6:] if raw.startswith("+++ b/") else ""
         elif m := HUNK.match(raw):
@@ -79,7 +125,9 @@ def added_lines(diff: str) -> list[Added]:
         elif raw.startswith("+") and path:
             added.append(Added(path, line, raw[1:], new_file))
             line += 1
-    return added
+        elif raw.startswith("-") and (path or old_path):
+            removed.append(Added(path or old_path, max(line, 1), raw[1:], False))
+    return added, removed
 
 
 def exclusion_lines(yaml: str) -> set[int]:
@@ -97,16 +145,60 @@ def exclusion_lines(yaml: str) -> set[int]:
     return lines
 
 
-def gate_findings(added: list[Added], golangci_exclusions: set[int]) -> list[Finding]:
+def is_swift_test(path: str) -> bool:
+    return path.endswith(".swift") and path.startswith(SWIFT_TEST_DIRS)
+
+
+def row_key(text: str) -> tuple[str, int] | None:
+    text = text.rstrip("\r\n")
+    if not text.strip() or text.lstrip().startswith("#"):
+        return None
+    key, _, last = text.rpartition("\t")
+    return (key, int(last)) if key and last.strip().isdigit() else (text, 1)
+
+
+def row_counts(text: str) -> Counter:
+    counts: Counter = Counter()
+    for row in filter(None, map(row_key, text.splitlines())):
+        counts[row[0]] += row[1]
+    return counts
+
+
+def floors(text: str) -> dict[str, float]:
+    values = {}
+    for row in text.splitlines():
+        parts = row.split()
+        if len(parts) == 2:
+            with contextlib.suppress(ValueError):
+                values[parts[0]] = float(parts[1])
+    return values
+
+
+def gate_findings(added: list[Added], golangci_exclusions: set[int], base, head) -> list[Finding]:
     findings = []
+    row_files = {a.path for a in added if a.path in ROW_FILES and not a.new_file}
+    base_rows = {path: row_counts(base(path)) for path in row_files}
+    head_rows = {path: row_counts(head(path)) for path in row_files}
+    base_floor = floors(base(COVERAGE_FLOOR)) if any(a.path == COVERAGE_FLOOR for a in added) else {}
     for a in added:
         gated = (
             a.path in GATE_FILES
             or (NEW_FILE_GATES.search(a.path) and not a.new_file)
             or (a.path == GOLANGCI and a.line in golangci_exclusions)
+            or (os.path.basename(a.path) in SWIFT_CONFIGS and not a.new_file)
         )
         if gated:
             findings.append(Finding(a.path, a.line, "gate-file", f"added `{a.text.strip()}`"))
+        elif a.path in row_files and (row := row_key(a.text)):
+            key, was, now = row[0], base_rows[a.path][row[0]], head_rows[a.path][row[0]]
+            if now > was:
+                what = f"raised `{' '.join(key.split())}` {was} -> {now}" if was else f"new row `{' '.join(a.text.split())}`"
+                findings.append(Finding(a.path, a.line, "gate-file", what))
+        elif a.path == COVERAGE_FLOOR:
+            for platform, value in floors(a.text).items():
+                if value < base_floor.get(platform, value):
+                    what = f"lowered `{platform}` {base_floor[platform]:.2f} -> {value:.2f}"
+                    findings.append(Finding(a.path, a.line, "gate-file", what))
     return findings
 
 
@@ -114,19 +206,61 @@ def skip_findings(added: list[Added]) -> list[Finding]:
     return [
         Finding(a.path, a.line, "test-skip", f"added `{a.text.strip()}`")
         for a in added
-        if a.path.endswith("_test.go") and SKIP_CALL.search(a.text)
+        if (a.path.endswith("_test.go") and SKIP_CALL.search(a.text))
+        or (is_swift_test(a.path) and SWIFT_SKIP.search(a.text))
     ]
 
 
-def test_funcs(grep: str, rev: bool) -> list[tuple[str, int, str]]:
-    funcs = []
-    for row in grep.splitlines():
-        parts = row.split(":", 3 if rev else 2)[1 if rev else 0:]
-        if len(parts) != 3:
+def strictness_findings(added: list[Added], removed: list[Added], _base, _head) -> list[Finding]:
+    findings = [
+        Finding(a.path, a.line, "strictness", f"added `{a.text.strip()}`")
+        for a in added
+        if (XCODE_SETTINGS.match(a.path) and any(p.search(a.text) for p in LOOSER_XCODE))
+        or (a.path == PACKAGE_SWIFT and LOOSER_MANIFEST.search(a.text))
+    ]
+    for r in removed:
+        if r.path not in WARNINGS_FLAG_FILES or WARNINGS_FLAG not in r.text:
             continue
-        path, line, text = parts
-        funcs.append((path, int(line), re.match(r"func (\w+)", text).group(1)))
-    return funcs
+        replacement = [a.text for a in added if a.path == r.path and a.line == r.line]
+        if any(WARNINGS_FLAG in text for text in replacement):
+            continue
+        if r.path != TEST_SCRIPT and any(TEST_SCRIPT in text for text in replacement):
+            continue
+        findings.append(Finding(r.path, r.line, "strictness", f"removed `{WARNINGS_FLAG}`"))
+    return findings
+
+
+def grep(patterns: list[str], rev: str | None, *pathspecs: str) -> list[tuple[str, int, str]]:
+    args = [arg for p in patterns for arg in ("-e", p)]
+    args += [rev] if rev else ["--untracked"]
+    rows = []
+    for row in git("grep", "-n", "-E", *args, "--", *pathspecs, ok=(0, 1)).splitlines():
+        parts = row.split(":", 3 if rev else 2)[1 if rev else 0:]
+        if len(parts) == 3:
+            rows.append((parts[0], int(parts[1]), parts[2]))
+    return rows
+
+
+def go_tests(rows: list[tuple[str, int, str]]) -> list[tuple[str, int, str]]:
+    return [(path, line, re.match(r"func (\w+)", text).group(1))
+            for path, line, text in rows if path.endswith("_test.go") and re.match(TEST_FUNC, text)]
+
+
+def swift_tests(rows: list[tuple[str, int, str]]) -> list[tuple[str, int, str]]:
+    tests = []
+    marked = None
+    for path, line, text in rows:
+        if not is_swift_test(path):
+            continue
+        if marked != path:
+            marked = None
+        if SWIFT_TEST_ATTR.search(text):
+            marked = path
+        if m := SWIFT_FUNC.search(text):
+            if marked or m.group(1).startswith("test"):
+                tests.append((path, line, m.group(1)))
+            marked = None
+    return tests
 
 
 def removed_findings(base: list[tuple[str, int, str]], head: list[tuple[str, int, str]]) -> list[Finding]:
@@ -140,43 +274,60 @@ def removed_findings(base: list[tuple[str, int, str]], head: list[tuple[str, int
     ]
 
 
+def touches_tests(changed: list[Added]) -> bool:
+    return any(a.path.endswith("_test.go") or is_swift_test(a.path) for a in changed)
+
+
 def grep_tests(rev: str | None) -> list[tuple[str, int, str]]:
-    args = ["-e", TEST_FUNC, rev] if rev else ["--untracked", "-e", TEST_FUNC]
-    return test_funcs(git("grep", "-n", "-E", *args, "--", "*_test.go", ok=(0, 1)), bool(rev))
+    rows = grep([TEST_FUNC, "@Test|func [A-Za-z_]"], rev, "*_test.go", *(f"{d}*.swift" for d in SWIFT_TEST_DIRS))
+    return go_tests(rows) + swift_tests(rows)
 
 
-def diff(*args: str) -> list[Added]:
-    return added_lines(git("diff", "-U0", "-M", "--no-color", "--no-ext-diff", *args))
+def diff(*args: str) -> tuple[list[Added], list[Added]]:
+    return diff_lines(git("diff", "-U0", "-M", "--no-color", "--no-ext-diff", *args))
 
 
-def check(added: list[Added], golangci: str, base_tests, head_tests) -> list[Finding]:
-    exclusions = exclusion_lines(golangci) if any(a.path == GOLANGCI for a in added) else set()
-    return gate_findings(added, exclusions) + skip_findings(added) + removed_findings(base_tests, head_tests)
+def show(rev: str):
+    return lambda path: git("show", f"{rev}:{path}", ok=(0, 128))
+
+
+def read(path: str) -> str:
+    try:
+        with open(path, errors="replace") as f:
+            return f.read()
+    except FileNotFoundError:
+        return ""
+
+
+def check(added: list[Added], removed: list[Added], base, head, base_tests, head_tests) -> list[Finding]:
+    exclusions = exclusion_lines(head(GOLANGCI)) if any(a.path == GOLANGCI for a in added) else set()
+    return (gate_findings(added, exclusions, base, head) + skip_findings(added)
+            + removed_findings(base_tests, head_tests) + strictness_findings(added, removed, base, head))
 
 
 def findings(base: str, head: str) -> list[Finding]:
-    added = diff(f"{base}...{head}")
-    golangci = git("show", f"{head}:{GOLANGCI}") if any(a.path == GOLANGCI for a in added) else ""
+    added, removed = diff(f"{base}...{head}")
     merge_base = git("merge-base", base, head).strip()
-    return check(added, golangci, grep_tests(merge_base), grep_tests(head))
+    tests = touches_tests(added + removed)
+    return check(added, removed, show(merge_base), show(head),
+                 grep_tests(merge_base) if tests else [], grep_tests(head) if tests else [])
 
 
 def worktree_findings(paths: list[str]) -> list[Finding]:
-    added = diff("HEAD", "--", *paths)
+    added, removed = diff("HEAD", "--", *paths)
     for path in git("ls-files", "--others", "--exclude-standard", "--", *paths).splitlines():
-        with open(path, errors="replace") as f:
-            added += [Added(path, n, text, True) for n, text in enumerate(f.read().splitlines(), 1)]
-    golangci = ""
-    if any(a.path == GOLANGCI for a in added):
-        with open(GOLANGCI) as f:
-            golangci = f.read()
-    found = check(added, golangci, grep_tests("HEAD"), grep_tests(None))
+        added += [Added(path, n, text, True) for n, text in enumerate(read(path).splitlines(), 1)]
+    tests = touches_tests(added + removed)
+    found = check(added, removed, show("HEAD"), read, grep_tests("HEAD") if tests else [], grep_tests(None) if tests else [])
     return [f for f in found if not paths or f.path in paths]
 
 
-def ensure_commit(sha: str) -> None:
-    if subprocess.run(["git", "cat-file", "-e", f"{sha}^{{commit}}"], capture_output=True).returncode != 0:
-        subprocess.run(["git", "-c", "maintenance.auto=false", "-c", "gc.auto=0", "fetch", "--quiet", "--no-tags", "origin", sha], check=True)
+def ensure_commits(*shas: str) -> None:
+    query = "".join(f"{sha}^{{commit}}\n" for sha in shas)
+    found = subprocess.run(["git", "cat-file", "--batch-check"], input=query, capture_output=True, text=True).stdout
+    for sha, row in zip(shas, found.splitlines()):
+        if row.endswith(" missing"):
+            subprocess.run(["git", "-c", "maintenance.auto=false", "-c", "gc.auto=0", "fetch", "--quiet", "--no-tags", "origin", sha], check=True)
 
 
 def escape(text: str, prop: bool = False) -> str:
@@ -204,8 +355,7 @@ def main() -> int:
         return 1 if found else 0
     labels = json.loads(os.environ.get("PR_LABELS") or "[]")
     base, head = os.environ["BASE_SHA"], os.environ["HEAD_SHA"]
-    for sha in (base, head):
-        ensure_commit(sha)
+    ensure_commits(base, head)
     found = findings(base, head)
     if not found:
         print("No test gate weakened.")
