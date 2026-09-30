@@ -139,10 +139,7 @@ func balanced[A CabalAccount | UserAccount](op string, entries []Entry[A]) error
 		if e.Amount.IsZero() || e.Asset == "" {
 			return errs.New(errs.CodeInvalidInput, op, slog.Int("entry", i), slog.String("asset", string(e.Asset)))
 		}
-		if sums[e.Asset] == nil {
-			sums[e.Asset] = new(big.Int)
-		}
-		sums[e.Asset].Add(sums[e.Asset], big.NewInt(e.Amount.Int64()))
+		add(sums, e.Asset, e.Amount)
 	}
 	for _, asset := range slices.Sorted(maps.Keys(sums)) {
 		if sums[asset].Sign() != 0 {
