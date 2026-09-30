@@ -20,20 +20,44 @@ type Line struct {
 }
 
 type Logs struct {
-	mu    sync.Mutex
-	lines []Line
+	mu      sync.Mutex
+	lines   []Line
+	changed chan struct{}
 }
 
 func (l *Logs) add(process, text string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.lines = append(l.lines, Line{Process: process, Text: text})
+	if l.changed != nil {
+		close(l.changed)
+		l.changed = nil
+	}
 }
 
 func (l *Logs) Lines() []Line {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return append([]Line(nil), l.lines...)
+}
+
+func (l *Logs) mark() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return len(l.lines)
+}
+
+func (l *Logs) since(from int) ([]string, <-chan struct{}) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	texts := make([]string, 0, len(l.lines)-from)
+	for _, line := range l.lines[from:] {
+		texts = append(texts, line.Text)
+	}
+	if l.changed == nil {
+		l.changed = make(chan struct{})
+	}
+	return texts, l.changed
 }
 
 func (l *Logs) tail(process string, n int) string {

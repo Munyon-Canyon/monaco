@@ -294,6 +294,7 @@ func (a *app) seed(t T, name string) []testkit.Seeded {
 
 type Served struct {
 	URL, TokenKey, Events, DeadLetter string
+	Subject                           func(subject string) string
 	Pool                              *pgxpool.Pool
 	JS                                jetstream.JetStream
 	Consumers                         []bus.Consumer
@@ -308,6 +309,6 @@ func Serve(t *testing.T, opts ...Option) Served {
 	a := start(t, o)
 	return Served{
 		URL: a.server.URL, TokenKey: tokenKey, Events: a.bus.Events, DeadLetter: a.bus.DeadLetter,
-		Pool: a.pool, JS: a.bus.JS, Consumers: a.consumers,
+		Subject: a.bus.Conn.Subject, Pool: a.pool, JS: a.bus.JS, Consumers: a.consumers,
 	}
 }

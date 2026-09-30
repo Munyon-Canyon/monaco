@@ -147,8 +147,8 @@ func run(ctx context.Context, cfg Config, target Target) (err error) {
 	}
 	return verifyUnits(runCtx, cfg, Env{
 		API: stack.API, TokenKey: stack.TokenKey, Pool: stack.Pool, JS: stack.NATS.JS,
-		Events: bus.StreamEvents, DeadLetter: bus.StreamDeadLetter, Consumers: consumers, Logs: stack.Logs,
-		Crash: stack.crash, Arm: stack.arm,
+		Events: bus.StreamEvents, DeadLetter: bus.StreamDeadLetter, Subject: stack.Bus.Subject, Consumers: consumers,
+		Logs: stack.Logs, Crash: stack.crash, Arm: stack.arm,
 	}, rep, parallel)
 }
 
