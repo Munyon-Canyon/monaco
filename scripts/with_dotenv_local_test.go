@@ -178,6 +178,132 @@ func TestWithDotenvLocal_resolvesKeySource(t *testing.T) {
 	}
 }
 
+const getRecordingDotenvx = `#!/usr/bin/env bash
+{
+  printf '%s\n' "$@"
+  printf '\n'
+} >> "$DOTENVX_ARGS"
+case "$2" in
+  PRIVY_APP_ID) printf '%s' 'app-fake' ;;
+  PRIVY_APP_CLIENT_ID) printf '%s' 'client-fake' ;;
+  MONACO_STAGING_API_BASE_URL|MONACO_PRODUCTION_API_BASE_URL) printf '%s' 'https://example.test' ;;
+esac
+`
+
+func installEnsureFixture(t *testing.T, s dotenvSandbox) {
+	t.Helper()
+	copyFile(t, filepath.Join(repoRoot(t), "scripts", "ensure-ios-privy-config.sh"), filepath.Join(s.worktree, "scripts", "ensure-ios-privy-config.sh"))
+	var dotenvx string
+	for _, kv := range s.env {
+		if path, ok := strings.CutPrefix(kv, "PATH="); ok {
+			dotenvx = filepath.Join(strings.Split(path, string(os.PathListSeparator))[0], "dotenvx")
+		}
+	}
+	if dotenvx == "" {
+		t.Fatal("sandbox PATH missing")
+	}
+	writeExecutable(t, dotenvx, getRecordingDotenvx)
+}
+
+func dotenvxInvocations(t *testing.T, s dotenvSandbox) [][]string {
+	t.Helper()
+	raw, err := os.ReadFile(s.argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out [][]string
+	for _, block := range strings.Split(string(raw), "\n\n") {
+		args := strings.Split(strings.TrimSuffix(block, "\n"), "\n")
+		if len(args) == 0 || args[0] == "" {
+			continue
+		}
+		out = append(out, args)
+	}
+	if len(out) == 0 {
+		t.Fatal("dotenvx was not invoked")
+	}
+	return out
+}
+
+func TestEnsureIosPrivyConfig_worktreeUsesPrimaryCloneKeys(t *testing.T) {
+	t.Parallel()
+	s := newDotenvSandbox(t)
+	writeFile(t, filepath.Join(s.primary, ".env.keys"), fakeKeysFile)
+	installEnsureFixture(t, s)
+
+	stdout, stderr := runEnsure(t, s, filepath.Join(s.worktree, "scripts", "ensure-ios-privy-config.sh"), "generate")
+	if strings.Contains(stdout+stderr, "fake-key-for-tests") {
+		t.Fatal("output leaks the keys file content")
+	}
+	if !strings.Contains(stderr, "primary clone") {
+		t.Fatalf("stderr = %q, want the primary clone key source", stderr)
+	}
+	wantKeys := filepath.Join(s.primary, ".env.keys")
+	for _, args := range dotenvxInvocations(t, s) {
+		got, ok := keysFileArg(args)
+		if !ok || !sameFile(t, got, wantKeys) {
+			t.Errorf("dotenvx -fk = %q, want %q (args %q)", got, wantKeys, args)
+		}
+	}
+
+	generated := filepath.Join(s.worktree, "apps", "mobile", "Config", "Privy.local.xcconfig")
+	body, err := os.ReadFile(generated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(body), "client-") != 1 {
+		t.Fatalf("generated config client- count = %d, want 1", strings.Count(string(body), "client-"))
+	}
+}
+
+func TestEnsureIosPrivyConfig_noKeysFileOmitsFk(t *testing.T) {
+	t.Parallel()
+	s := newDotenvSandbox(t)
+	installEnsureFixture(t, s)
+
+	_, stderr := runEnsure(t, s, filepath.Join(s.worktree, "scripts", "ensure-ios-privy-config.sh"), "generate")
+	if strings.Count(stderr, "key source:") != 1 || !strings.Contains(stderr, "env or Dotenvx Armor") {
+		t.Fatalf("stderr = %q, want the env or Armor key source", stderr)
+	}
+	for _, args := range dotenvxInvocations(t, s) {
+		if _, ok := keysFileArg(args); ok {
+			t.Errorf("dotenvx args = %q, want no -fk", args)
+		}
+	}
+}
+
+func TestEnsureIosPrivyConfig_secondSourceKeepsFk(t *testing.T) {
+	t.Parallel()
+	s := newDotenvSandbox(t)
+	writeFile(t, filepath.Join(s.primary, ".env.keys"), fakeKeysFile)
+	installEnsureFixture(t, s)
+	script := filepath.Join(s.worktree, "scripts", "ensure-ios-privy-config.sh")
+
+	_, stderr := runEnsure(t, s, "bash", "-c", "source \"$1\"; generate_xcconfig; source \"$1\"; generate_xcconfig", "bash", script)
+	if strings.Count(stderr, "primary clone") != 2 {
+		t.Fatalf("stderr = %q, want two primary-clone key source lines", stderr)
+	}
+	wantKeys := filepath.Join(s.primary, ".env.keys")
+	for _, args := range dotenvxInvocations(t, s) {
+		got, ok := keysFileArg(args)
+		if !ok || !sameFile(t, got, wantKeys) {
+			t.Errorf("dotenvx -fk = %q, want %q (args %q)", got, wantKeys, args)
+		}
+	}
+}
+
+func runEnsure(t *testing.T, s dotenvSandbox, name string, args ...string) (stdout, stderr string) {
+	t.Helper()
+	cmd := exec.Command(name, args...)
+	cmd.Env = s.env
+	var out, errOut strings.Builder
+	cmd.Stdout, cmd.Stderr = &out, &errOut
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("%s: %v\n%s", name, err, errOut.String())
+	}
+	return out.String(), errOut.String()
+}
+
 func sameFile(t *testing.T, a, b string) bool {
 	t.Helper()
 	ai, err := os.Stat(a)
