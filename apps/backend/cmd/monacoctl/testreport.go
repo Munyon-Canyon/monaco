@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -18,7 +19,7 @@ import (
 )
 
 const (
-	testReportUsage = "usage: monacoctl test-report --from go-test.json [--start unix-seconds] [--ci]"
+	testReportUsage = "usage: monacoctl test-report --from go-test.json [--budget-exempt go-test.json] [--start unix-seconds] [--ci]"
 	slowestShown    = 10
 	packageWarn     = 10 * time.Second
 	packageFail     = 20 * time.Second
@@ -35,15 +36,16 @@ type timing struct {
 }
 
 type report struct {
-	tests, packages []timing
-	failed          []string
-	run             time.Duration
+	tests, packages, exempt []timing
+	failed                  []string
+	run                     time.Duration
 }
 
 func testReportCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("test-report", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	from := fs.String("from", "", "")
+	exempt := fs.String("budget-exempt", "", "")
 	start := fs.String("start", "", "")
 	ci := fs.Bool("ci", false, "")
 	if fs.Parse(args) != nil || *from == "" || fs.NArg() != 0 {
@@ -59,13 +61,10 @@ func testReportCmd(args []string, stdout, stderr io.Writer) int {
 		}
 		began = time.Unix(secs, 0)
 	}
-	file, err := os.Open(*from)
-	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "monacoctl test-report: %v\n", err)
-		return 1
+	rep, err := readReportFile(*from, began)
+	if err == nil && *exempt != "" {
+		err = rep.addExempt(*exempt)
 	}
-	defer func() { _ = file.Close() }()
-	rep, err := readReport(file, began)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "monacoctl test-report: %v\n", err)
 		return 1
@@ -105,6 +104,27 @@ type reportEvent struct {
 	Elapsed json.Number `json:"Elapsed"`
 }
 
+func readReportFile(name string, start time.Time) (report, error) {
+	file, err := os.Open(filepath.Clean(name))
+	if err != nil {
+		return report{}, errs.Wrap(err, errs.CodeInternal, "monacoctl.readReport")
+	}
+	defer func() { _ = file.Close() }()
+	return readReport(file, start)
+}
+
+func (r *report) addExempt(name string) error {
+	ex, err := readReportFile(name, time.Time{})
+	if err != nil {
+		return err
+	}
+	r.exempt = ex.packages
+	for _, test := range ex.failed {
+		r.fail(test)
+	}
+	return nil
+}
+
 func readReport(r io.Reader, start time.Time) (report, error) {
 	var rep report
 	var last time.Time
@@ -135,8 +155,8 @@ func readReport(r io.Reader, start time.Time) (report, error) {
 
 func (r *report) add(ev reportEvent) {
 	t, ok := ev.timing()
-	if ev.Action == "fail" && !slices.Contains(r.failed, t.name) {
-		r.failed = append(r.failed, t.name)
+	if ev.Action == "fail" {
+		r.fail(t.name)
 	}
 	switch {
 	case !ok || strings.Contains(ev.Test, "/"):
@@ -144,6 +164,12 @@ func (r *report) add(ev reportEvent) {
 		r.packages = append(r.packages, t)
 	default:
 		r.tests = append(r.tests, t)
+	}
+}
+
+func (r *report) fail(test string) {
+	if !slices.Contains(r.failed, test) {
+		r.failed = append(r.failed, test)
 	}
 }
 
@@ -166,6 +192,12 @@ func (r report) write(w io.Writer, b budget) {
 	}
 	_, _ = fmt.Fprintln(w, "packages:")
 	for _, p := range r.packages {
+		_, _ = fmt.Fprintf(w, "%7.2fs  %s\n", p.elapsed.Seconds(), p.name)
+	}
+	if len(r.exempt) > 0 {
+		_, _ = fmt.Fprintln(w, "packages exempt from the budget:")
+	}
+	for _, p := range r.exempt {
 		_, _ = fmt.Fprintf(w, "%7.2fs  %s\n", p.elapsed.Seconds(), p.name)
 	}
 	perPackage := fmt.Sprintf("packages warn at %.0fs, fail at %.0fs", b.warn.Seconds(), b.fail.Seconds())
