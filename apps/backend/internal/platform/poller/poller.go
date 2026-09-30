@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -107,7 +108,8 @@ func (r *Runner) attempt(ctx context.Context, p Poller, lock *db.Lock) {
 		return
 	}
 	start := r.clock.Now()
-	tickCtx, cancelTick := context.WithTimeout(ctx, p.Interval())
+	actor := auth.Actor{Kind: auth.ActorSystem, ID: "poller." + name}
+	tickCtx, cancelTick := context.WithTimeout(auth.WithActor(ctx, actor), p.Interval())
 	report, err := tick(tickCtx, p)
 	cancelTick()
 	if err != nil {

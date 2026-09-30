@@ -61,7 +61,7 @@ Event payloads are Go types in the `events` package, one file per aggregate, wit
 | `aggregate_type`, `aggregate_id` | `proposal` / `<uuid>`, `cabal_txn` / `<uuid>`, `user` / `<uuid>`, … |
 | `type` | `proposal.passed`, `trade.confirmed`, … Also the NATS subject suffix. |
 | `payload` | JSONB. The facts a consumer needs without a lookup: ids, amounts, before/after status. Every payload carries a `v` field. A handler accepts the current and the previous version (default 2026-09-27). Money events carry every amount the ledger holds, so `monacoctl replay --verify` can check the ledger ([data-model.md](data-model.md#double-entry-ledgers)). |
-| `actor_type`, `actor_id` | `user`, `admin`, `system`, `agent`. |
+| `actor_type`, `actor_id` | `user`, `admin`, `system`, `agent`. For `user`, `admin` and `agent` the id is that actor's id. For `system` it is `poller.<name>` on an event a poller appended, for example `poller.market.catalog`. |
 | `trace_parent` | The W3C `traceparent` of the request that wrote the row, or null when tracing is off. The relay publishes after the request is gone, so the trace reaches the consumer only if the row stores it ([context rule 9](backend-platform.md#context-rules)). |
 | `created_at` | Commit order is not guaranteed by this; see [Ordering](#ordering). |
 | `published_at` | Null until the relay gets a JetStream ack. Partial index `WHERE published_at IS NULL`. |
