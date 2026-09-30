@@ -30,7 +30,7 @@ if [[ "$platform" == "source" ]]; then
   # published archives do in their release workflow. --version must equal the version= line.
   sed -i '' "s/VERSION_PLACEHOLDER/${version}/g" "$tmp/xcsift/Sources/xcsift/main.swift"
   swift build -c release --disable-sandbox --package-path "$tmp/xcsift"
-  product=$(find "$tmp/xcsift/.build" -type f -name xcsift -path '*/release/*' -print -quit)
+  product="$tmp/xcsift/.build/release/xcsift"
   if [[ ! -x "$product" ]]; then
     echo "error: xcsift release binary missing under ${tmp}/xcsift/.build" >&2
     exit 1
