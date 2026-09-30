@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import MonacoCore
 
 final class HomeDashboardDTOTests: XCTestCase {
@@ -43,13 +44,13 @@ final class HomeDashboardDTOTests: XCTestCase {
     func testHomePnLSeriesDTO_wholeSecondUTCTimestamps_keepDistinctPointIDs() throws {
         // Arrange: points one second apart, the closest the backend series can produce.
         let json = """
-        {
-          "points": [
-            { "ts": "2026-09-17T22:00:00Z", "equityUsd": "130.00", "dollarPnl": "+0.00" },
-            { "ts": "2026-09-17T22:00:01Z", "equityUsd": "131.00", "dollarPnl": "+1.00" }
-          ]
-        }
-        """
+            {
+              "points": [
+                { "ts": "2026-09-17T22:00:00Z", "equityUsd": "130.00", "dollarPnl": "+0.00" },
+                { "ts": "2026-09-17T22:00:01Z", "equityUsd": "131.00", "dollarPnl": "+1.00" }
+              ]
+            }
+            """
 
         // Act
         let dto = try monacoISO8601JSONDecoder().decode(HomePnLSeriesDTO.self, from: Data(json.utf8))
@@ -61,20 +62,20 @@ final class HomeDashboardDTOTests: XCTestCase {
     func testHomeMissedProposalsDTO_nonISO8601Timestamp_throwsDataCorrupted() {
         // Arrange: a Unix number-as-string is not a format the API emits.
         let json = """
-        {
-          "proposals": [
             {
-              "groupId": "g1",
-              "groupName": "Vote cabal",
-              "proposalId": "p1",
-              "symbol": "AAPL",
-              "status": "open",
-              "createdAt": "1789675200",
-              "expiresAt": "2026-09-18T20:00:00Z"
+              "proposals": [
+                {
+                  "groupId": "g1",
+                  "groupName": "Vote cabal",
+                  "proposalId": "p1",
+                  "symbol": "AAPL",
+                  "status": "open",
+                  "createdAt": "1789675200",
+                  "expiresAt": "2026-09-18T20:00:00Z"
+                }
+              ]
             }
-          ]
-        }
-        """
+            """
 
         // Act / Assert
         XCTAssertThrowsError(
@@ -88,27 +89,27 @@ final class HomeDashboardDTOTests: XCTestCase {
 
     func testHomeDashboardDTO_decodesFractionalISO8601Timestamps() throws {
         let json = """
-        {
-          "netWorthUsd": "145.00",
-          "netWorthDollarPnl": "+15.00",
-          "netWorthPercentReturn": "0.115",
-          "myGroups": [],
-          "pnlSeries1H": [
             {
-              "ts": "2026-09-17T22:00:00.123456Z",
-              "equityUsd": "130.00",
-              "dollarPnl": "+0.00"
-            },
-            {
-              "ts": "2026-09-17T23:00:00Z",
-              "equityUsd": "145.00",
-              "dollarPnl": "+15.00"
+              "netWorthUsd": "145.00",
+              "netWorthDollarPnl": "+15.00",
+              "netWorthPercentReturn": "0.115",
+              "myGroups": [],
+              "pnlSeries1H": [
+                {
+                  "ts": "2026-09-17T22:00:00.123456Z",
+                  "equityUsd": "130.00",
+                  "dollarPnl": "+0.00"
+                },
+                {
+                  "ts": "2026-09-17T23:00:00Z",
+                  "equityUsd": "145.00",
+                  "dollarPnl": "+15.00"
+                }
+              ],
+              "leaderboard": { "range": "ALL", "people": [] },
+              "missedProposals": []
             }
-          ],
-          "leaderboard": { "range": "ALL", "people": [] },
-          "missedProposals": []
-        }
-        """
+            """
 
         let dto = try monacoISO8601JSONDecoder().decode(HomeDashboardDTO.self, from: Data(json.utf8))
         XCTAssertEqual(dto.pnlSeries1H.count, 2)

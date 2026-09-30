@@ -1,8 +1,10 @@
 import XCTest
+
+@testable import MonacoCore
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-@testable import MonacoCore
 
 final class GroupsTabAPITests: XCTestCase {
     override func tearDown() {
@@ -48,11 +50,13 @@ final class GroupsTabAPITests: XCTestCase {
 
         // Assert
         XCTAssertEqual(capturedPath, "/v1/groups/search")
-        XCTAssertEqual(capturedQueryItems, [
-            URLQueryItem(name: "q", value: "weekend"),
-            URLQueryItem(name: "limit", value: "10"),
-            URLQueryItem(name: "cursor", value: "page2"),
-        ])
+        XCTAssertEqual(
+            capturedQueryItems,
+            [
+                URLQueryItem(name: "q", value: "weekend"),
+                URLQueryItem(name: "limit", value: "10"),
+                URLQueryItem(name: "cursor", value: "page2"),
+            ])
         XCTAssertEqual(capturedAuthorization, "Bearer \(token)")
         XCTAssertEqual(result.groups.count, 2)
         XCTAssertEqual(result.nextCursor, "eyJvZmZzZXQiOjIwfQ==")
@@ -88,10 +92,12 @@ final class GroupsTabAPITests: XCTestCase {
         _ = try await client.searchGroups(query: "weekend", limit: 20, cursor: nil)
 
         // Assert
-        XCTAssertEqual(capturedQueryItems, [
-            URLQueryItem(name: "q", value: "weekend"),
-            URLQueryItem(name: "limit", value: "20"),
-        ])
+        XCTAssertEqual(
+            capturedQueryItems,
+            [
+                URLQueryItem(name: "q", value: "weekend"),
+                URLQueryItem(name: "limit", value: "20"),
+            ])
     }
 
     // MARK: - groupLeaderboard
@@ -216,7 +222,8 @@ final class GroupsTabAPITests: XCTestCase {
         )
 
         // Act
-        let result = try await client.groupPnLHistory(groupId: "3f9a1b2c-4d5e-4f6a-8b7c-9d0e1f2a3b4c", range: .threeMonths)
+        let result = try await client.groupPnLHistory(
+            groupId: "3f9a1b2c-4d5e-4f6a-8b7c-9d0e1f2a3b4c", range: .threeMonths)
 
         // Assert
         XCTAssertEqual(capturedPath, "/v1/groups/3f9a1b2c-4d5e-4f6a-8b7c-9d0e1f2a3b4c/pnl-history")

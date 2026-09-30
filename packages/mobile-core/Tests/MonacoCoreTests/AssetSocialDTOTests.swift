@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import MonacoCore
 
 /// The shape of `GET /v1/assets/{symbol}/social` as the backend actually writes it.
@@ -9,31 +10,32 @@ final class AssetSocialDTOTests: XCTestCase {
     }
 
     func testDecodesTheFullPayload() throws {
-        let social = try decode("""
-        {
-          "symbol": "AAPLx",
-          "holdings": [{
-            "groupId": "g1", "name": "Weekend investors", "units": "12",
-            "tokenAmount": "1200000000", "markUsd": "232.05", "valueUsd": "2784.60",
-            "costBasisUsd": "2600.00", "dollarPnl": "+184.60", "percentReturn": "0.071",
-            "mySliceUsd": "556.92", "mySlicePercent": "0.2", "afterHours": true
-          }],
-          "openProposals": [{
-            "id": "p1", "groupId": "g1", "groupName": "Weekend investors", "kind": "buy",
-            "status": "open", "usdcMicros": 500000000, "tokenAmount": 0, "thesis": "Earnings",
-            "yes": 2, "no": 1, "memberCount": 5, "myVote": "yes",
-            "voters": [{"userId": "u1", "displayName": "Ada", "choice": "yes"}],
-            "expiresAt": "2026-09-23T10:00:00Z", "createdAt": "2026-09-22T10:00:00Z"
-          }],
-          "activity": [{
-            "id": "a1", "groupId": "g1", "groupName": "Weekend investors", "kind": "filled",
-            "action": "buy", "usdcMicros": 905000000, "tokenAmount": 350000000,
-            "actorName": "Ada", "txSignature": "sig", "createdAt": "2026-09-20T10:00:00Z"
-          }],
-          "holderCount": 1,
-          "unvaluedGroups": 0
-        }
-        """)
+        let social = try decode(
+            """
+            {
+              "symbol": "AAPLx",
+              "holdings": [{
+                "groupId": "g1", "name": "Weekend investors", "units": "12",
+                "tokenAmount": "1200000000", "markUsd": "232.05", "valueUsd": "2784.60",
+                "costBasisUsd": "2600.00", "dollarPnl": "+184.60", "percentReturn": "0.071",
+                "mySliceUsd": "556.92", "mySlicePercent": "0.2", "afterHours": true
+              }],
+              "openProposals": [{
+                "id": "p1", "groupId": "g1", "groupName": "Weekend investors", "kind": "buy",
+                "status": "open", "usdcMicros": 500000000, "tokenAmount": 0, "thesis": "Earnings",
+                "yes": 2, "no": 1, "memberCount": 5, "myVote": "yes",
+                "voters": [{"userId": "u1", "displayName": "Ada", "choice": "yes"}],
+                "expiresAt": "2026-09-23T10:00:00Z", "createdAt": "2026-09-22T10:00:00Z"
+              }],
+              "activity": [{
+                "id": "a1", "groupId": "g1", "groupName": "Weekend investors", "kind": "filled",
+                "action": "buy", "usdcMicros": 905000000, "tokenAmount": 350000000,
+                "actorName": "Ada", "txSignature": "sig", "createdAt": "2026-09-20T10:00:00Z"
+              }],
+              "holderCount": 1,
+              "unvaluedGroups": 0
+            }
+            """)
 
         XCTAssertEqual(social.symbol, "AAPLx")
         XCTAssertEqual(social.holdings.count, 1)
@@ -62,23 +64,25 @@ final class AssetSocialDTOTests: XCTestCase {
     /// absence is the difference between "2 open votes" and "waiting on you", so it
     /// must not decode to a default.
     func testAbsentMyVoteStaysNil() throws {
-        let social = try decode("""
-        {"symbol":"AAPLx","openProposals":[
-          {"id":"p1","groupId":"g1","groupName":"G","kind":"buy","yes":0,"no":0}
-        ]}
-        """)
+        let social = try decode(
+            """
+            {"symbol":"AAPLx","openProposals":[
+              {"id":"p1","groupId":"g1","groupName":"G","kind":"buy","yes":0,"no":0}
+            ]}
+            """)
         XCTAssertNil(social.openProposals[0].myVote)
     }
 
     /// A vote choice or activity kind this build does not know must not fail the
     /// whole response.
     func testUnknownEnumValuesDegradeRatherThanThrow() throws {
-        let social = try decode("""
-        {"symbol":"AAPLx",
-         "openProposals":[{"id":"p","groupId":"g","groupName":"G","kind":"swap","myVote":"abstain",
-           "voters":[{"userId":"u","displayName":"Ada","choice":"abstain"}]}],
-         "activity":[{"id":"a","groupId":"g","groupName":"G","kind":"teleported","action":"swap"}]}
-        """)
+        let social = try decode(
+            """
+            {"symbol":"AAPLx",
+             "openProposals":[{"id":"p","groupId":"g","groupName":"G","kind":"swap","myVote":"abstain",
+               "voters":[{"userId":"u","displayName":"Ada","choice":"abstain"}]}],
+             "activity":[{"id":"a","groupId":"g","groupName":"G","kind":"teleported","action":"swap"}]}
+            """)
         XCTAssertEqual(social.openProposals[0].kind, .unknown)
         XCTAssertEqual(social.openProposals[0].myVote, .unknown)
         XCTAssertEqual(social.openProposals[0].voters[0].choice, .unknown)
@@ -89,12 +93,13 @@ final class AssetSocialDTOTests: XCTestCase {
     /// An empty photo URL and an absent one are the same absence; the avatar must
     /// not try to load "".
     func testEmptyStringsBecomeNil() throws {
-        let social = try decode("""
-        {"symbol":"AAPLx",
-         "openProposals":[{"id":"p","groupId":"g","groupName":"G","kind":"buy","thesis":"",
-           "voters":[{"userId":"u","displayName":"Ada","profilePhotoUrl":"","choice":"yes"}]}],
-         "activity":[{"id":"a","groupId":"g","groupName":"G","kind":"filled","actorName":"","txSignature":""}]}
-        """)
+        let social = try decode(
+            """
+            {"symbol":"AAPLx",
+             "openProposals":[{"id":"p","groupId":"g","groupName":"G","kind":"buy","thesis":"",
+               "voters":[{"userId":"u","displayName":"Ada","profilePhotoUrl":"","choice":"yes"}]}],
+             "activity":[{"id":"a","groupId":"g","groupName":"G","kind":"filled","actorName":"","txSignature":""}]}
+            """)
         XCTAssertNil(social.openProposals[0].voters[0].profilePhotoUrl)
         XCTAssertNil(social.openProposals[0].thesis)
         XCTAssertNil(social.activity[0].actorName)

@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import MonacoCore
 
 final class MarketAssetRowDecodingTests: XCTestCase {
@@ -8,40 +9,44 @@ final class MarketAssetRowDecodingTests: XCTestCase {
     }
 
     func testSparkAndLogoDecode() throws {
-        let asset = try decode("""
-        {
-          "symbol": "AAPLx", "name": "Apple", "solanaMint": "mint", "routable": true,
-          "priceUsdcMicros": 232050000, "change24h": "0.0124",
-          "spark": [226500000, 228000000, 232050000],
-          "logoUrl": "https://example.test/aapl.png"
-        }
-        """)
+        let asset = try decode(
+            """
+            {
+              "symbol": "AAPLx", "name": "Apple", "solanaMint": "mint", "routable": true,
+              "priceUsdcMicros": 232050000, "change24h": "0.0124",
+              "spark": [226500000, 228000000, 232050000],
+              "logoUrl": "https://example.test/aapl.png"
+            }
+            """)
         XCTAssertEqual(asset.sparkUsdcMicros, [226_500_000, 228_000_000, 232_050_000])
         XCTAssertEqual(asset.logoURL, URL(string: "https://example.test/aapl.png"))
     }
 
     func testABackendWithoutTheNewFieldsStillDecodes() throws {
         // The fields are additive; an older backend must not break the list.
-        let asset = try decode("""
-        {"symbol": "AAPLx", "name": "Apple", "solanaMint": "mint", "routable": true}
-        """)
+        let asset = try decode(
+            """
+            {"symbol": "AAPLx", "name": "Apple", "solanaMint": "mint", "routable": true}
+            """)
         XCTAssertTrue(asset.sparkUsdcMicros.isEmpty)
         XCTAssertNil(asset.logoUrl)
         XCTAssertNil(asset.logoURL)
     }
 
     func testNullSparkIsAnEmptySeriesNotAFailure() throws {
-        let asset = try decode("""
-        {"symbol": "AAPLx", "name": "Apple", "solanaMint": "mint", "routable": true, "spark": null, "logoUrl": null}
-        """)
+        let asset = try decode(
+            """
+            {"symbol": "AAPLx", "name": "Apple", "solanaMint": "mint", "routable": true, "spark": null, "logoUrl": null}
+            """)
         XCTAssertTrue(asset.sparkUsdcMicros.isEmpty)
         XCTAssertNil(asset.logoURL)
     }
 
     func testAnUnusableLogoStringIsNotAURL() throws {
-        let asset = try decode("""
-        {"symbol": "AAPLx", "name": "Apple", "solanaMint": "mint", "routable": true, "logoUrl": ""}
-        """)
+        let asset = try decode(
+            """
+            {"symbol": "AAPLx", "name": "Apple", "solanaMint": "mint", "routable": true, "logoUrl": ""}
+            """)
         XCTAssertNil(asset.logoURL)
     }
 
@@ -55,21 +60,21 @@ final class MarketAssetRowDecodingTests: XCTestCase {
 final class HeldAssetsDTOTests: XCTestCase {
     func testResponseDecodes() throws {
         let json = """
-        {
-          "held": [{
-            "asset": {"symbol": "AAPLx", "name": "Apple", "solanaMint": "mint", "routable": true, "spark": [1, 2]},
-            "cabals": [{"groupId": "g1", "name": "Weekend investors", "units": "4.2", "valueUsd": "974.61", "dollarPnl": "112.40", "mySliceUsd": "243.65"}],
-            "totalValueUsd": "974.61", "totalDollarPnl": "112.40", "mySliceUsd": "243.65"
-          }],
-          "upForVote": [{
-            "asset": {"symbol": "NVDAx", "name": "NVIDIA", "solanaMint": "mint2", "routable": true},
-            "openProposals": 2,
-            "cabalNames": ["Semis or bust", "Rent"],
-            "soonestExpiresAt": "2026-09-22T18:00:00Z"
-          }],
-          "market": {"session": "open", "isOpen": true, "afterHours": false, "asOf": "2026-09-22T14:00:00Z"}
-        }
-        """
+            {
+              "held": [{
+                "asset": {"symbol": "AAPLx", "name": "Apple", "solanaMint": "mint", "routable": true, "spark": [1, 2]},
+                "cabals": [{"groupId": "g1", "name": "Weekend investors", "units": "4.2", "valueUsd": "974.61", "dollarPnl": "112.40", "mySliceUsd": "243.65"}],
+                "totalValueUsd": "974.61", "totalDollarPnl": "112.40", "mySliceUsd": "243.65"
+              }],
+              "upForVote": [{
+                "asset": {"symbol": "NVDAx", "name": "NVIDIA", "solanaMint": "mint2", "routable": true},
+                "openProposals": 2,
+                "cabalNames": ["Semis or bust", "Rent"],
+                "soonestExpiresAt": "2026-09-22T18:00:00Z"
+              }],
+              "market": {"session": "open", "isOpen": true, "afterHours": false, "asOf": "2026-09-22T14:00:00Z"}
+            }
+            """
         let decoded = try JSONDecoder().decode(HeldAssetsResponseDTO.self, from: Data(json.utf8))
         XCTAssertEqual(decoded.held.count, 1)
         XCTAssertEqual(decoded.held[0].id, "AAPLx")
@@ -88,8 +93,8 @@ final class HeldAssetsDTOTests: XCTestCase {
 
     func testMissingMoneyFieldsFallBackToZeroRatherThanFailing() throws {
         let json = """
-        {"held": [{"asset": {"symbol": "AAPLx", "name": "Apple", "solanaMint": "m", "routable": true}}]}
-        """
+            {"held": [{"asset": {"symbol": "AAPLx", "name": "Apple", "solanaMint": "m", "routable": true}}]}
+            """
         let decoded = try JSONDecoder().decode(HeldAssetsResponseDTO.self, from: Data(json.utf8))
         XCTAssertEqual(decoded.held[0].mySliceUsd, "0")
         XCTAssertTrue(decoded.held[0].cabals.isEmpty)

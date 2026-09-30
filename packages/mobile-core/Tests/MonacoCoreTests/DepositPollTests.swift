@@ -1,23 +1,24 @@
 import XCTest
+
 @testable import MonacoCore
 
 final class DepositPollTests: XCTestCase {
     func testDepositPollStateMachine_pendingToConfirmed_fromFixtureDepositDTO() throws {
         // Arrange
         let pendingJSON = """
-        {
-          "depositId": "dep-001",
-          "status": "pending",
-          "shareUnits": 0
-        }
-        """
+            {
+              "depositId": "dep-001",
+              "status": "pending",
+              "shareUnits": 0
+            }
+            """
         let confirmedJSON = """
-        {
-          "depositId": "dep-001",
-          "status": "confirmed",
-          "shareUnits": 1000000
-        }
-        """
+            {
+              "depositId": "dep-001",
+              "status": "confirmed",
+              "shareUnits": 1000000
+            }
+            """
         let pending = try JSONDecoder().decode(
             DepositStatusDTO.self,
             from: Data(pendingJSON.utf8)

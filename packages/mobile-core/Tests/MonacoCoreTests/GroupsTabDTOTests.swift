@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import MonacoCore
 
 final class GroupsTabDTOTests: XCTestCase {
@@ -140,11 +141,11 @@ final class GroupsTabDTOTests: XCTestCase {
     func testGroupPnLPointDTO_decodesExactUTCInstant_withAndWithoutFraction() throws {
         // Arrange
         let withoutFraction = #"""
-        {"at":"2026-09-01T15:00:00Z","potValueUsd":"100.00","netInUsd":"100.00","dollarPnl":"+0.00"}
-        """#
+            {"at":"2026-09-01T15:00:00Z","potValueUsd":"100.00","netInUsd":"100.00","dollarPnl":"+0.00"}
+            """#
         let withFraction = #"""
-        {"at":"2026-09-19T15:00:00.500Z","potValueUsd":"148.20","netInUsd":"100.00","dollarPnl":"+48.20"}
-        """#
+            {"at":"2026-09-19T15:00:00.500Z","potValueUsd":"148.20","netInUsd":"100.00","dollarPnl":"+48.20"}
+            """#
 
         // Act
         let decoder = monacoISO8601JSONDecoder()
@@ -155,7 +156,8 @@ final class GroupsTabDTOTests: XCTestCase {
         var utcCalendar = Calendar(identifier: .gregorian)
         utcCalendar.timeZone = TimeZone(identifier: "UTC")!
 
-        let plainComponents = utcCalendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: plain.at)
+        let plainComponents = utcCalendar.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second], from: plain.at)
         XCTAssertEqual(plainComponents.year, 2026)
         XCTAssertEqual(plainComponents.month, 9)
         XCTAssertEqual(plainComponents.day, 1)
@@ -163,7 +165,9 @@ final class GroupsTabDTOTests: XCTestCase {
         XCTAssertEqual(plainComponents.minute, 0)
         XCTAssertEqual(plainComponents.second, 0)
 
-        XCTAssertEqual(fractional.at.timeIntervalSince1970, plain.at.timeIntervalSince1970 + (18 * 24 * 3600) + 0.5, accuracy: 0.001)
+        XCTAssertEqual(
+            fractional.at.timeIntervalSince1970, plain.at.timeIntervalSince1970 + (18 * 24 * 3600) + 0.5,
+            accuracy: 0.001)
     }
 
     // MARK: - chartValue

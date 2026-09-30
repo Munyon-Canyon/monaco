@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import MonacoCore
 
 final class DisplayFormatterTests: XCTestCase {
@@ -165,7 +166,8 @@ final class DisplayFormatterTests: XCTestCase {
         XCTAssertEqual(RelativeTimeFormatter.label(iso: "2026-09-19T11:45:00Z", now: now, calendar: calendar), "15m")
         XCTAssertEqual(RelativeTimeFormatter.label(iso: "2026-09-19T08:59:00.500Z", now: now, calendar: calendar), "3h")
         XCTAssertEqual(RelativeTimeFormatter.label(iso: "2026-09-14T09:00:00Z", now: now, calendar: calendar), "Sep 14")
-        XCTAssertEqual(RelativeTimeFormatter.label(iso: "2025-12-31T09:00:00Z", now: now, calendar: calendar), "Dec 31, 2025")
+        XCTAssertEqual(
+            RelativeTimeFormatter.label(iso: "2025-12-31T09:00:00Z", now: now, calendar: calendar), "Dec 31, 2025")
         XCTAssertEqual(RelativeTimeFormatter.label(iso: "2026-09-19T12:05:00Z", now: now, calendar: calendar), "now")
         XCTAssertEqual(RelativeTimeFormatter.label(iso: "not a date", now: now, calendar: calendar), "")
     }
