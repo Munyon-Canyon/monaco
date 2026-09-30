@@ -13,17 +13,19 @@ import (
 type ID[T any] struct{ u uuid.UUID }
 
 type (
-	user  struct{}
-	cabal struct{}
-	event struct{}
-	swap  struct{}
+	user     struct{}
+	cabal    struct{}
+	event    struct{}
+	swap     struct{}
+	proposal struct{}
 )
 
 type (
-	UserID  = ID[user]
-	CabalID = ID[cabal]
-	EventID = ID[event]
-	SwapID  = ID[swap]
+	UserID     = ID[user]
+	CabalID    = ID[cabal]
+	EventID    = ID[event]
+	SwapID     = ID[swap]
+	ProposalID = ID[proposal]
 )
 
 type Generator interface {
@@ -58,6 +60,8 @@ func EventIDFrom(u uuid.UUID) EventID { return EventID{u: u} }
 func SwapIDFrom(u uuid.UUID) SwapID { return SwapID{u: u} }
 
 func CabalIDFrom(u uuid.UUID) CabalID { return CabalID{u: u} }
+
+func ProposalIDFrom(u uuid.UUID) ProposalID { return ProposalID{u: u} }
 
 func (id ID[T]) IsZero() bool { return id.u == uuid.Nil }
 
