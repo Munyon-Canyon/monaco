@@ -29,7 +29,8 @@ struct MemberBoardSection: View {
                             isViewer: isViewer(row),
                             isLast: row.id == members.last?.id
                         ) {
-                            MonacoAvatar(photoURL: row.profilePhotoUrl, displayName: row.displayName, size: 40, seed: row.userId)
+                            MonacoAvatar(
+                                photoURL: row.profilePhotoUrl, displayName: row.displayName, size: 40, seed: row.userId)
                         }
                         .accessibilityIdentifier("member-board-row-\(row.rank)")
                     }

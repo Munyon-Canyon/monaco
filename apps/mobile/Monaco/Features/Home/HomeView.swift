@@ -1,6 +1,6 @@
 import MonacoCore
-import os
 import SwiftUI
+import os
 
 /// What Home is showing right now. One value instead of a ladder of optionals, so the
 /// screen cannot fall through to a fabricated "$0.00" dashboard (#327) and every state has
@@ -194,7 +194,6 @@ struct HomeView: View {
         }
     }
 
-
     /// The failed state lives in a ScrollView, so the "pull down to try again" the store asks
     /// for is a gesture this screen actually has (#278).
     private func failedScroll(_ message: String) -> some View {
@@ -278,7 +277,6 @@ private struct HomeSkeletonView: View {
     }
 }
 
-
 #Preview {
     let session = AppSessionStore()
     session.dashboard = HomeDashboardDTO(
@@ -293,7 +291,7 @@ private struct HomeSkeletonView: View {
                 slicePercent: "0.12",
                 dollarPnl: "+0.10",
                 percentReturn: "0.031"
-            ),
+            )
         ],
         pnlSeries1H: [],
         leaderboard: HomeLeaderboardSectionDTO(
@@ -304,7 +302,7 @@ private struct HomeSkeletonView: View {
                     displayName: "Alfred",
                     percentReturn: "0.124",
                     dollarPnl: "+48.20"
-                ),
+                )
             ]
         ),
         missedProposals: []

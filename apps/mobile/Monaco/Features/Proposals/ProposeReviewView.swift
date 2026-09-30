@@ -22,7 +22,10 @@ struct ProposeReviewView: View {
     @State private var proposeSubmission = IdempotentSubmission()
     @State private var errorMessage: String?
 
-    init(service: ProposeService, groupId: String, review: ProposeBuyReview, onProposed: @escaping (_ proposalId: String) -> Void) {
+    init(
+        service: ProposeService, groupId: String, review: ProposeBuyReview,
+        onProposed: @escaping (_ proposalId: String) -> Void
+    ) {
         self.service = service
         self.groupId = groupId
         self.review = review
@@ -30,7 +33,8 @@ struct ProposeReviewView: View {
     }
 
     private var headline: String {
-        ProposeScreenCopy.buyHeadline(amount: UsdAmountFormatter.format(micros: review.usdcMicros), ticker: review.stock.ticker)
+        ProposeScreenCopy.buyHeadline(
+            amount: UsdAmountFormatter.format(micros: review.usdcMicros), ticker: review.stock.ticker)
     }
 
     var body: some View {
@@ -58,14 +62,17 @@ struct ProposeReviewView: View {
                     }
                     if let price = review.priceMicros {
                         ReceiptRow(label: ProposeFlowCopy.priceRow) {
-                            ReceiptFigure(ProposeScreenCopy.about(
-                                review.stock.assetKind == .preIpo
-                                    ? "\(UsdAmountFormatter.format(micros: price)) a \(PreIpoCopy.tokenLabelSingular)"
-                                    : ProposeFlowCopy.perShare(UsdAmountFormatter.format(micros: price))
-                            ))
+                            ReceiptFigure(
+                                ProposeScreenCopy.about(
+                                    review.stock.assetKind == .preIpo
+                                        ? "\(UsdAmountFormatter.format(micros: price)) a \(PreIpoCopy.tokenLabelSingular)"
+                                        : ProposeFlowCopy.perShare(UsdAmountFormatter.format(micros: price))
+                                ))
                         }
                     }
-                    if let share = ProposeScreenCopy.potShare(amountMicros: review.usdcMicros, potMicros: review.potMicros) {
+                    if let share = ProposeScreenCopy.potShare(
+                        amountMicros: review.usdcMicros, potMicros: review.potMicros)
+                    {
                         ReceiptRow(label: ProposeScreenCopy.potRow) {
                             ReceiptFigure(share)
                         }
@@ -123,7 +130,9 @@ struct ProposeReviewView: View {
         do {
             let id = try await service.propose(
                 groupId: groupId,
-                draft: .buy(symbol: review.quote.symbol.isEmpty ? review.stock.symbol : review.quote.symbol, usdcMicros: review.usdcMicros, thesis: review.thesis),
+                draft: .buy(
+                    symbol: review.quote.symbol.isEmpty ? review.stock.symbol : review.quote.symbol,
+                    usdcMicros: review.usdcMicros, thesis: review.thesis),
                 submission: proposeSubmission
             )
             onProposed(id)

@@ -67,7 +67,9 @@ struct CabalsPnLChartSection: View {
                         .foregroundStyle(isSelected ? MonacoTheme.primaryButtonLabel : MonacoTheme.muted)
                         .padding(.horizontal, 14)
                         .frame(minWidth: 48, minHeight: 34)
-                        .background(Capsule().fill(isSelected ? MonacoTheme.primaryButtonFill : MonacoTheme.surfaceSunken))
+                        .background(
+                            Capsule().fill(isSelected ? MonacoTheme.primaryButtonFill : MonacoTheme.surfaceSunken)
+                        )
                         .padding(.vertical, 5)
                         .contentShape(Capsule())
                 }
@@ -88,7 +90,8 @@ struct CabalsPnLChartSection: View {
         } else if model.chartFailed, model.series.isEmpty {
             emptyMessage("Couldn't load the chart. Pull down to try again.", id: "cabals-pnl-error")
         } else if !hasEnoughData {
-            emptyMessage("Not enough history in \(model.range.spokenWindow) yet. Try a longer stretch.", id: "cabals-pnl-sparse")
+            emptyMessage(
+                "Not enough history in \(model.range.spokenWindow) yet. Try a longer stretch.", id: "cabals-pnl-sparse")
         } else {
             chart
                 // A range switch keeps the old lines on screen; dim them so the

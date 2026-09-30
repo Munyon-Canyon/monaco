@@ -8,8 +8,9 @@ import Foundation
 enum DepositAddress {
     static func usable(_ raw: String?) -> String? {
         guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !trimmed.isEmpty,
-              !trimmed.hasPrefix("FAKE") else {
+            !trimmed.isEmpty,
+            !trimmed.hasPrefix("FAKE")
+        else {
             return nil
         }
         return trimmed

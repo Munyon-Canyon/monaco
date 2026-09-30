@@ -105,7 +105,9 @@ struct PotSectionView: View {
 
     static func quantityLabel(_ row: PotRowDTO) -> String {
         if let atomics = row.tokenAmount, !atomics.isEmpty,
-           let qty = ProposeMath.shares(fromAtomics: atomics, decimals: row.resolvedTokenDecimals, multiplier: row.resolvedUiMultiplier) {
+            let qty = ProposeMath.shares(
+                fromAtomics: atomics, decimals: row.resolvedTokenDecimals, multiplier: row.resolvedUiMultiplier)
+        {
             return TokenQuantityFormatter.label(quantity: qty, kind: row.resolvedAssetKind)
         }
         let unit = row.resolvedAssetKind == .preIpo ? PreIpoCopy.tokenLabelPlural : "shares"
@@ -167,7 +169,8 @@ private struct PotHoldingRow: View {
         ) {
             StockMark(
                 symbol: row.symbol,
-                displayName: AssetCatalogDisplayName.format(catalogName: "", symbol: row.symbol, kind: row.resolvedAssetKind),
+                displayName: AssetCatalogDisplayName.format(
+                    catalogName: "", symbol: row.symbol, kind: row.resolvedAssetKind),
                 assetKind: row.resolvedAssetKind,
                 logoURL: row.logoURL
             )

@@ -127,7 +127,6 @@ struct ProfileTabView: View {
                     )
                 }
 
-
                 ProfileCabalsSection(
                     auth: auth,
                     rows: cabalRows,
@@ -146,7 +145,6 @@ struct ProfileTabView: View {
             .padding(.bottom, MonacoTheme.Space.xl)
         }
     }
-
 
     private var header: some View {
         VStack(spacing: MonacoTheme.Space.s) {
@@ -226,7 +224,6 @@ struct ProfileTabView: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, MonacoTheme.Space.s)
     }
-
 
     /// #210 moved Settings into Profile: block explorers and sign out sit under the cabals.
     /// Withdraw is the balance card's "Cash out".

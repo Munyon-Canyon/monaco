@@ -222,7 +222,9 @@ private struct GroupPnLCurve: View {
     var body: some View {
         Chart(points) { point in
             AreaMark(x: .value("Time", point.at), y: .value("P&L", point.chartValue))
-                .foregroundStyle(LinearGradient(colors: [tint.opacity(0.30), tint.opacity(0)], startPoint: .top, endPoint: .bottom))
+                .foregroundStyle(
+                    LinearGradient(colors: [tint.opacity(0.30), tint.opacity(0)], startPoint: .top, endPoint: .bottom)
+                )
                 .interpolationMethod(.monotone)
             LineMark(x: .value("Time", point.at), y: .value("P&L", point.chartValue))
                 .foregroundStyle(tint)
@@ -326,7 +328,8 @@ enum GroupHeroMath {
             return "Add money to get a slice"
         }
         let percent = fraction * 100
-        let label = percent >= 10 || percent.rounded() == percent
+        let label =
+            percent >= 10 || percent.rounded() == percent
             ? String(format: "%.0f%%", percent)
             : String(format: "%.1f%%", percent)
         return "\(label) of the pot"

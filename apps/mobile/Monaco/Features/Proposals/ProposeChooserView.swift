@@ -34,11 +34,18 @@ struct ProposeSheet: View {
 
     @State private var detents = ProposeSheetDetents()
 
-    init(auth: PrivyAuthService, groupId: String, groupView: GroupViewDTO, onProposed: ((_ proposalId: String) -> Void)? = nil) {
-        self.init(service: LiveProposeService(auth: auth), groupId: groupId, groupView: groupView, onProposed: onProposed)
+    init(
+        auth: PrivyAuthService, groupId: String, groupView: GroupViewDTO,
+        onProposed: ((_ proposalId: String) -> Void)? = nil
+    ) {
+        self.init(
+            service: LiveProposeService(auth: auth), groupId: groupId, groupView: groupView, onProposed: onProposed)
     }
 
-    init(service: ProposeService, groupId: String, groupView: GroupViewDTO, onProposed: ((_ proposalId: String) -> Void)? = nil) {
+    init(
+        service: ProposeService, groupId: String, groupView: GroupViewDTO,
+        onProposed: ((_ proposalId: String) -> Void)? = nil
+    ) {
         self.service = service
         self.groupId = groupId
         self.groupView = groupView
@@ -47,7 +54,8 @@ struct ProposeSheet: View {
 
     var body: some View {
         NavigationStack {
-            ProposeChooserView(service: service, groupId: groupId, groupView: groupView, onProposed: onProposed, detents: $detents)
+            ProposeChooserView(
+                service: service, groupId: groupId, groupView: groupView, onProposed: onProposed, detents: $detents)
         }
         .presentationDetents(detents.allowed, selection: $detents.selection)
     }
@@ -77,7 +85,9 @@ struct ProposeChooserView: View {
         onProposed: ((_ proposalId: String) -> Void)? = nil,
         detents: Binding<ProposeSheetDetents>? = nil
     ) {
-        self.init(service: LiveProposeService(auth: auth), groupId: groupId, groupView: groupView, onProposed: onProposed, detents: detents)
+        self.init(
+            service: LiveProposeService(auth: auth), groupId: groupId, groupView: groupView, onProposed: onProposed,
+            detents: detents)
     }
 
     init(
@@ -177,7 +187,9 @@ struct ProposeChooserView: View {
             if agentStatus == "active" || agentStatus == "paused" {
                 let kind = agentStatus == "active" ? "pause_agent" : "resume_agent"
                 NavigationLink {
-                    ProposeAgentLifecycleView(service: service, groupId: groupId, kind: kind, botName: agent.agentDisplayName, onProposed: onProposed)
+                    ProposeAgentLifecycleView(
+                        service: service, groupId: groupId, kind: kind, botName: agent.agentDisplayName,
+                        onProposed: onProposed)
                 } label: {
                     ChooserRow(
                         title: kind == "pause_agent" ? ProposeFlowCopy.pauseBotRow : ProposeFlowCopy.resumeBotRow,
@@ -186,10 +198,13 @@ struct ProposeChooserView: View {
                     )
                 }
                 .buttonStyle(.monacoRow)
-                .accessibilityIdentifier(kind == "pause_agent" ? "propose-kind-pause-agent" : "propose-kind-resume-agent")
+                .accessibilityIdentifier(
+                    kind == "pause_agent" ? "propose-kind-pause-agent" : "propose-kind-resume-agent")
 
                 NavigationLink {
-                    ProposeAgentLifecycleView(service: service, groupId: groupId, kind: "revoke_agent", botName: agent.agentDisplayName, onProposed: onProposed)
+                    ProposeAgentLifecycleView(
+                        service: service, groupId: groupId, kind: "revoke_agent", botName: agent.agentDisplayName,
+                        onProposed: onProposed)
                 } label: {
                     ChooserRow(
                         title: ProposeFlowCopy.removeBotRow,

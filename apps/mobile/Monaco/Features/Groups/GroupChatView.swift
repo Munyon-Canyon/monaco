@@ -1,5 +1,5 @@
-import SwiftUI
 import MonacoCore
+import SwiftUI
 
 /// Cabal chat: members-only message thread with a composer. Polls for new messages while visible.
 ///
@@ -202,7 +202,9 @@ struct GroupChatView: View {
                 readerControlsScroll = false
                 unreadCount = 0
             }
-            .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height } action: { _, _ in
+            .onScrollGeometryChange(for: CGFloat.self) {
+                $0.contentSize.height
+            } action: { _, _ in
                 // A LazyVStack lays out from an estimated content size, so the opening
                 // anchor comes to rest short of the newest message and every realised row
                 // moves it again. Until the reader takes the thread over, keep them at the
@@ -251,7 +253,7 @@ struct GroupChatView: View {
                     // moves on its own: a message arriving mid-drag pushes it away, and that
                     // is not the reader going anywhere.
                     guard let origin, origin.wasFollowing,
-                          abs(position.offset - origin.offset) <= Self.pinnedSlack
+                        abs(position.offset - origin.offset) <= Self.pinnedSlack
                     else { return }
                     readerControlsScroll = false
                     unreadCount = 0
@@ -538,16 +540,16 @@ private struct GroupChatComposer: View {
                     prompt: Text(GroupChatCopy.composerPlaceholder).foregroundStyle(MonacoTheme.disabledLabel),
                     axis: .vertical
                 )
-                    .font(MonacoTheme.Typo.body)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .tint(MonacoTheme.ink)
-                    .lineLimit(1...5)
-                    .focused(focus)
-                    .padding(.horizontal, MonacoTheme.Space.m)
-                    .padding(.vertical, 11)
-                    .frame(minHeight: 44)
-                    .background(MonacoTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    .accessibilityIdentifier("group-chat-composer")
+                .font(MonacoTheme.Typo.body)
+                .foregroundStyle(MonacoTheme.ink)
+                .tint(MonacoTheme.ink)
+                .lineLimit(1...5)
+                .focused(focus)
+                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.vertical, 11)
+                .frame(minHeight: 44)
+                .background(MonacoTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .accessibilityIdentifier("group-chat-composer")
 
                 Button {
                     Haptics.tap()
@@ -564,7 +566,10 @@ private struct GroupChatComposer: View {
             if trimmedCount > GroupChatDraft.maxCharacters - 200 {
                 Text("\(trimmedCount)/\(GroupChatDraft.maxCharacters)")
                     .font(MonacoTheme.Typo.stamp)
-                    .foregroundStyle(trimmedCount > GroupChatDraft.maxCharacters ? MonacoTheme.destructive : MonacoTheme.secondaryText)
+                    .foregroundStyle(
+                        trimmedCount > GroupChatDraft.maxCharacters
+                            ? MonacoTheme.destructive : MonacoTheme.secondaryText
+                    )
                     .accessibilityIdentifier("group-chat-char-count")
             }
         }
@@ -657,7 +662,8 @@ private struct GroupChatBubble: View {
     private var face: some View {
         Group {
             if row.endsRun {
-                MonacoAvatar(photoURL: nil, displayName: message.authorName, size: Self.faceSize, seed: message.authorId)
+                MonacoAvatar(
+                    photoURL: nil, displayName: message.authorName, size: Self.faceSize, seed: message.authorId)
             } else {
                 Color.clear
             }
@@ -723,7 +729,9 @@ private struct GroupChatSkeleton: View {
                     if bubble.mine {
                         Spacer(minLength: 56)
                     } else {
-                        SkeletonBlock(width: GroupChatBubble.faceSize, height: GroupChatBubble.faceSize, radius: GroupChatBubble.faceSize / 2)
+                        SkeletonBlock(
+                            width: GroupChatBubble.faceSize, height: GroupChatBubble.faceSize,
+                            radius: GroupChatBubble.faceSize / 2)
                     }
                     SkeletonBlock(width: bubble.width, height: 38, radius: MonacoTheme.Radius.bubble)
                     if !bubble.mine { Spacer(minLength: 56) }

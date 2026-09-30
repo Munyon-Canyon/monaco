@@ -1,7 +1,7 @@
 import MonacoCore
 import Observation
-import os
 import SwiftUI
+import os
 
 /// The reads every tab shares. `MonacoAPIClient` is the production implementation;
 /// tests inject a stub so store behaviour can be checked without a server.
@@ -282,9 +282,10 @@ final class AppSessionStore {
         // A pull-to-refresh or a range change started while this was in flight: theirs is
         // newer. So is a poll from the other tab that has already landed.
         guard generation == refreshGeneration,
-              isCurrent(request),
-              poll == pollGeneration,
-              !Task.isCancelled else { return }
+            isCurrent(request),
+            poll == pollGeneration,
+            !Task.isCancelled
+        else { return }
         QuietUpdate.apply(loadedDashboard, over: dashboard) { dashboard = $0 }
         if let balance { QuietUpdate.apply(balance, over: platformBalance) { platformBalance = $0 } }
         if let boards { QuietUpdate.apply(boards, over: home) { home = $0 } }

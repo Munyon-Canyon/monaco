@@ -98,12 +98,13 @@ struct GroupDetailView: View {
     /// Votes land and swaps settle in seconds; a quiet cabal only needs its balances kept current.
     /// A deposit on its way into the pot is watched at the sweep cadence so the pot updates as it lands.
     private var pollInterval: Duration {
-        GroupDetailCadence.interval(for: GroupDetailCadence.Inputs(
-            hasOpenVotes: hasOpenVotes,
-            hasPendingSwap: activityItems.contains { $0.status.lowercased() == "pending" },
-            hasPendingDeposit: activityHasPendingDeposits,
-            isWatchingVoteOutcome: isWatchingVoteOutcome
-        ))
+        GroupDetailCadence.interval(
+            for: GroupDetailCadence.Inputs(
+                hasOpenVotes: hasOpenVotes,
+                hasPendingSwap: activityItems.contains { $0.status.lowercased() == "pending" },
+                hasPendingDeposit: activityHasPendingDeposits,
+                isWatchingVoteOutcome: isWatchingVoteOutcome
+            ))
     }
 
     init(
@@ -120,13 +121,15 @@ struct GroupDetailView: View {
         self.onLeft = onLeft
         _isLoading = State(initialValue: initialView == nil)
         _proposalService = State(initialValue: LiveProposalFeedService(auth: auth))
-        _pnl = State(initialValue: GroupPnLHistoryModel(groupId: groupId, source: LiveGroupPnLHistorySource(auth: auth)))
+        _pnl = State(
+            initialValue: GroupPnLHistoryModel(groupId: groupId, source: LiveGroupPnLHistorySource(auth: auth)))
 
-        _pictureEditor = StateObject(wrappedValue: CabalPictureEditor(
-            groupId: groupId,
-            pictureUrl: initialView?.pictureUrl,
-            writer: LiveCabalPictureWriter(accessToken: { [weak auth] in auth?.accessToken })
-        ))
+        _pictureEditor = StateObject(
+            wrappedValue: CabalPictureEditor(
+                groupId: groupId,
+                pictureUrl: initialView?.pictureUrl,
+                writer: LiveCabalPictureWriter(accessToken: { [weak auth] in auth?.accessToken })
+            ))
     }
 
     private var displayName: String {
@@ -192,9 +195,12 @@ struct GroupDetailView: View {
                     try? await refresh(.userInitiated)
                 }
             }
-            .sheet(isPresented: $showProposeSheet, onDismiss: {
-                proposalRefreshCount += 1
-            }) {
+            .sheet(
+                isPresented: $showProposeSheet,
+                onDismiss: {
+                    proposalRefreshCount += 1
+                }
+            ) {
                 if let groupView {
                     ProposeSheet(auth: auth, groupId: groupId, groupView: groupView, onProposed: proposalSent)
                 }
@@ -213,12 +219,15 @@ struct GroupDetailView: View {
                 }
             }
             .monacoToast($toast)
-            .confirmationDialog("Leave \(displayName)?", isPresented: $showLeaveConfirmation, titleVisibility: .visible) {
-                Button("Leave cabal", role: .destructive) { Task { await leaveGroup(withdrawStake: false) } }
-            } message: {
-                Text("You'll lose access to this cabal's votes and chat.")
-            }
-            .confirmationDialog("Leave \(displayName)?", isPresented: $showWithdrawLeaveConfirmation, titleVisibility: .visible) {
+            .confirmationDialog("Leave \(displayName)?", isPresented: $showLeaveConfirmation, titleVisibility: .visible)
+        {
+            Button("Leave cabal", role: .destructive) { Task { await leaveGroup(withdrawStake: false) } }
+        } message: {
+            Text("You'll lose access to this cabal's votes and chat.")
+        }
+            .confirmationDialog(
+                "Leave \(displayName)?", isPresented: $showWithdrawLeaveConfirmation, titleVisibility: .visible
+            ) {
                 Button("Sell and leave", role: .destructive) { Task { await leaveGroup(withdrawStake: true) } }
             } message: {
                 Text("We'll sell your slice at today's prices and move the cash to your account balance.")
@@ -301,14 +310,16 @@ struct GroupDetailView: View {
         case .addMoney:
             FundCabalView(
                 auth: auth,
-                joinedCabals: [HomeGroupBoardRowDTO(
-                    groupId: groupId,
-                    name: displayName,
-                    potValueUsd: groupView?.resolvedPotTotalUsd ?? "0",
-                    percentReturn: nil,
-                    dollarPnl: groupView?.you.dollarPnl ?? "+0.00",
-                    isJoined: true
-                )],
+                joinedCabals: [
+                    HomeGroupBoardRowDTO(
+                        groupId: groupId,
+                        name: displayName,
+                        potValueUsd: groupView?.resolvedPotTotalUsd ?? "0",
+                        percentReturn: nil,
+                        dollarPnl: groupView?.you.dollarPnl ?? "+0.00",
+                        isJoined: true
+                    )
+                ],
                 preselectedGroupId: groupId,
                 onFunded: { await refreshQuietly() }
             )
@@ -487,7 +498,8 @@ struct GroupDetailView: View {
         leavingSellsSlice = withdrawStake
         isLeaving = true
         do {
-            try await apiClient.leaveGroup(accessToken: token, groupId: groupId, withdrawStake: withdrawStake, submission: leaveSubmission)
+            try await apiClient.leaveGroup(
+                accessToken: token, groupId: groupId, withdrawStake: withdrawStake, submission: leaveSubmission)
             if withdrawStake {
                 toast = MonacoToast(message: "Cash moved to your account balance", isSuccess: true)
             }
@@ -510,9 +522,10 @@ struct GroupDetailView: View {
             isLeaving = false
             // The request never got an answer. Selling the slice can take most of a minute, so
             // it may well have gone through — don't tell the member to do it all over again.
-            toast = MonacoToast(message: withdrawStake
-                ? "We couldn't confirm that. Check your slice below before trying again"
-                : "Couldn't leave this cabal. Try again")
+            toast = MonacoToast(
+                message: withdrawStake
+                    ? "We couldn't confirm that. Check your slice below before trying again"
+                    : "Couldn't leave this cabal. Try again")
         }
         // A refused leave can still have sold the slice: the server sells first and checks the
         // cabal's rules afterwards. Re-read the cabal so what is on screen is what is true now.
@@ -544,7 +557,8 @@ struct GroupDetailView: View {
         retrySubmissions[item.id] = submission
 
         do {
-            let result = try await apiClient.retryTransaction(accessToken: token, transactionId: item.id, submission: submission)
+            let result = try await apiClient.retryTransaction(
+                accessToken: token, transactionId: item.id, submission: submission)
             await refreshQuietly()
             if result.status.lowercased() == "confirmed" {
                 let done = item.kind.lowercased() == "sell" ? "Sold" : "Bought"
@@ -582,7 +596,8 @@ struct GroupDetailView: View {
             let status = httpStatus(of: error)
             let wasCancelled = error.isRequestCancellation
             return JoinRequestsRead(
-                outcome: GroupDetailRefreshPolicy.joinRequestsOutcome(failureStatus: status, wasCancelled: wasCancelled),
+                outcome: GroupDetailRefreshPolicy.joinRequestsOutcome(
+                    failureStatus: status, wasCancelled: wasCancelled),
                 viewerMayStillBeAdmin: wasCancelled
                     || GroupDetailRefreshPolicy.viewerMayBeAdmin(afterFailureStatus: status)
             )
@@ -799,7 +814,6 @@ struct GroupDetailContent: View {
                     )
                 }
 
-
                 if let agent = view.agent {
                     AgentSectionView(agent: agent) { message in
                         onToast(MonacoToast(message: message, isSuccess: true))
@@ -828,7 +842,6 @@ struct GroupDetailContent: View {
         }
     }
 }
-
 
 /// Add money · Propose · Cash out · Chat, directly under the hero.
 struct GroupActionRow: View {
@@ -863,13 +876,16 @@ struct GroupJoinRequestsCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            MonacoSectionHeader(requests.count == 1 ? "1 person wants to join" : "\(requests.count) people want to join")
-                .padding(.horizontal, MonacoTheme.Space.m)
+            MonacoSectionHeader(
+                requests.count == 1 ? "1 person wants to join" : "\(requests.count) people want to join"
+            )
+            .padding(.horizontal, MonacoTheme.Space.m)
             MonacoGroupedList {
                 ForEach(requests) { request in
                     let name = request.displayName.isEmpty ? "Member" : request.displayName
                     HStack(spacing: MonacoTheme.Space.sm) {
-                        MonacoAvatar(photoURL: request.profilePhotoUrl, displayName: name, size: 40, seed: request.userId)
+                        MonacoAvatar(
+                            photoURL: request.profilePhotoUrl, displayName: name, size: 40, seed: request.userId)
                         Text(name)
                             .font(MonacoTheme.Typo.rowTitle)
                             .foregroundStyle(MonacoTheme.ink)
@@ -887,15 +903,15 @@ struct GroupJoinRequestsCard: View {
                             Haptics.success()
                             onDecide(request, true)
                         }
-                            .font(MonacoTheme.Typo.calloutStrong)
-                            .lineLimit(1)
-                            .fixedSize()
-                            .foregroundStyle(MonacoTheme.primaryButtonLabel)
-                            .padding(.horizontal, 14)
-                            .frame(minHeight: 36)
-                            .background(Capsule().fill(MonacoTheme.primaryButtonFill))
-                            .frame(minHeight: 44)
-                            .accessibilityIdentifier("join-request-approve-\(request.id)")
+                        .font(MonacoTheme.Typo.calloutStrong)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .foregroundStyle(MonacoTheme.primaryButtonLabel)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 36)
+                        .background(Capsule().fill(MonacoTheme.primaryButtonFill))
+                        .frame(minHeight: 44)
+                        .accessibilityIdentifier("join-request-approve-\(request.id)")
                     }
                     .disabled(decidingRequestIDs.contains(request.id))
                     .opacity(decidingRequestIDs.contains(request.id) ? 0.5 : 1)

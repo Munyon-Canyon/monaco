@@ -85,7 +85,8 @@ struct AgentDetailView: View {
     /// One ruled row: what the bot may spend, in the brand's voice — it is the cabal's money.
     private var budget: some View {
         MonacoGroupedList {
-            let layout = dynamicTypeSize.isAccessibilitySize
+            let layout =
+                dynamicTypeSize.isAccessibilitySize
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.xs))
                 : AnyLayout(HStackLayout(alignment: .center, spacing: MonacoTheme.Space.sm))
             layout {
@@ -126,7 +127,9 @@ struct AgentDetailView: View {
             MonacoSectionHeader(ProposeFlowCopy.agentKeySection)
             switch keyState {
             case .key(let key):
-                AgentKeyRevealView(apiKey: key, connectText: agent.connectText, explainer: ProposeFlowCopy.agentKeyExplainer) { message in
+                AgentKeyRevealView(
+                    apiKey: key, connectText: agent.connectText, explainer: ProposeFlowCopy.agentKeyExplainer
+                ) { message in
                     toast = MonacoToast(message: message, isSuccess: true)
                 }
             case .removed:

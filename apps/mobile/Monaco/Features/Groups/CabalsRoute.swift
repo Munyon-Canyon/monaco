@@ -64,9 +64,9 @@ struct CabalsRouteDestination: View {
 
     var body: some View {
         switch route {
-        case let .cabal(id, name):
+        case .cabal(let id, let name):
             GroupDetailView(auth: auth, groupId: id, groupName: name, onLeft: onChanged)
-        case let .join(id, name, mode, memberCount, pictureUrl):
+        case .join(let id, let name, let mode, let memberCount, let pictureUrl):
             JoinGroupView(
                 auth: auth, groupId: id, groupName: name, joinMode: mode,
                 memberCount: memberCount, pictureUrl: pictureUrl,

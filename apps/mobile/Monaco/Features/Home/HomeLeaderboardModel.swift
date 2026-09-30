@@ -1,7 +1,7 @@
 import MonacoCore
 import Observation
-import os
 import SwiftUI
+import os
 
 /// The dashboard read behind Home's "Top investors" board. `AppSessionStore` owns the
 /// payload, so the live source drives the store and reads the range back off it; tests

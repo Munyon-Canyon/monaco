@@ -46,7 +46,8 @@ struct SellCabalView: View {
                 } else if sliceIsTooSmall {
                     EmptyState(
                         title: "Too small to cash out",
-                        message: "Your slice is worth \(UsdAmountFormatter.format(micros: maxEquityUsdMicros)). Cash out starts at \(UsdAmountFormatter.format(micros: RedeemDustMinimum.usdcMicros)), so this one has to grow first."
+                        message:
+                            "Your slice is worth \(UsdAmountFormatter.format(micros: maxEquityUsdMicros)). Cash out starts at \(UsdAmountFormatter.format(micros: RedeemDustMinimum.usdcMicros)), so this one has to grow first."
                     )
                     .accessibilityIdentifier("sell-cabal-below-minimum")
                 } else {
@@ -172,7 +173,8 @@ struct SellCabalView: View {
                 submission: sellSubmission
             )
             let success = MonacoToast(
-                message: "Cashing out \(UsdAmountFormatter.format(micros: soldMicros)). It lands in your balance in about a minute",
+                message:
+                    "Cashing out \(UsdAmountFormatter.format(micros: soldMicros)). It lands in your balance in about a minute",
                 isSuccess: true
             )
             Haptics.success()

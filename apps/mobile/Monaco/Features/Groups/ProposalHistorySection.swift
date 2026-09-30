@@ -54,7 +54,8 @@ struct ProposalHistorySection: View {
                                 isVoting: votingIDs.contains(proposal.id),
                                 onVote: { choice in Task { await vote(choice, on: proposal) } },
                                 destination: {
-                                    ProposalDetailView(service: service, proposalId: proposal.id, initialProposal: proposal)
+                                    ProposalDetailView(
+                                        service: service, proposalId: proposal.id, initialProposal: proposal)
                                 },
                                 thesisIdentifierPrefix: "group-proposal-thesis",
                                 viewerChoice: votes.choice(for: proposal, viewerId: service.viewerId)

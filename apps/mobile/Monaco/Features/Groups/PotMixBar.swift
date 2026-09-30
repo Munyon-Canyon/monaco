@@ -28,7 +28,8 @@ struct PotMixBar: View {
         }
         let total = values.reduce(0) { $0 + $1.1 }
         guard total > 0 else { return [] }
-        let stocks = values
+        let stocks =
+            values
             .filter { !PotSectionView.isCash($0.0) }
             .sorted { $0.1 > $1.1 }
             .map { Segment(symbol: AssetSymbolFormatter.display($0.0.symbol), fraction: $0.1 / total, isCash: false) }
@@ -48,7 +49,9 @@ struct PotMixBar: View {
                         ForEach(segments) { segment in
                             Rectangle()
                                 .fill(color(for: segment))
-                                .frame(width: max(2, (geometry.size.width - CGFloat(segments.count - 1) * 2) * segment.fraction))
+                                .frame(
+                                    width: max(
+                                        2, (geometry.size.width - CGFloat(segments.count - 1) * 2) * segment.fraction))
                         }
                     }
                 }
