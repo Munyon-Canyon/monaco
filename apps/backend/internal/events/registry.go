@@ -33,11 +33,13 @@ func registrations() []Registration {
 		Register[CabalAccessDecided](TypeCabalAccessDecided, 1),
 		Register[CabalMemberLeft](TypeCabalMemberLeft, 1),
 		Register[CabalUpdated](TypeCabalUpdated, 1),
+		RegisterCore[PriceTick](TypePriceTick, 1),
 	}
 }
 
 type Registration struct {
 	typ     Type
+	core    bool
 	current int
 	fields  []Field
 	decode  func(payload []byte, attrs []slog.Attr) (Event, error)
@@ -51,19 +53,37 @@ type Field struct {
 type Entry struct {
 	Type    Type
 	Subject string
+	Core    bool
 	Version int
 	Fields  []Field
 }
 
 func Register[E Event](t Type, current int) Registration {
 	var zero E
-	if zero.Type() != t {
-		panic(fmt.Sprintf("events: %s registered as %s", zero.Type(), t))
+	mustRegister(zero.Type(), t, current)
+	return Registration{typ: t, current: current, fields: fieldsOf(reflect.TypeFor[E]()), decode: decodeInto[E]}
+}
+
+func RegisterCore[C Core](t Type, current int) Registration {
+	var zero C
+	mustRegister(zero.Type(), t, current)
+	return Registration{typ: t, core: true, current: current, fields: fieldsOf(reflect.TypeFor[C]())}
+}
+
+func mustRegister(reported, t Type, current int) {
+	if reported != t {
+		panic(fmt.Sprintf("events: %s registered as %s", reported, t))
 	}
 	if current < 1 {
 		panic(fmt.Sprintf("events: %s registered at version %d", t, current))
 	}
-	return Registration{typ: t, current: current, fields: fieldsOf(reflect.TypeFor[E]()), decode: decodeInto[E]}
+}
+
+func (r Registration) subject() string {
+	if r.core {
+		return string(r.typ)
+	}
+	return r.typ.Subject()
 }
 
 func decodeInto[E Event](payload []byte, attrs []slog.Attr) (Event, error) {
@@ -101,7 +121,9 @@ func Subjects() []string {
 	r := newRegistry(registrations())
 	subjects := make([]string, 0, len(r))
 	for _, t := range slices.Sorted(maps.Keys(r)) {
-		subjects = append(subjects, t.Subject())
+		if !r[t].core {
+			subjects = append(subjects, t.Subject())
+		}
 	}
 	return subjects
 }
@@ -111,7 +133,8 @@ func Catalog() []Entry {
 	entries := make([]Entry, 0, len(r))
 	for _, t := range slices.Sorted(maps.Keys(r)) {
 		reg := r[t]
-		entries = append(entries, Entry{Type: t, Subject: t.Subject(), Version: reg.current, Fields: reg.fields})
+		entries = append(entries,
+			Entry{Type: t, Subject: reg.subject(), Core: reg.core, Version: reg.current, Fields: reg.fields})
 	}
 	return entries
 }
@@ -124,7 +147,7 @@ func (r registry) decode(t Type, v int, payload []byte) (Event, error) {
 	const op = "events.Decode"
 	attrs := []slog.Attr{slog.String("type", string(t)), slog.Int("v", v)}
 	reg, ok := r[t]
-	if !ok || v < 1 || (v != reg.current && v != reg.current-1) {
+	if !ok || reg.core || v < 1 || (v != reg.current && v != reg.current-1) {
 		return nil, errs.New(errs.CodeDecodeFailed, op, attrs...)
 	}
 	var head struct {

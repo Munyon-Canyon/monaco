@@ -75,6 +75,10 @@ func TestDocsEventsPrintsTheRegistryCatalog(t *testing.T) {
 		"| `cabal_id` | `uuid.UUID` |\n" +
 		"| `actor_id` | `uuid.UUID` |\n" +
 		"| `changes` | `events.CabalChanges` |\n\n" +
+		"## `price.tick`\n\n" +
+		"Core NATS subject `price.tick`, version 1, never stored.\n\n" +
+		"| Field | Go type |\n| --- | --- |\n" +
+		"| `v` | `int` |\n| `as_of` | `time.Time` |\n| `prices` | `[]events.TickPrice` |\n\n" +
 		"## `proposal.created`\n\nSubject `events.proposal.created`, version 1.\n\n" +
 		"| Field | Go type |\n| --- | --- |\n" +
 		"| `v` | `int` |\n| `proposal_id` | `uuid.UUID` |\n" +
