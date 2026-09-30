@@ -157,6 +157,7 @@ func TestAccessorsReadTheRow(t *testing.T) {
 		{CodeHandleTaken, KindBlocked, false, false},
 		{CodeAuthStateTransition, KindInternal, true, false},
 		{CodeWalletMismatch, KindInternal, false, true},
+		{CodeConservationBroken, KindInternal, false, true},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.code), func(t *testing.T) {

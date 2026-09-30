@@ -3,6 +3,7 @@ package events
 import (
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -34,7 +35,13 @@ func mustPanic(t *testing.T, want string, fn func()) {
 
 func TestSubjects(t *testing.T) {
 	t.Parallel()
-	if got, want := Subjects(), []string{"events.system.pinged"}; !slices.Equal(got, want) {
+	want := []string{
+		"events.proposal.created", "events.proposal.executed", "events.proposal.execution_blocked",
+		"events.proposal.expired", "events.proposal.failed", "events.proposal.passed", "events.proposal.voided",
+		"events.proposal.withdrawn", "events.system.pinged", "events.trade.blocked", "events.trade.confirmed",
+		"events.trade.failed", "events.trade.submitted",
+	}
+	if got := Subjects(); !slices.Equal(got, want) {
 		t.Fatalf("Subjects() = %q, want %q", got, want)
 	}
 }
@@ -118,14 +125,22 @@ func TestDecodeFailures(t *testing.T) {
 func TestCatalog(t *testing.T) {
 	t.Parallel()
 	got := Catalog()
-	if len(got) != 1 {
-		t.Fatalf("Catalog() has %d entries, want 1", len(got))
+	types := make([]Type, 0, len(got))
+	for _, e := range got {
+		types = append(types, e.Type)
 	}
-	e := got[0]
+	if want := []Type{
+		TypeProposalCreated, TypeProposalExecuted, TypeProposalExecutionBlocked, TypeProposalExpired,
+		TypeProposalFailed, TypeProposalPassed, TypeProposalVoided, TypeProposalWithdrawn,
+		TypeSystemPinged, TypeTradeBlocked, TypeTradeConfirmed, TypeTradeFailed, TypeTradeSubmitted,
+	}; !slices.Equal(types, want) {
+		t.Fatalf("Catalog() types = %q, want %q", types, want)
+	}
+	e := got[slices.Index(types, TypeSystemPinged)]
 	want := []Field{{"v", "int"}, {"ping_id", "uuid.UUID"}, {"user_id", "uuid.UUID"}, {"note", "string"}}
 	if e.Type != TypeSystemPinged || e.Subject != "events.system.pinged" || e.Version != 1 ||
 		!slices.Equal(e.Fields, want) {
-		t.Fatalf("Catalog()[0] = %+v", e)
+		t.Fatalf("Catalog() system.pinged = %+v", e)
 	}
 }
 
@@ -138,5 +153,57 @@ func TestSystemPingedAggregate(t *testing.T) {
 	var ev Event = SystemPinged{V: 1, PingID: id}
 	if ev.Type() != TypeSystemPinged || ev.AggregateType() != "system" || ev.AggregateID() != id {
 		t.Fatalf("SystemPinged aggregate = %s %s %s", ev.Type(), ev.AggregateType(), ev.AggregateID())
+	}
+}
+
+func TestTradeEventAggregates(t *testing.T) {
+	t.Parallel()
+	swap, err := uuid.Parse("01890a5d-ac96-774b-bcce-b302099a8057")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, err := uuid.Parse("01890a5d-ac96-774b-bcce-b302099a8058")
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := TradeSource{Kind: "proposal", ID: source}
+	for _, tc := range []struct {
+		ev       Event
+		typ      Type
+		aggType  string
+		aggregID uuid.UUID
+	}{
+		{TradeBlocked{V: 1, Source: src}, TypeTradeBlocked, "proposal", source},
+		{TradeSubmitted{V: 1, SwapID: swap, Source: src}, TypeTradeSubmitted, "swap", swap},
+		{TradeConfirmed{V: 1, SwapID: swap, Source: src}, TypeTradeConfirmed, "swap", swap},
+		{TradeFailed{V: 1, SwapID: swap, Source: src}, TypeTradeFailed, "swap", swap},
+	} {
+		if tc.ev.Type() != tc.typ || tc.ev.AggregateType() != tc.aggType || tc.ev.AggregateID() != tc.aggregID {
+			t.Errorf("%T aggregate = %s %s %s, want %s %s %s", tc.ev, tc.ev.Type(), tc.ev.AggregateType(),
+				tc.ev.AggregateID(), tc.typ, tc.aggType, tc.aggregID)
+		}
+	}
+}
+
+func TestProposalEventsAggregateOnTheProposal(t *testing.T) {
+	t.Parallel()
+	id, err := uuid.Parse("01890a5d-ac96-774b-bcce-b302099a8060")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range []Event{
+		ProposalCreated{ProposalID: id},
+		ProposalPassed{ProposalID: id},
+		ProposalFailed{ProposalID: id},
+		ProposalExpired{ProposalID: id},
+		ProposalWithdrawn{ProposalID: id},
+		ProposalVoided{ProposalID: id},
+		ProposalExecuted{ProposalID: id},
+		ProposalExecutionBlocked{ProposalID: id},
+	} {
+		if ev.AggregateType() != "proposal" || ev.AggregateID() != id ||
+			!strings.HasPrefix(string(ev.Type()), "proposal.") {
+			t.Errorf("%T aggregate = %s %s %s", ev, ev.Type(), ev.AggregateType(), ev.AggregateID())
+		}
 	}
 }

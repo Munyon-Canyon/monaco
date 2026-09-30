@@ -6,19 +6,31 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-const goldenDir = "testdata/golden"
+const (
+	goldenDir   = "testdata/golden"
+	usdcMint    = chain.SolanaAddress("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+	aaplxMint   = chain.SolanaAddress("XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp")
+	txSignature = chain.Signature(
+		"5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW",
+	)
+)
 
 func golden() fs.FS { return os.DirFS(goldenDir) }
 
@@ -34,6 +46,59 @@ func fixtures(t *testing.T) map[events.Type]events.Event {
 	}
 	return map[events.Type]events.Event{
 		events.TypeSystemPinged: events.SystemPinged{V: 1, PingID: id, UserID: user, Note: "reference flow"},
+		events.TypeTradeBlocked: events.TradeBlocked{
+			V: 1, CabalID: user, Source: events.TradeSource{Kind: "proposal", ID: id}, SourceBatchSize: 1,
+			Action: "buy", Symbol: "AAPLx", Code: errs.CodeSlippageExceeded, Have: 104_000_000, Need: 104_475_000,
+		},
+		events.TypeTradeSubmitted: events.TradeSubmitted{
+			V: 1, SwapID: id, CabalID: user, Source: events.TradeSource{Kind: "proposal", ID: user}, SourceBatchSize: 1,
+			Action: "buy", Symbol: "AAPLx", InMint: usdcMint, OutMint: aaplxMint, InAmount: 25_000_000,
+			TxSignature: txSignature,
+		},
+		events.TypeTradeConfirmed: events.TradeConfirmed{
+			V: 1, SwapID: id, CabalID: user, Source: events.TradeSource{Kind: "cashout", ID: user}, SourceBatchSize: 2,
+			Action: "sell", Symbol: "AAPLx", InMint: aaplxMint, InAmount: 105_000_000, OutMint: usdcMint,
+			OutAmount: 24_950_000, USDCMicros: money.MicrosFromUint64(24_950_000),
+			FeeMicros: money.MicrosFromUint64(5_000), TxSignature: txSignature,
+			ConfirmedAt: time.Date(2026, 3, 1, 12, 0, 30, 0, time.UTC),
+		},
+		events.TypeTradeFailed: events.TradeFailed{
+			V: 1, SwapID: id, CabalID: user, Source: events.TradeSource{Kind: "proposal", ID: user}, SourceBatchSize: 1,
+			Action: "buy", Symbol: "AAPLx", InMint: usdcMint, InAmount: 25_000_000, FailureCode: "jupiter_failed",
+			JupiterCode: "-1004",
+		},
+	}
+}
+
+func proposalFixtures(t *testing.T) map[events.Type]events.Event {
+	t.Helper()
+	g := testkit.NewIDs(528)
+	proposal, cabal, proposer, swap := g.NewV7(), g.NewV7(), g.NewV7(), g.NewV7()
+	return map[events.Type]events.Event{
+		events.TypeProposalCreated: events.ProposalCreated{
+			V: 1, ProposalID: proposal, CabalID: cabal, ProposerID: proposer, Kind: "buy", Symbol: "AAPLx",
+			Mint: aaplxMint, USDCMicros: money.MicrosFromUint64(25_000_000), QuoteOutAmount: 105_000_000,
+			ExpiresAt: time.Date(2026, 3, 2, 12, 0, 0, 0, time.UTC), VoterCount: 3,
+		},
+		events.TypeProposalPassed: events.ProposalPassed{
+			V: 1, ProposalID: proposal, CabalID: cabal, Kind: "sell", Symbol: "AAPLx", Mint: aaplxMint,
+			TokenAmount: 300_000_000, QuoteOutAmount: 71_250_000, ProposerID: proposer,
+		},
+		events.TypeProposalFailed:  events.ProposalFailed{V: 1, ProposalID: proposal, CabalID: cabal},
+		events.TypeProposalExpired: events.ProposalExpired{V: 1, ProposalID: proposal, CabalID: cabal},
+		events.TypeProposalWithdrawn: events.ProposalWithdrawn{
+			V:          1,
+			ProposalID: proposal,
+			CabalID:    cabal,
+			ProposerID: proposer,
+		},
+		events.TypeProposalVoided: events.ProposalVoided{
+			V: 1, ProposalID: proposal, CabalID: cabal, ActorType: "admin", Reason: "Duplicate of another proposal.",
+		},
+		events.TypeProposalExecuted: events.ProposalExecuted{V: 1, ProposalID: proposal, CabalID: cabal, SwapID: swap},
+		events.TypeProposalExecutionBlocked: events.ProposalExecutionBlocked{
+			V: 1, ProposalID: proposal, CabalID: cabal, Code: errs.CodePotExceeded,
+		},
 	}
 }
 
@@ -42,6 +107,7 @@ func goldenName(t events.Type, v int) string { return fmt.Sprintf("%s.v%d.json",
 func TestGoldenPayloads(t *testing.T) {
 	t.Parallel()
 	fx := fixtures(t)
+	maps.Copy(fx, proposalFixtures(t))
 	for _, entry := range events.Catalog() {
 		ev, ok := fx[entry.Type]
 		if !ok {

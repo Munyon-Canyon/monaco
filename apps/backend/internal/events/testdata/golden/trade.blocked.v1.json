@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "cabal_id": "01890a5d-ac96-774b-bcce-b302099a8058",
+  "source": {
+    "kind": "proposal",
+    "id": "01890a5d-ac96-774b-bcce-b302099a8057"
+  },
+  "source_batch_size": 1,
+  "action": "buy",
+  "symbol": "AAPLx",
+  "code": "slippage_exceeded",
+  "have": "104000000",
+  "need": "104475000"
+}

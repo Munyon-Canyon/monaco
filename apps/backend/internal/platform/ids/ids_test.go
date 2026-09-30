@@ -63,6 +63,14 @@ func TestEventIDFromKeepsTheUUID(t *testing.T) {
 	}
 }
 
+func TestProposalIDFromKeepsTheUUID(t *testing.T) {
+	t.Parallel()
+	u := ids.Real{}.NewV7()
+	if got := ids.ProposalIDFrom(u); got.UUID() != u || got.IsZero() {
+		t.Fatalf("ProposalIDFrom(%s) = %s", u, got)
+	}
+}
+
 func TestZeroValueIsInvalid(t *testing.T) {
 	t.Parallel()
 	var id ids.UserID

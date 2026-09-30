@@ -28,6 +28,7 @@ const (
 	AssetNotFound           ErrorCode = "asset_not_found"
 	AuthStateTransition     ErrorCode = "auth_state_transition"
 	ClientClosed            ErrorCode = "client_closed"
+	ConservationBroken      ErrorCode = "conservation_broken"
 	DbSchemaBehind          ErrorCode = "db_schema_behind"
 	DbUnavailable           ErrorCode = "db_unavailable"
 	DecodeFailed            ErrorCode = "decode_failed"
@@ -47,23 +48,36 @@ const (
 	JupiterRejected         ErrorCode = "jupiter_rejected"
 	JupiterUnavailable      ErrorCode = "jupiter_unavailable"
 	LedgerUnbalanced        ErrorCode = "ledger_unbalanced"
+	LiveSwapExists          ErrorCode = "live_swap_exists"
 	LoginMethodNotAllowed   ErrorCode = "login_method_not_allowed"
+	NoRoute                 ErrorCode = "no_route"
+	NotAVoter               ErrorCode = "not_a_voter"
+	NotCabalMember          ErrorCode = "not_cabal_member"
 	NotFound                ErrorCode = "not_found"
+	NotProposer             ErrorCode = "not_proposer"
 	Panic                   ErrorCode = "panic"
 	PhoneNotLinked          ErrorCode = "phone_not_linked"
 	PhotoInvalid            ErrorCode = "photo_invalid"
+	PotExceeded             ErrorCode = "pot_exceeded"
 	PotValueZero            ErrorCode = "pot_value_zero"
 	PrivyUnavailable        ErrorCode = "privy_unavailable"
+	ProposalClosed          ErrorCode = "proposal_closed"
+	ProposalNotFound        ErrorCode = "proposal_not_found"
 	RateLimited             ErrorCode = "rate_limited"
 	RelayerUnderfunded      ErrorCode = "relayer_underfunded"
 	RpcUnavailable          ErrorCode = "rpc_unavailable"
 	SessionRequired         ErrorCode = "session_required"
+	SlippageExceeded        ErrorCode = "slippage_exceeded"
+	SwapFailed              ErrorCode = "swap_failed"
+	SwapNotFound            ErrorCode = "swap_not_found"
+	SwapNotRetryable        ErrorCode = "swap_not_retryable"
 	Unauthorized            ErrorCode = "unauthorized"
 	UpstreamTimeout         ErrorCode = "upstream_timeout"
 	UpstreamUnavailable     ErrorCode = "upstream_unavailable"
 	UserNotFound            ErrorCode = "user_not_found"
 	VersionConflict         ErrorCode = "version_conflict"
 	WalletMismatch          ErrorCode = "wallet_mismatch"
+	WithdrawNotAllowed      ErrorCode = "withdraw_not_allowed"
 	XNotLinked              ErrorCode = "x_not_linked"
 )
 
@@ -87,6 +101,8 @@ func (e ErrorCode) Valid() bool {
 	case AuthStateTransition:
 		return true
 	case ClientClosed:
+		return true
+	case ConservationBroken:
 		return true
 	case DbSchemaBehind:
 		return true
@@ -126,9 +142,19 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case LedgerUnbalanced:
 		return true
+	case LiveSwapExists:
+		return true
 	case LoginMethodNotAllowed:
 		return true
+	case NoRoute:
+		return true
+	case NotAVoter:
+		return true
+	case NotCabalMember:
+		return true
 	case NotFound:
+		return true
+	case NotProposer:
 		return true
 	case Panic:
 		return true
@@ -136,9 +162,15 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case PhotoInvalid:
 		return true
+	case PotExceeded:
+		return true
 	case PotValueZero:
 		return true
 	case PrivyUnavailable:
+		return true
+	case ProposalClosed:
+		return true
+	case ProposalNotFound:
 		return true
 	case RateLimited:
 		return true
@@ -147,6 +179,14 @@ func (e ErrorCode) Valid() bool {
 	case RpcUnavailable:
 		return true
 	case SessionRequired:
+		return true
+	case SlippageExceeded:
+		return true
+	case SwapFailed:
+		return true
+	case SwapNotFound:
+		return true
+	case SwapNotRetryable:
 		return true
 	case Unauthorized:
 		return true
@@ -159,6 +199,8 @@ func (e ErrorCode) Valid() bool {
 	case VersionConflict:
 		return true
 	case WalletMismatch:
+		return true
+	case WithdrawNotAllowed:
 		return true
 	case XNotLinked:
 		return true

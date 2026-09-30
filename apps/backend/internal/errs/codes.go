@@ -65,6 +65,29 @@ const (
 	CodeAssetNotFound Code = "asset_not_found"
 )
 
+const (
+	CodeSwapNotFound     Code = "swap_not_found"
+	CodeSwapNotRetryable Code = "swap_not_retryable"
+	CodeSlippageExceeded Code = "slippage_exceeded"
+	CodeNoRoute          Code = "no_route"
+	CodeSwapFailed       Code = "swap_failed"
+)
+
+const (
+	CodeProposalNotFound   Code = "proposal_not_found"
+	CodeProposalClosed     Code = "proposal_closed"
+	CodeNotAVoter          Code = "not_a_voter"
+	CodeNotProposer        Code = "not_proposer"
+	CodeWithdrawNotAllowed Code = "withdraw_not_allowed"
+	CodeLiveSwapExists     Code = "live_swap_exists"
+	CodePotExceeded        Code = "pot_exceeded"
+	CodeNotCabalMember     Code = "not_cabal_member"
+)
+
+const (
+	CodeConservationBroken Code = "conservation_broken"
+)
+
 type Row struct {
 	Name      string
 	Kind      Kind
@@ -73,8 +96,11 @@ type Row struct {
 	Message   string
 }
 
-func rowGroups() [4]func() map[Code]Row {
-	return [...]func() map[Code]Row{platformRows, identityRows, treasuryRows, marketRows}
+func rowGroups() [7]func() map[Code]Row {
+	return [...]func() map[Code]Row{
+		platformRows, identityRows, treasuryRows, marketRows,
+		tradingRows, governanceRows, rankingRows,
+	}
 }
 
 func table() map[Code]Row {
@@ -222,6 +248,64 @@ func marketRows() map[Code]Row {
 	return map[Code]Row{
 		CodeAssetNotFound: {
 			Name: "AssetNotFound", Kind: KindNotFound, Message: "That asset is not in the catalog.",
+		},
+	}
+}
+
+func tradingRows() map[Code]Row {
+	return map[Code]Row{
+		CodeSwapNotFound: {Name: "SwapNotFound", Kind: KindNotFound, Message: "That trade was not found."},
+		CodeSwapNotRetryable: {
+			Name: "SwapNotRetryable", Kind: KindBlocked,
+			Message: "This trade can't be retried. Only the latest failed trade can be.",
+		},
+		CodeSlippageExceeded: {
+			Name: "SlippageExceeded", Kind: KindBlocked,
+			Message: "The price moved past the cabal's slippage limit.",
+		},
+		CodeNoRoute: {
+			Name: "NoRoute", Kind: KindBlocked,
+			Message: "No route for this trade right now. Try a smaller amount.",
+		},
+		CodeSwapFailed: {Name: "SwapFailed", Kind: KindBlocked, Message: "The trade did not go through."},
+	}
+}
+
+func governanceRows() map[Code]Row {
+	return map[Code]Row{
+		CodeProposalNotFound: {Name: "ProposalNotFound", Kind: KindNotFound, Message: "That proposal was not found."},
+		CodeProposalClosed: {
+			Name: "ProposalClosed", Kind: KindBlocked, Message: "Voting on this proposal has closed.",
+		},
+		CodeNotAVoter: {
+			Name: "NotAVoter", Kind: KindForbidden,
+			Message: "Only members of the cabal when this proposal opened can vote on it.",
+		},
+		CodeNotProposer: {
+			Name: "NotProposer", Kind: KindForbidden,
+			Message: "Only the member who made this proposal can withdraw it.",
+		},
+		CodeWithdrawNotAllowed: {
+			Name: "WithdrawNotAllowed", Kind: KindBlocked,
+			Message: "This proposal can no longer be withdrawn.",
+		},
+		CodeLiveSwapExists: {
+			Name: "LiveSwapExists", Kind: KindBlocked, Message: "This proposal's trade is already underway.",
+		},
+		CodePotExceeded: {Name: "PotExceeded", Kind: KindBlocked, Message: "That amount is more than the cabal holds."},
+		CodeNotCabalMember: {
+			Name: "NotCabalMember", Kind: KindForbidden, Message: "Only members of this cabal can do that.",
+		},
+	}
+}
+
+func rankingRows() map[Code]Row {
+	return map[Code]Row{
+		CodeConservationBroken: {
+			Name:    "ConservationBroken",
+			Kind:    KindInternal,
+			Alert:   true,
+			Message: "Something went wrong.",
 		},
 	}
 }
