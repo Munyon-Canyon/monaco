@@ -144,7 +144,7 @@ func writeWalls(b *strings.Builder, modulesPkg, name string, names []string) {
 	roots := slices.Clone(own)
 	for _, other := range names {
 		if other != name {
-			roots = append(roots, modulesPkg+other+"$")
+			roots = append(roots, modulesPkg+other+"$", modulesPkg+other+"/port$")
 		}
 	}
 	dir := "**/internal/modules/" + name + "/"
@@ -152,6 +152,9 @@ func writeWalls(b *strings.Builder, modulesPkg, name string, names []string) {
 		modulesPkg, "modules never import each other; send an event or use a query port")
 	writeWall(b, "module-"+name+"-inner", []string{dir + "adapters/**", dir + "domain/**"}, own,
 		modulesPkg, "domain and adapters import no other module; the module root and app read a query port")
+	writeWall(b, "module-"+name+"-port", []string{dir + "port/**"}, []string{pkg + "/sqlc$", pkg + "/domain$"},
+		modulesPkg, "a port package imports only its own module's sqlc and domain, "+
+			"so two modules can read each other without an import cycle")
 }
 
 func writeWall(b *strings.Builder, rule string, files, allow []string, deny, desc string) {
