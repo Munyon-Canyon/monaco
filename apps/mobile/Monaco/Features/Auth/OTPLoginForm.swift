@@ -288,7 +288,8 @@ struct OTPLoginForm: View {
     /// Side by side, the way Home sets "Add money" and "Cash out"; one under the other at the
     /// accessibility sizes, where two labels in a row run into each other.
     private var codeActions: some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
+        let layout =
+            dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
             : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.l))
         return layout {
@@ -411,9 +412,9 @@ struct OTPLoginForm: View {
     }
 }
 
-private extension Character {
+extension Character {
     /// `isNumber` also matches "½" and non-Latin digits, which no OTP field wants.
-    var isASCIIDigit: Bool {
+    fileprivate var isASCIIDigit: Bool {
         isASCII && isNumber
     }
 }

@@ -28,7 +28,9 @@ struct LiveStocksTabDataSource: StocksTabDataSource {
     }
 
     func search(query: String, offset: Int, limit: Int) async throws -> ListMarketAssetsResponse {
-        try await auth.withAccessToken { try await apiClient.listMarketAssets(accessToken: $0, query: query, limit: limit, offset: offset) }
+        try await auth.withAccessToken {
+            try await apiClient.listMarketAssets(accessToken: $0, query: query, limit: limit, offset: offset)
+        }
     }
 
     func popular(limit: Int) async throws -> PopularAssetsResponse {

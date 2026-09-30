@@ -1,8 +1,8 @@
 import Combine
 import Foundation
 import MonacoCore
-import os
 import PrivySDK
+import os
 
 /// Wraps Privy SDK init, session restore, SMS/email OTP login and access-token refresh.
 @MainActor
@@ -130,7 +130,7 @@ class PrivyAuthService: ObservableObject {
             guard let user = await privy.getUser() else { return nil }
             do {
                 return try await user.getAccessToken()
-            } catch where PrivyAuthService.isSignedOutError(error) {
+            } catch  where PrivyAuthService.isSignedOutError(error) {
                 return nil
             }
         }
@@ -309,7 +309,8 @@ class PrivyAuthService: ObservableObject {
     /// failed on the way (offline, timeout), which must never sign the user out.
     nonisolated static func isSignedOutError(_ error: Error) -> Bool {
         guard let privyError = error as? PrivyError,
-              case .authenticationFailure(let reason) = privyError.errorCode else {
+            case .authenticationFailure(let reason) = privyError.errorCode
+        else {
             return false
         }
         switch reason {
@@ -341,7 +342,8 @@ class PrivyAuthService: ObservableObject {
             }
         }
         if let privyError = error as? PrivyError,
-           case .authenticationFailure(let reason) = privyError.errorCode {
+            case .authenticationFailure(let reason) = privyError.errorCode
+        {
             switch reason {
             case .incorrectCredentials:
                 return .codeRejected
@@ -372,7 +374,8 @@ class PrivyAuthService: ObservableObject {
             await ensureServerSweepSigner(for: user)
             #endif
         } catch {
-            AppLogger.session.error("getAccessToken failed (restore: \(isRestore)): \(String(describing: error), privacy: .public)")
+            AppLogger.session.error(
+                "getAccessToken failed (restore: \(isRestore)): \(String(describing: error), privacy: .public)")
             accessToken = nil
             if Self.isSignedOutError(error) {
                 endSession(reason: LoginFailureCopy.sessionExpired)
@@ -388,7 +391,8 @@ class PrivyAuthService: ObservableObject {
     #if DEBUG
     private func serverSweepSignerID() -> String? {
         let environment = ProcessInfo.processInfo.environment
-        let fromEnvironment = environment["PRIVY_AUTHORIZATION_KEY_ID"]
+        let fromEnvironment =
+            environment["PRIVY_AUTHORIZATION_KEY_ID"]
             ?? environment["SIMCTL_CHILD_PRIVY_AUTHORIZATION_KEY_ID"]
         if let fromEnvironment, !fromEnvironment.isEmpty {
             return fromEnvironment
@@ -402,11 +406,13 @@ class PrivyAuthService: ObservableObject {
 
     private func ensureServerSweepSigner(for user: PrivyUser) async {
         guard let signerID = serverSweepSignerID() else {
-            exportSignerMigrationResults([[
-                "address": "",
-                "success": false,
-                "error": "missing signer id",
-            ]])
+            exportSignerMigrationResults([
+                [
+                    "address": "",
+                    "success": false,
+                    "error": "missing signer id",
+                ]
+            ])
             return
         }
 
@@ -414,20 +420,24 @@ class PrivyAuthService: ObservableObject {
             try await user.migrateWalletsIfNeeded()
             try await user.refresh()
         } catch {
-            exportSignerMigrationResults([[
-                "address": "",
-                "success": false,
-                "error": "wallet refresh: \(error.localizedDescription)",
-            ]])
+            exportSignerMigrationResults([
+                [
+                    "address": "",
+                    "success": false,
+                    "error": "wallet refresh: \(error.localizedDescription)",
+                ]
+            ])
             return
         }
 
         guard !user.embeddedSolanaWallets.isEmpty else {
-            exportSignerMigrationResults([[
-                "address": "",
-                "success": false,
-                "error": "no embedded solana wallet",
-            ]])
+            exportSignerMigrationResults([
+                [
+                    "address": "",
+                    "success": false,
+                    "error": "no embedded solana wallet",
+                ]
+            ])
             return
         }
 
@@ -455,7 +465,8 @@ class PrivyAuthService: ObservableObject {
     private func exportSignerMigrationResults(_ results: [[String: Any]]) {
         let payload: [String: Any] = ["wallets": results]
         guard JSONSerialization.isValidJSONObject(payload),
-              let data = try? JSONSerialization.data(withJSONObject: payload) else {
+            let data = try? JSONSerialization.data(withJSONObject: payload)
+        else {
             return
         }
         let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -472,7 +483,8 @@ class PrivyAuthService: ObservableObject {
             payload["identityToken"] = identityToken
         }
         guard JSONSerialization.isValidJSONObject(payload),
-              let data = try? JSONSerialization.data(withJSONObject: payload) else {
+            let data = try? JSONSerialization.data(withJSONObject: payload)
+        else {
             return
         }
         let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]

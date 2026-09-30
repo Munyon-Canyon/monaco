@@ -43,7 +43,9 @@ enum GroupNavSampleEntry: String, CaseIterable {
 
     static var requested: GroupNavSampleEntry? {
         let arguments = ProcessInfo.processInfo.arguments
-        guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else { return nil }
+        guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else {
+            return nil
+        }
         return GroupNavSampleEntry(rawValue: arguments[flag + 1])
     }
 }
@@ -195,7 +197,9 @@ struct GroupNavSampleHarness: View {
                 Button {
                     discoveryRoute = .create
                 } label: {
-                    MonacoRow(title: "Start a cabal", subtitle: "Name it and set the rules", chevron: true, isLast: true) {
+                    MonacoRow(
+                        title: "Start a cabal", subtitle: "Name it and set the rules", chevron: true, isLast: true
+                    ) {
                         SunkenGlyphMark(systemImage: "plus", size: 40)
                     }
                 }
@@ -299,9 +303,10 @@ struct GroupNavSampleHarness: View {
             }
         case .joinCode:
             JoinGroupView(auth: auth, actions: actions) { groupId, name in
-                replaceTop(with: .cabal(id: groupId, name: name ?? GroupNavSampleData.name(forCabal: groupId), isNew: false))
+                replaceTop(
+                    with: .cabal(id: groupId, name: name ?? GroupNavSampleData.name(forCabal: groupId), isNew: false))
             }
-        case let .join(cabal):
+        case .join(let cabal):
             JoinGroupView(
                 auth: auth,
                 groupId: cabal.id,
@@ -312,7 +317,7 @@ struct GroupNavSampleHarness: View {
             ) { groupId, name in
                 replaceTop(with: .cabal(id: groupId, name: name ?? cabal.name, isNew: false))
             }
-        case let .cabal(id, name, isNew):
+        case .cabal(let id, let name, let isNew):
             GroupDetailView(
                 auth: auth,
                 groupId: id,
@@ -350,18 +355,18 @@ private enum GroupNavSampleScreen: Hashable {
     case bot(TradingBotSample)
 }
 
-private extension GroupNavSampleEntry {
+extension GroupNavSampleEntry {
     /// The three chains the navigation regression covers keep the plain stack they were
     /// written against; everything else pushes onto a path.
-    var isNavigationChain: Bool {
+    fileprivate var isNavigationChain: Bool {
         [.root, .list, .create].contains(self)
     }
 
-    var opensTheBot: Bool {
+    fileprivate var opensTheBot: Bool {
         [.bots, .bot, .botRemoved].contains(self)
     }
 
-    var initialPath: [GroupNavSampleScreen] {
+    fileprivate var initialPath: [GroupNavSampleScreen] {
         switch self {
         case .start: [.start]
         case .joinCode: [.joinCode]
@@ -410,8 +415,10 @@ private enum GroupNavSampleData {
 
     /// The same two cabals `CabalsTabSampleData` lists, so its join stub answers for each the
     /// way its policy says: Dorm 4B fund lets anyone in, Tesla or bust asks its admin.
-    static let openCabal = Discovered(id: "5b1f0c9e-0004-4c55-9a51-000000000004", name: "Dorm 4B fund", mode: .open, members: 9)
-    static let approvalCabal = Discovered(id: "5b1f0c9e-0005-4c55-9a51-000000000005", name: "Tesla or bust", mode: .request, members: 5)
+    static let openCabal = Discovered(
+        id: "5b1f0c9e-0004-4c55-9a51-000000000004", name: "Dorm 4B fund", mode: .open, members: 9)
+    static let approvalCabal = Discovered(
+        id: "5b1f0c9e-0005-4c55-9a51-000000000005", name: "Tesla or bust", mode: .request, members: 5)
 
     static func name(forCabal id: String) -> String {
         CabalsTabSampleData.cabals.first { $0.id == id }?.name ?? GroupDetailSampleData.view.name

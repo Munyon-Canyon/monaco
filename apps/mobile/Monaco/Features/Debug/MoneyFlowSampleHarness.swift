@@ -33,7 +33,9 @@ enum MoneyFlowSampleScenario: String, CaseIterable {
 
     static var requested: MoneyFlowSampleScenario? {
         let arguments = ProcessInfo.processInfo.arguments
-        guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else { return nil }
+        guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else {
+            return nil
+        }
         return MoneyFlowSampleScenario(rawValue: arguments[flag + 1])
     }
 }
@@ -77,7 +79,8 @@ struct MoneyFlowSampleHarness: View {
         case .fundCabal, .fundCabalPicker, .fundCabalEmpty, .fundCabalLoading:
             FundCabalContent(
                 phase: MoneyFlowSampleData.fundPhase(for: scenario),
-                joinedCabals: scenario == .fundCabalPicker ? MoneyFlowSampleData.cabals : [MoneyFlowSampleData.cabals[0]],
+                joinedCabals: scenario == .fundCabalPicker
+                    ? MoneyFlowSampleData.cabals : [MoneyFlowSampleData.cabals[0]],
                 isSingleCabalContext: scenario != .fundCabalPicker,
                 selectedGroupId: $selectedGroupId,
                 amountText: $amountText,
@@ -141,9 +144,15 @@ enum MoneyFlowSampleData {
 
     /// The Home harness's cabals, so their tints match across the gallery.
     static let cabals = [
-        HomeGroupBoardRowDTO(groupId: "g1", name: "Weekend investors", potValueUsd: "548.20", percentReturn: "0.124", dollarPnl: "+48.20", isJoined: true),
-        HomeGroupBoardRowDTO(groupId: "g2", name: "Semis or bust", potValueUsd: "2310.75", percentReturn: "-0.031", dollarPnl: "-73.90", isJoined: true),
-        HomeGroupBoardRowDTO(groupId: "g3", name: "Index huggers", potValueUsd: "120.00", percentReturn: nil, dollarPnl: "+0.00", isJoined: true),
+        HomeGroupBoardRowDTO(
+            groupId: "g1", name: "Weekend investors", potValueUsd: "548.20", percentReturn: "0.124",
+            dollarPnl: "+48.20", isJoined: true),
+        HomeGroupBoardRowDTO(
+            groupId: "g2", name: "Semis or bust", potValueUsd: "2310.75", percentReturn: "-0.031", dollarPnl: "-73.90",
+            isJoined: true),
+        HomeGroupBoardRowDTO(
+            groupId: "g3", name: "Index huggers", potValueUsd: "120.00", percentReturn: nil, dollarPnl: "+0.00",
+            isJoined: true),
     ]
 
     static let pendingDeposit = GetDepositResponse(

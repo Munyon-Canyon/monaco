@@ -14,7 +14,7 @@ enum HomeSampleScenario: String, CaseIterable {
     static var requested: HomeSampleScenario? {
         let arguments = ProcessInfo.processInfo.arguments
         guard let flag = arguments.firstIndex(of: "-MonacoHomeSample"),
-              arguments.indices.contains(flag + 1)
+            arguments.indices.contains(flag + 1)
         else { return nil }
         return HomeSampleScenario(rawValue: arguments[flag + 1])
     }
@@ -66,11 +66,18 @@ struct HomeSampleHarness: View {
 
         // Pot values for the "Your cabals" subtitles; same cabals as `ProfileSampleHarness`.
         session.home = HomeViewDTO(
-            groups: joined ? [
-                HomeGroupBoardRowDTO(groupId: "g1", name: "Weekend investors", potValueUsd: "548.20", percentReturn: "0.124", dollarPnl: "+48.20", isJoined: true),
-                HomeGroupBoardRowDTO(groupId: "g2", name: "Semis or bust", potValueUsd: "2310.75", percentReturn: "-0.031", dollarPnl: "-73.90", isJoined: true),
-                HomeGroupBoardRowDTO(groupId: "g3", name: "Index huggers", potValueUsd: "120.00", percentReturn: nil, dollarPnl: "+0.00", isJoined: true),
-            ] : [],
+            groups: joined
+                ? [
+                    HomeGroupBoardRowDTO(
+                        groupId: "g1", name: "Weekend investors", potValueUsd: "548.20", percentReturn: "0.124",
+                        dollarPnl: "+48.20", isJoined: true),
+                    HomeGroupBoardRowDTO(
+                        groupId: "g2", name: "Semis or bust", potValueUsd: "2310.75", percentReturn: "-0.031",
+                        dollarPnl: "-73.90", isJoined: true),
+                    HomeGroupBoardRowDTO(
+                        groupId: "g3", name: "Index huggers", potValueUsd: "120.00", percentReturn: nil,
+                        dollarPnl: "+0.00", isJoined: true),
+                ] : [],
             people: []
         )
 
@@ -78,30 +85,41 @@ struct HomeSampleHarness: View {
             netWorthUsd: joined ? "1248.50" : "0.00",
             netWorthDollarPnl: joined ? "+48.20" : "+0.00",
             netWorthPercentReturn: joined ? "0.040" : nil,
-            myGroups: joined ? [
-                HomeMyGroupRowDTO(groupId: "g1", name: "Weekend investors", equityUsd: "311.50", slicePercent: "0.568", dollarPnl: "+27.40", percentReturn: "0.096"),
-                HomeMyGroupRowDTO(groupId: "g2", name: "Semis or bust", equityUsd: "400.05", slicePercent: "0.173", dollarPnl: "-15.00", percentReturn: "-0.036"),
-                HomeMyGroupRowDTO(groupId: "g3", name: "Index huggers", equityUsd: "120.00", slicePercent: "1.0", dollarPnl: "+0.00", percentReturn: nil),
-            ] : [],
+            myGroups: joined
+                ? [
+                    HomeMyGroupRowDTO(
+                        groupId: "g1", name: "Weekend investors", equityUsd: "311.50", slicePercent: "0.568",
+                        dollarPnl: "+27.40", percentReturn: "0.096"),
+                    HomeMyGroupRowDTO(
+                        groupId: "g2", name: "Semis or bust", equityUsd: "400.05", slicePercent: "0.173",
+                        dollarPnl: "-15.00", percentReturn: "-0.036"),
+                    HomeMyGroupRowDTO(
+                        groupId: "g3", name: "Index huggers", equityUsd: "120.00", slicePercent: "1.0",
+                        dollarPnl: "+0.00", percentReturn: nil),
+                ] : [],
             pnlSeries1H: joined ? HomeSampleHarness.samplePnLSeries1H() : [],
             leaderboard: HomeLeaderboardSectionDTO(
                 range: "ALL",
-                people: joined ? [
-                    HomePeopleBoardRowDTO(userId: "u1", displayName: "Alfred", percentReturn: "0.124", dollarPnl: "+48.20"),
-                    HomePeopleBoardRowDTO(userId: "u2", displayName: "Priya Shah", percentReturn: "0.081", dollarPnl: "+22.10"),
-                ] : []
+                people: joined
+                    ? [
+                        HomePeopleBoardRowDTO(
+                            userId: "u1", displayName: "Alfred", percentReturn: "0.124", dollarPnl: "+48.20"),
+                        HomePeopleBoardRowDTO(
+                            userId: "u2", displayName: "Priya Shah", percentReturn: "0.081", dollarPnl: "+22.10"),
+                    ] : []
             ),
-            missedProposals: missed ? [
-                HomeMissedProposalRowDTO(
-                    groupId: "g1",
-                    groupName: "Weekend investors",
-                    proposalId: "p1",
-                    symbol: "AAPLx",
-                    status: "open",
-                    createdAt: Date().addingTimeInterval(-3600 * 2),
-                    expiresAt: Date().addingTimeInterval(3600 * 22)
-                ),
-            ] : []
+            missedProposals: missed
+                ? [
+                    HomeMissedProposalRowDTO(
+                        groupId: "g1",
+                        groupName: "Weekend investors",
+                        proposalId: "p1",
+                        symbol: "AAPLx",
+                        status: "open",
+                        createdAt: Date().addingTimeInterval(-3600 * 2),
+                        expiresAt: Date().addingTimeInterval(3600 * 22)
+                    )
+                ] : []
         )
         return session
     }

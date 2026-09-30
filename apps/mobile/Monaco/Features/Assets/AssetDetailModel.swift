@@ -23,7 +23,9 @@ struct LiveAssetDetailDataSource: AssetDetailDataSource {
     }
 
     func chart(symbol: String, range: AssetChartRange) async throws -> AssetChartDTO {
-        try await auth.withAccessToken { try await apiClient.getMarketAssetChart(accessToken: $0, symbol: symbol, range: range) }
+        try await auth.withAccessToken {
+            try await apiClient.getMarketAssetChart(accessToken: $0, symbol: symbol, range: range)
+        }
     }
 }
 
@@ -229,7 +231,8 @@ final class AssetDetailModel {
     /// change — under its own label, so the number never claims a period it did not measure.
     var move: Move? {
         if let series, let index = scrubbedIndex, let point = series.point(at: index),
-           let ratio = series.changeRatio(toIndex: index) {
+            let ratio = series.changeRatio(toIndex: index)
+        {
             return curveMove(
                 series,
                 ratio: ratio,

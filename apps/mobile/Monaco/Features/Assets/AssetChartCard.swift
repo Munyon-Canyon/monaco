@@ -93,7 +93,6 @@ struct AssetChartCard: View {
         }
     }
 
-
     private func curve(_ series: AssetChartSeries) -> some View {
         MonacoScrubChart(
             points: series.points.map { MonacoScrubChart.Point(date: $0.date, value: $0.chartValue) },
@@ -194,7 +193,8 @@ struct AssetChartCard: View {
 
     private func summary(_ series: AssetChartSeries) -> String {
         let move = model.move.map { PercentReturnFormatter.format($0.ratio) } ?? "—"
-        var sentence = "\(series.range.accessibilityLabel) price history. "
+        var sentence =
+            "\(series.range.accessibilityLabel) price history. "
             + "\(move) \(series.range.moveLabel.lowercased()). "
             + "Low \(UsdAmountFormatter.format(micros: micros(series.lowValue))), "
             + "high \(UsdAmountFormatter.format(micros: micros(series.highValue)))."

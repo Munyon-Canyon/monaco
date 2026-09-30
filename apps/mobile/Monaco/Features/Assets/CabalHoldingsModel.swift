@@ -98,7 +98,7 @@ final class CabalHoldingsModel {
             return
         }
         switch state {
-        case .resolved: break // Keep the rows on screen while they are re-read.
+        case .resolved: break  // Keep the rows on screen while they are re-read.
         case .loading, .failed: state = .loading
         }
 
@@ -139,12 +139,13 @@ final class CabalHoldingsModel {
     private func fetch(cabal: HomeGroupBoardRowDTO) async -> Outcome {
         do {
             let view = try await dataSource.groupView(groupId: cabal.groupId)
-            return .answered(Resolved(
-                groupId: cabal.groupId,
-                name: cabal.name,
-                pot: ProposePot(view: view),
-                holding: view.pot.first(where: { Self.holds($0, symbol: symbol) })
-            ))
+            return .answered(
+                Resolved(
+                    groupId: cabal.groupId,
+                    name: cabal.name,
+                    pot: ProposePot(view: view),
+                    holding: view.pot.first(where: { Self.holds($0, symbol: symbol) })
+                ))
         } catch {
             if error.isRequestCancellation { return .cancelled }
             if case MonacoAPIError.httpStatus(401) = error { return .unauthorized }

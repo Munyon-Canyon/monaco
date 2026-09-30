@@ -61,7 +61,8 @@ struct AuthGateView: View {
     private var missingConfigView: some View {
         EmptyState(
             title: "Privy isn't configured",
-            message: "Set PRIVY_APP_ID and PRIVY_APP_CLIENT_ID in your Xcode scheme or shell env. Copy values from .env.example."
+            message:
+                "Set PRIVY_APP_ID and PRIVY_APP_CLIENT_ID in your Xcode scheme or shell env. Copy values from .env.example."
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -69,7 +70,8 @@ struct AuthGateView: View {
     private var missingLoginMethodsView: some View {
         EmptyState(
             title: "No sign-in methods are on",
-            message: "Enable PRIVY_SMS_LOGIN_ENABLED and/or PRIVY_EMAIL_LOGIN_ENABLED, or turn SMS/email on in Privy dashboard Login Methods."
+            message:
+                "Enable PRIVY_SMS_LOGIN_ENABLED and/or PRIVY_EMAIL_LOGIN_ENABLED, or turn SMS/email on in Privy dashboard Login Methods."
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

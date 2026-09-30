@@ -47,14 +47,16 @@ struct AssetDetailView: View {
         self.pricePollInterval = pricePollInterval
         self.chartPollInterval = chartPollInterval
         self.scrubbedIndexOnLoad = scrubbedIndexOnLoad
-        _model = State(initialValue: AssetDetailModel(
-            symbol: symbol,
-            dataSource: dataSource ?? LiveAssetDetailDataSource(auth: auth)
-        ))
-        _social = State(initialValue: AssetSocialModel(
-            symbol: symbol,
-            dataSource: socialDataSource ?? LiveAssetSocialDataSource(auth: auth)
-        ))
+        _model = State(
+            initialValue: AssetDetailModel(
+                symbol: symbol,
+                dataSource: dataSource ?? LiveAssetDetailDataSource(auth: auth)
+            ))
+        _social = State(
+            initialValue: AssetSocialModel(
+                symbol: symbol,
+                dataSource: socialDataSource ?? LiveAssetSocialDataSource(auth: auth)
+            ))
     }
 
     var body: some View {
@@ -138,7 +140,7 @@ struct AssetDetailView: View {
     /// See `scrubbedIndexOnLoad`. Never overrides a scrub a finger has already made.
     private func holdScrubIfAsked() {
         guard let scrubbedIndexOnLoad, model.scrubbedIndex == nil,
-              let count = model.series?.points.count, count > 0
+            let count = model.series?.points.count, count > 0
         else { return }
         model.scrubbedIndex = min(max(scrubbedIndexOnLoad, 0), count - 1)
     }
@@ -161,7 +163,7 @@ struct AssetDetailView: View {
                     Task { await social.refresh() }
                 }
             )
-        case let .cabal(id, name):
+        case .cabal(let id, let name):
             GroupDetailView(auth: auth, groupId: id, groupName: name)
         case .variant(let variantSymbol):
             AssetDetailView(auth: auth, symbol: variantSymbol)
@@ -228,7 +230,6 @@ struct AssetDetailView: View {
         .padding(.horizontal, MonacoTheme.Space.m)
     }
 
-
     private var chartCard: some View {
         AssetChartCard(model: model, isMarketLive: model.isMarketLive)
     }
@@ -293,12 +294,13 @@ struct AssetDetailView: View {
             }
             // 4. About — what the token is, and the tracker disclosure        (#343)
             if let detail = model.detail {
-                AssetAboutCard(about: AssetAboutCopy.make(
-                    symbol: detail.symbol,
-                    name: detail.name,
-                    solanaMint: detail.solanaMint,
-                    liquidityLabel: detail.liquidity.label
-                ))
+                AssetAboutCard(
+                    about: AssetAboutCopy.make(
+                        symbol: detail.symbol,
+                        name: detail.name,
+                        solanaMint: detail.solanaMint,
+                        liquidityLabel: detail.liquidity.label
+                    ))
             }
             // 5. Activity on this stock — proposals, fills and comments       (#344)
             if !social.activity.isEmpty {
