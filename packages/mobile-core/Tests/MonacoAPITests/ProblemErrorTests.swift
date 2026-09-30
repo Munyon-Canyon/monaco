@@ -30,6 +30,7 @@ final class ProblemErrorTests: XCTestCase {
                  .assetNotFound,
                  .authStateTransition,
                  .clientClosed,
+                 .conservationBroken,
                  .dbSchemaBehind,
                  .dbUnavailable,
                  .decodeFailed,

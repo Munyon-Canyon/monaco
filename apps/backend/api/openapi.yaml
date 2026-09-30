@@ -243,6 +243,7 @@ components:
         - asset_not_found
         - auth_state_transition
         - client_closed
+        - conservation_broken
         - db_schema_behind
         - db_unavailable
         - decode_failed

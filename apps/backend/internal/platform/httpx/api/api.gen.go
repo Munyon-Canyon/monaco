@@ -28,6 +28,7 @@ const (
 	AssetNotFound           ErrorCode = "asset_not_found"
 	AuthStateTransition     ErrorCode = "auth_state_transition"
 	ClientClosed            ErrorCode = "client_closed"
+	ConservationBroken      ErrorCode = "conservation_broken"
 	DbSchemaBehind          ErrorCode = "db_schema_behind"
 	DbUnavailable           ErrorCode = "db_unavailable"
 	DecodeFailed            ErrorCode = "decode_failed"
@@ -100,6 +101,8 @@ func (e ErrorCode) Valid() bool {
 	case AuthStateTransition:
 		return true
 	case ClientClosed:
+		return true
+	case ConservationBroken:
 		return true
 	case DbSchemaBehind:
 		return true

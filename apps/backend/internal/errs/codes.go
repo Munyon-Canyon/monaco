@@ -84,6 +84,10 @@ const (
 	CodeNotCabalMember     Code = "not_cabal_member"
 )
 
+const (
+	CodeConservationBroken Code = "conservation_broken"
+)
+
 type Row struct {
 	Name      string
 	Kind      Kind
@@ -92,10 +96,10 @@ type Row struct {
 	Message   string
 }
 
-func rowGroups() [6]func() map[Code]Row {
+func rowGroups() [7]func() map[Code]Row {
 	return [...]func() map[Code]Row{
 		platformRows, identityRows, treasuryRows, marketRows,
-		tradingRows, governanceRows,
+		tradingRows, governanceRows, rankingRows,
 	}
 }
 
@@ -291,6 +295,17 @@ func governanceRows() map[Code]Row {
 		CodePotExceeded: {Name: "PotExceeded", Kind: KindBlocked, Message: "That amount is more than the cabal holds."},
 		CodeNotCabalMember: {
 			Name: "NotCabalMember", Kind: KindForbidden, Message: "Only members of this cabal can do that.",
+		},
+	}
+}
+
+func rankingRows() map[Code]Row {
+	return map[Code]Row{
+		CodeConservationBroken: {
+			Name:    "ConservationBroken",
+			Kind:    KindInternal,
+			Alert:   true,
+			Message: "Something went wrong.",
 		},
 	}
 }
