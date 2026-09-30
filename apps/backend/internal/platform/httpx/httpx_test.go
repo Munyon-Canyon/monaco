@@ -37,6 +37,10 @@ func (healthz) GetStream(context.Context, api.GetStreamRequestObject) (api.GetSt
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetStream")
 }
 
+func (healthz) GetMe(context.Context, api.GetMeRequestObject) (api.GetMeResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetMe")
+}
+
 func (healthz) PostSystemPing(
 	context.Context, api.PostSystemPingRequestObject,
 ) (api.PostSystemPingResponseObject, error) {

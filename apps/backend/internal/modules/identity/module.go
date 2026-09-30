@@ -22,7 +22,9 @@ func New(d module.Deps) *Module { return &Module{deps: d} }
 
 func (*Module) Name() string { return "identity" }
 
-func (*Module) Routes(*httpx.Routes) {}
+func (m *Module) Routes(r *httpx.Routes) {
+	r.IdentityRoutes = adapters.HTTP{Reads: m.deps.Pool}
+}
 
 func (*Module) Consumers() []bus.Consumer {
 	return []bus.Consumer{}

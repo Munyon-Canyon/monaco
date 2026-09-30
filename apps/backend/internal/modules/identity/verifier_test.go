@@ -241,6 +241,10 @@ type actorProbe struct {
 	seen []auth.Actor
 }
 
+func (p *actorProbe) GetMe(context.Context, api.GetMeRequestObject) (api.GetMeResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "actorProbe.GetMe")
+}
+
 func (p *actorProbe) PostSystemPing(context.Context, api.PostSystemPingRequestObject) (
 	api.PostSystemPingResponseObject, error,
 ) {
