@@ -10,25 +10,34 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
+type TriggerKind string
+
 const (
-	consumerTrigger = "consumer:"
-	pollerTrigger   = "poller:"
+	TriggerRoute    TriggerKind = "route"
+	TriggerPoller   TriggerKind = "poller"
+	TriggerConsumer TriggerKind = "consumer"
 )
+
+func (f Flow) TriggerKind() (kind TriggerKind, name string) { return triggerKind(f.Trigger) }
+
+func triggerKind(trigger string) (TriggerKind, string) {
+	for _, kind := range []TriggerKind{TriggerPoller, TriggerConsumer} {
+		if name, ok := strings.CutPrefix(trigger, string(kind)+":"); ok {
+			return kind, name
+		}
+	}
+	return TriggerRoute, trigger
+}
 
 func Members(values []string) Lookup {
 	return func(_ Flow, v string) bool { return slices.Contains(values, v) }
 }
 
 func Triggers(spec []byte, subjects, pollers []string) Lookup {
-	routes := Routes(spec)
+	known := map[TriggerKind][]string{TriggerRoute: Routes(spec), TriggerPoller: pollers, TriggerConsumer: subjects}
 	return func(_ Flow, trigger string) bool {
-		if subject, ok := strings.CutPrefix(trigger, consumerTrigger); ok {
-			return slices.Contains(subjects, subject)
-		}
-		if name, ok := strings.CutPrefix(trigger, pollerTrigger); ok {
-			return slices.Contains(pollers, name)
-		}
-		return slices.Contains(routes, trigger)
+		kind, name := triggerKind(trigger)
+		return slices.Contains(known[kind], name)
 	}
 }
 
