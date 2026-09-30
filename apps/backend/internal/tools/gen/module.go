@@ -42,6 +42,10 @@ func changelogStub(name string) func(string) (string, error) {
 			return "", invalid(op, "the Unreleased section has no ### Added list")
 		}
 		cut := len(old) - len(unreleased) + at + len(changelogAdded)
-		return old[:cut] + line + old[cut:], nil
+		entry := line
+		if strings.HasPrefix(old[cut:], "#") {
+			entry += "\n"
+		}
+		return old[:cut] + entry + old[cut:], nil
 	}
 }

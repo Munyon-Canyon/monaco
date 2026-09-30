@@ -60,7 +60,9 @@ func regenerateQueries(ctx context.Context, dir string) error {
 	return runQuiet(cmd, "gen.regenerateQueries")
 }
 
-func syncSqlc(dir string) error {
+func planSqlc(*os.Root, string, []string) (Plan, error) { return Plan{}, nil }
+
+func syncSqlc(_ context.Context, dir string) error {
 	const op = "gen.syncSqlc"
 	root, err := os.OpenRoot(dir)
 	if err != nil {
