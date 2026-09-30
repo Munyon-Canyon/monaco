@@ -3,6 +3,7 @@ package bus
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -72,18 +73,16 @@ func Connect(ctx context.Context, cfg config.NATS, proc Process, opts ...Option)
 	return &Conn{nc: nc, js: js, ns: o.ns, meter: meter, hintDropped: dropped}, nil
 }
 
+const closeFlushTimeout = 5 * time.Second
+
 func (c *Conn) Close(ctx context.Context) {
-	closed := make(chan struct{})
-	c.nc.SetClosedHandler(func(*nats.Conn) { close(closed) })
-	if err := c.nc.Drain(); err != nil {
-		c.nc.Close()
+	defer c.nc.Close()
+	if !c.nc.IsConnected() {
 		return
 	}
-	select {
-	case <-closed:
-	case <-ctx.Done():
-		c.nc.Close()
-	}
+	ctx, cancel := context.WithTimeout(ctx, closeFlushTimeout)
+	defer cancel()
+	_ = c.nc.FlushWithContext(ctx)
 }
 
 func (c *Conn) Connected() bool { return c.nc.IsConnected() }
