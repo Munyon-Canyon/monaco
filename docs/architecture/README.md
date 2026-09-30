@@ -25,6 +25,7 @@ Durable record of the design decisions behind Monaco, one file per topic. Each f
 | Leaderboard | [leaderboards.md](leaderboards.md) | Decided 2026-09-26; amended 2026-09-27 |
 | Chat | [chat.md](chat.md) | Decided 2026-09-27 |
 | Referrals | [referrals.md](referrals.md) | Decided 2026-09-26; amended 2026-09-27 |
+| Cabals | [cabals.md](cabals.md) | Decided 2026-09-27 |
 
 Status values: **Not started**, **In discussion** (file exists, holds open questions), **Proposed** (written up in full, awaiting sign-off), **Decided** (with date; a note names any external check still pending), **Superseded** (points at the replacement).
 
