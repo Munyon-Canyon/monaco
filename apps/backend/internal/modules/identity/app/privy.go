@@ -24,6 +24,8 @@ func (u PrivyUser) LoginMethods() domain.LoginMethods {
 	}
 }
 
+func (u PrivyUser) Links() domain.Links { return domain.Links{Phone: u.PhoneE164, X: u.X} }
+
 func (u PrivyUser) ContactEmail() string { return cmp.Or(u.Email, u.AppleEmail, u.GoogleEmail) }
 
 type PrivyWallet struct {

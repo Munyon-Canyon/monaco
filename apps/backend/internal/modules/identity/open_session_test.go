@@ -48,10 +48,12 @@ func (h *recordedHints) sent() []string {
 
 type sessionFixture struct {
 	pool    *pgxpool.Pool
+	ids     *testkit.IDs
 	clock   *testkit.Clock
 	privy   *privyfake.Users
 	wallets *privyfake.Wallets
 	hints   *recordedHints
+	rule    *app.WalletRule
 	handler *app.OpenSessionHandler
 }
 
@@ -62,21 +64,31 @@ func newSessionFixture(t *testing.T) *sessionFixture {
 
 func newSessionFixtureWith(t *testing.T, wrap func(adapters.Users) app.SessionUsers) *sessionFixture {
 	t.Helper()
-	pool := testkit.DB(t)
-	g := testkit.NewIDs(testkit.RandSeed(t))
-	clk := testkit.NewClock(clock.Real{}.Now().UTC().Truncate(time.Microsecond))
 	f := &sessionFixture{
-		pool: pool, clock: clk, privy: &privyfake.Users{}, wallets: &privyfake.Wallets{}, hints: &recordedHints{},
+		pool: testkit.DB(t), ids: testkit.NewIDs(testkit.RandSeed(t)),
+		clock: testkit.NewClock(clock.Real{}.Now().UTC().Truncate(time.Microsecond)),
+		privy: &privyfake.Users{}, wallets: &privyfake.Wallets{}, hints: &recordedHints{},
 	}
 	rule, err := app.NewWalletRule(f.wallets, noop.NewMeterProvider())
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.handler = app.NewOpenSessionHandler(app.OpenSessionDeps{
-		UoW: db.New(pool, g, clock.Real{}), Reads: pool, Users: wrap(adapters.Users{}), Privy: f.privy, Wallets: rule,
-		IDs: g, Clock: clk, Hints: f.hints,
-	})
+	f.rule = rule
+	f.handler = f.handlerFor(wrap(adapters.Users{}), f.hints)
 	return f
+}
+
+func (f *sessionFixture) handlerFor(users app.SessionUsers, hints app.Hints) *app.OpenSessionHandler {
+	return f.handlerWith(users, adapters.Users{}, hints)
+}
+
+func (f *sessionFixture) handlerWith(
+	users app.SessionUsers, links app.LinkUsers, hints app.Hints,
+) *app.OpenSessionHandler {
+	return app.NewOpenSessionHandler(app.OpenSessionDeps{
+		UoW: db.New(f.pool, f.ids, clock.Real{}), Reads: f.pool, Users: users, Links: links, Privy: f.privy,
+		Wallets: f.rule, IDs: f.ids, Clock: f.clock, Hints: hints,
+	})
 }
 
 func (f *sessionFixture) open(t *testing.T, id app.PrivyUserID) (app.Me, error) {

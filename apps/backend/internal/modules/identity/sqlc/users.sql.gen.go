@@ -66,7 +66,8 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (int64, 
 }
 
 const findUserByID = `-- name: FindUserByID :one
-SELECT u.id, u.privy_user_id, u.handle, u.auth_state, u.account_status, w.privy_wallet_id, w.address
+SELECT u.id, u.privy_user_id, u.handle, u.auth_state, u.account_status, u.phone_e164, u.x_user_id, u.x_username,
+  w.privy_wallet_id, w.address
 FROM users u
 LEFT JOIN user_wallets w ON w.user_id = u.id
 WHERE u.id = $1 AND u.deleted_at IS NULL
@@ -78,6 +79,9 @@ type FindUserByIDRow struct {
 	Handle        pgtype.Text
 	AuthState     string
 	AccountStatus string
+	PhoneE164     pgtype.Text
+	XUserID       pgtype.Text
+	XUsername     pgtype.Text
 	PrivyWalletID pgtype.Text
 	Address       pgtype.Text
 }
@@ -91,6 +95,9 @@ func (q *Queries) FindUserByID(ctx context.Context, id uuid.UUID) (FindUserByIDR
 		&i.Handle,
 		&i.AuthState,
 		&i.AccountStatus,
+		&i.PhoneE164,
+		&i.XUserID,
+		&i.XUsername,
 		&i.PrivyWalletID,
 		&i.Address,
 	)
@@ -98,7 +105,8 @@ func (q *Queries) FindUserByID(ctx context.Context, id uuid.UUID) (FindUserByIDR
 }
 
 const findUserByPrivyUserID = `-- name: FindUserByPrivyUserID :one
-SELECT u.id, u.privy_user_id, u.handle, u.auth_state, u.account_status, w.privy_wallet_id, w.address
+SELECT u.id, u.privy_user_id, u.handle, u.auth_state, u.account_status, u.phone_e164, u.x_user_id, u.x_username,
+  w.privy_wallet_id, w.address
 FROM users u
 LEFT JOIN user_wallets w ON w.user_id = u.id
 WHERE u.privy_user_id = $1
@@ -110,6 +118,9 @@ type FindUserByPrivyUserIDRow struct {
 	Handle        pgtype.Text
 	AuthState     string
 	AccountStatus string
+	PhoneE164     pgtype.Text
+	XUserID       pgtype.Text
+	XUsername     pgtype.Text
 	PrivyWalletID pgtype.Text
 	Address       pgtype.Text
 }
@@ -123,14 +134,42 @@ func (q *Queries) FindUserByPrivyUserID(ctx context.Context, privyUserID string)
 		&i.Handle,
 		&i.AuthState,
 		&i.AccountStatus,
+		&i.PhoneE164,
+		&i.XUserID,
+		&i.XUsername,
 		&i.PrivyWalletID,
 		&i.Address,
 	)
 	return i, err
 }
 
+const linksHeldByOthers = `-- name: LinksHeldByOthers :one
+SELECT
+  EXISTS (SELECT 1 FROM users o WHERE o.phone_hash = $1::bytea AND o.id <> $2) AS phone,
+  EXISTS (SELECT 1 FROM users o WHERE o.x_user_id = $3::text AND o.id <> $2) AS x
+`
+
+type LinksHeldByOthersParams struct {
+	PhoneHash []byte
+	ID        uuid.UUID
+	XUserID   string
+}
+
+type LinksHeldByOthersRow struct {
+	Phone bool
+	X     bool
+}
+
+func (q *Queries) LinksHeldByOthers(ctx context.Context, arg LinksHeldByOthersParams) (LinksHeldByOthersRow, error) {
+	row := q.db.QueryRow(ctx, linksHeldByOthers, arg.PhoneHash, arg.ID, arg.XUserID)
+	var i LinksHeldByOthersRow
+	err := row.Scan(&i.Phone, &i.X)
+	return i, err
+}
+
 const lockUserByPrivyUserID = `-- name: LockUserByPrivyUserID :one
-SELECT u.id, u.privy_user_id, u.handle, u.auth_state, u.account_status, w.privy_wallet_id, w.address
+SELECT u.id, u.privy_user_id, u.handle, u.auth_state, u.account_status, u.phone_e164, u.x_user_id, u.x_username,
+  w.privy_wallet_id, w.address
 FROM users u
 LEFT JOIN user_wallets w ON w.user_id = u.id
 WHERE u.privy_user_id = $1
@@ -143,6 +182,9 @@ type LockUserByPrivyUserIDRow struct {
 	Handle        pgtype.Text
 	AuthState     string
 	AccountStatus string
+	PhoneE164     pgtype.Text
+	XUserID       pgtype.Text
+	XUsername     pgtype.Text
 	PrivyWalletID pgtype.Text
 	Address       pgtype.Text
 }
@@ -156,6 +198,9 @@ func (q *Queries) LockUserByPrivyUserID(ctx context.Context, privyUserID string)
 		&i.Handle,
 		&i.AuthState,
 		&i.AccountStatus,
+		&i.PhoneE164,
+		&i.XUserID,
+		&i.XUsername,
 		&i.PrivyWalletID,
 		&i.Address,
 	)
@@ -175,6 +220,56 @@ type SetUserEmailParams struct {
 
 func (q *Queries) SetUserEmail(ctx context.Context, arg SetUserEmailParams) error {
 	_, err := q.db.Exec(ctx, setUserEmail, arg.Email, arg.Now, arg.ID)
+	return err
+}
+
+const setUserPhone = `-- name: SetUserPhone :exec
+UPDATE users SET phone_e164 = $1, phone_hash = $2,
+  phone_verified_at = $3, updated_at = $4
+WHERE id = $5
+`
+
+type SetUserPhoneParams struct {
+	PhoneE164  pgtype.Text
+	PhoneHash  []byte
+	VerifiedAt pgtype.Timestamptz
+	Now        time.Time
+	ID         uuid.UUID
+}
+
+func (q *Queries) SetUserPhone(ctx context.Context, arg SetUserPhoneParams) error {
+	_, err := q.db.Exec(ctx, setUserPhone,
+		arg.PhoneE164,
+		arg.PhoneHash,
+		arg.VerifiedAt,
+		arg.Now,
+		arg.ID,
+	)
+	return err
+}
+
+const setUserX = `-- name: SetUserX :exec
+UPDATE users SET x_user_id = $1, x_username = $2,
+  x_linked_at = $3, updated_at = $4
+WHERE id = $5
+`
+
+type SetUserXParams struct {
+	XUserID   pgtype.Text
+	XUsername pgtype.Text
+	LinkedAt  pgtype.Timestamptz
+	Now       time.Time
+	ID        uuid.UUID
+}
+
+func (q *Queries) SetUserX(ctx context.Context, arg SetUserXParams) error {
+	_, err := q.db.Exec(ctx, setUserX,
+		arg.XUserID,
+		arg.XUsername,
+		arg.LinkedAt,
+		arg.Now,
+		arg.ID,
+	)
 	return err
 }
 

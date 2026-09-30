@@ -28,6 +28,13 @@ type SessionUsers interface {
 	RefreshEmail(ctx context.Context, q sqlc.DBTX, id ids.UserID, email string, at time.Time) error
 }
 
+type LinkUsers interface {
+	HeldLinks(
+		ctx context.Context, q sqlc.DBTX, id ids.UserID, claims domain.Claims, links domain.Links,
+	) (domain.Claims, error)
+	ApplyLinks(ctx context.Context, q sqlc.DBTX, id ids.UserID, sync domain.LinkSync, at time.Time) error
+}
+
 type Hints interface {
 	PublishHint(ctx context.Context, key string, payload []byte)
 }
@@ -36,6 +43,7 @@ type OpenSessionDeps struct {
 	UoW     *db.UnitOfWork
 	Reads   sqlc.DBTX
 	Users   SessionUsers
+	Links   LinkUsers
 	Privy   PrivyUsers
 	Wallets *WalletRule
 	IDs     ids.Generator
@@ -122,10 +130,11 @@ func (h *OpenSessionHandler) settle(ctx context.Context, tx db.Tx, s session) (i
 		return ids.UserID{}, err
 	}
 	ctx = observability.WithActor(ctx, auth.Actor{Kind: auth.ActorUser, ID: row.ID.String()}.Key())
-	if err := h.attach(ctx, q, row, s.wallet, now); err != nil {
+	if err := h.refresh(ctx, q, row, s, now); err != nil {
 		return ids.UserID{}, err
 	}
-	if err := h.d.Users.RefreshEmail(ctx, q, row.ID, s.user.ContactEmail(), now); err != nil {
+	changed, err := h.syncLinks(ctx, tx, row, s.user.Links(), now)
+	if err != nil {
 		return ids.UserID{}, err
 	}
 	if created {
@@ -135,9 +144,54 @@ func (h *OpenSessionHandler) settle(ctx context.Context, tx db.Tx, s session) (i
 		if err != nil {
 			return ids.UserID{}, err
 		}
+	}
+	if created || changed {
 		h.announce(tx, row.ID)
 	}
 	return row.ID, nil
+}
+
+func (h *OpenSessionHandler) refresh(
+	ctx context.Context, q sqlc.DBTX, row domain.User, s session, now time.Time,
+) error {
+	if err := h.attach(ctx, q, row, s.wallet, now); err != nil {
+		return err
+	}
+	return h.d.Users.RefreshEmail(ctx, q, row.ID, s.user.ContactEmail(), now)
+}
+
+func (h *OpenSessionHandler) syncLinks(
+	ctx context.Context, tx db.Tx, row domain.User, privy domain.Links, now time.Time,
+) (bool, error) {
+	q := tx.Queries()
+	if claims := privy.Claims(row.Links, row.AuthState); claims.Any() {
+		held, err := h.d.Links.HeldLinks(ctx, q, row.ID, claims, privy)
+		if err != nil {
+			return false, err
+		}
+		privy = privy.Without(held)
+	}
+	sync, err := domain.SyncLinks(row.AuthState, row.Links, privy)
+	if err != nil || sync.Empty() {
+		return false, err
+	}
+	if err := h.d.Links.ApplyLinks(ctx, q, row.ID, sync, now); err != nil {
+		return false, err
+	}
+	for _, step := range sync.Steps {
+		err := tx.Events.Append(ctx, events.UserAuthStateChanged{
+			V:      1,
+			UserID: row.ID.UUID(),
+			From:   string(step.From),
+			To:     string(step.To),
+			Cause:  string(step.Cause),
+			At:     now,
+		})
+		if err != nil {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 func (h *OpenSessionHandler) lock(

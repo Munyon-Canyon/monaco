@@ -40,6 +40,62 @@ func (Users) RefreshEmail(ctx context.Context, q sqlc.DBTX, id ids.UserID, email
 	})
 }
 
+func (Users) HeldLinks(
+	ctx context.Context, q sqlc.DBTX, id ids.UserID, claims domain.Claims, links domain.Links,
+) (domain.Claims, error) {
+	params := sqlc.LinksHeldByOthersParams{ID: id.UUID()}
+	if claims.Phone {
+		params.PhoneHash = domain.PhoneHash(links.Phone)
+	}
+	if claims.X {
+		params.XUserID = links.X.UserID
+	}
+	row, err := sqlc.New(q).LinksHeldByOthers(ctx, params)
+	return domain.Claims{Phone: row.Phone, X: row.X}, err
+}
+
+func (u Users) ApplyLinks(
+	ctx context.Context, q sqlc.DBTX, id ids.UserID, sync domain.LinkSync, at time.Time,
+) error {
+	queries := sqlc.New(q)
+	if sync.Phone.Changed {
+		if err := queries.SetUserPhone(ctx, phoneParams(id, sync.Phone.Value, at)); err != nil {
+			return err
+		}
+	}
+	if sync.X.Changed {
+		if err := queries.SetUserX(ctx, xParams(id, sync.X.Value, at)); err != nil {
+			return err
+		}
+	}
+	for _, step := range sync.Steps {
+		if err := u.UpdateAuthState(ctx, q, id, step.From, step.To, at); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func phoneParams(id ids.UserID, e164 string, at time.Time) sqlc.SetUserPhoneParams {
+	params := sqlc.SetUserPhoneParams{ID: id.UUID(), Now: at}
+	if e164 != "" {
+		params.PhoneE164 = pgtype.Text{String: e164, Valid: true}
+		params.PhoneHash = domain.PhoneHash(e164)
+		params.VerifiedAt = pgtype.Timestamptz{Time: at, Valid: true}
+	}
+	return params
+}
+
+func xParams(id ids.UserID, x *domain.XAccount, at time.Time) sqlc.SetUserXParams {
+	params := sqlc.SetUserXParams{ID: id.UUID(), Now: at}
+	if x != nil {
+		params.XUserID = pgtype.Text{String: x.UserID, Valid: true}
+		params.XUsername = pgtype.Text{String: x.Username, Valid: x.Username != ""}
+		params.LinkedAt = pgtype.Timestamptz{Time: at, Valid: true}
+	}
+	return params
+}
+
 func (Users) FindByPrivyUserID(ctx context.Context, q sqlc.DBTX, privyUserID string) (domain.User, error) {
 	row, err := sqlc.New(q).FindUserByPrivyUserID(ctx, privyUserID)
 	if err != nil {
@@ -111,6 +167,10 @@ func userFrom(row sqlc.FindUserByIDRow) (domain.User, error) {
 	u := domain.User{
 		ID: id, PrivyUserID: row.PrivyUserID, Handle: row.Handle.String,
 		AuthState: domain.AuthState(row.AuthState), AccountStatus: domain.AccountStatus(row.AccountStatus),
+		Links: domain.Links{Phone: row.PhoneE164.String},
+	}
+	if row.XUserID.Valid {
+		u.Links.X = &domain.XAccount{UserID: row.XUserID.String, Username: row.XUsername.String}
 	}
 	if row.PrivyWalletID.Valid {
 		u.Wallet = &domain.Wallet{

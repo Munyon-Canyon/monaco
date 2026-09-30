@@ -59,8 +59,15 @@ func (m *Module) openSession() *app.OpenSessionHandler {
 		panic(err)
 	}
 	return app.NewOpenSessionHandler(app.OpenSessionDeps{
-		UoW: m.deps.UoW, Reads: m.deps.Pool, Users: adapters.Users{}, Privy: users, Wallets: rule,
-		IDs: m.deps.IDs, Clock: m.deps.Clock, Hints: m.deps.Bus,
+		UoW:     m.deps.UoW,
+		Reads:   m.deps.Pool,
+		Users:   adapters.Users{},
+		Links:   adapters.Users{},
+		Privy:   users,
+		Wallets: rule,
+		IDs:     m.deps.IDs,
+		Clock:   m.deps.Clock,
+		Hints:   m.deps.Bus,
 	})
 }
 

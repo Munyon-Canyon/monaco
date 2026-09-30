@@ -31,5 +31,6 @@ type User struct {
 	Handle        string
 	AuthState     AuthState
 	AccountStatus AccountStatus
+	Links         Links
 	Wallet        *Wallet
 }
