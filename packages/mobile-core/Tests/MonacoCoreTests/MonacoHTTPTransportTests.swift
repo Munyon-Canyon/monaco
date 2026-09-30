@@ -284,11 +284,14 @@ final class MonacoHTTPTransportTests: XCTestCase {
         let configuration = MonacoRequestTimeout.sessionConfiguration()
         configuration.protocolClasses = [StallingURLProtocol.self]
         let transport = MonacoHTTPTransport(session: URLSession(configuration: configuration))
+        let readRequest = request(token: "t")
+        let writeRequest = request(token: "t", method: "POST", body: Data(#"{"amount":1}"#.utf8))
+        let readBudget = MonacoRequestTimeout.standard
 
         async let read: Void = {
             do {
-                _ = try await transport.data(for: request(token: "t"))
-                XCTFail("a read should give up after \(MonacoRequestTimeout.standard)s")
+                _ = try await transport.data(for: readRequest)
+                XCTFail("a read should give up after \(readBudget)s")
             } catch {
                 XCTAssertEqual((error as? URLError)?.code, .timedOut)
             }
@@ -297,7 +300,7 @@ final class MonacoHTTPTransportTests: XCTestCase {
         async let write: Void = {
             do {
                 _ = try await transport.send(
-                    request(token: "t", method: "POST", body: Data(#"{"amount":1}"#.utf8)),
+                    writeRequest,
                     submission: IdempotentSubmission { "key-1" }
                 )
             } catch {

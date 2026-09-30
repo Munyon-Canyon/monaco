@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Foundation formatters are expensive to build (each one loads ICU data) and cheap to use.
 /// Labels are formatted once per visible row on every SwiftUI body pass, so building a
@@ -12,18 +13,20 @@ public enum SharedFormatters {
     // MARK: - ISO-8601
 
     /// `2026-09-18T15:04:05.123Z`
-    public static let iso8601Fractional: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
+    nonisolated(unsafe)  // ISO8601DateFormatter is documented thread-safe; never mutated after init.
+        public static let iso8601Fractional: ISO8601DateFormatter = {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            return formatter
+        }()
 
     /// `2026-09-18T15:04:05Z`
-    public static let iso8601WholeSeconds: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter
-    }()
+    nonisolated(unsafe)  // ISO8601DateFormatter is documented thread-safe; never mutated after init.
+        public static let iso8601WholeSeconds: ISO8601DateFormatter = {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime]
+            return formatter
+        }()
 
     /// Backend timestamps come with or without fractional seconds; accept both.
     public static func iso8601Date(from raw: String) -> Date? {
@@ -93,8 +96,18 @@ public enum SharedFormatters {
         let timeZoneIdentifier: String
     }
 
-    private static let dateFormatterLock = NSLock()
-    private static var dateFormatters: [DateFormatterKey: DateFormatter] = [:]
+    /// `DateFormatter` is not `Sendable`. The slot is immutable after init, and the mutex only
+    /// swaps which slot a key points at. `string(from:)` runs outside the lock: a formatter is
+    /// safe to read from several threads once nobody mutates it.
+    private final class DateFormatterSlot: @unchecked Sendable {
+        let formatter: DateFormatter
+
+        init(_ formatter: DateFormatter) {
+            self.formatter = formatter
+        }
+    }
+
+    private static let dateFormatters = Mutex<[DateFormatterKey: DateFormatterSlot]>([:])
 
     /// One formatter per (pattern, locale, calendar, time zone). A device only ever asks for a
     /// handful of combinations, so the cache stays tiny.
@@ -112,20 +125,22 @@ public enum SharedFormatters {
             calendarIdentifier: calendar.identifier,
             timeZoneIdentifier: zone.identifier
         )
-        dateFormatterLock.lock()
-        defer { dateFormatterLock.unlock() }
-        if let cached = dateFormatters[key] {
-            return cached.string(from: date)
+        let slot = dateFormatters.withLock { cache -> DateFormatterSlot in
+            if let cached = cache[key] {
+                return cached
+            }
+            let formatter = DateFormatter()
+            formatter.locale = locale
+            formatter.calendar = calendar
+            formatter.timeZone = zone
+            switch pattern {
+            case .fixed(let format): formatter.dateFormat = format
+            case .template(let template): formatter.setLocalizedDateFormatFromTemplate(template)
+            }
+            let created = DateFormatterSlot(formatter)
+            cache[key] = created
+            return created
         }
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.calendar = calendar
-        formatter.timeZone = zone
-        switch pattern {
-        case .fixed(let format): formatter.dateFormat = format
-        case .template(let template): formatter.setLocalizedDateFormatFromTemplate(template)
-        }
-        dateFormatters[key] = formatter
-        return formatter.string(from: date)
+        return slot.formatter.string(from: date)
     }
 }

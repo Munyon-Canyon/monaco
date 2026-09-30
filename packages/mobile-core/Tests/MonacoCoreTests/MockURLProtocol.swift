@@ -1,11 +1,30 @@
 import Foundation
+import Synchronization
 
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
 
 final class MockURLProtocol: URLProtocol {
-    static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    /// The handler is not `Sendable`: tests close over fixtures. The box is immutable after
+    /// init, and the `Mutex` is what swaps which box is current.
+    private final class StoredHandler: @unchecked Sendable {
+        let call: (URLRequest) throws -> (HTTPURLResponse, Data)
+
+        init(_ call: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)) {
+            self.call = call
+        }
+    }
+
+    private static let handlers = Mutex<StoredHandler?>(nil)
+
+    static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))? {
+        get { handlers.withLock { $0 }?.call }
+        set {
+            let stored = newValue.map(StoredHandler.init)
+            handlers.withLock { $0 = stored }
+        }
+    }
 
     override class func canInit(with request: URLRequest) -> Bool {
         true
@@ -16,7 +35,7 @@ final class MockURLProtocol: URLProtocol {
     }
 
     override func startLoading() {
-        guard let handler = Self.requestHandler else {
+        guard let handler = Self.handlers.withLock({ $0 })?.call else {
             client?.urlProtocol(
                 self,
                 didFailWithError: URLError(.badURL)
