@@ -17,7 +17,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
-	"github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -37,7 +37,7 @@ func newPortFixture(t *testing.T) portFixture {
 	pool := testkit.DB(t)
 	return portFixture{
 		pool: pool,
-		port: port.New(pool),
+		port: adapters.NewQueries(pool),
 		ids:  testkit.NewIDs(testkit.RandSeed(t)),
 		now:  clock.Real{}.Now().UTC().Truncate(time.Microsecond),
 	}
