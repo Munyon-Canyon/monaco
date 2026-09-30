@@ -41,10 +41,30 @@ func TestTriggers_acceptsARouteAConsumedSubjectOrARegisteredPoller(t *testing.T)
 		"consumer:proposal.failed":  false,
 		"poller:deposits":           true,
 		"poller:prices":             false,
+		"poller:proposal.passed":    false,
+		"consumer:deposits":         false,
 		"deposits":                  false,
 	} {
 		if got := lookup(flows.Flow{}, trigger); got != want {
 			t.Errorf("trigger %q = %v, want %v", trigger, got, want)
+		}
+	}
+}
+
+func TestTriggerKind_splitsThePollerAndConsumerPrefixesAndTreatsTheRestAsARoute(t *testing.T) {
+	t.Parallel()
+	for trigger, want := range map[string]struct {
+		kind flows.TriggerKind
+		name string
+	}{
+		"POST /v1/system/pings":    {flows.TriggerRoute, "POST /v1/system/pings"},
+		"poller:market.prices":     {flows.TriggerPoller, "market.prices"},
+		"consumer:proposal.passed": {flows.TriggerConsumer, "proposal.passed"},
+		"poller":                   {flows.TriggerRoute, "poller"},
+		"deposits:poller":          {flows.TriggerRoute, "deposits:poller"},
+	} {
+		if kind, name := (flows.Flow{Trigger: trigger}).TriggerKind(); kind != want.kind || name != want.name {
+			t.Errorf("TriggerKind(%q) = %s %q, want %s %q", trigger, kind, name, want.kind, want.name)
 		}
 	}
 }

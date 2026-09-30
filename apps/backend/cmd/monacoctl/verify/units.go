@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 	tools "github.com/monaco/monaco/apps/backend/internal/tools/flows"
@@ -53,6 +54,27 @@ func selectUnits(all []tools.Flow, target Target, scripts map[string]flows.Scrip
 		return nil, fmt.Errorf("%w: no built flow outcome matches %+v", fs.ErrNotExist, target)
 	}
 	return units, nil
+}
+
+func workerEnv(units []Unit, env map[string][]string) ([]string, error) {
+	type setting struct{ flow, value string }
+	set := map[string]setting{}
+	var out []string
+	for _, u := range units {
+		for _, kv := range env[u.Flow.ID] {
+			key, value, _ := strings.Cut(kv, "=")
+			prev, seen := set[key]
+			switch {
+			case !seen:
+				set[key] = setting{u.Flow.ID, value}
+				out = append(out, kv)
+			case prev.value != value:
+				return nil, fmt.Errorf("%w: flows %s and %s set %s to %q and %q",
+					errWorkerEnv, prev.flow, u.Flow.ID, key, prev.value, value)
+			}
+		}
+	}
+	return out, nil
 }
 
 func wanted(o tools.Outcome, target Target) bool {

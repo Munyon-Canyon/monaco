@@ -44,6 +44,7 @@ type Options struct {
 	Budget     Budget
 	CoverDir   string
 	Faultpoint string
+	WorkerEnv  []string
 	Postgres   PostgresFunc
 }
 
@@ -155,7 +156,7 @@ func (s *Stack) processes(ctx context.Context) error {
 
 func (s *Stack) startWorker(ctx context.Context, extra ...string) error {
 	worker, err := s.start(ctx, procWorker, s.opts.Bins.Worker,
-		append([]string{"MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0"}, extra...)...)
+		slices.Concat([]string{"MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0"}, s.opts.WorkerEnv, extra)...)
 	s.Worker = "http://" + worker.addr
 	return err
 }

@@ -56,6 +56,8 @@ type backend struct {
 	hold         func()
 	crashAt      func(t T, point faultpoint.Name)
 	seed         func(t T, name string) []testkit.Seeded
+	lines        func(from int) ([]string, <-chan struct{})
+	tick         func(t T, poller string) (stop func())
 }
 
 type Scenario struct {
@@ -66,6 +68,7 @@ type Scenario struct {
 	last     *response
 	remember map[string]string
 	keys     int
+	ticks    map[string]tick
 }
 
 type user struct {
@@ -117,7 +120,7 @@ func New(t *testing.T, opts ...Option) *Scenario {
 }
 
 func newScenario(t T, b *backend) *Scenario {
-	return &Scenario{t: t, app: b, users: map[string]*user{}, remember: map[string]string{}}
+	return &Scenario{t: t, app: b, users: map[string]*user{}, remember: map[string]string{}, ticks: map[string]tick{}}
 }
 
 func (s *Scenario) Given(steps ...Step) *Scenario { return s.run(StageGiven, steps) }

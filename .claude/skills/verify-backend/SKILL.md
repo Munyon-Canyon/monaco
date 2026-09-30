@@ -21,7 +21,7 @@ The code is in `apps/backend/cmd/monacoctl/verify/`.
 
 1. Builds `./cmd/api`, `./cmd/worker` and `./cmd/fakes` with `-cover`, adding `-tags faultpoints` for a crash run.
 2. Starts a Postgres container named `monaco-verify-<run id>` on a random port with data on tmpfs. It never touches `monaco-postgres`.
-3. Starts NATS, applies the atlas migrations, and starts the binaries.
+3. Starts NATS, applies the atlas migrations, and starts the binaries. The worker also gets the variables that `Env()` in `apps/backend/internal/testkit/flows/scripts.go` sets for the selected flows, such as a poll interval short enough for the flow budget.
 4. Runs each selected outcome's flow script from `apps/backend/internal/testkit/flows/scripts.go`, up to 4 at a time. A crash run goes one at a time.
 5. Waits for every emitted event to be handled by every consumer that watches it.
 6. Checks the invariants below, writes evidence, and tears down.
@@ -33,8 +33,15 @@ Only flows at `built` or `verified` run. Without `--crash-at`, crash outcomes ar
 Per outcome, in `apps/backend/cmd/monacoctl/verify/invariants.go` and `apps/backend/cmd/monacoctl/verify/converge.go`:
 
 - **Convergence.** Every handler that watches an emitted event handled it, and no consumer has pending or unacked messages.
-- **Response.** `ok` gets a 2xx. A code outcome such as `InvalidInput` gets that code's HTTP status and `code`.
-- **Log lines.** `http.request` with method and route. `http.problem` with the code for a code outcome. Otherwise a relay tick and one dispatched line per watching handler. Each line carries its required attrs.
+- **Trigger.** It depends on the flow's trigger:
+
+| Trigger | `ok` or a crash point | A code outcome such as `InvalidInput` |
+| --- | --- | --- |
+| Route | A 2xx, and an `http.request` line | That code's HTTP status and `code`, and `http.request` and `http.problem` lines |
+| `poller:<name>` | A `poller.tick` line for the poller | A `poller.tick.failed` line for the poller with that `code` |
+| `consumer:<subject>` | A `bus.dispatched` line on the subject with outcome `ack` | A `bus.dispatched` line on the subject with that `code` |
+
+- **Log lines.** Besides the trigger's lines, an outcome that is not a code needs a relay tick when the flow emits events and one dispatched line per watching handler. Every line must be written after the script started and carry its required attrs.
 
 Per run:
 
@@ -93,7 +100,7 @@ Fix the code. Never weaken an invariant, raise a budget, skip an outcome, drop a
 
 ## Moving a flow to verified
 
-1. Write one script per outcome in `apps/backend/internal/testkit/flows/f<id>.go`. Make the flow tests call the same scripts.
+1. Write one script per outcome in `apps/backend/internal/testkit/flows/f<id>.go`. Make the flow tests call the same scripts. A poller flow's script waits for the next tick with `scenario.AwaitTick(poller)` and checks its counts with `scenario.ExpectTick(poller, scanned, changed)`. In process the step ticks the poller once itself. Against the binaries it waits on the worker, so add the flow's poll interval to `Env()`. A tick that was already running when the step started still counts, so await a second tick when the counts must reflect what the Given stage seeded.
 2. Register them in `Scripts()` in `apps/backend/internal/testkit/flows/scripts.go`.
 3. Set the row's status to `verified` and regenerate the feature map:
 

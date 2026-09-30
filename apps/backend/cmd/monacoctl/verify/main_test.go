@@ -43,12 +43,16 @@ const (
 	fakeQuiet = "quiet"
 
 	fakeStartedEnv = "VERIFY_FAKE_STARTED"
+	fakeNeedsEnv   = "VERIFY_FAKE_WORKER_NEEDS"
 )
 
 func fakeMain() {
 	mode := os.Getenv(fakeEnv)
 	if mode == fakeMute {
 		os.Exit(3)
+	}
+	if workerLacksAVariable() {
+		os.Exit(5)
 	}
 	ln, err := new(net.ListenConfig).Listen(context.Background(), "tcp", fakeAddr())
 	if err != nil {
@@ -76,6 +80,11 @@ func fakeMain() {
 		select {}
 	}
 	<-stop
+}
+
+func workerLacksAVariable() bool {
+	need := os.Getenv(fakeNeedsEnv)
+	return need != "" && os.Getenv("MONACO_WORKER_HEALTH_ADDR") != "" && os.Getenv(need) == ""
 }
 
 func fakeAddr() string {

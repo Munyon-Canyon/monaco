@@ -30,6 +30,7 @@ type Env struct {
 	JS         jetstream.JetStream
 	Events     string
 	DeadLetter string
+	Subject    func(subject string) string
 	Consumers  []bus.Consumer
 	Logs       *Logs
 	Crash      func(ctx context.Context, point faultpoint.Name) error
@@ -47,6 +48,7 @@ type Result struct {
 
 	rows     []EventEvidence
 	logLines []string
+	logFrom  int
 	mu       sync.Mutex
 }
 
@@ -94,6 +96,7 @@ func (d *driver) run(ctx context.Context, u Unit) *Result {
 		res.fail(err)
 		return res
 	}
+	res.logFrom = d.env.Logs.mark()
 	if err := d.script(ctx, u, res); err != nil {
 		res.fail(err)
 		return res
@@ -137,6 +140,7 @@ func (d *driver) script(ctx context.Context, u Unit, res *Result) error {
 			res.Exchanges = append(res.Exchanges, e)
 			res.mu.Unlock()
 		},
+		Logs: d.env.Logs.since,
 	}
 	go func() {
 		defer close(done)
@@ -146,6 +150,14 @@ func (d *driver) script(ctx context.Context, u Unit, res *Result) error {
 	phase, began := PhaseSeed, time.Now()
 	timer := time.NewTimer(d.budget.Seed)
 	defer timer.Stop()
+	stopped := func(err error) error {
+		<-done
+		res.Phases[phase] += time.Since(began)
+		if failed := t.err(); failed != nil {
+			res.fail(failed)
+		}
+		return err
+	}
 	for {
 		select {
 		case <-done:
@@ -160,13 +172,9 @@ func (d *driver) script(ctx context.Context, u Unit, res *Result) error {
 		case <-timer.C:
 			over := &OverBudgetError{Phase: phase, Flow: u.Name(), Budget: d.budget.of(phase)}
 			cancel(over)
-			<-done
-			res.Phases[phase] += time.Since(began)
-			return over
+			return stopped(over)
 		case <-ctx.Done():
-			<-done
-			res.Phases[phase] += time.Since(began)
-			return fmt.Errorf("flow %s: %w", u.Name(), context.Cause(ctx))
+			return stopped(fmt.Errorf("flow %s: %w", u.Name(), context.Cause(ctx)))
 		}
 	}
 }

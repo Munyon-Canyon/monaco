@@ -11,8 +11,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
+	tools "github.com/monaco/monaco/apps/backend/internal/tools/flows"
 	"github.com/monaco/monaco/apps/backend/internal/tools/ops/replay"
 )
 
@@ -66,7 +69,7 @@ func (d *driver) settle(ctx context.Context, res *Result) error {
 	if msg := d.outcomeMismatch(res); msg != "" {
 		return &InvariantError{Flow: res.Unit.Name(), Msg: msg}
 	}
-	found, msg := logsMissing(d.env.Logs.Lines(), d.requiredLogs(res.Unit))
+	found, msg := logsMissing(d.env.Logs.Lines()[res.logFrom:], d.requiredLogs(res.Unit))
 	res.logLines = found
 	if msg != "" {
 		return &InvariantError{Flow: res.Unit.Name(), Msg: msg}
@@ -75,19 +78,30 @@ func (d *driver) settle(ctx context.Context, res *Result) error {
 }
 
 func (d *driver) outcomeMismatch(res *Result) string {
-	method, path, _ := strings.Cut(res.Unit.Flow.Trigger, " ")
+	kind, name := res.Unit.Flow.TriggerKind()
+	if kind == tools.TriggerRoute {
+		return routeMismatch(res, name)
+	}
+	need, missing := d.triggerLine(res.Unit, kind, name)
+	if slices.ContainsFunc(d.env.Logs.Lines()[res.logFrom:], func(l Line) bool { return lineMatches(l, need) }) {
+		return ""
+	}
+	return missing
+}
+
+func routeMismatch(res *Result, route string) string {
+	method, path, _ := strings.Cut(route, " ")
 	i := slices.IndexFunc(res.Exchanges, func(e scenario.Exchange) bool {
 		return e.Method == method && pathMatches(path, e.Path)
 	})
 	if i < 0 {
-		return fmt.Sprintf("no %s request was sent", res.Unit.Flow.Trigger)
+		return fmt.Sprintf("no %s request was sent", route)
 	}
 	got := res.Exchanges[i]
 	name, isCode := res.Unit.Outcome.CodeName()
 	if !isCode {
 		if got.Status >= http.StatusBadRequest {
-			return fmt.Sprintf("%s answered %d, want a 2xx for outcome %s", res.Unit.Flow.Trigger, got.Status,
-				res.Unit.Outcome)
+			return fmt.Sprintf("%s answered %d, want a 2xx for outcome %s", route, got.Status, res.Unit.Outcome)
 		}
 		return ""
 	}
@@ -97,10 +111,30 @@ func (d *driver) outcomeMismatch(res *Result) string {
 	}
 	_ = json.Unmarshal(got.Response, &body)
 	if want := errs.HTTPStatus(errs.KindOf(code)); got.Status != want || body.Code != string(code) {
-		return fmt.Sprintf("%s answered %d code %q, want %d code %q", res.Unit.Flow.Trigger, got.Status,
-			body.Code, want, code)
+		return fmt.Sprintf("%s answered %d code %q, want %d code %q", route, got.Status, body.Code, want, code)
 	}
 	return ""
+}
+
+func (d *driver) triggerLine(u Unit, kind tools.TriggerKind, name string) (logNeed, string) {
+	codeName, isCode := u.Outcome.CodeName()
+	code := string(codeNamed(codeName))
+	if kind == tools.TriggerPoller {
+		if isCode {
+			return logNeed{observability.PollerFailed, map[string]string{"poller": name, "code": code}},
+				fmt.Sprintf("no poller.tick.failed for %s with code %s after the script started", name, code)
+		}
+		return logNeed{observability.PollerTick, map[string]string{"poller": name}},
+			fmt.Sprintf("no poller.tick for %s after the script started", name)
+	}
+	subject := d.env.Subject(events.Type(name).Subject())
+	if isCode {
+		return logNeed{observability.BusDispatched, map[string]string{"subject": subject, "code": code}},
+			fmt.Sprintf("no bus.dispatched for %s with code %s after the script started", name, code)
+	}
+	ack := string(bus.OutcomeAck)
+	return logNeed{observability.BusDispatched, map[string]string{"subject": subject, "outcome": ack}},
+		fmt.Sprintf("no bus.dispatched for %s with outcome %s after the script started", name, ack)
 }
 
 func pathMatches(pattern, path string) bool {
@@ -131,18 +165,29 @@ type logNeed struct {
 }
 
 func (d *driver) requiredLogs(u Unit) []logNeed {
-	var needs []logNeed
-	if method, route, ok := strings.Cut(u.Flow.Trigger, " "); ok {
-		needs = append(needs, logNeed{observability.HTTPRequest, map[string]string{"method": method, "route": route}})
-	}
-	if name, isCode := u.Outcome.CodeName(); isCode {
-		return append(needs, logNeed{observability.HTTPProblem, map[string]string{"code": string(codeNamed(name))}})
+	needs := d.triggerLogs(u)
+	if _, isCode := u.Outcome.CodeName(); isCode {
+		return needs
 	}
 	if len(u.Flow.Events) > 0 {
 		needs = append(needs, logNeed{msg: observability.BusRelayTick})
 	}
 	for _, w := range d.watchedBy(u) {
 		needs = append(needs, logNeed{observability.BusDispatched, map[string]string{"handler": w.handler}})
+	}
+	return needs
+}
+
+func (d *driver) triggerLogs(u Unit) []logNeed {
+	kind, name := u.Flow.TriggerKind()
+	if kind != tools.TriggerRoute {
+		need, _ := d.triggerLine(u, kind, name)
+		return []logNeed{need}
+	}
+	method, route, _ := strings.Cut(name, " ")
+	needs := []logNeed{{observability.HTTPRequest, map[string]string{"method": method, "route": route}}}
+	if code, isCode := u.Outcome.CodeName(); isCode {
+		needs = append(needs, logNeed{observability.HTTPProblem, map[string]string{"code": string(codeNamed(code))}})
 	}
 	return needs
 }

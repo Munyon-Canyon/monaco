@@ -36,12 +36,19 @@ func (n *notifier) update(change func()) {
 
 func (n *notifier) await(t T, what string, done func() bool) {
 	t.Helper()
+	await(t, what, func() (bool, <-chan struct{}) {
+		n.mu.Lock()
+		defer n.mu.Unlock()
+		return done(), n.changed
+	})
+}
+
+func await(t T, what string, poll func() (done bool, changed <-chan struct{})) {
+	t.Helper()
 	deadline := time.NewTimer(convergeWithin)
 	defer deadline.Stop()
 	for {
-		n.mu.Lock()
-		ok, changed := done(), n.changed
-		n.mu.Unlock()
+		ok, changed := poll()
 		if ok {
 			return
 		}

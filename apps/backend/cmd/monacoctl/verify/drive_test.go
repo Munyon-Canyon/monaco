@@ -25,13 +25,18 @@ import (
 
 func servedEnv(t *testing.T) Env {
 	t.Helper()
+	return servedEnvWith(t, func(d module.Deps) module.Module { return system.New(d) })
+}
+
+func servedEnvWith(t *testing.T, mods ...func(module.Deps) module.Module) Env {
+	t.Helper()
 	logs := &Logs{}
 	sv := scenario.Serve(t,
-		scenario.WithModules(func(d module.Deps) module.Module { return system.New(d) }),
+		scenario.WithModules(mods...),
 		scenario.WithLogs(&lineWriter{line: func(s string) { logs.add("app", s) }}))
 	return Env{
 		API: sv.URL, TokenKey: sv.TokenKey, Pool: sv.Pool, JS: sv.JS, Events: sv.Events,
-		DeadLetter: sv.DeadLetter, Consumers: sv.Consumers, Logs: logs,
+		DeadLetter: sv.DeadLetter, Subject: sv.Subject, Consumers: sv.Consumers, Logs: logs,
 		Arm: func(context.Context) error { return nil },
 	}
 }
@@ -224,10 +229,19 @@ func TestDriver_reportsInvariantFailures(t *testing.T) {
 		}, nil, "answered 401, want a 2xx for outcome ok"},
 		{"wrong code", "InvalidInput", post, nil, `answered 201 code "", want 400 code "invalid_input"`},
 		{"missing logs", "ok", post, func(e *Env, _ *Unit) { e.Logs = &Logs{} }, "no http.request log line"},
-		{"missing attr", "ok", post, func(e *Env, _ *Unit) {
-			e.Logs = &Logs{}
-			e.Logs.add("api", `{"msg":"http.request","method":"POST","route":"/v1/system/pings"}`)
+		{"missing attr", "ok", post, func(e *Env, u *Unit) {
+			logs, script := &Logs{}, u.Script
+			e.Logs = logs
+			u.Script = func(s *scenario.Scenario) {
+				script(s)
+				logs.add("api", `{"msg":"http.request","method":"POST","route":"/v1/system/pings"}`)
+			}
 		}, `http.request log line from api lacks required attr "status"`},
+		{"line before the script", "ok", post, func(e *Env, _ *Unit) {
+			e.Logs = &Logs{}
+			e.Logs.add("api",
+				`{"msg":"http.request","method":"POST","route":"/v1/system/pings","status":201,"duration_ms":1}`)
+		}, "no http.request log line"},
 		{"missing consumer", "ok", post, func(e *Env, u *Unit) {
 			e.Consumers = []bus.Consumer{{Durable: "nobody", Handlers: e.Consumers[0].Handlers}}
 			u.Flow.Consumers = []string{"nobody"}

@@ -573,6 +573,16 @@ The table below is a render. The file is `apps/backend/flows.tsv`, one line per 
 
 `status = verified` means every outcome has a flow script registered in `Scripts()` (`internal/testkit/flows/scripts.go`), so `monacoctl verify all` drives it against the real binaries in stage 2. `monacoctl flows check` fails a `verified` flow with an outcome that has no script.
 
+`monacoctl verify` checks each outcome by the kind of trigger, and every log line it asks for must be written after the script started:
+
+| Trigger | `ok` or a crash point | A code outcome |
+| --- | --- | --- |
+| Route | The request answered a 2xx, and `http.request` was logged | The request answered that code's status and `code`, and `http.request` and `http.problem` were logged |
+| `poller:<name>` | A `poller.tick` line for the poller | A `poller.tick.failed` line for the poller with that `code` |
+| `consumer:<subject>` | A `bus.dispatched` line on the subject with outcome `ack` | A `bus.dispatched` line on the subject with that `code` |
+
+A poller flow's script waits for the next tick with `scenario.AwaitTick(poller)` and checks its counts with `scenario.ExpectTick(poller, scanned, changed)`. The worker keeps each poller's production interval unless the flow's entry in `Env()` (`internal/testkit/flows/scripts.go`) sets a shorter one that fits the 15 s flow budget. Two selected flows that set one variable to different values fail the run before it builds anything.
+
 Generated from the TSV, checked fresh in CI: the table below (`monacoctl docs flows`), the `verify-backend` feature map, and the acceptance test skeletons (`just gen flow <id>` writes one failing test per outcome).
 
 Adding a flow is one row plus the tests it names. Deleting a flow deletes the row, and the check fails until its tests go too.
@@ -802,7 +812,7 @@ What one run does:
 2. **Seed.** Replay the flow's starting scenario, for example `cabal-with-members` for flow 7.
 3. **Drive.** Run the flow script over HTTP with real auth headers, `Idempotency-Key`s and the SSE stream open.
 4. **Wait for convergence.** Poll until every event the flow emitted has been acked by every consumer in `flows.tsv`, or time out at 30 s. A timeout is a failure with the stuck consumer named.
-5. **Check invariants.** Ledger entries sum to zero per asset. Share units match the pot. No dead letters. No `KindInternal` in the logs. Every log line the flow must emit (registered in `msgs.go`) is present. The HTTP status and `code` match the expected outcome.
+5. **Check invariants.** Ledger entries sum to zero per asset. Share units match the pot. No dead letters. No `KindInternal` in the logs. Every log line the flow must emit (registered in `msgs.go`) is present. For a route trigger, the HTTP status and `code` match the expected outcome.
 6. **Write evidence** and print a readable summary.
 7. **Tear down.** Stop the binaries, remove the container, merge coverage into `GOCOVERDIR`.
 
@@ -840,7 +850,7 @@ How the budget is enforced:
 How the design stays inside it:
 
 - **One stack, flows in parallel.** The stack starts once. Flows run concurrently on it, 4 at a time, each in its own seeded cabal and users, so they share binaries without sharing data. Invariant checks are scoped to each flow's IDs.
-- **Nothing waits on a real-world clock.** The fakes answer instantly unless scripted to delay. `verify` config sets `AckWait` to 100 ms and Jupiter `/execute` to its fake. Convergence is detected from consumer ack notifications, not by polling with sleeps.
+- **Nothing waits on a real-world clock.** The fakes answer instantly unless scripted to delay. `verify` config sets `AckWait` to 100 ms and Jupiter `/execute` to its fake. Convergence is detected from consumer ack notifications, not by polling with sleeps. A poller flow is the exception, since it waits for the worker's next tick, so its `Env()` entry sets a short interval.
 - **Build once.** Binaries come from Go's build cache; an unchanged tree relinks nothing. Seeds replay events in milliseconds instead of running commands.
 - **Too many flows means too big a PR.** A branch whose touched flows cannot fit in 90 s at 4-way parallelism is split, the same rule as mutation testing's 10-minute limit.
 

@@ -12,3 +12,7 @@ func Scripts() map[string]Script {
 		"F00RecordPingCrashAfterPublish": F00RecordPingCrashAfterPublish,
 	}
 }
+
+func Env() map[string][]string {
+	return map[string][]string{}
+}
