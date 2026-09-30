@@ -6,11 +6,13 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 )
 
 func TestUp_startsAHealthyStackAndDownStopsEveryProcess(t *testing.T) {
@@ -195,6 +197,72 @@ func TestDown_namesTheProcessThatSpentTheTeardownBudget(t *testing.T) {
 		if p.running() {
 			t.Errorf("%s still running after Down", name)
 		}
+	}
+}
+
+func TestStop_aDeafChildOutlastsSIGTERMSentTheMomentItAnnouncesBoot(t *testing.T) {
+	t.Parallel()
+	env := slices.Concat(fakeEnviron(fakeDeaf), []string{"FAKES_ADDR=127.0.0.1:0", fakeHoldEnv + "=1"})
+	p, err := startProcess(t.Context(), procWorker, fakeBinaries(t).Worker, env, &Logs{})
+	if err != nil {
+		t.Fatalf("startProcess: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer cancel()
+	if err := p.stop(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("stop = %v, want the deaf child to outlast the budget", err)
+	}
+}
+
+func TestDown_namesAChildThatWasKilledBeforeTeardown(t *testing.T) {
+	t.Parallel()
+	s, err := Up(t.Context(), testOptions(t, "ok"))
+	if err != nil {
+		t.Fatalf("Up: %v", err)
+	}
+	s.procs[procWorker].kill()
+	err = s.Down(t.Context())
+	want := `worker exited before it was stopped (signal: killed), last line: {"msg":"`
+	if err == nil || !strings.HasPrefix(err.Error(), want) || strings.Contains(err.Error(), "\n") {
+		t.Fatalf("Down = %v, want only the worker, named as %q", err, want)
+	}
+}
+
+func TestDown_namesTheExitStatusOfAWorkerThatCrashedBeforeTeardown(t *testing.T) {
+	t.Parallel()
+	o := testOptions(t, "ok")
+	o.Faultpoint = string(faultpoint.AfterPublish)
+	o.CoverDir = t.TempDir()
+	s, err := Up(t.Context(), o)
+	if err != nil {
+		t.Fatalf("Up: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	select {
+	case <-s.procs[procWorker].exited:
+	case <-ctx.Done():
+		_ = s.Down(t.Context())
+		t.Fatalf("worker never crashed: %v", context.Cause(ctx))
+	}
+	want := "worker exited before it was stopped (exit status 2), " +
+		"last line: panic: faultpoint: crash at after-publish"
+	if err := s.Down(t.Context()); err == nil || err.Error() != want {
+		t.Fatalf("Down = %v, want %q", err, want)
+	}
+}
+
+func TestStop_namesAChildThatDiedOnTheSIGTERMItWasSent(t *testing.T) {
+	t.Parallel()
+	bin := writeScript(t, procWorker, `echo '{"msg":"boot.listening","addr":"127.0.0.1:1"}' >&2; exec sleep 30`)
+	p, err := startProcess(t.Context(), procWorker, bin, []string{"PATH=" + os.Getenv("PATH")}, &Logs{})
+	if err != nil {
+		t.Fatalf("startProcess: %v", err)
+	}
+	want := `worker died on SIGTERM instead of handling it (signal: terminated), last line: ` +
+		`{"msg":"boot.listening","addr":"127.0.0.1:1"}`
+	if err := p.stop(t.Context()); !errors.Is(err, errDiedOnSIGTERM) || err.Error() != want {
+		t.Fatalf("stop = %v, want %q", err, want)
 	}
 }
 

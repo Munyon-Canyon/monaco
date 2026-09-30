@@ -42,6 +42,7 @@ const (
 	fakeMute  = "mute"
 	fakeQuiet = "quiet"
 
+	fakeHoldEnv    = "VERIFY_FAKE_HOLD"
 	fakeStartedEnv = "VERIFY_FAKE_STARTED"
 	fakeNeedsEnv   = "VERIFY_FAKE_WORKER_NEEDS"
 
@@ -50,6 +51,12 @@ const (
 
 func fakeMain() {
 	mode := os.Getenv(fakeEnv)
+	stop := make(chan os.Signal, 1)
+	if mode == fakeDeaf {
+		signal.Ignore(syscall.SIGTERM)
+	} else {
+		signal.Notify(stop, syscall.SIGTERM)
+	}
 	if mode == fakeMute {
 		os.Exit(3)
 	}
@@ -67,6 +74,9 @@ func fakeMain() {
 			_, _ = fmt.Fprintf(os.Stderr, "line\n{\"msg\":\"boot.listening\",\"addr\":%q}\n", ln.Addr().String())
 		}
 	}
+	if os.Getenv(fakeHoldEnv) != "" {
+		select {}
+	}
 	if addr := os.Getenv(fakeStartedEnv); addr != "" {
 		if conn, err := new(net.Dialer).DialContext(context.Background(), "tcp", addr); err == nil {
 			_ = conn.Close()
@@ -74,12 +84,6 @@ func fakeMain() {
 	}
 	if point := os.Getenv("MONACO_FAULTPOINT"); point != "" {
 		go crashAfter(checked, point)
-	}
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGTERM)
-	if mode == fakeDeaf {
-		signal.Ignore(syscall.SIGTERM)
-		select {}
 	}
 	<-stop
 }
