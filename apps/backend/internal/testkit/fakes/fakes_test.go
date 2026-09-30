@@ -20,7 +20,7 @@ import (
 )
 
 func upstreams() []string {
-	return []string{"privy", "jupiter", "rpc", "helius", "xstocks", "apns", "ably"}
+	return []string{"privy", "jupiter", "rpc", "helius", "xstocks", "apns", "ably", "posthog"}
 }
 
 type inProcess struct{ h http.Handler }
