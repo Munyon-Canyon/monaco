@@ -25,6 +25,7 @@ const (
 	AccountHasPositions     ErrorCode = "account_has_positions"
 	AccountStatusTransition ErrorCode = "account_status_transition"
 	AccountSuspended        ErrorCode = "account_suspended"
+	AnalyticsPii            ErrorCode = "analytics_pii"
 	ApnsAuthFailed          ErrorCode = "apns_auth_failed"
 	ApnsUnavailable         ErrorCode = "apns_unavailable"
 	AssetNotFound           ErrorCode = "asset_not_found"
@@ -60,6 +61,8 @@ const (
 	Panic                   ErrorCode = "panic"
 	PhoneNotLinked          ErrorCode = "phone_not_linked"
 	PhotoInvalid            ErrorCode = "photo_invalid"
+	PostHogRejected         ErrorCode = "post_hog_rejected"
+	PostHogUnavailable      ErrorCode = "post_hog_unavailable"
 	PotExceeded             ErrorCode = "pot_exceeded"
 	PotValueZero            ErrorCode = "pot_value_zero"
 	PrivyUnavailable        ErrorCode = "privy_unavailable"
@@ -97,6 +100,8 @@ func (e ErrorCode) Valid() bool {
 	case AccountStatusTransition:
 		return true
 	case AccountSuspended:
+		return true
+	case AnalyticsPii:
 		return true
 	case ApnsAuthFailed:
 		return true
@@ -167,6 +172,10 @@ func (e ErrorCode) Valid() bool {
 	case PhoneNotLinked:
 		return true
 	case PhotoInvalid:
+		return true
+	case PostHogRejected:
+		return true
+	case PostHogUnavailable:
 		return true
 	case PotExceeded:
 		return true

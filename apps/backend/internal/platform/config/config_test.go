@@ -44,6 +44,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 			JupiterQuote:    5 * time.Second,
 			JupiterExecute:  2 * time.Minute,
 			XStocks:         15 * time.Second,
+			PostHog:         3 * time.Second,
 			HTTPServerRead:  10 * time.Second,
 			HTTPServerWrite: 30 * time.Second,
 			Shutdown:        10 * time.Second,
@@ -52,6 +53,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 		XStocks: config.XStocks{BaseURL: "https://api.xstocks.fi"},
 		Privy:   config.Privy{BaseURL: "https://api.privy.io"},
 		APNs:    config.APNs{Topic: "com.monaco.app"},
+		PostHog: config.PostHog{Host: "https://us.i.posthog.com"},
 		Solana: config.Solana{
 			RPCURL:   "https://api.mainnet-beta.solana.com",
 			USDCMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
@@ -83,6 +85,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"MONACO_TIMEOUT_JUPITER_QUOTE=3s",
 		"MONACO_TIMEOUT_JUPITER_EXECUTE=4m",
 		"MONACO_TIMEOUT_XSTOCKS=8s",
+		"MONACO_TIMEOUT_POSTHOG=2500ms",
 		"MONACO_TIMEOUT_HTTP_SERVER_READ=5s",
 		"MONACO_TIMEOUT_HTTP_SERVER_WRITE=6s",
 		"MONACO_TIMEOUT_SHUTDOWN=7s",
@@ -104,6 +107,8 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"APNS_KEY_ID=key-id",
 		"APNS_TEAM_ID=team-id",
 		"APNS_TOPIC=com.example.app",
+		"POSTHOG_API_KEY=ph-secret",
+		"POSTHOG_HOST=http://fakes/posthog",
 		"MONACO_FAULTPOINT=before-commit",
 		"MONACO_BUS_ACK_WAIT=100ms",
 		"MONACO_BUS_API_RELAY=off",
@@ -131,6 +136,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 			JupiterQuote:    3 * time.Second,
 			JupiterExecute:  4 * time.Minute,
 			XStocks:         8 * time.Second,
+			PostHog:         2500 * time.Millisecond,
 			HTTPServerRead:  5 * time.Second,
 			HTTPServerWrite: 6 * time.Second,
 			Shutdown:        7 * time.Second,
@@ -149,6 +155,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		Solana:     config.Solana{RPCURL: "http://fakes/rpc", USDCMint: "mint"},
 		Relayer:    config.Relayer{PrivateKey: "relayer-key"},
 		APNs:       config.APNs{KeyP8: "p8-key", KeyID: "key-id", TeamID: "team-id", Topic: "com.example.app"},
+		PostHog:    config.PostHog{APIKey: "ph-secret", Host: "http://fakes/posthog"},
 		Faultpoint: "before-commit",
 	}
 	if !reflect.DeepEqual(cfg, want) {
@@ -159,7 +166,11 @@ func TestLoadReadsEveryKey(t *testing.T) {
 func TestLoadAcceptsEveryEnv(t *testing.T) {
 	t.Parallel()
 	for _, env := range []config.Env{config.EnvLocal, config.EnvTest, config.EnvStaging, config.EnvProduction} {
-		cfg, err := config.Load(append(append(required(), apnsKeys()...), "MONACO_ENV="+string(env)))
+		environ := append(append(required(), apnsKeys()...), "MONACO_ENV="+string(env))
+		if env == config.EnvProduction {
+			environ = append(environ, "POSTHOG_API_KEY=ph-key")
+		}
+		cfg, err := config.Load(environ)
 		if err != nil {
 			t.Fatalf("MONACO_ENV=%s: %v", env, err)
 		}
@@ -225,9 +236,14 @@ func TestLoadFailures(t *testing.T) {
 			want:    "config.Load: invalid_input: missing APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID",
 		},
 		{
-			name:    "production with a partial APNs key",
-			environ: append(required(), "MONACO_ENV=production", "APNS_KEY_ID=key-id"),
-			want:    "config.Load: invalid_input: missing APNS_KEY_P8, APNS_TEAM_ID",
+			name: "production with a partial APNs key",
+			environ: append(
+				required(),
+				"MONACO_ENV=production",
+				"POSTHOG_API_KEY=ph-key",
+				"APNS_KEY_ID=key-id",
+			),
+			want: "config.Load: invalid_input: missing APNS_KEY_P8, APNS_TEAM_ID",
 		},
 		{
 			name:    "a local APNs key needs its ids",
@@ -239,13 +255,19 @@ func TestLoadFailures(t *testing.T) {
 			environ: append(
 				append(required(), apnsKeys()...),
 				"MONACO_ENV=production",
+				"POSTHOG_API_KEY=ph-key",
 				"APNS_BASE_URL=http://fakes/apns",
 			),
 			want: "config.Load: invalid_input: invalid APNS_BASE_URL (not allowed in production)",
 		},
 		{
-			name:    "missing keys and a production base URL in one error",
-			environ: append(required(), "MONACO_ENV=production", "APNS_BASE_URL=http://fakes/apns"),
+			name: "missing keys and a production base URL in one error",
+			environ: append(
+				required(),
+				"MONACO_ENV=production",
+				"POSTHOG_API_KEY=ph-key",
+				"APNS_BASE_URL=http://fakes/apns",
+			),
 			want: "config.Load: invalid_input: missing APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID; " +
 				"invalid APNS_BASE_URL (not allowed in production)",
 		},
@@ -253,6 +275,22 @@ func TestLoadFailures(t *testing.T) {
 			name:    "APNs timeout that is not a positive duration",
 			environ: append(required(), "MONACO_TIMEOUT_APNS=0s"),
 			want:    "config.Load: invalid_input: invalid MONACO_TIMEOUT_APNS (positive duration like 5s)",
+		},
+		{
+			name:    "production without a PostHog key",
+			environ: append(append(required(), apnsKeys()...), "MONACO_ENV=production"),
+			want:    "config.Load: invalid_input: missing POSTHOG_API_KEY",
+		},
+		{
+			name:    "an empty PostHog key counts as missing in production",
+			environ: append(append(required(), apnsKeys()...), "MONACO_ENV=production", "POSTHOG_API_KEY="),
+			want:    "config.Load: invalid_input: missing POSTHOG_API_KEY",
+		},
+		{
+			name:    "production names every missing key in one error",
+			environ: []string{"MONACO_ENV=production", "NATS_URL=nats://x"},
+			want: "config.Load: invalid_input: missing DATABASE_URL, APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID, " +
+				"POSTHOG_API_KEY",
 		},
 		{
 			name:    "trust proxy headers not a boolean",
@@ -314,6 +352,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		"SOLANA_RPC_URL":                  "https://rpc.example/rpc-secret",
 		"RELAYER_PRIVATE_KEY":             "relayer-secret",
 		"APNS_KEY_P8":                     "p8-secret",
+		"POSTHOG_API_KEY":                 "ph-api-secret",
 	}
 	environ := make([]string, 0, 2+len(secrets))
 	environ = append(environ, "MONACO_ENV=staging", "MONACO_TIMEOUT_JUPITER_EXECUTE=90s",
@@ -364,6 +403,9 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"APNS_TOPIC", "com.monaco.app"},
 		{"APNS_BASE_URL", ""},
 		{"MONACO_TIMEOUT_APNS", "10s"},
+		{"POSTHOG_API_KEY", "***"},
+		{"POSTHOG_HOST", "https://us.i.posthog.com"},
+		{"MONACO_TIMEOUT_POSTHOG", "3s"},
 		{"PRIVY_APP_ID", ""},
 		{"PRIVY_VERIFICATION_KEY", ""},
 		{"PRIVY_AUTHORIZATION_KEY_ID", ""},

@@ -18,6 +18,8 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 - The `proposal.*` events and the governance error codes.
 - The `ranking` module.
 - The `internal/platform/apns` client sends pushes to APNs. Staging and production now refuse to boot without `APNS_KEY_P8`, `APNS_KEY_ID` and `APNS_TEAM_ID`.
+- The `analytics` module, which exports events to PostHog, and its `post_hog_unavailable`, `post_hog_rejected` and `analytics_pii` error codes.
+- `POSTHOG_API_KEY`, `POSTHOG_HOST` and `MONACO_TIMEOUT_POSTHOG` config keys. Production boot refuses an empty `POSTHOG_API_KEY`; every other environment treats an empty key as export off.
 
 ## [checkpoint 4] - 2026-09-29
 

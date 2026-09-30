@@ -240,6 +240,7 @@ components:
         - account_has_positions
         - account_status_transition
         - account_suspended
+        - analytics_pii
         - apns_auth_failed
         - apns_unavailable
         - asset_not_found
@@ -275,6 +276,8 @@ components:
         - panic
         - phone_not_linked
         - photo_invalid
+        - post_hog_rejected
+        - post_hog_unavailable
         - pot_exceeded
         - pot_value_zero
         - privy_unavailable

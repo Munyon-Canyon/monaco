@@ -20,7 +20,7 @@ func TestRun_refusesToBootInProductionWithTheRelayerAtTheFloor(t *testing.T) {
 	t.Cleanup(srv.Close)
 	err := run(t.Context(), io.Discard, append([]string{
 		"MONACO_ENV=production", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=nats://localhost:4222",
-		"SOLANA_RPC_URL=" + srv.URL + "/rpc/",
+		"POSTHOG_API_KEY=ph-key", "SOLANA_RPC_URL=" + srv.URL + "/rpc/",
 		"RELAYER_PRIVATE_KEY=" + chain.EncodeBase58(fakes.FixtureKey("relayer-at-floor")),
 	}, testkit.APNsEnv()...), noop.NewMeterProvider(), &module.Registry{})
 	if errs.CodeOf(err) != errs.CodeRelayerUnderfunded {
