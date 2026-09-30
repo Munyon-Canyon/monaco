@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import MonacoCore
 
 final class SolanaAddressTests: XCTestCase {
@@ -19,7 +20,8 @@ final class SolanaAddressTests: XCTestCase {
     func testCharactersOutsideBase58_areNamed() {
         let withZero = "0" + usdcMint.dropFirst()
         XCTAssertEqual(SolanaAddress.validate(withZero), .failure(.badCharacter("0")))
-        XCTAssertEqual(SolanaAddress.validate("0x52908400098527886E0F7030069857D2E4169EE7"), .failure(.badCharacter("0")))
+        XCTAssertEqual(
+            SolanaAddress.validate("0x52908400098527886E0F7030069857D2E4169EE7"), .failure(.badCharacter("0")))
         XCTAssertEqual(SolanaAddress.validate("name.sol"), .failure(.badCharacter(".")))
     }
 

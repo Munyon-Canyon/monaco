@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import MonacoCore
 
 final class SparklineSeriesTests: XCTestCase {
@@ -116,7 +117,9 @@ final class DayChangeFiguresTests: XCTestCase {
 
 final class TopMoversTests: XCTestCase {
     private func asset(_ symbol: String, change: String?) -> MarketAssetDTO {
-        MarketAssetDTO(symbol: symbol, name: symbol, solanaMint: "m", routable: true, priceUsdcMicros: 1_000_000, change24h: change)
+        MarketAssetDTO(
+            symbol: symbol, name: symbol, solanaMint: "m", routable: true, priceUsdcMicros: 1_000_000, change24h: change
+        )
     }
 
     func testBiggestAbsoluteMoveFirst() {
@@ -147,11 +150,12 @@ final class TopMoversTests: XCTestCase {
     }
 
     func testLimitIsRespected() {
-        let ranked = TopMovers.rank([
-            asset("A", change: "0.01"),
-            asset("B", change: "0.09"),
-            asset("C", change: "0.04"),
-        ], limit: 2)
+        let ranked = TopMovers.rank(
+            [
+                asset("A", change: "0.01"),
+                asset("B", change: "0.09"),
+                asset("C", change: "0.04"),
+            ], limit: 2)
         XCTAssertEqual(ranked.map(\.symbol), ["B", "C"])
         XCTAssertTrue(TopMovers.rank([asset("A", change: "0.01")], limit: 0).isEmpty)
     }

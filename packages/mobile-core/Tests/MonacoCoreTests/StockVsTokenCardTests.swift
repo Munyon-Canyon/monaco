@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import MonacoCore
 
 /// The Pyth card's rules, each one a thing the card must never say.
@@ -51,7 +52,8 @@ final class StockVsTokenCardTests: XCTestCase {
         XCTAssertEqual(card.token.confidence, "±$0.05")
 
         let zeroConf = StockVsTokenDTO(
-            equity: ReferenceQuoteDTO(source: .pythEquity, status: .live, priceUsdcMicros: 231_400_000, confUsdcMicros: 0),
+            equity: ReferenceQuoteDTO(
+                source: .pythEquity, status: .live, priceUsdcMicros: 231_400_000, confUsdcMicros: 0),
             token: ReferenceQuoteDTO(source: .pythCrypto, status: .live, priceUsdcMicros: 232_050_000)
         )
         let bare = try XCTUnwrap(self.card(zeroConf))
@@ -61,10 +63,11 @@ final class StockVsTokenCardTests: XCTestCase {
     /// The state the whole card exists for: after the bell the equity print is the
     /// closing price, not an error, and the token keeps moving.
     func testAfterHours_equityReadsAsClosedNotAsStale() throws {
-        let card = try XCTUnwrap(card(
-            MarketSampleData.stockVsTokenAfterHours,
-            market: MarketSampleData.sessionAfterHours
-        ))
+        let card = try XCTUnwrap(
+            card(
+                MarketSampleData.stockVsTokenAfterHours,
+                market: MarketSampleData.sessionAfterHours
+            ))
 
         // The meridiem separator is ICU's — a narrow no-break space, not a space —
         // so the assertion is on the parts rather than on a literal nobody can type.
@@ -122,7 +125,8 @@ final class StockVsTokenCardTests: XCTestCase {
     func testJupiterLeg_dropsAStrayConfidenceInterval() throws {
         let odd = StockVsTokenDTO(
             equity: ReferenceQuoteDTO(source: .pythEquity, status: .live, priceUsdcMicros: 178_200_000),
-            token: ReferenceQuoteDTO(source: .jupiter, status: .live, priceUsdcMicros: 179_050_000, confUsdcMicros: 40_000)
+            token: ReferenceQuoteDTO(
+                source: .jupiter, status: .live, priceUsdcMicros: 179_050_000, confUsdcMicros: 40_000)
         )
         let card = try XCTUnwrap(card(odd))
         XCTAssertNil(card.token.confidence, "Jupiter publishes no interval; a number here would be invented")
@@ -153,8 +157,10 @@ final class StockVsTokenCardTests: XCTestCase {
 
     func testBothLegsMissing_makesNoCard() {
         let nothing = StockVsTokenDTO(
-            equity: ReferenceQuoteDTO(source: .pythEquity, status: .unavailable, reason: ReferenceQuoteReason.noFeed.rawValue),
-            token: ReferenceQuoteDTO(source: .pythCrypto, status: .unavailable, reason: ReferenceQuoteReason.noFeed.rawValue)
+            equity: ReferenceQuoteDTO(
+                source: .pythEquity, status: .unavailable, reason: ReferenceQuoteReason.noFeed.rawValue),
+            token: ReferenceQuoteDTO(
+                source: .pythCrypto, status: .unavailable, reason: ReferenceQuoteReason.noFeed.rawValue)
         )
         XCTAssertNil(card(nothing), "two dashes and a disclaimer is not a card")
     }
@@ -193,7 +199,8 @@ final class StockVsTokenCardTests: XCTestCase {
     /// measured.
     func testPremiumIsRefusedWhenALegHasNoPrice_evenIfTheServerSentOne() {
         let contradictory = StockVsTokenDTO(
-            equity: ReferenceQuoteDTO(source: .pythEquity, status: .unavailable, reason: ReferenceQuoteReason.noFeed.rawValue),
+            equity: ReferenceQuoteDTO(
+                source: .pythEquity, status: .unavailable, reason: ReferenceQuoteReason.noFeed.rawValue),
             token: ReferenceQuoteDTO(source: .pythCrypto, status: .live, priceUsdcMicros: 232_050_000),
             premiumBps: 28
         )

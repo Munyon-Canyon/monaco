@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import MonacoCore
 
 final class SettingsAdvancedTests: XCTestCase {

@@ -1,17 +1,18 @@
 import XCTest
+
 @testable import MonacoCore
 
 final class TesseraMobileCoreTests: XCTestCase {
     func testMarketAssetDTO_decodesWithoutKind_defaultsToStock8() throws {
         let json = """
-        {
-          "symbol": "AAPLx",
-          "name": "Apple",
-          "solanaMint": "mint",
-          "routable": true,
-          "priceUsdcMicros": 185000000
-        }
-        """
+            {
+              "symbol": "AAPLx",
+              "name": "Apple",
+              "solanaMint": "mint",
+              "routable": true,
+              "priceUsdcMicros": 185000000
+            }
+            """
         let dto = try JSONDecoder().decode(MarketAssetDTO.self, from: Data(json.utf8))
         XCTAssertEqual(dto.resolvedKind, .stock)
         XCTAssertEqual(dto.resolvedDecimals, 8)
@@ -19,18 +20,18 @@ final class TesseraMobileCoreTests: XCTestCase {
 
     func testMarketAssetDTO_decodesPreIpoFields() throws {
         let json = """
-        {
-          "symbol": "tSpaceX",
-          "name": "T-SpaceX",
-          "solanaMint": "TSPXcLV76s6V2zDiZQ18kBfcbnjaE2ZzNT3ga2Pd99v",
-          "routable": true,
-          "kind": "pre_ipo",
-          "tokenDecimals": 9,
-          "sector": "Aerospace",
-          "premiumBps": -2700,
-          "referenceMarkUsdcMicros": 774000000
-        }
-        """
+            {
+              "symbol": "tSpaceX",
+              "name": "T-SpaceX",
+              "solanaMint": "TSPXcLV76s6V2zDiZQ18kBfcbnjaE2ZzNT3ga2Pd99v",
+              "routable": true,
+              "kind": "pre_ipo",
+              "tokenDecimals": 9,
+              "sector": "Aerospace",
+              "premiumBps": -2700,
+              "referenceMarkUsdcMicros": 774000000
+            }
+            """
         let dto = try JSONDecoder().decode(MarketAssetDTO.self, from: Data(json.utf8))
         XCTAssertEqual(dto.resolvedKind, .preIpo)
         XCTAssertEqual(dto.resolvedDecimals, 9)
@@ -67,15 +68,15 @@ final class TesseraMobileCoreTests: XCTestCase {
 
     func testBuyQuoteDTO_kindStaysBuySell_assetKindPreIpo() throws {
         let json = """
-        {
-          "symbol": "tSpaceX",
-          "kind": "buy",
-          "routable": true,
-          "assetKind": "pre_ipo",
-          "tokenDecimals": 9,
-          "premiumBps": -2700
-        }
-        """
+            {
+              "symbol": "tSpaceX",
+              "kind": "buy",
+              "routable": true,
+              "assetKind": "pre_ipo",
+              "tokenDecimals": 9,
+              "premiumBps": -2700
+            }
+            """
         let dto = try JSONDecoder().decode(BuyQuoteDTO.self, from: Data(json.utf8))
         XCTAssertEqual(dto.kind, "buy")
         XCTAssertEqual(dto.resolvedAssetKind, .preIpo)

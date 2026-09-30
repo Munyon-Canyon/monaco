@@ -1,9 +1,11 @@
+import MonacoAPI
 import XCTest
+
+@testable import MonacoCore
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import MonacoAPI
-@testable import MonacoCore
 
 final class WithdrawToBalanceTests: XCTestCase {
     override func tearDown() {
@@ -47,8 +49,8 @@ final class WithdrawToBalanceTests: XCTestCase {
         MockURLProtocol.requestHandler = { request in
             capturedPath = request.url?.path
             let responseBody = """
-            {"id":"job-1","status":"settled","shareUnits":500000,"sliceUsdc":500000,"payoutAddress":"FAKEwallet"}
-            """
+                {"id":"job-1","status":"settled","shareUnits":500000,"sliceUsdc":500000,"payoutAddress":"FAKEwallet"}
+                """
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: 200,
