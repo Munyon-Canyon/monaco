@@ -13,6 +13,8 @@ public actor StubTransport: ClientTransport {
         case failure(any Error)
         /// Never answers; the request ends only when its task is cancelled.
         case hang
+        /// Parks the request until `releaseGate` supplies the reply, without holding the actor.
+        case gate
 
         public static func ok(_ text: String) -> Reply {
             .response(status: .ok, contentType: "text/plain", body: Data(text.utf8))
@@ -48,6 +50,7 @@ public actor StubTransport: ClientTransport {
     }
 
     private var mode: Mode
+    private var gates: [CheckedContinuation<(HTTPResponse, HTTPBody?), Error>] = []
     public private(set) var sent: [HTTPRequest] = []
 
     public init(_ reply: Reply) {
@@ -79,6 +82,23 @@ public actor StubTransport: ClientTransport {
             while true {
                 try await Task.sleep(nanoseconds: 86_400_000_000_000)
             }
+        case .gate:
+            return try await withCheckedThrowingContinuation { continuation in
+                gates.append(continuation)
+            }
+        }
+    }
+
+    /// Resumes the oldest parked `.gate` request with `reply`.
+    public func releaseGate(_ reply: Reply) {
+        let continuation = gates.removeFirst()
+        switch reply {
+        case .response(let response, let body):
+            continuation.resume(returning: (response, HTTPBody(body)))
+        case .failure(let error):
+            continuation.resume(throwing: error)
+        case .hang, .gate:
+            continuation.resume(throwing: ScriptExhausted(request: sent.count))
         }
     }
 
