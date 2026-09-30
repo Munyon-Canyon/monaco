@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import MonacoCore
 
 /// The legacy hand-written API code only shrinks. `legacy-baseline.tsv` at the package root holds
@@ -25,7 +26,8 @@ final class LegacyFreezeTests: XCTestCase {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         try plant("let request = URLRequest(url: url)\n", at: "apps/mobile/Monaco/Features/Planted.swift", in: root)
-        try plant("let request = URLRequest(url: url)\n", at: "packages/mobile-core/Sources/MonacoAPI/Client.swift", in: root)
+        try plant(
+            "let request = URLRequest(url: url)\n", at: "packages/mobile-core/Sources/MonacoAPI/Client.swift", in: root)
 
         let violations = try LegacyFreeze.violations(baseline: [:], repoRoot: root)
 
@@ -33,7 +35,8 @@ final class LegacyFreezeTests: XCTestCase {
     }
 
     func testAppSources_reachNoExternalProductHost() throws {
-        let clean = try ProductBoundaryScanner.featureSourcesAreClean(under: Self.repoRoot.appendingPathComponent("apps/mobile/Monaco"))
+        let clean = try ProductBoundaryScanner.featureSourcesAreClean(
+            under: Self.repoRoot.appendingPathComponent("apps/mobile/Monaco"))
 
         XCTAssertTrue(clean)
     }
@@ -41,7 +44,8 @@ final class LegacyFreezeTests: XCTestCase {
     func testPlantedForbiddenHost_isCaught() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
-        try plant("let quote = URL(string: \"https://api.jup.ag/swap/v1/quote\")\n", at: "Features/Quote.swift", in: root)
+        try plant(
+            "let quote = URL(string: \"https://api.jup.ag/swap/v1/quote\")\n", at: "Features/Quote.swift", in: root)
 
         let clean = try ProductBoundaryScanner.featureSourcesAreClean(under: root)
 

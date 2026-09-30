@@ -1,9 +1,11 @@
+import MonacoAPI
 import XCTest
+
+@testable import MonacoCore
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import MonacoAPI
-@testable import MonacoCore
 
 final class MoneyFlowCopyTests: XCTestCase {
     func testCashOut_internalServerStringsAreTranslated() {
@@ -129,7 +131,8 @@ final class MoneyFlowCopyTests: XCTestCase {
             MoneyFlowCopy.fundCabalFailure(FlowErrorInput(status: 403)).message,
             "You have to be a member of this cabal to add money to it."
         )
-        XCTAssertEqual(MoneyFlowCopy.fundCabalFailure(FlowErrorInput(status: 404)).message, "That cabal no longer exists.")
+        XCTAssertEqual(
+            MoneyFlowCopy.fundCabalFailure(FlowErrorInput(status: 404)).message, "That cabal no longer exists.")
     }
 
     func testSellStake_memberFacingServerCopyPassesThrough() {

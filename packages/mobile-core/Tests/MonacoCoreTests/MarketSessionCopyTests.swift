@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import MonacoCore
 
 /// What the chip under the hero price says in each session the calendar can produce.

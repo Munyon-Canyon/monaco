@@ -1,9 +1,11 @@
+import MonacoAPI
 import XCTest
+
+@testable import MonacoCore
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import MonacoAPI
-@testable import MonacoCore
 
 final class MonacoHTTPTransportTests: XCTestCase {
     private let url = URL(string: "https://api.test/v1/me")!
@@ -129,7 +131,7 @@ final class MonacoHTTPTransportTests: XCTestCase {
             // provably did not run, so the copy must not call the outcome unknown.
             XCTAssertTrue(error.isTokenRefreshFailure)
             XCTAssertEqual((error as? URLError)?.code, .userAuthenticationRequired)
-            #if canImport(Darwin) // Linux Foundation cannot cast a bridged NSError back to the Swift error.
+            #if canImport(Darwin)  // Linux Foundation cannot cast a bridged NSError back to the Swift error.
             XCTAssertTrue((error as NSError).userInfo[NSUnderlyingErrorKey] is AuthProviderDown)
             #endif
         }
