@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import MonacoCore
 
 final class FirstRunGateTests: XCTestCase {
@@ -66,14 +67,20 @@ final class FirstRunGateTests: XCTestCase {
     /// by what the server says and a brand new one (`display_name` null) is caught.
     func testDestination_decodedFromMeResponse() throws {
         let decoder = JSONDecoder()
-        let named = try decoder.decode(MeDTO.self, from: Data(#"""
-        {"userId":"u1","displayName":"Ana","memberWalletAddress":"7xKX"}
-        """#.utf8))
+        let named = try decoder.decode(
+            MeDTO.self,
+            from: Data(
+                #"""
+                {"userId":"u1","displayName":"Ana","memberWalletAddress":"7xKX"}
+                """#.utf8))
         XCTAssertEqual(FirstRunGate.destination(for: named), .app)
 
-        let unnamed = try decoder.decode(MeDTO.self, from: Data(#"""
-        {"userId":"u1","displayName":"","memberWalletAddress":"7xKX"}
-        """#.utf8))
+        let unnamed = try decoder.decode(
+            MeDTO.self,
+            from: Data(
+                #"""
+                {"userId":"u1","displayName":"","memberWalletAddress":"7xKX"}
+                """#.utf8))
         XCTAssertEqual(FirstRunGate.destination(for: unnamed), .nameSetup)
 
         for body in [#"{"userId":"u1","displayName":null}"#, #"{"userId":"u1"}"#] {

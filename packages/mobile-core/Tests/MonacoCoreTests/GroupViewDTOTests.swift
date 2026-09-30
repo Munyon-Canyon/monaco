@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import MonacoCore
 
 final class GroupViewDTOTests: XCTestCase {
@@ -26,8 +27,8 @@ final class GroupViewDTOTests: XCTestCase {
     func testPotRowDTO_afterHoursTrue_decodesLabelFlag() throws {
         // Arrange
         let json = """
-        {"symbol":"AAPLx","units":"1","markUsd":"100","valueUsd":"100","dollarPnl":"+0.00","afterHours":true}
-        """
+            {"symbol":"AAPLx","units":"1","markUsd":"100","valueUsd":"100","dollarPnl":"+0.00","afterHours":true}
+            """
 
         // Act
         let row = try JSONDecoder().decode(PotRowDTO.self, from: Data(json.utf8))
@@ -38,8 +39,8 @@ final class GroupViewDTOTests: XCTestCase {
 
     func testPotRowDTO_decodesExactTokenAmount() throws {
         let json = """
-        {"symbol":"AAPLx","units":"0.5","markUsd":"100","valueUsd":"50","dollarPnl":"+0.00","tokenAmount":"50000000"}
-        """
+            {"symbol":"AAPLx","units":"0.5","markUsd":"100","valueUsd":"50","dollarPnl":"+0.00","tokenAmount":"50000000"}
+            """
 
         let row = try JSONDecoder().decode(PotRowDTO.self, from: Data(json.utf8))
 
@@ -48,8 +49,8 @@ final class GroupViewDTOTests: XCTestCase {
 
     func testGroupAgentDTO_decodesApiKey() throws {
         let json = """
-        {"id":"a1","status":"active","agentDisplayName":"Scout","allocationUsdcMicros":"100000000","apiKey":"scout"}
-        """
+            {"id":"a1","status":"active","agentDisplayName":"Scout","allocationUsdcMicros":"100000000","apiKey":"scout"}
+            """
 
         let agent = try JSONDecoder().decode(GroupAgentDTO.self, from: Data(json.utf8))
 
@@ -58,8 +59,8 @@ final class GroupViewDTOTests: XCTestCase {
 
     func testGroupAgentDTO_decodesConnectText() throws {
         let json = """
-        {"id":"a1","status":"active","agentDisplayName":"Scout","allocationUsdcMicros":"100000000","apiKey":"scout","connectText":"Send this header on every request: X-Monaco-Agent-Key: scout"}
-        """
+            {"id":"a1","status":"active","agentDisplayName":"Scout","allocationUsdcMicros":"100000000","apiKey":"scout","connectText":"Send this header on every request: X-Monaco-Agent-Key: scout"}
+            """
 
         let agent = try JSONDecoder().decode(GroupAgentDTO.self, from: Data(json.utf8))
 
@@ -68,8 +69,8 @@ final class GroupViewDTOTests: XCTestCase {
 
     func testGroupAgentDTO_connectTextAbsent_decodesNil() throws {
         let json = """
-        {"id":"a1","status":"active","agentDisplayName":"Scout","allocationUsdcMicros":"100000000"}
-        """
+            {"id":"a1","status":"active","agentDisplayName":"Scout","allocationUsdcMicros":"100000000"}
+            """
 
         let agent = try JSONDecoder().decode(GroupAgentDTO.self, from: Data(json.utf8))
 

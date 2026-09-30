@@ -1,8 +1,10 @@
 import XCTest
+
+@testable import MonacoCore
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-@testable import MonacoCore
 
 final class DevBuyAPITests: XCTestCase {
     private let forbiddenHosts = ["jupiter", "xstocks"]
@@ -25,15 +27,15 @@ final class DevBuyAPITests: XCTestCase {
             capturedAuthorization = request.value(forHTTPHeaderField: "Authorization")
             capturedBody = Self.httpBody(from: request)
             let responseBody = """
-            {
-              "transactionId": "tx-1",
-              "groupId": "\(groupId)",
-              "symbol": "AAPLx",
-              "status": "confirmed",
-              "txSignature": "sig-abc",
-              "created": true
-            }
-            """
+                {
+                  "transactionId": "tx-1",
+                  "groupId": "\(groupId)",
+                  "symbol": "AAPLx",
+                  "status": "confirmed",
+                  "txSignature": "sig-abc",
+                  "created": true
+                }
+                """
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: 200,

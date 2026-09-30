@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import MonacoCore
 
 /// The arithmetic behind the scrubbing chart: which sample a finger lands on, what
@@ -190,12 +191,14 @@ final class AssetChartSeriesTests: XCTestCase {
     /// it: the later read of an instant wins.
     func testTwoSamplesAtOneInstantCollapseToTheLaterRead() {
         let start = Int64(tuesday.timeIntervalSince1970)
-        let chart = AssetChartSeries(range: .oneDay, points: [
-            AssetChartPointDTO(timestamp: start, priceUsdcMicros: 100_000_000),
-            AssetChartPointDTO(timestamp: start + 300, priceUsdcMicros: 101_000_000),
-            AssetChartPointDTO(timestamp: start + 300, priceUsdcMicros: 102_000_000),
-            AssetChartPointDTO(timestamp: start + 600, priceUsdcMicros: 103_000_000),
-        ])
+        let chart = AssetChartSeries(
+            range: .oneDay,
+            points: [
+                AssetChartPointDTO(timestamp: start, priceUsdcMicros: 100_000_000),
+                AssetChartPointDTO(timestamp: start + 300, priceUsdcMicros: 101_000_000),
+                AssetChartPointDTO(timestamp: start + 300, priceUsdcMicros: 102_000_000),
+                AssetChartPointDTO(timestamp: start + 600, priceUsdcMicros: 103_000_000),
+            ])
 
         XCTAssertEqual(chart.points.map(\.timestamp), [start, start + 300, start + 600])
         XCTAssertEqual(chart.points[1].priceUsdcMicros, 102_000_000)
@@ -206,11 +209,13 @@ final class AssetChartSeriesTests: XCTestCase {
     /// one for that instant in time order, not in arrival order.
     func testRepeatsAreCollapsedAfterSorting() {
         let start = Int64(tuesday.timeIntervalSince1970)
-        let chart = AssetChartSeries(range: .oneWeek, points: [
-            AssetChartPointDTO(timestamp: start + 600, priceUsdcMicros: 103_000_000),
-            AssetChartPointDTO(timestamp: start, priceUsdcMicros: 100_000_000),
-            AssetChartPointDTO(timestamp: start + 600, priceUsdcMicros: 104_000_000),
-        ])
+        let chart = AssetChartSeries(
+            range: .oneWeek,
+            points: [
+                AssetChartPointDTO(timestamp: start + 600, priceUsdcMicros: 103_000_000),
+                AssetChartPointDTO(timestamp: start, priceUsdcMicros: 100_000_000),
+                AssetChartPointDTO(timestamp: start + 600, priceUsdcMicros: 104_000_000),
+            ])
 
         XCTAssertEqual(chart.points.map(\.timestamp), [start, start + 600])
         XCTAssertEqual(chart.points.last?.priceUsdcMicros, 104_000_000)

@@ -1,16 +1,18 @@
 import XCTest
+
+@testable import MonacoCore
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-@testable import MonacoCore
 
 final class GroupChatDTOTests: XCTestCase {
     func testDecodePage_withCursor_mapsFields() throws {
         // Arrange
         let json = """
-        {"messages":[{"id":"m2","groupId":"g1","authorId":"u2","authorName":"Ana","body":"buy apple?","createdAt":"2026-09-18T15:04:05.123456Z","mine":false}],
-         "nextCursor":"abc_-1"}
-        """
+            {"messages":[{"id":"m2","groupId":"g1","authorId":"u2","authorName":"Ana","body":"buy apple?","createdAt":"2026-09-18T15:04:05.123456Z","mine":false}],
+             "nextCursor":"abc_-1"}
+            """
 
         // Act
         let page = try JSONDecoder().decode(GroupMessagesPageDTO.self, from: Data(json.utf8))
@@ -23,7 +25,8 @@ final class GroupChatDTOTests: XCTestCase {
         XCTAssertEqual(message.body, "buy apple?")
         XCTAssertFalse(message.mine)
         let expected = ISO8601DateFormatter().date(from: "2026-09-18T15:04:05Z")!
-        XCTAssertEqual(message.createdAtDate!.timeIntervalSince1970, expected.timeIntervalSince1970 + 0.123, accuracy: 0.001)
+        XCTAssertEqual(
+            message.createdAtDate!.timeIntervalSince1970, expected.timeIntervalSince1970 + 0.123, accuracy: 0.001)
     }
 
     func testDecodePage_lastPage_omitsCursor() throws {
@@ -41,8 +44,8 @@ final class GroupChatDTOTests: XCTestCase {
     func testDecodePage_missingRequiredField_throws() {
         // Arrange: no "mine".
         let json = """
-        {"messages":[{"id":"m1","groupId":"g1","authorId":"u1","authorName":"Ana","body":"hi","createdAt":"2026-09-18T15:04:05.000000Z"}]}
-        """
+            {"messages":[{"id":"m1","groupId":"g1","authorId":"u1","authorName":"Ana","body":"hi","createdAt":"2026-09-18T15:04:05.000000Z"}]}
+            """
 
         // Act + Assert
         XCTAssertThrowsError(try JSONDecoder().decode(GroupMessagesPageDTO.self, from: Data(json.utf8)))
@@ -101,13 +104,15 @@ final class GroupChatTimelineTests: XCTestCase {
         timeline.mergeNewest(GroupMessagesPageDTO(messages: [message("m1", at: "2026-09-18T15:00:01.000000Z")]))
 
         // Act
-        let added = timeline.mergeNewest(GroupMessagesPageDTO(messages: [
-            message("m2", at: "2026-09-18T15:00:02.000000Z"),
-            message("m1", at: "2026-09-18T15:00:01.000000Z"),
-        ]))
-        let again = timeline.mergeNewest(GroupMessagesPageDTO(messages: [
-            message("m2", at: "2026-09-18T15:00:02.000000Z"),
-        ]))
+        let added = timeline.mergeNewest(
+            GroupMessagesPageDTO(messages: [
+                message("m2", at: "2026-09-18T15:00:02.000000Z"),
+                message("m1", at: "2026-09-18T15:00:01.000000Z"),
+            ]))
+        let again = timeline.mergeNewest(
+            GroupMessagesPageDTO(messages: [
+                message("m2", at: "2026-09-18T15:00:02.000000Z")
+            ]))
 
         // Assert
         XCTAssertEqual(added.map(\.id), ["m2"])
@@ -120,10 +125,11 @@ final class GroupChatTimelineTests: XCTestCase {
         var timeline = GroupChatTimeline()
 
         // Act
-        timeline.mergeNewest(GroupMessagesPageDTO(messages: [
-            message("a-later", at: "2026-09-18T15:00:01.000200Z"),
-            message("z-earlier", at: "2026-09-18T15:00:01.000100Z"),
-        ]))
+        timeline.mergeNewest(
+            GroupMessagesPageDTO(messages: [
+                message("a-later", at: "2026-09-18T15:00:01.000200Z"),
+                message("z-earlier", at: "2026-09-18T15:00:01.000100Z"),
+            ]))
 
         // Assert
         XCTAssertEqual(timeline.messages.map(\.id), ["z-earlier", "a-later"])
@@ -132,16 +138,18 @@ final class GroupChatTimelineTests: XCTestCase {
     func testMergeOlder_prependsAndAdvancesCursorToNil() {
         // Arrange
         var timeline = GroupChatTimeline()
-        timeline.mergeNewest(GroupMessagesPageDTO(
-            messages: [message("m3", at: "2026-09-18T15:00:03.000000Z")],
-            nextCursor: "c1"
-        ))
+        timeline.mergeNewest(
+            GroupMessagesPageDTO(
+                messages: [message("m3", at: "2026-09-18T15:00:03.000000Z")],
+                nextCursor: "c1"
+            ))
 
         // Act
-        timeline.mergeOlder(GroupMessagesPageDTO(messages: [
-            message("m2", at: "2026-09-18T15:00:02.000000Z"),
-            message("m1", at: "2026-09-18T15:00:01.000000Z"),
-        ]))
+        timeline.mergeOlder(
+            GroupMessagesPageDTO(messages: [
+                message("m2", at: "2026-09-18T15:00:02.000000Z"),
+                message("m1", at: "2026-09-18T15:00:01.000000Z"),
+            ]))
 
         // Assert
         XCTAssertEqual(timeline.messages.map(\.id), ["m1", "m2", "m3"])
@@ -155,13 +163,14 @@ final class GroupChatTimelineTests: XCTestCase {
         XCTAssertFalse(timeline.hasOlder)
 
         // Act: a poll returns a full page that does not reach back to m1.
-        timeline.mergeNewest(GroupMessagesPageDTO(
-            messages: [
-                message("m9", at: "2026-09-18T15:00:09.000000Z"),
-                message("m8", at: "2026-09-18T15:00:08.000000Z"),
-            ],
-            nextCursor: "gap"
-        ))
+        timeline.mergeNewest(
+            GroupMessagesPageDTO(
+                messages: [
+                    message("m9", at: "2026-09-18T15:00:09.000000Z"),
+                    message("m8", at: "2026-09-18T15:00:08.000000Z"),
+                ],
+                nextCursor: "gap"
+            ))
 
         // Assert
         XCTAssertEqual(timeline.olderCursor, "gap")
@@ -171,19 +180,21 @@ final class GroupChatTimelineTests: XCTestCase {
     func testMergeNewest_pollOverlapping_keepsExistingOlderCursor() {
         // Arrange
         var timeline = GroupChatTimeline()
-        timeline.mergeNewest(GroupMessagesPageDTO(
-            messages: [message("m5", at: "2026-09-18T15:00:05.000000Z")],
-            nextCursor: "before-m5"
-        ))
+        timeline.mergeNewest(
+            GroupMessagesPageDTO(
+                messages: [message("m5", at: "2026-09-18T15:00:05.000000Z")],
+                nextCursor: "before-m5"
+            ))
 
         // Act
-        timeline.mergeNewest(GroupMessagesPageDTO(
-            messages: [
-                message("m6", at: "2026-09-18T15:00:06.000000Z"),
-                message("m5", at: "2026-09-18T15:00:05.000000Z"),
-            ],
-            nextCursor: "before-m5-again"
-        ))
+        timeline.mergeNewest(
+            GroupMessagesPageDTO(
+                messages: [
+                    message("m6", at: "2026-09-18T15:00:06.000000Z"),
+                    message("m5", at: "2026-09-18T15:00:05.000000Z"),
+                ],
+                nextCursor: "before-m5-again"
+            ))
 
         // Assert
         XCTAssertEqual(timeline.olderCursor, "before-m5")
@@ -210,26 +221,30 @@ final class GroupChatTimelineTests: XCTestCase {
     func testRows_reusedDatesMatchAThreadBuiltInOnePass() {
         // Arrange: three pages, so most rows are carried across two merges.
         var merged = GroupChatTimeline()
-        merged.mergeNewest(GroupMessagesPageDTO(messages: [
-            message("m3", at: "2026-09-18T15:00:03.000000Z"),
-            message("m2", at: "2026-09-18T15:00:02.000000Z"),
-            message("m1", at: "2026-09-18T15:00:01.000000Z"),
-        ]))
-        merged.mergeNewest(GroupMessagesPageDTO(messages: [
-            message("m4", at: "2026-09-18T15:30:04.000000Z"),
-        ]))
-        merged.mergeNewest(GroupMessagesPageDTO(messages: [
-            message("m5", at: "2026-09-18T15:30:05.000000Z"),
-        ]))
+        merged.mergeNewest(
+            GroupMessagesPageDTO(messages: [
+                message("m3", at: "2026-09-18T15:00:03.000000Z"),
+                message("m2", at: "2026-09-18T15:00:02.000000Z"),
+                message("m1", at: "2026-09-18T15:00:01.000000Z"),
+            ]))
+        merged.mergeNewest(
+            GroupMessagesPageDTO(messages: [
+                message("m4", at: "2026-09-18T15:30:04.000000Z")
+            ]))
+        merged.mergeNewest(
+            GroupMessagesPageDTO(messages: [
+                message("m5", at: "2026-09-18T15:30:05.000000Z")
+            ]))
 
         var atOnce = GroupChatTimeline()
-        atOnce.mergeNewest(GroupMessagesPageDTO(messages: [
-            message("m5", at: "2026-09-18T15:30:05.000000Z"),
-            message("m4", at: "2026-09-18T15:30:04.000000Z"),
-            message("m3", at: "2026-09-18T15:00:03.000000Z"),
-            message("m2", at: "2026-09-18T15:00:02.000000Z"),
-            message("m1", at: "2026-09-18T15:00:01.000000Z"),
-        ]))
+        atOnce.mergeNewest(
+            GroupMessagesPageDTO(messages: [
+                message("m5", at: "2026-09-18T15:30:05.000000Z"),
+                message("m4", at: "2026-09-18T15:30:04.000000Z"),
+                message("m3", at: "2026-09-18T15:00:03.000000Z"),
+                message("m2", at: "2026-09-18T15:00:02.000000Z"),
+                message("m1", at: "2026-09-18T15:00:01.000000Z"),
+            ]))
 
         // Assert: dates, separators and run edges all survive being carried.
         XCTAssertEqual(merged.rows, atOnce.rows)
@@ -246,10 +261,11 @@ final class GroupChatTimelineTests: XCTestCase {
         XCTAssertNil(timeline.rows.first?.date)
 
         // Act
-        timeline.mergeNewest(GroupMessagesPageDTO(messages: [
-            message("m2", at: "2026-09-18T15:00:02.000000Z"),
-            message("bad", at: "not a date"),
-        ]))
+        timeline.mergeNewest(
+            GroupMessagesPageDTO(messages: [
+                message("m2", at: "2026-09-18T15:00:02.000000Z"),
+                message("bad", at: "not a date"),
+            ]))
 
         // Assert
         XCTAssertEqual(timeline.rows.count, 2)
@@ -260,13 +276,25 @@ final class GroupChatTimelineTests: XCTestCase {
 
 final class GroupChatCopyTests: XCTestCase {
     func testSendFailure_mapsStatusesAndNetworkErrors() {
-        XCTAssertEqual(GroupChatCopy.sendFailure(MonacoAPIError.httpStatus(403)), "Only members of this cabal can chat here.")
-        XCTAssertEqual(GroupChatCopy.sendFailure(MonacoAPIError.httpStatus(429)), "You're sending messages fast. Wait a moment and try again.")
-        XCTAssertEqual(GroupChatCopy.sendFailure(MonacoAPIError.rateLimited(retryAfterSeconds: 1)), "You're sending messages fast. Try again in 1 second.")
-        XCTAssertEqual(GroupChatCopy.sendFailure(MonacoAPIError.rateLimited(retryAfterSeconds: nil)), "You're sending messages fast. Wait a moment and try again.")
-        XCTAssertEqual(GroupChatCopy.sendFailure(MonacoAPIError.rejected(status: 403, message: "not a group member")), "Only members of this cabal can chat here.")
-        XCTAssertEqual(GroupChatCopy.sendFailure(URLError(.notConnectedToInternet)), "You're offline. Message not sent.")
-        XCTAssertEqual(GroupChatCopy.sendFailure(GroupChatDraft.Problem.tooLong(count: 2001)), "Messages can be up to 2000 characters.")
+        XCTAssertEqual(
+            GroupChatCopy.sendFailure(MonacoAPIError.httpStatus(403)), "Only members of this cabal can chat here.")
+        XCTAssertEqual(
+            GroupChatCopy.sendFailure(MonacoAPIError.httpStatus(429)),
+            "You're sending messages fast. Wait a moment and try again.")
+        XCTAssertEqual(
+            GroupChatCopy.sendFailure(MonacoAPIError.rateLimited(retryAfterSeconds: 1)),
+            "You're sending messages fast. Try again in 1 second.")
+        XCTAssertEqual(
+            GroupChatCopy.sendFailure(MonacoAPIError.rateLimited(retryAfterSeconds: nil)),
+            "You're sending messages fast. Wait a moment and try again.")
+        XCTAssertEqual(
+            GroupChatCopy.sendFailure(MonacoAPIError.rejected(status: 403, message: "not a group member")),
+            "Only members of this cabal can chat here.")
+        XCTAssertEqual(
+            GroupChatCopy.sendFailure(URLError(.notConnectedToInternet)), "You're offline. Message not sent.")
+        XCTAssertEqual(
+            GroupChatCopy.sendFailure(GroupChatDraft.Problem.tooLong(count: 2001)),
+            "Messages can be up to 2000 characters.")
     }
 
     /// A failure the device can only have seen after the request went out must not promise the
@@ -284,11 +312,14 @@ final class GroupChatCopyTests: XCTestCase {
         XCTAssertEqual(GroupChatCopy.sendFailure(MonacoAPIError.httpStatus(504)), GroupChatCopy.sendUnconfirmed)
         XCTAssertEqual(GroupChatCopy.sendFailure(MonacoAPIError.invalidResponse), GroupChatCopy.sendUnconfirmed)
         // A 201 we can't decode is a message the API stored.
-        XCTAssertEqual(GroupChatCopy.sendFailure(DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: ""))), GroupChatCopy.sendUnconfirmed)
+        XCTAssertEqual(
+            GroupChatCopy.sendFailure(DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: ""))),
+            GroupChatCopy.sendUnconfirmed)
         XCTAssertFalse(GroupChatCopy.sendUnconfirmed.localizedCaseInsensitiveContains("not sent"))
 
         // Nothing left the device, so these are promises we can keep.
-        XCTAssertEqual(GroupChatCopy.sendFailure(URLError(.notConnectedToInternet)), "You're offline. Message not sent.")
+        XCTAssertEqual(
+            GroupChatCopy.sendFailure(URLError(.notConnectedToInternet)), "You're offline. Message not sent.")
         for code in FlowErrorInput.neverSentURLErrorCodes where code != .notConnectedToInternet {
             XCTAssertEqual(
                 GroupChatCopy.sendFailure(URLError(code)),
@@ -326,10 +357,18 @@ final class GroupChatCopyTests: XCTestCase {
         let older = ISO8601DateFormatter().date(from: "2026-09-14T09:02:00Z")!
         let lastYear = ISO8601DateFormatter().date(from: "2025-12-30T21:15:00Z")!
 
-        XCTAssertEqual(plain(GroupChatCopy.timeSeparatorLabel(today, now: now, calendar: calendar, locale: locale)), "Today 12:40 PM")
-        XCTAssertEqual(plain(GroupChatCopy.timeSeparatorLabel(yesterday, now: now, calendar: calendar, locale: locale)), "Yesterday 9:02 AM")
-        XCTAssertEqual(plain(GroupChatCopy.timeSeparatorLabel(older, now: now, calendar: calendar, locale: locale)), "Sep 14, 9:02 AM")
-        XCTAssertEqual(plain(GroupChatCopy.timeSeparatorLabel(lastYear, now: now, calendar: calendar, locale: locale)), "Dec 30, 2025, 9:15 PM")
+        XCTAssertEqual(
+            plain(GroupChatCopy.timeSeparatorLabel(today, now: now, calendar: calendar, locale: locale)),
+            "Today 12:40 PM")
+        XCTAssertEqual(
+            plain(GroupChatCopy.timeSeparatorLabel(yesterday, now: now, calendar: calendar, locale: locale)),
+            "Yesterday 9:02 AM")
+        XCTAssertEqual(
+            plain(GroupChatCopy.timeSeparatorLabel(older, now: now, calendar: calendar, locale: locale)),
+            "Sep 14, 9:02 AM")
+        XCTAssertEqual(
+            plain(GroupChatCopy.timeSeparatorLabel(lastYear, now: now, calendar: calendar, locale: locale)),
+            "Dec 30, 2025, 9:15 PM")
     }
 
     func testTimeSeparatorLabel_usesViewerTimeZone() {
@@ -339,7 +378,9 @@ final class GroupChatCopyTests: XCTestCase {
         let now = ISO8601DateFormatter().date(from: "2026-09-18T20:00:00Z")!
         let stamp = ISO8601DateFormatter().date(from: "2026-09-18T16:30:00Z")!
 
-        XCTAssertEqual(plain(GroupChatCopy.timeSeparatorLabel(stamp, now: now, calendar: calendar, locale: locale)), "Today 9:30 AM")
+        XCTAssertEqual(
+            plain(GroupChatCopy.timeSeparatorLabel(stamp, now: now, calendar: calendar, locale: locale)),
+            "Today 9:30 AM")
     }
 
     /// DateFormatter puts a narrow no-break space before AM/PM; compare with plain spaces.
@@ -348,15 +389,16 @@ final class GroupChatCopyTests: XCTestCase {
     }
 
     func testChatCopy_passesMainFlowAudit() {
-        XCTAssertTrue(MainFlowCopyAudit.stringsAreClean([
-            GroupChatCopy.title,
-            GroupChatCopy.title(groupName: "Weekend investors"),
-            GroupChatCopy.emptyState,
-            GroupChatCopy.composerPlaceholder,
-            GroupChatCopy.loadEarlier,
-            GroupChatCopy.sendFailure(MonacoAPIError.httpStatus(403)),
-            GroupChatCopy.loadFailure(MonacoAPIError.httpStatus(403)),
-        ]))
+        XCTAssertTrue(
+            MainFlowCopyAudit.stringsAreClean([
+                GroupChatCopy.title,
+                GroupChatCopy.title(groupName: "Weekend investors"),
+                GroupChatCopy.emptyState,
+                GroupChatCopy.composerPlaceholder,
+                GroupChatCopy.loadEarlier,
+                GroupChatCopy.sendFailure(MonacoAPIError.httpStatus(403)),
+                GroupChatCopy.loadFailure(MonacoAPIError.httpStatus(403)),
+            ]))
     }
 }
 
@@ -371,7 +413,8 @@ final class GroupChatAPITests: XCTestCase {
         var captured: URLRequest?
         MockURLProtocol.requestHandler = { request in
             captured = request
-            let body = #"{"messages":[{"id":"m1","groupId":"g1","authorId":"u1","authorName":"Ana","body":"hi","createdAt":"2026-09-18T15:04:05.000000Z","mine":true}],"nextCursor":"next"}"#
+            let body =
+                #"{"messages":[{"id":"m1","groupId":"g1","authorId":"u1","authorName":"Ana","body":"hi","createdAt":"2026-09-18T15:04:05.000000Z","mine":true}],"nextCursor":"next"}"#
             return (Self.response(request, status: 200), Data(body.utf8))
         }
         let client = makeClient()
@@ -386,7 +429,8 @@ final class GroupChatAPITests: XCTestCase {
         XCTAssertEqual(url.path, "/v1/groups/g1/messages")
         XCTAssertEqual(query.first { $0.name == "limit" }?.value, "20")
         XCTAssertEqual(query.first { $0.name == "before" }?.value, "cur+/=")
-        XCTAssertEqual(captured?.value(forHTTPHeaderField: "Authorization"), "Bearer \(TestFixtures.fixtureSessionToken)")
+        XCTAssertEqual(
+            captured?.value(forHTTPHeaderField: "Authorization"), "Bearer \(TestFixtures.fixtureSessionToken)")
         XCTAssertEqual(page.messages.map(\.id), ["m1"])
         XCTAssertEqual(page.nextCursor, "next")
     }
@@ -420,7 +464,8 @@ final class GroupChatAPITests: XCTestCase {
         } catch {
             XCTAssertEqual(error as? MonacoAPIError, .rejected(status: 403, message: "not a group member"))
             XCTAssertEqual((error as? MonacoAPIError)?.statusCode, 403)
-            XCTAssertEqual(GroupChatCopy.loadFailure(error), "You're no longer in this cabal, so its chat is closed to you.")
+            XCTAssertEqual(
+                GroupChatCopy.loadFailure(error), "You're no longer in this cabal, so its chat is closed to you.")
         }
     }
 
@@ -446,7 +491,8 @@ final class GroupChatAPITests: XCTestCase {
         MockURLProtocol.requestHandler = { request in
             capturedBody = Self.httpBody(from: request)
             capturedMethod = request.httpMethod
-            let body = #"{"id":"m9","groupId":"g1","authorId":"u1","authorName":"Me","body":"hello","createdAt":"2026-09-18T15:04:05.000000Z","mine":true}"#
+            let body =
+                #"{"id":"m9","groupId":"g1","authorId":"u1","authorName":"Me","body":"hello","createdAt":"2026-09-18T15:04:05.000000Z","mine":true}"#
             return (Self.response(request, status: 201), Data(body.utf8))
         }
 
@@ -550,12 +596,13 @@ final class GroupChatRowTests: XCTestCase {
         var timeline = GroupChatTimeline()
 
         // Act
-        timeline.mergeNewest(GroupMessagesPageDTO(messages: [
-            authored("m4", by: "leo", at: "2026-09-18T15:20:00.000000Z"),
-            authored("m3", by: "leo", at: "2026-09-18T15:01:00.000000Z"),
-            authored("m2", by: "ana", at: "2026-09-18T15:00:30.000000Z"),
-            authored("m1", by: "ana", at: "2026-09-18T15:00:00.000000Z"),
-        ]))
+        timeline.mergeNewest(
+            GroupMessagesPageDTO(messages: [
+                authored("m4", by: "leo", at: "2026-09-18T15:20:00.000000Z"),
+                authored("m3", by: "leo", at: "2026-09-18T15:01:00.000000Z"),
+                authored("m2", by: "ana", at: "2026-09-18T15:00:30.000000Z"),
+                authored("m1", by: "ana", at: "2026-09-18T15:00:00.000000Z"),
+            ]))
 
         // Assert
         XCTAssertEqual(timeline.rows.map(\.id), ["m1", "m2", "m3", "m4"])
@@ -572,10 +619,11 @@ final class GroupChatRowTests: XCTestCase {
     func testRow_separatorLabelIsOnlyOfferedWhereOneBelongs() {
         // Arrange
         var timeline = GroupChatTimeline()
-        timeline.mergeNewest(GroupMessagesPageDTO(messages: [
-            authored("m2", by: "ana", at: "2026-09-18T15:00:30.000000Z"),
-            authored("m1", by: "ana", at: "2026-09-18T15:00:00.000000Z"),
-        ]))
+        timeline.mergeNewest(
+            GroupMessagesPageDTO(messages: [
+                authored("m2", by: "ana", at: "2026-09-18T15:00:30.000000Z"),
+                authored("m1", by: "ana", at: "2026-09-18T15:00:00.000000Z"),
+            ]))
         let now = ISO8601DateFormatter().date(from: "2026-09-18T15:30:00Z")!
 
         // Act + Assert
@@ -818,22 +866,24 @@ final class GroupChatClosureTrackerTests: XCTestCase {
     }
 
     func testFailureCopy_passesMainFlowAudit() {
-        XCTAssertTrue(MainFlowCopyAudit.stringsAreClean([
-            GroupChatCopy.loadFailure(URLError(.timedOut)),
-            GroupChatCopy.refreshFailure(URLError(.timedOut)),
-            GroupChatCopy.earlierFailure(URLError(.timedOut)),
-            GroupChatCopy.chatClosed(MonacoAPIError.httpStatus(403)) ?? "",
-            GroupChatCopy.chatClosed(MonacoAPIError.httpStatus(404)) ?? "",
-            GroupChatCopy.newMessagesPill(count: 3),
-            // The newest member-facing sentence in chat, and the one a member has to act on.
-            GroupChatCopy.sendUnconfirmed,
-            GroupChatCopy.sendFailure(MonacoAPIError.rateLimited(retryAfterSeconds: 30)),
-            GroupChatCopy.sendFailure(MonacoAPIError.httpStatus(401)),
-            GroupChatCopy.sendFailure(URLError(.notConnectedToInternet)),
-        ]))
+        XCTAssertTrue(
+            MainFlowCopyAudit.stringsAreClean([
+                GroupChatCopy.loadFailure(URLError(.timedOut)),
+                GroupChatCopy.refreshFailure(URLError(.timedOut)),
+                GroupChatCopy.earlierFailure(URLError(.timedOut)),
+                GroupChatCopy.chatClosed(MonacoAPIError.httpStatus(403)) ?? "",
+                GroupChatCopy.chatClosed(MonacoAPIError.httpStatus(404)) ?? "",
+                GroupChatCopy.newMessagesPill(count: 3),
+                // The newest member-facing sentence in chat, and the one a member has to act on.
+                GroupChatCopy.sendUnconfirmed,
+                GroupChatCopy.sendFailure(MonacoAPIError.rateLimited(retryAfterSeconds: 30)),
+                GroupChatCopy.sendFailure(MonacoAPIError.httpStatus(401)),
+                GroupChatCopy.sendFailure(URLError(.notConnectedToInternet)),
+            ]))
     }
 }
 
 private func message(_ id: String, at createdAt: String, mine: Bool = false) -> GroupMessageDTO {
-    GroupMessageDTO(id: id, groupId: "g1", authorId: "u1", authorName: "Ana", body: "text \(id)", createdAt: createdAt, mine: mine)
+    GroupMessageDTO(
+        id: id, groupId: "g1", authorId: "u1", authorName: "Ana", body: "text \(id)", createdAt: createdAt, mine: mine)
 }

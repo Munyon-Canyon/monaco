@@ -1,2 +1,4 @@
 # swift format: packages/mobile-core/Sources, MonacoAPITests and apps/mobile/MonacoUITests
 a361cbea0b129c559365ed7c9a18412aa62885b8
+# swift format: mobile-core tests A to H
+8e818d7842a463c3e03ed43f67d5b32d877b97ae

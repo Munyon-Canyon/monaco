@@ -1,9 +1,10 @@
 import XCTest
+
+@testable import MonacoCore
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-
-@testable import MonacoCore
 
 /// The cabal picture: what the group payloads decode into, and what the two
 /// write routes put on the wire.
@@ -61,23 +62,23 @@ final class CabalPictureTests: XCTestCase {
 
     func testDiscoveryRow_decodesPictureAndToleratesItsAbsence() throws {
         let withPicture = #"""
-        {
-          "groupId": "g1", "name": "Weekend investors", "memberCount": 4,
-          "potValueUsd": "623.01", "percentReturn": "0.12", "dollarPnl": "+48.20",
-          "isJoined": true, "joinMode": "open",
-          "pictureUrl": "https://cdn.test/groups/g1/abc.jpg"
-        }
-        """#
+            {
+              "groupId": "g1", "name": "Weekend investors", "memberCount": 4,
+              "potValueUsd": "623.01", "percentReturn": "0.12", "dollarPnl": "+48.20",
+              "isJoined": true, "joinMode": "open",
+              "pictureUrl": "https://cdn.test/groups/g1/abc.jpg"
+            }
+            """#
         let row = try JSONDecoder().decode(GroupDiscoveryRowDTO.self, from: Data(withPicture.utf8))
         XCTAssertEqual(row.pictureUrl, "https://cdn.test/groups/g1/abc.jpg")
 
         let without = #"""
-        {
-          "groupId": "g2", "name": "No picture", "memberCount": 1,
-          "potValueUsd": "0.00", "percentReturn": null, "dollarPnl": "+0.00",
-          "isJoined": false, "joinMode": "request"
-        }
-        """#
+            {
+              "groupId": "g2", "name": "No picture", "memberCount": 1,
+              "potValueUsd": "0.00", "percentReturn": null, "dollarPnl": "+0.00",
+              "isJoined": false, "joinMode": "request"
+            }
+            """#
         let bare = try JSONDecoder().decode(GroupDiscoveryRowDTO.self, from: Data(without.utf8))
         XCTAssertNil(bare.pictureUrl)
         XCTAssertEqual(bare.name, "No picture")
@@ -85,23 +86,23 @@ final class CabalPictureTests: XCTestCase {
 
     func testHomeGroupBoardRow_decodesPicture() throws {
         let json = #"""
-        {
-          "groupId": "g1", "name": "Weekend investors", "potValueUsd": "623.01",
-          "percentReturn": "0.12", "dollarPnl": "+48.20", "isJoined": true,
-          "pictureUrl": "https://cdn.test/groups/g1/abc.jpg"
-        }
-        """#
+            {
+              "groupId": "g1", "name": "Weekend investors", "potValueUsd": "623.01",
+              "percentReturn": "0.12", "dollarPnl": "+48.20", "isJoined": true,
+              "pictureUrl": "https://cdn.test/groups/g1/abc.jpg"
+            }
+            """#
         let row = try JSONDecoder().decode(HomeGroupBoardRowDTO.self, from: Data(json.utf8))
         XCTAssertEqual(row.pictureUrl, "https://cdn.test/groups/g1/abc.jpg")
     }
 
     func testHomeMyGroupRow_decodesPictureAndToleratesItsAbsence() throws {
         let json = #"""
-        {
-          "groupId": "g1", "name": "Weekend investors", "equityUsd": "311.50",
-          "slicePercent": "0.42", "dollarPnl": "+48.20", "percentReturn": "0.124"
-        }
-        """#
+            {
+              "groupId": "g1", "name": "Weekend investors", "equityUsd": "311.50",
+              "slicePercent": "0.42", "dollarPnl": "+48.20", "percentReturn": "0.124"
+            }
+            """#
         let row = try JSONDecoder().decode(HomeMyGroupRowDTO.self, from: Data(json.utf8))
         XCTAssertNil(row.pictureUrl)
         XCTAssertEqual(row.equityUsd, "311.50")
@@ -152,7 +153,10 @@ final class CabalPictureTests: XCTestCase {
         MockURLProtocol.requestHandler = { request in
             captured = request
             capturedBody = Self.bodyData(of: request)
-            return (Self.response(request, status: 200), Data(#"{"groupId":"g1","pictureUrl":"https://cdn.test/g1.jpg"}"#.utf8))
+            return (
+                Self.response(request, status: 200),
+                Data(#"{"groupId":"g1","pictureUrl":"https://cdn.test/g1.jpg"}"#.utf8)
+            )
         }
         let image = Data([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10])
 
@@ -196,7 +200,10 @@ final class CabalPictureTests: XCTestCase {
 
     func testUploadCabalPicture_403_surfacesServerMessage() async {
         MockURLProtocol.requestHandler = { request in
-            (Self.response(request, status: 403), Data(#"{"error":"only the cabal's creator can change its picture"}"#.utf8))
+            (
+                Self.response(request, status: 403),
+                Data(#"{"error":"only the cabal's creator can change its picture"}"#.utf8)
+            )
         }
 
         do {
@@ -239,22 +246,22 @@ final class CabalPictureTests: XCTestCase {
     private static func groupViewJSON(extra: String = "") -> String {
         let tail = extra.isEmpty ? "" : ", \(extra)"
         return """
-        {
-          "id": "g1",
-          "name": "Weekend investors",
-          "treasuryAddress": "So11111111111111111111111111111111111111112",
-          "potTotalUsd": "623.01",
-          "pot": [],
-          "you": {
-            "shareUnits": "500000", "equityUsd": "311.50", "slicePercent": "0.42",
-            "dollarPnl": "+48.20", "percentReturn": "0.124"
-          },
-          "members": [
-            { "rank": 1, "userId": "u1", "displayName": "Alfred", "percentReturn": "0.124", "dollarPnl": "+48.20" }
-          ],
-          "proposals": []\(tail)
-        }
-        """
+            {
+              "id": "g1",
+              "name": "Weekend investors",
+              "treasuryAddress": "So11111111111111111111111111111111111111112",
+              "potTotalUsd": "623.01",
+              "pot": [],
+              "you": {
+                "shareUnits": "500000", "equityUsd": "311.50", "slicePercent": "0.42",
+                "dollarPnl": "+48.20", "percentReturn": "0.124"
+              },
+              "members": [
+                { "rank": 1, "userId": "u1", "displayName": "Alfred", "percentReturn": "0.124", "dollarPnl": "+48.20" }
+              ],
+              "proposals": []\(tail)
+            }
+            """
     }
 
     private static func decodeFixture<T: Decodable>(_ type: T.Type, named name: String) throws -> T {

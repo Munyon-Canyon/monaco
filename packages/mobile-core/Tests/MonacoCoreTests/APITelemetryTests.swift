@@ -1,9 +1,11 @@
+import MonacoAPI
 import XCTest
+
+@testable import MonacoCore
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import MonacoAPI
-@testable import MonacoCore
 
 final class APITelemetryTests: XCTestCase {
     private let baseURL = URL(string: "https://api.test")!

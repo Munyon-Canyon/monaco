@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import MonacoCore
 
 /// These formatters run once per visible row on every SwiftUI body pass, so they must stay
@@ -39,7 +40,8 @@ final class FormatterHotPathTests: XCTestCase {
             if UsdAmountFormatter.format(micros: 1_250_500_000) != expectedMoney
                 || ProposalShareFormatter.sharesLabel(fromAtomics: "120340000") != expectedShares
                 || ProposalTimeFormatter.parse("2026-09-18T15:04:05.123Z") != expectedDate
-                || RelativeTimeFormatter.parse("2026-09-18T15:04:05Z") == nil {
+                || RelativeTimeFormatter.parse("2026-09-18T15:04:05Z") == nil
+            {
                 mismatches.record()
             }
         }
@@ -54,8 +56,10 @@ final class FormatterHotPathTests: XCTestCase {
         let now = ISO8601DateFormatter().date(from: "2026-09-18T12:00:00Z")!
         // 23:30 UTC on the 14th is already the 15th in Tokyo and still the 14th in LA.
         XCTAssertEqual(RelativeTimeFormatter.label(iso: "2026-09-14T23:30:00Z", now: now, calendar: tokyo), "Sep 15")
-        XCTAssertEqual(RelativeTimeFormatter.label(iso: "2026-09-14T23:30:00Z", now: now, calendar: losAngeles), "Sep 14")
-        XCTAssertEqual(RelativeTimeFormatter.label(iso: "2025-09-14T23:30:00Z", now: now, calendar: losAngeles), "Sep 14, 2025")
+        XCTAssertEqual(
+            RelativeTimeFormatter.label(iso: "2026-09-14T23:30:00Z", now: now, calendar: losAngeles), "Sep 14")
+        XCTAssertEqual(
+            RelativeTimeFormatter.label(iso: "2025-09-14T23:30:00Z", now: now, calendar: losAngeles), "Sep 14, 2025")
     }
 }
 

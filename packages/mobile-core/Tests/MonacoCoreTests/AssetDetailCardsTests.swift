@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import MonacoCore
 
 /// The stats grid: which cells exist, and what a missing one does.
@@ -215,7 +216,8 @@ final class AssetPositionSummaryTests: XCTestCase {
     }
 
     func testHeadlines_countCorrectlyAtOneAndAtMany() {
-        XCTAssertEqual(AssetPositionSummary.headline(holdingCount: 0, ticker: "AAPLx"), "No cabal of yours holds AAPLx yet")
+        XCTAssertEqual(
+            AssetPositionSummary.headline(holdingCount: 0, ticker: "AAPLx"), "No cabal of yours holds AAPLx yet")
         XCTAssertEqual(AssetPositionSummary.headline(holdingCount: 1, ticker: "AAPLx"), "One cabal holds AAPLx")
         XCTAssertEqual(AssetPositionSummary.headline(holdingCount: 4, ticker: "AAPLx"), "4 cabals hold AAPLx")
     }
@@ -311,11 +313,13 @@ final class AssetActivityCopyTests: XCTestCase {
         XCTAssertEqual(AssetActivityCopy.age(now.addingTimeInterval(-30), now: now, calendar: calendar), "now")
         XCTAssertEqual(AssetActivityCopy.age(now.addingTimeInterval(-15 * 60), now: now, calendar: calendar), "15m")
         XCTAssertEqual(AssetActivityCopy.age(now.addingTimeInterval(-3 * 3600), now: now, calendar: calendar), "3h")
-        XCTAssertEqual(AssetActivityCopy.age(now.addingTimeInterval(-9 * 86_400), now: now, calendar: calendar), "Sep 13")
+        XCTAssertEqual(
+            AssetActivityCopy.age(now.addingTimeInterval(-9 * 86_400), now: now, calendar: calendar), "Sep 13")
     }
 
     func testRowWithNoTimestamp_readsWithoutATrailingComma() {
-        let undated = AssetActivityDTO(id: "x", groupId: "g", groupName: "Weekend investors", kind: .proposed, action: .buy)
+        let undated = AssetActivityDTO(
+            id: "x", groupId: "g", groupName: "Weekend investors", kind: .proposed, action: .buy)
         let line = lines([undated])[0]
         XCTAssertEqual(line.age, "")
         XCTAssertEqual(line.spoken, line.title)
@@ -335,7 +339,8 @@ final class AssetActivityCopyTests: XCTestCase {
     }
 
     func testUnnamedCabal_stillReadsAsASentence() {
-        let anonymous = AssetActivityDTO(id: "a", groupId: "g", groupName: "", kind: .proposed, action: .buy, usdcMicros: 1_000_000)
+        let anonymous = AssetActivityDTO(
+            id: "a", groupId: "g", groupName: "", kind: .proposed, action: .buy, usdcMicros: 1_000_000)
         XCTAssertEqual(lines([anonymous])[0].title, "A cabal proposed buying $1.00 of AAPLx")
     }
 
