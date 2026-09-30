@@ -1,0 +1,31 @@
+only_rules:
+  - cyclomatic_complexity
+  - function_body_length
+  - type_body_length
+  - nesting
+  - force_unwrapping
+  - force_try
+  - force_cast
+  - implicitly_unwrapped_optional
+  - custom_rules
+
+excluded:
+  - packages/mobile-core/.build
+
+cyclomatic_complexity:
+  warning: 12
+  error: 12
+
+function_body_length:
+  warning: 70
+  error: 70
+
+custom_rules:
+  no_comments:
+    name: No comments
+    regex: '(//|/\*)(?! swift-tools-version:)'
+    match_kinds:
+      - comment
+      - doccomment
+    severity: error
+    message: No comments in Swift. Use a better name, a type, a test, or an issue.
