@@ -69,25 +69,39 @@ func anonymize(l Line) (Line, error) {
 	l.Actor = actorType + ":" + Pseudonym(actorID)
 	var fields map[string]any
 	_ = json.Unmarshal(l.Payload, &fields)
-	for _, name := range piiFields(reflect.TypeOf(ev)) {
-		if v, ok := fields[name]; ok {
-			fields[name] = Pseudonym(fmt.Sprint(v))
-		}
-	}
+	scrub(reflect.TypeOf(ev), fields)
 	l.Payload, _ = json.Marshal(fields)
 	return l, nil
 }
 
-func piiFields(t reflect.Type) []string {
-	var names []string
+func scrub(t reflect.Type, fields map[string]any) {
 	for i := range t.NumField() {
 		f := t.Field(i)
+		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		child, ok := fields[name]
+		if !ok {
+			continue
+		}
 		if f.Tag.Get("pii") == "true" {
-			name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
-			names = append(names, name)
+			fields[name] = pseudonymize(child)
+			continue
+		}
+		if nested, isObject := child.(map[string]any); isObject {
+			scrub(f.Type, nested)
 		}
 	}
-	return names
+}
+
+func pseudonymize(node any) any {
+	list, isList := node.([]any)
+	if !isList {
+		return Pseudonym(fmt.Sprint(node))
+	}
+	out := make([]any, len(list))
+	for i, element := range list {
+		out[i] = Pseudonym(fmt.Sprint(element))
+	}
+	return out
 }
 
 func Pseudonym(s string) string {

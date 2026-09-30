@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "cabal_id": "01890a5d-ac96-774b-bcce-b302099a8059",
+  "actor_id": "01890a5d-ac96-774b-bcce-b302099a805a",
+  "changes": {
+    "name": "Work pot",
+    "voter_mode": "list",
+    "voter_ids": [
+      "01890a5d-ac96-774b-bcce-b302099a805a",
+      "01890a5d-ac96-774b-bcce-b302099a805b"
+    ],
+    "slippage_bps": 250
+  }
+}

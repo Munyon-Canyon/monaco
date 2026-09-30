@@ -36,6 +36,8 @@ func mustPanic(t *testing.T, want string, fn func()) {
 func TestSubjects(t *testing.T) {
 	t.Parallel()
 	want := []string{
+		"events.cabal.access_decided", "events.cabal.access_requested", "events.cabal.created",
+		"events.cabal.member_joined", "events.cabal.member_left", "events.cabal.updated",
 		"events.proposal.created", "events.proposal.executed", "events.proposal.execution_blocked",
 		"events.proposal.expired", "events.proposal.failed", "events.proposal.passed", "events.proposal.voided",
 		"events.proposal.withdrawn", "events.system.pinged", "events.trade.blocked", "events.trade.confirmed",
@@ -130,6 +132,8 @@ func TestCatalog(t *testing.T) {
 		types = append(types, e.Type)
 	}
 	if want := []Type{
+		TypeCabalAccessDecided, TypeCabalAccessRequested, TypeCabalCreated, TypeCabalMemberJoined,
+		TypeCabalMemberLeft, TypeCabalUpdated,
 		TypeProposalCreated, TypeProposalExecuted, TypeProposalExecutionBlocked, TypeProposalExpired,
 		TypeProposalFailed, TypeProposalPassed, TypeProposalVoided, TypeProposalWithdrawn,
 		TypeSystemPinged, TypeTradeBlocked, TypeTradeConfirmed, TypeTradeFailed, TypeTradeSubmitted,
