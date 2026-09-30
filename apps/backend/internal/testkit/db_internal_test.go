@@ -367,6 +367,34 @@ func TestCleanKeptLeavesTheDatabaseOfATestStillRunning(t *testing.T) {
 	}
 }
 
+func TestDBKeepsItsDatabaseHeldUntilItsOwnDropReturns(t *testing.T) {
+	t.Parallel()
+	shared := current.Load()
+	tmpl := shared.templateFor(t)
+	s := &server{
+		admin:     shared.admin,
+		names:     map[string]*queryCounter{},
+		runPrefix: "t_own_" + strings.ToLower(rand.Text()[:8]) + "_",
+	}
+	s.templateOnce.Do(func() { s.template = tmpl })
+	var name string
+	var heldAtRelease []bool
+	s.disk = func(context.Context) (int64, int64, error) {
+		heldAtRelease = append(heldAtRelease, s.holds(name))
+		return 1, 100, nil
+	}
+	t.Cleanup(func() {
+		if !slices.Equal(heldAtRelease, []bool{true}) {
+			t.Errorf("%s held at each disk probe during its release = %v, want [true]; "+
+				"a sibling's cleanKept drops a database that is not held", name, heldAtRelease)
+		}
+		if s.holds(name) {
+			t.Errorf("%s is still held after its test finished; cleanKept could never drop it", name)
+		}
+	})
+	name = s.dbFor(t).Config().ConnConfig.Database
+}
+
 func TestCleanKeptPanicsWhenTheRunPrefixIsEmpty(t *testing.T) {
 	t.Parallel()
 	s := &server{disk: func(context.Context) (int64, int64, error) { return 51, 100, nil }}

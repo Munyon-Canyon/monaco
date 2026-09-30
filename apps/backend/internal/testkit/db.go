@@ -128,11 +128,17 @@ func DB(t *testing.T) *pgxpool.Pool {
 	if s == nil {
 		t.Fatal("testkit.DB: call testkit.Main(m) from this package's TestMain")
 	}
+	return s.dbFor(t)
+}
+
+func (s *server) dbFor(t *testing.T) *pgxpool.Pool {
+	t.Helper()
 	queries := s.claim(t.Name())
 	tmpl := s.templateFor(t)
 	inst := tmpl
 	inst.Database = databaseName(s.runPrefix, t.Name())
 	s.hold(inst.Database, true)
+	t.Cleanup(func() { s.hold(inst.Database, false) })
 	ctx := context.Background()
 	create := fmt.Sprintf(`CREATE DATABASE %s TEMPLATE %s OWNER %s`,
 		pgx.Identifier{inst.Database}.Sanitize(), pgx.Identifier{tmpl.Database}.Sanitize(),
@@ -153,7 +159,6 @@ func DB(t *testing.T) *pgxpool.Pool {
 	t.Cleanup(func() {
 		pool.Close()
 		s.release(t.Name())
-		s.hold(inst.Database, false)
 		kept, err := s.releaseDB(ctx, inst.Database, t.Failed())
 		if err != nil {
 			t.Errorf("testkit.DB: %v", err)
