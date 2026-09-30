@@ -40,6 +40,7 @@ func bootEnv(t *testing.T, extra ...string) []string {
 		[]string{
 			"MONACO_ENV=test", "DATABASE_URL=" + testkit.DB(t).Config().ConnString(), "NATS_URL=" + url,
 			"XSTOCKS_BASE_URL=" + upstreams.URL + "/xstocks",
+			"MONACO_JUPITER_PRICE_BASE_URL=" + upstreams.URL + "/jupiter/price/v3",
 		},
 		extra...)
 }
@@ -47,7 +48,7 @@ func bootEnv(t *testing.T, extra ...string) []string {
 func TestMain_servesHealthzUntilSIGTERMThenExitsZero(t *testing.T) {
 	t.Parallel()
 	p := testkit.StartMain(t, bootEnv(t, "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0"))
-	want := "nats ok\ndb ok\npoller:platform.retention ok\npoller:market.catalog ok\n"
+	want := "nats ok\ndb ok\npoller:platform.retention ok\npoller:market.catalog ok\npoller:market.prices ok\n"
 	waitUntil(t, "a healthy worker", func() bool {
 		code, body := testkit.Get(t, "http://"+p.Addr+"/healthz")
 		return code == http.StatusOK && body == want

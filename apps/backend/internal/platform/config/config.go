@@ -30,6 +30,7 @@ type Config struct {
 	Timeouts   Timeouts
 	Jupiter    Jupiter
 	XStocks    XStocks
+	Market     Market
 	Privy      Privy
 	Solana     Solana
 	Relayer    Relayer
@@ -80,6 +81,10 @@ type Jupiter struct {
 
 type XStocks struct {
 	BaseURL string
+}
+
+type Market struct {
+	PricePollInterval time.Duration
 }
 
 type Privy struct {
@@ -284,6 +289,8 @@ func fields() []field {
 			func(c *Config) *string { return &c.Jupiter.PriceBaseURL }),
 		text("JUPITER_API_KEY", "", func(c *Config) *string { return &c.Jupiter.APIKey }).secret(),
 		text("XSTOCKS_BASE_URL", "https://api.xstocks.fi", func(c *Config) *string { return &c.XStocks.BaseURL }),
+		duration("MARKET_PRICE_POLL_INTERVAL", 120*time.Second,
+			func(c *Config) *time.Duration { return &c.Market.PricePollInterval }),
 		text("PRIVY_APP_ID", "", func(c *Config) *string { return &c.Privy.AppID }),
 		text("PRIVY_APP_SECRET", "", func(c *Config) *string { return &c.Privy.AppSecret }).secret(),
 		text("PRIVY_VERIFICATION_KEY", "", func(c *Config) *string { return &c.Privy.VerificationKey }),

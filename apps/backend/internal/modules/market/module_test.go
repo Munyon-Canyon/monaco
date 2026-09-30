@@ -27,14 +27,29 @@ func TestModule_isNamedMarketAndMountsNoRoutesOrConsumers(t *testing.T) {
 	}
 }
 
+func moduleConfig() config.Config {
+	return config.Config{
+		XStocks: config.XStocks{BaseURL: "http://fakes/xstocks"},
+		Jupiter: config.Jupiter{
+			SwapBaseURL: "http://fakes/jupiter/swap/v2", PriceBaseURL: "http://fakes/jupiter/price/v3",
+		},
+		Market:   config.Market{PricePollInterval: 90 * time.Second},
+		Timeouts: config.Timeouts{XStocks: time.Second, JupiterQuote: time.Second, JupiterExecute: time.Minute},
+	}
+}
+
 func TestModule_pollsTheCatalogHourly(t *testing.T) {
 	t.Parallel()
-	cfg := config.Config{
-		XStocks:  config.XStocks{BaseURL: "http://fakes/xstocks"},
-		Timeouts: config.Timeouts{XStocks: time.Second},
+	pollers := market.New(module.Deps{Config: moduleConfig(), HTTPClient: httpclient.New}).Pollers()
+	if len(pollers) != 2 || pollers[0].Name() != "market.catalog" || pollers[0].Interval() != time.Hour {
+		t.Fatalf("Pollers = %v, want market.catalog every hour first", pollers)
 	}
-	pollers := market.New(module.Deps{Config: cfg, HTTPClient: httpclient.New}).Pollers()
-	if len(pollers) != 1 || pollers[0].Name() != "market.catalog" || pollers[0].Interval() != time.Hour {
-		t.Fatalf("Pollers = %v, want market.catalog every hour", pollers)
+}
+
+func TestModule_samplesPricesAtTheConfiguredInterval(t *testing.T) {
+	t.Parallel()
+	pollers := market.New(module.Deps{Config: moduleConfig(), HTTPClient: httpclient.New}).Pollers()
+	if last := pollers[len(pollers)-1]; last.Name() != "market.prices" || last.Interval() != 90*time.Second {
+		t.Fatalf("Pollers = %v, want market.prices every 90s", pollers)
 	}
 }
