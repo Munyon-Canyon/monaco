@@ -20,3 +20,16 @@ type AssetProvider interface {
 	Issuer() domain.Issuer
 	Catalog(ctx context.Context) ([]ProviderAsset, error)
 }
+
+type Providers []AssetProvider
+
+func NewProviders(providers ...AssetProvider) Providers {
+	seen := map[domain.Issuer]bool{}
+	for _, p := range providers {
+		if seen[p.Issuer()] {
+			panic("market: issuer " + string(p.Issuer()) + " registered twice")
+		}
+		seen[p.Issuer()] = true
+	}
+	return providers
+}

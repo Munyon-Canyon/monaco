@@ -2,10 +2,13 @@ package market
 
 import (
 	"context"
+	"time"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/xstocks"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
@@ -41,4 +44,17 @@ func (*Module) Routes(*httpx.Routes) {}
 
 func (*Module) Consumers() []bus.Consumer { return nil }
 
-func (*Module) Pollers() []poller.Poller { return nil }
+func (m *Module) Pollers() []poller.Poller {
+	cfg := m.deps.Config
+	providers := app.NewProviders(
+		xstocks.New(m.deps.HTTPClient(
+			"xstocks",
+			httpclient.WithBaseURL(cfg.XStocks.BaseURL),
+			httpclient.WithTimeout(
+				cfg.Timeouts.XStocks,
+			),
+			httpclient.WithRetry(3, 250*time.Millisecond, 2*time.Second),
+		)),
+	)
+	return []poller.Poller{app.NewCatalogPoller(m.deps.UoW, m.deps.IDs, m.deps.Clock, providers)}
+}
