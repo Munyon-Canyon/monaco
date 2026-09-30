@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -195,6 +196,20 @@ func TestDown_namesTheProcessThatSpentTheTeardownBudget(t *testing.T) {
 		if p.running() {
 			t.Errorf("%s still running after Down", name)
 		}
+	}
+}
+
+func TestStop_aDeafChildOutlastsSIGTERMSentTheMomentItAnnouncesBoot(t *testing.T) {
+	t.Parallel()
+	env := slices.Concat(fakeEnviron(fakeDeaf), []string{"FAKES_ADDR=127.0.0.1:0", fakeHoldEnv + "=1"})
+	p, err := startProcess(t.Context(), procWorker, fakeBinaries(t).Worker, env, &Logs{})
+	if err != nil {
+		t.Fatalf("startProcess: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer cancel()
+	if err := p.stop(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("stop = %v, want the deaf child to outlast the budget", err)
 	}
 }
 
