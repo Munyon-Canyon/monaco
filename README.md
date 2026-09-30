@@ -14,6 +14,7 @@ Monaco lets you create a hedge fund with friends by pooling money to buy stocks 
 - [Prereqs](#prereqs)
 - [Clone setup](#clone-setup)
 - [Privy test logins](#privy-test-logins)
+- [Backend tokens](#backend-tokens)
 - [Deposits](#deposits)
 - [Commands](#commands)
 - [Local env](#local-env)
@@ -59,6 +60,23 @@ Fixed OTP. Dashboard Login Methods must have **Email** and **SMS** on. Product p
 | Alfred      | `+1 555 555 7177` | `test-8081@privy.io` | `465354` |
 | Bartholomez | `+1 555 555 9638` | `test-4952@privy.io` | `648588` |
 | Cayman      | `+1 555 555 8215` | `test-3510@privy.io` | `115543` |
+
+## Backend tokens
+
+The API takes two kinds of bearer token. A Privy access token (ES256) names a Privy user, and the API answers 401 `session_required` until that user has a `users` row. A dev token (HS256) names a Monaco user id and works only outside production.
+
+`monacoctl dev privy-token` signs a Privy token with the fakes server's fixture key, valid for 1 h, so curl checks need no Privy dashboard. It refuses `MONACO_ENV=production`. Run the backend against the fakes with the matching key:
+
+```bash
+just build backend
+(cd apps/backend && FAKES_ADDR=:8099 go run ./cmd/fakes) &
+export PRIVY_BASE_URL=http://localhost:8099/privy
+export PRIVY_VERIFICATION_KEY="$(scripts/with-dotenv-local.sh bin/monacoctl dev privy-token --print-public-key)"
+just run backend &
+TOKEN=$(scripts/with-dotenv-local.sh bin/monacoctl dev privy-token --sub did:privy:qa-1)
+```
+
+Send it as `Authorization: Bearer $TOKEN`. `scripts/with-dotenv-local.sh bin/monacoctl dev token --user <id>` mints a dev token.
 
 ## Deposits
 

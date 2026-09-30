@@ -78,7 +78,8 @@ func bearerToken(header string) (string, bool) {
 }
 
 func verifyProblem(err error, op string) error {
-	if errs.KindOf(errs.CodeOf(err)) == errs.KindUnavailable {
+	kind := errs.KindOf(errs.CodeOf(err))
+	if kind == errs.KindUnauthorized || kind == errs.KindUnavailable || kind == errs.KindInternal {
 		return err
 	}
 	return errs.Wrap(err, errs.CodeUnauthorized, op)

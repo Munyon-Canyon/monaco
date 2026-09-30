@@ -116,15 +116,17 @@ func (s fileScope) isHelper(fun ast.Expr) bool {
 	switch fn := fun.(type) {
 	case *ast.SelectorExpr:
 		x, ok := fn.X.(*ast.Ident)
-		return ok && (x.Name == s.observability && isInfoOrDebug(fn.Sel.Name) ||
+		return ok && (x.Name == s.observability && isObservabilityHelper(fn.Sel.Name) ||
 			x.Name == s.boundary && isWarnOrError(fn.Sel.Name))
 	case *ast.Ident:
-		return s.inObs && isInfoOrDebug(fn.Name) || s.inBoundary && isWarnOrError(fn.Name)
+		return s.inObs && isObservabilityHelper(fn.Name) || s.inBoundary && isWarnOrError(fn.Name)
 	}
 	return false
 }
 
-func isInfoOrDebug(name string) bool { return name == "Info" || name == "Debug" }
+func isObservabilityHelper(name string) bool {
+	return name == "Info" || name == "Debug" || name == "Degraded"
+}
 
 func isWarnOrError(name string) bool { return name == "Warn" || name == "Error" }
 
@@ -260,6 +262,7 @@ func TestRegistryCheck_flagsPlantedViolations(t *testing.T) {
 		`testdata/registry/planted.go:16: boot.stopped is missing required attr "err"`,
 		`testdata/registry/planted.go:19: boot.listening is missing required attr "service"`,
 		`testdata/registry/planted.go:19: boot.listening is missing required attr "addr"`,
+		`testdata/registry/planted.go:20: boot.listening is missing required attr "addr"`,
 	}
 	if got := c.check(f); !slices.Equal(got, want) {
 		t.Fatalf("findings:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))

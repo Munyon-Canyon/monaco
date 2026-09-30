@@ -1,0 +1,12 @@
+{
+  "allocs": {},
+  "queries": {
+    "MemberWallet": 1,
+    "MemberWallets page of 500": 1,
+    "UserByHandle": 1,
+    "UserIDsByHandles 50 handles": 1,
+    "UsersByID 500 ids": 1,
+    "UsersByPhoneHashes 2000 hashes": 1,
+    "UsersByXUserIDs 2000 ids": 1
+  }
+}
