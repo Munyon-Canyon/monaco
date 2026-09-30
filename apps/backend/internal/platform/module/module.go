@@ -5,6 +5,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/monaco/monaco/apps/backend/internal/platform/apns"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -26,6 +27,7 @@ type Deps struct {
 	Bus        *bus.Conn
 	HTTPClient func(name string, opts ...httpclient.Option) *httpclient.Client
 	Hub        *sse.Hub
+	APNs       apns.Sender
 }
 
 type Module interface {
