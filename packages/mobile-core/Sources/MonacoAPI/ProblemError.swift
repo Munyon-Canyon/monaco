@@ -17,6 +17,14 @@ public struct ProblemError: Error, Sendable, Hashable, Decodable, LocalizedError
         public init(from decoder: any Decoder) throws {
             self.init(try decoder.singleValueContainer().decode(String.self))
         }
+
+        /// The code as the backend sent it.
+        public var wire: String {
+            switch self {
+            case let .known(code): code.rawValue
+            case let .unrecognized(wire): wire
+            }
+        }
     }
 
     public let status: Int

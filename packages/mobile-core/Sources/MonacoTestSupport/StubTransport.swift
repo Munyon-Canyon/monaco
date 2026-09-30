@@ -11,6 +11,8 @@ public actor StubTransport: ClientTransport {
     public enum Reply: Sendable {
         case response(HTTPResponse, Data)
         case failure(any Error)
+        /// Never answers; the request ends only when its task is cancelled.
+        case hang
 
         public static func ok(_ text: String) -> Reply {
             .response(status: .ok, contentType: "text/plain", body: Data(text.utf8))
@@ -73,6 +75,10 @@ public actor StubTransport: ClientTransport {
             return (response, HTTPBody(body))
         case let .failure(error):
             throw error
+        case .hang:
+            while true {
+                try await Task.sleep(nanoseconds: 86_400_000_000_000)
+            }
         }
     }
 

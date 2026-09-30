@@ -1,6 +1,6 @@
 import Foundation
 import HTTPTypes
-import MonacoAPI
+@testable import MonacoAPI
 import MonacoTestSupport
 import OpenAPIRuntime
 import XCTest
@@ -50,11 +50,11 @@ final class ProblemErrorTests: XCTestCase {
     }
 
     func testAProblemResponseThrowsTheGeneratedProblemAsProblemError() async throws {
-        let client = Client.monaco(
+        let client = APIClient(
             serverURL: testServerURL,
-            accessToken: { nil },
+            tokens: StubTokenProvider(token: nil),
             transport: try StubTransport.problem(upstreamTimeout)
-        )
+        ).client
 
         let problem = await problemThrown { _ = try await client.getHealthz() }
 
@@ -69,15 +69,15 @@ final class ProblemErrorTests: XCTestCase {
         "code":"code_from_a_newer_server","message":"Voting has closed.",\
         "trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","retryable":false}
         """
-        let client = Client.monaco(
+        let client = APIClient(
             serverURL: testServerURL,
-            accessToken: { nil },
+            tokens: StubTokenProvider(token: nil),
             transport: StubTransport(
                 status: .unprocessableContent,
                 contentType: "application/problem+json",
                 body: Data(body.utf8)
             )
-        )
+        ).client
 
         let problem = await problemThrown { _ = try await client.getHealthz() }
 
@@ -95,11 +95,11 @@ final class ProblemErrorTests: XCTestCase {
 
     func testAnErrorWithABlankContentTypeIsNotAProblem() async throws {
         for contentType in ["", ";"] {
-            let client = Client.monaco(
+            let client = APIClient(
                 serverURL: testServerURL,
-                accessToken: { nil },
+                tokens: StubTokenProvider(token: nil),
                 transport: StubTransport(status: .badGateway, contentType: contentType, body: Data("<html>".utf8))
-            )
+            ).client
 
             do {
                 _ = try await client.getHealthz()
@@ -111,7 +111,7 @@ final class ProblemErrorTests: XCTestCase {
     }
 
     func testASuccessPassesThrough() async throws {
-        let client = Client.monaco(serverURL: testServerURL, accessToken: { nil }, transport: StubTransport.ok("ok\n"))
+        let client = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: nil), transport: StubTransport.ok("ok\n")).client
 
         let body = try await client.getHealthz().ok.body.plainText
 
