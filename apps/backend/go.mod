@@ -13,6 +13,7 @@ require (
 	github.com/nats-io/nats.go v1.53.1
 	github.com/oapi-codegen/runtime v1.6.0
 	github.com/peterldowns/pgtestdb v0.1.1
+	github.com/sideshow/apns2 v0.25.0
 	github.com/sony/gobreaker/v2 v2.4.0
 	go.opentelemetry.io/contrib/bridges/otelslog v0.20.1
 	go.opentelemetry.io/otel v1.46.0
@@ -33,6 +34,7 @@ require (
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/dprotaso/go-yit v0.0.0-20220510233725-9ba8df137936 // indirect
 	github.com/go-openapi/jsonpointer v1.0.0 // indirect
+	github.com/golang-jwt/jwt/v4 v4.4.1 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect

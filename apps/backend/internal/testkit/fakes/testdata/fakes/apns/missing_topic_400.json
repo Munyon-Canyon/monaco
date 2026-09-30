@@ -1,0 +1,5 @@
+{
+  "status": 400,
+  "headers": {"Content-Type": "application/json"},
+  "body": {"reason": "MissingTopic"}
+}

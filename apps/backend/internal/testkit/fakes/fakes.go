@@ -63,6 +63,7 @@ type Server struct {
 	scripts   map[string][]*scripted
 	upstreams []string
 	wallets   map[string]privyWallet
+	posthog   []PostHogCapture
 }
 
 func New() *Server { return newFrom(fixtures, "testdata/fakes") }
@@ -82,6 +83,8 @@ func newFrom(fsys fs.FS, root string) *Server {
 	s.live.HandleFunc("GET /privy/v1/wallets", s.privyWallets)
 	s.live.HandleFunc("POST /privy/v1/wallets", s.privyCreateWallet)
 	s.live.HandleFunc("POST /privy/v1/wallets/{id}/rpc", s.privySign)
+	s.live.HandleFunc("POST /apns/3/device/{token}", s.apnsPush)
+	s.live.HandleFunc("POST /posthog/batch/", s.posthogBatch)
 	for _, name := range s.upstreams {
 		replay := s.replay(name)
 		upstream := http.NewServeMux()

@@ -55,6 +55,21 @@ func TestParse(t *testing.T) {
 	}
 }
 
+func TestParseAccessRequestID(t *testing.T) {
+	t.Parallel()
+	id, err := ids.ParseAccessRequestID(validV7)
+	if err != nil || id.String() != validV7 || id.IsZero() {
+		t.Fatalf("ParseAccessRequestID(%q) = %s, %v", validV7, id, err)
+	}
+	const v4 = "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+	if id, err := ids.ParseAccessRequestID(
+		v4,
+	); errs.CodeOf(err) != errs.CodeInvalidInput || err == nil ||
+		!id.IsZero() {
+		t.Fatalf("ParseAccessRequestID(%q) = %s, %v; want zero and invalid_input", v4, id, err)
+	}
+}
+
 func TestEventIDFromKeepsTheUUID(t *testing.T) {
 	t.Parallel()
 	u := ids.Real{}.NewV7()

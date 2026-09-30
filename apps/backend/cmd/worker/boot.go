@@ -91,6 +91,9 @@ func startWork(
 ) (health, error) {
 	d.Clock, d.IDs, d.HTTPClient = clock.Real{}, ids.Real{}, httpclient.New
 	d.UoW = db.New(d.Pool, d.IDs, d.Clock)
+	if err := bindPush(ctx, &d); err != nil {
+		return health{}, err
+	}
 	stopRelay, err := startRelay(context.WithoutCancel(ctx), d.Bus, d.Pool, d.UoW, d.Clock)
 	if err != nil {
 		return health{}, err

@@ -4,13 +4,16 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/tools/ops/eventlog"
 )
@@ -103,6 +106,102 @@ func TestExport_anonymizeHashesActorsAndPIIFieldsDeterministically(t *testing.T)
 		t.Parallel()
 		testkit.SeedJSONL(t, testkit.DB(t), "anonymized", []byte(got))
 	})
+}
+
+func cabalLine(t *testing.T, ev events.Event, actor string) []byte {
+	t.Helper()
+	payload, err := json.Marshal(ev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(eventlog.Line{
+		ID: uuid.NewSHA1(uuid.NameSpaceURL, payload), Type: ev.Type(), Actor: "user:" + actor,
+		CreatedAt: time.Unix(1_800_000_000, 0).UTC(), Payload: payload,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return append(raw, '\n')
+}
+
+func mustUUID(t *testing.T, raw string) uuid.UUID {
+	t.Helper()
+	u, err := uuid.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return u
+}
+
+func pseudonymOf(t *testing.T, u uuid.UUID) uuid.UUID {
+	t.Helper()
+	return mustUUID(t, eventlog.Pseudonym(u.String()))
+}
+
+func decodeExported(t *testing.T, line string) events.Event {
+	t.Helper()
+	var l eventlog.Line
+	if err := json.Unmarshal([]byte(line), &l); err != nil {
+		t.Fatal(err)
+	}
+	ev, err := events.Decode(l.Type, 1, l.Payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ev
+}
+
+func TestExport_anonymizeReachesUserIDsInsideANestedChangeList(t *testing.T) {
+	t.Parallel()
+	cabal, creator, member := mustUUID(t, ping), mustUUID(t, user), mustUUID(t, "01890a5d-ac96-774b-bcce-b302099a805b")
+	name, bps := "Work pot", int32(250)
+	changes := events.CabalChanges{Name: &name, SlippageBps: &bps}
+	updated := events.CabalUpdated{V: 1, CabalID: cabal, ActorID: creator, Changes: changes}
+	updated.Changes.VoterIDs = []uuid.UUID{creator, member}
+	pool := testkit.DB(t)
+	testkit.SeedJSONL(t, pool, "cabal updated", cabalLine(t, updated, user))
+	got := export(t, pool, eventlog.Options{Anonymize: true})
+	for _, real := range []uuid.UUID{creator, member} {
+		if strings.Contains(got, real.String()) {
+			t.Fatalf("anonymized export still holds %s:\n%s", real, got)
+		}
+	}
+	want := events.CabalUpdated{V: 1, CabalID: cabal, ActorID: pseudonymOf(t, creator), Changes: changes}
+	want.Changes.VoterIDs = []uuid.UUID{pseudonymOf(t, creator), pseudonymOf(t, member)}
+	if back := decodeExported(t, got); !reflect.DeepEqual(back, want) {
+		t.Fatalf("anonymized event = %+v, want %+v: voters and actor pseudonymized, the rest kept", back, want)
+	}
+	t.Run("seed the anonymized export", func(t *testing.T) {
+		t.Parallel()
+		testkit.SeedJSONL(t, testkit.DB(t), "anonymized cabal updated", []byte(got))
+	})
+}
+
+func TestExport_anonymizeKeepsATimeFieldAndAnAbsentIDAndPseudonymizesTheScalarIDsBesideThem(t *testing.T) {
+	t.Parallel()
+	cabal, creator, member := mustUUID(t, ping), mustUUID(t, user), mustUUID(t, "01890a5d-ac96-774b-bcce-b302099a805b")
+	request := mustUUID(t, "01890a5d-ac96-774b-bcce-b302099a805c")
+	requested := events.CabalAccessRequested{
+		V: 1, RequestID: request, CabalID: cabal, UserID: member, Direction: "invite", ActorID: creator,
+		ExpiresAt: time.Unix(1_800_600_000, 0).UTC(),
+	}
+	expired := events.CabalAccessDecided{
+		V: 1, RequestID: request, CabalID: cabal, UserID: member, Direction: "invite", Decision: "expired",
+	}
+	pool := testkit.DB(t)
+	testkit.SeedJSONL(t, pool, "cabal access", append(cabalLine(t, requested, user), cabalLine(t, expired, user)...))
+	lines := strings.Split(strings.TrimSpace(export(t, pool, eventlog.Options{Anonymize: true})), "\n")
+	wantRequested, wantExpired := requested, expired
+	wantRequested.UserID, wantRequested.ActorID = pseudonymOf(t, member), pseudonymOf(t, creator)
+	wantExpired.UserID = pseudonymOf(t, member)
+	if len(lines) != 2 {
+		t.Fatalf("export has %d lines, want 2", len(lines))
+	}
+	for i, want := range []events.Event{wantRequested, wantExpired} {
+		if back := decodeExported(t, lines[i]); !reflect.DeepEqual(back, want) {
+			t.Errorf("line %d = %+v, want %+v", i, back, want)
+		}
+	}
 }
 
 func TestExport_filtersByAggregate(t *testing.T) {

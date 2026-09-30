@@ -76,6 +76,17 @@ func TestRun_refusesToBootWithoutRequiredConfig(t *testing.T) {
 	}
 }
 
+func TestRun_refusesToBootInProductionWithoutAPostHogKey(t *testing.T) {
+	t.Parallel()
+	err := run(t.Context(), io.Discard, append([]string{
+		"MONACO_ENV=production", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=nats://localhost:4222",
+	}, testkit.APNsEnv()...), noop.NewMeterProvider(), &module.Registry{})
+	want := "config.Load: invalid_input: missing POSTHOG_API_KEY"
+	if err == nil || err.Error() != want || errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("run = %v, want %q", err, want)
+	}
+}
+
 func TestRun_refusesToBootWithMalformedOTelEndpoint(t *testing.T) {
 	t.Parallel()
 	err := run(t.Context(), io.Discard, []string{

@@ -79,21 +79,21 @@ device_tokens
 
 ### Sending (Go)
 
-`notify/app` declares a `Sender` port. An adapter in `notify/adapters` wraps [`github.com/sideshow/apns2`](https://github.com/sideshow/apns2) behind it as an anti-corruption layer: APNs wire types never leave the adapter, and the client is built with functional options and a circuit breaker ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). `testkit` holds the fake `Sender` with `Fail` and `FailOnce`, and the `verify-backend` fakes server answers as APNs ([Verification skill](backend-platform.md#verification-skill)).
+`internal/platform/apns` wraps [`github.com/sideshow/apns2`](https://github.com/sideshow/apns2) as an anti-corruption layer, the same shape as `platform/chain`: APNs wire types never leave the package, and `apns.New` takes functional options and builds one circuit breaker per environment ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). `notify/app` declares its own `Sender` port and the worker binds it to `*apns.Client`, so no module imports apns2. `testkit.FakeSender` implements the port with `Fail` and `FailOnce`, and the `verify-backend` fakes server answers as APNs at `/apns/3/device/{token}` ([Verification skill](backend-platform.md#verification-skill)).
 
 ```go
 type Sender interface {
     Send(ctx context.Context, n Push) (Result, error)
 }
 
-authKey, err := token.AuthKeyFromBytes([]byte(cfg.APNsKeyP8))
-tok := &token.Token{AuthKey: authKey, KeyID: cfg.APNsKeyID, TeamID: cfg.APNsTeamID}
+authKey, err := token.AuthKeyFromBytes([]byte(cfg.APNs.KeyP8))
+tok := &token.Token{AuthKey: authKey, KeyID: cfg.APNs.KeyID, TeamID: cfg.APNs.TeamID}
 sandbox := apns2.NewTokenClient(tok).Development()
 prod    := apns2.NewTokenClient(tok).Production()
 
 res, err := client.Push(&apns2.Notification{
     DeviceToken: deviceToken,
-    Topic:       cfg.APNsTopic,
+    Topic:       cfg.APNs.Topic,
     CollapseID:  "trade-" + txnID,
     Payload: payload.NewPayload().
         AlertTitle("Trade filled").
@@ -110,11 +110,16 @@ Response handling:
 | APNs result | Action |
 | --- | --- |
 | `200` | Set `notifications.delivered_at`. |
-| `410 Unregistered`, `400 BadDeviceToken` | Set `device_tokens.disabled_at`, never retry that token. |
+| `410` (`Unregistered` or `ExpiredToken`), `400 BadDeviceToken` | Set `device_tokens.disabled_at`, never retry that token. |
 | `429`, `5xx`, network error | Leave `delivered_at` null and return a retryable `KindUnavailable` code, so `bus.Dispatch` naks with backoff. On `429` with `Retry-After`, the nak delay is that long. The redelivered message skips Notification rows already written and resends only undelivered ones. |
 | `403` auth errors | Return a `KindInternal` code: `bus.Dispatch` terms the message to `DEADLETTER` and alerts. The key or env is misconfigured, so every push is failing. |
+| Any other status, such as `400 BadTopic` or `413 PayloadTooLarge` | Never retry and keep the token. The push itself is wrong, so resending cannot help. |
+
+`apns.Classify` maps these rows to `Delivered`, `TokenDead`, `Retry`, `AuthFailed` and `Rejected`. A `429` carries `Retry-After` in whole seconds as `Result.RetryAfter`, capped at an hour.
 
 Error kinds and their bus verdicts come from the one `errs` code table ([Errors](backend-platform.md#errors)). Each APNs result is logged once as a decision with the token's `user_id` and the result, never the token itself ([Logs as evidence](backend-platform.md#logs-as-evidence)). Fan-out to a user's device tokens runs on a worker pool of 32 sharing one HTTP/2 client ([Concurrency rules](backend-platform.md#concurrency-rules)).
+
+apns2 brings its own HTTP/2 client, so the adapter is an exception to the rule that outbound HTTP goes through `platform/httpclient`. It still takes its deadline from `MONACO_TIMEOUT_APNS`, trips a `gobreaker` breaker after five consecutive failures, and adds the OTel client span by hand. With `APNS_BASE_URL` set (refused in production), both environments send plain HTTP/1.1 to that URL, because the fakes server does not speak h2. The URL must be https or a loopback host, because every request carries the provider token. The device token sits in the request path, so the adapter strips the URL from transport errors, and a token that is not hexadecimal, or a collapse id APNs would refuse, is answered with the matching local `400` instead of being sent. In local and test with no `APNS_KEY_P8`, the worker binds `apns.NoopSender`, which answers `200` and logs `apns.noop_send` with the user id only.
 
 ### Flow: trade confirmed
 

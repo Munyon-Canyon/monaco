@@ -44,8 +44,15 @@ func fixtures(t *testing.T) map[events.Type]events.Event {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cabal := newCabalFixtures(t)
 	return map[events.Type]events.Event{
-		events.TypeSystemPinged: events.SystemPinged{V: 1, PingID: id, UserID: user, Note: "reference flow"},
+		events.TypeSystemPinged:         events.SystemPinged{V: 1, PingID: id, UserID: user, Note: "reference flow"},
+		events.TypeCabalCreated:         cabal.created,
+		events.TypeCabalMemberJoined:    cabal.memberJoined,
+		events.TypeCabalAccessRequested: cabal.accessRequested,
+		events.TypeCabalAccessDecided:   cabal.accessDecided,
+		events.TypeCabalMemberLeft:      cabal.memberLeft,
+		events.TypeCabalUpdated:         cabal.updated,
 		events.TypeTradeBlocked: events.TradeBlocked{
 			V: 1, CabalID: user, Source: events.TradeSource{Kind: "proposal", ID: id}, SourceBatchSize: 1,
 			Action: "buy", Symbol: "AAPLx", Code: errs.CodeSlippageExceeded, Have: 104_000_000, Need: 104_475_000,
