@@ -18,6 +18,7 @@ type (
 	Asset   = domain.Asset
 	AssetID = domain.AssetID
 	Mint    = domain.Mint
+	Price   = domain.Sample
 )
 
 type Catalog interface {
@@ -32,6 +33,11 @@ type SessionInfo = domain.SessionInfo
 
 type Calendar interface {
 	Session(ctx context.Context, id AssetID, at time.Time) (SessionInfo, error)
+}
+
+type Prices interface {
+	LatestPrices(ctx context.Context) (map[AssetID]Price, error)
+	PricesAsOf(ctx context.Context, ids []AssetID, at time.Time) (map[AssetID]Price, error)
 }
 
 type Module struct {
@@ -49,6 +55,10 @@ func (m *Module) Catalog() *app.Catalog { return app.NewCatalog(m.deps.Pool) }
 var _ Calendar = (*app.Calendar)(nil)
 
 func (m *Module) Calendar() *app.Calendar { return app.NewCalendar(m.Catalog()) }
+
+var _ Prices = (*app.PriceBook)(nil)
+
+func (m *Module) Prices() *app.PriceBook { return app.NewPriceBook(m.deps.Pool, m.deps.Clock) }
 
 func (*Module) Routes(*httpx.Routes) {}
 
