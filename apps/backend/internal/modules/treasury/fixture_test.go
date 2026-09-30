@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
@@ -114,6 +115,16 @@ func (f fixture) findDrift(ctx context.Context) ([]string, error) {
 }
 
 func amount(v int64) money.SignedMicros { return money.SignedMicrosFromInt64(v) }
+
+func wantCode(t *testing.T, err error, code errs.Code) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("err = nil, want code %q", code)
+	}
+	if got := errs.CodeOf(err); got != code {
+		t.Fatalf("code = %q, want %q (err %v)", got, code, err)
+	}
+}
 
 func (f fixture) fund(
 	user ids.UserID, cabal ids.CabalID, micros, shares int64, status domain.TxnStatus,

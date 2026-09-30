@@ -115,9 +115,7 @@ func TestLedger_UnbalancedRejected(t *testing.T) {
 		}
 		return f.ledger.PostCabalTxn(ctx, tx, txn)
 	})
-	if errs.CodeOf(err) != errs.CodeLedgerUnbalanced {
-		t.Fatalf("post = %v, want ledger_unbalanced", err)
-	}
+	wantCode(t, err, errs.CodeLedgerUnbalanced)
 	for _, table := range []string{"cabal_txns", "cabal_txn_entries", "cabal_positions", "events"} {
 		if n := f.count(t, table); n != 0 {
 			t.Fatalf("%s has %d rows, want none", table, n)
@@ -133,17 +131,13 @@ func TestLedger_refusesAnOverdraftAndAHeaderThatSplitsATransfer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := f.postCabal(swap); errs.CodeOf(err) != errs.CodeInternal {
-		t.Fatalf("overdraft = %v, want internal", err)
-	}
+	wantCode(t, f.postCabal(swap), errs.CodeInternal)
 	u, c, err := f.fund(user, cabal, 10, 10, domain.TxnPending)
 	if err != nil {
 		t.Fatal(err)
 	}
 	c.Status = domain.TxnSettled
-	if err := f.postPair(u, c); errs.CodeOf(err) != errs.CodeInternal {
-		t.Fatalf("split transfer = %v, want internal", err)
-	}
+	wantCode(t, f.postPair(u, c), errs.CodeInternal)
 	u.Status, c.Status, c.CabalID = domain.TxnSettled, domain.TxnPending, f.cabal(t)
 	err = f.do(func(ctx context.Context, tx db.Tx) error {
 		if err := f.ledger.PostCabalTxn(ctx, tx, c); err != nil {
@@ -151,9 +145,7 @@ func TestLedger_refusesAnOverdraftAndAHeaderThatSplitsATransfer(t *testing.T) {
 		}
 		return f.ledger.PostUserTxn(ctx, tx, u)
 	})
-	if errs.CodeOf(err) != errs.CodeInternal {
-		t.Fatalf("split transfer posted cabal side first = %v, want internal", err)
-	}
+	wantCode(t, err, errs.CodeInternal)
 	for _, table := range []string{"cabal_txns", "user_txns", "cabal_positions", "user_positions"} {
 		if n := f.count(t, table); n != 0 {
 			t.Fatalf("%s has %d rows, want none", table, n)
@@ -191,9 +183,7 @@ func TestLedger_SetStatusMovesBothHeadersOnce(t *testing.T) {
 		_, err := f.ledger.SetStatus(ctx, tx, u.TransferID, domain.TxnSettled, domain.TxnFailed)
 		return err
 	})
-	if errs.CodeOf(err) != errs.CodeInvalidInput {
-		t.Fatalf("settled -> failed = %v, want invalid_input", err)
-	}
+	wantCode(t, err, errs.CodeInvalidInput)
 }
 
 func TestLedger_SetStatusRefusesAOneSidedTransfer(t *testing.T) {
@@ -210,8 +200,9 @@ func TestLedger_SetStatusRefusesAOneSidedTransfer(t *testing.T) {
 		_, err := f.ledger.SetStatus(ctx, tx, u.TransferID, domain.TxnPending, domain.TxnFailed)
 		return err
 	})
-	if errs.CodeOf(err) != errs.CodeInternal || f.count(t, "user_txns") != 0 {
-		t.Fatalf("one-sided SetStatus = %v, want internal and a rollback", err)
+	wantCode(t, err, errs.CodeInternal)
+	if n := f.count(t, "user_txns"); n != 0 {
+		t.Fatalf("one-sided SetStatus left %d user_txns, want a rollback", n)
 	}
 }
 
@@ -253,9 +244,7 @@ func TestLedger_positionDeltaErrorsStopThePost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := f.postCabal(two); errs.CodeOf(err) != errs.CodeInvalidInput {
-		t.Fatalf("post = %v, want invalid_input", err)
-	}
+	wantCode(t, f.postCabal(two), errs.CodeInvalidInput)
 	shares := domain.SharesAsset(cabal)
 	huge, err := domain.NewUserTxn(domain.UserTxnHeader{ID: f.ids.NewV7(), UserID: f.user(t), CabalID: cabal},
 		[]domain.UserEntry{
@@ -268,9 +257,7 @@ func TestLedger_positionDeltaErrorsStopThePost(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = f.do(func(ctx context.Context, tx db.Tx) error { return f.ledger.PostUserTxn(ctx, tx, huge) })
-	if errs.CodeOf(err) != errs.CodeInvalidInput {
-		t.Fatalf("post = %v, want invalid_input", err)
-	}
+	wantCode(t, err, errs.CodeInvalidInput)
 }
 
 func (f fixture) spend(cabal ids.CabalID, held, release chan struct{}) error {
@@ -320,9 +307,10 @@ func TestLedger_concurrentPostsOnOneCabalSerializeThroughLockCabal(t *testing.T)
 	}, 10*time.Second)
 	unblock()
 	first, second := <-done, <-done
-	if first != nil || errs.CodeOf(second) != errs.CodeInternal {
-		t.Fatalf("posts = %v, %v; want the holder to spend 60 and the waiter to find 40 left", first, second)
+	if first != nil {
+		t.Fatalf("holder = %v, want its spend of 60 to succeed", first)
 	}
+	wantCode(t, second, errs.CodeInternal)
 	if f.count(t, "cabal_txns") != 2 || len(f.drift(t)) != 0 {
 		t.Fatalf("want the fund and one swap, and no drift: %q", f.drift(t))
 	}

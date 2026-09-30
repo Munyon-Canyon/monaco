@@ -35,9 +35,7 @@ func TestMintShares(t *testing.T) {
 			t.Parallel()
 			got, err := domain.MintShares(tt.in, tt.total, tt.pot)
 			if tt.code != "" {
-				if errs.CodeOf(err) != tt.code {
-					t.Fatalf("MintShares = %v, %v, want %s", got, err, tt.code)
-				}
+				wantCode(t, err, tt.code)
 				return
 			}
 			if err != nil || got != tt.want {
@@ -55,7 +53,5 @@ func TestPayoutFor(t *testing.T) {
 		t.Fatalf("PayoutFor(1, 3, 10) = %v, %v, want 3", got, err)
 	}
 	_, err = domain.PayoutFor(units(0), units(0), money.MicrosFromUint64(10))
-	if errs.CodeOf(err) != errs.CodeInvalidInput {
-		t.Fatalf("PayoutFor with no shares = %v, want invalid_input", err)
-	}
+	wantCode(t, err, errs.CodeInvalidInput)
 }

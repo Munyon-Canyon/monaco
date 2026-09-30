@@ -1,6 +1,7 @@
 package domain_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -13,6 +14,16 @@ import (
 const usdc = domain.Asset("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
 
 func amount(v int64) money.SignedMicros { return money.SignedMicrosFromInt64(v) }
+
+func wantCode(t *testing.T, err error, code errs.Code) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("err = nil, want code %q", code)
+	}
+	if got := errs.CodeOf(err); got != code {
+		t.Fatalf("code = %q, want %q (err %v)", got, code, err)
+	}
+}
 
 func TestNewCabalTxn_keepsABalancedSwap(t *testing.T) {
 	t.Parallel()
@@ -53,19 +64,20 @@ func TestNewTxn_rejectsEmptyZeroAndUnbalancedHeaders(t *testing.T) {
 			{Account: domain.UserHolder, Asset: shares, Amount: amount(5)},
 			{Account: domain.UserWallet, Asset: usdc, Amount: amount(-5)},
 		}, errs.CodeLedgerUnbalanced},
+		"sum wraps int64 to zero": {[]domain.UserEntry{
+			{Account: domain.UserWallet, Asset: usdc, Amount: amount(math.MaxInt64)},
+			{Account: domain.UserExternal, Asset: usdc, Amount: amount(math.MaxInt64)},
+			{Account: domain.UserCabal, Asset: usdc, Amount: amount(2)},
+		}, errs.CodeLedgerUnbalanced},
 		"too many": {make([]domain.UserEntry, 1<<15), errs.CodeInvalidInput},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			_, err := domain.NewUserTxn(domain.UserTxnHeader{Kind: domain.UserDeposit}, tt.entries)
-			if errs.CodeOf(err) != tt.code {
-				t.Fatalf("NewUserTxn = %v, want %s", err, tt.code)
-			}
+			wantCode(t, err, tt.code)
 			_, err = domain.NewCabalTxn(domain.CabalTxnHeader{Kind: domain.CabalFund}, cabalSide(tt.entries))
-			if errs.CodeOf(err) != tt.code {
-				t.Fatalf("NewCabalTxn = %v, want %s", err, tt.code)
-			}
+			wantCode(t, err, tt.code)
 		})
 	}
 }

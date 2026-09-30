@@ -3,6 +3,7 @@ package treasury_test
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"slices"
 	"testing"
 
@@ -124,8 +125,28 @@ func TestCheckLedger_comparesWalletAndTreasuryBalancesWithTheMoneyEvents(t *test
 		t.Fatalf("diffs =\n%q, %v\nwant\n%q", diffs, err, want)
 	}
 	s.ping(t, s.bob, "bad")
-	if _, err := check(t.Context(), s.f.pool); errs.CodeOf(err) != errs.CodeDecodeFailed {
-		t.Fatalf("a rule error = %v, want decode_failed", err)
+	_, err = check(t.Context(), s.f.pool)
+	wantCode(t, err, errs.CodeDecodeFailed)
+}
+
+func TestCheckLedger_addsEventAmountsPastInt64(t *testing.T) {
+	t.Parallel()
+	s := seed(t)
+	s.ping(t, s.alice, "abc")
+	move := adapters.Balance{
+		Owner: "wallet:" + s.alice.String(), Asset: usdcMint, Amount: money.SignedMicrosFromInt64(math.MaxInt64),
+	}
+	check := adapters.CheckLedger(map[events.Type]adapters.BalanceRule{
+		events.TypeSystemPinged: func([]byte) ([]adapters.Balance, error) { return []adapters.Balance{move, move}, nil },
+	})
+	diffs, err := check(t.Context(), s.f.pool)
+	want := []string{
+		"balance treasury:" + s.cabal.String() + " " + usdcMint + ": ledger 150000000, events 0",
+		"balance treasury:" + s.cabal.String() + " XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp: ledger 5, events 0",
+		"balance wallet:" + s.alice.String() + " " + usdcMint + ": ledger 0, events 18446744073709551614",
+	}
+	if err != nil || !slices.Equal(diffs, want) {
+		t.Fatalf("diffs =\n%q, %v\nwant\n%q", diffs, err, want)
 	}
 }
 
@@ -140,18 +161,16 @@ func TestCheckLedger_failsWhenTheDatabaseDoes(t *testing.T) {
 			return nil, nil
 		},
 	})
-	if _, err := cancelling(ctx, s.f.pool); errs.CodeOf(err) != errs.CodeInternal {
-		t.Fatalf("balances after a cancel = %v, want internal", err)
-	}
+	_, err := cancelling(ctx, s.f.pool)
+	wantCode(t, err, errs.CodeInternal)
 	withRule := adapters.CheckLedger(map[events.Type]adapters.BalanceRule{events.TypeSystemPinged: pinged})
 	s.exec(t, `DROP TABLE events CASCADE`)
-	if _, err := withRule(t.Context(), s.f.pool); errs.CodeOf(err) != errs.CodeInternal {
-		t.Fatalf("without events = %v, want internal", err)
-	}
+	_, err = withRule(t.Context(), s.f.pool)
+	wantCode(t, err, errs.CodeInternal)
 	for _, table := range []string{"user_positions", "cabal_positions", "user_txns", "cabal_txn_entries"} {
 		s.exec(t, `DROP TABLE `+table+` CASCADE`)
-		if _, err := treasury.LedgerCheck().Check(t.Context(), s.f.pool); errs.CodeOf(err) != errs.CodeInternal {
-			t.Fatalf("without %s = %v, want internal", table, err)
-		}
+		_, err = treasury.LedgerCheck().Check(t.Context(), s.f.pool)
+		t.Logf("without %s: %v", table, err)
+		wantCode(t, err, errs.CodeInternal)
 	}
 }
