@@ -140,24 +140,36 @@ final class SampleProposalFeedService: ProposalFeedService {
         records = built
         comments = [
             "sample-0": [
-                ProposalCommentDTO(id: "c-1", proposalId: "sample-0", authorId: "ben", authorName: "Ben Ortiz",
-                                   body: "Why Apple over Nvidia this week?", createdAt: iso.string(from: now.addingTimeInterval(-1800))),
-                ProposalCommentDTO(id: "c-2", proposalId: "sample-0", parentId: "c-1", authorId: "ada", authorName: "Ada Park",
-                                   body: "Smaller drawdown for our first buy. Nvidia can be next.", createdAt: iso.string(from: now.addingTimeInterval(-1200))),
+                ProposalCommentDTO(
+                    id: "c-1", proposalId: "sample-0", authorId: "ben", authorName: "Ben Ortiz",
+                    body: "Why Apple over Nvidia this week?", createdAt: iso.string(from: now.addingTimeInterval(-1800))
+                ),
+                ProposalCommentDTO(
+                    id: "c-2", proposalId: "sample-0", parentId: "c-1", authorId: "ada", authorName: "Ada Park",
+                    body: "Smaller drawdown for our first buy. Nvidia can be next.",
+                    createdAt: iso.string(from: now.addingTimeInterval(-1200))),
             ],
             "sample-20": [
-                ProposalCommentDTO(id: "c-20-1", proposalId: "sample-20", authorId: "cy-lin", authorName: "Cy Lin",
-                                   body: "I'm a no. We already hold a lot of retail through the index.", createdAt: iso.string(from: now.addingTimeInterval(-17_400))),
-                ProposalCommentDTO(id: "c-20-2", proposalId: "sample-20", parentId: "c-20-1", authorId: "ada-park", authorName: "Ada Park",
-                                   body: "Fair, but this is the cloud business as much as the store.", createdAt: iso.string(from: now.addingTimeInterval(-16_800))),
-                ProposalCommentDTO(id: "c-20-3", proposalId: "sample-20", parentId: "c-20-2", authorId: "cy-lin", authorName: "Cy Lin",
-                                   body: "Okay. Small is fine.", createdAt: iso.string(from: now.addingTimeInterval(-16_200))),
-                ProposalCommentDTO(id: "c-20-4", proposalId: "sample-20", authorId: "ben-ortiz", authorName: "Ben Ortiz",
-                                   body: "Bought. Nice one, Ada.", createdAt: iso.string(from: now.addingTimeInterval(-540))),
+                ProposalCommentDTO(
+                    id: "c-20-1", proposalId: "sample-20", authorId: "cy-lin", authorName: "Cy Lin",
+                    body: "I'm a no. We already hold a lot of retail through the index.",
+                    createdAt: iso.string(from: now.addingTimeInterval(-17_400))),
+                ProposalCommentDTO(
+                    id: "c-20-2", proposalId: "sample-20", parentId: "c-20-1", authorId: "ada-park",
+                    authorName: "Ada Park",
+                    body: "Fair, but this is the cloud business as much as the store.",
+                    createdAt: iso.string(from: now.addingTimeInterval(-16_800))),
+                ProposalCommentDTO(
+                    id: "c-20-3", proposalId: "sample-20", parentId: "c-20-2", authorId: "cy-lin", authorName: "Cy Lin",
+                    body: "Okay. Small is fine.", createdAt: iso.string(from: now.addingTimeInterval(-16_200))),
+                ProposalCommentDTO(
+                    id: "c-20-4", proposalId: "sample-20", authorId: "ben-ortiz", authorName: "Ben Ortiz",
+                    body: "Bought. Nice one, Ada.", createdAt: iso.string(from: now.addingTimeInterval(-540))),
             ],
         ]
         for index in records.indices {
-            records[index].proposal = withTally(records[index], commentCount: comments[records[index].proposal.id]?.count ?? 0)
+            records[index].proposal = withTally(
+                records[index], commentCount: comments[records[index].proposal.id]?.count ?? 0)
         }
     }
 
@@ -181,11 +193,13 @@ final class SampleProposalFeedService: ProposalFeedService {
         let yes = record.ballots.filter { $0.choice == "yes" }.count + (record.viewerChoice == "yes" ? 1 : 0)
         let no = record.ballots.filter { $0.choice == "no" }.count + (record.viewerChoice == "no" ? 1 : 0)
         return ProposalDTO(
-            id: p.id, symbol: p.symbol, status: p.status, kind: p.kind, usdcMicros: p.usdcMicros, tokenAmount: p.tokenAmount,
+            id: p.id, symbol: p.symbol, status: p.status, kind: p.kind, usdcMicros: p.usdcMicros,
+            tokenAmount: p.tokenAmount,
             agentDisplayName: p.agentDisplayName, allocationUsdcMicros: p.allocationUsdcMicros,
             canVote: p.canVote == true && record.viewerChoice == nil, thesis: p.thesis,
             proposerName: p.proposerName, createdAt: p.createdAt, expiresAt: p.expiresAt,
-            voteSummary: ProposalVoteSummaryDTO(yesCount: yes, noCount: no, eligibleCount: Self.eligible, threshold: "majority"),
+            voteSummary: ProposalVoteSummaryDTO(
+                yesCount: yes, noCount: no, eligibleCount: Self.eligible, threshold: "majority"),
             commentCount: commentCount
         )
     }
@@ -203,11 +217,15 @@ final class SampleProposalFeedService: ProposalFeedService {
         }
         var votes = record.ballots
         if let choice = record.viewerChoice {
-            votes.append(ProposalVoteDTO(voterId: "viewer", displayName: viewerName, choice: choice, castAt: record.viewerCastAt))
+            votes.append(
+                ProposalVoteDTO(voterId: "viewer", displayName: viewerName, choice: choice, castAt: record.viewerCastAt)
+            )
         }
         let p = record.proposal
         return ProposalDTO(
-            id: p.id, symbol: p.symbol, status: p.status, kind: p.kind, usdcMicros: p.usdcMicros, tokenAmount: p.tokenAmount, agentDisplayName: p.agentDisplayName, allocationUsdcMicros: p.allocationUsdcMicros, canVote: p.canVote, thesis: p.thesis,
+            id: p.id, symbol: p.symbol, status: p.status, kind: p.kind, usdcMicros: p.usdcMicros,
+            tokenAmount: p.tokenAmount, agentDisplayName: p.agentDisplayName,
+            allocationUsdcMicros: p.allocationUsdcMicros, canVote: p.canVote, thesis: p.thesis,
             proposerName: p.proposerName, createdAt: p.createdAt, expiresAt: p.expiresAt,
             votes: votes, voteSummary: p.voteSummary, execution: execution(for: p),
             commentCount: p.commentCount
@@ -273,7 +291,8 @@ struct SampleProposalFeedRoot: View {
     private var arguments: [String] { ProcessInfo.processInfo.arguments }
 
     private var detailId: String? {
-        guard let index = arguments.firstIndex(of: "-MonacoProposalSampleDetail"), arguments.indices.contains(index + 1) else { return nil }
+        guard let index = arguments.firstIndex(of: "-MonacoProposalSampleDetail"), arguments.indices.contains(index + 1)
+        else { return nil }
         return arguments[index + 1]
     }
 
@@ -334,7 +353,8 @@ private struct SampleProposeRoot: View {
     private var cabalScreen: some View {
         NavigationStack {
             VStack(spacing: MonacoTheme.Space.l) {
-                CabalMark(groupId: SampleProposeService.groupView.id, name: SampleProposeService.groupView.name, size: 64)
+                CabalMark(
+                    groupId: SampleProposeService.groupView.id, name: SampleProposeService.groupView.name, size: 64)
                 CircleAction("Propose", systemImage: "arrow.up.right") { showsPropose = true }
                     .accessibilityIdentifier("group-action-propose")
             }
@@ -364,7 +384,9 @@ private struct SampleProposeRoot: View {
             .monacoToast($toast)
         }
         .onAppear {
-            if step != nil || ProcessInfo.processInfo.arguments.contains("-MonacoProposeSampleOpen") { showsPropose = true }
+            if step != nil || ProcessInfo.processInfo.arguments.contains("-MonacoProposeSampleOpen") {
+                showsPropose = true
+            }
         }
     }
 
@@ -463,7 +485,8 @@ private struct SampleProposeStepScreen: View {
                 onProposed: onProposed
             )
         case .review:
-            ProposeReviewView(service: service, groupId: groupId, review: SampleProposeService.buyReview, onProposed: onProposed)
+            ProposeReviewView(
+                service: service, groupId: groupId, review: SampleProposeService.buyReview, onProposed: onProposed)
         case .sell:
             ProposeSellView(service: service, groupId: groupId, pot: pot, onProposed: onProposed)
         case .sellAmount:
@@ -477,11 +500,13 @@ private struct SampleProposeStepScreen: View {
                 onProposed: onProposed
             )
         case .sellReview:
-            ProposeSellReviewView(service: service, groupId: groupId, review: SampleProposeService.sellReview, onProposed: onProposed)
+            ProposeSellReviewView(
+                service: service, groupId: groupId, review: SampleProposeService.sellReview, onProposed: onProposed)
         case .addBot:
             ProposeAddAgentView(service: service, groupId: groupId, pot: pot, onProposed: onProposed)
         case .pauseBot:
-            ProposeAgentLifecycleView(service: service, groupId: groupId, kind: "pause_agent", botName: "Scout", onProposed: onProposed)
+            ProposeAgentLifecycleView(
+                service: service, groupId: groupId, kind: "pause_agent", botName: "Scout", onProposed: onProposed)
         case .cashOnly, .pickCabal, .pickCabalSell:
             EmptyView()
         }
@@ -576,11 +601,19 @@ final class SampleProposeService: ProposeService {
         treasuryAddress: nil,
         potTotalUsd: "548.20",
         pot: [
-            PotRowDTO(symbol: "AAPLx", units: "1.2034", markUsd: "231.40", valueUsd: "278.47", dollarPnl: "+28.47", afterHours: false, tokenAmount: "120340000"),
-            PotRowDTO(symbol: "NVDAx", units: "1.05", markUsd: "178.20", valueUsd: "187.11", dollarPnl: "+22.11", afterHours: false, tokenAmount: "105000000"),
-            PotRowDTO(symbol: "USDC", units: "82.62", markUsd: "1.00", valueUsd: "82.62", dollarPnl: "+0.00", afterHours: nil, tokenAmount: nil),
+            PotRowDTO(
+                symbol: "AAPLx", units: "1.2034", markUsd: "231.40", valueUsd: "278.47", dollarPnl: "+28.47",
+                afterHours: false, tokenAmount: "120340000"),
+            PotRowDTO(
+                symbol: "NVDAx", units: "1.05", markUsd: "178.20", valueUsd: "187.11", dollarPnl: "+22.11",
+                afterHours: false, tokenAmount: "105000000"),
+            PotRowDTO(
+                symbol: "USDC", units: "82.62", markUsd: "1.00", valueUsd: "82.62", dollarPnl: "+0.00", afterHours: nil,
+                tokenAmount: nil),
         ],
-        you: MemberSliceDTO(shareUnits: "311500000", equityUsd: "311.50", slicePercent: "0.568", dollarPnl: "+27.40", percentReturn: "0.096"),
+        you: MemberSliceDTO(
+            shareUnits: "311500000", equityUsd: "311.50", slicePercent: "0.568", dollarPnl: "+27.40",
+            percentReturn: "0.096"),
         members: [],
         proposals: nil,
         agent: nil
@@ -628,7 +661,9 @@ final class SampleProposeService: ProposeService {
             symbol: appleHolding.symbol,
             name: apple.name,
             tokenAmount: sold,
-            estimateMicros: sellQuote(symbol: appleHolding.symbol, tokenAmount: sold).outputUsdcMicros.flatMap { Int64($0) },
+            estimateMicros: sellQuote(symbol: appleHolding.symbol, tokenAmount: sold).outputUsdcMicros.flatMap {
+                Int64($0)
+            },
             cabalId: groupView.id,
             cabalName: groupView.name,
             thesis: sellReason,
@@ -643,38 +678,62 @@ final class SampleProposeService: ProposeService {
         name: groupView.name,
         potTotalUsd: "548.20",
         pot: [
-            PotRowDTO(symbol: "USDC", units: "548.20", markUsd: "1.00", valueUsd: "548.20", dollarPnl: "+0.00", afterHours: nil, tokenAmount: nil),
+            PotRowDTO(
+                symbol: "USDC", units: "548.20", markUsd: "1.00", valueUsd: "548.20", dollarPnl: "+0.00",
+                afterHours: nil, tokenAmount: nil)
         ],
-        agent: GroupAgentDTO(id: "sample-scout", status: "active", agentDisplayName: "Scout", allocationUsdcMicros: "100000000")
+        agent: GroupAgentDTO(
+            id: "sample-scout", status: "active", agentDisplayName: "Scout", allocationUsdcMicros: "100000000")
     )
 
     /// The member's cabals for the stock screen's picker: two hold Apple, one does not.
     static let joinedCabals: [HomeGroupBoardRowDTO] = [
-        HomeGroupBoardRowDTO(groupId: groupView.id, name: groupView.name, potValueUsd: "548.20", percentReturn: "0.096", dollarPnl: "+27.40", isJoined: true),
-        HomeGroupBoardRowDTO(groupId: "sample-chips", name: "Semis or bust", potValueUsd: "2310.75", percentReturn: "-0.036", dollarPnl: "-86.20", isJoined: true),
-        HomeGroupBoardRowDTO(groupId: "sample-index", name: "Index huggers", potValueUsd: "120.00", percentReturn: "0.0", dollarPnl: "+0.00", isJoined: true),
+        HomeGroupBoardRowDTO(
+            groupId: groupView.id, name: groupView.name, potValueUsd: "548.20", percentReturn: "0.096",
+            dollarPnl: "+27.40", isJoined: true),
+        HomeGroupBoardRowDTO(
+            groupId: "sample-chips", name: "Semis or bust", potValueUsd: "2310.75", percentReturn: "-0.036",
+            dollarPnl: "-86.20", isJoined: true),
+        HomeGroupBoardRowDTO(
+            groupId: "sample-index", name: "Index huggers", potValueUsd: "120.00", percentReturn: "0.0",
+            dollarPnl: "+0.00", isJoined: true),
     ]
 
     static let cabalViews: [String: GroupViewDTO] = [
         groupView.id: groupView,
-        "sample-chips": cabalView(id: "sample-chips", name: "Semis or bust", potTotalUsd: "2310.75", pot: [
-            PotRowDTO(symbol: "NVDAx", units: "8.4", markUsd: "178.20", valueUsd: "1496.88", dollarPnl: "-61.40", afterHours: false, tokenAmount: "840000000"),
-            PotRowDTO(symbol: "AAPLx", units: "3.1", markUsd: "231.40", valueUsd: "717.34", dollarPnl: "-24.80", afterHours: false, tokenAmount: "310000000"),
-            PotRowDTO(symbol: "USDC", units: "96.53", markUsd: "1.00", valueUsd: "96.53", dollarPnl: "+0.00", afterHours: nil, tokenAmount: nil),
-        ]),
-        "sample-index": cabalView(id: "sample-index", name: "Index huggers", potTotalUsd: "120.00", pot: [
-            PotRowDTO(symbol: "USDC", units: "120.00", markUsd: "1.00", valueUsd: "120.00", dollarPnl: "+0.00", afterHours: nil, tokenAmount: nil),
-        ]),
+        "sample-chips": cabalView(
+            id: "sample-chips", name: "Semis or bust", potTotalUsd: "2310.75",
+            pot: [
+                PotRowDTO(
+                    symbol: "NVDAx", units: "8.4", markUsd: "178.20", valueUsd: "1496.88", dollarPnl: "-61.40",
+                    afterHours: false, tokenAmount: "840000000"),
+                PotRowDTO(
+                    symbol: "AAPLx", units: "3.1", markUsd: "231.40", valueUsd: "717.34", dollarPnl: "-24.80",
+                    afterHours: false, tokenAmount: "310000000"),
+                PotRowDTO(
+                    symbol: "USDC", units: "96.53", markUsd: "1.00", valueUsd: "96.53", dollarPnl: "+0.00",
+                    afterHours: nil, tokenAmount: nil),
+            ]),
+        "sample-index": cabalView(
+            id: "sample-index", name: "Index huggers", potTotalUsd: "120.00",
+            pot: [
+                PotRowDTO(
+                    symbol: "USDC", units: "120.00", markUsd: "1.00", valueUsd: "120.00", dollarPnl: "+0.00",
+                    afterHours: nil, tokenAmount: nil)
+            ]),
     ]
 
-    private static func cabalView(id: String, name: String, potTotalUsd: String, pot: [PotRowDTO], agent: GroupAgentDTO? = nil) -> GroupViewDTO {
+    private static func cabalView(
+        id: String, name: String, potTotalUsd: String, pot: [PotRowDTO], agent: GroupAgentDTO? = nil
+    ) -> GroupViewDTO {
         GroupViewDTO(
             id: id,
             name: name,
             treasuryAddress: nil,
             potTotalUsd: potTotalUsd,
             pot: pot,
-            you: MemberSliceDTO(shareUnits: "0", equityUsd: "0", slicePercent: "0", dollarPnl: "+0.00", percentReturn: "0"),
+            you: MemberSliceDTO(
+                shareUnits: "0", equityUsd: "0", slicePercent: "0", dollarPnl: "+0.00", percentReturn: "0"),
             members: [],
             proposals: nil,
             agent: agent
@@ -727,9 +786,13 @@ final class SampleProposeService: ProposeService {
         return Self.catalog
     }
 
-    func searchStocks(groupId: String, query: String, offset: Int, limit: Int) async throws -> (stocks: [ProposeStock], hasMore: Bool) {
+    func searchStocks(groupId: String, query: String, offset: Int, limit: Int) async throws -> (
+        stocks: [ProposeStock], hasMore: Bool
+    ) {
         let term = query.lowercased()
-        let matches = Self.catalog.filter { $0.name.lowercased().contains(term) || $0.ticker.lowercased().contains(term) }
+        let matches = Self.catalog.filter {
+            $0.name.lowercased().contains(term) || $0.ticker.lowercased().contains(term)
+        }
         return (Array(matches.dropFirst(offset).prefix(limit)), false)
     }
 

@@ -88,10 +88,12 @@ struct AssetPositionCard: View {
                     .moneyFont(.large)
                     .foregroundStyle(MonacoTheme.ink)
 
-                Text(AssetPositionTotalsCopy.sliceLine(totalValueUsd: summary.totalValueUsd, holdings: summary.holdings))
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    AssetPositionTotalsCopy.sliceLine(totalValueUsd: summary.totalValueUsd, holdings: summary.holdings)
+                )
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
 
                 if let pnlLabel = summary.totalPnlLabel {
                     cabalReturn(pnlLabel)
@@ -193,7 +195,9 @@ struct AssetPositionCard: View {
 enum AssetPositionTotalsCopy {
     static func sliceLine(totalValueUsd: String, holdings: [AssetHoldingDTO]) -> String {
         let total = UsdAmountFormatter.format(decimalString: totalValueUsd)
-        if holdings.count == 1, let name = holdings.first?.name.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+        if holdings.count == 1, let name = holdings.first?.name.trimmingCharacters(in: .whitespacesAndNewlines),
+            !name.isEmpty
+        {
             return "Your slice of \(total) held by \(name)"
         }
         return "Your slice of \(total) held across your cabals"
@@ -248,8 +252,12 @@ private struct HoldingRow: View {
     var body: some View {
         Group {
             if let openCabal {
-                Button { openCabal(holding.groupId) } label: { content }
-                    .buttonStyle(.plain)
+                Button {
+                    openCabal(holding.groupId)
+                } label: {
+                    content
+                }
+                .buttonStyle(.plain)
             } else {
                 content
             }
@@ -388,8 +396,12 @@ private struct VoteRow: View {
     var body: some View {
         Group {
             if let openProposal {
-                Button { openProposal(proposal) } label: { content }
-                    .buttonStyle(.plain)
+                Button {
+                    openProposal(proposal)
+                } label: {
+                    content
+                }
+                .buttonStyle(.plain)
             } else {
                 content
             }
@@ -535,13 +547,15 @@ private struct VoterFaces: View {
     var body: some View {
         HStack(spacing: -9) {
             ForEach(shown) { voter in
-                MonacoAvatar(photoURL: voter.profilePhotoUrl, displayName: voter.displayName, size: 22, seed: voter.userId)
-                    // A ring of the paper behind each face, so the overlap reads as a cut
-                    // and every face keeps its own hairline. It used to be a white stroke
-                    // drawn over the face, from when this sat on a white card; on the
-                    // canvas that drew a white outline around each one.
-                    .padding(2)
-                    .background(Circle().fill(MonacoTheme.canvas))
+                MonacoAvatar(
+                    photoURL: voter.profilePhotoUrl, displayName: voter.displayName, size: 22, seed: voter.userId
+                )
+                // A ring of the paper behind each face, so the overlap reads as a cut
+                // and every face keeps its own hairline. It used to be a white stroke
+                // drawn over the face, from when this sat on a white card; on the
+                // canvas that drew a white outline around each one.
+                .padding(2)
+                .background(Circle().fill(MonacoTheme.canvas))
             }
             if voters.count > shown.count {
                 Text("+\(voters.count - shown.count)")

@@ -37,7 +37,9 @@ enum StocksTabSampleScenario: String, CaseIterable {
 
     static var requested: StocksTabSampleScenario? {
         let arguments = ProcessInfo.processInfo.arguments
-        guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else { return nil }
+        guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else {
+            return nil
+        }
         return StocksTabSampleScenario(rawValue: arguments[flag + 1])
     }
 }

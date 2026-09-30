@@ -42,8 +42,8 @@ enum PhoneReadBack {
     nonisolated static func format(_ e164: String) -> String {
         let digits = e164.dropFirst()
         guard e164.hasPrefix("+1"),
-              digits.count == 11,
-              digits.allSatisfy({ $0.isASCII && $0.isNumber })
+            digits.count == 11,
+            digits.allSatisfy({ $0.isASCII && $0.isNumber })
         else { return e164 }
         let national = Array(digits.dropFirst())
         return "+1 \(String(national[0..<3])) \(String(national[3..<6])) \(String(national[6..<10]))"

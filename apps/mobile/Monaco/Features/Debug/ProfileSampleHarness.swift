@@ -27,7 +27,7 @@ enum ProfileSampleScenario: String, CaseIterable {
     static var requested: ProfileSampleScenario? {
         let arguments = ProcessInfo.processInfo.arguments
         guard let flag = arguments.firstIndex(of: "-MonacoProfileSample"),
-              arguments.indices.contains(flag + 1)
+            arguments.indices.contains(flag + 1)
         else { return nil }
         return ProfileSampleScenario(rawValue: arguments[flag + 1])
     }
@@ -105,23 +105,37 @@ struct ProfileSampleHarness: View {
 
         let joined = scenario != .empty
         session.home = HomeViewDTO(
-            groups: joined ? [
-                HomeGroupBoardRowDTO(groupId: "g1", name: "Weekend investors", potValueUsd: "548.20", percentReturn: "0.124", dollarPnl: "+48.20", isJoined: true),
-                HomeGroupBoardRowDTO(groupId: "g2", name: "Semis or bust", potValueUsd: "2310.75", percentReturn: "-0.031", dollarPnl: "-73.90", isJoined: true),
-                HomeGroupBoardRowDTO(groupId: "g3", name: "Index huggers", potValueUsd: "120.00", percentReturn: nil, dollarPnl: "+0.00", isJoined: true),
-            ] : [],
+            groups: joined
+                ? [
+                    HomeGroupBoardRowDTO(
+                        groupId: "g1", name: "Weekend investors", potValueUsd: "548.20", percentReturn: "0.124",
+                        dollarPnl: "+48.20", isJoined: true),
+                    HomeGroupBoardRowDTO(
+                        groupId: "g2", name: "Semis or bust", potValueUsd: "2310.75", percentReturn: "-0.031",
+                        dollarPnl: "-73.90", isJoined: true),
+                    HomeGroupBoardRowDTO(
+                        groupId: "g3", name: "Index huggers", potValueUsd: "120.00", percentReturn: nil,
+                        dollarPnl: "+0.00", isJoined: true),
+                ] : [],
             people: []
         )
         session.dashboard = HomeDashboardDTO(
             netWorthUsd: joined ? "711.55" : "0.00",
             netWorthDollarPnl: joined ? "+12.40" : "+0.00",
             netWorthPercentReturn: joined ? "0.018" : nil,
-            myGroups: joined ? [
-                HomeMyGroupRowDTO(groupId: "g1", name: "Weekend investors", equityUsd: "311.50", slicePercent: "0.568", dollarPnl: "+27.40", percentReturn: "0.096"),
-                HomeMyGroupRowDTO(groupId: "g2", name: "Semis or bust", equityUsd: "400.05", slicePercent: "0.173", dollarPnl: "-15.00", percentReturn: "-0.036"),
-                // Flat P&L: the row must still show the $120.00 the member has in it.
-                HomeMyGroupRowDTO(groupId: "g3", name: "Index huggers", equityUsd: "120.00", slicePercent: "1.0", dollarPnl: "+0.00", percentReturn: nil),
-            ] : [],
+            myGroups: joined
+                ? [
+                    HomeMyGroupRowDTO(
+                        groupId: "g1", name: "Weekend investors", equityUsd: "311.50", slicePercent: "0.568",
+                        dollarPnl: "+27.40", percentReturn: "0.096"),
+                    HomeMyGroupRowDTO(
+                        groupId: "g2", name: "Semis or bust", equityUsd: "400.05", slicePercent: "0.173",
+                        dollarPnl: "-15.00", percentReturn: "-0.036"),
+                    // Flat P&L: the row must still show the $120.00 the member has in it.
+                    HomeMyGroupRowDTO(
+                        groupId: "g3", name: "Index huggers", equityUsd: "120.00", slicePercent: "1.0",
+                        dollarPnl: "+0.00", percentReturn: nil),
+                ] : [],
             pnlSeries1H: [],
             leaderboard: HomeLeaderboardSectionDTO(range: "ALL", people: []),
             missedProposals: []
@@ -135,12 +149,14 @@ struct ProfileSampleHarness: View {
         let size = CGSize(width: 256, height: 256)
         let image = UIGraphicsImageRenderer(size: size).image { context in
             let cg = context.cgContext
-            let sky = [
-                UIColor(red: 0.98, green: 0.72, blue: 0.45, alpha: 1).cgColor,
-                UIColor(red: 0.85, green: 0.42, blue: 0.38, alpha: 1).cgColor,
-            ] as CFArray
+            let sky =
+                [
+                    UIColor(red: 0.98, green: 0.72, blue: 0.45, alpha: 1).cgColor,
+                    UIColor(red: 0.85, green: 0.42, blue: 0.38, alpha: 1).cgColor,
+                ] as CFArray
             if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: sky, locations: [0, 1]) {
-                cg.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 0, y: 170), options: [.drawsAfterEndLocation])
+                cg.drawLinearGradient(
+                    gradient, start: .zero, end: CGPoint(x: 0, y: 170), options: [.drawsAfterEndLocation])
             }
             UIColor(red: 1.0, green: 0.93, blue: 0.7, alpha: 1).setFill()
             cg.fillEllipse(in: CGRect(x: 150, y: 70, width: 64, height: 64))

@@ -119,7 +119,9 @@ private actor SampleGroupChatService: GroupChatService {
         let now = Date()
         func at(_ minutesAgo: Double) -> String { Self.stamp(now.addingTimeInterval(-minutesAgo * 60)) }
         func msg(_ id: String, _ who: String, _ name: String, _ body: String, _ minutesAgo: Double) -> GroupMessageDTO {
-            .init(id: id, groupId: Self.groupId, authorId: who, authorName: name, body: body, createdAt: at(minutesAgo), mine: who == "u-me")
+            .init(
+                id: id, groupId: Self.groupId, authorId: who, authorName: name, body: body, createdAt: at(minutesAgo),
+                mine: who == "u-me")
         }
         messages = [
             msg("s1", "u-ana", "Ana", "Apple reports Thursday. Anyone want in before?", 1_210),

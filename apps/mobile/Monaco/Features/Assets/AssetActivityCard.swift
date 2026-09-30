@@ -41,7 +41,9 @@ struct AssetActivityCard: View {
                     ActivityRow(line: line, openCabal: openCabal)
                 }
                 if lines.count > Self.visibleCount {
-                    AssetSectionTextButton(title: showsAll ? "Show less" : "Show \(lines.count - Self.visibleCount) more") {
+                    AssetSectionTextButton(
+                        title: showsAll ? "Show less" : "Show \(lines.count - Self.visibleCount) more"
+                    ) {
                         if reduceMotion {
                             showsAll.toggle()
                         } else {
@@ -65,8 +67,12 @@ private struct ActivityRow: View {
     var body: some View {
         Group {
             if let openCabal {
-                Button { openCabal(line.groupId) } label: { content }
-                    .buttonStyle(.plain)
+                Button {
+                    openCabal(line.groupId)
+                } label: {
+                    content
+                }
+                .buttonStyle(.plain)
             } else {
                 content
             }

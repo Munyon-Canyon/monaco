@@ -26,7 +26,8 @@ struct AssetsTabView: View {
     /// answer, so the harness drives the model into them before the view appears.
     init(auth: PrivyAuthService, dataSource: StocksTabDataSource? = nil, model: StocksTabModel? = nil) {
         self.auth = auth
-        _model = State(initialValue: model ?? StocksTabModel(dataSource: dataSource ?? LiveStocksTabDataSource(auth: auth)))
+        _model = State(
+            initialValue: model ?? StocksTabModel(dataSource: dataSource ?? LiveStocksTabDataSource(auth: auth)))
     }
 
     var body: some View {
@@ -55,10 +56,12 @@ struct AssetsTabView: View {
         // name the design system gave it.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("assets-root")
-        .navigationDestination(isPresented: Binding(
-            get: { selectedSymbol != nil },
-            set: { if !$0 { selectedSymbol = nil } }
-        )) {
+        .navigationDestination(
+            isPresented: Binding(
+                get: { selectedSymbol != nil },
+                set: { if !$0 { selectedSymbol = nil } }
+            )
+        ) {
             if let selectedSymbol {
                 AssetDetailView(auth: auth, symbol: selectedSymbol)
             }
@@ -247,7 +250,9 @@ struct AssetsTabView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: MonacoTheme.Space.sm) {
                         ForEach(model.moverRows) { row in
-                            Button { open(row.asset.symbol) } label: {
+                            Button {
+                                open(row.asset.symbol)
+                            } label: {
                                 StockMoverCard(row: row)
                             }
                             .buttonStyle(.plain)

@@ -31,7 +31,9 @@ enum GroupDetailSampleScenario: String, CaseIterable {
 
     static var requested: GroupDetailSampleScenario? {
         let arguments = ProcessInfo.processInfo.arguments
-        guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else { return nil }
+        guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else {
+            return nil
+        }
         return GroupDetailSampleScenario(rawValue: arguments[flag + 1])
     }
 }
@@ -65,11 +67,12 @@ struct GroupDetailSampleHarness: View {
     init(scenario: GroupDetailSampleScenario, auth: PrivyAuthService) {
         self.scenario = scenario
         self.auth = auth
-        _pictureEditor = StateObject(wrappedValue: CabalPictureEditor(
-            groupId: GroupDetailSampleData.pictureGroupId,
-            pictureUrl: GroupDetailSampleData.initialPictureURL(for: scenario),
-            writer: SampleCabalPictureWriter(alwaysFails: scenario == .pictureUploadFailure)
-        ))
+        _pictureEditor = StateObject(
+            wrappedValue: CabalPictureEditor(
+                groupId: GroupDetailSampleData.pictureGroupId,
+                pictureUrl: GroupDetailSampleData.initialPictureURL(for: scenario),
+                writer: SampleCabalPictureWriter(alwaysFails: scenario == .pictureUploadFailure)
+            ))
     }
 
     /// The one scenario that stands in for a leave in flight, read wherever the product reads
@@ -101,7 +104,8 @@ struct GroupDetailSampleHarness: View {
             .monacoCanvas()
             .navigationBarTitleDisplayMode(.inline)
         case .activity:
-            GroupActivityListView(auth: auth, items: GroupDetailSampleData.activity, retryingTransactionIDs: [], onRetry: { _ in })
+            GroupActivityListView(
+                auth: auth, items: GroupDetailSampleData.activity, retryingTransactionIDs: [], onRetry: { _ in })
         case .loading:
             GroupDetailSkeleton()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -154,9 +158,13 @@ struct GroupDetailSampleHarness: View {
             // leave-in-progress test asserting against an item the product never shows.
             if !isLeaving {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showDetails = true } label: { Image(systemName: "info.circle") }
-                        .accessibilityLabel("Cabal details")
-                        .accessibilityIdentifier("group-details-button")
+                    Button {
+                        showDetails = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                    }
+                    .accessibilityLabel("Cabal details")
+                    .accessibilityIdentifier("group-details-button")
                 }
             }
         }
@@ -165,7 +173,8 @@ struct GroupDetailSampleHarness: View {
             case .cashOut(let shareUnits, let equityUsd):
                 SellCabalView(auth: auth, groupId: view.id, maxShareUnits: shareUnits, equityUsd: equityUsd)
             case .activity:
-                GroupActivityListView(auth: auth, items: GroupDetailSampleData.activity, retryingTransactionIDs: [], onRetry: { _ in })
+                GroupActivityListView(
+                    auth: auth, items: GroupDetailSampleData.activity, retryingTransactionIDs: [], onRetry: { _ in })
             case .proposals:
                 ProposalFeedView(service: proposalService, groupId: view.id)
             case .stock(let symbol):
@@ -207,27 +216,39 @@ enum GroupDetailSampleData {
         }
     }
 
-
     static let view = GroupViewDTO(
         id: "5b1f0c9e-0001-4c55-9a51-000000000001",
         name: "Weekend investors",
         treasuryAddress: "9fQeWbKc3pZ1rJtM7xVn2aLhYd8sGu4oTk6ReXbN1cPq",
         potTotalUsd: "548.20",
         pot: [
-            PotRowDTO(symbol: "USDC", units: "82.62", markUsd: "1.00", valueUsd: "82.62", dollarPnl: "+0.00", afterHours: nil, tokenAmount: nil),
-            PotRowDTO(symbol: "AAPLx", units: "1.2034", markUsd: "231.40", valueUsd: "278.47", dollarPnl: "+28.47", afterHours: false, tokenAmount: "120340000"),
-            PotRowDTO(symbol: "NVDAx", units: "1.05", markUsd: "178.20", valueUsd: "187.11", dollarPnl: "-7.60", afterHours: true, tokenAmount: "105000000"),
+            PotRowDTO(
+                symbol: "USDC", units: "82.62", markUsd: "1.00", valueUsd: "82.62", dollarPnl: "+0.00", afterHours: nil,
+                tokenAmount: nil),
+            PotRowDTO(
+                symbol: "AAPLx", units: "1.2034", markUsd: "231.40", valueUsd: "278.47", dollarPnl: "+28.47",
+                afterHours: false, tokenAmount: "120340000"),
+            PotRowDTO(
+                symbol: "NVDAx", units: "1.05", markUsd: "178.20", valueUsd: "187.11", dollarPnl: "-7.60",
+                afterHours: true, tokenAmount: "105000000"),
         ],
-        you: MemberSliceDTO(shareUnits: "311500000", equityUsd: "311.50", slicePercent: "0.568", dollarPnl: "+27.40", percentReturn: "0.096"),
+        you: MemberSliceDTO(
+            shareUnits: "311500000", equityUsd: "311.50", slicePercent: "0.568", dollarPnl: "+27.40",
+            percentReturn: "0.096"),
         members: [
-            LeaderboardRowDTO(rank: 1, userId: "u1", displayName: "Ana Ruiz", percentReturn: "0.142", dollarPnl: "+14.20"),
-            LeaderboardRowDTO(rank: 2, userId: "u2", displayName: "Logan Norman", percentReturn: "0.096", dollarPnl: "+27.40"),
-            LeaderboardRowDTO(rank: 3, userId: "u3", displayName: "Leo Park", percentReturn: "0.012", dollarPnl: "+1.10"),
-            LeaderboardRowDTO(rank: 4, userId: "u4", displayName: "Mia Chen", percentReturn: "-0.021", dollarPnl: "-2.10"),
+            LeaderboardRowDTO(
+                rank: 1, userId: "u1", displayName: "Ana Ruiz", percentReturn: "0.142", dollarPnl: "+14.20"),
+            LeaderboardRowDTO(
+                rank: 2, userId: "u2", displayName: "Logan Norman", percentReturn: "0.096", dollarPnl: "+27.40"),
+            LeaderboardRowDTO(
+                rank: 3, userId: "u3", displayName: "Leo Park", percentReturn: "0.012", dollarPnl: "+1.10"),
+            LeaderboardRowDTO(
+                rank: 4, userId: "u4", displayName: "Mia Chen", percentReturn: "-0.021", dollarPnl: "-2.10"),
             LeaderboardRowDTO(rank: 5, userId: "u5", displayName: "Sam Okafor", percentReturn: nil, dollarPnl: "+0.00"),
         ],
         proposals: nil,
-        agent: GroupAgentDTO(id: "a1", status: "active", agentDisplayName: "Scout", allocationUsdcMicros: "100000000", apiKey: "scout")
+        agent: GroupAgentDTO(
+            id: "a1", status: "active", agentDisplayName: "Scout", allocationUsdcMicros: "100000000", apiKey: "scout")
     )
 
     static let emptyView = GroupViewDTO(
@@ -235,9 +256,17 @@ enum GroupDetailSampleData {
         name: "Rent money",
         treasuryAddress: "9fQeWbKc3pZ1rJtM7xVn2aLhYd8sGu4oTk6ReXbN1cPq",
         potTotalUsd: "0.00",
-        pot: [PotRowDTO(symbol: "USDC", units: "0.00", markUsd: "1.00", valueUsd: "0.00", dollarPnl: "+0.00", afterHours: nil, tokenAmount: nil)],
-        you: MemberSliceDTO(shareUnits: "0", equityUsd: "0.00", slicePercent: "0", dollarPnl: "+0.00", percentReturn: nil),
-        members: [LeaderboardRowDTO(rank: 1, userId: "u2", displayName: "Logan Norman", percentReturn: nil, dollarPnl: "+0.00")],
+        pot: [
+            PotRowDTO(
+                symbol: "USDC", units: "0.00", markUsd: "1.00", valueUsd: "0.00", dollarPnl: "+0.00", afterHours: nil,
+                tokenAmount: nil)
+        ],
+        you: MemberSliceDTO(
+            shareUnits: "0", equityUsd: "0.00", slicePercent: "0", dollarPnl: "+0.00", percentReturn: nil),
+        members: [
+            LeaderboardRowDTO(
+                rank: 1, userId: "u2", displayName: "Logan Norman", percentReturn: nil, dollarPnl: "+0.00")
+        ],
         proposals: nil,
         agent: nil
     )
@@ -256,12 +285,30 @@ enum GroupDetailSampleData {
         let iso = ISO8601DateFormatter()
         func ago(_ minutes: Double) -> String { iso.string(from: Date().addingTimeInterval(-minutes * 60)) }
         return [
-            GroupActivityItemDTO(id: "t1", kind: "buy", status: "pending", symbol: "AAPLx", amountMicros: 50_000_000, createdAt: ago(3), txSignature: "5h1Xk", tokenAmount: nil, proceedsUsdcMicros: nil, initiatedBy: "member", agentDisplayName: nil),
-            GroupActivityItemDTO(id: "t2", kind: "deposit", status: "confirmed", symbol: nil, amountMicros: 100_000_000, createdAt: ago(55), txSignature: nil, tokenAmount: nil, proceedsUsdcMicros: nil, initiatedBy: nil, agentDisplayName: nil),
-            GroupActivityItemDTO(id: "t3", kind: "sell", status: "failed", symbol: "TSLAx", amountMicros: 0, createdAt: ago(180), txSignature: nil, tokenAmount: "25000000", proceedsUsdcMicros: nil, initiatedBy: "member", agentDisplayName: nil),
-            GroupActivityItemDTO(id: "t4", kind: "buy", status: "confirmed", symbol: "NVDAx", amountMicros: 194_710_000, createdAt: ago(60 * 26), txSignature: "3kQp", tokenAmount: nil, proceedsUsdcMicros: nil, initiatedBy: "agent", agentDisplayName: "Scout"),
-            GroupActivityItemDTO(id: "t5", kind: "buy", status: "confirmed", symbol: "AAPLx", amountMicros: 250_000_000, createdAt: ago(60 * 50), txSignature: "4mZa", tokenAmount: nil, proceedsUsdcMicros: nil, initiatedBy: "member", agentDisplayName: nil),
-            GroupActivityItemDTO(id: "t6", kind: "deposit", status: "confirmed", symbol: nil, amountMicros: 300_000_000, createdAt: ago(60 * 74), txSignature: nil, tokenAmount: nil, proceedsUsdcMicros: nil, initiatedBy: nil, agentDisplayName: nil),
+            GroupActivityItemDTO(
+                id: "t1", kind: "buy", status: "pending", symbol: "AAPLx", amountMicros: 50_000_000, createdAt: ago(3),
+                txSignature: "5h1Xk", tokenAmount: nil, proceedsUsdcMicros: nil, initiatedBy: "member",
+                agentDisplayName: nil),
+            GroupActivityItemDTO(
+                id: "t2", kind: "deposit", status: "confirmed", symbol: nil, amountMicros: 100_000_000,
+                createdAt: ago(55), txSignature: nil, tokenAmount: nil, proceedsUsdcMicros: nil, initiatedBy: nil,
+                agentDisplayName: nil),
+            GroupActivityItemDTO(
+                id: "t3", kind: "sell", status: "failed", symbol: "TSLAx", amountMicros: 0, createdAt: ago(180),
+                txSignature: nil, tokenAmount: "25000000", proceedsUsdcMicros: nil, initiatedBy: "member",
+                agentDisplayName: nil),
+            GroupActivityItemDTO(
+                id: "t4", kind: "buy", status: "confirmed", symbol: "NVDAx", amountMicros: 194_710_000,
+                createdAt: ago(60 * 26), txSignature: "3kQp", tokenAmount: nil, proceedsUsdcMicros: nil,
+                initiatedBy: "agent", agentDisplayName: "Scout"),
+            GroupActivityItemDTO(
+                id: "t5", kind: "buy", status: "confirmed", symbol: "AAPLx", amountMicros: 250_000_000,
+                createdAt: ago(60 * 50), txSignature: "4mZa", tokenAmount: nil, proceedsUsdcMicros: nil,
+                initiatedBy: "member", agentDisplayName: nil),
+            GroupActivityItemDTO(
+                id: "t6", kind: "deposit", status: "confirmed", symbol: nil, amountMicros: 300_000_000,
+                createdAt: ago(60 * 74), txSignature: nil, tokenAmount: nil, proceedsUsdcMicros: nil, initiatedBy: nil,
+                agentDisplayName: nil),
         ]
     }
 
@@ -322,12 +369,15 @@ enum GroupDetailSampleData {
         let size = CGSize(width: 256, height: 256)
         let image = UIGraphicsImageRenderer(size: size).image { context in
             let cg = context.cgContext
-            let colors = [
-                UIColor(red: 0.16, green: 0.36, blue: 0.75, alpha: 1).cgColor,
-                UIColor(red: 0.52, green: 0.22, blue: 0.70, alpha: 1).cgColor,
-            ] as CFArray
-            if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) {
-                cg.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 256, y: 256), options: [.drawsAfterEndLocation])
+            let colors =
+                [
+                    UIColor(red: 0.16, green: 0.36, blue: 0.75, alpha: 1).cgColor,
+                    UIColor(red: 0.52, green: 0.22, blue: 0.70, alpha: 1).cgColor,
+                ] as CFArray
+            if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1])
+            {
+                cg.drawLinearGradient(
+                    gradient, start: .zero, end: CGPoint(x: 256, y: 256), options: [.drawsAfterEndLocation])
             }
             UIColor(white: 1, alpha: 0.85).setFill()
             cg.fillEllipse(in: CGRect(x: 78, y: 62, width: 100, height: 100))

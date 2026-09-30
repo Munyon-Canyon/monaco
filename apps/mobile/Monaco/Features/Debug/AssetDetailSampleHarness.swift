@@ -83,7 +83,9 @@ enum AssetDetailSampleScenario: String, CaseIterable {
 
     static var requested: AssetDetailSampleScenario? {
         let arguments = ProcessInfo.processInfo.arguments
-        guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else { return nil }
+        guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else {
+            return nil
+        }
         return AssetDetailSampleScenario(rawValue: arguments[flag + 1])
     }
 
@@ -165,7 +167,7 @@ private final class AssetDetailSampleDataSource: AssetDetailDataSource {
         detailCalls += 1
         switch scenario {
         case .open, .fallbackSeries, .emptyChart, .chartFailed, .loading, .slowRange, .staleRange, .tickingChart,
-             .cabals, .oneCabal, .noCabals, .cabalsPartial, .cabalsFailed, .scrubbed, .votesOnly:
+            .cabals, .oneCabal, .noCabals, .cabalsPartial, .cabalsFailed, .scrubbed, .votesOnly:
             return MarketSampleData.detail()
         case .notRoutable:
             return unroutableDetail()

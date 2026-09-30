@@ -46,10 +46,11 @@ struct GroupPickerForProposalView: View {
         self.onProposed = onProposed
         _kind = State(initialValue: kind)
         _service = State(initialValue: service ?? LiveProposeService(auth: auth))
-        _holdings = State(initialValue: CabalHoldingsModel(
-            symbol: symbol,
-            dataSource: holdingsDataSource ?? LiveCabalHoldingsDataSource(auth: auth)
-        ))
+        _holdings = State(
+            initialValue: CabalHoldingsModel(
+                symbol: symbol,
+                dataSource: holdingsDataSource ?? LiveCabalHoldingsDataSource(auth: auth)
+            ))
     }
 
     private var cabals: [HomeGroupBoardRowDTO] {
@@ -93,16 +94,15 @@ struct GroupPickerForProposalView: View {
     /// set the way every row in the app sets it.
     private var question: some View {
         let parts = ProposeScreenCopy.pickerQuestion(kind: kind)
-        return (
-            Text(parts.lead).font(MonacoTheme.Typo.section)
-                + Text(ticker).font(MonacoTheme.Typo.ticker)
-                + Text(parts.tail).font(MonacoTheme.Typo.section)
-        )
-        .foregroundStyle(MonacoTheme.ink)
-        .fixedSize(horizontal: false, vertical: true)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityAddTraits(.isHeader)
-        .accessibilityIdentifier("group-picker-question")
+        return
+            (Text(parts.lead).font(MonacoTheme.Typo.section)
+            + Text(ticker).font(MonacoTheme.Typo.ticker)
+            + Text(parts.tail).font(MonacoTheme.Typo.section))
+            .foregroundStyle(MonacoTheme.ink)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier("group-picker-question")
     }
 
     @ViewBuilder
@@ -230,7 +230,8 @@ struct GroupPickerForProposalView: View {
                                     chevron: true,
                                     isLast: index == rows.count - 1
                                 ) {
-                                    CabalMark(groupId: cabal.groupId, name: cabal.name, pictureUrl: pictureUrl(cabal.groupId))
+                                    CabalMark(
+                                        groupId: cabal.groupId, name: cabal.name, pictureUrl: pictureUrl(cabal.groupId))
                                 } trailing: {
                                     MoneyText(decimalString: holding.valueUsd, style: .row)
                                     PnLText(dollarPnl: holding.dollarPnl, style: .caption)

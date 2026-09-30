@@ -36,7 +36,7 @@ enum WelcomeSampleScenario: String, CaseIterable {
         let arguments = ProcessInfo.processInfo.arguments
         guard let flag = arguments.firstIndex(of: launchArgument) else { return nil }
         guard arguments.indices.contains(flag + 1),
-              let scenario = WelcomeSampleScenario(rawValue: arguments[flag + 1])
+            let scenario = WelcomeSampleScenario(rawValue: arguments[flag + 1])
         else { return .code }
         return scenario
     }

@@ -41,7 +41,6 @@ struct AssetDetailHero: View {
             price
                 .accessibilityIdentifier("asset-detail-price")
 
-
             if let move {
                 changeRow(move)
             }
@@ -64,7 +63,6 @@ struct AssetDetailHero: View {
                 .foregroundStyle(MonacoTheme.muted)
         }
     }
-
 
     /// "▲ $5.50 · 2.4%  Past day · AAPL", or the scrubbed sample's own time in place
     /// of the period. Dollars come from the curve, so they are only shown when there
@@ -113,7 +111,8 @@ struct AssetDetailHero: View {
     /// VoiceOver gets the long form: "Up $5.50, 2.4%, Past day. AAPL on its home
     /// exchange." — a combined label would read the "·" and drop the caption.
     private func spokenChange(_ move: AssetDetailModel.Move) -> String {
-        var sentence = move.dollars.map { PnLSpeech.badge(dollarPnl: $0, percentReturn: move.ratio) }
+        var sentence =
+            move.dollars.map { PnLSpeech.badge(dollarPnl: $0, percentReturn: move.ratio) }
             ?? PnLSpeech.percent(PercentReturnFormatter.format(move.ratio))
         sentence += ", \(move.label)"
         if let caption = move.basisCaption { sentence += ". \(caption)." }
