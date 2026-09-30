@@ -15,7 +15,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
-var errExitedBeforeStop = errors.New("exited before it was stopped")
+var (
+	errExitedBeforeStop = errors.New("exited before it was stopped")
+	errDiedOnSIGTERM    = errors.New("died on SIGTERM instead of handling it")
+)
 
 type Line struct {
 	Process string
@@ -131,7 +134,7 @@ func (p *process) running() bool {
 
 func (p *process) stop(ctx context.Context) error {
 	if !p.running() {
-		return p.lostAfterBoot()
+		return p.exitError(errExitedBeforeStop)
 	}
 	if ctx.Err() != nil {
 		p.kill()
@@ -141,7 +144,7 @@ func (p *process) stop(ctx context.Context) error {
 	_ = p.cmd.Process.Signal(syscall.SIGTERM)
 	select {
 	case <-p.exited:
-		return nil
+		return p.diedOnSIGTERM()
 	case <-ctx.Done():
 		p.kill()
 		return fmt.Errorf("%s did not exit within the budget after SIGTERM and was killed: %w",
@@ -149,12 +152,20 @@ func (p *process) stop(ctx context.Context) error {
 	}
 }
 
-func (p *process) lostAfterBoot() error {
+func (p *process) diedOnSIGTERM() error {
+	status, ok := p.cmd.ProcessState.Sys().(syscall.WaitStatus)
+	if ok && status.Signaled() && status.Signal() == syscall.SIGTERM {
+		return p.exitError(errDiedOnSIGTERM)
+	}
+	return nil
+}
+
+func (p *process) exitError(reason error) error {
 	if p.addr == "" {
 		return nil
 	}
 	last := p.logs.tail(p.name, 1)
-	return fmt.Errorf("%s %w (%s), last line: %s", p.name, errExitedBeforeStop, p.cmd.ProcessState, last)
+	return fmt.Errorf("%s %w (%s), last line: %s", p.name, reason, p.cmd.ProcessState, last)
 }
 
 func (p *process) kill() {

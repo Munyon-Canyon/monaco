@@ -252,6 +252,20 @@ func TestDown_namesTheExitStatusOfAWorkerThatCrashedBeforeTeardown(t *testing.T)
 	}
 }
 
+func TestStop_namesAChildThatDiedOnTheSIGTERMItWasSent(t *testing.T) {
+	t.Parallel()
+	bin := writeScript(t, procWorker, `echo '{"msg":"boot.listening","addr":"127.0.0.1:1"}' >&2; exec sleep 30`)
+	p, err := startProcess(t.Context(), procWorker, bin, []string{"PATH=" + os.Getenv("PATH")}, &Logs{})
+	if err != nil {
+		t.Fatalf("startProcess: %v", err)
+	}
+	want := `worker died on SIGTERM instead of handling it (signal: terminated), last line: ` +
+		`{"msg":"boot.listening","addr":"127.0.0.1:1"}`
+	if err := p.stop(t.Context()); !errors.Is(err, errDiedOnSIGTERM) || err.Error() != want {
+		t.Fatalf("stop = %v, want %q", err, want)
+	}
+}
+
 func TestHealthz_answersZeroWhenNothingAnswers(t *testing.T) {
 	t.Parallel()
 	for _, base := range []string{"http://127.0.0.1:1", "http://bad\x7fhost"} {
