@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -31,6 +32,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -46,6 +48,9 @@ type app struct {
 	relay     *bus.Relay
 	held      atomic.Bool
 	consumers []bus.Consumer
+	pollers   []poller.Poller
+	runner    *poller.Runner
+	log       *lineLog
 
 	note      *notifier
 	committed map[string]map[string]bool
@@ -68,7 +73,8 @@ func start(t *testing.T, o options) *app {
 	if logs == nil {
 		logs = io.Discard
 	}
-	a.logger = observability.NewLogger(config.Config{Env: config.EnvTest}, logs)
+	a.log = &lineLog{note: a.note}
+	a.logger = observability.NewLogger(config.Config{Env: config.EnvTest}, io.MultiWriter(logs, a.log))
 	ctx, cancel := context.WithCancel(observability.WithLogger(context.WithoutCancel(t.Context()), a.logger))
 	stops := make([]func(), 0, 4)
 	t.Cleanup(func() {
@@ -89,6 +95,9 @@ func start(t *testing.T, o options) *app {
 		Clock: clock.Real{}, IDs: a.ids, Pool: pool, UoW: a.db, Bus: a.bus.Conn, Hub: hub,
 	})
 	a.consumers = a.observe(set.Consumers())
+	a.pollers = set.Pollers()
+	a.runner, err = poller.NewRunner(pool, clock.Real{}, noop.NewMeterProvider().Meter("scenario"))
+	must(t, err)
 	registry, err := bus.NewRegistry(a.bus.Conn, a.db, clock.Real{}, a.consumers)
 	must(t, err)
 	stopConsumers, err := registry.Start(ctx)
@@ -201,8 +210,20 @@ func (a *app) backend() *backend {
 	return &backend{
 		baseURL: a.server.URL, client: a.server.Client(), note: a.note, mint: a.mint, newUserID: a.newUserID,
 		enter: func(Stage) {}, exchanged: func(Exchange) {}, events: a.events, awaitHandled: a.awaitHandled,
-		published: a.published, hold: a.hold, crashAt: a.crashAt, seed: a.seed,
+		published: a.published, hold: a.hold, crashAt: a.crashAt, seed: a.seed, lines: a.log.since,
+		tick: a.tickOnce,
 	}
+}
+
+func (a *app) tickOnce(t T, name string) func() {
+	t.Helper()
+	i := slices.IndexFunc(a.pollers, func(p poller.Poller) bool { return p.Name() == name })
+	if i < 0 {
+		t.Fatalf("scenario: no module registers poller %s", name)
+	}
+	return background(observability.WithLogger(t.Context(), a.logger), func(ctx context.Context) {
+		_ = a.runner.Run(ctx, a.pollers[i])
+	})
 }
 
 func (a *app) mint(id ids.UserID) string {

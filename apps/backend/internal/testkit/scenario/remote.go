@@ -22,6 +22,7 @@ type Remote struct {
 	Crash     func(ctx context.Context, point faultpoint.Name) error
 	Enter     func(stage Stage)
 	Exchanged func(e Exchange)
+	Logs      func(from int) (lines []string, changed <-chan struct{})
 }
 
 func Against(t T, r Remote) *Scenario {
@@ -33,7 +34,8 @@ func Against(t T, r Remote) *Scenario {
 		mint:      func(id ids.UserID) string { return r.Mint(id.String()) },
 		newUserID: func() (ids.UserID, error) { return ids.ParseUserID(ids.Real{}.NewV7().String()) },
 		enter:     r.Enter, exchanged: r.Exchanged, events: rm.events, awaitHandled: rm.awaitHandled,
-		published: rm.published, hold: func() {}, crashAt: rm.crashAt, seed: rm.seed,
+		published: rm.published, hold: func() {}, crashAt: rm.crashAt, seed: rm.seed, lines: r.Logs,
+		tick: func(T, string) func() { return func() {} },
 	})
 }
 
