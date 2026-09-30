@@ -28,6 +28,12 @@ type Catalog interface {
 	ListAll(ctx context.Context) ([]Asset, error)
 }
 
+type SessionInfo = domain.SessionInfo
+
+type Calendar interface {
+	Session(ctx context.Context, id AssetID, at time.Time) (SessionInfo, error)
+}
+
 type Module struct {
 	deps module.Deps
 }
@@ -39,6 +45,10 @@ func (*Module) Name() string { return "market" }
 var _ Catalog = (*app.Catalog)(nil)
 
 func (m *Module) Catalog() *app.Catalog { return app.NewCatalog(m.deps.Pool) }
+
+var _ Calendar = (*app.Calendar)(nil)
+
+func (m *Module) Calendar() *app.Calendar { return app.NewCalendar(m.Catalog()) }
 
 func (*Module) Routes(*httpx.Routes) {}
 
