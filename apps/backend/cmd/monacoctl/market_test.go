@@ -14,9 +14,11 @@ func TestMarketTradable_setsAndClearsTheOverride(t *testing.T) {
 	pool := testkit.DB(t)
 	clk := testkit.NewClock(clock.Real{}.Now())
 	_, err := pool.Exec(t.Context(), `INSERT INTO assets (id, symbol, mint, decimals, issuer, kind, display_name,
-		issuer_tradable, company_key, first_seen_at, updated_at)
+		issuer_tradable, company_key, first_seen_at, updated_at, chain_checked_at)
 		VALUES ('01920000-0000-7000-8000-000000000001', 'AAPLx', 'XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp', 8,
-		'xstocks', 'equity', 'Apple xStock', true, 'apple', now(), now())`)
+		'xstocks', 'equity', 'Apple xStock', true, 'apple', now(), now(), now()),
+		('01920000-0000-7000-8000-000000000002', 'TSLAx', 'XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB', 8,
+		'xstocks', 'equity', 'Tesla xStock', true, 'tesla', now(), now(), NULL)`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,9 +28,22 @@ func TestMarketTradable_setsAndClearsTheOverride(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"tradable", "AAPLx", "off"}, "AAPLx\ttradable=false\toverride=off\tissuer_tradable=true\n"},
-		{[]string{"tradable", "AAPLx", "on"}, "AAPLx\ttradable=true\toverride=on\tissuer_tradable=true\n"},
-		{[]string{"tradable", "AAPLx", "auto"}, "AAPLx\ttradable=true\toverride=auto\tissuer_tradable=true\n"},
+		{
+			[]string{"tradable", "AAPLx", "off"},
+			"AAPLx\ttradable=false\toverride=off\tissuer_tradable=true\tchain_checked=true\n",
+		},
+		{
+			[]string{"tradable", "AAPLx", "on"},
+			"AAPLx\ttradable=true\toverride=on\tissuer_tradable=true\tchain_checked=true\n",
+		},
+		{
+			[]string{"tradable", "AAPLx", "auto"},
+			"AAPLx\ttradable=true\toverride=auto\tissuer_tradable=true\tchain_checked=true\n",
+		},
+		{
+			[]string{"tradable", "TSLAx", "on"},
+			"TSLAx\ttradable=false\toverride=on\tissuer_tradable=true\tchain_checked=false\n",
+		},
 	} {
 		var stdout, stderr bytes.Buffer
 		if code := market(tc.args, &stdout, &stderr); code != 0 || stdout.String() != tc.want {

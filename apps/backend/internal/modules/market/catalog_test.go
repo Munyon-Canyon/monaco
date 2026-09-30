@@ -145,6 +145,29 @@ func TestCatalog_listsTradablePopularFirstAndAllBySymbol(t *testing.T) {
 	}
 }
 
+func TestCatalog_uncheckedAssetIsReadableButNeverListedTradable(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	catalog := market.New(module.Deps{Pool: pool}).Catalog()
+	at := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
+	unchecked := stamped(marketfake.AAPLx(), at)
+	unchecked.ChainChecked = false
+	on := true
+	insert(t, pool, unchecked, &on)
+	insert(t, pool, stamped(marketfake.TSLAx(), at), nil)
+	tradable, err := catalog.ListTradable(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := symbols(tradable); !slices.Equal(got, []string{"TSLAx"}) {
+		t.Fatalf("ListTradable = %v, want only TSLAx while AAPLx's chain facts are unchecked", got)
+	}
+	got, err := catalog.AssetByMint(t.Context(), unchecked.Mint)
+	if err != nil || got.Symbol != "AAPLx" || got.ChainChecked || got.Tradable() {
+		t.Fatalf("AssetByMint(AAPLx) = %+v, %v, want the unchecked, untradable asset", got, err)
+	}
+}
+
 func TestCatalog_rowThatDoesNotParseIsADecodeFailure(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)

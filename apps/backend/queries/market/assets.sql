@@ -9,7 +9,7 @@ SELECT * FROM assets WHERE symbol = $1;
 
 -- name: ListTradableAssets :many
 SELECT * FROM assets
-WHERE coalesce(tradable_override, issuer_tradable)
+WHERE chain_checked_at IS NOT NULL AND coalesce(tradable_override, issuer_tradable)
 ORDER BY popular_rank NULLS LAST, symbol;
 
 -- name: ListAssets :many

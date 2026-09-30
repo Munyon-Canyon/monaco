@@ -112,6 +112,9 @@ type Asset struct {
 }
 
 func (a Asset) Tradable() bool {
+	if !a.ChainChecked {
+		return false
+	}
 	switch a.Override {
 	case OverrideOn:
 		return true

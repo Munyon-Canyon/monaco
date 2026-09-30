@@ -142,7 +142,7 @@ func (q *Queries) ListAssets(ctx context.Context) ([]Asset, error) {
 
 const listTradableAssets = `-- name: ListTradableAssets :many
 SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at FROM assets
-WHERE coalesce(tradable_override, issuer_tradable)
+WHERE chain_checked_at IS NOT NULL AND coalesce(tradable_override, issuer_tradable)
 ORDER BY popular_rank NULLS LAST, symbol
 `
 

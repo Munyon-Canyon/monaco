@@ -75,6 +75,17 @@ func TestTradableOverride_WinsOverIssuer(t *testing.T) {
 	}
 }
 
+func TestTradable_uncheckedChainFactsKeepAnAssetOutWhateverTheOverride(t *testing.T) {
+	t.Parallel()
+	for _, override := range []domain.Override{domain.OverrideAuto, domain.OverrideOn, domain.OverrideOff} {
+		a := marketfake.AAPLx()
+		a.ChainChecked, a.Override = false, override
+		if a.Tradable() {
+			t.Fatalf("unchecked AAPLx with override %s is tradable, want untradable until the chain check", override)
+		}
+	}
+}
+
 func TestTradableOverride_AutoFollowsTheIssuer(t *testing.T) {
 	t.Parallel()
 	for _, issuer := range []bool{true, false} {
