@@ -68,6 +68,7 @@ jobs:
       - name: Fetch the Swift package artifact
         id: spm-artifact
         if: steps.spm.outputs.cache-matched-key == ''
+        continue-on-error: true
         shell: bash
         env:
           FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH }}
@@ -94,6 +95,7 @@ jobs:
       - name: Fetch the compilation cache artifact
         id: cas-artifact
         if: inputs.restore-cache && steps.cas.outputs.cache-matched-key == ''
+        continue-on-error: true
         shell: bash
         env:
           FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH }}
@@ -218,22 +220,34 @@ jobs:
       # restore a cache saved on the feature branch. PR 1 measured resolve at 383 s,
       # over the 45 s line, so SourcePackages is uploaded too. success() keeps a
       # failed warm run from publishing a cache the fetch script would refuse.
+      # upload-artifact v4 drops modes and follows symlinks, so each directory is
+      # tarred first. compression-level 0 skips a second zip of an already-packed file.
+      - name: Pack the compilation cache artifact
+        if: inputs.save-cache && success()
+        run: tar -C "$DERIVED_DATA" -cf "$RUNNER_TEMP/cas.tar" CompilationCache.noindex
+
       - name: Upload the compilation cache artifact
         if: inputs.save-cache && success()
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.CAS_ARTIFACT_NAME }}
-          path: ${{ env.DERIVED_DATA }}/CompilationCache.noindex
+          path: ${{ runner.temp }}/cas.tar
           retention-days: 3
+          compression-level: 0
           include-hidden-files: true
+
+      - name: Pack the Swift package artifact
+        if: inputs.save-cache && success()
+        run: tar -C "$DERIVED_DATA" -cf "$RUNNER_TEMP/spm.tar" SourcePackages
 
       - name: Upload the Swift package artifact
         if: inputs.save-cache && success()
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.SPM_ARTIFACT_NAME }}
-          path: ${{ env.DERIVED_DATA }}/SourcePackages
+          path: ${{ runner.temp }}/spm.tar
           retention-days: 3
+          compression-level: 0
           include-hidden-files: true
 
       - name: Write the job summary
