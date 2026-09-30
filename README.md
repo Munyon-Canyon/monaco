@@ -65,7 +65,7 @@ Fixed OTP. Dashboard Login Methods must have **Email** and **SMS** on. Product p
 
 The API takes two kinds of bearer token. A Privy access token (ES256) names a Privy user, and the API answers 401 `session_required` until that user has a `users` row. A dev token (HS256) names a Monaco user id and works only outside production.
 
-`monacoctl dev privy-token` signs a Privy token with the fakes server's fixture key, valid for 1 h, so curl checks need no Privy dashboard. It refuses `MONACO_ENV=production`. Run the backend against the fakes with the matching key:
+`monacoctl dev privy-token` signs a Privy token with the fakes server's fixture key, valid for 1 h, so curl checks need no Privy dashboard. It refuses `MONACO_ENV=staging` and `MONACO_ENV=production`. The api also refuses to boot in those environments when `PRIVY_VERIFICATION_KEY` is the public key that `--print-public-key` prints. Run the backend against the fakes with the matching key:
 
 ```bash
 just build backend

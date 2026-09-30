@@ -14,6 +14,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -40,6 +41,9 @@ func load(environ []string) (config.Config, error) {
 
 func preflight(ctx context.Context, cfg config.Config) error {
 	observability.Info(ctx, observability.BootConfig, slog.String("service", "api"), slog.Any("config", cfg.Redacted()))
+	if err := privy.CheckVerificationKey(cfg); err != nil {
+		return err
+	}
 	return bootErr(ctx, relayer.CheckBoot(ctx, cfg))
 }
 

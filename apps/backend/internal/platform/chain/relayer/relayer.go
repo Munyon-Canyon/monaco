@@ -66,7 +66,7 @@ func (r *Relayer) CheckFloor(ctx context.Context) error {
 }
 
 func CheckBoot(ctx context.Context, cfg config.Config, opts ...httpclient.Option) error {
-	if cfg.Env != config.EnvStaging && cfg.Env != config.EnvProduction {
+	if !cfg.Env.Deployed() {
 		return nil
 	}
 	r, err := New(cfg, solana.New(cfg, clock.Real{}, opts...))
