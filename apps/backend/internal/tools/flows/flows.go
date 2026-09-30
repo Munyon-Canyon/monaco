@@ -90,7 +90,7 @@ func problemf(line int, format string, args ...any) Problem {
 }
 
 var (
-	idPattern         = regexp.MustCompile(`^[0-9]+$`)
+	idPattern         = regexp.MustCompile(`^[0-9]+[a-z]?$`)
 	identPattern      = regexp.MustCompile(`^[A-Z][A-Za-z0-9]*$`)
 	crashPointPattern = regexp.MustCompile(`^[a-z]+(-[a-z]+)*$`)
 )
@@ -158,7 +158,7 @@ func rowShape(f Flow) []Problem {
 	var problems []Problem
 	bad := func(format string, args ...any) { problems = append(problems, problemf(f.Line, format, args...)) }
 	if !idPattern.MatchString(f.ID) {
-		bad("id %q must be digits", f.ID)
+		bad("id %q must be digits with at most one lowercase letter after them", f.ID)
 	}
 	for _, c := range [...]struct{ column, value string }{{"flow", f.Name}, {"module", f.Module}, {"doc", f.Doc}} {
 		if c.value == "" {

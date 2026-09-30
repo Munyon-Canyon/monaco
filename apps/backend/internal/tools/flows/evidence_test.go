@@ -54,6 +54,7 @@ func TestCheckTests_builtFlowsNeedAPassingTestPerOutcome(t *testing.T) {
 	pass07OK := passed("TestFlow07_FundCabal_OK")
 	planned := fundRowWith(func(c []string) { c[8] = "planned" })
 	verified := fundRowWith(func(c []string) { c[8] = "verified" })
+	sub := fundRowWith(func(c []string) { c[0], c[4], c[7] = "01a", "SetHandle", "ok" })
 	for _, tc := range []struct {
 		name  string
 		row   string
@@ -80,6 +81,15 @@ func TestCheckTests_builtFlowsNeedAPassingTestPerOutcome(t *testing.T) {
 		{
 			"test for a removed outcome", fundRow, all + `{"Action":"fail","Package":"p","Test":"TestFlow07_FundCabal_Paused"}`,
 			[]string{"flows.tsv: test TestFlow07_FundCabal_Paused matches no flow outcome; delete the test or add its row"},
+		},
+		{"sub-row test matches its row", sub, passed("TestFlow01a_SetHandle_OK"), nil},
+		{
+			"test for a deleted sub-row", sub, testJSON(passed("TestFlow01a_SetHandle_OK"), passed("TestFlow01b_SetHandle_OK")),
+			[]string{"flows.tsv: test TestFlow01b_SetHandle_OK matches no flow outcome; delete the test or add its row"},
+		},
+		{
+			"uppercase letter does not make a flow test name", sub, passed("TestFlow01A_SetHandle_OK"),
+			[]string{"flows.tsv:2: outcome ok has no test TestFlow01a_SetHandle_OK in the go test -json input"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

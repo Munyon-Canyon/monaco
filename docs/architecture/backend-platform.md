@@ -559,7 +559,7 @@ The table below is a render. The file is `apps/backend/flows.tsv`, one line per 
 
 | Column | Contents | Checked by |
 | --- | --- | --- |
-| `id` | `07` | unique |
+| `id` | `07`, or `01a` for a sub-row of flow 01 | unique; digits with at most one lowercase letter after them |
 | `flow` | `Fund cabal` | |
 | `module` | `treasury` | directory exists |
 | `trigger` | `POST /v1/cabals/{id}/fund` or `consumer:proposal.passed` or `poller:deposits` | route in `openapi.yaml`, subject in registry, or poller registered |

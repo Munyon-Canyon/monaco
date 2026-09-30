@@ -76,7 +76,7 @@ func CheckTests(flows []Flow, results TestResults) []Problem {
 	return problems
 }
 
-var flowTest = regexp.MustCompile(`^TestFlow[0-9]+_[^/]*$`)
+var flowTest = regexp.MustCompile(`^TestFlow[0-9]+[a-z]?_[^/]*$`)
 
 func ScriptName(f Flow, o Outcome) string {
 	return "F" + strings.ReplaceAll(strings.TrimPrefix(TestName(f, o), "TestFlow"), "_", "")
