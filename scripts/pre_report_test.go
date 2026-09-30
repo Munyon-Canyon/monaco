@@ -22,7 +22,7 @@ func TestPreReport_printsLocalGatesFromTheCIFilters(t *testing.T) {
 		{
 			"xcode-version runs the app build",
 			[]string{".xcode-version"},
-			"just build mobile\n",
+			"cd packages/mobile-core && swift test\njust build mobile\n",
 		},
 		{
 			"error codes stay on the backend gate",

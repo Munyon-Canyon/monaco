@@ -274,6 +274,8 @@ jobs:
               - 'packages/mobile-core/**'
               - 'apps/backend/api/openapi.yaml'
               - 'scripts/install-xcsift.sh'
+              - '.xcode-version'
+              - 'scripts/ci/select-xcode.sh'
               - '.github/workflows/ci-mobile-core.yml'
             web:
               - 'apps/web/**'
