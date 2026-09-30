@@ -75,7 +75,7 @@ func TestBounds_killsDispatchSurvivors(t *testing.T) {
 		got, pidErr := env.claudePID(context.Background())
 		wantPID := strings.HasPrefix(line, "2")
 		if (pidErr == nil) != wantPID || (pidErr == nil && got != 2) ||
-			(pidErr != nil && !strings.Contains(cliText(pidErr), "missing assertion")) {
+			(pidErr != nil && !strings.Contains(cliText(pidErr), "no claude process above pid")) {
 			t.Fatalf("%q %d %v", line, got, pidErr)
 		}
 	}

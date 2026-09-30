@@ -84,7 +84,7 @@ func TestEdges_dispatchBlockersAndProcess(t *testing.T) {
 		if _, err := env.claudePID(
 			context.Background(),
 		); err == nil ||
-			!strings.Contains(cliText(err), "missing assertion") {
+			!strings.Contains(cliText(err), "no claude process above pid") {
 			t.Fatalf("%q: %v", out, err)
 		}
 	}

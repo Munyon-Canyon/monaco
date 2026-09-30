@@ -311,24 +311,26 @@ func (env *Env) caffeinated(ctx context.Context) bool {
 }
 
 func (env *Env) claudePID(ctx context.Context) (int, error) {
-	pid := os.Getpid()
+	start := os.Getpid()
+	pid := start
 	for range 32 {
 		out, err := env.Run(ctx, "", "", "ps", "-o", "ppid=,comm=", "-p", strconv.Itoa(pid))
 		if err != nil {
 			return 0, err
 		}
-		fields := strings.Fields(string(out))
-		if len(fields) < 2 {
-			return 0, detailErr(errs.CodeInvalidInput, "monacoctl.agents.dispatch", "watchdog: missing assertion")
-		}
-		if strings.Contains(fields[1], "claude") {
+		ppidField, command, _ := strings.Cut(strings.TrimSpace(string(out)), " ")
+		if strings.Contains(filepath.Base(command), "claude") {
 			return pid, nil
 		}
-		ppid, err := strconv.Atoi(fields[0])
+		ppid, err := strconv.Atoi(ppidField)
 		if err != nil || ppid <= 1 {
-			return 0, detailErr(errs.CodeInvalidInput, "monacoctl.agents.dispatch", "watchdog: missing assertion")
+			break
 		}
 		pid = ppid
 	}
-	return 0, detailErr(errs.CodeInvalidInput, "monacoctl.agents.dispatch", "watchdog: missing assertion")
+	return 0, detailErr(
+		errs.CodeInvalidInput,
+		"monacoctl.agents.dispatch",
+		fmt.Sprintf("watchdog: no claude process above pid %d", start),
+	)
 }
