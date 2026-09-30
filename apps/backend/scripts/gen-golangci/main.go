@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -69,7 +70,7 @@ func render(root string) ([]byte, error) {
 	}
 	var walls, rules strings.Builder
 	for _, name := range names {
-		writeWall(&walls, modPath+"/internal/modules/", name)
+		writeWalls(&walls, modPath+"/internal/modules/", name, names)
 		if err := writeExclusions(&rules, modulesDir, name); err != nil {
 			return nil, err
 		}
@@ -137,12 +138,33 @@ func splice(cfg, region, body string) (string, error) {
 	return out.String(), nil
 }
 
-func writeWall(b *strings.Builder, modulesPkg, name string) {
-	own := modulesPkg + name
-	fmt.Fprintf(b, "module-%s: { list-mode: lax, files: [\"**/internal/modules/%s/**\"], "+
-		"allow: [\"%s$\", \"%s/\"], deny: [{ pkg: \"%s\", "+
-		"desc: \"modules never import each other; send an event or use a query port\" }] }\n",
-		name, name, own, own, modulesPkg)
+func writeWalls(b *strings.Builder, modulesPkg, name string, names []string) {
+	pkg := modulesPkg + name
+	own := []string{pkg + "$", pkg + "/"}
+	roots := slices.Clone(own)
+	for _, other := range names {
+		if other != name {
+			roots = append(roots, modulesPkg+other+"$")
+		}
+	}
+	dir := "**/internal/modules/" + name + "/"
+	writeWall(b, "module-"+name, []string{dir + "**", "!" + dir + "adapters/**", "!" + dir + "domain/**"}, roots,
+		modulesPkg, "modules never import each other; send an event or use a query port")
+	writeWall(b, "module-"+name+"-inner", []string{dir + "adapters/**", dir + "domain/**"}, own,
+		modulesPkg, "domain and adapters import no other module; the module root and app read a query port")
+}
+
+func writeWall(b *strings.Builder, rule string, files, allow []string, deny, desc string) {
+	fmt.Fprintf(b, "%s: { list-mode: lax, files: [%s], allow: [%s], deny: [{ pkg: %q, desc: %q }] }\n",
+		rule, quoteAll(files), quoteAll(allow), deny, desc)
+}
+
+func quoteAll(items []string) string {
+	quoted := make([]string, len(items))
+	for i, item := range items {
+		quoted[i] = strconv.Quote(item)
+	}
+	return strings.Join(quoted, ", ")
 }
 
 func writeExclusions(b *strings.Builder, modulesDir, name string) error {

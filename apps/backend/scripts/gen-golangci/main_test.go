@@ -55,11 +55,12 @@ func readConfig(t *testing.T, root string) string {
 	return string(b)
 }
 
-func TestGenerate_writesOneSortedWallPerModuleBetweenMarkers(t *testing.T) {
+func TestGenerate_writesTwoSortedWallsPerModuleBetweenMarkers(t *testing.T) {
 	t.Parallel()
 	root := writeTree(t, map[string]string{
 		"go.mod":                               "module example.com/app\n\ngo 1.25\n",
 		".golangci.base.yml":                   testConfig,
+		"internal/modules/gamma/module.go":     "package gamma\n",
 		"internal/modules/beta/module.go":      "package beta\n",
 		"internal/modules/alpha/module.go":     "package alpha\n",
 		"internal/modules/README-not-a-dir.md": "x\n",
@@ -76,8 +77,12 @@ func TestGenerate_writesOneSortedWallPerModuleBetweenMarkers(t *testing.T) {
         domain:
           files: ["**/domain/**"]
         # BEGIN GENERATED depguard
-        module-alpha: { list-mode: lax, files: ["**/internal/modules/alpha/**"], allow: ["example.com/app/internal/modules/alpha$", "example.com/app/internal/modules/alpha/"], deny: [{ pkg: "example.com/app/internal/modules/", desc: "modules never import each other; send an event or use a query port" }] }
-        module-beta: { list-mode: lax, files: ["**/internal/modules/beta/**"], allow: ["example.com/app/internal/modules/beta$", "example.com/app/internal/modules/beta/"], deny: [{ pkg: "example.com/app/internal/modules/", desc: "modules never import each other; send an event or use a query port" }] }
+        module-alpha: { list-mode: lax, files: ["**/internal/modules/alpha/**", "!**/internal/modules/alpha/adapters/**", "!**/internal/modules/alpha/domain/**"], allow: ["example.com/app/internal/modules/alpha$", "example.com/app/internal/modules/alpha/", "example.com/app/internal/modules/beta$", "example.com/app/internal/modules/gamma$"], deny: [{ pkg: "example.com/app/internal/modules/", desc: "modules never import each other; send an event or use a query port" }] }
+        module-alpha-inner: { list-mode: lax, files: ["**/internal/modules/alpha/adapters/**", "**/internal/modules/alpha/domain/**"], allow: ["example.com/app/internal/modules/alpha$", "example.com/app/internal/modules/alpha/"], deny: [{ pkg: "example.com/app/internal/modules/", desc: "domain and adapters import no other module; the module root and app read a query port" }] }
+        module-beta: { list-mode: lax, files: ["**/internal/modules/beta/**", "!**/internal/modules/beta/adapters/**", "!**/internal/modules/beta/domain/**"], allow: ["example.com/app/internal/modules/beta$", "example.com/app/internal/modules/beta/", "example.com/app/internal/modules/alpha$", "example.com/app/internal/modules/gamma$"], deny: [{ pkg: "example.com/app/internal/modules/", desc: "modules never import each other; send an event or use a query port" }] }
+        module-beta-inner: { list-mode: lax, files: ["**/internal/modules/beta/adapters/**", "**/internal/modules/beta/domain/**"], allow: ["example.com/app/internal/modules/beta$", "example.com/app/internal/modules/beta/"], deny: [{ pkg: "example.com/app/internal/modules/", desc: "domain and adapters import no other module; the module root and app read a query port" }] }
+        module-gamma: { list-mode: lax, files: ["**/internal/modules/gamma/**", "!**/internal/modules/gamma/adapters/**", "!**/internal/modules/gamma/domain/**"], allow: ["example.com/app/internal/modules/gamma$", "example.com/app/internal/modules/gamma/", "example.com/app/internal/modules/alpha$", "example.com/app/internal/modules/beta$"], deny: [{ pkg: "example.com/app/internal/modules/", desc: "modules never import each other; send an event or use a query port" }] }
+        module-gamma-inner: { list-mode: lax, files: ["**/internal/modules/gamma/adapters/**", "**/internal/modules/gamma/domain/**"], allow: ["example.com/app/internal/modules/gamma$", "example.com/app/internal/modules/gamma/"], deny: [{ pkg: "example.com/app/internal/modules/", desc: "domain and adapters import no other module; the module root and app read a query port" }] }
         # END GENERATED depguard
   exclusions:
     presets: [comments]
