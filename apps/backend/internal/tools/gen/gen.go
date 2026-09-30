@@ -45,7 +45,9 @@ type Generator struct {
 	post func(ctx context.Context, dir string) error
 }
 
-func (g Generator) Usage() string { return "gen " + g.Kind + " " + strings.Join(g.Args, " ") }
+func (g Generator) Usage() string {
+	return strings.Join(slices.Concat([]string{"gen", g.Kind}, g.Args), " ")
+}
 
 func Generators() []Generator {
 	return []Generator{
@@ -55,6 +57,7 @@ func Generators() []Generator {
 		{Kind: "consumer", Args: []string{"<module>", "<name>"}, plan: planConsumer},
 		{Kind: "provider", Args: []string{"<name>"}, plan: planProvider},
 		{Kind: "flow", Args: []string{"<id>"}, plan: planFlow},
+		{Kind: "sqlc", plan: planSqlc, post: syncSqlc},
 	}
 }
 
@@ -147,7 +150,7 @@ func writeFile(root *os.Root, rel, body string) error {
 
 func Regenerate(ctx context.Context, dir string) error {
 	const op = "gen.Regenerate"
-	if err := syncSqlc(dir); err != nil {
+	if err := syncSqlc(ctx, dir); err != nil {
 		return err
 	}
 	for _, cmd := range []*exec.Cmd{
