@@ -52,6 +52,7 @@ jobs:
 
       - name: Write the job summary
         if: always()
+        shell: bash
         env:
           STEP_TIMES: ${{ runner.temp }}/step-times.tsv
           TEST_LOG: ${{ runner.temp }}/mobile-core.log
@@ -111,6 +112,7 @@ jobs:
 
       - name: Write the job summary
         if: always()
+        shell: bash
         env:
           STEP_TIMES: ${{ runner.temp }}/step-times.tsv
           TEST_LOG: ${{ runner.temp }}/mobile-core.log
