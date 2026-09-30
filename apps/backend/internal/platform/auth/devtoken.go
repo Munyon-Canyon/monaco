@@ -73,7 +73,7 @@ func (v *DevVerifier) Verify(_ context.Context, raw string) (Actor, error) {
 	if !v.clock.Now().Before(time.Unix(claims.Exp, 0)) {
 		return Actor{}, errs.New(errs.CodeUnauthorized, op, slog.String("reason", "expired"))
 	}
-	return Actor{Kind: ActorUser, ID: claims.Sub}, nil
+	return Actor{Kind: ActorUser, ID: claims.Sub, Standing: StandingActive}, nil
 }
 
 func (v *DevVerifier) sign(signing string) []byte {

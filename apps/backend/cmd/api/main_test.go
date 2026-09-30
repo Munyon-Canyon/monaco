@@ -189,12 +189,10 @@ func TestBootErr_onlyOurOwnCancelIsACleanStop(t *testing.T) {
 	}
 }
 
-func TestRun_refusesTheDevVerifierInProduction(t *testing.T) {
+func TestRun_refusesToBootWithoutADevTokenKeyOutsideProduction(t *testing.T) {
 	t.Parallel()
-	err := run(t.Context(), io.Discard, []string{
-		"MONACO_ENV=production", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=nats://localhost:4222",
-		"MONACO_DEV_TOKEN_KEY=dev-only",
-	}, openapi.Spec, noop.NewMeterProvider())
+	err := run(t.Context(), io.Discard, bootEnv(t, "MONACO_HTTP_ADDR=127.0.0.1:0", "MONACO_DEV_TOKEN_KEY="),
+		openapi.Spec, noop.NewMeterProvider())
 	if errs.CodeOf(err) != errs.CodeInvalidInput || !strings.Contains(err.Error(), "auth.NewDevVerifier") {
 		t.Fatalf("run = %v, want invalid_input from auth.NewDevVerifier", err)
 	}

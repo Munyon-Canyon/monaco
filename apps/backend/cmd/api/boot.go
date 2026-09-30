@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -23,6 +23,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/ratelimit"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/sse"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
@@ -37,13 +38,9 @@ func load(environ []string) (config.Config, error) {
 	return cfg, nil
 }
 
-func preflight(ctx context.Context, cfg config.Config) (*auth.DevVerifier, error) {
-	verifier, err := auth.NewDevVerifier(cfg, clock.Real{})
-	if err != nil {
-		return nil, err
-	}
+func preflight(ctx context.Context, cfg config.Config) error {
 	observability.Info(ctx, observability.BootConfig, slog.String("service", "api"), slog.Any("config", cfg.Redacted()))
-	return verifier, bootErr(ctx, relayer.CheckBoot(ctx, cfg))
+	return bootErr(ctx, relayer.CheckBoot(ctx, cfg))
 }
 
 func connectBus(ctx context.Context, cfg config.Config, meters metric.MeterProvider) (*bus.Conn, error) {
@@ -124,28 +121,29 @@ func startHub(ctx context.Context, conn *bus.Conn, meters metric.MeterProvider) 
 	return hub, stop, nil
 }
 
-func newHandler(
-	cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, verifier auth.TokenVerifier, routes httpx.Routes,
-	spec []byte, meters metric.MeterProvider,
-) (http.Handler, error) {
+func newHandler(deps module.Deps, spec []byte, meters metric.MeterProvider) (http.Handler, error) {
+	verifier, err := identity.NewVerifier(deps)
+	if err != nil {
+		return nil, err
+	}
 	policies, err := ratelimit.Load(spec)
 	if err != nil {
 		return nil, err
 	}
-	limiter, err := ratelimit.New(pool, clock.Real{}, meters)
+	limiter, err := ratelimit.New(deps.Pool, clock.Real{}, meters)
 	if err != nil {
 		return nil, err
 	}
 	return httpx.Handler(httpx.Deps{
-		Logger:       logger,
+		Logger:       deps.Logger,
 		Tracer:       otel.GetTracerProvider(),
 		Clock:        clock.Real{},
 		IDs:          ids.Real{},
-		MaxBodyBytes: int64(cfg.HTTP.MaxBodyBytes),
-		Idempotency:  db.NewIdempotencyStore(pool, clock.Real{}),
+		MaxBodyBytes: int64(deps.Config.HTTP.MaxBodyBytes),
+		Idempotency:  db.NewIdempotencyStore(deps.Pool, clock.Real{}),
 		Verifier:     verifier,
-		RateLimit:    ratelimit.Middleware(limiter, policies, httpx.ActorKey, cfg.HTTP.TrustProxyHeaders),
-	}, routes, spec)
+		RateLimit:    ratelimit.Middleware(limiter, policies, httpx.ActorKey, deps.Config.HTTP.TrustProxyHeaders),
+	}, registered.Build(deps).Routes(), spec)
 }
 
 func listen(ctx context.Context, cfg config.Config) (net.Listener, error) {

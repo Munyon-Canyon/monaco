@@ -44,7 +44,7 @@ func TestDevVerifier_acceptsItsOwnTokenUntilExpiry(t *testing.T) {
 		t.Fatalf("token %q is not a compact JWT", token)
 	}
 	actor, err := v.Verify(t.Context(), token)
-	if err != nil || actor != (Actor{Kind: ActorUser, ID: "u-1"}) {
+	if err != nil || actor != (Actor{Kind: ActorUser, ID: "u-1", Standing: StandingActive}) {
 		t.Fatalf("Verify = %+v, %v", actor, err)
 	}
 	late := devVerifier(t, "k1", now.Add(time.Minute))

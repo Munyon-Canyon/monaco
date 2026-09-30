@@ -52,8 +52,7 @@ func run(
 	}()
 	logger := observability.NewLogger(cfg, stderr)
 	ctx = observability.WithLogger(ctx, logger)
-	verifier, err := preflight(ctx, cfg)
-	if err != nil {
+	if err := preflight(ctx, cfg); err != nil {
 		return err
 	}
 	pool, err := db.Open(ctx, cfg.DB)
@@ -76,10 +75,10 @@ func run(
 		return bootErr(ctx, err)
 	}
 	defer func() { err = errors.Join(err, stopBackground()) }()
-	handler, err := newHandler(cfg, logger, pool, verifier, registered.Build(module.Deps{
+	handler, err := newHandler(module.Deps{
 		Config: cfg, Logger: logger, Clock: clock.Real{}, IDs: ids.Real{}, Pool: pool, UoW: uow, Bus: conn,
 		HTTPClient: httpclient.New, Hub: hub,
-	}).Routes(), spec, meters)
+	}, spec, meters)
 	if err != nil {
 		return err
 	}

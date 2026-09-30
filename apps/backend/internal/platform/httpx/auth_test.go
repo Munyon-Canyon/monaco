@@ -195,6 +195,31 @@ func TestAuth_aVerifierOutageIs503NotA401(t *testing.T) {
 	}
 }
 
+func TestAuth_keepsTheVerifierCodeOnlyForAuthInternalAndOutageKinds(t *testing.T) {
+	t.Parallel()
+	for code, want := range map[errs.Code]struct {
+		status int
+		code   string
+	}{
+		errs.CodeSessionRequired: {http.StatusUnauthorized, "session_required"},
+		errs.CodeInternal:        {http.StatusInternalServerError, "internal"},
+		errs.CodeInvalidInput:    {http.StatusUnauthorized, "unauthorized"},
+		errs.CodeNotFound:        {http.StatusUnauthorized, "unauthorized"},
+	} {
+		t.Run(string(code), func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			handler, actors := authed(t, h, stubVerifier(func(context.Context, string) (auth.Actor, error) {
+				return auth.Actor{}, errs.New(code, "test.Verify")
+			}))
+			rec := serveRaw(t, handler, http.MethodGet, "/v1/me", bearer("any"))
+			if p := decodeProblem(t, rec); rec.Code != want.status || string(p.Code) != want.code || len(*actors) != 0 {
+				t.Fatalf("got %d %+v with actors %v, want %d %s", rec.Code, p, *actors, want.status, want.code)
+			}
+		})
+	}
+}
+
 func TestAuth_withoutAResolvedRouteFailsClosed(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)

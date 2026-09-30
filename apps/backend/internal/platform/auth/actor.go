@@ -15,9 +15,19 @@ const (
 	ActorSystem ActorKind = "system"
 )
 
+type Standing string
+
+const (
+	StandingActive    Standing = "active"
+	StandingSuspended Standing = "suspended"
+	StandingBanned    Standing = "banned"
+	StandingDeleted   Standing = "deleted"
+)
+
 type Actor struct {
-	Kind ActorKind
-	ID   string
+	Kind     ActorKind
+	ID       string
+	Standing Standing
 }
 
 func (a Actor) Key() string { return string(a.Kind) + ":" + a.ID }

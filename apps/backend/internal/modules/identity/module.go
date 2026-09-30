@@ -4,9 +4,12 @@ import (
 	"context"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/authn"
+	privyadapter "github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/privy"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -78,4 +81,8 @@ type Queries interface {
 	UserReader
 	ContactMatcher
 	WalletReader
+}
+
+func NewVerifier(d module.Deps) (*authn.Verifier, error) {
+	return authn.New(d.Config, d.Clock, privyadapter.Users{Client: privy.New(d.Config, d.Clock)}, d.Pool)
 }
