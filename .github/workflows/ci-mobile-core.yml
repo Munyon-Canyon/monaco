@@ -2,9 +2,11 @@ name: CI mobile-core
 
 # Called from ci-jobs.yml's mobile-core job. Kept in its own file so the `plan` job's
 # `mobile-core` path filter can key on this file instead of every `ci*.yml`, which every
-# backend PR touches. docs/architecture/ci.md#triggers
+# backend PR touches. workflow_dispatch runs it alone on a branch, to measure it.
+# docs/architecture/ci.md#triggers
 on:
   workflow_call:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -27,7 +29,7 @@ jobs:
     # Xcode builds MonacoCore with -suppress-warnings, so only a SwiftPM build fails on a warning
     # in Darwin-only code. docs/architecture/ci.md#what-runs-where
     name: Swift (mobile-core, macOS)
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
