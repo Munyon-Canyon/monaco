@@ -184,7 +184,7 @@ func TestRelay_publishesACommitWithinOneSignalAndMarksItAfterTheAck(t *testing.T
 	if n := msgs(t, h.bus); n != 1 {
 		t.Fatalf("stream holds %d messages, want 1", n)
 	}
-	ticks := h.lines(t, "bus.relay.tick")
+	ticks := h.waitLines(t, "bus.relay.tick", 1)
 	if len(ticks) != 1 || ticks[0]["count"] != float64(1) || ticks[0]["first_id"] != ticks[0]["last_id"] ||
 		ticks[0]["first_id"] != msg.Headers().Get(jetstream.MsgIDHeader) {
 		t.Fatalf("tick lines = %v, want one with count 1 and first_id = last_id = the msg id", ticks)
@@ -211,7 +211,7 @@ func TestRelay_publishesInIDOrderAndLoopsPastAFullBatch(t *testing.T) {
 	if n := msgs(t, h.bus); n != 150 {
 		t.Fatalf("stream holds %d messages, want %d", n, 150)
 	}
-	ticks := h.lines(t, "bus.relay.tick")
+	ticks := h.waitLines(t, "bus.relay.tick", 2)
 	if len(ticks) != 2 || ticks[0]["count"] != float64(100) || ticks[1]["count"] != float64(50) {
 		t.Fatalf("tick lines = %v, want counts 100 then 50 with no wake channel and no tick", ticks)
 	}
@@ -394,7 +394,7 @@ func TestRelay_aFullStreamKeepsRowsUnpublishedUntilSpaceFrees(t *testing.T) {
 	if got := msgs(t, h.bus); got != 3 {
 		t.Fatalf("stream holds %d messages after space freed, want 3", got)
 	}
-	ticks := h.lines(t, "bus.relay.tick")
+	ticks := h.waitLines(t, "bus.relay.tick", 2)
 	if len(ticks) != 2 || ticks[0]["count"] != float64(1) || ticks[1]["count"] != float64(2) {
 		t.Fatalf("tick lines = %v, want 1 then 2", ticks)
 	}
