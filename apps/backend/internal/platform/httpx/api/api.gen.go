@@ -34,6 +34,7 @@ const (
 	AuthStateTransition        ErrorCode = "auth_state_transition"
 	CabalBanned                ErrorCode = "cabal_banned"
 	CabalNotFound              ErrorCode = "cabal_not_found"
+	CalendarExpired            ErrorCode = "calendar_expired"
 	CannotRevokeAccess         ErrorCode = "cannot_revoke_access"
 	ClientClosed               ErrorCode = "client_closed"
 	ConservationBroken         ErrorCode = "conservation_broken"
@@ -131,6 +132,8 @@ func (e ErrorCode) Valid() bool {
 	case CabalBanned:
 		return true
 	case CabalNotFound:
+		return true
+	case CalendarExpired:
 		return true
 	case CannotRevokeAccess:
 		return true

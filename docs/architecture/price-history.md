@@ -69,7 +69,7 @@ Prices are sampled always, including when the equity market is shut (default 202
 
 The same tick appends `asset.price_moved` when an asset's change since its previous close crosses a feed threshold ([feed.md](feed.md#writing-feed-items)). There is no second poller.
 
-**Market calendar.** Whether the US market is open, and when the last session closed, comes from a static NYSE calendar in `market`'s code: regular hours plus a table of NYSE holidays and early closes, updated once a year. No calendar vendor is called (default 2026-09-29; see #535).
+**Market calendar.** Whether the US market is open, and when the last session closed, comes from a static NYSE calendar in `market`'s code: regular hours plus a table of NYSE holidays and early closes, updated once a year. No calendar vendor is called (default 2026-09-29; see #535). The table covers 2026 and 2027. A time it cannot answer returns `calendar_expired`, which alerts, so add the next year's block to `market/domain/holidays.go` before the year ends (default 2026-09-30; see #546).
 
 Poller rules from the RFC apply. It takes a Postgres advisory lock per tick, so only one worker samples ([Deploy rule 1](backend-platform.md#deploy-and-observability)). A failed tick is logged, counted in `poller_errors_total{poller,code}`, and never stops the loop ([Surfacing](backend-platform.md#surfacing)). A tick that wrote nothing still logs that it ran ([Logs as evidence](backend-platform.md#rules)). The Jupiter call goes through the `market` adapter with its configured deadline, circuit breaker and retry.
 

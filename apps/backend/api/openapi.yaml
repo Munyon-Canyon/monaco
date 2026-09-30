@@ -249,6 +249,7 @@ components:
         - auth_state_transition
         - cabal_banned
         - cabal_not_found
+        - calendar_expired
         - cannot_revoke_access
         - client_closed
         - conservation_broken

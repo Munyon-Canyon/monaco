@@ -62,7 +62,8 @@ const (
 )
 
 const (
-	CodeAssetNotFound Code = "asset_not_found"
+	CodeAssetNotFound   Code = "asset_not_found"
+	CodeCalendarExpired Code = "calendar_expired"
 )
 
 const (
@@ -276,6 +277,9 @@ func marketRows() map[Code]Row {
 	return map[Code]Row{
 		CodeAssetNotFound: {
 			Name: "AssetNotFound", Kind: KindNotFound, Message: "That asset is not in the catalog.",
+		},
+		CodeCalendarExpired: {
+			Name: "CalendarExpired", Kind: KindInternal, Alert: true, Message: "Something went wrong.",
 		},
 	}
 }
