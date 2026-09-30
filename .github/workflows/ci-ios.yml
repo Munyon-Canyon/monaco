@@ -33,13 +33,21 @@ jobs:
     name: iOS app (build, MonacoTests)
     runs-on: macos-26
     timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
 
       # actions/cache rejects a path with `..` in it, so this resolves github.workspace/../DerivedData
       # to the same directory without one. The path must not change between runs.
       - name: Resolve the DerivedData path
-        run: echo "DERIVED_DATA=$(cd "$GITHUB_WORKSPACE/.." && pwd -P)/DerivedData" >> "$GITHUB_ENV"
+        run: |
+          {
+            echo "DERIVED_DATA=$(cd "$GITHUB_WORKSPACE/.." && pwd -P)/DerivedData"
+            echo "CAS_ARTIFACT_NAME=xcode-cas-${{ runner.os }}-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}"
+            echo "SPM_ARTIFACT_NAME=spm-ios-${{ runner.os }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}"
+          } >> "$GITHUB_ENV"
 
       - name: Select Xcode
         run: scripts/ci/select-xcode.sh
@@ -55,6 +63,20 @@ jobs:
           key: spm-ios-${{ runner.os }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
           restore-keys: spm-ios-${{ runner.os }}-
 
+      # actions/cache misses on a merge-queue ref and on a stacked PR. The artifact
+      # uploaded by ci-warm.yml is the fallback, and it has to land before resolve.
+      - name: Fetch the Swift package artifact
+        id: spm-artifact
+        if: steps.spm.outputs.cache-matched-key == ''
+        continue-on-error: true
+        shell: bash
+        env:
+          FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          line="$(scripts/ci/fetch-warm-cache.sh "$SPM_ARTIFACT_NAME" "$DERIVED_DATA/SourcePackages")"
+          echo "source=$line" >> "$GITHUB_OUTPUT"
+
       # The compilation cache keys each compile on content, so it hits after a fresh checkout, but
       # only while the DerivedData path and the checkout path stay the same between runs. The
       # saved key ends in the commit because a cache key is immutable: a fixed key would keep the
@@ -69,6 +91,18 @@ jobs:
           restore-keys: |
             xcode-cas-${{ runner.os }}-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-
             xcode-cas-${{ runner.os }}-${{ hashFiles('.xcode-version') }}-
+
+      - name: Fetch the compilation cache artifact
+        id: cas-artifact
+        if: inputs.restore-cache && steps.cas.outputs.cache-matched-key == ''
+        continue-on-error: true
+        shell: bash
+        env:
+          FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          line="$(scripts/ci/fetch-warm-cache.sh "$CAS_ARTIFACT_NAME" "$DERIVED_DATA/CompilationCache.noindex")"
+          echo "source=$line" >> "$GITHUB_OUTPUT"
 
       # Compile-only Privy config: no .env.local, no secret. Unit tests need no environment.
       - name: Placeholder app config
@@ -126,13 +160,29 @@ jobs:
 
       - name: Compilation cache hits
         if: always()
+        shell: bash
         env:
-          RESTORED: ${{ steps.cas.outputs.cache-matched-key }}
+          CAS_KEY: ${{ steps.cas.outputs.cache-matched-key }}
+          CAS_FETCH: ${{ steps.cas-artifact.outputs.source }}
+          SPM_KEY: ${{ steps.spm.outputs.cache-matched-key }}
+          SPM_FETCH: ${{ steps.spm-artifact.outputs.source }}
         run: |
+          cache_source() {
+            local key="$1" fetched="$2"
+            if [[ -n "$key" ]]; then
+              printf 'actions-cache %s' "$key"
+            elif [[ -n "$fetched" ]]; then
+              printf '%s' "$fetched"
+            else
+              printf 'nothing'
+            fi
+          }
           log="$RUNNER_TEMP/build.log"
-          [[ -f "$log" ]] || exit 0
-          read -r hits misses < <(awk 'tolower($0) ~ /replay cache hit/ {h++} tolower($0) ~ /replay cache miss/ {m++} END {print h+0, m+0}' "$log")
-          echo "compilation cache: $hits hits, $misses misses (restored: ${RESTORED:-nothing})" | tee -a "$GITHUB_STEP_SUMMARY"
+          if [[ -f "$log" ]]; then
+            read -r hits misses < <(awk 'tolower($0) ~ /replay cache hit/ {h++} tolower($0) ~ /replay cache miss/ {m++} END {print h+0, m+0}' "$log")
+            echo "compilation cache: $hits hits, $misses misses (restored: $(cache_source "$CAS_KEY" "$CAS_FETCH"))" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "swift packages: restored: $(cache_source "$SPM_KEY" "$SPM_FETCH")" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Save the compilation cache
         if: inputs.save-cache && inputs.restore-cache
@@ -165,6 +215,40 @@ jobs:
           set -e
           printf 'Run MonacoTests\t%s\n' "$(( $(date +%s) - start ))" >> "$RUNNER_TEMP/step-times.tsv"
           exit "$status"
+
+      # Artifacts, not the Actions cache: a merge_group ref and a stacked PR cannot
+      # restore a cache saved on the feature branch. PR 1 measured resolve at 383 s,
+      # over the 45 s line, so SourcePackages is uploaded too. success() keeps a
+      # failed warm run from publishing a cache the fetch script would refuse.
+      # upload-artifact v4 drops modes and follows symlinks, so each directory is
+      # tarred first. compression-level 0 skips a second zip of an already-packed file.
+      - name: Pack the compilation cache artifact
+        if: inputs.save-cache && success()
+        run: tar -C "$DERIVED_DATA" -cf "$RUNNER_TEMP/cas.tar" CompilationCache.noindex
+
+      - name: Upload the compilation cache artifact
+        if: inputs.save-cache && success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.CAS_ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/cas.tar
+          retention-days: 3
+          compression-level: 0
+          include-hidden-files: true
+
+      - name: Pack the Swift package artifact
+        if: inputs.save-cache && success()
+        run: tar -C "$DERIVED_DATA" -cf "$RUNNER_TEMP/spm.tar" SourcePackages
+
+      - name: Upload the Swift package artifact
+        if: inputs.save-cache && success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.SPM_ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/spm.tar
+          retention-days: 3
+          compression-level: 0
+          include-hidden-files: true
 
       - name: Write the job summary
         if: always()

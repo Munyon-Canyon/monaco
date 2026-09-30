@@ -20,6 +20,9 @@ permissions:
 
 jobs:
   ios:
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/ci-ios.yml
     with:
       save-cache: true
