@@ -7,12 +7,15 @@ rename counts as zero. Skips generated and machine-written files (see IGNORED). 
 labelled `large-pr` passes; only a human reviewer adds that label. A PR whose body starts
 with `Lands stack: #a #b #c` (written by `monacoctl agents land-stack`) passes when it is
 the last PR listed, each listed PR is under the limit against its own parent, and each
-head has a `verify` success. A binary file fails the PR whatever its size or label, unless it
+head has a `verify` success. A PR with no such line passes on the same terms when another
+open PR's `Lands stack:` line lists it, applied to the list up to and including this PR.
+A binary file fails the PR whatever its size or label, unless it
 sits under a `testdata/` directory or has a media or document extension (MEDIA_SUFFIXES).
 The rule stops committed build output, which has no such extension.
 
 Reads BASE_SHA, HEAD_SHA, PR_LABELS (JSON list of label names), PR_BODY, PR_NUMBER and
-GITHUB_REPOSITORY from the environment.
+GITHUB_REPOSITORY from the environment. Without PR_NUMBER, as in `monacoctl agents check`,
+it looks up no open PR.
 Rules: docs/architecture/backend-platform.md#pull-requests-small-and-stacked
 """
 
@@ -145,6 +148,17 @@ class Repo:
     def on_top_of(self, parent: str, sha: str) -> bool:
         return subprocess.run(["git", "merge-base", "--is-ancestor", parent, sha]).returncode == 0
 
+    def landed_by(self, pr: int) -> tuple[int, list[int]] | None:
+        out = subprocess.run(
+            ["gh", "pr", "list", "-R", self.slug, "--state", "open", "--json", "number,body", "--limit", "200"],
+            capture_output=True, text=True, check=True,
+        ).stdout
+        for open_pr in json.loads(out):
+            numbers = stack_numbers(open_pr["body"])
+            if numbers and pr in numbers:
+                return open_pr["number"], numbers
+        return None
+
 
 def stack_errors(numbers: list[int], pr: int, base: str, repo: Repo) -> list[str]:
     if not numbers or numbers[-1] != pr:
@@ -162,6 +176,17 @@ def stack_errors(numbers: list[int], pr: int, base: str, repo: Repo) -> list[str
             errors.append(f"#{number} has no verify success on its head")
         parent = sha
     return errors
+
+
+def own_lines(numbers: list[int], base: str, repo: Repo) -> int:
+    parent = repo.head(numbers[-2]) if len(numbers) > 1 else base
+    return repo.lines(parent, repo.head(numbers[-1]))
+
+
+def report(header: str, errors: list[str]) -> None:
+    print(header)
+    for e in errors:
+        print(f"  - {e}")
 
 
 def main() -> int:
@@ -190,9 +215,22 @@ def main() -> int:
         if not errors:
             print(f"Over the limit, allowed: it lands a verified stack of PRs each under {LIMIT} lines.")
             return 0
-        print(f"The `{STACK_PREFIX}` line does not hold:")
-        for e in errors:
-            print(f"  - {e}")
+        report(f"The `{STACK_PREFIX}` line does not hold:", errors)
+    elif "PR_NUMBER" in os.environ:
+        pr, base = int(os.environ["PR_NUMBER"]), os.environ["BASE_SHA"]
+        repo = Repo(os.environ["GITHUB_REPOSITORY"])
+        landed = repo.landed_by(pr)
+        if landed is not None:
+            top, listed = landed
+            numbers = listed[: listed.index(pr) + 1]
+            errors = stack_errors(numbers, pr, base, repo)
+            if not errors:
+                print(
+                    f"Over the limit against the feature branch, allowed: #{top} lands it in a verified stack, "
+                    f"and it is {own_lines(numbers, base, repo)} lines against its own parent."
+                )
+                return 0
+            report(f"The `{STACK_PREFIX}` line of #{top} does not hold for this PR:", errors)
     print(f"PR is over the {LIMIT}-line limit. Split it into a Graphite stack "
           "(the distribute-stack-changes skill or `gt split --by-hunk`), or ask a human "
           f"reviewer for the `{OVERRIDE_LABEL}` label if the change is mechanical.")
