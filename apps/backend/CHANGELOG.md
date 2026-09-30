@@ -8,6 +8,7 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 
 ### Added
 
+- The `cabal` module.
 - The `identity` module.
 - The `treasury` module.
 - The `market` module: the `assets` catalog table and the read-only `market.Catalog` port (`AssetByID`, `AssetByMint`, `AssetBySymbol`, `ListTradable`, `ListAll`), the `asset_not_found` error code, and `testkit/marketfake.CatalogFake` with AAPLx, TSLAx and a halted JPSTx.

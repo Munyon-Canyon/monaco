@@ -19,76 +19,91 @@ import (
 
 // Defines values for ErrorCode.
 const (
-	AccountBanned           ErrorCode = "account_banned"
-	AccountDeleted          ErrorCode = "account_deleted"
-	AccountHasBalance       ErrorCode = "account_has_balance"
-	AccountHasPositions     ErrorCode = "account_has_positions"
-	AccountStatusTransition ErrorCode = "account_status_transition"
-	AccountSuspended        ErrorCode = "account_suspended"
-	AnalyticsPii            ErrorCode = "analytics_pii"
-	ApnsAuthFailed          ErrorCode = "apns_auth_failed"
-	ApnsUnavailable         ErrorCode = "apns_unavailable"
-	AssetNotFound           ErrorCode = "asset_not_found"
-	AuthStateTransition     ErrorCode = "auth_state_transition"
-	ClientClosed            ErrorCode = "client_closed"
-	ConservationBroken      ErrorCode = "conservation_broken"
-	DbSchemaBehind          ErrorCode = "db_schema_behind"
-	DbUnavailable           ErrorCode = "db_unavailable"
-	DecodeFailed            ErrorCode = "decode_failed"
-	DisplayNameInvalid      ErrorCode = "display_name_invalid"
-	Forbidden               ErrorCode = "forbidden"
-	HandleInvalid           ErrorCode = "handle_invalid"
-	HandleRequired          ErrorCode = "handle_required"
-	HandleReserved          ErrorCode = "handle_reserved"
-	HandleTaken             ErrorCode = "handle_taken"
-	HandleTooSoon           ErrorCode = "handle_too_soon"
-	IdempotencyInFlight     ErrorCode = "idempotency_in_flight"
-	IdempotencyMismatch     ErrorCode = "idempotency_mismatch"
-	Internal                ErrorCode = "internal"
-	InvalidAddress          ErrorCode = "invalid_address"
-	InvalidConfig           ErrorCode = "invalid_config"
-	InvalidInput            ErrorCode = "invalid_input"
-	JupiterRejected         ErrorCode = "jupiter_rejected"
-	JupiterUnavailable      ErrorCode = "jupiter_unavailable"
-	LedgerUnbalanced        ErrorCode = "ledger_unbalanced"
-	LiveSwapExists          ErrorCode = "live_swap_exists"
-	LoginMethodNotAllowed   ErrorCode = "login_method_not_allowed"
-	NoRoute                 ErrorCode = "no_route"
-	NotAVoter               ErrorCode = "not_a_voter"
-	NotCabalMember          ErrorCode = "not_cabal_member"
-	NotFound                ErrorCode = "not_found"
-	NotProposer             ErrorCode = "not_proposer"
-	Panic                   ErrorCode = "panic"
-	PhoneNotLinked          ErrorCode = "phone_not_linked"
-	PhotoInvalid            ErrorCode = "photo_invalid"
-	PostHogRejected         ErrorCode = "post_hog_rejected"
-	PostHogUnavailable      ErrorCode = "post_hog_unavailable"
-	PotExceeded             ErrorCode = "pot_exceeded"
-	PotValueZero            ErrorCode = "pot_value_zero"
-	PrivyUnavailable        ErrorCode = "privy_unavailable"
-	ProposalClosed          ErrorCode = "proposal_closed"
-	ProposalNotFound        ErrorCode = "proposal_not_found"
-	RateLimited             ErrorCode = "rate_limited"
-	RelayerUnderfunded      ErrorCode = "relayer_underfunded"
-	RpcUnavailable          ErrorCode = "rpc_unavailable"
-	SessionRequired         ErrorCode = "session_required"
-	SlippageExceeded        ErrorCode = "slippage_exceeded"
-	SwapFailed              ErrorCode = "swap_failed"
-	SwapNotFound            ErrorCode = "swap_not_found"
-	SwapNotRetryable        ErrorCode = "swap_not_retryable"
-	Unauthorized            ErrorCode = "unauthorized"
-	UpstreamTimeout         ErrorCode = "upstream_timeout"
-	UpstreamUnavailable     ErrorCode = "upstream_unavailable"
-	UserNotFound            ErrorCode = "user_not_found"
-	VersionConflict         ErrorCode = "version_conflict"
-	WalletMismatch          ErrorCode = "wallet_mismatch"
-	WithdrawNotAllowed      ErrorCode = "withdraw_not_allowed"
-	XNotLinked              ErrorCode = "x_not_linked"
+	AccessRequestNotPending    ErrorCode = "access_request_not_pending"
+	AccountBanned              ErrorCode = "account_banned"
+	AccountDeleted             ErrorCode = "account_deleted"
+	AccountHasBalance          ErrorCode = "account_has_balance"
+	AccountHasPositions        ErrorCode = "account_has_positions"
+	AccountStatusTransition    ErrorCode = "account_status_transition"
+	AccountSuspended           ErrorCode = "account_suspended"
+	AlreadyMember              ErrorCode = "already_member"
+	AnalyticsPii               ErrorCode = "analytics_pii"
+	ApnsAuthFailed             ErrorCode = "apns_auth_failed"
+	ApnsUnavailable            ErrorCode = "apns_unavailable"
+	AssetNotFound              ErrorCode = "asset_not_found"
+	AuthStateTransition        ErrorCode = "auth_state_transition"
+	CabalBanned                ErrorCode = "cabal_banned"
+	CabalNotFound              ErrorCode = "cabal_not_found"
+	CannotRevokeAccess         ErrorCode = "cannot_revoke_access"
+	ClientClosed               ErrorCode = "client_closed"
+	ConservationBroken         ErrorCode = "conservation_broken"
+	DbSchemaBehind             ErrorCode = "db_schema_behind"
+	DbUnavailable              ErrorCode = "db_unavailable"
+	DecodeFailed               ErrorCode = "decode_failed"
+	DisplayNameInvalid         ErrorCode = "display_name_invalid"
+	Forbidden                  ErrorCode = "forbidden"
+	HandleInvalid              ErrorCode = "handle_invalid"
+	HandleRequired             ErrorCode = "handle_required"
+	HandleReserved             ErrorCode = "handle_reserved"
+	HandleTaken                ErrorCode = "handle_taken"
+	HandleTooSoon              ErrorCode = "handle_too_soon"
+	IdempotencyInFlight        ErrorCode = "idempotency_in_flight"
+	IdempotencyMismatch        ErrorCode = "idempotency_mismatch"
+	Internal                   ErrorCode = "internal"
+	InvalidAddress             ErrorCode = "invalid_address"
+	InvalidConfig              ErrorCode = "invalid_config"
+	InvalidInput               ErrorCode = "invalid_input"
+	InviteExpired              ErrorCode = "invite_expired"
+	JoinNeedsRequest           ErrorCode = "join_needs_request"
+	JupiterRejected            ErrorCode = "jupiter_rejected"
+	JupiterUnavailable         ErrorCode = "jupiter_unavailable"
+	LeaveCreatorWithMembers    ErrorCode = "leave_creator_with_members"
+	LeaveHoldsShares           ErrorCode = "leave_holds_shares"
+	LeaveLastMemberPotNotEmpty ErrorCode = "leave_last_member_pot_not_empty"
+	LedgerUnbalanced           ErrorCode = "ledger_unbalanced"
+	LiveSwapExists             ErrorCode = "live_swap_exists"
+	LoginMethodNotAllowed      ErrorCode = "login_method_not_allowed"
+	NoRoute                    ErrorCode = "no_route"
+	NotAVoter                  ErrorCode = "not_a_voter"
+	NotCabalCreator            ErrorCode = "not_cabal_creator"
+	NotCabalMember             ErrorCode = "not_cabal_member"
+	NotFound                   ErrorCode = "not_found"
+	NotProposer                ErrorCode = "not_proposer"
+	Panic                      ErrorCode = "panic"
+	PhoneNotLinked             ErrorCode = "phone_not_linked"
+	PhotoInvalid               ErrorCode = "photo_invalid"
+	PostHogRejected            ErrorCode = "post_hog_rejected"
+	PostHogUnavailable         ErrorCode = "post_hog_unavailable"
+	PotExceeded                ErrorCode = "pot_exceeded"
+	PotValueZero               ErrorCode = "pot_value_zero"
+	PrivyUnavailable           ErrorCode = "privy_unavailable"
+	ProposalClosed             ErrorCode = "proposal_closed"
+	ProposalNotFound           ErrorCode = "proposal_not_found"
+	RateLimited                ErrorCode = "rate_limited"
+	RelayerUnderfunded         ErrorCode = "relayer_underfunded"
+	RequestNotNeeded           ErrorCode = "request_not_needed"
+	RequestPending             ErrorCode = "request_pending"
+	RpcUnavailable             ErrorCode = "rpc_unavailable"
+	SessionRequired            ErrorCode = "session_required"
+	SlippageExceeded           ErrorCode = "slippage_exceeded"
+	SwapFailed                 ErrorCode = "swap_failed"
+	SwapNotFound               ErrorCode = "swap_not_found"
+	SwapNotRetryable           ErrorCode = "swap_not_retryable"
+	Unauthorized               ErrorCode = "unauthorized"
+	UpstreamTimeout            ErrorCode = "upstream_timeout"
+	UpstreamUnavailable        ErrorCode = "upstream_unavailable"
+	UserNotFound               ErrorCode = "user_not_found"
+	VersionConflict            ErrorCode = "version_conflict"
+	WalletMismatch             ErrorCode = "wallet_mismatch"
+	WithdrawNotAllowed         ErrorCode = "withdraw_not_allowed"
+	XNotLinked                 ErrorCode = "x_not_linked"
 )
 
 // Valid indicates whether the value is a known member of the ErrorCode enum.
 func (e ErrorCode) Valid() bool {
 	switch e {
+	case AccessRequestNotPending:
+		return true
 	case AccountBanned:
 		return true
 	case AccountDeleted:
@@ -101,6 +116,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case AccountSuspended:
 		return true
+	case AlreadyMember:
+		return true
 	case AnalyticsPii:
 		return true
 	case ApnsAuthFailed:
@@ -110,6 +127,12 @@ func (e ErrorCode) Valid() bool {
 	case AssetNotFound:
 		return true
 	case AuthStateTransition:
+		return true
+	case CabalBanned:
+		return true
+	case CabalNotFound:
+		return true
+	case CannotRevokeAccess:
 		return true
 	case ClientClosed:
 		return true
@@ -147,9 +170,19 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case InvalidInput:
 		return true
+	case InviteExpired:
+		return true
+	case JoinNeedsRequest:
+		return true
 	case JupiterRejected:
 		return true
 	case JupiterUnavailable:
+		return true
+	case LeaveCreatorWithMembers:
+		return true
+	case LeaveHoldsShares:
+		return true
+	case LeaveLastMemberPotNotEmpty:
 		return true
 	case LedgerUnbalanced:
 		return true
@@ -160,6 +193,8 @@ func (e ErrorCode) Valid() bool {
 	case NoRoute:
 		return true
 	case NotAVoter:
+		return true
+	case NotCabalCreator:
 		return true
 	case NotCabalMember:
 		return true
@@ -190,6 +225,10 @@ func (e ErrorCode) Valid() bool {
 	case RateLimited:
 		return true
 	case RelayerUnderfunded:
+		return true
+	case RequestNotNeeded:
+		return true
+	case RequestPending:
 		return true
 	case RpcUnavailable:
 		return true

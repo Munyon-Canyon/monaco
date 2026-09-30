@@ -81,7 +81,6 @@ const (
 	CodeWithdrawNotAllowed Code = "withdraw_not_allowed"
 	CodeLiveSwapExists     Code = "live_swap_exists"
 	CodePotExceeded        Code = "pot_exceeded"
-	CodeNotCabalMember     Code = "not_cabal_member"
 )
 
 const (
@@ -99,6 +98,23 @@ const (
 	CodeAnalyticsPII       Code = "analytics_pii"
 )
 
+const (
+	CodeCabalNotFound              Code = "cabal_not_found"
+	CodeNotCabalMember             Code = "not_cabal_member"
+	CodeNotCabalCreator            Code = "not_cabal_creator"
+	CodeCannotRevokeAccess         Code = "cannot_revoke_access"
+	CodeCabalBanned                Code = "cabal_banned"
+	CodeAlreadyMember              Code = "already_member"
+	CodeJoinNeedsRequest           Code = "join_needs_request"
+	CodeRequestNotNeeded           Code = "request_not_needed"
+	CodeRequestPending             Code = "request_pending"
+	CodeAccessRequestNotPending    Code = "access_request_not_pending"
+	CodeInviteExpired              Code = "invite_expired"
+	CodeLeaveHoldsShares           Code = "leave_holds_shares"
+	CodeLeaveLastMemberPotNotEmpty Code = "leave_last_member_pot_not_empty"
+	CodeLeaveCreatorWithMembers    Code = "leave_creator_with_members"
+)
+
 type Row struct {
 	Name      string
 	Kind      Kind
@@ -107,11 +123,11 @@ type Row struct {
 	Message   string
 }
 
-func rowGroups() [9]func() map[Code]Row {
+func rowGroups() [10]func() map[Code]Row {
 	return [...]func() map[Code]Row{
 		platformRows, identityRows, treasuryRows, marketRows,
 		tradingRows, governanceRows, rankingRows, apnsRows,
-		analyticsRows,
+		analyticsRows, cabalRows,
 	}
 }
 
@@ -305,9 +321,6 @@ func governanceRows() map[Code]Row {
 			Name: "LiveSwapExists", Kind: KindBlocked, Message: "This proposal's trade is already underway.",
 		},
 		CodePotExceeded: {Name: "PotExceeded", Kind: KindBlocked, Message: "That amount is more than the cabal holds."},
-		CodeNotCabalMember: {
-			Name: "NotCabalMember", Kind: KindForbidden, Message: "Only members of this cabal can do that.",
-		},
 	}
 }
 
@@ -346,6 +359,56 @@ func analyticsRows() map[Code]Row {
 		},
 		CodeAnalyticsPII: {
 			Name: "AnalyticsPII", Kind: KindInternal, Alert: true, Message: "Something went wrong.",
+		},
+	}
+}
+
+func cabalRows() map[Code]Row {
+	return map[Code]Row{
+		CodeCabalNotFound: {Name: "CabalNotFound", Kind: KindNotFound, Message: "We could not find that cabal."},
+		CodeNotCabalMember: {
+			Name: "NotCabalMember", Kind: KindForbidden, Message: "You are not a member of this cabal.",
+		},
+		CodeNotCabalCreator: {
+			Name: "NotCabalCreator", Kind: KindForbidden, Message: "Only the creator of this cabal can do that.",
+		},
+		CodeCannotRevokeAccess: {
+			Name: "CannotRevokeAccess", Kind: KindForbidden, Message: "You cannot cancel this request or invite.",
+		},
+		CodeCabalBanned: {
+			Name: "CabalBanned", Kind: KindBlocked,
+			Message: "This cabal is banned. Members can still cash out and leave.",
+		},
+		CodeAlreadyMember: {
+			Name: "AlreadyMember", Kind: KindBlocked, Message: "That person is already in this cabal.",
+		},
+		CodeJoinNeedsRequest: {
+			Name: "JoinNeedsRequest", Kind: KindBlocked,
+			Message: "This cabal needs the creator's approval. Send a request to join.",
+		},
+		CodeRequestNotNeeded: {
+			Name: "RequestNotNeeded", Kind: KindBlocked, Message: "This cabal is open. Join it directly.",
+		},
+		CodeRequestPending: {
+			Name: "RequestPending", Kind: KindBlocked,
+			Message: "A request or invite for this cabal is already pending.",
+		},
+		CodeAccessRequestNotPending: {
+			Name: "AccessRequestNotPending", Kind: KindBlocked,
+			Message: "This request or invite is no longer pending.",
+		},
+		CodeInviteExpired: {Name: "InviteExpired", Kind: KindBlocked, Message: "This invite has expired."},
+		CodeLeaveHoldsShares: {
+			Name: "LeaveHoldsShares", Kind: KindBlocked,
+			Message: "Cash out your share of the pot before you leave this cabal.",
+		},
+		CodeLeaveLastMemberPotNotEmpty: {
+			Name: "LeaveLastMemberPotNotEmpty", Kind: KindBlocked,
+			Message: "The pot still holds money, so the last member cannot leave yet.",
+		},
+		CodeLeaveCreatorWithMembers: {
+			Name: "LeaveCreatorWithMembers", Kind: KindBlocked,
+			Message: "The creator cannot leave while other members remain.",
 		},
 	}
 }
