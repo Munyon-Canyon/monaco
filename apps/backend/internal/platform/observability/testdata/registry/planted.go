@@ -17,4 +17,5 @@ func calls(ctx context.Context, m obs.Msg) {
 	boundary.Warn(ctx, obs.BootConfig, slog.Any("config", nil), slog.String("service", "worker"))
 	attrs := []slog.Attr{slog.String("addr", ":1")}
 	obs.Info(ctx, obs.BootListening, append(attrs, slog.String("service", "api"))...)
+	obs.Degraded(ctx, obs.BootListening, slog.String("service", "api"))
 }

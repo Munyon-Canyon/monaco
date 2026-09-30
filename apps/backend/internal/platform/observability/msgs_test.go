@@ -36,6 +36,18 @@ func TestInfoAndDebug_logTheRegisteredNameThroughTheContextLogger(t *testing.T) 
 	}
 }
 
+func TestDegraded_logsAtWarnThroughTheContextLogger(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	ctx := WithLogger(WithRequestID(t.Context(), "req-2"), NewLogger(config.Config{Env: config.EnvLocal}, &buf))
+	Degraded(ctx, BootListening, slog.String("service", "api"), slog.String("addr", ":8080"))
+	lines := decodeLines(t, &buf)
+	if len(lines) != 1 || lines[0]["level"] != "WARN" || lines[0]["msg"] != "boot.listening" ||
+		lines[0]["request_id"] != "req-2" || lines[0]["addr"] != ":8080" {
+		t.Fatalf("lines = %v, want one WARN boot.listening line with its attrs", lines)
+	}
+}
+
 func TestInfo_withoutLoggerInContextWritesNothing(t *testing.T) {
 	t.Parallel()
 	Info(t.Context(), BootListening, slog.String("service", "api"), slog.String("addr", ":8080"))
