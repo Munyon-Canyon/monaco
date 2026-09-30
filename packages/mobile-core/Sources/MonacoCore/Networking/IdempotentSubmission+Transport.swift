@@ -1,8 +1,9 @@
 import Foundation
+import MonacoAPI
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import MonacoAPI
 
 extension IdempotentSubmission {
     /// Set by the backend on responses it did not produce by running the request.

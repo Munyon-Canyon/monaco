@@ -157,8 +157,8 @@ public struct MarketRowData: Identifiable, Equatable, Sendable {
     /// the row is about. Nil when they agree, so nothing is said that need not be.
     public var sparkBasisNote: String? {
         guard asset.sparkAndChangeDisagreeOnInstrument,
-              let basisSymbol = asset.sparkBasisSymbol,
-              !basisSymbol.isEmpty
+            let basisSymbol = asset.sparkBasisSymbol,
+            !basisSymbol.isEmpty
         else { return nil }
         return basisSymbol
     }
@@ -186,7 +186,7 @@ public enum DayChangeFigures {
     /// a day anything traded through.
     public static func dollarDelta(change24h: String?, priceUsdcMicros: Int64?) -> String? {
         guard let priceUsdcMicros, priceUsdcMicros > 0,
-              let ratio = ratio(from: change24h)
+            let ratio = ratio(from: change24h)
         else { return nil }
         let denominator = Decimal(1) + ratio
         guard denominator > 0 else { return nil }
@@ -222,7 +222,7 @@ public enum DayChangeFigures {
         }
         // Decimal(string:) accepts "nan" and leading garbage; Double is the gate.
         guard let probe = Double(trimmed), probe.isFinite,
-              let value = Decimal(string: trimmed, locale: Locale(identifier: "en_US_POSIX"))
+            let value = Decimal(string: trimmed, locale: Locale(identifier: "en_US_POSIX"))
         else { return nil }
         return isPercent ? value / 100 : value
     }
@@ -244,7 +244,8 @@ public enum TopMovers {
         }
         // Ties keep catalogue order rather than flipping between refreshes: a strip
         // that reshuffles when nothing moved reads as live data when it is not.
-        return scored
+        return
+            scored
             .enumerated()
             .sorted { left, right in
                 if left.element.1 != right.element.1 { return left.element.1 > right.element.1 }

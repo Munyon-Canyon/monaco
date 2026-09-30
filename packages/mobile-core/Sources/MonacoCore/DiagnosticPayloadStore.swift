@@ -41,11 +41,13 @@ public struct DiagnosticPayloadStore: Sendable {
 
     /// Stored payload files, newest first.
     public func storedFiles() -> [URL] {
-        let contents = (try? FileManager.default.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: nil
-        )) ?? []
-        return contents
+        let contents =
+            (try? FileManager.default.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: nil
+            )) ?? []
+        return
+            contents
             .filter { $0.pathExtension == Self.fileExtension }
             .sorted { $0.lastPathComponent > $1.lastPathComponent }
     }

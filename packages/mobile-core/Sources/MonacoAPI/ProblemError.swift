@@ -21,8 +21,8 @@ public struct ProblemError: Error, Sendable, Hashable, Decodable, LocalizedError
         /// The code as the backend sent it.
         public var wire: String {
             switch self {
-            case let .known(code): code.rawValue
-            case let .unrecognized(wire): wire
+            case .known(let code): code.rawValue
+            case .unrecognized(let wire): wire
             }
         }
     }

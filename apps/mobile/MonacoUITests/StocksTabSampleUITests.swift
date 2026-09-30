@@ -59,7 +59,9 @@ final class StocksTabSampleUITests: XCTestCase {
     /// attachment per state the backend can put the tab in.
     @MainActor
     func testEveryScenarioDraws() throws {
-        for scenario in ["full", "noCabals", "cabalsFailed", "cabalsStale", "popularFailed", "loading", "noSeries", "afterHours"] {
+        for scenario in [
+            "full", "noCabals", "cabalsFailed", "cabalsStale", "popularFailed", "loading", "noSeries", "afterHours",
+        ] {
             let app = launch(scenario)
             waitForTab(app, scenario)
             attachScreenshot(app, name: "stocks-\(scenario)")

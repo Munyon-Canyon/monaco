@@ -155,8 +155,8 @@ public actor HintStream: HintSource {
         guard event.event == "hint", !Task.isCancelled else { return }
         if let id = event.id { lastEventID = id }
         guard let data = event.data,
-              let wire = try? JSONDecoder().decode(WireHint.self, from: Data(data.utf8)),
-              let hint = Hint(key: wire.key, what: wire.what, id: event.id ?? "")
+            let wire = try? JSONDecoder().decode(WireHint.self, from: Data(data.utf8)),
+            let hint = Hint(key: wire.key, what: wire.what, id: event.id ?? "")
         else {
             droppedCount += 1
             return
@@ -207,7 +207,9 @@ private struct StreamClock: Sendable {
         self = Self.opening(clock)
     }
 
-    private init(elapsed: @escaping @Sendable () -> Duration, sleep: @escaping @Sendable (Duration) async throws -> Void) {
+    private init(
+        elapsed: @escaping @Sendable () -> Duration, sleep: @escaping @Sendable (Duration) async throws -> Void
+    ) {
         self.elapsed = elapsed
         self.sleep = sleep
     }

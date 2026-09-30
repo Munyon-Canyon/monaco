@@ -97,7 +97,8 @@ public enum DisplayNameRules {
         if blankLookingScalars.contains(scalar.value) {
             return false
         }
-        return isLetter(category) || isMark(category) || isNumber(category) || isPunctuation(category) || isSymbol(category)
+        return isLetter(category) || isMark(category) || isNumber(category) || isPunctuation(category)
+            || isSymbol(category)
     }
 
     private static func isLetter(_ category: Unicode.GeneralCategory) -> Bool {
@@ -130,7 +131,7 @@ public enum DisplayNameRules {
     private static func isPunctuation(_ category: Unicode.GeneralCategory) -> Bool {
         switch category {
         case .connectorPunctuation, .dashPunctuation, .openPunctuation, .closePunctuation,
-             .initialPunctuation, .finalPunctuation, .otherPunctuation:
+            .initialPunctuation, .finalPunctuation, .otherPunctuation:
             return true
         default:
             return false
@@ -150,7 +151,8 @@ public enum DisplayNameRules {
 /// Up to two initials for an avatar placeholder: first letters of the first and last words.
 public enum AvatarInitials {
     public static func from(_ displayName: String) -> String {
-        let words = displayName
+        let words =
+            displayName
             .split(whereSeparator: { $0.isWhitespace })
             .compactMap { word in word.first(where: { $0.isLetter || $0.isNumber }) }
         guard let first = words.first else { return "" }

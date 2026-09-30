@@ -29,8 +29,8 @@ public enum APITransportErrorCategory: String, Equatable, Sendable {
         case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed, .internationalRoamingOff:
             self = .offline
         case .secureConnectionFailed, .serverCertificateHasBadDate, .serverCertificateUntrusted,
-             .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid,
-             .clientCertificateRejected, .clientCertificateRequired:
+            .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid,
+            .clientCertificateRejected, .clientCertificateRequired:
             self = .tls
         default:
             self = .other
@@ -148,9 +148,9 @@ public enum APIRouteTemplate {
     }
 }
 
-private extension Character {
-    var isASCIIDigit: Bool { isASCII && isNumber }
-    var isASCIILowercaseLetter: Bool { isASCII && isLowercase && isLetter }
+extension Character {
+    fileprivate var isASCIIDigit: Bool { isASCII && isNumber }
+    fileprivate var isASCIILowercaseLetter: Bool { isASCII && isLowercase && isLetter }
 }
 
 // MARK: Request id on errors
@@ -162,15 +162,15 @@ public let monacoRequestIDErrorKey = "MonacoRequestID"
 /// token, not from the request itself: the request never left the device.
 public let monacoTokenRefreshFailedErrorKey = "MonacoTokenRefreshFailed"
 
-public extension Error {
+extension Error {
     /// True when this failure is a token refresh that did not come back, so whatever the
     /// caller was trying to do provably did not run.
-    var isTokenRefreshFailure: Bool {
+    public var isTokenRefreshFailure: Bool {
         (self as NSError).userInfo[monacoTokenRefreshFailedErrorKey] as? Bool == true
     }
 
     /// Request id of the API call that produced this error, when known.
-    var apiRequestID: String? {
+    public var apiRequestID: String? {
         if let apiError = self as? MonacoAPIError {
             return apiError.requestID
         }
@@ -179,7 +179,7 @@ public extension Error {
 
     /// Short code a user can read out to support, e.g. `ref: 3f9a1c20`. It is the head of
     /// the request id, which the API logs in full.
-    var apiSupportReference: String? {
+    public var apiSupportReference: String? {
         guard let id = apiRequestID, !id.isEmpty else { return nil }
         return "ref: \(id.prefix(8))"
     }

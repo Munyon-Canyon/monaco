@@ -1,10 +1,11 @@
 import Foundation
-#if canImport(FoundationNetworking)
-import FoundationNetworking
-#endif
 import MonacoAPI
 import MonacoTestSupport
 import XCTest
+
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 final class APIErrorMappingTests: XCTestCase {
     private func thrown(by reply: StubTransport.Reply) async -> APIError? {
@@ -18,7 +19,7 @@ final class APIErrorMappingTests: XCTestCase {
     }
 
     func testAKnownCodeIsAProblemWithTheKnownCode() async throws {
-        guard case let .problem(problem) = await thrown(by: Fixtures.problem(404, "not_found")) else {
+        guard case .problem(let problem) = await thrown(by: Fixtures.problem(404, "not_found")) else {
             return XCTFail("expected .problem")
         }
         XCTAssertEqual(problem.code, .known(.notFound))
@@ -37,7 +38,7 @@ final class APIErrorMappingTests: XCTestCase {
     }
 
     func testAnUnknownCodeStaysAProblemWithTheUnrecognizedCode() async throws {
-        guard case let .problem(problem) = await thrown(by: Fixtures.problem(422, "brand_new")) else {
+        guard case .problem(let problem) = await thrown(by: Fixtures.problem(422, "brand_new")) else {
             return XCTFail("expected .problem")
         }
         XCTAssertEqual(problem.code, .unrecognized("brand_new"))
@@ -51,7 +52,10 @@ final class APIErrorMappingTests: XCTestCase {
     }
 
     func testAnUnreadableSuccessIsDecoding() async throws {
-        guard case .decoding = await thrown(by: .response(status: .ok, contentType: "application/json", body: Data("{".utf8))) else {
+        guard
+            case .decoding = await thrown(
+                by: .response(status: .ok, contentType: "application/json", body: Data("{".utf8)))
+        else {
             return XCTFail("expected .decoding")
         }
     }

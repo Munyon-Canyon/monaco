@@ -22,7 +22,7 @@ public enum PercentReturnFormatter {
             return trimmed
         }
         guard let value = Double(trimmed.replacingOccurrences(of: typographicMinus, with: "-")),
-              value.isFinite
+            value.isFinite
         else {
             // "nan" and "inf" parse as Doubles. Neither is a return anyone can read.
             return "—"
@@ -293,8 +293,11 @@ public enum AssetCatalogDisplayName {
 
 public enum TokenQuantityFormatter {
     public static func quantity(fromAtomics raw: String, decimals: Int) -> Decimal? {
-        guard let atomics = Decimal(string: raw.trimmingCharacters(in: .whitespaces), locale: Locale(identifier: "en_US_POSIX")),
-              atomics >= 0 else { return nil }
+        guard
+            let atomics = Decimal(
+                string: raw.trimmingCharacters(in: .whitespaces), locale: Locale(identifier: "en_US_POSIX")),
+            atomics >= 0
+        else { return nil }
         return atomics / Decimal(sign: .plus, exponent: decimals, significand: 1)
     }
 
@@ -344,11 +347,12 @@ extension UsdAmountFormatter {
         guard magnitude >= 100_000 else { return format(decimal: decimal) }
         let sign = value < 0 ? typographicMinus : ""
         // Up to trillions: a private company's value is "$2.0T", not "$1951.1B".
-        let (scaled, suffix): (Double, String) = magnitude >= 1_000_000_000_000
+        let (scaled, suffix): (Double, String) =
+            magnitude >= 1_000_000_000_000
             ? (magnitude / 1_000_000_000_000, "T")
             : magnitude >= 1_000_000_000
-            ? (magnitude / 1_000_000_000, "B")
-            : magnitude >= 1_000_000 ? (magnitude / 1_000_000, "M") : (magnitude / 1_000, "K")
+                ? (magnitude / 1_000_000_000, "B")
+                : magnitude >= 1_000_000 ? (magnitude / 1_000_000, "M") : (magnitude / 1_000, "K")
         var body = String(format: "%.1f", scaled)
         if body.hasSuffix(".0") { body.removeLast(2) }
         return "\(sign)$\(body)\(suffix)"
@@ -357,7 +361,9 @@ extension UsdAmountFormatter {
 
 extension ProposalShareFormatter {
     /// "1.2034 shares", "0.5 shares", "1 share" from atomics at the row's decimals.
-    public static func sharesLabel(fromAtomics raw: String, decimals: Int = ProposalShareFormatter.defaultDecimals, kind: AssetKind = .stock) -> String {
+    public static func sharesLabel(
+        fromAtomics raw: String, decimals: Int = ProposalShareFormatter.defaultDecimals, kind: AssetKind = .stock
+    ) -> String {
         TokenQuantityFormatter.label(fromAtomics: raw, decimals: decimals, kind: kind)
     }
 }

@@ -41,7 +41,9 @@ public enum AssetActivityCopy {
         case negative
     }
 
-    public static func lines(_ activity: [AssetActivityDTO], symbol: String, now: Date = Date(), calendar: Calendar = .current) -> [Line] {
+    public static func lines(
+        _ activity: [AssetActivityDTO], symbol: String, now: Date = Date(), calendar: Calendar = .current
+    ) -> [Line] {
         let ticker = AssetSymbolFormatter.format(symbol)
         return activity.map { line($0, ticker: ticker, now: now, calendar: calendar) }
     }
@@ -87,7 +89,8 @@ public enum AssetActivityCopy {
         if item.tokenAmount > 0 {
             let units = ProposalShareFormatter.sharesLabel(fromAtomics: String(item.tokenAmount))
             // "1.5 shares" reads oddly next to a token; say the ticker instead.
-            let stripped = units
+            let stripped =
+                units
                 .replacingOccurrences(of: " shares", with: "")
                 .replacingOccurrences(of: " share", with: "")
             return "\(stripped) \(ticker)"

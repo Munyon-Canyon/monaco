@@ -6,7 +6,8 @@ final class HintTests: XCTestCase {
         XCTAssertEqual(HintKey(wire: "user:9f2c"), .user("9f2c"))
         XCTAssertEqual(HintKey(wire: "cabal:42"), .cabal("42"))
         XCTAssertEqual(HintKey(wire: "global"), .global)
-        XCTAssertEqual(Hint(key: "cabal:42", what: "updated", id: "7"), .changed(.cabal("42"), what: "updated", id: "7"))
+        XCTAssertEqual(
+            Hint(key: "cabal:42", what: "updated", id: "7"), .changed(.cabal("42"), what: "updated", id: "7"))
     }
 
     func testMalformedKeysAndTokensAreRejected() {

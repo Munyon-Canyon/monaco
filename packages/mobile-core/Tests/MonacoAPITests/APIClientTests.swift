@@ -26,7 +26,9 @@ final class APIClientTests: XCTestCase {
     }
 
     func testASecond401SignsOut() async throws {
-        let transport = StubTransport(scripted: [Fixtures.problem(401, "unauthorized"), Fixtures.problem(401, "unauthorized")])
+        let transport = StubTransport(scripted: [
+            Fixtures.problem(401, "unauthorized"), Fixtures.problem(401, "unauthorized"),
+        ])
         let tokens = StubTokenProvider(token: "stale", refreshes: ["fresh", "fresher"])
 
         await assertThrows(.signedOut) { try await Fixtures.client(transport, tokens: tokens).healthz() }

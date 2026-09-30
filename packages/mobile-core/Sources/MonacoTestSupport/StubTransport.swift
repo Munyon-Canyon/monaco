@@ -71,9 +71,9 @@ public actor StubTransport: ClientTransport {
     ) async throws -> (HTTPResponse, HTTPBody?) {
         sent.append(request)
         switch try nextReply() {
-        case let .response(response, body):
+        case .response(let response, let body):
             return (response, HTTPBody(body))
-        case let .failure(error):
+        case .failure(let error):
             throw error
         case .hang:
             while true {
@@ -84,9 +84,9 @@ public actor StubTransport: ClientTransport {
 
     private func nextReply() throws -> Reply {
         switch mode {
-        case let .fixed(reply):
+        case .fixed(let reply):
             return reply
-        case var .scripted(replies):
+        case .scripted(var replies):
             guard !replies.isEmpty else { throw ScriptExhausted(request: sent.count) }
             let reply = replies.removeFirst()
             mode = .scripted(replies)

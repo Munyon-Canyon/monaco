@@ -55,7 +55,8 @@ public struct AssetStatsGrid: Equatable, Sendable {
         var cells: [Cell] = []
         func money(_ id: String, _ label: String, _ micros: Int64?, spoken: String? = nil) {
             guard let micros, micros > 0 else { return }
-            cells.append(Cell(id: id, label: label, value: UsdAmountFormatter.format(micros: micros), spokenLabel: spoken))
+            cells.append(
+                Cell(id: id, label: label, value: UsdAmountFormatter.format(micros: micros), spokenLabel: spoken))
         }
 
         money("open", "Open", stats.openUsdcMicros, spoken: "Opening price")
@@ -72,12 +73,13 @@ public struct AssetStatsGrid: Equatable, Sendable {
             // Pyth's own confidence interval, which nothing else in the app has ever
             // shown. "Price certainty" rather than "confidence" because a member is
             // not reading a statistics paper.
-            cells.append(Cell(
-                id: "certainty",
-                label: "Price certainty",
-                value: "±\(UsdAmountFormatter.format(micros: conf))",
-                spokenLabel: "Price certainty, give or take"
-            ))
+            cells.append(
+                Cell(
+                    id: "certainty",
+                    label: "Price certainty",
+                    value: "±\(UsdAmountFormatter.format(micros: conf))",
+                    spokenLabel: "Price certainty, give or take"
+                ))
         }
 
         guard !cells.isEmpty else { return nil }
@@ -133,9 +135,9 @@ public struct AssetStatsGrid: Equatable, Sendable {
     /// new high — and the marker pins to the end rather than running off the track.
     static func week52Position(_ stats: AssetStatsDTO, currentUsdcMicros: Int64?) -> Double? {
         guard let low = stats.week52LowUsdcMicros,
-              let high = stats.week52HighUsdcMicros,
-              let current = currentUsdcMicros,
-              low > 0, high > low
+            let high = stats.week52HighUsdcMicros,
+            let current = currentUsdcMicros,
+            low > 0, high > low
         else { return nil }
         let position = Double(current - low) / Double(high - low)
         return min(max(position, 0), 1)

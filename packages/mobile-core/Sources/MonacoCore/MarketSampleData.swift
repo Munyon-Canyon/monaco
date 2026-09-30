@@ -304,11 +304,13 @@ public enum MarketSampleData {
         spark: [Int64]? = nil,
         logoUrl: String? = nil
     ) -> MarketAssetDTO {
-        let series = spark ?? Self.spark(
-            startUsdcMicros: priceUsdcMicros,
-            driftUsdcMicros: Int64(Double(priceUsdcMicros) * 0.018),
-            wobbleUsdcMicros: Int64(Double(priceUsdcMicros) * 0.004)
-        )
+        let series =
+            spark
+            ?? Self.spark(
+                startUsdcMicros: priceUsdcMicros,
+                driftUsdcMicros: Int64(Double(priceUsdcMicros) * 0.018),
+                wobbleUsdcMicros: Int64(Double(priceUsdcMicros) * 0.004)
+            )
         return MarketAssetDTO(
             symbol: symbol,
             name: name,
@@ -389,7 +391,7 @@ public enum MarketSampleData {
                     valueUsd: "309.53",
                     dollarPnl: "-42.10",
                     mySliceUsd: "77.38"
-                ),
+                )
             ],
             totalValueUsd: "309.53",
             totalDollarPnl: "-42.10",
@@ -407,7 +409,7 @@ public enum MarketSampleData {
                     valueUsd: "1.89",
                     dollarPnl: "0.04",
                     mySliceUsd: "0.00"
-                ),
+                )
             ],
             totalValueUsd: "1.89",
             totalDollarPnl: "0.04",
@@ -497,9 +499,9 @@ public enum MarketSampleData {
     }
 }
 
-private extension AssetChartRange {
+extension AssetChartRange {
     /// Seconds between samples, matching what the backend asks Benchmarks for.
-    var sampleInterval: Double {
+    fileprivate var sampleInterval: Double {
         switch self {
         case .oneDay: return 5 * 60
         case .oneWeek: return 30 * 60

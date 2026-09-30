@@ -10,13 +10,15 @@ enum Fixtures {
 
     static func problem(_ status: Int, _ code: String, message: String = "Server says no.") -> StubTransport.Reply {
         let body = """
-        {"type":"about:blank","title":"Error","status":\(status),"code":"\(code)",\
-        "message":"\(message)","trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","retryable":false}
-        """
+            {"type":"about:blank","title":"Error","status":\(status),"code":"\(code)",\
+            "message":"\(message)","trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","retryable":false}
+            """
         return .response(status: .init(code: status), contentType: "application/problem+json", body: Data(body.utf8))
     }
 
-    static func client(_ transport: StubTransport, tokens: StubTokenProvider = StubTokenProvider(token: "token-1")) -> APIClient {
+    static func client(_ transport: StubTransport, tokens: StubTokenProvider = StubTokenProvider(token: "token-1"))
+        -> APIClient
+    {
         APIClient(serverURL: testServerURL, tokens: tokens, transport: transport)
     }
 }

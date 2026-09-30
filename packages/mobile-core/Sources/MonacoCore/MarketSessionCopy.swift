@@ -46,7 +46,8 @@ public enum MarketSessionCopy {
         case .open:
             return MarketSessionChipCopy(
                 title: "Market open",
-                detail: market.earlyClose ? "Closes early today" : closeTimeDetail(market, locale: locale, timeZone: timeZone),
+                detail: market.earlyClose
+                    ? "Closes early today" : closeTimeDetail(market, locale: locale, timeZone: timeZone),
                 isLive: true
             )
         case .preMarket:

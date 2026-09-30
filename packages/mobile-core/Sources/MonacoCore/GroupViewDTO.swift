@@ -33,7 +33,9 @@ public struct PotRowDTO: Codable, Equatable, Sendable, Identifiable {
     public var resolvedAssetKind: AssetKind { assetKind ?? .stock }
     public var resolvedTokenDecimals: Int { tokenDecimals ?? AssetCatalogDefaults.decimals }
     public var resolvedUiMultiplier: Decimal {
-        guard let uiAmountMultiplier, let value = Decimal(string: uiAmountMultiplier, locale: Locale(identifier: "en_US_POSIX")), value > 0 else {
+        guard let uiAmountMultiplier,
+            let value = Decimal(string: uiAmountMultiplier, locale: Locale(identifier: "en_US_POSIX")), value > 0
+        else {
             return 1
         }
         return value

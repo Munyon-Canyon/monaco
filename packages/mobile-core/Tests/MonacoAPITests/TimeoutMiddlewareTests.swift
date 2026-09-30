@@ -1,14 +1,17 @@
 import Foundation
-#if canImport(FoundationNetworking)
-import FoundationNetworking
-#endif
-@testable import MonacoAPI
 import MonacoTestSupport
 import XCTest
 
+@testable import MonacoAPI
+
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
 final class TimeoutMiddlewareTests: XCTestCase {
     private func client(_ transport: StubTransport, clock: SkippingClock) -> APIClient {
-        APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport, clock: clock)
+        APIClient(
+            serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport, clock: clock)
     }
 
     func testAReadTimesOutAt15Seconds() async throws {

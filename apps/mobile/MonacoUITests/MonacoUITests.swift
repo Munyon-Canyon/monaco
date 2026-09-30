@@ -7,8 +7,8 @@
 
 import XCTest
 
-private extension XCUIApplication {
-    func scrollToElement(_ element: XCUIElement, maxSwipes: Int = 8) {
+extension XCUIApplication {
+    fileprivate func scrollToElement(_ element: XCUIElement, maxSwipes: Int = 8) {
         var swipes = 0
         while !element.isHittable && swipes < maxSwipes {
             swipeUp()
@@ -247,8 +247,9 @@ final class MonacoUITests: XCTestCase {
         XCTAssertTrue(create.waitForExistence(timeout: 5))
         create.tap()
         XCTAssertTrue(app.navigationBars["Create cabal"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.textFields["create-group-name"].waitForExistence(timeout: 5)
-            || app.textFields["Cabal name"].waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.textFields["create-group-name"].waitForExistence(timeout: 5)
+                || app.textFields["Cabal name"].waitForExistence(timeout: 5))
         attachScreenshot(app, name: "create-cabal-canvas")
     }
 
@@ -335,7 +336,8 @@ final class MonacoUITests: XCTestCase {
         homeDeposit.tap()
 
         XCTAssertTrue(app.navigationBars["Deposit"].waitForExistence(timeout: 10))
-        let depositAddressReady = app.otherElements["deposit-address-value"].waitForExistence(timeout: 15)
+        let depositAddressReady =
+            app.otherElements["deposit-address-value"].waitForExistence(timeout: 15)
             || app.otherElements["deposit-address-loading"].waitForExistence(timeout: 5)
         XCTAssertTrue(depositAddressReady)
 

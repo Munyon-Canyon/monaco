@@ -238,7 +238,8 @@ public struct GroupChatTimeline: Equatable, Sendable {
             let message = messages[index]
             let previousAuthor = index > 0 ? messages[index - 1].authorId : nil
             let next = index + 1
-            let endsRun = next >= messages.count
+            let endsRun =
+                next >= messages.count
                 || messages[next].authorId != message.authorId
                 || separators[next]
             return GroupChatRow(
@@ -317,7 +318,8 @@ public struct GroupChatClosureTracker: Equatable, Sendable {
 public enum GroupChatCopy {
     /// Fallback navigation title when the cabal's name isn't known yet.
     public static let title = "Cabal chat"
-    public static let emptyState = "No messages yet. Say hi to your cabal or float a stock idea before someone proposes a buy."
+    public static let emptyState =
+        "No messages yet. Say hi to your cabal or float a stock idea before someone proposes a buy."
     public static let composerPlaceholder = "Message your cabal"
     public static let loadEarlier = "Load earlier messages"
 
@@ -413,7 +415,8 @@ public enum GroupChatCopy {
             return "Today \(clock)"
         }
         if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
-           calendar.isDate(date, inSameDayAs: yesterday) {
+            calendar.isDate(date, inSameDayAs: yesterday)
+        {
             return "Yesterday \(clock)"
         }
         let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
