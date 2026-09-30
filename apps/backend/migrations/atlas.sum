@@ -1,5 +1,6 @@
-h1:M00/kuqhKvkKdu7DNeJrJMY/+U5fnJwx8ADr8YEwskk=
+h1:mGDVE4L1EUpri4XE69HttbIPY2s7ivkctmGbhvTqqns=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
 20260929142320_rate_limits.sql h1:AjM2JeU2waFpxVZbFEVSOFGNsm1919jJcbJs0W2HFOA=
+20260930072725_identity.sql h1:h2rqpSVu/qMWjHTYWB7PQIVq+ukEoeKSIGhzbleAytk=
