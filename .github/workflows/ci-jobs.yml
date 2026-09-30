@@ -298,6 +298,7 @@ jobs:
               - 'scripts/ensure-ios-privy-config.sh'
               - 'scripts/resolve-ios-sim.sh'
               - 'scripts/ci/select-xcode.sh'
+              - 'scripts/ci/fetch-warm-cache.sh'
               - 'scripts/install-xcsift.sh'
               - 'scripts/qa/screens.sh'
               - 'scripts/qa/sample-screens.txt'
@@ -363,6 +364,9 @@ jobs:
   ios:
     needs: plan
     if: needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.ios == 'true' || needs.plan.outputs.unknown == 'true')
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/ci-ios.yml
 
   flake:
