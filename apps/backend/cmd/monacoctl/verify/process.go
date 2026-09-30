@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os/exec"
@@ -13,6 +14,8 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
+
+var errExitedBeforeStop = errors.New("exited before it was stopped")
 
 type Line struct {
 	Process string
@@ -128,7 +131,7 @@ func (p *process) running() bool {
 
 func (p *process) stop(ctx context.Context) error {
 	if !p.running() {
-		return nil
+		return p.lostAfterBoot()
 	}
 	if ctx.Err() != nil {
 		p.kill()
@@ -144,6 +147,14 @@ func (p *process) stop(ctx context.Context) error {
 		return fmt.Errorf("%s did not exit within the budget after SIGTERM and was killed: %w",
 			p.name, context.Cause(ctx))
 	}
+}
+
+func (p *process) lostAfterBoot() error {
+	if p.addr == "" {
+		return nil
+	}
+	last := p.logs.tail(p.name, 1)
+	return fmt.Errorf("%s %w (%s), last line: %s", p.name, errExitedBeforeStop, p.cmd.ProcessState, last)
 }
 
 func (p *process) kill() {

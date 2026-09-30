@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 )
 
 func TestUp_startsAHealthyStackAndDownStopsEveryProcess(t *testing.T) {
@@ -210,6 +211,44 @@ func TestStop_aDeafChildOutlastsSIGTERMSentTheMomentItAnnouncesBoot(t *testing.T
 	defer cancel()
 	if err := p.stop(ctx); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("stop = %v, want the deaf child to outlast the budget", err)
+	}
+}
+
+func TestDown_namesAChildThatWasKilledBeforeTeardown(t *testing.T) {
+	t.Parallel()
+	s, err := Up(t.Context(), testOptions(t, "ok"))
+	if err != nil {
+		t.Fatalf("Up: %v", err)
+	}
+	s.procs[procWorker].kill()
+	err = s.Down(t.Context())
+	want := `worker exited before it was stopped (signal: killed), last line: {"msg":"`
+	if err == nil || !strings.HasPrefix(err.Error(), want) || strings.Contains(err.Error(), "\n") {
+		t.Fatalf("Down = %v, want only the worker, named as %q", err, want)
+	}
+}
+
+func TestDown_namesTheExitStatusOfAWorkerThatCrashedBeforeTeardown(t *testing.T) {
+	t.Parallel()
+	o := testOptions(t, "ok")
+	o.Faultpoint = string(faultpoint.AfterPublish)
+	o.CoverDir = t.TempDir()
+	s, err := Up(t.Context(), o)
+	if err != nil {
+		t.Fatalf("Up: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	select {
+	case <-s.procs[procWorker].exited:
+	case <-ctx.Done():
+		_ = s.Down(t.Context())
+		t.Fatalf("worker never crashed: %v", context.Cause(ctx))
+	}
+	want := "worker exited before it was stopped (exit status 2), " +
+		"last line: panic: faultpoint: crash at after-publish"
+	if err := s.Down(t.Context()); err == nil || err.Error() != want {
+		t.Fatalf("Down = %v, want %q", err, want)
 	}
 }
 
