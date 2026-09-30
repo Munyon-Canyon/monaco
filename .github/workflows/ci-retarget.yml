@@ -1,13 +1,13 @@
 name: CI retarget
 
 # Graphite restacks a PR while its base is a temporary graphite-base/N branch, then retargets
-# it to its trunk without a new push, so ci.yml never runs for that head. `edited` lives here, not
+# it to its real base without a new push, so ci.yml never runs for that head. `edited` lives here, not
 # in ci.yml: an edit run in ci.yml would cancel the real run in its concurrency group. A title
 # or body edit skips the ci job and leaves only a skipped "ci" check, never "ci / ci-ok".
 # workflow_dispatch is no substitute: its checks do not satisfy a required check.
 on:
   pull_request:
-    branches: [main, '*-[0-9]*']
+    branches-ignore: ['graphite-base/**']
     types: [edited]
 
 permissions:
@@ -20,7 +20,8 @@ jobs:
   ci:
     if: >-
       github.event.changes.base != null && !github.event.pull_request.draft &&
-      (github.base_ref == 'main' || github.base_ref == vars.FEATURE_BRANCH)
+      (github.base_ref == 'main' || github.base_ref == vars.FEATURE_BRANCH ||
+      startsWith(github.event.changes.base.ref.from, 'graphite-base/'))
     uses: ./.github/workflows/ci-jobs.yml
     with:
       stage: pr
