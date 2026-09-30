@@ -54,8 +54,6 @@ jobs:
         if: always()
         shell: bash
         env:
-          STEP_TIMES: ${{ runner.temp }}/step-times.tsv
-          TEST_LOG: ${{ runner.temp }}/mobile-core.log
           CACHE_KEY: ${{ steps.build.outputs.cache-matched-key }}
           TEST_OUTCOME: ${{ steps.test.outcome }}
         run: |
@@ -63,7 +61,7 @@ jobs:
           fail="$RUNNER_TEMP/fail-logs.tsv"
           : > "$fail"
           if [[ "$TEST_OUTCOME" == "failure" ]]; then printf 'Test mobile-core\t%s\n' "$RUNNER_TEMP/mobile-core.log" >> "$fail"; fi
-          FAIL_LOGS="$fail" scripts/ci/job-summary.sh >> "$GITHUB_STEP_SUMMARY"
+          FAIL_LOGS="$fail" STEP_TIMES="$RUNNER_TEMP/step-times.tsv" TEST_LOG="$RUNNER_TEMP/mobile-core.log" scripts/ci/job-summary.sh >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the test log
         if: always()
