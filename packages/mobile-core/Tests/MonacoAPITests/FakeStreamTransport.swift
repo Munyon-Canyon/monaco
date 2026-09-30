@@ -1,6 +1,7 @@
 import Foundation
 import HTTPTypes
 import MonacoAPI
+import MonacoTestSupport
 import OpenAPIRuntime
 
 /// A `ClientTransport` for `GET /v1/stream`. Each request takes the next scripted reply, then
