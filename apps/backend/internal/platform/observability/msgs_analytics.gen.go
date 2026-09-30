@@ -4,6 +4,8 @@ package observability
 
 func init() {
 	register(
+		AnalyticsCaptureSent,
 		AnalyticsCaptureSkipped,
+		AnalyticsCaptureFailed,
 	)
 }

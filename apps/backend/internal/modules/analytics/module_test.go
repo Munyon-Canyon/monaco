@@ -9,7 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 )
 
-func TestModule_isNamedAnalyticsAndOwnsNoRoutesConsumersOrPollersYet(t *testing.T) {
+func TestModule_isNamedAnalyticsAndHasNoRoutesPollersOrConsumerWhileNothingIsExported(t *testing.T) {
 	t.Parallel()
 	m := analytics.New(module.Deps{})
 	var routes httpx.Routes
