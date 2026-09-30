@@ -31,6 +31,7 @@ type Env struct {
 	Run     Runner
 	Start   func(name string, args ...string) error
 	Now     func() time.Time
+	After   func(d time.Duration) <-chan time.Time
 	Actions bool
 }
 type (
@@ -95,7 +96,7 @@ func runCLI(
 	run Runner,
 	args []string,
 	stdout, stderr io.Writer,
-	now func() time.Time,
+	configure func(*Env),
 ) int {
 	args, verbose := stripFlag(args, "--verbose")
 	if len(args) == 0 || commands()[args[0]] == nil {
@@ -104,8 +105,8 @@ func runCLI(
 	env, err := load(ctx, environ, dir, run)
 	var buf bytes.Buffer
 	if err == nil {
-		if now != nil {
-			env.Now = now
+		if configure != nil {
+			configure(env)
 		}
 		err = commands()[args[0]](ctx, env, args[1:], &buf)
 	}
@@ -217,7 +218,7 @@ func load(ctx context.Context, environ []string, dir string, run Runner) (*Env, 
 	return &Env{
 		Work: top, Common: common, Home: lookup(environ, "HOME"), Config: cfg,
 		GitHub: &GitHub{API: api, Repo: cfg.Repo, Token: token, HTTP: &http.Client{Timeout: 30 * time.Second}},
-		Run:    run, Start: spawn, Now: time.Now,
+		Run:    run, Start: spawn, Now: time.Now, After: time.After,
 		Actions: lookup(environ, "GITHUB_ACTIONS") == "true",
 	}, nil
 }
