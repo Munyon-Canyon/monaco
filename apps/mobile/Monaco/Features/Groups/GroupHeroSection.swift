@@ -20,6 +20,8 @@ struct GroupHeroSection: View {
     var pictureEditor: CabalPictureEditor?
     var onPictureResult: (MonacoToast) -> Void = { _ in }
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     private static let chartHeight: CGFloat = 76
 
     private var tint: MonacoTheme.CabalTint { .forGroupId(view.id) }
@@ -196,8 +198,9 @@ struct GroupHeroSection: View {
                 Text(GroupHeroMath.sliceCaption(view.you))
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.onHeroMuted)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .multilineTextAlignment(.trailing)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                    .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.8)
                 if GroupHeroMath.hasSlice(view.you) {
                     PnLText(dollarPnl: view.you.dollarPnl, style: .row, onInk: true)
                 }
@@ -253,7 +256,11 @@ struct GroupMemberAvatarStack: View {
     var visibleLimit = 4
     var ringColor: Color = MonacoTheme.surface
 
-    private var overlap: CGFloat { (size * 0.19).rounded() }
+    @ScaledMetric(relativeTo: .caption2) private var typeScale: CGFloat = 1
+
+    private var drawn: CGFloat { size * typeScale }
+
+    private var overlap: CGFloat { (drawn * 0.19).rounded() }
 
     var body: some View {
         let visible = Array(members.prefix(visibleLimit))
@@ -265,7 +272,7 @@ struct GroupMemberAvatarStack: View {
             if overflow > 0 {
                 bubble {
                     Text("+\(overflow)")
-                        .font(.system(size: size * 0.36, weight: .semibold).monospacedDigit())
+                        .font(.system(.caption2, design: .monospaced).weight(.semibold))
                         .foregroundStyle(MonacoTheme.heroInk)
                 }
             }
@@ -279,10 +286,10 @@ struct GroupMemberAvatarStack: View {
         let photo = member.profilePhotoUrl?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if photo.isEmpty {
             // The member's animal, the same one they are everywhere else.
-            MonacoAvatar(photoURL: nil, displayName: member.displayName, size: size, seed: member.userId)
+            MonacoAvatar(photoURL: nil, displayName: member.displayName, size: drawn, seed: member.userId)
                 .overlay(Circle().strokeBorder(ringColor, lineWidth: 2))
         } else {
-            MonacoAvatar(photoURL: photo, displayName: member.displayName, size: size)
+            MonacoAvatar(photoURL: photo, displayName: member.displayName, size: drawn)
                 .overlay(Circle().strokeBorder(ringColor, lineWidth: 2))
         }
     }
@@ -292,7 +299,7 @@ struct GroupMemberAvatarStack: View {
             .fill(Color.white)
             .overlay(Circle().strokeBorder(ringColor, lineWidth: 2))
             .overlay(content().padding(.horizontal, 5))
-            .frame(width: size, height: size)
+            .frame(width: drawn, height: drawn)
     }
 }
 

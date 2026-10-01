@@ -103,4 +103,15 @@ nonisolated final class ChatClosedSampleUITests: XCTestCase {
         XCTAssertFalse(closedBanner(app).exists, "nothing should still be saying the thread is shut")
         attachScreenshot(app, name: "03-reopened")
     }
+
+    /// Every audit type on the thread that opens closed, before the member taps retry.
+    @MainActor
+    func testAccessibilityAudit() throws {
+        let app = launchChat("-MonacoChatSampleClosedFirstLoad")
+        XCTAssertTrue(
+            app.buttons["group-chat-retry"].waitForExistence(timeout: 40),
+            "the closed thread should be on screen before the audit"
+        )
+        try SampleAccessibilityAudit.run(app, in: self)
+    }
 }

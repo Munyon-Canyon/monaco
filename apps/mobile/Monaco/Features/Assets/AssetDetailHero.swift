@@ -19,6 +19,8 @@ struct AssetDetailHero: View {
     let tick: MonacoPriceTick?
     let session: MarketSessionChipCopy?
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             // The company in the brand's voice, the ticker in the market's: this is the one
@@ -91,8 +93,8 @@ struct AssetDetailHero: View {
             Text(periodLabel(move))
                 .font(isScrubbing ? MonacoTheme.Typo.stamp : MonacoTheme.Typo.caption)
                 .foregroundStyle(isScrubbing ? MonacoTheme.ink : MonacoTheme.muted)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .lineLimit(dynamicTypeSize > .large ? 3 : 1)
+                .minimumScaleFactor(dynamicTypeSize > .large ? 1 : 0.8)
 
         }
         .accessibilityElement(children: .ignore)

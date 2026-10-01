@@ -32,7 +32,13 @@ struct MonacoSearchField: View {
                 .font(MonacoTheme.Typo.body)
                 .foregroundStyle(MonacoTheme.muted)
                 .accessibilityHidden(true)
-            TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(MonacoTheme.disabledLabel))
+            TextField(
+                "",
+                text: $text,
+                prompt: Text(placeholder).foregroundStyle(MonacoTheme.disabledLabel),
+                axis: .vertical
+            )
+            .lineLimit(1...4)
                 .font(MonacoTheme.Typo.body)
                 .foregroundStyle(MonacoTheme.ink)
                 .tint(MonacoTheme.ink)

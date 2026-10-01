@@ -615,6 +615,8 @@ private struct GroupChatComposer: View {
 private struct GroupChatBubble: View {
     let row: GroupChatRow
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     private var message: GroupMessageDTO { row.message }
 
     /// The face at the foot of someone else's run, the way a group chat marks who is talking.
@@ -632,7 +634,7 @@ private struct GroupChatBubble: View {
                     Text(message.authorName)
                         .font(MonacoTheme.Typo.captionStrong)
                         .foregroundStyle(MonacoTheme.muted)
-                        .lineLimit(1)
+                        .lineLimit(dynamicTypeSize > .large ? 2 : 1)
                         .padding(.horizontal, 14)
                 }
                 Text(message.body)
@@ -710,7 +712,9 @@ private struct GroupChatDayRule: View {
                 .layoutPriority(1)
             MonacoRule()
         }
+        .frame(minHeight: 44)
         .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isStaticText)
         .accessibilityLabel(label)
     }
 }

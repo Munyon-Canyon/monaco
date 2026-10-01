@@ -54,32 +54,27 @@ enum MoneyStyle {
     }
 }
 
-/// Scales a money figure inside the view tree, so a `.dynamicTypeSize` cap applies to it and a
-/// text-size change invalidates the view. `MonacoTheme.Typo.money*` cannot do either: it asks
-/// `UIFontMetrics` for a size once, outside the environment, and returns a fixed-size font.
+/// Scales a money figure with Dynamic Type inside the view tree, so a `.dynamicTypeSize` cap
+/// applies to it. `relativeTo:` is what the accessibility audit treats as a scalable font.
+/// `MonacoTheme.Typo.money*` cannot: it asks `UIFontMetrics` once, outside the environment, and
+/// returns a fixed-size font.
 struct MoneyFont: ViewModifier {
     let style: MoneyStyle
     var weightOverride: Font.Weight?
     var voice: MoneyVoice = .own
 
-    // `@ScaledMetric` needs its text style and base size as literals in the property wrapper, so
-    // there is one per role rather than one driven by `style`. The sizes come from `MoneyStyle`
-    // so the two cannot drift; the text styles are asserted against it in `MoneyStyleScalingTests`.
-    @ScaledMetric(relativeTo: .largeTitle) private var hero = MoneyStyle.hero.baseSize
-    @ScaledMetric(relativeTo: .title) private var large = MoneyStyle.large.baseSize
-    @ScaledMetric(relativeTo: .body) private var row = MoneyStyle.row.baseSize
-    @ScaledMetric(relativeTo: .footnote) private var caption = MoneyStyle.caption.baseSize
-    /// The market's row size. SF Mono is wide, so a quote in a row sets two points smaller
-    /// than money in Avenir Next and still carries the same weight in the column.
-    @ScaledMetric(relativeTo: .subheadline) private var marketRow = MoneyStyle.marketRowBaseSize
-
-    private var size: CGFloat {
+    private var designSize: CGFloat {
         switch style {
-        case .hero: return hero
-        case .large: return large
-        case .row: return voice == .market ? marketRow : row
-        case .caption: return caption
+        case .hero: return MoneyStyle.hero.baseSize
+        case .large: return MoneyStyle.large.baseSize
+        case .row: return voice == .market ? MoneyStyle.marketRowBaseSize : MoneyStyle.row.baseSize
+        case .caption: return MoneyStyle.caption.baseSize
         }
+    }
+
+    private var textStyle: Font.TextStyle {
+        if voice == .market, style == .row { return .subheadline }
+        return style.textStyle
     }
 
     private var weight: Font.Weight {
@@ -91,15 +86,9 @@ struct MoneyFont: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        switch voice {
-        case .own:
-            // Avenir Next's lining figures are tabular already; see `MonacoTheme.Typo`.
-            content.font(.custom(MonacoTypeface.avenirNext(weight), fixedSize: size))
-        case .market:
-            content.font(.system(size: size, weight: weight, design: .monospaced).monospacedDigit())
-        }
+        let face = voice == .market ? MonacoTypeface.sfMono(weight) : MonacoTypeface.avenirNext(weight)
+        content.font(.custom(face, size: designSize, relativeTo: textStyle).monospacedDigit())
     }
-
 }
 
 extension View {
@@ -232,12 +221,15 @@ struct PnLBadge: View {
         }
     }
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         Text(label)
             .moneyFont(style, weight: .semibold)
             .foregroundStyle(onInk ? tone.inkCardColor : tone.washColor)
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+            .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.8)
+            .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
             .padding(.horizontal, style == .caption ? 9 : 12)
             .padding(.vertical, style == .caption ? 5 : 6)
             .background(Capsule().fill(onInk ? tone.inkCardWash : tone.wash))
@@ -258,6 +250,19 @@ private struct MoneyFigure: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// "$711.55" is not a label a person can hear — the accessibility audit's
+    /// `sufficientElementDescription` check fails a label that is only digits and symbols.
+    /// The printed text moves to `accessibilityValue` instead, so VoiceOver still gets it
+    /// and a UI test that reads the figure back (the chart scrub) can use `.value`
+    /// (`AssetDetailSampleUITests.testScrubbingTheChartMovesTheHeroPriceAndTheFigureUnderIt`).
+    private var spoken: String? {
+        guard let value else { return nil }
+        var decimal = Decimal(value)
+        var rounded = Decimal()
+        NSDecimalRound(&rounded, &decimal, 2, .plain)
+        return PnLSpeech.spokenAmount(rounded < 0 ? -rounded : rounded)
+    }
+
     var body: some View {
         Text(text)
             .moneyFont(style, voice: voice)
@@ -267,6 +272,8 @@ private struct MoneyFigure: View {
             .contentTransition(reduceMotion || value == nil ? .identity : .numericText(value: value ?? 0))
             .animation(reduceMotion ? nil : .snappy, value: text)
             .modifier(HeroTypeCap(isHero: style == .hero))
+            .accessibilityLabel(spoken ?? text)
+            .accessibilityValue(spoken != nil ? text : "")
     }
 }
 

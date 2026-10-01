@@ -19,7 +19,10 @@ struct CabalsStripSection: View {
     var onSelect: (CabalsRoute) -> Void
     var onRetry: () -> Void = {}
 
-    private static let cardSize = CGSize(width: 168, height: 152)
+    @ScaledMetric(relativeTo: .body) private var cardWidth: CGFloat = 168
+    @ScaledMetric(relativeTo: .body) private var cardHeight: CGFloat = 152
+
+    private var cardSize: CGSize { CGSize(width: cardWidth, height: cardHeight) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -62,7 +65,7 @@ struct CabalsStripSection: View {
                     Button {
                         onSelect(.cabal(id: row.groupId, name: row.name))
                     } label: {
-                        CabalStripCard(row: row, size: Self.cardSize)
+                        CabalStripCard(row: row, size: cardSize)
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("cabals-strip-card-\(row.groupId)")
@@ -70,7 +73,7 @@ struct CabalsStripSection: View {
                 Button {
                     onSelect(.create)
                 } label: {
-                    NewCabalStripCard(size: Self.cardSize)
+                    NewCabalStripCard(size: cardSize)
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("cabals-strip-new")
@@ -94,7 +97,7 @@ struct CabalsStripSection: View {
                     SkeletonBlock(width: 64, height: 12)
                 }
                 .padding(MonacoTheme.Space.m)
-                .frame(width: Self.cardSize.width, height: Self.cardSize.height, alignment: .topLeading)
+                .frame(width: cardSize.width, height: cardSize.height, alignment: .topLeading)
                 .background(
                     MonacoTheme.surface,
                     in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
@@ -116,6 +119,8 @@ private struct CabalStripCard: View {
     let row: HomeGroupBoardRowDTO
     let size: CGSize
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     private var tint: MonacoTheme.CabalTint { .forGroupId(row.groupId) }
 
     var body: some View {
@@ -124,7 +129,7 @@ private struct CabalStripCard: View {
             Text(row.name)
                 .font(MonacoTheme.Typo.rowTitle)
                 .foregroundStyle(MonacoTheme.ink)
-                .lineLimit(2)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 2)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, MonacoTheme.Space.xs)

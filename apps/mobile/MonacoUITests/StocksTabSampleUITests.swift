@@ -264,4 +264,12 @@ nonisolated final class StocksTabSampleUITests: XCTestCase {
         expectation(for: leftTheTab, evaluatedWith: app.navigationBars["Stocks"])
         waitForExpectations(timeout: 25)
     }
+
+    /// Every audit type on the populated Stocks tab.
+    @MainActor
+    func testAccessibilityAudit() throws {
+        let app = launch("full")
+        waitForTab(app, "full")
+        try SampleAccessibilityAudit.run(app, in: self)
+    }
 }

@@ -253,7 +253,7 @@ struct ProposalCardView<Destination: View>: View {
                 Text(thesis)
                     .font(MonacoTheme.Typo.callout)
                     .foregroundStyle(MonacoTheme.muted)
-                    .lineLimit(2)
+                    .lineLimit(dynamicTypeSize > .large ? 16 : 2)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("\(thesisIdentifierPrefix)-\(proposal.id)")
             }

@@ -154,6 +154,14 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
         XCTAssertFalse(element("proposal-card-vote-yes-sample-3").exists)
         XCTAssertFalse(element("proposal-card-vote-no-sample-3").exists)
     }
+
+    /// Every audit type on the proposal feed the other tests open.
+    @MainActor
+    func testAccessibilityAudit() throws {
+        launch()
+        XCTAssertTrue(element("proposal-card-vote-yes-sample-0").waitForExistence(timeout: 10))
+        try SampleAccessibilityAudit.run(app, in: self)
+    }
 }
 
 /// Drives the propose sheet on sample data (`-MonacoProposalFeedSample -MonacoProposeSample`):

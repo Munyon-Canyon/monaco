@@ -508,6 +508,19 @@ enum MonacoTypeface {
         default: return "AvenirNext-DemiBold"
         }
     }
+
+    /// SF Mono's PostScript names. A point size passed to `Font.system(size:)` does not
+    /// scale; `Font.custom(_:size:relativeTo:)` does, which is what money in the market's
+    /// voice needs.
+    static func sfMono(_ weight: Font.Weight) -> String {
+        switch weight {
+        case .ultraLight, .thin, .light, .regular: return "SFMono-Regular"
+        case .medium: return "SFMono-Medium"
+        case .semibold: return "SFMono-Semibold"
+        case .bold, .heavy, .black: return "SFMono-Bold"
+        default: return "SFMono-Medium"
+        }
+    }
 }
 
 extension Color {
