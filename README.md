@@ -176,6 +176,7 @@ The app's API base URL comes from the build, not from source: `apps/mobile/Confi
 - Release builds ignore the process environment and refuse to launch (`fatalError` naming the setting to fix) when the URL is empty, malformed, not `https`, a local host, or the environment is `local`. The rules live in `MonacoAPIConfiguration` and are covered by `just test mobile`.
 - ATS stays strict. Only the Debug Info.plist carries `NSAllowsLocalNetworking`; there is no `NSAllowsArbitraryLoads`, so a Debug tunnel/staging URL must be `https` too.
 - The active environment is logged at launch (`API environment: …`); Debug builds also show it under the session error on the sign-in gate.
+- TestFlight builds: `scripts/ios-release.sh staging` or `scripts/ios-release.sh production`. See [`apps/mobile/TestFlight.md`](apps/mobile/TestFlight.md).
 
 ## Simulator
 
@@ -374,7 +375,7 @@ Merge bottom-up. The rules and why they exist: [Pull requests: small and stacked
 
 There is no deploy pipeline in this repo yet. The backend is being rebuilt; how it deploys is in the RFC's [Deploy and observability](docs/architecture/backend-platform.md#deploy-and-observability) section.
 
-**iOS.** Archive and upload steps are in [`apps/mobile/TestFlight.md`](apps/mobile/TestFlight.md).
+**iOS.** `scripts/ios-release.sh staging` or `scripts/ios-release.sh production` archives and uploads a TestFlight build. See [`apps/mobile/TestFlight.md`](apps/mobile/TestFlight.md).
 
 **Trading agent.** An agent needs only its key and `PUBLIC_API_BASE_URL`. A ClawPump agent connects by pasting the connect instructions. See [`docs/how-to/connect-an-agent.md`](docs/how-to/connect-an-agent.md) and [`docs/agent-trading.md`](docs/agent-trading.md).
 

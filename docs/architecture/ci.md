@@ -281,6 +281,8 @@ Each step is one small PR with its own proof.
 
 ## Log
 
+- 2026-09-30: TestFlight releases stay off CI (#966). The repo is public, and pull-request workflows get no secrets. If releases move to CI later, that is a `workflow_dispatch` workflow bound to a GitHub environment with required reviewers, and the App Store Connect API key lives only in that environment. Until then, `scripts/ios-release.sh` runs on a developer machine.
+
 - 2026-09-30: `ci-retarget.yml` runs stage 1 on a retarget from a `graphite-base/` base to any real base, not only to a trunk (#1212). A restack retargets an upper PR to the PR below it, so #1170's restacked head had no `ci / ci-ok` and `land-stack` declined with "stage 1 missing" until a close and reopen. The trigger filter `'*-[0-9]*'` also dropped every base with no digit after a dash, such as `545-price-points-table`, so the trigger is now `branches-ignore: ['graphite-base/**']`.
 
 - 2026-09-30: the first `prune` run (ci-warm run 36785282859, push of 258587ca) deleted one superseded `xcode-cas-macOS-*` entry (344 MB); the repository Actions cache went from 10.64 GB (83 entries) before #1201 to 8.83 GB, leaving one compilation-cache entry on the trunk (#1119).
