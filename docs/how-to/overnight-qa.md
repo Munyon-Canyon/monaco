@@ -1,7 +1,7 @@
 # Overnight QA
 
 One runner, `scripts/qa/night.sh`, runs the same way on a laptop (`just qa-night`) and in the
-nightly GitHub workflow. Per-PR CI builds the app too.
+nightly GitHub workflow. PR and merge-queue CI do not build the app. The nightly `qa` job does.
 
 ## What runs where
 
@@ -10,11 +10,11 @@ nightly GitHub workflow. Per-PR CI builds the app too.
 | Ready PRs touching the `backend` filter in `ci-jobs.yml` (`apps/backend/**`, the backend install, test and CI scripts, `Justfile`, `docker-compose.yml`) or a file no filter owns; manual dispatch | `ci-jobs.yml` · `lint`, `ready`, `vuln` (Linux); `backend` and `e2e` in the merge queue | backend checks, by stage in [CI](../architecture/ci.md#check-stages) |
 | Every ready PR to `main`, manual dispatch | `ci.yml` · `plan` (Linux) | runner-label check (`scripts/ci/check-runners.sh`), path filters, and `npm test` for `apps/web` when it changed |
 | Ready PRs to `main` touching `packages/mobile-core/**` or `ci.yml`; manual dispatch | `ci.yml` · `mobile-core` (Linux, `swift:6.3-noble`) | `swift test` in `packages/mobile-core` |
-| Ready PRs to `main` touching `apps/mobile/**`, `packages/mobile-core/**`, `ci.yml` or the scripts it uses | `ci.yml` · `ios` (macOS) | app + test `build-for-testing`, `MonacoTests`, sample-screen manifest check |
+| A PR that changes `apps/mobile/**` | local, before push | `just build mobile` and `-only-testing:MonacoTests`. CI does not build the app. |
 | Nightly 07:00 UTC (03:00 EDT / 02:00 EST) when `main` moved since the last green night, manual dispatch, PRs to `main` touching `nightly.yml` or `scripts/qa/**` | `nightly.yml` · `qa` (macOS) | `night.sh --screenshots`: backend, mobile-core, app build, `MonacoTests`, each sample UI test class, screenshot gallery |
 | Nightly when `main` moved, and manual dispatch, on `main` only | `nightly.yml` · `warm-cache` (Linux) | builds and runs the `go` job's tests, then saves the Go module and build cache. It and `go-cache.yml` (on a push to the current feature branch, `vars.FEATURE_BRANCH`, or `main` that changes `go.mod` or `go.sum`) are the only jobs that save it; PRs restore it and never save. |
 
-Drafts and PRs based on another branch run nothing. The jobs live in `ci-jobs.yml`, so each check reads `ci / <job>`. `ci / ci-ok` sums up every job above and is the one check `main` requires. When Graphite retargets a PR to `main` without a push, `ci-retarget.yml` runs the same jobs. A Go-only PR runs no macOS job. Both app builds use the placeholder config below, so CI needs
+Drafts and PRs based on another branch run nothing. The jobs live in `ci-jobs.yml`, so each check reads `ci / <job>`. `ci / ci-ok` sums up every job above and is the one check `main` requires. When Graphite retargets a PR to `main` without a push, `ci-retarget.yml` runs the same jobs. PR and queue CI run no macOS job. The nightly app build uses the placeholder config below, so that job needs
 no secret. The backend rewrite defines its checks in [CI gates](../architecture/backend-platform.md#ci-gates). When CI runs, on which runners, and the planned changes to this table are in [CI](../architecture/ci.md).
 
 ## Running it locally
@@ -77,7 +77,7 @@ profile before every round.
 
 `scripts/qa/sample-screens.txt` lists every Debug sample-harness screen and its launch flags
 (`-Monaco…Sample`, `-MonacoDesignGallery`). `scripts/qa/screens.sh` launches each and saves a
-PNG. `screens.sh --check` (run by the `ios` job and by every capture) fails when a harness flag
+PNG. `screens.sh --check` (run by every capture) fails when a harness flag
 or scenario in `apps/mobile/Monaco` has no manifest line: add the line when you add a harness.
 
 ## Results

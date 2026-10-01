@@ -108,7 +108,7 @@ The next owner reads the ticket, its comments and the draft PR. It makes a workt
 | Stage | Trigger | Runs |
 | --- | --- | --- |
 | 1. PR check | the PR is ready and based on the feature branch | `plan`, `lint`, `ready`, `vuln`, PR format, PR size and `gate-changes`. No tests. A push with an unchanged diff reuses the last green result. |
-| 2. Queue check | the PR entered the merge queue | Stage 1, plus `backend` (the race suite with the per-package budget and 100% coverage), the tests `-short` skips, `e2e` (`scripts/ci/e2e.sh`), `flake` on changed test files, `scripts`, and `mobile-core` and `ios` when their paths changed |
+| 2. Queue check | the PR entered the merge queue | Stage 1, plus `backend` (the race suite with the per-package budget and 100% coverage), the tests `-short` skips, `e2e` (`scripts/ci/e2e.sh`), `flake` on changed test files, `scripts`, and `mobile-core` when its paths changed. No macOS job. |
 
 Only the bottom PR of a stack runs stage 1, since CI runs on PRs whose base is the feature branch. The only required check is `ci / ci-ok`. `gate-changes` and the `status` check from `agents-status.yml` never block. [What runs where](../architecture/ci.md#what-runs-where) has every job.
 

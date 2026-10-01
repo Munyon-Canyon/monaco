@@ -74,7 +74,6 @@ gates = {
     "backend": "just test backend",
     "backend-go": "just test backend",
     "mobile-core": "cd packages/mobile-core && swift test",
-    "ios": "just build mobile",
     "scripts": "cd scripts && go test ./...",
     "workflows": 'docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12',
     "web": "cd apps/web && npm test",
@@ -87,6 +86,11 @@ for name in order:
     if any(glob_match(pat, f) for f in files for pat in filters.get(name, [])):
         seen.add(cmd)
         print(cmd)
+# The app is not a PR or queue job. A change under apps/mobile still builds locally.
+if "just build mobile" not in seen and any(
+    f == "apps/mobile" or f.startswith("apps/mobile/") for f in files
+):
+    print("just build mobile")
 PY
 
 
