@@ -44,6 +44,17 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
+    /// True when the element's center sits on the app's glass. `isHittable` does not
+    /// return false for a control that is in the tree but off-screen: it fails the
+    /// test with "Activation point invalid". The New cabal card starts that way.
+    @MainActor
+    private func isOnGlass(_ app: XCUIApplication, _ element: XCUIElement) -> Bool {
+        guard element.exists else { return false }
+        let frame = element.frame
+        guard frame.width > 1, frame.height > 1, !frame.isNull, !frame.isInfinite else { return false }
+        return app.frame.contains(CGPoint(x: frame.midX, y: frame.midY))
+    }
+
     /// Brings `element` somewhere it can actually be tapped, and reports whether
     /// it got there. A `Form` is lazy: a row below the fold is not in the
     /// accessibility tree at all, so existence has to be re-checked after each
@@ -52,10 +63,10 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
     @discardableResult
     private func scrollUntilHittable(_ app: XCUIApplication, _ element: XCUIElement, attempts: Int = 8) -> Bool {
         for _ in 0..<attempts {
-            if element.exists && element.isHittable { return true }
+            if isOnGlass(app, element), element.isHittable { return true }
             app.swipeUp()
         }
-        return element.exists && element.isHittable
+        return isOnGlass(app, element) && element.isHittable
     }
 
     /// The "New cabal" card sits after every joined cabal in a horizontal strip,
@@ -66,7 +77,7 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
         XCTAssertTrue(strip.waitForExistence(timeout: 10), "cabals strip should exist")
         let newCard = anyElement(app, "cabals-strip-new")
         var tries = 0
-        while !newCard.isHittable && tries < 6 {
+        while tries < 6, !isOnGlass(app, newCard) {
             strip.swipeLeft()
             tries += 1
         }
@@ -303,12 +314,13 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
         app.swipeUp()
         app.swipeUp()
 
-        // Dorm 4B fund is +32%, the top of the sample board.
+        // Dorm 4B fund is +32%, the top of the sample board. Rank 1 is spoken
+        // as "First" (the crown's word); later ranks stay "Rank N".
         let topRow = anyElement(app, "cabals-leaderboard-row-5b1f0c9e-0004-4c55-9a51-000000000004")
         XCTAssertTrue(topRow.waitForExistence(timeout: 10), "the top board row should exist")
         XCTAssertTrue(
-            topRow.label.contains("Rank 1"),
-            "the rank is the point of this board; it should be in the row's label, got: \(topRow.label)"
+            topRow.label.hasPrefix("First,"),
+            "the rank is the point of this board; rank 1 is spoken as First, got: \(topRow.label)"
         )
     }
 
