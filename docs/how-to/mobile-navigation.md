@@ -111,7 +111,7 @@ proposal detail — are split into sections so a ticket can own one part of a sc
 editing the file every other ticket owns. `Shell/ScreenSection.swift` (#942) declares:
 
 ```swift
-protocol ScreenSection {
+protocol ScreenSection<Context> {
     associatedtype Context
     associatedtype Body: View
     static var isLive: Bool { get }

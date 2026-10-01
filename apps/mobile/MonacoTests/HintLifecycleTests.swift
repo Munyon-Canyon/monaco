@@ -46,6 +46,34 @@ struct HintLifecycleTests {
         #expect(environment.viewer == nil)
     }
 
+    @Test func aRejectedTokenThatCannotRefreshSignsOut() async {
+        let hints = FakeHintSource()
+        let tokens = SessionTokens(
+            privyToken: { "stale-token" },
+            refresh: { _ in nil }
+        )
+        let auth = PrivyAuthService.processInstance ?? PrivyAuthService()
+        let environment = AppEnvironment(
+            auth: auth,
+            tokens: tokens,
+            hints: hints,
+            isAuthenticated: { true },
+            endAuthSession: {}
+        )
+        environment.viewer = Viewer(userID: "u-1", handle: nil)
+
+        _ = try? await tokens.refreshedToken(replacing: "stale-token")
+
+        var stops = hints.stops
+        for _ in 0..<100 where stops == 0 {
+            try? await Task.sleep(for: .milliseconds(10))
+            stops = hints.stops
+        }
+
+        #expect(stops == 1)
+        #expect(environment.viewer == nil)
+    }
+
     private func environment(hints: FakeHintSource, signedIn: Bool) -> AppEnvironment {
         let auth = PrivyAuthService.processInstance ?? PrivyAuthService()
         return AppEnvironment(

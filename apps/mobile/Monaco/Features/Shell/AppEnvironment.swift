@@ -18,6 +18,7 @@ final class AppEnvironment {
 
     private let privyAuthenticated: @MainActor () -> Bool
     private let endAuthSession: @MainActor () async -> Void
+    private var isSigningOut = false
 
     var isSignedIn: Bool {
         #if DEBUG
@@ -40,6 +41,11 @@ final class AppEnvironment {
         self.api = APIClient(serverURL: Config.api.baseURL, tokens: tokens)
         self.privyAuthenticated = isAuthenticated ?? Self.privyIsAuthenticated(auth)
         self.endAuthSession = endAuthSession ?? { await auth.logout() }
+        tokens.onSignedOut { [weak self] in
+            Task { @MainActor in
+                await self?.signOut()
+            }
+        }
     }
 
     convenience init() {
@@ -78,6 +84,9 @@ final class AppEnvironment {
     #endif
 
     func signOut() async {
+        guard !isSigningOut else { return }
+        isSigningOut = true
+        defer { isSigningOut = false }
         await hints.stop()
         AppLogger.session.info("hint stream stopped")
         #if DEBUG
