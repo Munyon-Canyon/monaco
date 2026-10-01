@@ -9,7 +9,7 @@ struct AuthGateView: View {
             if Config.privy.isConfigured {
                 if hasLoginMethod {
                     if isAuthenticated {
-                        SessionGateView(auth: auth)
+                        SessionGateView()
                     } else if auth.phase == .restoring {
                         // A returning member never sees the login form flash before the app opens.
                         SessionRestoringView()

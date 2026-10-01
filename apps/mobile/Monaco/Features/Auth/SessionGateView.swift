@@ -11,67 +11,19 @@ enum SessionGateCopy {
     static let openFailedTitle = "Your account didn't load"
 }
 
-/// Opens the backend session, then first run or the tab shell.
 struct SessionGateView: View {
-    @ObservedObject var auth: PrivyAuthService
-    @State private var session = AppSessionStore()
-
-    private var destination: FirstRunDestination {
-        FirstRunGate.destination(for: session.me)
-    }
+    @Environment(AppEnvironment.self) private var environment
 
     var body: some View {
-        Group {
-            // #217: the tabs open as soon as the session exists; Home loads its own data.
-            if destination == .app {
-                MainTabView(auth: auth)
-            } else if destination == .nameSetup {
-                // #158: a new account has no name, and every social surface would call it
-                // "Member". Ask once, here, before anything is on screen under that name.
-                OnboardingNameView(
-                    auth: auth,
-                    save: { await session.updateDisplayName($0, auth: auth, optimistic: false) },
-                    signOut: { await auth.logout() }
-                )
-                .transition(.opacity)
-            } else if session.isLoading {
-                SessionGateSkeleton()
-            } else if let errorMessage = session.errorMessage {
-                SessionFailureView(
-                    title: SessionGateCopy.openFailedTitle,
-                    message: errorMessage,
-                    detail: debugDetail,
-                    onRetry: { await session.bootstrap(auth: auth) },
-                    onSignOut: { await auth.logout() }
-                )
-            }
+        if environment.isSignedIn {
+            MainTabView()
         }
-        .environment(session)
-        // The name landing is a real step forward, not a flicker: cross-fade it.
-        .animation(.easeInOut(duration: 0.28), value: destination)
-        // Keyed on who is signed in, not on the token: Privy rotates the access token about
-        // once an hour, and the transport already retries with the fresh one. Keying on the
-        // token string made every rotation look like a new sign-in and re-ran the whole
-        // bootstrap — seven requests, and every screen keyed the same way reloaded under the
-        // member's hands.
-        .task(id: auth.sessionIdentity) {
-            await session.bootstrap(auth: auth)
-        }
-    }
-
-    /// The status or URL error and the API base URL, under the message in Debug builds only, so
-    /// a developer can read the failure straight off the gate.
-    private var debugDetail: String? {
-        #if DEBUG
-        return session.errorDebugDetail
-        #else
-        return nil
-        #endif
     }
 }
 
 #Preview {
-    SessionGateView(auth: PrivyAuthService())
+    SessionGateView()
+        .environment(AppEnvironment())
 }
 
 /// Why the app can't get past sign-in, and the two ways on: try again, or sign out. The restore

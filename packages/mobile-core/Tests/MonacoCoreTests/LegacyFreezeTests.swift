@@ -90,6 +90,7 @@ private enum LegacyFreeze {
     static let lineCountedClients = [
         "apps/mobile/Monaco/API/MonacoAPIClient.swift",
         "packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift",
+        "apps/mobile/Monaco/Features/Shell/AppSessionStore.swift",
     ]
 
     static func parseBaseline(_ text: String) throws -> [Row: Int] {

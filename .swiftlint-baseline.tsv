@@ -113,7 +113,7 @@ no_comments	apps/mobile/Monaco/Features/Auth/OTPLoginForm.swift	48
 no_comments	apps/mobile/Monaco/Features/Auth/PendingRevoke.swift	25
 no_comments	apps/mobile/Monaco/Features/Auth/PrivyAuthService.swift	79
 no_comments	apps/mobile/Monaco/Features/Auth/SMSLoginView.swift	7
-no_comments	apps/mobile/Monaco/Features/Auth/SessionGateView.swift	37
+no_comments	apps/mobile/Monaco/Features/Auth/SessionGateView.swift	25
 no_comments	apps/mobile/Monaco/Features/Auth/SessionTokenLedger.swift	16
 no_comments	apps/mobile/Monaco/Features/Debug/AssetDetailSampleHarness.swift	92
 no_comments	apps/mobile/Monaco/Features/Debug/CabalsTabSampleData.swift	21
