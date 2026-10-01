@@ -46,7 +46,7 @@ enum StocksTabSampleScenario: String, CaseIterable {
 struct StocksTabSampleHarness: View {
     let scenario: StocksTabSampleScenario
     @ObservedObject var auth: PrivyAuthService
-    @State private var session = AppSessionStore()
+    @State private var session = AppSessionStore(apiClient: MonacoAPIClient())
     @State private var model: StocksTabModel
     @State private var isPrepared = false
 

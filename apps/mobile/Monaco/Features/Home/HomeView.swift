@@ -278,7 +278,7 @@ private struct HomeSkeletonView: View {
 }
 
 #Preview {
-    let session = AppSessionStore()
+    let session = AppSessionStore(apiClient: MonacoAPIClient())
     session.dashboard = HomeDashboardDTO(
         netWorthUsd: "1248.50",
         netWorthDollarPnl: "+48.20",

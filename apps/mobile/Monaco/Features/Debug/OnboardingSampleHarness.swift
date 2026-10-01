@@ -71,7 +71,7 @@ struct OnboardingSampleHarness: View {
     }
 
     private static func makeSession(for scenario: OnboardingSampleScenario) -> AppSessionStore {
-        let session = AppSessionStore()
+        let session = AppSessionStore(apiClient: MonacoAPIClient())
         session.isLoading = false
         session.me = MeResponse(
             userId: "sample-user",

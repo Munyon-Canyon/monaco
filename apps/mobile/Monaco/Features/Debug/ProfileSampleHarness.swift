@@ -76,7 +76,7 @@ struct ProfileSampleHarness: View {
     }
 
     private static func makeSession(for scenario: ProfileSampleScenario) -> AppSessionStore {
-        let session = AppSessionStore()
+        let session = AppSessionStore(apiClient: MonacoAPIClient())
         session.isLoading = false
         switch scenario {
         case .loading:

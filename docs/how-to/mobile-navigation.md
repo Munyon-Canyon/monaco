@@ -23,14 +23,18 @@ Declare the route type in the feature folder that owns the destination, conformi
 `Shell/AppRoute.swift`:
 
 ```swift
-struct CabalRoute: AppRoute {
+nonisolated struct CabalRoute: AppRoute {
     let id: String
 
-    func destination() -> some View {
+    @MainActor func destination() -> some View {
         CabalScreen(cabalID: id)
     }
 }
 ```
+
+Mark the type `nonisolated` and `destination()` `@MainActor`. The app target defaults to main-actor
+isolation, and a main-actor route type cannot satisfy the `Hashable` and `Sendable` requirements
+that `AppRoute` declares.
 
 Open it from anywhere that holds `AppEnvironment`:
 
@@ -123,7 +127,43 @@ protocol ScreenSection<Context> {
 screen declares its ordered slot list once and takes it as an init parameter defaulting to that
 list, so a slot lights up by setting `isLive = true` and writing its body in its own file — never
 in the screen file. A slot that loads data owns its own model and makes its own request; slots do
-not share the host screen's model. A screen with no live slot renders `NotMigratedView`.
+not share the host screen's model. A screen with no live slot renders `NotMigratedView`. The
+Profile screen also shows a Sign out button under its slots, so a member can sign out before any
+slot is live.
+
+A slot is one stub file next to its screen. The cabal slots live in `Features/Groups/CabalSlots/`:
+
+```swift
+enum CabalPotSlot: CabalSection {
+    static let isLive = false
+
+    static func body(for context: CabalContext) -> some View {
+        EmptyView()
+    }
+}
+```
+
+The owning ticket sets `isLive = true` and writes the body in that file. It never edits the screen
+file.
+
+A new screen declares a refining protocol, a context type when it needs one, and its ordered slot
+list. Swift cannot convert `[any CabalSection.Type]` to `[any ScreenSection<CabalContext>.Type]`
+implicitly, so the screen converts the list with `erased`:
+
+```swift
+protocol CabalSection: ScreenSection where Context == CabalContext {}
+
+struct CabalScreen: View {
+    static let sections: [any CabalSection.Type] = [CabalHeaderSlot.self, CabalPotSlot.self]
+
+    let context: CabalContext
+    let sections: [any CabalSection.Type]
+
+    var body: some View {
+        SectionStack(context: context, sections: sections.map { $0.erased })
+    }
+}
+```
 
 ### Slots
 
