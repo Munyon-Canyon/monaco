@@ -1,6 +1,6 @@
 import Foundation
 
-public struct SettingsExplorerLinkDTO: Equatable {
+public struct SettingsExplorerLinkDTO: Equatable, Sendable {
     public let id: String
     public let title: String
     public let urlString: String

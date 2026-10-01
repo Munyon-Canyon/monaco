@@ -1,11 +1,11 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.2
 import PackageDescription
 
 let package = Package(
     name: "MonacoCore",
     platforms: [
-        .macOS(.v13),
-        .iOS(.v17),
+        .macOS(.v15),
+        .iOS(.v18),
     ],
     products: [
         .library(name: "MonacoCore", targets: ["MonacoCore"]),
@@ -60,5 +60,6 @@ let package = Package(
                 .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
             ]
         ),
-    ]
+    ],
+    swiftLanguageModes: [.v6]
 )

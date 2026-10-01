@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import MonacoCore
@@ -322,12 +323,12 @@ final class LiveRefreshSchedulingTests: XCTestCase {
         let pull = Task { @MainActor in await gate.run { await release.wait() } }
         while !gate.isRunning { await Task.yield() }
 
-        var ticks = 0
-        _ = await PollLoop.run(schedule: PollSchedule(interval: .seconds(5))) { delay in
+        let ticks = TickCounter()
+        _ = await PollLoop.run(schedule: PollSchedule(interval: .seconds(5))) { @Sendable delay in
             await sleeps.append(delay)
-        } tick: {
-            ticks += 1
-            if ticks == 2 { return .stop }
+        } tick: { @Sendable in
+            let count = await ticks.next()
+            if count == 2 { return .stop }
             return await gate.run {} ? .refreshed : .skipped
         }
         await release.open()
@@ -343,36 +344,38 @@ final class LiveRefreshSchedulingTests: XCTestCase {
     func testFailedTick_leavesTheValueOnScreenUntouched_andBacksOff() async {
         // The shape every polled screen has: a value on screen, a fetch that may throw, and a
         // tick that only ever writes what a successful fetch returned.
-        var onScreen = ["vote-1"]
-        var writes = 0
-        var responses: [Result<[String], URLError>] = [
-            .failure(URLError(.timedOut)),
-            .failure(URLError(.badServerResponse)),
-            .success(["vote-1", "vote-2"]),
-        ]
         let sleeps = SleepRecorder()
-        var seenDuringOutage: [[String]] = []
+        let state = Mutex<FailedTickState>(.init())
 
-        _ = await PollLoop.run(schedule: PollSchedule(interval: .seconds(5))) { delay in
+        _ = await PollLoop.run(schedule: PollSchedule(interval: .seconds(5))) { @Sendable delay in
             await sleeps.append(delay)
-        } tick: {
-            guard !responses.isEmpty else { return .stop }
-            switch responses.removeFirst() {
-            case .success(let fresh):
-                QuietUpdate.apply(fresh, over: onScreen) {
-                    onScreen = $0
-                    writes += 1
+        } tick: { @Sendable in
+            state.withLock { box in
+                guard !box.responses.isEmpty else { return .stop }
+                switch box.responses.removeFirst() {
+                case .success(let fresh):
+                    var updated = box.onScreen
+                    var wrote = false
+                    QuietUpdate.apply(fresh, over: box.onScreen) { next in
+                        updated = next
+                        wrote = true
+                    }
+                    if wrote {
+                        box.onScreen = updated
+                        box.writes += 1
+                    }
+                    return .refreshed
+                case .failure:
+                    box.seenDuringOutage.append(box.onScreen)
+                    return .failed
                 }
-                return .refreshed
-            case .failure:
-                seenDuringOutage.append(onScreen)
-                return .failed
             }
         }
 
-        XCTAssertEqual(seenDuringOutage, [["vote-1"], ["vote-1"]], "a failed poll must not blank the screen")
-        XCTAssertEqual(onScreen, ["vote-1", "vote-2"])
-        XCTAssertEqual(writes, 1)
+        let finished = state.withLock { $0 }
+        XCTAssertEqual(finished.seenDuringOutage, [["vote-1"], ["vote-1"]], "a failed poll must not blank the screen")
+        XCTAssertEqual(finished.onScreen, ["vote-1", "vote-2"])
+        XCTAssertEqual(finished.writes, 1)
         let recorded = await sleeps.values
         XCTAssertEqual(recorded, [.seconds(5), .seconds(10), .seconds(20), .seconds(5)])
     }
@@ -411,6 +414,22 @@ private actor TickCounter {
     func increment() {
         value += 1
     }
+
+    func next() -> Int {
+        value += 1
+        return value
+    }
+}
+
+private struct FailedTickState: Sendable {
+    var onScreen = ["vote-1"]
+    var writes = 0
+    var responses: [Result<[String], URLError>] = [
+        .failure(URLError(.timedOut)),
+        .failure(URLError(.badServerResponse)),
+        .success(["vote-1", "vote-2"]),
+    ]
+    var seenDuringOutage: [[String]] = []
 }
 
 /// Holds a fake request open until the test lets it finish.

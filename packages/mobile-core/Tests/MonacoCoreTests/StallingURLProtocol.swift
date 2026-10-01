@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -11,7 +12,12 @@ import FoundationNetworking
 /// write really gets its longer budget and a read really gets the short one.
 final class StallingURLProtocol: URLProtocol {
     /// How long every request hangs before it is answered.
-    static var stall: TimeInterval = 0
+    private static let stallSeconds = Mutex<TimeInterval>(0)
+
+    static var stall: TimeInterval {
+        get { stallSeconds.withLock { $0 } }
+        set { stallSeconds.withLock { $0 = newValue } }
+    }
 
     private var work: DispatchWorkItem?
 

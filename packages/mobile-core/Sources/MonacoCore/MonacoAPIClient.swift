@@ -5,7 +5,7 @@ import MonacoAPI
 import FoundationNetworking
 #endif
 
-public enum LeaveGroupBlockReason: String, Equatable {
+public enum LeaveGroupBlockReason: String, Equatable, Sendable {
     case shareUnitsRemaining = "share_units_remaining"
     case lastMemberWithTreasury = "last_member_with_treasury"
     case pendingRedeem = "pending_redeem"
