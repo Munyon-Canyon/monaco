@@ -1,3 +1,4 @@
+import atexit
 import contextlib
 import importlib.util
 import io
@@ -5,6 +6,7 @@ import multiprocessing
 import os
 import pathlib
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -18,6 +20,27 @@ spec = importlib.util.spec_from_file_location(
 check = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = check
 spec.loader.exec_module(check)
+
+# /usr/bin/git on macOS is a wrapper around the Xcode git and costs ~70ms to
+# start; the Xcode binary itself starts in ~30ms. The hook also looks up
+# python3 on PATH, which is a ~1s pyenv shim in some shells. Both run once
+# per git or hook invocation, so they dominate the suite.
+_FAST_GIT = tempfile.TemporaryDirectory()
+
+
+def _prepare_tools():
+    parts = []
+    xcode = pathlib.Path("/Applications/Xcode.app/Contents/Developer/usr/bin/git")
+    if xcode.is_file() and shutil.which("git") == "/usr/bin/git":
+        link = pathlib.Path(_FAST_GIT.name) / "git"
+        if not link.exists():
+            link.symlink_to(xcode)
+        parts.append(_FAST_GIT.name)
+    parts.append(str(pathlib.Path(sys.executable).resolve().parent))
+    os.environ["PATH"] = os.pathsep.join(parts + [os.environ.get("PATH", "")])
+
+
+_prepare_tools()
 
 GOLANGCI = """version: "2"
 linters:
@@ -103,9 +126,23 @@ BASE = {
 TEMPLATE = tempfile.TemporaryDirectory()
 
 
+def _template_dir():
+    shared = os.environ.get("GATE_FIXTURE_ROOT")
+    return pathlib.Path(shared) if shared else pathlib.Path(TEMPLATE.name)
+
+
+def _copy_repo(src: pathlib.Path, dst: pathlib.Path):
+    # APFS clonefile (cp -c) is a metadata copy. copytree is the fallback.
+    if sys.platform == "darwin":
+        result = subprocess.run(["cp", "-cR", f"{src}/.", str(dst)], capture_output=True)
+        if result.returncode == 0:
+            return
+    shutil.copytree(src, dst, dirs_exist_ok=True)
+
+
 class Repo:
     def __init__(self, root: pathlib.Path, name="base", extra=None):
-        self.root = pathlib.Path(TEMPLATE.name) / name
+        self.root = _template_dir() / name
         if not self.root.exists():
             self.root.mkdir()
             self.git("init", "-q", "-b", "main")
@@ -119,7 +156,7 @@ class Repo:
             self.commit(BASE)
             if extra:
                 extra(self)
-        shutil.copytree(self.root, root, dirs_exist_ok=True)
+        _copy_repo(self.root, root)
         self.root = root
         self.base = self.sha()
 
@@ -647,35 +684,73 @@ def _run_one(test_id):
     return "fail", stream.getvalue()
 
 
+def _stop_pool(pool):
+    procs = list((getattr(pool, "_processes", None) or {}).values())
+    pool.shutdown(wait=False, cancel_futures=True)
+    for proc in procs:
+        proc.terminate()
+
+
+def _parent_stops_pool(pool):
+    # The main process owns the pool. atexit covers a normal exit; SIGTERM covers
+    # a parent that is asked to die while spawn workers still hold its pipes.
+    atexit.register(_stop_pool, pool)
+    previous = signal.getsignal(signal.SIGTERM)
+
+    def on_term(signum, frame):
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        _stop_pool(pool)
+        if callable(previous) and previous not in (signal.SIG_DFL, signal.SIG_IGN):
+            previous(signum, frame)
+            return
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    signal.signal(signal.SIGTERM, on_term)
+    return previous
+
+
 class ParallelSuite(unittest.TestSuite):
     def run(self, result, debug=False):
         os.environ["GATE_TEST_WORKER"] = "1"
         cases = list(_flatten(self))
-        workers = min(8, os.cpu_count() or 4)
+        # Build each template once here. Spawn workers copy it instead of
+        # running git init, because a fresh interpreter does not share ours.
+        fixture("base")
+        fixture("hooked", add_scripts)
+        os.environ["GATE_FIXTURE_ROOT"] = TEMPLATE.name
+        # Each test shells out to git, and the hook shells out to Python.
+        # Past four workers those processes contend and the wall time goes
+        # up: eight took about 11s on this machine, four took about 7.5s.
+        workers = min(4, os.cpu_count() or 2)
         # Linux forks by default and every worker would init the same template
         # repo. spawn gives each worker its own, which is what macOS already does.
         ctx = multiprocessing.get_context("spawn")
         with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as pool:
-            futures = {pool.submit(_run_one, case.id()): case for case in cases}
-            for future in as_completed(futures):
-                case = futures[future]
-                result.startTest(case)
-                try:
-                    kind, text = future.result()
-                except Exception:
-                    result.addError(case, sys.exc_info())
-                else:
-                    if kind == "ok":
-                        result.addSuccess(case)
+            previous = _parent_stops_pool(pool)
+            try:
+                futures = {pool.submit(_run_one, case.id()): case for case in cases}
+                for future in as_completed(futures):
+                    case = futures[future]
+                    result.startTest(case)
+                    try:
+                        kind, text = future.result()
+                    except Exception:
+                        result.addError(case, sys.exc_info())
                     else:
-                        try:
-                            raise AssertionError(text)
-                        except AssertionError:
-                            if kind == "error":
-                                result.addError(case, sys.exc_info())
-                            else:
-                                result.addFailure(case, sys.exc_info())
-                result.stopTest(case)
+                        if kind == "ok":
+                            result.addSuccess(case)
+                        else:
+                            try:
+                                raise AssertionError(text)
+                            except AssertionError:
+                                if kind == "error":
+                                    result.addError(case, sys.exc_info())
+                                else:
+                                    result.addFailure(case, sys.exc_info())
+                    result.stopTest(case)
+            finally:
+                signal.signal(signal.SIGTERM, previous)
+                atexit.unregister(_stop_pool)
         return result
 
 

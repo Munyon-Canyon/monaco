@@ -28,7 +28,7 @@ const (
 func defaultBudget() map[string]time.Duration {
 	return map[string]time.Duration{
 		"go": 60 * time.Second, "lint": 60 * time.Second, "swift": 60 * time.Second, "scripts": 30 * time.Second,
-		"python": 15 * time.Second, "shell": 10 * time.Second, "ready": 90 * time.Second,
+		"python": 45 * time.Second, "shell": 10 * time.Second, "ready": 90 * time.Second,
 		"migrate": 30 * time.Second, "openapi": 30 * time.Second, "docs": 30 * time.Second,
 		"pr": 15 * time.Second, packageKind: 20 * time.Second,
 	}

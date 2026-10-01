@@ -15,12 +15,22 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
 const defaultAPI = "https://api.github.com"
+
+func execWaitDelay() time.Duration {
+	if testing.Testing() {
+		if d, err := time.ParseDuration(os.Getenv("MONACO_EXEC_WAIT_DELAY")); err == nil && d > 0 {
+			return d
+		}
+	}
+	return 10 * time.Second
+}
 
 type Env struct {
 	Work    string
@@ -232,13 +242,37 @@ func lookup(environ []string, key string) string {
 	return ""
 }
 
+func timed(fn func()) time.Duration {
+	start := time.Now()
+	fn()
+	return time.Since(start)
+}
+
+func poll(limit time.Duration, done func() bool) bool {
+	deadline := time.Now().Add(limit)
+	for {
+		if done() {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func Exec(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 	cmd.Stdin = strings.NewReader(stdin)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
+	configureExec(cmd)
 	out, err := cmd.Output()
+	if cmd.Process != nil {
+		_ = killGroup(cmd.Process)
+	}
 	if err != nil {
 		return out, fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, bytes.TrimSpace(stderr.Bytes()))
 	}
