@@ -10,6 +10,7 @@ let package = Package(
     products: [
         .library(name: "MonacoCore", targets: ["MonacoCore"]),
         .library(name: "MonacoAPI", targets: ["MonacoAPI"]),
+        .library(name: "MonacoTestClock", targets: ["MonacoTestClock"]),
         .library(name: "MonacoTestSupport", targets: ["MonacoTestSupport"]),
     ],
     dependencies: [
@@ -34,6 +35,7 @@ let package = Package(
                 .plugin(name: "OpenAPIGenerator", package: "swift-openapi-generator")
             ]
         ),
+        .target(name: "MonacoTestClock"),
         .target(
             name: "MonacoTestSupport",
             dependencies: [
@@ -44,7 +46,7 @@ let package = Package(
         ),
         .testTarget(
             name: "MonacoCoreTests",
-            dependencies: ["MonacoCore", "MonacoAPI", "MonacoTestSupport"],
+            dependencies: ["MonacoCore", "MonacoAPI", "MonacoTestClock", "MonacoTestSupport"],
             exclude: ["RepoRulesAllowlist.txt"],
             resources: [
                 .process("Fixtures")
@@ -54,6 +56,7 @@ let package = Package(
             name: "MonacoAPITests",
             dependencies: [
                 "MonacoAPI",
+                "MonacoTestClock",
                 "MonacoTestSupport",
                 .product(name: "HTTPTypes", package: "swift-http-types"),
                 .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),

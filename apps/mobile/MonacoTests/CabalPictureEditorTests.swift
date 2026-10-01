@@ -252,7 +252,6 @@ nonisolated final class CabalPictureEditorTests: XCTestCase {
         let deadline = Date().addingTimeInterval(timeout)
         while !condition(), Date() < deadline {
             await Task.yield()
-            try? await Task.sleep(nanoseconds: 1_000_000)
         }
         XCTAssertTrue(condition(), "condition never became true within \(timeout)s")
     }

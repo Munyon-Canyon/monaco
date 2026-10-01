@@ -12,6 +12,7 @@
 		D946000630590361008E7964 /* Ably in Frameworks */ = {isa = PBXBuildFile; productRef = D946000430590361008E7964 /* Ably */; };
 		C0DE000330590361008E7964 /* MonacoCore in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE000230590361008E7964 /* MonacoCore */; };
 		C0DE000530590361008E7964 /* MonacoAPI in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE000430590361008E7964 /* MonacoAPI */; };
+		C0DE000630590361008E7964 /* MonacoTestClock in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE000730590361008E7964 /* MonacoTestClock */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -74,6 +75,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C0DE000630590361008E7964 /* MonacoTestClock in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -165,6 +167,7 @@
 			);
 			name = MonacoTests;
 			packageProductDependencies = (
+				C0DE000730590361008E7964 /* MonacoTestClock */,
 			);
 			productName = MonacoTests;
 			productReference = B463062030590360008E7964 /* MonacoTests.xctest */;
@@ -692,6 +695,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C0DE000130590361008E7964 /* XCLocalSwiftPackageReference "../../packages/mobile-core" */;
 			productName = MonacoAPI;
+		};
+		C0DE000730590361008E7964 /* MonacoTestClock */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0DE000130590361008E7964 /* XCLocalSwiftPackageReference "../../packages/mobile-core" */;
+			productName = MonacoTestClock;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
