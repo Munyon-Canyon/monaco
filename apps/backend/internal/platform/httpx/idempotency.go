@@ -21,6 +21,7 @@ import (
 
 const (
 	IdempotencyKeyHeader = "Idempotency-Key"
+	IdempotentExtension  = "x-idempotent"
 	maxIdempotencyKeyLen = 255
 	storeTimeout         = 10 * time.Second
 )
@@ -34,7 +35,7 @@ type IdempotencyStore interface {
 func Idempotency(store IdempotencyStore) api.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !mutating(r.Method) {
+			if !mutating(r.Method) || optedOut(r.Context()) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -57,6 +58,15 @@ func Idempotency(store IdempotencyStore) api.MiddlewareFunc {
 			}.serve(r.Context(), next)
 		})
 	}
+}
+
+func optedOut(ctx context.Context) bool {
+	res, ok := routeFrom(ctx)
+	if !ok {
+		return false
+	}
+	declared, isBool := res.route.Operation.Extensions[IdempotentExtension].(bool)
+	return isBool && !declared
 }
 
 func mutating(method string) bool {

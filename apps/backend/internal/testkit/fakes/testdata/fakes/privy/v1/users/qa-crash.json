@@ -1,0 +1,11 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {
+    "id": "did:privy:qa-crash",
+    "created_at": 1790001000,
+    "linked_accounts": [
+      {"type": "phone", "number": "+14155550104", "phoneNumber": "+14155550104", "verified_at": 1790001000}
+    ]
+  }
+}

@@ -69,7 +69,7 @@ tap link ─► monacolabs.xyz/r/K7M4QX2P
                                                            │ tap
             parse URL → host monacolabs.xyz, path /r/<code> → keep code locally
                                                            │
-            Apple / Google login → POST /v1/auth/session (new user)
+            SMS / email login → POST /v1/auth/session (new user)
                                                            │
             POST /v1/me/referral { code, source: "clipboard" }
 ```

@@ -17,6 +17,8 @@ security:
 tags:
   - name: health
     description: Liveness of the API process.
+  - name: identity
+    description: The signed-in user and their account.
   - name: stream
     description: Live re-fetch hints over server-sent events.
   - name: system
@@ -37,6 +39,63 @@ paths:
               schema:
                 type: string
                 const: "ok\n"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/auth/session:
+    post:
+      operationId: postAuthSession
+      tags: [identity]
+      security: []
+      x-idempotent: false
+      x-rate-limit:
+        ip:
+          rate: 60
+          per: 1m
+          burst: 60
+      summary: Open a session from a Privy access token.
+      description: >-
+        Verifies the Privy access token in the Authorization header, finds or creates the user by
+        their Privy id, reuses the user's one member wallet and returns the account. The first call
+        for a Privy user creates the account and appends `user.created`. Calling it again changes
+        nothing, so it takes no Idempotency-Key. It also brings the account back in line with the
+        phone and X accounts linked in Privy. Sign-in is by phone number or email through Privy; a
+        Privy user with neither is login_method_not_allowed, and a deleted account is account_deleted.
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: >-
+            The Privy access token as `Bearer <token>`. The route is public because no account exists
+            on the first call, so the server verifies this header itself and answers unauthorized when
+            it is missing or invalid.
+          schema:
+            type: string
+            examples: ["Bearer eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkaWQ6cHJpdnk6cWEtMSJ9.c2lnbmF0dXJl"]
+      responses:
+        "200":
+          description: The caller's account, with its `auth_state`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me:
+    get:
+      operationId: getMe
+      tags: [identity]
+      summary: Read the signed-in user's account.
+      description: >-
+        Returns the caller's own `Me`: handle, display name, `auth_state`, `account_status` and the
+        member wallet address. A suspended or banned user gets it too, so the app can show the notice
+        screen. A deleted account is user_not_found.
+      responses:
+        "200":
+          description: The caller's account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
         default:
           $ref: "#/components/responses/Problem"
   /v1/stream:
@@ -153,6 +212,96 @@ components:
           schema:
             $ref: "#/components/schemas/Problem"
   schemas:
+    AccountStatus:
+      type: string
+      description: >-
+        The user's standing. A suspended account is read-only apart from withdraw and cash out, and a
+        banned account can only withdraw and cash out.
+      examples: [active]
+      enum: [active, suspended, banned]
+    AuthState:
+      type: string
+      description: >-
+        Where the user is in onboarding. `CREATED` means onboarding has not finished, `AWAITING_PHONE`
+        and `AWAITING_SOCIALS` mean the user still owes that step, and `ONBOARDING_COMPLETED` means the
+        phone and X are both linked. The app routes the first-run flow and shows nudge banners from it.
+      examples: [CREATED]
+      enum: [CREATED, AWAITING_PHONE, AWAITING_SOCIALS, ONBOARDING_COMPLETED]
+    Me:
+      type: object
+      description: >-
+        The signed-in user's own account, as the app needs it to route and to draw the profile. It
+        carries no email and no phone number.
+      examples:
+        - id: 01890a5d-ac96-774b-bcce-b302099a8058
+          handle: kaicenat
+          display_name: Kai Cenat
+          auth_state: ONBOARDING_COMPLETED
+          account_status: active
+          member_wallet_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf
+          phone_linked: true
+          x_username: kaicenat
+          handle_changeable_at: "2026-10-30T12:00:00Z"
+          created_at: "2026-09-30T12:00:00Z"
+      additionalProperties: false
+      required:
+        - id
+        - display_name
+        - auth_state
+        - account_status
+        - member_wallet_address
+        - phone_linked
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The user id.
+          examples: [01890a5d-ac96-774b-bcce-b302099a8058]
+        handle:
+          type: string
+          description: The user's unique handle, lowercase. Absent until onboarding sets one.
+          pattern: "^[a-z0-9_]{3,20}$"
+          examples: [kaicenat]
+        display_name:
+          type: string
+          description: The name shown on the profile. It falls back to the handle, and is empty when the user has neither.
+          examples: [Kai Cenat]
+        photo_url:
+          type: string
+          format: uri
+          description: The profile photo. Absent when the user has none.
+          examples: ["https://cdn.example.com/photos/kai.jpg"]
+        auth_state:
+          $ref: "#/components/schemas/AuthState"
+          description: Where the user is in onboarding.
+          examples: [CREATED]
+        account_status:
+          $ref: "#/components/schemas/AccountStatus"
+          description: The user's standing.
+          examples: [active]
+        member_wallet_address:
+          type: string
+          description: The Solana address of the user's member wallet. Deposits go here.
+          examples: [Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf]
+        phone_linked:
+          type: boolean
+          description: True once the user's phone is verified and stored.
+          examples: [true]
+        x_username:
+          type: string
+          description: The linked X username. Absent when no X account is linked.
+          examples: [kaicenat]
+        handle_changeable_at:
+          type: string
+          format: date-time
+          description: The time the user may change the handle again. Absent until the handle has been set.
+          examples: ["2026-10-30T12:00:00Z"]
+        created_at:
+          type: string
+          format: date-time
+          description: When the account was created.
+          examples: ["2026-09-30T12:00:00Z"]
     PingRequest:
       type: object
       description: A note to record with the ping.

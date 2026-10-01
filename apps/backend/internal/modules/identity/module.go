@@ -1,6 +1,9 @@
 package identity
 
 import (
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/authn"
 	privyadapter "github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/privy"
@@ -15,14 +18,58 @@ import (
 )
 
 type Module struct {
-	deps module.Deps
+	deps    module.Deps
+	privy   app.PrivyUsers
+	wallets app.MemberWallets
+	meters  metric.MeterProvider
 }
 
-func New(d module.Deps) *Module { return &Module{deps: d} }
+type Option func(*Module)
+
+func WithPrivy(users app.PrivyUsers, wallets app.MemberWallets) Option {
+	return func(m *Module) { m.privy, m.wallets = users, wallets }
+}
+
+func WithMeters(meters metric.MeterProvider) Option {
+	return func(m *Module) { m.meters = meters }
+}
+
+func New(d module.Deps, opts ...Option) *Module {
+	m := &Module{deps: d, meters: otel.GetMeterProvider()}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
 
 func (*Module) Name() string { return "identity" }
 
-func (*Module) Routes(*httpx.Routes) {}
+func (m *Module) Routes(r *httpx.Routes) {
+	r.IdentityRoutes = adapters.HTTP{Open: m.openSession(), Reads: m.deps.Pool}
+}
+
+func (m *Module) openSession() *app.OpenSessionHandler {
+	users, wallets := m.privy, m.wallets
+	if users == nil {
+		client := privy.New(m.deps.Config, m.deps.Clock)
+		users, wallets = privyadapter.Users{Client: client}, privyadapter.Wallets{Client: client}
+	}
+	rule, err := app.NewWalletRule(wallets, m.meters)
+	if err != nil {
+		panic(err)
+	}
+	return app.NewOpenSessionHandler(app.OpenSessionDeps{
+		UoW:     m.deps.UoW,
+		Reads:   m.deps.Pool,
+		Users:   adapters.Users{},
+		Links:   adapters.Users{},
+		Privy:   users,
+		Wallets: rule,
+		IDs:     m.deps.IDs,
+		Clock:   m.deps.Clock,
+		Hints:   m.deps.Bus,
+	})
+}
 
 func (*Module) Consumers() []bus.Consumer {
 	return []bus.Consumer{}

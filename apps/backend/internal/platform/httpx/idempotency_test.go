@@ -107,6 +107,50 @@ func sameResponse(t *testing.T, first, second *httptest.ResponseRecorder) {
 	}
 }
 
+const optOutSpec = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /v1/opted-out:
+    post:
+      operationId: postOptedOut
+      x-idempotent: false
+      responses: {"201": {description: created}}
+  /v1/opted-in:
+    post:
+      operationId: postOptedIn
+      x-idempotent: true
+      responses: {"201": {description: created}}
+  /v1/plain:
+    post:
+      operationId: postPlain
+      responses: {"201": {description: created}}
+`
+
+func TestIdempotency_onlyAnOperationDeclaringXIdempotentFalseSkipsTheKey(t *testing.T) {
+	t.Parallel()
+	c, err := loadContract([]byte(optOutSpec))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, tc := range map[string]struct {
+		path   string
+		status int
+		calls  int32
+	}{
+		"false":       {"/v1/opted-out", http.StatusCreated, 1},
+		"true":        {"/v1/opted-in", http.StatusBadRequest, 0},
+		"no property": {"/v1/plain", http.StatusBadRequest, 0},
+	} {
+		h := newHarness(t)
+		next := &countingHandler{serve: createsThing}
+		rec := send(t, h.deps.wrap(c.resolve(Idempotency(stubStore{})(next))), http.MethodPost, tc.path, "", `{}`)
+		if rec.Code != tc.status || next.calls.Load() != tc.calls {
+			t.Errorf("%s: POST %s without a key = %d after %d handler calls, want %d and %d",
+				name, tc.path, rec.Code, next.calls.Load(), tc.status, tc.calls)
+		}
+	}
+}
+
 func TestIdempotency_requiresTheHeaderOnMutatingMethodsOnly(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {

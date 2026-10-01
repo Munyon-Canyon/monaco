@@ -53,7 +53,7 @@ func Auth(v auth.TokenVerifier) api.MiddlewareFunc {
 				next.ServeHTTP(w, r)
 				return
 			}
-			raw, ok := bearerToken(r.Header.Get("Authorization"))
+			raw, ok := BearerToken(r.Header.Get("Authorization"))
 			if !ok {
 				Problem(w, r, errs.New(errs.CodeUnauthorized, op, slog.String("reason", "no_bearer_token")))
 				return
@@ -68,7 +68,7 @@ func Auth(v auth.TokenVerifier) api.MiddlewareFunc {
 	}
 }
 
-func bearerToken(header string) (string, bool) {
+func BearerToken(header string) (string, bool) {
 	scheme, token, ok := strings.Cut(header, " ")
 	token = strings.TrimSpace(token)
 	if !ok || !strings.EqualFold(scheme, "Bearer") || token == "" {

@@ -130,7 +130,7 @@ What the design guarantees:
 | Guarantee | How |
 | --- | --- |
 | Money is never credited or paid twice | Every transfer's signature is stored before it is broadcast, so a crash or a retry finishes the first transaction instead of sending a second one. |
-| A retried request never repeats a trade | Every mutating call takes an `Idempotency-Key` header. The server stores the response and replays it. |
+| A retried request never repeats a trade | Every mutating call takes an `Idempotency-Key` header. The server stores the response and replays it. Sign-in (`POST /v1/auth/session`) is the one exception, because finding or creating the user is already idempotent. |
 | A new member cannot take existing gains | Shares are priced at the current pot value. Rounding always favours the pot. |
 | An agent cannot overspend | Its budget is checked and reserved before each swap. It can only sell what it bought. |
 | Non-members see nothing | Every cabal route checks membership ([multi-user-verification.md](multi-user-verification.md)). |

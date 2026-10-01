@@ -34,6 +34,9 @@ func registrations() []Registration {
 		Register[CabalMemberLeft](TypeCabalMemberLeft, 1),
 		Register[CabalUpdated](TypeCabalUpdated, 1),
 		RegisterCore[PriceTick](TypePriceTick, 1),
+		Register[UserCreated](TypeUserCreated, 1),
+		Register[UserAuthStateChanged](TypeUserAuthStateChanged, 1),
+		Register[UserProfileUpdated](TypeUserProfileUpdated, 1),
 	}
 }
 

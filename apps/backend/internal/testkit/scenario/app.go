@@ -1,7 +1,9 @@
 package scenario
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -34,6 +36,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
 type app struct {
@@ -52,8 +55,10 @@ type app struct {
 	runner    *poller.Runner
 	log       *lineLog
 
-	note      *notifier
-	committed map[string]map[string]bool
+	note       *notifier
+	committed  map[string]map[string]bool
+	upstreams  *fakes.Server
+	privyAppID string
 }
 
 func start(t *testing.T, o options) *app {
@@ -64,6 +69,7 @@ func start(t *testing.T, o options) *app {
 		committed: map[string]map[string]bool{},
 	}
 	a.pool = pool
+	a.upstreams, a.privyAppID = o.fakes, o.privyAppID
 	a.db = db.New(pool, a.ids, clock.Real{})
 	verifier, err := auth.NewDevVerifier(
 		config.Config{Env: config.EnvTest, Auth: config.Auth{DevTokenKey: tokenKey}}, clock.Real{})
@@ -105,7 +111,7 @@ func start(t *testing.T, o options) *app {
 	stops = append(stops, stopConsumers)
 	a.relay = bus.NewRelay(a.bus.Conn, db.NewOutbox(pool, clock.Real{}), nil, clock.Real{})
 	stops = append(stops, background(ctx, a.runRelay))
-	a.server = httptest.NewServer(a.handler(t, pool, set.Routes(), o.spec))
+	a.server = httptest.NewServer(a.handler(t, pool, set.Routes(), o.spec, o.wrap))
 	stops = append(stops, a.server.Close)
 	return a
 }
@@ -117,7 +123,9 @@ func must(t *testing.T, err error) {
 	}
 }
 
-func (a *app) handler(t *testing.T, pool *pgxpool.Pool, routes httpx.Routes, spec []byte) http.Handler {
+func (a *app) handler(
+	t *testing.T, pool *pgxpool.Pool, routes httpx.Routes, spec []byte, wrap func(http.Handler) http.Handler,
+) http.Handler {
 	t.Helper()
 	if spec == nil {
 		spec = openapi.Spec
@@ -138,13 +146,17 @@ func (a *app) handler(t *testing.T, pool *pgxpool.Pool, routes httpx.Routes, spe
 	}, routes, spec)
 	must(t, err)
 	checked := testkit.HTTP(t, h)
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	served := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/stream" {
 			h.ServeHTTP(w, r)
 			return
 		}
 		checked.ServeHTTP(w, r)
 	})
+	if wrap == nil {
+		return served
+	}
+	return wrap(served)
 }
 
 func (a *app) runRelay(ctx context.Context) {
@@ -208,7 +220,8 @@ func (a *app) handledAll(handlers, eventIDs []string) bool {
 
 func (a *app) backend() *backend {
 	return &backend{
-		baseURL: a.server.URL, client: a.server.Client(), note: a.note, mint: a.mint, newUserID: a.newUserID,
+		baseURL: a.server.URL, client: a.server.Client(), note: a.note, pool: a.pool, mint: a.mint,
+		privyToken: a.privyToken, script: a.scriptFakes, newUserID: a.newUserID,
 		enter: func(Stage) {}, exchanged: func(Exchange) {}, events: a.events, awaitHandled: a.awaitHandled,
 		published: a.published, hold: a.hold, crashAt: a.crashAt, seed: a.seed, lines: a.log.since,
 		tick: a.tickOnce,
@@ -228,6 +241,26 @@ func (a *app) tickOnce(t T, name string) func() {
 
 func (a *app) mint(id ids.UserID) string {
 	return a.verifier.Mint(id.String(), time.Now().Add(time.Hour))
+}
+
+func (a *app) privyToken(sub string) string {
+	return fakes.PrivyAccessToken(a.privyAppID, sub, time.Now(), time.Hour)
+}
+
+func (a *app) scriptFakes(ctx context.Context, t T, step fakes.Step) {
+	t.Helper()
+	raw, err := json.Marshal(step)
+	if err != nil {
+		t.Fatalf("scenario: script %+v: %v", step, err)
+	}
+	rec := httptest.NewRecorder()
+	a.upstreams.ServeHTTP(
+		rec,
+		httptest.NewRequestWithContext(ctx, http.MethodPost, "/_script", bytes.NewReader(raw)),
+	)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("scenario: script %s answered %d %s", raw, rec.Code, rec.Body)
+	}
 }
 
 func (a *app) newUserID() (ids.UserID, error) { return ids.ParseUserID(a.ids.NewV7().String()) }

@@ -153,7 +153,18 @@ func TestDocsEventsPrintsTheRegistryCatalog(t *testing.T) {
 		"| `action` | `string` |\n| `symbol` | `string` |\n" +
 		"| `in_mint` | `chain.SolanaAddress` |\n" +
 		"| `out_mint` | `chain.SolanaAddress` |\n| `in_amount` | `uint64` |\n" +
-		"| `tx_signature` | `chain.Signature` |\n"
+		"| `tx_signature` | `chain.Signature` |\n\n" +
+		"## `user.auth_state_changed`\n\nSubject `events.user.auth_state_changed`, version 1.\n\n" +
+		"| Field | Go type |\n| --- | --- |\n| `v` | `int` |\n| `user_id` | `uuid.UUID` |\n" +
+		"| `from` | `string` |\n| `to` | `string` |\n| `cause` | `string` |\n" +
+		"| `at` | `time.Time` |\n\n" +
+		"## `user.created`\n\nSubject `events.user.created`, version 1.\n\n" +
+		"| Field | Go type |\n| --- | --- |\n| `v` | `int` |\n| `user_id` | `uuid.UUID` |\n" +
+		"| `login_provider` | `string` |\n| `created_at` | `time.Time` |\n\n" +
+		"## `user.profile_updated`\n\nSubject `events.user.profile_updated`, version 1.\n\n" +
+		"| Field | Go type |\n| --- | --- |\n| `v` | `int` |\n| `user_id` | `uuid.UUID` |\n" +
+		"| `fields` | `[]string` |\n| `handle` | `string` |\n| `display_name` | `string` |\n" +
+		"| `photo_url` | `string` |\n"
 	if stdout.String() != want {
 		t.Fatalf("stdout =\n%s\nwant\n%s", stdout.String(), want)
 	}

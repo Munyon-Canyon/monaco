@@ -12,10 +12,56 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for AccountStatus.
+const (
+	Active    AccountStatus = "active"
+	Banned    AccountStatus = "banned"
+	Suspended AccountStatus = "suspended"
+)
+
+// Valid indicates whether the value is a known member of the AccountStatus enum.
+func (e AccountStatus) Valid() bool {
+	switch e {
+	case Active:
+		return true
+	case Banned:
+		return true
+	case Suspended:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuthState.
+const (
+	AWAITINGPHONE       AuthState = "AWAITING_PHONE"
+	AWAITINGSOCIALS     AuthState = "AWAITING_SOCIALS"
+	CREATED             AuthState = "CREATED"
+	ONBOARDINGCOMPLETED AuthState = "ONBOARDING_COMPLETED"
+)
+
+// Valid indicates whether the value is a known member of the AuthState enum.
+func (e AuthState) Valid() bool {
+	switch e {
+	case AWAITINGPHONE:
+		return true
+	case AWAITINGSOCIALS:
+		return true
+	case CREATED:
+		return true
+	case ONBOARDINGCOMPLETED:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for ErrorCode.
 const (
@@ -281,10 +327,80 @@ func (e ProblemType) Valid() bool {
 	}
 }
 
+// AccountStatus The user's standing. A suspended account is read-only apart from withdraw and cash out, and a banned account can only withdraw and cash out.
+//
+// Examples: active
+type AccountStatus string
+
+// AuthState Where the user is in onboarding. `CREATED` means onboarding has not finished, `AWAITING_PHONE` and `AWAITING_SOCIALS` mean the user still owes that step, and `ONBOARDING_COMPLETED` means the phone and X are both linked. The app routes the first-run flow and shows nudge banners from it.
+//
+// Examples: CREATED
+type AuthState string
+
 // ErrorCode The closed list of error codes. Generated from the errs table by monacoctl gen errors.
 //
 // Examples: not_found
 type ErrorCode string
+
+// Me The signed-in user's own account, as the app needs it to route and to draw the profile. It carries no email and no phone number.
+//
+// Examples: {"account_status":"active","auth_state":"ONBOARDING_COMPLETED","created_at":"2026-09-30T12:00:00Z","display_name":"Kai Cenat","handle":"kaicenat","handle_changeable_at":"2026-10-30T12:00:00Z","id":"01890a5d-ac96-774b-bcce-b302099a8058","member_wallet_address":"Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf","phone_linked":true,"x_username":"kaicenat"}
+type Me struct {
+	// AccountStatus The user's standing.
+	//
+	// Examples: active
+	AccountStatus AccountStatus `json:"account_status"`
+
+	// AuthState Where the user is in onboarding.
+	//
+	// Examples: CREATED
+	AuthState AuthState `json:"auth_state"`
+
+	// CreatedAt When the account was created.
+	//
+	// Examples: 2026-09-30T12:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// DisplayName The name shown on the profile. It falls back to the handle, and is empty when the user has neither.
+	//
+	// Examples: Kai Cenat
+	DisplayName string `json:"display_name"`
+
+	// Handle The user's unique handle, lowercase. Absent until onboarding sets one.
+	//
+	// Examples: kaicenat
+	Handle *string `json:"handle,omitempty"`
+
+	// HandleChangeableAt The time the user may change the handle again. Absent until the handle has been set.
+	//
+	// Examples: 2026-10-30T12:00:00Z
+	HandleChangeableAt *time.Time `json:"handle_changeable_at,omitempty"`
+
+	// Id The user id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	Id openapi_types.UUID `json:"id"`
+
+	// MemberWalletAddress The Solana address of the user's member wallet. Deposits go here.
+	//
+	// Examples: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf
+	MemberWalletAddress string `json:"member_wallet_address"`
+
+	// PhoneLinked True once the user's phone is verified and stored.
+	//
+	// Examples: true
+	PhoneLinked bool `json:"phone_linked"`
+
+	// PhotoUrl The profile photo. Absent when the user has none.
+	//
+	// Examples: https://cdn.example.com/photos/kai.jpg
+	PhotoUrl *string `json:"photo_url,omitempty"`
+
+	// XUsername The linked X username. Absent when no X account is linked.
+	//
+	// Examples: kaicenat
+	XUsername *string `json:"x_username,omitempty"`
+}
 
 // Ping A recorded ping.
 type Ping struct {
@@ -356,6 +472,12 @@ type ProblemType string
 // IdempotencyKey Examples: 6f1c1a52-3a4e-4d0e-9d7b-2f7f3f5b9d10
 type IdempotencyKey = string
 
+// PostAuthSessionParams defines parameters for PostAuthSession.
+type PostAuthSessionParams struct {
+	// Authorization The Privy access token as `Bearer <token>`. The route is public because no account exists on the first call, so the server verifies this header itself and answers unauthorized when it is missing or invalid.
+	Authorization *string `json:"Authorization,omitempty"`
+}
+
 // GetStreamParams defines parameters for GetStream.
 type GetStreamParams struct {
 	// LastEventID The id of the last event the app received before it reconnected.
@@ -376,6 +498,12 @@ type ServerInterface interface {
 	// GetHealthz Report that the API process is serving.
 	// (GET /healthz)
 	GetHealthz(w http.ResponseWriter, r *http.Request)
+	// PostAuthSession Open a session from a Privy access token.
+	// (POST /v1/auth/session)
+	PostAuthSession(w http.ResponseWriter, r *http.Request, params PostAuthSessionParams)
+	// GetMe Read the signed-in user's account.
+	// (GET /v1/me)
+	GetMe(w http.ResponseWriter, r *http.Request)
 	// GetStream Stream re-fetch hints for the caller.
 	// (GET /v1/stream)
 	GetStream(w http.ResponseWriter, r *http.Request, params GetStreamParams)
@@ -401,6 +529,61 @@ func (siw *ServerInterfaceWrapper) GetHealthz(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetHealthz(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostAuthSession operation middleware
+func (siw *ServerInterfaceWrapper) PostAuthSession(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostAuthSessionParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Authorization" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Authorization")]; found {
+		var Authorization string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Authorization", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Authorization", valueList[0], &Authorization, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Authorization", Err: err})
+			return
+		}
+
+		params.Authorization = &Authorization
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostAuthSession(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMe operation middleware
+func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMe(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -643,6 +826,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/healthz", wrapper.GetHealthz)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/auth/session", wrapper.PostAuthSession)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me", wrapper.GetMe)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/stream", wrapper.GetStream)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/system/pings", wrapper.PostSystemPing)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/system/pings/{id}", wrapper.GetSystemPing)
@@ -676,6 +861,83 @@ type GetHealthzdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetHealthzdefaultApplicationProblemPlusJSONResponse) VisitGetHealthzResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAuthSessionRequestObject struct {
+	Params PostAuthSessionParams
+}
+
+type PostAuthSessionResponseObject interface {
+	VisitPostAuthSessionResponse(w http.ResponseWriter) error
+}
+
+type PostAuthSession200JSONResponse Me
+
+func (response PostAuthSession200JSONResponse) VisitPostAuthSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostAuthSessiondefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PostAuthSessiondefaultApplicationProblemPlusJSONResponse) VisitPostAuthSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMeRequestObject struct {
+}
+
+type GetMeResponseObject interface {
+	VisitGetMeResponse(w http.ResponseWriter) error
+}
+
+type GetMe200JSONResponse Me
+
+func (response GetMe200JSONResponse) VisitGetMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetMedefaultApplicationProblemPlusJSONResponse) VisitGetMeResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -839,6 +1101,12 @@ type StrictServerInterface interface {
 	// GetHealthz Report that the API process is serving.
 	// (GET /healthz)
 	GetHealthz(ctx context.Context, request GetHealthzRequestObject) (GetHealthzResponseObject, error)
+	// PostAuthSession Open a session from a Privy access token.
+	// (POST /v1/auth/session)
+	PostAuthSession(ctx context.Context, request PostAuthSessionRequestObject) (PostAuthSessionResponseObject, error)
+	// GetMe Read the signed-in user's account.
+	// (GET /v1/me)
+	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
 	// GetStream Stream re-fetch hints for the caller.
 	// (GET /v1/stream)
 	GetStream(ctx context.Context, request GetStreamRequestObject) (GetStreamResponseObject, error)
@@ -906,6 +1174,56 @@ func (sh *strictHandler) GetHealthz(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetHealthzResponseObject); ok {
 		if err := validResponse.VisitGetHealthzResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostAuthSession operation middleware
+func (sh *strictHandler) PostAuthSession(w http.ResponseWriter, r *http.Request, params PostAuthSessionParams) {
+	var request PostAuthSessionRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostAuthSession(ctx, request.(PostAuthSessionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostAuthSession")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostAuthSessionResponseObject); ok {
+		if err := validResponse.VisitPostAuthSessionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMe operation middleware
+func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
+	var request GetMeRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMe(ctx, request.(GetMeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMe")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMeResponseObject); ok {
+		if err := validResponse.VisitGetMeResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

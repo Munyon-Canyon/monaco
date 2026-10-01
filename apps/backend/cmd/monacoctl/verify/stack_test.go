@@ -26,8 +26,9 @@ func TestUp_startsAHealthyStackAndDownStopsEveryProcess(t *testing.T) {
 	if got := healthz(t.Context(), s.API); got != http.StatusOK {
 		t.Fatalf("api /healthz = %d", got)
 	}
-	if s.Pool == nil || s.NATS == nil || !strings.HasPrefix(s.TokenKey, "verify-") {
-		t.Fatalf("stack = %+v, want a pool, NATS and a dev token key", s)
+	if s.Pool == nil || s.NATS == nil || !strings.HasPrefix(s.TokenKey, "verify-") ||
+		!strings.HasPrefix(s.Fakes, "http://") {
+		t.Fatalf("stack = %+v, want a pool, NATS, a dev token key and the fakes URL", s)
 	}
 	if err := s.Down(t.Context()); err != nil {
 		t.Fatalf("Down: %v", err)

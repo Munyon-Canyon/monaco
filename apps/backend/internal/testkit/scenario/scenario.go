@@ -11,11 +11,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
 type T interface {
@@ -46,7 +49,10 @@ type backend struct {
 	baseURL      string
 	client       *http.Client
 	note         *notifier
+	pool         *pgxpool.Pool
 	mint         func(id ids.UserID) string
+	privyToken   func(sub string) string
+	script       func(ctx context.Context, t T, step fakes.Step)
 	newUserID    func() (ids.UserID, error)
 	enter        func(stage Stage)
 	exchanged    func(e Exchange)
@@ -93,9 +99,20 @@ type Step func(s *Scenario)
 type Option func(*options)
 
 type options struct {
-	modules []func(module.Deps) module.Module
-	logs    io.Writer
-	spec    []byte
+	modules    []func(module.Deps) module.Module
+	logs       io.Writer
+	spec       []byte
+	fakes      *fakes.Server
+	privyAppID string
+	wrap       func(http.Handler) http.Handler
+}
+
+func WithPrivy(upstreams *fakes.Server, appID string) Option {
+	return func(o *options) { o.fakes, o.privyAppID = upstreams, appID }
+}
+
+func WithRequestMiddleware(wrap func(http.Handler) http.Handler) Option {
+	return func(o *options) { o.wrap = wrap }
 }
 
 func WithSpec(spec []byte) Option {
@@ -137,6 +154,17 @@ func (s *Scenario) run(stage Stage, steps []Step) *Scenario {
 	}
 	return s
 }
+
+func (s *Scenario) DB() *pgxpool.Pool { return s.app.pool }
+
+func (s *Scenario) Context() context.Context { return s.t.Context() }
+
+func (s *Scenario) Fatalf(format string, args ...any) {
+	s.t.Helper()
+	s.t.Fatalf(format, args...)
+}
+
+func (s *Scenario) Recall(name string) string { return s.remember[name] }
 
 func (s *Scenario) user(name string) *user {
 	s.t.Helper()

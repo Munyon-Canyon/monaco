@@ -3,6 +3,7 @@ package domain
 import (
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
@@ -10,6 +11,8 @@ import (
 const (
 	MinHandleLen = 3
 	MaxHandleLen = 20
+
+	HandleChangeInterval = 30 * 24 * time.Hour
 )
 
 type Handle struct{ name string }

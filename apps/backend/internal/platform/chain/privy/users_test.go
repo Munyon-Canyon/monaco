@@ -37,6 +37,19 @@ func TestGetUser_readsLinkedAccountsAndTheEmbeddedSolanaWallet(t *testing.T) {
 	}
 }
 
+func TestGetUser_readsTheEmailAccountAMemberSignedInWith(t *testing.T) {
+	t.Parallel()
+	c, _, _ := overFakes(t)
+	got, err := c.GetUser(t.Context(), "did:privy:member-legacy")
+	want := privy.User{
+		ID: "did:privy:member-legacy", Email: "legacy@example.com",
+		EmbeddedWallet: &chain.Wallet{ID: "wallet-legacy", Address: "BGQoQgGkjSQc6c5YjsyRjuj4M5LbYJMHVCdS8BJSrr2R"},
+	}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("GetUser = %+v, %v, want %+v", got, err, want)
+	}
+}
+
 func TestGetUser_ignoresWalletsPrivyDoesNotHold(t *testing.T) {
 	t.Parallel()
 	c, _, _ := overFakes(t)

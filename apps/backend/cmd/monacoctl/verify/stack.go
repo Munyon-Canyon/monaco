@@ -20,9 +20,11 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	upstreams "github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
 const (
+	PrivyAppID   = "verify-app"
 	pollEvery    = 50 * time.Millisecond
 	logPollEvery = 10 * time.Millisecond
 	procFakes    = "fakes"
@@ -53,6 +55,7 @@ type Stack struct {
 	RunID    string
 	API      string
 	Worker   string
+	Fakes    string
 	DBURL    string
 	TokenKey string
 	Pool     *pgxpool.Pool
@@ -141,7 +144,14 @@ func (s *Stack) processes(ctx context.Context) error {
 		"XSTOCKS_BASE_URL=http://"+fakes.addr+"/xstocks",
 		"SOLANA_RPC_URL=http://"+fakes.addr+"/rpc/",
 		"MONACO_BUS_ACK_WAIT=100ms",
+		"PRIVY_APP_ID="+PrivyAppID,
+		"PRIVY_APP_SECRET=verify-app-secret",
+		"PRIVY_VERIFICATION_KEY="+upstreams.PrivyVerificationKey(),
+		"PRIVY_BASE_URL=http://"+fakes.addr+"/privy",
+		"PRIVY_AUTHORIZATION_KEY_ID="+upstreams.PrivyAuthorizationKeyID,
+		"PRIVY_AUTHORIZATION_PRIVATE_KEY="+upstreams.PrivyAuthorizationKeyConfig(),
 	)
+	s.Fakes = "http://" + fakes.addr
 	apiEnv, workerEnv := []string{"MONACO_HTTP_ADDR=127.0.0.1:0"}, []string(nil)
 	if s.opts.Faultpoint != "" {
 		apiEnv = append(apiEnv, "MONACO_BUS_API_RELAY=off")

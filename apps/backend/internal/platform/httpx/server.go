@@ -90,7 +90,13 @@ func Serve(ctx context.Context, ln net.Listener, srv *http.Server, shutdownTimeo
 type Routes struct {
 	Health
 	sse.Stream
+	IdentityRoutes
 	SystemRoutes
+}
+
+type IdentityRoutes interface {
+	PostAuthSession(context.Context, api.PostAuthSessionRequestObject) (api.PostAuthSessionResponseObject, error)
+	GetMe(context.Context, api.GetMeRequestObject) (api.GetMeResponseObject, error)
 }
 
 type SystemRoutes interface {

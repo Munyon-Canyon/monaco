@@ -15,6 +15,7 @@ type XAccount struct {
 
 type User struct {
 	ID             UserID
+	Email          string
 	AppleEmail     string
 	GoogleEmail    string
 	Phone          string
@@ -56,6 +57,8 @@ func (c *Client) GetUser(ctx context.Context, id UserID) (User, error) {
 
 func (u *User) link(a linkedAccount) {
 	switch a.Type {
+	case "email":
+		u.Email = a.Address
 	case "apple_oauth":
 		u.AppleEmail = a.Email
 	case "google_oauth":
