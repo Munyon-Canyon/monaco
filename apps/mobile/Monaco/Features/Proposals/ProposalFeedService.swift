@@ -9,7 +9,7 @@ enum ProposalVoteChoice: String {
 /// Backend calls the proposal feed, detail, and comment thread need.
 /// Views depend on this protocol so the feed can run against the API or in-memory sample data.
 @MainActor
-protocol ProposalFeedService: AnyObject {
+protocol ProposalFeedService: AnyObject, Sendable {
     /// The signed-in member's id, to find their ballot on a detail payload. Nil when unknown.
     var viewerId: String? { get }
     func listProposals(groupId: String, tab: ProposalFeedTab) async throws -> [ProposalDTO]

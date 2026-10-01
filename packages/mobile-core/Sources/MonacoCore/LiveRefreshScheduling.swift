@@ -98,7 +98,11 @@ public enum PollTick: Equatable, Sendable {
 public enum PollLoop {
     /// Runs until cancelled or told to stop. Returns the schedule it ended on, which is what the
     /// tests assert against.
+    ///
+    /// `nonisolated(nonsending)` keeps the closures on the caller's actor. The app runs this from
+    /// the main actor, and the tick closes over view state that must not be sent elsewhere.
     @discardableResult
+    nonisolated(nonsending)
     public static func run(
         schedule: PollSchedule,
         firstDelay: Duration? = nil,
