@@ -1,3 +1,4 @@
+import atexit
 import contextlib
 import importlib.util
 import io
@@ -5,6 +6,7 @@ import multiprocessing
 import os
 import pathlib
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -647,6 +649,30 @@ def _run_one(test_id):
     return "fail", stream.getvalue()
 
 
+def _stop_pool(pool):
+    pool.shutdown(wait=False, cancel_futures=True)
+    for proc in list(getattr(pool, "_processes", {}).values()):
+        proc.terminate()
+
+
+def _parent_stops_pool(pool):
+    # The main process owns the pool. atexit covers a normal exit; SIGTERM covers
+    # a parent that is asked to die while spawn workers still hold its pipes.
+    atexit.register(_stop_pool, pool)
+    previous = signal.getsignal(signal.SIGTERM)
+
+    def on_term(signum, frame):
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        _stop_pool(pool)
+        if callable(previous) and previous not in (signal.SIG_DFL, signal.SIG_IGN):
+            previous(signum, frame)
+            return
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    signal.signal(signal.SIGTERM, on_term)
+    return previous
+
+
 class ParallelSuite(unittest.TestSuite):
     def run(self, result, debug=False):
         os.environ["GATE_TEST_WORKER"] = "1"
@@ -656,26 +682,31 @@ class ParallelSuite(unittest.TestSuite):
         # repo. spawn gives each worker its own, which is what macOS already does.
         ctx = multiprocessing.get_context("spawn")
         with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as pool:
-            futures = {pool.submit(_run_one, case.id()): case for case in cases}
-            for future in as_completed(futures):
-                case = futures[future]
-                result.startTest(case)
-                try:
-                    kind, text = future.result()
-                except Exception:
-                    result.addError(case, sys.exc_info())
-                else:
-                    if kind == "ok":
-                        result.addSuccess(case)
+            previous = _parent_stops_pool(pool)
+            try:
+                futures = {pool.submit(_run_one, case.id()): case for case in cases}
+                for future in as_completed(futures):
+                    case = futures[future]
+                    result.startTest(case)
+                    try:
+                        kind, text = future.result()
+                    except Exception:
+                        result.addError(case, sys.exc_info())
                     else:
-                        try:
-                            raise AssertionError(text)
-                        except AssertionError:
-                            if kind == "error":
-                                result.addError(case, sys.exc_info())
-                            else:
-                                result.addFailure(case, sys.exc_info())
-                result.stopTest(case)
+                        if kind == "ok":
+                            result.addSuccess(case)
+                        else:
+                            try:
+                                raise AssertionError(text)
+                            except AssertionError:
+                                if kind == "error":
+                                    result.addError(case, sys.exc_info())
+                                else:
+                                    result.addFailure(case, sys.exc_info())
+                    result.stopTest(case)
+            finally:
+                signal.signal(signal.SIGTERM, previous)
+                atexit.unregister(_stop_pool)
         return result
 
 

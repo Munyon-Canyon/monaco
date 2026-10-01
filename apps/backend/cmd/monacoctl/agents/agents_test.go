@@ -7,9 +7,12 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
@@ -225,6 +228,82 @@ func TestExec_includesStderrInTheError(t *testing.T) {
 		) {
 		t.Fatalf("err=%v", err)
 	}
+}
+
+func TestExec_reapsAGrandchildHoldingStdout(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	pidfile := filepath.Join(dir, "pid")
+	var out []byte
+	var err error
+	took := timed(func() {
+		out, err = Exec(context.Background(), dir, "", "sh", "-c", "sleep 600 & echo $! > pid; echo hi")
+	})
+	if took > commandWaitDelay+time.Second {
+		t.Fatalf("returned in %s", took)
+	}
+	if !bytes.Contains(out, []byte("hi")) || !errors.Is(err, exec.ErrWaitDelay) {
+		t.Fatalf("out=%q err=%v", out, err)
+	}
+	assertGone(t, readPID(t, pidfile))
+}
+
+func TestExec_cancelKillsTheProcessGroup(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	pidfile := filepath.Join(dir, "pid")
+	ctx, cancel := context.WithCancel(context.Background())
+	stop := make(chan struct{})
+	defer close(stop)
+	go func() {
+		poll(time.Minute, func() bool {
+			select {
+			case <-stop:
+				return true
+			default:
+			}
+			body, err := os.ReadFile(pidfile)
+			if err != nil || strings.TrimSpace(string(body)) == "" {
+				return false
+			}
+			cancel()
+			return true
+		})
+	}()
+	var err error
+	took := timed(func() {
+		_, err = Exec(ctx, dir, "", "sh", "-c", "sleep 600 & echo $! > pid; wait")
+	})
+	if took > 5*time.Second {
+		t.Fatalf("cancel took %s err=%v", took, err)
+	}
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	assertGone(t, readPID(t, pidfile))
+}
+
+func readPID(t *testing.T, path string) int {
+	t.Helper()
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read pid: %v", err)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(body)))
+	if err != nil {
+		t.Fatalf("pid %q: %v", body, err)
+	}
+	return pid
+}
+
+func assertGone(t *testing.T, pid int) {
+	t.Helper()
+	if poll(time.Second, func() bool {
+		return exec.CommandContext(context.Background(), "kill", "-0", strconv.Itoa(pid)).Run() != nil
+	}) {
+		return
+	}
+	t.Fatalf("process %d still alive", pid)
 }
 
 func TestSpawn_startsAndReportsAMissingProgram(t *testing.T) {
