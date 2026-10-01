@@ -1,5 +1,6 @@
 import Foundation
 import MonacoCore
+import MonacoTestClock
 import Testing
 
 @testable import Monaco
@@ -44,6 +45,10 @@ private final class RecordingDataSource: CabalsTabDataSource {
     var seriesByRange: [GroupPnLRange: [GroupPnLSeriesDTO]] = [:]
     /// Held open so a test can drive what happens while a search is in flight.
     var searchGate: (() async -> Void)?
+    /// Search-gate delays park here. A test advances it.
+    let clock = TestClock()
+    /// Incremented when `search` returns, so a test can wait for that hop.
+    let searchesDone = Watched(0)
     /// The same, for the chart reads.
     var pnlGate: (() async -> Void)?
     /// Cursor the next page comes back with.
@@ -67,6 +72,9 @@ private final class RecordingDataSource: CabalsTabDataSource {
     func search(query: String, cursor: String?) async throws -> GroupSearchResponseDTO {
         searches.append((query, cursor))
         if let searchGate { await searchGate() }
+        if !Task.isCancelled {
+            searchesDone.mutate { $0 += 1 }
+        }
         if let searchError { throw searchError }
         let suffix = cursor.map { "-\($0)" } ?? ""
         let row = GroupDiscoveryRowDTO(
@@ -96,30 +104,52 @@ private func sampleSeries(id: String, points: Int) -> GroupPnLSeriesDTO {
 
 @MainActor
 struct CabalsTabModelTests {
-    private func settle() async throws {
-        try await Task.sleep(for: .milliseconds(450))
+    private func make(_ source: RecordingDataSource) -> CabalsTabModel {
+        CabalsTabModel(dataSource: source, sleepClock: source.clock)
+    }
+
+    /// Parks the debounce, moves the clock past it, then waits until that search returns.
+    private func settle(_ source: RecordingDataSource) async {
+        let mark = source.searchesDone.current
+        let slept = source.clock.state.current.requested.count
+        let debounce = CabalsTabModel.searchDebounce
+        _ = await source.clock.state.until { state in
+            state.requested.count > slept && state.pending >= 1
+                && state.requested.last == debounce
+        }
+        source.clock.advance(by: CabalsTabModel.searchDebounce)
+        _ = await source.searchesDone.until { $0 > mark }
+    }
+
+    /// Waits until `search` returns, for a retry or a page that does not debounce.
+    private func waitForSearch(_ source: RecordingDataSource) async {
+        let mark = source.searchesDone.current
+        _ = await source.searchesDone.until { $0 > mark }
     }
 
     /// Polls until something the test is waiting for is true. Used with
     /// `CallGate` so a test never guesses at how long a hop takes.
     private func waitUntil(_ description: String, _ condition: () -> Bool) async throws {
-        for _ in 0..<400 {
-            if condition() { return }
-            try await Task.sleep(for: .milliseconds(5))
+        let start = ContinuousClock.now
+        while !condition() {
+            if ContinuousClock.now - start > .seconds(2) {
+                Issue.record("timed out waiting for \(description)")
+                return
+            }
+            await Task.yield()
         }
-        Issue.record("timed out waiting for \(description)")
     }
 
     @Test func typingQuicklySendsOnlyTheLastQuery() async throws {
         // Arrange
         let source = RecordingDataSource()
-        let model = CabalsTabModel(dataSource: source)
+        let model = make(source)
 
         // Act
         model.updateQuery("we")
         model.updateQuery("wee")
         model.updateQuery("week")
-        try await settle()
+        await settle(source)
 
         // Assert
         #expect(source.queries == ["week"])
@@ -129,23 +159,24 @@ struct CabalsTabModelTests {
 
     @Test func singleCharacterNeverHitsTheServer() async throws {
         let source = RecordingDataSource()
-        let model = CabalsTabModel(dataSource: source)
+        let model = make(source)
 
         model.updateQuery(" w ")
-        try await settle()
 
+        #expect(source.clock.state.current.pending == 0)
         #expect(source.queries.isEmpty)
         #expect(model.searchState == .tooShort)
     }
 
     @Test func clearingTheQueryCancelsThePendingSearch() async throws {
         let source = RecordingDataSource()
-        let model = CabalsTabModel(dataSource: source)
+        let model = make(source)
 
         model.updateQuery("weekend")
+        _ = await source.clock.state.until { $0.pending >= 1 }
         model.clearSearch()
-        try await settle()
 
+        #expect(source.clock.state.current.pending == 0)
         #expect(source.queries.isEmpty)
         #expect(model.searchState == .idle)
         #expect(!model.isSearching)
@@ -153,10 +184,10 @@ struct CabalsTabModelTests {
 
     @Test func noMatchesShowsEmptyState() async throws {
         let source = RecordingDataSource()
-        let model = CabalsTabModel(dataSource: source)
+        let model = make(source)
 
         model.updateQuery("none")
-        try await settle()
+        await settle(source)
 
         #expect(model.searchState == .empty)
     }
@@ -164,35 +195,35 @@ struct CabalsTabModelTests {
     @Test func serverFailureShowsRetryableError() async throws {
         let source = RecordingDataSource()
         source.searchError = Monaco.MonacoAPIError.httpStatus(500)
-        let model = CabalsTabModel(dataSource: source)
+        let model = make(source)
 
         model.updateQuery("weekend")
-        try await settle()
+        await settle(source)
         #expect(model.searchState == .failed)
 
         source.searchError = nil
         model.retrySearch()
-        try await settle()
+        await waitForSearch(source)
         #expect(model.searchState == .results)
     }
 
     @Test func expiredSessionIsReportedInsteadOfAnError() async throws {
         let source = RecordingDataSource()
         source.searchError = Monaco.MonacoAPIError.httpStatus(401)
-        let model = CabalsTabModel(dataSource: source)
+        let model = make(source)
 
         model.updateQuery("weekend")
-        try await settle()
+        await settle(source)
 
         #expect(model.sessionExpired)
     }
 
     @Test func changingRangeReloadsTheChart() async throws {
         let source = RecordingDataSource()
-        let model = CabalsTabModel(dataSource: source)
+        let model = make(source)
 
         model.selectRange(.threeMonths)
-        try await settle()
+        try await waitUntil("the chart to load") { source.pnlRanges == [.threeMonths] && model.loadingRange == nil }
 
         #expect(source.pnlRanges == [.threeMonths])
         #expect(model.range == .threeMonths)
@@ -208,13 +239,13 @@ struct CabalsTabModelTests {
             .oneMonth: [sampleSeries(id: "a", points: 8), sampleSeries(id: "b", points: 6)],
             .oneDay: [sampleSeries(id: "a", points: 1), sampleSeries(id: "b", points: 1)],
         ]
-        let model = CabalsTabModel(dataSource: source)
+        let model = make(source)
 
         // Act
         await model.reload()
         #expect(CabalsTabModel.isChartable(model.series))
         model.selectRange(.oneDay)
-        try await settle()
+        try await waitUntil("the day chart to load") { model.seriesRange == .oneDay && model.loadingRange == nil }
 
         // Assert: the day itself has nothing to draw, but the section — and so
         // the range picker that gets you back out — has earned its place. The
@@ -235,7 +266,7 @@ struct CabalsTabModelTests {
         ]
         let gate = CallGate()
         source.pnlGate = { await gate.wait() }
-        let model = CabalsTabModel(dataSource: source)
+        let model = make(source)
 
         // Act: pick a range, then pick another before the first can land.
         model.selectRange(.oneDay)
@@ -269,7 +300,7 @@ struct CabalsTabModelTests {
         ]
         let gate = CallGate()
         source.pnlGate = { await gate.wait() }
-        let model = CabalsTabModel(dataSource: source)
+        let model = make(source)
 
         // Act
         let first = Task { await model.reload() }
@@ -302,14 +333,14 @@ struct CabalsTabModelTests {
         source.seriesByRange = [
             .oneMonth: [sampleSeries(id: "a", points: 8), sampleSeries(id: "b", points: 6)]
         ]
-        let model = CabalsTabModel(dataSource: source)
+        let model = make(source)
         await model.reload()
         #expect(model.seriesRange == .oneMonth)
 
         // Act: tap 1D and have the read fail.
         source.pnlError = Monaco.MonacoAPIError.httpStatus(500)
         model.selectRange(.oneDay)
-        try await settle()
+        try await waitUntil("the failed chart") { model.chartFailed && model.loadingRange == nil }
 
         // Assert: the 1D chip is highlighted, so the 1M lines cannot still be
         // on screen at full opacity with no error. The section — and the picker
@@ -327,7 +358,7 @@ struct CabalsTabModelTests {
         source.seriesByRange = [
             .oneMonth: [sampleSeries(id: "a", points: 8), sampleSeries(id: "b", points: 6)]
         ]
-        let model = CabalsTabModel(dataSource: source)
+        let model = make(source)
         await model.reload()
 
         source.pnlError = Monaco.MonacoAPIError.httpStatus(500)
@@ -348,10 +379,10 @@ struct CabalsTabModelTests {
                 percentReturn: nil, dollarPnl: "+0.00", isJoined: false, joinMode: .open
             )
         ]
-        let model = CabalsTabModel(dataSource: source)
+        let model = make(source)
         await model.reload()
         model.updateQuery("week")
-        try await settle()
+        await settle(source)
         #expect(model.results.first?.isJoined == false)
 
         // Act
@@ -373,10 +404,10 @@ struct CabalsTabModelTests {
                 percentReturn: nil, dollarPnl: "+0.00", isJoined: false, joinMode: .open
             )
         ]
-        let model = CabalsTabModel(dataSource: source)
+        let model = make(source)
         await model.reload()
         model.updateQuery("week")
-        try await settle()
+        await settle(source)
 
         model.markJoined(groupID: "g-week")
         #expect(model.leaderboard.first?.isJoined == true)
@@ -385,7 +416,7 @@ struct CabalsTabModelTests {
         // reloads the board and re-runs the search.
         await model.reload()
         model.updateQuery("week")
-        try await settle()
+        await settle(source)
 
         // Assert: the row the member just joined does not flip back to "· Open"
         // a second later.
@@ -399,12 +430,13 @@ struct CabalsTabModelTests {
         // Arrange: page one comes back with a cursor, then the next page hangs.
         let source = RecordingDataSource()
         source.nextCursor = "cursor-1"
-        let model = CabalsTabModel(dataSource: source)
+        let model = make(source)
         model.updateQuery("week")
-        try await settle()
+        await settle(source)
         #expect(model.nextCursor == "cursor-1")
 
-        source.searchGate = { try? await Task.sleep(for: .milliseconds(600)) }
+        let clock = source.clock
+        source.searchGate = { try? await clock.sleep(for: .milliseconds(600)) }
         model.loadMore()
         #expect(model.isLoadingMore)
 
@@ -412,7 +444,7 @@ struct CabalsTabModelTests {
         source.searchGate = nil
         source.nextCursor = nil
         model.updateQuery("rent")
-        try await settle()
+        await settle(source)
 
         // Assert: the new results are not stuck behind the orphaned page.
         #expect(!model.isLoadingMore)
@@ -422,13 +454,13 @@ struct CabalsTabModelTests {
     @Test func aFailedLoadMoreSaysSoInsteadOfGoingQuiet() async throws {
         let source = RecordingDataSource()
         source.nextCursor = "cursor-1"
-        let model = CabalsTabModel(dataSource: source)
+        let model = make(source)
         model.updateQuery("week")
-        try await settle()
+        await settle(source)
 
         source.searchError = Monaco.MonacoAPIError.httpStatus(500)
         model.loadMore()
-        try await settle()
+        await waitForSearch(source)
 
         #expect(model.loadMoreFailed)
         #expect(!model.isLoadingMore)
@@ -438,16 +470,18 @@ struct CabalsTabModelTests {
     @Test func retryingASearchSkipsTheDebounce() async throws {
         let source = RecordingDataSource()
         source.searchError = Monaco.MonacoAPIError.httpStatus(500)
-        let model = CabalsTabModel(dataSource: source)
+        let model = make(source)
         model.updateQuery("week")
-        try await settle()
+        await settle(source)
         #expect(model.searchState == .failed)
 
-        // Act: retry, then look before a debounce window could have elapsed.
+        // Act: retry skips the debounce, so this waits on the search itself.
         source.searchError = nil
+        let slept = source.clock.state.current.requested.count
         model.retrySearch()
-        try await Task.sleep(for: .milliseconds(150))
+        await waitForSearch(source)
 
+        #expect(source.clock.state.current.requested.count == slept)
         #expect(model.searchState == .results)
     }
 }

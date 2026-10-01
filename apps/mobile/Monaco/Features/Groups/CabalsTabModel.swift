@@ -88,6 +88,8 @@ final class CabalsTabModel {
     private(set) var sessionExpired = false
 
     private let dataSource: CabalsTabDataSource
+    /// Search debounce. Defaults to the live clock; tests pass a clock they advance.
+    private let pause: @Sendable (Duration) async throws -> Void
     private var searchTask: Task<Void, Never>?
     private var chartTask: Task<Void, Never>?
     private var reloadTask: Task<Void, Never>?
@@ -106,8 +108,13 @@ final class CabalsTabModel {
     /// before it and would otherwise flip the row back to "Open".
     private var locallyJoined: Set<String> = []
 
-    init(dataSource: CabalsTabDataSource) {
+    init(dataSource: CabalsTabDataSource, sleepClock: any Clock<Duration> = ContinuousClock()) {
         self.dataSource = dataSource
+        self.pause = Self.pausing(sleepClock)
+    }
+
+    private static func pausing<C: Clock<Duration>>(_ clock: C) -> @Sendable (Duration) async throws -> Void {
+        { try await clock.sleep(for: $0) }
     }
 
     var isSearching: Bool {
@@ -276,8 +283,9 @@ final class CabalsTabModel {
         }
         searchState = .loading
         let generation = searchGeneration
-        searchTask = Task { [weak self] in
-            try? await Task.sleep(for: Self.searchDebounce)
+        let pause = pause
+        searchTask = Task { [weak self, pause] in
+            try? await pause(Self.searchDebounce)
             guard !Task.isCancelled else { return }
             await self?.runSearch(normalized, generation: generation)
         }

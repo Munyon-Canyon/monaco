@@ -1,5 +1,6 @@
 import Foundation
 import MonacoCore
+import MonacoTestClock
 import Testing
 
 @testable import Monaco
@@ -28,11 +29,20 @@ private final class StubStocksDataSource: StocksTabDataSource {
     /// Rows served by `popular`, so a test can shape the mover strip.
     var popularAssets: [MarketAssetDTO] = [StubStocksDataSource.asset(symbol: "AAPLx")]
     var popularMarket: MarketStatusDTO?
+    /// Search delays park here. A test advances it; this stub does not wait on the wall clock.
+    let clock = TestClock()
+    /// Incremented when `search` returns, so a test can wait for that hop.
+    let searchesDone = Watched(0)
 
     func search(query: String, offset: Int, limit: Int) async throws -> ListMarketAssetsResponse {
         searches.append((query, offset))
         if let delay = offsetDelays[offset] ?? delays[query] {
-            try? await Task.sleep(for: delay)
+            try? await clock.sleep(for: delay)
+        }
+        // A cancelled page still answers, so the model can drop it. It must not wake the
+        // test that is waiting for the search that replaced it.
+        if !Task.isCancelled {
+            searchesDone.mutate { $0 += 1 }
         }
         if let error = offsetErrors[offset] ?? errors[query] { throw error }
         if query == "none" {
@@ -75,18 +85,39 @@ private final class StubStocksDataSource: StocksTabDataSource {
 
 @MainActor
 struct StocksTabModelTests {
-    private func settle() async throws {
-        try await Task.sleep(for: .milliseconds(450))
+    private func make(
+        _ source: StubStocksDataSource,
+        now: @escaping () -> Date = Date.init
+    ) -> StocksTabModel {
+        StocksTabModel(dataSource: source, clock: now, sleepClock: source.clock)
+    }
+
+    /// Parks the debounce, moves the clock past it, then waits until that search returns.
+    private func settle(_ source: StubStocksDataSource) async {
+        let mark = source.searchesDone.current
+        let slept = source.clock.state.current.requested.count
+        let debounce = StocksTabModel.searchDebounce
+        _ = await source.clock.state.until { state in
+            state.requested.count > slept && state.pending >= 1
+                && state.requested.last == debounce
+        }
+        source.clock.advance(by: StocksTabModel.searchDebounce)
+        _ = await source.searchesDone.until { $0 > mark }
+    }
+
+    /// Waits until `count` sleeps are parked, so the next step runs while they are in flight.
+    private func untilPending(_ clock: TestClock, _ count: Int) async {
+        _ = await clock.state.until { $0.pending >= count }
     }
 
     @Test func typingQuicklySendsOnlyTheLastQuery() async throws {
         let source = StubStocksDataSource()
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         model.updateQuery("te")
         model.updateQuery("tes")
         model.updateQuery("tesla")
-        try await settle()
+        await settle(source)
 
         #expect(source.searches.map(\.query) == ["tesla"])
         #expect(model.searchState == .results)
@@ -96,18 +127,19 @@ struct StocksTabModelTests {
     /// taking the offset and the has-more flag with it.
     @Test func aLoadMorePageForAnOldQueryNeverLandsInTheNewList() async throws {
         let source = StubStocksDataSource()
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         model.updateQuery("a")
-        try await settle()
+        await settle(source)
         #expect(model.results.count == 2)
 
         // Page two of "a" comes back long after "tesla" has replaced it on screen.
         source.delays["a"] = .milliseconds(700)
         let loadMore = Task { await model.loadMore() }
-        try await Task.sleep(for: .milliseconds(50))
+        await untilPending(source.clock, 1)
         model.updateQuery("tesla")
-        try await settle()
+        await settle(source)
+        source.clock.advance(by: .milliseconds(700))
         await loadMore.value
 
         #expect(model.trimmedQuery == "tesla")
@@ -119,14 +151,16 @@ struct StocksTabModelTests {
     /// flashing "No matches for that search" over the query the user was still typing.
     @Test func aStalePageNeverFlashesAnEmptyOrFailedState() async throws {
         let source = StubStocksDataSource()
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
         source.delays["a"] = .milliseconds(700)
         source.errors["a"] = Monaco.MonacoAPIError.httpStatus(500)
 
         model.updateQuery("a")
-        try await Task.sleep(for: .milliseconds(350))
+        await untilPending(source.clock, 1)
+        source.clock.advance(by: .milliseconds(300))
+        await untilPending(source.clock, 1)
         model.updateQuery("tesla")
-        try await Task.sleep(for: .milliseconds(900))
+        await settle(source)
 
         #expect(model.searchState == .results)
         #expect(model.results.map(\.symbol) == ["TESLA-0", "TESLA-1"])
@@ -134,10 +168,10 @@ struct StocksTabModelTests {
 
     @Test func loadMoreAppendsWithoutDuplicatingRows() async throws {
         let source = StubStocksDataSource()
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         model.updateQuery("tesla")
-        try await settle()
+        await settle(source)
         await model.loadMore()
 
         #expect(model.results.count == 4)
@@ -147,10 +181,10 @@ struct StocksTabModelTests {
 
     @Test func aFailedRefreshKeepsTheRowsOnScreen() async throws {
         let source = StubStocksDataSource()
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         model.updateQuery("tesla")
-        try await settle()
+        await settle(source)
         source.errors["tesla"] = Monaco.MonacoAPIError.httpStatus(500)
         await model.refreshSearch()
 
@@ -160,10 +194,10 @@ struct StocksTabModelTests {
 
     @Test func noMatchesShowsEmptyState() async throws {
         let source = StubStocksDataSource()
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         model.updateQuery("none")
-        try await settle()
+        await settle(source)
 
         #expect(model.searchState == .empty)
         #expect(model.results.isEmpty)
@@ -172,10 +206,10 @@ struct StocksTabModelTests {
     @Test func serverFailureShowsRetryableError() async throws {
         let source = StubStocksDataSource()
         source.errors["tesla"] = Monaco.MonacoAPIError.httpStatus(500)
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         model.updateQuery("tesla")
-        try await settle()
+        await settle(source)
 
         #expect(model.searchState == .failed)
         #expect(!model.sessionExpired)
@@ -184,10 +218,10 @@ struct StocksTabModelTests {
     @Test func rejectedSessionAsksTheViewToSignOut() async throws {
         let source = StubStocksDataSource()
         source.errors["tesla"] = Monaco.MonacoAPIError.httpStatus(401)
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         model.updateQuery("tesla")
-        try await settle()
+        await settle(source)
 
         #expect(model.sessionExpired)
     }
@@ -197,10 +231,10 @@ struct StocksTabModelTests {
     @Test func aMissingTokenEndsInAFailedState() async throws {
         let source = StubStocksDataSource()
         source.errors["tesla"] = Monaco.MonacoAPIError.missingAccessToken
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         model.updateQuery("tesla")
-        try await settle()
+        await settle(source)
 
         #expect(model.searchState == .failed)
     }
@@ -208,7 +242,7 @@ struct StocksTabModelTests {
     @Test func popularFailureIsRetryableInsteadOfLookingEmpty() async throws {
         let source = StubStocksDataSource()
         source.popularError = Monaco.MonacoAPIError.httpStatus(500)
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         await model.loadPopular()
 
@@ -219,7 +253,7 @@ struct StocksTabModelTests {
     @Test func popularRefreshesOnlyOnceItIsStale() async throws {
         let source = StubStocksDataSource()
         var now = Date(timeIntervalSince1970: 1_000)
-        let model = StocksTabModel(dataSource: source, clock: { now })
+        let model = make(source, now: { now })
 
         await model.refreshPopularIfStale()
         await model.refreshPopularIfStale()
@@ -234,7 +268,7 @@ struct StocksTabModelTests {
     /// The session's cached strip paints at once, and the prices are still refetched.
     @Test func seededPopularStillRefreshes() async throws {
         let source = StubStocksDataSource()
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         model.seedPopular([StubStocksDataSource.asset(symbol: "NVDAx")])
         #expect(model.popularState == .loaded)
@@ -251,17 +285,17 @@ struct StocksTabModelTests {
     /// the second one had just cleared.
     @Test func aPageForARetypedQueryNeverLandsInTheListThatReplacedIt() async throws {
         let source = StubStocksDataSource()
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         model.updateQuery("aap")
-        try await settle()
+        await settle(source)
         #expect(model.results.map(\.symbol) == ["AAP-0", "AAP-1"])
         #expect(model.hasMore)
 
         // Page two of the "aap" on screen goes out, and is held in flight.
         source.offsetDelays[2] = .milliseconds(500)
         async let pageTwo: Void = model.loadMore()
-        try await Task.sleep(for: .milliseconds(50))
+        await untilPending(source.clock, 1)
 
         // The member types an L and deletes it: same text, a different search.
         model.updateQuery("aapl")
@@ -269,12 +303,16 @@ struct StocksTabModelTests {
         #expect(model.results.isEmpty)
         #expect(!model.isLoadingMore, "the new query's Load more must not be stuck on the old page")
 
+        await settle(source)
+        #expect(model.results.map(\.symbol) == ["AAP-0", "AAP-1"])
+        #expect(model.hasMore)
+
+        source.clock.advance(by: .milliseconds(500))
         await pageTwo
         #expect(
             !model.results.contains { $0.symbol == "AAP-2" },
             "page two of the retyped query must not land in the list that replaced it"
         )
-        try await settle()
         #expect(model.results.map(\.symbol) == ["AAP-0", "AAP-1"])
         #expect(model.hasMore)
     }
@@ -282,33 +320,36 @@ struct StocksTabModelTests {
     /// The same orphaned page must not report *its* failure against the query that replaced it.
     @Test func aFailedPageForARetypedQueryDoesNotShowItsErrorOnTheNewOne() async throws {
         let source = StubStocksDataSource()
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         model.updateQuery("aap")
-        try await settle()
+        await settle(source)
 
         // Page two is held and then fails; the retyped query's own first page still answers.
         source.offsetDelays[2] = .milliseconds(400)
         source.offsetErrors[2] = Monaco.MonacoAPIError.httpStatus(500)
         async let pageTwo: Void = model.loadMore()
-        try await Task.sleep(for: .milliseconds(50))
+        await untilPending(source.clock, 1)
 
         model.updateQuery("aapl")
         model.updateQuery("aap")
+        await settle(source)
+        #expect(model.searchState == .results)
+
+        source.clock.advance(by: .milliseconds(400))
         await pageTwo
 
         #expect(!model.loadMoreFailed, "the old page's failure belongs to a query nobody is reading")
-        try await settle()
         #expect(model.searchState == .results)
     }
 
     /// `loadMoreFailed` drives the "Could not load more stocks." caption and nothing exercised it.
     @Test func aFailedLoadMoreKeepsTheRowsAndSaysSo() async throws {
         let source = StubStocksDataSource()
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         model.updateQuery("aap")
-        try await settle()
+        await settle(source)
         #expect(model.results.count == 2)
 
         source.errors["aap"] = Monaco.MonacoAPIError.httpStatus(500)
@@ -330,10 +371,10 @@ struct StocksTabModelTests {
     /// prices read as fresh ones.
     @Test func aFailedRefreshKeepsTheRowsAndAdmitsItFailed() async throws {
         let source = StubStocksDataSource()
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         model.updateQuery("aap")
-        try await settle()
+        await settle(source)
 
         source.errors["aap"] = Monaco.MonacoAPIError.httpStatus(500)
         await model.refreshSearch()
@@ -351,7 +392,7 @@ struct StocksTabModelTests {
 
     @Test func rowsCarryTheirSparklineSoNoViewHasToBuildIt() async throws {
         let source = StubStocksDataSource()
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         await model.loadPopular()
 
@@ -362,7 +403,7 @@ struct StocksTabModelTests {
     @Test func aSymbolWithNoDaySeriesStillMakesARow() async throws {
         let source = StubStocksDataSource()
         source.popularAssets = [StubStocksDataSource.asset(symbol: "NEWx", spark: [])]
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         await model.loadPopular()
 
@@ -378,7 +419,7 @@ struct StocksTabModelTests {
             StubStocksDataSource.asset(symbol: "MIDx", change24h: "0.030"),
             StubStocksDataSource.asset(symbol: "QUIETx", change24h: nil),
         ]
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         await model.loadPopular()
 
@@ -389,7 +430,7 @@ struct StocksTabModelTests {
     @Test func theSessionOnTheEnvelopeReachesTheRows() async throws {
         let source = StubStocksDataSource()
         source.popularMarket = MarketSampleData.sessionAfterHours
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         await model.loadPopular()
 
@@ -399,7 +440,7 @@ struct StocksTabModelTests {
     @Test func yourCabalsAndOpenVotesArriveTogether() async throws {
         let source = StubStocksDataSource()
         source.heldResponse = MarketSampleData.heldAssetsResponse()
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         await model.loadSocial()
 
@@ -412,7 +453,7 @@ struct StocksTabModelTests {
 
     @Test func cabalsThatOwnNothingIsAnAnswerNotAFailure() async throws {
         let source = StubStocksDataSource()
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         await model.loadSocial()
 
@@ -423,7 +464,7 @@ struct StocksTabModelTests {
     @Test func aFailedCabalReadIsItsOwnFailureAndLeavesTheCatalogueAlone() async throws {
         let source = StubStocksDataSource()
         source.heldError = Monaco.MonacoAPIError.httpStatus(500)
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         await model.refreshEverything()
 
@@ -435,7 +476,7 @@ struct StocksTabModelTests {
     @Test func cabalRowsAlreadyOnScreenSurviveAFailedRefresh() async throws {
         let source = StubStocksDataSource()
         source.heldResponse = MarketSampleData.heldAssetsResponse()
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
         await model.loadSocial()
 
         source.heldError = Monaco.MonacoAPIError.httpStatus(500)
@@ -450,7 +491,7 @@ struct StocksTabModelTests {
     @Test func aFailedCabalRefreshMarksTheRowsStale() async throws {
         let source = StubStocksDataSource()
         source.heldResponse = MarketSampleData.heldAssetsResponse()
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
         await model.loadSocial()
         #expect(!model.socialRefreshFailed)
 
@@ -464,7 +505,7 @@ struct StocksTabModelTests {
     @Test func aSuccessfulRefreshClearsTheStaleMark() async throws {
         let source = StubStocksDataSource()
         source.heldResponse = MarketSampleData.heldAssetsResponse()
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
         await model.loadSocial()
         source.heldError = Monaco.MonacoAPIError.httpStatus(500)
         await model.loadSocial()
@@ -482,7 +523,7 @@ struct StocksTabModelTests {
     @Test func aFirstCabalReadThatFailsIsNotStaleItIsFailed() async throws {
         let source = StubStocksDataSource()
         source.heldError = Monaco.MonacoAPIError.httpStatus(500)
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         await model.loadSocial()
 
@@ -493,7 +534,7 @@ struct StocksTabModelTests {
     @Test func anExpiredSessionFromTheCabalReadIsReported() async throws {
         let source = StubStocksDataSource()
         source.heldError = Monaco.MonacoAPIError.httpStatus(401)
-        let model = StocksTabModel(dataSource: source)
+        let model = make(source)
 
         await model.loadSocial()
 
@@ -504,7 +545,7 @@ struct StocksTabModelTests {
     @Test func aRefreshWithinTheStaleWindowDoesNotReAskForTheCabals() async throws {
         let now = Date()
         let source = StubStocksDataSource()
-        let model = StocksTabModel(dataSource: source, clock: { now })
+        let model = make(source, now: { now })
 
         await model.refreshSocialIfStale()
         await model.refreshSocialIfStale()

@@ -1,2 +1,0 @@
-test-sleep	apps/mobile/MonacoTests/CabalsTabModelTests.swift	4
-test-sleep	apps/mobile/MonacoTests/StocksTabModelTests.swift	7

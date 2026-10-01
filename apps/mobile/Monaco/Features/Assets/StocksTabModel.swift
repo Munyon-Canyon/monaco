@@ -130,6 +130,8 @@ final class StocksTabModel {
     private let pageSize: Int
     private let popularLimit: Int
     private let clock: () -> Date
+    /// Search debounce. Defaults to the live clock; tests pass a clock they advance.
+    private let pause: @Sendable (Duration) async throws -> Void
     private var searchTask: Task<Void, Never>?
     private var popularLoadedAt: Date?
     private var isLoadingPopular = false
@@ -143,12 +145,18 @@ final class StocksTabModel {
         dataSource: StocksTabDataSource,
         pageSize: Int = 25,
         popularLimit: Int = 10,
-        clock: @escaping () -> Date = Date.init
+        clock: @escaping () -> Date = Date.init,
+        sleepClock: any Clock<Duration> = ContinuousClock()
     ) {
         self.dataSource = dataSource
         self.pageSize = pageSize
         self.popularLimit = popularLimit
         self.clock = clock
+        self.pause = Self.pausing(sleepClock)
+    }
+
+    private static func pausing<C: Clock<Duration>>(_ clock: C) -> @Sendable (Duration) async throws -> Void {
+        { try await clock.sleep(for: $0) }
     }
 
     var trimmedQuery: String {
@@ -303,8 +311,9 @@ final class StocksTabModel {
         resetResults()
         searchState = .loading
         let term = trimmedQuery
-        searchTask = Task { [weak self] in
-            try? await Task.sleep(for: Self.searchDebounce)
+        let pause = pause
+        searchTask = Task { [weak self, pause] in
+            try? await pause(Self.searchDebounce)
             guard !Task.isCancelled else { return }
             await self?.runSearch(term, generation: gen)
         }
