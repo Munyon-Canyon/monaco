@@ -368,3 +368,17 @@ func TestCliText_readsDetailPastOtherAttrs(t *testing.T) {
 		t.Fatalf("cliText = %q", got)
 	}
 }
+
+func TestExecWaitDelay_defaultsToTenSecondsWithoutAValidOverride(t *testing.T) {
+	t.Setenv("MONACO_EXEC_WAIT_DELAY", "")
+	if d := execWaitDelay(); d != 10*time.Second {
+		t.Fatalf("execWaitDelay() = %s, want 10s", d)
+	}
+}
+
+func TestPoll_returnsFalseOnceTheLimitElapses(t *testing.T) {
+	t.Parallel()
+	if poll(10*time.Millisecond, func() bool { return false }) {
+		t.Fatal("poll() = true, want false once the limit elapses")
+	}
+}
