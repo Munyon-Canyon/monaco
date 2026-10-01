@@ -19,7 +19,8 @@ lint = "60s"
 swift = "60s"
 # The agent-guard tests run serially and take 30 to 100 s under load when scripts/agent-guard.py changes.
 scripts = "120s"
-python = "15s"
+# The gate-checker suite takes 16.1 s quiet and 22 to 31 s loaded on the operator's Intel laptop.
+python = "45s"
 shell = "10s"
 ready = "90s"
 migrate = "30s"
