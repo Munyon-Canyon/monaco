@@ -4,7 +4,6 @@ import MonacoCore
 import OpenAPIURLSession
 import XCTest
 
-@available(macOS 14, iOS 17, *)
 @MainActor
 final class SystemPingIntegrationTests: XCTestCase {
     func testSendReachesEchoed() async throws {

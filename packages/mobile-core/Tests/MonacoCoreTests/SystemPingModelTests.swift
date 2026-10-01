@@ -5,7 +5,6 @@ import MonacoCore
 import MonacoTestSupport
 import XCTest
 
-@available(macOS 14, iOS 17, *)
 @MainActor
 final class SystemPingModelTests: XCTestCase {
     private let pingID = "01890a5d-ac96-774b-bcce-b302099a8057"
