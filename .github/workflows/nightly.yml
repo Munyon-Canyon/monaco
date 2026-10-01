@@ -62,7 +62,7 @@ jobs:
           echo "run=$run" | tee -a "$GITHUB_OUTPUT"
 
   qa:
-    name: night.sh (backend, host tests, app, sample UI tests, screenshots)
+    name: night.sh (host tests, app, sample UI tests, screenshots)
     needs: changed
     if: needs.changed.outputs.run == 'true'
     runs-on: macos-26
@@ -98,7 +98,9 @@ jobs:
 
       - name: Run night.sh
         id: night
-        run: scripts/qa/night.sh
+        # macos-26 has no Docker, so this job skips night.sh's backend step.
+        # The Linux backend job already runs those suites.
+        run: scripts/qa/night.sh --skip-backend
 
       - name: Write report to the job summary
         if: always()
