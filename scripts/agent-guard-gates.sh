@@ -32,7 +32,7 @@ case "$path" in
   .swift-format | */.swift-format | .swiftlint.yml | */.swiftlint.yml | .swiftlint-baseline.tsv) ;;
   packages/mobile-core/legacy-baseline.tsv | packages/mobile-core/tsan-suppressions.txt) ;;
   packages/mobile-core/coverage-floor.txt | packages/mobile-core/Package.swift) ;;
-  */RepoRulesAllowlist.txt | */AccessibilityAuditAllowlist.txt) ;;
+  */RepoRulesAllowlist.txt | */AccessibilityAuditAllowlist.txt | apps/mobile/MonacoUITests/perf-budgets.tsv) ;;
   apps/mobile/Monaco.xcodeproj/project.pbxproj | apps/mobile/Config/*.xcconfig) ;;
   .github/workflows/ci-mobile-core.yml|Justfile | apps/backend/cmd/monacoctl/agents/check.go | scripts/mobile-core-test.sh) ;;
   *) pass ;;

@@ -1,0 +1,5 @@
+# Budgets only go down unless a human approves a raise with the gate-change-approved label. Columns are screen, metric and budget.
+# Home launch_first_frame_ms was measured on 2026-10-01 on an iPhone 17 simulator created for this ticket, iOS 26.3 (23D8133), Xcode 26.3, Debug build, on an M1 Pro that was 82 to 88 percent idle at the start of each run.
+# The medians of 5 launches in 3 runs were 2157, 2091 and 2083 ms. That measurement is 1.5 times 2157, rounded up to 50 ms (3250). A planted 1.5 s sleep in MonacoApp.init measured medians of 3588 and 3597 ms against 3250 and failed both times.
+# On 2026-10-01 the operator raised the row from 3250 to 5500 ms, because quiet Intel medians at 3250 were 4521 to 4791 ms. Lower it if the first macos-26 nightly is far under 5500.
+Home	launch_first_frame_ms	5500
