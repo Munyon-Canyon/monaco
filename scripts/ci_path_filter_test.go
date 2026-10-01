@@ -16,18 +16,11 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 		jobs  []string
 	}{
 		{"backend-only", []string{"apps/backend/internal/platform/db/db.go"}, []string{"lint", "ready", "backend"}},
-		{"mobile-core-only", []string{"packages/mobile-core/Sources/Foo.swift"}, []string{"mobile-core", "ios"}},
-		{"ios-only", []string{"apps/mobile/App.swift"}, []string{"ios"}},
-		{"openapi-only", []string{"apps/backend/api/openapi.yaml"}, []string{"lint", "ready", "backend", "mobile-core", "ios"}},
-		{"xcode-version-only", []string{".xcode-version"}, []string{"mobile-core", "ios"}},
+		{"mobile-core-only", []string{"packages/mobile-core/Sources/Foo.swift"}, []string{"mobile-core"}},
+		{"app-only", []string{"apps/mobile/App.swift"}, nil},
+		{"openapi-only", []string{"apps/backend/api/openapi.yaml"}, []string{"lint", "ready", "backend", "mobile-core"}},
+		{"xcode-version-only", []string{".xcode-version"}, []string{"mobile-core"}},
 		{"ci-only", []string{".github/workflows/ci.yml"}, []string{"actionlint"}},
-		{"stamp-log-only", []string{"scripts/ci/stamp-log.sh"}, []string{"ios"}},
-		{"toolchain-probe-only", []string{"scripts/ci/toolchain-probe.sh"}, []string{"ios"}},
-		{"probe-list-only", []string{"scripts/ci/probe-list-resolved.sh"}, []string{"ios"}},
-		{"warmup-start-only", []string{"scripts/ci/start-ios-warmup.sh"}, []string{"ios"}},
-		{"warmup-commands-only", []string{"scripts/ci/ios-warmup-commands.sh"}, []string{"ios"}},
-		{"build-timing-only", []string{"scripts/ci/build-timing-summary.sh"}, []string{"ios"}},
-		{"warm-checkout-only", []string{"scripts/ci/warm-checkout.sh"}, []string{"ios"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -37,10 +30,13 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 			}
 		})
 	}
+	if _, ok := filters["ios"]; ok {
+		t.Fatal("ios path filter is still in ci-jobs.yml")
+	}
 	got := jobsFor(filters, []string{"apps/mobile/App.swift"})
 	for _, job := range got {
-		if job == "backend" || job == "flake" {
-			t.Fatalf("planted ios-only list ran %s", job)
+		if job == "backend" || job == "flake" || job == "mobile-core" {
+			t.Fatalf("apps/mobile change ran %s", job)
 		}
 	}
 }
@@ -62,9 +58,6 @@ func jobsFor(filters map[string][]string, files []string) []string {
 	}
 	if hit["mobile-core"] {
 		jobs = append(jobs, "mobile-core")
-	}
-	if hit["ios"] {
-		jobs = append(jobs, "ios")
 	}
 	if hit["backend-tests"] {
 		jobs = append(jobs, "flake")

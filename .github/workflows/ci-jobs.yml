@@ -2,7 +2,7 @@ name: CI jobs
 
 # Called by ci.yml and ci-retarget.yml through their `ci` job, so every check is named
 # "ci / <job>" and the required check is "ci / ci-ok". docs/architecture/ci.md#triggers
-# `stage: pr` runs stage 1, the repo-wide checks and no tests except mobile-core and ios. `stage: queue` runs stage 2, stage 1
+# `stage: pr` runs stage 1, the repo-wide checks and no tests except mobile-core. `stage: queue` runs stage 2, stage 1
 # plus every test. docs/architecture/ci.md#check-stages
 on:
   workflow_call:
@@ -216,7 +216,6 @@ jobs:
       patch-id: ${{ steps.reuse.outputs.patch-id }}
       backend: ${{ steps.filter.outputs.backend }}
       mobile-core: ${{ steps.filter.outputs.mobile-core }}
-      ios: ${{ steps.filter.outputs.ios }}
       backend-tests: ${{ steps.filter.outputs.backend-tests }}
       scripts: ${{ steps.filter.outputs.scripts == 'true' || steps.every.outputs.scripts == 'true' }}
       unknown: ${{ steps.every.outputs.unknown }}
@@ -287,26 +286,6 @@ jobs:
               - '.claude/settings.json'
               - '.claude/hooks/**'
               - '.github/workflows/ci-scripts.yml'
-            ios:
-              - 'apps/mobile/**'
-              - 'packages/mobile-core/**'
-              - 'apps/backend/api/openapi.yaml'
-              - '.xcode-version'
-              - 'scripts/ensure-ios-privy-config.sh'
-              - 'scripts/resolve-ios-sim.sh'
-              - 'scripts/ci/select-xcode.sh'
-              - 'scripts/ci/fetch-warm-cache.sh'
-              - 'scripts/ci/stamp-log.sh'
-              - 'scripts/ci/toolchain-probe.sh'
-              - 'scripts/ci/probe-list-resolved.sh'
-              - 'scripts/ci/start-ios-warmup.sh'
-              - 'scripts/ci/ios-warmup-commands.sh'
-              - 'scripts/ci/build-timing-summary.sh'
-              - 'scripts/ci/warm-checkout.sh'
-              - 'scripts/install-xcsift.sh'
-              - 'scripts/qa/screens.sh'
-              - 'scripts/qa/sample-screens.txt'
-              - '.github/workflows/ci-ios.yml'
 
       # Negated patterns only exclude under `every`, so these two filters need their own step.
       # `unknown` is a changed file no filter above owns and no line below calls inert: it runs
@@ -365,14 +344,6 @@ jobs:
         working-directory: apps/web
         run: npm test
 
-  ios:
-    needs: plan
-    if: needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.ios == 'true' || needs.plan.outputs.unknown == 'true')
-    permissions:
-      contents: read
-      actions: read
-    uses: ./.github/workflows/ci-ios.yml
-
   flake:
     name: Flake (changed tests, count 20)
     needs: plan
@@ -409,7 +380,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [plan, lint, backend, e2e, ready, vuln, scripts, mobile-core, ios, flake]
+    needs: [plan, lint, backend, e2e, ready, vuln, scripts, mobile-core, flake]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -419,7 +390,7 @@ jobs:
       - uses: re-actors/alls-green@release/v1
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: lint, backend, e2e, ready, vuln, scripts, mobile-core, ios, flake
+          allowed-skips: lint, backend, e2e, ready, vuln, scripts, mobile-core, flake
 
       # The next stage 1 run of this PR reads the patch ID back to decide whether it can reuse this result.
       - name: Record the diff's patch ID on this check run

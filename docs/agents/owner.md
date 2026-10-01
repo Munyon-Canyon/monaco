@@ -6,6 +6,8 @@ Read the [standing orders](standing-orders.md) first. Never ask the operator a q
 
 The dispatch prompt has five fields: the ticket number, the worktree, the parent SHA, this brief and the standing orders. Read the GitHub issue for that ticket. Change files only in the worktree. Stack from the parent SHA with `gt create`.
 
+Every PR that touches `apps/mobile/**` must pass a local `just build mobile` and the MonacoTests run (`-only-testing:MonacoTests`) before it is pushed, and Proof cites both. Every PR that touches Darwin-only code in `packages/mobile-core` must pass a local macOS `swift test` before it is pushed.
+
 ## Done
 
 1. `monacoctl agents check` passes.
