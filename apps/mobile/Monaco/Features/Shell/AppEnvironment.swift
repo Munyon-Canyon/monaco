@@ -10,6 +10,7 @@ final class AppEnvironment {
     let api: APIClient
     let hints: any HintConnecting
     let auth: PrivyAuthService
+    let navigator = AppNavigator()
     var viewer: Viewer?
 
     private let privyAuthenticated: @MainActor () -> Bool

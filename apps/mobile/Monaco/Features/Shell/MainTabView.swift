@@ -1,62 +1,33 @@
 import SwiftUI
 
-/// The four tab roots. Account actions (withdraw, advanced, sign out) live on Profile.
-enum MainTab: Hashable {
-    case home, cabals, stocks, profile
-}
-
+/// The five product tabs. Account actions (withdraw, advanced, sign out) live on Profile.
 /// Post-auth frame. Tab chrome only — screens live in their feature folders.
 struct MainTabView: View {
-    @ObservedObject var auth: PrivyAuthService
-    @State private var selectedTab: MainTab = .home
+    @Environment(AppEnvironment.self) private var environment
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            NavigationStack {
-                HomeView(auth: auth, selectedTab: $selectedTab)
+        @Bindable var navigator = environment.navigator
+        TabView(selection: $navigator.selectedTab) {
+            ForEach(MainTab.allCases) { tab in
+                NavigationStack(path: navigator.binding(for: tab)) {
+                    tab.root
+                        .navigationDestination(for: AnyAppRoute.self) { route in
+                            route.destination()
+                        }
+                }
+                .tabItem {
+                    Label(tab.title, systemImage: tab.systemImage)
+                        .accessibilityIdentifier(tab.accessibilityIdentifier)
+                }
+                .tag(tab)
+                .environment(\.hostMainTab, tab)
             }
-            .tabItem {
-                Label("Home", systemImage: "house")
-                    .accessibilityIdentifier("tab-home")
-            }
-            .tag(MainTab.home)
-            .environment(\.hostMainTab, .home)
-
-            NavigationStack {
-                CabalsTabView(auth: auth)
-            }
-            .tabItem {
-                Label("Cabals", systemImage: "person.3")
-                    .accessibilityIdentifier("tab-cabals")
-            }
-            .tag(MainTab.cabals)
-            .environment(\.hostMainTab, .cabals)
-
-            NavigationStack {
-                AssetsTabView(auth: auth)
-            }
-            .tabItem {
-                Label("Stocks", systemImage: "chart.line.uptrend.xyaxis")
-                    .accessibilityIdentifier("tab-assets")
-            }
-            .tag(MainTab.stocks)
-            .environment(\.hostMainTab, .stocks)
-
-            NavigationStack {
-                ProfileTabView(auth: auth)
-            }
-            .tabItem {
-                Label("Profile", systemImage: "person.crop.circle")
-                    .accessibilityIdentifier("tab-profile")
-            }
-            .tag(MainTab.profile)
-            .environment(\.hostMainTab, .profile)
         }
         .tint(MonacoTheme.ink)
         // Each stack knows its tab (`hostMainTab`) and which one is showing, so screens in a tab
         // the member switched away from stop polling. See `pollWhileVisible`.
-        .environment(\.selectedMainTab, selectedTab)
-        .onChange(of: selectedTab) { _, _ in
+        .environment(\.selectedMainTab, navigator.selectedTab)
+        .onChange(of: navigator.selectedTab) { _, _ in
             Haptics.selection()
         }
     }
