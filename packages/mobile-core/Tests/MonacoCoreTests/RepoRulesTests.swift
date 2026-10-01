@@ -201,6 +201,38 @@ enum RepoRules {
                 #"let url = "https://api.monaco.app/v1/cabals""#,
             ]
         ),
+        RepoRule(
+            name: "raw-color",
+            roots: ["apps/mobile/Monaco"],
+            pattern: #"Color\((hex|red):"#,
+            message: "Colours are MonacoTheme tokens. Raw colour literals stay in Design/.",
+            failing: [
+                "let accent = Color(hex: 0x123456)",
+                "let accent = Color(red: 0.1, green: 0.2, blue: 0.3)",
+                "let accent = UIColor(red: 0.1, green: 0.2, blue: 0.3, alpha: 1)",
+            ],
+            passing: [
+                "let accent = MonacoTheme.brand",
+                "let accent = Color(white: 0.5)",
+            ],
+            applies: { path, _ in !path.hasPrefix("apps/mobile/Monaco/Design/") }
+        ),
+        RepoRule(
+            name: "fixed-font",
+            roots: ["apps/mobile/Monaco"],
+            pattern: #"\.system\(size:"#,
+            message: "Text uses a text style or a MonacoTheme font so it scales with Dynamic Type.",
+            failing: [
+                ".font(.system(size: 14))",
+                ".font(.system(size: 17, weight: .semibold))",
+            ],
+            passing: [
+                ".font(.body)",
+                ".font(MonacoTheme.Typo.body)",
+                ".font(.system(.body, design: .monospaced))",
+            ],
+            applies: { path, _ in !path.hasPrefix("apps/mobile/Monaco/Design/") }
+        ),
     ]
 }
 
