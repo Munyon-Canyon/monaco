@@ -1,5 +1,6 @@
 import Foundation
-import OpenAPIRuntime
+@_exported import HTTPTypes
+@_exported import OpenAPIRuntime
 import OpenAPIURLSession
 
 /// The one way the app calls the backend. Reads go through `read`, money writes through
