@@ -22,6 +22,10 @@ The app calls the Monaco API only, never Jupiter, Solana RPC, xStocks or Pyth. #
 
 Swift 6 language mode with complete checking (#937). The app target's default actor isolation is `MainActor`.
 
+## Screens
+
+Screen work (colour, type, touch targets, accessibility and copy) follows the `ios-screen` skill in `.claude/skills/ios-screen/SKILL.md`.
+
 ## Not doing
 
 No Clean Architecture use-case layer, MVC, TCA, reducers or coordinator framework. MonacoCore is the boundary. A second layer is a second paved path.
@@ -49,7 +53,10 @@ No Clean Architecture use-case layer, MVC, TCA, reducers or coordinator framewor
 | `feature-observable` | `@Observable` under `Features/` outside `Features/Shell/` and `Features/Debug/` | Screen state is a `<Domain>Model` in MonacoCore. Legacy rows shrink when a rewire touches them |
 | `feature-decode` | `JSONDecoder` under `Features/` | Decoding belongs to the generated client |
 | `core-swiftui` | `import SwiftUI` or `canImport(SwiftUI)` in `Sources/MonacoCore` | MonacoCore stays host-testable and free of UI |
+| `raw-color` | `Color(hex:`, `Color(red:` or `UIColor(red:` under `apps/mobile/Monaco` outside `Design/` | Colours are `MonacoTheme` tokens, which adapt to light and dark mode. Shrink-only |
+| `fixed-font` | `.system(size:` under `apps/mobile/Monaco` outside `Design/` | A fixed point size does not scale with Dynamic Type. Shrink-only |
 
 ## Log
 
 - 2026-09-30: Wrote the page for the system-ping reference feature (#943).
+- 2026-10-01: Named the `ios-screen` skill for screen work and added the `raw-color` and `fixed-font` rules (#1032).

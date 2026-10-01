@@ -1,3 +1,13 @@
+fixed-font	apps/mobile/Monaco/Features/Assets/MarketSessionChip.swift	1
+fixed-font	apps/mobile/Monaco/Features/Groups/CabalPicturePicker.swift	1
+fixed-font	apps/mobile/Monaco/Features/Groups/GroupActivitySection.swift	1
+fixed-font	apps/mobile/Monaco/Features/Groups/GroupHeroSection.swift	1
+fixed-font	apps/mobile/Monaco/Features/Groups/TransactionDetailView.swift	1
+fixed-font	apps/mobile/Monaco/Features/Profile/ProfilePhotoPicker.swift	1
+fixed-font	apps/mobile/Monaco/Features/Proposals/CommentThreadView.swift	2
+fixed-font	apps/mobile/Monaco/Features/Proposals/ProposalCardView.swift	1
+fixed-font	apps/mobile/Monaco/Features/Proposals/ProposalDetailView.swift	1
+fixed-font	apps/mobile/Monaco/Features/Proposals/ProposeChooserView.swift	1
 float-money	apps/mobile/Monaco/Design/MonacoAmountEntry.swift	4
 float-money	apps/mobile/Monaco/Design/MonacoMoney.swift	5
 float-money	apps/mobile/Monaco/Design/MonacoPreviewGallery.swift	5
@@ -31,6 +41,8 @@ nonisolated-unsafe	packages/mobile-core/Sources/MonacoCore/SharedFormatters.swif
 observable-object	apps/mobile/Monaco/Features/Auth/PrivyAuthService.swift	4
 observable-object	apps/mobile/Monaco/Features/Deposit/PlatformBalanceLoader.swift	4
 observable-object	apps/mobile/Monaco/Features/Groups/CabalPictureEditor.swift	4
+raw-color	apps/mobile/Monaco/Features/Debug/GroupDetailSampleHarness.swift	2
+raw-color	apps/mobile/Monaco/Features/Debug/ProfileSampleHarness.swift	5
 unchecked-sendable	apps/mobile/MonacoTests/MonacoRemoteImageStoreTests.swift	1
 unchecked-sendable	packages/mobile-core/Sources/MonacoAPI/IdempotentSubmission.swift	1
 unchecked-sendable	packages/mobile-core/Sources/MonacoAPI/Stream/HintStream.swift	1
