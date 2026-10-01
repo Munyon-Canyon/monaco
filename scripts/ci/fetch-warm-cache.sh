@@ -59,14 +59,22 @@ if ! gh run download "$picked" --repo "$repo" --name "$name" --dir "$tmp" >&2; t
 fi
 
 tarfile=""
-for f in "$tmp"/*.tar; do
+for f in "$tmp"/*.tar.zst "$tmp"/*.tar; do
   if [[ -f "$f" ]]; then
     tarfile="$f"
     break
   fi
 done
 base="$(basename "$dest")"
-if [[ -z "$tarfile" ]] || ! tar -C "$tmp" -xf "$tarfile" || [[ ! -d "$tmp/$base" ]]; then
+extract_ok=0
+if [[ -n "$tarfile" ]]; then
+  if [[ "$tarfile" == *.tar.zst ]]; then
+    tar -C "$tmp" --use-compress-program='zstd -d' -xf "$tarfile" && extract_ok=1
+  elif tar -C "$tmp" -xf "$tarfile"; then
+    extract_ok=1
+  fi
+fi
+if [[ "$extract_ok" -ne 1 || ! -d "$tmp/$base" ]]; then
   rm -rf "$tmp"
   echo nothing
   exit 0

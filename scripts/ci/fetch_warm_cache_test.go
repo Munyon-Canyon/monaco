@@ -28,7 +28,7 @@ if [[ "$1" == "run" ]]; then
     exit 1
   fi
   if [[ -n "${FAKE_TAR_FILE:-}" ]]; then
-    cp "$FAKE_TAR_FILE" "$dir/cache.tar"
+    cp "$FAKE_TAR_FILE" "$dir/$(basename "$FAKE_TAR_FILE")"
     exit 0
   fi
   root="${FAKE_TAR_ROOT:-dest}"
@@ -236,6 +236,40 @@ func TestFetchWarmCache_preservesModeAndSymlink(t *testing.T) {
 	}
 	if target != "tool" {
 		t.Fatalf("link target %q, want tool", target)
+	}
+}
+
+func TestFetchWarmCache_extractsZstd(t *testing.T) {
+	if _, err := exec.LookPath("zstd"); err != nil {
+		t.Fatal(err)
+	}
+	repo := newWarmCache(t, "spm-ios-test")
+	repo.artifact("spm-ios-test", "2026-09-30T03:00:00Z", 7, false)
+	repo.run(7, ".github/workflows/ci-warm.yml", "push", "success", "main")
+	repo.flush(t)
+
+	stage := t.TempDir()
+	root := filepath.Join(stage, "dest")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "marker"), []byte("zst\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tarPath := filepath.Join(t.TempDir(), "cache.tar.zst")
+	cmd := exec.Command("tar", "-C", stage, "--use-compress-program=zstd -T0 -3", "-cf", tarPath, "dest")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("tar: %v\n%s", err, out)
+	}
+	repo.extra = append(repo.extra, "FAKE_TAR_FILE="+tarPath)
+
+	got, dest := repo.fetch(t, "backend-rewrite-checkpoint-4")
+	if got != "artifact run 7\n" {
+		t.Fatalf("got %q, want the artifact", got)
+	}
+	marker, err := os.ReadFile(filepath.Join(dest, "marker"))
+	if err != nil || string(marker) != "zst\n" {
+		t.Fatalf("extracted marker: %q %v", marker, err)
 	}
 }
 

@@ -302,6 +302,7 @@ jobs:
               - 'scripts/ci/start-ios-warmup.sh'
               - 'scripts/ci/ios-warmup-commands.sh'
               - 'scripts/ci/build-timing-summary.sh'
+              - 'scripts/ci/warm-checkout.sh'
               - 'scripts/install-xcsift.sh'
               - 'scripts/qa/screens.sh'
               - 'scripts/qa/sample-screens.txt'
