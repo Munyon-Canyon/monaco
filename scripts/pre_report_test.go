@@ -42,7 +42,7 @@ func TestPreReport_printsLocalGatesFromTheCIFilters(t *testing.T) {
 		{
 			"ios only",
 			[]string{"apps/mobile/App.swift"},
-			"just build mobile\n",
+			"cd packages/mobile-core && swift test\njust build mobile\n",
 		},
 		{
 			"ci only",

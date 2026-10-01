@@ -274,6 +274,11 @@ jobs:
               - 'scripts/ci/select-xcode.sh'
               - 'scripts/mobile-core-test.sh'
               - '.github/workflows/ci-mobile-core.yml'
+              - 'apps/mobile/**/*.swift'
+              - '.swift-format'
+              - '.swiftlint.yml'
+              - '.swiftlint-baseline.tsv'
+              - 'scripts/swiftlint-ratchet.sh'
             web:
               - 'apps/web/**'
             scripts:

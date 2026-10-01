@@ -194,6 +194,8 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		"scripts: go test -short -count=1 -run ^(TestOwnA|TestOwnB)$ ./",
 		"scripts: go test -short -count=1 -run ^(TestReadsFoo)$ ./ci",
 		".: python3 -m unittest scripts/test_new.py scripts/test_tool.py",
+		"packages/mobile-core: swift format lint --strict --recursive --parallel ../../apps/mobile .",
+		"packages/mobile-core: swiftlint-ratchet.sh",
 		"packages/mobile-core: swift test -Xswiftc -warnings-as-errors",
 		".: install-sqlc.sh",
 		".: ready.sh",
@@ -563,16 +565,25 @@ func TestCheck_eachRowHasItsOwnBudgetAndTheRunHasNone(t *testing.T) {
 		"packages/mobile-core/Sources/A/a.swift": "let a = 1\n",
 	})
 	h.affected = "./internal/a\n"
-	h.replies = []reply{{prefix: "go test", took: 50 * time.Second}, {prefix: "swift test", took: 34 * time.Second}}
+	h.replies = []reply{
+		{prefix: "go test", took: 50 * time.Second},
+		{prefix: "swift format", took: 0},
+		{prefix: "swiftlint-ratchet.sh", took: 0},
+		{prefix: "swift test", took: 34 * time.Second},
+	}
 	if code, stdout, stderr := h.check(t); code != 0 || !strings.Contains(stdout, "swift test      ok    34.0s") {
 		t.Fatalf("a 50 s go row and a 34 s swift row pass: %d %q %q", code, stdout, stderr)
 	}
 
 	h.commit(t, map[string]string{"packages/mobile-core/Sources/A/a.swift": "let a = 2\n"})
-	h.replies = []reply{{prefix: "swift test", took: 61 * time.Second, err: errors.New("signal: killed")}}
+	h.replies = []reply{
+		{prefix: "swift format", took: 0},
+		{prefix: "swiftlint-ratchet.sh", took: 0},
+		{prefix: "swift test", took: 61 * time.Second, err: errors.New("signal: killed")},
+	}
 	code, stdout, stderr := h.check(t)
-	if code != 1 || !strings.Contains(stdout, "swift test      over budget") ||
-		!strings.Contains(stderr, "swift test row over the 1m0s swift budget after 61s; slowest: swift test (61.0s)") {
+	wantDetail := "swift test row over the 1m0s swift budget after 61s; slowest: swift test -warnings-as-errors (61.0s)"
+	if code != 1 || !strings.Contains(stdout, "swift test      over budget") || !strings.Contains(stderr, wantDetail) {
 		t.Fatalf("an over-budget swift row names swift: %d %q %q", code, stdout, stderr)
 	}
 

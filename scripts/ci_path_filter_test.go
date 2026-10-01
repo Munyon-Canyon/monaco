@@ -17,7 +17,7 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 	}{
 		{"backend-only", []string{"apps/backend/internal/platform/db/db.go"}, []string{"lint", "ready", "backend"}},
 		{"mobile-core-only", []string{"packages/mobile-core/Sources/Foo.swift"}, []string{"mobile-core"}},
-		{"app-only", []string{"apps/mobile/App.swift"}, nil},
+		{"app-only", []string{"apps/mobile/App.swift"}, []string{"mobile-core"}},
 		{"openapi-only", []string{"apps/backend/api/openapi.yaml"}, []string{"lint", "ready", "backend", "mobile-core"}},
 		{"xcode-version-only", []string{".xcode-version"}, []string{"mobile-core"}},
 		{"mobile-core-script-only", []string{"scripts/mobile-core-test.sh"}, []string{"mobile-core"}},
@@ -36,7 +36,7 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 	}
 	got := jobsFor(filters, []string{"apps/mobile/App.swift"})
 	for _, job := range got {
-		if job == "backend" || job == "flake" || job == "mobile-core" {
+		if job == "backend" || job == "flake" {
 			t.Fatalf("apps/mobile change ran %s", job)
 		}
 	}
