@@ -1,8 +1,17 @@
 import Foundation
 import MonacoAPI
 import MonacoCore
-import OpenAPIURLSession
 import XCTest
+
+#if canImport(FoundationNetworking)
+import OpenAPIAsyncHTTPClient
+
+private func integrationStreamTransport() -> any ClientTransport { AsyncHTTPClientTransport() }
+#else
+import OpenAPIURLSession
+
+private func integrationStreamTransport() -> any ClientTransport { URLSessionTransport() }
+#endif
 
 @MainActor
 final class SystemPingIntegrationTests: XCTestCase {
@@ -18,7 +27,7 @@ final class SystemPingIntegrationTests: XCTestCase {
         }
         let stream = HintStream(
             serverURL: serverURL,
-            transport: URLSessionTransport(),
+            transport: integrationStreamTransport(),
             token: { token },
             refresh: { _ in nil },
             clock: ContinuousClock(),
