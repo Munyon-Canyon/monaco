@@ -57,12 +57,13 @@ enum RepoRules {
         RepoRule(
             name: "test-sleep",
             roots: testCode,
-            pattern: #"\bTask\.sleep\b|\basyncAfter\b|\bwait\(for:"#,
+            pattern: #"\b"# + "Task" + #"\."# + "sleep" + #"\b|\b"# + "async" + "After"
+                + #"\b|\b"# + "wait" + #"\("# + "for:",
             message: "Tests wait on a signal or an injected clock, never on wall time.",
             failing: [
-                "try await Task.sleep(for: .milliseconds(10))",
-                "DispatchQueue.main.asyncAfter(deadline: .now() + 1) {",
-                "wait(for: [expectation], timeout: 1)",
+                "try await " + "Task." + "sleep" + "(for: .milliseconds(10))",
+                "DispatchQueue.main." + "async" + "After" + "(deadline: .now() + 1) {",
+                "wait" + "(for" + ": [expectation], timeout: 1)",
             ],
             passing: ["await clock.advance(by: .seconds(1))", "await fulfillment(of: [expectation])"]
         ),
