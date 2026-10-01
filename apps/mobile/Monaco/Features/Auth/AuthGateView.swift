@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AuthGateView: View {
     @ObservedObject var auth: PrivyAuthService
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -46,6 +47,7 @@ struct AuthGateView: View {
     }
 
     private var isAuthenticated: Bool {
+        if environment.isSignedIn { return true }
         if case .authenticated = auth.phase {
             return auth.accessToken != nil
         }
@@ -122,5 +124,14 @@ struct SessionRestoringView: View {
 }
 
 #Preview {
-    AuthGateView(auth: PrivyAuthService())
+    AuthGatePreview()
+}
+
+private struct AuthGatePreview: View {
+    private let environment = AppEnvironment()
+
+    var body: some View {
+        AuthGateView(auth: environment.auth)
+            .environment(environment)
+    }
 }

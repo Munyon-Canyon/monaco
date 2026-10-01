@@ -12,12 +12,18 @@ final class AppEnvironment {
     let auth: PrivyAuthService
     let navigator = AppNavigator()
     var viewer: Viewer?
+    #if DEBUG
+    private(set) var devSessionActive = false
+    #endif
 
     private let privyAuthenticated: @MainActor () -> Bool
     private let endAuthSession: @MainActor () async -> Void
 
     var isSignedIn: Bool {
-        privyAuthenticated()
+        #if DEBUG
+        if devSessionActive { return true }
+        #endif
+        return privyAuthenticated()
     }
 
     init(
@@ -61,9 +67,23 @@ final class AppEnvironment {
         }
     }
 
+    #if DEBUG
+    func signIn(dev session: DevSession) async {
+        tokens.use(session)
+        devSessionActive = true
+        viewer = Viewer(userID: session.userID, handle: nil)
+        await hints.start()
+        AppLogger.session.info("hint stream started")
+    }
+    #endif
+
     func signOut() async {
         await hints.stop()
         AppLogger.session.info("hint stream stopped")
+        #if DEBUG
+        tokens.use(nil)
+        devSessionActive = false
+        #endif
         await endAuthSession()
         viewer = nil
     }
