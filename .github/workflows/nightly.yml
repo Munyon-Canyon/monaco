@@ -280,6 +280,52 @@ jobs:
         working-directory: packages/mobile-core
         run: swift test --sanitize=thread
 
+  # Report-only. continue-on-error keeps a Periphery failure from turning the night red,
+  # and this job is not in alert's needs, so it never opens the nightly-failure issue.
+  periphery:
+    name: Dead Swift (periphery, report only)
+    needs: changed
+    if: needs.changed.outputs.run == 'true'
+    runs-on: macos-26
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'schedule' && (vars.FEATURE_BRANCH || 'main') || '' }}
+
+      - name: Select Xcode
+        run: scripts/ci/select-xcode.sh
+
+      - name: Write a placeholder Privy config
+        run: scripts/ensure-ios-privy-config.sh placeholder
+
+      - name: Install Periphery
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+        run: brew install periphery
+
+      - name: Scan and write the count
+        run: |
+          bin="$(brew --prefix)/bin/periphery"
+          set +e
+          "$bin" scan --project apps/mobile/Monaco.xcodeproj --schemes Monaco --exclude-tests --relative-results --format github-actions -- -skipPackagePluginValidation -destination 'generic/platform=iOS Simulator' >"$RUNNER_TEMP/periphery.txt" 2>&1
+          code=$?
+          set -e
+          cat "$RUNNER_TEMP/periphery.txt"
+          count="$(grep -c '^::warning' "$RUNNER_TEMP/periphery.txt" || true)"
+          {
+            echo "### Periphery"
+            echo
+            if [ "$code" -ne 0 ]; then
+              echo "Scan failed (exit $code)"
+            else
+              echo "Findings: ${count}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$code"
+
   alert:
     name: Open, update or close the nightly-failure issue
     needs: [qa, backend, mutation, tsan]
