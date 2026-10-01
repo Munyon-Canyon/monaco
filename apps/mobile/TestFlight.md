@@ -1,78 +1,52 @@
-# M5-T25 — TestFlight internal distribution
+# TestFlight releases
 
-Optional upload path for hackathon demo builds. Requires Apple Developer account with App Store Connect access.
+`scripts/ios-release.sh` archives the iOS app and uploads it to TestFlight. Run it from the repo root on macOS. There is no `just` recipe.
+
+The build number is `git rev-list --count HEAD`. It grows along one branch. Checkpoints squash into `main`, so `main` and the next feature branch count from a lower number. A number already uploaded is rejected at upload, and the script then stops before tagging. After a successful upload the script tags that commit `ios/<environment>/<n>` and pushes the tag. If that push fails, push the tag by hand. A rerun is rejected at upload because that build number is already used.
 
 ## Prerequisites
 
-- Xcode signed in with team that owns bundle ID `com.monaco.app`
-- Privy iOS client includes `com.monaco.app` (OTP `sendCode` otherwise returns 403)
-- Wave 4 green: `just test mobile` and `just build mobile`
-- A reachable **https** backend for the archive's environment (next section). A Release build cannot use `localhost` or `http`
+- Xcode, and a clean tree whose `HEAD` is already on a remote branch. The script refuses a dirty tree and a commit no remote branch contains.
+- An App Store Connect API key with the App Manager role. Put these three in `.env.local` with dotenvx (the names are in `.env.example`; the values stay out of git):
 
-## Pick the API environment
+  - `ASC_KEY_ID`
+  - `ASC_ISSUER_ID`
+  - `ASC_KEY_P8_BASE64` (the `.p8` file, base64-encoded)
 
-Archives are Release builds, and Release defaults to `MONACO_ENVIRONMENT = production` (`Config/Monaco.xcconfig`). The staging and production URLs are **placeholders, empty in git**, because no hosted backend is committed to this repo. Until you set one, the archive builds but refuses to launch with `MONACO_API_BASE_URL is empty for the selected environment`.
+- An `https` API URL for the environment you are shipping. The script stops before archiving when that URL is empty or not https.
 
-1. Set the URL once (not a secret; must be `https://`, a tunnel URL is fine for a demo build):
+  ```bash
+  dotenvx set MONACO_STAGING_API_BASE_URL https://<staging-or-tunnel-host> -f .env.local --plain
+  dotenvx set MONACO_PRODUCTION_API_BASE_URL https://<production-host> -f .env.local --plain
+  ```
 
-   ```bash
-   dotenvx set MONACO_STAGING_API_BASE_URL https://<staging-or-tunnel-host> -f .env.local --plain
-   dotenvx set MONACO_PRODUCTION_API_BASE_URL https://<production-host> -f .env.local --plain
-   ```
+The script decodes the API key into a mode-600 temp file, passes it to `xcodebuild` as `-authenticationKeyPath`, and deletes the file on exit. Signing does not use an Apple ID in Xcode.
 
-2. Regenerate the gitignored config (`just build mobile` does this too): `./scripts/ensure-ios-privy-config.sh generate`. It writes `Config/Environment.local.xcconfig` and fails on a non-https value.
-3. Archive. Production is the default, so the Xcode **Product → Archive** path always targets production. For a staging archive use the CLI alternative below and add `MONACO_ENVIRONMENT=staging` to the `xcodebuild archive` command.
-4. Check what went into the archive before uploading:
-
-   ```bash
-   plutil -p /tmp/Monaco.xcarchive/Products/Applications/Monaco.app/Info.plist | grep MONACO_
-   ```
-
-Release rejects at launch: an empty or malformed URL, `http`, `localhost` / loopback / `.local` hosts, and the `local` environment. Release also ignores `SIMCTL_CHILD_MONACO_API_BASE_URL`; that override is Debug-only.
-
-## Build archive
-
-From repo root:
+## Ship a build
 
 ```bash
-just test mobile
-just build mobile
+scripts/ios-release.sh staging
+scripts/ios-release.sh production
 ```
 
-In Xcode (`apps/mobile/Monaco.xcodeproj`):
+Staging and production of the same commit share one build number (`git rev-list --count HEAD`) and the same bundle id, so the second upload is rejected. Promoting a tested staging commit to production is not supported until that numbering is decided.
 
-1. Scheme **Monaco**, destination **Any iOS Device (arm64)**
-2. **Product → Archive**
-3. Organizer → **Distribute App → TestFlight & App Store → Upload**
-4. Keep default bitcode/symbol settings; wait for processing in App Store Connect
+The archive is `~/Library/Developer/Xcode/Archives/<YYYY-MM-DD>/Monaco-<environment>-<n>.xcarchive`. Its dSYMs stay on the machine for symbolicating crashes. Before upload, the script checks the archived `Info.plist`: `CFBundleVersion` is the build number, `MONACO_ENVIRONMENT` is `staging` or `production`, and `MONACO_API_BASE_URL` starts with `https://`. A mismatch stops the script before upload.
 
-CLI alternative (same signing team as Xcode):
+## Map a build number back to a commit
 
 ```bash
-xcodebuild archive \
-  -project apps/mobile/Monaco.xcodeproj \
-  -scheme Monaco \
-  -archivePath /tmp/Monaco.xcarchive
-
-xcodebuild -exportArchive \
-  -archivePath /tmp/Monaco.xcarchive \
-  -exportOptionsPlist apps/mobile/ExportOptions-testflight.plist \
-  -exportPath /tmp/Monaco-export
+git fetch origin tag ios/staging/<n>
+git rev-parse ios/staging/<n>
 ```
 
-## Invite internal testers
+Use `ios/production/<n>` for a production build. `<n>` is the TestFlight build number.
+
+## Invite testers
 
 1. App Store Connect → **Monaco** → **TestFlight**
 2. Select the uploaded build after processing completes
 3. **Internal Testing** group → add team members by Apple ID email
-4. Share the TestFlight invite link; testers install via TestFlight app
+4. Share the TestFlight invite link; testers install via the TestFlight app
 
-## Smoke after install
-
-Follow [`docs/how-to/demo-checklist.md`](../../docs/how-to/demo-checklist.md) on a physical device. The backend at the archive's `MONACO_API_BASE_URL` must be reachable over https for live JSON flows.
-
-## Done when
-
-- [ ] Build uploaded and processed in TestFlight
-- [ ] At least one internal tester invited and can install
-- [ ] `just test mobile` still exits 0 on the release branch
+The backend at the archive's `MONACO_API_BASE_URL` must be reachable over https. Smoke the installed build with [`docs/how-to/demo-checklist.md`](../../docs/how-to/demo-checklist.md).
