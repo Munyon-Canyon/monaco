@@ -27,4 +27,6 @@ supabase/.temp/
 docs/demo/clips/
 docs/demo/out/
 .venv/
+__pycache__/
+*.pyc
 /site/
