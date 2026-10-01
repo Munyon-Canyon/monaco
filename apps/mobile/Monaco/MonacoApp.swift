@@ -33,6 +33,13 @@ struct MonacoApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     Task { await appEnvironment.sceneDidChange(phase) }
                 }
+                .onOpenURL { url in
+                    DeepLinkRouter.handle(url, navigator: appEnvironment.navigator)
+                }
+                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                    guard let url = activity.webpageURL else { return }
+                    DeepLinkRouter.handle(url, navigator: appEnvironment.navigator)
+                }
         }
     }
 

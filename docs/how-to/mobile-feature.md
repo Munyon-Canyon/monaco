@@ -9,7 +9,7 @@ Logic lives in host-testable `packages/mobile-core`. The SwiftUI view only binds
 | Model | `packages/mobile-core/Sources/MonacoCore/<Domain>/<Domain>Model.swift` |
 | View | `apps/mobile/Monaco/Features/<Domain>/<Domain>View.swift` |
 
-The model imports neither SwiftUI nor Privy. The view calls no `APIClient` method of its own. Start a rewire with `scripts/gen-mobile-feature.sh <Domain>`, then swap the generated ping calls for the screen's operation. Putting the view on screen is `docs/how-to/mobile-navigation.md` (#942). A sample harness is `docs/how-to/mobile-harness.md` (#944). Those pages are not in the tree yet; a markdown link would fail the docs build.
+The model imports neither SwiftUI nor Privy. The view calls no `APIClient` method of its own. Start a rewire with `scripts/gen-mobile-feature.sh <Domain>`, then swap the generated ping calls for the screen's operation. Putting the view on screen is [mobile-navigation.md](mobile-navigation.md) (#942). A sample harness is `docs/how-to/mobile-harness.md` (#944); that page is not in the tree yet, so a markdown link to it would fail the docs build.
 
 ## Model
 

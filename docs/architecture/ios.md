@@ -12,7 +12,7 @@ New state is `@Observable`. `ObservableObject` is legacy: the 3 remaining classe
 
 ## Navigation
 
-One `NavigationStack` per tab, and `Hashable` routes that conform to `AppRoute`, one type per feature (#942). The how-to is `docs/how-to/mobile-navigation.md`. It is not in the tree yet.
+One `NavigationStack` per tab, and `Hashable` routes that conform to `AppRoute`, one type per feature (#942). The how-to is [mobile-navigation.md](../how-to/mobile-navigation.md).
 
 ## Boundary
 
