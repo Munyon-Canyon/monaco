@@ -1,4 +1,5 @@
 import MonacoAPI
+import Observation
 import SwiftUI
 import Synchronization
 import Testing
@@ -46,7 +47,8 @@ struct HintLifecycleTests {
         #expect(environment.viewer == nil)
     }
 
-    @Test func aRejectedTokenThatCannotRefreshSignsOut() async {
+    @Test(.timeLimit(.minutes(1)))
+    func aRejectedTokenThatCannotRefreshSignsOut() async {
         let hints = FakeHintSource()
         let tokens = SessionTokens(
             privyToken: { "stale-token" },
@@ -63,15 +65,22 @@ struct HintLifecycleTests {
         environment.viewer = Viewer(userID: "u-1", handle: nil)
 
         _ = try? await tokens.refreshedToken(replacing: "stale-token")
+        await untilViewerClears(environment)
 
-        var stops = hints.stops
-        for _ in 0..<100 where stops == 0 {
-            try? await Task.sleep(for: .milliseconds(10))
-            stops = hints.stops
-        }
-
-        #expect(stops == 1)
+        #expect(hints.stops == 1)
         #expect(environment.viewer == nil)
+    }
+
+    private func untilViewerClears(_ environment: AppEnvironment) async {
+        while environment.viewer != nil {
+            await withCheckedContinuation { continuation in
+                withObservationTracking {
+                    _ = environment.viewer
+                } onChange: {
+                    continuation.resume()
+                }
+            }
+        }
     }
 
     private func environment(hints: FakeHintSource, signedIn: Bool) -> AppEnvironment {
