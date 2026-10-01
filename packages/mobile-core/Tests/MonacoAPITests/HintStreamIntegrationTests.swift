@@ -34,7 +34,11 @@ final class HintStreamIntegrationTests: XCTestCase {
         let hints = Collector(stream.hints(matching: .user(what: "ping_echoed")))
         await stream.start()
         defer { Task { await stream.stop() } }
-        _ = await hints.first(1)
+        let opened = await hints.hints.until(within: .seconds(5)) { !$0.isEmpty }
+        guard opened else {
+            XCTFail("the stream delivered no hint within 5 s of opening")
+            return
+        }
 
         let client = Client(
             serverURL: serverURL,
