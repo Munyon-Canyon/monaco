@@ -248,7 +248,10 @@ while (( round < rounds )); do
       if run_step "$round" app-build 2700 xcode_test build-for-testing; then
         run_step "$round" app-unit 900 xcode_test -only-testing:MonacoTests test-without-building || true
         if [[ "$screenshots" == 1 && "$round" == 1 ]]; then
-          run_step "$round" screens 900 "$root/scripts/qa/screens.sh" "$sim" \
+          # One line of sample-screens.txt is one launch. 10s covers settle, launch and
+          # the shot; a fixed 900s ran out once the gallery passed ~90 screens.
+          screen_rows="$(sed -E 's/#.*//' "$root/scripts/qa/sample-screens.txt" | awk 'NF { n++ } END { print n + 0 }')"
+          run_step "$round" screens "$((screen_rows * 10))" "$root/scripts/qa/screens.sh" "$sim" \
             "$derived/Build/Products/Debug-iphonesimulator/Monaco.app" "$out/screens" || true
         fi
         while read -r class; do

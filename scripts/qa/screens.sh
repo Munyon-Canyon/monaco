@@ -87,18 +87,23 @@ capture() {
 
   wait=$((settle * 3)) # the first launch after an install is the slow one
   while IFS=$'\t' read -r name args; do
+    local start=$SECONDS took
     xcrun simctl terminate "$sim" "$bundle" </dev/null >/dev/null 2>&1
     # $args is split on purpose: it is a list of launch arguments with no spaces inside.
     # shellcheck disable=SC2086
     if ! xcrun simctl launch "$sim" "$bundle" $args </dev/null >/dev/null; then
-      echo "screens: $name did not launch" >&2
+      took=$((SECONDS - start))
+      echo "screens: $name ${took}s did not launch"
       failed=$((failed + 1)); continue
     fi
     sleep "$wait"; wait="$settle"
     if xcrun simctl io "$sim" screenshot --type=png "$dir/$name.png" </dev/null >/dev/null 2>&1; then
+      took=$((SECONDS - start))
       shot=$((shot + 1))
+      echo "screens: $name ${took}s"
     else
-      echo "screens: $name could not be shot" >&2
+      took=$((SECONDS - start))
+      echo "screens: $name ${took}s could not be shot"
       failed=$((failed + 1))
     fi
   done < <(entries)
