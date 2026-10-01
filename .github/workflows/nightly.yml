@@ -262,9 +262,25 @@ jobs:
       all: true
       timeout-minutes: 60
 
+  tsan:
+    name: Thread Sanitizer (mobile-core)
+    needs: changed
+    if: needs.changed.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    container: swift:6.3-noble
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'schedule' && (vars.FEATURE_BRANCH || 'main') || '' }}
+
+      - name: Run mobile-core under Thread Sanitizer
+        working-directory: packages/mobile-core
+        run: swift test --sanitize=thread
+
   alert:
     name: Open, update or close the nightly-failure issue
-    needs: [qa, backend, mutation]
+    needs: [qa, backend, mutation, tsan]
     if: >-
       always() && (needs.qa.result == 'success' || needs.qa.result == 'failure') &&
       needs.backend.result != 'cancelled'
@@ -288,7 +304,8 @@ jobs:
       - name: Update the nightly-failure issue
         env:
           GH_TOKEN: ${{ github.token }}
-          NIGHTLY_RESULT: ${{ (needs.qa.result == 'failure' || needs.backend.result == 'failure' || needs.mutation.result == 'failure') && 'failure' || 'success' }}
+          NIGHTLY_RESULT: ${{ (needs.qa.result == 'failure' || needs.backend.result == 'failure' || needs.mutation.result == 'failure' || needs.tsan.result == 'failure') && 'failure' || 'success' }}
+          TSAN_RESULT: ${{ needs.tsan.result }}
           QA_JOB_RESULT: ${{ needs.qa.result }}
           BACKEND_RESULT: ${{ (needs.backend.result == 'failure' || needs.mutation.result == 'failure') && 'failure' || needs.backend.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Turn a nightly QA result into one GitHub issue labelled nightly-failure.
 #
-#   NIGHTLY_RESULT=failure|success  RUN_URL=...  [QA_JOB_RESULT=...] [BACKEND_RESULT=...]
+#   NIGHTLY_RESULT=failure|success  RUN_URL=...  [QA_JOB_RESULT=...] [BACKEND_RESULT=...] [TSAN_RESULT=...]
 #     scripts/qa/nightly-alert.sh [<qa output dir>]
 #
 # failure: comment on the open nightly-failure issue, or open one when there is none.
@@ -37,6 +37,10 @@ failure_body() {
   echo
   if [[ "${BACKEND_RESULT:-}" == failure ]]; then
     echo "The backend unbounded suites failed (govulncheck, 100k rapid, fuzz, seed sweep, benchstat, or a mutation package). See the failed job log."
+    echo
+  fi
+  if [[ "${TSAN_RESULT:-}" == failure ]]; then
+    echo "The tsan job failed (swift test --sanitize=thread in packages/mobile-core). See the failed job log."
     echo
   fi
   if [[ "$qa_job_result" != failure ]]; then
