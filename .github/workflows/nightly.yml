@@ -1,7 +1,10 @@
 name: Nightly QA
 
 # scripts/qa/night.sh, the same runner as `just qa-night` on a laptop, run on a GitHub macOS
-# runner against main every night. A failing night opens (or comments on) one GitHub issue
+# runner every night. A scheduled night checks out the feature branch (`vars.FEATURE_BRANCH`,
+# or main when that variable is unset). A dispatch or a pull request checks out the
+# triggering ref. warm-cache and the backend suites stay on main.
+# A failing night opens (or comments on) one GitHub issue
 # labelled nightly-failure; the next passing night comments and closes it.
 on:
   schedule:
@@ -24,25 +27,37 @@ permissions:
   contents: read
 
 jobs:
-  # A scheduled night whose main head already passed a nightly run skips qa and warm-cache.
+  # A scheduled night whose feature-branch head already passed a nightly run skips qa and warm-cache.
   changed:
-    name: Has main changed since the last green night
+    name: Has the feature branch changed since the last green night
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
       actions: read
+      contents: read
     outputs:
       run: ${{ steps.decide.outputs.run }}
     steps:
       - id: decide
         env:
           GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ vars.FEATURE_BRANCH || 'main' }}
         run: |
           run=true
+          head="$(gh api "repos/$GITHUB_REPOSITORY/commits/$BRANCH" --jq .sha)" || head=""
+          echo "branch $BRANCH head $head"
           if [[ "$GITHUB_EVENT_NAME" == schedule ]]; then
-            last="$(gh run list -R "$GITHUB_REPOSITORY" --workflow nightly.yml --branch main --status success --limit 1 --json headSha -q '.[0].headSha')"
-            echo "main head $GITHUB_SHA, last green nightly head ${last:-none}"
-            [[ "$last" == "$GITHUB_SHA" ]] && run=false
+            last=""
+            ids="$(gh run list -R "$GITHUB_REPOSITORY" --workflow nightly.yml --status success --limit 5 --json databaseId -q '.[].databaseId')"
+            for id in $ids; do
+              rm -rf "$RUNNER_TEMP/tested"
+              if gh run download "$id" -R "$GITHUB_REPOSITORY" -n nightly-tested-sha -D "$RUNNER_TEMP/tested"; then
+                last="$(tr -d '[:space:]' < "$RUNNER_TEMP/tested/nightly-tested-sha")"
+                break
+              fi
+            done
+            echo "last green nightly tested ${last:-none}"
+            [[ -n "$last" && "$last" == "$head" ]] && run=false
           fi
           echo "run=$run" | tee -a "$GITHUB_OUTPUT"
 
@@ -60,6 +75,8 @@ jobs:
       HOMEBREW_NO_INSTALL_CLEANUP: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'schedule' && (vars.FEATURE_BRANCH || 'main') || '' }}
 
       - name: Select Xcode
         run: scripts/ci/select-xcode.sh
@@ -85,8 +102,11 @@ jobs:
 
       - name: Write report to the job summary
         if: always()
+        env:
+          NIGHTLY_BRANCH: ${{ github.event_name == 'schedule' && (vars.FEATURE_BRANCH || 'main') || github.ref_name }}
         run: |
           dir="$(find .logs/qa -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort | tail -1)"
+          echo "Tested \`$(git rev-parse HEAD)\` on \`$NIGHTLY_BRANCH\`." >> "$GITHUB_STEP_SUMMARY"
           if [[ -n "$dir" && -f "$dir/report.md" ]]; then
             cat "$dir/report.md" >> "$GITHUB_STEP_SUMMARY"
             shots="$(find "$dir/screens" -name '*.png' 2>/dev/null | wc -l | tr -d ' ')"
@@ -116,6 +136,18 @@ jobs:
           name: nightly-qa-screens
           path: .logs/qa/*/screens/
           if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Record the tested SHA
+        if: success()
+        run: git rev-parse HEAD > nightly-tested-sha
+
+      - name: Upload the tested SHA
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-tested-sha
+          path: nightly-tested-sha
           retention-days: 14
 
   # The only job that saves the Go cache the backend job in ci-jobs.yml restores. PRs reuse its
