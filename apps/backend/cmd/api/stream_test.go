@@ -19,6 +19,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/sse"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -153,7 +154,7 @@ func TestStartHub_failsWhenTheHintSubscriptionCannotBeMade(t *testing.T) {
 		t.Fatal(err)
 	}
 	conn.Close(t.Context())
-	_, stop, err := startHub(t.Context(), conn, noop.NewMeterProvider())
+	_, stop, err := startHub(t.Context(), conn, sse.NoMemberships{}, noop.NewMeterProvider())
 	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable || !strings.Contains(err.Error(), "bus.SubscribeHints") ||
 		stop != nil {
 		t.Fatalf("startHub on a closed connection = %v, want upstream_unavailable from bus.SubscribeHints", err)

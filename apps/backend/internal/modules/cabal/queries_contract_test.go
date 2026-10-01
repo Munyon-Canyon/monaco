@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
 type contractMember struct {
@@ -176,6 +177,18 @@ func contractSubjects() []contractSubject {
 			pool := testkit.DB(t)
 			seedContractWorld(t, pool, w)
 			return cabal.New(module.Deps{Pool: pool}).Queries()
+		}},
+		{name: "fake", build: func(t *testing.T, w contractWorld) cabal.Queries {
+			t.Helper()
+			seeds := make([]fakes.CabalSeed, 0, len(w.cabals))
+			for _, c := range w.cabals {
+				seeds = append(seeds, fakes.CabalSeed{View: c.view, Rules: c.rules, Wallet: c.wallet})
+			}
+			members := make([]fakes.CabalMember, len(w.members))
+			for i, m := range slices.Backward(w.members) {
+				members[len(members)-1-i] = fakes.CabalMember{CabalID: m.cabalID, Member: m.member}
+			}
+			return fakes.NewCabal(seeds, members)
 		}},
 	}
 }
