@@ -1,4 +1,5 @@
 import Foundation
+import MonacoCore
 import Testing
 
 @testable import Monaco
@@ -144,6 +145,14 @@ struct PnLSpeechTests {
     @Test func badgeValue() {
         #expect(PnLSpeech.badge(dollarPnl: "+48.20", percentReturn: "0.096") == "up 48 dollars 20 cents, 9.6 percent")
         #expect(PnLSpeech.badge(dollarPnl: "-7.60", percentReturn: nil) == "down 7 dollars 60 cents")
+    }
+
+    @Test func groupedPercentReads() {
+        let formatted = PercentFormatter.format(basisPoints: 123_456, signed: true)
+        #expect(formatted == "+1,234.56%")
+        #expect(PnLSpeech.percentValue(formatted) == 1234.56)
+        #expect(PnLSpeech.percent(formatted) == "up 1,234.56 percent")
+        #expect(PnLSpeech.badge(dollarPnl: "+1", percentReturn: formatted) == "up 1 dollar, 1,234.56 percent")
     }
 
     @Test func toneTreatsDustAsFlat() {

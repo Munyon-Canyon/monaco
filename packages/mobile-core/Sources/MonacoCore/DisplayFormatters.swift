@@ -34,6 +34,41 @@ public enum PercentReturnFormatter {
     }
 }
 
+public enum PercentFormatter {
+    public static func format(basisPoints: Int64, signed: Bool) -> String {
+        let negative = basisPoints < 0
+        let magnitude = negative ? magnitude(of: basisPoints) : UInt64(basisPoints)
+        let whole = magnitude / 100
+        let fraction = magnitude % 100
+        let body = "\(grouped(whole)).\(twoDigits(fraction))%"
+        if negative { return "\(typographicMinus)\(body)" }
+        if signed, magnitude != 0 { return "+\(body)" }
+        return body
+    }
+
+    private static func magnitude(of value: Int64) -> UInt64 {
+        if value == Int64.min { return UInt64(Int64.max) + 1 }
+        return UInt64(-value)
+    }
+
+    private static func twoDigits(_ value: UInt64) -> String {
+        value < 10 ? "0\(value)" : "\(value)"
+    }
+
+    private static func grouped(_ value: UInt64) -> String {
+        let digits = String(value)
+        guard digits.count > 3 else { return digits }
+        var parts: [String] = []
+        var rest = digits[...]
+        while rest.count > 3 {
+            parts.append(String(rest.suffix(3)))
+            rest = rest.dropLast(3)
+        }
+        parts.append(String(rest))
+        return parts.reversed().joined(separator: ",")
+    }
+}
+
 public enum DollarPnlFormatter {
     public static func format(_ raw: String) -> String {
         if raw.hasPrefix("-") || raw.hasPrefix(typographicMinus) {
@@ -168,6 +203,12 @@ public enum UsdAmountFormatter {
 
     public static func format(micros: Int64) -> String {
         format(decimal: Decimal(micros) / Decimal(1_000_000))
+    }
+
+    public static func format(signedMicros: Int64) -> String {
+        let body = format(micros: signedMicros)
+        guard signedMicros > 0, body != "$0.00" else { return body }
+        return "+\(body)"
     }
 
     public static func format(decimal: Decimal) -> String {
