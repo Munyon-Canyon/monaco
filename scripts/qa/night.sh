@@ -20,7 +20,8 @@
 # via scripts/ensure-ios-privy-config.sh; `placeholder` builds against a compile-only
 # config with no Privy app, which is all the sample-data steps need (CI uses it).
 #
-# Safety: holds scripts/qa/xcode-lock.sh around every Xcode job, slims the simulator
+# Safety: holds scripts/qa/xcode-lock.sh (class `xcode` for xcodebuild, `swiftpm` for swift test)
+# around every Xcode and SwiftPM job, slims the simulator
 # before use, shuts it down at the end, keeps the Mac awake with caffeinate, and stops
 # starting new UI classes when free swap runs low. SimSlim, caffeinate and the named
 # simulator are optional: without them it logs and carries on (a CI runner has none).
@@ -59,7 +60,7 @@ while [[ $# -gt 0 ]]; do
     --only-ui) only_ui="$2"; shift 2 ;;
     --sim) sim="$2"; shift 2 ;;
     --screenshots) screenshots=1; shift ;;
-    -h|--help) sed -n '2,29p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
@@ -173,7 +174,7 @@ prepare_sim() {
 }
 
 xcode_test() { # extra xcodebuild args...
-  "$lock" xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
+  "$lock" xcode xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
     -destination "platform=iOS Simulator,id=$sim" -derivedDataPath "$derived" -skipPackagePluginValidation \
     CODE_SIGNING_ALLOWED=NO "$@"
 }
@@ -234,7 +235,7 @@ while (( round < rounds )); do
   if (( ! skip_backend )); then
     run_step "$round" backend 2400 just test backend || true
   fi
-  run_step "$round" mobile-core 1200 bash -c 'cd packages/mobile-core && swift test' || true
+  run_step "$round" mobile-core 1200 "$lock" swiftpm bash -c 'cd packages/mobile-core && swift test' || true
 
   if (( ! skip_ui )); then
     if ! run_step "$round" ios-config 120 "$root/scripts/ensure-ios-privy-config.sh" "$ios_config"; then
