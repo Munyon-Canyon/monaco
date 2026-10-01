@@ -14,6 +14,10 @@ on:
         description: Restore the compilation cache and the warm artifacts. A dispatch can turn this off to measure a cold build.
         type: boolean
         default: true
+      probe-order:
+        description: Which Xcode runs xcodebuild -showsdks first. pinned-first or default-first.
+        type: string
+        default: pinned-first
   workflow_dispatch:
     inputs:
       save-cache:
@@ -24,6 +28,13 @@ on:
         description: Restore the compilation cache and the warm artifacts. Turn this off to measure a cold build.
         type: boolean
         default: true
+      probe-order:
+        description: Which Xcode runs xcodebuild -showsdks first.
+        type: choice
+        options:
+          - pinned-first
+          - default-first
+        default: pinned-first
 
 permissions:
   contents: read
@@ -51,6 +62,21 @@ jobs:
 
       - name: Select Xcode
         run: scripts/ci/select-xcode.sh
+
+      # No build change. Times pinned and default (Xcode 26.6) -showsdks, then
+      # xcodebuild -list on its own DerivedData, simctl, and actool twice.
+      # probe-order swaps the two -showsdks runs. Select Xcode already ran
+      # xcodebuild -version on the pin.
+      # Dispatch-only. The measurement is already in ci.md. A pull request
+      # or the merge queue must not pay the 175-197s, and a missing Xcode
+      # 26.6 or a package-fetch failure must not eject the queue.
+      - name: Toolchain probe
+        if: github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        shell: bash
+        env:
+          PROBE_ORDER: ${{ inputs.probe-order }}
+        run: scripts/ci/toolchain-probe.sh
 
       - name: Install the pinned xcsift
         run: scripts/install-xcsift.sh
@@ -166,6 +192,7 @@ jobs:
         env:
           SPM_MODE: ${{ steps.spm-mode.outputs.mode }}
         run: |
+          set -o pipefail
           set +e
           start=$(date +%s)
           flags=(-onlyUsePackageVersionsFromResolvedFile)
@@ -173,7 +200,7 @@ jobs:
             flags+=(-skipPackageUpdates -disableAutomaticPackageResolution)
           fi
           echo "resolve flags: ${flags[*]}"
-          xcodebuild -resolvePackageDependencies -project apps/mobile/Monaco.xcodeproj -scheme Monaco -derivedDataPath "$DERIVED_DATA" "${flags[@]}" 2>&1 | tee "$RUNNER_TEMP/resolve.log"
+          xcodebuild -resolvePackageDependencies -project apps/mobile/Monaco.xcodeproj -scheme Monaco -derivedDataPath "$DERIVED_DATA" "${flags[@]}" 2>&1 | scripts/ci/stamp-log.sh | tee "$RUNNER_TEMP/resolve.log"
           status=$?
           set -e
           printf 'Resolve Swift packages\t%s\n' "$(( $(date +%s) - start ))" >> "$RUNNER_TEMP/step-times.tsv"
@@ -192,6 +219,7 @@ jobs:
         id: build
         shell: bash
         run: |
+          set -o pipefail
           set +e
           start=$(date +%s)
           xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
@@ -201,7 +229,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO \
             COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_CAS_PATH="$DERIVED_DATA/CompilationCache.noindex" \
             COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES \
-            build-for-testing 2>&1 | tee "$RUNNER_TEMP/build.log" | .bin/xcsift --exit-on-failure
+            build-for-testing 2>&1 | scripts/ci/stamp-log.sh | tee "$RUNNER_TEMP/build.log" | .bin/xcsift --exit-on-failure
           status=$?
           set -e
           printf 'Build app and tests\t%s\n' "$(( $(date +%s) - start ))" >> "$RUNNER_TEMP/step-times.tsv"
@@ -252,6 +280,7 @@ jobs:
         id: tests
         shell: bash
         run: |
+          set -o pipefail
           set +e
           start=$(date +%s)
           xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
@@ -259,7 +288,7 @@ jobs:
             -resultBundlePath "$RUNNER_TEMP/MonacoTests.xcresult" -onlyUsePackageVersionsFromResolvedFile \
             CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO \
             COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_CAS_PATH="$DERIVED_DATA/CompilationCache.noindex" \
-            -only-testing:MonacoTests test-without-building 2>&1 | tee "$RUNNER_TEMP/MonacoTests.log" | .bin/xcsift --exit-on-failure
+            -only-testing:MonacoTests test-without-building 2>&1 | scripts/ci/stamp-log.sh | tee "$RUNNER_TEMP/MonacoTests.log" | .bin/xcsift --exit-on-failure
           status=$?
           set -e
           printf 'Run MonacoTests\t%s\n' "$(( $(date +%s) - start ))" >> "$RUNNER_TEMP/step-times.tsv"
