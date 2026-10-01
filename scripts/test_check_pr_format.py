@@ -261,5 +261,44 @@ class CheckpointTest(RepoTest):
         self.assertEqual(self.run_check("main", "hotfix")[0], 1)
 
 
+class DependabotAuthorTest(RepoTest):
+    def run_check(self, author: str, body: str, subject: str = "chore: bump the swift packages") -> tuple[int, str]:
+        head = commit(subject)
+        os.environ.update(
+            PR_TITLE="Bump the Swift packages",
+            PR_BODY=body,
+            PR_AUTHOR=author,
+            BASE_REF="backend-rewrite-checkpoint-4",
+            HEAD_REF="dependabot/swift/packages/mobile-core/posthog-ios-3.87.0",
+            PR_LABELS="[]",
+            BASE_SHA=self.base,
+            HEAD_SHA=head,
+        )
+        out = StringIO()
+        with mock.patch.object(check, "stacked", return_value=[]), redirect_stdout(out):
+            code = check.main([])
+        return code, out.getvalue()
+
+    def test_template_less_body_passes_for_dependabot_and_fails_for_anyone_else(self):
+        body = "Bumps posthog-ios from 3.86.1 to 3.87.0."
+        self.assertEqual(self.run_check("dependabot[bot]", body), (0, "PR format ok\n"))
+        code, out = self.run_check("someone", body)
+        self.assertEqual(code, 1)
+        self.assertIn('body is missing the "## TLDR" section', out)
+
+    def test_dependabot_still_fails_a_non_conventional_commit(self):
+        code, out = self.run_check("dependabot[bot]", "Bumps posthog-ios.", "Bump posthog-ios from 3.86.1 to 3.87.0")
+        self.assertEqual(code, 1)
+        self.assertIn("is not a Conventional Commit", out)
+
+    def test_dependabot_scoped_build_commit_passes(self):
+        code, out = self.run_check(
+            "dependabot[bot]",
+            "Bumps x from 1.0.0 to 1.1.0.",
+            "build(deps): bump x from 1.0.0 to 1.1.0",
+        )
+        self.assertEqual(code, 0, out)
+
+
 if __name__ == "__main__":
     unittest.main()
