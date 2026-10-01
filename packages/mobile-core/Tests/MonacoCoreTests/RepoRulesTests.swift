@@ -80,6 +80,126 @@ enum RepoRules {
             ],
             applies: { path, _ in (path as NSString).lastPathComponent == "ToastCopy.swift" }
         ),
+        RepoRule(
+            name: "fixture-address",
+            roots: ["packages/mobile-core/Sources/MonacoAPI/Fixtures"],
+            pattern: #""[^"\n]*"# + base58 + #"[^"\n]*""#,
+            message: "Fixtures use placeholders, never a base58 address.",
+            failing: [
+                #""\#(fakeMint)""#,
+                #"let mint = "\#(fakeMint)""#,
+            ],
+            passing: [
+                #""USDC""#,
+                "let mint = placeholder",
+            ]
+        ),
+        RepoRule(
+            name: "wall-clock",
+            roots: ["packages/mobile-core/Sources/MonacoCore"],
+            pattern: #"\bDate\(\)|\bDate\.now\b|\bContinuousClock\(\)|\bContinuousClock\.now\b"#,
+            message: "MonacoCore takes an injected clock. Date() and ContinuousClock() stay in *Clock.swift.",
+            failing: [
+                "let now = Date()",
+                "let now = Date.now",
+                "let clock = ContinuousClock()",
+                "let now = ContinuousClock.now",
+            ],
+            passing: [
+                "let now = clock.now",
+                "let now = myDate.now",
+            ],
+            applies: { path, _ in !(path as NSString).lastPathComponent.hasSuffix("Clock.swift") }
+        ),
+        RepoRule(
+            name: "float-money",
+            roots: productCode,
+            pattern: #"\bDouble\(|\bDecimal\("#,
+            message: "Money is integer micros until a formatter renders it.",
+            failing: [
+                "let amount = Double(micros)",
+                "let amount = Decimal(1)",
+            ],
+            passing: [
+                "let amount = Int(micros)",
+                "let cents = micros / 100",
+            ],
+            applies: { path, contents in
+                let inDomain = path.range(of: #"Sources/MonacoCore/[^/]+/"#, options: .regularExpression) != nil
+                let networking = path.contains("Sources/MonacoCore/Networking/")
+                let micros = contents.range(of: "micros", options: .caseInsensitive) != nil
+                return (inDomain && !networking) || micros
+            }
+        ),
+        RepoRule(
+            name: "urlsession",
+            roots: productCode,
+            pattern: #"\bURLSession\b"#,
+            message: "URLSession stays in MonacoAPI. The app uses the Monaco client.",
+            failing: ["let session = URLSession.shared"],
+            passing: ["let request = URLRequest(url: url)", "URLSessionConfiguration.default"],
+            applies: { path, _ in !path.hasPrefix("packages/mobile-core/Sources/MonacoAPI/") }
+        ),
+        RepoRule(
+            name: "unchecked-sendable",
+            roots: ["apps/mobile", "packages/mobile-core"],
+            pattern: #"@unchecked\s+Sendable"#,
+            message: "New @unchecked Sendable needs a reason that already has a row, and the row only shrinks.",
+            failing: ["final class Box: @unchecked Sendable {"],
+            passing: ["final class Box: Sendable {"]
+        ),
+        RepoRule(
+            name: "nonisolated-unsafe",
+            roots: ["apps/mobile", "packages/mobile-core"],
+            pattern: #"nonisolated\s*\(\s*unsafe\s*\)"#,
+            message: "New nonisolated(unsafe) needs a reason that already has a row, and the row only shrinks.",
+            failing: ["nonisolated(unsafe) var cache: [URL: Data] = [:]"],
+            passing: ["nonisolated var cache: [URL: Data] = [:]"]
+        ),
+        RepoRule(
+            name: "lint-directive",
+            roots: ["apps/mobile", "packages/mobile-core"],
+            pattern: #"swiftlint:|swift-format-ignore"#,
+            message: "A lint directive would hide no_comments. Name the thing instead.",
+            failing: [
+                "// swiftlint:disable no_comments",
+                "// swift-format-ignore",
+            ],
+            passing: [
+                "let ruleName = swiftlint",
+                "func ignore() {}",
+            ]
+        ),
+        RepoRule(
+            name: "observable-object",
+            roots: productCode,
+            pattern: #"\bObservableObject\b|@Published\b"#,
+            message: "Screen state is an @Observable model. ObservableObject and @Published only shrink.",
+            failing: [
+                "final class Foo: ObservableObject {",
+                "@Published var name = \"\"",
+            ],
+            passing: [
+                "@Observable final class Foo {",
+                "var name = \"\"",
+            ]
+        ),
+        RepoRule(
+            name: "external-host",
+            roots: productCode,
+            pattern: #""[^"\n]*(?:jup\.ag|api\.xstocks\.fi|pyth\.network|solana\.com)[^"\n]*""#,
+            message: "The app talks to the Monaco API only. Explorer links stay on solscan.io.",
+            failing: [
+                #"let url = "https://lite-api.jup.ag/swap/v1/quote""#,
+                #"let url = "https://api.xstocks.fi/v1/assets""#,
+                #"let url = "https://hermes.pyth.network/v2/updates""#,
+                #"let url = "https://api.mainnet-beta.solana.com""#,
+            ],
+            passing: [
+                #"let url = "https://solscan.io/tx/abc""#,
+                #"let url = "https://api.monaco.app/v1/cabals""#,
+            ]
+        ),
     ]
 }
 
