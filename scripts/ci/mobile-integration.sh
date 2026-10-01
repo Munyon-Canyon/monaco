@@ -67,15 +67,19 @@ wait_addr() {
 cd "$root"
 docker compose up -d --wait postgres nats
 
-export DATABASE_URL="postgres://monaco:monaco@127.0.0.1:54322/monaco?sslmode=disable"
-export NATS_URL="nats://127.0.0.1:4222"
+# The ports compose published, not 54322 and 4222: COMPOSE_PROJECT_NAME, COMPOSE_FILE and
+# POSTGRES_PORT can then give this run its own Postgres and NATS beside a dev stack.
+pg_port="$(docker compose port postgres 5432 | awk -F: '{ print $NF }')"
+nats_port="$(docker compose port nats 4222 | awk -F: '{ print $NF }')"
+export DATABASE_URL="postgres://monaco:monaco@127.0.0.1:${pg_port}/monaco?sslmode=disable"
+export NATS_URL="nats://127.0.0.1:${nats_port}"
 
 # compose's --wait is satisfied by the healthcheck (pg_isready over the container's unix
 # socket), which can go green while the published TCP port is still coming up. Poll the
 # published port directly so atlas, which connects over TCP, doesn't see "connection refused".
 tries=0
 while [[ "$tries" -lt 30 ]]; do
-  if pg_isready -h 127.0.0.1 -p 54322 >/dev/null 2>&1; then
+  if pg_isready -h 127.0.0.1 -p "$pg_port" >/dev/null 2>&1; then
     break
   fi
   tries=$((tries + 1))
@@ -120,7 +124,8 @@ rm -f "$keys"
 # exported into this process's environment: the api and worker also run in this process's
 # tree, and config.Load rejects any MONACO_* key it does not know, including MONACO_DEV_USER.
 token_key="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
-dev_user="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+# ids.Parse accepts only a UUIDv7: /v1/stream answers any other user id with a 401.
+dev_user="00000000-0000-7000-8000-000000000001"
 export MONACO_ENV=test
 export MONACO_DEV_TOKEN_KEY="$token_key"
 # Written to a file and read back, not `dev_token="$("$bindir/monacoctl" dev token ...)"`: that
@@ -136,6 +141,9 @@ export PRIVY_VERIFICATION_KEY
 export PRIVY_AUTHORIZATION_KEY_ID=fixture-key-quorum
 PRIVY_AUTHORIZATION_PRIVATE_KEY="$(cat "$bindir/privy-auth")"
 export PRIVY_AUTHORIZATION_PRIVATE_KEY
+
+# api and worker never create the EVENTS and DEADLETTER streams, so a fresh NATS needs this first.
+"$bindir/monacoctl" bus apply
 
 FAKES_ADDR=127.0.0.1:0 "$bindir/fakes" > "$logdir/fakes.log" 2>&1 &
 pids+=("$!")
@@ -155,6 +163,12 @@ pids+=("$!")
 api_addr="$(wait_addr "$logdir/api.log")"
 worker_addr="$(wait_addr "$logdir/worker.log")"
 api_url="http://${api_addr}"
+# Docker Desktop gives --network host the VM's loopback, not the Mac's, so off Linux the
+# container reaches the api by name.
+swift_api_url="$api_url"
+if [[ "$(uname -s)" != Linux ]]; then
+  swift_api_url="http://host.docker.internal:${api_addr##*:}"
+fi
 
 ready=0
 tries=0
@@ -176,7 +190,7 @@ fi
 set +e
 docker run --rm --network host \
   -v "$root:/w" -w /w/packages/mobile-core \
-  -e MONACO_API_URL="$api_url" -e MONACO_DEV_TOKEN="$dev_token" -e MONACO_DEV_USER="$dev_user" \
+  -e MONACO_API_URL="$swift_api_url" -e MONACO_DEV_TOKEN="$dev_token" -e MONACO_DEV_USER="$dev_user" \
   swift:6.3-noble swift test --filter Integration \
   > "$logdir/swift.log" 2>&1
 swift_status=$?
