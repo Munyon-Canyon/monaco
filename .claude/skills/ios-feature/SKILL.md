@@ -22,7 +22,7 @@ scripts/gen-mobile-feature.sh <Domain>
 | `packages/mobile-core/Sources/MonacoCore/<Domain>/<Domain>Model.swift` | `@Observable` model | `swift test` |
 | `packages/mobile-core/Tests/MonacoCoreTests/<Domain>ModelTests.swift` | Host tests | `swift test` |
 | `apps/mobile/Monaco/Features/<Domain>/<Domain>View.swift` | SwiftUI binding | `just build mobile` |
-| `apps/mobile/Monaco/Features/<Domain>/<Domain>Route.swift` | `Hashable` route for the screen | `just build mobile` |
+| `apps/mobile/Monaco/Features/<Domain>/<Domain>Route.swift` | `AppRoute` for the screen | `just build mobile` |
 | `apps/mobile/Monaco/Features/<Domain>/<Domain>SampleHarness.swift` | `SampleHarnessEntry` subclass | `MonacoTests` when a UI test launches it |
 | `packages/mobile-core/Sources/MonacoAPI/Fixtures/<Domain>+Sample.swift` | DEBUG sample value | `swift test` |
 
