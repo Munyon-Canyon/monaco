@@ -73,7 +73,7 @@ func TestCheckTests_builtFlowsNeedAPassingTestPerOutcome(t *testing.T) {
 			[]string{"flows.tsv:2: outcome crash:after-sign test TestFlow07_FundCabal_CrashAfterSign failed"},
 		},
 		{"planned row owns its tests", planned, pass07OK, nil},
-		{"non-flow tests and subtests are ignored", fundRow, all + passed("TestFlowsCheck") + passed("TestFlow07_FundCabal_OK/sub"), nil},
+		{"non-flow tests and subtests are ignored", fundRow, all + testJSON(passed("TestFlowsCheck"), passed("TestFlow07_FundCabal_OK/sub")), nil},
 		{
 			"test for a deleted row", fundRow, all + passed("TestFlow09_Vote_OK"),
 			[]string{"flows.tsv: test TestFlow09_Vote_OK matches no flow outcome; delete the test or add its row"},
