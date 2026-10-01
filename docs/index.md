@@ -33,6 +33,7 @@ Read these in order to understand the repo:
 | [Demo checklist](how-to/demo-checklist.md) | A manual end-to-end pass before a demo |
 | [Run on the local simulator](how-to/local-simulator.md) | Simulator signing and keychain issues |
 | [Add a mobile feature](how-to/mobile-feature.md) | Layout, model shape and host tests for a screen on the generated client. Copy `SystemPingModel` |
+| [Add a mobile route, deep link, tab or section](how-to/mobile-navigation.md) | Wiring a screen into the app shell: routes, deep links, tab roots and section slots |
 | [Debug login](how-to/debug-login.md) | "I can't sign in" |
 | [Overnight QA](how-to/overnight-qa.md) | The nightly test and screenshot run, and what CI runs |
 | [Read iOS app logs](how-to/read-ios-logs.md) | Matching a Console.app line to an API request, crash diagnostics |
