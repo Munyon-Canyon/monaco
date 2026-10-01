@@ -1,7 +1,7 @@
 import MonacoAPI
 import XCTest
 
-@testable import MonacoTestSupport
+@testable import MonacoTestClock
 
 final class TestClockTests: XCTestCase {
     func testAdvanceResumesSleepersInDeadlineOrder() async throws {

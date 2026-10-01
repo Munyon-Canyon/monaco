@@ -1,4 +1,5 @@
 import MonacoCore
+import MonacoTestClock
 import Testing
 
 @testable import Monaco
@@ -35,6 +36,8 @@ private final class StubAssetDetailDataSource: AssetDetailDataSource {
     /// test make the *first* request return after the second, which is how a tap and
     /// a background poll overlap in life.
     var scripted: [AssetChartRange: [(delay: Duration, points: [AssetChartPointDTO])]] = [:]
+    /// Delays park here. A test advances it; nothing in this stub waits on the wall clock.
+    let clock = TestClock()
 
     func detail(symbol: String) async throws -> AssetDetailDTO {
         detailCalls += 1
@@ -68,9 +71,9 @@ private final class StubAssetDetailDataSource: AssetDetailDataSource {
             let next = queued.removeFirst()
             scripted[range] = queued
             answer = next.points
-            try? await Task.sleep(for: next.delay)
+            try? await clock.sleep(for: next.delay)
         } else if let delay = delays[range] {
-            try? await Task.sleep(for: delay)
+            try? await clock.sleep(for: delay)
         }
         if let chartError { throw chartError }
         return AssetChartDTO(
@@ -150,9 +153,10 @@ struct AssetDetailModelTests {
 
         model.range = .oneMonth
         let slow = Task { await model.loadChart(range: .oneMonth) }
-        try await Task.sleep(for: .milliseconds(50))
+        await untilPending(source.clock, 1)
         model.range = .oneDay
         await model.loadChart(range: .oneDay)
+        source.clock.advance(by: .milliseconds(400))
         await slow.value
 
         #expect(model.range == .oneDay)
@@ -509,9 +513,10 @@ struct AssetDetailModelTests {
         let model = AssetDetailModel(symbol: "AAPLx", dataSource: source)
 
         let load = Task { await model.loadChart(range: .oneDay) }
-        try await Task.sleep(for: .milliseconds(50))
+        await untilPending(source.clock, 1)
         #expect(model.isLoadingCurrentRange)
 
+        source.clock.advance(by: .milliseconds(200))
         await load.value
         #expect(!model.isLoadingCurrentRange)
         #expect(model.loadingRanges.isEmpty)
@@ -565,10 +570,11 @@ struct AssetDetailModelTests {
         let model = AssetDetailModel(symbol: "AAPLx", dataSource: source)
 
         let refresh = Task { await model.refreshChart() }
-        try await Task.sleep(for: .milliseconds(60))
+        await untilPending(source.clock, 1)
 
         #expect(model.loadingRanges.isEmpty)
         #expect(!model.isLoadingCurrentRange)
+        source.clock.advance(by: .milliseconds(200))
         await refresh.value
         #expect(model.loadingRanges.isEmpty)
     }
@@ -598,14 +604,17 @@ struct AssetDetailModelTests {
         let model = AssetDetailModel(symbol: "AAPLx", dataSource: source)
 
         let slow = Task { await model.loadChart(range: .oneDay) }
-        try await Task.sleep(for: .milliseconds(30))
+        await untilPending(source.clock, 1)
         let quick = Task { await model.loadChart(range: .oneDay) }
+        await untilPending(source.clock, 2)
+        source.clock.advance(by: .milliseconds(80))
         await quick.value
 
         // The second request is home; the first is still out, so the chip is still
         // working.
         #expect(model.isLoadingCurrentRange)
 
+        source.clock.advance(by: .milliseconds(320))
         await slow.value
         #expect(!model.isLoadingCurrentRange)
     }
@@ -621,11 +630,15 @@ struct AssetDetailModelTests {
         let model = AssetDetailModel(symbol: "AAPLx", dataSource: source)
 
         let stale = Task { await model.loadChart(range: .oneDay) }
-        try await Task.sleep(for: .milliseconds(30))
-        await model.loadChart(range: .oneDay)
+        await untilPending(source.clock, 1)
+        let newer = Task { await model.loadChart(range: .oneDay) }
+        await untilPending(source.clock, 2)
+        source.clock.advance(by: .milliseconds(80))
+        await newer.value
         let newest = StubAssetDetailDataSource.expected(.oneDay, from: 200, to: 210)
         #expect(model.chartState == .series(newest))
 
+        source.clock.advance(by: .milliseconds(320))
         await stale.value
 
         #expect(model.chartState == .series(newest), "the older answer landed on top of the newer one")
@@ -741,5 +754,11 @@ struct AssetDetailModelTests {
 
         #expect(model.scrubbedIndex == nil)
         #expect(model.heroTick != nil)
+    }
+
+    /// Waits until `count` sleeps are parked on `clock`, so the next step runs
+    /// while those requests are still in flight.
+    private func untilPending(_ clock: TestClock, _ count: Int) async {
+        _ = await clock.state.until { $0.pending >= count }
     }
 }

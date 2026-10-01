@@ -1,4 +1,4 @@
-import MonacoTestSupport
+import MonacoTestClock
 import Synchronization
 import XCTest
 

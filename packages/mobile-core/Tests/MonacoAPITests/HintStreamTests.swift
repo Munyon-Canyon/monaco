@@ -1,4 +1,5 @@
 import Foundation
+import MonacoTestClock
 import MonacoTestSupport
 import XCTest
 
@@ -123,7 +124,7 @@ final class HintStreamTests: XCTestCase {
         let jitter: [Double] = [0.5, 0.25, 0.999, 0.1, 0.75, 0.6, 0.999, 0.3]
         let draws = Watched(jitter)
         let stream = makeStream(transport, random: { draws.mutate { $0.isEmpty ? 0.5 : $0.removeFirst() } })
-        let isBackoff: (Duration) -> Bool = { $0 != HintStream.fallbackInterval }
+        let isBackoff: @Sendable (Duration) -> Bool = { $0 != HintStream.fallbackInterval }
         await stream.start()
 
         for attempt in jitter.indices {
@@ -148,8 +149,10 @@ final class HintStreamTests: XCTestCase {
         let stream = makeStream(transport, random: { 0.5 })
         let hints = Collector(stream.hints(matching: .global(what: nil)))
         let halfCeilings: [Duration] = [.milliseconds(500), .seconds(1), .seconds(2), .seconds(4)]
-        let backoffs = { (state: TestClock.State) in state.requested.filter(halfCeilings.contains) }
-        let heartbeats = { (state: TestClock.State) in
+        let backoffs: @Sendable (TestClock.State) -> [Duration] = { state in
+            state.requested.filter(halfCeilings.contains)
+        }
+        let heartbeats: @Sendable (TestClock.State) -> Int = { state in
             state.requested.filter { $0 == HintStream.heartbeatTimeout }.count
         }
         await stream.start()

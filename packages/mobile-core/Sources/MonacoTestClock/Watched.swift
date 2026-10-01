@@ -7,7 +7,7 @@ public final class Watched<Value: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
     private var value: Value
     private var nextID = 0
-    private var watchers: [Int: (predicate: (Value) -> Bool, continuation: CheckedContinuation<Bool, Never>)] = [:]
+    private var watchers: [Int: (predicate: @Sendable (Value) -> Bool, continuation: CheckedContinuation<Bool, Never>)] = [:]
 
     public init(_ value: Value) {
         self.value = value
@@ -32,7 +32,7 @@ public final class Watched<Value: Sendable>: @unchecked Sendable {
 
     /// Suspends until `predicate` is true. No timeout and no extra task: a predicate that never
     /// holds hangs the caller, and a wait that is not ready yet keeps one continuation.
-    public func until(_ predicate: @escaping (Value) -> Bool) async -> Bool {
+    public func until(_ predicate: @escaping @Sendable (Value) -> Bool) async -> Bool {
         await withCheckedContinuation { continuation in
             lock.lock()
             if predicate(value) {
@@ -52,7 +52,7 @@ public final class Watched<Value: Sendable>: @unchecked Sendable {
     public func until(
         within limit: Duration,
         sleep: @escaping @Sendable (Duration) async -> Void,
-        _ predicate: @escaping (Value) -> Bool
+        _ predicate: @escaping @Sendable (Value) -> Bool
     ) async -> Bool {
         await withCheckedContinuation { continuation in
             lock.lock()

@@ -12,9 +12,6 @@ import Testing
 /// back but force-quitting the app.
 @MainActor
 struct PendingRevokeTests {
-    /// Long enough that a wait which is not bounded cannot possibly pass this test.
-    private static let neverReturns = Duration.seconds(30)
-
     private func secondsElapsed(_ body: () async -> Void) async -> Double {
         let start = ContinuousClock.now
         await body()
@@ -25,9 +22,8 @@ struct PendingRevokeTests {
 
     @Test func aWaitGivesUpOnARevokeThatNeverReturns() async {
         let revoke = PendingRevoke()
-        revoke.start {
-            try? await Task.sleep(for: Self.neverReturns)
-        }
+        let hung = SignallingGate()
+        revoke.start { await hung.wait() }
 
         let elapsed = await secondsElapsed {
             await revoke.wait(atMost: .milliseconds(50))
