@@ -21,6 +21,9 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 		{"openapi-only", []string{"apps/backend/api/openapi.yaml"}, []string{"lint", "ready", "backend", "mobile-core", "ios"}},
 		{"xcode-version-only", []string{".xcode-version"}, []string{"mobile-core", "ios"}},
 		{"ci-only", []string{".github/workflows/ci.yml"}, []string{"actionlint"}},
+		{"stamp-log-only", []string{"scripts/ci/stamp-log.sh"}, []string{"ios"}},
+		{"toolchain-probe-only", []string{"scripts/ci/toolchain-probe.sh"}, []string{"ios"}},
+		{"probe-list-only", []string{"scripts/ci/probe-list-resolved.sh"}, []string{"ios"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

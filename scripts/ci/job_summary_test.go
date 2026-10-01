@@ -64,6 +64,53 @@ func TestJobSummary_timingTestsAndFailureTail(t *testing.T) {
 	}
 }
 
+func TestJobSummary_stripsLogTimestamps(t *testing.T) {
+	root := filepath.Join("..", "..")
+	script := filepath.Join(root, "scripts", "ci", "job-summary.sh")
+	data := filepath.Join(root, "scripts", "ci", "testdata")
+	dir := t.TempDir()
+	buildLog := filepath.Join(dir, "build.log")
+	testLog := filepath.Join(dir, "tests.log")
+	prefixFile(t, filepath.Join(data, "job-summary-build.log"), buildLog)
+	prefixFile(t, filepath.Join(data, "job-summary-tests.log"), testLog)
+
+	text := runSummary(t, script, []string{
+		"STEP_TIMES=" + filepath.Join(data, "job-summary-times.tsv"),
+		"BUILD_LOG=" + buildLog,
+		"TEST_LOG=" + testLog,
+	})
+	for _, want := range []string{
+		"98.250 seconds",
+		"30.500 seconds",
+		"4.000\texampleCLI()",
+		"1.250\t-[MonacoTests.Foo testBar]",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("summary missing %q\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "12:00:00") {
+		t.Fatalf("timestamp leaked into the summary\n%s", text)
+	}
+}
+
+func prefixFile(t *testing.T, src, dst string) {
+	t.Helper()
+	raw, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var b strings.Builder
+	for _, line := range strings.Split(strings.TrimSuffix(string(raw), "\n"), "\n") {
+		b.WriteString("12:00:00 ")
+		b.WriteString(line)
+		b.WriteByte('\n')
+	}
+	if err := os.WriteFile(dst, []byte(b.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func runSummary(t *testing.T, script string, env []string) string {
 	t.Helper()
 	cmd := exec.Command("bash", script)

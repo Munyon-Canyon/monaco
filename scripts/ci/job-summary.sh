@@ -32,6 +32,7 @@ if [[ -n "$build_log" ]]; then
     timing="$(
       set +o pipefail
       awk '
+        { sub(/^[0-9][0-9]:[0-9][0-9]:[0-9][0-9] /, "") }
         /Build Timing Summary/ { capture=1; pending=""; next }
         !capture { next }
         /seconds/ {
@@ -78,6 +79,7 @@ if [[ -n "$test_log" ]]; then
     slow="$(
       set +o pipefail
       awk '
+        { sub(/^[0-9][0-9]:[0-9][0-9]:[0-9][0-9] /, "") }
         function emit(name, secs) {
           gsub(/^[ \t]+|[ \t]+$/, "", name)
           gsub(/✔/, "", name)
