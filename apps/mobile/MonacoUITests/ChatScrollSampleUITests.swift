@@ -9,12 +9,11 @@
 
 import XCTest
 
-final class ChatScrollSampleUITests: XCTestCase {
-
+nonisolated final class ChatScrollSampleUITests: XCTestCase {
     /// The newest message in the sample backlog, so "are we at the bottom?" has an answer.
     private let newestSampleMessage = "group-chat-message-s8"
 
-    override func setUpWithError() throws {
+    nonisolated override func setUpWithError() throws {
         continueAfterFailure = false
     }
 
@@ -36,10 +35,12 @@ final class ChatScrollSampleUITests: XCTestCase {
 
     /// Message bubbles and the pill are static text and buttons, so ask for those types
     /// rather than walking a whole thread's worth of elements.
+    @MainActor
     private func anyElement(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
+    @MainActor
     private func newMessagesPill(_ app: XCUIApplication) -> XCUIElement {
         app.buttons["group-chat-new-messages"]
     }

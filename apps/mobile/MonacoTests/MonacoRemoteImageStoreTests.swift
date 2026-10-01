@@ -3,13 +3,13 @@ import XCTest
 
 @testable import Monaco
 
-@MainActor
-final class MonacoRemoteImageStoreTests: XCTestCase {
+nonisolated final class MonacoRemoteImageStoreTests: XCTestCase {
     override func setUp() {
         super.setUp()
         AvatarStubProtocol.reset()
     }
 
+    @MainActor
     func testDownsample_capsTheLongestEdge() throws {
         let data = try XCTUnwrap(Self.jpeg(width: 1600, height: 1200))
         let image = try XCTUnwrap(
@@ -19,12 +19,14 @@ final class MonacoRemoteImageStoreTests: XCTestCase {
         XCTAssertEqual(image.size.width / image.size.height, 1600.0 / 1200.0, accuracy: 0.01)
     }
 
+    @MainActor
     func testDownsample_malformedDataIsNil() {
         XCTAssertNil(
             MonacoRemoteImageStore.downsampledImage(from: Data("<html>not an image</html>".utf8), maxPixelSize: 320))
         XCTAssertNil(MonacoRemoteImageStore.downsampledImage(from: Data(), maxPixelSize: 320))
     }
 
+    @MainActor
     func testSecondRequest_isServedFromMemoryWithoutTheNetwork() async throws {
         let url = URL(string: "https://avatars.test/maya.jpg")!
         AvatarStubProtocol.respond(to: url, status: 200, body: try XCTUnwrap(Self.jpeg(width: 640, height: 640)))
@@ -40,6 +42,7 @@ final class MonacoRemoteImageStoreTests: XCTestCase {
         XCTAssertEqual(AvatarStubProtocol.requestCount(for: url), 1)
     }
 
+    @MainActor
     func testConcurrentRequests_shareOneDownload() async throws {
         let url = URL(string: "https://avatars.test/jordan.jpg")!
         AvatarStubProtocol.respond(to: url, status: 200, body: try XCTUnwrap(Self.jpeg(width: 640, height: 640)))
@@ -53,6 +56,7 @@ final class MonacoRemoteImageStoreTests: XCTestCase {
         XCTAssertEqual(AvatarStubProtocol.requestCount(for: url), 1)
     }
 
+    @MainActor
     func testNon200_isNilAndNotCached() async {
         let url = URL(string: "https://avatars.test/missing.jpg")!
         AvatarStubProtocol.respond(to: url, status: 404, body: Data("not found".utf8))
@@ -63,6 +67,7 @@ final class MonacoRemoteImageStoreTests: XCTestCase {
         XCTAssertNil(store.cachedImage(for: url))
     }
 
+    @MainActor
     func testNetworkFailure_isNil() async {
         let url = URL(string: "https://avatars.test/offline.jpg")!
         AvatarStubProtocol.fail(url, with: URLError(.notConnectedToInternet))
@@ -72,6 +77,7 @@ final class MonacoRemoteImageStoreTests: XCTestCase {
         XCTAssertNil(image)
     }
 
+    @MainActor
     func testMalformedBody_isNil() async {
         let url = URL(string: "https://avatars.test/html.jpg")!
         AvatarStubProtocol.respond(to: url, status: 200, body: Data("<html></html>".utf8))
@@ -81,6 +87,7 @@ final class MonacoRemoteImageStoreTests: XCTestCase {
         XCTAssertNil(image)
     }
 
+    @MainActor
     private static func jpeg(width: CGFloat, height: CGFloat) -> Data? {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
@@ -93,7 +100,7 @@ final class MonacoRemoteImageStoreTests: XCTestCase {
 }
 
 /// Canned responses per URL, with a request counter.
-private final class AvatarStubProtocol: URLProtocol, @unchecked Sendable {
+nonisolated private final class AvatarStubProtocol: URLProtocol, @unchecked Sendable {
     private enum Stub {
         case response(status: Int, body: Data)
         case failure(URLError)

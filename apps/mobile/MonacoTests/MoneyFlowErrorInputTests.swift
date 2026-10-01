@@ -3,7 +3,7 @@ import XCTest
 
 @testable import Monaco
 
-final class MoneyFlowErrorInputTests: XCTestCase {
+nonisolated final class MoneyFlowErrorInputTests: XCTestCase {
     func testHTTPStatus_keepsTheStatus() {
         XCTAssertEqual(FlowErrorInput(Monaco.MonacoAPIError.httpStatus(503)), FlowErrorInput(status: 503))
     }

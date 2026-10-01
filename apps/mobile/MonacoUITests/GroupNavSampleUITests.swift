@@ -16,9 +16,8 @@
 
 import XCTest
 
-final class GroupNavSampleUITests: XCTestCase {
-
-    override func setUpWithError() throws {
+nonisolated final class GroupNavSampleUITests: XCTestCase {
+    nonisolated override func setUpWithError() throws {
         continueAfterFailure = false
     }
 
@@ -30,6 +29,7 @@ final class GroupNavSampleUITests: XCTestCase {
         return app
     }
 
+    @MainActor
     private func anyElement(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }

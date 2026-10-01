@@ -5,12 +5,12 @@ import XCTest
 
 @testable import Monaco
 
-@MainActor
-final class ProfilePhotoUploadPreparerTests: XCTestCase {
+nonisolated final class ProfilePhotoUploadPreparerTests: XCTestCase {
     private struct NotPrepared: Error { let failure: ProfilePhotoUploadPreparer.Failure }
 
     /// The bug this locks out: `UIGraphicsImageRenderer` rendered at the screen's scale, so
     /// a "1024 max" target came out at 3072px on every current iPhone.
+    @MainActor
     func testPrepare_capsTheLongestEdgeInPixelsNotPoints() throws {
         let source = try XCTUnwrap(Self.jpeg(width: 2400, height: 1800))
 
@@ -27,6 +27,7 @@ final class ProfilePhotoUploadPreparerTests: XCTestCase {
         XCTAssertEqual(prepared.mimeType, "image/jpeg")
     }
 
+    @MainActor
     func testPrepare_staysUnderTheUploadCap() throws {
         let source = try XCTUnwrap(Self.jpeg(width: 2400, height: 1800))
 
@@ -35,6 +36,7 @@ final class ProfilePhotoUploadPreparerTests: XCTestCase {
         XCTAssertLessThanOrEqual(prepared.data.count, ProfilePhotoUploadPreparer.maxBytes)
     }
 
+    @MainActor
     func testPrepare_smallPhotoIsNotUpscaled() throws {
         let source = try XCTUnwrap(Self.jpeg(width: 240, height: 240))
 
@@ -46,6 +48,7 @@ final class ProfilePhotoUploadPreparerTests: XCTestCase {
 
     /// An unreadable pick and an oversized one read differently to the member, so they must
     /// not collapse into one "could not be shrunk under 2MB" message.
+    @MainActor
     func testPrepare_undecodableDataIsUnreadableNotTooLarge() {
         XCTAssertEqual(
             ProfilePhotoUploadPreparer.prepare(from: Data("<html>not an image</html>".utf8)),
@@ -57,6 +60,7 @@ final class ProfilePhotoUploadPreparerTests: XCTestCase {
     /// Bytes that were produced and measured over the cap are the only thing allowed to tell
     /// the member their photo is too big. At the real 2MB cap a 1024px JPEG never gets there,
     /// which is how this branch shipped untested — so the cap is a parameter.
+    @MainActor
     func testPrepare_overTheCapIsTooLarge() throws {
         let source = try XCTUnwrap(Self.jpeg(width: 2400, height: 1800))
 
@@ -74,6 +78,7 @@ final class ProfilePhotoUploadPreparerTests: XCTestCase {
     /// below would not compile. And the work is checked at run time to have happened on a
     /// thread that is not the main one, which the previous version of this test, asserting
     /// only the output pixel size, would have passed without.
+    @MainActor
     func testPrepare_runsOffTheMainThreadAndAgreesWithTheMainActorResult() async throws {
         let source = try XCTUnwrap(Self.jpeg(width: 2400, height: 1800))
 
@@ -84,6 +89,7 @@ final class ProfilePhotoUploadPreparerTests: XCTestCase {
     }
 
     /// And `prepared` is the entry point the picker calls, which has to do that hop for it.
+    @MainActor
     func testPrepared_hopsOffTheMainActorForTheCaller() async throws {
         let source = try XCTUnwrap(Self.jpeg(width: 2400, height: 1800))
 
@@ -95,6 +101,7 @@ final class ProfilePhotoUploadPreparerTests: XCTestCase {
 
     /// The member-facing half. Both sentences say what happened and what to do next, and
     /// neither may reach for the vocabulary the product voice keeps out of the main flows.
+    @MainActor
     func testFailureCopy_saysWhatToDoAndPassesTheMainFlowAudit() {
         XCTAssertEqual(
             ProfilePhotoUploadPreparer.Failure.unreadable.memberMessage,
@@ -127,6 +134,7 @@ final class ProfilePhotoUploadPreparerTests: XCTestCase {
         Thread.isMainThread
     }
 
+    @MainActor
     private static func unwrap(
         _ result: Result<ProfilePhotoUploadPreparer.Prepared, ProfilePhotoUploadPreparer.Failure>
     ) throws -> ProfilePhotoUploadPreparer.Prepared {
@@ -140,6 +148,7 @@ final class ProfilePhotoUploadPreparerTests: XCTestCase {
     }
 
     /// Reads the stored dimensions without decoding, so the assertion is about real pixels.
+    @MainActor
     private static func pixelSize(of data: Data) -> (width: Int, height: Int)? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
             let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
@@ -151,6 +160,7 @@ final class ProfilePhotoUploadPreparerTests: XCTestCase {
 
     /// Noise rather than flat colour: a flat fill compresses to almost nothing and would
     /// never exercise the quality steps.
+    @MainActor
     private static func jpeg(width: Int, height: Int) -> Data? {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1

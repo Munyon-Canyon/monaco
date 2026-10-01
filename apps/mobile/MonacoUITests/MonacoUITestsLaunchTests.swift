@@ -7,13 +7,12 @@
 
 import XCTest
 
-final class MonacoUITestsLaunchTests: XCTestCase {
-
-    override class var runsForEachTargetApplicationUIConfiguration: Bool {
+nonisolated final class MonacoUITestsLaunchTests: XCTestCase {
+    nonisolated override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true
     }
 
-    override func setUpWithError() throws {
+    nonisolated override func setUpWithError() throws {
         continueAfterFailure = false
     }
 
