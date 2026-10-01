@@ -24,19 +24,6 @@ final class HintStreamTests: XCTestCase {
         )
     }
 
-    private func eventually(_ condition: () async -> Bool) async -> Bool {
-        let deadline = ContinuousClock.now + .seconds(1)
-        while ContinuousClock.now < deadline {
-            if await condition() { return true }
-            await Task.yield()
-        }
-        return false
-    }
-
-    private func hint(_ id: Int, _ key: String, _ what: String) -> String {
-        "id: \(id)\nevent: hint\ndata: {\"key\":\"\(key)\",\"what\":\"\(what)\"}\n\n"
-    }
-
     func testReconnectSendsLastEventID() async throws {
         let transport = FakeStreamTransport(clock: clock)
         let stream = makeStream(transport)
@@ -290,5 +277,20 @@ final class HintStreamTests: XCTestCase {
         _ = try await transport.connection(2)
         XCTAssertEqual(transport.state.current.requests.count, 2)
         await stream.stop()
+    }
+}
+
+extension HintStreamTests {
+    fileprivate func eventually(_ condition: () async -> Bool) async -> Bool {
+        let deadline = ContinuousClock.now + .seconds(1)
+        while ContinuousClock.now < deadline {
+            if await condition() { return true }
+            await Task.yield()
+        }
+        return false
+    }
+
+    fileprivate func hint(_ id: Int, _ key: String, _ what: String) -> String {
+        "id: \(id)\nevent: hint\ndata: {\"key\":\"\(key)\",\"what\":\"\(what)\"}\n\n"
     }
 }

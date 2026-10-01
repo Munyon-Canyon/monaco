@@ -99,9 +99,6 @@ final class FakeStreamTransport: ClientTransport, @unchecked Sendable {
         case .unreachable:
             throw Unreachable()
         case .hang:
-            // A hung connect must not park on the shared clock. Tests that wait for the
-            // fallback timer treat that timer as the only sleeper; a clock sleep here makes
-            // `pending == 1` depend on which one registers first, and the loser waits forever.
             let hang = HangUntilCancelled()
             try await hang.park()
             throw CancellationError()
@@ -109,7 +106,6 @@ final class FakeStreamTransport: ClientTransport, @unchecked Sendable {
     }
 }
 
-/// Resumes only when its task is cancelled. `park` holds no clock and no timer.
 private final class HangUntilCancelled: @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<Void, any Error>?

@@ -30,7 +30,8 @@ final class SystemPingModelTests: XCTestCase {
 
         let sent = await transport.sent
         let posts = sent.filter { $0.path == "/v1/system/pings" }
-        let keys = posts.map { $0.headerFields[HTTPField.Name(IdempotentSubmission.keyHeader)!] }
+        let keyHeaderName = try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))
+        let keys = posts.map { $0.headerFields[keyHeaderName] }
         XCTAssertEqual(posts.count, 2, sent.map(\.path).description)
         XCTAssertEqual(keys.count, 2)
         XCTAssertNotNil(keys[0])

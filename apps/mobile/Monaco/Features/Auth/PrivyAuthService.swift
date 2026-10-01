@@ -54,8 +54,6 @@ class PrivyAuthService: ObservableObject {
     let privy: Privy
 
     #if DEBUG
-    /// The first service this process created. Tests reuse it: `PrivySdk.initialize` traps
-    /// if it runs a second time.
     static var processInstance: PrivyAuthService?
     #endif
 

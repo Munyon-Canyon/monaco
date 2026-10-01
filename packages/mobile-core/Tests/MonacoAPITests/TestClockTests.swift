@@ -28,8 +28,6 @@ final class TestClockTests: XCTestCase {
         }
     }
 
-    /// A deadline-only stable sort would keep this hash-like input order and return
-    /// `[0, 2, 3, 1]`. Insertion order is id order.
     func testTiedDeadlinesResumeInInsertionOrderNotHashOrder() {
         let tied = TestClock.Instant(offset: .milliseconds(10))
         let earlier = TestClock.Instant(offset: .milliseconds(5))

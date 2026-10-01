@@ -45,9 +45,7 @@ private final class RecordingDataSource: CabalsTabDataSource {
     var seriesByRange: [GroupPnLRange: [GroupPnLSeriesDTO]] = [:]
     /// Held open so a test can drive what happens while a search is in flight.
     var searchGate: (() async -> Void)?
-    /// Search-gate delays park here. A test advances it.
     let clock = TestClock()
-    /// Incremented when `search` returns, so a test can wait for that hop.
     let searchesDone = Watched(0)
     /// The same, for the chart reads.
     var pnlGate: (() async -> Void)?
@@ -104,41 +102,6 @@ private func sampleSeries(id: String, points: Int) -> GroupPnLSeriesDTO {
 
 @MainActor
 struct CabalsTabModelTests {
-    private func make(_ source: RecordingDataSource) -> CabalsTabModel {
-        CabalsTabModel(dataSource: source, sleepClock: source.clock)
-    }
-
-    /// Parks the debounce, moves the clock past it, then waits until that search returns.
-    private func settle(_ source: RecordingDataSource) async {
-        let mark = source.searchesDone.current
-        let slept = source.clock.state.current.requested.count
-        let debounce = CabalsTabModel.searchDebounce
-        _ = await source.clock.state.until { state in
-            state.requested.count > slept && state.pending >= 1
-                && state.requested.last == debounce
-        }
-        source.clock.advance(by: CabalsTabModel.searchDebounce)
-        _ = await source.searchesDone.until { $0 > mark }
-    }
-
-    /// Waits until `search` returns, for a retry or a page that does not debounce.
-    private func waitForSearch(_ source: RecordingDataSource) async {
-        let mark = source.searchesDone.current
-        _ = await source.searchesDone.until { $0 > mark }
-    }
-
-    /// Polls until something the test is waiting for is true. Used with
-    /// `CallGate` so a test never guesses at how long a hop takes.
-    private func waitUntil(_ description: String, _ condition: () -> Bool) async throws {
-        let start = ContinuousClock.now
-        while !condition() {
-            if ContinuousClock.now - start > .seconds(2) {
-                Issue.record("timed out waiting for \(description)")
-                return
-            }
-            await Task.yield()
-        }
-    }
 
     @Test func typingQuicklySendsOnlyTheLastQuery() async throws {
         // Arrange
@@ -475,7 +438,6 @@ struct CabalsTabModelTests {
         await settle(source)
         #expect(model.searchState == .failed)
 
-        // Act: retry skips the debounce, so this waits on the search itself.
         source.searchError = nil
         let slept = source.clock.state.current.requested.count
         model.retrySearch()
@@ -483,5 +445,39 @@ struct CabalsTabModelTests {
 
         #expect(source.clock.state.current.requested.count == slept)
         #expect(model.searchState == .results)
+    }
+}
+
+extension CabalsTabModelTests {
+    fileprivate func make(_ source: RecordingDataSource) -> CabalsTabModel {
+        CabalsTabModel(dataSource: source, sleepClock: source.clock)
+    }
+
+    fileprivate func settle(_ source: RecordingDataSource) async {
+        let mark = source.searchesDone.current
+        let slept = source.clock.state.current.requested.count
+        let debounce = CabalsTabModel.searchDebounce
+        _ = await source.clock.state.until { state in
+            state.requested.count > slept && state.pending >= 1
+                && state.requested.last == debounce
+        }
+        source.clock.advance(by: CabalsTabModel.searchDebounce)
+        _ = await source.searchesDone.until { $0 > mark }
+    }
+
+    fileprivate func waitForSearch(_ source: RecordingDataSource) async {
+        let mark = source.searchesDone.current
+        _ = await source.searchesDone.until { $0 > mark }
+    }
+
+    fileprivate func waitUntil(_ description: String, _ condition: () -> Bool) async throws {
+        let start = ContinuousClock.now
+        while !condition() {
+            if ContinuousClock.now - start > .seconds(2) {
+                Issue.record("timed out waiting for \(description)")
+                return
+            }
+            await Task.yield()
+        }
     }
 }

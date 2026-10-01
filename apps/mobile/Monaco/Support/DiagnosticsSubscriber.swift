@@ -21,8 +21,6 @@ final class DiagnosticsSubscriber: NSObject, MXMetricManagerSubscriber {
         MXMetricManager.shared.add(self)
     }
 
-    /// MetricKit delivers payloads on a background queue. `nonisolated` keeps Swift 6
-    /// from trapping in the `@objc` thunk's main-actor check. `store` is `Sendable`.
     nonisolated func didReceive(_ payloads: [MXDiagnosticPayload]) {
         for payload in payloads {
             let crashes = payload.crashDiagnostics?.count ?? 0

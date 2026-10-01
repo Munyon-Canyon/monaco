@@ -1,12 +1,12 @@
 import XCTest
 
+@testable import MonacoCore
+
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
 import Glibc
 #endif
-
-@testable import MonacoCore
 
 /// These formatters run once per visible row on every SwiftUI body pass, so they must stay
 /// cheap and must give the same answer from any thread.
@@ -17,10 +17,6 @@ final class FormatterHotPathTests: XCTestCase {
         let started = threadCPUTimeNanoseconds()
         renderOneScreenOfLabels()
         let elapsedMilliseconds = Double(threadCPUTimeNanoseconds() - started) / 1_000_000
-        // A 60Hz frame is 16.7ms. Thread CPU time ignores runnable-queue waits.
-        // Building formatters per call took ~23ms of wall clock here on a fast Mac.
-        // 16ms is a temporary ceiling (operator-approved) until the formatter is optimized
-        // and this is fine-tuned back down; see follow-up #1264.
         XCTAssertLessThan(elapsedMilliseconds, 16)
     }
 

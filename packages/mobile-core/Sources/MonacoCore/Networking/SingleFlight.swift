@@ -8,7 +8,6 @@ public actor SingleFlight<Value: Sendable> {
 
     public init() {}
 
-    /// Callers blocked on the in-flight run. A test waits for this instead of sleeping.
     public var waiters: Int { waiting }
 
     public func run(_ work: @escaping @Sendable () async throws -> Value) async throws -> Value {

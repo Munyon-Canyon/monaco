@@ -64,7 +64,6 @@ public struct MonacoHTTPTransport: Sendable {
     ///   - session: defaults to Monaco's own session, which declares its timeouts.
     ///   - refresher: defaults to whatever is registered in `AccessTokenRefreshRegistry.shared`.
     ///   - telemetry: defaults to whatever is registered in `APITelemetryRegistry.shared`.
-    ///   - clock: defaults to the live clock. Telemetry duration is read from it.
     public init(
         session: URLSession = .monaco,
         refresher: AccessTokenRefresher? = nil,

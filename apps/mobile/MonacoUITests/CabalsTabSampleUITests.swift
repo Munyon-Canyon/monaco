@@ -44,9 +44,6 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
-    /// True when the element's center sits on the app's glass. `isHittable` does not
-    /// return false for a control that is in the tree but off-screen: it fails the
-    /// test with "Activation point invalid". The New cabal card starts that way.
     @MainActor
     private func isOnGlass(_ app: XCUIApplication, _ element: XCUIElement) -> Bool {
         guard element.exists else { return false }
@@ -314,8 +311,6 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
         app.swipeUp()
         app.swipeUp()
 
-        // Dorm 4B fund is +32%, the top of the sample board. Rank 1 is spoken
-        // as "First" (the crown's word); later ranks stay "Rank N".
         let topRow = anyElement(app, "cabals-leaderboard-row-5b1f0c9e-0004-4c55-9a51-000000000004")
         XCTAssertTrue(topRow.waitForExistence(timeout: 10), "the top board row should exist")
         XCTAssertTrue(
