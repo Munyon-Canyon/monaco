@@ -108,7 +108,8 @@ dev_user="$(python3 -c 'import uuid; print(uuid.uuid4())')"
 export MONACO_ENV=test
 export MONACO_DEV_TOKEN_KEY="$token_key"
 export MONACO_DEV_USER="$dev_user"
-MONACO_DEV_TOKEN="$("$logdir/monacoctl" dev token --user "$dev_user")"
+"$logdir/monacoctl" dev token --user "$dev_user" > "$logdir/dev-token"
+MONACO_DEV_TOKEN="$(cat "$logdir/dev-token")"
 export MONACO_DEV_TOKEN
 export MONACO_BUS_ACK_WAIT=100ms
 export PRIVY_APP_ID=verify-app
@@ -164,8 +165,10 @@ docker run --rm --network host \
 swift_status=$?
 set -e
 
-executed="$(grep -Ec "Test Case '-\\[.*Integration.*\\]' (passed|failed)" "$logdir/swift.log" || true)"
-skipped="$(grep -Ec "Test Case '-\\[.*Integration.*\\]' skipped" "$logdir/swift.log" || true)"
+pass_pat="$(printf '%s' "Test Case '-\\[.*Integration.*\\]' (passed|failed)")"
+skip_pat="$(printf '%s' "Test Case '-\\[.*Integration.*\\]' skipped")"
+executed="$(grep -Ec "$pass_pat" "$logdir/swift.log" || true)"
+skipped="$(grep -Ec "$skip_pat" "$logdir/swift.log" || true)"
 if [[ "$executed" -lt 1 || "$skipped" -ne 0 ]]; then
   echo "mobile-integration: no executed Integration test" >&2
   cat "$logdir/swift.log" >&2 || true
