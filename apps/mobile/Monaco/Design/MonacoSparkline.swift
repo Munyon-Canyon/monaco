@@ -91,7 +91,7 @@ struct SparklineShape: Shape {
     }
 }
 
-extension Double {
+nonisolated extension Double {
     fileprivate func clamped(to range: ClosedRange<Double>) -> Double {
         Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
     }

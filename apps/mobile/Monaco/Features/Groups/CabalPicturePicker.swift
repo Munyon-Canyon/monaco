@@ -44,13 +44,23 @@ struct CabalPicturePicker: View {
     }
 
     private var editableMark: some View {
-        // Built out here and handed to the picker whole: its label builder is not main-actor
-        // isolated and the editor is, so reading the editor inside it is an isolation error
-        // the compiler was only warning about. The picker re-renders with the editor, so the
-        // label is never stale.
-        let label = editableLabel(pictureUrl: editor.pictureUrl, isWorking: editor.isWorking)
+        // The picker's label closure is `@Sendable` and not main-actor isolated, so it cannot
+        // capture the editor or a `View`. Copy the Sendable inputs and build a value label inside.
+        let pictureUrl = editor.pictureUrl
+        let isWorking = editor.isWorking
+        let groupId = groupId
+        let name = name
+        let size = size
+        let onInk = onInk
         return PhotosPicker(selection: $selection, matching: .images, photoLibrary: .shared()) {
-            label
+            CabalPictureLabel(
+                groupId: groupId,
+                name: name,
+                size: size,
+                onInk: onInk,
+                pictureUrl: pictureUrl,
+                isWorking: isWorking
+            )
         }
         .buttonStyle(.plain)
         .disabled(editor.isWorking)
@@ -67,42 +77,6 @@ struct CabalPicturePicker: View {
                 .accessibilityIdentifier("cabal-picture-remove")
             }
         }
-    }
-
-    private func editableLabel(pictureUrl: String?, isWorking: Bool) -> some View {
-        ZStack(alignment: .bottomTrailing) {
-            CabalMark(
-                groupId: groupId,
-                name: name,
-                size: size,
-                onInk: onInk,
-                pictureUrl: pictureUrl
-            )
-            .overlay {
-                if isWorking {
-                    // The mark's own corner, so the veil covers the tile and nothing else.
-                    RoundedRectangle(cornerRadius: size * MonacoTheme.Radius.tile / 44, style: .continuous)
-                        .fill(MonacoTheme.canvas.opacity(0.6))
-                    ProgressView()
-                        .controlSize(size >= 64 ? .regular : .mini)
-                        .tint(MonacoTheme.ink)
-                }
-            }
-            cameraBadge
-        }
-    }
-
-    /// The camera on the mark's corner. On the hero's ink it is paper with an ink glyph: in the
-    /// brand fill it was ink on ink, and only its ring showed. Off the hero it is the brand fill.
-    private var cameraBadge: some View {
-        let diameter = max(18, size * 0.44)
-        return Image(systemName: "camera.fill")
-            .font(.system(size: max(9, size * 0.22), weight: .semibold))
-            .foregroundStyle(onInk ? MonacoTheme.heroInk : MonacoTheme.primaryButtonLabel)
-            .frame(width: diameter, height: diameter)
-            .background(onInk ? MonacoTheme.onHero : MonacoTheme.primaryButtonFill, in: Circle())
-            .overlay { Circle().strokeBorder(onInk ? MonacoTheme.heroInk : MonacoTheme.canvas, lineWidth: 1.5) }
-            .offset(x: 5, y: 5)
     }
 
     /// VoiceOver still needs to be told there is a picture, even where the mark
@@ -159,5 +133,68 @@ struct CabalPicturePicker: View {
         case .failed(let message):
             onResult(MonacoToast(message: message, isSuccess: false))
         }
+    }
+}
+
+/// The picker's label. Its initializer is nonisolated so the `@Sendable` label closure can
+/// build it from copied values; SwiftUI still evaluates `body` on the main actor.
+private struct CabalPictureLabel: View {
+    let groupId: String
+    let name: String
+    let size: CGFloat
+    let onInk: Bool
+    let pictureUrl: String?
+    let isWorking: Bool
+
+    nonisolated init(
+        groupId: String,
+        name: String,
+        size: CGFloat,
+        onInk: Bool,
+        pictureUrl: String?,
+        isWorking: Bool
+    ) {
+        self.groupId = groupId
+        self.name = name
+        self.size = size
+        self.onInk = onInk
+        self.pictureUrl = pictureUrl
+        self.isWorking = isWorking
+    }
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            CabalMark(
+                groupId: groupId,
+                name: name,
+                size: size,
+                onInk: onInk,
+                pictureUrl: pictureUrl
+            )
+            .overlay {
+                if isWorking {
+                    // The mark's own corner, so the veil covers the tile and nothing else.
+                    RoundedRectangle(cornerRadius: size * MonacoTheme.Radius.tile / 44, style: .continuous)
+                        .fill(MonacoTheme.canvas.opacity(0.6))
+                    ProgressView()
+                        .controlSize(size >= 64 ? .regular : .mini)
+                        .tint(MonacoTheme.ink)
+                }
+            }
+            cameraBadge
+        }
+    }
+
+    /// The camera on the mark's corner. On the hero's ink it is paper with an ink glyph: in the
+    /// brand fill it was ink on ink, and only its ring showed. Off the hero it is the brand fill.
+    private var cameraBadge: some View {
+        let diameter = max(18, size * 0.44)
+        return Image(systemName: "camera.fill")
+            .font(.system(size: max(9, size * 0.22), weight: .semibold))
+            .foregroundStyle(onInk ? MonacoTheme.heroInk : MonacoTheme.primaryButtonLabel)
+            .frame(width: diameter, height: diameter)
+            .background(onInk ? MonacoTheme.onHero : MonacoTheme.primaryButtonFill, in: Circle())
+            .overlay { Circle().strokeBorder(onInk ? MonacoTheme.heroInk : MonacoTheme.canvas, lineWidth: 1.5) }
+            .offset(x: 5, y: 5)
     }
 }

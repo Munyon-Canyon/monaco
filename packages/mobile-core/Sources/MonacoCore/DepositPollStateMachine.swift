@@ -51,6 +51,10 @@ public struct DepositPollStateMachine: Equatable {
 
     /// Polls `fetchStatus` until the deposit reaches a terminal phase or `maxWait` elapses.
     /// `clock` defaults to the live clock. Tests pass a clock they advance.
+    ///
+    /// `nonisolated(nonsending)` keeps `fetchStatus` on the caller's actor. The app passes a
+    /// closure that reads the main-actor API client.
+    nonisolated(nonsending)
     public mutating func pollUntilTerminal(
         maxWait: Duration = DepositPolling.sweepMaxWait,
         interval: Duration = DepositPolling.sweepStatusInterval,
