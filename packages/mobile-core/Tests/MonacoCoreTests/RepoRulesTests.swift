@@ -141,6 +141,94 @@ enum RepoRulesError: Error {
     case malformedRow(String)
 }
 
+private struct RequiredReasonAPI {
+    let token: String
+    let category: String
+    let regex: NSRegularExpression
+}
+
+private enum RequiredReason {
+    static let manifestPath = "apps/mobile/Monaco/PrivacyInfo.xcprivacy"
+    static let roots = ["apps/mobile/Monaco", "packages/mobile-core/Sources"]
+
+    private static let tokens: [(token: String, category: String, pattern: String)] = [
+        ("UserDefaults", "NSPrivacyAccessedAPICategoryUserDefaults", #"\bUserDefaults\b"#),
+        ("@AppStorage", "NSPrivacyAccessedAPICategoryUserDefaults", #"@AppStorage\b"#),
+        ("systemUptime", "NSPrivacyAccessedAPICategorySystemBootTime", #"\bsystemUptime\b"#),
+        ("mach_absolute_time", "NSPrivacyAccessedAPICategorySystemBootTime", #"\bmach_absolute_time\b"#),
+        (
+            "creationDate",
+            "NSPrivacyAccessedAPICategoryFileTimestamp",
+            #"\b"# + "creation" + "Date" + #"(?:Key)?\b"#
+        ),
+        (
+            "modificationDate",
+            "NSPrivacyAccessedAPICategoryFileTimestamp",
+            #"\b"# + "modification" + "Date" + #"(?:Key)?\b"#
+        ),
+        (
+            "contentModificationDate",
+            "NSPrivacyAccessedAPICategoryFileTimestamp",
+            #"\b"# + "content" + "Modification" + "Date" + #"(?:Key)?\b"#
+        ),
+        ("attributesOfItem", "NSPrivacyAccessedAPICategoryFileTimestamp", #"\battributesOfItem\b"#),
+        ("getattrlist", "NSPrivacyAccessedAPICategoryFileTimestamp", #"\bgetattrlist\b"#),
+        (
+            "volumeAvailableCapacity",
+            "NSPrivacyAccessedAPICategoryDiskSpace",
+            #"\b"# + "volume" + "AvailableCapacity"
+                + #"(?:ForImportantUsage|ForOpportunisticUsage)?(?:Key)?\b"#
+        ),
+        ("systemFreeSize", "NSPrivacyAccessedAPICategoryDiskSpace", #"\bsystemFreeSize\b"#),
+        ("statfs", "NSPrivacyAccessedAPICategoryDiskSpace", #"\bstatfs\b"#),
+        ("activeInputModes", "NSPrivacyAccessedAPICategoryActiveKeyboards", #"\bactiveInputModes\b"#),
+    ]
+
+    static func categories(in plist: Data) throws -> Set<String> {
+        let root = try PropertyListSerialization.propertyList(from: plist, options: [], format: nil)
+        guard let dict = root as? [String: Any] else { return [] }
+        let types = dict["NSPrivacyAccessedAPITypes"] as? [[String: Any]] ?? []
+        return Set(types.compactMap { $0["NSPrivacyAccessedAPIType"] as? String })
+    }
+
+    static func violations(files: [(path: String, text: String)], declared: Set<String>) throws -> [String] {
+        let apis = try tokens.map { token, category, pattern in
+            RequiredReasonAPI(token: token, category: category, regex: try NSRegularExpression(pattern: pattern))
+        }
+        var used = Set<String>()
+        var missing: [String] = []
+        for file in files.sorted(by: { $0.path < $1.path }) {
+            record(file, apis: apis, declared: declared, used: &used, missing: &missing)
+        }
+        return missing + declared.subtracting(used).sorted().map { "unused category \($0)" }
+    }
+
+    private static func record(
+        _ file: (path: String, text: String),
+        apis: [RequiredReasonAPI],
+        declared: Set<String>,
+        used: inout Set<String>,
+        missing: inout [String]
+    ) {
+        let rows = file.text.split(separator: "\n", omittingEmptySubsequences: false)
+        for (offset, row) in rows.enumerated() {
+            let line = String(row)
+            let range = NSRange(line.startIndex..., in: line)
+            for api in apis where api.regex.firstMatch(in: line, range: range) != nil {
+                used.insert(api.category)
+                guard declared.contains(api.category) else {
+                    missing.append(need(file.path, line: offset + 1, api: api))
+                    continue
+                }
+            }
+        }
+    }
+
+    private static func need(_ path: String, line: Int, api: RequiredReasonAPI) -> String {
+        "\(path):\(line): \(api.token) needs \(api.category) in PrivacyInfo.xcprivacy"
+    }
+}
+
 final class RepoRulesTests: XCTestCase {
     func testEveryRuleFlagsItsFailingFixturesAndPassesItsPassingOnes() throws {
         for rule in RepoRules.all {
@@ -174,5 +262,96 @@ final class RepoRulesTests: XCTestCase {
     func testTheRepoRootHoldsBothSwiftTrees() {
         XCTAssertFalse(RepoTree.swiftFiles(under: "apps/mobile/Monaco").isEmpty)
         XCTAssertFalse(RepoTree.swiftFiles(under: "packages/mobile-core/Sources").isEmpty)
+    }
+
+    func testThePrivacyManifestCoversEveryRequiredReasonTheAppUses() throws {
+        let plist = try Data(contentsOf: RepoTree.root.appendingPathComponent(RequiredReason.manifestPath))
+        let declared = try RequiredReason.categories(in: plist)
+        var files: [(path: String, text: String)] = []
+        for root in RequiredReason.roots {
+            for path in RepoTree.swiftFiles(under: root) {
+                files.append((path, try RepoTree.read(path)))
+            }
+        }
+        XCTAssertEqual(try RequiredReason.violations(files: files, declared: declared), [])
+    }
+
+    func testRequiredReasonNamesTheCategoryACallNeeds() throws {
+        let boot = "NSPrivacyAccessedAPICategorySystemBootTime"
+        let disk = "NSPrivacyAccessedAPICategoryDiskSpace"
+        let plant = "apps/mobile/Monaco/Plant.swift"
+        let uptime = [
+            (
+                path: plant,
+                text: "let defaults = UserDefaults.standard\nlet t = ProcessInfo.processInfo.systemUptime\n"
+            )
+        ]
+        XCTAssertEqual(
+            try RequiredReason.violations(files: uptime, declared: ["NSPrivacyAccessedAPICategoryUserDefaults"]),
+            ["\(plant):2: systemUptime needs \(boot) in PrivacyInfo.xcprivacy"]
+        )
+        let capacity = [(path: plant, text: "let free = url.volumeAvailableCapacity\n")]
+        XCTAssertEqual(
+            try RequiredReason.violations(files: capacity, declared: []),
+            ["\(plant):1: volumeAvailableCapacity needs \(disk) in PrivacyInfo.xcprivacy"]
+        )
+        XCTAssertEqual(
+            try RequiredReason.violations(
+                files: [(path: plant, text: "let quiet = 1\n")],
+                declared: ["NSPrivacyAccessedAPICategoryActiveKeyboards"]
+            ),
+            ["unused category NSPrivacyAccessedAPICategoryActiveKeyboards"]
+        )
+        XCTAssertEqual(
+            try RequiredReason.violations(
+                files: uptime,
+                declared: ["NSPrivacyAccessedAPICategoryUserDefaults", boot]
+            ),
+            []
+        )
+    }
+
+    func testRequiredReasonMapsEveryApiTokenToItsCategory() throws {
+        let samples = [
+            ("UserDefaults.standard", "UserDefaults", "NSPrivacyAccessedAPICategoryUserDefaults"),
+            ("@AppStorage(\"k\") var mode = 1", "@AppStorage", "NSPrivacyAccessedAPICategoryUserDefaults"),
+            ("ProcessInfo.processInfo.systemUptime", "systemUptime", "NSPrivacyAccessedAPICategorySystemBootTime"),
+            ("mach_absolute_time()", "mach_absolute_time", "NSPrivacyAccessedAPICategorySystemBootTime"),
+            ("attrs.creationDate", "creationDate", "NSPrivacyAccessedAPICategoryFileTimestamp"),
+            (
+                "try url.resourceValues(forKeys: [.creationDateKey])",
+                "creationDate",
+                "NSPrivacyAccessedAPICategoryFileTimestamp"
+            ),
+            ("attrs.modificationDate", "modificationDate", "NSPrivacyAccessedAPICategoryFileTimestamp"),
+            (
+                "attrs.contentModificationDate",
+                "contentModificationDate",
+                "NSPrivacyAccessedAPICategoryFileTimestamp"
+            ),
+            (
+                "try manager.attributesOfItem(atPath: path)",
+                "attributesOfItem",
+                "NSPrivacyAccessedAPICategoryFileTimestamp"
+            ),
+            ("getattrlist(path, &attr, &buf, size, 0)", "getattrlist", "NSPrivacyAccessedAPICategoryFileTimestamp"),
+            ("url.volumeAvailableCapacity", "volumeAvailableCapacity", "NSPrivacyAccessedAPICategoryDiskSpace"),
+            (
+                "try url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])",
+                "volumeAvailableCapacity",
+                "NSPrivacyAccessedAPICategoryDiskSpace"
+            ),
+            ("attrs.systemFreeSize", "systemFreeSize", "NSPrivacyAccessedAPICategoryDiskSpace"),
+            ("statfs(path, &stats)", "statfs", "NSPrivacyAccessedAPICategoryDiskSpace"),
+            ("UITextInputMode.activeInputModes", "activeInputModes", "NSPrivacyAccessedAPICategoryActiveKeyboards"),
+        ]
+        for (text, token, category) in samples {
+            let found = try RequiredReason.violations(
+                files: [("apps/mobile/Monaco/Sample.swift", text)],
+                declared: []
+            )
+            let message = "apps/mobile/Monaco/Sample.swift:1: \(token) needs \(category) in PrivacyInfo.xcprivacy"
+            XCTAssertEqual(found, [message], text)
+        }
     }
 }

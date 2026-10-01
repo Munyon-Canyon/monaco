@@ -13,6 +13,7 @@ The build number is `git rev-list --count HEAD`. It grows along one branch. Chec
   - `ASC_ISSUER_ID`
   - `ASC_KEY_P8_BASE64` (the `.p8` file, base64-encoded)
 
+- Before #713's first upload, set App Store Connect → **Monaco** → **App Privacy** to the same answers as `apps/mobile/Monaco/PrivacyInfo.xcprivacy`. Linked data, not used for tracking: phone number, email address, and contacts for app functionality; user ID for app functionality and analytics; other financial info (balances, deposits, and trades) for app functionality; product interaction for analytics. The app does not track. Required-reason APIs: UserDefaults (`CA92.1`) and system boot time (`35F9.1`).
 - An `https` API URL for the environment you are shipping. The script stops before archiving when that URL is empty or not https.
 
   ```bash

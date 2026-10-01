@@ -158,15 +158,28 @@ def is_checkpoint(base_ref: str, head_ref: str, labels: list[str]) -> bool:
     return base_ref == "main" and bool(FEATURE_BRANCH_RE.fullmatch(head_ref)) and "integration" in labels
 
 
+DEPENDABOT_AUTHOR = "dependabot[bot]"
+
+
+def template_errors(env: dict[str, str], body: str) -> list[str]:
+    if env.get("PR_AUTHOR") == DEPENDABOT_AUTHOR:
+        return []
+    return (
+        title_errors(env.get("PR_TITLE", ""))
+        + body_errors(body)
+        + command_errors(body)
+        + ticket_errors(body, stacked("--base", env["HEAD_REF"]), stacked("--head", env["BASE_REF"]))
+        + sha_errors(body, env["HEAD_SHA"])
+    )
+
+
 def main(argv: list[str]) -> int:
     env = os.environ
     body = env.get("PR_BODY", "")
     if argv:
         print("usage: check-pr-format.py", file=sys.stderr)
         return 2
-    errors = title_errors(env.get("PR_TITLE", "")) + body_errors(body) + command_errors(body)
-    errors += ticket_errors(body, stacked("--base", env["HEAD_REF"]), stacked("--head", env["BASE_REF"]))
-    errors += sha_errors(body, env["HEAD_SHA"])
+    errors = template_errors(env, body)
     # A checkpoint's range is the whole milestone: each commit passed this check in its ticket PR or predates the rule.
     if not is_checkpoint(env["BASE_REF"], env["HEAD_REF"], json.loads(env.get("PR_LABELS") or "[]")):
         errors += commit_errors(env["BASE_SHA"], env["HEAD_SHA"])

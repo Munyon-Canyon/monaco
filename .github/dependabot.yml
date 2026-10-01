@@ -1,0 +1,19 @@
+version: 2
+updates:
+  - package-ecosystem: swift
+    directories:
+      - "/packages/mobile-core"
+      - "/apps/mobile"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build"
+      include: "scope"
+    groups:
+      swift-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
