@@ -138,6 +138,9 @@ func (g *GitHub) call(ctx context.Context, method, path, auth string, body, out 
 	}
 	req.Header.Set("Authorization", auth)
 	req.Header.Set("Accept", "application/vnd.github+json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	resp, err := g.HTTP.Do(req)
 	if err != nil {
 		return fmt.Errorf("%s %s: %w", method, path, err)

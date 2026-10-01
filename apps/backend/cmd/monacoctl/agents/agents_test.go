@@ -165,6 +165,9 @@ func TestGitHub_reportsStatusDecodeAndTransportErrors(t *testing.T) {
 	if _, err := gh.PR(ctx, 2); err == nil || !strings.Contains(err.Error(), "decode GET /repos/o/r/pulls/2") {
 		t.Fatalf("decode: %v", err)
 	}
+	if got := f.hub.contentTypeOf(get("/pulls/2")); got != "" {
+		t.Fatalf("a request without a body sent Content-Type %q", got)
+	}
 	if err := gh.call(
 		ctx,
 		http.MethodPost,
@@ -211,6 +214,9 @@ func TestGitHub_callWithNoOutputIgnoresTheBody(t *testing.T) {
 	}
 	if f.hub.body("POST /x") != `{"a":"b"}` || f.hub.authOf("POST /x") != "Bearer j" {
 		t.Fatalf("body=%q auth=%q", f.hub.body("POST /x"), f.hub.authOf("POST /x"))
+	}
+	if got := f.hub.contentTypeOf("POST /x"); got != "application/json" {
+		t.Fatalf("a request with a body sent Content-Type %q", got)
 	}
 }
 
