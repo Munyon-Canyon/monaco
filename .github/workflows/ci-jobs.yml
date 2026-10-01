@@ -272,6 +272,7 @@ jobs:
               - 'scripts/install-xcsift.sh'
               - '.xcode-version'
               - 'scripts/ci/select-xcode.sh'
+              - 'scripts/mobile-core-test.sh'
               - '.github/workflows/ci-mobile-core.yml'
             web:
               - 'apps/web/**'
