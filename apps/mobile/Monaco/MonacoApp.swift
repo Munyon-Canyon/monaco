@@ -9,7 +9,9 @@ import os
 
 @main
 struct MonacoApp: App {
-    @StateObject private var auth = PrivyAuthService()
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var appEnvironment: AppEnvironment
 
     init() {
         APITelemetryRegistry.shared.register(APILogTelemetry())
@@ -19,13 +21,18 @@ struct MonacoApp: App {
         AppLogger.session.info("API environment: \(api.debugSummary, privacy: .public)")
         MonacoAppearance.configureUIKit()
         MonacoLaunchTrace.markSceneReady()
+        _appEnvironment = State(initialValue: AppEnvironment())
     }
 
     var body: some Scene {
         WindowGroup {
             root
-                .environmentObject(auth)
+                .environment(appEnvironment)
+                .environmentObject(appEnvironment.auth)
                 .tint(MonacoTheme.ink)
+                .onChange(of: scenePhase) { _, phase in
+                    Task { await appEnvironment.sceneDidChange(phase) }
+                }
         }
     }
 

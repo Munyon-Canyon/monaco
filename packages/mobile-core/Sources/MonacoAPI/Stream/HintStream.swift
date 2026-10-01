@@ -1,6 +1,7 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
+import OpenAPIURLSession
 
 /// The app's one `GET /v1/stream` connection, fanned out in memory to every subscriber. It
 /// reconnects with backoff, treats 45 s without a byte as a dead connection, and emits
@@ -39,11 +40,11 @@ public actor HintStream: HintSource {
 
     public init(
         serverURL: URL,
-        transport: any ClientTransport,
+        transport: any ClientTransport = URLSessionTransport(),
         token: @escaping @Sendable () async throws -> String?,
         refresh: @escaping @Sendable (String) async throws -> String?,
-        clock: any Clock<Duration>,
-        random: @escaping @Sendable () -> Double
+        clock: any Clock<Duration> = ContinuousClock(),
+        random: @escaping @Sendable () -> Double = { Double.random(in: 0..<1) }
     ) {
         self.serverURL = serverURL
         self.transport = transport
