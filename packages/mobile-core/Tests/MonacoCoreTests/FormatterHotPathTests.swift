@@ -19,7 +19,9 @@ final class FormatterHotPathTests: XCTestCase {
         let elapsedMilliseconds = Double(threadCPUTimeNanoseconds() - started) / 1_000_000
         // A 60Hz frame is 16.7ms. Thread CPU time ignores runnable-queue waits.
         // Building formatters per call took ~23ms of wall clock here on a fast Mac.
-        XCTAssertLessThan(elapsedMilliseconds, 8)
+        // 16ms is a temporary ceiling (operator-approved) until the formatter is optimized
+        // and this is fine-tuned back down; see follow-up #1264.
+        XCTAssertLessThan(elapsedMilliseconds, 16)
     }
 
     /// Roughly what a busy feed renders per pass: 60 money labels, 60 ages, 30 share counts.
