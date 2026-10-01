@@ -14,6 +14,10 @@ on:
         description: Restore the compilation cache and the warm artifacts. A dispatch can turn this off to measure a cold build.
         type: boolean
         default: true
+      checkout-sha:
+        description: Commit to check out. Read only when the caller event is workflow_dispatch.
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       save-cache:
@@ -24,6 +28,10 @@ on:
         description: Restore the compilation cache and the warm artifacts. Turn this off to measure a cold build.
         type: boolean
         default: true
+      checkout-sha:
+        description: Ignored on a direct dispatch of this workflow.
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -38,6 +46,13 @@ jobs:
       actions: read
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check out the dispatched commit
+        if: github.event_name == 'workflow_dispatch' && inputs.checkout-sha != ''
+        env:
+          CHECKOUT_SHA: ${{ inputs.checkout-sha }}
+          FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH }}
+        run: scripts/ci/warm-checkout.sh
 
       # actions/cache rejects a path with `..` in it, so this resolves github.workspace/../DerivedData
       # to the same directory without one. The path must not change between runs.
@@ -62,25 +77,31 @@ jobs:
       - name: Install the pinned xcsift
         run: scripts/install-xcsift.sh
 
+      # SourcePackages is fixed by the Xcode version and the resolved files in the
+      # key. A commit suffix makes cache-hit false on every other commit and turns
+      # exact resolve mode off. A duplicate save of this immutable key is a warning.
       - name: Restore Swift packages
         id: spm
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.DERIVED_DATA }}/SourcePackages
-          key: spm-ios-${{ runner.os }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
-          restore-keys: spm-ios-${{ runner.os }}-
+          key: spm-ios-${{ runner.os }}-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}
+          restore-keys: |
+            spm-ios-${{ runner.os }}-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-
+            spm-ios-${{ runner.os }}-
 
       # The compilation cache keys each compile on content, so it hits after a fresh checkout, but
       # only while the DerivedData path and the checkout path stay the same between runs. The
-      # saved key ends in the commit because a cache key is immutable: a fixed key would keep the
-      # first save forever while the app source moves on.
+      # saved key ends in the commit that was built. A main dispatch checks out
+      # inputs.checkout-sha while github.sha stays on main, so a key frozen on
+      # github.sha would keep the first save until the next checkpoint.
       - name: Restore the compilation cache
         id: cas
         if: inputs.restore-cache
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.DERIVED_DATA }}/CompilationCache.noindex
-          key: xcode-cas-${{ runner.os }}-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-${{ github.sha }}
+          key: xcode-cas-${{ runner.os }}-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-${{ inputs.checkout-sha != '' && inputs.checkout-sha || github.sha }}
           restore-keys: |
             xcode-cas-${{ runner.os }}-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-
             xcode-cas-${{ runner.os }}-${{ hashFiles('.xcode-version') }}-
@@ -274,6 +295,13 @@ jobs:
           path: ${{ env.DERIVED_DATA }}/CompilationCache.noindex
           key: ${{ steps.cas.outputs.cache-primary-key }}
 
+      - name: Save the Swift package cache
+        if: inputs.save-cache && inputs.restore-cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.DERIVED_DATA }}/SourcePackages
+          key: spm-ios-${{ runner.os }}-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}
+
       # -parallel-testing-enabled YES was tried and reverted: it clones the simulator and runs
       # workers side by side, and on a shared macOS runner (a handful of vCPUs) that starved
       # the app's own concurrency-sensitive tests (spinner/cancellation races such as
@@ -292,28 +320,28 @@ jobs:
       # tarred first. compression-level 0 skips a second zip of an already-packed file.
       - name: Pack the compilation cache artifact
         if: inputs.save-cache && success()
-        run: tar -C "$DERIVED_DATA" -cf "$RUNNER_TEMP/cas.tar" CompilationCache.noindex
+        run: tar -C "$DERIVED_DATA" --use-compress-program='zstd -T0 -3' -cf "$RUNNER_TEMP/cas.tar.zst" CompilationCache.noindex
 
       - name: Upload the compilation cache artifact
         if: inputs.save-cache && success()
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.CAS_ARTIFACT_NAME }}
-          path: ${{ runner.temp }}/cas.tar
+          path: ${{ runner.temp }}/cas.tar.zst
           retention-days: 3
           compression-level: 0
           include-hidden-files: true
 
       - name: Pack the Swift package artifact
         if: inputs.save-cache && success()
-        run: tar -C "$DERIVED_DATA" -cf "$RUNNER_TEMP/spm.tar" SourcePackages
+        run: tar -C "$DERIVED_DATA" --use-compress-program='zstd -T0 -3' -cf "$RUNNER_TEMP/spm.tar.zst" SourcePackages
 
       - name: Upload the Swift package artifact
         if: inputs.save-cache && success()
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.SPM_ARTIFACT_NAME }}
-          path: ${{ runner.temp }}/spm.tar
+          path: ${{ runner.temp }}/spm.tar.zst
           retention-days: 3
           compression-level: 0
           include-hidden-files: true

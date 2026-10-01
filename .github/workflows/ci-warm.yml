@@ -14,11 +14,32 @@ on:
       - .github/workflows/ci-warm.yml
       - .github/workflows/ci-ios.yml
       - .github/workflows/ci-mobile-core.yml
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Commit to build. Used only on workflow_dispatch. Must be an ancestor of the feature branch or main.
+        type: string
+        default: ""
 
 permissions:
   contents: read
 
 jobs:
+  # A workflow_dispatch --ref main runs main's copy of this file, which does not
+  # exist until the next checkpoint. A failed dispatch must leave this push green.
+  dispatch-main:
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch the warm run on main
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run ci-warm.yml --ref main -f sha=${{ github.sha }}
+
   ios:
     permissions:
       contents: read
@@ -26,16 +47,15 @@ jobs:
     uses: ./.github/workflows/ci-ios.yml
     with:
       save-cache: true
+      checkout-sha: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || '' }}
 
   mobile-core:
     uses: ./.github/workflows/ci-mobile-core.yml
     with:
       save-cache: true
 
-  # One Actions cache per prefix on this ref. xcode-cas-* and spm-ios-* artifacts
-  # uploaded by ci-ios.yml are outside the 10 GB cache and are not pruned.
-  # ci-ios.yml restores spm-ios- and does not save it, so that prefix is absent.
-  # A list or delete error must not fail the warm run.
+  # One Actions cache per prefix on this ref and on main. Artifacts uploaded by
+  # ci-ios.yml are outside the 10 GB cache and are not pruned.
   prune:
     needs: [ios, mobile-core]
     if: success()
@@ -51,4 +71,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REF: ${{ github.ref }}
-        run: scripts/ci/prune-caches.sh "$REF" xcode-cas-macOS- swiftpm-linux-6.3- swiftpm-macos-
+        run: |
+          scripts/ci/prune-caches.sh "$REF" xcode-cas-macOS- spm-ios-macOS- swiftpm-linux-6.3- swiftpm-macos-
+          if [[ "$REF" != "refs/heads/main" ]]; then
+            scripts/ci/prune-caches.sh refs/heads/main xcode-cas-macOS- spm-ios-macOS- swiftpm-linux-6.3- swiftpm-macos-
+          fi

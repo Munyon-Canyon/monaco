@@ -90,6 +90,22 @@ func TestPruneCaches_keepsTheNewestPerPrefix(t *testing.T) {
 	}
 }
 
+func TestPruneCaches_prunesOlderMainEntries(t *testing.T) {
+	repo := newPruneRepo(t)
+	const ref = "refs/heads/main"
+	repo.list("xcode-cas-macOS-", `[
+	  {"id": 2, "key": "xcode-cas-macOS-new", "createdAt": "2026-09-30T10:00:00Z", "sizeInBytes": 100, "ref": "refs/heads/main"},
+	  {"id": 1, "key": "xcode-cas-macOS-old", "createdAt": "2026-09-30T09:00:00Z", "sizeInBytes": 1048576, "ref": "refs/heads/main"}
+	]`)
+	out := repo.run(t, nil, ref, "xcode-cas-macOS-")
+	if !strings.Contains(out, "pruned 1 entries, 1 MB\n") {
+		t.Fatalf("summary:\n%s", out)
+	}
+	if deleted := repo.deleted(t); !strings.Contains(deleted, "1\n") || strings.Contains(deleted, "2\n") {
+		t.Fatalf("deleted:\n%s", deleted)
+	}
+}
+
 func TestPruneCaches_emptyList(t *testing.T) {
 	repo := newPruneRepo(t)
 	repo.list("xcode-cas-macOS-", "[]")
