@@ -50,13 +50,15 @@ public struct DepositPollStateMachine: Equatable {
     }
 
     /// Polls `fetchStatus` until the deposit reaches a terminal phase or `maxWait` elapses.
+    /// `clock` defaults to the live clock. Tests pass a clock they advance.
     public mutating func pollUntilTerminal(
         maxWait: Duration = DepositPolling.sweepMaxWait,
         interval: Duration = DepositPolling.sweepStatusInterval,
+        clock: any Clock<Duration> = ContinuousClock(),
         fetchStatus: () async throws -> String
     ) async -> DepositSweepPhase {
-        let deadline = ContinuousClock.now + maxWait
-        while ContinuousClock.now < deadline {
+        let timer = PollClock(clock)
+        while timer.now() < maxWait {
             if Task.isCancelled {
                 return phase
             }
@@ -68,7 +70,7 @@ public struct DepositPollStateMachine: Equatable {
             } catch {
                 // Keep last known phase; retry on transient auth/network/decode errors.
             }
-            try? await Task.sleep(for: interval)
+            try? await timer.sleep(interval)
         }
         return phase
     }
@@ -80,6 +82,26 @@ public struct DepositPollStateMachine: Equatable {
         case .idle, .awaitingSweep:
             false
         }
+    }
+}
+
+/// Elapsed time and sleep for one `pollUntilTerminal` run, so the machine can take any clock.
+private struct PollClock: Sendable {
+    let now: @Sendable () -> Duration
+    let sleep: @Sendable (Duration) async throws -> Void
+
+    init(_ clock: any Clock<Duration>) {
+        self = Self.opening(clock)
+    }
+
+    private init(now: @escaping @Sendable () -> Duration, sleep: @escaping @Sendable (Duration) async throws -> Void) {
+        self.now = now
+        self.sleep = sleep
+    }
+
+    private static func opening<C: Clock<Duration>>(_ clock: C) -> PollClock {
+        let origin = clock.now
+        return PollClock(now: { origin.duration(to: clock.now) }, sleep: { try await clock.sleep(for: $0) })
     }
 }
 
