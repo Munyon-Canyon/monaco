@@ -1,0 +1,17 @@
+{
+  "allocs": {},
+  "queries": {
+    "Cabal": 1,
+    "Cabals 1000 ids": 1,
+    "CabalsOf": 1,
+    "IsMember": 1,
+    "Member": 1,
+    "Members": 1,
+    "Rules": 1,
+    "SlippageBps": 1,
+    "Status": 1,
+    "TreasuryWallet": 1,
+    "TreasuryWallets over 1000 cabals": 1,
+    "VoterSet": 1
+  }
+}
