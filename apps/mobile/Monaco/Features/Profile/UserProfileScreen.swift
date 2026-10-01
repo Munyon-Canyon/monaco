@@ -15,7 +15,7 @@ struct UserProfileScreen: View {
     }
 
     var body: some View {
-        let sections = sections.map { $0 as! any ScreenSection<UserProfileContext>.Type }
+        let sections = sections.map { $0.erased }
         if SectionStack<UserProfileContext>.live(sections).isEmpty {
             NotMigratedView(screen: "Profile")
         } else {

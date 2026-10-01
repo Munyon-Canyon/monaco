@@ -6,3 +6,7 @@ protocol ScreenSection<Context> {
     static var isLive: Bool { get }
     @MainActor @ViewBuilder static func body(for context: Context) -> Body
 }
+
+extension ScreenSection {
+    static var erased: any ScreenSection<Context>.Type { self }
+}

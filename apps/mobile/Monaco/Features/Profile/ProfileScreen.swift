@@ -20,7 +20,7 @@ struct ProfileScreen: View {
 
     var body: some View {
         VStack(spacing: MonacoTheme.Space.gutter) {
-            SectionStack(context: (), sections: sections.map { $0 as! any ScreenSection<Void>.Type })
+            SectionStack(context: (), sections: sections.map { $0.erased })
             Button("Sign out") {
                 Task { await environment.signOut() }
             }

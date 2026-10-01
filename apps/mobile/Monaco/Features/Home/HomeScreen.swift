@@ -16,7 +16,7 @@ struct HomeScreen: View {
     }
 
     var body: some View {
-        let sections = sections.map { $0 as! any ScreenSection<Void>.Type }
+        let sections = sections.map { $0.erased }
         if SectionStack<Void>.live(sections).isEmpty {
             NotMigratedView(screen: "Home")
         } else {
