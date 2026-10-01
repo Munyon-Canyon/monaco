@@ -1,6 +1,7 @@
 package flows_test
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -12,7 +13,33 @@ import (
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
+
+func scriptFuncs(t *testing.T, name string, src any) []string {
+	t.Helper()
+	file, err := parser.ParseFile(token.NewFileSet(), name, src, parser.SkipObjectResolution)
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := regexp.MustCompile(`^F[0-9]+[a-z]?[A-Z]`)
+	var declared []string
+	for _, decl := range file.Decls {
+		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Recv == nil && script.MatchString(fn.Name.Name) {
+			declared = append(declared, fn.Name.Name)
+		}
+	}
+	return declared
+}
+
+func registryProblem(declared []string, registry map[string]flows.Script) string {
+	declared = slices.Sorted(slices.Values(declared))
+	registered := slices.Sorted(maps.Keys(registry))
+	if slices.Equal(declared, registered) {
+		return ""
+	}
+	return fmt.Sprintf("flow scripts declared %v, registered in Scripts() %v", declared, registered)
+}
 
 func TestScripts_registersEveryFlowScriptInThePackage(t *testing.T) {
 	t.Parallel()
@@ -20,24 +47,33 @@ func TestScripts_registersEveryFlowScriptInThePackage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	script := regexp.MustCompile(`^F[0-9]+[A-Z]`)
 	var declared []string
 	for _, name := range names {
-		if strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		file, err := parser.ParseFile(token.NewFileSet(), name, nil, parser.SkipObjectResolution)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, decl := range file.Decls {
-			if fn, ok := decl.(*ast.FuncDecl); ok && fn.Recv == nil && script.MatchString(fn.Name.Name) {
-				declared = append(declared, fn.Name.Name)
-			}
+		if !strings.HasSuffix(name, "_test.go") {
+			declared = append(declared, scriptFuncs(t, name, nil)...)
 		}
 	}
-	registered := slices.Sorted(maps.Keys(flows.Scripts()))
-	if slices.Sort(declared); !slices.Equal(declared, registered) {
-		t.Fatalf("flow scripts declared %v, registered in Scripts() %v", declared, registered)
+	if problem := registryProblem(declared, flows.Scripts()); problem != "" {
+		t.Fatal(problem)
+	}
+}
+
+func TestScripts_aSubRowScriptIsRegisteredUnderItsLowercaseLetter(t *testing.T) {
+	t.Parallel()
+	registry := map[string]flows.Script{"F01aSetHandleOK": func(*scenario.Scenario) {}}
+	for _, tc := range []struct{ name, declares, problem string }{
+		{"a lettered script is registered under its own name", "F01aSetHandleOK", ""},
+		{
+			"an uppercase letter does not stand in for the sub-row letter", "F01ASetHandleOK",
+			"flow scripts declared [F01ASetHandleOK], registered in Scripts() [F01aSetHandleOK]",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			declared := scriptFuncs(t, "scratch.go", "package flows\n\nfunc "+tc.declares+"() {}\n")
+			if got := registryProblem(declared, registry); got != tc.problem {
+				t.Fatalf("problem = %q, want %q", got, tc.problem)
+			}
+		})
 	}
 }
