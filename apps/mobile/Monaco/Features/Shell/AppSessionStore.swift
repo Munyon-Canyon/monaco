@@ -12,7 +12,7 @@ import os
 /// non-isolated this annotation should come off with it, so the JSON decode stops running
 /// on the main thread.
 @MainActor
-protocol AppSessionDataSource {
+protocol AppSessionDataSource: Sendable {
     func openSession(accessToken: String) async throws -> MeResponse
     func me(accessToken: String) async throws -> MeResponse
     func getPlatformBalance(accessToken: String) async throws -> PlatformBalanceDTO
@@ -27,7 +27,7 @@ extension MonacoAPIClient: AppSessionDataSource {}
 /// The session the store reads tokens from and reports rejected ones to. `PrivyAuthService`
 /// is the only implementation outside tests.
 @MainActor
-protocol SessionAuthenticating: AnyObject {
+protocol SessionAuthenticating: AnyObject, Sendable {
     var accessToken: String? { get }
     func shouldInvalidateBackendSession(serverUserId: String) -> Bool
     func recordBackendSession(userId: String)
