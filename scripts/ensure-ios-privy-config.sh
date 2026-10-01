@@ -110,6 +110,9 @@ generate_info_plist() {
   write_info_plist "$DEBUG_PLIST_OUT" "$client_id" "$(debug_ats_plist_fragment)"
 }
 
+# The launch image and color live in this plist. Xcode's
+# INFOPLIST_KEY_UILaunchScreen_* subkeys emit an empty UILaunchScreen
+# dictionary, so the storyboard's mark and background are named here.
 write_info_plist() {
   local plist_out="$1" client_id="$2" extra_keys="$3"
   mkdir -p "$(dirname "$plist_out")"
@@ -147,6 +150,15 @@ write_info_plist() {
 			</array>
 		</dict>
 	</array>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
+		<key>UIImageName</key>
+		<string>LaunchMark</string>
+		<key>UIImageRespectsSafeAreaInsets</key>
+		<false/>
+	</dict>
 ${extra_keys}
 </dict>
 </plist>
