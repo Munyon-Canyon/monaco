@@ -217,6 +217,22 @@ func TestHub_RegisterScopesHintsToMembership(t *testing.T) {
 	}
 }
 
+func TestHubRegister_aPhoneInCabalADoesNotReceiveCabalBHints(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	phone := f.user(t)
+	a, b := f.cabal(t), f.cabal(t)
+	f.members.set(phone, a)
+	sub := f.register(t, phone)
+
+	f.deliver(t, cabalHint(b), "cabal."+b.String()+".proposal_opened", cabalHint(a))
+
+	if got, want := next(t, sub), (sse.Hint{Key: sse.CabalKey(a), What: "updated"}); got != want {
+		t.Fatalf("hint = %+v, want %+v; cabal B's hints come first if they leaked", got, want)
+	}
+	nothingBuffered(t, sub)
+}
+
 func TestHub_KeysSpellTheRFCForm(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)

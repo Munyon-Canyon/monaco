@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
@@ -72,7 +73,8 @@ func startBackground(
 			return nil, nil, err
 		}
 	}
-	hub, stopHub, err := startHub(ctx, conn, meters)
+	members := cabalMemberships{cabals: cabal.New(module.Deps{Pool: pool}).Queries()}
+	hub, stopHub, err := startHub(ctx, conn, members, meters)
 	if err != nil {
 		return nil, nil, errors.Join(err, stopRelay())
 	}
@@ -103,8 +105,10 @@ func startRelay(
 	}, nil
 }
 
-func startHub(ctx context.Context, conn *bus.Conn, meters metric.MeterProvider) (*sse.Hub, func(), error) {
-	hub, err := sse.NewHub(sse.NoMemberships{}, meters)
+func startHub(
+	ctx context.Context, conn *bus.Conn, members sse.MembershipPort, meters metric.MeterProvider,
+) (*sse.Hub, func(), error) {
+	hub, err := sse.NewHub(members, meters)
 	if err != nil {
 		return nil, nil, err
 	}
