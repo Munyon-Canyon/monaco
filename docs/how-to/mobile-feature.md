@@ -31,7 +31,7 @@ Host tests use `StubTransport` and `FakeHintStream` (`packages/mobile-core/Sourc
 
 `SystemPingModelTests` is the shape: one post with an `Idempotency-Key`, the same key after a transport error, one GET for `ping_echoed`, one GET for `.resync`, none for another key, and a problem body that becomes `.failed(.problem(...))` with `ToastCopy` returning the server message.
 
-`SystemPingIntegrationTests` runs only when `MONACO_API_URL`, `MONACO_DEV_TOKEN` and `MONACO_DEV_USER` are set, against `just run backend`.
+`SystemPingIntegrationTests` runs only when `MONACO_API_URL`, `MONACO_DEV_TOKEN` and `MONACO_DEV_USER` are set, against `just run backend`. Name a class `<Domain>IntegrationTests` and the queue's `mobile-integration` job runs it against a real api, worker and fakes (`scripts/ci/mobile-integration.sh`). The job fails when no such test ran. A test that opens `GET /v1/stream` uses `AsyncHTTPClientTransport` on Linux and `URLSessionTransport` elsewhere, because `URLSessionTransport` buffers the whole response on Linux and no hint arrives.
 
 ## Copy
 
