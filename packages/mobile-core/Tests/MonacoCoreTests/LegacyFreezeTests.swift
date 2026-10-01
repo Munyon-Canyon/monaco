@@ -35,8 +35,7 @@ final class LegacyFreezeTests: XCTestCase {
     }
 
     func testAppSources_reachNoExternalProductHost() throws {
-        let clean = try ProductBoundaryScanner.featureSourcesAreClean(
-            under: Self.repoRoot.appendingPathComponent("apps/mobile/Monaco"))
+        let clean = try FeatureHosts.areClean(under: Self.repoRoot.appendingPathComponent("apps/mobile/Monaco"))
 
         XCTAssertTrue(clean)
     }
@@ -47,7 +46,7 @@ final class LegacyFreezeTests: XCTestCase {
         try plant(
             "let quote = URL(string: \"https://api.jup.ag/swap/v1/quote\")\n", at: "Features/Quote.swift", in: root)
 
-        let clean = try ProductBoundaryScanner.featureSourcesAreClean(under: root)
+        let clean = try FeatureHosts.areClean(under: root)
 
         XCTAssertFalse(clean)
     }
@@ -61,7 +60,8 @@ final class LegacyFreezeTests: XCTestCase {
 
 private enum LegacyFreeze {
     enum Metric: String, CaseIterable {
-        case lines, urlrequest, timer, poll, groups_path
+        case lines, urlrequest, timer, poll
+        case groupsPath = "groups_path"
 
         var patterns: [String] {
             switch self {
@@ -69,7 +69,7 @@ private enum LegacyFreeze {
             case .urlrequest: return ["URLRequest("]
             case .timer: return ["Timer.publish"]
             case .poll: return ["pollWhileVisible(", "PollLoop.run("]
-            case .groups_path: return ["\"/v1/groups"]
+            case .groupsPath: return ["\"/v1/groups"]
             }
         }
     }
@@ -108,7 +108,7 @@ private enum LegacyFreeze {
     static func measure(repoRoot: URL) throws -> [Row: Int] {
         var counts: [Row: Int] = [:]
         for tree in scannedTrees {
-            for file in ProductBoundaryScanner.sourceFiles(under: repoRoot.appendingPathComponent(tree)) {
+            for file in SourceWalk.files(under: repoRoot.appendingPathComponent(tree)) {
                 let path = relativePath(of: file, under: repoRoot)
                 guard !path.hasPrefix(exemptTree) else { continue }
                 let isLineCounted = path.hasPrefix(dtoTree) || lineCountedClients.contains(path)
@@ -156,5 +156,41 @@ private enum LegacyFreeze {
         let rootPath = root.resolvingSymlinksInPath().path + "/"
         let directory = file.deletingLastPathComponent().resolvingSymlinksInPath()
         return String(directory.appendingPathComponent(file.lastPathComponent).path.dropFirst(rootPath.count))
+    }
+}
+
+private enum SourceWalk {
+    static func files(under directory: URL) -> [URL] {
+        guard
+            let walk = FileManager.default.enumerator(
+                at: directory, includingPropertiesForKeys: [.isRegularFileKey])
+        else {
+            return []
+        }
+        return
+            walk
+            .compactMap { $0 as? URL }
+            .filter { (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true }
+            .sorted { $0.path < $1.path }
+    }
+}
+
+private enum FeatureHosts {
+    static let fragments = [
+        "api.xstocks.fi",
+        "jup.ag",
+        "hermes.pyth.network",
+        "pyth.network",
+        "mainnet-beta.solana.com",
+        "solana-mainnet",
+    ]
+
+    static func areClean(under directory: URL) throws -> Bool {
+        try SourceWalk.files(under: directory)
+            .filter { $0.pathExtension == "swift" }
+            .allSatisfy { file in
+                let text = try String(contentsOf: file, encoding: .utf8).lowercased()
+                return !fragments.contains { text.contains($0) }
+            }
     }
 }

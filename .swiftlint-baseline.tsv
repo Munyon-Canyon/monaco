@@ -320,7 +320,6 @@ no_comments	packages/mobile-core/Sources/MonacoCore/Networking/MonacoRequestTime
 no_comments	packages/mobile-core/Sources/MonacoCore/Networking/SingleFlight.swift	2
 no_comments	packages/mobile-core/Sources/MonacoCore/PreIpoCopy.swift	6
 no_comments	packages/mobile-core/Sources/MonacoCore/PrivyAuthConfig.swift	3
-no_comments	packages/mobile-core/Sources/MonacoCore/ProductBoundaryScanner.swift	3
 no_comments	packages/mobile-core/Sources/MonacoCore/ProfilePhotoMultipart.swift	1
 no_comments	packages/mobile-core/Sources/MonacoCore/ProfileRules.swift	9
 no_comments	packages/mobile-core/Sources/MonacoCore/ProposalCommentDTO.swift	7
