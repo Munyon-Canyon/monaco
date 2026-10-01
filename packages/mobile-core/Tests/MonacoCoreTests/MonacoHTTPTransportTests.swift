@@ -259,11 +259,11 @@ final class MonacoHTTPTransportTests: XCTestCase {
     /// The budgets are only worth anything if URLSession enforces the per-request one. The
     /// recording test above cannot show that: `MockURLProtocol` answers at once and never
     /// runs a timer, so it passes whichever deadline the session actually applies. This one
-    /// stalls every request past the read budget and under the money budget, against the
+    /// stalls every request past the stamped read budget and under the money budget, against the
     /// real `MonacoRequestTimeout.sessionConfiguration()`, and asserts the two outcomes
     /// that matter: the read gives up, the keyed money write survives.
     ///
-    /// It costs about `stall` seconds of wall clock, with both requests running concurrently.
+    /// It costs about 1.5 s of wall clock, with both requests running concurrently.
     ///
     /// Measured on this runtime, the money write survives even when the session is
     /// configured at `standard`: here a request's own longer `timeoutInterval` does outrank
@@ -273,7 +273,7 @@ final class MonacoHTTPTransportTests: XCTestCase {
     /// it. What this test pins is that the stamp is applied and enforced at all: drop it, or
     /// stamp the wrong budget, and the read stops timing out on time.
     func testTimeoutBudget_isEnforced_moneyWriteOutlivesTheReadBudget() async throws {
-        let stall = MonacoRequestTimeout.standard + 5
+        let stall: TimeInterval = 1.5
         #if !canImport(Darwin)
         try XCTSkipIf(true, "Linux URLSession does not enforce timeouts on custom URLProtocols")
         #endif
@@ -286,12 +286,11 @@ final class MonacoHTTPTransportTests: XCTestCase {
         let transport = MonacoHTTPTransport(session: URLSession(configuration: configuration))
         let readRequest = request(token: "t")
         let writeRequest = request(token: "t", method: "POST", body: Data(#"{"amount":1}"#.utf8))
-        let readBudget = MonacoRequestTimeout.standard
 
         async let read: Void = {
             do {
-                _ = try await transport.data(for: readRequest)
-                XCTFail("a read should give up after \(readBudget)s")
+                _ = try await transport.data(for: readRequest, timeout: 0.5)
+                XCTFail("a read should give up after 0.5s")
             } catch {
                 XCTAssertEqual((error as? URLError)?.code, .timedOut)
             }
