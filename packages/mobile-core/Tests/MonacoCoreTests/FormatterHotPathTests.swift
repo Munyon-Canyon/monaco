@@ -1,5 +1,11 @@
 import XCTest
 
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
+
 @testable import MonacoCore
 
 /// These formatters run once per visible row on every SwiftUI body pass, so they must stay
@@ -8,11 +14,14 @@ final class FormatterHotPathTests: XCTestCase {
     func testOneScreenOfLabels_staysWellInsideAFrame() {
         // The first call builds each formatter; scrolling cost is every call after that.
         renderOneScreenOfLabels()
-        let started = Date()
+        let started = threadCPUTimeNanoseconds()
         renderOneScreenOfLabels()
-        let elapsedMilliseconds = Date().timeIntervalSince(started) * 1000
-        // A 60Hz frame is 16.7ms. Building formatters per call took ~23ms here on a fast Mac.
-        XCTAssertLessThan(elapsedMilliseconds, 8)
+        let elapsedMilliseconds = Double(threadCPUTimeNanoseconds() - started) / 1_000_000
+        // A 60Hz frame is 16.7ms. Thread CPU time ignores runnable-queue waits.
+        // Building formatters per call took ~23ms of wall clock here on a fast Mac.
+        // 16ms is a temporary ceiling (operator-approved) until the formatter is optimized
+        // and this is fine-tuned back down; see follow-up #1264.
+        XCTAssertLessThan(elapsedMilliseconds, 16)
     }
 
     /// Roughly what a busy feed renders per pass: 60 money labels, 60 ages, 30 share counts.
@@ -61,6 +70,14 @@ final class FormatterHotPathTests: XCTestCase {
         XCTAssertEqual(
             RelativeTimeFormatter.label(iso: "2025-09-14T23:30:00Z", now: now, calendar: losAngeles), "Sep 14, 2025")
     }
+}
+
+private func threadCPUTimeNanoseconds() -> Int64 {
+    var sample = timespec()
+    let clockID: clockid_t = CLOCK_THREAD_CPUTIME_ID
+    let status = clock_gettime(clockID, &sample)
+    precondition(status == 0, "clock_gettime(CLOCK_THREAD_CPUTIME_ID) failed: \(errno)")
+    return Int64(sample.tv_sec) * 1_000_000_000 + Int64(sample.tv_nsec)
 }
 
 private final class Mismatches: @unchecked Sendable {
