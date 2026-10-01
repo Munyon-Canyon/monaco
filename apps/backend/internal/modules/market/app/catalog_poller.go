@@ -20,13 +20,17 @@ const CatalogInterval = time.Hour
 
 type CatalogPoller struct {
 	uow       *db.UnitOfWork
+	reads     sqlc.DBTX
 	ids       ids.Generator
 	clock     clock.Clock
 	providers Providers
+	facts     MintFacts
 }
 
-func NewCatalogPoller(uow *db.UnitOfWork, g ids.Generator, c clock.Clock, providers Providers) *CatalogPoller {
-	return &CatalogPoller{uow: uow, ids: g, clock: c, providers: providers}
+func NewCatalogPoller(
+	uow *db.UnitOfWork, reads sqlc.DBTX, g ids.Generator, c clock.Clock, providers Providers, facts MintFacts,
+) *CatalogPoller {
+	return &CatalogPoller{uow: uow, reads: reads, ids: g, clock: c, providers: providers, facts: facts}
 }
 
 func (*CatalogPoller) Name() string { return "market.catalog" }
@@ -60,7 +64,10 @@ func (p *CatalogPoller) Tick(ctx context.Context) (poller.Report, error) {
 		report.Changed += changed
 		report.Attrs = append(report.Attrs, slog.Int(string(c.issuer), len(c.assets)))
 	}
-	return report, errors.Join(failed...)
+	checked, err := p.checkChainFacts(ctx)
+	report.Changed += checked
+	report.Attrs = append(report.Attrs, slog.Int("chain_checked", checked))
+	return report, errors.Join(append(failed, err)...)
 }
 
 func fetch(ctx context.Context, provider AssetProvider) (issuerCatalog, error) {

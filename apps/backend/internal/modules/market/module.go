@@ -5,11 +5,13 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/jupiterprices"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/mintfacts"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/xstocks"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -78,7 +80,11 @@ func (m *Module) Pollers() []poller.Poller {
 			httpclient.WithRetry(3, 250*time.Millisecond, 2*time.Second),
 		)),
 	)
-	return []poller.Poller{app.NewCatalogPoller(m.deps.UoW, m.deps.IDs, m.deps.Clock, providers), m.samplePrices()}
+	facts := mintfacts.New(solana.New(cfg, m.deps.Clock))
+	return []poller.Poller{
+		app.NewCatalogPoller(m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, providers, facts),
+		m.samplePrices(),
+	}
 }
 
 func (m *Module) samplePrices() *app.SamplePrices {

@@ -4,23 +4,38 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"strconv"
+	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
+const maxMultiplierScale = 19
+
+type Multiplier struct {
+	Num, Den uint64
+}
+
 type MintConfig struct {
 	Mint           chain.Mint
 	TokenProgram   chain.SolanaAddress
 	TransferFeeBps uint16
 	MaxFee         money.BaseUnits
+	UIMultiplier   Multiplier
 }
 
 type feeWire struct {
 	Epoch                  uint64 `json:"epoch"`
 	MaximumFee             uint64 `json:"maximumFee"`
 	TransferFeeBasisPoints uint16 `json:"transferFeeBasisPoints"`
+}
+
+type scaledUIWire struct {
+	Multiplier    string `json:"multiplier"`
+	NewMultiplier string `json:"newMultiplier"`
+	NewFrom       int64  `json:"newMultiplierEffectiveTimestamp"`
 }
 
 type mintWire struct {
@@ -80,36 +95,75 @@ func (c *Client) fetchMint(ctx context.Context, op string, mint chain.SolanaAddr
 		Mint:         chain.Mint{Address: mint, Decimals: decimals},
 		TokenProgram: v.Owner,
 		MaxFee:       money.NewBaseUnits(0, decimals),
+		UIMultiplier: Multiplier{Num: 1, Den: 1},
 	}
 	for _, ext := range v.Data.Parsed.Info.Extensions {
-		if ext.Extension != "transferFeeConfig" {
-			continue
+		var err error
+		switch ext.Extension {
+		case "transferFeeConfig":
+			out.TransferFeeBps, out.MaxFee, err = c.currentFee(ctx, op, ext.State, decimals)
+		case "scaledUiAmountConfig":
+			out.UIMultiplier, err = c.currentMultiplier(op, ext.State)
 		}
-		fee, err := c.currentFee(ctx, op, ext.State)
 		if err != nil {
 			return MintConfig{}, err
 		}
-		out.TransferFeeBps, out.MaxFee = fee.TransferFeeBasisPoints, money.NewBaseUnits(fee.MaximumFee, decimals)
 	}
 	return out, nil
 }
 
-func (c *Client) currentFee(ctx context.Context, op string, state json.RawMessage) (feeWire, error) {
+func (c *Client) currentFee(
+	ctx context.Context, op string, state json.RawMessage, decimals uint8,
+) (uint16, money.BaseUnits, error) {
 	var fees struct {
 		Older feeWire `json:"olderTransferFee"`
 		Newer feeWire `json:"newerTransferFee"`
 	}
 	if err := json.Unmarshal(state, &fees); err != nil {
-		return feeWire{}, errs.Wrap(err, errs.CodeDecodeFailed, op)
+		return 0, money.BaseUnits{}, errs.Wrap(err, errs.CodeDecodeFailed, op)
 	}
 	var epoch struct {
 		Epoch uint64 `json:"epoch"`
 	}
 	if err := c.call(ctx, "getEpochInfo", []any{commitment("confirmed")}, &epoch); err != nil {
-		return feeWire{}, err
+		return 0, money.BaseUnits{}, err
 	}
+	fee := fees.Older
 	if epoch.Epoch >= fees.Newer.Epoch {
-		return fees.Newer, nil
+		fee = fees.Newer
 	}
-	return fees.Older, nil
+	return fee.TransferFeeBasisPoints, money.NewBaseUnits(fee.MaximumFee, decimals), nil
+}
+
+func (c *Client) currentMultiplier(op string, state json.RawMessage) (Multiplier, error) {
+	var scaled scaledUIWire
+	if err := json.Unmarshal(state, &scaled); err != nil {
+		return Multiplier{}, errs.Wrap(err, errs.CodeDecodeFailed, op)
+	}
+	raw := scaled.Multiplier
+	if c.clock.Now().Unix() >= scaled.NewFrom {
+		raw = scaled.NewMultiplier
+	}
+	return parseMultiplier(op, raw)
+}
+
+func parseMultiplier(op, raw string) (Multiplier, error) {
+	whole, frac, _ := strings.Cut(raw, ".")
+	num, err := strconv.ParseUint(whole+frac, 10, 64)
+	if err != nil || num == 0 || whole == "" || len(frac) > maxMultiplierScale {
+		return Multiplier{}, errs.New(errs.CodeDecodeFailed, op, slog.String("multiplier", raw))
+	}
+	den := uint64(1)
+	for range len(frac) {
+		den *= 10
+	}
+	g := gcd(num, den)
+	return Multiplier{Num: num / g, Den: den / g}, nil
+}
+
+func gcd(a, b uint64) uint64 {
+	for b != 0 {
+		a, b = b, a%b
+	}
+	return a
 }

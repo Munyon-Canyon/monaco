@@ -1,6 +1,7 @@
 package market_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -74,6 +75,17 @@ func TestTradableOverride_WinsOverIssuer(t *testing.T) {
 	}
 }
 
+func TestTradable_uncheckedChainFactsKeepAnAssetOutWhateverTheOverride(t *testing.T) {
+	t.Parallel()
+	for _, override := range []domain.Override{domain.OverrideAuto, domain.OverrideOn, domain.OverrideOff} {
+		a := marketfake.AAPLx()
+		a.ChainChecked, a.Override = false, override
+		if a.Tradable() {
+			t.Fatalf("unchecked AAPLx with override %s is tradable, want untradable until the chain check", override)
+		}
+	}
+}
+
 func TestTradableOverride_AutoFollowsTheIssuer(t *testing.T) {
 	t.Parallel()
 	for _, issuer := range []bool{true, false} {
@@ -104,6 +116,19 @@ func TestPopularRank_ranksPinnedSymbolsFromOneAndLeavesTheRestAtZero(t *testing.
 	for symbol, want := range map[string]int16{"AAPLx": 1, "TSLAx": 7, "ORCLx": 17, "XRXx": 0, "aaplx": 0} {
 		if got := domain.PopularRank(symbol); got != want {
 			t.Fatalf("PopularRank(%q) = %d, want %d", symbol, got, want)
+		}
+	}
+}
+
+func TestNewMultiplier_takesAPositiveFractionThatFitsTheColumns(t *testing.T) {
+	t.Parallel()
+	got, err := domain.NewMultiplier(math.MaxInt64, 3)
+	if err != nil || got != (domain.Multiplier{Num: math.MaxInt64, Den: 3}) {
+		t.Fatalf("NewMultiplier(MaxInt64, 3) = %+v, %v, want it kept whole", got, err)
+	}
+	for _, bad := range [][2]uint64{{0, 1}, {1, 0}, {math.MaxInt64 + 1, 1}, {1, math.MaxInt64 + 1}} {
+		if _, err := domain.NewMultiplier(bad[0], bad[1]); errs.CodeOf(err) != errs.CodeDecodeFailed {
+			t.Fatalf("NewMultiplier(%d, %d) err = %v, want decode_failed", bad[0], bad[1], err)
 		}
 	}
 }

@@ -94,6 +94,7 @@ func toAsset(row sqlc.Asset) (domain.Asset, error) {
 		DisplayName:    row.DisplayName,
 		LogoURL:        row.LogoUrl.String,
 		UIMultiplier:   domain.Multiplier{Num: row.UiMultiplierNum, Den: row.UiMultiplierDen},
+		ChainChecked:   row.ChainCheckedAt.Valid,
 		IssuerTradable: row.IssuerTradable,
 		Override:       override,
 		PopularRank:    row.PopularRank.Int16,

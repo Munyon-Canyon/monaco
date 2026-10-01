@@ -58,8 +58,8 @@ func fixture(id, symbol, mint, name string, rank int16, tradable bool) market.As
 	return market.Asset{
 		ID: assetID, Symbol: symbol, Mint: m, Decimals: 8, Issuer: domain.IssuerXStocks, Kind: domain.KindEquity,
 		DisplayName: name, LogoURL: "https://xstocks-metadata.backed.fi/logos/tokens/" + symbol + ".png",
-		UIMultiplier: domain.Multiplier{Num: 1, Den: 1}, IssuerTradable: tradable, Override: domain.OverrideAuto,
-		PopularRank: rank, CompanyKey: domain.CompanyKey(name),
+		UIMultiplier: domain.Multiplier{Num: 1, Den: 1}, ChainChecked: true, IssuerTradable: tradable,
+		Override: domain.OverrideAuto, PopularRank: rank, CompanyKey: domain.CompanyKey(name),
 	}
 }
 

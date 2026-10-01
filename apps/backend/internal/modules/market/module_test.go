@@ -30,11 +30,14 @@ func TestModule_isNamedMarketAndMountsNoRoutesOrConsumers(t *testing.T) {
 func moduleConfig() config.Config {
 	return config.Config{
 		XStocks: config.XStocks{BaseURL: "http://fakes/xstocks"},
+		Solana:  config.Solana{RPCURL: "http://fakes/rpc/"},
 		Jupiter: config.Jupiter{
 			SwapBaseURL: "http://fakes/jupiter/swap/v2", PriceBaseURL: "http://fakes/jupiter/price/v3",
 		},
-		Market:   config.Market{PricePollInterval: 90 * time.Second},
-		Timeouts: config.Timeouts{XStocks: time.Second, JupiterQuote: time.Second, JupiterExecute: time.Minute},
+		Market: config.Market{PricePollInterval: 90 * time.Second},
+		Timeouts: config.Timeouts{
+			XStocks: time.Second, RPC: time.Second, JupiterQuote: time.Second, JupiterExecute: time.Minute,
+		},
 	}
 }
 

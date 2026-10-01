@@ -49,7 +49,7 @@ FROM ROWS FROM (
 ) AS u (id, symbol, mint, decimals, kind, display_name, logo_url, issuer_tradable, popular_rank, company_key)
 ON CONFLICT (mint) DO UPDATE SET
   symbol = excluded.symbol,
-  decimals = excluded.decimals,
+  decimals = CASE WHEN assets.chain_checked_at IS NULL THEN excluded.decimals ELSE assets.decimals END,
   kind = excluded.kind,
   display_name = excluded.display_name,
   logo_url = excluded.logo_url,
@@ -62,7 +62,9 @@ WHERE assets.issuer = excluded.issuer
     assets.symbol, assets.decimals, assets.kind, assets.display_name, assets.logo_url,
     assets.issuer_tradable, assets.popular_rank, assets.company_key
   ) IS DISTINCT FROM (
-    excluded.symbol, excluded.decimals, excluded.kind, excluded.display_name, excluded.logo_url,
+    excluded.symbol,
+    CASE WHEN assets.chain_checked_at IS NULL THEN excluded.decimals ELSE assets.decimals END,
+    excluded.kind, excluded.display_name, excluded.logo_url,
     excluded.issuer_tradable, excluded.popular_rank, excluded.company_key
   )
 `

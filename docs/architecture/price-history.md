@@ -61,6 +61,12 @@ The migration is an atlas versioned SQL file; queries are sqlc ([Decided](backen
 
 Writes are `INSERT ... ON CONFLICT (mint, ts) DO NOTHING`. The first writer for a timestamp wins, so a reconcile never overwrites a live sample and a re-run backfill is a no-op. Timestamps are truncated to the writer's resolution (the 2-minute bucket for the sampler, the vendor's bucket for backfill) before insert.
 
+### Decimals and the UI multiplier
+
+`price_micros` prices one whole token. Valuing a holding of base units needs the mint's decimals and, for a Token-2022 mint, its scaled UI multiplier. The issuer APIs carry neither, so the xStocks adapter writes 8 decimals and a 1/1 multiplier. The catalog poller asks the chain (`chain/solana.MintConfig`) about every mint it has not checked, at most 200 a tick and 8 at a time. It stores the chain's decimals, the multiplier in force as an exact fraction and `chain_checked_at`. When the issuer's decimals disagree, the chain's value wins and the poller logs `market.catalog.decimals_corrected`. An RPC failure leaves that mint unchecked for the next tick and counts in `poller_errors_total`. Until an asset is checked, `ListTradable` leaves it out and `Tradable()` is false whatever its override says, while `AssetByMint` still returns it.
+
+xStocks use the multiplier for dividends, so it is above 1 for most of them. AAPLx read 1.0032690125398187 on 2026-09-30. A mint is checked once, and rechecking it after its next dividend step is #1121.
+
 ### Writer 1: live sampler
 
 The `market` price poller in `cmd/worker` is the only one (flow 18). On each 120 s tick it asks the catalog for every routable mint (about 60 xStocks, 8 PreStocks, 3 Tessera today), batches them 50 per Jupiter Price v3 call, publishes one `price.tick`, and inserts one row per mint with `ts` truncated to its 2-minute bucket. `ON CONFLICT DO NOTHING` keeps the first sample in each bucket, so the table holds at most one row per mint per 2 minutes, even when a restart runs an extra tick. Vendor calls depend on catalog size and cadence, never on how many people are looking.
@@ -161,6 +167,7 @@ None.
 
 ## Log
 
+- 2026-09-30: The catalog takes each mint's decimals and scaled UI multiplier from the chain, and an asset is tradable only once they are checked (#1099). Rechecking a mint after a dividend step is #1121.
 - 2026-09-30: Built the table and the sampler (#545). A jump over 20% from the previous sample is held for one sample at read, over each mint's newest three samples, so every reader gets the same price. A tick that loses a Jupiter batch still writes and publishes what came back, then fails with that batch's code. `price.tick` carries each asset's accepted price with its observed time and is published every tick, including one that sampled nothing.
 - 2026-09-29: The market calendar is a static NYSE holiday table in code, updated yearly (default; see #535). The price poller appends `asset.price_moved`; there is no second poller. Valuation cadence is 2 minutes everywhere.
 - 2026-09-27: Decided 2026-09-27: the price poller ticks every 120 s. Samples are stored one row per mint per 2-minute bucket, the 1D cache TTL is 120 s, and the poller makes 1 Jupiter call a minute (~22k a month). Supersedes the 10 s default.

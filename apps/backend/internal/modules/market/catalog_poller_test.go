@@ -2,7 +2,9 @@ package market_test
 
 import (
 	"context"
+	"encoding/json"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -14,7 +16,9 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
@@ -50,30 +54,79 @@ func listed(a market.Asset) app.ProviderAsset {
 }
 
 type catalogRig struct {
-	pool    *pgxpool.Pool
-	clock   *testkit.Clock
-	catalog *app.Catalog
-	poller  *app.CatalogPoller
+	pool      *pgxpool.Pool
+	clock     *testkit.Clock
+	ids       *testkit.IDs
+	providers app.Providers
+	facts     *marketfake.MintFacts
+	logs      *testkit.Logs
+	catalog   *app.Catalog
+	poller    *app.CatalogPoller
 }
 
 func newRig(t *testing.T, providers ...app.AssetProvider) *catalogRig {
 	t.Helper()
 	pool := testkit.DB(t)
-	clk := testkit.NewClock(clock.Real{}.Now().UTC().Truncate(time.Microsecond))
-	ids := testkit.NewIDs(7)
-	return &catalogRig{
-		pool: pool, clock: clk, catalog: app.NewCatalog(pool),
-		poller: app.NewCatalogPoller(db.New(pool, ids, clk), ids, clk, app.NewProviders(providers...)),
+	r := &catalogRig{
+		pool: pool, clock: testkit.NewClock(clock.Real{}.Now().UTC().Truncate(time.Microsecond)),
+		ids: testkit.NewIDs(7), providers: app.NewProviders(providers...), facts: &marketfake.MintFacts{},
+		logs: &testkit.Logs{}, catalog: app.NewCatalog(pool),
 	}
+	for _, a := range marketfake.Fixtures() {
+		r.facts.Put(a.Mint, a.Decimals, 1, 1)
+	}
+	r.poller = r.asking(r.facts)
+	return r
+}
+
+func (r *catalogRig) asking(facts app.MintFacts) *app.CatalogPoller {
+	return app.NewCatalogPoller(db.New(r.pool, r.ids, r.clock), r.pool, r.ids, r.clock, r.providers, facts)
+}
+
+func (r *catalogRig) ctx(t *testing.T) context.Context {
+	t.Helper()
+	return observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, r.logs))
 }
 
 func (r *catalogRig) tick(t *testing.T) poller.Report {
 	t.Helper()
-	report, err := r.poller.Tick(t.Context())
+	report, err := r.poller.Tick(r.ctx(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 	return report
+}
+
+func (r *catalogRig) exec(t *testing.T, sql string, args ...any) {
+	t.Helper()
+	if _, err := r.pool.Exec(t.Context(), sql, args...); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (r *catalogRig) corrections(t *testing.T) []string {
+	t.Helper()
+	var out []string
+	for line := range strings.Lines(string(r.logs.Bytes())) {
+		var got map[string]any
+		if json.Unmarshal([]byte(line), &got) != nil || got["msg"] != "market.catalog.decimals_corrected" {
+			continue
+		}
+		b, err := json.Marshal([]any{
+			got["level"], got["symbol"], got["mint"], got["issuer_decimals"],
+			got["chain_decimals"],
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		out = append(out, string(b))
+	}
+	return out
+}
+
+func correction(a market.Asset, issuer, chain int) string {
+	b, _ := json.Marshal([]any{"WARN", a.Symbol, a.Mint.String(), issuer, chain})
+	return string(b)
 }
 
 func (r *catalogRig) asset(t *testing.T, symbol string) market.Asset {
@@ -104,8 +157,8 @@ func TestCatalogPoller_InsertsAndUpdates(t *testing.T) {
 		t.Fatalf("poller %s every %s, want market.catalog hourly", rig.poller.Name(), rig.poller.Interval())
 	}
 	inserted := rig.clock.Now()
-	if got := rig.tick(t); got.Scanned != 3 || got.Changed != 2 {
-		t.Fatalf("first tick = %+v, want 3 scanned and 2 inserted", got)
+	if got := rig.tick(t); got.Scanned != 3 || got.Changed != 4 {
+		t.Fatalf("first tick = %+v, want 3 scanned, 2 inserted and 2 checked against the chain", got)
 	}
 	first := rig.asset(t, "AAPLx")
 	want := marketfake.AAPLx()
@@ -145,6 +198,32 @@ func TestCatalogPoller_updateKeepsTheIDAndFirstSeen(t *testing.T) {
 	}
 }
 
+func TestCatalogPoller_refreshKeepsCheckedDecimalsAndMovesUncheckedOnesWithTheIssuer(t *testing.T) {
+	t.Parallel()
+	xs := &provider{issuer: domain.IssuerXStocks}
+	aapl, tsla := listed(marketfake.AAPLx()), listed(marketfake.TSLAx())
+	xs.serve(nil, aapl, tsla)
+	rig := newRig(t, xs)
+	rig.tick(t)
+	rig.exec(t, `UPDATE assets SET decimals = 6 WHERE symbol = 'AAPLx'`)
+	rig.exec(t, `UPDATE assets SET chain_checked_at = NULL WHERE symbol = 'TSLAx'`)
+	aapl.Decimals, tsla.Decimals = 9, 9
+	xs.serve(nil, aapl, tsla)
+	rig.clock.Advance(time.Hour)
+	if got := rig.tick(t); got.Changed != 2 {
+		t.Fatalf("refresh = %+v, want the unchecked TSLAx moved to the issuer's 9 and then checked", got)
+	}
+	if a := rig.asset(t, "AAPLx"); a.Decimals != 6 || !a.ChainChecked || a.UpdatedAt.Equal(rig.clock.Now()) {
+		t.Fatalf("checked AAPLx = %+v, want the chain's 6 decimals kept and the row untouched", a)
+	}
+	if a := rig.asset(t, "TSLAx"); a.Decimals != 8 || !a.ChainChecked {
+		t.Fatalf("TSLAx = %+v, want the chain's 8 decimals once checked", a)
+	}
+	if got, want := rig.corrections(t), []string{correction(marketfake.TSLAx(), 9, 8)}; !slices.Equal(got, want) {
+		t.Fatalf("corrections = %v, want %v: the issuer's refreshed 9 against the chain's 8", got, want)
+	}
+}
+
 func TestCatalogPoller_PausedMintTurnsUntradable(t *testing.T) {
 	t.Parallel()
 	xs := &provider{issuer: domain.IssuerXStocks}
@@ -173,6 +252,7 @@ func TestCatalogPoller_DelistedMintTurnsUntradable(t *testing.T) {
 	xs.serve(nil, listed(marketfake.AAPLx()), listed(marketfake.TSLAx()))
 	tessera.serve(nil, spacex)
 	rig := newRig(t, xs, tessera)
+	rig.facts.Put(spacex.Mint, spacex.Decimals, 1, 1)
 	rig.tick(t)
 	xs.serve(nil, listed(marketfake.TSLAx()))
 	if got := rig.tick(t); got.Scanned != 2 || got.Changed != 1 {
@@ -196,6 +276,7 @@ func TestCatalogPoller_ProviderFailureKeepsRows(t *testing.T) {
 	xs.serve(nil, listed(marketfake.AAPLx()))
 	tessera.serve(nil, spacex)
 	rig := newRig(t, xs, tessera)
+	rig.facts.Put(spacex.Mint, spacex.Decimals, 1, 1)
 	rig.tick(t)
 	before := rig.asset(t, "SPACEX")
 	for name, fault := range map[string]func(){

@@ -37,8 +37,8 @@ func marketTool(environ []string, clk clock.Clock) tool {
 		if err != nil {
 			return fail(stderr, err)
 		}
-		_, _ = fmt.Fprintf(stdout, "%s\ttradable=%t\toverride=%s\tissuer_tradable=%t\n",
-			a.Symbol, a.Tradable(), a.Override, a.IssuerTradable)
+		_, _ = fmt.Fprintf(stdout, "%s\ttradable=%t\toverride=%s\tissuer_tradable=%t\tchain_checked=%t\n",
+			a.Symbol, a.Tradable(), a.Override, a.IssuerTradable, a.ChainChecked)
 		return 0
 	}
 	return func(args []string, stdout, stderr io.Writer) int {

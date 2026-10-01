@@ -20,18 +20,22 @@ import (
 
 func insert(t *testing.T, pool *pgxpool.Pool, a market.Asset, override *bool) {
 	t.Helper()
-	var logo, rank any
+	var logo, rank, checked any
 	if a.LogoURL != "" {
 		logo = a.LogoURL
 	}
 	if a.PopularRank != 0 {
 		rank = a.PopularRank
 	}
+	if a.ChainChecked {
+		checked = a.UpdatedAt
+	}
 	_, err := pool.Exec(t.Context(), `INSERT INTO assets (id, symbol, mint, decimals, issuer, kind, display_name,
-		logo_url, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+		logo_url, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at,
+		chain_checked_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
 		a.ID.UUID(), a.Symbol, a.Mint.String(), int16(a.Decimals), string(a.Issuer), string(a.Kind), a.DisplayName,
-		logo, a.IssuerTradable, override, rank, a.CompanyKey, a.FirstSeenAt, a.UpdatedAt)
+		logo, a.IssuerTradable, override, rank, a.CompanyKey, a.FirstSeenAt, a.UpdatedAt, checked)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,6 +142,29 @@ func TestCatalog_listsTradablePopularFirstAndAllBySymbol(t *testing.T) {
 	}
 	if all[1].Override != domain.OverrideOn || all[3].Override != domain.OverrideOff {
 		t.Fatalf("overrides ABCx=%s OFFx=%s, want on and off", all[1].Override, all[3].Override)
+	}
+}
+
+func TestCatalog_uncheckedAssetIsReadableButNeverListedTradable(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	catalog := market.New(module.Deps{Pool: pool}).Catalog()
+	at := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
+	unchecked := stamped(marketfake.AAPLx(), at)
+	unchecked.ChainChecked = false
+	on := true
+	insert(t, pool, unchecked, &on)
+	insert(t, pool, stamped(marketfake.TSLAx(), at), nil)
+	tradable, err := catalog.ListTradable(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := symbols(tradable); !slices.Equal(got, []string{"TSLAx"}) {
+		t.Fatalf("ListTradable = %v, want only TSLAx while AAPLx's chain facts are unchecked", got)
+	}
+	got, err := catalog.AssetByMint(t.Context(), unchecked.Mint)
+	if err != nil || got.Symbol != "AAPLx" || got.ChainChecked || got.Tradable() {
+		t.Fatalf("AssetByMint(AAPLx) = %+v, %v, want the unchecked, untradable asset", got, err)
 	}
 }
 
