@@ -35,6 +35,7 @@ if [[ -n "$build_log" ]]; then
         { sub(/^[0-9][0-9]:[0-9][0-9]:[0-9][0-9] /, "") }
         /Build Timing Summary/ { capture=1; pending=""; next }
         !capture { next }
+        /^\*\* / || /Test Suite/ || /Test Case/ { capture=0; next }
         /seconds/ {
           line=$0
           gsub(/^[ \t]+|[ \t]+$/, "", line)

@@ -24,6 +24,9 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 		{"stamp-log-only", []string{"scripts/ci/stamp-log.sh"}, []string{"ios"}},
 		{"toolchain-probe-only", []string{"scripts/ci/toolchain-probe.sh"}, []string{"ios"}},
 		{"probe-list-only", []string{"scripts/ci/probe-list-resolved.sh"}, []string{"ios"}},
+		{"warmup-start-only", []string{"scripts/ci/start-ios-warmup.sh"}, []string{"ios"}},
+		{"warmup-commands-only", []string{"scripts/ci/ios-warmup-commands.sh"}, []string{"ios"}},
+		{"build-timing-only", []string{"scripts/ci/build-timing-summary.sh"}, []string{"ios"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

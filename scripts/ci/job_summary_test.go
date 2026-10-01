@@ -21,7 +21,7 @@ func TestJobSummary_timingTestsAndFailureTail(t *testing.T) {
 	})
 	for _, want := range []string{
 		"Resolve Swift packages\t12",
-		"Build app and tests\t500",
+		"Build and run MonacoTests\t500",
 		"98.250 seconds",
 		"30.500 seconds",
 		"10.000 seconds",
@@ -30,7 +30,7 @@ func TestJobSummary_timingTestsAndFailureTail(t *testing.T) {
 		"2.000\tmedium()",
 		"1.250\t-[MonacoTests.Foo testBar]",
 		"<details>",
-		"<summary>Last 60 lines of Build app and tests</summary>",
+		"<summary>Last 60 lines of Build and run MonacoTests</summary>",
 		"line 11",
 		"line 70",
 	} {
@@ -61,6 +61,35 @@ func TestJobSummary_timingTestsAndFailureTail(t *testing.T) {
 	})
 	if strings.Contains(passing, "<details>") {
 		t.Fatalf("passing run included a failure tail\n%s", passing)
+	}
+}
+
+func TestJobSummary_stopsTimingAtTheTestRun(t *testing.T) {
+	root := filepath.Join("..", "..")
+	script := filepath.Join(root, "scripts", "ci", "job-summary.sh")
+	dir := t.TempDir()
+	buildLog := filepath.Join(dir, "build.log")
+	body := strings.Join([]string{
+		"Build Timing Summary",
+		"SwiftCompile (2 tasks) | 10.000 seconds",
+		"",
+		"Ld (1 task) | 3.000 seconds",
+		"",
+		"Test Case '-[MonacoTests.Foo testBar]' passed (98.000 seconds).",
+		"** TEST SUCCEEDED **",
+		"",
+	}, "\n")
+	if err := os.WriteFile(buildLog, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	text := runSummary(t, script, []string{"BUILD_LOG=" + buildLog})
+	for _, want := range []string{"10.000 seconds", "3.000 seconds"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("summary missing %q\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "98.000") || strings.Contains(text, "testBar") {
+		t.Fatalf("test case leaked into the timing summary\n%s", text)
 	}
 }
 
@@ -125,7 +154,7 @@ func runSummary(t *testing.T, script string, env []string) string {
 func failList(t *testing.T, logPath string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "fail.tsv")
-	if err := os.WriteFile(path, []byte("Build app and tests\t"+logPath+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("Build and run MonacoTests\t"+logPath+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return path
@@ -133,7 +162,7 @@ func failList(t *testing.T, logPath string) string {
 
 func failureTailLines(t *testing.T, text string) int {
 	t.Helper()
-	const open = "<summary>Last 60 lines of Build app and tests</summary>"
+	const open = "<summary>Last 60 lines of Build and run MonacoTests</summary>"
 	i := strings.Index(text, open)
 	if i < 0 {
 		t.Fatal("missing failure details")

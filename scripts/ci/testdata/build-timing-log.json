@@ -1,0 +1,80 @@
+{
+  "title": "Testing project Monaco",
+  "duration": 10,
+  "subsections": [
+    {
+      "title": "Compiling Foo.swift",
+      "duration": 2.5,
+      "commandInvocationDetails": {
+        "commandDetails": "SwiftCompile normal arm64 Compiling Foo.swift",
+        "emittedOutput": ""
+      },
+      "subsections": [
+        {
+          "title": "Compile Foo.swift",
+          "duration": 2.4,
+          "commandInvocationDetails": {
+            "commandDetails": "SwiftCompile normal arm64 /path/Foo.swift",
+            "emittedOutput": ""
+          },
+          "subsections": []
+        }
+      ]
+    },
+    {
+      "title": "Compiling Bar.swift",
+      "duration": 1.25,
+      "commandInvocationDetails": {
+        "commandDetails": "SwiftCompile normal arm64 Compiling Bar.swift",
+        "emittedOutput": ""
+      },
+      "subsections": []
+    },
+    {
+      "title": "SwiftDriver Compilation",
+      "duration": 3,
+      "commandInvocationDetails": {
+        "commandDetails": "SwiftDriver\\ Compilation Foo",
+        "emittedOutput": ""
+      },
+      "subsections": [
+        {
+          "title": "SwiftDriver Compilation Requirements",
+          "duration": 0.2,
+          "commandInvocationDetails": {
+            "commandDetails": "SwiftDriver\\ Compilation\\ Requirements Foo",
+            "emittedOutput": ""
+          },
+          "subsections": []
+        }
+      ]
+    },
+    {
+      "title": "Link",
+      "duration": 1,
+      "commandInvocationDetails": {
+        "commandDetails": "Ld /path/Monaco normal",
+        "emittedOutput": ""
+      },
+      "subsections": []
+    },
+    {
+      "title": "script",
+      "duration": 9,
+      "commandInvocationDetails": {
+        "commandDetails": "working directory /tmp",
+        "emittedOutput": ""
+      },
+      "subsections": []
+    },
+    {
+      "title": "swiftc",
+      "duration": 8,
+      "commandInvocationDetails": {
+        "commandDetails": "/usr/bin/swiftc -c foo.swift",
+        "emittedOutput": ""
+      },
+      "subsections": []
+    }
+  ]
+}
