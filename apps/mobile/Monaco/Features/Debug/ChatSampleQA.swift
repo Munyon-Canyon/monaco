@@ -19,7 +19,9 @@ import MonacoCore
 /// - `-MonacoChatSampleLoading` — with the above, the first page never arrives, so the thread's
 ///   loading state stays on screen
 enum ChatSampleQA {
-    static var isEnabled: Bool { arguments.contains("-MonacoChatSampleQA") }
+    static func matches(_ arguments: [String]) -> Bool {
+        arguments.contains("-MonacoChatSampleQA")
+    }
 
     private static var arguments: [String] { ProcessInfo.processInfo.arguments }
 
@@ -210,6 +212,14 @@ private actor SampleGroupChatService: GroupChatService {
         formatter.timeZone = TimeZone(identifier: "UTC")
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'000Z'"
         return formatter.string(from: date)
+    }
+}
+
+final class ChatSampleQAEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
+        guard ChatSampleQA.matches(arguments) else { return nil }
+        return AnyView(ChatSampleQA.rootView())
     }
 }
 #endif

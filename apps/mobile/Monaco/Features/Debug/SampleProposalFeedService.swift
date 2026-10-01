@@ -14,8 +14,8 @@ import SwiftUI
 final class SampleProposalFeedService: ProposalFeedService {
     static let launchArgument = "-MonacoProposalFeedSample"
 
-    static var isRequested: Bool {
-        ProcessInfo.processInfo.arguments.contains(launchArgument)
+    static func matches(_ arguments: [String]) -> Bool {
+        arguments.contains(launchArgument)
     }
 
     private struct Record {
@@ -826,6 +826,14 @@ final class SampleProposeService: ProposeService {
     func propose(groupId: String, draft: ProposalDraft, submission: IdempotentSubmission) async throws -> String {
         try await Task.sleep(for: .milliseconds(600))
         return UUID().uuidString
+    }
+}
+
+final class SampleProposalFeedEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
+        guard SampleProposalFeedService.matches(arguments) else { return nil }
+        return AnyView(SampleProposalFeedRoot())
     }
 }
 #endif

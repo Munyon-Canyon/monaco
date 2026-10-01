@@ -81,8 +81,7 @@ enum AssetDetailSampleScenario: String, CaseIterable {
 
     static let launchArgument = "-MonacoAssetDetailSample"
 
-    static var requested: AssetDetailSampleScenario? {
-        let arguments = ProcessInfo.processInfo.arguments
+    static func matching(_ arguments: [String]) -> AssetDetailSampleScenario? {
         guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else {
             return nil
         }
@@ -305,4 +304,12 @@ private struct AssetDetailSampleSocialSource: AssetSocialDataSource {
 
 private struct SampleChartFailure: Error {}
 private struct SampleSocialFailure: Error {}
+
+final class AssetDetailSampleHarnessEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
+        guard let scenario = AssetDetailSampleScenario.matching(arguments) else { return nil }
+        return AnyView(AssetDetailSampleHarness(scenario: scenario, auth: auth))
+    }
+}
 #endif

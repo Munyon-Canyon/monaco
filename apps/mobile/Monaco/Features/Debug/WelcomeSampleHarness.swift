@@ -32,8 +32,7 @@ enum WelcomeSampleScenario: String, CaseIterable {
 
     static let launchArgument = "-MonacoWelcomeSample"
 
-    static var requested: WelcomeSampleScenario? {
-        let arguments = ProcessInfo.processInfo.arguments
+    static func matching(_ arguments: [String]) -> WelcomeSampleScenario? {
         guard let flag = arguments.firstIndex(of: launchArgument) else { return nil }
         guard arguments.indices.contains(flag + 1),
             let scenario = WelcomeSampleScenario(rawValue: arguments[flag + 1])
@@ -189,6 +188,14 @@ private struct EmptyStateSamples: View {
                 .padding(.horizontal, MonacoTheme.Space.m)
             content()
         }
+    }
+}
+
+final class WelcomeSampleHarnessEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
+        guard let scenario = WelcomeSampleScenario.matching(arguments) else { return nil }
+        return AnyView(WelcomeSampleHarness(scenario: scenario))
     }
 }
 #endif

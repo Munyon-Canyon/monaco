@@ -23,8 +23,8 @@ enum CabalsTabSampleData {
         case cabalsLoading
     }
 
-    static var isEnabled: Bool {
-        ProcessInfo.processInfo.arguments.contains(launchArgument)
+    static func matches(_ arguments: [String]) -> Bool {
+        arguments.contains(launchArgument)
     }
 
     static var scenario: Scenario {
@@ -214,6 +214,14 @@ struct CabalsTabSampleHarness: View {
         }
         .tint(MonacoTheme.ink)
         .environment(session)
+    }
+}
+
+final class CabalsTabSampleHarnessEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
+        guard CabalsTabSampleData.matches(arguments) else { return nil }
+        return AnyView(CabalsTabSampleHarness(auth: auth))
     }
 }
 #endif

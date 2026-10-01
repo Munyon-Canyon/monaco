@@ -11,8 +11,7 @@ enum HomeSampleScenario: String, CaseIterable {
     case loading
     case missedVote
 
-    static var requested: HomeSampleScenario? {
-        let arguments = ProcessInfo.processInfo.arguments
+    static func matching(_ arguments: [String]) -> HomeSampleScenario? {
         guard let flag = arguments.firstIndex(of: "-MonacoHomeSample"),
             arguments.indices.contains(flag + 1)
         else { return nil }
@@ -150,6 +149,14 @@ struct HomeSampleHarness: View {
                 dollarPnl: pnl
             )
         }
+    }
+}
+
+final class HomeSampleHarnessEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
+        guard let scenario = HomeSampleScenario.matching(arguments) else { return nil }
+        return AnyView(HomeSampleHarness(scenario: scenario, auth: auth))
     }
 }
 #endif

@@ -35,8 +35,7 @@ enum StocksTabSampleScenario: String, CaseIterable {
 
     static let launchArgument = "-MonacoStocksTabSample"
 
-    static var requested: StocksTabSampleScenario? {
-        let arguments = ProcessInfo.processInfo.arguments
+    static func matching(_ arguments: [String]) -> StocksTabSampleScenario? {
         guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else {
             return nil
         }
@@ -149,4 +148,12 @@ private final class StocksTabSampleDataSource: StocksTabDataSource {
 }
 
 private struct SampleStocksFailure: Error {}
+
+final class StocksTabSampleHarnessEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
+        guard let scenario = StocksTabSampleScenario.matching(arguments) else { return nil }
+        return AnyView(StocksTabSampleHarness(scenario: scenario, auth: auth))
+    }
+}
 #endif
