@@ -259,11 +259,13 @@ final class MonacoHTTPTransportTests: XCTestCase {
     /// The budgets are only worth anything if URLSession enforces the per-request one. The
     /// recording test above cannot show that: `MockURLProtocol` answers at once and never
     /// runs a timer, so it passes whichever deadline the session actually applies. This one
-    /// stalls every request past the stamped read budget and under the money budget, against the
-    /// real `MonacoRequestTimeout.sessionConfiguration()`, and asserts the two outcomes
-    /// that matter: the read gives up, the keyed money write survives.
+    /// holds every response until the test releases it, against the real
+    /// `MonacoRequestTimeout.sessionConfiguration()`, and asserts the two outcomes that
+    /// matter: the read gives up on URLSession's own 0.5s timer, then the test releases the
+    /// keyed write and that write still completes. A write stamped with the read budget
+    /// would already have timed out before the release.
     ///
-    /// It costs about 1.5 s of wall clock, with both requests running concurrently.
+    /// It costs about 0.5 s of wall clock, with both requests running concurrently.
     ///
     /// Measured on this runtime, the money write survives even when the session is
     /// configured at `standard`: here a request's own longer `timeoutInterval` does outrank
@@ -273,13 +275,10 @@ final class MonacoHTTPTransportTests: XCTestCase {
     /// it. What this test pins is that the stamp is applied and enforced at all: drop it, or
     /// stamp the wrong budget, and the read stops timing out on time.
     func testTimeoutBudget_isEnforced_moneyWriteOutlivesTheReadBudget() async throws {
-        let stall: TimeInterval = 1.5
         #if !canImport(Darwin)
         try XCTSkipIf(true, "Linux URLSession does not enforce timeouts on custom URLProtocols")
         #endif
-        try XCTSkipUnless(stall < MonacoRequestTimeout.moneyWrite, "budgets no longer straddle the stall")
-        StallingURLProtocol.stall = stall
-        defer { StallingURLProtocol.stall = 0 }
+        defer { StallingURLProtocol.reset() }
 
         let configuration = MonacoRequestTimeout.sessionConfiguration()
         configuration.protocolClasses = [StallingURLProtocol.self]
@@ -303,11 +302,13 @@ final class MonacoHTTPTransportTests: XCTestCase {
                     submission: IdempotentSubmission { "key-1" }
                 )
             } catch {
-                XCTFail("a money write must outlive a \(stall)s confirm, but failed: \(error)")
+                XCTFail("a money write must outlive the read budget, but failed: \(error)")
             }
         }()
 
-        _ = await (read, write)
+        await read
+        StallingURLProtocol.releaseKeyedWrites()
+        await write
     }
 
     /// The budgets only reach a real request if the default client is actually on Monaco's
@@ -436,7 +437,9 @@ final class SingleFlightTests: XCTestCase {
                 group.addTask {
                     try await flight.run {
                         runs.append(1)
-                        try await Task.sleep(nanoseconds: 100_000_000)
+                        while await flight.waiters < 7 {
+                            await Task.yield()
+                        }
                         return "fresh"
                     }
                 }

@@ -1,3 +1,4 @@
+import MonacoTestSupport
 import Synchronization
 import XCTest
 
@@ -156,22 +157,29 @@ final class LiveRefreshSchedulingTests: XCTestCase {
 
     func testLoop_endsWhenTheSurroundingTaskIsCancelled() async {
         let ticks = TickCounter()
+        let clock = TestClock()
 
         let task = Task {
             _ = await PollLoop.run(schedule: PollSchedule(interval: .milliseconds(1))) { delay in
-                try await Task.sleep(for: delay)
+                try await clock.sleep(for: delay)
             } tick: {
                 await ticks.increment()
                 return .refreshed
             }
         }
         // Let a few ticks through, then cancel and make sure the loop actually unwinds.
-        try? await Task.sleep(for: .milliseconds(30))
+        for _ in 0..<3 {
+            let parked = await clock.state.until { $0.pending == 1 }
+            XCTAssertTrue(parked)
+            clock.advance(by: .milliseconds(1))
+        }
+        let parked = await clock.state.until { $0.pending == 1 }
+        XCTAssertTrue(parked)
         task.cancel()
         await task.value
 
         let afterCancel = await ticks.value
-        try? await Task.sleep(for: .milliseconds(30))
+        clock.advance(by: .milliseconds(30))
         let later = await ticks.value
         XCTAssertEqual(later, afterCancel, "the loop kept running after cancellation")
     }
@@ -392,7 +400,9 @@ final class LiveRefreshSchedulingTests: XCTestCase {
     func testSystemClock_movesForward() async {
         let clock = SystemMonotonicClock()
         let first = clock.nowSeconds
-        try? await Task.sleep(for: .milliseconds(20))
+        while clock.nowSeconds == first {
+            await Task.yield()
+        }
 
         XCTAssertGreaterThan(clock.nowSeconds, first)
     }

@@ -58,19 +58,23 @@ public struct MonacoHTTPTransport: Sendable {
     private let session: URLSession
     private let refresher: AccessTokenRefresher?
     private let telemetry: APITelemetry?
+    private let elapsed: @Sendable () -> Duration
 
     /// - Parameters:
     ///   - session: defaults to Monaco's own session, which declares its timeouts.
     ///   - refresher: defaults to whatever is registered in `AccessTokenRefreshRegistry.shared`.
     ///   - telemetry: defaults to whatever is registered in `APITelemetryRegistry.shared`.
+    ///   - clock: defaults to the live clock. Telemetry duration is read from it.
     public init(
         session: URLSession = .monaco,
         refresher: AccessTokenRefresher? = nil,
-        telemetry: APITelemetry? = nil
+        telemetry: APITelemetry? = nil,
+        clock: any Clock<Duration> = ContinuousClock()
     ) {
         self.session = session
         self.refresher = refresher
         self.telemetry = telemetry
+        self.elapsed = Self.elapsed(since: clock)
     }
 
     public func data(from url: URL) async throws -> (Data, URLResponse) {
@@ -98,8 +102,7 @@ public struct MonacoHTTPTransport: Sendable {
         request.setValue(requestID, forHTTPHeaderField: monacoRequestIDHeader)
         request.timeoutInterval = MonacoRequestTimeout.seconds(for: request, override: timeout)
 
-        let clock = ContinuousClock()
-        let started = clock.now
+        let started = elapsed()
         let outcome: APIRequestOutcome
         var serverRequestID: String?
         defer {
@@ -108,7 +111,7 @@ public struct MonacoHTTPTransport: Sendable {
                     method: request.httpMethod ?? "GET",
                     route: route ?? APIRouteTemplate.redacting(url: request.url),
                     outcome: outcome,
-                    durationMs: Self.milliseconds(clock.now - started),
+                    durationMs: Self.milliseconds(elapsed() - started),
                     requestID: requestID,
                     serverRequestID: serverRequestID
                 )
@@ -175,6 +178,15 @@ public struct MonacoHTTPTransport: Sendable {
         var userInfo = urlError.userInfo
         userInfo[monacoRequestIDErrorKey] = requestID
         return URLError(urlError.code, userInfo: userInfo)
+    }
+
+    private static func elapsed(since clock: any Clock<Duration>) -> @Sendable () -> Duration {
+        opening(clock)
+    }
+
+    private static func opening<C: Clock<Duration>>(_ clock: C) -> @Sendable () -> Duration {
+        let origin = clock.now
+        return { origin.duration(to: clock.now) }
     }
 
     private static func milliseconds(_ duration: Duration) -> Double {

@@ -30,6 +30,23 @@ public final class Watched<Value: Sendable>: @unchecked Sendable {
         return result
     }
 
+    /// Suspends until `predicate` is true. No timeout and no extra task: a predicate that never
+    /// holds hangs the caller, and a wait that is not ready yet keeps one continuation.
+    public func until(_ predicate: @escaping (Value) -> Bool) async -> Bool {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            if predicate(value) {
+                lock.unlock()
+                continuation.resume(returning: true)
+                return
+            }
+            let id = nextID
+            nextID += 1
+            watchers[id] = (predicate, continuation)
+            lock.unlock()
+        }
+    }
+
     /// Suspends until `predicate` is true, or until `sleep` returns, whichever happens first.
     /// `sleep` is injected so this type never waits on the wall clock itself.
     public func until(

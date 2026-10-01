@@ -37,11 +37,13 @@ final class FakeStreamTransport: ClientTransport, @unchecked Sendable {
 
     let state: Watched<State>
     private let then: Reply
+    private let clock: TestClock
     private let elapsed: @Sendable () -> Duration
 
     init(_ replies: [Reply] = [], then: Reply = .stream, clock: TestClock) {
         state = Watched(State(replies: replies))
         self.then = then
+        self.clock = clock
         elapsed = { clock.now.offset }
     }
 
@@ -97,9 +99,50 @@ final class FakeStreamTransport: ClientTransport, @unchecked Sendable {
         case .unreachable:
             throw Unreachable()
         case .hang:
-            try await Task.sleep(for: .seconds(3600))
+            // A hung connect must not park on the shared clock. Tests that wait for the
+            // fallback timer treat that timer as the only sleeper; a clock sleep here makes
+            // `pending == 1` depend on which one registers first, and the loser waits forever.
+            let hang = HangUntilCancelled()
+            try await hang.park()
             throw CancellationError()
         }
+    }
+}
+
+/// Resumes only when its task is cancelled. `park` holds no clock and no timer.
+private final class HangUntilCancelled: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Void, any Error>?
+    private var resumed = false
+
+    func park() async throws {
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+                self.lock.lock()
+                if self.resumed {
+                    self.lock.unlock()
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                self.continuation = continuation
+                self.lock.unlock()
+            }
+        } onCancel: {
+            self.resume()
+        }
+    }
+
+    private func resume() {
+        lock.lock()
+        if resumed {
+            lock.unlock()
+            return
+        }
+        resumed = true
+        let continuation = continuation
+        self.continuation = nil
+        lock.unlock()
+        continuation?.resume(throwing: CancellationError())
     }
 }
 
