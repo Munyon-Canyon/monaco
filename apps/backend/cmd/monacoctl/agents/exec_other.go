@@ -8,7 +8,7 @@ import (
 )
 
 func configureExec(cmd *exec.Cmd) {
-	cmd.WaitDelay = commandWaitDelay
+	cmd.WaitDelay = execWaitDelay()
 }
 
 func killGroup(*os.Process) error { return nil }

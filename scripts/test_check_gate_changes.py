@@ -685,8 +685,9 @@ def _run_one(test_id):
 
 
 def _stop_pool(pool):
+    procs = list((getattr(pool, "_processes", None) or {}).values())
     pool.shutdown(wait=False, cancel_futures=True)
-    for proc in list(getattr(pool, "_processes", {}).values()):
+    for proc in procs:
         proc.terminate()
 
 

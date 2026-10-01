@@ -11,7 +11,7 @@ import (
 )
 
 func configureExec(cmd *exec.Cmd) {
-	cmd.WaitDelay = commandWaitDelay
+	cmd.WaitDelay = execWaitDelay()
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error { return killGroup(cmd.Process) }
 }

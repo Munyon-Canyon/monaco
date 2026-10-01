@@ -239,7 +239,7 @@ func TestExec_reapsAGrandchildHoldingStdout(t *testing.T) {
 	took := timed(func() {
 		out, err = Exec(context.Background(), dir, "", "sh", "-c", "sleep 600 & echo $! > pid; echo hi")
 	})
-	if took > commandWaitDelay+time.Second {
+	if took > execWaitDelay()+time.Second {
 		t.Fatalf("returned in %s", took)
 	}
 	if !bytes.Contains(out, []byte("hi")) || !errors.Is(err, exec.ErrWaitDelay) {
