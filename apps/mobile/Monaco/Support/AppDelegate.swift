@@ -1,3 +1,3 @@
 import UIKit
 
-nonisolated final class AppDelegate: NSObject, UIApplicationDelegate {}
+final class AppDelegate: NSObject, UIApplicationDelegate {}
