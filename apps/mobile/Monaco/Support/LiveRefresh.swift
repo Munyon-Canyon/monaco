@@ -14,33 +14,6 @@ import SwiftUI
 /// themselves — pull to refresh, Try again. The scheduling itself (`PollLoop`, `PollSchedule`,
 /// `RefreshGate`) lives in MonacoCore, where it is unit tested.
 
-// MARK: - Which tab is on screen
-
-private struct SelectedMainTabKey: EnvironmentKey {
-    static let defaultValue: MainTab? = nil
-}
-
-private struct HostMainTabKey: EnvironmentKey {
-    static let defaultValue: MainTab? = nil
-}
-
-extension EnvironmentValues {
-    /// The tab the shell is currently showing, or nil outside the tab shell (previews, the
-    /// sample harnesses).
-    var selectedMainTab: MainTab? {
-        get { self[SelectedMainTabKey.self] }
-        set { self[SelectedMainTabKey.self] = newValue }
-    }
-
-    /// The tab this screen's navigation stack belongs to. Set once per stack by `MainTabView`,
-    /// so a screen pushed three levels deep still knows which tab it is in — polling does not
-    /// depend on whether SwiftUI tears an unselected tab's tasks down.
-    var hostMainTab: MainTab? {
-        get { self[HostMainTabKey.self] }
-        set { self[HostMainTabKey.self] = newValue }
-    }
-}
-
 // MARK: - Poll while visible
 
 extension View {

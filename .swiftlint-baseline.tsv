@@ -205,7 +205,7 @@ no_comments	apps/mobile/Monaco/MonacoApp.swift	5
 no_comments	apps/mobile/Monaco/Support/APILogTelemetry.swift	3
 no_comments	apps/mobile/Monaco/Support/AppLogger.swift	4
 no_comments	apps/mobile/Monaco/Support/DiagnosticsSubscriber.swift	4
-no_comments	apps/mobile/Monaco/Support/LiveRefresh.swift	45
+no_comments	apps/mobile/Monaco/Support/LiveRefresh.swift	39
 no_comments	apps/mobile/Monaco/Support/MonacoFrameStats.swift	37
 no_comments	apps/mobile/MonacoTests/AdminRedesignTests.swift	12
 no_comments	apps/mobile/MonacoTests/AppSessionStoreTests.swift	44
