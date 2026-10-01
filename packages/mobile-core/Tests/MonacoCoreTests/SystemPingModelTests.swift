@@ -198,6 +198,23 @@ final class SystemPingModelTests: XCTestCase {
         XCTAssertFalse(ping.echoed)
     }
 
+    #if DEBUG
+    func testPreviewModelEchoesAPingWithoutTheNetwork() async {
+        let model = SystemPingModel.preview()
+
+        await model.observe()
+        await model.send(note: "hi")
+
+        let state = model.state
+        guard case .loaded(let ping) = state else {
+            XCTFail("expected the preview to echo a ping, got \(state)")
+            return
+        }
+        XCTAssertTrue(ping.echoed)
+        XCTAssertEqual(ping.note, "hi")
+    }
+    #endif
+
     private func created(note: String, echoed: Bool) -> StubTransport.Reply {
         .json(.created, body(note: note, echoed: echoed))
     }
