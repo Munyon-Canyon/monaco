@@ -254,4 +254,15 @@ nonisolated final class ChatScrollSampleUITests: XCTestCase {
         )
         attachScreenshot(app, name: "04-sent")
     }
+
+    /// Every audit type on the busy sample thread, opened at its newest message.
+    @MainActor
+    func testAccessibilityAudit() throws {
+        let app = launchBusyChat()
+        XCTAssertTrue(
+            anyElement(app, newestSampleMessage).waitForExistence(timeout: 30),
+            "the sample thread should open before the audit"
+        )
+        try SampleAccessibilityAudit.run(app, in: self)
+    }
 }

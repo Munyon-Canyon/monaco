@@ -467,4 +467,28 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
             "tapping the strip card should push a detail screen with a back button"
         )
     }
+
+    /// Every audit type on the Cabals tab the other tests launch with no scenario. Waits for
+    /// the same fully-settled screen `testOverviewShowsChartStripAndLeaderboard` does: the
+    /// strip and leaderboard both load asynchronously and fade in, and auditing against the
+    /// loading skeleton or a card still mid-transition reports a contrast or element-detection
+    /// issue that is an artifact of the animation, not the drawn screen.
+    @MainActor
+    func testAccessibilityAudit() throws {
+        let app = launchApp()
+        XCTAssertTrue(
+            anyElement(app, "cabals-root").waitForExistence(timeout: 10),
+            "cabals-root should exist before the audit"
+        )
+        XCTAssertTrue(
+            anyElement(app, "cabals-strip-card-5b1f0c9e-0001-4c55-9a51-000000000001")
+                .waitForExistence(timeout: 10),
+            "the strip should have loaded its cards before the audit"
+        )
+        XCTAssertTrue(
+            anyElement(app, "cabals-leaderboard").waitForExistence(timeout: 10),
+            "the leaderboard should have loaded before the audit"
+        )
+        try SampleAccessibilityAudit.run(app, in: self)
+    }
 }

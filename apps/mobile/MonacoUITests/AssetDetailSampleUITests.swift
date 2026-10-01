@@ -55,6 +55,14 @@ nonisolated final class AssetDetailSampleUITests: XCTestCase {
         )
     }
 
+    /// Every audit type on the open-market detail screen.
+    @MainActor
+    func testAccessibilityAudit() throws {
+        let app = launch("open")
+        waitForScreen(app, "open")
+        try SampleAccessibilityAudit.run(app, in: self)
+    }
+
     /// Every scenario reaches a drawn screen. This is the screenshot sweep: one
     /// attachment per state the backend can put the screen in.
     @MainActor
@@ -219,17 +227,20 @@ nonisolated final class AssetDetailSampleUITests: XCTestCase {
         let price = anyElement(app, "asset-detail-price")
         let move = anyElement(app, "asset-detail-move")
         XCTAssertTrue(price.waitForExistence(timeout: 30))
-        let livePrice = price.label
+        // `.value` carries the printed "$232.05"; `.label` now speaks it for VoiceOver
+        // (`MoneyFigure.spoken`), which the curve's own value is not written in.
+        let livePrice = try XCTUnwrap(price.value as? String)
         let liveMove = move.label
 
         let chart = dragAcrossTheCurve(app)
 
         attachScreenshot(app, name: "asset-detail-scrubbing")
-        XCTAssertNotEqual(price.label, livePrice, "the hero price did not follow the scrub")
+        let scrubbedPrice = try XCTUnwrap(price.value as? String)
+        XCTAssertNotEqual(scrubbedPrice, livePrice, "the hero price did not follow the scrub")
         XCTAssertNotEqual(move.label, liveMove, "the figure under the price did not follow the scrub")
         // The curve reads the same sample the hero does.
         let spoken = try XCTUnwrap(chart.value as? String)
-        XCTAssertTrue(spoken.hasPrefix(price.label), "curve says \(spoken), hero says \(price.label)")
+        XCTAssertTrue(spoken.hasPrefix(scrubbedPrice), "curve says \(spoken), hero says \(scrubbedPrice)")
     }
 
     /// And on a normal build the finger lifting puts the live price back.

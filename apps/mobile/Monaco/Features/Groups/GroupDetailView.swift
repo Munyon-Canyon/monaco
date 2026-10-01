@@ -850,8 +850,16 @@ struct GroupActionRow: View {
     let onRoute: (GroupDetailRoute) -> Void
     let onPropose: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        HStack(alignment: .top, spacing: 0) {
+        // Four captions in one row clip once the type is an accessibility size. Stacking
+        // them gives each label the width of the screen.
+        let laidOut =
+            dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.s))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 0))
+        laidOut {
             action("Add money", systemImage: "plus", id: "group-action-fund") { onRoute(.addMoney) }
             action("Propose", systemImage: "arrow.up.right", id: "group-action-propose", perform: onPropose)
             action("Cash out", systemImage: "arrow.down.left", id: "group-action-sell") {

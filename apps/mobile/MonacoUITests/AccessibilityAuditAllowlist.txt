@@ -1,0 +1,3 @@
+# class	audit type	element identifier
+# A row skips that one issue in testAccessibilityAudit. The file only shrinks.
+# Explain every row in the PR that adds it.

@@ -98,6 +98,17 @@ nonisolated final class GroupLeaveProgressSampleUITests: XCTestCase {
         XCTAssertTrue(details.isHittable, "the details item should open the sheet when no leave is running")
     }
 
+    /// Every audit type on the cabal screen while a leave is in progress.
+    @MainActor
+    func testAccessibilityAudit() throws {
+        let app = launchApp(scenario: "sellAndLeave")
+        XCTAssertTrue(
+            anyElement(app, "group-leaving-cover").waitForExistence(timeout: 20),
+            "the leaving cover should be on screen before the audit"
+        )
+        try SampleAccessibilityAudit.run(app, in: self)
+    }
+
     private static let actionRow = [
         "group-action-fund", "group-action-propose", "group-action-sell", "group-action-chat",
     ]

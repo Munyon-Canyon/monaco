@@ -39,6 +39,8 @@ struct PotMixBar: View {
 
     private var segments: [Segment] { Self.segments(for: pot) }
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     private var tint: MonacoTheme.CabalTint { .forGroupId(groupId) }
 
     var body: some View {
@@ -75,9 +77,9 @@ struct PotMixBar: View {
                         .fill(color(for: segment))
                         .frame(width: 7, height: 7)
                     Text("\(segment.symbol) \(Self.percent(segment.fraction))")
-                        .font(MonacoTheme.Typo.dataCaption)
-                        .foregroundStyle(MonacoTheme.muted)
-                        .lineLimit(1)
+                        .font(MonacoTheme.Typo.caption)
+                        .foregroundStyle(MonacoTheme.ink)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 }
             }
             Spacer(minLength: 0)

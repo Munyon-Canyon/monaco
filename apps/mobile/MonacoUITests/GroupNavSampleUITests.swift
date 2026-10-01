@@ -126,4 +126,15 @@ nonisolated final class GroupNavSampleUITests: XCTestCase {
     func testActionRowWhenOpenedFromCreate() throws {
         runActionRow(entry: "create")
     }
+
+    /// Every audit type on the cabal screen reached from the root of the stack.
+    @MainActor
+    func testAccessibilityAudit() throws {
+        let app = openCabalScreen(entry: "root")
+        XCTAssertTrue(
+            anyElement(app, "group-action-fund").waitForExistence(timeout: 10),
+            "the action row should be on screen before the audit"
+        )
+        try SampleAccessibilityAudit.run(app, in: self)
+    }
 }

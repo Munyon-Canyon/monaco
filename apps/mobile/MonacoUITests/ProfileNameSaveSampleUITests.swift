@@ -159,4 +159,15 @@ nonisolated final class ProfileNameSaveSampleUITests: XCTestCase {
         // behind the dialog, and nothing has happened yet.
         XCTAssertTrue(signOut.exists, "the member is still signed in while the dialog is up")
     }
+
+    /// Every audit type on the profile the harness opens with no sheet.
+    @MainActor
+    func testAccessibilityAudit() throws {
+        let app = launchApp("placeholder")
+        XCTAssertTrue(
+            anyElement(app, "profile-edit-button").waitForExistence(timeout: 10),
+            "the profile should be on screen before the audit"
+        )
+        try SampleAccessibilityAudit.run(app, in: self)
+    }
 }

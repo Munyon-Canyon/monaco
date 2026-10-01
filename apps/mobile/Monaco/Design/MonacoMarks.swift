@@ -18,6 +18,9 @@ struct CabalMark: View {
 
     @State private var loadedPicture: UIImage?
     @State private var pictureFailed = false
+    /// Caption's point size at the default text size. The tile grows with the same style the
+    /// initials are set in, so a larger text size enlarges the mark instead of clipping it.
+    @ScaledMetric(relativeTo: .caption) private var captionPoint: CGFloat = 11
 
     /// `onInk` brightens the tile and drops the initials to deep ink, so the mark still
     /// carries the cabal's identity on a deep ink hero card.
@@ -52,12 +55,15 @@ struct CabalMark: View {
         return URL(string: trimmed)
     }
 
+    private var drawnSize: CGFloat { size * captionPoint / 11 }
+
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: MarkGeometry.radius(for: size), style: .continuous)
+        let drawn = drawnSize
+        let shape = RoundedRectangle(cornerRadius: MarkGeometry.radius(for: drawn), style: .continuous)
         return
             shape
             .fill(onInk ? tint.onInk : tint.fill)
-            .frame(width: size, height: size)
+            .frame(width: drawn, height: drawn)
             .overlay {
                 // A picture already in the cache draws on the first pass, so a mark
                 // scrolling back into a lazy stack never flashes its initials.
@@ -65,7 +71,7 @@ struct CabalMark: View {
                     Image(uiImage: picture)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: size, height: size)
+                        .frame(width: drawn, height: drawn)
                         .clipShape(shape)
                         .transition(.opacity)
                 } else {
@@ -79,11 +85,17 @@ struct CabalMark: View {
 
     private var initialsLabel: some View {
         Text(initials)
-            .font(.custom("AvenirNext-DemiBold", fixedSize: size * (initials.count > 1 ? 0.36 : 0.42)))
+            .font(
+                .custom(
+                    "AvenirNext-DemiBold",
+                    size: size * (initials.count > 1 ? 0.36 : 0.42),
+                    relativeTo: .caption
+                )
+            )
             .foregroundStyle(onInk ? MonacoTheme.heroInk : tint.onFill)
             .lineLimit(1)
             .minimumScaleFactor(0.5)
-            .padding(size * 0.08)
+            .padding(drawnSize * 0.08)
     }
 
     private var cachedPicture: UIImage? {
@@ -224,6 +236,9 @@ struct StockMark: View {
     }
 
     @State private var logo: UIImage?
+    @ScaledMetric(relativeTo: .caption) private var captionPoint: CGFloat = 11
+
+    private var drawnSize: CGFloat { size * captionPoint / 11 }
 
     /// A coin, not a tile. These are tokenised stocks, and a disc reads as one at a glance.
     private var shape: Circle { Circle() }
@@ -301,7 +316,7 @@ struct StockMark: View {
     var body: some View {
         shape
             .fill(StockMark.coinFace)
-            .frame(width: size, height: size)
+            .frame(width: drawnSize, height: drawnSize)
             .overlay {
                 shape.strokeBorder(StockMark.coinRim, lineWidth: StockMark.rimWidth)
             }
@@ -313,7 +328,10 @@ struct StockMark: View {
                     Image(uiImage: StockMark.croppedToMark(logo))
                         .resizable()
                         .scaledToFit()
-                        .frame(width: size * StockMark.markInset, height: size * StockMark.markInset)
+                        .frame(
+                            width: drawnSize * StockMark.markInset,
+                            height: drawnSize * StockMark.markInset
+                        )
                         .clipShape(shape)
                 } else {
                     tileGlyph
@@ -328,14 +346,20 @@ struct StockMark: View {
         switch content {
         case .letter(let letter):
             Text(letter)
-                .font(.system(size: size * StockMark.textScale(for: letter), weight: .semibold))
+                .font(
+                    .custom(
+                        MonacoTypeface.sfMono(.semibold),
+                        size: size * StockMark.textScale(for: letter),
+                        relativeTo: .caption
+                    )
+                )
                 .foregroundStyle(MonacoTheme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
                 .padding(.horizontal, size * 0.08)
         case .symbol(let name):
             Image(systemName: name)
-                .font(.system(size: size * 0.40, weight: .semibold))
+                .font(.system(size: drawnSize * 0.40, weight: .semibold))
                 .foregroundStyle(MonacoTheme.ink)
         }
     }

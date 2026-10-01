@@ -132,6 +132,17 @@ nonisolated final class OnboardingNameSampleUITests: XCTestCase {
         XCTAssertTrue(waitUntilEnabled(continueButton), "Continue should come back so the save can be retried")
     }
 
+    /// Every audit type on the fresh first-run screen.
+    @MainActor
+    func testAccessibilityAudit() throws {
+        let app = launchApp()
+        XCTAssertTrue(
+            nameField(app).waitForExistence(timeout: 10),
+            "the name field should exist before the audit"
+        )
+        try SampleAccessibilityAudit.run(app, in: self)
+    }
+
     // MARK: - Helpers
 
     @MainActor
