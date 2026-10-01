@@ -72,6 +72,9 @@ struct LoginView: View {
 
     private func form(scroll: ScrollViewProxy) -> some View {
         VStack(alignment: .leading, spacing: 0) {
+            #if DEBUG
+            DevSignInButton()
+            #endif
             // Why the member is here without having signed out: a quiet line over the form,
             // not a banner, gone with the next code they ask for.
             if let reason = auth.lastSignOutReason {

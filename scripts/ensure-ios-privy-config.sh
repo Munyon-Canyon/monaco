@@ -264,6 +264,16 @@ export_launch_env() {
   if [[ -n "${MONACO_ENVIRONMENT:-}" ]]; then
     export SIMCTL_CHILD_MONACO_ENVIRONMENT="$MONACO_ENVIRONMENT"
   fi
+  if [[ -n "${MONACO_DEV_USER:-}" ]]; then
+    if [[ ! -x "$ROOT/bin/monacoctl" ]]; then
+      echo "run just build backend first" >&2
+      exit 1
+    fi
+    local dev_token dev_cmd
+    dev_cmd=dev
+    dev_token="$("$ROOT/bin/monacoctl" "$dev_cmd" token --user "$MONACO_DEV_USER" --ttl 168h)"
+    export SIMCTL_CHILD_MONACO_DEV_TOKEN="$dev_token"
+  fi
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
