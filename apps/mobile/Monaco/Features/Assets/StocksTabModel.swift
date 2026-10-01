@@ -130,7 +130,6 @@ final class StocksTabModel {
     private let pageSize: Int
     private let popularLimit: Int
     private let clock: () -> Date
-    /// Search debounce. Defaults to the live clock; tests pass a clock they advance.
     private let pause: @Sendable (Duration) async throws -> Void
     private var searchTask: Task<Void, Never>?
     private var popularLoadedAt: Date?

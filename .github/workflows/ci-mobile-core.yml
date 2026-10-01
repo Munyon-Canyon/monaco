@@ -45,6 +45,9 @@ jobs:
           key: swiftpm-linux-6.3-${{ hashFiles('packages/mobile-core/Package.resolved') }}
           restore-keys: swiftpm-linux-6.3-
 
+      - name: Swift format lint
+        run: swift format lint --strict --recursive --parallel apps/mobile packages/mobile-core
+
       - name: Test mobile-core
         id: test
         working-directory: packages/mobile-core
@@ -80,3 +83,14 @@ jobs:
         with:
           path: packages/mobile-core/.build
           key: ${{ steps.build.outputs.cache-primary-key }}
+
+  swiftlint:
+    name: SwiftLint ratchet
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    container: ghcr.io/realm/swiftlint:0.65.0
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the ratchet
+        run: scripts/swiftlint-ratchet.sh

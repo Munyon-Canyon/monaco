@@ -13,7 +13,7 @@ public enum SharedFormatters {
     // MARK: - ISO-8601
 
     /// `2026-09-18T15:04:05.123Z`
-    nonisolated(unsafe)  // ISO8601DateFormatter is documented thread-safe; never mutated after init.
+    nonisolated(unsafe)
         public static let iso8601Fractional: ISO8601DateFormatter = {
             let formatter = ISO8601DateFormatter()
             formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -21,7 +21,7 @@ public enum SharedFormatters {
         }()
 
     /// `2026-09-18T15:04:05Z`
-    nonisolated(unsafe)  // ISO8601DateFormatter is documented thread-safe; never mutated after init.
+    nonisolated(unsafe)
         public static let iso8601WholeSeconds: ISO8601DateFormatter = {
             let formatter = ISO8601DateFormatter()
             formatter.formatOptions = [.withInternetDateTime]
@@ -96,9 +96,6 @@ public enum SharedFormatters {
         let timeZoneIdentifier: String
     }
 
-    /// `DateFormatter` is not `Sendable`. The slot is immutable after init, and the mutex only
-    /// swaps which slot a key points at. `string(from:)` runs outside the lock: a formatter is
-    /// safe to read from several threads once nobody mutates it.
     private final class DateFormatterSlot: @unchecked Sendable {
         let formatter: DateFormatter
 

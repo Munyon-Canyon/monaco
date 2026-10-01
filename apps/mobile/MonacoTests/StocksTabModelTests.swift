@@ -29,9 +29,7 @@ private final class StubStocksDataSource: StocksTabDataSource {
     /// Rows served by `popular`, so a test can shape the mover strip.
     var popularAssets: [MarketAssetDTO] = [StubStocksDataSource.asset(symbol: "AAPLx")]
     var popularMarket: MarketStatusDTO?
-    /// Search delays park here. A test advances it; this stub does not wait on the wall clock.
     let clock = TestClock()
-    /// Incremented when `search` returns, so a test can wait for that hop.
     let searchesDone = Watched(0)
 
     func search(query: String, offset: Int, limit: Int) async throws -> ListMarketAssetsResponse {
@@ -39,8 +37,6 @@ private final class StubStocksDataSource: StocksTabDataSource {
         if let delay = offsetDelays[offset] ?? delays[query] {
             try? await clock.sleep(for: delay)
         }
-        // A cancelled page still answers, so the model can drop it. It must not wake the
-        // test that is waiting for the search that replaced it.
         if !Task.isCancelled {
             searchesDone.mutate { $0 += 1 }
         }
@@ -92,7 +88,6 @@ struct StocksTabModelTests {
         StocksTabModel(dataSource: source, clock: now, sleepClock: source.clock)
     }
 
-    /// Parks the debounce, moves the clock past it, then waits until that search returns.
     private func settle(_ source: StubStocksDataSource) async {
         let mark = source.searchesDone.current
         let slept = source.clock.state.current.requested.count
@@ -105,7 +100,6 @@ struct StocksTabModelTests {
         _ = await source.searchesDone.until { $0 > mark }
     }
 
-    /// Waits until `count` sleeps are parked, so the next step runs while they are in flight.
     private func untilPending(_ clock: TestClock, _ count: Int) async {
         _ = await clock.state.until { $0.pending >= count }
     }

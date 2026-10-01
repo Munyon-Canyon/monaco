@@ -5,13 +5,7 @@ import MonacoAPI
 import FoundationNetworking
 #endif
 
-/// A `URLProtocol` that accepts a request and then says nothing until the test releases it.
-/// `MockURLProtocol` answers immediately, so it can only record the timeout a request asked
-/// for — it can never show which deadline URLSession actually enforces. This one lets the
-/// session's own timer run: a read fails on that timer, and the test then releases the keyed
-/// write so a money write still completes.
 final class StallingURLProtocol: URLProtocol {
-    /// Shared gate. The lock lives inside so the static reference itself stays immutable.
     private final class Gate: @unchecked Sendable {
         let lock = NSLock()
         var held: [ObjectIdentifier: StallingURLProtocol] = [:]
@@ -20,8 +14,6 @@ final class StallingURLProtocol: URLProtocol {
 
     private static let gate = Gate()
 
-    /// Completes every held request that carries an idempotency key. Reads stay held until
-    /// URLSession cancels them. A write that arrives after this call completes immediately.
     static func releaseKeyedWrites() {
         gate.lock.lock()
         gate.writesReleased = true
@@ -31,7 +23,6 @@ final class StallingURLProtocol: URLProtocol {
         for proto in ready.values { proto.finishOK() }
     }
 
-    /// Drops held requests and closes the gate. Call this from the test's `defer`.
     static func reset() {
         gate.lock.lock()
         gate.writesReleased = false

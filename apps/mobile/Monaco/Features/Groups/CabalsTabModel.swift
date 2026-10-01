@@ -88,7 +88,6 @@ final class CabalsTabModel {
     private(set) var sessionExpired = false
 
     private let dataSource: CabalsTabDataSource
-    /// Search debounce. Defaults to the live clock; tests pass a clock they advance.
     private let pause: @Sendable (Duration) async throws -> Void
     private var searchTask: Task<Void, Never>?
     private var chartTask: Task<Void, Never>?

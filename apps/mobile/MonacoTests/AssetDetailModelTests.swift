@@ -36,7 +36,6 @@ private final class StubAssetDetailDataSource: AssetDetailDataSource {
     /// test make the *first* request return after the second, which is how a tap and
     /// a background poll overlap in life.
     var scripted: [AssetChartRange: [(delay: Duration, points: [AssetChartPointDTO])]] = [:]
-    /// Delays park here. A test advances it; nothing in this stub waits on the wall clock.
     let clock = TestClock()
 
     func detail(symbol: String) async throws -> AssetDetailDTO {
@@ -756,8 +755,6 @@ struct AssetDetailModelTests {
         #expect(model.heroTick != nil)
     }
 
-    /// Waits until `count` sleeps are parked on `clock`, so the next step runs
-    /// while those requests are still in flight.
     private func untilPending(_ clock: TestClock, _ count: Int) async {
         _ = await clock.state.until { $0.pending >= count }
     }

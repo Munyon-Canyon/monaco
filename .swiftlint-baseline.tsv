@@ -36,7 +36,6 @@ force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/ProposalFeedFormatte
 force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/ProposalsAPITests.swift	8
 force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/RedeemTests.swift	4
 force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/SharedFormattersTests.swift	3
-force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/StallingURLProtocol.swift	1
 force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/StockVsTokenCardTests.swift	1
 force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/TokenQuantityFormatterTests.swift	3
 force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/WithdrawToBalanceTests.swift	4
@@ -150,7 +149,7 @@ no_comments	apps/mobile/Monaco/Features/Groups/CabalsTabView.swift	26
 no_comments	apps/mobile/Monaco/Features/Groups/CreateGroupView.swift	36
 no_comments	apps/mobile/Monaco/Features/Groups/GroupActivityListView.swift	1
 no_comments	apps/mobile/Monaco/Features/Groups/GroupActivitySection.swift	8
-no_comments	apps/mobile/Monaco/Features/Groups/GroupChatView.swift	146
+no_comments	apps/mobile/Monaco/Features/Groups/GroupChatView.swift	143
 no_comments	apps/mobile/Monaco/Features/Groups/GroupDetailView.swift	121
 no_comments	apps/mobile/Monaco/Features/Groups/GroupDetailsSheet.swift	15
 no_comments	apps/mobile/Monaco/Features/Groups/GroupHeroSection.swift	26
@@ -217,7 +216,7 @@ no_comments	apps/mobile/MonacoTests/CabalHoldingsModelTests.swift	12
 no_comments	apps/mobile/MonacoTests/CabalPictureEditorTests.swift	16
 no_comments	apps/mobile/MonacoTests/CabalScreenRedesignTests.swift	10
 no_comments	apps/mobile/MonacoTests/CabalsRouteTests.swift	2
-no_comments	apps/mobile/MonacoTests/CabalsTabModelTests.swift	60
+no_comments	apps/mobile/MonacoTests/CabalsTabModelTests.swift	57
 no_comments	apps/mobile/MonacoTests/CashOutAmountRuleTests.swift	16
 no_comments	apps/mobile/MonacoTests/DepositAddressTests.swift	2
 no_comments	apps/mobile/MonacoTests/DepositFailureToastTrackerTests.swift	17
@@ -237,7 +236,7 @@ no_comments	apps/mobile/MonacoTests/MonacoRemoteImageStoreTests.swift	1
 no_comments	apps/mobile/MonacoTests/MonacoTests.swift	9
 no_comments	apps/mobile/MonacoTests/MoneyFlowErrorInputTests.swift	13
 no_comments	apps/mobile/MonacoTests/MoneyFlowRedesignTests.swift	17
-no_comments	apps/mobile/MonacoTests/PendingRevokeTests.swift	20
+no_comments	apps/mobile/MonacoTests/PendingRevokeTests.swift	19
 no_comments	apps/mobile/MonacoTests/PixelAnimalTests.swift	6
 no_comments	apps/mobile/MonacoTests/PlatformBalanceLoaderTests.swift	23
 no_comments	apps/mobile/MonacoTests/ProfilePhotoUploadPreparerTests.swift	24
@@ -253,7 +252,7 @@ no_comments	apps/mobile/MonacoTests/StocksTabModelTests.swift	30
 no_comments	apps/mobile/MonacoTests/WelcomeRedesignTests.swift	11
 no_comments	apps/mobile/MonacoUITests/AssetDetailCardsUITests.swift	96
 no_comments	apps/mobile/MonacoUITests/AssetDetailSampleUITests.swift	80
-no_comments	apps/mobile/MonacoUITests/CabalsTabSampleUITests.swift	60
+no_comments	apps/mobile/MonacoUITests/CabalsTabSampleUITests.swift	59
 no_comments	apps/mobile/MonacoUITests/ChatClosedSampleUITests.swift	27
 no_comments	apps/mobile/MonacoUITests/ChatScrollSampleUITests.swift	52
 no_comments	apps/mobile/MonacoUITests/GroupLeaveProgressSampleUITests.swift	30
@@ -335,9 +334,8 @@ no_comments	packages/mobile-core/Sources/MonacoCore/StockVsTokenCard.swift	67
 no_comments	packages/mobile-core/Sources/MonacoTestSupport/StubTokenProvider.swift	2
 no_comments	packages/mobile-core/Sources/MonacoTestSupport/StubTransport.swift	5
 no_comments	packages/mobile-core/Tests/MonacoAPITests/FakeStreamTransport.swift	3
-no_comments	packages/mobile-core/Tests/MonacoAPITests/TestClock.swift	2
 no_comments	packages/mobile-core/Tests/MonacoAPITests/TimeoutMiddlewareTests.swift	2
-no_comments	packages/mobile-core/Tests/MonacoAPITests/Watched.swift	3
+no_comments	packages/mobile-core/Tests/MonacoAPITests/Watched.swift	2
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/APITelemetryTests.swift	5
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/AssetChartSeriesTests.swift	39
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/AssetDetailCardsTests.swift	62
@@ -349,7 +347,7 @@ no_comments	packages/mobile-core/Tests/MonacoCoreTests/DevBuyAPITests.swift	3
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/DiagnosticPayloadStoreTests.swift	1
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/DisplayFormatterTests.swift	20
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/FirstRunGateTests.swift	10
-no_comments	packages/mobile-core/Tests/MonacoCoreTests/FormatterHotPathTests.swift	6
+no_comments	packages/mobile-core/Tests/MonacoCoreTests/FormatterHotPathTests.swift	5
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/GroupChatTests.swift	103
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/GroupDetailRefreshPolicyTests.swift	6
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/GroupViewDTOTests.swift	9
@@ -370,7 +368,7 @@ no_comments	packages/mobile-core/Tests/MonacoCoreTests/MarketStatusDTOTests.swif
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/MonacoAPIClientTests.swift	14
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/MonacoAPIConfigurationTests.swift	2
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/MonacoCoreTests.swift	3
-no_comments	packages/mobile-core/Tests/MonacoCoreTests/MonacoHTTPTransportTests.swift	36
+no_comments	packages/mobile-core/Tests/MonacoCoreTests/MonacoHTTPTransportTests.swift	20
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/MoneyFlowCopyTests.swift	28
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/PreIpoCopyTests.swift	2
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/PrivyAuthConfigTests.swift	18
@@ -385,7 +383,6 @@ no_comments	packages/mobile-core/Tests/MonacoCoreTests/ScreenSnapshotTests.swift
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/SettingsAdvancedTests.swift	3
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/SolanaAddressTests.swift	2
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/SparklineSeriesTests.swift	5
-no_comments	packages/mobile-core/Tests/MonacoCoreTests/StallingURLProtocol.swift	6
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/StockVsTokenCardTests.swift	18
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/TokenQuantityFormatterTests.swift	1
 type_body_length	apps/mobile/Monaco/API/MonacoAPIClient.swift	1

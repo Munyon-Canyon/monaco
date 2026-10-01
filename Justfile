@@ -109,6 +109,8 @@ test app:
           echo "error: packages/mobile-core is not scaffolded yet."
           exit 1
         fi
+        swift format lint --strict --recursive --parallel apps/mobile packages/mobile-core
+        scripts/swiftlint-ratchet.sh
         # Host unit tests only (swift test on macOS). iOS sim UI tests stay on just build/run mobile.
         scripts/mobile-core-test.sh
         ;;

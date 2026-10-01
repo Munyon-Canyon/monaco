@@ -6,8 +6,6 @@ import FoundationNetworking
 #endif
 
 final class MockURLProtocol: URLProtocol {
-    /// The handler is not `Sendable`: tests close over fixtures. The box is immutable after
-    /// init, and the `Mutex` is what swaps which box is current.
     private final class StoredHandler: @unchecked Sendable {
         let call: (URLRequest) throws -> (HTTPURLResponse, Data)
 

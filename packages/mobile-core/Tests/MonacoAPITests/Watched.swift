@@ -7,10 +7,12 @@ extension Watched {
     func until(within limit: Duration, _ predicate: @escaping @Sendable (Value) -> Bool) async -> Bool {
         let clock = ContinuousClock()
         let start = clock.now
-        return await until(within: limit, sleep: { _ in
-            while clock.now - start < limit {
-                await Task.yield()
-            }
-        }, predicate)
+        return await until(
+            within: limit,
+            sleep: { _ in
+                while clock.now - start < limit {
+                    await Task.yield()
+                }
+            }, predicate)
     }
 }

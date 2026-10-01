@@ -112,10 +112,6 @@ struct GroupChatView: View {
                         .foregroundStyle(MonacoTheme.ink)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
-                        // On the sentence, not the container. An identifier on the container
-                        // was handed to the Try again button, and with children contained the
-                        // container itself never showed up in the accessibility tree, so the
-                        // reason next to the button could not be addressed.
                         .accessibilityIdentifier("group-chat-error")
                     // Offered even when the thread reads as closed. Being removed from a cabal
                     // and a cabal that briefly answered 404 look identical from here, and a

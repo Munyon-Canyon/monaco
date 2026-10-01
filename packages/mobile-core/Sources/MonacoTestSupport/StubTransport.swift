@@ -13,7 +13,6 @@ public actor StubTransport: ClientTransport {
         case failure(any Error)
         /// Never answers; the request ends only when its task is cancelled.
         case hang
-        /// Parks the request until `releaseGate` supplies the reply, without holding the actor.
         case gate
 
         public static func ok(_ text: String) -> Reply {
@@ -89,7 +88,6 @@ public actor StubTransport: ClientTransport {
         }
     }
 
-    /// Resumes the oldest parked `.gate` request with `reply`.
     public func releaseGate(_ reply: Reply) {
         let continuation = gates.removeFirst()
         switch reply {
