@@ -105,10 +105,47 @@ schedules after 60 days without repository activity; re-enable from the Actions 
 
 ## One build at a time
 
-`scripts/qa/xcode-lock.sh <command>` holds a machine-wide lock around a build. Wrap any
-`xcodebuild` or `swift test` you start by hand (or from an agent) while the overnight run is
-going, so two builds never compete for memory:
+`scripts/qa/xcode-lock.sh <class> <command...>` holds a machine-wide lock around a heavy
+local step. Wrap any `xcodebuild` or `swift` build or test you start by hand (or from an
+agent) while the overnight run is going, so builds never compete for memory. The class says
+which limit applies:
+
+| Class | Wrap | Cost | Lock dir |
+| --- | --- | --- | --- |
+| `xcode` | `xcodebuild` and simulator runs | 3 to 7 GB each, so one at a time | `/private/tmp/monaco-xcodebuild.lock` (`MONACO_XCODE_LOCK_DIR`) |
+| `swiftpm` | `swift build` and `swift test` in `packages/mobile-core` | about 1 to 1.5 GB each, and every core while cold | `/private/tmp/monaco-swiftpm.lock` (`MONACO_SWIFTPM_LOCK_DIR`) |
+
+The classes are separate locks, so one `xcode` holder and one `swiftpm` holder run at the
+same time. Go, lint and shell steps need no lock. A call with no class, such as
+`scripts/qa/xcode-lock.sh xcodebuild ...`, runs as `xcode`.
 
 ```sh
-scripts/qa/xcode-lock.sh xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco build
+scripts/qa/xcode-lock.sh xcode xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco build
+scripts/qa/xcode-lock.sh swiftpm bash -c 'cd packages/mobile-core && swift test'
 ```
+
+Waiters take the lock in arrival order. Each writes a ticket in `<lock dir>.queue/` and
+goes when its ticket is the oldest one whose process is still alive, so a later arrival
+never overtakes it. Every 60 seconds a waiter logs where it stands:
+
+```text
+xcode-lock(xcode): queue position 2 behind pid 4121 (/Users/dev/monaco/.worktrees/1241) (120s)
+```
+
+The holder's `pid` and `cwd` are in the lock dir. A lock or ticket whose pid is gone is
+taken over or dropped.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `MONACO_LOCK_HOLD` | 1800 | Seconds the command may run. Past it the command is stopped, the script prints `command exceeded the <n>s hold cap` and exits 124. |
+| `MONACO_XCODE_LOCK_TIMEOUT` | 5400 | Seconds a waiter waits before it gives up with exit 75. |
+| `MONACO_LOCK_POLL` | 2 | Seconds between checks while waiting. |
+
+The cap uses `timeout`, or `gtimeout` from Homebrew coreutils, and a shell watchdog when a
+Mac has neither. `night.sh` takes `xcode` for each `xcodebuild` step and `swiftpm` for the
+mobile-core `swift test`; its 2700 s `app-build` step therefore stops at the 1800 s cap
+unless `MONACO_LOCK_HOLD` is raised.
+
+Ctrl-C or `kill` (INT or TERM) sent to the script is passed on to the command, and the lock
+is released only after the command has exited, so a stopped build never runs on under a
+free lock. The script then exits 130 (INT) or 143 (TERM).
