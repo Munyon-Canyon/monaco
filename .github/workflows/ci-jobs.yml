@@ -307,6 +307,8 @@ jobs:
               - '.swiftlint.yml'
               - '.swiftlint-baseline.tsv'
               - 'scripts/swiftlint-ratchet.sh'
+              - 'scripts/gen-mobile-feature.sh'
+              - 'scripts/ci/mobile-integration.sh'
             web:
               - 'apps/web/**'
             scripts:
