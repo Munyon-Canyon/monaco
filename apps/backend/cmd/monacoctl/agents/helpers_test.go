@@ -31,11 +31,15 @@ type hub struct {
 	pages  [][2]string
 	sent   map[string]string
 	auth   map[string]string
+	ctype  map[string]string
 }
 
 func newHub(t *testing.T) (*hub, *httptest.Server) {
 	t.Helper()
-	h := &hub{t: t, routes: map[string]string{}, sent: map[string]string{}, auth: map[string]string{}}
+	h := &hub{
+		t: t, routes: map[string]string{}, sent: map[string]string{},
+		auth: map[string]string{}, ctype: map[string]string{},
+	}
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	return h, srv
@@ -67,6 +71,7 @@ func (h *hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mu.Lock()
 	h.sent[route] = string(body)
 	h.auth[route] = r.Header.Get("Authorization")
+	h.ctype[route] = r.Header.Get("Content-Type")
 	resp, ok := h.routes[route]
 	for _, p := range h.pages {
 		if strings.Contains(string(body), p[0]) {
@@ -91,6 +96,12 @@ func (h *hub) authOf(route string) string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.auth[route]
+}
+
+func (h *hub) contentTypeOf(route string) string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.ctype[route]
 }
 
 func list(path string) string {
