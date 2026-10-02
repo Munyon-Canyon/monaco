@@ -43,6 +43,7 @@ type Env struct {
 	Now     func() time.Time
 	After   func(d time.Duration) <-chan time.Time
 	Actions bool
+	trunk   *trunkLog
 }
 type (
 	Runner  func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error)

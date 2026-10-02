@@ -105,11 +105,12 @@ Do these once per milestone.
 
 3. Land a passing PR.
 
-    - Post a verdict on every PR of the stack, then run `bin/monacoctl agents land-stack <top-pr>`. Do it by default, without asking. A single PR is a stack of one. It adds the `merge-queue` label to each PR, bottom to top. The Graphite merge queue runs stage 2 on the whole stack and fast-forwards `staging` to it. If a PR still lacks stage 1 or `verify`, or its PR format check is running or red, it prints `not landing #<n>; waiting on ...` and exits 0. Run it again later. Follow a queued stack with `bin/monacoctl agents watch` under Claude Code's Monitor tool, not a sleep loop.
+    - Post a verdict on every PR of the stack, then run `bin/monacoctl agents land-stack <top-pr>`. Do it by default, without asking. A single PR is a stack of one. It adds the `merge-queue` label to each PR, bottom to top. The Graphite merge queue runs stage 2 on the whole stack and squashes each PR into one commit on `staging`. If a PR still lacks stage 1 or `verify`, or its PR format check is running or red, it prints `not landing #<n>; waiting on ...` and exits 0. Run it again later. Follow a queued stack with `bin/monacoctl agents watch` under Claude Code's Monitor tool, not a sleep loop.
     - Never run `gh pr merge`, and never add `merge-queue` or `fast-track` by hand. The hook blocks all three. Only the operator adds `fast-track`, a PR under 100 counted lines that touches nothing under `apps/backend/`, `.github/` or `docker-compose.yml`.
-    - A landed PR shows as closed, not merged. It counts as landed when its head commit is on `staging`.
+    - A landed PR shows as closed, not merged. It counts as landed when `staging` has its squash commit, whose first line ends with ` (#<pr>)`.
+    - To change a queued stack, run `bin/monacoctl agents dequeue <top-pr>` first, then `gt modify`, `gt submit` and `land-stack` again. The agent guard hook blocks `gt submit`, `gt modify`, `gt restack` and `git push` on a stack while any of its PRs carries `merge-queue`.
 
-4. The ticket closes itself when its last PR lands. A landed PR is closed, not merged, so the `Closes #<n>` in its body closes nothing, but the same line in its commit message does once the commit reaches `staging`. The PR format check requires it. If the issue is still open after the last PR lands, run `gh issue close <n>`.
+4. The ticket closes itself when its last PR's squash commit reaches `staging`, because that commit carries the PR body and its `Closes #<n>`. If the issue is still open after the last PR lands, run `gh issue close <n>`.
 
 5. On a `fail` verdict, spawn a fresh owner on the same worktree with the report. It amends with `gt modify` and submits again, and a new verifier reviews the new head. Give one problem at most three `opus` attempts. The last resort after that is one `fable` attempt at medium effort, and then you park the ticket with a comment. The dispatch hook accepts only `opus` and `sonnet` for a spawn with a `brief:` line, so the `fable` attempt is a plain spawn that carries the failure evidence and no brief.
 
