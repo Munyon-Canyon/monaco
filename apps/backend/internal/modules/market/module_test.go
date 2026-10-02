@@ -15,6 +15,14 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 )
 
+func TestModule_buildsARouteChecker(t *testing.T) {
+	t.Parallel()
+	m := market.New(module.Deps{Config: moduleConfig(), Clock: clock.Real{}})
+	if m.RouteChecker() == nil {
+		t.Fatal("RouteChecker is nil")
+	}
+}
+
 func TestModule_isNamedMarketAndMountsNoRoutesOrConsumers(t *testing.T) {
 	t.Parallel()
 	m := market.New(module.Deps{})

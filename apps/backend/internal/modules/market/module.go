@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/jupiterprices"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/jupiterquote"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/mintfacts"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/xstocks"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
@@ -15,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
@@ -44,6 +46,19 @@ type Prices interface {
 	PricesAsOf(ctx context.Context, ids []AssetID, at time.Time) (map[AssetID]Price, error)
 }
 
+type Side = app.Side
+
+const (
+	SideBuy  = app.SideBuy
+	SideSell = app.SideSell
+)
+
+type RouteCheck = app.RouteCheck
+
+type Routes interface {
+	CheckRoute(ctx context.Context, id AssetID, side Side, amount money.BaseUnits) (RouteCheck, error)
+}
+
 type Module struct {
 	deps module.Deps
 }
@@ -63,6 +78,13 @@ func (m *Module) Calendar() *app.Calendar { return app.NewCalendar(m.Catalog()) 
 var _ Prices = (*app.PriceBook)(nil)
 
 func (m *Module) Prices() *app.PriceBook { return app.NewPriceBook(m.deps.Pool, m.deps.Clock) }
+
+var _ Routes = (*app.RouteChecker)(nil)
+
+func (m *Module) RouteChecker() *app.RouteChecker {
+	quoter := jupiterquote.New(jupiter.New(m.deps.Config, m.deps.Clock))
+	return app.NewRouteChecker(m.Catalog(), quoter, m.deps.Clock)
+}
 
 func (*Module) Routes(*httpx.Routes) {}
 
