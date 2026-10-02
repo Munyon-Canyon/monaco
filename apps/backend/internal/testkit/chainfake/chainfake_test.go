@@ -75,3 +75,20 @@ func TestLedger_statusesFollowTheClock(t *testing.T) {
 		t.Fatalf("after finality %+v", got)
 	}
 }
+
+func TestUnsigned_buildsATransactionTheWalletSigns(t *testing.T) {
+	t.Parallel()
+	wallet := chainfake.WalletAddress("wallet-a")
+	unsigned := chainfake.Unsigned(chainfake.WalletAddress("fee-payer"), wallet)
+	tx, err := chain.DecodeTransaction(unsigned)
+	if err != nil || len(tx.Signatures) != 2 || tx.Signed(0) || tx.Signed(1) {
+		t.Fatalf("decoded = %v, %d slots", err, len(tx.Signatures))
+	}
+	signed, err := new(chainfake.Signer).SignTransaction(t.Context(), "wallet-a", unsigned)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tx, _ = chain.DecodeTransaction(signed); tx.Signed(0) || !tx.Signed(1) {
+		t.Fatal("the wallet must fill only its own slot")
+	}
+}
