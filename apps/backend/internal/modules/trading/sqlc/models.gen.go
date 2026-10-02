@@ -205,6 +205,31 @@ type RateLimitBucket struct {
 	UpdatedAt   time.Time
 }
 
+type Referral struct {
+	ID           uuid.UUID
+	ReferrerID   uuid.UUID
+	RefereeID    uuid.UUID
+	Code         string
+	CodeKind     string
+	Source       string
+	Status       string
+	RejectReason pgtype.Text
+	CreatedAt    time.Time
+	QualifiedAt  pgtype.Timestamptz
+}
+
+type ReferralClick struct {
+	Code   string
+	Day    pgtype.Date
+	Clicks int32
+}
+
+type ReferralCode struct {
+	Code      string
+	UserID    uuid.UUID
+	CreatedAt time.Time
+}
+
 type Swap struct {
 	ID               uuid.UUID
 	SourceKind       string
