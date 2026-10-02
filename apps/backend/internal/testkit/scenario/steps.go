@@ -1,8 +1,10 @@
 package scenario
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"slices"
 	"strings"
@@ -81,6 +83,35 @@ func Post(path, body string) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
 		s.send(request{method: http.MethodPost, path: s.path(path), body: body, key: s.nextKey(), token: s.token()})
+	}
+}
+
+func Patch(path, body string) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		s.send(request{method: http.MethodPatch, path: s.path(path), body: body, key: s.nextKey(), token: s.token()})
+	}
+}
+
+func PostPhoto(path string, photo []byte) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		var body bytes.Buffer
+		form := multipart.NewWriter(&body)
+		part, err := form.CreateFormFile("photo", "photo.jpg")
+		if err != nil {
+			s.t.Fatalf("scenario: create photo form: %v", err)
+		}
+		if _, err := part.Write(photo); err != nil {
+			s.t.Fatalf("scenario: write photo form: %v", err)
+		}
+		if err := form.Close(); err != nil {
+			s.t.Fatalf("scenario: close photo form: %v", err)
+		}
+		s.send(request{
+			method: http.MethodPost, path: s.path(path), body: body.String(), key: s.nextKey(), token: s.token(),
+			contentType: form.FormDataContentType(),
+		})
 	}
 }
 

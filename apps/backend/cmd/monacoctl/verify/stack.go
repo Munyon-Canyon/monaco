@@ -143,6 +143,8 @@ func (s *Stack) processes(ctx context.Context) error {
 		"MONACO_JUPITER_PRICE_BASE_URL=http://"+fakes.addr+"/jupiter/price/v3",
 		"XSTOCKS_BASE_URL=http://"+fakes.addr+"/xstocks",
 		"SOLANA_RPC_URL=http://"+fakes.addr+"/rpc/",
+		"SUPABASE_URL=http://"+fakes.addr,
+		"SUPABASE_SERVICE_ROLE_KEY=verify-service-role",
 		"MONACO_BUS_ACK_WAIT=100ms",
 		"PRIVY_APP_ID="+PrivyAppID,
 		"PRIVY_APP_SECRET=verify-app-secret",
