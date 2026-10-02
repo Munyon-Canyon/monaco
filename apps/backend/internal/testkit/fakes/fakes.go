@@ -27,13 +27,15 @@ const (
 )
 
 type Step struct {
-	Route   string          `json:"route"`
-	Action  Action          `json:"action"`
-	Status  int             `json:"status,omitempty"`
-	Body    json.RawMessage `json:"body,omitempty"`
-	Delay   string          `json:"delay,omitempty"`
-	Times   int             `json:"times,omitempty"`
-	Fixture string          `json:"fixture,omitempty"`
+	Route   string            `json:"route"`
+	Method  string            `json:"method,omitempty"`
+	Headers map[string]string `json:"headers,omitempty"`
+	Action  Action            `json:"action"`
+	Status  int               `json:"status,omitempty"`
+	Body    json.RawMessage   `json:"body,omitempty"`
+	Delay   string            `json:"delay,omitempty"`
+	Times   int               `json:"times,omitempty"`
+	Fixture string            `json:"fixture,omitempty"`
 }
 
 type fixture struct {
@@ -49,6 +51,8 @@ type scripted struct {
 	delay   time.Duration
 	left    int
 	fixture string
+	method  string
+	headers map[string]string
 }
 
 type fieldError string
@@ -137,6 +141,7 @@ func parse(step Step, upstreams []string) (*scripted, error) {
 	}
 	sc := &scripted{
 		action: step.Action, status: step.Status, body: step.Body, left: max(step.Times, 1), fixture: step.Fixture,
+		method: step.Method, headers: step.Headers,
 	}
 	switch step.Action {
 	case ActionSucceed, ActionHang:
@@ -165,25 +170,40 @@ func (s *Server) replayable(step Step) bool {
 	return ok && step.Action == ActionSucceed && strings.HasPrefix(step.Fixture, "/"+upstream+"/")
 }
 
-func (s *Server) next(route string) scripted {
+func (s *Server) next(route string, r *http.Request) scripted {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	queue := s.scripts[route]
-	if len(queue) == 0 {
-		return scripted{action: ActionSucceed}
+	for i, candidate := range queue {
+		if !candidate.matches(r) {
+			continue
+		}
+		step := *candidate
+		candidate.left--
+		if candidate.left == 0 {
+			s.scripts[route] = append(queue[:i], queue[i+1:]...)
+		}
+		return step
 	}
-	head := *queue[0]
-	queue[0].left--
-	if queue[0].left == 0 {
-		s.scripts[route] = queue[1:]
+	return scripted{action: ActionSucceed}
+}
+
+func (s scripted) matches(r *http.Request) bool {
+	if s.method != "" && s.method != r.Method {
+		return false
 	}
-	return head
+	for key, want := range s.headers {
+		if r.Header.Get(key) != want {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Server) replay(upstream string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		route, keys := routeOf(upstream, r)
-		step := s.next(route)
+		step := s.next(route, r)
 		switch step.action {
 		case ActionHang:
 			<-r.Context().Done()

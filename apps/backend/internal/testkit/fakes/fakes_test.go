@@ -151,6 +151,28 @@ func TestScript_failsTheNextNCallsThenReplaysAgain(t *testing.T) {
 	}
 }
 
+func TestScript_matchesMethodAndHeadersWithoutConsumingOtherCalls(t *testing.T) {
+	t.Parallel()
+	c := overHTTP(t)
+	script(t.Context(), t, c, fakes.Step{
+		Route: "/jupiter/_health", Method: http.MethodPost, Headers: map[string]string{"X-Test-Key": "match"},
+		Action: fakes.ActionFail, Status: http.StatusServiceUnavailable,
+	})
+	if got := mustCall(t.Context(), t, c, http.MethodGet, "/jupiter/_health", ""); got.status != http.StatusOK {
+		t.Fatalf("GET = %d, want 200", got.status)
+	}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "/jupiter/_health", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Test-Key", "match")
+	resp, err := c.Do(t.Context(), req)
+	if err == nil {
+		_ = resp.Body.Close()
+		t.Fatal("POST succeeded, want the matching scripted 503")
+	}
+}
+
 func TestScript_rejectsInvalidSteps(t *testing.T) {
 	t.Parallel()
 	c := overHTTP(t)

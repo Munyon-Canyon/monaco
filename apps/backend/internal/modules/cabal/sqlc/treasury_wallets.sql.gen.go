@@ -29,6 +29,23 @@ func (q *Queries) FindTreasuryWallet(ctx context.Context, cabalID uuid.UUID) (Tr
 	return i, err
 }
 
+const findTreasuryWalletByPrivyWalletID = `-- name: FindTreasuryWalletByPrivyWalletID :one
+SELECT cabal_id, privy_wallet_id, address, created_at FROM treasury_wallets
+WHERE privy_wallet_id = $1
+`
+
+func (q *Queries) FindTreasuryWalletByPrivyWalletID(ctx context.Context, privyWalletID string) (TreasuryWallet, error) {
+	row := q.db.QueryRow(ctx, findTreasuryWalletByPrivyWalletID, privyWalletID)
+	var i TreasuryWallet
+	err := row.Scan(
+		&i.CabalID,
+		&i.PrivyWalletID,
+		&i.Address,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const insertTreasuryWallet = `-- name: InsertTreasuryWallet :exec
 INSERT INTO treasury_wallets (cabal_id, privy_wallet_id, address, created_at)
 VALUES ($1, $2, $3, $4)

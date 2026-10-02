@@ -59,7 +59,7 @@ func (m *Module) CreateCabalHandler() *app.CreateCabalHandler {
 		wallets = adapters.AppWallets{Client: privy.New(m.deps.Config, m.deps.Clock)}
 	}
 	return app.NewCreateCabalHandler(app.CreateCabalDeps{
-		UoW: m.deps.UoW, Wallets: wallets, IDs: m.deps.IDs, Clock: m.deps.Clock,
+		UoW: m.deps.UoW, Reads: m.deps.Pool, Wallets: wallets, IDs: m.deps.IDs, Clock: m.deps.Clock,
 	})
 }
 
