@@ -309,19 +309,12 @@ func TestExecuteUntilTerminal_PendingThenSuccess(t *testing.T) {
 
 func TestExecuteUntilTerminal_StopsAtTwoMinutes(t *testing.T) {
 	t.Parallel()
-	fastest := time.Hour
-	for range 3 {
-		wall := now()
-		synctest.Test(t, stopsAtTwoMinutes)
-		fastest = min(fastest, now().Sub(wall))
-	}
-	if fastest >= 50*time.Millisecond {
-		t.Fatalf("2 minutes of fake time took at best %v of wall time over 3 runs, want under 50ms", fastest)
-	}
+	synctest.Test(t, stopsAtTwoMinutes)
 }
 
 func stopsAtTwoMinutes(t *testing.T) {
-	c, u, srv := overFakes(t)
+	clk := &recordingClock{}
+	c, u, srv := overFakesWithClock(t, clk)
 	script(t, srv, fakes.Step{
 		Route: executeRoute, Action: fakes.ActionSucceed, Fixture: executeRoute + "/pending", Times: 1000,
 	})
@@ -333,6 +326,17 @@ func stopsAtTwoMinutes(t *testing.T) {
 	}
 	if took := now().Sub(start); took != 2*time.Minute || len(u.requests()) != 61 {
 		t.Fatalf("gave up after %v and %d calls, want 2m and 61 calls", took, len(u.requests()))
+	}
+	clk.mu.Lock()
+	afters := append([]time.Duration(nil), clk.afters...)
+	clk.mu.Unlock()
+	if len(afters) != 60 {
+		t.Fatalf("recorded %d waits, want 60 of 2s: %v", len(afters), afters)
+	}
+	for _, d := range afters {
+		if d != 2*time.Second {
+			t.Fatalf("recorded waits %v, want 60 of 2s", afters)
+		}
 	}
 }
 

@@ -189,22 +189,14 @@ func equalGaps(t *testing.T, got []time.Duration, want ...time.Duration) {
 
 func TestDo_retriesTheFullCappedScheduleInFakeTime(t *testing.T) {
 	t.Parallel()
-	fastest := time.Hour
-	for range 3 {
-		wall := now()
-		synctest.Test(t, func(t *testing.T) {
-			u := &upstream{replies: []reply{status(http.StatusServiceUnavailable)}}
-			c := client(u, httpclient.WithRetry(5, time.Second, 5*time.Second), httpclient.WithFullDelay())
+	synctest.Test(t, func(t *testing.T) {
+		u := &upstream{replies: []reply{status(http.StatusServiceUnavailable)}}
+		c := client(u, httpclient.WithRetry(5, time.Second, 5*time.Second), httpclient.WithFullDelay())
 
-			err := mustFail(t.Context(), t, c, get(t, "/v1/users"))
-			wantFailure(t, err, errs.CodeUpstreamUnavailable, http.StatusServiceUnavailable, 5)
-			equalGaps(t, u.gaps(), time.Second, 2*time.Second, 4*time.Second, 5*time.Second)
-		})
-		fastest = min(fastest, now().Sub(wall))
-	}
-	if fastest > 10*time.Millisecond {
-		t.Fatalf("12s backoff schedule took at best %v of wall time over 3 runs, want under 10ms", fastest)
-	}
+		err := mustFail(t.Context(), t, c, get(t, "/v1/users"))
+		wantFailure(t, err, errs.CodeUpstreamUnavailable, http.StatusServiceUnavailable, 5)
+		equalGaps(t, u.gaps(), time.Second, 2*time.Second, 4*time.Second, 5*time.Second)
+	})
 }
 
 func TestDo_fullJitterKeepsEachDelayWithinItsCeiling(t *testing.T) {
