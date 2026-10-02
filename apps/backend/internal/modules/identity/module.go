@@ -45,7 +45,7 @@ func New(d module.Deps, opts ...Option) *Module {
 func (*Module) Name() string { return "identity" }
 
 func (m *Module) Routes(r *httpx.Routes) {
-	r.IdentityRoutes = adapters.HTTP{Open: m.openSession(), Reads: m.deps.Pool}
+	r.IdentityRoutes = adapters.HTTP{Open: m.openSession(), Reads: m.deps.Pool, Clock: m.deps.Clock}
 }
 
 func (m *Module) openSession() *app.OpenSessionHandler {

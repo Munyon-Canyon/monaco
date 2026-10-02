@@ -47,6 +47,12 @@ func (healthz) GetMe(context.Context, api.GetMeRequestObject) (api.GetMeResponse
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetMe")
 }
 
+func (healthz) GetHandleAvailability(
+	context.Context, api.GetHandleAvailabilityRequestObject,
+) (api.GetHandleAvailabilityResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetHandleAvailability")
+}
+
 func (healthz) PostSystemPing(
 	context.Context, api.PostSystemPingRequestObject,
 ) (api.PostSystemPingResponseObject, error) {

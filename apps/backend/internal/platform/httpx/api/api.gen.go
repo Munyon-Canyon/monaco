@@ -315,6 +315,30 @@ func (e ErrorCode) Valid() bool {
 	}
 }
 
+// Defines values for HandleAvailabilityReason.
+const (
+	Invalid  HandleAvailabilityReason = "invalid"
+	Reserved HandleAvailabilityReason = "reserved"
+	Taken    HandleAvailabilityReason = "taken"
+	TooSoon  HandleAvailabilityReason = "too_soon"
+)
+
+// Valid indicates whether the value is a known member of the HandleAvailabilityReason enum.
+func (e HandleAvailabilityReason) Valid() bool {
+	switch e {
+	case Invalid:
+		return true
+	case Reserved:
+		return true
+	case Taken:
+		return true
+	case TooSoon:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProblemType.
 const (
 	AboutBlank ProblemType = "about:blank"
@@ -344,6 +368,31 @@ type AuthState string
 //
 // Examples: not_found
 type ErrorCode string
+
+// HandleAvailability Whether the caller can claim a handle, and the reason when they cannot.
+//
+// Examples: {"available":false,"handle":"admin","reason":"reserved"}
+type HandleAvailability struct {
+	// Available True when the caller can claim the handle, including when it is already theirs.
+	//
+	// Examples: false
+	Available bool `json:"available"`
+
+	// Handle The handle that was checked, in lowercase.
+	//
+	// Examples: admin
+	Handle string `json:"handle"`
+
+	// Reason Why the handle is not available. Absent when `available` is true.
+	//
+	// Examples: reserved
+	Reason *HandleAvailabilityReason `json:"reason,omitempty"`
+}
+
+// HandleAvailabilityReason Why a handle cannot be claimed. `reserved` covers the reserved list, profanity and referral-code shape. `taken` covers another user, including a deleted one, and another user's X username.
+//
+// Examples: reserved
+type HandleAvailabilityReason string
 
 // Me The signed-in user's own account, as the app needs it to route and to draw the profile. It carries no email and no phone number.
 //
@@ -504,6 +553,9 @@ type ServerInterface interface {
 	// PostAuthSession Open a session from a Privy access token.
 	// (POST /v1/auth/session)
 	PostAuthSession(w http.ResponseWriter, r *http.Request, params PostAuthSessionParams)
+	// GetHandleAvailability Check whether the caller can claim a handle.
+	// (GET /v1/handles/{handle}/availability)
+	GetHandleAvailability(w http.ResponseWriter, r *http.Request, handle string)
 	// GetMe Read the signed-in user's account.
 	// (GET /v1/me)
 	GetMe(w http.ResponseWriter, r *http.Request)
@@ -573,6 +625,32 @@ func (siw *ServerInterfaceWrapper) PostAuthSession(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostAuthSession(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetHandleAvailability operation middleware
+func (siw *ServerInterfaceWrapper) GetHandleAvailability(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "handle" -------------
+	var handle string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "handle", r.PathValue("handle"), &handle, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "handle", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetHandleAvailability(w, r, handle)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -831,6 +909,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/healthz", wrapper.GetHealthz)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/auth/session", wrapper.PostAuthSession)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me", wrapper.GetMe)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/handles/{handle}/availability", wrapper.GetHandleAvailability)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/stream", wrapper.GetStream)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/system/pings", wrapper.PostSystemPing)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/system/pings/{id}", wrapper.GetSystemPing)
@@ -903,6 +982,45 @@ type PostAuthSessiondefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response PostAuthSessiondefaultApplicationProblemPlusJSONResponse) VisitPostAuthSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHandleAvailabilityRequestObject struct {
+	Handle string `json:"handle"`
+}
+
+type GetHandleAvailabilityResponseObject interface {
+	VisitGetHandleAvailabilityResponse(w http.ResponseWriter) error
+}
+
+type GetHandleAvailability200JSONResponse HandleAvailability
+
+func (response GetHandleAvailability200JSONResponse) VisitGetHandleAvailabilityResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHandleAvailabilitydefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetHandleAvailabilitydefaultApplicationProblemPlusJSONResponse) VisitGetHandleAvailabilityResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -1107,6 +1225,9 @@ type StrictServerInterface interface {
 	// PostAuthSession Open a session from a Privy access token.
 	// (POST /v1/auth/session)
 	PostAuthSession(ctx context.Context, request PostAuthSessionRequestObject) (PostAuthSessionResponseObject, error)
+	// GetHandleAvailability Check whether the caller can claim a handle.
+	// (GET /v1/handles/{handle}/availability)
+	GetHandleAvailability(ctx context.Context, request GetHandleAvailabilityRequestObject) (GetHandleAvailabilityResponseObject, error)
 	// GetMe Read the signed-in user's account.
 	// (GET /v1/me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
@@ -1203,6 +1324,32 @@ func (sh *strictHandler) PostAuthSession(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostAuthSessionResponseObject); ok {
 		if err := validResponse.VisitPostAuthSessionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetHandleAvailability operation middleware
+func (sh *strictHandler) GetHandleAvailability(w http.ResponseWriter, r *http.Request, handle string) {
+	var request GetHandleAvailabilityRequestObject
+
+	request.Handle = handle
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetHandleAvailability(ctx, request.(GetHandleAvailabilityRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetHandleAvailability")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetHandleAvailabilityResponseObject); ok {
+		if err := validResponse.VisitGetHandleAvailabilityResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
