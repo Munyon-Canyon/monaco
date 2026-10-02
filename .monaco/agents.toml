@@ -18,7 +18,8 @@ queue_label = "merge-queue"
 go = "60s"
 package = "20s"
 lint = "60s"
-swift = "60s"
+swift = "150s"
+xcode = "300s"
 # The agent-guard tests run serially and take 30 to 100 s under load when scripts/agent-guard.py changes.
 scripts = "120s"
 # The gate-checker suite takes 16.1 s quiet and 22 to 31 s loaded on the operator's Intel laptop.
