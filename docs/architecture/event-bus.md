@@ -1,6 +1,6 @@
 # Event bus (NATS)
 
-**Status:** Decided 2026-09-26. Amended 2026-09-27 to match [backend-platform.md](backend-platform.md), which wins where the two differ, and to apply the 2026-09-27 defaults (see [Log](#log)). Not built; lands in [Rollout](backend-platform.md#rollout) step 2.
+**Status:** Decided 2026-09-26. Amended 2026-09-27 to match [backend-platform.md](backend-platform.md), which wins where the two differ, and to apply the 2026-09-27 defaults (see [Log](log/event-bus.md)). Not built; lands in [Rollout](backend-platform.md#rollout) step 2.
 
 ## Decision
 
@@ -238,13 +238,4 @@ Alert when relay lag passes 30 s, any consumer's pending count grows for 5 minut
 
 None at the moment.
 
-## Log
-
-- 2026-09-27: `bus.Dispatch` landed (#472). The `event_deliveries` row records `code = "ok"` and a nak or term writes no row. The `Retry-After` nak override is not implemented; the schedule alone decides. Recovered panics are not re-raised in tests, per backend-platform.md Surfacing.
-- 2026-09-27: Added `events.trace_parent` (#464). The relay publishes after the request has ended, so the row carries the W3C `traceparent` to the consumer.
-- 2026-09-27: Decided 2026-09-27: the price poller publishes `price.tick` every 120 s.
-- 2026-09-27: Decided: `identity` consumes `deposit.credited` (flow 5) to set `users.first_deposit_at`; `referrals` no longer consumes it and reads the column through the `identity` query port.
-- 2026-09-27: Round-2 defaults applied (reversible). Relay runs in both `api` and `worker`. `event_deliveries` keyed by handler name with one durable per module; rows deleted after 30 days. Dead letters go to the `DEADLETTER` stream and an `admin`-owned `dead_letters` table. SSE hub gains a `global` key for feed and leaderboard hints. Payloads carry a `v` field. `governance` emits `proposal.executed` and `proposal.execution_blocked`. Flow rows added for `asset.price_moved`, `user.nudge_due` and `referral.attributed`; `treasury` consumes `deposit.credited` and `withdrawal.confirmed`. New `analytics` module. 15 s trade safety-net poller dropped. The swap row is the `trading`-owned `swaps` table. All open questions closed.
-- 2026-09-27: Reconciled with [backend-platform.md](backend-platform.md). Hosting decided: Synadia Cloud, free plan first. Two streams (`EVENTS`, `DEADLETTER`) applied by `monacoctl bus apply` at pre-deploy, not at startup. `Duplicates` 2 minutes, `DiscardNew`, `MaxBytes` 2 GiB, replicas 1 until the Starter plan. Relay moved to `platform/bus` in the `worker` binary; writes go through `uow.Do`. One durable consumer per module, `MaxAckPending` 64. `bus.Dispatch` verdicts come from the `errs` code table; terminated messages go to `DEADLETTER`. Live hints moved from `live.>` to `hint.>` behind the SSE hub; prices are a batched core-NATS `price.tick`. Publisher table replaced by `flows.tsv`, with the renamed events listed. Agent intents question closed: they share the trade engine. New open questions: relay wake for `api` commits, consumer name for dedupe, dead-letter storage, feed hint key, events not in `flows.tsv`.
-
-- 2026-09-26: Decided NATS JetStream as the event bus, replacing the Postgres outbox worker. `events` table doubles as the outbox via `published_at`. Core NATS for live SSE hints. Kafka rejected.
+Log: [log/event-bus.md](log/event-bus.md).

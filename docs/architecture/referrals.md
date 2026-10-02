@@ -153,15 +153,4 @@ PostHog funnel ([analytics-admin.md](analytics-admin.md#product-analytics-postho
 
 None at the moment. When an Android app exists, the Play Install Referrer API replaces the clipboard step.
 
-## Log
-
-- 2026-09-29: No push on `referral.attributed` or `referral.qualified` for MVP; `notify` is not a consumer of either (default; see #535). The public lookup is `GET /v1/referrals/{code}` (default; see #535).
-- 2026-09-27: Default 2026-09-27: dropped `referral_grants` and the admin grant. The first deposit of $10 or more is the only unlock. Old handles no longer resolve after a rename.
-- 2026-09-27: Decided 2026-09-27: every user picks a unique handle in onboarding, owned by `identity` on `users.handle`. The random code is still minted at signup. After the first deposit of $10 or more, the handle also works as a referral code. Custom codes, `ClaimReferralCode` and the availability route are gone; handle rules, changes and admin revoke or reassign move to [auth.md](auth.md#handle). `referral_codes` holds random codes only. Default 2026-09-27 (reversible): the admin deposit-skip becomes a `referral_grants` row.
-- 2026-09-27: Decided: dropped `referral_unlocks`. `users.first_deposit_at` stays on `users`, set by `identity`'s consumer of `deposit.credited` with a guarded update, and read by `referrals` through the `identity` query port. The admin grant is now an admin-assigned custom code that skips the deposit check.
-- 2026-09-27: Decided no reward for now; attribution and tracking only. The `rewarded` status and `rewarded_at` are dropped. Defaults applied: `AttachReferral` is the only attribution path and the `user.created` consumer only mints the random code; a referral qualifies at the referee's first cabal funding of $10 or more; the custom code is the profile handle; the $10 unlock minimum and 7-day window stay. `referral.attributed` has a flows row. Closed the reward, qualification, handle, minimum, window and attribution-path questions.
-- 2026-09-27: Reconciled with [backend-platform.md](backend-platform.md). Owner is the `referrals` module, flow 25, rollout step 6. `users.first_deposit_at` moves to a `referrals`-owned `referral_unlocks` table. Random codes are minted by the `user.created` consumer. Auto-follows move to a `social` consumer of `referral.attributed`. Claim and attach are commands with `Idempotency-Key`; refusal reasons are `errs` codes. Minimum deposit is integer micros. Added the attribution-path open question.
-- 2026-09-26: Outbox rows replaced by `events` rows delivered over the NATS event bus ([event-bus.md](event-bus.md)).
-- 2026-09-26: Custom codes gated behind a first credited deposit (minimum amount, permanent unlock, admin override).
-- 2026-09-26: Custom referral codes (`/r/kaicenat`). Codes move from a `users` column to a `referral_codes` table; retired custom codes keep resolving; X-handle impersonation guard; admin revoke/reassign.
-- 2026-09-26: Initial decision. Referral links with clipboard handoff for deferred deep linking (option 2), manual code fallback, no attribution vendor.
+Log: [log/referrals.md](log/referrals.md).

@@ -56,7 +56,4 @@ No Clean Architecture use-case layer, MVC, TCA, reducers or coordinator framewor
 | `raw-color` | `Color(hex:`, `Color(red:` or `UIColor(red:` under `apps/mobile/Monaco` outside `Design/` | Colours are `MonacoTheme` tokens, which adapt to light and dark mode. Shrink-only |
 | `fixed-font` | `.system(size:` under `apps/mobile/Monaco` outside `Design/` | A fixed point size does not scale with Dynamic Type. Shrink-only |
 
-## Log
-
-- 2026-09-30: Wrote the page for the system-ping reference feature (#943).
-- 2026-10-01: Named the `ios-screen` skill for screen work and added the `raw-color` and `fixed-font` rules (#1032).
+Log: [log/ios.md](log/ios.md).

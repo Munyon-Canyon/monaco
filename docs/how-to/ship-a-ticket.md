@@ -47,6 +47,8 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
     | A consumer or a new event | `.claude/skills/nats-consumer/SKILL.md` |
     | A failed `e2e` job or a flow moving to verified | `.claude/skills/verify-backend/SKILL.md` |
 
+    When the change alters a design decision, edit the topic page under `docs/architecture/` and append one dated line to its log, `docs/architecture/log/<topic>.md`. Never add a `## Log` section to a topic page. The `log/*.md` files merge with `merge=union`, so a parallel ticket appending its own line does not conflict.
+
 5. Commit with a Conventional Commit subject: `type(scope): subject`, where the type is one of `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore` or `revert`. PR format fails any other subject in the PR's commits.
 
 6. Run stage 0 from `apps/backend` on the committed tree:

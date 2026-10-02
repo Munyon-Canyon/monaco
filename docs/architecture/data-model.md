@@ -1,6 +1,6 @@
 # Data model
 
-**Status:** Decided 2026-09-27. Table list decided 2026-09-26. Naming, IDs, money types, migrations and module ownership follow [backend-platform.md](backend-platform.md). The remaining questions were settled on 2026-09-27, by the user or as reversible defaults; see [Log](#log).
+**Status:** Decided 2026-09-27. Table list decided 2026-09-26. Naming, IDs, money types, migrations and module ownership follow [backend-platform.md](backend-platform.md). The remaining questions were settled on 2026-09-27, by the user or as reversible defaults; see [Log](log/data-model.md).
 
 ## Decision
 
@@ -180,23 +180,4 @@ The old treasuries hold test funds only (decided 2026-09-27). At cutover those f
 
 None at the moment.
 
-## Log
-
-- 2026-09-29: Added `deposits` (one row per credited transfer, unique on signature), `withdrawals` and `cabal_ban_approvals`, `fund_transfers` (fund-to-cabal transfer state, in `treasury`) and `agents` (one row per enabled agent) (default; see #535). `ContactMatches` and `Admins` already sat beside their modules' other tables. Pot value is `treasury`'s `PotValue` query port ([leaderboards.md](leaderboards.md#2-positions-from-the-ledger)).
-- 2026-09-27: Default 2026-09-27: dropped `retired_handles` and `referral_grants`. The unique index on `users.handle` covers deleted rows, so no extra table is needed, and the first deposit of $10 or more is the only unlock.
-- 2026-09-27: Decided 2026-09-27: `users.handle` is a unique username every user picks in onboarding, owned by `identity`, with `retired_handles` beside it. `referral_codes` holds random codes only; custom codes are gone and the handle works as a referral code after the first-deposit unlock. `cabal_value_snapshots` are written every 2 minutes, matching the 120 s price poller. Default 2026-09-27 (reversible): `referral_grants` holds the admin unlock.
-- 2026-09-27: Decided: soft delete (`deleted_at`) on `users`, `cabal_messages` and `follows`, with a unique partial index for re-follows; `follow_counts` dropped, counts are `count(*)` on live `follows` rows; `referral_unlocks` dropped, `users.first_deposit_at` set by `identity` on the first `deposit.credited`; `chat_seen` stays and is hard-deleted on leave; old treasury funds are test-only and wiped at cutover.
-- 2026-09-27: Round-2 decisions applied. Decided by the user: fresh empty database at cutover with no data migration, Privy wallets reused on sign-in; every cabal public; referrals tracked with no reward; banned users can still withdraw and cash out. Defaults (reversible): `swaps` table in `trading` with `treasury` writing `cabal_txns` on `trade.confirmed`; `treasury` writes `user_txns` from `deposit.credited` and `withdrawal.confirmed`; signed int64 type for entries; ledger written with its event and checked by `replay --verify`; pause record owned by `funding`, `cabals.trading_paused_*` removed; `dead_letters` table in `admin` beside the stream; wallets split into `user_wallets` and `treasury_wallets`; one `price_points` table; `account_status` beside `auth_state`; `event_deliveries` keyed by handler, 30-day retention; payload `v` field; hourly catalog refresh with auto-flip; no notification preferences; push only; only matched contacts stored; deletion scrubs PII and keeps ledger rows; banned cabals wind down through cash-out. Stale columns moved to the tables that now own them: `follow_counts`, `referral_unlocks`, `chat_seen`. Dropped the Change column and the "current tables" section, since nothing migrates. No open questions left; status set to Decided.
-- 2026-09-27: Reconciled with [backend-platform.md](backend-platform.md). Naming decided (`cabal` everywhere, tables included). Added a Module column with each table's owner. IDs UUIDv7, integer base-unit money, sqlc and atlas migrations referenced from the RFC. `schema_migrations` dropped for atlas. Agent tables kept in the `agents` module; agent intents share the trade engine. Assets filled from every issuer. Events restated as the source of truth; the events-vs-ledgers question narrowed. New open questions: swap row ownership, deposit and withdrawal ledger writes, signed entries, dead-letter storage, wallets ownership, cutover data.
-- 2026-09-26: TxnOutbox dropped; `events` doubles as the outbox via `published_at` (NATS decision, [event-bus.md](event-bus.md)). Added `event_deliveries` and `dead_letters`. Resolves the TxnOutbox-scope open question.
-- 2026-09-26: Referral codes moved to a `referral_codes` table (custom codes).
-- 2026-09-26: Added `device_tokens` and pending `notification_preferences` (notifications proposal); chat adds columns only (`group_messages.parent_id`, `also_in_channel`, reply counters; `group_members.last_chat_seen_at`).
-- 2026-09-26: Referrals decided (`referral_code` on users, `referrals`, `referral_clicks`).
-- 2026-09-26: Added price tables, leaderboard tables, `cabal_value_snapshots` (leaderboards decision).
-- 2026-09-26: Followers decided (`follows` table, counts on users).
-- 2026-09-26: Added `admins`, `admin_actions`, cabal `status` (analytics & admin decision).
-- 2026-09-26: Added `external_deposits` and cabal trading-pause columns (direct-transfer bounce decision).
-- 2026-09-26: Users extended and `contact_matches` added (auth decision).
-- 2026-09-26: Added `onramp_sessions` (deposits decision).
-- 2026-09-26: Feed decided: FeedComment replaces `proposal_comments`; every proposal and trade gets a FeedObject via outbox. Added `feed_mutes` (per-user mute list) as a planned table.
-- 2026-09-26: Planned table list recorded and mapped to current schema. Ledger shape, naming conflict and fold-ins proposed; not yet confirmed.
+Log: [log/data-model.md](log/data-model.md).

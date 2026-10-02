@@ -1,0 +1,10 @@
+# Chat log
+
+Dated record of changes to [chat.md](../chat.md). Add one line per change, newest last.
+
+- 2026-09-29: Mentions are parsed `@handle` matched against cabal members, and `chat.message_posted` carries `mentioned_user_ids` (default; see #535).
+- 2026-09-27: Decided: `cabal_messages` soft deletes through `deleted_at`. `chat_seen` stays a `social` table, and its rows are hard-deleted when a member leaves.
+- 2026-09-27: Defaults applied: seen covers the channel only; Ably token TTL 15 minutes, `subscribe` only; no typing or presence in MVP; soft delete only, no editing (`deleted_at`, `DELETE` route, `message.deleted`); pushes for @mentions and replies in your threads, no digest; unread badge on the cabal row, computed by the server; proposal cards are messages with `proposal_id` through `message.created`. `cmd/fakes` has an Ably fake. All open questions closed.
+- 2026-09-27: Reconciled with [backend-platform.md](../backend-platform.md). Owner is the `social` module, flow 22, rollout step 6. Tables and routes renamed to `cabal_messages`, `cabal_id` and `/v1/cabals/{id}`. Event renamed `chat.message_created` to `chat.message_posted`, appended inside `uow.Do`. The seen watermark moves from `group_members.last_chat_seen_at` to a `social`-owned `chat_seen` table, cleared on `cabal.member_left`. Membership checks use the `cabal` query port. `seen.updated` carries the server-computed count. Ably sits behind a port with a `testkit` fake; `cmd/fakes` needs an Ably endpoint. Corrected the claim that today's send route is idempotent. Closed the "one transport or two" question: the RFC keeps Ably for chat and the SSE hub for everything else.
+- 2026-09-26: Message insert also appends `chat.message_created` to `events` for bus consumers (mention pushes, analytics). Ably publish stays direct ([event-bus.md](../event-bus.md)).
+- 2026-09-26: Proposed store-then-publish on Ably, one-level threads via `parent_id` with `also_in_channel`, and `group_members.last_chat_seen_at` for "seen by N".

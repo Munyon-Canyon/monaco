@@ -35,7 +35,7 @@ Do these once per milestone.
 
 6. The verifier's statuses post as the verifier App when `~/.config/monaco/verifier.pem` exists, and as your `gh` user otherwise.
 
-7. Start the milestone's decision log at `docs/milestones/<milestone>.md`. Every milestone orchestrator keeps one, like the [M7 closeout log](../milestones/m7-closeout.md). Write one line per decision as it happens: the time, what was decided and why, and what broke and how it was fixed. Keep the log on its own branch with a draft PR, commit each batch of entries with `gt modify`, push with `gt submit --stack --no-interactive --draft`, and land it at each handoff and promotion. A log that exists only in one session is lost when that session ends.
+7. Start the milestone's decision log at `docs/milestones/<milestone>.md`. Every milestone orchestrator keeps one, like the [M7 closeout log](../milestones/m7-closeout.md). Write one line per decision as it happens: the time, what was decided and why, and what broke and how it was fixed. Keep the log on its own branch with a draft PR, commit each batch of entries with `gt modify`, push with `gt submit --stack --no-interactive --draft`, and land it at each handoff and promotion. A log that exists only in one session is lost when that session ends. This log is the milestone's own. A change to an architecture decision goes in `docs/architecture/log/<topic>.md`, one dated line appended by the ticket that made the change, never in the milestone log or in a `## Log` section of the topic page.
 
 ## Write tickets
 

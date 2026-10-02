@@ -1,6 +1,6 @@
 # Architecture decision log
 
-Durable record of the design decisions behind Monaco, one file per topic. Each file holds the decision as it stands, the reasoning, the alternatives considered, and open questions. When a decision changes, edit the file and add a dated line to its **Log** section rather than writing a new file, so the history stays in one place.
+Durable record of the design decisions behind Monaco, one file per topic. Each file holds the decision as it stands, the reasoning, the alternatives considered, and open questions. When a decision changes, edit the file and add a dated line to its log file in `log/<topic>.md` rather than writing a new file, so the history stays in one place. Logs live outside the topic files so two branches that each append a line merge without a conflict (`.gitattributes` sets `merge=union` on `log/*.md`).
 
 `docs/architecture.md` describes how the system is built today. These files describe what we decided and why, including decisions the code has not caught up with yet. When the two disagree, the decision file states the target and `architecture.md` states the present.
 
@@ -42,6 +42,8 @@ Status values: **Not started**, **In discussion** (file exists, holds open quest
 ## How it works
 ## Alternatives considered
 ## Open questions
-## Log
-- <date>: <what changed>
+
+Log: [log/<topic>.md](log/<topic>.md).
 ```
+
+The log file is `log/<topic>.md`: a `# <Topic> log` title, then one `- <date>: <what changed>` line per change, newest last.
