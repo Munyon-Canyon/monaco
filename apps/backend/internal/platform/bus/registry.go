@@ -109,13 +109,14 @@ func (c Consumer) nakDelay(delivery uint64) time.Duration {
 }
 
 type Registry struct {
-	conn      *Conn
-	uow       *db.UnitOfWork
-	clock     clock.Clock
-	consumers map[string]Consumer
-	ackWait   time.Duration
-	durations metric.Float64Histogram
-	gauges    consumerGauges
+	conn         *Conn
+	uow          *db.UnitOfWork
+	clock        clock.Clock
+	consumers    map[string]Consumer
+	ackWait      time.Duration
+	durations    metric.Float64Histogram
+	gauges       consumerGauges
+	beforeClosed func()
 }
 
 type consumerGauges struct {
@@ -211,6 +212,7 @@ func (r *Registry) Start(ctx context.Context) (func(), error) {
 	}
 	started := map[string]jetstream.Consumer{}
 	var unregister func() error
+	in := newInflight()
 	stop := func() {
 		_ = advisories.Unsubscribe()
 		if unregister != nil {
@@ -218,8 +220,12 @@ func (r *Registry) Start(ctx context.Context) (func(), error) {
 		}
 		for _, cc := range contexts {
 			cc.Stop()
+			if r.beforeClosed != nil {
+				r.beforeClosed()
+			}
 			<-cc.Closed()
 		}
+		in.close()
 	}
 	for _, durable := range slices.Sorted(maps.Keys(r.consumers)) {
 		c := r.consumers[durable]
@@ -231,7 +237,7 @@ func (r *Registry) Start(ctx context.Context) (func(), error) {
 		}
 		started[durable] = cons
 		cc, err := cons.Consume(
-			func(msg jetstream.Msg) { r.Dispatch(ctx, durable, msg) },
+			func(msg jetstream.Msg) { in.run(func() { r.Dispatch(ctx, durable, msg) }) },
 			jetstream.ConsumeErrHandler(
 				func(_ jetstream.ConsumeContext, err error) { consumeError(ctx, durable, err) },
 			),

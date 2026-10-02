@@ -733,7 +733,7 @@ Render runs the two binaries; Synadia runs NATS; Grafana Cloud receives OTLP. No
 Rules the deploy exposes:
 
 1. **Pollers run on one worker.** Consumers and the relay scale across replicas (JetStream and `SKIP LOCKED` share the work). Pollers do not: two replicas would poll deposits twice. Each poller takes a Postgres advisory lock named after the poller at tick start and skips the tick if it fails to get it. Until that lands, worker replicas stay at 1.
-2. **Shutdown order on SIGTERM**: stop fetching, send `InProgress` for in-flight long work, finish or nak what is running, drain the NATS connection, close the pool, exit. Anything cut off is redelivered and deduped through `event_deliveries`.
+2. **Shutdown order on SIGTERM**: stop fetching, send `InProgress` for in-flight long work, finish or nak what is running, drain the NATS connection, close the pool, exit. The registry counts running dispatches itself, because `ConsumeContext.Closed()` does not wait for a running callback. Anything cut off is redelivered and deduped through `event_deliveries`.
 3. **Worker health.** The worker serves `/healthz` on an internal port, and the health answer includes NATS connected, pool reachable, last poller tick age.
 4. **Relayer floor.** Boot refuses to start when the relayer holds 0.001 SOL or less. The Grafana alert fires at 0.05 SOL so the deploy never hits the boot check.
 
