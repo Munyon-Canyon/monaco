@@ -843,3 +843,48 @@ func TestCheck_theCoverageRowGatesOnlyTheChangedGoSources(t *testing.T) {
 		t.Fatalf("unwritable profile dir: %d %q", code, stderr)
 	}
 }
+
+func TestCheck_sortsAnUnsortedFlowsFileAndFails(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	row := func(id string) string { return id + "\tFlow " + id + "\n" }
+	header := "id\tflow\n"
+	h.commit(t, map[string]string{flowsFile: header + row("18") + row("01") + row("7a") + row("10") + row("7")})
+	code, stdout, stderr := h.check(t)
+	if code != 1 || stdout != "" || len(h.calls) != 0 ||
+		!strings.Contains(stderr, flowsFile+" rows were not sorted by id; check sorted them") {
+		t.Fatalf("unsorted: %d %q %q %v", code, stdout, stderr, h.calls)
+	}
+	got, err := os.ReadFile(filepath.Join(h.dir, flowsFile))
+	if want := header + row("01") + row("7") + row("7a") + row("10") + row("18"); err != nil || string(got) != want {
+		t.Fatalf("sorted = %q %v, want %q", got, err, want)
+	}
+	h.commit(t, nil)
+	if code, stdout, stderr := h.check(t); code != 0 || !strings.Contains(stdout, "recorded ") {
+		t.Fatalf("sorted: %d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestCheck_reportsAFlowsFileItCannotReadOrWrite(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	name := filepath.Join(h.dir, flowsFile)
+	h.commit(t, map[string]string{flowsFile + "/x": "x\n"})
+	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "read "+flowsFile) {
+		t.Fatalf("read: %d %q", code, stderr)
+	}
+	if err := os.RemoveAll(name); err != nil {
+		t.Fatal(err)
+	}
+	h.commit(t, map[string]string{flowsFile: "id\n2\n1"})
+	if err := os.Chmod(name, 0o400); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "write "+flowsFile) {
+		t.Fatalf("write: %d %q", code, stderr)
+	}
+	gone := &Env{Work: filepath.Join(h.dir, "gone")}
+	if err := gone.sortFlows(); err == nil || !strings.Contains(err.Error(), "open "+gone.Work) {
+		t.Fatalf("open: %v", err)
+	}
+}
