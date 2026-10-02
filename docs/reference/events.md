@@ -99,6 +99,31 @@ Subject `events.cabal.updated`, version 1.
 | `actor_id` | `uuid.UUID` |
 | `changes` | `events.CabalChanges` |
 
+## `follow.created`
+
+Subject `events.follow.created`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `follow_id` | `uuid.UUID` |
+| `follower_id` | `uuid.UUID` |
+| `followee_id` | `uuid.UUID` |
+| `source` | `string` |
+| `created_at` | `time.Time` |
+
+## `follow.removed`
+
+Subject `events.follow.removed`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `follow_id` | `uuid.UUID` |
+| `follower_id` | `uuid.UUID` |
+| `followee_id` | `uuid.UUID` |
+| `removed_at` | `time.Time` |
+
 ## `price.tick`
 
 Core NATS subject `price.tick`, version 1, never stored.
