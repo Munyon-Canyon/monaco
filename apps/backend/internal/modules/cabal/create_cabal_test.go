@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -51,7 +53,8 @@ func newCreate(t *testing.T) createFixture {
 
 func (f createFixture) handler() *app.CreateCabalHandler {
 	return app.NewCreateCabalHandler(app.CreateCabalDeps{
-		UoW: f.uow, Wallets: adapters.AppWallets{Client: f.wallets}, IDs: f.ids, Clock: f.clock, Random: f.random,
+		UoW: f.uow, Reads: f.pool, Wallets: adapters.AppWallets{Client: f.wallets}, IDs: f.ids, Clock: f.clock,
+		Random: f.random,
 	})
 }
 
@@ -133,6 +136,27 @@ func (c *byteChunks) Read(p []byte) (int, error) {
 type walletStub struct {
 	wallet chain.Wallet
 	err    error
+}
+
+type raceTracer struct {
+	seed func()
+	done bool
+}
+
+type walletLookupKey struct{}
+
+func (r *raceTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	if strings.Contains(data.SQL, "WHERE privy_wallet_id") {
+		return context.WithValue(ctx, walletLookupKey{}, true)
+	}
+	return ctx
+}
+
+func (r *raceTracer) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, _ pgx.TraceQueryEndData) {
+	if !r.done && ctx.Value(walletLookupKey{}) != nil {
+		r.done = true
+		r.seed()
+	}
 }
 
 func (s walletStub) CreateAppWallet(context.Context, string) (chain.Wallet, error) {
@@ -261,22 +285,123 @@ func readTwoEvents(t *testing.T, f createFixture) (string, []byte, string, []byt
 	return createdType, createdRaw, joinedType, joinedRaw, actor
 }
 
-func TestCreateCabal_aSecondCallWithTheSameKeyDoesNotWriteASecondCabal(t *testing.T) {
+func TestCreateCabal_aRetryAfterCommitReturnsTheCabalWithoutWritingAgain(t *testing.T) {
 	t.Parallel()
 	f := newCreate(t)
 	first, err := f.handler().Handle(f.actor(t.Context()), f.command(t, "c1"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = f.handler().Handle(f.actor(t.Context()), f.command(t, "c1"))
-	if errs.CodeOf(err) != errs.CodeInternal || attrString(err, "privy_wallet_id") != first.PrivyWalletID {
-		t.Fatalf("second Handle = %v; want internal naming wallet %s", err, first.PrivyWalletID)
+	second, err := f.handler().Handle(f.actor(t.Context()), f.command(t, "c1"))
+	if err != nil || second != first {
+		t.Fatalf("second Handle = %+v, %v; want %+v", second, err, first)
 	}
 	cabals := f.count(t.Context(), t, "cabals")
 	eventsN := f.count(t.Context(), t, "events")
 	creates := f.wallets.Creates()
 	if cabals != 1 || eventsN != 2 || creates != 1 {
 		t.Fatalf("cabals %d events %d creates %d; want 1, 2, 1", cabals, eventsN, creates)
+	}
+}
+
+func TestCreateCabal_rejectsAChangedRequestForACommittedWallet(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	if _, err := f.handler().Handle(f.actor(t.Context()), f.command(t, "c1")); err != nil {
+		t.Fatal(err)
+	}
+	changed := f.command(t, "c1")
+	name, err := domain.ParseName("Other pot")
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed.Name = name
+	_, err = f.handler().Handle(f.actor(t.Context()), changed)
+	if errs.CodeOf(err) != errs.CodeIdempotencyMismatch || f.count(t.Context(), t, "cabals") != 1 ||
+		f.count(t.Context(), t, "treasury_wallets") != 1 || f.count(t.Context(), t, "events") != 2 {
+		t.Fatalf("Handle = %v, want idempotency mismatch with one cabal, wallet, and two events", err)
+	}
+}
+
+func TestCreateCabal_recoversWhenTheTreasuryWalletAlreadyExistsAtWrite(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	seeded := testkit.NewCabal(t, f.pool)
+	if _, err := f.pool.Exec(t.Context(), `UPDATE cabals SET name = 'Friends pot', creator_id = $1,
+		join_mode = 'request', voter_mode = 'list', threshold = 'unanimous', proposal_expiry_seconds = 604800,
+		slippage_bps = 50 WHERE id = $2`, f.user.ID.UUID(), seeded.ID.UUID()); err != nil {
+		t.Fatal(err)
+	}
+	tracer := &raceTracer{seed: func() {
+		if _, err := f.pool.Exec(t.Context(), `UPDATE treasury_wallets SET privy_wallet_id = 'wallet-race'
+			WHERE cabal_id = $1`, seeded.ID.UUID()); err != nil {
+			t.Fatal(err)
+		}
+	}}
+	config := f.pool.Config().Copy()
+	config.ConnConfig.Tracer = tracer
+	reads, err := pgxpool.NewWithConfig(t.Context(), config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(reads.Close)
+	h := app.NewCreateCabalHandler(app.CreateCabalDeps{
+		UoW: f.uow, Reads: reads, Wallets: adapters.AppWallets{Client: walletStub{
+			wallet: chain.Wallet{ID: "wallet-race", Address: "race-address"},
+		}}, IDs: f.ids, Clock: f.clock,
+	})
+	got, err := h.Handle(f.actor(t.Context()), f.command(t, "c1"))
+	cabals := f.count(t.Context(), t, "cabals")
+	wallets := f.count(t.Context(), t, "treasury_wallets")
+	events := f.count(t.Context(), t, "events")
+	if err != nil || got.ID != seeded.ID || cabals != 1 || wallets != 1 || events != 0 {
+		t.Fatalf("Handle = %+v, %v; seeded %s cabals %d wallets %d events %d",
+			got, err, seeded.ID, cabals, wallets, events)
+	}
+}
+
+func TestCreateCabal_wrapsACommittedWalletLookupFailure(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	if _, err := f.pool.Exec(t.Context(), `ALTER TABLE treasury_wallets RENAME TO wallets_gone`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := f.handler().Handle(f.actor(t.Context()), f.command(t, "c1"))
+	if errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("Handle = %v, want internal", err)
+	}
+}
+
+func TestCreateCabal_wrapsACommittedCabalLookupFailure(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	if _, err := f.handler().Handle(f.actor(t.Context()), f.command(t, "c1")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(t.Context(), `ALTER TABLE cabals RENAME TO cabals_gone`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := f.handler().Handle(f.actor(t.Context()), f.command(t, "c1"))
+	if errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("Handle = %v, want internal", err)
+	}
+}
+
+func TestCreateCabal_rollsBackWhenTheTreasuryWalletWriteFails(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	statement := `ALTER TABLE treasury_wallets ADD CHECK (address <> 'forbidden')`
+	if _, err := f.pool.Exec(t.Context(), statement); err != nil {
+		t.Fatal(err)
+	}
+	h := app.NewCreateCabalHandler(app.CreateCabalDeps{
+		UoW: f.uow, Reads: f.pool, Wallets: adapters.AppWallets{Client: walletStub{
+			wallet: chain.Wallet{ID: "wallet-forbidden", Address: "forbidden"},
+		}}, IDs: f.ids, Clock: f.clock,
+	})
+	_, err := h.Handle(f.actor(t.Context()), f.command(t, "c1"))
+	if errs.CodeOf(err) != errs.CodeInternal || f.count(t.Context(), t, "cabals") != 0 {
+		t.Fatalf("Handle = %v, cabals %d; want internal and no cabal", err, f.count(t.Context(), t, "cabals"))
 	}
 }
 
@@ -387,7 +512,10 @@ func TestModule_createUsesTheInjectedWalletPort(t *testing.T) {
 	t.Parallel()
 	f := newCreate(t)
 	wallets := adapters.AppWallets{Client: f.wallets}
-	m := cabal.New(module.Deps{UoW: f.uow, IDs: f.ids, Clock: f.clock}, cabal.WithTreasuryWallets(wallets))
+	m := cabal.New(
+		module.Deps{Pool: f.pool, UoW: f.uow, IDs: f.ids, Clock: f.clock},
+		cabal.WithTreasuryWallets(wallets),
+	)
 	got, err := m.CreateCabalHandler().Handle(f.actor(t.Context()), f.command(t, "c1"))
 	if err != nil || got.PrivyWalletID == "" || f.wallets.Creates() != 1 {
 		t.Fatalf("Handle = %+v, %v, creates %d", got, err, f.wallets.Creates())

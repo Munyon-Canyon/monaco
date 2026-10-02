@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
+	"errors"
 	"io"
 	"log/slog"
 
@@ -36,6 +38,7 @@ type CreatedCabal struct {
 
 type CreateCabalDeps struct {
 	UoW     *db.UnitOfWork
+	Reads   sqlc.DBTX
 	Wallets TreasuryWallets
 	IDs     ids.Generator
 	Clock   clock.Clock
@@ -44,6 +47,7 @@ type CreateCabalDeps struct {
 
 type CreateCabalHandler struct {
 	uow     *db.UnitOfWork
+	reads   sqlc.DBTX
 	wallets TreasuryWallets
 	ids     ids.Generator
 	clock   clock.Clock
@@ -54,7 +58,9 @@ func NewCreateCabalHandler(d CreateCabalDeps) *CreateCabalHandler {
 	if d.Random == nil {
 		d.Random = rand.Reader
 	}
-	return &CreateCabalHandler{uow: d.UoW, wallets: d.Wallets, ids: d.IDs, clock: d.Clock, random: d.Random}
+	return &CreateCabalHandler{
+		uow: d.UoW, reads: d.Reads, wallets: d.Wallets, ids: d.IDs, clock: d.Clock, random: d.Random,
+	}
 }
 
 func TreasuryKey(actor ids.UserID, idempotencyKey string) string {
@@ -69,6 +75,9 @@ func (h *CreateCabalHandler) Handle(ctx context.Context, cmd CreateCabal) (Creat
 	if err != nil {
 		return CreatedCabal{}, err
 	}
+	if created, found, err := h.committed(ctx, cmd, walletID); err != nil || found {
+		return created, err
+	}
 	var created CreatedCabal
 	err = h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		var writeErr error
@@ -76,9 +85,40 @@ func (h *CreateCabalHandler) Handle(ctx context.Context, cmd CreateCabal) (Creat
 		return writeErr
 	})
 	if err != nil {
+		if created, found, recoveryErr := h.committed(ctx, cmd, walletID); recoveryErr != nil || found {
+			return created, recoveryErr
+		}
 		return CreatedCabal{}, errs.Wrap(err, errs.CodeOf(err), createCabalOp, slog.String("privy_wallet_id", walletID))
 	}
 	return created, nil
+}
+
+func (h *CreateCabalHandler) committed(
+	ctx context.Context, cmd CreateCabal, walletID string,
+) (CreatedCabal, bool, error) {
+	wallet, err := sqlc.New(h.reads).FindTreasuryWalletByPrivyWalletID(ctx, walletID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return CreatedCabal{}, false, nil
+	}
+	if err != nil {
+		return CreatedCabal{}, false, errs.Wrap(err, errs.CodeInternal, createCabalOp)
+	}
+	cabal, err := sqlc.New(h.reads).FindCabal(ctx, wallet.CabalID)
+	if err != nil {
+		return CreatedCabal{}, false, errs.Wrap(err, errs.CodeInternal, createCabalOp)
+	}
+	if cabal.CreatorID != cmd.ActorID.UUID() || cabal.Name != cmd.Name.String() ||
+		cabal.JoinMode != string(cmd.Rules.JoinMode()) || cabal.VoterMode != string(cmd.Rules.VoterMode()) ||
+		cabal.Threshold != string(cmd.Rules.Threshold()) ||
+		cabal.ProposalExpirySeconds != cmd.Rules.ExpirySeconds() || cabal.SlippageBps != cmd.Rules.SlippageBps() {
+		return CreatedCabal{}, false, errs.New(
+			errs.CodeIdempotencyMismatch, createCabalOp, slog.String("privy_wallet_id", walletID),
+		)
+	}
+	return CreatedCabal{
+		ID: ids.CabalIDFrom(cabal.ID), Name: cabal.Name, InviteCode: cabal.InviteCode,
+		TreasuryAddress: chain.SolanaAddress(wallet.Address), PrivyWalletID: wallet.PrivyWalletID,
+	}, true, nil
 }
 
 func (h *CreateCabalHandler) write(

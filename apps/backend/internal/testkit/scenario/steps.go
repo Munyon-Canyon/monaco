@@ -92,6 +92,13 @@ func Replay() Step {
 	}
 }
 
+func Retry() Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		s.send(s.response().req)
+	}
+}
+
 func ExpectStatus(status int) Step {
 	return func(s *Scenario) {
 		s.t.Helper()

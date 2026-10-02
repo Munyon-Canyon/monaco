@@ -6,6 +6,10 @@ VALUES ($1, $2, $3, $4);
 SELECT cabal_id, privy_wallet_id, address, created_at FROM treasury_wallets
 WHERE cabal_id = $1;
 
+-- name: FindTreasuryWalletByPrivyWalletID :one
+SELECT cabal_id, privy_wallet_id, address, created_at FROM treasury_wallets
+WHERE privy_wallet_id = $1;
+
 -- name: ListTreasuryWallets :many
 SELECT cabal_id, privy_wallet_id, address, created_at FROM treasury_wallets
 ORDER BY cabal_id;
