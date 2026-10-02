@@ -13,31 +13,14 @@ import (
 )
 
 func registrations() []Registration {
-	return []Registration{
-		Register[SystemPinged](TypeSystemPinged, 1),
-		Register[TradeBlocked](TypeTradeBlocked, 1),
-		Register[TradeSubmitted](TypeTradeSubmitted, 1),
-		Register[TradeConfirmed](TypeTradeConfirmed, 1),
-		Register[TradeFailed](TypeTradeFailed, 1),
-		Register[ProposalCreated](TypeProposalCreated, 1),
-		Register[ProposalPassed](TypeProposalPassed, 1),
-		Register[ProposalFailed](TypeProposalFailed, 1),
-		Register[ProposalExpired](TypeProposalExpired, 1),
-		Register[ProposalWithdrawn](TypeProposalWithdrawn, 1),
-		Register[ProposalVoided](TypeProposalVoided, 1),
-		Register[ProposalExecuted](TypeProposalExecuted, 1),
-		Register[ProposalExecutionBlocked](TypeProposalExecutionBlocked, 1),
-		Register[CabalCreated](TypeCabalCreated, 1),
-		Register[CabalMemberJoined](TypeCabalMemberJoined, 1),
-		Register[CabalAccessRequested](TypeCabalAccessRequested, 1),
-		Register[CabalAccessDecided](TypeCabalAccessDecided, 1),
-		Register[CabalMemberLeft](TypeCabalMemberLeft, 1),
-		Register[CabalUpdated](TypeCabalUpdated, 1),
-		RegisterCore[PriceTick](TypePriceTick, 1),
-		Register[UserCreated](TypeUserCreated, 1),
-		Register[UserAuthStateChanged](TypeUserAuthStateChanged, 1),
-		Register[UserProfileUpdated](TypeUserProfileUpdated, 1),
-	}
+	return slices.Concat(
+		systemRegistrations(),
+		tradingRegistrations(),
+		governanceRegistrations(),
+		cabalRegistrations(),
+		marketRegistrations(),
+		identityRegistrations(),
+	)
 }
 
 type Registration struct {

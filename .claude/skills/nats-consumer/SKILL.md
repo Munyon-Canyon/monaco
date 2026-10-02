@@ -70,7 +70,7 @@ Work that can outlast the ack wait calls `stop := bus.KeepAlive(ctx)` and `defer
 ## Add an event
 
 1. Add the type to `apps/backend/internal/events/<aggregate>.go` with `Type`, `AggregateType` and `AggregateID` methods and a `V` field.
-2. Register it in `registrations()` in `apps/backend/internal/events/registry.go`.
+2. Register it in `<module>Registrations()` in `apps/backend/internal/events/<module>_registrations.go`, the file of the module that publishes it. Leave `registry.go` alone. A new module adds its file and one line to `registrations()` there.
 3. Add a fixture for it to `fixtures` in `apps/backend/internal/events/contract_test.go`. The golden step needs it.
 4. Write its golden payload with `go test -short ./internal/events -update`. It writes `internal/events/testdata/golden/<type>.v1.json`.
 5. Update the tests that pin the registry: `TestSubjects` and `TestCatalog` in `apps/backend/internal/events/registry_test.go` (the catalog is sorted by type), and the catalog text in `TestDocsEventsPrintsTheRegistryCatalog` in `apps/backend/cmd/monacoctl/docs_test.go`.

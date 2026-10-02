@@ -20,7 +20,7 @@ Every job has one paved path, and a generator writes its first copy. Start from 
 | Consumer | `apps/backend/internal/modules/system/adapters/echo.go` |
 | SQL | `apps/backend/queries/system/pings.sql`, generated into `apps/backend/internal/modules/system/sqlc/` |
 | Migration | `apps/backend/migrations/20260929120000_system.sql` |
-| Event | `apps/backend/internal/events/system.go`, registered in `apps/backend/internal/events/registry.go` |
+| Event | `apps/backend/internal/events/system.go`, registered in `apps/backend/internal/events/system_registrations.go` |
 | Contract | `apps/backend/api/openapi.yaml`, generated into `apps/backend/internal/platform/httpx/api/api.gen.go` |
 | Flow scripts | `apps/backend/internal/testkit/flows/f00.go`, listed in `apps/backend/internal/testkit/flows/scripts.go` |
 | Flow tests | `apps/backend/internal/modules/system/flow00_test.go`, `apps/backend/internal/modules/system/flow00_crash_test.go` |
