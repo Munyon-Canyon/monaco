@@ -67,11 +67,19 @@ func (d *driver) settle(ctx context.Context, res *Result) error {
 	if err := d.converge(ctx, res.Unit, ids); err != nil {
 		return err
 	}
-	if msg := d.outcomeMismatch(res); msg != "" {
-		return &InvariantError{Flow: res.Unit.Name(), Msg: msg}
+	kind, _ := res.Unit.Flow.TriggerKind()
+	if kind == tools.TriggerRoute {
+		if msg := d.outcomeMismatch(res); msg != "" {
+			return &InvariantError{Flow: res.Unit.Name(), Msg: msg}
+		}
 	}
 	found, msg := d.awaitLogs(ctx, res.logFrom, d.requiredLogs(res.Unit))
 	res.logLines = found
+	if kind != tools.TriggerRoute {
+		if mismatch := d.outcomeMismatch(res); mismatch != "" {
+			return &InvariantError{Flow: res.Unit.Name(), Msg: mismatch}
+		}
+	}
 	if msg != "" {
 		return &InvariantError{Flow: res.Unit.Name(), Msg: msg}
 	}

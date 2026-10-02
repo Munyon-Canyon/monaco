@@ -142,6 +142,11 @@ func tickAsTheWorker(t *testing.T, env Env, p poller.Poller) {
 	}, 5*time.Second)
 }
 
+func failingConverge(b Budget) Budget {
+	b.Converge = time.Second
+	return b
+}
+
 func runUnit(t *testing.T, env Env, budget Budget, u Unit) *Result {
 	t.Helper()
 	d, err := newDriver(env, budget)
@@ -169,7 +174,7 @@ func TestVerify_aPollerFlowPassesOnATickAndNamesThePollerWhenNoneComes(t *testin
 				"started did not happen: over budget: flow 95 ok flow took longer than 300ms", true,
 		},
 		{
-			"script never waits", time.Hour, DefaultBudget(), func(s *scenario.Scenario) { s.When() },
+			"script never waits", time.Hour, failingConverge(DefaultBudget()), func(s *scenario.Scenario) { s.When() },
 			"flow 95 ok invariant: no poller.tick for fixture.prices after the script started", false,
 		},
 	} {
@@ -219,7 +224,11 @@ func TestVerify_aPollerCodeOutcomePassesOnlyOnAFailedTickWithThatCode(t *testing
 			tickAsTheWorker(t, env, fixturePoller{every: 20 * time.Millisecond, err: tc.err})
 			u := fixtureUnit(t, "95", tc.outcome)
 			u.Script = awaitPrices
-			if res := runUnit(t, env, DefaultBudget(), u); res.Failure != tc.want {
+			budget := DefaultBudget()
+			if tc.want != "" {
+				budget = failingConverge(budget)
+			}
+			if res := runUnit(t, env, budget, u); res.Failure != tc.want {
 				t.Fatalf("flow 95 %s failure = %q, want %q", tc.outcome, res.Failure, tc.want)
 			}
 		})
@@ -280,7 +289,12 @@ func TestVerify_aConsumerFlowPassesOnItsDispatchAndFailsWhenTheHandlerNeverRuns(
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			env := servedEnvWith(t, tc.mods...)
-			if res := runUnit(t, env, DefaultBudget(), fixtureUnit(t, "96", tc.outcome)); res.Failure != tc.want {
+			budget := DefaultBudget()
+			if tc.want != "" {
+				budget = failingConverge(budget)
+			}
+			u := fixtureUnit(t, "96", tc.outcome)
+			if res := runUnit(t, env, budget, u); res.Failure != tc.want {
 				t.Fatalf("flow 96 %s failure = %q, want %q", tc.outcome, res.Failure, tc.want)
 			}
 		})

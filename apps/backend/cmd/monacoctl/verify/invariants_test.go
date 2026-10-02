@@ -59,6 +59,52 @@ func TestSettle_failsOnARequiredLineThatNeverLandsOnceTheDeadlinePasses(t *testi
 	}
 }
 
+const (
+	consumerAck = `{"msg":"bus.dispatched","handler":"fixture.ok","subject":"events.system.pinged",` +
+		`"outcome":"ack","code":"ok"}`
+	consumerAckMissing = "flow 96 ok invariant: no bus.dispatched for system.pinged with outcome ack " +
+		"after the script started"
+)
+
+func consumerSettle(pool *pgxpool.Pool) (*driver, *Result) {
+	d := &driver{env: Env{Pool: pool, Logs: &Logs{}, Subject: func(s string) string { return s }}}
+	res := &Result{
+		Unit: Unit{
+			Flow:    tools.Flow{ID: "96", Trigger: "consumer:system.pinged"},
+			Outcome: tools.OutcomeOK,
+		},
+		logFrom: d.env.Logs.mark(),
+	}
+	return d, res
+}
+
+func TestSettle_passesOnAConsumerDispatchThatLandsAfterTheLogCheckStarts(t *testing.T) {
+	t.Parallel()
+	d, res := consumerSettle(testkit.DB(t))
+	ctx, cancel := context.WithTimeout(t.Context(), DefaultBudget().Converge)
+	defer cancel()
+	time.AfterFunc(20*time.Millisecond, func() { d.env.Logs.add(procWorker, consumerAck) })
+	if err := d.settle(ctx, res); err != nil || ctx.Err() != nil {
+		t.Fatalf("settle = %v, deadline passed %v; want a pass once the dispatch lands 20ms in", err, ctx.Err() != nil)
+	}
+	if want := []string{procWorker + ": " + consumerAck}; !slices.Equal(res.logLines, want) {
+		t.Fatalf("evidence log lines = %q, want %q", res.logLines, want)
+	}
+}
+
+func TestSettle_failsOnAConsumerDispatchThatNeverLandsOnceTheDeadlinePasses(t *testing.T) {
+	t.Parallel()
+	d, res := consumerSettle(testkit.DB(t))
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+	if err := d.settle(ctx, res); err == nil || err.Error() != consumerAckMissing {
+		t.Fatalf("settle = %v, want %q", err, consumerAckMissing)
+	}
+	if ctx.Err() == nil {
+		t.Fatal("settle failed on the missing dispatch before the converge deadline passed")
+	}
+}
+
 func TestSettle_pollsTheLogOnceWhenTheDeadlineHasAlreadyPassed(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
