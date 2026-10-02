@@ -1,2 +1,4 @@
 apps/backend/.golangci.yml merge=union linguist-generated
 docs/reference/*.md merge=union linguist-generated
+apps/backend/flows.tsv merge=union
+apps/backend/CHANGELOG.md merge=union
