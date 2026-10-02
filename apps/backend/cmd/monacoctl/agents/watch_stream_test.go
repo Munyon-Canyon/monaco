@@ -17,6 +17,11 @@ func queueDraftNode(n int, title, commit string) string {
 		`"updatedAt":"2026-09-27T11:59:00Z","commits":{"nodes":[{"commit":%s}]}}`, n, title, n, commit)
 }
 
+func closedDraft(n int, commit string) string {
+	title := fmt.Sprintf("[Graphite MQ] Draft PR GROUP:spec_%d (PRs 1, 2)", n)
+	return strings.Replace(queueDraftNode(n, title, commit), `"state":"OPEN"`, `"state":"CLOSED"`, 1)
+}
+
 func streamRounds(t *testing.T, f *fixture, rounds int, between func(round int)) string {
 	t.Helper()
 	env := f.Env(t)
@@ -63,16 +68,18 @@ func TestWatchStream_printsTheStateOnceThenOnlyWhatChanged(t *testing.T) {
 			`{"context":"verify","state":"SUCCESS"}`, `{"context":"ext","state":"ERROR"}`,
 			`{"context":"slow","state":"PENDING"}`)),
 		queueDraftNode(91, "[Graphite MQ] Draft PR GROUP:spec_2 (PRs 12)", rollup(redOK)),
+		closedDraft(92, rollup(greenOK, flakeJob)),
 	}))
-	got := streamRounds(t, f, 3, func(round int) {
-		if round == 1 {
-			f.hub.on(graphqlRoute, draftData([]string{
-				queueDraftNode(90, "[Graphite MQ] Draft PR GROUP:spec_1 (PRs 1, 2)", rollup(greenOK, flakeJob)),
-			}))
+	skipped := `{"name":"Deploy to GitHub Pages","conclusion":"SKIPPED"}`
+	got := streamRounds(t, f, 4, func(round int) {
+		node := queueDraftNode(90, "[Graphite MQ] Draft PR GROUP:spec_1 (PRs 1, 2)", rollup(greenOK, flakeJob, skipped))
+		if round >= 2 {
+			node = strings.Replace(node, `"state":"OPEN"`, `"state":"CLOSED"`, 1)
 		}
+		f.hub.on(graphqlRoute, draftData([]string{node, closedDraft(92, rollup(greenOK, flakeJob))}))
 	})
 	want := "#1 queued\n#2 queued\ndraft #90 open\ndraft #90 ci / ci-ok: pass\n" +
-		"draft #90 verify: pass\ndraft #90 ext: fail\ndraft #90 ci / Flake: fail\n"
+		"draft #90 verify: pass\ndraft #90 ext: fail\ndraft #90 ci / Flake: fail\ndraft #90 closed\n"
 	if got != want {
 		t.Fatalf("stream\n got %q\nwant %q", got, want)
 	}
@@ -149,15 +156,24 @@ func TestWatchStream_ejectsAStackOnlyAfterTwoRoundsWithoutTheLabel(t *testing.T)
 func TestWatchStream_printsAFailureBlockOnce(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	f.hub.on(graphqlRoute, failureData(
-		strings.Replace(watchNode(6, "fb", rollup(redOK, lintJob), ""), "Part of #40", "no ticket", 1),
-		watchNode(7, "fb", rollup(greenOK), dropped(f.now.Add(-time.Hour))),
-		strings.Replace(watchNode(8, "fb", rollup(greenOK), dropped(f.now.Add(-time.Hour))),
-			`"commits"`, `"labels":{"nodes":[{"name":"merge-queue"}]},"commits"`, 1),
-	))
-	got := streamRounds(t, f, 3, func(int) {})
+	nodes := func(at time.Time) string {
+		return failureData(
+			strings.Replace(watchNode(6, "fb", rollup(redOK, lintJob), ""), "Part of #40", "no ticket", 1),
+			watchNode(7, "fb", rollup(greenOK), dropped(at)),
+			strings.Replace(watchNode(8, "fb", rollup(greenOK), dropped(at)),
+				`"commits"`, `"labels":{"nodes":[{"name":"merge-queue"}]},"commits"`, 1),
+			watchNode(9, "fb", rollup(greenOK), dropped(f.now.Add(-time.Hour))),
+		)
+	}
+	f.hub.on(graphqlRoute, nodes(f.now.Add(-time.Hour)))
+	got := streamRounds(t, f, 4, func(round int) {
+		if round == 1 {
+			f.hub.on(graphqlRoute, nodes(f.now.Add(time.Minute)))
+		}
+	})
 	if strings.Count(got, "#6 stage 1 is red\n  failing job: https://gh/job/12\n") != 1 ||
-		strings.Count(got, "#7 dropped from the Graphite merge queue\n") != 1 || strings.Contains(got, "#8 ") {
+		strings.Count(got, "#7 dropped from the Graphite merge queue\n") != 1 || strings.Contains(got, "#8 ") ||
+		strings.Contains(got, "#9 ") || strings.Index(got, "#7 dropped") < strings.Index(got, "#6 stage") {
 		t.Fatalf("stream:\n%s", got)
 	}
 }
@@ -223,6 +239,7 @@ func TestWatchStream_printsEachErrorAsALineAndKeepsGoing(t *testing.T) {
 	s := newStackGH(t, f, green(t, 5, "b5", "fb"))
 	s.prs[5].State = "CLOSED"
 	f.owner(t, Record{Ticket: 1, State: Running, Worktree: filepath.Join(f.dir, "gone")})
+	f.record(t, Record{Ticket: 2, State: Running, Worktree: f.dir})
 	f.record(t, Record{Ticket: 40, State: Exited, Queued: &Queue{Top: 9, PRs: []int{9}}})
 	f.record(t, Record{Ticket: 41, State: Exited, Queued: &Queue{Top: 5, PRs: []int{5}}})
 	env := f.Env(t)
@@ -253,7 +270,7 @@ func TestWatchStream_printsEachErrorAsALineAndKeepsGoing(t *testing.T) {
 			t.Errorf("stream lacks %q:\n%s", want, got)
 		}
 	}
-	if strings.Count(got, "watch error: ") != 5 || rounds != 2 {
+	if strings.Count(got, "watch error: ") != 5 || strings.Count(got, "git log") != 1 || rounds != 2 {
 		t.Fatalf("%d rounds:\n%s", rounds, got)
 	}
 }
@@ -284,4 +301,45 @@ func TestWatchStream_reportsAFailedSettleOrUnmark(t *testing.T) {
 			t.Fatalf("stream:\n%s", got)
 		}
 	})
+}
+
+func TestWatchStream_anEjectedStackPrintsOneFreshOwnerBlock(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := queuedStack(t, f, "/w/40")
+	got := streamRounds(t, f, 5, func(round int) {
+		if round == 1 {
+			s.prs[2].Labels.Nodes = nil
+			f.hub.on(graphqlRoute, failureData(
+				watchNode(1, "fb", rollup(greenOK), ""),
+				watchNode(2, "b1", rollup(greenOK), dropped(f.now.Add(time.Minute))),
+			))
+		}
+	})
+	if strings.Count(got, "  fresh owner\n") != 1 ||
+		!strings.Contains(got, "stack #2 ejected: #2 left the Graphite merge queue") {
+		t.Fatalf("stream:\n%s", got)
+	}
+}
+
+func TestWatchStream_rereadsTheTrunkEachRoundForASquashNotYetVisible(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := queuedStack(t, f, t.TempDir())
+	for _, n := range []int{1, 2} {
+		s.prs[n].State, s.prs[n].ClosedAt = "CLOSED", f.now.Add(-time.Minute)
+	}
+	commits := list("/commits?sha=fb&since=2026-09-27T10:59:00Z")
+	f.hub.on(commits, `[]`)
+	f.hub.on(get("/compare/fb...b1-oid"), `{"status":"diverged"}`)
+	f.hub.on(get("/compare/fb...b2-oid"), `{"status":"diverged"}`)
+	got := streamRounds(t, f, 3, func(round int) {
+		if round == 1 {
+			f.hub.on(commits, `[{"commit":{"message":"A (#1)"}},{"commit":{"message":"B (#2)"}}]`)
+		}
+	})
+	want := "#1 ejected\n#2 ejected\n#1 landed\n#2 landed\nstack #2 landed (#1 #2)\n"
+	if got != want {
+		t.Fatalf("stream\n got %q\nwant %q", got, want)
+	}
 }

@@ -19,8 +19,10 @@ import (
 
 const (
 	stackFields = `number state closedAt baseRefName headRefName headRefOid body mergeCommit{oid} ` + labelFields + `
-commits(last:1){nodes{commit{` + commitChecks + `}}}`
-	repoQuery = "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){"
+commits(last:1){nodes{commit{` + commitChecks + `}}}
+timelineItems(itemTypes:[UNLABELED_EVENT],last:20){nodes{__typename ... on UnlabeledEvent{createdAt label{name}}}}`
+	settleAfter = time.Minute
+	repoQuery   = "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){"
 
 	recomputeEvery = 3 * time.Second
 	recomputeFor   = 90 * time.Second
@@ -368,6 +370,24 @@ func (env *Env) unmark(ctx context.Context, rec Record) error {
 	return env.storeRecord(ctx, rec)
 }
 
+func (env *Env) justUnlabeled(prs []stackPR, landed []bool) bool {
+	for i, p := range prs {
+		if landed[i] || p.State != "OPEN" || p.labeled(env.Config.QueueLabel) {
+			continue
+		}
+		events := p.TimelineItems.Nodes
+		for j := len(events) - 1; j >= 0; j-- {
+			if events[j].Label.Name == env.Config.QueueLabel {
+				if env.Now().Sub(events[j].CreatedAt) < settleAfter {
+					return true
+				}
+				break
+			}
+		}
+	}
+	return false
+}
+
 func (env *Env) unqueueEjected(ctx context.Context, rs []Record, stdout io.Writer) error {
 	for _, r := range rs {
 		if r.Queued == nil {
@@ -381,7 +401,7 @@ func (env *Env) unqueueEjected(ctx context.Context, rs []Record, stdout io.Write
 		if err != nil {
 			return err
 		}
-		if !env.ejected(prs, landed) {
+		if !env.ejected(prs, landed) || env.justUnlabeled(prs, landed) {
 			continue
 		}
 		_, _ = fmt.Fprintf(stdout, "unqueued: #%d; #%d left the Graphite merge queue. "+

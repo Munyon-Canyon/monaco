@@ -58,11 +58,22 @@ func (c gqlCommit) latest() []gqlContext {
 		case !seen:
 			at[key] = len(out)
 			out = append(out, x)
-		case x.newerThan(out[i]):
+		case x.supersedes(out[i]):
 			out[i] = x
 		}
 	}
 	return out
+}
+
+func (x gqlContext) supersedes(y gqlContext) bool {
+	if x.idle() != y.idle() {
+		return y.idle()
+	}
+	return x.newerThan(y)
+}
+
+func (x gqlContext) idle() bool {
+	return x.Conclusion == "SKIPPED" || x.Conclusion == "CANCELLED"
 }
 
 func (x gqlContext) newerThan(y gqlContext) bool {

@@ -125,8 +125,8 @@ func TestPrBody_setsTitleAndBodyThenMarksOnlyADraftReady(t *testing.T) {
 	calls := s.ghCalls(t)
 	edit := strings.Index(calls, "pr edit 7 --title Add the thing --body-file "+file+"\n")
 	ready := strings.Index(calls, "pr ready 7\n")
-	if edit < 0 || ready < edit {
-		t.Fatalf("want gh pr edit with title and body, then gh pr ready; got %q", calls)
+	if ready < 0 || edit < ready {
+		t.Fatalf("want gh pr ready, then gh pr edit with title and body, so the edit's PR format run is not skipped; got %q", calls)
 	}
 
 	if out, err := s.run(t, false, base, "Add the thing", goodPrBody()); err != nil {

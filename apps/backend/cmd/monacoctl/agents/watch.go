@@ -2,8 +2,11 @@ package agents
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -69,11 +72,11 @@ func (env *Env) watchLists(ctx context.Context, rs []Record) ([]Record, []Record
 		switch r.State {
 		case Running:
 			running = true
-			last, err := env.lastActivity(ctx, r)
+			stale, err := env.idle(ctx, r)
 			if err != nil {
 				return nil, nil, false, err
 			}
-			if env.Now().Sub(last) > idleAfter {
+			if stale {
 				idle = append(idle, r)
 			}
 		case Done:
@@ -88,6 +91,17 @@ func (env *Env) watchLists(ctx context.Context, rs []Record) ([]Record, []Record
 		}
 	}
 	return idle, alive, running, nil
+}
+
+func (env *Env) idle(ctx context.Context, r Record) (bool, error) {
+	if _, err := os.Stat(r.Worktree); errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	last, err := env.lastActivity(ctx, r)
+	if err != nil {
+		return false, err
+	}
+	return env.Now().Sub(last) > idleAfter, nil
 }
 
 func (env *Env) lastActivity(ctx context.Context, r Record) (time.Time, error) {
