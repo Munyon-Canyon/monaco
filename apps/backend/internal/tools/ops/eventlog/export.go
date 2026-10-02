@@ -90,12 +90,33 @@ func scrub(v reflect.Value, fields map[string]any) {
 		if !ok {
 			continue
 		}
-		if f.Tag.Get("pii") == "true" {
+		switch f.Tag.Get("pii") {
+		case "true":
 			fields[name] = pseudonymize(child)
+			continue
+		case "keys":
+			hashed, ok := hashKeys(child)
+			if !ok {
+				continue
+			}
+			fields[name] = hashed
+			scrubMap(follow(v.Field(i)), hashed)
 			continue
 		}
 		scrubOne(v.Field(i), child)
 	}
+}
+
+func hashKeys(child any) (map[string]any, bool) {
+	obj, ok := child.(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	rebuilt := make(map[string]any, len(obj))
+	for key, val := range obj {
+		rebuilt[Pseudonym(key)] = val
+	}
+	return rebuilt, true
 }
 
 func follow(v reflect.Value) reflect.Value {
@@ -128,6 +149,27 @@ func scrubOne(v reflect.Value, child any) {
 		scrubMap(v, child)
 	case v.Kind() == reflect.Interface && !v.IsNil():
 		scrubOne(v.Elem(), child)
+	case v.Kind() == reflect.Slice || v.Kind() == reflect.Array:
+		scrubIndexed(v, child)
+	}
+}
+
+func scrubIndexed(v reflect.Value, child any) {
+	elem := derefType(v.Type().Elem())
+	if elem.Kind() != reflect.Struct && elem.Kind() != reflect.Map &&
+		elem.Kind() != reflect.Slice && elem.Kind() != reflect.Array {
+		return
+	}
+	list, ok := child.([]any)
+	if !ok {
+		return
+	}
+	for i, item := range list {
+		cur := reflect.Zero(v.Type().Elem())
+		if i < v.Len() {
+			cur = v.Index(i)
+		}
+		scrubOne(cur, item)
 	}
 }
 
@@ -136,16 +178,8 @@ func scrubMap(v reflect.Value, child any) {
 	if !ok {
 		return
 	}
-	elem := derefType(v.Type().Elem())
-	if elem.Kind() != reflect.Struct {
-		return
-	}
 	for _, val := range obj {
-		nested, ok := val.(map[string]any)
-		if !ok {
-			continue
-		}
-		scrub(reflect.Zero(elem), nested)
+		scrubOne(reflect.Zero(v.Type().Elem()), val)
 	}
 }
 
