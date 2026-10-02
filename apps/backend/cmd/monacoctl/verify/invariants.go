@@ -115,21 +115,23 @@ func (d *driver) outcomeMismatch(res *Result) string {
 
 func routeMismatch(res *Result, route string) string {
 	method, path, _ := strings.Cut(route, " ")
-	i := slices.IndexFunc(res.Exchanges, func(e scenario.Exchange) bool {
-		return e.Method == method && pathMatches(path, e.Path)
-	})
-	if i < 0 {
+	var calls []scenario.Exchange
+	for _, e := range res.Exchanges {
+		if e.Method == method && pathMatches(path, e.Path) {
+			calls = append(calls, e)
+		}
+	}
+	if len(calls) == 0 {
 		return fmt.Sprintf("no %s request was sent", route)
 	}
-	got := res.Exchanges[i]
 	name, isCode := res.Unit.Outcome.CodeName()
 	if !isCode {
-		if got.Status >= http.StatusBadRequest {
+		if got := calls[0]; got.Status >= http.StatusBadRequest {
 			return fmt.Sprintf("%s answered %d, want a 2xx for outcome %s", route, got.Status, res.Unit.Outcome)
 		}
 		return ""
 	}
-	code := codeNamed(name)
+	code, got := codeNamed(name), calls[len(calls)-1]
 	var body struct {
 		Code string `json:"code"`
 	}
