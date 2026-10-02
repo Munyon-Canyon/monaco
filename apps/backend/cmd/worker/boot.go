@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -116,11 +117,55 @@ func startWork(
 	}
 	pollers := set.Pollers()
 	stopPollers := startPollers(ctx, runner, pollers)
+	stopHints, err := startPriceHints(ctx, set, meters)
+	if err != nil {
+		stopConsumers(context.WithoutCancel(ctx))
+		_ = stopPollers()
+		return health{}, err
+	}
 	stops.add(func(ctx context.Context) error {
 		stopConsumers(ctx)
-		return stopPollers()
+		return errors.Join(stopPollers(), stopHints())
 	})
 	return health{connected: d.Bus.Connected, pool: d.Pool, ticks: runner, pollers: pollers, clock: d.Clock}, nil
+}
+
+type priceHintLoop interface {
+	PriceHints(context.Context, metric.Meter) (func(), error)
+}
+
+func startPriceHints(ctx context.Context, set module.Set, meters metric.MeterProvider) (func() error, error) {
+	ctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	var unsubs []func()
+	meter := meters.Meter("github.com/monaco/monaco/apps/backend/internal/modules/market")
+	for _, m := range set {
+		src, ok := m.(priceHintLoop)
+		if !ok {
+			continue
+		}
+		unsub, err := src.PriceHints(ctx, meter)
+		if err != nil {
+			cancel()
+			for _, stop := range unsubs {
+				stop()
+			}
+			return nil, errs.Wrap(err, errs.CodeOf(err), "worker.startPriceHints")
+		}
+		unsubs = append(unsubs, unsub)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		<-ctx.Done()
+		for _, stop := range unsubs {
+			stop()
+		}
+	}()
+	return func() error {
+		cancel()
+		<-done
+		return nil
+	}, nil
 }
 
 func startConsumers(

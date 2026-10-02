@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/jupiterprices"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/jupiterquote"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/mintfacts"
@@ -107,6 +109,14 @@ func (m *Module) Pollers() []poller.Poller {
 		app.NewCatalogPoller(m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, providers, facts),
 		m.samplePrices(),
 	}
+}
+
+func (m *Module) PriceHints(ctx context.Context, meter metric.Meter) (func(), error) {
+	hints, err := app.NewPriceHints(m.deps.Bus, m.deps.Clock, meter)
+	if err != nil {
+		return nil, err
+	}
+	return hints.Subscribe(ctx)
 }
 
 func (m *Module) samplePrices() *app.SamplePrices {
