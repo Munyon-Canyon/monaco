@@ -58,7 +58,7 @@ func migrate(m codegen.Migrator, args []string, stdout, stderr io.Writer) int {
 }
 
 func genUsage(stderr io.Writer) int {
-	_, _ = fmt.Fprintln(stderr, "usage: monacoctl gen errors <openapi.yaml>")
+	_, _ = fmt.Fprintln(stderr, "usage: monacoctl gen errors <openapi.yaml> [<ErrorCodeCases.gen.swift>]")
 	for _, g := range codegen.Generators() {
 		_, _ = fmt.Fprintln(stderr, "       monacoctl "+g.Usage())
 	}
@@ -67,12 +67,18 @@ func genUsage(stderr io.Writer) int {
 }
 
 func gen(args []string, stdout, stderr io.Writer) int {
-	if len(args) != 2 || args[0] != "errors" {
+	if len(args) < 2 || len(args) > 3 || args[0] != "errors" {
 		return genUsage(stderr)
 	}
 	if err := writeErrorCodes(args[1], errs.All()); err != nil {
 		_, _ = fmt.Fprintf(stderr, "monacoctl: %v\n", err)
 		return 1
+	}
+	if len(args) == 3 {
+		if err := writeSwiftCases(args[2], errs.All()); err != nil {
+			_, _ = fmt.Fprintf(stderr, "monacoctl: %v\n", err)
+			return 1
+		}
 	}
 	_, _ = fmt.Fprintf(stdout, "wrote %d error codes to %s\n", len(errs.All()), args[1])
 	return 0

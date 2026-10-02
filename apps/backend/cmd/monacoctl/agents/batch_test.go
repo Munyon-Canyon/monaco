@@ -163,7 +163,7 @@ func liveTouches() map[int]string {
 			"`apps/backend/api/openapi.yaml`, `apps/backend/internal/platform/httpx/api/api.gen.go`, " +
 			"`apps/backend/internal/testkit/fakes/treasury.go`, `apps/backend/internal/testkit/fakes/treasury_test.go`, " +
 			"`docs/reference/errors.md`, `docs/reference/openapi.yaml`, " +
-			"`packages/mobile-core/Tests/MonacoAPITests/ProblemErrorTests.swift`",
+			"`packages/mobile-core/Tests/MonacoAPITests/ErrorCodeCases.gen.swift`",
 		563: "`apps/backend/internal/modules/funding/**`, `apps/backend/queries/funding/**`, " +
 			"`apps/backend/migrations/**`, `apps/backend/sqlc.yaml`, `apps/backend/.golangci.yml`, " +
 			"`apps/backend/CHANGELOG.md`, `apps/backend/cmd/*/module_funding.gen.go`, `apps/backend/cmd/monacoctl/ops.go`, " +
@@ -174,7 +174,7 @@ func liveTouches() map[int]string {
 			"`apps/backend/internal/errs/codes_*.go`, " +
 			"`apps/backend/api/openapi.yaml`, `apps/backend/internal/platform/httpx/api/api.gen.go`, " +
 			"`apps/backend/internal/testkit/fakes/pauses.go`, `docs/reference/**`, " +
-			"`packages/mobile-core/Tests/MonacoAPITests/ProblemErrorTests.swift`",
+			"`packages/mobile-core/Tests/MonacoAPITests/ErrorCodeCases.gen.swift`",
 		569: "`apps/backend/internal/modules/social/**`, `apps/backend/queries/social/**`, " +
 			"`apps/backend/migrations/**`, `apps/backend/sqlc.yaml`, `apps/backend/.golangci.yml`, " +
 			"`apps/backend/api/openapi.yaml`, `apps/backend/internal/platform/httpx/api/api.gen.go`, " +
@@ -221,7 +221,7 @@ func TestBatch_admitsTicketsThatOverlapOnlyOnSharedFiles(t *testing.T) {
 	want := strings.Join([]string{
 		"batch: #562 #563 #569 #555 (4 of 6) in " + f.Env(t).batchPath(),
 		"shared: #563 and #562 both touch " + codes + ", " + api +
-			", docs/reference/**, packages/mobile-core/Tests/MonacoAPITests/ProblemErrorTests.swift",
+			", docs/reference/**, packages/mobile-core/Tests/MonacoAPITests/ErrorCodeCases.gen.swift",
 		"shared: #569 and #562 both touch " + api + ", " + codes,
 		"shared: #569 and #563 both touch apps/backend/migrations/**, apps/backend/sqlc.yaml, " +
 			"apps/backend/.golangci.yml, " + api + ", apps/backend/internal/events/registry.go, " + codes +

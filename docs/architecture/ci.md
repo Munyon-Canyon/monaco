@@ -203,7 +203,7 @@ A promotion PR must carry a backend changelog entry. The `Changelog (checkpoint 
 | `apps/backend/migrations/**` | Each migration is a new file with a unique timestamp name. `atlas migrate hash` rewrites `atlas.sum`. |
 | `apps/backend/flows.tsv`, `apps/backend/CHANGELOG.md` | `merge=union` in `.gitattributes`, and `agents check` keeps `flows.tsv` sorted by id. |
 | `apps/backend/internal/events/**` | Each module registers its events in its own `<module>_registrations.go`, so two modules never edit one list. |
-| `apps/backend/internal/errs/codes_*.go`, `packages/mobile-core/Tests/MonacoAPITests/ProblemErrorTests.swift` | Each area keeps its codes in its own `codes_<area>.go`; the Swift switch takes one line per new code. |
+| `apps/backend/internal/errs/codes_*.go`, `packages/mobile-core/Tests/MonacoAPITests/ErrorCodeCases.gen.swift` | Each area keeps its codes in its own `codes_<area>.go`. `monacoctl gen errors` writes the Swift case list, so take either side and regenerate. |
 | `apps/backend/internal/testkit/flows/**`, `apps/backend/internal/testkit/fakes/**`, `apps/backend/internal/testkit/scenarios/**` | New per-flow and per-scenario files, plus one registry line. |
 | `apps/backend/api/openapi.yaml` | Two route tickets add different `paths:` keys. If conflicts here stay frequent, split the spec into per-module fragments. |
 
