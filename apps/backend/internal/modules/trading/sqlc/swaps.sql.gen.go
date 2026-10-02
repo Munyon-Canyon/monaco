@@ -71,7 +71,7 @@ SET status = 'failed', failure_code = $1::text,
 WHERE id = $3
   AND CASE status
     WHEN 'created' THEN $1::text = 'never_submitted'
-    WHEN 'submitted' THEN $1::text <> 'never_submitted'
+    WHEN 'submitted' THEN $1::text IN ('blockhash_expired', 'jupiter_failed', 'force_resolved', 'source_cancelled')
     ELSE false
   END
 `

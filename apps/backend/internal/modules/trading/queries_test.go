@@ -1,6 +1,7 @@
 package trading_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -151,6 +152,26 @@ func TestQueries_ownsSignatureOnlyForItsOwnSwaps(t *testing.T) {
 	}
 }
 
+func (d portDB) corrupt(t *testing.T, set string) uuid.UUID {
+	t.Helper()
+	row := d.created(d.ids.NewV7(), usdcMint)
+	d.insert(t, row)
+	for _, stmt := range []string{
+		`ALTER TABLE swaps DROP CONSTRAINT swaps_status_check, DROP CONSTRAINT swaps_source_kind_check,
+			DROP CONSTRAINT swaps_failure_code_check`,
+		`UPDATE swaps SET ` + set + ` WHERE id = $1`,
+	} {
+		args := []any{}
+		if strings.Contains(stmt, "$1") {
+			args = append(args, row.ID)
+		}
+		if _, err := d.pool.Exec(t.Context(), stmt, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return row.ID
+}
+
 func TestQueries_reportAnUnreadableRowAsDecodeFailed(t *testing.T) {
 	t.Parallel()
 	for name, set := range map[string]string{
@@ -163,21 +184,48 @@ func TestQueries_reportAnUnreadableRowAsDecodeFailed(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			d := newPortDB(t)
-			row := d.created(d.ids.NewV7(), usdcMint)
-			d.insert(t, row)
-			if _, err := d.pool.Exec(t.Context(), `UPDATE swaps SET `+set+` WHERE id = $1`, row.ID); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := d.port.Swap(t.Context(), ids.SwapIDFrom(row.ID)); errs.CodeOf(err) != errs.CodeDecodeFailed {
+			id := d.corrupt(t, set)
+			if _, err := d.port.Swap(t.Context(), ids.SwapIDFrom(id)); errs.CodeOf(err) != errs.CodeDecodeFailed {
 				t.Errorf("Swap err = %v, want decode_failed", err)
 			}
-			src := trading.Source{Kind: domain.SourceKind("unplanned_kind"), ID: row.SourceID}
-			if name != "source kind" {
-				src = proposal(row.SourceID)
+			var kind string
+			var source uuid.UUID
+			if err := d.pool.QueryRow(t.Context(), `SELECT source_kind, source_id FROM swaps WHERE id = $1`, id).
+				Scan(&kind, &source); err != nil {
+				t.Fatal(err)
 			}
+			src := trading.Source{Kind: domain.SourceKind(kind), ID: source}
 			if v, ok, err := d.port.LatestBySource(t.Context(), src); ok || errs.CodeOf(err) != errs.CodeDecodeFailed ||
 				v != (trading.SwapView{}) {
 				t.Errorf("LatestBySource = %+v, %t, %v, want decode_failed", v, ok, err)
+			}
+		})
+	}
+}
+
+func TestQueries_reportANullThatTheStatusRequiresAsDecodeFailed(t *testing.T) {
+	t.Parallel()
+	for name, c := range map[string]struct {
+		set    string
+		decode bool
+	}{
+		"created needs nothing":         {`status = 'created'`, true},
+		"submitted with a signature":    {`status = 'submitted', tx_signature = 'sig'`, true},
+		"submitted without a signature": {`status = 'submitted'`, false},
+		"confirmed without a signature": {
+			`status = 'confirmed', out_amount = 1, confirmed_at = now()`, false,
+		},
+		"confirmed without an out amount": {`status = 'confirmed', tx_signature = 'sig', confirmed_at = now()`, false},
+		"confirmed without a time":        {`status = 'confirmed', tx_signature = 'sig', out_amount = 1`, false},
+		"failed without a code":           {`status = 'failed', failed_at = now()`, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			d := newPortDB(t)
+			id := d.corrupt(t, c.set)
+			_, err := d.port.Swap(t.Context(), ids.SwapIDFrom(id))
+			if c.decode != (err == nil) || (err != nil && errs.CodeOf(err) != errs.CodeDecodeFailed) {
+				t.Errorf("Swap err = %v, want readable %t", err, c.decode)
 			}
 		})
 	}

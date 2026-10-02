@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -21,6 +22,7 @@ const (
 	aaplxMint = "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp"
 	tslaxMint = "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB"
 	uniqueErr = "23505"
+	checkErr  = "23514"
 )
 
 type swapDB struct {
@@ -286,5 +288,29 @@ func TestSwaps_markSubmittedRefusesAnEmptySignedTx(t *testing.T) {
 	}
 	if got := d.status(t, row.ID); got != "created" {
 		t.Fatalf("status = %s, want created", got)
+	}
+}
+
+func TestSwaps_checkConstraintsRefuseValuesTheDomainDoesNotDefine(t *testing.T) {
+	t.Parallel()
+	d := newSwapDB(t)
+	row := d.created(d.ids.NewV7(), usdcMint)
+	d.insert(t, row)
+	for constraint, set := range map[string]string{
+		"swaps_status_check":       `status = 'lost'`,
+		"swaps_source_kind_check":  `source_kind = 'unplanned_kind'`,
+		"swaps_failure_code_check": `failure_code = 'gremlins'`,
+	} {
+		_, err := d.pool.Exec(t.Context(), `UPDATE swaps SET `+set+` WHERE id = $1`, row.ID)
+		var pg *pgconn.PgError
+		if !errors.As(err, &pg) || pg.Code != checkErr || pg.ConstraintName != constraint {
+			t.Errorf("UPDATE SET %s err = %v, want a check violation on %s", set, err, constraint)
+		}
+	}
+	for _, code := range domain.FailureCodes() {
+		_, err := d.pool.Exec(t.Context(), `UPDATE swaps SET failure_code = $2 WHERE id = $1`, row.ID, string(code))
+		if err != nil {
+			t.Errorf("UPDATE SET failure_code = %s err = %v, want it accepted", code, err)
+		}
 	}
 }

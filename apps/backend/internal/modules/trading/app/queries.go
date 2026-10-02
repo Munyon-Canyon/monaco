@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -91,7 +93,8 @@ func view(op string, r sqlc.SwapView) (SwapView, error) {
 	failure, failureErr := optionalFailure(r.FailureCode.String, r.FailureCode.Valid)
 	in, inErr := domain.ParseAmount(r.InAmount)
 	out, outErr := optionalAmount(r.OutAmount.Int64, r.OutAmount.Valid)
-	if err := errors.Join(kindErr, actionErr, statusErr, failureErr, inErr, outErr); err != nil {
+	requiredErr := requireColumns(op, status, r)
+	if err := errors.Join(kindErr, actionErr, statusErr, failureErr, inErr, outErr, requiredErr); err != nil {
 		return SwapView{}, errs.Wrap(err, errs.CodeDecodeFailed, op)
 	}
 	return SwapView{
@@ -111,6 +114,27 @@ func view(op string, r sqlc.SwapView) (SwapView, error) {
 		ConfirmedAt: r.ConfirmedAt.Time,
 		Retryable:   r.Retryable.Bool,
 	}, nil
+}
+
+func requireColumns(op string, status domain.Status, r sqlc.SwapView) error {
+	var missing []string
+	if (status == domain.StatusSubmitted || status == domain.StatusConfirmed) && !r.TxSignature.Valid {
+		missing = append(missing, "tx_signature")
+	}
+	if status == domain.StatusConfirmed && !r.OutAmount.Valid {
+		missing = append(missing, "out_amount")
+	}
+	if status == domain.StatusConfirmed && !r.ConfirmedAt.Valid {
+		missing = append(missing, "confirmed_at")
+	}
+	if status == domain.StatusFailed && !r.FailureCode.Valid {
+		missing = append(missing, "failure_code")
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	return errs.New(errs.CodeDecodeFailed, op, slog.String("status", string(status)),
+		slog.String("null_columns", strings.Join(missing, ",")))
 }
 
 func optionalFailure(raw string, ok bool) (domain.FailureCode, error) {
