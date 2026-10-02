@@ -5,7 +5,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -166,4 +168,55 @@ func TestVerifyPlan_printsTheRepoDefaultWhenTheVariableAPIFails(t *testing.T) {
 	if code != 0 || !strings.Contains(stderr, note) || !strings.Contains(stdout, "verifier ") || !hit {
 		t.Fatalf("code=%d hit=%v stdout=%q stderr=%q", code, hit, stdout, stderr)
 	}
+}
+
+func TestParseConfig_readsTheBatchTable(t *testing.T) {
+	t.Parallel()
+	c, err := parseConfig(strings.NewReader(testConfig + "shared = [\n  # regenerated\n  \"a/**\",\n  \"b.go\",\n]\n"))
+	if err != nil || c.Batch != 2 || !slices.Equal(c.Shared, []string{"a/**", "b.go"}) {
+		t.Fatalf("batch: %d %q %v", c.Batch, c.Shared, err)
+	}
+	c, err = parseConfig(strings.NewReader(testConfig + "shared = [\"a/**\", \"b.go\"]\n"))
+	if err != nil || !slices.Equal(c.Shared, []string{"a/**", "b.go"}) {
+		t.Fatalf("one line: %q %v", c.Shared, err)
+	}
+	for body, want := range map[string]string{
+		"shared = \"a/**\"\n":         `:10: want a list of quoted strings such as ["a/**"]`,
+		"shared = [a/**]\n":           `:10: want a list of quoted strings such as ["a/**"], got a/**`,
+		"shared = [\n  \"a/**\",\n":   `:10: want a list of quoted strings`,
+		"size = 2\nshared = [\n\"a\"": `:11: want a list of quoted strings`,
+		"other = 1\n":                 `:10: unknown key "batch.other"`,
+	} {
+		if _, err := parseConfig(strings.NewReader(testConfig + body)); err == nil ||
+			!strings.Contains(cliText(err), configPath+want) {
+			t.Errorf("%q: %v", body, cliText(err))
+		}
+	}
+	missing := strings.Replace(testConfig, "size = 2\n", "", 1)
+	if _, err := parseConfig(strings.NewReader(missing)); err == nil ||
+		!strings.Contains(cliText(err), "missing batch.size") {
+		t.Fatalf("missing size: %v", err)
+	}
+}
+
+func TestParseConfig_readsTheCommittedConfig(t *testing.T) {
+	t.Parallel()
+	c := committedConfig(t)
+	if c.Batch < 4 || len(c.Shared) == 0 {
+		t.Fatalf("committed config: batch %d, shared %q", c.Batch, c.Shared)
+	}
+}
+
+func committedConfig(t *testing.T) Config {
+	t.Helper()
+	f, err := os.Open(filepath.Join("..", "..", "..", "..", "..", configPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+	c, err := parseConfig(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
 }

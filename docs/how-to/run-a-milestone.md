@@ -21,7 +21,7 @@ Do these once per milestone.
 
 2. Run `gt init --trunk staging` once per clone, so Graphite builds stacks on `staging`.
 
-3. Set `.monaco/agents.toml`: `repo`, `feature_branch` (`"auto"` reads the `MONACO_FEATURE_BRANCH` env, then the `FEATURE_BRANCH` repo variable; name a branch to pin it), `tracking` (the tracking issue number), `lanes` (the most owners running at once), `batch` (the most tickets per batch), `milestone` (the name of the local state directory under `.git/pstack/`), and the verifier App's `verifier_app` and `verifier_installation`. `[check.budget]` holds the stage 0 budget of each row.
+3. Set `.monaco/agents.toml`: `repo`, `feature_branch` (`"auto"` reads the `MONACO_FEATURE_BRANCH` env, then the `FEATURE_BRANCH` repo variable; name a branch to pin it), `tracking` (the tracking issue number), `lanes` (the most owners running at once), `milestone` (the name of the local state directory under `.git/pstack/`), and the verifier App's `verifier_app` and `verifier_installation`. The `[batch]` table holds `size` (the most tickets per batch) and `shared`, the globs two tickets may both touch and still share a batch. `[check.budget]` holds the stage 0 budget of each row.
 
 4. Open the tracking issue. Its body holds the wave table: one row per ticket with its wave, issue, title and blockers. `monacoctl agents status --publish` adds the status comment. `monacoctl agents` reads only status, batch and handoff comments written by an owner, member or collaborator of the repository or by `github-actions[bot]`, and edits only its own. Anyone else's comment with the same marker is ignored, and a new comment is posted instead.
 
@@ -67,7 +67,7 @@ Do these once per milestone.
 
         bin/monacoctl agents batch <n>...
 
-    It admits up to `batch` tickets and prints `deferred #<n>: <reason>` for each one it holds back: no `Touches`, an unmerged blocker, a blocker in the same batch, a `Touches` overlap or a full batch. It writes `.git/pstack/<milestone>/batch.json` and replaces the last batch. Copy the old `batch.json` first if you still want its timeline.
+    It admits up to `[batch] size` tickets and prints `deferred #<n>: <reason>` for each one it holds back: no `Touches`, an unmerged blocker, a blocker in the same batch, a `Touches` overlap or a full batch. Two tickets whose overlapping globs both lie inside `[batch] shared` still share a batch, and it prints `shared: #<a> and #<b> both touch <globs>` for each such pair. It writes `.git/pstack/<milestone>/batch.json` and replaces the last batch. Copy the old `batch.json` first if you still want its timeline.
 
 3. Publish the board:
 

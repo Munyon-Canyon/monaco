@@ -156,6 +156,148 @@ func TestBatch_refusesBadInputAndFailures(t *testing.T) {
 	}
 }
 
+func liveTouches() map[int]string {
+	return map[int]string{
+		562: "`apps/backend/internal/modules/treasury/**`, `apps/backend/queries/treasury/**`, " +
+			"`apps/backend/internal/errs/codes.go`, `apps/backend/internal/errs/codes_test.go`, " +
+			"`apps/backend/api/openapi.yaml`, `apps/backend/internal/platform/httpx/api/api.gen.go`, " +
+			"`apps/backend/internal/testkit/fakes/treasury.go`, `apps/backend/internal/testkit/fakes/treasury_test.go`, " +
+			"`docs/reference/errors.md`, `docs/reference/openapi.yaml`, " +
+			"`packages/mobile-core/Tests/MonacoAPITests/ProblemErrorTests.swift`",
+		563: "`apps/backend/internal/modules/funding/**`, `apps/backend/queries/funding/**`, " +
+			"`apps/backend/migrations/**`, `apps/backend/sqlc.yaml`, `apps/backend/.golangci.yml`, " +
+			"`apps/backend/CHANGELOG.md`, `apps/backend/cmd/*/module_funding.gen.go`, `apps/backend/cmd/monacoctl/ops.go`, " +
+			"`apps/backend/cmd/monacoctl/ops.gen.go`, `apps/backend/internal/events/registry.go`, " +
+			"`apps/backend/internal/events/cabal.go`, `apps/backend/internal/events/hints.go`, " +
+			"`apps/backend/internal/events/testdata/golden/cabal.paused.v1.json`, " +
+			"`apps/backend/internal/events/testdata/golden/cabal.resumed.v1.json`, " +
+			"`apps/backend/internal/errs/codes.go`, `apps/backend/internal/errs/codes_test.go`, " +
+			"`apps/backend/api/openapi.yaml`, `apps/backend/internal/platform/httpx/api/api.gen.go`, " +
+			"`apps/backend/internal/testkit/fakes/pauses.go`, `docs/reference/**`, " +
+			"`packages/mobile-core/Tests/MonacoAPITests/ProblemErrorTests.swift`",
+		569: "`apps/backend/internal/modules/social/**`, `apps/backend/queries/social/**`, " +
+			"`apps/backend/migrations/**`, `apps/backend/sqlc.yaml`, `apps/backend/.golangci.yml`, " +
+			"`apps/backend/api/openapi.yaml`, `apps/backend/internal/platform/httpx/api/api.gen.go`, " +
+			"`apps/backend/flows.tsv`, `apps/backend/internal/events/follow.go`, " +
+			"`apps/backend/internal/events/registry.go`, `apps/backend/internal/events/testdata/golden/follow.*`, " +
+			"`apps/backend/internal/errs/codes.go`, `apps/backend/internal/testkit/flows/f20.go`, " +
+			"`apps/backend/internal/testkit/scenarios/two-users.jsonl`, `apps/backend/cmd/api/module_social.gen.go`, " +
+			"`apps/backend/cmd/worker/module_social.gen.go`, `apps/backend/cmd/monacoctl/module_social.gen.go`, " +
+			"`apps/backend/cmd/api/registry.go`, `apps/backend/CHANGELOG.md`",
+		555: "`apps/backend/internal/modules/cabal/**`, `apps/backend/internal/testkit/scenarios/**`, " +
+			"`apps/backend/internal/testkit/fakes/**`, `apps/backend/api/openapi.yaml`, " +
+			"`apps/backend/internal/platform/httpx/api/api.gen.go`, `apps/backend/flows.tsv`, " +
+			"`apps/backend/internal/testkit/flows/**`",
+	}
+}
+
+func sharedConfig(t *testing.T, size int) string {
+	t.Helper()
+	quoted := make([]string, 0, len(committedConfig(t).Shared))
+	for _, g := range committedConfig(t).Shared {
+		quoted = append(quoted, strconv.Quote(g))
+	}
+	return strings.Replace(testConfig, "size = 2\n",
+		fmt.Sprintf("size = %d\nshared = [%s]\n", size, strings.Join(quoted, ", ")), 1)
+}
+
+func TestBatch_admitsTicketsThatOverlapOnlyOnSharedFiles(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	writeFile(t, filepath.Join(f.dir, configPath), sharedConfig(t, 6))
+	live := liveTouches()
+	args := make([]string, 0, 5)
+	args = append(args, "batch")
+	for _, n := range []int{562, 563, 569, 555} {
+		body := "**Blocked by:** none · **Touches:** " + live[n]
+		f.hub.on(get("/issues/"+strconv.Itoa(n)), Issue{Number: n, Body: body})
+		args = append(args, strconv.Itoa(n))
+	}
+	code, stdout, stderr := f.agents(t, args...)
+	const (
+		api   = "apps/backend/api/openapi.yaml, apps/backend/internal/platform/httpx/api/api.gen.go"
+		codes = "apps/backend/internal/errs/codes.go"
+	)
+	want := strings.Join([]string{
+		"batch: #562 #563 #569 #555 (4 of 6) in " + f.Env(t).batchPath(),
+		"shared: #563 and #562 both touch " + codes + ", apps/backend/internal/errs/codes_test.go, " + api +
+			", docs/reference/**, packages/mobile-core/Tests/MonacoAPITests/ProblemErrorTests.swift",
+		"shared: #569 and #562 both touch " + api + ", " + codes,
+		"shared: #569 and #563 both touch apps/backend/migrations/**, apps/backend/sqlc.yaml, " +
+			"apps/backend/.golangci.yml, " + api + ", apps/backend/internal/events/registry.go, " + codes +
+			", apps/backend/CHANGELOG.md",
+		"shared: #555 and #562 both touch apps/backend/internal/testkit/fakes/**, " + api,
+		"shared: #555 and #563 both touch apps/backend/internal/testkit/fakes/**, " + api,
+		"shared: #555 and #569 both touch apps/backend/internal/testkit/scenarios/**, " + api +
+			", apps/backend/flows.tsv, apps/backend/internal/testkit/flows/**",
+	}, "\n") + "\n"
+	if code != 0 || stderr != "" || stdout != want {
+		t.Fatalf("code=%d stderr=%q stdout:\n%s\nwant:\n%s", code, stderr, stdout, want)
+	}
+	t.Log(stdout)
+}
+
+func TestBatch_refusesAnOverlapOutsideTheSharedFiles(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		bodies [2]string
+		want   string
+	}{
+		"one module": {
+			[2]string{liveTouches()[555], "`apps/backend/flows.tsv`, `apps/backend/internal/modules/cabal/**`"},
+			"deferred #2: Touches apps/backend/internal/modules/cabal/** overlaps #1 apps/backend/internal/modules/cabal/**\n",
+		},
+		"a glob wider than the shared file": {
+			[2]string{"`apps/backend/flows.tsv`", "`apps/backend/*`"},
+			"deferred #2: Touches apps/backend/* overlaps #1 apps/backend/flows.tsv\n",
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := prepBranch(t)
+			writeFile(t, filepath.Join(f.dir, configPath), sharedConfig(t, 6))
+			f.hub.on(get("/issues/1"), Issue{Number: 1, Body: "**Touches:** " + tc.bodies[0]})
+			f.hub.on(get("/issues/2"), Issue{Number: 2, Body: "**Touches:** " + tc.bodies[1]})
+			code, stdout, stderr := f.agents(t, "batch", "1", "2")
+			want := "batch: #1 (1 of 6) in " + f.Env(t).batchPath() + "\n" + tc.want
+			if code != 0 || stderr != "" || stdout != want {
+				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+			}
+		})
+	}
+}
+
+func TestGlobWithin(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		glob, shared string
+		want         bool
+	}{
+		{"a/b.go", "a/b.go", true},
+		{"a/b.go", "a/**", true},
+		{"a/x/y/z.go", "a/**", true},
+		{"a/**", "a/**", true},
+		{"a/*_registrations.go", "a/**", true},
+		{"a/b/follow.*", "a/**", true},
+		{"a/*.go", "a/*", true},
+		{"a/*.go", "a/*.go", true},
+		{"a/**", "a/b/**", false},
+		{"a/*", "a/b.go", false},
+		{"a/*.go", "a/b*.go", false},
+		{"a/b", "a/b/**", true},
+		{"a/bc", "a/b/**", false},
+		{"**", "a/**", false},
+		{"a/b.go", "c/**", false},
+		{"a", "a/b", false},
+	}
+	for _, tc := range cases {
+		if got := globWithin(strings.Split(tc.glob, "/"), strings.Split(tc.shared, "/")); got != tc.want {
+			t.Errorf("globWithin(%q, %q) = %v", tc.glob, tc.shared, got)
+		}
+	}
+}
+
 func TestGlobsOverlap(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

@@ -18,6 +18,7 @@ var (
 	errWantKeyValue   = errors.New("want key = value")
 	errUnknownSection = errors.New("unknown section")
 	errBadBudget      = errors.New("want a positive duration such as \"60s\"")
+	errWantList       = errors.New("want a list of quoted strings such as [\"a/**\"]")
 )
 
 const (
@@ -25,6 +26,8 @@ const (
 	defaultLabel  = "merge-queue"
 	budgetSection = "[check.budget]"
 	budgetPrefix  = "check.budget."
+	batchSection  = "[batch]"
+	batchPrefix   = "batch."
 )
 
 func defaultBudget() map[string]time.Duration {
@@ -48,6 +51,7 @@ type Config struct {
 	Milestone            string
 	QueueLabel           string
 	Budget               map[string]time.Duration
+	Shared               []string
 }
 
 func parseConfig(r io.Reader) (Config, error) {
@@ -59,19 +63,21 @@ func parseConfig(r io.Reader) (Config, error) {
 		"milestone": &c.Milestone, "queue_label": &c.QueueLabel,
 	}
 	ints := map[string]*int{
-		"tracking": &c.Tracking, "lanes": &c.Lanes, "batch": &c.Batch, "verifier_installation": &c.VerifierInstallation,
+		"tracking": &c.Tracking, "lanes": &c.Lanes, "batch.size": &c.Batch,
+		"verifier_installation": &c.VerifierInstallation,
 	}
-	sc := bufio.NewScanner(r)
-	for n := 1; sc.Scan(); n++ {
-		if err := applyConfigLine(&c, &section, seen, strs, ints, n, sc.Text()); err != nil {
+	lists := map[string]*[]string{"batch.shared": &c.Shared}
+	lines, err := logicalLines(r)
+	if err != nil {
+		return Config{}, err
+	}
+	for _, l := range lines {
+		if err := applyConfigLine(&c, &section, seen, strs, ints, lists, l.n, l.text); err != nil {
 			return Config{}, err
 		}
 	}
-	if err := sc.Err(); err != nil {
-		return Config{}, fmt.Errorf("read %s: %w", configPath, err)
-	}
 	for _, key := range []string{
-		"repo", "feature_branch", "tracking", "lanes", "batch", "verifier_app", "verifier_installation",
+		"repo", "feature_branch", "tracking", "lanes", "batch.size", "verifier_app", "verifier_installation",
 		"milestone",
 	} {
 		if !seen[key] {
@@ -88,8 +94,49 @@ func parseConfig(r io.Reader) (Config, error) {
 	return c, nil
 }
 
+type configLine struct {
+	n    int
+	text string
+}
+
+func logicalLines(r io.Reader) ([]configLine, error) {
+	var (
+		out  []configLine
+		open *configLine
+	)
+	sc := bufio.NewScanner(r)
+	for n := 1; sc.Scan(); n++ {
+		line := sc.Text()
+		switch trimmed := strings.TrimSpace(line); {
+		case open == nil && !opensList(line):
+			out = append(out, configLine{n, line})
+		case open == nil:
+			open = &configLine{n, trimmed}
+		case !strings.HasPrefix(trimmed, "#"):
+			open.text += trimmed
+		}
+		if open != nil && strings.HasSuffix(open.text, "]") {
+			out, open = append(out, *open), nil
+		}
+	}
+	if err := sc.Err(); err != nil {
+		return nil, fmt.Errorf("read %s: %w", configPath, err)
+	}
+	if open != nil {
+		return nil, configLineErr(open.n, errWantList)
+	}
+	return out, nil
+}
+
+func opensList(line string) bool {
+	_, raw, ok := strings.Cut(line, "=")
+	raw = strings.TrimSpace(raw)
+	return ok && strings.HasPrefix(raw, "[") && !strings.HasSuffix(raw, "]")
+}
+
 func applyConfigLine(
-	c *Config, section *string, seen map[string]bool, strs map[string]*string, ints map[string]*int, n int, text string,
+	c *Config, section *string, seen map[string]bool, strs map[string]*string, ints map[string]*int,
+	lists map[string]*[]string, n int, text string,
 ) error {
 	line := strings.TrimSpace(text)
 	if line == "" || strings.HasPrefix(line, "#") {
@@ -102,22 +149,50 @@ func applyConfigLine(
 	case line == budgetSection:
 		*section = budgetPrefix
 		return nil
+	case line == batchSection:
+		*section = batchPrefix
+		return nil
 	case strings.HasPrefix(line, "["):
 		err = fmt.Errorf("%w %s", errUnknownSection, line)
 	case strings.HasPrefix(key, budgetPrefix):
 		err = assignBudget(c.Budget, strings.TrimPrefix(key, budgetPrefix), raw, ok)
+	case lists[key] != nil:
+		*lists[key], err = parseList(raw)
 	default:
 		err = assignConfig(strs, ints, key, raw, ok)
 	}
 	if err != nil {
-		return detailErr(
-			errs.CodeDecodeFailed,
-			"monacoctl.agents.config",
-			fmt.Sprintf("%s:%d: %s", configPath, n, err.Error()),
-		)
+		return configLineErr(n, err)
 	}
 	seen[key] = true
 	return nil
+}
+
+func configLineErr(n int, err error) error {
+	return detailErr(
+		errs.CodeDecodeFailed,
+		"monacoctl.agents.config",
+		fmt.Sprintf("%s:%d: %s", configPath, n, err.Error()),
+	)
+}
+
+func parseList(raw string) ([]string, error) {
+	if !strings.HasPrefix(raw, "[") || !strings.HasSuffix(raw, "]") {
+		return nil, errWantList
+	}
+	inner := raw[1 : len(raw)-1]
+	var out []string
+	for item := range strings.SplitSeq(inner, ",") {
+		if item = strings.TrimSpace(item); item == "" {
+			continue
+		}
+		v, err := strconv.Unquote(item)
+		if err != nil {
+			return nil, fmt.Errorf("%w, got %s", errWantList, item)
+		}
+		out = append(out, v)
+	}
+	return out, nil
 }
 
 func assignConfig(strs map[string]*string, ints map[string]*int, key, raw string, ok bool) error {

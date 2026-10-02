@@ -41,9 +41,12 @@ func batchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 		return err
 	}
 	b := Batch{Created: env.Now()}
-	var deferred []deferral
+	var (
+		deferred []deferral
+		shared   []string
+	)
 	for _, n := range asked {
-		touches, reason, err := env.admit(ctx, n, asked, b.Tickets)
+		touches, waived, reason, err := env.admit(ctx, n, asked, b.Tickets)
 		if err != nil {
 			return err
 		}
@@ -52,6 +55,7 @@ func batchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 			continue
 		}
 		b.Tickets = append(b.Tickets, BatchTicket{Ticket: n, Touches: touches})
+		shared = append(shared, waived...)
 	}
 	if len(b.Tickets) > 0 {
 		if err := env.saveBatch(b); err != nil {
@@ -69,6 +73,9 @@ func batchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 			env.Config.Batch,
 			env.batchPath(),
 		)
+	}
+	for _, line := range shared {
+		_, _ = fmt.Fprintf(stdout, "shared: %s\n", line)
 	}
 	for _, d := range deferred {
 		_, _ = fmt.Fprintf(stdout, "deferred #%d: %s\n", d.ticket, d.reason)
@@ -99,28 +106,34 @@ func parseBatch(args []string) ([]int, error) {
 	return out, nil
 }
 
-func (env *Env) admit(ctx context.Context, n int, asked []int, accepted []BatchTicket) ([]string, string, error) {
+func (env *Env) admit(
+	ctx context.Context, n int, asked []int, accepted []BatchTicket,
+) (touches, waived []string, reason string, err error) {
 	is, err := env.GitHub.Issue(ctx, n)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
-	touches := touchGlobs(is.Body)
+	touches = touchGlobs(is.Body)
 	if len(touches) == 0 {
-		return nil, "no Touches line", nil
+		return nil, nil, "no Touches line", nil
 	}
-	reason, err := env.blockedReason(ctx, is.Body, asked)
+	reason, err = env.blockedReason(ctx, is.Body, asked)
 	if err != nil || reason != "" {
-		return nil, reason, err
+		return nil, nil, reason, err
 	}
 	for _, a := range accepted {
-		if mine, theirs, ok := overlap(touches, a.Touches); ok {
-			return nil, fmt.Sprintf("Touches %s overlaps #%d %s", mine, a.Ticket, theirs), nil
+		o := overlap(touches, a.Touches, env.Config.Shared)
+		if o.blocked {
+			return nil, nil, fmt.Sprintf("Touches %s overlaps #%d %s", o.mine, a.Ticket, o.theirs), nil
+		}
+		if len(o.shared) > 0 {
+			waived = append(waived, fmt.Sprintf("#%d and #%d both touch %s", n, a.Ticket, strings.Join(o.shared, ", ")))
 		}
 	}
 	if len(accepted) >= env.Config.Batch {
-		return nil, fmt.Sprintf("batch is full at %d", env.Config.Batch), nil
+		return nil, nil, fmt.Sprintf("batch is full at %d", env.Config.Batch), nil
 	}
-	return touches, "", nil
+	return touches, waived, "", nil
 }
 
 func (env *Env) blockedReason(ctx context.Context, body string, asked []int) (string, error) {
@@ -170,15 +183,54 @@ func touchGlobs(body string) []string {
 	return out
 }
 
-func overlap(mine, theirs []string) (string, string, bool) {
+type overlapResult struct {
+	blocked      bool
+	mine, theirs string
+	shared       []string
+}
+
+func overlap(mine, theirs, shared []string) overlapResult {
+	var o overlapResult
 	for _, a := range mine {
 		for _, b := range theirs {
-			if globsOverlap(strings.Split(a, "/"), strings.Split(b, "/")) {
-				return a, b, true
+			if !globsOverlap(strings.Split(a, "/"), strings.Split(b, "/")) {
+				continue
+			}
+			if !inShared(a, shared) || !inShared(b, shared) {
+				return overlapResult{blocked: true, mine: a, theirs: b}
+			}
+			if !slices.Contains(o.shared, a) {
+				o.shared = append(o.shared, a)
 			}
 		}
 	}
-	return "", "", false
+	return o
+}
+
+func inShared(glob string, shared []string) bool {
+	return slices.ContainsFunc(shared, func(s string) bool {
+		return globWithin(strings.Split(glob, "/"), strings.Split(s, "/"))
+	})
+}
+
+func globWithin(a, s []string) bool {
+	switch {
+	case len(s) == 0:
+		return len(a) == 0
+	case s[0] == "**":
+		return globWithin(a, s[1:]) || (len(a) > 0 && globWithin(a[1:], s))
+	case len(a) == 0 || a[0] == "**":
+		return false
+	}
+	return segmentWithin(a[0], s[0]) && globWithin(a[1:], s[1:])
+}
+
+func segmentWithin(a, s string) bool {
+	if !strings.ContainsAny(a, "*?[") {
+		ok, _ := path.Match(s, a)
+		return ok
+	}
+	return s == "*" || a == s
 }
 
 func globsOverlap(a, b []string) bool {
