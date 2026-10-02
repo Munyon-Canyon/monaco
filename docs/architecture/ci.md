@@ -273,6 +273,8 @@ Each step is one small PR with its own proof.
 
 ## Log
 
+- 2026-10-02: Stage 2 resolves a queue draft's base by commit SHA, then falls back to the trunk. Draft #1420, testing #1415, was based on draft #1418's `gtmq_` branch. After #1418 landed, that branch was deleted and job 110734316976 (`ci / Lint`, "OpenAPI spec has no breaking changes") failed with `couldn't find remote ref gtmq_…`, which dropped #1415 with no defect in its diff. `scripts/ci/fetch-base.sh` fetches `pull_request.base.sha` first, then a base ref that does not start with `gtmq_`, then `FEATURE_BRANCH` (`git merge-base` with `HEAD` when the history is there, otherwise `FETCH_HEAD`). The OpenAPI breaking-change step passes `DEPTH=1`. `flake` and `flake-swift` keep `fetch-depth: 0` and pass the printed SHA to `--base`. A `workflow_dispatch` with no pull request still falls back to `FEATURE_BRANCH`.
+
 - 2026-10-02: Stage 1 reuse now keys on the diff's patch ID and the first 12 characters of the `.github/workflows` tree at the PR head (#1292). A restack onto a trunk that changed a workflow file, or added a job, no longer skips stage 1. A summary in the old form (`patch-id` alone) does not match, so the next push after this change runs stage 1 once and then reuses. Seen on #1289: its green stage 1 predated the `apps/mobile/**` filter on `mobile-core`, and the restack reused that result, so the queue was the first run of those jobs.
 
 - 2026-10-01: The operator approved raising the Home row of `apps/mobile/MonacoUITests/perf-budgets.tsv` from 3250 to 5500 ms (#1061). Quiet Intel medians at 3250 were 4521 to 4791 ms. Lower the row if the first macos-26 nightly is far under 5500.
