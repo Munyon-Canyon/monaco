@@ -7,7 +7,7 @@ import XCTest
 /// The product argument lives in this copy — the stock stops, the token does not —
 /// so it is asserted rather than left to whoever edits the view next.
 final class MarketSessionCopyTests: XCTestCase {
-    private let easternUS = Locale(identifier: "en_US")
+    private let easternUS = Locale(identifier: "en_US@hours=h12")
     private let newYork = TimeZone(identifier: "America/New_York")!
 
     private func chip(_ market: MarketStatusDTO?) -> MarketSessionChipCopy? {
