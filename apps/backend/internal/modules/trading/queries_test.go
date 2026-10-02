@@ -96,6 +96,28 @@ func TestQueries_latestBySourceIsRetryableOnlyWhenItFailedLast(t *testing.T) {
 	}
 }
 
+func TestQueries_retryableIsScopedToTheMintOfTheFailedSwap(t *testing.T) {
+	t.Parallel()
+	d := newPortDB(t)
+	source := d.ids.NewV7()
+	failed := d.created(source, aaplxMint)
+	d.insert(t, failed)
+	d.fail(t, failed.ID, string(domain.FailureNeverSubmitted))
+	other := d.created(source, tslaxMint)
+	other.CreatedAt = d.now.Add(time.Minute)
+	d.insert(t, other)
+	got, err := d.port.Swap(t.Context(), ids.SwapIDFrom(failed.ID))
+	if err != nil || !got.Retryable {
+		t.Fatalf("Swap of a failure with a later swap on another mint = %+v, %v, want retryable", got, err)
+	}
+	retry := d.created(source, aaplxMint)
+	retry.CreatedAt = d.now.Add(2 * time.Minute)
+	d.insert(t, retry)
+	if got, err = d.port.Swap(t.Context(), ids.SwapIDFrom(failed.ID)); err != nil || got.Retryable {
+		t.Fatalf("Swap of a failure with a later swap on the same mint = %+v, %v, want not retryable", got, err)
+	}
+}
+
 func TestQueries_hasLiveSwapForCreatedSubmittedAndConfirmedOnly(t *testing.T) {
 	t.Parallel()
 	d := newPortDB(t)
@@ -133,7 +155,7 @@ func TestQueries_reportAnUnreadableRowAsDecodeFailed(t *testing.T) {
 	t.Parallel()
 	for name, set := range map[string]string{
 		"status":       `status = 'lost'`,
-		"source kind":  `source_kind = 'agent_intent'`,
+		"source kind":  `source_kind = 'unplanned_kind'`,
 		"failure code": `status = 'failed', failure_code = 'gremlins'`,
 		"in amount":    `in_amount = -1`,
 		"out amount":   `out_amount = -1`,
@@ -149,7 +171,7 @@ func TestQueries_reportAnUnreadableRowAsDecodeFailed(t *testing.T) {
 			if _, err := d.port.Swap(t.Context(), ids.SwapIDFrom(row.ID)); errs.CodeOf(err) != errs.CodeDecodeFailed {
 				t.Errorf("Swap err = %v, want decode_failed", err)
 			}
-			src := trading.Source{Kind: domain.SourceKind("agent_intent"), ID: row.SourceID}
+			src := trading.Source{Kind: domain.SourceKind("unplanned_kind"), ID: row.SourceID}
 			if name != "source kind" {
 				src = proposal(row.SourceID)
 			}
