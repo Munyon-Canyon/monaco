@@ -14,8 +14,14 @@ import (
 )
 
 type (
-	SwapView = app.SwapView
-	Source   = domain.Source
+	SwapView       = app.SwapView
+	Source         = domain.Source
+	SwapLayer      = app.SwapLayer
+	SwapLayerDeps  = app.SwapLayerDeps
+	SwapRequest    = app.SwapRequest
+	TreasuryWallet = app.TreasuryWallet
+	Venue          = app.Venue
+	Signer         = app.Signer
 )
 
 type Queries interface {
