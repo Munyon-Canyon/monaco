@@ -61,6 +61,12 @@ func (healthz) DeleteDevice(context.Context, api.DeleteDeviceRequestObject) (api
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.DeleteDevice")
 }
 
+func (healthz) GetMyReferralCode(
+	context.Context, api.GetMyReferralCodeRequestObject,
+) (api.GetMyReferralCodeResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetMyReferralCode")
+}
+
 func (healthz) PostSystemPing(
 	context.Context, api.PostSystemPingRequestObject,
 ) (api.PostSystemPingResponseObject, error) {

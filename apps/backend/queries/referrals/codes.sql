@@ -12,3 +12,6 @@ SELECT (
 
 -- name: ReferralCodeOwner :one
 SELECT user_id FROM referral_codes WHERE code = sqlc.arg(code);
+
+-- name: ReferralCodeOfUser :one
+SELECT code FROM referral_codes WHERE user_id = sqlc.arg(owner);

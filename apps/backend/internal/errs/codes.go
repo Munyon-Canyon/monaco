@@ -121,6 +121,7 @@ const (
 	CodeCannotFollowSelf    Code = "cannot_follow_self"
 	CodeUserBanned          Code = "user_banned"
 	CodeReferralCodeUnknown Code = "referral_code_unknown"
+	CodeReferralCodePending Code = "referral_code_pending"
 )
 
 type Row struct {
@@ -438,6 +439,10 @@ func cabalRows() map[Code]Row {
 func referralsRows() map[Code]Row {
 	return map[Code]Row{
 		CodeReferralCodeUnknown: {Name: "ReferralCodeUnknown", Kind: KindNotFound, Message: "That code isn't valid"},
+		CodeReferralCodePending: {
+			Name: "ReferralCodePending", Kind: KindUnavailable, Retryable: true,
+			Message: "Your invite code is still being created. Try again in a moment.",
+		},
 	}
 }
 

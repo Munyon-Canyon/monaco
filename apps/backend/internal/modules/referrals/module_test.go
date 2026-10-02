@@ -21,7 +21,7 @@ func TestModule_registersTheReferralsDurableWithMintCodeOnUserCreated(t *testing
 	var routes httpx.Routes
 	m.Routes(&routes)
 	consumers := m.Consumers()
-	if m.Name() != "referrals" || routes != (httpx.Routes{}) || m.Pollers() != nil || len(consumers) != 1 ||
+	if m.Name() != "referrals" || routes.ReferralsRoutes == nil || m.Pollers() != nil || len(consumers) != 1 ||
 		consumers[0].Durable != "referrals" || len(consumers[0].Handlers) != 1 ||
 		consumers[0].Handlers[0].Name != "referrals.mint_code" ||
 		consumers[0].Handlers[0].Type() != events.TypeUserCreated {
