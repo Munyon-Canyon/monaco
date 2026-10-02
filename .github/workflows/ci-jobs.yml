@@ -80,15 +80,16 @@ jobs:
 
       - name: OpenAPI spec has no breaking changes
         env:
-          BASE_REF: ${{ github.base_ref || vars.FEATURE_BRANCH || 'main' }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref || github.base_ref }}
+          FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH || 'main' }}
         run: |
-          base="${BASE_REF#refs/heads/}"
-          git fetch --no-tags --depth=1 origin "$base"
-          if ! git cat-file -e FETCH_HEAD:apps/backend/api/openapi.yaml 2>/dev/null; then
+          base="$(DEPTH=1 ../../scripts/ci/fetch-base.sh)"
+          if ! git cat-file -e "$base:apps/backend/api/openapi.yaml" 2>/dev/null; then
             echo "no api/openapi.yaml on $base"
             exit 0
           fi
-          git show FETCH_HEAD:apps/backend/api/openapi.yaml > "$RUNNER_TEMP/base-openapi.yaml"
+          git show "$base:apps/backend/api/openapi.yaml" > "$RUNNER_TEMP/base-openapi.yaml"
           ../../scripts/ci/oasdiff-breaking.sh "$RUNNER_TEMP/base-openapi.yaml" api/openapi.yaml
 
   backend:
@@ -391,15 +392,19 @@ jobs:
     if: inputs.stage == 'queue' && (needs.plan.outputs.backend-tests == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      BASE_REF: ${{ github.event.pull_request.base.ref || vars.FEATURE_BRANCH || 'main' }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Fetch the base branch
-        run: git fetch --no-tags origin "$BASE_REF"
+      - name: Resolve the base commit
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref || github.base_ref }}
+          FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH || 'main' }}
+        run: |
+          base="$(scripts/ci/fetch-base.sh)"
+          echo "BASE_COMMIT=${base}" >> "$GITHUB_ENV"
 
       - uses: ./.github/actions/backend-test-env
 
@@ -414,7 +419,7 @@ jobs:
           install-only: true
 
       - name: Rerun the changed test files on this host's Postgres
-        run: scripts/ci/flake-tests.sh --base "origin/${BASE_REF}"
+        run: scripts/ci/flake-tests.sh --base "$BASE_COMMIT"
 
   flake-swift:
     name: Flake (changed Swift tests, count 10)
@@ -423,8 +428,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     container: swift:6.3-noble
-    env:
-      BASE_REF: ${{ github.event.pull_request.base.ref || vars.FEATURE_BRANCH || 'main' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -435,15 +438,21 @@ jobs:
       - name: Trust the workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Fetch the base branch
-        run: git fetch --no-tags origin "$BASE_REF"
+      - name: Resolve the base commit
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref || github.base_ref }}
+          FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH || 'main' }}
+        run: |
+          base="$(scripts/ci/fetch-base.sh)"
+          echo "BASE_COMMIT=${base}" >> "$GITHUB_ENV"
 
       - name: Build the package and its tests once
         working-directory: packages/mobile-core
         run: swift build --build-tests --force-resolved-versions
 
       - name: Rerun the changed Swift test files on the built package
-        run: scripts/ci/flake-tests-swift.sh --base "origin/${BASE_REF}"
+        run: scripts/ci/flake-tests-swift.sh --base "$BASE_COMMIT"
 
   # Required as "ci / ci-ok". A skipped check passes a required check, so ci-ok must never skip
   # once this workflow starts: keep always(), not !cancelled(), so a cancelled run fails it.
