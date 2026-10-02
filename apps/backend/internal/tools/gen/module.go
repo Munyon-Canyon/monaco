@@ -23,6 +23,7 @@ func planModule(_ *os.Root, modPath string, args []string) (Plan, error) {
 			filepath.Join(dir, "app", "app.go"):           "module/app.go.tmpl",
 			filepath.Join(dir, "adapters", "adapters.go"): "module/adapters.go.tmpl",
 			filepath.Join("queries", name, ".gitkeep"):    "module/gitkeep.tmpl",
+			filepath.Join("api", "spec", name+".yaml"):    "module/spec.yaml.tmpl",
 		}),
 		Edit: map[string]func(string) (string, error){"CHANGELOG.md": changelogStub(name)},
 	}, nil

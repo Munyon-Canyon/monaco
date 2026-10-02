@@ -56,6 +56,7 @@ func generatedDirs() []string {
 func ownedByExample(rel string) bool {
 	return slices.ContainsFunc(generatedDirs(), func(dir string) bool { return strings.HasPrefix(rel, dir+"/") }) ||
 		slices.Contains([]string{
+			"api/spec/example.yaml",
 			"cmd/api/module_example.gen.go",
 			"cmd/worker/module_example.gen.go",
 			"cmd/monacoctl/module_example.gen.go",

@@ -21,7 +21,7 @@ Every job has one paved path, and a generator writes its first copy. Start from 
 | SQL | `apps/backend/queries/system/pings.sql`, generated into `apps/backend/internal/modules/system/sqlc/` |
 | Migration | `apps/backend/migrations/20260929120000_system.sql` |
 | Event | `apps/backend/internal/events/system.go`, registered in `apps/backend/internal/events/system_registrations.go` |
-| Contract | `apps/backend/api/openapi.yaml`, generated into `apps/backend/internal/platform/httpx/api/api.gen.go` |
+| Contract | `apps/backend/api/spec/system.yaml`, bundled into `apps/backend/api/openapi.yaml` and generated into `apps/backend/internal/platform/httpx/api/api.gen.go` |
 | Flow scripts | `apps/backend/internal/testkit/flows/f00.go`, listed in `apps/backend/internal/testkit/flows/scripts.go` |
 | Flow tests | `apps/backend/internal/modules/system/flow00_test.go`, `apps/backend/internal/modules/system/flow00_crash_test.go` |
 
@@ -31,7 +31,7 @@ Every job has one paved path, and a generator writes its first copy. Start from 
 
 | Command | Writes |
 | --- | --- |
-| `just gen module <name>` | `module.go`, `main_test.go`, the `domain`, `app` and `adapters` packages, `queries/<name>/`, a CHANGELOG line, the first migration `migrations/<timestamp>_<name>_init.sql` with the rewritten `atlas.sum`, and the regenerated `sqlc.yaml`, `.golangci.yml` and `cmd/*/module_<name>.gen.go` |
+| `just gen module <name>` | `module.go`, `main_test.go`, the `domain`, `app` and `adapters` packages, `queries/<name>/`, an `api/spec/<name>.yaml` stub with `paths: {}`, a CHANGELOG line, the first migration `migrations/<timestamp>_<name>_init.sql` with the rewritten `atlas.sum`, and the regenerated `sqlc.yaml`, `.golangci.yml` and `cmd/*/module_<name>.gen.go` |
 | `just gen command <module> <Name>` | `app/<name>.go` and `<name>_test.go` |
 | `just gen query <module> <Name>` | `queries/<module>/<name>.sql` and `app/<name>_query.go`, then runs sqlc |
 | `just gen migration <module> <name>` | `migrations/<timestamp>_<module>_<name>.sql`, empty, and the rewritten `atlas.sum`. `just gen migration --rebase` moves the branch's own migrations above the newest on origin/staging |
@@ -49,7 +49,7 @@ Generated stubs are placeholders. The command and consumer templates append or t
 4. Add the event if the command needs a new one. Follow "Add an event" in the `nats-consumer` skill; it touches five files besides the event type.
 5. Add the SQL. Put the statement in `queries/<module>/*.sql` and regenerate with `../../.bin/sqlc generate` (installed by `scripts/install-sqlc.sh`). A state change is a guarded update: `UPDATE ... WHERE id = $1 AND <expected state>` with `:execrows`, and zero rows means the state moved.
 6. A schema change is a new atlas migration. Run `just gen migration <module> <name>`: it picks the timestamp prefix (now, or one second past the newest prefix when the clock is behind it) and reruns `atlas migrate hash`. Never choose a prefix by hand and never edit an applied migration. After a restack conflict in `migrations/`, run `just gen migration --rebase`.
-7. Expose it. Add the route to `apps/backend/api/openapi.yaml`, run `go generate ./internal/platform/httpx/api`, add the method to the module's routes interface in `apps/backend/internal/platform/httpx/server.go`, and implement it in the module's HTTP adapter, as `apps/backend/internal/modules/system/adapters/http.go` does. Errors are `errs` codes, never ad hoc HTTP statuses. A new code goes in `apps/backend/internal/errs/codes_<module>.go` (the constant and its table row), then run `go generate ./cmd/monacoctl` to update the OpenAPI enum and the Swift case list.
+7. Expose it. Add the route and the schemas only it uses to `apps/backend/api/spec/<module>.yaml`, never to the generated `openapi.yaml`, and run `go generate ./...` in `apps/backend`, which bundles the spec files and then regenerates `api.gen.go`. A schema that more than one module uses goes in `api/spec/base.yaml`. Add the method to the module's routes interface in `apps/backend/internal/platform/httpx/server.go`, and implement it in the module's HTTP adapter, as `apps/backend/internal/modules/system/adapters/http.go` does. Errors are `errs` codes, never ad hoc HTTP statuses. A new code goes in `apps/backend/internal/errs/codes_<module>.go` (the constant and its table row), then `go generate ./...` updates the `ErrorCode` enum in `api/spec/base.yaml` and the Swift case list.
 8. Wire the handler in `module.go`, as `Routes` does for `RecordPing`.
 
 ## Add a query
