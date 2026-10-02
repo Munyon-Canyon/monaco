@@ -109,7 +109,7 @@ func TestOutcomeMismatch_readsTheTriggerLineOfTheKindAndOutcomeWrittenAfterTheSc
 		noAck    = "no bus.dispatched for system.pinged with outcome ack after the script started"
 		noCode   = "no bus.dispatched for system.pinged with code invalid_input after the script started"
 	)
-	d := &driver{env: Env{Subject: func(s string) string { return "ns." + s }}}
+	d := &driver{clock: clock.Real{}, env: Env{Subject: func(s string) string { return "ns." + s }}}
 	for _, tc := range []struct {
 		flow, outcome string
 		before, after []string
@@ -173,8 +173,10 @@ func tickAsTheWorker(t *testing.T, env Env, p poller.Poller) {
 	}, 5*time.Second)
 }
 
+const virtualConverge = time.Hour
+
 func failingConverge(b Budget) Budget {
-	b.Converge = 500 * time.Millisecond
+	b.Converge = virtualConverge
 	return b
 }
 
@@ -183,6 +185,9 @@ func runUnit(t *testing.T, env Env, budget Budget, u Unit) *Result {
 	d, err := newDriver(env, budget)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if budget.Converge == virtualConverge {
+		return runPastConverge(t, d, u)
 	}
 	return d.run(t.Context(), u)
 }

@@ -143,3 +143,17 @@ func TestClockTickerRejectsNonPositiveInterval(t *testing.T) {
 	}()
 	testkit.NewClock(start).NewTicker(0)
 }
+
+func TestClockNotifyTickersReportsEachNewTickerInterval(t *testing.T) {
+	t.Parallel()
+	c := testkit.NewClock(epoch())
+	made := make(chan time.Duration, 2)
+	c.NotifyTickers(made)
+	c.NewTicker(3 * time.Second)
+	c.NewTicker(7 * time.Second)
+	for _, want := range []time.Duration{3 * time.Second, 7 * time.Second} {
+		if got := <-made; got != want {
+			t.Fatalf("notified interval = %v, want %v", got, want)
+		}
+	}
+}

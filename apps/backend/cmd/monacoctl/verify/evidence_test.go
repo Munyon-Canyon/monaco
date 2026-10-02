@@ -139,12 +139,17 @@ func TestVerifyUnits_namesTheOverBudgetPhaseAndStopsOnCollectFailures(t *testing
 	t.Parallel()
 	served := servedEnv(t)
 	env := served
-	env.API = slowAPI(t)
+	env.API, _ = slowAPI(t)
 	budget := DefaultBudget()
-	budget.Flow = 200 * time.Millisecond
+	budget.Seed, budget.Flow = time.Hour, 200*time.Millisecond
 	cfg, _ := driveConfig(budget)
+	clk := fakeClock()
+	cfg.Clock = clk
 	slow := plantedUnit("ok", func(s *scenario.Scenario) { s.When(scenario.Get("/slow")) })
-	err := verifyUnits(t.Context(), cfg, env, newReport(t.Context(), Target{}, []Unit{slow}), 1)
+	var err error
+	advancing(clk, 10*time.Millisecond, func() {
+		err = verifyUnits(t.Context(), cfg, env, newReport(t.Context(), Target{}, []Unit{slow}), 1)
+	})
 	if !strings.Contains(err.Error(), "over budget: flow 99 ok flow took longer than 200ms") {
 		t.Fatalf("verifyUnits = %v, want the phase named", err)
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 	tools "github.com/monaco/monaco/apps/backend/internal/tools/flows"
@@ -20,7 +21,7 @@ const (
 )
 
 func healthzSettle(pool *pgxpool.Pool, lines ...string) (*driver, *Result) {
-	d := &driver{env: Env{Pool: pool, Logs: &Logs{}}}
+	d := &driver{clock: clock.Real{}, env: Env{Pool: pool, Logs: &Logs{}}}
 	res := &Result{
 		Unit:      Unit{Flow: tools.Flow{ID: "90", Trigger: "GET /healthz"}, Outcome: tools.OutcomeOK},
 		Exchanges: []scenario.Exchange{{Method: http.MethodGet, Path: "/healthz", Status: http.StatusOK}},
@@ -67,7 +68,7 @@ const (
 )
 
 func consumerSettle(pool *pgxpool.Pool) (*driver, *Result) {
-	d := &driver{env: Env{Pool: pool, Logs: &Logs{}, Subject: func(s string) string { return s }}}
+	d := &driver{clock: clock.Real{}, env: Env{Pool: pool, Logs: &Logs{}, Subject: func(s string) string { return s }}}
 	res := &Result{
 		Unit: Unit{
 			Flow:    tools.Flow{ID: "96", Trigger: "consumer:system.pinged"},

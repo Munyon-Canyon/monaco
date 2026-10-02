@@ -12,6 +12,7 @@ type Clock struct {
 	mu      sync.Mutex
 	now     time.Time
 	pending []*timer
+	tickers chan<- time.Duration
 }
 
 type timer struct {
@@ -39,7 +40,22 @@ func (c *Clock) NewTicker(d time.Duration) clock.Ticker {
 	if d <= 0 {
 		panic("testkit.Clock.NewTicker: non-positive interval")
 	}
+	c.mu.Lock()
+	notify := c.tickers
+	c.mu.Unlock()
+	if notify != nil {
+		select {
+		case notify <- d:
+		default:
+		}
+	}
 	return c.schedule(d, d)
+}
+
+func (c *Clock) NotifyTickers(ch chan<- time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.tickers = ch
 }
 
 func (c *Clock) Advance(d time.Duration) {
