@@ -30,6 +30,7 @@ import (
 type routes struct {
 	httpx.Health
 	sse.Stream
+	httpx.GovernanceRoutes
 	httpx.IdentityRoutes
 	httpx.NotifyRoutes
 	httpx.SystemRoutes

@@ -30,7 +30,8 @@ import (
 
 const fixtureFlows = tools.Header + "\n" +
 	"95\tPrices\tfixture\tpoller:fixture.prices\tTickPrices\t\t\tok;UpstreamUnavailable\tbuilt\tdocs/x.md#prices\n" +
-	"96\tEcho\tsystem\tconsumer:system.pinged\tEcho\t\tfixture.ok\tok;InvalidInput\tbuilt\tdocs/x.md#echo\n"
+	"96\tEcho\tsystem\tconsumer:system.pinged\tEcho\t\tfixture.ok\tok;InvalidInput\tbuilt\tdocs/x.md#echo\n" +
+	"97\tVote\tsystem\tPOST /v1/system/pings\tRecordPing\t\t\tok;InvalidInput\tbuilt\tdocs/x.md#vote\n"
 
 func awaitPrices(s *scenario.Scenario) { s.When(scenario.AwaitTick("fixture.prices")) }
 
@@ -48,6 +49,36 @@ func fixtureScripts() map[string]flows.Script {
 		"F95TickPricesUpstreamUnavailable": awaitPrices,
 		"F96EchoOK":                        ping,
 		"F96EchoInvalidInput":              ping,
+		"F97RecordPingOK":                  ping,
+		"F97RecordPingInvalidInput":        ping,
+	}
+}
+
+func TestRouteMismatch_judgesACodeOutcomeByTheLastCallOnTheRoute(t *testing.T) {
+	t.Parallel()
+	const route = "POST /v1/system/pings"
+	call := func(status int, body string) scenario.Exchange {
+		return scenario.Exchange{
+			Method: http.MethodPost, Path: "/v1/system/pings", Status: status, Response: []byte(body),
+		}
+	}
+	ok, bad := call(http.StatusCreated, `{}`), call(http.StatusBadRequest, `{"code":"invalid_input"}`)
+	for _, tc := range []struct {
+		name      string
+		outcome   string
+		exchanges []scenario.Exchange
+		wantEmpty bool
+	}{
+		{"setup call then the failing call", "InvalidInput", []scenario.Exchange{ok, bad}, true},
+		{"no call fails", "InvalidInput", []scenario.Exchange{ok, ok}, false},
+		{"setup call fails but the final call does not", "InvalidInput", []scenario.Exchange{bad, ok}, false},
+		{"success outcome with a later failure", "ok", []scenario.Exchange{ok, bad}, true},
+		{"success outcome whose first call fails", "ok", []scenario.Exchange{bad, ok}, false},
+	} {
+		res := &Result{Unit: fixtureUnit(t, "97", tc.outcome), Exchanges: tc.exchanges}
+		if got := routeMismatch(res, route); (got == "") != tc.wantEmpty {
+			t.Errorf("%s: routeMismatch = %q, want empty %v", tc.name, got, tc.wantEmpty)
+		}
 	}
 }
 

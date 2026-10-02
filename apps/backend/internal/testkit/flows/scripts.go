@@ -23,6 +23,12 @@ func Scripts() map[string]Script {
 		"F02CreateCabalUnauthorized":      F02CreateCabalUnauthorized,
 		"F02CreateCabalPrivyUnavailable":  F02CreateCabalPrivyUnavailable,
 		"F02CreateCabalCrashBeforeCommit": F02CreateCabalCrashBeforeCommit,
+		"F10CastVoteOK":                   F10CastVoteOK,
+		"F10CastVoteUnauthorized":         F10CastVoteUnauthorized,
+		"F10CastVoteProposalNotFound":     F10CastVoteProposalNotFound,
+		"F10CastVoteNotAVoter":            F10CastVoteNotAVoter,
+		"F10CastVoteProposalClosed":       F10CastVoteProposalClosed,
+		"F10CastVoteCrashAfterPublish":    F10CastVoteCrashAfterPublish,
 	}
 }
 
