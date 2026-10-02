@@ -2,9 +2,11 @@ package privy
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/url"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 )
 
@@ -33,6 +35,30 @@ type linkedAccount struct {
 	Address          string `json:"address"`
 	ChainType        string `json:"chain_type"`
 	WalletClientType string `json:"wallet_client_type"`
+}
+
+type emailAccount struct {
+	Type    string `json:"type"`
+	Address string `json:"address"`
+}
+
+func (c *Client) CreateUser(ctx context.Context, email string) (UserID, error) {
+	var out struct {
+		ID UserID `json:"id"`
+	}
+	err := c.do(ctx, call{
+		op: "privy.CreateUser", method: http.MethodPost, path: "/v1/users",
+		body: struct {
+			LinkedAccounts []emailAccount `json:"linked_accounts"`
+		}{LinkedAccounts: []emailAccount{{Type: "email", Address: email}}},
+	}, &out)
+	if err != nil {
+		return "", err
+	}
+	if out.ID == "" {
+		return "", errs.New(errs.CodeDecodeFailed, "privy.CreateUser", slog.String("reason", "no_id"))
+	}
+	return out.ID, nil
 }
 
 func (c *Client) GetUser(ctx context.Context, id UserID) (User, error) {

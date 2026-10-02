@@ -36,6 +36,7 @@ type PrivyWallet struct {
 type PrivyUsers interface {
 	Verify(ctx context.Context, raw string) (PrivyUserID, error)
 	User(ctx context.Context, id PrivyUserID) (PrivyUser, error)
+	Create(ctx context.Context, email string) (PrivyUserID, error)
 }
 
 type MemberWallets interface {
