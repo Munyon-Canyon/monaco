@@ -161,6 +161,19 @@ func TestPrivyUsers_refusesAPhoneThatIsNotE164(t *testing.T) {
 	}
 }
 
+func TestPrivyUsers_createsAnEmailUser(t *testing.T) {
+	t.Parallel()
+	c, u, _ := overPrivyFakes(t)
+	users := privyadapter.Users{Client: c}
+	id, err := users.Create(t.Context(), "dev-ab@example.com")
+	if err != nil || id != "did:privy:fake-1" || u.requests()[0] != "POST /privy/v1/users" {
+		t.Fatalf("Create = %q, %v, requests %v", id, err, u.requests())
+	}
+	if _, err := users.Create(t.Context(), ""); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("empty email = %v, want invalid_input", err)
+	}
+}
+
 func TestPrivyWallets_reusesTheWalletPrivyHoldsAndReportsItsSigner(t *testing.T) {
 	t.Parallel()
 	c, u, _ := overPrivyFakes(t)

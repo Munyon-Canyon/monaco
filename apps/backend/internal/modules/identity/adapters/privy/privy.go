@@ -30,6 +30,14 @@ func (u Users) Verify(ctx context.Context, raw string) (app.PrivyUserID, error) 
 	return app.PrivyUserID(id), nil
 }
 
+func (u Users) Create(ctx context.Context, email string) (app.PrivyUserID, error) {
+	id, err := u.Client.CreateUser(ctx, email)
+	if err != nil {
+		return "", err
+	}
+	return app.PrivyUserID(id), nil
+}
+
 func (u Users) User(ctx context.Context, id app.PrivyUserID) (app.PrivyUser, error) {
 	got, err := u.Client.GetUser(ctx, chainprivy.UserID(id))
 	if err != nil {

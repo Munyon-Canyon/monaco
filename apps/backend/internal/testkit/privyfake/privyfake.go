@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"log/slog"
+	"strconv"
 	"sync"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -23,6 +24,7 @@ type Users struct {
 	testkit.Faults
 	mu    sync.Mutex
 	users map[app.PrivyUserID]app.PrivyUser
+	n     int
 }
 
 func (u *Users) Seed(user app.PrivyUser) {
@@ -44,6 +46,22 @@ func (u *Users) Verify(_ context.Context, raw string) (app.PrivyUserID, error) {
 		return "", errs.New(errs.CodeUnauthorized, "privyfake.Users.Verify", slog.String("reason", "unknown_user"))
 	}
 	return app.PrivyUserID(raw), nil
+}
+
+func (u *Users) Create(_ context.Context, email string) (app.PrivyUserID, error) {
+	if err := u.Check("Create"); err != nil {
+		return "", err
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.users == nil {
+		u.users = map[app.PrivyUserID]app.PrivyUser{}
+	}
+	u.n++
+	id := app.PrivyUserID("did:privy:fake-" + strconv.Itoa(u.n))
+	user := app.PrivyUser{ID: id, Email: email}
+	u.users[id] = user
+	return id, nil
 }
 
 func (u *Users) User(_ context.Context, id app.PrivyUserID) (app.PrivyUser, error) {
