@@ -203,7 +203,7 @@ func TestIdentity_handlesMatchInAnyCaseAndNeverMatchAMalformedOne(t *testing.T) 
 	if card, err := f.UserByHandle(ctx, "KaiCenat"); err != nil || card != kai {
 		t.Fatalf("UserByHandle(KaiCenat) = %+v, %v, want %+v", card, err, kai)
 	}
-	misses := []string{"nobody_here", "ab", "bad handle!", "", "Kaicenat", "kaicenat_way_too_long_handle"}
+	misses := []string{"nobody_here", "ab", "bad handle!", "", "kaïcenat", "kaicenat_way_too_long_handle"}
 	for _, handle := range misses {
 		_, err := f.UserByHandle(ctx, handle)
 		identityCode(t, err, errs.CodeUserNotFound)
