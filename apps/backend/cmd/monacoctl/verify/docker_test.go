@@ -10,7 +10,7 @@ import (
 func TestDocker_leavesNoContainerAfterAPassingOrAFailingStack(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
-		t.Skip("starts a real Postgres container; runs in the -short-skipped CI step")
+		t.Skip("starts a real Postgres container; runs in test-backend.sh's non-short pass")
 	}
 	if err := exec.CommandContext(t.Context(), "docker", "info").Run(); err != nil {
 		t.Skipf("no docker daemon: %v", err)

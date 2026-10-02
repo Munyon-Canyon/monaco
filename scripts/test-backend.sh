@@ -50,10 +50,8 @@ run_cached() {
   fi
   log="$root/$key.log"
   set +e
-  set +o pipefail
   "$@" 2>&1 | tee "$log"
   rc=${PIPESTATUS[0]}
-  set -o pipefail
   set -e
   if [[ "$rc" -eq 0 ]]; then
     cp "$log" "$pass"
