@@ -15,6 +15,8 @@ func TestParseHandle_lowercasesAValidHandle(t *testing.T) {
 		"abc":                   "abc",
 		"a_1":                   "a_1",
 		strings.Repeat("z", 20): strings.Repeat("z", 20),
+		"Kai":                   "kai",
+		"İii":                   "iii",
 	} {
 		got, err := domain.ParseHandle(raw)
 		if err != nil || got.String() != want {
@@ -26,7 +28,7 @@ func TestParseHandle_lowercasesAValidHandle(t *testing.T) {
 func TestParseHandle_refusesAnInvalidHandle(t *testing.T) {
 	t.Parallel()
 	for _, raw := range []string{
-		"", "ab", strings.Repeat("z", 21), "kai.cenat", "kai-cenat", "kai cenat", "kaï", "Kai", "@kai",
+		"", "ab", strings.Repeat("z", 21), "kai.cenat", "kai-cenat", "kai cenat", "kaï", "@kai",
 	} {
 		if _, err := domain.ParseHandle(raw); errs.CodeOf(err) != errs.CodeHandleInvalid {
 			t.Errorf("ParseHandle(%q) err = %v, want %s", raw, err, errs.CodeHandleInvalid)

@@ -324,7 +324,7 @@ func TestQueries_handlesMatchInAnyCaseAndNeverMatchAMalformedOne(t *testing.T) {
 	if card.ID != kai.ID || card.Handle != "kaicenat" {
 		t.Fatalf("UserByHandle(KaiCenat) = %+v, want the user whose handle is kaicenat", card)
 	}
-	misses := []string{"nobody_here", "ab", "bad handle!", "", "Kaicenat", "kaicenat_way_too_long_handle"}
+	misses := []string{"nobody_here", "ab", "bad handle!", "", "kaïcenat", "kaicenat_way_too_long_handle"}
 	for _, handle := range misses {
 		_, err := f.port.UserByHandle(ctx, handle)
 		wantCode(t, err, errs.CodeUserNotFound)

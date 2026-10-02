@@ -18,14 +18,22 @@ const (
 type Handle struct{ name string }
 
 func ParseHandle(raw string) (Handle, error) {
-	if len(raw) < MinHandleLen || len(raw) > MaxHandleLen || strings.IndexFunc(raw, notHandleRune) >= 0 {
+	name := strings.ToLower(raw)
+	if len(name) < MinHandleLen || len(name) > MaxHandleLen || strings.IndexFunc(name, notHandleRune) >= 0 {
 		return Handle{}, errs.New(errs.CodeHandleInvalid, "identity.ParseHandle", slog.Int("bytes", len(raw)))
 	}
-	return Handle{name: strings.ToLower(raw)}, nil
+	return Handle{name: name}, nil
 }
 
 func notHandleRune(r rune) bool {
-	return (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '_'
+	return (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '_'
+}
+
+func HandleSet(u User) error {
+	if u.Handle == "" {
+		return errs.New(errs.CodeHandleRequired, "identity.HandleSet")
+	}
+	return nil
 }
 
 func (h Handle) String() string { return h.name }
