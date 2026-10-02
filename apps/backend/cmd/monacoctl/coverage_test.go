@@ -51,7 +51,12 @@ func TestCheckCoverageNamesEachUncoveredBlockAndMergesProfiles(t *testing.T) {
 	t.Parallel()
 	dir := coverDir(t, map[string]string{"unit.out": unitProfile, "e2e.out": e2eProfile})
 	var out bytes.Buffer
-	missed, err := checkCoverage(dir, []string{filepath.Join(dir, "unit.out"), filepath.Join(dir, "e2e.out")}, &out)
+	missed, err := checkCoverage(
+		dir,
+		[]string{filepath.Join(dir, "unit.out"), filepath.Join(dir, "e2e.out")},
+		nil,
+		&out,
+	)
 	want := "cmd/api/main.go:5-6: 2 statements not covered\n" +
 		"internal/a/a.go:10-12: 2 statements not covered\n" +
 		"coverage: 33.33% of 6 statements\n"
@@ -67,6 +72,7 @@ func TestCheckCoverageKeepsABlockCoveredWhicheverProfileHitIt(t *testing.T) {
 	if _, err := checkCoverage(
 		dir,
 		[]string{filepath.Join(dir, "e2e.out"), filepath.Join(dir, "unit.out")},
+		nil,
 		&out,
 	); err != nil {
 		t.Fatal(err)
@@ -80,13 +86,19 @@ func TestCheckCoverageIsCleanAtFullCoverage(t *testing.T) {
 	t.Parallel()
 	dir := coverDir(t, map[string]string{"c.out": "mode: set\n\n" + coverModule + "/internal/a/a.go:1.1,2.2 3 1\n"})
 	var out bytes.Buffer
-	missed, err := checkCoverage(dir, []string{filepath.Join(dir, "c.out")}, &out)
+	missed, err := checkCoverage(dir, []string{filepath.Join(dir, "c.out")}, nil, &out)
 	if err != nil || missed != 0 || out.String() != "coverage: 100.00% of 3 statements\n" {
 		t.Fatalf("missed=%d err=%v out=%q", missed, err, out.String())
 	}
 	out.Reset()
 	empty := coverDir(t, map[string]string{"c.out": "mode: set\n"})
-	if missed, err := checkCoverage(empty, []string{filepath.Join(empty, "c.out")}, &out); err != nil || missed != 0 ||
+	if missed, err := checkCoverage(
+		empty,
+		[]string{filepath.Join(empty, "c.out")},
+		nil,
+		&out,
+	); err != nil ||
+		missed != 0 ||
 		out.String() != "coverage: 100.00% of 0 statements\n" {
 		t.Fatalf("empty profile: missed=%d err=%v out=%q", missed, err, out.String())
 	}
@@ -124,7 +136,7 @@ func TestCheckCoverageRejectsBrokenInputs(t *testing.T) {
 		if err := tc.setup(dir); err != nil {
 			t.Fatal(err)
 		}
-		_, err := checkCoverage(dir, []string{filepath.Join(dir, "c.out")}, &bytes.Buffer{})
+		_, err := checkCoverage(dir, []string{filepath.Join(dir, "c.out")}, nil, &bytes.Buffer{})
 		if err == nil || errs.CodeOf(err) != tc.code {
 			t.Fatalf("%s: err = %v, want code %s", tc.name, err, tc.code)
 		}
@@ -157,7 +169,12 @@ func TestCoverageCommand(t *testing.T) {
 	t.Parallel()
 	dir := coverDir(
 		t,
-		map[string]string{"unit.out": unitProfile, "full.out": "mode: set\n" + coverModule + "/a.go:1.1,2.2 1 1\n"},
+		map[string]string{
+			"unit.out": unitProfile,
+			"full.out": "mode: set\n" + coverModule + "/a.go:1.1,2.2 1 1\n",
+			"mixed.out": "mode: set\n" + coverModule + "/internal/b/b.go:1.1,2.2 2 1\n" +
+				coverModule + "/cmd/api/main.go:5.2,6.3 2 0\n",
+		},
 	)
 	for _, tc := range []struct {
 		name   string
@@ -174,6 +191,27 @@ func TestCoverageCommand(t *testing.T) {
 			[]string{"--profile", filepath.Join(dir, "unit.out")},
 			1, "a.go:20-20: 1 statements not covered\ncoverage: 16.67% of 6 statements\n",
 			"monacoctl coverage: 5 statements uncovered, the gate is 100%\n",
+		},
+		{
+			"only a changed file with gaps",
+			[]string{"--profile", filepath.Join(dir, "unit.out"), "--only", "internal/a/a.go"},
+			1,
+			"internal/a/a.go:10-12: 2 statements not covered\n" +
+				"internal/a/a.go:20-20: 1 statements not covered\ncoverage: 25.00% of 4 statements\n",
+			"monacoctl coverage: 3 statements uncovered, the gate is 100%\n",
+		},
+		{
+			"only a covered file beside an uncovered one",
+			[]string{"--profile", filepath.Join(dir, "mixed.out"), "--only", "internal/b/b.go"},
+			0, "coverage: 100.00% of 2 statements\n", "",
+		},
+		{
+			"only excluded files",
+			[]string{
+				"--profile", filepath.Join(dir, "unit.out"),
+				"--only", "internal/a/api.gen.go", "--only", "internal/testkit/db.go",
+			},
+			0, "coverage: 100.00% of 0 statements\n", "",
 		},
 		{
 			"missing profile",

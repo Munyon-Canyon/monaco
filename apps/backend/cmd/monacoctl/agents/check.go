@@ -74,6 +74,7 @@ func checkCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 		return nil
 	}
 	parent := env.stackParent(ctx, base)
+	defer func() { _ = os.Remove(env.coverProfile(head)) }()
 	rows, err := env.stage0(ctx, base, parent, head)
 	if err != nil {
 		return err
@@ -146,7 +147,7 @@ func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkR
 	changed := strings.Fields(string(out))
 	rows := env.prRows(parent, head)
 	if slices.ContainsFunc(changed, func(f string) bool { return strings.HasPrefix(f, "apps/backend/") }) {
-		goRows, err := env.goRows(ctx, base)
+		goRows, err := env.goRows(ctx, base, head, changed)
 		if err != nil {
 			return nil, err
 		}
@@ -294,7 +295,11 @@ func (env *Env) docsRow() (checkRow, error) {
 	return row, nil
 }
 
-func (env *Env) goRows(ctx context.Context, base string) ([]checkRow, error) {
+func (env *Env) coverProfile(head string) string {
+	return env.statePath("coverage", head[:12]+".out")
+}
+
+func (env *Env) goRows(ctx context.Context, base, head string, changed []string) ([]checkRow, error) {
 	backend := filepath.Join(env.Work, "apps", "backend")
 	self, _ := os.Executable()
 	out, err := env.Run(ctx, backend, "", self, "ci", "affected", "--base", base)
@@ -316,6 +321,10 @@ func (env *Env) goRows(ctx context.Context, base string) ([]checkRow, error) {
 	if err != nil {
 		return nil, err
 	}
+	profile, err := env.writeState("coverage", filepath.Base(env.coverProfile(head)), nil)
+	if err != nil {
+		return nil, err
+	}
 	return []checkRow{
 		{
 			label: "go build", kind: "go", dir: backend,
@@ -327,9 +336,28 @@ func (env *Env) goRows(ctx context.Context, base string) ([]checkRow, error) {
 			label: "go test -short", kind: packageKind, dir: backend,
 			cmds: [][]string{slices.Concat([]string{"go", "test"}, tags, []string{
 				"-short", "-count=1", "-timeout", env.Config.Budget[packageKind].String(), "-p", p, "-json",
+				"-coverpkg=" + strings.Join(buildable(backend, pkgs), ","), "-coverprofile=" + profile,
 			}, pkgs)},
 		},
+		coverageRow(backend, self, profile, changed),
 	}, nil
+}
+
+func coverageRow(backend, self, profile string, changed []string) checkRow {
+	row := checkRow{label: "coverage", kind: "go", dir: backend}
+	cmd := []string{self, "coverage", "--profile", profile}
+	for _, f := range changed {
+		rel, ok := strings.CutPrefix(f, "apps/backend/")
+		if ok && strings.HasSuffix(rel, ".go") && isSource(rel) {
+			cmd = append(cmd, "--only", rel)
+		}
+	}
+	if len(cmd) == 4 {
+		row.skip = "no Go file outside tests changed under apps/backend"
+		return row
+	}
+	row.cmds = [][]string{cmd}
+	return row
 }
 
 func (env *Env) lintRow(ctx context.Context, backend string, pkgs []string) (checkRow, error) {
