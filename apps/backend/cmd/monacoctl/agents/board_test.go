@@ -195,6 +195,9 @@ func TestElapsedAndSpan(t *testing.T) {
 
 func (f *fixture) record(t *testing.T, r Record) {
 	t.Helper()
+	if r.Worktree == "" {
+		r.Worktree = t.TempDir()
+	}
 	if err := f.Env(t).saveRecord(r); err != nil {
 		t.Fatal(err)
 	}

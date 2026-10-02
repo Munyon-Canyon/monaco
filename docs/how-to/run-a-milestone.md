@@ -85,7 +85,7 @@ Do these once per milestone.
 
         bin/monacoctl agents own <n> <agent-id>
 
-6. When the owner reports its PRs, run `bin/monacoctl agents done <n>`. Once its process has stopped, run `bin/monacoctl agents exited <n>`. The lane cap counts every owner not marked exited, and `agents check` splits the CPUs among them.
+6. When the owner reports its PRs, run `bin/monacoctl agents done <n>`. Once its process has stopped, run `bin/monacoctl agents exited <n>`. The lane cap counts the owners not marked exited whose worktree exists on this machine and whose ticket is open; `dispatch` prints the others as `not counted`, and `agents status` lists owners whose worktree is on another machine under their own heading. `agents check` splits the CPUs among the counted owners.
 
 7. If an owner stops because stage 0 failed only on a budget under load, run the failing package on its own to confirm it passes. Then submit the stack yourself from the owner's worktree and set its bodies with `scripts/pr-body.sh`. The owner hook does not apply to the root.
 
