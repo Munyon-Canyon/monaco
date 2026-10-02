@@ -301,3 +301,24 @@ func TestGenOpenAPI_reportsWhatItCannotReadOrWrite(t *testing.T) {
 		})
 	}
 }
+
+func TestBundleOpenAPI_aNewModuleStubChangesNothing(t *testing.T) {
+	t.Parallel()
+	stub, err := os.ReadFile("../../internal/tools/gen/templates/module/spec.yaml.tmpl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	alone, err := bundleOpenAPI(writeSpecDir(t, map[string]string{"base.yaml": bundleBase}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	withStub, err := bundleOpenAPI(writeSpecDir(t, map[string]string{
+		"base.yaml": bundleBase, "wallets.yaml": string(stub),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(withStub) != string(alone) {
+		t.Fatalf("a stub module changed the bundle:\n%s\nwant\n%s", withStub, alone)
+	}
+}

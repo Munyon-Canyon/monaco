@@ -29,7 +29,8 @@ apps/backend/
 ├── .golangci.base.yml             hand-written lint config; .golangci.yml is generated from it
 ├── go.mod                         go 1.25+, toolchain pinned
 ├── api/
-│   └── openapi.yaml               source of truth for HTTP contract
+│   ├── spec/<module>.yaml         source of truth for HTTP contract: one file per module, plus base.yaml
+│   └── openapi.yaml               generated bundle of spec/*.yaml; never edit by hand
 ├── cmd/
 │   ├── api/main.go                wiring only: config → adapters → app → http
 │   ├── worker/main.go             wiring only: config → adapters → consumers
@@ -68,6 +69,8 @@ apps/backend/
 └── test/
     └── e2e/                       black-box: real binary, real PG + NATS, fake externals
 ```
+
+A route ticket adds its paths and schemas to `api/spec/<module>.yaml`, and a new module starts with a stub there (`just gen module <name>` writes it). The `Touches` line of a route ticket names `apps/backend/api/spec/<module>.yaml`, which only that module's tickets own. `base.yaml` holds what more than one module uses, so a ticket that edits it names it. `monacoctl gen openapi` merges the files into `api/openapi.yaml`, which `[batch] shared` lists, because two tickets in different modules never edit the same spec file and any conflict in the bundle is settled by regenerating it. A path or schema defined in two spec files fails the bundler and names both.
 
 Each module has the same four directories, and a `port` package when it exports a query port. Nothing else.
 
