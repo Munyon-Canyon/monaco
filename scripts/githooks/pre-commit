@@ -8,3 +8,4 @@ cd "$root"
 git diff --cached --name-only --diff-filter=ACM | ./scripts/githooks/check-staged-env.sh
 
 ./scripts/githooks/lint-staged-go.sh
+./scripts/githooks/lint-staged-swift.sh
