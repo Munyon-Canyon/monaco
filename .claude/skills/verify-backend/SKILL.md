@@ -26,7 +26,7 @@ The code is in `apps/backend/cmd/monacoctl/verify/`.
 5. Waits for every emitted event to be handled by every consumer that watches it.
 6. Checks the invariants below, writes evidence, and tears down.
 
-Only flows at `built` or `verified` run. Without `--crash-at`, crash outcomes are skipped.
+Only flows at `built` or `verified` run. Without `--crash-at`, crash outcomes are skipped. Scripts for the non-crash outcomes ship with the `built` row. `monacoctl flows check` fails a `built` row that lacks one. A crash script ships with the `--crash-at` line in `scripts/ci/e2e.sh` that runs it, and the rest ship at `verified`.
 
 ## What it checks
 
@@ -100,8 +100,8 @@ Fix the code. Never weaken an invariant, raise a budget, skip an outcome, drop a
 
 ## Moving a flow to verified
 
-1. Write one script per outcome in `apps/backend/internal/testkit/flows/f<id>.go`. Make the flow tests call the same scripts. A poller flow's script waits for the next tick with `scenario.AwaitTick(poller)` and checks its counts with `scenario.ExpectTick(poller, scanned, changed)`. In process the step ticks the poller once itself. Against the binaries it waits on the worker, so add the flow's poll interval to `Env()`. A tick that was already running when the step started still counts, so await a second tick when the counts must reflect what the Given stage seeded.
-2. Register them in `Scripts()` in `apps/backend/internal/testkit/flows/scripts.go`.
+1. The non-crash scripts already ship with the `built` row, in `apps/backend/internal/testkit/flows/f<id>.go` and `Scripts()`. The flow tests call those scripts. A poller flow's script waits for the next tick with `scenario.AwaitTick(poller)` and checks its counts with `scenario.ExpectTick(poller, scanned, changed)`. In process the step ticks the poller once itself. Against the binaries it waits on the worker, so add the flow's poll interval to `Env()`. A tick that was already running when the step started still counts, so await a second tick when the counts must reflect what the Given stage seeded.
+2. A crash script ships with the `verify all --crash-at <point>` line in `scripts/ci/e2e.sh` that runs it. Register that script, and the rest of the outcomes, in `Scripts()` in `apps/backend/internal/testkit/flows/scripts.go`.
 3. Set the row's status to `verified` and regenerate the feature map:
 
 ```
