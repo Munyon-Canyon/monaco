@@ -19,11 +19,26 @@ import (
 )
 
 type HTTP struct {
-	Open   *app.OpenSessionHandler
-	Update app.UpdateProfileHandler
-	Photo  app.UploadProfilePhotoHandler
-	Reads  sqlc.DBTX
-	Clock  clock.Clock
+	Open      *app.OpenSessionHandler
+	SetHandle *app.SetHandle
+	Update    app.UpdateProfileHandler
+	Photo     app.UploadProfilePhotoHandler
+	Reads     sqlc.DBTX
+	Clock     clock.Clock
+}
+
+func (h HTTP) PutMeHandle(
+	ctx context.Context, req api.PutMeHandleRequestObject,
+) (api.PutMeHandleResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	me, err := h.SetHandle.Handle(ctx, user, req.Body.Handle, h.Clock.Now())
+	if err != nil {
+		return nil, err
+	}
+	return api.PutMeHandle200JSONResponse(wireMe(me)), nil
 }
 
 var _ httpx.IdentityRoutes = HTTP{}

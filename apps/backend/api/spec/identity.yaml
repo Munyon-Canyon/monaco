@@ -137,6 +137,32 @@ paths:
                 $ref: "#/components/schemas/HandleAvailability"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/handle:
+    put:
+      operationId: putMeHandle
+      tags: [identity]
+      x-idempotent: true
+      summary: Set the caller's handle.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The caller's new handle.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetHandle"
+            example:
+              handle: kai_one
+      responses:
+        "200":
+          description: The updated account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   schemas:
     AccountStatus:
@@ -269,3 +295,14 @@ components:
         user's X username.
       examples: [reserved]
       enum: [taken, reserved, invalid, too_soon]
+    SetHandle:
+      type: object
+      description: A handle to claim for the caller.
+      additionalProperties: false
+      required: [handle]
+      properties:
+        handle:
+          type: string
+          examples: [kai_one]
+          minLength: 1
+          maxLength: 64

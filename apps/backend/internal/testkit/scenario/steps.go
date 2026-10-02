@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"mime/multipart"
 	"net/http"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -122,6 +123,13 @@ func Delete(path string) Step {
 	}
 }
 
+func Put(path, body string) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		s.send(request{method: http.MethodPut, path: s.path(path), body: body, key: s.nextKey(), token: s.token()})
+	}
+}
+
 func Get(path string) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
@@ -208,6 +216,35 @@ func ExpectEvents(typ events.Type, n int) Step {
 			s.t.Fatalf("scenario: %d %s events appended, want %d", len(got), typ, n)
 		}
 	}
+}
+
+func ExpectEventPayload(typ events.Type, want any) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		var wantFields map[string]any
+		if err := json.Unmarshal(mustMarshal(want), &wantFields); err != nil {
+			s.t.Fatalf("scenario: encode %s event payload expectation: %v", typ, err)
+		}
+		for _, payload := range s.app.eventPayloads(s.t, typ) {
+			var got map[string]any
+			if err := json.Unmarshal(payload, &got); err != nil {
+				s.t.Fatalf("scenario: decode %s event payload: %v", typ, err)
+			}
+			if eventPayloadMatches(got, wantFields) {
+				return
+			}
+		}
+		s.t.Fatalf("scenario: no %s event payload matches %s", typ, mustMarshal(want))
+	}
+}
+
+func eventPayloadMatches(got, want map[string]any) bool {
+	for key, value := range want {
+		if !reflect.DeepEqual(got[key], value) {
+			return false
+		}
+	}
+	return true
 }
 
 func EventuallyEvent(typ events.Type) Step {

@@ -52,6 +52,10 @@ WHERE id = sqlc.arg(id) AND display_name IS DISTINCT FROM sqlc.arg(display_name)
 UPDATE users SET photo_url = sqlc.arg(photo_url)::text, updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id) AND photo_url IS DISTINCT FROM sqlc.arg(photo_url)::text;
 
+-- name: SetUserHandle :execrows
+UPDATE users SET handle = sqlc.arg(handle), handle_changed_at = sqlc.arg(now), updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id) AND deleted_at IS NULL;
+
 -- name: LinksHeldByOthers :one
 SELECT
   EXISTS (

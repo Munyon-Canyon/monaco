@@ -37,14 +37,25 @@ func Against(t T, r Remote) *Scenario {
 	client := &http.Client{Transport: http.DefaultTransport.(*http.Transport).Clone()}
 	t.Cleanup(client.CloseIdleConnections)
 	return newScenario(t, &backend{
-		baseURL: r.URL, client: client, note: newNotifier(), pool: r.Pool,
-		privyToken: func(sub string) string { return fakes.PrivyAccessToken(r.PrivyAppID, sub, time.Now(), time.Hour) },
-		script:     rm.scriptFakes(client),
-		mint:       func(id ids.UserID) string { return r.Mint(id.String()) },
-		newUserID:  func() (ids.UserID, error) { return ids.ParseUserID(ids.Real{}.NewV7().String()) },
-		enter:      r.Enter, exchanged: r.Exchanged, events: rm.events, awaitHandled: rm.awaitHandled,
-		published: rm.published, hold: func() {}, crashAt: rm.crashAt, seed: rm.seed, lines: r.Logs,
-		tick: func(T, string) func() { return func() {} },
+		baseURL:       r.URL,
+		client:        client,
+		note:          newNotifier(),
+		pool:          r.Pool,
+		privyToken:    func(sub string) string { return fakes.PrivyAccessToken(r.PrivyAppID, sub, time.Now(), time.Hour) },
+		script:        rm.scriptFakes(client),
+		mint:          func(id ids.UserID) string { return r.Mint(id.String()) },
+		newUserID:     func() (ids.UserID, error) { return ids.ParseUserID(ids.Real{}.NewV7().String()) },
+		enter:         r.Enter,
+		exchanged:     r.Exchanged,
+		events:        rm.events,
+		eventPayloads: rm.eventPayloads,
+		awaitHandled:  rm.awaitHandled,
+		published:     rm.published,
+		hold:          func() {},
+		crashAt:       rm.crashAt,
+		seed:          rm.seed,
+		lines:         r.Logs,
+		tick:          func(T, string) func() { return func() {} },
 	})
 }
 
@@ -79,6 +90,27 @@ func (r *remote) events(t T, typ events.Type, actors []string) []string {
 	rows, err := r.Pool.Query(t.Context(),
 		`SELECT id::text FROM events WHERE type = $1 AND actor_id = ANY($2) ORDER BY id`, string(typ), actors)
 	return scanIDs(t, typ, rows, err)
+}
+
+func (r *remote) eventPayloads(t T, typ events.Type) [][]byte {
+	t.Helper()
+	rows, err := r.Pool.Query(t.Context(), `SELECT payload FROM events WHERE type = $1 ORDER BY id`, string(typ))
+	if err != nil {
+		t.Fatalf("scenario: read %s event payloads: %v", typ, err)
+	}
+	defer rows.Close()
+	var payloads [][]byte
+	for rows.Next() {
+		var payload []byte
+		if err := rows.Scan(&payload); err != nil {
+			t.Fatalf("scenario: scan %s event payload: %v", typ, err)
+		}
+		payloads = append(payloads, payload)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("scenario: read %s event payloads: %v", typ, err)
+	}
+	return payloads
 }
 
 func (r *remote) awaitHandled(t T, typ events.Type, eventIDs []string) {

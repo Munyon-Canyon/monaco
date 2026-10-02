@@ -46,24 +46,25 @@ type Exchange struct {
 }
 
 type backend struct {
-	baseURL      string
-	client       *http.Client
-	note         *notifier
-	pool         *pgxpool.Pool
-	mint         func(id ids.UserID) string
-	privyToken   func(sub string) string
-	script       func(ctx context.Context, t T, step fakes.Step)
-	newUserID    func() (ids.UserID, error)
-	enter        func(stage Stage)
-	exchanged    func(e Exchange)
-	events       func(t T, typ events.Type, actors []string) []string
-	awaitHandled func(t T, typ events.Type, eventIDs []string)
-	published    func(t T, typ events.Type, eventIDs []string) uint64
-	hold         func()
-	crashAt      func(t T, point faultpoint.Name)
-	seed         func(t T, name string) []testkit.Seeded
-	lines        func(from int) ([]string, <-chan struct{})
-	tick         func(t T, poller string) (stop func())
+	baseURL       string
+	client        *http.Client
+	note          *notifier
+	pool          *pgxpool.Pool
+	mint          func(id ids.UserID) string
+	privyToken    func(sub string) string
+	script        func(ctx context.Context, t T, step fakes.Step)
+	newUserID     func() (ids.UserID, error)
+	enter         func(stage Stage)
+	exchanged     func(e Exchange)
+	events        func(t T, typ events.Type, actors []string) []string
+	eventPayloads func(t T, typ events.Type) [][]byte
+	awaitHandled  func(t T, typ events.Type, eventIDs []string)
+	published     func(t T, typ events.Type, eventIDs []string) uint64
+	hold          func()
+	crashAt       func(t T, point faultpoint.Name)
+	seed          func(t T, name string) []testkit.Seeded
+	lines         func(from int) ([]string, <-chan struct{})
+	tick          func(t T, poller string) (stop func())
 }
 
 type Scenario struct {
@@ -237,8 +238,14 @@ func (s *Scenario) send(req request) {
 		s.t.Fatalf("scenario: %s %s: %v", req.method, req.path, err)
 	}
 	s.app.exchanged(Exchange{
-		Method: req.method, Path: req.path, IdempotencyKey: req.key, Request: []byte(req.body),
-		Response: body, Status: resp.StatusCode, Started: started, Took: time.Since(started),
+		Method:         req.method,
+		Path:           req.path,
+		IdempotencyKey: req.key,
+		Request:        []byte(req.body),
+		Response:       body,
+		Status:         resp.StatusCode,
+		Started:        started,
+		Took:           time.Since(started),
 	})
 	s.last = &response{req: req, status: resp.StatusCode, header: resp.Header, body: body}
 }

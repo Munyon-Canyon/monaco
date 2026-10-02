@@ -3,6 +3,7 @@ package identity_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -21,7 +22,9 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
+	"github.com/monaco/monaco/apps/backend/internal/platform/concurrency"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
@@ -32,6 +35,17 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
+
+type failingHandleUsers struct{ err error }
+
+type handleAttempt struct {
+	user ids.UserID
+	key  string
+}
+
+func (f failingHandleUsers) SetHandle(context.Context, sqlc.DBTX, ids.UserID, string, time.Time) error {
+	return f.err
+}
 
 func (f httpFixture) setClaim(t *testing.T, id ids.UserID, handle, xName string, changed *time.Time) {
 	t.Helper()
@@ -46,6 +60,155 @@ func (f httpFixture) setClaim(t *testing.T, id ids.UserID, handle, xName string,
 func (f httpFixture) availability(t *testing.T, user ids.UserID, raw string) *httptest.ResponseRecorder {
 	t.Helper()
 	return f.askAvailability(t, f.handler, user, raw)
+}
+
+func (f httpFixture) setHandle(t *testing.T, user ids.UserID, handle string) *httptest.ResponseRecorder {
+	t.Helper()
+	return f.setHandleWithKey(t.Context(), t, user, handle, "set-"+handle)
+}
+
+func (f httpFixture) setHandleWithKey(
+	ctx context.Context, t *testing.T, user ids.UserID, handle, key string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequestWithContext(
+		ctx, http.MethodPut, "/v1/me/handle", strings.NewReader(`{"handle":"`+handle+`"}`),
+	)
+	req.Header.Set("Authorization", "Bearer "+f.verifier.Mint(user.String(), f.now.Add(time.Hour)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", key)
+	rec := httptest.NewRecorder()
+	f.handler.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestSetHandle_concurrentClaimsProduceOneWinner(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	first := f.seed(t, portSeed{wallet: true})
+	second := f.seed(t, portSeed{wallet: true})
+	attempts := []handleAttempt{{first.ID, "race-first"}, {second.ID, "race-second"}}
+	results, err := concurrency.FanOut(t.Context(), len(attempts), attempts,
+		func(ctx context.Context, attempt handleAttempt) (*httptest.ResponseRecorder, error) {
+			return f.setHandleWithKey(ctx, t, attempt.user, "race_handle", attempt.key), nil
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ok, taken int
+	for _, rec := range results {
+		switch rec.Code {
+		case http.StatusOK:
+			ok++
+		case http.StatusUnprocessableEntity:
+			if got := decodeProblem(t, rec); got.Code != api.HandleTaken {
+				t.Fatalf("race problem = %s, want %s", got.Code, api.HandleTaken)
+			}
+			taken++
+		default:
+			t.Fatalf("race = %d %s", rec.Code, rec.Body)
+		}
+	}
+	if ok != 1 || taken != 1 {
+		t.Fatalf("race winners = %d success, %d taken; want one each", ok, taken)
+	}
+}
+
+func TestLoadLockedHandleClaimFacts_mapsMissingAndDatabaseFailures(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	missing := f.newID(t)
+	_, err := app.LoadLockedHandleClaimFacts(t.Context(), f.pool, missing, "missing_one")
+	if errs.CodeOf(err) != errs.CodeUserNotFound || errors.Unwrap(err) != nil {
+		t.Fatalf("missing locked facts = %v, want unwrapped user_not_found", err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err = app.LoadLockedHandleClaimFacts(ctx, f.pool, missing, "missing_one")
+	if errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("cancelled locked facts = %v, want internal", err)
+	}
+}
+
+func TestSetHandle_updatesTheProfileAndRejectsTakenNames(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	first := f.seed(t, portSeed{wallet: true})
+	second := f.seed(t, portSeed{wallet: true})
+	if got := f.setHandle(t, first.ID, "kai_one"); got.Code != http.StatusOK {
+		t.Fatalf("set = %d %s", got.Code, got.Body)
+	}
+	if got := f.setHandle(t, first.ID, "kai_one"); got.Code != http.StatusOK {
+		t.Fatalf("same = %d %s", got.Code, got.Body)
+	}
+	if got := f.setHandle(t, second.ID, "admin"); decodeProblem(t, got).Code != api.HandleReserved {
+		t.Fatalf("reserved = %d %s", got.Code, got.Body)
+	}
+	if got := f.setHandle(t, second.ID, "kai_one"); decodeProblem(t, got).Code != api.HandleTaken {
+		t.Fatalf("taken = %d %s", got.Code, got.Body)
+	}
+	ready := f.now.Add(-domain.HandleChangeInterval)
+	f.setClaim(t, first.ID, "kai_one", "", &ready)
+	if got := f.setHandle(t, first.ID, "kai_two"); got.Code != http.StatusOK {
+		t.Fatalf("rename = %d %s", got.Code, got.Body)
+	}
+	f.sameAvailability(t, second.ID, "kai_one", "kai_one", true, "")
+}
+
+func TestSetHandle_returnsWriteAndEventFailures(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	u := f.seed(t, portSeed{wallet: true})
+	write := app.NewSetHandle(app.SetHandleDeps{
+		UoW: db.New(f.pool, f.ids, testkit.NewClock(f.now)), Reads: f.pool,
+		Users: failingHandleUsers{errs.New(errs.CodeInternal, "test.write")}, ClaimFacts: app.LoadHandleClaimFacts,
+	})
+	if _, err := write.Handle(t.Context(), u.ID, "write_one", f.now); err == nil {
+		t.Fatal("write error = nil")
+	}
+	event := app.NewSetHandle(app.SetHandleDeps{
+		UoW: db.New(f.pool, f.ids, testkit.NewClock(f.now)), Reads: f.pool, Users: adapters.Users{},
+		ClaimFacts: app.LoadHandleClaimFacts,
+	})
+	const rejectEvent = `CREATE OR REPLACE FUNCTION reject_profile_event() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'event'; END $$; CREATE TRIGGER reject_profile_event BEFORE INSERT ON events FOR EACH ROW EXECUTE FUNCTION reject_profile_event()`
+	if _, err := f.pool.Exec(t.Context(), rejectEvent); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := event.Handle(t.Context(), u.ID, "event_one", f.now); err == nil {
+		t.Fatal("event error = nil")
+	}
+}
+
+func TestSetHandle_coversInvalidNoopAndAdapterDuplicate(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	first := f.seed(t, portSeed{handle: "same_one", wallet: true})
+	second := f.seed(t, portSeed{wallet: true})
+	if got := f.setHandle(t, first.ID, "same_one"); got.Code != http.StatusOK {
+		t.Fatal(got.Code)
+	}
+	if got := f.setHandle(t, second.ID, "ab"); decodeProblem(t, got).Code != api.HandleInvalid {
+		t.Fatal(got.Code)
+	}
+	err := adapters.Users{}.SetHandle(t.Context(), f.pool, second.ID, "same_one", f.now)
+	if errs.CodeOf(err) != errs.CodeHandleTaken {
+		t.Fatal(err)
+	}
+}
+
+func TestSetHandle_returnsClaimReadFailure(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	u := f.seed(t, portSeed{wallet: true})
+	h := app.NewSetHandle(app.SetHandleDeps{
+		UoW: db.New(f.pool, f.ids, testkit.NewClock(f.now)), Reads: f.pool, Users: adapters.Users{},
+		ClaimFacts: func(context.Context, sqlc.DBTX, ids.UserID, string) (sqlc.HandleClaimFactsRow, error) {
+			return sqlc.HandleClaimFactsRow{}, errs.New(errs.CodeInternal, "test.read")
+		},
+	})
+	if _, err := h.Handle(t.Context(), u.ID, "read_one", f.now); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatal(err)
+	}
 }
 
 func (f httpFixture) askAvailability(
@@ -182,6 +345,9 @@ func TestHTTP_availabilityRefusesCallersThatAreNotAUser(t *testing.T) {
 		}
 		if _, err := h.GetHandleAvailability(ctx, req); errs.CodeOf(err) != tc.want {
 			t.Errorf("%s: GetHandleAvailability err = %v, want %s", name, err, tc.want)
+		}
+		if _, err := h.PutMeHandle(ctx, api.PutMeHandleRequestObject{}); errs.CodeOf(err) != tc.want {
+			t.Errorf("%s: PutMeHandle err = %v, want %s", name, err, tc.want)
 		}
 	}
 }

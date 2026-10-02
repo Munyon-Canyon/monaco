@@ -1385,6 +1385,12 @@ type ProblemType string
 // Examples: open
 type ProposalStatus string
 
+// SetHandle A handle to claim for the caller.
+type SetHandle struct {
+	// Handle Examples: kai_one
+	Handle string `json:"handle"`
+}
+
 // Tally The ballots counted against the proposal's frozen voter set.
 type Tally struct {
 	// Needed Yes ballots the cabal's threshold rule needs to pass the proposal.
@@ -1529,6 +1535,12 @@ type PatchMeParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// PutMeHandleParams defines parameters for PutMeHandle.
+type PutMeHandleParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // PostProfilePhotoMultipartBody defines parameters for PostProfilePhoto.
 type PostProfilePhotoMultipartBody struct {
 	// Photo Examples: avatar.png
@@ -1579,6 +1591,9 @@ type PostDeviceJSONRequestBody = DeviceRegistration
 
 // PatchMeJSONRequestBody defines body for PatchMe for application/json ContentType.
 type PatchMeJSONRequestBody = UpdateProfileRequest
+
+// PutMeHandleJSONRequestBody defines body for PutMeHandle for application/json ContentType.
+type PutMeHandleJSONRequestBody = SetHandle
 
 // PostProfilePhotoMultipartRequestBody defines body for PostProfilePhoto for multipart/form-data ContentType.
 type PostProfilePhotoMultipartRequestBody PostProfilePhotoMultipartBody
@@ -1636,6 +1651,9 @@ type ServerInterface interface {
 	// GetMyCabals List the caller's cabals.
 	// (GET /v1/me/cabals)
 	GetMyCabals(w http.ResponseWriter, r *http.Request)
+	// PutMeHandle Set the caller's handle.
+	// (PUT /v1/me/handle)
+	PutMeHandle(w http.ResponseWriter, r *http.Request, params PutMeHandleParams)
 	// PostProfilePhoto Upload a profile photo.
 	// (POST /v1/me/profile-photo)
 	PostProfilePhoto(w http.ResponseWriter, r *http.Request, params PostProfilePhotoParams)
@@ -2194,6 +2212,51 @@ func (siw *ServerInterfaceWrapper) GetMyCabals(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// PutMeHandle operation middleware
+func (siw *ServerInterfaceWrapper) PutMeHandle(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PutMeHandleParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutMeHandle(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PostProfilePhoto operation middleware
 func (siw *ServerInterfaceWrapper) PostProfilePhoto(w http.ResponseWriter, r *http.Request) {
 
@@ -2661,6 +2724,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me", wrapper.GetMe)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/v1/me", wrapper.PatchMe)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/cabals", wrapper.GetMyCabals)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/me/handle", wrapper.PutMeHandle)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/profile-photo", wrapper.PostProfilePhoto)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/referral-code", wrapper.GetMyReferralCode)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.PostProposalVote)
@@ -3208,6 +3272,46 @@ func (response GetMyCabalsdefaultApplicationProblemPlusJSONResponse) VisitGetMyC
 	return err
 }
 
+type PutMeHandleRequestObject struct {
+	Params PutMeHandleParams
+	Body   *PutMeHandleJSONRequestBody
+}
+
+type PutMeHandleResponseObject interface {
+	VisitPutMeHandleResponse(w http.ResponseWriter) error
+}
+
+type PutMeHandle200JSONResponse Me
+
+func (response PutMeHandle200JSONResponse) VisitPutMeHandleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutMeHandledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PutMeHandledefaultApplicationProblemPlusJSONResponse) VisitPutMeHandleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostProfilePhotoRequestObject struct {
 	Params PostProfilePhotoParams
 	Body   *multipart.Reader
@@ -3599,6 +3703,9 @@ type StrictServerInterface interface {
 	// GetMyCabals List the caller's cabals.
 	// (GET /v1/me/cabals)
 	GetMyCabals(ctx context.Context, request GetMyCabalsRequestObject) (GetMyCabalsResponseObject, error)
+	// PutMeHandle Set the caller's handle.
+	// (PUT /v1/me/handle)
+	PutMeHandle(ctx context.Context, request PutMeHandleRequestObject) (PutMeHandleResponseObject, error)
 	// PostProfilePhoto Upload a profile photo.
 	// (POST /v1/me/profile-photo)
 	PostProfilePhoto(ctx context.Context, request PostProfilePhotoRequestObject) (PostProfilePhotoResponseObject, error)
@@ -4038,6 +4145,39 @@ func (sh *strictHandler) GetMyCabals(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMyCabalsResponseObject); ok {
 		if err := validResponse.VisitGetMyCabalsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutMeHandle operation middleware
+func (sh *strictHandler) PutMeHandle(w http.ResponseWriter, r *http.Request, params PutMeHandleParams) {
+	var request PutMeHandleRequestObject
+
+	request.Params = params
+
+	var body PutMeHandleJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutMeHandle(ctx, request.(PutMeHandleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutMeHandle")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutMeHandleResponseObject); ok {
+		if err := validResponse.VisitPutMeHandleResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -46,3 +46,28 @@ func TestFlow01_OpenSession_PrivyUnavailable(t *testing.T) {
 	t.Parallel()
 	flows.F01OpenSessionPrivyUnavailable(identityScenario(t))
 }
+
+func TestFlow01a_SetHandle_OK(t *testing.T) {
+	t.Parallel()
+	flows.F01aSetHandleOK(identityScenario(t))
+}
+
+func TestFlow01a_SetHandle_HandleInvalid(t *testing.T) {
+	t.Parallel()
+	flows.F01aSetHandleHandleInvalid(identityScenario(t))
+}
+
+func TestFlow01a_SetHandle_HandleReserved(t *testing.T) {
+	t.Parallel()
+	flows.F01aSetHandleHandleReserved(identityScenario(t))
+}
+
+func TestFlow01a_SetHandle_HandleTaken(t *testing.T) {
+	t.Parallel()
+	flows.F01aSetHandleHandleTaken(identityScenario(t))
+}
+
+func TestFlow01a_SetHandle_HandleTooSoon(t *testing.T) {
+	t.Parallel()
+	flows.F01aSetHandleHandleTooSoon(identityScenario(t))
+}

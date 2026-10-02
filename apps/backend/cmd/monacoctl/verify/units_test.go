@@ -30,7 +30,8 @@ func TestSelectUnits_picksOutcomesByTargetAndSkipsPlannedFlows(t *testing.T) {
 	}{
 		{Target{}, []string{
 			"00 ok", "00 InvalidInput", "00 Unauthorized", "01 ok", "01 Unauthorized", "01 LoginMethodNotAllowed",
-			"01 AccountDeleted", "01 PrivyUnavailable", "02 ok", "02 InvalidInput", "02 Unauthorized",
+			"01 AccountDeleted", "01 PrivyUnavailable", "01a ok", "01a HandleInvalid", "01a HandleReserved",
+			"01a HandleTaken", "01a HandleTooSoon", "02 ok", "02 InvalidInput", "02 Unauthorized",
 			"02 PrivyUnavailable", "10 ok", "10 Unauthorized", "10 ProposalNotFound", "10 NotAVoter",
 			"10 ProposalClosed", "20 ok", "20 CannotFollowSelf", "20 UserNotFound", "20 UserBanned",
 			"20 Unauthorized", "23 ok", "23 DisplayNameInvalid", "23a ok", "23a PhotoInvalid",

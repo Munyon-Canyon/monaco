@@ -105,13 +105,26 @@ type GovernanceRoutes interface {
 }
 
 type IdentityRoutes interface {
+	IdentitySessionRoutes
+	IdentityProfileRoutes
+	IdentityHandleRoutes
+}
+
+type IdentitySessionRoutes interface {
 	PostAuthSession(context.Context, api.PostAuthSessionRequestObject) (api.PostAuthSessionResponseObject, error)
 	GetMe(context.Context, api.GetMeRequestObject) (api.GetMeResponseObject, error)
+}
+
+type IdentityProfileRoutes interface {
 	PatchMe(context.Context, api.PatchMeRequestObject) (api.PatchMeResponseObject, error)
 	PostProfilePhoto(context.Context, api.PostProfilePhotoRequestObject) (api.PostProfilePhotoResponseObject, error)
+}
+
+type IdentityHandleRoutes interface {
 	GetHandleAvailability(
 		context.Context, api.GetHandleAvailabilityRequestObject,
 	) (api.GetHandleAvailabilityResponseObject, error)
+	PutMeHandle(context.Context, api.PutMeHandleRequestObject) (api.PutMeHandleResponseObject, error)
 }
 
 type NotifyRoutes interface {

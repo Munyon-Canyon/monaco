@@ -57,3 +57,39 @@ func (q *Queries) HandleClaimFacts(ctx context.Context, arg HandleClaimFactsPara
 	)
 	return i, err
 }
+
+const lockedHandleClaimFacts = `-- name: LockedHandleClaimFacts :one
+SELECT
+  u.handle, u.handle_changed_at, u.x_username,
+  EXISTS (SELECT 1 FROM users o WHERE o.handle = $1::text AND o.id <> u.id) AS handle_taken,
+  EXISTS (SELECT 1 FROM users o WHERE o.x_username IS NOT NULL AND lower(o.x_username) = $1::text AND o.id <> u.id) AS other_x_match
+FROM users u
+WHERE u.id = $2 AND u.deleted_at IS NULL
+FOR UPDATE
+`
+
+type LockedHandleClaimFactsParams struct {
+	Handle string
+	ID     uuid.UUID
+}
+
+type LockedHandleClaimFactsRow struct {
+	Handle          pgtype.Text
+	HandleChangedAt pgtype.Timestamptz
+	XUsername       pgtype.Text
+	HandleTaken     bool
+	OtherXMatch     bool
+}
+
+func (q *Queries) LockedHandleClaimFacts(ctx context.Context, arg LockedHandleClaimFactsParams) (LockedHandleClaimFactsRow, error) {
+	row := q.db.QueryRow(ctx, lockedHandleClaimFacts, arg.Handle, arg.ID)
+	var i LockedHandleClaimFactsRow
+	err := row.Scan(
+		&i.Handle,
+		&i.HandleChangedAt,
+		&i.XUsername,
+		&i.HandleTaken,
+		&i.OtherXMatch,
+	)
+	return i, err
+}
