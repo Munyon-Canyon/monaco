@@ -112,7 +112,7 @@ func (s *stream) stack(ctx context.Context, r Record, drafts []queueDraft) []str
 	var items []string
 	landed, out := 0, stackPR{}
 	for i, p := range prs {
-		state := env.queueState(p, each[i])
+		state := env.queueState(p, each[i], drafts)
 		items = append(items, fmt.Sprintf("#%d %s", p.Number, state))
 		switch state {
 		case prLanded:

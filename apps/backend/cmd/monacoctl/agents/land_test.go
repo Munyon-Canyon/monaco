@@ -61,6 +61,7 @@ func newStackGH(t *testing.T, f *fixture, prs ...*stackPR) *stackGH {
 	}
 	f.hub.on(list("/pulls?state=open"), []PR{{Number: 900, Title: "[Graphite MQ] Draft PR GROUP:x (PRs " +
 		strings.Join(nums, ", ") + ")", Head: Ref{Ref: "gtmq_x"}}})
+	f.hub.on(graphqlRoute, draftData(nil))
 	f.hub.hook = s.onLabel
 	f.run = s.run
 	return s
@@ -790,12 +791,24 @@ func TestLandStack_settleFailures(t *testing.T) {
 		bottom.State, top.State = "MERGED", "MERGED"
 		s := newStackGH(t, f, bottom, top)
 		s.fail = "gt sync"
-		f.owner(t, Record{Ticket: 40, Worktree: t.TempDir(), Queued: &Queue{Top: 2, PRs: []int{1, 2}}})
-		if code, _, stderr := f.agents(t, "land-stack", "2"); code != 1 || !strings.Contains(stderr, "gt sync: boom") {
-			t.Fatalf("%d %q", code, stderr)
+		wt := t.TempDir()
+		f.owner(t, Record{Ticket: 40, Worktree: wt, Queued: &Queue{Top: 2, PRs: []int{1, 2}}})
+		code, stdout, stderr := f.agents(t, "land-stack", "2")
+		if want := "#2 merged as b2-oid; gt sync failed in " + wt + ": "; code != 0 || !strings.Contains(stdout, want) {
+			t.Fatalf("%d %q %q", code, stdout, stderr)
 		}
-		if f.owned(t).Queued == nil {
-			t.Fatal("a failed settle cleared the mark")
+		if f.owned(t).Queued != nil {
+			t.Fatal("a failed gt sync kept the queued mark of a landed stack")
+		}
+	})
+	t.Run("the queue drafts cannot be read", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		newStackGH(t, f, green(t, 2, "b2", "fb"))
+		delete(f.hub.routes, graphqlRoute)
+		f.owner(t, Record{Ticket: 40, Queued: &Queue{Top: 2, PRs: []int{2}}})
+		if code, _, stderr := f.agents(t, "land-stack", "2"); code != 1 || !strings.Contains(stderr, "/graphql") {
+			t.Fatalf("%d %q", code, stderr)
 		}
 	})
 	t.Run("queued PR vanished", func(t *testing.T) {

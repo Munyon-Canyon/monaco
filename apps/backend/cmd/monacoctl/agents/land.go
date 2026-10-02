@@ -105,7 +105,11 @@ func (env *Env) settleQueued(ctx context.Context, rec Record, stdout io.Writer) 
 	if err != nil {
 		return true, err
 	}
-	if !env.ejected(queued, landed) {
+	drafts, err := env.openQueueDrafts(ctx)
+	if err != nil {
+		return true, err
+	}
+	if !env.ejected(queued, landed, drafts) {
 		return true, env.settle(ctx, rec, queued, landed, stdout)
 	}
 	_, _ = fmt.Fprintf(stdout, "#%d left the Graphite merge queue; relanding its stack\n", rec.Queued.Top)
@@ -323,7 +327,9 @@ func (env *Env) settle(ctx context.Context, rec Record, prs []stackPR, landed []
 		"--delete-all",
 		"--no-restack",
 	); err != nil {
-		return err
+		first, _, _ := strings.Cut(strings.TrimSpace(err.Error()), "\n")
+		_, _ = fmt.Fprintf(stdout, "#%d merged as %s; gt sync failed in %s: %s\n", top.Number, sha, rec.Worktree, first)
+		return env.unmark(ctx, rec)
 	}
 	_, _ = fmt.Fprintf(stdout, "#%d merged as %s; gt sync ran in %s\n", top.Number, sha, rec.Worktree)
 	return env.unmark(ctx, rec)
@@ -347,20 +353,24 @@ const (
 	prEjected = "ejected"
 )
 
-func (env *Env) queueState(p stackPR, landed bool) string {
+func (env *Env) queueState(p stackPR, landed bool, drafts []queueDraft) string {
 	switch {
 	case landed:
 		return prLanded
-	case p.State == "OPEN" && p.labeled(env.Config.QueueLabel):
+	case p.State != "OPEN":
+		return prEjected
+	case p.labeled(env.Config.QueueLabel),
+		slices.ContainsFunc(drafts, func(d queueDraft) bool { return d.State == "OPEN" && d.tests(p.Number) }),
+		env.justUnlabeled(p):
 		return prQueued
 	default:
 		return prEjected
 	}
 }
 
-func (env *Env) ejected(prs []stackPR, landed []bool) bool {
+func (env *Env) ejected(prs []stackPR, landed []bool, drafts []queueDraft) bool {
 	for i, p := range prs {
-		if env.queueState(p, landed[i]) == prEjected {
+		if env.queueState(p, landed[i], drafts) == prEjected {
 			return true
 		}
 	}
@@ -373,25 +383,21 @@ func (env *Env) unmark(ctx context.Context, rec Record) error {
 	return env.storeRecord(ctx, rec)
 }
 
-func (env *Env) justUnlabeled(prs []stackPR, landed []bool) bool {
-	for i, p := range prs {
-		if landed[i] || p.State != "OPEN" || p.labeled(env.Config.QueueLabel) {
-			continue
-		}
-		events := p.TimelineItems.Nodes
-		for j := len(events) - 1; j >= 0; j-- {
-			if events[j].Label.Name == env.Config.QueueLabel {
-				if env.Now().Sub(events[j].CreatedAt) < settleAfter {
-					return true
-				}
-				break
-			}
+func (env *Env) justUnlabeled(p stackPR) bool {
+	events := p.TimelineItems.Nodes
+	for j := len(events) - 1; j >= 0; j-- {
+		if events[j].Label.Name == env.Config.QueueLabel {
+			return env.Now().Sub(events[j].CreatedAt) < settleAfter
 		}
 	}
 	return false
 }
 
 func (env *Env) unqueueEjected(ctx context.Context, rs []Record, stdout io.Writer) error {
+	drafts, err := env.openQueueDrafts(ctx)
+	if err != nil {
+		return err
+	}
 	for _, r := range rs {
 		if r.Queued == nil {
 			continue
@@ -404,7 +410,7 @@ func (env *Env) unqueueEjected(ctx context.Context, rs []Record, stdout io.Write
 		if err != nil {
 			return err
 		}
-		if !env.ejected(prs, landed) || env.justUnlabeled(prs, landed) {
+		if !env.ejected(prs, landed, drafts) {
 			continue
 		}
 		_, _ = fmt.Fprintf(stdout, "unqueued: #%d; #%d left the Graphite merge queue. "+
