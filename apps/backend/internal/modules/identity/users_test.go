@@ -9,11 +9,13 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -604,5 +606,28 @@ func TestUsers_heldLinksAreTheOnesAnotherUserStores(t *testing.T) {
 		if got := held(tc.as, tc.claims, tc.links); got != tc.want {
 			t.Errorf("%s: HeldLinks = %+v, want %+v", name, got, tc.want)
 		}
+	}
+}
+
+func TestUsers_anEmptyXUserIDStoredOnAnotherRowIsNotHeld(t *testing.T) {
+	t.Parallel()
+	f := newUsersFixture(t)
+	holder := testkit.SeedUser(t, f.pool, testkit.UserOpts{})
+	if err := sqlc.New(f.pool).SetUserX(t.Context(), sqlc.SetUserXParams{
+		XUserID: pgtype.Text{String: "", Valid: true},
+		Now:     f.clock.Now(),
+		ID:      holder.ID.UUID(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var stored string
+	if err := f.pool.QueryRow(t.Context(), `SELECT x_user_id FROM users WHERE id = $1 AND x_user_id IS NOT NULL`,
+		holder.ID.UUID()).Scan(&stored); err != nil || stored != "" {
+		t.Fatalf("stored x_user_id = %q, %v, want an empty string", stored, err)
+	}
+	me := f.newUserID(t)
+	got, err := f.users.HeldLinks(t.Context(), f.pool, me, domain.Claims{}, domain.Links{})
+	if err != nil || got.X {
+		t.Fatalf("HeldLinks = %+v, %v, want X false", got, err)
 	}
 }

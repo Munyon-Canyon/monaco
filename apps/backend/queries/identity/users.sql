@@ -46,8 +46,18 @@ WHERE id = sqlc.arg(id);
 
 -- name: LinksHeldByOthers :one
 SELECT
-  EXISTS (SELECT 1 FROM users o WHERE o.phone_hash = sqlc.arg(phone_hash)::bytea AND o.id <> sqlc.arg(id)) AS phone,
-  EXISTS (SELECT 1 FROM users o WHERE o.x_user_id = sqlc.arg(x_user_id)::text AND o.id <> sqlc.arg(id)) AS x;
+  EXISTS (
+    SELECT 1 FROM users o
+    WHERE sqlc.narg(phone_hash)::bytea IS NOT NULL
+      AND o.phone_hash = sqlc.narg(phone_hash)::bytea
+      AND o.id <> sqlc.arg(id)
+  ) AS phone,
+  EXISTS (
+    SELECT 1 FROM users o
+    WHERE sqlc.narg(x_user_id)::text IS NOT NULL
+      AND o.x_user_id = sqlc.narg(x_user_id)::text
+      AND o.id <> sqlc.arg(id)
+  ) AS x;
 
 -- name: UpdateAuthState :execrows
 UPDATE users SET auth_state = sqlc.arg(next), auth_state_changed_at = sqlc.arg(now), updated_at = sqlc.arg(now)

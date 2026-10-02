@@ -48,7 +48,7 @@ func (Users) HeldLinks(
 		params.PhoneHash = domain.PhoneHash(links.Phone)
 	}
 	if claims.X {
-		params.XUserID = links.X.UserID
+		params.XUserID = pgtype.Text{String: links.X.UserID, Valid: true}
 	}
 	row, err := sqlc.New(q).LinksHeldByOthers(ctx, params)
 	return domain.Claims{Phone: row.Phone, X: row.X}, err
