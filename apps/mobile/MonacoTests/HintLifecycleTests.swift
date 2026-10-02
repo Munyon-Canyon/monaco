@@ -52,6 +52,23 @@ struct HintLifecycleTests {
         #expect(environment.navigator.homePath.isEmpty)
     }
 
+    @Test func authSessionEndClearsTheDevSession() async {
+        let hints = FakeHintSource()
+        let auth = PrivyAuthService.processInstance ?? PrivyAuthService()
+        let environment = AppEnvironment(
+            auth: auth,
+            hints: hints,
+            isAuthenticated: { false },
+            endAuthSession: {}
+        )
+        await environment.signIn(dev: DevSession(token: "dev-token", userID: "u-1"))
+
+        auth.onSessionEnded?()
+
+        #expect(!environment.isSignedIn)
+        #expect(environment.viewer == nil)
+    }
+
     @Test(.timeLimit(.minutes(1)))
     func aRejectedTokenThatCannotRefreshSignsOut() async {
         let hints = FakeHintSource()

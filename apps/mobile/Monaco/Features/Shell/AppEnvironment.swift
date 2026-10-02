@@ -68,7 +68,14 @@ final class AppEnvironment {
         let stream = HintStream(
             serverURL: Config.api.baseURL,
             token: { try await tokens.accessToken() },
-            refresh: { try await tokens.refreshedToken(replacing: $0) }
+            refresh: { try await tokens.refreshedToken(replacing: $0) },
+            endSession: { rejectedToken in
+                if let rejectedToken {
+                    await tokens.endSession(rejectedToken: rejectedToken)
+                } else {
+                    await tokens.endSession()
+                }
+            }
         )
         self.init(auth: auth, tokens: tokens, hints: LiveHintConnection(stream))
     }
@@ -108,7 +115,6 @@ final class AppEnvironment {
         AppLogger.session.info("hint stream stopped")
         #if DEBUG
         tokens.use(nil)
-        devSessionActive = false
         #endif
         await endAuthSession()
         viewer = nil
@@ -126,6 +132,10 @@ final class AppEnvironment {
     private func clearSignedInState() {
         navigator.reset()
         sessionStore.reset()
+        #if DEBUG
+        tokens.use(nil)
+        devSessionActive = false
+        #endif
     }
 
     var skipsSessionOpen: Bool {

@@ -4,6 +4,13 @@ import MonacoTestSupport
 import XCTest
 
 final class APIClientTests: XCTestCase {
+    func testDefaultRejectedTokenTerminationEndsTheSession() async {
+        let token = DefaultToken()
+        await token.endSession(rejectedToken: "stale")
+        let ended = await token.ended
+        XCTAssertTrue(ended)
+    }
+
     func testRequestsCarryTheBearerToken() async throws {
         let transport = StubTransport.ok("ok\n")
 
@@ -37,6 +44,8 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(sent.count, 2)
         let refreshed = await tokens.refreshed
         XCTAssertEqual(refreshed, ["stale"])
+        let ended = await tokens.ended
+        XCTAssertEqual(ended, ["fresh"])
     }
 
     func testANilRefreshedTokenSignsOutWithoutResending() async throws {
@@ -57,6 +66,8 @@ final class APIClientTests: XCTestCase {
 
         let refreshed = await tokens.refreshed
         XCTAssertEqual(refreshed, [])
+        let unsignedEndings = await tokens.unsignedEndings
+        XCTAssertEqual(unsignedEndings, 1)
     }
 
     func testARefreshedWriteKeepsItsIdempotencyKey() async throws {
@@ -80,6 +91,13 @@ final class APIClientTests: XCTestCase {
             XCTAssertEqual(problem.message, "No such cabal.")
         }
     }
+}
+
+private actor DefaultToken: AccessTokenProvider {
+    private(set) var ended = false
+    func accessToken() async throws -> String? { nil }
+    func refreshedToken(replacing _: String) async throws -> String? { nil }
+    func endSession() { ended = true }
 }
 
 func assertThrows(
