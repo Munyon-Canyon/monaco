@@ -100,6 +100,80 @@ final class CursorPagerTests: XCTestCase {
         XCTAssertEqual(pager.phase, .exhausted)
     }
 
+    func testRefreshFirstPageReplacesTheListWhenNothingOverlaps() async {
+        let cursors = Mutex<[String]>([])
+        let firstPageCalls = Counter()
+        let pager = CursorPager<PageRow> { cursor in
+            if let cursor {
+                cursors.withLock { $0.append(cursor) }
+                return ([PageRow(id: "c"), PageRow(id: "d")], nil)
+            }
+            if firstPageCalls.bump() == 1 {
+                return ([PageRow(id: "a"), PageRow(id: "b")], "2")
+            }
+            return ([PageRow(id: "x"), PageRow(id: "y")], "n2")
+        }
+
+        await pager.loadFirst()
+        await pager.loadMore()
+        await pager.refreshFirstPage()
+
+        XCTAssertEqual(pager.items.map(\.id), ["x", "y"])
+        XCTAssertEqual(pager.phase, .idle)
+
+        await pager.loadMore()
+        XCTAssertEqual(cursors.withLock { $0 }, ["2", "n2"])
+    }
+
+    func testRefreshFirstPageWithNoOverlapDiscardsAnInFlightLoadMore() async {
+        let probe = FetchProbe()
+        let firstPageCalls = Counter()
+        let pager = CursorPager<PageRow> { cursor in
+            if cursor == nil {
+                if firstPageCalls.bump() == 1 {
+                    return ([PageRow(id: "a")], "2")
+                }
+                return ([PageRow(id: "x")], "n2")
+            }
+            return await probe.more()
+        }
+
+        await pager.loadFirst()
+
+        async let more: Void = pager.loadMore()
+        var spins = 0
+        while probe.callCount < 1, spins < 1_000 {
+            await Task.yield()
+            spins += 1
+        }
+
+        await pager.refreshFirstPage()
+        probe.release()
+        await more
+
+        XCTAssertEqual(pager.items.map(\.id), ["x"])
+        XCTAssertEqual(pager.phase, .idle)
+    }
+
+    func testRefreshFirstPageWithNoOverlapAndNoCursorSettlesExhausted() async {
+        let firstPageCalls = Counter()
+        let pager = CursorPager<PageRow> { cursor in
+            if cursor == nil {
+                if firstPageCalls.bump() == 1 {
+                    return ([PageRow(id: "a"), PageRow(id: "b")], "2")
+                }
+                return ([PageRow(id: "x")], nil)
+            }
+            return ([PageRow(id: "c")], "3")
+        }
+
+        await pager.loadFirst()
+        await pager.refreshFirstPage()
+
+        XCTAssertEqual(pager.items.map(\.id), ["x"])
+        XCTAssertEqual(pager.phase, .exhausted)
+    }
+
     func testRefreshDuringLoadMoreKeepsBoth() async {
         let firstPageCalls = Counter()
         let probe = FetchProbe()
@@ -164,61 +238,6 @@ final class CursorPagerTests: XCTestCase {
         XCTAssertEqual(pager.phase, .exhausted)
     }
 
-    func testRefreshDuringLoadFirstLeavesTheReloadInCharge() async {
-        let holdReload = Mutex(false)
-        let gate = SingleGate()
-        let page2Calls = Counter()
-        let page3Calls = Counter()
-
-        let pager = CursorPager<PageRow> { cursor in
-            if cursor == "2" {
-                page2Calls.record()
-                return ([PageRow(id: "c")], nil)
-            }
-            if cursor == "9" {
-                page3Calls.record()
-                return ([PageRow(id: "w")], nil)
-            }
-            if holdReload.withLock({ $0 }) {
-                await gate.wait()
-                return ([PageRow(id: "z")], "9")
-            }
-            return ([PageRow(id: "a"), PageRow(id: "b")], "2")
-        }
-
-        await pager.loadFirst()
-        XCTAssertEqual(pager.items.map(\.id), ["a", "b"])
-        XCTAssertEqual(pager.phase, .idle)
-
-        holdReload.withLock { $0 = true }
-        async let reload: Void = pager.loadFirst()
-
-        var spins = 0
-        while !gate.hasEntered, spins < 1_000 {
-            await Task.yield()
-            spins += 1
-        }
-        holdReload.withLock { $0 = false }
-
-        await pager.refreshFirstPage()
-        XCTAssertEqual(pager.phase, .loadingFirst)
-
-        await pager.loadMore()
-        XCTAssertEqual(page2Calls.current, 0)
-        XCTAssertEqual(pager.phase, .loadingFirst)
-
-        gate.release()
-        await reload
-
-        XCTAssertEqual(pager.items.map(\.id), ["z"])
-        XCTAssertEqual(pager.phase, .idle)
-
-        await pager.loadMore()
-        XCTAssertEqual(page3Calls.current, 1)
-        XCTAssertEqual(pager.items.map(\.id), ["z", "w"])
-        XCTAssertEqual(pager.phase, .exhausted)
-    }
-
     func testLoadFirstFailureSetsFailedPhase() async {
         let pager = CursorPager<PageRow> { _ in
             throw PagerTestError.boom
@@ -273,6 +292,64 @@ final class CursorPagerTests: XCTestCase {
             return XCTFail("expected .failed, got \(pager.phase)")
         }
         XCTAssertEqual(pager.items, [])
+    }
+}
+
+@MainActor
+final class CursorPagerTestsLoadFirst: XCTestCase {
+    func testRefreshDuringLoadFirstLeavesTheReloadInCharge() async {
+        let holdReload = Mutex(false)
+        let gate = SingleGate()
+        let page2Calls = Counter()
+        let page3Calls = Counter()
+
+        let pager = CursorPager<PageRow> { cursor in
+            if cursor == "2" {
+                page2Calls.record()
+                return ([PageRow(id: "c")], nil)
+            }
+            if cursor == "9" {
+                page3Calls.record()
+                return ([PageRow(id: "w")], nil)
+            }
+            if holdReload.withLock({ $0 }) {
+                await gate.wait()
+                return ([PageRow(id: "z")], "9")
+            }
+            return ([PageRow(id: "a"), PageRow(id: "b")], "2")
+        }
+
+        await pager.loadFirst()
+        XCTAssertEqual(pager.items.map(\.id), ["a", "b"])
+        XCTAssertEqual(pager.phase, .idle)
+
+        holdReload.withLock { $0 = true }
+        async let reload: Void = pager.loadFirst()
+
+        var spins = 0
+        while !gate.hasEntered, spins < 1_000 {
+            await Task.yield()
+            spins += 1
+        }
+        holdReload.withLock { $0 = false }
+
+        await pager.refreshFirstPage()
+        XCTAssertEqual(pager.phase, .loadingFirst)
+
+        await pager.loadMore()
+        XCTAssertEqual(page2Calls.current, 0)
+        XCTAssertEqual(pager.phase, .loadingFirst)
+
+        gate.release()
+        await reload
+
+        XCTAssertEqual(pager.items.map(\.id), ["z"])
+        XCTAssertEqual(pager.phase, .idle)
+
+        await pager.loadMore()
+        XCTAssertEqual(page3Calls.current, 1)
+        XCTAssertEqual(pager.items.map(\.id), ["z", "w"])
+        XCTAssertEqual(pager.phase, .exhausted)
     }
 }
 
