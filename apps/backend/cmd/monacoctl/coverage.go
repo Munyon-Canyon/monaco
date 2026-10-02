@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	coverageUsage   = "usage: monacoctl coverage --profile cover.out [--covdir dir]..."
+	coverageUsage   = "usage: monacoctl coverage --profile cover.out [--covdir dir]... [--only file]..."
 	coverageExclude = "coverage.exclude"
 )
 
@@ -52,6 +52,8 @@ func (env coverageEnv) run(args []string, stdout, stderr io.Writer) int {
 	profile := fs.String("profile", "", "")
 	var covdirs dirList
 	fs.Var(&covdirs, "covdir", "")
+	var only dirList
+	fs.Var(&only, "only", "")
 	if fs.Parse(args) != nil || *profile == "" || fs.NArg() != 0 {
 		_, _ = fmt.Fprintln(stderr, coverageUsage)
 		return 2
@@ -66,7 +68,7 @@ func (env coverageEnv) run(args []string, stdout, stderr io.Writer) int {
 		}
 		profiles = append(profiles, text)
 	}
-	missed, err := checkCoverage(env.moduleDir, profiles, stdout)
+	missed, err := checkCoverage(env.moduleDir, profiles, only, stdout)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "monacoctl coverage: %v\n", err)
 		return 1
@@ -100,7 +102,7 @@ func (env coverageEnv) covdataText(ctx context.Context, dirs []string) (string, 
 	return file.Name(), nil
 }
 
-func checkCoverage(moduleDir string, profiles []string, stdout io.Writer) (int, error) {
+func checkCoverage(moduleDir string, profiles, only []string, stdout io.Writer) (int, error) {
 	const op = "monacoctl.checkCoverage"
 	module, err := modulePath(filepath.Join(moduleDir, "go.mod"))
 	if err != nil {
@@ -116,7 +118,7 @@ func checkCoverage(moduleDir string, profiles []string, stdout io.Writer) (int, 
 			return 0, err
 		}
 	}
-	return cov.report(module, strings.Fields(string(exclude)), stdout), nil
+	return cov.report(module, strings.Fields(string(exclude)), only, stdout), nil
 }
 
 func modulePath(goMod string) (string, error) {
@@ -206,12 +208,12 @@ func excluded(rel string, patterns []string) bool {
 	return false
 }
 
-func (c coverage) report(module string, exclude []string, w io.Writer) int {
+func (c coverage) report(module string, exclude, only []string, w io.Writer) int {
 	var missed []coverBlock
 	total, uncovered := 0, 0
 	for _, b := range c {
 		b.file = strings.TrimPrefix(b.file, module+"/")
-		if excluded(b.file, exclude) {
+		if excluded(b.file, exclude) || len(only) > 0 && !slices.Contains(only, b.file) {
 			continue
 		}
 		total += b.stmts

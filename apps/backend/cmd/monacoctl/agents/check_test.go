@@ -49,7 +49,7 @@ func newCheckHarness(t *testing.T) *checkHarness {
 
 func (h *checkHarness) run(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
 	line := strings.TrimSpace(filepath.Base(name) + " " + strings.Join(args, " "))
-	if len(args) > 1 && args[0] == "ci" && args[1] == "affected" {
+	if self, _ := os.Executable(); name == self {
 		line = strings.Join(args, " ")
 	} else if name == "git" {
 		for _, r := range h.replies {
@@ -109,6 +109,25 @@ func (h *checkHarness) commit(t *testing.T, files map[string]string) string {
 		t.Fatal(err)
 	}
 	return strings.TrimSpace(string(out))
+}
+
+func (h *checkHarness) goTest(t *testing.T, p string, pkgs ...string) []string {
+	t.Helper()
+	profile := h.profile(t)
+	return []string{
+		"apps/backend: go test -tags faultpoints -short -count=1 -timeout 20s -p " + p + " -json -coverpkg=" +
+			strings.Join(
+				slices.DeleteFunc(slices.Clone(pkgs), func(p string) bool { return p == "./internal/t" }),
+				",",
+			) +
+			" -coverprofile=" + profile + " " + strings.Join(pkgs, " "),
+		"apps/backend: coverage --profile " + profile,
+	}
+}
+
+func (h *checkHarness) profile(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(h.stateDir(t, "coverage"), h.head(t)[:12]+".out")
 }
 
 func (h *checkHarness) stateDir(t *testing.T, sub string) string {
@@ -174,6 +193,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
 	pr := ".: env BASE_SHA=origin/fb HEAD_SHA=" + h.head(t) + " PR_LABELS=[] python3 scripts/"
+	goTest := h.goTest(t, strconv.Itoa(max(2, runtime.NumCPU())), "./internal/x", "./internal/t", "./cmd/api")
 	want := []string{
 		".: gt parent --no-interactive",
 		"apps/backend: ci affected --base origin/fb",
@@ -185,9 +205,8 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		"apps/backend: golangci-lint run ./internal/x ./internal/t ./cmd/api",
 		"apps/backend: go run ./internal/platform/lint/nogo/cmd/nogo ./internal/x ./internal/t ./cmd/api",
 		"apps/backend: go run ./cmd/monacoctl lint comments",
-		"apps/backend: go test -tags faultpoints -short -count=1 -timeout 20s -p " +
-			strconv.Itoa(max(2, runtime.NumCPU())) +
-			" -json ./internal/x ./internal/t ./cmd/api",
+		goTest[0],
+		goTest[1] + " --only internal/x/x.go",
 		".: bash -n scripts/foo.sh",
 		".: bash -n scripts/hook",
 		".: shellcheck scripts/foo.sh scripts/hook",
@@ -668,8 +687,7 @@ func TestCheck_goTestParallelismSplitsTheCPUsBetweenRunningOwners(t *testing.T) 
 	}
 	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
 	h.affected = "./internal/a\n"
-	want := "apps/backend: go test -tags faultpoints -short -count=1 -timeout 20s -p " +
-		strconv.Itoa(testParallelism(runtime.NumCPU(), 6)) + " -json ./internal/a"
+	want := h.goTest(t, strconv.Itoa(testParallelism(runtime.NumCPU(), 6)), "./internal/a")[0]
 	if code, _, stderr := h.check(t); code != 0 || !slices.Contains(h.calls, want) {
 		t.Fatalf("six running owners: %d %q\n%s\nwant %s", code, stderr, strings.Join(h.calls, "\n"), want)
 	}
@@ -702,5 +720,49 @@ func TestParseConfig_readsTheCheckBudgetSection(t *testing.T) {
 			!strings.Contains(cliText(err), configPath+want) {
 			t.Errorf("%q: %v", body, err)
 		}
+	}
+}
+
+func TestCheck_theCoverageRowGatesOnlyTheChangedGoSources(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.base(t, map[string]string{"apps/backend/internal/a/old.go": "package a\n"})
+	h.commit(t, map[string]string{"apps/backend/internal/a/a_test.go": "package a\n"})
+	h.affected = "./internal/a\n"
+	code, stdout, stderr := h.check(t)
+	if code != 0 ||
+		!strings.Contains(stdout, "  coverage        skip  no Go file outside tests changed under apps/backend") {
+		t.Fatalf("test-only change: %d %q %q", code, stdout, stderr)
+	}
+	if _, err := os.Stat(h.profile(t)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("the profile outlived the run: %v", err)
+	}
+
+	git(t, h.dir, "rm", "-q", "apps/backend/internal/a/old.go")
+	h.commit(t, map[string]string{
+		"apps/backend/internal/a/a.go":       "package a\n",
+		"apps/backend/internal/a/api.gen.go": "package a\n",
+		"scripts/tool.go":                    "package main\n",
+	})
+	h.calls = nil
+	h.replies = []reply{{
+		prefix: "coverage --profile",
+		out:    "internal/a/a.go:3-5: 2 statements not covered\ncoverage: 50.00% of 4 statements\n",
+		err:    errors.New("exit status 1"),
+	}}
+	code, stdout, stderr = h.check(t)
+	want := "apps/backend: coverage --profile " + h.profile(t) +
+		" --only internal/a/a.go --only internal/a/api.gen.go"
+	if code != 1 || !slices.Contains(h.calls, want) || !strings.Contains(stderr, "coverage failed; see the log") ||
+		!strings.Contains(stdout, "    internal/a/a.go:3-5: 2 statements not covered\n") {
+		t.Fatalf("uncovered change: %d %q %q\n%s\nwant %s", code, stdout, stderr, strings.Join(h.calls, "\n"), want)
+	}
+
+	if err := os.RemoveAll(h.stateDir(t, "coverage")); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, h.stateDir(t, "coverage"), "")
+	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "write "+h.stateDir(t, "coverage")) {
+		t.Fatalf("unwritable profile dir: %d %q", code, stderr)
 	}
 }
