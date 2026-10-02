@@ -92,3 +92,56 @@ func (q *Queries) RecentPriceSamples(ctx context.Context, arg RecentPriceSamples
 	}
 	return items, nil
 }
+
+const thinPricePoints = `-- name: ThinPricePoints :many
+DELETE FROM price_points
+WHERE ctid IN (
+  SELECT p.ctid
+  FROM price_points AS p
+  WHERE p.ts >= $1::timestamptz
+    AND p.ts < $2::timestamptz
+    AND p.ts < (SELECT max(latest.ts) FROM price_points AS latest WHERE latest.mint = p.mint)
+    AND EXISTS (
+      SELECT 1
+      FROM price_points AS earlier
+      WHERE earlier.mint = p.mint
+        AND earlier.ts >= date_bin(($3::text)::interval, p.ts, TIMESTAMPTZ 'epoch')
+        AND earlier.ts < p.ts
+    )
+  ORDER BY p.ts
+  LIMIT $4::integer
+)
+RETURNING ts
+`
+
+type ThinPricePointsParams struct {
+	After      time.Time
+	OlderThan  time.Time
+	Bucket     string
+	BatchLimit int32
+}
+
+func (q *Queries) ThinPricePoints(ctx context.Context, arg ThinPricePointsParams) ([]time.Time, error) {
+	rows, err := q.db.Query(ctx, thinPricePoints,
+		arg.After,
+		arg.OlderThan,
+		arg.Bucket,
+		arg.BatchLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []time.Time
+	for rows.Next() {
+		var ts time.Time
+		if err := rows.Scan(&ts); err != nil {
+			return nil, err
+		}
+		items = append(items, ts)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
