@@ -26,7 +26,8 @@ final class ProblemErrorTests: XCTestCase {
                 .accountStatusTransition, .accountSuspended, .alreadyMember, .analyticsPii, .apnsAuthFailed,
                 .apnsUnavailable, .assetNotFound, .assetUntradable, .authStateTransition, .cabalBanned,
                 .cabalNotFound,
-                .calendarExpired, .cannotRevokeAccess, .clientClosed, .conservationBroken, .dbSchemaBehind,
+                .calendarExpired, .cannotFollowSelf, .cannotRevokeAccess, .clientClosed, .conservationBroken,
+                .dbSchemaBehind,
                 .dbUnavailable, .decodeFailed, .displayNameInvalid, .forbidden, .handleInvalid,
                 .handleRequired, .handleReserved, .handleTaken, .handleTooSoon, .idempotencyInFlight,
                 .idempotencyMismatch, ._internal, .invalidAddress, .invalidConfig, .invalidInput,
@@ -38,7 +39,8 @@ final class ProblemErrorTests: XCTestCase {
                 .postHogUnavailable, .potExceeded, .potValueZero, .privyUnavailable, .proposalClosed,
                 .proposalNotFound, .rateLimited, .relayerUnderfunded, .requestNotNeeded, .requestPending,
                 .rpcUnavailable, .sessionRequired, .slippageExceeded, .swapFailed, .swapNotFound,
-                .swapNotRetryable, .unauthorized, .upstreamTimeout, .upstreamUnavailable, .userNotFound,
+                .swapNotRetryable, .unauthorized, .upstreamTimeout, .upstreamUnavailable, .userBanned,
+                .userNotFound,
                 .versionConflict, .walletMismatch, .withdrawNotAllowed, .xNotLinked:
                 break
             }

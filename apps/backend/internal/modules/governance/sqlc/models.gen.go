@@ -133,6 +133,15 @@ type EventDelivery struct {
 	HandledAt time.Time
 }
 
+type Follow struct {
+	ID         uuid.UUID
+	FollowerID uuid.UUID
+	FolloweeID uuid.UUID
+	Source     string
+	CreatedAt  time.Time
+	DeletedAt  pgtype.Timestamptz
+}
+
 type IdempotencyKey struct {
 	ActorKey        string
 	Key             string

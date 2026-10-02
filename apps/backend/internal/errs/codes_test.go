@@ -165,6 +165,8 @@ func TestAccessorsReadTheRow(t *testing.T) {
 		{CodeNotCabalCreator, KindForbidden, false, false},
 		{CodeCannotRevokeAccess, KindForbidden, false, false},
 		{CodeCabalBanned, KindBlocked, false, false},
+		{CodeCannotFollowSelf, KindInvalid, false, false},
+		{CodeUserBanned, KindForbidden, false, false},
 		{CodeAlreadyMember, KindBlocked, false, false},
 		{CodeJoinNeedsRequest, KindBlocked, false, false},
 		{CodeRequestNotNeeded, KindBlocked, false, false},
