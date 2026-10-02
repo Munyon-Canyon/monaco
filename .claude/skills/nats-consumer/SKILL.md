@@ -41,7 +41,7 @@ func (h Echo) Handle(ctx context.Context, tx db.Tx, e events.SystemPinged, at ti
 - The handler writes through `tx`. It appends follow-on events with `tx.Events.Append`. Side effects that must wait for the commit, such as live hints, go in `tx.AfterCommit`.
 - The handler returns `nil` to ack.
 - It returns an `errs` error to nak or term. `errs.VerdictFor` in `apps/backend/internal/errs/errs.go` decides:
-  - A retryable code naks with backoff (1 s, 5 s, 30 s, 2 min, 10 min). The retryable codes are marked `Retryable: true` in `apps/backend/internal/errs/codes.go`: upstream, Jupiter, Privy, RPC and database unavailability.
+  - A retryable code naks with backoff (1 s, 5 s, 30 s, 2 min, 10 min). The retryable codes are marked `Retryable: true` in `apps/backend/internal/errs/codes_*.go`: upstream, Jupiter, Privy, RPC and database unavailability.
   - Any other code terms the message and publishes a dead letter. A plain Go error counts as `internal`, and a panic counts as `panic`. Both term.
 - With several handlers on one message, any nak wins, then any term, then ack.
 - A message gets 10 deliveries (`MaxDeliver`) before JetStream gives up.
