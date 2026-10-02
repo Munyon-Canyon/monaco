@@ -40,6 +40,11 @@ func newReuseRepo(t *testing.T) *reuseRepo {
 	r.write(filepath.Join(r.bin, "gh"), fakeGH, 0o755)
 	r.write(filepath.Join(r.fake, "none.json"), `{"check_runs": [], "workflow_runs": []}`, 0o644)
 	r.git("init", "-q", "-b", "trunk")
+	wf := filepath.Join(r.dir, ".github", "workflows")
+	if err := os.MkdirAll(wf, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	r.write(filepath.Join(wf, "ci.yml"), "name: ci\n", 0o644)
 	r.commit("base.txt", "base\n")
 	return r
 }
@@ -115,18 +120,18 @@ func TestStage1Reuse_reusesOnlyAGreenResultForTheSameDiff(t *testing.T) {
 	head := r.commit("change.txt", "one\n")
 
 	first := r.run(base, head)
-	if first["reuse"] != "false" || first["patch-id"] == "" {
+	if first["reuse"] != "false" || first["patch-id"] == "" || len(first["ci-id"]) != 12 {
 		t.Fatalf("first push with no earlier run: %v", first)
 	}
-	r.greenRun(head, "patch-id: "+first["patch-id"])
+	r.greenRun(head, "patch-id: "+first["patch-id"]+" ci-id: "+first["ci-id"])
 
 	r.git("switch", "-q", "trunk")
 	newBase := r.commit("other.txt", "moved\n")
 	r.git("switch", "-q", "feature")
 	r.git("rebase", "-q", "trunk")
 	restacked := r.git("rev-parse", "HEAD")
-	if got := r.run(newBase, restacked); got["reuse"] != "true" || got["patch-id"] != first["patch-id"] {
-		t.Fatalf("restack with the same diff: %v, want reuse of %s", got, first["patch-id"])
+	if got := r.run(newBase, restacked); got["reuse"] != "true" || got["patch-id"] != first["patch-id"] || got["ci-id"] != first["ci-id"] {
+		t.Fatalf("restack with the same diff: %v, want reuse of %s ci-id %s", got, first["patch-id"], first["ci-id"])
 	}
 
 	changed := r.commit("change.txt", "two\n")
@@ -143,7 +148,70 @@ func TestStage1Reuse_reusesOnlyAGreenResultForTheSameDiff(t *testing.T) {
 func TestStage1Reuse_neverReusesAnEmptyDiff(t *testing.T) {
 	r := newReuseRepo(t)
 	base := r.git("rev-parse", "HEAD")
-	if got := r.run(base, base); got["reuse"] != "false" || got["patch-id"] != "" {
+	if got := r.run(base, base); got["reuse"] != "false" || got["patch-id"] != "" || len(got["ci-id"]) != 12 {
 		t.Fatalf("empty diff: %v", got)
+	}
+}
+
+func TestStage1Reuse_samePatchAndCiIDReuses(t *testing.T) {
+	r := newReuseRepo(t)
+	base := r.git("rev-parse", "HEAD")
+	r.git("switch", "-q", "-c", "feature")
+	head := r.commit("change.txt", "one\n")
+	first := r.run(base, head)
+	r.greenRun(head, "patch-id: "+first["patch-id"]+" ci-id: "+first["ci-id"])
+
+	r.git("switch", "-q", "trunk")
+	newBase := r.commit("other.txt", "moved\n")
+	r.git("switch", "-q", "feature")
+	r.git("rebase", "-q", "trunk")
+	restacked := r.git("rev-parse", "HEAD")
+	got := r.run(newBase, restacked)
+	if got["reuse"] != "true" || got["patch-id"] != first["patch-id"] || got["ci-id"] != first["ci-id"] {
+		t.Fatalf("same patch and ci-id: %v, want reuse", got)
+	}
+}
+
+func TestStage1Reuse_samePatchDifferentCiIDDoesNotReuse(t *testing.T) {
+	r := newReuseRepo(t)
+	base := r.git("rev-parse", "HEAD")
+	r.git("switch", "-q", "-c", "feature")
+	head := r.commit("change.txt", "one\n")
+	first := r.run(base, head)
+	r.greenRun(head, "patch-id: "+first["patch-id"]+" ci-id: "+first["ci-id"])
+
+	r.git("switch", "-q", "trunk")
+	newBase := r.commit(".github/workflows/ci.yml", "name: ci\non: push\n")
+	r.git("switch", "-q", "feature")
+	r.git("rebase", "-q", "trunk")
+	restacked := r.git("rev-parse", "HEAD")
+	got := r.run(newBase, restacked)
+	if got["patch-id"] != first["patch-id"] || got["ci-id"] == first["ci-id"] || got["ci-id"] == "" {
+		t.Fatalf("trunk workflow change: %v, want the same patch and a new ci-id", got)
+	}
+	if got["reuse"] != "false" {
+		t.Fatalf("same patch, different ci-id: %v, want a full stage 1", got)
+	}
+}
+
+func TestStage1Reuse_oldPatchIDSummaryDoesNotReuse(t *testing.T) {
+	r := newReuseRepo(t)
+	base := r.git("rev-parse", "HEAD")
+	r.git("switch", "-q", "-c", "feature")
+	head := r.commit("change.txt", "one\n")
+	first := r.run(base, head)
+	r.greenRun(head, "patch-id: "+first["patch-id"])
+
+	r.git("switch", "-q", "trunk")
+	newBase := r.commit("other.txt", "moved\n")
+	r.git("switch", "-q", "feature")
+	r.git("rebase", "-q", "trunk")
+	restacked := r.git("rev-parse", "HEAD")
+	got := r.run(newBase, restacked)
+	if got["patch-id"] != first["patch-id"] || got["ci-id"] != first["ci-id"] {
+		t.Fatalf("restack key: %v, want patch %s ci-id %s", got, first["patch-id"], first["ci-id"])
+	}
+	if got["reuse"] != "false" {
+		t.Fatalf("old summary form: %v, want a full stage 1", got)
 	}
 }
