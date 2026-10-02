@@ -567,12 +567,12 @@ The table below is a render. The file is `apps/backend/flows.tsv`, one line per 
 | `events` | `cabal.fund_submitted;cabal.funded` | each in the `events` registry |
 | `consumers` | `treasury.positions;ranking;feed;referrals` | each a registered durable |
 | `outcomes` | `ok;InsufficientFunds;CabalPaused;PrivyUnavailable;crash:after-sign;crash:before-commit` | each `Code` in the `errs` table; each crash point a registered `faultpoint` |
-| `status` | `planned`, `built`, `verified` | `built` needs every outcome test present; `verified` needs a flow script per outcome (below) |
+| `status` | `planned`, `built`, `verified` | `built` needs every outcome test and a script for each non-crash outcome; `verified` needs a script per outcome (below) |
 | `doc` | `docs/architecture/deposits-withdrawals.md#fund` | file and anchor exist |
 
 `monacoctl flows check` runs in CI and fails on any column's check. It also reads `go test -json` from the run and requires, for each flow with `status` ≥ `built`, a passing test named `TestFlow<id>_<Command>_<Outcome>` per outcome. A flow row with no test is a red build, not a backlog item. The check is what makes the file a map of the system instead of a wish list.
 
-`status = verified` means every outcome has a flow script registered in `Scripts()` (`internal/testkit/flows/scripts.go`), so `monacoctl verify all` drives it against the real binaries in stage 2. `monacoctl flows check` fails a `verified` flow with an outcome that has no script.
+`status = built` means every non-crash outcome has a flow script registered in `Scripts()` (`internal/testkit/flows/scripts.go`), so `monacoctl verify all` drives it against the real binaries in stage 2. Crash scripts ship with the `--crash-at` line that runs them, and the rest ship at `verified`, which means every outcome has a script. `monacoctl flows check` fails a `built` flow whose non-crash outcome has no script, and a `verified` flow with an outcome that has no script.
 
 `monacoctl verify` checks each outcome by the kind of trigger, and every log line it asks for must be written after the script started:
 

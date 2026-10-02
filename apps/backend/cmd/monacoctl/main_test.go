@@ -81,9 +81,9 @@ func TestMain_flowsCheckReadsTestResultsFromStdinOrFromUnlessStructureOnly(t *te
 	repo := t.TempDir()
 	backend := filepath.Join(repo, backendDir)
 	for file, body := range map[string]string{
-		filepath.Join(backend, flows.File):                            flows.Header + "\n00\tPing\tsystem\tGET /healthz\tPing\t\t\tok\tbuilt\tdocs/flows.md#ping\n",
+		filepath.Join(backend, flows.File):                            flows.Header + "\n00\tPing\tsystem\tGET /healthz\tRecordPing\t\t\tok\tbuilt\tdocs/flows.md#ping\n",
 		filepath.Join(backend, "go.mod"):                              "module fixture\n",
-		filepath.Join(backend, "internal/modules/system/app/ping.go"): "package app\n\ntype Ping struct{}\n",
+		filepath.Join(backend, "internal/modules/system/app/ping.go"): "package app\n\ntype RecordPing struct{}\n",
 		filepath.Join(repo, "docs/flows.md"):                          "# Ping\n",
 	} {
 		if err := os.MkdirAll(filepath.Dir(file), 0o750); err != nil {
@@ -93,7 +93,7 @@ func TestMain_flowsCheckReadsTestResultsFromStdinOrFromUnlessStructureOnly(t *te
 			t.Fatal(err)
 		}
 	}
-	results := pass("TestFlow00_Ping_OK", "TestFlow999999_NoSuchFlow")
+	results := pass("TestFlow00_RecordPing_OK", "TestFlow999999_NoSuchFlow")
 	from := filepath.Join(t.TempDir(), "go-test.json")
 	if err := os.WriteFile(from, []byte(results), 0o600); err != nil {
 		t.Fatal(err)
@@ -112,7 +112,7 @@ func TestMain_flowsCheckReadsTestResultsFromStdinOrFromUnlessStructureOnly(t *te
 			"no results", "",
 			[]string{"flows", "check"},
 			1,
-			"flows.tsv:2: outcome ok has no test TestFlow00_Ping_OK in the go test -json input\n",
+			"flows.tsv:2: outcome ok has no test TestFlow00_RecordPing_OK in the go test -json input\n",
 		},
 		{"structure only skips the test check", "", []string{"flows", "check", "--structure-only"}, 0, ""},
 	} {

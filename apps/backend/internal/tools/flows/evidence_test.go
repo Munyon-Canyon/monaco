@@ -109,19 +109,29 @@ func TestCheckTests_builtFlowsNeedAPassingTestPerOutcome(t *testing.T) {
 	}
 }
 
-func TestCheckScripts_verifiedFlowsNeedAScriptForEveryOutcome(t *testing.T) {
+func TestCheckScripts_builtFlowsNeedNonCrashScriptsAndVerifiedFlowsNeedEveryOutcome(t *testing.T) {
 	t.Parallel()
+	ok := "F07FundCabalOK"
+	crash := "F07FundCabalCrashAfterSign"
+	builtMissing := "flows.tsv:2: built flow outcome ok has no script F07FundCabalOK " +
+		"in internal/testkit/flows; monacoctl verify all fails without it"
+	verifiedOK := "flows.tsv:2: verified flow outcome ok has no script F07FundCabalOK " +
+		"in internal/testkit/flows for monacoctl verify all"
+	verifiedCrash := "flows.tsv:2: verified flow outcome crash:after-sign has no script F07FundCabalCrashAfterSign " +
+		"in internal/testkit/flows for monacoctl verify all"
 	for _, tc := range []struct {
 		name, status string
 		scripts      []string
 		want         []string
 	}{
-		{"built needs no script", "built", nil, nil},
-		{"every outcome scripted", "verified", []string{"F07FundCabalOK", "F07FundCabalCrashAfterSign"}, nil},
-		{"missing script", "verified", []string{"F07FundCabalOK"}, []string{
-			"flows.tsv:2: verified flow outcome crash:after-sign has no script F07FundCabalCrashAfterSign " +
-				"in internal/testkit/flows for monacoctl verify all",
-		}},
+		{"planned needs no script", "planned", nil, nil},
+		{"built with the non-crash script", "built", []string{ok}, nil},
+		{"built with every script", "built", []string{ok, crash}, nil},
+		{"built missing the non-crash script", "built", nil, []string{builtMissing}},
+		{"built holding only the crash script", "built", []string{crash}, []string{builtMissing}},
+		{"verified with every script", "verified", []string{ok, crash}, nil},
+		{"verified missing the crash script", "verified", []string{ok}, []string{verifiedCrash}},
+		{"verified missing every script", "verified", nil, []string{verifiedOK, verifiedCrash}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

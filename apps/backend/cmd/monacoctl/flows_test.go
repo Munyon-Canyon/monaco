@@ -74,19 +74,28 @@ func TestFlowsCheck(t *testing.T) {
 		tsv           string
 		tests         string
 		structureOnly bool
+		acceptScripts bool
 		code          int
 		stderr        string
 	}{
-		{"header only", flows.Header + "\n", "", false, 0, ""},
-		{"built row with every test passing", flows.Header + "\n" + pingRow + "\n", pass("TestFlow01_Ping_OK", "TestFlow01_Ping_Internal"), false, 0, ""},
+		{"header only", flows.Header + "\n", "", false, false, 0, ""},
+		{"built row with every test passing", flows.Header + "\n" + pingRow + "\n", pass("TestFlow01_Ping_OK", "TestFlow01_Ping_Internal"), false, true, 0, ""},
 		{
-			"built row missing a test", flows.Header + "\n" + pingRow + "\n", pass("TestFlow01_Ping_OK"), false, 1,
+			"built row missing a test", flows.Header + "\n" + pingRow + "\n", pass("TestFlow01_Ping_OK"), false, true, 1,
 			"flows.tsv:2: outcome Internal has no test TestFlow01_Ping_Internal in the go test -json input\n",
 		},
-		{"structure only skips the test check", flows.Header + "\n" + pingRow + "\n", "", true, 0, ""},
+		{"structure only skips the test check", flows.Header + "\n" + pingRow + "\n", "", true, true, 0, ""},
+		{
+			"built row needs a script for each non-crash outcome",
+			flows.Header + "\n" + pingRow + "\n", pass("TestFlow01_Ping_OK", "TestFlow01_Ping_Internal"), false, false, 1,
+			"flows.tsv:2: built flow outcome ok has no script F01PingOK " +
+				"in internal/testkit/flows; monacoctl verify all fails without it\n" +
+				"flows.tsv:2: built flow outcome Internal has no script F01PingInternal " +
+				"in internal/testkit/flows; monacoctl verify all fails without it\n",
+		},
 		{
 			"verified row needs a script per outcome",
-			flows.Header + "\n" + strings.Replace(pingRow, "\tbuilt\t", "\tverified\t", 1) + "\n", "", true, 1,
+			flows.Header + "\n" + strings.Replace(pingRow, "\tbuilt\t", "\tverified\t", 1) + "\n", "", true, false, 1,
 			"flows.tsv:2: verified flow outcome ok has no script F01PingOK in internal/testkit/flows for monacoctl verify all\n" +
 				"flows.tsv:2: verified flow outcome Internal has no script F01PingInternal in internal/testkit/flows for " +
 				"monacoctl verify all\n",
@@ -94,13 +103,13 @@ func TestFlowsCheck(t *testing.T) {
 		{
 			"structure only still checks the columns", flows.Header + "\n" +
 				strings.Replace(pingRow, "system.pinged", "system.exploded", 1) + "\n",
-			"", true, 1,
+			"", true, true, 1,
 			"flows.tsv:2: event system.exploded is not in the events registry\n",
 		},
 		{
 			"live registry and errs table", flows.Header + "\n" +
 				strings.Replace(strings.Replace(pingRow, "system.pinged", "system.pinged;system.exploded", 1), "ok;Internal\tbuilt", "ok;Internal;NoSuchCode;crash:before-commit;crash:after-lunch\tplanned", 1) + "\n",
-			"", false, 1,
+			"", false, false, 1,
 			"flows.tsv:2: event system.exploded is not in the events registry\n" +
 				"flows.tsv:2: outcome NoSuchCode is not an errs code name\n" +
 				"flows.tsv:2: outcome crash:after-lunch is not a registered faultpoint\n",
@@ -110,7 +119,7 @@ func TestFlowsCheck(t *testing.T) {
 				"02\tPong\tsystem\tPOST /v1/pong\tPong\t\tghost.durable\tok\tplanned\tdocs/flows.md#ping\n" +
 				"03\tHealth\tsystem\tGET /healthz\tPing\t\t\tok\tplanned\tdocs/flows.md#ping\n" +
 				"04\tPinged\tsystem\tconsumer:system.pinged\tPing\t\tsystem.echo;system_echo\tok\tplanned\tdocs/flows.md#ping\n",
-			"", false, 1,
+			"", false, false, 1,
 			"flows.tsv:2: trigger POST /v1/pong is not a route, subject or poller\n" +
 				"flows.tsv:2: command Pong is not a type in internal/modules/system/app\n" +
 				"flows.tsv:2: consumer ghost.durable is not a registered durable\n",
@@ -119,7 +128,11 @@ func TestFlowsCheck(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var stderr bytes.Buffer
-			code := flowsCheck(envWith(t, tc.tsv), strings.NewReader(tc.tests), tc.structureOnly, &stderr)
+			env := envWith(t, tc.tsv)
+			if tc.acceptScripts {
+				env.Scripts = func(flows.Flow, string) bool { return true }
+			}
+			code := flowsCheck(env, strings.NewReader(tc.tests), tc.structureOnly, &stderr)
 			if code != tc.code || stderr.String() != tc.stderr {
 				t.Fatalf("code=%d stderr=\n%s\nwant code=%d stderr=\n%s", code, stderr.String(), tc.code, tc.stderr)
 			}

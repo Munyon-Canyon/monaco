@@ -85,19 +85,37 @@ func ScriptName(f Flow, o Outcome) string {
 func CheckScripts(flows []Flow, env Env) []Problem {
 	var problems []Problem
 	for _, f := range flows {
-		if f.Status != StatusVerified {
-			continue
-		}
 		for _, o := range f.Outcomes {
-			if name := ScriptName(f, o); !env.Scripts(f, name) {
-				problems = append(problems, problemf(
-					f.Line,
-					"verified flow outcome %s has no script %s in internal/testkit/flows for monacoctl verify all",
-					o,
-					name,
-				))
+			name := ScriptName(f, o)
+			if env.Scripts(f, name) {
+				continue
+			}
+			if problem, ok := missingScript(f, o, name); ok {
+				problems = append(problems, problem)
 			}
 		}
 	}
 	return problems
+}
+
+func missingScript(f Flow, o Outcome, name string) (Problem, bool) {
+	_, crash := o.CrashPoint()
+	switch {
+	case f.Status == StatusBuilt && !crash:
+		return problemf(
+			f.Line,
+			"built flow outcome %s has no script %s in internal/testkit/flows; monacoctl verify all fails without it",
+			o,
+			name,
+		), true
+	case f.Status == StatusVerified:
+		return problemf(
+			f.Line,
+			"verified flow outcome %s has no script %s in internal/testkit/flows for monacoctl verify all",
+			o,
+			name,
+		), true
+	default:
+		return Problem{}, false
+	}
 }
