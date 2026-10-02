@@ -106,7 +106,7 @@ func TestAgentGuard_blocksMutationRunsAndAllowsInstallingTheTool(t *testing.T) {
 	}
 }
 
-func TestAgentGuard_blocksPushesToMainTheFeatureBranchAndGraphiteTrunks(t *testing.T) {
+func TestAgentGuard_blocksPushesToMainStagingAndGraphiteTrunks(t *testing.T) {
 	work, _ := pushRepo(t)
 	trunks := `{"trunk":"main","trunks":[{"name":"main"},{"name":"milestone-9"}]}`
 	if err := os.WriteFile(filepath.Join(work, ".git", ".graphite_repo_config"), []byte(trunks), 0o644); err != nil {
@@ -115,20 +115,22 @@ func TestAgentGuard_blocksPushesToMainTheFeatureBranchAndGraphiteTrunks(t *testi
 	for _, cmd := range []string{
 		"git push origin main",
 		"git push origin HEAD:main",
-		"git push origin ticket:refs/heads/backend-rewrite-4",
-		"git push origin ticket:domain-core-12",
+		"git push origin ticket:refs/heads/staging",
+		"git push origin ticket:staging",
 		"git push origin milestone-9",
 		"git push -u origin ticket:milestone-9 2>&1 | tail -3",
 		"git -C . push --all origin",
 		"bash -c 'git push origin main'",
 	} {
 		r := guard(t, work, cmd)
-		if r.code != 2 || !(strings.Contains(r.stderr, "only through the merge queue") || strings.Contains(r.stderr, "--all")) {
+		if r.code != 2 || !(strings.Contains(r.stderr, "only through the Graphite merge queue") || strings.Contains(r.stderr, "--all")) {
 			t.Errorf("%q: want blocked, got %d %q", cmd, r.code, r.stderr)
 		}
 	}
+	git(t, work, "switch", "-q", "-c", "staging")
+	assertBlocked(t, guard(t, work, "git push"), "git push on staging", "'staging' is not allowed")
 	git(t, work, "switch", "-q", "-c", "backend-rewrite-7")
-	assertBlocked(t, guard(t, work, "git push"), "git push on backend-rewrite-7", "'backend-rewrite-7' is not allowed")
+	assertAllowed(t, guard(t, work, "git push origin backend-rewrite-7"), "an old checkpoint name is a plain branch now")
 	git(t, work, "switch", "-q", "ticket")
 	assertAllowed(t, guard(t, work, "git push origin ticket"), "git push origin ticket")
 	assertAllowed(t, guard(t, t.TempDir(), "cd "+work+" && git push"), "cd work && git push")
@@ -364,21 +366,44 @@ func TestAgentGuard_gtSyncLeavesOtherStacksUnrestacked(t *testing.T) {
 	}
 }
 
-func TestAgentGuard_autoMergeNeedsAFeatureBranchBase(t *testing.T) {
+func TestAgentGuard_stagingTakesPRsOnlyThroughTheQueue(t *testing.T) {
 	cwd := t.TempDir()
-	for _, base := range []string{"831-f-land-stack", "982-workflow-docs", "backend-rewrite"} {
-		env, _ := ghStubOnBase(t, base, `[`+status("success", "verifier", 2)+`]`)
-		for _, cmd := range []string{"gh pr merge 42 --auto", "gh pr merge --auto 42 --squash"} {
-			assertBlocked(t, guard(t, cwd, cmd, env...), base+": "+cmd, "not the feature branch, so auto-merge would merge it into its parent")
-		}
-	}
-	for _, base := range []string{"backend-rewrite-9", "domain-core-12"} {
-		env, _ := ghStubOnBase(t, base, `[`+status("success", "verifier", 2)+`]`)
-		assertAllowed(t, guard(t, cwd, "gh pr merge 42 --auto", env...), "auto-merge on the feature branch "+base)
+	env, _ := ghStubOnBase(t, "staging", `[`+status("success", "verifier", 2)+`]`)
+	for _, cmd := range []string{"gh pr merge 42 --squash", "gh pr merge 42 --auto", "gh pr merge --auto 42 --squash"} {
+		assertBlocked(t, guard(t, cwd, cmd, env...), cmd, "takes PRs only through the Graphite merge queue")
 	}
 }
 
-func TestAgentGuard_onlyLandStackChangesABase(t *testing.T) {
+func TestAgentGuard_onlyLandStackAddsTheQueueLabel(t *testing.T) {
+	cwd := t.TempDir()
+	for _, cmd := range []string{
+		"gh pr edit 5 --add-label merge-queue",
+		"gh pr edit --add-label=merge-queue 5",
+		"gh pr edit 5 --add-label docs,merge-queue",
+		"cd /tmp && gh pr edit 5 --title t --add-label merge-queue",
+		"gh issue edit 5 --add-label merge-queue",
+		"gh api repos/o/r/issues/5/labels -f labels[]=merge-queue",
+		"gh api -X POST repos/o/r/issues/5/labels --input labels.json -f 'labels[]=merge-queue'",
+	} {
+		assertBlocked(t, guard(t, cwd, cmd), cmd, "Only `monacoctl agents land-stack <top-pr>` adds it")
+	}
+	for _, cmd := range []string{"gh pr edit 5 --add-label fast-track", "gh pr edit 5 --add-label=docs,fast-track",
+		"gh issue edit 5 --add-label fast-track", "gh api repos/o/r/issues/5/labels -f labels[]=fast-track"} {
+		assertBlocked(t, guard(t, cwd, cmd), cmd, "Only a human adds it")
+	}
+	for _, cmd := range []string{
+		"gh pr edit 5 --add-label docs",
+		"gh pr edit 5 --remove-label merge-queue",
+		"gh pr edit 5 --remove-label fast-track",
+		"gh pr edit 5 --add-label merge-queue-later",
+		"gh api repos/o/r/issues/5/labels -f labels[]=docs",
+		"gh api repos/o/r/labels",
+	} {
+		assertAllowed(t, guard(t, cwd, cmd), cmd)
+	}
+}
+
+func TestAgentGuard_graphiteOwnsEveryBase(t *testing.T) {
 	cwd := t.TempDir()
 	for _, cmd := range []string{
 		"gh pr edit 5 --base backend-rewrite-9",
@@ -386,7 +411,7 @@ func TestAgentGuard_onlyLandStackChangesABase(t *testing.T) {
 		"gh pr edit --base=backend-rewrite-9 5",
 		"cd /tmp && gh pr edit 5 --title t --base b",
 	} {
-		assertBlocked(t, guard(t, cwd, cmd), cmd, "gh pr edit --base runs only inside `monacoctl agents land-stack")
+		assertBlocked(t, guard(t, cwd, cmd), cmd, "gh pr edit --base is not allowed")
 	}
 	for _, cmd := range []string{
 		"gh pr edit 5 --title t",

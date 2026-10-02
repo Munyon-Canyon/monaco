@@ -220,6 +220,30 @@ class CommitTest(RepoTest):
         self.assertEqual(check.commit_errors(self.base, git("rev-parse", "HEAD")), [])
 
 
+class ClosingCommitTest(RepoTest):
+    def head(self) -> str:
+        return git("rev-parse", "HEAD")
+
+    def test_a_closing_pr_needs_the_closing_word_in_a_commit_message(self):
+        commit("feat: add the ready job")
+        errors = check.closing_commit_errors(pr("Closes #789.", "Nothing."), self.base, self.head())
+        self.assertEqual(len(errors), 1)
+        self.assertIn('no commit message says "Closes #789"', errors[0])
+
+    def test_part_of_in_the_commit_does_not_close(self):
+        commit("feat: add the ready job\n\nPart of #789.")
+        self.assertEqual(len(check.closing_commit_errors(pr("Closes #789.", "Nothing."), self.base, self.head())), 1)
+
+    def test_any_closing_word_in_any_commit_body_passes(self):
+        commit("feat: add the ready job\n\nFixes #789.")
+        commit("test: cover the ready job")
+        self.assertEqual(check.closing_commit_errors(pr("Closes #789.", "Nothing."), self.base, self.head()), [])
+
+    def test_a_part_of_pr_needs_nothing_in_its_commits(self):
+        commit("feat: add the ready job")
+        self.assertEqual(check.closing_commit_errors(pr("Part of #789."), self.base, self.head()), [])
+
+
 class CheckpointTest(RepoTest):
     def run_check(self, base_ref: str, head_ref: str, labels: str = '["integration"]') -> tuple[int, str]:
         commit("Log bus.relay.idle at most once a minute")
@@ -237,23 +261,21 @@ class CheckpointTest(RepoTest):
             code = check.main([])
         return code, out.getvalue()
 
-    def test_checkpoint_into_main_skips_the_commit_check(self):
-        for head in ("backend-rewrite-9", "domain-core-12"):
-            self.assertEqual(self.run_check("main", head), (0, "PR format ok\n"), head)
+    def test_staging_into_main_skips_the_commit_check(self):
+        self.assertEqual(self.run_check("main", "staging"), (0, "PR format ok\n"))
 
-    def test_feature_branch_into_main_without_the_integration_label_still_fails(self):
+    def test_staging_into_main_without_the_integration_label_still_fails(self):
         for labels in ("[]", '["docs"]', ""):
-            self.assertEqual(self.run_check("main", "domain-core-12", labels)[0], 1, labels)
+            self.assertEqual(self.run_check("main", "staging", labels)[0], 1, labels)
 
-    def test_is_checkpoint_needs_main_the_convention_and_the_label(self):
-        for head in ("backend-rewrite-3", "domain-core-12"):
-            self.assertTrue(check.is_checkpoint("main", head, ["integration"]), head)
-        for head in ("backend-rewrite", "982-workflow-docs", "main", "Domain-Core-2"):
+    def test_is_checkpoint_needs_main_staging_and_the_label(self):
+        self.assertTrue(check.is_checkpoint("main", "staging", ["integration"]))
+        for head in ("backend-rewrite-3", "domain-core-12", "982-workflow-docs", "main", "Staging"):
             self.assertFalse(check.is_checkpoint("main", head, ["integration"]), head)
-        self.assertFalse(check.is_checkpoint("domain-core-11", "domain-core-12", ["integration"]))
+        self.assertFalse(check.is_checkpoint("staging", "domain-core-12", ["integration"]))
 
     def test_ticket_pr_still_fails_on_a_non_conventional_commit(self):
-        code, out = self.run_check("backend-rewrite-9", "989-checkpoint-commit-check")
+        code, out = self.run_check("staging", "989-checkpoint-commit-check")
         self.assertEqual(code, 1)
         self.assertIn('"Log bus.relay.idle at most once a minute" is not a Conventional Commit', out)
 
@@ -268,7 +290,7 @@ class DependabotAuthorTest(RepoTest):
             PR_TITLE="Bump the Swift packages",
             PR_BODY=body,
             PR_AUTHOR=author,
-            BASE_REF="backend-rewrite-checkpoint-4",
+            BASE_REF="staging",
             HEAD_REF="dependabot/swift/packages/mobile-core/posthog-ios-3.87.0",
             PR_LABELS="[]",
             BASE_SHA=self.base,

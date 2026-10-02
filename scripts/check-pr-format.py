@@ -19,8 +19,8 @@ FENCE_RE = re.compile(r"(?ms)^(`{3,}|~{3,})[ \t]*([\w+-]*)[^\n]*\n(.*?)^\1[ \t]*
 SHELL_FENCES = {"", "sh", "bash", "shell", "console", "zsh"}
 CONVENTIONAL_RE = re.compile(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^()\s]+\))?!?: \S")
 SQUASH_RE = re.compile(r"\(#\d+\)$")
-# A feature branch is <name>-<N>. scripts/ci/feature-branch-name.sh holds the same pattern.
-FEATURE_BRANCH_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*-[0-9]+$")
+# PRs land in staging; a promotion merges staging into main.
+TRUNK = "staging"
 
 
 class StackedPR(NamedTuple):
@@ -124,6 +124,24 @@ def commit_errors(base: str, head: str) -> list[str]:
     return errors
 
 
+# The Graphite merge queue closes a PR instead of merging it, so GitHub never closes the ticket from the PR body.
+# It does close a ticket from a commit message that reaches the default branch (staging), and fast-forward keeps
+# the messages, so a PR that closes a ticket carries "Closes #n" in a commit message too.
+def closing_commit_errors(body: str, base: str, head: str) -> list[str]:
+    closing = [ticket for ticket, closes in sorted(closes_by_ticket(body).items()) if closes]
+    if not closing:
+        return []
+    log = git("log", "--format=%B", f"{base}..{head}")
+    if log is None:
+        return [f"cannot read the commit messages in {base[:12]}..{head[:12]}"]
+    in_commits = {int(n) for verb, n in LINK_RE.findall(log) if verb.lower() != "part of"}
+    return [
+        f'this PR closes #{ticket}, but no commit message says "Closes #{ticket}". The Graphite merge queue '
+        "closes PRs instead of merging them, so only a commit message closes the ticket. Add it with gt modify"
+        for ticket in closing if ticket not in in_commits
+    ]
+
+
 def git(*args: str) -> str | None:
     run = subprocess.run(["git", *args], capture_output=True, text=True)
     return run.stdout.strip() if run.returncode == 0 else None
@@ -155,7 +173,7 @@ def body_errors(body: str) -> list[str]:
 
 
 def is_checkpoint(base_ref: str, head_ref: str, labels: list[str]) -> bool:
-    return base_ref == "main" and bool(FEATURE_BRANCH_RE.fullmatch(head_ref)) and "integration" in labels
+    return base_ref == "main" and head_ref == TRUNK and "integration" in labels
 
 
 DEPENDABOT_AUTHOR = "dependabot[bot]"
@@ -180,9 +198,11 @@ def main(argv: list[str]) -> int:
         print("usage: check-pr-format.py", file=sys.stderr)
         return 2
     errors = template_errors(env, body)
-    # A checkpoint's range is the whole milestone: each commit passed this check in its ticket PR or predates the rule.
+    # A promotion's range is every PR since the last one: each commit passed this check in its ticket PR or predates the rule.
     if not is_checkpoint(env["BASE_REF"], env["HEAD_REF"], json.loads(env.get("PR_LABELS") or "[]")):
         errors += commit_errors(env["BASE_SHA"], env["HEAD_SHA"])
+        if env.get("PR_AUTHOR") != DEPENDABOT_AUTHOR:
+            errors += closing_commit_errors(body, env["BASE_SHA"], env["HEAD_SHA"])
     if errors:
         print("PR format check failed:")
         for e in errors:
