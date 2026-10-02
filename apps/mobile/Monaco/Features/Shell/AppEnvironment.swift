@@ -32,6 +32,7 @@ final class AppEnvironment {
         auth: PrivyAuthService,
         tokens: SessionTokens? = nil,
         hints: any HintConnecting,
+        sessionStore: AppSessionStore? = nil,
         isAuthenticated: (@MainActor () -> Bool)? = nil,
         endAuthSession: (@MainActor () async -> Void)? = nil
     ) {
@@ -41,10 +42,15 @@ final class AppEnvironment {
         self.hints = hints
         let api = APIClient(serverURL: Config.api.baseURL, tokens: tokens)
         self.api = api
-        self.sessionStore = AppSessionStore(apiClient: MonacoAPIClient(), sessions: SessionAPI(api: api))
+        self.sessionStore =
+            sessionStore
+            ?? AppSessionStore(
+                apiClient: MonacoAPIClient(), sessions: SessionAPI(api: api),
+                sessionToken: { try? await tokens.accessToken() }
+            )
         self.privyAuthenticated = isAuthenticated ?? Self.privyIsAuthenticated(auth)
         self.endAuthSession = endAuthSession ?? { await auth.logout() }
-        sessionStore.onProfileChange = { [weak self] next in
+        self.sessionStore.onProfileChange = { [weak self] next in
             self?.viewer = next.map(Viewer.init)
         }
         tokens.onSignedOut { [weak self] in
@@ -98,7 +104,6 @@ final class AppEnvironment {
         guard !isSigningOut else { return }
         isSigningOut = true
         defer { isSigningOut = false }
-        navigator.reset()
         clearSignedInState()
         await hints.stop()
         AppLogger.session.info("hint stream stopped")
@@ -120,11 +125,8 @@ final class AppEnvironment {
     }
 
     private func clearSignedInState() {
-        sessionStore.profile = nil
-        sessionStore.home = nil
-        sessionStore.errorMessage = nil
-        sessionStore.isLoading = false
-        viewer = nil
+        navigator.reset()
+        sessionStore.reset()
     }
 
     var skipsSessionOpen: Bool {

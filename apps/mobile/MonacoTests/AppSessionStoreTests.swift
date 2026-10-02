@@ -4,7 +4,10 @@ import MonacoAPI
 import MonacoTestSupport
 import Testing
 
+import enum MonacoCore.LoginFailureCopy
+import class MonacoCore.MonacoAPIClient
 import struct MonacoCore.SessionAPI
+import struct MonacoCore.SessionProfile
 
 @testable import Monaco
 
@@ -199,18 +202,19 @@ struct AppSessionStoreLeaderboardRangeTests {
 @MainActor
 struct AppSessionStoreBootstrapTests {
     @Test func bootstrapDoesNotAskForTheProfileTwice() async throws {
-        let (transport, store, auth, _) = await boot(.json(.ok, SessionWire.me))
+        let (transport, store, auth, environment) = await boot(.json(.ok, SessionWire.me))
         await store.refresh(auth: auth)
         let sent = await transport.sent
         #expect(sent.filter { $0.path == "/v1/auth/session" }.map(\.method) == [.post])
         #expect(store.profile?.displayName == "Kai Cenat")
+        #expect(environment.viewer == Viewer(userID: "01890a5d-ac96-774b-bcce-b302099a8058", handle: "kai"))
     }
 
     @Test func bootstrapRetriesOnceAndThenStops() async throws {
         let (transport, _, auth, _) = await boot(.json(.unauthorized, "{}"))
         let sent = await transport.sent
         #expect(sent.map(\.path) == ["/v1/auth/session"])
-        #expect(auth.signOuts.map(\.reason) == ["Please sign in again."])
+        #expect(auth.signOuts.map(\.reason) == [LoginFailureCopy.sessionExpired])
     }
 
     /// A bootstrap whose 401 outlived its sign-in. The member signed out and someone else
@@ -232,10 +236,11 @@ struct AppSessionStoreBootstrapTests {
     }
 
     @Test func aDevSessionReadsMeAndDoesNotOpen() async throws {
-        let (transport, store, _, bound) = await boot(.json(.ok, SessionWire.me), dev: true)
+        let (transport, store, _, environment) = await boot(.json(.ok, SessionWire.me), dev: true)
         let sent = await transport.sent
         #expect(sent.map(\.path) == ["/v1/me"])
-        #expect(bound.viewer?.userID == store.profile?.userID)
+        #expect(store.profile != nil)
+        #expect(environment.viewer == Viewer(userID: "01890a5d-ac96-774b-bcce-b302099a8058", handle: "kai"))
     }
 
     @Test func aDeletedAccountSignsOut() async throws {
@@ -273,24 +278,106 @@ struct AppSessionStoreBootstrapTests {
         #expect(store.profile?.userID == "01890a5d-ac96-774b-bcce-b302099a9999")
         #expect(store.profile?.memberWalletAddress == "wallet-b")
     }
-}
 
-@MainActor
-private final class BoundViewer {
-    var viewer: Viewer?
+    @Test func signOutDropsAnInFlightRefresh() async {
+        let source = StubDataSource()
+        let transport = StubTransport(.gate)
+        let store = AppSessionStore(apiClient: source, sessions: sessionAPI(transport))
+        let auth = StubAuth()
+        store.profile = try? SessionProfile(json: Data(SessionWire.me.utf8))
+        store.home = HomeViewDTO(groups: [], people: [])
+        store.dashboard = StubDataSource.dashboard(range: .all)
+        store.platformBalance = PlatformBalanceDTO(
+            availableUsdcMicros: 1, memberWalletAddress: "a", pendingAllocationMicros: 0
+        )
+        let environment = AppEnvironment(
+            auth: PrivyAuthService.processInstance ?? PrivyAuthService(), hints: FakeHintSource(),
+            sessionStore: store, isAuthenticated: { true }, endAuthSession: {}
+        )
+
+        let refresh = Task { await store.refresh(auth: auth, includeProfile: true) }
+        await transport.waitForRequest()
+        await environment.signOut()
+        await transport.releaseGate(.json(.ok, SessionWire.me))
+        await refresh.value
+        await store.awaitDeferredWork()
+
+        #expect(store.profile == nil)
+        #expect(store.home == nil)
+        #expect(store.dashboard == nil)
+        #expect(store.platformBalance == nil)
+        #expect(store.homePnLSeries == nil)
+    }
+
+    @Test func memberBSeesNoMemberADataWhileTheirSessionOpens() async throws {
+        let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), .gate, .json(.ok, SessionWire.next)])
+        let store = AppSessionStore(apiClient: StubDataSource(), sessions: sessionAPI(transport))
+        let auth = StubAuth()
+        await store.bootstrap(auth: auth)
+        let environment = AppEnvironment(
+            auth: PrivyAuthService.processInstance ?? PrivyAuthService(), hints: FakeHintSource(),
+            sessionStore: store, isAuthenticated: { true }, endAuthSession: {}
+        )
+        await environment.signOut()
+        auth.accessToken = "token-b"
+
+        let openingB = Task { await store.bootstrap(auth: auth) }
+        while await transport.sent.count < 2 { await Task.yield() }
+        #expect(store.profile == nil)
+        #expect(store.dashboard == nil)
+        #expect(store.platformBalance == nil)
+
+        await transport.releaseGate(.json(.ok, SessionWire.next))
+        await openingB.value
+        #expect(store.profile?.userID == "01890a5d-ac96-774b-bcce-b302099a9999")
+    }
+
+    @Test func signOutDropsANameSaveThatIsStillInFlight() async throws {
+        AvatarStubProtocol.reset()
+        let profileURL = testServerURL.appending(path: "v1/me")
+        AvatarStubProtocol.hold(profileURL)
+        let store = AppSessionStore(
+            apiClient: StubDataSource(),
+            sessions: sessionAPI(StubTransport(.json(.ok, SessionWire.me))),
+            profileClientFactory: { token in
+                MonacoCore.MonacoAPIClient(
+                    baseURL: testServerURL,
+                    session: AvatarStubProtocol.session(),
+                    accessTokenProvider: { token }
+                )
+            }
+        )
+        let auth = StubAuth()
+        let environment = AppEnvironment(
+            auth: PrivyAuthService.processInstance ?? PrivyAuthService(), hints: FakeHintSource(),
+            sessionStore: store, isAuthenticated: { true }, endAuthSession: {}
+        )
+        await store.bootstrap(auth: auth)
+
+        let save = Task { await store.updateDisplayName("New name", auth: auth) }
+        await requestArrives(at: profileURL)
+
+        await environment.signOut()
+        AvatarStubProtocol.release(profileURL, body: Data(SessionWire.renamed.utf8))
+        let outcome = await save.value
+        #expect(outcome == .failed("Sign in again to edit your profile."))
+        #expect(store.profile == nil)
+    }
 }
 
 @MainActor
 private func boot(_ reply: StubTransport.Reply, dev: Bool = false) async -> (
-    StubTransport, AppSessionStore, StubAuth, BoundViewer
+    StubTransport, AppSessionStore, StubAuth, AppEnvironment
 ) {
     let transport = StubTransport(reply)
     let store = AppSessionStore(apiClient: StubDataSource(), sessions: sessionAPI(transport))
-    let bound = BoundViewer()
-    store.onProfileChange = { bound.viewer = $0.map(Viewer.init) }
+    let environment = AppEnvironment(
+        auth: PrivyAuthService.processInstance ?? PrivyAuthService(), hints: FakeHintSource(),
+        sessionStore: store, isAuthenticated: { true }, endAuthSession: {}
+    )
     let auth = StubAuth()
     await store.bootstrap(auth: auth, devSession: dev)
-    return (transport, store, auth, bound)
+    return (transport, store, auth, environment)
 }
 
 private func sessionAPI(_ transport: StubTransport) -> SessionAPI {
@@ -310,6 +397,14 @@ private enum SessionWire {
         #"{"id":"01890a5d-ac96-774b-bcce-b302099a9999","handle":"bee","display_name":"Bee","auth_state":"CREATED","account_status":"active","member_wallet_address":"wallet-b","phone_linked":false,"created_at":"2026-09-30T12:00:00Z"}"#
     static let deleted =
         #"{"status":403,"code":"account_deleted","message":"x","trace_id":"t","retryable":false}"#
+    static let renamed =
+        #"{"userId":"01890a5d-ac96-774b-bcce-b302099a8058","displayName":"New name","memberWalletAddress":"wallet-1","createdAt":"2026-09-30T12:00:00Z"}"#
+}
+
+private func requestArrives(at url: URL) async {
+    while AvatarStubProtocol.requestCount(for: url) == 0 {
+        await Task.yield()
+    }
 }
 
 /// A 401 has to name the token the request actually carried. Naming whatever token is

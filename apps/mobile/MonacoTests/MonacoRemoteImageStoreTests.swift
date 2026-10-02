@@ -100,14 +100,20 @@ nonisolated final class MonacoRemoteImageStoreTests: XCTestCase {
 }
 
 /// Canned responses per URL, with a request counter.
-nonisolated private final class AvatarStubProtocol: URLProtocol, @unchecked Sendable {
+nonisolated final class AvatarStubProtocol: URLProtocol, @unchecked Sendable {
     private enum Stub {
         case response(status: Int, body: Data)
         case failure(URLError)
+        case gate
     }
 
-    nonisolated(unsafe) private static var stubs: [URL: Stub] = [:]
-    nonisolated(unsafe) private static var counts: [URL: Int] = [:]
+    private struct State {
+        var stubs: [URL: Stub] = [:]
+        var counts: [URL: Int] = [:]
+        var pending: [URL: AvatarStubProtocol] = [:]
+    }
+
+    nonisolated(unsafe) private static var state = State()
     private static let lock = NSLock()
 
     nonisolated static func session() -> URLSession {
@@ -118,27 +124,46 @@ nonisolated private final class AvatarStubProtocol: URLProtocol, @unchecked Send
 
     nonisolated static func reset() {
         lock.lock()
-        stubs = [:]
-        counts = [:]
+        state = State()
         lock.unlock()
     }
 
     nonisolated static func respond(to url: URL, status: Int, body: Data) {
         lock.lock()
-        stubs[url] = .response(status: status, body: body)
+        state.stubs[url] = .response(status: status, body: body)
         lock.unlock()
     }
 
     nonisolated static func fail(_ url: URL, with error: URLError) {
         lock.lock()
-        stubs[url] = .failure(error)
+        state.stubs[url] = .failure(error)
         lock.unlock()
+    }
+
+    nonisolated static func hold(_ url: URL) {
+        lock.lock()
+        state.stubs[url] = .gate
+        lock.unlock()
+    }
+
+    nonisolated static func release(_ url: URL, body: Data) {
+        lock.lock()
+        let instance = state.pending.removeValue(forKey: url)
+        lock.unlock()
+        guard let instance,
+            let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)
+        else {
+            return
+        }
+        instance.client?.urlProtocol(instance, didReceive: response, cacheStoragePolicy: .notAllowed)
+        instance.client?.urlProtocol(instance, didLoad: body)
+        instance.client?.urlProtocolDidFinishLoading(instance)
     }
 
     nonisolated static func requestCount(for url: URL) -> Int {
         lock.lock()
         defer { lock.unlock() }
-        return counts[url] ?? 0
+        return state.counts[url] ?? 0
     }
 
     nonisolated override class func canInit(with request: URLRequest) -> Bool { true }
@@ -147,8 +172,11 @@ nonisolated private final class AvatarStubProtocol: URLProtocol, @unchecked Send
     nonisolated override func startLoading() {
         guard let url = request.url else { return }
         Self.lock.lock()
-        Self.counts[url, default: 0] += 1
-        let stub = Self.stubs[url]
+        Self.state.counts[url, default: 0] += 1
+        let stub = Self.state.stubs[url]
+        if case .gate = stub {
+            Self.state.pending[url] = self
+        }
         Self.lock.unlock()
 
         switch stub {
@@ -159,6 +187,8 @@ nonisolated private final class AvatarStubProtocol: URLProtocol, @unchecked Send
             client?.urlProtocolDidFinishLoading(self)
         case .failure(let error):
             client?.urlProtocol(self, didFailWithError: error)
+        case .gate:
+            break
         case nil:
             client?.urlProtocol(self, didFailWithError: URLError(.unsupportedURL))
         }

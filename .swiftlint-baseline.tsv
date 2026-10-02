@@ -190,8 +190,8 @@ no_comments	apps/mobile/Monaco/Features/Redeem/CashOutAmountRule.swift	36
 no_comments	apps/mobile/Monaco/Features/Redeem/SellCabalView.swift	16
 no_comments	apps/mobile/Monaco/Features/Settings/AdvancedSettingsView.swift	1
 no_comments	apps/mobile/Monaco/Features/Settings/WithdrawView.swift	25
-no_comments	apps/mobile/Monaco/Features/Shell/AppSessionStore+Profile.swift	13
-no_comments	apps/mobile/Monaco/Features/Shell/AppSessionStore.swift	78
+no_comments	apps/mobile/Monaco/Features/Shell/AppSessionStore+Profile.swift	11
+no_comments	apps/mobile/Monaco/Features/Shell/AppSessionStore.swift	38
 no_comments	apps/mobile/Monaco/Features/Shell/MainTabView.swift	4
 no_comments	apps/mobile/Monaco/Features/Shell/SessionErrorMapping.swift	15
 no_comments	apps/mobile/Monaco/MonacoApp.swift	5
@@ -382,7 +382,6 @@ type_body_length	apps/mobile/Monaco/Features/Groups/GroupChatView.swift	1
 type_body_length	apps/mobile/Monaco/Features/Groups/GroupDetailView.swift	1
 type_body_length	apps/mobile/Monaco/Features/Proposals/ProposalCardView.swift	1
 type_body_length	apps/mobile/Monaco/Features/Proposals/ProposalDetailView.swift	1
-type_body_length	apps/mobile/Monaco/Features/Shell/AppSessionStore.swift	1
 type_body_length	apps/mobile/MonacoTests/AssetDetailModelTests.swift	1
 type_body_length	apps/mobile/MonacoTests/StocksTabModelTests.swift	1
 type_body_length	apps/mobile/MonacoUITests/CabalsTabSampleUITests.swift	1

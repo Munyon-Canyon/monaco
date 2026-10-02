@@ -42,6 +42,8 @@ extension PrivyAuthService: SessionAuthenticating {}
 @Observable
 @MainActor
 final class AppSessionStore {
+    typealias SessionTokenProvider = @MainActor @Sendable () async -> String?
+    typealias ProfileClientFactory = @MainActor @Sendable (String) -> MonacoCore.MonacoAPIClient
     var home: HomeViewDTO?
     var dashboard: HomeDashboardDTO?
     var profile: SessionProfile? { didSet { onProfileChange?(profile) } }
@@ -53,54 +55,46 @@ final class AppSessionStore {
     var isBalanceLoading = false
     var errorMessage: String?
     #if DEBUG
-    /// Status code / URLError code + API base URL, shown under `errorMessage` in
-    /// DEBUG builds only so devs can debug straight from the gate screen.
     var errorDebugDetail: String?
     #endif
     var isLoading = true
-    /// The leaderboard range on screen, owned here so it survives every other refresh.
-    /// Home used to keep its own copy and pass it in, so a refresh started anywhere else
-    /// (Profile pull-to-refresh, a name save, joining a cabal, the hourly token rotation)
-    /// quietly reloaded the all-time board under Home's 1W chip and every poll after it
-    /// kept the wrong board. It only changes when the member picks a range: through
-    /// `selectLeaderboardRange`, or by a caller passing one explicitly.
-    private(set) var leaderboardRange: HomeLeaderboardRange = .all
+    var leaderboardRange: HomeLeaderboardRange = .all
 
-    private let apiClient: AppSessionDataSource
+    let apiClient: AppSessionDataSource
     private let sessions: SessionAPI?
+    let sessionToken: SessionTokenProvider?
+    let profileClientFactory: ProfileClientFactory
     var skipsSessionOpen = false
-    private var refreshGeneration = 0
-    /// Orders dashboard responses on their own, so two quick range taps can't land out of
-    /// order and leave the older board under the newer chip.
-    private var dashboardGeneration = 0
-    /// Orders background polls against each other. Home and Profile both drive `pollLive`,
-    /// and a poll deliberately does not supersede a read the member asked for — so without
-    /// its own counter two polls both look current and the slower one can write its older
-    /// dashboard over the newer one.
-    private var pollGeneration = 0
+    var refreshGeneration = 0
+    var dashboardGeneration = 0
+    var pollGeneration = 0
     /// Home boards, popular assets and the P&L curve: started by a refresh but not awaited by
     /// it. Owned here so the next refresh cancels what the last one left running, instead of
     /// letting a session the member has left behind keep writing.
-    private var deferredWork: [Task<Void, Never>] = []
+    var deferredWork: [Task<Void, Never>] = []
     /// Bumped by every self-profile write, so a `/v1/me` read that started before the write
     /// cannot put the old name back.
-    private var profileWriteGeneration = 0
+    var profileWriteGeneration = 0
 
-    init(apiClient: AppSessionDataSource, sessions: SessionAPI? = nil) {
+    init(
+        apiClient: AppSessionDataSource,
+        sessions: SessionAPI? = nil,
+        profileClientFactory: ProfileClientFactory? = nil,
+        sessionToken: SessionTokenProvider? = nil
+    ) {
         self.apiClient = apiClient
         self.sessions = sessions
-    }
-
-    var joinedCabals: [HomeGroupBoardRowDTO] {
-        (home?.groups ?? []).filter(\.isJoined)
+        self.sessionToken = sessionToken
+        self.profileClientFactory =
+            profileClientFactory ?? { token in
+                MonacoCore.MonacoAPIClient(baseURL: Config.apiBaseURL, accessTokenProvider: { token })
+            }
     }
 
     func bootstrap(auth: SessionAuthenticating, devSession: Bool = false) async {
-        guard let token = auth.accessToken else {
-            home = nil
-            profile = nil
+        guard let token = await accessToken(auth: auth) else {
+            reset()
             errorMessage = "Missing sign-in token."
-            isLoading = false
             return
         }
         guard let sessions else {
@@ -109,6 +103,7 @@ final class AppSessionStore {
             return
         }
 
+        let generation = refreshGeneration
         if profile == nil { isLoading = true }
         errorMessage = nil
         #if DEBUG
@@ -118,6 +113,7 @@ final class AppSessionStore {
         skipsSessionOpen = devSession
         do {
             let profile = try await (devSession ? sessions.me() : sessions.openSession())
+            guard mayWrite(generation) else { return }
             if auth.shouldInvalidateBackendSession(serverUserId: profile.userID) {
                 await auth.signOutAfterRejectedSession(rejectedToken: token)
                 return
@@ -134,7 +130,12 @@ final class AppSessionStore {
 
     func noteForeground(auth: SessionAuthenticating) async {
         guard profile != nil, let token = auth.accessToken else { return }
-        if let loaded = await loadProfile(auth: auth, token: token), profile != nil, auth.accessToken == token {
+        let generation = refreshGeneration
+        if let loaded = await loadProfile(auth: auth, token: token),
+            mayWrite(generation),
+            profile != nil,
+            auth.accessToken == token
+        {
             profile = loaded
         }
     }
@@ -146,7 +147,7 @@ final class AppSessionStore {
             return
         }
         if case APIError.signedOut = error {
-            await auth.signOut(reason: "Please sign in again.", rejectedToken: rejectedToken)
+            await auth.signOut(reason: LoginFailureCopy.sessionExpired, rejectedToken: rejectedToken)
             return
         }
         let mapped = SessionErrorMapping.describe(error, apiBaseURL: Config.apiBaseURL)
@@ -190,23 +191,18 @@ final class AppSessionStore {
             async let meLoad: SessionProfile? = includeProfile ? await self.loadProfile(auth: auth, token: token) : nil
             async let balanceLoad = apiClient.getPlatformBalance(accessToken: token)
             let loadedDashboard = try await dashboardLoad
-            guard generation == refreshGeneration else { return }
-            apply(loadedDashboard, for: request)
-            // A rename that landed while this was in flight is newer than what /v1/me says.
-            if let profile = await meLoad, profileGeneration == profileWriteGeneration {
-                self.profile = profile
-            }
-            if let balance = try? await balanceLoad {
-                platformBalance = balance
-            }
-            errorMessage = nil
-            isBalanceLoading = false
-
-            startDeferredWork { [self] in
-                async let deferred: Void = refreshDeferredHomePayloads(auth: auth, accessToken: token)
-                async let pnlSeries: Void = refreshHomePnLSeries(auth: auth, accessToken: token)
-                _ = await (deferred, pnlSeries)
-            }
+            let loadedProfile = await meLoad
+            let loadedBalance = try? await balanceLoad
+            finishRefresh(
+                dashboard: loadedDashboard,
+                profile: loadedProfile,
+                balance: loadedBalance,
+                generation: generation,
+                profileGeneration: profileGeneration,
+                request: request,
+                auth: auth,
+                token: token
+            )
         } catch MonacoAPIError.httpStatus(let status) where status == 401 {
             await auth.signOutAfterRejectedSession(rejectedToken: token)
         } catch MonacoAPIError.httpStatus {
@@ -231,7 +227,7 @@ final class AppSessionStore {
             await auth.signOut(reason: ToastCopy.message(for: .accountDeleted), rejectedToken: token)
             return nil
         } catch APIError.signedOut {
-            await auth.signOut(reason: "Please sign in again.", rejectedToken: token)
+            await auth.signOut(reason: LoginFailureCopy.sessionExpired, rejectedToken: token)
             return nil
         } catch {
             return nil
@@ -323,53 +319,6 @@ final class AppSessionStore {
         }
     }
 
-    /// After POST /v1/groups: patch joined cabals locally, then refresh home/dashboard
-    /// in the background. Skips popular assets so create does not stampede Jupiter.
-    func refreshAfterCreate(auth: SessionAuthenticating, created: CreateGroupResponse) {
-        insertJoinedCabal(from: created)
-        startDeferredWork { [self] in await deferredRefreshAfterCreate(auth: auth) }
-    }
-
-    private func insertJoinedCabal(from created: CreateGroupResponse) {
-        let row = HomeGroupBoardRowDTO(
-            groupId: created.groupId,
-            name: created.name,
-            potValueUsd: "0.00",
-            percentReturn: nil,
-            dollarPnl: "+0.00",
-            isJoined: true
-        )
-        if let current = home {
-            guard !current.groups.contains(where: { $0.groupId == created.groupId }) else { return }
-            home = HomeViewDTO(groups: [row] + current.groups, people: current.people)
-        } else {
-            home = HomeViewDTO(groups: [row], people: [])
-        }
-    }
-
-    private func deferredRefreshAfterCreate(auth: SessionAuthenticating) async {
-        guard let token = auth.accessToken else { return }
-        let request = beginDashboardRequest()
-        do {
-            async let homeLoad = apiClient.getHome(accessToken: token)
-            async let dashboardLoad = apiClient.getHomeDashboard(
-                accessToken: token,
-                leaderboardRange: request.range
-            )
-            async let balanceLoad = apiClient.getPlatformBalance(accessToken: token)
-            home = try await homeLoad
-            apply(try await dashboardLoad, for: request)
-            if let balance = try? await balanceLoad {
-                platformBalance = balance
-            }
-        } catch {
-            if error.isRequestCancellation { return }
-            if case MonacoAPIError.httpStatus(let status) = error, status == 401 {
-                await auth.signOutAfterRejectedSession(rejectedToken: token)
-            }
-        }
-    }
-
     func refreshPopular(auth: SessionAuthenticating) async {
         guard let token = auth.accessToken else { return }
         let generation = refreshGeneration
@@ -385,107 +334,4 @@ final class AppSessionStore {
         }
     }
 
-    // MARK: Profile writes
-
-    /// Called by a self-profile write before it applies the server's copy, so a `/v1/me`
-    /// read already in flight cannot overwrite it.
-    func noteProfileWrite() {
-        profileWriteGeneration += 1
-    }
-
-    /// After a profile write: the member's name and photo are stale on every board. Reload
-    /// them in the background and quietly — the save already succeeded, so neither a spinner
-    /// nor a failed reload belongs on screen.
-    func refreshBoardsAfterProfileWrite(auth: SessionAuthenticating) {
-        startDeferredWork { [self] in
-            try? await pollLive(auth: auth)
-        }
-    }
-
-    /// The member picked a range on Home. Records the selection so every later read — polls
-    /// included — asks for that board, then reloads it.
-    func selectLeaderboardRange(_ range: HomeLeaderboardRange, auth: SessionAuthenticating) async {
-        await refreshDashboard(auth: auth, leaderboardRange: range)
-    }
-
-    func refreshDashboard(auth: SessionAuthenticating, leaderboardRange: HomeLeaderboardRange) async {
-        guard let token = auth.accessToken else { return }
-        self.leaderboardRange = leaderboardRange
-        let request = beginDashboardRequest()
-        do {
-            let loaded = try await apiClient.getHomeDashboard(
-                accessToken: token,
-                leaderboardRange: request.range
-            )
-            apply(loaded, for: request)
-        } catch {
-            if error.isRequestCancellation {
-                return
-            }
-            if case MonacoAPIError.httpStatus(let status) = error, status == 401 {
-                await auth.signOutAfterRejectedSession(rejectedToken: token)
-            }
-        }
-    }
-
-    // MARK: Dashboard ordering
-
-    /// A dashboard read in flight: the range it asked for, and where it sits in the order
-    /// of reads so a slower older one can't overwrite a newer board.
-    private struct DashboardRequest {
-        let range: HomeLeaderboardRange
-        let generation: Int
-    }
-
-    /// For reads the member asked for. Supersedes everything already in flight.
-    private func beginDashboardRequest() -> DashboardRequest {
-        dashboardGeneration += 1
-        return DashboardRequest(range: leaderboardRange, generation: dashboardGeneration)
-    }
-
-    /// For background polls, which must never supersede a read the member asked for.
-    private func currentDashboardRequest() -> DashboardRequest {
-        DashboardRequest(range: leaderboardRange, generation: dashboardGeneration)
-    }
-
-    private func isCurrent(_ request: DashboardRequest) -> Bool {
-        request.generation == dashboardGeneration && request.range == leaderboardRange
-    }
-
-    private func apply(_ loaded: HomeDashboardDTO, for request: DashboardRequest) {
-        guard isCurrent(request) else { return }
-        dashboard = loaded
-    }
-
-    /// Runs background work owned by this session.
-    private func startDeferredWork(_ work: @escaping @MainActor () async -> Void) {
-        deferredWork.removeAll(where: \.isCancelled)
-        deferredWork.append(Task { await work() })
-    }
-
-    /// True while a read started at `generation` is still the one whose result belongs on
-    /// screen. Deferred reads outlive the refresh that started them: `cancelDeferredWork()`
-    /// cancels them, but a task already past its last suspension point runs to completion
-    /// and would otherwise write over the refresh that replaced it.
-    private func mayWrite(_ generation: Int) -> Bool {
-        generation == refreshGeneration && !Task.isCancelled
-    }
-
-    /// Awaits the background work this store has started. Nothing in the app needs to wait —
-    /// the point of deferred work is that it does not block a screen — but a test that wants
-    /// to observe its result needs a handle on it rather than a sleep long enough to hope.
-    func awaitDeferredWork() async {
-        for task in deferredWork {
-            await task.value
-        }
-    }
-
-    /// Drops whatever the last refresh left running, so it cannot write over what the
-    /// refresh that replaced it is about to load.
-    private func cancelDeferredWork() {
-        for task in deferredWork {
-            task.cancel()
-        }
-        deferredWork.removeAll()
-    }
 }
