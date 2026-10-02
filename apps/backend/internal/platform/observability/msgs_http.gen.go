@@ -10,5 +10,6 @@ func init() {
 		HTTPIdempotencyReplayed,
 		HTTPIdempotencyReleased,
 		HTTPIdempotencyStoreFailed,
+		HTTPAuthRestricted,
 	)
 }

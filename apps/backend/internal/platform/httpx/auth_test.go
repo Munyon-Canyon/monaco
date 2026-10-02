@@ -320,6 +320,107 @@ func TestRestrictedRoutes_rejectsASpecThatDoesNotParse(t *testing.T) {
 	}
 }
 
+const standingSpec = `openapi: 3.1.0
+info: {title: fixture, version: "1"}
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer}
+paths:
+  /v1/open-read:
+    get:
+      operationId: getOpenRead
+      responses: {"204": {description: ok}}
+    head:
+      operationId: headOpenRead
+      responses: {"204": {description: ok}}
+  /v1/mutate:
+    post:
+      operationId: postMutate
+      responses: {"204": {description: ok}}
+  /v1/marked:
+    get:
+      operationId: getMarked
+      x-allow-restricted: true
+      responses: {"204": {description: ok}}
+  /v1/cash-out:
+    post:
+      operationId: postCashOut
+      x-allow-restricted: true
+      responses: {"204": {description: ok}}
+`
+
+func standingRoutes(t *testing.T, h *harness, standing auth.Standing) http.Handler {
+	t.Helper()
+	c, err := loadContract([]byte(standingSpec))
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	v := stubVerifier(func(context.Context, string) (auth.Actor, error) {
+		return auth.Actor{Kind: auth.ActorUser, ID: "u-1", Standing: standing}, nil
+	})
+	mux := http.NewServeMux()
+	for _, route := range []string{
+		"GET /v1/open-read", "HEAD /v1/open-read", "POST /v1/mutate", "GET /v1/marked", "POST /v1/cash-out",
+	} {
+		mux.Handle(route, c.resolve(Auth(v)(next)))
+	}
+	return h.deps.wrap(mux)
+}
+
+func TestAuth_standingAllowsOrRefusesByMethodAndMarker(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		standing     auth.Standing
+		method, path string
+		status       int
+		code, op     string
+	}{
+		{auth.StandingActive, http.MethodGet, "/v1/open-read", http.StatusNoContent, "", ""},
+		{auth.StandingActive, http.MethodPost, "/v1/mutate", http.StatusNoContent, "", ""},
+		{auth.StandingActive, http.MethodGet, "/v1/marked", http.StatusNoContent, "", ""},
+		{auth.StandingActive, http.MethodPost, "/v1/cash-out", http.StatusNoContent, "", ""},
+		{auth.StandingSuspended, http.MethodGet, "/v1/open-read", http.StatusNoContent, "", ""},
+		{auth.StandingSuspended, http.MethodHead, "/v1/open-read", http.StatusNoContent, "", ""},
+		{auth.StandingSuspended, http.MethodPost, "/v1/mutate", http.StatusForbidden, "account_suspended", "postMutate"},
+		{auth.StandingSuspended, http.MethodGet, "/v1/marked", http.StatusNoContent, "", ""},
+		{auth.StandingSuspended, http.MethodPost, "/v1/cash-out", http.StatusNoContent, "", ""},
+		{auth.StandingBanned, http.MethodGet, "/v1/open-read", http.StatusForbidden, "account_banned", "getOpenRead"},
+		{auth.StandingBanned, http.MethodHead, "/v1/open-read", http.StatusForbidden, "account_banned", "headOpenRead"},
+		{auth.StandingBanned, http.MethodPost, "/v1/mutate", http.StatusForbidden, "account_banned", "postMutate"},
+		{auth.StandingBanned, http.MethodGet, "/v1/marked", http.StatusNoContent, "", ""},
+		{auth.StandingBanned, http.MethodPost, "/v1/cash-out", http.StatusNoContent, "", ""},
+		{auth.StandingDeleted, http.MethodGet, "/v1/marked", http.StatusForbidden, "account_deleted", "getMarked"},
+		{auth.StandingDeleted, http.MethodPost, "/v1/cash-out", http.StatusForbidden, "account_deleted", "postCashOut"},
+		{auth.StandingDeleted, http.MethodGet, "/v1/open-read", http.StatusForbidden, "account_deleted", "getOpenRead"},
+		{auth.StandingDeleted, http.MethodPost, "/v1/mutate", http.StatusForbidden, "account_deleted", "postMutate"},
+		{auth.Standing("frozen"), http.MethodPost, "/v1/mutate", http.StatusNoContent, "", ""},
+	} {
+		t.Run(string(tc.standing)+" "+tc.method+" "+tc.path, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			rec := serveRaw(t, standingRoutes(t, h, tc.standing), tc.method, tc.path, bearer("any"))
+			refused := linesNamed(h.logs.lines(t), "httpx.auth.restricted")
+			if tc.code == "" {
+				if rec.Code != tc.status || len(refused) != 0 {
+					t.Fatalf("got %d with %d refusal lines, want %d and none", rec.Code, len(refused), tc.status)
+				}
+				return
+			}
+			p := decodeProblem(t, rec)
+			if rec.Code != tc.status || string(p.Code) != tc.code || len(refused) != 1 ||
+				refused[0]["standing"] != string(tc.standing) || refused[0]["op"] != tc.op ||
+				refused[0]["code"] != tc.code {
+				t.Fatalf("got %d %+v lines %v, want %d %s op %s", rec.Code, p, refused, tc.status, tc.code, tc.op)
+			}
+		})
+	}
+}
+
 func TestHandler_requiresAVerifier(t *testing.T) {
 	t.Parallel()
 	d := newHarness(t).deps

@@ -90,8 +90,38 @@ func Auth(v auth.TokenVerifier) api.MiddlewareFunc {
 				Problem(w, r, verifyProblem(err, op))
 				return
 			}
+			if code, blocked := standingBlock(actor.Standing, r.Method, res); blocked {
+				observability.Info(r.Context(), observability.HTTPAuthRestricted,
+					slog.String("standing", string(actor.Standing)),
+					slog.String("op", res.route.Operation.OperationID),
+					slog.String("code", string(code)),
+				)
+				Problem(w, r, errs.New(code, op))
+				return
+			}
 			next.ServeHTTP(w, r.WithContext(withActor(r.Context(), actor)))
 		})
+	}
+}
+
+func standingBlock(standing auth.Standing, method string, res resolved) (errs.Code, bool) {
+	switch standing {
+	case auth.StandingActive:
+		return "", false
+	case auth.StandingSuspended:
+		if method == http.MethodGet || method == http.MethodHead || allowRestricted(res.route.Operation.Extensions) {
+			return "", false
+		}
+		return errs.CodeAccountSuspended, true
+	case auth.StandingBanned:
+		if allowRestricted(res.route.Operation.Extensions) {
+			return "", false
+		}
+		return errs.CodeAccountBanned, true
+	case auth.StandingDeleted:
+		return errs.CodeAccountDeleted, true
+	default:
+		return "", false
 	}
 }
 
