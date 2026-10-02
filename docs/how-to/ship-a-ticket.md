@@ -63,7 +63,7 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
     - It refuses a dirty tree, because it records `HEAD`'s tree. On a pass it writes `.git/pstack/<milestone>/checks/<tree>`, and the hook lets an owner's push through only when that record matches the current tree.
     - Run it again after every `gt modify`. A tree that already passed prints `stage 0 already passed`.
     - After a restack, run it again. When the PR's diff against its parent is unchanged, it prints `stage 0 carried from tree <old> (same diff against <parent>)`, records the new tree and runs no rows. Any changed line, including a regenerated file that now differs, runs it in full. `check --fresh` forces a full run.
-    - If only a budget fails and the machine is loaded (check `uptime`), rerun it once the load drops. Run the named package on its own to prove the code is fine: `go test -short -count=1 ./<pkg>`.
+    - A package over the budget is retried once, alone (`-p 1`, no coverage flags). If it passes within the budget, the row prints `over budget under load (load1 <x>), <pkg> passed alone in <s>s` and goes on. If it is still over or fails, the row fails and names the rerun timing, so the code is the cause, not the load.
 
     - Before stage 0, run what the change must regenerate, and commit the output. CI's `ready` job (`scripts/ci/ready.sh`) fails on a stale `go generate ./...`, `go mod tidy`, sqlc output, `scripts/gen-docs.sh` output or the `verify-backend` feature map. `scripts/ci/ready.sh` runs the same steps locally on a committed tree.
 

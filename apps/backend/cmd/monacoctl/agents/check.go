@@ -48,8 +48,9 @@ type checkRow struct {
 }
 
 type timing struct {
-	name string
-	took time.Duration
+	name   string
+	took   time.Duration
+	failed bool
 }
 
 type checkRun struct {
@@ -690,15 +691,12 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 	for _, cmd := range row.cmds {
 		text, err := r.exec(ctx, row, cmd)
 		warnings += strings.Count(text, "::warning ")
-		if err := r.overBudget(stdout, row, budget, rowStart, r.timings[first:]); err != nil {
-			return err
+		rescued, budgetErr := r.checkBudget(ctx, stdout, row, cmd, budget, rowStart, first)
+		if budgetErr != nil {
+			return budgetErr
 		}
-		if err != nil {
-			_, _ = fmt.Fprintf(stdout, "  %-15s FAIL  %s\n", row.label, strings.Join(cmd, " "))
-			for _, line := range excerpt(text + "\n" + err.Error()) {
-				_, _ = fmt.Fprintf(stdout, "    %s\n", line)
-			}
-			return detailErr(errs.CodeInvalidInput, "monacoctl.agents.check", row.label+" failed; see the log")
+		if err != nil && !rescued {
+			return failRow(stdout, row, cmd, text, err)
 		}
 	}
 	note := ""
@@ -709,12 +707,38 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 	return nil
 }
 
+func failRow(stdout io.Writer, row checkRow, cmd []string, text string, err error) error {
+	_, _ = fmt.Fprintf(stdout, "  %-15s FAIL  %s\n", row.label, strings.Join(cmd, " "))
+	for _, line := range excerpt(text + "\n" + err.Error()) {
+		_, _ = fmt.Fprintf(stdout, "    %s\n", line)
+	}
+	return detailErr(errs.CodeInvalidInput, "monacoctl.agents.check", row.label+" failed; see the log")
+}
+
+func (r *checkRun) checkBudget(
+	ctx context.Context,
+	stdout io.Writer,
+	row checkRow,
+	cmd []string,
+	budget time.Duration,
+	rowStart time.Time,
+	first int,
+) (bool, error) {
+	if row.kind == packageKind {
+		retried, err := r.retryAlone(ctx, stdout, row, cmd, budget, r.timings[first:])
+		if retried || err != nil {
+			return retried, err
+		}
+	}
+	return false, r.overBudget(stdout, row, budget, rowStart, r.timings[first:])
+}
+
 func (r *checkRun) exec(ctx context.Context, row checkRow, cmd []string) (string, error) {
 	start := r.env.Now()
 	_, _ = fmt.Fprintf(&r.log, "$ (cd %s && %s)\n", row.dir, strings.Join(cmd, " "))
 	out, err := r.env.Run(ctx, row.dir, "", cmd[0], cmd[1:]...)
 	text := string(out)
-	timings := []timing{{cmdName(row, cmd), r.env.Now().Sub(start)}}
+	timings := []timing{{name: cmdName(row, cmd), took: r.env.Now().Sub(start)}}
 	if row.kind == packageKind {
 		text, timings = goTestTimings(out, r.env.Now())
 	}
@@ -724,6 +748,93 @@ func (r *checkRun) exec(ctx context.Context, row checkRow, cmd []string) (string
 		_, _ = fmt.Fprintf(&r.log, "%v\n", err)
 	}
 	return text, err
+}
+
+func slowPackages(timings []timing, budget time.Duration) []timing {
+	return slices.DeleteFunc(slices.Clone(timings), func(t timing) bool { return t.took < budget })
+}
+
+func rerunCmd(cmd []string, pkgs []timing) []string {
+	out := make([]string, 0, len(cmd))
+	for i, a := range cmd {
+		switch {
+		case strings.HasPrefix(a, "-coverpkg=") || strings.HasPrefix(a, "-coverprofile=") || strings.HasPrefix(a, "./"):
+		case i > 0 && cmd[i-1] == "-p":
+			out = append(out, "1")
+		default:
+			out = append(out, a)
+		}
+	}
+	for _, p := range pkgs {
+		out = append(out, p.name)
+	}
+	return out
+}
+
+func (r *checkRun) retryAlone(
+	ctx context.Context, stdout io.Writer, row checkRow, cmd []string, budget time.Duration, timings []timing,
+) (bool, error) {
+	slow := slowPackages(timings, budget)
+	if len(slow) == 0 || slices.ContainsFunc(slow, func(t timing) bool { return !strings.HasPrefix(t.name, "./") }) {
+		return false, nil
+	}
+	if slices.ContainsFunc(timings, func(t timing) bool {
+		return t.failed && !slices.ContainsFunc(slow, func(s timing) bool { return s.name == t.name })
+	}) {
+		return false, nil
+	}
+	first := len(r.timings)
+	text, err := r.exec(ctx, row, rerunCmd(cmd, slow))
+	again := r.timings[first:]
+	if still := slowPackages(again, budget); len(still) > 0 {
+		s, orig := slowest(still), slowest(slow)
+		_, _ = fmt.Fprintf(stdout, "  %-15s over budget\n", row.label)
+		return false, detailErr(errs.CodeUpstreamTimeout, "monacoctl.agents.check", fmt.Sprintf(
+			"%s: package %s took %.1fs, over the %s per-package budget; rerun alone: package %s took %.1fs",
+			row.label, orig.name, orig.took.Seconds(), budget, s.name, s.took.Seconds()))
+	}
+	if err != nil {
+		return false, failRow(stdout, row, rerunCmd(cmd, slow), text, err)
+	}
+	load := r.env.load1(ctx)
+	for _, t := range again {
+		_, _ = fmt.Fprintf(stdout, "  %-15s ok    over budget under load (load1 %s), %s passed alone in %.1fs\n",
+			row.label, load, t.name, t.took.Seconds())
+	}
+	return true, nil
+}
+
+func (env *Env) load1(ctx context.Context) string {
+	load := env.Load
+	if load == nil {
+		load = loadAverage
+	}
+	v, err := load(ctx, env.GOOS)
+	if err != nil {
+		return "unknown"
+	}
+	return strconv.FormatFloat(v, 'f', 1, 64)
+}
+
+func loadAverage(ctx context.Context, goos string) (float64, error) {
+	argv := []string{"cat", "/proc/loadavg"}
+	if goos == "darwin" {
+		argv = []string{"sysctl", "-n", "vm.loadavg"}
+	}
+	raw, err := exec.CommandContext(ctx, argv[0], argv[1:]...).Output()
+	if err != nil {
+		return 0, fmt.Errorf("read the load average: %w", err)
+	}
+	return parseLoad(string(raw))
+}
+
+func parseLoad(raw string) (float64, error) {
+	first, _, _ := strings.Cut(strings.TrimSpace(strings.Trim(raw, "{} \n")), " ")
+	v, err := strconv.ParseFloat(first, 64)
+	if err != nil {
+		return 0, fmt.Errorf("read the load average: %w", err)
+	}
+	return v, nil
 }
 
 func (r *checkRun) overBudget(
@@ -792,12 +903,13 @@ func goTestTimings(out []byte, now time.Time) (string, []timing) {
 			order = append(order, e.Package)
 		case "pass", "fail", "skip":
 			delete(started, e.Package)
-			timings = append(timings, timing{pkgName(e.Package), time.Duration(e.Elapsed * float64(time.Second))})
+			took := time.Duration(e.Elapsed * float64(time.Second))
+			timings = append(timings, timing{name: pkgName(e.Package), took: took, failed: e.Action == "fail"})
 		}
 	}
 	for _, p := range order {
 		if at, running := started[p]; running {
-			timings = append(timings, timing{pkgName(p), now.Sub(at)})
+			timings = append(timings, timing{name: pkgName(p), took: now.Sub(at)})
 		}
 	}
 	return text.String(), timings

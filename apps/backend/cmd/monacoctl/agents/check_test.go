@@ -93,6 +93,7 @@ func (h *checkHarness) check(t *testing.T, args ...string) (int, string, string)
 			if h.goos != "" {
 				env.GOOS = h.goos
 			}
+			env.Load = func(context.Context, string) (float64, error) { return 41.5, nil }
 			env.LookPath = h.lookPath
 			if env.LookPath == nil {
 				env.LookPath = func(string) (string, error) { return "", exec.ErrNotFound }
@@ -1012,5 +1013,138 @@ func TestCheck_aChangedDiffAfterTheRestackRunsStage0InFull(t *testing.T) {
 	writeFile(t, diffs, "not a directory\n")
 	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "write ") {
 		t.Fatalf("unwritable diff record: %d %q", code, stderr)
+	}
+}
+
+const rerunPrefix = "go test -tags faultpoints -short -count=1 -timeout 20s -p 1 -json ./internal/slow"
+
+func slowPackageEvents(took time.Duration) string {
+	return strings.Join([]string{
+		`{"Action":"pass","Package":"github.com/monaco/monaco/apps/backend/internal/fast","Elapsed":1}`,
+		fmt.Sprintf(`{"Action":"pass","Package":"github.com/monaco/monaco/apps/backend/internal/slow","Elapsed":%g}`,
+			took.Seconds()),
+	}, "\n")
+}
+
+func rerunEvents(took time.Duration) string {
+	return strings.Split(slowPackageEvents(took), "\n")[1]
+}
+
+func TestCheck_aPackageOverBudgetPassesWhenRerunAlone(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	tree := h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.affected = "./internal/fast\n./internal/slow\n"
+	h.replies = []reply{
+		{prefix: rerunPrefix, took: 5 * time.Second, out: rerunEvents(5 * time.Second)},
+		{prefix: "go test", took: 26 * time.Second, out: slowPackageEvents(25 * time.Second)},
+	}
+	code, stdout, stderr := h.check(t)
+	if code != 0 {
+		t.Fatalf("check: %d %q %q", code, stdout, stderr)
+	}
+	want := "go test -short  ok    over budget under load (load1 41.5), ./internal/slow passed alone in 5.0s"
+	if !strings.Contains(stdout, want) {
+		t.Fatalf("stdout: %s", stdout)
+	}
+	rerun := slices.IndexFunc(
+		h.calls,
+		func(c string) bool { return strings.HasPrefix(c, "apps/backend: "+rerunPrefix) },
+	)
+	if rerun < 0 || strings.Contains(h.calls[rerun], "-cover") {
+		t.Fatalf("rerun without coverage flags: %v", h.calls)
+	}
+	if _, err := os.Stat(filepath.Join(h.stateDir(t, "checks"), tree)); err != nil {
+		t.Fatalf("a passing rerun records the tree: %v", err)
+	}
+}
+
+func TestCheck_aPackageStillOverBudgetWhenRerunAloneFailsNamingTheRerun(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	tree := h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.affected = "./internal/fast\n./internal/slow\n"
+	h.replies = []reply{
+		{prefix: rerunPrefix, took: 25 * time.Second, out: slowPackageEvents(25 * time.Second)},
+		{prefix: "go test", took: 27 * time.Second, out: slowPackageEvents(27 * time.Second)},
+	}
+	code, stdout, stderr := h.check(t)
+	want := "package ./internal/slow took 27.0s, over the 20s per-package budget; rerun alone: package ./internal/slow took 25.0s"
+	if code != 1 || !strings.Contains(stderr, want) || !strings.Contains(stdout, "go test -short  over budget") {
+		t.Fatalf("still over budget: %d %q %q", code, stdout, stderr)
+	}
+	if _, err := os.Stat(filepath.Join(h.stateDir(t, "checks"), tree)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("recorded the tree: %v", err)
+	}
+}
+
+func TestCheck_aRealFailureInAnotherPackageIsNotRerun(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.affected = "./internal/fast\n./internal/slow\n"
+	h.replies = []reply{
+		{prefix: "go test", took: 26 * time.Second, err: errors.New("exit status 1"), out: strings.Join([]string{
+			`{"Action":"fail","Package":"github.com/monaco/monaco/apps/backend/internal/fast","Elapsed":1}`,
+			`{"Action":"pass","Package":"github.com/monaco/monaco/apps/backend/internal/slow","Elapsed":25}`,
+		}, "\n")},
+	}
+	if code, _, _ := h.check(
+		t,
+	); code != 1 ||
+		slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, " -p 1 ") }) {
+		t.Fatalf("a failing package must not be masked by a rerun: %d %v", code, h.calls)
+	}
+}
+
+func TestParseLoad_readsTheFirstFieldOfBothPlatformFormats(t *testing.T) {
+	t.Parallel()
+	for raw, want := range map[string]float64{"{ 41.52 30.10 12.00 }\n": 41.52, "0.75 0.50 0.25 1/300 4242\n": 0.75} {
+		if got, err := parseLoad(raw); err != nil || got != want {
+			t.Errorf("parseLoad(%q) = %v, %v; want %v", raw, got, err, want)
+		}
+	}
+	if _, err := parseLoad(""); err == nil {
+		t.Error("an empty reading is an error")
+	}
+}
+
+func TestLoadAverage_readsTheHostAndFailsOnACancelledContext(t *testing.T) {
+	t.Parallel()
+	if got, err := loadAverage(context.Background(), runtime.GOOS); err != nil || got < 0 {
+		t.Fatalf("host load: %v, %v", got, err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := loadAverage(ctx, runtime.GOOS); err == nil {
+		t.Fatal("a cancelled context fails the read")
+	}
+	env := &Env{Load: func(context.Context, string) (float64, error) { return 0, errors.New("no load") }}
+	if got := env.load1(context.Background()); got != "unknown" {
+		t.Fatalf("load1 = %q, want unknown", got)
+	}
+	if got := (&Env{GOOS: runtime.GOOS}).load1(context.Background()); got == "unknown" {
+		t.Fatalf("the default reader works on %s", runtime.GOOS)
+	}
+}
+
+func TestCheck_aPackageThatFailsWhenRerunAloneFailsTheRow(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.affected = "./internal/fast\n./internal/slow\n"
+	h.replies = []reply{
+		{
+			prefix: rerunPrefix,
+			took:   2 * time.Second,
+			err:    errors.New("exit status 1"),
+			out:    rerunEvents(2 * time.Second),
+		},
+		{prefix: "go test", took: 26 * time.Second, out: slowPackageEvents(25 * time.Second)},
+	}
+	code, stdout, stderr := h.check(t)
+	if code != 1 || !strings.Contains(stdout, "go test -short  FAIL  go test") ||
+		!strings.Contains(stderr, "go test -short failed; see the log") {
+		t.Fatalf("rerun failure: %d %q %q", code, stdout, stderr)
 	}
 }

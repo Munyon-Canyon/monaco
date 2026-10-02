@@ -46,6 +46,7 @@ type Env struct {
 	Actions     bool
 	GOOS        string
 	LookPath    func(string) (string, error)
+	Load        func(ctx context.Context, goos string) (float64, error)
 	featureNote string
 	trunk       *trunkLog
 }
