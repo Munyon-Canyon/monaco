@@ -68,6 +68,14 @@ public final class CursorPager<Item: Identifiable & Sendable> {
             let page = try await fetch(nil)
             guard mine == listGeneration, phase != .loadingFirst else { return }
             let pageIDs = Set(page.items.map(\.id))
+            if !items.isEmpty && !items.contains(where: { pageIDs.contains($0.id) }) {
+                items = page.items
+                nextCursor = page.nextCursor
+                listGeneration += 1
+                loadingMore = false
+                phase = settled(nextCursor)
+                return
+            }
             let tail = items.filter { !pageIDs.contains($0.id) }
             items = page.items + tail
             if tail.isEmpty && !loadingMore {
