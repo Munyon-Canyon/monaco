@@ -5,7 +5,7 @@ Diffs BASE_SHA...HEAD_SHA and reports each finding as `path:line: <rule>: <what>
 
 - gate-file: an added line in a gate file (coverage.exclude, mutants.allow, a perf baseline,
   a golden file, the `exclusions:` block of apps/backend/.golangci.yml, .swift-format or
-  .swiftlint.yml); a new row or a raised count in a Swift row file (ROW_FILES); a lowered value
+  .swiftlint.yml); a new row or a raised count in a row file (ROW_FILES); a lowered value
   in packages/mobile-core/coverage-floor.txt. A newly created gate file is not a finding: it
   adds a gate, it does not loosen one.
 - test-skip: an added line in a *_test.go that calls t.Skip, t.Skipf, t.SkipNow or b.Skip*, or
@@ -57,6 +57,7 @@ ROW_FILES = {
     "packages/mobile-core/Tests/MonacoCoreTests/RepoRulesAllowlist.txt",
     "packages/mobile-core/legacy-baseline.tsv",
     "apps/mobile/MonacoUITests/AccessibilityAuditAllowlist.txt",
+    "apps/mobile/MonacoUITests/perf-budgets.tsv",
     "packages/mobile-core/tsan-suppressions.txt",
 }
 COVERAGE_FLOOR = "packages/mobile-core/coverage-floor.txt"

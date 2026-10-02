@@ -45,6 +45,10 @@ Only sample-data classes run. They need no backend and no sign-in, and they neve
 The live-login tests in `MonacoUITests/MonacoUITests.swift` are never run: they need a real OTP
 code, so they cannot pass unattended.
 
+`PerfBudgetSampleUITests` launches Home 5 times and fails when the median time to its first frame
+is over the `Home` budget in `apps/mobile/MonacoUITests/perf-budgets.tsv`. Run it alone with
+`just qa-night --skip-backend --only-ui PerfBudgetSampleUITests`.
+
 ## App config
 
 The app's xcconfig includes a generated, gitignored `apps/mobile/Config/Privy.local.xcconfig`

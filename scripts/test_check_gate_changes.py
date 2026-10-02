@@ -100,6 +100,9 @@ ROWS = {
     "apps/mobile/MonacoUITests/AccessibilityAuditAllowlist.txt": "CabalsTabSampleUITests\tcontrast\tbutton.join\n",
     "packages/mobile-core/tsan-suppressions.txt": "race:libdispatch\n",
 }
+PERF_BUDGETS = "apps/mobile/MonacoUITests/perf-budgets.tsv"
+PERF_ROWS = ("# Budgets only go down.\n# 2026-10-01, iPhone 17, iOS 26.3: medians 600, 610, 620 ms\n"
+             "Home\tlaunch_first_frame_ms\t950\n")
 
 BASE = {
     "apps/backend/coverage.exclude": "cmd/api/main.go\n",
@@ -119,6 +122,7 @@ BASE = {
     PBXPROJ: "\t\t\t\tSWIFT_VERSION = 5.0;\n",
     "packages/mobile-core/Package.swift": "let package = Package(name: \"MonacoCore\")\n",
     "Justfile": "test:\n    cd packages/mobile-core && swift test -Xswiftc -warnings-as-errors\n",
+    PERF_BUDGETS: PERF_ROWS,
     **ROWS,
 }
 
@@ -390,6 +394,16 @@ class CheckTest(unittest.TestCase):
         self.assertIn("new row `lines apps/mobile/Monaco/API/B.swift 4`", out)
         self.assertNotIn("C.swift", out)
 
+    def test_raised_or_new_perf_budget(self):
+        self.assert_flags(
+            {PERF_BUDGETS: PERF_ROWS.replace("\t950\n", "\t1000\n") + "Stocks\tscroll_hitches\t4\n"},
+            f"{PERF_BUDGETS}:3: gate-file: raised `Home launch_first_frame_ms` 950 -> 1000",
+            f"{PERF_BUDGETS}:4: gate-file: new row `Stocks scroll_hitches 4`",
+        )
+
+    def test_lowered_perf_budget_with_a_new_measurement_passes(self):
+        self.assert_clean({PERF_BUDGETS: PERF_ROWS.replace("600, 610, 620", "500, 520, 530").replace("\t950\n", "\t800\n")})
+
     def test_coverage_floor(self):
         self.assert_flags(
             {"packages/mobile-core/coverage-floor.txt": "darwin 88.00\nlinux 88.10\n"},
@@ -620,6 +634,7 @@ class WorktreeTest(unittest.TestCase):
             SWIFT_FILE: (SWIFT_TESTS.replace("        XCTAssertEqual", "        throw XCTSkip()\n        XCTAssertEqual")
                          .replace("    @Test func decodes() {}\n", ""), ("test-skip", "test-removed: `decodes` is gone")),
             ".swiftlint-baseline.tsv": (ROWS[".swiftlint-baseline.tsv"].replace("\t3\n", "\t4\n"), ("gate-file: raised",)),
+            PERF_BUDGETS: (PERF_ROWS.replace("\t950\n", "\t1000\n"), ("gate-file: raised",)),
             ".swiftlint.yml": ("opt_in_rules:\n  - force_unwrapping\n  - x\n", ("gate-file: added `- x`",)),
             "packages/mobile-core/coverage-floor.txt": ("darwin 80.00\nlinux 88.10\n", ("gate-file: lowered",)),
             XCCONFIG: ("SWIFT_VERSION = 5.0\nSWIFT_TREAT_WARNINGS_AS_ERRORS = NO\n", ("strictness",)),
@@ -637,6 +652,7 @@ class WorktreeTest(unittest.TestCase):
     def test_lowered_swift_row_and_newer_swift_version_pass_silently(self):
         for path, text in (
             (".swiftlint-baseline.tsv", ROWS[".swiftlint-baseline.tsv"].replace("\t3\n", "\t1\n")),
+            (PERF_BUDGETS, PERF_ROWS.replace("\t950\n", "\t800\n")),
             (XCCONFIG, "SWIFT_VERSION = 6.0\n"),
             (APP_TESTS, BASE[APP_TESTS] + "\nfinal class MoreTests: XCTestCase {\n    func testMore() {}\n}\n"),
         ):
