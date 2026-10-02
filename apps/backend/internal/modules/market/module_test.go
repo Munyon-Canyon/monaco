@@ -56,7 +56,7 @@ func moduleConfig() config.Config {
 func TestModule_pollsTheCatalogHourly(t *testing.T) {
 	t.Parallel()
 	pollers := market.New(module.Deps{Config: moduleConfig(), HTTPClient: httpclient.New}).Pollers()
-	if len(pollers) != 2 || pollers[0].Name() != "market.catalog" || pollers[0].Interval() != time.Hour {
+	if len(pollers) != 3 || pollers[0].Name() != "market.catalog" || pollers[0].Interval() != time.Hour {
 		t.Fatalf("Pollers = %v, want market.catalog every hour first", pollers)
 	}
 }
@@ -64,7 +64,7 @@ func TestModule_pollsTheCatalogHourly(t *testing.T) {
 func TestModule_samplesPricesAtTheConfiguredInterval(t *testing.T) {
 	t.Parallel()
 	pollers := market.New(module.Deps{Config: moduleConfig(), HTTPClient: httpclient.New}).Pollers()
-	if last := pollers[len(pollers)-1]; last.Name() != "market.prices" || last.Interval() != 90*time.Second {
+	if prices := pollers[1]; prices.Name() != "market.prices" || prices.Interval() != 90*time.Second {
 		t.Fatalf("Pollers = %v, want market.prices every 90s", pollers)
 	}
 }

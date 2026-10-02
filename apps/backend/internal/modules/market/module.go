@@ -108,6 +108,7 @@ func (m *Module) Pollers() []poller.Poller {
 	return []poller.Poller{
 		app.NewCatalogPoller(m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, providers, facts),
 		m.samplePrices(),
+		app.NewRetention(m.deps.UoW, m.deps.Clock),
 	}
 }
 
