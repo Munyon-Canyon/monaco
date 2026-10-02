@@ -332,36 +332,42 @@ struct AppSessionStoreBootstrapTests {
         #expect(store.profile?.userID == "01890a5d-ac96-774b-bcce-b302099a9999")
     }
 
-    @Test func signOutDropsANameSaveThatIsStillInFlight() async throws {
-        AvatarStubProtocol.reset()
-        let profileURL = testServerURL.appending(path: "v1/me")
-        AvatarStubProtocol.hold(profileURL)
+    @Test func aPrivyProfileGateKeepsTheSessionBearerAfterAnUnavailableNameSave() async throws {
+        let tokens = SessionTokens(privyToken: { "privy-token" }, refresh: { _ in nil })
+        let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), .json(.ok, SessionWire.me)])
         let store = AppSessionStore(
             apiClient: StubDataSource(),
-            sessions: sessionAPI(StubTransport(.json(.ok, SessionWire.me))),
-            profileClientFactory: { token in
-                MonacoCore.MonacoAPIClient(
-                    baseURL: testServerURL,
-                    session: AvatarStubProtocol.session(),
-                    accessTokenProvider: { token }
-                )
-            }
+            sessions: SessionAPI(api: APIClient(serverURL: testServerURL, tokens: tokens, transport: transport)),
+            sessionToken: { try? await tokens.accessToken() }
         )
         let auth = StubAuth()
-        let environment = AppEnvironment(
-            auth: PrivyAuthService.processInstance ?? PrivyAuthService(), hints: FakeHintSource(),
-            sessionStore: store, isAuthenticated: { true }, endAuthSession: {}
-        )
         await store.bootstrap(auth: auth)
 
-        let save = Task { await store.updateDisplayName("New name", auth: auth) }
-        await requestArrives(at: profileURL)
+        let outcome = await store.updateDisplayName("New name", auth: auth, optimistic: false)
+        await store.noteForeground(auth: auth)
 
-        await environment.signOut()
-        AvatarStubProtocol.release(profileURL, body: Data(SessionWire.renamed.utf8))
-        let outcome = await save.value
-        #expect(outcome == .failed("Sign in again to edit your profile."))
-        #expect(store.profile == nil)
+        let sent = await transport.sent
+        #expect(outcome == .failed("Could not save your name. Try again."))
+        #expect(sent.map(\.path) == ["/v1/auth/session", "/v1/me"])
+        #expect(sent.allSatisfy { $0.headerFields[.authorization] == "Bearer privy-token" })
+        #expect(store.profile?.displayName == "Kai Cenat")
+    }
+
+    @Test func aDevProfileGateUsesTheDevSessionBearer() async throws {
+        let tokens = SessionTokens(privyToken: { "privy-token" }, refresh: { _ in nil })
+        tokens.use(DevSession(token: "dev-token", userID: "u-1"))
+        let transport = StubTransport(.json(.ok, SessionWire.me))
+        let store = AppSessionStore(
+            apiClient: StubDataSource(),
+            sessions: SessionAPI(api: APIClient(serverURL: testServerURL, tokens: tokens, transport: transport)),
+            sessionToken: { try? await tokens.accessToken() }
+        )
+
+        await store.bootstrap(auth: StubAuth(), devSession: true)
+
+        let sent = await transport.sent
+        #expect(sent.map(\.path) == ["/v1/me"])
+        #expect(sent.first?.headerFields[.authorization] == "Bearer dev-token")
     }
 }
 
