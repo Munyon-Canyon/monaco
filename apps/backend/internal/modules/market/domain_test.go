@@ -2,10 +2,12 @@ package market_test
 
 import (
 	"math"
+	"slices"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
 
@@ -93,6 +95,51 @@ func TestTradableOverride_AutoFollowsTheIssuer(t *testing.T) {
 		a.IssuerTradable, a.Override = issuer, domain.OverrideAuto
 		if a.Tradable() != issuer {
 			t.Fatalf("auto with issuer %v: Tradable = %v", issuer, a.Tradable())
+		}
+	}
+}
+
+func TestCrossed_reportsEveryThresholdTheBasisPointChangeHasReached(t *testing.T) {
+	t.Parallel()
+	usd := money.MicrosFromUint64
+	for _, tc := range []struct {
+		name string
+		prev money.Micros
+		mark money.Micros
+		bps  int64
+		want []domain.ThresholdBps
+	}{
+		{name: "zero reference", mark: usd(100)},
+		{name: "unchanged", prev: usd(200_000_000), mark: usd(200_000_000)},
+		{name: "just under five up", prev: usd(100_000), mark: usd(104_999), bps: 499},
+		{name: "five up", prev: usd(100_000), mark: usd(105_000), bps: 500, want: []domain.ThresholdBps{500}},
+		{
+			name: "ten up", prev: usd(200_000_000), mark: usd(220_000_000), bps: 1000,
+			want: []domain.ThresholdBps{500, 1000},
+		},
+		{name: "just under five down", prev: usd(100_000), mark: usd(95_001), bps: -499},
+		{name: "five down", prev: usd(100_000), mark: usd(95_000), bps: -500, want: []domain.ThresholdBps{-500}},
+		{
+			name: "ten down", prev: usd(200_000_000), mark: usd(180_000_000), bps: -1000,
+			want: []domain.ThresholdBps{-500, -1000},
+		},
+		{
+			name: "toward zero on a fraction", prev: usd(100_000), mark: usd(105_009), bps: 500,
+			want: []domain.ThresholdBps{500},
+		},
+		{
+			name: "huge rise", prev: usd(1), mark: usd(math.MaxUint64), bps: math.MaxInt64,
+			want: []domain.ThresholdBps{500, 1000},
+		},
+		{
+			name: "huge fall", prev: usd(math.MaxUint64), mark: usd(1), bps: -9999,
+			want: []domain.ThresholdBps{-500, -1000},
+		},
+	} {
+		got := domain.Crossed(tc.prev, tc.mark)
+		if domain.ChangeBps(tc.prev, tc.mark) != tc.bps || !slices.Equal(got, tc.want) {
+			t.Fatalf("%s: Crossed = %v change %d, want %v and %d",
+				tc.name, got, domain.ChangeBps(tc.prev, tc.mark), tc.want, tc.bps)
 		}
 	}
 }

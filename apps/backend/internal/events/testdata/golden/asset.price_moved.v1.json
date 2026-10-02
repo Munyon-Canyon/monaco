@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "asset_id": "01890a5d-ac96-774b-bcce-b302099a8057",
+  "symbol": "AAPLx",
+  "asset_name": "Apple",
+  "threshold_bps": 1000,
+  "change_bps": 1234,
+  "mark_micros": "220000000",
+  "prev_close_micros": "200000000",
+  "trading_day": "2026-03-02",
+  "observed_at": "2026-03-02T15:00:00Z"
+}

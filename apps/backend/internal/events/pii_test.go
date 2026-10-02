@@ -38,6 +38,7 @@ func TestRegisteredEvents_tagPersonalFieldNames(t *testing.T) {
 		events.CabalMemberLeft{},
 		events.CabalUpdated{},
 		events.PriceTick{},
+		events.AssetPriceMoved{},
 		events.UserCreated{},
 		events.UserAuthStateChanged{},
 		events.UserProfileUpdated{},

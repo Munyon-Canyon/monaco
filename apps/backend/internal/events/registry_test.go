@@ -37,6 +37,7 @@ func mustPanic(t *testing.T, want string, fn func()) {
 func TestSubjects(t *testing.T) {
 	t.Parallel()
 	want := []string{
+		"events.asset.price_moved",
 		"events.cabal.access_decided", "events.cabal.access_requested", "events.cabal.created",
 		"events.cabal.member_joined", "events.cabal.member_left", "events.cabal.updated",
 		"events.proposal.created", "events.proposal.executed", "events.proposal.execution_blocked",
@@ -184,6 +185,7 @@ func TestCatalog(t *testing.T) {
 		types = append(types, e.Type)
 	}
 	if want := []Type{
+		TypeAssetPriceMoved,
 		TypeCabalAccessDecided, TypeCabalAccessRequested, TypeCabalCreated, TypeCabalMemberJoined,
 		TypeCabalMemberLeft, TypeCabalUpdated, TypePriceTick,
 		TypeProposalCreated, TypeProposalExecuted, TypeProposalExecutionBlocked, TypeProposalExpired,
@@ -194,11 +196,32 @@ func TestCatalog(t *testing.T) {
 		t.Fatalf("Catalog() types = %q, want %q", types, want)
 	}
 	e := got[slices.Index(types, TypeSystemPinged)]
+	checkAssetPriceMoved(t, got[slices.Index(types, TypeAssetPriceMoved)])
 	checkPriceTick(t, got[slices.Index(types, TypePriceTick)])
 	want := []Field{{"v", "int"}, {"ping_id", "uuid.UUID"}, {"user_id", "uuid.UUID"}, {"note", "string"}}
 	if e.Type != TypeSystemPinged || e.Subject != "events.system.pinged" || e.Core || e.Version != 1 ||
 		!slices.Equal(e.Fields, want) {
 		t.Fatalf("Catalog() system.pinged = %+v", e)
+	}
+}
+
+func checkAssetPriceMoved(t *testing.T, moved Entry) {
+	t.Helper()
+	fields := []Field{
+		{"v", "int"},
+		{"asset_id", "uuid.UUID"},
+		{"symbol", "string"},
+		{"asset_name", "string"},
+		{"threshold_bps", "int64"},
+		{"change_bps", "int64"},
+		{"mark_micros", "money.Micros"},
+		{"prev_close_micros", "money.Micros"},
+		{"trading_day", "string"},
+		{"observed_at", "time.Time"},
+	}
+	if moved.Type != TypeAssetPriceMoved || moved.Subject != "events.asset.price_moved" || moved.Core ||
+		moved.Version != 1 || !slices.Equal(moved.Fields, fields) {
+		t.Fatalf("Catalog() asset.price_moved = %+v", moved)
 	}
 }
 
@@ -208,6 +231,18 @@ func checkPriceTick(t *testing.T, tick Entry) {
 	if tick.Type != TypePriceTick || tick.Subject != "price.tick" || !tick.Core || tick.Version != 1 ||
 		!slices.Equal(tick.Fields, tickFields) {
 		t.Fatalf("Catalog() price.tick = %+v, want the core price.tick", tick)
+	}
+}
+
+func TestAssetPriceMovedAggregatesOnTheAsset(t *testing.T) {
+	t.Parallel()
+	id, err := uuid.Parse("01890a5d-ac96-774b-bcce-b302099a8057")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ev Event = AssetPriceMoved{V: 1, AssetID: id}
+	if ev.Type() != TypeAssetPriceMoved || ev.AggregateType() != "asset" || ev.AggregateID() != id {
+		t.Fatalf("AssetPriceMoved aggregate = %s %s %s", ev.Type(), ev.AggregateType(), ev.AggregateID())
 	}
 }
 
