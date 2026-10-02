@@ -2,6 +2,7 @@ package events
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -46,6 +47,37 @@ func TestSubjects(t *testing.T) {
 	}
 	if got := Subjects(); !slices.Equal(got, want) {
 		t.Fatalf("Subjects() = %q, want %q", got, want)
+	}
+}
+
+func TestRegistrationsKeepTheSingleListOrder(t *testing.T) {
+	t.Parallel()
+	single := []string{
+		"system.pinged v1",
+		"trade.blocked v1", "trade.submitted v1", "trade.confirmed v1", "trade.failed v1",
+		"proposal.created v1", "proposal.passed v1", "proposal.failed v1", "proposal.expired v1",
+		"proposal.withdrawn v1", "proposal.voided v1", "proposal.executed v1", "proposal.execution_blocked v1",
+		"cabal.created v1", "cabal.member_joined v1", "cabal.access_requested v1", "cabal.access_decided v1",
+		"cabal.member_left v1", "cabal.updated v1",
+		"price.tick v1 core",
+		"user.created v1", "user.auth_state_changed v1", "user.profile_updated v1",
+	}
+	regs := registrations()
+	got := make([]string, 0, len(regs))
+	for _, r := range regs {
+		entry := fmt.Sprintf("%s v%d", r.typ, r.current)
+		if r.core {
+			entry += " core"
+		}
+		got = append(got, entry)
+	}
+	rest := got
+	for _, w := range single {
+		i := slices.Index(rest, w)
+		if i < 0 {
+			t.Fatalf("registrations() = %q, want %q in this order, with new events anywhere", got, single)
+		}
+		rest = rest[i+1:]
 	}
 }
 
