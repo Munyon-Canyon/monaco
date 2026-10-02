@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -51,4 +53,35 @@ func TestSwapLayer_CrashAfterCreate_LeavesACreatedRowNothingSigned(t *testing.T)
 func TestSwapLayer_CrashAfterSign_LeavesASubmittedRowWithTheSignedBytes(t *testing.T) {
 	t.Parallel()
 	newLayerEnv(t).crashAt(t, faultpoint.AfterSign, "submitted", true)
+}
+
+func TestSwapLayer_CrashAfterExecute_LeavesASubmittedRowTheSwapMayHaveLanded(t *testing.T) {
+	t.Parallel()
+	e := newLayerEnv(t)
+	e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusSuccess, OutAmount: 105_000_000})
+	e.crashAt(t, faultpoint.AfterExecute, "submitted", true)
+}
+
+func TestSwapLayer_CrashBeforeCommitOfTheTerminalWrite_LeavesASubmittedRow(t *testing.T) {
+	t.Parallel()
+	e := newLayerEnv(t)
+	e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusSuccess, OutAmount: 105_000_000})
+	req := e.request(e.source())
+	armed := faultpoint.ArmedAfter(actorContext(t.Context()), faultpoint.BeforeCommit, 2)
+	crashed := func() (p any) {
+		defer func() { p = recover() }()
+		_, _ = e.layer().Run(armed, req, nil)
+		return nil
+	}()
+	if crashed != (faultpoint.Crash{Name: faultpoint.BeforeCommit}) {
+		t.Fatalf("the run ended with %v, want a crash before the terminal commit", crashed)
+	}
+	e.assertSurvivor(t.Context(), t, req.Source.ID, "submitted", true)
+	if n := e.terminalEvents(t, e.swapIDs(t, req.Source.ID)[0]); n != 0 {
+		t.Fatalf("%d terminal events survived a rolled back transaction", n)
+	}
+	got, err := e.run(t, req)
+	if err != nil || got.Status != domain.StatusSubmitted {
+		t.Fatalf("the restarted run = %+v, %v, want the submitted row", got, err)
+	}
 }

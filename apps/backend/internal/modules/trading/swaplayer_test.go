@@ -12,12 +12,14 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	platform "github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 func TestSwapLayer_RunSubmitsTheSignedTransaction(t *testing.T) {
 	t.Parallel()
 	e := newLayerEnv(t)
+	e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusPending})
 	req := e.request(e.source())
 	got, err := e.run(t, req)
 	if err != nil {
