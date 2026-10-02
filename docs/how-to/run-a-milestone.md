@@ -148,14 +148,16 @@ Only the root restacks, one stack at a time.
 
     Resolve each conflict in the branch where it appears. Run `git diff --check`, then `git add` the files and `gt continue`.
 
-    A conflict in a file that `[batch] shared` lists in `.monaco/agents.toml` needs no hand merge. Take either side, then regenerate from `apps/backend` and commit the result:
+    A conflict in `apps/backend/api/spec/<module>.yaml` is a real conflict, because only that module's tickets edit the file. Merge both sides by hand, keep every path and schema, and run `go generate ./...`. The bundler fails on a path or schema defined in two spec files and names both. A conflict in `apps/backend/api/openapi.yaml` or `api.gen.go` needs no hand merge: take either side and run `go generate ./...`, which rewrites both from the spec sources.
+
+    A conflict in any other file that `[batch] shared` lists in `.monaco/agents.toml` needs no hand merge. Take either side, then regenerate from `apps/backend` and commit the result:
 
         go generate ./...
         go run ./cmd/monacoctl gen migration --rebase
         ../../scripts/gen-docs.sh
         go run ./cmd/monacoctl docs flows --feature-map > ../../.claude/skills/verify-backend/feature-map.md
 
-    `go generate` rebuilds `api.gen.go` and the other generated Go from `openapi.yaml` and the module list. `gen migration --rebase` renames the branch's own migrations (files not on `origin/staging`) to fresh prefixes above the newest one there, in their original order, then runs `atlas migrate hash` (the pinned build `scripts/install-atlas.sh` puts in `.bin/`) to rewrite `migrations/atlas.sum`. It renames nothing when the branch's files already sort above staging's, and still rehashes. A new migration comes from `just gen migration <module> <name>`, never a hand-picked prefix. `gen-docs.sh` rewrites `docs/reference/`. The last line is the feature-map step of `scripts/ci/ready.sh`. `flows.tsv` and `CHANGELOG.md` merge with `merge=union` and should not conflict. If they do, keep both sides' lines. `agents check` then sorts `flows.tsv` by id. [Shared files](../architecture/ci.md#shared-files) says why each glob is safe.
+    `go generate` bundles `api/spec/*.yaml` into `openapi.yaml`, then rebuilds `api.gen.go` and the other generated Go from the bundle and the module list. `gen migration --rebase` renames the branch's own migrations (files not on `origin/staging`) to fresh prefixes above the newest one there, in their original order, then runs `atlas migrate hash` (the pinned build `scripts/install-atlas.sh` puts in `.bin/`) to rewrite `migrations/atlas.sum`. It renames nothing when the branch's files already sort above staging's, and still rehashes. A new migration comes from `just gen migration <module> <name>`, never a hand-picked prefix. `gen-docs.sh` rewrites `docs/reference/`. The last line is the feature-map step of `scripts/ci/ready.sh`. `flows.tsv` and `CHANGELOG.md` merge with `merge=union` and should not conflict. If they do, keep both sides' lines. `agents check` then sorts `flows.tsv` by id. [Shared files](../architecture/ci.md#shared-files) says why each glob is safe.
 
 3. Check every branch of the stack, not only the top. A clean textual restack can still break compilation.
 
