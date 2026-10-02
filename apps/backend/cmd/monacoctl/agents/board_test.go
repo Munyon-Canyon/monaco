@@ -20,17 +20,25 @@ func (f *fixture) board(t *testing.T) {
 		`{"name":"ci / ci-ok","status":"COMPLETED","conclusion":"SUCCESS","completedAt":%q},`+
 		`{"name":"ci / Plan","status":"COMPLETED","conclusion":"FAILURE","completedAt":%q},`+
 		`{"context":"verify","state":"SUCCESS","createdAt":%q}]}}}}]},`+
-		`"timelineItems":{"nodes":[{"__typename":"AddedToMergeQueueEvent","createdAt":%q},`+
-		`{"__typename":"RemovedFromMergeQueueEvent","createdAt":%q}]}}`,
+		`"timelineItems":{"nodes":[{"__typename":"LabeledEvent","createdAt":%q,"label":{"name":"merge-queue"}},`+
+		`{"__typename":"LabeledEvent","createdAt":%q,"label":{"name":"large-pr"}},`+
+		`{"__typename":"UnlabeledEvent","createdAt":%q,"label":{"name":"merge-queue"}}]}}`,
 		f.at(-110*time.Minute), f.at(-30*time.Minute), f.at(-115*time.Minute), f.at(-90*time.Minute),
-		f.at(-90*time.Minute), f.at(-80*time.Minute), f.at(-70*time.Minute), f.at(-30*time.Minute))
+		f.at(-90*time.Minute), f.at(-80*time.Minute), f.at(-70*time.Minute), f.at(-60*time.Minute),
+		f.at(-30*time.Minute))
 	queued := fmt.Sprintf(`{"number":12,"body":"Closes #6","createdAt":%q,"state":"OPEN",`+
-		`"mergeQueueEntry":{"position":2},"commits":{"nodes":[{"commit":{"committedDate":%q,"statusCheckRollup":null}}]}}`,
+		`"labels":{"nodes":[{"name":"large-pr"},{"name":"merge-queue"}]},`+
+		`"commits":{"nodes":[{"commit":{"committedDate":%q,"statusCheckRollup":null}}]}}`,
 		f.at(-20*time.Minute), f.at(-25*time.Minute))
+	landed := fmt.Sprintf(`{"number":15,"body":"Part of #6","createdAt":%q,"state":"CLOSED","closedAt":%q,`+
+		`"headRefOid":"h15"}`, f.at(-15*time.Minute), f.at(-10*time.Minute))
 	f.hub.on(graphqlRoute, `{"data":{"repository":{"t5":{"timelineItems":{"nodes":[{"source":`+merged+`}]}},`+
 		`"t6":{"timelineItems":{"nodes":[{"source":{}},{"source":`+queued+`},{"source":`+queued+`},`+
-		`{"source":{"number":13,"body":"Part of #6","state":"CLOSED"}},{"source":{"number":14,"body":"Part of #9"}}]}},`+
+		`{"source":{"number":13,"body":"Part of #6","state":"CLOSED","headRefOid":"h13"}},`+
+		`{"source":{"number":14,"body":"Part of #9"}},{"source":`+landed+`}]}},`+
 		`"t7":{"timelineItems":{"nodes":[]}}}}}`)
+	f.hub.on(get("/compare/fb...h13"), `{"status":"diverged"}`)
+	f.hub.on(get("/compare/fb...h15"), `{"status":"behind"}`)
 }
 
 func TestViews_readsEachTicketsPRsFromOneQuery(t *testing.T) {
@@ -48,13 +56,14 @@ func TestViews_readsEachTicketsPRsFromOneQuery(t *testing.T) {
 			t.Fatalf("query lacks %s: %s", want, sent)
 		}
 	}
-	got := fmt.Sprint(views[0].PRs, len(views[1].PRs), views[1].PRs[0].Queue, len(views[2].PRs))
+	v6 := views[1].PRs
+	got := fmt.Sprint(views[0].PRs, len(v6), v6[0].InQueue, v6[1].Number, v6[1].Merged, len(views[2].PRs))
 	want := fmt.Sprint([]ticketPR{{
 		Number: 11, Opened: f.now.Add(-110 * time.Minute), Merged: f.now.Add(-30 * time.Minute),
 		Head: f.now.Add(-115 * time.Minute), Stage1: "success", Stage1At: f.now.Add(-90 * time.Minute),
 		Verify: "success", VerifyAt: f.now.Add(-80 * time.Minute),
 		Queued: []queueEvent{{true, f.now.Add(-70 * time.Minute)}, {false, f.now.Add(-30 * time.Minute)}},
-	}}, 1, 2, 0)
+	}}, 2, true, 15, f.now.Add(-10*time.Minute), 0)
 	if got != want {
 		t.Fatalf("views\n got %s\nwant %s", got, want)
 	}
@@ -115,7 +124,7 @@ func TestTicketState(t *testing.T) {
 		{"every PR merged, even after a queue removal", []ticketPR{
 			merged, with(merged, func(p *ticketPR) { p.Queued = []queueEvent{{false, ago(5)}} }),
 		}, "merged"},
-		{"in the queue", []ticketPR{merged, with(green, func(p *ticketPR) { p.Queue = 3 })}, "queued (#3)"},
+		{"carrying the queue label", []ticketPR{merged, with(green, func(p *ticketPR) { p.InQueue = true })}, "queued"},
 		{"removed with no push since", []ticketPR{
 			with(green, func(p *ticketPR) { p.Queued = []queueEvent{{true, ago(30)}, {false, ago(10)}} }),
 		}, "ejected"},
@@ -212,7 +221,7 @@ func TestStatus_publishesTheBatchAndCIReadsItBack(t *testing.T) {
 	}
 	body := posted(t, f, "POST /repos/o/r/issues/7/comments")
 	rows := "| ticket | state | since dispatch |\n| --- | --- | --- |\n" +
-		"| #5 | merged | 1h30m |\n| #6 | queued (#2) | - |\n| #7 | building | - |\n"
+		"| #5 | merged | 1h30m |\n| #6 | queued | - |\n| #7 | building | - |\n"
 	if !strings.Contains(body, "|\n\n"+rows+batchMarker) || !strings.HasSuffix(body, " -->\n"+activeMarker+"\n") {
 		t.Fatalf("body:\n%s", body)
 	}

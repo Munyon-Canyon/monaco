@@ -11,21 +11,28 @@ import (
 const (
 	stage1Check   = "ci / ci-ok"
 	verifyContext = "verify"
-	prFields      = `number body createdAt state mergedAt mergeQueueEntry{position}
+	labelFields   = `labels(first:20){nodes{name}}`
+	prFields      = `number body createdAt state mergedAt closedAt headRefOid ` + labelFields + `
 commits(last:1){nodes{commit{committedDate ` + commitChecks + `}}}
-timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT,REMOVED_FROM_MERGE_QUEUE_EVENT],last:50){nodes{__typename
-... on AddedToMergeQueueEvent{createdAt} ... on RemovedFromMergeQueueEvent{createdAt}}}`
+timelineItems(itemTypes:[LABELED_EVENT,UNLABELED_EVENT],last:50){nodes{__typename
+... on LabeledEvent{createdAt label{name}} ... on UnlabeledEvent{createdAt label{name}}}}`
 )
 
+type gqlName struct {
+	Name string `json:"name"`
+}
+
 type gqlPR struct {
-	Number          int       `json:"number"`
-	Body            string    `json:"body"`
-	CreatedAt       time.Time `json:"createdAt"`
-	State           string    `json:"state"`
-	MergedAt        time.Time `json:"mergedAt"`
-	MergeQueueEntry *struct {
-		Position int `json:"position"`
-	} `json:"mergeQueueEntry"`
+	Number    int       `json:"number"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"createdAt"`
+	State     string    `json:"state"`
+	MergedAt  time.Time `json:"mergedAt"`
+	ClosedAt  time.Time `json:"closedAt"`
+	HeadOID   string    `json:"headRefOid"`
+	Labels    struct {
+		Nodes []gqlName `json:"nodes"`
+	} `json:"labels"`
 	Commits struct {
 		Nodes []struct {
 			Commit gqlCommit `json:"commit"`
@@ -35,6 +42,7 @@ type gqlPR struct {
 		Nodes []struct {
 			Typename  string    `json:"__typename"`
 			CreatedAt time.Time `json:"createdAt"`
+			Label     gqlName   `json:"label"`
 		} `json:"nodes"`
 	} `json:"timelineItems"`
 }
@@ -51,7 +59,7 @@ type ticketPR struct {
 	Number   int
 	Opened   time.Time
 	Merged   time.Time
-	Queue    int
+	InQueue  bool
 	Head     time.Time
 	Stage1   string
 	Stage1At time.Time
@@ -101,17 +109,35 @@ func (env *Env) views(ctx context.Context, b Batch) ([]ticketView, error) {
 	}
 	out := make([]ticketView, 0, len(b.Tickets))
 	for _, t := range b.Tickets {
-		v := ticketView{Ticket: t.Ticket, Dispatched: t.Dispatched}
-		for _, node := range data.Repository[fmt.Sprintf("t%d", t.Ticket)].TimelineItems.Nodes {
-			src := node.Source
-			n, ok := PR{Body: src.Body}.Ticket()
-			if !ok || n != t.Ticket || src.State == "CLOSED" ||
-				slices.ContainsFunc(v.PRs, func(p ticketPR) bool { return p.Number == src.Number }) {
+		prs, err := env.ticketPRs(ctx, t.Ticket, data.Repository[fmt.Sprintf("t%d", t.Ticket)])
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ticketView{Ticket: t.Ticket, Dispatched: t.Dispatched, PRs: prs})
+	}
+	return out, nil
+}
+
+func (env *Env) ticketPRs(ctx context.Context, ticket int, tl ticketTimeline) ([]ticketPR, error) {
+	var out []ticketPR
+	for _, node := range tl.TimelineItems.Nodes {
+		src := node.Source
+		n, ok := PR{Body: src.Body}.Ticket()
+		if !ok || n != ticket || slices.ContainsFunc(out, func(p ticketPR) bool { return p.Number == src.Number }) {
+			continue
+		}
+		p := src.flat(env.Config.QueueLabel)
+		if src.State == "CLOSED" {
+			landed, err := env.landed(ctx, src.State, src.HeadOID)
+			if err != nil {
+				return nil, err
+			}
+			if !landed {
 				continue
 			}
-			v.PRs = append(v.PRs, src.flat())
+			p.Merged = src.ClosedAt
 		}
-		out = append(out, v)
+		out = append(out, p)
 	}
 	return out, nil
 }
@@ -155,11 +181,12 @@ func (p *gqlPR) commits() []*gqlCommit {
 	return out
 }
 
-func (p gqlPR) flat() ticketPR {
-	t := ticketPR{Number: p.Number, Opened: p.CreatedAt, Merged: p.MergedAt}
-	if p.MergeQueueEntry != nil {
-		t.Queue = p.MergeQueueEntry.Position
-	}
+func (p gqlPR) labeled(label string) bool {
+	return slices.Contains(p.Labels.Nodes, gqlName{label})
+}
+
+func (p gqlPR) flat(label string) ticketPR {
+	t := ticketPR{Number: p.Number, Opened: p.CreatedAt, Merged: p.MergedAt, InQueue: p.labeled(label)}
 	for _, c := range p.Commits.Nodes {
 		t.Head = c.Commit.CommittedDate
 		for _, x := range c.Commit.latest() {
@@ -167,7 +194,9 @@ func (p gqlPR) flat() ticketPR {
 		}
 	}
 	for _, e := range p.TimelineItems.Nodes {
-		t.Queued = append(t.Queued, queueEvent{Added: e.Typename == "AddedToMergeQueueEvent", At: e.CreatedAt})
+		if e.Label.Name == label {
+			t.Queued = append(t.Queued, queueEvent{Added: e.Typename == "LabeledEvent", At: e.CreatedAt})
+		}
 	}
 	return t
 }
@@ -204,10 +233,8 @@ func (v ticketView) state() string {
 	case len(open) == 0:
 		return "merged"
 	}
-	for _, p := range open {
-		if p.Queue > 0 {
-			return fmt.Sprintf("queued (#%d)", p.Queue)
-		}
+	if slices.ContainsFunc(open, func(p ticketPR) bool { return p.InQueue }) {
+		return "queued"
 	}
 	if slices.ContainsFunc(open, ticketPR.ejected) {
 		return "ejected"
