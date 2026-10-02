@@ -7,12 +7,14 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/system"
@@ -161,12 +163,65 @@ func plantedUnit(outcome string, script flows.Script) Unit {
 	}
 }
 
-func slowAPI(t *testing.T) string {
+func slowAPI(t *testing.T) (string, <-chan struct{}) {
 	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { <-r.Context().Done() }))
+	arrived, once := make(chan struct{}), sync.Once{}
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		once.Do(func() { close(arrived) })
+		<-r.Context().Done()
+	}))
 	t.Cleanup(srv.Close)
-	return srv.URL
+	return srv.URL, arrived
 }
+
+func advancing(clk *testkit.Clock, step time.Duration, run func()) {
+	done := make(chan struct{})
+	var g errgroup.Group
+	g.Go(func() error {
+		tick := time.NewTicker(time.Millisecond)
+		defer tick.Stop()
+		for {
+			select {
+			case <-done:
+				return nil
+			case <-tick.C:
+				clk.Advance(step)
+			}
+		}
+	})
+	run()
+	close(done)
+	_ = g.Wait()
+}
+
+func runPastConverge(t *testing.T, d *driver, u Unit) *Result {
+	t.Helper()
+	clk := fakeClock()
+	made := make(chan time.Duration, 16)
+	clk.NotifyTickers(made)
+	d.clock = clk
+	done := make(chan struct{})
+	var eg errgroup.Group
+	eg.Go(func() error {
+		for {
+			select {
+			case every := <-made:
+				if every == logPollEvery {
+					clk.Advance(d.budget.Converge)
+					return nil
+				}
+			case <-done:
+				return nil
+			}
+		}
+	})
+	res := d.run(t.Context(), u)
+	close(done)
+	_ = eg.Wait()
+	return res
+}
+
+func fakeClock() *testkit.Clock { return testkit.NewClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)) }
 
 func TestDriver_aPlantedFlowThatSleepsPastItsBudgetFailsNamingTheFlowPhase(t *testing.T) {
 	t.Parallel()
@@ -174,21 +229,31 @@ func TestDriver_aPlantedFlowThatSleepsPastItsBudgetFailsNamingTheFlowPhase(t *te
 		name   string
 		script flows.Script
 		phase  Phase
+		budget func(*Budget)
 	}{
-		{"flow", func(s *scenario.Scenario) { s.Given(scenario.Anonymous()).When(scenario.Get("/slow")) }, PhaseFlow},
-		{"seed", func(s *scenario.Scenario) { s.Given(scenario.Get("/slow")) }, PhaseSeed},
+		{
+			"flow", func(s *scenario.Scenario) { s.Given(scenario.Anonymous()).When(scenario.Get("/slow")) }, PhaseFlow,
+			func(b *Budget) { b.Seed, b.Flow = time.Hour, 300*time.Millisecond },
+		},
+		{
+			"seed", func(s *scenario.Scenario) { s.Given(scenario.Get("/slow")) }, PhaseSeed,
+			func(b *Budget) { b.Seed, b.Flow = 200*time.Millisecond, time.Hour },
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			env := servedEnv(t)
-			env.API = slowAPI(t)
+			env.API, _ = slowAPI(t)
 			budget := DefaultBudget()
-			budget.Seed, budget.Flow = 200*time.Millisecond, 300*time.Millisecond
+			tc.budget(&budget)
 			d, err := newDriver(env, budget)
 			if err != nil {
 				t.Fatal(err)
 			}
-			res := d.run(t.Context(), plantedUnit("ok", tc.script))
+			clk := fakeClock()
+			d.clock = clk
+			var res *Result
+			advancing(clk, 10*time.Millisecond, func() { res = d.run(t.Context(), plantedUnit("ok", tc.script)) })
 			want := "over budget: flow 99 ok " + string(tc.phase) + " took longer than"
 			if res.Pass() || res.Over == nil || res.Over.Phase != tc.phase || !strings.Contains(res.Failure, want) {
 				t.Fatalf("result = %+v, want %q", res, want)
@@ -200,14 +265,21 @@ func TestDriver_aPlantedFlowThatSleepsPastItsBudgetFailsNamingTheFlowPhase(t *te
 func TestDriver_stopsAFlowWhenTheRunIsCancelled(t *testing.T) {
 	t.Parallel()
 	env := servedEnv(t)
-	env.API = slowAPI(t)
+	var arrived <-chan struct{}
+	env.API, arrived = slowAPI(t)
 	d, err := newDriver(env, DefaultBudget())
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 200*time.Millisecond,
-		&OverBudgetError{Phase: PhaseTotal, Budget: time.Second})
-	defer cancel()
+	ctx, cancel := context.WithCancelCause(t.Context())
+	defer cancel(nil)
+	var g errgroup.Group
+	g.Go(func() error {
+		<-arrived
+		cancel(&OverBudgetError{Phase: PhaseTotal, Budget: time.Second})
+		return nil
+	})
+	defer func() { _ = g.Wait() }()
 	res := d.run(ctx, plantedUnit("ok", func(s *scenario.Scenario) { s.When(scenario.Get("/slow")) }))
 	if res.Over == nil || res.Over.Phase != PhaseTotal {
 		t.Fatalf("result = %+v, want the total budget named", res)
@@ -245,12 +317,12 @@ func TestDriver_aFinishedFlowLeavesNoConnectionOpenSoTheAPIShutsDownAtOnce(t *te
 	var open func() []http.ConnState
 	env.API, open = connTracker(t)
 	budget := DefaultBudget()
-	budget.Converge = 500 * time.Millisecond
+	budget.Converge = time.Hour
 	d, err := newDriver(env, budget)
 	if err != nil {
 		t.Fatal(err)
 	}
-	res := d.run(t.Context(), plantedUnit("ok", func(s *scenario.Scenario) {
+	res := runPastConverge(t, d, plantedUnit("ok", func(s *scenario.Scenario) {
 		s.Given(scenario.Anonymous()).When(scenario.Get("/slow"), scenario.ExpectStatus(http.StatusOK))
 	}))
 	if len(res.Exchanges) != 1 || res.Exchanges[0].Status != http.StatusOK {
@@ -266,17 +338,20 @@ func TestDriver_convergenceTimesOutNamingTheStuckConsumer(t *testing.T) {
 	ghost.Name = "ghost.echo"
 	env.Consumers = append(env.Consumers, bus.Consumer{Durable: "ghost", Handlers: []bus.HandlerSpec{ghost}})
 	budget := DefaultBudget()
-	budget.Converge = time.Second
+	budget.Seed, budget.Flow, budget.Converge = time.Hour, time.Hour, time.Second
 	d, err := newDriver(env, budget)
 	if err != nil {
 		t.Fatal(err)
 	}
 	u := flow00(t, Target{Flow: "00", Outcome: "ok"})[0]
-	u.Flow.Consumers = append(u.Flow.Consumers, "ghost")
+	u.Flow.Consumers = []string{"ghost"}
 	u.Script = func(s *scenario.Scenario) {
 		s.Given(scenario.AsUser("alice")).When(scenario.Post("/v1/system/pings", `{"note":"hi"}`))
 	}
-	res := d.run(t.Context(), u)
+	clk := fakeClock()
+	d.clock = clk
+	var res *Result
+	advancing(clk, pollEvery, func() { res = d.run(t.Context(), u) })
 	want := "consumer ghost handler ghost.echo has not handled event"
 	if res.Over == nil || res.Over.Phase != PhaseConverge || !strings.Contains(res.Failure, want) {
 		t.Fatalf("result = %+v, want %q", res, want)
@@ -335,12 +410,12 @@ func TestDriver_reportsInvariantFailures(t *testing.T) {
 				tc.edit(&env, &u)
 			}
 			budget := DefaultBudget()
-			budget.Converge = 500 * time.Millisecond
+			budget.Converge = time.Hour
 			d, err := newDriver(env, budget)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if res := d.run(t.Context(), u); res.Pass() || !strings.Contains(res.Failure, tc.want) {
+			if res := runPastConverge(t, d, u); res.Pass() || !strings.Contains(res.Failure, tc.want) {
 				t.Fatalf("result = %+v, want %q", res, tc.want)
 			}
 		})
@@ -377,6 +452,50 @@ func TestVerifyUnits_failsOnDeadLettersInternalErrorsAndLedgerChecks(t *testing.
 	} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestWithDeadline_firesItsCauseOnTheClockAndCancelsTwiceSafely(t *testing.T) {
+	t.Parallel()
+	clk := fakeClock()
+	cause := errors.New("budget spent")
+	ctx, cancel := withDeadline(t.Context(), clk, time.Second, cause)
+	defer cancel()
+	for ctx.Err() == nil {
+		clk.Advance(time.Second)
+		runtime.Gosched()
+	}
+	if got := context.Cause(ctx); !errors.Is(got, cause) {
+		t.Fatalf("cause = %v, want %v", got, cause)
+	}
+	cancel()
+	cancel()
+}
+
+func TestCancelCause_namesTheCauseOnlyWhenAFailedFlowWasCancelled(t *testing.T) {
+	t.Parallel()
+	cause, failure := errors.New("run stopped"), errors.New("scenario: GET /slow: context canceled")
+	live := t.Context()
+	cancelled, cancel := context.WithCancelCause(t.Context())
+	cancel(cause)
+	for _, tc := range []struct {
+		name    string
+		stopped bool
+		failure error
+		want    error
+	}{
+		{"cancelled and failed", true, failure, cause},
+		{"cancelled and passed", true, nil, nil},
+		{"live and failed", false, failure, failure},
+	} {
+		ctx := live
+		if tc.stopped {
+			ctx = cancelled
+		}
+		got := cancelCause(ctx, "99 ok", tc.failure)
+		if !errors.Is(got, tc.want) || (tc.want == nil) != (got == nil) {
+			t.Errorf("%s: cancelCause = %v, want %v", tc.name, got, tc.want)
 		}
 	}
 }

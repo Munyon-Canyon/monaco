@@ -86,6 +86,7 @@ type Config struct {
 	Scripts  map[string]flows.Script
 	Env      map[string][]string
 	Ledger   []LedgerCheck
+	Clock    clock.Clock
 	Stdout   io.Writer
 	Stderr   io.Writer
 }
@@ -184,6 +185,9 @@ func verifyUnits(ctx context.Context, cfg Config, env Env, rep *report, parallel
 	d, err := newDriver(env, cfg.Budget)
 	if err != nil {
 		return err
+	}
+	if cfg.Clock != nil {
+		d.clock = cfg.Clock
 	}
 	rep.results = d.runAll(ctx, rep.units, parallel)
 	failed := 0

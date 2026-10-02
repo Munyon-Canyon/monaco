@@ -70,12 +70,13 @@ type driver struct {
 	env      Env
 	budget   Budget
 	verifier *auth.DevVerifier
+	clock    clock.Clock
 }
 
 func newDriver(env Env, budget Budget) (*driver, error) {
 	verifier, err := auth.NewDevVerifier(
 		config.Config{Env: config.EnvTest, Auth: config.Auth{DevTokenKey: env.TokenKey}}, clock.Real{})
-	return &driver{env: env, budget: budget, verifier: verifier}, err
+	return &driver{env: env, budget: budget, verifier: verifier, clock: clock.Real{}}, err
 }
 
 func (d *driver) runAll(ctx context.Context, units []Unit, parallel int) []*Result {
@@ -103,12 +104,12 @@ func (d *driver) run(ctx context.Context, u Unit) *Result {
 		res.fail(err)
 		return res
 	}
-	began := time.Now()
-	ctx, cancel := context.WithTimeoutCause(ctx, d.budget.Converge,
+	began := d.clock.Now()
+	ctx, cancel := withDeadline(ctx, d.clock, d.budget.Converge,
 		&OverBudgetError{Phase: PhaseConverge, Flow: u.Name(), Budget: d.budget.Converge})
 	defer cancel()
 	err := d.settle(ctx, res)
-	res.Phases[PhaseConverge] = time.Since(began)
+	res.Phases[PhaseConverge] = d.clock.Now().Sub(began)
 	if err != nil {
 		res.fail(err)
 	}
@@ -150,12 +151,12 @@ func (d *driver) script(ctx context.Context, u Unit, res *Result) error {
 		defer t.runCleanups()
 		u.Script(scenario.Against(t, remote))
 	}()
-	phase, began := PhaseSeed, time.Now()
-	timer := time.NewTimer(d.budget.Seed)
-	defer timer.Stop()
+	phase, began := PhaseSeed, d.clock.Now()
+	timer := d.clock.NewTicker(d.budget.Seed)
+	defer func() { timer.Stop() }()
 	stopped := func(err error) error {
 		<-done
-		res.Phases[phase] += time.Since(began)
+		res.Phases[phase] += d.clock.Now().Sub(began)
 		if failed := t.err(); failed != nil {
 			res.fail(failed)
 		}
@@ -164,15 +165,15 @@ func (d *driver) script(ctx context.Context, u Unit, res *Result) error {
 	for {
 		select {
 		case <-done:
-			res.Phases[phase] += time.Since(began)
-			return t.err()
+			return stopped(cancelCause(ctx, u.Name(), t.err()))
 		case s := <-stages:
 			if s != scenario.StageGiven && phase == PhaseSeed {
-				res.Phases[phase] = time.Since(began)
-				phase, began = PhaseFlow, time.Now()
-				timer.Reset(d.budget.Flow)
+				res.Phases[phase] = d.clock.Now().Sub(began)
+				phase, began = PhaseFlow, d.clock.Now()
+				timer.Stop()
+				timer = d.clock.NewTicker(d.budget.Flow)
 			}
-		case <-timer.C:
+		case <-timer.C():
 			over := &OverBudgetError{Phase: phase, Flow: u.Name(), Budget: d.budget.of(phase)}
 			cancel(over)
 			return stopped(over)
@@ -180,6 +181,29 @@ func (d *driver) script(ctx context.Context, u Unit, res *Result) error {
 			return stopped(fmt.Errorf("flow %s: %w", u.Name(), context.Cause(ctx)))
 		}
 	}
+}
+
+func cancelCause(ctx context.Context, flow string, failure error) error {
+	if failure != nil && ctx.Err() != nil {
+		return fmt.Errorf("flow %s: %w", flow, context.Cause(ctx))
+	}
+	return failure
+}
+
+func withDeadline(
+	ctx context.Context, clk clock.Clock, budget time.Duration, cause error,
+) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancelCause(ctx)
+	timer := clk.NewTicker(budget)
+	go func() {
+		defer timer.Stop()
+		select {
+		case <-timer.C():
+			cancel(cause)
+		case <-ctx.Done():
+		}
+	}()
+	return ctx, func() { cancel(context.Canceled) }
 }
 
 func (b Budget) of(p Phase) time.Duration {

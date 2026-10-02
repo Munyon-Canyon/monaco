@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -87,7 +86,7 @@ func (d *driver) settle(ctx context.Context, res *Result) error {
 }
 
 func (d *driver) awaitLogs(ctx context.Context, from int, needs []logNeed) ([]string, string) {
-	tick := time.NewTicker(logPollEvery)
+	tick := d.clock.NewTicker(logPollEvery)
 	defer tick.Stop()
 	for {
 		found, msg := logsMissing(d.env.Logs.Lines()[from:], needs)
@@ -96,7 +95,7 @@ func (d *driver) awaitLogs(ctx context.Context, from int, needs []logNeed) ([]st
 		}
 		select {
 		case <-ctx.Done():
-		case <-tick.C:
+		case <-tick.C():
 		}
 	}
 }
