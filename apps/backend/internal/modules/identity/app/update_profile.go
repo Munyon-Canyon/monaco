@@ -18,16 +18,18 @@ type UpdateProfileHandler struct {
 	Hints Hints
 }
 
+type UpdateProfile = UpdateProfileHandler
+
 func (h UpdateProfileHandler) Handle(ctx context.Context, id ids.UserID, raw string) (Me, error) {
 	name, err := domain.ParseDisplayName(raw)
 	if err != nil {
 		return Me{}, err
 	}
 	err = h.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		n, err := sqlc.New(tx.Queries()).SetDisplayName(ctx, sqlc.SetDisplayNameParams{
+		_, err := sqlc.New(tx.Queries()).SetDisplayName(ctx, sqlc.SetDisplayNameParams{
 			ID: id.UUID(), DisplayName: name.String(), Now: h.Clock.Now(),
 		})
-		if err != nil || n == 0 {
+		if err != nil {
 			return err
 		}
 		if err := tx.Events.Append(ctx, events.UserProfileUpdated{

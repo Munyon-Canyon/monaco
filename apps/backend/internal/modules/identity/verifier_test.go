@@ -265,6 +265,12 @@ func (*actorProbe) PatchMe(context.Context, api.PatchMeRequestObject) (api.Patch
 	return nil, errs.New(errs.CodeNotFound, "actorProbe.PatchMe")
 }
 
+func (*actorProbe) PostProfilePhoto(
+	context.Context, api.PostProfilePhotoRequestObject,
+) (api.PostProfilePhotoResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "actorProbe.PostProfilePhoto")
+}
+
 func (p *actorProbe) PostSystemPing(context.Context, api.PostSystemPingRequestObject) (
 	api.PostSystemPingResponseObject, error,
 ) {

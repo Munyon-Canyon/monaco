@@ -1,6 +1,7 @@
 package module
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,6 +18,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
+type ObjectStore interface {
+	Put(context.Context, string, string, string, []byte) (string, error)
+}
+
 type Deps struct {
 	Config     config.Config
 	Logger     *slog.Logger
@@ -28,6 +33,7 @@ type Deps struct {
 	HTTPClient func(name string, opts ...httpclient.Option) *httpclient.Client
 	Hub        *sse.Hub
 	APNs       apns.Sender
+	Storage    ObjectStore
 }
 
 type Module interface {

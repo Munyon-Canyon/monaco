@@ -36,6 +36,14 @@ type Deps struct {
 }
 
 func (d Deps) wrap(next http.Handler) http.Handler {
+	return d.wrapBody(next, true)
+}
+
+func (d Deps) wrapContract(next http.Handler) http.Handler {
+	return d.wrapBody(next, false)
+}
+
+func (d Deps) wrapBody(next http.Handler, limitBody bool) http.Handler {
 	tracer := d.Tracer.Tracer("github.com/monaco/monaco/apps/backend/internal/platform/httpx")
 	acceptableID := regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +60,9 @@ func (d Deps) wrap(next http.Handler) http.Handler {
 		ctx = observability.WithLogger(observability.WithRequestID(ctx, id), d.Logger)
 		ctx, actor := withActorSlot(ctx)
 		req := r.WithContext(ctx)
-		req.Body = http.MaxBytesReader(w, r.Body, d.MaxBodyBytes)
+		if limitBody {
+			req.Body = http.MaxBytesReader(w, r.Body, d.MaxBodyBytes)
+		}
 		serveRecovered(ctx, next, rec, req)
 		status := rec.statusOr200()
 		route := routeOf(req.Pattern)

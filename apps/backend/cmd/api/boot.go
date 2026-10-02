@@ -28,6 +28,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/platform/storage"
 )
 
 func load(environ []string) (config.Config, error) {
@@ -134,6 +135,11 @@ func startHub(
 }
 
 func newHandler(deps module.Deps, spec []byte, meters metric.MeterProvider) (http.Handler, error) {
+	store, err := storage.New(deps.Config)
+	if err != nil {
+		return nil, err
+	}
+	deps.Storage = store
 	verifier, err := identity.NewVerifier(deps)
 	if err != nil {
 		return nil, err
