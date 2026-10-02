@@ -32,13 +32,16 @@ type hub struct {
 	sent   map[string]string
 	auth   map[string]string
 	ctype  map[string]string
+	calls  []string
+	status map[string]int
+	hook   func(method, path, body string, status int)
 }
 
 func newHub(t *testing.T) (*hub, *httptest.Server) {
 	t.Helper()
 	h := &hub{
 		t: t, routes: map[string]string{}, sent: map[string]string{},
-		auth: map[string]string{}, ctype: map[string]string{},
+		auth: map[string]string{}, ctype: map[string]string{}, status: map[string]int{},
 	}
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
@@ -70,6 +73,7 @@ func (h *hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
 	h.mu.Lock()
 	h.sent[route] = string(body)
+	h.calls = append(h.calls, route)
 	h.auth[route] = r.Header.Get("Authorization")
 	h.ctype[route] = r.Header.Get("Content-Type")
 	resp, ok := h.routes[route]
@@ -78,12 +82,33 @@ func (h *hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			resp, ok = p[1], true
 		}
 	}
+	code := h.status[route]
+	hook := h.hook
 	h.mu.Unlock()
 	if !ok {
 		http.Error(w, `{"message":"Not Found"}`, http.StatusNotFound)
 		return
 	}
+	if code >= 300 {
+		http.Error(w, resp, code)
+		return
+	}
+	if hook != nil {
+		hook(r.Method, r.URL.RequestURI(), string(body), code)
+	}
 	_, _ = io.WriteString(w, resp)
+}
+
+func (h *hub) callsContaining(substr string) []string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	var out []string
+	for _, c := range h.calls {
+		if strings.Contains(c, substr) {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 func (h *hub) body(route string) string {

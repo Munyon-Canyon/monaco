@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -44,6 +45,8 @@ type stackGH struct {
 	merges       map[int][]mergeAnswer
 	polls        int
 	pollsAtLabel int
+	denied       bool
+	gql          int
 }
 
 func newStackGH(t *testing.T, f *fixture, prs ...*stackPR) *stackGH {
@@ -51,9 +54,44 @@ func newStackGH(t *testing.T, f *fixture, prs ...*stackPR) *stackGH {
 	s := &stackGH{t: t, prs: map[int]*stackPR{}, merges: map[int][]mergeAnswer{}}
 	for _, p := range prs {
 		s.prs[p.Number] = p
+		f.hub.on(fmt.Sprintf("POST /repos/%s/issues/%d/labels", testRepo, p.Number), "[]")
+		f.hub.on(fmt.Sprintf("DELETE /repos/%s/issues/%d/labels/merge-queue", testRepo, p.Number), "[]")
+		f.hub.on(fmt.Sprintf("DELETE /repos/%s/issues/%d/labels/ship-it", testRepo, p.Number), "[]")
 	}
+	f.hub.hook = s.onLabel
 	f.run = s.run
 	return s
+}
+
+func (s *stackGH) onLabel(method, path, body string, status int) {
+	if status >= 300 {
+		return
+	}
+	m := regexp.MustCompile(`/issues/(\d+)/labels`).FindStringSubmatch(path)
+	if m == nil {
+		return
+	}
+	n, _ := strconv.Atoi(m[1])
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p := s.prs[n]
+	if p == nil {
+		return
+	}
+	switch method {
+	case http.MethodPost:
+		var payload struct {
+			Labels []string `json:"labels"`
+		}
+		if json.Unmarshal([]byte(body), &payload) == nil {
+			for _, label := range payload.Labels {
+				labeled(p, label)
+			}
+		}
+		s.pollsAtLabel = s.polls
+	case http.MethodDelete:
+		p.Labels.Nodes = nil
+	}
 }
 
 func stackOf(t *testing.T, n int, head, base, stage1, verify string) *stackPR {
@@ -113,6 +151,10 @@ func (s *stackGH) run(ctx context.Context, dir, stdin, name string, args ...stri
 		return []byte(s.gtLog), nil
 	}
 	if args[0] == "api" {
+		s.gql++
+		if s.denied {
+			return nil, errors.New("HTTP 403: Resource not accessible by integration")
+		}
 		return s.graphql(args[3])
 	}
 	n, _ := strconv.Atoi(args[2])
@@ -257,11 +299,11 @@ func TestLandStack_labelsEveryPRBottomToTopAndKeepsTheirBases(t *testing.T) {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	want := []string{
-		"gh pr edit 1 --add-label merge-queue -R o/r",
-		"gh pr edit 2 --add-label merge-queue -R o/r",
-		"gh pr edit 3 --add-label merge-queue -R o/r",
+		"POST /repos/o/r/issues/1/labels",
+		"POST /repos/o/r/issues/2/labels",
+		"POST /repos/o/r/issues/3/labels",
 	}
-	if got := s.lines(); !slices.Equal(got, want) {
+	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, want) {
 		t.Fatalf("calls:\n%s", strings.Join(got, "\n"))
 	}
 	if s.prs[2].Base != "b1" || s.prs[3].Base != "b2" || s.prs[3].Body != "Part of #40\n\n## TLDR\nx" {
@@ -279,8 +321,9 @@ func TestLandStack_labelsEveryPRBottomToTopAndKeepsTheirBases(t *testing.T) {
 		t.Fatalf("published %q", got)
 	}
 	code, stdout, _ = f.agents(t, "land-stack", "3")
-	if code != 0 || stdout != "#3 is queued in the Graphite merge queue\n" || len(s.lines()) != len(want) {
-		t.Fatalf("second call: %d %q %v", code, stdout, s.lines())
+	if code != 0 || stdout != "#3 is queued in the Graphite merge queue\n" ||
+		len(f.hub.callsContaining("/labels")) != len(want) {
+		t.Fatalf("second call: %d %q %v", code, stdout, f.hub.callsContaining("/labels"))
 	}
 }
 
@@ -370,8 +413,8 @@ func TestLandStack_aSinglePRGetsOnlyTheLabel(t *testing.T) {
 		stdout != "queued #5\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	want := []string{"gh pr edit 5 --add-label merge-queue -R o/r"}
-	if got := s.lines(); !slices.Equal(got, want) {
+	want := []string{"POST /repos/o/r/issues/5/labels"}
+	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, want) {
 		t.Fatalf("calls %v", got)
 	}
 	if !s.prs[5].labeled("merge-queue") {
@@ -384,7 +427,7 @@ func TestLandStack_labelsWithTheConfiguredQueueLabel(t *testing.T) {
 	f := newFixture(t)
 	labelled := strings.Replace(testConfig, "[batch]", "queue_label = \"ship-it\"\n[batch]", 1)
 	writeFile(t, filepath.Join(f.dir, configPath), labelled)
-	s := newStackGH(t, f, green(t, 5, "b5", "fb"))
+	newStackGH(t, f, green(t, 5, "b5", "fb"))
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40"})
 	if code, stdout, stderr := f.agents(
 		t,
@@ -394,8 +437,9 @@ func TestLandStack_labelsWithTheConfiguredQueueLabel(t *testing.T) {
 		stdout != "queued #5\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	if got := s.lines(); !slices.Equal(got, []string{"gh pr edit 5 --add-label ship-it -R o/r"}) {
-		t.Fatalf("calls %v", got)
+	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, []string{"POST /repos/o/r/issues/5/labels"}) ||
+		!strings.Contains(f.hub.body("POST /repos/o/r/issues/5/labels"), `"ship-it"`) {
+		t.Fatalf("calls %v body %s", got, f.hub.body("POST /repos/o/r/issues/5/labels"))
 	}
 	code, stdout, _ := f.agents(t, "land-stack", "5")
 	if code != 0 || stdout != "#5 is queued in the Graphite merge queue\n" {
@@ -506,8 +550,8 @@ func TestLandStack_aRerunAfterATimeoutQueuesOnceGitHubHasRecomputed(t *testing.T
 	if code != 0 || stdout != "queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
 		t.Fatalf("rerun: %d %q %q", code, stdout, stderr)
 	}
-	want := []string{"gh pr edit 1 --add-label merge-queue -R o/r", "gh pr edit 2 --add-label merge-queue -R o/r"}
-	if got := s.lines(); !slices.Equal(got, want) {
+	want := []string{"POST /repos/o/r/issues/1/labels", "POST /repos/o/r/issues/2/labels"}
+	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, want) {
 		t.Fatalf("calls %v", got)
 	}
 	if q := f.owned(t).Queued; q == nil || q.Top != 2 {
@@ -692,8 +736,8 @@ func TestLandStack_failures(t *testing.T) {
 				return []*stackPR{green(t, 1, "b1", "b2"), green(t, 2, "b2", "b1")}
 			},
 		},
-		{name: "bottom label fails", args: []string{"2"}, prs: stack, fail: "gh pr edit 1 --add-label", code: 1, stderr: "not marked queued"},
-		{name: "top label fails", args: []string{"2"}, prs: stack, fail: "gh pr edit 2 --add-label", code: 1, stderr: "run land-stack again"},
+		{name: "bottom label fails", args: []string{"2"}, prs: stack, fail: "label 1", code: 1, stderr: "not marked queued"},
+		{name: "top label fails", args: []string{"2"}, prs: stack, fail: "label 2", code: 1, stderr: "run land-stack again"},
 		{
 			name: "mergeability read fails", args: []string{"2"}, prs: stack, code: 1, stderr: "not marked queued",
 			fail: "gh api graphql -f query=" + repoQuery + "pullRequest(",
@@ -708,6 +752,12 @@ func TestLandStack_failures(t *testing.T) {
 			}
 			s := newStackGH(t, f, prs...)
 			s.fail, s.raw = tt.fail, tt.raw
+			if n, ok := strings.CutPrefix(tt.fail, "label "); ok {
+				route := "POST /repos/o/r/issues/" + n + "/labels"
+				f.hub.status[route] = http.StatusInternalServerError
+				f.hub.on(route, "boom")
+				s.fail = ""
+			}
 			f.ownerComments(40)
 			rec := Record{Ticket: 40, Worktree: "/w/40"}
 			if tt.rec != nil {
@@ -788,18 +838,18 @@ func ejectedStack(t *testing.T, f *fixture) *stackGH {
 func TestLandStack_relandsAnEjectedStackWholeInOneCall(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	s := ejectedStack(t, f)
+	ejectedStack(t, f)
 	code, stdout, stderr := f.agents(t, "land-stack", "3")
 	if code != 0 ||
 		stdout != "#3 left the Graphite merge queue; relanding its stack\nqueued #1 #2 #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	want := []string{
-		"gh pr edit 1 --add-label merge-queue -R o/r",
-		"gh pr edit 2 --add-label merge-queue -R o/r",
-		"gh pr edit 3 --add-label merge-queue -R o/r",
+		"POST /repos/o/r/issues/1/labels",
+		"POST /repos/o/r/issues/2/labels",
+		"POST /repos/o/r/issues/3/labels",
 	}
-	if got := s.lines(); !slices.Equal(got, want) {
+	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, want) {
 		t.Fatalf("calls %v", got)
 	}
 	if q := f.owned(t).Queued; q == nil || q.Top != 3 || !slices.Equal(q.PRs, []int{1, 2, 3}) {
@@ -819,8 +869,8 @@ func TestLandStack_relandsWhatIsLeftWhenOnePRLostTheLabel(t *testing.T) {
 		stdout != "#3 left the Graphite merge queue; relanding its stack\nqueued #2 #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	want := []string{"gh pr edit 2 --add-label merge-queue -R o/r", "gh pr edit 3 --add-label merge-queue -R o/r"}
-	if got := s.lines(); !slices.Equal(got, want) {
+	want := []string{"POST /repos/o/r/issues/2/labels", "POST /repos/o/r/issues/3/labels"}
+	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, want) {
 		t.Fatalf("calls %v", got)
 	}
 	if q := f.owned(t).Queued; q == nil || !slices.Equal(q.PRs, []int{2, 3}) {

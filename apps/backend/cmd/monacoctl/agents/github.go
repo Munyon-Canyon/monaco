@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -22,10 +23,12 @@ const (
 )
 
 type GitHub struct {
-	API   string
-	Repo  string
-	Token func(ctx context.Context) (string, error)
-	HTTP  *http.Client
+	API    string
+	Repo   string
+	Token  func(ctx context.Context) (string, error)
+	HTTP   *http.Client
+	rest   atomic.Bool
+	encode func(any) ([]byte, error)
 }
 type Ref struct {
 	Ref string `json:"ref"`
