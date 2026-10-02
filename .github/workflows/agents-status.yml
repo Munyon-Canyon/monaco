@@ -4,11 +4,10 @@ name: Agents status
 # batch.json lives under .git/pstack/ on the root's machine, so CI reads the batch the root last embedded in that comment.
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, closed, enqueued, dequeued]
-  merge_group:
+    types: [opened, synchronize, reopened, ready_for_review, closed]
   # Feature branches are <name>-<N>. The job skips a push to any other branch the pattern catches.
   push:
-    branches: [main, '*-[0-9]*']
+    branches: [main, staging, '*-[0-9]*']
   # GitHub runs schedules from the default branch's copy of this file.
   schedule:
     - cron: '*/10 * * * *'

@@ -70,29 +70,22 @@ func printRuleset(t *testing.T, args ...string) ruleset {
 	return rs
 }
 
-func TestFeatureBranchRuleset_landsEveryPRThroughTheMergeQueue(t *testing.T) {
+func TestFeatureBranchRuleset_leavesTheQueueToGraphite(t *testing.T) {
 	rs := printRuleset(t, "ruleset", "following-checkpoint-12")
 
 	if want := []string{"refs/heads/following-checkpoint-12"}; !reflect.DeepEqual(rs.Conditions.RefName.Include, want) {
-		t.Fatalf("targets %v, want %v, because a merge_queue rule takes exact ref names only", rs.Conditions.RefName.Include, want)
+		t.Fatalf("targets %v, want %v", rs.Conditions.RefName.Include, want)
 	}
 	if len(rs.BypassActors) != 1 || rs.BypassActors[0].ActorID != 1 || rs.BypassActors[0].ActorType != "OrganizationAdmin" || rs.BypassActors[0].BypassMode != "always" {
 		t.Fatalf("bypass actors %+v, want only org admins, whose token cuts the next feature branch at a checkpoint", rs.BypassActors)
 	}
-	if got := rs.rule(t, "pull_request")["allowed_merge_methods"]; !reflect.DeepEqual(got, []any{"merge"}) {
-		t.Fatalf("merge methods %v, want merge only, so a stack's lower PRs show merged", got)
+	if got := rs.rule(t, "pull_request")["allowed_merge_methods"]; !reflect.DeepEqual(got, []any{"squash"}) {
+		t.Fatalf("merge methods %v, want squash only", got)
 	}
-	want := map[string]any{
-		"merge_method":                      "MERGE",
-		"grouping_strategy":                 "ALLGREEN",
-		"max_entries_to_build":              float64(5),
-		"min_entries_to_merge":              float64(1),
-		"max_entries_to_merge":              float64(5),
-		"min_entries_to_merge_wait_minutes": float64(0),
-		"check_response_timeout_minutes":    float64(30),
-	}
-	if got := rs.rule(t, "merge_queue"); !reflect.DeepEqual(got, want) {
-		t.Fatalf("merge queue %v, want %v", got, want)
+	for _, r := range rs.Rules {
+		if r.Type == "merge_queue" {
+			t.Fatal("the Graphite merge queue lands PRs, and it cannot merge into a branch with a GitHub merge_queue rule")
+		}
 	}
 	if rs.rule(t, "required_status_checks")["strict_required_status_checks_policy"] != false {
 		t.Fatal("the queue tests each PR against the tip, so up to date must stay off")

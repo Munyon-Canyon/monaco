@@ -3,9 +3,6 @@ name: PR format
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize, ready_for_review, labeled, unlabeled]
-  # The queue waits for every required check on the group commit. Each PR was checked on its own head.
-  merge_group:
-    types: [checks_requested]
 
 concurrency:
   group: pr-format-${{ github.event.pull_request.number || github.ref }}
@@ -24,25 +21,26 @@ jobs:
   # could rewrite the copy that judges the PR.
   pr-format:
     name: PR format (title, body and commits)
-    if: ${{ !github.event.pull_request.draft }}
+    # The Graphite merge queue waits for every required check on its gtmq_ draft. Each PR was checked on its own head.
+    if: ${{ !github.event.pull_request.draft || startsWith(github.head_ref, 'gtmq_') }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Pass the merge group
-        if: github.event_name == 'merge_group'
-        run: echo "Each PR in the group passed this check on its own head."
+      - name: Pass the merge queue draft
+        if: startsWith(github.head_ref, 'gtmq_')
+        run: echo "Each PR in the queue draft passed this check on its own head."
       - uses: actions/checkout@v4
-        if: github.event_name == 'pull_request'
+        if: ${{ !startsWith(github.head_ref, 'gtmq_') }}
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 0
       - name: Fetch the head commit
-        if: github.event_name == 'pull_request'
+        if: ${{ !startsWith(github.head_ref, 'gtmq_') }}
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: git fetch --no-tags origin "$HEAD_SHA"
       - name: Check title, body and commits
-        if: github.event_name == 'pull_request'
+        if: ${{ !startsWith(github.head_ref, 'gtmq_') }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_TITLE: ${{ github.event.pull_request.title }}
@@ -55,7 +53,7 @@ jobs:
           PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
         run: python3 scripts/check-pr-format.py
       - name: Checker unit tests
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        if: ${{ !cancelled() && !startsWith(github.head_ref, 'gtmq_') }}
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
@@ -114,24 +112,18 @@ jobs:
   changelog:
     name: Changelog (checkpoint into main)
     if: >-
-      github.event_name == 'merge_group' ||
-      (!github.event.pull_request.draft &&
+      !github.event.pull_request.draft &&
       github.event.pull_request.base.ref == 'main' &&
-      contains(github.event.pull_request.labels.*.name, 'integration'))
+      contains(github.event.pull_request.labels.*.name, 'integration')
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Pass the merge group
-        if: github.event_name == 'merge_group'
-        run: echo "Each checkpoint PR passed this check on its own head."
       - uses: actions/checkout@v4
-        if: github.event_name == 'pull_request'
         with:
           fetch-depth: 0
       # Expressions have no regex, so the head's <name>-<N> check runs here.
       - name: Detect a checkpoint
         id: detect
-        if: github.event_name == 'pull_request'
         env:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
