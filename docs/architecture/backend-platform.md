@@ -217,7 +217,7 @@ type Error struct {
 ```
 
 - `Code` is a string enum, declared per area in `internal/errs/codes_<area>.go`. The table `codes[Code] = {Kind, Retryable, Alert, Message}` is the single source of truth. `exhaustive` fails a switch that misses a code. A test asserts every `Code` constant has a table row and every row has a constant.
-- The OpenAPI `ErrorCode` enum is generated from that table by `monacoctl gen errors` and checked fresh in CI, so the Swift client's `switch` and the Go table cannot drift.
+- The OpenAPI `ErrorCode` enum and the Swift test target's `ErrorCodeCases.gen.swift` are generated from that table by `monacoctl gen errors` and checked fresh in CI, so the Swift client's exhaustive `switch` and the Go table cannot drift.
 - `Kind` decides the HTTP status, the bus verdict (ack, nak with delay, term) and whether to alert. Nothing else reads `Kind`; the `codes` table is the only map.
 - Domain returns `errs.New(CodeInsufficientFunds, op, attrs...)`. Adapters wrap upstream failures with `errs.Wrap(err, CodeJupiterUnavailable, op, attrs...)`. Sentinel `var ErrX = errors.New(...)` is banned (`forbidigo` on `errors\.New` outside `errs`), so an error without a code cannot exist.
 - `errors.Is` and `errors.As` are the only comparisons (`errorlint`). `errs.CodeOf(err)` returns `CodeInternal` for any non-`*errs.Error`, which is the fallback that makes a missed wrap visible as a 500 and an alert, not a silent 200.

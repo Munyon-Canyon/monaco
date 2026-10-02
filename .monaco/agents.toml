@@ -30,9 +30,9 @@ shared = [
   "apps/backend/CHANGELOG.md",
   # One registrations file per module.
   "apps/backend/internal/events/**",
-  # One file per error area.
+  # One file per error area; the Swift case list is generated.
   "apps/backend/internal/errs/codes_*.go",
-  "packages/mobile-core/Tests/MonacoAPITests/ProblemErrorTests.swift",
+  "packages/mobile-core/Tests/MonacoAPITests/ErrorCodeCases.gen.swift",
   # New per-flow and per-scenario files plus one registry line.
   "apps/backend/internal/testkit/flows/**",
   "apps/backend/internal/testkit/fakes/**",

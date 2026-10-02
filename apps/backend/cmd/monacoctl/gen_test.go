@@ -162,12 +162,72 @@ func TestCommittedSpecListsEveryErrorCode(t *testing.T) {
 	}
 }
 
+func TestGenErrors_writesTheSwiftCaseListWhenGivenAPath(t *testing.T) {
+	t.Parallel()
+	spec := writeSpec(t, staleSpec)
+	swift := filepath.Join(t.TempDir(), "ErrorCodeCases.gen.swift")
+	var out bytes.Buffer
+	if code := gen([]string{"errors", spec, swift}, &out, &out); code != 0 {
+		t.Fatalf("exit code = %d, output = %q", code, out.String())
+	}
+	got, err := readSpec(t, swift)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"._internal,", ".idempotencyInFlight,", ".xNotLinked:\n"} {
+		if !strings.Contains(string(got), want) {
+			t.Errorf("swift list lacks %q:\n%s", want, got)
+		}
+	}
+	for _, line := range strings.Split(string(got), "\n") {
+		if len(line) > 120 {
+			t.Errorf("line over 120 columns: %q", line)
+		}
+	}
+}
+
+func TestGenErrors_unwritableSwiftPathExits1(t *testing.T) {
+	t.Parallel()
+	spec := writeSpec(t, staleSpec)
+	dir := t.TempDir()
+	var stderr bytes.Buffer
+	missing := filepath.Join(dir, "gone", "ErrorCodeCases.gen.swift")
+	if code := gen([]string{"errors", spec, missing}, &stderr, &stderr); code != 1 ||
+		!strings.Contains(stderr.String(), "monacoctl.writeSwiftCases: invalid_input") {
+		t.Fatalf("missing dir: gen = %d %q", code, stderr.String())
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root writes through file modes")
+	}
+	readOnly := filepath.Join(dir, "ErrorCodeCases.gen.swift")
+	if err := os.WriteFile(readOnly, nil, 0o400); err != nil {
+		t.Fatal(err)
+	}
+	stderr.Reset()
+	if code := gen([]string{"errors", spec, readOnly}, &stderr, &stderr); code != 1 ||
+		!strings.Contains(stderr.String(), "monacoctl.writeSwiftCases: internal") {
+		t.Fatalf("read-only file: gen = %d %q", code, stderr.String())
+	}
+}
+
+func TestCommittedSwiftCaseListMatchesErrs(t *testing.T) {
+	t.Parallel()
+	got, err := os.ReadFile("../../../../packages/mobile-core/Tests/MonacoAPITests/ErrorCodeCases.gen.swift")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != renderSwiftCases(errs.All()) {
+		t.Fatal("ErrorCodeCases.gen.swift differs from errs.All(); run go generate ./cmd/monacoctl")
+	}
+}
+
 func TestGen_otherArgsPrintUsage(t *testing.T) {
 	t.Parallel()
-	for _, args := range [][]string{nil, {"errors"}, {"events", "x"}, {"errors", "a", "b"}} {
+	const wantUsage = "usage: monacoctl gen errors <openapi.yaml> [<ErrorCodeCases.gen.swift>]\n"
+	for _, args := range [][]string{nil, {"errors"}, {"events", "x"}, {"errors", "a", "b", "c"}} {
 		var stdout, stderr bytes.Buffer
 		if code := gen(args, &stdout, &stderr); code != 2 ||
-			!strings.HasPrefix(stderr.String(), "usage: monacoctl gen errors <openapi.yaml>\n") ||
+			!strings.HasPrefix(stderr.String(), wantUsage) ||
 			!strings.Contains(stderr.String(), "\n       monacoctl gen module <name>\n") {
 			t.Fatalf("gen %v = %d %q, want 2 and usage", args, code, stderr.String())
 		}
