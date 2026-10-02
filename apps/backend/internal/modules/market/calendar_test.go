@@ -196,6 +196,10 @@ func TestSession_Holiday(t *testing.T) {
 			state: domain.StateClosed, next: domain.StatePreMarket, nextAt: "2027-12-27 04:00",
 			lastClose: "2027-12-23 16:00", tradingDay: "2027-12-24", holiday: "Christmas Day (observed)",
 		}},
+		{at: "2028-07-04 12:00", want: wallExpectation{
+			state: domain.StateClosed, next: domain.StatePreMarket, nextAt: "2028-07-05 04:00",
+			lastClose: "2028-07-03 13:00", tradingDay: "2028-07-04", holiday: "Independence Day",
+		}},
 	})
 }
 
@@ -225,6 +229,10 @@ func TestSession_EarlyClose(t *testing.T) {
 		{at: "2026-12-24 13:00", want: wallExpectation{
 			state: domain.StateAfterHours, next: domain.StateClosed, nextAt: "2026-12-24 17:00",
 			lastClose: "2026-12-24 13:00", tradingDay: "2026-12-24", early: true,
+		}},
+		{at: "2028-11-24 12:00", want: wallExpectation{
+			state: domain.StateOpen, next: domain.StateAfterHours, nextAt: "2028-11-24 13:00",
+			lastClose: "2028-11-22 16:00", tradingDay: "2028-11-24", early: true,
 		}},
 	})
 }
@@ -387,7 +395,7 @@ func TestSession_PreIPOAlwaysOpen(t *testing.T) {
 
 func TestSession_BeyondTable(t *testing.T) {
 	t.Parallel()
-	requireExpired(t, "2028-01-01 00:00", "2028-01-03 10:00", "2030-06-03 10:00", "2027-12-31 20:00")
+	requireExpired(t, "2028-12-29 20:00", "2028-12-31 20:00", "2029-01-02 10:00", "2030-06-03 10:00")
 	if errs.KindOf(errs.CodeCalendarExpired) != errs.KindInternal || !errs.Alert(errs.CodeCalendarExpired) {
 		t.Fatal("calendar_expired must be an internal error that alerts, so a missed yearly update pages")
 	}
@@ -414,13 +422,13 @@ func requireExpired(t *testing.T, walls ...string) {
 func TestSession_LastDayOfTheTableStillAnswers(t *testing.T) {
 	t.Parallel()
 	runWallCases(t, []wallCase{
-		{at: "2027-12-31 12:00", want: wallExpectation{
-			state: domain.StateOpen, next: domain.StateAfterHours, nextAt: "2027-12-31 16:00",
-			lastClose: "2027-12-30 16:00", tradingDay: "2027-12-31",
+		{at: "2028-12-29 12:00", want: wallExpectation{
+			state: domain.StateOpen, next: domain.StateAfterHours, nextAt: "2028-12-29 16:00",
+			lastClose: "2028-12-28 16:00", tradingDay: "2028-12-29",
 		}},
-		{at: "2027-12-31 19:59", want: wallExpectation{
-			state: domain.StateAfterHours, next: domain.StateClosed, nextAt: "2027-12-31 20:00",
-			lastClose: "2027-12-31 16:00", tradingDay: "2027-12-31",
+		{at: "2028-12-29 19:59", want: wallExpectation{
+			state: domain.StateAfterHours, next: domain.StateClosed, nextAt: "2028-12-29 20:00",
+			lastClose: "2028-12-29 16:00", tradingDay: "2028-12-29",
 		}},
 	})
 }
@@ -512,12 +520,14 @@ func TestHolidayTable_MatchesTheNYSERules(t *testing.T) {
 	t.Parallel()
 	ny := newYork(t)
 	want := map[string]string{}
-	for _, year := range []int{2026, 2027} {
+	for _, year := range []int{2026, 2027, 2028} {
 		maps.Copy(want, nyseRuleDays(year))
 	}
 	delete(want, "2026-01-01")
+	delete(want, "2028-01-01")
 	checked := 0
-	for day := time.Date(2026, time.January, 3, 0, 0, 0, 0, time.UTC); day.Year() < 2028; day = day.AddDate(0, 0, 1) {
+	end := time.Date(2028, time.December, 30, 0, 0, 0, 0, time.UTC)
+	for day := time.Date(2026, time.January, 3, 0, 0, 0, 0, time.UTC); day.Before(end); day = day.AddDate(0, 0, 1) {
 		info := equitySession(t, time.Date(day.Year(), day.Month(), day.Day(), 12, 0, 0, 0, ny))
 		got := ""
 		if info.Holiday != "" {
@@ -531,8 +541,8 @@ func TestHolidayTable_MatchesTheNYSERules(t *testing.T) {
 		}
 		checked++
 	}
-	if checked != 728 || len(want) != 22 {
-		t.Fatalf("checked %d days against %d rule days, want 728 and 22", checked, len(want))
+	if checked != 1092 || len(want) != 33 {
+		t.Fatalf("checked %d days against %d rule days, want 1092 and 33", checked, len(want))
 	}
 }
 
@@ -544,7 +554,7 @@ type boundary struct {
 func boundaryChain(t *testing.T, ny *time.Location) []boundary {
 	t.Helper()
 	var chain []boundary
-	lastDay := time.Date(2027, time.December, 31, 0, 0, 0, 0, time.UTC)
+	lastDay := time.Date(2028, time.December, 29, 0, 0, 0, 0, time.UTC)
 	for day := time.Date(2026, time.January, 5, 0, 0, 0, 0, time.UTC); day.Before(lastDay); day = day.AddDate(0, 0, 1) {
 		at := func(hour, minute int) time.Time {
 			return time.Date(day.Year(), day.Month(), day.Day(), hour, minute, 0, 0, ny)
@@ -591,8 +601,8 @@ func TestSession_FollowsTheNewYorkClockAcrossTheTable(t *testing.T) {
 	t.Parallel()
 	ny := newYork(t)
 	chain := boundaryChain(t, ny)
-	if len(chain) != 2000 {
-		t.Fatalf("chain has %d boundaries, want 2000: 500 trading days with four boundaries each", len(chain))
+	if len(chain) != 3004 {
+		t.Fatalf("chain has %d boundaries, want 3004: 751 trading days with four boundaries each", len(chain))
 	}
 	previous := boundary{state: domain.StateClosed}
 	lastClose := time.Date(2026, time.January, 2, 16, 0, 0, 0, ny)

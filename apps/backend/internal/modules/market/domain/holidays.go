@@ -55,5 +55,18 @@ func nyseHolidays() map[int][]exception {
 			earlyClose(time.November, 26, "Day after Thanksgiving"),
 			fullClosure(time.December, 24, "Christmas Day (observed)"),
 		},
+		2028: {
+			fullClosure(time.January, 17, "Martin Luther King, Jr. Day"),
+			fullClosure(time.February, 21, "Washington's Birthday"),
+			fullClosure(time.April, 14, "Good Friday"),
+			fullClosure(time.May, 29, "Memorial Day"),
+			fullClosure(time.June, 19, "Juneteenth National Independence Day"),
+			earlyClose(time.July, 3, "Day before Independence Day"),
+			fullClosure(time.July, 4, "Independence Day"),
+			fullClosure(time.September, 4, "Labor Day"),
+			fullClosure(time.November, 23, "Thanksgiving Day"),
+			earlyClose(time.November, 24, "Day after Thanksgiving"),
+			fullClosure(time.December, 25, "Christmas Day"),
+		},
 	}
 }
