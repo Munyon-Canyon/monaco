@@ -94,6 +94,7 @@ type Routes struct {
 	NotifyRoutes
 	SystemRoutes
 	CabalRoutes
+	MarketRoutes
 }
 
 type IdentityRoutes interface {
@@ -117,6 +118,10 @@ type SystemRoutes interface {
 type CabalRoutes interface {
 	PostCabal(context.Context, api.PostCabalRequestObject) (api.PostCabalResponseObject, error)
 	GetCabal(context.Context, api.GetCabalRequestObject) (api.GetCabalResponseObject, error)
+}
+
+type MarketRoutes interface {
+	GetAssets(context.Context, api.GetAssetsRequestObject) (api.GetAssetsResponseObject, error)
 }
 
 var _ api.StrictServerInterface = Routes{}

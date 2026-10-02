@@ -6,6 +6,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/jupiterprices"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/jupiterquote"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/mintfacts"
@@ -88,7 +89,9 @@ func (m *Module) RouteChecker() *app.RouteChecker {
 	return app.NewRouteChecker(m.Catalog(), quoter, m.deps.Clock)
 }
 
-func (*Module) Routes(*httpx.Routes) {}
+func (m *Module) Routes(r *httpx.Routes) {
+	r.MarketRoutes = adapters.HTTP{}
+}
 
 func (*Module) Consumers() []bus.Consumer { return nil }
 

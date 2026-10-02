@@ -27,6 +27,8 @@ tags:
     description: A group treasury and its members.
   - name: system
     description: The reference flow that exercises every backend layer end to end.
+  - name: market
+    description: The asset catalog, prices and charts.
 paths:
   /healthz:
     get:
@@ -326,6 +328,60 @@ paths:
                 $ref: "#/components/schemas/Ping"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/assets:
+    get:
+      operationId: getAssets
+      tags: [market]
+      summary: List tradable assets.
+      description: >-
+        Returns the tradable catalog, one page at a time. `q` matches the start of a symbol or any
+        part of a display name, ignoring case. `popular` orders by the curated rank. `pre_ipo`
+        keeps only pre-IPO tokens. A price the hold rule has not accepted is null, never zero.
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Case-insensitive symbol prefix or display-name search. Absent lists the filter.
+          schema:
+            type: string
+            maxLength: 80
+            examples: [apple]
+        - name: filter
+          in: query
+          required: false
+          description: Which tradable assets to return, and how to order them.
+          schema:
+            type: string
+            enum: [all, popular, pre_ipo]
+            default: all
+            examples: [popular]
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 20 and cannot exceed 50.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+            examples: [20]
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` from the previous page. Absent reads the first page.
+          schema:
+            type: string
+            maxLength: 512
+            examples: ["eyJzIjoiQUFQTHgiLCJpZCI6IjAxOTIwMDAwLTAwMDAtNzAwMC04MDAwLTAwMDAwMDAwMDAwMSJ9"]
+      responses:
+        "200":
+          description: One page of tradable assets.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetList"
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   parameters:
     IdempotencyKey:
@@ -594,6 +650,176 @@ components:
           description: Free text, at most 140 characters.
           maxLength: 140
           examples: [hi]
+    AssetIssuer:
+      type: string
+      description: The firm that issues the tokenized stock.
+      examples: [xstocks]
+      enum: [xstocks, tessera, prestocks]
+    AssetKind:
+      type: string
+      description: Whether the token tracks a listed equity or a pre-IPO company.
+      examples: [equity]
+      enum: [equity, pre_ipo]
+    MarketState:
+      type: string
+      description: Where the underlying US session is.
+      examples: [open]
+      enum: [pre_market, open, after_hours, closed]
+    MarketSession:
+      type: object
+      description: The session the asset is in, computed on the server.
+      examples:
+        - state: open
+          continuous: false
+          holiday: ""
+          early_close: false
+          next_state: after_hours
+          next_transition: "2026-03-04T21:00:00Z"
+      additionalProperties: false
+      required: [state, continuous, holiday, early_close, next_state, next_transition]
+      properties:
+        state:
+          $ref: "#/components/schemas/MarketState"
+          description: The session state at the time of the response.
+          examples: [open]
+        continuous:
+          type: boolean
+          description: True for a pre-IPO token, which trades without a US session.
+          examples: [false]
+        holiday:
+          type: string
+          description: The US market holiday name. Empty when the day is not a holiday.
+          examples: [""]
+        early_close:
+          type: boolean
+          description: True when the regular session closes early today.
+          examples: [false]
+        next_state:
+          description: The next session state. Null when the asset trades continuously.
+          examples: [after_hours]
+          type: [string, "null"]
+          enum: [pre_market, open, after_hours, closed, null]
+        next_transition:
+          type: [string, "null"]
+          format: date-time
+          description: When `next_state` begins. Null when the asset trades continuously.
+          examples: ["2026-03-04T21:00:00Z"]
+    AssetSummary:
+      type: object
+      description: One tradable asset as the list draws it, with the price already chosen.
+      examples:
+        - symbol: AAPLx
+          display_name: Apple xStock
+          issuer: xstocks
+          kind: equity
+          logo_url: "https://cdn.example.com/AAPLx.png"
+          price_micros: 110000000
+          price_as_of: "2026-03-04T14:30:00Z"
+          change_bps: 1000
+          sparkline_micros: [100000000, 110000000]
+          session:
+            state: open
+            continuous: false
+            holiday: ""
+            early_close: false
+            next_state: after_hours
+            next_transition: "2026-03-04T21:00:00Z"
+      additionalProperties: false
+      required:
+        - symbol
+        - display_name
+        - issuer
+        - kind
+        - logo_url
+        - price_micros
+        - price_as_of
+        - change_bps
+        - sparkline_micros
+        - session
+      properties:
+        symbol:
+          type: string
+          description: The ticker the app shows and the path key for the asset.
+          examples: [AAPLx]
+        display_name:
+          type: string
+          description: The company name the app shows.
+          examples: [Apple xStock]
+        issuer:
+          $ref: "#/components/schemas/AssetIssuer"
+          description: The firm that issues the token.
+          examples: [xstocks]
+        kind:
+          $ref: "#/components/schemas/AssetKind"
+          description: Equity or pre-IPO.
+          examples: [equity]
+        logo_url:
+          type: [string, "null"]
+          description: The logo URL. Null when the catalog has none.
+          examples: ["https://cdn.example.com/AAPLx.png"]
+        price_micros:
+          type: [integer, "null"]
+          format: int64
+          description: The held USD price in micros. Null when the asset is unpriced.
+          examples: [110000000]
+        price_as_of:
+          type: [string, "null"]
+          format: date-time
+          description: When `price_micros` was sampled. Null when the asset is unpriced.
+          examples: ["2026-03-04T14:30:00Z"]
+        change_bps:
+          type: [integer, "null"]
+          format: int32
+          description: >-
+            The move in basis points against the last US close for an equity, or against the first
+            sample of the UTC day for a pre-IPO token. Null when that reference does not exist.
+          examples: [1000]
+        sparkline_micros:
+          type: [array, "null"]
+          description: The last day of closes in 30-minute buckets, at most 48. Null when unpriced.
+          maxItems: 48
+          items:
+            type: integer
+            format: int64
+            examples: [110000000]
+          examples: [[100000000, 110000000]]
+        session:
+          $ref: "#/components/schemas/MarketSession"
+          description: The session this asset is in.
+    AssetList:
+      type: object
+      description: One page of the tradable catalog.
+      examples:
+        - assets:
+            - symbol: AAPLx
+              display_name: Apple xStock
+              issuer: xstocks
+              kind: equity
+              logo_url: "https://cdn.example.com/AAPLx.png"
+              price_micros: 110000000
+              price_as_of: "2026-03-04T14:30:00Z"
+              change_bps: 1000
+              sparkline_micros: [100000000, 110000000]
+              session:
+                state: open
+                continuous: false
+                holiday: ""
+                early_close: false
+                next_state: after_hours
+                next_transition: "2026-03-04T21:00:00Z"
+          next_cursor: null
+      additionalProperties: false
+      required: [assets, next_cursor]
+      properties:
+        assets:
+          type: array
+          description: The page, in the filter's order.
+          items:
+            $ref: "#/components/schemas/AssetSummary"
+        next_cursor:
+          type: [string, "null"]
+          description: The cursor for the next page. Null on the last page.
+          examples: [null]
     Ping:
       type: object
       description: A recorded ping.
