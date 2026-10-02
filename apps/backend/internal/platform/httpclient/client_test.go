@@ -9,7 +9,9 @@ import (
 	"log/slog"
 	"maps"
 	"math"
+	"net"
 	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
 	"sync"
@@ -718,4 +720,165 @@ func TestDo_aDelayAtTheCeilingStaysThereWithoutOverflowingOnTheNextRetry(t *test
 		}
 		equalGaps(t, u.gaps(), 0, ceiling)
 	})
+}
+
+type headerWaitTimeoutError struct{}
+
+func (headerWaitTimeoutError) Error() string { return "net/http: timeout awaiting response headers" }
+
+func (headerWaitTimeoutError) Timeout() bool { return true }
+
+func TestDo_aResponseHeaderTimeoutIsAnUpstreamTimeout(t *testing.T) {
+	t.Parallel()
+	u := &upstream{replies: []reply{func(*http.Request) (*http.Response, error) {
+		return nil, headerWaitTimeoutError{}
+	}}}
+
+	err := mustFail(t.Context(), t, client(u), get(t, "/v1/users"))
+
+	wantFailure(t, err, errs.CodeUpstreamTimeout, 0, 1)
+	var netErr net.Error
+	if !errors.As(err, &netErr) || !netErr.Timeout() {
+		t.Fatalf("err = %v, want the transport's response-header timeout", err)
+	}
+}
+
+func TestNew_givesEachClientItsOwnTransport(t *testing.T) {
+	t.Parallel()
+	a := httpclient.New("a", httpclient.WithTimeout(time.Minute))
+	b := httpclient.New("b", httpclient.WithTimeout(2*time.Minute))
+	t.Cleanup(a.CloseIdleConnections)
+	t.Cleanup(b.CloseIdleConnections)
+
+	assertOwnTransport(t, httpclient.RoundTripper(a), time.Minute)
+	assertOwnTransport(t, httpclient.RoundTripper(b), 2*time.Minute)
+	if httpclient.RoundTripper(a) == httpclient.RoundTripper(b) {
+		t.Fatal("two clients share a transport")
+	}
+}
+
+func assertOwnTransport(t *testing.T, rt http.RoundTripper, want time.Duration) {
+	t.Helper()
+	if rt == nil || rt == http.DefaultTransport {
+		t.Fatalf("transport = %p, want a clone of DefaultTransport", rt)
+	}
+	tr, ok := rt.(*http.Transport)
+	if !ok {
+		t.Fatalf("transport = %T, want *http.Transport", rt)
+	}
+	if tr.ResponseHeaderTimeout != want {
+		t.Fatalf("ResponseHeaderTimeout = %v, want %v", tr.ResponseHeaderTimeout, want)
+	}
+}
+
+type heldConn struct {
+	url     string
+	entered <-chan struct{}
+	release func()
+}
+
+func newHeldConn(t *testing.T) heldConn {
+	t.Helper()
+	releaseCh := make(chan struct{})
+	entered := make(chan struct{}, 1)
+	var once sync.Once
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		holdOrWarm(w, r, entered, releaseCh)
+	}))
+	t.Cleanup(srv.Close)
+	return heldConn{
+		url:     srv.URL,
+		entered: entered,
+		release: func() { once.Do(func() { close(releaseCh) }) },
+	}
+}
+
+func holdOrWarm(w http.ResponseWriter, r *http.Request, entered chan<- struct{}, release <-chan struct{}) {
+	if r.URL.Path == "/warm" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	select {
+	case <-r.Context().Done():
+		return
+	case entered <- struct{}{}:
+	}
+	select {
+	case <-r.Context().Done():
+		return
+	case <-release:
+	}
+	w.WriteHeader(http.StatusOK)
+	_, _ = io.WriteString(w, "done")
+}
+
+func quietServer(t *testing.T) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
+func readHeldBody(ctx context.Context, c *httpclient.Client, req *http.Request) error {
+	resp, err := c.Do(ctx, req)
+	if err != nil {
+		return err
+	}
+	body, err := io.ReadAll(resp.Body)
+	if closeErr := resp.Body.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return err
+	}
+	if string(body) != "done" {
+		return errs.New(errs.CodeInternal, "test.hold", slog.String("body", string(body)))
+	}
+	return nil
+}
+
+func waitHeld(t *testing.T, entered <-chan struct{}, done <-chan error) {
+	t.Helper()
+	select {
+	case <-entered:
+	case err := <-done:
+		t.Fatalf("in-flight request ended before the handler held it: %v", err)
+	}
+}
+
+func waitFinished(t *testing.T, done <-chan error) {
+	t.Helper()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCloseIdleConnections_leavesTheOtherClientsInFlightRequest(t *testing.T) {
+	t.Parallel()
+	hold := newHeldConn(t)
+	other := quietServer(t)
+	clientA := httpclient.New("hold", httpclient.WithBaseURL(hold.url), httpclient.WithTimeout(time.Minute))
+	clientB := httpclient.New("other", httpclient.WithBaseURL(other), httpclient.WithTimeout(time.Minute))
+	t.Cleanup(clientA.CloseIdleConnections)
+	t.Cleanup(clientB.CloseIdleConnections)
+
+	mustOK(t.Context(), t, clientA, get(t, "/warm"))
+	mustOK(t.Context(), t, clientB, get(t, "/idle"))
+
+	done := make(chan error, 1)
+	finished := make(chan struct{})
+	req := get(t, "/hold")
+	go func() {
+		defer close(finished)
+		done <- readHeldBody(t.Context(), clientA, req)
+	}()
+	t.Cleanup(func() { <-finished })
+	t.Cleanup(hold.release)
+
+	waitHeld(t, hold.entered, done)
+	clientB.CloseIdleConnections()
+	hold.release()
+	waitFinished(t, done)
 }
