@@ -59,9 +59,9 @@ func readWorkflow(t *testing.T, path string) workflow {
 
 func requiredJobs(t *testing.T, root string) []string {
 	t.Helper()
-	out, err := exec.Command("bash", filepath.Join(root, "scripts", "feature-branch.sh"), "ruleset", "example-1").Output()
+	out, err := exec.Command("bash", filepath.Join(root, "scripts", "branch-rulesets.sh"), "staging-ruleset").Output()
 	if err != nil {
-		t.Fatalf("feature-branch.sh ruleset: %v", err)
+		t.Fatalf("branch-rulesets.sh staging-ruleset: %v", err)
 	}
 	var jobs []string
 	for _, m := range regexp.MustCompile(`"context": "([^"]+)"`).FindAllStringSubmatch(string(out), -1) {

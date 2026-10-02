@@ -12,6 +12,10 @@ open PR's `Lands stack:` line lists it, applied to the list up to and including 
 A binary file fails the PR whatever its size or label, unless it
 sits under a `testdata/` directory or has a media or document extension (MEDIA_SUFFIXES).
 The rule stops committed build output, which has no such extension.
+A PR labelled `fast-track` fails at 100 or more counted lines or when it touches a FAST_TRACK_HEAVY
+path, and writes `fast_track_too_big=true` to GITHUB_OUTPUT so the workflow removes the label. The
+Graphite merge queue lets a fast-track PR jump the line, and a jump is safe when the PR cannot break
+what it passes: a small change outside the backend and CI, whose stage 2 runs nothing heavy.
 
 Reads BASE_SHA, HEAD_SHA, PR_LABELS (JSON list of label names), PR_BODY, PR_NUMBER and
 GITHUB_REPOSITORY from the environment. Without PR_NUMBER, as in `monacoctl agents check`,
@@ -30,6 +34,9 @@ import sys
 
 LIMIT = 1000
 OVERRIDE_LABEL = "large-pr"
+FAST_TRACK_LABEL = "fast-track"
+FAST_TRACK_LIMIT = 100
+FAST_TRACK_HEAVY = ("apps/backend/", ".github/", "docker-compose.yml")
 STACK_PREFIX = "Lands stack:"
 IGNORED = [
     "*.gen.go",
@@ -66,6 +73,26 @@ def renamed_path(path: str) -> str:
         inner, tail = rest.split("}", 1)
         return head + inner.split("=>")[1].strip() + tail
     return path.split("=>")[1].strip()
+
+
+def both_paths(path: str) -> list[str]:
+    if "=>" not in path:
+        return [path]
+    if "{" in path:
+        head, rest = path.split("{", 1)
+        inner, tail = rest.split("}", 1)
+        return [head + side.strip() + tail for side in inner.split("=>")]
+    return [side.strip() for side in path.split("=>")]
+
+
+def touched(numstat: str) -> list[str]:
+    """Every path the diff touches, ignored and binary files and both sides of a rename included."""
+    paths = []
+    for line in numstat.splitlines():
+        parts = line.split("\t", 2)
+        if len(parts) == 3:
+            paths.extend(both_paths(parts[2]))
+    return paths
 
 
 def ignored(path: str) -> bool:
@@ -202,6 +229,15 @@ def main() -> int:
     print(f"{total} changed lines counted (limit {LIMIT}). Largest files:")
     for lines, path in counted[:10]:
         print(f"  {lines:6d}  {path}")
+    heavy = [path for path in touched(diff) if path.startswith(FAST_TRACK_HEAVY)]
+    if FAST_TRACK_LABEL in labels and (total >= FAST_TRACK_LIMIT or heavy):
+        why = f"it touches {', '.join(heavy[:3])}" if heavy else f"it has {total} lines"
+        print(f"The `{FAST_TRACK_LABEL}` label is for PRs under {FAST_TRACK_LIMIT} lines outside "
+              f"{', '.join(FAST_TRACK_HEAVY)}; {why}. The label comes off; the PR waits its turn in the merge queue.")
+        if out := os.environ.get("GITHUB_OUTPUT"):
+            with open(out, "a") as f:
+                f.write("fast_track_too_big=true\n")
+        return 1
     if total < LIMIT:
         return 0
     if OVERRIDE_LABEL in labels:
