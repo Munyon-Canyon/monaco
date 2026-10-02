@@ -88,6 +88,16 @@ func TestDocsEventsPrintsTheRegistryCatalog(t *testing.T) {
 		"| `cabal_id` | `uuid.UUID` |\n" +
 		"| `actor_id` | `uuid.UUID` |\n" +
 		"| `changes` | `events.CabalChanges` |\n\n" +
+		"## `follow.created`\n\nSubject `events.follow.created`, version 1.\n\n" +
+		"| Field | Go type |\n| --- | --- |\n" +
+		"| `v` | `int` |\n| `follow_id` | `uuid.UUID` |\n" +
+		"| `follower_id` | `uuid.UUID` |\n| `followee_id` | `uuid.UUID` |\n" +
+		"| `source` | `string` |\n| `created_at` | `time.Time` |\n\n" +
+		"## `follow.removed`\n\nSubject `events.follow.removed`, version 1.\n\n" +
+		"| Field | Go type |\n| --- | --- |\n" +
+		"| `v` | `int` |\n| `follow_id` | `uuid.UUID` |\n" +
+		"| `follower_id` | `uuid.UUID` |\n| `followee_id` | `uuid.UUID` |\n" +
+		"| `removed_at` | `time.Time` |\n\n" +
 		"## `price.tick`\n\n" +
 		"Core NATS subject `price.tick`, version 1, never stored.\n\n" +
 		"| Field | Go type |\n| --- | --- |\n" +
