@@ -11,8 +11,8 @@ import (
 )
 
 func events() []domain.Event {
-	evs := make([]domain.Event, 0, 2+len(domain.FailureCodes()))
-	evs = append(evs, domain.Submit(), domain.Confirm())
+	evs := make([]domain.Event, 0, 3+len(domain.FailureCodes()))
+	evs = append(evs, domain.Submit(), domain.Confirm(), domain.Fail("gremlins"))
 	for _, code := range domain.FailureCodes() {
 		evs = append(evs, domain.Fail(code))
 	}
