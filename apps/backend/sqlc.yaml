@@ -9,6 +9,7 @@ sql:
         out: internal/platform/db/sqlc
         sql_package: pgx/v5
         emit_interface: false
+        omit_unused_structs: true
         overrides:
           - db_type: uuid
             go_type: github.com/google/uuid.UUID
@@ -24,6 +25,7 @@ sql:
         out: internal/modules/analytics/sqlc
         sql_package: pgx/v5
         emit_interface: false
+        omit_unused_structs: true
         output_db_file_name: db.gen.go
         output_models_file_name: models.gen.go
         output_files_suffix: .gen
@@ -41,6 +43,7 @@ sql:
         out: internal/modules/cabal/sqlc
         sql_package: pgx/v5
         emit_interface: false
+        omit_unused_structs: true
         output_db_file_name: db.gen.go
         output_models_file_name: models.gen.go
         output_files_suffix: .gen
@@ -58,6 +61,7 @@ sql:
         out: internal/modules/governance/sqlc
         sql_package: pgx/v5
         emit_interface: false
+        omit_unused_structs: true
         output_db_file_name: db.gen.go
         output_models_file_name: models.gen.go
         output_files_suffix: .gen
@@ -75,6 +79,7 @@ sql:
         out: internal/modules/identity/sqlc
         sql_package: pgx/v5
         emit_interface: false
+        omit_unused_structs: true
         output_db_file_name: db.gen.go
         output_models_file_name: models.gen.go
         output_files_suffix: .gen
@@ -92,6 +97,7 @@ sql:
         out: internal/modules/market/sqlc
         sql_package: pgx/v5
         emit_interface: false
+        omit_unused_structs: true
         output_db_file_name: db.gen.go
         output_models_file_name: models.gen.go
         output_files_suffix: .gen
@@ -109,6 +115,7 @@ sql:
         out: internal/modules/notify/sqlc
         sql_package: pgx/v5
         emit_interface: false
+        omit_unused_structs: true
         output_db_file_name: db.gen.go
         output_models_file_name: models.gen.go
         output_files_suffix: .gen
@@ -143,6 +150,7 @@ sql:
         out: internal/modules/system/sqlc
         sql_package: pgx/v5
         emit_interface: false
+        omit_unused_structs: true
         output_db_file_name: db.gen.go
         output_models_file_name: models.gen.go
         output_files_suffix: .gen
@@ -160,6 +168,7 @@ sql:
         out: internal/modules/trading/sqlc
         sql_package: pgx/v5
         emit_interface: false
+        omit_unused_structs: true
         output_db_file_name: db.gen.go
         output_models_file_name: models.gen.go
         output_files_suffix: .gen
@@ -177,6 +186,7 @@ sql:
         out: internal/modules/treasury/sqlc
         sql_package: pgx/v5
         emit_interface: false
+        omit_unused_structs: true
         output_db_file_name: db.gen.go
         output_models_file_name: models.gen.go
         output_files_suffix: .gen
