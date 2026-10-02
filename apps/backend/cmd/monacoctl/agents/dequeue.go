@@ -89,18 +89,12 @@ func (env *Env) graphiteHolds(ctx context.Context, nums []int) (bool, error) {
 		if slices.ContainsFunc(prs, func(p stackPR) bool { return p.labeled(env.Config.QueueLabel) }) {
 			return true, nil
 		}
-		var data struct {
-			Repository struct {
-				Drafts struct {
-					Nodes []queueDraft `json:"nodes"`
-				} `json:"drafts"`
-			} `json:"repository"`
-		}
-		if err := env.graphQL(ctx, openDrafts, &data); err != nil {
+		drafts, err := env.openQueueDrafts(ctx)
+		if err != nil {
 			return false, err
 		}
-		for _, d := range data.Repository.Drafts.Nodes {
-			if d.State == "OPEN" && slices.ContainsFunc(nums, d.tests) {
+		for _, d := range drafts {
+			if slices.ContainsFunc(nums, d.tests) {
 				return true, nil
 			}
 		}
@@ -110,4 +104,24 @@ func (env *Env) graphiteHolds(ctx context.Context, nums []int) (bool, error) {
 
 func dequeueErr(code errs.Code, detail string) error {
 	return detailErr(code, "monacoctl.agents.dequeue", detail)
+}
+
+func (env *Env) openQueueDrafts(ctx context.Context) ([]queueDraft, error) {
+	var data struct {
+		Repository struct {
+			Drafts struct {
+				Nodes []queueDraft `json:"nodes"`
+			} `json:"drafts"`
+		} `json:"repository"`
+	}
+	if err := env.graphQL(ctx, openDrafts, &data); err != nil {
+		return nil, err
+	}
+	var open []queueDraft
+	for _, d := range data.Repository.Drafts.Nodes {
+		if d.State == "OPEN" {
+			open = append(open, d)
+		}
+	}
+	return open, nil
 }

@@ -152,6 +152,21 @@ func TestWatchStream_ejectsAStackOnlyAfterTwoRoundsWithoutTheLabel(t *testing.T)
 	}
 }
 
+func TestWatchStream_aStackListedByAnOpenDraftIsNotEjectedWithoutTheLabel(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := queuedStack(t, f, "/w/40")
+	f.hub.on(get("/compare/fb...b2-oid"), `{"status":"diverged"}`)
+	s.prs[2].Labels.Nodes = nil
+	f.hub.on(graphqlRoute, draftData(
+		[]string{queueDraftNode(90, "[Graphite MQ] Draft PR GROUP:spec_1 (PRs 1, 2)", rollup(greenOK))},
+	))
+	got := streamRounds(t, f, 4, func(int) {})
+	if strings.Contains(got, "ejected") || f.owned(t).Queued == nil || !strings.Contains(got, "#2 queued\n") {
+		t.Fatalf("stream:\n%s", got)
+	}
+}
+
 func TestWatchStream_printsAFailureBlockOnce(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -237,6 +252,7 @@ func TestWatchStream_printsEachErrorAsALineAndKeepsGoing(t *testing.T) {
 	f := newFixture(t)
 	s := newStackGH(t, f, green(t, 5, "b5", "fb"))
 	s.prs[5].State = "CLOSED"
+	delete(f.hub.routes, graphqlRoute)
 	f.owner(t, Record{Ticket: 1, State: Running, Worktree: filepath.Join(f.dir, "gone")})
 	f.record(t, Record{Ticket: 2, State: Running, Worktree: f.dir})
 	f.record(t, Record{Ticket: 40, State: Exited, Queued: &Queue{Top: 9, PRs: []int{9}}})
@@ -276,14 +292,25 @@ func TestWatchStream_printsEachErrorAsALineAndKeepsGoing(t *testing.T) {
 
 func TestWatchStream_reportsAFailedSettleOrUnmark(t *testing.T) {
 	t.Parallel()
-	t.Run("settle", func(t *testing.T) {
+	t.Run("a failing gt sync still lands", func(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t)
 		s := queuedStack(t, f, t.TempDir())
 		s.prs[1].State, s.prs[2].State = "MERGED", "MERGED"
 		s.fail = "gt sync"
 		got := streamRounds(t, f, 1, func(int) {})
-		if !strings.Contains(got, "watch error: settle #2: gt sync: boom\n") || f.owned(t).Queued == nil {
+		if !strings.Contains(got, "stack #2 landed (#1 #2)\n") || f.owned(t).Queued != nil {
+			t.Fatalf("stream:\n%s", got)
+		}
+	})
+	t.Run("a landed stack whose record cannot be written", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		s := queuedStack(t, f, "/w/40")
+		s.prs[1].State, s.prs[2].State = "MERGED", "MERGED"
+		freeze(t, f.Env(t).recordPath(40))
+		got := streamRounds(t, f, 1, func(int) {})
+		if !strings.Contains(got, "watch error: settle #2: ") {
 			t.Fatalf("stream:\n%s", got)
 		}
 	})
