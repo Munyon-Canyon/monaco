@@ -11,21 +11,15 @@ import (
 )
 
 const (
-	session             = "/v1/auth/session"
-	me                  = "/v1/me"
-	privyQA1            = "did:privy:qa-1"
-	privyNoLogin        = "did:privy:qa-none"
-	privyDeleted        = "did:privy:qa-deleted"
-	privyOutage         = "did:privy:qa-outage"
-	privyCrash          = "did:privy:qa-crash"
-	privyProfileOK      = "did:privy:qa-profile-ok"
-	privyProfileInvalid = "did:privy:qa-profile-invalid"
-	privyPhotoOK        = "did:privy:qa-photo-ok"
-	privyPhotoInvalid   = "did:privy:qa-photo-invalid"
-	privyPhotoStorage   = "did:privy:qa-photo-storage"
-	privyPhotoRate      = "did:privy:qa-photo-rate"
-	privyUserPath       = "/privy/v1/users/"
-	privyAttempts       = 3
+	session       = "/v1/auth/session"
+	me            = "/v1/me"
+	privyQA1      = "did:privy:qa-1"
+	privyNoLogin  = "did:privy:qa-none"
+	privyDeleted  = "did:privy:qa-deleted"
+	privyOutage   = "did:privy:qa-outage"
+	privyCrash    = "did:privy:qa-crash"
+	privyUserPath = "/privy/v1/users/"
+	privyAttempts = 3
 )
 
 func F01OpenSessionOK(s *scenario.Scenario) {

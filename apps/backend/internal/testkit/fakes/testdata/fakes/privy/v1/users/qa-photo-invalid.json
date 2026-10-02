@@ -1,9 +1,0 @@
-{
-  "status": 200,
-  "headers": {"Content-Type": "application/json"},
-  "body": {
-    "id": "did:privy:qa-photo-invalid",
-    "created_at": 1790001000,
-    "linked_accounts": [{"type": "phone", "number": "+14155550114", "phoneNumber": "+14155550114", "verified_at": 1790001000}]
-  }
-}

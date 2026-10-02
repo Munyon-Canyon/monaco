@@ -48,6 +48,7 @@ type httpFixture struct {
 	verifier *auth.DevVerifier
 	privy    *privyfake.Users
 	wallets  *privyfake.Wallets
+	hints    *recordedHints
 	photos   *photoStore
 }
 
@@ -77,7 +78,7 @@ func newHTTPFixture(t *testing.T) httpFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fakeUsers, fakeWallets := &privyfake.Users{}, &privyfake.Wallets{}
+	fakeUsers, fakeWallets, hints := &privyfake.Users{}, &privyfake.Wallets{}, &recordedHints{}
 	photos := &photoStore{url: "https://img.example/photo.png"}
 	limit, err := ratelimit.Load(openapi.Spec)
 	if err != nil {
@@ -91,6 +92,7 @@ func newHTTPFixture(t *testing.T) httpFixture {
 	identity.New(
 		module.Deps{Pool: f.pool, UoW: db.New(f.pool, f.ids, clk), IDs: f.ids, Clock: clk},
 		identity.WithPrivy(fakeUsers, fakeWallets),
+		identity.WithHints(hints),
 		identity.WithPhotoStore(photos),
 	).Routes(&routes)
 	h, err := httpx.Handler(httpx.Deps{
@@ -108,7 +110,7 @@ func newHTTPFixture(t *testing.T) httpFixture {
 	}
 	return httpFixture{
 		portFixture: f, handler: testkit.HTTP(t, h), verifier: verifier, privy: fakeUsers, wallets: fakeWallets,
-		photos: photos,
+		photos: photos, hints: hints,
 	}
 }
 
@@ -249,7 +251,7 @@ func TestGetMe_overHTTPServesTheAccount(t *testing.T) {
 	}
 }
 
-func TestFlow23a_UploadProfilePhoto_OK(t *testing.T) {
+func TestUploadProfilePhoto_OK(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
@@ -260,13 +262,18 @@ func TestFlow23a_UploadProfilePhoto_OK(t *testing.T) {
 	if got := decodeMe(t, rec).PhotoUrl; got == nil || *got != "https://img.example/photo.png" {
 		t.Fatalf("photo_url = %v", got)
 	}
-	if got := profileEvents(t, f); len(got) != 1 || got[0].PhotoURL != "https://img.example/photo.png" ||
+	if got := profileEvents(t, f); len(got) != 1 {
+		t.Fatalf("profile events = %+v", got)
+	} else if got[0].UserID != u.ID.UUID() || got[0].PhotoURL != "https://img.example/photo.png" ||
 		!reflect.DeepEqual(got[0].Fields, []string{"photo"}) {
 		t.Fatalf("profile events = %+v", got)
 	}
+	if got := f.hints.sent(); !reflect.DeepEqual(got, []string{"user." + u.ID.String() + ".me_changed"}) {
+		t.Fatalf("hints = %v", got)
+	}
 }
 
-func TestFlow23a_UploadProfilePhoto_usesSniffedPNGMetadata(t *testing.T) {
+func TestUploadProfilePhoto_usesSniffedPNGMetadata(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
@@ -281,7 +288,7 @@ func TestFlow23a_UploadProfilePhoto_usesSniffedPNGMetadata(t *testing.T) {
 	}
 }
 
-func TestFlow23_UpdateProfile_OK(t *testing.T) {
+func TestUpdateProfile_OK(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
@@ -289,9 +296,18 @@ func TestFlow23_UpdateProfile_OK(t *testing.T) {
 	if rec.Code != http.StatusOK || decodeMe(t, rec).DisplayName != "Kai Q" {
 		t.Fatalf("update = %d %s", rec.Code, rec.Body)
 	}
+	if got := profileEvents(t, f); len(got) != 1 {
+		t.Fatalf("profile events = %+v", got)
+	} else if got[0].UserID != u.ID.UUID() || got[0].DisplayName != "Kai Q" ||
+		!reflect.DeepEqual(got[0].Fields, []string{"display_name"}) {
+		t.Fatalf("profile events = %+v", got)
+	}
+	if got := f.hints.sent(); !reflect.DeepEqual(got, []string{"user." + u.ID.String() + ".me_changed"}) {
+		t.Fatalf("hints = %v", got)
+	}
 }
 
-func TestFlow23_UpdateProfile_DisplayNameInvalid(t *testing.T) {
+func TestUpdateProfile_DisplayNameInvalid(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
@@ -299,9 +315,27 @@ func TestFlow23_UpdateProfile_DisplayNameInvalid(t *testing.T) {
 	if rec.Code != http.StatusBadRequest || decodeProblem(t, rec).Code != api.DisplayNameInvalid {
 		t.Fatalf("update = %d %s", rec.Code, rec.Body)
 	}
+	if got := profileEvents(t, f); len(got) != 0 {
+		t.Fatalf("profile events = %+v", got)
+	}
 }
 
-func TestFlow23a_UploadProfilePhoto_PhotoInvalid(t *testing.T) {
+func TestUpdateProfile_unchangedIsANoop(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	u := f.seed(t, portSeed{handle: "kai", name: "Kai Q", wallet: true})
+	if rec := f.updateProfile(t, u.ID, `{"display_name":"Kai Q"}`); rec.Code != http.StatusOK {
+		t.Fatalf("update = %d %s", rec.Code, rec.Body)
+	}
+	if got := profileEvents(t, f); len(got) != 0 {
+		t.Fatalf("profile events = %+v", got)
+	}
+	if got := f.hints.sent(); len(got) != 0 {
+		t.Fatalf("hints = %v", got)
+	}
+}
+
+func TestUploadProfilePhoto_PhotoInvalid(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
@@ -333,7 +367,7 @@ func TestProfileAdapters_rejectMissingActorAndBody(t *testing.T) {
 	}
 }
 
-func TestFlow23a_UploadProfilePhoto_acceptsEverySupportedFormat(t *testing.T) {
+func TestUploadProfilePhoto_acceptsEverySupportedFormat(t *testing.T) {
 	t.Parallel()
 	for name, body := range map[string][]byte{
 		"jpeg": {0xff, 0xd8, 0xff, 0xe0, 0, 16, 'J', 'F', 'I', 'F', 0, 1},
@@ -352,7 +386,7 @@ func TestFlow23a_UploadProfilePhoto_acceptsEverySupportedFormat(t *testing.T) {
 	}
 }
 
-func TestFlow23a_UploadProfilePhoto_StorageUnavailable(t *testing.T) {
+func TestUploadProfilePhoto_StorageUnavailable(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	f.photos.err = errs.New(errs.CodeUpstreamUnavailable, "test.photoStore")
@@ -401,6 +435,11 @@ func TestUploadProfilePhotoHandler_rejectsInvalidInputAndStorageFailure(t *testi
 	f := newHTTPFixture(t)
 	id := f.newID(t)
 	if _, err := (app.UploadProfilePhotoHandler{}).Handle(
+		t.Context(), id, "image/png", "", []byte("x"),
+	); errs.CodeOf(err) != errs.CodeStorageUnavailable {
+		t.Fatalf("missing store = %v", err)
+	}
+	if _, err := (app.UploadProfilePhotoHandler{Store: &photoStore{}}).Handle(
 		t.Context(), id, "image/png", "", []byte("x"),
 	); errs.CodeOf(err) != errs.CodePhotoInvalid {
 		t.Fatalf("invalid upload = %v", err)
@@ -469,7 +508,7 @@ FOR EACH ROW EXECUTE FUNCTION fail_profile_write()`); err != nil {
 	}
 }
 
-func TestFlow23a_UploadProfilePhoto_RateLimited(t *testing.T) {
+func TestUploadProfilePhoto_RateLimited(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
@@ -487,7 +526,7 @@ func TestFlow23a_UploadProfilePhoto_RateLimited(t *testing.T) {
 	}
 }
 
-func TestFlow23a_UploadProfilePhoto_usesTheOperationBodyLimit(t *testing.T) {
+func TestUploadProfilePhoto_usesTheOperationBodyLimit(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})

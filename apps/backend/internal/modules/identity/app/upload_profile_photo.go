@@ -33,7 +33,10 @@ func (h UploadProfilePhotoHandler) Handle(
 	ctx context.Context, id ids.UserID, contentType, ext string, body []byte,
 ) (Me, error) {
 	const op = "identity.UploadProfilePhoto"
-	if h.Store == nil || ext == "" || len(body) == 0 {
+	if h.Store == nil {
+		return Me{}, errs.New(errs.CodeStorageUnavailable, op)
+	}
+	if ext == "" || len(body) == 0 {
 		return Me{}, errs.New(errs.CodePhotoInvalid, op)
 	}
 	url, err := h.Store.Put(ctx, id.String()+"/"+h.IDs.NewV7().String()+"."+ext, contentType, body)

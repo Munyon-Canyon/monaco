@@ -426,6 +426,34 @@ paths:
               example: [{id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, role: creator, can_vote: true, member_count: 3, joined_at: "2026-10-02T15:00:00Z", pending_request_count: 1}]
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/profile-photo:
+    post:
+      operationId: postProfilePhoto
+      x-idempotent: true
+      x-max-body-bytes: 2097152
+      x-rate-limit: {actor: {rate: 1, per: 20s, burst: 3}}
+      tags: [identity]
+      summary: Upload a profile photo.
+      description: Stores a JPEG, PNG, or WebP profile photo for the caller.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: One JPEG, PNG, or WebP image in the required photo field.
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [photo]
+              properties:
+                photo: {type: string, format: binary, examples: [avatar.png]}
+      responses:
+        "200":
+          description: The updated account.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Me"}
+        default: {$ref: "#/components/responses/Problem"}
   /v1/me/referral-code:
     get:
       operationId: getMyReferralCode

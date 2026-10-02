@@ -20,6 +20,7 @@ const (
 	CodeInvalidAddress      Code = "invalid_address"
 	CodeDBUnavailable       Code = "db_unavailable"
 	CodeDBSchemaBehind      Code = "db_schema_behind"
+	CodeStorageUnavailable  Code = "storage_unavailable"
 	CodeDecodeFailed        Code = "decode_failed"
 	CodeInvalidConfig       Code = "invalid_config"
 	CodeInternal            Code = "internal"
@@ -27,6 +28,7 @@ const (
 )
 
 func platformRows() map[Code]Row {
+	storageUnavailable := CodeStorageUnavailable
 	return map[Code]Row{
 		CodeInvalidInput: {Name: "InvalidInput", Kind: KindInvalid, Message: "The request is not valid."},
 		CodeClientClosed: {
@@ -89,9 +91,17 @@ func platformRows() map[Code]Row {
 			Name: "DBSchemaBehind", Kind: KindUnavailable, Alert: true,
 			Message: "The service is temporarily unavailable. Try again shortly.",
 		},
-		CodeInvalidConfig: {Name: "InvalidConfig", Kind: KindInternal, Alert: true, Message: "Something went wrong."},
-		CodeDecodeFailed:  {Name: "DecodeFailed", Kind: KindInternal, Alert: true, Message: "Something went wrong."},
-		CodeInternal:      {Name: "Internal", Kind: KindInternal, Alert: true, Message: "Something went wrong."},
-		CodePanic:         {Name: "Panic", Kind: KindInternal, Alert: true, Message: "Something went wrong."},
+		storageUnavailable: storageUnavailableRow(),
+		CodeInvalidConfig:  {Name: "InvalidConfig", Kind: KindInternal, Alert: true, Message: "Something went wrong."},
+		CodeDecodeFailed:   {Name: "DecodeFailed", Kind: KindInternal, Alert: true, Message: "Something went wrong."},
+		CodeInternal:       {Name: "Internal", Kind: KindInternal, Alert: true, Message: "Something went wrong."},
+		CodePanic:          {Name: "Panic", Kind: KindInternal, Alert: true, Message: "Something went wrong."},
+	}
+}
+
+func storageUnavailableRow() Row {
+	return Row{
+		Name: "StorageUnavailable", Kind: KindUnavailable, Retryable: true,
+		Message: "Photo storage is temporarily unavailable. Try again shortly.",
 	}
 }
