@@ -323,3 +323,44 @@ func TestCandidateConfig_failsOnAMissingDirAMissingConfigAndBadYAML(t *testing.T
 		}
 	}
 }
+
+func TestRun_acceptsGitPrintingTheRootAndThePrefixWithoutATrailingNewline(t *testing.T) {
+	t.Parallel()
+	results := cleanTree()
+	results["git rev-parse"] = []garden.Result{{Stdout: []byte("/repo\napps/backend/")}}
+	results["go run"] = []garden.Result{{Stdout: []byte(plantedDeadcode)}}
+	md := run(t, &fakeTools{results: results}, nil).Markdown()
+	want := "- `apps/backend/internal/planted/planted.go:3` unreachable func planted\n"
+	if !strings.Contains(md, want) {
+		t.Fatalf("report lacks %q:\n%s", want, md)
+	}
+}
+
+func TestRun_countsOnlyPorcelainLinesThatNameAFile(t *testing.T) {
+	t.Parallel()
+	results := cleanTree()
+	results["git status"] = []garden.Result{{}, {Stdout: []byte("?? \n M apps/backend/internal/x/x.gen.go\n")}}
+	md := run(t, &fakeTools{results: results}, nil).Markdown()
+	for _, want := range []string{
+		"| Generator drift | 1 |\n",
+		"- `apps/backend/internal/x/x.gen.go:1` the committed file differs from what the generators write\n",
+	} {
+		if !strings.Contains(md, want) {
+			t.Fatalf("report lacks %q:\n%s", want, md)
+		}
+	}
+}
+
+func TestRun_skipsAHunkHeaderWithoutTheNewRangeAndTakesTheNextOne(t *testing.T) {
+	t.Parallel()
+	results := cleanTree()
+	results["git status"] = []garden.Result{{}, {Stdout: []byte(" M apps/backend/internal/x/x.gen.go\n")}}
+	results["git diff"] = []garden.Result{{Stdout: []byte(
+		"+++ b/apps/backend/internal/x/x.gen.go\n@@ -1\n@@ -12 +12,2 @@\n",
+	)}}
+	md := run(t, &fakeTools{results: results}, nil).Markdown()
+	want := "- `apps/backend/internal/x/x.gen.go:12` the committed file differs from what the generators write\n"
+	if !strings.Contains(md, want) {
+		t.Fatalf("report lacks %q:\n%s", want, md)
+	}
+}
