@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"maps"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -168,7 +169,62 @@ func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkR
 			},
 		})
 	}
+	if row, ok := env.xcodeRow(changed); ok {
+		rows = append(rows, row)
+	}
 	return env.pathRows(ctx, rows, changed, parent, head)
+}
+
+func (env *Env) xcodeRow(changed []string) (checkRow, bool) {
+	if env.GOOS != "darwin" || !mobileTreeChanged(changed) {
+		return checkRow{}, false
+	}
+	if _, err := env.lookPath("xcodebuild"); err != nil {
+		return checkRow{}, false
+	}
+	cmds := env.installUnlessPresent("xcsift")
+	cmds = append(cmds,
+		[]string{"bash", "-c", xcodeScript("build-for-testing")},
+		[]string{"bash", "-c", xcodeScript("-only-testing:MonacoTests test-without-building")},
+	)
+	return checkRow{label: "xcode", kind: "xcode", dir: env.Work, cmds: cmds}, true
+}
+
+func mobileTreeChanged(changed []string) bool {
+	return slices.ContainsFunc(changed, func(f string) bool {
+		return strings.HasPrefix(f, "apps/mobile/") || strings.HasPrefix(f, "packages/mobile-core/")
+	})
+}
+
+func (env *Env) lookPath(name string) (string, error) {
+	if env.LookPath != nil {
+		return env.LookPath(name)
+	}
+	found, err := exec.LookPath(name)
+	if err != nil {
+		return "", fmt.Errorf("find %s: %w", name, err)
+	}
+	return found, nil
+}
+
+const xcodePrivyGuard = `set -euo pipefail
+has_key() { [[ -f "$1" ]] && grep -q '^DOTENV_PRIVATE_KEY_LOCAL=' "$1"; }
+primary=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo .git)")
+if has_key .env.keys || has_key "$primary/.env.keys" || [[ -n ${DOTENV_PRIVATE_KEY_LOCAL:-} ]] || [[ -n ${DOTENV_PRIVATE_KEY:-} ]]; then
+  scripts/ensure-ios-privy-config.sh generate
+else
+  scripts/ensure-ios-privy-config.sh placeholder
+fi
+`
+
+func xcodeScript(action string) string {
+	return xcodePrivyGuard +
+		`scripts/qa/xcode-lock.sh xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug ` +
+		`-destination "platform=iOS Simulator,id=$(scripts/resolve-ios-sim.sh)" ` +
+		`-derivedDataPath "$(git rev-parse --show-toplevel)/.build/DerivedData" ` +
+		`-onlyUsePackageVersionsFromResolvedFile -skipMacroValidation -skipPackagePluginValidation ` +
+		`CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO COMPILATION_CACHE_ENABLE_CACHING=YES ` +
+		action + ` 2>&1 | .bin/xcsift -f toon --exit-on-failure`
 }
 
 func (env *Env) prRows(parent, head string) []checkRow {

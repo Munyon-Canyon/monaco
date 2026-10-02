@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -31,6 +32,8 @@ type checkHarness struct {
 	affected    string
 	affectedErr error
 	replies     []reply
+	goos        string
+	lookPath    func(string) (string, error)
 }
 
 func newCheckHarness(t *testing.T) *checkHarness {
@@ -85,7 +88,16 @@ func (h *checkHarness) check(t *testing.T, args ...string) (int, string, string)
 	var stdout, stderr bytes.Buffer
 	code := runCLI(
 		context.Background(), h.env, h.dir, h.cached(h.run), append([]string{"check"}, args...), &stdout, &stderr,
-		func(env *Env) { env.Now = func() time.Time { return h.clock } },
+		func(env *Env) {
+			env.Now = func() time.Time { return h.clock }
+			if h.goos != "" {
+				env.GOOS = h.goos
+			}
+			env.LookPath = h.lookPath
+			if env.LookPath == nil {
+				env.LookPath = func(string) (string, error) { return "", exec.ErrNotFound }
+			}
+		},
 	)
 	return code, stdout.String(), stderr.String()
 }
@@ -598,10 +610,10 @@ func TestCheck_eachRowHasItsOwnBudgetAndTheRunHasNone(t *testing.T) {
 	h.replies = []reply{
 		{prefix: "swift format", took: 0},
 		{prefix: "swiftlint-ratchet.sh", took: 0},
-		{prefix: "swift test", took: 61 * time.Second, err: errors.New("signal: killed")},
+		{prefix: "swift test", took: 151 * time.Second, err: errors.New("signal: killed")},
 	}
 	code, stdout, stderr := h.check(t)
-	wantDetail := "swift test row over the 1m0s swift budget after 61s; slowest: swift test -warnings-as-errors (61.0s)"
+	wantDetail := "swift test row over the 2m30s swift budget after 151s; slowest: swift test -warnings-as-errors (151.0s)"
 	if code != 1 || !strings.Contains(stdout, "swift test      over budget") || !strings.Contains(stderr, wantDetail) {
 		t.Fatalf("an over-budget swift row names swift: %d %q %q", code, stdout, stderr)
 	}
@@ -653,6 +665,71 @@ func TestCheck_theGoTestRowIsBudgetedPerPackageNotPerRow(t *testing.T) {
 	h.replies = []reply{{prefix: "go test", took: 20 * time.Second, out: packageEvents(20 * time.Second)}}
 	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "package ./internal/p0 took 20.0s") {
 		t.Fatalf("a package at exactly 20 s fails: %d %q", code, stderr)
+	}
+}
+
+func TestLookPath_usesTheProcessPathWhenUnset(t *testing.T) {
+	t.Parallel()
+	env := &Env{}
+	found, err := env.lookPath("go")
+	if err != nil || !strings.Contains(found, "go") {
+		t.Fatalf("go: %q %v", found, err)
+	}
+	_, err = env.lookPath("monacoctl-missing-binary")
+	if err == nil || !strings.Contains(err.Error(), "find monacoctl-missing-binary") {
+		t.Fatalf("missing: %v", err)
+	}
+}
+
+func TestCheck_theXcodeRowRunsForAnAppChangeOnDarwinOnly(t *testing.T) {
+	t.Parallel()
+	found := func(string) (string, error) { return "/usr/bin/xcodebuild", nil }
+	build := ".: bash -c " + xcodeScript("build-for-testing")
+	testCmd := ".: bash -c " + xcodeScript("-only-testing:MonacoTests test-without-building")
+	change := map[string]string{"apps/mobile/Monaco/A.swift": "let a = 1\n"}
+
+	h := newCheckHarness(t)
+	h.goos = "darwin"
+	h.lookPath = found
+	h.commit(t, change)
+	code, stdout, stderr := h.check(t)
+	if code != 0 || !slices.Contains(h.calls, build) || !slices.Contains(h.calls, testCmd) ||
+		!strings.Contains(stdout, "xcode           ok") {
+		t.Fatalf("darwin app change: %d %q %q\n%s", code, stdout, stderr, strings.Join(h.calls, "\n"))
+	}
+	if !strings.Contains(build, "ensure-ios-privy-config.sh placeholder") ||
+		!strings.Contains(build, "-onlyUsePackageVersionsFromResolvedFile") {
+		t.Fatalf("build script: %s", build)
+	}
+	if !slices.Contains(h.calls, ".: install-xcsift.sh") {
+		t.Fatalf("missing xcsift install:\n%s", strings.Join(h.calls, "\n"))
+	}
+
+	writeFile(t, filepath.Join(h.dir, ".bin", "xcsift"), "#!/bin/sh\n")
+	h.commit(t, map[string]string{"apps/mobile/Monaco/B.swift": "let b = 1\n"})
+	h.calls = nil
+	if code, stdout, stderr = h.check(t); code != 0 ||
+		slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, "install-xcsift") }) ||
+		!slices.Contains(h.calls, build) {
+		t.Fatalf("xcsift already present: %d %q %q\n%s", code, stdout, stderr, strings.Join(h.calls, "\n"))
+	}
+
+	h = newCheckHarness(t)
+	h.goos = "linux"
+	h.lookPath = found
+	h.commit(t, change)
+	code, stdout, stderr = h.check(t)
+	if code != 0 || slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, "xcodebuild") }) {
+		t.Fatalf("linux app change runs xcode: %d %q %q\n%s", code, stdout, stderr, strings.Join(h.calls, "\n"))
+	}
+
+	h = newCheckHarness(t)
+	h.goos = "darwin"
+	h.lookPath = func(string) (string, error) { return "", exec.ErrNotFound }
+	h.commit(t, change)
+	code, stdout, stderr = h.check(t)
+	if code != 0 || slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, "xcodebuild") }) {
+		t.Fatalf("darwin without xcodebuild: %d %q %q\n%s", code, stdout, stderr, strings.Join(h.calls, "\n"))
 	}
 }
 
