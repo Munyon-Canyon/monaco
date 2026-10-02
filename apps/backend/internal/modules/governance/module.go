@@ -37,6 +37,8 @@ func (*Module) Consumers() []bus.Consumer {
 	return []bus.Consumer{}
 }
 
-func (*Module) Pollers() []poller.Poller { return nil }
+func (m *Module) Pollers() []poller.Poller {
+	return []poller.Poller{app.NewExpiryPoller(m.deps.UoW, m.deps.Pool, m.deps.Clock)}
+}
 
 func (m *Module) Queries() app.Queries { return app.NewQueries(m.deps.Pool) }
