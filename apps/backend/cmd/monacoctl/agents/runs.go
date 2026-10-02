@@ -55,7 +55,7 @@ func (env *Env) cleanHeadRuns(ctx context.Context, p stackPR, reran map[int64]in
 		return false, err
 	}
 	busy := false
-	for _, r := range runs {
+	for _, r := range newestPerWorkflow(runs) {
 		switch {
 		case !r.done():
 			busy = true
@@ -152,7 +152,7 @@ func (env *Env) heldReason(ctx context.Context, p stackPR) (string, error) {
 		return "", err
 	}
 	n := 0
-	for _, r := range runs {
+	for _, r := range newestPerWorkflow(runs) {
 		if r.broken() {
 			n++
 		}

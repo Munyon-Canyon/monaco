@@ -194,12 +194,31 @@ func (e httpStatusError) Error() string {
 func (e httpStatusError) Unwrap() error { return errGitHubStatus }
 
 type Run struct {
-	ID         int64  `json:"id"`
-	Name       string `json:"name"`
-	Status     string `json:"status"`
-	Conclusion string `json:"conclusion"`
-	Attempt    int    `json:"run_attempt"`
-	URL        string `json:"html_url"`
+	ID         int64     `json:"id"`
+	WorkflowID int64     `json:"workflow_id"`
+	Name       string    `json:"name"`
+	Status     string    `json:"status"`
+	Conclusion string    `json:"conclusion"`
+	Attempt    int       `json:"run_attempt"`
+	URL        string    `json:"html_url"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+func newestPerWorkflow(runs []Run) []Run {
+	newest := map[int64]Run{}
+	for _, r := range runs {
+		cur, ok := newest[r.WorkflowID]
+		if !ok || r.CreatedAt.After(cur.CreatedAt) || (r.CreatedAt.Equal(cur.CreatedAt) && r.ID > cur.ID) {
+			newest[r.WorkflowID] = r
+		}
+	}
+	out := make([]Run, 0, len(newest))
+	for _, r := range runs {
+		if newest[r.WorkflowID].ID == r.ID {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 func (r Run) done() bool { return r.Status == "completed" }
