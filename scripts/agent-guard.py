@@ -635,6 +635,60 @@ def rule_queued_stack(inv: Invocation) -> str | None:
             "clear the mark, then fix the stack.")
 
 
+STACK_MUTATIONS = (["submit"], ["s"], ["ss"], ["modify"], ["m"], ["restack"], ["r"])
+
+
+def queued_heads(cwd: str) -> dict[str, int]:
+    try:
+        out = run(["gh", "pr", "list", "--state", "open", "--label", QUEUE_LABEL, "--limit", "100",
+                   "--json", "number,headRefName"], cwd)
+        if out.returncode != 0:
+            return {}
+        return {pr["headRefName"]: pr["number"] for pr in json.loads(out.stdout)}
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError):
+        return {}
+
+
+def is_ancestor(a: str, b: str, cwd: str) -> bool:
+    return run(["git", "merge-base", "--is-ancestor", a, b], cwd).returncode == 0
+
+
+def same_stack(queued: str, here: str, cwd: str) -> bool:
+    if is_ancestor(queued, here, cwd):
+        return True
+    trunk = f"refs/remotes/origin/{TRUNK}"
+    has_trunk = run(["git", "rev-parse", "--verify", "--quiet", trunk], cwd).returncode == 0
+    on_trunk = has_trunk and is_ancestor(here, trunk, cwd)
+    return not on_trunk and is_ancestor(here, queued, cwd)
+
+
+# Graphite keeps its own queue: a push to a queued stack can be requeued with heads no verifier saw, and removing the
+# label alone does not take a stack out. monacoctl agents dequeue waits until Graphite lets go.
+def rule_push_queued_stack(inv: Invocation) -> str | None:
+    git = as_git(inv)
+    if git and git.sub == "push":
+        cwd, pushed = git.cwd, [dst for _, dst, _ in parse_push(git).targets]
+    elif os.path.basename(inv.argv[0]) == "gt" and inv.argv[1:2] in STACK_MUTATIONS:
+        cwd, pushed = inv.cwd, []
+    else:
+        return None
+    heads = queued_heads(cwd)
+    if not heads:
+        return None
+    here = current_branch(cwd) or "HEAD"
+    for head, number in heads.items():
+        if head in pushed or head == here:
+            hit = True
+        else:
+            local = run(["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{head}"], cwd).returncode == 0
+            hit = local and same_stack(head, here, cwd)
+        if hit:
+            return (f"#{number} ({head}) is in the Graphite merge queue, and this changes its stack. Graphite would "
+                    "requeue heads no verifier saw. Run `monacoctl agents dequeue <top-pr>` first; it removes the "
+                    f"{QUEUE_LABEL} label and waits until Graphite lets go.")
+    return None
+
+
 def flag_on(args: list[str], name: str) -> bool:
     on = False
     for a in args:
@@ -737,6 +791,7 @@ RULES = [
     rule_raw_history,
     rule_sync_restacks,
     rule_queued_stack,
+    rule_push_queued_stack,
     rule_role_push_needs_check,
     rule_role_heavy_tests,
     rule_role_ci_polling,
