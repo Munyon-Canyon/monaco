@@ -17,7 +17,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 atlas_tag="$(cat "$root/apps/backend/.atlas-version")"
 atlas_line="$("$root/.bin/atlas" version 2>/dev/null | head -1 || true)"
 case "$atlas_line" in
-  "atlas community version ${atlas_tag}"|"atlas version ${atlas_tag}") ;;
+  "atlas community version ${atlas_tag}") ;;
   *)
     if ! "$root/scripts/install-atlas.sh" >&2; then
       mkdir -p "$root/.bin"

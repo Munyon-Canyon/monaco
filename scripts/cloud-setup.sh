@@ -19,6 +19,9 @@ command -v dotenvx >/dev/null || npm install -g @dotenvx/dotenvx
 # When that download is blocked, shims run the same tools in swift:6.3-noble.
 SWIFT_VERSION=6.3.3
 swift_shim=0
+if grep -Fq 'mirror.gcr.io/library/swift:6.3-noble' /usr/local/bin/swift 2>/dev/null; then
+  swift_shim=1
+fi
 install_swift() {
   tmp=$(mktemp -d) || return 1
   trap 'rm -rf "$tmp"' RETURN
@@ -45,7 +48,7 @@ EOF
     chmod 0755 "/usr/local/bin/${tool}"
   done
 }
-if ! command -v swift >/dev/null; then
+if ! command -v swift >/dev/null && [[ "$swift_shim" -eq 0 ]]; then
   if ! install_swift; then
     write_swift_shims
     swift_shim=1

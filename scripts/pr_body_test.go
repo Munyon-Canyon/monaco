@@ -37,10 +37,13 @@ for arg in "$@"; do
   esac
   prev=$arg
 done
+read -r draft base_ref head_ref base_sha head_sha < %q
 case "$1" in
   api)
     case "$method $path" in
       "GET repos/o/r/pulls/7") cat %q ;;
+      "GET repos/o/r/pulls?state=open&per_page=100&base=$head_ref") echo '[{"number":8,"body":"Part of #99"}]' ;;
+      "GET repos/o/r/pulls?state=open&per_page=100&head=o:$base_ref") echo '[{"number":9,"body":"Part of #99"}]' ;;
       "PATCH repos/o/r/pulls/7") ;;
       "POST repos/o/r/pulls/7/ccr/ready_for_review") ;;
       *) echo "unexpected api: $*" >&2; exit 1 ;;
@@ -54,7 +57,7 @@ case "$1" in
           exit 1
         fi
         ;;
-      list) echo '[]' ;;
+      list) echo 'HTTP 403: GraphQL is not permitted' >&2; exit 1 ;;
       *) echo "unexpected: $*" >&2; exit 1 ;;
     esac
     ;;
@@ -66,7 +69,7 @@ case "$1" in
     ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
-`, s.calls, s.view))
+`, s.calls, s.view, s.view))
 	env := make([]string, 0, len(os.Environ())+2)
 	for _, e := range os.Environ() {
 		if strings.HasPrefix(e, "GH_REPO=") || strings.HasPrefix(e, "PATH=") {
@@ -175,6 +178,10 @@ func changedPR(calls string) bool {
 	return strings.Contains(calls, "-X PATCH") || strings.Contains(calls, "pr ready") || strings.Contains(calls, "ccr/ready_for_review")
 }
 
+func usedGraphQLList(calls string) bool {
+	return strings.Contains(calls, "pr list")
+}
+
 func TestPrBody_setsTitleAndBodyThenMarksOnlyADraftReady(t *testing.T) {
 	s := newPrBodySandbox(t)
 	base := s.head(t)
@@ -185,6 +192,9 @@ func TestPrBody_setsTitleAndBodyThenMarksOnlyADraftReady(t *testing.T) {
 		t.Fatalf("pr-body.sh: %v\n%s", err, out)
 	}
 	calls := s.ghCalls(t)
+	if usedGraphQLList(calls) {
+		t.Fatalf("the format check must read stack neighbours through REST, got %q", calls)
+	}
 	edit := strings.Index(calls, "api -X PATCH repos/o/r/pulls/7 -f title=Add the thing -F body=@"+file+"\n")
 	ready := strings.Index(calls, "pr ready 7\n")
 	if ready < 0 || edit < ready || strings.Contains(calls, "repo view") {

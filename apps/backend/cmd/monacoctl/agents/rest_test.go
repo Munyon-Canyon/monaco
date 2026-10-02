@@ -514,7 +514,8 @@ func TestStatus_readsTimelinesThroughRESTWhenGraphQLIsForbidden(t *testing.T) {
 	f.hub.on("POST /repos/o/r/issues/7/comments", "ok")
 	timeline := list("/issues/5/timeline?")
 	f.hub.on(timeline, `[{"event":"commented"},{"event":"cross-referenced","source":{"issue":{"number":12}}},`+
-		`{"event":"cross-referenced","source":{"issue":{"number":11,"pull_request":{}}}}]`)
+		`{"event":"cross-referenced","source":{"issue":{"number":99,"repository_url":"https://api.github.com/repos/o/other","pull_request":{}}}},`+
+		`{"event":"cross-referenced","source":{"issue":{"number":11,"repository_url":"https://api.github.com/repos/o/r","pull_request":{}}}}]`)
 	f.hub.on(get("/pulls/11"), `{"number":11,"state":"closed","created_at":"2026-01-01T00:00:00Z",`+
 		`"merged_at":"2026-01-03T00:00:00Z","closed_at":"2026-01-03T00:00:00Z","body":"Part of #5",`+
 		`"head":{"ref":"b11","sha":"h11"},`+
