@@ -26,8 +26,11 @@ const (
 	defaultLabel  = "merge-queue"
 	budgetSection = "[check.budget]"
 	budgetPrefix  = "check.budget."
+	checkSection  = "[check]"
 	batchSection  = "[batch]"
+	checkPrefix   = "check."
 	batchPrefix   = "batch."
+	defaultSlots  = 2
 )
 
 func defaultBudget() map[string]time.Duration {
@@ -50,12 +53,13 @@ type Config struct {
 	VerifierInstallation int
 	Milestone            string
 	QueueLabel           string
+	Slots                int
 	Budget               map[string]time.Duration
 	Shared               []string
 }
 
 func parseConfig(r io.Reader) (Config, error) {
-	c := Config{Budget: defaultBudget()}
+	c := Config{Budget: defaultBudget(), Slots: defaultSlots}
 	section := ""
 	seen := map[string]bool{}
 	strs := map[string]*string{
@@ -64,7 +68,7 @@ func parseConfig(r io.Reader) (Config, error) {
 	}
 	ints := map[string]*int{
 		"tracking": &c.Tracking, "lanes": &c.Lanes, "batch.size": &c.Batch,
-		"verifier_installation": &c.VerifierInstallation,
+		"verifier_installation": &c.VerifierInstallation, "check.slots": &c.Slots,
 	}
 	lists := map[string]*[]string{"batch.shared": &c.Shared}
 	lines, err := logicalLines(r)
@@ -87,6 +91,10 @@ func parseConfig(r io.Reader) (Config, error) {
 				fmt.Sprintf("%s: missing %s", configPath, key),
 			)
 		}
+	}
+	if c.Slots < 1 {
+		return Config{}, detailErr(errs.CodeDecodeFailed, "monacoctl.agents.config",
+			fmt.Sprintf("%s: check.slots: want at least 1, got %d", configPath, c.Slots))
 	}
 	if c.QueueLabel == "" {
 		c.QueueLabel = defaultLabel
@@ -148,6 +156,9 @@ func applyConfigLine(
 	switch {
 	case line == budgetSection:
 		*section = budgetPrefix
+		return nil
+	case line == checkSection:
+		*section = checkPrefix
 		return nil
 	case line == batchSection:
 		*section = batchPrefix

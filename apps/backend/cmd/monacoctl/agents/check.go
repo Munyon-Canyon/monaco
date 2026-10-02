@@ -97,6 +97,12 @@ func checkCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 		if carried, err := env.carry(patchID, tree, head, base, parent, stdout); carried || err != nil {
 			return err
 		}
+		ctx, release, err := env.takeSlot(ctx, stdout)
+		if err != nil {
+			return err
+		}
+		defer release()
+		return env.runStage0(ctx, base, parent, head, tree, patchID, stdout)
 	}
 	return env.runStage0(ctx, base, parent, head, tree, patchID, stdout)
 }

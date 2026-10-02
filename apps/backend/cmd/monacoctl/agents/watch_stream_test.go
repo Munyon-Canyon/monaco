@@ -217,9 +217,9 @@ func TestWatchArgs(t *testing.T) {
 	}
 }
 
-func TestStreams_onlyTheStreamingWatchBypassesTheOutputBuffer(t *testing.T) {
+func TestStreams_onlyCheckAndTheStreamingWatchBypassTheOutputBuffer(t *testing.T) {
 	t.Parallel()
-	for args, want := range map[string]bool{"watch": true, "watch --every 1m": true, "watch --once": false, "status": false} {
+	for args, want := range map[string]bool{"watch": true, "watch --every 1m": true, "watch --once": false, "status": false, "check": true, "check --fresh": true} {
 		if got := streams(strings.Fields(args)); got != want {
 			t.Errorf("streams(%q) = %v", args, got)
 		}

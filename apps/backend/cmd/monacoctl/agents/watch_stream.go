@@ -38,7 +38,7 @@ func watchArgs(args []string) (bool, time.Duration, error) {
 }
 
 func streams(args []string) bool {
-	return args[0] == "watch" && !slices.Contains(args[1:], "--once")
+	return args[0] == "check" || args[0] == "watch" && !slices.Contains(args[1:], "--once")
 }
 
 type stream struct {
