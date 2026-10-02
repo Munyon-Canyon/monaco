@@ -397,6 +397,7 @@ components:
         - apns_auth_failed
         - apns_unavailable
         - asset_not_found
+        - asset_untradable
         - auth_state_transition
         - cabal_banned
         - cabal_not_found
