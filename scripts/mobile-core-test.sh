@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # The one entry point for mobile-core's tests: just test mobile and ci-mobile-core.yml call it,
 # and monacoctl agents check will from #965 PR 4. Runs swift test with warnings as errors and coverage,
-# then holds line coverage of Sources/ to this platform's row in coverage-floor.txt.
-# Extra arguments go to swift test and skip the coverage check, because a partial run
-# cannot be judged. --update-floor raises this platform's floor to the measured value and
+# then holds every single test to a 2 s budget and line coverage of Sources/ to this
+# platform's row in coverage-floor.txt. Extra arguments go to swift test and skip both
+# checks, because a partial run cannot be judged. --update-floor raises this platform's floor to the measured value and
 # refuses to lower it. Bash, awk and llvm-cov only: swift:6.3-noble has no python3 or jq.
 # Rules: docs/architecture/ci.md#what-runs-where
 set -euo pipefail
@@ -34,6 +34,45 @@ status=0
 swift test --force-resolved-versions -Xswiftc -warnings-as-errors --enable-code-coverage "$@" 2>&1 | tee .build/test-output.txt || status=$?
 ((status == 0)) || exit "$status"
 (($# == 0)) || exit 0
+
+budget=2
+# XCTest starts a case as "Test Case '...' started at ..." on Linux and
+# "Test Case '...' started." on macOS (only suite lines say "started at" there).
+# It ends a line with "(<n> seconds)" and macOS adds a period. swift-testing ends with
+# "passed after <n> seconds." Suite and run summaries are not tests. Every XCTest case that
+# started must have a timing, so a changed output format fails here instead of passing
+# unjudged. There is no allowlist: a slow test gets faster.
+timings="$(awk -v q="'" -f /dev/stdin .build/test-output.txt <<'AWK'
+  $0 ~ "^Test Case " q ".*" q " started( at |\\.$)" { started++; next }
+  $0 ~ "^Test Case " q ".*" q " [a-z]+ \\([0-9.]+ seconds\\)\\.?$" {
+    timed++
+    name = $0; sub("^Test Case " q, "", name); sub(q " [a-z]+ \\([0-9.]+ seconds\\)\\.?$", "", name)
+    secs = $0; sub(/ seconds\)\.?$/, "", secs); sub(/.*\(/, "", secs)
+    print secs "\t" name
+    next
+  }
+  / passed after [0-9.]+ seconds\.$/ && /^[^A-Za-z]*Test / {
+    name = $0; sub(/^[^A-Za-z]*Test /, "", name)
+    if (name ~ /^run with /) next
+    secs = name; sub(/ seconds\.$/, "", secs); sub(/.* passed after /, "", secs)
+    sub(/ passed after [0-9.]+ seconds\.$/, "", name)
+    print secs "\t" name
+  }
+  END {
+    if (started != timed) {
+      printf "unparsed test timings: %d XCTest cases started, %d timed\n", started, timed > "/dev/stderr"
+      exit 1
+    }
+  }
+AWK
+)"
+[[ -n "$timings" ]] || { echo "no test timings in .build/test-output.txt" >&2; exit 1; }
+slow="$(awk -F '\t' -v b="$budget" '$1 + 0 > b { printf "slow test: %s %ss (budget %s s)\n", $2, $1, b }' <<<"$timings")"
+if [[ -n "$slow" ]]; then
+  echo "$slow" >&2
+  exit 1
+fi
+awk -F '\t' '$1 + 0 > m { m = $1 + 0; n = $2 } END { printf "slowest test: %s %ss (budget %s s)\n", n, m, b }' b="$budget" <<<"$timings"
 
 cov_args=(report "$binary" -instr-profile .build/debug/codecov/default.profdata -ignore-filename-regex='(\.build|Tests)/')
 report="$("${llvm_cov[@]}" "${cov_args[@]}")"
