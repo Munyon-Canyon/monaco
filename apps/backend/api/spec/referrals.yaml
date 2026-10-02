@@ -1,0 +1,49 @@
+paths:
+  /v1/me/referral-code:
+    get:
+      operationId: getMyReferralCode
+      tags: [referrals]
+      summary: Read the caller's invite code and links.
+      description: >-
+        Returns the caller's random code and its link. `handle_link` is set and `handle_unlocked` is
+        true once the caller's first deposit is credited. A user whose code is not minted yet gets
+        referral_code_pending, a retryable 503, so the app tries again.
+      responses:
+        "200":
+          description: The caller's invite code.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyReferralCode"
+        default:
+          $ref: "#/components/responses/Problem"
+components:
+  schemas:
+    MyReferralCode:
+      type: object
+      description: The caller's invite code and the links that carry it.
+      examples:
+        - code: k7m4qx2p
+          link: https://monacolabs.xyz/r/k7m4qx2p
+          handle_link: https://monacolabs.xyz/r/kaicenat
+          handle_unlocked: true
+      additionalProperties: false
+      required: [code, link, handle_link, handle_unlocked]
+      properties:
+        code:
+          type: string
+          description: The random 8-character code. It never changes.
+          pattern: "^[23456789abcdefghjkmnpqrstuvwxyz]{8}$"
+          examples: [k7m4qx2p]
+        link:
+          type: string
+          description: The invite link for the random code.
+          examples: ["https://monacolabs.xyz/r/k7m4qx2p"]
+        handle_link:
+          type: [string, "null"]
+          description: The invite link for the caller's handle, or null until the first deposit unlocks it.
+          examples: ["https://monacolabs.xyz/r/kaicenat"]
+        handle_unlocked:
+          type: boolean
+          description: True once the caller's first deposit is credited.
+          examples: [true]
