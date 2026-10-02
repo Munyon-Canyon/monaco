@@ -211,8 +211,40 @@ func (s *Server) replay(upstream string) http.HandlerFunc {
 			s.live.ServeHTTP(w, live)
 			return
 		}
+		if route == "/rpc/getMultipleAccounts" && s.multipleAccounts(w, r) {
+			return
+		}
 		s.serveFixture(w, keys)
 	}
+}
+
+func (s *Server) multipleAccounts(w http.ResponseWriter, r *http.Request) bool {
+	var call rpcCall
+	if json.NewDecoder(r.Body).Decode(&call) != nil || len(call.Params) == 0 {
+		return false
+	}
+	var mints []string
+	if json.Unmarshal(call.Params[0], &mints) != nil {
+		return false
+	}
+	values := make([]json.RawMessage, len(mints))
+	for i, mint := range mints {
+		fixture, ok := s.fixtures["/rpc/getAccountInfo/"+mint]
+		if !ok {
+			continue
+		}
+		var reply struct {
+			Result struct {
+				Value json.RawMessage `json:"value"`
+			} `json:"result"`
+		}
+		if json.Unmarshal(fixture.Body, &reply) != nil {
+			return false
+		}
+		values[i] = reply.Result.Value
+	}
+	rpcReply(w, call.ID, map[string]any{"value": values}, nil)
+	return true
 }
 
 func (s *Server) serveFixture(w http.ResponseWriter, keys []string) {

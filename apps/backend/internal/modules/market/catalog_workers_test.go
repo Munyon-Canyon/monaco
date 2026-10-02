@@ -177,8 +177,8 @@ func TestCatalogPoller_twoWorkersOnOneDatabaseRunOneTickPerHour(t *testing.T) {
 	if got := up.catalogReads.Load(); got != 3 {
 		t.Fatalf("xStocks requests = %d, want 3: one catalog read per hour across both workers", got)
 	}
-	if got := up.rpcCalls.Load(); got != 3 {
-		t.Fatalf("RPC calls = %d, want 3: each fixture mint asked once, not every hour", got)
+	if got := up.rpcCalls.Load(); got != 1 {
+		t.Fatalf("RPC calls = %d, want 1: one batch reads every unchecked fixture mint", got)
 	}
 	all, err := market.New(module.Deps{Pool: pool}).Catalog().ListAll(t.Context())
 	if err != nil || len(all) != 3 || slices.ContainsFunc(all, func(a market.Asset) bool { return !a.ChainChecked }) {
@@ -206,7 +206,7 @@ func TestCatalogPoller_providerFailureCountsInPollerErrors(t *testing.T) {
 func TestCatalogPoller_anRPCFailureCountsInPollerErrorsAndTheNextTickChecksThatMint(t *testing.T) {
 	t.Parallel()
 	pool, clk := testkit.DB(t), testkit.NewClock(clock.Real{}.Now().UTC())
-	up := fakeUpstream(t, fakes.Step{Route: "/rpc/getAccountInfo", Action: fakes.ActionFail, Status: 500})
+	up := fakeUpstream(t, fakes.Step{Route: "/rpc/getMultipleAccounts", Action: fakes.ActionFail, Status: 500})
 	w := startWorker(t, pool, clk, up)
 	if failed := w.expect(t, "poller.tick.failed"); failed["code"] != "rpc_unavailable" {
 		t.Fatalf("failed line = %v, want rpc_unavailable", failed)
@@ -215,8 +215,8 @@ func TestCatalogPoller_anRPCFailureCountsInPollerErrorsAndTheNextTickChecksThatM
 		t.Fatalf("poller_errors_total{market.catalog, rpc_unavailable} = %d, want 1", got)
 	}
 	clk.Advance(time.Hour)
-	if tick := w.expect(t, "poller.tick"); tick["changed"] != 1.0 {
-		t.Fatalf("retry tick = %v, want the one mint the RPC failed on checked", tick)
+	if tick := w.expect(t, "poller.tick"); tick["changed"] != 3.0 {
+		t.Fatalf("retry tick = %v, want the batch of unchecked mints checked", tick)
 	}
 	all, err := market.New(module.Deps{Pool: pool}).Catalog().ListAll(t.Context())
 	if err != nil || len(all) != 3 || slices.ContainsFunc(all, func(a market.Asset) bool { return !a.ChainChecked }) {

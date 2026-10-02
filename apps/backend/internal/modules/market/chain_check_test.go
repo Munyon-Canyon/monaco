@@ -12,20 +12,74 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
-	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
-	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
 
 type seeded struct {
 	symbol   string
 	tradable bool
+}
+
+type noMintFacts struct{}
+
+func (noMintFacts) Facts(context.Context, []domain.Mint) (map[domain.Mint]app.MintFact, map[domain.Mint]error, error) {
+	return map[domain.Mint]app.MintFact{}, map[domain.Mint]error{}, nil
+}
+
+type partialMintFacts struct {
+	facts map[domain.Mint]app.MintFact
+	err   error
+}
+
+func (f partialMintFacts) Facts(
+	context.Context, []domain.Mint,
+) (map[domain.Mint]app.MintFact, map[domain.Mint]error, error) {
+	return f.facts, map[domain.Mint]error{}, f.err
+}
+
+func TestCatalogPoller_refusesAMissingFact(t *testing.T) {
+	t.Parallel()
+	rig := newRig(t)
+	rig.seed(t, seeded{symbol: "AAPLx", tradable: true})
+	if _, err := rig.asking(noMintFacts{}).Tick(rig.ctx(t)); errs.CodeOf(err) != errs.CodeDecodeFailed {
+		t.Fatalf("Tick = %v, want decode_failed", err)
+	}
+}
+
+func TestCatalogPoller_keepsTheFirstBatchWhenTheSecondFails(t *testing.T) {
+	t.Parallel()
+	rig := newRig(t)
+	assets := make([]seeded, 200)
+	for i := range assets {
+		assets[i] = seeded{symbol: fmt.Sprintf("S%03dx", i), tradable: true}
+	}
+	rig.seed(t, assets...)
+	facts := make(map[domain.Mint]app.MintFact, 100)
+	for i := range 100 {
+		asset := rig.asset(t, fmt.Sprintf("S%03dx", i))
+		facts[asset.Mint] = app.MintFact{Decimals: 8, MultiplierNum: 1, MultiplierDen: 1}
+	}
+	report, err := rig.asking(partialMintFacts{
+		facts: facts,
+		err:   errs.New(errs.CodeRPCUnavailable, "second chunk failed"),
+	}).Tick(rig.ctx(t))
+	unchecked := rig.unchecked(t)
+	if report.Changed != 100 || len(unchecked) != 100 || errs.CodeOf(err) != errs.CodeRPCUnavailable {
+		t.Fatalf("Tick = %+v, unchecked = %d, err = %v; want 100, 100, rpc_unavailable", report, len(unchecked), err)
+	}
+	firstMint := rig.asset(t, "S100x").Mint.String()
+	details := errs.Detail(err)
+	has := func(attr slog.Attr) bool {
+		return slices.ContainsFunc(details, func(got slog.Attr) bool { return got.Equal(attr) })
+	}
+	if !has(slog.Int("failed", 100)) || !has(slog.Int("checked", 100)) || !has(slog.String("first_mint", firstMint)) {
+		t.Fatalf("error details = %v, want failed=100 checked=100 first_mint=%s", details, firstMint)
+	}
 }
 
 func (r *catalogRig) seed(t *testing.T, assets ...seeded) {
@@ -133,38 +187,28 @@ func TestCatalogPoller_checksAtMost200MintsATickTradableFirst(t *testing.T) {
 }
 
 type gate struct {
-	facts   app.MintFacts
-	release chan struct{}
+	facts app.MintFacts
 
-	mu       sync.Mutex
-	inFlight int
-	peak     int
+	mu    sync.Mutex
+	asked int
 }
 
 func (g *gate) Facts(
-	ctx context.Context, mint domain.Mint,
-) (decimals uint8, multiplierNum, multiplierDen uint64, err error) {
+	ctx context.Context, mints []domain.Mint,
+) (map[domain.Mint]app.MintFact, map[domain.Mint]error, error) {
 	g.mu.Lock()
-	g.inFlight++
-	g.peak = max(g.peak, g.inFlight)
+	g.asked = len(mints)
 	g.mu.Unlock()
-	select {
-	case <-g.release:
-	case <-ctx.Done():
-	}
-	g.mu.Lock()
-	g.inFlight--
-	g.mu.Unlock()
-	return g.facts.Facts(ctx, mint)
+	return g.facts.Facts(ctx, mints)
 }
 
-func (g *gate) counts() (inFlight, peak int) {
+func (g *gate) count() int {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	return g.inFlight, g.peak
+	return g.asked
 }
 
-func TestCatalogPoller_asksTheChainAboutEightMintsAtATime(t *testing.T) {
+func TestCatalogPoller_asksTheChainAboutEveryUncheckedMintAtOnce(t *testing.T) {
 	t.Parallel()
 	rig := newRig(t)
 	assets := make([]seeded, 20)
@@ -172,30 +216,10 @@ func TestCatalogPoller_asksTheChainAboutEightMintsAtATime(t *testing.T) {
 		assets[i] = seeded{symbol: fmt.Sprintf("S%02dx", i), tradable: true}
 	}
 	rig.seed(t, assets...)
-	g := &gate{facts: rig.facts, release: make(chan struct{})}
-	release := sync.OnceFunc(func() { close(g.release) })
-	ctx, gated := rig.ctx(t), rig.asking(g)
-	var run errgroup.Group
-	var report poller.Report
-	run.Go(func() error {
-		var err error
-		report, err = gated.Tick(ctx)
-		return err
-	})
-	t.Cleanup(func() {
-		release()
-		_ = run.Wait()
-	})
-	testkit.Eventually(t, func() bool {
-		inFlight, _ := g.counts()
-		return inFlight == 8
-	}, 10*time.Second)
-	release()
-	if err := run.Wait(); err != nil {
-		t.Fatal(err)
-	}
-	if _, peak := g.counts(); peak != 8 || report.Changed != 20 {
-		t.Fatalf("peak %d in flight, tick %+v, want 8 at a time and all 20 checked", peak, report)
+	g := &gate{facts: rig.facts}
+	report, err := rig.asking(g).Tick(rig.ctx(t))
+	if err != nil || g.count() != 20 || report.Changed != 20 {
+		t.Fatalf("asked %d mints, tick %+v, %v; want one 20-mint call and all checked", g.count(), report, err)
 	}
 }
 
@@ -247,16 +271,18 @@ type interleaving struct {
 }
 
 func (f *interleaving) Facts(
-	ctx context.Context, mint domain.Mint,
-) (decimals uint8, multiplierNum, multiplierDen uint64, err error) {
-	f.mu.Lock()
-	write := f.before[mint]
-	delete(f.before, mint)
-	f.mu.Unlock()
-	if write != nil {
-		write()
+	ctx context.Context, mints []domain.Mint,
+) (map[domain.Mint]app.MintFact, map[domain.Mint]error, error) {
+	for _, mint := range mints {
+		f.mu.Lock()
+		write := f.before[mint]
+		delete(f.before, mint)
+		f.mu.Unlock()
+		if write != nil {
+			write()
+		}
 	}
-	return f.MintFacts.Facts(ctx, mint)
+	return f.MintFacts.Facts(ctx, mints)
 }
 
 func TestCatalogPoller_leavesARowThatMovedWhileTheChainWasAsked(t *testing.T) {
@@ -308,10 +334,10 @@ type cancelling struct {
 }
 
 func (c cancelling) Facts(
-	ctx context.Context, mint domain.Mint,
-) (decimals uint8, multiplierNum, multiplierDen uint64, err error) {
+	ctx context.Context, mints []domain.Mint,
+) (map[domain.Mint]app.MintFact, map[domain.Mint]error, error) {
 	c.cancel()
-	return c.MintFacts.Facts(ctx, mint)
+	return c.MintFacts.Facts(ctx, mints)
 }
 
 func TestCatalogPoller_aTickCancelledWhileAskingTheChainStoresNothing(t *testing.T) {

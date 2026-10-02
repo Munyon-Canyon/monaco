@@ -2,20 +2,17 @@ package app
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/sqlc"
-	"github.com/monaco/monaco/apps/backend/internal/platform/concurrency"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 const (
-	chainChecksPerTick    = 200
-	chainCheckConcurrency = 8
+	chainChecksPerTick = 200
 )
 
 type chainCheck struct {
@@ -32,32 +29,45 @@ func (p *CatalogPoller) checkChainFacts(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	checks, err := concurrency.FanOut(ctx, chainCheckConcurrency, unchecked, p.askChain)
-	if err != nil {
-		return 0, errs.Wrap(err, errs.CodeOf(err), op)
+	mints := make([]domain.Mint, len(unchecked))
+	for i, asset := range unchecked {
+		mints[i] = asset.Mint
+	}
+	facts, failures, err := p.facts.Facts(ctx, mints)
+	checks := make([]chainCheck, len(unchecked))
+	for i, asset := range unchecked {
+		checks[i].asset = asset
+		if failure := failures[asset.Mint]; failure != nil {
+			checks[i].err = errs.Wrap(failure, errs.CodeOf(failure), op, slog.String("symbol", asset.Symbol))
+			continue
+		}
+		fact, ok := facts[asset.Mint]
+		if !ok {
+			if err != nil {
+				checks[i].err = errs.Wrap(err, errs.CodeOf(err), op, slog.String("symbol", asset.Symbol))
+			} else {
+				checks[i].err = errs.New(errs.CodeDecodeFailed, op, slog.String("symbol", asset.Symbol))
+			}
+			continue
+		}
+		checks[i].decimals = fact.Decimals
+		checks[i].multiplier, checks[i].err = domain.NewMultiplier(fact.MultiplierNum, fact.MultiplierDen)
 	}
 	return p.storeChainFacts(ctx, checks)
-}
-
-func (p *CatalogPoller) askChain(ctx context.Context, a domain.Asset) (chainCheck, error) {
-	c := chainCheck{asset: a}
-	var num, den uint64
-	if c.decimals, num, den, c.err = p.facts.Facts(ctx, a.Mint); c.err == nil {
-		c.multiplier, c.err = domain.NewMultiplier(num, den)
-	}
-	if c.err != nil {
-		c.err = errs.Wrap(c.err, errs.CodeOf(c.err), "market.CatalogPoller.askChain", slog.String("symbol", a.Symbol))
-	}
-	return c, nil
 }
 
 func (p *CatalogPoller) storeChainFacts(ctx context.Context, checks []chainCheck) (int, error) {
 	params := sqlc.StoreChainFactsParams{Now: p.clock.Now()}
 	answered := map[string]chainCheck{}
-	var failed []error
+	var first error
+	failed := 0
+	firstMint := ""
 	for _, c := range checks {
 		if c.err != nil {
-			failed = append(failed, c.err)
+			failed++
+			if first == nil {
+				first, firstMint = c.err, c.asset.Mint.String()
+			}
 			continue
 		}
 		mint := c.asset.Mint.String()
@@ -69,7 +79,7 @@ func (p *CatalogPoller) storeChainFacts(ctx context.Context, checks []chainCheck
 		params.MultiplierDens = append(params.MultiplierDens, c.multiplier.Den)
 	}
 	if len(params.Mints) == 0 {
-		return 0, errors.Join(failed...)
+		return 0, chainCheckError(first, failed, 0, firstMint)
 	}
 	var stored []string
 	err := p.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
@@ -81,10 +91,17 @@ func (p *CatalogPoller) storeChainFacts(ctx context.Context, checks []chainCheck
 		return nil
 	})
 	if err != nil {
-		failed = append(failed, errs.Wrap(err, errs.CodeOf(err), "market.CatalogPoller.storeChainFacts"))
-		return 0, errors.Join(failed...)
+		return 0, errs.Wrap(err, errs.CodeOf(err), "market.CatalogPoller.storeChainFacts")
 	}
-	return len(stored), errors.Join(failed...)
+	return len(stored), chainCheckError(first, failed, len(stored), firstMint)
+}
+
+func chainCheckError(first error, failed, checked int, firstMint string) error {
+	if first == nil {
+		return nil
+	}
+	return errs.Wrap(first, errs.CodeOf(first), "market.CatalogPoller.storeChainFacts", slog.Int("failed", failed),
+		slog.Int("checked", checked), slog.String("first_mint", firstMint))
 }
 
 func logCorrections(ctx context.Context, stored []string, answered map[string]chainCheck) {

@@ -7,5 +7,10 @@ import (
 )
 
 type MintFacts interface {
-	Facts(ctx context.Context, mint domain.Mint) (decimals uint8, multiplierNum, multiplierDen uint64, err error)
+	Facts(ctx context.Context, mints []domain.Mint) (map[domain.Mint]MintFact, map[domain.Mint]error, error)
+}
+
+type MintFact struct {
+	Decimals                     uint8
+	MultiplierNum, MultiplierDen uint64
 }
