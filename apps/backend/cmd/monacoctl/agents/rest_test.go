@@ -54,7 +54,8 @@ func TestLandStack_labelsThroughRESTWhenGraphQLIsForbidden(t *testing.T) {
 	f.hub.on(get("/commits/merge-sha"), `{"parents":[{"sha":"base-sha"}]}`)
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40"})
 	code, stdout, stderr := f.agents(t, "land-stack", "5")
-	want := "queued #5\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n"
+	want := "queued #5\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" +
+		"no Graphite draft holds #5 after 3m0s; run land-stack again if it stays that way\n"
 	posts := f.hub.callsContaining("POST /repos/o/r/issues/5/labels")
 	if code != 0 || stdout != want || s.gql != 1 || len(posts) != 1 ||
 		!strings.Contains(f.hub.body(posts[0]), `"merge-queue"`) {

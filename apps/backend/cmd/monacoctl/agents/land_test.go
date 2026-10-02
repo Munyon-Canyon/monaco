@@ -51,12 +51,16 @@ type stackGH struct {
 func newStackGH(t *testing.T, f *fixture, prs ...*stackPR) *stackGH {
 	t.Helper()
 	s := &stackGH{t: t, prs: map[int]*stackPR{}, merges: map[int][]mergeAnswer{}}
+	nums := make([]string, 0, len(prs))
 	for _, p := range prs {
 		s.prs[p.Number] = p
+		nums = append(nums, strconv.Itoa(p.Number))
 		f.hub.on(fmt.Sprintf("POST /repos/%s/issues/%d/labels", testRepo, p.Number), "[]")
 		f.hub.on(fmt.Sprintf("DELETE /repos/%s/issues/%d/labels/merge-queue", testRepo, p.Number), "[]")
 		f.hub.on(fmt.Sprintf("DELETE /repos/%s/issues/%d/labels/ship-it", testRepo, p.Number), "[]")
 	}
+	f.hub.on(list("/pulls?state=open"), []PR{{Number: 900, Title: "[Graphite MQ] Draft PR GROUP:x (PRs " +
+		strings.Join(nums, ", ") + ")", Head: Ref{Ref: "gtmq_x"}}})
 	f.hub.hook = s.onLabel
 	f.run = s.run
 	return s
@@ -294,7 +298,7 @@ func TestLandStack_labelsEveryPRBottomToTopAndKeepsTheirBases(t *testing.T) {
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
 	code, stdout, stderr := f.agents(t, "land-stack", "3")
 	if code != 0 ||
-		stdout != "queued #1 #2 #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
+		stdout != "queued #1 #2 #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #1 #2 #3\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	want := []string{
@@ -345,7 +349,7 @@ func TestLandStack_readsEveryCheckAndTheNewestRunOfEach(t *testing.T) {
 		{
 			"the newest ci-ok and verify sit past the first page",
 			lastPage(ciOK("SUCCESS", 3), verifyAt("SUCCESS", 4)),
-			"queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n",
+			"queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #1 #2\n",
 		},
 		{
 			"a newer ci-ok failed",
@@ -409,7 +413,7 @@ func TestLandStack_aSinglePRGetsOnlyTheLabel(t *testing.T) {
 		"land-stack",
 		"5",
 	); code != 0 ||
-		stdout != "queued #5\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
+		stdout != "queued #5\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #5\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	want := []string{"POST /repos/o/r/issues/5/labels"}
@@ -433,7 +437,7 @@ func TestLandStack_labelsWithTheConfiguredQueueLabel(t *testing.T) {
 		"land-stack",
 		"5",
 	); code != 0 ||
-		stdout != "queued #5\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
+		stdout != "queued #5\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #5\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, []string{"POST /repos/o/r/issues/5/labels"}) ||
@@ -488,7 +492,7 @@ func TestLandStack_queuesOnlyOnceGitHubReportsTheBottomMergeableOntoTheTrunk(t *
 			s := waitingStack(t, f, tc.script...)
 			code, stdout, stderr := f.agents(t, "land-stack", "2")
 			if code != 0 ||
-				stdout != "queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
+				stdout != "queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #1 #2\n" {
 				t.Fatalf("%d %q %q", code, stdout, stderr)
 			}
 			if s.polls != tc.polls || s.pollsAtLabel != tc.polls {
@@ -546,7 +550,8 @@ func TestLandStack_aRerunAfterATimeoutQueuesOnceGitHubHasRecomputed(t *testing.T
 	}
 	s.merges[1] = nil
 	code, stdout, stderr = f.agents(t, "land-stack", "2")
-	if code != 0 || stdout != "queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
+	out := "queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #1 #2\n"
+	if code != 0 || stdout != out {
 		t.Fatalf("rerun: %d %q %q", code, stdout, stderr)
 	}
 	want := []string{"POST /repos/o/r/issues/1/labels", "POST /repos/o/r/issues/2/labels"}
@@ -837,7 +842,7 @@ func TestLandStack_relandsAnEjectedStackWholeInOneCall(t *testing.T) {
 	ejectedStack(t, f)
 	code, stdout, stderr := f.agents(t, "land-stack", "3")
 	if code != 0 ||
-		stdout != "#3 left the Graphite merge queue; relanding its stack\nqueued #1 #2 #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
+		stdout != "#3 left the Graphite merge queue; relanding its stack\nqueued #1 #2 #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #1 #2 #3\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	want := []string{
@@ -862,7 +867,7 @@ func TestLandStack_relandsWhatIsLeftWhenOnePRLostTheLabel(t *testing.T) {
 	labeled(s.prs[3], "merge-queue")
 	code, stdout, stderr := f.agents(t, "land-stack", "3")
 	if code != 0 ||
-		stdout != "#3 left the Graphite merge queue; relanding its stack\nqueued #2 #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
+		stdout != "#3 left the Graphite merge queue; relanding its stack\nqueued #2 #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #2 #3\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	want := []string{"POST /repos/o/r/issues/2/labels", "POST /repos/o/r/issues/3/labels"}
@@ -932,19 +937,19 @@ func TestLandStack_readsTheStackFromGraphite(t *testing.T) {
 		{
 			name:  "gt names the lower PRs",
 			gtLog: "◯  fb\n◯  b1\n◯  b2 (needs restack)\n◉  b3\n◯  b4\n",
-			out:   "queued #1 #2 #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n",
+			out:   "queued #1 #2 #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #1 #2 #3\n",
 		},
 		{
 			name:  "gt lists the trunk, whose own PR targets main",
 			gtLog: "◯  fb\n◯  b0\n◯  b1\n◉  b3\n",
-			out:   "queued #1 #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n",
+			out:   "queued #1 #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #1 #3\n",
 		},
-		{name: "gt names only the top", gtLog: "◯  fb\n◉  b3\n", out: "queued #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n"},
-		{name: "gt is on another stack", gtLog: "◯  fb\n◯  b1\n◉  b7\n", out: "queued #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n"},
+		{name: "gt names only the top", gtLog: "◯  fb\n◉  b3\n", out: "queued #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #3\n"},
+		{name: "gt is on another stack", gtLog: "◯  fb\n◯  b1\n◉  b7\n", out: "queued #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #3\n"},
 		{
 			name: "gt fails",
 			fail: "gt log",
-			out:  "gt log in /w/40 failed (gt log: boom); landing the GitHub base chain\nqueued #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n",
+			out:  "gt log in /w/40 failed (gt log: boom); landing the GitHub base chain\nqueued #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #3\n",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

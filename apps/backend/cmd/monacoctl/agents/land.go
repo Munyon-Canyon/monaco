@@ -225,6 +225,9 @@ func (env *Env) land(ctx context.Context, rec Record, stack []stackPR, stdout io
 		nums[i] = p.Number
 	}
 	bottom, top := nums[0], nums[len(nums)-1]
+	if err := env.cleanRuns(ctx, stack, stdout); err != nil {
+		return err
+	}
 	ready, err := env.awaitMergeable(ctx, bottom, top)
 	switch {
 	case err != nil:
@@ -246,7 +249,7 @@ func (env *Env) land(ctx context.Context, rec Record, stack []stackPR, stdout io
 	}
 	_, _ = fmt.Fprintf(stdout, "queued %s\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n",
 		prRefs(nums))
-	return nil
+	return env.reportDraft(ctx, stack, stdout)
 }
 
 func prRefs(nums []int) string {
