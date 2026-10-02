@@ -28,6 +28,33 @@ def gh(*args: str) -> str:
     return proc.stdout
 
 
+def parse_pages(raw: str) -> list:
+    """Read every JSON value gh --paginate concatenated onto stdout."""
+    decoder = json.JSONDecoder()
+    items: list = []
+    idx = 0
+    length = len(raw)
+    while True:
+        while idx < length and raw[idx].isspace():
+            idx += 1
+        if idx >= length:
+            return items
+        value, idx = decoder.raw_decode(raw, idx)
+        if not isinstance(value, list):
+            raise GhError(f"blocked_by page is {type(value).__name__}, want a JSON array")
+        items.extend(value)
+
+
+def already_taken(err: GhError) -> bool:
+    text = str(err)
+    return "422" in text and "already been taken" in text
+
+
+def blocked_by(api: str, number: int) -> list:
+    raw = gh("api", "--paginate", f"{api}/issues/{number}/dependencies/blocked_by?per_page=100")
+    return parse_pages(raw)
+
+
 def wanted(body: str | None) -> set[int] | None:
     lines = (body or "").splitlines()
     first = lines[0] if lines else ""
@@ -45,7 +72,7 @@ def sync(repo: str, milestone: str, tracking: int, apply: bool, out) -> None:
         n = issue["number"]
         if n == tracking:
             continue
-        have = {d["number"]: d["id"] for d in json.loads(gh("api", f"{api}/issues/{n}/dependencies/blocked_by"))}
+        have = {d["number"]: d["id"] for d in blocked_by(api, n)}
         want = wanted(issue["body"])
         if want is None:
             print(f"#{n}: no Blocked by header; links {sorted(have)}", file=out)
@@ -58,11 +85,16 @@ def sync(repo: str, milestone: str, tracking: int, apply: bool, out) -> None:
         print(f"#{n}: header {sorted(want)} links {sorted(have)}; {verb}add {add} {verb}remove {remove}", file=out)
         if not apply:
             continue
-        for b in add:
-            blocker_id = json.loads(gh("api", f"{api}/issues/{b}"))["id"]
-            gh("api", "-X", "POST", f"{api}/issues/{n}/dependencies/blocked_by", "-F", f"issue_id={blocker_id}")
         for b in remove:
             gh("api", "-X", "DELETE", f"{api}/issues/{n}/dependencies/blocked_by/{have[b]}")
+        for b in add:
+            try:
+                blocker_id = json.loads(gh("api", f"{api}/issues/{b}"))["id"]
+                gh("api", "-X", "POST", f"{api}/issues/{n}/dependencies/blocked_by", "-F", f"issue_id={blocker_id}")
+            except GhError as err:
+                if not already_taken(err):
+                    raise
+                print(f"#{n}: #{b} already in sync: {err}", file=out)
 
 
 def main(argv: list[str]) -> int:
