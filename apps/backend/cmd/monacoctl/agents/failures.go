@@ -238,7 +238,7 @@ func (env *Env) watchData(ctx context.Context) (watchData, error) {
 			} `json:"drafts"`
 		} `json:"repository"`
 	}
-	if err := env.GitHub.graphql(ctx, failureQuery, &data); err != nil {
+	if err := env.graphQL(ctx, failureQuery, &data); err != nil {
 		return watchData{}, err
 	}
 	var commits []*gqlCommit
@@ -249,7 +249,7 @@ func (env *Env) watchData(ctx context.Context) (watchData, error) {
 	for i := range drafts {
 		commits = append(commits, drafts[i].commits()...)
 	}
-	if err := readAllChecks(ctx, env.GitHub.graphql, commits); err != nil {
+	if err := env.readChecks(ctx, commits, env.graphQL); err != nil {
 		return watchData{}, err
 	}
 	return watchData{prs: data.Repository.PullRequests.Nodes, drafts: drafts}, nil

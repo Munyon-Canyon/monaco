@@ -31,6 +31,7 @@ func serveQuietPull(f *fixture, n int) {
 			`"base":{"ref":"fb","sha":"base"},"labels":[]}`, n, n, n))
 	f.hub.on(get(fmt.Sprintf("/commits/sha%d/check-runs?per_page=100&filter=all&page=1", n)), `{}`)
 	f.hub.on(get(fmt.Sprintf("/commits/sha%d/status", n)), `{}`)
+	f.hub.on(list(fmt.Sprintf("/issues/%d/events?", n)), `[]`)
 }
 
 func wantErr(t *testing.T, err error, sub string) {
@@ -47,6 +48,7 @@ func TestLandStack_labelsThroughRESTWhenGraphQLIsForbidden(t *testing.T) {
 	s.denied = true
 	body := restPullBody(5, "b5")
 	f.hub.on(get("/pulls/5"), body)
+	f.hub.on(list("/issues/5/events?"), `[]`)
 	f.hub.on(list("/pulls?state=open"), "["+body+"]")
 	serveChecks(f, "b5-oid")
 	f.hub.on(get("/commits/merge-sha"), `{"parents":[{"sha":"base-sha"}]}`)
@@ -214,6 +216,7 @@ func TestGraphQL_switchesOnlyOnARefusal(t *testing.T) {
 	env = f.Env(t)
 	env.markREST()
 	f.hub.on(get("/pulls/1"), restPullBody(1, "b1"))
+	f.hub.on(list("/issues/1/events?"), `[]`)
 	var data struct {
 		Repository map[string]*stackPR `json:"repository"`
 	}
@@ -232,6 +235,9 @@ func TestRESTStackAndDrafts(t *testing.T) {
 	f.hub.on(get("/pulls/1"), `{"number":1,"state":"closed","closed_at":"`+closed.Format(time.RFC3339)+
 		`","merge_commit_sha":"abc","body":"Part of #40","head":{"ref":"b1","sha":"sha"},`+
 		`"base":{"ref":"fb","sha":"base"},"labels":[{"name":"merge-queue"}]}`)
+	events := list("/issues/1/events?")
+	f.hub.on(events, `[{"event":"labeled","created_at":"2026-01-01T00:00:00Z","label":{"name":"other"}},`+
+		`{"event":"unlabeled","created_at":"2026-01-02T00:00:00Z","label":{"name":"merge-queue"}}]`)
 	var data struct {
 		Repository map[string]*stackPR `json:"repository"`
 	}
@@ -242,12 +248,19 @@ func TestRESTStackAndDrafts(t *testing.T) {
 	}
 	p := data.Repository["p1"]
 	if p == nil || data.Repository["p9"] != nil || !p.ClosedAt.Equal(closed) || p.MergeCommit.OID != "abc" ||
-		p.State != "CLOSED" || !p.labeled("merge-queue") || p.HeadOID != "sha" {
+		p.State != "CLOSED" || !p.labeled("merge-queue") || p.HeadOID != "sha" ||
+		len(p.TimelineItems.Nodes) != 1 || p.TimelineItems.Nodes[0].Label.Name != "merge-queue" {
 		t.Fatalf("%+v", p)
 	}
+	f.hub.status[events] = http.StatusInternalServerError
+	f.hub.on(events, "no events")
+	_, err := env.restStackPayload(t.Context(), q)
+	wantErr(t, err, "no events")
+	f.hub.status[events] = 0
+	f.hub.on(events, `[]`)
 	f.hub.status[get("/pulls/1")] = http.StatusInternalServerError
 	f.hub.on(get("/pulls/1"), "boom")
-	_, err := env.restStackPayload(t.Context(), q)
+	_, err = env.restStackPayload(t.Context(), q)
 	wantErr(t, err, "boom")
 	f.hub.status[list("/pulls?state=open")] = http.StatusInternalServerError
 	f.hub.on(list("/pulls?state=open"), "nope")
@@ -287,7 +300,10 @@ func TestRESTQueryErrors(t *testing.T) {
 	if queryKind("zzz") != "query" || queryKind(openDrafts) != "drafts" ||
 		queryKind("potentialMergeCommit") != "merge" ||
 		queryKind("open: pullRequests") != "open" ||
-		queryKind("fragment pr on PullRequest") != "stack" {
+		queryKind("fragment pr on PullRequest") != "stack" ||
+		queryKind(failureQuery) != "watch" || queryKind(ticketQuery([]int{1})) != "timeline" ||
+		queryKind(repoQuery+"open: pullRequests(states:OPEN,first:100){nodes{"+stackFields+"}}}}") != "open" ||
+		queryKind(repoQuery+"}}\nfragment pr on PullRequest{"+stackFields+"}") != "stack" {
 		t.Fatal(queryKind("zzz"))
 	}
 	var n int
@@ -419,7 +435,147 @@ func TestGraphQLDenialHelpers(t *testing.T) {
 		graphqlHTTPDenied(httpStatusError{path: "/graphql", status: "500 Internal Server Error"}) ||
 		!graphqlHTTPDenied(
 			ok,
-		) || !checkPageQuery("statusCheckRollup") || checkPageQuery("pullRequest statusCheckRollup") {
+		) || !checkPageQuery(`object(oid:"x"){statusCheckRollup`) ||
+		checkPageQuery("pullRequest statusCheckRollup") || checkPageQuery(ticketQuery([]int{1})) {
 		t.Fatal("http")
 	}
+}
+
+func TestWatch_readsFailuresThroughRESTWhenGraphQLIsForbidden(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.hub.status[graphqlRoute] = http.StatusForbidden
+	f.hub.on(graphqlRoute, "forbidden")
+	open := list("/pulls?state=open")
+	f.hub.on(open, `[{"number":5,"body":"Part of #40","head":{"ref":"b5","sha":"sha5"},`+
+		`"base":{"ref":"fb"},"labels":[{"name":"x"}]}]`)
+	events := list("/issues/5/events?")
+	f.hub.on(events, `[{"event":"labeled","label":{"name":"other"}},{"event":"unlabeled",`+
+		`"created_at":"2026-03-01T00:00:00Z","label":{"name":"merge-queue"},"actor":{"login":"someone"}}]`)
+	drafts := get("/pulls?state=all&sort=updated&direction=desc&per_page=30")
+	f.hub.on(drafts, `[{"number":2,"state":"closed","title":"(PRs 5)","head":{"ref":"gtmq_b"},`+
+		`"updated_at":"2026-02-02T00:00:00Z"},{"number":1,"state":"closed","title":"(PRs 5)",`+
+		`"head":{"ref":"gtmq_a"},"updated_at":"2026-01-01T00:00:00Z"}]`)
+	f.hub.on(get("/commits/sha5/check-runs?per_page=100&filter=all&page=1"),
+		`{"check_runs":[{"name":"ci / ci-ok","status":"completed","conclusion":"failure"}]}`)
+	f.hub.on(get("/commits/sha5/status"), `{"statuses":[]}`)
+	env := f.Env(t)
+	var watched struct {
+		Repository struct {
+			PullRequests struct {
+				Nodes []watchPR `json:"nodes"`
+			} `json:"pullRequests"`
+			Drafts struct {
+				Nodes []queueDraft `json:"nodes"`
+			} `json:"drafts"`
+		} `json:"repository"`
+	}
+	if err := env.restQuery(t.Context(), failureQuery, &watched); err != nil {
+		t.Fatal(err)
+	}
+	prs, got := watched.Repository.PullRequests.Nodes, watched.Repository.Drafts.Nodes
+	actor := ""
+	if len(prs) == 1 && len(prs[0].TimelineItems.Nodes) == 1 {
+		actor = prs[0].TimelineItems.Nodes[0].Actor.Login
+	}
+	if actor != "someone" || len(got) != 2 || got[0].HeadRefName != "gtmq_a" || got[1].HeadRefName != "gtmq_b" {
+		t.Fatalf("%+v %+v", prs, got)
+	}
+	code, stdout, stderr := f.agents(t, "watch", "--once")
+	if !strings.Contains(stdout, "#5 stage 1 is red") || len(f.hub.callsContaining("POST /graphql")) != 1 {
+		t.Fatalf("%d %q %q gql %v", code, stdout, stderr, f.hub.callsContaining("POST /graphql"))
+	}
+	f.hub.status[open] = http.StatusInternalServerError
+	f.hub.on(open, "boom")
+	_, err := env.restWatchPayload(t.Context())
+	wantErr(t, err, "boom")
+	f.hub.status[open] = 0
+	f.hub.on(open, `[{"number":5,"head":{"ref":"b5","sha":"sha5"},"base":{"ref":"fb"}}]`)
+	f.hub.status[events] = http.StatusInternalServerError
+	f.hub.on(events, "boom")
+	_, err = env.restWatchPayload(t.Context())
+	wantErr(t, err, "boom")
+	f.hub.status[events] = 0
+	f.hub.on(events, `[]`)
+	f.hub.status[drafts] = http.StatusInternalServerError
+	f.hub.on(drafts, "boom")
+	_, err = env.restWatchPayload(t.Context())
+	wantErr(t, err, "boom")
+}
+
+func TestStatus_readsTimelinesThroughRESTWhenGraphQLIsForbidden(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.hub.status[graphqlRoute] = http.StatusForbidden
+	f.hub.on(graphqlRoute, "forbidden")
+	f.batch(t, 5)
+	f.hub.on(list("/pulls?state=open"), `[]`)
+	f.hub.on(list("/issues/7/comments?"), `[]`)
+	f.hub.on("POST /repos/o/r/issues/7/comments", "ok")
+	timeline := list("/issues/5/timeline?")
+	f.hub.on(timeline, `[{"event":"commented"},{"event":"cross-referenced","source":{"issue":{"number":12}}},`+
+		`{"event":"cross-referenced","source":{"issue":{"number":11,"pull_request":{}}}}]`)
+	f.hub.on(get("/pulls/11"), `{"number":11,"state":"closed","created_at":"2026-01-01T00:00:00Z",`+
+		`"merged_at":"2026-01-03T00:00:00Z","closed_at":"2026-01-03T00:00:00Z","body":"Part of #5",`+
+		`"head":{"ref":"b11","sha":"h11"},`+
+		`"base":{"ref":"fb"},"labels":[{"name":"merge-queue"}]}`)
+	f.hub.on(list("/issues/11/events?"), `[{"event":"labeled","created_at":"2026-01-02T00:00:00Z",`+
+		`"label":{"name":"merge-queue"}},{"event":"unlabeled","created_at":"2026-01-04T00:00:00Z",`+
+		`"label":{"name":"merge-queue"}},{"event":"closed"}]`)
+	f.hub.on(get("/commits/h11"), `{"commit":{"committer":{"date":"2026-01-02T03:00:00Z"}}}`)
+	f.hub.on(get("/commits/h11/check-runs?per_page=100&filter=all&page=1"),
+		`{"check_runs":[{"name":"ci / ci-ok","status":"completed","conclusion":"success"}]}`)
+	f.hub.on(get("/commits/h11/status"), `{"statuses":[]}`)
+	env := f.Env(t)
+	empty, err := env.restTimelinePayload(t.Context(), "CROSS_REFERENCED_EVENT")
+	repo, _ := empty.(map[string]any)
+	inner, _ := repo["repository"].(map[string]any)
+	if err != nil || len(inner) != 0 {
+		t.Fatalf("%v %v", empty, err)
+	}
+	views, err := env.views(t.Context(), Batch{Tickets: []BatchTicket{{Ticket: 5}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := views[0].PRs[0]
+	head := time.Date(2026, 1, 2, 3, 0, 0, 0, time.UTC)
+	queuedAt := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
+	removedAt := time.Date(2026, 1, 4, 0, 0, 0, 0, time.UTC)
+	if !p.Head.Equal(head) || !p.InQueue || len(p.Queued) != 2 || !p.Queued[0].Added || p.Queued[1].Added ||
+		!p.Queued[0].At.Equal(queuedAt) || !p.Queued[1].At.Equal(removedAt) || views[0].state() != "merged" {
+		t.Fatalf("%+v %s", p, views[0].state())
+	}
+	code, stdout, stderr := f.agents(t, "status", "--publish")
+	body := posted(t, f, "POST /repos/o/r/issues/7/comments")
+	if code != 0 || stdout != "status comment updated\n" || !strings.Contains(body, "| #5 | merged |") ||
+		len(f.hub.callsContaining("POST /graphql")) != 2 {
+		t.Fatalf("%d %q %q\n%s", code, stdout, stderr, body)
+	}
+	when, err := env.GitHub.committedAt(t.Context(), "")
+	if err != nil || !when.IsZero() {
+		t.Fatal(when, err)
+	}
+	f.hub.status[timeline] = http.StatusInternalServerError
+	f.hub.on(timeline, "boom")
+	_, err = env.restTimelinePayload(t.Context(), ticketQuery([]int{5}))
+	wantErr(t, err, "boom")
+	f.hub.status[timeline] = 0
+	f.hub.on(timeline, `[{"event":"cross-referenced","source":{"issue":{"number":11,"pull_request":{}}}}]`)
+	f.hub.status[get("/pulls/11")] = http.StatusInternalServerError
+	f.hub.on(get("/pulls/11"), "boom")
+	_, err = env.restTimelinePayload(t.Context(), ticketQuery([]int{5}))
+	wantErr(t, err, "boom")
+	f.hub.status[get("/pulls/11")] = 0
+	f.hub.on(get("/pulls/11"), `{"number":11,"body":"Part of #5","head":{"sha":"h11"}}`)
+	ev := list("/issues/11/events?")
+	f.hub.status[ev] = http.StatusInternalServerError
+	f.hub.on(ev, "boom")
+	_, err = env.restTimelinePayload(t.Context(), ticketQuery([]int{5}))
+	wantErr(t, err, "boom")
+	f.hub.status[ev] = 0
+	f.hub.on(ev, `[]`)
+	f.hub.status[get("/commits/h11")] = http.StatusInternalServerError
+	f.hub.on(get("/commits/h11"), "boom")
+	_, err = env.restTimelinePayload(t.Context(), ticketQuery([]int{5}))
+	wantErr(t, err, "boom")
 }

@@ -256,6 +256,9 @@ func TestWatch_failuresSurfaceStateQueryAndRecordErrors(t *testing.T) {
 	if code, _, stderr := f.agents(t, "watch", "--once"); code != 1 || !strings.Contains(stderr, "rate limited") {
 		t.Fatalf("graphql: %d %q", code, stderr)
 	}
+	if len(f.hub.callsContaining("/events")) != 0 || len(f.hub.callsContaining("/timeline")) != 0 {
+		t.Fatalf("rest reads %v", f.hub.callsContaining("/issues/"))
+	}
 	writeFile(t, env.recordPath(40), "{")
 	got := env.freshOwnerFor(context.Background(), failure{PR: 5, Body: "Part of #40"})
 	if !strings.Contains(got, "ticket: 40\n  worktree: unknown\n") {
