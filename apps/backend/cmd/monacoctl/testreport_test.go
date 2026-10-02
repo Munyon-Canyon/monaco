@@ -34,7 +34,7 @@ func TestReadReportRanksTopLevelTestsAndPackagesByElapsed(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	rep.write(&out, budget{warn: 10 * time.Second, fail: 20 * time.Second, run: 90 * time.Second})
+	rep.write(&out, budget{warn: 10 * time.Second, fail: 40 * time.Second, run: 90 * time.Second})
 	want := `slowest tests:
    3.00s  m/a TestSlow
    1.25s  m/b TestBroken
@@ -43,7 +43,7 @@ packages:
   11.00s  m/b
    4.20s  m/a
    0.00s  m/c
-run: 15.0s (budget 90s), packages warn at 10s, fail at 20s
+run: 15.0s (budget 90s), packages warn at 10s, fail at 40s
 `
 	if out.String() != want {
 		t.Fatalf("report:\n%s\nwant:\n%s", out.String(), want)
@@ -137,7 +137,7 @@ func TestTestReportCommand(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	warnB := "monacoctl test-report: package m/b took 11.00s, over the 10s per-package budget (fails at 20s)\n"
+	warnB := "monacoctl test-report: package m/b took 11.00s, over the 10s per-package budget (fails at 40s)\n"
 	failedB := "failed: m/b TestBroken\nfailed: m/b\n"
 	for _, tc := range []struct {
 		name      string
@@ -152,10 +152,10 @@ func TestTestReportCommand(t *testing.T) {
 		{"bad start", []string{"--from", file, "--start", "soon"}, 2, "", testReportUsage + "\n"},
 		{"missing file", []string{"--from", file + ".gone"}, 1, "", "monacoctl test-report: monacoctl.readReport: internal: open " + file + ".gone: no such file or directory\n"},
 		{"directory", []string{"--from", filepath.Dir(file)}, 1, "", "monacoctl test-report: monacoctl.readReport: internal: read " + filepath.Dir(file) + ": is a directory\n"},
-		{"package in the warning band", []string{"--from", file}, 1, "run: 15.0s (budget 90s), packages warn at 10s, fail at 20s\n" + warnB, failedB},
-		{"run of 70s within the laptop budget", []string{"--start", seventy, "--from", file}, 1, "run: 70.0s (budget 90s), packages warn at 10s, fail at 20s\n" + warnB, failedB},
+		{"package in the warning band", []string{"--from", file}, 1, "run: 15.0s (budget 90s), packages warn at 10s, fail at 40s\n" + warnB, failedB},
+		{"run of 70s within the laptop budget", []string{"--start", seventy, "--from", file}, 1, "run: 70.0s (budget 90s), packages warn at 10s, fail at 40s\n" + warnB, failedB},
 		{"run over budget", []string{"--start", early, "--from", file}, 1, "run: 120.0s", "monacoctl test-report: run took 120.0s, over the 90s budget\n" + failedB},
-		{"run not gated in CI", []string{"--start", early, "--from", file, "--ci"}, 1, "run: 120.0s (not gated in CI; the 90s budget is for a laptop), packages warn at 10s, fail at 20s\n::warning::" + warnB, failedB},
+		{"run not gated in CI", []string{"--start", early, "--from", file, "--ci"}, 1, "run: 120.0s (not gated in CI; the 90s budget is for a laptop), packages warn at 10s, fail at 40s\n::warning::" + warnB, failedB},
 	} {
 		var stdout, stderr bytes.Buffer
 		code := testReportCmd(tc.args, &stdout, &stderr)
@@ -165,12 +165,12 @@ func TestTestReportCommand(t *testing.T) {
 	}
 }
 
-func TestTestReportWarnsPastTenSecondsAndFailsPastTwentyOnTheLaptopAndInCI(t *testing.T) {
+func TestTestReportWarnsPastTenSecondsAndFailsPastFortyOnTheLaptopAndInCI(t *testing.T) {
 	t.Parallel()
 	warning := func(elapsed string) string {
-		return "monacoctl test-report: package m/p took " + elapsed + ".00s, over the 10s per-package budget (fails at 20s)\n"
+		return "monacoctl test-report: package m/p took " + elapsed + ".00s, over the 10s per-package budget (fails at 40s)\n"
 	}
-	fail := "monacoctl test-report: package m/p took 21.00s, over the 20s per-package budget\n"
+	fail := "monacoctl test-report: package m/p took 41.00s, over the 40s per-package budget\n"
 	for _, tc := range []struct {
 		elapsed string
 		ci      bool
@@ -180,12 +180,12 @@ func TestTestReportWarnsPastTenSecondsAndFailsPastTwentyOnTheLaptopAndInCI(t *te
 	}{
 		{"9", false, 0, "", ""},
 		{"12", false, 0, warning("12"), ""},
-		{"19", false, 0, warning("19"), ""},
-		{"21", false, 1, "", fail},
+		{"39", false, 0, warning("39"), ""},
+		{"41", false, 1, "", fail},
 		{"9", true, 0, "", ""},
 		{"12", true, 0, "::warning::" + warning("12"), ""},
-		{"19", true, 0, "::warning::" + warning("19"), ""},
-		{"21", true, 1, "", fail},
+		{"39", true, 0, "::warning::" + warning("39"), ""},
+		{"41", true, 1, "", fail},
 	} {
 		t.Run(fmt.Sprintf("ci=%v %ss", tc.ci, tc.elapsed), func(t *testing.T) {
 			t.Parallel()
@@ -200,7 +200,7 @@ func TestTestReportWarnsPastTenSecondsAndFailsPastTwentyOnTheLaptopAndInCI(t *te
 			}
 			var stdout, stderr bytes.Buffer
 			code := testReportCmd(args, &stdout, &stderr)
-			warned := strings.Contains(stdout.String(), "(fails at 20s)")
+			warned := strings.Contains(stdout.String(), "(fails at 40s)")
 			annotated := strings.Contains(stdout.String(), "::warning::")
 			if code != tc.code || warned != (tc.warning != "") || annotated != (tc.ci && warned) ||
 				!strings.HasSuffix(stdout.String(), tc.warning) || stderr.String() != tc.stderr {
@@ -252,11 +252,11 @@ func TestTestReportPrintsBudgetExemptTimesWithoutGatingThemAndStillFailsTheirTes
 			at, action, pkg, test, elapsed)
 	}
 	fast := write("short.json", event("00", "pass", "m/p", "", "1"), event("01", "pass", "m/q", "", "2"))
-	slowP := write("short.json", event("00", "pass", "m/p", "", "21"), event("01", "pass", "m/q", "", "2"))
+	slowP := write("short.json", event("00", "pass", "m/p", "", "41"), event("01", "pass", "m/q", "", "2"))
 	full := write("full.json", event("02", "pass", "m/p", "", "45"), event("09", "pass", "m/gen", "", "60"))
 	failing := write("full.json", event("02", "fail", "m/p", "TestLong", "40"), event("02", "fail", "m/p", "", "45"))
 	exemptBlock := "packages exempt from the budget:\n  60.00s  m/gen\n  45.00s  m/p\n" +
-		"run: 60.0s (budget 90s), packages warn at 10s, fail at 20s\n"
+		"run: 60.0s (budget 90s), packages warn at 10s, fail at 40s\n"
 	for _, tc := range []struct {
 		name, from, exempt string
 		code               int
@@ -265,7 +265,7 @@ func TestTestReportPrintsBudgetExemptTimesWithoutGatingThemAndStillFailsTheirTes
 		{"exempt times print, gate nothing and leave the run alone", fast, full, 0, exemptBlock, ""},
 		{
 			"the from stream keeps its budget for a package the exempt stream also ran", slowP, full, 1, exemptBlock,
-			"monacoctl test-report: package m/p took 21.00s, over the 20s per-package budget\n",
+			"monacoctl test-report: package m/p took 41.00s, over the 40s per-package budget\n",
 		},
 		{
 			"an exempt stream's failed test fails the report", fast, failing, 1, "packages exempt from the budget:\n  45.00s  m/p\n",
