@@ -37,6 +37,10 @@ func TestAssets_SearchByName(t *testing.T) {
 	t.Parallel()
 	s := newMarketAPI(t, marketWhen())
 	s.seedFixtures(t)
+	mint := marketfake.AAPLx().Mint.String()
+	s.price(t, mint, -18*time.Hour-time.Minute, 100_000_000)
+	s.price(t, mint, -30*time.Minute, 110_000_000)
+	s.price(t, mint, -time.Minute, 200_000_000)
 	page := pageOf(t, s.get(t, "/v1/assets?q=ApPle"))
 	if len(page.Assets) != 1 || page.Assets[0].Symbol != "AAPLx" || page.NextCursor != nil {
 		t.Fatalf("search = %+v", page)
@@ -56,18 +60,27 @@ func assertAppleQuote(t *testing.T, got api.AssetSummary) {
 	if got.DisplayName != "Apple xStock" || got.Issuer != api.Xstocks || got.Kind != api.AssetKindEquity {
 		t.Fatalf("AAPLx identity = %+v", got)
 	}
-	assertAppleUnpriced(t, got)
+	assertApplePrice(t, got)
 	if got.Session.State != api.MarketStateOpen || got.Session.Continuous || got.Session.NextState == nil ||
 		*got.Session.NextState != api.MarketSessionNextStateAfterHours || got.Session.NextTransition == nil {
 		t.Fatalf("session = %+v", got.Session)
 	}
 }
 
-func assertAppleUnpriced(t *testing.T, got api.AssetSummary) {
+func assertApplePrice(t *testing.T, got api.AssetSummary) {
 	t.Helper()
-	if got.LogoUrl == nil || got.PriceMicros != nil || got.PriceAsOf != nil || got.ChangeBps != nil ||
-		got.SparklineMicros != nil {
+	wantAsOf := marketWhen().Add(-30 * time.Minute)
+	if got.LogoUrl == nil || got.PriceMicros == nil || *got.PriceMicros != 110_000_000 {
 		t.Fatalf("AAPLx price = %+v", got)
+	}
+	if got.PriceAsOf == nil || !got.PriceAsOf.Equal(wantAsOf) || got.ChangeBps == nil || *got.ChangeBps != 1000 {
+		t.Fatalf("AAPLx change = %+v", got)
+	}
+	if got.SparklineMicros == nil || len(*got.SparklineMicros) != 2 {
+		t.Fatalf("AAPLx sparkline = %+v", got.SparklineMicros)
+	}
+	if (*got.SparklineMicros)[0] != 100_000_000 || (*got.SparklineMicros)[1] != 110_000_000 {
+		t.Fatalf("AAPLx sparkline = %+v", *got.SparklineMicros)
 	}
 }
 
@@ -88,15 +101,49 @@ func TestAssets_Popular(t *testing.T) {
 func TestAssets_PreIPO(t *testing.T) {
 	t.Parallel()
 	s := newMarketAPI(t, marketWhen())
-	s.insertClone(t, 5, "SPACEx", "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", "SpaceX", domain.KindPreIPO, 0)
+	s.seedFixtures(t)
+	space := s.insertClone(
+		t,
+		5,
+		"SPACEx",
+		"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+		"SpaceX",
+		domain.KindPreIPO,
+		0,
+	)
+	s.price(t, space.Mint.String(), -30*time.Hour, 10_000_000)
+	s.price(t, space.Mint.String(), -15*time.Hour+10*time.Minute, 50_000_000)
+	s.price(t, space.Mint.String(), -time.Minute, 55_000_000)
 	page := pageOf(t, s.get(t, "/v1/assets?filter=pre_ipo"))
 	if len(page.Assets) != 1 || page.Assets[0].Symbol != "SPACEx" || page.Assets[0].Kind != api.AssetKindPreIpo {
-		t.Fatalf("pre-IPO = %+v", page)
+		t.Fatalf("pre_ipo = %+v, want only SPACEx and not AAPLx", page.Assets)
 	}
 	got := page.Assets[0]
-	if got.PriceMicros != nil || got.ChangeBps != nil || !got.Session.Continuous ||
+	if got.ChangeBps == nil || *got.ChangeBps != 0 || !got.Session.Continuous ||
 		got.Session.NextState != nil || got.Session.NextTransition != nil || got.Session.State != api.MarketStateOpen {
 		t.Fatalf("pre-IPO quote = %+v session %+v", got, got.Session)
+	}
+}
+
+func TestAssets_PreIPOHoldsAnOpeningSpikeBeforeMeasuringTheChange(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	space := s.insertClone(
+		t,
+		5,
+		"SPACEx",
+		"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+		"SpaceX",
+		domain.KindPreIPO,
+		0,
+	)
+	s.price(t, space.Mint.String(), -24*time.Hour-time.Minute, 100_000_000)
+	s.price(t, space.Mint.String(), -14*time.Hour, 200_000_000)
+	s.price(t, space.Mint.String(), -10*time.Minute, 100_000_000)
+	s.price(t, space.Mint.String(), -5*time.Minute, 100_000_000)
+	page := pageOf(t, s.get(t, "/v1/assets?filter=pre_ipo"))
+	if len(page.Assets) != 1 || page.Assets[0].ChangeBps == nil || *page.Assets[0].ChangeBps != 0 {
+		t.Fatalf("pre-IPO opening spike = %+v", page.Assets)
 	}
 }
 
@@ -156,6 +203,35 @@ func TestAssets_UnpricedIsNull(t *testing.T) {
 	if !json.Valid(rec.Body.Bytes()) ||
 		!containsAll(rec.Body.String(), `"price_micros":null`, `"sparkline_micros":null`) {
 		t.Fatalf("body = %s", rec.Body)
+	}
+}
+
+func TestAssets_anOldPriceHasAnEmptySparkline(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	s.price(t, marketfake.TSLAx().Mint.String(), -30*time.Hour, 80_000_000)
+	page := pageOf(t, s.get(t, "/v1/assets?q=tesla"))
+	if len(page.Assets) != 1 || page.Assets[0].PriceMicros == nil || *page.Assets[0].PriceMicros != 80_000_000 ||
+		page.Assets[0].ChangeBps == nil || *page.Assets[0].ChangeBps != 0 ||
+		page.Assets[0].SparklineMicros == nil || len(*page.Assets[0].SparklineMicros) != 0 {
+		t.Fatalf("old price = %+v", page.Assets)
+	}
+}
+
+func TestAssets_omitsTheChangeWhenTheReferenceIsZero(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	mint := marketfake.AAPLx().Mint.String()
+	s.price(t, mint, -18*time.Hour-time.Minute, 0)
+	s.price(t, mint, -10*time.Minute, 110_000_000)
+	s.price(t, mint, -8*time.Minute, 110_000_000)
+	s.price(t, mint, -6*time.Minute, 110_000_000)
+	page := pageOf(t, s.get(t, "/v1/assets?q=aap"))
+	if len(page.Assets) != 1 || page.Assets[0].PriceMicros == nil || *page.Assets[0].PriceMicros != 110_000_000 ||
+		page.Assets[0].ChangeBps != nil {
+		t.Fatalf("zero reference = %+v", page.Assets)
 	}
 }
 
@@ -275,18 +351,6 @@ func TestAssets_aPricePastInt64DoesNotReachTheClient(t *testing.T) {
 	if _, err := h.GetAssets(user, api.GetAssetsRequestObject{}); errs.CodeOf(err) != errs.CodeDecodeFailed {
 		t.Fatalf("huge sparkline = %v", err)
 	}
-	change := int32(0)
-	h.List = hugeList{page: app.Page{Items: []app.Summary{{
-		Asset: asset, Session: session, Priced: true, Change: &change,
-		Price:     domain.Sample{Micros: money.MicrosFromUint64(1), ObservedAt: when},
-		Sparkline: []money.Micros{money.MicrosFromUint64(1)},
-	}}}}
-	got, err := h.GetAssets(user, api.GetAssetsRequestObject{})
-	body, ok := got.(api.GetAssets200JSONResponse)
-	if err != nil || !ok || len(body.Assets) != 1 || body.Assets[0].PriceMicros == nil ||
-		*body.Assets[0].PriceMicros != 1 {
-		t.Fatalf("priced summary = %#v %v", got, err)
-	}
 }
 
 type hugeList struct{ page app.Page }
@@ -352,6 +416,16 @@ func (s marketAPI) insertClone(
 	asset.CompanyKey = domain.CompanyKey(name)
 	insert(t, s.pool, stamped(asset, s.when), nil)
 	return asset
+}
+
+func (s marketAPI) price(t *testing.T, mint string, offset time.Duration, micros int64) {
+	t.Helper()
+	_, err := s.pool.Exec(t.Context(),
+		`INSERT INTO price_points (mint, ts, price_micros, source) VALUES ($1, $2, $3, 'jupiter')`,
+		mint, s.when.Add(offset), micros)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func (s marketAPI) get(t *testing.T, path string) *httptest.ResponseRecorder {

@@ -98,7 +98,7 @@ paths:
           schema:
             type: string
             maxLength: 512
-            examples: ["eyJzIjoiQUFQTHgiLCJpZCI6IjAxOTIwMDAwLTAwMDAtNzAwMC04MDAwLTAwMDAwMDAwMDAwMSJ9"]
+            examples: ["c0FBUEx4ADAxOTIwMDAwLTAwMDAtNzAwMC04MDAwLTAwMDAwMDAwMDAwMQ"]
       responses:
         "200":
           description: One page of tradable assets.
@@ -605,7 +605,7 @@ components:
       examples:
         - assets:
             - symbol: AAPLx
-              display_name: Apple xStock
+              display_name: Apple
               issuer: xstocks
               kind: equity
               logo_url: "https://cdn.example.com/AAPLx.png"
@@ -639,7 +639,7 @@ components:
       description: One tradable asset as the list draws it, with the price already chosen.
       examples:
         - symbol: AAPLx
-          display_name: Apple xStock
+          display_name: Apple
           issuer: xstocks
           kind: equity
           logo_url: "https://cdn.example.com/AAPLx.png"
@@ -674,7 +674,7 @@ components:
         display_name:
           type: string
           description: The company name the app shows.
-          examples: [Apple xStock]
+          examples: [Apple]
         issuer:
           $ref: "#/components/schemas/AssetIssuer"
           description: The firm that issues the token.

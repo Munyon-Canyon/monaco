@@ -567,7 +567,7 @@ type AssetKind string
 
 // AssetList One page of the tradable catalog.
 //
-// Examples: {"assets":[{"change_bps":1000,"display_name":"Apple xStock","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx"}],"next_cursor":null}
+// Examples: {"assets":[{"change_bps":1000,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx"}],"next_cursor":null}
 type AssetList struct {
 	// Assets The page, in the filter's order.
 	//
@@ -582,7 +582,7 @@ type AssetList struct {
 
 // AssetSummary One tradable asset as the list draws it, with the price already chosen.
 //
-// Examples: {"change_bps":1000,"display_name":"Apple xStock","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx"}
+// Examples: {"change_bps":1000,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx"}
 type AssetSummary struct {
 	// ChangeBps The move in basis points against the last US close for an equity, or against the first sample of the UTC day for a pre-IPO token. Null when that reference does not exist.
 	//
@@ -591,7 +591,7 @@ type AssetSummary struct {
 
 	// DisplayName The company name the app shows.
 	//
-	// Examples: Apple xStock
+	// Examples: Apple
 	DisplayName string `json:"display_name"`
 
 	// Issuer The firm that issues the token.
