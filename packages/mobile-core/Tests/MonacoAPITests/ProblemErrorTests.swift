@@ -36,7 +36,8 @@ final class ProblemErrorTests: XCTestCase {
                 .noRoute, .notAVoter, .notCabalCreator, .notCabalMember, .notFound,
                 .notProposer, .panic, .phoneNotLinked, .photoInvalid, .postHogRejected,
                 .postHogUnavailable, .potExceeded, .potValueZero, .privyUnavailable, .proposalClosed,
-                .proposalNotFound, .rateLimited, .relayerUnderfunded, .requestNotNeeded, .requestPending,
+                .proposalNotFound, .rateLimited, .referralCodeUnknown, .relayerUnderfunded, .requestNotNeeded,
+                .requestPending,
                 .rpcUnavailable, .sessionRequired, .slippageExceeded, .swapFailed, .swapNotFound,
                 .swapNotRetryable, .unauthorized, .upstreamTimeout, .upstreamUnavailable, .userNotFound,
                 .versionConflict, .walletMismatch, .withdrawNotAllowed, .xNotLinked:

@@ -146,6 +146,7 @@ const (
 	ProposalClosed             ErrorCode = "proposal_closed"
 	ProposalNotFound           ErrorCode = "proposal_not_found"
 	RateLimited                ErrorCode = "rate_limited"
+	ReferralCodeUnknown        ErrorCode = "referral_code_unknown"
 	RelayerUnderfunded         ErrorCode = "relayer_underfunded"
 	RequestNotNeeded           ErrorCode = "request_not_needed"
 	RequestPending             ErrorCode = "request_pending"
@@ -293,6 +294,8 @@ func (e ErrorCode) Valid() bool {
 	case ProposalNotFound:
 		return true
 	case RateLimited:
+		return true
+	case ReferralCodeUnknown:
 		return true
 	case RelayerUnderfunded:
 		return true
