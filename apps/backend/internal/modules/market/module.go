@@ -91,8 +91,11 @@ func (m *Module) RouteChecker() *app.RouteChecker {
 
 func (m *Module) Routes(r *httpx.Routes) {
 	list := app.NewListAssets(m.deps.Pool, m.deps.Clock)
+	cache := adapters.NewCache(m.deps.Clock)
 	r.MarketRoutes = adapters.HTTP{
-		List: list, Detail: app.NewDetail(m.deps.Pool, list), Chart: app.NewChart(m.deps.Pool, m.deps.Clock),
+		List:   adapters.CacheList(list, cache),
+		Detail: app.NewDetail(m.deps.Pool, list),
+		Chart:  adapters.CacheChart(app.NewChart(m.deps.Pool, m.deps.Clock), cache),
 	}
 }
 
