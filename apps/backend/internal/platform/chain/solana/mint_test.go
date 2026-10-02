@@ -76,6 +76,33 @@ func TestMintConfig_olderFeeBeforeTheNewerEpoch(t *testing.T) {
 	}
 }
 
+func TestMintConfig_newerFeeFromTheNewerEpochOn(t *testing.T) {
+	t.Parallel()
+	for epoch, want := range map[int]struct {
+		bps uint16
+		max uint64
+	}{
+		10: {25, 9},
+		11: {50, 99},
+		12: {50, 99},
+	} {
+		body := func(method string) string {
+			if method == "getEpochInfo" {
+				return `{"epoch":` + strconv.Itoa(epoch) + `}`
+			}
+			return `{"value":{"owner":"` + string(
+				chain.SPL2022Program,
+			) + `","data":{"parsed":{"type":"mint","info":{"decimals":2,` +
+				`"extensions":[{"extension":"transferFeeConfig","state":{"olderTransferFee":{"epoch":1,"maximumFee":9,` +
+				`"transferFeeBasisPoints":25},"newerTransferFee":{"epoch":11,"maximumFee":99,"transferFeeBasisPoints":50}}}]}}}}}`
+		}
+		got, err := client(byMethod(body)).MintConfig(t.Context(), feeMint)
+		if err != nil || got.TransferFeeBps != want.bps || got.MaxFee != money.NewBaseUnits(want.max, 2) {
+			t.Fatalf("epoch %d: MintConfig = %+v, %v; want %d bps and max fee %d", epoch, got, err, want.bps, want.max)
+		}
+	}
+}
+
 func TestMintConfig_cachesForAnHour(t *testing.T) {
 	t.Parallel()
 	clk := testkit.NewClock(clock.Real{}.Now())

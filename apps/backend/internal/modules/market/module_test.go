@@ -1,10 +1,14 @@
 package market_test
 
 import (
+	"net/http"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
@@ -55,4 +59,52 @@ func TestModule_samplesPricesAtTheConfiguredInterval(t *testing.T) {
 	if last := pollers[len(pollers)-1]; last.Name() != "market.prices" || last.Interval() != 90*time.Second {
 		t.Fatalf("Pollers = %v, want market.prices every 90s", pollers)
 	}
+}
+
+type unavailable struct{ calls atomic.Int32 }
+
+func (u *unavailable) RoundTrip(r *http.Request) (*http.Response, error) {
+	u.calls.Add(1)
+	return &http.Response{
+		StatusCode: http.StatusServiceUnavailable, Header: http.Header{}, Body: http.NoBody, Request: r,
+	}, nil
+}
+
+func TestModule_retriesXStocksThreeTimesWithinTheBackoffCeilings(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		rt := &unavailable{}
+		var xstocks *httpclient.Client
+		deps := module.Deps{
+			Config: moduleConfig(),
+			HTTPClient: func(name string, opts ...httpclient.Option) *httpclient.Client {
+				c := httpclient.New(name, append(opts, httpclient.WithTransport(rt))...)
+				if name == "xstocks" {
+					xstocks = c
+				}
+				return c
+			},
+		}
+		market.New(deps).Pollers()
+		if xstocks == nil {
+			t.Fatal("Pollers built no xstocks client")
+		}
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "/assets", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		start := clock.Real{}.Now()
+		resp, err := xstocks.Do(t.Context(), req)
+		waited := clock.Real{}.Now().Sub(start)
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		if err == nil {
+			t.Fatal("a 503 on every attempt succeeded")
+		}
+		if rt.calls.Load() != 3 || waited <= 0 || waited > 750*time.Millisecond {
+			t.Fatalf("%d attempts waited %v, want 3 attempts and between 0 and 250ms + 500ms of backoff",
+				rt.calls.Load(), waited)
+		}
+	})
 }

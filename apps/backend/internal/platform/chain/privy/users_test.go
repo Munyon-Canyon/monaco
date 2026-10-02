@@ -116,3 +116,28 @@ func TestGetUser_hangHitsTheTenSecondPrivyDeadline(t *testing.T) {
 		}
 	})
 }
+
+func TestGetUser_waitsBetweenRetriesWithinTheBackoffCeilings(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		c, u, srv := overFakes(t)
+		script(
+			t,
+			srv,
+			fakes.Step{
+				Route:  "/privy/v1/users/did:privy:member-new",
+				Action: fakes.ActionFail,
+				Status: http.StatusServiceUnavailable,
+				Times:  3,
+			},
+		)
+		start := clock.Real{}.Now()
+		_, err := c.GetUser(t.Context(), "did:privy:member-new")
+		waited := clock.Real{}.Now().Sub(start)
+		wantCode(t, err, errs.CodePrivyUnavailable)
+		if len(u.requests()) != 3 || waited <= 0 || waited > 750*time.Millisecond {
+			t.Fatalf("%d attempts waited %v, want 3 attempts and between 0 and 250ms + 500ms of backoff",
+				len(u.requests()), waited)
+		}
+	})
+}

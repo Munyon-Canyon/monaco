@@ -2,6 +2,7 @@ package solana_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -145,4 +146,21 @@ func TestReads_refuseInvalidAddressesWithoutACall(t *testing.T) {
 	if n := len(u.requests()); n != 0 {
 		t.Fatalf("%d RPC calls for invalid addresses", n)
 	}
+}
+
+func TestSignatureStatuses_acceptsExactlyTheMostItAsksForAndRefusesOneMore(t *testing.T) {
+	t.Parallel()
+	const most = 256
+	body := func(method string) string {
+		if method == "getBlockHeight" {
+			return `100`
+		}
+		return `{"value":[` + strings.TrimSuffix(strings.Repeat("null,", most), ",") + `]}`
+	}
+	got, err := client(byMethod(body)).SignatureStatuses(t.Context(), make([]chain.Signature, most))
+	if err != nil || len(got) != most || got[most-1].State != solana.StateNotFound {
+		t.Fatalf("%d signatures = %d statuses, %v; want one not-found status each", most, len(got), err)
+	}
+	_, err = client(byMethod(body)).SignatureStatuses(t.Context(), make([]chain.Signature, most+1))
+	wantCode(t, err, errs.CodeInvalidInput)
 }

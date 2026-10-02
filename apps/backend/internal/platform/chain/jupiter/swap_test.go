@@ -397,3 +397,39 @@ func exportedJSONTypes(file *ast.File) []string {
 	})
 	return names
 }
+
+func TestQuote_anEmptyOrMissingRoutePlanIsNotRoutable(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		body     string
+		routable bool
+	}{
+		"empty plan":   {`{"inAmount":"1","outAmount":"5","routePlan":[]}`, false},
+		"missing plan": {`{"inAmount":"1","outAmount":"5"}`, false},
+		"one hop":      {`{"inAmount":"1","outAmount":"5","routePlan":[{}]}`, true},
+	} {
+		got, err := client(replying(http.StatusOK, tc.body)).Quote(t.Context(),
+			jupiter.QuoteSpec{In: usdc(), Out: aaplx(), Amount: units(1, usdc())})
+		if err != nil || got.Routable != tc.routable {
+			t.Fatalf("%s: Quote = %+v, %v, want Routable %v", name, got, err, tc.routable)
+		}
+	}
+}
+
+func TestQuote_waitsBetweenRetriesWithinTheBackoffCeilings(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		c, u, srv := overFakes(t)
+		script(t, srv, fakes.Step{
+			Route: orderRoute, Action: fakes.ActionFail, Status: http.StatusServiceUnavailable, Times: 3,
+		})
+		start := now()
+		_, err := c.Quote(t.Context(), jupiter.QuoteSpec{In: usdc(), Out: aaplx(), Amount: units(1, usdc())})
+		waited := now().Sub(start)
+		wantCode(t, err, errs.CodeJupiterUnavailable)
+		if len(u.requests()) != 3 || waited <= 0 || waited > 750*time.Millisecond {
+			t.Fatalf("%d attempts waited %v, want 3 attempts and between 0 and 250ms + 500ms of backoff",
+				len(u.requests()), waited)
+		}
+	})
+}
