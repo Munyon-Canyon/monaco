@@ -1,5 +1,5 @@
+import Foundation
 import MonacoAPI
-import Synchronization
 import XCTest
 
 @testable import MonacoCore
@@ -48,27 +48,26 @@ final class HintRefreshPolicyTests: XCTestCase {
 final class HintRefresherTests: XCTestCase {
     func testFiveHintsDuringASlowRefreshCallRefreshTwice() async {
         let gate = RefreshGate()
-        let refresher = HintRefresher { await gate.enter() }
+        let refresher = HintRefresher(
+            refresh: { await gate.enter() },
+            didObserveHint: { gate.observeHint() }
+        )
         let (stream, continuation) = AsyncStream<Hint>.makeStream()
         let observing = Task { await refresher.observe(stream) }
 
         continuation.yield(Self.hint(1))
-        await waitUntil(gate, count: 1)
+        await gate.waitForRefreshes(1)
         for index in 2...5 {
             continuation.yield(Self.hint(index))
-            await Task.yield()
         }
+        await gate.waitForHints(5)
 
         gate.releaseOne()
-        await waitUntil(gate, count: 2)
+        await gate.waitForRefreshes(2)
         gate.releaseOne()
-        for _ in 0..<40 {
-            await Task.yield()
-        }
-
-        XCTAssertEqual(gate.count, 2)
         continuation.finish()
         await observing.value
+        XCTAssertEqual(gate.refreshCount, 2)
     }
 
     func testHintsWhileHiddenRefreshOnceWhenShown() async {
@@ -84,47 +83,85 @@ final class HintRefresherTests: XCTestCase {
         continuation.finish()
         await observing.value
 
-        XCTAssertEqual(gate.count, 0)
+        XCTAssertEqual(gate.refreshCount, 0)
         refresher.setVisible(true)
-        await waitUntil(gate, count: 1)
+        await gate.waitForRefreshes(1)
         gate.releaseOne()
-        for _ in 0..<40 {
-            await Task.yield()
-        }
-        XCTAssertEqual(gate.count, 1)
+        await gate.waitForFinishes(1)
+        XCTAssertEqual(gate.refreshCount, 1)
     }
 
     private static func hint(_ id: Int) -> Hint {
         Hint(key: "global", what: "feed", id: "\(id)") ?? .resync
     }
 
-    private func waitUntil(_ gate: RefreshGate, count expected: Int) async {
-        for _ in 0..<1_000 where gate.count < expected {
-            await Task.yield()
-        }
-    }
 }
 
-private final class RefreshGate: Sendable {
-    private let entered = Mutex(0)
-    private let releaseWaiters = Mutex<[CheckedContinuation<Void, Never>]>([])
+@MainActor
+private final class RefreshGate {
+    private let refreshes = Signal()
+    private let hints = Signal()
+    private let releases = Signal()
+    private let finishes = Signal()
 
     func enter() async {
-        entered.withLock { $0 += 1 }
-        await withCheckedContinuation { continuation in
-            releaseWaiters.withLock { $0.append(continuation) }
-        }
+        await releases.waitUntil(refreshes.signal())
+        finishes.signal()
     }
 
-    var count: Int {
-        entered.withLock { $0 }
+    func observeHint() {
+        hints.signal()
+    }
+
+    var refreshCount: Int { refreshes.count }
+
+    func waitForRefreshes(_ expected: Int) async {
+        await refreshes.waitUntil(expected)
+    }
+
+    func waitForHints(_ expected: Int) async {
+        await hints.waitUntil(expected)
+    }
+
+    func waitForFinishes(_ expected: Int) async {
+        await finishes.waitUntil(expected)
     }
 
     func releaseOne() {
-        let next = releaseWaiters.withLock { holders -> CheckedContinuation<Void, Never>? in
-            guard !holders.isEmpty else { return nil }
-            return holders.removeFirst()
+        releases.signal()
+    }
+}
+
+@MainActor
+private final class Signal {
+    private let lock = NSLock()
+    private var value = 0
+    private var waiters: [(Int, CheckedContinuation<Void, Never>)] = []
+
+    var count: Int { lock.withLock { value } }
+
+    @discardableResult
+    func signal() -> Int {
+        let (count, ready) = lock.withLock { () -> (Int, [CheckedContinuation<Void, Never>]) in
+            value += 1
+            let ready = waiters.filter { $0.0 <= value }
+            waiters.removeAll { $0.0 <= value }
+            return (value, ready.map(\.1))
         }
-        next?.resume()
+        for continuation in ready {
+            continuation.resume()
+        }
+        return count
+    }
+
+    func waitUntil(_ expected: Int) async {
+        await withCheckedContinuation { continuation in
+            let resume = lock.withLock { () -> Bool in
+                guard value < expected else { return true }
+                waiters.append((expected, continuation))
+                return false
+            }
+            if resume { continuation.resume() }
+        }
     }
 }

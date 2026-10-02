@@ -55,11 +55,21 @@ public struct HintRefreshPolicy: Equatable, Sendable {
 @MainActor
 public final class HintRefresher {
     private let refresh: @MainActor () async -> Void
+    private let didObserveHint: @MainActor () -> Void
     private var policy = HintRefreshPolicy()
     private var running = false
 
     public init(refresh: @escaping @MainActor () async -> Void) {
         self.refresh = refresh
+        didObserveHint = {}
+    }
+
+    init(
+        refresh: @escaping @MainActor () async -> Void,
+        didObserveHint: @escaping @MainActor () -> Void
+    ) {
+        self.refresh = refresh
+        self.didObserveHint = didObserveHint
     }
 
     public func setVisible(_ visible: Bool) {
@@ -70,6 +80,7 @@ public final class HintRefresher {
 
     public func observe(_ hints: AsyncStream<Hint>) async {
         for await hint in hints {
+            didObserveHint()
             let input: HintRefreshPolicy.Input = if case .resync = hint { .resync } else { .hint }
             guard policy.send(input) == .refreshNow else { continue }
             beginRefresh()
