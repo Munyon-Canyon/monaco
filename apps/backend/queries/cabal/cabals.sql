@@ -10,7 +10,7 @@ ON CONFLICT (invite_code) DO NOTHING;
 SELECT id FROM cabals WHERE id = $1 FOR SHARE;
 
 -- name: LockCabalExclusive :one
-SELECT id FROM cabals WHERE id = $1 FOR UPDATE;
+SELECT id FROM cabals WHERE id = $1 FOR NO KEY UPDATE;
 
 -- name: FindCabal :one
 SELECT c.id, c.name, c.picture_url, c.creator_id, c.join_mode, c.voter_mode, c.threshold,

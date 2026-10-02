@@ -67,6 +67,8 @@ func SwapIDFrom(u uuid.UUID) SwapID { return SwapID{u: u} }
 
 func CabalIDFrom(u uuid.UUID) CabalID { return CabalID{u: u} }
 
+func AccessRequestIDFrom(u uuid.UUID) AccessRequestID { return AccessRequestID{u: u} }
+
 func ProposalIDFrom(u uuid.UUID) ProposalID { return ProposalID{u: u} }
 
 func (id ID[T]) IsZero() bool { return id.u == uuid.Nil }

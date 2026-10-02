@@ -6,14 +6,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
-)
-
-const (
-	crockfordAlphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-	inviteCodeLen     = 10
 )
 
 type cabalSpec struct {
@@ -91,12 +87,9 @@ func NewCabal(t SeedT, pool *pgxpool.Pool, opts ...CabalOption) SeededCabal {
 
 func randomInviteCode(t SeedT) string {
 	t.Helper()
-	raw := make([]byte, inviteCodeLen)
-	if _, err := rand.Read(raw); err != nil {
+	code, err := domain.NewInviteCode(rand.Reader)
+	if err != nil {
 		t.Fatalf("testkit.NewCabal: %v", err)
 	}
-	for i, b := range raw {
-		raw[i] = crockfordAlphabet[b%byte(len(crockfordAlphabet))]
-	}
-	return string(raw)
+	return code.String()
 }
