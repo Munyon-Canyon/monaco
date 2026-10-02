@@ -2,8 +2,6 @@ package events_test
 
 import (
 	"reflect"
-	"slices"
-	"strings"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -16,7 +14,8 @@ type eventType interface {
 func TestRegisteredEvents_tagPersonalFieldNames(t *testing.T) {
 	t.Parallel()
 	personal := []string{
-		"user_id", "voter_ids", "handle", "email", "phone", "wallet_address", "address", "creator_id", "actor_id",
+		"user_id", "voter_ids", "handle", "email", "phone", "wallet_address", "address",
+		"creator_id", "actor_id", "proposer_id",
 	}
 	samples := []eventType{
 		events.SystemPinged{},
@@ -53,39 +52,13 @@ func TestRegisteredEvents_tagPersonalFieldNames(t *testing.T) {
 			t.Errorf("Catalog has %s, which the personal-field walk does not", entry.Type)
 			continue
 		}
-		walkPersonalTags(t, entry.Type, typ, personal)
+		eventsPkg := reflect.TypeFor[events.SystemPinged]().PkgPath()
+		for _, line := range personalTagViolations(typ, personal, eventsPkg) {
+			t.Errorf("%s: %s", entry.Type, line)
+		}
 		delete(walked, entry.Type)
 	}
 	for typ := range walked {
 		t.Errorf("the personal-field walk lists %s, which is not registered", typ)
 	}
-}
-
-func walkPersonalTags(t *testing.T, event events.Type, root reflect.Type, personal []string) {
-	t.Helper()
-	eventsPkg := reflect.TypeFor[events.SystemPinged]().PkgPath()
-	seen := map[reflect.Type]bool{}
-	var walk func(reflect.Type)
-	walk = func(typ reflect.Type) {
-		for typ.Kind() == reflect.Pointer {
-			typ = typ.Elem()
-		}
-		if typ.Kind() == reflect.Slice || typ.Kind() == reflect.Array || typ.Kind() == reflect.Map {
-			walk(typ.Elem())
-			return
-		}
-		if typ.Kind() != reflect.Struct || typ.PkgPath() != eventsPkg || seen[typ] {
-			return
-		}
-		seen[typ] = true
-		for i := range typ.NumField() {
-			field := typ.Field(i)
-			name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
-			if slices.Contains(personal, name) && field.Tag.Get("pii") != "true" {
-				t.Errorf("%s: %s.%s is %q without the pii tag", event, typ.Name(), field.Name, name)
-			}
-			walk(field.Type)
-		}
-	}
-	walk(root)
 }
