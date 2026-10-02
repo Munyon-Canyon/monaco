@@ -125,18 +125,33 @@ func (r *report) addExempt(name string) error {
 	return nil
 }
 
+type span struct{ first, last time.Time }
+
+func (s *span) add(t time.Time) {
+	if s.first.IsZero() || t.Before(s.first) {
+		s.first = t
+	}
+	if t.After(s.last) {
+		s.last = t
+	}
+}
+
+func (s span) length(start time.Time) time.Duration {
+	if start.IsZero() {
+		start = s.first
+	}
+	return s.last.Sub(start)
+}
+
 func readReport(r io.Reader, start time.Time) (report, error) {
 	var rep report
-	var last time.Time
+	var seen span
 	reader := bufio.NewReader(r)
 	for {
 		line, err := reader.ReadBytes('\n')
 		var ev reportEvent
 		if json.Unmarshal(line, &ev) == nil && !ev.Time.IsZero() {
-			if start.IsZero() {
-				start = ev.Time
-			}
-			last = ev.Time
+			seen.add(ev.Time)
 			rep.add(ev)
 		}
 		if errors.Is(err, io.EOF) {
@@ -146,7 +161,7 @@ func readReport(r io.Reader, start time.Time) (report, error) {
 			return report{}, errs.Wrap(err, errs.CodeInternal, "monacoctl.readReport")
 		}
 	}
-	rep.run = last.Sub(start)
+	rep.run = seen.length(start)
 	slowestFirst := func(a, b timing) int { return cmp.Compare(b.elapsed, a.elapsed) }
 	slices.SortStableFunc(rep.tests, slowestFirst)
 	slices.SortStableFunc(rep.packages, slowestFirst)
