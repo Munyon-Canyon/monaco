@@ -498,3 +498,22 @@ func TestAfterCommit_runsOnlyTheCommittedAttemptsCallbacksAfterTheCommit(t *test
 		t.Fatalf("Do = %v, callback ran %v; want the refusal and no callback", err, ran)
 	}
 }
+
+func TestDo_backsOffByTenMillisecondsDoubledEachRetryPlusLessThanTenMore(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	uow := db.New(h.pool, h.ids, clock.Real{})
+	cause := &pgconn.PgError{Code: "40001"}
+	_ = uow.Do(h.ctx(t, "user:u1"), func(context.Context, db.Tx) error { return cause })
+	retries := h.linesNamed(t, "tx.retry")
+	if len(retries) != 3 {
+		t.Fatalf("tx.retry lines = %v, want 3", retries)
+	}
+	for i, line := range retries {
+		floor := 10 * time.Millisecond << i
+		delay, ok := line["delay"].(float64)
+		if !ok || time.Duration(delay) < floor || time.Duration(delay) >= floor+10*time.Millisecond {
+			t.Fatalf("retry %d delay = %v, want from %v up to %v", i+1, line["delay"], floor, floor+10*time.Millisecond)
+		}
+	}
+}

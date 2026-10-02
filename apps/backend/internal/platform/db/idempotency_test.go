@@ -362,3 +362,54 @@ func TestIdempotencyStore_racingTakeoversOwnTheAbandonedKeyExactlyOnce(t *testin
 			inFlight, n-1)
 	}
 }
+
+type refreshAfterRead struct {
+	sqlc.DBTX
+	refresh func() error
+}
+
+type refreshedRow struct {
+	pgx.Row
+	refresh func() error
+}
+
+func (r refreshedRow) Scan(dest ...any) error {
+	if err := r.Row.Scan(dest...); err != nil {
+		return err
+	}
+	return r.refresh()
+}
+
+func (d refreshAfterRead) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	row := d.DBTX.QueryRow(ctx, sql, args...)
+	if strings.Contains(sql, "FROM idempotency_keys") {
+		return refreshedRow{Row: row, refresh: d.refresh}
+	}
+	return row
+}
+
+func TestIdempotencyStore_aTakeoverNeverStealsARowAnotherTakerRefreshedAfterTheRead(t *testing.T) {
+	t.Parallel()
+	clk := testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
+	pool := testkit.DB(t)
+	first := db.NewIdempotencyStore(pool, clk)
+	mustBegin(t, first, "user:u1", "k1", hashA())
+	clk.Advance(6 * time.Minute)
+	refreshed := false
+	racing := db.NewIdempotencyStore(refreshAfterRead{DBTX: pool, refresh: func() error {
+		if refreshed {
+			return nil
+		}
+		refreshed = true
+		_, err := pool.Exec(
+			t.Context(),
+			`UPDATE idempotency_keys SET created_at = $1 WHERE actor_key = 'user:u1' AND key = 'k1'`,
+			clk.Now(),
+		)
+		return err
+	}}, clk)
+
+	if c := mustBegin(t, racing, "user:u1", "k1", hashA()); c.Outcome != db.ClaimInFlight || !refreshed {
+		t.Fatalf("Begin on a row refreshed after the read = %+v (refreshed %v), want ClaimInFlight", c, refreshed)
+	}
+}
