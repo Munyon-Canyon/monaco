@@ -152,7 +152,7 @@ func (c *Client) send(ctx context.Context, req *http.Request, attempt int, deadl
 		return nil, errs.Wrap(err, errs.CodeUpstreamUnavailable, "httpclient.send")
 	}
 	span.SetAttributes(attribute.Int("http.response.status_code", resp.StatusCode))
-	if resp.StatusCode >= http.StatusInternalServerError || resp.StatusCode == http.StatusTooManyRequests {
+	if resp.StatusCode >= http.StatusInternalServerError {
 		span.SetStatus(codes.Error, resp.Status)
 		done(errs.New(errs.CodeUpstreamUnavailable, "httpclient.send"))
 		return resp, nil
