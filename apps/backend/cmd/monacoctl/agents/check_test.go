@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,6 +35,7 @@ type checkHarness struct {
 	replies     []reply
 	goos        string
 	lookPath    func(string) (string, error)
+	testDBAddr  string
 }
 
 func newCheckHarness(t *testing.T) *checkHarness {
@@ -44,10 +46,42 @@ func newCheckHarness(t *testing.T) *checkHarness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &checkHarness{fixture: f, clock: f.now, work: work, lint: "2.14.0\n"}
+	h := &checkHarness{fixture: f, clock: f.now, work: work, lint: "2.14.0\n", testDBAddr: acceptLocal(t)}
 	f.run = h.run
 	h.base(t, map[string]string{"apps/backend/.golangci-lint-version": "v2.14.0\n"})
 	return h
+}
+
+func acceptLocal(t *testing.T) string {
+	t.Helper()
+	ln, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+	return ln.Addr().String()
+}
+
+func closedLocal(t *testing.T) string {
+	t.Helper()
+	ln, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := ln.Addr().String()
+	if err := ln.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return addr
 }
 
 func (h *checkHarness) run(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
@@ -97,6 +131,7 @@ func (h *checkHarness) check(t *testing.T, args ...string) (int, string, string)
 			if env.LookPath == nil {
 				env.LookPath = func(string) (string, error) { return "", exec.ErrNotFound }
 			}
+			env.testDBAddr = h.testDBAddr
 		},
 	)
 	return code, stdout.String(), stderr.String()
@@ -205,7 +240,9 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
 	pr := ".: env BASE_SHA=origin/fb HEAD_SHA=" + h.head(t) + " PR_LABELS=[] python3 scripts/"
-	goTest := h.goTest(t, strconv.Itoa(max(2, runtime.NumCPU())), "./internal/x", "./internal/t", "./cmd/api")
+	goTest := h.goTest(
+		t, strconv.Itoa(testParallelism(runtime.NumCPU(), 0)), "./internal/x", "./internal/t", "./cmd/api",
+	)
 	want := []string{
 		".: gt parent --no-interactive",
 		"apps/backend: ci affected --base origin/fb",
@@ -745,7 +782,9 @@ func TestCheck_theOpenAPISpecAloneRunsTheSwiftRow(t *testing.T) {
 
 func TestCheck_goTestParallelismSplitsTheCPUsBetweenRunningOwners(t *testing.T) {
 	t.Parallel()
-	for _, c := range []struct{ cpus, running, want int }{{8, 6, 2}, {8, 0, 8}, {16, 2, 8}, {2, 1, 2}, {1, 0, 2}} {
+	for _, c := range []struct{ cpus, running, want int }{
+		{8, 6, 2}, {8, 0, 4}, {16, 2, 4}, {10, 1, 4}, {2, 1, 2}, {1, 0, 2},
+	} {
 		if got := testParallelism(c.cpus, c.running); got != c.want {
 			t.Errorf("testParallelism(%d, %d) = %d, want %d", c.cpus, c.running, got, c.want)
 		}
@@ -773,6 +812,24 @@ func TestCheck_goTestParallelismSplitsTheCPUsBetweenRunningOwners(t *testing.T) 
 	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a // again\n"})
 	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "decode ") {
 		t.Fatalf("a broken record fails the check: %d %q", code, stderr)
+	}
+}
+
+func TestCheck_aRefusedTestDatabaseFailsBeforeGoTest(t *testing.T) {
+	t.Parallel()
+	if (&Env{}).testDatabaseAddr() != defaultTestDBAddr {
+		t.Fatalf("default test database address = %s", (&Env{}).testDatabaseAddr())
+	}
+	h := newCheckHarness(t)
+	h.testDBAddr = closedLocal(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.affected = "./internal/a\n"
+	code, stdout, stderr := h.check(t)
+	if code != 1 || !strings.Contains(stderr, testDBDown) || strings.Count(stdout+stderr, testDBDown) != 1 {
+		t.Fatalf("dead test database: %d\n%s\n%s", code, stdout, stderr)
+	}
+	if slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, "go test") }) {
+		t.Fatalf("go test started: %v", h.calls)
 	}
 }
 

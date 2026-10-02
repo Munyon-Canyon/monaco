@@ -6,10 +6,12 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"maps"
+	"net"
 	"os"
 	"os/exec"
 	"path"
@@ -19,16 +21,19 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
 const (
-	excerptLines = 8
-	packageKind  = "package"
-	openAPISpec  = "apps/backend/api/openapi.yaml"
-	vacuumLint   = "dshanley/vacuum:v0.30.6 lint -b -q -n warn -r /api/.vacuum.yaml /api/openapi.yaml"
+	excerptLines      = 8
+	packageKind       = "package"
+	openAPISpec       = "apps/backend/api/openapi.yaml"
+	vacuumLint        = "dshanley/vacuum:v0.30.6 lint -b -q -n warn -r /api/.vacuum.yaml /api/openapi.yaml"
+	testDBDown        = "the test database is down: docker start monaco-postgres-test (or just test backend)"
+	defaultTestDBAddr = "localhost:54323"
 )
 
 var (
@@ -44,6 +49,7 @@ type checkRow struct {
 	dir   string
 	cmds  [][]string
 	skip  string
+	fail  string
 }
 
 type timing struct {
@@ -381,6 +387,16 @@ func (env *Env) goRows(ctx context.Context, base, head string, changed []string)
 	if err != nil {
 		return nil, err
 	}
+	testRow := checkRow{
+		label: "go test -short", kind: packageKind, dir: backend,
+		cmds: [][]string{slices.Concat([]string{"go", "test"}, tags, []string{
+			"-short", "-count=1", "-timeout", env.Config.Budget[packageKind].String(), "-p", p, "-json",
+			"-coverpkg=" + strings.Join(buildable(backend, pkgs), ","), "-coverprofile=" + profile,
+		}, pkgs)},
+	}
+	if testDatabaseRefused(env.testDatabaseAddr()) {
+		testRow = checkRow{label: "go test -short", kind: packageKind, dir: backend, fail: testDBDown}
+	}
 	return []checkRow{
 		{
 			label: "go build", kind: "go", dir: backend,
@@ -388,15 +404,25 @@ func (env *Env) goRows(ctx context.Context, base, head string, changed []string)
 		},
 		{label: "go vet", kind: "go", dir: backend, cmds: [][]string{slices.Concat([]string{"go", "vet"}, tags, pkgs)}},
 		lint,
-		{
-			label: "go test -short", kind: packageKind, dir: backend,
-			cmds: [][]string{slices.Concat([]string{"go", "test"}, tags, []string{
-				"-short", "-count=1", "-timeout", env.Config.Budget[packageKind].String(), "-p", p, "-json",
-				"-coverpkg=" + strings.Join(buildable(backend, pkgs), ","), "-coverprofile=" + profile,
-			}, pkgs)},
-		},
+		testRow,
 		coverageRow(backend, self, profile, changed),
 	}, nil
+}
+
+func (env *Env) testDatabaseAddr() string {
+	if env.testDBAddr != "" {
+		return env.testDBAddr
+	}
+	return defaultTestDBAddr
+}
+
+func testDatabaseRefused(addr string) bool {
+	conn, err := (&net.Dialer{Timeout: time.Second}).Dial("tcp", addr)
+	if err != nil {
+		return errors.Is(err, syscall.ECONNREFUSED)
+	}
+	_ = conn.Close()
+	return false
 }
 
 func coverageRow(backend, self, profile string, changed []string) checkRow {
@@ -440,7 +466,7 @@ func (env *Env) lintRow(ctx context.Context, backend string, pkgs []string) (che
 }
 
 func testParallelism(cpus, running int) int {
-	return max(2, cpus/max(1, running))
+	return max(2, min(4, cpus/max(1, running)))
 }
 
 func buildable(backend string, pkgs []string) []string {
@@ -567,6 +593,11 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 		_, _ = fmt.Fprintf(stdout, "  %-15s skip  %s\n", row.label, row.skip)
 		_, _ = fmt.Fprintf(&r.log, "skip %s: %s\n", row.label, row.skip)
 		return nil
+	}
+	if row.fail != "" {
+		_, _ = fmt.Fprintf(stdout, "  %-15s FAIL\n", row.label)
+		_, _ = fmt.Fprintf(&r.log, "%s\n", row.fail)
+		return detailErr(errs.CodeInvalidInput, "monacoctl.agents.check", row.fail)
 	}
 	budget := r.env.Config.Budget[row.kind]
 	if row.kind != packageKind {

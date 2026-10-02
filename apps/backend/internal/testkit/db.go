@@ -30,7 +30,7 @@ import (
 const (
 	testPort       = "54323"
 	keepFailed     = 5
-	staleAfter     = time.Hour
+	staleAfter     = 10 * time.Minute
 	maxNameLen     = 63
 	poolMaxConns   = 4
 	atlasSchema    = "atlas_schema_revisions"

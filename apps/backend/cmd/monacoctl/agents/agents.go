@@ -34,19 +34,20 @@ func execWaitDelay() time.Duration {
 }
 
 type Env struct {
-	Work     string
-	Common   string
-	Home     string
-	Config   Config
-	GitHub   *GitHub
-	Run      Runner
-	Start    func(name string, args ...string) error
-	Now      func() time.Time
-	After    func(d time.Duration) <-chan time.Time
-	Actions  bool
-	GOOS     string
-	LookPath func(string) (string, error)
-	trunk    *trunkLog
+	Work       string
+	Common     string
+	Home       string
+	Config     Config
+	GitHub     *GitHub
+	Run        Runner
+	Start      func(name string, args ...string) error
+	Now        func() time.Time
+	After      func(d time.Duration) <-chan time.Time
+	Actions    bool
+	GOOS       string
+	LookPath   func(string) (string, error)
+	trunk      *trunkLog
+	testDBAddr string
 }
 type (
 	Runner  func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error)
