@@ -8,6 +8,7 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 
 ### Added
 
+- The `notify` module.
 - The `cabal` module.
 - The `identity` module.
 - The `treasury` module.

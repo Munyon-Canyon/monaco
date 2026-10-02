@@ -103,6 +103,16 @@ type CabalTxnEntry struct {
 	Amount  int64
 }
 
+type DeviceToken struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	Token       string
+	Environment string
+	CreatedAt   time.Time
+	LastSeenAt  time.Time
+	DisabledAt  pgtype.Timestamptz
+}
+
 type Event struct {
 	ID            uuid.UUID
 	AggregateType string
@@ -133,6 +143,29 @@ type IdempotencyKey struct {
 	ResponseHeaders []byte
 	CreatedAt       time.Time
 	CompletedAt     pgtype.Timestamptz
+}
+
+type Notification struct {
+	ID            uuid.UUID
+	BroadcastID   pgtype.UUID
+	UserID        uuid.UUID
+	Kind          string
+	SourceEventID uuid.UUID
+	Title         string
+	Body          string
+	Data          []byte
+	CollapseID    string
+	State         string
+	CreatedAt     time.Time
+	DeliveredAt   pgtype.Timestamptz
+}
+
+type NotificationBroadcast struct {
+	ID             uuid.UUID
+	Kind           string
+	SourceEventID  uuid.UUID
+	RecipientCount int32
+	CreatedAt      time.Time
 }
 
 type PricePoint struct {
