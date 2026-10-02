@@ -242,6 +242,7 @@ jobs:
     outputs:
       reuse: ${{ steps.reuse.outputs.reuse }}
       patch-id: ${{ steps.reuse.outputs.patch-id }}
+      ci-id: ${{ steps.reuse.outputs.ci-id }}
       backend: ${{ steps.filter.outputs.backend }}
       mobile-core: ${{ steps.filter.outputs.mobile-core }}
       backend-tests: ${{ steps.filter.outputs.backend-tests }}
@@ -253,7 +254,7 @@ jobs:
           fetch-depth: 0
 
       # Stage 2 never reuses: it tests the combined queue entry, not one PR's diff.
-      - name: Reuse the last green stage 1 when the diff is unchanged
+      - name: Reuse the last green stage 1 when the diff and workflow tree are unchanged
         id: reuse
         if: inputs.stage == 'pr' && github.event.pull_request
         env:
@@ -428,15 +429,16 @@ jobs:
           jobs: ${{ toJSON(needs) }}
           allowed-skips: lint, backend, e2e, ready, vuln, scripts, mobile-core, mobile-integration, flake
 
-      # The next stage 1 run of this PR reads the patch ID back to decide whether it can reuse this result.
+      # The next stage 1 run of this PR reads this summary back to decide whether it can reuse this result.
       - name: Record the diff's patch ID on this check run
         if: inputs.stage == 'pr' && needs.plan.outputs.patch-id != ''
         env:
           GH_TOKEN: ${{ github.token }}
           PATCH_ID: ${{ needs.plan.outputs.patch-id }}
+          CI_ID: ${{ needs.plan.outputs.ci-id }}
         run: |
           id="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs" --paginate \
             --jq '.jobs[] | select(.name == "ci / ci-ok") | .check_run_url | split("/") | last')"
           gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" \
-            -f "output[title]=stage 1" -f "output[summary]=patch-id: $PATCH_ID" >/dev/null ||
-            echo "::warning::could not record the patch ID; the next unchanged push reruns stage 1"
+            -f "output[title]=stage 1" -f "output[summary]=patch-id: $PATCH_ID ci-id: $CI_ID" >/dev/null ||
+            echo "::warning::could not record the reuse key; the next unchanged push reruns stage 1"
