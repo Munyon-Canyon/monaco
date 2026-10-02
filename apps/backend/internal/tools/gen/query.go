@@ -25,6 +25,7 @@ const (
       out: internal/modules/%[1]s/sqlc
       sql_package: pgx/v5
       emit_interface: false
+      omit_unused_structs: true
       output_db_file_name: db.gen.go
       output_models_file_name: models.gen.go
       output_files_suffix: .gen
