@@ -239,3 +239,17 @@ func TestMulDiv(t *testing.T) {
 	_, err = money.MulDiv(math.MaxUint64, 2, 1)
 	wantCode(t, err, errs.CodeInvalidInput)
 }
+
+func TestSignedMicrosZeroConvertsToZeroMicros(t *testing.T) {
+	t.Parallel()
+	m, err := money.SignedMicrosFromInt64(0).Micros()
+	if err != nil || !m.IsZero() {
+		t.Fatalf("SignedMicros(0).Micros() = %v, %v; want zero and no error", m, err)
+	}
+	m, err = money.SignedMicrosFromInt64(1).Micros()
+	if err != nil || m.Uint64() != 1 {
+		t.Fatalf("SignedMicros(1).Micros() = %v, %v; want 1", m, err)
+	}
+	_, err = money.SignedMicrosFromInt64(-1).Micros()
+	wantCode(t, err, errs.CodeInvalidInput)
+}

@@ -80,3 +80,18 @@ func TestSharesUnitsSQLMatchesMicros(t *testing.T) {
 		}
 	}
 }
+
+func TestSharesUnitsSubOfEqualUnitsIsZero(t *testing.T) {
+	t.Parallel()
+	a := money.SharesUnitsFromUint64(3_000_000)
+	diff, err := a.Sub(a)
+	if err != nil || !diff.IsZero() {
+		t.Fatalf("Sub of equal units = %v, %v; want zero and no error", diff, err)
+	}
+	one, err := a.Sub(money.SharesUnitsFromUint64(2_999_999))
+	if err != nil || one.Uint64() != 1 {
+		t.Fatalf("Sub one unit short = %v, %v; want 1", one, err)
+	}
+	_, err = money.SharesUnitsFromUint64(2_999_999).Sub(a)
+	wantCode(t, err, errs.CodeInvalidInput)
+}

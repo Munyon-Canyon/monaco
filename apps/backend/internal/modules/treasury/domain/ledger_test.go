@@ -137,3 +137,40 @@ func TestNewUserTxn_keepsABalancedDeposit(t *testing.T) {
 		t.Fatalf("txn = %+v, want the header and an unaliased copy of the entries", txn)
 	}
 }
+
+func manyBalancedEntries(n int) []domain.UserEntry {
+	entries := make([]domain.UserEntry, 0, n)
+	entries = append(entries, domain.UserEntry{Account: domain.UserWallet, Asset: usdc, Amount: amount(int64(n - 1))})
+	for len(entries) < n {
+		entries = append(entries, domain.UserEntry{Account: domain.UserExternal, Asset: usdc, Amount: amount(-1)})
+	}
+	return entries
+}
+
+func TestNewTxn_acceptsExactlyMaxInt16EntriesAndRejectsOneMore(t *testing.T) {
+	t.Parallel()
+	atLimit := manyBalancedEntries(math.MaxInt16)
+	userTxn, err := domain.NewUserTxn(domain.UserTxnHeader{Kind: domain.UserDeposit}, atLimit)
+	if err != nil || len(userTxn.Entries()) != math.MaxInt16 {
+		t.Fatalf(
+			"NewUserTxn with %d balanced entries = %d entries, %v; want them all",
+			len(atLimit),
+			len(userTxn.Entries()),
+			err,
+		)
+	}
+	cabalTxn, err := domain.NewCabalTxn(domain.CabalTxnHeader{Kind: domain.CabalFund}, cabalSide(atLimit))
+	if err != nil || len(cabalTxn.Entries()) != math.MaxInt16 {
+		t.Fatalf(
+			"NewCabalTxn with %d balanced entries = %d entries, %v; want them all",
+			len(atLimit),
+			len(cabalTxn.Entries()),
+			err,
+		)
+	}
+	over := manyBalancedEntries(math.MaxInt16 + 1)
+	_, err = domain.NewUserTxn(domain.UserTxnHeader{Kind: domain.UserDeposit}, over)
+	wantCode(t, err, errs.CodeInvalidInput)
+	_, err = domain.NewCabalTxn(domain.CabalTxnHeader{Kind: domain.CabalFund}, cabalSide(over))
+	wantCode(t, err, errs.CodeInvalidInput)
+}
