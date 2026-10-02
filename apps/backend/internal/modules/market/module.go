@@ -112,5 +112,7 @@ func (m *Module) Pollers() []poller.Poller {
 func (m *Module) samplePrices() *app.SamplePrices {
 	cfg := m.deps.Config
 	source := jupiterprices.New(jupiter.New(cfg, m.deps.Clock))
-	return app.NewSamplePrices(m.deps.UoW, m.deps.Pool, m.deps.Clock, source, m.deps.Bus, cfg.Market.PricePollInterval)
+	return app.NewSamplePrices(
+		m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, source, m.deps.Bus, cfg.Market.PricePollInterval,
+	)
 }

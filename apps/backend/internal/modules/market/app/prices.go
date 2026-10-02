@@ -29,6 +29,27 @@ func (b *PriceBook) LatestPrices(ctx context.Context) (map[domain.AssetID]domain
 		sqlc.RecentPriceSamplesParams{At: b.clock.Now(), EveryAsset: true})
 }
 
+func (b *PriceBook) DaySamples(
+	ctx context.Context, id domain.AssetID, dayStart, until time.Time,
+) ([]domain.Sample, error) {
+	rows, err := b.q.DayPriceSamples(ctx, sqlc.DayPriceSamplesParams{
+		AssetID: id.UUID(), DayStart: dayStart, Lookback: domain.HoldWindow, Until: until,
+	})
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "market.PriceBook.DaySamples")
+	}
+	out := make([]domain.Sample, 0, len(rows))
+	for _, row := range rows {
+		micros, err := money.SignedMicrosFromInt64(row.PriceMicros).Micros()
+		if err != nil {
+			return nil, errs.Wrap(err, errs.CodeDecodeFailed, "market.PriceBook.DaySamples",
+				slog.String("asset_id", id.String()), slog.Int64("price_micros", row.PriceMicros))
+		}
+		out = append(out, domain.Sample{Micros: micros, ObservedAt: row.Ts})
+	}
+	return out, nil
+}
+
 func (b *PriceBook) PricesAsOf(
 	ctx context.Context, ids []domain.AssetID, at time.Time,
 ) (map[domain.AssetID]domain.Sample, error) {
