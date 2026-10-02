@@ -11,9 +11,16 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
+
+type priceReader interface {
+	LatestPrices(context.Context) (map[domain.AssetID]domain.Sample, error)
+	PricesAsOf(context.Context, []domain.AssetID, time.Time) (map[domain.AssetID]domain.Sample, error)
+	DaySamples(context.Context, domain.AssetID, time.Time, time.Time) ([]domain.Sample, error)
+}
 
 type CorePublisher interface {
 	PublishCore(ctx context.Context, m events.Core) error
@@ -21,21 +28,22 @@ type CorePublisher interface {
 
 type SamplePrices struct {
 	uow      *db.UnitOfWork
+	ids      ids.Generator
 	clock    clock.Clock
 	catalog  *Catalog
-	book     *PriceBook
+	book     priceReader
 	source   PriceSource
 	ticks    CorePublisher
 	interval time.Duration
 }
 
 func NewSamplePrices(
-	uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock, source PriceSource, ticks CorePublisher,
-	interval time.Duration,
+	uow *db.UnitOfWork, reads sqlc.DBTX, g ids.Generator, c clock.Clock, source PriceSource,
+	ticks CorePublisher, interval time.Duration,
 ) *SamplePrices {
 	return &SamplePrices{
-		uow: uow, clock: c, catalog: NewCatalog(reads), book: NewPriceBook(reads, c), source: source, ticks: ticks,
-		interval: interval,
+		uow: uow, ids: g, clock: c, catalog: NewCatalog(reads), book: NewPriceBook(reads, c), source: source,
+		ticks: ticks, interval: interval,
 	}
 }
 
@@ -62,8 +70,15 @@ func (p *SamplePrices) Tick(ctx context.Context) (poller.Report, error) {
 		}
 	}
 	written, err := p.insert(ctx, rows)
+	var pubErr error
 	if err == nil {
-		err = p.publish(ctx, at, assets)
+		pubErr = p.publish(ctx, at, assets)
+	}
+	if err == nil {
+		err = p.recordMoves(ctx, assets, at)
+	}
+	if err == nil {
+		err = pubErr
 	}
 	if err != nil {
 		return poller.Report{}, err

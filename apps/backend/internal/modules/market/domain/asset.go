@@ -133,4 +133,16 @@ func CompanyKey(displayName string) string {
 	return key
 }
 
+func CleanName(displayName string) string {
+	name := strings.TrimSpace(displayName)
+	folded := strings.ToLower(name)
+	for _, suffix := range issuerSuffixes() {
+		if strings.HasSuffix(folded, suffix) {
+			name = strings.TrimSpace(name[:len(name)-len(suffix)])
+			folded = strings.ToLower(name)
+		}
+	}
+	return name
+}
+
 func issuerSuffixes() []string { return []string{"xstock"} }

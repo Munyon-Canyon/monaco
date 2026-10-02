@@ -4,9 +4,11 @@ import (
 	"math"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
@@ -141,6 +143,46 @@ func TestCrossed_reportsEveryThresholdTheBasisPointChangeHasReached(t *testing.T
 			t.Fatalf("%s: Crossed = %v change %d, want %v and %d",
 				tc.name, got, domain.ChangeBps(tc.prev, tc.mark), tc.want, tc.bps)
 		}
+	}
+}
+
+func TestCleanName_stripsATrailingIssuerSuffixWithoutLowercasing(t *testing.T) {
+	t.Parallel()
+	for name, want := range map[string]string{
+		"Apple xStock":    "Apple",
+		"  Tesla XSTOCK ": "Tesla",
+		"SpaceX":          "SpaceX",
+	} {
+		if got := domain.CleanName(name); got != want {
+			t.Fatalf("CleanName(%q) = %q, want %q", name, got, want)
+		}
+	}
+}
+
+func TestFirstAcceptedOnDay_usesTheFirstConfirmedSampleOfThatDay(t *testing.T) {
+	t.Parallel()
+	day := clock.Real{}.Now().UTC().Truncate(24 * time.Hour)
+	usd := money.MicrosFromUint64
+	sample := func(micros uint64, at time.Time) domain.Sample {
+		return domain.Sample{Micros: usd(micros), ObservedAt: at}
+	}
+	prior := sample(200_000_000, day.Add(-time.Hour))
+	older := sample(200_000_000, day.Add(-2*time.Hour))
+	oldest := sample(200_000_000, day.Add(-3*time.Hour))
+	noon := sample(220_000_000, day.Add(12*time.Hour))
+	spike := sample(250_000_000, day.Add(time.Hour))
+	if _, ok := domain.FirstAcceptedOnDay(nil, day); ok {
+		t.Fatal("FirstAcceptedOnDay(nil) accepted a sample")
+	}
+	if _, ok := domain.FirstAcceptedOnDay([]domain.Sample{prior}, day); ok {
+		t.Fatal("FirstAcceptedOnDay accepted a sample from before the day")
+	}
+	if _, ok := domain.FirstAcceptedOnDay([]domain.Sample{prior, spike}, day); ok {
+		t.Fatal("FirstAcceptedOnDay accepted an unconfirmed spike")
+	}
+	got, ok := domain.FirstAcceptedOnDay([]domain.Sample{oldest, older, prior, noon}, day)
+	if !ok || got != noon {
+		t.Fatalf("FirstAcceptedOnDay = %+v, %v, want the noon sample", got, ok)
 	}
 }
 
