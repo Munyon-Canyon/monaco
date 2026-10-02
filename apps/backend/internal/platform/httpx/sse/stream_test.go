@@ -32,6 +32,7 @@ type routes struct {
 	sse.Stream
 	httpx.IdentityRoutes
 	httpx.SystemRoutes
+	httpx.CabalRoutes
 }
 
 type unusedStore struct{ httpx.IdempotencyStore }

@@ -89,6 +89,14 @@ func TestEventIDFromKeepsTheUUID(t *testing.T) {
 	}
 }
 
+func TestUserIDFromKeepsTheUUID(t *testing.T) {
+	t.Parallel()
+	u := ids.Real{}.NewV7()
+	if got := ids.UserIDFrom(u); got.UUID() != u || got.IsZero() {
+		t.Fatalf("UserIDFrom(%s) = %s", u, got)
+	}
+}
+
 func TestAccessRequestIDFromKeepsTheUUID(t *testing.T) {
 	t.Parallel()
 	u := ids.Real{}.NewV7()
