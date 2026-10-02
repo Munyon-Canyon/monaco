@@ -16,6 +16,7 @@ import (
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/authn"
@@ -42,6 +43,7 @@ type httpFixture struct {
 	verifier *auth.DevVerifier
 	privy    *privyfake.Users
 	wallets  *privyfake.Wallets
+	hints    *recordedHints
 }
 
 func newHTTPFixture(t *testing.T) httpFixture {
@@ -53,11 +55,12 @@ func newHTTPFixture(t *testing.T) httpFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fakeUsers, fakeWallets := &privyfake.Users{}, &privyfake.Wallets{}
+	fakeUsers, fakeWallets, hints := &privyfake.Users{}, &privyfake.Wallets{}, &recordedHints{}
 	var routes httpx.Routes
 	identity.New(
 		module.Deps{Pool: f.pool, UoW: db.New(f.pool, f.ids, clk), IDs: f.ids, Clock: clk},
 		identity.WithPrivy(fakeUsers, fakeWallets),
+		identity.WithHints(hints),
 	).Routes(&routes)
 	h, err := httpx.Handler(httpx.Deps{
 		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),
@@ -72,8 +75,24 @@ func newHTTPFixture(t *testing.T) httpFixture {
 		t.Fatal(err)
 	}
 	return httpFixture{
-		portFixture: f, handler: testkit.HTTP(t, h), verifier: verifier, privy: fakeUsers, wallets: fakeWallets,
+		portFixture: f,
+		handler:     testkit.HTTP(t, h),
+		verifier:    verifier,
+		privy:       fakeUsers,
+		wallets:     fakeWallets,
+		hints:       hints,
 	}
+}
+
+func (f httpFixture) updateProfile(t *testing.T, user ids.UserID, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/v1/me", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+f.verifier.Mint(user.String(), f.now.Add(time.Hour)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", "profile-1")
+	rec := httptest.NewRecorder()
+	f.handler.ServeHTTP(rec, req)
+	return rec
 }
 
 func (f httpFixture) getMe(t *testing.T, user ids.UserID) *httptest.ResponseRecorder {
@@ -141,6 +160,107 @@ func TestGetMe_overHTTPServesTheAccount(t *testing.T) {
 	got := decodeMe(t, rec)
 	if rec.Code != http.StatusOK || !reflect.DeepEqual(normalized(got), normalized(want)) {
 		t.Fatalf("GET /v1/me = %d %s, want %+v", rec.Code, rec.Body, want)
+	}
+}
+
+func TestFlow23_UpdateProfile_OK(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
+	rec := f.updateProfile(t, u.ID, `{"display_name":"  Kai   Q "}`)
+	if rec.Code != http.StatusOK || decodeMe(t, rec).DisplayName != "Kai Q" {
+		t.Fatalf("update = %d %s", rec.Code, rec.Body)
+	}
+	f.expectProfileEvent(t, u.ID, "display_name", "Kai Q")
+	if got := f.hints.sent(); !reflect.DeepEqual(got, []string{"user." + u.ID.String() + ".me_changed"}) {
+		t.Fatalf("hints = %v", got)
+	}
+}
+
+func TestFlow23_UpdateProfile_DisplayNameInvalid(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
+	rec := f.updateProfile(t, u.ID, `{"display_name":"   "}`)
+	if rec.Code != http.StatusBadRequest || decodeProblem(t, rec).Code != api.DisplayNameInvalid {
+		t.Fatalf("update = %d %s", rec.Code, rec.Body)
+	}
+	f.expectNoProfileEvents(t)
+}
+
+func TestFlow23_UpdateProfile_unchangedIsANoop(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	u := f.seed(t, portSeed{handle: "kai", name: "Kai Q", wallet: true})
+	if rec := f.updateProfile(t, u.ID, `{"display_name":"Kai Q"}`); rec.Code != http.StatusOK {
+		t.Fatalf("update = %d %s", rec.Code, rec.Body)
+	}
+	f.expectNoProfileEvents(t)
+	if got := f.hints.sent(); len(got) != 0 {
+		t.Fatalf("hints = %v", got)
+	}
+}
+
+func TestPatchMe_rejectsMissingCallerAndBody(t *testing.T) {
+	t.Parallel()
+	h := adapters.HTTP{}
+	if _, err := h.PatchMe(t.Context(), api.PatchMeRequestObject{}); errs.CodeOf(err) != errs.CodeUnauthorized {
+		t.Fatalf("PatchMe without actor = %v", err)
+	}
+	ctx := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: testkit.NewIDs(7).NewV7().String()})
+	if _, err := h.PatchMe(ctx, api.PatchMeRequestObject{}); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("PatchMe without body = %v", err)
+	}
+}
+
+func TestFlow23_UpdateProfile_databaseFailures(t *testing.T) {
+	t.Parallel()
+	for _, table := range []string{"users", "events"} {
+		t.Run(table, func(t *testing.T) {
+			t.Parallel()
+			f := newHTTPFixture(t)
+			u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
+			failProfileWrite(t, f, table)
+			if rec := f.updateProfile(t, u.ID, `{"display_name":"Kai Q"}`); rec.Code != http.StatusInternalServerError {
+				t.Fatalf("update = %d %s", rec.Code, rec.Body)
+			}
+		})
+	}
+}
+
+func (f httpFixture) expectProfileEvent(t *testing.T, id ids.UserID, field, value string) {
+	t.Helper()
+	var payload []byte
+	err := f.pool.QueryRow(t.Context(), `SELECT payload FROM events WHERE type = $1`,
+		string(events.TypeUserProfileUpdated)).Scan(&payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := events.Decode(events.TypeUserProfileUpdated, 1, payload)
+	want := events.UserProfileUpdated{V: 1, UserID: id.UUID(), Fields: []string{field}, DisplayName: value}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("event = %+v, %v; want %+v", got, err, want)
+	}
+}
+
+func (f httpFixture) expectNoProfileEvents(t *testing.T) {
+	t.Helper()
+	var count int
+	err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM events WHERE type = $1`,
+		string(events.TypeUserProfileUpdated)).Scan(&count)
+	if err != nil || count != 0 {
+		t.Fatalf("profile events = %d, %v", count, err)
+	}
+}
+
+func failProfileWrite(t *testing.T, f httpFixture, table string) {
+	t.Helper()
+	if _, err := f.pool.Exec(t.Context(), `
+CREATE FUNCTION fail_profile_write() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN RAISE EXCEPTION 'profile write failure'; END $$;
+CREATE TRIGGER fail_profile_write BEFORE INSERT OR UPDATE ON `+table+`
+FOR EACH ROW EXECUTE FUNCTION fail_profile_write()`); err != nil {
+		t.Fatal(err)
 	}
 }
 

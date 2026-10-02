@@ -107,6 +107,7 @@ type GovernanceRoutes interface {
 type IdentityRoutes interface {
 	PostAuthSession(context.Context, api.PostAuthSessionRequestObject) (api.PostAuthSessionResponseObject, error)
 	GetMe(context.Context, api.GetMeRequestObject) (api.GetMeResponseObject, error)
+	PatchMe(context.Context, api.PatchMeRequestObject) (api.PatchMeResponseObject, error)
 	GetHandleAvailability(
 		context.Context, api.GetHandleAvailabilityRequestObject,
 	) (api.GetHandleAvailabilityResponseObject, error)
