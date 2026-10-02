@@ -59,7 +59,7 @@ func (env *Env) ownerLines(ctx context.Context, rs []Record) ([]string, int, err
 	for _, r := range alive {
 		lines = append(lines, fmt.Sprintf("done but alive: #%d %s", r.Ticket, r.Worktree))
 	}
-	if running && !env.caffeinated(ctx) {
+	if running && env.caffeineOnPath() && !env.caffeinated(ctx) {
 		lines = append(lines, "watchdog: missing caffeinate")
 	}
 	return lines, len(idle) + len(alive), nil

@@ -3,6 +3,8 @@ package agents
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -24,13 +26,29 @@ func (v *variableGet) run(_ context.Context, _, _, name string, args ...string) 
 
 func autoConfig() Config { return Config{Repo: "o/r", FeatureBranch: "auto"} }
 
+func repoGH(t *testing.T, status int, body string) *GitHub {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/o/r" {
+			t.Errorf("path %s", r.URL.Path)
+		}
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+	return &GitHub{
+		API: srv.URL, Repo: "o/r", HTTP: srv.Client(),
+		Token: func(context.Context) (string, error) { return "tok", nil },
+	}
+}
+
 func TestResolveFeatureBranch_keepsAnExplicitNameWithoutAsking(t *testing.T) {
 	t.Parallel()
 	v := &variableGet{out: "domain-core-2\n"}
-	got, err := resolveFeatureBranch(t.Context(), v.run, []string{"MONACO_FEATURE_BRANCH=ledger-9"}, "",
+	got, note, err := resolveFeatureBranch(t.Context(), v.run, nil, []string{"MONACO_FEATURE_BRANCH=ledger-9"}, "",
 		Config{Repo: "o/r", FeatureBranch: "domain-core-12"})
-	if err != nil || got != "domain-core-12" || v.calls != 0 {
-		t.Fatalf("got %q %v after %d gh calls, want the configured name and no lookup", got, err, v.calls)
+	if err != nil || got != "domain-core-12" || note != "" || v.calls != 0 {
+		t.Fatalf("got %q note %q %v after %d gh calls, want the configured name and no lookup", got, note, err, v.calls)
 	}
 }
 
@@ -38,9 +56,9 @@ func TestResolveFeatureBranch_autoPrefersTheEnvOverTheRepoVariable(t *testing.T)
 	t.Parallel()
 	v := &variableGet{out: "domain-core-2\n"}
 	environ := []string{"MONACO_FEATURE_BRANCH=domain-core-12"}
-	got, err := resolveFeatureBranch(t.Context(), v.run, environ, "", autoConfig())
-	if err != nil || got != "domain-core-12" || v.calls != 0 {
-		t.Fatalf("got %q %v after %d gh calls, want the env and no gh call", got, err, v.calls)
+	got, note, err := resolveFeatureBranch(t.Context(), v.run, nil, environ, "", autoConfig())
+	if err != nil || got != "domain-core-12" || note != "" || v.calls != 0 {
+		t.Fatalf("got %q note %q %v after %d gh calls, want the env and no gh call", got, note, err, v.calls)
 	}
 }
 
@@ -48,24 +66,44 @@ func TestResolveFeatureBranch_autoFallsBackToTheRepoVariable(t *testing.T) {
 	t.Parallel()
 	for _, environ := range [][]string{nil, {"MONACO_FEATURE_BRANCH="}} {
 		v := &variableGet{out: "domain-core-12\n"}
-		got, err := resolveFeatureBranch(t.Context(), v.run, environ, "", autoConfig())
-		if err != nil || got != "domain-core-12" || v.calls != 1 {
-			t.Errorf("%v: got %q %v after %d gh calls", environ, got, err, v.calls)
+		got, note, err := resolveFeatureBranch(t.Context(), v.run, nil, environ, "", autoConfig())
+		if err != nil || got != "domain-core-12" || note != "" || v.calls != 1 {
+			t.Errorf("%v: got %q note %q %v after %d gh calls", environ, got, note, err, v.calls)
 		}
 	}
 }
 
-func TestResolveFeatureBranch_autoFailsNamingBothSources(t *testing.T) {
+func TestResolveFeatureBranch_autoReadsTheRepoDefaultWhenTheVariableFails(t *testing.T) {
 	t.Parallel()
-	for v, reason := range map[*variableGet]string{
-		{err: errors.New("HTTP 404")}: "HTTP 404",
-		{out: " \n"}:                  "printed nothing",
-	} {
-		_, err := resolveFeatureBranch(t.Context(), v.run, nil, "", autoConfig())
-		want := configPath + `: feature_branch = "auto", but MONACO_FEATURE_BRANCH is unset and ` +
-			"gh variable get FEATURE_BRANCH --repo o/r " + reason
-		if err == nil || !strings.Contains(cliText(err), want) {
-			t.Errorf("%s: %v, want %q", reason, err, want)
+	for _, v := range []*variableGet{{err: errors.New("HTTP 403")}, {out: " \n"}} {
+		gh := repoGH(t, http.StatusOK, `{"default_branch":"staging"}`)
+		got, note, err := resolveFeatureBranch(t.Context(), v.run, gh, nil, "", autoConfig())
+		wantNote := "feature branch staging (repo default branch; gh variable get failed:"
+		if err != nil || got != "staging" || !strings.Contains(note, wantNote) {
+			t.Fatalf("got %q note %q err %v", got, note, err)
+		}
+	}
+}
+
+func TestResolveFeatureBranch_autoFailsNamingEverySource(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		v      *variableGet
+		status int
+		body   string
+		reason string
+		repo   string
+	}{
+		{&variableGet{err: errors.New("HTTP 404")}, http.StatusForbidden, `{"message":"no"}`, "HTTP 404", "403"},
+		{&variableGet{out: " \n"}, http.StatusOK, `{}`, "printed nothing", "printed nothing"},
+	}
+	for _, tc := range cases {
+		gh := repoGH(t, tc.status, tc.body)
+		_, _, err := resolveFeatureBranch(t.Context(), tc.v.run, gh, nil, "", autoConfig())
+		want := configPath + `: feature_branch = "auto", but MONACO_FEATURE_BRANCH is unset, ` +
+			"gh variable get FEATURE_BRANCH --repo o/r " + tc.reason + ", and GET /repos/o/r default_branch"
+		if err == nil || !strings.Contains(cliText(err), want) || !strings.Contains(cliText(err), tc.repo) {
+			t.Errorf("%s: %v, want %q and %q", tc.reason, err, want, tc.repo)
 		}
 	}
 }
@@ -93,10 +131,39 @@ func TestLoad_resolvesAnAutoFeatureBranchForEveryCommand(t *testing.T) {
 		}
 		env, err := load(t.Context(), environ, f.dir, f.cached(f.run))
 		switch {
-		case tc.want == "" && (err == nil || !strings.Contains(cliText(err), "MONACO_FEATURE_BRANCH is unset")):
+		case tc.want == "" && (err == nil || !strings.Contains(cliText(err), "MONACO_FEATURE_BRANCH is unset") ||
+			!strings.Contains(cliText(err), "default_branch")):
 			t.Errorf("no branch: %v", err)
 		case tc.want != "" && (err != nil || env.Config.FeatureBranch != tc.want):
 			t.Errorf("%+v: got %v %v, want %s", tc, env, err, tc.want)
 		}
+	}
+}
+
+func TestVerifyPlan_printsTheRepoDefaultWhenTheVariableAPIFails(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	writeFile(t, filepath.Join(f.dir, configPath), strings.Replace(testConfig, `"fb"`, `"auto"`, 1))
+	f.hub.on("GET /repos/o/r", `{"default_branch":"staging"}`)
+	f.hub.on(get("/pulls/5"), pr(5, "h", "fb", "Part of #40"))
+	f.hub.on(list("/pulls/5/files?"), []File{{Filename: "a.go", Additions: 1}})
+	f.owner(t, Record{Ticket: 40, Model: sonnet, State: Running})
+	prev := f.run
+	f.run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
+		if name == "gh" && len(args) > 0 && args[0] == "variable" {
+			return nil, errors.New(
+				"gh: Access to this GitHub Actions path is not permitted (HTTP 403)",
+			)
+		}
+		return prev(ctx, dir, stdin, name, args...)
+	}
+	code, stdout, stderr := f.agents(t, "verify-plan", "5")
+	note := "feature branch staging (repo default branch; gh variable get failed: " +
+		"gh: Access to this GitHub Actions path is not permitted (HTTP 403))"
+	f.hub.mu.Lock()
+	_, hit := f.hub.sent["GET /repos/o/r"]
+	f.hub.mu.Unlock()
+	if code != 0 || !strings.Contains(stderr, note) || !strings.Contains(stdout, "verifier ") || !hit {
+		t.Fatalf("code=%d hit=%v stdout=%q stderr=%q", code, hit, stdout, stderr)
 	}
 }

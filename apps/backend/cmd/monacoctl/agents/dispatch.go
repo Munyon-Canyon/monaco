@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -298,7 +299,19 @@ func (env *Env) addWorktree(ctx context.Context, path, tip string) error {
 	return nil
 }
 
+func (env *Env) caffeineOnPath() bool {
+	look := exec.LookPath
+	if env.LookPath != nil {
+		look = env.LookPath
+	}
+	_, err := look("caffeinate")
+	return err == nil
+}
+
 func (env *Env) caffeinePlan(ctx context.Context, dry bool) (string, error) {
+	if !env.caffeineOnPath() {
+		return "caffeinate not found; the host must stay awake on its own", nil
+	}
 	if env.caffeinated(ctx) {
 		return "dry-run: caffeinate already running", nil
 	}
