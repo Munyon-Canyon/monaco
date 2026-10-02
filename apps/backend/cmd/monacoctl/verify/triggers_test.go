@@ -143,7 +143,7 @@ func tickAsTheWorker(t *testing.T, env Env, p poller.Poller) {
 }
 
 func failingConverge(b Budget) Budget {
-	b.Converge = time.Second
+	b.Converge = 500 * time.Millisecond
 	return b
 }
 
