@@ -210,7 +210,7 @@ func (q *Queries) ListCabals(ctx context.Context, cabalIds []uuid.UUID) ([]ListC
 }
 
 const lockCabalExclusive = `-- name: LockCabalExclusive :one
-SELECT id FROM cabals WHERE id = $1 FOR UPDATE
+SELECT id FROM cabals WHERE id = $1 FOR NO KEY UPDATE
 `
 
 func (q *Queries) LockCabalExclusive(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {

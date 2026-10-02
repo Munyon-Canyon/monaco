@@ -14,8 +14,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
 )
 
-const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-
 func TestNewInviteCode_mapsEachByteToTheCrockfordCharacterOfItsLowFiveBits(t *testing.T) {
 	t.Parallel()
 	for name, tt := range map[string]struct {
@@ -114,8 +112,11 @@ func TestNewInviteCode_isTenCrockfordCharactersOfTheFiftyLowBitsAndParsesBack(t 
 		if errA != nil || errB != nil || errM != nil {
 			t.Fatalf("NewInviteCode failed: %v, %v, %v", errA, errB, errM)
 		}
-		if len(codeA.String()) != 10 || strings.Trim(codeA.String(), crockford) != "" {
-			t.Fatalf("code %q is not 10 Crockford characters", codeA)
+		if len(codeA.String()) != 10 {
+			t.Fatalf("code %q is not 10 characters", codeA)
+		}
+		if _, err := domain.ParseInviteCode(codeA.String()); err != nil {
+			t.Fatalf("code %q is not an invite code: %v", codeA, err)
 		}
 		if masked != codeA {
 			t.Fatalf("code of %v = %q but of its low bits %q; only the low five bits may matter", a, codeA, masked)

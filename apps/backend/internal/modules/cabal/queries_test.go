@@ -309,6 +309,38 @@ func TestCabalQueries_anExclusiveLockRefusesEveryOtherLockUntilTheTransactionEnd
 	}
 }
 
+func TestCabalQueries_anEditLockAdmitsAMemberInsert(t *testing.T) {
+	t.Parallel()
+	f := newQueries(t)
+	c := testkit.NewCabal(t, f.pool)
+	newcomer := testkit.SeedUser(t, f.pool, testkit.UserOpts{})
+	err := f.uow.Do(t.Context(), func(ctx context.Context, tx db.Tx) error {
+		locked, err := sqlc.New(tx.Queries()).LockCabalExclusive(ctx, c.ID.UUID())
+		if err != nil || locked != c.ID.UUID() {
+			t.Errorf("LockCabalExclusive = %s, %v; want the cabal id", locked, err)
+		}
+		conn, err := f.pool.Acquire(ctx)
+		if err != nil {
+			return err
+		}
+		defer conn.Release()
+		if _, err := conn.Exec(ctx, `SET lock_timeout = '250ms'`); err != nil {
+			return err
+		}
+		defer func() { _, _ = conn.Exec(ctx, `RESET lock_timeout`) }()
+		n, err := sqlc.New(conn).InsertMember(ctx, sqlc.InsertMemberParams{
+			CabalID: c.ID.UUID(), UserID: newcomer.ID.UUID(), Role: "member", CanVote: false, JoinedAt: f.clock.Now(),
+		})
+		if err != nil || n != 1 {
+			t.Errorf("InsertMember under an edit lock = %d, %v; want one row", n, err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestCabalQueries_lockingAnUnknownCabalFindsNoRow(t *testing.T) {
 	t.Parallel()
 	f := newQueries(t)
