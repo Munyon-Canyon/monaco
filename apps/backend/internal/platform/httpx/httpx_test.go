@@ -119,6 +119,12 @@ func (healthz) GetAsset(context.Context, api.GetAssetRequestObject) (api.GetAsse
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetAsset")
 }
 
+func (healthz) GetAssetChart(
+	context.Context, api.GetAssetChartRequestObject,
+) (api.GetAssetChartResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetAssetChart")
+}
+
 type stepClock struct {
 	clock.Real
 	mu  sync.Mutex
