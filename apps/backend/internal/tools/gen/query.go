@@ -16,25 +16,7 @@ const (
 	sqlcConfig = "sqlc.yaml"
 	sqlcBegin  = "# BEGIN GENERATED modules"
 	sqlcEnd    = "# END GENERATED modules"
-	sqlcEntry  = `- engine: postgresql
-  schema: migrations
-  queries: queries/%[1]s
-  gen:
-    go:
-      package: sqlc
-      out: internal/modules/%[1]s/sqlc
-      sql_package: pgx/v5
-      emit_interface: false
-      omit_unused_structs: true
-      output_db_file_name: db.gen.go
-      output_models_file_name: models.gen.go
-      output_files_suffix: .gen
-      overrides:
-        - db_type: uuid
-          go_type: github.com/google/uuid.UUID
-        - db_type: timestamptz
-          go_type: time.Time
-`
+	sqlcEntry  = "- {engine: postgresql, schema: migrations, queries: queries/%[1]s, gen: {go: {<<: *common, package: sqlc, out: internal/modules/%[1]s/sqlc, output_db_file_name: db.gen.go, output_models_file_name: models.gen.go, output_files_suffix: .gen}}}\n"
 )
 
 func planQuery(root *os.Root, modPath string, args []string) (Plan, error) {
