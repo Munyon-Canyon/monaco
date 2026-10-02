@@ -304,12 +304,26 @@ func readPID(t *testing.T, path string) int {
 
 func assertGone(t *testing.T, pid int) {
 	t.Helper()
-	if poll(time.Second, func() bool {
-		return exec.CommandContext(context.Background(), "kill", "-0", strconv.Itoa(pid)).Run() != nil
-	}) {
+	if poll(time.Second, func() bool { return exited(pid) }) {
 		return
 	}
 	t.Fatalf("process %d still alive", pid)
+}
+
+func exited(pid int) bool {
+	if zombie(pid) {
+		return true
+	}
+	return exec.CommandContext(context.Background(), "kill", "-0", strconv.Itoa(pid)).Run() != nil
+}
+
+func zombie(pid int) bool {
+	body, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if err != nil {
+		return false
+	}
+	_, state, ok := strings.Cut(string(body), ") ")
+	return ok && strings.HasPrefix(state, "Z")
 }
 
 func TestSpawn_startsAndReportsAMissingProgram(t *testing.T) {

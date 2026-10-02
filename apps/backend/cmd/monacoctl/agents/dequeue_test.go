@@ -103,6 +103,7 @@ func TestDequeue_failures(t *testing.T) {
 		name, want string
 		args       []string
 		edit       func(f *fixture, s *stackGH, env *Env)
+		freeze     bool
 	}{
 		{name: "usage", args: []string{}, want: "usage: monacoctl agents dequeue <top-pr>"},
 		{name: "not a PR", args: []string{"9"}, want: "#9 is not a PR"},
@@ -132,11 +133,7 @@ func TestDequeue_failures(t *testing.T) {
 				return ch
 			}
 		}},
-		{name: "unwritable record", want: "write owner record", edit: func(f *fixture, _ *stackGH, _ *Env) {
-			if err := os.Chmod(f.Env(t).recordPath(40), 0o400); err != nil {
-				t.Fatal(err)
-			}
-		}},
+		{name: "unwritable record", want: "write owner record", freeze: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -144,6 +141,9 @@ func TestDequeue_failures(t *testing.T) {
 			s, env := dequeueStack(t, f)
 			if tc.edit != nil {
 				tc.edit(f, s, env)
+			}
+			if tc.freeze {
+				freeze(t, f.Env(t).recordPath(40))
 			}
 			args := tc.args
 			if args == nil {
