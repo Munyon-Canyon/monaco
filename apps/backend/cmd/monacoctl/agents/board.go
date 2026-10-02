@@ -14,7 +14,7 @@ const (
 	labelFields   = `labels(first:20){nodes{name}}`
 	prFields      = `number body createdAt state mergedAt closedAt headRefOid ` + labelFields + `
 commits(last:1){nodes{commit{committedDate ` + commitChecks + `}}}
-timelineItems(itemTypes:[LABELED_EVENT,UNLABELED_EVENT],last:50){nodes{__typename
+timelineItems(itemTypes:[LABELED_EVENT,UNLABELED_EVENT],last:100){nodes{__typename
 ... on LabeledEvent{createdAt label{name}} ... on UnlabeledEvent{createdAt label{name}}}}`
 )
 

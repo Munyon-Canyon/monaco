@@ -533,7 +533,6 @@ func TestLandStack_settlesTheQueuedStack(t *testing.T) {
 		calls      []string
 		stillQueue bool
 		gone       bool
-		ahead      bool
 	}{
 		{
 			name: "every PR merged",
@@ -558,11 +557,10 @@ func TestLandStack_settlesTheQueuedStack(t *testing.T) {
 			calls:  []string{"gt sync --no-interactive --delete-all --no-restack"},
 		},
 		{
-			name:       "a closed PR whose head is not in the trunk yet",
-			edit:       func(prs map[int]*stackPR) { prs[2].State, prs[3].State = "MERGED", "CLOSED" },
+			name:       "a lower PR closed by the queue while the top waits",
+			edit:       func(prs map[int]*stackPR) { prs[2].State = "CLOSED" },
 			stdout:     "#3 is queued in the Graphite merge queue\n",
 			stillQueue: true,
-			ahead:      true,
 		},
 		{
 			name:       "the open PRs carry the label",
@@ -586,11 +584,7 @@ func TestLandStack_settlesTheQueuedStack(t *testing.T) {
 				labeled(green(t, 2, "b2", "fb"), "merge-queue"), labeled(green(t, 3, "b3", "b2"), "merge-queue"))
 			tt.edit(s.prs)
 			f.hub.on(get("/compare/fb...b2-oid"), `{"status":"identical"}`)
-			top := `{"status":"behind"}`
-			if tt.ahead {
-				top = `{"status":"ahead"}`
-			}
-			f.hub.on(get("/compare/fb...b3-oid"), top)
+			f.hub.on(get("/compare/fb...b3-oid"), `{"status":"behind"}`)
 			wt := t.TempDir()
 			if tt.gone {
 				wt = filepath.Join(wt, "gone")
@@ -901,6 +895,7 @@ func TestLandStack_aClosedEjectedTopIsUnmarkedAndRefused(t *testing.T) {
 	f := newFixture(t)
 	s := ejectedStack(t, f)
 	s.prs[3].State = "CLOSED"
+	f.hub.on(get("/compare/fb...b3-oid"), `{"status":"diverged"}`)
 	code, stdout, stderr := f.agents(t, "land-stack", "3")
 	if code != 1 || stdout != "#3 left the Graphite merge queue; relanding its stack\n" ||
 		!strings.Contains(stderr, "#3 is not an open PR") {
@@ -1041,5 +1036,24 @@ func TestLandStack_aFailedCompareStopsSettleAndWatch(t *testing.T) {
 	code, _, stderr = f.agents(t, "watch")
 	if code != 1 || !strings.Contains(stderr, "compare b1-oid with fb") {
 		t.Fatalf("watch on a failed compare: %d %q", code, stderr)
+	}
+}
+
+func TestLandStack_aPRClosedByHandIsEjectedEvenWithTheLabel(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := ejectedStack(t, f)
+	for _, n := range []int{1, 2, 3} {
+		labeled(s.prs[n], "merge-queue")
+	}
+	s.prs[2].State = "CLOSED"
+	f.hub.on(get("/compare/fb...b2-oid"), `{"status":"diverged"}`)
+	f.noFailures()
+	code, stdout, stderr := f.agents(t, "watch")
+	if code != 0 || !strings.HasPrefix(stdout, "unqueued: #40; #3 left the Graphite merge queue.") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	if f.owned(t).Queued != nil {
+		t.Fatal("kept the queued mark")
 	}
 }
