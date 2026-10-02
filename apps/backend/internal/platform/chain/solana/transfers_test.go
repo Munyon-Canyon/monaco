@@ -77,3 +77,19 @@ func TestInboundTransfers_failures(t *testing.T) {
 	_, err = client(replying(200, "")).MintConfig(t.Context(), "bad")
 	wantCode(t, err, errs.CodeInvalidAddress)
 }
+
+func TestInboundTransfers_ignoresATokenBalanceIndexedExactlyOnePastTheAccountKeys(t *testing.T) {
+	t.Parallel()
+	body := `{"meta":{"err":null,"postTokenBalances":[{"accountIndex":0,"mint":"` + string(usdcMint) +
+		`","owner":"` + string(member) + `","uiTokenAmount":{"decimals":6}},` +
+		`{"accountIndex":1,"mint":"` + string(usdcMint) + `","owner":"` + string(sender) + `"},` +
+		`{"accountIndex":-1,"mint":"` + string(usdcMint) + `","owner":"` + string(sender) + `"}]},` +
+		`"transaction":{"message":{"accountKeys":[{"pubkey":"dest"}],"instructions":[` +
+		`{"program":"spl-token","parsed":{"type":"transfer","info":{"source":"elsewhere","destination":"dest",` +
+		`"authority":"` + string(sender) + `","amount":"7"}}}]}}}`
+	got, err := client(result(body)).InboundTransfers(t.Context(), deposit, member)
+	want := []solana.Transfer{{Signature: deposit, From: sender, Mint: usdc(), Amount: money.NewBaseUnits(7, 6)}}
+	if err != nil || !slices.Equal(got, want) {
+		t.Fatalf("InboundTransfers = %+v, %v; want %+v", got, err, want)
+	}
+}

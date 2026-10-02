@@ -90,3 +90,24 @@ func TestVerifyWebhook_refusals(t *testing.T) {
 		}
 	}
 }
+
+func TestVerifyWebhook_acceptsATimestampExactlyFiveMinutesAwayAndRefusesOneSecondMore(t *testing.T) {
+	t.Parallel()
+	clk := testkit.NewClock(clock.Real{}.Now().Truncate(time.Second))
+	now := clk.Now()
+	for name, tc := range map[string]struct {
+		at   time.Time
+		want errs.Code
+	}{
+		"five minutes old":                {now.Add(-5 * time.Minute), ""},
+		"five minutes ahead":              {now.Add(5 * time.Minute), ""},
+		"five minutes and a second old":   {now.Add(-5*time.Minute - time.Second), errs.CodeUnauthorized},
+		"five minutes and a second ahead": {now.Add(5*time.Minute + time.Second), errs.CodeUnauthorized},
+	} {
+		_, err := clientWith(testConfig(), nil, clk).VerifyWebhook(
+			svix("msg_1", tc.at, depositBody), []byte(depositBody))
+		if tc.want == "" && err != nil || tc.want != "" && errs.CodeOf(err) != tc.want {
+			t.Fatalf("%s: err = %v, want code %q", name, err, tc.want)
+		}
+	}
+}
