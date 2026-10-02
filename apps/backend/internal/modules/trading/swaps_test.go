@@ -1,6 +1,7 @@
 package trading_test
 
 import (
+	"bytes"
 	"database/sql"
 	"errors"
 	"testing"
@@ -152,11 +153,11 @@ func TestSwaps_requestIDAndSignatureAreUnique(t *testing.T) {
 	}
 	d.submit(t, a.ID, "req-1", "sig-1")
 	_, err := d.q.MarkSubmitted(t.Context(), sqlc.MarkSubmittedParams{
-		ID: b.ID, ExecuteRequestID: "req-1", TxSignature: "sig-2", SubmittedAt: d.now,
+		ID: b.ID, ExecuteRequestID: "req-1", SignedTx: []byte{1}, TxSignature: "sig-2", SubmittedAt: d.now,
 	})
 	wantUniqueViolation(t, err, "swaps_execute_request_id_key")
 	_, err = d.q.MarkSubmitted(t.Context(), sqlc.MarkSubmittedParams{
-		ID: c.ID, ExecuteRequestID: "req-3", TxSignature: "sig-1", SubmittedAt: d.now,
+		ID: c.ID, ExecuteRequestID: "req-3", SignedTx: []byte{1}, TxSignature: "sig-1", SubmittedAt: d.now,
 	})
 	wantUniqueViolation(t, err, "swaps_tx_signature_key")
 }
@@ -246,5 +247,44 @@ func TestSwaps_claimLiveFindsTheLiveRowOnly(t *testing.T) {
 	d.fail(t, row.ID, "never_submitted")
 	if _, err := d.q.ClaimLive(t.Context(), claim); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("ClaimLive after the row failed err = %v, want no rows", err)
+	}
+}
+
+func TestSwaps_markSubmittedStoresTheSignedBytesBeforeAnySend(t *testing.T) {
+	t.Parallel()
+	d := newSwapDB(t)
+	row := d.created(d.ids.NewV7(), usdcMint)
+	d.insert(t, row)
+	if n := d.submit(t, row.ID, "req-1", "sig-1"); n != 1 {
+		t.Fatalf("MarkSubmitted changed %d rows, want 1", n)
+	}
+	var signed []byte
+	var requestID, sig string
+	var submittedAt time.Time
+	if err := d.pool.QueryRow(t.Context(),
+		`SELECT signed_tx, execute_request_id, tx_signature, submitted_at FROM swaps WHERE id = $1`,
+		row.ID).Scan(&signed, &requestID, &sig, &submittedAt); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(signed, []byte{1, 2, 3}) || requestID != "req-1" || sig != "sig-1" || !submittedAt.Equal(d.now) {
+		t.Fatalf("stored %v, %q, %q, %s; want the submitted payload", signed, requestID, sig, submittedAt)
+	}
+}
+
+func TestSwaps_markSubmittedRefusesAnEmptySignedTx(t *testing.T) {
+	t.Parallel()
+	d := newSwapDB(t)
+	row := d.created(d.ids.NewV7(), usdcMint)
+	d.insert(t, row)
+	for name, signed := range map[string][]byte{"nil": nil, "empty": {}} {
+		n, err := d.q.MarkSubmitted(t.Context(), sqlc.MarkSubmittedParams{
+			ID: row.ID, ExecuteRequestID: "req-1", SignedTx: signed, TxSignature: "sig-1", SubmittedAt: d.now,
+		})
+		if err != nil || n != 0 {
+			t.Errorf("MarkSubmitted with a %s signed_tx = %d rows, %v, want 0 rows", name, n, err)
+		}
+	}
+	if got := d.status(t, row.ID); got != "created" {
+		t.Fatalf("status = %s, want created", got)
 	}
 }

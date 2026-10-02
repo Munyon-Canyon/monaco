@@ -133,7 +133,7 @@ func checkParse[T ~string](t *testing.T, name string, parse func(string) (T, err
 			t.Errorf("%s(%s) = %s, %v", name, v, got, err)
 		}
 	}
-	for _, raw := range []string{"", "Created", "agent_intent", "hold"} {
+	for _, raw := range []string{"", "Created", "unplanned_kind", "hold"} {
 		if got, err := parse(raw); errs.CodeOf(err) != errs.CodeDecodeFailed || got != "" {
 			t.Errorf("%s(%q) = %q, %v, want decode_failed", name, raw, got, err)
 		}

@@ -12,7 +12,7 @@ VALUES (
 UPDATE swaps
 SET status = 'submitted', execute_request_id = @execute_request_id::text, signed_tx = @signed_tx::bytea,
   tx_signature = @tx_signature::text, submitted_at = @submitted_at::timestamptz, updated_at = @submitted_at::timestamptz
-WHERE id = @id AND status = 'created';
+WHERE id = @id AND status = 'created' AND octet_length(@signed_tx::bytea) > 0;
 
 -- name: FinishConfirmed :execrows
 UPDATE swaps

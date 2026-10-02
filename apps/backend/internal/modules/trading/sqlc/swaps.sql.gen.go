@@ -140,7 +140,7 @@ const markSubmitted = `-- name: MarkSubmitted :execrows
 UPDATE swaps
 SET status = 'submitted', execute_request_id = $1::text, signed_tx = $2::bytea,
   tx_signature = $3::text, submitted_at = $4::timestamptz, updated_at = $4::timestamptz
-WHERE id = $5 AND status = 'created'
+WHERE id = $5 AND status = 'created' AND octet_length($2::bytea) > 0
 `
 
 type MarkSubmittedParams struct {
