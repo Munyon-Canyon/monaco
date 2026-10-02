@@ -45,16 +45,7 @@ ruleset() {
         require_last_push_approval: false,
         require_extra_approval_for_unattributed_changes: false,
         required_review_thread_resolution: false,
-        allowed_merge_methods: ["merge"]
-      }},
-      {type: "merge_queue", parameters: {
-        merge_method: "MERGE",
-        grouping_strategy: "ALLGREEN",
-        max_entries_to_build: 5,
-        min_entries_to_merge: 1,
-        max_entries_to_merge: 5,
-        min_entries_to_merge_wait_minutes: 0,
-        check_response_timeout_minutes: 30
+        allowed_merge_methods: ["squash"]
       }},
       {type: "required_status_checks", parameters: {
         strict_required_status_checks_policy: false,

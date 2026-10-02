@@ -120,7 +120,7 @@ func TestRequiredWorkflows_neverFilterPathsAtTheWorkflowLevel(t *testing.T) {
 
 func TestRequiredWorkflows_catchAPlantedPathsFilter(t *testing.T) {
 	dir := t.TempDir()
-	planted := "name: CI\non:\n  pull_request:\n    paths-ignore: ['docs/**']\n  merge_group:\njobs:\n  ci:\n    uses: ./.github/workflows/ci-jobs.yml\n"
+	planted := "name: CI\non:\n  pull_request:\n    paths-ignore: ['docs/**']\njobs:\n  ci:\n    uses: ./.github/workflows/ci-jobs.yml\n"
 	jobLevel := "name: Other\non:\n  pull_request:\njobs:\n  filter:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: dorny/paths-filter@v3\n        with:\n          filters: |\n            paths:\n              - 'x/**'\n"
 	for name, body := range map[string]string{"ci.yml": planted, "other.yml": jobLevel} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {

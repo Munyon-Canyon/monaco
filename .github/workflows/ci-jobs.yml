@@ -8,7 +8,7 @@ on:
   workflow_call:
     inputs:
       stage:
-        description: pr (pull_request) or queue (merge_group).
+        description: pr (a PR) or queue (a Graphite merge queue draft, head gtmq_*).
         type: string
         required: true
 
@@ -80,7 +80,7 @@ jobs:
 
       - name: OpenAPI spec has no breaking changes
         env:
-          BASE_REF: ${{ github.base_ref || github.event.merge_group.base_ref || 'main' }}
+          BASE_REF: ${{ github.base_ref || vars.FEATURE_BRANCH || 'main' }}
         run: |
           base="${BASE_REF#refs/heads/}"
           git fetch --no-tags --depth=1 origin "$base"
