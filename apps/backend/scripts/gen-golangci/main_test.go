@@ -153,6 +153,16 @@ func TestGenerate_failsWithoutMarkersOrModuleLine(t *testing.T) {
 	}
 }
 
+func replaceWithDir(t *testing.T, path string) {
+	t.Helper()
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0o750); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestGenerate_namesTheInputItCannotReadOrWrite(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
@@ -172,9 +182,7 @@ func TestGenerate_namesTheInputItCannotReadOrWrite(t *testing.T) {
 			t.Parallel()
 			root := writeTree(t, tc.files)
 			if tc.readOnly {
-				if err := os.Chmod(filepath.Join(root, outFile), 0o400); err != nil {
-					t.Fatal(err)
-				}
+				replaceWithDir(t, filepath.Join(root, outFile))
 			}
 			if err := generate(root); err == nil || !strings.HasPrefix(err.Error(), tc.want) {
 				t.Fatalf("generate = %v, want an error starting %q", err, tc.want)

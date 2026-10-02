@@ -120,9 +120,7 @@ func TestRecords_writesFailLoudly(t *testing.T) {
 	if code, _, stderr := f.agents(t, "done", "4"); code != 1 || !strings.Contains(stderr, "issues/4/comments") {
 		t.Fatalf("publish: %d %q", code, stderr)
 	}
-	if err := os.Chmod(f.Env(t).recordPath(4), 0o400); err != nil {
-		t.Fatal(err)
-	}
+	freeze(t, f.Env(t).recordPath(4))
 	if code, _, stderr := f.agents(t, "done", "4"); code != 1 || !strings.Contains(stderr, "write owner record") {
 		t.Fatalf("save: %d %q", code, stderr)
 	}
@@ -147,9 +145,7 @@ func TestRecords_verdictFailsWhenTheBranchCannotBeRecorded(t *testing.T) {
 	t.Parallel()
 	readOnly := func(t *testing.T, _ *fixture, path string) {
 		t.Helper()
-		if err := os.Chmod(path, 0o400); err != nil {
-			t.Fatal(err)
-		}
+		freeze(t, path)
 	}
 	rewritten := func(t *testing.T, f *fixture, path string) {
 		t.Helper()

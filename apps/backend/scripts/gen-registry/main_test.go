@@ -192,11 +192,7 @@ func TestGenerate_namesTheInputItCannotReadParseOrWrite(t *testing.T) {
 			t.Parallel()
 			root := writeTree(t, tc.files)
 			if tc.readOnly != "" {
-				path := filepath.Join(root, tc.readOnly)
-				if err := os.Chmod(path, 0o500); err != nil {
-					t.Fatal(err)
-				}
-				t.Cleanup(func() { _ = os.Chmod(path, 0o755) })
+				freeze(t, filepath.Join(root, tc.readOnly))
 			}
 			if err := generate(root); err == nil || !strings.HasPrefix(err.Error(), tc.want) {
 				t.Fatalf("generate = %v, want an error starting %q", err, tc.want)

@@ -521,10 +521,7 @@ func TestVerdict_reportsDownstreamFailures(t *testing.T) {
 		t.Fatalf("carry status: %d %q", code, stderr)
 	}
 	f.hub.on("POST /repos/o/r/statuses/newsha", "ok")
-	if err := os.Chmod(f.Env(t).verdictPath(7), 0o400); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(f.Env(t).verdictPath(7), 0o600) })
+	freeze(t, f.Env(t).verdictPath(7))
 	if code, _, stderr := f.agents(
 		t,
 		"verdict",
