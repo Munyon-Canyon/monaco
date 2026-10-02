@@ -23,7 +23,7 @@ func TestModule_buildsARouteChecker(t *testing.T) {
 	}
 }
 
-func TestModule_isNamedMarketAndMountsNoRoutesOrConsumers(t *testing.T) {
+func TestModule_isNamedMarketAndMountsTheCatalog(t *testing.T) {
 	t.Parallel()
 	m := market.New(module.Deps{})
 	if m.Name() != "market" {
@@ -31,8 +31,8 @@ func TestModule_isNamedMarketAndMountsNoRoutesOrConsumers(t *testing.T) {
 	}
 	var r httpx.Routes
 	m.Routes(&r)
-	if r != (httpx.Routes{}) {
-		t.Fatalf("Routes mounted %+v, want nothing", r)
+	if r.MarketRoutes == nil {
+		t.Fatal("Routes mounted no catalog")
 	}
 	if got := m.Consumers(); len(got) != 0 {
 		t.Fatalf("Consumers = %v, want none", got)
