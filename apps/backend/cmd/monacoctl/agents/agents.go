@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -33,17 +34,19 @@ func execWaitDelay() time.Duration {
 }
 
 type Env struct {
-	Work    string
-	Common  string
-	Home    string
-	Config  Config
-	GitHub  *GitHub
-	Run     Runner
-	Start   func(name string, args ...string) error
-	Now     func() time.Time
-	After   func(d time.Duration) <-chan time.Time
-	Actions bool
-	trunk   *trunkLog
+	Work     string
+	Common   string
+	Home     string
+	Config   Config
+	GitHub   *GitHub
+	Run      Runner
+	Start    func(name string, args ...string) error
+	Now      func() time.Time
+	After    func(d time.Duration) <-chan time.Time
+	Actions  bool
+	GOOS     string
+	LookPath func(string) (string, error)
+	trunk    *trunkLog
 }
 type (
 	Runner  func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error)
@@ -235,7 +238,7 @@ func load(ctx context.Context, environ []string, dir string, run Runner) (*Env, 
 		Work: top, Common: common, Home: lookup(environ, "HOME"), Config: cfg,
 		GitHub: &GitHub{API: api, Repo: cfg.Repo, Token: token, HTTP: &http.Client{Timeout: 30 * time.Second}},
 		Run:    run, Start: spawn, Now: time.Now, After: time.After,
-		Actions: lookup(environ, "GITHUB_ACTIONS") == "true",
+		Actions: lookup(environ, "GITHUB_ACTIONS") == "true", GOOS: runtime.GOOS, LookPath: exec.LookPath,
 	}, nil
 }
 
