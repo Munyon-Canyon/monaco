@@ -17,6 +17,13 @@ func Scripts() map[string]Script {
 		"F01OpenSessionAccountDeleted":        F01OpenSessionAccountDeleted,
 		"F01OpenSessionPrivyUnavailable":      F01OpenSessionPrivyUnavailable,
 		"F01OpenSessionCrashBeforeCommit":     F01OpenSessionCrashBeforeCommit,
+
+		"F10CastVoteOK":                F10CastVoteOK,
+		"F10CastVoteUnauthorized":      F10CastVoteUnauthorized,
+		"F10CastVoteProposalNotFound":  F10CastVoteProposalNotFound,
+		"F10CastVoteNotAVoter":         F10CastVoteNotAVoter,
+		"F10CastVoteProposalClosed":    F10CastVoteProposalClosed,
+		"F10CastVoteCrashAfterPublish": F10CastVoteCrashAfterPublish,
 	}
 }
 

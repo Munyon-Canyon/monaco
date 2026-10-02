@@ -63,6 +63,24 @@ func (e AuthState) Valid() bool {
 	}
 }
 
+// Defines values for BallotChoice.
+const (
+	No  BallotChoice = "no"
+	Yes BallotChoice = "yes"
+)
+
+// Valid indicates whether the value is a known member of the BallotChoice enum.
+func (e BallotChoice) Valid() bool {
+	switch e {
+	case No:
+		return true
+	case Yes:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ErrorCode.
 const (
 	AccessRequestNotPending    ErrorCode = "access_request_not_pending"
@@ -330,6 +348,42 @@ func (e ProblemType) Valid() bool {
 	}
 }
 
+// Defines values for ProposalStatus.
+const (
+	Executed         ProposalStatus = "executed"
+	ExecutionBlocked ProposalStatus = "execution_blocked"
+	Expired          ProposalStatus = "expired"
+	Failed           ProposalStatus = "failed"
+	Open             ProposalStatus = "open"
+	Passed           ProposalStatus = "passed"
+	Voided           ProposalStatus = "voided"
+	Withdrawn        ProposalStatus = "withdrawn"
+)
+
+// Valid indicates whether the value is a known member of the ProposalStatus enum.
+func (e ProposalStatus) Valid() bool {
+	switch e {
+	case Executed:
+		return true
+	case ExecutionBlocked:
+		return true
+	case Expired:
+		return true
+	case Failed:
+		return true
+	case Open:
+		return true
+	case Passed:
+		return true
+	case Voided:
+		return true
+	case Withdrawn:
+		return true
+	default:
+		return false
+	}
+}
+
 // AccountStatus The user's standing. A suspended account is read-only apart from withdraw and cash out, and a banned account can only withdraw and cash out.
 //
 // Examples: active
@@ -339,6 +393,19 @@ type AccountStatus string
 //
 // Examples: CREATED
 type AuthState string
+
+// BallotChoice A voter's choice on a proposal.
+//
+// Examples: yes
+type BallotChoice string
+
+// CastVoteRequest The ballot to cast.
+type CastVoteRequest struct {
+	// Choice A voter's choice on a proposal.
+	//
+	// Examples: yes
+	Choice BallotChoice `json:"choice"`
+}
 
 // ErrorCode The closed list of error codes. Generated from the errs table by monacoctl gen errors.
 //
@@ -472,6 +539,55 @@ type Problem struct {
 // ProblemType Always about:blank. The code field carries the problem type.
 type ProblemType string
 
+// ProposalStatus Where a proposal is in its lifecycle.
+//
+// Examples: open
+type ProposalStatus string
+
+// Tally The ballots counted against the proposal's frozen voter set.
+type Tally struct {
+	// Needed Yes ballots the cabal's threshold rule needs to pass the proposal.
+	//
+	// Examples: 2
+	Needed int `json:"needed"`
+
+	// No Ballots against the proposal.
+	//
+	// Examples: 1
+	No int `json:"no"`
+
+	// Voters Members in the voter set frozen when the proposal opened.
+	//
+	// Examples: 3
+	Voters int `json:"voters"`
+
+	// Yes Ballots for the proposal.
+	//
+	// Examples: 2
+	Yes int `json:"yes"`
+}
+
+// VoteResult The proposal after the caller's ballot.
+type VoteResult struct {
+	// MyBallot A voter's choice on a proposal.
+	//
+	// Examples: yes
+	MyBallot BallotChoice `json:"my_ballot"`
+
+	// ProposalId The proposal id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+	ProposalId openapi_types.UUID `json:"proposal_id"`
+
+	// Status Where a proposal is in its lifecycle.
+	//
+	// Examples: open
+	Status ProposalStatus `json:"status"`
+
+	// Tally The ballots counted against the proposal's frozen voter set.
+	Tally Tally `json:"tally"`
+}
+
 // IdempotencyKey Examples: 6f1c1a52-3a4e-4d0e-9d7b-2f7f3f5b9d10
 type IdempotencyKey = string
 
@@ -479,6 +595,12 @@ type IdempotencyKey = string
 type PostAuthSessionParams struct {
 	// Authorization The Privy access token as `Bearer <token>`. The route is public because no account exists on the first call, so the server verifies this header itself and answers unauthorized when it is missing or invalid.
 	Authorization *string `json:"Authorization,omitempty"`
+}
+
+// PostProposalVoteParams defines parameters for PostProposalVote.
+type PostProposalVoteParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
 // GetStreamParams defines parameters for GetStream.
@@ -492,6 +614,9 @@ type PostSystemPingParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
+
+// PostProposalVoteJSONRequestBody defines body for PostProposalVote for application/json ContentType.
+type PostProposalVoteJSONRequestBody = CastVoteRequest
 
 // PostSystemPingJSONRequestBody defines body for PostSystemPing for application/json ContentType.
 type PostSystemPingJSONRequestBody = PingRequest
@@ -507,6 +632,9 @@ type ServerInterface interface {
 	// GetMe Read the signed-in user's account.
 	// (GET /v1/me)
 	GetMe(w http.ResponseWriter, r *http.Request)
+	// PostProposalVote Cast or change the caller's ballot on an open proposal.
+	// (POST /v1/proposals/{id}/votes)
+	PostProposalVote(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostProposalVoteParams)
 	// GetStream Stream re-fetch hints for the caller.
 	// (GET /v1/stream)
 	GetStream(w http.ResponseWriter, r *http.Request, params GetStreamParams)
@@ -587,6 +715,60 @@ func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostProposalVote operation middleware
+func (siw *ServerInterfaceWrapper) PostProposalVote(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostProposalVoteParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostProposalVote(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -831,6 +1013,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/healthz", wrapper.GetHealthz)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/auth/session", wrapper.PostAuthSession)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me", wrapper.GetMe)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.PostProposalVote)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/stream", wrapper.GetStream)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/system/pings", wrapper.PostSystemPing)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/system/pings/{id}", wrapper.GetSystemPing)
@@ -941,6 +1124,47 @@ type GetMedefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetMedefaultApplicationProblemPlusJSONResponse) VisitGetMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProposalVoteRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params PostProposalVoteParams
+	Body   *PostProposalVoteJSONRequestBody
+}
+
+type PostProposalVoteResponseObject interface {
+	VisitPostProposalVoteResponse(w http.ResponseWriter) error
+}
+
+type PostProposalVote200JSONResponse VoteResult
+
+func (response PostProposalVote200JSONResponse) VisitPostProposalVoteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProposalVotedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PostProposalVotedefaultApplicationProblemPlusJSONResponse) VisitPostProposalVoteResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -1110,6 +1334,9 @@ type StrictServerInterface interface {
 	// GetMe Read the signed-in user's account.
 	// (GET /v1/me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
+	// PostProposalVote Cast or change the caller's ballot on an open proposal.
+	// (POST /v1/proposals/{id}/votes)
+	PostProposalVote(ctx context.Context, request PostProposalVoteRequestObject) (PostProposalVoteResponseObject, error)
 	// GetStream Stream re-fetch hints for the caller.
 	// (GET /v1/stream)
 	GetStream(ctx context.Context, request GetStreamRequestObject) (GetStreamResponseObject, error)
@@ -1227,6 +1454,40 @@ func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMeResponseObject); ok {
 		if err := validResponse.VisitGetMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostProposalVote operation middleware
+func (sh *strictHandler) PostProposalVote(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostProposalVoteParams) {
+	var request PostProposalVoteRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body PostProposalVoteJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostProposalVote(ctx, request.(PostProposalVoteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostProposalVote")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostProposalVoteResponseObject); ok {
+		if err := validResponse.VisitPostProposalVoteResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

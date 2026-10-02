@@ -90,8 +90,13 @@ func Serve(ctx context.Context, ln net.Listener, srv *http.Server, shutdownTimeo
 type Routes struct {
 	Health
 	sse.Stream
+	GovernanceRoutes
 	IdentityRoutes
 	SystemRoutes
+}
+
+type GovernanceRoutes interface {
+	PostProposalVote(context.Context, api.PostProposalVoteRequestObject) (api.PostProposalVoteResponseObject, error)
 }
 
 type IdentityRoutes interface {

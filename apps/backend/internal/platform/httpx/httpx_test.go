@@ -53,6 +53,12 @@ func (healthz) PostSystemPing(
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostSystemPing")
 }
 
+func (healthz) PostProposalVote(
+	context.Context, api.PostProposalVoteRequestObject,
+) (api.PostProposalVoteResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostProposalVote")
+}
+
 func (healthz) GetSystemPing(context.Context, api.GetSystemPingRequestObject) (api.GetSystemPingResponseObject, error) {
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetSystemPing")
 }

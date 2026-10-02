@@ -30,7 +30,7 @@ func TestModule_isNamedGovernanceAndRunsTheExpiryPoller(t *testing.T) {
 	var routes httpx.Routes
 	m.Routes(&routes)
 	pollers := m.Pollers()
-	if m.Name() != "governance" || len(m.Consumers()) != 0 || routes != (httpx.Routes{}) {
+	if m.Name() != "governance" || len(m.Consumers()) != 0 || routes.GovernanceRoutes == nil {
 		t.Fatalf("module = %s, %d consumers, routes %+v", m.Name(), len(m.Consumers()), routes)
 	}
 	if len(pollers) != 1 || pollers[0].Name() != "governance.proposal_expiry" ||
