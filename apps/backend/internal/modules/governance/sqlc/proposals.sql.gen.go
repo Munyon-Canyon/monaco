@@ -13,6 +13,61 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const cabalOfProposal = `-- name: CabalOfProposal :one
+SELECT cabal_id FROM proposals WHERE id = $1
+`
+
+func (q *Queries) CabalOfProposal(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, cabalOfProposal, id)
+	var cabal_id uuid.UUID
+	err := row.Scan(&cabal_id)
+	return cabal_id, err
+}
+
+const castBallot = `-- name: CastBallot :one
+WITH ballot AS (
+  INSERT INTO votes (proposal_id, voter_id, choice, cast_at)
+  VALUES ($1, $2, $3, $4)
+  ON CONFLICT (proposal_id, voter_id) DO UPDATE SET choice = excluded.choice, cast_at = excluded.cast_at
+  RETURNING choice
+),
+ballots AS (
+  SELECT votes.choice FROM votes WHERE votes.proposal_id = $1 AND votes.voter_id <> $2
+  UNION ALL
+  SELECT ballot.choice FROM ballot
+)
+SELECT
+  (SELECT count(*) FROM proposal_voters WHERE proposal_voters.proposal_id = $1)::int AS voters,
+  (count(*) FILTER (WHERE ballots.choice = 'yes'))::int AS yes,
+  (count(*) FILTER (WHERE ballots.choice = 'no'))::int AS no
+FROM ballots
+`
+
+type CastBallotParams struct {
+	ProposalID uuid.UUID
+	VoterID    uuid.UUID
+	Choice     string
+	CastAt     time.Time
+}
+
+type CastBallotRow struct {
+	Voters int32
+	Yes    int32
+	No     int32
+}
+
+func (q *Queries) CastBallot(ctx context.Context, arg CastBallotParams) (CastBallotRow, error) {
+	row := q.db.QueryRow(ctx, castBallot,
+		arg.ProposalID,
+		arg.VoterID,
+		arg.Choice,
+		arg.CastAt,
+	)
+	var i CastBallotRow
+	err := row.Scan(&i.Voters, &i.Yes, &i.No)
+	return i, err
+}
+
 const countBallots = `-- name: CountBallots :one
 SELECT
   count(*)::int AS voters,
@@ -89,6 +144,56 @@ func (q *Queries) InsertProposal(ctx context.Context, arg InsertProposalParams) 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const lockProposal = `-- name: LockProposal :one
+SELECT
+  p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.quote_out_amount,
+  p.status,
+  EXISTS (
+    SELECT 1 FROM proposal_voters AS v WHERE v.proposal_id = p.id AND v.voter_id = $1
+  ) AS is_voter
+FROM proposals AS p
+WHERE p.id = $2
+FOR UPDATE OF p
+`
+
+type LockProposalParams struct {
+	VoterID uuid.UUID
+	ID      uuid.UUID
+}
+
+type LockProposalRow struct {
+	ID             uuid.UUID
+	CabalID        uuid.UUID
+	ProposerID     uuid.UUID
+	Kind           string
+	Symbol         string
+	Mint           string
+	UsdcMicros     pgtype.Int8
+	TokenAmount    pgtype.Int8
+	QuoteOutAmount int64
+	Status         string
+	IsVoter        bool
+}
+
+func (q *Queries) LockProposal(ctx context.Context, arg LockProposalParams) (LockProposalRow, error) {
+	row := q.db.QueryRow(ctx, lockProposal, arg.VoterID, arg.ID)
+	var i LockProposalRow
+	err := row.Scan(
+		&i.ID,
+		&i.CabalID,
+		&i.ProposerID,
+		&i.Kind,
+		&i.Symbol,
+		&i.Mint,
+		&i.UsdcMicros,
+		&i.TokenAmount,
+		&i.QuoteOutAmount,
+		&i.Status,
+		&i.IsVoter,
+	)
+	return i, err
 }
 
 const statusByID = `-- name: StatusByID :one

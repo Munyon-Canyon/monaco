@@ -39,6 +39,11 @@ func Tally(rule ThresholdRule, voters, yes, no int) Outcome {
 	return Undecided
 }
 
+func (r ThresholdRule) Needed(voters int) int {
+	need, _ := r.need(voters)
+	return need
+}
+
 func (r ThresholdRule) need(voters int) (int, bool) {
 	switch r {
 	case RuleMajority:

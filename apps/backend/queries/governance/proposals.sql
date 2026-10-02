@@ -38,3 +38,35 @@ WHERE id = @id AND status = @from_status::text;
 
 -- name: StatusByID :one
 SELECT status FROM proposals WHERE id = @id;
+
+-- name: CabalOfProposal :one
+SELECT cabal_id FROM proposals WHERE id = @id;
+
+-- name: LockProposal :one
+SELECT
+  p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.quote_out_amount,
+  p.status,
+  EXISTS (
+    SELECT 1 FROM proposal_voters AS v WHERE v.proposal_id = p.id AND v.voter_id = @voter_id
+  ) AS is_voter
+FROM proposals AS p
+WHERE p.id = @id
+FOR UPDATE OF p;
+
+-- name: CastBallot :one
+WITH ballot AS (
+  INSERT INTO votes (proposal_id, voter_id, choice, cast_at)
+  VALUES (@proposal_id, @voter_id, @choice, @cast_at)
+  ON CONFLICT (proposal_id, voter_id) DO UPDATE SET choice = excluded.choice, cast_at = excluded.cast_at
+  RETURNING choice
+),
+ballots AS (
+  SELECT votes.choice FROM votes WHERE votes.proposal_id = @proposal_id AND votes.voter_id <> @voter_id
+  UNION ALL
+  SELECT ballot.choice FROM ballot
+)
+SELECT
+  (SELECT count(*) FROM proposal_voters WHERE proposal_voters.proposal_id = @proposal_id)::int AS voters,
+  (count(*) FILTER (WHERE ballots.choice = 'yes'))::int AS yes,
+  (count(*) FILTER (WHERE ballots.choice = 'no'))::int AS no
+FROM ballots;
