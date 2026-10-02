@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -54,8 +55,22 @@ func fixtureP256(label string) *ecdsa.PrivateKey {
 	return key
 }
 
+type privyCreatedUser struct {
+	ID    string
+	Email string
+}
+
 func (s *Server) privyUser(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	s.mu.Lock()
+	created, ok := s.createdUsers[id]
+	s.mu.Unlock()
+	if ok {
+		writeJSON(w, map[string]any{
+			"id": created.ID, "linked_accounts": []map[string]string{{"type": "email", "address": created.Email}},
+		})
+		return
+	}
 	for key, f := range s.fixtures {
 		var body struct {
 			ID string `json:"id"`
@@ -67,6 +82,26 @@ func (s *Server) privyUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	privyError(w, http.StatusNotFound, "User not found")
+}
+
+func (s *Server) privyCreateUser(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		LinkedAccounts []struct {
+			Type    string `json:"type"`
+			Address string `json:"address"`
+		} `json:"linked_accounts"`
+	}
+	if json.NewDecoder(r.Body).Decode(&req) != nil || len(req.LinkedAccounts) != 1 ||
+		req.LinkedAccounts[0].Type != "email" || req.LinkedAccounts[0].Address == "" {
+		privyError(w, http.StatusBadRequest, "invalid user request")
+		return
+	}
+	s.mu.Lock()
+	s.nextUser++
+	id := "did:privy:fake-" + strconv.Itoa(s.nextUser)
+	s.createdUsers[id] = privyCreatedUser{ID: id, Email: req.LinkedAccounts[0].Address}
+	s.mu.Unlock()
+	writeJSON(w, map[string]string{"id": id})
 }
 
 func privyError(w http.ResponseWriter, status int, msg string) {

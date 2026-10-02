@@ -40,6 +40,27 @@ func TestUsers_verifiesSeededUsersAndScriptsFaults(t *testing.T) {
 	}
 }
 
+func TestUsers_createReturnsAFakeIDAndStoresTheEmail(t *testing.T) {
+	t.Parallel()
+	var u privyfake.Users
+	id, err := u.Create(t.Context(), "dev-ab@example.com")
+	if err != nil || id != "did:privy:fake-1" {
+		t.Fatalf("Create = %q, %v", id, err)
+	}
+	got, err := u.User(t.Context(), id)
+	if err != nil || got != (app.PrivyUser{ID: id, Email: "dev-ab@example.com"}) {
+		t.Fatalf("User = %+v, %v", got, err)
+	}
+	again, err := u.Create(t.Context(), "dev-cd@example.com")
+	if err != nil || again != "did:privy:fake-2" {
+		t.Fatalf("second Create = %q, %v", again, err)
+	}
+	u.FailOnce("Create", errs.New(errs.CodePrivyUnavailable, "test"))
+	if _, err := u.Create(t.Context(), "dev-ef@example.com"); errs.CodeOf(err) != errs.CodePrivyUnavailable {
+		t.Fatalf("FailOnce = %v", err)
+	}
+}
+
 func TestWallets_reusesSeededWalletsAndCountsCreates(t *testing.T) {
 	t.Parallel()
 	var w privyfake.Wallets

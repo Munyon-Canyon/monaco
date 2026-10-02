@@ -14,6 +14,38 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
+func TestCreateUser_postsOneEmailAccount(t *testing.T) {
+	t.Parallel()
+	c, u, _ := overFakes(t)
+	id, err := c.CreateUser(t.Context(), "dev-ab@example.com")
+	if err != nil || id != "did:privy:fake-1" {
+		t.Fatalf("CreateUser = %q, %v", id, err)
+	}
+	req := u.requests()[0]
+	want := `{"linked_accounts":[{"type":"email","address":"dev-ab@example.com"}]}`
+	if req.method != http.MethodPost || req.path != "/privy/v1/users" || req.body != want {
+		t.Fatalf("request = %s %s body %s", req.method, req.path, req.body)
+	}
+	again, err := c.CreateUser(t.Context(), "dev-cd@example.com")
+	if err != nil || again != "did:privy:fake-2" {
+		t.Fatalf("second CreateUser = %q, %v", again, err)
+	}
+	got, err := c.GetUser(t.Context(), id)
+	if err != nil || got.ID != id || got.Email != "dev-ab@example.com" {
+		t.Fatalf("GetUser(created) = %+v, %v", got, err)
+	}
+}
+
+func TestCreateUser_refusesAnEmptyEmailAndABodyWithNoID(t *testing.T) {
+	t.Parallel()
+	c, _, _ := overFakes(t)
+	if _, err := c.CreateUser(t.Context(), ""); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("empty email = %v, want invalid_input", err)
+	}
+	_, err := client(replying(http.StatusOK, `{}`)).CreateUser(t.Context(), "dev@example.com")
+	wantCode(t, err, errs.CodeDecodeFailed)
+}
+
 func TestGetUser_readsLinkedAccountsAndTheEmbeddedSolanaWallet(t *testing.T) {
 	t.Parallel()
 	c, u, _ := overFakes(t)
