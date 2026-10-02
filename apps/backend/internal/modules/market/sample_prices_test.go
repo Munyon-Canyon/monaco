@@ -74,19 +74,26 @@ func (q *quotes) quote(a market.Asset, micros uint64) {
 }
 
 type tickRecorder struct {
-	mu   sync.Mutex
-	sent []events.PriceTick
-	err  error
+	mu    sync.Mutex
+	sent  []events.PriceTick
+	err   error
+	after func()
 }
 
 func (r *tickRecorder) PublishCore(_ context.Context, m events.Core) error {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	if r.err != nil {
-		return r.err
+		err := r.err
+		r.mu.Unlock()
+		return err
 	}
 	tick, _ := m.(events.PriceTick)
 	r.sent = append(r.sent, tick)
+	after := r.after
+	r.mu.Unlock()
+	if after != nil {
+		after()
+	}
 	return nil
 }
 
@@ -114,7 +121,7 @@ func newSampleRig(t *testing.T, source func(clock.Clock) app.PriceSource, assets
 	ticks := &tickRecorder{}
 	return &sampleRig{
 		pool: pool, clock: clk, bucket: bucket, ticks: ticks,
-		poller: app.NewSamplePrices(db.New(pool, ids, clk), pool, clk, source(clk), ticks, 2*time.Minute),
+		poller: app.NewSamplePrices(db.New(pool, ids, clk), pool, ids, clk, source(clk), ticks, 2*time.Minute),
 	}
 }
 
