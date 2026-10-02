@@ -1,0 +1,85 @@
+paths:
+  /v1/system/pings:
+    post:
+      operationId: postSystemPing
+      tags: [system]
+      x-idempotent: true
+      summary: Record a ping for the caller.
+      description: >-
+        Writes a ping and appends `system.pinged`. The `system.echo` consumer then marks the ping
+        echoed and sends the caller a `ping_echoed` hint on `/v1/stream`. A replay with the same
+        Idempotency-Key returns the first response and records nothing new.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The note to record with the ping.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PingRequest"
+      responses:
+        "201":
+          description: The ping was recorded. `echoed` is false until the consumer runs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ping"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/system/pings/{id}:
+    get:
+      operationId: getSystemPing
+      tags: [system]
+      summary: Read one of the caller's pings.
+      description: Returns the ping with `echoed` computed on the server. Another user's ping is not_found.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The ping id from the create response.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The ping.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ping"
+        default:
+          $ref: "#/components/responses/Problem"
+components:
+  schemas:
+    PingRequest:
+      type: object
+      description: A note to record with the ping.
+      additionalProperties: false
+      required: [note]
+      properties:
+        note:
+          type: string
+          description: Free text, at most 140 characters.
+          maxLength: 140
+          examples: [hi]
+    Ping:
+      type: object
+      description: A recorded ping.
+      additionalProperties: false
+      required: [id, note, echoed]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The ping id.
+          examples: [01890a5d-ac96-774b-bcce-b302099a8057]
+        note:
+          type: string
+          description: The note sent with the ping.
+          maxLength: 140
+          examples: [hi]
+        echoed:
+          type: boolean
+          description: True once the `system.echo` consumer has handled the ping.
+          examples: [true]
