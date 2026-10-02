@@ -92,12 +92,27 @@ jobs:
           git show "$base:apps/backend/api/openapi.yaml" > "$RUNNER_TEMP/base-openapi.yaml"
           ../../scripts/ci/oasdiff-breaking.sh "$RUNNER_TEMP/base-openapi.yaml" api/openapi.yaml
 
+  # Three legs run the passes of scripts/test-backend.sh side by side on their own runners; backend-report
+  # merges their output. A failed leg fails the matrix job, and ci-ok needs it.
   backend:
-    name: Backend tests (race, time budget, -short-skipped)
+    name: Backend tests (${{ matrix.name }})
     needs: plan
     if: inputs.stage == 'queue' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: short 1 of 2
+            pass: 'short:1/2'
+            artifact: short-1
+          - name: short 2 of 2
+            pass: 'short:2/2'
+            artifact: short-2
+          - name: rest
+            pass: rest
+            artifact: rest
     defaults:
       run:
         working-directory: apps/backend
@@ -121,7 +136,47 @@ jobs:
           version: ${{ steps.golangci.outputs.version }}
           install-only: true
 
-      - name: Race tests, the time budget and the flows.tsv check
+      - name: Race tests for this pass
+        env:
+          TEST_BACKEND_PASS: ${{ matrix.pass }}
+          TEST_BACKEND_OUT: ${{ runner.temp }}/test-out
+        run: ../../scripts/test-backend.sh
+
+      - name: Upload this pass's test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-${{ matrix.artifact }}
+          path: ${{ runner.temp }}/test-out
+          retention-days: 1
+          if-no-files-found: error
+
+  backend-report:
+    name: Backend tests report
+    needs: [plan, backend]
+    if: inputs.stage == 'queue' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: apps/backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/backend-test-env
+        with:
+          db: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: backend-test-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/test-out
+
+      - name: Time budget, flows.tsv check and the 100% coverage gate over every pass
+        env:
+          TEST_BACKEND_PASS: report
+          TEST_BACKEND_OUT: ${{ runner.temp }}/test-out
         run: ../../scripts/test-backend.sh
 
   e2e:
@@ -285,6 +340,7 @@ jobs:
               - 'scripts/install-govulncheck.sh'
               - 'scripts/gen-docs.sh'
               - 'scripts/test-backend.sh'
+              - 'scripts/test-shard.awk'
               - 'scripts/ci/e2e.sh'
               - 'scripts/require-docker.sh'
               - '.github/actions/backend-test-env/**'
@@ -459,7 +515,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [plan, lint, backend, e2e, ready, vuln, scripts, mobile-core, mobile-integration, flake, flake-swift]
+    needs: [plan, lint, backend, backend-report, e2e, ready, vuln, scripts, mobile-core, mobile-integration, flake, flake-swift]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -469,7 +525,7 @@ jobs:
       - uses: re-actors/alls-green@release/v1
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: lint, backend, e2e, ready, vuln, scripts, mobile-core, mobile-integration, flake, flake-swift
+          allowed-skips: lint, backend, backend-report, e2e, ready, vuln, scripts, mobile-core, mobile-integration, flake, flake-swift
 
       # The next stage 1 run of this PR reads this summary back to decide whether it can reuse this result.
       - name: Record the diff's patch ID on this check run
