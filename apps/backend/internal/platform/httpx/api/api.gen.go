@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -33,6 +34,45 @@ func (e AccountStatus) Valid() bool {
 	case Banned:
 		return true
 	case Suspended:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AssetIssuer.
+const (
+	Prestocks AssetIssuer = "prestocks"
+	Tessera   AssetIssuer = "tessera"
+	Xstocks   AssetIssuer = "xstocks"
+)
+
+// Valid indicates whether the value is a known member of the AssetIssuer enum.
+func (e AssetIssuer) Valid() bool {
+	switch e {
+	case Prestocks:
+		return true
+	case Tessera:
+		return true
+	case Xstocks:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AssetKind.
+const (
+	AssetKindEquity AssetKind = "equity"
+	AssetKindPreIpo AssetKind = "pre_ipo"
+)
+
+// Valid indicates whether the value is a known member of the AssetKind enum.
+func (e AssetKind) Valid() bool {
+	switch e {
+	case AssetKindEquity:
+		return true
+	case AssetKindPreIpo:
 		return true
 	default:
 		return false
@@ -357,6 +397,57 @@ func (e HandleAvailabilityReason) Valid() bool {
 	}
 }
 
+// Defines values for MarketSessionNextState.
+const (
+	MarketSessionNextStateAfterHours  MarketSessionNextState = "after_hours"
+	MarketSessionNextStateClosed      MarketSessionNextState = "closed"
+	MarketSessionNextStateLessThannil MarketSessionNextState = "<nil>"
+	MarketSessionNextStateOpen        MarketSessionNextState = "open"
+	MarketSessionNextStatePreMarket   MarketSessionNextState = "pre_market"
+)
+
+// Valid indicates whether the value is a known member of the MarketSessionNextState enum.
+func (e MarketSessionNextState) Valid() bool {
+	switch e {
+	case MarketSessionNextStateAfterHours:
+		return true
+	case MarketSessionNextStateClosed:
+		return true
+	case MarketSessionNextStateLessThannil:
+		return true
+	case MarketSessionNextStateOpen:
+		return true
+	case MarketSessionNextStatePreMarket:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MarketState.
+const (
+	MarketStateAfterHours MarketState = "after_hours"
+	MarketStateClosed     MarketState = "closed"
+	MarketStateOpen       MarketState = "open"
+	MarketStatePreMarket  MarketState = "pre_market"
+)
+
+// Valid indicates whether the value is a known member of the MarketState enum.
+func (e MarketState) Valid() bool {
+	switch e {
+	case MarketStateAfterHours:
+		return true
+	case MarketStateClosed:
+		return true
+	case MarketStateOpen:
+		return true
+	case MarketStatePreMarket:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProblemType.
 const (
 	AboutBlank ProblemType = "about:blank"
@@ -372,10 +463,109 @@ func (e ProblemType) Valid() bool {
 	}
 }
 
+// Defines values for GetAssetsParamsFilter.
+const (
+	GetAssetsParamsFilterAll     GetAssetsParamsFilter = "all"
+	GetAssetsParamsFilterPopular GetAssetsParamsFilter = "popular"
+	GetAssetsParamsFilterPreIpo  GetAssetsParamsFilter = "pre_ipo"
+)
+
+// Valid indicates whether the value is a known member of the GetAssetsParamsFilter enum.
+func (e GetAssetsParamsFilter) Valid() bool {
+	switch e {
+	case GetAssetsParamsFilterAll:
+		return true
+	case GetAssetsParamsFilterPopular:
+		return true
+	case GetAssetsParamsFilterPreIpo:
+		return true
+	default:
+		return false
+	}
+}
+
 // AccountStatus The user's standing. A suspended account is read-only apart from withdraw and cash out, and a banned account can only withdraw and cash out.
 //
 // Examples: active
 type AccountStatus string
+
+// AssetIssuer The firm that issues the tokenized stock.
+//
+// Examples: xstocks
+type AssetIssuer string
+
+// AssetKind Whether the token tracks a listed equity or a pre-IPO company.
+//
+// Examples: equity
+type AssetKind string
+
+// AssetList One page of the tradable catalog.
+//
+// Examples: {"assets":[{"change_bps":1000,"display_name":"Apple xStock","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx"}],"next_cursor":null}
+type AssetList struct {
+	// Assets The page, in the filter's order.
+	Assets []AssetSummary `json:"assets"`
+
+	// NextCursor The cursor for the next page. Null on the last page.
+	//
+	// Examples: null
+	NextCursor *string `json:"next_cursor"`
+}
+
+// AssetSummary One tradable asset as the list draws it, with the price already chosen.
+//
+// Examples: {"change_bps":1000,"display_name":"Apple xStock","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx"}
+type AssetSummary struct {
+	// ChangeBps The move in basis points against the last US close for an equity, or against the first sample of the UTC day for a pre-IPO token. Null when that reference does not exist.
+	//
+	// Examples: 1000
+	ChangeBps *int32 `json:"change_bps"`
+
+	// DisplayName The company name the app shows.
+	//
+	// Examples: Apple xStock
+	DisplayName string `json:"display_name"`
+
+	// Issuer The firm that issues the token.
+	//
+	// Examples: xstocks
+	Issuer AssetIssuer `json:"issuer"`
+
+	// Kind Equity or pre-IPO.
+	//
+	// Examples: equity
+	Kind AssetKind `json:"kind"`
+
+	// LogoUrl The logo URL. Null when the catalog has none.
+	//
+	// Examples: https://cdn.example.com/AAPLx.png
+	LogoUrl *string `json:"logo_url"`
+
+	// PriceAsOf When `price_micros` was sampled. Null when the asset is unpriced.
+	//
+	// Examples: 2026-03-04T14:30:00Z
+	PriceAsOf *time.Time `json:"price_as_of"`
+
+	// PriceMicros The held USD price in micros. Null when the asset is unpriced.
+	//
+	// Examples: 110000000
+	PriceMicros *int64 `json:"price_micros"`
+
+	// Session The session this asset is in.
+	//
+	// Examples: {"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"}
+	Session MarketSession `json:"session"`
+
+	// SparklineMicros The last day of closes in 30-minute buckets, at most 48. Null when unpriced.
+	//
+	// Examples: [100000000,110000000]
+	SparklineMicros *[]int64 `json:"sparkline_micros"`
+
+	// Symbol The ticker the app shows and the path key for the asset.
+	//
+	// Examples: AAPLx
+	Symbol string `json:"symbol"`
+}
 
 // AuthState Where the user is in onboarding. `CREATED` means onboarding has not finished, `AWAITING_PHONE` and `AWAITING_SOCIALS` mean the user still owes that step, and `ONBOARDING_COMPLETED` means the phone and X are both linked. The app routes the first-run flow and shows nudge banners from it.
 //
@@ -614,6 +804,51 @@ type HandleAvailability struct {
 // Examples: reserved
 type HandleAvailabilityReason string
 
+// MarketSession The session the asset is in, computed on the server.
+//
+// Examples: {"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"}
+type MarketSession struct {
+	// Continuous True for a pre-IPO token, which trades without a US session.
+	//
+	// Examples: false
+	Continuous bool `json:"continuous"`
+
+	// EarlyClose True when the regular session closes early today.
+	//
+	// Examples: false
+	EarlyClose bool `json:"early_close"`
+
+	// Holiday The US market holiday name. Empty when the day is not a holiday.
+	//
+	// Examples:
+	Holiday string `json:"holiday"`
+
+	// NextState The next session state. Null when the asset trades continuously.
+	//
+	// Examples: after_hours
+	NextState *MarketSessionNextState `json:"next_state"`
+
+	// NextTransition When `next_state` begins. Null when the asset trades continuously.
+	//
+	// Examples: 2026-03-04T21:00:00Z
+	NextTransition *time.Time `json:"next_transition"`
+
+	// State The session state at the time of the response.
+	//
+	// Examples: open
+	State MarketState `json:"state"`
+}
+
+// MarketSessionNextState The next session state. Null when the asset trades continuously.
+//
+// Examples: after_hours
+type MarketSessionNextState string
+
+// MarketState Where the underlying US session is.
+//
+// Examples: open
+type MarketState string
+
 // Me The signed-in user's own account, as the app needs it to route and to draw the profile. It carries no email and no phone number.
 //
 // Examples: {"account_status":"active","auth_state":"ONBOARDING_COMPLETED","created_at":"2026-09-30T12:00:00Z","display_name":"Kai Cenat","handle":"kaicenat","handle_changeable_at":"2026-10-30T12:00:00Z","id":"01890a5d-ac96-774b-bcce-b302099a8058","member_wallet_address":"Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf","phone_linked":true,"x_username":"kaicenat"}
@@ -744,6 +979,24 @@ type ProblemType string
 // IdempotencyKey Examples: 6f1c1a52-3a4e-4d0e-9d7b-2f7f3f5b9d10
 type IdempotencyKey = string
 
+// GetAssetsParams defines parameters for GetAssets.
+type GetAssetsParams struct {
+	// Q Case-insensitive symbol prefix or display-name search. Absent lists the filter.
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// Filter Which tradable assets to return, and how to order them.
+	Filter *GetAssetsParamsFilter `form:"filter,omitempty" json:"filter,omitempty"`
+
+	// Limit Page size. Defaults to 20 and cannot exceed 50.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor The `next_cursor` from the previous page. Absent reads the first page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// GetAssetsParamsFilter defines parameters for GetAssets.
+type GetAssetsParamsFilter string
+
 // PostAuthSessionParams defines parameters for PostAuthSession.
 type PostAuthSessionParams struct {
 	// Authorization The Privy access token as `Bearer <token>`. The route is public because no account exists on the first call, so the server verifies this header itself and answers unauthorized when it is missing or invalid.
@@ -794,6 +1047,9 @@ type ServerInterface interface {
 	// GetHealthz Report that the API process is serving.
 	// (GET /healthz)
 	GetHealthz(w http.ResponseWriter, r *http.Request)
+	// GetAssets List tradable assets.
+	// (GET /v1/assets)
+	GetAssets(w http.ResponseWriter, r *http.Request, params GetAssetsParams)
 	// PostAuthSession Open a session from a Privy access token.
 	// (POST /v1/auth/session)
 	PostAuthSession(w http.ResponseWriter, r *http.Request, params PostAuthSessionParams)
@@ -840,6 +1096,78 @@ func (siw *ServerInterfaceWrapper) GetHealthz(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetHealthz(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAssets operation middleware
+func (siw *ServerInterfaceWrapper) GetAssets(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAssetsParams
+
+	// ------------- Optional query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", r.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "q"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "q", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "filter" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "filter", r.URL.Query(), &params.Filter, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "filter"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "filter", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAssets(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1343,6 +1671,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}", wrapper.GetCabal)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/system/pings", wrapper.PostSystemPing)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/system/pings/{id}", wrapper.GetSystemPing)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/assets", wrapper.GetAssets)
 
 	return m
 }
@@ -1373,6 +1702,45 @@ type GetHealthzdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetHealthzdefaultApplicationProblemPlusJSONResponse) VisitGetHealthzResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAssetsRequestObject struct {
+	Params GetAssetsParams
+}
+
+type GetAssetsResponseObject interface {
+	VisitGetAssetsResponse(w http.ResponseWriter) error
+}
+
+type GetAssets200JSONResponse AssetList
+
+func (response GetAssets200JSONResponse) VisitGetAssetsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAssetsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetAssetsdefaultApplicationProblemPlusJSONResponse) VisitGetAssetsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -1799,6 +2167,9 @@ type StrictServerInterface interface {
 	// GetHealthz Report that the API process is serving.
 	// (GET /healthz)
 	GetHealthz(ctx context.Context, request GetHealthzRequestObject) (GetHealthzResponseObject, error)
+	// GetAssets List tradable assets.
+	// (GET /v1/assets)
+	GetAssets(ctx context.Context, request GetAssetsRequestObject) (GetAssetsResponseObject, error)
 	// PostAuthSession Open a session from a Privy access token.
 	// (POST /v1/auth/session)
 	PostAuthSession(ctx context.Context, request PostAuthSessionRequestObject) (PostAuthSessionResponseObject, error)
@@ -1887,6 +2258,32 @@ func (sh *strictHandler) GetHealthz(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetHealthzResponseObject); ok {
 		if err := validResponse.VisitGetHealthzResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAssets operation middleware
+func (sh *strictHandler) GetAssets(w http.ResponseWriter, r *http.Request, params GetAssetsParams) {
+	var request GetAssetsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAssets(ctx, request.(GetAssetsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAssets")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAssetsResponseObject); ok {
+		if err := validResponse.VisitGetAssetsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

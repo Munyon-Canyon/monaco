@@ -79,6 +79,10 @@ func (healthz) GetCabal(context.Context, api.GetCabalRequestObject) (api.GetCaba
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabal")
 }
 
+func (healthz) GetAssets(context.Context, api.GetAssetsRequestObject) (api.GetAssetsResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetAssets")
+}
+
 type stepClock struct {
 	clock.Real
 	mu  sync.Mutex
