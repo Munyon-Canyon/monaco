@@ -2,8 +2,10 @@ package agents
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"os/exec"
 	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -42,12 +44,32 @@ func (env *Env) mergeTree(ctx context.Context, pr PR) (bool, []string, error) {
 		return false, nil, err
 	}
 	_, anc := env.Run(ctx, env.Work, "", "git", "merge-base", "--is-ancestor", base, pr.Head.SHA)
-	out, err := env.Run(ctx, env.Work, "", "git", "merge-tree", "--write-tree", "--name-only", base, pr.Head.SHA)
-	files := splitLines(string(out))
-	if err != nil && len(files) == 0 {
-		return anc != nil, nil, err
+	out, err := env.Run(
+		ctx, env.Work, "", "git", "merge-tree",
+		"--write-tree", "--name-only", "--no-messages", base, pr.Head.SHA,
+	)
+	files, err := mergeConflict(out, err)
+	return anc != nil, files, err
+}
+
+func mergeConflict(out []byte, err error) ([]string, error) {
+	files := pathsAfterTree(out)
+	if err == nil {
+		return nil, nil
 	}
-	return anc != nil, files, nil
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) || exit.ExitCode() != 1 {
+		return nil, err
+	}
+	return files, nil
+}
+
+func pathsAfterTree(out []byte) []string {
+	lines := splitLines(string(out))
+	if len(lines) < 2 {
+		return nil
+	}
+	return lines[1:]
 }
 
 func splitLines(s string) []string {
