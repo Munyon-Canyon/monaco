@@ -8,6 +8,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -16,6 +17,7 @@ import (
 type HTTP struct {
 	Open  *app.OpenSessionHandler
 	Reads sqlc.DBTX
+	Clock clock.Clock
 }
 
 var _ httpx.IdentityRoutes = HTTP{}
@@ -40,6 +42,20 @@ func (h HTTP) PostAuthSession(
 		return nil, err
 	}
 	return api.PostAuthSession200JSONResponse(wireMe(me)), nil
+}
+
+func (h HTTP) GetHandleAvailability(
+	ctx context.Context, req api.GetHandleAvailabilityRequestObject,
+) (api.GetHandleAvailabilityResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	got, err := app.HandleAvailability(ctx, h.Reads, user, req.Handle, h.Clock.Now())
+	if err != nil {
+		return nil, err
+	}
+	return api.GetHandleAvailability200JSONResponse(wireAvailability(got)), nil
 }
 
 func (h HTTP) GetMe(ctx context.Context, _ api.GetMeRequestObject) (api.GetMeResponseObject, error) {
@@ -77,6 +93,16 @@ func wireMe(m app.Me) api.Me {
 		MemberWalletAddress: string(m.MemberWalletAddress), PhoneLinked: m.PhoneLinked,
 		XUsername: present(m.XUsername), HandleChangeableAt: m.HandleChangeableAt, CreatedAt: m.CreatedAt,
 	}
+}
+
+func wireAvailability(a app.Availability) api.HandleAvailability {
+	out := api.HandleAvailability{Handle: a.Handle, Available: a.Available}
+	if a.Reason == "" {
+		return out
+	}
+	reason := api.HandleAvailabilityReason(a.Reason)
+	out.Reason = &reason
+	return out
 }
 
 func present(s string) *string {

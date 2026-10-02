@@ -247,6 +247,12 @@ func (p *actorProbe) PostAuthSession(context.Context, api.PostAuthSessionRequest
 	return nil, errs.New(errs.CodeNotFound, "actorProbe.PostAuthSession")
 }
 
+func (p *actorProbe) GetHandleAvailability(
+	context.Context, api.GetHandleAvailabilityRequestObject,
+) (api.GetHandleAvailabilityResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "actorProbe.GetHandleAvailability")
+}
+
 func (p *actorProbe) GetMe(ctx context.Context, _ api.GetMeRequestObject) (api.GetMeResponseObject, error) {
 	a, _ := auth.ActorFrom(ctx)
 	p.mu.Lock()

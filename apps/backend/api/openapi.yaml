@@ -99,6 +99,37 @@ paths:
                 $ref: "#/components/schemas/Me"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/handles/{handle}/availability:
+    get:
+      operationId: getHandleAvailability
+      tags: [identity]
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 30}, ip: {rate: 60, per: 1m, burst: 60}}
+      summary: Check whether the caller can claim a handle.
+      description: >-
+        Compares the handle with the reserved list, the profanity list, the referral-code shape,
+        other users' X usernames and the caller's own handle. `available` is false with a `reason`
+        of `invalid`, `reserved`, `taken` or `too_soon`. The caller's current handle is available.
+        Profanity and code shape are reported as `reserved`, and another user's X username as
+        `taken`.
+      parameters:
+        - name: handle
+          in: path
+          required: true
+          description: The handle to check, before it is stored. It is compared in lowercase.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 64
+            examples: [KaiCenat]
+      responses:
+        "200":
+          description: Whether the handle is available to the caller, and why not.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HandleAvailability"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/stream:
     get:
       operationId: getStream
@@ -304,6 +335,35 @@ components:
           format: date-time
           description: When the account was created.
           examples: ["2026-09-30T12:00:00Z"]
+    HandleAvailability:
+      type: object
+      description: Whether the caller can claim a handle, and the reason when they cannot.
+      examples:
+        - handle: admin
+          available: false
+          reason: reserved
+      additionalProperties: false
+      required: [handle, available]
+      properties:
+        handle:
+          type: string
+          description: The handle that was checked, in lowercase.
+          examples: [admin]
+        available:
+          type: boolean
+          description: True when the caller can claim the handle, including when it is already theirs.
+          examples: [false]
+        reason:
+          $ref: "#/components/schemas/HandleAvailabilityReason"
+          description: Why the handle is not available. Absent when `available` is true.
+    HandleAvailabilityReason:
+      type: string
+      description: >-
+        Why a handle cannot be claimed. `reserved` covers the reserved list, profanity and
+        referral-code shape. `taken` covers another user, including a deleted one, and another
+        user's X username.
+      examples: [reserved]
+      enum: [taken, reserved, invalid, too_soon]
     PingRequest:
       type: object
       description: A note to record with the ping.
