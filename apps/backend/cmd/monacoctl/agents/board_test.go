@@ -81,6 +81,9 @@ func TestViews_failsOnHTTPAndGraphQLErrors(t *testing.T) {
 	if _, err := f.Env(t).views(context.Background(), b); cliText(err) != "graphql: rate limited" {
 		t.Fatal(err)
 	}
+	if len(f.hub.callsContaining("/timeline")) != 0 || len(f.hub.callsContaining("/events")) != 0 {
+		t.Fatal(f.hub.callsContaining("/issues/"))
+	}
 	if v, err := f.Env(t).views(context.Background(), Batch{}); v != nil || err != nil {
 		t.Fatal(v, err)
 	}
