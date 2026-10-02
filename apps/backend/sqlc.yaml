@@ -4,7 +4,7 @@ sql:
     schema: migrations
     queries: queries/platform
     gen:
-      go:
+      go: &common
         package: sqlc
         out: internal/platform/db/sqlc
         sql_package: pgx/v5
@@ -16,184 +16,14 @@ sql:
           - db_type: timestamptz
             go_type: time.Time
   # BEGIN GENERATED modules
-  - engine: postgresql
-    schema: migrations
-    queries: queries/analytics
-    gen:
-      go:
-        package: sqlc
-        out: internal/modules/analytics/sqlc
-        sql_package: pgx/v5
-        emit_interface: false
-        omit_unused_structs: true
-        output_db_file_name: db.gen.go
-        output_models_file_name: models.gen.go
-        output_files_suffix: .gen
-        overrides:
-          - db_type: uuid
-            go_type: github.com/google/uuid.UUID
-          - db_type: timestamptz
-            go_type: time.Time
-  - engine: postgresql
-    schema: migrations
-    queries: queries/cabal
-    gen:
-      go:
-        package: sqlc
-        out: internal/modules/cabal/sqlc
-        sql_package: pgx/v5
-        emit_interface: false
-        omit_unused_structs: true
-        output_db_file_name: db.gen.go
-        output_models_file_name: models.gen.go
-        output_files_suffix: .gen
-        overrides:
-          - db_type: uuid
-            go_type: github.com/google/uuid.UUID
-          - db_type: timestamptz
-            go_type: time.Time
-  - engine: postgresql
-    schema: migrations
-    queries: queries/governance
-    gen:
-      go:
-        package: sqlc
-        out: internal/modules/governance/sqlc
-        sql_package: pgx/v5
-        emit_interface: false
-        omit_unused_structs: true
-        output_db_file_name: db.gen.go
-        output_models_file_name: models.gen.go
-        output_files_suffix: .gen
-        overrides:
-          - db_type: uuid
-            go_type: github.com/google/uuid.UUID
-          - db_type: timestamptz
-            go_type: time.Time
-  - engine: postgresql
-    schema: migrations
-    queries: queries/identity
-    gen:
-      go:
-        package: sqlc
-        out: internal/modules/identity/sqlc
-        sql_package: pgx/v5
-        emit_interface: false
-        omit_unused_structs: true
-        output_db_file_name: db.gen.go
-        output_models_file_name: models.gen.go
-        output_files_suffix: .gen
-        overrides:
-          - db_type: uuid
-            go_type: github.com/google/uuid.UUID
-          - db_type: timestamptz
-            go_type: time.Time
-  - engine: postgresql
-    schema: migrations
-    queries: queries/market
-    gen:
-      go:
-        package: sqlc
-        out: internal/modules/market/sqlc
-        sql_package: pgx/v5
-        emit_interface: false
-        omit_unused_structs: true
-        output_db_file_name: db.gen.go
-        output_models_file_name: models.gen.go
-        output_files_suffix: .gen
-        overrides:
-          - db_type: uuid
-            go_type: github.com/google/uuid.UUID
-          - db_type: timestamptz
-            go_type: time.Time
-  - engine: postgresql
-    schema: migrations
-    queries: queries/notify
-    gen:
-      go:
-        package: sqlc
-        out: internal/modules/notify/sqlc
-        sql_package: pgx/v5
-        emit_interface: false
-        omit_unused_structs: true
-        output_db_file_name: db.gen.go
-        output_models_file_name: models.gen.go
-        output_files_suffix: .gen
-        overrides:
-          - db_type: uuid
-            go_type: github.com/google/uuid.UUID
-          - db_type: timestamptz
-            go_type: time.Time
-  - engine: postgresql
-    schema: migrations
-    queries: queries/referrals
-    gen:
-      go:
-        package: sqlc
-        out: internal/modules/referrals/sqlc
-        sql_package: pgx/v5
-        emit_interface: false
-        omit_unused_structs: true
-        output_db_file_name: db.gen.go
-        output_models_file_name: models.gen.go
-        output_files_suffix: .gen
-        overrides:
-          - db_type: uuid
-            go_type: github.com/google/uuid.UUID
-          - db_type: timestamptz
-            go_type: time.Time
-  - engine: postgresql
-    schema: migrations
-    queries: queries/system
-    gen:
-      go:
-        package: sqlc
-        out: internal/modules/system/sqlc
-        sql_package: pgx/v5
-        emit_interface: false
-        omit_unused_structs: true
-        output_db_file_name: db.gen.go
-        output_models_file_name: models.gen.go
-        output_files_suffix: .gen
-        overrides:
-          - db_type: uuid
-            go_type: github.com/google/uuid.UUID
-          - db_type: timestamptz
-            go_type: time.Time
-  - engine: postgresql
-    schema: migrations
-    queries: queries/trading
-    gen:
-      go:
-        package: sqlc
-        out: internal/modules/trading/sqlc
-        sql_package: pgx/v5
-        emit_interface: false
-        omit_unused_structs: true
-        output_db_file_name: db.gen.go
-        output_models_file_name: models.gen.go
-        output_files_suffix: .gen
-        overrides:
-          - db_type: uuid
-            go_type: github.com/google/uuid.UUID
-          - db_type: timestamptz
-            go_type: time.Time
-  - engine: postgresql
-    schema: migrations
-    queries: queries/treasury
-    gen:
-      go:
-        package: sqlc
-        out: internal/modules/treasury/sqlc
-        sql_package: pgx/v5
-        emit_interface: false
-        omit_unused_structs: true
-        output_db_file_name: db.gen.go
-        output_models_file_name: models.gen.go
-        output_files_suffix: .gen
-        overrides:
-          - db_type: uuid
-            go_type: github.com/google/uuid.UUID
-          - db_type: timestamptz
-            go_type: time.Time
+  - {engine: postgresql, schema: migrations, queries: queries/analytics, gen: {go: {<<: *common, package: sqlc, out: internal/modules/analytics/sqlc, output_db_file_name: db.gen.go, output_models_file_name: models.gen.go, output_files_suffix: .gen}}}
+  - {engine: postgresql, schema: migrations, queries: queries/cabal, gen: {go: {<<: *common, package: sqlc, out: internal/modules/cabal/sqlc, output_db_file_name: db.gen.go, output_models_file_name: models.gen.go, output_files_suffix: .gen}}}
+  - {engine: postgresql, schema: migrations, queries: queries/governance, gen: {go: {<<: *common, package: sqlc, out: internal/modules/governance/sqlc, output_db_file_name: db.gen.go, output_models_file_name: models.gen.go, output_files_suffix: .gen}}}
+  - {engine: postgresql, schema: migrations, queries: queries/identity, gen: {go: {<<: *common, package: sqlc, out: internal/modules/identity/sqlc, output_db_file_name: db.gen.go, output_models_file_name: models.gen.go, output_files_suffix: .gen}}}
+  - {engine: postgresql, schema: migrations, queries: queries/market, gen: {go: {<<: *common, package: sqlc, out: internal/modules/market/sqlc, output_db_file_name: db.gen.go, output_models_file_name: models.gen.go, output_files_suffix: .gen}}}
+  - {engine: postgresql, schema: migrations, queries: queries/notify, gen: {go: {<<: *common, package: sqlc, out: internal/modules/notify/sqlc, output_db_file_name: db.gen.go, output_models_file_name: models.gen.go, output_files_suffix: .gen}}}
+  - {engine: postgresql, schema: migrations, queries: queries/referrals, gen: {go: {<<: *common, package: sqlc, out: internal/modules/referrals/sqlc, output_db_file_name: db.gen.go, output_models_file_name: models.gen.go, output_files_suffix: .gen}}}
+  - {engine: postgresql, schema: migrations, queries: queries/system, gen: {go: {<<: *common, package: sqlc, out: internal/modules/system/sqlc, output_db_file_name: db.gen.go, output_models_file_name: models.gen.go, output_files_suffix: .gen}}}
+  - {engine: postgresql, schema: migrations, queries: queries/trading, gen: {go: {<<: *common, package: sqlc, out: internal/modules/trading/sqlc, output_db_file_name: db.gen.go, output_models_file_name: models.gen.go, output_files_suffix: .gen}}}
+  - {engine: postgresql, schema: migrations, queries: queries/treasury, gen: {go: {<<: *common, package: sqlc, out: internal/modules/treasury/sqlc, output_db_file_name: db.gen.go, output_models_file_name: models.gen.go, output_files_suffix: .gen}}}
   # END GENERATED modules

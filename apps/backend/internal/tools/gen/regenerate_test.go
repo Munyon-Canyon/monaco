@@ -61,14 +61,9 @@ func TestRun_regeneratesAfterAModuleAndSyncsSqlcForItsQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := read(t, root, "sqlc.yaml")
-	for _, want := range []string{
-		"  # BEGIN GENERATED modules\n  - engine: postgresql\n    schema: migrations\n    queries: queries/wallets\n",
-		"      out: internal/modules/wallets/sqlc\n",
-		"          go_type: time.Time\n  # END GENERATED modules\n",
-	} {
-		if !strings.Contains(got, want) {
-			t.Errorf("sqlc.yaml lacks %q:\n%s", want, got)
-		}
+	want := "  # BEGIN GENERATED modules\n  - {engine: postgresql, schema: migrations, queries: queries/wallets, gen: {go: {<<: *common, package: sqlc, out: internal/modules/wallets/sqlc, output_db_file_name: db.gen.go, output_models_file_name: models.gen.go, output_files_suffix: .gen}}}\n  # END GENERATED modules\n"
+	if !strings.Contains(got, want) {
+		t.Errorf("sqlc.yaml lacks %q:\n%s", want, got)
 	}
 	if _, err := run(t, root, "query", "wallets", "ListWallets"); err != nil {
 		t.Fatal(err)

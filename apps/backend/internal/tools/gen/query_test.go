@@ -9,23 +9,18 @@ import (
 
 func requireOneWalletsBlock(t *testing.T, got string) {
 	t.Helper()
-	for _, want := range []string{
-		"  # BEGIN GENERATED modules\n  - engine: postgresql\n    schema: migrations\n    queries: queries/wallets\n",
-		"      out: internal/modules/wallets/sqlc\n",
-		"          go_type: time.Time\n  # END GENERATED modules\n",
-	} {
-		if !strings.Contains(got, want) {
-			t.Errorf("sqlc.yaml lacks %q:\n%s", want, got)
-		}
+	want := "  # BEGIN GENERATED modules\n  - {engine: postgresql, schema: migrations, queries: queries/wallets, gen: {go: {<<: *common, package: sqlc, out: internal/modules/wallets/sqlc, output_db_file_name: db.gen.go, output_models_file_name: models.gen.go, output_files_suffix: .gen}}}\n  # END GENERATED modules\n"
+	if !strings.Contains(got, want) {
+		t.Errorf("sqlc.yaml lacks %q:\n%s", want, got)
 	}
-	if n := strings.Count(got, "queries: queries/wallets\n"); n != 1 {
+	if n := strings.Count(got, "queries: queries/wallets,"); n != 1 {
 		t.Errorf("sqlc.yaml has %d wallets blocks, want 1:\n%s", n, got)
 	}
 }
 
 func TestSqlc_writesTheBlockOfAModuleWhoseFirstQueryWasWrittenByHand(t *testing.T) {
 	t.Parallel()
-	const mergedBlock = "  - engine: postgresql\n    queries: queries/wallets\n    queries: queries/wallets\n"
+	const mergedBlock = "  - {engine: postgresql, queries: queries/wallets}\n  - {engine: postgresql, queries: queries/wallets}\n"
 	for name, start := range map[string]string{
 		"no block yet":        sqlcYAML,
 		"a hand-merged block": strings.Replace(sqlcYAML, "  # END GENERATED", mergedBlock+"  # END GENERATED", 1),
