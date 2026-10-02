@@ -1,10 +1,34 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
+import Synchronization
 
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+
+enum IdempotencyKeyStamp {
+    @TaskLocal static var key: String?
+}
+
+struct IdempotencyKeyStampMiddleware: ClientMiddleware {
+    func intercept(
+        _ request: HTTPRequest,
+        body: HTTPBody?,
+        baseURL: URL,
+        operationID: String,
+        next: @Sendable (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        var request = request
+        if let key = IdempotencyKeyStamp.key,
+            let name = HTTPField.Name(IdempotentSubmission.keyHeader),
+            request.headerFields[name] == nil
+        {
+            request.headerFields[name] = key
+        }
+        return try await next(request, body, baseURL)
+    }
+}
 
 struct HeadersMiddleware: ClientMiddleware {
     let accessToken: @Sendable () async throws -> String?
@@ -92,5 +116,43 @@ struct TimeoutMiddleware: ClientMiddleware {
                 return try await group.next()!
             }
         }
+    }
+}
+
+final class SessionWireBox: Sendable {
+    private let storage = Mutex<Data?>(nil)
+
+    func store(_ data: Data) {
+        storage.withLock { $0 = data }
+    }
+
+    func load() -> Data? {
+        storage.withLock { $0 }
+    }
+}
+
+enum SessionWireCapture {
+    @TaskLocal static var box: SessionWireBox?
+}
+
+struct SessionWireCaptureMiddleware: ClientMiddleware {
+    private static let limit = 64 * 1024
+
+    func intercept(
+        _ request: HTTPRequest,
+        body: HTTPBody?,
+        baseURL: URL,
+        operationID: String,
+        next: @Sendable (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        let (response, responseBody) = try await next(request, body, baseURL)
+        guard let box = SessionWireCapture.box, let responseBody, response.status == .ok,
+            operationID == Operations.GetMe.id || operationID == Operations.PostAuthSession.id
+        else {
+            return (response, responseBody)
+        }
+        let data = try await Data(collecting: responseBody, upTo: Self.limit)
+        box.store(data)
+        return (response, HTTPBody(data))
     }
 }

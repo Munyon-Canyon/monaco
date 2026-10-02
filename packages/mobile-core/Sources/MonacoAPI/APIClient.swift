@@ -19,14 +19,32 @@ public struct APIClient: Sendable {
     init(serverURL: URL, tokens: any AccessTokenProvider, transport: any ClientTransport, clock: some Clock<Duration>) {
         client = Client(
             serverURL: serverURL,
+            configuration: .init(dateTranscoder: FlexibleISO8601()),
             transport: transport,
             middlewares: [
+                SessionWireCaptureMiddleware(),
+                IdempotencyKeyStampMiddleware(),
                 TimeoutMiddleware(clock: clock),
                 HeadersMiddleware(accessToken: { try await tokens.accessToken() }),
                 ProblemMiddleware(),
                 RefreshMiddleware(tokens: tokens),
             ]
         )
+    }
+
+    package func sessionBody(_ call: @Sendable (Client) async throws -> Void) async throws -> Data {
+        let box = SessionWireBox()
+        return try await SessionWireCapture.$box.withValue(box) {
+            try await read { client in
+                do {
+                    try await call(client)
+                } catch {
+                    if box.load() == nil { throw error }
+                }
+                guard let data = box.load() else { throw APIError.decoding("session") }
+                return data
+            }
+        }
     }
 
     public func read<Output>(_ call: @Sendable (Client) async throws -> Output) async throws -> Output {
@@ -58,7 +76,9 @@ public struct APIClient: Sendable {
             throw APIError(error)
         }
         do {
-            let output = try await call(client, key)
+            let output = try await IdempotencyKeyStamp.$key.withValue(key) {
+                try await call(client, key)
+            }
             submission.record(final: true, forKey: key)
             return output
         } catch {
