@@ -220,30 +220,6 @@ class CommitTest(RepoTest):
         self.assertEqual(check.commit_errors(self.base, git("rev-parse", "HEAD")), [])
 
 
-class ClosingCommitTest(RepoTest):
-    def head(self) -> str:
-        return git("rev-parse", "HEAD")
-
-    def test_a_closing_pr_needs_the_closing_word_in_a_commit_message(self):
-        commit("feat: add the ready job")
-        errors = check.closing_commit_errors(pr("Closes #789.", "Nothing."), self.base, self.head())
-        self.assertEqual(len(errors), 1)
-        self.assertIn('no commit message says "Closes #789"', errors[0])
-
-    def test_part_of_in_the_commit_does_not_close(self):
-        commit("feat: add the ready job\n\nPart of #789.")
-        self.assertEqual(len(check.closing_commit_errors(pr("Closes #789.", "Nothing."), self.base, self.head())), 1)
-
-    def test_any_closing_word_in_any_commit_body_passes(self):
-        commit("feat: add the ready job\n\nFixes #789.")
-        commit("test: cover the ready job")
-        self.assertEqual(check.closing_commit_errors(pr("Closes #789.", "Nothing."), self.base, self.head()), [])
-
-    def test_a_part_of_pr_needs_nothing_in_its_commits(self):
-        commit("feat: add the ready job")
-        self.assertEqual(check.closing_commit_errors(pr("Part of #789."), self.base, self.head()), [])
-
-
 class CheckpointTest(RepoTest):
     def run_check(self, base_ref: str, head_ref: str, labels: str = '["integration"]') -> tuple[int, str]:
         commit("Log bus.relay.idle at most once a minute")

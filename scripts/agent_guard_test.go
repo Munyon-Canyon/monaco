@@ -422,3 +422,38 @@ func TestAgentGuard_graphiteOwnsEveryBase(t *testing.T) {
 		assertAllowed(t, guard(t, cwd, cmd), cmd)
 	}
 }
+
+func queuedGH(t *testing.T, heads string) []string {
+	t.Helper()
+	dir := t.TempDir()
+	writeExecutable(t, filepath.Join(dir, "bin", "gh"), fmt.Sprintf(`#!/bin/sh
+case "$1 $2" in
+  "pr list") echo '%s' ;;
+  *) exit 1 ;;
+esac
+`, heads))
+	return []string{"PATH=" + filepath.Join(dir, "bin") + ":" + os.Getenv("PATH")}
+}
+
+func TestAgentGuard_noPushToAStackInTheGraphiteQueue(t *testing.T) {
+	work, _ := pushRepo(t)
+	git(t, work, "update-ref", "refs/remotes/origin/staging", "HEAD")
+	git(t, work, "switch", "-q", "-c", "other")
+	git(t, work, "switch", "-q", "ticket")
+	git(t, work, "switch", "-q", "-c", "lower")
+	git(t, work, "commit", "-q", "--allow-empty", "-m", "feat: lower")
+	git(t, work, "switch", "-q", "-c", "upper")
+	git(t, work, "commit", "-q", "--allow-empty", "-m", "feat: upper")
+	env := queuedGH(t, `[{"number":7,"headRefName":"lower"}]`)
+	for _, cmd := range []string{"git push origin upper", "git push origin lower", "gt submit --stack", "gt modify -a"} {
+		assertBlocked(t, guard(t, work, cmd, env...), cmd, "#7 (lower) is in the Graphite merge queue")
+	}
+	git(t, work, "switch", "-q", "other")
+	for _, cmd := range []string{"git push origin other", "gt submit"} {
+		assertAllowed(t, guard(t, work, cmd, env...), "a stack outside the queue: "+cmd)
+	}
+	git(t, work, "switch", "-q", "upper")
+	for name, heads := range map[string]string{"nothing queued": `[]`, "gh fails": `not json`} {
+		assertAllowed(t, guard(t, work, "gt submit --stack", queuedGH(t, heads)...), name)
+	}
+}
