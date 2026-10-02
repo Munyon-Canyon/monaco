@@ -17,6 +17,12 @@ import (
 
 const hs256Header = `{"alg":"HS256","typ":"JWT"}`
 
+const (
+	placeholderHead        = "change-me-"
+	placeholderTail        = "dev-only"
+	PlaceholderDevTokenKey = placeholderHead + placeholderTail
+)
+
 type TokenVerifier interface {
 	Verify(ctx context.Context, raw string) (Actor, error)
 }
@@ -40,6 +46,14 @@ func NewDevVerifier(cfg config.Config, c clock.Clock) (*DevVerifier, error) {
 		return nil, errs.New(errs.CodeInvalidInput, op, slog.String("missing", "MONACO_DEV_TOKEN_KEY"))
 	}
 	return &DevVerifier{key: []byte(cfg.Auth.DevTokenKey), clock: c}, nil
+}
+
+func CheckDevTokenKey(cfg config.Config) error {
+	if cfg.Env.Deployed() && cfg.Auth.DevTokenKey == PlaceholderDevTokenKey {
+		return errs.New(errs.CodeInvalidConfig, "auth.CheckDevTokenKey",
+			slog.String("reason", "placeholder dev token key"))
+	}
+	return nil
 }
 
 func (v *DevVerifier) Mint(userID string, exp time.Time) string {
