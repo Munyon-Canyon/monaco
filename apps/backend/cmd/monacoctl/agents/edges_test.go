@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -62,7 +63,7 @@ func TestEdges_dispatchBlockersAndProcess(t *testing.T) {
 		t.Fatal(ok, err)
 	}
 	writeFile(t, env.Common+"/.monaco/agents", "file")
-	if err := env.lanesOpen(); err == nil {
+	if err := env.lanesOpen(context.Background(), io.Discard); err == nil {
 		t.Fatal("lanes")
 	}
 	env.Run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {

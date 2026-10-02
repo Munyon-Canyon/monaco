@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -98,8 +99,8 @@ func TestDispatch_refusesBlockersLanesAndModel(t *testing.T) {
 		t.Fatalf("open: %d %q", code, stderr)
 	}
 	f.hub.on(get("/issues/8"), Issue{State: "closed", StateReason: "completed"})
-	f.owner(t, Record{Ticket: 1, State: Running})
-	f.owner(t, Record{Ticket: 2, State: Done})
+	f.localOwner(t, 1, Running)
+	f.localOwner(t, 2, Done)
 	if code, _, stderr := f.agents(
 		t,
 		"dispatch",
@@ -435,3 +436,95 @@ type discard struct{}
 func (discard) Write(p []byte) (int, error) { return len(p), nil }
 
 func ioDiscard() *discard { return &discard{} }
+
+func (f *fixture) localOwner(t *testing.T, ticket int, state State) {
+	t.Helper()
+	f.owner(t, Record{Ticket: ticket, State: state, Worktree: t.TempDir()})
+	f.hub.on(get("/issues/"+strconv.Itoa(ticket)), Issue{State: "open"})
+}
+
+func TestLanesOpen_admitsWhenEveryOwnerIsRemote(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	for n := 101; n <= 106; n++ {
+		f.owner(t, Record{Ticket: n, State: Running, Worktree: filepath.Join(t.TempDir(), "gone")})
+	}
+	var out strings.Builder
+	if err := f.Env(t).lanesOpen(context.Background(), &out); err != nil {
+		t.Fatal(err)
+	}
+	for n := 101; n <= 106; n++ {
+		want := fmt.Sprintf("not counted: #%d (worktree on another machine)\n", n)
+		if strings.Count(out.String(), want) != 1 {
+			t.Fatalf("want %q once in %q", want, out.String())
+		}
+	}
+}
+
+func TestLanesOpen_skipsALocalOwnerOnAClosedTicket(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	f.localOwner(t, 1, Running)
+	f.localOwner(t, 2, Running)
+	f.hub.on(get("/issues/2"), Issue{State: "closed"})
+	var out strings.Builder
+	if err := f.Env(t).lanesOpen(context.Background(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.String() != "not counted: #2 (ticket closed)\n" {
+		t.Fatalf("out=%q", out.String())
+	}
+}
+
+func TestLanesOpen_refusesWhenLocalOpenOwnersFillTheCap(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	f.localOwner(t, 1, Running)
+	f.localOwner(t, 2, Done)
+	f.owner(t, Record{Ticket: 3, State: Running, Worktree: filepath.Join(t.TempDir(), "gone")})
+	var out strings.Builder
+	err := f.Env(t).lanesOpen(context.Background(), &out)
+	if err == nil || !strings.Contains(cliText(err), "2 owners are not exited; lane cap is 2") {
+		t.Fatalf("err=%v", err)
+	}
+	if out.String() != "not counted: #3 (worktree on another machine)\n" {
+		t.Fatalf("out=%q", out.String())
+	}
+}
+
+func TestStatusBody_listsRemoteOwnersApart(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	f.hub.on(list("/pulls?state=open"), []PR{})
+	f.owner(t, Record{Ticket: 9, Model: "opus", State: Running, Worktree: filepath.Join(t.TempDir(), "gone")})
+	f.localOwner(t, 1, Running)
+	body, err := f.Env(t).statusBody(context.Background(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(body, "Remote owners") || !strings.Contains(body, "- #9 opus running\n") ||
+		strings.Contains(body, "- #1 ") {
+		t.Fatalf("body=%q", body)
+	}
+}
+
+func TestStatusBody_reportsAnUnreadableRecordWithoutABatch(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	f.hub.on(list("/pulls?state=open"), []PR{})
+	env := f.Env(t)
+	writeFile(t, env.recordPath(9), "{")
+	if _, err := env.statusBody(context.Background(), ""); err == nil || !strings.Contains(err.Error(), "9.json") {
+		t.Fatal(err)
+	}
+}
+
+func TestLanesOpen_reportsAnIssueLookupFailure(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	f.owner(t, Record{Ticket: 5, State: Running, Worktree: t.TempDir()})
+	err := f.Env(t).lanesOpen(context.Background(), io.Discard)
+	if err == nil || !strings.Contains(err.Error(), "issues/5") {
+		t.Fatalf("err=%v", err)
+	}
+}

@@ -107,3 +107,8 @@ func (env *Env) records() ([]Record, error) {
 	}
 	return out, nil
 }
+
+func worktreeHere(r Record) bool {
+	info, err := os.Stat(r.Worktree)
+	return err == nil && info.IsDir()
+}

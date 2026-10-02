@@ -39,7 +39,7 @@ func dispatchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer)
 	if _, err := env.Run(ctx, env.Work, "", "git", "fetch", "origin", env.Config.FeatureBranch); err != nil {
 		return err
 	}
-	if err := env.dispatchable(ctx, in); err != nil {
+	if err := env.dispatchable(ctx, in, stdout); err != nil {
 		return err
 	}
 	var risks strings.Builder
@@ -116,7 +116,7 @@ func parseDispatch(args []string) (dispatchIn, error) {
 	return in, nil
 }
 
-func (env *Env) dispatchable(ctx context.Context, in dispatchIn) error {
+func (env *Env) dispatchable(ctx context.Context, in dispatchIn, stdout io.Writer) error {
 	if !in.urgent {
 		if err := env.inBatch(in.ticket); err != nil {
 			return err
@@ -125,7 +125,7 @@ func (env *Env) dispatchable(ctx context.Context, in dispatchIn) error {
 	if err := env.blockersClear(ctx, in.ticket); err != nil {
 		return err
 	}
-	return env.lanesOpen()
+	return env.lanesOpen(ctx, stdout)
 }
 
 func (env *Env) logUrgent(ctx context.Context, in dispatchIn, stdout io.Writer) error {
@@ -267,16 +267,29 @@ func (env *Env) featureTip(ctx context.Context) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-func (env *Env) lanesOpen() error {
+func (env *Env) lanesOpen(ctx context.Context, stdout io.Writer) error {
 	rs, err := env.records()
 	if err != nil {
 		return err
 	}
 	n := 0
 	for _, r := range rs {
-		if r.State != Exited {
-			n++
+		if r.State == Exited {
+			continue
 		}
+		if !worktreeHere(r) {
+			_, _ = fmt.Fprintf(stdout, "not counted: #%d (worktree on another machine)\n", r.Ticket)
+			continue
+		}
+		is, err := env.GitHub.Issue(ctx, r.Ticket)
+		if err != nil {
+			return err
+		}
+		if is.State == "closed" {
+			_, _ = fmt.Fprintf(stdout, "not counted: #%d (ticket closed)\n", r.Ticket)
+			continue
+		}
+		n++
 	}
 	if n >= env.Config.Lanes {
 		return detailErr(

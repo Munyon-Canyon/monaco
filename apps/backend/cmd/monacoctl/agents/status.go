@@ -152,7 +152,13 @@ func (env *Env) statusBody(ctx context.Context, published string) (string, error
 		_, _ = fmt.Fprintf(&b, "| #%d | %s | %s | %s | %s |\n", pr.Number, shortSHA(pr.Head.SHA), ci, ciok, verify)
 	}
 	batch, err := env.batchBoard(ctx, published)
-	return b.String() + batch, err
+	if err != nil {
+		return "", err
+	}
+	if err := env.remoteOwners(&b); err != nil {
+		return "", err
+	}
+	return b.String() + batch, nil
 }
 
 func (env *Env) batchBoard(ctx context.Context, published string) (string, error) {
@@ -233,4 +239,23 @@ func (env *Env) verifyState(ctx context.Context, sha string) (string, error) {
 		}
 	}
 	return "none", nil
+}
+
+func (env *Env) remoteOwners(b *strings.Builder) error {
+	rs, err := env.records()
+	if err != nil {
+		return err
+	}
+	header := false
+	for _, r := range rs {
+		if r.State == Exited || worktreeHere(r) {
+			continue
+		}
+		if !header {
+			b.WriteString("\nRemote owners (worktree on another machine, not counted against the lane cap)\n")
+			header = true
+		}
+		_, _ = fmt.Fprintf(b, "- #%d %s %s\n", r.Ticket, r.Model, r.State)
+	}
+	return nil
 }
