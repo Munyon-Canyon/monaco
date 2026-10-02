@@ -2,12 +2,15 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var auth: PrivyAuthService
+    @State private var toasts = ToastCenter()
 
     var body: some View {
         root
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .monacoRootAppearance()
             .onAppear { MonacoLaunchTrace.markFirstFrame() }
+            .monacoToastCenter(toasts)
+            .environment(toasts)
     }
 
     @ViewBuilder

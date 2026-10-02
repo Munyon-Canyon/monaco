@@ -166,6 +166,12 @@ struct PnLText: View {
         self.onInk = onInk
     }
 
+    init(signedMicros: Int64, style: MoneyStyle, onInk: Bool = false) {
+        self.dollarPnl = UsdAmountFormatter.format(signedMicros: signedMicros)
+        self.style = style
+        self.onInk = onInk
+    }
+
     var body: some View {
         let tone = PnLTone(dollarPnl: dollarPnl)
         return MoneyFigure(
@@ -185,6 +191,11 @@ struct PercentText: View {
 
     init(percentReturn: String?, style: MoneyStyle) {
         formatted = PercentReturnFormatter.format(percentReturn)
+        self.style = style
+    }
+
+    init(basisPoints: Int64, style: MoneyStyle) {
+        formatted = PercentFormatter.format(basisPoints: basisPoints, signed: true)
         self.style = style
     }
 
@@ -210,6 +221,13 @@ struct PnLBadge: View {
     init(dollarPnl: String, percentReturn: String?, style: MoneyStyle = .caption, onInk: Bool = false) {
         self.dollarPnl = dollarPnl
         self.percentReturn = percentReturn
+        self.style = style
+        self.onInk = onInk
+    }
+
+    init(signedMicros: Int64, basisPoints: Int64, style: MoneyStyle = .caption, onInk: Bool = false) {
+        self.dollarPnl = UsdAmountFormatter.format(signedMicros: signedMicros)
+        self.percentReturn = PercentFormatter.format(basisPoints: basisPoints, signed: true)
         self.style = style
         self.onInk = onInk
     }
@@ -373,6 +391,7 @@ enum PnLSpeech {
             .replacingOccurrences(of: "\u{2212}", with: "-")
             .replacingOccurrences(of: "%", with: "")
             .replacingOccurrences(of: "+", with: "")
+            .replacingOccurrences(of: ",", with: "")
         return Double(normalised)
     }
 

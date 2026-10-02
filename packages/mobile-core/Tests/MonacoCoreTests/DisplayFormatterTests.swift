@@ -179,4 +179,74 @@ final class DisplayFormatterTests: XCTestCase {
         // 20:00 UTC on Sep 14 is already Sep 15 in Tokyo.
         XCTAssertEqual(RelativeTimeFormatter.label(iso: "2026-09-14T20:00:00Z", now: now, calendar: tokyo), "Sep 15")
     }
+
+    func testUsdAmountFormatter_signedMicros() {
+        XCTAssertEqual(UsdAmountFormatter.format(signedMicros: 48_200_000), "+$48.20")
+        XCTAssertEqual(UsdAmountFormatter.format(signedMicros: -7_600_000), "\u{2212}$7.60")
+        XCTAssertEqual(UsdAmountFormatter.format(signedMicros: 0), "$0.00")
+        XCTAssertEqual(UsdAmountFormatter.format(signedMicros: 1), "$0.00")
+        XCTAssertEqual(UsdAmountFormatter.format(signedMicros: -1), "$0.00")
+    }
+
+    func testPercentFormatter_basisPoints() {
+        XCTAssertEqual(PercentFormatter.format(basisPoints: 1234, signed: true), "+12.34%")
+        XCTAssertEqual(PercentFormatter.format(basisPoints: -5, signed: true), "\u{2212}0.05%")
+        XCTAssertEqual(PercentFormatter.format(basisPoints: 0, signed: true), "0.00%")
+        XCTAssertEqual(PercentFormatter.format(basisPoints: 1234, signed: false), "12.34%")
+        XCTAssertEqual(PercentFormatter.format(basisPoints: 123_456, signed: true), "+1,234.56%")
+    }
+
+    func testPercentFormatter_largeBasisPointsAndIntMin() {
+        XCTAssertEqual(
+            PercentFormatter.format(basisPoints: Int64.min, signed: true), "\u{2212}92,233,720,368,547,758.08%")
+        XCTAssertEqual(PercentFormatter.format(basisPoints: Int64.max, signed: true), "+92,233,720,368,547,758.07%")
+    }
+
+    func testDollarPnlFormatter_positivePassesThroughUnchanged() {
+        XCTAssertEqual(DollarPnlFormatter.format("+$12.40"), "+$12.40")
+        XCTAssertEqual(DollarPnlFormatter.format("$0.00"), "$0.00")
+    }
+
+    func testUsdAmountFormatter_decimalStringFallsBackToRawOnUnparseable() {
+        XCTAssertEqual(UsdAmountFormatter.format(decimalString: "not-a-number"), "$not-a-number")
+    }
+
+    func testUsdAmountFormatter_compactFallsBackToRawOnUnparseable() {
+        XCTAssertEqual(UsdAmountFormatter.compact(decimalString: "garbage"), "$garbage")
+    }
+
+    func testStakeWithdrawConverter_usdMicrosFromDecimalString() {
+        XCTAssertEqual(StakeWithdrawConverter.usdMicros(fromDecimalString: "12.50"), 12_500_000)
+        XCTAssertEqual(StakeWithdrawConverter.usdMicros(fromDecimalString: "0"), 0)
+        XCTAssertNil(StakeWithdrawConverter.usdMicros(fromDecimalString: "-1.00"))
+        XCTAssertNil(StakeWithdrawConverter.usdMicros(fromDecimalString: "not a number"))
+    }
+
+    func testStakeWithdrawConverter_fractionForUsdMicros() {
+        XCTAssertEqual(StakeWithdrawConverter.fraction(forUsdMicros: 50, maxUsdMicros: 100), 0.5)
+        XCTAssertEqual(StakeWithdrawConverter.fraction(forUsdMicros: -10, maxUsdMicros: 100), 0)
+        XCTAssertEqual(StakeWithdrawConverter.fraction(forUsdMicros: 500, maxUsdMicros: 100), 1)
+        XCTAssertEqual(StakeWithdrawConverter.fraction(forUsdMicros: 50, maxUsdMicros: 0), 0)
+    }
+
+    func testAssetCatalogDisplayName_preIpoFallsBackToSymbolWhenNameIsEmpty() {
+        XCTAssertEqual(
+            AssetCatalogDisplayName.format(catalogName: "", symbol: "PREX", kind: .preIpo),
+            "PREX"
+        )
+    }
+
+    func testAssetCatalogDisplayName_stockUsesStrippedCatalogNameWhenNotInTable() {
+        XCTAssertEqual(
+            AssetCatalogDisplayName.format(catalogName: "Zyxwv xStock", symbol: "ZYXWV", kind: .stock),
+            "Zyxwv"
+        )
+    }
+
+    func testAssetCatalogDisplayName_stockFallsBackToSymbolWhenCatalogNameIsEmpty() {
+        XCTAssertEqual(
+            AssetCatalogDisplayName.format(catalogName: "", symbol: "ZYXWV", kind: .stock),
+            "ZYXWV"
+        )
+    }
 }

@@ -1,0 +1,92 @@
+import MonacoAPI
+
+public struct HintRefreshPolicy: Equatable, Sendable {
+    public enum Input: Equatable, Sendable {
+        case hint
+        case resync
+        case refreshStarted
+        case refreshFinished
+        case becameVisible
+        case becameHidden
+    }
+
+    public enum Output: Equatable, Sendable {
+        case refreshNow
+    }
+
+    private var visible = true
+    private var refreshInFlight = false
+    private var trailingRefresh = false
+
+    public init() {}
+
+    public mutating func send(_ input: Input) -> Output? {
+        switch input {
+        case .hint, .resync:
+            return noteDemand()
+        case .refreshStarted:
+            refreshInFlight = true
+            return nil
+        case .refreshFinished:
+            refreshInFlight = false
+            return startIfIdle()
+        case .becameVisible:
+            visible = true
+            return startIfIdle()
+        case .becameHidden:
+            visible = false
+            return nil
+        }
+    }
+
+    private mutating func noteDemand() -> Output? {
+        trailingRefresh = true
+        return startIfIdle()
+    }
+
+    private mutating func startIfIdle() -> Output? {
+        guard visible, !refreshInFlight, trailingRefresh else { return nil }
+        trailingRefresh = false
+        refreshInFlight = true
+        return .refreshNow
+    }
+}
+
+@MainActor
+public final class HintRefresher {
+    private let refresh: @MainActor () async -> Void
+    private var policy = HintRefreshPolicy()
+    private var running = false
+
+    public init(refresh: @escaping @MainActor () async -> Void) {
+        self.refresh = refresh
+    }
+
+    public func setVisible(_ visible: Bool) {
+        let input: HintRefreshPolicy.Input = visible ? .becameVisible : .becameHidden
+        guard policy.send(input) == .refreshNow else { return }
+        beginRefresh()
+    }
+
+    public func observe(_ hints: AsyncStream<Hint>) async {
+        for await hint in hints {
+            let input: HintRefreshPolicy.Input = if case .resync = hint { .resync } else { .hint }
+            guard policy.send(input) == .refreshNow else { continue }
+            beginRefresh()
+        }
+    }
+
+    private func beginRefresh() {
+        guard !running else { return }
+        running = true
+        Task { await drain() }
+    }
+
+    private func drain() async {
+        defer { running = false }
+        while true {
+            await refresh()
+            guard policy.send(.refreshFinished) == .refreshNow else { return }
+        }
+    }
+}
