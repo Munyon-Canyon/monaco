@@ -59,6 +59,26 @@ func TestReadReportMeasuresTheRunFromTheGivenStart(t *testing.T) {
 	}
 }
 
+func TestReadReportMeasuresTheRunFromTheEarliestToTheLatestEventInAnyOrder(t *testing.T) {
+	t.Parallel()
+	const laterEvents = `{"Time":"2026-09-27T10:05:00Z","Action":"pass","Package":"m/a","Elapsed":1}
+{"Time":"2026-09-27T10:05:30Z","Action":"pass","Package":"m/b","Elapsed":1}
+`
+	const earlierEvents = `{"Time":"2026-09-27T10:00:10Z","Action":"start","Package":"m/c"}
+{"Time":"2026-09-27T10:01:00Z","Action":"pass","Package":"m/c","Elapsed":50}
+`
+	stream := laterEvents + earlierEvents
+	rep, err := readReport(strings.NewReader(stream), time.Time{})
+	if err != nil || rep.run != 5*time.Minute+20*time.Second {
+		t.Fatalf("run = %v, %v; want 5m20s from the earliest event to the latest", rep.run, err)
+	}
+	start := time.Date(2026, 9, 27, 10, 0, 0, 0, time.UTC)
+	rep, err = readReport(strings.NewReader(stream), start)
+	if err != nil || rep.run != 5*time.Minute+30*time.Second {
+		t.Fatalf("run = %v, %v; want 5m30s from the start flag to the latest event", rep.run, err)
+	}
+}
+
 func TestReadReportCountsAMissingElapsedAsZeroAndFailsOnAReadError(t *testing.T) {
 	t.Parallel()
 	rep, err := readReport(
