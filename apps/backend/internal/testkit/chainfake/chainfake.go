@@ -191,3 +191,19 @@ func (l *Ledger) SignatureStatuses(_ context.Context, sigs []chain.Signature) ([
 	}
 	return out, nil
 }
+
+func WalletAddress(walletID string) chain.SolanaAddress {
+	return chain.AddressOf(fakes.PrivyWalletKey(walletID).Public().(ed25519.PublicKey))
+}
+
+func Unsigned(signers ...chain.SolanaAddress) []byte {
+	n := len(signers)
+	msg := append(chain.CompactU16(n), 0, 0)
+	msg = append(msg, chain.CompactU16(n)...)
+	for _, s := range signers {
+		key, _ := s.Bytes()
+		msg = append(msg, key...)
+	}
+	msg = append(append(msg, make([]byte, ed25519.PublicKeySize)...), 0)
+	return append(append(chain.CompactU16(n), make([]byte, n*ed25519.SignatureSize)...), msg...)
+}
