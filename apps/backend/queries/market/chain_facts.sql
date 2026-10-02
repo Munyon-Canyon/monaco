@@ -1,5 +1,5 @@
 -- name: UncheckedAssets :many
-SELECT * FROM assets
+SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at FROM assets
 WHERE chain_checked_at IS NULL
 ORDER BY coalesce(tradable_override, issuer_tradable) DESC, popular_rank NULLS LAST, symbol
 LIMIT sqlc.arg(max_assets);
