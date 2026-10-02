@@ -177,7 +177,7 @@ func (env *Env) pullBlocker(ctx context.Context, n int) error {
 	if err != nil {
 		return err
 	}
-	landed, err := env.landed(ctx, pr.graphState(), pr.Head.SHA)
+	landed, err := env.landed(ctx, pr.closed())
 	if err != nil {
 		return err
 	}
@@ -200,7 +200,7 @@ func (env *Env) issueBlocker(ctx context.Context, n int) error {
 		if pr.Base.Ref != env.Config.FeatureBranch || !closes(pr.Body, n) {
 			continue
 		}
-		landed, err := env.landed(ctx, pr.graphState(), pr.Head.SHA)
+		landed, err := env.landed(ctx, pr.closed())
 		if err != nil {
 			return err
 		}

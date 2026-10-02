@@ -130,7 +130,7 @@ func (env *Env) ticketPRs(ctx context.Context, ticket int, tl ticketTimeline) ([
 		}
 		p := src.flat(env.Config.QueueLabel)
 		if src.State == "CLOSED" {
-			landed, err := env.landed(ctx, src.State, src.HeadOID)
+			landed, err := env.landed(ctx, src.closed())
 			if err != nil {
 				return nil, err
 			}

@@ -38,6 +38,7 @@ type PR struct {
 	State          string     `json:"state"`
 	UpdatedAt      time.Time  `json:"updated_at"`
 	MergedAt       *time.Time `json:"merged_at"`
+	ClosedAt       *time.Time `json:"closed_at"`
 	MergeCommitSHA string     `json:"merge_commit_sha"`
 	Head           Ref        `json:"head"`
 	Base           Ref        `json:"base"`

@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	stackFields = `number state baseRefName headRefName headRefOid body mergeCommit{oid} ` + labelFields + `
+	stackFields = `number state closedAt baseRefName headRefName headRefOid body mergeCommit{oid} ` + labelFields + `
 commits(last:1){nodes{commit{` + commitChecks + `}}}`
 	repoQuery = "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){"
 
@@ -327,7 +327,7 @@ func (env *Env) settle(ctx context.Context, rec Record, prs []stackPR, landed []
 func (env *Env) landedEach(ctx context.Context, prs []stackPR) ([]bool, error) {
 	out := make([]bool, len(prs))
 	for i, p := range prs {
-		landed, err := env.landed(ctx, p.State, p.HeadOID)
+		landed, err := env.landed(ctx, p.closed())
 		if err != nil {
 			return nil, err
 		}

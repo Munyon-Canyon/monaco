@@ -38,7 +38,8 @@ func (f *fixture) board(t *testing.T) {
 		`{"source":{"number":14,"body":"Part of #9"}},{"source":`+landed+`}]}},`+
 		`"t7":{"timelineItems":{"nodes":[]}}}}}`)
 	f.hub.on(get("/compare/fb...h13"), `{"status":"diverged"}`)
-	f.hub.on(get("/compare/fb...h15"), `{"status":"behind"}`)
+	f.hub.on(list("/commits?sha=fb&since=2026-09-27T10:50:00Z"),
+		`[{"commit":{"message":"Land the thing (#15)\n\nCloses #6"}},{"commit":{"message":"Other (#150)"}}]`)
 }
 
 func TestViews_readsEachTicketsPRsFromOneQuery(t *testing.T) {
