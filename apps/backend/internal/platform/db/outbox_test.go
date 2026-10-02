@@ -291,3 +291,33 @@ func TestBacklog_countsUnpublishedRowsAndAgesTheOldest(t *testing.T) {
 		t.Fatalf("backlog on a closed pool = %v, want internal", err)
 	}
 }
+
+func TestDrain_marksNothingWhenNothingWasPublished(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	if _, err := h.pool.Exec(t.Context(), `
+		CREATE FUNCTION refuse_any_update() RETURNS trigger LANGUAGE plpgsql AS $$
+		BEGIN RAISE EXCEPTION 'no update expected'; END $$;
+		CREATE TRIGGER refuse_any_update BEFORE UPDATE ON events
+		FOR EACH STATEMENT EXECUTE FUNCTION refuse_any_update()`); err != nil {
+		t.Fatal(err)
+	}
+	outbox := db.NewOutbox(h.pool, h.clock)
+	empty, err := outbox.Drain(t.Context(), 100, recording(new([]uuid.UUID)))
+	if err != nil || len(empty.Published) != 0 || empty.Failed != nil {
+		t.Fatalf("drain of an empty outbox = %+v, %v; want an empty batch and no error", empty, err)
+	}
+	ids := h.appendEvents(t, 1)
+	boom := errors.New("publish failed")
+	failed, err := outbox.Drain(t.Context(), 100, func(context.Context, db.OutboxRow) error { return boom })
+	if err != nil || !errors.Is(failed.Failed, boom) || len(failed.Published) != 0 {
+		t.Fatalf(
+			"drain with a failing first publish = %+v, %v; want the failure in the batch and no error",
+			failed,
+			err,
+		)
+	}
+	if left := h.unpublished(t); !slices.Equal(left, ids) {
+		t.Fatalf("unpublished = %v, want %v kept", left, ids)
+	}
+}
