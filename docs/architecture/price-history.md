@@ -165,13 +165,4 @@ Every step is a `flows.tsv` row with its outcomes tested before the step closes.
 
 None.
 
-## Log
-
-- 2026-09-30: The catalog takes each mint's decimals and scaled UI multiplier from the chain, and an asset is tradable only once they are checked (#1099). Rechecking a mint after a dividend step is #1121.
-- 2026-09-30: Built the table and the sampler (#545). A jump over 20% from the previous sample is held for one sample at read, over each mint's newest three samples, so every reader gets the same price. A tick that loses a Jupiter batch still writes and publishes what came back, then fails with that batch's code. `price.tick` carries each asset's accepted price with its observed time and is published every tick, including one that sampled nothing.
-- 2026-09-29: The market calendar is a static NYSE holiday table in code, updated yearly (default; see #535). The price poller appends `asset.price_moved`; there is no second poller. Valuation cadence is 2 minutes everywhere.
-- 2026-09-27: Decided 2026-09-27: the price poller ticks every 120 s. Samples are stored one row per mint per 2-minute bucket, the 1D cache TTL is 120 s, and the poller makes 1 Jupiter call a minute (~22k a month). Supersedes the 10 s default.
-- 2026-09-27: Closed the last open question (default 2026-09-27): the price poller ticks every 10 s. The Jupiter free tier allows 60 requests a minute shared across Price, Swap and Token calls ([Jupiter rate limits](https://developers.jup.ag/docs/portal/rate-limits)); the poller uses 12.
-- 2026-09-27: Applied defaults. One `market` poller and one table, `price_points` with `price_micros bigint`, shared with leaderboards; Pyth dropped for boards too; subject `price.tick`; tick cadence per the RFC, stored at one row per mint per minute; no Yahoo in the rewrite, CoinGecko backfill before cutover; no paid 2-year backfill; sample always, boards value at the close while the market is shut; P&L curve reads `cabal_value_snapshots`. Open: Jupiter rate limit at a 10 s tick.
-- 2026-09-27: Reconciled with [backend-platform.md](backend-platform.md): the `market` module owns the table, sampler, backfill and chart reads; the sampler is flow 18, publishes one batched core-NATS tick, and follows the poller rules (advisory lock, `poller_errors_total`, logged ticks); CoinGecko and Jupiter sit behind `market` adapters; backfill moves to `monacoctl`; chart response schema moves to `api/openapi.yaml`; build order moves to rollout step 6, with old packages deleted in step 7. Added open questions on the overlap with leaderboards.md (table, poller, Pyth), the price column type and porting Yahoo.
-- 2026-09-26: Initial decision. Survey of Helius, CoinGecko, Jupiter, Pyth, GeckoTerminal, Birdeye, Moralis, Bitquery, DexScreener and issuer APIs recorded above. Pyth excluded by product decision; Jupiter datapi charts found dead the same day.
+Log: [log/price-history.md](log/price-history.md).

@@ -178,12 +178,4 @@ The `notify` module lands in [Rollout](backend-platform.md#rollout) step 6, afte
 
 None.
 
-## Log
-
-- 2026-09-29: Pause pushes come from `cabal.paused` and `cabal.resumed`, appended by `funding`. The flows table names `notify` only for events in [What notifies](#what-notifies-mvp); no push on `referral.attributed` (default; see #535). The trade-confirmed walkthrough moves the `swaps` row, not a `cabal_txns` header.
-- 2026-09-27: Decided 2026-09-27: the cabal pause, new follower, chat mention and onboarding nudge pushes are confirmed.
-- 2026-09-27: Closed the last open questions (default 2026-09-27): 3 single follow pushes per day, then one batched push. The core list is default 38; the pause, follower, chat and nudge rows stay. Push copy moved to a TODO.
-- 2026-09-27: Applied defaults. MVP pushes: trade filled or failed, proposal created, voted proposal passed, deposit credited, reply to your comment, plus cabal pause (every member), new follower, chat mentions and thread replies, onboarding nudges. No mute settings, no badge, no in-app list, no push for your own action, no unfollow push; only follows are batched past a daily cap; no push in the old backend. Open: copy and the follow cap number.
-- 2026-09-27: Reconciled with [backend-platform.md](backend-platform.md): the `notify` module owns notifications and device tokens, with one durable consumer named `notify`; APNs sits behind a `Sender` port with an anti-corruption adapter, a `testkit` fake and the `verify-backend` fakes server; APNs results map to `errs` kinds (retryable `KindUnavailable`, `KindInternal` to `DEADLETTER`); sends happen after commit; members come from the `cabal` query port; `notification.sent` (flow 24); `Idempotency-Key` on device routes; SSE alternative points at `/v1/stream`. Replaced the pre-bus goroutine stopgap with rollout step 6 and an open question.
-- 2026-09-26: Delivery moved from the outbox worker to a `notifications` consumer on the NATS event bus ([event-bus.md](event-bus.md)).
-- 2026-09-26: Proposed APNs direct with a `.p8` token key, a `device_tokens` table, `POST /v1/devices`, and delivery through the outbox. Events that notify are still open.
+Log: [log/notifications.md](log/notifications.md).

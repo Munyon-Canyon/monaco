@@ -53,6 +53,6 @@ Read these in order to understand the repo:
 
 ## Conventions for these docs
 
-- Product rules go in `product.md`. What stays true about the system goes in `architecture.md`. Why it is built that way, and decisions the code has not caught up with, go in `architecture/`, one file per topic with a dated Log section. How to run things goes in the README or `how-to/`.
+- Product rules go in `product.md`. What stays true about the system goes in `architecture.md`. Why it is built that way, and decisions the code has not caught up with, go in `architecture/`, one file per topic, with its dated log in `architecture/log/<topic>.md`. How to run things goes in the README or `how-to/`.
 - Link to code by path rather than copying it.
 - When code changes a rule or a flow, update the doc in the same pull request.

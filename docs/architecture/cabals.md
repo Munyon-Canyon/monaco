@@ -145,6 +145,4 @@ Every payload carries `v` ([event-bus.md](event-bus.md)). Timestamps live on the
 - **Admin role.** Whether a creator can name co-admins who decide requests and invite. Not in the MVP.
 - **Invite code rotation.** Whether the creator can rotate a leaked code. Not in the MVP; the code grants no access beyond the join mode, so a leak in a `request` cabal only produces requests.
 
-## Log
-
-- 2026-09-27: Created. Rules, roles, join and request, invite code and direct invite, edit, leave guards, treasury wallet creation and events decided (#525).
+Log: [log/cabals.md](log/cabals.md).

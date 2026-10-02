@@ -192,14 +192,4 @@ The rewrite builds this in [Rollout](backend-platform.md#rollout) step 3 (`ident
 
 None.
 
-## Log
-
-- 2026-09-30: Login is SMS OTP or email OTP through Privy in every build, and Apple and Google are deferred to #541, as decided 2026-09-29. The Decision, Why, Login, Privy dashboard and Data text now say so. `POST /v1/auth/session` is built as flow 1: it picks `login_provider` from what Privy links, takes no idempotency key, and resyncs the phone and X links.
-- 2026-09-27: Default 2026-09-27: dropped `retired_handles`. The unique index on `users.handle` covers deleted rows, so a deleted user's handle is never reused. A rename frees the old handle immediately. The advisory lock is dropped too; the single unique index settles races.
-- 2026-09-27: Decided 2026-09-27: every user picks a unique handle as the first onboarding screen, with no Skip. `users.handle` belongs to `identity`, with the naming rules that used to govern custom referral codes. Changing a handle retires the old one into `retired_handles`. `referrals` reads handles through `identity`'s query port, and a handle works as a referral code after the first-deposit unlock.
-- 2026-09-27: Decided: `users` soft deletes through `deleted_at`, set with `account_status = deleted` on account deletion. Added `first_deposit_at`, set by `identity` from the first `deposit.credited` and read by `referrals`.
-- 2026-09-27: Closed the last open question (default 2026-09-27): dev-only SMS login is enforced by a separate Privy app for dev; the production Privy app has SMS login disabled.
-- 2026-09-27: Applied decisions. Decided: Apple / Google only with SMS OTP in dev builds (RFC flow 1 fixed to match); no migration, user data wiped at cutover, Privy wallets reused on sign-in; suspended and banned users can withdraw and cash out. Defaults: `account_status` split from `auth_state`; phone contacts first, X follows deferred; unmatched hashes not kept; deletion requires cash out first, then scrubs PII and keeps ledger rows. Open question left: how dev-only SMS login is enforced.
-- 2026-09-27: Reconciled with [backend-platform.md](backend-platform.md): `identity` owns sessions, users and `auth_state` (a state machine applied in `uow.Do`); `social` owns contact matching through `identity`'s query port; `user.created` added; `notify` consumes `user.nudge_due`; ban refusals are a `KindForbidden` code; idempotency keys on onboarding routes; PII redaction; rollout steps 3 and 6. Flagged the login-method conflict with RFC flow 1.
-- 2026-09-26: Outbox rows replaced by `events` rows delivered over the NATS event bus ([event-bus.md](event-bus.md)).
-- 2026-09-26: Initial decision. Apple/Google-only login via Privy; phone and X linked during onboarding; `auth_state` on users; contact and X graph matching. Noted Privy Swift cannot return X OAuth tokens.
+Log: [log/auth.md](log/auth.md).
