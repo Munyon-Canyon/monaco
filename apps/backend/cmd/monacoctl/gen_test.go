@@ -149,7 +149,7 @@ func TestGenErrors_unreadableOrUnwritableSpecExits1(t *testing.T) {
 
 func TestCommittedSpecListsEveryErrorCode(t *testing.T) {
 	t.Parallel()
-	spec, err := os.ReadFile("../../api/openapi.yaml")
+	spec, err := os.ReadFile("../../api/spec/base.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestCommittedSpecListsEveryErrorCode(t *testing.T) {
 		t.Fatal(err)
 	}
 	if fresh != string(spec) {
-		t.Fatal("api/openapi.yaml ErrorCode enum differs from errs.All(); run go generate ./cmd/monacoctl")
+		t.Fatal("api/spec/base.yaml ErrorCode enum differs from errs.All(); run go generate ./api")
 	}
 }
 
@@ -223,7 +223,7 @@ func TestCommittedSwiftCaseListMatchesErrs(t *testing.T) {
 
 func TestGen_otherArgsPrintUsage(t *testing.T) {
 	t.Parallel()
-	const wantUsage = "usage: monacoctl gen errors <openapi.yaml> [<ErrorCodeCases.gen.swift>]\n"
+	const wantUsage = "usage: monacoctl gen errors <spec/base.yaml> [<ErrorCodeCases.gen.swift>]\n"
 	for _, args := range [][]string{nil, {"errors"}, {"events", "x"}, {"errors", "a", "b", "c"}} {
 		var stdout, stderr bytes.Buffer
 		if code := gen(args, &stdout, &stderr); code != 2 ||

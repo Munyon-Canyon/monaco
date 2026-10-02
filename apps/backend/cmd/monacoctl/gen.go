@@ -58,7 +58,8 @@ func migrate(m codegen.Migrator, args []string, stdout, stderr io.Writer) int {
 }
 
 func genUsage(stderr io.Writer) int {
-	_, _ = fmt.Fprintln(stderr, "usage: monacoctl gen errors <openapi.yaml> [<ErrorCodeCases.gen.swift>]")
+	_, _ = fmt.Fprintln(stderr, "usage: monacoctl gen errors <spec/base.yaml> [<ErrorCodeCases.gen.swift>]")
+	_, _ = fmt.Fprintln(stderr, "       monacoctl gen openapi <spec-dir> <openapi.yaml>")
 	for _, g := range codegen.Generators() {
 		_, _ = fmt.Fprintln(stderr, "       monacoctl "+g.Usage())
 	}
@@ -67,6 +68,9 @@ func genUsage(stderr io.Writer) int {
 }
 
 func gen(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 3 && args[0] == "openapi" {
+		return runGenOpenAPI([3]string(args), stdout, stderr)
+	}
 	if len(args) < 2 || len(args) > 3 || args[0] != "errors" {
 		return genUsage(stderr)
 	}
@@ -131,4 +135,13 @@ func markerLine(lines []string, marker string) int {
 		found = i
 	}
 	return found
+}
+
+func runGenOpenAPI(args [3]string, stdout, stderr io.Writer) int {
+	if err := genOpenAPI(args[1], args[2]); err != nil {
+		_, _ = fmt.Fprintf(stderr, "monacoctl: %v\n", err)
+		return 1
+	}
+	_, _ = fmt.Fprintf(stdout, "wrote %s from %s\n", args[2], args[1])
+	return 0
 }
