@@ -78,6 +78,7 @@ func commands() map[string]command {
 	return map[string]command{
 		"batch":       batchCmd,
 		"conflicts":   conflictsCmd,
+		"dequeue":     dequeueCmd,
 		"dispatch":    dispatchCmd,
 		"done":        doneCmd,
 		"exited":      exitedCmd,

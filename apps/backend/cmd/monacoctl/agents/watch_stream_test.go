@@ -12,9 +12,9 @@ import (
 
 const mqTitle = "[Graphite MQ] Draft PR GROUP:spec_de1996 (PRs 1307, 1308, 1309)"
 
-func queueDraftNode(n int, state, title, commit string) string {
-	return fmt.Sprintf(`{"number":%d,"state":%q,"title":%q,"body":"","headRefName":"gtmq_%d",`+
-		`"updatedAt":"2026-09-27T11:59:00Z","commits":{"nodes":[{"commit":%s}]}}`, n, state, title, n, commit)
+func queueDraftNode(n int, title, commit string) string {
+	return fmt.Sprintf(`{"number":%d,"state":"OPEN","title":%q,"body":"","headRefName":"gtmq_%d",`+
+		`"updatedAt":"2026-09-27T11:59:00Z","commits":{"nodes":[{"commit":%s}]}}`, n, title, n, commit)
 }
 
 func streamRounds(t *testing.T, f *fixture, rounds int, between func(round int)) string {
@@ -59,15 +59,15 @@ func TestWatchStream_printsTheStateOnceThenOnlyWhatChanged(t *testing.T) {
 	queuedStack(t, f, "/w/40")
 	pending := `{"name":"ci / E2E","status":"IN_PROGRESS"}`
 	f.hub.on(graphqlRoute, draftData([]string{
-		queueDraftNode(90, "OPEN", "[Graphite MQ] Draft PR GROUP:spec_1 (PRs 1, 2)", rollup(greenOK, pending,
+		queueDraftNode(90, "[Graphite MQ] Draft PR GROUP:spec_1 (PRs 1, 2)", rollup(greenOK, pending,
 			`{"context":"verify","state":"SUCCESS"}`, `{"context":"ext","state":"ERROR"}`,
 			`{"context":"slow","state":"PENDING"}`)),
-		queueDraftNode(91, "OPEN", "[Graphite MQ] Draft PR GROUP:spec_2 (PRs 12)", rollup(redOK)),
+		queueDraftNode(91, "[Graphite MQ] Draft PR GROUP:spec_2 (PRs 12)", rollup(redOK)),
 	}))
 	got := streamRounds(t, f, 3, func(round int) {
 		if round == 1 {
 			f.hub.on(graphqlRoute, draftData([]string{
-				queueDraftNode(90, "OPEN", "[Graphite MQ] Draft PR GROUP:spec_1 (PRs 1, 2)", rollup(greenOK, flakeJob)),
+				queueDraftNode(90, "[Graphite MQ] Draft PR GROUP:spec_1 (PRs 1, 2)", rollup(greenOK, flakeJob)),
 			}))
 		}
 	})

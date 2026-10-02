@@ -116,9 +116,12 @@ func (s *stackGH) run(ctx context.Context, dir, stdin, name string, args ...stri
 		return s.graphql(args[3])
 	}
 	n, _ := strconv.Atoi(args[2])
-	if args[1]+" "+args[3] == "edit --add-label" {
+	switch args[1] + " " + args[3] {
+	case "edit --add-label":
 		labeled(s.prs[n], args[4])
 		s.pollsAtLabel = s.polls
+	case "edit --remove-label":
+		s.prs[n].Labels.Nodes = nil
 	}
 	return nil, nil
 }
