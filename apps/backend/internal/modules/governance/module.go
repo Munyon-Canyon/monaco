@@ -3,6 +3,8 @@ package governance
 import (
 	"context"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	"github.com/monaco/monaco/apps/backend/internal/modules/governance/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
@@ -31,7 +33,12 @@ func New(d module.Deps) *Module { return &Module{deps: d} }
 
 func (*Module) Name() string { return "governance" }
 
-func (*Module) Routes(*httpx.Routes) {}
+func (m *Module) Routes(r *httpx.Routes) {
+	thresholds := cabalThresholds{cabals: cabal.New(m.deps).Queries()}
+	r.GovernanceRoutes = adapters.HTTP{
+		Vote: app.NewCastVoteHandler(m.deps.UoW, m.deps.Pool, m.deps.Clock, thresholds),
+	}
+}
 
 func (*Module) Consumers() []bus.Consumer {
 	return []bus.Consumer{}

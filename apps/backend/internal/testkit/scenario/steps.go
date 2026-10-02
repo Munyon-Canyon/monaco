@@ -23,6 +23,17 @@ func AsUser(name string) Step {
 	return func(s *Scenario) { s.actor = s.user(name) }
 }
 
+func AsSeededUser(name string, id ids.UserID) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		if u, ok := s.users[name]; ok && u.id == id {
+			s.actor = u
+			return
+		}
+		s.actor = s.addUser(name, id)
+	}
+}
+
 func Anonymous() Step {
 	return func(s *Scenario) { s.actor = nil }
 }
