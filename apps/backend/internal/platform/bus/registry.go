@@ -210,6 +210,7 @@ func (r *Registry) Start(ctx context.Context) (func(), error) {
 		return nil, errs.Wrap(err, errs.CodeUpstreamUnavailable, op)
 	}
 	started := map[string]jetstream.Consumer{}
+	in := newInflight()
 	var unregister func() error
 	stop := func() {
 		_ = advisories.Unsubscribe()
@@ -220,6 +221,7 @@ func (r *Registry) Start(ctx context.Context) (func(), error) {
 			cc.Stop()
 			<-cc.Closed()
 		}
+		in.close()
 	}
 	for _, durable := range slices.Sorted(maps.Keys(r.consumers)) {
 		c := r.consumers[durable]
@@ -231,7 +233,13 @@ func (r *Registry) Start(ctx context.Context) (func(), error) {
 		}
 		started[durable] = cons
 		cc, err := cons.Consume(
-			func(msg jetstream.Msg) { r.Dispatch(ctx, durable, msg) },
+			func(msg jetstream.Msg) {
+				if !in.enter() {
+					return
+				}
+				defer in.leave()
+				r.Dispatch(ctx, durable, msg)
+			},
 			jetstream.ConsumeErrHandler(
 				func(_ jetstream.ConsumeContext, err error) { consumeError(ctx, durable, err) },
 			),

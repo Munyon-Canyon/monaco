@@ -29,11 +29,11 @@ func TestRegistryStop_waitsForADispatchStillRunning(t *testing.T) {
 	var cc jetstream.ConsumeContext
 	halted := make(chan struct{})
 	proceed := make(chan struct{})
-	h.bus.Conn.AfterConsumeStop(func(stopped jetstream.ConsumeContext) {
+	h.bus.Conn.HookConsume(bus.ConsumeHooks{Stopped: func(stopped jetstream.ConsumeContext) {
 		cc = stopped
 		close(halted)
 		<-proceed
-	})
+	}})
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	var returned atomic.Bool
@@ -66,5 +66,43 @@ func TestRegistryStop_waitsForADispatchStillRunning(t *testing.T) {
 	await(t, "stop to return", stopped)
 	if !returned.Load() {
 		t.Fatal("stop returned while the handler was still running, want it to wait for the dispatch")
+	}
+}
+
+func TestRegistryStop_leavesADeliveryAfterStopUnhandledAndUnacked(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	var deliver jetstream.MessageHandler
+	h.bus.Conn.HookConsume(bus.ConsumeHooks{Consumed: func(handler jetstream.MessageHandler) { deliver = handler }})
+	var calls atomic.Int32
+	counting := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged, time.Time) error {
+		calls.Add(1)
+		return nil
+	})
+	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{counting}})
+	stop, err := reg.Start(h.ctx(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stop()
+
+	h.publishPing(t)
+	cons, err := h.bus.JS.Consumer(t.Context(), h.bus.Events, durable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deliver(h.fetch(t, cons))
+	if n := calls.Load(); n != 0 {
+		t.Fatalf("handler ran %d times for a delivery after stop, want 0", n)
+	}
+	if got := h.deliveries(t); len(got) != 0 {
+		t.Fatalf("event_deliveries = %v after stop, want none", got)
+	}
+	info, err := cons.Info(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.NumAckPending != 1 {
+		t.Fatalf("ack pending = %d, want the refused delivery left unacked for redelivery", info.NumAckPending)
 	}
 }

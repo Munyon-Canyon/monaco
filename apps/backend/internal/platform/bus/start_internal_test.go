@@ -35,48 +35,58 @@ func (f consumerFromFake) CreateOrUpdateConsumer(
 	return f.cons, nil
 }
 
-func (c *Conn) AfterConsumeStop(hook func(jetstream.ConsumeContext)) {
-	c.js = stopHookJS{JetStream: c.js, hook: hook}
+type ConsumeHooks struct {
+	Consumed func(jetstream.MessageHandler)
+	Stopped  func(jetstream.ConsumeContext)
 }
 
-type stopHookJS struct {
+func (c *Conn) HookConsume(hooks ConsumeHooks) {
+	c.js = hookedJS{JetStream: c.js, hooks: hooks}
+}
+
+type hookedJS struct {
 	jetstream.JetStream
-	hook func(jetstream.ConsumeContext)
+	hooks ConsumeHooks
 }
 
-func (s stopHookJS) CreateOrUpdateConsumer(
+func (s hookedJS) CreateOrUpdateConsumer(
 	ctx context.Context, stream string, cfg jetstream.ConsumerConfig,
 ) (jetstream.Consumer, error) {
 	cons, err := s.JetStream.CreateOrUpdateConsumer(ctx, stream, cfg)
 	if err != nil {
 		return nil, err
 	}
-	return stopHookConsumer{Consumer: cons, hook: s.hook}, nil
+	return hookedConsumer{Consumer: cons, hooks: s.hooks}, nil
 }
 
-type stopHookConsumer struct {
+type hookedConsumer struct {
 	jetstream.Consumer
-	hook func(jetstream.ConsumeContext)
+	hooks ConsumeHooks
 }
 
-func (c stopHookConsumer) Consume(
+func (c hookedConsumer) Consume(
 	handler jetstream.MessageHandler, opts ...jetstream.PullConsumeOpt,
 ) (jetstream.ConsumeContext, error) {
 	cc, err := c.Consumer.Consume(handler, opts...)
 	if err != nil {
 		return nil, err
 	}
-	return stopHookContext{ConsumeContext: cc, hook: c.hook}, nil
+	if c.hooks.Consumed != nil {
+		c.hooks.Consumed(handler)
+	}
+	return hookedContext{ConsumeContext: cc, hooks: c.hooks}, nil
 }
 
-type stopHookContext struct {
+type hookedContext struct {
 	jetstream.ConsumeContext
-	hook func(jetstream.ConsumeContext)
+	hooks ConsumeHooks
 }
 
-func (c stopHookContext) Stop() {
+func (c hookedContext) Stop() {
 	c.ConsumeContext.Stop()
-	c.hook(c.ConsumeContext)
+	if c.hooks.Stopped != nil {
+		c.hooks.Stopped(c.ConsumeContext)
+	}
 }
 
 func TestStart_returnsTheConsumeErrorAndDropsTheAdvisorySubscription(t *testing.T) {
