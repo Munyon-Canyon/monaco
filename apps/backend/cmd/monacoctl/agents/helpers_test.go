@@ -85,6 +85,9 @@ func (h *hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	code := h.status[route]
 	hook := h.hook
 	h.mu.Unlock()
+	if !ok && r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/actions/runs") {
+		resp, ok = `{"workflow_runs":[]}`, true
+	}
 	if !ok {
 		http.Error(w, `{"message":"Not Found"}`, http.StatusNotFound)
 		return

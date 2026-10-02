@@ -75,7 +75,7 @@ func TestRecords_aFreshCloneRebuildsTheOwnerFromTheTicket(t *testing.T) {
 		"land-stack",
 		"6",
 	); code != 0 ||
-		stdout != "queued #6\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
+		stdout != "queued #6\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #6\n" {
 		t.Fatalf("land: %d %q %q", code, stdout, stderr)
 	}
 	env := f.Env(t)

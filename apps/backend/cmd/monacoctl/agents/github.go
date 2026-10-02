@@ -192,3 +192,43 @@ func (e httpStatusError) Error() string {
 }
 
 func (e httpStatusError) Unwrap() error { return errGitHubStatus }
+
+type Run struct {
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	Status     string `json:"status"`
+	Conclusion string `json:"conclusion"`
+	Attempt    int    `json:"run_attempt"`
+	URL        string `json:"html_url"`
+}
+
+func (r Run) done() bool { return r.Status == "completed" }
+
+func (r Run) broken() bool {
+	return r.done() && (r.Conclusion == "cancelled" || r.Conclusion == "failure")
+}
+
+func (g *GitHub) Runs(ctx context.Context, sha string) ([]Run, error) {
+	var all []Run
+	for page := 1; ; page++ {
+		var batch struct {
+			Runs []Run `json:"workflow_runs"`
+		}
+		path := g.repo("/actions/runs?head_sha=%s&per_page=%d&page=%d", sha, pageSize, page)
+		if err := g.call(ctx, http.MethodGet, path, "", nil, &batch); err != nil {
+			return nil, err
+		}
+		all = append(all, batch.Runs...)
+		if len(batch.Runs) < pageSize {
+			return all, nil
+		}
+	}
+}
+
+func (g *GitHub) Rerun(ctx context.Context, id int64) error {
+	err := g.call(ctx, http.MethodPost, g.repo("/actions/runs/%d/rerun", id), "", nil, nil)
+	if err == nil {
+		return nil
+	}
+	return g.call(ctx, http.MethodPost, g.repo("/actions/runs/%d/rerun-failed-jobs", id), "", nil, nil)
+}
