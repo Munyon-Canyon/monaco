@@ -34,19 +34,20 @@ func execWaitDelay() time.Duration {
 }
 
 type Env struct {
-	Work     string
-	Common   string
-	Home     string
-	Config   Config
-	GitHub   *GitHub
-	Run      Runner
-	Start    func(name string, args ...string) error
-	Now      func() time.Time
-	After    func(d time.Duration) <-chan time.Time
-	Actions  bool
-	GOOS     string
-	LookPath func(string) (string, error)
-	trunk    *trunkLog
+	Work        string
+	Common      string
+	Home        string
+	Config      Config
+	GitHub      *GitHub
+	Run         Runner
+	Start       func(name string, args ...string) error
+	Now         func() time.Time
+	After       func(d time.Duration) <-chan time.Time
+	Actions     bool
+	GOOS        string
+	LookPath    func(string) (string, error)
+	featureNote string
+	trunk       *trunkLog
 }
 type (
 	Runner  func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error)
@@ -118,6 +119,9 @@ func runCLI(
 		return usage(stderr)
 	}
 	env, err := load(ctx, environ, dir, run)
+	if env != nil && env.featureNote != "" {
+		_, _ = fmt.Fprintln(stderr, env.featureNote)
+	}
 	var buf bytes.Buffer
 	if err == nil {
 		if configure != nil {
@@ -223,9 +227,6 @@ func load(ctx context.Context, environ []string, dir string, run Runner) (*Env, 
 	if err != nil {
 		return nil, err
 	}
-	if cfg.FeatureBranch, err = resolveFeatureBranch(ctx, run, environ, top, cfg); err != nil {
-		return nil, err
-	}
 	api := cmp.Or(lookup(environ, "MONACO_GITHUB_API"), defaultAPI)
 	token := func(ctx context.Context) (string, error) {
 		if t := cmp.Or(lookup(environ, "GH_TOKEN"), lookup(environ, "GITHUB_TOKEN")); t != "" {
@@ -234,11 +235,16 @@ func load(ctx context.Context, environ []string, dir string, run Runner) (*Env, 
 		got, err := run(ctx, dir, "", "gh", "auth", "token")
 		return strings.TrimSpace(string(got)), err
 	}
+	gh := &GitHub{API: api, Repo: cfg.Repo, Token: token, HTTP: &http.Client{Timeout: 30 * time.Second}}
+	note := ""
+	if cfg.FeatureBranch, note, err = resolveFeatureBranch(ctx, run, gh, environ, top, cfg); err != nil {
+		return nil, err
+	}
 	return &Env{
 		Work: top, Common: common, Home: lookup(environ, "HOME"), Config: cfg,
-		GitHub: &GitHub{API: api, Repo: cfg.Repo, Token: token, HTTP: &http.Client{Timeout: 30 * time.Second}},
-		Run:    run, Start: spawn, Now: time.Now, After: time.After,
-		Actions: lookup(environ, "GITHUB_ACTIONS") == "true", GOOS: runtime.GOOS, LookPath: exec.LookPath,
+		GitHub: gh, Run: run, Start: spawn, Now: time.Now, After: time.After,
+		Actions: lookup(environ, "GITHUB_ACTIONS") == "true", GOOS: runtime.GOOS,
+		LookPath: exec.LookPath, featureNote: note,
 	}, nil
 }
 

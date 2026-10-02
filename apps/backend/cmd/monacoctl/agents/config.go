@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -168,28 +169,53 @@ const (
 	featureBranchVar  = "FEATURE_BRANCH"
 )
 
-func resolveFeatureBranch(ctx context.Context, run Runner, environ []string, dir string, cfg Config) (string, error) {
+func resolveFeatureBranch(
+	ctx context.Context, run Runner, gh *GitHub, environ []string, dir string, cfg Config,
+) (string, string, error) {
 	if cfg.FeatureBranch != autoFeatureBranch {
-		return cfg.FeatureBranch, nil
+		return cfg.FeatureBranch, "", nil
 	}
 	if name := lookup(environ, featureBranchEnv); name != "" {
-		return name, nil
+		return name, "", nil
 	}
 	out, err := run(ctx, dir, "", "gh", "variable", "get", featureBranchVar, "--repo", cfg.Repo)
 	name := strings.TrimSpace(string(out))
 	if err == nil && name != "" {
-		return name, nil
+		return name, "", nil
 	}
 	reason := "printed nothing"
 	if err != nil {
 		reason = err.Error()
 	}
-	return "", detailErr(
-		errs.CodeNotFound,
-		"monacoctl.agents.config",
-		fmt.Sprintf(
-			"%s: feature_branch = %q, but %s is unset and gh variable get %s --repo %s %s",
-			configPath, autoFeatureBranch, featureBranchEnv, featureBranchVar, cfg.Repo, reason,
-		),
+	branch, repoErr := repoDefaultBranch(ctx, gh, cfg.Repo)
+	if repoErr != nil || branch == "" {
+		repoReason := "printed nothing"
+		if repoErr != nil {
+			repoReason = repoErr.Error()
+		}
+		return "", "", detailErr(
+			errs.CodeNotFound,
+			"monacoctl.agents.config",
+			fmt.Sprintf(
+				"%s: feature_branch = %q, but %s is unset, gh variable get %s --repo %s %s, "+
+					"and GET /repos/%s default_branch %s",
+				configPath, autoFeatureBranch, featureBranchEnv, featureBranchVar, cfg.Repo, reason,
+				cfg.Repo, repoReason,
+			),
+		)
+	}
+	note := fmt.Sprintf(
+		"feature branch %s (repo default branch; gh variable get failed: %s)", branch, reason,
 	)
+	return branch, note, nil
+}
+
+func repoDefaultBranch(ctx context.Context, gh *GitHub, repo string) (string, error) {
+	var body struct {
+		DefaultBranch string `json:"default_branch"`
+	}
+	if err := gh.call(ctx, http.MethodGet, "/repos/"+repo, "", nil, &body); err != nil {
+		return "", err
+	}
+	return body.DefaultBranch, nil
 }

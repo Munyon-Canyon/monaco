@@ -114,16 +114,17 @@ func list(path string) string {
 func get(path string) string { return "GET /repos/" + testRepo + path }
 
 type fixture struct {
-	dir    string
-	hub    *hub
-	env    []string
-	run    Runner
-	now    time.Time
-	waited []time.Duration
-	home   string
-	repo   string
-	lookup []byte
-	whoami error
+	dir      string
+	hub      *hub
+	env      []string
+	run      Runner
+	now      time.Time
+	waited   []time.Duration
+	home     string
+	repo     string
+	lookup   []byte
+	whoami   error
+	lookPath func(string) (string, error)
 }
 
 type repoSnapshot struct {
@@ -226,9 +227,17 @@ func (f *fixture) agents(t *testing.T, args ...string) (int, string, string) {
 	return code, stdout.String(), stderr.String()
 }
 
+func foundCaffeinate(string) (string, error) { return "/usr/bin/caffeinate", nil }
+
+func absentCaffeinate(string) (string, error) { return "", exec.ErrNotFound }
+
 func (f *fixture) clock(env *Env) {
 	env.Now = func() time.Time { return f.now }
 	env.After = f.after
+	env.LookPath = f.lookPath
+	if env.LookPath == nil {
+		env.LookPath = foundCaffeinate
+	}
 }
 
 func (f *fixture) after(d time.Duration) <-chan time.Time {
