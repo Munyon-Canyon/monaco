@@ -46,6 +46,7 @@ const (
 	fakeStartedEnv   = "VERIFY_FAKE_STARTED"
 	fakeNeedsEnv     = "VERIFY_FAKE_WORKER_NEEDS"
 	fakeCrashWaitEnv = "VERIFY_FAKE_CRASH_WAIT"
+	fakeCrashNowEnv  = "VERIFY_FAKE_CRASH_NOW"
 
 	noRaceExitSleep = "GORACE=atexit_sleep_ms=0"
 )
@@ -68,6 +69,7 @@ func fakeMain() {
 	if err != nil {
 		os.Exit(4)
 	}
+	crashNow(ln)
 	checked := serveFake(ln, mode)
 	if mode != fakeQuiet {
 		_, _ = fmt.Fprintf(os.Stderr, "partial ")
@@ -87,6 +89,16 @@ func fakeMain() {
 		go crashAfter(checked, point)
 	}
 	<-stop
+}
+
+func crashNow(ln net.Listener) {
+	point := os.Getenv("MONACO_FAULTPOINT")
+	if point == "" || os.Getenv(fakeCrashNowEnv) == "" {
+		return
+	}
+	_, _ = fmt.Fprintf(os.Stderr, "{\"msg\":\"boot.listening\",\"addr\":%q}\n", ln.Addr().String())
+	_, _ = fmt.Fprintf(os.Stderr, "panic: faultpoint: crash at %s\n", point)
+	os.Exit(2)
 }
 
 func workerLacksAVariable() bool {

@@ -191,11 +191,9 @@ func (s *Stack) healthy(ctx context.Context) error {
 	defer tick.Stop()
 	last := ""
 	for {
-		sick := ""
-		for _, target := range []string{s.API, s.Worker} {
-			if status := healthz(ctx, target); status != http.StatusOK {
-				sick = fmt.Sprintf("%s/healthz answered %d", target, status)
-			}
+		sick, err := s.probe(ctx)
+		if err != nil {
+			return err
 		}
 		if sick == "" {
 			return nil
@@ -209,6 +207,25 @@ func (s *Stack) healthy(ctx context.Context) error {
 		case <-tick.C:
 		}
 	}
+}
+
+func (s *Stack) probe(ctx context.Context) (string, error) {
+	sick := ""
+	for name, target := range map[string]string{procAPI: s.API, procWorker: s.Worker} {
+		select {
+		case <-s.procs[name].exited:
+			if name == procWorker && s.armed {
+				continue
+			}
+			return "", fmt.Errorf("%w: %s exited before it was healthy: %w\n%s",
+				errFailed, name, s.procs[name].err, s.Logs.tail(name, 20))
+		default:
+		}
+		if status := healthz(ctx, target); status != http.StatusOK {
+			sick = fmt.Sprintf("%s/healthz answered %d", target, status)
+		}
+	}
+	return sick, nil
 }
 
 func healthz(ctx context.Context, base string) int {
