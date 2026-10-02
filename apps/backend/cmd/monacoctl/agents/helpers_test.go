@@ -20,8 +20,8 @@ import (
 
 const (
 	testRepo   = "o/r"
-	testConfig = "repo = \"o/r\"\nfeature_branch = \"fb\"\ntracking = 7\nlanes = 2\nbatch = 2\n" +
-		"verifier_app = \"99\"\nverifier_installation = 100\nmilestone = \"ms\"\n"
+	testConfig = "repo = \"o/r\"\nfeature_branch = \"fb\"\ntracking = 7\nlanes = 2\n" +
+		"verifier_app = \"99\"\nverifier_installation = 100\nmilestone = \"ms\"\n[batch]\nsize = 2\n"
 )
 
 type hub struct {

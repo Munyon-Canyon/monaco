@@ -382,7 +382,8 @@ func TestLandStack_aSinglePRGetsOnlyTheLabel(t *testing.T) {
 func TestLandStack_labelsWithTheConfiguredQueueLabel(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	writeFile(t, filepath.Join(f.dir, configPath), testConfig+"queue_label = \"ship-it\"\n")
+	labelled := strings.Replace(testConfig, "[batch]", "queue_label = \"ship-it\"\n[batch]", 1)
+	writeFile(t, filepath.Join(f.dir, configPath), labelled)
 	s := newStackGH(t, f, green(t, 5, "b5", "fb"))
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40"})
 	if code, stdout, stderr := f.agents(
