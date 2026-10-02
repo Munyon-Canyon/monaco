@@ -89,12 +89,12 @@ func TestCalendar_Session_returnsCalendarExpiredBeyondTheTable(t *testing.T) {
 	t.Parallel()
 	equity, preIPO := marketfake.AAPLx(), preIPOFixture()
 	calendar := app.NewCalendar(marketfake.NewCatalog(equity, preIPO))
-	beyond := easternTime(t, "2028-01-03 10:00")
+	beyond := easternTime(t, "2029-01-03 10:00")
 	if _, err := calendar.Session(t.Context(), equity.ID, beyond); errs.CodeOf(err) != errs.CodeCalendarExpired {
-		t.Fatalf("Session(equity, 2028) err = %v, want calendar_expired", err)
+		t.Fatalf("Session(equity, 2029) err = %v, want calendar_expired", err)
 	}
 	if got := portSession(t, calendar, preIPO.ID, beyond); got.State != domain.StateOpen || !got.Continuous {
-		t.Fatalf("Session(pre-IPO, 2028) = %+v, want open and continuous", got)
+		t.Fatalf("Session(pre-IPO, 2029) = %+v, want open and continuous", got)
 	}
 }
 
