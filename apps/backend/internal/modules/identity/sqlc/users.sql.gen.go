@@ -143,6 +143,34 @@ func (q *Queries) FindUserByPrivyUserID(ctx context.Context, privyUserID string)
 	return i, err
 }
 
+const insertDevUser = `-- name: InsertDevUser :exec
+INSERT INTO users (
+  id, privy_user_id, login_provider, handle, display_name, auth_state_changed_at, created_at, updated_at
+) VALUES (
+  $1, $2, 'email', $3, $4,
+  $5, $5, $5
+)
+`
+
+type InsertDevUserParams struct {
+	ID          uuid.UUID
+	PrivyUserID string
+	Handle      pgtype.Text
+	DisplayName string
+	Now         time.Time
+}
+
+func (q *Queries) InsertDevUser(ctx context.Context, arg InsertDevUserParams) error {
+	_, err := q.db.Exec(ctx, insertDevUser,
+		arg.ID,
+		arg.PrivyUserID,
+		arg.Handle,
+		arg.DisplayName,
+		arg.Now,
+	)
+	return err
+}
+
 const linksHeldByOthers = `-- name: LinksHeldByOthers :one
 SELECT
   EXISTS (SELECT 1 FROM users o WHERE o.phone_hash = $1::bytea AND o.id <> $2) AS phone,

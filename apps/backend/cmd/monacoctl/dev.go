@@ -13,7 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
-const devUsage = "usage: monacoctl dev token (--user <id> | --new-user) [--ttl 24h]\n" +
+const devUsage = "usage: monacoctl dev token (--user <id> | --user new | --new-user) [--ttl 24h]\n" +
 	"       monacoctl dev privy-token --sub <did:privy:...> | --print-public-key"
 
 const devUserSubjectLine = "monacoctl dev token: --user must be a version 7 UUID, the only user id the API accepts"
@@ -36,6 +36,9 @@ func devToken(cfg config.Config, args []string, stdout, stderr io.Writer) int {
 	if err := fs.Parse(args); err != nil || *ttl <= 0 || fs.NArg() != 0 || (*user != "") == *newUser {
 		_, _ = fmt.Fprintln(stderr, devUsage)
 		return 2
+	}
+	if *user == "new" {
+		return devTokenNewUser(cfg, *ttl, stdout, stderr)
 	}
 	subject := *user
 	if *newUser {

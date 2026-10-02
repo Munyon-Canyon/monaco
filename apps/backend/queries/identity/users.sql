@@ -57,3 +57,11 @@ WHERE id = sqlc.arg(id) AND auth_state = sqlc.arg(expected);
 UPDATE users SET account_status = sqlc.arg(next), updated_at = sqlc.arg(now),
   deleted_at = CASE WHEN sqlc.arg(next)::text = 'deleted' THEN sqlc.arg(now)::timestamptz ELSE deleted_at END
 WHERE id = sqlc.arg(id) AND account_status = sqlc.arg(expected);
+
+-- name: InsertDevUser :exec
+INSERT INTO users (
+  id, privy_user_id, login_provider, handle, display_name, auth_state_changed_at, created_at, updated_at
+) VALUES (
+  sqlc.arg(id), sqlc.arg(privy_user_id), 'email', sqlc.arg(handle), sqlc.arg(display_name),
+  sqlc.arg(now), sqlc.arg(now), sqlc.arg(now)
+);
