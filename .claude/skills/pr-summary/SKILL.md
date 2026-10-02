@@ -81,6 +81,8 @@ gt submit --stack --no-interactive --draft
 scripts/pr-body.sh <n> "<what changes>" <file>
 ```
 
+Then land. Once stage 1 and `verify` are green, run `monacoctl agents land-stack <top-pr>` without asking, unless the user said not to in this conversation. It adds the `merge-queue` label to every PR of the stack for the Graphite queue. Never run `gh pr merge` and never add `merge-queue` or `fast-track` by hand. A landed PR shows as closed, not merged.
+
 ## Example
 
 Title: `Replace hand-written test mocks with factories`

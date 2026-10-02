@@ -1,6 +1,6 @@
 ---
 name: verify-backend
-description: Explains what monacoctl verify checks, how to read a failed ci / e2e job and its verify-evidence artifact, and what counts as a pass. Use when the E2E job fails in the merge queue, when a flow moves to verified, or when reproducing an end-to-end failure.
+description: Explains what monacoctl verify checks, how to read a failed ci / e2e job and its verify-evidence artifact, and what counts as a pass. Use when the E2E job fails in the Graphite queue, when a flow moves to verified, or when reproducing an end-to-end failure.
 ---
 
 # Verify backend
@@ -11,7 +11,7 @@ description: Explains what monacoctl verify checks, how to read a failed ci / e2
 
 ## Who runs it
 
-- **The merge queue.** Stage 2 runs the `e2e` job in `.github/workflows/ci-jobs.yml`. It shows as `ci / E2E (monacoctl verify on the real binaries)`. The job runs `scripts/ci/e2e.sh`, which runs `verify all` and then `verify all --crash-at after-publish`. It uploads the `.verify` directory under `apps/backend` as the `verify-evidence` artifact, kept for 7 days.
+- **The Graphite queue.** Stage 2 runs the `e2e` job in `.github/workflows/ci-jobs.yml`. It shows as `ci / E2E (monacoctl verify on the real binaries)`. The job runs `scripts/ci/e2e.sh`, which runs `verify all` and then `verify all --crash-at after-publish`. It uploads the `.verify` directory under `apps/backend` as the `verify-evidence` artifact, kept for 7 days.
 - **Nightly.** `scripts/ci/nightly-backend.sh` runs `verify all` and uploads `nightly-verify-evidence`.
 - **Owners do not run it.** Stage 0 is `go run ./cmd/monacoctl agents check`. The agent guard in `scripts/agent-guard.py` blocks heavy test runs in owner worktrees. The operator or the root agent may reproduce a failure locally.
 
@@ -55,7 +55,7 @@ Per run:
 
 ## Read a failed e2e job
 
-1. Find the failing run. Open the `ci / E2E ...` check from the merge queue failure, or run `gh run list --workflow ci.yml --event merge_group`.
+1. Find the failing run. Open the `ci / E2E ...` check on the Graphite queue's draft PR, whose head branch starts with `gtmq_`, or list those runs with `gh run list --workflow ci.yml --json databaseId,headBranch,conclusion --jq '.[] | select(.headBranch | startswith("gtmq_"))'`.
 2. Read the log with `gh run view <run-id> --log-failed`. Each unit prints `PASS flow <id> <outcome>` or `FAIL flow <id> <outcome>` with the failure. A usage error exits 2, and any failure exits 1.
 3. Download the evidence with `gh run download <run-id> -n verify-evidence`.
 4. Open `<id>.json` for the flow, or `<id>-crash-<point>.json` for a crash run.

@@ -1,14 +1,14 @@
 # Ship a ticket
 
-This page takes one ticket from its GitHub issue to a merge on the milestone's feature branch. It is for the ticket's owner, a person or an agent. The orchestrator's side (batching, dispatch, verification and landing across many tickets) is in [Run a milestone](run-a-milestone.md).
+This page takes one ticket from its GitHub issue to a merge on `staging`, the trunk every ticket lands on. It is for the ticket's owner, a person or an agent. The orchestrator's side (batching, dispatch, verification and landing across many tickets) is in [Run a milestone](run-a-milestone.md).
 
-The design behind each step lives elsewhere. [Pull requests: small and stacked](../architecture/backend-platform.md#pull-requests-small-and-stacked) holds the PR rules, [Verification scope](../architecture/backend-platform.md#verification-scope) holds the three check stages, and [CI](../architecture/ci.md) holds the jobs and the merge queue.
+The design behind each step lives elsewhere. [Pull requests: small and stacked](../architecture/backend-platform.md#pull-requests-small-and-stacked) holds the PR rules, [Verification scope](../architecture/backend-platform.md#verification-scope) holds the three check stages, and [CI](../architecture/ci.md) holds the jobs and the Graphite merge queue.
 
 ## Before you start
 
 - Set up the clone once with [Agent workflow setup](../agents/setup.md), and read the [standing orders](../agents/standing-orders.md). They apply to a person as well as to an agent.
 - Install the tools with `just install`: Go, `just`, `gh` and Graphite (`gt`). Authenticate `gh` and run `gt auth --token <token>` once.
-- `.monaco/agents.toml` names the feature branch (`feature_branch`), the tracking issue (`tracking`) and the per-row check budgets. `feature_branch = "auto"` means the `FEATURE_BRANCH` repo variable (or the `MONACO_FEATURE_BRANCH` env when set), which each checkpoint moves to the next `<name>-<N>`. The examples below write it as `<name>-<N>`. `gh variable get FEATURE_BRANCH` prints the current name.
+- `.monaco/agents.toml` names the trunk (`feature_branch`), the tracking issue (`tracking`) and the per-row check budgets. `feature_branch = "auto"` means the `FEATURE_BRANCH` repo variable (or the `MONACO_FEATURE_BRANCH` env when set), which is `staging`.
 - An agent owner gets a dispatch prompt with five fields: `ticket`, `worktree`, `parent`, `brief` and `orders`. The brief is [`docs/agents/owner.md`](../agents/owner.md), and `orders` names [`docs/agents/standing-orders.md`](../agents/standing-orders.md). The worktree already exists at the parent SHA, and `.git/.monaco/agents/<ticket>.json` registers it, so the agent guard hooks apply to it.
 - A person owning a ticket makes the worktree by hand (step 2). The Claude Code hooks do not run in a plain terminal, so a person follows the same rules without the guard.
 
@@ -20,20 +20,20 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
 
     The header line names the milestone, `Blocked by`, the base branch and `Touches`. Change only the paths `Touches` lists. When the Proposal says "Implement exactly", do that and nothing more. An unrelated defect you find goes under "What came up" in the PR body, or into a new ticket.
 
-2. Work in a worktree under `.worktrees/`, never in the primary checkout. A dispatched agent `cd`s into the `worktree` path from its prompt. A person makes one at the feature-branch tip:
+2. Work in a worktree under `.worktrees/`, never in the primary checkout. A dispatched agent `cd`s into the `worktree` path from its prompt. A person makes one at the `staging` tip:
 
-        git fetch origin <name>-<N>
-        git worktree add --detach .worktrees/<n> origin/<name>-<N>
+        git fetch origin staging
+        git worktree add --detach .worktrees/<n> origin/staging
         cd .worktrees/<n>
 
     Use absolute paths inside the worktree. An agent's shell may reset its working directory between commands.
 
     The worktree needs no secrets setup. The secret recipes find the key in this order: `.env.keys` in the worktree, `.env.keys` in the primary clone, `DOTENV_PRIVATE_KEY_LOCAL` or `DOTENV_PRIVATE_KEY`, then Dotenvx Armor. See [Secrets in worktrees](../agents/setup.md#secrets-in-worktrees). Never copy `.env.keys` into a worktree.
 
-3. Start the first branch and track it on the feature branch:
+3. Start the first branch and track it on `staging`:
 
         git switch -c <n>-<slug>
-        gt track --parent <name>-<N>
+        gt track --parent staging
 
     Each further PR of the stack starts with `gt create <branch> -m "<subject>"`. Amend the current branch with `gt modify`, which also restacks the branches above it. Order the stack so each PR proves the next: deletions and renames, then schema, then `domain` and `app`, then adapters and HTTP, then the `flows.tsv` status change.
 
@@ -54,7 +54,7 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
         cd apps/backend
         go run ./cmd/monacoctl agents check
 
-    It diffs `HEAD` against `origin/<name>-<N>` and runs one row per kind of changed path: PR size and gate changes always, then `go build`, `go vet`, the lint row and `go test -short -count=1` on the affected packages, and the shell, `scripts`, Python, Swift, `ready`, migration, OpenAPI and `mkdocs` rows when their paths changed. [Verification scope](../architecture/backend-platform.md#verification-scope) lists every row and its trigger.
+    It diffs `HEAD` against `origin/staging` and runs one row per kind of changed path: PR size and gate changes always, then `go build`, `go vet`, the lint row and `go test -short -count=1` on the affected packages, and the shell, `scripts`, Python, Swift, `ready`, migration, OpenAPI and `mkdocs` rows when their paths changed. [Verification scope](../architecture/backend-platform.md#verification-scope) lists every row and its trigger.
 
     - Each row has its own budget under `[check.budget]` in `.monaco/agents.toml`. The `go test -short` row has none as a whole. Instead each package gets the `package` budget (20 s), the same limit that fails a package in CI.
     - It prints at most 20 lines. The full log is the `log:` path it prints, under `.git/pstack/<milestone>/logs/`.
@@ -64,7 +64,7 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
 
     - Before stage 0, run what the change must regenerate, and commit the output. CI's `ready` job (`scripts/ci/ready.sh`) fails on a stale `go generate ./...`, `go mod tidy`, sqlc output, `scripts/gen-docs.sh` output or the `verify-backend` feature map. `scripts/ci/ready.sh` runs the same steps locally on a committed tree.
 
-    Never run `just test backend`, `go test -race` or `go test ./...` from `apps/backend` as an owner. Never run mutation testing locally. The merge queue runs the full suite, and the nightly runs mutation.
+    Never run `just test backend`, `go test -race` or `go test ./...` from `apps/backend` as an owner. Never run mutation testing locally. The Graphite merge queue runs the full suite, and the nightly runs mutation.
 
 7. Push the stack as drafts:
 
@@ -81,11 +81,30 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
     - **Title:** what the PR changes, in the present tense, with no issue number and no `feat:` style prefix. For example, "Name the child that spent the verify teardown budget".
     - **Body:** the six sections of `.github/pull_request_template.md`: TLDR, Why, What changed, Proof, What came up, Reviewer focus. The `pr-summary` skill in `.claude/skills` drafts it.
     - **Why** says `Part of #<n>`. The ticket's last PR says `Closes #<n>` instead and adds a `## Needs from Logan` section, holding "Nothing." or a checklist of what only the operator can do.
+      That PR's commit message says `Closes #<n>` too: the Graphite queue closes PRs instead of merging them, so GitHub closes the ticket only from a commit message that reaches `staging`. The PR format check enforces it.
     - **Proof** pastes the `agents check` output and says that CI runs the rest. Write the tree hash it prints as `<tree>`.
-    - Cite only commit SHAs that are already on the feature branch. The check treats any 7 to 40 character hex string as a commit, and a restack changes the PR's own SHAs.
+    - Cite only commit SHAs that are already on `staging`. The check treats any 7 to 40 character hex string as a commit, and a restack changes the PR's own SHAs.
     - A docs-only PR says `No code paths affected:` in Proof and names the paths.
 
 9. Stop. An owner never merges. The verifier reviews the diff against the ticket, posts a `verify` status and lands the PR (see [Run a milestone](run-a-milestone.md#verify-and-land)). A dispatched agent exits with its PR URLs, head SHAs, the stage 0 summary and every decision it made.
+
+10. Land. Outside a dispatched ticket, the agent that shipped the stack lands it. Always land: once a stack's PRs are submitted and stage 1 and `verify` are green, run `monacoctl agents land-stack <top-pr>` without asking, unless the user said in the current conversation not to land or queue. It adds the `merge-queue` label to every PR of the stack, and the Graphite merge queue runs stage 2 and fast-forwards `staging`. A landed PR shows as closed, not merged, in GitHub. That is normal.
+
+## Old flow and new flow
+
+PRs used to land on `<feature>-checkpoint-<N>` branches through the GitHub merge queue. That flow is gone. Do not follow an older doc, comment or transcript that describes it.
+
+| Old flow | New flow |
+| --- | --- |
+| Base work on `<feature>-checkpoint-<N>`, the branch `FEATURE_BRANCH` named | Base work on `staging`, the Graphite trunk and default branch |
+| `gh pr merge <n> --auto` for a single PR | `monacoctl agents land-stack <n>` |
+| `land-stack` retargets the upper PRs with `gh pr edit --base` and queues the top PR | `land-stack` adds `merge-queue` to every PR of the stack. Nobody changes a base |
+| A `Lands stack:` line in the top PR's body | No such line. Each PR passes the size check on its own |
+| Stage 2 on `merge_group` | Stage 2 on the Graphite queue's `gtmq_` draft PR |
+| The queue merged the stack with a merge commit, and GitHub marked its PRs merged | The queue fast-forwards. Landed PRs show as closed, not merged |
+| A checkpoint squash into `main` cut `<feature>-checkpoint-<N+1>` | A promotion PR merges `staging` into `main` with a merge commit, and `staging` stays |
+
+Agents never add `merge-queue` by hand and never add `fast-track`. Only a person adds `fast-track`, a PR under 100 counted lines that touches nothing under `apps/backend/`, `.github/` or `docker-compose.yml`.
 
 ## Hand off a ticket
 
@@ -97,9 +116,9 @@ When you stop before the ticket is done, leave it so another person or agent can
 
         gh issue comment <n> --body "Handing off: branch <branch>, draft PR #<pr>. Next: <step>."
 
-The next owner reads the ticket, its comments and the draft PR. It makes a worktree at the feature-branch tip, pulls the stack into it by its top PR, and carries on from step 4 of [Steps](#steps):
+The next owner reads the ticket, its comments and the draft PR. It makes a worktree at the `staging` tip, pulls the stack into it by its top PR, and carries on from step 4 of [Steps](#steps):
 
-    git worktree add --detach .worktrees/<n> origin/<name>-<N>
+    git worktree add --detach .worktrees/<n> origin/staging
     cd .worktrees/<n>
     gt get <top pr> --no-interactive
 
@@ -107,10 +126,10 @@ The next owner reads the ticket, its comments and the draft PR. It makes a workt
 
 | Stage | Trigger | Runs |
 | --- | --- | --- |
-| 1. PR check | the PR is ready and based on the feature branch | `plan`, `lint`, `ready`, `vuln`, PR format, PR size and `gate-changes`. No tests. A push with an unchanged diff reuses the last green result. |
-| 2. Queue check | the PR entered the merge queue | Stage 1, plus `backend` (the race suite with the per-package budget and 100% coverage), the tests `-short` skips, `e2e` (`scripts/ci/e2e.sh`), `flake` on changed test files, `scripts`, and `mobile-core` when its paths changed. No macOS job. |
+| 1. PR check | the PR is ready and based on `staging` | `plan`, `lint`, `ready`, `vuln`, PR format, PR size and `gate-changes`. No tests. A push with an unchanged diff reuses the last green result. |
+| 2. Queue check | the PR entered the Graphite merge queue, which runs it on a `gtmq_` draft PR | Stage 1, plus `backend` (the race suite with the per-package budget and 100% coverage), the tests `-short` skips, `e2e` (`scripts/ci/e2e.sh`), `flake` on changed test files, `scripts`, and `mobile-core` when its paths changed. No macOS job. |
 
-Only the bottom PR of a stack runs stage 1, since CI runs on PRs whose base is the feature branch. The only required check is `ci / ci-ok`. `gate-changes` and the `status` check from `agents-status.yml` never block. [What runs where](../architecture/ci.md#what-runs-where) has every job.
+Only the bottom PR of a stack runs stage 1, since CI runs on PRs whose base is `staging`. The only required check is `ci / ci-ok`. `gate-changes` and the `status` check from `agents-status.yml` never block. [What runs where](../architecture/ci.md#what-runs-where) has every job.
 
 ## Read the checks
 
@@ -138,11 +157,10 @@ The result says which of these holds:
 
 | Cause | Fix |
 | --- | --- |
-| Infra flake: a Go proxy or Docker Hub error, a `curl` 500 while installing a tool, a runner timeout with every package `ok`, a run cancelled by a newer one | Requeue with no code change: `gh pr merge <pr> --auto` for a single PR, `monacoctl agents land-stack <top-pr>` for a stack. For a failed PR-stage job, `gh run rerun <run-id> --failed` once. |
-| A real test failure, including a package over the 20 s budget | A fresh owner fixes it on the same branch. The verifier reviews the new head, then the PR lands again. |
-| A failure that already exists on the feature branch tip | Not this PR's defect. Fix the tip in its own PR, land that first, then requeue this one. |
+| Infra flake: a Go proxy or Docker Hub error, a `curl` 500 while installing a tool, a runner timeout with every package `ok`, a run cancelled by a newer one | Requeue with no code change: `monacoctl agents land-stack <top-pr>`, which adds the `merge-queue` label again to each PR of the stack. For a failed PR-stage job, `gh run rerun <run-id> --failed` once. |
+| A real test failure, including a package over the 20 s budget | A fresh owner fixes it on the same branch with `gt modify` and `gt submit --stack --no-interactive --draft`. The verifier reviews the new head, then `land-stack` runs again. |
+| A failure that already exists on the `staging` tip | Not this PR's defect. Fix the tip in its own PR, land that first, then requeue this one. |
 | A merge conflict with a stack that landed ahead | Wait for that stack to land, restack onto the tip ([Restack a stack](run-a-milestone.md#restack-a-stack)), build every branch, and land again. |
-| `land-stack` reports a stack still marked queued | Run `monacoctl agents land-stack <top-pr>` again. It sees the ejection, clears the mark and relands. |
 
 **A test flakes.** Fix it the same day, or move it to the nightly with an issue. Never skip it, never raise its budget, and never retry CI until it passes. The rule is in [Keeping it fast](../architecture/backend-platform.md#keeping-it-fast). The `flake` job reruns every changed test file 20 times, so a fix proves itself in stage 2.
 

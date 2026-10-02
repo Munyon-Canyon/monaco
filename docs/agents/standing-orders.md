@@ -8,8 +8,8 @@ To change a rule, edit this page in a PR and say why under "What came up".
 
 ## Orders
 
-1. **Land on the feature branch. Only the operator merges into `main`.** Every ticket PR merges into the milestone's feature branch through the merge queue. `main` changes only through a checkpoint PR that the operator squash-merges.
-    - Why: `checkpoint.yml` proves that `main` got the feature branch's exact tree. A direct merge into `main` breaks that proof.
+1. **Land on `staging`, always through `land-stack`. Only the operator merges into `main`.** Base new work on `staging`. Once a stack's PRs are submitted and stage 1 and `verify` are green, run `monacoctl agents land-stack <top-pr>` without asking, unless the user said in the current conversation not to land or queue. It adds `merge-queue` to every PR of the stack, and the Graphite merge queue fast-forwards `staging`. Never run `gh pr merge` into `staging`, never change a PR's base, and never add `merge-queue` or `fast-track` by hand. A landed PR shows as closed, not merged. If a stack drops out of the queue, fix it with `gt modify` and `gt submit --stack --no-interactive --draft`, then run `land-stack` again. `main` changes only through a promotion PR from `staging` that the operator merges with a merge commit. [Old flow and new flow](../how-to/ship-a-ticket.md#old-flow-and-new-flow) lists what changed from the checkpoint branches.
+    - Why: a promotion carries exactly what landed on `staging`. A PR based on `main` puts commits on `main` that `staging` lacks, and the next promotion must merge them back first.
     - Incident: a CI budget fix (#836) was based on `main`, and `main` then held commits the feature branch lacked. Checkpoint 3 needed a merge-back PR (#892) before it could open.
 
 2. **Work only in your assigned worktree under `.worktrees/`.** `cd` into it first and use absolute paths. Never change the primary checkout.
@@ -49,7 +49,7 @@ To change a rule, edit this page in a PR and say why under "What came up".
     - Incident: reruns of #895 and #962 replayed the empty body from when the PR opened and failed again. Docker Hub, Go proxy and `curl` 500 errors ejected #843, #933 and #934, and each landed on requeue with no code change.
 
 11. **Land a fix ahead of the PRs it unblocks.** When a defect on the tip ejects PRs, stop requeueing them. Land the fix first, then requeue the rest behind it.
-    - Why: a queue group built without the fix fails again.
+    - Why: a queued stack tested without the fix fails again.
     - Incident: #931, #933 and #934 were queued ahead of the teardown fix #952. They were dequeued and requeued behind it.
 
 12. **Hand work on through GitHub, not through one machine.** Before you stop, push every branch, keep the draft PR's "What came up" current and post the next step on the ticket. Keep the milestone decision log committed.
@@ -62,7 +62,7 @@ These original orders are now enforced. The hooks are `scripts/agent-guard.py`, 
 
 | Order | Rule | Enforced by |
 | --- | --- | --- |
-| 3 | Graphite does all branching. No raw `git rebase`, no `gh pr create`, `gh pr edit --base` only inside `land-stack`. | agent guard |
+| 3 | Graphite does all branching. No raw `git rebase`, no `gh pr create`, no `gh pr edit --base`. | agent guard |
 | 4, 14, 17, 20 | Template sections, `Part of #N` or `Closes #N` under Why, the "Needs from Logan" section on the last PR, Conventional Commit subjects, a title with no issue number or type prefix, and no SHA that is not an ancestor of the head. | PR format check, agent guard |
 | 5, 21 | Each PR is under 1000 changed lines, and no build output is committed. | PR size check |
 | 6, 18 | Stage 0 passes on the current tree before a push. Owners and verifiers run no full suite, no `-race` and no local mutation testing. | agent guard |
