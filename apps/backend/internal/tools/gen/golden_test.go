@@ -56,6 +56,7 @@ func generatedDirs() []string {
 func ownedByExample(rel string) bool {
 	return slices.ContainsFunc(generatedDirs(), func(dir string) bool { return strings.HasPrefix(rel, dir+"/") }) ||
 		slices.Contains([]string{
+			"api/spec/example.yaml",
 			"cmd/api/module_example.gen.go",
 			"cmd/worker/module_example.gen.go",
 			"cmd/monacoctl/module_example.gen.go",
@@ -211,6 +212,9 @@ func TestGolden_everyGeneratorEmitsCodeThatBuildsLintsCleanAndIsReversible(t *te
 		if err := os.RemoveAll(filepath.Join(root, dir)); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if err := os.Remove(filepath.Join(root, "api", "spec", "example.yaml")); err != nil {
+		t.Fatal(err)
 	}
 	if err := gen.Regenerate(t.Context(), root); err != nil {
 		t.Fatal(err)

@@ -37,7 +37,8 @@ shared = [
   "apps/backend/internal/testkit/flows/**",
   "apps/backend/internal/testkit/fakes/**",
   "apps/backend/internal/testkit/scenarios/**",
-  # Two route tickets add different paths: keys.
+  # Generated bundle of api/spec/*.yaml; take either side and run go generate ./.... Each
+  # api/spec/<module>.yaml is owned by its module's tickets and is not listed.
   "apps/backend/api/openapi.yaml",
 ]
 

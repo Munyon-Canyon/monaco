@@ -43,6 +43,7 @@ func TestModule_writesTheSkeletonAndAnUnreleasedChangelogLine(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{
+		"api/spec/wallets.yaml",
 		"internal/modules/wallets/adapters/adapters.go",
 		"internal/modules/wallets/app/app.go",
 		"internal/modules/wallets/domain/domain.go",
