@@ -309,6 +309,22 @@ func TestDo_breakerOpensAfterConfiguredFailuresAndHalfOpens(t *testing.T) {
 	})
 }
 
+func TestDo_rateLimitsDoNotOpenTheBreaker(t *testing.T) {
+	t.Parallel()
+	u := &upstream{replies: []reply{status(http.StatusTooManyRequests)}}
+	c := client(u, httpclient.WithBreaker(gobreaker.Settings{
+		ReadyToTrip: func(counts gobreaker.Counts) bool { return counts.ConsecutiveFailures >= 3 },
+	}))
+	for range 5 {
+		if err := mustFail(t.Context(), t, c, get(t, "/v1/users")); errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
+			t.Fatalf("err = %v, want upstream_unavailable", err)
+		}
+	}
+	if u.count() != 5 {
+		t.Fatalf("calls = %d, want all five requests to reach the upstream", u.count())
+	}
+}
+
 func TestDo_openBreakerIsNotRetried(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {

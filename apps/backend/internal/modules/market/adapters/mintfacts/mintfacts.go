@@ -7,6 +7,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 )
 
@@ -19,11 +20,30 @@ type Chain struct {
 func New(rpc *solana.Client) *Chain { return &Chain{rpc: rpc} }
 
 func (c *Chain) Facts(
-	ctx context.Context, mint domain.Mint,
-) (decimals uint8, multiplierNum, multiplierDen uint64, err error) {
-	cfg, err := c.rpc.MintConfig(ctx, mint.Address())
-	if err != nil {
-		return 0, 0, 0, errs.Wrap(err, errs.CodeOf(err), "market.MintFacts.Facts", slog.String("mint", mint.String()))
+	ctx context.Context, mints []domain.Mint,
+) (map[domain.Mint]app.MintFact, map[domain.Mint]error, error) {
+	addresses := make([]chain.SolanaAddress, len(mints))
+	byAddress := make(map[chain.SolanaAddress]domain.Mint, len(mints))
+	for i, mint := range mints {
+		addresses[i] = mint.Address()
+		byAddress[addresses[i]] = mint
 	}
-	return cfg.Mint.Decimals, cfg.UIMultiplier.Num, cfg.UIMultiplier.Den, nil
+	configs, failures, err := c.rpc.MintConfigs(ctx, addresses)
+	facts := make(map[domain.Mint]app.MintFact, len(configs))
+	for address, cfg := range configs {
+		facts[byAddress[address]] = app.MintFact{
+			Decimals: cfg.Mint.Decimals, MultiplierNum: cfg.UIMultiplier.Num, MultiplierDen: cfg.UIMultiplier.Den,
+		}
+	}
+	errsByMint := make(map[domain.Mint]error, len(failures))
+	for address, failure := range failures {
+		mint := byAddress[address]
+		errsByMint[mint] = errs.Wrap(
+			failure, errs.CodeOf(failure), "market.MintFacts.Facts", slog.String("mint", mint.String()),
+		)
+	}
+	if err != nil {
+		err = errs.Wrap(err, errs.CodeOf(err), "market.MintFacts.Facts")
+	}
+	return facts, errsByMint, err
 }
