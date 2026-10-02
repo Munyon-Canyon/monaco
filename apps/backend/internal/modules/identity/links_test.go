@@ -58,6 +58,12 @@ func TestSyncLinks_followsWhatPrivyLinksAndUnlinks(t *testing.T) {
 			phone: domain.Write[string]{Changed: true, Value: phoneN1},
 			steps: []domain.AuthStep{step(phone, done, domain.CauseLink)},
 		},
+		"a new phone arrives as the stored X drops": {
+			from: phone, stored: domain.Links{X: xOne()}, privy: domain.Links{Phone: phoneN1},
+			phone: domain.Write[string]{Changed: true, Value: phoneN1},
+			x:     domain.Write[*domain.XAccount]{Changed: true},
+			steps: []domain.AuthStep{step(phone, socials, domain.CauseLink)},
+		},
 		"the phone is linked with no X": {
 			from: phone, privy: domain.Links{Phone: phoneN1},
 			phone: domain.Write[string]{Changed: true, Value: phoneN1},

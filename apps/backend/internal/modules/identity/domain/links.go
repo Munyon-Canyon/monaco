@@ -84,17 +84,22 @@ type linkFold struct {
 
 func SyncLinks(from AuthState, stored, privy Links) (LinkSync, error) {
 	f := linkFold{state: from, linking: from.resyncsNewLinks(), phone: stored.Phone != "", x: stored.X != nil}
-	f.syncPhone(stored.Phone, privy.Phone)
-	f.syncX(stored.X, privy.X)
+	f.unlinkPhone(stored.Phone, privy.Phone)
+	f.unlinkX(stored.X, privy.X)
+	f.linkPhone(privy.Phone)
+	f.linkX(privy.X)
 	return f.sync, f.err
 }
 
-func (f *linkFold) syncPhone(stored, privy string) {
+func (f *linkFold) unlinkPhone(stored, privy string) {
 	if stored != "" && privy != stored {
 		f.sync.Phone = Write[string]{Changed: true}
 		f.phone = false
 		f.move(PhoneUnlinked, CauseUnlink)
 	}
+}
+
+func (f *linkFold) linkPhone(privy string) {
 	if privy != "" && !f.phone && f.linking {
 		f.sync.Phone = Write[string]{Changed: true, Value: privy}
 		f.phone = true
@@ -102,12 +107,15 @@ func (f *linkFold) syncPhone(stored, privy string) {
 	}
 }
 
-func (f *linkFold) syncX(stored, privy *XAccount) {
+func (f *linkFold) unlinkX(stored, privy *XAccount) {
 	if stored != nil && (privy == nil || privy.UserID != stored.UserID) {
 		f.sync.X = Write[*XAccount]{Changed: true}
 		f.x = false
 		f.move(XUnlinked, CauseUnlink)
 	}
+}
+
+func (f *linkFold) linkX(privy *XAccount) {
 	if privy != nil && !f.x && f.linking {
 		f.sync.X = Write[*XAccount]{Changed: true, Value: privy}
 		f.x = true
