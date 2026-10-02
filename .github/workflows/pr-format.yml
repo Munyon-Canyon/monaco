@@ -65,6 +65,11 @@ jobs:
     if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 2
+    # pr-size is not a required check, so a red run alone does not stop the Graphite merge queue. The job takes
+    # fast-track off a PR of 100 or more lines itself.
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -75,6 +80,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: git fetch --no-tags origin "$HEAD_SHA"
       - name: Check size
+        id: size
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -83,6 +89,12 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/check-pr-size.py
+      - name: Take fast-track off a PR of 100 or more lines
+        if: failure() && steps.size.outputs.fast_track_too_big == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: gh pr edit "$PR_NUMBER" -R "$GITHUB_REPOSITORY" --remove-label fast-track
       - name: Checker unit tests
         if: ${{ !cancelled() }}
         env:
@@ -121,16 +133,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # Expressions have no regex, so the head's <name>-<N> check runs here.
       - name: Detect a checkpoint
         id: detect
         env:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
-          if scripts/ci/feature-branch-name.sh "$HEAD_REF" >/dev/null; then
+          if [[ "$HEAD_REF" == staging ]]; then
             echo "checkpoint=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::notice::$HEAD_REF is not a feature branch <name>-<N>, so this PR is not a checkpoint."
+            echo "::notice::$HEAD_REF is not staging, so this PR is not a checkpoint."
           fi
       - name: Checker unit tests
         if: steps.detect.outputs.checkpoint == 'true'

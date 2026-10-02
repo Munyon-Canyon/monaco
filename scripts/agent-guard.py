@@ -12,8 +12,11 @@ import sys
 from dataclasses import dataclass
 from functools import lru_cache
 
-# A feature branch is <name>-<N>. scripts/ci/feature-branch-name.sh holds the same pattern.
-FEATURE_BRANCH_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*-[0-9]+$")
+# PRs land in TRUNK through the Graphite merge queue, which takes a PR when it carries QUEUE_LABEL.
+TRUNK = "staging"
+QUEUE_LABEL = "merge-queue"
+# fast-track jumps the Graphite merge queue. Only a human adds it.
+FAST_TRACK_LABEL = "fast-track"
 CONVENTIONAL_TYPES = "feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert"
 CONVENTIONAL_RE = re.compile(rf"^({CONVENTIONAL_TYPES})(\([^()\s]+\))?!?: \S")
 HEREDOC_SUBST_RE = re.compile(r"^\$\(\s*cat\s*<<-?\s*(['\"]?)(\w+)\1[ \t]*\n(.*?)\n\s*\2\s*\)\s*$", re.S)
@@ -286,14 +289,14 @@ def parse_push(git: Git) -> Push:
 
 
 def is_protected(branch: str, cwd: str) -> bool:
-    names = {"main"}
+    names = {"main", TRUNK}
     try:
         common = run(["git", "rev-parse", "--git-common-dir"], cwd).stdout.strip()
         with open(os.path.join(cwd, common, ".graphite_repo_config")) as f:
             names |= {t["name"] for t in json.load(f).get("trunks", [])}
     except (OSError, ValueError, KeyError, subprocess.SubprocessError):
         pass
-    return branch in names or bool(FEATURE_BRANCH_RE.fullmatch(branch))
+    return branch in names
 
 
 def rule_mutation(inv: Invocation) -> str | None:
@@ -318,11 +321,11 @@ def rule_push_protected(inv: Invocation) -> str | None:
         return None
     push = parse_push(git)
     if push.everything:
-        return "git push --all/--mirror/--branches can push main or the feature branch. Push one named branch."
+        return f"git push --all/--mirror/--branches can push main or {TRUNK}. Push one named branch."
     for _, dst, _ in push.targets:
         if is_protected(dst, git.cwd):
             return (f"git push to '{dst}' is not allowed. main changes only through the operator's checkpoint PR, "
-                    "and the feature branch only through the merge queue after ci-ok and verify pass. "
+                    f"and {TRUNK} only through the Graphite merge queue after ci-ok and verify pass. "
                     "Push your ticket branch with gt submit --stack.")
     return None
 
@@ -412,10 +415,10 @@ def rule_merge_needs_verify(inv: Invocation) -> str | None:
         pr = json.loads(view.stdout)
         if pr["baseRefName"] == "main":
             return f"PR #{pr['number']} targets main. Only the operator merges into main, by hand in GitHub."
-        if "--auto" in inv.argv[3:] and not FEATURE_BRANCH_RE.fullmatch(pr["baseRefName"]):
-            return (f"PR #{pr['number']} is based on {pr['baseRefName']}, not the feature branch, so auto-merge "
-                    "would merge it into its parent branch. Land a stack with "
-                    "`monacoctl agents land-stack <top-pr>`.")
+        if pr["baseRefName"] == TRUNK:
+            return (f"PR #{pr['number']} targets {TRUNK}, which takes PRs only through the Graphite merge queue; "
+                    "a direct merge skips stage 2. Land the stack with `monacoctl agents land-stack <top-pr>`, "
+                    f"which adds the {QUEUE_LABEL} label to each PR once verify passes.")
         slug = re.match(r"https://github\.com/([^/]+/[^/]+)/pull/", pr["url"]).group(1)
         statuses = run(["gh", "api", f"repos/{slug}/commits/{pr['headRefOid']}/statuses?per_page=100"], inv.cwd)
         if statuses.returncode != 0:
@@ -434,8 +437,27 @@ def rule_edit_base(inv: Invocation) -> str | None:
     if os.path.basename(inv.argv[0]) != "gh" or inv.argv[1:3] != ["pr", "edit"]:
         return None
     if any(a in {"-B", "--base"} or a.startswith("--base=") for a in inv.argv[3:]):
-        return ("gh pr edit --base runs only inside `monacoctl agents land-stack <top-pr>`, which moves a verified "
-                "stack onto the feature branch. Graphite owns every other base: gt submit --stack sets them.")
+        return "gh pr edit --base is not allowed. Graphite owns every base: gt submit --stack sets them."
+    return None
+
+
+def rule_queue_label(inv: Invocation) -> str | None:
+    if os.path.basename(inv.argv[0]) != "gh":
+        return None
+    if inv.argv[1:3] in (["pr", "edit"], ["issue", "edit"]):
+        args = inv.argv[3:]
+        labels = [v for i, a in enumerate(args) if a == "--add-label" for v in args[i + 1 : i + 2]]
+        labels += [a.split("=", 1)[1] for a in args if a.startswith("--add-label=")]
+        added = {s.strip() for v in labels for s in v.split(",")}
+    elif inv.argv[1:2] == ["api"] and any("/labels" in a for a in inv.argv[2:]):
+        added = {w for a in inv.argv[2:] for w in re.findall(r"[\w-]+", a)}
+    else:
+        return None
+    if FAST_TRACK_LABEL in added:
+        return f"the {FAST_TRACK_LABEL} label jumps the Graphite merge queue. Only a human adds it."
+    if QUEUE_LABEL in added:
+        return (f"the {QUEUE_LABEL} label puts a PR in the Graphite merge queue. Only "
+                "`monacoctl agents land-stack <top-pr>` adds it, after stage 1 and verify pass on every PR.")
     return None
 
 
@@ -709,6 +731,7 @@ RULES = [
     rule_claude_timeout,
     rule_merge_needs_verify,
     rule_edit_base,
+    rule_queue_label,
     rule_inline_pr_body,
     rule_conventional_commit,
     rule_raw_history,
