@@ -1,0 +1,114 @@
+package agents
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"slices"
+	"strconv"
+	"time"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
+)
+
+const (
+	dequeueTries  = 3
+	dequeueChecks = 2
+	dequeueEvery  = 30 * time.Second
+	openDrafts    = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){` +
+		`drafts: pullRequests(states:OPEN,last:30,orderBy:{field:UPDATED_AT,direction:ASC}){nodes{` +
+		`number state title body headRefName}}}}`
+)
+
+func dequeueCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {
+	n, err := prArg(args, "dequeue <top-pr>")
+	if err != nil {
+		return err
+	}
+	rec, err := env.queuedRecord(ctx, n)
+	if err != nil {
+		return err
+	}
+	nums := rec.Queued.PRs
+	for range dequeueTries {
+		held, err := env.release(ctx, nums)
+		if err != nil {
+			return err
+		}
+		if !held {
+			if err := env.unmark(ctx, rec); err != nil {
+				return err
+			}
+			_, _ = fmt.Fprintf(stdout, "dequeued %s; safe to push\n", prRefs(nums))
+			return nil
+		}
+	}
+	return dequeueErr(errs.CodeVersionConflict, fmt.Sprintf(
+		"Graphite still holds #%d; remove it from the queue in the Graphite app, then rerun", n))
+}
+
+func (env *Env) queuedRecord(ctx context.Context, top int) (Record, error) {
+	tops, err := env.stackPulls(ctx, []int{top})
+	if err != nil {
+		return Record{}, err
+	}
+	ticket, ok := PR{Body: tops[0].Body}.Ticket()
+	if !ok {
+		return Record{}, dequeueErr(errs.CodeInvalidInput, fmt.Sprintf("#%d links no ticket", top))
+	}
+	rec, err := env.record(ctx, ticket)
+	if err != nil {
+		return Record{}, err
+	}
+	if rec.Queued == nil || rec.Queued.Top != top {
+		return Record{}, dequeueErr(errs.CodeInvalidInput,
+			fmt.Sprintf("#%d has no queued stack with top #%d", ticket, top))
+	}
+	return rec, nil
+}
+
+func (env *Env) release(ctx context.Context, nums []int) (bool, error) {
+	for _, p := range nums {
+		if err := env.gh(ctx, "", "pr", "edit", strconv.Itoa(p), "--remove-label", env.Config.QueueLabel); err != nil {
+			return false, err
+		}
+	}
+	return env.graphiteHolds(ctx, nums)
+}
+
+func (env *Env) graphiteHolds(ctx context.Context, nums []int) (bool, error) {
+	for range dequeueChecks {
+		select {
+		case <-ctx.Done():
+			return false, fmt.Errorf("wait for Graphite: %w", context.Cause(ctx))
+		case <-env.After(dequeueEvery):
+		}
+		prs, err := env.stackPulls(ctx, nums)
+		if err != nil {
+			return false, err
+		}
+		if slices.ContainsFunc(prs, func(p stackPR) bool { return p.labeled(env.Config.QueueLabel) }) {
+			return true, nil
+		}
+		var data struct {
+			Repository struct {
+				Drafts struct {
+					Nodes []queueDraft `json:"nodes"`
+				} `json:"drafts"`
+			} `json:"repository"`
+		}
+		if err := env.GitHub.graphql(ctx, openDrafts, &data); err != nil {
+			return false, err
+		}
+		for _, d := range data.Repository.Drafts.Nodes {
+			if slices.ContainsFunc(nums, d.tests) {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+func dequeueErr(code errs.Code, detail string) error {
+	return detailErr(code, "monacoctl.agents.dequeue", detail)
+}
