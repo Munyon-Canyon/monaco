@@ -9,11 +9,14 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
-const devUsage = "usage: monacoctl dev token --user <id> [--ttl 24h]\n" +
+const devUsage = "usage: monacoctl dev token (--user <id> | --new-user) [--ttl 24h]\n" +
 	"       monacoctl dev privy-token --sub <did:privy:...> | --print-public-key"
+
+const devUserSubjectLine = "monacoctl dev token: --user must be a version 7 UUID, the only user id the API accepts"
 
 func devCmd(cfg config.Config, args []string, stdout, stderr io.Writer) int {
 	verbs := map[string]command{"token": devToken, "privy-token": devPrivyToken}
@@ -28,9 +31,17 @@ func devToken(cfg config.Config, args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("dev token", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	user := fs.String("user", "", "user id the token names")
+	newUser := fs.Bool("new-user", false, "mint for a fresh version 7 user id")
 	ttl := fs.Duration("ttl", 24*time.Hour, "how long the token stays valid")
-	if err := fs.Parse(args); err != nil || *user == "" || *ttl <= 0 || fs.NArg() != 0 {
+	if err := fs.Parse(args); err != nil || *ttl <= 0 || fs.NArg() != 0 || (*user != "") == *newUser {
 		_, _ = fmt.Fprintln(stderr, devUsage)
+		return 2
+	}
+	subject := *user
+	if *newUser {
+		subject = ids.NewUserID(ids.Real{}).String()
+	} else if _, err := ids.ParseUserID(subject); err != nil {
+		_, _ = fmt.Fprintln(stderr, devUserSubjectLine)
 		return 2
 	}
 	clk := clock.Real{}
@@ -39,7 +50,12 @@ func devToken(cfg config.Config, args []string, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "monacoctl dev token: %v\n", err)
 		return 1
 	}
-	_, _ = fmt.Fprintln(stdout, verifier.Mint(*user, clk.Now().Add(*ttl)))
+	token := verifier.Mint(subject, clk.Now().Add(*ttl))
+	if *newUser {
+		_, _ = fmt.Fprintf(stdout, "%s\n%s\n", token, subject)
+		return 0
+	}
+	_, _ = fmt.Fprintln(stdout, token)
 	return 0
 }
 
