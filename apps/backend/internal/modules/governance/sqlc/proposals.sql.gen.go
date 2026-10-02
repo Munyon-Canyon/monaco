@@ -91,6 +91,44 @@ func (q *Queries) CountBallots(ctx context.Context, proposalID uuid.UUID) (Count
 	return i, err
 }
 
+const dueForExpiry = `-- name: DueForExpiry :many
+SELECT id, cabal_id
+FROM proposals
+WHERE status = 'open' AND expires_at <= $1
+ORDER BY expires_at, id
+LIMIT $2
+`
+
+type DueForExpiryParams struct {
+	Now   time.Time
+	Batch int32
+}
+
+type DueForExpiryRow struct {
+	ID      uuid.UUID
+	CabalID uuid.UUID
+}
+
+func (q *Queries) DueForExpiry(ctx context.Context, arg DueForExpiryParams) ([]DueForExpiryRow, error) {
+	rows, err := q.db.Query(ctx, dueForExpiry, arg.Now, arg.Batch)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DueForExpiryRow
+	for rows.Next() {
+		var i DueForExpiryRow
+		if err := rows.Scan(&i.ID, &i.CabalID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertProposal = `-- name: InsertProposal :execrows
 WITH proposal AS (
   INSERT INTO proposals (
