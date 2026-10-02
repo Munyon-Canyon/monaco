@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -14,13 +15,28 @@ import (
 
 const (
 	lastRunState = "last-run"
+	draftPrefix  = "gtmq_"
 	failureQuery = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){` +
 		`pullRequests(states:OPEN,first:100){nodes{number body headRefName baseRefName headRefOid ` +
 		`commits(last:1){nodes{commit{...runs}}} ` +
-		`timelineItems(itemTypes:[REMOVED_FROM_MERGE_QUEUE_EVENT],last:5){nodes{` +
-		`... on RemovedFromMergeQueueEvent{createdAt reason beforeCommit{...runs}}}}}}}}` +
+		`timelineItems(itemTypes:[UNLABELED_EVENT],last:20){nodes{` +
+		`... on UnlabeledEvent{createdAt label{name} actor{login}}}}}} ` +
+		`drafts: pullRequests(states:CLOSED,last:30,orderBy:{field:UPDATED_AT,direction:ASC}){nodes{` +
+		`title body headRefName updatedAt commits(last:1){nodes{commit{...runs}}}}}}}` +
 		"\nfragment runs on Commit{" + commitChecks + "}"
 )
+
+type queueDraft struct {
+	Title       string    `json:"title"`
+	Body        string    `json:"body"`
+	HeadRefName string    `json:"headRefName"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+	Commits     struct {
+		Nodes []struct {
+			Commit gqlCommit `json:"commit"`
+		} `json:"nodes"`
+	} `json:"commits"`
+}
 
 type watchPR struct {
 	Number      int    `json:"number"`
@@ -35,9 +51,11 @@ type watchPR struct {
 	} `json:"commits"`
 	TimelineItems struct {
 		Nodes []struct {
-			CreatedAt    time.Time `json:"createdAt"`
-			Reason       string    `json:"reason"`
-			BeforeCommit gqlCommit `json:"beforeCommit"`
+			CreatedAt time.Time `json:"createdAt"`
+			Label     gqlName   `json:"label"`
+			Actor     struct {
+				Login string `json:"login"`
+			} `json:"actor"`
 		} `json:"nodes"`
 	} `json:"timelineItems"`
 }
@@ -51,14 +69,25 @@ type failure struct {
 }
 
 func (p *watchPR) commits() []*gqlCommit {
-	out := make([]*gqlCommit, 0, len(p.Commits.Nodes)+len(p.TimelineItems.Nodes))
+	out := make([]*gqlCommit, 0, len(p.Commits.Nodes))
 	for i := range p.Commits.Nodes {
 		out = append(out, &p.Commits.Nodes[i].Commit)
 	}
-	for i := range p.TimelineItems.Nodes {
-		out = append(out, &p.TimelineItems.Nodes[i].BeforeCommit)
+	return out
+}
+
+func (d *queueDraft) commits() []*gqlCommit {
+	out := make([]*gqlCommit, 0, len(d.Commits.Nodes))
+	for i := range d.Commits.Nodes {
+		out = append(out, &d.Commits.Nodes[i].Commit)
 	}
 	return out
+}
+
+func (d queueDraft) runs(pr int, since time.Time) bool {
+	ref := regexp.MustCompile(`#` + strconv.Itoa(pr) + `\b`)
+	return strings.HasPrefix(d.HeadRefName, draftPrefix) && d.UpdatedAt.After(since) &&
+		(ref.MatchString(d.Title) || ref.MatchString(d.Body))
 }
 
 func red(r gqlContext) bool { return r.Conclusion == "FAILURE" || r.Conclusion == "TIMED_OUT" }
@@ -86,7 +115,12 @@ func (c gqlCommit) failedJob() gqlContext {
 	return agg
 }
 
-func failures(prs []watchPR, trunk string, since time.Time) []failure {
+type queueRuns struct {
+	label  string
+	drafts []queueDraft
+}
+
+func failures(prs []watchPR, queue queueRuns, trunk string, since time.Time) []failure {
 	flat := make([]PR, len(prs))
 	for i, p := range prs {
 		flat[i] = PR{Number: p.Number, Head: Ref{Ref: p.HeadRefName}, Base: Ref{Ref: p.BaseRefName}}
@@ -102,23 +136,18 @@ func failures(prs []watchPR, trunk string, since time.Time) []failure {
 		if !inStack[p.Number] {
 			continue
 		}
-		if f, ok := p.failure(since); ok {
+		if f, ok := p.failure(queue, since); ok {
 			out = append(out, f)
 		}
 	}
 	return out
 }
 
-func (p watchPR) failure(since time.Time) (failure, bool) {
+func (p watchPR) failure(queue queueRuns, since time.Time) (failure, bool) {
 	f := failure{PR: p.Number, Head: p.HeadRefOid, Body: p.Body}
-	events := p.TimelineItems.Nodes
-	if n := len(events); n > 0 {
-		last := events[n-1]
-		reason := strings.ToLower(last.Reason)
-		if last.CreatedAt.After(since) && reason != "merged" && reason != "manual" {
-			f.Why, f.Job = "removed from the merge queue ("+reason+")", last.BeforeCommit.failedJob()
-			return f, true
-		}
+	if p.droppedByGraphite(queue.label, since) {
+		f.Why, f.Job = "dropped from the Graphite merge queue", p.queueJob(queue.drafts, since)
+		return f, true
 	}
 	for _, c := range p.Commits.Nodes {
 		if c.Commit.stage1Red() {
@@ -127,6 +156,29 @@ func (p watchPR) failure(since time.Time) (failure, bool) {
 		}
 	}
 	return failure{}, false
+}
+
+func (p watchPR) droppedByGraphite(label string, since time.Time) bool {
+	events := p.TimelineItems.Nodes
+	for i := len(events) - 1; i >= 0; i-- {
+		if events[i].Label.Name == label {
+			return events[i].CreatedAt.After(since) &&
+				strings.Contains(strings.ToLower(events[i].Actor.Login), "graphite")
+		}
+	}
+	return false
+}
+
+func (p watchPR) queueJob(drafts []queueDraft, since time.Time) gqlContext {
+	for i := len(drafts) - 1; i >= 0; i-- {
+		if nodes := drafts[i].Commits.Nodes; drafts[i].runs(p.Number, since) && len(nodes) > 0 {
+			return nodes[len(nodes)-1].Commit.failedJob()
+		}
+	}
+	if nodes := p.Commits.Nodes; len(nodes) > 0 {
+		return nodes[len(nodes)-1].Commit.failedJob()
+	}
+	return gqlContext{}
 }
 
 func (env *Env) failures(ctx context.Context) ([]failure, error) {
@@ -139,6 +191,9 @@ func (env *Env) failures(ctx context.Context) ([]failure, error) {
 			PullRequests struct {
 				Nodes []watchPR `json:"nodes"`
 			} `json:"pullRequests"`
+			Drafts struct {
+				Nodes []queueDraft `json:"nodes"`
+			} `json:"drafts"`
 		} `json:"repository"`
 	}
 	if err := env.GitHub.graphql(ctx, failureQuery, &data); err != nil {
@@ -148,6 +203,10 @@ func (env *Env) failures(ctx context.Context) ([]failure, error) {
 	for i := range data.Repository.PullRequests.Nodes {
 		commits = append(commits, data.Repository.PullRequests.Nodes[i].commits()...)
 	}
+	drafts := data.Repository.Drafts.Nodes
+	for i := range drafts {
+		commits = append(commits, drafts[i].commits()...)
+	}
 	if err := readAllChecks(ctx, env.GitHub.graphql, commits); err != nil {
 		return nil, err
 	}
@@ -155,7 +214,8 @@ func (env *Env) failures(ctx context.Context) ([]failure, error) {
 	if _, err := env.writeState("watch", lastRunState, []byte(stamp+"\n")); err != nil {
 		return nil, err
 	}
-	return failures(data.Repository.PullRequests.Nodes, env.Config.FeatureBranch, since), nil
+	queue := queueRuns{label: env.Config.QueueLabel, drafts: drafts}
+	return failures(data.Repository.PullRequests.Nodes, queue, env.Config.FeatureBranch, since), nil
 }
 
 func (env *Env) lastRun() (time.Time, error) {

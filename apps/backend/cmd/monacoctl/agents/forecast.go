@@ -85,20 +85,9 @@ func stacks(open []PR, trunk string) map[int][]PR {
 	for _, pr := range open {
 		byHead[pr.Head.Ref] = pr
 	}
-	landsWith := map[int]int{}
-	for _, pr := range open {
-		if nums, ok, err := landsNums(pr.Body); ok && err == nil && len(nums) > 0 {
-			for _, n := range nums {
-				landsWith[n] = nums[0]
-			}
-		}
-	}
 	out := map[int][]PR{}
 	for _, pr := range open {
 		if bottom, ok := stackBottom(pr, byHead, trunk, len(open)); ok {
-			if first, landed := landsWith[bottom]; landed {
-				bottom = first
-			}
 			out[bottom] = append(out[bottom], pr)
 		}
 	}

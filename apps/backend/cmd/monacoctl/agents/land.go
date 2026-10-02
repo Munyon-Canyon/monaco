@@ -18,7 +18,6 @@ import (
 )
 
 const (
-	landsPrefix = "Lands stack:"
 	stackFields = `number state baseRefName headRefName headRefOid body mergeCommit{oid} ` + labelFields + `
 commits(last:1){nodes{commit{` + commitChecks + `}}}`
 	repoQuery = "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){"
@@ -100,12 +99,12 @@ func (env *Env) settleQueued(ctx context.Context, rec Record, stdout io.Writer) 
 	if err != nil {
 		return true, err
 	}
-	ejected, err := env.ejected(ctx, queued)
+	landed, err := env.landedEach(ctx, queued)
 	if err != nil {
 		return true, err
 	}
-	if !ejected {
-		return true, env.settle(ctx, rec, queued, stdout)
+	if !env.ejected(queued, landed) {
+		return true, env.settle(ctx, rec, queued, landed, stdout)
 	}
 	_, _ = fmt.Fprintf(stdout, "#%d left the Graphite merge queue; relanding its stack\n", rec.Queued.Top)
 	return false, env.unmark(ctx, rec)
@@ -145,23 +144,6 @@ func (env *Env) stackOf(ctx context.Context, worktree string, top int, stdout io
 		return nil, err
 	}
 	return env.graphiteStack(ctx, worktree, open, walked, stdout), nil
-}
-
-func landsNums(body string) ([]int, bool, error) {
-	first, _, _ := strings.Cut(body, "\n")
-	rest, ok := strings.CutPrefix(first, landsPrefix)
-	if !ok {
-		return nil, false, nil
-	}
-	var nums []int
-	for _, ref := range strings.Fields(rest) {
-		n, err := strconv.Atoi(strings.TrimPrefix(ref, "#"))
-		if err != nil {
-			return nil, true, landErr(fmt.Sprintf("%q is not a PR in %q", ref, first))
-		}
-		nums = append(nums, n)
-	}
-	return nums, true, nil
 }
 
 func (env *Env) graphiteStack(
@@ -309,17 +291,11 @@ func (v mergeView) ready() bool {
 	return pr.Mergeable == "MERGEABLE" && slices.Contains(pr.Merge.Parents.Nodes, gqlOID{pr.BaseOID})
 }
 
-func (env *Env) settle(ctx context.Context, rec Record, prs []stackPR, stdout io.Writer) error {
+func (env *Env) settle(ctx context.Context, rec Record, prs []stackPR, landed []bool, stdout io.Writer) error {
 	top := prs[len(prs)-1]
-	for _, p := range prs {
-		landed, err := env.landed(ctx, p.State, p.HeadOID)
-		if err != nil {
-			return err
-		}
-		if !landed {
-			_, _ = fmt.Fprintf(stdout, "#%d is queued in the Graphite merge queue\n", top.Number)
-			return nil
-		}
+	if slices.Contains(landed, false) {
+		_, _ = fmt.Fprintf(stdout, "#%d is queued in the Graphite merge queue\n", top.Number)
+		return nil
 	}
 	sha := shortSHA(cmp.Or(top.MergeCommit.OID, top.HeadOID))
 	if _, err := os.Stat(rec.Worktree); errors.Is(err, fs.ErrNotExist) {
@@ -344,20 +320,25 @@ func (env *Env) settle(ctx context.Context, rec Record, prs []stackPR, stdout io
 	return env.unmark(ctx, rec)
 }
 
-func (env *Env) ejected(ctx context.Context, prs []stackPR) (bool, error) {
-	for _, p := range prs {
-		if p.labeled(env.Config.QueueLabel) {
-			continue
-		}
+func (env *Env) landedEach(ctx context.Context, prs []stackPR) ([]bool, error) {
+	out := make([]bool, len(prs))
+	for i, p := range prs {
 		landed, err := env.landed(ctx, p.State, p.HeadOID)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
-		if !landed {
-			return true, nil
+		out[i] = landed
+	}
+	return out, nil
+}
+
+func (env *Env) ejected(prs []stackPR, landed []bool) bool {
+	for i, p := range prs {
+		if !landed[i] && (p.State != "OPEN" || !p.labeled(env.Config.QueueLabel)) {
+			return true
 		}
 	}
-	return false, nil
+	return false
 }
 
 func (env *Env) unmark(ctx context.Context, rec Record) error {
@@ -375,11 +356,11 @@ func (env *Env) unqueueEjected(ctx context.Context, rs []Record, stdout io.Write
 		if err != nil {
 			return err
 		}
-		ejected, err := env.ejected(ctx, prs)
+		landed, err := env.landedEach(ctx, prs)
 		if err != nil {
 			return err
 		}
-		if !ejected {
+		if !env.ejected(prs, landed) {
 			continue
 		}
 		_, _ = fmt.Fprintf(stdout, "unqueued: #%d; #%d left the Graphite merge queue. "+
