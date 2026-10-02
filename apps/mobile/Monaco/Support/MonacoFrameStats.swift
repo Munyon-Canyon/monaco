@@ -53,6 +53,7 @@ enum MonacoLaunchTrace {
     }()
 
     private static var didReportFirstFrame = false
+    private(set) static var firstFrameMilliseconds: Int?
 
     static func markSceneReady() {
         guard MonacoFrameStats.isEnabled else { return }
@@ -69,15 +70,17 @@ enum MonacoLaunchTrace {
         didReportFirstFrame = true
         CATransaction.begin()
         CATransaction.setCompletionBlock {
+            let milliseconds = elapsedMilliseconds()
+            firstFrameMilliseconds = milliseconds
             MonacoFrameStats.log.notice(
-                "launch first-frame \(elapsedMilliseconds(), privacy: .public)ms"
+                "launch first-frame \(milliseconds, privacy: .public)ms"
             )
         }
         CATransaction.commit()
     }
 
-    private static func elapsedMilliseconds() -> String {
-        String(format: "%.0f", Date().timeIntervalSince(processStart) * 1000)
+    private static func elapsedMilliseconds() -> Int {
+        Int((Date().timeIntervalSince(processStart) * 1000).rounded())
     }
 }
 
@@ -114,6 +117,38 @@ struct MonacoFrameStatsSample: Equatable {
     }
 }
 
+struct MonacoFrameStatsReport: Encodable {
+    let screen: String
+    let sample: MonacoFrameStatsSample
+    let launchFirstFrameMilliseconds = MonacoLaunchTrace.firstFrameMilliseconds
+
+    private enum CodingKeys: String, CodingKey {
+        case screen
+        case launchFirstFrameMilliseconds = "launch_first_frame_ms"
+        case frames
+        case dropped
+        case hitches
+        case worstMilliseconds = "worst_ms"
+    }
+
+    var json: String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        guard let data = try? encoder.encode(self) else { return "{}" }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(screen, forKey: .screen)
+        try container.encode(launchFirstFrameMilliseconds, forKey: .launchFirstFrameMilliseconds)
+        try container.encode(sample.frames, forKey: .frames)
+        try container.encode(sample.droppedFrames, forKey: .dropped)
+        try container.encode(sample.hitches, forKey: .hitches)
+        try container.encode(sample.worstFrameMilliseconds, forKey: .worstMilliseconds)
+    }
+}
+
 /// Drives a `CADisplayLink` and accumulates one `MonacoFrameStatsSample`.
 @MainActor
 final class MonacoFrameStatsRecorder {
@@ -129,10 +164,12 @@ final class MonacoFrameStatsRecorder {
     private var sample = MonacoFrameStatsSample()
     private var window = MonacoFrameStatsSample()
     private var screen = ""
+    private var publish: ((MonacoFrameStatsSample) -> Void)?
 
-    func start(screen: String = "") {
+    func start(screen: String = "", publish: @escaping (MonacoFrameStatsSample) -> Void) {
         guard MonacoFrameStats.isEnabled, displayLink == nil else { return }
         self.screen = screen
+        self.publish = publish
         sample = MonacoFrameStatsSample()
         window = MonacoFrameStatsSample()
         lastTimestamp = nil
@@ -141,6 +178,7 @@ final class MonacoFrameStatsRecorder {
         // window we care about; the default mode would stop during scrolling.
         link.add(to: .main, forMode: .common)
         displayLink = link
+        publish(sample)
     }
 
     /// Stops sampling and returns what was measured, or nil when nothing was.
@@ -150,6 +188,7 @@ final class MonacoFrameStatsRecorder {
         displayLink?.invalidate()
         displayLink = nil
         lastTimestamp = nil
+        publish = nil
         return sample.frames > 0 ? sample : nil
     }
 
@@ -168,6 +207,7 @@ final class MonacoFrameStatsRecorder {
                 "frame-stats window screen=\(screen, privacy: .public) \(summary, privacy: .public)"
             )
             window = MonacoFrameStatsSample()
+            publish?(sample)
         }
     }
 
@@ -191,16 +231,29 @@ private struct MonacoFrameStatsModifier: ViewModifier {
 
     @State private var recorder = MonacoFrameStatsRecorder()
     @State private var signpostState: OSSignpostIntervalState?
+    @State private var report: MonacoFrameStatsReport?
 
     func body(content: Content) -> some View {
         content
+            .overlay(alignment: .topLeading) {
+                if let report {
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        .allowsHitTesting(false)
+                        .accessibilityElement()
+                        .accessibilityIdentifier("frame-stats-report")
+                        .accessibilityValue(report.json)
+                }
+            }
             .onAppear {
                 guard MonacoFrameStats.isEnabled else { return }
                 signpostState = MonacoFrameStats.signposter.beginInterval(
                     "screen",
                     id: MonacoFrameStats.signposter.makeSignpostID()
                 )
-                recorder.start(screen: screen)
+                recorder.start(screen: screen) { sample in
+                    report = MonacoFrameStatsReport(screen: screen, sample: sample)
+                }
                 MonacoFrameStats.log.notice("frame-stats start screen=\(screen, privacy: .public)")
             }
             .onDisappear {
@@ -210,6 +263,7 @@ private struct MonacoFrameStatsModifier: ViewModifier {
                         "frame-stats screen=\(screen, privacy: .public) \(sample.summary, privacy: .public)"
                     )
                 }
+                report = nil
                 if let signpostState {
                     MonacoFrameStats.signposter.endInterval("screen", signpostState)
                 }
