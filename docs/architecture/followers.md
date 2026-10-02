@@ -48,7 +48,7 @@ ON CONFLICT (follower_id, followee_id) WHERE deleted_at IS NULL DO NOTHING
 RETURNING id;
 ```
 
-If a row came back (a new follow or a re-follow), append the `events` row `follow.created`. Bus consumers do the rest: `notify` (see [Notifications](#notifications)), the `social` feed handler (feed and suggestion refresh) and `analytics`, per flow 20. If no row came back, the follow was already active: return success and change nothing. Retries and double taps are therefore idempotent and can never double-count.
+If a row came back (a new follow or a re-follow), append the `events` row `follow.created`. Bus consumers do the rest: `notify` (see [Notifications](#notifications)) and `analytics`, per flow 20. The feed with `scope=following` reads `follows` directly in the `social` module, so `social` has no `follow.*` consumer. If no row came back, the follow was already active: return success and change nothing. Retries and double taps are therefore idempotent and can never double-count.
 
 **Unfollow** `DELETE /v1/users/{id}/follow` runs the `Unfollow` command: `UPDATE follows SET deleted_at = now() WHERE follower_id = $me AND followee_id = $them AND deleted_at IS NULL`. Only if one row was updated, append `follow.removed`.
 
@@ -68,7 +68,7 @@ Defaults 2026-09-27:
 
 One rule, reconciling the two notification defaults of 2026-09-27. A new follower sends one push ("X followed you") until the followee hits a daily cap. Follows past the cap batch into one push a day ("5 people followed you"). The cap value is a `notify` tuning knob ([notifications.md](notifications.md)).
 
-Unfollows never notify. `follow.removed` only refreshes suggestions and analytics.
+Unfollows never notify. `follow.removed` only feeds analytics.
 
 ## Reads
 

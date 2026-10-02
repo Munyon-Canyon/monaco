@@ -84,6 +84,13 @@ func Post(path, body string) Step {
 	}
 }
 
+func Delete(path string) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		s.send(request{method: http.MethodDelete, path: s.path(path), key: s.nextKey(), token: s.token()})
+	}
+}
+
 func Get(path string) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
@@ -233,6 +240,22 @@ func EventuallyPublished(typ events.Type, n uint64) Step {
 				s.t.Fatalf("scenario: %d %s messages were not published: %v", n, typ, context.Cause(s.t.Context()))
 			}
 		}
+	}
+}
+
+func SeededUser(name, status string) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		u := s.user(name)
+		id := u.id.String()
+		handle := "u" + strings.ReplaceAll(id, "-", "")[13:]
+		_, err := s.app.pool.Exec(s.t.Context(), `INSERT INTO users (id, privy_user_id, handle, login_provider,
+			account_status, auth_state_changed_at, created_at, updated_at)
+			VALUES ($1, $2, $3, 'sms', $4, now(), now(), now())`, id, "did:privy:"+id, handle, status)
+		if err != nil {
+			s.t.Fatalf("scenario: seed the user %s: %v", name, err)
+		}
+		s.remember[name] = id
 	}
 }
 
