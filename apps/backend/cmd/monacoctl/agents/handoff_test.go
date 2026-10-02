@@ -23,7 +23,7 @@ func TestHandoff_postsThenEditsTheTrackingComment(t *testing.T) {
 	}
 	want := handoffMarker + "\nHandoff at 2026-09-27T12:00:00Z. Feature branch `fb`.\n\n**Batch**\n\n" +
 		"| ticket | state | since dispatch |\n| --- | --- | --- |\n" +
-		"| #5 | merged | 1h30m |\n| #6 | queued (#2) | - |\n| #7 | building | - |\n" +
+		"| #5 | merged | 1h30m |\n| #6 | queued | - |\n| #7 | building | - |\n" +
 		"\n**Running agents**\n\n- #5 opus running in `/w/5`, agent `a1`\n" +
 		"\n**Next**\n\n`monacoctl agents dispatch 6 --model opus`\n"
 	if got := posted(t, f, "POST /repos/o/r/issues/7/comments"); got != want {

@@ -21,6 +21,7 @@ var (
 
 const (
 	configPath    = ".monaco/agents.toml"
+	defaultLabel  = "merge-queue"
 	budgetSection = "[check.budget]"
 	budgetPrefix  = "check.budget."
 )
@@ -43,6 +44,7 @@ type Config struct {
 	VerifierApp          string
 	VerifierInstallation int
 	Milestone            string
+	QueueLabel           string
 	Budget               map[string]time.Duration
 }
 
@@ -52,7 +54,7 @@ func parseConfig(r io.Reader) (Config, error) {
 	seen := map[string]bool{}
 	strs := map[string]*string{
 		"repo": &c.Repo, "feature_branch": &c.FeatureBranch, "verifier_app": &c.VerifierApp,
-		"milestone": &c.Milestone,
+		"milestone": &c.Milestone, "queue_label": &c.QueueLabel,
 	}
 	ints := map[string]*int{
 		"tracking": &c.Tracking, "lanes": &c.Lanes, "batch": &c.Batch, "verifier_installation": &c.VerifierInstallation,
@@ -77,6 +79,9 @@ func parseConfig(r io.Reader) (Config, error) {
 				fmt.Sprintf("%s: missing %s", configPath, key),
 			)
 		}
+	}
+	if c.QueueLabel == "" {
+		c.QueueLabel = defaultLabel
 	}
 	return c, nil
 }

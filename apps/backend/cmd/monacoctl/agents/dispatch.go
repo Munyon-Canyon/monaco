@@ -177,14 +177,18 @@ func (env *Env) pullBlocker(ctx context.Context, n int) error {
 	if err != nil {
 		return err
 	}
-	if pr.MergedAt == nil {
+	landed, err := env.landed(ctx, pr.graphState(), pr.Head.SHA)
+	if err != nil {
+		return err
+	}
+	if !landed {
 		return detailErr(
 			errs.CodeInvalidInput,
 			"monacoctl.agents.dispatch",
 			fmt.Sprintf("blocker #%d is not merged", n),
 		)
 	}
-	return env.mergedIn(ctx, n, pr.MergeCommitSHA)
+	return env.mergedIn(ctx, n, pr.landedSHA())
 }
 
 func (env *Env) issueBlocker(ctx context.Context, n int) error {
@@ -193,10 +197,17 @@ func (env *Env) issueBlocker(ctx context.Context, n int) error {
 		return err
 	}
 	for _, pr := range closed {
-		if pr.MergedAt == nil || pr.Base.Ref != env.Config.FeatureBranch || !closes(pr.Body, n) {
+		if pr.Base.Ref != env.Config.FeatureBranch || !closes(pr.Body, n) {
 			continue
 		}
-		ok, err := env.ancestor(ctx, pr.MergeCommitSHA)
+		landed, err := env.landed(ctx, pr.graphState(), pr.Head.SHA)
+		if err != nil {
+			return err
+		}
+		if !landed {
+			continue
+		}
+		ok, err := env.ancestor(ctx, pr.landedSHA())
 		if err != nil {
 			return err
 		}

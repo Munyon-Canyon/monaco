@@ -43,8 +43,7 @@ type stackGH struct {
 
 	merges       map[int][]mergeAnswer
 	polls        int
-	pollsAtEdit  int
-	pollsAtMerge int
+	pollsAtLabel int
 }
 
 func newStackGH(t *testing.T, f *fixture, prs ...*stackPR) *stackGH {
@@ -70,9 +69,9 @@ func stackOf(t *testing.T, n int, head, base, stage1, verify string) *stackPR {
 	if verify != "" {
 		contexts = append(contexts, fmt.Sprintf(`{"context":"verify","state":%q}`, verify))
 	}
-	raw := fmt.Sprintf(`{"number":%d,"state":"OPEN","baseRefName":%q,"headRefName":%q,`+
+	raw := fmt.Sprintf(`{"number":%d,"state":"OPEN","baseRefName":%q,"headRefName":%q,"headRefOid":"%s-oid",`+
 		`"body":"Part of #40\n\n## TLDR\nx","commits":{"nodes":[{"commit":{"statusCheckRollup":`+
-		`{"contexts":{"nodes":[%s]}}}}]}}`, n, base, head, strings.Join(contexts, ","))
+		`{"contexts":{"nodes":[%s]}}}}]}}`, n, base, head, head, strings.Join(contexts, ","))
 	var p stackPR
 	if err := json.Unmarshal([]byte(raw), &p); err != nil {
 		t.Fatal(err)
@@ -111,20 +110,18 @@ func (s *stackGH) run(ctx context.Context, dir, stdin, name string, args ...stri
 		return s.graphql(args[3])
 	}
 	n, _ := strconv.Atoi(args[2])
-	p := s.prs[n]
-	switch args[1] + " " + args[3] {
-	case "edit --base":
-		p.Base = args[4]
-		s.pollsAtEdit = s.polls
-	case "edit --body-file":
-		p.Body = stdin
-	case "merge --auto":
-		p.AutoMerge = &struct{}{}
-		s.pollsAtMerge = s.polls
-	case "close --comment":
-		p.State = "CLOSED"
+	if args[1]+" "+args[3] == "edit --add-label" {
+		labeled(s.prs[n], args[4])
+		s.pollsAtLabel = s.polls
 	}
 	return nil, nil
+}
+
+func labeled(p *stackPR, label string) *stackPR {
+	if !p.labeled(label) {
+		p.Labels.Nodes = append(p.Labels.Nodes, gqlName{label})
+	}
+	return p
 }
 
 func (s *stackGH) graphql(query string) ([]byte, error) {
@@ -234,31 +231,31 @@ func TestLandStack_refusesNamingEveryPRItWaitsOnAndChangesNothing(t *testing.T) 
 	}
 }
 
-func TestLandStack_setsTheBodyThenPointsTheStackAtTheFeatureBranchThenQueuesOnlyTheTop(t *testing.T) {
+func TestLandStack_labelsEveryPRBottomToTopAndKeepsTheirBases(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	top := green(t, 3, "b3", "b2")
-	top.Body = "Lands stack: #9\n\nPart of #40\n\n## TLDR\nx"
 	s := newStackGH(t, f,
-		green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"), top,
+		green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"), green(t, 3, "b3", "b2"),
 		green(t, 7, "other", "fb"), green(t, 8, "above-other", "other"),
 	)
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
 	code, stdout, stderr := f.agents(t, "land-stack", "3")
-	if code != 0 || stdout != "queued #3. Lands stack: #1 #2 #3\n" {
+	if code != 0 || stdout != "queued #1 #2 #3\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	want := []string{
-		"gh pr edit 3 --body-file - -R o/r",
-		"gh pr edit 2 --base fb -R o/r",
-		"gh pr edit 3 --base fb -R o/r",
-		"gh pr merge 3 --auto -R o/r",
+		"gh pr edit 1 --add-label merge-queue -R o/r",
+		"gh pr edit 2 --add-label merge-queue -R o/r",
+		"gh pr edit 3 --add-label merge-queue -R o/r",
 	}
 	if got := s.lines(); !slices.Equal(got, want) {
 		t.Fatalf("calls:\n%s", strings.Join(got, "\n"))
 	}
-	if got := s.prs[3].Body; got != "Lands stack: #1 #2 #3\n\nPart of #40\n\n## TLDR\nx" {
-		t.Fatalf("body %q", got)
+	if s.prs[2].Base != "b1" || s.prs[3].Base != "b2" || s.prs[3].Body != "Part of #40\n\n## TLDR\nx" {
+		t.Fatalf("bases %s %s, body %q", s.prs[2].Base, s.prs[3].Base, s.prs[3].Body)
+	}
+	if s.prs[7].labeled("merge-queue") || s.prs[8].labeled("merge-queue") {
+		t.Fatal("labelled a PR outside the stack")
 	}
 	if q := f.owned(t).Queued; q == nil || q.Top != 3 || !slices.Equal(q.PRs, []int{1, 2, 3}) {
 		t.Fatalf("queued %+v", q)
@@ -269,7 +266,7 @@ func TestLandStack_setsTheBodyThenPointsTheStackAtTheFeatureBranchThenQueuesOnly
 		t.Fatalf("published %q", got)
 	}
 	code, stdout, _ = f.agents(t, "land-stack", "3")
-	if code != 0 || stdout != "#3 waits for its checks, then enters the queue\n" || len(s.lines()) != len(want) {
+	if code != 0 || stdout != "#3 is queued in the Graphite merge queue\n" || len(s.lines()) != len(want) {
 		t.Fatalf("second call: %d %q %v", code, stdout, s.lines())
 	}
 }
@@ -293,7 +290,7 @@ func TestLandStack_readsEveryCheckAndTheNewestRunOfEach(t *testing.T) {
 		{
 			"the newest ci-ok and verify sit past the first page",
 			lastPage(ciOK("SUCCESS", 3), verifyAt("SUCCESS", 4)),
-			"queued #2. Lands stack: #1 #2\n",
+			"queued #1 #2\n",
 		},
 		{
 			"a newer ci-ok failed",
@@ -347,20 +344,38 @@ func TestLandStack_failsWhenPagingChecksFails(t *testing.T) {
 	}
 }
 
-func TestLandStack_aSinglePRSkipsTheBaseEdits(t *testing.T) {
+func TestLandStack_aSinglePRGetsOnlyTheLabel(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	s := newStackGH(t, f, green(t, 5, "b5", "fb"))
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40"})
-	if code, stdout, stderr := f.agents(t, "land-stack", "5"); code != 0 || stdout != "queued #5. Lands stack: #5\n" {
+	if code, stdout, stderr := f.agents(t, "land-stack", "5"); code != 0 || stdout != "queued #5\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	want := []string{"gh pr edit 5 --body-file - -R o/r", "gh pr merge 5 --auto -R o/r"}
+	want := []string{"gh pr edit 5 --add-label merge-queue -R o/r"}
 	if got := s.lines(); !slices.Equal(got, want) {
 		t.Fatalf("calls %v", got)
 	}
-	if got := s.prs[5].Body; got != "Lands stack: #5\n\nPart of #40\n\n## TLDR\nx" {
-		t.Fatalf("body %q", got)
+	if !s.prs[5].labeled("merge-queue") {
+		t.Fatal("#5 lacks the queue label")
+	}
+}
+
+func TestLandStack_labelsWithTheConfiguredQueueLabel(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	writeFile(t, filepath.Join(f.dir, configPath), testConfig+"queue_label = \"ship-it\"\n")
+	s := newStackGH(t, f, green(t, 5, "b5", "fb"))
+	f.owner(t, Record{Ticket: 40, Worktree: "/w/40"})
+	if code, stdout, stderr := f.agents(t, "land-stack", "5"); code != 0 || stdout != "queued #5\n" {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	if got := s.lines(); !slices.Equal(got, []string{"gh pr edit 5 --add-label ship-it -R o/r"}) {
+		t.Fatalf("calls %v", got)
+	}
+	code, stdout, _ := f.agents(t, "land-stack", "5")
+	if code != 0 || stdout != "#5 is queued in the Graphite merge queue\n" {
+		t.Fatalf("second call: %d %q", code, stdout)
 	}
 }
 
@@ -371,12 +386,12 @@ func waits(n int) []time.Duration {
 func waitingStack(t *testing.T, f *fixture, script ...mergeAnswer) *stackGH {
 	t.Helper()
 	s := newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
-	s.merges[2] = script
+	s.merges[1] = script
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
 	return s
 }
 
-func TestLandStack_queuesOnlyOnceGitHubReportsTheTopMergeableOntoItsNewBase(t *testing.T) {
+func TestLandStack_queuesOnlyOnceGitHubReportsTheBottomMergeableOntoTheTrunk(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name   string
@@ -405,12 +420,11 @@ func TestLandStack_queuesOnlyOnceGitHubReportsTheTopMergeableOntoItsNewBase(t *t
 			f := newFixture(t)
 			s := waitingStack(t, f, tc.script...)
 			code, stdout, stderr := f.agents(t, "land-stack", "2")
-			if code != 0 || stdout != "queued #2. Lands stack: #1 #2\n" {
+			if code != 0 || stdout != "queued #1 #2\n" {
 				t.Fatalf("%d %q %q", code, stdout, stderr)
 			}
-			if s.polls != tc.polls || s.pollsAtMerge != tc.polls || s.pollsAtEdit != 0 {
-				t.Fatalf("polls %d, at the base edit %d, at the merge request %d, want %d after the edit",
-					s.polls, s.pollsAtEdit, s.pollsAtMerge, tc.polls)
+			if s.polls != tc.polls || s.pollsAtLabel != tc.polls {
+				t.Fatalf("polls %d, at the last label %d, want %d before any label", s.polls, s.pollsAtLabel, tc.polls)
 			}
 			if !slices.Equal(f.waited, waits(tc.polls-1)) {
 				t.Fatalf("waited %v", f.waited)
@@ -435,13 +449,12 @@ func TestLandStack_givesUpAfterNinetySecondsWithoutQueuing(t *testing.T) {
 			s := waitingStack(t, f, tc.answer)
 			start := f.now
 			code, stdout, stderr := f.agents(t, "land-stack", "2")
-			want := "not landing #2; GitHub has not recomputed its merge commit onto fb in 1m30s. " +
+			want := "not landing #2; GitHub has not recomputed #1's merge commit onto fb in 1m30s. " +
 				"Run land-stack 2 again\n"
 			if code != 0 || stdout != want || stderr != "" {
 				t.Fatalf("%d %q %q", code, stdout, stderr)
 			}
-			edits := []string{"gh pr edit 2 --body-file - -R o/r", "gh pr edit 2 --base fb -R o/r"}
-			if got := s.lines(); !slices.Equal(got, edits) {
+			if got := s.lines(); len(got) != 0 {
 				t.Fatalf("calls %v", got)
 			}
 			if f.now.Sub(start) != 90*time.Second || !slices.Equal(f.waited, waits(len(f.waited))) ||
@@ -463,15 +476,12 @@ func TestLandStack_aRerunAfterATimeoutQueuesOnceGitHubHasRecomputed(t *testing.T
 	if code != 0 || !strings.HasPrefix(stdout, "not landing #2;") {
 		t.Fatalf("first run: %d %q %q", code, stdout, stderr)
 	}
-	s.merges[2] = nil
+	s.merges[1] = nil
 	code, stdout, stderr = f.agents(t, "land-stack", "2")
-	if code != 0 || stdout != "queued #2. Lands stack: #1 #2\n" {
+	if code != 0 || stdout != "queued #1 #2\n" {
 		t.Fatalf("rerun: %d %q %q", code, stdout, stderr)
 	}
-	want := []string{
-		"gh pr edit 2 --body-file - -R o/r", "gh pr edit 2 --base fb -R o/r",
-		"gh pr edit 2 --body-file - -R o/r", "gh pr merge 2 --auto -R o/r",
-	}
+	want := []string{"gh pr edit 1 --add-label merge-queue -R o/r", "gh pr edit 2 --add-label merge-queue -R o/r"}
 	if got := s.lines(); !slices.Equal(got, want) {
 		t.Fatalf("calls %v", got)
 	}
@@ -480,15 +490,16 @@ func TestLandStack_aRerunAfterATimeoutQueuesOnceGitHubHasRecomputed(t *testing.T
 	}
 }
 
-func TestLandStack_refusesATopThatConflictsWithTheFeatureBranch(t *testing.T) {
+func TestLandStack_refusesABottomThatConflictsWithTheFeatureBranch(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	s := waitingStack(t, f, mergeAnswer{"UNKNOWN", ""}, mergeAnswer{"CONFLICTING", ""})
 	code, stdout, stderr := f.agents(t, "land-stack", "2")
-	if code != 1 || stdout != "" || !strings.Contains(stderr, "#2 conflicts with fb") {
+	if code != 1 || stdout != "" || !strings.Contains(stderr, "#1 conflicts with fb") ||
+		!strings.Contains(stderr, "then run land-stack 2") {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	if slices.Contains(s.lines(), "gh pr merge 2 --auto -R o/r") || s.polls != 2 {
+	if len(s.lines()) != 0 || s.polls != 2 {
 		t.Fatalf("polled %d times, calls %v", s.polls, s.lines())
 	}
 	if f.owned(t).Queued != nil {
@@ -514,59 +525,72 @@ func TestLandStack_stopsWaitingWhenTheContextEnds(t *testing.T) {
 
 func TestLandStack_settlesTheQueuedStack(t *testing.T) {
 	t.Parallel()
+	const oid = "abcdef0123456789abcdef0123456789abcdef01"
 	for _, tt := range []struct {
 		name       string
-		top        func(p *stackPR)
+		edit       func(prs map[int]*stackPR)
 		stdout     string
 		calls      []string
 		stillQueue bool
 		gone       bool
+		ahead      bool
 	}{
 		{
-			name: "merged",
-			top: func(p *stackPR) {
-				p.State, p.MergeCommit.OID = "MERGED", "abcdef0123456789abcdef0123456789abcdef01"
+			name: "every PR merged",
+			edit: func(prs map[int]*stackPR) {
+				prs[2].State, prs[3].State, prs[3].MergeCommit.OID = "MERGED", "MERGED", oid
 			},
-			stdout: "closed #2: Landed in #3 (abcdef0)\n#3 merged as abcdef0; gt sync ran in WT\n",
-			calls: []string{
-				"gh pr close 2 --comment Landed in #3 (abcdef0) -R o/r",
-				"gt sync --no-interactive --delete-all --no-restack",
-			},
+			stdout: "#3 merged as abcdef0; gt sync ran in WT\n",
+			calls:  []string{"gt sync --no-interactive --delete-all --no-restack"},
 		},
 		{
-			name: "merged in a clone without the worktree",
-			top: func(p *stackPR) {
-				p.State, p.MergeCommit.OID = "MERGED", "abcdef0123456789abcdef0123456789abcdef01"
+			name: "every PR merged, in a clone without the worktree",
+			edit: func(prs map[int]*stackPR) {
+				prs[2].State, prs[3].State, prs[3].MergeCommit.OID = "MERGED", "MERGED", oid
 			},
-			stdout: "closed #2: Landed in #3 (abcdef0)\n#3 merged as abcdef0; no worktree at WT, skipped gt sync\n",
-			calls:  []string{"gh pr close 2 --comment Landed in #3 (abcdef0) -R o/r"},
+			stdout: "#3 merged as abcdef0; no worktree at WT, skipped gt sync\n",
 			gone:   true,
 		},
 		{
-			name: "in the queue",
-			top: func(p *stackPR) {
-				p.InQueue = true
-				p.MergeQueueEntry = &struct {
-					Position int `json:"position"`
-				}{Position: 2}
-			},
-			stdout:     "#3 is queued at position 2\n",
+			name:   "every PR closed by the Graphite fast-forward",
+			edit:   func(prs map[int]*stackPR) { prs[2].State, prs[3].State = "CLOSED", "CLOSED" },
+			stdout: "#3 merged as b3-oid; gt sync ran in WT\n",
+			calls:  []string{"gt sync --no-interactive --delete-all --no-restack"},
+		},
+		{
+			name:       "a closed PR whose head is not in the trunk yet",
+			edit:       func(prs map[int]*stackPR) { prs[2].State, prs[3].State = "MERGED", "CLOSED" },
+			stdout:     "#3 is queued in the Graphite merge queue\n",
+			stillQueue: true,
+			ahead:      true,
+		},
+		{
+			name:       "the open PRs carry the label",
+			edit:       func(map[int]*stackPR) {},
+			stdout:     "#3 is queued in the Graphite merge queue\n",
 			stillQueue: true,
 		},
 		{
-			name:       "in the queue before GitHub gives it a position",
-			top:        func(p *stackPR) { p.InQueue = true },
-			stdout:     "#3 is queued at position 0\n",
+			name:       "the top merged before a lower PR",
+			edit:       func(prs map[int]*stackPR) { prs[3].State = "MERGED" },
+			stdout:     "#3 is queued in the Graphite merge queue\n",
 			stillQueue: true,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			f := newFixture(t)
-			merged, top := green(t, 1, "b1", "fb"), green(t, 3, "b3", "fb")
+			merged := green(t, 1, "b1", "fb")
 			merged.State = "MERGED"
-			tt.top(top)
-			s := newStackGH(t, f, merged, green(t, 2, "b2", "fb"), top)
+			s := newStackGH(t, f, merged,
+				labeled(green(t, 2, "b2", "fb"), "merge-queue"), labeled(green(t, 3, "b3", "b2"), "merge-queue"))
+			tt.edit(s.prs)
+			f.hub.on(get("/compare/fb...b2-oid"), `{"status":"identical"}`)
+			top := `{"status":"behind"}`
+			if tt.ahead {
+				top = `{"status":"ahead"}`
+			}
+			f.hub.on(get("/compare/fb...b3-oid"), top)
 			wt := t.TempDir()
 			if tt.gone {
 				wt = filepath.Join(wt, "gone")
@@ -639,7 +663,6 @@ func TestLandStack_failures(t *testing.T) {
 			name: "orphan base", args: []string{"2"}, code: 1, stderr: "#2's base gone is neither fb nor an open PR",
 			prs: func(t *testing.T) []*stackPR {
 				t.Helper()
-				t.Helper()
 				return []*stackPR{green(t, 2, "b2", "gone")}
 			},
 		},
@@ -650,9 +673,8 @@ func TestLandStack_failures(t *testing.T) {
 				return []*stackPR{green(t, 1, "b1", "b2"), green(t, 2, "b2", "b1")}
 			},
 		},
-		{name: "base edit fails", args: []string{"2"}, prs: stack, fail: "gh pr edit 2 --base", code: 1, stderr: "gt submit --stack"},
-		{name: "body edit fails", args: []string{"2"}, prs: stack, fail: "gh pr edit 2 --body-file", code: 1, stderr: "not marked queued"},
-		{name: "merge fails", args: []string{"2"}, prs: stack, fail: "gh pr merge", code: 1, stderr: "restore the bases"},
+		{name: "bottom label fails", args: []string{"2"}, prs: stack, fail: "gh pr edit 1 --add-label", code: 1, stderr: "not marked queued"},
+		{name: "top label fails", args: []string{"2"}, prs: stack, fail: "gh pr edit 2 --add-label", code: 1, stderr: "run land-stack again"},
 		{
 			name: "mergeability read fails", args: []string{"2"}, prs: stack, code: 1, stderr: "not marked queued",
 			fail: "gh api graphql -f query=" + repoQuery + "pullRequest(",
@@ -679,34 +701,30 @@ func TestLandStack_failures(t *testing.T) {
 			if code != tt.code || !strings.Contains(stderr, tt.stderr) {
 				t.Fatalf("%d %q", code, stderr)
 			}
+			if rec.Ticket == 40 && rec.Queued == nil && f.owned(t).Queued != nil {
+				t.Fatal("a failed land marked the stack queued")
+			}
 		})
 	}
 }
 
 func TestLandStack_settleFailures(t *testing.T) {
 	t.Parallel()
-	for _, fail := range []string{"gh pr close", "gt sync"} {
-		t.Run(fail, func(t *testing.T) {
-			t.Parallel()
-			f := newFixture(t)
-			top := green(t, 2, "b2", "fb")
-			top.State = "MERGED"
-			s := newStackGH(t, f, green(t, 1, "b1", "fb"), top)
-			s.fail = fail
-			f.owner(t, Record{Ticket: 40, Worktree: t.TempDir(), Queued: &Queue{Top: 2, PRs: []int{1, 2}}})
-			if code, _, stderr := f.agents(
-				t,
-				"land-stack",
-				"2",
-			); code != 1 ||
-				!strings.Contains(stderr, fail+": boom") {
-				t.Fatalf("%d %q", code, stderr)
-			}
-			if f.owned(t).Queued == nil {
-				t.Fatal("a failed settle cleared the mark")
-			}
-		})
-	}
+	t.Run("gt sync", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		bottom, top := green(t, 1, "b1", "fb"), green(t, 2, "b2", "fb")
+		bottom.State, top.State = "MERGED", "MERGED"
+		s := newStackGH(t, f, bottom, top)
+		s.fail = "gt sync"
+		f.owner(t, Record{Ticket: 40, Worktree: t.TempDir(), Queued: &Queue{Top: 2, PRs: []int{1, 2}}})
+		if code, _, stderr := f.agents(t, "land-stack", "2"); code != 1 || !strings.Contains(stderr, "gt sync: boom") {
+			t.Fatalf("%d %q", code, stderr)
+		}
+		if f.owned(t).Queued == nil {
+			t.Fatal("a failed settle cleared the mark")
+		}
+	})
 	t.Run("queued PR vanished", func(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t)
@@ -734,26 +752,16 @@ func TestLandStack_unwritableRecordFailsAfterQueueing(t *testing.T) {
 	}
 }
 
-func TestLandsBody(t *testing.T) {
+func TestPRRefs(t *testing.T) {
 	t.Parallel()
-	for body, want := range map[string]string{
-		"## TLDR\nx":                      "L\n\n## TLDR\nx",
-		"Lands stack: #1\n## TLDR\nx":     "L\n\n## TLDR\nx",
-		"Lands stack: #1\n\n\n## TLDR\nx": "L\n\n## TLDR\nx",
-		"":                                "L\n\n",
-	} {
-		if got := landsBody("L", body); got != want {
-			t.Errorf("landsBody(%q) = %q, want %q", body, got, want)
-		}
+	if got := prRefs([]int{1, 22, 3}); got != "#1 #22 #3" {
+		t.Fatalf("prRefs = %q", got)
 	}
 }
 
-func ejectedStack(t *testing.T, f *fixture, lands string) *stackGH {
+func ejectedStack(t *testing.T, f *fixture) *stackGH {
 	t.Helper()
-	top := green(t, 3, "b3", "b2")
-	top.Base = "fb"
-	top.Body = lands + "\n\nPart of #40\n\n## TLDR\nx"
-	s := newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "fb"), top)
+	s := newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"), green(t, 3, "b3", "b2"))
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done, Queued: &Queue{Top: 3, PRs: []int{1, 2, 3}}})
 	return s
 }
@@ -761,12 +769,16 @@ func ejectedStack(t *testing.T, f *fixture, lands string) *stackGH {
 func TestLandStack_relandsAnEjectedStackWholeInOneCall(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	s := ejectedStack(t, f, "Lands stack: #1 #2 #3")
+	s := ejectedStack(t, f)
 	code, stdout, stderr := f.agents(t, "land-stack", "3")
-	if code != 0 || stdout != "#3 left the queue; relanding its stack\nqueued #3. Lands stack: #1 #2 #3\n" {
+	if code != 0 || stdout != "#3 left the Graphite merge queue; relanding its stack\nqueued #1 #2 #3\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	want := []string{"gh pr edit 3 --body-file - -R o/r", "gh pr merge 3 --auto -R o/r"}
+	want := []string{
+		"gh pr edit 1 --add-label merge-queue -R o/r",
+		"gh pr edit 2 --add-label merge-queue -R o/r",
+		"gh pr edit 3 --add-label merge-queue -R o/r",
+	}
 	if got := s.lines(); !slices.Equal(got, want) {
 		t.Fatalf("calls %v", got)
 	}
@@ -775,63 +787,61 @@ func TestLandStack_relandsAnEjectedStackWholeInOneCall(t *testing.T) {
 	}
 }
 
-func TestLandStack_checksEveryPRTheLandsLineNames(t *testing.T) {
+func TestLandStack_relandsWhatIsLeftWhenOnePRLostTheLabel(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := ejectedStack(t, f)
+	s.prs[1].State = "MERGED"
+	s.prs[2].Base = "fb"
+	labeled(s.prs[3], "merge-queue")
+	code, stdout, stderr := f.agents(t, "land-stack", "3")
+	if code != 0 || stdout != "#3 left the Graphite merge queue; relanding its stack\nqueued #2 #3\n" {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	want := []string{"gh pr edit 2 --add-label merge-queue -R o/r", "gh pr edit 3 --add-label merge-queue -R o/r"}
+	if got := s.lines(); !slices.Equal(got, want) {
+		t.Fatalf("calls %v", got)
+	}
+	if q := f.owned(t).Queued; q == nil || !slices.Equal(q.PRs, []int{2, 3}) {
+		t.Fatalf("queued %+v", q)
+	}
+}
+
+func TestLandStack_relandChecksEveryPRInTheStack(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name, lands string
-		edit        func(prs map[int]*stackPR)
-		code        int
-		out         string
+		name string
+		edit func(prs map[int]*stackPR)
+		code int
+		out  string
 	}{
 		{
-			name:  "a lower PR's verify is red",
-			lands: "Lands stack: #1 #2 #3",
+			name: "a lower PR's verify is red",
 			edit: func(prs map[int]*stackPR) {
 				prs[2].Commits.Nodes[0].Commit.StatusCheckRollup.Contexts.Nodes[1].State = "FAILURE"
 			},
-			out: "#3 left the queue; relanding its stack\nnot landing #3; waiting on #2 (verify failure)\n",
+			out: "#3 left the Graphite merge queue; relanding its stack\nnot landing #3; waiting on #2 (verify failure)\n",
 		},
 		{
-			name:  "a lower PR's stage 1 is red",
-			lands: "Lands stack: #1 #2 #3",
+			name: "a lower PR's stage 1 is red",
 			edit: func(prs map[int]*stackPR) {
 				prs[1].Commits.Nodes[0].Commit.StatusCheckRollup.Contexts.Nodes[0].Conclusion = "FAILURE"
 			},
-			out: "#3 left the queue; relanding its stack\nnot landing #3; waiting on #1 (stage 1 failure)\n",
+			out: "#3 left the Graphite merge queue; relanding its stack\nnot landing #3; waiting on #1 (stage 1 failure)\n",
 		},
 		{
-			name:  "a lower PR closed",
-			lands: "Lands stack: #1 #2 #3",
-			edit:  func(prs map[int]*stackPR) { prs[1].State = "CLOSED" },
-			code:  1,
-			out:   `#1 from #3's "Lands stack:" line is closed; only open PRs reland`,
-		},
-		{
-			name:  "a PR in the line is gone",
-			lands: "Lands stack: #9 #2 #3",
-			code:  1,
-			out:   "#9 is not a PR",
-		},
-		{
-			name:  "the line ends with another PR",
-			lands: "Lands stack: #3 #1",
-			code:  1,
-			out:   `#3's "Lands stack:" line does not end with #3`,
-		},
-		{
-			name:  "the line names something that is not a PR",
-			lands: "Lands stack: #1 two #3",
-			code:  1,
-			out:   `"two" is not a PR in "Lands stack: #1 two #3"`,
+			name: "a lower PR closed",
+			edit: func(prs map[int]*stackPR) { prs[1].State = "CLOSED" },
+			code: 1,
+			out:  "#2's base b1 is neither fb nor an open PR",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			f := newFixture(t)
-			s := ejectedStack(t, f, tc.lands)
-			if tc.edit != nil {
-				tc.edit(s.prs)
-			}
+			f.hub.on(get("/compare/fb...b1-oid"), `{"status":"diverged"}`)
+			s := ejectedStack(t, f)
+			tc.edit(s.prs)
 			code, stdout, stderr := f.agents(t, "land-stack", "3")
 			got := stdout
 			if tc.code != 0 {
@@ -847,7 +857,7 @@ func TestLandStack_checksEveryPRTheLandsLineNames(t *testing.T) {
 	}
 }
 
-func TestLandStack_withoutALandsLineReadsTheStackFromGraphite(t *testing.T) {
+func TestLandStack_readsTheStackFromGraphite(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, gtLog, fail, out string
@@ -855,19 +865,19 @@ func TestLandStack_withoutALandsLineReadsTheStackFromGraphite(t *testing.T) {
 		{
 			name:  "gt names the lower PRs",
 			gtLog: "◯  fb\n◯  b1\n◯  b2 (needs restack)\n◉  b3\n◯  b4\n",
-			out:   "queued #3. Lands stack: #1 #2 #3\n",
+			out:   "queued #1 #2 #3\n",
 		},
 		{
 			name:  "gt lists the trunk, whose own PR targets main",
 			gtLog: "◯  fb\n◯  b0\n◯  b1\n◉  b3\n",
-			out:   "queued #3. Lands stack: #1 #3\n",
+			out:   "queued #1 #3\n",
 		},
-		{name: "gt names only the top", gtLog: "◯  fb\n◉  b3\n", out: "queued #3. Lands stack: #3\n"},
-		{name: "gt is on another stack", gtLog: "◯  fb\n◯  b1\n◉  b7\n", out: "queued #3. Lands stack: #3\n"},
+		{name: "gt names only the top", gtLog: "◯  fb\n◉  b3\n", out: "queued #3\n"},
+		{name: "gt is on another stack", gtLog: "◯  fb\n◯  b1\n◉  b7\n", out: "queued #3\n"},
 		{
 			name: "gt fails",
 			fail: "gt log",
-			out:  "gt log in /w/40 failed (gt log: boom); landing the GitHub base chain\nqueued #3. Lands stack: #3\n",
+			out:  "gt log in /w/40 failed (gt log: boom); landing the GitHub base chain\nqueued #3\n",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -889,10 +899,10 @@ func TestLandStack_withoutALandsLineReadsTheStackFromGraphite(t *testing.T) {
 func TestLandStack_aClosedEjectedTopIsUnmarkedAndRefused(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	s := ejectedStack(t, f, "Lands stack: #1 #2 #3")
+	s := ejectedStack(t, f)
 	s.prs[3].State = "CLOSED"
 	code, stdout, stderr := f.agents(t, "land-stack", "3")
-	if code != 1 || stdout != "#3 left the queue; relanding its stack\n" ||
+	if code != 1 || stdout != "#3 left the Graphite merge queue; relanding its stack\n" ||
 		!strings.Contains(stderr, "#3 is not an open PR") {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
@@ -904,7 +914,7 @@ func TestLandStack_aClosedEjectedTopIsUnmarkedAndRefused(t *testing.T) {
 func TestLandStack_anUnwritableRecordStopsTheReland(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	s := ejectedStack(t, f, "Lands stack: #1 #2 #3")
+	s := ejectedStack(t, f)
 	if err := os.Chmod(f.Env(t).recordPath(40), 0o400); err != nil {
 		t.Fatal(err)
 	}
@@ -917,24 +927,24 @@ func TestLandStack_anUnwritableRecordStopsTheReland(t *testing.T) {
 func TestWatch_clearsTheQueuedMarkOfAnEjectedStack(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	queued := green(t, 5, "b5", "fb")
-	queued.InQueue = true
-	waiting := green(t, 6, "b6", "fb")
-	waiting.AutoMerge = &struct{}{}
+	queued := labeled(green(t, 5, "b5", "fb"), "merge-queue")
+	half := labeled(green(t, 6, "b6", "fb"), "merge-queue")
 	merged := green(t, 8, "b8", "fb")
 	merged.State = "MERGED"
-	s := ejectedStack(t, f, "Lands stack: #1 #2 #3")
-	for _, p := range []*stackPR{queued, waiting, merged} {
+	s := ejectedStack(t, f)
+	labeled(s.prs[1], "merge-queue")
+	labeled(s.prs[3], "merge-queue")
+	for _, p := range []*stackPR{queued, half, merged} {
 		s.prs[p.Number] = p
 	}
 	f.owner(t, Record{Ticket: 40, State: Exited, Queued: &Queue{Top: 3, PRs: []int{1, 2, 3}}})
 	f.record(t, Record{Ticket: 41, State: Exited, Queued: &Queue{Top: 5, PRs: []int{5}}})
-	f.record(t, Record{Ticket: 42, State: Exited, Queued: &Queue{Top: 6, PRs: []int{6}}})
+	f.record(t, Record{Ticket: 42, State: Exited, Queued: &Queue{Top: 6, PRs: []int{8, 6}}})
 	f.record(t, Record{Ticket: 43, State: Exited, Queued: &Queue{Top: 8, PRs: []int{8}}})
 	f.record(t, Record{Ticket: 44, State: Exited})
 	f.noFailures()
 	code, stdout, stderr := f.agents(t, "watch")
-	want := "unqueued: #40; #3 left the queue. Fix the stack with gt modify and gt submit --stack --draft, then run land-stack 3\n"
+	want := "unqueued: #40; #3 left the Graphite merge queue. Fix the stack with gt modify and gt submit --stack --draft, then run land-stack 3\n"
 	if code != 0 || stdout != want {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
@@ -955,10 +965,10 @@ func TestWatch_clearsTheQueuedMarkOfAnEjectedStack(t *testing.T) {
 
 func TestWatch_unqueueFailures(t *testing.T) {
 	t.Parallel()
-	t.Run("the top cannot be read", func(t *testing.T) {
+	t.Run("the stack cannot be read", func(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t)
-		s := ejectedStack(t, f, "Lands stack: #1 #2 #3")
+		s := ejectedStack(t, f)
 		s.fail = "gh api"
 		if code, _, stderr := f.agents(t, "watch"); code != 1 || !strings.Contains(stderr, "gh api: boom") {
 			t.Fatalf("%d %q", code, stderr)
@@ -967,7 +977,7 @@ func TestWatch_unqueueFailures(t *testing.T) {
 	t.Run("the record cannot be written", func(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t)
-		ejectedStack(t, f, "Lands stack: #1 #2 #3")
+		ejectedStack(t, f)
 		if err := os.Chmod(f.Env(t).recordPath(40), 0o400); err != nil {
 			t.Fatal(err)
 		}
@@ -975,4 +985,61 @@ func TestWatch_unqueueFailures(t *testing.T) {
 			t.Fatalf("%d %q", code, stderr)
 		}
 	})
+}
+
+func TestLandStack_aClosedPROutsideTheTrunkWithoutTheLabelIsEjected(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := ejectedStack(t, f)
+	s.prs[1].State = "CLOSED"
+	labeled(s.prs[2], "merge-queue")
+	labeled(s.prs[3], "merge-queue")
+	f.hub.on(get("/compare/fb...b1-oid"), `{"status":"diverged"}`)
+	f.noFailures()
+	code, stdout, stderr := f.agents(t, "watch")
+	if code != 0 || !strings.HasPrefix(stdout, "unqueued: #40; #3 left the Graphite merge queue.") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	if f.owned(t).Queued != nil {
+		t.Fatal("kept the queued mark")
+	}
+}
+
+func TestLandStack_aClosedPRInTheTrunkIsNotEjected(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := ejectedStack(t, f)
+	s.prs[1].State = "CLOSED"
+	labeled(s.prs[2], "merge-queue")
+	labeled(s.prs[3], "merge-queue")
+	f.hub.on(get("/compare/fb...b1-oid"), `{"status":"behind"}`)
+	code, stdout, stderr := f.agents(t, "land-stack", "3")
+	if code != 0 || stdout != "#3 is queued in the Graphite merge queue\n" || len(s.lines()) != 0 {
+		t.Fatalf("%d %q %q %v", code, stdout, stderr, s.lines())
+	}
+	f.hub.on(get("/compare/fb...b1-oid"), `{"message":"boom"`)
+	code, _, stderr = f.agents(t, "land-stack", "3")
+	if code != 1 || !strings.Contains(stderr, "compare b1-oid with fb") {
+		t.Fatalf("a failed compare: %d %q", code, stderr)
+	}
+}
+
+func TestLandStack_aFailedCompareStopsSettleAndWatch(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := ejectedStack(t, f)
+	s.prs[1].State = "CLOSED"
+	labeled(s.prs[1], "merge-queue")
+	labeled(s.prs[2], "merge-queue")
+	labeled(s.prs[3], "merge-queue")
+	f.hub.on(get("/compare/fb...b1-oid"), `{"message":"boom"`)
+	code, _, stderr := f.agents(t, "land-stack", "3")
+	if code != 1 || !strings.Contains(stderr, "compare b1-oid with fb") {
+		t.Fatalf("settle on a failed compare: %d %q", code, stderr)
+	}
+	s.prs[1].Labels.Nodes = nil
+	code, _, stderr = f.agents(t, "watch")
+	if code != 1 || !strings.Contains(stderr, "compare b1-oid with fb") {
+		t.Fatalf("watch on a failed compare: %d %q", code, stderr)
+	}
 }
