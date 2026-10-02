@@ -93,6 +93,7 @@ type Routes struct {
 	GovernanceRoutes
 	IdentityRoutes
 	NotifyRoutes
+	ReferralsRoutes
 	SystemRoutes
 	CabalRoutes
 	MarketRoutes
@@ -113,6 +114,10 @@ type IdentityRoutes interface {
 type NotifyRoutes interface {
 	PostDevice(context.Context, api.PostDeviceRequestObject) (api.PostDeviceResponseObject, error)
 	DeleteDevice(context.Context, api.DeleteDeviceRequestObject) (api.DeleteDeviceResponseObject, error)
+}
+
+type ReferralsRoutes interface {
+	GetMyReferralCode(context.Context, api.GetMyReferralCodeRequestObject) (api.GetMyReferralCodeResponseObject, error)
 }
 
 type SystemRoutes interface {

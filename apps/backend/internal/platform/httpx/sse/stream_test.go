@@ -33,6 +33,7 @@ type routes struct {
 	httpx.GovernanceRoutes
 	httpx.IdentityRoutes
 	httpx.NotifyRoutes
+	httpx.ReferralsRoutes
 	httpx.SystemRoutes
 	httpx.CabalRoutes
 	httpx.MarketRoutes

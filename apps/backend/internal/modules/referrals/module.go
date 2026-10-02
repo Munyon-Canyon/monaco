@@ -35,7 +35,7 @@ func New(d module.Deps, opts ...Option) *Module {
 
 func (*Module) Name() string { return "referrals" }
 
-func (*Module) Routes(*httpx.Routes) {}
+func (m *Module) Routes(r *httpx.Routes) { r.ReferralsRoutes = adapters.HTTP{Codes: m.Resolver()} }
 
 func (m *Module) Consumers() []bus.Consumer {
 	return []bus.Consumer{

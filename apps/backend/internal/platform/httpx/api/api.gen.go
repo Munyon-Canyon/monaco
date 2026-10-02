@@ -205,6 +205,7 @@ const (
 	ProposalClosed             ErrorCode = "proposal_closed"
 	ProposalNotFound           ErrorCode = "proposal_not_found"
 	RateLimited                ErrorCode = "rate_limited"
+	ReferralCodePending        ErrorCode = "referral_code_pending"
 	ReferralCodeUnknown        ErrorCode = "referral_code_unknown"
 	RelayerUnderfunded         ErrorCode = "relayer_underfunded"
 	RequestNotNeeded           ErrorCode = "request_not_needed"
@@ -356,6 +357,8 @@ func (e ErrorCode) Valid() bool {
 	case ProposalNotFound:
 		return true
 	case RateLimited:
+		return true
+	case ReferralCodePending:
 		return true
 	case ReferralCodeUnknown:
 		return true
@@ -985,6 +988,31 @@ type Me struct {
 	XUsername *string `json:"x_username,omitempty"`
 }
 
+// MyReferralCode The caller's invite code and the links that carry it.
+//
+// Examples: {"code":"k7m4qx2p","handle_link":"https://monacolabs.xyz/r/kaicenat","handle_unlocked":true,"link":"https://monacolabs.xyz/r/k7m4qx2p"}
+type MyReferralCode struct {
+	// Code The random 8-character code. It never changes.
+	//
+	// Examples: k7m4qx2p
+	Code string `json:"code"`
+
+	// HandleLink The invite link for the caller's handle, or null until the first deposit unlocks it.
+	//
+	// Examples: https://monacolabs.xyz/r/kaicenat
+	HandleLink *string `json:"handle_link"`
+
+	// HandleUnlocked True once the caller's first deposit is credited.
+	//
+	// Examples: true
+	HandleUnlocked bool `json:"handle_unlocked"`
+
+	// Link The invite link for the random code.
+	//
+	// Examples: https://monacolabs.xyz/r/k7m4qx2p
+	Link string `json:"link"`
+}
+
 // Ping A recorded ping.
 type Ping struct {
 	// Echoed True once the `system.echo` consumer has handled the ping.
@@ -1205,6 +1233,9 @@ type ServerInterface interface {
 	// GetMe Read the signed-in user's account.
 	// (GET /v1/me)
 	GetMe(w http.ResponseWriter, r *http.Request)
+	// GetMyReferralCode Read the caller's invite code and links.
+	// (GET /v1/me/referral-code)
+	GetMyReferralCode(w http.ResponseWriter, r *http.Request)
 	// PostProposalVote Cast or change the caller's ballot on an open proposal.
 	// (POST /v1/proposals/{id}/votes)
 	PostProposalVote(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostProposalVoteParams)
@@ -1565,6 +1596,20 @@ func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request)
 	handler.ServeHTTP(w, r)
 }
 
+// GetMyReferralCode operation middleware
+func (siw *ServerInterfaceWrapper) GetMyReferralCode(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMyReferralCode(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PostProposalVote operation middleware
 func (siw *ServerInterfaceWrapper) PostProposalVote(w http.ResponseWriter, r *http.Request) {
 
@@ -1858,6 +1903,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me", wrapper.GetMe)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/handles/{handle}/availability", wrapper.GetHandleAvailability)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.PostProposalVote)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/referral-code", wrapper.GetMyReferralCode)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/stream", wrapper.GetStream)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals", wrapper.PostCabal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}", wrapper.GetCabal)
@@ -2207,6 +2253,44 @@ func (response GetMedefaultApplicationProblemPlusJSONResponse) VisitGetMeRespons
 	return err
 }
 
+type GetMyReferralCodeRequestObject struct {
+}
+
+type GetMyReferralCodeResponseObject interface {
+	VisitGetMyReferralCodeResponse(w http.ResponseWriter) error
+}
+
+type GetMyReferralCode200JSONResponse MyReferralCode
+
+func (response GetMyReferralCode200JSONResponse) VisitGetMyReferralCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyReferralCodedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetMyReferralCodedefaultApplicationProblemPlusJSONResponse) VisitGetMyReferralCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostProposalVoteRequestObject struct {
 	Id     openapi_types.UUID `json:"id"`
 	Params PostProposalVoteParams
@@ -2424,6 +2508,9 @@ type StrictServerInterface interface {
 	// GetMe Read the signed-in user's account.
 	// (GET /v1/me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
+	// GetMyReferralCode Read the caller's invite code and links.
+	// (GET /v1/me/referral-code)
+	GetMyReferralCode(ctx context.Context, request GetMyReferralCodeRequestObject) (GetMyReferralCodeResponseObject, error)
 	// PostProposalVote Cast or change the caller's ballot on an open proposal.
 	// (POST /v1/proposals/{id}/votes)
 	PostProposalVote(ctx context.Context, request PostProposalVoteRequestObject) (PostProposalVoteResponseObject, error)
@@ -2715,6 +2802,30 @@ func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMeResponseObject); ok {
 		if err := validResponse.VisitGetMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMyReferralCode operation middleware
+func (sh *strictHandler) GetMyReferralCode(w http.ResponseWriter, r *http.Request) {
+	var request GetMyReferralCodeRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMyReferralCode(ctx, request.(GetMyReferralCodeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMyReferralCode")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMyReferralCodeResponseObject); ok {
+		if err := validResponse.VisitGetMyReferralCodeResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
