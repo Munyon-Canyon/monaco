@@ -57,6 +57,27 @@ paths:
                 $ref: "#/components/schemas/Me"
         default:
           $ref: "#/components/responses/Problem"
+    patch:
+      operationId: patchMe
+      x-idempotent: true
+      tags: [identity]
+      summary: Update the signed-in user's profile.
+      description: Replaces the caller's normalized display name; an unchanged name is a no-op.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The display name to normalize and save for the caller.
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/UpdateProfileRequest"}
+      responses:
+        "200":
+          description: The updated account.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Me"}
+        default: {$ref: "#/components/responses/Problem"}
   /v1/handles/{handle}/availability:
     get:
       operationId: getHandleAvailability
@@ -180,6 +201,17 @@ components:
           format: date-time
           description: When the account was created.
           examples: ["2026-09-30T12:00:00Z"]
+    UpdateProfileRequest:
+      type: object
+      description: The profile fields a signed-in user may update.
+      examples: [{display_name: Kai Cenat}]
+      additionalProperties: false
+      required: [display_name]
+      properties:
+        display_name:
+          type: string
+          description: The caller's display name, normalized before it is stored.
+          examples: [Kai Cenat]
     HandleAvailability:
       type: object
       description: Whether the caller can claim a handle, and the reason when they cannot.

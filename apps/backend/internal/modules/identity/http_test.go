@@ -163,7 +163,7 @@ func TestGetMe_overHTTPServesTheAccount(t *testing.T) {
 	}
 }
 
-func TestFlow23_UpdateProfile_OK(t *testing.T) {
+func TestUpdateProfile_OK(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
@@ -177,7 +177,7 @@ func TestFlow23_UpdateProfile_OK(t *testing.T) {
 	}
 }
 
-func TestFlow23_UpdateProfile_DisplayNameInvalid(t *testing.T) {
+func TestUpdateProfile_DisplayNameInvalid(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
@@ -188,7 +188,7 @@ func TestFlow23_UpdateProfile_DisplayNameInvalid(t *testing.T) {
 	f.expectNoProfileEvents(t)
 }
 
-func TestFlow23_UpdateProfile_unchangedIsANoop(t *testing.T) {
+func TestUpdateProfile_unchangedIsANoop(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{handle: "kai", name: "Kai Q", wallet: true})
@@ -213,7 +213,7 @@ func TestPatchMe_rejectsMissingCallerAndBody(t *testing.T) {
 	}
 }
 
-func TestFlow23_UpdateProfile_databaseFailures(t *testing.T) {
+func TestUpdateProfile_databaseFailures(t *testing.T) {
 	t.Parallel()
 	for _, table := range []string{"users", "events"} {
 		t.Run(table, func(t *testing.T) {
