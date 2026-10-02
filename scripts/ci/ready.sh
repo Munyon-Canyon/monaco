@@ -18,6 +18,13 @@ fresh() {
   fi
 }
 
+# sqlc expands * when it generates, so two branches that merge cleanly can leave a stale column list.
+if star=$(grep -rnEi --include='*.sql' 'select[[:space:]]+\*|returning[[:space:]]+\*|\.\*' apps/backend/queries); then
+  echo "error: apps/backend/queries must list columns, not use *. Fix these file:line matches:" >&2
+  echo "$star" >&2
+  exit 1
+fi
+
 cd apps/backend
 toolchain="$(awk '$1 == "toolchain" {print $2}' go.mod)"
 GOTOOLCHAIN="${toolchain:?apps/backend/go.mod has no toolchain line}" go vet ./...
