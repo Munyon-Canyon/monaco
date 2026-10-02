@@ -570,6 +570,8 @@ type AssetKind string
 // Examples: {"assets":[{"change_bps":1000,"display_name":"Apple xStock","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx"}],"next_cursor":null}
 type AssetList struct {
 	// Assets The page, in the filter's order.
+	//
+	// Examples: []
 	Assets []AssetSummary `json:"assets"`
 
 	// NextCursor The cursor for the next page. Null on the last page.
