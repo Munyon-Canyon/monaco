@@ -55,6 +55,8 @@ func Parse[T any](raw string) (ID[T], error) {
 
 func ParseUserID(raw string) (UserID, error) { return Parse[user](raw) }
 
+func UserIDFrom(u uuid.UUID) UserID { return UserID{u: u} }
+
 func ParseCabalID(raw string) (CabalID, error) { return Parse[cabal](raw) }
 
 func ParseEventID(raw string) (EventID, error) { return Parse[event](raw) }

@@ -63,6 +63,14 @@ func (healthz) GetSystemPing(context.Context, api.GetSystemPingRequestObject) (a
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetSystemPing")
 }
 
+func (healthz) PostCabal(context.Context, api.PostCabalRequestObject) (api.PostCabalResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostCabal")
+}
+
+func (healthz) GetCabal(context.Context, api.GetCabalRequestObject) (api.GetCabalResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabal")
+}
+
 type stepClock struct {
 	clock.Real
 	mu  sync.Mutex

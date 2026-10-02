@@ -364,6 +364,188 @@ type AccountStatus string
 // Examples: CREATED
 type AuthState string
 
+// Cabal One cabal, as a signed-in user is allowed to see it.
+type Cabal struct {
+	// Creator A user as shown on a cabal.
+	//
+	// Examples: {"display_name":"Kai","handle":"kai","photo_url":null,"user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}
+	Creator CabalPerson `json:"creator"`
+
+	// Id Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	Id openapi_types.UUID `json:"id"`
+
+	// InviteCode The invite code. Null for a non-member.
+	//
+	// Examples: null
+	InviteCode *string `json:"invite_code"`
+
+	// Me Null when the caller is not a member.
+	//
+	// Examples: null
+	Me *CabalMembership `json:"me"`
+
+	// MemberCount Examples: 1
+	MemberCount int32 `json:"member_count"`
+
+	// Members Examples: []
+	Members []CabalMember `json:"members"`
+
+	// MyAccessRequest The caller's pending access request, or null.
+	//
+	// Examples: null
+	MyAccessRequest *CabalAccess `json:"my_access_request"`
+
+	// Name Examples: Kai
+	Name string `json:"name"`
+
+	// PictureUrl Null when the cabal has no picture.
+	//
+	// Examples: null
+	PictureUrl *string `json:"picture_url"`
+
+	// Rules How the cabal admits members and how it votes.
+	//
+	// Examples: {"join_mode":"open","proposal_expiry_seconds":86400,"slippage_bps":100,"threshold":"majority","voter_mode":"all"}
+	Rules CabalRules `json:"rules"`
+
+	// Status `active` or `banned`.
+	//
+	// Examples: active
+	Status string `json:"status"`
+
+	// TreasuryAddress Solana address of the app-owned treasury wallet.
+	//
+	// Examples: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf
+	TreasuryAddress string `json:"treasury_address"`
+}
+
+// CabalAccess A pending request or invite.
+type CabalAccess struct {
+	// Direction `request` or `invite`.
+	//
+	// Examples: request
+	Direction string `json:"direction"`
+
+	// Id Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	Id openapi_types.UUID `json:"id"`
+
+	// Status Examples: pending
+	Status string `json:"status"`
+}
+
+// CabalMember A cabal member, including vote standing.
+type CabalMember struct {
+	// CanVote Examples: true
+	CanVote bool `json:"can_vote"`
+
+	// DisplayName The member name. Empty when the user has none.
+	//
+	// Examples: Kai
+	DisplayName string `json:"display_name"`
+
+	// Handle The member handle. Null until onboarding sets one.
+	//
+	// Examples: kai
+	Handle *string `json:"handle"`
+
+	// JoinedAt Examples: 2026-09-30T12:00:00Z
+	JoinedAt time.Time `json:"joined_at"`
+
+	// PhotoUrl The member photo. Null when the user has none.
+	//
+	// Examples: null
+	PhotoUrl *string `json:"photo_url"`
+
+	// Role `creator` or `member`.
+	//
+	// Examples: creator
+	Role string `json:"role"`
+
+	// UserId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	UserId openapi_types.UUID `json:"user_id"`
+}
+
+// CabalMembership The caller's standing in the cabal.
+type CabalMembership struct {
+	// CanVote Examples: true
+	CanVote bool `json:"can_vote"`
+
+	// Role Examples: creator
+	Role string `json:"role"`
+}
+
+// CabalPerson A user as shown on a cabal.
+type CabalPerson struct {
+	// DisplayName Empty when the user has none.
+	//
+	// Examples: Kai
+	DisplayName string `json:"display_name"`
+
+	// Handle Null until onboarding sets one.
+	//
+	// Examples: kai
+	Handle *string `json:"handle"`
+
+	// PhotoUrl Null when the user has none.
+	//
+	// Examples: null
+	PhotoUrl *string `json:"photo_url"`
+
+	// UserId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	UserId openapi_types.UUID `json:"user_id"`
+}
+
+// CabalRules How the cabal admits members and how it votes.
+type CabalRules struct {
+	// JoinMode Examples: open
+	JoinMode string `json:"join_mode"`
+
+	// ProposalExpirySeconds Examples: 86400
+	ProposalExpirySeconds int32 `json:"proposal_expiry_seconds"`
+
+	// SlippageBps Examples: 100
+	SlippageBps int32 `json:"slippage_bps"`
+
+	// Threshold Examples: majority
+	Threshold string `json:"threshold"`
+
+	// VoterMode Examples: all
+	VoterMode string `json:"voter_mode"`
+}
+
+// CreateCabalRequest The name and rules for a new cabal.
+type CreateCabalRequest struct {
+	// JoinMode `open` or `request`.
+	//
+	// Examples: open
+	JoinMode string `json:"join_mode"`
+
+	// Name Cabal name, 3 to 40 characters.
+	//
+	// Examples: Kai
+	Name string `json:"name"`
+
+	// ProposalExpirySeconds One of 3600, 86400 or 604800.
+	//
+	// Examples: 86400
+	ProposalExpirySeconds int32 `json:"proposal_expiry_seconds"`
+
+	// SlippageBps Basis points from 1 to 300. Omitted means 100.
+	//
+	// Examples: 100
+	SlippageBps *int32 `json:"slippage_bps,omitempty"`
+
+	// Threshold `majority` or `unanimous`.
+	//
+	// Examples: majority
+	Threshold string `json:"threshold"`
+
+	// VoterMode all, or list starting with the creator.
+	//
+	// Examples: all
+	VoterMode string `json:"voter_mode"`
+}
+
 // ErrorCode The closed list of error codes. Generated from the errs table by monacoctl gen errors.
 //
 // Examples: not_found
@@ -530,6 +712,12 @@ type PostAuthSessionParams struct {
 	Authorization *string `json:"Authorization,omitempty"`
 }
 
+// PostCabalParams defines parameters for PostCabal.
+type PostCabalParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // GetStreamParams defines parameters for GetStream.
 type GetStreamParams struct {
 	// LastEventID The id of the last event the app received before it reconnected.
@@ -542,6 +730,9 @@ type PostSystemPingParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// PostCabalJSONRequestBody defines body for PostCabal for application/json ContentType.
+type PostCabalJSONRequestBody = CreateCabalRequest
+
 // PostSystemPingJSONRequestBody defines body for PostSystemPing for application/json ContentType.
 type PostSystemPingJSONRequestBody = PingRequest
 
@@ -553,6 +744,12 @@ type ServerInterface interface {
 	// PostAuthSession Open a session from a Privy access token.
 	// (POST /v1/auth/session)
 	PostAuthSession(w http.ResponseWriter, r *http.Request, params PostAuthSessionParams)
+	// PostCabal Create a cabal and its treasury wallet.
+	// (POST /v1/cabals)
+	PostCabal(w http.ResponseWriter, r *http.Request, params PostCabalParams)
+	// GetCabal Read one cabal.
+	// (GET /v1/cabals/{id})
+	GetCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// GetHandleAvailability Check whether the caller can claim a handle.
 	// (GET /v1/handles/{handle}/availability)
 	GetHandleAvailability(w http.ResponseWriter, r *http.Request, handle string)
@@ -625,6 +822,77 @@ func (siw *ServerInterfaceWrapper) PostAuthSession(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostAuthSession(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostCabal operation middleware
+func (siw *ServerInterfaceWrapper) PostCabal(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostCabalParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostCabal(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCabal operation middleware
+func (siw *ServerInterfaceWrapper) GetCabal(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCabal(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -911,6 +1179,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me", wrapper.GetMe)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/handles/{handle}/availability", wrapper.GetHandleAvailability)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/stream", wrapper.GetStream)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals", wrapper.PostCabal)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}", wrapper.GetCabal)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/system/pings", wrapper.PostSystemPing)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/system/pings/{id}", wrapper.GetSystemPing)
 
@@ -982,6 +1252,85 @@ type PostAuthSessiondefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response PostAuthSessiondefaultApplicationProblemPlusJSONResponse) VisitPostAuthSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostCabalRequestObject struct {
+	Params PostCabalParams
+	Body   *PostCabalJSONRequestBody
+}
+
+type PostCabalResponseObject interface {
+	VisitPostCabalResponse(w http.ResponseWriter) error
+}
+
+type PostCabal201JSONResponse Cabal
+
+func (response PostCabal201JSONResponse) VisitPostCabalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostCabaldefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PostCabaldefaultApplicationProblemPlusJSONResponse) VisitPostCabalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCabalRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetCabalResponseObject interface {
+	VisitGetCabalResponse(w http.ResponseWriter) error
+}
+
+type GetCabal200JSONResponse Cabal
+
+func (response GetCabal200JSONResponse) VisitGetCabalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCabaldefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetCabaldefaultApplicationProblemPlusJSONResponse) VisitGetCabalResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -1225,6 +1574,12 @@ type StrictServerInterface interface {
 	// PostAuthSession Open a session from a Privy access token.
 	// (POST /v1/auth/session)
 	PostAuthSession(ctx context.Context, request PostAuthSessionRequestObject) (PostAuthSessionResponseObject, error)
+	// PostCabal Create a cabal and its treasury wallet.
+	// (POST /v1/cabals)
+	PostCabal(ctx context.Context, request PostCabalRequestObject) (PostCabalResponseObject, error)
+	// GetCabal Read one cabal.
+	// (GET /v1/cabals/{id})
+	GetCabal(ctx context.Context, request GetCabalRequestObject) (GetCabalResponseObject, error)
 	// GetHandleAvailability Check whether the caller can claim a handle.
 	// (GET /v1/handles/{handle}/availability)
 	GetHandleAvailability(ctx context.Context, request GetHandleAvailabilityRequestObject) (GetHandleAvailabilityResponseObject, error)
@@ -1324,6 +1679,65 @@ func (sh *strictHandler) PostAuthSession(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostAuthSessionResponseObject); ok {
 		if err := validResponse.VisitPostAuthSessionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostCabal operation middleware
+func (sh *strictHandler) PostCabal(w http.ResponseWriter, r *http.Request, params PostCabalParams) {
+	var request PostCabalRequestObject
+
+	request.Params = params
+
+	var body PostCabalJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostCabal(ctx, request.(PostCabalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostCabal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostCabalResponseObject); ok {
+		if err := validResponse.VisitPostCabalResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCabal operation middleware
+func (sh *strictHandler) GetCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetCabalRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCabal(ctx, request.(GetCabalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCabal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCabalResponseObject); ok {
+		if err := validResponse.VisitGetCabalResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
