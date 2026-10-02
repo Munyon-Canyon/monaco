@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
@@ -118,7 +120,44 @@ func (l *SwapLayer) drive(ctx context.Context, req SwapRequest, id uuid.UUID) er
 		return err
 	}
 	faultpoint.Hit(ctx, faultpoint.AfterSign)
+	result, err := l.d.Venue.ExecuteUntilTerminal(ctx, order.RequestID, signed)
+	faultpoint.Hit(ctx, faultpoint.AfterExecute)
+	return l.settle(ctx, req, id, signature, result, err)
+}
+
+func (l *SwapLayer) settle(
+	ctx context.Context, req SwapRequest, id uuid.UUID, signature chain.Signature, result ExecuteResult, cause error,
+) error {
+	if cause != nil {
+		return unfinished(cause)
+	}
+	switch result.Status {
+	case ExecuteSuccess:
+		return l.confirm(ctx, req, id, signature, result)
+	case ExecuteFailed:
+		_, err := l.move(ctx, req, id, failed(req, id, domain.FailureJupiterFailed, strconv.Itoa(result.ErrorCode)))
+		return err
+	case ExecutePending:
+	}
 	return nil
+}
+
+func unfinished(cause error) error {
+	if code := errs.CodeOf(cause); code == errs.CodeUpstreamTimeout || code == errs.CodeJupiterUnavailable {
+		return nil
+	}
+	return cause
+}
+
+func (l *SwapLayer) confirm(
+	ctx context.Context, req SwapRequest, id uuid.UUID, signature chain.Signature, result ExecuteResult,
+) error {
+	out, ok := domain.Column(result.OutAmount)
+	if !ok {
+		return errs.New(errs.CodeDecodeFailed, "trading.SwapLayer.confirm", slog.Uint64("out_amount", result.OutAmount))
+	}
+	_, err := l.move(ctx, req, id, confirmed(req, id, signature, result.OutAmount, out))
+	return err
 }
 
 func (l *SwapLayer) orderFailed(ctx context.Context, req SwapRequest, id uuid.UUID, cause error) error {
@@ -232,6 +271,28 @@ func submitted(req SwapRequest, id uuid.UUID, requestID string, signed []byte, s
 				SourceBatchSize: req.SourceBatchSize, Action: string(req.Action), Symbol: req.Symbol,
 				InMint: req.InMint.Address, OutMint: req.OutMint.Address, InAmount: req.InAmount,
 				TxSignature: signature,
+			}
+		},
+	}
+}
+
+func confirmed(req SwapRequest, id uuid.UUID, signature chain.Signature, outAmount uint64, column int64) step {
+	usdc := req.InAmount
+	if req.Action == domain.ActionSell {
+		usdc = outAmount
+	}
+	return step{
+		status: domain.StatusConfirmed,
+		apply: func(ctx context.Context, q *sqlc.Queries, at time.Time) (int64, error) {
+			return q.FinishConfirmed(ctx, sqlc.FinishConfirmedParams{ID: id, OutAmount: column, ConfirmedAt: at})
+		},
+		event: func(at time.Time) events.Event {
+			return events.TradeConfirmed{
+				V: 1, SwapID: id, CabalID: req.CabalID.UUID(), Source: req.tradeSource(),
+				SourceBatchSize: req.SourceBatchSize, Action: string(req.Action), Symbol: req.Symbol,
+				InMint: req.InMint.Address, InAmount: req.InAmount, OutMint: req.OutMint.Address, OutAmount: outAmount,
+				USDCMicros: money.MicrosFromUint64(usdc), FeeMicros: money.MicrosFromUint64(0),
+				TxSignature: signature, ConfirmedAt: at,
 			}
 		},
 	}
