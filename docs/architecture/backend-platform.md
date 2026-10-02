@@ -931,6 +931,8 @@ Stage 0 diffs `HEAD` against `origin/staging` and picks its rows from the change
 - `apps/backend/api/openapi.yaml`, `.vacuum.yaml` or `scripts/ci/oasdiff-*`: the pinned vacuum lint in Docker, the oasdiff self-test, and oasdiff against the stack parent's spec.
 - `docs/**`, `mkdocs.yml`, `requirements-docs.txt` or `openapi.yaml`: `mkdocs build --strict` from the README's `.venv`, in the worktree or the main checkout. Without one the row prints `skip` and the install hint.
 
+A restack onto a newer `staging` changes the tree but not the PR's diff. On a pass, stage 0 also writes `checks-diff/<patch-id>`, where the patch-id is `git diff <parent> HEAD | git patch-id --verbatim`, holding the tree it passed on. When `checks/<tree>` is missing and `checks-diff/<patch-id>` exists, stage 0 writes `checks/<tree>` with `carried from <old tree>`, prints `stage 0 carried from tree <old> (same diff against <parent>)` and runs no rows. An empty diff never carries, and `check --fresh` always runs in full. Code the PR did not change stays covered by stage 1 and stage 2. A changed or regenerated file changes the patch-id, so stage 0 runs in full.
+
 The ready and migrate rows first run `scripts/install-sqlc.sh` or `scripts/install-atlas.sh` when `.bin/` lacks the tool, as CI does. The stack parent is `gt parent`, or the `--base` ref when Graphite does not track the branch or its parent is `staging`.
 
 A path in no row runs nothing in stage 0. The paths with no checks in any stage are `docs/**`, `**/*.md`, `.claude/**`, `.cursor/**`, `.github/**` (actionlint runs in `ci / Plan`), `scripts/cloud-setup.sh` and `.env.local`; `ci / Plan` treats them as inert ([ci.md](ci.md)). `apps/mobile/**` still needs `just build mobile` and gold-sim QA from whoever changes it.

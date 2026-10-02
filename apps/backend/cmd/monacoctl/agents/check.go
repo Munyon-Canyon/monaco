@@ -59,19 +59,31 @@ type checkRun struct {
 	timings []timing
 }
 
+func parseCheckArgs(base string, args []string) (string, bool, error) {
+	fresh := false
+	for len(args) > 0 {
+		switch {
+		case args[0] == "--fresh":
+			fresh, args = true, args[1:]
+		case len(args) >= 2 && args[0] == "--base":
+			base, args = args[1], args[2:]
+		default:
+			return "", false, usageError("check [--base <ref>] [--fresh]")
+		}
+	}
+	return base, fresh, nil
+}
+
 func checkCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {
-	base := "origin/" + env.Config.FeatureBranch
-	switch {
-	case len(args) == 2 && args[0] == "--base":
-		base = args[1]
-	case len(args) != 0:
-		return usageError("check [--base <ref>]")
+	base, fresh, err := parseCheckArgs("origin/"+env.Config.FeatureBranch, args)
+	if err != nil {
+		return err
 	}
 	tree, head, err := env.cleanHead(ctx)
 	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(env.statePath("checks", tree)); err == nil {
+	if _, err := os.Stat(env.statePath("checks", tree)); err == nil && !fresh {
 		_, _ = fmt.Fprintf(stdout, "stage 0 already passed on tree %s\n", tree[:12])
 		return nil
 	}
@@ -79,6 +91,16 @@ func checkCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 		return err
 	}
 	parent := env.stackParent(ctx, base)
+	patchID := env.patchID(ctx, parent)
+	if !fresh {
+		if carried, err := env.carry(patchID, tree, head, base, parent, stdout); carried || err != nil {
+			return err
+		}
+	}
+	return env.runStage0(ctx, base, parent, head, tree, patchID, stdout)
+}
+
+func (env *Env) runStage0(ctx context.Context, base, parent, head, tree, patchID string, stdout io.Writer) error {
 	defer func() { _ = os.Remove(env.coverProfile(head)) }()
 	rows, err := env.stage0(ctx, base, parent, head)
 	if err != nil {
@@ -99,8 +121,48 @@ func checkCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	if err != nil {
 		return err
 	}
+	if patchID != "" {
+		if _, err := env.writeState("checks-diff", patchID, []byte(tree+"\n")); err != nil {
+			return err
+		}
+	}
 	_, _ = fmt.Fprintf(stdout, "passed in %.1fs; recorded %s\n", env.Now().Sub(run.start).Seconds(), record)
 	return nil
+}
+
+func (env *Env) carry(patchID, tree, head, base, parent string, stdout io.Writer) (bool, error) {
+	old, ok := env.carriedTree(patchID)
+	if !ok {
+		return false, nil
+	}
+	record := fmt.Appendf(nil, "head %s\nbase %s\ncarried from %s\n", head, base, old)
+	if _, err := env.writeState("checks", tree, record); err != nil {
+		return false, err
+	}
+	_, _ = fmt.Fprintf(stdout, "stage 0 carried from tree %s (same diff against %s)\n", old[:min(12, len(old))], parent)
+	return true, nil
+}
+
+func (env *Env) patchID(ctx context.Context, parent string) string {
+	diff, err := env.Run(ctx, env.Work, "", "git", "diff", parent, "HEAD")
+	if err != nil || len(bytes.TrimSpace(diff)) == 0 {
+		return ""
+	}
+	out, err := env.Run(ctx, env.Work, string(diff), "git", "patch-id", "--verbatim")
+	id, _, _ := strings.Cut(strings.TrimSpace(string(out)), " ")
+	if err != nil {
+		return ""
+	}
+	return id
+}
+
+func (env *Env) carriedTree(patchID string) (string, bool) {
+	if patchID == "" {
+		return "", false
+	}
+	body, err := os.ReadFile(env.statePath("checks-diff", patchID))
+	tree := strings.TrimSpace(string(body))
+	return tree, err == nil && tree != ""
 }
 
 func (env *Env) cleanHead(ctx context.Context) (tree, head string, err error) {

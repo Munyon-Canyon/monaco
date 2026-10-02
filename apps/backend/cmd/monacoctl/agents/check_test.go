@@ -886,3 +886,131 @@ func TestCheck_reportsAFlowsFileItCannotReadOrWrite(t *testing.T) {
 		t.Fatalf("open: %v", err)
 	}
 }
+
+func (h *checkHarness) onPRBranch(t *testing.T, files map[string]string) {
+	t.Helper()
+	git(t, h.dir, "checkout", "-q", "-b", "pr")
+	h.commit(t, files)
+}
+
+func (h *checkHarness) moveBase(t *testing.T, files map[string]string) {
+	t.Helper()
+	git(t, h.dir, "checkout", "-q", "--detach", "fb")
+	h.base(t, files)
+	git(t, h.dir, "checkout", "-q", "pr")
+}
+
+func (h *checkHarness) rebase(t *testing.T) {
+	t.Helper()
+	git(t, h.dir, "rebase", "-q", "fb")
+}
+
+func (h *checkHarness) ranRows() bool {
+	return slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, "check-pr-size.py") })
+}
+
+func (h *checkHarness) treeOf(t *testing.T) string {
+	t.Helper()
+	out, err := Exec(context.Background(), h.dir, "", "git", "rev-parse", "HEAD^{tree}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func TestCheck_aRestackThatLeavesTheDiffUnchangedCarriesTheStage0Pass(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.onPRBranch(t, map[string]string{"README.md": "one\n"})
+	oldTree := h.treeOf(t)
+	if code, stdout, stderr := h.check(t); code != 0 || !h.ranRows() {
+		t.Fatalf("first check: %d %q %q %v", code, stdout, stderr, h.calls)
+	}
+	h.moveBase(t, map[string]string{"NOTES.md": "moved\n"})
+	h.rebase(t)
+	newTree := h.treeOf(t)
+	if newTree == oldTree {
+		t.Fatal("the rebase did not change the tree")
+	}
+
+	h.calls = nil
+	code, stdout, stderr := h.check(t)
+	want := "stage 0 carried from tree " + oldTree[:12] + " (same diff against origin/fb)\n"
+	if code != 0 || stdout != want || h.ranRows() {
+		t.Fatalf("carry: %d %q %q calls %v", code, stdout, stderr, h.calls)
+	}
+	record, err := os.ReadFile(filepath.Join(h.stateDir(t, "checks"), newTree))
+	wantRecord := "head " + h.head(t) + "\nbase origin/fb\ncarried from " + oldTree + "\n"
+	if err != nil || string(record) != wantRecord {
+		t.Fatalf("record %q, want %q (%v)", record, wantRecord, err)
+	}
+
+	h.calls = nil
+	if code, stdout, _ := h.check(t, "--base", "origin/fb", "--fresh"); code != 0 || !h.ranRows() ||
+		strings.Contains(stdout, "carried") || strings.Contains(stdout, "already") {
+		t.Fatalf("fresh on a carried tree: %d %q %v", code, stdout, h.calls)
+	}
+
+	h.moveBase(t, map[string]string{"MORE.md": "moved again\n"})
+	git(t, h.dir, "reset", "-q", "--hard", "fb")
+	h.calls = nil
+	if code, stdout, _ := h.check(t); code != 0 || !h.ranRows() || strings.Contains(stdout, "carried") {
+		t.Fatalf("empty diff: %d %q %v", code, stdout, h.calls)
+	}
+	if entries, _ := os.ReadDir(h.stateDir(t, "checks-diff")); len(entries) != 1 {
+		t.Fatalf("an empty diff recorded: %v", entries)
+	}
+	h.commit(t, map[string]string{"README.md": "one\n"})
+	checks := h.stateDir(t, "checks")
+	if err := os.RemoveAll(checks); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, checks, "not a directory\n")
+	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "write ") {
+		t.Fatalf("unwritable carry record: %d %q", code, stderr)
+	}
+}
+
+func TestCheck_aChangedDiffAfterTheRestackRunsStage0InFull(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.onPRBranch(t, map[string]string{"README.md": "one\n", "gen/out.txt": "generated\n"})
+	if code, _, stderr := h.check(t); code != 0 {
+		t.Fatalf("first check: %d %q", code, stderr)
+	}
+	h.moveBase(t, map[string]string{"NOTES.md": "moved\n"})
+	h.rebase(t)
+	h.commit(t, map[string]string{"README.md": "one \n"})
+	h.calls = nil
+	if code, stdout, stderr := h.check(t); code != 0 || !h.ranRows() || strings.Contains(stdout, "carried") {
+		t.Fatalf("whitespace-only change: %d %q %q %v", code, stdout, stderr, h.calls)
+	}
+	for name, edit := range map[string]map[string]string{
+		"one line edited":          {"README.md": "two\n"},
+		"regenerated file differs": {"gen/out.txt": "regenerated\n"},
+	} {
+		h.commit(t, edit)
+		h.calls = nil
+		code, stdout, stderr := h.check(t)
+		if code != 0 || !h.ranRows() || strings.Contains(stdout, "carried") {
+			t.Fatalf("%s: %d %q %q %v", name, code, stdout, stderr, h.calls)
+		}
+	}
+
+	h.commit(t, map[string]string{"README.md": "three\n"})
+	h.replies = []reply{{prefix: "git patch-id", err: errors.New("no patch-id")}}
+	h.calls = nil
+	if code, stdout, stderr := h.check(t); code != 0 || !h.ranRows() {
+		t.Fatalf("patch-id failure: %d %q %q %v", code, stdout, stderr, h.calls)
+	}
+	h.replies = nil
+	h.commit(t, map[string]string{"README.md": "four\n"})
+	diffs := h.stateDir(t, "checks-diff")
+	if err := os.RemoveAll(diffs); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, diffs, "not a directory\n")
+	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "write ") {
+		t.Fatalf("unwritable diff record: %d %q", code, stderr)
+	}
+}
