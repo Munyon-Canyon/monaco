@@ -261,7 +261,7 @@ Docs: [Phantom MCP server](https://docs.phantom.com/phantom-mcp-server) · [Setu
 
 **Cursor plugin (easiest):** marketplace search `phantom-connect` / Add Plugin. Bundles wallet MCP + docs MCP. See [AI-assisted development](https://docs.phantom.com/developer-powertools/ai-tools).
 
-**Manual Cursor:** add to `~/.cursor/mcp.json` (merge into existing `mcpServers`; this repo’s `.cursor/mcp.json` is XcodeBuildMCP + Pyth only):
+**Manual Cursor:** add to `~/.cursor/mcp.json` (merge into existing `mcpServers`; this repo’s `.cursor/mcp.json` is MobileBuildMCP + Pyth only):
 
 ```json
 {
@@ -334,7 +334,7 @@ Learned prefs and durable facts live in [`AGENTS.md`](AGENTS.md). Skills are the
 | ----- | ---- | ----------- |
 | **write-ticket** | [`.cursor/skills/write-ticket/SKILL.md`](.cursor/skills/write-ticket/SKILL.md) | Draft GitHub (or Linear) issue bodies. Six-section shape: Context, Problem, Proposal (with Scope), Acceptance Criteria (≥2 checkboxes), Verification commands, Done when. Keep Context vs Problem distinct. No nested triple-backtick fences inside the ticket body. |
 | **worktree-orchestrate** | [`.cursor/skills/worktree-orchestrate/SKILL.md`](.cursor/skills/worktree-orchestrate/SKILL.md) | Parallel milestone work. Parent stays on the integration branch (`milestone-N`). Implementers ship in git worktrees on `feat/*`. Default implementer model is Composer 2.5. One light review, then merge. Do not nest another orchestrator. Split mobile vs backend to separate agents. Kickoff templates: [`prompts.md`](.cursor/skills/worktree-orchestrate/prompts.md). |
-| **ios-simslim-fast-qa** | [`.cursor/skills/ios-simslim-fast-qa/SKILL.md`](.cursor/skills/ios-simslim-fast-qa/SKILL.md) | Agent sim smoke / tap-through. Unit tests first (`just test mobile`, no sim). Then one gold slim sim. Never `simctl erase`. Never destination by device name. XcodeBuildMCP needs `--simulator-id` from `scripts/gold-sim-udid.sh` (`SIMSLIM_UDID` required). Human `just run` uses stock-sim fallback instead. |
+| **ios-simslim-fast-qa** | [`.cursor/skills/ios-simslim-fast-qa/SKILL.md`](.cursor/skills/ios-simslim-fast-qa/SKILL.md) | Agent sim smoke / tap-through. Unit tests first (`just test mobile`, no sim). Then one gold slim sim. Never `simctl erase`. Never destination by device name. MobileBuildMCP needs `--simulator-id` from `scripts/gold-sim-udid.sh` (`SIMSLIM_UDID` required). Human `just run` uses stock-sim fallback instead. |
 | **anti-ai-slop** | [`.cursor/skills/anti-ai-slop/SKILL.md`](.cursor/skills/anti-ai-slop/SKILL.md) | Any UI, SwiftUI, empty states, onboarding, or marketing copy. Banlist for purple gradients, emoji-as-icons, Inter/system-ui-as-brand, glassmorphism, generic SaaS card grids. Product copy stays social-investing language (no wallets/gas/mint in the UI). |
 | **testing-expert** | [`.cursor/skills/testing-expert/SKILL.md`](.cursor/skills/testing-expert/SKILL.md) | How to write tests: small surface, deterministic, realistic data. This copy is TS/Jest-oriented; Monaco still follows the same bar in Go and Swift. `just test mobile` is host `swift test`. `just test backend` uses stubs — never hit live Jupiter. Skip property tests that run longer than ~2 minutes. |
 
