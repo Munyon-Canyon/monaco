@@ -10,6 +10,13 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+)
+
+const (
+	devUserV7          = "01890a5d-ac96-774b-bcce-b302099a8057"
+	devUserV4          = "01890a5d-ac96-474b-bcce-b302099a8057"
+	devVerifierRefused = "monacoctl dev token: auth.NewDevVerifier: invalid_input\n"
 )
 
 func devConfig(env config.Env) config.Config {
@@ -19,7 +26,7 @@ func devConfig(env config.Env) config.Config {
 func TestDevToken_mintsATokenTheDevVerifierAccepts(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer
-	if code := devCmd(devConfig(config.EnvLocal), []string{"token", "--user", "u-42", "--ttl", "1h"}, &stdout,
+	if code := devCmd(devConfig(config.EnvLocal), []string{"token", "--user", devUserV7, "--ttl", "1h"}, &stdout,
 		&stderr); code != 0 || stderr.Len() != 0 {
 		t.Fatalf("exit %d, stderr %q", code, stderr.String())
 	}
@@ -28,7 +35,7 @@ func TestDevToken_mintsATokenTheDevVerifierAccepts(t *testing.T) {
 		t.Fatal(err)
 	}
 	actor, err := verifier.Verify(t.Context(), strings.TrimSuffix(stdout.String(), "\n"))
-	if err != nil || actor != (auth.Actor{Kind: auth.ActorUser, ID: "u-42", Standing: auth.StandingActive}) {
+	if err != nil || actor != (auth.Actor{Kind: auth.ActorUser, ID: devUserV7, Standing: auth.StandingActive}) {
 		t.Fatalf("Verify = %+v, %v", actor, err)
 	}
 	wrongKey, err := auth.NewDevVerifier(config.Config{Env: config.EnvLocal, Auth: config.Auth{DevTokenKey: "other"}},
@@ -49,11 +56,15 @@ func TestDevToken_refusesProductionAndBadArguments(t *testing.T) {
 		code int
 		want string
 	}{
-		"production":   {devConfig(config.EnvProduction), []string{"token", "--user", "u"}, 1, "monacoctl dev token: auth.NewDevVerifier: invalid_input\n"},
-		"no key":       {config.Config{Env: config.EnvLocal}, []string{"token", "--user", "u"}, 1, "monacoctl dev token: auth.NewDevVerifier: invalid_input\n"},
-		"no user":      {devConfig(config.EnvLocal), []string{"token"}, 2, devUsage + "\n"},
-		"zero ttl":     {devConfig(config.EnvLocal), []string{"token", "--user", "u", "--ttl", "0s"}, 2, devUsage + "\n"},
-		"extra arg":    {devConfig(config.EnvLocal), []string{"token", "--user", "u", "x"}, 2, devUsage + "\n"},
+		"production": {devConfig(config.EnvProduction), []string{"token", "--user", devUserV7}, 1, devVerifierRefused},
+		"no key":     {config.Config{Env: config.EnvLocal}, []string{"token", "--user", devUserV7}, 1, devVerifierRefused},
+		"no user":    {devConfig(config.EnvLocal), []string{"token"}, 2, devUsage + "\n"},
+		"zero ttl": {
+			devConfig(config.EnvLocal), []string{"token", "--user", devUserV7, "--ttl", "0s"}, 2, devUsage + "\n",
+		},
+		"extra arg":    {devConfig(config.EnvLocal), []string{"token", "--user", devUserV7, "x"}, 2, devUsage + "\n"},
+		"version 4":    {devConfig(config.EnvLocal), []string{"token", "--user", devUserV4}, 2, devUserSubjectLine + "\n"},
+		"alice":        {devConfig(config.EnvLocal), []string{"token", "--user", "alice"}, 2, devUserSubjectLine + "\n"},
 		"bad flag":     {devConfig(config.EnvLocal), []string{"token", "--nope"}, 2, devUsage + "\n"},
 		"unknown verb": {devConfig(config.EnvLocal), []string{"mint"}, 2, devUsage + "\n"},
 		"no verb":      {devConfig(config.EnvLocal), nil, 2, devUsage + "\n"},
@@ -73,7 +84,7 @@ func TestDevToken_refusesProductionAndBadArguments(t *testing.T) {
 func TestDevToken_defaultTTLIsADay(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer
-	if code := devCmd(devConfig(config.EnvLocal), []string{"token", "--user", "u"}, &stdout, &stderr); code != 0 {
+	if code := devCmd(devConfig(config.EnvLocal), []string{"token", "--user", devUserV7}, &stdout, &stderr); code != 0 {
 		t.Fatalf("exit %d, stderr %q", code, stderr.String())
 	}
 	later := testClock{at: time.Now().Add(23 * time.Hour)}
@@ -96,6 +107,39 @@ type testClock struct {
 }
 
 func (c testClock) Now() time.Time { return c.at }
+
+func TestDevToken_newUserPrintsTheTokenThenTheID(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	if code := devCmd(devConfig(config.EnvLocal), []string{"token", "--new-user"}, &stdout, &stderr); code != 0 ||
+		stderr.Len() != 0 {
+		t.Fatalf("exit %d, stderr %q", code, stderr.String())
+	}
+	lines := strings.Split(strings.TrimSuffix(stdout.String(), "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("stdout = %q, want a token and a user id", stdout.String())
+	}
+	if _, err := ids.ParseUserID(lines[1]); err != nil {
+		t.Fatalf("user id %q: %v", lines[1], err)
+	}
+	verifier, err := auth.NewDevVerifier(devConfig(config.EnvLocal), clock.Real{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor, err := verifier.Verify(t.Context(), lines[0])
+	if err != nil || actor != (auth.Actor{Kind: auth.ActorUser, ID: lines[1], Standing: auth.StandingActive}) {
+		t.Fatalf("Verify = %+v, %v", actor, err)
+	}
+}
+
+func TestDevToken_userAndNewUserPrintsUsage(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	code := devCmd(devConfig(config.EnvLocal), []string{"token", "--user", devUserV7, "--new-user"}, &stdout, &stderr)
+	if code != 2 || stderr.String() != devUsage+"\n" || stdout.Len() != 0 {
+		t.Fatalf("exit %d stderr %q stdout %q", code, stderr.String(), stdout.String())
+	}
+}
 
 func TestDevPrivyToken_mintsAnHourLongTokenThatThePrintedKeyVerifies(t *testing.T) {
 	t.Parallel()
