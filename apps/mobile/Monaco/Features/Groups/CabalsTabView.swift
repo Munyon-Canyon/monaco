@@ -226,7 +226,7 @@ struct NewCabalSheet: View {
 
 #if DEBUG
 #Preview {
-    let session = AppSessionStore()
+    let session = AppSessionStore(apiClient: MonacoAPIClient())
     session.home = CabalsTabSampleData.home
     return NavigationStack {
         CabalsTabView(auth: PrivyAuthService(), dataSource: CabalsTabSampleData.DataSource())

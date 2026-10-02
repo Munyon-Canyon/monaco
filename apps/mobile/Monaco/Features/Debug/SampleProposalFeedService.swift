@@ -522,7 +522,7 @@ private struct SampleProposePickerRoot: View {
 
     @EnvironmentObject private var auth: PrivyAuthService
     @State private var session: AppSessionStore = {
-        let session = AppSessionStore()
+        let session = AppSessionStore(apiClient: MonacoAPIClient())
         session.isLoading = false
         session.home = HomeViewDTO(groups: SampleProposeService.joinedCabals, people: [])
         return session

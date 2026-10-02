@@ -6,6 +6,6 @@ enum CabalsTab: TabContent {
     static let accessibilityIdentifier = "tab-cabals"
 
     static func root() -> some View {
-        NotMigratedView(screen: "Cabals")
+        CabalsTabScreen()
     }
 }

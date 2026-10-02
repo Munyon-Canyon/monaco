@@ -39,7 +39,7 @@ struct HomeSampleHarness: View {
     }
 
     private static func makeSession(for scenario: HomeSampleScenario) -> AppSessionStore {
-        let session = AppSessionStore()
+        let session = AppSessionStore(apiClient: MonacoAPIClient())
         session.isLoading = false
 
         if scenario == .loading {

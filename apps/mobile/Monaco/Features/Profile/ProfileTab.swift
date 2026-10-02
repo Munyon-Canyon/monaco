@@ -6,6 +6,6 @@ enum ProfileTab: TabContent {
     static let accessibilityIdentifier = "tab-profile"
 
     static func root() -> some View {
-        NotMigratedView(screen: "Profile")
+        ProfileScreen()
     }
 }

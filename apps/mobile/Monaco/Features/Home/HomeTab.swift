@@ -6,6 +6,6 @@ enum HomeTab: TabContent {
     static let accessibilityIdentifier = "tab-home"
 
     static func root() -> some View {
-        NotMigratedView(screen: "Home")
+        HomeScreen()
     }
 }

@@ -4,6 +4,7 @@ import Synchronization
 nonisolated final class SessionTokens: AccessTokenProvider, Sendable {
     private let privyToken: @Sendable () async -> String?
     private let refresh: @Sendable (String) async throws -> String?
+    private let signedOutHandler = Mutex<(@Sendable () -> Void)?>(nil)
     #if DEBUG
     private let devSession = Mutex<DevSession?>(nil)
     #endif
@@ -29,6 +30,10 @@ nonisolated final class SessionTokens: AccessTokenProvider, Sendable {
     }
     #endif
 
+    func onSignedOut(_ handler: @escaping @Sendable () -> Void) {
+        signedOutHandler.withLock { $0 = handler }
+    }
+
     func accessToken() async throws -> String? {
         #if DEBUG
         if let token = devSession.withLock({ $0?.token }) { return token }
@@ -38,8 +43,20 @@ nonisolated final class SessionTokens: AccessTokenProvider, Sendable {
 
     func refreshedToken(replacing stale: String) async throws -> String? {
         #if DEBUG
-        if devSession.withLock({ $0 != nil }) { return nil }
+        if let dev = devSession.withLock({ $0 }) {
+            if dev.token == stale { notifySignedOut() }
+            return nil
+        }
         #endif
-        return try await refresh(stale)
+        let current = await privyToken()
+        let fresh = try await refresh(stale)
+        if fresh == nil, current == stale {
+            notifySignedOut()
+        }
+        return fresh
+    }
+
+    private func notifySignedOut() {
+        signedOutHandler.withLock { $0 }?()
     }
 }

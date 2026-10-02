@@ -187,7 +187,7 @@ enum CabalsTabSampleData {
 struct CabalsTabSampleHarness: View {
     @ObservedObject var auth: PrivyAuthService
     @State private var session: AppSessionStore = {
-        let session = AppSessionStore()
+        let session = AppSessionStore(apiClient: MonacoAPIClient())
         // `home` stays nil in both unhappy scenarios; what separates them is
         // whether the shell still has a load running, which is what tells
         // "not here yet" from "did not arrive".

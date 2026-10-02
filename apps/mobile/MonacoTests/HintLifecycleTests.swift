@@ -1,4 +1,5 @@
 import MonacoAPI
+import Observation
 import SwiftUI
 import Synchronization
 import Testing
@@ -44,6 +45,42 @@ struct HintLifecycleTests {
 
         #expect(hints.stops == 1)
         #expect(environment.viewer == nil)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func aRejectedTokenThatCannotRefreshSignsOut() async {
+        let hints = FakeHintSource()
+        let tokens = SessionTokens(
+            privyToken: { "stale-token" },
+            refresh: { _ in nil }
+        )
+        let auth = PrivyAuthService.processInstance ?? PrivyAuthService()
+        let environment = AppEnvironment(
+            auth: auth,
+            tokens: tokens,
+            hints: hints,
+            isAuthenticated: { true },
+            endAuthSession: {}
+        )
+        environment.viewer = Viewer(userID: "u-1", handle: nil)
+
+        _ = try? await tokens.refreshedToken(replacing: "stale-token")
+        await untilViewerClears(environment)
+
+        #expect(hints.stops == 1)
+        #expect(environment.viewer == nil)
+    }
+
+    private func untilViewerClears(_ environment: AppEnvironment) async {
+        while environment.viewer != nil {
+            await withCheckedContinuation { continuation in
+                withObservationTracking {
+                    _ = environment.viewer
+                } onChange: {
+                    continuation.resume()
+                }
+            }
+        }
     }
 
     private func environment(hints: FakeHintSource, signedIn: Bool) -> AppEnvironment {
