@@ -250,13 +250,18 @@ migrate target:
         ;;
     esac
 
-# Regenerate checked-in files (`just gen docs`) or scaffold backend code (`just gen module <name>`; `just gen help` lists every generator).
+# Regenerate checked-in files (`just gen docs`) or scaffold backend code (`just gen module <name>`, which also writes the module's first migration, `just gen migration <module> <name>`; `just gen help` lists every generator).
 gen target *args:
     #!/usr/bin/env bash
     set -euo pipefail
     case "{{target}}" in
       docs)
         ./scripts/gen-docs.sh
+        ;;
+      module)
+        cd apps/backend
+        go run ./cmd/monacoctl gen module {{args}}
+        go run ./cmd/monacoctl gen migration {{args}} init
         ;;
       *)
         cd apps/backend && go run ./cmd/monacoctl gen {{target}} {{args}}

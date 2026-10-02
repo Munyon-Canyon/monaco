@@ -2,14 +2,17 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
+	codegen "github.com/monaco/monaco/apps/backend/internal/tools/gen"
 )
 
 const staleSpec = `components:
@@ -247,5 +250,43 @@ func TestGen_flowWithALetterSuffixWritesItsTestFileIntoTheModule(t *testing.T) {
 	}
 	if got := strings.Count(string(src), "func Test"); got != 3 {
 		t.Errorf("%s has %d tests, want 3", written, got)
+	}
+}
+
+func TestGen_migrationRoutesToTheMigratorAndReportsItsFiles(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	for rel, body := range map[string]string{
+		"go.mod":                            "module example.com/app\n",
+		"internal/modules/social/module.go": "package social\n",
+		"migrations/atlas.sum":              "",
+	} {
+		path := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var stdout, stderr bytes.Buffer
+	if code := toolGen(toolEnv{wd: root})([]string{"migration", "social"}, &stdout, &stderr); code != 1 ||
+		!strings.Contains(stderr.String(), "gen migration <module> <name>") {
+		t.Fatalf("gen migration social = %d %q, want 1 and usage", code, stderr.String())
+	}
+	stderr.Reset()
+	files := codegen.Migrator{
+		Dir:     root,
+		Now:     func() time.Time { return time.Date(2026, 10, 2, 13, 0, 0, 0, time.UTC) },
+		Staging: func(context.Context) ([]string, error) { return nil, nil },
+		Hash:    func(context.Context) error { return nil },
+	}
+	if code := migrate(files, []string{"social", "follows"}, &stdout, &stderr); code != 0 ||
+		stdout.String() != "migrations/20261002130000_social_follows.sql\n" {
+		t.Fatalf("migrate = %d, stdout %q, stderr %q", code, stdout.String(), stderr.String())
+	}
+	if code := gen([]string{"nope"}, &stdout, &stderr); code != 2 ||
+		!strings.Contains(stderr.String(), "gen migration --rebase") {
+		t.Fatalf("usage lacks the migration line: %q", stderr.String())
 	}
 }

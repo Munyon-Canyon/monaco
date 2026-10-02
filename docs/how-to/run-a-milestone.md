@@ -151,11 +151,11 @@ Only the root restacks, one stack at a time.
     A conflict in a file that `[batch] shared` lists in `.monaco/agents.toml` needs no hand merge. Take either side, then regenerate from `apps/backend` and commit the result:
 
         go generate ./...
-        ../../.bin/atlas migrate hash
+        go run ./cmd/monacoctl gen migration --rebase
         ../../scripts/gen-docs.sh
         go run ./cmd/monacoctl docs flows --feature-map > ../../.claude/skills/verify-backend/feature-map.md
 
-    `go generate` rebuilds `api.gen.go` and the other generated Go from `openapi.yaml` and the module list. `atlas migrate hash` (the pinned build `scripts/install-atlas.sh` puts in `.bin/`) rewrites `migrations/atlas.sum` over both sides' migration files. `gen-docs.sh` rewrites `docs/reference/`. The last line is the feature-map step of `scripts/ci/ready.sh`. `flows.tsv` and `CHANGELOG.md` merge with `merge=union` and should not conflict. If they do, keep both sides' lines. `agents check` then sorts `flows.tsv` by id. [Shared files](../architecture/ci.md#shared-files) says why each glob is safe.
+    `go generate` rebuilds `api.gen.go` and the other generated Go from `openapi.yaml` and the module list. `gen migration --rebase` renames the branch's own migrations (files not on `origin/staging`) to fresh prefixes above the newest one there, in their original order, then runs `atlas migrate hash` (the pinned build `scripts/install-atlas.sh` puts in `.bin/`) to rewrite `migrations/atlas.sum`. It renames nothing when the branch's files already sort above staging's, and still rehashes. A new migration comes from `just gen migration <module> <name>`, never a hand-picked prefix. `gen-docs.sh` rewrites `docs/reference/`. The last line is the feature-map step of `scripts/ci/ready.sh`. `flows.tsv` and `CHANGELOG.md` merge with `merge=union` and should not conflict. If they do, keep both sides' lines. `agents check` then sorts `flows.tsv` by id. [Shared files](../architecture/ci.md#shared-files) says why each glob is safe.
 
 3. Check every branch of the stack, not only the top. A clean textual restack can still break compilation.
 
