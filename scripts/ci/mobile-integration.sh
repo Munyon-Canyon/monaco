@@ -65,6 +65,22 @@ wait_addr() {
 }
 
 cd "$root"
+# GitHub Actions sets CI=true and has no dev stack, so the pinned names are safe there.
+# Anywhere else, project "monaco" and container_name monaco-postgres / monaco-nats are
+# the dev stack. A nonempty COMPOSE_PROJECT_NAME is not isolation: monaco reuses the
+# dev project, and any other name still pins those containers until a COMPOSE_FILE
+# renames them. Either path would migrate the dev database and join its JetStream.
+if [[ "${CI:-}" != "true" ]]; then
+  if [[ -z "${COMPOSE_PROJECT_NAME:-}" || "${COMPOSE_PROJECT_NAME}" == "monaco" ]]; then
+    echo "mobile-integration: refusing the dev stack. Set CI=true, or set COMPOSE_PROJECT_NAME to a project other than monaco and a COMPOSE_FILE that renames the pinned containers (monaco-postgres, monaco-nats)." >&2
+    exit 1
+  fi
+  resolved="$(docker compose config)"
+  if grep -Eq '^name: monaco[[:space:]]*$|^[[:space:]]*container_name: monaco-postgres[[:space:]]*$|^[[:space:]]*container_name: monaco-nats[[:space:]]*$' <<<"$resolved"; then
+    echo "mobile-integration: refusing the dev stack. The resolved Compose config still uses project monaco or pins monaco-postgres or monaco-nats. Set COMPOSE_PROJECT_NAME and a COMPOSE_FILE that renames those containers." >&2
+    exit 1
+  fi
+fi
 docker compose up -d --wait postgres nats
 
 # The ports compose published, not 54322 and 4222: COMPOSE_PROJECT_NAME, COMPOSE_FILE and
@@ -130,7 +146,7 @@ export MONACO_ENV=test
 export MONACO_DEV_TOKEN_KEY="$token_key"
 # Written to a file and read back, not `dev_token="$("$bindir/monacoctl" dev token ...)"`: that
 # assignment reads to the tool manifest scanner as `monacoctl`'s dev-token subcommand name being
-# an invoked binary of its own, the same shape the printf fix above works around.
+# an invoked binary of its own, the same shape the printf below works around.
 "$bindir/monacoctl" dev token --user "$dev_user" > "$logdir/dev-token"
 dev_token="$(cat "$logdir/dev-token")"
 export MONACO_BUS_ACK_WAIT=100ms
@@ -198,9 +214,8 @@ set -e
 
 # Matches both the macOS XCTest format (Test Case quote dash-bracket Module.Class method
 # bracket-quote passed) and the swift-corelibs-xctest format on Linux (Test Case
-# quote Class.method quote passed). Built with printf, like the tool manifest's own fix below,
-# so the tool manifest scanner's naive word split doesn't read the second word of the pattern
-# ("Case") as an invoked binary.
+# quote Class.method quote passed). Built with printf so the tool manifest scanner's
+# naive word split doesn't read the second word of the pattern ("Case") as an invoked binary.
 pass_pat="$(printf '%s' "^Test Case '[^']*Integration[^']*' (passed|failed)")"
 skip_pat="$(printf '%s' "^Test Case '[^']*Integration[^']*' skipped")"
 executed="$(grep -Ec "$pass_pat" "$logdir/swift.log" || true)"

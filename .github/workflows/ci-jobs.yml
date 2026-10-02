@@ -222,7 +222,7 @@ jobs:
         run: scripts/ci/mobile-integration.sh
 
       - name: Upload the api and worker logs
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: mobile-integration-logs

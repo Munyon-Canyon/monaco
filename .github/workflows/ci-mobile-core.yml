@@ -63,8 +63,14 @@ jobs:
           scripts/gen-mobile-feature.sh CiProbe
           status=$?
           if [[ "$status" -eq 0 ]]; then
-            (cd packages/mobile-core && swift test --filter CiProbeModelTests --force-resolved-versions -Xswiftc -warnings-as-errors) 2>&1 | tee "$RUNNER_TEMP/ci-probe.log"
+            scripts/mobile-core-test.sh --filter CiProbeModelTests 2>&1 | tee "$RUNNER_TEMP/ci-probe.log"
             status=${PIPESTATUS[0]}
+            pass_pat="$(printf '%s' "^Test Case '[^']*CiProbeModelTests[^']*' (passed|failed)")"
+            executed="$(grep -Ec "$pass_pat" "$RUNNER_TEMP/ci-probe.log" || true)"
+            if [[ "$status" -eq 0 && "${executed:-0}" -lt 1 ]]; then
+              echo "probe: no executed CiProbeModelTests" >&2
+              status=1
+            fi
           fi
           set -e
           printf 'Probe the feature generator\t%s\n' "$(( $(date +%s) - start ))" >> "$RUNNER_TEMP/step-times.tsv"
