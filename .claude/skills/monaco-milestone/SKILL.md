@@ -1,13 +1,13 @@
 ---
 name: monaco-milestone
-description: Names the Monaco command for each step of shipping a ticket or running a milestone. Use when writing, batching, dispatching, verifying, landing, restacking or checkpointing milestone tickets.
+description: Names the Monaco command for each step of shipping a ticket or running a milestone. Use when writing, batching, dispatching, verifying, landing, restacking or promoting milestone tickets.
 ---
 
 # Monaco milestone
 
 The procedures are `docs/how-to/ship-a-ticket.md` for an owner and `docs/how-to/run-a-milestone.md` for the root. Read the one for your role first. This table names the command for each step.
 
-Owners run stage 0 from apps/backend as `go run ./cmd/monacoctl agents check`. The root builds the tools once with `just build backend` and runs bin/monacoctl from a worktree at the feature-branch tip, rebuilding after a merge that changes cmd/monacoctl/agents.
+Owners run stage 0 from apps/backend as `go run ./cmd/monacoctl agents check`. The root builds the tools once with `just build backend` and runs bin/monacoctl from a worktree at the staging tip, rebuilding after a merge that changes cmd/monacoctl/agents.
 
 | Step | Command |
 | --- | --- |
@@ -19,11 +19,11 @@ Owners run stage 0 from apps/backend as `go run ./cmd/monacoctl agents check`. T
 | owner finished | `monacoctl agents done <ticket>`, then `monacoctl agents exited <ticket>` once its process stopped |
 | verify | `monacoctl agents verify-plan <pr>`; the stage 2 CI job `e2e` runs `scripts/ci/e2e.sh`, which runs monacoctl verify on the real binaries. The verifier runs no tests |
 | verdict | `monacoctl agents verdict pass <pr> <sha> --kind <kind> --model <model> --report <file>` (or `fail`); `monacoctl agents verdict carry <pr>` after a restack that left the diff unchanged |
-| landing | `gh pr merge <n> --auto` for a single PR; `monacoctl agents land-stack <top-pr>` for a stack, and again after it merges |
+| landing | always, without asking once stage 1 and `verify` are green: `monacoctl agents land-stack <top-pr>`, which labels every PR of the stack `merge-queue` for the Graphite queue. Never `gh pr merge`, never a base change, never `merge-queue` or `fast-track` by hand. A landed PR shows closed, not merged. A stack that dropped out: `gt modify`, `gt submit --stack --no-interactive --draft`, then `land-stack` again |
 | watching | `monacoctl agents watch`, `monacoctl agents forecast`, `monacoctl agents conflicts <pr>` |
 | status | `monacoctl agents status --publish`, after each batch, dispatch, merge and ejection |
 | restack | root only: `gt sync --no-interactive --no-restack`, `gt restack --upstack` in the stack's worktree, then stage 0 on every branch |
-| checkpoint | the `CHANGELOG.md` rename PR, then one PR from the feature branch into `main` labeled `integration`; the operator merges it and `checkpoint.yml` runs `tree-matches` and `next-branch`, which cuts `<name>-<N+1>` from `main`; move open stacks onto it with `gt trunk --add` and `gt track --parent` |
+| promotion | the `CHANGELOG.md` rename PR, then one PR from staging into `main` labeled `integration`; the operator merges it with a merge commit, and staging stays the trunk |
 | handoff | `monacoctl agents handoff`; `monacoctl agents resume <ticket>` before reusing an owner |
 | timeline | `monacoctl agents timeline` |
 

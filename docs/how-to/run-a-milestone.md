@@ -1,6 +1,6 @@
 # Run a milestone
 
-This page is for the orchestrator of a milestone, a person or an agent session called the root. The root turns the milestone's tickets into merged PRs on the feature branch, then into a checkpoint on `main`. It writes no ticket code itself. Each ticket's owner follows [Ship a ticket](ship-a-ticket.md).
+This page is for the orchestrator of a milestone, a person or an agent session called the root. The root turns the milestone's tickets into merged PRs on `staging`, then promotes `staging` into `main`. It writes no ticket code itself. Each ticket's owner follows [Ship a ticket](ship-a-ticket.md).
 
 Set up the clone with [Agent workflow setup](../agents/setup.md). The [standing orders](../agents/standing-orders.md) bind the root as well as every owner and verifier. The rules behind these steps are in [Pull requests: small and stacked](../architecture/backend-platform.md#pull-requests-small-and-stacked) and [CI](../architecture/ci.md). This page says what to run and when.
 
@@ -8,7 +8,7 @@ Set up the clone with [Agent workflow setup](../agents/setup.md). The [standing 
 
 | Role | Who | Does |
 | --- | --- | --- |
-| Operator | a person | Merges each checkpoint into `main` by hand. Adds the `large-pr` and `gate-change-approved` labels. Owns accounts, secrets and paid services. |
+| Operator | a person | Merges each promotion into `main` by hand. Adds the `large-pr` and `gate-change-approved` labels. Owns accounts, secrets and paid services. |
 | Root | a person or an agent | Writes and batches tickets, dispatches owners and verifiers, lands PRs, restacks, keeps the tracking issue current. The only session that runs `gt sync` or restacks. |
 | Owner | an agent on `opus`, one per ticket | Builds the ticket's stack, runs stage 0, submits drafts, sets bodies, exits. |
 | Verifier | an agent on another model (`sonnet` for an `opus` owner) | Reviews each PR against its ticket, posts `verify`, lands a passing PR. Runs no tests. |
@@ -17,29 +17,25 @@ Set up the clone with [Agent workflow setup](../agents/setup.md). The [standing 
 
 Do these once per milestone.
 
-1. Pick the `<feature>` name: a lowercase slug such as `leaderboards`. Its feature branches are `<feature>-checkpoint-<N>`, such as `leaderboards-checkpoint-1`, and must match `^[a-z0-9]+(-[a-z0-9]+)*-[0-9]+$`. The first is `<feature>-checkpoint-1`, and each checkpoint cuts the next. A branch in the older `<feature>-<N>` form, such as `backend-rewrite-3`, still parses, and its checkpoint cuts `<feature>-checkpoint-<N+1>`.
+1. Check the trunk. Every milestone lands on `staging`, so there is no branch to create. `gh variable get FEATURE_BRANCH` prints `staging`. If the `staging` or `main` ruleset is missing or differs from what `scripts/branch-rulesets.sh` prints, an org admin applies it with that script. [Staging and main](../architecture/ci.md#feature-branches) describes both rulesets.
 
-2. Create `<feature>-checkpoint-1` from `main`, protect it and point `FEATURE_BRANCH` at it. This needs an org admin token.
-
-        scripts/feature-branch.sh init <feature>-checkpoint-1
-
-    `init` creates `<feature>-checkpoint-1` at `origin/main`, then runs `scripts/feature-branch.sh apply <feature>-checkpoint-1`. `apply` adds the Graphite trunk, turns on auto-merge and merge commits, sets the `FEATURE_BRANCH` repo variable to `<feature>-checkpoint-1`, and adds the exact `refs/heads/<feature>-checkpoint-1` to the include list of the one feature branch ruleset. A ruleset with a merge queue takes exact ref names only, so each checkpoint's `next-branch` job adds the branch it cuts. If `<feature>-checkpoint-1` already exists, run `apply <feature>-checkpoint-1` alone. Check the variable with `gh variable get FEATURE_BRANCH`. [Feature branches](../architecture/ci.md#feature-branches) describes both rulesets.
+2. Run `gt init --trunk staging` once per clone, so Graphite builds stacks on `staging`.
 
 3. Set `.monaco/agents.toml`: `repo`, `feature_branch` (`"auto"` reads the `MONACO_FEATURE_BRANCH` env, then the `FEATURE_BRANCH` repo variable; name a branch to pin it), `tracking` (the tracking issue number), `lanes` (the most owners running at once), `batch` (the most tickets per batch), `milestone` (the name of the local state directory under `.git/pstack/`), and the verifier App's `verifier_app` and `verifier_installation`. `[check.budget]` holds the stage 0 budget of each row.
 
 4. Open the tracking issue. Its body holds the wave table: one row per ticket with its wave, issue, title and blockers. `monacoctl agents status --publish` adds the status comment. `monacoctl agents` reads only status, batch and handoff comments written by an owner, member or collaborator of the repository or by `github-actions[bot]`, and edits only its own. Anyone else's comment with the same marker is ignored, and a new comment is posted instead.
 
-5. Make a worktree at the feature-branch tip for the root's own commands, and build the tools there:
+5. Make a worktree at the `staging` tip for the root's own commands, and build the tools there:
 
-        git worktree add --detach .worktrees/root origin/<feature branch>
+        git worktree add --detach .worktrees/root origin/staging
         cd .worktrees/root
         just build backend
 
     `just build backend` writes `bin/monacoctl`. The commands below run as `bin/monacoctl agents <command>` from that worktree. Rebuild after any merge that changes `apps/backend/cmd/monacoctl/agents`. Every worktree of the clone shares the records under `.git/.monaco/agents/` and `.git/pstack/<milestone>/`, so any worktree works. Each owner record is also a comment on its ticket, marked `<!-- monacoctl agents record -->`. `dispatch` posts it, and `done`, `exited` and `verdict` update it. A command that needs a record this clone lacks rebuilds it from the newest such comment, with the worktree path set to this clone's `.worktrees/<n>`.
 
-6. Confirm the `MERGE_BACK_TOKEN` repo secret exists (`gh secret list`). `checkpoint.yml` needs it to cut the next feature branch, its `Variables: write` permission to update `FEATURE_BRANCH`, and its `Administration: write` permission to add the new branch to the feature branch ruleset. The verifier's statuses post as the verifier App when `~/.config/monaco/verifier.pem` exists, and as your `gh` user otherwise.
+6. The verifier's statuses post as the verifier App when `~/.config/monaco/verifier.pem` exists, and as your `gh` user otherwise.
 
-7. Start the milestone's decision log at `docs/milestones/<milestone>.md`. Every milestone orchestrator keeps one, like the [M7 closeout log](../milestones/m7-closeout.md). Write one line per decision as it happens: the time, what was decided and why, and what broke and how it was fixed. Keep the log on its own branch with a draft PR, commit each batch of entries with `gt modify`, push with `gt submit --stack --no-interactive --draft`, and land it at each handoff and checkpoint. A log that exists only in one session is lost when that session ends.
+7. Start the milestone's decision log at `docs/milestones/<milestone>.md`. Every milestone orchestrator keeps one, like the [M7 closeout log](../milestones/m7-closeout.md). Write one line per decision as it happens: the time, what was decided and why, and what broke and how it was fixed. Keep the log on its own branch with a draft PR, commit each batch of entries with `gt modify`, push with `gt submit --stack --no-interactive --draft`, and land it at each handoff and promotion. A log that exists only in one session is lost when that session ends.
 
 ## Write tickets
 
@@ -47,10 +43,10 @@ Do these once per milestone.
 
 2. Start the body with the header line. `batch` and `dispatch` parse it:
 
-        **Milestone:** M7 Backend platform · **Blocked by:** #483, #536 · **Tracking:** #492 · **Base branch:** `<feature>-checkpoint-<N>` · **Touches:** `apps/backend/cmd/monacoctl/agents/**`, `docs/architecture/ci.md`
+        **Milestone:** M7 Backend platform · **Blocked by:** #483, #536 · **Tracking:** #492 · **Base branch:** `staging` · **Touches:** `apps/backend/cmd/monacoctl/agents/**`, `docs/architecture/ci.md`
 
     - Put every `Touches` glob in backticks. A bare `**` breaks GitHub Markdown. `batch` defers a ticket with no `Touches` and keeps two tickets whose globs overlap out of one batch.
-    - `Blocked by` lists issue or PR numbers, or `none`. An issue blocker counts as merged when it is closed as completed, or when a PR merged into the feature branch says `Closes #<n>`. A PR blocker counts when its merge commit is on the feature branch.
+    - `Blocked by` lists issue or PR numbers, or `none`. An issue blocker counts as merged when it is closed as completed, or when a PR landed on `staging` says `Closes #<n>`. A PR blocker counts when it is merged, or closed with its head commit on `staging`.
 
 3. Set the ticket's milestone and add its row to the tracking issue's wave table.
 
@@ -83,7 +79,7 @@ Do these once per milestone.
 
         bin/monacoctl agents dispatch <n> --model opus
 
-    It fetches the feature branch and refuses a ticket outside the batch (unless you pass `--urgent`), a ticket with an unmerged blocker, and a dispatch past the `lanes` cap. It then creates `.worktrees/<n>` detached at the tip, writes the owner record, starts `caffeinate` for the calling Claude Code process, and prints the spawn line, the prompt and a conflict forecast. `--dry-run` prints the same without changing anything. `--urgent` also logs the dispatch on the tracking issue. `dispatch` must run inside a Claude Code session, because it ties `caffeinate` to that process.
+    It fetches `staging` and refuses a ticket outside the batch (unless you pass `--urgent`), a ticket with an unmerged blocker, and a dispatch past the `lanes` cap. It then creates `.worktrees/<n>` detached at the tip, writes the owner record, starts `caffeinate` for the calling Claude Code process, and prints the spawn line, the prompt and a conflict forecast. `--dry-run` prints the same without changing anything. `--urgent` also logs the dispatch on the tracking issue. `dispatch` must run inside a Claude Code session, because it ties `caffeinate` to that process.
 
 5. Spawn the owner exactly as printed: `subagent_type` `pstack:poteto-agent`, the printed model, in the background, with the five-line prompt. The `scripts/agent-guard-dispatch.py` hook refuses a spawn that carries a `brief:` line with another agent type, a model other than `opus` or `sonnet`, or no dispatch record. Then record the agent ID:
 
@@ -109,29 +105,28 @@ Do these once per milestone.
 
 3. Land a passing PR.
 
-    - A single PR: `gh pr merge <pr> --auto`. The hook refuses it without a `verify` success on the head. Auto-merge queues the PR once stage 1 passes.
-    - A stack: post a verdict on every PR, then run `bin/monacoctl agents land-stack <top-pr>`. It points the upper PRs at the feature branch, writes `Lands stack: #a #b #c` as the top body's first line, and queues only the top PR, so stage 2 runs once. Before it queues, it waits up to 90 seconds for GitHub to recompute the top PR's merge commit on the new base. If a PR still lacks stage 1 or `verify`, it prints `not landing #<n>; waiting on ...` and exits 0. If GitHub has not recomputed in time, it prints `not landing #<n>; GitHub has not recomputed ...` and exits 0. Run it again later. A conflict with the feature branch is an error that names the PR.
+    - Post a verdict on every PR of the stack, then run `bin/monacoctl agents land-stack <top-pr>`. Do it by default, without asking. A single PR is a stack of one. It adds the `merge-queue` label to each PR, bottom to top. The Graphite merge queue runs stage 2 on the whole stack and fast-forwards `staging` to it. If a PR still lacks stage 1 or `verify`, it prints `not landing #<n>; waiting on ...` and exits 0. Run it again later.
+    - Never run `gh pr merge`, and never add `merge-queue` or `fast-track` by hand. The hook blocks all three. Only the operator adds `fast-track`, a PR under 100 counted lines that touches nothing under `apps/backend/`, `.github/` or `docker-compose.yml`.
+    - A landed PR shows as closed, not merged. It counts as landed when its head commit is on `staging`.
 
-4. After a stack merges, run `land-stack <top-pr>` once more. It closes any lower PR GitHub did not mark merged, runs `gt sync` in the stack's worktree and clears the queued mark.
+4. The ticket closes itself when its last PR lands. A landed PR is closed, not merged, so the `Closes #<n>` in its body closes nothing, but the same line in its commit message does once the commit reaches `staging`. The PR format check requires it. If the issue is still open after the last PR lands, run `gh issue close <n>`.
 
-5. Close the ticket when its last PR merges: `gh issue close <n>`. A merge into a branch other than the default branch does not close issues.
-
-6. On a `fail` verdict, spawn a fresh owner on the same worktree with the report. It amends with `gt modify` and submits again, and a new verifier reviews the new head. Give one problem at most three `opus` attempts. The last resort after that is one `fable` attempt at medium effort, and then you park the ticket with a comment. The dispatch hook accepts only `opus` and `sonnet` for a spawn with a `brief:` line, so the `fable` attempt is a plain spawn that carries the failure evidence and no brief.
+5. On a `fail` verdict, spawn a fresh owner on the same worktree with the report. It amends with `gt modify` and submits again, and a new verifier reviews the new head. Give one problem at most three `opus` attempts. The last resort after that is one `fable` attempt at medium effort, and then you park the ticket with a comment. The dispatch hook accepts only `opus` and `sonnet` for a spawn with a `brief:` line, so the `fable` attempt is a plain spawn that carries the failure evidence and no brief.
 
 ## Watch the run
 
 Run these on each pass through the queue. Never poll CI with `gh run watch` or a sleep loop.
 
-- `bin/monacoctl agents watch` clears the queued mark of an ejected stack, lists owners idle for 20 minutes or finished but still running, and reports each queue ejection or red stage 1 with its failing job and a fresh-owner prompt. It exits nonzero when it flagged anything.
+- `bin/monacoctl agents watch` lists owners idle for 20 minutes or finished but still running, and reports each queue ejection or red stage 1 with its failing job and a fresh-owner prompt. It exits nonzero when it flagged anything.
 - `bin/monacoctl agents forecast` lists files that more than one open stack touches. Land those stacks one after the other, not together.
 - `bin/monacoctl agents conflicts <pr>` says whether a PR is behind its base and which files conflict.
 - `bin/monacoctl agents timeline` prints dispatch, push, stage 1, verdict, queue and merge times for each ticket of the batch. `--batch <file>` reads a saved batch.
 
 Act on an ejection by its cause, as the table in [When a check fails](ship-a-ticket.md#when-a-check-fails) says. Two more rules keep the queue moving:
 
-- **Land a fix ahead of what it unblocks.** When a defect on the tip ejects PRs, stop requeueing them. Land the fix first, then requeue the rest behind it. A queue group built without the fix fails again. To pull a queued PR out, dequeue it by its node ID:
+- **Land a fix ahead of what it unblocks.** When a defect on the tip ejects PRs, stop requeueing them. Land the fix first, then requeue the rest behind it. A queued stack tested without the fix fails again. To pull a queued PR out, remove its label:
 
-        gh api graphql -f query='mutation { dequeuePullRequest(input: {id: "<pr node id>"}) { clientMutationId } }'
+        gh pr edit <pr> --remove-label merge-queue
 
 - **Land overlapping stacks in order.** When two stacks edit the same file, land one, then restack the other onto the new tip.
 
@@ -163,31 +158,25 @@ Only the root restacks, one stack at a time.
 
 5. Where a PR's diff did not change, repost its verdict on the new head: `bin/monacoctl agents verdict carry <pr>`. Where it changed, verify it again. Then land the stack.
 
-The hook refuses `gt submit`, `gt modify` and `gt restack` while the stack is queued. Run `land-stack <top-pr>` to clear a stale mark first.
+Dequeue a stack before you restack it: remove the `merge-queue` label from each of its PRs.
 
-## Open a checkpoint into main
+## Promote staging to main
 
-A checkpoint squash-merges the feature branch into `main`. Only the operator merges it.
+A promotion merges `staging` into `main` with a merge commit. Only the operator merges it. `staging` stays in place afterwards, and open stacks need no move.
 
-1. Make sure `main` has nothing the feature branch lacks: `git log --oneline origin/<feature branch>..origin/main` prints nothing. If it prints commits, land a PR on the feature branch that merges `origin/main` first, or `tree-matches` fails after the squash.
+1. Make sure `main` has nothing `staging` lacks: `git log --oneline origin/staging..origin/main` prints nothing. If it prints commits, land a PR on `staging` that merges `origin/main` first.
 
-2. Land a PR on the feature branch that renames `## [Unreleased]` in `apps/backend/CHANGELOG.md` to `## [checkpoint N] - <date>` and opens a new `## [Unreleased]` with only an empty `### Added` heading. The `Changelog (checkpoint into main)` check requires it.
+2. Land a PR on `staging` that renames `## [Unreleased]` in `apps/backend/CHANGELOG.md` to `## [checkpoint N] - <date>` and opens a new `## [Unreleased]` with only an empty `### Added` heading. The `Changelog (checkpoint into main)` check requires it.
 
-3. Drain the feature branch. No ticket PR or stack may still be open on it: `gh pr list --base <feature branch> --state open` prints nothing. Land each open PR, or park it by closing it with a comment. GitHub deletes the feature branch with the checkpoint merge and retargets any PR still open on it to `main`, where its diff is wrong. `next-branch` warns about each ticket PR it finds on `main` after the cut, but that warning is only the backstop.
+3. Check for an open promotion PR: `gh pr list --base main --head staging`. GitHub allows one open PR per head and base. An open one already shows every later merge, so update its body instead of opening another.
 
-4. Check for an open checkpoint PR: `gh pr list --base main --head <feature branch>`. GitHub allows one open PR per head and base. An open one already shows every later merge, so update its body instead of opening another.
+4. Open the PR with a body file that follows the template and lists the tickets merged since the last promotion:
 
-5. Open the PR with a body file that follows the template and lists the tickets merged since the last checkpoint:
+        gh pr create --base main --head staging --label integration --title "<what the promotion ships>" --body-file <file>
 
-        gh pr create --base main --head <feature branch> --label integration --title "<what the checkpoint ships>" --body-file <file>
+    `gh pr create` is right here, since the PR is not a Graphite stack. `scripts/pr-body.sh` refuses a promotion, because the PR format check reads every commit since `main`, including old ones without Conventional subjects. That check is not required on `main`: only `ci / ci-ok` and the changelog check are. Under "Needs from Logan", list the `large-pr` label and the merge, with a merge commit and not a squash, for the operator.
 
-    `gh pr create` is right here, since the PR is not a Graphite stack. `scripts/pr-body.sh` refuses a checkpoint, because the PR format check reads every commit since `main`, including old ones without Conventional subjects. That check is not required on `main`: only `ci / ci-ok` and the changelog check are. List the `large-pr` label and the merge under "Needs from Logan" for the operator.
-
-6. After the operator merges, check `checkpoint.yml`: `gh run list --workflow checkpoint.yml --limit 1`. `tree-matches` proves `main` got the feature branch's exact tree, and `next-branch` creates `<feature>-checkpoint-<N+1>` from the squash commit on `main` and points the `FEATURE_BRANCH` variable at it. `next-branch` also adds `refs/heads/<feature>-checkpoint-<N+1>` to the feature branch ruleset. If it warns that it could not, run `scripts/feature-branch.sh apply <feature>-checkpoint-<N+1>` with an org admin token. If either job fails, or `next-branch` warns about the variable or about a PR now based on `main`, report it and move that PR onto the new branch as in the next step. Never push to `main` or a feature branch yourself.
-
-7. Continue on the new branch. GitHub deletes `<feature>-checkpoint-<N>` with the merge and leaves it deleted. Run `gt trunk --add <feature>-checkpoint-<N+1>`, move each open stack onto it with `gt track --parent <feature>-checkpoint-<N+1>`, `gt restack --upstack` and `gt submit --stack --no-interactive --draft`, and base new tickets on it. [Feature branches](../architecture/ci.md#feature-branches) has the details.
-
-8. GitHub runs `schedule` and `workflow_dispatch` workflows only from the default branch. A workflow added on the feature branch cannot run until its checkpoint lands. Then start it with `gh workflow run <file>`.
+Never push to `main` or `staging` yourself.
 
 ## Hand off
 

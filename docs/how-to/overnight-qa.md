@@ -1,18 +1,18 @@
 # Overnight QA
 
 One runner, `scripts/qa/night.sh`, runs the same way on a laptop (`just qa-night`) and in the
-nightly GitHub workflow. PR and merge-queue CI do not build the app. The nightly `qa` job does.
+nightly GitHub workflow. PR and Graphite merge queue CI do not build the app. The nightly `qa` job does.
 
 ## What runs where
 
 | When | Workflow / job | Runs |
 | --- | --- | --- |
-| Ready PRs touching the `backend` filter in `ci-jobs.yml` (`apps/backend/**`, the backend install, test and CI scripts, `Justfile`, `docker-compose.yml`) or a file no filter owns; manual dispatch | `ci-jobs.yml` · `lint`, `ready`, `vuln` (Linux); `backend` and `e2e` in the merge queue | backend checks, by stage in [CI](../architecture/ci.md#check-stages) |
+| Ready PRs touching the `backend` filter in `ci-jobs.yml` (`apps/backend/**`, the backend install, test and CI scripts, `Justfile`, `docker-compose.yml`) or a file no filter owns; manual dispatch | `ci-jobs.yml` · `lint`, `ready`, `vuln` (Linux); `backend` and `e2e` in the Graphite merge queue | backend checks, by stage in [CI](../architecture/ci.md#check-stages) |
 | Every ready PR to `main`, manual dispatch | `ci.yml` · `plan` (Linux) | runner-label check (`scripts/ci/check-runners.sh`), path filters, and `npm test` for `apps/web` when it changed |
 | Ready PRs to `main` touching `packages/mobile-core/**` or `ci.yml`; manual dispatch | `ci.yml` · `mobile-core` (Linux, `swift:6.3-noble`) | `swift test` in `packages/mobile-core` |
 | A PR that changes `apps/mobile/**` | local, before push | `just build mobile` and `-only-testing:MonacoTests`. CI does not build the app. |
 | Nightly 07:00 UTC (03:00 EDT / 02:00 EST) when `main` moved since the last green night, manual dispatch, PRs to `main` touching `nightly.yml` or `scripts/qa/**` | `nightly.yml` · `qa` (macOS) | `night.sh --screenshots`: backend, mobile-core, app build, `MonacoTests`, each sample UI test class, screenshot gallery |
-| Nightly when `main` moved, and manual dispatch, on `main` only | `nightly.yml` · `warm-cache` (Linux) | builds and runs the `go` job's tests, then saves the Go module and build cache. It and `go-cache.yml` (on a push to the current feature branch, `vars.FEATURE_BRANCH`, or `main` that changes `go.mod` or `go.sum`) are the only jobs that save it; PRs restore it and never save. |
+| Nightly when `main` moved, and manual dispatch, on `main` only | `nightly.yml` · `warm-cache` (Linux) | builds and runs the `go` job's tests, then saves the Go module and build cache. It and `go-cache.yml` (on a push to `staging`, `vars.FEATURE_BRANCH`, or `main` that changes `go.mod` or `go.sum`) are the only jobs that save it; PRs restore it and never save. |
 
 Drafts and PRs based on another branch run nothing. The jobs live in `ci-jobs.yml`, so each check reads `ci / <job>`. `ci / ci-ok` sums up every job above and is the one check `main` requires. When Graphite retargets a PR to `main` without a push, `ci-retarget.yml` runs the same jobs. PR and queue CI run no macOS job. The nightly app build uses the placeholder config below, so that job needs
 no secret. The backend rewrite defines its checks in [CI gates](../architecture/backend-platform.md#ci-gates). When CI runs, on which runners, and the planned changes to this table are in [CI](../architecture/ci.md).
