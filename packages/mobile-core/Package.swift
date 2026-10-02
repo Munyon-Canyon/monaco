@@ -18,6 +18,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-openapi-generator", exact: "1.13.0"),
         .package(url: "https://github.com/apple/swift-openapi-runtime", from: "1.12.1"),
         .package(url: "https://github.com/apple/swift-openapi-urlsession", from: "1.3.1"),
+        .package(url: "https://github.com/swift-server/swift-openapi-async-http-client", exact: "1.5.0"),
     ],
     targets: [
         .target(name: "MonacoCore", dependencies: ["MonacoAPI"]),
@@ -46,7 +47,13 @@ let package = Package(
         ),
         .testTarget(
             name: "MonacoCoreTests",
-            dependencies: ["MonacoCore", "MonacoAPI", "MonacoTestClock", "MonacoTestSupport"],
+            dependencies: [
+                "MonacoCore", "MonacoAPI", "MonacoTestClock", "MonacoTestSupport",
+                .product(
+                    name: "OpenAPIAsyncHTTPClient", package: "swift-openapi-async-http-client",
+                    condition: .when(platforms: [.linux])
+                ),
+            ],
             exclude: ["RepoRulesAllowlist.txt"],
             resources: [
                 .process("Fixtures")
@@ -61,6 +68,10 @@ let package = Package(
                 .product(name: "HTTPTypes", package: "swift-http-types"),
                 .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
                 .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
+                .product(
+                    name: "OpenAPIAsyncHTTPClient", package: "swift-openapi-async-http-client",
+                    condition: .when(platforms: [.linux])
+                ),
             ]
         ),
     ],

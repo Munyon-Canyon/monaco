@@ -9,7 +9,7 @@ Logic lives in host-testable `packages/mobile-core`. The SwiftUI view only binds
 | Model | `packages/mobile-core/Sources/MonacoCore/<Domain>/<Domain>Model.swift` |
 | View | `apps/mobile/Monaco/Features/<Domain>/<Domain>View.swift` |
 
-The model imports neither SwiftUI nor Privy. The view calls no `APIClient` method of its own. Start a rewire with `scripts/gen-mobile-feature.sh <Domain>`, then swap the generated ping calls for the screen's operation. Putting the view on screen is [mobile-navigation.md](mobile-navigation.md) (#942). A sample harness is `docs/how-to/mobile-harness.md` (#944); that page is not in the tree yet, so a markdown link to it would fail the docs build.
+The model imports neither SwiftUI nor Privy. The view calls no `APIClient` method of its own. Start a rewire with `scripts/gen-mobile-feature.sh <Domain>`, then swap the generated ping calls for the screen's operation. Putting the view on screen is [mobile-navigation.md](mobile-navigation.md) (#942). A sample harness is [Debug sample harnesses](mobile-harness.md) (#944).
 
 ## Model
 
@@ -31,7 +31,7 @@ Host tests use `StubTransport` and `FakeHintStream` (`packages/mobile-core/Sourc
 
 `SystemPingModelTests` is the shape: one post with an `Idempotency-Key`, the same key after a transport error, one GET for `ping_echoed`, one GET for `.resync`, none for another key, and a problem body that becomes `.failed(.problem(...))` with `ToastCopy` returning the server message.
 
-`SystemPingIntegrationTests` runs only when `MONACO_API_URL`, `MONACO_DEV_TOKEN` and `MONACO_DEV_USER` are set, against `just run backend`.
+`SystemPingIntegrationTests` runs only when `MONACO_API_URL`, `MONACO_DEV_TOKEN` and `MONACO_DEV_USER` are set, against `just run backend`. Name a class `<Domain>IntegrationTests` and the queue's `mobile-integration` job runs it against a real api, worker and fakes (`scripts/ci/mobile-integration.sh`). The job fails when no such test ran. A test that opens `GET /v1/stream` uses `AsyncHTTPClientTransport` on Linux and `URLSessionTransport` elsewhere, because `URLSessionTransport` buffers the whole response on Linux and no hint arrives.
 
 ## Copy
 

@@ -5,7 +5,6 @@ import MonacoCore
 import MonacoTestSupport
 import XCTest
 
-@available(macOS 14, iOS 17, *)
 @MainActor
 final class SystemPingModelTests: XCTestCase {
     private let pingID = "01890a5d-ac96-774b-bcce-b302099a8057"
@@ -198,6 +197,23 @@ final class SystemPingModelTests: XCTestCase {
         XCTAssertEqual(ping.note, "hi")
         XCTAssertFalse(ping.echoed)
     }
+
+    #if DEBUG
+    func testPreviewModelEchoesAPingWithoutTheNetwork() async {
+        let model = SystemPingModel.preview()
+
+        await model.observe()
+        await model.send(note: "hi")
+
+        let state = model.state
+        guard case .loaded(let ping) = state else {
+            XCTFail("expected the preview to echo a ping, got \(state)")
+            return
+        }
+        XCTAssertTrue(ping.echoed)
+        XCTAssertEqual(ping.note, "hi")
+    }
+    #endif
 
     private func created(note: String, echoed: Bool) -> StubTransport.Reply {
         .json(.created, body(note: note, echoed: echoed))

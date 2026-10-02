@@ -54,6 +54,28 @@ jobs:
         shell: bash
         run: set +e; start=$(date +%s); ../../scripts/mobile-core-test.sh 2>&1 | tee "$RUNNER_TEMP/mobile-core.log" | ../../.bin/xcsift --exit-on-failure; status=$?; set -e; printf 'Test mobile-core\t%s\n' "$(( $(date +%s) - start ))" >> "$RUNNER_TEMP/step-times.tsv"; exit "$status"
 
+      - name: Probe the feature generator
+        id: probe
+        shell: bash
+        run: |
+          set +e
+          start=$(date +%s)
+          scripts/gen-mobile-feature.sh CiProbe
+          status=$?
+          if [[ "$status" -eq 0 ]]; then
+            scripts/mobile-core-test.sh --filter CiProbeModelTests 2>&1 | tee "$RUNNER_TEMP/ci-probe.log"
+            status=${PIPESTATUS[0]}
+            pass_pat="$(printf '%s' "^Test Case '[^']*CiProbeModelTests[^']*' (passed|failed)")"
+            executed="$(grep -Ec "$pass_pat" "$RUNNER_TEMP/ci-probe.log" || true)"
+            if [[ "$status" -eq 0 && "${executed:-0}" -lt 1 ]]; then
+              echo "probe: no executed CiProbeModelTests" >&2
+              status=1
+            fi
+          fi
+          set -e
+          printf 'Probe the feature generator\t%s\n' "$(( $(date +%s) - start ))" >> "$RUNNER_TEMP/step-times.tsv"
+          exit "$status"
+
       - name: Write the job summary
         if: always()
         shell: bash

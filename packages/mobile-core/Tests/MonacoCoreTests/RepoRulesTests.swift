@@ -8,11 +8,46 @@ struct RepoRule: Sendable {
     let message: String
     let failing: [String]
     let passing: [String]
+    var skipsPreviewBlocks = false
     var applies: @Sendable (_ path: String, _ contents: String) -> Bool = { _, _ in true }
 
     func matches(in text: String) throws -> Int {
+        let subject = skipsPreviewBlocks ? PreviewBlockStripping.apply(text) : text
         let regex = try NSRegularExpression(pattern: pattern)
-        return regex.numberOfMatches(in: text, range: NSRange(text.startIndex..., in: text))
+        return regex.numberOfMatches(in: subject, range: NSRange(subject.startIndex..., in: subject))
+    }
+}
+
+enum PreviewBlockStripping {
+    static func apply(_ text: String) -> String {
+        var result = ""
+        var index = text.startIndex
+        while index < text.endIndex {
+            if let end = previewEnd(in: text, from: index) {
+                index = end
+                continue
+            }
+            result.append(text[index])
+            index = text.index(after: index)
+        }
+        return result
+    }
+
+    private static func previewEnd(in text: String, from index: String.Index) -> String.Index? {
+        guard text[index...].hasPrefix("#Preview") else { return nil }
+        guard let open = text[index...].firstIndex(of: "{") else { return nil }
+        var depth = 0
+        var cursor = open
+        while cursor < text.endIndex {
+            let character = text[cursor]
+            if character == "{" { depth += 1 }
+            if character == "}" {
+                depth -= 1
+                if depth == 0 { return text.index(after: cursor) }
+            }
+            cursor = text.index(after: cursor)
+        }
+        return text.endIndex
     }
 }
 
@@ -233,7 +268,72 @@ enum RepoRules {
             ],
             applies: { path, _ in !path.hasPrefix("apps/mobile/Monaco/Design/") }
         ),
+        FeaturePatternRules.construct,
+        FeaturePatternRules.viewHints,
+        FeaturePatternRules.observable,
+        FeaturePatternRules.decode,
+        FeaturePatternRules.coreSwiftUI,
     ]
+}
+
+enum FeaturePatternRules {
+    static let construct = RepoRule(
+        name: "feature-construct",
+        roots: ["apps/mobile/Monaco/Features"],
+        pattern: #"(?<![A-Za-z0-9_])(?:APIClient|HintStream)\("#,
+        message: "A feature receives its APIClient and HintStream. It does not construct them. A #Preview may.",
+        failing: [
+            "APIClient(",
+            "HintStream(",
+            "let api = APIClient(serverURL: url)",
+        ],
+        passing: [
+            "MonacoAPIClient()",
+            "FakeHintStream()",
+            "#Preview {\nAPIClient(\n}",
+        ],
+        skipsPreviewBlocks: true,
+        applies: { path, _ in !path.contains("/Features/Shell/") }
+    )
+
+    static let viewHints = RepoRule(
+        name: "view-hints",
+        roots: ["apps/mobile/Monaco/Features"],
+        pattern: #"\.hints\(matching:"#,
+        message: "The model subscribes to hints. The view does not.",
+        failing: [#".hints(matching: .user(what: "ping_echoed"))"#],
+        passing: ["func hints(matching: HintFilter)"]
+    )
+
+    static let observable = RepoRule(
+        name: "feature-observable",
+        roots: ["apps/mobile/Monaco/Features"],
+        pattern: #"(?<![A-Za-z0-9_])@Observable\b"#,
+        message: "Screen state is a model in MonacoCore. A feature view does not declare @Observable.",
+        failing: ["@Observable final class HomeModel"],
+        passing: ["@ObservableObject", "let observable = true"],
+        applies: { path, _ in
+            !path.contains("/Features/Shell/") && !path.contains("/Features/Debug/")
+        }
+    )
+
+    static let decode = RepoRule(
+        name: "feature-decode",
+        roots: ["apps/mobile/Monaco/Features"],
+        pattern: #"\bJSONDecoder\b"#,
+        message: "Decoding belongs to the generated client.",
+        failing: ["let decoder = JSONDecoder()"],
+        passing: ["JSONEncoder()"]
+    )
+
+    static let coreSwiftUI = RepoRule(
+        name: "core-swiftui",
+        roots: ["packages/mobile-core/Sources/MonacoCore"],
+        pattern: #"import SwiftUI|canImport\(SwiftUI\)"#,
+        message: "MonacoCore stays host-testable and does not import SwiftUI.",
+        failing: ["import SwiftUI", "#if canImport(SwiftUI)"],
+        passing: ["import MonacoCore"]
+    )
 }
 
 enum RepoTree {

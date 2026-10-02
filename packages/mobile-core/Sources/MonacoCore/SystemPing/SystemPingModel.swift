@@ -1,7 +1,7 @@
+import Foundation
 import MonacoAPI
 import Observation
 
-@available(macOS 14, iOS 17, *)
 @Observable
 @MainActor
 public final class SystemPingModel {
@@ -69,3 +69,49 @@ public final class SystemPingModel {
         }
     }
 }
+
+#if DEBUG
+extension SystemPingModel {
+    public static func preview() -> SystemPingModel {
+        let serverURL = URL(string: "http://127.0.0.1:9") ?? URL(fileURLWithPath: "/")
+        return SystemPingModel(
+            api: APIClient(
+                serverURL: serverURL,
+                tokens: SystemPingDisconnectedTokens(),
+                transport: SystemPingDisconnectedTransport()
+            ),
+            hints: SystemPingDisconnectedHints()
+        )
+    }
+}
+
+private struct SystemPingDisconnectedTransport: ClientTransport {
+    func send(
+        _ request: HTTPRequest,
+        body _: HTTPBody?,
+        baseURL _: URL,
+        operationID _: String
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        let status: HTTPResponse.Status = request.method == .post ? .created : .ok
+        var response = HTTPResponse(status: status)
+        response.headerFields[.contentType] = "application/json"
+        return (
+            response,
+            HTTPBody(#"{"id":"00000000-0000-4000-8000-000000000001","note":"hi","echoed":true}"#)
+        )
+    }
+}
+
+private struct SystemPingDisconnectedTokens: MonacoAPI.AccessTokenProvider {
+    func accessToken() async throws -> String? { nil }
+    func refreshedToken(replacing _: String) async throws -> String? { nil }
+}
+
+private struct SystemPingDisconnectedHints: HintSource {
+    func hints(matching _: HintFilter) -> AsyncStream<Hint> {
+        AsyncStream { continuation in
+            continuation.finish()
+        }
+    }
+}
+#endif

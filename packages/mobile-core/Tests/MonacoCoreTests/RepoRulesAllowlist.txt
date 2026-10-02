@@ -1,3 +1,11 @@
+feature-observable	apps/mobile/Monaco/Features/Assets/AssetDetailModel.swift	1
+feature-observable	apps/mobile/Monaco/Features/Assets/AssetSocialModel.swift	1
+feature-observable	apps/mobile/Monaco/Features/Assets/CabalHoldingsModel.swift	1
+feature-observable	apps/mobile/Monaco/Features/Assets/StocksTabModel.swift	1
+feature-observable	apps/mobile/Monaco/Features/Groups/CabalsTabModel.swift	1
+feature-observable	apps/mobile/Monaco/Features/Groups/GroupPnLHistoryModel.swift	1
+feature-observable	apps/mobile/Monaco/Features/Home/HomeLeaderboardModel.swift	1
+feature-observable	apps/mobile/Monaco/Features/Proposals/ProposalVoteLedger.swift	1
 fixed-font	apps/mobile/Monaco/Features/Assets/MarketSessionChip.swift	1
 fixed-font	apps/mobile/Monaco/Features/Groups/CabalPicturePicker.swift	1
 fixed-font	apps/mobile/Monaco/Features/Groups/GroupActivitySection.swift	1
@@ -68,6 +76,7 @@ urlsession	apps/mobile/Monaco/Features/Deposit/PlatformBalanceLoader.swift	1
 urlsession	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	1
 urlsession	packages/mobile-core/Sources/MonacoCore/Networking/MonacoHTTPTransport.swift	2
 urlsession	packages/mobile-core/Sources/MonacoCore/Networking/MonacoRequestTimeout.swift	7
+view-hints	apps/mobile/Monaco/Features/Shell/HintConnecting.swift	1
 wall-clock	packages/mobile-core/Sources/MonacoCore/AssetActivityCopy.swift	1
 wall-clock	packages/mobile-core/Sources/MonacoCore/DepositPollStateMachine.swift	1
 wall-clock	packages/mobile-core/Sources/MonacoCore/DiagnosticPayloadStore.swift	1
