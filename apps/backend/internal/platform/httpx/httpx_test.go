@@ -79,6 +79,18 @@ func (healthz) PostProposalVote(
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostProposalVote")
 }
 
+func (healthz) PostUserFollow(
+	context.Context, api.PostUserFollowRequestObject,
+) (api.PostUserFollowResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostUserFollow")
+}
+
+func (healthz) DeleteUserFollow(
+	context.Context, api.DeleteUserFollowRequestObject,
+) (api.DeleteUserFollowResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.DeleteUserFollow")
+}
+
 func (healthz) GetSystemPing(context.Context, api.GetSystemPingRequestObject) (api.GetSystemPingResponseObject, error) {
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetSystemPing")
 }

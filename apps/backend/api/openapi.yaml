@@ -29,6 +29,8 @@ tags:
     description: Live re-fetch hints over server-sent events.
   - name: cabal
     description: A group treasury and its members.
+  - name: social
+    description: Who follows whom.
   - name: system
     description: The reference flow that exercises every backend layer end to end.
   - name: market
@@ -441,8 +443,69 @@ paths:
                 $ref: "#/components/schemas/AssetList"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/users/{id}/follow:
+    post:
+      operationId: postUserFollow
+      tags: [social]
+      x-idempotent: true
+      summary: Follow a user.
+      description: >-
+        Follows the user as the caller and appends `follow.created`. Following someone the caller
+        already follows changes nothing and returns the same response. Following yourself is
+        cannot_follow_self, an unknown or deleted user is user_not_found and a banned user is
+        user_banned. `source` records where the follow came from and defaults to `profile`. The
+        values a client may send are `profile`, `phone`, `x`, `cabal`, `feed` and `suggested`;
+        any other value, `referral` included, is invalid_input.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        description: Where the follow came from.
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FollowRequest"
+      responses:
+        "200":
+          description: The caller follows the user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FollowState"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteUserFollow
+      tags: [social]
+      x-idempotent: true
+      summary: Unfollow a user.
+      description: >-
+        Ends the caller's follow of the user and appends `follow.removed`. Unfollowing a user the
+        caller does not follow changes nothing and returns the same response. A banned or deleted
+        user can be unfollowed.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: The caller does not follow the user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FollowState"
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   parameters:
+    UserId:
+      name: id
+      in: path
+      required: true
+      description: The id of the user to follow or unfollow.
+      schema:
+        type: string
+        format: uuid
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -787,6 +850,26 @@ components:
         id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
         direction: {type: string, description: "`request` or `invite`.", examples: [request]}
         status: {type: string, examples: [pending]}
+    FollowRequest:
+      type: object
+      description: Where a follow came from.
+      additionalProperties: false
+      properties:
+        source:
+          type: string
+          description: >-
+            One of `profile`, `phone`, `x`, `cabal`, `feed` or `suggested`. Defaults to `profile`.
+          examples: [profile]
+    FollowState:
+      type: object
+      description: Whether the caller follows the user after the call.
+      additionalProperties: false
+      required: [following]
+      properties:
+        following:
+          type: boolean
+          description: True after a follow and false after an unfollow.
+          examples: [true]
     PingRequest:
       type: object
       description: A note to record with the ping.

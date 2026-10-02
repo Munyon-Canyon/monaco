@@ -94,6 +94,7 @@ type Routes struct {
 	IdentityRoutes
 	NotifyRoutes
 	ReferralsRoutes
+	SocialRoutes
 	SystemRoutes
 	CabalRoutes
 	MarketRoutes
@@ -118,6 +119,11 @@ type NotifyRoutes interface {
 
 type ReferralsRoutes interface {
 	GetMyReferralCode(context.Context, api.GetMyReferralCodeRequestObject) (api.GetMyReferralCodeResponseObject, error)
+}
+
+type SocialRoutes interface {
+	PostUserFollow(context.Context, api.PostUserFollowRequestObject) (api.PostUserFollowResponseObject, error)
+	DeleteUserFollow(context.Context, api.DeleteUserFollowRequestObject) (api.DeleteUserFollowResponseObject, error)
 }
 
 type SystemRoutes interface {
