@@ -83,6 +83,7 @@ paths:
   /v1/me:
     get:
       operationId: getMe
+      x-allow-restricted: true
       tags: [identity]
       summary: Read the signed-in user's account.
       description: >-
@@ -101,6 +102,7 @@ paths:
   /v1/stream:
     get:
       operationId: getStream
+      x-allow-restricted: true
       tags: [stream]
       summary: Stream re-fetch hints for the caller.
       description: >-

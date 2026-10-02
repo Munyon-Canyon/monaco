@@ -4,13 +4,40 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
+
+	"github.com/getkin/kin-openapi/openapi3"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
+
+const allowRestrictedExtension = "x-allow-restricted"
+
+func allowRestricted(extensions map[string]any) bool {
+	allowed, ok := extensions[allowRestrictedExtension].(bool)
+	return ok && allowed
+}
+
+func restrictedRoutes(spec []byte) ([]string, error) {
+	doc, err := openapi3.NewLoader().LoadFromData(spec)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInvalidInput, "httpx.restrictedRoutes")
+	}
+	var lines []string
+	for path, item := range doc.Paths.Map() {
+		for method, operation := range item.Operations() {
+			if allowRestricted(operation.Extensions) {
+				lines = append(lines, method+" "+path)
+			}
+		}
+	}
+	slices.Sort(lines)
+	return lines, nil
+}
 
 type actorSlotKey struct{}
 

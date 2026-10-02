@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -251,6 +252,71 @@ func TestAuth_noLogLineCarriesTheToken(t *testing.T) {
 		if strings.Contains(raw, secret) {
 			t.Fatalf("logs carry %q:\n%s", secret, raw)
 		}
+	}
+}
+
+func TestRestrictedRoutes_matchesTheGoldenList(t *testing.T) {
+	t.Parallel()
+	got, err := restrictedRoutes(openapi.Spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := strings.Join(got, "\n")
+	if len(got) > 0 {
+		text += "\n"
+	}
+	want, err := os.ReadFile("testdata/restricted_routes.golden")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text != string(want) {
+		t.Fatalf("restricted routes =\n%s\nwant\n%s", text, want)
+	}
+}
+
+func TestRestrictedRoutes_keepsOnlyABooleanTrue(t *testing.T) {
+	t.Parallel()
+	got, err := restrictedRoutes([]byte(`openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /v1/yes:
+    delete:
+      operationId: deleteYes
+      x-allow-restricted: true
+      responses: {"200": {description: ok}}
+  /v1/no:
+    get:
+      operationId: getNo
+      x-allow-restricted: false
+      responses: {"200": {description: ok}}
+  /v1/text:
+    put:
+      operationId: putText
+      x-allow-restricted: "true"
+      responses: {"200": {description: ok}}
+  /v1/plain:
+    post:
+      operationId: postPlain
+      responses: {"200": {description: ok}}
+`))
+	if err != nil || len(got) != 1 || got[0] != "DELETE /v1/yes" {
+		t.Fatalf("restrictedRoutes = %v, %v, want [DELETE /v1/yes]", got, err)
+	}
+}
+
+func TestRestrictedRoutes_anEmptyPathMapIsAnEmptyList(t *testing.T) {
+	t.Parallel()
+	got, err := restrictedRoutes([]byte("openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\n"))
+	if err != nil || len(got) != 0 {
+		t.Fatalf("restrictedRoutes = %v, %v, want an empty list", got, err)
+	}
+}
+
+func TestRestrictedRoutes_rejectsASpecThatDoesNotParse(t *testing.T) {
+	t.Parallel()
+	_, err := restrictedRoutes([]byte("openapi: ["))
+	if errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("restrictedRoutes = %v, want invalid_input", err)
 	}
 }
 
