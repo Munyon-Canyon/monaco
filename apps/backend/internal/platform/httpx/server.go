@@ -92,6 +92,7 @@ type Routes struct {
 	sse.Stream
 	IdentityRoutes
 	SystemRoutes
+	CabalRoutes
 }
 
 type IdentityRoutes interface {
@@ -105,6 +106,11 @@ type IdentityRoutes interface {
 type SystemRoutes interface {
 	PostSystemPing(context.Context, api.PostSystemPingRequestObject) (api.PostSystemPingResponseObject, error)
 	GetSystemPing(context.Context, api.GetSystemPingRequestObject) (api.GetSystemPingResponseObject, error)
+}
+
+type CabalRoutes interface {
+	PostCabal(context.Context, api.PostCabalRequestObject) (api.PostCabalResponseObject, error)
+	GetCabal(context.Context, api.GetCabalRequestObject) (api.GetCabalResponseObject, error)
 }
 
 var _ api.StrictServerInterface = Routes{}

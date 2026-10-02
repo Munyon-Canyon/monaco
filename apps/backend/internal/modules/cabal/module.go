@@ -5,6 +5,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
@@ -33,10 +34,19 @@ func New(d module.Deps, opts ...Option) *Module {
 
 func (*Module) Name() string { return "cabal" }
 
-func (*Module) Routes(*httpx.Routes) {}
+func (m *Module) Routes(r *httpx.Routes) {
+	r.CabalRoutes = adapters.HTTP{
+		Create: m.CreateCabalHandler(), DB: m.deps.Pool, Users: identity.New(m.deps).Queries(),
+	}
+}
 
-func (*Module) Consumers() []bus.Consumer {
-	return []bus.Consumer{}
+func (m *Module) Consumers() []bus.Consumer {
+	return []bus.Consumer{{
+		Durable: "cabal_hints",
+		Handlers: []bus.HandlerSpec{
+			bus.Handle("cabal.hints", adapters.Hints{Publish: m.deps.Bus}.Handle),
+		},
+	}}
 }
 
 func (*Module) Pollers() []poller.Poller { return nil }
