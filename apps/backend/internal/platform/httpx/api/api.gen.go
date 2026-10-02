@@ -858,6 +858,22 @@ type DeviceRegistration struct {
 // Examples: not_found
 type ErrorCode string
 
+// FollowRequest Where a follow came from.
+type FollowRequest struct {
+	// Source One of `profile`, `phone`, `x`, `cabal`, `feed` or `suggested`. Defaults to `profile`.
+	//
+	// Examples: profile
+	Source *string `json:"source,omitempty"`
+}
+
+// FollowState Whether the caller follows the user after the call.
+type FollowState struct {
+	// Following True after a follow and false after an unfollow.
+	//
+	// Examples: true
+	Following bool `json:"following"`
+}
+
 // HandleAvailability Whether the caller can claim a handle, and the reason when they cannot.
 //
 // Examples: {"available":false,"handle":"admin","reason":"reserved"}
@@ -1132,6 +1148,9 @@ type VoteResult struct {
 // IdempotencyKey Examples: 6f1c1a52-3a4e-4d0e-9d7b-2f7f3f5b9d10
 type IdempotencyKey = string
 
+// UserId defines model for UserId.
+type UserId = openapi_types.UUID
+
 // GetAssetsParams defines parameters for GetAssets.
 type GetAssetsParams struct {
 	// Q Case-insensitive symbol prefix or display-name search. Absent lists the filter.
@@ -1192,6 +1211,18 @@ type PostSystemPingParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// DeleteUserFollowParams defines parameters for DeleteUserFollow.
+type DeleteUserFollowParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// PostUserFollowParams defines parameters for PostUserFollow.
+type PostUserFollowParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // PostCabalJSONRequestBody defines body for PostCabal for application/json ContentType.
 type PostCabalJSONRequestBody = CreateCabalRequest
 
@@ -1203,6 +1234,9 @@ type PostProposalVoteJSONRequestBody = CastVoteRequest
 
 // PostSystemPingJSONRequestBody defines body for PostSystemPing for application/json ContentType.
 type PostSystemPingJSONRequestBody = PingRequest
+
+// PostUserFollowJSONRequestBody defines body for PostUserFollow for application/json ContentType.
+type PostUserFollowJSONRequestBody = FollowRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -1248,6 +1282,12 @@ type ServerInterface interface {
 	// GetSystemPing Read one of the caller's pings.
 	// (GET /v1/system/pings/{id})
 	GetSystemPing(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// DeleteUserFollow Unfollow a user.
+	// (DELETE /v1/users/{id}/follow)
+	DeleteUserFollow(w http.ResponseWriter, r *http.Request, id UserId, params DeleteUserFollowParams)
+	// PostUserFollow Follow a user.
+	// (POST /v1/users/{id}/follow)
+	PostUserFollow(w http.ResponseWriter, r *http.Request, id UserId, params PostUserFollowParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -1776,6 +1816,114 @@ func (siw *ServerInterfaceWrapper) GetSystemPing(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteUserFollow operation middleware
+func (siw *ServerInterfaceWrapper) DeleteUserFollow(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteUserFollowParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteUserFollow(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostUserFollow operation middleware
+func (siw *ServerInterfaceWrapper) PostUserFollow(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostUserFollowParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostUserFollow(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -1910,6 +2058,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/system/pings", wrapper.PostSystemPing)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/system/pings/{id}", wrapper.GetSystemPing)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/assets", wrapper.GetAssets)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/users/{id}/follow", wrapper.DeleteUserFollow)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/users/{id}/follow", wrapper.PostUserFollow)
 
 	return m
 }
@@ -2479,6 +2629,87 @@ func (response GetSystemPingdefaultApplicationProblemPlusJSONResponse) VisitGetS
 	return err
 }
 
+type DeleteUserFollowRequestObject struct {
+	Id     UserId `json:"id"`
+	Params DeleteUserFollowParams
+}
+
+type DeleteUserFollowResponseObject interface {
+	VisitDeleteUserFollowResponse(w http.ResponseWriter) error
+}
+
+type DeleteUserFollow200JSONResponse FollowState
+
+func (response DeleteUserFollow200JSONResponse) VisitDeleteUserFollowResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteUserFollowdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteUserFollowdefaultApplicationProblemPlusJSONResponse) VisitDeleteUserFollowResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostUserFollowRequestObject struct {
+	Id     UserId `json:"id"`
+	Params PostUserFollowParams
+	Body   *PostUserFollowJSONRequestBody
+}
+
+type PostUserFollowResponseObject interface {
+	VisitPostUserFollowResponse(w http.ResponseWriter) error
+}
+
+type PostUserFollow200JSONResponse FollowState
+
+func (response PostUserFollow200JSONResponse) VisitPostUserFollowResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostUserFollowdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PostUserFollowdefaultApplicationProblemPlusJSONResponse) VisitPostUserFollowResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetHealthz Report that the API process is serving.
@@ -2523,6 +2754,12 @@ type StrictServerInterface interface {
 	// GetSystemPing Read one of the caller's pings.
 	// (GET /v1/system/pings/{id})
 	GetSystemPing(ctx context.Context, request GetSystemPingRequestObject) (GetSystemPingResponseObject, error)
+	// DeleteUserFollow Unfollow a user.
+	// (DELETE /v1/users/{id}/follow)
+	DeleteUserFollow(ctx context.Context, request DeleteUserFollowRequestObject) (DeleteUserFollowResponseObject, error)
+	// PostUserFollow Follow a user.
+	// (POST /v1/users/{id}/follow)
+	PostUserFollow(ctx context.Context, request PostUserFollowRequestObject) (PostUserFollowResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -2945,6 +3182,70 @@ func (sh *strictHandler) GetSystemPing(w http.ResponseWriter, r *http.Request, i
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetSystemPingResponseObject); ok {
 		if err := validResponse.VisitGetSystemPingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteUserFollow operation middleware
+func (sh *strictHandler) DeleteUserFollow(w http.ResponseWriter, r *http.Request, id UserId, params DeleteUserFollowParams) {
+	var request DeleteUserFollowRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteUserFollow(ctx, request.(DeleteUserFollowRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteUserFollow")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteUserFollowResponseObject); ok {
+		if err := validResponse.VisitDeleteUserFollowResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostUserFollow operation middleware
+func (sh *strictHandler) PostUserFollow(w http.ResponseWriter, r *http.Request, id UserId, params PostUserFollowParams) {
+	var request PostUserFollowRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body PostUserFollowJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostUserFollow(ctx, request.(PostUserFollowRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostUserFollow")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostUserFollowResponseObject); ok {
+		if err := validResponse.VisitPostUserFollowResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
