@@ -20,3 +20,8 @@ You are dispatched when a PR opens. The prompt has the PR number, the ticket num
   - Run `monacoctl agents land-stack <top>`, for a single PR or a stack, without asking. It adds the `merge-queue` label to each PR. If a PR still waits on stage 1, it says so and exits. Run it again later. A landed PR shows as closed, not merged.
 
 Exit with the verdict, the head SHA, the findings and the report path.
+
+## iOS
+
+For a PR under `apps/mobile/` or `packages/mobile-core/`, read the diff and `gh pr checks` once, as for Go. Do not drive the simulator unless the ticket's Done-when names a flow a unit test cannot see. Then use the `ios-verify` skill's tap-through step and nothing else. The owner brief needs no change: `monacoctl agents check` already runs the Swift rows.
+

@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "XcodeBuildMCP": {
+    "MobileBuildMCP": {
       "command": "npx",
-      "args": ["-y", "xcodebuildmcp@latest", "mcp"]
+      "args": ["-y", "mobilebuildmcp@2.7.1", "mcp"]
     },
     "pyth": {
       "url": "https://mcp.pyth.network/mcp"
