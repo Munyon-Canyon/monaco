@@ -4,8 +4,12 @@ on:
   pull_request:
     types: [opened, edited, reopened, synchronize, ready_for_review, labeled, unlabeled]
 
+# Adding or removing merge-queue or fast-track must not rerun the required checks: the Graphite merge queue builds
+# its batch while they are pending and drops each PR whose check has not finished. Those events skip pr-format,
+# gate-changes and changelog (pr-size still runs on fast-track, which it enforces), and run in their own concurrency
+# group so they never cancel a real run.
 concurrency:
-  group: pr-format-${{ github.event.pull_request.number || github.ref }}
+  group: pr-format-${{ github.event.pull_request.number || github.ref }}${{ (github.event.action == 'labeled' || github.event.action == 'unlabeled') && (github.event.label.name == 'merge-queue' || github.event.label.name == 'fast-track') && '-label' || '' }}
   cancel-in-progress: true
 
 permissions:
@@ -22,7 +26,9 @@ jobs:
   pr-format:
     name: PR format (title, body and commits)
     # The Graphite merge queue waits for every required check on its gtmq_ draft. Each PR was checked on its own head.
-    if: ${{ !github.event.pull_request.draft || startsWith(github.head_ref, 'gtmq_') }}
+    if: >-
+      ${{ (!github.event.pull_request.draft || startsWith(github.head_ref, 'gtmq_')) &&
+      !((github.event.action == 'labeled' || github.event.action == 'unlabeled') && (github.event.label.name == 'merge-queue' || github.event.label.name == 'fast-track')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -62,7 +68,9 @@ jobs:
 
   pr-size:
     name: PR size (under 1000 lines)
-    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    if: >-
+      github.event_name == 'pull_request' && !github.event.pull_request.draft &&
+      !((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name == 'merge-queue')
     runs-on: ubuntu-latest
     timeout-minutes: 2
     # pr-size is not a required check, so a red run alone does not stop the Graphite merge queue. The job takes
@@ -105,7 +113,9 @@ jobs:
 
   gate-changes:
     name: Gate changes (no weakened test gate)
-    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    if: >-
+      github.event_name == 'pull_request' && !github.event.pull_request.draft &&
+      !((github.event.action == 'labeled' || github.event.action == 'unlabeled') && (github.event.label.name == 'merge-queue' || github.event.label.name == 'fast-track'))
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -126,7 +136,8 @@ jobs:
     if: >-
       !github.event.pull_request.draft &&
       github.event.pull_request.base.ref == 'main' &&
-      contains(github.event.pull_request.labels.*.name, 'integration')
+      contains(github.event.pull_request.labels.*.name, 'integration') &&
+      !((github.event.action == 'labeled' || github.event.action == 'unlabeled') && (github.event.label.name == 'merge-queue' || github.event.label.name == 'fast-track'))
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:

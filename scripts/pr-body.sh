@@ -23,7 +23,8 @@ git cat-file -e "$head_sha^{commit}" 2>/dev/null || git fetch --quiet origin "$h
 
 PR_TITLE="$title" PR_BODY="$body" BASE_REF="$base_ref" HEAD_REF="$head_ref" BASE_SHA="$base_sha" HEAD_SHA="$head_sha" \
   python3 "$here/check-pr-format.py" >&2
-gh pr edit "$pr" --title "$title" --body-file "$file"
+# Ready first: an edit on a draft starts a PR format run that skips, and it cancels the real run.
 if [[ "$draft" == "true" ]]; then
   gh pr ready "$pr"
 fi
+gh pr edit "$pr" --title "$title" --body-file "$file"

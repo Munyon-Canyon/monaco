@@ -1088,3 +1088,55 @@ func TestLandStack_aPRClosedByHandIsEjectedEvenWithTheLabel(t *testing.T) {
 		t.Fatal("kept the queued mark")
 	}
 }
+
+func TestWatchOnce_waitsAMinuteBeforeEjectingAStackGraphiteJustUnlabeled(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		ago     time.Duration
+		ejected bool
+	}{
+		{"removed 30 seconds ago", 30 * time.Second, false},
+		{"removed two minutes ago", 2 * time.Minute, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			s := ejectedStack(t, f)
+			labeled(s.prs[1], "merge-queue")
+			labeled(s.prs[3], "merge-queue")
+			raw := fmt.Sprintf(
+				`{"nodes":[{"__typename":"UnlabeledEvent","createdAt":%q,"label":{"name":"merge-queue"}},`+
+					`{"__typename":"UnlabeledEvent","createdAt":%q,"label":{"name":"large-pr"}}]}`,
+				f.now.Add(-tc.ago).Format(time.RFC3339),
+				f.now.Format(time.RFC3339),
+			)
+			if err := json.Unmarshal([]byte(raw), &s.prs[2].TimelineItems); err != nil {
+				t.Fatal(err)
+			}
+			f.noFailures()
+			code, stdout, stderr := f.agents(t, "watch", "--once")
+			if code != 0 || strings.Contains(stdout, "unqueued: #40") != tc.ejected ||
+				(f.owned(t).Queued == nil) != tc.ejected {
+				t.Fatalf("%d %q %q", code, stdout, stderr)
+			}
+		})
+	}
+}
+
+func TestLandStack_aSkippedPRFormatRunAfterASuccessDoesNotBlockARelanding(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := newStackGH(t, f,
+		withFormat(withFormat(green(t, 1, "b1", "fb"), "SUCCESS"), "SKIPPED"),
+		withFormat(withFormat(green(t, 2, "b2", "b1"), "CANCELLED"), "SKIPPED"),
+	)
+	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+	code, stdout, stderr := f.agents(t, "land-stack", "2")
+	if code != 0 || stdout != "not landing #2; waiting on #2 (PR format skipped)\n" || stderr != "" {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	if calls := s.lines(); len(calls) != 0 {
+		t.Fatalf("a refusal ran %v", calls)
+	}
+}

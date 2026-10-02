@@ -42,15 +42,22 @@ func streams(args []string) bool {
 }
 
 type stream struct {
-	env     *Env
-	prev    map[string]bool
-	ejected map[int]bool
-	blocks  map[string]string
+	env      *Env
+	since    time.Time
+	prev     map[string]bool
+	ejected  map[int]bool
+	blocks   map[string]string
+	seenOpen map[int]bool
+	reported map[int]bool
 }
 
 func (env *Env) watchStream(ctx context.Context, every time.Duration, out io.Writer) error {
-	s := &stream{env: env, prev: map[string]bool{}, ejected: map[int]bool{}, blocks: map[string]string{}}
+	s := &stream{
+		env: env, since: env.Now(), prev: map[string]bool{}, ejected: map[int]bool{}, blocks: map[string]string{},
+		seenOpen: map[int]bool{}, reported: map[int]bool{},
+	}
 	for {
+		env.trunk = nil
 		next := map[string]bool{}
 		for _, item := range s.round(ctx) {
 			if !s.prev[item] && !next[item] {
@@ -88,8 +95,8 @@ func (s *stream) round(ctx context.Context) []string {
 			items = append(items, s.stack(ctx, r, data.drafts)...)
 		}
 	}
-	items = append(items, draftLines(data.drafts, queued)...)
-	return append(items, s.failures(ctx, data)...)
+	items = append(items, s.draftLines(data.drafts, queued)...)
+	return append(items, s.failures(ctx, data, queued)...)
 }
 
 func (s *stream) stack(ctx context.Context, r Record, drafts []queueDraft) []string {
@@ -142,6 +149,7 @@ func (s *stream) eject(ctx context.Context, r Record, out stackPR, drafts []queu
 	if out.State == "CLOSED" {
 		why = "was closed without landing"
 	}
+	s.reported[out.Number] = true
 	f := failure{
 		PR: out.Number, Head: out.HeadOID, Body: out.Body, Why: why,
 		Job: queueJob(out.Number, out.Commits, drafts, time.Time{}),
@@ -149,13 +157,20 @@ func (s *stream) eject(ctx context.Context, r Record, out stackPR, drafts []queu
 	return []string{fmt.Sprintf("stack #%d ejected: #%d %s", top, out.Number, why), s.block(ctx, f)}
 }
 
-func draftLines(drafts []queueDraft, queued []int) []string {
+func (s *stream) draftLines(drafts []queueDraft, queued []int) []string {
 	var items []string
 	for _, d := range drafts {
-		if !slices.ContainsFunc(queued, d.tests) {
+		switch {
+		case !slices.ContainsFunc(queued, d.tests):
+			continue
+		case d.State != "OPEN":
+			if s.seenOpen[d.Number] {
+				items = append(items, fmt.Sprintf("draft #%d closed", d.Number))
+			}
 			continue
 		}
-		items = append(items, fmt.Sprintf("draft #%d %s", d.Number, strings.ToLower(d.State)))
+		s.seenOpen[d.Number] = true
+		items = append(items, fmt.Sprintf("draft #%d open", d.Number))
 		for _, c := range d.Commits.Nodes {
 			for _, x := range c.Commit.latest() {
 				if verdict, done := finished(x); done {
@@ -175,14 +190,16 @@ func finished(x gqlContext) (string, bool) {
 		return "fail", true
 	case x.Context != "" || x.Conclusion == "":
 		return "", false
-	case x.Conclusion == "SUCCESS" || x.Conclusion == "NEUTRAL" || x.Conclusion == "SKIPPED":
+	case x.Conclusion == "NEUTRAL" || x.Conclusion == "SKIPPED":
+		return "", false
+	case x.Conclusion == "SUCCESS":
 		return "pass", true
 	default:
 		return "fail", true
 	}
 }
 
-func (s *stream) failures(ctx context.Context, data watchData) []string {
+func (s *stream) failures(ctx context.Context, data watchData, queued []int) []string {
 	env := s.env
 	labeled := map[int]bool{}
 	for _, p := range data.prs {
@@ -190,8 +207,8 @@ func (s *stream) failures(ctx context.Context, data watchData) []string {
 	}
 	queue := queueRuns{label: env.Config.QueueLabel, drafts: data.drafts}
 	var items []string
-	for _, f := range failures(data.prs, queue, env.Config.FeatureBranch, time.Time{}) {
-		if f.Why == droppedWhy && labeled[f.PR] {
+	for _, f := range failures(data.prs, queue, env.Config.FeatureBranch, s.since) {
+		if f.Why == droppedWhy && (labeled[f.PR] || s.reported[f.PR] || slices.Contains(queued, f.PR)) {
 			continue
 		}
 		items = append(items, s.block(ctx, f))

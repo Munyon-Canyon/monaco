@@ -53,6 +53,10 @@ func TestLatest_keepsTheNewestRunOfEachCheck(t *testing.T) {
 		{"a run still going beats a finished one", []string{ciOK("", 0), ciOK("SUCCESS", 9)}, []string{""}},
 		{"a finished run after a run still going", []string{ciOK("SUCCESS", 9), ciOK("", 0)}, []string{""}},
 		{"a status context by when it was set", []string{verifyAt("SUCCESS", 5), verifyAt("PENDING", 1)}, []string{"SUCCESS"}},
+		{"a later skipped run keeps the success", []string{ciOK("SUCCESS", 1), ciOK("SKIPPED", 5)}, []string{"SUCCESS"}},
+		{"a later cancelled run keeps the failure", []string{ciOK("FAILURE", 1), ciOK("CANCELLED", 5)}, []string{"FAILURE"}},
+		{"a real run after a skipped one wins", []string{ciOK("SKIPPED", 5), ciOK("SUCCESS", 1)}, []string{"SUCCESS"}},
+		{"only skipped and cancelled runs stay idle", []string{ciOK("CANCELLED", 1), ciOK("SKIPPED", 5)}, []string{"SKIPPED"}},
 		{
 			"other checks keep their first-seen order",
 			[]string{verifyAt("SUCCESS", 1), ciOK("FAILURE", 1), `{"name":"ci / Plan","conclusion":"SKIPPED"}`, ciOK("SUCCESS", 3)},
