@@ -247,7 +247,11 @@ func (p *actorProbe) PostAuthSession(context.Context, api.PostAuthSessionRequest
 	return nil, errs.New(errs.CodeNotFound, "actorProbe.PostAuthSession")
 }
 
-func (p *actorProbe) GetMe(context.Context, api.GetMeRequestObject) (api.GetMeResponseObject, error) {
+func (p *actorProbe) GetMe(ctx context.Context, _ api.GetMeRequestObject) (api.GetMeResponseObject, error) {
+	a, _ := auth.ActorFrom(ctx)
+	p.mu.Lock()
+	p.seen = append(p.seen, a)
+	p.mu.Unlock()
 	return nil, errs.New(errs.CodeNotFound, "actorProbe.GetMe")
 }
 
@@ -282,29 +286,30 @@ func TestVerifier_behindTheAuthMiddlewarePutsTheStandingInContextAndLogsNoToken(
 		MaxBodyBytes: 1 << 20,
 		Idempotency:  db.NewIdempotencyStore(f.pool, f.clock),
 		Verifier:     f.verifier(t, config.EnvTest),
-	}, httpx.Routes{SystemRoutes: probe}, openapi.Spec)
+	}, httpx.Routes{IdentityRoutes: probe, SystemRoutes: probe}, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}
 	expired := fakes.PrivyAccessToken(privyAppID, banned.PrivyUserID, f.clock.Now().Add(-2*time.Hour), time.Hour)
+	ping := "/v1/system/pings/" + testkit.NewIDs(2).NewV7().String()
 	requests := []struct {
-		token  string
-		status int
+		method, path, token string
+		status              int
 	}{
-		{f.privyToken(banned.PrivyUserID), http.StatusNotFound},
-		{f.devToken(t), http.StatusNotFound},
-		{f.privyToken("did:privy:unknown"), http.StatusUnauthorized},
-		{unsigned(`{"alg":"none"}`, banned.PrivyUserID), http.StatusUnauthorized},
-		{expired, http.StatusUnauthorized},
+		{http.MethodGet, "/v1/me", f.privyToken(banned.PrivyUserID), http.StatusNotFound},
+		{http.MethodGet, ping, f.privyToken(banned.PrivyUserID), http.StatusForbidden},
+		{http.MethodGet, ping, f.devToken(t), http.StatusNotFound},
+		{http.MethodGet, ping, f.privyToken("did:privy:unknown"), http.StatusUnauthorized},
+		{http.MethodGet, ping, unsigned(`{"alg":"none"}`, banned.PrivyUserID), http.StatusUnauthorized},
+		{http.MethodGet, ping, expired, http.StatusUnauthorized},
 	}
 	for _, r := range requests {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
-			"/v1/system/pings/"+testkit.NewIDs(2).NewV7().String(), nil)
+		req := httptest.NewRequestWithContext(t.Context(), r.method, r.path, nil)
 		req.Header.Set("Authorization", "Bearer "+r.token)
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
 		if rec.Code != r.status {
-			t.Fatalf("status = %d, want %d: %s", rec.Code, r.status, rec.Body.String())
+			t.Fatalf("%s %s = %d, want %d: %s", r.method, r.path, rec.Code, r.status, rec.Body.String())
 		}
 	}
 	want := []auth.Actor{

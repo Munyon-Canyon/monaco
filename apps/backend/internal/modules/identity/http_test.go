@@ -2,11 +2,13 @@ package identity_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,9 +18,12 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/authn"
+	privyadapter "github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/privy"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
@@ -27,6 +32,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/privyfake"
 )
 
@@ -270,5 +276,101 @@ func TestPostAuthSession_refusesWhatItCannotSignIn(t *testing.T) {
 				t.Fatalf("POST /v1/auth/session = %d %s, want %d %s", rec.Code, rec.Body, tc.status, tc.code)
 			}
 		})
+	}
+}
+
+type openPing struct{}
+
+func (openPing) PostSystemPing(context.Context, api.PostSystemPingRequestObject) (
+	api.PostSystemPingResponseObject, error,
+) {
+	return api.PostSystemPing201JSONResponse{}, nil
+}
+
+func (openPing) GetSystemPing(context.Context, api.GetSystemPingRequestObject) (
+	api.GetSystemPingResponseObject, error,
+) {
+	return api.GetSystemPing200JSONResponse{}, nil
+}
+
+func TestAccountStanding_changesTheNextResponseWithoutARestart(t *testing.T) {
+	t.Parallel()
+	f := newPortFixture(t)
+	clk := testkit.NewClock(f.now)
+	cfg := privyConfig()
+	cfg.Env, cfg.Auth.DevTokenKey = config.EnvTest, devKey
+	verifier, err := authn.New(cfg, clk, privyadapter.Users{Client: privy.New(cfg, clk)}, f.pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var routes httpx.Routes
+	identity.New(module.Deps{
+		Config: cfg, Pool: f.pool, UoW: db.New(f.pool, f.ids, clk), IDs: f.ids, Clock: clk,
+	}, identity.WithPrivy(&privyfake.Users{}, &privyfake.Wallets{})).Routes(&routes)
+	routes.SystemRoutes = openPing{}
+	handler, err := httpx.Handler(httpx.Deps{
+		Logger: observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),
+		Tracer: noop.NewTracerProvider(), Clock: clk, IDs: f.ids, MaxBodyBytes: 1 << 20,
+		Idempotency: db.NewIdempotencyStore(f.pool, clk), Verifier: verifier,
+	}, routes, openapi.Spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := testkit.SeedUser(t, f.pool, testkit.UserOpts{AccountStatus: "banned", WithWallet: true})
+	token := fakes.PrivyAccessToken(privyAppID, user.PrivyUserID, clk.Now(), time.Hour)
+	ping := "/v1/system/pings/" + testkit.NewIDs(9).NewV7().String()
+	for _, step := range []standingStep{
+		{method: http.MethodGet, path: "/v1/me", status: http.StatusOK},
+		{method: http.MethodPost, path: "/v1/system/pings", body: `{"note":"out"}`, status: http.StatusForbidden, code: api.AccountBanned},
+		{next: "suspended", method: http.MethodGet, path: ping, status: http.StatusOK},
+		{method: http.MethodPost, path: "/v1/system/pings", body: `{"note":"out"}`, status: http.StatusForbidden, code: api.AccountSuspended},
+		{next: "deleted", method: http.MethodGet, path: "/v1/me", status: http.StatusForbidden, code: api.AccountDeleted},
+		{next: "active", method: http.MethodGet, path: ping, status: http.StatusOK},
+	} {
+		if step.next != "" {
+			setAccountStatus(t, f, user.ID, step.next)
+		}
+		rec := callStanding(t, handler, token, step)
+		got := api.ErrorCode("")
+		if step.code != "" {
+			got = decodeProblem(t, rec).Code
+		}
+		if rec.Code != step.status || got != step.code {
+			t.Fatalf("%s %s after %q = %d %s, want %d %s",
+				step.method, step.path, step.next, rec.Code, rec.Body, step.status, step.code)
+		}
+	}
+}
+
+type standingStep struct {
+	next         string
+	method, path string
+	body         string
+	status       int
+	code         api.ErrorCode
+}
+
+func callStanding(t *testing.T, handler http.Handler, token string, step standingStep) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequestWithContext(t.Context(), step.method, step.path, strings.NewReader(step.body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	if step.method == http.MethodPost {
+		req.Header.Set("Idempotency-Key", "standing")
+	}
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	return rec
+}
+
+func setAccountStatus(t *testing.T, f portFixture, id ids.UserID, status string) {
+	t.Helper()
+	var deleted *time.Time
+	if status == "deleted" {
+		at := f.now
+		deleted = &at
+	}
+	if _, err := f.pool.Exec(t.Context(),
+		`UPDATE users SET account_status = $2, deleted_at = $3 WHERE id = $1`, id.UUID(), status, deleted); err != nil {
+		t.Fatal(err)
 	}
 }

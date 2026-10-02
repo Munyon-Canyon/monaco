@@ -15,4 +15,5 @@ var (
 	HTTPIdempotencyStoreFailed = Msg{
 		Name: "http.idempotency.store_failed", Required: []string{"idempotency_key", "status", "err"},
 	}
+	HTTPAuthRestricted = Msg{Name: "httpx.auth.restricted", Required: []string{"standing", "op", "code"}}
 )
