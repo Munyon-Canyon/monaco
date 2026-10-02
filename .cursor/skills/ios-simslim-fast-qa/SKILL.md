@@ -16,7 +16,7 @@ Repo-agnostic fast smoke loop: **one slim simulator**, **one MobAI claim**, tigh
 | --- | --- | --- |
 | SimSlim | Disable unused sim daemons; verify/doctor | Tap UI, build, screenshot |
 | MobAI + mobai-mcp | claim, start_bridge, execute_dsl, install_app | Compile Swift; slim RAM |
-| xcodebuild / XcodeBuildMCP | Build, install, optional snapshot-ui | Cut sim RAM or manage fleet |
+| xcodebuild / MobileBuildMCP | Build, install, optional snapshot-ui | Cut sim RAM or manage fleet |
 | Agent | discover → profile → build → drive → fix | Stock sim forever; parallel fleet |
 
 **Default:** 1 sim (~0.9 GB slim vs ~4 GB stock). **Rare:** 2–3 sims (clone gold after slim-once). No 12-sim farm.
@@ -58,7 +58,7 @@ Run MobAI desktop app. API at `127.0.0.1:8686`.
 }
 ```
 
-Add XcodeBuildMCP only if the repo already wires it — optional, not required.
+Add MobileBuildMCP only if the repo already wires it — optional, not required.
 
 ### Gold simulator (once per machine, slow)
 
@@ -76,7 +76,7 @@ simslim on <GOLD_UDID> --profile ci/profiles/base-slim.json --json
 
 Keep gold **booted between agent sessions** when possible. For 2–3 sims: clone gold after slim-once (clone inherits slim + apps).
 
-**Monaco:** UDID is **per machine**. Never copy a UUID from this repo or another laptop. After slim-once, `export SIMSLIM_UDID=<udid>` (shell rc and/or plain `.env`). `scripts/gold-sim-udid.sh` prints it or exits 1. `just build mobile` / `just reset mobile` / `./scripts/ios-sim` use `scripts/resolve-ios-sim.sh` (stock fallback). `scripts/stop-mobile.sh` uninstalls `com.monaco.app` on every available sim. XcodeBuildMCP: `--simulator-id "$SIMSLIM_UDID"`. Stock Simulator without slim: README **Without slim sim**.
+**Monaco:** UDID is **per machine**. Never copy a UUID from this repo or another laptop. After slim-once, `export SIMSLIM_UDID=<udid>` (shell rc and/or plain `.env`). `scripts/gold-sim-udid.sh` prints it or exits 1. `just build mobile` / `just reset mobile` / `./scripts/ios-sim` use `scripts/resolve-ios-sim.sh` (stock fallback). `scripts/stop-mobile.sh` uninstalls `com.monaco.app` on every available sim. MobileBuildMCP: `--simulator-id "$SIMSLIM_UDID"`. Stock Simulator without slim: README **Without slim sim**.
 
 **Every session** before driving UI:
 
@@ -177,7 +177,7 @@ xcrun simctl install <UDID> \
   /tmp/dd-<SCHEME>/Build/Products/Debug-iphonesimulator/<App>.app
 ```
 
-### Build + install (XcodeBuildMCP — if present)
+### Build + install (MobileBuildMCP — if present)
 
 Use same UDID MobAI will claim. `build-and-run`, `snapshot-ui`, `screenshot` — optional shortcuts, not assumed.
 
@@ -231,7 +231,7 @@ Write or replay flows under `mobai/flows/*.mob` only when the repo already uses 
 | Path | Purpose |
 | --- | --- |
 | `ci/profiles/*.json` | Capability-specific slim profiles |
-| `.cursor/mcp.json` | mobai-mcp (+ optional XcodeBuildMCP) |
+| `.cursor/mcp.json` | mobai-mcp (+ optional MobileBuildMCP) |
 | `mobai/flows/*.mob` | Replayable smokes for this app |
 | `.cursor/skills/<app>-qa/SKILL.md` | App-specific scheme, bundle, backends, smoke tiers |
 

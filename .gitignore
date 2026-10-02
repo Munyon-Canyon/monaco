@@ -22,7 +22,7 @@ build/
 .logs/
 *.test
 .mobai
-.xcodebuildmcp
+.mobilebuildmcp/
 supabase/.temp/
 docs/demo/clips/
 docs/demo/out/

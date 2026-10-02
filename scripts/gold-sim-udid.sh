@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Print SIMSLIM_UDID. Agent QA and XcodeBuildMCP use this. Fail if unset or missing.
+# Print SIMSLIM_UDID. Agent QA and MobileBuildMCP use this. Fail if unset or missing.
 # Human just run/build/stop uses scripts/resolve-ios-sim.sh instead (stock fallback).
 set -euo pipefail
 
