@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -74,6 +75,9 @@ func checkCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 		_, _ = fmt.Fprintf(stdout, "stage 0 already passed on tree %s\n", tree[:12])
 		return nil
 	}
+	if err := env.sortFlows(); err != nil {
+		return err
+	}
 	parent := env.stackParent(ctx, base)
 	defer func() { _ = os.Remove(env.coverProfile(head)) }()
 	rows, err := env.stage0(ctx, base, parent, head)
@@ -114,6 +118,51 @@ func (env *Env) cleanHead(ctx context.Context) (tree, head string, err error) {
 			"the working tree differs from HEAD; commit first, since check records HEAD's tree")
 	}
 	return tree, head, nil
+}
+
+const flowsFile = "apps/backend/flows.tsv"
+
+func (env *Env) sortFlows() error {
+	root, err := os.OpenRoot(env.Work)
+	if err != nil {
+		return fmt.Errorf("open %s: %w", env.Work, err)
+	}
+	defer func() { _ = root.Close() }()
+	data, err := root.ReadFile(flowsFile)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read %s: %w", flowsFile, err)
+	}
+	body, trailing := strings.CutSuffix(string(data), "\n")
+	header, rows, _ := strings.Cut(body, "\n")
+	lines := strings.Split(rows, "\n")
+	if rows == "" || slices.IsSortedFunc(lines, compareFlowRows) {
+		return nil
+	}
+	slices.SortStableFunc(lines, compareFlowRows)
+	sorted := header + "\n" + strings.Join(lines, "\n")
+	if trailing {
+		sorted += "\n"
+	}
+	if err := root.WriteFile(flowsFile, []byte(sorted), 0o600); err != nil {
+		return fmt.Errorf("write %s: %w", flowsFile, err)
+	}
+	return detailErr(errs.CodeInvalidInput, "monacoctl.agents.check",
+		flowsFile+" rows were not sorted by id; check sorted them, so commit the file and run check again")
+}
+
+func compareFlowRows(a, b string) int {
+	numA, idA := flowOrder(a)
+	numB, idB := flowOrder(b)
+	return cmp.Or(cmp.Compare(numA, numB), strings.Compare(idA, idB))
+}
+
+func flowOrder(row string) (int, string) {
+	id, _, _ := strings.Cut(row, "\t")
+	n, _ := strconv.Atoi(strings.TrimRight(id, "abcdefghijklmnopqrstuvwxyz"))
+	return n, id
 }
 
 func (env *Env) statePath(sub, name string) string {
