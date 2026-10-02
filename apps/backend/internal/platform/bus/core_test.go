@@ -1,6 +1,7 @@
 package bus_test
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -55,5 +56,55 @@ func TestPublishCore_failsOnAClosedConnection(t *testing.T) {
 	err = conn.PublishCore(t.Context(), events.PriceTick{V: 1})
 	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
 		t.Fatalf("PublishCore on a closed connection = %v, want upstream_unavailable", err)
+	}
+}
+
+func TestSubscribeCore_deliversTheNamespacedPayloadUntilUnsubscribe(t *testing.T) {
+	t.Parallel()
+	b := testkit.NATS(t)
+	got := make(chan []byte, 1)
+	unsub, err := b.Conn.SubscribeCore(t.Context(), "price.tick", func(_ context.Context, data []byte) {
+		got <- data
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	subject := b.Conn.Subject("price.tick")
+	if n := testkit.NATSSubscriptions(t, subject); n != 1 {
+		t.Fatalf("subscriptions on %s = %d, want 1", subject, n)
+	}
+	if err := b.Conn.PublishCore(t.Context(), events.PriceTick{V: 1}); err != nil {
+		t.Fatal(err)
+	}
+	var data []byte
+	testkit.Eventually(t, func() bool {
+		select {
+		case data = <-got:
+			return true
+		default:
+			return false
+		}
+	}, 5*time.Second)
+	var tick events.PriceTick
+	if err := json.Unmarshal(data, &tick); err != nil || tick.V != 1 {
+		t.Fatalf("payload = %s, %v, want price.tick v 1", data, err)
+	}
+	unsub()
+	testkit.Eventually(t, func() bool { return testkit.NATSSubscriptions(t, subject) == 0 }, 5*time.Second)
+}
+
+func TestSubscribeCore_failsOnAClosedConnection(t *testing.T) {
+	t.Parallel()
+	conn, err := bus.Connect(t.Context(), config.NATS{URL: testkit.NATSURL()}, bus.ProcessWorker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn.Close(t.Context())
+	unsub, err := conn.SubscribeCore(t.Context(), "price.tick", func(context.Context, []byte) {})
+	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("SubscribeCore on a closed connection = %v, want upstream_unavailable", err)
+	}
+	if unsub != nil {
+		t.Fatal("SubscribeCore returned an unsubscribe func with the error")
 	}
 }

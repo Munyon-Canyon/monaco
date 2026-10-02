@@ -22,3 +22,14 @@ func (c *Conn) PublishCore(ctx context.Context, m events.Core) error {
 	}
 	return nil
 }
+
+func (c *Conn) SubscribeCore(ctx context.Context, subject string, fn func(context.Context, []byte)) (func(), error) {
+	sub, err := c.nc.Subscribe(c.ns.subject(subject), func(m *nats.Msg) { fn(ctx, m.Data) })
+	if err == nil {
+		err = c.nc.Flush()
+	}
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeUpstreamUnavailable, "bus.SubscribeCore", slog.String("subject", subject))
+	}
+	return func() { _ = sub.Unsubscribe() }, nil
+}
