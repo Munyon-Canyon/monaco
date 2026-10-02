@@ -6,9 +6,11 @@ import (
 	"io"
 	"log/slog"
 	"math/rand/v2"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/sony/gobreaker/v2"
@@ -70,7 +72,7 @@ func New(name string, opts ...Option) *Client {
 		name:       name,
 		attempts:   1,
 		callerGone: errs.New(errs.CodeUpstreamUnavailable, "httpclient.callerGone", slog.String("upstream", name)),
-		http:       &http.Client{},
+		http:       &http.Client{Transport: http.DefaultTransport.(*http.Transport).Clone()},
 		jitter:     func(d time.Duration) time.Duration { return rand.N(d + 1) },
 	}
 	for _, opt := range opts {
@@ -78,6 +80,9 @@ func New(name string, opts ...Option) *Client {
 	}
 	if c.timeout <= 0 {
 		panic("httpclient: " + name + " needs WithTimeout from config")
+	}
+	if tr, ok := c.http.Transport.(*http.Transport); ok {
+		tr.ResponseHeaderTimeout = c.timeout
 	}
 	st := c.settings
 	st.Name = name
@@ -87,6 +92,10 @@ func New(name string, opts ...Option) *Client {
 	}
 	c.breaker = gobreaker.NewTwoStepCircuitBreaker[struct{}](st)
 	return c
+}
+
+func (c *Client) CloseIdleConnections() {
+	c.http.CloseIdleConnections()
 }
 
 func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, error) {
@@ -194,11 +203,21 @@ func (c *Client) fail(ctx context.Context, err error, status, attempt int) error
 		slog.String("upstream", c.name), slog.Int("status", status), slog.Int("attempt", attempt),
 	}
 	code := errs.CodeUpstreamUnavailable
-	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) || responseHeaderTimeout(err) {
 		code = errs.CodeUpstreamTimeout
-		err = errors.Join(err, context.Cause(ctx))
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			err = errors.Join(err, context.Cause(ctx))
+		}
 	}
 	return errs.Wrap(err, code, "httpclient.Do", attrs...)
+}
+
+func responseHeaderTimeout(err error) bool {
+	var netErr net.Error
+	if !errors.As(err, &netErr) || !netErr.Timeout() {
+		return false
+	}
+	return strings.Contains(netErr.Error(), "timeout awaiting response headers")
 }
 
 func breakerOpen(err error) bool {
