@@ -1,6 +1,7 @@
 package scripts_test
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -86,5 +87,44 @@ func TestTestBackendCache_repeatTreeSkipsTheCommandAndAFailureDoesNot(t *testing
 	body, _ = os.ReadFile(marker)
 	if strings.Count(string(body), "z") != 1 {
 		t.Fatalf("untracked file did not bust the cache, z count=%d", strings.Count(string(body), "z"))
+	}
+}
+
+func TestTestBackendCache_failingSuiteKeepsItsStatusWhenTeeSucceeds(t *testing.T) {
+	t.Parallel()
+	dir := gitRepo(t)
+	cache := t.TempDir()
+	const want = 17
+	out, err := cacheExec(t, dir, cache, "echo suite-failed; exit 17")
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) || exit.ExitCode() != want {
+		t.Fatalf("run_cached returned %v, want exit %d:\n%s", err, want, out)
+	}
+	if !strings.Contains(out, "suite-failed") {
+		t.Fatalf("tee did not forward the suite output:\n%s", out)
+	}
+	entries, err := os.ReadDir(cache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logged := false
+	for _, entry := range entries {
+		name := entry.Name()
+		if strings.HasSuffix(name, ".pass") {
+			t.Fatalf("failure was stored as a pass: %s", name)
+		}
+		if !strings.HasSuffix(name, ".log") {
+			continue
+		}
+		body, err := os.ReadFile(filepath.Join(cache, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(body), "suite-failed") {
+			logged = true
+		}
+	}
+	if !logged {
+		t.Fatal("tee did not write the suite output to the cache log")
 	}
 }
