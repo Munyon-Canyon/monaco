@@ -165,7 +165,7 @@ func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkR
 			cmds: [][]string{
 				{"swift", "format", "lint", "--strict", "--recursive", "--parallel", "../../apps/mobile", "."},
 				{"../../scripts/swiftlint-ratchet.sh"},
-				{"swift", "test", "-Xswiftc", "-warnings-as-errors"},
+				{"../../scripts/mobile-core-test.sh"},
 			},
 		})
 	}

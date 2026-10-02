@@ -227,7 +227,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		".: python3 -m unittest scripts/test_new.py scripts/test_tool.py",
 		"packages/mobile-core: swift format lint --strict --recursive --parallel ../../apps/mobile .",
 		"packages/mobile-core: swiftlint-ratchet.sh",
-		"packages/mobile-core: swift test -Xswiftc -warnings-as-errors",
+		"packages/mobile-core: mobile-core-test.sh",
 		".: install-sqlc.sh",
 		".: ready.sh",
 	}
@@ -246,7 +246,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	}
 	log, err := os.ReadFile(filepath.Join(h.stateDir(t, "logs"), "check-"+tree[:12]+".log"))
 	if err != nil || !strings.Contains(string(log), "=== RUN   TestX\nok  \tx\t1.5s\n") ||
-		!strings.Contains(string(log), "&& swift test -Xswiftc -warnings-as-errors)") {
+		!strings.Contains(string(log), "&& ../../scripts/mobile-core-test.sh)") {
 		t.Fatalf("log: %q %v", log, err)
 	}
 
@@ -600,7 +600,7 @@ func TestCheck_eachRowHasItsOwnBudgetAndTheRunHasNone(t *testing.T) {
 		{prefix: "go test", took: 50 * time.Second},
 		{prefix: "swift format", took: 0},
 		{prefix: "swiftlint-ratchet.sh", took: 0},
-		{prefix: "swift test", took: 34 * time.Second},
+		{prefix: "mobile-core-test.sh", took: 34 * time.Second},
 	}
 	if code, stdout, stderr := h.check(t); code != 0 || !strings.Contains(stdout, "swift test      ok    34.0s") {
 		t.Fatalf("a 50 s go row and a 34 s swift row pass: %d %q %q", code, stdout, stderr)
@@ -610,10 +610,10 @@ func TestCheck_eachRowHasItsOwnBudgetAndTheRunHasNone(t *testing.T) {
 	h.replies = []reply{
 		{prefix: "swift format", took: 0},
 		{prefix: "swiftlint-ratchet.sh", took: 0},
-		{prefix: "swift test", took: 151 * time.Second, err: errors.New("signal: killed")},
+		{prefix: "mobile-core-test.sh", took: 151 * time.Second, err: errors.New("signal: killed")},
 	}
 	code, stdout, stderr := h.check(t)
-	wantDetail := "swift test row over the 2m30s swift budget after 151s; slowest: swift test -warnings-as-errors (151.0s)"
+	wantDetail := "swift test row over the 2m30s swift budget after 151s; slowest: swift test ../../scripts/mobile-core-test.sh (151.0s)"
 	if code != 1 || !strings.Contains(stdout, "swift test      over budget") || !strings.Contains(stderr, wantDetail) {
 		t.Fatalf("an over-budget swift row names swift: %d %q %q", code, stdout, stderr)
 	}
@@ -738,7 +738,7 @@ func TestCheck_theOpenAPISpecAloneRunsTheSwiftRow(t *testing.T) {
 	h := newCheckHarness(t)
 	h.commit(t, map[string]string{openAPISpec: "openapi: 3.1.0\n"})
 	if code, stdout, stderr := h.check(t); code != 0 ||
-		!slices.Contains(h.calls, "packages/mobile-core: swift test -Xswiftc -warnings-as-errors") {
+		!slices.Contains(h.calls, "packages/mobile-core: mobile-core-test.sh") {
 		t.Fatalf("openapi.yaml runs swift test: %d %q %q %v", code, stdout, stderr, h.calls)
 	}
 }
