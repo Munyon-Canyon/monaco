@@ -58,9 +58,9 @@ func connectBus(ctx context.Context, cfg config.Config, meters metric.MeterProvi
 		return nil, err
 	}
 	if err := conn.VerifyStreams(ctx); err != nil {
-		drainCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.Timeouts.Shutdown)
+		closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.Timeouts.Shutdown)
 		defer cancel()
-		conn.Close(drainCtx)
+		conn.Close(closeCtx)
 		return nil, err
 	}
 	return conn, nil

@@ -65,9 +65,9 @@ func run(
 		return bootErr(ctx, err)
 	}
 	defer func() {
-		drainCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.Timeouts.Shutdown)
+		closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.Timeouts.Shutdown)
 		defer cancel()
-		conn.Close(drainCtx)
+		conn.Close(closeCtx)
 	}()
 	uow := db.New(pool, ids.Real{}, clock.Real{})
 	hub, stopBackground, err := startBackground(ctx, conn, pool, uow, meters, cfg.Bus.APIRelay)
