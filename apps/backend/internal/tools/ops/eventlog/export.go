@@ -65,18 +65,26 @@ func anonymize(l Line) (Line, error) {
 	if err != nil {
 		return l, err
 	}
+	return anonymizeEvent(l, ev)
+}
+
+func anonymizeEvent(l Line, ev any) (Line, error) {
 	actorType, actorID, _ := strings.Cut(l.Actor, ":")
 	l.Actor = actorType + ":" + Pseudonym(actorID)
 	var fields map[string]any
 	_ = json.Unmarshal(l.Payload, &fields)
-	scrub(reflect.TypeOf(ev), fields)
+	scrub(reflect.ValueOf(ev), fields)
 	l.Payload, _ = json.Marshal(fields)
 	return l, nil
 }
 
-func scrub(t reflect.Type, fields map[string]any) {
-	for i := range t.NumField() {
-		f := t.Field(i)
+func scrub(v reflect.Value, fields map[string]any) {
+	v = follow(v)
+	if v.Kind() != reflect.Struct {
+		return
+	}
+	for i := range v.NumField() {
+		f := v.Type().Field(i)
 		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
 		child, ok := fields[name]
 		if !ok {
@@ -86,9 +94,58 @@ func scrub(t reflect.Type, fields map[string]any) {
 			fields[name] = pseudonymize(child)
 			continue
 		}
-		if nested, isObject := child.(map[string]any); isObject {
-			scrub(f.Type, nested)
+		scrubOne(v.Field(i), child)
+	}
+}
+
+func follow(v reflect.Value) reflect.Value {
+	for v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return reflect.Zero(derefType(v.Type()))
 		}
+		v = v.Elem()
+	}
+	return v
+}
+
+func derefType(t reflect.Type) reflect.Type {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	return t
+}
+
+func scrubOne(v reflect.Value, child any) {
+	v = follow(v)
+	switch {
+	case v.Kind() == reflect.Struct:
+		nested, ok := child.(map[string]any)
+		if !ok {
+			return
+		}
+		scrub(v, nested)
+	case v.Kind() == reflect.Map:
+		scrubMap(v, child)
+	case v.Kind() == reflect.Interface && !v.IsNil():
+		scrubOne(v.Elem(), child)
+	}
+}
+
+func scrubMap(v reflect.Value, child any) {
+	obj, ok := child.(map[string]any)
+	if !ok {
+		return
+	}
+	elem := derefType(v.Type().Elem())
+	if elem.Kind() != reflect.Struct {
+		return
+	}
+	for _, val := range obj {
+		nested, ok := val.(map[string]any)
+		if !ok {
+			continue
+		}
+		scrub(reflect.Zero(elem), nested)
 	}
 }
 

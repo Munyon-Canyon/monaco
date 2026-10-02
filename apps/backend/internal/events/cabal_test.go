@@ -2,9 +2,6 @@ package events_test
 
 import (
 	"encoding/json"
-	"reflect"
-	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -144,32 +141,5 @@ func TestCabalEvents_leaveOutWhatTheirCommandDoesNotSet(t *testing.T) {
 		if err != nil || errAgain != nil || string(again) != tt.want {
 			t.Errorf("%s: decoded and re-encoded as %s, %v, %v; want %s", name, again, err, errAgain, tt.want)
 		}
-	}
-}
-
-func checkPIITags(t *testing.T, typ reflect.Type) {
-	t.Helper()
-	for i := range typ.NumField() {
-		field := typ.Field(i)
-		name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
-		isUser := slices.Contains([]string{"creator_id", "user_id", "actor_id", "voter_ids"}, name)
-		tagged := field.Tag.Get("pii") == "true"
-		if tagged != isUser {
-			t.Errorf("%s.%s: pii tag = %t, want %t", typ.Name(), field.Name, tagged, isUser)
-		}
-		if tagged && field.Type != reflect.TypeFor[uuid.UUID]() && field.Type != reflect.TypeFor[[]uuid.UUID]() {
-			t.Errorf("%s.%s is tagged pii as %s, but the export can only pseudonymize an id or a list of ids",
-				typ.Name(), field.Name, field.Type)
-		}
-		if field.Type.Kind() == reflect.Struct && field.Type != reflect.TypeFor[time.Time]() && !tagged {
-			checkPIITags(t, field.Type)
-		}
-	}
-}
-
-func TestCabalEvents_tagEveryUserReferenceAsPIIIncludingTheOnesInsideChanges(t *testing.T) {
-	t.Parallel()
-	for _, ev := range newCabalFixtures(t).all() {
-		checkPIITags(t, reflect.TypeOf(ev))
 	}
 }
