@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -19,9 +20,11 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
@@ -366,9 +369,11 @@ func rejectCaller(
 	_, postErr := h.PostCabal(ctx, req)
 	_, getErr := h.GetCabal(ctx, lookup)
 	_, searchErr := h.GetCabals(ctx, api.GetCabalsRequestObject{})
-	if errs.CodeOf(postErr) != code || errs.CodeOf(getErr) != code || errs.CodeOf(searchErr) != code ||
-		f.wallets.Creates() != 0 {
-		t.Fatalf("%s: post %v get %v search %v creates %d", name, postErr, getErr, searchErr, f.wallets.Creates())
+	_, mineErr := h.GetMyCabals(ctx, api.GetMyCabalsRequestObject{})
+	if errs.CodeOf(postErr) != code || errs.CodeOf(getErr) != code ||
+		errs.CodeOf(searchErr) != code || errs.CodeOf(mineErr) != code || f.wallets.Creates() != 0 {
+		t.Fatalf("%s: post %v get %v search %v mine %v creates %d",
+			name, postErr, getErr, searchErr, mineErr, f.wallets.Creates())
 	}
 }
 
@@ -602,6 +607,124 @@ LIMIT $6::int`, f.user.ID.UUID(), "fri", nil, nil, nil, int32(21))
 	}
 	if err := rows.Err(); err != nil || !strings.Contains(plan.String(), "cabals_name_trgm_idx") {
 		t.Fatalf("plan = %q, %v", plan.String(), err)
+	}
+}
+
+func TestMyCabals_listsMembershipsAndCreatorRequests(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	creator := testkit.NewCabal(t, f.pool, testkit.WithJoinMode("request"))
+	member := testkit.NewCabal(t, f.pool)
+	requestAccess(t, f, creator.ID.UUID())
+	joinMyCabal(t, f, member.ID.UUID(), time.Date(2026, 10, 2, 16, 0, 0, 0, time.UTC))
+	page, err := f.routes(nil).GetMyCabals(auth.WithActor(t.Context(), auth.Actor{
+		Kind: auth.ActorUser, ID: creator.Creator.ID.String(), Standing: auth.StandingActive,
+	}), api.GetMyCabalsRequestObject{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := []api.MyCabal(page.(api.GetMyCabals200JSONResponse))
+	if len(items) != 1 || items[0].PendingRequestCount != 1 || items[0].Role != "creator" {
+		t.Fatalf("creator cabals = %+v", items)
+	}
+	mine, err := f.routes(nil).GetMyCabals(f.actor(t.Context()), api.GetMyCabalsRequestObject{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items = []api.MyCabal(mine.(api.GetMyCabals200JSONResponse))
+	if len(items) != 1 || items[0].Id != member.ID.UUID() || items[0].PendingRequestCount != 0 {
+		t.Fatalf("my cabals = %+v", items)
+	}
+}
+
+func TestMyCabals_returnsAnEmptyListForANewUser(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	result, err := f.routes(nil).GetMyCabals(f.actor(t.Context()), api.GetMyCabalsRequestObject{})
+	items, ok := result.(api.GetMyCabals200JSONResponse)
+	if err != nil || !ok || len(items) != 0 {
+		t.Fatalf("GetMyCabals = %v, %v", result, err)
+	}
+}
+
+func TestMyCabals_ordersByJoinedAtDescending(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	now := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
+	oldest, middle, newest := testkit.NewCabal(t, f.pool), testkit.NewCabal(t, f.pool), testkit.NewCabal(t, f.pool)
+	joinMyCabal(t, f, oldest.ID.UUID(), now.Add(-2*time.Hour))
+	joinMyCabal(t, f, middle.ID.UUID(), now.Add(-time.Hour))
+	joinMyCabal(t, f, newest.ID.UUID(), now)
+	result, err := f.routes(nil).GetMyCabals(f.actor(t.Context()), api.GetMyCabalsRequestObject{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := []api.MyCabal(result.(api.GetMyCabals200JSONResponse))
+	if len(items) != 3 || items[0].Id != newest.ID.UUID() || items[1].Id != middle.ID.UUID() ||
+		items[2].Id != oldest.ID.UUID() {
+		t.Fatalf("cabals = %+v", items)
+	}
+}
+
+func TestMyCabals_reportsAnUnavailableRead(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	if _, err := f.pool.Exec(t.Context(), `ALTER TABLE cabal_members RENAME TO cabal_members_gone`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := f.routes(nil).GetMyCabals(f.actor(t.Context()), api.GetMyCabalsRequestObject{})
+	if errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("GetMyCabals = %v, want internal", err)
+	}
+}
+
+func TestSearchCabals_threeCharacterQueryIsUnderTwentyMillisecondsP95(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	seedSearchPerfCabals(t, f)
+	q := sqlc.New(f.pool)
+	durations := make([]time.Duration, 60)
+	for i := range durations {
+		started := clock.Real{}.Now()
+		if _, err := q.SearchCabals(t.Context(), sqlc.SearchCabalsParams{
+			ActorID: f.user.ID.UUID(), Query: "abc", PageSize: 21,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		durations[i] = clock.Real{}.Now().Sub(started)
+	}
+	slices.Sort(durations)
+	p95 := durations[56]
+	t.Logf("search p95 = %s", p95)
+	if p95 >= 20*time.Millisecond {
+		t.Fatalf("search p95 = %s, want under 20ms", p95)
+	}
+}
+
+func seedSearchPerfCabals(t *testing.T, f createFixture) {
+	t.Helper()
+	_, err := f.pool.Exec(t.Context(), `WITH seeded AS (
+		INSERT INTO cabals (id, name, creator_id, join_mode, voter_mode, threshold, proposal_expiry_seconds,
+			slippage_bps, invite_code, created_at, updated_at)
+		SELECT md5(n::text)::uuid, CASE WHEN n <= 14 THEN 'abc cabal ' || n ELSE 'other cabal ' || n END,
+			$1, 'open', 'all', 'majority', 86400, 100,
+			lpad(n::text, 10, '0'), now(), now() FROM generate_series(1, 10000) n RETURNING id
+	) INSERT INTO cabal_members (cabal_id, user_id, role, can_vote, joined_at)
+	SELECT id, $1, 'creator', true, now() FROM seeded`, f.user.ID.UUID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(t.Context(), `ANALYZE cabals, cabal_members`); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func joinMyCabal(t *testing.T, f createFixture, cabalID uuid.UUID, joinedAt time.Time) {
+	t.Helper()
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO cabal_members (cabal_id, user_id, role, can_vote, joined_at)
+		VALUES ($1, $2, 'member', false, $3)`, cabalID, f.user.ID.UUID(), joinedAt)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
