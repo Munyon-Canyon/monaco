@@ -2,7 +2,16 @@ package adapters
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"log/slog"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/app"
@@ -42,6 +51,117 @@ func (h HTTP) PostCabal(
 		return nil, err
 	}
 	return api.PostCabal201JSONResponse(wireCabal(view)), nil
+}
+
+const (
+	defaultCabalSearchLimit = 20
+	maxCabalSearchLimit     = 50
+)
+
+type cabalSearchCursor struct {
+	MemberCount int32  `json:"member_count"`
+	CreatedAt   string `json:"created_at"`
+	ID          string `json:"id"`
+}
+
+func (h HTTP) GetCabals(
+	ctx context.Context, req api.GetCabalsRequestObject,
+) (api.GetCabalsResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	query := ""
+	if req.Params.Query != nil {
+		query = strings.TrimSpace(*req.Params.Query)
+	}
+	if query != "" && utf8.RuneCountInString(query) < 2 {
+		return nil, errs.New(errs.CodeInvalidInput, "cabal.GetCabals", slog.String("reason", "query"))
+	}
+	limit := defaultCabalSearchLimit
+	if req.Params.Limit != nil {
+		limit = *req.Params.Limit
+	}
+	if limit < 1 || limit > maxCabalSearchLimit {
+		return nil, errs.New(errs.CodeInvalidInput, "cabal.GetCabals", slog.String("reason", "limit"))
+	}
+	params, err := cabalSearchParams(user, query, limit, req.Params.Cursor)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := sqlc.New(h.DB).SearchCabals(ctx, params)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, "cabal.GetCabals")
+	}
+	next := nextCabalCursor(rows, limit)
+	if len(rows) > limit {
+		rows = rows[:limit]
+	}
+	items := make([]api.CabalSearchItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, api.CabalSearchItem{
+			Id: row.ID, Name: row.Name, PictureUrl: nullableText(row.PictureUrl),
+			MemberCount: row.MemberCount, JoinMode: row.JoinMode, IsMember: row.IsMember,
+			MyAccessRequestStatus: nullableText(row.MyAccessRequestStatus),
+		})
+	}
+	return api.GetCabals200JSONResponse(api.CabalSearchPage{Items: items, NextCursor: next}), nil
+}
+
+func cabalSearchParams(
+	user ids.UserID, query string, limit int, rawCursor *string,
+) (sqlc.SearchCabalsParams, error) {
+	pageSize := int32(1)
+	for range limit {
+		pageSize++
+	}
+	params := sqlc.SearchCabalsParams{ActorID: user.UUID(), Query: query, PageSize: pageSize}
+	if rawCursor == nil {
+		return params, nil
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(*rawCursor)
+	if err != nil {
+		return sqlc.SearchCabalsParams{}, invalidCabalCursor()
+	}
+	var cursor cabalSearchCursor
+	if err := json.Unmarshal(decoded, &cursor); err != nil {
+		return sqlc.SearchCabalsParams{}, invalidCabalCursor()
+	}
+	createdAt, err := time.Parse(time.RFC3339Nano, cursor.CreatedAt)
+	if err != nil {
+		return sqlc.SearchCabalsParams{}, invalidCabalCursor()
+	}
+	id, err := uuid.Parse(cursor.ID)
+	if err != nil || cursor.MemberCount < 1 {
+		return sqlc.SearchCabalsParams{}, invalidCabalCursor()
+	}
+	params.CursorMemberCount = pgtype.Int4{Int32: cursor.MemberCount, Valid: true}
+	params.CursorCreatedAt = pgtype.Timestamptz{Time: createdAt, Valid: true}
+	params.CursorID = pgtype.UUID{Bytes: id, Valid: true}
+	return params, nil
+}
+
+func invalidCabalCursor() error {
+	return errs.New(errs.CodeInvalidInput, "cabal.GetCabals", slog.String("reason", "cursor"))
+}
+
+func nextCabalCursor(rows []sqlc.SearchCabalsRow, limit int) *string {
+	if len(rows) <= limit {
+		return nil
+	}
+	last := rows[limit-1]
+	cursor := base64.RawURLEncoding.EncodeToString([]byte(fmt.Sprintf(
+		`{"member_count":%d,"created_at":%q,"id":%q}`,
+		last.MemberCount, last.CreatedAt.UTC().Format(time.RFC3339Nano), last.ID.String(),
+	)))
+	return &cursor
+}
+
+func nullableText(text pgtype.Text) *string {
+	if !text.Valid {
+		return nil
+	}
+	return &text.String
 }
 
 func (h HTTP) GetCabal(
