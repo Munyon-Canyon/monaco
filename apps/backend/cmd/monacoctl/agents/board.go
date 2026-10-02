@@ -103,10 +103,10 @@ func (env *Env) views(ctx context.Context, b Batch) ([]ticketView, error) {
 	var data struct {
 		Repository map[string]ticketTimeline `json:"repository"`
 	}
-	if err := env.GitHub.graphql(ctx, ticketQuery(nums), &data); err != nil {
+	if err := env.graphQL(ctx, ticketQuery(nums), &data); err != nil {
 		return nil, err
 	}
-	if err := readAllChecks(ctx, env.GitHub.graphql, timelineCommits(data.Repository)); err != nil {
+	if err := env.readChecks(ctx, timelineCommits(data.Repository), env.graphQL); err != nil {
 		return nil, err
 	}
 	out := make([]ticketView, 0, len(b.Tickets))
