@@ -26,10 +26,10 @@ func (h UpdateProfileHandler) Handle(ctx context.Context, id ids.UserID, raw str
 		return Me{}, err
 	}
 	err = h.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		_, err := sqlc.New(tx.Queries()).SetDisplayName(ctx, sqlc.SetDisplayNameParams{
+		n, err := sqlc.New(tx.Queries()).SetDisplayName(ctx, sqlc.SetDisplayNameParams{
 			ID: id.UUID(), DisplayName: name.String(), Now: h.Clock.Now(),
 		})
-		if err != nil {
+		if err != nil || n == 0 {
 			return err
 		}
 		if err := tx.Events.Append(ctx, events.UserProfileUpdated{

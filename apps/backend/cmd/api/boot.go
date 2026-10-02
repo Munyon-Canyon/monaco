@@ -139,7 +139,7 @@ func newHandler(deps module.Deps, spec []byte, meters metric.MeterProvider) (htt
 	if err != nil {
 		return nil, err
 	}
-	deps.Storage = store
+	deps.Photos = storage.ProfilePhotos{Storage: store}
 	verifier, err := identity.NewVerifier(deps)
 	if err != nil {
 		return nil, err

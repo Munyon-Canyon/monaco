@@ -13,10 +13,9 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
-const photoBucket = "avatars"
-
 type PhotoStore interface {
-	Put(context.Context, string, string, string, []byte) (string, error)
+	Put(context.Context, string, string, []byte) (string, error)
+	DeleteAll(context.Context, ids.UserID) error
 }
 
 type UploadProfilePhotoHandler struct {
@@ -37,7 +36,7 @@ func (h UploadProfilePhotoHandler) Handle(
 	if h.Store == nil || ext == "" || len(body) == 0 {
 		return Me{}, errs.New(errs.CodePhotoInvalid, op)
 	}
-	url, err := h.Store.Put(ctx, photoBucket, id.String()+"/"+h.IDs.NewV7().String()+"."+ext, contentType, body)
+	url, err := h.Store.Put(ctx, id.String()+"/"+h.IDs.NewV7().String()+"."+ext, contentType, body)
 	if err != nil {
 		return Me{}, errs.Wrap(err, errs.CodeStorageUnavailable, op, slog.String("reason", "put"))
 	}

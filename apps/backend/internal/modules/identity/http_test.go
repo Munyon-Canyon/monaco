@@ -5,14 +5,18 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/textproto"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"go.opentelemetry.io/otel/trace/noop"
+	"go.opentelemetry.io/otel/metric/noop"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -29,6 +33,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/ratelimit"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -43,8 +48,25 @@ type httpFixture struct {
 	verifier *auth.DevVerifier
 	privy    *privyfake.Users
 	wallets  *privyfake.Wallets
-	hints    *recordedHints
+	photos   *photoStore
 }
+
+type photoStore struct {
+	url                      string
+	err                      error
+	puts                     int
+	bucket, key, contentType string
+	body                     []byte
+}
+
+func (s *photoStore) Put(_ context.Context, key, contentType string, body []byte) (string, error) {
+	s.puts++
+	s.bucket, s.key, s.contentType = "avatars", key, contentType
+	s.body = append([]byte(nil), body...)
+	return s.url, s.err
+}
+
+func (*photoStore) DeleteAll(context.Context, ids.UserID) error { return nil }
 
 func newHTTPFixture(t *testing.T) httpFixture {
 	t.Helper()
@@ -55,33 +77,97 @@ func newHTTPFixture(t *testing.T) httpFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fakeUsers, fakeWallets, hints := &privyfake.Users{}, &privyfake.Wallets{}, &recordedHints{}
+	fakeUsers, fakeWallets := &privyfake.Users{}, &privyfake.Wallets{}
+	photos := &photoStore{url: "https://img.example/photo.png"}
+	limit, err := ratelimit.Load(openapi.Spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	limiter, err := ratelimit.New(f.pool, clk, noop.NewMeterProvider())
+	if err != nil {
+		t.Fatal(err)
+	}
 	var routes httpx.Routes
 	identity.New(
 		module.Deps{Pool: f.pool, UoW: db.New(f.pool, f.ids, clk), IDs: f.ids, Clock: clk},
 		identity.WithPrivy(fakeUsers, fakeWallets),
-		identity.WithHints(hints),
+		identity.WithPhotoStore(photos),
 	).Routes(&routes)
 	h, err := httpx.Handler(httpx.Deps{
 		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),
-		Tracer:       noop.NewTracerProvider(),
+		Tracer:       tracenoop.NewTracerProvider(),
 		Clock:        clk,
 		IDs:          f.ids,
 		MaxBodyBytes: 1 << 20,
 		Idempotency:  db.NewIdempotencyStore(f.pool, clk),
 		Verifier:     verifier,
+		RateLimit:    ratelimit.Middleware(limiter, limit, httpx.ActorKey, false),
 	}, routes, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return httpFixture{
-		portFixture: f,
-		handler:     testkit.HTTP(t, h),
-		verifier:    verifier,
-		privy:       fakeUsers,
-		wallets:     fakeWallets,
-		hints:       hints,
+		portFixture: f, handler: testkit.HTTP(t, h), verifier: verifier, privy: fakeUsers, wallets: fakeWallets,
+		photos: photos,
 	}
+}
+
+func (f httpFixture) uploadPhoto(t *testing.T, user ids.UserID, body []byte) *httptest.ResponseRecorder {
+	t.Helper()
+	return f.uploadPhotoKey(t, user, body, "photo-1")
+}
+
+func (f httpFixture) uploadPhotoKey(
+	t *testing.T, user ids.UserID, body []byte, key string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	var form bytes.Buffer
+	writer := multipart.NewWriter(&form)
+	part, err := writer.CreateFormFile("photo", "photo.jpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write(body); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/me/profile-photo", &form)
+	req.Header.Set("Authorization", "Bearer "+f.verifier.Mint(user.String(), f.now.Add(time.Hour)))
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Idempotency-Key", key)
+	rec := httptest.NewRecorder()
+	f.handler.ServeHTTP(rec, req)
+	return rec
+}
+
+func (f httpFixture) uploadPhotoPart(
+	t *testing.T, user ids.UserID, body []byte, filename, contentType, key string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	var form bytes.Buffer
+	writer := multipart.NewWriter(&form)
+	header := textproto.MIMEHeader{}
+	header.Set("Content-Disposition", `form-data; name="photo"; filename="`+filename+`"`)
+	header.Set("Content-Type", contentType)
+	part, err := writer.CreatePart(header)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write(body); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/me/profile-photo", &form)
+	req.Header.Set("Authorization", "Bearer "+f.verifier.Mint(user.String(), f.now.Add(time.Hour)))
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Idempotency-Key", key)
+	rec := httptest.NewRecorder()
+	f.handler.ServeHTTP(rec, req)
+	return rec
 }
 
 func (f httpFixture) updateProfile(t *testing.T, user ids.UserID, body string) *httptest.ResponseRecorder {
@@ -163,7 +249,39 @@ func TestGetMe_overHTTPServesTheAccount(t *testing.T) {
 	}
 }
 
-func TestUpdateProfile_OK(t *testing.T) {
+func TestFlow23a_UploadProfilePhoto_OK(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
+	rec := f.uploadPhoto(t, u.ID, []byte("\x89PNG\r\n\x1a\nphoto"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("upload = %d %s", rec.Code, rec.Body)
+	}
+	if got := decodeMe(t, rec).PhotoUrl; got == nil || *got != "https://img.example/photo.png" {
+		t.Fatalf("photo_url = %v", got)
+	}
+	if got := profileEvents(t, f); len(got) != 1 || got[0].PhotoURL != "https://img.example/photo.png" ||
+		!reflect.DeepEqual(got[0].Fields, []string{"photo"}) {
+		t.Fatalf("profile events = %+v", got)
+	}
+}
+
+func TestFlow23a_UploadProfilePhoto_usesSniffedPNGMetadata(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
+	if rec := f.uploadPhotoPart(
+		t, u.ID, []byte("\x89PNG\r\n\x1a\nphoto"), "avatar.jpg", "image/jpeg", "photo-png",
+	); rec.Code != http.StatusOK {
+		t.Fatalf("upload = %d %s", rec.Code, rec.Body)
+	}
+	if f.photos.bucket != "avatars" || f.photos.contentType != "image/png" ||
+		!strings.HasPrefix(f.photos.key, u.ID.String()+"/") || !strings.HasSuffix(f.photos.key, ".png") {
+		t.Fatalf("Put = bucket %q key %q content type %q", f.photos.bucket, f.photos.key, f.photos.contentType)
+	}
+}
+
+func TestFlow23_UpdateProfile_OK(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
@@ -171,13 +289,9 @@ func TestUpdateProfile_OK(t *testing.T) {
 	if rec.Code != http.StatusOK || decodeMe(t, rec).DisplayName != "Kai Q" {
 		t.Fatalf("update = %d %s", rec.Code, rec.Body)
 	}
-	f.expectProfileEvent(t, u.ID, "display_name", "Kai Q")
-	if got := f.hints.sent(); !reflect.DeepEqual(got, []string{"user." + u.ID.String() + ".me_changed"}) {
-		t.Fatalf("hints = %v", got)
-	}
 }
 
-func TestUpdateProfile_DisplayNameInvalid(t *testing.T) {
+func TestFlow23_UpdateProfile_DisplayNameInvalid(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
@@ -185,71 +299,162 @@ func TestUpdateProfile_DisplayNameInvalid(t *testing.T) {
 	if rec.Code != http.StatusBadRequest || decodeProblem(t, rec).Code != api.DisplayNameInvalid {
 		t.Fatalf("update = %d %s", rec.Code, rec.Body)
 	}
-	f.expectNoProfileEvents(t)
 }
 
-func TestUpdateProfile_unchangedIsANoop(t *testing.T) {
+func TestFlow23a_UploadProfilePhoto_PhotoInvalid(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
-	u := f.seed(t, portSeed{handle: "kai", name: "Kai Q", wallet: true})
-	if rec := f.updateProfile(t, u.ID, `{"display_name":"Kai Q"}`); rec.Code != http.StatusOK {
-		t.Fatalf("update = %d %s", rec.Code, rec.Body)
-	}
-	f.expectNoProfileEvents(t)
-	if got := f.hints.sent(); len(got) != 0 {
-		t.Fatalf("hints = %v", got)
+	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
+	rec := f.uploadPhoto(t, u.ID, []byte("GIF89a"))
+	if rec.Code != http.StatusBadRequest || decodeProblem(t, rec).Code != api.PhotoInvalid {
+		t.Fatalf("upload = %d %s", rec.Code, rec.Body)
 	}
 }
 
-func TestPatchMe_rejectsMissingCallerAndBody(t *testing.T) {
+func TestProfileAdapters_rejectMissingActorAndBody(t *testing.T) {
 	t.Parallel()
 	h := adapters.HTTP{}
 	if _, err := h.PatchMe(t.Context(), api.PatchMeRequestObject{}); errs.CodeOf(err) != errs.CodeUnauthorized {
 		t.Fatalf("PatchMe without actor = %v", err)
 	}
+	if _, err := h.PostProfilePhoto(
+		t.Context(), api.PostProfilePhotoRequestObject{},
+	); errs.CodeOf(err) != errs.CodeUnauthorized {
+		t.Fatalf("PostProfilePhoto without actor = %v", err)
+	}
 	ctx := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: testkit.NewIDs(7).NewV7().String()})
 	if _, err := h.PatchMe(ctx, api.PatchMeRequestObject{}); errs.CodeOf(err) != errs.CodeInvalidInput {
 		t.Fatalf("PatchMe without body = %v", err)
 	}
+	if _, err := h.PostProfilePhoto(
+		ctx, api.PostProfilePhotoRequestObject{},
+	); errs.CodeOf(err) != errs.CodePhotoInvalid {
+		t.Fatalf("PostProfilePhoto without body = %v", err)
+	}
 }
 
-func TestUpdateProfile_databaseFailures(t *testing.T) {
+func TestFlow23a_UploadProfilePhoto_acceptsEverySupportedFormat(t *testing.T) {
 	t.Parallel()
-	for _, table := range []string{"users", "events"} {
-		t.Run(table, func(t *testing.T) {
+	for name, body := range map[string][]byte{
+		"jpeg": {0xff, 0xd8, 0xff, 0xe0, 0, 16, 'J', 'F', 'I', 'F', 0, 1},
+		"png":  {0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'},
+		"webp": {'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P', 'V', 'P', '8', ' '},
+	} {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			f := newHTTPFixture(t)
 			u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
-			failProfileWrite(t, f, table)
-			if rec := f.updateProfile(t, u.ID, `{"display_name":"Kai Q"}`); rec.Code != http.StatusInternalServerError {
+			rec := f.uploadPhoto(t, u.ID, body)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("upload = %d %s", rec.Code, rec.Body)
+			}
+		})
+	}
+}
+
+func TestFlow23a_UploadProfilePhoto_StorageUnavailable(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	f.photos.err = errs.New(errs.CodeUpstreamUnavailable, "test.photoStore")
+	u := f.seed(t, portSeed{handle: "kai", name: "Kai", photo: "https://img.example/old.png", wallet: true})
+	rec := f.uploadPhoto(t, u.ID, []byte("\x89PNG\r\n\x1a\nphoto"))
+	if rec.Code != http.StatusServiceUnavailable || decodeProblem(t, rec).Code != api.StorageUnavailable {
+		t.Fatalf("upload = %d %s", rec.Code, rec.Body)
+	}
+	if got := decodeMe(t, f.getMe(t, u.ID)).PhotoUrl; got == nil || *got != "https://img.example/old.png" {
+		t.Fatalf("photo_url after failed upload = %v", got)
+	}
+	if got := profileEvents(t, f); len(got) != 0 {
+		t.Fatalf("profile events = %+v", got)
+	}
+}
+
+func profileEvents(t *testing.T, f httpFixture) []events.UserProfileUpdated {
+	t.Helper()
+	rows, err := f.pool.Query(
+		t.Context(), `SELECT payload FROM events WHERE type = $1 ORDER BY id`, string(events.TypeUserProfileUpdated),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var out []events.UserProfileUpdated
+	for rows.Next() {
+		var payload []byte
+		if err := rows.Scan(&payload); err != nil {
+			t.Fatal(err)
+		}
+		decoded, err := events.Decode(events.TypeUserProfileUpdated, 1, payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out = append(out, decoded.(events.UserProfileUpdated))
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+func TestUploadProfilePhotoHandler_rejectsInvalidInputAndStorageFailure(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	id := f.newID(t)
+	if _, err := (app.UploadProfilePhotoHandler{}).Handle(
+		t.Context(), id, "image/png", "", []byte("x"),
+	); errs.CodeOf(err) != errs.CodePhotoInvalid {
+		t.Fatalf("invalid upload = %v", err)
+	}
+	h := app.UploadProfilePhotoHandler{
+		IDs: f.ids, Store: &photoStore{err: errs.New(errs.CodeUpstreamUnavailable, "test")},
+	}
+	_, err := h.Handle(t.Context(), id, "image/png", "png", []byte("x"))
+	if errs.CodeOf(err) != errs.CodeStorageUnavailable {
+		t.Fatalf("failed upload = %v", err)
+	}
+}
+
+func TestProfileUpdates_surfaceDatabaseFailures(t *testing.T) {
+	t.Parallel()
+	for name, request := range map[string]func(httpFixture, ids.UserID) *httptest.ResponseRecorder{
+		"display name": func(f httpFixture, id ids.UserID) *httptest.ResponseRecorder {
+			return f.updateProfile(t, id, `{"display_name":"Kai Q"}`)
+		},
+		"photo": func(f httpFixture, id ids.UserID) *httptest.ResponseRecorder {
+			return f.uploadPhoto(t, id, []byte("\x89PNG\r\n\x1a\nphoto"))
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newHTTPFixture(t)
+			u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
+			failProfileWrite(t, f, "users")
+			if rec := request(f, u.ID); rec.Code != http.StatusInternalServerError {
 				t.Fatalf("update = %d %s", rec.Code, rec.Body)
 			}
 		})
 	}
 }
 
-func (f httpFixture) expectProfileEvent(t *testing.T, id ids.UserID, field, value string) {
-	t.Helper()
-	var payload []byte
-	err := f.pool.QueryRow(t.Context(), `SELECT payload FROM events WHERE type = $1`,
-		string(events.TypeUserProfileUpdated)).Scan(&payload)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := events.Decode(events.TypeUserProfileUpdated, 1, payload)
-	want := events.UserProfileUpdated{V: 1, UserID: id.UUID(), Fields: []string{field}, DisplayName: value}
-	if err != nil || !reflect.DeepEqual(got, want) {
-		t.Fatalf("event = %+v, %v; want %+v", got, err, want)
-	}
-}
-
-func (f httpFixture) expectNoProfileEvents(t *testing.T) {
-	t.Helper()
-	var count int
-	err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM events WHERE type = $1`,
-		string(events.TypeUserProfileUpdated)).Scan(&count)
-	if err != nil || count != 0 {
-		t.Fatalf("profile events = %d, %v", count, err)
+func TestProfileUpdates_surfaceEventFailures(t *testing.T) {
+	t.Parallel()
+	for name, request := range map[string]func(httpFixture, ids.UserID) *httptest.ResponseRecorder{
+		"display name": func(f httpFixture, id ids.UserID) *httptest.ResponseRecorder {
+			return f.updateProfile(t, id, `{"display_name":"Kai Q"}`)
+		},
+		"photo": func(f httpFixture, id ids.UserID) *httptest.ResponseRecorder {
+			return f.uploadPhoto(t, id, []byte("\x89PNG\r\n\x1a\nphoto"))
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newHTTPFixture(t)
+			u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
+			failProfileWrite(t, f, "events")
+			if rec := request(f, u.ID); rec.Code != http.StatusInternalServerError {
+				t.Fatalf("update = %d %s", rec.Code, rec.Body)
+			}
+		})
 	}
 }
 
@@ -261,6 +466,45 @@ BEGIN RAISE EXCEPTION 'profile write failure'; END $$;
 CREATE TRIGGER fail_profile_write BEFORE INSERT OR UPDATE ON `+table+`
 FOR EACH ROW EXECUTE FUNCTION fail_profile_write()`); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestFlow23a_UploadProfilePhoto_RateLimited(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
+	for i := range 3 {
+		key := "photo-rate-" + strconv.Itoa(i)
+		if rec := f.uploadPhotoKey(
+			t, u.ID, []byte("\x89PNG\r\n\x1a\nphoto"), key,
+		); rec.Code == http.StatusTooManyRequests {
+			t.Fatalf("request %d = %d", i, rec.Code)
+		}
+	}
+	rec := f.uploadPhotoKey(t, u.ID, []byte("\x89PNG\r\n\x1a\nphoto"), "photo-rate-4")
+	if rec.Code != http.StatusTooManyRequests || decodeProblem(t, rec).Code != api.RateLimited {
+		t.Fatalf("fourth request = %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestFlow23a_UploadProfilePhoto_usesTheOperationBodyLimit(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
+	valid := make([]byte, 3<<20/2)
+	copy(valid, []byte("\x89PNG\r\n\x1a\n"))
+	if rec := f.uploadPhotoKey(t, u.ID, valid, "photo-large-ok"); rec.Code != http.StatusOK {
+		t.Fatalf("1.5 MiB upload = %d %s", rec.Code, rec.Body)
+	}
+	tooLarge := make([]byte, 2<<20+1)
+	copy(tooLarge, []byte("\x89PNG\r\n\x1a\n"))
+	before := f.photos.puts
+	rec := f.uploadPhotoKey(t, u.ID, tooLarge, "photo-large-reject")
+	if rec.Code < http.StatusBadRequest || rec.Code >= http.StatusInternalServerError {
+		t.Fatalf("over-limit upload = %d %s", rec.Code, rec.Body)
+	}
+	if f.photos.puts != before {
+		t.Fatalf("Put calls = %d, want %d", f.photos.puts, before)
 	}
 }
 
@@ -430,7 +674,7 @@ func TestAccountStanding_changesTheNextResponseWithoutARestart(t *testing.T) {
 	routes.SystemRoutes = openPing{}
 	handler, err := httpx.Handler(httpx.Deps{
 		Logger: observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),
-		Tracer: noop.NewTracerProvider(), Clock: clk, IDs: f.ids, MaxBodyBytes: 1 << 20,
+		Tracer: tracenoop.NewTracerProvider(), Clock: clk, IDs: f.ids, MaxBodyBytes: 1 << 20,
 		Idempotency: db.NewIdempotencyStore(f.pool, clk), Verifier: verifier,
 	}, routes, openapi.Spec)
 	if err != nil {

@@ -21,7 +21,7 @@ type Module struct {
 	deps    module.Deps
 	privy   app.PrivyUsers
 	wallets app.MemberWallets
-	hints   app.Hints
+	photos  app.PhotoStore
 	meters  metric.MeterProvider
 }
 
@@ -31,10 +31,12 @@ func WithPrivy(users app.PrivyUsers, wallets app.MemberWallets) Option {
 	return func(m *Module) { m.privy, m.wallets = users, wallets }
 }
 
-func WithHints(hints app.Hints) Option { return func(m *Module) { m.hints = hints } }
-
 func WithMeters(meters metric.MeterProvider) Option {
 	return func(m *Module) { m.meters = meters }
+}
+
+func WithPhotoStore(store app.PhotoStore) Option {
+	return func(m *Module) { m.photos = store }
 }
 
 func New(d module.Deps, opts ...Option) *Module {
@@ -48,13 +50,17 @@ func New(d module.Deps, opts ...Option) *Module {
 func (*Module) Name() string { return "identity" }
 
 func (m *Module) Routes(r *httpx.Routes) {
-	hints := m.hints
-	if hints == nil {
-		hints = m.deps.Bus
+	store := m.photos
+	if store == nil {
+		store = m.deps.Photos
 	}
 	r.IdentityRoutes = adapters.HTTP{
 		Open: m.openSession(), Reads: m.deps.Pool, Clock: m.deps.Clock,
-		Update: app.UpdateProfileHandler{UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Hints: hints},
+		Update: app.UpdateProfileHandler{UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Hints: m.deps.Bus},
+		Photo: app.UploadProfilePhotoHandler{
+			UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, IDs: m.deps.IDs, Hints: m.deps.Bus,
+			Store: store,
+		},
 	}
 }
 

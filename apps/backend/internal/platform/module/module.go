@@ -18,8 +18,9 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
-type ObjectStore interface {
-	Put(context.Context, string, string, string, []byte) (string, error)
+type PhotoStore interface {
+	Put(context.Context, string, string, []byte) (string, error)
+	DeleteAll(context.Context, ids.UserID) error
 }
 
 type Deps struct {
@@ -33,7 +34,7 @@ type Deps struct {
 	HTTPClient func(name string, opts ...httpclient.Option) *httpclient.Client
 	Hub        *sse.Hub
 	APNs       apns.Sender
-	Storage    ObjectStore
+	Photos     PhotoStore
 }
 
 type Module interface {

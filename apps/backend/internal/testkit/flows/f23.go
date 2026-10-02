@@ -44,10 +44,13 @@ func F23aUploadProfilePhotoStorageUnavailable(s *scenario.Scenario) {
 func F23aUploadProfilePhotoRateLimited(s *scenario.Scenario) {
 	s.Given(scenario.SignIn(privyPhotoRate)).
 		When(
-			scenario.PostPhoto("/v1/me/profile-photo", []byte("GIF89a")),
-			scenario.PostPhoto("/v1/me/profile-photo", []byte("GIF89a")),
-			scenario.PostPhoto("/v1/me/profile-photo", []byte("GIF89a")),
-			scenario.PostPhoto("/v1/me/profile-photo", []byte("GIF89a")),
-		).
-		Then(scenario.ExpectProblem(errs.CodeRateLimited))
+			scenario.PostPhoto("/v1/me/profile-photo", []byte("\x89PNG\r\n\x1a\nphoto")),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.PostPhoto("/v1/me/profile-photo", []byte("\x89PNG\r\n\x1a\nphoto")),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.PostPhoto("/v1/me/profile-photo", []byte("\x89PNG\r\n\x1a\nphoto")),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.PostPhoto("/v1/me/profile-photo", []byte("\x89PNG\r\n\x1a\nphoto")),
+			scenario.ExpectProblem(errs.CodeRateLimited),
+		)
 }
