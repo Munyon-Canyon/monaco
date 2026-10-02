@@ -166,6 +166,14 @@ func (s *Scenario) Fatalf(format string, args ...any) {
 
 func (s *Scenario) Recall(name string) string { return s.remember[name] }
 
+func (s *Scenario) ActorID() ids.UserID {
+	s.t.Helper()
+	if s.actor == nil {
+		s.t.Fatal("scenario: no actor")
+	}
+	return s.actor.id
+}
+
 func (s *Scenario) user(name string) *user {
 	s.t.Helper()
 	if u, ok := s.users[name]; ok {
