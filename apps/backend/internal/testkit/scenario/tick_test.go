@@ -102,13 +102,33 @@ func TestAwaitTick_inProcessTicksThePollerOnceAndExpectTickChecksWhatItFound(t *
 			[]Step{ExpectTick("fixture.prices", 3, 2)},
 			"scenario: ExpectTick(fixture.prices) needs AwaitTick(fixture.prices) first",
 		},
+		{
+			"failed code",
+			[]Step{AwaitTick("fixture.failing"), ExpectTickFailed("fixture.failing", "upstream_unavailable")},
+			"",
+		},
+		{
+			"wrong failed code",
+			[]Step{AwaitTick("fixture.failing"), ExpectTickFailed("fixture.failing", "jupiter_unavailable")},
+			"scenario: poller fixture.failing failed with code upstream_unavailable, want jupiter_unavailable",
+		},
+		{
+			"failed code without a tick",
+			[]Step{ExpectTickFailed("fixture.prices", "upstream_timeout")},
+			"scenario: ExpectTickFailed(fixture.prices) needs AwaitTick(fixture.prices) first",
+		},
+		{
+			"success is not a failure",
+			[]Step{AwaitTick("fixture.prices"), ExpectTickFailed("fixture.prices", "upstream_timeout")},
+			"scenario: poller fixture.prices failed with code , want upstream_timeout",
+		},
 	} {
 		if got := failure(t, t.Context, inProcess, tc.steps...); got != tc.want {
 			t.Errorf("%s: failure = %q, want %q", tc.name, got, tc.want)
 		}
 	}
-	if prices.Load() != 2 || failing.Load() != 1 {
-		t.Fatalf("ticks = %d prices, %d failing, want one per AwaitTick: 2 and 1", prices.Load(), failing.Load())
+	if prices.Load() != 3 || failing.Load() != 3 {
+		t.Fatalf("ticks = %d prices, %d failing, want one per AwaitTick: 3 and 3", prices.Load(), failing.Load())
 	}
 }
 
