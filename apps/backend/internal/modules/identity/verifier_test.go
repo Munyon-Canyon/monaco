@@ -261,6 +261,16 @@ func (p *actorProbe) GetMe(ctx context.Context, _ api.GetMeRequestObject) (api.G
 	return nil, errs.New(errs.CodeNotFound, "actorProbe.GetMe")
 }
 
+func (p *actorProbe) PostDevice(context.Context, api.PostDeviceRequestObject) (api.PostDeviceResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "actorProbe.PostDevice")
+}
+
+func (p *actorProbe) DeleteDevice(context.Context, api.DeleteDeviceRequestObject) (
+	api.DeleteDeviceResponseObject, error,
+) {
+	return nil, errs.New(errs.CodeNotFound, "actorProbe.DeleteDevice")
+}
+
 func (p *actorProbe) PostSystemPing(context.Context, api.PostSystemPingRequestObject) (
 	api.PostSystemPingResponseObject, error,
 ) {

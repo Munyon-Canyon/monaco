@@ -53,6 +53,14 @@ func (healthz) GetHandleAvailability(
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetHandleAvailability")
 }
 
+func (healthz) PostDevice(context.Context, api.PostDeviceRequestObject) (api.PostDeviceResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostDevice")
+}
+
+func (healthz) DeleteDevice(context.Context, api.DeleteDeviceRequestObject) (api.DeleteDeviceResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.DeleteDevice")
+}
+
 func (healthz) PostSystemPing(
 	context.Context, api.PostSystemPingRequestObject,
 ) (api.PostSystemPingResponseObject, error) {

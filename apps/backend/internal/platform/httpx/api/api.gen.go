@@ -63,6 +63,24 @@ func (e AuthState) Valid() bool {
 	}
 }
 
+// Defines values for DeviceEnvironment.
+const (
+	Production DeviceEnvironment = "production"
+	Sandbox    DeviceEnvironment = "sandbox"
+)
+
+// Valid indicates whether the value is a known member of the DeviceEnvironment enum.
+func (e DeviceEnvironment) Valid() bool {
+	switch e {
+	case Production:
+		return true
+	case Sandbox:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ErrorCode.
 const (
 	AccessRequestNotPending    ErrorCode = "access_request_not_pending"
@@ -546,6 +564,26 @@ type CreateCabalRequest struct {
 	VoterMode string `json:"voter_mode"`
 }
 
+// DeviceEnvironment The APNs environment that issued the token.
+//
+// Examples: production
+type DeviceEnvironment string
+
+// DeviceRegistration A device token to register for the caller.
+//
+// Examples: {"environment":"production","token":"0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0"}
+type DeviceRegistration struct {
+	// Environment The APNs environment that issued the token.
+	//
+	// Examples: production
+	Environment DeviceEnvironment `json:"environment"`
+
+	// Token The APNs device token, 64 to 200 lowercase hex characters.
+	//
+	// Examples: 0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0
+	Token string `json:"token"`
+}
+
 // ErrorCode The closed list of error codes. Generated from the errs table by monacoctl gen errors.
 //
 // Examples: not_found
@@ -718,6 +756,18 @@ type PostCabalParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// PostDeviceParams defines parameters for PostDevice.
+type PostDeviceParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// DeleteDeviceParams defines parameters for DeleteDevice.
+type DeleteDeviceParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // GetStreamParams defines parameters for GetStream.
 type GetStreamParams struct {
 	// LastEventID The id of the last event the app received before it reconnected.
@@ -732,6 +782,9 @@ type PostSystemPingParams struct {
 
 // PostCabalJSONRequestBody defines body for PostCabal for application/json ContentType.
 type PostCabalJSONRequestBody = CreateCabalRequest
+
+// PostDeviceJSONRequestBody defines body for PostDevice for application/json ContentType.
+type PostDeviceJSONRequestBody = DeviceRegistration
 
 // PostSystemPingJSONRequestBody defines body for PostSystemPing for application/json ContentType.
 type PostSystemPingJSONRequestBody = PingRequest
@@ -750,6 +803,12 @@ type ServerInterface interface {
 	// GetCabal Read one cabal.
 	// (GET /v1/cabals/{id})
 	GetCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// PostDevice Register the caller's APNs device token.
+	// (POST /v1/devices)
+	PostDevice(w http.ResponseWriter, r *http.Request, params PostDeviceParams)
+	// DeleteDevice Remove one of the caller's device tokens.
+	// (DELETE /v1/devices/{token})
+	DeleteDevice(w http.ResponseWriter, r *http.Request, token string, params DeleteDeviceParams)
 	// GetHandleAvailability Check whether the caller can claim a handle.
 	// (GET /v1/handles/{handle}/availability)
 	GetHandleAvailability(w http.ResponseWriter, r *http.Request, handle string)
@@ -893,6 +952,105 @@ func (siw *ServerInterfaceWrapper) GetCabal(w http.ResponseWriter, r *http.Reque
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCabal(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostDevice operation middleware
+func (siw *ServerInterfaceWrapper) PostDevice(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostDeviceParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostDevice(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteDevice operation middleware
+func (siw *ServerInterfaceWrapper) DeleteDevice(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "token" -------------
+	var token string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "token", r.PathValue("token"), &token, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "token", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteDeviceParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteDevice(w, r, token, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1176,6 +1334,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/healthz", wrapper.GetHealthz)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/auth/session", wrapper.PostAuthSession)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/devices", wrapper.PostDevice)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/devices/{token}", wrapper.DeleteDevice)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me", wrapper.GetMe)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/handles/{handle}/availability", wrapper.GetHandleAvailability)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/stream", wrapper.GetStream)
@@ -1331,6 +1491,74 @@ type GetCabaldefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetCabaldefaultApplicationProblemPlusJSONResponse) VisitGetCabalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostDeviceRequestObject struct {
+	Params PostDeviceParams
+	Body   *PostDeviceJSONRequestBody
+}
+
+type PostDeviceResponseObject interface {
+	VisitPostDeviceResponse(w http.ResponseWriter) error
+}
+
+type PostDevice204Response struct {
+}
+
+func (response PostDevice204Response) VisitPostDeviceResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type PostDevicedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PostDevicedefaultApplicationProblemPlusJSONResponse) VisitPostDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteDeviceRequestObject struct {
+	Token  string `json:"token"`
+	Params DeleteDeviceParams
+}
+
+type DeleteDeviceResponseObject interface {
+	VisitDeleteDeviceResponse(w http.ResponseWriter) error
+}
+
+type DeleteDevice204Response struct {
+}
+
+func (response DeleteDevice204Response) VisitDeleteDeviceResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteDevicedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteDevicedefaultApplicationProblemPlusJSONResponse) VisitDeleteDeviceResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -1580,6 +1808,12 @@ type StrictServerInterface interface {
 	// GetCabal Read one cabal.
 	// (GET /v1/cabals/{id})
 	GetCabal(ctx context.Context, request GetCabalRequestObject) (GetCabalResponseObject, error)
+	// PostDevice Register the caller's APNs device token.
+	// (POST /v1/devices)
+	PostDevice(ctx context.Context, request PostDeviceRequestObject) (PostDeviceResponseObject, error)
+	// DeleteDevice Remove one of the caller's device tokens.
+	// (DELETE /v1/devices/{token})
+	DeleteDevice(ctx context.Context, request DeleteDeviceRequestObject) (DeleteDeviceResponseObject, error)
 	// GetHandleAvailability Check whether the caller can claim a handle.
 	// (GET /v1/handles/{handle}/availability)
 	GetHandleAvailability(ctx context.Context, request GetHandleAvailabilityRequestObject) (GetHandleAvailabilityResponseObject, error)
@@ -1738,6 +1972,66 @@ func (sh *strictHandler) GetCabal(w http.ResponseWriter, r *http.Request, id ope
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetCabalResponseObject); ok {
 		if err := validResponse.VisitGetCabalResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostDevice operation middleware
+func (sh *strictHandler) PostDevice(w http.ResponseWriter, r *http.Request, params PostDeviceParams) {
+	var request PostDeviceRequestObject
+
+	request.Params = params
+
+	var body PostDeviceJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostDevice(ctx, request.(PostDeviceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostDevice")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostDeviceResponseObject); ok {
+		if err := validResponse.VisitPostDeviceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteDevice operation middleware
+func (sh *strictHandler) DeleteDevice(w http.ResponseWriter, r *http.Request, token string, params DeleteDeviceParams) {
+	var request DeleteDeviceRequestObject
+
+	request.Token = token
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteDevice(ctx, request.(DeleteDeviceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteDevice")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteDeviceResponseObject); ok {
+		if err := validResponse.VisitDeleteDeviceResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -19,6 +19,8 @@ tags:
     description: Liveness of the API process.
   - name: identity
     description: The signed-in user and their account.
+  - name: notify
+    description: The devices that receive the signed-in user's push notifications.
   - name: stream
     description: Live re-fetch hints over server-sent events.
   - name: cabal
@@ -80,6 +82,58 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Me"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/devices:
+    post:
+      operationId: postDevice
+      tags: [notify]
+      x-idempotent: true
+      x-rate-limit:
+        actor:
+          rate: 30
+          per: 1m
+          burst: 30
+      summary: Register the caller's APNs device token.
+      description: >-
+        Saves the token for the caller and marks it active. Registering a token again bumps its
+        last-seen time and clears a disabled mark. A token another user registered moves to the
+        caller, so one device belongs to one account. A deleted account is unauthorized.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The device token and the APNs environment it was issued for.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceRegistration"
+      responses:
+        "204":
+          description: The token is registered to the caller.
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/devices/{token}:
+    delete:
+      operationId: deleteDevice
+      tags: [notify]
+      x-idempotent: true
+      summary: Remove one of the caller's device tokens.
+      description: >-
+        Deletes the token when it belongs to the caller. A token that is unknown or belongs to
+        another user also answers 204, so the route reveals nothing about other users' devices.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: token
+          in: path
+          required: true
+          description: The APNs device token to remove, as registered with POST /v1/devices.
+          schema:
+            type: string
+            examples: ["0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0"]
+      responses:
+        "204":
+          description: The caller no longer has this token registered.
         default:
           $ref: "#/components/responses/Problem"
   /v1/me:
@@ -318,6 +372,26 @@ components:
         phone and X are both linked. The app routes the first-run flow and shows nudge banners from it.
       examples: [CREATED]
       enum: [CREATED, AWAITING_PHONE, AWAITING_SOCIALS, ONBOARDING_COMPLETED]
+    DeviceEnvironment:
+      type: string
+      description: The APNs environment that issued the token.
+      enum: [sandbox, production]
+      examples: [production]
+    DeviceRegistration:
+      type: object
+      description: A device token to register for the caller.
+      additionalProperties: false
+      required: [token, environment]
+      examples:
+        - token: 0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0
+          environment: production
+      properties:
+        token:
+          type: string
+          description: The APNs device token, 64 to 200 lowercase hex characters.
+          examples: ["0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0"]
+        environment:
+          $ref: "#/components/schemas/DeviceEnvironment"
     Me:
       type: object
       description: >-

@@ -91,6 +91,7 @@ type Routes struct {
 	Health
 	sse.Stream
 	IdentityRoutes
+	NotifyRoutes
 	SystemRoutes
 	CabalRoutes
 }
@@ -101,6 +102,11 @@ type IdentityRoutes interface {
 	GetHandleAvailability(
 		context.Context, api.GetHandleAvailabilityRequestObject,
 	) (api.GetHandleAvailabilityResponseObject, error)
+}
+
+type NotifyRoutes interface {
+	PostDevice(context.Context, api.PostDeviceRequestObject) (api.PostDeviceResponseObject, error)
+	DeleteDevice(context.Context, api.DeleteDeviceRequestObject) (api.DeleteDeviceResponseObject, error)
 }
 
 type SystemRoutes interface {

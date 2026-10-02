@@ -31,6 +31,7 @@ type routes struct {
 	httpx.Health
 	sse.Stream
 	httpx.IdentityRoutes
+	httpx.NotifyRoutes
 	httpx.SystemRoutes
 	httpx.CabalRoutes
 }
