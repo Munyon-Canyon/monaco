@@ -877,9 +877,7 @@ func TestCheck_reportsAFlowsFileItCannotReadOrWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.commit(t, map[string]string{flowsFile: "id\n2\n1"})
-	if err := os.Chmod(name, 0o400); err != nil {
-		t.Fatal(err)
-	}
+	freeze(t, name)
 	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "write "+flowsFile) {
 		t.Fatalf("write: %d %q", code, stderr)
 	}

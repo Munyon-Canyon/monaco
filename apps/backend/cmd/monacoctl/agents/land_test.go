@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -812,10 +811,7 @@ func TestLandStack_unwritableRecordFailsAfterQueueing(t *testing.T) {
 	f := newFixture(t)
 	newStackGH(t, f, green(t, 5, "b5", "fb"))
 	f.owner(t, Record{Ticket: 40})
-	path := f.Env(t).recordPath(40)
-	if err := os.Chmod(path, 0o400); err != nil {
-		t.Fatal(err)
-	}
+	freeze(t, f.Env(t).recordPath(40))
 	if code, _, stderr := f.agents(t, "land-stack", "5"); code != 1 || !strings.Contains(stderr, "write owner record") {
 		t.Fatalf("%d %q", code, stderr)
 	}
@@ -987,9 +983,7 @@ func TestLandStack_anUnwritableRecordStopsTheReland(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	s := ejectedStack(t, f)
-	if err := os.Chmod(f.Env(t).recordPath(40), 0o400); err != nil {
-		t.Fatal(err)
-	}
+	freeze(t, f.Env(t).recordPath(40))
 	code, _, stderr := f.agents(t, "land-stack", "3")
 	if code != 1 || !strings.Contains(stderr, "write owner record") || len(s.lines()) != 0 {
 		t.Fatalf("%d %q %v", code, stderr, s.lines())
@@ -1050,9 +1044,7 @@ func TestWatch_unqueueFailures(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t)
 		ejectedStack(t, f)
-		if err := os.Chmod(f.Env(t).recordPath(40), 0o400); err != nil {
-			t.Fatal(err)
-		}
+		freeze(t, f.Env(t).recordPath(40))
 		if code, _, stderr := f.agents(
 			t,
 			"watch",
