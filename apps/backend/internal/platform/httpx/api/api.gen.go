@@ -140,6 +140,7 @@ const (
 	CabalBanned                ErrorCode = "cabal_banned"
 	CabalNotFound              ErrorCode = "cabal_not_found"
 	CalendarExpired            ErrorCode = "calendar_expired"
+	CannotFollowSelf           ErrorCode = "cannot_follow_self"
 	CannotRevokeAccess         ErrorCode = "cannot_revoke_access"
 	ClientClosed               ErrorCode = "client_closed"
 	ConservationBroken         ErrorCode = "conservation_broken"
@@ -198,6 +199,7 @@ const (
 	Unauthorized               ErrorCode = "unauthorized"
 	UpstreamTimeout            ErrorCode = "upstream_timeout"
 	UpstreamUnavailable        ErrorCode = "upstream_unavailable"
+	UserBanned                 ErrorCode = "user_banned"
 	UserNotFound               ErrorCode = "user_not_found"
 	VersionConflict            ErrorCode = "version_conflict"
 	WalletMismatch             ErrorCode = "wallet_mismatch"
@@ -241,6 +243,8 @@ func (e ErrorCode) Valid() bool {
 	case CabalNotFound:
 		return true
 	case CalendarExpired:
+		return true
+	case CannotFollowSelf:
 		return true
 	case CannotRevokeAccess:
 		return true
@@ -357,6 +361,8 @@ func (e ErrorCode) Valid() bool {
 	case UpstreamTimeout:
 		return true
 	case UpstreamUnavailable:
+		return true
+	case UserBanned:
 		return true
 	case UserNotFound:
 		return true

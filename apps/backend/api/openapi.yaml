@@ -907,6 +907,7 @@ components:
         - cabal_banned
         - cabal_not_found
         - calendar_expired
+        - cannot_follow_self
         - cannot_revoke_access
         - client_closed
         - conservation_broken
@@ -965,6 +966,7 @@ components:
         - unauthorized
         - upstream_timeout
         - upstream_unavailable
+        - user_banned
         - user_not_found
         - version_conflict
         - wallet_mismatch
