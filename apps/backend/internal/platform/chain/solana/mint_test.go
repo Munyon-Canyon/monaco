@@ -1,6 +1,7 @@
 package solana_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"math"
@@ -143,6 +144,261 @@ func TestMintConfig_failures(t *testing.T) {
 	}
 	_, err := client(replying(503, "")).MintConfig(t.Context(), usdcMint)
 	wantCode(t, err, errs.CodeRPCUnavailable)
+}
+
+func TestMintConfigs_batchesAccountsAndReadsTheEpochOnce(t *testing.T) {
+	t.Parallel()
+	mints, fees := batchMints()
+	u := &upstream{handler: batchMintHandler(fees)}
+	configs, failures, err := client(u).MintConfigs(t.Context(), mints)
+	if err != nil || len(configs) != len(mints) || len(failures) != 0 {
+		t.Fatalf("MintConfigs = %d configs, %v failures, %v", len(configs), failures, err)
+	}
+	var multiple, epochs int
+	for _, method := range u.methods() {
+		switch method {
+		case "getMultipleAccounts":
+			multiple++
+		case "getEpochInfo":
+			epochs++
+		}
+	}
+	if multiple != 2 || epochs != 1 {
+		t.Fatalf("calls = %v, want two getMultipleAccounts calls and one getEpochInfo call", u.methods())
+	}
+}
+
+func batchMints() ([]chain.SolanaAddress, map[chain.SolanaAddress]bool) {
+	mints := make([]chain.SolanaAddress, 200)
+	fees := map[chain.SolanaAddress]bool{}
+	for i := range mints {
+		key := make([]byte, 32)
+		key[0], key[1] = byte(i), byte(i>>8)
+		mints[i] = chain.AddressOf(key)
+		fees[mints[i]] = i < 150
+	}
+	return mints, fees
+}
+
+func batchMintHandler(fees map[chain.SolanaAddress]bool) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var call struct {
+			Method string            `json:"method"`
+			Params []json.RawMessage `json:"params"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&call)
+		if call.Method == "getEpochInfo" {
+			_, _ = io.WriteString(w, `{"jsonrpc":"2.0","id":1,"result":{"epoch":1}}`)
+			return
+		}
+		var requested []chain.SolanaAddress
+		_ = json.Unmarshal(call.Params[0], &requested)
+		values := make([]json.RawMessage, len(requested))
+		for i, mint := range requested {
+			values[i] = json.RawMessage(batchMintAccount(fees[mint]))
+		}
+		body, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "result": map[string]any{"value": values}})
+		_, _ = w.Write(body)
+	})
+}
+
+func batchMintAccount(fee bool) string {
+	extensions := "[]"
+	if fee {
+		extensions = `[{"extension":"transferFeeConfig","state":{"olderTransferFee":{"epoch":1,"maximumFee":9,"transferFeeBasisPoints":25},"newerTransferFee":{"epoch":1,"maximumFee":9,"transferFeeBasisPoints":25}}}]`
+	}
+	return `{"owner":"` + string(chain.SPL2022Program) + `","data":{"parsed":{"type":"mint","info":` +
+		`{"decimals":8,"extensions":` + extensions + `}}}}`
+}
+
+func TestMintConfigs_keepsTheFirstChunkWhenTheSecondFails(t *testing.T) {
+	t.Parallel()
+	mints := make([]chain.SolanaAddress, 101)
+	for i := range mints {
+		key := make([]byte, 32)
+		key[0], key[1] = byte(i), byte(i>>8)
+		mints[i] = chain.AddressOf(key)
+	}
+	var calls int
+	u := &upstream{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 2 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		var call struct {
+			Params []json.RawMessage `json:"params"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&call)
+		var requested []chain.SolanaAddress
+		_ = json.Unmarshal(call.Params[0], &requested)
+		values := make([]json.RawMessage, len(requested))
+		for i := range values {
+			values[i] = json.RawMessage(
+				`{"owner":"` + string(chain.SPLProgram) + `","data":{"parsed":{"type":"mint","info":{"decimals":6}}}}`,
+			)
+		}
+		body, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "result": map[string]any{"value": values}})
+		_, _ = w.Write(body)
+	})}
+	c := solana.New(
+		testConfig(),
+		clock.Real{},
+		httpclient.WithTransport(u),
+		httpclient.WithRetry(1, time.Millisecond, time.Millisecond),
+	)
+	configs, failures, err := c.MintConfigs(t.Context(), mints)
+	if errs.CodeOf(err) != errs.CodeRPCUnavailable || len(configs) != 100 || len(failures) != 0 {
+		t.Fatalf(
+			"MintConfigs = %d configs, %v failures, %v after %v; want the first 100 and rpc_unavailable",
+			len(configs), failures, err, u.methods(),
+		)
+	}
+}
+
+func TestMintConfigs_rejectsInvalidInputAndUsesCachedResults(t *testing.T) {
+	t.Parallel()
+	bad := []chain.SolanaAddress{"bad"}
+	_, _, err := client(result(`{"value":[]}`)).MintConfigs(t.Context(), bad)
+	if errs.CodeOf(err) != errs.CodeInvalidAddress {
+		t.Fatalf("MintConfigs(bad) = %v, want invalid_address", err)
+	}
+	mints, fees := batchMints()
+	u := &upstream{handler: batchMintHandler(fees)}
+	c := client(u)
+	one := []chain.SolanaAddress{mints[151]}
+	if _, failures, err := c.MintConfigs(t.Context(), one); err != nil || len(failures) != 0 {
+		t.Fatalf("first MintConfigs = %v, %v", failures, err)
+	}
+	if _, failures, err := c.MintConfigs(t.Context(), one); err != nil || len(failures) != 0 || len(u.methods()) != 1 {
+		t.Fatalf("cached MintConfigs = %v, %v after %v", failures, err, u.methods())
+	}
+}
+
+func TestMintConfigs_reportsPerMintAndEpochFailures(t *testing.T) {
+	t.Parallel()
+	mints := []chain.SolanaAddress{usdcMint, feeMint, aaplx}
+	invalid := `{"owner":"` + string(chain.SystemProgram) + `","data":{"parsed":{"type":"mint","info":{}}}}`
+	broken := `{"owner":"` + string(chain.SPL2022Program) +
+		`","data":{"parsed":{"type":"mint","info":{"extensions":[{"extension":"scaledUiAmountConfig","state":[]}]}}}}`
+	u := &upstream{handler: rpcHandler(map[string]string{
+		"getMultipleAccounts": `{"value":[null,` + invalid + `,` + broken + `]}`,
+	})}
+	_, failures, err := client(u).MintConfigs(t.Context(), mints)
+	if err != nil || errs.CodeOf(failures[usdcMint]) != errs.CodeNotFound ||
+		errs.CodeOf(failures[feeMint]) != errs.CodeInvalidAddress ||
+		errs.CodeOf(failures[aaplx]) != errs.CodeDecodeFailed {
+		t.Fatalf("MintConfigs failures = %v, %v", failures, err)
+	}
+	u = &upstream{handler: rpcHandler(map[string]string{
+		"getMultipleAccounts": `{"value":[{"owner":"` + string(chain.SPL2022Program) +
+			`","data":{"parsed":{"type":"mint","info":{"extensions":[{"extension":"transferFeeConfig","state":{}}]}}}}]}`,
+		"getEpochInfo": ``,
+	})}
+	c := solana.New(
+		testConfig(),
+		clock.Real{},
+		httpclient.WithTransport(u),
+		httpclient.WithRetry(1, time.Millisecond, time.Millisecond),
+	)
+	_, failures, err = c.MintConfigs(t.Context(), []chain.SolanaAddress{feeMint})
+	if errs.CodeOf(err) != errs.CodeRPCUnavailable || errs.CodeOf(failures[feeMint]) != errs.CodeRPCUnavailable {
+		t.Fatalf("MintConfigs epoch failure = %v, %v", failures, err)
+	}
+	u = &upstream{handler: rpcHandler(map[string]string{
+		"getMultipleAccounts": `{"value":[{"owner":"` + string(chain.SPL2022Program) +
+			`","data":{"parsed":{"type":"mint","info":{"extensions":[{"extension":"transferFeeConfig","state":[]}]}}}}]}`,
+		"getEpochInfo": `{"epoch":1}`,
+	})}
+	_, failures, err = client(u).MintConfigs(t.Context(), []chain.SolanaAddress{feeMint})
+	if err != nil || errs.CodeOf(failures[feeMint]) != errs.CodeDecodeFailed {
+		t.Fatalf("MintConfigs bad fee state = %v, %v", failures, err)
+	}
+}
+
+func TestMintConfigs_keepsValidAccountsWhenOneCannotBeParsed(t *testing.T) {
+	t.Parallel()
+	u := &upstream{handler: rpcHandler(map[string]string{
+		"getMultipleAccounts": `{"value":[{"owner":"` + string(chain.SPLProgram) +
+			`","data":{"parsed":{"type":"mint","info":{"decimals":6}}}},` +
+			`{"owner":"` + string(chain.SPLProgram) + `","data":["base64","AAAA"]}]}`,
+	})}
+	configs, failures, err := client(u).MintConfigs(t.Context(), []chain.SolanaAddress{usdcMint, feeMint, aaplx})
+	if err != nil || configs[usdcMint].Mint.Decimals != 6 || errs.CodeOf(failures[feeMint]) != errs.CodeDecodeFailed ||
+		errs.CodeOf(failures[aaplx]) != errs.CodeNotFound {
+		t.Fatalf("MintConfigs = %+v, %v, %v; want USDC, fee mint decode_failed, and AAPLx not_found",
+			configs, failures, err)
+	}
+}
+
+func TestMintConfigs_keepsAccountsThatDoNotNeedTheEpoch(t *testing.T) {
+	t.Parallel()
+	fee := `{"owner":"` + string(chain.SPL2022Program) +
+		`","data":{"parsed":{"type":"mint","info":{"decimals":8,"extensions":[{"extension":"transferFeeConfig","state":{}}]}}}}`
+	u := &upstream{handler: rpcHandler(map[string]string{
+		"getMultipleAccounts": `{"value":[{"owner":"` + string(chain.SPLProgram) +
+			`","data":{"parsed":{"type":"mint","info":{"decimals":6}}}},` + fee + `]}`,
+	})}
+	configs, failures, err := client(u).MintConfigs(t.Context(), []chain.SolanaAddress{usdcMint, feeMint})
+	if errs.CodeOf(err) != errs.CodeRPCUnavailable || configs[usdcMint].Mint.Decimals != 6 ||
+		errs.CodeOf(failures[feeMint]) != errs.CodeRPCUnavailable {
+		t.Fatalf("MintConfigs = %+v, %v, %v; want USDC and fee mint rpc_unavailable", configs, failures, err)
+	}
+}
+
+func TestMintConfigs_readsTheEpochOnceWhenItFails(t *testing.T) {
+	t.Parallel()
+	mints, fees := batchMints()
+	for mint := range fees {
+		fees[mint] = true
+	}
+	handler := batchMintHandler(fees)
+	u := &upstream{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var call struct {
+			Method string `json:"method"`
+		}
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &call)
+		if call.Method == "getEpochInfo" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		handler.ServeHTTP(w, r)
+	})}
+	c := solana.New(
+		testConfig(),
+		clock.Real{},
+		httpclient.WithTransport(u),
+		httpclient.WithRetry(1, time.Millisecond, time.Millisecond),
+	)
+	_, _, err := c.MintConfigs(t.Context(), mints)
+	if errs.CodeOf(err) != errs.CodeRPCUnavailable {
+		t.Fatalf("MintConfigs = %v, want rpc_unavailable", err)
+	}
+	var epochs int
+	for _, method := range u.methods() {
+		if method == "getEpochInfo" {
+			epochs++
+		}
+	}
+	if epochs != 1 {
+		t.Fatalf("calls = %v, want one getEpochInfo call", u.methods())
+	}
+}
+
+func rpcHandler(results map[string]string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var call struct {
+			Method string `json:"method"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&call)
+		if body := results[call.Method]; body != "" {
+			_, _ = io.WriteString(w, `{"jsonrpc":"2.0","id":1,"result":`+body+`}`)
+			return
+		}
+		w.WriteHeader(http.StatusServiceUnavailable)
+	})
 }
 
 func scaledMint(multiplier, next string, nextFrom time.Time) string {
