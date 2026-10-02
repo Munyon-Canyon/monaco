@@ -79,10 +79,17 @@ jobs:
       - name: Install the pinned gremlins
         run: ../../scripts/install-gremlins.sh
 
+      # cmd/monacoctl, cmd/monacoctl/verify and internal/platform/chain were killed by a runner shutdown signal
+      # (nightly run 36834985855), so they run two gremlins workers instead of the runner's four. GNU time prints the
+      # peak resident memory and the wall clock for every package, so the next nightly shows whether memory was the cause.
       - name: Mutants
         env:
           PKG: ${{ matrix.pkg }}
-        run: go run ./cmd/monacoctl mutation "$SCOPE" --pkg "$PKG" --report "$RUNNER_TEMP/gremlins.json"
+          WORKERS: ${{ contains(fromJSON('["cmd/monacoctl","cmd/monacoctl/verify","internal/platform/chain"]'), matrix.pkg) && '2' || '0' }}
+        run: |
+          timer=()
+          if [ -x /usr/bin/time ]; then timer=(/usr/bin/time -v); fi
+          "${timer[@]}" go run ./cmd/monacoctl mutation "$SCOPE" --pkg "$PKG" --workers "$WORKERS" --report "$RUNNER_TEMP/gremlins.json"
 
       - name: Name the report after the package
         if: always()

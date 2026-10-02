@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,7 +22,7 @@ import (
 )
 
 const (
-	mutationUsage   = "usage: monacoctl mutation [--base main | --all] [--list | --pkg dir [--report file]]"
+	mutationUsage   = "usage: monacoctl mutation [--base main | --all] [--workers n] [--list | --pkg dir [--report file]]"
 	mutantsAllow    = "mutants.allow"
 	testOutputLines = 40
 	lived           = "LIVED"
@@ -35,6 +36,7 @@ type mutationEnv struct {
 	moduleDir, goBin, gitBin, gremlins, tmpDir string
 	exec                                       execFunc
 	now                                        func() time.Time
+	workers                                    int
 }
 
 type execFunc func(ctx context.Context, dir string, env []string, name string, args ...string) ([]byte, error)
@@ -54,6 +56,7 @@ func runCommand(ctx context.Context, dir string, env []string, name string, args
 type mutationArgs struct {
 	base, pkg, report string
 	all, list         bool
+	workers           int
 }
 
 type gremlinsReport struct {
@@ -81,7 +84,9 @@ func mutationCmd(env mutationEnv, args []string, stdout, stderr io.Writer) int {
 	fs.BoolVar(&a.list, "list", false, "")
 	fs.StringVar(&a.pkg, "pkg", "", "")
 	fs.StringVar(&a.report, "report", "", "")
-	if fs.Parse(args) != nil || fs.NArg() != 0 || a.list && a.pkg != "" || a.report != "" && a.pkg == "" {
+	fs.IntVar(&a.workers, "workers", 0, "")
+	if fs.Parse(args) != nil || fs.NArg() != 0 || a.list && a.pkg != "" || a.report != "" && a.pkg == "" ||
+		a.workers < 0 {
 		_, _ = fmt.Fprintln(stderr, mutationUsage)
 		return 2
 	}
@@ -106,6 +111,7 @@ func mutationCmd(env mutationEnv, args []string, stdout, stderr io.Writer) int {
 
 func (env mutationEnv) run(ctx context.Context, a mutationArgs, stdout io.Writer) ([]string, error) {
 	const op = "monacoctl.mutation"
+	env.workers = a.workers
 	exclude, err := os.ReadFile(filepath.Join(env.moduleDir, coverageExclude))
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, op)
@@ -252,6 +258,9 @@ func (env mutationEnv) unleash(ctx context.Context, dir, diffRef, out string) (g
 	}
 	if diffRef != "" {
 		args = append(args, "--diff", diffRef)
+	}
+	if env.workers > 0 {
+		args = append(args, "--workers", strconv.Itoa(env.workers))
 	}
 	relativeGitDiff := []string{"GIT_CONFIG_COUNT=1", "GIT_CONFIG_KEY_0=diff.relative", "GIT_CONFIG_VALUE_0=true"}
 	if _, err := env.exec(ctx, filepath.Join(env.moduleDir, dir), relativeGitDiff, env.gremlins, args...); err != nil {
