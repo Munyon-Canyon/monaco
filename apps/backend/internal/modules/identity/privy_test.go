@@ -54,15 +54,15 @@ func privyConfig() config.Config {
 	}
 }
 
-func privyOver(cfg config.Config, h http.Handler, clk clock.Clock) (*privy.Client, *privyUpstream) {
+func privyOver(cfg config.Config, h http.Handler) (*privy.Client, *privyUpstream) {
 	u := &privyUpstream{handler: h}
-	return privy.New(cfg, clk, httpclient.WithTransport(u)), u
+	return privy.New(cfg, clock.Real{}, httpclient.WithTransport(u)), u
 }
 
 func overPrivyFakes(t *testing.T) (*privy.Client, *privyUpstream, *fakes.Server) {
 	t.Helper()
 	srv := fakes.New()
-	c, u := privyOver(privyConfig(), srv, clock.Real{})
+	c, u := privyOver(privyConfig(), srv)
 	return c, u, srv
 }
 
@@ -137,11 +137,33 @@ func TestPrivyUsers_normalizesThePhoneToE164(t *testing.T) {
 		"+1 (415) 555-0100": "+14155550100",
 		"+44.20.7946.0958":  "+442079460958",
 	} {
-		c, _ := privyOver(privyConfig(), privyUserReplying(raw), clock.Real{})
+		c, _ := privyOver(privyConfig(), privyUserReplying(raw))
 		got, err := privyadapter.Users{Client: c}.User(t.Context(), "did:privy:phone")
 		if err != nil || got.PhoneE164 != want {
 			t.Fatalf("User with phone %q = %q, %v, want %q", raw, got.PhoneE164, err, want)
 		}
+	}
+}
+
+func TestPrivyUsers_refusesAnXAccountWithAnEmptySubject(t *testing.T) {
+	t.Parallel()
+	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "did:privy:empty-x",
+			"linked_accounts": []map[string]string{{
+				"type": "twitter_oauth", "subject": "", "username": "blank",
+			}},
+		})
+	})
+	c, _ := privyOver(privyConfig(), h)
+	got, err := privyadapter.Users{Client: c}.User(t.Context(), "did:privy:empty-x")
+	if errs.CodeOf(err) != errs.CodeDecodeFailed || got != (app.PrivyUser{}) {
+		t.Fatalf("User = %+v, %v, want decode_failed", got, err)
+	}
+	if detail := errs.Detail(err); len(detail) != 1 || detail[0].Key != "privy_user_id" ||
+		detail[0].Value.String() != "did:privy:empty-x" {
+		t.Fatalf("detail = %v, want the Privy user id", detail)
 	}
 }
 
@@ -150,7 +172,7 @@ func TestPrivyUsers_refusesAPhoneThatIsNotE164(t *testing.T) {
 	for _, raw := range []string{
 		"4155550100", "+", "+1", "+04155550100", "+1415555010012345", "+1415555O100", "+1 415 555 0100 ext 7",
 	} {
-		c, _ := privyOver(privyConfig(), privyUserReplying(raw), clock.Real{})
+		c, _ := privyOver(privyConfig(), privyUserReplying(raw))
 		got, err := privyadapter.Users{Client: c}.User(t.Context(), "did:privy:phone")
 		if errs.CodeOf(err) != errs.CodeDecodeFailed || got != (app.PrivyUser{}) {
 			t.Fatalf("User with phone %q = %+v, %v, want decode_failed", raw, got, err)

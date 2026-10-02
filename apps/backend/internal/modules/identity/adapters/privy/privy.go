@@ -52,6 +52,10 @@ func (u Users) User(ctx context.Context, id app.PrivyUserID) (app.PrivyUser, err
 		PhoneE164: phone,
 	}
 	if got.X != nil {
+		if got.X.UserID == "" {
+			return app.PrivyUser{}, errs.New(errs.CodeDecodeFailed, "identity.PrivyUsers.User",
+				slog.String("privy_user_id", string(id)))
+		}
 		user.X = &domain.XAccount{UserID: got.X.UserID, Username: got.X.Username}
 	}
 	return user, nil

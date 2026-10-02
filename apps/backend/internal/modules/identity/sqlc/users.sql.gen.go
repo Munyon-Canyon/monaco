@@ -173,14 +173,24 @@ func (q *Queries) InsertDevUser(ctx context.Context, arg InsertDevUserParams) er
 
 const linksHeldByOthers = `-- name: LinksHeldByOthers :one
 SELECT
-  EXISTS (SELECT 1 FROM users o WHERE o.phone_hash = $1::bytea AND o.id <> $2) AS phone,
-  EXISTS (SELECT 1 FROM users o WHERE o.x_user_id = $3::text AND o.id <> $2) AS x
+  EXISTS (
+    SELECT 1 FROM users o
+    WHERE $1::bytea IS NOT NULL
+      AND o.phone_hash = $1::bytea
+      AND o.id <> $2
+  ) AS phone,
+  EXISTS (
+    SELECT 1 FROM users o
+    WHERE $3::text IS NOT NULL
+      AND o.x_user_id = $3::text
+      AND o.id <> $2
+  ) AS x
 `
 
 type LinksHeldByOthersParams struct {
 	PhoneHash []byte
 	ID        uuid.UUID
-	XUserID   string
+	XUserID   pgtype.Text
 }
 
 type LinksHeldByOthersRow struct {
