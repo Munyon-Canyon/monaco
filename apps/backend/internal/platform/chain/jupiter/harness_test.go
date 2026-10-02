@@ -102,11 +102,29 @@ func client(u *upstream) *jupiter.Client {
 	return jupiter.New(testConfig(), clock.Real{}, httpclient.WithTransport(u))
 }
 
-func overFakes(t *testing.T) (*jupiter.Client, *upstream, *fakes.Server) {
+type recordingClock struct {
+	clock.Real
+	mu     sync.Mutex
+	afters []time.Duration
+}
+
+func (c *recordingClock) After(d time.Duration) <-chan time.Time {
+	c.mu.Lock()
+	c.afters = append(c.afters, d)
+	c.mu.Unlock()
+	return c.Real.After(d)
+}
+
+func overFakesWithClock(t *testing.T, clk clock.Clock) (*jupiter.Client, *upstream, *fakes.Server) {
 	t.Helper()
 	srv := fakes.New()
 	u := &upstream{handler: srv}
-	return client(u), u, srv
+	return jupiter.New(testConfig(), clk, httpclient.WithTransport(u)), u, srv
+}
+
+func overFakes(t *testing.T) (*jupiter.Client, *upstream, *fakes.Server) {
+	t.Helper()
+	return overFakesWithClock(t, clock.Real{})
 }
 
 func script(t *testing.T, srv *fakes.Server, step fakes.Step) {
