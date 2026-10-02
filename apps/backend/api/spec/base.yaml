@@ -1,0 +1,212 @@
+openapi: 3.1.0
+info:
+  title: Monaco API
+  version: 0.1.0
+  description: HTTP contract between the Monaco iOS app and the Monaco backend.
+  contact:
+    name: Monaco
+    url: https://github.com/Munyon-Canyon/monaco
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: http://localhost:8080
+    description: Local development server.
+security:
+  - bearerAuth: []
+tags:
+  - name: governance
+    description: Trade proposals and the votes that decide them.
+  - name: health
+    description: Liveness of the API process.
+  - name: identity
+    description: The signed-in user and their account.
+  - name: notify
+    description: The devices that receive the signed-in user's push notifications.
+  - name: referrals
+    description: Invite codes and the links that carry them.
+  - name: stream
+    description: Live re-fetch hints over server-sent events.
+  - name: cabal
+    description: A group treasury and its members.
+  - name: social
+    description: Who follows whom.
+  - name: system
+    description: The reference flow that exercises every backend layer end to end.
+  - name: market
+    description: The asset catalog, prices and charts.
+paths: {}
+components:
+  parameters:
+    UserId:
+      name: id
+      in: path
+      required: true
+      description: The id of the user to follow or unfollow.
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >-
+        A key the app generates once per user action. The server stores the first response under
+        it and replays that response for any retry with the same key and body.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+        examples: ["6f1c1a52-3a4e-4d0e-9d7b-2f7f3f5b9d10"]
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >-
+        A bearer token in the Authorization header. Operations that declare an empty security
+        list, such as /healthz, take no token. The token format belongs to the identity module;
+        local development and tests use HS256 dev tokens from `monacoctl dev token`.
+  responses:
+    Problem:
+      description: An RFC 9457 problem. Switch on `code`; show `message`.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+  schemas:
+    Problem:
+      type: object
+      description: An RFC 9457 problem details body with a stable Monaco error code.
+      examples:
+        - type: about:blank
+          title: Not Found
+          status: 404
+          code: not_found
+          message: Not found.
+          trace_id: 4bf92f3577b34da6a3ce929d0e0e4736
+          retryable: false
+      additionalProperties: false
+      required: [type, title, status, code, message, trace_id, retryable]
+      properties:
+        type:
+          type: string
+          description: Always about:blank. The code field carries the problem type.
+          const: about:blank
+        title:
+          type: string
+          description: The HTTP status phrase.
+          examples: [Not Found]
+        status:
+          type: integer
+          description: The HTTP status code of this response.
+          minimum: 400
+          maximum: 599
+          examples: [404]
+        code:
+          $ref: "#/components/schemas/ErrorCode"
+          examples: [not_found]
+        message:
+          type: string
+          description: A user-facing sentence the app shows as is.
+          examples: [Not found.]
+        trace_id:
+          type: string
+          description: The W3C trace id of the request. Logs and traces carry the same id.
+          pattern: "^[0-9a-f]{32}$"
+          examples: [4bf92f3577b34da6a3ce929d0e0e4736]
+        retryable:
+          type: boolean
+          description: True when the same request may succeed if sent again later.
+          examples: [false]
+    ErrorCode:
+      type: string
+      description: The closed list of error codes. Generated from the errs table by monacoctl gen errors.
+      examples: [not_found]
+      enum:
+        # BEGIN GENERATED ErrorCode
+        - access_request_not_pending
+        - account_banned
+        - account_deleted
+        - account_has_balance
+        - account_has_positions
+        - account_status_transition
+        - account_suspended
+        - already_member
+        - analytics_pii
+        - apns_auth_failed
+        - apns_unavailable
+        - asset_not_found
+        - asset_untradable
+        - auth_state_transition
+        - cabal_banned
+        - cabal_not_found
+        - calendar_expired
+        - cannot_follow_self
+        - cannot_revoke_access
+        - client_closed
+        - conservation_broken
+        - db_schema_behind
+        - db_unavailable
+        - decode_failed
+        - display_name_invalid
+        - forbidden
+        - handle_invalid
+        - handle_required
+        - handle_reserved
+        - handle_taken
+        - handle_too_soon
+        - idempotency_in_flight
+        - idempotency_mismatch
+        - internal
+        - invalid_address
+        - invalid_config
+        - invalid_input
+        - invite_expired
+        - join_needs_request
+        - jupiter_rejected
+        - jupiter_unavailable
+        - leave_creator_with_members
+        - leave_holds_shares
+        - leave_last_member_pot_not_empty
+        - ledger_unbalanced
+        - live_swap_exists
+        - login_method_not_allowed
+        - no_route
+        - not_a_voter
+        - not_cabal_creator
+        - not_cabal_member
+        - not_found
+        - not_proposer
+        - panic
+        - phone_not_linked
+        - photo_invalid
+        - post_hog_rejected
+        - post_hog_unavailable
+        - pot_exceeded
+        - pot_value_zero
+        - privy_unavailable
+        - proposal_closed
+        - proposal_not_found
+        - rate_limited
+        - referral_code_pending
+        - referral_code_unknown
+        - relayer_underfunded
+        - request_not_needed
+        - request_pending
+        - rpc_unavailable
+        - session_required
+        - slippage_exceeded
+        - swap_failed
+        - swap_not_found
+        - swap_not_retryable
+        - unauthorized
+        - upstream_timeout
+        - upstream_unavailable
+        - user_banned
+        - user_not_found
+        - version_conflict
+        - wallet_mismatch
+        - withdraw_not_allowed
+        - x_not_linked
+        # END GENERATED ErrorCode
