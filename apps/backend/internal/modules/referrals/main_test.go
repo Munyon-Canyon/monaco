@@ -7,5 +7,5 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	testkit.Main(m)
+	testkit.Main(m, testkit.WithNATS())
 }

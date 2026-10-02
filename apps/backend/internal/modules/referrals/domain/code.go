@@ -36,3 +36,10 @@ func NormalizeInput(s string) string { return strings.ToLower(strings.TrimSpace(
 func IsRandomShape(s string) bool {
 	return len(s) == CodeLength && strings.Trim(s, CodeAlphabet) == ""
 }
+
+type CodeKind string
+
+const (
+	CodeKindRandom CodeKind = "random"
+	CodeKindHandle CodeKind = "handle"
+)
