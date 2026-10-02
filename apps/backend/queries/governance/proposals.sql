@@ -70,3 +70,10 @@ SELECT
   (count(*) FILTER (WHERE ballots.choice = 'yes'))::int AS yes,
   (count(*) FILTER (WHERE ballots.choice = 'no'))::int AS no
 FROM ballots;
+
+-- name: DueForExpiry :many
+SELECT id, cabal_id
+FROM proposals
+WHERE status = 'open' AND expires_at <= @now
+ORDER BY expires_at, id
+LIMIT @batch;
