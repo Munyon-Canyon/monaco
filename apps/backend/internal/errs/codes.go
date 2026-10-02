@@ -117,6 +117,11 @@ const (
 	CodeLeaveCreatorWithMembers    Code = "leave_creator_with_members"
 )
 
+const (
+	CodeCannotFollowSelf Code = "cannot_follow_self"
+	CodeUserBanned       Code = "user_banned"
+)
+
 type Row struct {
 	Name      string
 	Kind      Kind
@@ -125,11 +130,11 @@ type Row struct {
 	Message   string
 }
 
-func rowGroups() [10]func() map[Code]Row {
+func rowGroups() [11]func() map[Code]Row {
 	return [...]func() map[Code]Row{
 		platformRows, identityRows, treasuryRows, marketRows,
 		tradingRows, governanceRows, rankingRows, apnsRows,
-		analyticsRows, cabalRows,
+		analyticsRows, cabalRows, socialRows,
 	}
 }
 
@@ -369,6 +374,13 @@ func analyticsRows() map[Code]Row {
 		CodeAnalyticsPII: {
 			Name: "AnalyticsPII", Kind: KindInternal, Alert: true, Message: "Something went wrong.",
 		},
+	}
+}
+
+func socialRows() map[Code]Row {
+	return map[Code]Row{
+		CodeCannotFollowSelf: {Name: "CannotFollowSelf", Kind: KindInvalid, Message: "You cannot follow yourself."},
+		CodeUserBanned:       {Name: "UserBanned", Kind: KindForbidden, Message: "You cannot follow this account."},
 	}
 }
 
