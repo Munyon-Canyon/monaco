@@ -90,7 +90,8 @@ func (m *Module) RouteChecker() *app.RouteChecker {
 }
 
 func (m *Module) Routes(r *httpx.Routes) {
-	r.MarketRoutes = adapters.HTTP{List: app.NewListAssets(m.deps.Pool, m.deps.Clock)}
+	list := app.NewListAssets(m.deps.Pool, m.deps.Clock)
+	r.MarketRoutes = adapters.HTTP{List: list, Detail: app.NewDetail(m.deps.Pool, list)}
 }
 
 func (*Module) Consumers() []bus.Consumer { return nil }

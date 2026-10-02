@@ -555,6 +555,86 @@ func (e GetAssetsParamsFilter) Valid() bool {
 // Examples: active
 type AccountStatus string
 
+// AssetDetail One asset, the list fields plus the chain facts and the other listings.
+//
+// Examples: {"attribution":"Data provided by CoinGecko","change_bps":1000,"decimals":8,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","other_listings":[],"price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","tradable":true,"ui_multiplier":{"den":1,"num":1}}
+type AssetDetail struct {
+	// Attribution The data source line the asset screen shows.
+	//
+	// Examples: Data provided by CoinGecko
+	Attribution string `json:"attribution"`
+
+	// ChangeBps The move in basis points against the last US close for an equity, or against the first sample of the UTC day for a pre-IPO token. Null when that reference does not exist.
+	//
+	// Examples: 1000
+	ChangeBps *int32 `json:"change_bps"`
+
+	// Decimals The mint's decimals.
+	//
+	// Examples: 8
+	Decimals int `json:"decimals"`
+
+	// DisplayName The company name the app shows.
+	//
+	// Examples: Apple
+	DisplayName string `json:"display_name"`
+
+	// Issuer The firm that issues the token.
+	//
+	// Examples: xstocks
+	Issuer AssetIssuer `json:"issuer"`
+
+	// Kind Equity or pre-IPO.
+	//
+	// Examples: equity
+	Kind AssetKind `json:"kind"`
+
+	// LogoUrl The logo URL. Null when the catalog has none.
+	//
+	// Examples: https://cdn.example.com/AAPLx.png
+	LogoUrl *string `json:"logo_url"`
+
+	// OtherListings The other assets that share this company's key. This asset is not in the list.
+	//
+	// Examples: [{"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLy.png","symbol":"AAPLy","tradable":false}]
+	OtherListings []AssetListing `json:"other_listings"`
+
+	// PriceAsOf When `price_micros` was sampled. Null when the asset is unpriced.
+	//
+	// Examples: 2026-03-04T14:30:00Z
+	PriceAsOf *time.Time `json:"price_as_of"`
+
+	// PriceMicros The held USD price in micros. Null when the asset is unpriced.
+	//
+	// Examples: 110000000
+	PriceMicros *int64 `json:"price_micros"`
+
+	// Session The session this asset is in.
+	//
+	// Examples: {"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"}
+	Session MarketSession `json:"session"`
+
+	// SparklineMicros The last day of closes in 30-minute buckets, at most 48. Null when unpriced.
+	//
+	// Examples: [100000000,110000000]
+	SparklineMicros *[]int64 `json:"sparkline_micros"`
+
+	// Symbol The ticker the app shows and the path key for the asset.
+	//
+	// Examples: AAPLx
+	Symbol string `json:"symbol"`
+
+	// Tradable True when this asset can be bought.
+	//
+	// Examples: true
+	Tradable bool `json:"tradable"`
+
+	// UiMultiplier The whole tokens in one display unit.
+	//
+	// Examples: {"den":1,"num":1}
+	UiMultiplier UiMultiplier `json:"ui_multiplier"`
+}
+
 // AssetIssuer The firm that issues the tokenized stock.
 //
 // Examples: xstocks
@@ -578,6 +658,41 @@ type AssetList struct {
 	//
 	// Examples: null
 	NextCursor *string `json:"next_cursor"`
+}
+
+// AssetListing Another listing of the same company, without a price.
+//
+// Examples: {"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":null,"symbol":"AAPLy","tradable":false}
+type AssetListing struct {
+	// DisplayName The company name the app shows.
+	//
+	// Examples: Apple
+	DisplayName string `json:"display_name"`
+
+	// Issuer The firm that issues the token.
+	//
+	// Examples: xstocks
+	Issuer AssetIssuer `json:"issuer"`
+
+	// Kind Equity or pre-IPO.
+	//
+	// Examples: equity
+	Kind AssetKind `json:"kind"`
+
+	// LogoUrl The logo URL. Null when the catalog has none.
+	//
+	// Examples: https://cdn.example.com/AAPLy.png
+	LogoUrl *string `json:"logo_url"`
+
+	// Symbol The other listing's ticker.
+	//
+	// Examples: AAPLy
+	Symbol string `json:"symbol"`
+
+	// Tradable True when this listing can be bought.
+	//
+	// Examples: false
+	Tradable bool `json:"tradable"`
 }
 
 // AssetSummary One tradable asset as the list draws it, with the price already chosen.
@@ -1164,6 +1279,21 @@ type Tally struct {
 	Yes int `json:"yes"`
 }
 
+// UiMultiplier The whole tokens in one display unit, as an exact fraction.
+//
+// Examples: {"den":1,"num":1}
+type UiMultiplier struct {
+	// Den The denominator.
+	//
+	// Examples: 1
+	Den int64 `json:"den"`
+
+	// Num The numerator.
+	//
+	// Examples: 1
+	Num int64 `json:"num"`
+}
+
 // VoteResult The proposal after the caller's ballot.
 type VoteResult struct {
 	// MyBallot A voter's choice on a proposal.
@@ -1298,6 +1428,9 @@ type ServerInterface interface {
 	// GetAssets List tradable assets.
 	// (GET /v1/assets)
 	GetAssets(w http.ResponseWriter, r *http.Request, params GetAssetsParams)
+	// GetAsset Read one asset.
+	// (GET /v1/assets/{symbol})
+	GetAsset(w http.ResponseWriter, r *http.Request, symbol string)
 	// PostAuthSession Open a session from a Privy access token.
 	// (POST /v1/auth/session)
 	PostAuthSession(w http.ResponseWriter, r *http.Request, params PostAuthSessionParams)
@@ -1434,6 +1567,32 @@ func (siw *ServerInterfaceWrapper) GetAssets(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAssets(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAsset operation middleware
+func (siw *ServerInterfaceWrapper) GetAsset(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "symbol" -------------
+	var symbol string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "symbol", r.PathValue("symbol"), &symbol, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "symbol", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAsset(w, r, symbol)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2177,6 +2336,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/healthz", wrapper.GetHealthz)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/assets", wrapper.GetAssets)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/assets/{symbol}", wrapper.GetAsset)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/auth/session", wrapper.PostAuthSession)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals", wrapper.GetCabals)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals", wrapper.PostCabal)
@@ -2262,6 +2422,45 @@ type GetAssetsdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetAssetsdefaultApplicationProblemPlusJSONResponse) VisitGetAssetsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAssetRequestObject struct {
+	Symbol string `json:"symbol"`
+}
+
+type GetAssetResponseObject interface {
+	VisitGetAssetResponse(w http.ResponseWriter) error
+}
+
+type GetAsset200JSONResponse AssetDetail
+
+func (response GetAsset200JSONResponse) VisitGetAssetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAssetdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetAssetdefaultApplicationProblemPlusJSONResponse) VisitGetAssetResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -2928,6 +3127,9 @@ type StrictServerInterface interface {
 	// GetAssets List tradable assets.
 	// (GET /v1/assets)
 	GetAssets(ctx context.Context, request GetAssetsRequestObject) (GetAssetsResponseObject, error)
+	// GetAsset Read one asset.
+	// (GET /v1/assets/{symbol})
+	GetAsset(ctx context.Context, request GetAssetRequestObject) (GetAssetResponseObject, error)
 	// PostAuthSession Open a session from a Privy access token.
 	// (POST /v1/auth/session)
 	PostAuthSession(ctx context.Context, request PostAuthSessionRequestObject) (PostAuthSessionResponseObject, error)
@@ -3060,6 +3262,32 @@ func (sh *strictHandler) GetAssets(w http.ResponseWriter, r *http.Request, param
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAssetsResponseObject); ok {
 		if err := validResponse.VisitGetAssetsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAsset operation middleware
+func (sh *strictHandler) GetAsset(w http.ResponseWriter, r *http.Request, symbol string) {
+	var request GetAssetRequestObject
+
+	request.Symbol = symbol
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAsset(ctx, request.(GetAssetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAsset")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAssetResponseObject); ok {
+		if err := validResponse.VisitGetAssetResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

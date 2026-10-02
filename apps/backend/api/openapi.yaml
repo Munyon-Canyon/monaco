@@ -108,6 +108,33 @@ paths:
                 $ref: "#/components/schemas/AssetList"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/assets/{symbol}:
+    get:
+      operationId: getAsset
+      tags: [market]
+      summary: Read one asset.
+      description: >-
+        Returns one known asset, tradable or not, with the held price and the other listings of the
+        same company. An unknown symbol is `asset_not_found`.
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          description: The ticker the app shows.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 64
+            examples: [AAPLx]
+      responses:
+        "200":
+          description: The asset.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetDetail"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/auth/session:
     post:
       operationId: postAuthSession
@@ -589,6 +616,139 @@ components:
         banned account can only withdraw and cash out.
       examples: [active]
       enum: [active, suspended, banned]
+    AssetDetail:
+      type: object
+      description: One asset, the list fields plus the chain facts and the other listings.
+      examples:
+        - symbol: AAPLx
+          display_name: Apple
+          issuer: xstocks
+          kind: equity
+          logo_url: "https://cdn.example.com/AAPLx.png"
+          price_micros: 110000000
+          price_as_of: "2026-03-04T14:30:00Z"
+          change_bps: 1000
+          sparkline_micros: [100000000, 110000000]
+          session:
+            state: open
+            continuous: false
+            holiday: ""
+            early_close: false
+            next_state: after_hours
+            next_transition: "2026-03-04T21:00:00Z"
+          decimals: 8
+          ui_multiplier:
+            num: 1
+            den: 1
+          tradable: true
+          other_listings: []
+          attribution: Data provided by CoinGecko
+      additionalProperties: false
+      required:
+        - symbol
+        - display_name
+        - issuer
+        - kind
+        - logo_url
+        - price_micros
+        - price_as_of
+        - change_bps
+        - sparkline_micros
+        - session
+        - decimals
+        - ui_multiplier
+        - tradable
+        - other_listings
+        - attribution
+      properties:
+        symbol:
+          type: string
+          description: The ticker the app shows and the path key for the asset.
+          examples: [AAPLx]
+        display_name:
+          type: string
+          description: The company name the app shows.
+          examples: [Apple]
+        issuer:
+          $ref: "#/components/schemas/AssetIssuer"
+          description: The firm that issues the token.
+          examples: [xstocks]
+        kind:
+          $ref: "#/components/schemas/AssetKind"
+          description: Equity or pre-IPO.
+          examples: [equity]
+        logo_url:
+          type: [string, "null"]
+          description: The logo URL. Null when the catalog has none.
+          examples: ["https://cdn.example.com/AAPLx.png"]
+        price_micros:
+          type: [integer, "null"]
+          format: int64
+          description: The held USD price in micros. Null when the asset is unpriced.
+          examples: [110000000]
+        price_as_of:
+          type: [string, "null"]
+          format: date-time
+          description: When `price_micros` was sampled. Null when the asset is unpriced.
+          examples: ["2026-03-04T14:30:00Z"]
+        change_bps:
+          type: [integer, "null"]
+          format: int32
+          description: >-
+            The move in basis points against the last US close for an equity, or against the first
+            sample of the UTC day for a pre-IPO token. Null when that reference does not exist.
+          examples: [1000]
+        sparkline_micros:
+          type: [array, "null"]
+          description: The last day of closes in 30-minute buckets, at most 48. Null when unpriced.
+          maxItems: 48
+          items:
+            type: integer
+            format: int64
+            examples: [110000000]
+          examples: [[100000000, 110000000]]
+        session:
+          $ref: "#/components/schemas/MarketSession"
+          description: The session this asset is in.
+          examples:
+            - state: open
+              continuous: false
+              holiday: ""
+              early_close: false
+              next_state: after_hours
+              next_transition: "2026-03-04T21:00:00Z"
+        decimals:
+          type: integer
+          minimum: 0
+          maximum: 255
+          description: The mint's decimals.
+          examples: [8]
+        ui_multiplier:
+          $ref: "#/components/schemas/UiMultiplier"
+          description: The whole tokens in one display unit.
+          examples:
+            - num: 1
+              den: 1
+        tradable:
+          type: boolean
+          description: True when this asset can be bought.
+          examples: [true]
+        other_listings:
+          type: array
+          description: The other assets that share this company's key. This asset is not in the list.
+          examples:
+            - - symbol: AAPLy
+                display_name: Apple
+                issuer: xstocks
+                kind: equity
+                logo_url: "https://cdn.example.com/AAPLy.png"
+                tradable: false
+          items:
+            $ref: "#/components/schemas/AssetListing"
+        attribution:
+          type: string
+          description: The data source line the asset screen shows.
+          examples: ["Data provided by CoinGecko"]
     AssetIssuer:
       type: string
       description: The firm that issues the tokenized stock.
@@ -634,6 +794,43 @@ components:
           type: [string, "null"]
           description: The cursor for the next page. Null on the last page.
           examples: [null]
+    AssetListing:
+      type: object
+      description: Another listing of the same company, without a price.
+      examples:
+        - symbol: AAPLy
+          display_name: Apple
+          issuer: xstocks
+          kind: equity
+          logo_url: null
+          tradable: false
+      additionalProperties: false
+      required: [symbol, display_name, issuer, kind, logo_url, tradable]
+      properties:
+        symbol:
+          type: string
+          description: The other listing's ticker.
+          examples: [AAPLy]
+        display_name:
+          type: string
+          description: The company name the app shows.
+          examples: [Apple]
+        issuer:
+          $ref: "#/components/schemas/AssetIssuer"
+          description: The firm that issues the token.
+          examples: [xstocks]
+        kind:
+          $ref: "#/components/schemas/AssetKind"
+          description: Equity or pre-IPO.
+          examples: [equity]
+        logo_url:
+          type: [string, "null"]
+          description: The logo URL. Null when the catalog has none.
+          examples: ["https://cdn.example.com/AAPLy.png"]
+        tradable:
+          type: boolean
+          description: True when this listing can be bought.
+          examples: [false]
     AssetSummary:
       type: object
       description: One tradable asset as the list draws it, with the price already chosen.
@@ -1273,6 +1470,25 @@ components:
           minimum: 1
           description: Yes ballots the cabal's threshold rule needs to pass the proposal.
           examples: [2]
+    UiMultiplier:
+      type: object
+      description: The whole tokens in one display unit, as an exact fraction.
+      examples:
+        - num: 1
+          den: 1
+      additionalProperties: false
+      required: [num, den]
+      properties:
+        num:
+          type: integer
+          format: int64
+          description: The numerator.
+          examples: [1]
+        den:
+          type: integer
+          format: int64
+          description: The denominator.
+          examples: [1]
     VoteResult:
       type: object
       description: The proposal after the caller's ballot.
