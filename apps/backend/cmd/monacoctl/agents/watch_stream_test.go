@@ -1,0 +1,287 @@
+package agents
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+)
+
+const mqTitle = "[Graphite MQ] Draft PR GROUP:spec_de1996 (PRs 1307, 1308, 1309)"
+
+func queueDraftNode(n int, state, title, commit string) string {
+	return fmt.Sprintf(`{"number":%d,"state":%q,"title":%q,"body":"","headRefName":"gtmq_%d",`+
+		`"updatedAt":"2026-09-27T11:59:00Z","commits":{"nodes":[{"commit":%s}]}}`, n, state, title, n, commit)
+}
+
+func streamRounds(t *testing.T, f *fixture, rounds int, between func(round int)) string {
+	t.Helper()
+	env := f.Env(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	n := 0
+	env.After = func(d time.Duration) <-chan time.Time {
+		if d != time.Minute {
+			t.Errorf("waited %s between rounds", d)
+		}
+		n++
+		if n >= rounds {
+			cancel()
+			return make(chan time.Time)
+		}
+		between(n)
+		ch := make(chan time.Time, 1)
+		ch <- f.now
+		return ch
+	}
+	var out strings.Builder
+	if err := env.watchStream(ctx, time.Minute, &out); err != nil {
+		t.Fatal(err)
+	}
+	return out.String()
+}
+
+func queuedStack(t *testing.T, f *fixture, worktree string) *stackGH {
+	t.Helper()
+	s := newStackGH(t, f,
+		labeled(green(t, 1, "b1", "fb"), "merge-queue"), labeled(green(t, 2, "b2", "b1"), "merge-queue"))
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: worktree, Queued: &Queue{Top: 2, PRs: []int{1, 2}}})
+	f.noFailures()
+	return s
+}
+
+func TestWatchStream_printsTheStateOnceThenOnlyWhatChanged(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	queuedStack(t, f, "/w/40")
+	pending := `{"name":"ci / E2E","status":"IN_PROGRESS"}`
+	f.hub.on(graphqlRoute, draftData([]string{
+		queueDraftNode(90, "OPEN", "[Graphite MQ] Draft PR GROUP:spec_1 (PRs 1, 2)", rollup(greenOK, pending,
+			`{"context":"verify","state":"SUCCESS"}`, `{"context":"ext","state":"ERROR"}`,
+			`{"context":"slow","state":"PENDING"}`)),
+		queueDraftNode(91, "OPEN", "[Graphite MQ] Draft PR GROUP:spec_2 (PRs 12)", rollup(redOK)),
+	}))
+	got := streamRounds(t, f, 3, func(round int) {
+		if round == 1 {
+			f.hub.on(graphqlRoute, draftData([]string{
+				queueDraftNode(90, "OPEN", "[Graphite MQ] Draft PR GROUP:spec_1 (PRs 1, 2)", rollup(greenOK, flakeJob)),
+			}))
+		}
+	})
+	want := "#1 queued\n#2 queued\ndraft #90 open\ndraft #90 ci / ci-ok: pass\n" +
+		"draft #90 verify: pass\ndraft #90 ext: fail\ndraft #90 ci / Flake: fail\n"
+	if got != want {
+		t.Fatalf("stream\n got %q\nwant %q", got, want)
+	}
+}
+
+func TestWatchStream_settlesAStackOnceEveryPRLanded(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	wt := t.TempDir()
+	s := queuedStack(t, f, wt)
+	f.hub.on(get("/compare/fb...b2-oid"), `{"status":"identical"}`)
+	got := streamRounds(t, f, 3, func(round int) {
+		if round == 1 {
+			s.prs[1].State, s.prs[2].State = "MERGED", "CLOSED"
+		}
+	})
+	want := "#1 queued\n#2 queued\n#1 landed\n#2 landed\nstack #2 landed (#1 #2)\n"
+	if got != want {
+		t.Fatalf("stream\n got %q\nwant %q", got, want)
+	}
+	if lines := s.lines(); len(lines) != 1 || lines[0] != "gt sync --no-interactive --delete-all --no-restack" {
+		t.Fatalf("calls %v", lines)
+	}
+	if f.owned(t).Queued != nil {
+		t.Fatal("kept the queued mark")
+	}
+}
+
+func TestWatchStream_ejectsAStackOnlyAfterTwoRoundsWithoutTheLabel(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		back    bool
+		ejected bool
+		closed  bool
+	}{
+		{"the label stays gone", false, true, false},
+		{"the label comes back after one round", true, false, false},
+		{"the PR was closed by hand", false, true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			s := queuedStack(t, f, "/w/40")
+			f.hub.on(get("/compare/fb...b2-oid"), `{"status":"diverged"}`)
+			got := streamRounds(t, f, 4, func(round int) {
+				switch {
+				case round == 1 && tc.closed:
+					s.prs[2].State = "CLOSED"
+				case round == 1:
+					s.prs[2].Labels.Nodes = nil
+				case round == 2 && tc.back:
+					labeled(s.prs[2], "merge-queue")
+				case round == 2 && f.owned(t).Queued == nil:
+					t.Error("unmarked after one round")
+				}
+			})
+			why := "left the Graphite merge queue"
+			if tc.closed {
+				why = "was closed without landing"
+			}
+			block := "stack #2 ejected: #2 " + why + "\n#2 " + why + "\n" +
+				"  failing job: none\n  fresh owner\n  ticket: 40\n  worktree: /w/40\n  head: b2-oid\n"
+			if strings.Contains(got, block) != tc.ejected || (f.owned(t).Queued == nil) != tc.ejected {
+				t.Fatalf("ejected = %v, want %v:\n%s", f.owned(t).Queued == nil, tc.ejected, got)
+			}
+			if !strings.HasPrefix(got, "#1 queued\n#2 queued\n#2 ejected\n") {
+				t.Fatalf("stream:\n%s", got)
+			}
+		})
+	}
+}
+
+func TestWatchStream_printsAFailureBlockOnce(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.hub.on(graphqlRoute, failureData(
+		strings.Replace(watchNode(6, "fb", rollup(redOK, lintJob), ""), "Part of #40", "no ticket", 1),
+		watchNode(7, "fb", rollup(greenOK), dropped(f.now.Add(-time.Hour))),
+		strings.Replace(watchNode(8, "fb", rollup(greenOK), dropped(f.now.Add(-time.Hour))),
+			`"commits"`, `"labels":{"nodes":[{"name":"merge-queue"}]},"commits"`, 1),
+	))
+	got := streamRounds(t, f, 3, func(int) {})
+	if strings.Count(got, "#6 stage 1 is red\n  failing job: https://gh/job/12\n") != 1 ||
+		strings.Count(got, "#7 dropped from the Graphite merge queue\n") != 1 || strings.Contains(got, "#8 ") {
+		t.Fatalf("stream:\n%s", got)
+	}
+}
+
+func TestWatchArgs(t *testing.T) {
+	t.Parallel()
+	for args, want := range map[string]string{
+		"":                  "false 30s",
+		"--once":            "true 30s",
+		"--every 10s":       "false 10s",
+		"--once --every 1m": "true 1m0s",
+		"--every 5s":        "usage",
+		"--every":           "usage",
+		"x":                 "usage",
+	} {
+		once, every, err := watchArgs(strings.Fields(args))
+		got := fmt.Sprint(once, " ", every)
+		if err != nil {
+			got = "usage"
+			if !strings.Contains(cliText(err), "usage: monacoctl agents watch [--once]") {
+				t.Errorf("%q: %v", args, err)
+			}
+		}
+		if got != want {
+			t.Errorf("watchArgs(%q) = %s, want %s", args, got, want)
+		}
+	}
+}
+
+func TestStreams_onlyTheStreamingWatchBypassesTheOutputBuffer(t *testing.T) {
+	t.Parallel()
+	for args, want := range map[string]bool{"watch": true, "watch --every 1m": true, "watch --once": false, "status": false} {
+		if got := streams(strings.Fields(args)); got != want {
+			t.Errorf("streams(%q) = %v", args, got)
+		}
+	}
+}
+
+func TestMentions_readsGraphiteDraftTitles(t *testing.T) {
+	t.Parallel()
+	for pr, want := range map[int]bool{1307: true, 1308: true, 1309: true, 130: false, 13070: false, 1: false} {
+		if got := mentions(mqTitle, pr); got != want {
+			t.Errorf("mentions(%q, %d) = %v", mqTitle, pr, got)
+		}
+	}
+	if !mentions("Merge queue: #12", 12) || mentions("Merge queue: #12", 1) {
+		t.Error("#N references")
+	}
+	since := time.Date(2026, 9, 29, 6, 0, 0, 0, time.UTC)
+	d := queueDraft{State: "CLOSED", HeadRefName: "gtmq_spec_de1996", Title: mqTitle, UpdatedAt: since.Add(time.Minute)}
+	if !d.runs(1308, since) || d.runs(1310, since) {
+		t.Error("a closed draft runs the PRs its title lists")
+	}
+	d.State = "OPEN"
+	if d.runs(1308, since) || !d.tests(1308) {
+		t.Error("an open draft is still running")
+	}
+}
+
+func TestWatchStream_printsEachErrorAsALineAndKeepsGoing(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := newStackGH(t, f, green(t, 5, "b5", "fb"))
+	s.prs[5].State = "CLOSED"
+	f.owner(t, Record{Ticket: 1, State: Running, Worktree: filepath.Join(f.dir, "gone")})
+	f.record(t, Record{Ticket: 40, State: Exited, Queued: &Queue{Top: 9, PRs: []int{9}}})
+	f.record(t, Record{Ticket: 41, State: Exited, Queued: &Queue{Top: 5, PRs: []int{5}}})
+	env := f.Env(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	rounds := 0
+	env.After = func(d time.Duration) <-chan time.Time {
+		rounds++
+		if d != 10*time.Second || rounds == 2 {
+			cancel()
+			return make(chan time.Time)
+		}
+		writeFile(t, env.recordPath(42), "{")
+		ch := make(chan time.Time, 1)
+		ch <- f.now
+		return ch
+	}
+	var out strings.Builder
+	if err := watchCmd(ctx, env, []string{"--every", "10s"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{
+		"watch error: stack #9: ", "#9 is not a PR", "watch error: stack #5: compare b5-oid with fb",
+		"graphql", "decode ", "\nwatch error: ",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("stream lacks %q:\n%s", want, got)
+		}
+	}
+	if strings.Count(got, "watch error: ") != 5 || rounds != 2 {
+		t.Fatalf("%d rounds:\n%s", rounds, got)
+	}
+}
+
+func TestWatchStream_reportsAFailedSettleOrUnmark(t *testing.T) {
+	t.Parallel()
+	t.Run("settle", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		s := queuedStack(t, f, t.TempDir())
+		s.prs[1].State, s.prs[2].State = "MERGED", "MERGED"
+		s.fail = "gt sync"
+		got := streamRounds(t, f, 1, func(int) {})
+		if !strings.Contains(got, "watch error: settle #2: gt sync: boom\n") || f.owned(t).Queued == nil {
+			t.Fatalf("stream:\n%s", got)
+		}
+	})
+	t.Run("unmark", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		s := queuedStack(t, f, "/w/40")
+		s.prs[2].Labels.Nodes = nil
+		if err := os.Chmod(f.Env(t).recordPath(40), 0o400); err != nil {
+			t.Fatal(err)
+		}
+		got := streamRounds(t, f, 2, func(int) {})
+		if !strings.Contains(got, "watch error: unmark #2: ") || strings.Contains(got, "stack #2 ejected") {
+			t.Fatalf("stream:\n%s", got)
+		}
+	})
+}

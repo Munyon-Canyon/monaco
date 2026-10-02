@@ -66,7 +66,7 @@ func TestWatch_idlesOnlyPastTwentyMinutes(t *testing.T) {
 			return nil, errors.New("down")
 		}
 		var buf strings.Builder
-		err := watchCmd(context.Background(), env, nil, &buf)
+		err := watchCmd(context.Background(), env, []string{"--once"}, &buf)
 		got := strings.Contains(buf.String(), "idle: #1")
 		if got != tc.idle || (tc.idle && err == nil) || (!tc.idle && err != nil) {
 			t.Fatalf("after %s idle=%v err=%v %q", tc.now.Sub(started), got, err, buf.String())

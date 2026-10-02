@@ -255,7 +255,7 @@ func TestWatch_idleAliveAndCaffeinate(t *testing.T) {
 	f.hub.on(list("/pulls?state=open"), []PR{{Number: 4, Body: "Part of #1", UpdatedAt: old}})
 	f.watchGit("HEAD", "1", "")
 	f.noFailures()
-	code, stdout, stderr := f.agents(t, "watch")
+	code, stdout, stderr := f.agents(t, "watch", "--once")
 	if code != 1 || stderr != "" || !strings.Contains(stdout, "idle: #1") ||
 		!strings.Contains(stdout, "done but alive: #2") ||
 		!strings.Contains(stdout, "missing caffeinate") {
@@ -275,7 +275,7 @@ func TestWatch_isQuietWhenEveryoneMoved(t *testing.T) {
 	f.hub.on(list("/pulls?state=open"), []PR{})
 	f.watchGit("topic", strconv.FormatInt(f.now.Unix(), 10), "pgrep")
 	f.noFailures()
-	code, stdout, stderr := f.agents(t, "watch")
+	code, stdout, stderr := f.agents(t, "watch", "--once")
 	if code != 0 || stdout != "" || stderr != "" {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}

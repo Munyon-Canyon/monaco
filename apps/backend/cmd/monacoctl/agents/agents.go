@@ -118,7 +118,11 @@ func runCLI(
 		if configure != nil {
 			configure(env)
 		}
-		err = commands()[args[0]](ctx, env, args[1:], &buf)
+		var out io.Writer = &buf
+		if streams(args) {
+			out = stdout
+		}
+		err = commands()[args[0]](ctx, env, args[1:], out)
 	}
 	writeLimited(stdout, buf.String(), verbose)
 	return exitCode(logged(env, args[0], buf.String(), err), stderr)

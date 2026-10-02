@@ -200,6 +200,9 @@ func waitingOn(stack []stackPR) []string {
 		if t.Verify != "success" {
 			why = append(why, "verify "+orMissing(t.Verify))
 		}
+		if t.Format != "" && t.Format != "success" {
+			why = append(why, "PR format "+t.Format)
+		}
 		if len(why) > 0 {
 			out = append(out, fmt.Sprintf("#%d (%s)", p.Number, strings.Join(why, ", ")))
 		}
@@ -239,7 +242,8 @@ func (env *Env) land(ctx context.Context, rec Record, stack []stackPR, stdout io
 	if err := env.storeRecord(ctx, rec); err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintf(stdout, "queued %s\n", prRefs(nums))
+	_, _ = fmt.Fprintf(stdout, "queued %s\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n",
+		prRefs(nums))
 	return nil
 }
 
@@ -332,9 +336,26 @@ func (env *Env) landedEach(ctx context.Context, prs []stackPR) ([]bool, error) {
 	return out, nil
 }
 
+const (
+	prQueued  = "queued"
+	prLanded  = "landed"
+	prEjected = "ejected"
+)
+
+func (env *Env) queueState(p stackPR, landed bool) string {
+	switch {
+	case landed:
+		return prLanded
+	case p.State == "OPEN" && p.labeled(env.Config.QueueLabel):
+		return prQueued
+	default:
+		return prEjected
+	}
+}
+
 func (env *Env) ejected(prs []stackPR, landed []bool) bool {
 	for i, p := range prs {
-		if !landed[i] && (p.State != "OPEN" || !p.labeled(env.Config.QueueLabel)) {
+		if env.queueState(p, landed[i]) == prEjected {
 			return true
 		}
 	}

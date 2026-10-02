@@ -18,24 +18,33 @@ const (
 	draftPrefix  = "gtmq_"
 	failureQuery = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){` +
 		`pullRequests(states:OPEN,first:100){nodes{number body headRefName baseRefName headRefOid ` +
-		`commits(last:1){nodes{commit{...runs}}} ` +
+		labelFields + ` commits(last:1){nodes{commit{...runs}}} ` +
 		`timelineItems(itemTypes:[UNLABELED_EVENT],last:20){nodes{` +
 		`... on UnlabeledEvent{createdAt label{name} actor{login}}}}}} ` +
-		`drafts: pullRequests(states:CLOSED,last:30,orderBy:{field:UPDATED_AT,direction:ASC}){nodes{` +
-		`title body headRefName updatedAt commits(last:1){nodes{commit{...runs}}}}}}}` +
+		`drafts: pullRequests(states:[OPEN,CLOSED],last:30,orderBy:{field:UPDATED_AT,direction:ASC}){nodes{` +
+		`number state title body headRefName updatedAt commits(last:1){nodes{commit{...runs}}}}}}}` +
 		"\nfragment runs on Commit{" + commitChecks + "}"
 )
 
+type lastCommits = struct {
+	Nodes []struct {
+		Commit gqlCommit `json:"commit"`
+	} `json:"nodes"`
+}
+
 type queueDraft struct {
-	Title       string    `json:"title"`
-	Body        string    `json:"body"`
-	HeadRefName string    `json:"headRefName"`
-	UpdatedAt   time.Time `json:"updatedAt"`
-	Commits     struct {
-		Nodes []struct {
-			Commit gqlCommit `json:"commit"`
-		} `json:"nodes"`
-	} `json:"commits"`
+	Number      int         `json:"number"`
+	State       string      `json:"state"`
+	Title       string      `json:"title"`
+	Body        string      `json:"body"`
+	HeadRefName string      `json:"headRefName"`
+	UpdatedAt   time.Time   `json:"updatedAt"`
+	Commits     lastCommits `json:"commits"`
+}
+
+type watchData struct {
+	prs    []watchPR
+	drafts []queueDraft
 }
 
 type watchPR struct {
@@ -44,11 +53,10 @@ type watchPR struct {
 	HeadRefName string `json:"headRefName"`
 	BaseRefName string `json:"baseRefName"`
 	HeadRefOid  string `json:"headRefOid"`
-	Commits     struct {
-		Nodes []struct {
-			Commit gqlCommit `json:"commit"`
-		} `json:"nodes"`
-	} `json:"commits"`
+	Labels      struct {
+		Nodes []gqlName `json:"nodes"`
+	} `json:"labels"`
+	Commits       lastCommits `json:"commits"`
 	TimelineItems struct {
 		Nodes []struct {
 			CreatedAt time.Time `json:"createdAt"`
@@ -85,9 +93,26 @@ func (d *queueDraft) commits() []*gqlCommit {
 }
 
 func (d queueDraft) runs(pr int, since time.Time) bool {
-	ref := regexp.MustCompile(`#` + strconv.Itoa(pr) + `\b`)
-	return strings.HasPrefix(d.HeadRefName, draftPrefix) && d.UpdatedAt.After(since) &&
-		(ref.MatchString(d.Title) || ref.MatchString(d.Body))
+	return d.State != "OPEN" && d.UpdatedAt.After(since) && d.tests(pr)
+}
+
+func (d queueDraft) tests(pr int) bool {
+	return strings.HasPrefix(d.HeadRefName, draftPrefix) && (mentions(d.Title, pr) || mentions(d.Body, pr))
+}
+
+func mentions(text string, pr int) bool {
+	n := strconv.Itoa(pr)
+	if regexp.MustCompile(`#` + n + `\b`).MatchString(text) {
+		return true
+	}
+	for _, m := range regexp.MustCompile(`\(PRs ([0-9, ]+)\)`).FindAllStringSubmatch(text, -1) {
+		for _, f := range strings.Split(m[1], ",") {
+			if strings.TrimSpace(f) == n {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func red(r gqlContext) bool { return r.Conclusion == "FAILURE" || r.Conclusion == "TIMED_OUT" }
@@ -146,7 +171,7 @@ func failures(prs []watchPR, queue queueRuns, trunk string, since time.Time) []f
 func (p watchPR) failure(queue queueRuns, since time.Time) (failure, bool) {
 	f := failure{PR: p.Number, Head: p.HeadRefOid, Body: p.Body}
 	if p.droppedByGraphite(queue.label, since) {
-		f.Why, f.Job = "dropped from the Graphite merge queue", p.queueJob(queue.drafts, since)
+		f.Why, f.Job = droppedWhy, p.queueJob(queue.drafts, since)
 		return f, true
 	}
 	for _, c := range p.Commits.Nodes {
@@ -170,12 +195,16 @@ func (p watchPR) droppedByGraphite(label string, since time.Time) bool {
 }
 
 func (p watchPR) queueJob(drafts []queueDraft, since time.Time) gqlContext {
+	return queueJob(p.Number, p.Commits, drafts, since)
+}
+
+func queueJob(pr int, head lastCommits, drafts []queueDraft, since time.Time) gqlContext {
 	for i := len(drafts) - 1; i >= 0; i-- {
-		if nodes := drafts[i].Commits.Nodes; drafts[i].runs(p.Number, since) && len(nodes) > 0 {
+		if nodes := drafts[i].Commits.Nodes; drafts[i].runs(pr, since) && len(nodes) > 0 {
 			return nodes[len(nodes)-1].Commit.failedJob()
 		}
 	}
-	if nodes := p.Commits.Nodes; len(nodes) > 0 {
+	if nodes := head.Nodes; len(nodes) > 0 {
 		return nodes[len(nodes)-1].Commit.failedJob()
 	}
 	return gqlContext{}
@@ -186,6 +215,19 @@ func (env *Env) failures(ctx context.Context) ([]failure, error) {
 	if err != nil {
 		return nil, err
 	}
+	data, err := env.watchData(ctx)
+	if err != nil {
+		return nil, err
+	}
+	stamp := env.Now().UTC().Format(time.RFC3339Nano)
+	if _, err := env.writeState("watch", lastRunState, []byte(stamp+"\n")); err != nil {
+		return nil, err
+	}
+	queue := queueRuns{label: env.Config.QueueLabel, drafts: data.drafts}
+	return failures(data.prs, queue, env.Config.FeatureBranch, since), nil
+}
+
+func (env *Env) watchData(ctx context.Context) (watchData, error) {
 	var data struct {
 		Repository struct {
 			PullRequests struct {
@@ -197,7 +239,7 @@ func (env *Env) failures(ctx context.Context) ([]failure, error) {
 		} `json:"repository"`
 	}
 	if err := env.GitHub.graphql(ctx, failureQuery, &data); err != nil {
-		return nil, err
+		return watchData{}, err
 	}
 	var commits []*gqlCommit
 	for i := range data.Repository.PullRequests.Nodes {
@@ -208,14 +250,9 @@ func (env *Env) failures(ctx context.Context) ([]failure, error) {
 		commits = append(commits, drafts[i].commits()...)
 	}
 	if err := readAllChecks(ctx, env.GitHub.graphql, commits); err != nil {
-		return nil, err
+		return watchData{}, err
 	}
-	stamp := env.Now().UTC().Format(time.RFC3339Nano)
-	if _, err := env.writeState("watch", lastRunState, []byte(stamp+"\n")); err != nil {
-		return nil, err
-	}
-	queue := queueRuns{label: env.Config.QueueLabel, drafts: drafts}
-	return failures(data.Repository.PullRequests.Nodes, queue, env.Config.FeatureBranch, since), nil
+	return watchData{prs: data.Repository.PullRequests.Nodes, drafts: drafts}, nil
 }
 
 func (env *Env) lastRun() (time.Time, error) {

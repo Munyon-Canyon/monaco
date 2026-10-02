@@ -105,7 +105,7 @@ Do these once per milestone.
 
 3. Land a passing PR.
 
-    - Post a verdict on every PR of the stack, then run `bin/monacoctl agents land-stack <top-pr>`. Do it by default, without asking. A single PR is a stack of one. It adds the `merge-queue` label to each PR, bottom to top. The Graphite merge queue runs stage 2 on the whole stack and fast-forwards `staging` to it. If a PR still lacks stage 1 or `verify`, it prints `not landing #<n>; waiting on ...` and exits 0. Run it again later.
+    - Post a verdict on every PR of the stack, then run `bin/monacoctl agents land-stack <top-pr>`. Do it by default, without asking. A single PR is a stack of one. It adds the `merge-queue` label to each PR, bottom to top. The Graphite merge queue runs stage 2 on the whole stack and fast-forwards `staging` to it. If a PR still lacks stage 1 or `verify`, or its PR format check is running or red, it prints `not landing #<n>; waiting on ...` and exits 0. Run it again later. Follow a queued stack with `bin/monacoctl agents watch` under Claude Code's Monitor tool, not a sleep loop.
     - Never run `gh pr merge`, and never add `merge-queue` or `fast-track` by hand. The hook blocks all three. Only the operator adds `fast-track`, a PR under 100 counted lines that touches nothing under `apps/backend/`, `.github/` or `docker-compose.yml`.
     - A landed PR shows as closed, not merged. It counts as landed when its head commit is on `staging`.
 
@@ -115,9 +115,9 @@ Do these once per milestone.
 
 ## Watch the run
 
-Run these on each pass through the queue. Never poll CI with `gh run watch` or a sleep loop.
+Keep `bin/monacoctl agents watch` running under Claude Code's Monitor tool for the whole run. Never poll CI with `gh run watch` or a sleep loop.
 
-- `bin/monacoctl agents watch` lists owners idle for 20 minutes or finished but still running, and reports each queue ejection or red stage 1 with its failing job and a fresh-owner prompt. It exits nonzero when it flagged anything.
+- `bin/monacoctl agents watch` streams one line per change, every 30 seconds (`--every <duration>`, at least 10s). It covers idle owners and owners finished but still running, each queued PR (`queued`, `landed` or `ejected`), the Graphite queue's `gtmq_` draft PRs and their finished checks, and each ejection or red stage 1 with its failing job and a fresh-owner prompt. When every PR of a stack landed, it runs `gt sync` and prints `stack #<top> landed (...)`. A stack that stays out of the queue for two rounds is unmarked and printed as `stack #<top> ejected: ...`. `--once` prints one pass for cron or `/loop` and exits nonzero when it flagged anything.
 - `bin/monacoctl agents forecast` lists files that more than one open stack touches. Land those stacks one after the other, not together.
 - `bin/monacoctl agents conflicts <pr>` says whether a PR is behind its base and which files conflict.
 - `bin/monacoctl agents timeline` prints dispatch, push, stage 1, verdict, queue and merge times for each ticket of the batch. `--batch <file>` reads a saved batch.
@@ -195,7 +195,7 @@ The incoming orchestrator:
 
 1. Sets up the clone ([Agent workflow setup](../agents/setup.md)), then makes the root worktree and builds `bin/monacoctl` as [Start a milestone](#start-a-milestone) step 5 says.
 2. Reads the handoff comment, the status board on the tracking issue and the decision log.
-3. Runs `bin/monacoctl agents watch` to see ejections and idle owners.
+3. Starts `bin/monacoctl agents watch` under Monitor to see ejections, idle owners and queued stacks.
 4. Carries on. Owner records rebuild from their ticket comments the first time a command needs them, so `resume`, `verdict` and `land-stack` work on in-flight tickets. A record is trusted only from a comment whose author is a repo owner, member or collaborator, because anyone can comment on a public repo. Each person's commands edit only their own record comment and post a new one otherwise. `bin/monacoctl agents resume <n> --transcript <file>` says whether a transcript is small enough to resume (250k tokens or fewer). A transcript from another machine is usually unavailable, so give the ticket a fresh owner on its pushed branch. The fresh owner's worktree starts from the branch, not from the parent SHA.
 
 One ticket changes hands the same way. [Hand off a ticket](ship-a-ticket.md#hand-off-a-ticket) has the owner's side.
