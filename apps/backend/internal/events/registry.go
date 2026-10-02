@@ -20,6 +20,7 @@ func registrations() []Registration {
 		cabalRegistrations(),
 		marketRegistrations(),
 		identityRegistrations(),
+		socialRegistrations(),
 	)
 }
 

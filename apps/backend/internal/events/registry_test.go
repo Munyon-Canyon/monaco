@@ -40,6 +40,7 @@ func TestSubjects(t *testing.T) {
 		"events.asset.price_moved",
 		"events.cabal.access_decided", "events.cabal.access_requested", "events.cabal.created",
 		"events.cabal.member_joined", "events.cabal.member_left", "events.cabal.updated",
+		"events.follow.created", "events.follow.removed",
 		"events.proposal.created", "events.proposal.executed", "events.proposal.execution_blocked",
 		"events.proposal.expired", "events.proposal.failed", "events.proposal.passed", "events.proposal.voided",
 		"events.proposal.withdrawn", "events.system.pinged", "events.trade.blocked", "events.trade.confirmed",
@@ -187,7 +188,7 @@ func TestCatalog(t *testing.T) {
 	if want := []Type{
 		TypeAssetPriceMoved,
 		TypeCabalAccessDecided, TypeCabalAccessRequested, TypeCabalCreated, TypeCabalMemberJoined,
-		TypeCabalMemberLeft, TypeCabalUpdated, TypePriceTick,
+		TypeCabalMemberLeft, TypeCabalUpdated, TypeFollowCreated, TypeFollowRemoved, TypePriceTick,
 		TypeProposalCreated, TypeProposalExecuted, TypeProposalExecutionBlocked, TypeProposalExpired,
 		TypeProposalFailed, TypeProposalPassed, TypeProposalVoided, TypeProposalWithdrawn,
 		TypeSystemPinged, TypeTradeBlocked, TypeTradeConfirmed, TypeTradeFailed, TypeTradeSubmitted,
@@ -305,6 +306,20 @@ func TestProposalEventsAggregateOnTheProposal(t *testing.T) {
 	} {
 		if ev.AggregateType() != "proposal" || ev.AggregateID() != id ||
 			!strings.HasPrefix(string(ev.Type()), "proposal.") {
+			t.Errorf("%T aggregate = %s %s %s", ev, ev.Type(), ev.AggregateType(), ev.AggregateID())
+		}
+	}
+}
+
+func TestFollowEventsAggregateOnTheFollow(t *testing.T) {
+	t.Parallel()
+	id, err := uuid.Parse("01890a5d-ac96-774b-bcce-b302099a8062")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range []Event{FollowCreated{FollowID: id}, FollowRemoved{FollowID: id}} {
+		if ev.AggregateType() != "follow" || ev.AggregateID() != id ||
+			!strings.HasPrefix(string(ev.Type()), "follow.") {
 			t.Errorf("%T aggregate = %s %s %s", ev, ev.Type(), ev.AggregateType(), ev.AggregateID())
 		}
 	}
