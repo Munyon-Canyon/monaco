@@ -34,6 +34,7 @@ type routes struct {
 	httpx.NotifyRoutes
 	httpx.SystemRoutes
 	httpx.CabalRoutes
+	httpx.MarketRoutes
 }
 
 type unusedStore struct{ httpx.IdempotencyStore }
