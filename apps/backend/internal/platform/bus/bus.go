@@ -23,18 +23,20 @@ const (
 )
 
 type Conn struct {
-	nc          *nats.Conn
-	js          jetstream.JetStream
-	ns          namespace
-	meter       metric.Meter
-	hintDropped metric.Int64Counter
+	nc                *nats.Conn
+	js                jetstream.JetStream
+	ns                namespace
+	meter             metric.Meter
+	hintDropped       metric.Int64Counter
+	closeFlushTimeout time.Duration
 }
 
 type Option func(*options)
 
 type options struct {
-	meters metric.MeterProvider
-	ns     namespace
+	meters            metric.MeterProvider
+	ns                namespace
+	closeFlushTimeout time.Duration
 }
 
 func WithMeterProvider(mp metric.MeterProvider) Option {
@@ -45,9 +47,11 @@ func WithNamespace(ns string) Option {
 	return func(o *options) { o.ns = namespace(ns) }
 }
 
+const closeFlushTimeout = 5 * time.Second
+
 func Connect(ctx context.Context, cfg config.NATS, proc Process, opts ...Option) (*Conn, error) {
 	const op = "bus.Connect"
-	o := options{meters: otel.GetMeterProvider()}
+	o := options{meters: otel.GetMeterProvider(), closeFlushTimeout: closeFlushTimeout}
 	for _, opt := range opts {
 		opt(&o)
 	}
@@ -70,17 +74,18 @@ func Connect(ctx context.Context, cfg config.NATS, proc Process, opts ...Option)
 		nc.Close()
 		return nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	return &Conn{nc: nc, js: js, ns: o.ns, meter: meter, hintDropped: dropped}, nil
+	return &Conn{
+		nc: nc, js: js, ns: o.ns, meter: meter, hintDropped: dropped,
+		closeFlushTimeout: o.closeFlushTimeout,
+	}, nil
 }
-
-const closeFlushTimeout = 5 * time.Second
 
 func (c *Conn) Close(ctx context.Context) {
 	defer c.nc.Close()
 	if !c.nc.IsConnected() {
 		return
 	}
-	ctx, cancel := context.WithTimeout(ctx, closeFlushTimeout)
+	ctx, cancel := context.WithTimeout(ctx, c.closeFlushTimeout)
 	defer cancel()
 	_ = c.nc.FlushWithContext(ctx)
 }
