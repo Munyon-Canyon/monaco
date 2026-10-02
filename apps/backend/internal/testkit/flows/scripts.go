@@ -29,6 +29,13 @@ func Scripts() map[string]Script {
 		"F10CastVoteNotAVoter":            F10CastVoteNotAVoter,
 		"F10CastVoteProposalClosed":       F10CastVoteProposalClosed,
 		"F10CastVoteCrashAfterPublish":    F10CastVoteCrashAfterPublish,
+		"F20FollowOK":                     F20FollowOK,
+		"F20FollowCannotFollowSelf":       F20FollowCannotFollowSelf,
+		"F20FollowUserNotFound":           F20FollowUserNotFound,
+		"F20FollowUserBanned":             F20FollowUserBanned,
+		"F20FollowUnauthorized":           F20FollowUnauthorized,
+		"F20FollowCrashBeforeCommit":      F20FollowCrashBeforeCommit,
+		"F20UnfollowOK":                   F20UnfollowOK,
 	}
 }
 

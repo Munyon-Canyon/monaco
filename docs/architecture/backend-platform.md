@@ -611,7 +611,7 @@ Adding a flow is one row plus the tests it names. Deleting a flow deletes the ro
 | 17 | Agent trade | `SubmitAgentIntent` (key auth, budget check at submit and again at execution) | `agent.intent_created` → same engine as 11 | trading, same as 11 |
 | 18 | Prices | One market poller, every 120 s (fan-out over providers), writes `price_points` | `price.tick` (core NATS only, one batched message per tick, not stored as event); `asset.price_moved`, appended by the same poller (there is no second poller) | `price.tick`: ranking, live SSE. `asset.price_moved`: feed |
 | 19 | Valuation + leaderboards | Every 2 minutes, and on `trade.confirmed`, `cabal.funded`, `cashout.completed` | `ranking.snapshot_written` | live SSE |
-| 20 | Follow / unfollow | `Follow`, `Unfollow` | `follow.created`, `.removed` | notify, feed ranking, analytics |
+| 20 | Follow / unfollow | `Follow`, `Unfollow` | `follow.created`, `.removed` | notify, analytics |
 | 21 | Feed + comments | `CreateComment` | `comment.created` | notify, live SSE, analytics |
 | 22 | Chat | Ably for delivery; backend issues token and persists | `chat.message_posted` | notify (mentions) |
 | 23 | Profile edit | `UpdateProfile` | `user.profile_updated` | ranking (names), feed |
