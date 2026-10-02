@@ -19,6 +19,8 @@ func NewAssetID(g ids.Generator) AssetID { return ids.New[asset](g) }
 
 func ParseAssetID(raw string) (AssetID, error) { return ids.Parse[asset](raw) }
 
+const Attribution = "Data provided by CoinGecko"
+
 type Issuer string
 
 const (

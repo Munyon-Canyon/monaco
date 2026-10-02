@@ -16,7 +16,8 @@ import (
 )
 
 type HTTP struct {
-	List app.Lister
+	List   app.Lister
+	Detail app.Detailer
 }
 
 var _ httpx.MarketRoutes = HTTP{}
@@ -36,6 +37,21 @@ func (h HTTP) GetAssets(
 		return nil, err
 	}
 	return api.GetAssets200JSONResponse(body), nil
+}
+
+func (h HTTP) GetAsset(ctx context.Context, req api.GetAssetRequestObject) (api.GetAssetResponseObject, error) {
+	if err := caller(ctx); err != nil {
+		return nil, err
+	}
+	view, err := h.Detail.Handle(ctx, req.Symbol)
+	if err != nil {
+		return nil, err
+	}
+	body, err := wireDetail(view)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetAsset200JSONResponse(body), nil
 }
 
 func listRequest(p api.GetAssetsParams) app.ListRequest {
@@ -105,6 +121,45 @@ func wireSummary(item app.Summary) (api.AssetSummary, error) {
 	out.ChangeBps = item.Change
 	out.SparklineMicros = &points
 	return out, nil
+}
+
+func wireDetail(view app.AssetView) (api.AssetDetail, error) {
+	summary, err := wireSummary(view.Summary)
+	if err != nil {
+		return api.AssetDetail{}, err
+	}
+	return api.AssetDetail{
+		Symbol:          summary.Symbol,
+		DisplayName:     summary.DisplayName,
+		Issuer:          summary.Issuer,
+		Kind:            summary.Kind,
+		LogoUrl:         summary.LogoUrl,
+		PriceMicros:     summary.PriceMicros,
+		PriceAsOf:       summary.PriceAsOf,
+		ChangeBps:       summary.ChangeBps,
+		SparklineMicros: summary.SparklineMicros,
+		Session:         summary.Session,
+		Decimals:        int(view.Summary.Asset.Decimals),
+		UiMultiplier: api.UiMultiplier{
+			Num: view.Summary.Asset.UIMultiplier.Num,
+			Den: view.Summary.Asset.UIMultiplier.Den,
+		},
+		Tradable:      view.Summary.Asset.Tradable(),
+		OtherListings: wireListings(view.Others),
+		Attribution:   domain.Attribution,
+	}, nil
+}
+
+func wireListings(items []app.Listing) []api.AssetListing {
+	out := make([]api.AssetListing, len(items))
+	for i, item := range items {
+		out[i] = api.AssetListing{
+			Symbol: item.Symbol, DisplayName: item.DisplayName,
+			Issuer: api.AssetIssuer(item.Issuer), Kind: api.AssetKind(item.Kind),
+			LogoUrl: present(item.LogoURL), Tradable: item.Tradable,
+		}
+	}
+	return out
 }
 
 func wireSession(s domain.SessionInfo) api.MarketSession {

@@ -183,3 +183,57 @@ func (q *Queries) ListTradableAssets(ctx context.Context) ([]Asset, error) {
 	}
 	return items, nil
 }
+
+const otherListings = `-- name: OtherListings :many
+SELECT symbol::text AS symbol,
+  display_name::text AS display_name,
+  issuer::text AS issuer,
+  kind::text AS kind,
+  COALESCE(logo_url, '')::text AS logo_url,
+  (chain_checked_at IS NOT NULL AND coalesce(tradable_override, issuer_tradable))::boolean AS tradable
+FROM assets
+WHERE company_key = $1::text
+  AND symbol <> $2::text
+ORDER BY symbol
+`
+
+type OtherListingsParams struct {
+	CompanyKey string
+	Symbol     string
+}
+
+type OtherListingsRow struct {
+	Symbol      string
+	DisplayName string
+	Issuer      string
+	Kind        string
+	LogoUrl     string
+	Tradable    bool
+}
+
+func (q *Queries) OtherListings(ctx context.Context, arg OtherListingsParams) ([]OtherListingsRow, error) {
+	rows, err := q.db.Query(ctx, otherListings, arg.CompanyKey, arg.Symbol)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []OtherListingsRow
+	for rows.Next() {
+		var i OtherListingsRow
+		if err := rows.Scan(
+			&i.Symbol,
+			&i.DisplayName,
+			&i.Issuer,
+			&i.Kind,
+			&i.LogoUrl,
+			&i.Tradable,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
