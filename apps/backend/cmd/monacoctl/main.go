@@ -12,7 +12,6 @@ import (
 
 //go:generate go run ../../scripts/gen-golangci ../..
 //go:generate go run ../../scripts/gen-registry ../..
-//go:generate go run . gen errors ../../api/openapi.yaml ../../../../packages/mobile-core/Tests/MonacoAPITests/ErrorCodeCases.gen.swift
 //go:generate go run -C ../.. ./cmd/monacoctl gen sqlc
 
 type command func(cfg config.Config, args []string, stdout, stderr io.Writer) int
