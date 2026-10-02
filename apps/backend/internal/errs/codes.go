@@ -118,8 +118,9 @@ const (
 )
 
 const (
-	CodeCannotFollowSelf Code = "cannot_follow_self"
-	CodeUserBanned       Code = "user_banned"
+	CodeCannotFollowSelf    Code = "cannot_follow_self"
+	CodeUserBanned          Code = "user_banned"
+	CodeReferralCodeUnknown Code = "referral_code_unknown"
 )
 
 type Row struct {
@@ -130,11 +131,11 @@ type Row struct {
 	Message   string
 }
 
-func rowGroups() [11]func() map[Code]Row {
+func rowGroups() [12]func() map[Code]Row {
 	return [...]func() map[Code]Row{
 		platformRows, identityRows, treasuryRows, marketRows,
 		tradingRows, governanceRows, rankingRows, apnsRows,
-		analyticsRows, cabalRows, socialRows,
+		analyticsRows, cabalRows, socialRows, referralsRows,
 	}
 }
 
@@ -431,6 +432,12 @@ func cabalRows() map[Code]Row {
 			Name: "LeaveCreatorWithMembers", Kind: KindBlocked,
 			Message: "The creator cannot leave while other members remain.",
 		},
+	}
+}
+
+func referralsRows() map[Code]Row {
+	return map[Code]Row{
+		CodeReferralCodeUnknown: {Name: "ReferralCodeUnknown", Kind: KindNotFound, Message: "That code isn't valid"},
 	}
 }
 

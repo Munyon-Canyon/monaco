@@ -1054,6 +1054,7 @@ components:
         - proposal_closed
         - proposal_not_found
         - rate_limited
+        - referral_code_unknown
         - relayer_underfunded
         - request_not_needed
         - request_pending
