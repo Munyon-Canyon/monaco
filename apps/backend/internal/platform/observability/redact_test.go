@@ -198,3 +198,64 @@ func TestRedaction_plantedEmailPrintsMask(t *testing.T) {
 		t.Fatalf("line = %s, want email masked as ***", got)
 	}
 }
+
+func groupChain(depth int) slog.Attr {
+	a := slog.String("leaf", "deep-value")
+	for i := depth; i >= 0; i-- {
+		a = slog.Group("g"+strings.Repeat("x", i), a)
+	}
+	return a
+}
+
+func TestRedact_masksAGroupOnlyBelowTheEighthLevel(t *testing.T) {
+	t.Parallel()
+	got := redact(groupChain(11))
+	for level := range 8 {
+		if got.Value.Kind() != slog.KindGroup || len(got.Value.Group()) != 1 {
+			t.Fatalf("level %d = %v, want a group with one attribute", level, got)
+		}
+		got = got.Value.Group()[0]
+	}
+	if got.Value.Kind() != slog.KindGroup {
+		t.Fatalf("level 8 = %v, want a group kept", got)
+	}
+	if child := got.Value.Group()[0]; child.Value.Kind() != slog.KindString || child.Value.String() != masked {
+		t.Fatalf("level 9 = %v, want %q", child, masked)
+	}
+}
+
+func TestRedact_masksAMapOnlyBelowTheEighthLevel(t *testing.T) {
+	t.Parallel()
+	var nested any = "deep-value"
+	for range 12 {
+		nested = map[string]any{"k": nested}
+	}
+	got := redact(slog.Any("top", nested))
+	for level := range 8 {
+		if got.Value.Kind() != slog.KindGroup || len(got.Value.Group()) != 1 {
+			t.Fatalf("level %d = %v, want a group with one attribute", level, got)
+		}
+		got = got.Value.Group()[0]
+	}
+	if child := got.Value.Group()[0]; child.Value.Kind() != slog.KindString || child.Value.String() != masked {
+		t.Fatalf("level 9 = %v, want %q", child, masked)
+	}
+}
+
+func TestRedact_masksASliceElementOnlyBelowTheEighthLevel(t *testing.T) {
+	t.Parallel()
+	var nested any = "deep-value"
+	for range 12 {
+		nested = []any{nested}
+	}
+	level, ok := redact(slog.Any("top", nested)).Value.Any().([]any)
+	for range 8 {
+		if !ok || len(level) != 1 {
+			t.Fatalf("slice level = %v, want one nested element", level)
+		}
+		level, ok = level[0].([]any)
+	}
+	if !ok || len(level) != 1 || level[0] != masked {
+		t.Fatalf("level 9 = %v, want %q", level, masked)
+	}
+}

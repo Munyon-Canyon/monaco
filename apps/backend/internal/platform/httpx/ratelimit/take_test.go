@@ -240,3 +240,28 @@ func TestDeleteRateLimitBucketsIdleBefore_deletesOnlyIdleBuckets(t *testing.T) {
 		t.Fatalf("buckets left = %v, %v, want [active]", keys, err)
 	}
 }
+
+func TestTake_RetryAfterCountsOnlyTheDeficitBeyondTheTokensLeft(t *testing.T) {
+	t.Parallel()
+	clk := testkit.NewClock(epoch())
+	l := newLimiter(t, testkit.DB(t), clk)
+	if d := take(t, l, "partial", perMinute(), 9); !d.Allowed {
+		t.Fatalf("take of 9 = %+v, want allowed", d)
+	}
+	if d := take(t, l, "partial", perMinute(), 2); d.Allowed || d.RetryAfter != 6*time.Second {
+		t.Fatalf("take of 2 with 1 token left = %+v, want refused with RetryAfter 6s", d)
+	}
+	clk.Advance(2 * time.Second)
+	if d := take(t, l, "partial", perMinute(), 2); d.Allowed || d.RetryAfter != 4*time.Second {
+		t.Fatalf("take of 2 two seconds later = %+v, want refused with RetryAfter 4s", d)
+	}
+}
+
+func TestTake_acceptsAPolicyOfExactlyOneMicrosecond(t *testing.T) {
+	t.Parallel()
+	l := newLimiter(t, testkit.DB(t), testkit.NewClock(epoch()))
+	p := ratelimit.Policy{Rate: 1, Per: time.Microsecond, Burst: 1}
+	if d := take(t, l, "micro", p, 1); !d.Allowed {
+		t.Fatalf("take under a one microsecond policy = %+v, want allowed", d)
+	}
+}

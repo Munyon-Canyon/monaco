@@ -203,6 +203,8 @@ func TestSend_answersACollapseIDAPNSWouldRefuseLocally(t *testing.T) {
 		"over 64 bytes":     strings.Repeat("a", 65),
 		"a control byte":    "trade-\n42",
 		"a carriage return": "trade-42\r",
+		"a leading control": "\x00trade-42",
+		"only a control":    "\t",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
