@@ -245,7 +245,7 @@ func TestDriver_aFinishedFlowLeavesNoConnectionOpenSoTheAPIShutsDownAtOnce(t *te
 	var open func() []http.ConnState
 	env.API, open = connTracker(t)
 	budget := DefaultBudget()
-	budget.Converge = 100 * time.Millisecond
+	budget.Converge = 500 * time.Millisecond
 	d, err := newDriver(env, budget)
 	if err != nil {
 		t.Fatal(err)
@@ -335,7 +335,7 @@ func TestDriver_reportsInvariantFailures(t *testing.T) {
 				tc.edit(&env, &u)
 			}
 			budget := DefaultBudget()
-			budget.Converge = time.Second
+			budget.Converge = 500 * time.Millisecond
 			d, err := newDriver(env, budget)
 			if err != nil {
 				t.Fatal(err)

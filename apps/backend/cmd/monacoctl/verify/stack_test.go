@@ -172,7 +172,7 @@ func TestUp_reportsSchemaAndPostgresFailures(t *testing.T) {
 func TestDown_namesTheProcessThatSpentTheTeardownBudget(t *testing.T) {
 	t.Parallel()
 	o := testOptions(t, fakeDeaf)
-	o.Budget.Teardown = 300 * time.Millisecond
+	o.Budget.Teardown = 100 * time.Millisecond
 	s, err := Up(t.Context(), o)
 	if err != nil {
 		t.Fatalf("Up: %v", err)

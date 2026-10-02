@@ -42,9 +42,10 @@ const (
 	fakeMute  = "mute"
 	fakeQuiet = "quiet"
 
-	fakeHoldEnv    = "VERIFY_FAKE_HOLD"
-	fakeStartedEnv = "VERIFY_FAKE_STARTED"
-	fakeNeedsEnv   = "VERIFY_FAKE_WORKER_NEEDS"
+	fakeHoldEnv      = "VERIFY_FAKE_HOLD"
+	fakeStartedEnv   = "VERIFY_FAKE_STARTED"
+	fakeNeedsEnv     = "VERIFY_FAKE_WORKER_NEEDS"
+	fakeCrashWaitEnv = "VERIFY_FAKE_CRASH_WAIT"
 
 	noRaceExitSleep = "GORACE=atexit_sleep_ms=0"
 )
@@ -122,19 +123,28 @@ func serveFake(ln net.Listener, mode string) <-chan struct{} {
 }
 
 func crashAfter(checked <-chan struct{}, point string) {
-	unchecked := time.NewTimer(time.Second)
+	unchecked := time.NewTimer(fakeCrashWait())
 	select {
 	case <-checked:
-		<-time.NewTimer(300 * time.Millisecond).C
+		<-time.NewTimer(25 * time.Millisecond).C
 	case <-unchecked.C:
 	}
 	_, _ = fmt.Fprintf(os.Stderr, "panic: faultpoint: crash at %s\n", point)
 	os.Exit(2)
 }
 
+func fakeCrashWait() time.Duration {
+	wait, err := time.ParseDuration(os.Getenv(fakeCrashWaitEnv))
+	if err != nil || wait <= 0 {
+		return time.Second
+	}
+	return wait
+}
+
 func fakeEnviron(mode string) []string {
 	return []string{
 		"TESTKIT_RUN_MAIN=1", fakeEnv + "=" + mode, "MONACO_ENV=local", "PATH=" + os.Getenv("PATH"), noRaceExitSleep,
+		fakeCrashWaitEnv + "=25ms",
 	}
 }
 
