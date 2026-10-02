@@ -7,29 +7,6 @@ import Synchronization
 import FoundationNetworking
 #endif
 
-enum IdempotencyKeyStamp {
-    @TaskLocal static var key: String?
-}
-
-struct IdempotencyKeyStampMiddleware: ClientMiddleware {
-    func intercept(
-        _ request: HTTPRequest,
-        body: HTTPBody?,
-        baseURL: URL,
-        operationID: String,
-        next: @Sendable (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
-    ) async throws -> (HTTPResponse, HTTPBody?) {
-        var request = request
-        if let key = IdempotencyKeyStamp.key,
-            let name = HTTPField.Name(IdempotentSubmission.keyHeader),
-            request.headerFields[name] == nil
-        {
-            request.headerFields[name] = key
-        }
-        return try await next(request, body, baseURL)
-    }
-}
-
 struct HeadersMiddleware: ClientMiddleware {
     let accessToken: @Sendable () async throws -> String?
 
@@ -64,15 +41,21 @@ struct RefreshMiddleware: ClientMiddleware {
     ) async throws -> (HTTPResponse, HTTPBody?) {
         let (response, responseBody) = try await next(request, body, baseURL)
         guard response.status == .unauthorized else { return (response, responseBody) }
-        guard let sent = request.headerFields[.authorization], sent.hasPrefix(Self.bearerPrefix),
-            let fresh = try await tokens.refreshedToken(replacing: String(sent.dropFirst(Self.bearerPrefix.count)))
+        guard let sent = request.headerFields[.authorization], sent.hasPrefix(Self.bearerPrefix) else {
+            await tokens.endSession()
+            throw APIError.signedOut
+        }
+        guard let fresh = try await tokens.refreshedToken(replacing: String(sent.dropFirst(Self.bearerPrefix.count)))
         else {
             throw APIError.signedOut
         }
         var retry = request
         retry.headerFields[.authorization] = Self.bearerPrefix + fresh
         let (retried, retriedBody) = try await next(retry, body, baseURL)
-        guard retried.status != .unauthorized else { throw APIError.signedOut }
+        guard retried.status != .unauthorized else {
+            await tokens.endSession()
+            throw APIError.signedOut
+        }
         return (retried, retriedBody)
     }
 }

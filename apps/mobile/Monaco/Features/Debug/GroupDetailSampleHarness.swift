@@ -44,12 +44,10 @@ struct GroupDetailSampleHarness: View {
     @State private var session: AppSessionStore = {
         let session = AppSessionStore(apiClient: MonacoAPIClient())
         session.isLoading = false
-        session.me = MeResponse(
-            userId: GroupDetailSampleData.viewerId,
+        session.profile = ProfileSampleHarness.sampleProfile(
+            userID: GroupDetailSampleData.viewerId,
             displayName: "Logan Norman",
-            memberWalletAddress: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
-            profilePhotoUrl: nil,
-            createdAt: nil
+            photoURL: nil
         )
         return session
     }()

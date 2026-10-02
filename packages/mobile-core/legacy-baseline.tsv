@@ -12,14 +12,13 @@ lines	apps/mobile/Monaco/API/DTOs/HomeDashboardDTO.swift	97
 lines	apps/mobile/Monaco/API/DTOs/HomeViewDTO.swift	33
 lines	apps/mobile/Monaco/API/DTOs/JoinRequestDTO.swift	23
 lines	apps/mobile/Monaco/API/DTOs/MarketAssetDTO.swift	39
-lines	apps/mobile/Monaco/API/DTOs/MeResponse.swift	4
 lines	apps/mobile/Monaco/API/DTOs/PlatformBalanceDTO.swift	19
 lines	apps/mobile/Monaco/API/DTOs/PlatformWithdrawalDTO.swift	15
 lines	apps/mobile/Monaco/API/DTOs/RedeemJobDTO.swift	6
 lines	apps/mobile/Monaco/API/DTOs/TransactionDetailDTO.swift	72
 lines	apps/mobile/Monaco/API/DTOs/WithdrawToBalanceDTO.swift	17
-lines	apps/mobile/Monaco/API/MonacoAPIClient.swift	994
-urlrequest	apps/mobile/Monaco/API/MonacoAPIClient.swift	35
+lines	apps/mobile/Monaco/API/MonacoAPIClient.swift	955
+urlrequest	apps/mobile/Monaco/API/MonacoAPIClient.swift	33
 poll	apps/mobile/Monaco/Features/Assets/AssetDetailView.swift	2
 poll	apps/mobile/Monaco/Features/Deposit/DepositView.swift	1
 poll	apps/mobile/Monaco/Features/Deposit/FundCabalView.swift	1
@@ -33,7 +32,7 @@ poll	apps/mobile/Monaco/Features/Proposals/ProposalDetailView.swift	1
 poll	apps/mobile/Monaco/Features/Proposals/ProposalFeedView.swift	1
 poll	apps/mobile/Monaco/Support/LiveRefresh.swift	3
 groups_path	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	17
-lines	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	840
-lines	apps/mobile/Monaco/Features/Shell/AppSessionStore.swift	507
-urlrequest	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	33
+lines	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	830
+lines	apps/mobile/Monaco/Features/Shell/AppSessionStore.swift	493
+urlrequest	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	32
 urlrequest	packages/mobile-core/Sources/MonacoCore/Networking/MonacoHTTPTransport.swift	1

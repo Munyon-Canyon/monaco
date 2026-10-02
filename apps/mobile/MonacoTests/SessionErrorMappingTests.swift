@@ -1,4 +1,5 @@
 import Foundation
+import MonacoAPI
 import Testing
 
 @testable import Monaco
@@ -53,6 +54,19 @@ struct SessionErrorMappingTests {
         let described = SessionErrorMapping.describe(SomeOtherError(), apiBaseURL: baseURL)
         #expect(described.message == "Couldn't open Monaco. Try again.")
         #expect(described.debugDetail.contains("SomeOtherError"))
+    }
+
+    @Test func apiErrorTransportAndProblemUseTheExistingCopy() {
+        let offline = SessionErrorMapping.describe(
+            APIError.transport(URLError(.notConnectedToInternet)), apiBaseURL: baseURL)
+        #expect(offline.message == "Can't reach Monaco. Check your connection and try again.")
+        let down = SessionErrorMapping.describe(
+            APIError.problem(
+                ProblemError(
+                    status: 503, code: .unrecognized("down"), message: "down", traceID: "t", retryable: true)),
+            apiBaseURL: baseURL)
+        #expect(down.message == "Monaco's server hit a problem. Try again in a moment.")
+        #expect(down.debugDetail.contains("HTTP 503"))
     }
 
     @Test func debugDetailAlwaysCarriesTheApiBaseURL() {

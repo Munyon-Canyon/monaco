@@ -43,7 +43,7 @@ struct ProfileNameEditor: View {
     }
 
     private var savedName: String {
-        session.me?.displayName ?? ""
+        session.profile?.displayName ?? ""
     }
 
     private var normalizedDraft: String? {
@@ -94,7 +94,7 @@ struct ProfileNameEditor: View {
             // Editing is the retry: the last rejection no longer describes what is typed.
             saveError = nil
         }
-        .onChange(of: session.me?.userId) { _, _ in
+        .onChange(of: session.profile?.userID) { _, _ in
             // Different account: drop the previous user's draft.
             draft = savedName
             saveError = nil
@@ -120,7 +120,7 @@ struct ProfileNameEditor: View {
         case .unchanged:
             break
         case .failed(let message):
-            // The store rolled `me` back; keep the draft so the user can fix it.
+            // The store rolled `profile` back; keep the draft so the user can fix it.
             // The toast used to carry the haptic and the announcement, so raise them here.
             saveError = message
             Haptics.warning()

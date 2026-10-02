@@ -13,17 +13,52 @@ enum SessionGateCopy {
 
 struct SessionGateView: View {
     @Environment(AppEnvironment.self) private var environment
+    @Environment(AppSessionStore.self) private var session
 
     var body: some View {
-        if environment.isSignedIn {
-            MainTabView()
+        Group {
+            if let profile = session.profile {
+                routed(profile)
+            } else if let message = session.errorMessage, !session.isLoading {
+                SessionFailureView(
+                    title: SessionGateCopy.openFailedTitle, message: message, detail: nil,
+                    onRetry: {
+                        await session.bootstrap(auth: environment.auth, devSession: environment.skipsSessionOpen)
+                    },
+                    onSignOut: { await environment.signOut() }
+                )
+                .accessibilityIdentifier("sessionOpenFailedView")
+            } else {
+                SessionGateSkeleton()
+            }
+        }
+        .task(id: environment.isSignedIn) {
+            guard environment.isSignedIn else { return }
+            await session.bootstrap(auth: environment.auth, devSession: environment.skipsSessionOpen)
         }
     }
+    @ViewBuilder
+    private func routed(_ profile: SessionProfile) -> some View {
+        switch FirstRunGate.destination(for: profile) {
+        case .nameSetup:
+            OnboardingNameView(
+                auth: environment.auth,
+                save: { await session.updateDisplayName($0, auth: environment.auth, optimistic: false) },
+                signOut: { await environment.signOut() }
+            )
+        case .app:
+            MainTabView()
+        case .session: SessionGateSkeleton()
+        }
+    }
+
 }
 
 #Preview {
+    let environment = AppEnvironment()
     SessionGateView()
-        .environment(AppEnvironment())
+        .environment(environment)
+        .environment(environment.sessionStore)
 }
 
 /// Why the app can't get past sign-in, and the two ways on: try again, or sign out. The restore

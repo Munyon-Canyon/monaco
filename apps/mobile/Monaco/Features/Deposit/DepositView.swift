@@ -49,9 +49,9 @@ struct DepositView: View {
     }
 
     private func loadDepositAddress() async {
-        // Signed out first: `session.me` outlives the token, so reading the store before checking
+        // Signed out first: `session.profile` outlives the token, so reading the store before checking
         // for one would show a signed-out member a deposit address from a stale profile.
-        guard let accessToken = auth.accessToken else {
+        guard auth.accessToken != nil else {
             depositAddress = nil
             errorMessage = "Sign in to view your deposit address."
             isLoading = false
@@ -61,45 +61,15 @@ struct DepositView: View {
         // The shell opened the backend session and read the profile before this screen existed,
         // so the address is already in hand. Two more round trips to fetch it again only kept the
         // member on a spinner.
-        if let known = DepositAddress.usable(session.me?.memberWalletAddress) {
+        if let known = DepositAddress.usable(session.profile?.memberWalletAddress) {
             depositAddress = known
             errorMessage = nil
             isLoading = false
             return
         }
 
-        isLoading = true
-        errorMessage = nil
         depositAddress = nil
-
-        do {
-            // Only on this path. `POST /v1/auth/session` is what upserts the user row and ensures
-            // the member wallet exists (backend SessionService.OpenSession); `GET /v1/me` answers
-            // 404 without it. The store being empty means the shell has not got that far, so this
-            // screen has to do it rather than show "not ready yet" to a brand-new member.
-            let profile = try await apiClient.openSession(accessToken: accessToken)
-            guard let address = DepositAddress.usable(profile.memberWalletAddress) else {
-                errorMessage = "Deposit address not ready yet."
-                isLoading = false
-                return
-            }
-            session.me = profile
-            depositAddress = address
-        } catch MonacoAPIError.httpStatus {
-            // The Try again button on the address card is the way back, so the copy does not send
-            // the member pulling on a screen that has no pull-to-refresh.
-            errorMessage = "Couldn't load your deposit address."
-        } catch  where error.isRequestCancellation {
-            // The hourly token rotation restarts `.task(id: auth.accessToken)` and cancels this
-            // request. Nothing went wrong, so nothing is claimed about the connection — but the
-            // skeleton is not left running either: a cancellation is not proof that a replacement
-            // is on its way (URLSession reports -999 for more than a cancelled task), and the
-            // card's Try again button is the member's way out of any state but the skeleton.
-            errorMessage = nil
-        } catch {
-            errorMessage = "No connection. Check your internet and try again."
-        }
-
+        errorMessage = "Deposit address not ready yet."
         isLoading = false
     }
 

@@ -121,10 +121,10 @@ struct HomeView: View {
             selectedTab = .profile
         } label: {
             MonacoAvatar(
-                photoURL: session.me?.profilePhotoUrl,
-                displayName: session.me?.displayName ?? "",
+                photoURL: session.profile?.photoURL?.absoluteString,
+                displayName: session.profile?.displayName ?? "",
                 size: 32,
-                seed: session.me?.userId
+                seed: session.profile?.userID
             )
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())

@@ -40,11 +40,16 @@ struct HintLifecycleTests {
         let hints = FakeHintSource()
         let environment = environment(hints: hints, signedIn: true)
         environment.viewer = Viewer(userID: "u-1", handle: nil)
+        environment.navigator.selectedTab = .cabals
+        environment.navigator.open(HintProbeRoute(), in: .cabals)
 
         await environment.signOut()
 
         #expect(hints.stops == 1)
         #expect(environment.viewer == nil)
+        #expect(environment.navigator.selectedTab == .home)
+        #expect(environment.navigator.cabalsPath.isEmpty)
+        #expect(environment.navigator.homePath.isEmpty)
     }
 
     @Test(.timeLimit(.minutes(1)))
@@ -92,6 +97,10 @@ struct HintLifecycleTests {
             endAuthSession: {}
         )
     }
+}
+
+private struct HintProbeRoute: AppRoute {
+    func destination() -> some View { EmptyView() }
 }
 
 private nonisolated final class FakeHintSource: HintConnecting, Sendable {

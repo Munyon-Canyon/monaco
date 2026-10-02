@@ -1,4 +1,5 @@
 #if DEBUG
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 import UIKit
@@ -89,11 +90,10 @@ struct ProfileSampleHarness: View {
             break
         }
 
-        session.me = MeResponse(
-            userId: "sample-user",
+        session.profile = sampleProfile(
+            userID: "sample-user",
             displayName: "Logan Norman",
-            memberWalletAddress: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
-            profilePhotoUrl: scenario == .photo || scenario == .cabals ? samplePhotoURL()?.absoluteString : nil,
+            photoURL: scenario == .photo || scenario == .cabals ? samplePhotoURL() : nil,
             createdAt: ISO8601DateFormatter().date(from: "2026-09-01T14:30:00Z")
         )
         session.platformBalance = PlatformBalanceDTO(
@@ -142,6 +142,17 @@ struct ProfileSampleHarness: View {
         return session
     }
 
+    static func sampleProfile(userID: String, displayName: String, photoURL: URL?, createdAt: Date? = nil)
+        -> SessionProfile
+    {
+        var profile = SessionProfile(Components.Schemas.Me.sample)
+        profile.userID = userID
+        profile.displayName = displayName
+        profile.photoURL = photoURL
+        if let createdAt { profile.createdAt = createdAt }
+        return profile
+    }
+
     /// Writes a generated landscape to tmp so AsyncImage loads it from a file URL.
     /// A generated portrait written to a temp file, so avatars show a photo without the network.
     static func samplePhotoURL() -> URL? {
@@ -184,9 +195,9 @@ private struct AcceptingNameStore: DisplayNameSaving {
         guard case .success(let normalized) = DisplayNameRules.normalize(draft) else {
             return .failed("That name can't be used.")
         }
-        guard let current = session.me else { return .failed("Your profile is still loading.") }
+        guard let current = session.profile else { return .failed("Your profile is still loading.") }
         guard normalized != current.displayName else { return .unchanged }
-        session.me = current.withDisplayName(normalized)
+        session.profile = current.withDisplayName(normalized)
         return .saved
     }
 }

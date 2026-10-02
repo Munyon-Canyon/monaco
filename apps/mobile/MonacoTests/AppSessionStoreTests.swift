@@ -1,8 +1,10 @@
+import Foundation
+import HTTPTypes
+import MonacoAPI
+import MonacoTestSupport
 import Testing
 
-// Only MeDTO: importing all of MonacoCore would make the DTO names the app also
-// declares (HomeDashboardDTO, HomeLeaderboardRange…) ambiguous in this file.
-import struct MonacoCore.MeDTO
+import struct MonacoCore.SessionAPI
 
 @testable import Monaco
 
@@ -12,59 +14,14 @@ import struct MonacoCore.MeDTO
 @MainActor
 private final class StubDataSource: AppSessionDataSource {
     var dashboardRequests: [HomeLeaderboardRange] = []
-    var meRequests = 0
-    var openSessionRequests = 0
     /// Ranges whose response is held until the test releases it.
     var holdRanges: Set<HomeLeaderboardRange> = []
-    /// Thrown by `openSession`, one per call, oldest first. Empty means succeed.
-    var openSessionErrors: [Error] = []
-    /// Holds `openSession` until the test releases it, so a reply can be made to outlive
-    /// the sign-in that asked for it.
-    var holdOpenSession = false
     /// Thrown by `getHomeDashboard`, one per call, oldest first. Empty means succeed.
     var dashboardErrors: [Error] = []
 
     private var pendingDashboards: [HomeLeaderboardRange: CheckedContinuation<Void, Never>] = [:]
     private var arrivedRanges: Set<HomeLeaderboardRange> = []
     private var arrivalWaiters: [HomeLeaderboardRange: CheckedContinuation<Void, Never>] = [:]
-    private var pendingOpenSession: CheckedContinuation<Void, Never>?
-    private var openSessionArrived = false
-    private var openSessionWaiter: CheckedContinuation<Void, Never>?
-
-    func openSession(accessToken: String) async throws -> MeResponse {
-        openSessionRequests += 1
-        openSessionArrived = true
-        openSessionWaiter?.resume()
-        openSessionWaiter = nil
-        if holdOpenSession {
-            await withCheckedContinuation { continuation in
-                pendingOpenSession = continuation
-            }
-        }
-        if !openSessionErrors.isEmpty {
-            throw openSessionErrors.removeFirst()
-        }
-        return Self.profile
-    }
-
-    /// Returns once the store has asked to open a session.
-    func awaitOpenSession() async {
-        guard !openSessionArrived else { return }
-        await withCheckedContinuation { continuation in
-            openSessionWaiter = continuation
-        }
-    }
-
-    func releaseOpenSession() {
-        holdOpenSession = false
-        pendingOpenSession?.resume()
-        pendingOpenSession = nil
-    }
-
-    func me(accessToken: String) async throws -> MeResponse {
-        meRequests += 1
-        return Self.profile
-    }
 
     func getPlatformBalance(accessToken: String) async throws -> PlatformBalanceDTO {
         PlatformBalanceDTO(availableUsdcMicros: 0, memberWalletAddress: "wallet", pendingAllocationMicros: 0)
@@ -116,8 +73,6 @@ private final class StubDataSource: AppSessionDataSource {
         arrivedRanges.insert(range)
         arrivalWaiters.removeValue(forKey: range)?.resume()
     }
-
-    static let profile = MeResponse(userId: "user-1", displayName: "Ada", memberWalletAddress: "wallet")
 
     static func dashboard(range: HomeLeaderboardRange) -> HomeDashboardDTO {
         HomeDashboardDTO(
@@ -244,35 +199,18 @@ struct AppSessionStoreLeaderboardRangeTests {
 @MainActor
 struct AppSessionStoreBootstrapTests {
     @Test func bootstrapDoesNotAskForTheProfileTwice() async throws {
-        let source = StubDataSource()
-        let store = AppSessionStore(apiClient: source)
-        let auth = StubAuth()
-
-        await store.bootstrap(auth: auth)
-
-        #expect(source.openSessionRequests == 1)
-        // openSession already returned the profile.
-        #expect(source.meRequests == 0)
-        #expect(store.me == StubDataSource.profile)
+        let (transport, store, auth, _) = await boot(.json(.ok, SessionWire.me))
+        await store.refresh(auth: auth)
+        let sent = await transport.sent
+        #expect(sent.filter { $0.path == "/v1/auth/session" }.map(\.method) == [.post])
+        #expect(store.profile?.displayName == "Kai Cenat")
     }
 
-    /// The anti-loop guard. A backend that rejects every token Privy mints used to be able to
-    /// keep bootstrap refreshing and retrying; it gets exactly one retry and then ends the
-    /// session with something to show.
     @Test func bootstrapRetriesOnceAndThenStops() async throws {
-        let source = StubDataSource()
-        source.openSessionErrors = [MonacoAPIError.httpStatus(401), MonacoAPIError.httpStatus(401)]
-        let store = AppSessionStore(apiClient: source)
-        let auth = StubAuth()
-        auth.freshTokens = ["token-b"]
-
-        await store.bootstrap(auth: auth)
-
-        // One attempt, one retry with the fresh token, and no third.
-        #expect(source.openSessionRequests == 2)
-        // Only the first failure asked Privy for a token; the retry is not allowed to.
-        #expect(auth.refreshRequests == ["token-a"])
-        #expect(auth.signOuts.map(\.token) == ["token-b"])
+        let (transport, _, auth, _) = await boot(.json(.unauthorized, "{}"))
+        let sent = await transport.sent
+        #expect(sent.map(\.path) == ["/v1/auth/session"])
+        #expect(auth.signOuts.map(\.reason) == ["Please sign in again."])
     }
 
     /// A bootstrap whose 401 outlived its sign-in. The member signed out and someone else
@@ -280,25 +218,98 @@ struct AppSessionStoreBootstrapTests {
     /// to a session that no longer exists. It must not sign out the account signed in now,
     /// nor stamp their login screen with a reason meant for the previous one.
     @Test func aBootstrap401ThatOutlivedItsSignInLeavesTheNewSessionAlone() async throws {
-        let source = StubDataSource()
-        source.holdOpenSession = true
-        source.openSessionErrors = [MonacoAPIError.httpStatus(401)]
-        let store = AppSessionStore(apiClient: source)
+        let transport = StubTransport(.gate)
+        let store = AppSessionStore(apiClient: StubDataSource(), sessions: sessionAPI(transport))
         let auth = StubAuth()
-
-        let boot = Task { await store.bootstrap(auth: auth) }
-        await source.awaitOpenSession()
-        // Sign out, then a different member signs in, all while the 401 is on its way back.
+        let pending = Task { await store.bootstrap(auth: auth) }
+        await transport.waitForRequest()
         auth.liveTokens = ["token-next"]
         auth.accessToken = "token-next"
-        source.releaseOpenSession()
-        await boot.value
-
-        #expect(auth.refreshRequests == ["token-a"])
+        await transport.releaseGate(.json(.unauthorized, "{}"))
+        await pending.value
         #expect(auth.signOuts.isEmpty)
-        // Still signed in: the stub clears the token on a sign-out that takes effect.
         #expect(auth.accessToken == "token-next")
     }
+
+    @Test func aDevSessionReadsMeAndDoesNotOpen() async throws {
+        let (transport, store, _, bound) = await boot(.json(.ok, SessionWire.me), dev: true)
+        let sent = await transport.sent
+        #expect(sent.map(\.path) == ["/v1/me"])
+        #expect(bound.viewer?.userID == store.profile?.userID)
+    }
+
+    @Test func aDeletedAccountSignsOut() async throws {
+        let (_, _, auth, _) = await boot(
+            .response(
+                status: .forbidden, contentType: "application/problem+json", body: Data(SessionWire.deleted.utf8)
+            ))
+        #expect(auth.signOuts.map(\.reason) == ["This account was deleted."])
+    }
+
+    @Test func foregroundReadsMeAndDoesNotOpen() async throws {
+        let (transport, store, auth, _) = await boot(.json(.ok, SessionWire.me))
+        let opened = await transport.sent.count
+        await store.noteForeground(auth: auth)
+        let sent = await transport.sent
+        let posts = sent.filter { $0.path == "/v1/auth/session" }
+        let after = sent.dropFirst(opened)
+        #expect(posts.count == 1)
+        #expect(after.map(\.path) == ["/v1/me"])
+    }
+
+    @Test func aForegroundRefreshAfterSignOutCannotReplaceTheNextMember() async throws {
+        let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), .gate, .json(.ok, SessionWire.next)])
+        let store = AppSessionStore(apiClient: StubDataSource(), sessions: sessionAPI(transport))
+        let auth = StubAuth()
+        await store.bootstrap(auth: auth)
+        let refresh = Task { await store.noteForeground(auth: auth) }
+        while await transport.sent.count < 2 { await Task.yield() }
+        store.profile = nil
+        auth.accessToken = "token-b"
+        auth.liveTokens = ["token-b"]
+        await store.bootstrap(auth: auth)
+        await transport.releaseGate(.json(.ok, SessionWire.me))
+        await refresh.value
+        #expect(store.profile?.userID == "01890a5d-ac96-774b-bcce-b302099a9999")
+        #expect(store.profile?.memberWalletAddress == "wallet-b")
+    }
+}
+
+@MainActor
+private final class BoundViewer {
+    var viewer: Viewer?
+}
+
+@MainActor
+private func boot(_ reply: StubTransport.Reply, dev: Bool = false) async -> (
+    StubTransport, AppSessionStore, StubAuth, BoundViewer
+) {
+    let transport = StubTransport(reply)
+    let store = AppSessionStore(apiClient: StubDataSource(), sessions: sessionAPI(transport))
+    let bound = BoundViewer()
+    store.onProfileChange = { bound.viewer = $0.map(Viewer.init) }
+    let auth = StubAuth()
+    await store.bootstrap(auth: auth, devSession: dev)
+    return (transport, store, auth, bound)
+}
+
+private func sessionAPI(_ transport: StubTransport) -> SessionAPI {
+    SessionAPI(
+        api: APIClient(
+            serverURL: testServerURL, tokens: StubTokenProvider(token: "token-a"), transport: transport
+        ))
+}
+
+private enum SessionWire {
+    static let me = """
+        {"id":"01890a5d-ac96-774b-bcce-b302099a8058","handle":"kai","display_name":"Kai Cenat",\
+        "auth_state":"ONBOARDING_COMPLETED","account_status":"active",\
+        "member_wallet_address":"wallet-1","phone_linked":true,"created_at":"2026-09-30T12:00:00Z"}
+        """
+    static let next =
+        #"{"id":"01890a5d-ac96-774b-bcce-b302099a9999","handle":"bee","display_name":"Bee","auth_state":"CREATED","account_status":"active","member_wallet_address":"wallet-b","phone_linked":false,"created_at":"2026-09-30T12:00:00Z"}"#
+    static let deleted =
+        #"{"status":403,"code":"account_deleted","message":"x","trace_id":"t","retryable":false}"#
 }
 
 /// A 401 has to name the token the request actually carried. Naming whatever token is
