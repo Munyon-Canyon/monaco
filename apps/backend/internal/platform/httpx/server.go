@@ -122,6 +122,7 @@ type SystemRoutes interface {
 
 type CabalRoutes interface {
 	PostCabal(context.Context, api.PostCabalRequestObject) (api.PostCabalResponseObject, error)
+	GetCabals(context.Context, api.GetCabalsRequestObject) (api.GetCabalsResponseObject, error)
 	GetCabal(context.Context, api.GetCabalRequestObject) (api.GetCabalResponseObject, error)
 }
 

@@ -34,6 +34,28 @@ FROM cabals c
 WHERE c.id = ANY(sqlc.arg(cabal_ids)::uuid[])
 ORDER BY c.created_at, c.id;
 
+-- name: SearchCabals :many
+SELECT c.id, c.name, c.picture_url, c.join_mode, c.created_at,
+  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count,
+  EXISTS (SELECT 1 FROM cabal_members m WHERE m.cabal_id = c.id AND m.user_id = sqlc.arg(actor_id)) AS is_member,
+  r.status AS my_access_request_status
+FROM cabals c
+LEFT JOIN cabal_access_requests r ON r.cabal_id = c.id AND r.user_id = sqlc.arg(actor_id)
+  AND r.direction = 'request' AND r.status = 'pending'
+WHERE c.status <> 'banned'
+  AND (sqlc.arg(query)::text = '' OR lower(c.name) LIKE '%' || lower(sqlc.arg(query)::text) || '%')
+  AND (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id) > 0
+  AND (
+    sqlc.narg(cursor_member_count)::int IS NULL
+    OR (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int < sqlc.narg(cursor_member_count)::int
+    OR (
+      (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int = sqlc.narg(cursor_member_count)::int
+      AND (c.created_at, c.id) < (sqlc.narg(cursor_created_at)::timestamptz, sqlc.narg(cursor_id)::uuid)
+    )
+  )
+ORDER BY member_count DESC, c.created_at DESC, c.id DESC
+LIMIT sqlc.arg(page_size)::int;
+
 -- name: UpdateCabal :execrows
 UPDATE cabals SET name = sqlc.arg(name), join_mode = sqlc.arg(join_mode), voter_mode = sqlc.arg(voter_mode),
   threshold = sqlc.arg(threshold), proposal_expiry_seconds = sqlc.arg(proposal_expiry_seconds),
