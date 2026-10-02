@@ -107,14 +107,16 @@ func decodePackages(data []byte) (map[string]listedPackage, error) {
 	}
 }
 
+func flowsReaders() []string {
+	return []string{
+		"cmd/monacoctl", "cmd/monacoctl/agents", "cmd/monacoctl/verify", "internal/tools/flows", "internal/tools/gen",
+	}
+}
+
 func reverseDeps(byDir map[string]listedPackage, changed []string) []string {
-	hit := map[string]bool{}
-	for _, f := range changed {
-		p, ok := byDir[path.Dir(f)]
-		if !ok || !strings.HasSuffix(f, ".go") || strings.HasPrefix(f, "internal/testkit/") {
-			return []string{allPackages}
-		}
-		hit[p.ImportPath] = true
+	hit, ok := seedPackages(byDir, changed)
+	if !ok {
+		return []string{allPackages}
 	}
 	for grew := true; grew; {
 		grew = false
@@ -133,4 +135,58 @@ func reverseDeps(byDir map[string]listedPackage, changed []string) []string {
 	}
 	slices.Sort(out)
 	return out
+}
+
+func seedPackages(byDir map[string]listedPackage, changed []string) (map[string]bool, bool) {
+	hit := map[string]bool{}
+	for _, f := range changed {
+		dirs := seedDirs(byDir, f)
+		if len(dirs) == 0 {
+			return nil, false
+		}
+		for _, d := range dirs {
+			p, ok := byDir[d]
+			if !ok {
+				return nil, false
+			}
+			hit[p.ImportPath] = true
+		}
+	}
+	return hit, true
+}
+
+func seedDirs(byDir map[string]listedPackage, f string) []string {
+	query, isQuery := strings.CutPrefix(f, "queries/")
+	module, _, nested := strings.Cut(query, "/")
+	switch {
+	case f == "sqlc.yaml":
+		return sqlcDirs(byDir)
+	case f == "flows.tsv":
+		return flowsReaders()
+	case isQuery && nested:
+		return []string{"internal/modules/" + module + "/sqlc"}
+	case runsEverything(f):
+		return nil
+	case strings.HasSuffix(f, ".go"):
+		return []string{path.Dir(f)}
+	}
+	dir := path.Dir(f)
+	for byDir[dir].ImportPath == "" && dir != "." {
+		dir = path.Dir(dir)
+	}
+	return []string{dir}
+}
+
+func runsEverything(f string) bool {
+	return strings.HasPrefix(f, "internal/testkit/") || f == "go.mod" || f == "go.sum" || f == ".golangci.yml"
+}
+
+func sqlcDirs(byDir map[string]listedPackage) []string {
+	var dirs []string
+	for dir := range byDir {
+		if path.Base(dir) == "sqlc" {
+			dirs = append(dirs, dir)
+		}
+	}
+	return dirs
 }
