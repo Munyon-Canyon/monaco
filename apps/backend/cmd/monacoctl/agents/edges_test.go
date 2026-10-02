@@ -504,3 +504,60 @@ func gitStamp(future int64) Runner {
 		return []byte("topic\n"), nil
 	}
 }
+
+func TestDispatch_aBlockerClosedByTheGraphiteFastForwardCountsOnceItsHeadIsInTheTrunk(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	env := f.Env(t)
+	env.Run = f.run
+	side := commitFile(t, f.dir, "side.go", "x\n")
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "HEAD")
+	f.hub.on(get("/issues/4"), Issue{Body: "**Milestone:** M7 · **Blocked by:** #8 · **Touches:** `a`"})
+	f.hub.on(get("/issues/8"), Issue{PullRequest: &struct{}{}})
+	f.hub.on(get("/pulls/8"), PR{State: "closed", Head: Ref{SHA: side}})
+	f.hub.on(get("/compare/fb..."+side), `{"status":"diverged"}`)
+	if err := env.blockersClear(context.Background(), 4); err == nil || !strings.Contains(cliText(err), "not merged") {
+		t.Fatalf("a closed PR outside the trunk: %v", err)
+	}
+	f.hub.on(get("/compare/fb..."+side), `{"status":"identical"}`)
+	if err := env.blockersClear(context.Background(), 4); err != nil {
+		t.Fatalf("a closed PR in the trunk: %v", err)
+	}
+	f.hub.on(get("/issues/8"), Issue{State: "open"})
+	f.hub.on(list("/pulls?state=closed"), []PR{
+		{State: "closed", Base: Ref{Ref: "fb"}, Body: "Closes #8", Head: Ref{SHA: side}},
+	})
+	if err := env.blockersClear(context.Background(), 4); err != nil {
+		t.Fatalf("an issue closed by a fast-forwarded PR: %v", err)
+	}
+	f.hub.on(get("/compare/fb..."+side), `{"status":"ahead"}`)
+	err := env.blockersClear(context.Background(), 4)
+	if err == nil || !strings.Contains(cliText(err), "not merged into") {
+		t.Fatalf("an issue whose PR is not in the trunk: %v", err)
+	}
+}
+
+func TestDispatch_aFailedCompareStopsTheBlockerCheck(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	env := f.Env(t)
+	env.Run = f.run
+	side := commitFile(t, f.dir, "side.go", "x\n")
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "HEAD")
+	f.hub.on(get("/issues/4"), Issue{Body: "**Milestone:** M7 · **Blocked by:** #8 · **Touches:** `a`"})
+	f.hub.on(get("/issues/8"), Issue{PullRequest: &struct{}{}})
+	f.hub.on(get("/pulls/8"), PR{State: "closed", Head: Ref{SHA: side}})
+	f.hub.on(get("/compare/fb..."+side), `{"message":"boom"`)
+	if err := env.blockersClear(context.Background(), 4); err == nil ||
+		!strings.Contains(cliText(err), "compare "+side) {
+		t.Fatalf("a PR blocker on a failed compare: %v", err)
+	}
+	f.hub.on(get("/issues/8"), Issue{State: "open"})
+	f.hub.on(list("/pulls?state=closed"), []PR{
+		{State: "closed", Base: Ref{Ref: "fb"}, Body: "Closes #8", Head: Ref{SHA: side}},
+	})
+	if err := env.blockersClear(context.Background(), 4); err == nil ||
+		!strings.Contains(cliText(err), "compare "+side) {
+		t.Fatalf("an issue blocker on a failed compare: %v", err)
+	}
+}

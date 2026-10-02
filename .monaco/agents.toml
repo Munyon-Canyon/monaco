@@ -8,6 +8,8 @@ batch = 6
 verifier_app = "5101392"
 verifier_installation = 166018497
 milestone = "m8"
+# Adding this label to a PR queues it in the Graphite merge queue; removing it dequeues it.
+queue_label = "merge-queue"
 
 # agents check gives each row its own budget, except `go test -short`, which is budgeted per package
 # (`package`, the same 20 s that fails a package in `monacoctl test-report`). The go budget applies to
