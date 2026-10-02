@@ -2,6 +2,7 @@ package domain
 
 import (
 	"log/slog"
+	"math"
 	"slices"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -115,4 +116,11 @@ func ParseAmount(v int64) (uint64, error) {
 		return 0, errs.New(errs.CodeDecodeFailed, "trading.ParseAmount", slog.Int64("raw", v))
 	}
 	return uint64(v), nil
+}
+
+func Column(v uint64) (int64, bool) {
+	if v > math.MaxInt64 {
+		return 0, false
+	}
+	return int64(v), true
 }
