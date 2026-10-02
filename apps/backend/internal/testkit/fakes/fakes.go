@@ -68,6 +68,7 @@ type Server struct {
 	upstreams    []string
 	wallets      map[string]privyWallet
 	createdUsers map[string]privyCreatedUser
+	objects      map[string]storedObject
 	posthog      []PostHogCapture
 	nextUser     int
 }
@@ -82,6 +83,7 @@ func newFrom(fsys fs.FS, root string) *Server {
 		scripts:      map[string][]*scripted{},
 		wallets:      map[string]privyWallet{},
 		createdUsers: map[string]privyCreatedUser{},
+		objects:      map[string]storedObject{},
 		upstreams:    upstreamsIn(fsys, root),
 	}
 	s.mux.HandleFunc("POST /_script", s.script)
@@ -93,6 +95,7 @@ func newFrom(fsys fs.FS, root string) *Server {
 	s.live.HandleFunc("POST /privy/v1/wallets/{id}/rpc", s.privySign)
 	s.live.HandleFunc("POST /apns/3/device/{token}", s.apnsPush)
 	s.live.HandleFunc("POST /posthog/batch/", s.posthogBatch)
+	s.mountStorage()
 	for _, name := range s.upstreams {
 		replay := s.replay(name)
 		upstream := http.NewServeMux()
@@ -227,7 +230,7 @@ func (s *Server) replay(upstream string) http.HandlerFunc {
 		}
 		if step.fixture != "" {
 			keys = []string{step.fixture}
-		} else if live := liveRequest(r, route); s.isLive(live) {
+		} else if live := liveRequest(r, storageOr(route, upstream, r)); s.isLive(live) {
 			s.live.ServeHTTP(w, live)
 			return
 		}

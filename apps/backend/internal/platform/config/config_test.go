@@ -45,6 +45,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 			JupiterExecute:  2 * time.Minute,
 			XStocks:         15 * time.Second,
 			PostHog:         3 * time.Second,
+			Storage:         10 * time.Second,
 			HTTPServerRead:  10 * time.Second,
 			HTTPServerWrite: 30 * time.Second,
 			Shutdown:        10 * time.Second,
@@ -111,6 +112,9 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"APNS_TOPIC=com.example.app",
 		"POSTHOG_API_KEY=ph-secret",
 		"POSTHOG_HOST=http://fakes/posthog",
+		"SUPABASE_URL=http://127.0.0.1:54321",
+		"SUPABASE_SERVICE_ROLE_KEY=sb-secret",
+		"MONACO_TIMEOUT_STORAGE=4s",
 		"MONACO_FAULTPOINT=before-commit",
 		"MONACO_BUS_ACK_WAIT=100ms",
 		"MONACO_BUS_API_RELAY=off",
@@ -139,6 +143,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 			JupiterExecute:  4 * time.Minute,
 			XStocks:         8 * time.Second,
 			PostHog:         2500 * time.Millisecond,
+			Storage:         4 * time.Second,
 			HTTPServerRead:  5 * time.Second,
 			HTTPServerWrite: 6 * time.Second,
 			Shutdown:        7 * time.Second,
@@ -159,6 +164,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		Relayer:    config.Relayer{PrivateKey: "relayer-key"},
 		APNs:       config.APNs{KeyP8: "p8-key", KeyID: "key-id", TeamID: "team-id", Topic: "com.example.app"},
 		PostHog:    config.PostHog{APIKey: "ph-secret", Host: "http://fakes/posthog"},
+		Supabase:   config.Supabase{URL: "http://127.0.0.1:54321", ServiceRoleKey: "sb-secret"},
 		Faultpoint: "before-commit",
 	}
 	if !reflect.DeepEqual(cfg, want) {
@@ -371,6 +377,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		"RELAYER_PRIVATE_KEY":             "relayer-secret",
 		"APNS_KEY_P8":                     "p8-secret",
 		"POSTHOG_API_KEY":                 "ph-api-secret",
+		"SUPABASE_SERVICE_ROLE_KEY":       "supabase-service-secret",
 	}
 	environ := make([]string, 0, 2+len(secrets))
 	environ = append(environ, "MONACO_ENV=staging", "MONACO_TIMEOUT_JUPITER_EXECUTE=90s",
@@ -425,6 +432,9 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"POSTHOG_API_KEY", "***"},
 		{"POSTHOG_HOST", "https://us.i.posthog.com"},
 		{"MONACO_TIMEOUT_POSTHOG", "3s"},
+		{"SUPABASE_URL", ""},
+		{"SUPABASE_SERVICE_ROLE_KEY", "***"},
+		{"MONACO_TIMEOUT_STORAGE", "10s"},
 		{"PRIVY_APP_ID", ""},
 		{"PRIVY_VERIFICATION_KEY", ""},
 		{"PRIVY_AUTHORIZATION_KEY_ID", ""},

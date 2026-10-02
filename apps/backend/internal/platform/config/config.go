@@ -38,6 +38,7 @@ type Config struct {
 	Relayer    Relayer
 	APNs       APNs
 	PostHog    PostHog
+	Supabase   Supabase
 	Faultpoint string
 }
 
@@ -121,6 +122,11 @@ type PostHog struct {
 	Host   string
 }
 
+type Supabase struct {
+	URL            string
+	ServiceRoleKey string
+}
+
 type Timeouts struct {
 	RPC             time.Duration
 	Privy           time.Duration
@@ -129,6 +135,7 @@ type Timeouts struct {
 	JupiterExecute  time.Duration
 	XStocks         time.Duration
 	PostHog         time.Duration
+	Storage         time.Duration
 	HTTPServerRead  time.Duration
 	HTTPServerWrite time.Duration
 	Shutdown        time.Duration
@@ -316,6 +323,10 @@ func fields() []field {
 		text("POSTHOG_HOST", "https://us.i.posthog.com", func(c *Config) *string { return &c.PostHog.Host }),
 		duration("MONACO_TIMEOUT_POSTHOG", 3*time.Second,
 			func(c *Config) *time.Duration { return &c.Timeouts.PostHog }),
+		text("SUPABASE_URL", "", func(c *Config) *string { return &c.Supabase.URL }),
+		text("SUPABASE_SERVICE_ROLE_KEY", "", func(c *Config) *string { return &c.Supabase.ServiceRoleKey }).secret(),
+		duration("MONACO_TIMEOUT_STORAGE", 10*time.Second,
+			func(c *Config) *time.Duration { return &c.Timeouts.Storage }),
 		text("MONACO_FAULTPOINT", "", func(c *Config) *string { return &c.Faultpoint }),
 		optionalDuration("MONACO_BUS_ACK_WAIT", func(c *Config) *time.Duration { return &c.Bus.AckWait }),
 		toggle("MONACO_BUS_API_RELAY", true, func(c *Config) *bool { return &c.Bus.APIRelay }),
