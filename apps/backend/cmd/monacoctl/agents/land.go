@@ -235,7 +235,7 @@ func (env *Env) land(ctx context.Context, rec Record, stack []stackPR, stdout io
 		return nil
 	}
 	for _, n := range nums {
-		if err := env.gh(ctx, "", "pr", "edit", strconv.Itoa(n), "--add-label", env.Config.QueueLabel); err != nil {
+		if err := env.addLabel(ctx, n); err != nil {
 			return landFailed(err)
 		}
 	}
@@ -414,12 +414,22 @@ func (env *Env) unqueueEjected(ctx context.Context, rs []Record, stdout io.Write
 	return nil
 }
 
-func (env *Env) gh(ctx context.Context, stdin string, args ...string) error {
-	_, err := env.Run(ctx, env.Work, stdin, "gh", append(args, "-R", env.Config.Repo)...)
-	return err
+func (env *Env) graphqlGH(ctx context.Context, query string, out any) error {
+	if env.useREST() && !checkPageQuery(query) {
+		return env.restQuery(ctx, query, out)
+	}
+	err := env.graphqlCLI(ctx, query, out)
+	if !graphqlCLIDenied(err) {
+		return err
+	}
+	env.markREST()
+	if checkPageQuery(query) {
+		return err
+	}
+	return env.restQuery(ctx, query, out)
 }
 
-func (env *Env) graphqlGH(ctx context.Context, query string, out any) error {
+func (env *Env) graphqlCLI(ctx context.Context, query string, out any) error {
 	owner, name, _ := strings.Cut(env.Config.Repo, "/")
 	raw, err := env.Run(ctx, env.Work, "", "gh", "api", "graphql",
 		"-f", "query="+query, "-f", "owner="+owner, "-f", "name="+name)
@@ -455,7 +465,7 @@ func (env *Env) readStackChecks(ctx context.Context, prs []stackPR) error {
 	for i := range prs {
 		commits = append(commits, prs[i].commits()...)
 	}
-	return readAllChecks(ctx, env.graphqlGH, commits)
+	return env.readChecks(ctx, commits, env.graphqlGH)
 }
 
 func (env *Env) stackPulls(ctx context.Context, nums []int) ([]stackPR, error) {

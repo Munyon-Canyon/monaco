@@ -3,6 +3,7 @@ package agents
 import (
 	"context"
 	"errors"
+	"net/http"
 	"os"
 	"slices"
 	"strings"
@@ -55,9 +56,10 @@ func TestDequeue_removesTheLabelAndWaitsForGraphiteToLetGo(t *testing.T) {
 				t.Fatalf("%q, queued %+v", out.String(), f.owned(t).Queued)
 			}
 			want := slices.Repeat([]string{
-				"gh pr edit 1 --remove-label merge-queue -R o/r", "gh pr edit 2 --remove-label merge-queue -R o/r",
+				"DELETE /repos/o/r/issues/1/labels/merge-queue",
+				"DELETE /repos/o/r/issues/2/labels/merge-queue",
 			}, tc.removes)
-			if got := s.lines(); !slices.Equal(got, want) {
+			if got := f.hub.callsContaining("/labels"); !slices.Equal(got, want) {
 				t.Fatalf("calls %v", got)
 			}
 			if !slices.Equal(f.waited, slices.Repeat([]time.Duration{30 * time.Second}, tc.waits)) {
@@ -88,8 +90,8 @@ func TestDequeue_givesUpWhileGraphiteStillHoldsTheStack(t *testing.T) {
 			if cliText(err) != "Graphite still holds #2; remove it from the queue in the Graphite app, then rerun" {
 				t.Fatal(err)
 			}
-			if f.owned(t).Queued == nil || len(s.lines()) != 6 {
-				t.Fatalf("queued %+v, calls %v", f.owned(t).Queued, s.lines())
+			if f.owned(t).Queued == nil || len(f.hub.callsContaining("/labels")) != 6 {
+				t.Fatalf("queued %+v, calls %v", f.owned(t).Queued, f.hub.callsContaining("/labels"))
 			}
 		})
 	}
@@ -114,8 +116,10 @@ func TestDequeue_failures(t *testing.T) {
 			}
 		}},
 		{name: "not queued", args: []string{"1"}, want: "#40 has no queued stack with top #1"},
-		{name: "label removal fails", want: "boom", edit: func(_ *fixture, s *stackGH, _ *Env) {
-			s.fail = "gh pr edit 2 --remove-label"
+		{name: "label removal fails", want: "boom", edit: func(f *fixture, _ *stackGH, _ *Env) {
+			route := "DELETE /repos/o/r/issues/2/labels/merge-queue"
+			f.hub.status[route] = http.StatusInternalServerError
+			f.hub.on(route, "boom")
 		}},
 		{name: "drafts unreadable", want: "graphql", edit: func(f *fixture, _ *stackGH, _ *Env) {
 			f.hub.on(graphqlRoute, `{"data":null,"errors":[{"message":"rate limited"}]}`)
@@ -148,6 +152,9 @@ func TestDequeue_failures(t *testing.T) {
 			err := dequeueCmd(t.Context(), env, args, &strings.Builder{})
 			if err == nil || !strings.Contains(cliText(err)+err.Error(), tc.want) {
 				t.Fatalf("%v", err)
+			}
+			if tc.name == "drafts unreadable" && len(f.hub.callsContaining("/pulls")) != 0 {
+				t.Fatalf("a non-403 graphql error read REST %v", f.hub.callsContaining("/pulls"))
 			}
 		})
 	}

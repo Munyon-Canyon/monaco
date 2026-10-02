@@ -1,0 +1,425 @@
+package agents
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"strings"
+	"testing"
+	"time"
+)
+
+func restPullBody(n int, head string) string {
+	return fmt.Sprintf(`{"number":%d,"state":"open","body":"Part of #40\n\n## TLDR\nx",`+
+		`"head":{"ref":%q,"sha":%q},"base":{"ref":"fb","sha":"base-sha"},`+
+		`"mergeable":true,"mergeable_state":"clean","merge_commit_sha":"merge-sha","labels":[]}`, n, head, head+"-oid")
+}
+
+func serveChecks(f *fixture, sha string) {
+	f.hub.on(get("/commits/"+sha+"/check-runs?per_page=100&filter=all&page=1"),
+		`{"check_runs":[{"id":7,"name":"ci / ci-ok","status":"completed","conclusion":"success",`+
+			`"completed_at":"2026-09-29T11:03:00Z","details_url":"https://example.test/run"}]}`)
+	f.hub.on(get("/commits/"+sha+"/status"),
+		`{"statuses":[{"context":"verify","state":"success","created_at":"2026-09-29T11:04:00Z"}]}`)
+}
+
+func serveQuietPull(f *fixture, n int) {
+	f.hub.on(get(fmt.Sprintf("/pulls/%d", n)), fmt.Sprintf(
+		`{"number":%d,"state":"open","body":"Part of #40","head":{"ref":"b%d","sha":"sha%d"},`+
+			`"base":{"ref":"fb","sha":"base"},"labels":[]}`, n, n, n))
+	f.hub.on(get(fmt.Sprintf("/commits/sha%d/check-runs?per_page=100&filter=all&page=1", n)), `{}`)
+	f.hub.on(get(fmt.Sprintf("/commits/sha%d/status", n)), `{}`)
+}
+
+func wantErr(t *testing.T, err error, sub string) {
+	t.Helper()
+	if err == nil || !strings.Contains(err.Error(), sub) {
+		t.Fatalf("%v", err)
+	}
+}
+
+func TestLandStack_labelsThroughRESTWhenGraphQLIsForbidden(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := newStackGH(t, f, green(t, 5, "b5", "fb"))
+	s.denied = true
+	body := restPullBody(5, "b5")
+	f.hub.on(get("/pulls/5"), body)
+	f.hub.on(list("/pulls?state=open"), "["+body+"]")
+	serveChecks(f, "b5-oid")
+	f.hub.on(get("/commits/merge-sha"), `{"parents":[{"sha":"base-sha"}]}`)
+	f.owner(t, Record{Ticket: 40, Worktree: "/w/40"})
+	code, stdout, stderr := f.agents(t, "land-stack", "5")
+	want := "queued #5\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n"
+	posts := f.hub.callsContaining("POST /repos/o/r/issues/5/labels")
+	if code != 0 || stdout != want || s.gql != 1 || len(posts) != 1 ||
+		!strings.Contains(f.hub.body(posts[0]), `"merge-queue"`) {
+		t.Fatalf("%d %q %q graphql %d posts %v", code, stdout, stderr, s.gql, posts)
+	}
+}
+
+func TestLandStack_returnsAGraphQLErrorThatIsNotForbidden(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+	s.fail = "gh api graphql"
+	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+	code, _, stderr := f.agents(t, "land-stack", "2")
+	if code != 1 || !strings.Contains(stderr, "boom") || len(f.hub.callsContaining("/pulls")) != 0 ||
+		len(f.hub.callsContaining("/commits/")) != 0 {
+		t.Fatalf("%d %q rest %v", code, stderr, f.hub.callsContaining("/pulls"))
+	}
+}
+
+func draftList(page int) string {
+	return get(fmt.Sprintf("/pulls?state=open&per_page=100&page=%d", page))
+}
+
+func openPullPage(n int) string {
+	rows := make([]string, n)
+	for i := range rows {
+		rows[i] = fmt.Sprintf(`{"number":%d,"state":"open","title":"old","head":{"ref":"feature"}}`, i+1)
+	}
+	return "[" + strings.Join(rows, ",") + "]"
+}
+
+func forbidDequeue(t *testing.T) (*fixture, *Env) {
+	t.Helper()
+	f := newFixture(t)
+	_, env := dequeueStack(t, f)
+	f.hub.status[graphqlRoute] = http.StatusForbidden
+	f.hub.on(graphqlRoute, "forbidden")
+	serveQuietPull(f, 1)
+	serveQuietPull(f, 2)
+	return f, env
+}
+
+func TestDequeue_readsDraftsFromRESTWhenGraphQLIsForbidden(t *testing.T) {
+	t.Parallel()
+	hold := `[{"number":90,"title":"(PRs 1, 2)","state":"open","head":{"ref":"gtmq_hold"}}]`
+	heldMsg := "Graphite still holds #2; remove it from the queue in the Graphite app, then rerun"
+	closed := `[{"number":90,"title":"(PRs 1, 2)","state":"closed","head":{"ref":"gtmq_hold"}}]`
+	unrelated := `[{"number":9,"title":"nope","head":{"ref":"feature"}},` +
+		`{"number":90,"title":"(PRs 8)","head":{"ref":"gtmq_x"}}]`
+	for _, tc := range []struct {
+		body string
+		held bool
+	}{{unrelated, false}, {hold, true}, {closed, false}} {
+		f, env := forbidDequeue(t)
+		f.hub.on(draftList(1), tc.body)
+		err := dequeueCmd(t.Context(), env, []string{"2"}, &strings.Builder{})
+		if len(f.hub.callsContaining("POST /graphql")) != 1 ||
+			tc.held && cliText(err) != heldMsg || !tc.held && err != nil {
+			t.Fatal(err)
+		}
+	}
+	f, env := forbidDequeue(t)
+	f.hub.on(draftList(1), openPullPage(100))
+	f.hub.on(draftList(2), hold)
+	err := dequeueCmd(t.Context(), env, []string{"2"}, &strings.Builder{})
+	if cliText(err) != heldMsg || len(f.hub.callsContaining("page=2")) == 0 {
+		t.Fatal(err)
+	}
+	f, env = forbidDequeue(t)
+	f.hub.on(draftList(1), openPullPage(100))
+	f.hub.status[draftList(2)] = http.StatusInternalServerError
+	f.hub.on(draftList(2), "boom")
+	var out strings.Builder
+	err = dequeueCmd(t.Context(), env, []string{"2"}, &out)
+	if err == nil || !strings.Contains(err.Error(), "boom") || strings.Contains(out.String(), "safe to push") ||
+		len(f.hub.callsContaining("page=2")) == 0 {
+		t.Fatalf("%v %q", err, out.String())
+	}
+}
+
+func mustCommit(t *testing.T, raw string) *gqlCommit {
+	t.Helper()
+	var c gqlCommit
+	if err := json.Unmarshal([]byte(raw), &c); err != nil {
+		t.Fatal(err)
+	}
+	return &c
+}
+
+func TestReadChecks_restFallback(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	env := f.Env(t)
+	env.Run = func(_ context.Context, _, _, name string, args ...string) ([]byte, error) {
+		if name == "gh" && len(args) > 3 && checkPageQuery(args[3]) {
+			return nil, errors.New("HTTP 403")
+		}
+		return nil, errors.New("unexpected " + name)
+	}
+	c := mustCommit(t, firstPage("b1", ciOK("FAILURE", 1)))
+	serveChecks(f, "b1")
+	if err := env.readChecks(t.Context(), []*gqlCommit{c}, env.graphqlGH); err != nil {
+		t.Fatal(err)
+	}
+	latest := c.latest()
+	if !env.useREST() || len(latest) != 2 || latest[0].Conclusion != "SUCCESS" || latest[0].DatabaseID != 7 ||
+		latest[0].DetailsURL != "https://example.test/run" || latest[1].State != "SUCCESS" ||
+		c.StatusCheckRollup.Contexts.PageInfo.HasNextPage {
+		t.Fatalf("%+v", latest)
+	}
+	other := newFixture(t)
+	env = other.Env(t)
+	env.Run = func(context.Context, string, string, string, ...string) ([]byte, error) {
+		return nil, errors.New("gh api graphql: boom")
+	}
+	err := env.readChecks(t.Context(), []*gqlCommit{mustCommit(t, firstPage("b1"))}, env.graphqlGH)
+	if err == nil || !strings.Contains(err.Error(), "boom") || env.useREST() ||
+		len(other.hub.callsContaining("/commits/")) != 0 {
+		t.Fatalf("%v", err)
+	}
+	env.markREST()
+	serveChecks(other, "sha")
+	called := false
+	sha := &gqlCommit{OID: "sha"}
+	err = env.readChecks(t.Context(), []*gqlCommit{sha}, func(context.Context, string, any) error {
+		called = true
+		return errors.New("nope")
+	})
+	if err != nil || called || sha.latest()[0].Conclusion != "SUCCESS" {
+		t.Fatalf("%v %v", err, called)
+	}
+}
+
+func TestGraphQL_switchesOnlyOnARefusal(t *testing.T) {
+	t.Parallel()
+	var c gqlCommit
+	if err := json.Unmarshal([]byte(firstPage("b1")), &c); err != nil {
+		t.Fatal(err)
+	}
+	page, _ := nextChecks([]*gqlCommit{&c})
+	f := newFixture(t)
+	env := f.Env(t)
+	f.hub.status[graphqlRoute] = http.StatusForbidden
+	f.hub.on(graphqlRoute, "no")
+	err := env.graphQL(t.Context(), page, &struct{}{})
+	if !graphqlHTTPDenied(err) || !env.useREST() {
+		t.Fatalf("%v", err)
+	}
+	f = newFixture(t)
+	env = f.Env(t)
+	f.hub.status[graphqlRoute] = http.StatusInternalServerError
+	f.hub.on(graphqlRoute, "rate limited")
+	err = env.graphQL(t.Context(), page, &struct{}{})
+	if err == nil || env.useREST() || len(f.hub.callsContaining("/pulls")) != 0 {
+		t.Fatalf("%v", err)
+	}
+	f = newFixture(t)
+	env = f.Env(t)
+	env.markREST()
+	f.hub.on(get("/pulls/1"), restPullBody(1, "b1"))
+	var data struct {
+		Repository map[string]*stackPR `json:"repository"`
+	}
+	q := repoQuery + "p1: pullRequest(number:1){...pr} }}\nfragment pr on PullRequest{number}"
+	if err = env.graphQL(t.Context(), q, &data); err != nil || data.Repository["p1"] == nil ||
+		data.Repository["p1"].Number != 1 || len(f.hub.callsContaining("POST /graphql")) != 0 {
+		t.Fatalf("%v %+v", err, data.Repository["p1"])
+	}
+}
+
+func TestRESTStackAndDrafts(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	env := f.Env(t)
+	closed := time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC)
+	f.hub.on(get("/pulls/1"), `{"number":1,"state":"closed","closed_at":"`+closed.Format(time.RFC3339)+
+		`","merge_commit_sha":"abc","body":"Part of #40","head":{"ref":"b1","sha":"sha"},`+
+		`"base":{"ref":"fb","sha":"base"},"labels":[{"name":"merge-queue"}]}`)
+	var data struct {
+		Repository map[string]*stackPR `json:"repository"`
+	}
+	q := repoQuery + "p1: pullRequest(number:1){...pr} p9: pullRequest(number:9){...pr} }}\n" +
+		"fragment pr on PullRequest{number}"
+	if err := env.restQuery(t.Context(), q, &data); err != nil {
+		t.Fatal(err)
+	}
+	p := data.Repository["p1"]
+	if p == nil || data.Repository["p9"] != nil || !p.ClosedAt.Equal(closed) || p.MergeCommit.OID != "abc" ||
+		p.State != "CLOSED" || !p.labeled("merge-queue") || p.HeadOID != "sha" {
+		t.Fatalf("%+v", p)
+	}
+	f.hub.status[get("/pulls/1")] = http.StatusInternalServerError
+	f.hub.on(get("/pulls/1"), "boom")
+	_, err := env.restStackPayload(t.Context(), q)
+	wantErr(t, err, "boom")
+	f.hub.status[list("/pulls?state=open")] = http.StatusInternalServerError
+	f.hub.on(list("/pulls?state=open"), "nope")
+	_, err = env.restOpenPayload(t.Context())
+	wantErr(t, err, "nope")
+	merged := "2026-01-02T00:00:00Z"
+	route := draftList(1)
+	f.hub.status[route] = 0
+	f.hub.on(route, `[{"number":4,"title":"keep","state":"closed","merged_at":"`+merged+
+		`","head":{"ref":"gtmq_a"},"updated_at":"`+merged+
+		`"},{"number":5,"title":"old","state":"closed","head":{"ref":"gtmq_b"}},`+
+		`{"number":6,"title":"drop","head":{"ref":"feature"}}]`)
+	var drafts struct {
+		Repository struct {
+			Drafts struct {
+				Nodes []queueDraft `json:"nodes"`
+			} `json:"drafts"`
+		} `json:"repository"`
+	}
+	if err := env.restQuery(t.Context(), openDrafts, &drafts); err != nil {
+		t.Fatal(err)
+	}
+	nodes := drafts.Repository.Drafts.Nodes
+	if len(nodes) != 2 || nodes[0].State != "MERGED" || nodes[1].State != "CLOSED" || nodes[0].HeadRefName != "gtmq_a" {
+		t.Fatalf("%+v", nodes)
+	}
+	f.hub.status[route] = http.StatusInternalServerError
+	f.hub.on(route, "boom")
+	_, err = env.restDraftPayload(t.Context())
+	wantErr(t, err, "boom")
+}
+
+func TestRESTQueryErrors(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	env := f.Env(t)
+	if queryKind("zzz") != "query" || queryKind(openDrafts) != "drafts" ||
+		queryKind("potentialMergeCommit") != "merge" ||
+		queryKind("open: pullRequests") != "open" ||
+		queryKind("fragment pr on PullRequest") != "stack" {
+		t.Fatal(queryKind("zzz"))
+	}
+	var n int
+	wantErr(t, env.restQuery(t.Context(), "nope", &n), "no REST mapping")
+	_, err := env.restPayload(t.Context(), "potentialMergeCommit")
+	wantErr(t, err, "names no pull request")
+	f.hub.on(get("/pulls/1"), restPullBody(1, "b1"))
+	f.hub.on(get("/commits/merge-sha"), `{"parents":[{"sha":"base-sha"}]}`)
+	q := repoQuery + "pullRequest(number:1){potentialMergeCommit{parents{nodes{oid}}}}}"
+	wantErr(t, env.restQuery(t.Context(), q, &n), "decode REST merge")
+	f.hub.status[get("/pulls/4")] = http.StatusInternalServerError
+	f.hub.on(get("/pulls/4"), "boom")
+	_, err = env.restMergePayload(t.Context(), "pullRequest(number:4){potentialMergeCommit")
+	wantErr(t, err, "boom")
+	f.hub.on(get("/pulls/2"), `{"number":2,"mergeable":true,"mergeable_state":"clean","merge_commit_sha":"missing"}`)
+	_, err = env.restMergePayload(t.Context(), "pullRequest(number:2){potentialMergeCommit")
+	wantErr(t, err, "404")
+	env.GitHub.encode = func(any) ([]byte, error) { return nil, errors.New("encode") }
+	var view mergeView
+	wantErr(t, env.restQuery(t.Context(), q, &view), "encode")
+}
+
+func TestMergeParents_mapsMergeability(t *testing.T) {
+	t.Parallel()
+	yes, no := true, false
+	sha, empty, other, missing := "merge-sha", "", "other", "missing"
+	f := newFixture(t)
+	env := f.Env(t)
+	f.hub.on(get("/commits/merge-sha"), `{"parents":[{"sha":"base-sha"},{"sha":"head"}]}`)
+	f.hub.on(get("/commits/other"), `{"parents":[{"sha":"head"}]}`)
+	ctx := t.Context()
+	state, parents, err := env.mergeParents(ctx, restPull{MergeableState: "dirty", Mergeable: &yes})
+	if err != nil || state != "CONFLICTING" || parents != nil {
+		t.Fatalf("%s %v %v", state, parents, err)
+	}
+	for _, p := range []restPull{{}, {Mergeable: &no}, {Mergeable: &yes, MergeCommitSHA: &empty}, {Mergeable: &yes}} {
+		state, parents, err = env.mergeParents(ctx, p)
+		if err != nil || state != "UNKNOWN" || parents != nil {
+			t.Fatalf("%+v -> %s %v %v", p, state, parents, err)
+		}
+	}
+	state, parents, err = env.mergeParents(ctx,
+		restPull{Mergeable: &yes, MergeCommitSHA: &sha, Base: restRef{SHA: "base-sha"}})
+	if err != nil || state != "MERGEABLE" || len(parents) != 2 || parents[0].OID != "base-sha" {
+		t.Fatalf("%s %+v %v", state, parents, err)
+	}
+	state, parents, err = env.mergeParents(ctx,
+		restPull{Mergeable: &yes, MergeCommitSHA: &other, Base: restRef{SHA: "base-sha"}})
+	if err != nil || state != "MERGEABLE" || len(parents) != 1 || parents[0].OID != "head" {
+		t.Fatalf("%s %+v %v", state, parents, err)
+	}
+	_, _, err = env.mergeParents(ctx, restPull{Mergeable: &yes, MergeCommitSHA: &missing})
+	wantErr(t, err, "404")
+}
+
+func TestLabels_postAndDelete(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	env := f.Env(t)
+	route := "POST /repos/o/r/issues/5/labels"
+	f.hub.on(route, "[]")
+	if err := env.addLabel(t.Context(), 5); err != nil || !strings.Contains(f.hub.body(route), `"merge-queue"`) {
+		t.Fatal(err)
+	}
+	f.hub.status[route] = http.StatusInternalServerError
+	f.hub.on(route, "boom")
+	wantErr(t, env.addLabel(t.Context(), 5), "boom")
+	if err := env.removeLabel(t.Context(), 8); err != nil {
+		t.Fatal(err)
+	}
+	del := "DELETE /repos/o/r/issues/3/labels/merge-queue"
+	f.hub.on(del, "[]")
+	if err := env.removeLabel(t.Context(), 3); err != nil {
+		t.Fatal(err)
+	}
+	f.hub.status[del] = http.StatusInternalServerError
+	f.hub.on(del, "boom")
+	wantErr(t, env.removeLabel(t.Context(), 3), "boom")
+}
+
+func TestCheckContexts_pagesAndErrors(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	env := f.Env(t)
+	if nodes, err := env.GitHub.checkContexts(t.Context(), ""); err != nil || nodes != nil {
+		t.Fatalf("%v %v", nodes, err)
+	}
+	if err := env.restFillChecks(t.Context(), []*gqlCommit{{}}); err != nil {
+		t.Fatal(err)
+	}
+	runs := make([]map[string]any, pageSize)
+	for i := range runs {
+		runs[i] = map[string]any{"id": i + 1, "name": "ci / job", "status": "completed", "conclusion": "success"}
+	}
+	page1, err := json.Marshal(map[string]any{"check_runs": runs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sha := "abc"
+	f.hub.on(get("/commits/"+sha+"/check-runs?per_page=100&filter=all&page=1"), string(page1))
+	f.hub.on(get("/commits/"+sha+"/check-runs?per_page=100&filter=all&page=2"),
+		`{"check_runs":[{"name":"ci / last","status":"in_progress"}]}`)
+	f.hub.on(get("/commits/"+sha+"/status"),
+		`{"statuses":[{"context":"verify","state":"pending","created_at":"2026-01-02T00:00:00Z"}]}`)
+	nodes, err := env.GitHub.checkContexts(t.Context(), sha)
+	if err != nil || len(nodes) != pageSize+2 || nodes[0].Status != "COMPLETED" ||
+		nodes[pageSize].Status != "IN_PROGRESS" || nodes[pageSize+1].State != "PENDING" {
+		t.Fatalf("%d %v", len(nodes), err)
+	}
+	f.hub.status[get("/commits/bad/check-runs?per_page=100&filter=all&page=1")] = http.StatusInternalServerError
+	f.hub.on(get("/commits/bad/check-runs?per_page=100&filter=all&page=1"), "boom")
+	wantErr(t, env.restFillChecks(t.Context(), []*gqlCommit{{OID: "bad"}}), "boom")
+	f.hub.on(get("/commits/nostatus/check-runs?per_page=100&filter=all&page=1"), `{"check_runs":[]}`)
+	f.hub.status[get("/commits/nostatus/status")] = http.StatusInternalServerError
+	f.hub.on(get("/commits/nostatus/status"), "boom")
+	_, err = env.GitHub.checkContexts(t.Context(), "nostatus")
+	wantErr(t, err, "boom")
+}
+
+func TestGraphQLDenialHelpers(t *testing.T) {
+	t.Parallel()
+	if graphqlCLIDenied(nil) || graphqlCLIDenied(errors.New("boom")) || !graphqlCLIDenied(errors.New("HTTP 403")) ||
+		!graphqlCLIDenied(errors.New("not permitted")) {
+		t.Fatal("cli")
+	}
+	ok := httpStatusError{path: "/graphql", status: "403 Forbidden"}
+	if graphqlHTTPDenied(nil) || graphqlHTTPDenied(errors.New("403")) ||
+		graphqlHTTPDenied(httpStatusError{path: "/pulls/1", status: "403 Forbidden"}) ||
+		graphqlHTTPDenied(httpStatusError{path: "/graphql", status: "500 Internal Server Error"}) ||
+		!graphqlHTTPDenied(
+			ok,
+		) || !checkPageQuery("statusCheckRollup") || checkPageQuery("pullRequest statusCheckRollup") {
+		t.Fatal("http")
+	}
+}

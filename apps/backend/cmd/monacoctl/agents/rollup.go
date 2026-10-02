@@ -84,6 +84,23 @@ func (x gqlContext) newerThan(y gqlContext) bool {
 	return a.IsZero() || (!b.IsZero() && a.After(b))
 }
 
+func (env *Env) readChecks(
+	ctx context.Context, commits []*gqlCommit, query func(context.Context, string, any) error,
+) error {
+	if env.useREST() {
+		return env.restFillChecks(ctx, commits)
+	}
+	err := readAllChecks(ctx, query, commits)
+	if err == nil {
+		return nil
+	}
+	if graphqlCLIDenied(err) || graphqlHTTPDenied(err) {
+		env.markREST()
+		return env.restFillChecks(ctx, commits)
+	}
+	return err
+}
+
 func readAllChecks(ctx context.Context, query func(context.Context, string, any) error, commits []*gqlCommit) error {
 	for {
 		q, more := nextChecks(commits)

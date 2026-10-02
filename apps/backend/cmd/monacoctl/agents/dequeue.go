@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"strconv"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -69,7 +68,7 @@ func (env *Env) queuedRecord(ctx context.Context, top int) (Record, error) {
 
 func (env *Env) release(ctx context.Context, nums []int) (bool, error) {
 	for _, p := range nums {
-		if err := env.gh(ctx, "", "pr", "edit", strconv.Itoa(p), "--remove-label", env.Config.QueueLabel); err != nil {
+		if err := env.removeLabel(ctx, p); err != nil {
 			return false, err
 		}
 	}
@@ -97,11 +96,11 @@ func (env *Env) graphiteHolds(ctx context.Context, nums []int) (bool, error) {
 				} `json:"drafts"`
 			} `json:"repository"`
 		}
-		if err := env.GitHub.graphql(ctx, openDrafts, &data); err != nil {
+		if err := env.graphQL(ctx, openDrafts, &data); err != nil {
 			return false, err
 		}
 		for _, d := range data.Repository.Drafts.Nodes {
-			if slices.ContainsFunc(nums, d.tests) {
+			if d.State == "OPEN" && slices.ContainsFunc(nums, d.tests) {
 				return true, nil
 			}
 		}
