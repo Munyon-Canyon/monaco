@@ -31,6 +31,14 @@ type Asset struct {
 	ChainCheckedAt   pgtype.Timestamptz
 }
 
+type AssetPriceMove struct {
+	AssetID      uuid.UUID
+	ThresholdBps int32
+	TradingDay   pgtype.Date
+	EventID      uuid.UUID
+	CreatedAt    time.Time
+}
+
 type Cabal struct {
 	ID                    uuid.UUID
 	Name                  string
