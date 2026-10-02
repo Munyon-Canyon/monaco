@@ -38,6 +38,17 @@ func (q *Queries) MintReferralCode(ctx context.Context, arg MintReferralCodePara
 	return minted, err
 }
 
+const referralCodeOfUser = `-- name: ReferralCodeOfUser :one
+SELECT code FROM referral_codes WHERE user_id = $1
+`
+
+func (q *Queries) ReferralCodeOfUser(ctx context.Context, owner uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, referralCodeOfUser, owner)
+	var code string
+	err := row.Scan(&code)
+	return code, err
+}
+
 const referralCodeOwner = `-- name: ReferralCodeOwner :one
 SELECT user_id FROM referral_codes WHERE code = $1
 `
