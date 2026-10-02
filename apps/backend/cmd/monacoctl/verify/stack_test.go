@@ -312,3 +312,42 @@ func TestWaitPostgres_returnsOnceTheServerAnswersEvenBeforeMigrations(t *testing
 		t.Fatal("waitPostgres accepted an unparsable url")
 	}
 }
+
+func TestHealthy_anArmedWorkerThatExitedCountsAsUpWithinASecond(t *testing.T) {
+	t.Parallel()
+	o := testOptions(t, "ok")
+	o.Faultpoint = string(faultpoint.AfterPublish)
+	o.Environ = append(o.Environ, fakeCrashNowEnv+"=1")
+	s := &Stack{RunID: newRunID(), Logs: &Logs{}, opts: o, procs: map[string]*process{}}
+	s.TokenKey = "verify-" + s.RunID
+	defer func() { _ = s.Down(t.Context()) }()
+	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+	defer cancel()
+	for _, step := range []func(context.Context) error{
+		s.postgres, withoutContext(s.nats), s.schema, s.processes,
+	} {
+		if err := step(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	<-s.procs[procWorker].exited
+	within, stop := context.WithTimeout(ctx, time.Second)
+	defer stop()
+	if err := s.healthy(within); err != nil {
+		t.Fatalf("healthy with the armed worker exited = %v, want up within 1s", err)
+	}
+}
+
+func TestUp_anUnarmedWorkerThatExitsFailsAtOnceWithItsLogs(t *testing.T) {
+	t.Parallel()
+	o := testOptions(t, "ok")
+	o.WorkerEnv = []string{"MONACO_FAULTPOINT=" + string(faultpoint.AfterPublish)}
+	o.Environ = append(o.Environ, fakeCrashNowEnv+"=1")
+	o.Budget.Stack = 5 * time.Second
+	s, err := Up(t.Context(), o)
+	defer func() { _ = s.Down(t.Context()) }()
+	if err == nil || !strings.Contains(err.Error(), "worker exited before it was healthy") ||
+		!strings.Contains(err.Error(), "faultpoint: crash at after-publish") {
+		t.Fatalf("Up = %v, want the exited worker and its log tail named", err)
+	}
+}
