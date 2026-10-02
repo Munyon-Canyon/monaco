@@ -219,6 +219,7 @@ components:
         assets:
           type: array
           description: The page, in the filter's order.
+          examples: [[]]
           items:
             $ref: "#/components/schemas/AssetSummary"
         next_cursor:
