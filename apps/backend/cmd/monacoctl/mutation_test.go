@@ -164,6 +164,7 @@ func fakeGremlins(pkg, out string) error {
 		"./slow":       {"TIMED OUT"},
 		"./mostlyslow": {"KILLED", "TIMED OUT", "TIMED OUT"},
 		"./halfslow":   {"KILLED", "TIMED OUT"},
+		"./uncovered":  {},
 	}
 	switch pkg {
 	case "./broken", "./flaky":
@@ -214,7 +215,7 @@ func TestMutationFailsOnASurvivorOnTheChangedLinesOfAChangedPackage(t *testing.T
 	if code != 1 || stdout.String() != wantOut || stderr.String() != wantErr {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
-	want := "a: unleash --silent --timeout-coefficient 50 --output OUT --exclude-files \\.gen\\.go$ --diff origin/backend-rewrite" +
+	want := "a: unleash --silent --timeout-coefficient 50 --output OUT --exclude-files \\.gen\\.go$ --exclude-files ^[^/]+/ --diff origin/backend-rewrite" +
 		" | GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=diff.relative GIT_CONFIG_VALUE_0=true"
 	if calls := gremlinsCalls(
 		t,
@@ -314,20 +315,70 @@ func TestMutationReportsBrokenInputs(t *testing.T) {
 	}
 }
 
-func TestMutationTreatsAMissingReportAsNoMutants(t *testing.T) {
+func TestMutationPassesAndSaysNothingToMutateWhenAPackageHasNoTestedMutants(t *testing.T) {
 	t.Parallel()
-	env := mutationModule(t, "", "silent")
-	commitFile(t, env, "silent/x_test.go", "package silent\n")
+	for _, pkg := range []string{"silent", "uncovered"} {
+		t.Run(pkg, func(t *testing.T) {
+			t.Parallel()
+			env := mutationModule(t, "", pkg)
+			var stdout, stderr bytes.Buffer
+			if code := mutationTool(
+				env,
+			)(
+				[]string{"--all", "--pkg", pkg},
+				&stdout,
+				&stderr,
+			); code != 0 ||
+				stderr.Len() != 0 {
+				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+			}
+			want := "mutating 1 packages: " + pkg + "\nnothing to mutate in " + pkg + ": gremlins found no covered mutants\n" +
+				"mutation summary: 1 packages, 0 tested, 0 killed, 0 lived, 0 timed out, wall 1m30s\n"
+			if stdout.String() != want {
+				t.Fatalf("stdout = %q, want %q", stdout.String(), want)
+			}
+		})
+	}
+}
+
+func TestMutationDoesNotSayNothingToMutateWhenMutantsWereTested(t *testing.T) {
+	t.Parallel()
+	env := mutationModule(t, "")
 	var stdout, stderr bytes.Buffer
-	if code := mutationTool(
-		env,
-	)(
-		nil,
-		&stdout,
-		&stderr,
-	); code != 0 ||
-		stdout.String() != "mutating 1 packages: silent\nmutation summary: 1 packages, 0 tested, 0 killed, 0 lived, 0 timed out, wall 1m30s\n" {
+	if code := mutationTool(env)([]string{"--all", "--pkg", "c"}, &stdout, &stderr); code != 0 ||
+		strings.Contains(stdout.String(), "nothing to mutate") {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestMutationPkgLeavesOutTheFilesOfItsSubpackages(t *testing.T) {
+	t.Parallel()
+	env := mutationModule(t, "")
+	var stdout, stderr bytes.Buffer
+	if code := mutationTool(env)([]string{"--all", "--pkg", "c"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	var rules []*regexp.Regexp
+	fields := strings.Fields(gremlinsCalls(t, env)[0])
+	for i, f := range fields {
+		if f == "--exclude-files" {
+			rules = append(rules, regexp.MustCompile(fields[i+1]))
+		}
+	}
+	excludes := func(file string) bool {
+		return slices.ContainsFunc(rules, func(r *regexp.Regexp) bool { return r.MatchString(file) })
+	}
+	for file, want := range map[string]bool{
+		"x.go":                 false,
+		"limiter.go":           false,
+		"x.gen.go":             true,
+		"sub/x.go":             true,
+		"sub/deeper/x.go":      true,
+		"ratelimit/limiter.go": true,
+	} {
+		if got := excludes(file); got != want {
+			t.Errorf("excluded(%q) = %v, want %v", file, got, want)
+		}
 	}
 }
 

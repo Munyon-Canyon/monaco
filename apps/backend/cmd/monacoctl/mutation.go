@@ -27,6 +27,8 @@ const (
 	lived           = "LIVED"
 	killed          = "KILLED"
 	timedOut        = "TIMED OUT"
+	generatedFiles  = `\.gen\.go$`
+	subpackageFiles = `^[^/]+/`
 )
 
 type mutationEnv struct {
@@ -142,16 +144,34 @@ func (env mutationEnv) run(ctx context.Context, a mutationArgs, stdout io.Writer
 	defer func() { total.print(stdout, env.now().Sub(start)) }()
 	var survivors []string
 	for _, dir := range dirs {
-		report, err := env.unleash(ctx, dir, diffRef, a.report)
+		found, err := env.mutatePackage(ctx, dir, diffRef, a.report, allowed, &total, stdout)
 		if err != nil {
 			return nil, err
 		}
-		if pkg := total.add(report); pkg.timedOut > pkg.tested() {
-			return nil, errs.Wrap(timedOutError(dir), errs.CodeInternal, op)
-		}
-		survivors = append(survivors, survivingMutants(dir, report, allowed)...)
+		survivors = append(survivors, found...)
 	}
 	return survivors, nil
+}
+
+func (env mutationEnv) mutatePackage(
+	ctx context.Context,
+	dir, diffRef, out string,
+	allowed map[string]bool,
+	total *mutantCounts,
+	stdout io.Writer,
+) ([]string, error) {
+	report, err := env.unleash(ctx, dir, diffRef, out)
+	if err != nil {
+		return nil, err
+	}
+	pkg := total.add(report)
+	if pkg.timedOut > pkg.tested() {
+		return nil, errs.Wrap(timedOutError(dir), errs.CodeInternal, "monacoctl.mutation")
+	}
+	if pkg.tested() == 0 && pkg.timedOut == 0 {
+		_, _ = fmt.Fprintf(stdout, "nothing to mutate in %s: gremlins found no covered mutants\n", dir)
+	}
+	return survivingMutants(dir, report, allowed), nil
 }
 
 func (env mutationEnv) goList(ctx context.Context) ([]string, error) {
@@ -226,7 +246,9 @@ func (env mutationEnv) unleash(ctx context.Context, dir, diffRef, out string) (g
 		"--output",
 		out,
 		"--exclude-files",
-		`\.gen\.go$`,
+		generatedFiles,
+		"--exclude-files",
+		subpackageFiles,
 	}
 	if diffRef != "" {
 		args = append(args, "--diff", diffRef)
