@@ -120,7 +120,7 @@ func TestEdges_watchConflictsStatus(t *testing.T) {
 		t.Fatal("usage")
 	}
 	writeFile(t, env.Common+"/.monaco/agents", "file")
-	if err := watchCmd(context.Background(), env, nil, ioDiscard()); err == nil {
+	if err := watchCmd(context.Background(), env, []string{"--once"}, ioDiscard()); err == nil {
 		t.Fatal("records")
 	}
 	if err := os.Remove(env.Common + "/.monaco/agents"); err != nil {
@@ -304,7 +304,7 @@ func TestEdges_remainingBranches(t *testing.T) {
 	env.Run = func(context.Context, string, string, string, ...string) ([]byte, error) {
 		return nil, errors.New("git down")
 	}
-	if err := watchCmd(context.Background(), env, nil, ioDiscard()); err == nil {
+	if err := watchCmd(context.Background(), env, []string{"--once"}, ioDiscard()); err == nil {
 		t.Fatal("watch activity")
 	}
 	env.Run = f.run
@@ -390,7 +390,7 @@ func TestEdges_remainingBranches(t *testing.T) {
 	}
 	f.hub.on(get("/issues/3"), Issue{})
 	f.hub.on(list("/pulls?state=open"), []PR{})
-	if err := watchCmd(context.Background(), env, nil, ioDiscard()); err == nil {
+	if err := watchCmd(context.Background(), env, []string{"--once"}, ioDiscard()); err == nil {
 		t.Fatal("alive")
 	}
 	_ = os.Remove(f.Env(t).recordPath(40))

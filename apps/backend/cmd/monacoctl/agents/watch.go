@@ -12,8 +12,12 @@ import (
 )
 
 func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {
-	if len(args) != 0 {
-		return usageError("watch")
+	once, every, err := watchArgs(args)
+	if err != nil {
+		return err
+	}
+	if !once {
+		return env.watchStream(ctx, every, stdout)
 	}
 	rs, err := env.records()
 	if err != nil {
@@ -22,28 +26,40 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	if err := env.unqueueEjected(ctx, rs, stdout); err != nil {
 		return err
 	}
-	idle, alive, running, err := env.watchLists(ctx, rs)
+	lines, flagged, err := env.ownerLines(ctx, rs)
 	if err != nil {
 		return err
 	}
-	for _, r := range idle {
-		_, _ = fmt.Fprintf(stdout, "idle: #%d %s\n", r.Ticket, r.Worktree)
-	}
-	for _, r := range alive {
-		_, _ = fmt.Fprintf(stdout, "done but alive: #%d %s\n", r.Ticket, r.Worktree)
-	}
-	if running && !env.caffeinated(ctx) {
-		_, _ = fmt.Fprintln(stdout, "watchdog: missing caffeinate")
+	for _, line := range lines {
+		_, _ = fmt.Fprintln(stdout, line)
 	}
 	failed, err := env.failures(ctx)
 	if err != nil {
 		return err
 	}
 	env.writeFailures(ctx, failed, stdout)
-	if len(idle)+len(alive)+len(failed) > 0 {
+	if flagged+len(failed) > 0 {
 		return errs.New(errs.CodeForbidden, "monacoctl.agents.watch")
 	}
 	return nil
+}
+
+func (env *Env) ownerLines(ctx context.Context, rs []Record) ([]string, int, error) {
+	idle, alive, running, err := env.watchLists(ctx, rs)
+	if err != nil {
+		return nil, 0, err
+	}
+	var lines []string
+	for _, r := range idle {
+		lines = append(lines, fmt.Sprintf("idle: #%d %s", r.Ticket, r.Worktree))
+	}
+	for _, r := range alive {
+		lines = append(lines, fmt.Sprintf("done but alive: #%d %s", r.Ticket, r.Worktree))
+	}
+	if running && !env.caffeinated(ctx) {
+		lines = append(lines, "watchdog: missing caffeinate")
+	}
+	return lines, len(idle) + len(alive), nil
 }
 
 func (env *Env) watchLists(ctx context.Context, rs []Record) ([]Record, []Record, bool, error) {

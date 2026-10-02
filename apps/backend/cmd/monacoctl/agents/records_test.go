@@ -70,7 +70,12 @@ func TestRecords_aFreshCloneRebuildsTheOwnerFromTheTicket(t *testing.T) {
 	}
 
 	newStackGH(t, f, green(t, 6, "b6", "fb"))
-	if code, stdout, stderr := f.agents(t, "land-stack", "6"); code != 0 || stdout != "queued #6\n" {
+	if code, stdout, stderr := f.agents(
+		t,
+		"land-stack",
+		"6",
+	); code != 0 ||
+		stdout != "queued #6\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
 		t.Fatalf("land: %d %q %q", code, stdout, stderr)
 	}
 	env := f.Env(t)

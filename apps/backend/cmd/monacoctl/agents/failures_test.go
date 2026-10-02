@@ -202,7 +202,7 @@ func TestWatch_printsAFreshOwnerPromptForAnEjectedEntryOnce(t *testing.T) {
 		strings.Replace(watchNode(6, "fb", rollup(redOK, lintJob), ""), "Part of #40", "no ticket", 1),
 	))
 	f.hub.on(get("/actions/jobs/11/logs"), "--- FAIL: TestFlaky\n")
-	code, stdout, stderr := f.agents(t, "watch", "--verbose")
+	code, stdout, stderr := f.agents(t, "watch", "--once", "--verbose")
 	logPath := f.Env(t).statePath("logs", "job-11.log")
 	want := "#5 dropped from the Graphite merge queue\n  failing job: https://gh/job/11\n  fresh owner\n" +
 		"  ticket: 40\n  worktree: /wt/40\n  head: sha5\n  log: " + logPath + "\n  brief: docs/agents/owner.md\n" +
@@ -215,7 +215,7 @@ func TestWatch_printsAFreshOwnerPromptForAnEjectedEntryOnce(t *testing.T) {
 		t.Fatalf("log %q %v", b, err)
 	}
 	f.now = f.now.Add(time.Minute)
-	_, stdout, _ = f.agents(t, "watch")
+	_, stdout, _ = f.agents(t, "watch", "--once")
 	if strings.Contains(stdout, "#5") || !strings.Contains(stdout, "#6 stage 1 is red") {
 		t.Fatalf("second run:\n%s", stdout)
 	}
@@ -253,7 +253,7 @@ func TestWatch_failuresSurfaceStateQueryAndRecordErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.hub.on(graphqlRoute, `{"data":null,"errors":[{"message":"rate limited"}]}`)
-	if code, _, stderr := f.agents(t, "watch"); code != 1 || !strings.Contains(stderr, "rate limited") {
+	if code, _, stderr := f.agents(t, "watch", "--once"); code != 1 || !strings.Contains(stderr, "rate limited") {
 		t.Fatalf("graphql: %d %q", code, stderr)
 	}
 	writeFile(t, env.recordPath(40), "{")

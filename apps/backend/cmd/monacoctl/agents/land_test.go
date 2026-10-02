@@ -79,6 +79,12 @@ func stackOf(t *testing.T, n int, head, base, stage1, verify string) *stackPR {
 	return &p
 }
 
+func withFormat(p *stackPR, conclusion string) *stackPR {
+	rollup := &p.Commits.Nodes[0].Commit.StatusCheckRollup.Contexts
+	rollup.Nodes = append(rollup.Nodes, gqlContext{Name: formatCheck, Conclusion: conclusion})
+	return p
+}
+
 func green(t *testing.T, n int, head, base string) *stackPR {
 	t.Helper()
 	return stackOf(t, n, head, base, "SUCCESS", "SUCCESS")
@@ -215,11 +221,14 @@ func TestLandStack_refusesNamingEveryPRItWaitsOnAndChangesNothing(t *testing.T) 
 		stackOf(t, 2, "b2", "b1", "SUCCESS", ""),
 		stackOf(t, 3, "b3", "b2", "pending", "SUCCESS"),
 		stackOf(t, 4, "b4", "b3", "", "PENDING"),
+		withFormat(stackOf(t, 5, "b5", "b4", "SUCCESS", "SUCCESS"), ""),
+		withFormat(stackOf(t, 6, "b6", "b5", "SUCCESS", "SUCCESS"), "FAILURE"),
+		withFormat(stackOf(t, 7, "b7", "b6", "SUCCESS", "SUCCESS"), "SUCCESS"),
 	)
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
-	code, stdout, stderr := f.agents(t, "land-stack", "4")
-	want := "not landing #4; waiting on #1 (verify failure), #2 (verify missing), #3 (stage 1 pending), " +
-		"#4 (stage 1 missing, verify pending)\n"
+	code, stdout, stderr := f.agents(t, "land-stack", "7")
+	want := "not landing #7; waiting on #1 (verify failure), #2 (verify missing), #3 (stage 1 pending), " +
+		"#4 (stage 1 missing, verify pending), #5 (PR format pending), #6 (PR format failure)\n"
 	if code != 0 || stdout != want || stderr != "" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
@@ -240,7 +249,8 @@ func TestLandStack_labelsEveryPRBottomToTopAndKeepsTheirBases(t *testing.T) {
 	)
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
 	code, stdout, stderr := f.agents(t, "land-stack", "3")
-	if code != 0 || stdout != "queued #1 #2 #3\n" {
+	if code != 0 ||
+		stdout != "queued #1 #2 #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	want := []string{
@@ -290,7 +300,7 @@ func TestLandStack_readsEveryCheckAndTheNewestRunOfEach(t *testing.T) {
 		{
 			"the newest ci-ok and verify sit past the first page",
 			lastPage(ciOK("SUCCESS", 3), verifyAt("SUCCESS", 4)),
-			"queued #1 #2\n",
+			"queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n",
 		},
 		{
 			"a newer ci-ok failed",
@@ -349,7 +359,12 @@ func TestLandStack_aSinglePRGetsOnlyTheLabel(t *testing.T) {
 	f := newFixture(t)
 	s := newStackGH(t, f, green(t, 5, "b5", "fb"))
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40"})
-	if code, stdout, stderr := f.agents(t, "land-stack", "5"); code != 0 || stdout != "queued #5\n" {
+	if code, stdout, stderr := f.agents(
+		t,
+		"land-stack",
+		"5",
+	); code != 0 ||
+		stdout != "queued #5\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	want := []string{"gh pr edit 5 --add-label merge-queue -R o/r"}
@@ -367,7 +382,12 @@ func TestLandStack_labelsWithTheConfiguredQueueLabel(t *testing.T) {
 	writeFile(t, filepath.Join(f.dir, configPath), testConfig+"queue_label = \"ship-it\"\n")
 	s := newStackGH(t, f, green(t, 5, "b5", "fb"))
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40"})
-	if code, stdout, stderr := f.agents(t, "land-stack", "5"); code != 0 || stdout != "queued #5\n" {
+	if code, stdout, stderr := f.agents(
+		t,
+		"land-stack",
+		"5",
+	); code != 0 ||
+		stdout != "queued #5\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	if got := s.lines(); !slices.Equal(got, []string{"gh pr edit 5 --add-label ship-it -R o/r"}) {
@@ -420,7 +440,8 @@ func TestLandStack_queuesOnlyOnceGitHubReportsTheBottomMergeableOntoTheTrunk(t *
 			f := newFixture(t)
 			s := waitingStack(t, f, tc.script...)
 			code, stdout, stderr := f.agents(t, "land-stack", "2")
-			if code != 0 || stdout != "queued #1 #2\n" {
+			if code != 0 ||
+				stdout != "queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
 				t.Fatalf("%d %q %q", code, stdout, stderr)
 			}
 			if s.polls != tc.polls || s.pollsAtLabel != tc.polls {
@@ -478,7 +499,7 @@ func TestLandStack_aRerunAfterATimeoutQueuesOnceGitHubHasRecomputed(t *testing.T
 	}
 	s.merges[1] = nil
 	code, stdout, stderr = f.agents(t, "land-stack", "2")
-	if code != 0 || stdout != "queued #1 #2\n" {
+	if code != 0 || stdout != "queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
 		t.Fatalf("rerun: %d %q %q", code, stdout, stderr)
 	}
 	want := []string{"gh pr edit 1 --add-label merge-queue -R o/r", "gh pr edit 2 --add-label merge-queue -R o/r"}
@@ -765,7 +786,8 @@ func TestLandStack_relandsAnEjectedStackWholeInOneCall(t *testing.T) {
 	f := newFixture(t)
 	s := ejectedStack(t, f)
 	code, stdout, stderr := f.agents(t, "land-stack", "3")
-	if code != 0 || stdout != "#3 left the Graphite merge queue; relanding its stack\nqueued #1 #2 #3\n" {
+	if code != 0 ||
+		stdout != "#3 left the Graphite merge queue; relanding its stack\nqueued #1 #2 #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	want := []string{
@@ -789,7 +811,8 @@ func TestLandStack_relandsWhatIsLeftWhenOnePRLostTheLabel(t *testing.T) {
 	s.prs[2].Base = "fb"
 	labeled(s.prs[3], "merge-queue")
 	code, stdout, stderr := f.agents(t, "land-stack", "3")
-	if code != 0 || stdout != "#3 left the Graphite merge queue; relanding its stack\nqueued #2 #3\n" {
+	if code != 0 ||
+		stdout != "#3 left the Graphite merge queue; relanding its stack\nqueued #2 #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	want := []string{"gh pr edit 2 --add-label merge-queue -R o/r", "gh pr edit 3 --add-label merge-queue -R o/r"}
@@ -859,19 +882,19 @@ func TestLandStack_readsTheStackFromGraphite(t *testing.T) {
 		{
 			name:  "gt names the lower PRs",
 			gtLog: "◯  fb\n◯  b1\n◯  b2 (needs restack)\n◉  b3\n◯  b4\n",
-			out:   "queued #1 #2 #3\n",
+			out:   "queued #1 #2 #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n",
 		},
 		{
 			name:  "gt lists the trunk, whose own PR targets main",
 			gtLog: "◯  fb\n◯  b0\n◯  b1\n◉  b3\n",
-			out:   "queued #1 #3\n",
+			out:   "queued #1 #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n",
 		},
-		{name: "gt names only the top", gtLog: "◯  fb\n◉  b3\n", out: "queued #3\n"},
-		{name: "gt is on another stack", gtLog: "◯  fb\n◯  b1\n◉  b7\n", out: "queued #3\n"},
+		{name: "gt names only the top", gtLog: "◯  fb\n◉  b3\n", out: "queued #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n"},
+		{name: "gt is on another stack", gtLog: "◯  fb\n◯  b1\n◉  b7\n", out: "queued #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n"},
 		{
 			name: "gt fails",
 			fail: "gt log",
-			out:  "gt log in /w/40 failed (gt log: boom); landing the GitHub base chain\nqueued #3\n",
+			out:  "gt log in /w/40 failed (gt log: boom); landing the GitHub base chain\nqueued #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -938,7 +961,7 @@ func TestWatch_clearsTheQueuedMarkOfAnEjectedStack(t *testing.T) {
 	f.record(t, Record{Ticket: 43, State: Exited, Queued: &Queue{Top: 8, PRs: []int{8}}})
 	f.record(t, Record{Ticket: 44, State: Exited})
 	f.noFailures()
-	code, stdout, stderr := f.agents(t, "watch")
+	code, stdout, stderr := f.agents(t, "watch", "--once")
 	want := "unqueued: #40; #3 left the Graphite merge queue. Fix the stack with gt modify and gt submit --stack --draft, then run land-stack 3\n"
 	if code != 0 || stdout != want {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
@@ -965,7 +988,7 @@ func TestWatch_unqueueFailures(t *testing.T) {
 		f := newFixture(t)
 		s := ejectedStack(t, f)
 		s.fail = "gh api"
-		if code, _, stderr := f.agents(t, "watch"); code != 1 || !strings.Contains(stderr, "gh api: boom") {
+		if code, _, stderr := f.agents(t, "watch", "--once"); code != 1 || !strings.Contains(stderr, "gh api: boom") {
 			t.Fatalf("%d %q", code, stderr)
 		}
 	})
@@ -976,7 +999,12 @@ func TestWatch_unqueueFailures(t *testing.T) {
 		if err := os.Chmod(f.Env(t).recordPath(40), 0o400); err != nil {
 			t.Fatal(err)
 		}
-		if code, _, stderr := f.agents(t, "watch"); code != 1 || !strings.Contains(stderr, "write owner record") {
+		if code, _, stderr := f.agents(
+			t,
+			"watch",
+			"--once",
+		); code != 1 ||
+			!strings.Contains(stderr, "write owner record") {
 			t.Fatalf("%d %q", code, stderr)
 		}
 	})
@@ -991,7 +1019,7 @@ func TestLandStack_aClosedPROutsideTheTrunkWithoutTheLabelIsEjected(t *testing.T
 	labeled(s.prs[3], "merge-queue")
 	f.hub.on(get("/compare/fb...b1-oid"), `{"status":"diverged"}`)
 	f.noFailures()
-	code, stdout, stderr := f.agents(t, "watch")
+	code, stdout, stderr := f.agents(t, "watch", "--once")
 	if code != 0 || !strings.HasPrefix(stdout, "unqueued: #40; #3 left the Graphite merge queue.") {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
@@ -1033,7 +1061,7 @@ func TestLandStack_aFailedCompareStopsSettleAndWatch(t *testing.T) {
 		t.Fatalf("settle on a failed compare: %d %q", code, stderr)
 	}
 	s.prs[1].Labels.Nodes = nil
-	code, _, stderr = f.agents(t, "watch")
+	code, _, stderr = f.agents(t, "watch", "--once")
 	if code != 1 || !strings.Contains(stderr, "compare b1-oid with fb") {
 		t.Fatalf("watch on a failed compare: %d %q", code, stderr)
 	}
@@ -1049,7 +1077,7 @@ func TestLandStack_aPRClosedByHandIsEjectedEvenWithTheLabel(t *testing.T) {
 	s.prs[2].State = "CLOSED"
 	f.hub.on(get("/compare/fb...b2-oid"), `{"status":"diverged"}`)
 	f.noFailures()
-	code, stdout, stderr := f.agents(t, "watch")
+	code, stdout, stderr := f.agents(t, "watch", "--once")
 	if code != 0 || !strings.HasPrefix(stdout, "unqueued: #40; #3 left the Graphite merge queue.") {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}

@@ -88,7 +88,7 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
 
 9. Stop. An owner never merges. The verifier reviews the diff against the ticket, posts a `verify` status and lands the PR (see [Run a milestone](run-a-milestone.md#verify-and-land)). A dispatched agent exits with its PR URLs, head SHAs, the stage 0 summary and every decision it made.
 
-10. Land. Outside a dispatched ticket, the agent that shipped the stack lands it. Always land: once a stack's PRs are submitted and stage 1 and `verify` are green, run `monacoctl agents land-stack <top-pr>` without asking, unless the user said in the current conversation not to land or queue. It adds the `merge-queue` label to every PR of the stack, and the Graphite merge queue runs stage 2 and fast-forwards `staging`. A landed PR shows as closed, not merged, in GitHub. That is normal.
+10. Land. Outside a dispatched ticket, the agent that shipped the stack lands it. Always land: once a stack's PRs are submitted and stage 1 and `verify` are green, run `monacoctl agents land-stack <top-pr>` without asking, unless the user said in the current conversation not to land or queue. It adds the `merge-queue` label to every PR of the stack, and the Graphite merge queue runs stage 2 and fast-forwards `staging`. A landed PR shows as closed, not merged, in GitHub. That is normal. Then follow it with `monacoctl agents watch` under Claude Code's Monitor tool. It prints one line per change, such as `#<pr> queued`, `draft #<n> <check>: fail` and `stack #<top> landed (#a #b)`, and runs `gt sync` once every PR landed. Never wait with a sleep or poll loop, and never rerun `land-stack` to wait. Never push new heads to a queued stack without first dequeuing it in Graphite (`gt` or the Graphite UI): removing the label is not enough, because Graphite re-adds it from its own state and may requeue unverified heads.
 
 ## Old flow and new flow
 
@@ -102,6 +102,7 @@ PRs used to land on `<feature>-checkpoint-<N>` branches through the GitHub merge
 | A `Lands stack:` line in the top PR's body | No such line. Each PR passes the size check on its own |
 | Stage 2 on `merge_group` | Stage 2 on the Graphite queue's `gtmq_` draft PR |
 | The queue merged the stack with a merge commit, and GitHub marked its PRs merged | The queue fast-forwards. Landed PRs show as closed, not merged |
+| Sleep or poll loops, or rerunning `land-stack`, to wait for a landing | `monacoctl agents watch` under Monitor |
 | A checkpoint squash into `main` cut `<feature>-checkpoint-<N+1>` | A promotion PR merges `staging` into `main` with a merge commit, and `staging` stays |
 
 Agents never add `merge-queue` by hand and never add `fast-track`. Only a person adds `fast-track`, a PR under 100 counted lines that touches nothing under `apps/backend/`, `.github/` or `docker-compose.yml`.

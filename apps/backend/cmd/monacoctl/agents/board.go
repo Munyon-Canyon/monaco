@@ -10,6 +10,7 @@ import (
 
 const (
 	stage1Check   = "ci / ci-ok"
+	formatCheck   = "PR format (title, body and commits)"
 	verifyContext = "verify"
 	labelFields   = `labels(first:20){nodes{name}}`
 	prFields      = `number body createdAt state mergedAt closedAt headRefOid ` + labelFields + `
@@ -65,6 +66,7 @@ type ticketPR struct {
 	Stage1At time.Time
 	Verify   string
 	VerifyAt time.Time
+	Format   string
 	Queued   []queueEvent
 }
 
@@ -207,6 +209,10 @@ func (t *ticketPR) note(c gqlContext) {
 		t.Stage1 = "pending"
 	case c.Name == stage1Check:
 		t.Stage1, t.Stage1At = strings.ToLower(c.Conclusion), c.CompletedAt
+	case c.Name == formatCheck && c.Conclusion == "":
+		t.Format = "pending"
+	case c.Name == formatCheck:
+		t.Format = strings.ToLower(c.Conclusion)
 	case c.Context == verifyContext:
 		t.Verify, t.VerifyAt = strings.ToLower(c.State), c.CreatedAt
 	}
