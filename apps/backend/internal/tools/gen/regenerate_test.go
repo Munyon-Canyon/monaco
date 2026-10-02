@@ -151,18 +151,15 @@ func TestRun_failsOnAMissingRootAndOnUnwritableTargets(t *testing.T) {
 		!strings.Contains(err.Error(), "gen.write") {
 		t.Fatalf("missing root err = %v, want gen.write", err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, "internal"), 0o500); err != nil {
+	internal := filepath.Join(root, "internal", "providers")
+	if err := os.MkdirAll(internal, 0o750); err != nil {
 		t.Fatal(err)
 	}
+	freeze(t, internal)
 	if _, err := run(t, root, "provider", "quotes"); err == nil || !strings.Contains(err.Error(), "gen.writeFile") {
 		t.Fatalf("read-only internal/ err = %v, want gen.writeFile", err)
 	}
-	if err := os.Chmod(filepath.Join(root, "internal"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chmod(filepath.Join(root, "CHANGELOG.md"), 0o400); err != nil {
-		t.Fatal(err)
-	}
+	freeze(t, filepath.Join(root, "CHANGELOG.md"))
 	if _, err := run(t, root, "module", "ledger"); err == nil || !strings.Contains(err.Error(), "gen.writeFile") {
 		t.Fatalf("read-only CHANGELOG.md err = %v, want gen.writeFile", err)
 	}

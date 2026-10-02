@@ -3,7 +3,6 @@ package agents
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -293,9 +292,7 @@ func TestWatchStream_reportsAFailedSettleOrUnmark(t *testing.T) {
 		f := newFixture(t)
 		s := queuedStack(t, f, "/w/40")
 		s.prs[2].Labels.Nodes = nil
-		if err := os.Chmod(f.Env(t).recordPath(40), 0o400); err != nil {
-			t.Fatal(err)
-		}
+		freeze(t, f.Env(t).recordPath(40))
 		got := streamRounds(t, f, 2, func(int) {})
 		if !strings.Contains(got, "watch error: unmark #2: ") || strings.Contains(got, "stack #2 ejected") {
 			t.Fatalf("stream:\n%s", got)
