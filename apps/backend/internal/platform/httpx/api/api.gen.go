@@ -77,6 +77,7 @@ const (
 	ApnsAuthFailed             ErrorCode = "apns_auth_failed"
 	ApnsUnavailable            ErrorCode = "apns_unavailable"
 	AssetNotFound              ErrorCode = "asset_not_found"
+	AssetUntradable            ErrorCode = "asset_untradable"
 	AuthStateTransition        ErrorCode = "auth_state_transition"
 	CabalBanned                ErrorCode = "cabal_banned"
 	CabalNotFound              ErrorCode = "cabal_not_found"
@@ -172,6 +173,8 @@ func (e ErrorCode) Valid() bool {
 	case ApnsUnavailable:
 		return true
 	case AssetNotFound:
+		return true
+	case AssetUntradable:
 		return true
 	case AuthStateTransition:
 		return true

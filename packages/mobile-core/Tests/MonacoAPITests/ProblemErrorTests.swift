@@ -24,7 +24,8 @@ final class ProblemErrorTests: XCTestCase {
             switch code {
             case .accessRequestNotPending, .accountBanned, .accountDeleted, .accountHasBalance, .accountHasPositions,
                 .accountStatusTransition, .accountSuspended, .alreadyMember, .analyticsPii, .apnsAuthFailed,
-                .apnsUnavailable, .assetNotFound, .authStateTransition, .cabalBanned, .cabalNotFound,
+                .apnsUnavailable, .assetNotFound, .assetUntradable, .authStateTransition, .cabalBanned,
+                .cabalNotFound,
                 .calendarExpired, .cannotRevokeAccess, .clientClosed, .conservationBroken, .dbSchemaBehind,
                 .dbUnavailable, .decodeFailed, .displayNameInvalid, .forbidden, .handleInvalid,
                 .handleRequired, .handleReserved, .handleTaken, .handleTooSoon, .idempotencyInFlight,
