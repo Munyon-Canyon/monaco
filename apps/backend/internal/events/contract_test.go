@@ -139,6 +139,22 @@ func userFixtures(t *testing.T) map[events.Type]any {
 	}
 }
 
+func followFixtures(t *testing.T) map[events.Type]any {
+	t.Helper()
+	g := testkit.NewIDs(569)
+	follow, follower, followee := g.NewV7(), g.NewV7(), g.NewV7()
+	return map[events.Type]any{
+		events.TypeFollowCreated: events.FollowCreated{
+			V: 1, FollowID: follow, FollowerID: follower, FolloweeID: followee, Source: "profile",
+			CreatedAt: time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC),
+		},
+		events.TypeFollowRemoved: events.FollowRemoved{
+			V: 1, FollowID: follow, FollowerID: follower, FolloweeID: followee,
+			RemovedAt: time.Date(2026, 3, 2, 9, 30, 0, 0, time.UTC),
+		},
+	}
+}
+
 func goldenName(t events.Type, v int) string { return fmt.Sprintf("%s.v%d.json", t, v) }
 
 func TestGoldenPayloads(t *testing.T) {
@@ -146,6 +162,7 @@ func TestGoldenPayloads(t *testing.T) {
 	fx := fixtures(t)
 	maps.Copy(fx, proposalFixtures(t))
 	maps.Copy(fx, userFixtures(t))
+	maps.Copy(fx, followFixtures(t))
 	for _, entry := range events.Catalog() {
 		ev, ok := fx[entry.Type]
 		if !ok {
