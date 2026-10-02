@@ -462,7 +462,7 @@ func removeFile(t *testing.T, env mutationEnv, name string) {
 
 func TestMutationUsage(t *testing.T) {
 	t.Parallel()
-	for _, args := range [][]string{{"extra"}, {"--bogus"}, {"--list", "--pkg", "a"}, {"--all", "--report", "r.json"}} {
+	for _, args := range [][]string{{"extra"}, {"--bogus"}, {"--list", "--pkg", "a"}, {"--all", "--report", "r.json"}, {"--workers", "-1"}} {
 		var stdout, stderr bytes.Buffer
 		if code := mutationTool(
 			mutationEnv{},
@@ -611,5 +611,28 @@ func TestMutationSummaryCountsThePackagesMutatedBeforeGremlinsFailed(t *testing.
 	want := "mutating 4 packages: a b broken c\nmutation summary: 2 packages, 2 tested, 1 killed, 1 lived, 0 timed out, wall 1m30s\n"
 	if code != 1 || stdout.String() != want || !strings.Contains(stderr.String(), "gremlins exploded") {
 		t.Fatalf("code=%d stdout=%q stderr=%q, want stdout %q", code, stdout.String(), stderr.String(), want)
+	}
+}
+
+func TestMutationWorkersPassesThatManyWorkersToGremlinsAndZeroLeavesItsDefault(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--all", "--pkg", "c", "--workers", "2"}, " --workers 2 "},
+		{[]string{"--all", "--pkg", "c", "--workers", "0"}, ""},
+		{[]string{"--all", "--pkg", "c"}, ""},
+	} {
+		env := mutationModule(t, "")
+		var stdout, stderr bytes.Buffer
+		if code := mutationTool(env)(tc.args, &stdout, &stderr); code != 0 {
+			t.Fatalf("%v: code=%d stdout=%q stderr=%q", tc.args, code, stdout.String(), stderr.String())
+		}
+		call := gremlinsCalls(t, env)[0] + " "
+		if has := strings.Contains(call, " --workers "); has != (tc.want != "") ||
+			tc.want != "" && !strings.Contains(call, tc.want) {
+			t.Fatalf("%v: gremlins call %q, want workers flag %q", tc.args, call, tc.want)
+		}
 	}
 }
