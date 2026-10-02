@@ -159,7 +159,7 @@ func TestBatch_refusesBadInputAndFailures(t *testing.T) {
 func liveTouches() map[int]string {
 	return map[int]string{
 		562: "`apps/backend/internal/modules/treasury/**`, `apps/backend/queries/treasury/**`, " +
-			"`apps/backend/internal/errs/codes.go`, `apps/backend/internal/errs/codes_test.go`, " +
+			"`apps/backend/internal/errs/codes_*.go`, " +
 			"`apps/backend/api/openapi.yaml`, `apps/backend/internal/platform/httpx/api/api.gen.go`, " +
 			"`apps/backend/internal/testkit/fakes/treasury.go`, `apps/backend/internal/testkit/fakes/treasury_test.go`, " +
 			"`docs/reference/errors.md`, `docs/reference/openapi.yaml`, " +
@@ -171,7 +171,7 @@ func liveTouches() map[int]string {
 			"`apps/backend/internal/events/cabal.go`, `apps/backend/internal/events/hints.go`, " +
 			"`apps/backend/internal/events/testdata/golden/cabal.paused.v1.json`, " +
 			"`apps/backend/internal/events/testdata/golden/cabal.resumed.v1.json`, " +
-			"`apps/backend/internal/errs/codes.go`, `apps/backend/internal/errs/codes_test.go`, " +
+			"`apps/backend/internal/errs/codes_*.go`, " +
 			"`apps/backend/api/openapi.yaml`, `apps/backend/internal/platform/httpx/api/api.gen.go`, " +
 			"`apps/backend/internal/testkit/fakes/pauses.go`, `docs/reference/**`, " +
 			"`packages/mobile-core/Tests/MonacoAPITests/ProblemErrorTests.swift`",
@@ -180,7 +180,7 @@ func liveTouches() map[int]string {
 			"`apps/backend/api/openapi.yaml`, `apps/backend/internal/platform/httpx/api/api.gen.go`, " +
 			"`apps/backend/flows.tsv`, `apps/backend/internal/events/follow.go`, " +
 			"`apps/backend/internal/events/registry.go`, `apps/backend/internal/events/testdata/golden/follow.*`, " +
-			"`apps/backend/internal/errs/codes.go`, `apps/backend/internal/testkit/flows/f20.go`, " +
+			"`apps/backend/internal/errs/codes_*.go`, `apps/backend/internal/testkit/flows/f20.go`, " +
 			"`apps/backend/internal/testkit/scenarios/two-users.jsonl`, `apps/backend/cmd/api/module_social.gen.go`, " +
 			"`apps/backend/cmd/worker/module_social.gen.go`, `apps/backend/cmd/monacoctl/module_social.gen.go`, " +
 			"`apps/backend/cmd/api/registry.go`, `apps/backend/CHANGELOG.md`",
@@ -216,11 +216,11 @@ func TestBatch_admitsTicketsThatOverlapOnlyOnSharedFiles(t *testing.T) {
 	code, stdout, stderr := f.agents(t, args...)
 	const (
 		api   = "apps/backend/api/openapi.yaml, apps/backend/internal/platform/httpx/api/api.gen.go"
-		codes = "apps/backend/internal/errs/codes.go"
+		codes = "apps/backend/internal/errs/codes_*.go"
 	)
 	want := strings.Join([]string{
 		"batch: #562 #563 #569 #555 (4 of 6) in " + f.Env(t).batchPath(),
-		"shared: #563 and #562 both touch " + codes + ", apps/backend/internal/errs/codes_test.go, " + api +
+		"shared: #563 and #562 both touch " + codes + ", " + api +
 			", docs/reference/**, packages/mobile-core/Tests/MonacoAPITests/ProblemErrorTests.swift",
 		"shared: #569 and #562 both touch " + api + ", " + codes,
 		"shared: #569 and #563 both touch apps/backend/migrations/**, apps/backend/sqlc.yaml, " +

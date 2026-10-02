@@ -5,6 +5,8 @@ import (
 	"go/parser"
 	"go/token"
 	"maps"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -12,13 +14,26 @@ import (
 	"unicode"
 )
 
-func declaredCodes(t *testing.T, path string) map[string]Code {
+func declaredCodes(t *testing.T) map[string]Code {
+	t.Helper()
+	paths, err := filepath.Glob("codes*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths = slices.DeleteFunc(paths, func(p string) bool { return strings.HasSuffix(p, "_test.go") })
+	found := map[string]Code{}
+	for _, path := range paths {
+		collectFileCodes(t, path, found)
+	}
+	return found
+}
+
+func collectFileCodes(t *testing.T, path string, found map[string]Code) {
 	t.Helper()
 	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
 	if err != nil {
 		t.Fatalf("parse %s: %v", path, err)
 	}
-	found := map[string]Code{}
 	for _, decl := range file.Decls {
 		gen, ok := decl.(*ast.GenDecl)
 		if !ok || gen.Tok != token.CONST {
@@ -30,7 +45,6 @@ func declaredCodes(t *testing.T, path string) map[string]Code {
 			}
 		}
 	}
-	return found
 }
 
 func collectCode(t *testing.T, spec *ast.ValueSpec, found map[string]Code) {
@@ -72,9 +86,9 @@ func startsWord(runes []rune, i int) bool {
 
 func TestEveryDeclaredCodeHasATableRowAndEveryRowHasACode(t *testing.T) {
 	t.Parallel()
-	declared := declaredCodes(t, "codes.go")
+	declared := declaredCodes(t)
 	if len(declared) == 0 {
-		t.Fatal("no Code constants found in codes.go")
+		t.Fatal("no Code constants found in codes_*.go")
 	}
 	rows := table()
 	for ident, code := range declared {
@@ -85,14 +99,14 @@ func TestEveryDeclaredCodeHasATableRowAndEveryRowHasACode(t *testing.T) {
 	values := slices.Collect(maps.Values(declared))
 	for code := range rows {
 		if !slices.Contains(values, code) {
-			t.Errorf("table row %q has no Code constant in codes.go", code)
+			t.Errorf("table row %q has no Code constant in codes_*.go", code)
 		}
 	}
 }
 
 func TestRowNameMatchesIdentifierAndWireValueIsItsSnakeCase(t *testing.T) {
 	t.Parallel()
-	for ident, code := range declaredCodes(t, "codes.go") {
+	for ident, code := range declaredCodes(t) {
 		name := strings.TrimPrefix(ident, "Code")
 		if got := Name(code); got != name {
 			t.Errorf("%s: Name = %q, want %q", ident, got, name)
@@ -210,5 +224,21 @@ func TestUnknownCodeReadsAsInternal(t *testing.T) {
 	}
 	if got, want := Message(unknown), Message(CodeInternal); got != want {
 		t.Errorf("Message = %q, want %q", got, want)
+	}
+}
+
+func TestAllListsTheCodesInTheirRecordedOrder(t *testing.T) {
+	t.Parallel()
+	raw, err := os.ReadFile("testdata/all_codes.golden")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strings.Fields(string(raw))
+	got := make([]string, 0, len(want))
+	for _, code := range All() {
+		got = append(got, string(code))
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("All() = %v, want %v", got, want)
 	}
 }
