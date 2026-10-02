@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"math"
 	"net/http"
 	"slices"
 	"strings"
@@ -684,3 +685,45 @@ func extract(r *http.Request) context.Context {
 }
 
 func now() time.Time { return clock.Real{}.Now() }
+
+func TestDo_aRetryAfterOfZeroSecondsRetriesAtOnce(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		u := &upstream{
+			replies: []reply{status(http.StatusServiceUnavailable, "Retry-After", "0"), status(http.StatusOK)},
+		}
+		c := client(u, httpclient.WithRetry(2, time.Hour, time.Hour), httpclient.WithFullDelay())
+
+		got := mustOK(t.Context(), t, c, get(t, "/v1/users"))
+
+		if got.status != http.StatusOK {
+			t.Fatalf("status = %d, want 200 on the retry", got.status)
+		}
+		equalGaps(t, u.gaps(), 0)
+	})
+}
+
+func TestDo_aDelayAtTheCeilingStaysThereWithoutOverflowingOnTheNextRetry(t *testing.T) {
+	t.Parallel()
+	const ceiling = time.Duration(1 << 62)
+	synctest.Test(t, func(t *testing.T) {
+		u := &upstream{replies: []reply{
+			status(http.StatusServiceUnavailable, "Retry-After", "0"),
+			status(http.StatusServiceUnavailable),
+			status(http.StatusOK),
+		}}
+		c := client(
+			u,
+			httpclient.WithRetry(3, ceiling, ceiling),
+			httpclient.WithTimeout(time.Duration(math.MaxInt64)),
+			httpclient.WithFullDelay(),
+		)
+
+		got := mustOK(t.Context(), t, c, get(t, "/v1/users"))
+
+		if got.status != http.StatusOK {
+			t.Fatalf("status = %d, want 200 on the third attempt", got.status)
+		}
+		equalGaps(t, u.gaps(), 0, ceiling)
+	})
+}
