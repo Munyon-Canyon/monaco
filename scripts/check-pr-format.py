@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+import urllib.parse
 from typing import NamedTuple
 
 SECTIONS = ["TLDR", "Why", "What changed", "Proof", "What came up", "Reviewer focus"]
@@ -130,11 +131,27 @@ def git(*args: str) -> str | None:
 
 
 def stacked(flag: str, ref: str) -> list[StackedPR]:
+    repo = os.environ.get("GH_REPO") or os.environ.get("GITHUB_REPOSITORY")
+    if not repo:
+        repo = subprocess.run(
+            ["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    key, value = ("base", urllib.parse.quote(ref, safe="")) if flag == "--base" else (
+        "head", f"{repo.split('/', 1)[0]}:{urllib.parse.quote(ref, safe='')}"
+    )
+    query = f"state=open&per_page=100&{key}={value}"
     out = subprocess.run(
-        ["gh", "pr", "list", "--state", "open", flag, ref, "--json", "number,body"],
+        ["gh", "api", "--paginate", f"repos/{repo}/pulls?{query}"],
         capture_output=True, text=True, check=True,
     ).stdout
-    return [StackedPR(pr["number"], pr["body"]) for pr in json.loads(out)]
+    decoder = json.JSONDecoder()
+    pages = []
+    while out := out.lstrip():
+        page, end = decoder.raw_decode(out)
+        pages.extend(page)
+        out = out[end:]
+    return [StackedPR(pr["number"], pr["body"] or "") for pr in pages]
 
 
 def body_errors(body: str) -> list[str]:

@@ -116,6 +116,26 @@ class TicketTest(unittest.TestCase):
         self.assertEqual(errors, ['"## Needs from Logan" is empty; write "Nothing." or the checklist'])
 
 
+class StackedTest(unittest.TestCase):
+    def test_reads_paginated_open_pull_lists_through_rest(self):
+        calls = []
+
+        def run(args, **kwargs):
+            calls.append(args)
+            self.assertNotIn("pr", args, "stacked must not call gh pr list")
+            return subprocess.CompletedProcess(args, 0, '[{"number": 2, "body": null}]\n[{"number": 3, "body": "x"}]\n')
+
+        with mock.patch.dict(os.environ, {"GH_REPO": "o/r"}, clear=False), \
+             mock.patch.object(check.subprocess, "run", side_effect=run):
+            self.assertEqual(check.stacked("--base", "child/next"), [check.StackedPR(2, ""), check.StackedPR(3, "x")])
+            self.assertEqual(check.stacked("--head", "parent"), [check.StackedPR(2, ""), check.StackedPR(3, "x")])
+
+        self.assertEqual(calls, [
+            ["gh", "api", "--paginate", "repos/o/r/pulls?state=open&per_page=100&base=child%2Fnext"],
+            ["gh", "api", "--paginate", "repos/o/r/pulls?state=open&per_page=100&head=o:parent"],
+        ])
+
+
 class CommandTest(unittest.TestCase):
     def test_accepts_commands_that_parse(self):
         needs = "- [ ] Add the label:\n\n```bash\ngh issue edit 789 --add-label x\n```\n\n```\nfor i in 1 2; do echo $i; done\n```"

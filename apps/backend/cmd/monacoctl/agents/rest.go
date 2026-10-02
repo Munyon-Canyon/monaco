@@ -322,8 +322,9 @@ type restTimeline struct {
 	Event  string `json:"event"`
 	Source struct {
 		Issue struct {
-			Number int       `json:"number"`
-			Pull   *struct{} `json:"pull_request"`
+			Number        int       `json:"number"`
+			RepositoryURL string    `json:"repository_url"`
+			Pull          *struct{} `json:"pull_request"`
 		} `json:"issue"`
 	} `json:"source"`
 }
@@ -422,6 +423,10 @@ func (env *Env) crossRefs(ctx context.Context, ticket int) ([]any, error) {
 	var nodes []any
 	for _, e := range events {
 		if e.Event != "cross-referenced" || e.Source.Issue.Pull == nil {
+			continue
+		}
+		if e.Source.Issue.RepositoryURL != "" &&
+			e.Source.Issue.RepositoryURL != "https://api.github.com/repos/"+env.GitHub.Repo {
 			continue
 		}
 		pr, err := env.pullAsGQL(ctx, e.Source.Issue.Number)

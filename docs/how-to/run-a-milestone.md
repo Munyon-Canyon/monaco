@@ -230,3 +230,20 @@ Each rule below came from a failure in the M7 run.
 - **Check units against a real response on money paths.** The #537 verifier caught Jupiter's `priceImpactPct` read as a fraction instead of a percent, which would have refused every real trade.
 - **Watch the machine, not only the queue.** Five owners running stage 0 at once pushed the load to 60, and every `agents check` then went over budget. Dispatch in a rolling window instead.
 - **Save `batch.json` before the next batch.** `batch` replaces it, and `timeline` needs it.
+
+## Cloud root
+
+A Claude Code cloud session runs as root in a Linux container. It can own a ticket the same way a laptop does once the environment below is in place.
+
+Egress must allow these hosts:
+
+- `api.github.com`, for REST (`gh api`, `monacoctl agents`, `scripts/pr-body.sh`).
+- `api.graphite.com`, for `gt submit`.
+- `proxy.golang.org`, for Go modules and toolchains.
+- `mirror.gcr.io` or Docker Hub, for `mirror.gcr.io/library/swift:6.3-noble` and for Postgres.
+
+The Claude GitHub App must be installed on `Munyon-Canyon/monaco` with write on contents, pull requests, issues and commit statuses. Without that write, pushes, comments and `verdict` fail with `Resource not accessible by integration`.
+
+The session needs `DOTENV_PRIVATE_KEY` and `GRAPHITE_TOKEN`. `DOTENV_PRIVATE_KEY` decrypts `.env.local` when `.env.keys` is absent. `GRAPHITE_TOKEN` is what `gt submit` uses.
+
+These steps still need a Mac: `just build mobile`, the MonacoTests run (`-only-testing:MonacoTests`), anything that uses a simulator, and a Darwin-only `swift test`. On the cloud host, `just test mobile` runs `swift test` in `packages/mobile-core` through the Swift shims when the Swift tarball cannot be downloaded.

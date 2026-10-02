@@ -14,10 +14,19 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-atlas_want="atlas community version $(cat "$root/apps/backend/.atlas-version")"
-if [[ "$("$root/.bin/atlas" version 2>/dev/null | head -1)" != "$atlas_want" ]]; then
-  "$root/scripts/install-atlas.sh" >&2 || echo "session-start: atlas install failed" >&2
-fi
+atlas_tag="$(cat "$root/apps/backend/.atlas-version")"
+atlas_line="$("$root/.bin/atlas" version 2>/dev/null | head -1 || true)"
+case "$atlas_line" in
+  "atlas community version ${atlas_tag}") ;;
+  *)
+    if ! "$root/scripts/install-atlas.sh" >&2; then
+      mkdir -p "$root/.bin"
+      if ! GOBIN="$root/.bin" go install "ariga.io/atlas/cmd/atlas@${atlas_tag}"; then
+        echo "session-start: atlas install failed" >&2
+      fi
+    fi
+    ;;
+esac
 sqlc_want="v$(sed -n 's/^version=//p' "$root/scripts/install-sqlc.sh")"
 if [[ "$("$root/.bin/sqlc" version 2>/dev/null)" != "$sqlc_want" ]]; then
   "$root/scripts/install-sqlc.sh" >&2 || echo "session-start: sqlc install failed" >&2

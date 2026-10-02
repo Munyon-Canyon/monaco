@@ -16,22 +16,51 @@ command -v dotenvx >/dev/null || npm install -g @dotenvx/dotenvx
 # Swift (for `just test mobile` = host `swift test` in packages/mobile-core).
 # Tarball + gpg check instead of swiftly: swift.org serves its keys gzip-encoded,
 # which breaks swiftly's key import, so fetch them with --compressed.
+# When that download is blocked, shims run the same tools in swift:6.3-noble.
 SWIFT_VERSION=6.3.3
-if ! command -v swift >/dev/null; then
-  tmp=$(mktemp -d)
+swift_shim=0
+if grep -Fq 'mirror.gcr.io/library/swift:6.3-noble' /usr/local/bin/swift 2>/dev/null; then
+  swift_shim=1
+fi
+install_swift() {
+  tmp=$(mktemp -d) || return 1
+  trap 'rm -rf "$tmp"' RETURN
   base="https://download.swift.org/swift-${SWIFT_VERSION}-release/ubuntu2404/swift-${SWIFT_VERSION}-RELEASE/swift-${SWIFT_VERSION}-RELEASE-ubuntu24.04.tar.gz"
-  curl -fsSL --compressed https://www.swift.org/keys/all-keys.asc -o "$tmp/keys.asc"
-  gpg --batch --quiet --import "$tmp/keys.asc"
-  curl -fsSL -o "$tmp/swift.tgz" "$base"
-  curl -fsSL -o "$tmp/swift.tgz.sig" "$base.sig"
-  gpg --batch --verify "$tmp/swift.tgz.sig" "$tmp/swift.tgz"
-  mkdir -p /opt/swift
-  tar xzf "$tmp/swift.tgz" -C /opt/swift --strip-components=1
-  ln -sf /opt/swift/usr/bin/* /usr/local/bin/
-  rm -rf "$tmp"
+  curl -fsSL --compressed https://www.swift.org/keys/all-keys.asc -o "$tmp/keys.asc" || return 1
+  gpg --batch --quiet --import "$tmp/keys.asc" || return 1
+  curl -fsSL -o "$tmp/swift.tgz" "$base" || return 1
+  curl -fsSL -o "$tmp/swift.tgz.sig" "$base.sig" || return 1
+  gpg --batch --verify "$tmp/swift.tgz.sig" "$tmp/swift.tgz" || return 1
+  mkdir -p /opt/swift || return 1
+  tar xzf "$tmp/swift.tgz" -C /opt/swift --strip-components=1 || return 1
+  ln -sf /opt/swift/usr/bin/* /usr/local/bin/ || return 1
+}
+write_swift_shims() {
+  mkdir -p /usr/local/bin
+  local tool
+  for tool in swift llvm-cov; do
+    cat >"/usr/local/bin/${tool}" <<EOF
+#!/bin/bash
+set -euo pipefail
+root="\$(git rev-parse --show-toplevel)"
+exec docker run --rm -v "\$root:\$root" -w "\$PWD" mirror.gcr.io/library/swift:6.3-noble ${tool} "\$@"
+EOF
+    chmod 0755 "/usr/local/bin/${tool}"
+  done
+}
+if ! command -v swift >/dev/null && [[ "$swift_shim" -eq 0 ]]; then
+  if ! install_swift; then
+    write_swift_shims
+    swift_shim=1
+  fi
 fi
 
-go version; just --version; dotenvx --version; swift --version
+go version; just --version; dotenvx --version
+if [[ "$swift_shim" -eq 0 ]]; then
+  swift --version
+else
+  echo "swift: docker shims installed at /usr/local/bin/swift and /usr/local/bin/llvm-cov" >&2
+fi
 
 # Docker daemon: start only if it isn't running, and fail loudly if it never comes up
 if ! docker info >/dev/null 2>&1; then
