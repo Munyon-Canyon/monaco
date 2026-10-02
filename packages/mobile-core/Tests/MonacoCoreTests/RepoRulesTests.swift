@@ -10,11 +10,26 @@ struct RepoRule: Sendable {
     let passing: [String]
     var skipsPreviewBlocks = false
     var applies: @Sendable (_ path: String, _ contents: String) -> Bool = { _, _ in true }
+    private let regex = RuleRegex()
 
     func matches(in text: String) throws -> Int {
         let subject = skipsPreviewBlocks ? PreviewBlockStripping.apply(text) : text
-        let regex = try NSRegularExpression(pattern: pattern)
+        let regex = try regex.for(pattern: pattern)
         return regex.numberOfMatches(in: subject, range: NSRange(subject.startIndex..., in: subject))
+    }
+}
+
+private final class RuleRegex: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: NSRegularExpression?
+
+    func `for`(pattern: String) throws -> NSRegularExpression {
+        lock.lock()
+        defer { lock.unlock() }
+        if let value { return value }
+        let value = try NSRegularExpression(pattern: pattern)
+        self.value = value
+        return value
     }
 }
 
@@ -345,8 +360,18 @@ enum RepoTree {
         .deletingLastPathComponent()
     static let allowlist = "packages/mobile-core/Tests/MonacoCoreTests/RepoRulesAllowlist.txt"
     static let ownFile = "packages/mobile-core/Tests/MonacoCoreTests/RepoRulesTests.swift"
+    private static let cache = Cache()
+
+    private final class Cache: @unchecked Sendable {
+        let lock = NSLock()
+        var filesByDirectory: [String: [String]] = [:]
+        var contentsByPath: [String: String] = [:]
+    }
 
     static func swiftFiles(under directory: String) -> [String] {
+        cache.lock.lock()
+        defer { cache.lock.unlock() }
+        if let files = cache.filesByDirectory[directory] { return files }
         let base = root.appendingPathComponent(directory).path
         guard let walk = FileManager.default.enumerator(atPath: base) else { return [] }
         var files: [String] = []
@@ -357,11 +382,18 @@ enum RepoTree {
                 files.append(directory + "/" + relative)
             }
         }
-        return files.filter { $0 != ownFile }
+        let result = files.filter { $0 != ownFile }
+        cache.filesByDirectory[directory] = result
+        return result
     }
 
     static func read(_ path: String) throws -> String {
-        try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+        cache.lock.lock()
+        defer { cache.lock.unlock() }
+        if let contents = cache.contentsByPath[path] { return contents }
+        let contents = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+        cache.contentsByPath[path] = contents
+        return contents
     }
 
     static func counts(for rule: RepoRule) throws -> [String: Int] {
