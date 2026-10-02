@@ -66,18 +66,17 @@ struct OnboardingSampleHarness: View {
         guard case .success(let normalized) = DisplayNameRules.normalize(draft) else {
             return .failed("Display name is required.")
         }
-        session.me = session.me?.withDisplayName(normalized)
+        session.profile = session.profile?.withDisplayName(normalized)
         return .saved
     }
 
     private static func makeSession(for scenario: OnboardingSampleScenario) -> AppSessionStore {
         let session = AppSessionStore(apiClient: MonacoAPIClient())
         session.isLoading = false
-        session.me = MeResponse(
-            userId: "sample-user",
+        session.profile = ProfileSampleHarness.sampleProfile(
+            userID: "sample-user",
             displayName: "",
-            memberWalletAddress: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
-            profilePhotoUrl: scenario == .photo ? ProfileSampleHarness.samplePhotoURL()?.absoluteString : nil,
+            photoURL: scenario == .photo ? ProfileSampleHarness.samplePhotoURL() : nil,
             createdAt: Date()
         )
         return session

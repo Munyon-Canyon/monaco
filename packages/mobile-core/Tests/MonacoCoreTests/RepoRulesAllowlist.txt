@@ -71,7 +71,6 @@ unchecked-sendable	packages/mobile-core/Tests/MonacoCoreTests/MonacoHTTPTranspor
 unchecked-sendable	packages/mobile-core/Tests/MonacoCoreTests/StallingURLProtocol.swift	1
 urlsession	apps/mobile/Monaco/API/MonacoAPIClient.swift	1
 urlsession	apps/mobile/Monaco/Design/MonacoRemoteImageStore.swift	2
-urlsession	apps/mobile/Monaco/Features/Deposit/DepositView.swift	1
 urlsession	apps/mobile/Monaco/Features/Deposit/PlatformBalanceLoader.swift	1
 urlsession	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	1
 urlsession	packages/mobile-core/Sources/MonacoCore/Networking/MonacoHTTPTransport.swift	2

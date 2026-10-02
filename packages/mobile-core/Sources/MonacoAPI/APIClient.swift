@@ -23,7 +23,6 @@ public struct APIClient: Sendable {
             transport: transport,
             middlewares: [
                 SessionWireCaptureMiddleware(),
-                IdempotencyKeyStampMiddleware(),
                 TimeoutMiddleware(clock: clock),
                 HeadersMiddleware(accessToken: { try await tokens.accessToken() }),
                 ProblemMiddleware(),
@@ -76,9 +75,7 @@ public struct APIClient: Sendable {
             throw APIError(error)
         }
         do {
-            let output = try await IdempotencyKeyStamp.$key.withValue(key) {
-                try await call(client, key)
-            }
+            let output = try await call(client, key)
             submission.record(final: true, forKey: key)
             return output
         } catch {

@@ -8,12 +8,12 @@ enum ProfileSaveOutcome: Equatable {
     case failed(String)
 }
 
-/// Self-profile writes. After a save, `me` holds the server copy and home boards are
+/// Self-profile writes. After a save, `profile` holds the server copy and home boards are
 /// refetched so the new name and photo show up on the people and member boards.
 extension AppSessionStore {
     /// Optimistically renames the signed-in user, rolling back if the server rejects it.
     ///
-    /// First run passes `optimistic: false`. `FirstRunGate` routes on `me.displayName`,
+    /// First run passes `optimistic: false`. `FirstRunGate` routes on `profile.displayName`,
     /// so writing the name before the server confirms it would drop the user into the
     /// tabs mid-request and bounce them back out on a rejection.
     func updateDisplayName(
@@ -21,7 +21,7 @@ extension AppSessionStore {
         auth: PrivyAuthService,
         optimistic: Bool = true
     ) async -> ProfileSaveOutcome {
-        guard let current = me else {
+        guard let current = profile else {
             return .failed("Your profile is still loading.")
         }
         let normalized: String
@@ -40,16 +40,16 @@ extension AppSessionStore {
 
         let pending = current.withDisplayName(normalized)
         if optimistic {
-            me = pending
+            profile = pending
         }
         do {
             let saved = try await client.updateProfile(displayName: normalized)
             noteProfileWrite()
-            me = saved
+            profile = (profile ?? current).replacing(from: saved)
         } catch {
             // Only ever rolls back our own optimistic write, never a fresher one.
-            if me == pending {
-                me = current
+            if profile == pending {
+                profile = current
             }
             return await failure(
                 for: error,
@@ -71,7 +71,9 @@ extension AppSessionStore {
         do {
             let saved = try await client.uploadProfilePhoto(imageData: imageData, mimeType: mimeType)
             noteProfileWrite()
-            me = saved
+            if let current = profile {
+                profile = current.replacing(from: saved)
+            }
         } catch {
             return await failure(
                 for: error,

@@ -516,8 +516,9 @@ extension Color {
         self.init(uiColor: UIColor(hex: hex, alpha: alpha))
     }
 
-    /// Light/dark pair from 0xRRGGBB literals.
-    static func adaptive(light: UInt32, lightAlpha: Double = 1, dark: UInt32, darkAlpha: Double = 1) -> Color {
+    nonisolated static func adaptive(
+        light: UInt32, lightAlpha: Double = 1, dark: UInt32, darkAlpha: Double = 1
+    ) -> Color {
         Color(
             uiColor: UIColor { traits in
                 traits.userInterfaceStyle == .dark
@@ -529,7 +530,7 @@ extension Color {
 }
 
 extension UIColor {
-    convenience init(hex: UInt32, alpha: Double = 1) {
+    nonisolated convenience init(hex: UInt32, alpha: Double = 1) {
         self.init(
             red: CGFloat((hex >> 16) & 0xFF) / 255,
             green: CGFloat((hex >> 8) & 0xFF) / 255,

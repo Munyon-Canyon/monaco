@@ -6,32 +6,18 @@ import MonacoTestSupport
 import XCTest
 
 final class SessionAPITests: XCTestCase {
-    func testOpenSessionSendsAnIdempotencyKeyAndReusesItAfterATransportError() async throws {
-        let transport = StubTransport(scripted: [
-            .failure(URLError(.cannotConnectToHost)),
-            .json(.ok, Self.meJSON),
-        ])
-        let submission = IdempotentSubmission { "key-1" }
-        let api = makeAPI(transport, submission: submission)
+    func testOpenSessionSendsNoIdempotencyKey() async throws {
+        let transport = StubTransport(.json(.ok, Self.meJSON))
 
-        do {
-            _ = try await api.openSession()
-            XCTFail("expected the transport error")
-        } catch let APIError.transport(error) {
-            XCTAssertEqual(error.code, .cannotConnectToHost)
-        }
-
-        let profile = try await api.openSession()
+        let profile = try await makeAPI(transport).openSession()
 
         let sent = await transport.sent
-        let posts = sent.filter { $0.path == "/v1/auth/session" }
         let name = try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))
-        let keys = posts.map { $0.headerFields[name] }
-        XCTAssertEqual(posts.map(\.method), [.post, .post])
-        XCTAssertEqual(keys, ["key-1", "key-1"])
+        XCTAssertEqual(sent.map(\.path), ["/v1/auth/session"])
+        XCTAssertEqual(sent.map(\.method), [.post])
+        XCTAssertNil(sent.first?.headerFields[name])
         XCTAssertEqual(profile.displayName, "Kai Cenat")
         XCTAssertEqual(profile.authState, .onboardingCompleted)
-        XCTAssertFalse(submission.hasPendingKey)
     }
 
     func testMeReadsWithoutAnIdempotencyKey() async throws {
@@ -67,8 +53,7 @@ final class SessionAPITests: XCTestCase {
             .json(.ok, json),
             .json(.ok, json),
         ])
-        let submission = IdempotentSubmission { "key-1" }
-        let api = makeAPI(transport, submission: submission)
+        let api = makeAPI(transport)
 
         let opened = try await api.openSession()
         let loaded = try await api.me()
@@ -79,7 +64,6 @@ final class SessionAPITests: XCTestCase {
         XCTAssertEqual(opened.memberWalletAddress, "wallet-1")
         XCTAssertEqual(loaded.authState, opened.authState)
         XCTAssertEqual(loaded.accountStatus, opened.accountStatus)
-        XCTAssertFalse(submission.hasPendingKey)
     }
 
     func testABadCreatedAtFromTheClientIsDecoding() async throws {
@@ -116,17 +100,43 @@ final class SessionAPITests: XCTestCase {
         }
     }
 
+    func testARefreshed401InsideSessionBodyDecodesTheRetried200() async throws {
+        let retry = Self.meJSON.replacingOccurrences(of: "Kai Cenat", with: "Retried")
+        let denied = StubTransport.Reply.response(
+            status: .unauthorized, contentType: "application/problem+json",
+            body: Data(#"{"status":401}"#.utf8)
+        )
+        let transport = StubTransport(scripted: [denied, .json(.ok, retry)])
+        let tokens = StubTokenProvider(token: "stale", refreshes: ["fresh"])
+
+        let profile = try await makeAPI(transport, tokens: tokens).openSession()
+
+        let sent = await transport.sent
+        XCTAssertEqual(sent.map(\.path), ["/v1/auth/session", "/v1/auth/session"])
+        XCTAssertEqual(sent.map { $0.headerFields[.authorization] }, ["Bearer stale", "Bearer fresh"])
+        XCTAssertEqual(profile.displayName, "Retried")
+    }
+
+    func testASessionBodyOver64KiBSurfacesAsAnError() async throws {
+        let body = Data(repeating: 0x78, count: 64 * 1024 + 1)
+        let transport = StubTransport(.response(status: .ok, contentType: "application/json", body: body))
+
+        do {
+            _ = try await makeAPI(transport).me()
+            XCTFail("expected the oversized body to fail")
+        } catch {
+            if case APIError.decoding("session") = error {
+                XCTFail("oversized body was reported as a missing session")
+            }
+        }
+    }
+
     private func makeAPI(
         _ transport: StubTransport,
-        submission: IdempotentSubmission = IdempotentSubmission()
+        tokens: StubTokenProvider = StubTokenProvider(token: "token-1")
     ) -> SessionAPI {
         SessionAPI(
-            api: APIClient(
-                serverURL: testServerURL,
-                tokens: StubTokenProvider(token: "token-1"),
-                transport: transport
-            ),
-            submission: submission
+            api: APIClient(serverURL: testServerURL, tokens: tokens, transport: transport)
         )
     }
 
