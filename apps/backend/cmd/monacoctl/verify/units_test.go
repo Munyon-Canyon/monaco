@@ -29,11 +29,12 @@ func TestSelectUnits_picksOutcomesByTargetAndSkipsPlannedFlows(t *testing.T) {
 	}{
 		{Target{}, []string{
 			"00 ok", "00 InvalidInput", "00 Unauthorized", "01 ok", "01 Unauthorized", "01 LoginMethodNotAllowed",
-			"01 AccountDeleted", "01 PrivyUnavailable",
+			"01 AccountDeleted", "01 PrivyUnavailable", "02 ok", "02 InvalidInput", "02 Unauthorized",
+			"02 PrivyUnavailable",
 		}},
 		{Target{Flow: "00", Outcome: "Unauthorized"}, []string{"00 Unauthorized"}},
 		{Target{CrashAt: "after-publish"}, []string{"00 crash:after-publish"}},
-		{Target{CrashAt: "before-commit"}, []string{"01 crash:before-commit"}},
+		{Target{CrashAt: "before-commit"}, []string{"01 crash:before-commit", "02 crash:before-commit"}},
 	} {
 		units, err := selectUnits(all, tc.target, flows.Scripts())
 		got := make([]string, 0, len(units))

@@ -72,6 +72,25 @@ func TestFindOrCreateMemberWallet_createsOnceWithTheUserAsOwnerAndTheAppSigner(t
 	}
 }
 
+func TestCreateAppWallet_one503ThenTheSameKey(t *testing.T) {
+	t.Parallel()
+	c, u, srv := overFakes(t)
+	script(t, srv, fakes.Step{
+		Route: "/privy/v1/wallets", Action: fakes.ActionFail, Status: http.StatusServiceUnavailable, Times: 1,
+	})
+	first, err := c.CreateAppWallet(t.Context(), "cabal-treasury:503")
+	if err != nil || !first.HasAppSigner {
+		t.Fatalf("CreateAppWallet = %+v, %v", first, err)
+	}
+	again, err := c.CreateAppWallet(t.Context(), "cabal-treasury:503")
+	if err != nil || again != first {
+		t.Fatalf("retry = %+v, %v, want the same wallet %+v", again, err, first)
+	}
+	if n := len(creates(u)); n != 3 {
+		t.Fatalf("%d wallet creates, want the 503, the recovery and the repeated key", n)
+	}
+}
+
 func TestCreateAppWallet_SameKeyReturnsSameWallet(t *testing.T) {
 	t.Parallel()
 	c, u, _ := overFakes(t)
