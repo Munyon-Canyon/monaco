@@ -99,6 +99,63 @@ func TestDevVerifier_rejectsEveryForgery(t *testing.T) {
 	}
 }
 
+func TestCheckDevTokenKey_refusesThePlaceholderWhenDeployed(t *testing.T) {
+	t.Parallel()
+	const want = "change-me-dev-only"
+	if PlaceholderDevTokenKey != want {
+		t.Fatalf("PlaceholderDevTokenKey = %q", PlaceholderDevTokenKey)
+	}
+	for _, env := range []config.Env{config.EnvStaging, config.EnvProduction} {
+		t.Run(string(env), func(t *testing.T) {
+			t.Parallel()
+			cfg := config.Config{Env: env, Auth: config.Auth{DevTokenKey: PlaceholderDevTokenKey}}
+			err := CheckDevTokenKey(cfg)
+			if errs.CodeOf(err) != errs.CodeInvalidConfig || reason(err) != "placeholder dev token key" ||
+				!strings.HasPrefix(err.Error(), "auth.CheckDevTokenKey: ") ||
+				strings.Contains(err.Error(), PlaceholderDevTokenKey) {
+				t.Fatalf("CheckDevTokenKey = %v, want invalid_config placeholder dev token key", err)
+			}
+		})
+	}
+}
+
+func TestCheckDevTokenKey_leavesOtherKeysAndUndeployedEnvsAlone(t *testing.T) {
+	t.Parallel()
+	cases := []config.Config{
+		{Env: config.EnvStaging, Auth: config.Auth{DevTokenKey: "another-key"}},
+		{Env: config.EnvProduction, Auth: config.Auth{DevTokenKey: "another-key"}},
+		{Env: config.EnvStaging},
+		{Env: config.EnvProduction},
+		{Env: config.EnvLocal, Auth: config.Auth{DevTokenKey: PlaceholderDevTokenKey}},
+		{Env: config.EnvTest, Auth: config.Auth{DevTokenKey: PlaceholderDevTokenKey}},
+		{Auth: config.Auth{DevTokenKey: PlaceholderDevTokenKey}},
+		{Env: config.EnvLocal, Auth: config.Auth{DevTokenKey: "another-key"}},
+		{Env: config.EnvTest, Auth: config.Auth{DevTokenKey: "another-key"}},
+		{Env: config.EnvLocal},
+		{Env: config.EnvTest},
+		{},
+	}
+	for _, cfg := range cases {
+		t.Run(string(cfg.Env)+"/"+keyName(cfg.Auth.DevTokenKey), func(t *testing.T) {
+			t.Parallel()
+			if err := CheckDevTokenKey(cfg); err != nil {
+				t.Fatalf("CheckDevTokenKey = %v, want nil", err)
+			}
+		})
+	}
+}
+
+func keyName(key string) string {
+	switch key {
+	case PlaceholderDevTokenKey:
+		return "placeholder"
+	case "":
+		return "empty"
+	default:
+		return "other"
+	}
+}
+
 func TestNewDevVerifier_refusesProductionAndAnEmptyKey(t *testing.T) {
 	t.Parallel()
 	for name, cfg := range map[string]config.Config{
