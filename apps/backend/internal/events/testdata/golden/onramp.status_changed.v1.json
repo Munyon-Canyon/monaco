@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "session_id": "01890a5d-ac96-774b-bcce-b302099a8057",
+  "user_id": "01890a5d-ac96-774b-bcce-b302099a8058",
+  "from": "opened",
+  "to": "confirmed",
+  "suggested_amount_micros": "25000000",
+  "provider": "moonpay"
+}

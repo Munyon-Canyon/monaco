@@ -2087,6 +2087,9 @@ components:
         - not_cabal_member
         - not_found
         - not_proposer
+        - onramp_invalid_transition
+        - onramp_link_expired
+        - onramp_link_invalid
         - panic
         - phone_not_linked
         - photo_invalid

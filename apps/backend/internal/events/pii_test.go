@@ -20,6 +20,7 @@ func TestRegisteredEvents_tagPersonalFieldNames(t *testing.T) {
 	samples := []eventType{
 		events.SystemPinged{},
 		events.DepositCredited{},
+		events.OnrampStatusChanged{},
 		events.TradeBlocked{},
 		events.TradeSubmitted{},
 		events.TradeConfirmed{},
