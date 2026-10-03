@@ -1,6 +1,11 @@
 import Foundation
 import MonacoAPI
+import MonacoFlows
 import Observation
+
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 @Observable
 @MainActor
@@ -73,15 +78,48 @@ public final class SystemPingModel {
 #if DEBUG
 extension SystemPingModel {
     public static func preview() -> SystemPingModel {
+        preview(transport: SystemPingDisconnectedTransport())
+    }
+
+    public static func preview(answering scenario: Flow00Scenario) -> SystemPingModel {
+        preview(transport: SystemPingScenarioTransport(scenario: scenario))
+    }
+
+    private static func preview(transport: some ClientTransport) -> SystemPingModel {
         let serverURL = URL(string: "http://127.0.0.1:9") ?? URL(fileURLWithPath: "/")
         return SystemPingModel(
-            api: APIClient(
-                serverURL: serverURL,
-                tokens: SystemPingDisconnectedTokens(),
-                transport: SystemPingDisconnectedTransport()
-            ),
+            api: APIClient(serverURL: serverURL, tokens: SystemPingDisconnectedTokens(), transport: transport),
             hints: SystemPingDisconnectedHints()
         )
+    }
+}
+
+private struct SystemPingScenarioTransport: ClientTransport {
+    let scenario: Flow00Scenario
+
+    func send(
+        _: HTTPRequest,
+        body _: HTTPBody?,
+        baseURL _: URL,
+        operationID _: String
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        switch scenario {
+        case .invalidInput:
+            Self.problem(422, code: "invalid_input", message: "The note is too long.")
+        case .unauthorized:
+            Self.problem(401, code: "unauthorized", message: "Sign in to send a ping.")
+        case .interrupted:
+            throw URLError(.networkConnectionLost)
+        }
+    }
+
+    private static func problem(_ status: Int, code: String, message: String) -> (HTTPResponse, HTTPBody?) {
+        var response = HTTPResponse(status: .init(code: status))
+        response.headerFields[.contentType] = "application/problem+json"
+        let body =
+            #"{"type":"about:blank","title":"Error","status":\#(status),"code":"\#(code)","#
+            + #""message":"\#(message)","trace_id":"00000000000000000000000000000000","retryable":false}"#
+        return (response, HTTPBody(body))
     }
 }
 

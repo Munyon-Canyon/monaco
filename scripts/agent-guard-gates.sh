@@ -34,6 +34,7 @@ case "$path" in
   packages/mobile-core/coverage-floor.txt | packages/mobile-core/Package.swift) ;;
   */RepoRulesAllowlist.txt | */AccessibilityAuditAllowlist.txt | apps/mobile/MonacoUITests/perf-budgets.tsv) ;;
   apps/mobile/Monaco.xcodeproj/project.pbxproj | apps/mobile/Config/*.xcconfig) ;;
+  scripts/qa/sample-screens.txt) ;;
   .github/workflows/ci-mobile-core.yml|Justfile | apps/backend/cmd/monacoctl/agents/check.go | scripts/mobile-core-test.sh) ;;
   *) pass ;;
 esac

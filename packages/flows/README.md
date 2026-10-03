@@ -53,6 +53,6 @@ For each flow whose `status` here is `built` or `verified`, it also writes `Sour
 
 - `Flow<id>Scenario` has one case for each case of `Flow<id>Outcome` except `ok`, with the case name as its raw value. Flow 00 gives `invalidInput`, `unauthorized` and `interrupted`.
 - `matching(_:)` reads the launch arguments `-MonacoFlow <id> <case>`, such as `-MonacoFlow 00 unauthorized`, and returns that case, or `nil` for another flow or no flag.
-- The manifest block sits between `# BEGIN generated flow scenarios` and `# END generated flow scenarios`. `gen flows` rewrites only that block and keeps every line around it.
+- The manifest block sits between `# BEGIN generated flow scenarios` and `# END generated flow scenarios`. `gen flows` rewrites only that block and keeps every line around it. [Debug sample harnesses](../../docs/how-to/mobile-harness.md#flow-scenarios) says what the app adds for each scenario.
 
 Never edit a generated file. Change the row in `apps/backend/flows.tsv` and run `cd apps/backend && go run ./cmd/monacoctl gen flows`. On a restack, `merge=ours` in `.gitattributes` keeps the local copy, and the next `gen flows` rewrites it. A `switch` over a `Flow<id>Outcome` lists every case, with no `default:`, so a new backend outcome breaks the app build until the app handles it.

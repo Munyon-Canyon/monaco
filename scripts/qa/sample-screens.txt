@@ -187,4 +187,7 @@ propose-review-large-text     -MonacoProposalFeedSample -MonacoProposeSample -Mo
 
 # BEGIN generated flow scenarios
 # monacoctl gen flows writes this block from apps/backend/flows.tsv and packages/flows/app. Never edit it.
+flow-00-invalid-input         -MonacoFlow 00 invalidInput
+flow-00-unauthorized          -MonacoFlow 00 unauthorized
+flow-00-interrupted           -MonacoFlow 00 interrupted
 # END generated flow scenarios

@@ -1,6 +1,6 @@
 # Add a mobile feature
 
-Logic lives in host-testable `packages/mobile-core`. The SwiftUI view only binds. Copy `packages/mobile-core/Sources/MonacoCore/SystemPing/SystemPingModel.swift`. The rules below are also in [iOS architecture](../architecture/ios.md); this page is the recipe.
+Logic lives in host-testable `packages/mobile-core`. The SwiftUI view only binds. Copy `packages/mobile-core/Sources/MonacoSystem/Flow00SystemPingModel.swift`. The rules below are also in [iOS architecture](../architecture/ios.md); this page is the recipe.
 
 ## Layout
 

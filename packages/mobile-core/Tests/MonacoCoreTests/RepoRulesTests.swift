@@ -287,16 +287,17 @@ enum RepoRules {
             name: "flow-switch",
             roots: productCode,
             pattern:
-                #"(?s)\b(\w+)\s*:\s*Flow\d+[a-z]?Outcome\b.*?\bswitch\s+\1\s*\{[^}]*?\bdefault\s*:"#
-                + #"|\bswitch\s+[^{\n]*\bFlow\d+[a-z]?Outcome\b[^{\n]*\{[^}]*?\bdefault\s*:"#
-                + #"|\bextension\s+Flow\d+[a-z]?Outcome\b.*?\bswitch\s+self\s*\{[^}]*?\bdefault\s*:"#,
-            message: "A switch over a flow outcome lists every case; a default hides a new outcome.",
+                #"(?s)\b(\w+)\s*:\s*Flow\d+[a-z]?(?:Outcome|Scenario)\b.*?\bswitch\s+\1\s*\{[^}]*?\bdefault\s*:"#
+                + #"|\bswitch\s+[^{\n]*\bFlow\d+[a-z]?(?:Outcome|Scenario)\b[^{\n]*\{[^}]*?\bdefault\s*:"#
+                + #"|\bextension\s+Flow\d+[a-z]?(?:Outcome|Scenario)\b.*?\bswitch\s+self\s*\{[^}]*?\bdefault\s*:"#,
+            message: "A switch over a flow outcome or scenario lists every case; a default hides a new outcome.",
             failing: [
                 "func show(_ outcome: Flow01Outcome) {\n    switch outcome {\n    case .ok: break\n    default: break\n    }\n}",
                 "let outcome: Flow01Outcome = .ok\nswitch outcome {\ncase .ok: break\n@unknown default: break\n}",
                 "switch Flow01aOutcome(code: code) {\ncase .ok: break\ndefault: break\n}",
                 "extension Flow00Outcome {\n    var title: String {\n        switch self {\n        case .ok: \"Sent\"\n"
                     + "        default: \"Failed\"\n        }\n    }\n}",
+                "let scenario: Flow00Scenario = .unauthorized\nswitch scenario {\ncase .unauthorized: break\ndefault: break\n}",
             ],
             passing: [
                 "func show(_ outcome: Flow01Outcome) {\n    switch outcome {\n    case .ok: break\n"

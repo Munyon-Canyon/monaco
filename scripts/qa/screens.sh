@@ -6,8 +6,10 @@
 #
 # The manifest is the only list of screens. --check reads the app sources and fails when a
 # `-Monaco…Sample`/`…Gallery` launch flag, or a scenario of a Debug harness enum, has no
-# manifest line, so a new harness cannot silently drop out of the gallery. Capture runs the
-# check too and exits 1 when a screen failed to launch or shoot, or the check failed.
+# manifest line, so a new harness cannot silently drop out of the gallery. It also fails when
+# a `-MonacoFlow <id> <outcome>` line of the generated block has no SampleHarnessEntry that
+# reads Flow<id>Scenario.matching. Capture runs the check too and exits 1 when a screen
+# failed to launch or shoot, or the check failed.
 #
 # MONACO_QA_SCREEN_SETTLE: seconds to wait after launch before the shot (default 4).
 set -uo pipefail
@@ -49,8 +51,16 @@ enum_cases() {
     }' "$1"
 }
 
+# Flow id and outcome of each line in the block that monacoctl gen flows writes.
+flow_scenarios() {
+  awk '
+    /^# BEGIN generated flow scenarios$/ { inside=1; next }
+    /^# END generated flow scenarios$/ { inside=0 }
+    inside && $2 == "-MonacoFlow" { print $3, $4 }' "$manifest"
+}
+
 check() {
-  local missing=0 flag file flags count scenario
+  local missing=0 flag file flags count scenario id outcome harnesses
   while read -r flag; do
     if ! in_manifest "$flag"; then
       echo "screens: $flag has no line in scripts/qa/sample-screens.txt" >&2
@@ -73,6 +83,16 @@ check() {
       fi
     done < <(enum_cases "$file")
   done < <(grep -lE 'enum [A-Za-z0-9_]+: String, CaseIterable' "$app_src"/Features/Debug/*.swift)
+
+  harnesses="$(grep -rlE ':[[:space:]]*SampleHarnessEntry\b' "$app_src" --include='*.swift')"
+  while read -r id outcome; do
+    # $harnesses is split on purpose: app source paths have no spaces.
+    # shellcheck disable=SC2086
+    if [[ -z "$harnesses" ]] || ! grep -qE "\bFlow${id}Scenario\.matching\(" $harnesses; then
+      echo "screens: -MonacoFlow $id $outcome has no harness entry" >&2
+      missing=1
+    fi
+  done < <(flow_scenarios)
 
   (( missing == 0 )) && echo "screens: manifest covers every sample harness ($(entries | wc -l | tr -d ' ') screens)"
   return "$missing"
@@ -116,7 +136,7 @@ capture() {
 
 case "${1:-}" in
   --check) check ;;
-  -h|--help|"") sed -n '2,12p' "$0"; [[ -n "${1:-}" ]] ;;
+  -h|--help|"") sed -n '2,14p' "$0"; [[ -n "${1:-}" ]] ;;
   *)
     [[ $# -eq 3 ]] || { echo "usage: $0 --check | <sim udid> <Monaco.app> <out dir>" >&2; exit 2; }
     capture "$@"

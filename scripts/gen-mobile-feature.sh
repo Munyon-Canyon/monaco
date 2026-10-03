@@ -36,7 +36,7 @@ render() {
     "$src" > "$dst"
 }
 
-render "$root/packages/mobile-core/Sources/MonacoCore/SystemPing/SystemPingModel.swift" \
+render "$root/packages/mobile-core/Sources/MonacoSystem/Flow00SystemPingModel.swift" \
   "$model_dir/${domain}Model.swift"
 render "$root/packages/mobile-core/Tests/MonacoCoreTests/SystemPingModelTests.swift" \
   "$test_file"
