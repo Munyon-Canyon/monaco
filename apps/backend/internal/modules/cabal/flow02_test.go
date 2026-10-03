@@ -18,6 +18,11 @@ const privyAppID = "app-fixture"
 
 func cabalScenario(t *testing.T, extra ...scenario.Option) *scenario.Scenario {
 	t.Helper()
+	return cabalScenarioWith(t, nil, extra...)
+}
+
+func cabalScenarioWith(t *testing.T, opts []cabal.Option, extra ...scenario.Option) *scenario.Scenario {
+	t.Helper()
 	upstreams := fakes.New()
 	srv := httptest.NewServer(upstreams)
 	t.Cleanup(srv.Close)
@@ -39,7 +44,7 @@ func cabalScenario(t *testing.T, extra ...scenario.Option) *scenario.Scenario {
 	return scenario.New(t, append([]scenario.Option{
 		scenario.WithModules(
 			withCfg(func(d module.Deps) module.Module { return identity.New(d) }),
-			withCfg(func(d module.Deps) module.Module { return cabal.New(d) }),
+			withCfg(func(d module.Deps) module.Module { return cabal.New(d, opts...) }),
 		),
 		scenario.WithPrivy(upstreams, privyAppID),
 	}, extra...)...)

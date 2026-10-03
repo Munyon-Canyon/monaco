@@ -10,6 +10,7 @@ type Script func(*scenario.Scenario)
 
 func Scripts() map[string]Script {
 	scripts := identityScripts()
+	maps.Copy(scripts, leaveScripts())
 	maps.Copy(scripts, map[string]Script{
 		"F00RecordPingOK":                          F00RecordPingOK,
 		"F00RecordPingInvalidInput":                F00RecordPingInvalidInput,
@@ -99,6 +100,19 @@ func identityScripts() map[string]Script {
 		"F01eDeleteAccountAccountHasPositions": F01eDeleteAccountAccountHasPositions,
 		"F01eDeleteAccountAccountHasBalance":   F01eDeleteAccountAccountHasBalance,
 		"F01eDeleteAccountCrashBeforeCommit":   F01eDeleteAccountCrashBeforeCommit,
+	}
+}
+
+func leaveScripts() map[string]Script {
+	return map[string]Script{
+		"F04LeaveCabalOK":                         F04LeaveCabalOK,
+		"F04LeaveCabalUnauthorized":               F04LeaveCabalUnauthorized,
+		"F04LeaveCabalNotCabalMember":             F04LeaveCabalNotCabalMember,
+		"F04LeaveCabalLeaveHoldsShares":           F04LeaveCabalLeaveHoldsShares,
+		"F04LeaveCabalLeaveLastMemberPotNotEmpty": F04LeaveCabalLeaveLastMemberPotNotEmpty,
+		"F04LeaveCabalLeaveCreatorWithMembers":    F04LeaveCabalLeaveCreatorWithMembers,
+		"F04LeaveCabalPriceUnavailable":           F04LeaveCabalPriceUnavailable,
+		"F04LeaveCabalCrashBeforeCommit":          F04LeaveCabalCrashBeforeCommit,
 	}
 }
 

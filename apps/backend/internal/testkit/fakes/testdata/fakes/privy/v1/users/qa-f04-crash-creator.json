@@ -1,0 +1,1 @@
+{"status":200,"headers":{"Content-Type":"application/json"},"body":{"id":"did:privy:qa-f04-crash-creator","linked_accounts":[{"type":"email","address":"qa-f04-crash-creator@example.com"}]}}
