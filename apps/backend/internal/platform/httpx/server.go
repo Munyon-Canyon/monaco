@@ -217,6 +217,9 @@ type FundingRoutes interface {
 	CreateOnrampSession(
 		context.Context, api.CreateOnrampSessionRequestObject,
 	) (api.CreateOnrampSessionResponseObject, error)
+	ExchangeOnrampToken(
+		context.Context, api.ExchangeOnrampTokenRequestObject,
+	) (api.ExchangeOnrampTokenResponseObject, error)
 }
 
 type MarketRoutes interface {

@@ -12,24 +12,31 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-const fundPage = "https://fund.example/fund"
+const (
+	fundPage = "https://fund.example/fund"
+	usdcMint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+)
 
 type onrampFixture struct {
-	ids    *testkit.IDs
-	pool   *pgxpool.Pool
-	clock  *testkit.Clock
-	user   testkit.SeededUser
-	create *app.CreateOnrampSessionHandler
+	ids      *testkit.IDs
+	pool     *pgxpool.Pool
+	clock    *testkit.Clock
+	user     testkit.SeededUser
+	create   *app.CreateOnrampSessionHandler
+	exchange *app.ExchangeOnrampTokenHandler
 }
 
 func newOnrampFixture(t *testing.T) onrampFixture {
@@ -45,6 +52,8 @@ func newOnrampFixture(t *testing.T) onrampFixture {
 		clock:  c,
 		user:   testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true}),
 		create: app.NewCreateOnrampSessionHandler(uow, c, fundPage),
+		exchange: app.NewExchangeOnrampTokenHandler(uow, c, identity.New(module.Deps{Pool: pool}).Queries(),
+			usdcMint),
 	}
 }
 
@@ -192,6 +201,155 @@ func TestCreateOnrampSession_failsWithoutWritingWhenTheInsertFails(t *testing.T)
 	}
 	if got := onrampEvents(t, f.pool); len(got) != 0 {
 		t.Fatalf("events = %+v, want none", got)
+	}
+}
+
+func TestExchangeOnrampToken_opensTheSessionOnceAndReturnsTheWallet(t *testing.T) {
+	t.Parallel()
+	f := newOnrampFixture(t)
+	suggested := money.MicrosFromUint64(25_000_000)
+	created, token := f.start(t, &suggested)
+	got, err := f.exchange.Handle(t.Context(), token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := app.OnrampExchange{
+		SessionID: created.ID, WalletAddress: f.user.Address, SuggestedAmount: &suggested, USDCMint: usdcMint,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("exchange = %+v, want %+v", got, want)
+	}
+	assertOpenedAt(t, f.pool, created.ID, f.clock.Now())
+	if _, err := f.exchange.Handle(t.Context(), token); errs.CodeOf(err) != errs.CodeOnrampLinkInvalid {
+		t.Fatalf("second exchange = %v, want onramp_link_invalid", err)
+	}
+	evs := onrampEvents(t, f.pool)
+	if len(evs) != 2 || *evs[1].From != "created" || evs[1].To != "opened" || evs[1].SessionID != created.ID {
+		t.Fatalf("events = %+v, want created then one opened", evs)
+	}
+	assertLastActor(t, f.pool, "user:"+f.user.ID.String())
+}
+
+func assertOpenedAt(t *testing.T, pool *pgxpool.Pool, id uuid.UUID, at time.Time) {
+	t.Helper()
+	var status string
+	var opened time.Time
+	if err := pool.QueryRow(t.Context(), `SELECT status, opened_at FROM onramp_sessions WHERE id = $1`,
+		id).Scan(&status, &opened); err != nil {
+		t.Fatal(err)
+	}
+	if status != "opened" || !opened.Equal(at) {
+		t.Fatalf("row = %s %s, want opened at %s", status, opened, at)
+	}
+}
+
+func assertLastActor(t *testing.T, pool *pgxpool.Pool, want string) {
+	t.Helper()
+	var actor string
+	if err := pool.QueryRow(t.Context(), `SELECT actor_type || ':' || actor_id FROM events
+		WHERE type = $1 ORDER BY id DESC LIMIT 1`, events.TypeOnrampStatusChanged).Scan(&actor); err != nil {
+		t.Fatal(err)
+	}
+	if actor != want {
+		t.Fatalf("last event actor = %s, want %s", actor, want)
+	}
+}
+
+func TestExchangeOnrampToken_withoutAnAmountReturnsNull(t *testing.T) {
+	t.Parallel()
+	f := newOnrampFixture(t)
+	_, token := f.start(t, nil)
+	got, err := f.exchange.Handle(t.Context(), token)
+	if err != nil || got.SuggestedAmount != nil {
+		t.Fatalf("exchange = %+v, %v, want a null amount", got, err)
+	}
+}
+
+func TestExchangeOnrampToken_refusesAnExpiredOrUnknownTokenWithoutWriting(t *testing.T) {
+	t.Parallel()
+	t.Run("eleven minutes later", func(t *testing.T) {
+		t.Parallel()
+		f := newOnrampFixture(t)
+		_, token := f.start(t, nil)
+		f.clock.Advance(11 * time.Minute)
+		if _, err := f.exchange.Handle(t.Context(), token); errs.CodeOf(err) != errs.CodeOnrampLinkExpired {
+			t.Fatalf("exchange = %v, want onramp_link_expired", err)
+		}
+		assertOnlyCreated(t, f.pool)
+	})
+	t.Run("expired by the poller", func(t *testing.T) {
+		t.Parallel()
+		f := newOnrampFixture(t)
+		_, token := f.start(t, nil)
+		f.exec(t, `UPDATE onramp_sessions SET status = 'expired'`)
+		if _, err := f.exchange.Handle(t.Context(), token); errs.CodeOf(err) != errs.CodeOnrampLinkExpired {
+			t.Fatalf("exchange = %v, want onramp_link_expired", err)
+		}
+	})
+	t.Run("unknown", func(t *testing.T) {
+		t.Parallel()
+		f := newOnrampFixture(t)
+		f.start(t, nil)
+		stranger := domain.NewOnrampToken([domain.OnrampTokenBytes]byte{1})
+		if _, err := f.exchange.Handle(t.Context(), stranger); errs.CodeOf(err) != errs.CodeOnrampLinkInvalid {
+			t.Fatalf("exchange = %v, want onramp_link_invalid", err)
+		}
+		assertOnlyCreated(t, f.pool)
+	})
+}
+
+func assertOnlyCreated(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	var status string
+	if err := pool.QueryRow(t.Context(), `SELECT status FROM onramp_sessions`).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if evs := onrampEvents(t, pool); status != "created" || len(evs) != 1 {
+		t.Fatalf("status %s with events %+v, want the session untouched", status, evs)
+	}
+}
+
+func TestExchangeOnrampToken_rollsBackTheOpenWhenAStepFails(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		setup string
+		want  errs.Code
+	}{
+		{"no member wallet", `DELETE FROM user_wallets`, errs.CodeUserNotFound},
+		{
+			"an amount past uint64", `UPDATE onramp_sessions SET suggested_amount_micros = 99999999999999999999`,
+			errs.CodeInternal,
+		},
+		{"the event table is gone", `ALTER TABLE events RENAME TO events_gone`, errs.CodeInternal},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := newOnrampFixture(t)
+			_, token := f.start(t, nil)
+			f.exec(t, tt.setup)
+			if _, err := f.exchange.Handle(t.Context(), token); errs.CodeOf(err) != tt.want {
+				t.Fatalf("exchange = %v, want %s", err, tt.want)
+			}
+			var status string
+			if err := f.pool.QueryRow(t.Context(), `SELECT status FROM onramp_sessions`).Scan(&status); err != nil {
+				t.Fatal(err)
+			}
+			if status != "created" {
+				t.Fatalf("status = %s, want created after the rollback", status)
+			}
+		})
+	}
+}
+
+func TestExchangeOnrampToken_failsWhenTheSessionTableIsGone(t *testing.T) {
+	t.Parallel()
+	f := newOnrampFixture(t)
+	_, token := f.start(t, nil)
+	f.exec(t, `ALTER TABLE onramp_sessions RENAME TO onramp_sessions_gone`)
+	if _, err := f.exchange.Handle(t.Context(), token); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("exchange = %v, want internal", err)
 	}
 }
 
