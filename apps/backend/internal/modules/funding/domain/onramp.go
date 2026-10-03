@@ -50,6 +50,27 @@ func (s OnrampStatus) To(to OnrampStatus) error {
 	return nil
 }
 
+func ReportedOnrampStatuses() []OnrampStatus {
+	return []OnrampStatus{OnrampConfirmed, OnrampSubmitted, OnrampCancelled, OnrampFailed}
+}
+
+func ParseReportedOnrampStatus(raw string) (OnrampStatus, error) {
+	if !slices.Contains(ReportedOnrampStatuses(), OnrampStatus(raw)) {
+		return "", errs.New(errs.CodeInvalidInput, "funding.ParseReportedOnrampStatus", slog.String("raw", raw))
+	}
+	return OnrampStatus(raw), nil
+}
+
+func OnrampSources(to OnrampStatus) []OnrampStatus {
+	var from []OnrampStatus
+	for _, s := range OnrampStatuses() {
+		if s.To(to) == nil {
+			from = append(from, s)
+		}
+	}
+	return from
+}
+
 func (s OnrampStatus) Terminal() bool { return len(onrampTransitions()[s]) == 0 }
 
 func RefuseOnrampToken(status OnrampStatus, wasOpened bool, expiresAt, now time.Time) error {

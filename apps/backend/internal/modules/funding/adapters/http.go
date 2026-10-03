@@ -8,6 +8,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/funding/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/fundingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -21,6 +22,8 @@ type HTTP struct {
 	Wallets  app.MemberWallets
 	Create   *app.CreateOnrampSessionHandler
 	Exchange *app.ExchangeOnrampTokenHandler
+	Report   *app.ReportOnrampStatusHandler
+	Reads    sqlc.DBTX
 	IDs      ids.Generator
 }
 
@@ -92,6 +95,54 @@ func (h HTTP) ExchangeOnrampToken(
 		SessionId: out.SessionID, WalletAddress: string(out.WalletAddress),
 		SuggestedAmountMicros: microsWire(out.SuggestedAmount), UsdcMint: out.USDCMint,
 	}, nil
+}
+
+func (h HTTP) ReportOnrampStatus(
+	ctx context.Context, req api.ReportOnrampStatusRequestObject,
+) (api.ReportOnrampStatusResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	to, err := domain.ParseReportedOnrampStatus(string(req.Body.Status))
+	if err != nil {
+		return nil, err
+	}
+	var provider string
+	if req.Body.Provider != nil {
+		provider = *req.Body.Provider
+	}
+	session, err := h.Report.Handle(ctx, app.ReportOnrampStatus{
+		SessionID: req.Id, UserID: user, To: to, Provider: provider,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return api.ReportOnrampStatus200JSONResponse(sessionWire(session)), nil
+}
+
+func (h HTTP) GetOnrampSession(
+	ctx context.Context, req api.GetOnrampSessionRequestObject,
+) (api.GetOnrampSessionResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	session, err := app.GetOnrampSession(ctx, h.Reads, req.Id, user)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetOnrampSession200JSONResponse(sessionWire(session)), nil
+}
+
+func sessionWire(s app.OnrampSession) api.OnrampSession {
+	return api.OnrampSession{
+		SessionId:             s.ID,
+		Status:                api.OnrampSessionStatus(s.Status),
+		SuggestedAmountMicros: microsWire(s.SuggestedAmount),
+		CreatedAt:             s.CreatedAt,
+		CompletedAt:           s.CompletedAt,
+	}
 }
 
 func microsWire(m *money.Micros) *string {
