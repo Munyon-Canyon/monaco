@@ -119,9 +119,11 @@ Member wallets and treasuries are separate tables with separate owners (default 
 Both ledgers follow the same shape: a header row per business transaction, and entry rows that each move an amount of one asset into or out of one account. For every header, entries sum to zero per asset.
 
 ```
-cabal_txns          id, cabal_id, kind, status, swap_id?, transfer_id?, tx_signature?, created_at
+cabal_txns          id, cabal_id, seq, kind, status, swap_id?, transfer_id?, tx_signature?, created_at
 cabal_txn_entries   txn_id, account, asset_id, amount (signed int64, base units)
 ```
+
+`seq` numbers a cabal's headers 1, 2, 3 in the order they were posted. The post assigns it under the cabal lock, so it holds the true order when two hosts' clocks disagree or a clock steps back. The ledger check replays cost basis in `seq` order, not `created_at` order.
 
 A buy of $50 AAPLx is one header with entries such as `treasury USDC −50`, `treasury AAPLx +0.21`, `venue USDC +50`, `venue AAPLx −0.21`. Positions are sums of entries by account and asset.
 

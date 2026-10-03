@@ -135,12 +135,13 @@ func (q *Queries) InsertCabalEntry(ctx context.Context, arg InsertCabalEntryPara
 }
 
 const insertCabalTxn = `-- name: InsertCabalTxn :execrows
-INSERT INTO cabal_txns (id, cabal_id, kind, status, swap_id, transfer_id, tx_signature, created_at)
+INSERT INTO cabal_txns (id, cabal_id, kind, status, swap_id, transfer_id, tx_signature, created_at, seq)
 SELECT $1::uuid, $2::uuid, $3::text, $4::text,
   NULLIF($5::uuid, '00000000-0000-0000-0000-000000000000'),
   NULLIF($6::uuid, '00000000-0000-0000-0000-000000000000'),
   NULLIF($7::text, ''),
-  $8::timestamptz
+  $8::timestamptz,
+  (SELECT coalesce(max(seq), 0) + 1 FROM cabal_txns WHERE cabal_id = $2::uuid)
 WHERE NOT EXISTS (
   SELECT 1 FROM cabal_txns c WHERE c.transfer_id = $6::uuid AND c.status <> $4::text
   UNION ALL
