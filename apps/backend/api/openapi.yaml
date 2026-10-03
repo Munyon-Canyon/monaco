@@ -288,6 +288,41 @@ paths:
               example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: null, my_access_request: null, invite_code: null, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
         default:
           $ref: "#/components/responses/Problem"
+    patch:
+      operationId: patchCabal
+      tags: [cabal]
+      x-idempotent: true
+      summary: Rename a cabal or change its rules.
+      description: >-
+        Creator only. Every field is optional, and an omitted field keeps its value. voter_ids names every voter,
+        is allowed only when the resulting voter_mode is list, must include the creator and may name only members.
+        Switching voter_mode to all lets every member vote. A rules change applies to proposals created afterwards.
+        A body that changes nothing returns the cabal unchanged. A replay returns the first response.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema: {type: string, format: uuid}
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The fields to change.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCabalRequest"
+            example: {name: Work pot, slippage_bps: 50}
+      responses:
+        "200":
+          description: The cabal, as its creator sees it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cabal"
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Work pot, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 50}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: {role: creator, can_vote: true}, my_access_request: null, invite_code: ABCD2345, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/access-requests:
     get:
       operationId: getCabalAccessRequests
@@ -2286,6 +2321,22 @@ components:
           format: int64
           description: The denominator.
           examples: [1]
+    UpdateCabalRequest:
+      type: object
+      description: The cabal fields to change. An omitted field keeps its value.
+      additionalProperties: false
+      properties:
+        name: {type: string, description: "Cabal name, 3 to 40 characters.", examples: [Work pot]}
+        join_mode: {type: string, description: "`open` or `request`.", examples: [request]}
+        voter_mode: {type: string, description: "`all` or `list`.", examples: [list]}
+        voter_ids:
+          type: array
+          description: Every voter, the creator included. Only with voter_mode list.
+          items: {type: string, format: uuid}
+          examples: [["01890a5d-ac96-774b-bcce-b302099a8058"]]
+        threshold: {type: string, description: "`majority` or `unanimous`.", examples: [unanimous]}
+        proposal_expiry_seconds: {type: integer, format: int32, description: "One of 3600, 86400 or 604800.", examples: [3600]}
+        slippage_bps: {type: integer, format: int32, description: "Basis points from 1 to 300.", examples: [50]}
     UpdateProfileRequest:
       type: object
       description: The profile fields a signed-in user may update.

@@ -163,6 +163,10 @@ func (healthz) GetMyCabals(context.Context, api.GetMyCabalsRequestObject) (api.G
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetMyCabals")
 }
 
+func (healthz) PatchCabal(context.Context, api.PatchCabalRequestObject) (api.PatchCabalResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.PatchCabal")
+}
+
 func (healthz) PostCabalMember(
 	context.Context, api.PostCabalMemberRequestObject,
 ) (api.PostCabalMemberResponseObject, error) {

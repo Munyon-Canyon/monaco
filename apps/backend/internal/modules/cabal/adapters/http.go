@@ -31,6 +31,7 @@ type HTTP struct {
 	Request *app.RequestAccessHandler
 	Revoke  *app.RevokeAccessHandler
 	Decide  *app.DecideAccessHandler
+	Update  *app.UpdateCabalHandler
 	DB      sqlc.DBTX
 	Users   app.UserCards
 }
@@ -208,6 +209,56 @@ func (h HTTP) GetCabal(
 		return nil, err
 	}
 	return api.GetCabal200JSONResponse(wireCabal(view)), nil
+}
+
+func (h HTTP) PatchCabal(
+	ctx context.Context, req api.PatchCabalRequestObject,
+) (api.PatchCabalResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cmd, err := updateCommand(user, req)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.Update.Handle(ctx, cmd); err != nil {
+		return nil, err
+	}
+	view, err := app.GetCabal(ctx, h.DB, h.Users, cmd.CabalID, user)
+	if err != nil {
+		return nil, err
+	}
+	return api.PatchCabal200JSONResponse(wireCabal(view)), nil
+}
+
+func updateCommand(user ids.UserID, req api.PatchCabalRequestObject) (app.UpdateCabal, error) {
+	if req.Body == nil {
+		return app.UpdateCabal{}, errs.New(errs.CodeInvalidInput, "cabal.PatchCabal", slog.String("reason", "body"))
+	}
+	body := req.Body
+	cmd := app.UpdateCabal{
+		ActorID: user, CabalID: ids.CabalIDFrom(req.Id),
+		Rules: domain.RulesPatch{
+			JoinMode: body.JoinMode, VoterMode: body.VoterMode, Threshold: body.Threshold,
+			ExpirySeconds: body.ProposalExpirySeconds, SlippageBps: body.SlippageBps,
+		},
+	}
+	if body.Name != nil {
+		name, err := domain.ParseName(*body.Name)
+		if err != nil {
+			return app.UpdateCabal{}, err
+		}
+		cmd.Name = &name
+	}
+	if body.VoterIds != nil {
+		voters := make([]ids.UserID, 0, len(*body.VoterIds))
+		for _, voter := range *body.VoterIds {
+			voters = append(voters, ids.UserIDFrom(voter))
+		}
+		cmd.VoterIDs = &voters
+	}
+	return cmd, nil
 }
 
 func (h HTTP) PostCabalMember(

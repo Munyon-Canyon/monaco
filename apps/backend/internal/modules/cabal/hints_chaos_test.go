@@ -31,7 +31,7 @@ func TestHints_convergesUnderChaos(t *testing.T) {
 		id := uuid.NewSHA1(uuid.Nil, strconv.AppendUint(nil, rng.Uint64(), 10))
 		user := uuid.NewSHA1(uuid.Nil, strconv.AppendUint(nil, rng.Uint64(), 10))
 		request := uuid.NewSHA1(uuid.Nil, strconv.AppendUint(nil, rng.Uint64(), 10))
-		switch rng.IntN(4) {
+		switch rng.IntN(5) {
 		case 0:
 			return events.CabalMemberJoined{V: 1, CabalID: id, UserID: user, Role: "member", Via: "open"}
 		case 1:
@@ -42,6 +42,11 @@ func TestHints_convergesUnderChaos(t *testing.T) {
 			return events.CabalAccessDecided{
 				V: 1, RequestID: request, CabalID: id, UserID: user, Direction: "request", Decision: "approved",
 				ActorID: user,
+			}
+		case 3:
+			slippage := int32(50)
+			return events.CabalUpdated{
+				V: 1, CabalID: id, ActorID: user, Changes: events.CabalChanges{SlippageBps: &slippage},
 			}
 		}
 		return events.CabalCreated{
