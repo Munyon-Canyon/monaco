@@ -63,12 +63,6 @@ After S1, the local database has a `users` row for actor A. `apps/mobile/qa/jour
 
 The row also exists after an earlier run, so a run that never reaches the backend still passes this check. The backend log line `POST /v1/auth/session` with status 200 during the run is the stronger sign, and `just reset db` gives a fresh database.
 
-## Known failures on staging
-
-S1.4 currently fails after the code because staging serves neither `GET /v1/home/dashboard` nor `GET /v1/me/balance`.
-Ticket #619 replaces the legacy Home read, and ticket #579 adds the balance read.
-Ticket #660 rewires the app from the legacy Home route to the replacement routes.
-
 ## Not covered
 
 - A wrong code. Privy may lock a test login after repeated wrong codes, and the three test logins are shared by the team.
