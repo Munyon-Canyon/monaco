@@ -72,8 +72,6 @@ struct GroupDetailView: View {
     @State private var proposalService: LiveProposalFeedService
     /// The pot's curve on the hero: one slot per range, re-read with the rest of the screen.
     @State private var pnl: GroupPnLHistoryModel
-    /// Owns the cabal picture: which one is current, and whether a write is in flight.
-    @StateObject private var pictureEditor: CabalPictureEditor
 
     @State private var proposalRefreshCount = 0
     @State private var route: GroupDetailRoute?
@@ -123,13 +121,6 @@ struct GroupDetailView: View {
         _proposalService = State(initialValue: LiveProposalFeedService(auth: auth))
         _pnl = State(
             initialValue: GroupPnLHistoryModel(groupId: groupId, source: LiveGroupPnLHistorySource(auth: auth)))
-
-        _pictureEditor = StateObject(
-            wrappedValue: CabalPictureEditor(
-                groupId: groupId,
-                pictureUrl: initialView?.pictureUrl,
-                writer: LiveCabalPictureWriter(accessToken: { [weak auth] in auth?.accessToken })
-            ))
     }
 
     private var displayName: String {
@@ -258,7 +249,6 @@ struct GroupDetailView: View {
                 },
                 onToast: { toast = $0 },
                 onHeroScrolledAway: { heroScrolledAway = $0 },
-                pictureEditor: pictureEditor,
                 heroChart: pnl.chart,
                 heroRange: pnl.range,
                 onHeroRange: { pnl.range = $0 }
@@ -447,9 +437,6 @@ struct GroupDetailView: View {
 
         if let loadedView {
             QuietUpdate.apply(loadedView, over: groupView) { groupView = $0 }
-            // The editor keeps its own copy of the picture, because a refresh that
-            // started before an upload must not land after it and put the old one back.
-            pictureEditor.adoptFromRefresh(loadedView.pictureUrl)
             if errorMessage != nil { errorMessage = nil }
         }
         if let activity {

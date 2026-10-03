@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import XCTest
 
@@ -86,7 +87,10 @@ nonisolated final class CabalPictureEditorTests: XCTestCase {
     func testSetPicture_failureKeepsTheCurrentPicture() async {
         let writer = StubCabalPictureWriter()
         writer.uploadResult = .failure(
-            MonacoCore.MonacoAPIError.rejected(status: 413, message: "picture must be at most 2MB"))
+            APIError.problem(
+                ProblemError(
+                    status: 413, code: .init("picture_invalid"), message: "picture must be at most 2MB",
+                    traceID: "trace", retryable: false)))
         let editor = makeEditor(pictureUrl: "https://cdn.test/groups/g1/first.jpg", writer: writer)
 
         let outcome = await editor.setPicture(imageData: image, mimeType: "image/jpeg")
@@ -115,7 +119,11 @@ nonisolated final class CabalPictureEditorTests: XCTestCase {
     @MainActor
     func testRemovePicture_failureKeepsIt() async {
         let writer = StubCabalPictureWriter()
-        writer.removeResult = .failure(MonacoCore.MonacoAPIError.httpStatus(403))
+        writer.removeResult = .failure(
+            APIError.problem(
+                ProblemError(
+                    status: 403, code: .init("forbidden"), message: "Only the cabal's creator can change its picture.",
+                    traceID: "trace", retryable: false)))
         let editor = makeEditor(pictureUrl: "https://cdn.test/groups/g1/first.jpg", writer: writer)
 
         let outcome = await editor.removePicture()
@@ -202,36 +210,35 @@ nonisolated final class CabalPictureEditorTests: XCTestCase {
     @MainActor
     func testFailureMessages() {
         let fallback = "fallback copy"
+        let storage = ProblemError(
+            status: 503,
+            code: .init("storage_unavailable"),
+            message: "Pictures can't be saved right now.",
+            traceID: "trace",
+            retryable: true
+        )
+        let rateLimited = ProblemError(
+            status: 429,
+            code: .init("rate_limited"),
+            message: "Too many changes. Try again in a minute.",
+            traceID: "trace",
+            retryable: true
+        )
 
         XCTAssertEqual(
-            CabalPictureEditor.failureMessage(
-                for: MonacoCore.MonacoAPIError.rejected(
-                    status: 400, message: "picture must be a jpeg, png, or webp image"),
-                fallback: fallback
-            ),
-            "picture must be a jpeg, png, or webp image",
-            "server copy names the rule that was broken; this screen cannot"
+            CabalPictureEditor.failureMessage(for: APIError.problem(storage), fallback: fallback),
+            "Pictures can't be saved right now.",
+            "storage_unavailable shows the server's message"
+        )
+        XCTAssertEqual(
+            CabalPictureEditor.failureMessage(for: APIError.problem(rateLimited), fallback: fallback),
+            "Too many changes. Try again in a minute.",
+            "a 429 shows the server's message"
         )
         XCTAssertEqual(
             CabalPictureEditor.failureMessage(
-                for: MonacoCore.MonacoAPIError.rateLimited(retryAfterSeconds: 12), fallback: fallback),
-            "Too many changes. Try again in 12s."
-        )
-        XCTAssertEqual(
-            CabalPictureEditor.failureMessage(for: MonacoCore.MonacoAPIError.httpStatus(404), fallback: fallback),
-            "This cabal is no longer available."
-        )
-        XCTAssertEqual(
-            CabalPictureEditor.failureMessage(for: MonacoCore.MonacoAPIError.httpStatus(503), fallback: fallback),
-            "Cabal pictures are not set up on this server."
-        )
-        XCTAssertEqual(
-            CabalPictureEditor.failureMessage(for: URLError(.notConnectedToInternet), fallback: fallback),
-            "Could not reach Monaco. Check your connection."
-        )
-        XCTAssertEqual(
-            CabalPictureEditor.failureMessage(for: CabalPictureWriteError.notSignedIn, fallback: fallback),
-            "Sign in again to change the cabal picture."
+                for: APIError.transport(URLError(.notConnectedToInternet)), fallback: fallback),
+            "You're offline. Try again."
         )
         XCTAssertEqual(
             CabalPictureEditor.failureMessage(for: CocoaError(.fileNoSuchFile), fallback: fallback),
