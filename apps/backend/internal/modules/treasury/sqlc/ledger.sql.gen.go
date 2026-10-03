@@ -215,6 +215,7 @@ WHERE NOT EXISTS (
   UNION ALL
   SELECT 1 FROM user_txns u WHERE u.transfer_id = $6::uuid AND u.status <> $5::text
 )
+ON CONFLICT (id) DO NOTHING
 `
 
 type InsertUserTxnParams struct {

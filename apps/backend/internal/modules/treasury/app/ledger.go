@@ -115,6 +115,9 @@ func (l Ledger) PostUserTxn(ctx context.Context, tx db.Tx, t domain.UserTxn) err
 		return err
 	}
 	if n == 0 {
+		if t.TransferID == uuid.Nil {
+			return nil
+		}
 		return statusSplit(op, t.TransferID, t.Status)
 	}
 	var seq int16

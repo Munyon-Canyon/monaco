@@ -54,6 +54,30 @@ func TestLedger_theDatabaseRefusesDuplicateHeaders(t *testing.T) {
 	}
 }
 
+func TestLedgerReturnsHeaderWriteErrors(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	user, cabal := f.user(t), f.cabal(t)
+	u, c, err := f.fund(user, cabal, 10, 10, domain.TxnSettled)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range []string{"user_txns", "cabal_txns"} {
+		if _, err := f.pool.Exec(t.Context(), "ALTER TABLE "+table+" RENAME TO "+table+"_gone"); err != nil {
+			t.Fatal(err)
+		}
+		var got error
+		if table == "user_txns" {
+			got = f.do(func(ctx context.Context, tx db.Tx) error { return f.ledger.PostUserTxn(ctx, tx, u) })
+		} else {
+			got = f.do(func(ctx context.Context, tx db.Tx) error { return f.ledger.PostCabalTxn(ctx, tx, c) })
+		}
+		if got == nil {
+			t.Fatalf("%s write error = nil", table)
+		}
+	}
+}
+
 func TestLedger_theDatabaseRefusesUnknownAccountsAndShareOverdrafts(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)

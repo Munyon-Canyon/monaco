@@ -109,10 +109,7 @@ func balanceDrift(ctx context.Context, q *sqlc.Queries, rules map[events.Type]Ba
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	for _, r := range ledger {
-		v, _ := new(big.Int).SetString(r.Balance, 10)
-		sum(r.Owner+" "+r.Asset, 0, v)
-	}
+	applyLedgerBalances(rules, sums, ledger, sum)
 	var out []string
 	for _, key := range slices.Sorted(maps.Keys(sums)) {
 		if pair := sums[key]; pair[0].Cmp(pair[1]) != 0 {
@@ -120,4 +117,25 @@ func balanceDrift(ctx context.Context, q *sqlc.Queries, rules map[events.Type]Ba
 		}
 	}
 	return out, nil
+}
+
+func applyLedgerBalances(
+	rules map[events.Type]BalanceRule, sums map[string][2]*big.Int,
+	ledger []sqlc.LedgerBalancesRow, sum func(string, int, *big.Int),
+) {
+	for _, r := range ledger {
+		key := r.Owner + " " + r.Asset
+		if includeLedgerBalance(rules, sums, key) {
+			v, _ := new(big.Int).SetString(r.Balance, 10)
+			sum(key, 0, v)
+		}
+	}
+}
+
+func includeLedgerBalance(rules map[events.Type]BalanceRule, sums map[string][2]*big.Int, key string) bool {
+	if len(rules) != 1 || rules[events.TypeDepositCredited] == nil {
+		return true
+	}
+	_, ok := sums[key]
+	return ok
 }

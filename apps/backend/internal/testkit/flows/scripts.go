@@ -45,6 +45,8 @@ func Scripts() map[string]Script {
 		"F03RevokeAccessCabalNotFound":             F03RevokeAccessCabalNotFound,
 		"F03RevokeAccessAccessRequestNotPending":   F03RevokeAccessAccessRequestNotPending,
 		"F03RevokeAccessCannotRevokeAccess":        F03RevokeAccessCannotRevokeAccess,
+		"F05CreditDepositOK":                       F05CreditDepositOK,
+		"F05CreditDepositRPCUnavailable":           F05CreditDepositRPCUnavailable,
 		"F18SamplePricesOK":                        F18SamplePricesOK,
 		"F18SamplePricesJupiterUnavailable":        F18SamplePricesJupiterUnavailable,
 		"F18SamplePricesUpstreamTimeout":           F18SamplePricesUpstreamTimeout,
@@ -101,6 +103,7 @@ func identityScripts() map[string]Script {
 
 func Env() map[string][]string {
 	return map[string][]string{
+		"05": {"FUNDING_DEPOSIT_POLL_INTERVAL=2s"},
 		"18": {"MARKET_PRICE_POLL_INTERVAL=2s", "MONACO_TIMEOUT_JUPITER_QUOTE=1s"},
 		"28": {"IDENTITY_NUDGES_INTERVAL=1s"},
 	}

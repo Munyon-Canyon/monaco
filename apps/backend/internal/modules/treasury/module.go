@@ -1,6 +1,7 @@
 package treasury
 
 import (
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
@@ -58,6 +59,11 @@ func (m *Module) Routes(r *httpx.Routes) {
 
 func (m *Module) Consumers() []bus.Consumer {
 	activity := adapters.Activity{Hints: m.deps.Bus}
+	userLedger := adapters.UserLedger{
+		Ledger: app.NewLedger(chain.SolanaAddress(m.deps.Config.Solana.USDCMint), m.deps.Clock),
+		IDs:    m.deps.IDs,
+		USDC:   domain.MintAsset(chain.SolanaAddress(m.deps.Config.Solana.USDCMint)),
+	}
 	return []bus.Consumer{
 		{
 			Durable: "treasury_trades",
@@ -71,6 +77,12 @@ func (m *Module) Consumers() []bus.Consumer {
 				bus.Handle("treasury.activity.submitted", activity.Submitted),
 				bus.Handle("treasury.activity.confirmed", activity.Confirmed),
 				bus.Handle("treasury.activity.failed", activity.Failed),
+			},
+		},
+		{
+			Durable: "treasury_user_ledger",
+			Handlers: []bus.HandlerSpec{
+				bus.Handle("treasury.user_ledger", userLedger.Handle),
 			},
 		},
 	}
@@ -90,6 +102,8 @@ func LedgerCheck() replay.LedgerCheck {
 		Tables: []string{
 			"cabal_txns", "cabal_txn_entries", "user_txns", "user_txn_entries", "cabal_positions", "user_positions",
 		},
-		Check: adapters.CheckLedger(usdcMainnet, nil),
+		Check: adapters.CheckLedger(usdcMainnet, map[events.Type]adapters.BalanceRule{
+			events.TypeDepositCredited: adapters.DepositCreditedBalances(usdcMainnet),
+		}),
 	}
 }
