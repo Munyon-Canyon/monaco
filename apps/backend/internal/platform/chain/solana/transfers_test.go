@@ -62,6 +62,29 @@ func TestInboundTransfers_authorityStandsInForAnUnknownSource(t *testing.T) {
 	if err != nil || !slices.Equal(got, want) {
 		t.Fatalf("InboundTransfers = %+v, %v", got, err)
 	}
+	_, err = client(result(body)).InboundTransfersForMint(t.Context(), deposit, member, usdcMint)
+	wantCode(t, err, errs.CodeDecodeFailed)
+}
+
+func TestInboundTransfersForMint_ignoresAnUnrelatedMintWithMissingMetadata(t *testing.T) {
+	t.Parallel()
+	body := `{"meta":{"err":null,"postTokenBalances":[` +
+		`{"accountIndex":0,"mint":"` + string(usdcMint) + `","owner":"` + string(member) +
+		`","uiTokenAmount":{"amount":"7","decimals":6}},` +
+		`{"accountIndex":1,"mint":"` + string(xStockMint) + `","owner":"` + string(sender) +
+		`","uiTokenAmount":{"amount":"1","decimals":8}},` +
+		`{"accountIndex":2,"mint":"` + string(usdcMint) + `","owner":"` + string(sender) +
+		`","uiTokenAmount":{"amount":"7","decimals":6}}]},` +
+		`"transaction":{"message":{"accountKeys":[{"pubkey":"dest"},{"pubkey":"other-dest"},{"pubkey":"src"}],"instructions":[` +
+		`{"program":"spl-token","parsed":{"type":"transfer","info":{"source":"temporary",` +
+		`"destination":"other-dest","authority":"` + string(sender) + `","amount":"1"}}},` +
+		`{"program":"spl-token","parsed":{"type":"transfer","info":{"source":"src","destination":"dest",` +
+		`"authority":"` + string(sender) + `","amount":"7"}}}]}}}`
+	got, err := client(result(body)).InboundTransfersForMint(t.Context(), deposit, member, usdcMint)
+	want := []solana.Transfer{classic(sender, 7)}
+	if err != nil || !slices.Equal(got, want) {
+		t.Fatalf("InboundTransfersForMint = %+v, %v; want %+v", got, err, want)
+	}
 }
 
 func TestInboundTransfers_failures(t *testing.T) {

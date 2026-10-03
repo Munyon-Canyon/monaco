@@ -56,6 +56,91 @@ func TestTokenBalance_rejectsBadAmounts(t *testing.T) {
 	wantCode(t, err, errs.CodeRPCUnavailable)
 }
 
+func TestAccounts_andTokenAccountsReadFinalizedParsedAccountState(t *testing.T) {
+	t.Parallel()
+	account := `{"owner":"` + string(chain.SPLProgram) + `","data":{"parsed":{"info":` +
+		`{"mint":"` + string(usdcMint) + `","owner":"` + string(member) + `","state":"initialized",` +
+		`"tokenAmount":{"amount":"2500000","decimals":6}}}}}`
+	u := result(`{"context":{"slot":44},"value":[` + account + `]}`)
+	c := client(u)
+	slot, got, err := c.Accounts(t.Context(), []chain.SolanaAddress{sender}, 40)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slot != 44 {
+		t.Fatalf("slot = %d, want 44", slot)
+	}
+	want := []solana.TokenAccountState{{
+		Address: sender,
+		Exists:  true,
+		Program: chain.SPLProgram,
+		Mint:    usdcMint,
+		Owner:   member,
+		State:   "initialized",
+		Amount:  money.NewBaseUnits(2_500_000, 6),
+	}}
+	if !slices.Equal(got, want) {
+		t.Fatalf("Accounts = %+v, want %+v", got, want)
+	}
+	request := u.requests()[0]
+	if request.method != "getMultipleAccounts" {
+		t.Fatalf("Accounts request = %+v", request)
+	}
+	wantOptions := `{"commitment":"finalized","encoding":"jsonParsed","minContextSlot":40}`
+	if got := string(request.params[1]); got != wantOptions {
+		t.Fatalf("Accounts options = %s", got)
+	}
+	tokenAccounts := `{"context":{"slot":44},"value":[{"pubkey":"` + string(sender) + `","account":` + account + `}]}`
+	c = client(result(tokenAccounts))
+	slot, got, err = c.TokenAccounts(t.Context(), member, usdc())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slot != 44 {
+		t.Fatalf("slot = %d, want 44", slot)
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("TokenAccounts = %+v, want %+v", got, want)
+	}
+	missingClient := client(result(`{"context":{"slot":45},"value":[null]}`))
+	_, missing, err := missingClient.Accounts(t.Context(), []chain.SolanaAddress{sender}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(missing, []solana.TokenAccountState{{Address: sender}}) {
+		t.Fatalf("missing account = %+v", missing)
+	}
+}
+
+func TestAccounts_rejectsOverOneHundredAddressesAndMalformedResponses(t *testing.T) {
+	t.Parallel()
+	addrs := make([]chain.SolanaAddress, 101)
+	for i := range addrs {
+		addrs[i] = member
+	}
+	_, _, err := client(result(`null`)).Accounts(t.Context(), addrs, 0)
+	wantCode(t, err, errs.CodeInvalidInput)
+	empty := client(result(`{"context":{"slot":1},"value":[]}`))
+	_, _, err = empty.Accounts(t.Context(), []chain.SolanaAddress{sender}, 0)
+	wantCode(t, err, errs.CodeDecodeFailed)
+	malformed := `{"context":{"slot":1},"value":[{"owner":"` + string(chain.SPLProgram) + `"}]}`
+	_, _, err = client(result(malformed)).Accounts(
+		t.Context(), []chain.SolanaAddress{sender}, 0,
+	)
+	wantCode(t, err, errs.CodeDecodeFailed)
+}
+
+func TestAccounts_andTokenAccountsMapRPCAndAccountDecodeFailures(t *testing.T) {
+	t.Parallel()
+	_, _, err := client(replying(503, "")).Accounts(t.Context(), []chain.SolanaAddress{sender}, 0)
+	wantCode(t, err, errs.CodeRPCUnavailable)
+	_, _, err = client(replying(503, "")).TokenAccounts(t.Context(), member, usdc())
+	wantCode(t, err, errs.CodeRPCUnavailable)
+	malformed := `{"context":{"slot":1},"value":[{"pubkey":"` + string(sender) + `","account":{}}]}`
+	_, _, err = client(result(malformed)).TokenAccounts(t.Context(), member, usdc())
+	wantCode(t, err, errs.CodeDecodeFailed)
+}
+
 func TestSignatureStatuses_mapsFinalizedProcessingAndNotFound(t *testing.T) {
 	t.Parallel()
 	c, u, _ := overFakes(t)
@@ -109,7 +194,7 @@ func TestSignatureStatuses_edges(t *testing.T) {
 func TestSignaturesFor_pagesBackFromBefore(t *testing.T) {
 	t.Parallel()
 	c, u, _ := overFakes(t)
-	got, err := c.SignaturesFor(t.Context(), member, olderSig, "", 50)
+	got, err := c.SignaturesFor(t.Context(), member, solana.SignaturesOpts{Before: olderSig, Limit: 50})
 	want := []solana.SignatureInfo{
 		{Signature: deposit, Slot: 450_999_500, BlockTime: time.Unix(1_790_000_000, 0).UTC()},
 		{Signature: olderSig, Slot: 450_999_400, Failed: true, BlockTime: time.Unix(1_789_999_990, 0).UTC()},
@@ -124,20 +209,20 @@ func TestSignaturesFor_pagesBackFromBefore(t *testing.T) {
 	)+`","commitment":"finalized","limit":50}` {
 		t.Fatalf("options = %s", p)
 	}
-	if _, err := c.SignaturesFor(t.Context(), member, "", "", 10); err != nil {
+	if _, err := c.SignaturesFor(t.Context(), member, solana.SignaturesOpts{Limit: 10}); err != nil {
 		t.Fatal(err)
 	}
 	if p := string(u.requests()[1].params[1]); p != `{"commitment":"finalized","limit":10}` {
 		t.Fatalf("options without before = %s", p)
 	}
-	_, err = client(replying(503, "")).SignaturesFor(t.Context(), member, "", "", 1)
+	_, err = client(replying(503, "")).SignaturesFor(t.Context(), member, solana.SignaturesOpts{Limit: 1})
 	wantCode(t, err, errs.CodeRPCUnavailable)
 }
 
 func TestSignaturesFor_stopsAtUntil(t *testing.T) {
 	t.Parallel()
 	c, u, _ := overFakes(t)
-	if _, err := c.SignaturesFor(t.Context(), member, "", olderSig, 50); err != nil {
+	if _, err := c.SignaturesFor(t.Context(), member, solana.SignaturesOpts{Until: olderSig, Limit: 50}); err != nil {
 		t.Fatal(err)
 	}
 	got := string(u.requests()[0].params[1])
@@ -147,18 +232,38 @@ func TestSignaturesFor_stopsAtUntil(t *testing.T) {
 	}
 }
 
+func TestSignaturesFor_sendsMinimumContextSlotAndMapsLaggingNode(t *testing.T) {
+	t.Parallel()
+	c, u, _ := overFakes(t)
+	opts := solana.SignaturesOpts{Limit: 50, MinContextSlot: 451_000_000}
+	if _, err := c.SignaturesFor(t.Context(), member, opts); err != nil {
+		t.Fatal(err)
+	}
+	want := `{"commitment":"finalized","limit":50,"minContextSlot":451000000}`
+	if got := string(u.requests()[0].params[1]); got != want {
+		t.Fatalf("options = %s", got)
+	}
+	laggingBody := `{"jsonrpc":"2.0","id":1,"error":{"code":-32016,` +
+		`"message":"Minimum context slot has not been reached"}}`
+	lagging := client(replying(200, laggingBody))
+	_, err := lagging.SignaturesFor(
+		t.Context(), member, solana.SignaturesOpts{Limit: 1, MinContextSlot: 451_000_000},
+	)
+	wantCode(t, err, errs.CodeRPCUnavailable)
+}
+
 func TestSignaturesFor_acceptsOneToAThousandAndRefusesOtherLimitsWithoutACall(t *testing.T) {
 	t.Parallel()
 	c, u, _ := overFakes(t)
 	for _, limit := range []int{0, -1, 1001} {
-		_, err := c.SignaturesFor(t.Context(), member, "", "", limit)
+		_, err := c.SignaturesFor(t.Context(), member, solana.SignaturesOpts{Limit: limit})
 		wantCode(t, err, errs.CodeInvalidInput)
 	}
 	if n := len(u.requests()); n != 0 {
 		t.Fatalf("%d RPC calls for out-of-range limits", n)
 	}
 	for _, limit := range []int{1, 1000} {
-		if _, err := c.SignaturesFor(t.Context(), member, "", "", limit); err != nil {
+		if _, err := c.SignaturesFor(t.Context(), member, solana.SignaturesOpts{Limit: limit}); err != nil {
 			t.Fatalf("limit %d: %v", limit, err)
 		}
 	}
@@ -175,7 +280,11 @@ func TestReads_refuseInvalidAddressesWithoutACall(t *testing.T) {
 	wantCode(t, err, errs.CodeInvalidAddress)
 	_, err = c.TokenBalance(ctx, member, chain.Mint{Address: "bad"})
 	wantCode(t, err, errs.CodeInvalidAddress)
-	_, err = c.SignaturesFor(ctx, "bad", "", "", 1)
+	_, _, err = c.Accounts(ctx, []chain.SolanaAddress{"bad"}, 0)
+	wantCode(t, err, errs.CodeInvalidAddress)
+	_, _, err = c.TokenAccounts(ctx, "bad", usdc())
+	wantCode(t, err, errs.CodeInvalidAddress)
+	_, err = c.SignaturesFor(ctx, "bad", solana.SignaturesOpts{Limit: 1})
 	wantCode(t, err, errs.CodeInvalidAddress)
 	if n := len(u.requests()); n != 0 {
 		t.Fatalf("%d RPC calls for invalid addresses", n)

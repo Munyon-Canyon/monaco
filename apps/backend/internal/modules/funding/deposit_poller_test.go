@@ -40,9 +40,7 @@ type depositRPC struct {
 func (r *depositRPC) SignaturesFor(
 	context.Context,
 	chain.SolanaAddress,
-	chain.Signature,
-	chain.Signature,
-	int,
+	solana.SignaturesOpts,
 ) ([]solana.SignatureInfo, error) {
 	r.signCalls++
 	if r.signErr != nil {
@@ -293,7 +291,9 @@ func TestDepositPoller_creditsWhenRPCOmitsBlockTime(t *testing.T) {
 type emptyRPC struct{}
 
 func (emptyRPC) SignaturesFor(
-	context.Context, chain.SolanaAddress, chain.Signature, chain.Signature, int,
+	context.Context,
+	chain.SolanaAddress,
+	solana.SignaturesOpts,
 ) ([]solana.SignatureInfo, error) {
 	return nil, nil
 }

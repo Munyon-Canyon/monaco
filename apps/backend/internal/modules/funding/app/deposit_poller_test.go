@@ -47,9 +47,7 @@ type pollerRPC struct{ pages [][]solana.SignatureInfo }
 func (r *pollerRPC) SignaturesFor(
 	_ context.Context,
 	_ chain.SolanaAddress,
-	_ chain.Signature,
-	_ chain.Signature,
-	_ int,
+	_ solana.SignaturesOpts,
 ) ([]solana.SignatureInfo, error) {
 	page := r.pages[0]
 	r.pages = r.pages[1:]

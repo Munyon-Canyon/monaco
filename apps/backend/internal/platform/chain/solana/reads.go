@@ -39,6 +39,22 @@ type SignatureInfo struct {
 	BlockTime time.Time
 }
 
+type SignaturesOpts struct {
+	Before, Until  chain.Signature
+	Limit          int
+	MinContextSlot uint64
+}
+
+type TokenAccountState struct {
+	Address chain.SolanaAddress
+	Exists  bool
+	Program chain.SolanaAddress
+	Mint    chain.SolanaAddress
+	Owner   chain.SolanaAddress
+	State   string
+	Amount  money.BaseUnits
+}
+
 func commitment(level string) map[string]string { return map[string]string{"commitment": level} }
 
 func (c *Client) SOLBalance(ctx context.Context, addr chain.SolanaAddress) (money.BaseUnits, error) {
@@ -67,6 +83,114 @@ type tokenAccountsWire struct {
 			} `json:"data"`
 		} `json:"account"`
 	} `json:"value"`
+}
+
+type tokenAccountWire struct {
+	Pubkey  chain.SolanaAddress   `json:"pubkey"`
+	Account *tokenAccountInfoWire `json:"account"`
+}
+
+type tokenAccountInfoWire struct {
+	Owner chain.SolanaAddress `json:"owner"`
+	Data  struct {
+		Parsed struct {
+			Info struct {
+				Mint        chain.SolanaAddress `json:"mint"`
+				Owner       chain.SolanaAddress `json:"owner"`
+				State       string              `json:"state"`
+				TokenAmount struct {
+					Amount   string `json:"amount"`
+					Decimals uint8  `json:"decimals"`
+				} `json:"tokenAmount"`
+			} `json:"info"`
+		} `json:"parsed"`
+	} `json:"data"`
+}
+
+func tokenAccount(addr chain.SolanaAddress, in *tokenAccountInfoWire) (TokenAccountState, error) {
+	out := TokenAccountState{Address: addr}
+	if in == nil {
+		return out, nil
+	}
+	amount, err := strconv.ParseUint(in.Data.Parsed.Info.TokenAmount.Amount, 10, 64)
+	if err != nil {
+		return out, errs.Wrap(err, errs.CodeDecodeFailed, "solana.TokenAccount")
+	}
+	info := in.Data.Parsed.Info
+	out.Exists, out.Program, out.Mint, out.Owner, out.State = true, in.Owner, info.Mint, info.Owner, info.State
+	out.Amount = money.NewBaseUnits(amount, info.TokenAmount.Decimals)
+	return out, nil
+}
+
+func (c *Client) Accounts(
+	ctx context.Context,
+	addrs []chain.SolanaAddress,
+	minContextSlot uint64,
+) (uint64, []TokenAccountState, error) {
+	if len(addrs) > 100 {
+		return 0, nil, errs.New(errs.CodeInvalidInput, "solana.Accounts", slog.Int("accounts", len(addrs)))
+	}
+	if err := addresses("solana.Accounts", addrs...); err != nil {
+		return 0, nil, err
+	}
+	var wire struct {
+		Context struct {
+			Slot uint64 `json:"slot"`
+		} `json:"context"`
+		Value []*tokenAccountInfoWire `json:"value"`
+	}
+	opts := map[string]any{"encoding": "jsonParsed", "commitment": "finalized"}
+	if minContextSlot != 0 {
+		opts["minContextSlot"] = minContextSlot
+	}
+	if err := c.call(ctx, "getMultipleAccounts", []any{addrs, opts}, &wire); err != nil {
+		return 0, nil, err
+	}
+	if len(wire.Value) != len(addrs) {
+		return 0, nil, errs.New(errs.CodeDecodeFailed, "solana.Accounts")
+	}
+	out := make([]TokenAccountState, len(addrs))
+	for i := range addrs {
+		var err error
+		out[i], err = tokenAccount(addrs[i], wire.Value[i])
+		if err != nil {
+			return 0, nil, err
+		}
+	}
+	return wire.Context.Slot, out, nil
+}
+
+func (c *Client) TokenAccounts(
+	ctx context.Context,
+	owner chain.SolanaAddress,
+	mint chain.Mint,
+) (uint64, []TokenAccountState, error) {
+	if err := addresses("solana.TokenAccounts", owner, mint.Address); err != nil {
+		return 0, nil, err
+	}
+	var wire struct {
+		Context struct {
+			Slot uint64 `json:"slot"`
+		} `json:"context"`
+		Value []tokenAccountWire `json:"value"`
+	}
+	params := []any{
+		owner,
+		map[string]any{"mint": mint.Address},
+		map[string]any{"encoding": "jsonParsed", "commitment": "finalized"},
+	}
+	if err := c.call(ctx, "getTokenAccountsByOwner", params, &wire); err != nil {
+		return 0, nil, err
+	}
+	out := make([]TokenAccountState, len(wire.Value))
+	for i := range wire.Value {
+		var err error
+		out[i], err = tokenAccount(wire.Value[i].Pubkey, wire.Value[i].Account)
+		if err != nil {
+			return 0, nil, err
+		}
+	}
+	return wire.Context.Slot, out, nil
 }
 
 func (c *Client) TokenBalance(
@@ -149,20 +273,25 @@ func (c *Client) SignatureStatuses(ctx context.Context, sigs []chain.Signature) 
 }
 
 func (c *Client) SignaturesFor(
-	ctx context.Context, addr chain.SolanaAddress, before, until chain.Signature, limit int,
+	ctx context.Context,
+	addr chain.SolanaAddress,
+	in SignaturesOpts,
 ) ([]SignatureInfo, error) {
 	if err := addresses("solana.SignaturesFor", addr); err != nil {
 		return nil, err
 	}
-	if limit < 1 || limit > 1000 {
-		return nil, errs.New(errs.CodeInvalidInput, "solana.SignaturesFor", slog.Int("limit", limit))
+	if in.Limit < 1 || in.Limit > 1000 {
+		return nil, errs.New(errs.CodeInvalidInput, "solana.SignaturesFor", slog.Int("limit", in.Limit))
 	}
-	opts := map[string]any{"limit": limit, "commitment": "finalized"}
-	if before != "" {
-		opts["before"] = before
+	opts := map[string]any{"limit": in.Limit, "commitment": "finalized"}
+	if in.Before != "" {
+		opts["before"] = in.Before
 	}
-	if until != "" {
-		opts["until"] = until
+	if in.Until != "" {
+		opts["until"] = in.Until
+	}
+	if in.MinContextSlot != 0 {
+		opts["minContextSlot"] = in.MinContextSlot
 	}
 	var w []struct {
 		Signature chain.Signature `json:"signature"`
