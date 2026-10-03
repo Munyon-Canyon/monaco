@@ -30,7 +30,7 @@ var errRateBudgetSpent = errs.New(errs.CodeInternal, "funding.DepositPoller.rate
 
 type DepositRPC interface {
 	SignaturesFor(
-		context.Context, chain.SolanaAddress, chain.Signature, chain.Signature, int,
+		context.Context, chain.SolanaAddress, solana.SignaturesOpts,
 	) ([]solana.SignatureInfo, error)
 	InboundTransfersForMint(
 		context.Context, chain.Signature, chain.SolanaAddress, chain.SolanaAddress,
@@ -191,7 +191,11 @@ func (p *DepositPoller) signaturesSince(
 		if err := p.waitRPC(ctx); err != nil {
 			return nil, errs.Wrap(err, errs.CodeInternal, "funding.DepositPoller.signatures")
 		}
-		page, err := p.rpc.SignaturesFor(ctx, address, before, until, pageSize)
+		page, err := p.rpc.SignaturesFor(ctx, address, solana.SignaturesOpts{
+			Before: before,
+			Until:  until,
+			Limit:  pageSize,
+		})
 		if err != nil {
 			return nil, errs.Wrap(err, errs.CodeRPCUnavailable, "funding.DepositPoller.signatures")
 		}

@@ -120,17 +120,11 @@ func (c *Client) inboundTransfers(
 		return nil, nil
 	}
 	balances := tokenAccounts(w)
-	ixs := w.Transaction.Message.Instructions
-	for _, inner := range w.Meta.InnerInstructions {
-		ixs = append(ixs, inner.Instructions...)
+	transfers := parsedTransfers(w)
+	transfers, err := transfersForMint(transfers, balances, mint)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("signature", string(sig)))
 	}
-	var transfers []parsedTransfer
-	for _, ix := range ixs {
-		if p, ok := tokenTransfer(ix); ok {
-			transfers = append(transfers, p)
-		}
-	}
-	transfers = transfersForMint(transfers, balances, mint)
 	touches := token2022Touches(transfers)
 	var out []Transfer
 	for _, p := range transfers {
@@ -146,18 +140,41 @@ func (c *Client) inboundTransfers(
 	return out, nil
 }
 
-func transfersForMint(transfers []parsedTransfer, balances tokenBalances, mint chain.SolanaAddress) []parsedTransfer {
+func parsedTransfers(w *transactionWire) []parsedTransfer {
+	ixs := w.Transaction.Message.Instructions
+	for _, inner := range w.Meta.InnerInstructions {
+		ixs = append(ixs, inner.Instructions...)
+	}
+	var transfers []parsedTransfer
+	for _, ix := range ixs {
+		if p, ok := tokenTransfer(ix); ok {
+			transfers = append(transfers, p)
+		}
+	}
+	return transfers
+}
+
+func transfersForMint(
+	transfers []parsedTransfer,
+	balances tokenBalances,
+	mint chain.SolanaAddress,
+) ([]parsedTransfer, error) {
 	if mint == "" {
-		return transfers
+		return transfers, nil
 	}
 	out := transfers[:0]
 	for _, p := range transfers {
-		dest, known := balances.account(p.Info.Destination)
-		if known && dest.Mint == string(mint) {
-			out = append(out, p)
+		source, sourceKnown := balances.account(p.Info.Source)
+		dest, destinationKnown := balances.account(p.Info.Destination)
+		if sourceKnown && source.Mint != string(mint) || destinationKnown && dest.Mint != string(mint) {
+			continue
 		}
+		if !sourceKnown || !destinationKnown {
+			return nil, errs.New(errs.CodeDecodeFailed, "solana.transfersForMint")
+		}
+		out = append(out, p)
 	}
-	return out
+	return out, nil
 }
 
 func tokenAccounts(w *transactionWire) tokenBalances {
