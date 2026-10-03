@@ -269,6 +269,20 @@ Subject `events.cashout.started`, version 1.
 | `payout_micros` | `money.Micros` |
 | `sell_usdc_micros` | `money.Micros` |
 
+## `chat.message_posted`
+
+Subject `events.chat.message_posted`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `message_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `author_id` | `uuid.UUID` |
+| `parent_id` | `*uuid.UUID` |
+| `also_in_channel` | `bool` |
+| `created_at` | `time.Time` |
+
 ## `deposit.credited`
 
 Subject `events.deposit.credited`, version 1.
