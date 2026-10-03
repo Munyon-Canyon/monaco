@@ -83,6 +83,19 @@ func TestPoolDeliversEveryValueAndErrorThenClosesBothChannels(t *testing.T) {
 	})
 }
 
+func TestFeedExitsWhenCancelledWhileBlockedSending(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		out := concurrency.Feed(ctx, []int{1})
+		synctest.Wait()
+		cancel()
+		if _, ok := <-out; ok {
+			t.Fatal("Feed delivered a value after cancellation with no consumer")
+		}
+	})
+}
+
 func TestPoolExitsWhenCancelledWhileBlockedSending(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -108,10 +109,10 @@ func TestSignatureStatuses_edges(t *testing.T) {
 func TestSignaturesFor_pagesBackFromBefore(t *testing.T) {
 	t.Parallel()
 	c, u, _ := overFakes(t)
-	got, err := c.SignaturesFor(t.Context(), member, olderSig, 50)
+	got, err := c.SignaturesFor(t.Context(), member, olderSig, "", 50)
 	want := []solana.SignatureInfo{
-		{Signature: deposit, Slot: 450_999_500},
-		{Signature: olderSig, Slot: 450_999_400, Failed: true},
+		{Signature: deposit, Slot: 450_999_500, BlockTime: time.Unix(1_790_000_000, 0).UTC()},
+		{Signature: olderSig, Slot: 450_999_400, Failed: true, BlockTime: time.Unix(1_789_999_990, 0).UTC()},
 	}
 	if err != nil || !slices.Equal(got, want) {
 		t.Fatalf("SignaturesFor = %+v, %v", got, err)
@@ -123,28 +124,41 @@ func TestSignaturesFor_pagesBackFromBefore(t *testing.T) {
 	)+`","commitment":"finalized","limit":50}` {
 		t.Fatalf("options = %s", p)
 	}
-	if _, err := c.SignaturesFor(t.Context(), member, "", 10); err != nil {
+	if _, err := c.SignaturesFor(t.Context(), member, "", "", 10); err != nil {
 		t.Fatal(err)
 	}
 	if p := string(u.requests()[1].params[1]); p != `{"commitment":"finalized","limit":10}` {
 		t.Fatalf("options without before = %s", p)
 	}
-	_, err = client(replying(503, "")).SignaturesFor(t.Context(), member, "", 1)
+	_, err = client(replying(503, "")).SignaturesFor(t.Context(), member, "", "", 1)
 	wantCode(t, err, errs.CodeRPCUnavailable)
+}
+
+func TestSignaturesFor_stopsAtUntil(t *testing.T) {
+	t.Parallel()
+	c, u, _ := overFakes(t)
+	if _, err := c.SignaturesFor(t.Context(), member, "", olderSig, 50); err != nil {
+		t.Fatal(err)
+	}
+	got := string(u.requests()[0].params[1])
+	want := `{"commitment":"finalized","limit":50,"until":"` + string(olderSig) + `"}`
+	if got != want {
+		t.Fatalf("options = %s", got)
+	}
 }
 
 func TestSignaturesFor_acceptsOneToAThousandAndRefusesOtherLimitsWithoutACall(t *testing.T) {
 	t.Parallel()
 	c, u, _ := overFakes(t)
 	for _, limit := range []int{0, -1, 1001} {
-		_, err := c.SignaturesFor(t.Context(), member, "", limit)
+		_, err := c.SignaturesFor(t.Context(), member, "", "", limit)
 		wantCode(t, err, errs.CodeInvalidInput)
 	}
 	if n := len(u.requests()); n != 0 {
 		t.Fatalf("%d RPC calls for out-of-range limits", n)
 	}
 	for _, limit := range []int{1, 1000} {
-		if _, err := c.SignaturesFor(t.Context(), member, "", limit); err != nil {
+		if _, err := c.SignaturesFor(t.Context(), member, "", "", limit); err != nil {
 			t.Fatalf("limit %d: %v", limit, err)
 		}
 	}
@@ -161,7 +175,7 @@ func TestReads_refuseInvalidAddressesWithoutACall(t *testing.T) {
 	wantCode(t, err, errs.CodeInvalidAddress)
 	_, err = c.TokenBalance(ctx, member, chain.Mint{Address: "bad"})
 	wantCode(t, err, errs.CodeInvalidAddress)
-	_, err = c.SignaturesFor(ctx, "bad", "", 1)
+	_, err = c.SignaturesFor(ctx, "bad", "", "", 1)
 	wantCode(t, err, errs.CodeInvalidAddress)
 	if n := len(u.requests()); n != 0 {
 		t.Fatalf("%d RPC calls for invalid addresses", n)

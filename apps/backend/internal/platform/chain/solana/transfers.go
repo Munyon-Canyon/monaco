@@ -92,6 +92,18 @@ func (c *Client) InboundTransfers(
 	sig chain.Signature,
 	owner chain.SolanaAddress,
 ) ([]Transfer, error) {
+	return c.inboundTransfers(ctx, sig, owner, "")
+}
+
+func (c *Client) InboundTransfersForMint(
+	ctx context.Context, sig chain.Signature, owner, mint chain.SolanaAddress,
+) ([]Transfer, error) {
+	return c.inboundTransfers(ctx, sig, owner, mint)
+}
+
+func (c *Client) inboundTransfers(
+	ctx context.Context, sig chain.Signature, owner, mint chain.SolanaAddress,
+) ([]Transfer, error) {
 	const op = "solana.InboundTransfers"
 	if err := addresses(op, owner); err != nil {
 		return nil, err
@@ -118,6 +130,7 @@ func (c *Client) InboundTransfers(
 			transfers = append(transfers, p)
 		}
 	}
+	transfers = transfersForMint(transfers, balances, mint)
 	touches := token2022Touches(transfers)
 	var out []Transfer
 	for _, p := range transfers {
@@ -131,6 +144,20 @@ func (c *Client) InboundTransfers(
 		}
 	}
 	return out, nil
+}
+
+func transfersForMint(transfers []parsedTransfer, balances tokenBalances, mint chain.SolanaAddress) []parsedTransfer {
+	if mint == "" {
+		return transfers
+	}
+	out := transfers[:0]
+	for _, p := range transfers {
+		dest, known := balances.account(p.Info.Destination)
+		if known && dest.Mint == string(mint) {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func tokenAccounts(w *transactionWire) tokenBalances {

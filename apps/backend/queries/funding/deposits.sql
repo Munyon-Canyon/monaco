@@ -15,6 +15,15 @@ SET last_signature = EXCLUDED.last_signature,
 WHERE EXCLUDED.cursor_slot >= deposit_cursors.cursor_slot;
 
 -- name: DepositCursor :one
-SELECT last_signature, scanned_at
+SELECT COALESCE(deposit_cursors.last_signature, '') AS last_signature, deposit_cursors.scanned_at
 FROM deposit_cursors
-WHERE wallet_address = $1;
+WHERE deposit_cursors.wallet_address = $1
+UNION ALL
+SELECT '', to_timestamp(0)
+WHERE NOT EXISTS (SELECT 1 FROM deposit_cursors WHERE wallet_address = $1)
+LIMIT 1;
+
+-- name: TouchDepositCursor :exec
+INSERT INTO deposit_cursors (wallet_address, last_signature, cursor_slot, scanned_at)
+VALUES ($1, '', 0, $2)
+ON CONFLICT (wallet_address) DO UPDATE SET scanned_at = EXCLUDED.scanned_at;
