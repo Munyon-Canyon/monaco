@@ -7,6 +7,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -37,7 +38,7 @@ func (m *Module) Routes(r *httpx.Routes) {
 	thresholds := cabalThresholds{cabals: cabal.New(m.deps).Queries()}
 	r.GovernanceRoutes = adapters.HTTP{
 		Vote:  app.NewCastVoteHandler(m.deps.UoW, m.deps.Pool, m.deps.Clock, thresholds),
-		Reads: app.NewProposalReads(m.deps.Pool, thresholds),
+		Reads: app.NewProposalReads(m.deps.Pool, thresholds, trading.New(m.deps).Queries()),
 	}
 }
 
