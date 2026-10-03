@@ -26,6 +26,10 @@ Swift 6 language mode with complete checking (#937). The app target's default ac
 
 Screen work (colour, type, touch targets, accessibility and copy) follows the `ios-screen` skill in `.claude/skills/ios-screen/SKILL.md`.
 
+## Flow registry
+
+Each flow in `apps/backend/flows.tsv` has one app registry file at `packages/flows/app/<id>.tsv` that names its screen, its app status and its doc. `monacoctl flows check` joins the two on `id`. The spec is `packages/flows/README.md`.
+
 ## Not doing
 
 No Clean Architecture use-case layer, MVC, TCA, reducers or coordinator framework. MonacoCore is the boundary. A second layer is a second paved path.

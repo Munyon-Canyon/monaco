@@ -573,6 +573,8 @@ The table below is a render. The file is `apps/backend/flows.tsv`, one line per 
 | `status` | `planned`, `built`, `verified` | `built` needs every outcome test and a script for each non-crash outcome; `verified` needs a script per outcome (below) |
 | `doc` | `docs/architecture/deposits-withdrawals.md#fund` | file and anchor exist |
 
+The app registry lives beside it, one file per flow at `packages/flows/app/<id>.tsv`. Each file names the screen, the app status and the doc for one flow, and joins `flows.tsv` on `id` without copying any backend column. `monacoctl flows check` validates it with the backend rows. The spec is `packages/flows/README.md`.
+
 `monacoctl flows check` runs in CI and fails on any column's check. It also reads `go test -json` from the run and requires, for each flow with `status` ≥ `built`, a passing test named `TestFlow<id>_<Command>_<Outcome>` per outcome. A flow row with no test is a red build, not a backlog item. The check is what makes the file a map of the system instead of a wish list.
 
 `status = built` means every non-crash outcome has a flow script registered in `Scripts()` (`internal/testkit/flows/scripts.go`), so `monacoctl verify all` drives it against the real binaries in stage 2. Crash scripts ship with the `--crash-at` line that runs them, and the rest ship at `verified`, which means every outcome has a script. `monacoctl flows check` fails a `built` flow whose non-crash outcome has no script, and a `verified` flow with an outcome that has no script.
