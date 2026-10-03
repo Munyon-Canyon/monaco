@@ -245,6 +245,25 @@ func (q *Queries) LockUserByPrivyUserID(ctx context.Context, privyUserID string)
 	return i, err
 }
 
+const setDisplayName = `-- name: SetDisplayName :execrows
+UPDATE users SET display_name = $1, updated_at = $2
+WHERE id = $3 AND display_name IS DISTINCT FROM $1
+`
+
+type SetDisplayNameParams struct {
+	DisplayName string
+	Now         time.Time
+	ID          uuid.UUID
+}
+
+func (q *Queries) SetDisplayName(ctx context.Context, arg SetDisplayNameParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setDisplayName, arg.DisplayName, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setUserEmail = `-- name: SetUserEmail :exec
 UPDATE users SET email = $1, updated_at = $2
 WHERE id = $3 AND email IS DISTINCT FROM $1

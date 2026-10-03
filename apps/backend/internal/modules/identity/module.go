@@ -21,6 +21,7 @@ type Module struct {
 	deps    module.Deps
 	privy   app.PrivyUsers
 	wallets app.MemberWallets
+	hints   app.Hints
 	meters  metric.MeterProvider
 }
 
@@ -29,6 +30,8 @@ type Option func(*Module)
 func WithPrivy(users app.PrivyUsers, wallets app.MemberWallets) Option {
 	return func(m *Module) { m.privy, m.wallets = users, wallets }
 }
+
+func WithHints(hints app.Hints) Option { return func(m *Module) { m.hints = hints } }
 
 func WithMeters(meters metric.MeterProvider) Option {
 	return func(m *Module) { m.meters = meters }
@@ -45,7 +48,14 @@ func New(d module.Deps, opts ...Option) *Module {
 func (*Module) Name() string { return "identity" }
 
 func (m *Module) Routes(r *httpx.Routes) {
-	r.IdentityRoutes = adapters.HTTP{Open: m.openSession(), Reads: m.deps.Pool, Clock: m.deps.Clock}
+	hints := m.hints
+	if hints == nil {
+		hints = m.deps.Bus
+	}
+	r.IdentityRoutes = adapters.HTTP{
+		Open: m.openSession(), Reads: m.deps.Pool, Clock: m.deps.Clock,
+		Update: app.UpdateProfileHandler{UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Hints: hints},
+	}
 }
 
 func (m *Module) openSession() *app.OpenSessionHandler {

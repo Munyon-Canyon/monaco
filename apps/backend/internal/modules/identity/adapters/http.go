@@ -15,9 +15,10 @@ import (
 )
 
 type HTTP struct {
-	Open  *app.OpenSessionHandler
-	Reads sqlc.DBTX
-	Clock clock.Clock
+	Open   *app.OpenSessionHandler
+	Update app.UpdateProfileHandler
+	Reads  sqlc.DBTX
+	Clock  clock.Clock
 }
 
 var _ httpx.IdentityRoutes = HTTP{}
@@ -68,6 +69,21 @@ func (h HTTP) GetMe(ctx context.Context, _ api.GetMeRequestObject) (api.GetMeRes
 		return nil, err
 	}
 	return api.GetMe200JSONResponse(wireMe(me)), nil
+}
+
+func (h HTTP) PatchMe(ctx context.Context, req api.PatchMeRequestObject) (api.PatchMeResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.Body == nil {
+		return nil, errs.New(errs.CodeInvalidInput, "identity.PatchMe")
+	}
+	me, err := h.Update.Handle(ctx, user, req.Body.DisplayName)
+	if err != nil {
+		return nil, err
+	}
+	return api.PatchMe200JSONResponse(wireMe(me)), nil
 }
 
 func caller(ctx context.Context) (ids.UserID, error) {
