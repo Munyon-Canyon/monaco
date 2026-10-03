@@ -275,7 +275,7 @@ func (env *Env) land(ctx context.Context, rec Record, stack []stackPR, stdout io
 	if err := env.mergeable(ctx, rec.Worktree, stack[0], top); err != nil {
 		return err
 	}
-	for _, n := range nums {
+	for _, n := range slices.Backward(nums) {
 		if err := env.addLabel(ctx, n); err != nil {
 			return landFailed(err)
 		}
