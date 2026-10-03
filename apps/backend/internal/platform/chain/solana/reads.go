@@ -278,12 +278,15 @@ func (c *Client) BlockhashValid(ctx context.Context, hash string) (bool, error) 
 		return false, errs.New(errs.CodeInvalidAddress, op, slog.String("blockhash", hash))
 	}
 	var wire struct {
-		Value bool `json:"value"`
+		Value *bool `json:"value"`
 	}
-	if err := c.call(ctx, "isBlockhashValid", []any{hash, commitment("confirmed")}, &wire); err != nil {
+	if err := c.call(ctx, "isBlockhashValid", []any{hash, commitment("finalized")}, &wire); err != nil {
 		return false, err
 	}
-	return wire.Value, nil
+	if wire.Value == nil {
+		return false, errs.New(errs.CodeDecodeFailed, op)
+	}
+	return *wire.Value, nil
 }
 
 func (c *Client) SignaturesFor(
