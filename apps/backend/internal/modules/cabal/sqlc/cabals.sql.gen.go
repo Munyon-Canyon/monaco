@@ -209,6 +209,59 @@ func (q *Queries) ListCabals(ctx context.Context, cabalIds []uuid.UUID) ([]ListC
 	return items, nil
 }
 
+const listMyCabals = `-- name: ListMyCabals :many
+SELECT c.id, c.name, c.picture_url, m.role, m.can_vote, m.joined_at,
+  (SELECT count(*) FROM cabal_members cm WHERE cm.cabal_id = c.id)::int AS member_count,
+  CASE WHEN m.role = 'creator' AND c.join_mode = 'request' THEN
+    (SELECT count(*) FROM cabal_access_requests ar
+      WHERE ar.cabal_id = c.id AND ar.direction = 'request' AND ar.status = 'pending')::int
+  ELSE 0 END AS pending_request_count
+FROM cabal_members m
+JOIN cabals c ON c.id = m.cabal_id
+WHERE m.user_id = $1
+ORDER BY m.joined_at DESC, c.id DESC
+`
+
+type ListMyCabalsRow struct {
+	ID                  uuid.UUID
+	Name                string
+	PictureUrl          pgtype.Text
+	Role                string
+	CanVote             bool
+	JoinedAt            time.Time
+	MemberCount         int32
+	PendingRequestCount int32
+}
+
+func (q *Queries) ListMyCabals(ctx context.Context, userID uuid.UUID) ([]ListMyCabalsRow, error) {
+	rows, err := q.db.Query(ctx, listMyCabals, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMyCabalsRow
+	for rows.Next() {
+		var i ListMyCabalsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.PictureUrl,
+			&i.Role,
+			&i.CanVote,
+			&i.JoinedAt,
+			&i.MemberCount,
+			&i.PendingRequestCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockCabalExclusive = `-- name: LockCabalExclusive :one
 SELECT id FROM cabals WHERE id = $1 FOR NO KEY UPDATE
 `

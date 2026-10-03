@@ -108,6 +108,28 @@ func (h HTTP) GetCabals(
 	return api.GetCabals200JSONResponse(api.CabalSearchPage{Items: items, NextCursor: next}), nil
 }
 
+func (h HTTP) GetMyCabals(
+	ctx context.Context, _ api.GetMyCabalsRequestObject,
+) (api.GetMyCabalsResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := sqlc.New(h.DB).ListMyCabals(ctx, user.UUID())
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, "cabal.GetMyCabals")
+	}
+	items := make([]api.MyCabal, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, api.MyCabal{
+			Id: row.ID, Name: row.Name, PictureUrl: nullableText(row.PictureUrl), Role: row.Role,
+			CanVote: row.CanVote, MemberCount: row.MemberCount, JoinedAt: row.JoinedAt,
+			PendingRequestCount: row.PendingRequestCount,
+		})
+	}
+	return api.GetMyCabals200JSONResponse(items), nil
+}
+
 func cabalSearchParams(
 	user ids.UserID, query string, limit int, rawCursor *string,
 ) (sqlc.SearchCabalsParams, error) {
