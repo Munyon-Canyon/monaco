@@ -43,3 +43,18 @@ func TestKindRefType_namesTheSourceTableOfEachKind(t *testing.T) {
 		t.Fatalf("news.RefType() = %q, want empty", got)
 	}
 }
+
+func TestParseScope_defaultsToAllAndRefusesUnknownScopes(t *testing.T) {
+	t.Parallel()
+	valid := map[string]feed.Scope{"": feed.ScopeAll, "all": feed.ScopeAll, "following": feed.ScopeFollowing}
+	for raw, want := range valid {
+		if got, err := feed.ParseScope(raw); err != nil || got != want {
+			t.Errorf("ParseScope(%q) = %q, %v, want %q", raw, got, err, want)
+		}
+	}
+	for _, raw := range []string{"mine", "bogus", "All"} {
+		if _, err := feed.ParseScope(raw); errs.CodeOf(err) != errs.CodeInvalidInput {
+			t.Errorf("ParseScope(%q) err = %v, want invalid_input", raw, err)
+		}
+	}
+}
