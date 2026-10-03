@@ -30,3 +30,15 @@ FROM cabal_pauses WHERE id = $1;
 UPDATE cabal_pauses SET resolved_at = sqlc.arg(resolved_at)::timestamptz
 WHERE id = $1 AND resolved_at IS NULL
 RETURNING reason;
+
+-- name: OpenPausesFor :many
+SELECT id, coalesce(cabal_id, '00000000-0000-0000-0000-000000000000')::uuid AS cabal_id, reason, created_at
+FROM cabal_pauses
+WHERE resolved_at IS NULL AND (cabal_id = sqlc.arg(cabal_id)::uuid OR cabal_id IS NULL)
+ORDER BY created_at, id;
+
+-- name: OpenPauses :many
+SELECT id, coalesce(cabal_id, '00000000-0000-0000-0000-000000000000')::uuid AS cabal_id, reason, created_at
+FROM cabal_pauses
+WHERE resolved_at IS NULL
+ORDER BY created_at, id;
