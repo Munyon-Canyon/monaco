@@ -1,0 +1,56 @@
+{
+  "skill": "ios-flow-qa",
+  "about": "When the skill should and should not be picked up. Run with scripts/qa/skill-eval.py .claude/skills/ios-flow-qa. The outcome eval for a test built with the skill is its seeded bugs: scripts/qa/flow.py mutants <flow>.",
+  "cases": [
+    {
+      "id": "milestone-qa",
+      "should_trigger": true,
+      "prompt": "QA the whole M9 flow on the simulator."
+    },
+    {
+      "id": "version-bump",
+      "should_trigger": true,
+      "prompt": "I changed the code step in docs/flows/auth/sign-in.md and bumped it to version 2. Bring everything that depends on it up to date."
+    },
+    {
+      "id": "new-flow-doc",
+      "should_trigger": true,
+      "prompt": "Logan added docs/flows/cabal/create.md. Build the tests for it."
+    },
+    {
+      "id": "update-flows-ticket",
+      "should_trigger": true,
+      "prompt": "Pick up the M10 'Update the flows' ticket."
+    },
+    {
+      "id": "two-actors",
+      "should_trigger": true,
+      "prompt": "Check in the app that one member can create a cabal and a second member can join it, with two accounts on two simulators."
+    },
+    {
+      "id": "unit-tests",
+      "should_trigger": false,
+      "prompt": "Run the mobile unit tests and tell me what fails."
+    },
+    {
+      "id": "sample-harness-test",
+      "should_trigger": false,
+      "prompt": "StocksTabSampleUITests is failing in the nightly run. Find out why."
+    },
+    {
+      "id": "new-screen",
+      "should_trigger": false,
+      "prompt": "Add a notification settings screen under Profile."
+    },
+    {
+      "id": "backend-flow",
+      "should_trigger": false,
+      "prompt": "Move flow 05 in apps/backend/flows.tsv to verified and tell me what evidence it needs."
+    },
+    {
+      "id": "login-bug",
+      "should_trigger": false,
+      "prompt": "Explain how OTPLoginForm decides when to submit the code."
+    }
+  ]
+}
