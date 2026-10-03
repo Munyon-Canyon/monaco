@@ -75,7 +75,10 @@ type layerEnv struct {
 
 func newLayerEnv(t *testing.T) *layerEnv {
 	t.Helper()
-	pool := testkit.DB(t)
+	return newLayerEnvOn(testkit.DB(t))
+}
+
+func newLayerEnvOn(pool *pgxpool.Pool) *layerEnv {
 	e := &layerEnv{
 		pool: pool, clk: testkit.NewClock(clock.Real{}.Now().Truncate(time.Second)), ids: testkit.NewIDs(7),
 		jup: &jupiterfake.Venue{}, privy: &chainfake.Signer{}, hints: &hintLog{}, reads: pool,

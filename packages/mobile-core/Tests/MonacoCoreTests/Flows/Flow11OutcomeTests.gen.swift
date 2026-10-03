@@ -5,6 +5,6 @@ extension Flow11Outcome: WireOutcome {}
 
 final class Flow11OutcomeTests: XCTestCase {
     func testEveryWireCodeMapsBackToItsOutcome() {
-        assertCodesRoundTrip(Flow11Outcome.self)
+        assertRoundTrip(Flow11Outcome.self)
     }
 }
