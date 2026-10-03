@@ -154,6 +154,16 @@ def stacked(flag: str, ref: str) -> list[StackedPR]:
     return [StackedPR(pr["number"], pr["body"] or "") for pr in pages]
 
 
+def neighbours(env: dict[str, str]) -> tuple[list[StackedPR], list[StackedPR]]:
+    try:
+        return stacked("--base", env["HEAD_REF"]), stacked("--head", env["BASE_REF"])
+    except subprocess.CalledProcessError as e:
+        # The shared GITHUB_TOKEN rate limit is not the PR's fault, so only the checks against stacked PRs skip.
+        detail = (e.stderr or "").strip().splitlines()
+        print(f"::warning::cannot list the stacked PRs ({detail[-1] if detail else e}); skipping the Closes/Part of checks against them")
+        return [], []
+
+
 def body_errors(body: str) -> list[str]:
     text = strip_comments(body)
     errors = []
@@ -185,7 +195,7 @@ def template_errors(env: dict[str, str], body: str) -> list[str]:
         title_errors(env.get("PR_TITLE", ""))
         + body_errors(body)
         + command_errors(body)
-        + ticket_errors(body, stacked("--base", env["HEAD_REF"]), stacked("--head", env["BASE_REF"]))
+        + ticket_errors(body, *neighbours(env))
         + sha_errors(body, env["HEAD_SHA"])
     )
 

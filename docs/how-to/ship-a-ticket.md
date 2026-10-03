@@ -133,7 +133,7 @@ The next owner reads the ticket, its comments and the draft PR. It makes a workt
 | 1. PR check | the PR is ready and based on `staging` | `plan`, `lint`, `ready`, `vuln`, PR format, PR size and `gate-changes`. No tests. A push with an unchanged diff reuses the last green result. |
 | 2. Queue check | the PR entered the Graphite merge queue, which runs it on a `gtmq_` draft PR | Stage 1, plus `backend` (the race suite with the per-package budget and 100% coverage), the tests `-short` skips, `e2e` (`scripts/ci/e2e.sh`), `flake` on changed test files, `scripts`, and `mobile-core` when its paths changed. No macOS job. |
 
-Only the bottom PR of a stack runs stage 1, since CI runs on PRs whose base is `staging`. The only required check is `ci / ci-ok`. `gate-changes` and the `status` check from `agents-status.yml` never block. [What runs where](../architecture/ci.md#what-runs-where) has every job.
+Only the bottom PR of a stack runs stage 1, since CI runs on PRs whose base is `staging`. The only required check is `ci / ci-ok`. `gate-changes` never blocks. [What runs where](../architecture/ci.md#what-runs-where) has every job.
 
 ## Read the checks
 

@@ -279,6 +279,46 @@ class CheckpointTest(RepoTest):
         self.assertEqual(self.run_check("main", "hotfix")[0], 1)
 
 
+class StackedLookupFailureTest(RepoTest):
+    def run_check(self, body: str) -> tuple[int, str]:
+        head = commit("fix(ci): survive the rate limit")
+        os.environ.update(
+            PR_TITLE="Survive the rate limit",
+            PR_BODY=body,
+            BASE_REF="staging",
+            HEAD_REF="ci-api-budget",
+            PR_LABELS="[]",
+            BASE_SHA=self.base,
+            HEAD_SHA=head,
+            GH_REPO="o/r",
+        )
+        limited = subprocess.CalledProcessError(1, ["gh"], stderr="gh: API rate limit exceeded for installation ID 1 (HTTP 403)\n")
+        real_run = subprocess.run
+
+        def run(args, **kwargs):
+            if args[0] == "gh":
+                raise limited
+            return real_run(args, **kwargs)
+
+        out = StringIO()
+        with mock.patch.object(check.subprocess, "run", side_effect=run), redirect_stdout(out):
+            code = check.main([])
+        return code, out.getvalue()
+
+    def test_a_failed_lookup_warns_and_passes_a_well_formed_pr(self):
+        code, out = self.run_check(pr("Closes #789.", "Nothing."))
+        self.assertEqual(code, 0, out)
+        self.assertIn("::warning::cannot list the stacked PRs (gh: API rate limit exceeded", out)
+        self.assertTrue(out.endswith("PR format ok\n"), out)
+
+    def test_a_failed_lookup_still_fails_a_format_violation(self):
+        code, out = self.run_check(pr("Closes #789.").replace("## Proof", "## Notes"))
+        self.assertEqual(code, 1, out)
+        self.assertIn("::warning::cannot list the stacked PRs", out)
+        self.assertIn('body is missing the "## Proof" section', out)
+        self.assertIn('needs a "## Needs from Logan" section', out)
+
+
 class DependabotAuthorTest(RepoTest):
     def run_check(self, author: str, body: str, subject: str = "chore: bump the swift packages") -> tuple[int, str]:
         head = commit(subject)

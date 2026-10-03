@@ -369,6 +369,9 @@ jobs:
         id: filter
         if: steps.top.outputs.skip != 'true'
         with:
+          # Empty token: diff with git (plan fetches full history) instead of the PR files API, which the
+          # shared GITHUB_TOKEN rate limit can fail.
+          token: ''
           # Outside a PR the action diffs against the default branch, which runs every job on a feature branch.
           base: ${{ github.event.pull_request.base.ref || vars.FEATURE_BRANCH || 'main' }}
           filters: |
@@ -436,6 +439,9 @@ jobs:
         id: every
         if: steps.top.outputs.skip != 'true'
         with:
+          # Empty token: diff with git (plan fetches full history) instead of the PR files API, which the
+          # shared GITHUB_TOKEN rate limit can fail.
+          token: ''
           base: ${{ github.event.pull_request.base.ref || vars.FEATURE_BRANCH || 'main' }}
           predicate-quantifier: every
           filters: |
