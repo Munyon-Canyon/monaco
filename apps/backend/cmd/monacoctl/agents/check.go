@@ -519,12 +519,24 @@ func (env *Env) goRows(ctx context.Context, base, head string, changed []string)
 
 func coverageRow(backend, self, profile string, changed []string) checkRow {
 	row := checkRow{label: "coverage", kind: "go", dir: backend}
-	cmd := []string{self, "coverage", "--profile", profile}
+	only := map[string]bool{}
 	for _, f := range changed {
 		rel, ok := strings.CutPrefix(f, "apps/backend/")
-		if ok && strings.HasSuffix(rel, ".go") && isSource(rel) {
-			cmd = append(cmd, "--only", rel)
+		if !ok || !strings.HasSuffix(rel, ".go") || !isSource(rel) {
+			continue
 		}
+		only[rel] = true
+		siblings, _ := filepath.Glob(filepath.Join(backend, path.Dir(rel), "*.go"))
+		for _, sibling := range siblings {
+			if isSource(sibling) {
+				only[path.Join(path.Dir(rel), filepath.Base(sibling))] = true
+			}
+		}
+	}
+	cmd := make([]string, 0, 4+2*len(only))
+	cmd = append(cmd, self, "coverage", "--profile", profile)
+	for _, rel := range slices.Sorted(maps.Keys(only)) {
+		cmd = append(cmd, "--only", rel)
 	}
 	if len(cmd) == 4 {
 		row.skip = "no Go file outside tests changed under apps/backend"
