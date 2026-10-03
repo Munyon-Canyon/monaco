@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"strconv"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -35,6 +36,7 @@ type SignatureInfo struct {
 	Signature chain.Signature
 	Slot      uint64
 	Failed    bool
+	BlockTime time.Time
 }
 
 func commitment(level string) map[string]string { return map[string]string{"commitment": level} }
@@ -147,7 +149,7 @@ func (c *Client) SignatureStatuses(ctx context.Context, sigs []chain.Signature) 
 }
 
 func (c *Client) SignaturesFor(
-	ctx context.Context, addr chain.SolanaAddress, before chain.Signature, limit int,
+	ctx context.Context, addr chain.SolanaAddress, before, until chain.Signature, limit int,
 ) ([]SignatureInfo, error) {
 	if err := addresses("solana.SignaturesFor", addr); err != nil {
 		return nil, err
@@ -159,10 +161,14 @@ func (c *Client) SignaturesFor(
 	if before != "" {
 		opts["before"] = before
 	}
+	if until != "" {
+		opts["until"] = until
+	}
 	var w []struct {
 		Signature chain.Signature `json:"signature"`
 		Slot      uint64          `json:"slot"`
 		Err       any             `json:"err"`
+		BlockTime *int64          `json:"blockTime"`
 	}
 	if err := c.call(ctx, "getSignaturesForAddress", []any{addr, opts}, &w); err != nil {
 		return nil, err
@@ -170,6 +176,9 @@ func (c *Client) SignaturesFor(
 	out := make([]SignatureInfo, len(w))
 	for i, s := range w {
 		out[i] = SignatureInfo{Signature: s.Signature, Slot: s.Slot, Failed: s.Err != nil}
+		if s.BlockTime != nil {
+			out[i].BlockTime = time.Unix(*s.BlockTime, 0).UTC()
+		}
 	}
 	return out, nil
 }

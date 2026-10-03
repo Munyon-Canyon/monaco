@@ -12,6 +12,19 @@ type Result[Out any] struct {
 	Err error
 }
 
+func Feed[T any](ctx context.Context, values []T) <-chan T {
+	out := make(chan T)
+	go func() {
+		defer close(out)
+		for _, value := range values {
+			if !send(ctx, out, value) {
+				return
+			}
+		}
+	}()
+	return out
+}
+
 func Pool[In, Out any](
 	ctx context.Context, workers int, in <-chan In, fn func(context.Context, In) (Out, error),
 ) (<-chan Out, <-chan error) {

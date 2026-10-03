@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const advanceDepositCursor = `-- name: AdvanceDepositCursor :exec
@@ -41,13 +40,17 @@ func (q *Queries) AdvanceDepositCursor(ctx context.Context, arg AdvanceDepositCu
 }
 
 const depositCursor = `-- name: DepositCursor :one
-SELECT last_signature, scanned_at
+SELECT COALESCE(deposit_cursors.last_signature, '') AS last_signature, deposit_cursors.scanned_at
 FROM deposit_cursors
-WHERE wallet_address = $1
+WHERE deposit_cursors.wallet_address = $1
+UNION ALL
+SELECT '', to_timestamp(0)
+WHERE NOT EXISTS (SELECT 1 FROM deposit_cursors WHERE wallet_address = $1)
+LIMIT 1
 `
 
 type DepositCursorRow struct {
-	LastSignature pgtype.Text
+	LastSignature string
 	ScannedAt     time.Time
 }
 
@@ -92,4 +95,20 @@ func (q *Queries) InsertDeposit(ctx context.Context, arg InsertDepositParams) (i
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const touchDepositCursor = `-- name: TouchDepositCursor :exec
+INSERT INTO deposit_cursors (wallet_address, last_signature, cursor_slot, scanned_at)
+VALUES ($1, '', 0, $2)
+ON CONFLICT (wallet_address) DO UPDATE SET scanned_at = EXCLUDED.scanned_at
+`
+
+type TouchDepositCursorParams struct {
+	WalletAddress string
+	ScannedAt     time.Time
+}
+
+func (q *Queries) TouchDepositCursor(ctx context.Context, arg TouchDepositCursorParams) error {
+	_, err := q.db.Exec(ctx, touchDepositCursor, arg.WalletAddress, arg.ScannedAt)
+	return err
 }

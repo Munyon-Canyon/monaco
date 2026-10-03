@@ -15,7 +15,7 @@ import (
 func TestInboundTransfers_readsTopLevelAndInnerTransfersIntoTheOwner(t *testing.T) {
 	t.Parallel()
 	c, u, _ := overFakes(t)
-	got, err := c.InboundTransfers(t.Context(), deposit, member)
+	got, err := c.InboundTransfersForMint(t.Context(), deposit, member, usdcMint)
 	if err != nil {
 		t.Fatal(err)
 	}

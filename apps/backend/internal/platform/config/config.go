@@ -36,6 +36,7 @@ type Config struct {
 	Tessera    Tessera
 	PreStocks  PreStocks
 	Market     Market
+	Funding    Funding
 	Privy      Privy
 	Solana     Solana
 	Relayer    Relayer
@@ -103,6 +104,11 @@ type PreStocks struct {
 
 type Market struct {
 	PricePollInterval time.Duration
+}
+
+type Funding struct {
+	DepositPollInterval time.Duration
+	DepositRPCRate      int32
 }
 
 type Privy struct {
@@ -278,7 +284,7 @@ func (f field) secret() field {
 }
 
 func fields() []field {
-	return slices.Concat(platformFields(), marketFields())
+	return slices.Concat(platformFields(), marketFields(), fundingFields())
 }
 
 func marketFields() []field {
@@ -366,6 +372,14 @@ func platformFields() []field {
 		text("MONACO_FAULTPOINT", "", func(c *Config) *string { return &c.Faultpoint }),
 		optionalDuration("MONACO_BUS_ACK_WAIT", func(c *Config) *time.Duration { return &c.Bus.AckWait }),
 		toggle("MONACO_BUS_API_RELAY", true, func(c *Config) *bool { return &c.Bus.APIRelay }),
+	}
+}
+
+func fundingFields() []field {
+	return []field{
+		duration("FUNDING_DEPOSIT_POLL_INTERVAL", 30*time.Second,
+			func(c *Config) *time.Duration { return &c.Funding.DepositPollInterval }),
+		count("FUNDING_DEPOSIT_RPC_RATE", 20, func(c *Config) *int32 { return &c.Funding.DepositRPCRate }),
 	}
 }
 
