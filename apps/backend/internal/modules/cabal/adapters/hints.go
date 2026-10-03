@@ -39,6 +39,11 @@ func (h Hints) AccessRequested(_ context.Context, tx db.Tx, e events.CabalAccess
 	return nil
 }
 
+func (h Hints) Updated(_ context.Context, tx db.Tx, e events.CabalUpdated, _ time.Time) error {
+	h.after(tx, cabalHint(e.CabalID, "updated"))
+	return nil
+}
+
 func (h Hints) after(tx db.Tx, keys ...string) {
 	tx.AfterCommit(func(ctx context.Context) {
 		for _, key := range keys {

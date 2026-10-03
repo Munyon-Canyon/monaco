@@ -41,6 +41,7 @@ func (m *Module) Routes(r *httpx.Routes) {
 		Request: app.NewRequestAccessHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock),
 		Revoke:  app.NewRevokeAccessHandler(m.deps.UoW, m.deps.Clock),
 		Decide:  app.NewDecideAccessHandler(m.deps.UoW, m.deps.Clock),
+		Update:  app.NewUpdateCabalHandler(m.deps.UoW, m.deps.Clock),
 		DB:      m.deps.Pool, Users: identity.New(m.deps).Queries(),
 	}
 	r.CabalRoutes, r.CabalJoinRoutes, r.CabalAccessRoutes = h, h, h
@@ -55,6 +56,7 @@ func (m *Module) Consumers() []bus.Consumer {
 			bus.Handle("cabal.hints.member_joined", hints.MemberJoined),
 			bus.Handle("cabal.hints.access_requested", hints.AccessRequested),
 			bus.Handle("cabal.hints.access_decided", hints.AccessDecided),
+			bus.Handle("cabal.hints.updated", hints.Updated),
 		},
 	}}
 }

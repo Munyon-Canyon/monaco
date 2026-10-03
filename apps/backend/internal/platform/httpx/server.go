@@ -193,6 +193,7 @@ type CabalRoutes interface {
 	GetCabals(context.Context, api.GetCabalsRequestObject) (api.GetCabalsResponseObject, error)
 	GetCabal(context.Context, api.GetCabalRequestObject) (api.GetCabalResponseObject, error)
 	GetMyCabals(context.Context, api.GetMyCabalsRequestObject) (api.GetMyCabalsResponseObject, error)
+	PatchCabal(context.Context, api.PatchCabalRequestObject) (api.PatchCabalResponseObject, error)
 }
 
 type MarketRoutes interface {

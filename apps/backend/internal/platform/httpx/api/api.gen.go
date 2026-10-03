@@ -1887,6 +1887,44 @@ type UiMultiplier struct {
 	Num int64 `json:"num"`
 }
 
+// UpdateCabalRequest The cabal fields to change. An omitted field keeps its value.
+type UpdateCabalRequest struct {
+	// JoinMode `open` or `request`.
+	//
+	// Examples: request
+	JoinMode *string `json:"join_mode,omitempty"`
+
+	// Name Cabal name, 3 to 40 characters.
+	//
+	// Examples: Work pot
+	Name *string `json:"name,omitempty"`
+
+	// ProposalExpirySeconds One of 3600, 86400 or 604800.
+	//
+	// Examples: 3600
+	ProposalExpirySeconds *int32 `json:"proposal_expiry_seconds,omitempty"`
+
+	// SlippageBps Basis points from 1 to 300.
+	//
+	// Examples: 50
+	SlippageBps *int32 `json:"slippage_bps,omitempty"`
+
+	// Threshold `majority` or `unanimous`.
+	//
+	// Examples: unanimous
+	Threshold *string `json:"threshold,omitempty"`
+
+	// VoterIds Every voter, the creator included. Only with voter_mode list.
+	//
+	// Examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]
+	VoterIds *[]openapi_types.UUID `json:"voter_ids,omitempty"`
+
+	// VoterMode `all` or `list`.
+	//
+	// Examples: list
+	VoterMode *string `json:"voter_mode,omitempty"`
+}
+
 // UpdateProfileRequest The profile fields a signed-in user may update.
 //
 // Examples: {"display_name":"Kai Cenat"}
@@ -1971,6 +2009,12 @@ type GetCabalsParams struct {
 
 // PostCabalParams defines parameters for PostCabal.
 type PostCabalParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// PatchCabalParams defines parameters for PatchCabal.
+type PatchCabalParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
@@ -2110,6 +2154,9 @@ type PostUserFollowParams struct {
 // PostCabalJSONRequestBody defines body for PostCabal for application/json ContentType.
 type PostCabalJSONRequestBody = CreateCabalRequest
 
+// PatchCabalJSONRequestBody defines body for PatchCabal for application/json ContentType.
+type PatchCabalJSONRequestBody = UpdateCabalRequest
+
 // PostCabalAccessDecisionJSONRequestBody defines body for PostCabalAccessDecision for application/json ContentType.
 type PostCabalAccessDecisionJSONRequestBody = AccessDecisionRequest
 
@@ -2163,6 +2210,9 @@ type ServerInterface interface {
 	// GetCabal Read one cabal.
 	// (GET /v1/cabals/{id})
 	GetCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// PatchCabal Rename a cabal or change its rules.
+	// (PATCH /v1/cabals/{id})
+	PatchCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PatchCabalParams)
 	// GetCabalAccessRequests List the pending requests to join a cabal.
 	// (GET /v1/cabals/{id}/access-requests)
 	GetCabalAccessRequests(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalAccessRequestsParams)
@@ -2571,6 +2621,60 @@ func (siw *ServerInterfaceWrapper) GetCabal(w http.ResponseWriter, r *http.Reque
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCabal(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchCabal operation middleware
+func (siw *ServerInterfaceWrapper) PatchCabal(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PatchCabalParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchCabal(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3829,6 +3933,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals", wrapper.GetCabals)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals", wrapper.PostCabal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}", wrapper.GetCabal)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/v1/cabals/{id}", wrapper.PatchCabal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/access-requests", wrapper.GetCabalAccessRequests)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/access-requests", wrapper.PostCabalAccessRequest)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/access-requests/{request_id}", wrapper.DeleteCabalAccessRequest)
@@ -4161,6 +4266,47 @@ type GetCabaldefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetCabaldefaultApplicationProblemPlusJSONResponse) VisitGetCabalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PatchCabalRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params PatchCabalParams
+	Body   *PatchCabalJSONRequestBody
+}
+
+type PatchCabalResponseObject interface {
+	VisitPatchCabalResponse(w http.ResponseWriter) error
+}
+
+type PatchCabal200JSONResponse Cabal
+
+func (response PatchCabal200JSONResponse) VisitPatchCabalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PatchCabaldefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PatchCabaldefaultApplicationProblemPlusJSONResponse) VisitPatchCabalResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -5285,6 +5431,9 @@ type StrictServerInterface interface {
 	// GetCabal Read one cabal.
 	// (GET /v1/cabals/{id})
 	GetCabal(ctx context.Context, request GetCabalRequestObject) (GetCabalResponseObject, error)
+	// PatchCabal Rename a cabal or change its rules.
+	// (PATCH /v1/cabals/{id})
+	PatchCabal(ctx context.Context, request PatchCabalRequestObject) (PatchCabalResponseObject, error)
 	// GetCabalAccessRequests List the pending requests to join a cabal.
 	// (GET /v1/cabals/{id}/access-requests)
 	GetCabalAccessRequests(ctx context.Context, request GetCabalAccessRequestsRequestObject) (GetCabalAccessRequestsResponseObject, error)
@@ -5614,6 +5763,40 @@ func (sh *strictHandler) GetCabal(w http.ResponseWriter, r *http.Request, id ope
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetCabalResponseObject); ok {
 		if err := validResponse.VisitGetCabalResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PatchCabal operation middleware
+func (sh *strictHandler) PatchCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PatchCabalParams) {
+	var request PatchCabalRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body PatchCabalJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PatchCabal(ctx, request.(PatchCabalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PatchCabal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PatchCabalResponseObject); ok {
+		if err := validResponse.VisitPatchCabalResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

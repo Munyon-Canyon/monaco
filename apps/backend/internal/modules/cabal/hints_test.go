@@ -56,6 +56,7 @@ func TestHints_publishMembershipAndRequestHintsAfterCommit(t *testing.T) {
 	f := newCreate(t)
 	cabalID, user, request := f.ids.NewV7(), f.user.ID.UUID(), f.ids.NewV7()
 	members, requests := "cabal."+cabalID.String()+".members", "cabal."+cabalID.String()+".access_requests"
+	updated := "cabal." + cabalID.String() + ".updated"
 	access := "user." + user.String() + ".cabal_access"
 	for _, tt := range []struct {
 		name   string
@@ -75,6 +76,11 @@ func TestHints_publishMembershipAndRequestHintsAfterCommit(t *testing.T) {
 				V: 1, RequestID: request, CabalID: cabalID, UserID: user,
 			}, f.clock.Now())
 		}, []string{requests}},
+		{"updated", func(ctx context.Context, h adapters.Hints, tx db.Tx) error {
+			return h.Updated(ctx, tx, events.CabalUpdated{
+				V: 1, CabalID: cabalID, ActorID: user, Changes: events.CabalChanges{Name: ptr("Work pot")},
+			}, f.clock.Now())
+		}, []string{updated}},
 	} {
 		sent := &hintLog{}
 		h := adapters.Hints{Publish: sent}
