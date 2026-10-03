@@ -73,6 +73,7 @@ components:
         - privy_unavailable
         - proposal_closed
         - proposal_not_found
+        - proposal_still_open
         - rate_limited
         - referral_code_pending
         - referral_code_unknown

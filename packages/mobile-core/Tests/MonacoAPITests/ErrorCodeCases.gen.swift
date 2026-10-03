@@ -14,11 +14,11 @@ extension Components.Schemas.ErrorCode {
             .leaveHoldsShares, .leaveLastMemberPotNotEmpty, .ledgerUnbalanced, .liveSwapExists, .loginMethodNotAllowed,
             .noRoute, .notAVoter, .notCabalCreator, .notCabalMember, .notFound, .notProposer, .panic, .phoneNotLinked,
             .photoInvalid, .postHogRejected, .postHogUnavailable, .potExceeded, .potValueZero, .priceUnavailable,
-            .privyUnavailable, .proposalClosed, .proposalNotFound, .rateLimited, .referralCodePending,
-            .referralCodeUnknown, .relayerUnderfunded, .requestNotNeeded, .requestPending, .rpcUnavailable,
-            .sessionRequired, .slippageExceeded, .storageUnavailable, .swapFailed, .swapNotFound, .swapNotRetryable,
-            .unauthorized, .upstreamTimeout, .upstreamUnavailable, .userBanned, .userNotFound, .versionConflict,
-            .walletMismatch, .withdrawNotAllowed, .xNotLinked:
+            .privyUnavailable, .proposalClosed, .proposalNotFound, .proposalStillOpen, .rateLimited,
+            .referralCodePending, .referralCodeUnknown, .relayerUnderfunded, .requestNotNeeded, .requestPending,
+            .rpcUnavailable, .sessionRequired, .slippageExceeded, .storageUnavailable, .swapFailed, .swapNotFound,
+            .swapNotRetryable, .unauthorized, .upstreamTimeout, .upstreamUnavailable, .userBanned, .userNotFound,
+            .versionConflict, .walletMismatch, .withdrawNotAllowed, .xNotLinked:
             true
         }
     }

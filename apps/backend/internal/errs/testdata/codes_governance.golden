@@ -4,4 +4,5 @@ not_proposer
 pot_exceeded
 proposal_closed
 proposal_not_found
+proposal_still_open
 withdraw_not_allowed

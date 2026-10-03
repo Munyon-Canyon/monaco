@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -30,8 +31,21 @@ func TestModule_isNamedGovernanceAndRunsTheExpiryPoller(t *testing.T) {
 	var routes httpx.Routes
 	m.Routes(&routes)
 	pollers := m.Pollers()
-	if m.Name() != "governance" || len(m.Consumers()) != 0 || routes.GovernanceRoutes == nil {
-		t.Fatalf("module = %s, %d consumers, routes %+v", m.Name(), len(m.Consumers()), routes)
+	if m.Name() != "governance" || routes.GovernanceRoutes == nil {
+		t.Fatalf("module = %s, routes %+v", m.Name(), routes)
+	}
+	var handlers []string
+	for _, c := range m.Consumers() {
+		for _, h := range c.Handlers {
+			handlers = append(handlers, c.Durable+" "+h.Name+" "+string(h.Type()))
+		}
+	}
+	want := []string{
+		"governance governance.trade_outcome.confirmed trade.confirmed",
+		"governance governance.trade_outcome.blocked trade.blocked",
+	}
+	if !slices.Equal(handlers, want) {
+		t.Fatalf("consumers = %q, want %q", handlers, want)
 	}
 	if len(pollers) != 1 || pollers[0].Name() != "governance.proposal_expiry" ||
 		pollers[0].Interval() != 30*time.Second {
