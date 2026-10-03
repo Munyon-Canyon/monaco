@@ -10,6 +10,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -56,6 +57,37 @@ func (h HTTP) PostOnboardingPhone(
 		return nil, err
 	}
 	return api.PostOnboardingPhone200JSONResponse(wireMe(me)), nil
+}
+
+func (h HTTP) PostOnboardingSocials(
+	ctx context.Context, _ api.PostOnboardingSocialsRequestObject,
+) (api.PostOnboardingSocialsResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	me, err := h.Onboard.LinkSocials(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+	return api.PostOnboardingSocials200JSONResponse(wireMe(me)), nil
+}
+
+func (h HTTP) PostOnboardingSkip(
+	ctx context.Context, req api.PostOnboardingSkipRequestObject,
+) (api.PostOnboardingSkipResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.Body == nil {
+		return nil, errs.New(errs.CodeInvalidInput, "identity.PostOnboardingSkip")
+	}
+	me, err := h.Onboard.Skip(ctx, user, domain.OnboardingStep(req.Body.Step))
+	if err != nil {
+		return nil, err
+	}
+	return api.PostOnboardingSkip200JSONResponse(wireMe(me)), nil
 }
 
 func (h HTTP) PostAuthSession(

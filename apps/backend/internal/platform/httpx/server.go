@@ -161,6 +161,12 @@ type IdentityOnboardingRoutes interface {
 	PostOnboardingPhone(
 		context.Context, api.PostOnboardingPhoneRequestObject,
 	) (api.PostOnboardingPhoneResponseObject, error)
+	PostOnboardingSocials(
+		context.Context, api.PostOnboardingSocialsRequestObject,
+	) (api.PostOnboardingSocialsResponseObject, error)
+	PostOnboardingSkip(
+		context.Context, api.PostOnboardingSkipRequestObject,
+	) (api.PostOnboardingSkipResponseObject, error)
 }
 
 type NotifyRoutes interface {

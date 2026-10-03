@@ -2,8 +2,10 @@ package app
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/sqlc"
@@ -33,6 +35,23 @@ func NewOnboarding(d OnboardingDeps) *Onboarding { return &Onboarding{d: d} }
 
 func (o *Onboarding) LinkPhone(ctx context.Context, id ids.UserID) (Me, error) {
 	return o.link(ctx, id, domain.PhoneVerified)
+}
+
+func (o *Onboarding) LinkSocials(ctx context.Context, id ids.UserID) (Me, error) {
+	return o.link(ctx, id, domain.XLinked)
+}
+
+func (o *Onboarding) Skip(ctx context.Context, id ids.UserID, step domain.OnboardingStep) (Me, error) {
+	if _, err := o.withHandle(ctx, id); err != nil {
+		return Me{}, err
+	}
+	switch step {
+	case domain.StepPhone:
+		return o.apply(ctx, id, domain.PhoneSkipped, domain.Links{})
+	case domain.StepSocials:
+		return GetMe(ctx, o.d.Reads, id)
+	}
+	return Me{}, errs.New(errs.CodeInvalidInput, "identity.SkipOnboardingStep", slog.String("step", string(step)))
 }
 
 func (o *Onboarding) link(ctx context.Context, id ids.UserID, kind domain.AuthEventKind) (Me, error) {

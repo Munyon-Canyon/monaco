@@ -73,6 +73,18 @@ func (healthz) PostOnboardingPhone(
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostOnboardingPhone")
 }
 
+func (healthz) PostOnboardingSocials(
+	context.Context, api.PostOnboardingSocialsRequestObject,
+) (api.PostOnboardingSocialsResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostOnboardingSocials")
+}
+
+func (healthz) PostOnboardingSkip(
+	context.Context, api.PostOnboardingSkipRequestObject,
+) (api.PostOnboardingSkipResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostOnboardingSkip")
+}
+
 func (healthz) PostDevice(context.Context, api.PostDeviceRequestObject) (api.PostDeviceResponseObject, error) {
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostDevice")
 }

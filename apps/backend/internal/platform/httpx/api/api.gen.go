@@ -626,6 +626,24 @@ func (e ProposalStatus) Valid() bool {
 	}
 }
 
+// Defines values for SkipOnboardingStepStep.
+const (
+	Phone   SkipOnboardingStepStep = "phone"
+	Socials SkipOnboardingStepStep = "socials"
+)
+
+// Valid indicates whether the value is a known member of the SkipOnboardingStepStep enum.
+func (e SkipOnboardingStepStep) Valid() bool {
+	switch e {
+	case Phone:
+		return true
+	case Socials:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetAssetsParamsFilter.
 const (
 	GetAssetsParamsFilterAll     GetAssetsParamsFilter = "all"
@@ -1819,6 +1837,15 @@ type SetHandle struct {
 	Handle string `json:"handle"`
 }
 
+// SkipOnboardingStep An onboarding step the caller skips.
+type SkipOnboardingStep struct {
+	// Step Examples: phone
+	Step SkipOnboardingStepStep `json:"step"`
+}
+
+// SkipOnboardingStepStep Examples: phone
+type SkipOnboardingStepStep string
+
 // Tally The ballots counted against the proposal's frozen voter set.
 type Tally struct {
 	// Needed Yes ballots the cabal's threshold rule needs to pass the proposal.
@@ -2023,6 +2050,18 @@ type PostOnboardingPhoneParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// PostOnboardingSkipParams defines parameters for PostOnboardingSkip.
+type PostOnboardingSkipParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// PostOnboardingSocialsParams defines parameters for PostOnboardingSocials.
+type PostOnboardingSocialsParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // PostProfilePhotoMultipartBody defines parameters for PostProfilePhoto.
 type PostProfilePhotoMultipartBody struct {
 	// Photo Examples: avatar.png
@@ -2079,6 +2118,9 @@ type PatchMeJSONRequestBody = UpdateProfileRequest
 
 // PutMeHandleJSONRequestBody defines body for PutMeHandle for application/json ContentType.
 type PutMeHandleJSONRequestBody = SetHandle
+
+// PostOnboardingSkipJSONRequestBody defines body for PostOnboardingSkip for application/json ContentType.
+type PostOnboardingSkipJSONRequestBody = SkipOnboardingStep
 
 // PostProfilePhotoMultipartRequestBody defines body for PostProfilePhoto for multipart/form-data ContentType.
 type PostProfilePhotoMultipartRequestBody PostProfilePhotoMultipartBody
@@ -2163,6 +2205,12 @@ type ServerInterface interface {
 	// PostOnboardingPhone Store the phone the caller linked in Privy.
 	// (POST /v1/me/onboarding/phone)
 	PostOnboardingPhone(w http.ResponseWriter, r *http.Request, params PostOnboardingPhoneParams)
+	// PostOnboardingSkip Skip an onboarding step.
+	// (POST /v1/me/onboarding/skip)
+	PostOnboardingSkip(w http.ResponseWriter, r *http.Request, params PostOnboardingSkipParams)
+	// PostOnboardingSocials Store the X account the caller linked in Privy.
+	// (POST /v1/me/onboarding/socials)
+	PostOnboardingSocials(w http.ResponseWriter, r *http.Request, params PostOnboardingSocialsParams)
 	// GetMyPendingVotes List the open proposals waiting on the caller's ballot.
 	// (GET /v1/me/pending-votes)
 	GetMyPendingVotes(w http.ResponseWriter, r *http.Request)
@@ -3187,6 +3235,96 @@ func (siw *ServerInterfaceWrapper) PostOnboardingPhone(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// PostOnboardingSkip operation middleware
+func (siw *ServerInterfaceWrapper) PostOnboardingSkip(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostOnboardingSkipParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostOnboardingSkip(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostOnboardingSocials operation middleware
+func (siw *ServerInterfaceWrapper) PostOnboardingSocials(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostOnboardingSocialsParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostOnboardingSocials(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMyPendingVotes operation middleware
 func (siw *ServerInterfaceWrapper) GetMyPendingVotes(w http.ResponseWriter, r *http.Request) {
 
@@ -3703,6 +3841,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/cabals", wrapper.GetMyCabals)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/me/handle", wrapper.PutMeHandle)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/onboarding/phone", wrapper.PostOnboardingPhone)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/onboarding/skip", wrapper.PostOnboardingSkip)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/onboarding/socials", wrapper.PostOnboardingSocials)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/pending-votes", wrapper.GetMyPendingVotes)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/profile-photo", wrapper.PostProfilePhoto)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/referral-code", wrapper.GetMyReferralCode)
@@ -4613,6 +4753,85 @@ func (response PostOnboardingPhonedefaultApplicationProblemPlusJSONResponse) Vis
 	return err
 }
 
+type PostOnboardingSkipRequestObject struct {
+	Params PostOnboardingSkipParams
+	Body   *PostOnboardingSkipJSONRequestBody
+}
+
+type PostOnboardingSkipResponseObject interface {
+	VisitPostOnboardingSkipResponse(w http.ResponseWriter) error
+}
+
+type PostOnboardingSkip200JSONResponse Me
+
+func (response PostOnboardingSkip200JSONResponse) VisitPostOnboardingSkipResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostOnboardingSkipdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PostOnboardingSkipdefaultApplicationProblemPlusJSONResponse) VisitPostOnboardingSkipResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostOnboardingSocialsRequestObject struct {
+	Params PostOnboardingSocialsParams
+}
+
+type PostOnboardingSocialsResponseObject interface {
+	VisitPostOnboardingSocialsResponse(w http.ResponseWriter) error
+}
+
+type PostOnboardingSocials200JSONResponse Me
+
+func (response PostOnboardingSocials200JSONResponse) VisitPostOnboardingSocialsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostOnboardingSocialsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PostOnboardingSocialsdefaultApplicationProblemPlusJSONResponse) VisitPostOnboardingSocialsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMyPendingVotesRequestObject struct {
 }
 
@@ -5108,6 +5327,12 @@ type StrictServerInterface interface {
 	// PostOnboardingPhone Store the phone the caller linked in Privy.
 	// (POST /v1/me/onboarding/phone)
 	PostOnboardingPhone(ctx context.Context, request PostOnboardingPhoneRequestObject) (PostOnboardingPhoneResponseObject, error)
+	// PostOnboardingSkip Skip an onboarding step.
+	// (POST /v1/me/onboarding/skip)
+	PostOnboardingSkip(ctx context.Context, request PostOnboardingSkipRequestObject) (PostOnboardingSkipResponseObject, error)
+	// PostOnboardingSocials Store the X account the caller linked in Privy.
+	// (POST /v1/me/onboarding/socials)
+	PostOnboardingSocials(ctx context.Context, request PostOnboardingSocialsRequestObject) (PostOnboardingSocialsResponseObject, error)
 	// GetMyPendingVotes List the open proposals waiting on the caller's ballot.
 	// (GET /v1/me/pending-votes)
 	GetMyPendingVotes(ctx context.Context, request GetMyPendingVotesRequestObject) (GetMyPendingVotesResponseObject, error)
@@ -5809,6 +6034,65 @@ func (sh *strictHandler) PostOnboardingPhone(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostOnboardingPhoneResponseObject); ok {
 		if err := validResponse.VisitPostOnboardingPhoneResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostOnboardingSkip operation middleware
+func (sh *strictHandler) PostOnboardingSkip(w http.ResponseWriter, r *http.Request, params PostOnboardingSkipParams) {
+	var request PostOnboardingSkipRequestObject
+
+	request.Params = params
+
+	var body PostOnboardingSkipJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostOnboardingSkip(ctx, request.(PostOnboardingSkipRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostOnboardingSkip")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostOnboardingSkipResponseObject); ok {
+		if err := validResponse.VisitPostOnboardingSkipResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostOnboardingSocials operation middleware
+func (sh *strictHandler) PostOnboardingSocials(w http.ResponseWriter, r *http.Request, params PostOnboardingSocialsParams) {
+	var request PostOnboardingSocialsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostOnboardingSocials(ctx, request.(PostOnboardingSocialsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostOnboardingSocials")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostOnboardingSocialsResponseObject); ok {
+		if err := validResponse.VisitPostOnboardingSocialsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

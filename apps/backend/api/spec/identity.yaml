@@ -184,6 +184,57 @@ paths:
                 $ref: "#/components/schemas/Me"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/onboarding/socials:
+    post:
+      operationId: postOnboardingSocials
+      tags: [identity]
+      x-idempotent: true
+      summary: Store the X account the caller linked in Privy.
+      description: >-
+        Reads the X user id and username from the caller's Privy user, never from the request, stores
+        them and advances `auth_state`. A caller with no handle gets handle_required, and a caller with
+        no X account linked in Privy gets x_not_linked. Calling it again after it applied changes nothing.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The updated account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/onboarding/skip:
+    post:
+      operationId: postOnboardingSkip
+      tags: [identity]
+      x-idempotent: true
+      summary: Skip an onboarding step.
+      description: >-
+        Skipping `phone` moves a CREATED caller to AWAITING_PHONE. Skipping `socials` changes no state,
+        and the app moves on. A skip never clears a stored phone or X account. A caller with no handle
+        gets handle_required.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The step to skip.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SkipOnboardingStep"
+            example:
+              step: phone
+      responses:
+        "200":
+          description: The updated account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   schemas:
     AccountStatus:
@@ -316,6 +367,16 @@ components:
         user's X username.
       examples: [reserved]
       enum: [taken, reserved, invalid, too_soon]
+    SkipOnboardingStep:
+      type: object
+      description: An onboarding step the caller skips.
+      additionalProperties: false
+      required: [step]
+      properties:
+        step:
+          type: string
+          enum: [phone, socials]
+          examples: [phone]
     SetHandle:
       type: object
       description: A handle to claim for the caller.
