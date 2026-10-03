@@ -33,7 +33,7 @@ func gateStack(t *testing.T, f *fixture, files map[int][]File, extra ...*stackPR
 	for n, fs := range files {
 		f.hub.on(list("/pulls/"+strconv.Itoa(n)+"/files?"), fs)
 	}
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 	return s
 }
 

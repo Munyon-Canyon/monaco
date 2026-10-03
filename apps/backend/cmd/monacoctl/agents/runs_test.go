@@ -43,7 +43,7 @@ func TestLandStack_rerunsALeftoverCancelledRunBeforeAnyLabel(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 	setRuns(f, "b2-oid",
 		Run{ID: 7, WorkflowID: 1, Name: "ci", Status: "completed", Conclusion: "cancelled", Attempt: 1},
 		Run{ID: 8, WorkflowID: 2, Name: "pr-format", Status: "completed", Conclusion: "success", Attempt: 1})
@@ -80,7 +80,7 @@ func TestLandStack_refusesWhenARerunFailsAgainAndLabelsNothing(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 	setRuns(f, "b2-oid", Run{ID: 7, WorkflowID: 1, Name: "ci", Status: "completed", Conclusion: "failure", Attempt: 1})
 	setRun7Jobs(f, "ci / ci-ok")
 	rerunsInto(f, "b2-oid", 7,
@@ -105,7 +105,7 @@ func TestLandStack_reportsWhichPRsGraphiteHeldBack(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 	draft := PR{Title: "[Graphite MQ] Draft PR GROUP:x (PRs 1)", Head: Ref{Ref: "gtmq_x"}}
 	odd := PR{Title: "no pr list", Head: Ref{Ref: "gtmq_y"}}
 	f.hub.on(list("/pulls?state=open"), []PR{{Title: "(PRs 1, 2)", Head: Ref{Ref: "other"}}, odd, draft})
@@ -121,7 +121,7 @@ func TestLandStack_saysSoWhenNoGraphiteDraftAppears(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	newStackGH(t, f, green(t, 1, "b1", "fb"))
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 	f.hub.on(list("/pulls?state=open"), "[]")
 	_, stdout, stderr := f.agents(t, "land-stack", "1")
 	if !strings.Contains(stdout, "no Graphite draft holds #1 after 3m0s") {
@@ -133,7 +133,7 @@ func TestLandStack_rerunFallsBackToRerunningOnlyTheFailedJobs(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	newStackGH(t, f, green(t, 1, "b1", "fb"))
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 	setRuns(f, "b1-oid", Run{ID: 7, WorkflowID: 1, Name: "ci", Status: "completed", Conclusion: "failure", Attempt: 1})
 	setRun7Jobs(f, "ci / ci-ok")
 	f.hub.status[rerunRoute(7)] = 403
@@ -200,7 +200,7 @@ func TestLandStack_runFailures(t *testing.T) {
 			t.Parallel()
 			f := newFixture(t)
 			newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
-			f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+			f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 			tc.setup(f)
 			code, stdout, stderr := f.agents(t, "land-stack", "2")
 			if code == 0 || !strings.Contains(stderr, tc.want) {
@@ -214,7 +214,7 @@ func TestLandStack_countsTheBrokenRunsOnAHeldBackPR(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 	f.hub.on(list("/pulls?state=open"), []PR{{Title: "(PRs 1)", Head: Ref{Ref: "gtmq_x"}}})
 	prev := f.hub.hook
 	f.hub.hook = func(method, path, body string, status int) {
@@ -245,7 +245,7 @@ func TestLandStack_stopsWaitingOnRunsOrTheDraftWhenTheContextEnds(t *testing.T) 
 			t.Parallel()
 			f := newFixture(t)
 			newStackGH(t, f, green(t, 1, "b1", "fb"))
-			f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+			f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 			tc.setup(f)
 			ctx, cancel := context.WithCancel(t.Context())
 			env := f.Env(t)
@@ -273,7 +273,7 @@ func TestLandStack_ignoresASupersededBrokenRunWhenANewerRunOfTheWorkflowPassed(t
 	for _, old := range []string{"cancelled", "failure"} {
 		f := newFixture(t)
 		newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
-		f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+		f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 		at := time.Unix(1_700_000_000, 0)
 		setRuns(f, "b2-oid",
 			doneRun(7, 2, old, at),
@@ -321,7 +321,7 @@ func TestLandStack_waitsForAQueueSlotWhenGraphiteRunsItsMostDrafts(t *testing.T)
 			f := newFixture(t)
 			writeFile(t, filepath.Join(f.dir, configPath), tc.config+testConfig)
 			newStackGH(t, f, green(t, 1, "b1", "fb"))
-			f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+			f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 			f.hub.on(list("/pulls?state=open"), drafts)
 			_, stdout, stderr := f.agents(t, "land-stack", "1")
 			if !strings.Contains(stdout, tc.want) || tc.config != "queue_concurrency = 4\n" &&
@@ -356,7 +356,7 @@ func TestLandStack_rerunGateCoversOnlyTheCIWorkflow(t *testing.T) {
 			t.Parallel()
 			f := newFixture(t)
 			newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
-			f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+			f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 			failed := Run{
 				ID: 7, WorkflowID: 1, Name: tc.workflow, Status: "completed", Conclusion: "failure", Attempt: 1,
 				URL: "https://x/runs/7",

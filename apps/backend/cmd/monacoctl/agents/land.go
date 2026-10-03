@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -73,7 +74,7 @@ func landStackCmd(ctx context.Context, env *Env, args []string, stdout io.Writer
 		}
 		rec.Queued = nil
 	}
-	stack, err := env.stackOf(ctx, rec.Worktree, n, stdout)
+	stack, dir, err := env.stackOf(ctx, rec, n, stdout)
 	if err != nil {
 		return err
 	}
@@ -83,7 +84,7 @@ func landStackCmd(ctx context.Context, env *Env, args []string, stdout io.Writer
 	if waiting := waitingOn(stack); len(waiting) > 0 {
 		return env.arm(ctx, rec, stack, waiting, stdout)
 	}
-	return env.land(ctx, rec, stack, stdout)
+	return env.land(ctx, rec, dir, stack, stdout)
 }
 
 func (env *Env) arm(ctx context.Context, rec Record, stack []stackPR, waiting []string, stdout io.Writer) error {
@@ -118,7 +119,8 @@ func blocker(stack []stackPR) string {
 
 func (env *Env) landArmed(ctx context.Context, r Record) []string {
 	top := r.Armed.Top
-	stack, err := env.stackOf(ctx, r.Worktree, top, io.Discard)
+	var out strings.Builder
+	stack, dir, err := env.stackOf(ctx, r, top, &out)
 	if err != nil {
 		return []string{watchErr(fmt.Sprintf("armed stack #%d: ", top), err)}
 	}
@@ -131,8 +133,7 @@ func (env *Env) landArmed(ctx context.Context, r Record) []string {
 	if err := env.flowGate(ctx, r, stack); err != nil {
 		return env.disarm(ctx, r, cmp.Or(cliText(err), err.Error()))
 	}
-	var out strings.Builder
-	err = env.land(ctx, r, stack, &out)
+	err = env.land(ctx, r, dir, stack, &out)
 	items := []string{fmt.Sprintf("armed stack #%d landing", top)}
 	for line := range strings.Lines(out.String()) {
 		items = append(items, strings.TrimSuffix(line, "\n"))
@@ -197,16 +198,43 @@ func walkStack(open []stackPR, top int, trunk string) ([]stackPR, error) {
 	return stack, nil
 }
 
-func (env *Env) stackOf(ctx context.Context, worktree string, top int, stdout io.Writer) ([]stackPR, error) {
+func (env *Env) stackOf(ctx context.Context, rec Record, top int, stdout io.Writer) ([]stackPR, string, error) {
 	open, err := env.openPulls(ctx)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	walked, err := walkStack(open, top, env.Config.FeatureBranch)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return env.graphiteStack(ctx, worktree, open, walked, stdout), nil
+	dir := env.workdir(ctx, rec, walked[len(walked)-1].Head, stdout)
+	return env.graphiteStack(ctx, dir, open, walked, stdout), dir, nil
+}
+
+func (env *Env) workdir(ctx context.Context, rec Record, branch string, stdout io.Writer) string {
+	if worktreeHere(rec) {
+		return rec.Worktree
+	}
+	root := filepath.Dir(env.Common)
+	dir := cmp.Or(env.checkout(ctx, root, branch), root)
+	_, _ = fmt.Fprintf(stdout, "record %d's worktree %s is not on this machine; using %s\n",
+		rec.Ticket, rec.Worktree, dir)
+	return dir
+}
+
+func (env *Env) checkout(ctx context.Context, root, branch string) string {
+	out, _ := env.Run(ctx, root, "", "git", "worktree", "list", "--porcelain")
+	var path string
+	for line := range strings.Lines(string(out)) {
+		line = strings.TrimSuffix(line, "\n")
+		if p, ok := strings.CutPrefix(line, "worktree "); ok {
+			path = p
+		}
+		if line == "branch refs/heads/"+branch {
+			return path
+		}
+	}
+	return ""
 }
 
 func (env *Env) graphiteStack(
@@ -278,7 +306,7 @@ func orMissing(s string) string {
 	return s
 }
 
-func (env *Env) land(ctx context.Context, rec Record, stack []stackPR, stdout io.Writer) error {
+func (env *Env) land(ctx context.Context, rec Record, dir string, stack []stackPR, stdout io.Writer) error {
 	nums := make([]int, len(stack))
 	for i, p := range stack {
 		nums[i] = p.Number
@@ -287,7 +315,7 @@ func (env *Env) land(ctx context.Context, rec Record, stack []stackPR, stdout io
 	if err := env.cleanRuns(ctx, stack, stdout); err != nil {
 		return err
 	}
-	if err := env.mergeable(ctx, rec.Worktree, stack[0], top); err != nil {
+	if err := env.mergeable(ctx, dir, stack[0], top); err != nil {
 		return err
 	}
 	for _, n := range slices.Backward(nums) {
