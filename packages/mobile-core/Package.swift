@@ -1,6 +1,29 @@
 // swift-tools-version: 6.2
 import PackageDescription
 
+let moduleGraph: [(name: String, imports: [String])] = [
+    ("MonacoSystem", []),
+    ("MonacoIdentity", []),
+    ("MonacoAnalytics", []),
+    ("MonacoMarket", []),
+    ("MonacoNotify", ["MonacoIdentity"]),
+    ("MonacoReferrals", ["MonacoIdentity"]),
+    ("MonacoCabal", ["MonacoIdentity"]),
+    ("MonacoSocial", ["MonacoIdentity", "MonacoCabal"]),
+    ("MonacoTreasury", ["MonacoCabal"]),
+    ("MonacoTrading", ["MonacoTreasury", "MonacoMarket"]),
+    ("MonacoGovernance", ["MonacoCabal", "MonacoTreasury"]),
+    ("MonacoRanking", ["MonacoCabal", "MonacoMarket", "MonacoTrading"]),
+]
+let moduleNames = moduleGraph.map { Target.Dependency(stringLiteral: $0.name) }
+let moduleTargets: [Target] = moduleGraph.map { module in
+    .target(
+        name: module.name,
+        dependencies: ["MonacoAPI", .product(name: "MonacoFlows", package: "flows")]
+            + module.imports.map { Target.Dependency(stringLiteral: $0) }
+    )
+}
+
 let package = Package(
     name: "MonacoCore",
     platforms: [
@@ -24,7 +47,7 @@ let package = Package(
     targets: [
         .target(
             name: "MonacoCore",
-            dependencies: ["MonacoAPI", .product(name: "MonacoFlows", package: "flows")]
+            dependencies: ["MonacoAPI", .product(name: "MonacoFlows", package: "flows")] + moduleNames
         ),
         // Sources/MonacoAPI/openapi.yaml is a symlink to apps/backend/api/openapi.yaml, not a
         // copy: the generator plugin reads it through the sandbox in swift build, Xcode and the
@@ -58,7 +81,7 @@ let package = Package(
                     name: "OpenAPIAsyncHTTPClient", package: "swift-openapi-async-http-client",
                     condition: .when(platforms: [.linux])
                 ),
-            ],
+            ] + moduleNames,
             exclude: ["RepoRulesAllowlist.txt"],
             resources: [
                 .process("Fixtures")
@@ -79,6 +102,6 @@ let package = Package(
                 ),
             ]
         ),
-    ],
+    ] + moduleTargets,
     swiftLanguageModes: [.v6]
 )
