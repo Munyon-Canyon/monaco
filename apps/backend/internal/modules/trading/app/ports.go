@@ -5,6 +5,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type QuoteSpec struct {
@@ -55,6 +56,30 @@ type Signer interface {
 	Sign(
 		ctx context.Context, privyWalletID string, unsigned []byte,
 	) (signed []byte, signature chain.Signature, err error)
+}
+
+type SigState uint8
+
+const (
+	SigFinalized SigState = iota + 1
+	SigProcessing
+	SigNotFound
+)
+
+type SigStatus struct {
+	State       SigState
+	Failed      bool
+	BlockHeight uint64
+}
+
+type ChainReader interface {
+	SignatureStatuses(ctx context.Context, sigs []chain.Signature) ([]SigStatus, error)
+	InboundAmount(
+		ctx context.Context,
+		signature chain.Signature,
+		owner chain.SolanaAddress,
+		mint chain.Mint,
+	) (money.BaseUnits, error)
 }
 
 type Holding struct {
