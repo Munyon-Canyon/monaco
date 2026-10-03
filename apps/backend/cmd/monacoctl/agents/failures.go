@@ -18,7 +18,7 @@ const (
 	lastRunState = "last-run"
 	draftPrefix  = "gtmq_"
 	failureQuery = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){` +
-		`pullRequests(states:OPEN,first:100){nodes{number body headRefName baseRefName headRefOid ` +
+		`pullRequests(states:OPEN,first:100){nodes{number body isDraft mergeable headRefName baseRefName headRefOid ` +
 		labelFields + ` commits(last:1){nodes{commit{...runs}}} ` +
 		`timelineItems(itemTypes:[UNLABELED_EVENT],last:20){nodes{` +
 		`... on UnlabeledEvent{createdAt label{name} actor{login}}}}}} ` +
@@ -54,6 +54,8 @@ type watchPR struct {
 	HeadRefName string `json:"headRefName"`
 	BaseRefName string `json:"baseRefName"`
 	HeadRefOid  string `json:"headRefOid"`
+	IsDraft     bool   `json:"isDraft"`
+	Mergeable   string `json:"mergeable"`
 	Labels      struct {
 		Nodes []gqlName `json:"nodes"`
 	} `json:"labels"`
@@ -126,6 +128,15 @@ func (c gqlCommit) stage1Red() bool {
 	for _, r := range c.latest() {
 		if r.Name == stage1Check {
 			return red(r) && !c.newerRunPending()
+		}
+	}
+	return false
+}
+
+func (c gqlCommit) stage1Green() bool {
+	for _, r := range c.latest() {
+		if r.Name == stage1Check {
+			return r.Conclusion == "SUCCESS"
 		}
 	}
 	return false
@@ -267,6 +278,97 @@ func stuckOnGraphiteBase(prs []watchPR, rs []Record, label string) []string {
 			"gt sync, gt restack, gt submit --stack --draft, land-stack %d; %s", p.Number, p.BaseRefName, top, top, who))
 	}
 	return out
+}
+
+const conflicting = "CONFLICTING"
+
+func conflictLine(pr int, base string) string {
+	return fmt.Sprintf("#%d conflicts with %s; GitHub runs no CI until it is resolved: restack with gt and resubmit",
+		pr, base)
+}
+
+type stallScan struct {
+	env   *Env
+	prs   []watchPR
+	rs    []Record
+	heads map[string]string
+}
+
+func (env *Env) silentStalls(ctx context.Context, prs []watchPR, rs []Record) []string {
+	s := stallScan{env: env, prs: prs, rs: rs, heads: map[string]string{}}
+	var out []string
+	for _, p := range prs {
+		if line := s.stall(ctx, p); line != "" {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
+func (s stallScan) stall(ctx context.Context, p watchPR) string {
+	labeled := slices.Contains(p.Labels.Nodes, gqlName{s.env.Config.QueueLabel})
+	_, _, marked := ownerStack(s.rs, p.Number)
+	if p.Mergeable == conflicting {
+		if _, owned := s.recordOf(ctx, p); labeled || marked || owned {
+			return conflictLine(p.Number, p.BaseRefName)
+		}
+		return ""
+	}
+	if p.IsDraft || labeled || marked || !p.green() || stackTop(s.prs, p) != p.Number {
+		return ""
+	}
+	r, ok := s.recordOf(ctx, p)
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("#%d is green but not armed; owner record %d.json: run land-stack %d",
+		p.Number, r.Ticket, p.Number)
+}
+
+func (s stallScan) recordOf(ctx context.Context, p watchPR) (Record, bool) {
+	chain := chainDown(s.prs, p)
+	for _, r := range s.rs {
+		if r.Branch != "" && slices.Contains(chain, r.Branch) {
+			return r, true
+		}
+	}
+	for _, r := range s.rs {
+		if slices.Contains(chain, s.head(ctx, r.Worktree)) {
+			return r, true
+		}
+	}
+	return Record{}, false
+}
+
+func (s stallScan) head(ctx context.Context, worktree string) string {
+	if h, ok := s.heads[worktree]; ok {
+		return h
+	}
+	out, err := s.env.Run(ctx, worktree, "", "git", "rev-parse", "--abbrev-ref", "HEAD")
+	h := strings.TrimSpace(string(out))
+	if err != nil || h == "HEAD" {
+		h = ""
+	}
+	s.heads[worktree] = h
+	return h
+}
+
+func (p watchPR) green() bool {
+	n := p.Commits.Nodes
+	return len(n) > 0 && n[len(n)-1].Commit.stage1Green()
+}
+
+func chainDown(prs []watchPR, p watchPR) []string {
+	chain := []string{p.HeadRefName}
+	for range prs {
+		i := slices.IndexFunc(prs, func(q watchPR) bool { return q.HeadRefName == p.BaseRefName })
+		if i < 0 {
+			break
+		}
+		p = prs[i]
+		chain = append(chain, p.HeadRefName)
+	}
+	return chain
 }
 
 func ownerStack(rs []Record, pr int) (int, int, bool) {

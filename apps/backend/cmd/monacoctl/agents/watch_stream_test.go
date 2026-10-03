@@ -699,3 +699,88 @@ func TestStuckOnGraphiteBase_namesTheOwnerRecordOfAnArmedOrQueuedStack(t *testin
 		t.Fatalf("%q", got)
 	}
 }
+
+func withPRField(node, field string) string {
+	return strings.Replace(node, `"commits":`, field+`,"commits":`, 1)
+}
+
+func TestWatch_flagsAGreenTopOfAnOwnedStackThatIsNotArmedOnEveryPass(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.owner(t, Record{Ticket: 1955, Branch: "b1957", Worktree: "/w/1955", State: Exited})
+	f.hub.on(graphqlRoute, failureData(
+		watchNode(1957, "fb", rollup(greenOK), ""),
+		watchNode(1958, "b1957", rollup(greenOK), ""),
+		withPRField(watchNode(1959, "b1957", rollup(greenOK), ""), `"isDraft":true`),
+		watchNode(1960, "fb", rollup(greenOK), ""),
+	))
+	want := "#1958 is green but not armed; owner record 1955.json: run land-stack 1958"
+	out := streamRounds(t, f, 2, func(int) {})
+	if strings.Count(out, want+"\n") != 2 || strings.Contains(out, "#1957 is green") ||
+		strings.Contains(out, "#1959") || strings.Contains(out, "#1960") {
+		t.Fatalf("stream:\n%s", out)
+	}
+	_, stdout, _ := f.agents(t, "watch", "--once")
+	if !strings.Contains(stdout, want+"\n") {
+		t.Fatalf("once:\n%s", stdout)
+	}
+}
+
+func TestSilentStalls_saysNothingForAGreenTopThatIsArmed(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	prs := []watchPR{
+		{Number: 1957, BaseRefName: "fb", HeadRefName: "b1957"},
+		{Number: 1958, BaseRefName: "b1957", HeadRefName: "b1958"},
+	}
+	for i := range prs {
+		if err := json.Unmarshal([]byte(`{"nodes":[{"commit":`+rollup(greenOK)+`}]}`), &prs[i].Commits); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rs := []Record{{Ticket: 1955, Branch: "b1957", Armed: &Arm{Top: 1958, PRs: []int{1957, 1958}}}}
+	if got := f.Env(t).silentStalls(t.Context(), prs, rs); len(got) != 0 {
+		t.Fatalf("%q", got)
+	}
+	rs[0].Armed = nil
+	want := []string{"#1958 is green but not armed; owner record 1955.json: run land-stack 1958"}
+	if got := f.Env(t).silentStalls(t.Context(), prs, rs); !slices.Equal(got, want) {
+		t.Fatalf("%q", got)
+	}
+	rs[0].Branch, rs[0].Worktree = "", "/w/1955"
+	f.run = func(_ context.Context, dir, _, name string, args ...string) ([]byte, error) {
+		if dir == "/w/1955" && name == "git" && slices.Equal(args, []string{"rev-parse", "--abbrev-ref", "HEAD"}) {
+			return []byte("b1958\n"), nil
+		}
+		return nil, errors.New("unexpected " + name)
+	}
+	if got := f.Env(t).silentStalls(t.Context(), prs, rs); !slices.Equal(got, want) {
+		t.Fatalf("worktree head: %q", got)
+	}
+}
+
+func TestWatch_flagsAConflictingPRUnderARecordOrLabeledOnEveryPass(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.owner(t, Record{Ticket: 604, Branch: "b1950", Worktree: "/w/604", State: Exited})
+	dirty := `"mergeable":"CONFLICTING"`
+	f.hub.on(graphqlRoute, failureData(
+		withPRField(watchNode(1950, "fb", noRollup, ""), dirty),
+		withPRField(queueLabeled(watchNode(1951, "fb", noRollup, "")), dirty),
+		withPRField(watchNode(1952, "fb", noRollup, ""), dirty),
+		withPRField(watchNode(1953, "fb", noRollup, ""), `"mergeable":"UNKNOWN"`),
+	))
+	want := []string{
+		"#1950 conflicts with fb; GitHub runs no CI until it is resolved: restack with gt and resubmit",
+		"#1951 conflicts with fb; GitHub runs no CI until it is resolved: restack with gt and resubmit",
+	}
+	out := streamRounds(t, f, 2, func(int) {})
+	for _, w := range want {
+		if strings.Count(out, w+"\n") != 2 {
+			t.Fatalf("stream:\n%s", out)
+		}
+	}
+	if strings.Contains(out, "#1952") || strings.Contains(out, "#1953") {
+		t.Fatalf("stream:\n%s", out)
+	}
+}
