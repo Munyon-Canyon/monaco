@@ -384,9 +384,10 @@ jobs:
         id: filter
         if: steps.top.outputs.skip != 'true'
         with:
-          # Empty token: diff with git (plan fetches full history) instead of the PR files API, which the
-          # shared GITHUB_TOKEN rate limit can fail.
-          token: ''
+          # A PR diffs with git (plan fetches full history), so the shared GITHUB_TOKEN rate limit cannot fail it.
+          # A queue draft's base is the draft below it, which Graphite deletes once it merges, so git cannot fetch
+          # it; the draft uses the PR files API instead (one call).
+          token: ${{ inputs.stage == 'queue' && github.token || '' }}
           # Outside a PR the action diffs against the default branch, which runs every job on a feature branch.
           base: ${{ github.event.pull_request.base.ref || vars.FEATURE_BRANCH || 'main' }}
           filters: |
@@ -454,9 +455,10 @@ jobs:
         id: every
         if: steps.top.outputs.skip != 'true'
         with:
-          # Empty token: diff with git (plan fetches full history) instead of the PR files API, which the
-          # shared GITHUB_TOKEN rate limit can fail.
-          token: ''
+          # A PR diffs with git (plan fetches full history), so the shared GITHUB_TOKEN rate limit cannot fail it.
+          # A queue draft's base is the draft below it, which Graphite deletes once it merges, so git cannot fetch
+          # it; the draft uses the PR files API instead (one call).
+          token: ${{ inputs.stage == 'queue' && github.token || '' }}
           base: ${{ github.event.pull_request.base.ref || vars.FEATURE_BRANCH || 'main' }}
           predicate-quantifier: every
           filters: |
