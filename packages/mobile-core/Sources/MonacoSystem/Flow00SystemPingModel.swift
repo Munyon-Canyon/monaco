@@ -161,7 +161,7 @@ private struct SystemPingDisconnectedTransport: ClientTransport {
 }
 
 private struct SystemPingDisconnectedTokens: MonacoAPI.AccessTokenProvider {
-    func accessToken() async throws -> String? { nil }
+    func accessToken() async throws -> String? { "preview-token" }
     func refreshedToken(replacing _: String) async throws -> String? { nil }
 }
 

@@ -447,6 +447,7 @@ final class MonacoAPIClient: AppSessionDataSource {
             switch error {
             case .httpStatus(let status, _): throw MonacoAPIError.httpStatus(status)
             case .invalidResponse: throw MonacoAPIError.invalidResponse
+            case .missingAccessToken: throw MonacoAPIError.missingAccessToken
             case .leaveBlocked: throw MonacoAPIError.invalidResponse
             case .rejected(let status, let message, _): throw MonacoAPIError.apiError(status: status, message: message)
             case .rateLimited: throw MonacoAPIError.httpStatus(429)
@@ -947,7 +948,6 @@ private struct ProposalRequest: Encodable {
         if let thesis { try container.encode(thesis, forKey: .thesis) }
     }
 }
-
 private struct RedeemSubmitRequest: Encodable {
     let shareUnits: String
     let payoutAddress: String

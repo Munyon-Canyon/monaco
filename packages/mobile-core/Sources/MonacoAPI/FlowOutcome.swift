@@ -7,7 +7,7 @@ extension FlowOutcome {
         switch error {
         case .problem(let problem):
             self.init(code: problem.code.wire)
-        case .signedOut:
+        case .signedOut, .missingAccessToken:
             self.init(code: Components.Schemas.ErrorCode.unauthorized.rawValue)
         case .transport, .accountDeleted, .inFlight, .decoding:
             return nil

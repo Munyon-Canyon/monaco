@@ -57,6 +57,7 @@ public struct LoginFlow: Equatable, Sendable {
     }
 
     public mutating func beginSend() -> Bool {
+        guard !phase.isAuthenticated else { return false }
         guard !isBusy else { return false }
         phase = .sendingCode
         return true
@@ -72,6 +73,7 @@ public struct LoginFlow: Equatable, Sendable {
     }
 
     public mutating func beginVerify() -> Bool {
+        guard !phase.isAuthenticated else { return false }
         guard !isBusy else { return false }
         phase = .verifyingCode
         return true
@@ -82,6 +84,7 @@ public struct LoginFlow: Equatable, Sendable {
     }
 
     public mutating func beginAuthorizing(_ provider: LoginProvider) -> Bool {
+        guard !phase.isAuthenticated else { return false }
         switch phase {
         case .idle, .awaitingCode, .failed, .providerFailed:
             phase = .authorizing(provider)
@@ -135,5 +138,12 @@ public struct LoginFlow: Equatable, Sendable {
         } else {
             phase = .failed(message: message)
         }
+    }
+}
+
+extension LoginPhase {
+    fileprivate var isAuthenticated: Bool {
+        if case .authenticated = self { return true }
+        return false
     }
 }

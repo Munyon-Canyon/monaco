@@ -2,6 +2,7 @@
 public enum ToastCopy {
     public static func message(for error: APIError) -> String {
         switch error {
+        case .missingAccessToken: "Your account didn't load"
         case .problem(let problem): problem.message
         case .transport: "You're offline. Try again."
         case .inFlight: "Still working on it."

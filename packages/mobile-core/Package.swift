@@ -91,6 +91,7 @@ let package = Package(
             name: "MonacoAPITests",
             dependencies: [
                 "MonacoAPI",
+                "MonacoCore",
                 "MonacoTestClock",
                 "MonacoTestSupport",
                 .product(name: "HTTPTypes", package: "swift-http-types"),

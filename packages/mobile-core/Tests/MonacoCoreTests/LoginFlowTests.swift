@@ -85,6 +85,15 @@ struct LoginFlowTests {
         #expect(flow.phase == .authenticated(userID: "user-1"))
     }
 
+    @Test func beginVerifyRefusesOnceAuthenticated() {
+        var flow = LoginFlow()
+        flow.authenticated(userID: "user-1")
+
+        let started = flow.beginVerify()
+        #expect(!started)
+        #expect(flow.phase == .authenticated(userID: "user-1"))
+    }
+
     @Test func signingOutClearsTheForm() {
         var flow = onCodeStep()
         flow.signedOut()

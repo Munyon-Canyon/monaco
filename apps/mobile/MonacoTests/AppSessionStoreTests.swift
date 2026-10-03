@@ -295,6 +295,25 @@ struct AppSessionStoreBootstrapTests {
         #expect(store.profile?.displayName == "New name")
     }
 
+    @Test func aForegroundReadStartedDuringNameSaveCannotUndoIt() async throws {
+        let renamed = SessionWire.me.replacingOccurrences(of: "Kai Cenat", with: "New name")
+        let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), .gate, .gate])
+        let store = AppSessionStore(apiClient: StubDataSource(), sessions: sessionAPI(transport))
+        let auth = StubAuth()
+        await store.bootstrap(auth: auth)
+
+        let save = Task { await store.updateDisplayName("New name", auth: auth, optimistic: false) }
+        while await transport.sent.count < 2 { await Task.yield() }
+        let foreground = Task { await store.noteForeground(auth: auth) }
+        while await transport.sent.count < 3 { await Task.yield() }
+        await transport.releaseGate(.json(.ok, renamed))
+        #expect(await save.value == .saved)
+        await transport.releaseGate(.json(.ok, SessionWire.me))
+        await foreground.value
+
+        #expect(store.profile?.displayName == "New name")
+    }
+
     @Test func signOutDropsAnInFlightRefresh() async {
         let source = StubDataSource()
         let transport = StubTransport(.gate)
@@ -348,7 +367,7 @@ struct AppSessionStoreBootstrapTests {
         #expect(store.profile?.userID == "01890a5d-ac96-774b-bcce-b302099a9999")
     }
 
-    @Test func aPrivyNameSaveUsesPatchMeWithBearerAndDisplayName() async throws {
+    @Test func aNameSaveUsesPatchMeWithBearerAndDisplayName() async throws {
         let tokens = SessionTokens(privyToken: { "privy-token" }, refresh: { _ in nil })
         let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), .json(.ok, SessionWire.me)])
         let store = AppSessionStore(
@@ -391,6 +410,33 @@ struct AppSessionStoreBootstrapTests {
         #expect(outcome == .failed("That name is unavailable."))
         #expect(auth.rejectedTokens.isEmpty)
         #expect(store.profile?.displayName == "Kai Cenat")
+    }
+
+    @Test func aMissingTokenOnTheProfileReloadKeepsTheMemberSignedIn() async {
+        let auth = StubAuth()
+        let tokens = SessionTokens(
+            privyToken: { await MainActor.run { auth.accessToken } },
+            refresh: { _ in nil }
+        )
+        let unauthorized = """
+            {"status":401,"code":"unauthorized","message":"Sign in again.","trace_id":"t","retryable":false}
+            """
+        let transport = StubTransport(scripted: [
+            .json(.ok, SessionWire.me), .json(.unauthorized, unauthorized),
+        ])
+        let store = AppSessionStore(
+            apiClient: StubDataSource(),
+            sessions: SessionAPI(api: APIClient(serverURL: testServerURL, tokens: tokens, transport: transport))
+        )
+
+        await store.bootstrap(auth: auth)
+        auth.accessToken = nil
+        await store.refresh(auth: auth, accessToken: "token-a", includeProfile: true)
+
+        let sent = await transport.sent
+        #expect(sent.map(\.path) == ["/v1/auth/session"])
+        #expect(auth.signOuts.isEmpty)
+        #expect(store.errorMessage == "Your account didn't load")
     }
 
 }

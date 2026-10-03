@@ -85,11 +85,20 @@ public actor HintStream: HintSource {
             var connectedFor = Duration.zero
             do {
                 if bearer == nil { bearer = try await token() }
+                guard let bearer, !bearer.isEmpty else {
+                    let delay = Self.backoff(attempt) * random()
+                    attempt += 1
+                    set(.reconnecting)
+                    startFallback()
+                    try? await timer.sleep(delay)
+                    continue
+                }
                 connectedFor = try await connect(bearer)
                 rejected = false
             } catch let error where ProblemError(error)?.status == 401 {
                 guard !Task.isCancelled else { return }
-                guard !rejected, let bearer else {
+                guard let bearer else { return signOut() }
+                guard !rejected else {
                     await endSession(bearer)
                     return signOut()
                 }

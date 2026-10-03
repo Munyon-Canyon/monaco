@@ -12,6 +12,10 @@ extension AppSessionStore {
             await auth.signOut(reason: LoginFailureCopy.sessionExpired, rejectedToken: rejectedToken)
             return
         }
+        if case APIError.missingAccessToken = error {
+            errorMessage = ToastCopy.message(for: .missingAccessToken(""))
+            return
+        }
         let mapped = SessionErrorMapping.describe(error, apiBaseURL: Config.apiBaseURL)
         errorMessage = mapped.message
         #if DEBUG
@@ -24,6 +28,8 @@ extension AppSessionStore {
             await auth.signOut(reason: ToastCopy.message(for: .accountDeleted), rejectedToken: token)
         } else if case APIError.signedOut = error {
             await auth.signOut(reason: LoginFailureCopy.sessionExpired, rejectedToken: token)
+        } else if case APIError.missingAccessToken = error {
+            errorMessage = ToastCopy.message(for: .missingAccessToken(""))
         }
         return nil
     }

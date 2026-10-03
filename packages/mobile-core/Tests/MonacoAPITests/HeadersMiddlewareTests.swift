@@ -31,9 +31,10 @@ final class HeadersMiddlewareTests: XCTestCase {
         XCTAssertEqual(request.headerFields[.authorization], "Bearer token-1")
     }
 
-    func testSignedOutRequestsCarryNoAuthorization() async throws {
-        let request = try await send(.get)
-
-        XCTAssertNil(request.headerFields[.authorization])
+    func testSignedOutProtectedRequestsAreRejected() async {
+        do {
+            _ = try await send(.get)
+            XCTFail("expected missing access token")
+        } catch APIError.missingAccessToken("x") {} catch { XCTFail("expected missing access token, got \(error)") }
     }
 }

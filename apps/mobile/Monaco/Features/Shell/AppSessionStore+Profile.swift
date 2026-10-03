@@ -53,6 +53,7 @@ extension AppSessionStore {
                 return .failed("Sign in again to edit your profile.")
             }
             profile = saved
+            noteProfileWrite()
         } catch {
             if profile == pending {
                 profile = current
