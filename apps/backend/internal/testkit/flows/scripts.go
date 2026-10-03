@@ -91,6 +91,10 @@ func identityScripts() map[string]Script {
 		"F01dSkipOnboardingStepOK":             F01dSkipOnboardingStepOK,
 		"F01dSkipOnboardingStepHandleRequired": F01dSkipOnboardingStepHandleRequired,
 		"F01dSkipOnboardingStepInvalidInput":   F01dSkipOnboardingStepInvalidInput,
+		"F01eDeleteAccountOK":                  F01eDeleteAccountOK,
+		"F01eDeleteAccountAccountHasPositions": F01eDeleteAccountAccountHasPositions,
+		"F01eDeleteAccountAccountHasBalance":   F01eDeleteAccountAccountHasBalance,
+		"F01eDeleteAccountCrashBeforeCommit":   F01eDeleteAccountCrashBeforeCommit,
 	}
 }
 
