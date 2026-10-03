@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
 func ciModule(t *testing.T) string {
@@ -128,6 +129,15 @@ func TestCIAffectedFailsWhenGitOrGoListFails(t *testing.T) {
 		{"unknown base", "nope", "bad revision", runCommand},
 		{"go list fails", "base", "go list broke", fakeGo("", errs.New(errs.CodeInternal, "go list broke"))},
 		{"go list prints bad JSON", "base", "decode_failed", fakeGo("{", nil)},
+		{
+			"the flow file diff fails", "base", "flow diff broke",
+			func(ctx context.Context, d string, env []string, name string, args ...string) ([]byte, error) {
+				if slices.Contains(args, ":(top)"+flows.Dir) {
+					return nil, errs.New(errs.CodeInternal, "flow diff broke")
+				}
+				return runCommand(ctx, d, env, name, args...)
+			},
+		},
 	}
 	for _, tc := range cases {
 		env := ciEnv{moduleDir: dir, goBin: "go", gitBin: "git", exec: tc.exec}
@@ -253,3 +263,27 @@ func TestFlowsReadersAreEveryPackageReadingTheFlowFiles(t *testing.T) {
 }
 
 var flowReader = regexp.MustCompile(`\bfunc ReadAll\(|\b(?:flows|toolflows|tools)\.ReadAll\(`)
+
+func TestCIAffectedSeesABackendFlowFileOutsideTheModule(t *testing.T) {
+	t.Parallel()
+	repo := t.TempDir()
+	module := filepath.Join(repo, "apps", "backend")
+	writeCIFile(t, module, "go.mod", "module example.com/m\n\ngo 1.25.0\n")
+	writeCIFile(t, module, "leaf/leaf.go", "package leaf\n")
+	for _, dir := range flowsReaders() {
+		writeCIFile(t, module, dir+"/x.go", "package "+path.Base(dir)+"\n")
+	}
+	writeCIFile(t, repo, "packages/flows/backend/03.tsv", "old\n")
+	git(t, repo, "init", "-q")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-q", "-m", "base")
+	git(t, repo, "tag", "base")
+	writeCIFile(t, repo, "packages/flows/backend/03.tsv", "new\n")
+	git(t, repo, "commit", "-q", "-am", "change")
+	env := ciEnv{moduleDir: module, goBin: "go", gitBin: "git", exec: runCommand}
+	code, stdout, stderr := runCIAffected(env, "affected", "--base", "base")
+	want := "./" + strings.Join(slices.Sorted(slices.Values(flowsReaders())), "\n./") + "\n"
+	if code != 0 || stdout != want {
+		t.Fatalf("code=%d stdout=%q want %q stderr=%s", code, stdout, want, stderr)
+	}
+}

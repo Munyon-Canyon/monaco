@@ -26,19 +26,12 @@ type Env struct {
 
 func CheckColumns(flows []Flow, env Env, ids []string) []Problem {
 	var problems []Problem
-	firstLine := map[string]int{}
 	docs := docAnchors{repo: env.Repo, cache: map[string]map[string]bool{}}
 	for _, f := range flows {
-		var msgs []string
-		if first, dup := firstLine[f.ID]; dup {
-			msgs = append(msgs, fmt.Sprintf("id %s already used on line %d", f.ID, first))
-		} else {
-			firstLine[f.ID] = f.Line
-		}
 		if !selected(ids, f.ID) {
 			continue
 		}
-		msgs = append(msgs, lookups(f, env)...)
+		msgs := lookups(f, env)
 		if msg := docs.check(f.Doc); msg != "" {
 			msgs = append(msgs, msg)
 		}
