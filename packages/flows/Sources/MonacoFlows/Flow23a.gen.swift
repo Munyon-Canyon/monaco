@@ -4,7 +4,7 @@ public enum Flow23aOutcome: Sendable, Hashable, CaseIterable {
     case ok, photoInvalid, storageUnavailable, rateLimited
 
     public static let flowID = "23a"
-    public static let command = "UploadProfilePhoto"
+    public static let commands: [String] = ["UploadProfilePhoto"]
 
     public var code: String? {
         switch self {

@@ -13,11 +13,17 @@ import (
 
 type Unit struct {
 	Flow    tools.Flow
+	Command string
 	Outcome tools.Outcome
 	Script  flows.Script
 }
 
-func (u Unit) Name() string { return u.Flow.ID + " " + string(u.Outcome) }
+func (u Unit) Name() string {
+	if len(u.Flow.Commands) > 1 {
+		return u.Flow.ID + " " + u.Command + " " + string(u.Outcome)
+	}
+	return u.Flow.ID + " " + string(u.Outcome)
+}
 
 func readFlows(dir string) ([]tools.Flow, error) {
 	file, err := os.Open(filepath.Join(dir, tools.File))
@@ -42,14 +48,11 @@ func selectUnits(all []tools.Flow, target Target, scripts map[string]flows.Scrip
 			if !wanted(o, target) {
 				continue
 			}
-			script, selected, err := scriptFor(f, o, target, scripts)
+			found, err := outcomeUnits(f, o, target, scripts)
 			if err != nil {
 				return nil, err
 			}
-			if !selected {
-				continue
-			}
-			units = append(units, Unit{Flow: f, Outcome: o, Script: script})
+			units = append(units, found...)
 		}
 	}
 	if len(units) == 0 {
@@ -62,18 +65,23 @@ func selectFlow(f tools.Flow, target Target) bool {
 	return f.Status.AtLeastBuilt() && (target.Flow == "" || f.ID == target.Flow)
 }
 
-func scriptFor(
+func outcomeUnits(
 	f tools.Flow, o tools.Outcome, target Target, scripts map[string]flows.Script,
-) (flows.Script, bool, error) {
-	script, ok := scripts[tools.ScriptName(f, o)]
-	if ok {
-		return script, true, nil
+) ([]Unit, error) {
+	var units []Unit
+	names := make([]string, 0, len(f.Commands))
+	for _, command := range f.Commands {
+		name := tools.ScriptName(f, command, o)
+		names = append(names, name)
+		if script, ok := scripts[name]; ok {
+			units = append(units, Unit{Flow: f, Command: command, Outcome: o, Script: script})
+		}
 	}
-	if target.Flow == "" && target.CrashAt != "" {
-		return nil, false, nil
+	if len(units) > 0 || (target.Flow == "" && target.CrashAt != "") {
+		return units, nil
 	}
-	return nil, false, fmt.Errorf("%w: flow %s outcome %s has no script %s in internal/testkit/flows",
-		fs.ErrNotExist, f.ID, o, tools.ScriptName(f, o))
+	return nil, fmt.Errorf("%w: flow %s outcome %s has no script %s in internal/testkit/flows",
+		fs.ErrNotExist, f.ID, o, strings.Join(names, " or "))
 }
 
 func workerEnv(units []Unit, env map[string][]string) ([]string, error) {

@@ -131,7 +131,11 @@ func renderFlowSwift(f flows.Flow) (string, error) {
 	b.WriteString("public enum Flow" + f.ID + "Outcome: Sendable, Hashable, CaseIterable {\n")
 	writeSwiftCaseList(&b, outcomes)
 	b.WriteString("\n    public static let flowID = " + swiftString(f.ID) + "\n")
-	b.WriteString("    public static let command = " + swiftString(f.Command) + "\n")
+	commands := make([]string, len(f.Commands))
+	for i, c := range f.Commands {
+		commands[i] = swiftString(c)
+	}
+	b.WriteString("    public static let commands: [String] = [" + strings.Join(commands, ", ") + "]\n")
 	b.WriteString("\n    public var code: String? {\n        switch self {\n")
 	var silent []string
 	for _, o := range outcomes {

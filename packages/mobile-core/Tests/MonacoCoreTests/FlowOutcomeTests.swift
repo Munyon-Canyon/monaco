@@ -3,7 +3,7 @@ import XCTest
 
 private protocol WireOutcome: CaseIterable, Equatable {
     static var flowID: String { get }
-    static var command: String { get }
+    static var commands: [String] { get }
     var code: String? { get }
     init?(code: String)
 }
@@ -34,14 +34,15 @@ final class FlowOutcomeTests: XCTestCase {
         XCTAssertNil(Flow01Outcome.interrupted.code)
         XCTAssertEqual(Flow01Outcome.unauthorized.code, "unauthorized")
         XCTAssertEqual(Flow01Outcome.allCases.last, .interrupted)
-        XCTAssertEqual(Flow01Outcome.command, "OpenSession")
+        XCTAssertEqual(Flow01Outcome.commands, ["OpenSession"])
     }
 
     private func assertRoundTrip<Outcome: WireOutcome>(
         _ type: Outcome.Type, file: StaticString = #filePath, line: UInt = #line
     ) {
         XCTAssertFalse(type.flowID.isEmpty, file: file, line: line)
-        XCTAssertFalse(type.command.isEmpty, file: file, line: line)
+        XCTAssertFalse(type.commands.isEmpty, file: file, line: line)
+        XCTAssertFalse(type.commands.contains(where: \.isEmpty), file: file, line: line)
         for outcome in type.allCases {
             if let code = outcome.code {
                 XCTAssertEqual(type.init(code: code), outcome, "\(type) \(code)", file: file, line: line)

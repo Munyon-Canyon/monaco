@@ -20,7 +20,7 @@ func TestRenderFlowSwift(t *testing.T) {
 	}{
 		{
 			"codes and two crash points collapse into one interrupted case",
-			flows.Flow{ID: "01", Command: "OpenSession", Outcomes: []flows.Outcome{
+			flows.Flow{ID: "01", Commands: []string{"OpenSession", "RefreshSession"}, Outcomes: []flows.Outcome{
 				"ok", "crash:before-commit", "Unauthorized", "InvalidInput", "crash:after-publish",
 			}},
 			flowsSwiftHeader + `
@@ -28,7 +28,7 @@ public enum Flow01Outcome: Sendable, Hashable, CaseIterable {
     case ok, unauthorized, invalidInput, interrupted
 
     public static let flowID = "01"
-    public static let command = "OpenSession"
+    public static let commands: [String] = ["OpenSession", "RefreshSession"]
 
     public var code: String? {
         switch self {
@@ -49,14 +49,14 @@ public enum Flow01Outcome: Sendable, Hashable, CaseIterable {
 `,
 		},
 		{
-			"only ok with a letter suffix id",
-			flows.Flow{ID: "01a", Command: "Ping", Outcomes: []flows.Outcome{"ok"}},
+			"only ok with a letter suffix id and one command",
+			flows.Flow{ID: "01a", Commands: []string{"Ping"}, Outcomes: []flows.Outcome{"ok"}},
 			flowsSwiftHeader + `
 public enum Flow01aOutcome: Sendable, Hashable, CaseIterable {
     case ok
 
     public static let flowID = "01a"
-    public static let command = "Ping"
+    public static let commands: [String] = ["Ping"]
 
     public var code: String? {
         switch self {

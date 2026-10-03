@@ -47,7 +47,7 @@ func CheckColumns(flows []Flow, env Env) []Problem {
 }
 
 func lookups(f Flow, env Env) []string {
-	var codes, points, commands []string
+	var codes, points []string
 	for _, o := range f.Outcomes {
 		if name, ok := o.CodeName(); ok {
 			codes = append(codes, name)
@@ -55,9 +55,6 @@ func lookups(f Flow, env Env) []string {
 		if point, ok := o.CrashPoint(); ok {
 			points = append(points, point)
 		}
-	}
-	if f.Command != "" {
-		commands = []string{f.Command}
 	}
 	moduleDir := func(_ Flow, module string) bool {
 		return isDir(env.Repo, path.Join(env.BackendDir, "internal/modules", module))
@@ -70,7 +67,7 @@ func lookups(f Flow, env Env) []string {
 	}{
 		{moduleDir, []string{f.Module}, "module %s has no directory under internal/modules"},
 		{env.Triggers, []string{f.Trigger}, "trigger %s is not a route, subject or poller"},
-		{env.Commands, commands, "command %s is not a type in internal/modules/" + f.Module + "/app"},
+		{env.Commands, f.Commands, "command %s is not a type in internal/modules/" + f.Module + "/app"},
 		{env.Events, f.Events, "event %s is not in the events registry"},
 		{env.Consumers, f.Consumers, "consumer %s is not a registered durable"},
 		{env.Codes, codes, "outcome %s is not an errs code name"},
