@@ -9,6 +9,7 @@ import (
 
 	busevents "github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	governance "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
@@ -61,15 +62,37 @@ func (b *balancesFake) setFee(mint platform.SolanaAddress, bps uint16, maxFee ui
 	b.mints[mint] = solana.MintConfig{TransferFeeBps: bps, MaxFee: money.NewBaseUnits(maxFee, 8)}
 }
 
+type proposalsFake struct {
+	testkit.Faults
+	mu     sync.Mutex
+	status governance.Status
+}
+
+func (p *proposalsFake) Status(context.Context, ids.ProposalID) (governance.Status, error) {
+	if err := p.Check("Status"); err != nil {
+		return "", err
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.status, nil
+}
+
+func (p *proposalsFake) set(status governance.Status) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.status = status
+}
+
 type engineEnv struct {
 	*layerEnv
-	cabal    ids.CabalID
-	wallet   cabal.TreasuryWallet
-	catalog  *marketfake.CatalogFake
-	cabals   *fakes.Cabal
-	pauses   *fakes.Pauses
-	balances *balancesFake
-	ledger   *chainfake.Ledger
+	cabal     ids.CabalID
+	wallet    cabal.TreasuryWallet
+	catalog   *marketfake.CatalogFake
+	cabals    *fakes.Cabal
+	pauses    *fakes.Pauses
+	proposals *proposalsFake
+	balances  *balancesFake
+	ledger    *chainfake.Ledger
 }
 
 func newEngineEnv(t *testing.T) *engineEnv {
@@ -82,6 +105,7 @@ func newEngineEnv(t *testing.T) *engineEnv {
 	e.catalog = marketfake.NewCatalog(marketfake.Fixtures()...)
 	e.seedCabal(cabal.StatusActive, 100)
 	e.pauses = fakes.NewPauses()
+	e.proposals = &proposalsFake{status: governance.StatusPassed}
 	e.ledger = chainfake.NewLedger(e.clk)
 	e.ledger.SetTokens(e.wallet.Address, usdcToken(), 100_000_000)
 	e.balances = &balancesFake{ledger: e.ledger, mints: map[platform.SolanaAddress]solana.MintConfig{}}
@@ -104,7 +128,7 @@ func (e *engineEnv) quote(in, out platform.Mint, outAmount uint64, routable bool
 
 func (e *engineEnv) ports() app.EnginePorts {
 	return app.EnginePorts{
-		Catalog: e.catalog, Cabals: e.cabals, Pauses: e.pauses, Proposals: nil, Balances: e.balances,
+		Catalog: e.catalog, Cabals: e.cabals, Pauses: e.pauses, Proposals: e.proposals, Balances: e.balances,
 	}
 }
 

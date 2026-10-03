@@ -54,7 +54,7 @@ A refused check appends `trade.blocked` with the code and the numbers it compare
 
 An upstream failure while running the checks is not a refusal. Jupiter, Privy or RPC down returns an `Unavailable` code (`JupiterUnavailable` and the like), which is retryable, so `bus.Dispatch` naks with backoff and the checks run again on redelivery ([Surfacing](backend-platform.md#surfacing)). After `MaxDeliver` the message goes to `DEADLETTER`.
 
-**Hand-off.** If all checks pass, the engine calls the swap layer with the proposal id (or intent id) as the idempotency key.
+**Hand-off.** If all checks pass, the engine calls the swap layer with the proposal id (or intent id) as the idempotency key. Once the `created` row commits, the engine reads the proposal's status through governance's query port. If the proposal is no longer `passed`, the row fails with `source_cancelled` before anything is signed. A void that lands after the row exists is refused because a live swap exists, so the two cannot race. If that read fails, the row fails with `never_submitted` and the bus naks, so the redelivery makes a fresh claim.
 
 ### Stage 3: swap layer
 
@@ -83,7 +83,7 @@ The status is a Go type with a `transitions` table and a pure `Next(from, event)
 
 - `tx_signature` is unique. `execute_request_id` is unique.
 - At most one `swaps` row per proposal (or intent) in a non-`failed` state: a partial unique index on the source id `WHERE status <> 'failed'`.
-- Status only moves forward. No path writes `submitted` back to `created`, or `confirmed` to anything. Only the sweeper moves `created` to `failed`.
+- Status only moves forward. No path writes `submitted` back to `created`, or `confirmed` to anything. Only the sweeper (`never_submitted`) and the engine's hand-off (`source_cancelled`, or `never_submitted` when the status read fails) move `created` to `failed`.
 - The `events` table is append-only and is the audit log. The swap status is a projection of the latest event.
 - `events` rows are written only inside the same transaction as the state change they announce. Nothing publishes to NATS except the relay.
 
