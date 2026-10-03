@@ -1694,6 +1694,7 @@ components:
         - post_hog_unavailable
         - pot_exceeded
         - pot_value_zero
+        - price_unavailable
         - privy_unavailable
         - proposal_closed
         - proposal_not_found
