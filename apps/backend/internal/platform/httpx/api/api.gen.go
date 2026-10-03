@@ -69,6 +69,9 @@ const (
 	NotCabalMember             ErrorCode = "not_cabal_member"
 	NotFound                   ErrorCode = "not_found"
 	NotProposer                ErrorCode = "not_proposer"
+	OnrampInvalidTransition    ErrorCode = "onramp_invalid_transition"
+	OnrampLinkExpired          ErrorCode = "onramp_link_expired"
+	OnrampLinkInvalid          ErrorCode = "onramp_link_invalid"
 	Panic                      ErrorCode = "panic"
 	PhoneNotLinked             ErrorCode = "phone_not_linked"
 	PhotoInvalid               ErrorCode = "photo_invalid"
@@ -229,6 +232,12 @@ func (e ErrorCode) Valid() bool {
 	case NotFound:
 		return true
 	case NotProposer:
+		return true
+	case OnrampInvalidTransition:
+		return true
+	case OnrampLinkExpired:
+		return true
+	case OnrampLinkInvalid:
 		return true
 	case Panic:
 		return true

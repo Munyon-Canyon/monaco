@@ -1,4 +1,4 @@
-h1:KeQ5GDorPUunI1WOX6+y1oX6M9tZzi1RBNPVhSttdsE=
+h1:X5iSTLdXkquM6QIvEHfAR0YbZ2TjVxgLrRx6nkCL2vo=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
@@ -41,3 +41,4 @@ h1:KeQ5GDorPUunI1WOX6+y1oX6M9tZzi1RBNPVhSttdsE=
 20261004123816_social_feed_membership_event_order.sql h1:HLZ9hoORToVbwXWxkPszMAEqM5ZKGi/jvRiGAfgk2Ng=
 20261004130000_ranking_tables.sql h1:bPTrPrzehQWDEOsgKnvs5N3LKMdkx+t+frlCY/hxyD8=
 20261004230818_funding_cabal_pauses.sql h1:vApLrUFgvnphychtnVyG/rL3v1CscZFy27ODs59CH5c=
+20261004232840_funding_onramp_sessions.sql h1:K4dOTKphHCNqhY7LASSAnYfZq/GTVUx9SD4megY+Wqc=

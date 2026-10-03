@@ -180,6 +180,20 @@ Subject `events.follow.removed`, version 1.
 | `followee_id` | `uuid.UUID` |
 | `removed_at` | `time.Time` |
 
+## `onramp.status_changed`
+
+Subject `events.onramp.status_changed`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `session_id` | `uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+| `from` | `*string` |
+| `to` | `string` |
+| `suggested_amount_micros` | `*money.Micros` |
+| `provider` | `*string` |
+
 ## `price.tick`
 
 Core NATS subject `price.tick`, version 1, never stored.

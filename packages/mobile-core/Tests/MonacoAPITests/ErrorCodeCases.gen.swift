@@ -63,6 +63,9 @@ extension Components.Schemas.ErrorCode {
         case .notCabalMember: true
         case .notFound: true
         case .notProposer: true
+        case .onrampInvalidTransition: true
+        case .onrampLinkExpired: true
+        case .onrampLinkInvalid: true
         case .panic: true
         case .phoneNotLinked: true
         case .photoInvalid: true

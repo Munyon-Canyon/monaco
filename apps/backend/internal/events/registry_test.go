@@ -379,3 +379,19 @@ func TestUserEventsAggregateOnTheUser(t *testing.T) {
 		}
 	}
 }
+
+func TestOnrampStatusChangedAggregatesOnTheSessionNotTheUser(t *testing.T) {
+	t.Parallel()
+	session, err := uuid.Parse("01890a5d-ac96-774b-bcce-b302099a8057")
+	if err != nil {
+		t.Fatal(err)
+	}
+	user, err := uuid.Parse("01890a5d-ac96-774b-bcce-b302099a8058")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ev Event = OnrampStatusChanged{V: 1, SessionID: session, UserID: user, To: "created"}
+	if ev.Type() != TypeOnrampStatusChanged || ev.AggregateType() != "onramp_session" || ev.AggregateID() != session {
+		t.Fatalf("OnrampStatusChanged aggregate = %s %s %s", ev.Type(), ev.AggregateType(), ev.AggregateID())
+	}
+}
