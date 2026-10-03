@@ -67,6 +67,7 @@ func Scripts() map[string]Script {
 	maps.Copy(scripts, f10Scripts())
 	maps.Copy(scripts, f13Scripts())
 	maps.Copy(scripts, f28Scripts())
+	maps.Copy(scripts, f03InviteScripts())
 	return scripts
 }
 

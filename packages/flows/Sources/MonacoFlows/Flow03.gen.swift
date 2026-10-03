@@ -2,10 +2,11 @@
 
 public enum Flow03Outcome: Sendable, Hashable, CaseIterable {
     case ok, invalidInput, unauthorized, cabalNotFound, cabalBanned, alreadyMember, joinNeedsRequest, requestNotNeeded,
-        requestPending, notCabalCreator, accessRequestNotPending, cannotRevokeAccess
+        requestPending, notCabalCreator, accessRequestNotPending, cannotRevokeAccess, userNotFound, inviteExpired,
+        notCabalMember
 
     public static let flowID = "03"
-    public static let commands: [String] = ["JoinCabal", "RequestAccess", "DecideAccess", "RevokeAccess"]
+    public static let commands: [String] = ["JoinCabal", "RequestAccess", "DecideAccess", "RevokeAccess", "InviteMember"]
 
     public var code: String? {
         switch self {
@@ -21,6 +22,9 @@ public enum Flow03Outcome: Sendable, Hashable, CaseIterable {
         case .notCabalCreator: "not_cabal_creator"
         case .accessRequestNotPending: "access_request_not_pending"
         case .cannotRevokeAccess: "cannot_revoke_access"
+        case .userNotFound: "user_not_found"
+        case .inviteExpired: "invite_expired"
+        case .notCabalMember: "not_cabal_member"
         }
     }
 
@@ -37,6 +41,9 @@ public enum Flow03Outcome: Sendable, Hashable, CaseIterable {
         case "not_cabal_creator": self = .notCabalCreator
         case "access_request_not_pending": self = .accessRequestNotPending
         case "cannot_revoke_access": self = .cannotRevokeAccess
+        case "user_not_found": self = .userNotFound
+        case "invite_expired": self = .inviteExpired
+        case "not_cabal_member": self = .notCabalMember
         default: return nil
         }
     }
