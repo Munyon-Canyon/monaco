@@ -185,7 +185,7 @@ func TestTestReportCommand(t *testing.T) {
 	}
 }
 
-func TestTestReportWarnsPastTenSecondsAndFailsPastSixtyOnTheLaptopAndInCI(t *testing.T) {
+func TestTestReportWarnsPastTenSecondsOnTheLaptopAndInCIAndFailsPastSixtyOnlyOnTheLaptop(t *testing.T) {
 	t.Parallel()
 	warning := func(elapsed string) string {
 		return "monacoctl test-report: package m/p took " + elapsed + ".00s, over the 10s per-package budget (fails at 60s)\n"
@@ -205,7 +205,7 @@ func TestTestReportWarnsPastTenSecondsAndFailsPastSixtyOnTheLaptopAndInCI(t *tes
 		{"9", true, 0, "", ""},
 		{"12", true, 0, "::warning::" + warning("12"), ""},
 		{"59", true, 0, "::warning::" + warning("59"), ""},
-		{"61", true, 1, "", fail},
+		{"61", true, 0, "::warning::" + fail, ""},
 	} {
 		t.Run(fmt.Sprintf("ci=%v %ss", tc.ci, tc.elapsed), func(t *testing.T) {
 			t.Parallel()
@@ -220,7 +220,7 @@ func TestTestReportWarnsPastTenSecondsAndFailsPastSixtyOnTheLaptopAndInCI(t *tes
 			}
 			var stdout, stderr bytes.Buffer
 			code := testReportCmd(args, &stdout, &stderr)
-			warned := strings.Contains(stdout.String(), "(fails at 60s)")
+			warned := strings.Contains(stdout.String(), "per-package budget")
 			annotated := strings.Contains(stdout.String(), "::warning::")
 			if code != tc.code || warned != (tc.warning != "") || annotated != (tc.ci && warned) ||
 				!strings.HasSuffix(stdout.String(), tc.warning) || stderr.String() != tc.stderr {

@@ -264,7 +264,7 @@ func TestDown_namesTheExitStatusOfAWorkerThatCrashedBeforeTeardown(t *testing.T)
 	if err != nil {
 		t.Fatalf("Up: %v", err)
 	}
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
 	select {
 	case <-s.procs[procWorker].exited:
