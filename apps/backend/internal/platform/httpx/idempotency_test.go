@@ -130,7 +130,7 @@ paths:
 
 func TestIdempotency_onlyAnOperationDeclaringXIdempotentFalseSkipsTheKey(t *testing.T) {
 	t.Parallel()
-	c, err := loadContract([]byte(optOutSpec))
+	c, err := LoadContract([]byte(optOutSpec))
 	if err != nil {
 		t.Fatal(err)
 	}

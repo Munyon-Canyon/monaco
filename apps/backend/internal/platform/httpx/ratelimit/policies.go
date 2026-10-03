@@ -52,6 +52,11 @@ func Load(spec []byte) (Policies, error) {
 	if err != nil {
 		return Policies{}, errs.Wrap(err, errs.CodeInvalidConfig, op)
 	}
+	return FromDocument(doc)
+}
+
+func FromDocument(doc *openapi3.T) (Policies, error) {
+	const op = "ratelimit.Load"
 	routes := map[string]route{}
 	for path, item := range doc.Paths.Map() {
 		for method, operation := range item.Operations() {
