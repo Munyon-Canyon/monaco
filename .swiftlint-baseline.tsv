@@ -243,7 +243,7 @@ no_comments	apps/mobile/MonacoTests/SessionTokenLedgerTests.swift	11
 no_comments	apps/mobile/MonacoTests/StockRedesignTests.swift	16
 no_comments	apps/mobile/MonacoTests/StocksTabModelTests.swift	30
 no_comments	apps/mobile/MonacoTests/WelcomeRedesignTests.swift	11
-no_comments	apps/mobile/MonacoUITests/AssetDetailCardsUITests.swift	76
+no_comments	apps/mobile/MonacoUITests/AssetDetailCardsUITests.swift	73
 no_comments	apps/mobile/MonacoUITests/AssetDetailSampleUITests.swift	80
 no_comments	apps/mobile/MonacoUITests/CabalsTabSampleUITests.swift	59
 no_comments	apps/mobile/MonacoUITests/ChatClosedSampleUITests.swift	27
@@ -268,7 +268,6 @@ no_comments	packages/mobile-core/Sources/MonacoAPI/Stream/HintFilter.swift	3
 no_comments	packages/mobile-core/Sources/MonacoAPI/Stream/HintSource.swift	1
 no_comments	packages/mobile-core/Sources/MonacoAPI/Stream/HintStream.swift	7
 no_comments	packages/mobile-core/Sources/MonacoAPI/ToastCopy.swift	1
-no_comments	packages/mobile-core/Sources/MonacoCore/AssetAboutCopy.swift	25
 no_comments	packages/mobile-core/Sources/MonacoCore/AssetActivityCopy.swift	19
 no_comments	packages/mobile-core/Sources/MonacoCore/AssetChartSeries.swift	95
 no_comments	packages/mobile-core/Sources/MonacoCore/AssetPositionSummary.swift	55
@@ -329,7 +328,7 @@ no_comments	packages/mobile-core/Tests/MonacoAPITests/TimeoutMiddlewareTests.swi
 no_comments	packages/mobile-core/Tests/MonacoAPITests/Watched.swift	2
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/APITelemetryTests.swift	5
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/AssetChartSeriesTests.swift	39
-no_comments	packages/mobile-core/Tests/MonacoCoreTests/AssetDetailCardsTests.swift	51
+no_comments	packages/mobile-core/Tests/MonacoCoreTests/AssetDetailCardsTests.swift	45
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/AssetSocialDTOTests.swift	12
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/CabalPictureTests.swift	16
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/CabalPositionRowFiguresTests.swift	1

@@ -82,7 +82,6 @@ nonisolated final class AssetDetailCardsUITests: XCTestCase {
 
         for identifier in [
             "asset-detail-position",
-            "asset-detail-about",
             "asset-detail-activity",
         ] {
             XCTAssertTrue(scrollTo(app, identifier), "\(identifier) never appeared")
@@ -171,8 +170,6 @@ nonisolated final class AssetDetailCardsUITests: XCTestCase {
 
         XCTAssertFalse(anyElement(app, "asset-detail-position").exists, "the position card drew with nothing to show")
         XCTAssertFalse(anyElement(app, "asset-detail-activity").exists, "the activity card drew with nothing to show")
-        // The market cards do not depend on the member's cabals and must still be there.
-        XCTAssertTrue(anyElement(app, "asset-detail-about").exists, "the About card should not depend on cabals")
         attachScreenshot(app, name: "asset-detail-no-cabals")
     }
 
@@ -246,18 +243,6 @@ nonisolated final class AssetDetailCardsUITests: XCTestCase {
 
         XCTAssertTrue(scrollTo(app, "asset-position-unvalued"), "the card never said a cabal could not be priced")
         attachScreenshot(app, name: "asset-detail-cabals-partial")
-    }
-
-    /// The disclosure is never inside the clamped paragraph, so "Show more" being
-    /// collapsed cannot hide it.
-    @MainActor
-    func testTheTrackerDisclosureIsVisibleWithoutExpandingTheAbout() throws {
-        let app = launch("open")
-        waitForScreen(app, "open")
-
-        XCTAssertTrue(scrollTo(app, "asset-detail-about"), "the About card never appeared")
-        XCTAssertTrue(anyElement(app, "asset-about-disclosure").exists, "the tracker disclosure is not on screen")
-        XCTAssertTrue(anyElement(app, "asset-about-toggle").exists, "the body is not clamped with a Show more")
     }
 
     /// The position card was the only one below the chart that kept its side-by-side
