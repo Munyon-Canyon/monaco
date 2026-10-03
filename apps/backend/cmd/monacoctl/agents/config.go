@@ -22,15 +22,18 @@ var (
 )
 
 const (
-	configPath    = ".monaco/agents.toml"
-	defaultLabel  = "merge-queue"
-	budgetSection = "[check.budget]"
-	budgetPrefix  = "check.budget."
-	checkSection  = "[check]"
-	batchSection  = "[batch]"
-	checkPrefix   = "check."
-	batchPrefix   = "batch."
-	defaultSlots  = 2
+	configPath      = ".monaco/agents.toml"
+	defaultLabel    = "merge-queue"
+	budgetSection   = "[check.budget]"
+	budgetPrefix    = "check.budget."
+	checkSection    = "[check]"
+	batchSection    = "[batch]"
+	checkPrefix     = "check."
+	batchPrefix     = "batch."
+	defaultSlots    = 2
+	defaultLoad     = 12
+	dispatchSection = "[dispatch]"
+	dispatchPrefix  = "dispatch."
 )
 
 func defaultBudget() map[string]time.Duration {
@@ -54,12 +57,13 @@ type Config struct {
 	Milestone            string
 	QueueLabel           string
 	Slots                int
+	MaxLoad              int
 	Budget               map[string]time.Duration
 	Shared               []string
 }
 
 func parseConfig(r io.Reader) (Config, error) {
-	c := Config{Budget: defaultBudget(), Slots: defaultSlots}
+	c := Config{Budget: defaultBudget(), Slots: defaultSlots, MaxLoad: defaultLoad}
 	section := ""
 	seen := map[string]bool{}
 	strs := map[string]*string{
@@ -68,7 +72,7 @@ func parseConfig(r io.Reader) (Config, error) {
 	}
 	ints := map[string]*int{
 		"tracking": &c.Tracking, "lanes": &c.Lanes, "batch.size": &c.Batch,
-		"verifier_installation": &c.VerifierInstallation, "check.slots": &c.Slots,
+		"verifier_installation": &c.VerifierInstallation, "check.slots": &c.Slots, "dispatch.max_load": &c.MaxLoad,
 	}
 	lists := map[string]*[]string{"batch.shared": &c.Shared}
 	lines, err := logicalLines(r)
@@ -95,6 +99,10 @@ func parseConfig(r io.Reader) (Config, error) {
 	if c.Slots < 1 {
 		return Config{}, detailErr(errs.CodeDecodeFailed, "monacoctl.agents.config",
 			fmt.Sprintf("%s: check.slots: want at least 1, got %d", configPath, c.Slots))
+	}
+	if c.MaxLoad <= 0 {
+		return Config{}, detailErr(errs.CodeDecodeFailed, "monacoctl.agents.config",
+			fmt.Sprintf("%s: dispatch.max_load: want above 0, got %d", configPath, c.MaxLoad))
 	}
 	if c.QueueLabel == "" {
 		c.QueueLabel = defaultLabel
@@ -159,6 +167,9 @@ func applyConfigLine(
 		return nil
 	case line == checkSection:
 		*section = checkPrefix
+		return nil
+	case line == dispatchSection:
+		*section = dispatchPrefix
 		return nil
 	case line == batchSection:
 		*section = batchPrefix

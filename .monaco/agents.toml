@@ -3,7 +3,7 @@ repo = "Munyon-Canyon/monaco"
 # "auto" is MONACO_FEATURE_BRANCH, else the FEATURE_BRANCH repo variable, which each checkpoint moves to <name>-<N+1>.
 feature_branch = "auto"
 tracking = 508
-lanes = 6
+lanes = 3
 verifier_app = "5101392"
 verifier_installation = 166018497
 milestone = "m8"
@@ -41,6 +41,10 @@ shared = [
   # api/spec/<module>.yaml is owned by its module's tickets and is not listed.
   "apps/backend/api/openapi.yaml",
 ]
+
+[dispatch]
+# dispatch refuses while the 1-minute load average is above this. --urgent bypasses it.
+max_load = 12
 
 [check]
 # The most `agents check` runs that execute rows at once on this machine; later runs queue in arrival order.

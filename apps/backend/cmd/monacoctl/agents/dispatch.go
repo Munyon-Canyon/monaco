@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -125,7 +126,96 @@ func (env *Env) dispatchable(ctx context.Context, in dispatchIn, stdout io.Write
 	if err := env.blockersClear(ctx, in.ticket); err != nil {
 		return err
 	}
-	return env.lanesOpen(ctx, stdout)
+	if err := env.lanesOpen(ctx, stdout); err != nil {
+		return err
+	}
+	return env.gates(ctx, in, stdout)
+}
+
+const queueWindow = 60 * time.Minute
+
+type gate struct {
+	name string
+	run  func(context.Context) (string, error)
+}
+
+func (env *Env) gates(ctx context.Context, in dispatchIn, stdout io.Writer) error {
+	if in.urgent {
+		if in.dry {
+			_, _ = io.WriteString(stdout, "dry-run: load gate and queue breaker bypassed by --urgent\n")
+		}
+		return nil
+	}
+	for _, g := range []gate{{"load", env.loadGate}, {"queue", env.queueGate}} {
+		ok, err := g.run(ctx)
+		switch {
+		case err == nil && in.dry:
+			_, _ = fmt.Fprintf(stdout, "dry-run: %s gate would pass: %s\n", g.name, ok)
+		case err != nil && in.dry:
+			_, _ = fmt.Fprintf(stdout, "dry-run: %s gate would refuse: %s\n", g.name, cliText(err))
+		case err != nil:
+			return err
+		}
+	}
+	return nil
+}
+
+func (env *Env) loadGate(ctx context.Context) (string, error) {
+	load := env.Load
+	if load == nil {
+		load = loadAverage
+	}
+	v, err := load(ctx, env.GOOS)
+	if err != nil {
+		return "", err
+	}
+	if v > float64(env.Config.MaxLoad) {
+		return "", detailErr(errs.CodeInvalidInput, "monacoctl.agents.dispatch", fmt.Sprintf(
+			"load1 %.1f is over max_load %d; wait or dispatch with --urgent", v, env.Config.MaxLoad))
+	}
+	return fmt.Sprintf("load1 %.1f, max_load %d", v, env.Config.MaxLoad), nil
+}
+
+func (env *Env) queueGate(ctx context.Context) (string, error) {
+	data, err := env.watchData(ctx)
+	if err != nil {
+		return "", err
+	}
+	jobs, byJob := recentFailures(data.drafts, env.Now().Add(-queueWindow))
+	for _, job := range jobs {
+		if nums := byJob[job]; len(nums) >= 2 {
+			slices.Sort(nums)
+			refs := make([]string, len(nums))
+			for i, n := range nums {
+				refs[i] = "#" + strconv.Itoa(n)
+			}
+			return "", detailErr(errs.CodeInvalidInput, "monacoctl.agents.dispatch", fmt.Sprintf(
+				"queue is failing on %s (drafts %s); fix the pipeline first, or dispatch the fix with --urgent",
+				job, strings.Join(refs, ", ")))
+		}
+	}
+	return "no job failed in two queue drafts in the last 60 minutes", nil
+}
+
+func recentFailures(drafts []queueDraft, since time.Time) ([]string, map[string][]int) {
+	byJob := map[string][]int{}
+	var jobs []string
+	for _, d := range drafts {
+		cs := d.commits()
+		if d.State == "OPEN" || !strings.HasPrefix(d.HeadRefName, draftPrefix) || !d.UpdatedAt.After(since) ||
+			len(cs) == 0 {
+			continue
+		}
+		job := cs[len(cs)-1].failedJob().Name
+		if job == "" {
+			continue
+		}
+		if len(byJob[job]) == 0 {
+			jobs = append(jobs, job)
+		}
+		byJob[job] = append(byJob[job], d.Number)
+	}
+	return jobs, byJob
 }
 
 func (env *Env) logUrgent(ctx context.Context, in dispatchIn, stdout io.Writer) error {
