@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 )
@@ -13,4 +14,7 @@ type MintFacts interface {
 type MintFact struct {
 	Decimals                     uint8
 	MultiplierNum, MultiplierDen uint64
+
+	NextMultiplierNum, NextMultiplierDen uint64
+	NextMultiplierAt                     time.Time
 }

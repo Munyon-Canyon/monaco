@@ -10,67 +10,20 @@ import (
 	"time"
 )
 
-const storeChainFacts = `-- name: StoreChainFacts :many
-UPDATE assets SET
-  decimals = f.chain_decimals,
-  ui_multiplier_num = f.multiplier_num,
-  ui_multiplier_den = f.multiplier_den,
-  chain_checked_at = $1::timestamptz,
-  updated_at = $1::timestamptz
-FROM ROWS FROM (
-  unnest($2::text[]), unnest($3::smallint[]),
-  unnest($4::smallint[]), unnest($5::bigint[]),
-  unnest($6::bigint[])
-) AS f (mint, issuer_decimals, chain_decimals, multiplier_num, multiplier_den)
-WHERE assets.mint = f.mint AND assets.chain_checked_at IS NULL AND assets.decimals = f.issuer_decimals
-RETURNING assets.mint
+const assetsDueForChainCheck = `-- name: AssetsDueForChainCheck :many
+SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at, ui_multiplier_next_num, ui_multiplier_next_den, ui_multiplier_next_at FROM assets
+WHERE chain_checked_at IS NULL OR chain_checked_at < $1::timestamptz
+ORDER BY chain_checked_at NULLS FIRST, coalesce(tradable_override, issuer_tradable) DESC, popular_rank NULLS LAST, symbol
+LIMIT $2
 `
 
-type StoreChainFactsParams struct {
-	Now            time.Time
-	Mints          []string
-	IssuerDecimals []int16
-	ChainDecimals  []int16
-	MultiplierNums []int64
-	MultiplierDens []int64
+type AssetsDueForChainCheckParams struct {
+	StaleBefore time.Time
+	MaxAssets   int32
 }
 
-func (q *Queries) StoreChainFacts(ctx context.Context, arg StoreChainFactsParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, storeChainFacts,
-		arg.Now,
-		arg.Mints,
-		arg.IssuerDecimals,
-		arg.ChainDecimals,
-		arg.MultiplierNums,
-		arg.MultiplierDens,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var mint string
-		if err := rows.Scan(&mint); err != nil {
-			return nil, err
-		}
-		items = append(items, mint)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const uncheckedAssets = `-- name: UncheckedAssets :many
-SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at FROM assets
-WHERE chain_checked_at IS NULL
-ORDER BY coalesce(tradable_override, issuer_tradable) DESC, popular_rank NULLS LAST, symbol
-LIMIT $1
-`
-
-func (q *Queries) UncheckedAssets(ctx context.Context, maxAssets int32) ([]Asset, error) {
-	rows, err := q.db.Query(ctx, uncheckedAssets, maxAssets)
+func (q *Queries) AssetsDueForChainCheck(ctx context.Context, arg AssetsDueForChainCheckParams) ([]Asset, error) {
+	rows, err := q.db.Query(ctx, assetsDueForChainCheck, arg.StaleBefore, arg.MaxAssets)
 	if err != nil {
 		return nil, err
 	}
@@ -96,10 +49,83 @@ func (q *Queries) UncheckedAssets(ctx context.Context, maxAssets int32) ([]Asset
 			&i.FirstSeenAt,
 			&i.UpdatedAt,
 			&i.ChainCheckedAt,
+			&i.UiMultiplierNextNum,
+			&i.UiMultiplierNextDen,
+			&i.UiMultiplierNextAt,
 		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const storeChainFacts = `-- name: StoreChainFacts :many
+UPDATE assets SET
+  decimals = f.chain_decimals,
+  ui_multiplier_num = f.multiplier_num,
+  ui_multiplier_den = f.multiplier_den,
+  ui_multiplier_next_num = CASE WHEN f.next_num = 0 THEN NULL ELSE f.next_num END,
+  ui_multiplier_next_den = CASE WHEN f.next_num = 0 THEN NULL ELSE f.next_den END,
+  ui_multiplier_next_at = CASE WHEN f.next_num = 0 THEN NULL ELSE f.next_at END,
+  chain_checked_at = $1::timestamptz,
+  updated_at = $1::timestamptz
+FROM ROWS FROM (
+  unnest($2::text[]), unnest($3::smallint[]),
+  unnest($4::smallint[]), unnest($5::bigint[]),
+  unnest($6::bigint[]), unnest($7::bigint[]),
+  unnest($8::bigint[]), unnest($9::timestamptz[]),
+  unnest($10::bool[]), unnest($11::timestamptz[])
+) AS f (
+  mint, issuer_decimals, chain_decimals, multiplier_num, multiplier_den, next_num, next_den, next_at, recheck, checked_at
+)
+WHERE assets.mint = f.mint AND assets.decimals = f.issuer_decimals
+  AND CASE WHEN f.recheck THEN assets.chain_checked_at = f.checked_at ELSE assets.chain_checked_at IS NULL END
+RETURNING assets.mint
+`
+
+type StoreChainFactsParams struct {
+	Now            time.Time
+	Mints          []string
+	IssuerDecimals []int16
+	ChainDecimals  []int16
+	MultiplierNums []int64
+	MultiplierDens []int64
+	NextNums       []int64
+	NextDens       []int64
+	NextAts        []time.Time
+	Rechecks       []bool
+	CheckedAts     []time.Time
+}
+
+func (q *Queries) StoreChainFacts(ctx context.Context, arg StoreChainFactsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, storeChainFacts,
+		arg.Now,
+		arg.Mints,
+		arg.IssuerDecimals,
+		arg.ChainDecimals,
+		arg.MultiplierNums,
+		arg.MultiplierDens,
+		arg.NextNums,
+		arg.NextDens,
+		arg.NextAts,
+		arg.Rechecks,
+		arg.CheckedAts,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var mint string
+		if err := rows.Scan(&mint); err != nil {
+			return nil, err
+		}
+		items = append(items, mint)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

@@ -410,16 +410,22 @@ func scaledMint(multiplier, next string, nextFrom time.Time) string {
 
 func TestMintConfig_xStocksReadTheScaledUIMultiplierInForce(t *testing.T) {
 	t.Parallel()
-	for mint, multiplier := range map[chain.SolanaAddress]solana.Multiplier{
-		aaplx: {Num: 10_032_690_125_398_187, Den: 10_000_000_000_000_000},
-		"XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB": unscaled(),
-		"XsCAXu7xTaZMG9b9KJhNWYapuvNjxPuE4SysZq8uvMq": {Num: 10_094_580_396_692_463, Den: 10_000_000_000_000_000},
+	for mint, schedule := range map[chain.SolanaAddress]struct {
+		multiplier solana.Multiplier
+		from       int64
+	}{
+		aaplx: {solana.Multiplier{Num: 10_032_690_125_398_187, Den: 10_000_000_000_000_000}, 1786149000},
+		"XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB": {unscaled(), 0},
+		"XsCAXu7xTaZMG9b9KJhNWYapuvNjxPuE4SysZq8uvMq": {
+			solana.Multiplier{Num: 10_094_580_396_692_463, Den: 10_000_000_000_000_000}, 1788309000,
+		},
 	} {
 		c, u, _ := overFakes(t)
 		got, err := c.MintConfig(t.Context(), mint)
 		want := solana.MintConfig{
 			Mint: chain.Mint{Address: mint, Decimals: 8}, TokenProgram: chain.SPL2022Program,
-			MaxFee: money.NewBaseUnits(0, 8), UIMultiplier: multiplier,
+			MaxFee: money.NewBaseUnits(0, 8), UIMultiplier: schedule.multiplier,
+			NextUIMultiplier: schedule.multiplier, NextUIMultiplierAt: time.Unix(schedule.from, 0).UTC(),
 		}
 		if err != nil || got != want {
 			t.Fatalf("MintConfig(%s) = %+v, %v, want %+v, the multiplier whose effective time has passed", mint, got,
@@ -437,8 +443,10 @@ func TestMintConfig_newMultiplierTakesOverAtItsEffectiveSecond(t *testing.T) {
 	clk := testkit.NewClock(start)
 	c := solana.New(testConfig(), clk, httpclient.WithTransport(result(scaledMint("1.5", "2", start.Add(time.Hour)))))
 	got, err := c.MintConfig(t.Context(), usdcMint)
-	if err != nil || got.UIMultiplier != (solana.Multiplier{Num: 3, Den: 2}) {
-		t.Fatalf("an hour before the switch: MintConfig = %+v, %v, want the current 3/2", got, err)
+	if err != nil || got.UIMultiplier != (solana.Multiplier{Num: 3, Den: 2}) ||
+		got.NextUIMultiplier != (solana.Multiplier{Num: 2, Den: 1}) || !got.NextUIMultiplierAt.Equal(start.Add(time.Hour)) {
+		t.Fatalf("an hour before the switch: MintConfig = %+v, %v, want the current 3/2 and 2/1 scheduled in an hour",
+			got, err)
 	}
 	clk.Advance(time.Hour)
 	got, err = c.MintConfig(t.Context(), usdcMint)
@@ -494,7 +502,7 @@ func TestMintConfig_readsAnyDecimalMultiplierAsTheSameValueInLowestTerms(t *test
 
 func TestMintConfig_refusesAMultiplierItCannotReadExactly(t *testing.T) {
 	t.Parallel()
-	past := clock.Real{}.Now().Add(-time.Hour)
+	past, future := clock.Real{}.Now().Add(-time.Hour), clock.Real{}.Now().Add(time.Hour)
 	for _, raw := range []string{
 		"", "0", "0.000", ".5", "-1", "+1", " 1", "1,5", "1.2.3", "1e-7", "NaN", "inf",
 		"0.00000000000000000001", "18446744073709551616",
@@ -502,6 +510,10 @@ func TestMintConfig_refusesAMultiplierItCannotReadExactly(t *testing.T) {
 		_, err := client(result(scaledMint("1", raw, past))).MintConfig(t.Context(), usdcMint)
 		if errs.CodeOf(err) != errs.CodeDecodeFailed {
 			t.Fatalf("multiplier %q: err = %v, want decode_failed", raw, err)
+		}
+		_, err = client(result(scaledMint(raw, "1", future))).MintConfig(t.Context(), usdcMint)
+		if errs.CodeOf(err) != errs.CodeDecodeFailed {
+			t.Fatalf("current multiplier %q: err = %v, want decode_failed", raw, err)
 		}
 	}
 	notAnObject := `{"value":{"owner":"` + string(chain.SPL2022Program) + `","data":{"parsed":{"type":"mint","info":{` +
