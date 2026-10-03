@@ -11,6 +11,7 @@ private protocol WireOutcome: CaseIterable, Equatable {
 extension Flow00Outcome: WireOutcome {}
 extension Flow01Outcome: WireOutcome {}
 extension Flow02Outcome: WireOutcome {}
+extension Flow03Outcome: WireOutcome {}
 extension Flow10Outcome: WireOutcome {}
 extension Flow11Outcome: WireOutcome {}
 extension Flow18Outcome: WireOutcome {}
@@ -23,6 +24,7 @@ final class FlowOutcomeTests: XCTestCase {
         assertRoundTrip(Flow00Outcome.self)
         assertRoundTrip(Flow01Outcome.self)
         assertRoundTrip(Flow02Outcome.self)
+        assertRoundTrip(Flow03Outcome.self)
         assertRoundTrip(Flow10Outcome.self)
         assertRoundTrip(Flow18Outcome.self)
         assertRoundTrip(Flow20Outcome.self)

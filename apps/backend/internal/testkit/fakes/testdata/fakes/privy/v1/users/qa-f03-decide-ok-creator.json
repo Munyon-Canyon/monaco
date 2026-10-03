@@ -1,0 +1,1 @@
+{"status":200,"headers":{"Content-Type":"application/json"},"body":{"id":"did:privy:qa-f03-decide-ok-creator","linked_accounts":[{"type":"email","address":"qa-f03-decide-ok-creator@example.com"}]}}
