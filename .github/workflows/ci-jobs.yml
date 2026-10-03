@@ -302,15 +302,38 @@ jobs:
       reuse: ${{ steps.reuse.outputs.reuse }}
       patch-id: ${{ steps.reuse.outputs.patch-id }}
       ci-id: ${{ steps.reuse.outputs.ci-id }}
-      backend: ${{ steps.filter.outputs.backend }}
-      mobile-core: ${{ steps.filter.outputs.mobile-core }}
-      backend-tests: ${{ steps.filter.outputs.backend-tests }}
-      mobile-tests: ${{ steps.filter.outputs.mobile-tests }}
-      scripts: ${{ steps.filter.outputs.scripts == 'true' || steps.every.outputs.scripts == 'true' }}
+      # Under steps.top.outputs.skip every filter is false, so every job skips and ci-ok still passes.
+      backend: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.backend == 'true' }}
+      mobile-core: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.mobile-core == 'true' }}
+      backend-tests: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.backend-tests == 'true' }}
+      mobile-tests: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.mobile-tests == 'true' }}
+      scripts: ${{ steps.top.outputs.skip != 'true' && (steps.filter.outputs.scripts == 'true' || steps.every.outputs.scripts == 'true') }}
       # A stacked PR's base is the PR below it, so the filters see only this PR's own files: run everything.
-      unknown: ${{ steps.every.outputs.unknown == 'true' || steps.stacked.outputs.stacked == 'true' }}
+      unknown: ${{ steps.top.outputs.skip != 'true' && (steps.every.outputs.unknown == 'true' || steps.stacked.outputs.stacked == 'true') }}
     steps:
+      # CI runs on the top PR of a stack only. A PR that another open non-draft PR builds on reports every filter false,
+      # so every job skips and its ci-ok passes; `monacoctl agents check` proved it before the push. Fails open.
+      - name: Is this PR the top of its stack
+        id: top
+        if: inputs.stage == 'pr' && github.event.pull_request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if ! above="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --base "$HEAD_REF" --json number,isDraft \
+            --jq 'map(select(.isDraft | not) | "#\(.number)") | join(" ")')"; then
+            echo "::warning::could not list the PRs above this one, so CI runs"
+            above=""
+          fi
+          if [[ -n "$above" ]]; then
+            echo "::notice::not the top of its stack ($above builds on it), so CI runs on the top PR"
+            echo "skip=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >>"$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.top.outputs.skip != 'true'
         with:
           fetch-depth: 0
 
@@ -330,7 +353,7 @@ jobs:
       # either: its patch ID ignores the PRs below it, which a restack changes.
       - name: Reuse the last green stage 1 when the diff and workflow tree are unchanged
         id: reuse
-        if: inputs.stage == 'pr' && github.event.pull_request && steps.stacked.outputs.stacked != 'true'
+        if: steps.top.outputs.skip != 'true' && inputs.stage == 'pr' && github.event.pull_request && steps.stacked.outputs.stacked != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -339,11 +362,12 @@ jobs:
         run: scripts/ci/stage1-reuse.sh
 
       - name: Standard runner labels only
-        if: steps.reuse.outputs.reuse != 'true'
+        if: steps.top.outputs.skip != 'true' && steps.reuse.outputs.reuse != 'true'
         run: scripts/ci/check-runners.sh
 
       - uses: dorny/paths-filter@v3
         id: filter
+        if: steps.top.outputs.skip != 'true'
         with:
           # Outside a PR the action diffs against the default branch, which runs every job on a feature branch.
           base: ${{ github.event.pull_request.base.ref || vars.FEATURE_BRANCH || 'main' }}
@@ -410,6 +434,7 @@ jobs:
       # docs/architecture/backend-platform.md#verification-scope's no-check rows.
       - uses: dorny/paths-filter@v3
         id: every
+        if: steps.top.outputs.skip != 'true'
         with:
           base: ${{ github.event.pull_request.base.ref || vars.FEATURE_BRANCH || 'main' }}
           predicate-quantifier: every
