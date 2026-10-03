@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
+	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
@@ -36,7 +37,7 @@ func flow05Scenario(t *testing.T) *scenario.Scenario {
 		scenario.WithModules(func(d module.Deps) module.Module {
 			d.Config = config.Config{
 				Solana:   config.Solana{RPCURL: srv.URL + "/rpc/", USDCMint: string(testkit.USDCMint)},
-				Funding:  config.Funding{DepositPollInterval: time.Second, DepositRPCRate: 1000},
+				Funding:  config.Funding{DepositPollInterval: app.DepositPollInterval, DepositRPCRate: 1000},
 				Timeouts: config.Timeouts{RPC: time.Second},
 			}
 			d.HTTPClient = httpclient.New

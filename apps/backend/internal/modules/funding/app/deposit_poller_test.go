@@ -82,11 +82,19 @@ func TestDepositPollerPaginatesAndHonorsCancellation(t *testing.T) {
 	}
 }
 
-func TestNewDepositPollerDefaultsRateAndKeepsInterval(t *testing.T) {
+func TestNewRPCLimiterDefaultsToTwentyPerSecond(t *testing.T) {
 	t.Parallel()
-	p := NewDepositPoller(nil, nil, nil, nil, nil, nil, "usdc", time.Second, 0, nil)
-	if p.Interval() != time.Second || p.limit.Limit() != 20 {
-		t.Fatalf("interval/rate = %s/%v", p.Interval(), p.limit.Limit())
+	for _, tc := range []struct {
+		in    int32
+		limit rate.Limit
+		burst int
+	}{{0, 20, 20}, {-1, 20, 20}, {7, 7, 7}} {
+		if l := NewRPCLimiter(tc.in); l.Limit() != tc.limit || l.Burst() != tc.burst {
+			t.Fatalf("NewRPCLimiter(%d) = %v/%d, want %v/%d", tc.in, l.Limit(), l.Burst(), tc.limit, tc.burst)
+		}
+	}
+	if p := NewDepositPoller(nil, nil, nil, nil, nil, nil, "usdc", time.Second, nil, nil); p.Interval() != time.Second {
+		t.Fatalf("interval = %s", p.Interval())
 	}
 }
 
@@ -210,7 +218,7 @@ func TestDepositPollerWrapsAdvanceFailures(t *testing.T) {
 	pool.Close()
 	p := NewDepositPoller(
 		pool, db.New(pool, testkit.NewIDs(1), clock.Real{}), testkit.NewIDs(2), clock.Real{}, nil, nil,
-		"usdc", time.Second, 1, nil,
+		"usdc", time.Second, NewRPCLimiter(1), nil,
 	)
 	if err := p.advance(t.Context(), "wallet", "signature", 1); err == nil || errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("advance error = %v", err)
