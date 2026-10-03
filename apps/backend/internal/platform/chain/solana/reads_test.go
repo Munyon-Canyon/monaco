@@ -133,6 +133,26 @@ func TestSignaturesFor_pagesBackFromBefore(t *testing.T) {
 	wantCode(t, err, errs.CodeRPCUnavailable)
 }
 
+func TestSignaturesFor_acceptsOneToAThousandAndRefusesOtherLimitsWithoutACall(t *testing.T) {
+	t.Parallel()
+	c, u, _ := overFakes(t)
+	for _, limit := range []int{0, -1, 1001} {
+		_, err := c.SignaturesFor(t.Context(), member, "", limit)
+		wantCode(t, err, errs.CodeInvalidInput)
+	}
+	if n := len(u.requests()); n != 0 {
+		t.Fatalf("%d RPC calls for out-of-range limits", n)
+	}
+	for _, limit := range []int{1, 1000} {
+		if _, err := c.SignaturesFor(t.Context(), member, "", limit); err != nil {
+			t.Fatalf("limit %d: %v", limit, err)
+		}
+	}
+	if n := len(u.requests()); n != 2 {
+		t.Fatalf("%d RPC calls for limits 1 and 1000, want 2", n)
+	}
+}
+
 func TestReads_refuseInvalidAddressesWithoutACall(t *testing.T) {
 	t.Parallel()
 	c, u, _ := overFakes(t)
