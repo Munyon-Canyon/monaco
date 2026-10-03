@@ -106,7 +106,12 @@ There is exactly one creator per cabal, and the role never moves. There is no ad
 | The leaver is the creator and other members remain. | `LeaveCreatorWithMembers` |
 
 - Share units and pot value come from `treasury`'s query port (`PotValue`, [data-model.md](data-model.md#decision)). `cabal` never reads treasury tables.
-- A successful leave deletes the member row and emits `cabal.member_left`. If the leaver was on the voter list, they leave it too; the creator stays on it, so the list never empties while members remain.
+- `LeaveCabal` is `DELETE /v1/cabals/{id}/members/me`. A banned user or a banned cabal can still leave.
+- The share read happens before the Unit of Work opens, and `PotValue` is read only when the leaver is the last member. A `PriceUnavailable` from either read fails the leave as retryable.
+- The Unit of Work locks the cabal's member rows (`SELECT ... FOR UPDATE`) and checks the member count and the leaver's role again, so two members leaving at once cannot both pass the last-member guard.
+- A fund that lands between the share read and the commit is caught by `treasury`: `FundCabal` checks membership through the `cabal` query port at its own commit.
+- A successful leave deletes the member row and emits `cabal.member_left`. If the leaver was on the voter list, they leave it too; the creator stays on it, so the list never empties while members remain. The leaver's pending access rows in that cabal stay as they are.
+- The `cabal.hints` consumer publishes `hint.cabal.<id>.members`, `hint.user.<id>.cabals` and `hint.user.<id>.cabal_access`. The last one rescopes the leaver's SSE connections, so they stop receiving the cabal's hints.
 - The last member leaving an empty pot, the creator included, leaves a cabal with no members. The cabal row and its treasury wallet stay.
 
 ### Treasury wallet
