@@ -160,6 +160,14 @@ jobs:
           # backend-report merges the earlier attempt's failures back in, so a rerun can never clear a flake.
           overwrite: true
 
+      # Every pass builds with -race, which caches apart from a plain build. Jobs that restore the newest leg's
+      # cache and then go run monacoctl, or build the binaries mobile-integration.sh boots, would compile them cold.
+      - name: Build the cmd binaries into this leg's Go cache
+        if: always() && inputs.stage == 'staging'
+        run: |
+          go build ./cmd/...
+          CGO_ENABLED=0 go build -o /dev/null ./cmd/monacoctl
+
       # Only the staging run saves the Go cache, one key per leg, even after a test failure. The PR leg of the same
       # name restores it through backend-test-env, and staging.yml's prune job keeps the newest per leg.
       - name: Save this leg's Go cache
