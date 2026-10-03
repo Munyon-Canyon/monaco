@@ -42,6 +42,10 @@ shared = [
   "apps/backend/api/openapi.yaml",
 ]
 
+[check]
+# The most `agents check` runs that execute rows at once on this machine; later runs queue in arrival order.
+slots = 2
+
 # agents check gives each row its own budget, except `go test -short`, which is budgeted per package
 # (`package`, the same 20 s that fails a package in `monacoctl test-report`). The go budget applies to
 # go build and go vet separately; lint covers golangci-lint, nogo and the comment lint.

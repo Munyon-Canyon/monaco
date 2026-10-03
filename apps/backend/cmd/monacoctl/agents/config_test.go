@@ -220,3 +220,26 @@ func committedConfig(t *testing.T) Config {
 	}
 	return c
 }
+
+func TestParseConfig_readsTheCheckSlots(t *testing.T) {
+	t.Parallel()
+	if c, err := parseConfig(strings.NewReader(testConfig)); err != nil || c.Slots != 2 {
+		t.Fatalf("default slots: %d %v", c.Slots, err)
+	}
+	if c, err := parseConfig(strings.NewReader(testConfig + "\n[check]\nslots = 3\n")); err != nil || c.Slots != 3 {
+		t.Fatalf("slots: %d %v", c.Slots, err)
+	}
+	if c := committedConfig(t); c.Slots != 2 {
+		t.Fatalf("committed slots: %d", c.Slots)
+	}
+	for body, want := range map[string]string{
+		"[check]\nslots = 0\n":     "check.slots: want at least 1, got 0",
+		"[check]\nslots = \"2\"\n": "int:",
+		"[check]\nother = 1\n":     `unknown key "check.other"`,
+	} {
+		if _, err := parseConfig(strings.NewReader(testConfig + "\n" + body)); err == nil ||
+			!strings.Contains(cliText(err), want) {
+			t.Errorf("%q: %v", body, cliText(err))
+		}
+	}
+}
