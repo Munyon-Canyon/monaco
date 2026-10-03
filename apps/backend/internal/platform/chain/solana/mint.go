@@ -7,6 +7,7 @@ import (
 	"maps"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -25,6 +26,9 @@ type MintConfig struct {
 	TransferFeeBps uint16
 	MaxFee         money.BaseUnits
 	UIMultiplier   Multiplier
+
+	NextUIMultiplier   Multiplier
+	NextUIMultiplierAt time.Time
 }
 
 type feeWire struct {
@@ -256,7 +260,7 @@ func (c *Client) parseMint(
 				out.TransferFeeBps, out.MaxFee, err = currentFeeAtEpoch(op, ext.State, decimals, *batchEpoch)
 			}
 		case "scaledUiAmountConfig":
-			out.UIMultiplier, err = c.currentMultiplier(op, ext.State)
+			err = c.readMultipliers(op, ext.State, &out)
 		}
 		if err != nil {
 			return MintConfig{}, err
@@ -312,16 +316,25 @@ func (fees transferFees) atEpoch(decimals uint8, epoch uint64) (uint16, money.Ba
 	return fee.TransferFeeBasisPoints, money.NewBaseUnits(fee.MaximumFee, decimals), nil
 }
 
-func (c *Client) currentMultiplier(op string, state json.RawMessage) (Multiplier, error) {
+func (c *Client) readMultipliers(op string, state json.RawMessage, out *MintConfig) error {
 	var scaled scaledUIWire
 	if err := json.Unmarshal(state, &scaled); err != nil {
-		return Multiplier{}, errs.Wrap(err, errs.CodeDecodeFailed, op)
+		return errs.Wrap(err, errs.CodeDecodeFailed, op)
 	}
-	raw := scaled.Multiplier
-	if c.clock.Now().Unix() >= scaled.NewFrom {
-		raw = scaled.NewMultiplier
+	current, err := parseMultiplier(op, scaled.Multiplier)
+	if err != nil {
+		return err
 	}
-	return parseMultiplier(op, raw)
+	next, err := parseMultiplier(op, scaled.NewMultiplier)
+	if err != nil {
+		return err
+	}
+	out.NextUIMultiplier, out.NextUIMultiplierAt = next, time.Unix(scaled.NewFrom, 0).UTC()
+	out.UIMultiplier = current
+	if !c.clock.Now().Before(out.NextUIMultiplierAt) {
+		out.UIMultiplier = next
+	}
+	return nil
 }
 
 func parseMultiplier(op, raw string) (Multiplier, error) {
