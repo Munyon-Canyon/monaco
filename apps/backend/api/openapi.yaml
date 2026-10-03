@@ -390,6 +390,27 @@ paths:
                 $ref: "#/components/schemas/Me"
         default:
           $ref: "#/components/responses/Problem"
+    patch:
+      operationId: patchMe
+      x-idempotent: true
+      tags: [identity]
+      summary: Update the signed-in user's profile.
+      description: Replaces the caller's normalized display name; an unchanged name is a no-op.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The display name to normalize and save for the caller.
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/UpdateProfileRequest"}
+      responses:
+        "200":
+          description: The updated account.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Me"}
+        default: {$ref: "#/components/responses/Problem"}
   /v1/me/cabals:
     get:
       operationId: getMyCabals
@@ -1610,6 +1631,17 @@ components:
           format: int64
           description: The denominator.
           examples: [1]
+    UpdateProfileRequest:
+      type: object
+      description: The profile fields a signed-in user may update.
+      examples: [{display_name: Kai Cenat}]
+      additionalProperties: false
+      required: [display_name]
+      properties:
+        display_name:
+          type: string
+          description: The caller's display name, normalized before it is stored.
+          examples: [Kai Cenat]
     VoteResult:
       type: object
       description: The proposal after the caller's ballot.

@@ -1419,6 +1419,16 @@ type UiMultiplier struct {
 	Num int64 `json:"num"`
 }
 
+// UpdateProfileRequest The profile fields a signed-in user may update.
+//
+// Examples: {"display_name":"Kai Cenat"}
+type UpdateProfileRequest struct {
+	// DisplayName The caller's display name, normalized before it is stored.
+	//
+	// Examples: Kai Cenat
+	DisplayName string `json:"display_name"`
+}
+
 // VoteResult The proposal after the caller's ballot.
 type VoteResult struct {
 	// MyBallot A voter's choice on a proposal.
@@ -1509,6 +1519,12 @@ type DeleteDeviceParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// PatchMeParams defines parameters for PatchMe.
+type PatchMeParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // PostProposalVoteParams defines parameters for PostProposalVote.
 type PostProposalVoteParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -1544,6 +1560,9 @@ type PostCabalJSONRequestBody = CreateCabalRequest
 
 // PostDeviceJSONRequestBody defines body for PostDevice for application/json ContentType.
 type PostDeviceJSONRequestBody = DeviceRegistration
+
+// PatchMeJSONRequestBody defines body for PatchMe for application/json ContentType.
+type PatchMeJSONRequestBody = UpdateProfileRequest
 
 // PostProposalVoteJSONRequestBody defines body for PostProposalVote for application/json ContentType.
 type PostProposalVoteJSONRequestBody = CastVoteRequest
@@ -1592,6 +1611,9 @@ type ServerInterface interface {
 	// GetMe Read the signed-in user's account.
 	// (GET /v1/me)
 	GetMe(w http.ResponseWriter, r *http.Request)
+	// PatchMe Update the signed-in user's profile.
+	// (PATCH /v1/me)
+	PatchMe(w http.ResponseWriter, r *http.Request, params PatchMeParams)
 	// GetMyCabals List the caller's cabals.
 	// (GET /v1/me/cabals)
 	GetMyCabals(w http.ResponseWriter, r *http.Request)
@@ -2091,6 +2113,51 @@ func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request)
 	handler.ServeHTTP(w, r)
 }
 
+// PatchMe operation middleware
+func (siw *ServerInterfaceWrapper) PatchMe(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PatchMeParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchMe(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMyCabals operation middleware
 func (siw *ServerInterfaceWrapper) GetMyCabals(w http.ResponseWriter, r *http.Request) {
 
@@ -2525,6 +2592,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/devices/{token}", wrapper.DeleteDevice)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/handles/{handle}/availability", wrapper.GetHandleAvailability)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me", wrapper.GetMe)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/v1/me", wrapper.PatchMe)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/cabals", wrapper.GetMyCabals)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/referral-code", wrapper.GetMyReferralCode)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.PostProposalVote)
@@ -2994,6 +3062,46 @@ func (response GetMedefaultApplicationProblemPlusJSONResponse) VisitGetMeRespons
 	return err
 }
 
+type PatchMeRequestObject struct {
+	Params PatchMeParams
+	Body   *PatchMeJSONRequestBody
+}
+
+type PatchMeResponseObject interface {
+	VisitPatchMeResponse(w http.ResponseWriter) error
+}
+
+type PatchMe200JSONResponse Me
+
+func (response PatchMe200JSONResponse) VisitPatchMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PatchMedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PatchMedefaultApplicationProblemPlusJSONResponse) VisitPatchMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMyCabalsRequestObject struct {
 }
 
@@ -3377,6 +3485,9 @@ type StrictServerInterface interface {
 	// GetMe Read the signed-in user's account.
 	// (GET /v1/me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
+	// PatchMe Update the signed-in user's profile.
+	// (PATCH /v1/me)
+	PatchMe(ctx context.Context, request PatchMeRequestObject) (PatchMeResponseObject, error)
 	// GetMyCabals List the caller's cabals.
 	// (GET /v1/me/cabals)
 	GetMyCabals(ctx context.Context, request GetMyCabalsRequestObject) (GetMyCabalsResponseObject, error)
@@ -3759,6 +3870,39 @@ func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMeResponseObject); ok {
 		if err := validResponse.VisitGetMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PatchMe operation middleware
+func (sh *strictHandler) PatchMe(w http.ResponseWriter, r *http.Request, params PatchMeParams) {
+	var request PatchMeRequestObject
+
+	request.Params = params
+
+	var body PatchMeJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PatchMe(ctx, request.(PatchMeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PatchMe")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PatchMeResponseObject); ok {
+		if err := validResponse.VisitPatchMeResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

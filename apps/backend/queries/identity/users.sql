@@ -44,6 +44,10 @@ UPDATE users SET x_user_id = sqlc.narg(x_user_id), x_username = sqlc.narg(x_user
   x_linked_at = sqlc.narg(linked_at), updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id);
 
+-- name: SetDisplayName :execrows
+UPDATE users SET display_name = sqlc.arg(display_name), updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id) AND display_name IS DISTINCT FROM sqlc.arg(display_name);
+
 -- name: LinksHeldByOthers :one
 SELECT
   EXISTS (
