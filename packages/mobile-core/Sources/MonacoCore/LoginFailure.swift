@@ -2,6 +2,7 @@ import Foundation
 
 /// Why a one-time-code step failed, reduced to what the user can act on.
 public enum LoginFailure: Equatable, Sendable {
+    case cancelled
     /// Wrong or expired code.
     case codeRejected
     /// The device could not reach the sign-in provider.
@@ -16,12 +17,13 @@ public enum LoginFailure: Equatable, Sendable {
     public var keepsCodeEntry: Bool {
         switch self {
         case .codeRejected, .offline: return true
-        case .rateLimited, .other: return false
+        case .cancelled, .rateLimited, .other: return false
         }
     }
 }
 
 public enum LoginStep: Equatable, Sendable {
+    case authorize
     case sendCode
     case verifyCode
 }
@@ -33,6 +35,8 @@ public enum LoginFailureCopy {
 
     public static func message(for failure: LoginFailure, step: LoginStep) -> String {
         switch (failure, step) {
+        case (.cancelled, _):
+            return "Sign-in cancelled."
         case (.offline, _):
             return "No connection. Check your internet and try again."
         case (.rateLimited, _):
@@ -41,6 +45,8 @@ public enum LoginFailureCopy {
             return "That code didn't work. Check it, or send a new one."
         case (.other(let detail), .sendCode):
             return appending(detail, to: "Couldn't send the code. Try again.")
+        case (.other, .authorize):
+            return "Couldn't sign you in. Try again."
         case (.other(let detail), .verifyCode):
             return appending(detail, to: "Couldn't sign you in. Try again.")
         }

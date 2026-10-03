@@ -1,3 +1,4 @@
+import MonacoCore
 import SwiftUI
 
 // The login views take `PrivyAuthService` itself. They used to be generic over a protocol so

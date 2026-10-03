@@ -1,3 +1,4 @@
+import MonacoCore
 import SwiftUI
 
 struct AuthGateView: View {

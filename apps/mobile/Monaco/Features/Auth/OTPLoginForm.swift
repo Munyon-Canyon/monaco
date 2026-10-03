@@ -67,7 +67,7 @@ enum OTPFieldCaption: Equatable {
     }
 
     static func resolve(
-        phase: LoginFlow.Phase,
+        phase: LoginPhase,
         isCodeStep: Bool,
         explainer: String,
         invalidHint: String?,
@@ -86,7 +86,7 @@ enum OTPFieldCaption: Equatable {
 
 /// The button's words: what it will do, or what it is doing.
 enum OTPPrimaryAction {
-    static func title(phase: LoginFlow.Phase, isCodeStep: Bool) -> String {
+    static func title(phase: LoginPhase, isCodeStep: Bool) -> String {
         if isCodeStep {
             // A resend in flight is not the member signing in: the button keeps its name.
             return phase == .verifyingCode ? "Signing you in\u{2026}" : "Continue"
