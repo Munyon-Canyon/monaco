@@ -7,7 +7,7 @@ check="$(dirname "$0")/oasdiff-breaking.sh"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-awk '/# END GENERATED ErrorCode/ { print substr($0, 1, index($0, "#") - 1) "- zzz_new_code" } { print }' \
+awk '{ print } /^    ErrorCode:$/ { in_code = 1 } in_code && /^      enum:$/ { print "        - zzz_new_code"; in_code = 0 }' \
   "$spec" > "$work/new-code.yaml"
 grep -q 'zzz_new_code' "$work/new-code.yaml"
 sed 's#^  /healthz:#  /healthz-renamed:#' "$spec" > "$work/removed-path.yaml"

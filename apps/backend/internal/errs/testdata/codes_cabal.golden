@@ -1,0 +1,14 @@
+access_request_not_pending
+already_member
+cabal_banned
+cabal_not_found
+cannot_revoke_access
+invite_expired
+join_needs_request
+leave_creator_with_members
+leave_holds_shares
+leave_last_member_pot_not_empty
+not_cabal_creator
+not_cabal_member
+request_not_needed
+request_pending
