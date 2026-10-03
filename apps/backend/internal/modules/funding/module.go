@@ -3,6 +3,7 @@ package funding
 import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
@@ -34,7 +35,18 @@ func (m *Module) Pollers() []poller.Poller {
 
 func (*Module) Balances() port.Balances { return adapters.UnwiredBalances{} }
 
+func (*Module) Pauses() port.Pauses { return adapters.UnwiredPauses{} }
+
 type (
-	Balances = port.Balances
-	Balance  = port.Balance
+	Balances    = port.Balances
+	Balance     = port.Balance
+	Pauses      = port.Pauses
+	Pause       = port.Pause
+	PausedSet   = port.PausedSet
+	PauseReason = domain.PauseReason
+)
+
+const (
+	PauseReasonExternalDeposit = domain.PauseReasonExternalDeposit
+	PauseReasonOps             = domain.PauseReasonOps
 )

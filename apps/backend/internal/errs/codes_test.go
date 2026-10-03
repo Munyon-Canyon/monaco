@@ -172,6 +172,7 @@ func TestAccessorsReadTheRow(t *testing.T) {
 		{CodeInternal, KindInternal, false, true},
 		{CodePanic, KindInternal, false, true},
 		{CodeHandleTaken, KindBlocked, false, false},
+		{CodeCabalPaused, KindBlocked, false, false},
 		{CodeAuthStateTransition, KindInternal, true, false},
 		{CodeWalletMismatch, KindInternal, false, true},
 		{CodeConservationBroken, KindInternal, false, true},

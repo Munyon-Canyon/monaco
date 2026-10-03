@@ -169,6 +169,18 @@ func followFixtures(t *testing.T) map[events.Type]any {
 	}
 }
 
+func pauseFixtures(t *testing.T) map[events.Type]any {
+	t.Helper()
+	g := testkit.NewIDs(1683)
+	pause, cabal := g.NewV7(), g.NewV7()
+	return map[events.Type]any{
+		events.TypeCabalPaused: events.CabalPaused{
+			V: 1, PauseID: pause, CabalID: &cabal, Reason: "external_deposit", Scope: "cabal",
+		},
+		events.TypeCabalResumed: events.CabalResumed{V: 1, CabalID: &cabal, Scope: "cabal"},
+	}
+}
+
 func goldenName(t events.Type, v int) string { return fmt.Sprintf("%s.v%d.json", t, v) }
 
 func TestGoldenPayloads(t *testing.T) {
@@ -177,6 +189,7 @@ func TestGoldenPayloads(t *testing.T) {
 	maps.Copy(fx, proposalFixtures(t))
 	maps.Copy(fx, userFixtures(t))
 	maps.Copy(fx, followFixtures(t))
+	maps.Copy(fx, pauseFixtures(t))
 	for _, entry := range events.Catalog() {
 		ev, ok := fx[entry.Type]
 		if !ok {

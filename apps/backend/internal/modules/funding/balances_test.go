@@ -30,4 +30,7 @@ func TestModule(t *testing.T) {
 	if m.Balances() == nil {
 		t.Fatal("Balances = nil")
 	}
+	if m.Pauses() == nil {
+		t.Fatal("Pauses = nil")
+	}
 }

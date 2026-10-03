@@ -81,6 +81,20 @@ func TestDocsEventsPrintsTheRegistryCatalog(t *testing.T) {
 		"| `cabal_id` | `uuid.UUID` |\n" +
 		"| `user_id` | `uuid.UUID` |\n" +
 		"| `was_voter` | `bool` |\n\n" +
+		"## `cabal.paused`\n\n" +
+		"Subject `events.cabal.paused`, version 1.\n\n" +
+		"| Field | Go type |\n| --- | --- |\n" +
+		"| `v` | `int` |\n" +
+		"| `pause_id` | `uuid.UUID` |\n" +
+		"| `cabal_id` | `*uuid.UUID` |\n" +
+		"| `reason` | `string` |\n" +
+		"| `scope` | `string` |\n\n" +
+		"## `cabal.resumed`\n\n" +
+		"Subject `events.cabal.resumed`, version 1.\n\n" +
+		"| Field | Go type |\n| --- | --- |\n" +
+		"| `v` | `int` |\n" +
+		"| `cabal_id` | `*uuid.UUID` |\n" +
+		"| `scope` | `string` |\n\n" +
 		"## `cabal.updated`\n\n" +
 		"Subject `events.cabal.updated`, version 1.\n\n" +
 		"| Field | Go type |\n| --- | --- |\n" +

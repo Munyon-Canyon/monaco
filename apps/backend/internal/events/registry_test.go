@@ -39,8 +39,8 @@ func TestSubjects(t *testing.T) {
 	want := []string{
 		"events.asset.price_moved",
 		"events.cabal.access_decided", "events.cabal.access_requested", "events.cabal.created",
-		"events.cabal.member_joined", "events.cabal.member_left", "events.cabal.updated",
-		"events.deposit.credited",
+		"events.cabal.member_joined", "events.cabal.member_left", "events.cabal.paused", "events.cabal.resumed",
+		"events.cabal.updated", "events.deposit.credited",
 		"events.follow.created", "events.follow.removed",
 		"events.proposal.created", "events.proposal.executed", "events.proposal.execution_blocked",
 		"events.proposal.expired", "events.proposal.failed", "events.proposal.passed", "events.proposal.voided",
@@ -190,7 +190,8 @@ func TestCatalog(t *testing.T) {
 	if want := []Type{
 		TypeAssetPriceMoved,
 		TypeCabalAccessDecided, TypeCabalAccessRequested, TypeCabalCreated, TypeCabalMemberJoined,
-		TypeCabalMemberLeft, TypeCabalUpdated, TypeDepositCredited, TypeFollowCreated, TypeFollowRemoved, TypePriceTick,
+		TypeCabalMemberLeft, TypeCabalPaused, TypeCabalResumed, TypeCabalUpdated, TypeDepositCredited,
+		TypeFollowCreated, TypeFollowRemoved, TypePriceTick,
 		TypeProposalCreated, TypeProposalExecuted, TypeProposalExecutionBlocked, TypeProposalExpired,
 		TypeProposalFailed, TypeProposalPassed, TypeProposalVoided, TypeProposalWithdrawn,
 		TypeSystemPinged, TypeTradeBlocked, TypeTradeConfirmed, TypeTradeFailed, TypeTradeSubmitted,
@@ -314,6 +315,28 @@ func TestProposalEventsAggregateOnTheProposal(t *testing.T) {
 		if ev.AggregateType() != "proposal" || ev.AggregateID() != id ||
 			!strings.HasPrefix(string(ev.Type()), "proposal.") {
 			t.Errorf("%T aggregate = %s %s %s", ev, ev.Type(), ev.AggregateType(), ev.AggregateID())
+		}
+	}
+}
+
+func TestPauseEventsAggregateOnTheCabalOrNil(t *testing.T) {
+	t.Parallel()
+	id, err := uuid.Parse("01890a5d-ac96-774b-bcce-b302099a8063")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		ev   Event
+		want uuid.UUID
+	}{
+		{CabalPaused{CabalID: &id, Scope: "cabal"}, id},
+		{CabalResumed{CabalID: &id, Scope: "cabal"}, id},
+		{CabalPaused{Scope: "global"}, uuid.Nil},
+		{CabalResumed{Scope: "global"}, uuid.Nil},
+	} {
+		if tc.ev.AggregateType() != "cabal" || tc.ev.AggregateID() != tc.want ||
+			!strings.HasPrefix(string(tc.ev.Type()), "cabal.") {
+			t.Errorf("%T aggregate = %s %s %s", tc.ev, tc.ev.Type(), tc.ev.AggregateType(), tc.ev.AggregateID())
 		}
 	}
 }
