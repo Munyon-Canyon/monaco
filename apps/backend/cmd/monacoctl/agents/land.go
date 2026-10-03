@@ -366,9 +366,11 @@ func (env *Env) landedEach(ctx context.Context, prs []stackPR) ([]bool, error) {
 }
 
 const (
-	prQueued  = "queued"
-	prLanded  = "landed"
-	prEjected = "ejected"
+	prQueued   = "queued"
+	prWaiting  = "labeled, waiting for Graphite"
+	prSettling = "label just removed, waiting for Graphite"
+	prLanded   = "landed"
+	prEjected  = "ejected"
 )
 
 func (env *Env) queueState(p stackPR, landed bool, drafts []queueDraft) string {
@@ -377,8 +379,12 @@ func (env *Env) queueState(p stackPR, landed bool, drafts []queueDraft) string {
 		return prLanded
 	case p.State != "OPEN":
 		return prEjected
-	case p.labeled(env.Config.QueueLabel), draftHolds(drafts, p.Number), env.justUnlabeled(p):
+	case draftHolds(drafts, p.Number):
 		return prQueued
+	case p.labeled(env.Config.QueueLabel):
+		return prWaiting
+	case env.justUnlabeled(p):
+		return prSettling
 	default:
 		return prEjected
 	}
