@@ -16,6 +16,7 @@ extension Flow01dOutcome: WireOutcome {}
 extension Flow01eOutcome: WireOutcome {}
 extension Flow02Outcome: WireOutcome {}
 extension Flow03Outcome: WireOutcome {}
+extension Flow04Outcome: WireOutcome {}
 extension Flow05Outcome: WireOutcome {}
 extension Flow10Outcome: WireOutcome {}
 extension Flow11Outcome: WireOutcome {}
@@ -37,6 +38,7 @@ final class FlowOutcomeTests: XCTestCase {
         assertRoundTrip(Flow01eOutcome.self)
         assertRoundTrip(Flow02Outcome.self)
         assertRoundTrip(Flow03Outcome.self)
+        assertRoundTrip(Flow04Outcome.self)
         assertRoundTrip(Flow05Outcome.self)
         assertRoundTrip(Flow10Outcome.self)
         assertRoundTrip(Flow13Outcome.self)
