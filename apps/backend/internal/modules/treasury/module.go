@@ -1,6 +1,10 @@
 package treasury
 
 import (
+	"context"
+
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
@@ -85,7 +89,47 @@ func (m *Module) Consumers() []bus.Consumer {
 
 func (*Module) Pollers() []poller.Poller { return nil }
 
-func (*Module) Queries() port.Queries { return adapters.Unwired{} }
+func (m *Module) Queries() port.Queries {
+	marketModule := market.New(m.deps)
+	return adapters.NewQueries(
+		m.deps.Pool, marketResolver(marketModule.Catalog()), marketPrices(marketModule.Prices()), m.deps.Clock,
+		chain.SolanaAddress(m.deps.Config.Solana.USDCMint),
+	)
+}
+
+func marketResolver(catalog market.Catalog) app.MintResolver {
+	return func(ctx context.Context, address chain.SolanaAddress) (app.Asset, error) {
+		mint, err := market.ParseMint(string(address))
+		if err != nil {
+			return app.Asset{}, err
+		}
+		asset, err := catalog.AssetByMint(ctx, mint)
+		if err != nil {
+			return app.Asset{}, err
+		}
+		return app.Asset{
+			ID: asset.ID.UUID(), Decimals: asset.Decimals, ChainChecked: asset.ChainChecked,
+			UIMultiplierNum: asset.UIMultiplier.Num, UIMultiplierDen: asset.UIMultiplier.Den,
+			NextUIMultiplierNum: asset.NextUIMultiplier.To.Num,
+			NextUIMultiplierDen: asset.NextUIMultiplier.To.Den,
+			NextUIMultiplierAt:  asset.NextUIMultiplier.At,
+		}, nil
+	}
+}
+
+func marketPrices(reader market.Prices) app.PriceReader {
+	return func(ctx context.Context) (map[uuid.UUID]app.Price, error) {
+		prices, err := reader.LatestPrices(ctx)
+		if err != nil {
+			return nil, err
+		}
+		out := make(map[uuid.UUID]app.Price, len(prices))
+		for id, price := range prices {
+			out[id.UUID()] = app.Price{Micros: price.Micros, ObservedAt: price.ObservedAt}
+		}
+		return out, nil
+	}
+}
 
 func (m *Module) ledger() app.Ledger {
 	return app.NewLedger(chain.SolanaAddress(m.deps.Config.Solana.USDCMint), m.deps.Clock)

@@ -62,6 +62,17 @@ WITH updated AS (
 SELECT (units - sqlc.arg(delta)::bigint)::text AS before, units::text AS after
 FROM (SELECT units FROM updated UNION ALL SELECT units FROM inserted) AS applied;
 
+-- name: CabalPositions :many
+SELECT asset, units::text AS units, cost_basis_micros::text AS cost_basis_micros
+FROM cabal_positions
+WHERE cabal_id = sqlc.arg(cabal_id)::uuid AND units > 0
+ORDER BY asset;
+
+-- name: CabalTotalShares :one
+SELECT coalesce(sum(share_units), 0)::text AS share_units
+FROM user_positions
+WHERE cabal_id = sqlc.arg(cabal_id)::uuid;
+
 -- name: ApplyUserPosition :one
 WITH updated AS (
   UPDATE user_positions AS p SET

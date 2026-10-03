@@ -1,6 +1,7 @@
 package identity_test
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -75,7 +76,7 @@ func TestModule_wireTakesHoldingsFromFundingAndTreasuryInTheBuiltSet(t *testing.
 	id := identity.New(d)
 	module.NewSet(id, funding.New(d), treasury.New(d))
 	stakes, balances := id.Holdings()
-	if stakes != treasury.New(d).Queries() || balances != funding.New(d).Balances() {
+	if reflect.TypeOf(stakes) != reflect.TypeOf(treasury.New(d).Queries()) || balances != funding.New(d).Balances() {
 		t.Fatalf("holdings = %T, %T, want treasury's Queries and funding's Balances", stakes, balances)
 	}
 }

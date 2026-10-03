@@ -41,8 +41,8 @@ func TestModule_servesActivityConsumesTradeEventsAndHasNoPollers(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("consumers = %q, want %q", got, want)
 	}
-	if _, ok := m.Queries().(adapters.Unwired); !ok {
-		t.Fatalf("Queries() = %T, want adapters.Unwired", m.Queries())
+	if _, ok := m.Queries().(*adapters.Queries); !ok {
+		t.Fatalf("Queries() = %T, want *adapters.Queries", m.Queries())
 	}
 }
 

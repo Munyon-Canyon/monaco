@@ -32,6 +32,8 @@ type (
 	Price   = domain.Sample
 )
 
+func ParseMint(raw string) (Mint, error) { return domain.ParseMint(raw) }
+
 type Catalog interface {
 	AssetByID(ctx context.Context, id AssetID) (Asset, error)
 	AssetByMint(ctx context.Context, mint Mint) (Asset, error)
