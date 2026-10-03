@@ -63,7 +63,7 @@ struct AssetsTabView: View {
             )
         ) {
             if let selectedSymbol {
-                AssetDetailView(auth: auth, symbol: selectedSymbol)
+                AssetDetailClientView(symbol: selectedSymbol)
             }
         }
         .onChange(of: searchQuery) { _, newValue in
