@@ -99,7 +99,7 @@ func TestStagingRuleset_squashesAndLeavesTheQueueToGraphite(t *testing.T) {
 	if rs.rule(t, "required_status_checks")["strict_required_status_checks_policy"] != false {
 		t.Fatal("the queue tests each PR against the tip, so up to date must stay off")
 	}
-	if got, want := rs.requiredChecks(t), map[string]float64{"ci / ci-ok": 15368, "PR format (title, body and commits)": 15368}; !reflect.DeepEqual(got, want) {
+	if got, want := rs.requiredChecks(t), map[string]float64{"ci / ci-ok": 15368}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("required checks %v, want %v", got, want)
 	}
 }

@@ -188,7 +188,7 @@ The `staging` ruleset:
 
 - Targets only `refs/heads/staging`.
 - Requires a pull request and allows only squash merges. A person who merges a PR directly therefore squashes it. The Graphite queue merges through its bypass instead, and squashes too.
-- Requires `ci / ci-ok` and `PR format (title, body and commits)` from GitHub Actions (integration 15368). The `verify` commit status is not a ruleset check. The agent guard hook refuses `gh pr merge` until the head's latest `verify` status is `success`, from any poster.
+- Requires `ci / ci-ok` from GitHub Actions (integration 15368). `PR format (title, body and commits)` still runs on every PR but is advisory: a red one shows on the PR and blocks nothing, because `scripts/pr-body.sh` already runs the same check before it sets a body, and the run failed on the shared `GITHUB_TOKEN` rate limit rather than on the PR. The `verify` commit status is not a ruleset check. The agent guard hook refuses `gh pr merge` until the head's latest `verify` status is `success`, from any poster.
 - Blocks force pushes and deletion.
 - Has two bypass actors: org admins (`OrganizationAdmin`) and the Graphite App, which the Graphite merge queue needs to merge a stack it tested on its own draft PR.
 
