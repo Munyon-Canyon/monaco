@@ -845,6 +845,26 @@ func TestCheck_theCoverageRowGatesOnlyTheChangedGoSources(t *testing.T) {
 	}
 }
 
+func TestCheck_theCoverageRowGatesTheUnchangedSourcesOfAChangedPackage(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.base(t, map[string]string{
+		"apps/backend/internal/a/b.go":      "package a\n",
+		"apps/backend/internal/a/b_test.go": "package a\n",
+		"apps/backend/internal/c/c.go":      "package c\n",
+	})
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.affected = "./internal/a\n"
+	h.calls = nil
+	if code, stdout, stderr := h.check(t); code != 0 {
+		t.Fatalf("check: %d %q %q", code, stdout, stderr)
+	}
+	want := "apps/backend: coverage --profile " + h.profile(t) + " --only internal/a/a.go --only internal/a/b.go"
+	if !slices.Contains(h.calls, want) {
+		t.Fatalf("calls: %s\nwant %s", strings.Join(h.calls, "\n"), want)
+	}
+}
+
 func TestCheck_sortsAnUnsortedFlowsFileAndFails(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)

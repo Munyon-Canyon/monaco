@@ -60,7 +60,7 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
 
     - Each row has its own budget under `[check.budget]` in `.monaco/agents.toml`. The `go test -short` row has none as a whole. Instead each package gets the `package` budget (20 s), the same limit that fails a package in CI.
     - It queues behind other runs on the machine. `[check] slots` in `.monaco/agents.toml` (2) is the most runs that execute rows at once. A run takes a ticket in `<git common dir>/.monaco/check-queue/`, prints `waiting for a stage 0 slot: position <n> of <m>` while it waits, and removes the ticket on exit, including on SIGINT and SIGTERM. A ticket whose process died is reclaimed. `--fresh` and a carried pass take no ticket.
-    - It prints at most 20 lines. The full log is the `log:` path it prints, under `.git/pstack/<milestone>/logs/`.
+    - It streams its output untrimmed. The full log is the `log:` path it prints, under `.git/pstack/<milestone>/logs/`.
     - It refuses a dirty tree, because it records `HEAD`'s tree. On a pass it writes `.git/pstack/<milestone>/checks/<tree>`, and the hook lets an owner's push through only when that record matches the current tree.
     - Run it again after every `gt modify`. A tree that already passed prints `stage 0 already passed`.
     - After a restack, run it again. When the PR's diff against its parent is unchanged, it prints `stage 0 carried from tree <old> (same diff against <parent>)`, records the new tree and runs no rows. Any changed line, including a regenerated file that now differs, runs it in full. `check --fresh` forces a full run.
