@@ -7,11 +7,6 @@ design-gallery-money          -MonacoDesignGallery -MonacoDesignGalleryTab money
 design-gallery-controls       -MonacoDesignGallery -MonacoDesignGalleryTab controls
 design-gallery-toast          -MonacoDesignGallery -MonacoDesignGalleryTab toast
 
-onboarding-fresh              -MonacoOnboardingSample fresh
-onboarding-photo              -MonacoOnboardingSample photo
-onboarding-invalid            -MonacoOnboardingSample invalid
-onboarding-failure            -MonacoOnboardingSample failure
-
 home-populated                -MonacoHomeSample populated
 home-empty                    -MonacoHomeSample empty
 home-loading                  -MonacoHomeSample loading

@@ -153,7 +153,7 @@ enum MonacoToastPlacement: Equatable {
         case .custom(let inset):
             // A heuristic standing in for a measurement until #398 lands: it reads "sized for a
             // bar" off the magnitude of the number, so it cannot tell a taller bar from a shorter
-            // one — OnboardingNameView's 108 and WithdrawView's 72 both get the same growth.
+            // one — a 108 and WithdrawView's 72 both get the same growth.
             return inset >= Self.callerInsetBarThreshold ? inset + growth : inset
         }
     }
