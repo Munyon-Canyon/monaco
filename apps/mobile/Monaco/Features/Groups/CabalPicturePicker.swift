@@ -120,7 +120,7 @@ struct CabalPicturePicker: View {
 
         switch await editor.setPicture(imageData: prepared.data, mimeType: prepared.mimeType) {
         case .saved:
-            onResult(MonacoToast(message: "Cabal picture updated.", isSuccess: true))
+            onResult(MonacoToast(message: "Picture updated.", isSuccess: true))
         case .failed(let message):
             onResult(MonacoToast(message: message, isSuccess: false))
         }
@@ -129,7 +129,7 @@ struct CabalPicturePicker: View {
     private func remove() async {
         switch await editor.removePicture() {
         case .saved:
-            onResult(MonacoToast(message: "Cabal picture removed.", isSuccess: true))
+            onResult(MonacoToast(message: "Picture removed.", isSuccess: true))
         case .failed(let message):
             onResult(MonacoToast(message: message, isSuccess: false))
         }

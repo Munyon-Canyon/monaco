@@ -1,4 +1,5 @@
 #if DEBUG
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 import UIKit
@@ -402,7 +403,10 @@ struct SampleCabalPictureWriter: CabalPictureWriting {
     func uploadPicture(groupId: String, imageData: Data, mimeType: String) async throws -> String? {
         try? await Task.sleep(for: .milliseconds(700))
         if alwaysFails {
-            throw MonacoCore.MonacoAPIError.rejected(status: 413, message: "picture must be at most 2MB")
+            throw APIError.problem(
+                ProblemError(
+                    status: 413, code: .init("picture_invalid"), message: "picture must be at most 2MB",
+                    traceID: "sample", retryable: false))
         }
         return GroupDetailSampleData.samplePictureURL()?.absoluteString
     }
@@ -410,7 +414,10 @@ struct SampleCabalPictureWriter: CabalPictureWriting {
     func removePicture(groupId: String) async throws -> String? {
         try? await Task.sleep(for: .milliseconds(400))
         if alwaysFails {
-            throw MonacoCore.MonacoAPIError.httpStatus(503)
+            throw APIError.problem(
+                ProblemError(
+                    status: 503, code: .init("storage_unavailable"), message: "Pictures can't be saved right now.",
+                    traceID: "sample", retryable: true))
         }
         return nil
     }

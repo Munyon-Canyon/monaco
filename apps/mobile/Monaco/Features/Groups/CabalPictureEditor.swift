@@ -1,12 +1,7 @@
 import Combine
 import Foundation
+import MonacoAPI
 import MonacoCore
-
-/// Why a picture write could not even be attempted. The API's own errors
-/// cover everything that can happen once a request is on the wire.
-enum CabalPictureWriteError: Error {
-    case notSignedIn
-}
 
 /// How a cabal picture write ended.
 enum CabalPictureOutcome: Equatable {
@@ -106,60 +101,25 @@ final class CabalPictureEditor: ObservableObject {
         return trimmed
     }
 
-    /// Server copy wins where the server wrote some: it knows which rule was
-    /// broken ("only the cabal's creator..."), and this screen does not.
-    ///
-    /// `MonacoCore` is spelled out because the app target declares an error type
-    /// of the same name; these writes go through the core client.
     static func failureMessage(for error: Error, fallback: String) -> String {
-        if case CabalPictureWriteError.notSignedIn = error {
-            return "Sign in again to change the cabal picture."
-        }
-        guard let apiError = error as? MonacoCore.MonacoAPIError else {
-            if let urlError = error as? URLError, urlError.code != .cancelled {
-                return "Could not reach Monaco. Check your connection."
-            }
-            return fallback
-        }
-        if case .rejected(_, let message, _) = apiError, !message.isEmpty {
-            return message
-        }
-        if case .rateLimited(let retryAfterSeconds, _) = apiError {
-            if let retryAfterSeconds, retryAfterSeconds > 0 {
-                return "Too many changes. Try again in \(retryAfterSeconds)s."
-            }
-            return "Too many changes. Try again in a minute."
-        }
-        switch apiError.statusCode {
-        case 403: return "Only the cabal's creator can change its picture."
-        case 404: return "This cabal is no longer available."
-        case 413: return "That picture is too big. Try another."
-        case 503: return "Cabal pictures are not set up on this server."
-        default: return fallback
-        }
+        guard let apiError = error as? APIError else { return fallback }
+        return ToastCopy.message(for: apiError)
     }
 }
 
-/// The live writer: talks to the backend with the signed-in member's token.
-///
-/// The token is read per call, not captured once: a screen can outlive the token
-/// it was opened with, and a stale one would 401 every write from then on.
 @MainActor
 struct LiveCabalPictureWriter: CabalPictureWriting {
-    let accessToken: () -> String?
+    private let uploads: CabalPictureUploads
 
-    private func client() throws -> MonacoCore.MonacoAPIClient {
-        guard let token = accessToken(), !token.isEmpty else {
-            throw CabalPictureWriteError.notSignedIn
-        }
-        return MonacoCore.MonacoAPIClient(baseURL: Config.apiBaseURL, accessTokenProvider: { token })
+    init(api: APIClient) {
+        uploads = CabalPictureUploads(api: api)
     }
 
     func uploadPicture(groupId: String, imageData: Data, mimeType: String) async throws -> String? {
-        try await client().uploadCabalPicture(groupID: groupId, imageData: imageData, mimeType: mimeType).pictureUrl
+        try await uploads.setPicture(cabalID: groupId, imageData: imageData, mimeType: mimeType)
     }
 
     func removePicture(groupId: String) async throws -> String? {
-        try await client().removeCabalPicture(groupID: groupId).pictureUrl
+        try await uploads.removePicture(cabalID: groupId)
     }
 }
