@@ -74,6 +74,7 @@ func keyConfig(label string) config.Config {
 			AppID:                   "app-fixture",
 			AppSecret:               "privy-app-5ecret",
 			BaseURL:                 "http://privy.test/privy",
+			VerificationKey:         fakes.PrivyVerificationKey(),
 			AuthorizationPrivateKey: fakes.PrivyAuthorizationKeyConfig(),
 			AuthorizationKeyID:      fakes.PrivyAuthorizationKeyID,
 		},
@@ -99,7 +100,10 @@ func overFakes(t *testing.T, label string) stack {
 	if err != nil {
 		t.Fatal(err)
 	}
-	signer := privy.New(cfg, clock.Real{}, httpclient.WithTransport(&recorder{handler: srv}))
+	signer, err := privy.New(cfg, clock.Real{}, httpclient.WithTransport(&recorder{handler: srv}))
+	if err != nil {
+		t.Fatal(err)
+	}
 	return stack{relayer: r, transfers: relayer.NewTransfers(r, signer), rpc: rpc, srv: srv}
 }
 

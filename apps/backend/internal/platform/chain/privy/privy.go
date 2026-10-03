@@ -32,7 +32,12 @@ type Client struct {
 	authKey   *ecdsa.PrivateKey
 }
 
-func New(cfg config.Config, clk clock.Clock, opts ...httpclient.Option) *Client {
+func New(cfg config.Config, clk clock.Clock, opts ...httpclient.Option) (*Client, error) {
+	verifyKey := publicKey(cfg.Privy.VerificationKey)
+	if verifyKey == nil {
+		return nil, errs.New(errs.CodeInvalidInput, "privy.New",
+			slog.String("reason", "PRIVY_VERIFICATION_KEY missing or not an ECDSA public key"))
+	}
 	return &Client{
 		api: httpclient.New("privy", append([]httpclient.Option{
 			httpclient.WithBaseURL(cfg.Privy.BaseURL),
@@ -41,9 +46,9 @@ func New(cfg config.Config, clk clock.Clock, opts ...httpclient.Option) *Client 
 		}, opts...)...),
 		cfg:       cfg.Privy,
 		clock:     clk,
-		verifyKey: publicKey(cfg.Privy.VerificationKey),
+		verifyKey: verifyKey,
 		authKey:   authorizationKey(cfg.Privy.AuthorizationPrivateKey),
-	}
+	}, nil
 }
 
 func publicKey(raw string) *ecdsa.PublicKey {

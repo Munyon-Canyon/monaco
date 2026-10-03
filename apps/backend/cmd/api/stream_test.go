@@ -86,7 +86,7 @@ func TestRun_streamsHintsFromNATSAndShutsDownWithAStreamOpen(t *testing.T) {
 	go func() {
 		stopped <- run(ctx, io.Discard, []string{
 			"MONACO_ENV=test", "DATABASE_URL=" + dsn, "NATS_URL=" + url,
-			"MONACO_DEV_TOKEN_KEY=" + key, "MONACO_HTTP_ADDR=" + addr, "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
+			"MONACO_DEV_TOKEN_KEY=" + key, privyKeyEnv, "MONACO_HTTP_ADDR=" + addr, "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
 			"MONACO_TIMEOUT_SHUTDOWN=5s",
 		}, openapi.Spec, noop.NewMeterProvider())
 	}()

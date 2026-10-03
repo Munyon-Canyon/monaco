@@ -9,12 +9,13 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
 func TestModule_servesCabalsAndHintsTheCreator(t *testing.T) {
 	t.Parallel()
 	m := cabal.New(module.Deps{Clock: clock.Real{}, Config: config.Config{
-		Privy:    config.Privy{BaseURL: "http://127.0.0.1"},
+		Privy:    config.Privy{BaseURL: "http://127.0.0.1", VerificationKey: fakes.PrivyVerificationKey()},
 		Timeouts: config.Timeouts{Privy: time.Second},
 	}})
 	var routes httpx.Routes
