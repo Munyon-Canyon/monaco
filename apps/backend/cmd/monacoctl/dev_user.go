@@ -60,7 +60,10 @@ func devCreateUser(
 	ctx context.Context, cfg config.Config, pool *pgxpool.Pool, hints app.Hints,
 ) (app.DevUser, error) {
 	clk := clock.Real{}
-	client := chainprivy.New(cfg, clk)
+	client, err := chainprivy.New(cfg, clk)
+	if err != nil {
+		return app.DevUser{}, err
+	}
 	return app.CreateDevUser(ctx, app.CreateDevUserDeps{
 		Env: cfg.Env, UoW: db.New(pool, ids.Real{}, clk), Users: adapters.Users{},
 		Privy: privyadapter.Users{Client: client}, Wallets: privyadapter.Wallets{Client: client},

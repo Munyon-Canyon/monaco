@@ -68,6 +68,15 @@ func TestDevToken_userNewRefusesBeforeItMints(t *testing.T) {
 		assertDevTokenRefused(t, cfg, devVerifierRefused)
 		assertNoDevRows(t, pool, hits)
 	})
+	t.Run("privy key", func(t *testing.T) {
+		t.Parallel()
+		pool := testkit.DB(t)
+		hits := 0
+		cfg := devNewUserConfig(t, pool, &hits)
+		cfg.Privy.VerificationKey = ""
+		assertDevTokenRefused(t, cfg, "monacoctl dev token: privy.New: invalid_input")
+		assertNoDevRows(t, pool, hits)
+	})
 	t.Run("privy", func(t *testing.T) {
 		t.Parallel()
 		pool := testkit.DB(t)
@@ -160,6 +169,7 @@ func devNewUserConfig(t *testing.T, pool *pgxpool.Pool, hits *int) config.Config
 	cfg.Privy.AppID = "app"
 	cfg.Privy.AppSecret = "secret"
 	cfg.Privy.AuthorizationKeyID = fakes.PrivyAuthorizationKeyID
+	cfg.Privy.VerificationKey = fakes.PrivyVerificationKey()
 	cfg.Timeouts.Privy = 5 * time.Second
 	return cfg
 }

@@ -56,7 +56,11 @@ func (m *Module) Queries() port.Queries { return adapters.NewQueries(m.deps.Pool
 func (m *Module) CreateCabalHandler() *app.CreateCabalHandler {
 	wallets := m.wallets
 	if wallets == nil {
-		wallets = adapters.AppWallets{Client: privy.New(m.deps.Config, m.deps.Clock)}
+		client, err := privy.New(m.deps.Config, m.deps.Clock)
+		if err != nil {
+			panic(err)
+		}
+		wallets = adapters.AppWallets{Client: client}
 	}
 	return app.NewCreateCabalHandler(app.CreateCabalDeps{
 		UoW: m.deps.UoW, Reads: m.deps.Pool, Wallets: wallets, IDs: m.deps.IDs, Clock: m.deps.Clock,

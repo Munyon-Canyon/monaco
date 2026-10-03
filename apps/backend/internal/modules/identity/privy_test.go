@@ -54,15 +54,25 @@ func privyConfig() config.Config {
 	}
 }
 
-func privyOver(cfg config.Config, h http.Handler) (*privy.Client, *privyUpstream) {
+func privyClient(t *testing.T, cfg config.Config, clk clock.Clock, opts ...httpclient.Option) *privy.Client {
+	t.Helper()
+	c, err := privy.New(cfg, clk, opts...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+func privyOver(t *testing.T, cfg config.Config, h http.Handler) (*privy.Client, *privyUpstream) {
+	t.Helper()
 	u := &privyUpstream{handler: h}
-	return privy.New(cfg, clock.Real{}, httpclient.WithTransport(u)), u
+	return privyClient(t, cfg, clock.Real{}, httpclient.WithTransport(u)), u
 }
 
 func overPrivyFakes(t *testing.T) (*privy.Client, *privyUpstream, *fakes.Server) {
 	t.Helper()
 	srv := fakes.New()
-	c, u := privyOver(privyConfig(), srv)
+	c, u := privyOver(t, privyConfig(), srv)
 	return c, u, srv
 }
 
@@ -137,7 +147,7 @@ func TestPrivyUsers_normalizesThePhoneToE164(t *testing.T) {
 		"+1 (415) 555-0100": "+14155550100",
 		"+44.20.7946.0958":  "+442079460958",
 	} {
-		c, _ := privyOver(privyConfig(), privyUserReplying(raw))
+		c, _ := privyOver(t, privyConfig(), privyUserReplying(raw))
 		got, err := privyadapter.Users{Client: c}.User(t.Context(), "did:privy:phone")
 		if err != nil || got.PhoneE164 != want {
 			t.Fatalf("User with phone %q = %q, %v, want %q", raw, got.PhoneE164, err, want)
@@ -156,7 +166,7 @@ func TestPrivyUsers_refusesAnXAccountWithAnEmptySubject(t *testing.T) {
 			}},
 		})
 	})
-	c, _ := privyOver(privyConfig(), h)
+	c, _ := privyOver(t, privyConfig(), h)
 	got, err := privyadapter.Users{Client: c}.User(t.Context(), "did:privy:empty-x")
 	if errs.CodeOf(err) != errs.CodeDecodeFailed || got != (app.PrivyUser{}) {
 		t.Fatalf("User = %+v, %v, want decode_failed", got, err)
@@ -172,7 +182,7 @@ func TestPrivyUsers_refusesAPhoneThatIsNotE164(t *testing.T) {
 	for _, raw := range []string{
 		"4155550100", "+", "+1", "+04155550100", "+1415555010012345", "+1415555O100", "+1 415 555 0100 ext 7",
 	} {
-		c, _ := privyOver(privyConfig(), privyUserReplying(raw))
+		c, _ := privyOver(t, privyConfig(), privyUserReplying(raw))
 		got, err := privyadapter.Users{Client: c}.User(t.Context(), "did:privy:phone")
 		if errs.CodeOf(err) != errs.CodeDecodeFailed || got != (app.PrivyUser{}) {
 			t.Fatalf("User with phone %q = %+v, %v, want decode_failed", raw, got, err)
