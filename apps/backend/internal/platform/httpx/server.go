@@ -156,6 +156,9 @@ type GovernanceReadRoutes interface {
 	GetCabalProposals(context.Context, api.GetCabalProposalsRequestObject) (api.GetCabalProposalsResponseObject, error)
 	GetMyPendingVotes(context.Context, api.GetMyPendingVotesRequestObject) (api.GetMyPendingVotesResponseObject, error)
 	GetProposal(context.Context, api.GetProposalRequestObject) (api.GetProposalResponseObject, error)
+	GetCabalProposalPreview(
+		context.Context, api.GetCabalProposalPreviewRequestObject,
+	) (api.GetCabalProposalPreviewResponseObject, error)
 }
 
 type GovernanceWriteRoutes interface {

@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"log/slog"
+	"math"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
@@ -117,6 +118,49 @@ func (h HTTP) PostCabalProposal(
 		return nil, err
 	}
 	return api.PostCabalProposal201JSONResponse(out), nil
+}
+
+func (h HTTP) GetCabalProposalPreview(
+	ctx context.Context, req api.GetCabalProposalPreviewRequestObject,
+) (api.GetCabalProposalPreviewResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	trade, err := domain.NewTrade(domain.Trade{
+		Kind: domain.Kind(req.Params.Kind), Symbol: req.Params.Symbol,
+		USDCMicros: money.MicrosFromUint64(amount(req.Params.UsdcMicros)), TokenAmount: amount(req.Params.TokenAmount),
+	})
+	if err != nil {
+		return nil, err
+	}
+	got, err := h.Propose.Preview(
+		ctx,
+		app.ProposeTrade{CabalID: ids.CabalIDFrom(req.Id), ProposerID: user, Trade: trade},
+	)
+	if err != nil {
+		return nil, err
+	}
+	pot, err := wireInt(got.Pot.Uint64(), "pot_value_micros")
+	if err != nil {
+		return nil, err
+	}
+	quote, err := wireInt(got.QuoteOut, "quote_out_amount")
+	if err != nil {
+		return nil, err
+	}
+	out := api.GetCabalProposalPreview200JSONResponse{PotValueMicros: pot, QuoteOutAmount: positive(quote)}
+	if got.Advisory != "" {
+		out.AdvisoryCode, out.AdvisoryMessage = ptr(string(got.Advisory)), ptr(errs.Message(got.Advisory))
+	}
+	return out, nil
+}
+
+func wireInt(v uint64, field string) (int64, error) {
+	if v > math.MaxInt64 {
+		return 0, errs.New(errs.CodeDecodeFailed, "governance.wireInt", slog.String("field", field))
+	}
+	return int64(v), nil
 }
 
 func (h HTTP) DeleteProposal(

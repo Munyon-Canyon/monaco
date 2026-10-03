@@ -143,6 +143,12 @@ func (healthz) PostCabalProposal(
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostCabalProposal")
 }
 
+func (healthz) GetCabalProposalPreview(
+	context.Context, api.GetCabalProposalPreviewRequestObject,
+) (api.GetCabalProposalPreviewResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabalProposalPreview")
+}
+
 func (healthz) PostUserFollow(
 	context.Context, api.PostUserFollowRequestObject,
 ) (api.PostUserFollowResponseObject, error) {
