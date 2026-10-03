@@ -1,0 +1,7 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": [
+    {"name": "SpaceX PreStocks", "symbol": "SPACEX", "contract_address": "not-a-mint"}
+  ]
+}

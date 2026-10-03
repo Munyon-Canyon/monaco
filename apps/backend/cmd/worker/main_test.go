@@ -41,6 +41,7 @@ func bootEnv(t *testing.T, extra ...string) []string {
 			"MONACO_ENV=test", "DATABASE_URL=" + testkit.DB(t).Config().ConnString(), "NATS_URL=" + url,
 			"XSTOCKS_BASE_URL=" + upstreams.URL + "/xstocks",
 			"TESSERA_API_BASE_URL=" + upstreams.URL + "/tessera",
+			"PRESTOCKS_API_BASE_URL=" + upstreams.URL + "/prestocks",
 			"MONACO_JUPITER_PRICE_BASE_URL=" + upstreams.URL + "/jupiter/price/v3",
 			"SOLANA_RPC_URL=" + upstreams.URL + "/rpc/",
 		},

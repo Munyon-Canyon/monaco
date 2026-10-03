@@ -83,6 +83,7 @@ func startWorker(t *testing.T, pool *pgxpool.Pool, clk *testkit.Clock, up upstre
 	cfg := moduleConfig()
 	cfg.XStocks.BaseURL, cfg.Timeouts.XStocks = up.base+"/xstocks", 10*time.Second
 	cfg.Tessera.BaseURL, cfg.Timeouts.Tessera = up.base+"/tessera", 10*time.Second
+	cfg.PreStocks.BaseURL, cfg.Timeouts.PreStocks = up.base+"/prestocks", 10*time.Second
 	cfg.Solana.RPCURL, cfg.Timeouts.RPC = up.base+"/rpc/", 10*time.Second
 	pollers := slices.DeleteFunc(market.New(module.Deps{
 		Config: cfg, Clock: clk, IDs: ids, Pool: pool, UoW: db.New(pool, ids, clk), HTTPClient: httpclient.New,
@@ -160,7 +161,7 @@ func (w *worker) errors(t *testing.T, code string) int64 {
 	return total
 }
 
-const fixtureAssets = 6.0
+const fixtureAssets = 14.0
 
 func TestCatalogPoller_twoWorkersOnOneDatabaseRunOneTickPerHour(t *testing.T) {
 	t.Parallel()

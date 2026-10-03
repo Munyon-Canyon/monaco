@@ -33,6 +33,7 @@ type Config struct {
 	Jupiter    Jupiter
 	XStocks    XStocks
 	Tessera    Tessera
+	PreStocks  PreStocks
 	Market     Market
 	Privy      Privy
 	Solana     Solana
@@ -91,6 +92,10 @@ type Tessera struct {
 	BaseURL string
 }
 
+type PreStocks struct {
+	BaseURL string
+}
+
 type Market struct {
 	PricePollInterval time.Duration
 }
@@ -140,6 +145,7 @@ type Timeouts struct {
 	JupiterExecute  time.Duration
 	XStocks         time.Duration
 	Tessera         time.Duration
+	PreStocks       time.Duration
 	PostHog         time.Duration
 	Storage         time.Duration
 	HTTPServerRead  time.Duration
@@ -280,6 +286,8 @@ func marketFields() []field {
 			func(c *Config) *time.Duration { return &c.Timeouts.XStocks }),
 		duration("MONACO_TIMEOUT_TESSERA", 15*time.Second,
 			func(c *Config) *time.Duration { return &c.Timeouts.Tessera }),
+		duration("MONACO_TIMEOUT_PRESTOCKS", 15*time.Second,
+			func(c *Config) *time.Duration { return &c.Timeouts.PreStocks }),
 		text("MONACO_JUPITER_SWAP_BASE_URL", "https://api.jup.ag/swap/v2",
 			func(c *Config) *string { return &c.Jupiter.SwapBaseURL }),
 		text("MONACO_JUPITER_PRICE_BASE_URL", "https://api.jup.ag/price/v3",
@@ -288,6 +296,8 @@ func marketFields() []field {
 		text("XSTOCKS_BASE_URL", "https://api.xstocks.fi", func(c *Config) *string { return &c.XStocks.BaseURL }),
 		text("TESSERA_API_BASE_URL", "https://rest-api.tessera.pe",
 			func(c *Config) *string { return &c.Tessera.BaseURL }),
+		text("PRESTOCKS_API_BASE_URL", "https://prestocks.com",
+			func(c *Config) *string { return &c.PreStocks.BaseURL }),
 		duration("MARKET_PRICE_POLL_INTERVAL", 120*time.Second,
 			func(c *Config) *time.Duration { return &c.Market.PricePollInterval }),
 	}
