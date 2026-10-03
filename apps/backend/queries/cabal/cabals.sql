@@ -12,6 +12,13 @@ SELECT id FROM cabals WHERE id = $1 FOR SHARE;
 -- name: LockCabalExclusive :one
 SELECT id FROM cabals WHERE id = $1 FOR NO KEY UPDATE;
 
+-- name: LockCabalForAccess :one
+SELECT c.creator_id, c.join_mode, c.voter_mode, c.threshold, c.proposal_expiry_seconds, c.slippage_bps, c.status,
+  EXISTS (SELECT 1 FROM cabal_members m WHERE m.cabal_id = c.id AND m.user_id = sqlc.arg(user_id)) AS is_member
+FROM cabals c
+WHERE c.id = sqlc.arg(cabal_id)
+FOR SHARE OF c;
+
 -- name: FindCabal :one
 SELECT c.id, c.name, c.picture_url, c.creator_id, c.join_mode, c.voter_mode, c.threshold,
   c.proposal_expiry_seconds, c.slippage_bps, c.invite_code, c.status, c.created_at, c.updated_at,

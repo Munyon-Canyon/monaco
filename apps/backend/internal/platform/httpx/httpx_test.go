@@ -129,6 +129,18 @@ func (healthz) GetMyCabals(context.Context, api.GetMyCabalsRequestObject) (api.G
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetMyCabals")
 }
 
+func (healthz) PostCabalMember(
+	context.Context, api.PostCabalMemberRequestObject,
+) (api.PostCabalMemberResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostCabalMember")
+}
+
+func (healthz) GetCabalByCode(
+	context.Context, api.GetCabalByCodeRequestObject,
+) (api.GetCabalByCodeResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabalByCode")
+}
+
 func (healthz) GetAsset(context.Context, api.GetAssetRequestObject) (api.GetAssetResponseObject, error) {
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetAsset")
 }

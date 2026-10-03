@@ -65,7 +65,8 @@ There is exactly one creator per cabal, and the role never moves. There is no ad
 - One pending row per (cabal, user), in either direction: a partial unique index on `(cabal_id, user_id) WHERE status = 'pending'`. A second `RequestAccess` from the same user returns the existing request. A `RequestAccess` while an invite is pending is refused; the user accepts the invite instead.
 - A denied or revoked user can request again, which inserts a new row.
 - `JoinCabal` on a `request` cabal and `RequestAccess` on an `open` cabal are refused with a `Blocked`-kind code, so the app always calls the command that matches the mode it read.
-- A member calling `JoinCabal` or `RequestAccess` gets the existing membership back, not an error.
+- A member calling `JoinCabal` or `RequestAccess` is refused with `AlreadyMember`. A banned cabal refuses both with `CabalBanned`.
+- `GET /v1/invite-codes/{code}` resolves a pasted invite code to the cabal's id, name, picture, `join_mode` and member count, so the app can run the path for that mode.
 
 ### Invites
 

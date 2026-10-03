@@ -86,6 +86,55 @@ paths:
               example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: null, my_access_request: null, invite_code: null, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/cabals/{id}/members:
+    post:
+      operationId: postCabalMember
+      tags: [cabal]
+      x-idempotent: true
+      summary: Join an open cabal.
+      description: >-
+        Adds the caller as a member of an open cabal. The caller can vote when the cabal's voter_mode is all.
+        A request cabal refuses with join_needs_request, so the app files an access request instead.
+        A replay returns the first response.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema: {type: string, format: uuid}
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The cabal, as its new member sees it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cabal"
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 2, members: [], me: {role: member, can_vote: true}, my_access_request: null, invite_code: ABCD2345, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/invite-codes/{code}:
+    get:
+      operationId: getCabalByCode
+      tags: [cabal]
+      summary: Look up a cabal by its invite code.
+      description: Resolves a pasted invite code to the cabal it opens, so the app can join or request access.
+      parameters:
+        - name: code
+          in: path
+          required: true
+          description: The cabal's invite code.
+          schema: {type: string}
+      responses:
+        "200":
+          description: The cabal the code opens.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CabalPreview"
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, join_mode: request, member_count: 3}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/me/cabals:
     get:
       operationId: getMyCabals
@@ -176,6 +225,17 @@ components:
             - type: "null"
         invite_code: {type: [string, "null"], description: The invite code. Null for a non-member., examples: [null]}
         treasury_address: {type: string, description: Solana address of the app-owned treasury wallet., examples: [Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf]}
+    CabalPreview:
+      type: object
+      description: What a non-member sees of a cabal before joining it.
+      additionalProperties: false
+      required: [id, name, picture_url, join_mode, member_count]
+      properties:
+        id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        name: {type: string, examples: [Friends]}
+        picture_url: {type: [string, "null"], description: Null when the cabal has no picture., examples: [null]}
+        join_mode: {type: string, description: "`open` or `request`.", examples: [request]}
+        member_count: {type: integer, format: int32, examples: [3]}
     CabalSearchPage:
       type: object
       description: One page of public cabals.

@@ -165,3 +165,65 @@ func TestCabalRoleOf_aReturningCreatorVotesInAListCabal(t *testing.T) {
 		t.Fatal("in a list cabal the creator must vote by the role RoleOf gives and a member must not")
 	}
 }
+
+func TestCanJoin_refusesABannedCabalThenAMemberThenARequestCabal(t *testing.T) {
+	t.Parallel()
+	c := newCast(t)
+	open, request := c.cabal(t, "open"), c.cabal(t, "request")
+	banned := open
+	banned.Banned = true
+	for _, tt := range []struct {
+		name  string
+		cabal domain.Cabal
+		cases []permissionCase
+	}{
+		{"open", open, []permissionCase{
+			{"outsider joins", nobody(c.outsider), ""},
+			{"member", member(c.member), errs.CodeAlreadyMember},
+		}},
+		{"request", request, []permissionCase{
+			{"outsider must ask", nobody(c.outsider), errs.CodeJoinNeedsRequest},
+			{"member before mode", member(c.member), errs.CodeAlreadyMember},
+		}},
+		{"banned", banned, []permissionCase{
+			{"outsider", nobody(c.outsider), errs.CodeCabalBanned},
+			{"member", member(c.member), errs.CodeCabalBanned},
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			runPermissionCases(t, tt.cases, func(a domain.Actor) error { return domain.CanJoin(a, tt.cabal) })
+		})
+	}
+}
+
+func TestCanRequest_refusesABannedCabalThenAMemberThenAnOpenCabal(t *testing.T) {
+	t.Parallel()
+	c := newCast(t)
+	open, request := c.cabal(t, "open"), c.cabal(t, "request")
+	banned := request
+	banned.Banned = true
+	for _, tt := range []struct {
+		name  string
+		cabal domain.Cabal
+		cases []permissionCase
+	}{
+		{"request", request, []permissionCase{
+			{"outsider asks", nobody(c.outsider), ""},
+			{"member", member(c.member), errs.CodeAlreadyMember},
+		}},
+		{"open", open, []permissionCase{
+			{"outsider joins instead", nobody(c.outsider), errs.CodeRequestNotNeeded},
+			{"member before mode", member(c.member), errs.CodeAlreadyMember},
+		}},
+		{"banned", banned, []permissionCase{
+			{"outsider", nobody(c.outsider), errs.CodeCabalBanned},
+			{"member", member(c.member), errs.CodeCabalBanned},
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			runPermissionCases(t, tt.cases, func(a domain.Actor) error { return domain.CanRequest(a, tt.cabal) })
+		})
+	}
+}

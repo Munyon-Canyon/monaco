@@ -273,6 +273,46 @@ func (q *Queries) LockCabalExclusive(ctx context.Context, id uuid.UUID) (uuid.UU
 	return id_2, err
 }
 
+const lockCabalForAccess = `-- name: LockCabalForAccess :one
+SELECT c.creator_id, c.join_mode, c.voter_mode, c.threshold, c.proposal_expiry_seconds, c.slippage_bps, c.status,
+  EXISTS (SELECT 1 FROM cabal_members m WHERE m.cabal_id = c.id AND m.user_id = $1) AS is_member
+FROM cabals c
+WHERE c.id = $2
+FOR SHARE OF c
+`
+
+type LockCabalForAccessParams struct {
+	UserID  uuid.UUID
+	CabalID uuid.UUID
+}
+
+type LockCabalForAccessRow struct {
+	CreatorID             uuid.UUID
+	JoinMode              string
+	VoterMode             string
+	Threshold             string
+	ProposalExpirySeconds int32
+	SlippageBps           int32
+	Status                string
+	IsMember              bool
+}
+
+func (q *Queries) LockCabalForAccess(ctx context.Context, arg LockCabalForAccessParams) (LockCabalForAccessRow, error) {
+	row := q.db.QueryRow(ctx, lockCabalForAccess, arg.UserID, arg.CabalID)
+	var i LockCabalForAccessRow
+	err := row.Scan(
+		&i.CreatorID,
+		&i.JoinMode,
+		&i.VoterMode,
+		&i.Threshold,
+		&i.ProposalExpirySeconds,
+		&i.SlippageBps,
+		&i.Status,
+		&i.IsMember,
+	)
+	return i, err
+}
+
 const lockCabalShared = `-- name: LockCabalShared :one
 SELECT id FROM cabals WHERE id = $1 FOR SHARE
 `

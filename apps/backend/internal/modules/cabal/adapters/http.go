@@ -2,8 +2,10 @@ package adapters
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -25,11 +27,15 @@ import (
 
 type HTTP struct {
 	Create *app.CreateCabalHandler
+	Join   *app.JoinCabalHandler
 	DB     sqlc.DBTX
 	Users  app.UserCards
 }
 
-var _ httpx.CabalRoutes = HTTP{}
+var (
+	_ httpx.CabalRoutes     = HTTP{}
+	_ httpx.CabalJoinRoutes = HTTP{}
+)
 
 func (h HTTP) PostCabal(
 	ctx context.Context, req api.PostCabalRequestObject,
@@ -198,6 +204,44 @@ func (h HTTP) GetCabal(
 		return nil, err
 	}
 	return api.GetCabal200JSONResponse(wireCabal(view)), nil
+}
+
+func (h HTTP) PostCabalMember(
+	ctx context.Context, req api.PostCabalMemberRequestObject,
+) (api.PostCabalMemberResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cabalID := ids.CabalIDFrom(req.Id)
+	if err := h.Join.Handle(ctx, app.JoinCabal{ActorID: user, CabalID: cabalID}); err != nil {
+		return nil, err
+	}
+	view, err := app.GetCabal(ctx, h.DB, h.Users, cabalID, user)
+	if err != nil {
+		return nil, err
+	}
+	return api.PostCabalMember200JSONResponse(wireCabal(view)), nil
+}
+
+func (h HTTP) GetCabalByCode(
+	ctx context.Context, req api.GetCabalByCodeRequestObject,
+) (api.GetCabalByCodeResponseObject, error) {
+	const op = "cabal.GetCabalByCode"
+	if _, err := caller(ctx); err != nil {
+		return nil, err
+	}
+	row, err := sqlc.New(h.DB).FindCabalByInviteCode(ctx, strings.ToUpper(strings.TrimSpace(req.Code)))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, errs.New(errs.CodeCabalNotFound, op)
+	}
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	return api.GetCabalByCode200JSONResponse(api.CabalPreview{
+		Id: row.ID, Name: row.Name, PictureUrl: nullableText(row.PictureUrl), JoinMode: row.JoinMode,
+		MemberCount: row.MemberCount,
+	}), nil
 }
 
 func createCommand(user ids.UserID, req api.PostCabalRequestObject) (app.CreateCabal, error) {
