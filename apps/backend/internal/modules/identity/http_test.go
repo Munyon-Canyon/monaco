@@ -251,7 +251,7 @@ func TestGetMe_overHTTPServesTheAccount(t *testing.T) {
 	}
 }
 
-func TestUploadProfilePhoto_OK(t *testing.T) {
+func TestFlow23a_UploadProfilePhoto_OK(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
@@ -288,7 +288,7 @@ func TestUploadProfilePhoto_usesSniffedPNGMetadata(t *testing.T) {
 	}
 }
 
-func TestUpdateProfile_OK(t *testing.T) {
+func TestFlow23_UpdateProfile_OK(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
@@ -307,7 +307,7 @@ func TestUpdateProfile_OK(t *testing.T) {
 	}
 }
 
-func TestUpdateProfile_DisplayNameInvalid(t *testing.T) {
+func TestFlow23_UpdateProfile_DisplayNameInvalid(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
@@ -335,7 +335,7 @@ func TestUpdateProfile_unchangedIsANoop(t *testing.T) {
 	}
 }
 
-func TestUploadProfilePhoto_PhotoInvalid(t *testing.T) {
+func TestFlow23a_UploadProfilePhoto_PhotoInvalid(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
@@ -386,7 +386,7 @@ func TestUploadProfilePhoto_acceptsEverySupportedFormat(t *testing.T) {
 	}
 }
 
-func TestUploadProfilePhoto_StorageUnavailable(t *testing.T) {
+func TestFlow23a_UploadProfilePhoto_StorageUnavailable(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	f.photos.err = errs.New(errs.CodeUpstreamUnavailable, "test.photoStore")
@@ -508,7 +508,7 @@ FOR EACH ROW EXECUTE FUNCTION fail_profile_write()`); err != nil {
 	}
 }
 
-func TestUploadProfilePhoto_RateLimited(t *testing.T) {
+func TestFlow23a_UploadProfilePhoto_RateLimited(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})

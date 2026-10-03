@@ -47,6 +47,23 @@ func TestSettle_passesOnARequiredLineThatLandsAfterTheLogCheckStarts(t *testing.
 	}
 }
 
+func TestRouteMismatch_checksTheLastMatchingRequest(t *testing.T) {
+	t.Parallel()
+	res := &Result{Unit: Unit{
+		Flow:    tools.Flow{ID: "23a", Trigger: "POST /v1/me/profile-photo"},
+		Outcome: tools.Outcome("RateLimited"),
+	}, Exchanges: []scenario.Exchange{
+		{Method: http.MethodPost, Path: "/v1/me/profile-photo", Status: http.StatusOK},
+		{
+			Method: http.MethodPost, Path: "/v1/me/profile-photo", Status: http.StatusTooManyRequests,
+			Response: []byte(`{"code":"rate_limited"}`),
+		},
+	}}
+	if got := routeMismatch(res, "POST /v1/me/profile-photo"); got != "" {
+		t.Fatalf("routeMismatch = %q, want the final request's rate-limited outcome", got)
+	}
+}
+
 func TestSettle_failsOnARequiredLineThatNeverLandsOnceTheDeadlinePasses(t *testing.T) {
 	t.Parallel()
 	d, res := healthzSettle(testkit.DB(t))
