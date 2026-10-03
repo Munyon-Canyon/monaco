@@ -1,10 +1,16 @@
 import Foundation
 
+public enum MarketIssuer: String, Equatable, Sendable {
+    case xstocks
+    case tessera
+    case prestocks
+}
+
 public struct MarketAsset: Equatable, Sendable, Identifiable {
     public let symbol: String
     public let ticker: String
     public let name: String
-    public let issuer: String
+    public let issuer: MarketIssuer
     public let kind: AssetKind
     public let logoURL: URL?
     public let priceMicros: Int64?
@@ -22,7 +28,7 @@ public struct MarketAsset: Equatable, Sendable, Identifiable {
         symbol: String,
         ticker: String,
         name: String,
-        issuer: String,
+        issuer: MarketIssuer,
         kind: AssetKind,
         logoURL: URL?,
         priceMicros: Int64?,

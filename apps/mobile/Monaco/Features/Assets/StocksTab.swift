@@ -6,6 +6,6 @@ enum StocksTab: TabContent {
     static let accessibilityIdentifier = "tab-assets"
 
     static func root() -> some View {
-        NotMigratedView(screen: "Stocks")
+        StocksTabView()
     }
 }

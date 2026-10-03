@@ -77,11 +77,11 @@ public enum MarketMapping {
         }
     }
 
-    private static func issuer(_ wire: Components.Schemas.AssetIssuer) -> String {
+    private static func issuer(_ wire: Components.Schemas.AssetIssuer) -> MarketIssuer {
         switch wire {
-        case .xstocks: "xstocks"
-        case .tessera: "tessera"
-        case .prestocks: "prestocks"
+        case .xstocks: .xstocks
+        case .tessera: .tessera
+        case .prestocks: .prestocks
         }
     }
 
