@@ -7,6 +7,7 @@ Run: python3 scripts/qa/test_journey.py
 import fcntl
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import threading
@@ -329,7 +330,51 @@ class BusyPorts(unittest.TestCase):
                     self.fail("the run went ahead")
 
 
-class Backend(unittest.TestCase):
+class JourneyPsql(unittest.TestCase):
+    """apps/mobile/qa/journeys/psql.sh, run with fake psql and docker on PATH."""
+
+    SCRIPT = journey.QA / "psql.sh"
+
+    def run_with(self, tools):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        bin_dir = Path(folder.name)
+        log = bin_dir / "calls"
+        for name, body in tools.items():
+            tool = bin_dir / name
+            tool.write_text("#!/bin/bash\n" + body.replace("LOG", str(log)) + "\n")
+            tool.chmod(0o755)
+        # Only the fakes: a runner's real /usr/bin/psql must not answer for them.
+        env = {"PATH": str(bin_dir),
+               "DATABASE_URL": "postgres://monaco:monaco@localhost:54322/monaco?sslmode=disable"}
+        done = subprocess.run(["/bin/bash", str(self.SCRIPT), "-tA"], input="SELECT 1\n", env=env,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        return done, log.read_text() if log.exists() else ""
+
+    def test_host_psql_is_used_when_installed(self):
+        done, calls = self.run_with({
+            "psql": 'echo "psql $*" >> LOG; /bin/cat',
+            "docker": 'echo "docker $*" >> LOG',
+        })
+        self.assertEqual(done.returncode, 0)
+        self.assertEqual(done.stdout, "SELECT 1\n")
+        self.assertEqual(calls, "psql postgres://monaco:monaco@localhost:54322/monaco?sslmode=disable -tA\n")
+
+    def test_without_host_psql_it_runs_inside_the_compose_container(self):
+        done, calls = self.run_with({"docker": """echo "docker $*" >> LOG
+if [[ $1 == inspect ]]; then echo true; else /bin/cat; fi"""})
+        self.assertEqual(done.returncode, 0)
+        self.assertEqual(done.stdout, "SELECT 1\n")
+        self.assertIn("docker exec -i monaco-postgres sh -c", calls)
+        self.assertTrue(calls.rstrip().endswith("monaco -tA"), calls)
+
+    def test_neither_says_psql_is_missing_not_that_the_database_is_down(self):
+        done, calls = self.run_with({"docker": 'echo "docker $*" >> LOG; echo false'})
+        self.assertEqual(done.returncode, 127)
+        self.assertEqual(done.stderr, "psql not found (install it, or start Compose postgres)\n")
+        self.assertNotIn("docker exec", calls)
+
+
     def test_health_check_uses_the_configured_base_url(self):
         calls = []
 
