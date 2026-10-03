@@ -42,6 +42,7 @@ func TestRegisteredEvents_tagPersonalFieldNames(t *testing.T) {
 		events.UserCreated{},
 		events.UserAuthStateChanged{},
 		events.UserProfileUpdated{},
+		events.UserDeleted{},
 		events.FollowCreated{},
 		events.FollowRemoved{},
 	}
