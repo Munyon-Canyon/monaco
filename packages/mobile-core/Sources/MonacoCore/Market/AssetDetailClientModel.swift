@@ -23,6 +23,8 @@ public final class AssetDetailClientModel {
 
     public private(set) var phase: Phase = .idle
     public private(set) var detail: AssetDetailPresentation?
+    public private(set) var chart: AssetChartSeries?
+    public private(set) var chartError: APIError?
     public private(set) var lastError: APIError?
     public private(set) var failureTick = 0
     private let api: APIClient
@@ -42,11 +44,27 @@ public final class AssetDetailClientModel {
             detail = Self.presentation(response)
             phase = .loaded
             lastError = nil
+            await loadChart()
         } catch {
             let error = APIError(error)
             lastError = error
             failureTick += 1
             if detail == nil { phase = .failed(error) }
+        }
+    }
+
+    public func loadChart(range: AssetChartRange = .oneDay) async {
+        do {
+            let response = try await api.read { client in
+                try await client.getAssetChart(
+                    path: .init(symbol: symbol),
+                    query: .init(range: Self.wireRange(range))
+                ).ok.body.json
+            }
+            chart = MarketMapping.chart(response)
+            chartError = nil
+        } catch {
+            chartError = APIError(error)
         }
     }
 
@@ -61,5 +79,18 @@ public final class AssetDetailClientModel {
             changeBasisPoints: detail.changeBps.map(Int64.init),
             attribution: detail.attribution
         )
+    }
+
+    private static func wireRange(
+        _ range: AssetChartRange
+    ) -> Operations.GetAssetChart.Input.Query.RangePayload {
+        switch range {
+        case .oneDay: ._1d
+        case .oneWeek: ._1w
+        case .oneMonth: ._1m
+        case .threeMonths: ._3m
+        case .oneYear: ._1y
+        case .all: .all
+        }
     }
 }
