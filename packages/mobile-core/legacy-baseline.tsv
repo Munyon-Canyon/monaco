@@ -32,7 +32,7 @@ poll	apps/mobile/Monaco/Features/Proposals/ProposalDetailView.swift	1
 poll	apps/mobile/Monaco/Features/Proposals/ProposalFeedView.swift	1
 poll	apps/mobile/Monaco/Support/LiveRefresh.swift	3
 groups_path	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	17
-lines	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	830
-lines	apps/mobile/Monaco/Features/Shell/AppSessionStore.swift	255
-urlrequest	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	32
+lines	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	800
+lines	apps/mobile/Monaco/Features/Shell/AppSessionStore.swift	247
+urlrequest	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	30
 urlrequest	packages/mobile-core/Sources/MonacoCore/Networking/MonacoHTTPTransport.swift	1

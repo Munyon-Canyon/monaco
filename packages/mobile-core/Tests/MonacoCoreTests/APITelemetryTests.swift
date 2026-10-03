@@ -302,7 +302,7 @@ final class APITelemetryTests: XCTestCase {
             let (client, _) = makeClient()
 
             do {
-                _ = try await client.updateProfile(displayName: "Ada")
+                _ = try await client.removeCabalPicture(groupID: "g1")
                 XCTFail("Expected \(status) to throw")
             } catch {
                 XCTAssertNotNil(error.apiRequestID)

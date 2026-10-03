@@ -295,27 +295,6 @@ final class MonacoAPIClientTests: XCTestCase {
         }
     }
 
-    func testMeDTO_decodesFixtureJSON() throws {
-        // Arrange
-        let fixtureURL = try XCTUnwrap(
-            Bundle.module.url(forResource: "me", withExtension: "json")
-        )
-        let data = try Data(contentsOf: fixtureURL)
-
-        // Act
-        let dto = try JSONDecoder().decode(MeDTO.self, from: data)
-
-        // Assert
-        XCTAssertEqual(dto.userId, "550e8400-e29b-41d4-a716-446655440000")
-        XCTAssertEqual(dto.displayName, "Alfred")
-        XCTAssertEqual(dto.memberWalletAddress, "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU")
-        XCTAssertEqual(
-            dto.profilePhotoUrl,
-            "https://example.supabase.co/storage/v1/object/public/avatars/550e8400-e29b-41d4-a716-446655440000/3f2a.jpg"
-        )
-        XCTAssertEqual(dto.createdAt, Date(timeIntervalSince1970: 1_788_273_000))
-    }
-
     private func makeMockURLSession() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
