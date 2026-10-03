@@ -38,6 +38,10 @@ func (healthz) GetStream(context.Context, api.GetStreamRequestObject) (api.GetSt
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetStream")
 }
 
+func (healthz) GetMyBalance(context.Context, api.GetMyBalanceRequestObject) (api.GetMyBalanceResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetMyBalance")
+}
+
 func (healthz) PostAuthSession(
 	context.Context, api.PostAuthSessionRequestObject,
 ) (api.PostAuthSessionResponseObject, error) {

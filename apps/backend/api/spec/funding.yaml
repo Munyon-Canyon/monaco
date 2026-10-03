@@ -1,1 +1,28 @@
-paths: {}
+paths:
+  /v1/me/balance:
+    get:
+      operationId: getMyBalance
+      tags: [funding]
+      summary: Read the caller's available platform balance.
+      x-allow-restricted: true
+      responses:
+        "200":
+          description: The current balance.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Balance"}
+              example: {available_micros: "22500000", on_chain_micros: "25000000", in_flight_micros: "2500000", deposit_address: 5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP, as_of: "2026-10-03T15:00:00Z"}
+        default: {$ref: "#/components/responses/Problem"}
+components:
+  schemas:
+    Balance:
+      type: object
+      description: The member wallet's on-chain USDC and currently spendable platform balance.
+      additionalProperties: false
+      required: [available_micros, on_chain_micros, in_flight_micros, deposit_address, as_of]
+      properties:
+        available_micros: {type: string, pattern: "^[0-9]+$", examples: ["22500000"]}
+        on_chain_micros: {type: string, pattern: "^[0-9]+$", examples: ["25000000"]}
+        in_flight_micros: {type: string, pattern: "^[0-9]+$", examples: ["2500000"]}
+        deposit_address: {type: string, examples: [5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP]}
+        as_of: {type: string, format: date-time, examples: ["2026-10-03T15:00:00Z"]}

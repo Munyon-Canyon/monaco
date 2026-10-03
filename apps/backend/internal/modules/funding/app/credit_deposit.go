@@ -85,7 +85,7 @@ func (h *CreditDepositHandler) Handle(ctx context.Context, cmd CreditDeposit) (b
 			return err
 		}
 		tx.AfterCommit(func(ctx context.Context) {
-			h.hints.PublishHint(ctx, "user."+cmd.UserID.String()+".balance_changed", nil)
+			h.hints.PublishHint(ctx, events.UserBalanceChangedHint(cmd.UserID), nil)
 			observability.Info(
 				ctx,
 				observability.FundingDepositCredited,

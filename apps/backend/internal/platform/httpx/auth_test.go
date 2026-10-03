@@ -421,6 +421,29 @@ func TestAuth_standingAllowsOrRefusesByMethodAndMarker(t *testing.T) {
 	}
 }
 
+func TestAuth_bannedActorMayReadPlatformBalance(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	c, err := LoadContract(openapi.Spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got auth.Actor
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got, _ = auth.ActorFrom(r.Context())
+		w.WriteHeader(http.StatusOK)
+	})
+	v := stubVerifier(func(context.Context, string) (auth.Actor, error) {
+		return auth.Actor{Kind: auth.ActorUser, ID: "u-1", Standing: auth.StandingBanned}, nil
+	})
+	mux := http.NewServeMux()
+	mux.Handle("GET /v1/me/balance", c.resolve(Auth(v)(next)))
+	rec := serveRaw(t, h.deps.wrap(mux), http.MethodGet, "/v1/me/balance", bearer("any"))
+	if rec.Code != http.StatusOK || got.Standing != auth.StandingBanned {
+		t.Fatalf("got status %d and actor %+v, want 200 and a banned actor", rec.Code, got)
+	}
+}
+
 func TestHandler_requiresAVerifier(t *testing.T) {
 	t.Parallel()
 	d := newHarness(t).deps
