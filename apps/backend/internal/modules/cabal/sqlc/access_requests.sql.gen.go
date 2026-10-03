@@ -244,10 +244,14 @@ func (q *Queries) ListPendingInvitesForCabal(ctx context.Context, arg ListPendin
 }
 
 const listPendingInvitesForUser = `-- name: ListPendingInvitesForUser :many
-SELECT id, cabal_id, invited_by, expires_at, created_at FROM cabal_access_requests
-WHERE user_id = $1 AND direction = 'invite' AND status = 'pending'
-  AND expires_at >= $2::timestamptz
-ORDER BY created_at, id
+SELECT r.id, r.cabal_id, r.invited_by, r.expires_at, r.created_at, c.name AS cabal_name,
+  c.picture_url AS cabal_picture_url,
+  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count
+FROM cabal_access_requests r
+JOIN cabals c ON c.id = r.cabal_id
+WHERE r.user_id = $1 AND r.direction = 'invite' AND r.status = 'pending'
+  AND r.expires_at >= $2::timestamptz AND c.status = 'active'
+ORDER BY r.created_at, r.id
 `
 
 type ListPendingInvitesForUserParams struct {
@@ -256,11 +260,14 @@ type ListPendingInvitesForUserParams struct {
 }
 
 type ListPendingInvitesForUserRow struct {
-	ID        uuid.UUID
-	CabalID   uuid.UUID
-	InvitedBy pgtype.UUID
-	ExpiresAt pgtype.Timestamptz
-	CreatedAt time.Time
+	ID              uuid.UUID
+	CabalID         uuid.UUID
+	InvitedBy       pgtype.UUID
+	ExpiresAt       pgtype.Timestamptz
+	CreatedAt       time.Time
+	CabalName       string
+	CabalPictureUrl pgtype.Text
+	MemberCount     int32
 }
 
 func (q *Queries) ListPendingInvitesForUser(ctx context.Context, arg ListPendingInvitesForUserParams) ([]ListPendingInvitesForUserRow, error) {
@@ -278,6 +285,9 @@ func (q *Queries) ListPendingInvitesForUser(ctx context.Context, arg ListPending
 			&i.InvitedBy,
 			&i.ExpiresAt,
 			&i.CreatedAt,
+			&i.CabalName,
+			&i.CabalPictureUrl,
+			&i.MemberCount,
 		); err != nil {
 			return nil, err
 		}

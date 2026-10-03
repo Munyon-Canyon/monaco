@@ -233,6 +233,18 @@ func (healthz) PostCabalAccessDecision(
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostCabalAccessDecision")
 }
 
+func (healthz) GetCabalInvites(
+	context.Context, api.GetCabalInvitesRequestObject,
+) (api.GetCabalInvitesResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabalInvites")
+}
+
+func (healthz) GetMyCabalInvites(
+	context.Context, api.GetMyCabalInvitesRequestObject,
+) (api.GetMyCabalInvitesResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetMyCabalInvites")
+}
+
 func (healthz) DeleteCabalAccessRequest(
 	context.Context, api.DeleteCabalAccessRequestRequestObject,
 ) (api.DeleteCabalAccessRequestResponseObject, error) {

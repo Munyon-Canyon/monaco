@@ -41,6 +41,7 @@ func New(d module.Deps, opts ...Option) *Module {
 func (*Module) Name() string { return "cabal" }
 
 func (m *Module) Routes(r *httpx.Routes) {
+	users := identity.New(m.deps).Queries()
 	h := adapters.HTTP{
 		Create:  m.CreateCabalHandler(),
 		Join:    app.NewJoinCabalHandler(m.deps.UoW, m.deps.Clock),
@@ -50,9 +51,10 @@ func (m *Module) Routes(r *httpx.Routes) {
 		Update:  app.NewUpdateCabalHandler(m.deps.UoW, m.deps.Clock),
 		Picture: app.NewSetCabalPictureHandler(m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, m.deps.Photos),
 		Leave:   app.NewLeaveCabalHandler(m.deps.UoW, m.deps.Pool, m.treasury),
-		DB:      m.deps.Pool, Users: identity.New(m.deps).Queries(),
+		DB:      m.deps.Pool, Users: users, Clock: m.deps.Clock,
 	}
 	r.CabalRoutes, r.CabalJoinRoutes, r.CabalAccessRoutes, r.CabalPictureRoutes = h, h, h, h
+	r.CabalInviteRoutes = h
 }
 
 func (m *Module) Consumers() []bus.Consumer {

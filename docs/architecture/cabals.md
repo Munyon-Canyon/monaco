@@ -85,6 +85,7 @@ There is exactly one creator per cabal, and the role never moves. There is no ad
 - Inviting an existing member is refused. Inviting a user with a pending request in a `request` cabal is refused; the creator approves the request instead.
 - The invitee accepts or declines through `DecideAccess`. Accepting joins directly in either `join_mode` (`approved`, plus `cabal.member_joined`). Declining sets `denied`.
 - The inviter or the creator can revoke a pending invite (`revoked`).
+- `GET /v1/me/cabal-invites` lists the caller's live invites with each cabal's name, picture and member count and the inviter, leaving out banned cabals. `GET /v1/cabals/{id}/invites` lists a cabal's live invites to its members. The inbox reads the partial index `cabal_access_requests_pending_user_idx` on `user_id`.
 - A worker poller sets `expired` on pending invites past `expires_at`, one guarded update per row (`WHERE status = 'pending'`), and emits `cabal.access_decided` with decision `expired`. An accept that races the poller loses on the same guard and is refused.
 
 ### Edit

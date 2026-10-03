@@ -104,6 +104,7 @@ type Routes struct {
 	CabalJoinRoutes
 	CabalAccessRoutes
 	CabalPictureRoutes
+	CabalInviteRoutes
 	MarketRoutes
 	TreasuryRoutes
 }
@@ -121,6 +122,13 @@ type CabalAccessRoutes interface {
 	PostCabalAccessDecision(
 		context.Context, api.PostCabalAccessDecisionRequestObject,
 	) (api.PostCabalAccessDecisionResponseObject, error)
+}
+
+type CabalInviteRoutes interface {
+	GetCabalInvites(context.Context, api.GetCabalInvitesRequestObject) (api.GetCabalInvitesResponseObject, error)
+	GetMyCabalInvites(
+		context.Context, api.GetMyCabalInvitesRequestObject,
+	) (api.GetMyCabalInvitesResponseObject, error)
 }
 
 type CabalPictureRoutes interface {
