@@ -266,6 +266,63 @@ func (q *Queries) LockProposal(ctx context.Context, arg LockProposalParams) (Loc
 	return i, err
 }
 
+const openProposal = `-- name: OpenProposal :execrows
+WITH proposal AS (
+  INSERT INTO proposals (
+    id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, token_amount, thesis,
+    quote_out_amount, status, expires_at, created_at, updated_at
+  )
+  VALUES (
+    $2, $3, $4, $5, $6, $7,
+    NULLIF($8::text, '0')::bigint, NULLIF($9::text, '0')::bigint,
+    NULLIF($10::text, ''), $11::text::bigint, 'open', $12,
+    $13, $13
+  )
+  RETURNING id
+)
+INSERT INTO proposal_voters (proposal_id, voter_id)
+SELECT proposal.id, voter
+FROM proposal, unnest($1::uuid[]) AS voter
+`
+
+type OpenProposalParams struct {
+	VoterIds       []uuid.UUID
+	ID             uuid.UUID
+	CabalID        uuid.UUID
+	ProposerID     uuid.UUID
+	Kind           string
+	Symbol         string
+	Mint           string
+	UsdcMicros     string
+	TokenAmount    string
+	Thesis         string
+	QuoteOutAmount string
+	ExpiresAt      time.Time
+	CreatedAt      time.Time
+}
+
+func (q *Queries) OpenProposal(ctx context.Context, arg OpenProposalParams) (int64, error) {
+	result, err := q.db.Exec(ctx, openProposal,
+		arg.VoterIds,
+		arg.ID,
+		arg.CabalID,
+		arg.ProposerID,
+		arg.Kind,
+		arg.Symbol,
+		arg.Mint,
+		arg.UsdcMicros,
+		arg.TokenAmount,
+		arg.Thesis,
+		arg.QuoteOutAmount,
+		arg.ExpiresAt,
+		arg.CreatedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const statusByID = `-- name: StatusByID :one
 SELECT status FROM proposals WHERE id = $1
 `
