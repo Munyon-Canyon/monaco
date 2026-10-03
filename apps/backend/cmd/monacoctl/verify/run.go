@@ -16,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 )
 
@@ -146,7 +147,7 @@ func run(ctx context.Context, cfg Config, target Target) (err error) {
 	}
 	_, _ = fmt.Fprintf(cfg.Stdout, "stack %s healthy: api %s, worker %s\n", stack.RunID, stack.API, stack.Worker)
 	consumers := cfg.Modules(module.Deps{
-		Clock: clock.Real{}, IDs: ids.Real{}, Pool: stack.Pool, Bus: stack.Bus,
+		Config: testkit.Config(), Clock: clock.Real{}, IDs: ids.Real{}, Pool: stack.Pool, Bus: stack.Bus,
 		UoW: db.New(stack.Pool, ids.Real{}, clock.Real{}),
 	}).Consumers()
 	parallel := parallelFlows

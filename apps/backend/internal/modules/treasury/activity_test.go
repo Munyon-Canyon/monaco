@@ -40,7 +40,7 @@ func (h *hints) sent() []string {
 
 func (f fixture) deliver(t *testing.T, e events.Event, at time.Time) error {
 	t.Helper()
-	m := treasury.New(module.Deps{Pool: f.pool, IDs: f.ids, Clock: f.clock})
+	m := treasury.New(module.Deps{Config: f.cfg, Pool: f.pool, IDs: f.ids, Clock: f.clock})
 	return f.do(func(ctx context.Context, tx db.Tx) error {
 		for _, c := range m.Consumers() {
 			for _, h := range c.Handlers {

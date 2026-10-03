@@ -40,7 +40,8 @@ func TestTradesConsumer_duplicatedAndReorderedConfirmationsPostOneHeaderEach(t *
 	t.Parallel()
 	testkit.ConsumerSuite(t, func(h testkit.Harness) bus.Consumer {
 		seedChaosCabals(t, h, 6)
-		for _, c := range treasury.New(module.Deps{Pool: h.Pool, IDs: h.IDs, Clock: h.Clock, Bus: h.Bus}).Consumers() {
+		deps := module.Deps{Config: testkit.Config(), Pool: h.Pool, IDs: h.IDs, Clock: h.Clock, Bus: h.Bus}
+		for _, c := range treasury.New(deps).Consumers() {
 			if c.Durable == "treasury_trades" {
 				return c
 			}

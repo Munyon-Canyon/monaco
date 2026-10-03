@@ -46,7 +46,7 @@ const moduleGammaTool = header + "\npackage main\n\n" +
 	"import (\n\t\"example.com/app/internal/modules/gamma\"\n\t\"example.com/app/internal/platform/module\"\n" +
 	"\t\"example.com/app/internal/tools/ops/replay\"\n)\n\n" +
 	"func init() {\n\tregistered.Add(func(d module.Deps) module.Module { return gamma.New(d) })\n" +
-	"\treplay.RegisterLedgerCheck(gamma.LedgerCheck())\n}\n"
+	"\treplay.RegisterLedgerCheck(gamma.LedgerCheck)\n}\n"
 
 func sampleTree(t *testing.T) string {
 	t.Helper()

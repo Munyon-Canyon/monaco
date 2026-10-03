@@ -300,7 +300,7 @@ func planModule(root, modPath, name string, p plan) error {
 	}
 	if slices.ContainsFunc(files, declares("LedgerCheck")) {
 		imports = append(imports, strconv.Quote(modPath+"/"+replayPkg))
-		add += "\treplay.RegisterLedgerCheck(" + name + ".LedgerCheck())\n"
+		add += "\treplay.RegisterLedgerCheck(" + name + ".LedgerCheck)\n"
 	}
 	p.add(filepath.Join(toolsDir, "module_"+name+genSuffix), "main", imports, "func init() {\n"+add+"}\n")
 	return nil

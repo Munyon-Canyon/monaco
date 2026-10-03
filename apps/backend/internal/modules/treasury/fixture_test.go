@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -33,17 +34,27 @@ type fixture struct {
 	clock  *testkit.Clock
 	ledger app.Ledger
 	logs   *testkit.Logs
+	cfg    config.Config
 }
 
 func newFixture(t *testing.T) fixture {
+	t.Helper()
+	return newFixtureOn(t, testkit.Config())
+}
+
+func newFixtureOn(t *testing.T, cfg config.Config) fixture {
 	t.Helper()
 	g := testkit.NewIDs(7)
 	pool := testkit.DB(t)
 	clk := testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
 	return fixture{
 		t: t, pool: pool, ids: g, uow: db.New(pool, g, clk), clock: clk,
-		ledger: app.NewLedger(usdcMint, clk), logs: &testkit.Logs{},
+		ledger: app.NewLedger(chain.SolanaAddress(cfg.Solana.USDCMint), clk), logs: &testkit.Logs{}, cfg: cfg,
 	}
+}
+
+func (f fixture) usdc() domain.Asset {
+	return domain.MintAsset(chain.SolanaAddress(f.cfg.Solana.USDCMint))
 }
 
 func (f fixture) ctx() context.Context {
@@ -91,7 +102,7 @@ func (f fixture) drift(t *testing.T) []string {
 }
 
 func (f fixture) findDrift(ctx context.Context) ([]string, error) {
-	return treasury.LedgerCheck().Check(ctx, f.pool)
+	return treasury.LedgerCheck(f.cfg).Check(ctx, f.pool)
 }
 
 func amount(v int64) money.SignedMicros { return money.SignedMicrosFromInt64(v) }
@@ -114,8 +125,8 @@ func (f fixture) fund(
 	u, err := domain.NewUserTxn(domain.UserTxnHeader{
 		ID: f.ids.NewV7(), UserID: user, CabalID: cabal, Kind: domain.UserFund, Status: status, TransferID: id,
 	}, []domain.UserEntry{
-		{Account: domain.UserWallet, Asset: usdc, Amount: amount(-micros)},
-		{Account: domain.UserCabal, Asset: usdc, Amount: amount(micros)},
+		{Account: domain.UserWallet, Asset: f.usdc(), Amount: amount(-micros)},
+		{Account: domain.UserCabal, Asset: f.usdc(), Amount: amount(micros)},
 		{Account: domain.UserHolder, Asset: s, Amount: amount(shares)},
 		{Account: domain.UserIssuer, Asset: s, Amount: amount(-shares)},
 	})
@@ -125,8 +136,8 @@ func (f fixture) fund(
 	c, err := domain.NewCabalTxn(domain.CabalTxnHeader{
 		ID: f.ids.NewV7(), CabalID: cabal, Kind: domain.CabalFund, Status: status, TransferID: id,
 	}, []domain.CabalEntry{
-		{Account: domain.CabalMembers, Asset: usdc, Amount: amount(-micros)},
-		{Account: domain.CabalTreasury, Asset: usdc, Amount: amount(micros)},
+		{Account: domain.CabalMembers, Asset: f.usdc(), Amount: amount(-micros)},
+		{Account: domain.CabalTreasury, Asset: f.usdc(), Amount: amount(micros)},
 	})
 	return u, c, err
 }
@@ -147,8 +158,8 @@ func (f fixture) swap(cabal ids.CabalID, micros, units int64) (domain.CabalTxn, 
 		ID: f.ids.NewV7(), CabalID: cabal, Kind: domain.CabalSwap, Status: domain.TxnSettled, SwapID: f.ids.NewV7(),
 		TxSignature: "5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW",
 	}, []domain.CabalEntry{
-		{Account: domain.CabalTreasury, Asset: usdc, Amount: amount(-micros)},
-		{Account: domain.CabalVenue, Asset: usdc, Amount: amount(micros)},
+		{Account: domain.CabalTreasury, Asset: f.usdc(), Amount: amount(-micros)},
+		{Account: domain.CabalVenue, Asset: f.usdc(), Amount: amount(micros)},
 		{Account: domain.CabalTreasury, Asset: aapl, Amount: amount(units)},
 		{Account: domain.CabalVenue, Asset: aapl, Amount: amount(-units)},
 	})

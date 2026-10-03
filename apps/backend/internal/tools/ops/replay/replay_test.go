@@ -2,6 +2,7 @@ package replay_test
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/system/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/system/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -381,20 +383,22 @@ func exec(t *testing.T, pool *pgxpool.Pool, sql string) {
 	}
 }
 
-func TestRegisterLedgerCheck_addsTheCheckReplayRunsAndRejectsARepeatedName(t *testing.T) {
+func TestRegisterLedgerCheck_buildsEachCheckFromTheConfigAndRejectsARepeatedName(t *testing.T) {
 	t.Parallel()
 	replay.EmptyLedgerChecks(t)
-	replay.RegisterLedgerCheck(replay.LedgerCheck{Name: "fixture"})
-	func() {
-		defer func() {
-			if recover() == nil {
-				t.Error("second fixture registered, want a panic")
-			}
-		}()
-		replay.RegisterLedgerCheck(replay.LedgerCheck{Name: "fixture"})
-	}()
-	got := replay.LedgerChecks()
-	if len(got) != 1 || got[0].Name != "fixture" {
-		t.Fatalf("LedgerChecks() = %+v, want the fixture once", got)
+	fixture := func(cfg config.Config) replay.LedgerCheck {
+		return replay.LedgerCheck{Name: "fixture", Tables: []string{cfg.Solana.USDCMint}}
 	}
+	replay.RegisterLedgerCheck(fixture)
+	got := replay.LedgerChecks(config.Config{Solana: config.Solana{USDCMint: "devnet-usdc"}})
+	if len(got) != 1 || got[0].Name != "fixture" || !slices.Equal(got[0].Tables, []string{"devnet-usdc"}) {
+		t.Fatalf("LedgerChecks() = %+v, want the fixture once, built with the devnet mint", got)
+	}
+	replay.RegisterLedgerCheck(fixture)
+	defer func() {
+		if recover() == nil {
+			t.Error("second fixture built, want a panic")
+		}
+	}()
+	replay.LedgerChecks(config.Config{})
 }

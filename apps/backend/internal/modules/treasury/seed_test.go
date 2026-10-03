@@ -19,7 +19,7 @@ func TestSeed_cabalWithConfirmedTradePostsTheSwapAndAConfirmedActivityRow(t *tes
 		t.Fatal(err)
 	}
 	testkit.NewLedger(t, f.pool).WithFundedMember(f.user(t), cabal, money.MicrosFromUint64(100_000_000))
-	m := treasury.New(module.Deps{Pool: f.pool, Clock: f.clock})
+	m := treasury.New(module.Deps{Config: testkit.Config(), Pool: f.pool, Clock: f.clock})
 	if seeded := testkit.Seed(t, f.pool, "cabal-with-confirmed-trade", m.Consumers()...); len(seeded) != 2 {
 		t.Fatalf("seeded %d events, want trade.submitted and trade.confirmed", len(seeded))
 	}
