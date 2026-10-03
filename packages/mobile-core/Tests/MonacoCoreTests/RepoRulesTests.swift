@@ -283,6 +283,28 @@ enum RepoRules {
             ],
             applies: { path, _ in !path.hasPrefix("apps/mobile/Monaco/Design/") }
         ),
+        RepoRule(
+            name: "flow-switch",
+            roots: productCode,
+            pattern:
+                #"(?s)\b(\w+)\s*:\s*Flow\d+[a-z]?Outcome\b.*?\bswitch\s+\1\s*\{[^}]*?\bdefault\s*:"#
+                + #"|\bswitch\s+[^{\n]*\bFlow\d+[a-z]?Outcome\b[^{\n]*\{[^}]*?\bdefault\s*:"#
+                + #"|\bextension\s+Flow\d+[a-z]?Outcome\b.*?\bswitch\s+self\s*\{[^}]*?\bdefault\s*:"#,
+            message: "A switch over a flow outcome lists every case; a default hides a new outcome.",
+            failing: [
+                "func show(_ outcome: Flow01Outcome) {\n    switch outcome {\n    case .ok: break\n    default: break\n    }\n}",
+                "let outcome: Flow01Outcome = .ok\nswitch outcome {\ncase .ok: break\n@unknown default: break\n}",
+                "switch Flow01aOutcome(code: code) {\ncase .ok: break\ndefault: break\n}",
+                "extension Flow00Outcome {\n    var title: String {\n        switch self {\n        case .ok: \"Sent\"\n"
+                    + "        default: \"Failed\"\n        }\n    }\n}",
+            ],
+            passing: [
+                "func show(_ outcome: Flow01Outcome) {\n    switch outcome {\n    case .ok: break\n"
+                    + "    case .unauthorized, .interrupted: break\n    }\n}",
+                "func show(_ mode: Mode) {\n    switch mode {\n    case .a: break\n    default: break\n    }\n}",
+                "let outcome: Flow01Outcome = .ok\nswitch code {\ncase \"x\": break\ndefault: break\n}",
+            ]
+        ),
         FeaturePatternRules.construct,
         FeaturePatternRules.viewHints,
         FeaturePatternRules.observable,

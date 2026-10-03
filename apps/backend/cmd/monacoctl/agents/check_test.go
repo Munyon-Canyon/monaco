@@ -744,6 +744,17 @@ func TestCheck_theOpenAPISpecAloneRunsTheSwiftRow(t *testing.T) {
 	}
 }
 
+func TestCheck_aFlowsPackageChangeRunsTheSwiftAndReadyRows(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"packages/flows/app/00.tsv": "id\tscreen\tstatus\tdoc\n"})
+	code, stdout, stderr := h.check(t)
+	if code != 0 || !slices.Contains(h.calls, "packages/mobile-core: mobile-core-test.sh") ||
+		!slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, "ready.sh") }) {
+		t.Fatalf("packages/flows runs swift test and ready: %d %q %q %v", code, stdout, stderr, h.calls)
+	}
+}
+
 func TestCheck_goTestParallelismSplitsTheCPUsBetweenRunningOwners(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct{ cpus, running, want int }{{8, 6, 2}, {8, 0, 8}, {16, 2, 8}, {2, 1, 2}, {1, 0, 2}} {

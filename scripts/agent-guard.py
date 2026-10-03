@@ -813,12 +813,31 @@ def verdict(command: str, cwd: str) -> str | None:
     return None
 
 
+EDIT_TOOLS = {"Edit", "Write", "MultiEdit"}
+ERROR_CODE_CASES = "ErrorCodeCases.gen.swift"
+
+
+def generated_file_reason(file_path: str) -> str | None:
+    if os.path.basename(file_path) == ERROR_CODE_CASES:
+        return "generated file; run: cd apps/backend && go generate ./api"
+    if file_path.endswith(".gen.swift"):
+        return "generated file; run: cd apps/backend && go run ./cmd/monacoctl gen flows"
+    return None
+
+
 def main() -> int:
     try:
         event = json.load(sys.stdin)
     except ValueError:
         return 0
-    command = (event.get("tool_input") or {}).get("command") or ""
+    tool_input = event.get("tool_input") or {}
+    if event.get("tool_name") in EDIT_TOOLS:
+        reason = generated_file_reason(tool_input.get("file_path") or "")
+        if reason:
+            print(f"blocked by scripts/agent-guard.py: {reason}", file=sys.stderr)
+            return 2
+        return 0
+    command = tool_input.get("command") or ""
     if not command:
         return 0
     reason = verdict(command, event.get("cwd") or os.getcwd())
