@@ -30,4 +30,4 @@ For a version bump, change only the steps the doc changed, then run steps 5 to 7
 
 A journey with `funds` in its doc moves real USDC: the person or agent running it sets up the Phantom MCP and funds each actor first, then refunds the agent wallet after (`docs/journeys/README.md`, Journeys that move money). The test itself moves no money.
 
-A two-actor journey needs a second simulator: `xcrun simctl clone "$SIMSLIM_UDID" "Monaco Gold B"` once per machine, then `--sim B=<udid>`.
+Each actor uses a dedicated `Monaco Journeys <actor>` simulator that the runner creates when needed. Use `--sim B=<udid>` only to override an actor's dedicated simulator.

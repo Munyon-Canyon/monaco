@@ -1,10 +1,11 @@
 ---
 id: auth/sign-in
 title: Sign in
-version: 1
+version: 2
 milestone: M9
 requires: []
 actors: [A]
+flows: [01]
 xcuitest: [apps/mobile/MonacoUITests/Journeys/SignInJourney.swift, apps/mobile/MonacoUITests/Journeys/SignInJourneyUITests.swift]
 ---
 
@@ -19,8 +20,8 @@ The format of this doc is in [App journeys](../README.md).
 | Id | What must be true |
 | --- | --- |
 | P1 | The app is installed from a Debug build and shows the login form. A test that finds a saved session signs out first with S3 |
-| P2 | Actor A's account is a Privy test login from `apps/mobile/qa/journeys/accounts.tsv`: a fixed phone, email and code |
-| P3 | The simulator can reach `auth.privy.io`, and the backend is running (`just migrate db`, then `just run backend`). At S1.4 the app opens a backend session with `POST /v1/auth/session` before the tab bar shows, and without the backend it stops on "Your account didn't load" |
+| P2 | Actors A to C use the Privy test logins in `apps/mobile/qa/journeys/accounts.tsv` |
+| P3 | The simulator can reach `auth.privy.io`, and the local backend is running (`just migrate db`, then `just run backend`) and answers `GET http://127.0.0.1:8080/healthz` |
 
 The channel is text message unless the run sets `MONACO_QA_CHANNEL=email`. For email, read `sms` as `email` in every identifier, `smsPhoneField` as `emailAddressField`, and `{A.phone}` as `{A.email}`.
 
@@ -33,7 +34,7 @@ The channel is text message unless the run sets `MONACO_QA_CHANNEL=email`. For e
 | S1.1 | tap, only when the field is not already showing | "Text message" in the Sign-in method control | | `smsPhoneField` shows within 5 s |
 | S1.2 | type, then tap | `smsPhoneField`, then `smsSendCodeButton` | `{A.phone}` | The button reads "Send code" and is enabled before the tap |
 | S1.3 | type | `smsCodeField` | `{A.code}` | The field shows within 20 s of S1.2. The sixth digit submits the code. Continue (`smsVerifyButton`) is not tapped |
-| S1.4 | wait | the tab bar | | Home, Feed, Cabals, Stocks and Profile tabs show within 30 s, and `smsCodeField` is gone |
+| S1.4 | wait | the session-opening screen, then the tab bar | | The backend session opens. Home, Feed, Cabals, Stocks and Profile tabs show within 30 s, and `smsCodeField` is gone |
 
 ### S2 The session survives a relaunch
 
@@ -56,11 +57,17 @@ Starts signed in (S1).
 
 ## Ground truth
 
-None yet. Since #1485 the app calls `POST /v1/auth/session` at S1.4, so the check to add is: a `users` row exists for the actor's Privy user, read with `GET /v1/me`. Add it as `apps/mobile/qa/journeys/auth/sign-in.truth.sh` and bump the version.
+After S1, the local database has a `users` row for actor A. `apps/mobile/qa/journeys/auth/sign-in.truth.sh` checks its configured Privy user ID.
+
+## Known failures on staging
+
+S1.4 currently fails after the code because staging serves neither `GET /v1/home/dashboard` nor `GET /v1/me/balance`.
+Ticket #619 replaces the legacy Home read, and ticket #579 adds the balance read.
+Ticket #660 rewires the app from the legacy Home route to the replacement routes.
 
 ## Not covered
 
 - A wrong code. Privy may lock a test login after repeated wrong codes, and the three test logins are shared by the team.
 - Send a new code, and Change number.
 - Apple and Google login (#541).
-- The first-run handle screen (#643, #693). It gets its own journey, which requires this one.
+- The first-run name screen. A member without a display name lands there after the backend session opens.

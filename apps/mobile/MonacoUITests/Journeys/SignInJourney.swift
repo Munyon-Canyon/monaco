@@ -2,7 +2,7 @@ import XCTest
 
 enum SignInJourney {
     static let id = "auth/sign-in"
-    static let version = 1
+    static let version = 2
 
     private static let launchTimeout: TimeInterval = 30
     private static let codeSentTimeout: TimeInterval = 20
@@ -81,7 +81,7 @@ enum SignInJourney {
             codeField.typeText(account.code)
         }
 
-        recorder.step("S1.4", "land on the tab bar") {
+        recorder.step("S1.4", "open the backend session and land on the tab bar") {
             XCTAssertTrue(
                 app.tab("Home").waitForExistence(timeout: signedInTimeout),
                 "S1.4: the tab bar did not show within \(Int(signedInTimeout)) s of the code"
