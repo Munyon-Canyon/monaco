@@ -77,6 +77,9 @@ func landStackCmd(ctx context.Context, env *Env, args []string, stdout io.Writer
 	if err != nil {
 		return err
 	}
+	if err := env.flowGate(ctx, rec, stack); err != nil {
+		return err
+	}
 	if waiting := waitingOn(stack); len(waiting) > 0 {
 		return env.arm(ctx, rec, stack, waiting, stdout)
 	}
@@ -119,6 +122,9 @@ func (env *Env) landArmed(ctx context.Context, r Record) []string {
 	}
 	if len(waitingOn(stack)) > 0 {
 		return nil
+	}
+	if err := env.flowGate(ctx, r, stack); err != nil {
+		return env.disarm(ctx, r, cmp.Or(cliText(err), err.Error()))
 	}
 	var out strings.Builder
 	err = env.land(ctx, r, stack, &out)
