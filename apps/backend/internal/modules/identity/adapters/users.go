@@ -190,6 +190,20 @@ func (Users) UpdateAccountStatus(
 	return nil
 }
 
+func (Users) Delete(
+	ctx context.Context, q sqlc.DBTX, id ids.UserID, expected domain.AccountStatus, at time.Time,
+) error {
+	n, err := sqlc.New(q).DeleteUser(ctx, sqlc.DeleteUserParams{Now: at, ID: id.UUID(), Expected: string(expected)})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return errs.New(errs.CodeAccountStatusTransition, "identity.Users.Delete",
+			slog.String("expected", string(expected)), slog.String("next", string(domain.AccountDeleted)))
+	}
+	return nil
+}
+
 func notFound(err error, op string) error {
 	if errors.Is(err, sql.ErrNoRows) {
 		return errs.New(errs.CodeUserNotFound, op)

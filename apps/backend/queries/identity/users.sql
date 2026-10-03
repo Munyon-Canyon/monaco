@@ -95,3 +95,9 @@ FROM users u
 LEFT JOIN user_wallets w ON w.user_id = u.id
 WHERE u.id = $1 AND u.deleted_at IS NULL
 FOR UPDATE OF u;
+
+-- name: DeleteUser :execrows
+UPDATE users SET account_status = 'deleted', deleted_at = sqlc.arg(now)::timestamptz, updated_at = sqlc.arg(now),
+  email = NULL, phone_e164 = NULL, phone_hash = NULL, phone_verified_at = NULL,
+  x_user_id = NULL, x_username = NULL, x_linked_at = NULL, photo_url = NULL, display_name = ''
+WHERE id = sqlc.arg(id) AND account_status = sqlc.arg(expected);

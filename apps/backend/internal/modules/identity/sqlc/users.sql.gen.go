@@ -65,6 +65,27 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (int64, 
 	return result.RowsAffected(), nil
 }
 
+const deleteUser = `-- name: DeleteUser :execrows
+UPDATE users SET account_status = 'deleted', deleted_at = $1::timestamptz, updated_at = $1,
+  email = NULL, phone_e164 = NULL, phone_hash = NULL, phone_verified_at = NULL,
+  x_user_id = NULL, x_username = NULL, x_linked_at = NULL, photo_url = NULL, display_name = ''
+WHERE id = $2 AND account_status = $3
+`
+
+type DeleteUserParams struct {
+	Now      time.Time
+	ID       uuid.UUID
+	Expected string
+}
+
+func (q *Queries) DeleteUser(ctx context.Context, arg DeleteUserParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUser, arg.Now, arg.ID, arg.Expected)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const findUserByID = `-- name: FindUserByID :one
 SELECT u.id, u.privy_user_id, u.handle, u.auth_state, u.account_status, u.phone_e164, u.x_user_id, u.x_username,
   w.privy_wallet_id, w.address

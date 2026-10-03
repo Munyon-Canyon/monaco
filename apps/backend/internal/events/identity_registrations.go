@@ -5,5 +5,6 @@ func identityRegistrations() []Registration {
 		Register[UserCreated](TypeUserCreated, 1),
 		Register[UserAuthStateChanged](TypeUserAuthStateChanged, 1),
 		Register[UserProfileUpdated](TypeUserProfileUpdated, 1),
+		Register[UserDeleted](TypeUserDeleted, 1),
 	}
 }

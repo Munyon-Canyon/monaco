@@ -344,6 +344,16 @@ Subject `events.user.created`, version 1.
 | `login_provider` | `string` |
 | `created_at` | `time.Time` |
 
+## `user.deleted`
+
+Subject `events.user.deleted`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `user_id` | `uuid.UUID` |
+| `at` | `time.Time` |
+
 ## `user.profile_updated`
 
 Subject `events.user.profile_updated`, version 1.

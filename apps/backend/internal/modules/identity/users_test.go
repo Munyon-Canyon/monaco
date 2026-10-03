@@ -374,6 +374,7 @@ func TestUsers_databaseErrorsPassThrough(t *testing.T) {
 		"Create":       create,
 		"AttachWallet": attach,
 		"RefreshEmail": f.users.RefreshEmail(ctx, f.pool, id, "a@example.com", at),
+		"Delete":       f.users.Delete(ctx, f.pool, id, domain.AccountActive, at),
 		"ApplyLinks phone": f.users.ApplyLinks(ctx, f.pool, id, domain.LinkSync{
 			Phone: domain.Write[string]{Changed: true, Value: "+15550100"},
 		}, at),

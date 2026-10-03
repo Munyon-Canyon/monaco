@@ -184,6 +184,8 @@ func TestDocsEventsPrintsTheRegistryCatalog(t *testing.T) {
 		"## `user.created`\n\nSubject `events.user.created`, version 1.\n\n" +
 		"| Field | Go type |\n| --- | --- |\n| `v` | `int` |\n| `user_id` | `uuid.UUID` |\n" +
 		"| `login_provider` | `string` |\n| `created_at` | `time.Time` |\n\n" +
+		"## `user.deleted`\n\nSubject `events.user.deleted`, version 1.\n\n" +
+		"| Field | Go type |\n| --- | --- |\n| `v` | `int` |\n| `user_id` | `uuid.UUID` |\n| `at` | `time.Time` |\n\n" +
 		"## `user.profile_updated`\n\nSubject `events.user.profile_updated`, version 1.\n\n" +
 		"| Field | Go type |\n| --- | --- |\n| `v` | `int` |\n| `user_id` | `uuid.UUID` |\n" +
 		"| `fields` | `[]string` |\n| `handle` | `string` |\n| `display_name` | `string` |\n" +
