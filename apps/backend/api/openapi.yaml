@@ -1146,6 +1146,7 @@ paths:
       tags: [funding]
       security: []
       x-idempotent: false
+      x-cors: web
       x-rate-limit:
         ip:
           rate: 30
@@ -1196,6 +1197,7 @@ paths:
       operationId: reportOnrampStatus
       tags: [funding]
       x-idempotent: true
+      x-cors: web
       summary: Report how the provider flow ended.
       description: >-
         Called by the fund page with the Privy access token from its own login as the bearer.

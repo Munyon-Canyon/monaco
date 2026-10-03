@@ -33,6 +33,7 @@ type Deps struct {
 	Idempotency  IdempotencyStore
 	Verifier     auth.TokenVerifier
 	RateLimit    func(http.Handler) http.Handler
+	WebOrigins   []string
 }
 
 func (d Deps) wrap(next http.Handler) http.Handler {

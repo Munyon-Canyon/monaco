@@ -16,6 +16,9 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 - The fund page reports how the card purchase ended with `PATCH /v1/onramp/sessions/{id}`, the app reads it with
   `GET /v1/onramp/sessions/{id}`, and the `funding.onramp-expiry` poller expires unused links after 10 minutes and
   open sessions after 2 hours.
+- Operations marked `x-cors: web` answer CORS preflights and carry `Access-Control-Allow-Origin` for the origins in
+  `WEB_ALLOWED_ORIGINS` (default `https://monacolabs.xyz`, plus `http://localhost:5173` outside staging and
+  production). The token exchange and the status report are the first two. Flow 06 (card deposit) is built.
 - The `notify` module.
 - The `social` module.
 - The `referrals` module.
