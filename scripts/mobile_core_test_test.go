@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -29,14 +30,21 @@ echo "$@" > "$STUB_ARGS"
 echo "TOTAL 1 2 3 4 5 6 7 8 90.50%"
 `
 
-func TestMobileCoreTest_stderrWrittenMidLineLeavesTheTimingsParseable(t *testing.T) {
+type mobileCoreRun struct {
+	dir, args string
+	out       string
+	err       error
+}
+
+func runMobileCoreTest(t *testing.T, floor string) mobileCoreRun {
+	t.Helper()
 	root := repoRoot(t)
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	copyFile(t, filepath.Join(root, "scripts/mobile-core-test.sh"), filepath.Join(dir, "scripts/mobile-core-test.sh"))
-	writeRatchetFile(t, filepath.Join(dir, "packages/mobile-core/coverage-floor.txt"), "darwin 90.50\nlinux 90.50\n")
+	writeRatchetFile(t, filepath.Join(dir, "packages/mobile-core/coverage-floor.txt"), floor)
 	bin := t.TempDir()
 	writeRatchetFile(t, filepath.Join(bin, "swift"), mobileCoreFakeSwift)
 	writeRatchetFile(t, filepath.Join(bin, "xcrun"), mobileCoreFakeLLVMCov)
@@ -47,12 +55,79 @@ func TestMobileCoreTest_stderrWrittenMidLineLeavesTheTimingsParseable(t *testing
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "PATH="+bin+":/usr/bin:/bin", "STUB_ARGS="+args)
 	out, err := cmd.CombinedOutput()
+	return mobileCoreRun{dir: dir, args: args, out: string(out), err: err}
+}
+
+func (r mobileCoreRun) floor(t *testing.T) string {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join(r.dir, "packages/mobile-core/coverage-floor.txt"))
 	if err != nil {
-		t.Fatalf("mobile-core-test.sh: %v\n%s", err, out)
+		t.Fatal(err)
 	}
+	return string(body)
+}
+
+func hostPlatform() (self, other string) {
+	if runtime.GOOS == "darwin" {
+		return "darwin", "linux"
+	}
+	return "linux", "darwin"
+}
+
+func TestMobileCoreTest_coverageWellAboveTheFloorPassesAndRaisesOnlyThisPlatformsRow(t *testing.T) {
+	self, other := hostPlatform()
+	run := runMobileCoreTest(t, self+" 89.00\n"+other+" 70.00\n")
+	if run.err != nil {
+		t.Fatalf("a coverage rise failed the run: %v\n%s", run.err, run.out)
+	}
+	if want := "coverage rose: " + self + " 89.00 -> 90.50"; !strings.Contains(run.out, want) {
+		t.Fatalf("missing %q in:\n%s", want, run.out)
+	}
+	rows := map[string]string{self: "90.50", other: "70.00"}
+	if got, want := run.floor(t), "darwin "+rows["darwin"]+"\nlinux "+rows["linux"]+"\n"; got != want {
+		t.Fatalf("coverage-floor.txt\n got %q\nwant %q", got, want)
+	}
+}
+
+func TestMobileCoreTest_coverageJustAboveTheFloorLeavesTheFloorAlone(t *testing.T) {
+	self, other := hostPlatform()
+	floor := self + " 90.00\n" + other + " 70.00\n"
+	run := runMobileCoreTest(t, floor)
+	if run.err != nil {
+		t.Fatalf("mobile-core-test.sh: %v\n%s", run.err, run.out)
+	}
+	if strings.Contains(run.out, "coverage rose") {
+		t.Fatalf("a rise inside the 0.5 margin raised the floor:\n%s", run.out)
+	}
+	if got := run.floor(t); got != floor {
+		t.Fatalf("coverage-floor.txt changed to %q", got)
+	}
+}
+
+func TestMobileCoreTest_coverageBelowTheFloorFailsAndKeepsTheFloor(t *testing.T) {
+	self, other := hostPlatform()
+	floor := self + " 90.60\n" + other + " 70.00\n"
+	run := runMobileCoreTest(t, floor)
+	if run.err == nil {
+		t.Fatalf("coverage under the floor passed:\n%s", run.out)
+	}
+	if want := "coverage fell: " + self + " 90.60 -> 90.50"; !strings.Contains(run.out, want) {
+		t.Fatalf("missing %q in:\n%s", want, run.out)
+	}
+	if got := run.floor(t); got != floor {
+		t.Fatalf("coverage-floor.txt changed to %q", got)
+	}
+}
+
+func TestMobileCoreTest_stderrWrittenMidLineLeavesTheTimingsParseable(t *testing.T) {
+	run := runMobileCoreTest(t, "darwin 90.50\nlinux 90.50\n")
+	if run.err != nil {
+		t.Fatalf("mobile-core-test.sh: %v\n%s", run.err, run.out)
+	}
+	dir, args := run.dir, run.args
 	for _, want := range []string{`slowest test: "three" 0.03s (budget 2 s)`, "coverage: "} {
-		if !strings.Contains(string(out), want) {
-			t.Fatalf("missing %q in:\n%s", want, out)
+		if !strings.Contains(run.out, want) {
+			t.Fatalf("missing %q in:\n%s", want, run.out)
 		}
 	}
 	parsed, err := os.ReadFile(filepath.Join(dir, "packages/mobile-core/.build/test-output.txt"))
