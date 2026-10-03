@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"path"
 	"slices"
 	"strings"
 
@@ -99,10 +101,46 @@ func CheckIntegration(app []AppRow, backend []Flow, results IntegrationResults) 
 	return problems
 }
 
+func integrationTest(f Flow, command, suffix string) string {
+	return "test_F" + f.ID + "_" + command + "_" + suffix
+}
+
+func CheckIntegrationDeclared(app []AppRow, backend []Flow, repo fs.FS) []Problem {
+	var problems []Problem
+	for _, row := range app {
+		i := slices.IndexFunc(backend, func(f Flow) bool { return f.ID == row.ID })
+		if row.Status != AppVerified || i < 0 {
+			continue
+		}
+		class := IntegrationClass(backend[i])
+		files, _ := fs.Glob(repo, path.Join(TestRoot, "*", class+"*.swift"))
+		var source strings.Builder
+		for _, name := range files {
+			body, _ := fs.ReadFile(repo, name)
+			source.Write(body)
+		}
+		for _, suffix := range integrationSuffixes(backend[i]) {
+			var names []string
+			for _, command := range backend[i].Commands {
+				names = append(names, integrationTest(backend[i], command, suffix))
+			}
+			if !slices.ContainsFunc(
+				names,
+				func(n string) bool { return strings.Contains(source.String(), "func "+n+"(") },
+			) {
+				problems = append(problems, Problem{File: row.File, Line: row.Line, Msg: fmt.Sprintf(
+					"flow %s: app verified but %s declares no %s in %s",
+					row.ID, class, strings.Join(names, " or "), TestRoot)})
+			}
+		}
+	}
+	return problems
+}
+
 func integrationGap(f Flow, suffix string, results IntegrationResults) (string, bool) {
 	var names, failed, skipped []string
 	for _, command := range f.Commands {
-		name := "test_F" + f.ID + "_" + command + "_" + suffix
+		name := integrationTest(f, command, suffix)
 		names = append(names, name)
 		switch results[IntegrationClass(f)+"."+name] {
 		case IntegrationPassed:

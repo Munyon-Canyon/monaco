@@ -390,6 +390,11 @@ func TestFlowsCheck_integrationXUnit(t *testing.T) {
 			"monacoctl flows check: skipped the integration tests of app verified flows 00; " +
 				"pass --integration-xunit to check them\n",
 		},
+		{
+			"without the flag a test missing from the source fails", "verified", "", true, 1,
+			"monacoctl flows check: skipped the integration tests of app verified flows 00; " +
+				"pass --integration-xunit to check them\n" + gap + "declares no test_F00_RecordPing_Unauthorized in packages/mobile-core/Tests\n",
+		},
 		{"a file that is not xml fails", "verified", "<testsuites><testcase", false, 1, "monacoctl flows check: "},
 		{
 			"a test case that is not xml fails", "verified", xunit(xcase("test_F00_RecordPing_ok", "<failure>")), false, 1,
@@ -401,6 +406,14 @@ func TestFlowsCheck_integrationXUnit(t *testing.T) {
 			env := envWith(t, backend)
 			env.Repo.(fstest.MapFS)["packages/flows/app/00.tsv"] = &fstest.MapFile{Data: []byte(app(tc.status))}
 			env.Repo.(fstest.MapFS)["packages/mobile-core/Sources/MonacoSystem/Flow00SystemPingModel.swift"] = &fstest.MapFile{}
+			declared := "func test_F00_RecordPing_ok() {}\nfunc test_F00_RecordPing_InvalidInput() {}\n" +
+				"func test_F00_RecordPing_interrupted() {}\n"
+			if tc.code == 0 {
+				declared += "func test_F00_RecordPing_Unauthorized() {}\n"
+			}
+			env.Repo.(fstest.MapFS)["packages/mobile-core/Tests/MonacoCoreTests/F00IntegrationTests.swift"] = &fstest.MapFile{
+				Data: []byte(declared),
+			}
 			env.Scripts = func(flows.Flow, string) bool { return true }
 			var integration io.Reader
 			if !tc.noXUnit {
