@@ -50,7 +50,7 @@ func handler(
 		ErrorHandlerFunc: invalidRequest,
 		Middlewares:      middlewares(d, c),
 	})
-	return d.wrapContract(mux), nil
+	return d.wrapContract(c.cors(d.WebOrigins)(mux)), nil
 }
 
 func middlewares(d Deps, c *Contract) []api.MiddlewareFunc {

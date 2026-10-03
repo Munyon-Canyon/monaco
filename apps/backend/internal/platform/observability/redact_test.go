@@ -18,6 +18,8 @@ const (
 	goldenPath   = "testdata/redaction.golden"
 	sampleJWT    = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.c2lnbmF0dXJl"
 	samplePubkey = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+
+	sampleFundLinkValue = "q2J9cZQxv0mYb5r8yS3dTt1uVw7xY9zA0bC2dE4fG6h"
 )
 
 func sampleBase58Secret() string { return strings.Repeat("5Kd3", 22) }
@@ -115,6 +117,11 @@ func redactionCases() []redactionCase {
 			keep,
 			[]slog.Attr{slog.Any("headers", [2]string{"ok", sampleJWT})},
 		},
+		redactionCase{"onramp link token", keep, []slog.Attr{
+			slog.String("token", sampleFundLinkValue), slog.String("onramp_token", sampleFundLinkValue),
+			slog.String("fund_url", "https://monacolabs.xyz/fund?s="+sampleFundLinkValue),
+			slog.Group("body", slog.String("token", sampleFundLinkValue)),
+		}},
 		redactionCase{"opaque authorization scheme", keep, []slog.Attr{slog.String("header", "Bearer opaque-bearer")}},
 		redactionCase{"sensitive query params", keep, []slog.Attr{
 			slog.String("url", "https://rpc.example/v1?api_key=opaque-query&cluster=mainnet&Token=opaque-query2"),
