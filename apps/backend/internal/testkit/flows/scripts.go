@@ -29,6 +29,9 @@ func Scripts() map[string]Script {
 		"F10CastVoteNotAVoter":                     F10CastVoteNotAVoter,
 		"F10CastVoteProposalClosed":                F10CastVoteProposalClosed,
 		"F10CastVoteCrashAfterPublish":             F10CastVoteCrashAfterPublish,
+		"F18SamplePricesOK":                        F18SamplePricesOK,
+		"F18SamplePricesJupiterUnavailable":        F18SamplePricesJupiterUnavailable,
+		"F18SamplePricesUpstreamTimeout":           F18SamplePricesUpstreamTimeout,
 		"F20FollowOK":                              F20FollowOK,
 		"F20FollowCannotFollowSelf":                F20FollowCannotFollowSelf,
 		"F20FollowUserNotFound":                    F20FollowUserNotFound,
@@ -46,5 +49,7 @@ func Scripts() map[string]Script {
 }
 
 func Env() map[string][]string {
-	return map[string][]string{}
+	return map[string][]string{
+		"18": {"MARKET_PRICE_POLL_INTERVAL=2s", "MONACO_TIMEOUT_JUPITER_QUOTE=1s"},
+	}
 }

@@ -33,6 +33,19 @@ func AwaitTick(poller string) Step {
 	}
 }
 
+func ExpectTickFailed(poller, code string) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		got, ok := s.ticks[poller]
+		switch {
+		case !ok:
+			s.t.Fatalf("scenario: ExpectTickFailed(%s) needs AwaitTick(%s) first", poller, poller)
+		case got.code != code:
+			s.t.Fatalf("scenario: poller %s failed with code %s, want %s", poller, got.code, code)
+		}
+	}
+}
+
 func ExpectTick(poller string, scanned, changed int) Step {
 	return func(s *Scenario) {
 		s.t.Helper()

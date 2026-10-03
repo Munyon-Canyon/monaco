@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -67,7 +68,7 @@ func TestRouteMismatch_checksTheLastMatchingRequest(t *testing.T) {
 func TestSettle_failsOnARequiredLineThatNeverLandsOnceTheDeadlinePasses(t *testing.T) {
 	t.Parallel()
 	d, res := healthzSettle(testkit.DB(t))
-	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 250*time.Millisecond)
 	defer cancel()
 	if err := d.settle(ctx, res); err == nil || err.Error() != healthzMissing {
 		t.Fatalf("settle = %v, want %q", err, healthzMissing)
@@ -113,13 +114,80 @@ func TestSettle_passesOnAConsumerDispatchThatLandsAfterTheLogCheckStarts(t *test
 func TestSettle_failsOnAConsumerDispatchThatNeverLandsOnceTheDeadlinePasses(t *testing.T) {
 	t.Parallel()
 	d, res := consumerSettle(testkit.DB(t))
-	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 250*time.Millisecond)
 	defer cancel()
 	if err := d.settle(ctx, res); err == nil || err.Error() != consumerAckMissing {
 		t.Fatalf("settle = %v, want %q", err, consumerAckMissing)
 	}
 	if ctx.Err() == nil {
 		t.Fatal("settle failed on the missing dispatch before the converge deadline passed")
+	}
+}
+
+func priceSettle(pool *pgxpool.Pool, listed []string, lines ...string) (*driver, *Result) {
+	d := &driver{clock: clock.Real{}, env: Env{Pool: pool, Logs: &Logs{}}}
+	res := &Result{
+		Unit: Unit{
+			Flow:    tools.Flow{ID: "18", Trigger: "poller:market.prices", Events: listed},
+			Outcome: tools.OutcomeOK,
+		},
+		logFrom: d.env.Logs.mark(),
+	}
+	for _, line := range lines {
+		d.env.Logs.add(procWorker, line)
+	}
+	return d, res
+}
+
+func TestSettle_skipsTheRelayTickWhenEveryListedEventIsCore(t *testing.T) {
+	t.Parallel()
+	const tick = `{"msg":"poller.tick","poller":"market.prices","scanned":3,"changed":2,"duration_ms":1}`
+	d, res := priceSettle(testkit.DB(t), []string{"price.tick"}, tick)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+	if err := d.settle(ctx, res); err != nil {
+		t.Fatalf("settle = %v, want a pass without bus.relay.tick", err)
+	}
+}
+
+func TestSettle_skipsTheRelayTickWhenNoListedDurableEventWasWritten(t *testing.T) {
+	t.Parallel()
+	const tick = `{"msg":"poller.tick","poller":"market.prices","scanned":3,"changed":2,"duration_ms":1}`
+	d, res := priceSettle(testkit.DB(t), []string{"asset.price_moved"}, tick)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	if err := d.settle(ctx, res); err != nil {
+		t.Fatalf("settle = %v, want a pass without bus.relay.tick", err)
+	}
+}
+
+func TestSettle_requiresTheRelayTickWhenAListedDurableEventWasWritten(t *testing.T) {
+	t.Parallel()
+	const (
+		tick = `{"msg":"poller.tick","poller":"market.prices","scanned":3,"changed":2,"duration_ms":1}`
+		want = "flow 18 ok invariant: no bus.relay.tick log line with map[]"
+	)
+	d, res := priceSettle(testkit.DB(t), []string{"asset.price_moved"}, tick)
+	if _, err := d.env.Pool.Exec(t.Context(), `INSERT INTO events (
+		id, aggregate_type, aggregate_id, type, payload, actor_type, actor_id, created_at)
+		VALUES ($1, 'asset', $2, 'asset.price_moved', '{"v":1}', 'system', 'test', $3)`,
+		uuid.New(), uuid.New(), res.startedAt.Add(time.Millisecond)); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 250*time.Millisecond)
+	defer cancel()
+	if err := d.settle(ctx, res); err == nil || err.Error() != want {
+		t.Fatalf("settle = %v, want %q", err, want)
+	}
+}
+
+func TestWroteDurableEvent_returnsTrueWhenTheQueryFails(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	pool.Close()
+	d := &driver{env: Env{Pool: pool}}
+	if !d.wroteDurableEvent(t.Context(), []string{"asset.price_moved"}, time.Time{}) {
+		t.Fatal("wroteDurableEvent did not fail closed with a closed pool")
 	}
 }
 

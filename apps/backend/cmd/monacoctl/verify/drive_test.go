@@ -267,6 +267,55 @@ func TestDriver_aPlantedFlowThatSleepsPastItsBudgetFailsNamingTheFlowPhase(t *te
 	}
 }
 
+func TestRunAll_runsPollerUnitsAfterRouteUnitsFinish(t *testing.T) {
+	t.Parallel()
+	var mu sync.Mutex
+	var order []string
+	mark := func(name string) {
+		mu.Lock()
+		order = append(order, name)
+		mu.Unlock()
+	}
+	route := func(name string) Unit {
+		return Unit{
+			Flow: tools.Flow{ID: name, Trigger: "GET /healthz"},
+			Script: func(*scenario.Scenario) {
+				mark(name + "-start")
+				mark(name + "-end")
+			},
+		}
+	}
+	poller := Unit{
+		Flow:   tools.Flow{ID: "18", Trigger: "poller:market.prices"},
+		Script: func(*scenario.Scenario) { mark("poller-start") },
+	}
+	env := servedEnv(t)
+	budget := DefaultBudget()
+	budget.Converge = 30 * time.Millisecond
+	d, err := newDriver(env, budget)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results := d.runAll(t.Context(), []Unit{route("a"), poller, route("b")}, 2); len(results) != 3 {
+		t.Fatalf("results = %d, want 3", len(results))
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	ended := map[string]bool{}
+	for _, name := range order {
+		if name == "poller-start" {
+			if !ended["a-end"] || !ended["b-end"] {
+				t.Fatalf("order = %q, want both route scripts to finish before the poller starts", order)
+			}
+			return
+		}
+		if strings.HasSuffix(name, "-end") {
+			ended[name] = true
+		}
+	}
+	t.Fatalf("order = %q, want the poller to start", order)
+}
+
 func TestDriver_stopsAFlowWhenTheRunIsCancelled(t *testing.T) {
 	t.Parallel()
 	api, arrived := slowAPI(t)
