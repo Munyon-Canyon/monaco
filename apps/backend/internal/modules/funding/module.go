@@ -30,7 +30,7 @@ func (m *Module) Pollers() []poller.Poller {
 	cfg := m.deps.Config
 	return []poller.Poller{app.NewDepositPoller(m.deps.Pool, m.deps.UoW, m.deps.IDs, m.deps.Clock,
 		identity.New(m.deps).Queries(), solana.New(cfg, m.deps.Clock), chain.SolanaAddress(cfg.Solana.USDCMint),
-		cfg.Funding.DepositPollInterval, cfg.Funding.DepositRPCRate, m.deps.Bus)}
+		cfg.Funding.DepositPollInterval, app.NewRPCLimiter(cfg.Funding.DepositRPCRate), m.deps.Bus)}
 }
 
 func (*Module) Balances() port.Balances { return adapters.UnwiredBalances{} }

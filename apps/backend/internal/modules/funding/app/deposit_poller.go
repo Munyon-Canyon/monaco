@@ -37,6 +37,17 @@ type DepositRPC interface {
 	) ([]solana.Transfer, error)
 }
 
+type RPCLimiter interface {
+	Wait(context.Context) error
+}
+
+func NewRPCLimiter(perSecond int32) *rate.Limiter {
+	if perSecond <= 0 {
+		perSecond = 20
+	}
+	return rate.NewLimiter(rate.Limit(perSecond), int(perSecond))
+}
+
 type DepositPoller struct {
 	reads   sqlc.DBTX
 	uow     *db.UnitOfWork
@@ -47,19 +58,16 @@ type DepositPoller struct {
 	usdc    chain.SolanaAddress
 	period  time.Duration
 	hints   HintPublisher
-	limit   *rate.Limiter
+	limit   RPCLimiter
 }
 
 func NewDepositPoller(
 	reads sqlc.DBTX, uow *db.UnitOfWork, g ids.Generator, c clock.Clock, wallets port.WalletReader,
-	rpc DepositRPC, usdc chain.SolanaAddress, period time.Duration, rpcRate int32, hints HintPublisher,
+	rpc DepositRPC, usdc chain.SolanaAddress, period time.Duration, limit RPCLimiter, hints HintPublisher,
 ) *DepositPoller {
-	if rpcRate <= 0 {
-		rpcRate = 20
-	}
 	return &DepositPoller{
 		reads: reads, uow: uow, ids: g, clock: c, wallets: wallets, rpc: rpc, usdc: usdc,
-		period: period, hints: hints, limit: rate.NewLimiter(rate.Limit(rpcRate), int(rpcRate)),
+		period: period, hints: hints, limit: limit,
 	}
 }
 

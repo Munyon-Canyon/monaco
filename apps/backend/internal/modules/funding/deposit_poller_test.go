@@ -3,10 +3,12 @@ package funding_test
 import (
 	"context"
 	"math"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/time/rate"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
@@ -84,6 +86,29 @@ func TestDepositPollerReportsSignatureAndTransferFailures(t *testing.T) {
 	}
 }
 
+func unlimited() *rate.Limiter { return rate.NewLimiter(rate.Inf, 0) }
+
+type rpcBudget struct {
+	mu   sync.Mutex
+	left int
+}
+
+func (b *rpcBudget) refill(n int) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.left = n
+}
+
+func (b *rpcBudget) Wait(context.Context) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.left == 0 {
+		return errs.New(errs.CodeInternal, "test.rpcBudget")
+	}
+	b.left--
+	return nil
+}
+
 func newDepositPoller(
 	pool *pgxpool.Pool,
 	user testkit.SeededUser,
@@ -95,7 +120,7 @@ func newDepositPoller(
 		pool, db.New(pool, testkit.NewIDs(uowID), testkit.NewClock(now)),
 		testkit.NewIDs(pollerID), testkit.NewClock(now),
 		fakes.NewIdentity(nil, []identity.MemberWallet{{UserID: user.ID, Address: user.Address}}),
-		rpc, testkit.USDCMint, app.DepositPollInterval, 20, &hints{},
+		rpc, testkit.USDCMint, app.DepositPollInterval, unlimited(), &hints{},
 	)
 }
 
@@ -182,7 +207,7 @@ func testDepositPollerAdvancesPastOtherTokens(t *testing.T) {
 		&rpc,
 		testkit.USDCMint,
 		app.DepositPollInterval,
-		20,
+		unlimited(),
 		&hints{},
 	)
 	report, err := p.Tick(t.Context())
@@ -222,7 +247,7 @@ func testDepositPollerCreditsOneDepositOnlyOnce(t *testing.T) {
 		&rpc,
 		testkit.USDCMint,
 		app.DepositPollInterval,
-		20,
+		unlimited(),
 		&hints{},
 	)
 	ctx := observability.WithActor(t.Context(), "system:poller.funding.deposits")
@@ -290,15 +315,15 @@ func TestDepositPollerDefersWalletsPastTheRateBudgetWithoutFailingTheTick(t *tes
 		addrs = append(addrs, string(user.Address))
 	}
 	now := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
+	budget := &rpcBudget{}
 	p := app.NewDepositPoller(
 		pool, db.New(pool, testkit.NewIDs(51), testkit.NewClock(now)), testkit.NewIDs(52), testkit.NewClock(now),
-		fakes.NewIdentity(nil, wallets), emptyRPC{}, testkit.USDCMint, app.DepositPollInterval, 1, &hints{},
+		fakes.NewIdentity(nil, wallets), emptyRPC{}, testkit.USDCMint, app.DepositPollInterval, budget, &hints{},
 	)
-	tick := func(budget time.Duration) {
+	tick := func() {
 		t.Helper()
-		actor := observability.WithActor(t.Context(), "system:poller.funding.deposits")
-		ctx, cancel := context.WithTimeout(actor, budget)
-		defer cancel()
+		budget.refill(1)
+		ctx := observability.WithActor(t.Context(), "system:poller.funding.deposits")
 		if report, err := p.Tick(ctx); err != nil || report.Scanned != 1 {
 			t.Fatalf("Tick = %+v, %v; want one wallet scanned and no error", report, err)
 		}
@@ -312,9 +337,9 @@ func TestDepositPollerDefersWalletsPastTheRateBudgetWithoutFailingTheTick(t *tes
 		}
 		return n
 	}
-	tick(300 * time.Millisecond)
+	tick()
 	if got := scanned(); got != 1 {
 		t.Fatalf("cursors after first tick = %d, want 1: deferred wallets keep no cursor so they sort first", got)
 	}
-	tick(1500 * time.Millisecond)
+	tick()
 }
