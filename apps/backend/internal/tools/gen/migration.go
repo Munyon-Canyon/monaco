@@ -1,7 +1,9 @@
 package gen
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -84,11 +86,15 @@ func (m Migrator) rebase(ctx context.Context, root *os.Root) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	const op = "gen.Migrator.rebase"
 	var touched []string
 	for _, r := range RebasePlan(onDisk, base, m.Now()) {
 		from, to := filepath.Join(migrationsDir, r[0]), filepath.Join(migrationsDir, r[1])
+		if _, err := root.Lstat(to); !errors.Is(err, fs.ErrNotExist) {
+			return touched, errs.Wrap(cmp.Or(err, fs.ErrExist), errs.CodeInternal, op, slog.String("file", to))
+		}
 		if err := root.Rename(from, to); err != nil {
-			return touched, errs.Wrap(err, errs.CodeInternal, "gen.Migrator.rebase", slog.String("file", from))
+			return touched, errs.Wrap(err, errs.CodeInternal, op, slog.String("file", from))
 		}
 		touched = append(touched, to)
 	}
@@ -125,7 +131,7 @@ func RebasePlan(onDisk, base []string, now time.Time) [][2]string {
 	if len(own) == 0 || own[0][:14] > newest {
 		return nil
 	}
-	taken := slices.Clone(base)
+	taken := slices.Concat(base, onDisk)
 	renames := make([][2]string, len(own))
 	for i, name := range own {
 		to := NextPrefix(taken, now) + name[14:]
