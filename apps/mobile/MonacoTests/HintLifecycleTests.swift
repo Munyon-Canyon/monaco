@@ -116,7 +116,7 @@ struct HintLifecycleTests {
     }
 }
 
-private struct HintProbeRoute: AppRoute {
+private nonisolated struct HintProbeRoute: AppRoute {
     func destination() -> some View { EmptyView() }
 }
 
