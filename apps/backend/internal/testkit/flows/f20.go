@@ -69,7 +69,7 @@ func F20FollowCrashBeforeCommit(s *scenario.Scenario) {
 	s.Given(followUsers(), scenario.AsUser("alice")).
 		When(
 			scenario.Post(followPath("{bob}"), `{}`),
-			scenario.Post(followPath("{bob}"), `{}`),
+			scenario.Retry(),
 			scenario.ExpectStatus(http.StatusOK),
 			scenario.ExpectJSON("following", true),
 		).
