@@ -82,11 +82,11 @@ func integrationSuffixes(f Flow) []string {
 	return suffixes
 }
 
-func CheckIntegration(app []AppRow, backend []Flow, results IntegrationResults) []Problem {
+func CheckIntegration(app []AppRow, backend []Flow, results IntegrationResults, ids []string) []Problem {
 	var problems []Problem
 	for _, row := range app {
 		i := slices.IndexFunc(backend, func(f Flow) bool { return f.ID == row.ID })
-		if row.Status != AppVerified || i < 0 {
+		if row.Status != AppVerified || i < 0 || !selected(ids, row.ID) {
 			continue
 		}
 		for _, suffix := range integrationSuffixes(backend[i]) {

@@ -272,17 +272,30 @@ jobs:
 
   mobile-core:
     needs: plan
-    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.mobile-core == 'true' || needs.plan.outputs.unknown == 'true')
+    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.mobile-core == 'true' || needs.plan.outputs.flows == 'true' || needs.plan.outputs.unknown == 'true')
     uses: ./.github/workflows/ci-mobile-core.yml
 
+  # Runs the F<id>IntegrationTests of only the flows the stack touches; a flow-path change that
+  # touches no flow with an integration test class exits 0 before anything boots.
   mobile-integration:
     name: Mobile integration (mobile-core against the real API)
     needs: plan
-    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.mobile-core == 'true' || needs.plan.outputs.unknown == 'true')
+    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.flows == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # The merge-base with trunk, so a stacked PR checks the flows of the whole stack.
+      - name: Resolve the base commit
+        if: inputs.stage == 'pr'
+        env:
+          FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH || 'main' }}
+        run: |
+          base="$(scripts/ci/fetch-base.sh)"
+          echo "BASE_COMMIT=${base}" >> "$GITHUB_ENV"
 
       - uses: ./.github/actions/backend-test-env
         with:
@@ -291,8 +304,21 @@ jobs:
       - name: Install the pinned atlas community build
         run: scripts/install-atlas.sh
 
+      # The staging indicator runs every flow's integration tests.
+      - name: List the affected flows
+        if: inputs.stage == 'pr'
+        working-directory: apps/backend
+        run: |
+          ids="$(go run ./cmd/monacoctl flows --affected --base "$BASE_COMMIT")"
+          echo "FLOWS=${ids//$'\n'/,}" >> "$GITHUB_ENV"
+
       - name: mobile-core integration tests against api, worker and fakes
-        run: scripts/ci/mobile-integration.sh
+        run: |
+          if [[ -v FLOWS ]]; then
+            scripts/ci/mobile-integration.sh --flows "$FLOWS"
+          else
+            scripts/ci/mobile-integration.sh
+          fi
 
       - name: Upload the api and worker logs
         if: failure() || cancelled()
@@ -321,6 +347,7 @@ jobs:
       mobile-core: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.mobile-core == 'true' }}
       backend-tests: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.backend-tests == 'true' }}
       mobile-tests: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.mobile-tests == 'true' }}
+      flows: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.flows == 'true' }}
       scripts: ${{ steps.top.outputs.skip != 'true' && (steps.filter.outputs.scripts == 'true' || steps.every.outputs.scripts == 'true') }}
       # A stacked PR's base is the PR below it, so the filters see only this PR's own files: run everything.
       # The staging stage runs everything too.
@@ -432,6 +459,16 @@ jobs:
               - '.swiftlint-baseline.tsv'
               - 'scripts/swiftlint-ratchet.sh'
               - 'scripts/gen-mobile-feature.sh'
+              - 'scripts/ci/mobile-integration.sh'
+            flows:
+              - 'apps/backend/flows.tsv'
+              - 'packages/flows/**'
+              - 'apps/backend/api/**'
+              - 'packages/mobile-core/Sources/**'
+              - 'packages/mobile-core/Tests/**'
+              - 'apps/backend/internal/testkit/**'
+              - 'apps/backend/internal/modules/**'
+              - 'apps/backend/internal/tools/flows/**'
               - 'scripts/ci/mobile-integration.sh'
             web:
               - 'apps/web/**'

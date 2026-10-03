@@ -167,7 +167,7 @@ func TestFlowsCheck_missingFileFails(t *testing.T) {
 
 func TestFlowsRejectsUnknownArguments(t *testing.T) {
 	t.Parallel()
-	for _, args := range [][]string{{"flows"}, {"flows", "lint"}, {"flows", "check", "--from"}, {"flows", "check", "-x", "f"}, {"flows", "check", "--structure-only", "x"}, {"flows", "seed", "00"}, {"flows", "check", "--from", "x", "--structure-only"}, {"flows", "--affected"}, {"flows", "--affected", "--base", "x", "--structure-only"}, {"flows", "check", "--affected"}, {"flows", "check", "--base", "staging"}} {
+	for _, args := range [][]string{{"flows"}, {"flows", "lint"}, {"flows", "check", "--from"}, {"flows", "check", "-x", "f"}, {"flows", "check", "--structure-only", "x"}, {"flows", "seed", "00"}, {"flows", "check", "--from", "x", "--structure-only"}, {"flows", "--affected"}, {"flows", "--affected", "--base", "x", "--structure-only"}, {"flows", "check", "--affected"}, {"flows", "check", "--base", "staging"}, {"flows", "check", "--affected", "--base", "b", "--flows", "00"}} {
 		var stdout, stderr bytes.Buffer
 		code := run(commands(), tools(nil), nil, args, &stdout, &stderr)
 		if code != 2 || stderr.String() != flowsUsage+"\n" {
@@ -614,6 +614,11 @@ func TestFlowsAffectedCommands(t *testing.T) {
 			[]string{"check", "--affected", "--base", "b"},
 			names("", io.ErrUnexpectedEOF), repo,
 			1, "", "monacoctl flows check: " + io.ErrUnexpectedEOF.Error() + "\n",
+		},
+		{
+			"check only the listed flows",
+			[]string{"check", "--flows", "00,01", "--structure-only"},
+			names("", io.ErrUnexpectedEOF), repo, 1, "", "",
 		},
 		{
 			"check prints the ids it checks",

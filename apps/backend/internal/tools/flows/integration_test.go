@@ -45,12 +45,24 @@ func TestCheckIntegration_aMultiCommandFlowNeedsOnePassingTestPerOutcome(t *test
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var got []string
-			for _, p := range flows.CheckIntegration(app, backend, tc.results) {
+			for _, p := range flows.CheckIntegration(app, backend, tc.results, nil) {
 				got = append(got, p.String())
 			}
 			if !slices.Equal(got, tc.want) {
 				t.Fatalf("got\n%q\nwant\n%q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestCheckIntegration_skipsAVerifiedFlowOutsideIDs(t *testing.T) {
+	t.Parallel()
+	backend := []flows.Flow{{ID: "00", Commands: []string{"RecordPing"}, Outcomes: []flows.Outcome{flows.OutcomeOK}}}
+	app := []flows.AppRow{{File: "packages/flows/app/00.tsv", Line: 2, ID: "00", Status: flows.AppVerified}}
+	if got := flows.CheckIntegration(app, backend, nil, []string{"01"}); len(got) != 0 {
+		t.Fatalf("flow 00 outside ids 01: %v", got)
+	}
+	if got := flows.CheckIntegration(app, backend, nil, []string{"00"}); len(got) != 1 {
+		t.Fatalf("flow 00 in ids 00 lacks its test: %v", got)
 	}
 }
