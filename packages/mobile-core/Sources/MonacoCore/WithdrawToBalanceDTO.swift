@@ -1,13 +1,5 @@
 import Foundation
 
-public struct LeaveGroupRequestDTO: Encodable, Equatable, Sendable {
-    public let withdrawStake: Bool
-
-    public init(withdrawStake: Bool) {
-        self.withdrawStake = withdrawStake
-    }
-}
-
 public struct WithdrawToBalanceRequestDTO: Encodable, Equatable, Sendable {
     public let shareAmountMicros: Int64?
 

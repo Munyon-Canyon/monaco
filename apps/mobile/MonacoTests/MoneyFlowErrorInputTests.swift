@@ -80,20 +80,14 @@ nonisolated final class MoneyFlowErrorInputTests: XCTestCase {
         XCTAssertEqual(FlowErrorInput(URLError(.notConnectedToInternet)), .offline())
     }
 
-    /// Neither is given a fabricated status: an unreadable reply is genuinely unconfirmed,
-    /// and a blocked leave never reaches money copy (GroupDetailView words it itself).
-    /// A status here would word either one as an in-flight money request.
-    func testCoreInvalidResponseAndLeaveBlocked_stayStatusless() {
-        for error in [
-            MonacoCore.MonacoAPIError.invalidResponse,
-            MonacoCore.MonacoAPIError.leaveBlocked(.pendingRedeem),
-        ] {
-            let input = FlowErrorInput(error)
-            XCTAssertNil(input.status, "\(error)")
-            XCTAssertFalse(input.isOffline, "\(error)")
-            XCTAssertFalse(input.isSignInUnavailable, "\(error)")
-            XCTAssertEqual(MoneyFlowCopy.fundCabalFailure(input), MoneyFlowCopy.unconfirmed, "\(error)")
-        }
+    /// An unreadable reply is genuinely unconfirmed, so it gets no fabricated status that would
+    /// word it as an in-flight money request.
+    func testCoreInvalidResponse_staysStatusless() {
+        let input = FlowErrorInput(MonacoCore.MonacoAPIError.invalidResponse)
+        XCTAssertNil(input.status)
+        XCTAssertFalse(input.isOffline)
+        XCTAssertFalse(input.isSignInUnavailable)
+        XCTAssertEqual(MoneyFlowCopy.fundCabalFailure(input), MoneyFlowCopy.unconfirmed)
     }
 
     func testAmbiguousFailures_areUnconfirmed() {

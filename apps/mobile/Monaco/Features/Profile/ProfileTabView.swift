@@ -97,8 +97,7 @@ struct ProfileTabView: View {
 
                 ProfileCabalsSection(
                     auth: auth,
-                    rows: cabalRows,
-                    onLeft: { await session.refresh(auth: auth) }
+                    rows: cabalRows
                 )
 
                 accountActions

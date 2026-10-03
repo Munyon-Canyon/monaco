@@ -176,7 +176,6 @@ struct HomeView: View {
                     auth: auth,
                     rows: dashboard.myGroups,
                     potValuesUsd: potValuesUsd,
-                    onLeft: { await refreshHome() },
                     onBrowseCabals: { selectedTab = .cabals }
                 )
 

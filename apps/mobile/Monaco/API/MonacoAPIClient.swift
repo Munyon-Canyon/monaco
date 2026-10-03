@@ -2,21 +2,11 @@ import Foundation
 import MonacoAPI
 import MonacoCore
 
-enum LeaveGroupBlockReason: String, Equatable {
-    case shareUnitsRemaining = "share_units_remaining"
-    case lastMemberWithTreasury = "last_member_with_treasury"
-    case pendingRedeem = "pending_redeem"
-    case soleRemainingVote = "sole_remaining_vote"
-    case creatorMustTransfer = "creator_must_transfer"
-    case unknown
-}
-
 enum MonacoAPIError: Error {
     case invalidResponse
     case httpStatus(Int)
     case apiError(status: Int, message: String)
     case missingAccessToken
-    case leaveBlocked(LeaveGroupBlockReason)
 }
 
 extension Error {
@@ -281,25 +271,6 @@ final class MonacoAPIClient: AppSessionDataSource {
         return try JSONDecoder().decode(CreateGroupResponse.self, from: data)
     }
 
-    func leaveGroup(accessToken: String, groupId: String, withdrawStake: Bool = false, submission: IdempotentSubmission)
-        async throws
-    {
-        let url = baseURL.appending(path: "v1/groups/\(groupId)/leave")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        try applyAuthorizationHeader(accessToken: accessToken, to: &request)
-        request.httpBody = try MonacoHTTPTransport.idempotentBodyEncoder().encode(
-            LeaveGroupRequestDTO(withdrawStake: withdrawStake))
-        let (data, response) = try await session.data(for: request, submission: submission)
-        guard let http = response as? HTTPURLResponse else { throw MonacoAPIError.invalidResponse }
-        switch http.statusCode {
-        case 204: return
-        case 409: throw MonacoAPIError.leaveBlocked(parseLeaveConflict(from: data))
-        default: throw MonacoAPIError.httpStatus(http.statusCode)
-        }
-    }
-
     func withdrawToBalance(
         accessToken: String, groupId: String, shareAmountMicros: Int64? = nil, submission: IdempotentSubmission
     ) async throws -> WithdrawToBalanceJobDTO {
@@ -448,7 +419,6 @@ final class MonacoAPIClient: AppSessionDataSource {
             case .httpStatus(let status, _): throw MonacoAPIError.httpStatus(status)
             case .invalidResponse: throw MonacoAPIError.invalidResponse
             case .missingAccessToken: throw MonacoAPIError.missingAccessToken
-            case .leaveBlocked: throw MonacoAPIError.invalidResponse
             case .rejected(let status, let message, _): throw MonacoAPIError.apiError(status: status, message: message)
             case .rateLimited: throw MonacoAPIError.httpStatus(429)
             }
@@ -847,14 +817,6 @@ final class MonacoAPIClient: AppSessionDataSource {
             throw MonacoAPIError.httpStatus(http.statusCode)
         }
         return try JSONDecoder().decode(DevBuyResponse.self, from: data)
-    }
-
-    private func parseLeaveConflict(from data: Data) -> LeaveGroupBlockReason {
-        struct Body: Decodable { let reason: String? }
-        guard let body = try? JSONDecoder().decode(Body.self, from: data), let reason = body.reason,
-            let parsed = LeaveGroupBlockReason(rawValue: reason)
-        else { return .unknown }
-        return parsed
     }
 
 }

@@ -46,7 +46,6 @@ struct ProfileCabalRow: Identifiable, Equatable {
 struct ProfileCabalsSection: View {
     @ObservedObject var auth: PrivyAuthService
     let rows: [ProfileCabalRow]
-    var onLeft: () async -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -67,8 +66,7 @@ struct ProfileCabalsSection: View {
                             GroupDetailView(
                                 auth: auth,
                                 groupId: row.groupId,
-                                groupName: row.name,
-                                onLeft: onLeft
+                                groupName: row.name
                             )
                         } label: {
                             CabalPositionRow(
