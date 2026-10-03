@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -195,8 +196,8 @@ func TestReverseDepsSeedsNonGoFilesFromTheirPackage(t *testing.T) {
 			[]string{"./internal/modules/cabal", "./internal/modules/cabal/sqlc", "./internal/platform/db/sqlc"},
 		},
 		{
-			"flows.tsv yields its readers",
-			[]string{"flows.tsv"},
+			"a backend flow file yields the flow readers",
+			[]string{"packages/flows/backend/03.tsv"},
 			[]string{
 				"./cmd/monacoctl", "./cmd/monacoctl/agents", "./cmd/monacoctl/verify",
 				"./internal/testkit/flows", "./internal/tools/flows", "./internal/tools/gen",
@@ -223,7 +224,7 @@ func TestReverseDepsSeedsNonGoFilesFromTheirPackage(t *testing.T) {
 	}
 }
 
-func TestFlowsReadersAreEveryPackageNamingFlowsTSV(t *testing.T) {
+func TestFlowsReadersAreEveryPackageReadingTheFlowFiles(t *testing.T) {
 	t.Parallel()
 	root, err := os.OpenRoot("../..")
 	if err != nil {
@@ -236,7 +237,7 @@ func TestFlowsReadersAreEveryPackageNamingFlowsTSV(t *testing.T) {
 			return err
 		}
 		body, err := fs.ReadFile(root.FS(), p)
-		if err == nil && bytes.Contains(body, []byte("flows.tsv")) {
+		if err == nil && flowReader.Match(body) {
 			found = append(found, path.Dir(p))
 		}
 		return err
@@ -247,6 +248,8 @@ func TestFlowsReadersAreEveryPackageNamingFlowsTSV(t *testing.T) {
 	slices.Sort(found)
 	found = slices.Compact(found)
 	if want := slices.Sorted(slices.Values(flowsReaders())); !slices.Equal(found, want) {
-		t.Fatalf("flowsReaders() = %v, packages naming flows.tsv = %v", want, found)
+		t.Fatalf("flowsReaders() = %v, packages calling ReadAll = %v", want, found)
 	}
 }
+
+var flowReader = regexp.MustCompile(`\bfunc ReadAll\(|\b(?:flows|toolflows|tools)\.ReadAll\(`)

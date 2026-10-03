@@ -107,7 +107,8 @@ PERF_ROWS = ("# Budgets only go down.\n# 2026-10-01, iPhone 17, iOS 26.3: median
 FLOW_HEADER = "id\tscreen\tstatus\tdoc\n"
 FLOW_00 = "packages/flows/app/00.tsv"
 FLOW_01 = "packages/flows/app/01.tsv"
-BACKEND_FLOWS = "apps/backend/flows.tsv"
+BACKEND_00 = "packages/flows/backend/00.tsv"
+BACKEND_01 = "packages/flows/backend/01.tsv"
 
 GRAPH_TEST = "scripts/mobile_core_graph_test.go"
 GRAPH_SOURCE = """package scripts_test
@@ -141,7 +142,8 @@ BASE = {
     SCENARIOS_00: scenario_swift("00", ["invalidInput", "unauthorized"]),
     FLOW_00: FLOW_HEADER + "00\tSystemPing\tbuilt\tdocs/a.md#ping\n",
     FLOW_01: FLOW_HEADER + "01\tSignIn\tverified\tdocs/a.md#login\n",
-    BACKEND_FLOWS: "id\tflow\n00\tPing\n01\tSign in\n",
+    BACKEND_00: "id\tflow\n00\tPing\n",
+    BACKEND_01: "id\tflow\n01\tSign in\n",
     "apps/backend/coverage.exclude": "cmd/api/main.go\n",
     "apps/backend/mutants.allow": "",
     "apps/backend/.golangci.yml": GOLANGCI,
@@ -587,7 +589,7 @@ jobs:
         self.assert_clean({
             FLOW_00: BASE[FLOW_00].replace("built", "verified"),
             FLOW_01: BASE[FLOW_01].replace("SignIn\tverified", "-\tnone"),
-            BACKEND_FLOWS: "id\tflow\n00\tPing\n",
+            BACKEND_01: None,
             "packages/flows/app/02.tsv": FLOW_HEADER + "02\t-\tnone\tdocs/a.md#cabal\n",
         })
 

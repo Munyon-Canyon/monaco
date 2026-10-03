@@ -50,7 +50,6 @@ func TestAffected(t *testing.T) {
 		{[]string{"apps/backend/api/openapi.yaml"}, []string{"00", "01"}},
 		{[]string{"apps/backend/api/spec/cabal.yaml"}, []string{"00", "01"}},
 		{[]string{"packages/flows/Package.swift"}, every},
-		{[]string{"apps/backend/flows.tsv"}, every},
 		{[]string{"apps/backend/internal/tools/flows/check.go"}, every},
 		{[]string{"apps/backend/internal/testkit/scenarios/scenarios.go"}, every},
 		{[]string{"apps/backend/internal/testkit/fakes/privy.go"}, every},
@@ -62,32 +61,12 @@ func TestAffected(t *testing.T) {
 	}
 }
 
-func TestChangedRows(t *testing.T) {
-	t.Parallel()
-	diff := strings.Join([]string{
-		"diff --git a/apps/backend/flows.tsv b/apps/backend/flows.tsv",
-		"--- a/apps/backend/flows.tsv",
-		"+++ b/apps/backend/flows.tsv",
-		"@@ -2 +2 @@",
-		"-00\tPing\tsystem",
-		"+00\tPing\tsystem",
-		"@@ -9,0 +10 @@",
-		"+23a\tProfile photo\tidentity",
-		"-" + flows.Header,
-		"+" + flows.Header,
-	}, "\n")
-	want := []string{"packages/flows/backend/00.tsv", "packages/flows/backend/23a.tsv"}
-	if got := flows.ChangedRows(diff); !slices.Equal(got, want) {
-		t.Fatalf("ChangedRows = %q, want %q", got, want)
-	}
-}
-
 func TestChecks_reportOnlyTheFlowsInIDs(t *testing.T) {
 	t.Parallel()
 	broken := func(id string) string {
 		return fundRowWith(func(c []string) { c[0], c[5] = id, "cabal.exploded" })
 	}
-	parsed, problems := flows.Parse(strings.NewReader(tsv(broken("07"), broken("08"))))
+	parsed, problems := flows.Parse(fundFile, strings.NewReader(tsv(broken("07"), broken("08"))))
 	if len(problems) != 0 {
 		t.Fatalf("parse problems = %v", lines(problems))
 	}
@@ -114,7 +93,7 @@ func TestChecks_reportOnlyTheFlowsInIDs(t *testing.T) {
 		t.Fatalf("problems for 08 = %q, for every flow = %q", only, every)
 	}
 	for _, p := range only {
-		if !strings.HasPrefix(p, "flows.tsv:3:") && !strings.Contains(p, "TestFlow08_") {
+		if !strings.HasPrefix(p, fundFile+":3:") && !strings.Contains(p, "TestFlow08_") {
 			t.Errorf("problem %q is not flow 08's", p)
 		}
 	}

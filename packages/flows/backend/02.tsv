@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+02	Create cabal	cabal	POST /v1/cabals	CreateCabal	cabal.created	cabal.hints	ok;InvalidInput;Unauthorized;PrivyUnavailable;crash:before-commit	built	docs/architecture/cabals.md#treasury-wallet

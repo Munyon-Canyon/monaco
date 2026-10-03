@@ -7,8 +7,6 @@ import (
 	"maps"
 	"slices"
 	"strings"
-
-	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
 const maxLines = 20
@@ -108,11 +106,7 @@ func touch(
 			touched[f.Filename] = map[int]bool{}
 		}
 		touched[f.Filename][bottom] = true
-		if f.Filename == flowsFile && f.Patch != "" {
-			changed[bottom] = append(changed[bottom], flows.ChangedRows(f.Patch)...)
-		} else {
-			changed[bottom] = append(changed[bottom], f.Filename)
-		}
+		changed[bottom] = append(changed[bottom], f.Filename)
 	}
 	return nil
 }

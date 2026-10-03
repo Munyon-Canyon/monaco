@@ -39,4 +39,4 @@ fresh "scripts/gen-docs.sh"
 go run ./cmd/monacoctl docs flows --feature-map > ../../.claude/skills/verify-backend/feature-map.md
 fresh "go run ./cmd/monacoctl docs flows --feature-map > ../../.claude/skills/verify-backend/feature-map.md (from apps/backend)"
 go run ./cmd/monacoctl flows check --structure-only
-echo "ready: vet on go.mod's toolchain, go.mod tidy, generated code, sqlc, reference docs, the verify-backend feature map and flows.tsv are all current"
+echo "ready: vet on go.mod's toolchain, go.mod tidy, generated code, sqlc, reference docs, the verify-backend feature map and the flow files are all current"

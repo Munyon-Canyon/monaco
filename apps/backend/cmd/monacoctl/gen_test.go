@@ -225,7 +225,10 @@ func TestGen_otherArgsPrintUsage(t *testing.T) {
 
 func TestGen_scaffoldsIntoTheWorkingDirAndPrintsWhatItWrote(t *testing.T) {
 	t.Parallel()
-	root := t.TempDir()
+	root := filepath.Join(t.TempDir(), "apps", "backend")
+	if err := os.MkdirAll(root, 0o750); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/app\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -243,8 +246,8 @@ func TestGen_scaffoldsIntoTheWorkingDirAndPrintsWhatItWrote(t *testing.T) {
 		!strings.HasPrefix(
 			stderr.String(),
 			"monacoctl: gen.planFlow",
-		) || !strings.Contains(stderr.String(), "flows.tsv") {
-		t.Fatalf("gen flow without flows.tsv = %d %q %q, want 1 and the error", code, stdout.String(), stderr.String())
+		) || !strings.Contains(stderr.String(), flows.Dir) {
+		t.Fatalf("gen flow without flow files = %d %q %q, want 1 and the error", code, stdout.String(), stderr.String())
 	}
 	stderr.Reset()
 	if code := gen(
@@ -259,24 +262,25 @@ func TestGen_scaffoldsIntoTheWorkingDirAndPrintsWhatItWrote(t *testing.T) {
 
 func TestGen_flowWithALetterSuffixWritesItsTestFileIntoTheModule(t *testing.T) {
 	t.Parallel()
-	dir, err := os.OpenRoot(t.TempDir())
+	repo := t.TempDir()
+	row := "01a\tSet handle\tidentity\tPOST /v1/me/handle\tSetHandle\t\t\tok;InvalidInput;crash:before-commit\tplanned\tdocs/x.md\n"
+	for rel, body := range map[string]string{
+		"apps/backend/go.mod":                              "module example.com/app\n",
+		"apps/backend/internal/modules/identity/module.go": "package identity\n",
+		flows.Dir + "/01a.tsv":                             flows.Header + "\n" + row,
+	} {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(repo, rel)), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(repo, rel), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dir, err := os.OpenRoot(filepath.Join(repo, "apps", "backend"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = dir.Close() }()
-	row := "01a\tSet handle\tidentity\tPOST /v1/me/handle\tSetHandle\t\t\tok;InvalidInput;crash:before-commit\tplanned\tdocs/x.md\n"
-	if err := dir.MkdirAll("internal/modules/identity", 0o750); err != nil {
-		t.Fatal(err)
-	}
-	for rel, body := range map[string]string{
-		"go.mod":                              "module example.com/app\n",
-		flows.File:                            flows.Header + "\n" + row,
-		"internal/modules/identity/module.go": "package identity\n",
-	} {
-		if err := dir.WriteFile(rel, []byte(body), 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
 	var stdout, stderr bytes.Buffer
 	if code := toolGen(toolEnv{wd: dir.Name()})([]string{"flow", "01a"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("gen flow 01a = %d, stderr %q", code, stderr.String())

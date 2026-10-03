@@ -15,7 +15,7 @@ Diffs BASE_SHA...HEAD_SHA and reports each finding as `path:line: <rule>: <what>
   least as many of them (a rename).
 - flow-status: a deleted packages/flows/app/<id>.tsv, or its status lowered along
   verified > built > planned. A move to none also counts, unless the same change deletes the
-  flow's row from apps/backend/flows.tsv.
+  flow's backend row, packages/flows/backend/<id>.tsv.
 - scenario-manifest: an added or removed line inside the generated block of
   scripts/qa/sample-screens.txt, unless the whole block now matches what `monacoctl gen flows`
   writes from the Flow<id>Scenarios.gen.swift enums at head (a regeneration).
@@ -81,7 +81,7 @@ LOOSER_MANIFEST = re.compile(r"\.v[45]\b|\bunsafeFlags\b|\btreatAllWarnings\b")
 WARNINGS_FLAG = "-warnings-as-errors"
 TEST_SCRIPT = "scripts/mobile-core-test.sh"
 FLOW_APP = re.compile(r"^packages/flows/app/([^/]+)\.tsv$")
-BACKEND_FLOWS = "apps/backend/flows.tsv"
+BACKEND_FLOWS = "packages/flows/backend/{}.tsv"
 FLOW_RANK = {"planned": 1, "built": 2, "verified": 3}
 GRAPH_TEST = "scripts/mobile_core_graph_test.go"
 SCENARIO_MANIFEST = "scripts/qa/sample-screens.txt"
@@ -291,7 +291,7 @@ def flow_status_findings(added: list[Added], removed: list[Added], base, head) -
         if not head(path):
             findings.append(Finding(path, 1, "flow-status", f"deleted the app registry file of flow {flow_id}"))
         elif now == "none" and was != "none":
-            if has_flow_row(head(BACKEND_FLOWS), flow_id):
+            if has_flow_row(head(BACKEND_FLOWS.format(flow_id)), flow_id):
                 findings.append(Finding(path, 2, "flow-status", f"lowered flow {flow_id} {was} -> none"))
         elif FLOW_RANK.get(now or "", 0) < FLOW_RANK.get(was, 0):
             findings.append(Finding(path, 2, "flow-status", f"lowered flow {flow_id} {was} -> {now}"))

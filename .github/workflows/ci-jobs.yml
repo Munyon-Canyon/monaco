@@ -193,7 +193,7 @@ jobs:
           merge-multiple: true
           path: ${{ runner.temp }}/test-out
 
-      - name: Time budget, flows.tsv check and the 100% coverage gate over every pass
+      - name: Time budget, flows check and the 100% coverage gate over every pass
         env:
           TEST_BACKEND_PASS: report
           TEST_BACKEND_OUT: ${{ runner.temp }}/test-out
@@ -464,7 +464,6 @@ jobs:
               - 'scripts/gen-mobile-feature.sh'
               - 'scripts/ci/mobile-integration.sh'
             flows:
-              - 'apps/backend/flows.tsv'
               - 'packages/flows/**'
               - 'apps/backend/api/**'
               - 'packages/mobile-core/Sources/**'

@@ -45,9 +45,7 @@ func TestRun_twoFlowsThatSetOneWorkerVariableDifferentlyFailBeforeTheStackStarts
 	flows := tools.Header + "\n" +
 		"90\tHealth\tsystem\tGET /healthz\tHealth\t\t\tok\tbuilt\tdocs/x.md#health\n" +
 		"92\tPrices\tfixture\tpoller:fixture.prices\tTickPrices\t\t\tok\tbuilt\tdocs/x.md#prices\n"
-	if err := os.WriteFile(filepath.Join(cfg.Dir, tools.File), []byte(flows), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writeFlows(t, cfg.Dir, flows)
 	cfg.Scripts["F92TickPricesOK"] = func(*scenario.Scenario) {}
 	cfg.Env = map[string][]string{"90": {pollInterval + "=2s"}, "92": {pollInterval + "=5s"}}
 	want := `monacoctl verify: worker environment: flows 90 and 92 set MARKET_PRICE_POLL_INTERVAL to "2s" and "5s"`

@@ -12,13 +12,19 @@ import (
 
 func scratchModule(t *testing.T) string {
 	t.Helper()
-	dir := t.TempDir()
-	body := "module " + backendModule + "\n\ngo 1.25\n"
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(body), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, flows.File), []byte(flows.Header+"\n"), 0o600); err != nil {
-		t.Fatal(err)
+	repo := t.TempDir()
+	dir := filepath.Join(repo, "apps", "backend")
+	row := "90\tHealth\tsystem\tGET /healthz\tHealth\t\t\tok\tbuilt\tdocs/x.md#health\n"
+	for name, body := range map[string]string{
+		filepath.Join(dir, "go.mod"):             "module " + backendModule + "\n\ngo 1.25\n",
+		filepath.Join(repo, flows.Dir, "90.tsv"): flows.Header + "\n" + row,
+	} {
+		if err := os.MkdirAll(filepath.Dir(name), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(name, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return dir
 }

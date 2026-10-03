@@ -90,11 +90,11 @@ func flowTestProblems(f Flow, results TestResults) []Problem {
 			}
 			ran, tested[command] = true, true
 			if !passed {
-				problems = append(problems, problemf(f.Line, "outcome %s test %s failed", o, name))
+				problems = append(problems, f.problemf("outcome %s test %s failed", o, name))
 			}
 		}
 		if !ran {
-			problems = append(problems, problemf(f.Line,
+			problems = append(problems, f.problemf(
 				"outcome %s has no test %s in the go test -json input", o, strings.Join(names, " or ")))
 		}
 	}
@@ -105,7 +105,7 @@ func flowTestProblems(f Flow, results TestResults) []Problem {
 		if !tested[command] {
 			problems = append(
 				problems,
-				problemf(f.Line, "command %s has no flow test in the go test -json input", command),
+				f.problemf("command %s has no flow test in the go test -json input", command),
 			)
 		}
 	}
@@ -147,15 +147,13 @@ func missingScript(f Flow, o Outcome, name string) (Problem, bool) {
 	_, crash := o.CrashPoint()
 	switch {
 	case f.Status == StatusBuilt && !crash:
-		return problemf(
-			f.Line,
+		return f.problemf(
 			"built flow outcome %s has no script %s in internal/testkit/flows; monacoctl verify all fails without it",
 			o,
 			name,
 		), true
 	case f.Status == StatusVerified:
-		return problemf(
-			f.Line,
+		return f.problemf(
 			"verified flow outcome %s has no script %s in internal/testkit/flows for monacoctl verify all",
 			o,
 			name,

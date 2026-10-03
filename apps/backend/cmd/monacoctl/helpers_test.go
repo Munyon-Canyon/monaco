@@ -3,8 +3,22 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"testing/fstest"
+
+	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
+
+func flowFS(tsv string) fstest.MapFS {
+	repo := fstest.MapFS{}
+	header, rows, _ := strings.Cut(tsv, "\n")
+	for row := range strings.Lines(rows) {
+		id, _, _ := strings.Cut(row, "\t")
+		repo[flows.Dir+"/"+strings.TrimSpace(id)+".tsv"] = &fstest.MapFile{Data: []byte(header + "\n" + row)}
+	}
+	return repo
+}
 
 func symlinkCommittedScript(t *testing.T, script, bin string) {
 	t.Helper()

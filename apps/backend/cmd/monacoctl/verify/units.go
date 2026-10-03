@@ -26,12 +26,10 @@ func (u Unit) Name() string {
 }
 
 func readFlows(dir string) ([]tools.Flow, error) {
-	file, err := os.Open(filepath.Join(dir, tools.File))
+	parsed, problems, err := tools.ReadAll(os.DirFS(filepath.Join(dir, "..", "..")))
 	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", tools.File, err)
+		return nil, err
 	}
-	defer func() { _ = file.Close() }()
-	parsed, problems := tools.Parse(file)
 	if len(problems) > 0 {
 		return nil, fmt.Errorf("%w: %s", fs.ErrInvalid, problems[0])
 	}

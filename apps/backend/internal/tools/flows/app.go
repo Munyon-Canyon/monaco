@@ -89,25 +89,24 @@ func ParseApp(name, body string) (AppRow, bool, []Problem) {
 
 func CheckApp(app []AppRow, backend []Flow, env Env) []Problem {
 	ids := flowIDs(backend)
-	backendFile := path.Join(env.BackendDir, File)
 	docs := docAnchors{repo: env.Repo, cache: map[string]map[string]bool{}}
 	var problems []Problem
 	for _, r := range app {
-		for _, msg := range appRowProblems(r, ids, backendFile, docs) {
+		for _, msg := range appRowProblems(r, ids, docs) {
 			problems = append(problems, Problem{File: r.File, Line: r.Line, Msg: msg})
 		}
 	}
 	return problems
 }
 
-func appRowProblems(r AppRow, ids map[string]bool, backendFile string, docs docAnchors) []string {
+func appRowProblems(r AppRow, ids map[string]bool, docs docAnchors) []string {
 	var msgs []string
 	if stem := strings.TrimSuffix(path.Base(r.File), ".tsv"); r.ID != stem {
 		msgs = append(msgs, fmt.Sprintf(
 			"id %s differs from the file name; rename the file to %s.tsv or set the id to %s", r.ID, r.ID, stem))
 	} else if !ids[r.ID] {
 		msgs = append(msgs, fmt.Sprintf(
-			"id %s is not in %s; add the backend row first or delete this file", r.ID, backendFile))
+			"id %s has no valid row in %s/%s.tsv; add the backend row first or delete this file", r.ID, Dir, r.ID))
 	}
 	switch {
 	case !r.Status.valid():

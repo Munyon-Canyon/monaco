@@ -9,7 +9,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -139,14 +138,6 @@ func affectedFlows(repo fs.FS, run execFunc, base string) ([]string, error) {
 		return nil, err
 	}
 	changed := strings.Fields(string(names))
-	if registry := path.Join(backendDir, flows.File); slices.Contains(changed, registry) {
-		rows, err := git("diff", "-U0", base+"...HEAD", "--", flows.File)
-		if err != nil {
-			return nil, err
-		}
-		changed = slices.DeleteFunc(changed, func(f string) bool { return f == registry })
-		changed = append(changed, flows.ChangedRows(string(rows))...)
-	}
 	parsed, _, err := readFlows(repo)
 	if err != nil {
 		return nil, err
@@ -235,12 +226,10 @@ func appVerifiedIDs(app []flows.AppRow) []string {
 }
 
 func readFlows(repo fs.FS) ([]flows.Flow, []flows.Problem, error) {
-	file, err := repo.Open(path.Join(backendDir, flows.File))
+	parsed, problems, err := flows.ReadAll(repo)
 	if err != nil {
 		return nil, nil, errs.Wrap(err, errs.CodeInternal, "monacoctl.readFlows")
 	}
-	defer func() { _ = file.Close() }()
-	parsed, problems := flows.Parse(file)
 	return parsed, problems, nil
 }
 
@@ -307,7 +296,7 @@ func flowsSeed(ctx context.Context, repo fs.FS, environ []string, id, outcome st
 	}
 	if !slices.Contains(valid, outcome) {
 		_, _ = fmt.Fprintf(stderr, "monacoctl flows seed: no outcome %s on flow %s; valid outcomes: %s\n",
-			outcome, id, cmp.Or(strings.Join(valid, ", "), "none, the flow is not in "+flows.File))
+			outcome, id, cmp.Or(strings.Join(valid, ", "), "none, the flow has no "+flows.Dir+"/"+id+".tsv"))
 		return 2
 	}
 	var names []string

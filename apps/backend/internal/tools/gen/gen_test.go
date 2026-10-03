@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 	"github.com/monaco/monaco/apps/backend/internal/tools/gen"
 )
 
@@ -343,8 +344,16 @@ const flowsHeader = "id\tflow\tmodule\ttrigger\tcommand\tevents\tconsumers\toutc
 
 func withFlows(t *testing.T, rows string) string {
 	t.Helper()
-	root := withModule(t)
-	if err := os.WriteFile(filepath.Join(root, "flows.tsv"), []byte(flowsHeader+rows), 0o600); err != nil {
+	files := map[string]string{
+		"apps/backend/go.mod":       "module example.com/app\n",
+		"apps/backend/CHANGELOG.md": changelog,
+	}
+	for row := range strings.Lines(rows) {
+		id, _, _ := strings.Cut(row, "\t")
+		files[flows.Dir+"/"+id+".tsv"] = flowsHeader + row
+	}
+	root := filepath.Join(tree(t, files), "apps", "backend")
+	if _, err := gen.Apply(root, "module", "wallets"); err != nil {
 		t.Fatal(err)
 	}
 	return root
@@ -404,7 +413,7 @@ func TestFlow_writesATestPerCommandAndOutcomeOfAMultiCommandRow(t *testing.T) {
 func TestFlow_rejectsRowsItCannotNameTestsFor(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct{ rows, id, want string }{
-		"unknown id":     {"", "7", `no valid row with id "7"`},
+		"unknown id":     {"8\tOpen\twallets\t\tOpenWallet\t\t\tok\tplanned\tdocs/x.md\n", "7", `no valid row with id "7"`},
 		"invalid row":    {"7\tOpen\twallets\t\tOpenWallet\t\t\t\tplanned\tdocs/x.md\n", "7", `no valid row with id "7" (1 problems)`},
 		"no command":     {"7\tOpen\twallets\t\t\t\t\tok\tplanned\tdocs/x.md\n", "7", "has no command"},
 		"missing module": {"7\tOpen\tledger\t\tPost\t\t\tok\tplanned\tdocs/x.md\n", "7", "run gen module ledger first"},
@@ -419,10 +428,10 @@ func TestFlow_rejectsRowsItCannotNameTestsFor(t *testing.T) {
 	}
 }
 
-func TestFlow_needsFlowsTSV(t *testing.T) {
+func TestFlow_needsTheFlowFiles(t *testing.T) {
 	t.Parallel()
-	if _, err := gen.Apply(withModule(t), "flow", "1"); err == nil || !strings.Contains(err.Error(), "flows.tsv") {
-		t.Fatalf("err = %v, want flows.tsv named", err)
+	if _, err := gen.Apply(withFlows(t, ""), "flow", "1"); err == nil || !strings.Contains(err.Error(), flows.Dir) {
+		t.Fatalf("err = %v, want %s named", err, flows.Dir)
 	}
 }
 

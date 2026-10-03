@@ -11,8 +11,9 @@ import (
 
 func trunkRegistry(t *testing.T, f *fixture) {
 	t.Helper()
-	writeFile(t, filepath.Join(f.dir, flowsFile), flows.Header+"\n"+
-		"00\tPing\tsystem\tGET /p\tRecordPing\t\t\tok\tbuilt\tdocs/f.md\n"+
+	writeFile(t, filepath.Join(f.dir, flows.Dir, "00.tsv"), flows.Header+"\n"+
+		"00\tPing\tsystem\tGET /p\tRecordPing\t\t\tok\tbuilt\tdocs/f.md\n")
+	writeFile(t, filepath.Join(f.dir, flows.Dir, "01.tsv"), flows.Header+"\n"+
 		"01\tSign in\tidentity\tGET /s\tSignIn\t\t\tok\tbuilt\tdocs/f.md\n")
 	writeFile(t, filepath.Join(f.dir, flows.AppDir, "00.tsv"), flows.AppHeader+"\n00\tSystemPing\tbuilt\tdocs/f.md\n")
 	git(t, f.dir, "add", "-A")
@@ -78,10 +79,7 @@ func TestForecast_listsAFlowTwoStacksTouchThroughDifferentFiles(t *testing.T) {
 	f.hub.on(list("/pulls?state=open"), []PR{pr(1701, "a", "fb", ""), pr(1705, "b", "fb", ""), pr(1709, "c", "fb", "")})
 	f.hub.on(list("/pulls/1701/files?"), []File{{Filename: "packages/flows/app/00.tsv"}})
 	f.hub.on(list("/pulls/1705/files?"), []File{{Filename: "apps/backend/internal/modules/system/http.go"}})
-	f.hub.on(
-		list("/pulls/1709/files?"),
-		[]File{{Filename: flowsFile, Patch: "@@ -3 +3 @@\n-01\tSign in\n+01\tLog in\n"}},
-	)
+	f.hub.on(list("/pulls/1709/files?"), []File{{Filename: flows.Dir + "/01.tsv"}})
 	code, stdout, stderr := f.agents(t, "forecast")
 	want := "no file is touched by more than one open stack into fb\nflows: 00 #1701 #1705\n"
 	if code != 0 || stdout != want || stderr != "" {

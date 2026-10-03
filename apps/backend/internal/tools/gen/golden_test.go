@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/lint/comments"
+	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 	"github.com/monaco/monaco/apps/backend/internal/tools/gen"
 )
 
@@ -154,14 +155,11 @@ func addFlow(t *testing.T, root string) {
 	t.Helper()
 	row := "1\tExample does a thing\texample\tPOST /v1/example\tDoThing\tsystem.pinged\t\t" +
 		"ok;invalid_input;crash:before-commit\tplanned\tdocs/architecture/backend-platform.md\n"
-	f, err := os.OpenFile(filepath.Join(root, "flows.tsv"), os.O_APPEND|os.O_WRONLY, 0)
-	if err != nil {
+	dir := filepath.Join(root, "..", "..", filepath.FromSlash(flows.Dir))
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.WriteString(row); err != nil {
-		t.Fatal(err)
-	}
-	if err := f.Close(); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "1.tsv"), []byte(flows.Header+"\n"+row), 0o600); err != nil {
 		t.Fatal(err)
 	}
 }

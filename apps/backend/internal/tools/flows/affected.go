@@ -1,15 +1,12 @@
 package flows
 
 import (
-	"bufio"
 	"maps"
 	"path"
 	"regexp"
 	"slices"
 	"strings"
 )
-
-const BackendRowDir = AppRoot + "/backend"
 
 var (
 	idFile     = regexp.MustCompile(`^([0-9]+[a-z]?)\.tsv$`)
@@ -20,7 +17,6 @@ var (
 
 func everyFlow() []string {
 	return []string{
-		"apps/backend/flows.tsv",
 		AppRoot + "/Package.swift",
 		"apps/backend/internal/tools/flows/",
 		"apps/backend/internal/testkit/scenarios/",
@@ -60,7 +56,7 @@ func touches(file string, f Flow, app AppRow) bool {
 func ownerID(file string) string {
 	dir, base := path.Split(file)
 	switch {
-	case dir == BackendRowDir+"/" || dir == AppDir+"/":
+	case dir == Dir+"/" || dir == AppDir+"/":
 		return match(idFile, base)
 	case dir == AppRoot+"/Sources/MonacoFlows/" || strings.HasPrefix(dir, ModelRoot+"/"):
 		return match(flowPrefix, base)
@@ -77,21 +73,4 @@ func match(re *regexp.Regexp, name string) string {
 		return m[1]
 	}
 	return ""
-}
-
-func ChangedRows(diff string) []string {
-	var rows []string
-	scanner := bufio.NewScanner(strings.NewReader(diff))
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "+++") || strings.HasPrefix(line, "---") ||
-			!strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "-") {
-			continue
-		}
-		id, _, _ := strings.Cut(line[1:], "\t")
-		if row := BackendRowDir + "/" + id + ".tsv"; idPattern.MatchString(id) && !slices.Contains(rows, row) {
-			rows = append(rows, row)
-		}
-	}
-	return rows
 }

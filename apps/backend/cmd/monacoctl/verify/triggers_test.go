@@ -84,7 +84,7 @@ func TestRouteMismatch_judgesACodeOutcomeByTheLastCallOnTheRoute(t *testing.T) {
 
 func fixtureUnit(t *testing.T, flow, outcome string) Unit {
 	t.Helper()
-	all, problems := tools.Parse(strings.NewReader(fixtureFlows))
+	all, problems := tools.Parse("fixture.tsv", strings.NewReader(fixtureFlows))
 	if len(problems) > 0 {
 		t.Fatalf("fixture flows: %v", problems)
 	}

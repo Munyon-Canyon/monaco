@@ -43,7 +43,7 @@ func CheckColumns(flows []Flow, env Env, ids []string) []Problem {
 			msgs = append(msgs, msg)
 		}
 		for _, msg := range msgs {
-			problems = append(problems, Problem{Line: f.Line, Msg: msg})
+			problems = append(problems, f.problemf("%s", msg))
 		}
 	}
 	return problems
