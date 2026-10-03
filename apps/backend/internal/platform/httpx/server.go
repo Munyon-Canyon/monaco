@@ -189,6 +189,8 @@ type ReferralsRoutes interface {
 type SocialRoutes interface {
 	PostUserFollow(context.Context, api.PostUserFollowRequestObject) (api.PostUserFollowResponseObject, error)
 	DeleteUserFollow(context.Context, api.DeleteUserFollowRequestObject) (api.DeleteUserFollowResponseObject, error)
+	GetFeed(context.Context, api.GetFeedRequestObject) (api.GetFeedResponseObject, error)
+	GetFeedItem(context.Context, api.GetFeedItemRequestObject) (api.GetFeedItemResponseObject, error)
 }
 
 type SystemRoutes interface {

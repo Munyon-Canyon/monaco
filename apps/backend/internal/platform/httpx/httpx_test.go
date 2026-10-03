@@ -139,6 +139,14 @@ func (healthz) DeleteUserFollow(
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.DeleteUserFollow")
 }
 
+func (healthz) GetFeed(context.Context, api.GetFeedRequestObject) (api.GetFeedResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetFeed")
+}
+
+func (healthz) GetFeedItem(context.Context, api.GetFeedItemRequestObject) (api.GetFeedItemResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetFeedItem")
+}
+
 func (healthz) GetSystemPing(context.Context, api.GetSystemPingRequestObject) (api.GetSystemPingResponseObject, error) {
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetSystemPing")
 }

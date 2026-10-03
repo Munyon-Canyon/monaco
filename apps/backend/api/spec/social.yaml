@@ -1,4 +1,119 @@
 paths:
+  /v1/feed:
+    get:
+      operationId: getFeed
+      tags: [social]
+      summary: Read the feed.
+      description: >-
+        Returns feed items newest first, one page at a time. Every filter narrows the page, and
+        an unknown kind, scope or sort, a limit outside 1 to 50 or a cursor the server did not
+        write is invalid_input. The server renders every display string.
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          description: >-
+            A comma-separated list of kinds to include: `proposal`, `trade`, `price_move`,
+            `cabal_created` and `member_joined`. Absent includes every kind.
+          schema: {type: string, maxLength: 128, examples: ["proposal,trade"]}
+        - name: cabal_id
+          in: query
+          required: false
+          description: Include only items about this cabal.
+          schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        - name: symbol
+          in: query
+          required: false
+          description: Include only items about this stock symbol, ignoring case.
+          schema: {type: string, maxLength: 32, examples: [AAPLx]}
+        - name: q
+          in: query
+          required: false
+          description: >-
+            Full-text search over each item's symbol, cabal name, title and body. It filters the
+            items and leaves the order newest first.
+          schema: {type: string, maxLength: 200, examples: [earnings]}
+        - name: scope
+          in: query
+          required: false
+          description: "`all` (the default) or `following`, the items whose actor the caller follows."
+          schema: {type: string, enum: [all, following], default: all, examples: [following]}
+        - name: sort
+          in: query
+          required: false
+          description: "`new` (the default): newest first."
+          schema: {type: string, enum: [new], default: new, examples: [new]}
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` from the previous page. Absent reads the first page.
+          schema: {type: string, maxLength: 128, examples: ["MTc1OTQ3OTMzMDEyMzQ1Ni4wMTkyMDAwMC0wMDAwLTcwMDAtODAwMC0wMDAwMDAwMDAwMDc"]}
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 30 and cannot exceed 50.
+          schema: {type: integer, minimum: 1, maximum: 50, default: 30, examples: [30]}
+      responses:
+        "200":
+          description: One page of feed items.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedPage"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/feed/{id}:
+    get:
+      operationId: getFeedItem
+      tags: [social]
+      summary: Read one feed item.
+      description: >-
+        Returns the item and whether it passes the filters sent with the request, which take the
+        same names as the list. An unknown id is feed_item_not_found.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The feed item's id.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
+        - name: kind
+          in: query
+          required: false
+          description: >-
+            A comma-separated list of kinds to include: `proposal`, `trade`, `price_move`,
+            `cabal_created` and `member_joined`. Absent includes every kind.
+          schema: {type: string, maxLength: 128, examples: ["proposal,trade"]}
+        - name: cabal_id
+          in: query
+          required: false
+          description: Include only items about this cabal.
+          schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        - name: symbol
+          in: query
+          required: false
+          description: Include only items about this stock symbol, ignoring case.
+          schema: {type: string, maxLength: 32, examples: [AAPLx]}
+        - name: q
+          in: query
+          required: false
+          description: >-
+            Full-text search over each item's symbol, cabal name, title and body. It filters the
+            items and leaves the order newest first.
+          schema: {type: string, maxLength: 200, examples: [earnings]}
+        - name: scope
+          in: query
+          required: false
+          description: "`all` (the default) or `following`, the items whose actor the caller follows."
+          schema: {type: string, enum: [all, following], default: all, examples: [following]}
+      responses:
+        "200":
+          description: The feed item.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedItemDetail"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/users/{id}/follow:
     post:
       operationId: postUserFollow
@@ -54,6 +169,72 @@ paths:
           $ref: "#/components/responses/Problem"
 components:
   schemas:
+    FeedPage:
+      type: object
+      description: One page of feed items, newest first.
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          description: The page.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/FeedItem"
+        next_cursor:
+          type: [string, "null"]
+          description: The cursor for the next page. Null on the last page.
+          examples: [null]
+    FeedItem:
+      type: object
+      description: One feed item with its display strings rendered.
+      additionalProperties: false
+      required: [id, kind, ref_type, ref_id, cabal_id, actor_id, symbol, title, detail, body, status, tone, comment_count, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid, description: "The item's id.", examples: ["01920000-0000-7000-8000-000000000007"]}
+        kind:
+          type: string
+          description: "`proposal`, `trade`, `price_move`, `cabal_created` or `member_joined`."
+          examples: [trade]
+        ref_type:
+          type: string
+          description: The source the item points at, such as `swaps` for a trade.
+          examples: [swaps]
+        ref_id: {type: string, format: uuid, description: "The source row's id.", examples: ["01920000-0000-7000-8000-000000000008"]}
+        cabal_id:
+          type: [string, "null"]
+          format: uuid
+          description: The cabal the item is about. Null for a price move.
+          examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]
+        actor_id:
+          type: [string, "null"]
+          format: uuid
+          description: The user who acted. Null for a system item.
+          examples: [null]
+        symbol: {type: [string, "null"], description: "The stock symbol, if the item is about one.", examples: [AAPLx]}
+        title: {type: string, description: "The rendered headline.", examples: ["Alpha Cabal bought $500 of AAPLx"]}
+        detail: {type: [string, "null"], description: "A rendered second line, if the item has one.", examples: [Apple]}
+        body: {type: [string, "null"], description: "Free text, such as a proposal's thesis.", examples: [null]}
+        status: {type: [string, "null"], description: "The source's status, for proposals.", examples: [null]}
+        tone:
+          type: string
+          description: "`neutral`, `positive` or `negative`, so the app can color the item without reading amounts."
+          examples: [neutral]
+        comment_count: {type: integer, format: int32, description: "The number of comments.", examples: [0]}
+        created_at: {type: string, format: date-time, description: "When the item was created.", examples: ["2026-10-03T08:00:00Z"]}
+        updated_at: {type: string, format: date-time, description: "When the item last changed.", examples: ["2026-10-03T08:00:00Z"]}
+    FeedItemDetail:
+      type: object
+      description: One feed item and whether it passes the request's filters.
+      additionalProperties: false
+      required: [item, visible]
+      properties:
+        item:
+          $ref: "#/components/schemas/FeedItem"
+        visible:
+          type: boolean
+          description: True when the item passes the filters sent with the request.
+          examples: [true]
     FollowRequest:
       type: object
       description: Where a follow came from.

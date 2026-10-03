@@ -45,3 +45,25 @@ WHERE (cardinality(sqlc.arg(kinds)::text[]) = 0 OR f.kind = ANY(sqlc.arg(kinds):
   )
 ORDER BY f.created_at DESC, f.id DESC
 LIMIT sqlc.arg(row_limit)::int;
+
+-- name: GetFeedItem :one
+SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
+  f.comment_count, f.created_at, f.updated_at,
+  (
+    (cardinality(sqlc.arg(kinds)::text[]) = 0 OR f.kind = ANY(sqlc.arg(kinds)::text[]))
+    AND (sqlc.arg(cabal_id)::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id IS NOT DISTINCT FROM sqlc.arg(cabal_id)::uuid)
+    AND (sqlc.arg(symbol)::text = '' OR lower(coalesce(f.symbol, '')) = lower(sqlc.arg(symbol)::text))
+    AND (
+      sqlc.arg(q)::text = ''
+      OR f.search @@ websearch_to_tsquery('english', sqlc.arg(q)::text)
+      OR f.search @@ websearch_to_tsquery('simple', sqlc.arg(q)::text)
+    )
+    AND (
+      NOT sqlc.arg(following)::bool
+      OR coalesce(f.actor_id IN (
+        SELECT followee_id FROM follows WHERE follower_id = sqlc.arg(viewer)::uuid AND deleted_at IS NULL
+      ), false)
+    )
+  )::bool AS visible
+FROM feed_objects f
+WHERE f.id = sqlc.arg(id);
