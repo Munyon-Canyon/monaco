@@ -145,6 +145,22 @@ func TestBundleOpenAPI_refusesSpecsItCannotBundle(t *testing.T) {
 			"components.schemas must be indented two spaces",
 		},
 		"paths scalar": {map[string]string{"base.yaml": bundleBase, "a.yaml": "paths: 3\n"}, "path entries must be a mapping"},
+		"anyOf with a null branch": {
+			map[string]string{
+				"base.yaml": bundleBase,
+				"a.yaml": "components:\n  schemas:\n    A:\n      type: object\n      properties:\n" +
+					"        me: {anyOf: [{$ref: \"#/components/schemas/B\"}, {type: \"null\"}]}\n",
+			},
+			"a.yaml:6: a null branch in anyOf or oneOf",
+		},
+		"oneOf with a null branch": {
+			map[string]string{
+				"base.yaml": bundleBase,
+				"a.yaml": "components:\n  schemas:\n    A:\n      oneOf:\n        - plain\n        - $ref: \"#/components/schemas/B\"\n" +
+					"        - type: \"null\"\n",
+			},
+			"a.yaml:4: a null branch in anyOf or oneOf",
+		},
 		"duplicate in an unlisted kind": {
 			map[string]string{
 				"base.yaml": bundleBase,
