@@ -220,12 +220,8 @@ func (s *stackGH) mergeReply(query string) ([]byte, error) {
 	if strings.Contains(query, "qualifiedName") {
 		repo["ref"] = map[string]any{"target": map[string]string{"oid": movedTipOID}}
 	}
-	if p, ok := s.prs[n]; ok {
-		base := oldBaseOID
-		if p.Base == "fb" {
-			base = newBaseOID
-		}
-		answer := mergeAnswer{"MERGEABLE", base}
+	if _, ok := s.prs[n]; ok {
+		answer := mergeAnswer{"MERGEABLE", newBaseOID}
 		if script := s.merges[n]; len(script) > 0 {
 			answer = script[min(s.polls, len(script)-1)]
 		}
@@ -236,7 +232,8 @@ func (s *stackGH) mergeReply(query string) ([]byte, error) {
 			}}
 		}
 		repo["pullRequest"] = map[string]any{
-			"mergeable": answer.mergeable, "baseRefOid": base, "potentialMergeCommit": commit,
+			"mergeable": answer.mergeable, "baseRefOid": oldBaseOID, "potentialMergeCommit": commit,
+			"baseRef": map[string]any{"target": map[string]string{"oid": newBaseOID}},
 		}
 	}
 	s.polls++
@@ -470,7 +467,7 @@ func TestLandStack_queuesOnlyOnceGitHubReportsTheBottomMergeableOntoTheTrunk(t *
 		script []mergeAnswer
 		polls  int
 	}{
-		{"the merge commit is on the new base at once, whatever the feature branch tip has moved to", nil, 1},
+		{"the merge commit is on the base tip at once, though baseRefOid is stale", nil, 1},
 		{
 			"unknown twice, then mergeable",
 			[]mergeAnswer{{"UNKNOWN", ""}, {"UNKNOWN", ""}, {"MERGEABLE", newBaseOID}},

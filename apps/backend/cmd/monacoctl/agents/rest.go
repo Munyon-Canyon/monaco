@@ -258,12 +258,23 @@ func (env *Env) restMergePayload(ctx context.Context, query string) (any, error)
 	if err != nil {
 		return nil, err
 	}
+	var tip struct {
+		Object struct {
+			SHA string `json:"sha"`
+		} `json:"object"`
+	}
+	if err := env.GitHub.call(
+		ctx, http.MethodGet, env.GitHub.repo("/git/ref/heads/%s", p.Base.Ref), "", nil, &tip,
+	); err != nil {
+		return nil, err
+	}
 	var commit any
 	if parents != nil {
 		commit = map[string]any{"parents": map[string]any{"nodes": parents}}
 	}
 	return map[string]any{"repository": map[string]any{"pullRequest": map[string]any{
-		"mergeable": mergeable, "baseRefOid": p.Base.SHA, "potentialMergeCommit": commit,
+		"mergeable": mergeable, "baseRef": map[string]any{"target": map[string]string{"oid": tip.Object.SHA}},
+		"potentialMergeCommit": commit,
 	}}}, nil
 }
 

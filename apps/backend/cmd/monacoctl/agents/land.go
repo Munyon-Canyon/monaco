@@ -51,8 +51,10 @@ type mergeView struct {
 	Repository struct {
 		PullRequest struct {
 			Mergeable string `json:"mergeable"`
-			BaseOID   string `json:"baseRefOid"`
-			Merge     struct {
+			BaseRef   struct {
+				Target gqlOID `json:"target"`
+			} `json:"baseRef"`
+			Merge struct {
 				Parents struct {
 					Nodes []gqlOID `json:"nodes"`
 				} `json:"parents"`
@@ -291,7 +293,7 @@ func (env *Env) awaitMergeable(ctx context.Context, pr, top int) (bool, error) {
 
 func mergeQuery(top int) string {
 	return fmt.Sprintf(
-		"%spullRequest(number:%d){mergeable baseRefOid potentialMergeCommit{parents(first:2){nodes{oid}}}}}}",
+		"%spullRequest(number:%d){mergeable baseRef{target{oid}} potentialMergeCommit{parents(first:2){nodes{oid}}}}}}",
 		repoQuery, top,
 	)
 }
@@ -302,7 +304,7 @@ func (v mergeView) conflicting() bool {
 
 func (v mergeView) ready() bool {
 	pr := v.Repository.PullRequest
-	return pr.Mergeable == "MERGEABLE" && slices.Contains(pr.Merge.Parents.Nodes, gqlOID{pr.BaseOID})
+	return pr.Mergeable == "MERGEABLE" && slices.Contains(pr.Merge.Parents.Nodes, pr.BaseRef.Target)
 }
 
 func (env *Env) settle(ctx context.Context, rec Record, prs []stackPR, landed []bool, stdout io.Writer) error {
