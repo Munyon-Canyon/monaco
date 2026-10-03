@@ -279,6 +279,23 @@ struct AppSessionStoreBootstrapTests {
         #expect(store.profile?.memberWalletAddress == "wallet-b")
     }
 
+    @Test func aForegroundReadCannotUndoASavedDisplayName() async throws {
+        let renamed = SessionWire.me.replacingOccurrences(of: "Kai Cenat", with: "New name")
+        let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), .gate, .json(.ok, renamed)])
+        let store = AppSessionStore(apiClient: StubDataSource(), sessions: sessionAPI(transport))
+        let auth = StubAuth()
+        await store.bootstrap(auth: auth)
+
+        let foreground = Task { await store.noteForeground(auth: auth) }
+        while await transport.sent.count < 2 { await Task.yield() }
+        let outcome = await store.updateDisplayName("New name", auth: auth, optimistic: false)
+        #expect(outcome == .saved)
+        await transport.releaseGate(.json(.ok, SessionWire.me))
+        await foreground.value
+
+        #expect(store.profile?.displayName == "New name")
+    }
+
     @Test func signOutDropsAnInFlightRefresh() async {
         let source = StubDataSource()
         let transport = StubTransport(.gate)
@@ -330,6 +347,51 @@ struct AppSessionStoreBootstrapTests {
         await transport.releaseGate(.json(.ok, SessionWire.next))
         await openingB.value
         #expect(store.profile?.userID == "01890a5d-ac96-774b-bcce-b302099a9999")
+    }
+
+    @Test func aPrivyNameSaveUsesPatchMeWithBearerAndDisplayName() async throws {
+        let tokens = SessionTokens(privyToken: { "privy-token" }, refresh: { _ in nil })
+        let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), .json(.ok, SessionWire.me)])
+        let store = AppSessionStore(
+            apiClient: StubDataSource(),
+            sessions: SessionAPI(api: APIClient(serverURL: testServerURL, tokens: tokens, transport: transport))
+        )
+        let auth = StubAuth()
+        await store.bootstrap(auth: auth)
+
+        let outcome = await store.updateDisplayName("New name", auth: auth, optimistic: false)
+
+        let sent = await transport.sent
+        let bodies = await transport.sentBodies
+        let body = try #require(bodies.last ?? nil)
+        #expect(outcome == .saved)
+        #expect(sent.map(\.path) == ["/v1/auth/session", "/v1/me"])
+        #expect(sent.allSatisfy { $0.headerFields[.authorization] == "Bearer privy-token" })
+        #expect(sent.last?.method == .patch)
+        let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: String])
+        #expect(json["display_name"] == "New name")
+        #expect(store.profile?.displayName == "Kai Cenat")
+    }
+
+    @Test func aNameSave4xxShowsTheProblemMessageWithoutEndingTheSession() async throws {
+        let tokens = SessionTokens(privyToken: { "privy-token" }, refresh: { _ in nil })
+        let problem = Components.Schemas.Problem(
+            _type: .about_colon_blank, title: "Bad Request", status: 400, code: .displayNameInvalid,
+            message: "That name is unavailable.", traceId: "trace", retryable: false
+        )
+        let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), try .problem(problem)])
+        let store = AppSessionStore(
+            apiClient: StubDataSource(),
+            sessions: SessionAPI(api: APIClient(serverURL: testServerURL, tokens: tokens, transport: transport))
+        )
+        let auth = StubAuth()
+        await store.bootstrap(auth: auth)
+
+        let outcome = await store.updateDisplayName("New name", auth: auth, optimistic: false)
+
+        #expect(outcome == .failed("That name is unavailable."))
+        #expect(auth.rejectedTokens.isEmpty)
+        #expect(store.profile?.displayName == "Kai Cenat")
     }
 
 }
