@@ -160,12 +160,15 @@ func TestDevPrivyToken_mintsAnHourLongTokenThatThePrintedKeyVerifies(t *testing.
 		t.Fatalf("--sub exit %d, stderr %q", code, stderr.String())
 	}
 	verifyAt := func(at time.Time) (privy.UserID, error) {
-		c := privy.New(config.Config{
+		c, err := privy.New(config.Config{
 			Privy: config.Privy{
 				AppID: "app-local", BaseURL: "http://privy.test", VerificationKey: strings.TrimSpace(key.String()),
 			},
 			Timeouts: config.Timeouts{Privy: time.Second},
 		}, testClock{at: at})
+		if err != nil {
+			return "", err
+		}
 		return c.VerifyAccessToken(t.Context(), strings.TrimSpace(token.String()))
 	}
 	if sub, err := verifyAt(time.Now().Add(59 * time.Minute)); err != nil || sub != "did:privy:qa-1" {

@@ -19,11 +19,14 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
 func TestMain(m *testing.M) {
 	testkit.Main(m, testkit.WithChild(main), testkit.WithNATS())
 }
+
+var privyKeyEnv = "PRIVY_VERIFICATION_KEY=" + fakes.PrivyVerificationKey()
 
 func bootEnv(t *testing.T, extra ...string) []string {
 	t.Helper()
@@ -38,7 +41,7 @@ func bootEnv(t *testing.T, extra ...string) []string {
 	conn.Close(t.Context())
 	return append([]string{
 		"MONACO_ENV=test", "DATABASE_URL=" + testkit.DB(t).Config().ConnString(), "NATS_URL=" + url,
-		"MONACO_DEV_TOKEN_KEY=test-only",
+		"MONACO_DEV_TOKEN_KEY=test-only", privyKeyEnv,
 	}, extra...)
 }
 
@@ -144,7 +147,8 @@ func TestRun_cancelledDuringBootStopsCleanly(t *testing.T) {
 	cancel()
 	err := run(ctx, io.Discard, []string{
 		"MONACO_ENV=test", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=" + testkit.NATSURL(),
-		"MONACO_HTTP_ADDR=127.0.0.1:0", "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0", "MONACO_DEV_TOKEN_KEY=test-only",
+		"MONACO_HTTP_ADDR=127.0.0.1:0", "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
+		"MONACO_DEV_TOKEN_KEY=test-only", privyKeyEnv,
 	}, openapi.Spec, noop.NewMeterProvider())
 	if err != nil {
 		t.Fatalf("run with a cancelled context = %v, want nil: a stop during boot is a clean stop", err)
@@ -174,7 +178,7 @@ func TestRun_aShutdownFailureAfterACancelIsReported(t *testing.T) {
 		"MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
 		"OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:1",
 		"MONACO_TIMEOUT_SHUTDOWN=1s",
-		"MONACO_DEV_TOKEN_KEY=test-only",
+		"MONACO_DEV_TOKEN_KEY=test-only", privyKeyEnv,
 	}, openapi.Spec, noop.NewMeterProvider())
 	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable || errors.Is(err, context.Canceled) {
 		t.Fatalf("run = %v, want the telemetry flush failure reported after the cancel", err)

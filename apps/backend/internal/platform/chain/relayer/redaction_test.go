@@ -33,7 +33,6 @@ func TestRedaction_noPrivateKeyTokenOrSignatureReachesALogLine(t *testing.T) {
 	s := overFakes(t, "relayer-at-floor")
 	cfg := keyConfig("relayer-at-floor")
 	cfg.Privy.WebhookSecret = "whsec_c2lnbmluZy1rZXktZm9yLXRlc3Rz"
-	cfg.Privy.VerificationKey = fakes.PrivyVerificationKey()
 	signed, err := s.transfers.Build(ctx, fund(5))
 	if err != nil {
 		t.Fatal(err)
@@ -55,7 +54,11 @@ func TestRedaction_noPrivateKeyTokenOrSignatureReachesALogLine(t *testing.T) {
 		slog.Any("config", cfg.Redacted()),
 	)
 	_, errKey := relayer.New(broken, rpc)
-	_, errToken := privy.New(cfg, clock.Real{}).VerifyAccessToken(ctx, expired)
+	verifier, err := privy.New(cfg, clock.Real{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, errToken := verifier.VerifyAccessToken(ctx, expired)
 	_, errSig := rpc.InboundTransfers(ctx, missingSig, memberWallet)
 	forged := signed
 	forged.Signature = missingSig

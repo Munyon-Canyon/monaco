@@ -24,7 +24,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/authn"
 	privyadapter "github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
-	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -74,7 +73,7 @@ func verifierConfig(env config.Env) config.Config {
 func (f verifierFixture) verifier(t *testing.T, env config.Env) *authn.Verifier {
 	t.Helper()
 	cfg := verifierConfig(env)
-	v, err := authn.New(cfg, f.clock, privyadapter.Users{Client: privy.New(cfg, f.clock)}, f.pool)
+	v, err := authn.New(cfg, f.clock, privyadapter.Users{Client: privyClient(t, cfg, f.clock)}, f.pool)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,6 +231,19 @@ func TestNewVerifier_needsADevTokenKeyOutsideProductionOnly(t *testing.T) {
 		v, err := identity.NewVerifier(module.Deps{Config: cfg, Clock: f.clock, Pool: f.pool})
 		if want == "" && (err != nil || v == nil) || want != "" && (v != nil || errs.CodeOf(err) != want) {
 			t.Fatalf("%s: NewVerifier = %v, %v, want %q", env, v, err, want)
+		}
+	}
+}
+
+func TestNewVerifier_refusesAMissingPrivyVerificationKeyInEveryEnv(t *testing.T) {
+	t.Parallel()
+	f := newVerifierFixture(t)
+	for _, env := range []config.Env{config.EnvLocal, config.EnvStaging, config.EnvProduction} {
+		cfg := verifierConfig(env)
+		cfg.Privy.VerificationKey = ""
+		v, err := identity.NewVerifier(module.Deps{Config: cfg, Clock: f.clock, Pool: f.pool})
+		if v != nil || errs.CodeOf(err) != errs.CodeInvalidInput || !strings.HasPrefix(err.Error(), "privy.New") {
+			t.Fatalf("%s: NewVerifier = %v, %v, want invalid_input from privy.New", env, v, err)
 		}
 	}
 }

@@ -28,7 +28,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
-	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
@@ -702,7 +701,7 @@ func TestAccountStanding_changesTheNextResponseWithoutARestart(t *testing.T) {
 	clk := testkit.NewClock(f.now)
 	cfg := privyConfig()
 	cfg.Env, cfg.Auth.DevTokenKey = config.EnvTest, devKey
-	verifier, err := authn.New(cfg, clk, privyadapter.Users{Client: privy.New(cfg, clk)}, f.pool)
+	verifier, err := authn.New(cfg, clk, privyadapter.Users{Client: privyClient(t, cfg, clk)}, f.pool)
 	if err != nil {
 		t.Fatal(err)
 	}

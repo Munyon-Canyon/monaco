@@ -74,7 +74,10 @@ func (m *Module) Routes(r *httpx.Routes) {
 func (m *Module) openSession() *app.OpenSessionHandler {
 	users, wallets := m.privy, m.wallets
 	if users == nil {
-		client := privy.New(m.deps.Config, m.deps.Clock)
+		client, err := privy.New(m.deps.Config, m.deps.Clock)
+		if err != nil {
+			panic(err)
+		}
 		users, wallets = privyadapter.Users{Client: client}, privyadapter.Wallets{Client: client}
 	}
 	rule, err := app.NewWalletRule(wallets, m.meters)
@@ -137,5 +140,9 @@ type (
 )
 
 func NewVerifier(d module.Deps) (*authn.Verifier, error) {
-	return authn.New(d.Config, d.Clock, privyadapter.Users{Client: privy.New(d.Config, d.Clock)}, d.Pool)
+	client, err := privy.New(d.Config, d.Clock)
+	if err != nil {
+		return nil, err
+	}
+	return authn.New(d.Config, d.Clock, privyadapter.Users{Client: client}, d.Pool)
 }

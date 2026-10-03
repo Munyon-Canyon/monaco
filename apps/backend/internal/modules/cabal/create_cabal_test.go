@@ -27,6 +27,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/chainfake"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
 type createFixture struct {
@@ -547,10 +548,22 @@ func TestModule_createUsesTheInjectedWalletPort(t *testing.T) {
 func TestModule_buildsAPrivyClientWhenNoWalletPortIsInjected(t *testing.T) {
 	t.Parallel()
 	deps := module.Deps{Clock: clock.Real{}, Config: config.Config{
-		Privy:    config.Privy{BaseURL: "http://127.0.0.1"},
+		Privy:    config.Privy{BaseURL: "http://127.0.0.1", VerificationKey: fakes.PrivyVerificationKey()},
 		Timeouts: config.Timeouts{Privy: time.Second},
 	}}
 	if cabal.New(deps).CreateCabalHandler() == nil {
 		t.Fatal("CreateCabalHandler = nil")
 	}
+}
+
+func TestModule_createPanicsWithoutAPrivyVerificationKey(t *testing.T) {
+	t.Parallel()
+	defer func() {
+		err, ok := recover().(error)
+		if !ok || errs.CodeOf(err) != errs.CodeInvalidInput {
+			t.Fatalf("CreateCabalHandler panicked with %v, want invalid_input from privy.New", err)
+		}
+	}()
+	cabal.New(module.Deps{Clock: clock.Real{}}).CreateCabalHandler()
+	t.Fatal("CreateCabalHandler did not panic")
 }

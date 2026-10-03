@@ -94,7 +94,11 @@ func testConfig() config.Config {
 func client(u *upstream) *privy.Client { return clientWith(testConfig(), u, clock.Real{}) }
 
 func clientWith(cfg config.Config, u *upstream, clk clock.Clock) *privy.Client {
-	return privy.New(cfg, clk, httpclient.WithTransport(u))
+	c, err := privy.New(cfg, clk, httpclient.WithTransport(u))
+	if err != nil {
+		panic(err)
+	}
+	return c
 }
 
 func overFakes(t *testing.T) (*privy.Client, *upstream, *fakes.Server) {
