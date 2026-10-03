@@ -1,5 +1,7 @@
+import MonacoCore
 import SwiftUI
 import Testing
+
 @testable import Monaco
 
 @Suite(.serialized)
@@ -50,6 +52,19 @@ struct SampleHarnessRegistryTests {
             return root
         }
         #expect(root == nil)
+    }
+
+    @Test(arguments: Flow00Scenario.allCases)
+    func flowScenarioLaunchFlagReturnsTheFlowHarness(scenario: Flow00Scenario) {
+        let root = withConflictHook { tripped in
+            let root = SampleHarnessRegistry.requestedRoot(
+                arguments: ["-MonacoFlow", "00", scenario.rawValue],
+                auth: auth()
+            )
+            #expect(!tripped())
+            return root
+        }
+        #expect(root != nil)
     }
 
     @Test func homeLaunchFlagReturnsTheHomeHarness() {

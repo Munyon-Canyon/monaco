@@ -4,7 +4,11 @@ import SwiftUI
 
 nonisolated struct SystemPingRoute: AppRoute {
     @MainActor func destination() -> SystemPingView {
-        SystemPingView(model: .preview())
+        destination(model: .preview())
+    }
+
+    @MainActor func destination(model: SystemPingModel) -> SystemPingView {
+        SystemPingView(model: model)
     }
 }
 #endif

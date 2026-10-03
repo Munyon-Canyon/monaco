@@ -16,6 +16,9 @@ Diffs BASE_SHA...HEAD_SHA and reports each finding as `path:line: <rule>: <what>
 - flow-status: a deleted packages/flows/app/<id>.tsv, or its status lowered along
   verified > built > planned. A move to none also counts, unless the same change deletes the
   flow's row from apps/backend/flows.tsv.
+- scenario-manifest: an added or removed line inside the generated block of
+  scripts/qa/sample-screens.txt, unless the whole block now matches what `monacoctl gen flows`
+  writes from the Flow<id>Scenarios.gen.swift enums at head (a regeneration).
 - strictness: an added Xcode setting that loosens SWIFT_VERSION (below 6),
   SWIFT_TREAT_WARNINGS_AS_ERRORS (NO) or SWIFT_STRICT_CONCURRENCY (not complete); an added `.v5`
   language mode, unsafeFlags or treatAllWarnings in packages/mobile-core/Package.swift; or a
@@ -81,6 +84,10 @@ FLOW_APP = re.compile(r"^packages/flows/app/([^/]+)\.tsv$")
 BACKEND_FLOWS = "apps/backend/flows.tsv"
 FLOW_RANK = {"planned": 1, "built": 2, "verified": 3}
 GRAPH_TEST = "scripts/mobile_core_graph_test.go"
+SCENARIO_MANIFEST = "scripts/qa/sample-screens.txt"
+SCENARIO_BLOCK = ("# BEGIN generated flow scenarios", "# END generated flow scenarios")
+SCENARIO_SWIFT_DIR = "packages/flows/Sources/MonacoFlows/"
+SCENARIO_SWIFT = re.compile(r"Flow([0-9]+[a-z]?)Scenarios\.gen\.swift$")
 WARNINGS_FLAG_FILES = (
     "Justfile",
     ".github/workflows/ci-mobile-core.yml",
@@ -291,6 +298,44 @@ def flow_status_findings(added: list[Added], removed: list[Added], base, head) -
     return findings
 
 
+def scenario_block(text: str) -> tuple[range, list[str]]:
+    rows = text.splitlines()
+    try:
+        begin, end = rows.index(SCENARIO_BLOCK[0]), rows.index(SCENARIO_BLOCK[1])
+    except ValueError:
+        return range(0), []
+    lines = [" ".join(row.split()) for row in rows[begin + 1:end] if row.strip() and not row.lstrip().startswith("#")]
+    return range(begin + 1, end + 2), lines
+
+
+def kebab(camel: str) -> str:
+    return re.sub(r"[A-Z]", lambda m: "-" + m.group(0).lower(), camel)
+
+
+def generated_scenario_lines(names: list[str], head) -> list[str]:
+    lines = []
+    for name in names:
+        flow_id = SCENARIO_SWIFT.search(name).group(1)
+        cases = re.search(r"\{\n\s*case (.*?)\n\n", head(name), re.S)
+        for case in re.findall(r"\w+", cases.group(1) if cases else ""):
+            lines.append(f"flow-{flow_id}-{kebab(case)} -MonacoFlow {flow_id} {case}")
+    return lines
+
+
+def scenario_manifest_findings(added: list[Added], removed: list[Added], head, head_ls) -> list[Finding]:
+    if not any(a.path == SCENARIO_MANIFEST for a in added + removed):
+        return []
+    rows, lines = scenario_block(head(SCENARIO_MANIFEST))
+    edited = [a for a in added + removed if a.path == SCENARIO_MANIFEST and a.line in rows]
+    if not edited:
+        return []
+    swift = [name for name in head_ls(SCENARIO_SWIFT_DIR) if SCENARIO_SWIFT.search(name)]
+    if sorted(lines) == sorted(generated_scenario_lines(swift, head)):
+        return []
+    return [Finding(e.path, e.line, "scenario-manifest", f"edited scenario manifest line `{e.text.strip()}`")
+            for e in edited]
+
+
 def grep(patterns: list[str], rev: str | None, *pathspecs: str) -> list[tuple[str, int, str]]:
     args = [arg for p in patterns for arg in ("-e", p)]
     args += [rev] if rev else ["--untracked"]
@@ -352,6 +397,14 @@ def show(rev: str):
     return lambda path: git("show", f"{rev}:{path}", ok=(0, 128))
 
 
+def ls_tree(rev: str):
+    return lambda directory: git("ls-tree", "--name-only", rev, "--", directory).splitlines()
+
+
+def ls_worktree(directory: str) -> list[str]:
+    return git("ls-files", "--cached", "--others", "--exclude-standard", "--", directory).splitlines()
+
+
 def read(path: str) -> str:
     try:
         with open(path, errors="replace") as f:
@@ -360,18 +413,19 @@ def read(path: str) -> str:
         return ""
 
 
-def check(added: list[Added], removed: list[Added], base, head, base_tests, head_tests) -> list[Finding]:
+def check(added: list[Added], removed: list[Added], base, head, head_ls, base_tests, head_tests) -> list[Finding]:
     exclusions = exclusion_lines(head(GOLANGCI)) if any(a.path == GOLANGCI for a in added) else set()
     return (gate_findings(added, exclusions, base, head) + skip_findings(added)
             + removed_findings(base_tests, head_tests) + strictness_findings(added, removed, base, head)
-            + flow_status_findings(added, removed, base, head) + graph_findings(added, removed, base, head))
+            + flow_status_findings(added, removed, base, head) + graph_findings(added, removed, base, head)
+            + scenario_manifest_findings(added, removed, head, head_ls))
 
 
 def findings(base: str, head: str) -> list[Finding]:
     added, removed = diff(f"{base}...{head}")
     merge_base = git("merge-base", base, head).strip()
     tests = touches_tests(added + removed)
-    return check(added, removed, show(merge_base), show(head),
+    return check(added, removed, show(merge_base), show(head), ls_tree(head),
                  grep_tests(merge_base) if tests else [], grep_tests(head) if tests else [])
 
 
@@ -380,7 +434,8 @@ def worktree_findings(paths: list[str]) -> list[Finding]:
     for path in git("ls-files", "--others", "--exclude-standard", "--", *paths).splitlines():
         added += [Added(path, n, text, True) for n, text in enumerate(read(path).splitlines(), 1)]
     tests = touches_tests(added + removed)
-    found = check(added, removed, show("HEAD"), read, grep_tests("HEAD") if tests else [], grep_tests(None) if tests else [])
+    found = check(added, removed, show("HEAD"), read, ls_worktree,
+                  grep_tests("HEAD") if tests else [], grep_tests(None) if tests else [])
     return [f for f in found if not paths or f.path in paths]
 
 
