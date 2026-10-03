@@ -14,6 +14,7 @@ enum SessionGateCopy {
 struct SessionGateView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(AppSessionStore.self) private var session
+    @State private var onboardingCursor = OnboardingCursor.start
 
     private var debugDetail: String? {
         #if DEBUG
@@ -42,25 +43,44 @@ struct SessionGateView: View {
             }
         }
         .task(id: environment.isSignedIn) {
+            onboardingCursor = .start
             guard environment.isSignedIn else { return }
             await session.bootstrap(auth: environment.auth, devSession: environment.skipsSessionOpen)
         }
     }
     @ViewBuilder
     private func routed(_ profile: SessionProfile) -> some View {
-        switch FirstRunGate.destination(for: profile) {
-        case .nameSetup:
-            OnboardingNameView(
-                auth: environment.auth,
-                save: { await session.updateDisplayName($0, auth: environment.auth, optimistic: false) },
-                signOut: { await environment.signOut() }
-            )
-        case .app:
-            MainTabView()
+        let destination = FirstRunGate.destination(for: profile, onboardingCursor: onboardingCursor)
+        let advance = { onboardingCursor = onboardingCursor.advanced(past: destination) }
+        switch destination {
         case .session: SessionGateSkeleton()
+        case .handle: HandleStepView(onContinue: advance)
+        case .phone: PhoneStepView(onContinue: advance)
+        case .socials: SocialsStepView(onContinue: advance)
+        case .restricted(.banned): RestrictedAccountView()
+        case .app(let restricted):
+            VStack(spacing: 0) {
+                if restricted { AccountUnderReviewNotice() }
+                MainTabView()
+            }
+            .environment(\.accountRestricted, restricted)
         }
     }
+}
 
+private struct AccountUnderReviewNotice: View {
+    var body: some View {
+        Text(OnboardingCopy.underReviewNotice)
+            .font(MonacoTheme.Typo.callout)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .padding(.vertical, MonacoTheme.Space.sm)
+            .background(MonacoTheme.goldWash)
+            .accessibilityIdentifier("accountUnderReviewNotice")
+    }
 }
 
 #Preview {

@@ -2,7 +2,7 @@ import XCTest
 
 enum SignInJourney {
     static let id = "auth/sign-in"
-    static let version = 3
+    static let version = 4
 
     private static let launchTimeout: TimeInterval = 30
     private static let codeSentTimeout: TimeInterval = 20
@@ -10,7 +10,7 @@ enum SignInJourney {
 
     enum Screen {
         case login
-        case nameSetup
+        case firstRunStep
         case tabs
     }
 
@@ -22,10 +22,13 @@ enum SignInJourney {
         app.textFields[channel == .sms ? "smsPhoneField" : "emailAddressField"]
     }
 
+    private static let firstRunSignOuts = ["onboarding-handle-step-sign-out", "onboarding-phone-step-sign-out"]
+
     static func currentScreen(_ app: XCUIApplication, timeout: TimeInterval = launchTimeout) -> Screen? {
         let candidates: [(XCUIElement, Screen)] = [
             (app.tab("Home"), .tabs),
-            (app.textFields["onboarding-name-field"], .nameSetup),
+            (app.buttons[firstRunSignOuts[0]], .firstRunStep),
+            (app.buttons[firstRunSignOuts[1]], .firstRunStep),
             (app.textFields["smsPhoneField"], .login),
             (app.textFields["emailAddressField"], .login),
         ]
@@ -41,10 +44,11 @@ enum SignInJourney {
                 return
             case .tabs:
                 signOut(app, recorder: recorder)
-            case .nameSetup:
-                app.buttons["onboarding-sign-out"].tap()
+            case .firstRunStep:
+                let signOut = firstRunSignOuts.map { app.buttons[$0] }.first(where: \.exists)
+                signOut?.tap()
                 XCTAssertEqual(
-                    currentScreen(app), .login, "P1: Sign out on the name screen did not reach the login form")
+                    currentScreen(app), .login, "P1: Sign out on the first-run step did not reach the login form")
             case nil:
                 XCTFail("P1: neither the login form nor the tab bar showed within \(Int(launchTimeout)) s of launch")
             }
@@ -87,27 +91,15 @@ enum SignInJourney {
             codeField.typeText(account.code)
         }
 
-        var landed: Screen?
-        recorder.step("S1.4", "open the backend session and land on the tab bar or the name screen") {
-            landed = currentScreen(app, timeout: signedInTimeout)
-            XCTAssertTrue(
-                landed == .tabs || landed == .nameSetup,
-                "S1.4: neither the tab bar nor the name screen showed within \(Int(signedInTimeout)) s of the code"
+        recorder.step("S1.4", "open the backend session and land on the tab bar") {
+            let landed = currentScreen(app, timeout: signedInTimeout)
+            XCTAssertNotEqual(
+                landed, .firstRunStep,
+                "S1.4: the first-run gate opened the handle or phone step. Actor A needs a handle and an auth_state past CREATED (P4)"
             )
+            XCTAssertEqual(
+                landed, .tabs, "S1.4: the tab bar did not show within \(Int(signedInTimeout)) s of the code")
             XCTAssertFalse(app.textFields["\(prefix)CodeField"].exists, "S1.4: the code field is still on screen")
-        }
-
-        if landed == .nameSetup {
-            recorder.step("S1.5", "enter a name on the name screen") {
-                let field = app.textFields["onboarding-name-field"]
-                field.tap()
-                field.typeText(account.name)
-                app.buttons["onboarding-continue"].tap()
-                XCTAssertTrue(
-                    app.tab("Home").waitForExistence(timeout: signedInTimeout),
-                    "S1.5: the tab bar did not show within \(Int(signedInTimeout)) s of Continue"
-                )
-            }
         }
 
         recorder.step("S1.6", "the tab bar has every tab") {

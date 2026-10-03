@@ -280,7 +280,6 @@ no_comments	packages/mobile-core/Sources/MonacoCore/CatalogDTO.swift	1
 no_comments	packages/mobile-core/Sources/MonacoCore/DepositPollStateMachine.swift	6
 no_comments	packages/mobile-core/Sources/MonacoCore/DiagnosticPayloadStore.swift	10
 no_comments	packages/mobile-core/Sources/MonacoCore/DisplayFormatters.swift	32
-no_comments	packages/mobile-core/Sources/MonacoCore/FirstRunGate.swift	8
 no_comments	packages/mobile-core/Sources/MonacoCore/GroupChatDTO.swift	126
 no_comments	packages/mobile-core/Sources/MonacoCore/GroupDetailRefreshPolicy.swift	37
 no_comments	packages/mobile-core/Sources/MonacoCore/GroupViewDTO.swift	24
@@ -334,7 +333,6 @@ no_comments	packages/mobile-core/Tests/MonacoCoreTests/DepositPollTests.swift	3
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/DevBuyAPITests.swift	3
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/DiagnosticPayloadStoreTests.swift	1
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/DisplayFormatterTests.swift	20
-no_comments	packages/mobile-core/Tests/MonacoCoreTests/FirstRunGateTests.swift	10
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/FormatterHotPathTests.swift	5
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/GroupChatTests.swift	103
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/GroupDetailRefreshPolicyTests.swift	6
