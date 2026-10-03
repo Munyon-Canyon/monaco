@@ -99,6 +99,21 @@ Subject `events.cabal.updated`, version 1.
 | `actor_id` | `uuid.UUID` |
 | `changes` | `events.CabalChanges` |
 
+## `deposit.credited`
+
+Subject `events.deposit.credited`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `deposit_id` | `uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+| `wallet_address` | `chain.SolanaAddress` |
+| `amount_micros` | `money.Micros` |
+| `tx_signature` | `chain.Signature` |
+| `slot` | `int64` |
+| `block_time` | `*time.Time` |
+
 ## `follow.created`
 
 Subject `events.follow.created`, version 1.

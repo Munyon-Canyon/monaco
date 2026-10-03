@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "deposit_id": "01890a5d-ac96-774b-bcce-b302099a8057",
+  "user_id": "01890a5d-ac96-774b-bcce-b302099a8058",
+  "wallet_address": "9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P",
+  "amount_micros": "25000000",
+  "tx_signature": "5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW",
+  "slot": 123456,
+  "block_time": "2026-03-01T12:00:00Z"
+}

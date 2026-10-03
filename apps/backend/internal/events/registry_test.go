@@ -40,6 +40,7 @@ func TestSubjects(t *testing.T) {
 		"events.asset.price_moved",
 		"events.cabal.access_decided", "events.cabal.access_requested", "events.cabal.created",
 		"events.cabal.member_joined", "events.cabal.member_left", "events.cabal.updated",
+		"events.deposit.credited",
 		"events.follow.created", "events.follow.removed",
 		"events.proposal.created", "events.proposal.executed", "events.proposal.execution_blocked",
 		"events.proposal.expired", "events.proposal.failed", "events.proposal.passed", "events.proposal.voided",
@@ -188,7 +189,7 @@ func TestCatalog(t *testing.T) {
 	if want := []Type{
 		TypeAssetPriceMoved,
 		TypeCabalAccessDecided, TypeCabalAccessRequested, TypeCabalCreated, TypeCabalMemberJoined,
-		TypeCabalMemberLeft, TypeCabalUpdated, TypeFollowCreated, TypeFollowRemoved, TypePriceTick,
+		TypeCabalMemberLeft, TypeCabalUpdated, TypeDepositCredited, TypeFollowCreated, TypeFollowRemoved, TypePriceTick,
 		TypeProposalCreated, TypeProposalExecuted, TypeProposalExecutionBlocked, TypeProposalExpired,
 		TypeProposalFailed, TypeProposalPassed, TypeProposalVoided, TypeProposalWithdrawn,
 		TypeSystemPinged, TypeTradeBlocked, TypeTradeConfirmed, TypeTradeFailed, TypeTradeSubmitted,
@@ -233,6 +234,11 @@ func checkPriceTick(t *testing.T, tick Entry) {
 		!slices.Equal(tick.Fields, tickFields) {
 		t.Fatalf("Catalog() price.tick = %+v, want the core price.tick", tick)
 	}
+}
+
+func TestPriceTickIsCore(t *testing.T) {
+	t.Parallel()
+	PriceTick{}.core()
 }
 
 func TestAssetPriceMovedAggregatesOnTheAsset(t *testing.T) {

@@ -49,6 +49,16 @@ func fixtures(t *testing.T) map[events.Type]any {
 	cabal := newCabalFixtures(t)
 	return map[events.Type]any{
 		events.TypeSystemPinged: events.SystemPinged{V: 1, PingID: id, UserID: user, Note: "reference flow"},
+		events.TypeDepositCredited: events.DepositCredited{
+			V:             1,
+			DepositID:     id,
+			UserID:        user,
+			WalletAddress: "9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P",
+			AmountMicros:  money.MicrosFromUint64(25_000_000),
+			TxSignature:   txSignature,
+			Slot:          123456,
+			BlockTime:     &sampled,
+		},
 		events.TypeAssetPriceMoved: events.AssetPriceMoved{
 			V: 1, AssetID: id, Symbol: "AAPLx", AssetName: "Apple", ThresholdBps: 1000, ChangeBps: 1234,
 			MarkMicros: money.MicrosFromUint64(220_000_000), PrevCloseMicros: money.MicrosFromUint64(200_000_000),

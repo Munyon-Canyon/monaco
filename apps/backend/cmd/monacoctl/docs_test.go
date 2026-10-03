@@ -88,6 +88,17 @@ func TestDocsEventsPrintsTheRegistryCatalog(t *testing.T) {
 		"| `cabal_id` | `uuid.UUID` |\n" +
 		"| `actor_id` | `uuid.UUID` |\n" +
 		"| `changes` | `events.CabalChanges` |\n\n" +
+		"## `deposit.credited`\n\n" +
+		"Subject `events.deposit.credited`, version 1.\n\n" +
+		"| Field | Go type |\n| --- | --- |\n" +
+		"| `v` | `int` |\n" +
+		"| `deposit_id` | `uuid.UUID` |\n" +
+		"| `user_id` | `uuid.UUID` |\n" +
+		"| `wallet_address` | `chain.SolanaAddress` |\n" +
+		"| `amount_micros` | `money.Micros` |\n" +
+		"| `tx_signature` | `chain.Signature` |\n" +
+		"| `slot` | `int64` |\n" +
+		"| `block_time` | `*time.Time` |\n\n" +
 		"## `follow.created`\n\nSubject `events.follow.created`, version 1.\n\n" +
 		"| Field | Go type |\n| --- | --- |\n" +
 		"| `v` | `int` |\n| `follow_id` | `uuid.UUID` |\n" +
