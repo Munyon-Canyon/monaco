@@ -1,0 +1,7 @@
+{
+  "allocs": {},
+  "queries": {
+    "ListProposals empty page": 1,
+    "ListProposals one page": 2
+  }
+}

@@ -437,6 +437,59 @@ paths:
               example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 2, members: [], me: {role: member, can_vote: true}, my_access_request: null, invite_code: ABCD2345, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/cabals/{id}/proposals:
+    get:
+      operationId: getCabalProposals
+      tags: [governance]
+      summary: List a cabal's proposals.
+      description: >-
+        Returns one page of the cabal's proposals, newest first. Every cabal is public, so any
+        signed-in user can read them. A non-member sees the same items with `my_ballot` null.
+        `open` keeps proposals still taking ballots, and `closed` keeps every other status.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema:
+            type: string
+            format: uuid
+        - name: filter
+          in: query
+          required: false
+          description: Which proposals to return.
+          schema:
+            type: string
+            enum: [open, closed, all]
+            default: all
+            examples: [open]
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 20 and cannot exceed 50.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+            examples: [20]
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` from the previous page. Absent reads the first page.
+          schema:
+            type: string
+            maxLength: 512
+            examples: ["MTc3MjM2NjQwMDAwMDAwMAAwMTg5MGE1ZC1hYzk2LTc3NGItYmNjZS1iMzAyMDk5YTgwNTc"]
+      responses:
+        "200":
+          description: One page of the cabal's proposals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProposalList"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/devices:
     post:
       operationId: postDevice
@@ -1834,6 +1887,86 @@ components:
           type: boolean
           description: True when the same request may succeed if sent again later.
           examples: [false]
+    Proposal:
+      type: object
+      description: One proposal as the caller sees it, with its tally and the caller's ballot.
+      additionalProperties: false
+      required:
+        - id
+        - cabal_id
+        - proposer_id
+        - kind
+        - symbol
+        - usdc_micros
+        - token_amount
+        - quote_out_amount
+        - thesis
+        - status
+        - status_reason
+        - status_message
+        - expires_at
+        - created_at
+        - tally
+        - my_ballot
+      properties:
+        id: {type: string, format: uuid, description: The proposal id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
+        cabal_id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
+        proposer_id: {type: string, format: uuid, description: The member who proposed it., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
+        kind: {$ref: "#/components/schemas/ProposalKind"}
+        symbol: {type: string, description: The token symbol., examples: [AAPLx]}
+        usdc_micros:
+          type: [integer, "null"]
+          format: int64
+          description: USDC a buy spends, in micros. Null for a sell.
+          examples: [25000000]
+        token_amount:
+          type: [integer, "null"]
+          format: int64
+          description: Token base units a sell spends. Null for a buy.
+          examples: [null]
+        quote_out_amount:
+          type: integer
+          format: int64
+          description: The quoted output, in the output asset's base units, when the proposal opened.
+          examples: [105000000]
+        thesis: {type: [string, "null"], description: "The proposer's reason, up to 280 characters.", examples: [Earnings next week.]}
+        status: {$ref: "#/components/schemas/ProposalStatus"}
+        status_reason:
+          type: [string, "null"]
+          description: The error code that blocked execution. Null unless `status` is `execution_blocked`.
+          examples: [null]
+        status_message:
+          type: [string, "null"]
+          description: The user-facing message for `status_reason`. Null when `status_reason` is null.
+          examples: [null]
+        expires_at: {type: string, format: date-time, description: When voting closes., examples: ["2026-10-04T15:00:00Z"]}
+        created_at: {type: string, format: date-time, description: When the proposal opened., examples: ["2026-10-03T15:00:00Z"]}
+        tally: {$ref: "#/components/schemas/Tally"}
+        my_ballot:
+          description: The caller's ballot. Null when the caller has not voted or is not a voter.
+          examples: [null]
+          anyOf: [{$ref: "#/components/schemas/BallotChoice"}, {type: "null"}]
+    ProposalKind:
+      type: string
+      description: Whether the proposal spends USDC on the token or sells the token for USDC.
+      enum: [buy, sell]
+      examples: [buy]
+    ProposalList:
+      type: object
+      description: One page of a cabal's proposals.
+      additionalProperties: false
+      required: [proposals, next_cursor]
+      properties:
+        proposals:
+          type: array
+          description: The page, newest first.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/Proposal"
+        next_cursor:
+          type: [string, "null"]
+          description: The cursor for the next page. Null on the last page.
+          examples: [null]
     ProposalStatus:
       type: string
       description: Where a proposal is in its lifecycle.
