@@ -24,7 +24,7 @@ type Env struct {
 	Scripts     Lookup
 }
 
-func CheckColumns(flows []Flow, env Env) []Problem {
+func CheckColumns(flows []Flow, env Env, ids []string) []Problem {
 	var problems []Problem
 	firstLine := map[string]int{}
 	docs := docAnchors{repo: env.Repo, cache: map[string]map[string]bool{}}
@@ -34,6 +34,9 @@ func CheckColumns(flows []Flow, env Env) []Problem {
 			msgs = append(msgs, fmt.Sprintf("id %s already used on line %d", f.ID, first))
 		} else {
 			firstLine[f.ID] = f.Line
+		}
+		if !selected(ids, f.ID) {
+			continue
 		}
 		msgs = append(msgs, lookups(f, env)...)
 		if msg := docs.check(f.Doc); msg != "" {

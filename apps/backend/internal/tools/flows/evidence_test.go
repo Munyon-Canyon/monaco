@@ -102,7 +102,7 @@ func TestCheckTests_builtFlowsNeedAPassingTestPerOutcome(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := lines(flows.CheckTests(parsed, results)); !slices.Equal(got, tc.want) {
+			if got := lines(flows.CheckTests(parsed, results, nil)); !slices.Equal(got, tc.want) {
 				t.Fatalf("problems = %q, want %q", got, tc.want)
 			}
 		})
@@ -150,7 +150,7 @@ func TestCheckTests_aMultiCommandRowTakesEachOutcomeFromAnyCommandAndTestsEveryC
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := lines(flows.CheckTests(parsed, results)); !slices.Equal(got, tc.want) {
+			if got := lines(flows.CheckTests(parsed, results, nil)); !slices.Equal(got, tc.want) {
 				t.Fatalf("problems = %q, want %q", got, tc.want)
 			}
 		})
@@ -166,7 +166,7 @@ func TestCheckScripts_aMultiCommandRowNeedsOneScriptPerOutcomeFromAnyCommand(t *
 	want := []string{"flows.tsv:2: built flow outcome InsufficientFunds has no script " +
 		"F07FundCabalInsufficientFunds or F07RefundInsufficientFunds in internal/testkit/flows; " +
 		"monacoctl verify all fails without it"}
-	if got := lines(flows.CheckScripts(parsed, env)); !slices.Equal(got, want) {
+	if got := lines(flows.CheckScripts(parsed, env, nil)); !slices.Equal(got, want) {
 		t.Fatalf("problems = %q, want %q", got, want)
 	}
 }
@@ -201,7 +201,7 @@ func TestCheckScripts_builtFlowsNeedNonCrashScriptsAndVerifiedFlowsNeedEveryOutc
 			env.Scripts = func(_ flows.Flow, name string) bool { return slices.Contains(tc.scripts, name) }
 			row := fundRowWith(func(c []string) { c[7] = "ok;crash:after-sign"; c[8] = tc.status })
 			parsed, _ := flows.Parse(strings.NewReader(tsv(row)))
-			if got := lines(flows.CheckScripts(parsed, env)); !slices.Equal(got, tc.want) {
+			if got := lines(flows.CheckScripts(parsed, env, nil)); !slices.Equal(got, tc.want) {
 				t.Fatalf("problems = %q, want %q", got, tc.want)
 			}
 		})
