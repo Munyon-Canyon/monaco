@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -72,7 +73,8 @@ func (d *driver) settle(ctx context.Context, res *Result) error {
 			return &InvariantError{Flow: res.Unit.Name(), Msg: msg}
 		}
 	}
-	found, msg := d.awaitLogs(ctx, res.logFrom, d.requiredLogs(res.Unit))
+	needs := d.requiredLogs(ctx, res)
+	found, msg := d.awaitLogs(ctx, res.logFrom, needs)
 	res.logLines = found
 	if kind != tools.TriggerRoute {
 		if mismatch := d.outcomeMismatch(res); mismatch != "" {
@@ -189,18 +191,43 @@ type logNeed struct {
 	attrs map[string]string
 }
 
-func (d *driver) requiredLogs(u Unit) []logNeed {
-	needs := d.triggerLogs(u)
-	if _, isCode := u.Outcome.CodeName(); isCode {
+func (d *driver) requiredLogs(ctx context.Context, res *Result) []logNeed {
+	needs := d.triggerLogs(res.Unit)
+	if _, isCode := res.Unit.Outcome.CodeName(); isCode {
 		return needs
 	}
-	if len(u.Flow.Events) > 0 {
+	if d.wroteDurableEvent(ctx, res.Unit.Flow.Events, res.startedAt) {
 		needs = append(needs, logNeed{msg: observability.BusRelayTick})
 	}
-	for _, w := range d.watchedBy(u) {
+	for _, w := range d.watchedBy(res.Unit) {
 		needs = append(needs, logNeed{observability.BusDispatched, map[string]string{"handler": w.handler}})
 	}
 	return needs
+}
+
+func (d *driver) wroteDurableEvent(ctx context.Context, names []string, since time.Time) bool {
+	core := map[string]bool{}
+	for _, entry := range events.Catalog() {
+		if entry.Core {
+			core[string(entry.Type)] = true
+		}
+	}
+	var durable []string
+	for _, name := range names {
+		if !core[name] {
+			durable = append(durable, name)
+		}
+	}
+	if len(durable) == 0 {
+		return false
+	}
+	var wrote bool
+	row := d.env.Pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM events WHERE type = ANY($1) AND created_at >= $2)`,
+		durable, since)
+	if err := row.Scan(&wrote); err != nil {
+		return true
+	}
+	return wrote
 }
 
 func (d *driver) triggerLogs(u Unit) []logNeed {
