@@ -140,11 +140,13 @@ func (c gqlCommit) newerRunPending() bool {
 	return false
 }
 
+const queueCIPrefix = "ci / "
+
 func (c gqlCommit) failedJob() gqlContext {
 	var agg gqlContext
 	for _, r := range c.latest() {
 		switch {
-		case !red(r):
+		case !red(r) || !strings.HasPrefix(r.Name, queueCIPrefix):
 		case r.Name == stage1Check:
 			agg = r
 		default:

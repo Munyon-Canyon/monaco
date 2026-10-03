@@ -218,6 +218,16 @@ func TestQueueGate_refusesTwoRecentDraftsFailingOnOneJob(t *testing.T) {
 			[]string{numberedDraft(1, recent, flakeJob), numberedDraft(2, old, flakeJob)},
 			"",
 		},
+		{
+			"push-only workflow failing on the draft head",
+			[]string{numberedDraft(1, recent, goCacheJob), numberedDraft(2, recent, goCacheJob)},
+			"",
+		},
+		{
+			"queue CI job behind a push-only failure",
+			[]string{numberedDraft(1, recent, goCacheJob, readyJob), numberedDraft(2, recent, readyJob)},
+			"queue is failing on ci / Ready (staging) (drafts #1, #2)",
+		},
 		{"passing, open, non-queue and empty drafts", []string{
 			numberedDraft(1, recent, okJob), numberedDraft(2, recent, flakeJob), open, notQueue, bare,
 		}, ""},
