@@ -42,9 +42,6 @@ func (a *audience) UnmarshalJSON(b []byte) error {
 
 func (c *Client) VerifyAccessToken(_ context.Context, raw string) (UserID, error) {
 	const op = "privy.VerifyAccessToken"
-	if c.verifyKey == nil {
-		return "", errs.New(errs.CodeInternal, op, slog.String("reason", "verification key missing"))
-	}
 	payload, reason := c.verified(raw)
 	if reason != "" {
 		return "", errs.New(errs.CodeUnauthorized, op, slog.String("reason", reason))

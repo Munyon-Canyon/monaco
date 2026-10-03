@@ -35,3 +35,18 @@ func TestModule_routesPanicWhenTheWalletMeterCannotBeCreated(t *testing.T) {
 	m.Routes(&routes)
 	t.Fatal("Routes did not panic")
 }
+
+func TestModule_routesPanicWithoutAPrivyVerificationKey(t *testing.T) {
+	t.Parallel()
+	defer func() {
+		err, ok := recover().(error)
+		if !ok || errs.CodeOf(err) != errs.CodeInvalidInput {
+			t.Fatalf("Routes panicked with %v, want invalid_input from privy.New", err)
+		}
+	}()
+	cfg := privyConfig()
+	cfg.Privy.VerificationKey = ""
+	var routes httpx.Routes
+	identity.New(module.Deps{Config: cfg, Clock: clock.Real{}}).Routes(&routes)
+	t.Fatal("Routes did not panic")
+}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
@@ -82,23 +83,28 @@ func TestVerifyAccessToken_refusals(t *testing.T) {
 	}
 }
 
-func TestVerifyAccessToken_withoutAUsableKeyIsInternal(t *testing.T) {
+func TestNew_refusesAMissingOrUnusableVerificationKey(t *testing.T) {
 	t.Parallel()
 	edPub, _, _ := ed25519.GenerateKey(rand.Reader)
 	edDER, _ := x509.MarshalPKIXPublicKey(edPub)
-	raw := fakes.PrivyAccessToken(appID, "s", clock.Real{}.Now(), time.Hour)
 	for name, key := range map[string]string{
 		"missing":   "",
+		"not PEM":   "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE",
 		"not a key": "-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----\n",
 		"not ecdsa": string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: edDER})),
 	} {
 		cfg := testConfig()
 		cfg.Privy.VerificationKey = key
-		_, err := clientWith(cfg, nil, clock.Real{}).VerifyAccessToken(t.Context(), raw)
-		if errs.CodeOf(err) != errs.CodeInternal {
-			t.Fatalf("%s: err = %v, want internal", name, err)
+		c, err := privy.New(cfg, clock.Real{})
+		if c != nil || errs.CodeOf(err) != errs.CodeInvalidInput {
+			t.Fatalf("%s: New = %v, %v, want invalid_input", name, c, err)
 		}
 	}
+}
+
+func TestVerifyAccessToken_acceptsAKeyWrittenOnOneLine(t *testing.T) {
+	t.Parallel()
+	raw := fakes.PrivyAccessToken(appID, "s", clock.Real{}.Now(), time.Hour)
 	cfg := testConfig()
 	cfg.Privy.VerificationKey = strings.ReplaceAll(fakes.PrivyVerificationKey(), "\n", `\n`)
 	if _, err := clientWith(cfg, nil, clock.Real{}).VerifyAccessToken(t.Context(), raw); err != nil {
