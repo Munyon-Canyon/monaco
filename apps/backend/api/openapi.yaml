@@ -445,6 +445,51 @@ paths:
               example: {id: "01890a5d-ac96-774b-bcce-b302099a8059", direction: request, status: approved}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/cabals/{id}/activity:
+    get:
+      operationId: getCabalActivity
+      tags: [cabal]
+      summary: List a cabal's activity.
+      description: >-
+        Returns one page of the cabal's buys, sells, funds and cash outs, newest first, pending and failed
+        ones included. Only members can read it; anyone else gets `not_cabal_member`. Asset and actor names
+        are resolved for display, and raw mints are never returned.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 30 and cannot exceed 100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 30
+            examples: [30]
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` from the previous page. Absent reads the first page.
+          schema:
+            type: string
+            maxLength: 512
+            examples: ["MTc3MjM2NjQwMDAwMDAwMDowMTg5MGE1ZC1hYzk2LTc3NGItYmNjZS1iMzAyMDk5YTgwNTc"]
+      responses:
+        "200":
+          description: One page of the cabal's activity.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CabalActivityPage"
+              example: {items: [{id: 01890a5d-ac96-774b-bcce-b302099a8060, kind: buy, status: confirmed, asset: {symbol: AAPLx, name: Apple}, usdc_micros: 25000000, units: 105000000, actor: null, tx_signature: 5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW, occurred_at: "2026-10-03T15:00:00Z"}], next_cursor: null}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/members:
     post:
       operationId: postCabalMember
@@ -1346,6 +1391,23 @@ components:
         banned account can only withdraw and cash out.
       examples: [active]
       enum: [active, suspended, banned]
+    ActivityActor:
+      type: object
+      description: The member behind a row.
+      additionalProperties: false
+      required: [user_id, handle, display_name]
+      properties:
+        user_id: {type: string, format: uuid, description: The member., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
+        handle: {type: string, description: The member's handle., examples: [ana]}
+        display_name: {type: string, description: The member's display name., examples: [Ana]}
+    ActivityAsset:
+      type: object
+      description: A human-readable asset.
+      additionalProperties: false
+      required: [symbol, name]
+      properties:
+        symbol: {type: string, description: The token symbol., examples: [AAPLx]}
+        name: {type: string, description: The display name., examples: [Apple]}
     AssetChart:
       type: object
       description: The buckets for one asset and one range.
@@ -1750,6 +1812,62 @@ components:
         id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
         user: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
         created_at: {type: string, format: date-time, examples: ["2026-10-02T15:00:00Z"]}
+    CabalActivity:
+      type: object
+      description: One buy, sell, fund or cash out in a cabal.
+      additionalProperties: false
+      required: [id, kind, status, asset, usdc_micros, units, actor, tx_signature, occurred_at]
+      properties:
+        id: {type: string, format: uuid, description: The source id. For a buy or sell it is the swap id., examples: [01890a5d-ac96-774b-bcce-b302099a8060]}
+        kind:
+          type: string
+          description: What happened.
+          enum: [buy, sell, fund, cash_out]
+          examples: [buy]
+        status:
+          type: string
+          description: Where it is. A confirmed or failed row never goes back to pending.
+          enum: [pending, confirmed, failed]
+          examples: [confirmed]
+        asset:
+          description: The stock bought or sold. Null when there is none or the catalog does not know it.
+          examples: [{symbol: AAPLx, name: Apple}]
+          anyOf: [{$ref: "#/components/schemas/ActivityAsset"}, {type: "null"}]
+        usdc_micros:
+          type: [integer, "null"]
+          format: int64
+          description: USDC spent or received, in micros. Null until known.
+          examples: [25000000]
+        units:
+          type: [integer, "null"]
+          format: int64
+          description: Token base units bought or sold. Null until known.
+          examples: [105000000]
+        actor:
+          description: The member who acted. Null for a trade the cabal voted for.
+          examples: [null]
+          anyOf: [{$ref: "#/components/schemas/ActivityActor"}, {type: "null"}]
+        tx_signature:
+          type: [string, "null"]
+          description: The Solana transaction signature. Null until the transaction is sent.
+          examples: [5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW]
+        occurred_at: {type: string, format: date-time, description: When it started., examples: ["2026-10-03T15:00:00Z"]}
+    CabalActivityPage:
+      type: object
+      description: One page of a cabal's activity.
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          description: The page, newest first.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/CabalActivity"
+        next_cursor:
+          type: [string, "null"]
+          description: The cursor for the next page. Null on the last page.
+          examples: [null]
     CabalMember:
       type: object
       description: A cabal member, including vote standing.

@@ -1,6 +1,9 @@
 package treasury
 
 import (
+	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
+	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
@@ -16,7 +19,9 @@ import (
 const usdcMainnet = domain.Asset("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
 
 type Module struct {
-	deps module.Deps
+	deps    module.Deps
+	members app.Members
+	users   app.Users
 }
 
 type Queries = port.Queries
@@ -29,11 +34,27 @@ type CabalPositions = port.CabalPositions
 
 type MemberStake = port.MemberStake
 
-func New(d module.Deps) *Module { return &Module{deps: d} }
+func New(d module.Deps) *Module {
+	return &Module{deps: d, members: app.UnwiredReads{}, users: app.UnwiredReads{}}
+}
 
 func (*Module) Name() string { return "treasury" }
 
-func (*Module) Routes(*httpx.Routes) {}
+func (m *Module) Wire(set module.Set) {
+	for _, mod := range set {
+		switch provider := mod.(type) {
+		case interface{ Queries() cabalport.Queries }:
+			m.members = provider.Queries()
+		case interface{ Queries() identityport.Queries }:
+			m.users = provider.Queries()
+		}
+	}
+}
+
+func (m *Module) Routes(r *httpx.Routes) {
+	names := catalogNames{Catalog: market.New(m.deps).Catalog()}
+	r.TreasuryRoutes = adapters.HTTP{Reads: app.NewActivityReads(m.deps.Pool, m.members, m.users, names)}
+}
 
 func (m *Module) Consumers() []bus.Consumer {
 	activity := adapters.Activity{Hints: m.deps.Bus}
