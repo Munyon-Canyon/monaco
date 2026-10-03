@@ -184,6 +184,33 @@ final class ProposalsAPITests: XCTestCase {
         XCTAssertFalse(maySubmit)
     }
 
+    func testAPIClient_castVote_postsTheChoiceToTheProposal() async throws {
+        let token = TestFixtures.fixtureSessionToken
+        var captured: URLRequest?
+        var body: Data?
+        MockURLProtocol.requestHandler = { request in
+            captured = request
+            body = Self.httpBody(from: request)
+            let url = try XCTUnwrap(request.url)
+            let response = try XCTUnwrap(
+                HTTPURLResponse(url: url, statusCode: 204, httpVersion: nil, headerFields: nil))
+            return (response, Data())
+        }
+        let client = MonacoAPIClient(
+            baseURL: try XCTUnwrap(URL(string: "https://api.test")),
+            session: makeMockURLSession(),
+            accessTokenProvider: { token }
+        )
+
+        try await client.castVote(proposalId: "prop-1", choice: "yes")
+
+        XCTAssertEqual(captured?.url?.path, "/v1/proposals/prop-1/votes")
+        XCTAssertEqual(captured?.httpMethod, "POST")
+        XCTAssertEqual(captured?.value(forHTTPHeaderField: "Authorization"), "Bearer \(token)")
+        let json = try XCTUnwrap(body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: String] })
+        XCTAssertEqual(json, ["choice": "yes"])
+    }
+
     private func makeMockURLSession() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
