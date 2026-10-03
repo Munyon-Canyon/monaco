@@ -3,13 +3,17 @@ package testkit
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -33,9 +37,40 @@ func MainCommand(t *testing.T, env []string, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(t.Context(), exe, args...)
 	cmd.Env = append(withoutRaceExitSleep(env), runMainEnv+"=1")
 	if dir := flag.Lookup("test.gocoverdir"); dir != nil && dir.Value.String() != "" {
-		cmd.Env = append(cmd.Env, "GOCOVERDIR="+dir.Value.String())
+		cmd.Env = append(cmd.Env, "GOCOVERDIR="+childCoverDir(t, dir.Value.String()))
 	}
 	return cmd
+}
+
+func childCoverDir(t *testing.T, shared string) string {
+	t.Helper()
+	dir := filepath.Join(shared, "child0")
+	for i := 1; ; i++ {
+		err := os.Mkdir(dir, 0o700)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, fs.ErrExist) {
+			t.Fatal(err)
+		}
+		dir = filepath.Join(shared, "child"+strconv.Itoa(i))
+	}
+	t.Cleanup(func() {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		for _, e := range entries {
+			if err := os.Rename(filepath.Join(dir, e.Name()), filepath.Join(shared, e.Name())); err != nil {
+				t.Error(err)
+			}
+		}
+		if err := os.Remove(dir); err != nil {
+			t.Error(err)
+		}
+	})
+	return dir
 }
 
 func withoutRaceExitSleep(env []string) []string {
