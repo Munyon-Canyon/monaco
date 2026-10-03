@@ -6,6 +6,7 @@ import (
 	"maps"
 	"math/big"
 	"slices"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -105,11 +106,11 @@ func balanceDrift(ctx context.Context, q *sqlc.Queries, rules map[events.Type]Ba
 			sum(m.Owner+" "+m.Asset, 1, big.NewInt(m.Amount.Int64()))
 		}
 	}
-	ledger, err := q.LedgerBalances(ctx)
+	ledger, err := ledgerBalances(ctx, q, rules)
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	applyLedgerBalances(rules, sums, ledger, sum)
+	applyLedgerBalances(rules, ledger, sum)
 	var out []string
 	for _, key := range slices.Sorted(maps.Keys(sums)) {
 		if pair := sums[key]; pair[0].Cmp(pair[1]) != 0 {
@@ -120,22 +121,55 @@ func balanceDrift(ctx context.Context, q *sqlc.Queries, rules map[events.Type]Ba
 }
 
 func applyLedgerBalances(
-	rules map[events.Type]BalanceRule, sums map[string][2]*big.Int,
-	ledger []sqlc.LedgerBalancesRow, sum func(string, int, *big.Int),
+	rules map[events.Type]BalanceRule, ledger []ledgerBalance, sum func(string, int, *big.Int),
 ) {
 	for _, r := range ledger {
 		key := r.Owner + " " + r.Asset
-		if includeLedgerBalance(rules, sums, key) {
+		if includeLedgerBalance(rules, key) {
 			v, _ := new(big.Int).SetString(r.Balance, 10)
 			sum(key, 0, v)
 		}
 	}
 }
 
-func includeLedgerBalance(rules map[events.Type]BalanceRule, sums map[string][2]*big.Int, key string) bool {
-	if len(rules) != 1 || rules[events.TypeDepositCredited] == nil {
+type ledgerBalance struct {
+	Owner   string
+	Asset   string
+	Balance string
+}
+
+func ledgerBalances(ctx context.Context, q *sqlc.Queries, rules map[events.Type]BalanceRule) ([]ledgerBalance, error) {
+	if !depositRuleOnly(rules) {
+		rows, err := q.LedgerBalances(ctx)
+		return mapLedgerBalances(rows), err
+	}
+	rows, err := q.DepositLedgerBalances(ctx)
+	return mapDepositLedgerBalances(rows), err
+}
+
+func mapLedgerBalances(rows []sqlc.LedgerBalancesRow) []ledgerBalance {
+	balances := make([]ledgerBalance, len(rows))
+	for i, row := range rows {
+		balances[i] = ledgerBalance{Owner: row.Owner, Asset: row.Asset, Balance: row.Balance}
+	}
+	return balances
+}
+
+func mapDepositLedgerBalances(rows []sqlc.DepositLedgerBalancesRow) []ledgerBalance {
+	balances := make([]ledgerBalance, len(rows))
+	for i, row := range rows {
+		balances[i] = ledgerBalance{Owner: row.Owner, Asset: row.Asset, Balance: row.Balance}
+	}
+	return balances
+}
+
+func includeLedgerBalance(rules map[events.Type]BalanceRule, key string) bool {
+	if !depositRuleOnly(rules) {
 		return true
 	}
-	_, ok := sums[key]
-	return ok
+	return strings.HasPrefix(key, "wallet:")
+}
+
+func depositRuleOnly(rules map[events.Type]BalanceRule) bool {
+	return len(rules) == 1 && rules[events.TypeDepositCredited] != nil
 }

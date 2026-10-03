@@ -87,5 +87,12 @@ WHERE e.account = 'treasury'
 GROUP BY t.cabal_id, e.asset
 ORDER BY 1, 2;
 
+-- name: DepositLedgerBalances :many
+SELECT ('wallet:' || t.user_id::text)::text AS owner, e.asset, sum(e.amount)::text AS balance
+FROM user_txn_entries e JOIN user_txns t ON t.id = e.txn_id
+WHERE e.account = 'wallet' AND t.kind = 'deposit' AND t.tx_signature IS NOT NULL
+GROUP BY t.user_id, e.asset
+ORDER BY 1, 2;
+
 -- name: MoneyEvents :many
 SELECT type, payload FROM events WHERE type = ANY(sqlc.arg(types)::text[]) ORDER BY id;
