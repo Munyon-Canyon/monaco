@@ -7,6 +7,8 @@ import (
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
 const maxLines = 20
@@ -24,16 +26,16 @@ func forecastCmd(ctx context.Context, env *Env, args []string, stdout io.Writer)
 }
 
 func printForecast(ctx context.Context, env *Env, stdout io.Writer) error {
-	risks, err := forecast(ctx, env)
+	risks, flowRisks, flowErr, err := forecast(ctx, env)
 	if err != nil {
 		return err
 	}
 	trunk := env.Config.FeatureBranch
 	if len(risks) == 0 {
 		_, _ = fmt.Fprintf(stdout, "no file is touched by more than one open stack into %s\n", trunk)
-		return nil
+	} else {
+		_, _ = fmt.Fprintf(stdout, "%d files touched by more than one open stack into %s:\n", len(risks), trunk)
 	}
-	_, _ = fmt.Fprintf(stdout, "%d files touched by more than one open stack into %s:\n", len(risks), trunk)
 	for i, r := range risks {
 		if i == maxLines-2 {
 			_, _ = fmt.Fprintf(stdout, "  and %d more\n", len(risks)-i)
@@ -41,32 +43,62 @@ func printForecast(ctx context.Context, env *Env, stdout io.Writer) error {
 		}
 		_, _ = fmt.Fprintf(stdout, "  %s  %s\n", r.path, prList(r.bottoms))
 	}
+	if flowErr != nil {
+		_, _ = fmt.Fprintf(stdout, "flows: not checked: %s\n", strings.TrimSpace(flowErr.Error()))
+	}
+	for _, r := range flowRisks {
+		_, _ = fmt.Fprintf(stdout, "flows: %s %s\n", r.path, prList(r.bottoms))
+	}
 	return nil
 }
 
-func forecast(ctx context.Context, env *Env) ([]risk, error) {
+func forecast(ctx context.Context, env *Env) (files, flowRisks []risk, flowErr, err error) {
 	open, err := env.GitHub.PRs(ctx, "state=open")
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	touched := map[string]map[int]bool{}
-	for bottom, stack := range stacks(open, env.Config.FeatureBranch) {
+	changed := map[int][]string{}
+	grouped := stacks(open, env.Config.FeatureBranch)
+	for bottom, stack := range grouped {
 		for _, pr := range stack {
-			if err := touch(ctx, env, pr, bottom, touched); err != nil {
-				return nil, err
+			if err := touch(ctx, env, pr, bottom, touched, changed); err != nil {
+				return nil, nil, nil, err
 			}
 		}
 	}
+	if len(grouped) < 2 {
+		return overlaps(touched), nil, nil, nil
+	}
+	reg, err := env.registryAt(ctx, "origin/"+env.Config.FeatureBranch)
+	if err != nil {
+		return overlaps(touched), nil, err, nil
+	}
+	flowed := map[string]map[int]bool{}
+	for bottom, files := range changed {
+		for _, id := range reg.affected(files) {
+			if flowed[id] == nil {
+				flowed[id] = map[int]bool{}
+			}
+			flowed[id][bottom] = true
+		}
+	}
+	return overlaps(touched), overlaps(flowed), nil, nil
+}
+
+func overlaps(touched map[string]map[int]bool) []risk {
 	var risks []risk
 	for _, path := range slices.Sorted(maps.Keys(touched)) {
 		if len(touched[path]) > 1 {
 			risks = append(risks, risk{path, slices.Sorted(maps.Keys(touched[path]))})
 		}
 	}
-	return risks, nil
+	return risks
 }
 
-func touch(ctx context.Context, env *Env, pr PR, bottom int, touched map[string]map[int]bool) error {
+func touch(
+	ctx context.Context, env *Env, pr PR, bottom int, touched map[string]map[int]bool, changed map[int][]string,
+) error {
 	files, err := env.GitHub.Files(ctx, pr.Number)
 	if err != nil {
 		return err
@@ -76,6 +108,11 @@ func touch(ctx context.Context, env *Env, pr PR, bottom int, touched map[string]
 			touched[f.Filename] = map[int]bool{}
 		}
 		touched[f.Filename][bottom] = true
+		if f.Filename == flowsFile && f.Patch != "" {
+			changed[bottom] = append(changed[bottom], flows.ChangedRows(f.Patch)...)
+		} else {
+			changed[bottom] = append(changed[bottom], f.Filename)
+		}
 	}
 	return nil
 }

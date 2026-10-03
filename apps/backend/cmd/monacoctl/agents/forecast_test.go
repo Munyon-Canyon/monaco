@@ -2,13 +2,28 @@ package agents
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
+
+func trunkRegistry(t *testing.T, f *fixture) {
+	t.Helper()
+	writeFile(t, filepath.Join(f.dir, flowsFile), flows.Header+"\n"+
+		"00\tPing\tsystem\tGET /p\tRecordPing\t\t\tok\tbuilt\tdocs/f.md\n"+
+		"01\tSign in\tidentity\tGET /s\tSignIn\t\t\tok\tbuilt\tdocs/f.md\n")
+	writeFile(t, filepath.Join(f.dir, flows.AppDir, "00.tsv"), flows.AppHeader+"\n00\tSystemPing\tbuilt\tdocs/f.md\n")
+	git(t, f.dir, "add", "-A")
+	git(t, f.dir, "commit", "-qm", "registry")
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "HEAD")
+}
 
 func TestForecast_listsFilesTouchedByTwoStacksNotTwoPRsOfOneStack(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
+	trunkRegistry(t, f)
 	f.hub.on(list("/pulls?state=open"), []PR{
 		pr(10, "a1", "fb", ""),
 		pr(11, "a2", "a1", ""),
@@ -29,6 +44,7 @@ func TestForecast_listsFilesTouchedByTwoStacksNotTwoPRsOfOneStack(t *testing.T) 
 func TestForecast_capsTheListAtTwentyLines(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
+	trunkRegistry(t, f)
 	f.hub.on(list("/pulls?state=open"), []PR{pr(1, "a", "fb", ""), pr(2, "b", "fb", "")})
 	files := make([]File, 0, 25)
 	for i := range 25 {
@@ -52,6 +68,41 @@ func TestForecast_failsWhenGitHubFails(t *testing.T) {
 	f.hub.on(list("/pulls?state=open"), []PR{pr(1, "a", "fb", "")})
 	if code, _, stderr := f.agents(t, "forecast"); code != 1 || !strings.Contains(stderr, "pulls/1/files") {
 		t.Fatalf("files: code=%d stderr=%q", code, stderr)
+	}
+}
+
+func TestForecast_listsAFlowTwoStacksTouchThroughDifferentFiles(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	trunkRegistry(t, f)
+	f.hub.on(list("/pulls?state=open"), []PR{pr(1701, "a", "fb", ""), pr(1705, "b", "fb", ""), pr(1709, "c", "fb", "")})
+	f.hub.on(list("/pulls/1701/files?"), []File{{Filename: "packages/flows/app/00.tsv"}})
+	f.hub.on(list("/pulls/1705/files?"), []File{{Filename: "apps/backend/internal/modules/system/http.go"}})
+	f.hub.on(
+		list("/pulls/1709/files?"),
+		[]File{{Filename: flowsFile, Patch: "@@ -3 +3 @@\n-01\tSign in\n+01\tLog in\n"}},
+	)
+	code, stdout, stderr := f.agents(t, "forecast")
+	want := "no file is touched by more than one open stack into fb\nflows: 00 #1701 #1705\n"
+	if code != 0 || stdout != want || stderr != "" {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+
+	f.hub.on(list("/pulls/1705/files?"), []File{{Filename: "apps/backend/internal/modules/cabal/http.go"}})
+	if code, stdout, _ := f.agents(t, "forecast"); code != 0 || strings.Contains(stdout, "flows:") {
+		t.Fatalf("disjoint stacks: code=%d stdout=%q", code, stdout)
+	}
+}
+
+func TestForecast_saysSoWithoutTheTrunkRegistry(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.hub.on(list("/pulls?state=open"), []PR{pr(1, "a", "fb", ""), pr(2, "b", "fb", "")})
+	f.hub.on(list("/pulls/1/files?"), []File{})
+	f.hub.on(list("/pulls/2/files?"), []File{})
+	if code, stdout, _ := f.agents(t, "forecast"); code != 0 || !strings.Contains(stdout, "flows: not checked: ") ||
+		!strings.Contains(stdout, "origin/fb") {
+		t.Fatalf("code=%d stdout=%q", code, stdout)
 	}
 }
 
