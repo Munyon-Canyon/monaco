@@ -16,7 +16,7 @@ The agent recipe for building the tests is the `ios-journey-qa` skill (`.claude/
 
 | Who | Writes |
 | --- | --- |
-| The milestone owner | The journey doc, before the milestone's mobile tickets start |
+| An agent with the `ios-journey-qa` skill | The journey doc when the milestone's screens land. A person reviews it before a test is built from it. |
 | The agent, with the `ios-journey-qa` skill | The XCUITest files and the seeded bugs, from the doc |
 | The milestone's "Update the journeys" ticket | Any change the milestone made to a journey: the doc first, then the tests |
 
@@ -34,7 +34,7 @@ Every milestone carries one "Update the journeys" ticket. Its Done-when is `scri
 
 ## The journey doc
 
-A journey doc starts with front matter and then has four sections, in this order: Preconditions, Scenarios, Ground truth, Not covered.
+A journey doc starts with front matter and then has five sections, in this order: Preconditions, Scenarios, Ground truth, Known failures on staging, Not covered.
 
 ```yaml
 ---
@@ -44,6 +44,7 @@ version: 1                  # a whole number, see Versions
 milestone: M9
 requires: []                # journeys that must have run first, by id
 actors: [A]                 # one simulator and one account per actor
+flows: [01]                 # backend flows this journey exercises
 # funds: only for a journey that moves money, see below
 xcuitest: [apps/mobile/MonacoUITests/Journeys/SignInJourney.swift, apps/mobile/MonacoUITests/Journeys/SignInJourneyUITests.swift]
 ---
@@ -136,3 +137,11 @@ Each run appends a row to `.logs/qa/journeys/results.tsv`:
 | False passes | Seeded bugs not caught, plus clean runs that passed while the ground truth check failed |
 
 A seeded bug is a patch under `<journey>.mutants/` that breaks one thing the doc promises. Its first lines say which scenarios must fail. `mutants` applies each patch, rebuilds, runs the test, and reverts the patch.
+
+## Coverage and CI guard
+
+`flows` lists the backend flow ids the journey exercises. `scripts/qa/journey.py check` requires each id to have a backend flow file and requires every seeded bug patch to apply. Regenerate a stale patch with the `ios-journey-qa` skill.
+
+`scripts/qa/journey.py coverage` prints every backend flow with its app status and the journeys that list it. It ends with the backend flow ids that no journey covers.
+
+Stage 0 and CI run the journey checks when mobile code, journey docs, journey QA files, or journey scripts change.

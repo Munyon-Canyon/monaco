@@ -190,6 +190,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		"scripts/foo.sh":                         "echo hi\n",
 		"scripts/hook":                           "#!/usr/bin/env bash\necho hi\n",
 		"scripts/tool.py":                        "print(1)\n",
+		"scripts/qa/journey.py":                  "print(1)\n",
 		"scripts/notes":                          "#!/usr/bin/env python3\n",
 		"scripts/own_test.go":                    "func TestOwnA(t *testing.T) {}\nfunc TestOwnB(t *testing.T) {}\n",
 		"scripts/test_new.py":                    "pass\n",
@@ -231,6 +232,9 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		"packages/mobile-core: swift format lint --strict --recursive --parallel ../../apps/mobile .",
 		"packages/mobile-core: swiftlint-ratchet.sh",
 		"packages/mobile-core: mobile-core-test.sh",
+		".: python3 scripts/qa/journey.py check",
+		".: python3 scripts/qa/test_journey.py",
+		".: python3 scripts/qa/test_skill_eval.py",
 		".: install-sqlc.sh",
 		".: ready.sh",
 	}
@@ -257,6 +261,23 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	code, stdout, _ = h.check(t)
 	if code != 0 || stdout != "stage 0 already passed on tree "+tree[:12]+"\n" || len(h.calls) != 0 {
 		t.Fatalf("rerun on a checked tree: %d %q %v", code, stdout, h.calls)
+	}
+}
+
+func TestJourneyChanged(t *testing.T) {
+	t.Parallel()
+	for _, file := range []string{
+		"apps/mobile/Monaco/App.swift",
+		"docs/journeys/auth/sign-in.md",
+		"apps/mobile/qa/journeys/accounts.tsv",
+		"scripts/qa/journey.py",
+	} {
+		if !journeyChanged([]string{file}) {
+			t.Fatalf("%s did not run the journeys row", file)
+		}
+	}
+	if journeyChanged([]string{"docs/architecture.md"}) {
+		t.Fatal("unrelated docs ran the journeys row")
 	}
 }
 

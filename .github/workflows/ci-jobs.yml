@@ -281,6 +281,20 @@ jobs:
     if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.scripts == 'true' || needs.plan.outputs.unknown == 'true')
     uses: ./.github/workflows/ci-scripts.yml
 
+  journeys:
+    name: Journeys
+    needs: plan
+    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.journeys == 'true' || needs.plan.outputs.unknown == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: |
+          python3 scripts/qa/journey.py check
+          python3 scripts/qa/test_journey.py
+          python3 scripts/qa/test_skill_eval.py
+
   mobile-core:
     needs: plan
     if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.mobile-core == 'true' || needs.plan.outputs.flows == 'true' || needs.plan.outputs.unknown == 'true')
@@ -360,6 +374,7 @@ jobs:
       backend-tests: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.backend-tests == 'true' }}
       mobile-tests: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.mobile-tests == 'true' }}
       flows: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.flows == 'true' }}
+      journeys: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.journeys == 'true' }}
       scripts: ${{ steps.top.outputs.skip != 'true' && (steps.filter.outputs.scripts == 'true' || steps.every.outputs.scripts == 'true') }}
       # A stacked PR's base is the PR below it, so the filters see only this PR's own files: run everything.
       # The staging stage runs everything too.
@@ -481,6 +496,11 @@ jobs:
               - 'apps/backend/internal/modules/**'
               - 'apps/backend/internal/tools/flows/**'
               - 'scripts/ci/mobile-integration.sh'
+            journeys:
+              - 'apps/mobile/**'
+              - 'docs/journeys/**'
+              - 'apps/mobile/qa/**'
+              - 'scripts/qa/**'
             web:
               - 'apps/web/**'
             scripts:
@@ -630,7 +650,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [plan, lint, backend, backend-report, e2e, ready, vuln, scripts, mobile-core, mobile-integration, flake, flake-swift]
+    needs: [plan, lint, backend, backend-report, e2e, ready, vuln, scripts, journeys, mobile-core, mobile-integration, flake, flake-swift]
     runs-on: ubuntu-latest
     timeout-minutes: ${{ inputs.stage == 'queue' && 6 || 2 }}
     permissions:
@@ -642,7 +662,7 @@ jobs:
         if: inputs.stage != 'queue'
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: lint, backend, backend-report, e2e, ready, vuln, scripts, mobile-core, mobile-integration, flake, flake-swift
+          allowed-skips: lint, backend, backend-report, e2e, ready, vuln, scripts, journeys, mobile-core, mobile-integration, flake, flake-swift
 
       - uses: actions/checkout@v4
         if: inputs.stage == 'queue'

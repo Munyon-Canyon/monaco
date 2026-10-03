@@ -8,6 +8,8 @@ import json
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -75,6 +77,7 @@ class Tree(unittest.TestCase):
         self.write("ui/SignInJourney.swift", JOURNEY_SWIFT)
         self.write("ui/SignInJourneyUITests.swift", TESTS_SWIFT)
         self.write("qa/accounts.tsv", "# logins\nactor\tname\tphone\temail\tcode\nA\tAlfred\t555\ta@b.c\t123456\n")
+        self.write("packages/flows/backend/01.tsv", "id\tflow\tstatus\n01\tSign in\tbuilt\n")
 
     def tearDown(self):
         journey.ROOT, journey.DOCS, journey.QA = self.saved
@@ -161,7 +164,25 @@ class Check(Tree):
         problems = "\n".join(journey.check_journeys(journey.load_journeys(), journey.load_accounts(environ={}), lambda patch: False))
         self.assertIn("broken.patch: no 'expect-fail: S…' line", problems)
         self.assertIn("stale.patch: expects S9 to fail", problems)
-        self.assertIn("stale.patch: does not apply to this checkout", problems)
+        self.assertIn("stale.patch: does not apply to this checkout for journey auth/sign-in", problems)
+        self.assertIn("regenerate this patch with the ios-journey-qa skill", problems)
+
+    def test_a_missing_backend_flow_is_named(self):
+        self.write("docs/journeys/auth/sign-in.md", DOC.replace("flows: [01]", "flows: [99]"))
+        self.assertIn("docs/journeys/auth/sign-in.md: flows names 99, which has no packages/flows/backend/99.tsv",
+                      self.problems())
+
+
+class Coverage(Tree):
+    def test_lists_backend_and_app_statuses_and_uncovered_flows(self):
+        self.write("packages/flows/app/01.tsv", "id\tscreen\tstatus\n01\tSignIn\tplanned\n")
+        self.write("packages/flows/backend/02.tsv", "id\tflow\tstatus\n02\tSign out\tplanned\n")
+        output = StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(journey.cmd_coverage(None), 0)
+        self.assertIn("| 01 | Sign in | built | planned | auth/sign-in |", output.getvalue())
+        self.assertIn("| 02 | Sign out | planned | - | - |", output.getvalue())
+        self.assertIn("uncovered: 02", output.getvalue())
 
 
 class Funds(Tree):
@@ -312,6 +333,23 @@ class Runner(Tree):
 
         self.assertEqual(calls[0]["TEST_RUNNER_MONACO_QA_API_BASE_URL"], "http://127.0.0.1:8080")
 
+    def test_the_truth_check_receives_the_actor_environment(self):
+        loaded = journey.load_journeys()["auth/sign-in"]
+        self.write("qa/auth/sign-in.truth.sh", "#!/usr/bin/env bash\n")
+        seen = []
+        saved_sh = journey.sh
+
+        def stub(args, **kwargs):
+            seen.append(kwargs["env"])
+            return type("Result", (), {"returncode": 0})()
+
+        journey.sh = stub
+        try:
+            self.assertEqual(journey.run_truth(loaded, journey.load_accounts(environ={}), "sms"), "ok")
+        finally:
+            journey.sh = saved_sh
+        self.assertEqual(seen[0]["MONACO_QA_CHANNEL"], "sms")
+
 
 class Simulators(Tree):
     def setUp(self):
@@ -369,6 +407,10 @@ class Simulators(Tree):
         def stub(args, **kwargs):
             if args == ["xcrun", "simctl", "list", "devices", "--json"]:
                 return self.result(json.dumps({"devices": devices}))
+            if args == ["xcrun", "simctl", "boot", "journey-a"]:
+                return self.result()
+            if args == ["xcrun", "simctl", "bootstatus", "journey-a", "-b"]:
+                return self.result()
             if args == ["xcrun", "simctl", "getenv", "journey-a", "MONACO_API_BASE_URL"]:
                 return self.result("http://127.0.0.1:8082\n")
             self.fail("unexpected command: %r" % (args,))
