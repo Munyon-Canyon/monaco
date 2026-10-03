@@ -14,7 +14,7 @@ import (
 func restPullBody(n int, head string) string {
 	return fmt.Sprintf(`{"number":%d,"state":"open","body":"Part of #40\n\n## TLDR\nx",`+
 		`"head":{"ref":%q,"sha":%q},"base":{"ref":"fb","sha":"base-sha"},`+
-		`"mergeable":true,"mergeable_state":"clean","merge_commit_sha":"merge-sha","labels":[]}`, n, head, head+"-oid")
+		`"merge_commit_sha":"merge-sha","labels":[]}`, n, head, head+"-oid")
 }
 
 func serveChecks(f *fixture, sha string) {
@@ -51,8 +51,6 @@ func TestLandStack_labelsThroughRESTWhenGraphQLIsForbidden(t *testing.T) {
 	f.hub.on(list("/issues/5/events?"), `[]`)
 	f.hub.on(list("/pulls?state=open"), "["+body+"]")
 	serveChecks(f, "b5-oid")
-	f.hub.on(get("/commits/merge-sha"), `{"parents":[{"sha":"base-sha"}]}`)
-	f.hub.on(get("/git/ref/heads/fb"), `{"object":{"sha":"base-sha"}}`)
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40"})
 	code, stdout, stderr := f.agents(t, "land-stack", "5")
 	want := "queued #5\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" +
@@ -300,7 +298,6 @@ func TestRESTQueryErrors(t *testing.T) {
 	f := newFixture(t)
 	env := f.Env(t)
 	if queryKind("zzz") != "query" || queryKind(openDrafts) != "drafts" ||
-		queryKind("potentialMergeCommit") != "merge" ||
 		queryKind("open: pullRequests") != "open" ||
 		queryKind("fragment pr on PullRequest") != "stack" ||
 		queryKind(failureQuery) != "watch" || queryKind(ticketQuery([]int{1})) != "timeline" ||
@@ -310,58 +307,13 @@ func TestRESTQueryErrors(t *testing.T) {
 	}
 	var n int
 	wantErr(t, env.restQuery(t.Context(), "nope", &n), "no REST mapping")
-	_, err := env.restPayload(t.Context(), "potentialMergeCommit")
-	wantErr(t, err, "names no pull request")
 	f.hub.on(get("/pulls/1"), restPullBody(1, "b1"))
-	f.hub.on(get("/commits/merge-sha"), `{"parents":[{"sha":"base-sha"}]}`)
-	q := repoQuery + "pullRequest(number:1){potentialMergeCommit{parents{nodes{oid}}}}}"
-	_, err = env.restMergePayload(t.Context(), q)
-	wantErr(t, err, "git/ref/heads/fb")
-	f.hub.on(get("/git/ref/heads/fb"), `{"object":{"sha":"base-sha"}}`)
-	wantErr(t, env.restQuery(t.Context(), q, &n), "decode REST merge")
-	f.hub.status[get("/pulls/4")] = http.StatusInternalServerError
-	f.hub.on(get("/pulls/4"), "boom")
-	_, err = env.restMergePayload(t.Context(), "pullRequest(number:4){potentialMergeCommit")
-	wantErr(t, err, "boom")
-	f.hub.on(get("/pulls/2"), `{"number":2,"mergeable":true,"mergeable_state":"clean","merge_commit_sha":"missing"}`)
-	_, err = env.restMergePayload(t.Context(), "pullRequest(number:2){potentialMergeCommit")
-	wantErr(t, err, "404")
+	f.hub.on(list("/issues/1/events?"), `[]`)
+	q := repoQuery + "p1: pullRequest(number:1){...pr} }}\nfragment pr on PullRequest{" + stackFields + "}"
+	wantErr(t, env.restQuery(t.Context(), q, &n), "decode REST stack")
 	env.GitHub.encode = func(any) ([]byte, error) { return nil, errors.New("encode") }
-	var view mergeView
-	wantErr(t, env.restQuery(t.Context(), q, &view), "encode")
-}
-
-func TestMergeParents_mapsMergeability(t *testing.T) {
-	t.Parallel()
-	yes, no := true, false
-	sha, empty, other, missing := "merge-sha", "", "other", "missing"
-	f := newFixture(t)
-	env := f.Env(t)
-	f.hub.on(get("/commits/merge-sha"), `{"parents":[{"sha":"base-sha"},{"sha":"head"}]}`)
-	f.hub.on(get("/commits/other"), `{"parents":[{"sha":"head"}]}`)
-	ctx := t.Context()
-	state, parents, err := env.mergeParents(ctx, restPull{MergeableState: "dirty", Mergeable: &yes})
-	if err != nil || state != "CONFLICTING" || parents != nil {
-		t.Fatalf("%s %v %v", state, parents, err)
-	}
-	for _, p := range []restPull{{}, {Mergeable: &no}, {Mergeable: &yes, MergeCommitSHA: &empty}, {Mergeable: &yes}} {
-		state, parents, err = env.mergeParents(ctx, p)
-		if err != nil || state != "UNKNOWN" || parents != nil {
-			t.Fatalf("%+v -> %s %v %v", p, state, parents, err)
-		}
-	}
-	state, parents, err = env.mergeParents(ctx,
-		restPull{Mergeable: &yes, MergeCommitSHA: &sha, Base: restRef{SHA: "base-sha"}})
-	if err != nil || state != "MERGEABLE" || len(parents) != 2 || parents[0].OID != "base-sha" {
-		t.Fatalf("%s %+v %v", state, parents, err)
-	}
-	state, parents, err = env.mergeParents(ctx,
-		restPull{Mergeable: &yes, MergeCommitSHA: &other, Base: restRef{SHA: "base-sha"}})
-	if err != nil || state != "MERGEABLE" || len(parents) != 1 || parents[0].OID != "head" {
-		t.Fatalf("%s %+v %v", state, parents, err)
-	}
-	_, _, err = env.mergeParents(ctx, restPull{Mergeable: &yes, MergeCommitSHA: &missing})
-	wantErr(t, err, "404")
+	var data any
+	wantErr(t, env.restQuery(t.Context(), q, &data), "encode")
 }
 
 func TestLabels_postAndDelete(t *testing.T) {

@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"slices"
 	"strconv"
 	"strings"
@@ -24,9 +25,6 @@ commits(last:1){nodes{commit{` + commitChecks + `}}}
 timelineItems(itemTypes:[UNLABELED_EVENT],last:20){nodes{__typename ... on UnlabeledEvent{createdAt label{name}}}}`
 	settleAfter = time.Minute
 	repoQuery   = "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){"
-
-	recomputeEvery = 3 * time.Second
-	recomputeFor   = 90 * time.Second
 )
 
 type Queue struct {
@@ -41,26 +39,6 @@ type stackPR struct {
 	MergeCommit struct {
 		OID string `json:"oid"`
 	} `json:"mergeCommit"`
-}
-
-type gqlOID struct {
-	OID string `json:"oid"`
-}
-
-type mergeView struct {
-	Repository struct {
-		PullRequest struct {
-			Mergeable string `json:"mergeable"`
-			BaseRef   struct {
-				Target gqlOID `json:"target"`
-			} `json:"baseRef"`
-			Merge struct {
-				Parents struct {
-					Nodes []gqlOID `json:"nodes"`
-				} `json:"parents"`
-			} `json:"potentialMergeCommit"`
-		} `json:"pullRequest"`
-	} `json:"repository"`
 }
 
 func landStackCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {
@@ -231,18 +209,12 @@ func (env *Env) land(ctx context.Context, rec Record, stack []stackPR, stdout io
 	for i, p := range stack {
 		nums[i] = p.Number
 	}
-	bottom, top := nums[0], nums[len(nums)-1]
+	top := nums[len(nums)-1]
 	if err := env.cleanRuns(ctx, stack, stdout); err != nil {
 		return err
 	}
-	ready, err := env.awaitMergeable(ctx, bottom, top)
-	switch {
-	case err != nil:
+	if err := env.mergeable(ctx, rec.Worktree, stack[0], top); err != nil {
 		return err
-	case !ready:
-		_, _ = fmt.Fprintf(stdout, "not landing #%d; GitHub has not recomputed #%d's merge commit onto %s in %s. "+
-			"Run land-stack %d again\n", top, bottom, env.Config.FeatureBranch, recomputeFor, top)
-		return nil
 	}
 	for _, n := range nums {
 		if err := env.addLabel(ctx, n); err != nil {
@@ -267,44 +239,22 @@ func prRefs(nums []int) string {
 	return strings.Join(refs, " ")
 }
 
-func (env *Env) awaitMergeable(ctx context.Context, pr, top int) (bool, error) {
-	deadline := env.Now().Add(recomputeFor)
-	for {
-		var view mergeView
-		err := env.graphqlGH(ctx, mergeQuery(pr), &view)
-		switch {
-		case err != nil:
-			return false, landFailed(err)
-		case view.conflicting():
-			return false, landErr(fmt.Sprintf("#%d conflicts with %s. Fix the conflicts with gt modify and "+
-				"gt submit --stack --draft, then run land-stack %d", pr, env.Config.FeatureBranch, top))
-		case view.ready():
-			return true, nil
-		case !env.Now().Before(deadline):
-			return false, nil
-		}
-		select {
-		case <-ctx.Done():
-			return false, landFailed(context.Cause(ctx))
-		case <-env.After(recomputeEvery):
-		}
+func (env *Env) mergeable(ctx context.Context, worktree string, bottom stackPR, top int) error {
+	trunk := env.Config.FeatureBranch
+	if _, err := env.Run(ctx, worktree, "", "git", "fetch", "--quiet", "origin", trunk, bottom.HeadOID); err != nil {
+		return landFailed(err)
 	}
-}
-
-func mergeQuery(top int) string {
-	return fmt.Sprintf(
-		"%spullRequest(number:%d){mergeable baseRef{target{oid}} potentialMergeCommit{parents(first:2){nodes{oid}}}}}}",
-		repoQuery, top,
-	)
-}
-
-func (v mergeView) conflicting() bool {
-	return v.Repository.PullRequest.Mergeable == "CONFLICTING"
-}
-
-func (v mergeView) ready() bool {
-	pr := v.Repository.PullRequest
-	return pr.Mergeable == "MERGEABLE" && slices.Contains(pr.Merge.Parents.Nodes, pr.BaseRef.Target)
+	_, err := env.Run(ctx, worktree, "", "git", "merge-tree", "--write-tree", "origin/"+trunk, bottom.HeadOID)
+	var exit *exec.ExitError
+	switch {
+	case err == nil:
+		return nil
+	case errors.As(err, &exit) && exit.ExitCode() == 1:
+		return landErr(fmt.Sprintf("#%d conflicts with %s. Fix the conflicts with gt modify and "+
+			"gt submit --stack --draft, then run land-stack %d", bottom.Number, trunk, top))
+	default:
+		return landFailed(err)
+	}
 }
 
 func (env *Env) settle(ctx context.Context, rec Record, prs []stackPR, landed []bool, stdout io.Writer) error {

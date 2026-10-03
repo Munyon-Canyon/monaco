@@ -21,16 +21,6 @@ type ghCall struct {
 	dir, stdin, line string
 }
 
-type mergeAnswer struct {
-	mergeable, onto string
-}
-
-const (
-	newBaseOID  = "new-base"
-	oldBaseOID  = "old-base"
-	movedTipOID = "moved-tip"
-)
-
 type stackGH struct {
 	t     *testing.T
 	mu    sync.Mutex
@@ -40,17 +30,16 @@ type stackGH struct {
 	fail  string
 	raw   string
 	gtLog string
+	git   map[string]error
+	repo  bool
 
-	merges       map[int][]mergeAnswer
-	polls        int
-	pollsAtLabel int
-	denied       bool
-	gql          int
+	denied bool
+	gql    int
 }
 
 func newStackGH(t *testing.T, f *fixture, prs ...*stackPR) *stackGH {
 	t.Helper()
-	s := &stackGH{t: t, prs: map[int]*stackPR{}, merges: map[int][]mergeAnswer{}}
+	s := &stackGH{t: t, prs: map[int]*stackPR{}, git: map[string]error{}}
 	nums := make([]string, 0, len(prs))
 	for _, p := range prs {
 		s.prs[p.Number] = p
@@ -92,7 +81,6 @@ func (s *stackGH) onLabel(method, path, body string, status int) {
 				labeled(p, label)
 			}
 		}
-		s.pollsAtLabel = s.polls
 	case http.MethodDelete:
 		p.Labels.Nodes = nil
 	}
@@ -135,10 +123,14 @@ func green(t *testing.T, n int, head, base string) *stackPR {
 var (
 	aliasRE = regexp.MustCompile(`p(\d+): pullRequest`)
 	pageRE  = regexp.MustCompile(`c0: object\(oid:"(\w+)"\)`)
-	mergeRE = regexp.MustCompile(`pullRequest\(number:(\d+)\)`)
 )
 
 func (s *stackGH) run(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
+	if name == "git" && !s.repo && (args[0] == "fetch" || args[0] == "merge-tree") {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return nil, s.git[args[0]]
+	}
 	if name != "gh" && name != "gt" {
 		return hostless(ctx, dir, stdin, name, args...)
 	}
@@ -165,7 +157,6 @@ func (s *stackGH) run(ctx context.Context, dir, stdin, name string, args ...stri
 	switch args[1] + " " + args[3] {
 	case "edit --add-label":
 		labeled(s.prs[n], args[4])
-		s.pollsAtLabel = s.polls
 	case "edit --remove-label":
 		s.prs[n].Labels.Nodes = nil
 	}
@@ -182,9 +173,6 @@ func labeled(p *stackPR, label string) *stackPR {
 func (s *stackGH) graphql(query string) ([]byte, error) {
 	if s.raw != "" {
 		return []byte(s.raw), nil
-	}
-	if strings.Contains(query, "potentialMergeCommit") {
-		return s.mergeReply(query)
 	}
 	if m := pageRE.FindStringSubmatch(query); m != nil {
 		return []byte(s.pages[m[1]]), nil
@@ -207,36 +195,6 @@ func (s *stackGH) graphql(query string) ([]byte, error) {
 			repo["p"+m[1]] = nil
 		}
 	}
-	return json.Marshal(map[string]any{"data": map[string]any{"repository": repo}})
-}
-
-func (s *stackGH) mergeReply(query string) ([]byte, error) {
-	m := mergeRE.FindStringSubmatch(query)
-	if m == nil {
-		return nil, fmt.Errorf("unexpected merge query %q", query)
-	}
-	n, _ := strconv.Atoi(m[1])
-	repo := map[string]any{}
-	if strings.Contains(query, "qualifiedName") {
-		repo["ref"] = map[string]any{"target": map[string]string{"oid": movedTipOID}}
-	}
-	if _, ok := s.prs[n]; ok {
-		answer := mergeAnswer{"MERGEABLE", newBaseOID}
-		if script := s.merges[n]; len(script) > 0 {
-			answer = script[min(s.polls, len(script)-1)]
-		}
-		var commit any
-		if answer.onto != "" {
-			commit = map[string]any{"parents": map[string]any{
-				"nodes": []map[string]string{{"oid": answer.onto}, {"oid": "head"}},
-			}}
-		}
-		repo["pullRequest"] = map[string]any{
-			"mergeable": answer.mergeable, "baseRefOid": oldBaseOID, "potentialMergeCommit": commit,
-			"baseRef": map[string]any{"target": map[string]string{"oid": newBaseOID}},
-		}
-	}
-	s.polls++
 	return json.Marshal(map[string]any{"data": map[string]any{"repository": repo}})
 }
 
@@ -448,149 +406,97 @@ func TestLandStack_labelsWithTheConfiguredQueueLabel(t *testing.T) {
 	}
 }
 
-func waits(n int) []time.Duration {
-	return slices.Repeat([]time.Duration{3 * time.Second}, n)
+type movedTrunk struct {
+	worktree, head, tip string
 }
 
-func waitingStack(t *testing.T, f *fixture, script ...mergeAnswer) *stackGH {
+func newMovedTrunk(t *testing.T, trunkFile string) movedTrunk {
 	t.Helper()
-	s := newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
-	s.merges[1] = script
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
-	return s
-}
-
-func TestLandStack_queuesOnlyOnceGitHubReportsTheBottomMergeableOntoTheTrunk(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		name   string
-		script []mergeAnswer
-		polls  int
-	}{
-		{"the merge commit is on the base tip at once, though baseRefOid is stale", nil, 1},
-		{
-			"unknown twice, then mergeable",
-			[]mergeAnswer{{"UNKNOWN", ""}, {"UNKNOWN", ""}, {"MERGEABLE", newBaseOID}},
-			3,
-		},
-		{
-			"mergeable on the merge commit built on the old base",
-			[]mergeAnswer{{"MERGEABLE", oldBaseOID}, {"MERGEABLE", oldBaseOID}, {"MERGEABLE", newBaseOID}},
-			3,
-		},
-		{
-			"mergeable once GitHub drops the merge commit it showed before",
-			[]mergeAnswer{{"UNKNOWN", newBaseOID}, {"MERGEABLE", ""}, {"MERGEABLE", newBaseOID}},
-			3,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			f := newFixture(t)
-			s := waitingStack(t, f, tc.script...)
-			code, stdout, stderr := f.agents(t, "land-stack", "2")
-			if code != 0 ||
-				stdout != "queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #1 #2\n" {
-				t.Fatalf("%d %q %q", code, stdout, stderr)
-			}
-			if s.polls != tc.polls || s.pollsAtLabel != tc.polls {
-				t.Fatalf("polls %d, at the last label %d, want %d before any label", s.polls, s.pollsAtLabel, tc.polls)
-			}
-			if !slices.Equal(f.waited, waits(tc.polls-1)) {
-				t.Fatalf("waited %v", f.waited)
-			}
-		})
+	root := t.TempDir()
+	origin, author := filepath.Join(root, "origin.git"), filepath.Join(root, "author")
+	m := movedTrunk{worktree: filepath.Join(root, "worktree")}
+	commit := func(file, content string) string {
+		writeFile(t, filepath.Join(author, file), content)
+		git(t, author, "add", ".")
+		git(t, author, "commit", "-q", "-m", file)
+		return strings.TrimSpace(gitOut(t, author, "rev-parse", "HEAD"))
 	}
+	git(t, root, "init", "-q", "--bare", "--template=", "-b", "fb", origin)
+	git(t, root, "init", "-q", "--template=", "-b", "fb", author)
+	commit("a.txt", "base\n")
+	git(t, author, "remote", "add", "origin", origin)
+	git(t, author, "push", "-q", "origin", "fb")
+	git(t, author, "checkout", "-q", "-b", "b1")
+	m.head = commit("b.txt", "pr\n")
+	git(t, author, "push", "-q", "origin", "b1")
+	git(t, root, "clone", "-q", origin, m.worktree)
+	git(t, author, "checkout", "-q", "fb")
+	m.tip = commit(trunkFile, "trunk\n")
+	git(t, author, "push", "-q", "origin", "fb")
+	return m
 }
 
-func TestLandStack_givesUpAfterNinetySecondsWithoutQueuing(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		name   string
-		answer mergeAnswer
-	}{
-		{"GitHub keeps answering unknown", mergeAnswer{"UNKNOWN", ""}},
-		{"unknown, with a merge commit on the new base", mergeAnswer{"UNKNOWN", newBaseOID}},
-		{"mergeable, on the merge commit built on the old base", mergeAnswer{"MERGEABLE", oldBaseOID}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			f := newFixture(t)
-			s := waitingStack(t, f, tc.answer)
-			start := f.now
-			code, stdout, stderr := f.agents(t, "land-stack", "2")
-			want := "not landing #2; GitHub has not recomputed #1's merge commit onto fb in 1m30s. " +
-				"Run land-stack 2 again\n"
-			if code != 0 || stdout != want || stderr != "" {
-				t.Fatalf("%d %q %q", code, stdout, stderr)
-			}
-			if got := s.lines(); len(got) != 0 {
-				t.Fatalf("calls %v", got)
-			}
-			if f.now.Sub(start) != 90*time.Second || !slices.Equal(f.waited, waits(len(f.waited))) ||
-				s.polls != len(f.waited)+1 {
-				t.Fatalf("waited %v (%s in all) over %d polls", f.waited, f.now.Sub(start), s.polls)
-			}
-			if f.owned(t).Queued != nil {
-				t.Fatal("marked the stack queued")
-			}
-		})
-	}
+func movedStack(t *testing.T, f *fixture, trunkFile string) movedTrunk {
+	t.Helper()
+	m := newMovedTrunk(t, trunkFile)
+	bottom := green(t, 1, "b1", "fb")
+	bottom.HeadOID = m.head
+	s := newStackGH(t, f, bottom, green(t, 2, "b2", "b1"))
+	s.repo = true
+	f.owner(t, Record{Ticket: 40, Worktree: m.worktree, State: Done})
+	return m
 }
 
-func TestLandStack_aRerunAfterATimeoutQueuesOnceGitHubHasRecomputed(t *testing.T) {
+func TestLandStack_queuesOnTheFirstRunWhenTheBottomMergesCleanlyOntoAMovedTrunk(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	s := waitingStack(t, f, mergeAnswer{"UNKNOWN", ""})
+	m := movedStack(t, f, "c.txt")
 	code, stdout, stderr := f.agents(t, "land-stack", "2")
-	if code != 0 || !strings.HasPrefix(stdout, "not landing #2;") {
-		t.Fatalf("first run: %d %q %q", code, stdout, stderr)
-	}
-	s.merges[1] = nil
-	code, stdout, stderr = f.agents(t, "land-stack", "2")
-	out := "queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #1 #2\n"
-	if code != 0 || stdout != out {
-		t.Fatalf("rerun: %d %q %q", code, stdout, stderr)
+	if code != 0 ||
+		stdout != "queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #1 #2\n" {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	want := []string{"POST /repos/o/r/issues/1/labels", "POST /repos/o/r/issues/2/labels"}
-	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, want) {
-		t.Fatalf("calls %v", got)
+	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, want) || len(f.waited) != 0 {
+		t.Fatalf("labels %v, waited %v", got, f.waited)
 	}
-	if q := f.owned(t).Queued; q == nil || q.Top != 2 {
-		t.Fatalf("queued %+v", q)
+	if got := strings.TrimSpace(gitOut(t, m.worktree, "rev-parse", "origin/fb")); got != m.tip {
+		t.Fatalf("checked against origin/fb %s, want the moved tip %s", got, m.tip)
 	}
 }
 
-func TestLandStack_refusesABottomThatConflictsWithTheFeatureBranch(t *testing.T) {
+func TestLandStack_refusesABottomThatConflictsWithTheTrunkTip(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	s := waitingStack(t, f, mergeAnswer{"UNKNOWN", ""}, mergeAnswer{"CONFLICTING", ""})
+	movedStack(t, f, "b.txt")
 	code, stdout, stderr := f.agents(t, "land-stack", "2")
-	if code != 1 || stdout != "" || !strings.Contains(stderr, "#1 conflicts with fb") ||
+	if code != 1 || stdout != "" || !strings.Contains(stderr, "#1 conflicts with fb. Fix the conflicts") ||
 		!strings.Contains(stderr, "then run land-stack 2") {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	if len(s.lines()) != 0 || s.polls != 2 {
-		t.Fatalf("polled %d times, calls %v", s.polls, s.lines())
-	}
-	if f.owned(t).Queued != nil {
-		t.Fatal("marked the stack queued")
+	if got := f.hub.callsContaining("/labels"); len(got) != 0 || f.owned(t).Queued != nil {
+		t.Fatalf("labelled %v, queued %+v", got, f.owned(t).Queued)
 	}
 }
 
-func TestLandStack_stopsWaitingWhenTheContextEnds(t *testing.T) {
+func TestLandStack_failsWithoutLabelsWhenGitCannotCheckTheMerge(t *testing.T) {
 	t.Parallel()
-	f := newFixture(t)
-	s := waitingStack(t, f, mergeAnswer{"UNKNOWN", ""})
-	ctx, cancel := context.WithCancel(t.Context())
-	env := f.Env(t)
-	env.After = func(time.Duration) <-chan time.Time {
-		cancel()
-		return make(chan time.Time)
-	}
-	err := landStackCmd(ctx, env, []string{"2"}, &strings.Builder{})
-	if !errors.Is(err, context.Canceled) || s.polls != 1 || f.owned(t).Queued != nil {
-		t.Fatalf("%v after %d polls", err, s.polls)
+	for _, step := range []string{"fetch", "merge-tree"} {
+		t.Run(step, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			s := newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+			s.git[step] = errors.New(step + ": boom")
+			f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+			code, stdout, stderr := f.agents(t, "land-stack", "2")
+			if code != 1 || stdout != "" || !strings.Contains(stderr, step+": boom") ||
+				!strings.Contains(stderr, "the stack is not marked queued") {
+				t.Fatalf("%d %q %q", code, stdout, stderr)
+			}
+			if got := f.hub.callsContaining("/labels"); len(got) != 0 || f.owned(t).Queued != nil {
+				t.Fatalf("labelled %v, queued %+v", got, f.owned(t).Queued)
+			}
+		})
 	}
 }
 
@@ -740,10 +646,6 @@ func TestLandStack_failures(t *testing.T) {
 		},
 		{name: "bottom label fails", args: []string{"2"}, prs: stack, fail: "label 1", code: 1, stderr: "not marked queued"},
 		{name: "top label fails", args: []string{"2"}, prs: stack, fail: "label 2", code: 1, stderr: "run land-stack again"},
-		{
-			name: "mergeability read fails", args: []string{"2"}, prs: stack, code: 1, stderr: "not marked queued",
-			fail: "gh api graphql -f query=" + repoQuery + "pullRequest(",
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
