@@ -192,10 +192,10 @@ func TestCheck_takesATicketForTheRunAndRemovesItAfterwards(t *testing.T) {
 	}
 
 	h.commit(t, map[string]string{"y.sh": "echo\n"})
-	if err := os.RemoveAll(filepath.Dir(queue)); err != nil {
+	if err := os.RemoveAll(queue); err != nil {
 		t.Fatal(err)
 	}
-	writeFile(t, filepath.Dir(queue), "not a directory\n")
+	writeFile(t, queue, "not a directory\n")
 	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "take a stage 0 ticket") {
 		t.Fatalf("an unwritable queue fails the run: %d %q", code, stderr)
 	}

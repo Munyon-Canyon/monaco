@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -48,6 +49,7 @@ type Env struct {
 	LookPath    func(string) (string, error)
 	Load        func(ctx context.Context, goos string) (float64, error)
 	featureNote string
+	localConfig string
 	trunk       *trunkLog
 }
 type (
@@ -228,6 +230,18 @@ func load(ctx context.Context, environ []string, dir string, run Runner) (*Env, 
 	if err != nil {
 		return nil, err
 	}
+	local := filepath.Join(common, localConfigPath)
+	switch lf, err := os.Open(local); {
+	case errors.Is(err, fs.ErrNotExist):
+		local = ""
+	case err != nil:
+		return nil, fmt.Errorf("read local config: %w", err)
+	default:
+		defer func() { _ = lf.Close() }()
+		if cfg, err = applyLocalConfig(cfg, lf); err != nil {
+			return nil, err
+		}
+	}
 	api := cmp.Or(lookup(environ, "MONACO_GITHUB_API"), defaultAPI)
 	token := func(ctx context.Context) (string, error) {
 		if t := cmp.Or(lookup(environ, "GH_TOKEN"), lookup(environ, "GITHUB_TOKEN")); t != "" {
@@ -245,7 +259,7 @@ func load(ctx context.Context, environ []string, dir string, run Runner) (*Env, 
 		Work: top, Common: common, Home: lookup(environ, "HOME"), Config: cfg,
 		GitHub: gh, Run: run, Start: spawn, Now: time.Now, After: time.After,
 		Actions: lookup(environ, "GITHUB_ACTIONS") == "true", GOOS: runtime.GOOS,
-		LookPath: exec.LookPath, featureNote: note,
+		LookPath: exec.LookPath, featureNote: note, localConfig: local,
 	}, nil
 }
 
