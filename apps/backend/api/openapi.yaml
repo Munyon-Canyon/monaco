@@ -593,6 +593,39 @@ paths:
                 $ref: "#/components/schemas/OnrampSessionCreated"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/onramp/sessions/exchange:
+    post:
+      operationId: exchangeOnrampToken
+      tags: [funding]
+      security: []
+      x-idempotent: false
+      x-rate-limit:
+        ip:
+          rate: 30
+          per: 1m
+          burst: 30
+      summary: Exchange a fund page token for the deposit address.
+      description: >-
+        Called by the fund page with the token from its URL. Opens the session and returns the member
+        wallet address, the suggested amount and the USDC mint. The token works once:
+        a used or unknown token is onramp_link_invalid, and a token past its 10 minutes is
+        onramp_link_expired.
+      requestBody:
+        description: The token from the fund page URL.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExchangeOnrampTokenRequest"
+      responses:
+        "200":
+          description: The session is open.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnrampExchange"
+        default:
+          $ref: "#/components/responses/Problem"
   # api/spec/governance.yaml
   /v1/cabals/{id}/proposals:
     get:
@@ -2154,6 +2187,42 @@ components:
           format: uuid
           description: The cabal the user came from, when they did.
           examples: [01890a5d-ac96-774b-bcce-b302099a8058]
+    ExchangeOnrampTokenRequest:
+      type: object
+      description: The token from the fund page URL.
+      additionalProperties: false
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: The `s` query parameter of the fund page URL.
+          minLength: 1
+          maxLength: 128
+          examples: ["q2J9cZQxv0mYb5r8yS3dTt1uVw7xY9zA0bC2dE4fG6h"]
+    OnrampExchange:
+      type: object
+      description: What the fund page needs to start the provider flow.
+      additionalProperties: false
+      required: [session_id, wallet_address, suggested_amount_micros, usdc_mint]
+      properties:
+        session_id:
+          type: string
+          format: uuid
+          description: The session id.
+          examples: [01890a5d-ac96-774b-bcce-b302099a8057]
+        wallet_address:
+          type: string
+          description: The member wallet the provider sends USDC to.
+          examples: [9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P]
+        suggested_amount_micros:
+          type: [string, "null"]
+          pattern: "^[1-9][0-9]{0,19}$"
+          description: The amount to prefill in USDC micros, or null to let the user choose.
+          examples: ["25000000"]
+        usdc_mint:
+          type: string
+          description: The Solana USDC mint.
+          examples: [EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v]
     OnrampMicros:
       type: string
       description: A USDC amount in micros, as a decimal string.

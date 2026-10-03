@@ -49,6 +49,37 @@ type CreateOnrampSessionRequest struct {
 	SuggestedAmountMicros *OnrampMicros `json:"suggested_amount_micros,omitempty"`
 }
 
+// ExchangeOnrampTokenRequest The token from the fund page URL.
+type ExchangeOnrampTokenRequest struct {
+	// Token The `s` query parameter of the fund page URL.
+	//
+	// Examples: q2J9cZQxv0mYb5r8yS3dTt1uVw7xY9zA0bC2dE4fG6h
+	Token string `json:"token"`
+}
+
+// OnrampExchange What the fund page needs to start the provider flow.
+type OnrampExchange struct {
+	// SessionId The session id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+	SessionId openapi_types.UUID `json:"session_id"`
+
+	// SuggestedAmountMicros The amount to prefill in USDC micros, or null to let the user choose.
+	//
+	// Examples: 25000000
+	SuggestedAmountMicros *string `json:"suggested_amount_micros"`
+
+	// UsdcMint The Solana USDC mint.
+	//
+	// Examples: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+	UsdcMint string `json:"usdc_mint"`
+
+	// WalletAddress The member wallet the provider sends USDC to.
+	//
+	// Examples: 9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P
+	WalletAddress string `json:"wallet_address"`
+}
+
 // OnrampMicros A USDC amount in micros, as a decimal string.
 //
 // Examples: 25000000
@@ -81,6 +112,9 @@ type CreateOnrampSessionParams struct {
 // CreateOnrampSessionJSONRequestBody defines body for CreateOnrampSession for application/json ContentType.
 type CreateOnrampSessionJSONRequestBody = CreateOnrampSessionRequest
 
+// ExchangeOnrampTokenJSONRequestBody defines body for ExchangeOnrampToken for application/json ContentType.
+type ExchangeOnrampTokenJSONRequestBody = ExchangeOnrampTokenRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// GetMyBalance Read the caller's available platform balance.
@@ -89,6 +123,9 @@ type ServerInterface interface {
 	// CreateOnrampSession Start a card deposit.
 	// (POST /v1/onramp/sessions)
 	CreateOnrampSession(w http.ResponseWriter, r *http.Request, params CreateOnrampSessionParams)
+	// ExchangeOnrampToken Exchange a fund page token for the deposit address.
+	// (POST /v1/onramp/sessions/exchange)
+	ExchangeOnrampToken(w http.ResponseWriter, r *http.Request)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -150,6 +187,20 @@ func (siw *ServerInterfaceWrapper) CreateOnrampSession(w http.ResponseWriter, r 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateOnrampSession(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ExchangeOnrampToken operation middleware
+func (siw *ServerInterfaceWrapper) ExchangeOnrampToken(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ExchangeOnrampToken(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -281,6 +332,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/balance", wrapper.GetMyBalance)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/onramp/sessions", wrapper.CreateOnrampSession)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/onramp/sessions/exchange", wrapper.ExchangeOnrampToken)
 
 	return m
 }
@@ -363,6 +415,45 @@ func (response CreateOnrampSessiondefaultApplicationProblemPlusJSONResponse) Vis
 	return err
 }
 
+type ExchangeOnrampTokenRequestObject struct {
+	Body *ExchangeOnrampTokenJSONRequestBody
+}
+
+type ExchangeOnrampTokenResponseObject interface {
+	VisitExchangeOnrampTokenResponse(w http.ResponseWriter) error
+}
+
+type ExchangeOnrampToken200JSONResponse OnrampExchange
+
+func (response ExchangeOnrampToken200JSONResponse) VisitExchangeOnrampTokenResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExchangeOnrampTokendefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response ExchangeOnrampTokendefaultApplicationProblemPlusJSONResponse) VisitExchangeOnrampTokenResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetMyBalance Read the caller's available platform balance.
@@ -371,6 +462,9 @@ type StrictServerInterface interface {
 	// CreateOnrampSession Start a card deposit.
 	// (POST /v1/onramp/sessions)
 	CreateOnrampSession(ctx context.Context, request CreateOnrampSessionRequestObject) (CreateOnrampSessionResponseObject, error)
+	// ExchangeOnrampToken Exchange a fund page token for the deposit address.
+	// (POST /v1/onramp/sessions/exchange)
+	ExchangeOnrampToken(ctx context.Context, request ExchangeOnrampTokenRequestObject) (ExchangeOnrampTokenResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -462,6 +556,37 @@ func (sh *strictHandler) CreateOnrampSession(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateOnrampSessionResponseObject); ok {
 		if err := validResponse.VisitCreateOnrampSessionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ExchangeOnrampToken operation middleware
+func (sh *strictHandler) ExchangeOnrampToken(w http.ResponseWriter, r *http.Request) {
+	var request ExchangeOnrampTokenRequestObject
+
+	var body ExchangeOnrampTokenJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ExchangeOnrampToken(ctx, request.(ExchangeOnrampTokenRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ExchangeOnrampToken")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ExchangeOnrampTokenResponseObject); ok {
+		if err := validResponse.VisitExchangeOnrampTokenResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
