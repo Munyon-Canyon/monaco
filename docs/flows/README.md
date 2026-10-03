@@ -119,9 +119,9 @@ Each run appends a row to `.logs/qa/flows/results.tsv`:
 | Measure | Meaning |
 | --- | --- |
 | Wall seconds | The whole test call, build time not counted |
-| Step milliseconds | Per step, from the test's own timers |
-| Flake rate | Failures on an unchanged build, over all runs of that build |
+| Step milliseconds | Per step, written to steps.tsv in the run's folder |
+| Flake rate | Failures over all clean runs of the flow that started |
 | Catch rate | Seeded bugs the test failed on, over the seeded bugs it ran |
-| False passes | Runs that passed while the ground truth check failed, or while a seeded bug was in |
+| False passes | Seeded bugs not caught, plus clean runs that passed while the ground truth check failed |
 
 A seeded bug is a patch under `<flow>.mutants/` that breaks one thing the doc promises. Its first lines say which scenarios must fail. `mutants` applies each patch, rebuilds, runs the test, and reverts the patch.
