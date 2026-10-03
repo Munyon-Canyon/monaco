@@ -252,7 +252,7 @@ func TestMarkdown_listsEveryCommandOfAMultiCommandRow(t *testing.T) {
 	}
 	want := "- Command: `FundCabal`, `Refund`\n"
 	tests := "| `ok` | `TestFlow07_FundCabal_OK` or `TestFlow07_Refund_OK` |"
-	if got := flows.FeatureMap(parsed); !strings.Contains(got, want) || !strings.Contains(got, tests) {
+	if got := flows.FeatureMapPage(parsed[0]); !strings.Contains(got, want) || !strings.Contains(got, tests) {
 		t.Fatalf("feature map =\n%s\nwant %q and %q", got, want, tests)
 	}
 }
@@ -283,7 +283,7 @@ func TestMarkdown_pairsEachCommandWithItsTrigger(t *testing.T) {
 		t.Fatalf("markdown =\n%s\nwant %q", got, cell)
 	}
 	trigger := "- Trigger: `POST /v1/cabals/{id}/fund`, `DELETE /v1/cabals/{id}/fund`\n"
-	if got := flows.FeatureMap(parsed); !strings.Contains(got, trigger) {
+	if got := flows.FeatureMapPage(parsed[0]); !strings.Contains(got, trigger) {
 		t.Fatalf("feature map =\n%s\nwant %q", got, trigger)
 	}
 }

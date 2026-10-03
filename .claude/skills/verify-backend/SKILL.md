@@ -7,7 +7,7 @@ description: Explains what monacoctl verify checks, how to read a failed ci / e2
 
 `monacoctl verify` runs the real `api` and `worker` binaries against a throwaway Postgres, an embedded NATS server and the fakes server. It drives each flow the way the app would and writes down what the system did. Unit and flow tests prove the code. `verify` proves the built binaries.
 
-`feature-map.md` in this directory lists every flow, each outcome's test, and the command that verifies it. It is generated from the flow files, `packages/flows/backend/<id>.tsv`.
+`feature-map/<id>.md` in this directory lists one flow, each outcome's test, and the command that verifies it. `monacoctl gen flows` writes one page per flow file, `packages/flows/backend/<id>.tsv`.
 
 ## Who runs it
 
@@ -102,10 +102,10 @@ Fix the code. Never weaken an invariant, raise a budget, skip an outcome, drop a
 
 1. The non-crash scripts already ship with the `built` row, in `apps/backend/internal/testkit/flows/f<id>.go` and `Scripts()`. The flow tests call those scripts. A poller flow's script waits for the next tick with `scenario.AwaitTick(poller)` and checks its counts with `scenario.ExpectTick(poller, scanned, changed)`. In process the step ticks the poller once itself. Against the binaries it waits on the worker, so add the flow's poll interval to `Env()`. A tick that was already running when the step started still counts, so await a second tick when the counts must reflect what the Given stage seeded.
 2. A crash script ships with the `verify all --crash-at <point>` line in `scripts/ci/e2e.sh` that runs it. Register that script, and the rest of the outcomes, in `Scripts()` in `apps/backend/internal/testkit/flows/scripts.go`.
-3. Set the row's status to `verified` and regenerate the feature map:
+3. Set the row's status to `verified` and regenerate the flow's feature map page from `apps/backend`:
 
 ```
-go run ./cmd/monacoctl docs flows --feature-map > ../../.claude/skills/verify-backend/feature-map.md
+go generate ./cmd/monacoctl
 ```
 
-`scripts/ci/ready.sh` fails when the feature map is stale.
+`scripts/ci/ready.sh` fails when a feature map page is stale.

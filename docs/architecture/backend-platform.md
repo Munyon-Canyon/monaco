@@ -815,7 +815,7 @@ What lives where:
 | Piece | Path | Contents |
 | --- | --- | --- |
 | Skill instructions | `.claude/skills/verify-backend/SKILL.md` (mirrored to `.cursor/skills/`) | When to run it, the commands, how to read evidence, what counts as a pass, and what to do on a failure. Short; the CLI does the work. |
-| Feature map | `.claude/skills/verify-backend/feature-map.md` | Generated from `packages/flows/backend/*.tsv` by `monacoctl docs flows`. Per flow: trigger, command, events, consumers, tables, outcomes, and the exact command that verifies it. Checked fresh in CI. |
+| Feature map | `.claude/skills/verify-backend/feature-map/<id>.md` | One page per flow, generated from `packages/flows/backend/<id>.tsv` by `monacoctl gen flows`. Per flow: trigger, command, events, consumers, tables, outcomes, and the exact command that verifies it. Checked fresh in CI. |
 | The CLI | `cmd/monacoctl verify` | Stack, driver, invariant checks, evidence writer. Code, tested like any other code. |
 | Fakes server | `cmd/fakes`, built from `internal/testkit/fakes` | Privy, Jupiter, Solana RPC, Helius, xStocks, APNs and Ably over HTTP, replaying recorded fixtures. Scriptable per request: succeed, fail with a given error, delay, or hang. |
 | Flow scripts | `internal/testkit/flows/<id>.go` | The same steps as the flow's acceptance scenario, written once and run by both `go test` (in-process) and `verify` (against binaries). |

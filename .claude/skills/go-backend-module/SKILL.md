@@ -89,7 +89,7 @@ A flow is one file, `packages/flows/backend/<id>.tsv`: the tab-separated header 
 1. Add `packages/flows/backend/<id>.tsv` with the row as `planned` when the ticket starts.
 2. Run `just gen flow <id>`. Write the non-crash scripts in `internal/testkit/flows/f<id>.go`, register them in `Scripts()`, and make each test call its script. Then set `built`. Scripts for the non-crash outcomes ship with the `built` row.
 3. Crash scripts ship with the `verify all --crash-at <point>` line in `scripts/ci/e2e.sh` that runs them. Register the rest and set `verified`.
-4. Regenerate the docs with `just gen docs` and the feature map with `go run ./cmd/monacoctl docs flows --feature-map > ../../.claude/skills/verify-backend/feature-map.md`. `scripts/ci/ready.sh` fails when either is stale.
+4. Regenerate the docs with `just gen docs` and the flow's feature map page with `go generate ./cmd/monacoctl`. `scripts/ci/ready.sh` fails when either is stale.
 
 A test named `TestFlow<id>_...` with no row fails the check. Deleting a flow deletes its file and its tests together.
 
