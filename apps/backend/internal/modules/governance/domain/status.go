@@ -76,6 +76,16 @@ func Next(from Status, e Event) (Status, error) {
 	return to, nil
 }
 
+func Sources(e Event) []Status {
+	var from []Status
+	for _, s := range Statuses() {
+		if _, ok := transitions()[s][e]; ok {
+			from = append(from, s)
+		}
+	}
+	return from
+}
+
 func unknown(op, raw string) error {
 	return errs.New(errs.CodeDecodeFailed, op, slog.String("raw", raw))
 }

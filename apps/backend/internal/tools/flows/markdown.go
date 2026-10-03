@@ -18,6 +18,9 @@ func commandTriggers(f Flow) string {
 	if len(f.Commands) == 0 {
 		return codes(triggers)
 	}
+	if len(triggers) == 0 {
+		return codes(f.Commands)
+	}
 	if len(triggers) != len(f.Commands) || len(triggers) == 1 {
 		return codes(f.Commands) + " on " + code(f.Trigger)
 	}

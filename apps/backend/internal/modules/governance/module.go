@@ -8,6 +8,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
+	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -52,3 +53,13 @@ func (m *Module) Pollers() []poller.Poller {
 }
 
 func (m *Module) Queries() app.Queries { return app.NewQueries(m.deps.Pool) }
+
+func (m *Module) VoidFromOps(ctx context.Context, id ProposalID, rawReason string) error {
+	reason, err := domain.ParseVoidReason(rawReason)
+	if err != nil {
+		return err
+	}
+	ctx = auth.WithActor(ctx, auth.Actor{Kind: auth.ActorSystem, ID: "monacoctl"})
+	voids := app.NewVoidProposalHandler(m.deps.UoW, m.deps.Pool, m.deps.Clock, trading.New(m.deps).Queries())
+	return voids.Handle(ctx, app.VoidProposal{ProposalID: id, Reason: reason})
+}

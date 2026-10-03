@@ -16,11 +16,13 @@ import (
 )
 
 const (
-	yes = `{"choice":"yes"}`
-	no  = `{"choice":"no"}`
+	aaplxMint = "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp"
+	yes       = `{"choice":"yes"}`
+	no        = `{"choice":"no"}`
 )
 
 type openProposal struct {
+	id     ids.ProposalID
 	path   string
 	votes  string
 	voters []ids.UserID
@@ -33,11 +35,11 @@ func (seedT) Helper() {}
 func seedOpenProposal(s *scenario.Scenario, members int) openProposal {
 	c := testkit.NewCabal(seedT{s}, s.DB(), testkit.WithMembers(members))
 	id, now := ids.Real{}.NewV7(), time.Now().UTC()
-	p := openProposal{path: "/v1/proposals/" + id.String()}
+	p := openProposal{id: ids.ProposalIDFrom(id), path: "/v1/proposals/" + id.String()}
 	p.votes = p.path + "/votes"
 	params := sqlc.InsertProposalParams{
 		ID: id, CabalID: c.ID.UUID(), ProposerID: c.Creator.ID.UUID(), Kind: "buy", Symbol: "AAPLx",
-		Mint: "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp", UsdcMicros: pgtype.Int8{Int64: 5_000_000, Valid: true},
+		Mint: aaplxMint, UsdcMicros: pgtype.Int8{Int64: 5_000_000, Valid: true},
 		QuoteOutAmount: 21_000_000, ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now,
 	}
 	for _, m := range c.Members {
