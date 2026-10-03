@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "proposal_id": "019b76da-a800-7ab6-9883-bc79f4d94350",
+  "cabal_id": "019b76da-a801-7034-8020-3a1e4353c6b2",
+  "kind": "buy",
+  "symbol": "AAPLx",
+  "mint": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
+  "usdc_micros": "25000000",
+  "quote_out_amount": "105000000",
+  "proposer_id": "019b76da-a802-74af-8f41-048a538cc09c"
+}
