@@ -205,6 +205,46 @@ func (q *Queries) LinksHeldByOthers(ctx context.Context, arg LinksHeldByOthersPa
 	return i, err
 }
 
+const lockUserByID = `-- name: LockUserByID :one
+SELECT u.id, u.privy_user_id, u.handle, u.auth_state, u.account_status, u.phone_e164, u.x_user_id, u.x_username,
+  w.privy_wallet_id, w.address
+FROM users u
+LEFT JOIN user_wallets w ON w.user_id = u.id
+WHERE u.id = $1 AND u.deleted_at IS NULL
+FOR UPDATE OF u
+`
+
+type LockUserByIDRow struct {
+	ID            uuid.UUID
+	PrivyUserID   string
+	Handle        pgtype.Text
+	AuthState     string
+	AccountStatus string
+	PhoneE164     pgtype.Text
+	XUserID       pgtype.Text
+	XUsername     pgtype.Text
+	PrivyWalletID pgtype.Text
+	Address       pgtype.Text
+}
+
+func (q *Queries) LockUserByID(ctx context.Context, id uuid.UUID) (LockUserByIDRow, error) {
+	row := q.db.QueryRow(ctx, lockUserByID, id)
+	var i LockUserByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.PrivyUserID,
+		&i.Handle,
+		&i.AuthState,
+		&i.AccountStatus,
+		&i.PhoneE164,
+		&i.XUserID,
+		&i.XUsername,
+		&i.PrivyWalletID,
+		&i.Address,
+	)
+	return i, err
+}
+
 const lockUserByPrivyUserID = `-- name: LockUserByPrivyUserID :one
 SELECT u.id, u.privy_user_id, u.handle, u.auth_state, u.account_status, u.phone_e164, u.x_user_id, u.x_username,
   w.privy_wallet_id, w.address

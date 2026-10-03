@@ -49,6 +49,7 @@ type httpFixture struct {
 	wallets  *privyfake.Wallets
 	hints    *recordedHints
 	photos   *photoStore
+	logs     *testkit.Logs
 }
 
 type photoStore struct {
@@ -78,7 +79,7 @@ func newHTTPFixture(t *testing.T) httpFixture {
 		t.Fatal(err)
 	}
 	fakeUsers, fakeWallets, hints := &privyfake.Users{}, &privyfake.Wallets{}, &recordedHints{}
-	photos := &photoStore{url: "https://img.example/photo.png"}
+	photos, logs := &photoStore{url: "https://img.example/photo.png"}, &testkit.Logs{}
 	limit, err := ratelimit.Load(openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +96,7 @@ func newHTTPFixture(t *testing.T) httpFixture {
 		identity.WithPhotoStore(photos),
 	).Routes(&routes)
 	h, err := httpx.Handler(httpx.Deps{
-		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),
+		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, logs),
 		Tracer:       tracenoop.NewTracerProvider(),
 		Clock:        clk,
 		IDs:          f.ids,
@@ -109,7 +110,7 @@ func newHTTPFixture(t *testing.T) httpFixture {
 	}
 	return httpFixture{
 		portFixture: f, handler: testkit.HTTP(t, h), verifier: verifier, privy: fakeUsers, wallets: fakeWallets,
-		photos: photos, hints: hints,
+		photos: photos, hints: hints, logs: logs,
 	}
 }
 

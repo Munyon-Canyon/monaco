@@ -87,3 +87,11 @@ INSERT INTO users (
   sqlc.arg(id), sqlc.arg(privy_user_id), 'email', sqlc.arg(handle), sqlc.arg(display_name),
   sqlc.arg(now), sqlc.arg(now), sqlc.arg(now)
 );
+
+-- name: LockUserByID :one
+SELECT u.id, u.privy_user_id, u.handle, u.auth_state, u.account_status, u.phone_e164, u.x_user_id, u.x_username,
+  w.privy_wallet_id, w.address
+FROM users u
+LEFT JOIN user_wallets w ON w.user_id = u.id
+WHERE u.id = $1 AND u.deleted_at IS NULL
+FOR UPDATE OF u;

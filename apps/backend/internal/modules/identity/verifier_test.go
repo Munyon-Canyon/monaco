@@ -271,6 +271,12 @@ func (p *actorProbe) PutMeHandle(
 	return nil, errs.New(errs.CodeNotFound, "actorProbe.PutMeHandle")
 }
 
+func (*actorProbe) PostOnboardingPhone(
+	context.Context, api.PostOnboardingPhoneRequestObject,
+) (api.PostOnboardingPhoneResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "actorProbe.PostOnboardingPhone")
+}
+
 func (p *actorProbe) GetMe(ctx context.Context, _ api.GetMeRequestObject) (api.GetMeResponseObject, error) {
 	a, _ := auth.ActorFrom(ctx)
 	p.mu.Lock()

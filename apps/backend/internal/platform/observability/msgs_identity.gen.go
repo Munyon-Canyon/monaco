@@ -6,6 +6,7 @@ func init() {
 	register(
 		IdentityWalletSignerMissing,
 		IdentityHandleSet,
+		IdentityPhoneConflict,
 		IdentityProfileUpdated,
 	)
 }

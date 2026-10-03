@@ -178,20 +178,7 @@ func (h *OpenSessionHandler) syncLinks(
 	if err := h.d.Links.ApplyLinks(ctx, q, row.ID, sync, now); err != nil {
 		return false, err
 	}
-	for _, step := range sync.Steps {
-		err := tx.Events.Append(ctx, events.UserAuthStateChanged{
-			V:      1,
-			UserID: row.ID.UUID(),
-			From:   string(step.From),
-			To:     string(step.To),
-			Cause:  string(step.Cause),
-			At:     now,
-		})
-		if err != nil {
-			return false, err
-		}
-	}
-	return true, nil
+	return true, appendAuthSteps(ctx, tx, row.ID, sync.Steps, now)
 }
 
 func (h *OpenSessionHandler) lock(

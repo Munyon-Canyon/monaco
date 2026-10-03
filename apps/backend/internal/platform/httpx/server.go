@@ -137,6 +137,7 @@ type IdentityRoutes interface {
 	IdentitySessionRoutes
 	IdentityProfileRoutes
 	IdentityHandleRoutes
+	IdentityOnboardingRoutes
 }
 
 type IdentitySessionRoutes interface {
@@ -154,6 +155,12 @@ type IdentityHandleRoutes interface {
 		context.Context, api.GetHandleAvailabilityRequestObject,
 	) (api.GetHandleAvailabilityResponseObject, error)
 	PutMeHandle(context.Context, api.PutMeHandleRequestObject) (api.PutMeHandleResponseObject, error)
+}
+
+type IdentityOnboardingRoutes interface {
+	PostOnboardingPhone(
+		context.Context, api.PostOnboardingPhoneRequestObject,
+	) (api.PostOnboardingPhoneResponseObject, error)
 }
 
 type NotifyRoutes interface {

@@ -21,6 +21,7 @@ import (
 type HTTP struct {
 	Open      *app.OpenSessionHandler
 	SetHandle *app.SetHandle
+	Onboard   *app.Onboarding
 	Update    app.UpdateProfileHandler
 	Photo     app.UploadProfilePhotoHandler
 	Reads     sqlc.DBTX
@@ -42,6 +43,20 @@ func (h HTTP) PutMeHandle(
 }
 
 var _ httpx.IdentityRoutes = HTTP{}
+
+func (h HTTP) PostOnboardingPhone(
+	ctx context.Context, _ api.PostOnboardingPhoneRequestObject,
+) (api.PostOnboardingPhoneResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	me, err := h.Onboard.LinkPhone(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+	return api.PostOnboardingPhone200JSONResponse(wireMe(me)), nil
+}
 
 func (h HTTP) PostAuthSession(
 	ctx context.Context, req api.PostAuthSessionRequestObject,

@@ -15,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 type Users struct{}
@@ -130,6 +131,27 @@ func (Users) FindByID(ctx context.Context, q sqlc.DBTX, id ids.UserID) (domain.U
 		return domain.User{}, notFound(err, "identity.Users.FindByID")
 	}
 	return userFrom(row)
+}
+
+func (Users) LockByID(ctx context.Context, q sqlc.DBTX, id ids.UserID) (domain.User, error) {
+	row, err := sqlc.New(q).LockUserByID(ctx, id.UUID())
+	if err != nil {
+		return domain.User{}, notFound(err, "identity.Users.LockByID")
+	}
+	return userFrom(sqlc.FindUserByIDRow(row))
+}
+
+func (u Users) Onboard(ctx context.Context, q sqlc.DBTX, id ids.UserID, sync domain.LinkSync, at time.Time) error {
+	err := u.ApplyLinks(ctx, q, id, sync, at)
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
+		return err
+	}
+	if pgErr.ConstraintName != "users_phone_hash_key" {
+		return err
+	}
+	observability.Degraded(ctx, observability.IdentityPhoneConflict, slog.String("user_id", id.String()))
+	return errs.New(errs.CodePhoneNotLinked, "identity.Users.Onboard")
 }
 
 func (Users) UpdateAuthState(
