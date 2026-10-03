@@ -26,7 +26,7 @@ final class MarketMappingTests: XCTestCase {
         XCTAssertEqual(asset.symbol, "AAPLx")
         XCTAssertEqual(asset.ticker, "AAPL")
         XCTAssertEqual(asset.name, "Apple")
-        XCTAssertEqual(asset.issuer, "xstocks")
+        XCTAssertEqual(asset.issuer, .xstocks)
         XCTAssertEqual(asset.kind, .stock)
         XCTAssertEqual(asset.logoURL, URL(string: "https://cdn.example.com/AAPLx.png"))
         XCTAssertEqual(asset.priceMicros, 110_000_000)
@@ -119,7 +119,7 @@ final class MarketMappingTests: XCTestCase {
 
         XCTAssertEqual(asset.ticker, "tSpaceX")
         XCTAssertEqual(asset.name, "SpaceX")
-        XCTAssertEqual(asset.issuer, "tessera")
+        XCTAssertEqual(asset.issuer, .tessera)
         XCTAssertEqual(asset.kind, .preIpo)
         XCTAssertEqual(asset.changeText, "0.00%")
         XCTAssertEqual(asset.sparkline?.heights, [0.5, 0.5])
@@ -151,6 +151,14 @@ final class MarketMappingTests: XCTestCase {
         XCTAssertTrue(early.earlyClose)
         XCTAssertTrue(early.isOpen)
         XCTAssertEqual(early.nextSession, .afterHours)
+
+        let evening = MarketMapping.status(
+            session(state: .afterHours, nextState: .closed, nextTransition: nextBell),
+            session: .afterHours
+        )
+        XCTAssertEqual(evening.nextSession, .closed)
+        XCTAssertTrue(evening.afterHours)
+        XCTAssertFalse(evening.isOpen)
     }
 
     func testPageKeepsTheCursorAndRowOrder() {
@@ -187,7 +195,7 @@ final class MarketMappingTests: XCTestCase {
         )
 
         XCTAssertEqual(page.assets.map(\.symbol), ["AAPLx", "TSLAx"])
-        XCTAssertEqual(page.assets.map(\.issuer), ["xstocks", "prestocks"])
+        XCTAssertEqual(page.assets.map(\.issuer), [.xstocks, .prestocks])
         XCTAssertEqual(page.nextCursor, "cursor-2")
     }
 
