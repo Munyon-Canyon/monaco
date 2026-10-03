@@ -1492,6 +1492,34 @@ type MyReferralCode struct {
 	Link string `json:"link"`
 }
 
+// PendingVote An open proposal that still needs the caller's ballot.
+type PendingVote struct {
+	// CabalId The cabal id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	CabalId openapi_types.UUID `json:"cabal_id"`
+
+	// ExpiresAt When voting closes.
+	//
+	// Examples: 2026-10-04T15:00:00Z
+	ExpiresAt time.Time `json:"expires_at"`
+
+	// Kind Whether the proposal spends USDC on the token or sells the token for USDC.
+	//
+	// Examples: buy
+	Kind ProposalKind `json:"kind"`
+
+	// ProposalId The proposal id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+	ProposalId openapi_types.UUID `json:"proposal_id"`
+
+	// Symbol The token symbol.
+	//
+	// Examples: AAPLx
+	Symbol string `json:"symbol"`
+}
+
 // Ping A recorded ping.
 type Ping struct {
 	// Echoed True once the `system.echo` consumer has handled the ping.
@@ -2123,6 +2151,9 @@ type ServerInterface interface {
 	// PutMeHandle Set the caller's handle.
 	// (PUT /v1/me/handle)
 	PutMeHandle(w http.ResponseWriter, r *http.Request, params PutMeHandleParams)
+	// GetMyPendingVotes List the open proposals waiting on the caller's ballot.
+	// (GET /v1/me/pending-votes)
+	GetMyPendingVotes(w http.ResponseWriter, r *http.Request)
 	// PostProfilePhoto Upload a profile photo.
 	// (POST /v1/me/profile-photo)
 	PostProfilePhoto(w http.ResponseWriter, r *http.Request, params PostProfilePhotoParams)
@@ -3099,6 +3130,20 @@ func (siw *ServerInterfaceWrapper) PutMeHandle(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// GetMyPendingVotes operation middleware
+func (siw *ServerInterfaceWrapper) GetMyPendingVotes(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMyPendingVotes(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PostProfilePhoto operation middleware
 func (siw *ServerInterfaceWrapper) PostProfilePhoto(w http.ResponseWriter, r *http.Request) {
 
@@ -3600,6 +3645,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/v1/me", wrapper.PatchMe)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/cabals", wrapper.GetMyCabals)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/me/handle", wrapper.PutMeHandle)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/pending-votes", wrapper.GetMyPendingVotes)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/profile-photo", wrapper.PostProfilePhoto)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/referral-code", wrapper.GetMyReferralCode)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.GetProposal)
@@ -4470,6 +4516,44 @@ func (response PutMeHandledefaultApplicationProblemPlusJSONResponse) VisitPutMeH
 	return err
 }
 
+type GetMyPendingVotesRequestObject struct {
+}
+
+type GetMyPendingVotesResponseObject interface {
+	VisitGetMyPendingVotesResponse(w http.ResponseWriter) error
+}
+
+type GetMyPendingVotes200JSONResponse []PendingVote
+
+func (response GetMyPendingVotes200JSONResponse) VisitGetMyPendingVotesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyPendingVotesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetMyPendingVotesdefaultApplicationProblemPlusJSONResponse) VisitGetMyPendingVotesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostProfilePhotoRequestObject struct {
 	Params PostProfilePhotoParams
 	Body   *multipart.Reader
@@ -4924,6 +5008,9 @@ type StrictServerInterface interface {
 	// PutMeHandle Set the caller's handle.
 	// (PUT /v1/me/handle)
 	PutMeHandle(ctx context.Context, request PutMeHandleRequestObject) (PutMeHandleResponseObject, error)
+	// GetMyPendingVotes List the open proposals waiting on the caller's ballot.
+	// (GET /v1/me/pending-votes)
+	GetMyPendingVotes(ctx context.Context, request GetMyPendingVotesRequestObject) (GetMyPendingVotesResponseObject, error)
 	// PostProfilePhoto Upload a profile photo.
 	// (POST /v1/me/profile-photo)
 	PostProfilePhoto(ctx context.Context, request PostProfilePhotoRequestObject) (PostProfilePhotoResponseObject, error)
@@ -5596,6 +5683,30 @@ func (sh *strictHandler) PutMeHandle(w http.ResponseWriter, r *http.Request, par
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PutMeHandleResponseObject); ok {
 		if err := validResponse.VisitPutMeHandleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMyPendingVotes operation middleware
+func (sh *strictHandler) GetMyPendingVotes(w http.ResponseWriter, r *http.Request) {
+	var request GetMyPendingVotesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMyPendingVotes(ctx, request.(GetMyPendingVotesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMyPendingVotes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMyPendingVotesResponseObject); ok {
+		if err := validResponse.VisitGetMyPendingVotesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
