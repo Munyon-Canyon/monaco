@@ -321,8 +321,27 @@ func (s stallScan) stall(ctx context.Context, p watchPR) string {
 	if !ok {
 		return ""
 	}
+	if why := restackReason(s.prs, p); why != "" {
+		return fmt.Sprintf("#%d is green but its stack needs a restack: %s; owner record %d.json: "+
+			"restack onto %s with gt, resubmit, then land-stack %d",
+			p.Number, why, r.Ticket, s.env.Config.FeatureBranch, p.Number)
+	}
 	return fmt.Sprintf("#%d is green but not armed; owner record %d.json: run land-stack %d",
 		p.Number, r.Ticket, p.Number)
+}
+
+func restackReason(prs []watchPR, top watchPR) string {
+	for _, head := range chainDown(prs, top) {
+		i := slices.IndexFunc(prs, func(q watchPR) bool { return q.HeadRefName == head })
+		switch {
+		case i < 0:
+		case strings.HasPrefix(prs[i].BaseRefName, "graphite-base/"):
+			return fmt.Sprintf("#%d sits on %s", prs[i].Number, prs[i].BaseRefName)
+		case prs[i].Mergeable == conflicting:
+			return fmt.Sprintf("#%d conflicts with %s", prs[i].Number, prs[i].BaseRefName)
+		}
+	}
+	return ""
 }
 
 func (s stallScan) recordOf(ctx context.Context, p watchPR) (Record, bool) {

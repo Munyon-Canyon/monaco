@@ -759,6 +759,32 @@ func TestSilentStalls_saysNothingForAGreenTopThatIsArmed(t *testing.T) {
 	}
 }
 
+func TestSilentStalls_saysRestackForAGreenTopWhoseChainSitsOnAGraphiteBaseOrConflicts(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	prs := []watchPR{
+		{Number: 1793, BaseRefName: "graphite-base/1793", HeadRefName: "b1793"},
+		{Number: 1794, BaseRefName: "b1793", HeadRefName: "b1794"},
+	}
+	for i := range prs {
+		if err := json.Unmarshal([]byte(`{"nodes":[{"commit":`+rollup(greenOK)+`}]}`), &prs[i].Commits); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rs := []Record{{Ticket: 564, Branch: "b1794"}}
+	want := []string{"#1794 is green but its stack needs a restack: #1793 sits on graphite-base/1793; " +
+		"owner record 564.json: restack onto " + f.Env(t).Config.FeatureBranch + " with gt, resubmit, then land-stack 1794"}
+	if got := f.Env(t).silentStalls(t.Context(), prs, rs); !slices.Equal(got, want) {
+		t.Fatalf("graphite base: %q", got)
+	}
+	prs[0].BaseRefName, prs[0].Mergeable = "fb", conflicting
+	want = []string{"#1794 is green but its stack needs a restack: #1793 conflicts with fb; " +
+		"owner record 564.json: restack onto fb with gt, resubmit, then land-stack 1794"}
+	if got := f.Env(t).silentStalls(t.Context(), prs, rs); !slices.Equal(got, want) {
+		t.Fatalf("conflicting lower PR: %q", got)
+	}
+}
+
 func TestWatch_flagsAConflictingPRUnderARecordOrLabeledOnEveryPass(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
