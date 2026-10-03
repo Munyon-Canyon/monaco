@@ -52,6 +52,7 @@ func TestLandStack_labelsThroughRESTWhenGraphQLIsForbidden(t *testing.T) {
 	f.hub.on(list("/pulls?state=open"), "["+body+"]")
 	serveChecks(f, "b5-oid")
 	f.hub.on(get("/commits/merge-sha"), `{"parents":[{"sha":"base-sha"}]}`)
+	f.hub.on(get("/git/ref/heads/fb"), `{"object":{"sha":"base-sha"}}`)
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40"})
 	code, stdout, stderr := f.agents(t, "land-stack", "5")
 	want := "queued #5\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" +
@@ -314,6 +315,9 @@ func TestRESTQueryErrors(t *testing.T) {
 	f.hub.on(get("/pulls/1"), restPullBody(1, "b1"))
 	f.hub.on(get("/commits/merge-sha"), `{"parents":[{"sha":"base-sha"}]}`)
 	q := repoQuery + "pullRequest(number:1){potentialMergeCommit{parents{nodes{oid}}}}}"
+	_, err = env.restMergePayload(t.Context(), q)
+	wantErr(t, err, "git/ref/heads/fb")
+	f.hub.on(get("/git/ref/heads/fb"), `{"object":{"sha":"base-sha"}}`)
 	wantErr(t, env.restQuery(t.Context(), q, &n), "decode REST merge")
 	f.hub.status[get("/pulls/4")] = http.StatusInternalServerError
 	f.hub.on(get("/pulls/4"), "boom")
