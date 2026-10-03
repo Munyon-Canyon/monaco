@@ -53,6 +53,10 @@ func FuzzRequestBodies(f *testing.F) {
 	for _, seed := range []string{"", "{}", "{", "null", "[]", `{"a":` + "\x00" + `}`, "\xff\xfe", `{"amount":-1e309}`} {
 		f.Add(uint8(0), []byte(seed))
 	}
+	c, err := LoadContract(openapi.Spec)
+	if err != nil {
+		f.Fatal(err)
+	}
 	f.Fuzz(func(t *testing.T, pick uint8, body []byte) {
 		op := ops[int(pick)%len(ops)]
 		h := newHarness(t)
@@ -64,7 +68,7 @@ func FuzzRequestBodies(f *testing.F) {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer fuzz")
 		rec := httptest.NewRecorder()
-		served, err := handler(h.deps, unimplemented{}, openapi.Spec, []api.StrictMiddlewareFunc{decodedOK})
+		served, err := handler(h.deps, unimplemented{}, c, []api.StrictMiddlewareFunc{decodedOK})
 		if err != nil {
 			t.Fatal(err)
 		}

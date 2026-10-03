@@ -13,7 +13,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
-type contract struct {
+type Contract struct {
+	doc     *openapi3.T
 	router  routers.Router
 	options *openapi3filter.Options
 }
@@ -26,21 +27,23 @@ type resolved struct {
 	maxBody int64
 }
 
-func loadContract(spec []byte) (*contract, error) {
+func LoadContract(spec []byte) (*Contract, error) {
 	doc, err := openapi3.NewLoader().LoadFromData(spec)
 	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeInvalidInput, "httpx.loadContract")
+		return nil, errs.Wrap(err, errs.CodeInvalidInput, "httpx.LoadContract")
 	}
 	doc.Servers = nil
 	router, err := legacy.NewRouter(doc)
 	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeInvalidInput, "httpx.loadContract")
+		return nil, errs.Wrap(err, errs.CodeInvalidInput, "httpx.LoadContract")
 	}
 	options := &openapi3filter.Options{AuthenticationFunc: openapi3filter.NoopAuthenticationFunc, MultiError: true}
-	return &contract{router: router, options: options}, nil
+	return &Contract{doc: doc, router: router, options: options}, nil
 }
 
-func (c *contract) resolve(next http.Handler) http.Handler {
+func (c *Contract) Document() *openapi3.T { return c.doc }
+
+func (c *Contract) resolve(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		route, params, err := c.router.FindRoute(r)
 		if err != nil {
@@ -69,7 +72,7 @@ func bodyLimit(operation *openapi3.Operation) (int64, error) {
 	return limit, nil
 }
 
-func (c *contract) limit(defaultLimit int64) func(http.Handler) http.Handler {
+func (c *Contract) limit(defaultLimit int64) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			res, ok := routeFrom(r.Context())
@@ -92,7 +95,7 @@ func routeFrom(ctx context.Context) (resolved, bool) {
 	return res, ok
 }
 
-func (c *contract) validate(next http.Handler) http.Handler {
+func (c *Contract) validate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		res, ok := routeFrom(r.Context())
 		if !ok {

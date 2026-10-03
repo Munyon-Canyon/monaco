@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -101,7 +103,7 @@ type Option func(*options)
 type options struct {
 	modules    []func(module.Deps) module.Module
 	logs       io.Writer
-	spec       []byte
+	contract   *httpx.Contract
 	fakes      *fakes.Server
 	privyAppID string
 	wrap       func(http.Handler) http.Handler
@@ -115,8 +117,19 @@ func WithRequestMiddleware(wrap func(http.Handler) http.Handler) Option {
 	return func(o *options) { o.wrap = wrap }
 }
 
-func WithSpec(spec []byte) Option {
-	return func(o *options) { o.spec = spec }
+func WithContract(c *httpx.Contract) Option {
+	return func(o *options) { o.contract = c }
+}
+
+func LoadContract(spec []byte) (*httpx.Contract, error) {
+	c, err := httpx.LoadContract(spec)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.Document().Validate(context.Background()); err != nil {
+		return nil, fmt.Errorf("the spec is not a valid OpenAPI document: %w", err)
+	}
+	return c, nil
 }
 
 func WithLogs(w io.Writer) Option {
