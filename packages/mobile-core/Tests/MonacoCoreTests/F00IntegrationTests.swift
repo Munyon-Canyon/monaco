@@ -33,11 +33,10 @@ final class F00IntegrationTests: XCTestCase {
         await model.send(note: String(repeating: "a", count: 141))
 
         let state = model.state
-        guard case .failed(.problem(let problem)) = state else {
-            XCTFail("expected an invalid_input problem, got \(state)")
+        guard case .invalidInput = state else {
+            XCTFail("expected the invalid input outcome, got \(state)")
             return
         }
-        XCTAssertEqual(Flow00Outcome(code: problem.code.wire), .invalidInput)
     }
 
     func test_F00_RecordPing_Unauthorized() async throws {
@@ -47,11 +46,7 @@ final class F00IntegrationTests: XCTestCase {
 
         await model.send(note: "hi")
 
-        let state = model.state
-        guard case .failed(.signedOut) = state else {
-            XCTFail("expected the unauthorized ping to sign out, got \(state)")
-            return
-        }
+        XCTAssertEqual(model.state, .unauthorized)
     }
 
     func test_F00_RecordPing_interrupted() async throws {
