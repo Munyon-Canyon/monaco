@@ -84,6 +84,14 @@ func TestRebasePlan_movesOnlyTheBranchsFilesAboveStagingInTheirOrder(t *testing.
 			"20261002130000",
 			nil,
 		},
+		"own files share a suffix across staging's newest": {
+			[]string{"20261002090000_social_x.sql", "20261002120004_social_x.sql", "20261001000000_a.sql", "20261002120003_referrals.sql"},
+			"20261002101530",
+			[][2]string{
+				{"20261002090000_social_x.sql", "20261002120005_social_x.sql"},
+				{"20261002120004_social_x.sql", "20261002120006_social_x.sql"},
+			},
+		},
 		"no own files": {staging, "20261002130000", nil},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -306,15 +314,63 @@ func TestMigrator_createFailsWhenTheTargetNameIsTakenByADirectory(t *testing.T) 
 	}
 }
 
-func TestMigrator_rebaseFailsWhenARenameTargetIsTakenByADirectory(t *testing.T) {
+func TestMigrator_rebaseKeepsBothBodiesWhenOwnFilesShareASuffixAcrossStagingsNewest(t *testing.T) {
+	t.Parallel()
+	m, _ := migrator(t, map[string]string{
+		"migrations/20261002120003_referrals.sql": "r",
+		"migrations/20261002090000_social_x.sql":  "lower",
+		"migrations/20261002120004_social_x.sql":  "upper",
+	}, []string{"20261002120003_referrals.sql"}, "20261002101530")
+	if _, err := m.Run(context.Background(), []string{"--rebase"}); err != nil {
+		t.Fatal(err)
+	}
+	if got, w := listed(t, m.Dir), []string{
+		"20261002120003_referrals.sql", "20261002120005_social_x.sql", "20261002120006_social_x.sql",
+	}; !slices.Equal(got, w) {
+		t.Fatalf("files = %v, want %v", got, w)
+	}
+	lower := read(t, m.Dir, "migrations/20261002120005_social_x.sql")
+	upper := read(t, m.Dir, "migrations/20261002120006_social_x.sql")
+	if lower != "lower" || upper != "upper" {
+		t.Fatalf("bodies = %q, %q; want lower, upper", lower, upper)
+	}
+}
+
+func TestMigrator_rebaseRefusesToRenameOntoAnExistingFile(t *testing.T) {
 	t.Parallel()
 	m, hashes := migrator(t, map[string]string{"migrations/20261001000000_social_a.sql": "a"}, nil, "20261002130000")
 	m.Staging = func(context.Context) ([]string, error) { return []string{"20261002120003_referrals.sql"}, nil }
-	if err := os.Mkdir(filepath.Join(m.Dir, "migrations", "20261002130000_social_a.sql"), 0o750); err != nil {
-		t.Fatal(err)
+	taken := filepath.Join(m.Dir, "migrations", "20261002130000_social_a.sql")
+	m.Now = func() time.Time {
+		if err := os.WriteFile(taken, []byte("other"), 0o600); err != nil {
+			t.Error(err)
+		}
+		return at(t, "20261002130000")
 	}
-	if _, err := m.Run(context.Background(), []string{"--rebase"}); err == nil || *hashes != 0 {
-		t.Fatalf("Run = %v, hashes %d; want a rename error and no hash", err, *hashes)
+	touched, err := m.Run(context.Background(), []string{"--rebase"})
+	if errs.CodeOf(err) != errs.CodeInternal || len(touched) != 0 || *hashes != 0 {
+		t.Fatalf("Run = %v, %v, hashes %d; want CodeInternal, nothing touched, no hash", touched, err, *hashes)
+	}
+	src := read(t, m.Dir, "migrations/20261001000000_social_a.sql")
+	dst := read(t, m.Dir, "migrations/20261002130000_social_a.sql")
+	if src != "a" || dst != "other" {
+		t.Fatalf("bodies = %q, %q; want both files unchanged", src, dst)
+	}
+}
+
+func TestMigrator_rebaseFailsWhenARenameSourceVanishes(t *testing.T) {
+	t.Parallel()
+	m, hashes := migrator(t, map[string]string{"migrations/20261001000000_social_a.sql": "a"}, nil, "20261002130000")
+	m.Staging = func(context.Context) ([]string, error) { return []string{"20261002120003_referrals.sql"}, nil }
+	m.Now = func() time.Time {
+		if err := os.Remove(filepath.Join(m.Dir, "migrations", "20261001000000_social_a.sql")); err != nil {
+			t.Error(err)
+		}
+		return at(t, "20261002130000")
+	}
+	_, err := m.Run(context.Background(), []string{"--rebase"})
+	if errs.CodeOf(err) != errs.CodeInternal || *hashes != 0 {
+		t.Fatalf("Run = %v, hashes %d; want a CodeInternal rename error and no hash", err, *hashes)
 	}
 }
 
