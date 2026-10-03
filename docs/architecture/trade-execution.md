@@ -25,7 +25,7 @@ Modules never call each other's packages ([dependency rules](backend-platform.md
 
 Full design in [proposals.md](proposals.md). Relevant to execution:
 
-- The `proposal.passed` payload carries everything the engine needs, so the engine never reads governance tables: `proposal_id`, `cabal_id`, `kind` (`buy` or `sell`), `symbol`, `usdc_micros` (`money.Micros`, buy) or `token_amount` (`money.BaseUnits`, sell), `quote_out_amount`, `proposer_id`. Amounts are integers ([Money and types](backend-platform.md#money-and-types)).
+- The `proposal.passed` payload carries everything the engine needs, so the engine never reads governance tables: `proposal_id`, `cabal_id`, `kind` (`buy` or `sell`), `symbol`, `mint`, `usdc_micros` (`money.Micros`, buy) or `token_amount` (a `uint64` of the mint's base units, encoded as a JSON string, sell), `quote_out_amount`, `proposer_id`. Amounts are integers ([Money and types](backend-platform.md#money-and-types)).
 - Proposal-time checks are advisory: a buy is refused up front if Jupiter cannot route it or if it exceeds the whole pot. The market module answers both through its query port ([flow 9](backend-platform.md#flows)). The engine repeats them with fresher data.
 - The tally runs in one `uow.Do` after every vote and on expiry. When status flips to `passed`, that same transaction appends `proposal.passed`. The tally does not call the engine.
 
