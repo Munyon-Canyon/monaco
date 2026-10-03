@@ -28,7 +28,7 @@ import (
 const (
 	backendDir = "apps/backend"
 	flowsUsage = "usage: monacoctl flows check [--from go-test.json | --structure-only] [--integration-xunit swift-xunit.xml]\n" +
-		"                             [--affected --base <ref>]\n" +
+		"                             [--affected --base <ref> | --flows <id,id,...>]\n" +
 		"       monacoctl flows --affected --base <ref>\n" +
 		"       monacoctl flows seed <id> <outcome>"
 )
@@ -59,7 +59,7 @@ func flowsCmd(environ, args []string, run execFunc, repo fs.FS, stdout, stderr i
 }
 
 type checkFlags struct {
-	from, xunit, base       string
+	from, xunit, base, ids  string
 	structureOnly, affected bool
 }
 
@@ -72,8 +72,10 @@ func parseCheckFlags(args []string) (checkFlags, bool) {
 	set.StringVar(&f.xunit, "integration-xunit", "", "swift test --xunit-output file")
 	set.BoolVar(&f.affected, "affected", false, "check only the flows the diff against --base touches")
 	set.StringVar(&f.base, "base", "", "the ref --affected diffs against")
+	set.StringVar(&f.ids, "flows", "", "check only these comma-separated flow ids")
 	err := set.Parse(args)
-	return f, err == nil && set.NArg() == 0 && (f.from == "" || !f.structureOnly) && f.affected == (f.base != "")
+	return f, err == nil && set.NArg() == 0 && (f.from == "" || !f.structureOnly) && f.affected == (f.base != "") &&
+		(f.ids == "" || !f.affected)
 }
 
 func flowsCheckCmd(args []string, stdin *os.File, run execFunc, repo fs.FS, stdout, stderr io.Writer) int {
@@ -82,7 +84,7 @@ func flowsCheckCmd(args []string, stdin *os.File, run execFunc, repo fs.FS, stdo
 		_, _ = fmt.Fprintln(stderr, flowsUsage)
 		return 2
 	}
-	var ids []string
+	ids := strings.FieldsFunc(flags.ids, func(r rune) bool { return r == ',' })
 	if flags.affected {
 		var code int
 		if ids, code = checkedIDs(repo, run, flags.base, stdout, stderr); len(ids) == 0 {
@@ -208,7 +210,7 @@ func flowsCheck(
 			_, _ = fmt.Fprintf(stderr, "monacoctl flows check: %v\n", err)
 			return 1
 		}
-		problems = append(problems, flows.CheckIntegration(app, parsed, results)...)
+		problems = append(problems, flows.CheckIntegration(app, parsed, results, ids)...)
 	}
 	slices.SortStableFunc(problems, func(a, b flows.Problem) int {
 		return cmp.Or(strings.Compare(a.File, b.File), a.Line-b.Line)

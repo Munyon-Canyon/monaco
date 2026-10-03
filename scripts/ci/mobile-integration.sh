@@ -1,8 +1,40 @@
 #!/usr/bin/env bash
 # Boot api, worker and fakes, then run mobile-core tests whose names contain Integration.
+# --flows <id,id,...> runs only the F<id>IntegrationTests classes of those flows: an id that is
+# not in apps/backend/flows.tsv exits 2, an id with no such class is skipped, and an empty list
+# (or no class left) exits 0 before anything boots.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
+filter=Integration
+check_flows=()
+if [[ "${1:-}" == --flows ]]; then
+  [[ $# -eq 2 ]] || { echo "usage: $0 [--flows <id,id,...>]" >&2; exit 2; }
+  ids=()
+  requested=()
+  IFS=, read -r -a requested <<<"$2"
+  for id in ${requested[@]+"${requested[@]}"}; do
+    if ! cut -f1 "$root/apps/backend/flows.tsv" | grep -qx -- "$id"; then
+      echo "mobile-integration: unknown flow $id; not an id in apps/backend/flows.tsv" >&2
+      exit 2
+    fi
+    if grep -rqE "class F${id}IntegrationTests\b" "$root/packages/mobile-core/Tests"; then
+      ids+=("$id")
+    else
+      echo "mobile-integration: skipping flow $id, which has no F${id}IntegrationTests class"
+    fi
+  done
+  if [[ ${#ids[@]} -eq 0 ]]; then
+    echo "mobile-integration: no affected flows with integration tests"
+    exit 0
+  fi
+  joined="$(IFS='|'; echo "${ids[*]}")"
+  filter="F(${joined})IntegrationTests"
+  check_flows=(--flows "$(IFS=,; echo "${ids[*]}")")
+elif [[ $# -ne 0 ]]; then
+  echo "usage: $0 [--flows <id,id,...>]" >&2
+  exit 2
+fi
 logdir="${RUNNER_TEMP:-/tmp}/mobile-integration"
 bindir="${RUNNER_TEMP:-/tmp}/mobile-integration-bin"
 mkdir -p "$logdir" "$bindir"
@@ -216,7 +248,7 @@ docker run --rm --network host \
   -e MONACO_SEED_BIN=/seed/monacoctl -e MONACO_SEED_DIR=/w/apps/backend \
   -e DATABASE_URL="${DATABASE_URL/127.0.0.1/$container_host}" -e NATS_URL="${NATS_URL/127.0.0.1/$container_host}" \
   -e MONACO_DEV_TOKEN_KEY="$token_key" -e MONACO_FAKES_URL="http://${container_host}:${fakes_addr##*:}" \
-  swift:6.3-noble swift test --filter Integration \
+  swift:6.3-noble swift test --filter "$filter" \
   > "$logdir/swift.log" 2>&1
 swift_status=$?
 set -e
@@ -259,5 +291,5 @@ fi
 echo "mobile-integration: $executed Integration test(s) executed, none skipped"
 (
   cd "$root/apps/backend"
-  "$bindir/monacoctl" flows check --structure-only --integration-xunit "$logdir/integration.xml"
+  "$bindir/monacoctl" flows check --structure-only --integration-xunit "$logdir/integration.xml" ${check_flows[@]+"${check_flows[@]}"}
 )
