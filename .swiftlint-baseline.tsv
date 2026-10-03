@@ -115,7 +115,6 @@ no_comments	apps/mobile/Monaco/Features/Debug/GroupDetailSampleHarness.swift	30
 no_comments	apps/mobile/Monaco/Features/Debug/GroupNavSampleHarness.swift	56
 no_comments	apps/mobile/Monaco/Features/Debug/HomeSampleHarness.swift	7
 no_comments	apps/mobile/Monaco/Features/Debug/MoneyFlowSampleHarness.swift	15
-no_comments	apps/mobile/Monaco/Features/Debug/OnboardingSampleHarness.swift	14
 no_comments	apps/mobile/Monaco/Features/Debug/ProfileSampleHarness.swift	17
 no_comments	apps/mobile/Monaco/Features/Debug/SampleProposalFeedService.swift	75
 no_comments	apps/mobile/Monaco/Features/Debug/StocksTabSampleHarness.swift	28
@@ -162,8 +161,7 @@ no_comments	apps/mobile/Monaco/Features/Home/HomePnLChartSection.swift	16
 no_comments	apps/mobile/Monaco/Features/Home/HomePositionsSection.swift	7
 no_comments	apps/mobile/Monaco/Features/Home/HomeView.swift	43
 no_comments	apps/mobile/Monaco/Features/Home/UserProfileGroupsView.swift	12
-no_comments	apps/mobile/Monaco/Features/Onboarding/OnboardingNameView.swift	34
-no_comments	apps/mobile/Monaco/Features/Profile/DisplayNameField.swift	18
+no_comments	apps/mobile/Monaco/Features/Profile/DisplayNameField.swift	16
 no_comments	apps/mobile/Monaco/Features/Profile/FacePickerSheet.swift	9
 no_comments	apps/mobile/Monaco/Features/Profile/ProfileCabalsSection.swift	4
 no_comments	apps/mobile/Monaco/Features/Profile/ProfileNameEditor.swift	18
@@ -190,7 +188,7 @@ no_comments	apps/mobile/Monaco/Features/Redeem/CashOutAmountRule.swift	36
 no_comments	apps/mobile/Monaco/Features/Redeem/SellCabalView.swift	16
 no_comments	apps/mobile/Monaco/Features/Settings/AdvancedSettingsView.swift	1
 no_comments	apps/mobile/Monaco/Features/Settings/WithdrawView.swift	25
-no_comments	apps/mobile/Monaco/Features/Shell/AppSessionStore+Profile.swift	11
+no_comments	apps/mobile/Monaco/Features/Shell/AppSessionStore+Profile.swift	7
 no_comments	apps/mobile/Monaco/Features/Shell/AppSessionStore.swift	9
 no_comments	apps/mobile/Monaco/Features/Shell/MainTabView.swift	4
 no_comments	apps/mobile/Monaco/Features/Shell/SessionErrorMapping.swift	15
@@ -251,7 +249,6 @@ no_comments	apps/mobile/MonacoUITests/GroupLeaveProgressSampleUITests.swift	30
 no_comments	apps/mobile/MonacoUITests/GroupNavSampleUITests.swift	21
 no_comments	apps/mobile/MonacoUITests/MonacoUITests.swift	24
 no_comments	apps/mobile/MonacoUITests/MonacoUITestsLaunchTests.swift	10
-no_comments	apps/mobile/MonacoUITests/OnboardingNameSampleUITests.swift	15
 no_comments	apps/mobile/MonacoUITests/ProfileNameSaveSampleUITests.swift	29
 no_comments	apps/mobile/MonacoUITests/ProposalFeedSampleUITests.swift	32
 no_comments	apps/mobile/MonacoUITests/StocksTabSampleUITests.swift	64

@@ -13,10 +13,6 @@ enum ProfileSaveOutcome: Equatable {
 /// refetched so the new name and photo show up on the people and member boards.
 extension AppSessionStore {
     /// Optimistically renames the signed-in user, rolling back if the server rejects it.
-    ///
-    /// First run passes `optimistic: false`. `FirstRunGate` routes on `profile.displayName`,
-    /// so writing the name before the server confirms it would drop the user into the
-    /// tabs mid-request and bounce them back out on a rejection.
     func updateDisplayName(
         _ draft: String,
         auth: SessionAuthenticating,
