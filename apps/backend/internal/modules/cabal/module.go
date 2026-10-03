@@ -42,9 +42,10 @@ func (m *Module) Routes(r *httpx.Routes) {
 		Revoke:  app.NewRevokeAccessHandler(m.deps.UoW, m.deps.Clock),
 		Decide:  app.NewDecideAccessHandler(m.deps.UoW, m.deps.Clock),
 		Update:  app.NewUpdateCabalHandler(m.deps.UoW, m.deps.Clock),
+		Picture: app.NewSetCabalPictureHandler(m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, m.deps.Photos),
 		DB:      m.deps.Pool, Users: identity.New(m.deps).Queries(),
 	}
-	r.CabalRoutes, r.CabalJoinRoutes, r.CabalAccessRoutes = h, h, h
+	r.CabalRoutes, r.CabalJoinRoutes, r.CabalAccessRoutes, r.CabalPictureRoutes = h, h, h, h
 }
 
 func (m *Module) Consumers() []bus.Consumer {

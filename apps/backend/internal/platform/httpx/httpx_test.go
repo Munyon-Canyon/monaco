@@ -167,6 +167,18 @@ func (healthz) PatchCabal(context.Context, api.PatchCabalRequestObject) (api.Pat
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.PatchCabal")
 }
 
+func (healthz) PutCabalPicture(
+	context.Context, api.PutCabalPictureRequestObject,
+) (api.PutCabalPictureResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.PutCabalPicture")
+}
+
+func (healthz) DeleteCabalPicture(
+	context.Context, api.DeleteCabalPictureRequestObject,
+) (api.DeleteCabalPictureResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.DeleteCabalPicture")
+}
+
 func (healthz) PostCabalMember(
 	context.Context, api.PostCabalMemberRequestObject,
 ) (api.PostCabalMemberResponseObject, error) {

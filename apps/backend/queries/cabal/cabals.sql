@@ -82,5 +82,5 @@ UPDATE cabals SET name = sqlc.arg(name), join_mode = sqlc.arg(join_mode), voter_
 WHERE id = sqlc.arg(id);
 
 -- name: SetCabalPicture :execrows
-UPDATE cabals SET picture_url = sqlc.narg(picture_url), updated_at = sqlc.arg(now)
+UPDATE cabals SET picture_url = NULLIF(sqlc.arg(picture_url)::text, ''), updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id);

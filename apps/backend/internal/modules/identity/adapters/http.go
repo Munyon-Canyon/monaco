@@ -2,11 +2,7 @@ package adapters
 
 import (
 	"context"
-	"errors"
-	"io"
 	"log/slog"
-	"mime/multipart"
-	"net/http"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
@@ -160,43 +156,15 @@ func (h HTTP) PostProfilePhoto(
 	if err != nil {
 		return nil, err
 	}
-	contentType, ext, body, err := photo(req.Body)
+	image, err := httpx.ReadImage(req.Body, "photo", "identity.PostProfilePhoto")
 	if err != nil {
 		return nil, err
 	}
-	me, err := h.Photo.Handle(ctx, user, contentType, ext, body)
+	me, err := h.Photo.Handle(ctx, user, image.ContentType, image.Ext, image.Body)
 	if err != nil {
 		return nil, err
 	}
 	return api.PostProfilePhoto200JSONResponse(wireMe(me)), nil
-}
-
-func photo(reader *multipart.Reader) (string, string, []byte, error) {
-	const op = "identity.PostProfilePhoto"
-	if reader == nil {
-		return "", "", nil, errs.New(errs.CodePhotoInvalid, op)
-	}
-	part, err := reader.NextPart()
-	if err != nil || part.FormName() != "photo" {
-		return "", "", nil, errs.New(errs.CodePhotoInvalid, op)
-	}
-	body, err := io.ReadAll(part)
-	if err != nil || len(body) == 0 {
-		return "", "", nil, errs.New(errs.CodePhotoInvalid, op)
-	}
-	if _, err := reader.NextPart(); !errors.Is(err, io.EOF) {
-		return "", "", nil, errs.New(errs.CodePhotoInvalid, op)
-	}
-	switch http.DetectContentType(body) {
-	case "image/jpeg":
-		return "image/jpeg", "jpg", body, nil
-	case "image/png":
-		return "image/png", "png", body, nil
-	case "image/webp":
-		return "image/webp", "webp", body, nil
-	default:
-		return "", "", nil, errs.New(errs.CodePhotoInvalid, op)
-	}
 }
 
 func caller(ctx context.Context) (ids.UserID, error) {

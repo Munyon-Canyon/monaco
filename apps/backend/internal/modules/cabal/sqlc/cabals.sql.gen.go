@@ -404,12 +404,12 @@ func (q *Queries) SearchCabals(ctx context.Context, arg SearchCabalsParams) ([]S
 }
 
 const setCabalPicture = `-- name: SetCabalPicture :execrows
-UPDATE cabals SET picture_url = $1, updated_at = $2
+UPDATE cabals SET picture_url = NULLIF($1::text, ''), updated_at = $2
 WHERE id = $3
 `
 
 type SetCabalPictureParams struct {
-	PictureUrl pgtype.Text
+	PictureUrl string
 	Now        time.Time
 	ID         uuid.UUID
 }

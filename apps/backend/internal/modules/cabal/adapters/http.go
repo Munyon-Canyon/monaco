@@ -32,14 +32,16 @@ type HTTP struct {
 	Revoke  *app.RevokeAccessHandler
 	Decide  *app.DecideAccessHandler
 	Update  *app.UpdateCabalHandler
+	Picture *app.SetCabalPictureHandler
 	DB      sqlc.DBTX
 	Users   app.UserCards
 }
 
 var (
-	_ httpx.CabalRoutes       = HTTP{}
-	_ httpx.CabalJoinRoutes   = HTTP{}
-	_ httpx.CabalAccessRoutes = HTTP{}
+	_ httpx.CabalRoutes        = HTTP{}
+	_ httpx.CabalJoinRoutes    = HTTP{}
+	_ httpx.CabalAccessRoutes  = HTTP{}
+	_ httpx.CabalPictureRoutes = HTTP{}
 )
 
 func (h HTTP) PostCabal(
@@ -259,6 +261,50 @@ func updateCommand(user ids.UserID, req api.PatchCabalRequestObject) (app.Update
 		cmd.VoterIDs = &voters
 	}
 	return cmd, nil
+}
+
+func (h HTTP) PutCabalPicture(
+	ctx context.Context, req api.PutCabalPictureRequestObject,
+) (api.PutCabalPictureResponseObject, error) {
+	image, err := httpx.ReadImage(req.Body, "picture", "cabal.PutCabalPicture")
+	if err != nil {
+		return nil, err
+	}
+	view, err := h.setPicture(ctx, ids.CabalIDFrom(req.Id), &app.Picture{
+		ContentType: image.ContentType, Ext: image.Ext, Body: image.Body,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return api.PutCabalPicture200JSONResponse(view), nil
+}
+
+func (h HTTP) DeleteCabalPicture(
+	ctx context.Context, req api.DeleteCabalPictureRequestObject,
+) (api.DeleteCabalPictureResponseObject, error) {
+	view, err := h.setPicture(ctx, ids.CabalIDFrom(req.Id), nil)
+	if err != nil {
+		return nil, err
+	}
+	return api.DeleteCabalPicture200JSONResponse(view), nil
+}
+
+func (h HTTP) setPicture(ctx context.Context, cabalID ids.CabalID, picture *app.Picture) (api.Cabal, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return api.Cabal{}, err
+	}
+	if err := h.Picture.Handle(
+		ctx,
+		app.SetCabalPicture{ActorID: user, CabalID: cabalID, Picture: picture},
+	); err != nil {
+		return api.Cabal{}, err
+	}
+	view, err := app.GetCabal(ctx, h.DB, h.Users, cabalID, user)
+	if err != nil {
+		return api.Cabal{}, err
+	}
+	return wireCabal(view), nil
 }
 
 func (h HTTP) PostCabalMember(
