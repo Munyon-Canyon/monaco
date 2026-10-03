@@ -315,7 +315,7 @@ func TestLandStack_readsEveryCheckAndTheNewestRunOfEach(t *testing.T) {
 		{
 			"a rerun of ci-ok is still going",
 			lastPage(ciOK("", 0), verifyAt("SUCCESS", 4)),
-			"not landing #2; waiting on #1 (stage 1 pending)\n",
+			"armed #2; agents watch lands it once stage 1 and verify pass (waiting on #1 (stage 1 pending))\n",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1102,10 +1102,80 @@ func TestLandStack_aSkippedPRFormatRunAfterASuccessDoesNotBlockARelanding(t *tes
 	)
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
 	code, stdout, stderr := f.agents(t, "land-stack", "2")
-	if code != 0 || stdout != "not landing #2; waiting on #2 (PR format skipped)\n" || stderr != "" {
+	if code != 0 || stdout != "armed #2; agents watch lands it once stage 1 and verify pass "+
+		"(waiting on #2 (PR format skipped))\n" || stderr != "" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	if calls := s.lines(); len(calls) != 0 {
 		t.Fatalf("a refusal ran %v", calls)
+	}
+}
+
+func armedStack(t *testing.T, f *fixture) *stackGH {
+	t.Helper()
+	s := newStackGH(t, f, green(t, 1, "b1", "fb"), stackOf(t, 2, "b2", "b1", "pending", "SUCCESS"))
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: "/w/40"})
+	return s
+}
+
+func TestLandStack_armsAStackWhoseStage1IsPendingAndLabelsNothing(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := armedStack(t, f)
+	code, stdout, stderr := f.agents(t, "land-stack", "2")
+	want := "armed #2; agents watch lands it once stage 1 and verify pass (waiting on #2 (stage 1 pending))\n"
+	if code != 0 || stdout != want || stderr != "" {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	if got := f.hub.callsContaining("/labels"); len(got) != 0 {
+		t.Fatalf("arming labelled %v", got)
+	}
+	r := f.owned(t)
+	if r.Queued != nil || r.Armed == nil || r.Armed.Top != 2 || !slices.Equal(r.Armed.PRs, []int{1, 2}) ||
+		!r.Armed.At.Equal(f.now) {
+		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
+	}
+	got := posted(t, f, "POST /repos/o/r/issues/40/comments")
+	if !strings.Contains(got, `"armed":{"top":2,"prs":[1,2]`) {
+		t.Fatalf("published %q", got)
+	}
+	*s.prs[2] = *green(t, 2, "b2", "b1")
+	if code, stdout, _ := f.agents(t, "land-stack", "2"); code != 0 || !strings.HasPrefix(stdout, "queued #1 #2\n") {
+		t.Fatalf("%d %q", code, stdout)
+	}
+	if r := f.owned(t); r.Armed != nil || r.Queued == nil {
+		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
+	}
+}
+
+func TestLandStack_doesNotArmAStackWithAFailedCheck(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	newStackGH(t, f, stackOf(t, 1, "b1", "fb", "FAILURE", "SUCCESS"), stackOf(t, 2, "b2", "b1", "pending", "SUCCESS"))
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: "/w/40"})
+	code, stdout, _ := f.agents(t, "land-stack", "2")
+	if code != 0 || stdout != "not landing #2; waiting on #1 (stage 1 failure), #2 (stage 1 pending)\n" {
+		t.Fatalf("%d %q", code, stdout)
+	}
+	if f.owned(t).Armed != nil {
+		t.Fatal("armed a stack with a failed check")
+	}
+}
+
+func TestWatchOnce_landsAnArmedStackThatWentGreen(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := armedStack(t, f)
+	if code, _, _ := f.agents(t, "land-stack", "2"); code != 0 {
+		t.Fatal(code)
+	}
+	*s.prs[2] = *green(t, 2, "b2", "b1")
+	f.noFailures()
+	code, stdout, stderr := f.agents(t, "watch", "--once")
+	if code != 0 || !strings.Contains(stdout, "armed stack #2 landing\nqueued #1 #2\n") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	if r := f.owned(t); r.Armed != nil || r.Queued == nil || r.Queued.Top != 2 {
+		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
 	}
 }

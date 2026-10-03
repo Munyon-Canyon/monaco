@@ -116,7 +116,7 @@ func TestDequeue_failures(t *testing.T) {
 				t.Fatal(err)
 			}
 		}},
-		{name: "not queued", args: []string{"1"}, want: "#40 has no queued stack with top #1"},
+		{name: "not queued", args: []string{"1"}, want: "#40 has no queued or armed stack with top #1"},
 		{name: "label removal fails", want: "boom", edit: func(f *fixture, _ *stackGH, _ *Env) {
 			route := "DELETE /repos/o/r/issues/2/labels/merge-queue"
 			f.hub.status[route] = http.StatusInternalServerError
@@ -171,5 +171,22 @@ func TestDequeue_stopsWaitingWhenTheContextEnds(t *testing.T) {
 	}
 	if err := dequeueCmd(ctx, env, []string{"2"}, &strings.Builder{}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
+	}
+}
+
+func TestDequeue_clearsTheArmOfAnArmedStack(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	newStackGH(t, f, green(t, 1, "b1", "fb"), stackOf(t, 2, "b2", "b1", "pending", "SUCCESS"))
+	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", Armed: &Arm{Top: 2, PRs: []int{1, 2}}})
+	var out strings.Builder
+	if err := dequeueCmd(t.Context(), f.Env(t), []string{"2"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.String() != "disarmed #2; agents watch will not land it\n" || f.owned(t).Armed != nil {
+		t.Fatalf("%q, armed %+v", out.String(), f.owned(t).Armed)
+	}
+	if calls := f.hub.callsContaining("/labels"); len(calls) != 0 || len(f.waited) != 0 {
+		t.Fatalf("labels %v, waited %v", calls, f.waited)
 	}
 }

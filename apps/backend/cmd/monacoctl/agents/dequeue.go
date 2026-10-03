@@ -24,9 +24,16 @@ func dequeueCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) 
 	if err != nil {
 		return err
 	}
-	rec, err := env.queuedRecord(ctx, n)
+	rec, err := env.heldRecord(ctx, n)
 	if err != nil {
 		return err
+	}
+	if rec.Queued == nil {
+		if err := env.unmark(ctx, rec); err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintf(stdout, "disarmed #%d; agents watch will not land it\n", n)
+		return nil
 	}
 	nums := rec.Queued.PRs
 	for range dequeueTries {
@@ -46,7 +53,7 @@ func dequeueCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) 
 		"Graphite still holds #%d; remove it from the queue in the Graphite app, then rerun", n))
 }
 
-func (env *Env) queuedRecord(ctx context.Context, top int) (Record, error) {
+func (env *Env) heldRecord(ctx context.Context, top int) (Record, error) {
 	tops, err := env.stackPulls(ctx, []int{top})
 	if err != nil {
 		return Record{}, err
@@ -59,9 +66,11 @@ func (env *Env) queuedRecord(ctx context.Context, top int) (Record, error) {
 	if err != nil {
 		return Record{}, err
 	}
-	if rec.Queued == nil || rec.Queued.Top != top {
+	queued := rec.Queued != nil && rec.Queued.Top == top
+	armed := rec.Queued == nil && rec.Armed != nil && rec.Armed.Top == top
+	if !queued && !armed {
 		return Record{}, dequeueErr(errs.CodeInvalidInput,
-			fmt.Sprintf("#%d has no queued stack with top #%d", ticket, top))
+			fmt.Sprintf("#%d has no queued or armed stack with top #%d", ticket, top))
 	}
 	return rec, nil
 }

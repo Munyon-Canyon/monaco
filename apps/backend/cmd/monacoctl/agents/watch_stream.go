@@ -90,9 +90,12 @@ func (s *stream) round(ctx context.Context) []string {
 	}
 	var queued []int
 	for _, r := range rs {
-		if r.Queued != nil {
+		switch {
+		case r.Queued != nil:
 			queued = append(queued, r.Queued.PRs...)
 			items = append(items, s.stack(ctx, r, data.drafts)...)
+		case r.Armed != nil:
+			items = append(items, env.landArmed(ctx, r)...)
 		}
 	}
 	items = append(items, s.draftLines(data.drafts, queued)...)

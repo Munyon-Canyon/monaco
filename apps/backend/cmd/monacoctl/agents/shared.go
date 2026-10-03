@@ -24,12 +24,13 @@ type sharedRecord struct {
 	Started time.Time `json:"started"`
 	Changed time.Time `json:"changed"`
 	Queued  *Queue    `json:"queued"`
+	Armed   *Arm      `json:"armed,omitempty"`
 }
 
 func recordBody(r Record) string {
 	raw, _ := json.Marshal(sharedRecord{
 		Ticket: r.Ticket, Model: r.Model, Branch: r.Branch, Base: r.Base,
-		State: r.State, Started: r.Started, Changed: r.Changed, Queued: r.Queued,
+		State: r.State, Started: r.Started, Changed: r.Changed, Queued: r.Queued, Armed: r.Armed,
 	})
 	branch := r.Branch
 	if branch == "" {
@@ -63,7 +64,7 @@ func (env *Env) rebuildRecord(ctx context.Context, ticket int) (Record, error) {
 	}
 	r := Record{
 		Ticket: ticket, Model: s.Model, Worktree: env.worktreePath(ticket), Branch: s.Branch, Base: s.Base,
-		State: s.State, Queued: s.Queued, Started: s.Started, Changed: s.Changed,
+		State: s.State, Queued: s.Queued, Armed: s.Armed, Started: s.Started, Changed: s.Changed,
 	}
 	return r, env.saveRecord(r)
 }
