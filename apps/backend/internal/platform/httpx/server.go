@@ -105,6 +105,7 @@ type Routes struct {
 	CabalAccessRoutes
 	CabalPictureRoutes
 	MarketRoutes
+	TreasuryRoutes
 }
 
 type CabalAccessRoutes interface {
@@ -215,6 +216,10 @@ type MarketRoutes interface {
 	GetAssets(context.Context, api.GetAssetsRequestObject) (api.GetAssetsResponseObject, error)
 	GetAsset(context.Context, api.GetAssetRequestObject) (api.GetAssetResponseObject, error)
 	GetAssetChart(context.Context, api.GetAssetChartRequestObject) (api.GetAssetChartResponseObject, error)
+}
+
+type TreasuryRoutes interface {
+	GetCabalActivity(context.Context, api.GetCabalActivityRequestObject) (api.GetCabalActivityResponseObject, error)
 }
 
 var _ api.StrictServerInterface = Routes{}

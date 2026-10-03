@@ -170,6 +170,51 @@ func (e BallotChoice) Valid() bool {
 	}
 }
 
+// Defines values for CabalActivityKind.
+const (
+	CabalActivityKindBuy     CabalActivityKind = "buy"
+	CabalActivityKindCashOut CabalActivityKind = "cash_out"
+	CabalActivityKindFund    CabalActivityKind = "fund"
+	CabalActivityKindSell    CabalActivityKind = "sell"
+)
+
+// Valid indicates whether the value is a known member of the CabalActivityKind enum.
+func (e CabalActivityKind) Valid() bool {
+	switch e {
+	case CabalActivityKindBuy:
+		return true
+	case CabalActivityKindCashOut:
+		return true
+	case CabalActivityKindFund:
+		return true
+	case CabalActivityKindSell:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CabalActivityStatus.
+const (
+	CabalActivityStatusConfirmed CabalActivityStatus = "confirmed"
+	CabalActivityStatusFailed    CabalActivityStatus = "failed"
+	CabalActivityStatusPending   CabalActivityStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the CabalActivityStatus enum.
+func (e CabalActivityStatus) Valid() bool {
+	switch e {
+	case CabalActivityStatusConfirmed:
+		return true
+	case CabalActivityStatusFailed:
+		return true
+	case CabalActivityStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DeviceEnvironment.
 const (
 	Production DeviceEnvironment = "production"
@@ -580,16 +625,16 @@ func (e ProblemType) Valid() bool {
 
 // Defines values for ProposalKind.
 const (
-	Buy  ProposalKind = "buy"
-	Sell ProposalKind = "sell"
+	ProposalKindBuy  ProposalKind = "buy"
+	ProposalKindSell ProposalKind = "sell"
 )
 
 // Valid indicates whether the value is a known member of the ProposalKind enum.
 func (e ProposalKind) Valid() bool {
 	switch e {
-	case Buy:
+	case ProposalKindBuy:
 		return true
-	case Sell:
+	case ProposalKindSell:
 		return true
 	default:
 		return false
@@ -703,13 +748,13 @@ func (e GetAssetChartParamsRange) Valid() bool {
 
 // Defines values for GetCabalAccessRequestsParamsStatus.
 const (
-	Pending GetCabalAccessRequestsParamsStatus = "pending"
+	GetCabalAccessRequestsParamsStatusPending GetCabalAccessRequestsParamsStatus = "pending"
 )
 
 // Valid indicates whether the value is a known member of the GetCabalAccessRequestsParamsStatus enum.
 func (e GetCabalAccessRequestsParamsStatus) Valid() bool {
 	switch e {
-	case Pending:
+	case GetCabalAccessRequestsParamsStatusPending:
 		return true
 	default:
 		return false
@@ -801,6 +846,37 @@ type AccessDecisionRequestDecision string
 //
 // Examples: active
 type AccountStatus string
+
+// ActivityActor The member behind a row.
+type ActivityActor struct {
+	// DisplayName The member's display name.
+	//
+	// Examples: Ana
+	DisplayName string `json:"display_name"`
+
+	// Handle The member's handle.
+	//
+	// Examples: ana
+	Handle string `json:"handle"`
+
+	// UserId The member.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	UserId openapi_types.UUID `json:"user_id"`
+}
+
+// ActivityAsset A human-readable asset.
+type ActivityAsset struct {
+	// Name The display name.
+	//
+	// Examples: Apple
+	Name string `json:"name"`
+
+	// Symbol The token symbol.
+	//
+	// Examples: AAPLx
+	Symbol string `json:"symbol"`
+}
 
 // AssetChart The buckets for one asset and one range.
 //
@@ -1123,6 +1199,77 @@ type CabalAccessRequest struct {
 	//
 	// Examples: {"display_name":"Kai","handle":"kai","photo_url":null,"user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}
 	User CabalPerson `json:"user"`
+}
+
+// CabalActivity One buy, sell, fund or cash out in a cabal.
+type CabalActivity struct {
+	// Actor The member who acted. Null for a trade the cabal voted for.
+	//
+	// Examples: null
+	Actor *ActivityActor `json:"actor"`
+
+	// Asset The stock bought or sold. Null when there is none or the catalog does not know it.
+	//
+	// Examples: {"name":"Apple","symbol":"AAPLx"}
+	Asset *ActivityAsset `json:"asset"`
+
+	// Id The source id. For a buy or sell it is the swap id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8060
+	Id openapi_types.UUID `json:"id"`
+
+	// Kind What happened.
+	//
+	// Examples: buy
+	Kind CabalActivityKind `json:"kind"`
+
+	// OccurredAt When it started.
+	//
+	// Examples: 2026-10-03T15:00:00Z
+	OccurredAt time.Time `json:"occurred_at"`
+
+	// Status Where it is. A confirmed or failed row never goes back to pending.
+	//
+	// Examples: confirmed
+	Status CabalActivityStatus `json:"status"`
+
+	// TxSignature The Solana transaction signature. Null until the transaction is sent.
+	//
+	// Examples: 5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW
+	TxSignature *string `json:"tx_signature"`
+
+	// Units Token base units bought or sold. Null until known.
+	//
+	// Examples: 105000000
+	Units *int64 `json:"units"`
+
+	// UsdcMicros USDC spent or received, in micros. Null until known.
+	//
+	// Examples: 25000000
+	UsdcMicros *int64 `json:"usdc_micros"`
+}
+
+// CabalActivityKind What happened.
+//
+// Examples: buy
+type CabalActivityKind string
+
+// CabalActivityStatus Where it is. A confirmed or failed row never goes back to pending.
+//
+// Examples: confirmed
+type CabalActivityStatus string
+
+// CabalActivityPage One page of a cabal's activity.
+type CabalActivityPage struct {
+	// Items The page, newest first.
+	//
+	// Examples: []
+	Items []CabalActivity `json:"items"`
+
+	// NextCursor The cursor for the next page. Null on the last page.
+	//
+	// Examples: null
+	NextCursor *string `json:"next_cursor"`
 }
 
 // CabalMember A cabal member, including vote standing.
@@ -2202,6 +2349,15 @@ type PostCabalAccessDecisionParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// GetCabalActivityParams defines parameters for GetCabalActivity.
+type GetCabalActivityParams struct {
+	// Limit Page size. Defaults to 30 and cannot exceed 100.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor The `next_cursor` from the previous page. Absent reads the first page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
 // PostCabalMemberParams defines parameters for PostCabalMember.
 type PostCabalMemberParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -2474,6 +2630,9 @@ type ServerInterface interface {
 	// PostCabalAccessDecision Approve or deny a pending request or invite.
 	// (POST /v1/cabals/{id}/access-requests/{request_id}/decision)
 	PostCabalAccessDecision(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, requestId openapi_types.UUID, params PostCabalAccessDecisionParams)
+	// GetCabalActivity List a cabal's activity.
+	// (GET /v1/cabals/{id}/activity)
+	GetCabalActivity(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalActivityParams)
 	// PostCabalMember Join an open cabal.
 	// (POST /v1/cabals/{id}/members)
 	PostCabalMember(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCabalMemberParams)
@@ -3167,6 +3326,61 @@ func (siw *ServerInterfaceWrapper) PostCabalAccessDecision(w http.ResponseWriter
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostCabalAccessDecision(w, r, id, requestId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCabalActivity operation middleware
+func (siw *ServerInterfaceWrapper) GetCabalActivity(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetCabalActivityParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCabalActivity(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4687,6 +4901,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/access-requests", wrapper.PostCabalAccessRequest)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/access-requests/{request_id}", wrapper.DeleteCabalAccessRequest)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/access-requests/{request_id}/decision", wrapper.PostCabalAccessDecision)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/activity", wrapper.GetCabalActivity)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/members", wrapper.PostCabalMember)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/members/me", wrapper.DeleteCabalMemberMe)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/picture", wrapper.DeleteCabalPicture)
@@ -5226,6 +5441,46 @@ type PostCabalAccessDecisiondefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response PostCabalAccessDecisiondefaultApplicationProblemPlusJSONResponse) VisitPostCabalAccessDecisionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCabalActivityRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetCabalActivityParams
+}
+
+type GetCabalActivityResponseObject interface {
+	VisitGetCabalActivityResponse(w http.ResponseWriter) error
+}
+
+type GetCabalActivity200JSONResponse CabalActivityPage
+
+func (response GetCabalActivity200JSONResponse) VisitGetCabalActivityResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCabalActivitydefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetCabalActivitydefaultApplicationProblemPlusJSONResponse) VisitGetCabalActivityResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -6469,6 +6724,9 @@ type StrictServerInterface interface {
 	// PostCabalAccessDecision Approve or deny a pending request or invite.
 	// (POST /v1/cabals/{id}/access-requests/{request_id}/decision)
 	PostCabalAccessDecision(ctx context.Context, request PostCabalAccessDecisionRequestObject) (PostCabalAccessDecisionResponseObject, error)
+	// GetCabalActivity List a cabal's activity.
+	// (GET /v1/cabals/{id}/activity)
+	GetCabalActivity(ctx context.Context, request GetCabalActivityRequestObject) (GetCabalActivityResponseObject, error)
 	// PostCabalMember Join an open cabal.
 	// (POST /v1/cabals/{id}/members)
 	PostCabalMember(ctx context.Context, request PostCabalMemberRequestObject) (PostCabalMemberResponseObject, error)
@@ -6958,6 +7216,33 @@ func (sh *strictHandler) PostCabalAccessDecision(w http.ResponseWriter, r *http.
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostCabalAccessDecisionResponseObject); ok {
 		if err := validResponse.VisitPostCabalAccessDecisionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCabalActivity operation middleware
+func (sh *strictHandler) GetCabalActivity(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalActivityParams) {
+	var request GetCabalActivityRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCabalActivity(ctx, request.(GetCabalActivityRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCabalActivity")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCabalActivityResponseObject); ok {
+		if err := validResponse.VisitGetCabalActivityResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -1,22 +1,28 @@
 package treasury_test
 
 import (
+	"reflect"
 	"slices"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/adapters"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 )
 
-func TestModule_consumesTradeEventsAndHasNoRoutesOrPollersYet(t *testing.T) {
+func TestModule_servesActivityConsumesTradeEventsAndHasNoPollers(t *testing.T) {
 	t.Parallel()
 	m := treasury.New(module.Deps{})
 	var routes httpx.Routes
 	m.Routes(&routes)
-	if m.Name() != "treasury" || routes != (httpx.Routes{}) || m.Pollers() != nil {
+	served := routes.TreasuryRoutes
+	routes.TreasuryRoutes = nil
+	if m.Name() != "treasury" || served == nil || routes != (httpx.Routes{}) || m.Pollers() != nil {
 		t.Fatalf("module = %s, routes %+v, pollers %v", m.Name(), routes, m.Pollers())
 	}
 	var got []string
@@ -36,5 +42,26 @@ func TestModule_consumesTradeEventsAndHasNoRoutesOrPollersYet(t *testing.T) {
 	}
 	if _, ok := m.Queries().(adapters.Unwired); !ok {
 		t.Fatalf("Queries() = %T, want adapters.Unwired", m.Queries())
+	}
+}
+
+func TestModule_wireTakesMembersAndUsersFromTheBuiltSetAndFailsClosedWithout(t *testing.T) {
+	t.Parallel()
+	d := module.Deps{}
+	alone := treasury.New(d)
+	module.NewSet(alone)
+	members, users := alone.Reads()
+	if _, ok := members.(app.UnwiredReads); !ok {
+		t.Fatalf("members = %T, want app.UnwiredReads", members)
+	}
+	if _, ok := users.(app.UnwiredReads); !ok {
+		t.Fatalf("users = %T, want app.UnwiredReads", users)
+	}
+	wired := treasury.New(d)
+	module.NewSet(wired, cabal.New(d), identity.New(d))
+	members, users = wired.Reads()
+	if reflect.TypeOf(members) != reflect.TypeOf(cabal.New(d).Queries()) ||
+		reflect.TypeOf(users) != reflect.TypeOf(identity.New(d).Queries()) {
+		t.Fatalf("reads = %T, %T, want cabal's and identity's Queries", members, users)
 	}
 }

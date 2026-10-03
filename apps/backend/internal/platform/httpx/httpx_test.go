@@ -239,6 +239,12 @@ func (healthz) DeleteCabalAccessRequest(
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.DeleteCabalAccessRequest")
 }
 
+func (healthz) GetCabalActivity(
+	context.Context, api.GetCabalActivityRequestObject,
+) (api.GetCabalActivityResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabalActivity")
+}
+
 func (healthz) GetAsset(context.Context, api.GetAssetRequestObject) (api.GetAssetResponseObject, error) {
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetAsset")
 }
