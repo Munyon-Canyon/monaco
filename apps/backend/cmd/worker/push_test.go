@@ -74,6 +74,17 @@ func TestBindPush_refusesAKeyItCannotUse(t *testing.T) {
 	}
 }
 
+func TestRun_refusesToBootWithPartialStorageConfig(t *testing.T) {
+	t.Parallel()
+	env := bootEnv(t, "SUPABASE_URL=https://storage.example", "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0")
+
+	err := run(t.Context(), io.Discard, env, noop.NewMeterProvider(), &module.Registry{})
+
+	if errs.CodeOf(err) != errs.CodeInvalidConfig || !strings.HasPrefix(err.Error(), "storage.New: ") {
+		t.Fatalf("run = %v, want invalid_config from storage.New", err)
+	}
+}
+
 func TestRun_refusesToBootWithAnAPNsKeyItCannotUse(t *testing.T) {
 	t.Parallel()
 	env := bootEnv(

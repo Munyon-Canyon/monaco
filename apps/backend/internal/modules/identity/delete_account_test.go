@@ -52,9 +52,13 @@ func (f deleteFixture) handler(users app.DeletingUsers) *app.DeleteAccount {
 
 func (f deleteFixture) seedWithPII(t *testing.T, status string) testkit.SeededUser {
 	t.Helper()
-	u := testkit.SeedUser(t, f.pool, testkit.UserOpts{Handle: "gone_soon", AccountStatus: status, WithWallet: true})
+	u := testkit.SeedUser(
+		t,
+		f.pool,
+		testkit.UserOpts{Handle: "gone_" + status, AccountStatus: status, WithWallet: true},
+	)
 	if _, err := f.pool.Exec(t.Context(), `UPDATE users SET email = 'a@b.co', phone_e164 = '+15555550100',
-		phone_hash = decode(repeat('ab', 32), 'hex'), phone_verified_at = now(), x_user_id = 'x-1',
+		phone_hash = sha256(convert_to($1::text, 'UTF8')), phone_verified_at = now(), x_user_id = $1::text,
 		x_username = 'gone', x_linked_at = now(), display_name = 'Gone Soon', photo_url = 'https://img/p.png'
 		WHERE id = $1`, u.ID.UUID()); err != nil {
 		t.Fatal(err)
@@ -129,7 +133,7 @@ func TestDeleteAccount_scrubsPIIKeepsHandleAndWalletAndAppendsUserDeleted(t *tes
 				t.Fatalf("DeleteAccount: %v", err)
 			}
 			want := scrubbed{
-				Status: "deleted", Handle: "gone_soon", PrivyUserID: u.PrivyUserID, Deleted: true, Wallet: true,
+				Status: "deleted", Handle: "gone_" + status, PrivyUserID: u.PrivyUserID, Deleted: true, Wallet: true,
 			}
 			if got := f.row(t, u.ID); got != want {
 				t.Fatalf("row after delete = %+v, want %+v", got, want)
@@ -147,7 +151,7 @@ func TestDeleteAccount_scrubsPIIKeepsHandleAndWalletAndAppendsUserDeleted(t *tes
 
 func (f deleteFixture) expectUntouched(t *testing.T, u testkit.SeededUser) {
 	t.Helper()
-	if got := f.row(t, u.ID); got != untouched("gone_soon", u.PrivyUserID) {
+	if got := f.row(t, u.ID); got != untouched("gone_active", u.PrivyUserID) {
 		t.Fatalf("row = %+v, want it untouched", got)
 	}
 	if got := f.deletedEvents(t); len(got) != 0 {

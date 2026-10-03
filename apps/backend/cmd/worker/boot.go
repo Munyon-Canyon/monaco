@@ -23,6 +23,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
+	"github.com/monaco/monaco/apps/backend/internal/platform/storage"
 )
 
 const pollerMeter = "github.com/monaco/monaco/apps/backend/internal/platform/poller"
@@ -92,6 +93,11 @@ func startWork(
 ) (health, error) {
 	d.Clock, d.IDs, d.HTTPClient = clock.Real{}, ids.Real{}, httpclient.New
 	d.UoW = db.New(d.Pool, d.IDs, d.Clock)
+	store, err := storage.New(d.Config)
+	if err != nil {
+		return health{}, err
+	}
+	d.Photos = storage.ProfilePhotos{Storage: store}
 	if err := bindPush(ctx, &d); err != nil {
 		return health{}, err
 	}
