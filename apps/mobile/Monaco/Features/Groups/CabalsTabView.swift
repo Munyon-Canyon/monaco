@@ -6,6 +6,7 @@ import SwiftUI
 struct CabalsTabView: View {
     @ObservedObject var auth: PrivyAuthService
     @Environment(AppSessionStore.self) private var session
+    @Environment(\.accountRestricted) private var accountRestricted
     @State private var model: CabalsTabModel
     @State private var searchText = ""
     @State private var showNewCabalSheet = false
@@ -78,16 +79,18 @@ struct CabalsTabView: View {
         .navigationTitle("Cabals")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showNewCabalSheet = true
-                } label: {
-                    Image(systemName: "plus")
-                        .monacoToolbarIcon()
-                        .frame(width: 44, height: 44)
+            if !accountRestricted {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showNewCabalSheet = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .monacoToolbarIcon()
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("New cabal")
+                    .accessibilityIdentifier("cabals-new-button")
                 }
-                .accessibilityLabel("New cabal")
-                .accessibilityIdentifier("cabals-new-button")
             }
         }
         .sheet(

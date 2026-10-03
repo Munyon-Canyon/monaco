@@ -82,5 +82,5 @@ public enum MainFlowCopyManifest {
             GroupChatCopy.emptyState,
             GroupChatCopy.composerPlaceholder,
             GroupChatCopy.loadEarlier,
-        ] + PreIpoCopy.auditedStrings
+        ] + PreIpoCopy.auditedStrings + OnboardingCopy.auditedStrings
 }

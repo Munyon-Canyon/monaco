@@ -1,26 +1,31 @@
 import Foundation
 
-public enum FirstRunDestination: Equatable, Sendable {
-    case session
-    case nameSetup
-    case app
+public enum AccountRestriction: Equatable, Sendable {
+    case banned
 }
 
-/// The post-sign-in routing decision, kept pure so it can be tested without a simulator
-/// and can never disagree with the screen it drives.
-public enum FirstRunGate {
-    /// A name that is empty once trimmed is the same as no name at all: every social
-    /// surface (proposals, votes, leaderboards, chat) renders those accounts as "Member".
-    ///
-    /// Whitespace-only names cannot be saved — `DisplayNameRules.normalize` rejects them
-    /// and so does the backend — so they only arrive from an older client or a direct
-    /// database write. Treat them as missing rather than letting them through the gate.
-    public static func needsDisplayName(_ displayName: String) -> Bool {
-        displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
+public enum FirstRunDestination: Equatable, Sendable {
+    case session
+    case restricted(AccountRestriction)
+    case handle
+    case phone
+    case socials
+    case app(restricted: Bool)
+}
 
-    public static func destination(for profile: SessionProfile?) -> FirstRunDestination {
+public enum FirstRunGate {
+    public static func destination(
+        for profile: SessionProfile?, onboardingCursor: OnboardingCursor
+    ) -> FirstRunDestination {
         guard let profile else { return .session }
-        return needsDisplayName(profile.displayName) ? .nameSetup : .app
+        if profile.accountStatus == .banned { return .restricted(.banned) }
+        if profile.handle == nil { return .handle }
+        if profile.authState == .created { return .phone }
+        if onboardingCursor == .socials,
+            profile.authState == .awaitingSocials || profile.authState == .awaitingPhone
+        {
+            return .socials
+        }
+        return .app(restricted: profile.accountStatus == .suspended)
     }
 }
