@@ -1,13 +1,16 @@
 package agents
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strconv"
@@ -36,6 +39,8 @@ type checkHarness struct {
 	replies     []reply
 	goos        string
 	lookPath    func(string) (string, error)
+	budget      map[string]time.Duration
+	xcodeBuild  func(ctx context.Context, waited string) error
 }
 
 func newCheckHarness(t *testing.T) *checkHarness {
@@ -75,6 +80,15 @@ func (h *checkHarness) run(ctx context.Context, dir, stdin, name string, args ..
 			return []byte(r.out), r.err
 		}
 	}
+	if strings.Contains(line, "xcode-lock.sh") && h.xcodeBuild != nil {
+		waited := ""
+		for _, a := range args {
+			if file, ok := strings.CutPrefix(a, "MONACO_LOCK_WAITED="); ok {
+				waited = file
+			}
+		}
+		return nil, h.xcodeBuild(ctx, waited)
+	}
 	switch line {
 	case "golangci-lint version --short":
 		return []byte(h.lint), nil
@@ -85,6 +99,16 @@ func (h *checkHarness) run(ctx context.Context, dir, stdin, name string, args ..
 	return nil, nil
 }
 
+func secondsIn(file string) time.Duration {
+	raw, _ := os.ReadFile(file)
+	var total time.Duration
+	for _, f := range strings.Fields(string(raw)) {
+		n, _ := strconv.Atoi(f)
+		total += time.Duration(n) * time.Second
+	}
+	return total
+}
+
 func (h *checkHarness) check(t *testing.T, args ...string) (int, string, string) {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
@@ -92,6 +116,7 @@ func (h *checkHarness) check(t *testing.T, args ...string) (int, string, string)
 		context.Background(), h.env, h.dir, h.cached(h.run), append([]string{"check"}, args...), &stdout, &stderr,
 		func(env *Env) {
 			env.Now = func() time.Time { return h.clock }
+			maps.Copy(env.Config.Budget, h.budget)
 			if h.goos != "" {
 				env.GOOS = h.goos
 			}
@@ -708,8 +733,14 @@ func TestLookPath_usesTheProcessPathWhenUnset(t *testing.T) {
 func TestCheck_theXcodeRowRunsForAnAppChangeOnDarwinOnly(t *testing.T) {
 	t.Parallel()
 	found := func(string) (string, error) { return "/usr/bin/xcodebuild", nil }
-	build := ".: bash -c " + xcodeScript("build-for-testing")
-	testCmd := ".: bash -c " + xcodeScript("-only-testing:MonacoTests test-without-building")
+	build := " MONACO_LOCK_HOLD=300 MONACO_XCODE_LOCK_TIMEOUT=5400 bash -c " + xcodeScript("build-for-testing")
+	testCmd := " MONACO_LOCK_HOLD=300 MONACO_XCODE_LOCK_TIMEOUT=5400 bash -c " +
+		xcodeScript("-only-testing:MonacoTests test-without-building")
+	ran := func(h *checkHarness, cmd string) bool {
+		return slices.ContainsFunc(h.calls, func(c string) bool {
+			return strings.HasPrefix(c, ".: env MONACO_LOCK_WAITED=") && strings.HasSuffix(c, cmd)
+		})
+	}
 	change := map[string]string{"apps/mobile/Monaco/A.swift": "let a = 1\n"}
 
 	h := newCheckHarness(t)
@@ -717,7 +748,7 @@ func TestCheck_theXcodeRowRunsForAnAppChangeOnDarwinOnly(t *testing.T) {
 	h.lookPath = found
 	h.commit(t, change)
 	code, stdout, stderr := h.check(t)
-	if code != 0 || !slices.Contains(h.calls, build) || !slices.Contains(h.calls, testCmd) ||
+	if code != 0 || !ran(h, build) || !ran(h, testCmd) ||
 		!strings.Contains(stdout, "xcode           ok") {
 		t.Fatalf("darwin app change: %d %q %q\n%s", code, stdout, stderr, strings.Join(h.calls, "\n"))
 	}
@@ -734,7 +765,7 @@ func TestCheck_theXcodeRowRunsForAnAppChangeOnDarwinOnly(t *testing.T) {
 	h.calls = nil
 	if code, stdout, stderr = h.check(t); code != 0 ||
 		slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, "install-xcsift") }) ||
-		!slices.Contains(h.calls, build) {
+		!ran(h, build) {
 		t.Fatalf("xcsift already present: %d %q %q\n%s", code, stdout, stderr, strings.Join(h.calls, "\n"))
 	}
 
@@ -754,6 +785,72 @@ func TestCheck_theXcodeRowRunsForAnAppChangeOnDarwinOnly(t *testing.T) {
 	code, stdout, stderr = h.check(t)
 	if code != 0 || slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, "xcodebuild") }) {
 		t.Fatalf("darwin without xcodebuild: %d %q %q\n%s", code, stdout, stderr, strings.Join(h.calls, "\n"))
+	}
+}
+
+func TestCheck_theXcodeBudgetStartsWhenTheLockIsTaken(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.goos = "darwin"
+	h.lookPath = func(string) (string, error) { return "/usr/bin/xcodebuild", nil }
+	h.budget = map[string]time.Duration{"xcode": time.Second}
+	writeFile(t, filepath.Join(h.dir, ".bin", "xcsift"), "#!/bin/sh\n")
+	h.commit(t, map[string]string{"apps/mobile/Monaco/A.swift": "let a = 1\n"})
+	script, err := filepath.Abs("../../../../../scripts/qa/xcode-lock.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lockDir := filepath.Join(t.TempDir(), "xcode.lock")
+	lockEnv := append(os.Environ(), "MONACO_XCODE_LOCK_DIR="+lockDir, "MONACO_LOCK_POLL=0.1")
+	holder := exec.CommandContext(t.Context(), script, "xcode", "sh", "-c", "echo held; sleep 2")
+	holder.Env = lockEnv
+	held, err := holder.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := holder.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = holder.Wait() })
+	if _, err := bufio.NewReader(held).ReadString('\n'); err != nil {
+		t.Fatalf("the holder never took the lock: %v", err)
+	}
+	h.xcodeBuild = func(ctx context.Context, waited string) error {
+		build := exec.CommandContext(ctx, script, "xcode", "true")
+		build.Env = lockEnv
+		if waited != "" {
+			build.Env = append(slices.Clone(lockEnv), "MONACO_LOCK_WAITED="+waited)
+		}
+		before := secondsIn(waited)
+		runErr := build.Run()
+		h.clock = h.clock.Add(secondsIn(waited) - before + 100*time.Millisecond)
+		return runErr
+	}
+	code, stdout, stderr := h.check(t)
+	waitedRE := regexp.MustCompile(`xcode +ok +0\.2s  waited ([1-9]\d*)s for xcode lock`)
+	if code != 0 || !waitedRE.MatchString(stdout) {
+		t.Fatalf("a fast build behind a lock held past the budget passes: %d %q %q", code, stdout, stderr)
+	}
+
+	h.commit(t, map[string]string{"apps/mobile/Monaco/A.swift": "let a = 2\n"})
+	h.xcodeBuild = func(_ context.Context, waited string) error {
+		h.clock = h.clock.Add(5*time.Second + 2*time.Second)
+		return os.WriteFile(waited, []byte("5\n"), 0o600)
+	}
+	code, stdout, stderr = h.check(t)
+	if code != 1 || !strings.Contains(stdout, "xcode           over budget") ||
+		!strings.Contains(stderr, "xcode row over the 1s xcode budget after 2s") ||
+		!strings.Contains(stderr, "waited 5s for xcode lock, not counted") {
+		t.Fatalf("a slow build after the lock is taken fails: %d %q %q", code, stdout, stderr)
+	}
+
+	h.commit(t, map[string]string{"apps/mobile/Monaco/A.swift": "let a = 3\n"})
+	if err := os.RemoveAll(h.stateDir(t, "xcode-lock")); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, h.stateDir(t, "xcode-lock"), "not a directory\n")
+	if code, stdout, stderr = h.check(t); code != 1 || !strings.Contains(stderr, "xcode-lock") {
+		t.Fatalf("an unwritable lock wait file stops the row: %d %q %q", code, stdout, stderr)
 	}
 }
 
