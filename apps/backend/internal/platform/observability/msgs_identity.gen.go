@@ -7,6 +7,7 @@ func init() {
 		IdentityWalletSignerMissing,
 		IdentityHandleSet,
 		IdentityPhoneConflict,
+		IdentityPhotoPurgeFailed,
 		IdentityProfileUpdated,
 		IdentityXConflict,
 	)

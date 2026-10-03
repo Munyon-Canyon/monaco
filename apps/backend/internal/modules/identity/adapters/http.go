@@ -21,6 +21,7 @@ type HTTP struct {
 	Onboard   *app.Onboarding
 	Update    app.UpdateProfileHandler
 	Photo     app.UploadProfilePhotoHandler
+	Delete    *app.DeleteAccount
 	Reads     sqlc.DBTX
 	Clock     clock.Clock
 }
@@ -147,6 +148,17 @@ func (h HTTP) PatchMe(ctx context.Context, req api.PatchMeRequestObject) (api.Pa
 		return nil, err
 	}
 	return api.PatchMe200JSONResponse(wireMe(me)), nil
+}
+
+func (h HTTP) DeleteMe(ctx context.Context, _ api.DeleteMeRequestObject) (api.DeleteMeResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.Delete.Handle(ctx, user); err != nil {
+		return nil, err
+	}
+	return api.DeleteMe204Response{}, nil
 }
 
 func (h HTTP) PostProfilePhoto(

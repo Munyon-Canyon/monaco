@@ -847,6 +847,24 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/Me"}
         default: {$ref: "#/components/responses/Problem"}
+    delete:
+      operationId: deleteMe
+      x-idempotent: true
+      x-allow-restricted: true
+      tags: [identity]
+      summary: Delete the signed-in user's account.
+      description: >-
+        Deletes the caller's account once nothing is left in it. A stake in any cabal is
+        account_has_positions and any platform balance is account_has_balance; cash out and withdraw
+        first. Deletion scrubs the caller's personal fields and keeps the handle, so no one can claim it.
+        A suspended or banned user may delete too. Every later request with the same token is
+        account_deleted.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "204":
+          description: The account is deleted.
+        default: {$ref: "#/components/responses/Problem"}
   /v1/me/cabals:
     get:
       operationId: getMyCabals

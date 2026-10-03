@@ -306,6 +306,51 @@ func (q *Queries) LockUserByPrivyUserID(ctx context.Context, privyUserID string)
 	return i, err
 }
 
+const markPhotoPurged = `-- name: MarkPhotoPurged :execrows
+UPDATE users SET photo_purged_at = $1::timestamptz
+WHERE id = $2 AND account_status = 'deleted' AND photo_purged_at IS NULL
+`
+
+type MarkPhotoPurgedParams struct {
+	At time.Time
+	ID uuid.UUID
+}
+
+func (q *Queries) MarkPhotoPurged(ctx context.Context, arg MarkPhotoPurgedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markPhotoPurged, arg.At, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const photoPurgesDue = `-- name: PhotoPurgesDue :many
+SELECT id FROM users
+WHERE account_status = 'deleted' AND photo_purged_at IS NULL
+ORDER BY id
+LIMIT $1
+`
+
+func (q *Queries) PhotoPurgesDue(ctx context.Context, batch int32) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, photoPurgesDue, batch)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setDisplayName = `-- name: SetDisplayName :execrows
 UPDATE users SET display_name = $1, updated_at = $2
 WHERE id = $3 AND display_name IS DISTINCT FROM $1

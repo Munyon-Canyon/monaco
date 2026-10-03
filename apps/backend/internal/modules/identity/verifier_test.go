@@ -301,6 +301,10 @@ func (*actorProbe) PatchMe(context.Context, api.PatchMeRequestObject) (api.Patch
 	return nil, errs.New(errs.CodeNotFound, "actorProbe.PatchMe")
 }
 
+func (*actorProbe) DeleteMe(context.Context, api.DeleteMeRequestObject) (api.DeleteMeResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "actorProbe.DeleteMe")
+}
+
 func (*actorProbe) PostProfilePhoto(
 	context.Context, api.PostProfilePhotoRequestObject,
 ) (api.PostProfilePhotoResponseObject, error) {

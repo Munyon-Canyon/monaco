@@ -156,6 +156,7 @@ type IdentitySessionRoutes interface {
 
 type IdentityProfileRoutes interface {
 	PatchMe(context.Context, api.PatchMeRequestObject) (api.PatchMeResponseObject, error)
+	DeleteMe(context.Context, api.DeleteMeRequestObject) (api.DeleteMeResponseObject, error)
 	PostProfilePhoto(context.Context, api.PostProfilePhotoRequestObject) (api.PostProfilePhotoResponseObject, error)
 }
 

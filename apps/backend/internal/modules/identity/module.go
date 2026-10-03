@@ -4,12 +4,14 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/authn"
 	privyadapter "github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/privy"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
@@ -18,12 +20,14 @@ import (
 )
 
 type Module struct {
-	deps    module.Deps
-	privy   app.PrivyUsers
-	wallets app.MemberWallets
-	hints   app.Hints
-	photos  app.PhotoStore
-	meters  metric.MeterProvider
+	deps     module.Deps
+	privy    app.PrivyUsers
+	wallets  app.MemberWallets
+	hints    app.Hints
+	photos   app.PhotoStore
+	stakes   app.Stakes
+	balances app.Balances
+	meters   metric.MeterProvider
 }
 
 type Option func(*Module)
@@ -42,8 +46,15 @@ func WithPhotoStore(store app.PhotoStore) Option {
 	return func(m *Module) { m.photos = store }
 }
 
+func WithHoldings(stakes app.Stakes, balances app.Balances) Option {
+	return func(m *Module) { m.stakes, m.balances = stakes, balances }
+}
+
 func New(d module.Deps, opts ...Option) *Module {
-	m := &Module{deps: d, meters: otel.GetMeterProvider()}
+	m := &Module{
+		deps: d, meters: otel.GetMeterProvider(),
+		stakes: treasury.New(d).Queries(), balances: funding.New(d).Balances(),
+	}
 	for _, opt := range opts {
 		opt(m)
 	}
@@ -77,6 +88,10 @@ func (m *Module) Routes(r *httpx.Routes) {
 			UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, IDs: m.deps.IDs, Hints: hints,
 			Store: store,
 		},
+		Delete: app.NewDeleteAccount(app.DeleteAccountDeps{
+			UoW: m.deps.UoW, Users: adapters.Users{}, Balances: m.balances, Stakes: m.stakes, Clock: m.deps.Clock,
+			Hints: hints,
+		}),
 	}
 }
 
@@ -113,7 +128,16 @@ func (*Module) Consumers() []bus.Consumer {
 	return []bus.Consumer{}
 }
 
-func (*Module) Pollers() []poller.Poller { return nil }
+func (m *Module) Pollers() []poller.Poller {
+	store := m.photos
+	if store == nil {
+		store = m.deps.Photos
+	}
+	if store == nil {
+		return nil
+	}
+	return []poller.Poller{app.NewPhotoPurges(m.deps.Pool, store, m.deps.Clock)}
+}
 
 func (m *Module) Queries() port.Queries { return adapters.NewQueries(m.deps.Pool) }
 

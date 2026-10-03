@@ -51,6 +51,10 @@ func (healthz) PatchMe(context.Context, api.PatchMeRequestObject) (api.PatchMeRe
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.PatchMe")
 }
 
+func (healthz) DeleteMe(context.Context, api.DeleteMeRequestObject) (api.DeleteMeResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.DeleteMe")
+}
+
 func (healthz) PostProfilePhoto(
 	context.Context, api.PostProfilePhotoRequestObject,
 ) (api.PostProfilePhotoResponseObject, error) {

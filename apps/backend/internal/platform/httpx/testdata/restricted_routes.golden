@@ -1,2 +1,3 @@
+DELETE /v1/me
 GET /v1/me
 GET /v1/stream

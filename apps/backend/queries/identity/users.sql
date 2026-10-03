@@ -101,3 +101,13 @@ UPDATE users SET account_status = 'deleted', deleted_at = sqlc.arg(now)::timesta
   email = NULL, phone_e164 = NULL, phone_hash = NULL, phone_verified_at = NULL,
   x_user_id = NULL, x_username = NULL, x_linked_at = NULL, photo_url = NULL, display_name = ''
 WHERE id = sqlc.arg(id) AND account_status = sqlc.arg(expected);
+
+-- name: PhotoPurgesDue :many
+SELECT id FROM users
+WHERE account_status = 'deleted' AND photo_purged_at IS NULL
+ORDER BY id
+LIMIT sqlc.arg(batch);
+
+-- name: MarkPhotoPurged :execrows
+UPDATE users SET photo_purged_at = sqlc.arg(at)::timestamptz
+WHERE id = sqlc.arg(id) AND account_status = 'deleted' AND photo_purged_at IS NULL;

@@ -9,11 +9,13 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
 func TestModule_registersItsRoutesAndNoConsumersOrPollersYet(t *testing.T) {
 	t.Parallel()
-	m := identity.New(module.Deps{Config: privyConfig(), Clock: clock.Real{}})
+	m := identity.New(module.Deps{Config: privyConfig(), Clock: clock.Real{}},
+		identity.WithHoldings(fakes.NewTreasury(), fakes.NewBalances()))
 	var routes httpx.Routes
 	m.Routes(&routes)
 	if m.Name() != "identity" || routes.IdentityRoutes == nil || len(m.Consumers()) != 0 || m.Pollers() != nil {
