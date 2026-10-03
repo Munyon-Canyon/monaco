@@ -190,3 +190,76 @@ func TestDequeue_clearsTheArmOfAnArmedStack(t *testing.T) {
 		t.Fatalf("labels %v, waited %v", calls, f.waited)
 	}
 }
+
+func TestDequeue_unlabelsAStackWhoseRecordLostItsQueueEntry(t *testing.T) {
+	t.Parallel()
+	for _, top := range []string{"1840", "1839"} {
+		t.Run("top #"+top, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			below := labeled(green(t, 1839, "b1839", "graphite-base/1839"), "merge-queue")
+			above := green(t, 1840, "b1840", "b1839")
+			below.Body, above.Body = "Part of #590", "Part of #590"
+			s := newStackGH(t, f, below, above)
+			f.owner(t, Record{Ticket: 590, State: Exited, Worktree: "/w/590"})
+			var out strings.Builder
+			if err := dequeueCmd(t.Context(), f.Env(t), []string{top}, &out); err != nil {
+				t.Fatal(err)
+			}
+			if out.String() != "dequeued #1839; safe to push\n" || s.prs[1839].labeled("merge-queue") {
+				t.Fatalf("%q, labels %+v", out.String(), s.prs[1839].Labels.Nodes)
+			}
+			if got := f.hub.callsContaining("/labels"); !slices.Equal(got,
+				[]string{"DELETE /repos/o/r/issues/1839/labels/merge-queue"}) {
+				t.Fatalf("calls %v", got)
+			}
+		})
+	}
+}
+
+func TestDequeue_aRecordWithNoQueueEntryAndNoLabelsLeavesGitHubAlone(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+	f.owner(t, Record{Ticket: 40, State: Running, Worktree: "/w/40"})
+	var out strings.Builder
+	if err := dequeueCmd(t.Context(), f.Env(t), []string{"2"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.String() != "no PR of the stack under #2 carries merge-queue; safe to push\n" ||
+		len(f.hub.callsContaining("/labels")) != 0 || len(f.waited) != 0 {
+		t.Fatalf("%q, labels %v, waited %v", out.String(), f.hub.callsContaining("/labels"), f.waited)
+	}
+}
+
+func TestDequeue_aRecordWithNoQueueEntryReportsGitHubFailures(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, want string }{
+		{"open PRs unreadable", "open PRs: boom"},
+		{"label removal fails", "boom"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			s := newStackGH(t, f, labeled(green(t, 1, "b1", "fb"), "merge-queue"), green(t, 2, "b2", "b1"))
+			f.owner(t, Record{Ticket: 40, State: Running, Worktree: "/w/40"})
+			if tc.name == "open PRs unreadable" {
+				f.run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
+					openQuery := func(a string) bool { return strings.Contains(a, "open: pullRequests") }
+					if slices.ContainsFunc(args, openQuery) {
+						return nil, errors.New("open PRs: boom")
+					}
+					return s.run(ctx, dir, stdin, name, args...)
+				}
+			} else {
+				route := "DELETE /repos/o/r/issues/1/labels/merge-queue"
+				f.hub.status[route] = http.StatusInternalServerError
+				f.hub.on(route, "boom")
+			}
+			err := dequeueCmd(t.Context(), f.Env(t), []string{"2"}, &strings.Builder{})
+			if err == nil || !strings.Contains(cliText(err)+err.Error(), tc.want) {
+				t.Fatalf("%v", err)
+			}
+		})
+	}
+}
