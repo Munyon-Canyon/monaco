@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -62,6 +63,7 @@ type Config struct {
 	MaxLoad              int
 	Budget               map[string]time.Duration
 	Shared               []string
+	Unknown              []string
 }
 
 func parseConfig(r io.Reader) (Config, error) {
@@ -83,7 +85,14 @@ func parseConfig(r io.Reader) (Config, error) {
 		return Config{}, err
 	}
 	for _, l := range lines {
-		if err := applyConfigLine(c.Budget, &section, seen, strs, ints, lists, l.text); err != nil {
+		err := applyConfigLine(c.Budget, &section, seen, strs, ints, lists, l.text)
+		if unknown := (unknownKeyError{}); errors.As(err, &unknown) {
+			if !slices.Contains(c.Unknown, unknown.key) {
+				c.Unknown = append(c.Unknown, unknown.key)
+			}
+			continue
+		}
+		if err != nil {
 			return Config{}, configLineErr(configPath, l.n, err)
 		}
 	}

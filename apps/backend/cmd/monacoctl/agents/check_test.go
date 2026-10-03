@@ -801,7 +801,6 @@ func TestParseConfig_readsTheCheckBudgetSection(t *testing.T) {
 	}
 	for body, want := range map[string]string{
 		"[check.other]\n":                 `:11: unknown section [check.other]`,
-		"[check.budget]\nrust = \"1s\"\n": `:12: unknown key "check.budget.rust"`,
 		"[check.budget]\ngo\n":            ":12: want key = value",
 		"[check.budget]\ngo = 60s\n":      ":12: quote: invalid syntax",
 		"[check.budget]\ngo = \"soon\"\n": `:12: budget go: want a positive duration such as "60s", got "soon"`,
@@ -811,6 +810,10 @@ func TestParseConfig_readsTheCheckBudgetSection(t *testing.T) {
 			!strings.Contains(cliText(err), configPath+want) {
 			t.Errorf("%q: %v", body, cliText(err))
 		}
+	}
+	c, err = parseConfig(strings.NewReader(testConfig + "\n[check.budget]\nrust = \"1s\"\n"))
+	if err != nil || !slices.Equal(c.Unknown, []string{"check.budget.rust"}) {
+		t.Errorf("unknown budget kind: %q %v", c.Unknown, err)
 	}
 }
 

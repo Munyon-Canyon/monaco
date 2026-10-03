@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 type variableGet struct {
@@ -186,12 +187,15 @@ func TestParseConfig_readsTheBatchTable(t *testing.T) {
 		"shared = [a/**]\n":           `:10: want a list of quoted strings such as ["a/**"], got a/**`,
 		"shared = [\n  \"a/**\",\n":   `:10: want a list of quoted strings`,
 		"size = 2\nshared = [\n\"a\"": `:11: want a list of quoted strings`,
-		"other = 1\n":                 `:10: unknown key "batch.other"`,
 	} {
 		if _, err := parseConfig(strings.NewReader(testConfig + body)); err == nil ||
 			!strings.Contains(cliText(err), configPath+want) {
 			t.Errorf("%q: %v", body, cliText(err))
 		}
+	}
+	if c, err := parseConfig(strings.NewReader(testConfig + "other = 1\n")); err != nil ||
+		!slices.Equal(c.Unknown, []string{"batch.other"}) {
+		t.Errorf("unknown batch key: %q %v", c.Unknown, err)
 	}
 	missing := strings.Replace(testConfig, "size = 2\n", "", 1)
 	if _, err := parseConfig(strings.NewReader(missing)); err == nil ||
@@ -216,8 +220,8 @@ func committedConfig(t *testing.T) Config {
 	}
 	defer func() { _ = f.Close() }()
 	c, err := parseConfig(f)
-	if err != nil {
-		t.Fatal(err)
+	if err != nil || len(c.Unknown) > 0 {
+		t.Fatalf("%s: unknown keys %q, %v", configPath, c.Unknown, err)
 	}
 	return c
 }
@@ -236,12 +240,15 @@ func TestParseConfig_readsTheCheckSlots(t *testing.T) {
 	for body, want := range map[string]string{
 		"[check]\nslots = 0\n":     "check.slots: want at least 1, got 0",
 		"[check]\nslots = \"2\"\n": "int:",
-		"[check]\nother = 1\n":     `unknown key "check.other"`,
 	} {
 		if _, err := parseConfig(strings.NewReader(testConfig + "\n" + body)); err == nil ||
 			!strings.Contains(cliText(err), want) {
 			t.Errorf("%q: %v", body, cliText(err))
 		}
+	}
+	if c, err := parseConfig(strings.NewReader(testConfig + "\n[check]\nother = 1\n")); err != nil ||
+		!slices.Equal(c.Unknown, []string{"check.other"}) {
+		t.Errorf("unknown check key: %q %v", c.Unknown, err)
 	}
 }
 
@@ -260,11 +267,14 @@ func TestParseConfig_readsTheDispatchLoadCeilingAndRejectsBadValues(t *testing.T
 		"[dispatch]\nmax_load = 0\n":    "dispatch.max_load: want above 0, got 0",
 		"[dispatch]\nmax_load = high\n": "int: strconv.Atoi",
 		"[dispatch]\nmax_load\n":        "want key = value",
-		"[dispatch]\nlanes_hint = 3\n":  `unknown key "dispatch.lanes_hint"`,
 	} {
 		if _, err := parseConfig(strings.NewReader(base + tail)); err == nil || !strings.Contains(cliText(err), want) {
 			t.Errorf("%q: got %v, want %q", tail, err, want)
 		}
+	}
+	cfg, err = parseConfig(strings.NewReader(base + "[dispatch]\nlanes_hint = 3\n"))
+	if err != nil || cfg.MaxLoad != 12 || !slices.Equal(cfg.Unknown, []string{"dispatch.lanes_hint"}) {
+		t.Errorf("unknown dispatch key: %q %v", cfg.Unknown, err)
 	}
 }
 
@@ -336,5 +346,27 @@ func TestApplyLocalConfig_acceptsOnlyCapacityWithinTheTrackedBounds(t *testing.T
 	}
 	if tracked.Budget["go"] != defaultBudget()["go"] {
 		t.Fatalf("a rejected budget line changed the tracked budget: %v", tracked.Budget["go"])
+	}
+}
+
+func TestParseConfig_warnsOnceOnAKeyANewerConfigAdds(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	writeFile(t, filepath.Join(f.dir, configPath), testConfig+
+		"[check]\nslots = 3\nqueue_hint = 1\n[check.budget]\nflows = \"90s\"\nkotlin = \"30s\"\nkotlin = \"40s\"\n")
+	f.hub.on(list("/pulls?state=open"), []PR{})
+	f.noFailures()
+	code, _, stderr := f.agents(t, "watch", "--once")
+	want := `monacoctl agents: warning: unknown key "check.queue_hint" in .monaco/agents.toml (newer config, or a typo)` +
+		"\n" + `monacoctl agents: warning: unknown key "check.budget.kotlin" in .monaco/agents.toml ` +
+		"(newer config, or a typo)\n"
+	if code != 0 || stderr != want {
+		t.Fatalf("code=%d stderr=%q", code, stderr)
+	}
+	c, err := parseConfig(strings.NewReader(testConfig +
+		"[check]\nslots = 3\nqueue_hint = 1\n[check.budget]\nflows = \"90s\"\nkotlin = \"30s\"\n"))
+	if err != nil || c.Slots != 3 || c.Budget["flows"] != 90*time.Second || c.Batch != 2 ||
+		!slices.Equal(c.Unknown, []string{"check.queue_hint", "check.budget.kotlin"}) {
+		t.Fatalf("known values: %+v %v", c, err)
 	}
 }
