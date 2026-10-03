@@ -300,6 +300,14 @@ jobs:
     if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.mobile-core == 'true' || needs.plan.outputs.flows == 'true' || needs.plan.outputs.unknown == 'true')
     uses: ./.github/workflows/ci-mobile-core.yml
 
+  # The only macOS job: builds the app, MonacoTests and MonacoUITests, then runs MonacoTests. Not in stage 2.
+  ios:
+    needs: plan
+    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.ios == 'true' || needs.plan.outputs.unknown == 'true')
+    uses: ./.github/workflows/ci-ios.yml
+    with:
+      save-cache: ${{ inputs.stage == 'staging' }}
+
   # Runs the F<id>IntegrationTests of only the flows the stack touches; a flow-path change that
   # touches no flow with an integration test class exits 0 before anything boots.
   mobile-integration:
@@ -373,6 +381,7 @@ jobs:
       mobile-core: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.mobile-core == 'true' }}
       backend-tests: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.backend-tests == 'true' }}
       mobile-tests: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.mobile-tests == 'true' }}
+      ios: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.ios == 'true' }}
       flows: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.flows == 'true' }}
       journeys: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.journeys == 'true' }}
       scripts: ${{ steps.top.outputs.skip != 'true' && (steps.filter.outputs.scripts == 'true' || steps.every.outputs.scripts == 'true') }}
@@ -496,6 +505,15 @@ jobs:
               - 'apps/backend/internal/modules/**'
               - 'apps/backend/internal/tools/flows/**'
               - 'scripts/ci/mobile-integration.sh'
+            ios:
+              - 'apps/mobile/**'
+              - 'packages/mobile-core/**'
+              - 'packages/flows/**'
+              - '.xcode-version'
+              - 'scripts/ci/select-xcode.sh'
+              - 'scripts/resolve-ios-sim.sh'
+              - 'scripts/ensure-ios-privy-config.sh'
+              - '.github/workflows/ci-ios.yml'
             journeys:
               - 'apps/mobile/**'
               - 'docs/journeys/**'
@@ -650,7 +668,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [plan, lint, backend, backend-report, e2e, ready, vuln, scripts, journeys, mobile-core, mobile-integration, flake, flake-swift]
+    needs: [plan, lint, backend, backend-report, e2e, ready, vuln, scripts, journeys, mobile-core, ios, mobile-integration, flake, flake-swift]
     runs-on: ubuntu-latest
     timeout-minutes: ${{ inputs.stage == 'queue' && 6 || 2 }}
     permissions:
@@ -662,7 +680,7 @@ jobs:
         if: inputs.stage != 'queue'
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: lint, backend, backend-report, e2e, ready, vuln, scripts, journeys, mobile-core, mobile-integration, flake, flake-swift
+          allowed-skips: lint, backend, backend-report, e2e, ready, vuln, scripts, journeys, mobile-core, ios, mobile-integration, flake, flake-swift
 
       - uses: actions/checkout@v4
         if: inputs.stage == 'queue'

@@ -16,15 +16,17 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 		jobs  []string
 	}{
 		{"backend-only", []string{"apps/backend/internal/platform/db/db.go"}, []string{"lint", "ready", "backend"}},
-		{"mobile-core-only", []string{"packages/mobile-core/Sources/Foo.swift"}, []string{"mobile-core"}},
-		{"app-only", []string{"apps/mobile/App.swift"}, []string{"mobile-core"}},
-		{"systemping-only", []string{"apps/mobile/Monaco/Features/SystemPing/SystemPingView.swift"}, []string{"mobile-core"}},
+		{"mobile-core-only", []string{"packages/mobile-core/Sources/Foo.swift"}, []string{"mobile-core", "ios"}},
+		{"app-only", []string{"apps/mobile/App.swift"}, []string{"mobile-core", "ios"}},
+		{"systemping-only", []string{"apps/mobile/Monaco/Features/SystemPing/SystemPingView.swift"}, []string{"mobile-core", "ios"}},
+		{"pbxproj-only", []string{"apps/mobile/Monaco.xcodeproj/project.pbxproj"}, []string{"ios"}},
+		{"ios-workflow-only", []string{".github/workflows/ci-ios.yml"}, []string{"ios", "actionlint"}},
 		{"generator-only", []string{"scripts/gen-mobile-feature.sh"}, []string{"mobile-core"}},
 		{"mobile-integration-script-only", []string{"scripts/ci/mobile-integration.sh"}, []string{"mobile-core"}},
 		{"openapi-only", []string{"apps/backend/api/openapi.yaml"}, []string{"lint", "ready", "backend", "mobile-core"}},
-		{"xcode-version-only", []string{".xcode-version"}, []string{"mobile-core"}},
+		{"xcode-version-only", []string{".xcode-version"}, []string{"mobile-core", "ios"}},
 		{"mobile-core-script-only", []string{"scripts/mobile-core-test.sh"}, []string{"mobile-core"}},
-		{"flows-only", []string{"packages/flows/app/00.tsv"}, []string{"lint", "ready", "backend", "mobile-core"}},
+		{"flows-only", []string{"packages/flows/app/00.tsv"}, []string{"lint", "ready", "backend", "mobile-core", "ios"}},
 		{"ci-only", []string{".github/workflows/ci.yml"}, []string{"actionlint"}},
 	}
 	for _, tc := range cases {
@@ -34,9 +36,6 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 				t.Fatalf("jobs = %v, want %v", got, tc.jobs)
 			}
 		})
-	}
-	if _, ok := filters["ios"]; ok {
-		t.Fatal("ios path filter is still in ci-jobs.yml")
 	}
 	got := jobsFor(filters, []string{"apps/mobile/App.swift"})
 	for _, job := range got {
@@ -63,6 +62,9 @@ func jobsFor(filters map[string][]string, files []string) []string {
 	}
 	if hit["mobile-core"] {
 		jobs = append(jobs, "mobile-core")
+	}
+	if hit["ios"] {
+		jobs = append(jobs, "ios")
 	}
 	if hit["backend-tests"] {
 		jobs = append(jobs, "flake")
