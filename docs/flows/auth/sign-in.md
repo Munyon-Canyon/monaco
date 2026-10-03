@@ -20,7 +20,7 @@ The format of this doc is in [App flows](../README.md).
 | --- | --- |
 | P1 | The app is installed from a Debug build and shows the login form. A test that finds a saved session signs out first with S3 |
 | P2 | Actor A's account is a Privy test login from `apps/mobile/qa/flows/accounts.tsv`: a fixed phone, email and code |
-| P3 | The simulator can reach `auth.privy.io`. No Monaco API call is made before the tab bar shows, so the backend does not have to be running |
+| P3 | The simulator can reach `auth.privy.io`, and the backend is running (`just migrate db`, then `just run backend`). At S1.4 the app opens a backend session with `POST /v1/auth/session` before the tab bar shows, and without the backend it stops on "Your account didn't load" |
 
 The channel is text message unless the run sets `MONACO_QA_CHANNEL=email`. For email, read `sms` as `email` in every identifier, `smsPhoneField` as `emailAddressField`, and `{A.phone}` as `{A.email}`.
 
@@ -56,7 +56,7 @@ Starts signed in (S1).
 
 ## Ground truth
 
-None yet. On `staging` the app is signed in as soon as Privy accepts the code, and it opens no backend session during this flow, so there is nothing outside the screen to check. When #603 lands, the app calls `POST /v1/auth/session` at S1.4, and the check becomes: a `users` row exists for the actor's Privy user, read with `GET /v1/me`. Add it as `apps/mobile/qa/flows/auth/sign-in.truth.sh` and bump the version.
+None yet. Since #1485 the app calls `POST /v1/auth/session` at S1.4, so the check to add is: a `users` row exists for the actor's Privy user, read with `GET /v1/me`. Add it as `apps/mobile/qa/flows/auth/sign-in.truth.sh` and bump the version.
 
 ## Not covered
 
