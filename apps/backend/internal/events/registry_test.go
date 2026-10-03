@@ -46,7 +46,7 @@ func TestSubjects(t *testing.T) {
 		"events.proposal.expired", "events.proposal.failed", "events.proposal.passed", "events.proposal.voided",
 		"events.proposal.withdrawn", "events.system.pinged", "events.trade.blocked", "events.trade.confirmed",
 		"events.trade.failed", "events.trade.submitted", "events.user.auth_state_changed", "events.user.created",
-		"events.user.deleted", "events.user.profile_updated",
+		"events.user.deleted", "events.user.nudge_due", "events.user.profile_updated",
 	}
 	if got := Subjects(); !slices.Equal(got, want) {
 		t.Fatalf("Subjects() = %q, want %q", got, want)
@@ -64,6 +64,7 @@ func TestRegistrationsKeepTheSingleListOrder(t *testing.T) {
 		"cabal.member_left v1", "cabal.updated v1",
 		"price.tick v1 core",
 		"user.created v1", "user.auth_state_changed v1", "user.profile_updated v1", "user.deleted v1",
+		"user.nudge_due v1",
 	}
 	regs := registrations()
 	got := make([]string, 0, len(regs))
@@ -193,7 +194,7 @@ func TestCatalog(t *testing.T) {
 		TypeProposalCreated, TypeProposalExecuted, TypeProposalExecutionBlocked, TypeProposalExpired,
 		TypeProposalFailed, TypeProposalPassed, TypeProposalVoided, TypeProposalWithdrawn,
 		TypeSystemPinged, TypeTradeBlocked, TypeTradeConfirmed, TypeTradeFailed, TypeTradeSubmitted,
-		TypeUserAuthStateChanged, TypeUserCreated, TypeUserDeleted, TypeUserProfileUpdated,
+		TypeUserAuthStateChanged, TypeUserCreated, TypeUserDeleted, TypeUserNudgeDue, TypeUserProfileUpdated,
 	}; !slices.Equal(types, want) {
 		t.Fatalf("Catalog() types = %q, want %q", types, want)
 	}
@@ -342,6 +343,7 @@ func TestUserEventsAggregateOnTheUser(t *testing.T) {
 		UserAuthStateChanged{UserID: id},
 		UserProfileUpdated{UserID: id},
 		UserDeleted{UserID: id},
+		UserNudgeDue{UserID: id},
 	} {
 		if ev.AggregateType() != "user" || ev.AggregateID() != id || !strings.HasPrefix(string(ev.Type()), "user.") {
 			t.Errorf("%T aggregate = %s %s %s", ev, ev.Type(), ev.AggregateType(), ev.AggregateID())

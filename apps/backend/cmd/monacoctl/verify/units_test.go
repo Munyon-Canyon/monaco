@@ -50,6 +50,7 @@ func TestSelectUnits_picksOutcomesByTargetAndSkipsPlannedFlows(t *testing.T) {
 			"18 UpstreamTimeout", "20 ok",
 			"20 CannotFollowSelf", "20 UserNotFound", "20 UserBanned", "20 Unauthorized", "23 ok",
 			"23 DisplayNameInvalid", "23a ok", "23a PhotoInvalid", "23a StorageUnavailable", "23a RateLimited",
+			"28 ok",
 		}},
 		{Target{Flow: "00", Outcome: "Unauthorized"}, []string{"00 Unauthorized"}},
 		{Target{CrashAt: "after-publish"}, []string{

@@ -369,6 +369,18 @@ Subject `events.user.deleted`, version 1.
 | `user_id` | `uuid.UUID` |
 | `at` | `time.Time` |
 
+## `user.nudge_due`
+
+Subject `events.user.nudge_due`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `user_id` | `uuid.UUID` |
+| `kind` | `string` |
+| `nudge_number` | `int` |
+| `at` | `time.Time` |
+
 ## `user.profile_updated`
 
 Subject `events.user.profile_updated`, version 1.

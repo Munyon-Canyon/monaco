@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	privyadapter "github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/privy"
@@ -22,6 +23,7 @@ func identityScenario(t *testing.T, extra ...scenario.Option) *scenario.Scenario
 	users, wallets := privyadapter.Users{Client: client}, privyadapter.Wallets{Client: client}
 	return scenario.New(t, append([]scenario.Option{
 		scenario.WithModules(func(d module.Deps) module.Module {
+			d.Config.Identity.NudgesInterval = time.Second
 			return identity.New(d, identity.WithPrivy(users, wallets))
 		}),
 		scenario.WithPrivy(upstreams, privyAppID),

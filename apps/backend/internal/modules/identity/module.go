@@ -146,14 +146,15 @@ func (*Module) Consumers() []bus.Consumer {
 }
 
 func (m *Module) Pollers() []poller.Poller {
+	nudges := app.NewEmitNudges(m.deps.UoW, m.deps.Pool, m.deps.Clock, m.deps.Config.Identity.NudgesInterval)
 	store := m.photos
 	if store == nil {
 		store = m.deps.Photos
 	}
 	if store == nil {
-		return nil
+		return []poller.Poller{nudges}
 	}
-	return []poller.Poller{app.NewPhotoPurges(m.deps.Pool, store, m.deps.Clock)}
+	return []poller.Poller{nudges, app.NewPhotoPurges(m.deps.Pool, store, m.deps.Clock)}
 }
 
 func (m *Module) Queries() port.Queries { return adapters.NewQueries(m.deps.Pool) }
