@@ -1,0 +1,8 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": [
+    {"name": "SpaceX PreStocks", "symbol": "SPACEX", "image": "http://www.prestocks.com/logos/spacex.png", "contract_address": "PreANxuXjsy2pvisWWMNB6YaJNzr7681wJJr2rHsfTh", "paused": true},
+    {"name": "Stripe PreStocks", "symbol": "STRIPE", "image": "https://www.prestocks.com/logos/stripe.png", "contract_address": ""}
+  ]
+}

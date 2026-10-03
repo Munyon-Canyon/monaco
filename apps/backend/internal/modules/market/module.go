@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/jupiterprices"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/jupiterquote"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/mintfacts"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/prestocks"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/tessera"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/xstocks"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
@@ -125,6 +126,12 @@ func (m *Module) Pollers() []poller.Poller {
 			"tessera",
 			httpclient.WithBaseURL(cfg.Tessera.BaseURL),
 			httpclient.WithTimeout(cfg.Timeouts.Tessera),
+			httpclient.WithRetry(3, 250*time.Millisecond, 2*time.Second),
+		)),
+		prestocks.New(m.deps.HTTPClient(
+			"prestocks",
+			httpclient.WithBaseURL(cfg.PreStocks.BaseURL),
+			httpclient.WithTimeout(cfg.Timeouts.PreStocks),
 			httpclient.WithRetry(3, 250*time.Millisecond, 2*time.Second),
 		)),
 	)
