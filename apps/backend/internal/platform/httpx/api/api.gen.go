@@ -545,6 +545,24 @@ func (e ProblemType) Valid() bool {
 	}
 }
 
+// Defines values for ProposalKind.
+const (
+	Buy  ProposalKind = "buy"
+	Sell ProposalKind = "sell"
+)
+
+// Valid indicates whether the value is a known member of the ProposalKind enum.
+func (e ProposalKind) Valid() bool {
+	switch e {
+	case Buy:
+		return true
+	case Sell:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProposalStatus.
 const (
 	ProposalStatusExecuted         ProposalStatus = "executed"
@@ -641,6 +659,27 @@ const (
 func (e GetCabalAccessRequestsParamsStatus) Valid() bool {
 	switch e {
 	case Pending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetCabalProposalsParamsFilter.
+const (
+	GetCabalProposalsParamsFilterAll    GetCabalProposalsParamsFilter = "all"
+	GetCabalProposalsParamsFilterClosed GetCabalProposalsParamsFilter = "closed"
+	GetCabalProposalsParamsFilterOpen   GetCabalProposalsParamsFilter = "open"
+)
+
+// Valid indicates whether the value is a known member of the GetCabalProposalsParamsFilter enum.
+func (e GetCabalProposalsParamsFilter) Valid() bool {
+	switch e {
+	case GetCabalProposalsParamsFilterAll:
+		return true
+	case GetCabalProposalsParamsFilterClosed:
+		return true
+	case GetCabalProposalsParamsFilterOpen:
 		return true
 	default:
 		return false
@@ -1458,6 +1497,105 @@ type Problem struct {
 // ProblemType Always about:blank. The code field carries the problem type.
 type ProblemType string
 
+// Proposal One proposal as the caller sees it, with its tally and the caller's ballot.
+type Proposal struct {
+	// CabalId The cabal id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	CabalId openapi_types.UUID `json:"cabal_id"`
+
+	// CreatedAt When the proposal opened.
+	//
+	// Examples: 2026-10-03T15:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// ExpiresAt When voting closes.
+	//
+	// Examples: 2026-10-04T15:00:00Z
+	ExpiresAt time.Time `json:"expires_at"`
+
+	// Id The proposal id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+	Id openapi_types.UUID `json:"id"`
+
+	// Kind Whether the proposal spends USDC on the token or sells the token for USDC.
+	//
+	// Examples: buy
+	Kind ProposalKind `json:"kind"`
+
+	// MyBallot The caller's ballot. Null when the caller has not voted or is not a voter.
+	//
+	// Examples: null
+	MyBallot *BallotChoice `json:"my_ballot"`
+
+	// ProposerId The member who proposed it.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	ProposerId openapi_types.UUID `json:"proposer_id"`
+
+	// QuoteOutAmount The quoted output, in the output asset's base units, when the proposal opened.
+	//
+	// Examples: 105000000
+	QuoteOutAmount int64 `json:"quote_out_amount"`
+
+	// Status Where a proposal is in its lifecycle.
+	//
+	// Examples: open
+	Status ProposalStatus `json:"status"`
+
+	// StatusMessage The user-facing message for `status_reason`. Null when `status_reason` is null.
+	//
+	// Examples: null
+	StatusMessage *string `json:"status_message"`
+
+	// StatusReason The error code that blocked execution. Null unless `status` is `execution_blocked`.
+	//
+	// Examples: null
+	StatusReason *string `json:"status_reason"`
+
+	// Symbol The token symbol.
+	//
+	// Examples: AAPLx
+	Symbol string `json:"symbol"`
+
+	// Tally The ballots counted against the proposal's frozen voter set.
+	Tally Tally `json:"tally"`
+
+	// Thesis The proposer's reason, up to 280 characters.
+	//
+	// Examples: Earnings next week.
+	Thesis *string `json:"thesis"`
+
+	// TokenAmount Token base units a sell spends. Null for a buy.
+	//
+	// Examples: null
+	TokenAmount *int64 `json:"token_amount"`
+
+	// UsdcMicros USDC a buy spends, in micros. Null for a sell.
+	//
+	// Examples: 25000000
+	UsdcMicros *int64 `json:"usdc_micros"`
+}
+
+// ProposalKind Whether the proposal spends USDC on the token or sells the token for USDC.
+//
+// Examples: buy
+type ProposalKind string
+
+// ProposalList One page of a cabal's proposals.
+type ProposalList struct {
+	// NextCursor The cursor for the next page. Null on the last page.
+	//
+	// Examples: null
+	NextCursor *string `json:"next_cursor"`
+
+	// Proposals The page, newest first.
+	//
+	// Examples: []
+	Proposals []Proposal `json:"proposals"`
+}
+
 // ProposalStatus Where a proposal is in its lifecycle.
 //
 // Examples: open
@@ -1628,6 +1766,21 @@ type PostCabalMemberParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// GetCabalProposalsParams defines parameters for GetCabalProposals.
+type GetCabalProposalsParams struct {
+	// Filter Which proposals to return.
+	Filter *GetCabalProposalsParamsFilter `form:"filter,omitempty" json:"filter,omitempty"`
+
+	// Limit Page size. Defaults to 20 and cannot exceed 50.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor The `next_cursor` from the previous page. Absent reads the first page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// GetCabalProposalsParamsFilter defines parameters for GetCabalProposals.
+type GetCabalProposalsParamsFilter string
+
 // PostDeviceParams defines parameters for PostDevice.
 type PostDeviceParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -1762,6 +1915,9 @@ type ServerInterface interface {
 	// PostCabalMember Join an open cabal.
 	// (POST /v1/cabals/{id}/members)
 	PostCabalMember(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCabalMemberParams)
+	// GetCabalProposals List a cabal's proposals.
+	// (GET /v1/cabals/{id}/proposals)
+	GetCabalProposals(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalProposalsParams)
 	// PostDevice Register the caller's APNs device token.
 	// (POST /v1/devices)
 	PostDevice(w http.ResponseWriter, r *http.Request, params PostDeviceParams)
@@ -2413,6 +2569,74 @@ func (siw *ServerInterfaceWrapper) PostCabalMember(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostCabalMember(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCabalProposals operation middleware
+func (siw *ServerInterfaceWrapper) GetCabalProposals(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetCabalProposalsParams
+
+	// ------------- Optional query parameter "filter" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "filter", r.URL.Query(), &params.Filter, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "filter"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "filter", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCabalProposals(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3157,6 +3381,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/access-requests/{request_id}", wrapper.DeleteCabalAccessRequest)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/access-requests/{request_id}/decision", wrapper.PostCabalAccessDecision)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/members", wrapper.PostCabalMember)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/proposals", wrapper.GetCabalProposals)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/devices", wrapper.PostDevice)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/devices/{token}", wrapper.DeleteDevice)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/handles/{handle}/availability", wrapper.GetHandleAvailability)
@@ -3681,6 +3906,46 @@ type PostCabalMemberdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response PostCabalMemberdefaultApplicationProblemPlusJSONResponse) VisitPostCabalMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCabalProposalsRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetCabalProposalsParams
+}
+
+type GetCabalProposalsResponseObject interface {
+	VisitGetCabalProposalsResponse(w http.ResponseWriter) error
+}
+
+type GetCabalProposals200JSONResponse ProposalList
+
+func (response GetCabalProposals200JSONResponse) VisitGetCabalProposalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCabalProposalsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetCabalProposalsdefaultApplicationProblemPlusJSONResponse) VisitGetCabalProposalsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -4382,6 +4647,9 @@ type StrictServerInterface interface {
 	// PostCabalMember Join an open cabal.
 	// (POST /v1/cabals/{id}/members)
 	PostCabalMember(ctx context.Context, request PostCabalMemberRequestObject) (PostCabalMemberResponseObject, error)
+	// GetCabalProposals List a cabal's proposals.
+	// (GET /v1/cabals/{id}/proposals)
+	GetCabalProposals(ctx context.Context, request GetCabalProposalsRequestObject) (GetCabalProposalsResponseObject, error)
 	// PostDevice Register the caller's APNs device token.
 	// (POST /v1/devices)
 	PostDevice(ctx context.Context, request PostDeviceRequestObject) (PostDeviceResponseObject, error)
@@ -4822,6 +5090,33 @@ func (sh *strictHandler) PostCabalMember(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostCabalMemberResponseObject); ok {
 		if err := validResponse.VisitPostCabalMemberResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCabalProposals operation middleware
+func (sh *strictHandler) GetCabalProposals(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalProposalsParams) {
+	var request GetCabalProposalsRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCabalProposals(ctx, request.(GetCabalProposalsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCabalProposals")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCabalProposalsResponseObject); ok {
+		if err := validResponse.VisitGetCabalProposalsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
