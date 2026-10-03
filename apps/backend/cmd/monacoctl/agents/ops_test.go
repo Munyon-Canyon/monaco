@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -527,5 +528,32 @@ func TestLanesOpen_reportsAnIssueLookupFailure(t *testing.T) {
 	err := f.Env(t).lanesOpen(context.Background(), io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "issues/5") {
 		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestExited_refusesWhileTheOwnerHoldsAStackInTheQueue(t *testing.T) {
+	t.Parallel()
+	for _, rec := range []Record{
+		{Ticket: 40, State: Running, Worktree: "/w/40", Armed: &Arm{Top: 2, PRs: []int{1, 2}}},
+		{Ticket: 40, State: Running, Worktree: "/w/40", Queued: &Queue{Top: 2, PRs: []int{1, 2}}},
+	} {
+		t.Run(fmt.Sprintf("armed %t", rec.Armed != nil), func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			f.owner(t, rec)
+			before, err := os.ReadFile(f.Env(t).recordPath(40))
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = exitedCmd(t.Context(), f.Env(t), []string{"40"}, &strings.Builder{})
+			want := "#40 still holds stack #2 in the merge queue; run monacoctl agents dequeue 2 first"
+			if err == nil || cliText(err) != want {
+				t.Fatal(err)
+			}
+			after, err := os.ReadFile(f.Env(t).recordPath(40))
+			if err != nil || !bytes.Equal(before, after) {
+				t.Fatalf("record changed: %s, %v", after, err)
+			}
+		})
 	}
 }

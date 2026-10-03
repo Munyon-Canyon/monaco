@@ -85,7 +85,7 @@ Do these once per milestone.
 
         bin/monacoctl agents own <n> <agent-id>
 
-6. When the owner reports its PRs, run `bin/monacoctl agents done <n>`. Once its process has stopped, run `bin/monacoctl agents exited <n>`. The lane cap counts the owners not marked exited whose worktree exists on this machine and whose ticket is open; `dispatch` prints the others as `not counted`, and `agents status` lists owners whose worktree is on another machine under their own heading. `agents check` splits the CPUs among the counted owners.
+6. When the owner reports its PRs, run `bin/monacoctl agents done <n>`. Once its process has stopped, run `bin/monacoctl agents exited <n>`. `exited` refuses while the owner's stack is queued or armed, and names the `agents dequeue <top>` to run first. The lane cap counts the owners not marked exited whose worktree exists on this machine and whose ticket is open; `dispatch` prints the others as `not counted`, and `agents status` lists owners whose worktree is on another machine under their own heading. `agents check` splits the CPUs among the counted owners.
 
 ## Verify and land
 

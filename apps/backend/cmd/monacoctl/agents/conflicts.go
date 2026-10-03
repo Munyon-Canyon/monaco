@@ -130,6 +130,16 @@ func exitedCmd(ctx context.Context, env *Env, args []string, _ io.Writer) error 
 	return setState(ctx, env, args, Exited, "exited <ticket>")
 }
 
+func (r Record) heldTop() (int, bool) {
+	switch {
+	case r.Queued != nil:
+		return r.Queued.Top, true
+	case r.Armed != nil:
+		return r.Armed.Top, true
+	}
+	return 0, false
+}
+
 func setState(ctx context.Context, env *Env, args []string, state State, use string) error {
 	if len(args) != 1 {
 		return usageError(use)
@@ -141,6 +151,10 @@ func setState(ctx context.Context, env *Env, args []string, state State, use str
 	r, err := env.record(ctx, n)
 	if err != nil {
 		return err
+	}
+	if top, held := r.heldTop(); held && state == Exited {
+		return detailErr(errs.CodeInvalidInput, "monacoctl.agents.exited", fmt.Sprintf(
+			"#%d still holds stack #%d in the merge queue; run monacoctl agents dequeue %d first", n, top, top))
 	}
 	r.State = state
 	r.Changed = env.Now()
