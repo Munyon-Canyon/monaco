@@ -5,6 +5,8 @@ import Testing
 
 @testable import Monaco
 
+private typealias CabalsTabModel = Monaco.CabalsTabModel
+
 /// Holds a fake read open until the test lets it finish, one caller at a time
 /// and in arrival order. Interleavings are then the test's to choose, rather
 /// than whatever order the main actor happens to run its tasks in.

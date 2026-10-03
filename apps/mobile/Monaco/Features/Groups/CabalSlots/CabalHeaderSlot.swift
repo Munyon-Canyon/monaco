@@ -1,9 +1,140 @@
+import MonacoAPI
+import MonacoCore
 import SwiftUI
 
 enum CabalHeaderSlot: CabalSection {
-    static let isLive = false
+    static let isLive = true
 
     static func body(for context: CabalContext) -> some View {
-        EmptyView()
+        CabalHeader(cabalID: context.cabalID)
+    }
+}
+
+private struct CabalHeader: View {
+    let cabalID: String
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(ToastCenter.self) private var toasts
+    @State private var model: CabalModel?
+
+    var body: some View {
+        CabalHero(model: model)
+            .task {
+                let model = preparedModel()
+                if model.cabal == nil { await model.load() }
+                await model.observe()
+            }
+            .onScreenVisibilityChange { visible in
+                model?.setVisible(visible)
+            }
+            .onChange(of: model?.failureTick) { _, _ in
+                guard model?.cabal != nil, let error = model?.lastError else { return }
+                toasts.show(error)
+            }
+    }
+
+    private func preparedModel() -> CabalModel {
+        if let model { return model }
+        let created = CabalModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
+        model = created
+        return created
+    }
+}
+
+private struct CabalHero: View {
+    let model: CabalModel?
+
+    static let visibleFaces = 5
+
+    var body: some View {
+        content
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .padding(.top, MonacoTheme.Space.sm)
+            .padding(.bottom, MonacoTheme.Space.l)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(MonacoTheme.heroInk)
+    }
+
+    @ViewBuilder private var content: some View {
+        switch model?.state ?? .loading {
+        case .idle, .loading:
+            HStack(spacing: MonacoTheme.Space.sm) {
+                SkeletonBlock(width: 48, height: 48, radius: MonacoTheme.Radius.card)
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                    SkeletonBlock(width: 160, height: 22)
+                    SkeletonBlock(width: 96, height: 14)
+                }
+            }
+            .accessibilityElement()
+            .accessibilityLabel("Loading this cabal")
+            .accessibilityIdentifier("cabal-header-loading")
+        case .failed:
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                Text("Couldn't load this cabal.")
+                    .font(MonacoTheme.Typo.body)
+                    .foregroundStyle(MonacoTheme.onHero)
+                Button("Try again") {
+                    Task { await model?.load() }
+                }
+                .buttonStyle(.monacoSecondary)
+                .accessibilityIdentifier("cabal-header-retry")
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("cabal-header-failed")
+        case .loaded(let cabal):
+            identity(cabal)
+        }
+    }
+
+    private func identity(_ cabal: Components.Schemas.Cabal) -> some View {
+        HStack(alignment: .center, spacing: MonacoTheme.Space.sm) {
+            CabalMark(
+                groupId: cabal.id,
+                name: cabal.name,
+                size: 48,
+                onInk: true,
+                pictureUrl: cabal.pictureUrl,
+                accessibilityLabel: cabal.pictureUrl == nil ? nil : "\(cabal.name) picture"
+            )
+            VStack(alignment: .leading, spacing: 4) {
+                Text(cabal.name)
+                    .font(MonacoTheme.Typo.title)
+                    .foregroundStyle(MonacoTheme.onHero)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.75)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("cabal-header-name")
+                HStack(spacing: MonacoTheme.Space.s) {
+                    MemberFaces(members: Array(cabal.members.prefix(Self.visibleFaces)))
+                    Text(CabalCopy.memberCount(cabal.memberCount))
+                        .font(MonacoTheme.Typo.caption)
+                        .foregroundStyle(MonacoTheme.onHeroMuted)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("cabal-member-count")
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("cabal-header")
+    }
+}
+
+private struct MemberFaces: View {
+    let members: [Components.Schemas.CabalMember]
+
+    private static let size: CGFloat = 22
+
+    var body: some View {
+        HStack(spacing: -4) {
+            ForEach(members, id: \.userId) { member in
+                MonacoAvatar(
+                    photoURL: member.photoUrl,
+                    displayName: CabalCopy.memberName(member),
+                    size: Self.size,
+                    seed: member.userId
+                )
+                .overlay(Circle().strokeBorder(MonacoTheme.heroInk, lineWidth: 2))
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
