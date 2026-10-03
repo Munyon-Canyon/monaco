@@ -106,7 +106,7 @@ func TestFlowGate_refusesAFlowInAnotherQueuedStack(t *testing.T) {
 	}, q1, q2, green(t, 9, "unqueued", "fb"))
 	f.hub.on(list("/pulls/9/files?"), []File{{Filename: "packages/flows/app/00.tsv"}})
 	code, stdout, stderr := f.agents(t, "land-stack", "2")
-	want := "not landing #2: flow 00 is in queued stack #7. Wait for #7 to land, then run land-stack again"
+	want := "not landing #2: flow 00 is in queued stack #7. Wait for #7 to land, then restack with gt (it changes these flows on staging) and run land-stack again"
 	if code == 0 || !strings.Contains(stderr, want) || s.prs[2].labeled("merge-queue") {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
