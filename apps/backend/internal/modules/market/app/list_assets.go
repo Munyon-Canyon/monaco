@@ -58,6 +58,9 @@ type Lister interface {
 type catalogReader interface {
 	ListAssetsBySymbol(context.Context, sqlc.ListAssetsBySymbolParams) ([]sqlc.Asset, error)
 	ListAssetsByRank(context.Context, sqlc.ListAssetsByRankParams) ([]sqlc.Asset, error)
+	NewestSamples(context.Context, sqlc.NewestSamplesParams) ([]sqlc.NewestSamplesRow, error)
+	FirstSamplesSince(context.Context, sqlc.FirstSamplesSinceParams) ([]sqlc.FirstSamplesSinceRow, error)
+	SparklineCloses(context.Context, sqlc.SparklineClosesParams) ([]sqlc.SparklineClosesRow, error)
 }
 
 var _ Lister = (*ListAssets)(nil)
@@ -107,7 +110,7 @@ func (l *ListAssets) Handle(ctx context.Context, req ListRequest) (Page, error) 
 	if len(assets) == 0 {
 		return Page{Items: []Summary{}}, nil
 	}
-	items, err := l.summaries(assets, l.clock.Now())
+	items, err := l.summaries(ctx, assets, l.clock.Now())
 	if err != nil {
 		return Page{}, err
 	}
@@ -236,14 +239,18 @@ func assetsOf(rows []sqlc.Asset) ([]domain.Asset, error) {
 	return out, nil
 }
 
-func (l *ListAssets) summaries(assets []domain.Asset, now time.Time) ([]Summary, error) {
+func (l *ListAssets) summaries(ctx context.Context, assets []domain.Asset, now time.Time) ([]Summary, error) {
 	sessions, err := sessionsFor(assets, now)
+	if err != nil {
+		return nil, err
+	}
+	loaded, err := l.load(ctx, assets, now, sessions[domain.KindEquity])
 	if err != nil {
 		return nil, err
 	}
 	out := make([]Summary, len(assets))
 	for i, asset := range assets {
-		out[i] = Summary{Asset: asset, Session: sessions[asset.Kind]}
+		out[i] = summary(asset, sessions[asset.Kind], loaded)
 	}
 	return out, nil
 }
