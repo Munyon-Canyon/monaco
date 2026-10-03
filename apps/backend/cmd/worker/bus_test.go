@@ -214,3 +214,38 @@ func TestStartConsumers_deliversAPublishedEventToARegisteredHandler(t *testing.T
 	}
 	waitUntil(t, "the delivery to be acked and logged", func() bool { return hasLine(logs, "bus.dispatched") })
 }
+
+func TestRun_cancelledWhileOpeningTheLockPoolReturnsTheErrorWithoutStartingTheRelay(t *testing.T) {
+	t.Parallel()
+	url := testkit.StandaloneNATS(t)
+	applyStreams(t, url)
+	pool := testkit.DB(t)
+	err := db.New(pool, ids.Real{}, clock.Real{}).Do(observability.WithActor(t.Context(), "system:test"),
+		func(ctx context.Context, tx db.Tx) error {
+			return tx.Events.Append(ctx, events.SystemPinged{V: 1, PingID: ids.Real{}.NewV7(), Note: "unsent"})
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	var mods module.Registry
+	mods.Add(func(module.Deps) module.Module {
+		cancel()
+		return consumerModule(nil)
+	})
+	err = run(ctx, io.Discard, []string{
+		"MONACO_ENV=test", "DATABASE_URL=" + pool.Config().ConnString(), "NATS_URL=" + url,
+		"MONACO_HTTP_ADDR=127.0.0.1:0", "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
+	}, noop.NewMeterProvider(), &mods)
+	if errs.CodeOf(err) != errs.CodeDBUnavailable || !strings.HasPrefix(err.Error(), "db.Open: ") {
+		t.Fatalf("run cancelled during the lock pool open = %v, want db_unavailable from db.Open", err)
+	}
+	backlog, err := db.NewOutbox(pool, clock.Real{}).Backlog(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if backlog.Unpublished != 1 {
+		t.Fatalf("unpublished events = %d, want 1 with the relay never started", backlog.Unpublished)
+	}
+}
