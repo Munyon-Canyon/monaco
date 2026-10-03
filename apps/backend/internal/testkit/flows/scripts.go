@@ -45,12 +45,6 @@ func Scripts() map[string]Script {
 		"F03RevokeAccessCabalNotFound":             F03RevokeAccessCabalNotFound,
 		"F03RevokeAccessAccessRequestNotPending":   F03RevokeAccessAccessRequestNotPending,
 		"F03RevokeAccessCannotRevokeAccess":        F03RevokeAccessCannotRevokeAccess,
-		"F10CastVoteOK":                            F10CastVoteOK,
-		"F10CastVoteUnauthorized":                  F10CastVoteUnauthorized,
-		"F10CastVoteProposalNotFound":              F10CastVoteProposalNotFound,
-		"F10CastVoteNotAVoter":                     F10CastVoteNotAVoter,
-		"F10CastVoteProposalClosed":                F10CastVoteProposalClosed,
-		"F10CastVoteCrashAfterPublish":             F10CastVoteCrashAfterPublish,
 		"F18SamplePricesOK":                        F18SamplePricesOK,
 		"F18SamplePricesJupiterUnavailable":        F18SamplePricesJupiterUnavailable,
 		"F18SamplePricesUpstreamTimeout":           F18SamplePricesUpstreamTimeout,
@@ -68,6 +62,8 @@ func Scripts() map[string]Script {
 		"F23aUploadProfilePhotoStorageUnavailable": F23aUploadProfilePhotoStorageUnavailable,
 		"F23aUploadProfilePhotoRateLimited":        F23aUploadProfilePhotoRateLimited,
 	})
+	maps.Copy(scripts, f10Scripts())
+	maps.Copy(scripts, f13Scripts())
 	return scripts
 }
 

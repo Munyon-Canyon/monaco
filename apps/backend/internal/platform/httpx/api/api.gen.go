@@ -2349,6 +2349,12 @@ type PostProfilePhotoParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// DeleteProposalParams defines parameters for DeleteProposal.
+type DeleteProposalParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // PostProposalVoteParams defines parameters for PostProposalVote.
 type PostProposalVoteParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -2516,6 +2522,9 @@ type ServerInterface interface {
 	// GetMyReferralCode Read the caller's invite code and links.
 	// (GET /v1/me/referral-code)
 	GetMyReferralCode(w http.ResponseWriter, r *http.Request)
+	// DeleteProposal Withdraw the caller's proposal.
+	// (DELETE /v1/proposals/{id})
+	DeleteProposal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteProposalParams)
 	// GetProposal Read one proposal.
 	// (GET /v1/proposals/{id})
 	GetProposal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
@@ -4074,6 +4083,60 @@ func (siw *ServerInterfaceWrapper) GetMyReferralCode(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteProposal operation middleware
+func (siw *ServerInterfaceWrapper) DeleteProposal(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteProposalParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteProposal(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetProposal operation middleware
 func (siw *ServerInterfaceWrapper) GetProposal(w http.ResponseWriter, r *http.Request) {
 
@@ -4527,6 +4590,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/pending-votes", wrapper.GetMyPendingVotes)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/profile-photo", wrapper.PostProfilePhoto)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/referral-code", wrapper.GetMyReferralCode)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.DeleteProposal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.GetProposal)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.PostProposalVote)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/stream", wrapper.GetStream)
@@ -5830,6 +5894,46 @@ func (response GetMyReferralCodedefaultApplicationProblemPlusJSONResponse) Visit
 	return err
 }
 
+type DeleteProposalRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params DeleteProposalParams
+}
+
+type DeleteProposalResponseObject interface {
+	VisitDeleteProposalResponse(w http.ResponseWriter) error
+}
+
+type DeleteProposal200JSONResponse ProposalDetail
+
+func (response DeleteProposal200JSONResponse) VisitDeleteProposalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProposaldefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteProposaldefaultApplicationProblemPlusJSONResponse) VisitDeleteProposalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetProposalRequestObject struct {
 	Id openapi_types.UUID `json:"id"`
 }
@@ -6239,6 +6343,9 @@ type StrictServerInterface interface {
 	// GetMyReferralCode Read the caller's invite code and links.
 	// (GET /v1/me/referral-code)
 	GetMyReferralCode(ctx context.Context, request GetMyReferralCodeRequestObject) (GetMyReferralCodeResponseObject, error)
+	// DeleteProposal Withdraw the caller's proposal.
+	// (DELETE /v1/proposals/{id})
+	DeleteProposal(ctx context.Context, request DeleteProposalRequestObject) (DeleteProposalResponseObject, error)
 	// GetProposal Read one proposal.
 	// (GET /v1/proposals/{id})
 	GetProposal(ctx context.Context, request GetProposalRequestObject) (GetProposalResponseObject, error)
@@ -7219,6 +7326,33 @@ func (sh *strictHandler) GetMyReferralCode(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMyReferralCodeResponseObject); ok {
 		if err := validResponse.VisitGetMyReferralCodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteProposal operation middleware
+func (sh *strictHandler) DeleteProposal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteProposalParams) {
+	var request DeleteProposalRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteProposal(ctx, request.(DeleteProposalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteProposal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteProposalResponseObject); ok {
+		if err := validResponse.VisitDeleteProposalResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

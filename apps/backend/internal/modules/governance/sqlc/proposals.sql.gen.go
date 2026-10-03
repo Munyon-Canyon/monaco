@@ -184,6 +184,38 @@ func (q *Queries) InsertProposal(ctx context.Context, arg InsertProposalParams) 
 	return result.RowsAffected(), nil
 }
 
+const lockForWithdraw = `-- name: LockForWithdraw :one
+SELECT
+  p.id, p.cabal_id, p.proposer_id, p.status,
+  EXISTS (
+    SELECT 1 FROM votes AS v WHERE v.proposal_id = p.id AND v.voter_id <> p.proposer_id
+  ) AS others_voted
+FROM proposals AS p
+WHERE p.id = $1
+FOR UPDATE OF p
+`
+
+type LockForWithdrawRow struct {
+	ID          uuid.UUID
+	CabalID     uuid.UUID
+	ProposerID  uuid.UUID
+	Status      string
+	OthersVoted bool
+}
+
+func (q *Queries) LockForWithdraw(ctx context.Context, id uuid.UUID) (LockForWithdrawRow, error) {
+	row := q.db.QueryRow(ctx, lockForWithdraw, id)
+	var i LockForWithdrawRow
+	err := row.Scan(
+		&i.ID,
+		&i.CabalID,
+		&i.ProposerID,
+		&i.Status,
+		&i.OthersVoted,
+	)
+	return i, err
+}
+
 const lockProposal = `-- name: LockProposal :one
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.quote_out_amount,

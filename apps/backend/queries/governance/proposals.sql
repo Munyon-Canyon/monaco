@@ -77,3 +77,13 @@ FROM proposals
 WHERE status = 'open' AND expires_at <= @now
 ORDER BY expires_at, id
 LIMIT @batch;
+
+-- name: LockForWithdraw :one
+SELECT
+  p.id, p.cabal_id, p.proposer_id, p.status,
+  EXISTS (
+    SELECT 1 FROM votes AS v WHERE v.proposal_id = p.id AND v.voter_id <> p.proposer_id
+  ) AS others_voted
+FROM proposals AS p
+WHERE p.id = @id
+FOR UPDATE OF p;
