@@ -1,0 +1,78 @@
+name: CI iOS
+
+# Called from ci-jobs.yml's ios job in the pr and staging stages, never in the queue stage.
+# Kept in its own file so the `plan` job's `ios` path filter can key on this file instead of
+# ci-jobs.yml, which most CI PRs touch. docs/architecture/ci.md#what-runs-where
+on:
+  workflow_call:
+    inputs:
+      save-cache:
+        description: Save the Swift package cache. PRs restore and never save.
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      save-cache:
+        description: Save the Swift package cache.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    name: iOS app build
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: scripts/ci/select-xcode.sh
+
+      # actions/cache rejects a path with `..` in it, and a cache entry only matches the same path string.
+      - name: Resolve DerivedData and the simulator
+        run: |
+          sim="$(scripts/resolve-ios-sim.sh)"
+          xcrun simctl boot "$sim" || true
+          {
+            echo "DERIVED_DATA=$(cd "$GITHUB_WORKSPACE/.." && pwd -P)/DerivedData"
+            echo "SIM=$sim"
+          } >> "$GITHUB_ENV"
+
+      - name: Restore Swift packages
+        id: spm
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.DERIVED_DATA }}/SourcePackages
+          key: spm-ios-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}
+
+      - name: Placeholder app config
+        run: scripts/ensure-ios-privy-config.sh placeholder
+
+      # One xcodebuild test compiles the app, MonacoTests and MonacoUITests, then runs MonacoTests.
+      - name: Build the app and run MonacoTests
+        run: |
+          xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
+            -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
+            -resultBundlePath "$RUNNER_TEMP/MonacoTests.xcresult" \
+            -onlyUsePackageVersionsFromResolvedFile -skipPackagePluginValidation -skipMacroValidation \
+            -quiet CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO \
+            -only-testing:MonacoTests test
+
+      - name: Save Swift packages
+        if: inputs.save-cache && steps.spm.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.DERIVED_DATA }}/SourcePackages
+          key: spm-ios-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MonacoTests-xcresult
+          path: ${{ runner.temp }}/MonacoTests.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
