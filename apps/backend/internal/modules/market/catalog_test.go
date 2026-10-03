@@ -201,3 +201,45 @@ func TestCatalog_databaseErrorKeepsItsCode(t *testing.T) {
 		t.Fatal("ListTradable on a cancelled context succeeded")
 	}
 }
+
+func TestSiblings_SpaceX(t *testing.T) {
+	t.Parallel()
+	catalog, pool, at := seededCatalog(t)
+	tessera, prestocks := stamped(marketfake.TSpaceX(), at), stamped(marketfake.SPACEX(), at)
+	insert(t, pool, tessera, nil)
+	insert(t, pool, prestocks, nil)
+	for _, tc := range []struct{ of, want market.Asset }{{tessera, prestocks}, {prestocks, tessera}} {
+		got, err := catalog.Siblings(t.Context(), tc.of.ID)
+		if err != nil || len(got) != 1 {
+			t.Fatalf("Siblings(%s) = %+v, %v, want only %s", tc.of.Symbol, got, err, tc.want.Symbol)
+		}
+		got[0].FirstSeenAt, got[0].UpdatedAt = tc.want.FirstSeenAt, tc.want.UpdatedAt
+		if got[0] != tc.want {
+			t.Fatalf("Siblings(%s) = %+v, want %+v", tc.of.Symbol, got[0], tc.want)
+		}
+	}
+	if got, err := catalog.Siblings(t.Context(), marketfake.AAPLx().ID); err != nil || len(got) != 0 {
+		t.Fatalf("Siblings(AAPLx) = %+v, %v, want none", got, err)
+	}
+	missing := domain.NewAssetID(testkit.NewIDs(99))
+	if _, err := catalog.Siblings(t.Context(), missing); errs.CodeOf(err) != errs.CodeAssetNotFound {
+		t.Fatalf("Siblings(unknown) err = %v, want asset_not_found", err)
+	}
+}
+
+func TestSiblings_ordersByIssuer(t *testing.T) {
+	t.Parallel()
+	catalog, pool, at := seededCatalog(t)
+	tessera, prestocks := stamped(marketfake.TSpaceX(), at), stamped(marketfake.SPACEX(), at)
+	insert(t, pool, tessera, nil)
+	insert(t, pool, prestocks, nil)
+	xstock := stamped(marketfake.AAPLx(), at)
+	_, err := pool.Exec(t.Context(), `UPDATE assets SET company_key = 'spacex' WHERE id = $1`, xstock.ID.UUID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := catalog.Siblings(t.Context(), xstock.ID)
+	if err != nil || len(got) != 2 || got[0].Symbol != "SPACEX" || got[1].Symbol != "tSpaceX" {
+		t.Fatalf("Siblings(AAPLx) = %+v, %v, want SPACEX (prestocks) then tSpaceX (tessera)", got, err)
+	}
+}

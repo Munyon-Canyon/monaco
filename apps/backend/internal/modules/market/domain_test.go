@@ -146,15 +146,28 @@ func TestCrossed_reportsEveryThresholdTheBasisPointChangeHasReached(t *testing.T
 	}
 }
 
-func TestCleanName_stripsATrailingIssuerSuffixWithoutLowercasing(t *testing.T) {
+func TestDisplayName(t *testing.T) {
 	t.Parallel()
-	for name, want := range map[string]string{
-		"Apple xStock":    "Apple",
-		"  Tesla XSTOCK ": "Tesla",
-		"SpaceX":          "SpaceX",
+	for _, tc := range []struct {
+		issuer    domain.Issuer
+		raw, want string
+	}{
+		{domain.IssuerTessera, "T-SpaceX", "SpaceX"},
+		{domain.IssuerTessera, " t-OpenAI ", "OpenAI"},
+		{domain.IssuerTessera, "T-", "T-"},
+		{domain.IssuerPreStocks, "SpaceX PreStocks", "SpaceX"},
+		{domain.IssuerPreStocks, "Figure AI PRESTOCKS", "Figure AI"},
+		{domain.IssuerPreStocks, " PreStocks", "PreStocks"},
+		{domain.IssuerXStocks, "Apple xStock", "Apple"},
+		{domain.IssuerXStocks, "  Tesla XSTOCK ", "Tesla"},
+		{domain.IssuerXStocks, "Apple", "Apple"},
+		{domain.IssuerXStocks, "T-Mobile US xStock", "T-Mobile US"},
+		{domain.IssuerPreStocks, "T-SpaceX", "T-SpaceX"},
+		{domain.IssuerTessera, "SpaceX PreStocks", "SpaceX PreStocks"},
+		{domain.Issuer("other"), " T-Rex xStock ", "T-Rex xStock"},
 	} {
-		if got := domain.CleanName(name); got != want {
-			t.Fatalf("CleanName(%q) = %q, want %q", name, got, want)
+		if got := domain.DisplayName(tc.issuer, tc.raw); got != tc.want {
+			t.Fatalf("DisplayName(%s, %q) = %q, want %q", tc.issuer, tc.raw, got, tc.want)
 		}
 	}
 }
@@ -186,16 +199,20 @@ func TestFirstAcceptedOnDay_usesTheFirstConfirmedSampleOfThatDay(t *testing.T) {
 	}
 }
 
-func TestCompanyKey_lowercasesAndStripsTheIssuerSuffix(t *testing.T) {
+func TestCompanyKey_lowercasesTheDisplayNameSoIssuersOfOneCompanyShareIt(t *testing.T) {
 	t.Parallel()
-	for name, want := range map[string]string{
-		"Apple xStock":                       "apple",
-		"  Alphabet Class A xStock ":         "alphabet class a",
-		"SpaceX":                             "spacex",
-		"JPMorgan Ultra-Short Income xStock": "jpmorgan ultra-short income",
+	for _, tc := range []struct {
+		issuer    domain.Issuer
+		raw, want string
+	}{
+		{domain.IssuerXStocks, "Apple xStock", "apple"},
+		{domain.IssuerXStocks, "  Alphabet Class A xStock ", "alphabet class a"},
+		{domain.IssuerXStocks, "JPMorgan Ultra-Short Income xStock", "jpmorgan ultra-short income"},
+		{domain.IssuerTessera, "T-SpaceX", "spacex"},
+		{domain.IssuerPreStocks, "SpaceX PreStocks", "spacex"},
 	} {
-		if got := domain.CompanyKey(name); got != want {
-			t.Fatalf("CompanyKey(%q) = %q, want %q", name, got, want)
+		if got := domain.CompanyKey(tc.issuer, tc.raw); got != tc.want {
+			t.Fatalf("CompanyKey(%s, %q) = %q, want %q", tc.issuer, tc.raw, got, tc.want)
 		}
 	}
 }
