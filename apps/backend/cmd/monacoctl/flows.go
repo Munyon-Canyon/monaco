@@ -1,12 +1,14 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path"
 	"slices"
+	"strings"
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -73,7 +75,13 @@ func flowsCheck(env flows.Env, tests io.Reader, structureOnly bool, stderr io.Wr
 		problems = append(problems, flows.CheckTests(parsed, results)...)
 	}
 	problems = append(problems, flows.CheckScripts(parsed, env)...)
-	slices.SortStableFunc(problems, func(a, b flows.Problem) int { return a.Line - b.Line })
+	app, appProblems := flows.ReadApp(env.Repo)
+	problems = append(problems, appProblems...)
+	problems = append(problems, flows.CheckApp(app, parsed, env)...)
+	problems = append(problems, flows.CheckNoAggregate(env.Repo, parsed)...)
+	slices.SortStableFunc(problems, func(a, b flows.Problem) int {
+		return cmp.Or(strings.Compare(a.File, b.File), a.Line-b.Line)
+	})
 	for _, p := range problems {
 		_, _ = fmt.Fprintln(stderr, p)
 	}

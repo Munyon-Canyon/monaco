@@ -74,15 +74,20 @@ func TestName(f Flow, o Outcome) string {
 }
 
 type Problem struct {
+	File string
 	Line int
 	Msg  string
 }
 
 func (p Problem) String() string {
-	if p.Line == 0 {
-		return File + ": " + p.Msg
+	file := p.File
+	if file == "" {
+		file = File
 	}
-	return fmt.Sprintf("%s:%d: %s", File, p.Line, p.Msg)
+	if p.Line == 0 {
+		return file + ": " + p.Msg
+	}
+	return fmt.Sprintf("%s:%d: %s", file, p.Line, p.Msg)
 }
 
 func problemf(line int, format string, args ...any) Problem {

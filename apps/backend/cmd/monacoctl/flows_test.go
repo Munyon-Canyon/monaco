@@ -186,3 +186,52 @@ func TestFlowsCheck_failsWhenTheTestResultsCannotBeRead(t *testing.T) {
 		t.Fatalf("code=%d stderr=%q", code, stderr.String())
 	}
 }
+
+func TestFlowsCheck_appRegistry(t *testing.T) {
+	t.Parallel()
+	backend := flows.Header + "\n" + pingRow + "\n" +
+		"02\tPinged\tsystem\tconsumer:system.pinged\tPing\t\tsystem_echo\tok\tplanned\tdocs/flows.md#ping\n"
+	app := func(row string) string { return flows.AppHeader + "\n" + row + "\n" }
+	for _, tc := range []struct {
+		name   string
+		files  map[string]string
+		code   int
+		stderr string
+	}{
+		{"one file per flow passes", map[string]string{
+			"packages/flows/app/01.tsv": app("01\tSystemPing\tplanned\tdocs/flows.md#ping"),
+			"packages/flows/app/02.tsv": app("02\t-\tnone\tdocs/flows.md"),
+			"packages/flows/README.md":  "Flows 01 and 02.\n",
+		}, 0, ""},
+		{"two data rows", map[string]string{
+			"packages/flows/app/01.tsv": app("01\tSystemPing\tplanned\tdocs/flows.md\n01\tOther\tplanned\tdocs/flows.md"),
+		}, 1, "packages/flows/app/01.tsv:3: extra data row \"01\\tOther\\tplanned\\tdocs/flows.md\"; keep exactly one row per file\n"},
+		{"id not in flows.tsv", map[string]string{
+			"packages/flows/app/99.tsv": app("99\tX\tplanned\tdocs/flows.md"),
+		}, 1, "packages/flows/app/99.tsv:2: id 99 is not in apps/backend/flows.tsv; add the backend row first or delete this file\n"},
+		{"unknown status", map[string]string{
+			"packages/flows/app/01.tsv": app("01\tSystemPing\tdone\tdocs/flows.md"),
+		}, 1, "packages/flows/app/01.tsv:2: status \"done\" is not planned, built, verified or none\n"},
+		{"missing anchor", map[string]string{
+			"packages/flows/app/01.tsv": app("01\tSystemPing\tplanned\tdocs/flows.md#pong"),
+		}, 1, "packages/flows/app/01.tsv:2: doc docs/flows.md has no heading with anchor #pong\n"},
+		{"aggregate file", map[string]string{
+			"packages/flows/all.tsv": "id\n01\n02\n",
+		}, 1, "packages/flows/all.tsv: names flows 01 and 02; keep one flow per file\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			env := envWith(t, backend)
+			repo := env.Repo.(fstest.MapFS)
+			for name, body := range tc.files {
+				repo[name] = &fstest.MapFile{Data: []byte(body)}
+			}
+			env.Scripts = func(flows.Flow, string) bool { return true }
+			var stderr bytes.Buffer
+			code := flowsCheck(env, nil, true, &stderr)
+			if code != tc.code || stderr.String() != tc.stderr {
+				t.Fatalf("code=%d stderr=\n%s\nwant code=%d stderr=\n%s", code, stderr.String(), tc.code, tc.stderr)
+			}
+		})
+	}
+}
