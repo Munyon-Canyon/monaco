@@ -501,7 +501,8 @@ func (q *Queries) UpdateAccountStatus(ctx context.Context, arg UpdateAccountStat
 }
 
 const updateAuthState = `-- name: UpdateAuthState :execrows
-UPDATE users SET auth_state = $1, auth_state_changed_at = $2, updated_at = $2
+UPDATE users SET auth_state = $1, auth_state_changed_at = $2, updated_at = $2,
+  nudge_count = 0
 WHERE id = $3 AND auth_state = $4
 `
 

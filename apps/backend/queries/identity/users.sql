@@ -72,7 +72,8 @@ SELECT
   ) AS x;
 
 -- name: UpdateAuthState :execrows
-UPDATE users SET auth_state = sqlc.arg(next), auth_state_changed_at = sqlc.arg(now), updated_at = sqlc.arg(now)
+UPDATE users SET auth_state = sqlc.arg(next), auth_state_changed_at = sqlc.arg(now), updated_at = sqlc.arg(now),
+  nudge_count = 0
 WHERE id = sqlc.arg(id) AND auth_state = sqlc.arg(expected);
 
 -- name: UpdateAccountStatus :execrows
