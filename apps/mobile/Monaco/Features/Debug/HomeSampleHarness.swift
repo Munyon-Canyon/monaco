@@ -47,11 +47,10 @@ struct HomeSampleHarness: View {
             return session
         }
 
-        session.me = MeResponse(
-            userId: "sample-user",
+        session.profile = ProfileSampleHarness.sampleProfile(
+            userID: "sample-user",
             displayName: "Logan Norman",
-            memberWalletAddress: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
-            profilePhotoUrl: scenario == .empty ? nil : ProfileSampleHarness.samplePhotoURL()?.absoluteString
+            photoURL: scenario == .empty ? nil : ProfileSampleHarness.samplePhotoURL()
         )
 
         session.platformBalance = PlatformBalanceDTO(

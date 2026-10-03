@@ -28,6 +28,7 @@ struct MonacoApp: App {
         WindowGroup {
             root
                 .environment(appEnvironment)
+                .environment(appEnvironment.sessionStore)
                 .environmentObject(appEnvironment.auth)
                 .tint(MonacoTheme.ink)
                 .onChange(of: scenePhase) { _, phase in

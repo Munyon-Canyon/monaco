@@ -3,11 +3,16 @@ import XCTest
 @testable import MonacoCore
 
 final class FirstRunGateTests: XCTestCase {
-    private func me(displayName: String) -> MeDTO {
-        MeDTO(
-            userId: "550e8400-e29b-41d4-a716-446655440000",
-            displayName: displayName,
-            memberWalletAddress: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+    private func me(
+        displayName: String,
+        authState: SessionProfile.AuthState = .created,
+        accountStatus: SessionProfile.AccountStatus = .active
+    ) -> SessionProfile {
+        SessionProfile(
+            userID: "user-1", handle: nil, displayName: displayName, photoURL: nil,
+            authState: authState, accountStatus: accountStatus, memberWalletAddress: "wallet-1",
+            phoneLinked: false, xUsername: nil, handleChangeableAt: nil,
+            createdAt: Date(timeIntervalSince1970: 1_759_233_600)
         )
     }
 
@@ -66,27 +71,16 @@ final class FirstRunGateTests: XCTestCase {
     /// The decision comes from the decoded `/v1/me` body, so a returning user is routed
     /// by what the server says and a brand new one (`display_name` null) is caught.
     func testDestination_decodedFromMeResponse() throws {
-        let decoder = JSONDecoder()
-        let named = try decoder.decode(
-            MeDTO.self,
-            from: Data(
-                #"""
-                {"userId":"u1","displayName":"Ana","memberWalletAddress":"7xKX"}
-                """#.utf8))
+        let named = try SessionProfile(json: Self.wire(displayName: "Ana", authState: "CREATED"))
         XCTAssertEqual(FirstRunGate.destination(for: named), .app)
 
-        let unnamed = try decoder.decode(
-            MeDTO.self,
-            from: Data(
-                #"""
-                {"userId":"u1","displayName":"","memberWalletAddress":"7xKX"}
-                """#.utf8))
+        let unnamed = try SessionProfile(json: Self.wire(displayName: "", authState: "CREATED"))
         XCTAssertEqual(FirstRunGate.destination(for: unnamed), .nameSetup)
 
-        for body in [#"{"userId":"u1","displayName":null}"#, #"{"userId":"u1"}"#] {
-            let missing = try decoder.decode(MeDTO.self, from: Data(body.utf8))
-            XCTAssertEqual(FirstRunGate.destination(for: missing), .nameSetup, body)
-        }
+        let phone = try SessionProfile(json: Self.wire(displayName: "Ana", authState: "AWAITING_PHONE"))
+        XCTAssertEqual(FirstRunGate.destination(for: phone), .app)
+        let completed = try SessionProfile(json: Self.wire(displayName: "", authState: "ONBOARDING_COMPLETED"))
+        XCTAssertEqual(FirstRunGate.destination(for: completed), .nameSetup)
     }
 
     /// The screen saves, `me` comes back named, and the very next evaluation must route
@@ -108,5 +102,28 @@ final class FirstRunGateTests: XCTestCase {
                 "\(raw.debugDescription) normalizes to \(normalized.debugDescription) and should pass the gate"
             )
         }
+    }
+
+    func testDestination_missingNameAsksEvenWhenTheAccountIsFurtherAlong() {
+        XCTAssertEqual(
+            FirstRunGate.destination(for: me(displayName: "", authState: .onboardingCompleted)), .nameSetup)
+        XCTAssertEqual(FirstRunGate.destination(for: me(displayName: "", authState: .awaitingPhone)), .nameSetup)
+        XCTAssertEqual(FirstRunGate.destination(for: me(displayName: "", accountStatus: .banned)), .nameSetup)
+        XCTAssertEqual(FirstRunGate.destination(for: me(displayName: "Ana", authState: .awaitingPhone)), .app)
+        XCTAssertEqual(
+            FirstRunGate.destination(
+                for: me(displayName: "Ana", authState: .onboardingCompleted, accountStatus: .suspended)),
+            .app)
+        XCTAssertEqual(
+            FirstRunGate.destination(for: me(displayName: "Ana", accountStatus: .unknown("frozen"))), .app)
+    }
+
+    private static func wire(displayName: String, authState: String) -> Data {
+        Data(
+            """
+            {"id":"u1","display_name":"\(displayName)","auth_state":"\(authState)",\
+            "account_status":"active","member_wallet_address":"wallet-1","phone_linked":false,\
+            "created_at":"2026-09-30T12:00:00Z"}
+            """.utf8)
     }
 }

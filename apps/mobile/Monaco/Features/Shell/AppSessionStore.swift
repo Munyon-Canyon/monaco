@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import Observation
 import SwiftUI
@@ -13,8 +14,6 @@ import os
 /// on the main thread.
 @MainActor
 protocol AppSessionDataSource: Sendable {
-    func openSession(accessToken: String) async throws -> MeResponse
-    func me(accessToken: String) async throws -> MeResponse
     func getPlatformBalance(accessToken: String) async throws -> PlatformBalanceDTO
     func getHome(accessToken: String) async throws -> HomeViewDTO
     func getHomeDashboard(accessToken: String, leaderboardRange: HomeLeaderboardRange) async throws -> HomeDashboardDTO
@@ -45,7 +44,8 @@ extension PrivyAuthService: SessionAuthenticating {}
 final class AppSessionStore {
     var home: HomeViewDTO?
     var dashboard: HomeDashboardDTO?
-    var me: MeResponse?
+    var profile: SessionProfile? { didSet { onProfileChange?(profile) } }
+    var onProfileChange: ((SessionProfile?) -> Void)?
     var platformBalance: PlatformBalanceDTO?
     var popularAssets: [MarketAssetDTO] = []
     var homePnLSeries: [HomePnLSeriesPointDTO]?
@@ -58,7 +58,6 @@ final class AppSessionStore {
     var errorDebugDetail: String?
     #endif
     var isLoading = true
-
     /// The leaderboard range on screen, owned here so it survives every other refresh.
     /// Home used to keep its own copy and pass it in, so a refresh started anywhere else
     /// (Profile pull-to-refresh, a name save, joining a cabal, the hourly token rotation)
@@ -68,6 +67,8 @@ final class AppSessionStore {
     private(set) var leaderboardRange: HomeLeaderboardRange = .all
 
     private let apiClient: AppSessionDataSource
+    private let sessions: SessionAPI?
+    var skipsSessionOpen = false
     private var refreshGeneration = 0
     /// Orders dashboard responses on their own, so two quick range taps can't land out of
     /// order and leave the older board under the newer chip.
@@ -85,96 +86,70 @@ final class AppSessionStore {
     /// cannot put the old name back.
     private var profileWriteGeneration = 0
 
-    init(apiClient: AppSessionDataSource) {
+    init(apiClient: AppSessionDataSource, sessions: SessionAPI? = nil) {
         self.apiClient = apiClient
+        self.sessions = sessions
     }
 
     var joinedCabals: [HomeGroupBoardRowDTO] {
         (home?.groups ?? []).filter(\.isJoined)
     }
 
-    func bootstrap(auth: SessionAuthenticating) async {
-        await bootstrap(auth: auth, retryingRejectedToken: true)
-    }
-
-    private func bootstrap(auth: SessionAuthenticating, retryingRejectedToken: Bool) async {
+    func bootstrap(auth: SessionAuthenticating, devSession: Bool = false) async {
         guard let token = auth.accessToken else {
             home = nil
-            me = nil
+            profile = nil
             errorMessage = "Missing sign-in token."
             isLoading = false
             return
         }
-
-        if me == nil {
-            isLoading = true
+        guard let sessions else {
+            isLoading = false
+            errorMessage = "Your account didn't load"
+            return
         }
+
+        if profile == nil { isLoading = true }
         errorMessage = nil
         #if DEBUG
         errorDebugDetail = nil
         #endif
 
+        skipsSessionOpen = devSession
         do {
-            let session = try await apiClient.openSession(accessToken: token)
-            if auth.shouldInvalidateBackendSession(serverUserId: session.userId) {
+            let profile = try await (devSession ? sessions.me() : sessions.openSession())
+            if auth.shouldInvalidateBackendSession(serverUserId: profile.userID) {
                 await auth.signOutAfterRejectedSession(rejectedToken: token)
                 return
             }
-            auth.recordBackendSession(userId: session.userId)
-            me = session
+            auth.recordBackendSession(userId: profile.userID)
+            self.profile = profile
             isLoading = false
-            // `openSession` just returned the profile: don't ask for it again.
-            await refresh(auth: auth, accessToken: token, includeProfile: false)
+            await refresh(auth: auth, accessToken: auth.accessToken, includeProfile: false)
         } catch {
             if error.isRequestCancellation { return }
-            await handleSessionOpenFailure(
-                error,
-                rejectedToken: token,
-                auth: auth,
-                mayRetry: retryingRejectedToken
-            )
+            await failOpen(error, rejectedToken: token, auth: auth)
         }
     }
 
-    /// A 401 here means the backend would not accept the access token. Tokens last about
-    /// an hour, so first ask Privy for a fresh one and retry with it. Only when Privy has
-    /// nothing newer is the token really bad — most often a Privy app-id / verification-key
-    /// mismatch between the app build and the backend env — and we sign out, saying *why*
-    /// on the login screen. `mayRetry` is false on the retry itself, so a backend that
-    /// rejects every token Privy mints cannot loop.
-    private func handleSessionOpenFailure(
-        _ error: Error,
-        rejectedToken: String,
-        auth: SessionAuthenticating,
-        mayRetry: Bool
-    ) async {
-        var failure = error
-        if case MonacoAPIError.httpStatus(401) = error, mayRetry {
-            do {
-                if let fresh = try await auth.refreshedAccessToken(replacing: rejectedToken), fresh != rejectedToken {
-                    // Retry here: bootstrap is keyed on who is signed in, not on the token
-                    // string, so a rotation no longer restarts the session by itself.
-                    await bootstrap(auth: auth, retryingRejectedToken: false)
-                    return
-                }
-            } catch {
-                // Couldn't reach Privy to refresh. That's a connection problem, not a bad session.
-                failure = error
-            }
+    func noteForeground(auth: SessionAuthenticating) async {
+        guard profile != nil, let token = auth.accessToken else { return }
+        if let loaded = await loadProfile(auth: auth, token: token), profile != nil, auth.accessToken == token {
+            profile = loaded
         }
+    }
 
+    private func failOpen(_ error: Error, rejectedToken: String, auth: SessionAuthenticating) async {
         isLoading = false
-        let mapped = SessionErrorMapping.describe(failure, apiBaseURL: Config.apiBaseURL)
-        AppLogger.session.error("POST /v1/auth/session failed: \(mapped.debugDetail, privacy: .public)")
-
-        if case MonacoAPIError.httpStatus(401) = failure {
-            // Named against the token that was actually rejected: this bootstrap may have
-            // been overtaken by a sign-out or another sign-in while it was refreshing, and
-            // a reply that outlived its session must not sign out whoever is signed in now.
-            await auth.signOut(reason: mapped.message, rejectedToken: rejectedToken)
+        if case APIError.accountDeleted = error {
+            await auth.signOut(reason: ToastCopy.message(for: .accountDeleted), rejectedToken: rejectedToken)
             return
         }
-
+        if case APIError.signedOut = error {
+            await auth.signOut(reason: "Please sign in again.", rejectedToken: rejectedToken)
+            return
+        }
+        let mapped = SessionErrorMapping.describe(error, apiBaseURL: Config.apiBaseURL)
         errorMessage = mapped.message
         #if DEBUG
         errorDebugDetail = "\(mapped.debugDetail)\n\(Config.api.debugSummary)"
@@ -212,14 +187,14 @@ final class AppSessionStore {
                 accessToken: token,
                 leaderboardRange: request.range
             )
-            async let meLoad: MeResponse? = includeProfile ? await self.loadProfile(accessToken: token) : nil
+            async let meLoad: SessionProfile? = includeProfile ? await self.loadProfile(auth: auth, token: token) : nil
             async let balanceLoad = apiClient.getPlatformBalance(accessToken: token)
             let loadedDashboard = try await dashboardLoad
             guard generation == refreshGeneration else { return }
             apply(loadedDashboard, for: request)
             // A rename that landed while this was in flight is newer than what /v1/me says.
             if let profile = await meLoad, profileGeneration == profileWriteGeneration {
-                me = profile
+                self.profile = profile
             }
             if let balance = try? await balanceLoad {
                 platformBalance = balance
@@ -248,8 +223,19 @@ final class AppSessionStore {
         }
     }
 
-    private func loadProfile(accessToken: String) async -> MeResponse? {
-        try? await apiClient.me(accessToken: accessToken)
+    private func loadProfile(auth: SessionAuthenticating, token: String) async -> SessionProfile? {
+        guard let sessions else { return nil }
+        do {
+            return try await sessions.me()
+        } catch APIError.accountDeleted {
+            await auth.signOut(reason: ToastCopy.message(for: .accountDeleted), rejectedToken: token)
+            return nil
+        } catch APIError.signedOut {
+            await auth.signOut(reason: "Please sign in again.", rejectedToken: token)
+            return nil
+        } catch {
+            return nil
+        }
     }
 
     /// One background poll of what Home and Profile show: dashboard, balance, joined cabals, and
@@ -289,9 +275,9 @@ final class AppSessionStore {
         if let boards { QuietUpdate.apply(boards, over: home) { home = $0 } }
         if let series { QuietUpdate.apply(series.points, over: homePnLSeries) { homePnLSeries = $0 } }
         // Only once the screen actually has what the banner said was missing. A poll can
-        // land while bootstrap is still failing — `me` and `home` never arrived — and
+        // land while bootstrap is still failing — `profile` and `home` never arrived — and
         // clearing it there leaves an empty screen with the explanation wiped off it.
-        if me != nil {
+        if profile != nil {
             errorMessage = nil
         }
     }

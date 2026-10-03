@@ -269,12 +269,12 @@ struct CreateGroupView: View {
             // "Just me" needs the creator's id. The signed-in profile is already
             // in the shell; the form used to re-open a backend session and
             // re-read /v1/me on every appearance.
-            if session?.me?.userId == nil {
+            if session?.profile?.userID == nil {
                 // Recover here rather than sending them away: this form is
                 // pushed, so "pull down on Cabals" costs them what they typed.
                 await session?.refresh(auth: auth)
             }
-            guard let creatorUserId = session?.me?.userId else {
+            guard let creatorUserId = session?.profile?.userID else {
                 errorMessage = "We couldn't confirm your profile. Check your connection, then tap Create cabal again."
                 return
             }

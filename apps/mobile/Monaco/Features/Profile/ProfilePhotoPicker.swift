@@ -23,10 +23,10 @@ struct ProfilePhotoPicker: View {
     /// The animal the avatar shows now, so the sheet can ring it. Resolved the way
     /// `MonacoAvatar` resolves it, and nil once a photo is set.
     private var currentAnimal: PixelAnimal? {
-        let photo = session.me?.profilePhotoUrl?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let photo = session.profile?.photoURL?.absoluteString.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard photo.isEmpty else { return nil }
-        let id = session.me?.userId ?? ""
-        return PixelAnimal.forSeed(id.isEmpty ? (session.me?.displayName ?? "") : id)
+        let id = session.profile?.userID ?? ""
+        return PixelAnimal.forSeed(id.isEmpty ? (session.profile?.displayName ?? "") : id)
     }
 
     var body: some View {
@@ -35,10 +35,10 @@ struct ProfilePhotoPicker: View {
         } label: {
             ZStack(alignment: .bottomTrailing) {
                 MonacoAvatar(
-                    photoURL: session.me?.profilePhotoUrl,
-                    displayName: session.me?.displayName ?? "",
+                    photoURL: session.profile?.photoURL?.absoluteString,
+                    displayName: session.profile?.displayName ?? "",
                     size: size,
-                    seed: session.me?.userId
+                    seed: session.profile?.userID
                 )
                 .overlay {
                     if isUploading {
@@ -61,7 +61,7 @@ struct ProfilePhotoPicker: View {
         }
         .buttonStyle(.plain)
         .disabled(isUploading || (auth.accessToken == nil && !initiallyOpen))
-        .accessibilityLabel(session.me?.profilePhotoUrl == nil ? "Choose your face" : "Change your face")
+        .accessibilityLabel(session.profile?.photoURL == nil ? "Choose your face" : "Change your face")
         .accessibilityIdentifier(accessibilityID)
         .sheet(isPresented: $showFaces) {
             FacePickerSheet(

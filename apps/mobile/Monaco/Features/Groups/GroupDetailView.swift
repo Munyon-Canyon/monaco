@@ -240,7 +240,7 @@ struct GroupDetailView: View {
             GroupDetailContent(
                 auth: auth,
                 view: groupView,
-                currentUserId: session?.me?.userId,
+                currentUserId: session?.profile?.userID,
                 proposalService: proposalService,
                 proposalRefreshToken: "\(proposalRefreshCount)",
                 onOpenVotesChange: openVotesChanged,

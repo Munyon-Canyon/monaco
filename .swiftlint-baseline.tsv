@@ -50,8 +50,7 @@ no_comments	apps/mobile/Monaco/API/DTOs/GroupViewDTO.swift	10
 no_comments	apps/mobile/Monaco/API/DTOs/HomeDashboardDTO.swift	1
 no_comments	apps/mobile/Monaco/API/DTOs/HomeViewDTO.swift	1
 no_comments	apps/mobile/Monaco/API/DTOs/MarketAssetDTO.swift	10
-no_comments	apps/mobile/Monaco/API/DTOs/MeResponse.swift	1
-no_comments	apps/mobile/Monaco/API/MonacoAPIClient.swift	17
+no_comments	apps/mobile/Monaco/API/MonacoAPIClient.swift	15
 no_comments	apps/mobile/Monaco/API/MoneyFlowErrorInput.swift	12
 no_comments	apps/mobile/Monaco/Config.swift	4
 no_comments	apps/mobile/Monaco/Design/AssetDisplayName.swift	1
@@ -74,7 +73,7 @@ no_comments	apps/mobile/Monaco/Design/MonacoSegmented.swift	3
 no_comments	apps/mobile/Monaco/Design/MonacoSparkline.swift	23
 no_comments	apps/mobile/Monaco/Design/MonacoStockRow.swift	102
 no_comments	apps/mobile/Monaco/Design/MonacoTextField.swift	20
-no_comments	apps/mobile/Monaco/Design/MonacoTheme.swift	228
+no_comments	apps/mobile/Monaco/Design/MonacoTheme.swift	227
 no_comments	apps/mobile/Monaco/Design/MonacoToastBanner.swift	60
 no_comments	apps/mobile/Monaco/Design/MonacoWalletAddressText.swift	6
 no_comments	apps/mobile/Monaco/Design/PixelAnimal.swift	10
@@ -123,7 +122,7 @@ no_comments	apps/mobile/Monaco/Features/Debug/StocksTabSampleHarness.swift	28
 no_comments	apps/mobile/Monaco/Features/Debug/WelcomeSampleHarness.swift	20
 no_comments	apps/mobile/Monaco/Features/Deposit/DepositAddress.swift	5
 no_comments	apps/mobile/Monaco/Features/Deposit/DepositFailureToastTracker.swift	26
-no_comments	apps/mobile/Monaco/Features/Deposit/DepositView.swift	50
+no_comments	apps/mobile/Monaco/Features/Deposit/DepositView.swift	39
 no_comments	apps/mobile/Monaco/Features/Deposit/FundCabalView.swift	48
 no_comments	apps/mobile/Monaco/Features/Deposit/PlatformBalanceCard.swift	16
 no_comments	apps/mobile/Monaco/Features/Deposit/PlatformBalanceLoader.swift	41
@@ -192,7 +191,7 @@ no_comments	apps/mobile/Monaco/Features/Redeem/SellCabalView.swift	16
 no_comments	apps/mobile/Monaco/Features/Settings/AdvancedSettingsView.swift	1
 no_comments	apps/mobile/Monaco/Features/Settings/WithdrawView.swift	25
 no_comments	apps/mobile/Monaco/Features/Shell/AppSessionStore+Profile.swift	13
-no_comments	apps/mobile/Monaco/Features/Shell/AppSessionStore.swift	91
+no_comments	apps/mobile/Monaco/Features/Shell/AppSessionStore.swift	78
 no_comments	apps/mobile/Monaco/Features/Shell/MainTabView.swift	4
 no_comments	apps/mobile/Monaco/Features/Shell/SessionErrorMapping.swift	15
 no_comments	apps/mobile/Monaco/MonacoApp.swift	5
@@ -202,7 +201,7 @@ no_comments	apps/mobile/Monaco/Support/DiagnosticsSubscriber.swift	4
 no_comments	apps/mobile/Monaco/Support/LiveRefresh.swift	39
 no_comments	apps/mobile/Monaco/Support/MonacoFrameStats.swift	37
 no_comments	apps/mobile/MonacoTests/AdminRedesignTests.swift	12
-no_comments	apps/mobile/MonacoTests/AppSessionStoreTests.swift	44
+no_comments	apps/mobile/MonacoTests/AppSessionStoreTests.swift	30
 no_comments	apps/mobile/MonacoTests/AssetChartInteractionTests.swift	32
 no_comments	apps/mobile/MonacoTests/AssetDetailModelTests.swift	79
 no_comments	apps/mobile/MonacoTests/AssetSocialModelTests.swift	28
@@ -259,7 +258,6 @@ no_comments	apps/mobile/MonacoUITests/StocksTabSampleUITests.swift	64
 no_comments	packages/mobile-core/Package.swift	3
 no_comments	packages/mobile-core/Sources/MonacoAPI/APIClient.swift	10
 no_comments	packages/mobile-core/Sources/MonacoAPI/APIError.swift	8
-no_comments	packages/mobile-core/Sources/MonacoAPI/AccessTokenProvider.swift	3
 no_comments	packages/mobile-core/Sources/MonacoAPI/IdempotentSubmission.swift	26
 no_comments	packages/mobile-core/Sources/MonacoAPI/MonacoClient.swift	7
 no_comments	packages/mobile-core/Sources/MonacoAPI/ProblemError.swift	5
@@ -282,7 +280,7 @@ no_comments	packages/mobile-core/Sources/MonacoCore/CatalogDTO.swift	1
 no_comments	packages/mobile-core/Sources/MonacoCore/DepositPollStateMachine.swift	6
 no_comments	packages/mobile-core/Sources/MonacoCore/DiagnosticPayloadStore.swift	10
 no_comments	packages/mobile-core/Sources/MonacoCore/DisplayFormatters.swift	32
-no_comments	packages/mobile-core/Sources/MonacoCore/FirstRunGate.swift	13
+no_comments	packages/mobile-core/Sources/MonacoCore/FirstRunGate.swift	8
 no_comments	packages/mobile-core/Sources/MonacoCore/GroupChatDTO.swift	126
 no_comments	packages/mobile-core/Sources/MonacoCore/GroupDetailRefreshPolicy.swift	37
 no_comments	packages/mobile-core/Sources/MonacoCore/GroupViewDTO.swift	24

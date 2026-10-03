@@ -10,6 +10,15 @@ final class AppNavigator {
     var stocksPath: [AnyAppRoute] = []
     var profilePath: [AnyAppRoute] = []
 
+    func reset() {
+        selectedTab = .home
+        homePath = []
+        feedPath = []
+        cabalsPath = []
+        stocksPath = []
+        profilePath = []
+    }
+
     func path(for tab: MainTab) -> [AnyAppRoute] {
         switch tab {
         case .home: homePath

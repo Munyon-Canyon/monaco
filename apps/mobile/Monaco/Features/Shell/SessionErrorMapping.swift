@@ -1,4 +1,5 @@
 import Foundation
+import MonacoAPI
 
 /// Maps a session-open failure onto user-facing copy plus a developer-only debug
 /// detail line. Pure function — no I/O — so it's simple to unit test.
@@ -27,6 +28,13 @@ enum SessionErrorMapping {
 
     static func describe(_ error: Error, apiBaseURL: URL) -> Description {
         let origin = "API: \(apiBaseURL.absoluteString)"
+
+        if case .transport(let urlError) = error as? APIError {
+            return describe(urlError, apiBaseURL: apiBaseURL)
+        }
+        if case .problem(let problem) = error as? APIError {
+            return httpDescription(status: problem.status, origin: origin)
+        }
 
         if let apiError = error as? MonacoAPIError, case .httpStatus(let status) = apiError {
             return httpDescription(status: status, origin: origin)

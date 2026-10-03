@@ -66,6 +66,12 @@ public struct SessionProfile: Equatable, Sendable {
         return copy
     }
 
+    public func withDisplayName(_ name: String) -> SessionProfile {
+        var copy = self
+        copy.displayName = name
+        return copy
+    }
+
     public init(_ me: Components.Schemas.Me) {
         self.init(
             userID: me.id,
