@@ -1,0 +1,19 @@
+journey: profile/edit
+expect-fail: S1
+
+The banner close button does nothing. S1.4 expects the banner gone after close, so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Home/OnboardingNudgeBanner.swift b/apps/mobile/Monaco/Features/Home/OnboardingNudgeBanner.swift
+index 2c53d9f6..55393d8b 100644
+--- a/apps/mobile/Monaco/Features/Home/OnboardingNudgeBanner.swift
++++ b/apps/mobile/Monaco/Features/Home/OnboardingNudgeBanner.swift
+@@ -39,7 +39,7 @@ struct OnboardingNudgeBanner: View {
+                 .accessibilityIdentifier("onboarding-nudge-open")
+ 
+                 Button {
+-                    session.nudgeDismissed = true
++                    session.nudgeDismissed = false
+                 } label: {
+                     Image(systemName: "xmark")
+                         .font(MonacoTheme.Typo.captionStrong)
