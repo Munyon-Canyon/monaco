@@ -1,0 +1,57 @@
+---
+id: cabals/invite
+title: Invite a member
+version: 1
+milestone: M10
+requires: [auth/sign-in]
+actors: [A, B]
+flows: [03]
+xcuitest: [apps/mobile/MonacoUITests/Journeys/InviteJourney.swift, apps/mobile/MonacoUITests/Journeys/InviteJourneyUITests.swift]
+---
+
+# Invite a member
+
+A member answers an invite from the Cabals tab, then invites someone else to the same cabal by handle. The invitee sees the invite on their Cabals tab and answers it. The rules are [Cabals](../../architecture/cabals.md#invites).
+
+The format of this doc is in [App journeys](../README.md).
+
+## Preconditions
+
+| Id | What must be true |
+| --- | --- |
+| P1 | Actors A and B have each signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
+| P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend`, which also builds `bin/monacoctl` |
+| P3 | `apps/mobile/qa/journeys/cabals/invite.setup.sh` ran right before the scenario. `scripts/qa/journey.py run` runs it. It marks A and B as done with onboarding, gives them a display name and a handle (B is `@qa_b`), declines every invite waiting on A or B, and has a new dev user create the open cabal `QA pot <time>` and invite A |
+
+The setup runs before every scenario, because S1 uses up the invite it makes. It creates the cabal through the API, so this journey does not depend on `cabals/create-cabal`.
+
+## Scenarios
+
+### S1 Accept an invite, then invite someone
+
+| Step | Actor | Action | Target | Input | Expect |
+| --- | --- | --- | --- | --- | --- |
+| S1.1 | A | tap | the Cabals tab | | `cabals-invites` shows one `cabal-invite-row` within 10 s, naming `QA pot` and reading "invited you" |
+| S1.2 | A | tap | `cabal-invite-accept` | | The toast "You're in." shows within 10 s, and `cabal-details-button` shows within 15 s |
+| S1.3 | A | tap | `cabal-details-button` | | `cabal-invite-member-row` shows within 10 s |
+| S1.4 | A | tap | `cabal-invite-member-row` | | `invite-member-handle-field` and `invite-member-pending-empty` show within 10 s |
+| S1.5 | A | type, then tap | `invite-member-handle-field`, then `invite-member-send-button` | `@nobody_zz` | The toast "No one on Monaco has that handle." shows within 10 s |
+| S1.6 | A | clear, type, then tap | `invite-member-handle-field`, then `invite-member-send-button` | `@QA_B` | The toast "Invite sent." shows within 10 s. One `invite-member-pending-row` reads "@qa_b" and "Expires in 7 days" |
+| S1.7 | A | tap | `invite-member-revoke-button` | | The toast "Invite revoked." shows within 10 s, and `invite-member-pending-empty` shows |
+| S1.8 | A | type, then tap | `invite-member-handle-field`, then `invite-member-send-button` | `qa_b` | The toast "Invite sent." shows within 10 s, and one `invite-member-pending-row` reads "@qa_b". A refused second invite would toast "They already have a pending invite or request.", so this step also proves S1.7 revoked the first |
+| S1.9 | B | tap | the Cabals tab | | `cabals-invites` shows exactly one `cabal-invite-row` within 10 s, naming `QA pot` |
+| S1.10 | B | tap | `cabal-invite-decline` | | The toast "Invite declined." shows within 10 s, and no `cabal-invite-row` is left |
+
+## Ground truth
+
+After S1, A is a member of the seeded cabal, and B's invite to it is `denied` in `cabal_access_requests`. There is no truth script yet; the toasts are the server's answers.
+
+## Known failures on staging
+
+None known.
+
+## Not covered
+
+- The creator of a request cabal inviting, and a member of a request cabal not seeing "Invite someone". `CabalInviteTests` and `InviteMemberModelTests` cover both rules on the host.
+- An invite that expires before it is answered. `CabalInvitesModelTests` covers `invite_expired`.
+- Pull to refresh on the Cabals tab.

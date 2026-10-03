@@ -1,0 +1,19 @@
+journey: cabals/invite
+expect-fail: S1
+
+The invites section is not on the Cabals tab. S1.1 waits for the invite there, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalsInvitesSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalsInvitesSlot.swift
+index bf87f6ad..438b4662 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalsInvitesSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalsInvitesSlot.swift
+@@ -3,7 +3,7 @@ import MonacoCore
+ import SwiftUI
+ 
+ enum CabalsInvitesSlot: CabalsTabSection {
+-    static let isLive = true
++    static let isLive = false
+ 
+     static func body(for context: Void) -> some View {
+         CabalInvitesSection()
