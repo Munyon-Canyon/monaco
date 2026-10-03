@@ -156,6 +156,9 @@ jobs:
           path: ${{ runner.temp }}/test-out
           retention-days: 1
           if-no-files-found: error
+          # Artifacts belong to the run, not the attempt: without this, a rerun leg adds a second copy and
+          # backend-report merges the earlier attempt's failures back in, so a rerun can never clear a flake.
+          overwrite: true
 
       # Only the staging run saves the Go cache, one key per leg, even after a test failure. The PR leg of the same
       # name restores it through backend-test-env, and staging.yml's prune job keeps the newest per leg.
