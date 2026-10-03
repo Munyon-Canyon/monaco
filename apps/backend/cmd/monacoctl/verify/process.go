@@ -23,6 +23,7 @@ var (
 type Line struct {
 	Process string
 	Text    string
+	Stderr  bool
 }
 
 type Logs struct {
@@ -32,9 +33,13 @@ type Logs struct {
 }
 
 func (l *Logs) add(process, text string) {
+	l.append(Line{Process: process, Text: text})
+}
+
+func (l *Logs) append(line Line) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.lines = append(l.lines, Line{Process: process, Text: text})
+	l.lines = append(l.lines, line)
 	if l.changed != nil {
 		close(l.changed)
 		l.changed = nil
@@ -76,6 +81,16 @@ func (l *Logs) tail(process string, n int) string {
 	return strings.Join(out[max(0, len(out)-n):], "\n")
 }
 
+func (l *Logs) lastPanicOrLine(process string) string {
+	lines := l.Lines()
+	for i := len(lines) - 1; i >= 0; i-- {
+		if line := lines[i]; line.Process == process && line.Stderr && strings.HasPrefix(line.Text, "panic:") {
+			return line.Text
+		}
+	}
+	return l.tail(process, 1)
+}
+
 type lineWriter struct {
 	mu      sync.Mutex
 	pending []byte
@@ -113,8 +128,8 @@ func startProcess(ctx context.Context, name, bin string, env []string, logs *Log
 		listening: make(chan string, 1), exited: make(chan struct{}),
 	}
 	p.cmd.Env = env
-	out := &lineWriter{line: p.line}
-	p.cmd.Stdout, p.cmd.Stderr = out, out
+	p.cmd.Stdout = &lineWriter{line: func(text string) { p.line(Line{Process: name, Text: text}) }}
+	p.cmd.Stderr = &lineWriter{line: func(text string) { p.line(Line{Process: name, Text: text, Stderr: true}) }}
 	if err := p.cmd.Start(); err != nil {
 		close(p.exited)
 		return p, errs.Wrap(err, errs.CodeInternal, op, slog.String("process", name))
@@ -133,13 +148,13 @@ func startProcess(ctx context.Context, name, bin string, env []string, logs *Log
 	}
 }
 
-func (p *process) line(text string) {
-	p.logs.add(p.name, text)
+func (p *process) line(line Line) {
+	p.logs.append(line)
 	var boot struct {
 		Msg  string `json:"msg"`
 		Addr string `json:"addr"`
 	}
-	if json.Unmarshal([]byte(text), &boot) == nil && boot.Msg == "boot.listening" {
+	if json.Unmarshal([]byte(line.Text), &boot) == nil && boot.Msg == "boot.listening" {
 		select {
 		case p.listening <- boot.Addr:
 		default:
@@ -189,6 +204,9 @@ func (p *process) exitError(reason error) error {
 		return nil
 	}
 	last := p.logs.tail(p.name, 1)
+	if !p.cmd.ProcessState.Success() {
+		last = p.logs.lastPanicOrLine(p.name)
+	}
 	return fmt.Errorf("%s %w (%s), last line: %s", p.name, reason, p.cmd.ProcessState, last)
 }
 

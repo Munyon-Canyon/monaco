@@ -293,6 +293,21 @@ func TestStop_namesAChildThatDiedOnTheSIGTERMItWasSent(t *testing.T) {
 	}
 }
 
+func TestStop_namesThePanicOfACrashedChildEvenWhenStdoutLoggedAfterIt(t *testing.T) {
+	t.Parallel()
+	bin := writeScript(t, procWorker, `echo '{"msg":"boot.listening","addr":"127.0.0.1:1"}'; sleep 0.1; `+
+		`echo 'panic: boom' >&2; sleep 0.1; echo '{"msg":"http.request"}'; exit 2`)
+	p, err := startProcess(t.Context(), procWorker, bin, []string{"PATH=" + os.Getenv("PATH")}, &Logs{})
+	if err != nil {
+		t.Fatalf("startProcess: %v", err)
+	}
+	<-p.exited
+	want := "worker exited before it was stopped (exit status 2), last line: panic: boom"
+	if err := p.stop(t.Context()); !errors.Is(err, errExitedBeforeStop) || err.Error() != want {
+		t.Fatalf("stop = %v, want %q", err, want)
+	}
+}
+
 func TestHealthz_answersZeroWhenNothingAnswers(t *testing.T) {
 	t.Parallel()
 	for _, base := range []string{"http://127.0.0.1:1", "http://bad\x7fhost"} {
