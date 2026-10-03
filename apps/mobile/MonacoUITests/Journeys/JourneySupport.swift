@@ -1,6 +1,6 @@
 import XCTest
 
-struct FlowAccount {
+struct JourneyAccount {
     enum Channel: String {
         case sms
         case email
@@ -19,16 +19,16 @@ struct FlowAccount {
     static func load(
         actor: String = ProcessInfo.processInfo.environment["MONACO_QA_ACTOR"] ?? "A",
         environment: [String: String] = ProcessInfo.processInfo.environment
-    ) throws -> FlowAccount {
-        guard environment["MONACO_QA_FLOWS"] == "1" else {
-            throw XCTSkip("live flow tests run through scripts/qa/flow.py, which sets MONACO_QA_FLOWS=1")
+    ) throws -> JourneyAccount {
+        guard environment["MONACO_QA_JOURNEYS"] == "1" else {
+            throw XCTSkip("live journey tests run through scripts/qa/journey.py, which sets MONACO_QA_JOURNEYS=1")
         }
         let prefix = "MONACO_QA_\(actor)_"
         let phone = environment[prefix + "PHONE"] ?? ""
         let email = environment[prefix + "EMAIL"] ?? ""
         let code = environment[prefix + "CODE"] ?? ""
         let channel = Channel(rawValue: environment["MONACO_QA_CHANNEL"] ?? "sms") ?? .sms
-        let account = FlowAccount(actor: actor, phone: phone, email: email, code: code, channel: channel)
+        let account = JourneyAccount(actor: actor, phone: phone, email: email, code: code, channel: channel)
         guard !account.address.isEmpty, code.count == 6 else {
             throw XCTSkip(
                 "no \(channel.rawValue) login for actor \(actor): set \(prefix)PHONE, \(prefix)EMAIL and \(prefix)CODE")
@@ -37,33 +37,33 @@ struct FlowAccount {
     }
 }
 
-final class FlowRecorder {
-    let flow: String
+final class JourneyRecorder {
+    let journey: String
     let version: Int
     private let clock = ContinuousClock()
 
-    init(flow: String, version: Int) {
-        self.flow = flow
+    init(journey: String, version: Int) {
+        self.journey = journey
         self.version = version
     }
 
     func step(_ id: String, _ name: String, _ body: () throws -> Void) rethrows {
-        print("FLOWSTEP\tbegin\t\(flow)@\(version)\t\(id)\t\(name)")
+        print("JOURNEYSTEP\tbegin\t\(journey)@\(version)\t\(id)\t\(name)")
         let start = clock.now
-        try XCTContext.runActivity(named: "\(flow) \(id): \(name)") { _ in
+        try XCTContext.runActivity(named: "\(journey) \(id): \(name)") { _ in
             try body()
         }
         let elapsed = clock.now - start
         let millis =
             Int(elapsed.components.seconds) * 1000 + Int(elapsed.components.attoseconds / 1_000_000_000_000_000)
-        print("FLOWSTEP\tend\t\(flow)@\(version)\t\(id)\t\(millis)")
+        print("JOURNEYSTEP\tend\t\(journey)@\(version)\t\(id)\t\(millis)")
     }
 }
 
-enum FlowHandoff {
+enum JourneyHandoff {
     private static func fileURL() throws -> URL {
         guard let path = ProcessInfo.processInfo.environment["MONACO_QA_HANDOFF"], !path.isEmpty else {
-            throw XCTSkip("no hand-off file: a phase runs through scripts/qa/flow.py, which sets MONACO_QA_HANDOFF")
+            throw XCTSkip("no hand-off file: a phase runs through scripts/qa/journey.py, which sets MONACO_QA_HANDOFF")
         }
         return URL(fileURLWithPath: path)
     }
@@ -91,7 +91,7 @@ enum FlowHandoff {
 }
 
 extension XCUIApplication {
-    static func monacoForFlows() -> XCUIApplication {
+    static func monacoForJourneys() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = []
         return app

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Tests for flow.py: the doc parser, the doc-against-test checks, and the log readers.
+"""Tests for journey.py: the doc parser, the doc-against-test checks, and the log readers.
 
-Run: python3 scripts/qa/test_flow.py
+Run: python3 scripts/qa/test_journey.py
 """
 
 import sys
@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import journey as flow  # noqa: E402
+import journey  # noqa: E402
 
 DOC = """---
 id: auth/sign-in
@@ -19,7 +19,7 @@ version: 2          # bumped for the new button
 milestone: M9
 requires: []
 actors: [A]
-xcuitest: [ui/SignInFlow.swift, ui/SignInFlowUITests.swift]
+xcuitest: [ui/SignInJourney.swift, ui/SignInJourneyUITests.swift]
 ---
 
 # Sign in
@@ -46,14 +46,14 @@ xcuitest: [ui/SignInFlow.swift, ui/SignInFlowUITests.swift]
 | S2.1 | relaunch | the app | | |
 """
 
-FLOW_SWIFT = """enum SignInFlow {
+JOURNEY_SWIFT = """enum SignInJourney {
     static let id = "auth/sign-in"
     static let version = 2
     static func run() { step("S1.1"); step("S1.2"); step("S2.1") }
 }
 """
 
-TESTS_SWIFT = """nonisolated final class SignInFlowUITests: XCTestCase {
+TESTS_SWIFT = """nonisolated final class SignInJourneyUITests: XCTestCase {
     func testS1SignIn() throws {}
     func testS2Relaunch() throws {}
 }
@@ -61,49 +61,49 @@ TESTS_SWIFT = """nonisolated final class SignInFlowUITests: XCTestCase {
 
 
 class Tree(unittest.TestCase):
-    """A throwaway repo with one flow, its test files and its accounts."""
+    """A throwaway repo with one journey, its test files and its accounts."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         root = Path(self.tmp.name)
-        self.saved = (flow.ROOT, flow.DOCS, flow.QA)
-        flow.ROOT, flow.DOCS, flow.QA = root, root / "docs" / "flows", root / "qa"
-        self.write("docs/flows/auth/sign-in.md", DOC)
-        self.write("docs/flows/README.md", "# not a flow")
-        self.write("ui/SignInFlow.swift", FLOW_SWIFT)
-        self.write("ui/SignInFlowUITests.swift", TESTS_SWIFT)
+        self.saved = (journey.ROOT, journey.DOCS, journey.QA)
+        journey.ROOT, journey.DOCS, journey.QA = root, root / "docs" / "journeys", root / "qa"
+        self.write("docs/journeys/auth/sign-in.md", DOC)
+        self.write("docs/journeys/README.md", "# not a journey")
+        self.write("ui/SignInJourney.swift", JOURNEY_SWIFT)
+        self.write("ui/SignInJourneyUITests.swift", TESTS_SWIFT)
         self.write("qa/accounts.tsv", "# logins\nactor\tname\tphone\temail\tcode\nA\tAlfred\t555\ta@b.c\t123456\n")
 
     def tearDown(self):
-        flow.ROOT, flow.DOCS, flow.QA = self.saved
+        journey.ROOT, journey.DOCS, journey.QA = self.saved
         self.tmp.cleanup()
 
     def write(self, relative, text):
-        path = flow.ROOT / relative
+        path = journey.ROOT / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
         return path
 
     def problems(self):
-        return flow.check_flows(flow.load_flows(), flow.load_accounts(environ={}))
+        return journey.check_journeys(journey.load_journeys(), journey.load_accounts(environ={}))
 
 
 class FrontMatter(Tree):
     def test_reads_scalars_lists_nested_maps_and_drops_comments(self):
-        loaded = flow.load_flows()["auth/sign-in"]
+        loaded = journey.load_journeys()["auth/sign-in"]
         self.assertEqual(loaded.version, 2)
         self.assertEqual(loaded.requires, [])
         self.assertEqual(loaded.actors, ["A"])
-        self.assertEqual(loaded.xcuitest, ["ui/SignInFlow.swift", "ui/SignInFlowUITests.swift"])
+        self.assertEqual(loaded.xcuitest, ["ui/SignInJourney.swift", "ui/SignInJourneyUITests.swift"])
 
     def test_reads_scenarios_and_steps_but_not_preconditions(self):
-        loaded = flow.load_flows()["auth/sign-in"]
+        loaded = journey.load_journeys()["auth/sign-in"]
         self.assertEqual(loaded.scenarios, ["S1", "S2"])
         self.assertEqual(loaded.steps, ["S1.1", "S1.2", "S2.1"])
 
     def test_a_doc_without_front_matter_is_refused(self):
-        with self.assertRaises(flow.FlowError):
-            flow.parse_front_matter("# Sign in\n")
+        with self.assertRaises(journey.JourneyError):
+            journey.parse_front_matter("# Sign in\n")
 
 
 class Check(Tree):
@@ -111,51 +111,51 @@ class Check(Tree):
         self.assertEqual(self.problems(), [])
 
     def test_a_test_built_from_an_older_version_is_named(self):
-        self.write("ui/SignInFlow.swift", FLOW_SWIFT.replace("version = 2", "version = 1"))
+        self.write("ui/SignInJourney.swift", JOURNEY_SWIFT.replace("version = 2", "version = 1"))
         problems = self.problems()
         self.assertEqual(len(problems), 1)
-        self.assertIn("ui/SignInFlow.swift: built from auth/sign-in version 1, the doc is at version 2", problems[0])
+        self.assertIn("ui/SignInJourney.swift: built from auth/sign-in version 1, the doc is at version 2", problems[0])
 
     def test_a_steps_file_without_the_stamp_is_named(self):
-        self.write("ui/SignInFlow.swift", FLOW_SWIFT.replace('    static let id = "auth/sign-in"\n', ""))
-        self.assertIn('ui/SignInFlow.swift: does not declare static let id = "auth/sign-in"', self.problems()[0])
+        self.write("ui/SignInJourney.swift", JOURNEY_SWIFT.replace('    static let id = "auth/sign-in"\n', ""))
+        self.assertIn('ui/SignInJourney.swift: does not declare static let id = "auth/sign-in"', self.problems()[0])
 
     def test_a_missing_test_file_is_named(self):
-        (flow.ROOT / "ui/SignInFlowUITests.swift").unlink()
+        (journey.ROOT / "ui/SignInJourneyUITests.swift").unlink()
         self.assertIn("does not exist", self.problems()[0])
 
     def test_a_scenario_with_no_test_method_is_named(self):
-        self.write("ui/SignInFlowUITests.swift", TESTS_SWIFT.replace("    func testS2Relaunch() throws {}\n", ""))
+        self.write("ui/SignInJourneyUITests.swift", TESTS_SWIFT.replace("    func testS2Relaunch() throws {}\n", ""))
         self.assertTrue(any("no test method named testS2" in p for p in self.problems()))
 
     def test_a_doc_step_the_test_does_not_record_is_named(self):
-        self.write("ui/SignInFlow.swift", FLOW_SWIFT.replace('step("S1.2"); ', ""))
+        self.write("ui/SignInJourney.swift", JOURNEY_SWIFT.replace('step("S1.2"); ', ""))
         self.assertTrue(any("no step S1.2" in p for p in self.problems()))
 
     def test_an_id_that_differs_from_the_path_is_named(self):
-        self.write("docs/flows/auth/sign-in.md", DOC.replace("id: auth/sign-in", "id: auth/login"))
+        self.write("docs/journeys/auth/sign-in.md", DOC.replace("id: auth/sign-in", "id: auth/login"))
         self.assertTrue(any("the path says 'auth/sign-in'" in p for p in self.problems()))
 
     def test_a_doc_without_an_id_is_named(self):
-        self.write("docs/flows/auth/sign-in.md", DOC.replace("id: auth/sign-in\n", ""))
+        self.write("docs/journeys/auth/sign-in.md", DOC.replace("id: auth/sign-in\n", ""))
         self.assertTrue(any("id is ''" in p for p in self.problems()))
 
     def test_duplicate_ids_are_named(self):
-        self.write("docs/flows/auth/again.md", DOC)
-        self.assertTrue(any("duplicate id auth/sign-in in docs/flows/auth/again.md and docs/flows/auth/sign-in.md" in p
+        self.write("docs/journeys/auth/again.md", DOC)
+        self.assertTrue(any("duplicate id auth/sign-in in docs/journeys/auth/again.md and docs/journeys/auth/sign-in.md" in p
                             for p in self.problems()))
 
-    def test_an_unknown_required_flow_and_actor_are_named(self):
-        self.write("docs/flows/auth/sign-in.md", DOC.replace("requires: []", "requires: [cabal/create]")
+    def test_an_unknown_required_journey_and_actor_are_named(self):
+        self.write("docs/journeys/auth/sign-in.md", DOC.replace("requires: []", "requires: [cabal/create]")
                    .replace("actors: [A]", "actors: [A, B]"))
         problems = "\n".join(self.problems())
-        self.assertIn("requires 'cabal/create', which is not a flow doc", problems)
+        self.assertIn("requires 'cabal/create', which is not a journey doc", problems)
         self.assertIn("actor B has no row", problems)
 
     def test_a_seeded_bug_must_say_what_fails_and_must_apply(self):
         self.write("qa/auth/sign-in.mutants/broken.patch", "no expectation here\n")
         self.write("qa/auth/sign-in.mutants/stale.patch", "expect-fail: S1, S9\n")
-        problems = "\n".join(flow.check_flows(flow.load_flows(), flow.load_accounts(environ={}), lambda patch: False))
+        problems = "\n".join(journey.check_journeys(journey.load_journeys(), journey.load_accounts(environ={}), lambda patch: False))
         self.assertIn("broken.patch: no 'expect-fail: S…' line", problems)
         self.assertIn("stale.patch: expects S9 to fail", problems)
         self.assertIn("stale.patch: does not apply to this checkout", problems)
@@ -163,16 +163,16 @@ class Check(Tree):
 
 class Funds(Tree):
     def fund(self, lines):
-        self.write("docs/flows/auth/sign-in.md", DOC.replace("actors: [A]\n", "actors: [A]\nfunds:\n" + lines))
+        self.write("docs/journeys/auth/sign-in.md", DOC.replace("actors: [A]\n", "actors: [A]\nfunds:\n" + lines))
 
-    def test_a_flow_without_funds_has_no_notice(self):
-        self.assertEqual(flow.funding_notice(flow.load_flows()["auth/sign-in"]), "")
+    def test_a_journey_without_funds_has_no_notice(self):
+        self.assertEqual(journey.funding_notice(journey.load_journeys()["auth/sign-in"]), "")
 
-    def test_a_money_flow_says_what_to_send_to_whom(self):
+    def test_a_money_journey_says_what_to_send_to_whom(self):
         self.fund("  A: 2\n")
         self.assertEqual(self.problems(), [])
         self.assertIn("send 2 USDC to actor A from the Phantom agent wallet",
-                      flow.funding_notice(flow.load_flows()["auth/sign-in"]))
+                      journey.funding_notice(journey.load_journeys()["auth/sign-in"]))
 
     def test_funds_for_an_unknown_actor_or_a_bad_amount_are_named(self):
         self.fund("  B: 2\n  A: lots\n")
@@ -182,8 +182,8 @@ class Funds(Tree):
 
 
 class Composition(Tree):
-    def add(self, flow_id, requires):
-        self.write("docs/flows/%s.md" % flow_id, DOC.replace("id: auth/sign-in", "id: " + flow_id)
+    def add(self, journey_id, requires):
+        self.write("docs/journeys/%s.md" % journey_id, DOC.replace("id: auth/sign-in", "id: " + journey_id)
                    .replace("requires: []", "requires: [%s]" % ", ".join(requires)))
 
     def test_a_cycle_is_named(self):
@@ -192,78 +192,78 @@ class Composition(Tree):
         self.assertTrue(any("requires form a cycle" in p for p in self.problems()))
 
     def test_phases_run_in_number_order_each_on_its_actor(self):
-        self.write("ui/SignInFlowUITests.swift", TESTS_SWIFT.replace(
+        self.write("ui/SignInJourneyUITests.swift", TESTS_SWIFT.replace(
             "    func testS2Relaunch() throws {}\n",
             "    func testS2Phase2BJoins() throws {}\n    func testS2Phase1ACreates() throws {}\n"
             "    func testS2Phase3ASeesB() throws {}\n"))
-        loaded = flow.load_flows()["auth/sign-in"]
-        self.assertEqual(flow.xcuitest_phases(loaded, "S2"), [
-            (1, "A", "SignInFlowUITests/testS2Phase1ACreates"),
-            (2, "B", "SignInFlowUITests/testS2Phase2BJoins"),
-            (3, "A", "SignInFlowUITests/testS2Phase3ASeesB"),
+        loaded = journey.load_journeys()["auth/sign-in"]
+        self.assertEqual(journey.xcuitest_phases(loaded, "S2"), [
+            (1, "A", "SignInJourneyUITests/testS2Phase1ACreates"),
+            (2, "B", "SignInJourneyUITests/testS2Phase2BJoins"),
+            (3, "A", "SignInJourneyUITests/testS2Phase3ASeesB"),
         ])
-        self.assertEqual(flow.xcuitest_phases(loaded, "S1"), [(1, "A", "SignInFlowUITests/testS1SignIn")])
+        self.assertEqual(journey.xcuitest_phases(loaded, "S1"), [(1, "A", "SignInJourneyUITests/testS1SignIn")])
 
     def test_a_scenario_does_not_match_another_scenario_with_its_number_prefix(self):
-        self.write("ui/SignInFlowUITests.swift", """nonisolated final class SignInFlowUITests: XCTestCase {
+        self.write("ui/SignInJourneyUITests.swift", """nonisolated final class SignInJourneyUITests: XCTestCase {
     func testS1A() throws {}
     func testS10B() throws {}
 }
 """)
-        self.assertEqual(flow.xcuitest_phases(flow.load_flows()["auth/sign-in"], "S1"), [
-            (1, "A", "SignInFlowUITests/testS1A"),
+        self.assertEqual(journey.xcuitest_phases(journey.load_journeys()["auth/sign-in"], "S1"), [
+            (1, "A", "SignInJourneyUITests/testS1A"),
         ])
 
 
 class Accounts(Tree):
     def test_the_environment_takes_over_a_row(self):
-        accounts = flow.load_accounts(environ={"MONACO_QA_A_CODE": "654321"})
+        accounts = journey.load_accounts(environ={"MONACO_QA_A_CODE": "654321"})
         self.assertEqual(accounts["A"]["code"], "654321")
         self.assertEqual(accounts["A"]["phone"], "555")
 
 
-LOG = """Test Case '-[MonacoUITests.SignInFlowUITests testS1SignIn]' started.
-FLOWSTEP\tbegin\tauth/sign-in@2\tP1\tlaunch
-FLOWSTEP\tend\tauth/sign-in@2\tP1\t1500
-FLOWSTEP\tbegin\tauth/sign-in@2\tS1.1\tchoose
-FLOWSTEP\tend\tauth/sign-in@2\tS1.1\t500
-Test Case '-[MonacoUITests.SignInFlowUITests testS1SignIn]' passed (2.250 seconds).
-Test Case '-[MonacoUITests.SignInFlowUITests testS2Relaunch]' started.
-FLOWSTEP\tbegin\tauth/sign-in@2\tP1\tlaunch
-FLOWSTEP\tbegin\tauth/sign-in@2\tS3.1\topen Profile
-SignInFlow.swift:127: error: XCTAssertTrue failed - S3.1: no Sign out button
-Test Case '-[MonacoUITests.SignInFlowUITests testS2Relaunch]' failed (40.000 seconds).
+LOG = """Test Case '-[MonacoUITests.SignInJourneyUITests testS1SignIn]' started.
+JOURNEYSTEP\tbegin\tauth/sign-in@2\tP1\tlaunch
+JOURNEYSTEP\tend\tauth/sign-in@2\tP1\t1500
+JOURNEYSTEP\tbegin\tauth/sign-in@2\tS1.1\tchoose
+JOURNEYSTEP\tend\tauth/sign-in@2\tS1.1\t500
+Test Case '-[MonacoUITests.SignInJourneyUITests testS1SignIn]' passed (2.250 seconds).
+Test Case '-[MonacoUITests.SignInJourneyUITests testS2Relaunch]' started.
+JOURNEYSTEP\tbegin\tauth/sign-in@2\tP1\tlaunch
+JOURNEYSTEP\tbegin\tauth/sign-in@2\tS3.1\topen Profile
+SignInJourney.swift:127: error: XCTAssertTrue failed - S3.1: no Sign out button
+Test Case '-[MonacoUITests.SignInJourneyUITests testS2Relaunch]' failed (40.000 seconds).
 """
 
 
 class Logs(unittest.TestCase):
     def test_each_test_gets_its_verdict_time_and_slice(self):
-        tests = flow.split_by_test(LOG)
+        tests = journey.split_by_test(LOG)
         self.assertEqual(tests["testS1SignIn"][:2], ("passed", 2.25))
         self.assertEqual(tests["testS2Relaunch"][:2], ("failed", 40.0))
         self.assertNotIn("S3.1", tests["testS1SignIn"][2])
 
     def test_finished_outermost_steps_are_summed_and_the_innermost_open_step_failed(self):
-        tests = flow.split_by_test(LOG)
-        self.assertEqual(flow.parse_steps(tests["testS1SignIn"][2]), (2000, ""))
-        self.assertEqual(flow.parse_steps(tests["testS2Relaunch"][2]), (0, "S3.1"))
+        tests = journey.split_by_test(LOG)
+        self.assertEqual(journey.parse_steps(tests["testS1SignIn"][2]), (2000, ""))
+        self.assertEqual(journey.parse_steps(tests["testS2Relaunch"][2]), (0, "S3.1"))
 
     def test_nested_finished_steps_record_depth_without_double_counting(self):
         output = "\n".join([
-            "FLOWSTEP\tbegin\tauth/sign-in@2\tP1\tlaunch",
-            "FLOWSTEP\tbegin\tauth/sign-in@2\tS1.1\tchoose",
-            "FLOWSTEP\tend\tauth/sign-in@2\tS1.1\t500",
-            "FLOWSTEP\tend\tauth/sign-in@2\tP1\t1500",
+            "JOURNEYSTEP\tbegin\tauth/sign-in@2\tP1\tlaunch",
+            "JOURNEYSTEP\tbegin\tauth/sign-in@2\tS1.1\tchoose",
+            "JOURNEYSTEP\tend\tauth/sign-in@2\tS1.1\t500",
+            "JOURNEYSTEP\tend\tauth/sign-in@2\tP1\t1500",
         ])
-        self.assertEqual(flow.parse_steps(output, include_timings=True), (1500, "", [
+        self.assertEqual(journey.parse_steps(output, include_timings=True), (1500, "", [
             ("S1.1", 500, 1), ("P1", 1500, 0),
         ]))
 
 
 class Report(unittest.TestCase):
     def row(self, **values):
-        base = dict.fromkeys(flow.COLUMNS, "")
-        base.update({"flow": "auth/sign-in", "driver": "xcuitest", "build": "abc", "expected": "PASS", "truth": "none"})
+        base = dict.fromkeys(journey.COLUMNS, "")
+        base.update({"journey": "auth/sign-in", "driver": "xcuitest", "build": "abc", "expected": "PASS", "truth": "none"})
         base.update(values)
         return base
 
@@ -278,7 +278,7 @@ class Report(unittest.TestCase):
             self.row(scenario="S2", result="FAIL", expected="FAIL", build="abc+mutant:x"),
             self.row(scenario="S1", result="PASS", expected="FAIL", build="abc+mutant:y"),
         ]
-        item = flow.summarize(rows)[0]
+        item = journey.summarize(rows)[0]
         self.assertEqual(item["runs"], 3)
         self.assertEqual(item["errors"], 1)
         self.assertAlmostEqual(item["flake"], 1 / 3.0)
@@ -287,7 +287,7 @@ class Report(unittest.TestCase):
         self.assertEqual((item["caught"], item["seeded"], item["false_passes"]), (1, 2, 1))
 
     def test_a_pass_the_ground_truth_denies_is_a_false_pass(self):
-        item = flow.summarize([self.row(scenario="*", result="PASS", wall_s="10", truth="fail")])[0]
+        item = journey.summarize([self.row(scenario="*", result="PASS", wall_s="10", truth="fail")])[0]
         self.assertEqual(item["false_passes"], 1)
 
 

@@ -1,8 +1,8 @@
-flow: auth/sign-in
+journey: auth/sign-in
 expect-fail: S2
 
 A saved Privy session is thrown away at launch. S2.2 must find the login form, not the tab bar.
-scripts/qa/flow.py mutants applies this, runs the test, and reverts it.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Auth/PrivyAuthService.swift b/apps/mobile/Monaco/Features/Auth/PrivyAuthService.swift
 index f56e9890..bd6a2155 100644

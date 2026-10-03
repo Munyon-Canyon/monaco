@@ -1,26 +1,26 @@
 {
-  "skill": "ios-flow-qa",
-  "about": "When the skill should and should not be picked up. Run with scripts/qa/skill-eval.py .claude/skills/ios-flow-qa. The outcome eval for a test built with the skill is its seeded bugs: scripts/qa/flow.py mutants <flow>.",
+  "skill": "ios-journey-qa",
+  "about": "When the skill should and should not be picked up. Run with scripts/qa/skill-eval.py .claude/skills/ios-journey-qa. The outcome eval for a test built with the skill is its seeded bugs: scripts/qa/journey.py mutants <journey>.",
   "cases": [
     {
       "id": "milestone-qa",
       "should_trigger": true,
-      "prompt": "QA the whole M9 flow on the simulator."
+      "prompt": "QA the whole M9 journey on the simulator."
     },
     {
       "id": "version-bump",
       "should_trigger": true,
-      "prompt": "I changed the code step in docs/flows/auth/sign-in.md and bumped it to version 2. Bring everything that depends on it up to date."
+      "prompt": "I changed the code step in docs/journeys/auth/sign-in.md and bumped it to version 2. Bring everything that depends on it up to date."
     },
     {
-      "id": "new-flow-doc",
+      "id": "new-journey-doc",
       "should_trigger": true,
-      "prompt": "Logan added docs/flows/cabal/create.md. Build the tests for it."
+      "prompt": "Logan added docs/journeys/cabal/create.md. Build the tests for it."
     },
     {
-      "id": "update-flows-ticket",
+      "id": "update-journeys-ticket",
       "should_trigger": true,
-      "prompt": "Pick up the M10 'Update the flows' ticket."
+      "prompt": "Pick up the M10 'Update the journeys' ticket."
     },
     {
       "id": "two-actors",

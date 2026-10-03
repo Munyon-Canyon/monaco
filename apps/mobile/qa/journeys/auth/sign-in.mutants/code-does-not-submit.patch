@@ -1,8 +1,8 @@
-flow: auth/sign-in
+journey: auth/sign-in
 expect-fail: S1
 
 The sixth digit of the code no longer submits it. S1.3 promises it does, so S1.4 must time out.
-scripts/qa/flow.py mutants applies this, runs the test, and reverts it.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Auth/OTPLoginForm.swift b/apps/mobile/Monaco/Features/Auth/OTPLoginForm.swift
 index ddc3c919..3dcac78b 100644
