@@ -20,3 +20,4 @@ Dated record of changes to [backend-platform.md](../backend-platform.md). Add on
 - 2026-09-26: Proposed. Go, modular monolith, three-ring Clean Architecture enforced by depguard, generated contracts, lint config, flows table.
 - 2026-10-03: An app flow at `verified` needs one passing integration test per outcome, set up with `monacoctl flows seed`, and `monacoctl flows check --integration-xunit` enforces it in `mobile-integration.sh` (#1666).
 - 2026-10-03: Flow 00 is the reference app flow at `verified`. `#flows` lists the files, tests and harness scenarios an app flow needs at `built` and at `verified` (#1668).
+- 2026-10-03: When two module roots would import each other, the reader implements `Wire(module.Set)`, and `module.NewSet` hands it the built set to take the other module's port from; its default fails closed. Identity reads funding's balances and treasury's stakes this way, so funding can read identity's wallets (#1949).

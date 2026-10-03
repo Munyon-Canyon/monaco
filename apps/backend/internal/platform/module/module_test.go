@@ -120,3 +120,25 @@ func TestNewSet_panicsOnADuplicateModuleName(t *testing.T) {
 	reg.Add(func(module.Deps) module.Module { return &fake{name: "platform", routed: &routed} })
 	reg.Build(module.Deps{})
 }
+
+type wiring struct {
+	fake
+	saw []string
+}
+
+func (w *wiring) Wire(set module.Set) {
+	w.saw = append(w.saw, names(set, module.Module.Name)...)
+}
+
+func TestNewSet_wiresEachWirerWithTheWholeSetOnce(t *testing.T) {
+	t.Parallel()
+	var routed []string
+	wirer := &wiring{fake: fake{name: "wirer", routed: &routed}}
+	var reg module.Registry
+	reg.Add(func(module.Deps) module.Module { return wirer })
+	reg.Add(func(module.Deps) module.Module { return &fake{name: "later", routed: &routed} })
+	reg.Build(module.Deps{})
+	if want := []string{"platform", "wirer", "later"}; !slices.Equal(wirer.saw, want) {
+		t.Fatalf("Wire saw %v, want %v: once, with every module including ones built after it", wirer.saw, want)
+	}
+}
