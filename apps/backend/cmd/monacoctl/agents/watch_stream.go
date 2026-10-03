@@ -76,21 +76,22 @@ func (s *stream) next(ctx context.Context) []string {
 	s.env.trunk = nil
 	seen := map[string]bool{}
 	var fresh []string
-	for _, item := range s.round(ctx) {
+	items, every := s.round(ctx)
+	for _, item := range items {
 		if !s.prev[item] && !seen[item] {
 			fresh = append(fresh, item)
 		}
 		seen[item] = true
 	}
 	s.prev = seen
-	return fresh
+	return append(fresh, every...)
 }
 
-func (s *stream) round(ctx context.Context) []string {
+func (s *stream) round(ctx context.Context) ([]string, []string) {
 	env := s.env
 	rs, err := env.records()
 	if err != nil {
-		return []string{watchErr("", err)}
+		return []string{watchErr("", err)}, nil
 	}
 	items, _, err := env.ownerLines(ctx, rs)
 	if err != nil {
@@ -114,7 +115,7 @@ func (s *stream) round(ctx context.Context) []string {
 		}
 	}
 	items = append(items, s.draftLines(data.drafts, queued)...)
-	return append(items, s.failures(ctx, data, queued)...)
+	return append(items, s.failures(ctx, data, queued)...), stuckOnGraphiteBase(data.prs, rs, env.Config.QueueLabel)
 }
 
 func (s *stream) stack(ctx context.Context, r Record, drafts []queueDraft) []string {

@@ -226,21 +226,70 @@ func queueJob(pr int, head lastCommits, drafts []queueDraft, since time.Time) gq
 	return gqlContext{}
 }
 
-func (env *Env) failures(ctx context.Context) ([]failure, error) {
+func (env *Env) failures(ctx context.Context) ([]failure, watchData, error) {
 	since, err := env.lastRun()
 	if err != nil {
-		return nil, err
+		return nil, watchData{}, err
 	}
 	data, err := env.watchData(ctx)
 	if err != nil {
-		return nil, err
+		return nil, watchData{}, err
 	}
 	stamp := env.Now().UTC().Format(time.RFC3339Nano)
 	if _, err := env.writeState("watch", lastRunState, []byte(stamp+"\n")); err != nil {
-		return nil, err
+		return nil, watchData{}, err
 	}
 	queue := queueRuns{label: env.Config.QueueLabel, drafts: data.drafts}
-	return failures(data.prs, queue, env.Config.FeatureBranch, since), nil
+	return failures(data.prs, queue, env.Config.FeatureBranch, since), data, nil
+}
+
+func stuckOnGraphiteBase(prs []watchPR, rs []Record, label string) []string {
+	var out []string
+	for _, p := range prs {
+		if !strings.HasPrefix(p.BaseRefName, "graphite-base/") {
+			continue
+		}
+		top, ticket, owned := ownerStack(rs, p.Number)
+		if !owned && !slices.Contains(p.Labels.Nodes, gqlName{label}) {
+			continue
+		}
+		who := "no ticket"
+		switch n, ok := (PR{Body: p.Body}).Ticket(); {
+		case owned:
+			who = fmt.Sprintf("owner record %d.json", ticket)
+		case ok:
+			who = fmt.Sprintf("ticket #%d", n)
+		}
+		if !owned {
+			top = stackTop(prs, p)
+		}
+		out = append(out, fmt.Sprintf("#%d is stuck on %s (a restack that never retargeted); owner: dequeue %d, "+
+			"gt sync, gt restack, gt submit --stack --draft, land-stack %d; %s", p.Number, p.BaseRefName, top, top, who))
+	}
+	return out
+}
+
+func ownerStack(rs []Record, pr int) (int, int, bool) {
+	for _, r := range rs {
+		if r.Queued != nil && slices.Contains(r.Queued.PRs, pr) {
+			return r.Queued.Top, r.Ticket, true
+		}
+		if r.Armed != nil && slices.Contains(r.Armed.PRs, pr) {
+			return r.Armed.Top, r.Ticket, true
+		}
+	}
+	return 0, 0, false
+}
+
+func stackTop(prs []watchPR, p watchPR) int {
+	for range prs {
+		i := slices.IndexFunc(prs, func(q watchPR) bool { return q.BaseRefName == p.HeadRefName })
+		if i < 0 {
+			break
+		}
+		p = prs[i]
+	}
+	return p.Number
 }
 
 func (env *Env) watchData(ctx context.Context) (watchData, error) {

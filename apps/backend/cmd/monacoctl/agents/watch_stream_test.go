@@ -663,3 +663,50 @@ func TestWatchStream_aHungGHCallFailsOnePassAndTheNextPassRuns(t *testing.T) {
 		t.Fatalf("stream:\n%s", got)
 	}
 }
+
+func queueLabeled(node string) string {
+	return strings.Replace(node, `"commits":`, `"labels":{"nodes":[{"name":"merge-queue"}]},"commits":`, 1)
+}
+
+func TestWatch_flagsALabeledPRStuckOnAGraphiteBaseOnEveryPass(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.hub.on(graphqlRoute, failureData(
+		queueLabeled(watchNode(1820, "graphite-base/1820", rollup(greenOK), "")),
+		queueLabeled(watchNode(1821, "b1820", rollup(greenOK), "")),
+		queueLabeled(watchNode(1830, "fb", rollup(greenOK), "")),
+	))
+	want := "#1820 is stuck on graphite-base/1820 (a restack that never retargeted); owner: dequeue 1821, " +
+		"gt sync, gt restack, gt submit --stack --draft, land-stack 1821; ticket #40"
+	out := streamRounds(t, f, 2, func(int) {})
+	if strings.Count(out, want+"\n") != 2 || strings.Contains(out, "#1830") || strings.Contains(out, "#1821 is stuck") {
+		t.Fatalf("stream:\n%s", out)
+	}
+	_, stdout, _ := f.agents(t, "watch", "--once")
+	if !strings.Contains(stdout, want+"\n") || strings.Contains(stdout, "#1830") {
+		t.Fatalf("once:\n%s", stdout)
+	}
+}
+
+func TestStuckOnGraphiteBase_namesTheOwnerRecordOfAnArmedOrQueuedStack(t *testing.T) {
+	t.Parallel()
+	prs := []watchPR{
+		{Number: 1839, BaseRefName: "graphite-base/1839", HeadRefName: "b1839"},
+		{Number: 1840, BaseRefName: "graphite-base/1840", HeadRefName: "b1840"},
+		{Number: 1841, BaseRefName: "graphite-base/1841", HeadRefName: "b1841"},
+	}
+	rs := []Record{
+		{Ticket: 44, Armed: &Arm{Top: 1850, PRs: []int{1839}}},
+		{Ticket: 45, Queued: &Queue{Top: 1860, PRs: []int{1840}}},
+	}
+	got := stuckOnGraphiteBase(prs, rs, "merge-queue")
+	want := []string{
+		"#1839 is stuck on graphite-base/1839 (a restack that never retargeted); owner: dequeue 1850, " +
+			"gt sync, gt restack, gt submit --stack --draft, land-stack 1850; owner record 44.json",
+		"#1840 is stuck on graphite-base/1840 (a restack that never retargeted); owner: dequeue 1860, " +
+			"gt sync, gt restack, gt submit --stack --draft, land-stack 1860; owner record 45.json",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("%q", got)
+	}
+}

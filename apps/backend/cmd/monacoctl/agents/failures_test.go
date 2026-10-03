@@ -173,12 +173,12 @@ func TestWatch_readsEveryCheckAndTheNewestRunOfEach(t *testing.T) {
 	f.hub.onQuery(`c1: object(oid:\"h6\")`, `{"data":{"repository":{`+
 		`"c0":`+rollup(ciOK("SUCCESS", 3), `{"name":"ci / Flake","conclusion":"SUCCESS","completedAt":"2026-09-29T11:03:00Z"}`)+
 		`,"c1":`+rollup(ciOK("FAILURE", 3), lintJob)+`}}}`)
-	failed, err := f.Env(t).failures(context.Background())
+	failed, _, err := f.Env(t).failures(context.Background())
 	if err != nil || len(failed) != 1 || failed[0].PR != 6 || failed[0].Job.DatabaseID != 12 {
 		t.Fatalf("%+v %v", failed, err)
 	}
 	f.hub.onQuery(`c1: object(oid:\"h6\")`, `{"data":null,"errors":[{"message":"rate limited"}]}`)
-	if _, err := f.Env(t).failures(context.Background()); cliText(err) != "graphql: rate limited" {
+	if _, _, err := f.Env(t).failures(context.Background()); cliText(err) != "graphql: rate limited" {
 		t.Fatal(err)
 	}
 }
@@ -229,7 +229,7 @@ func TestWatch_failuresSurfaceStateQueryAndRecordErrors(t *testing.T) {
 	env := f.Env(t)
 	state := env.statePath("watch", lastRunState)
 	writeFile(t, state, "yesterday\n")
-	if _, err := env.failures(context.Background()); err == nil || !strings.Contains(err.Error(), "parse watch") {
+	if _, _, err := env.failures(context.Background()); err == nil || !strings.Contains(err.Error(), "parse watch") {
 		t.Fatalf("corrupt state: %v", err)
 	}
 	if err := os.Remove(state); err != nil {
@@ -248,7 +248,7 @@ func TestWatch_failuresSurfaceStateQueryAndRecordErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.noFailures()
-	if _, err := env.failures(context.Background()); err == nil || !strings.Contains(err.Error(), "write") {
+	if _, _, err := env.failures(context.Background()); err == nil || !strings.Contains(err.Error(), "write") {
 		t.Fatalf("state write: %v", err)
 	}
 	if err := os.Remove(state); err != nil {
