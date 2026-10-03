@@ -60,6 +60,110 @@ final class SessionAPITests: XCTestCase {
         XCTAssertEqual(profile.displayName, "Kai Cenat")
     }
 
+    func testUpdateDisplayNamePatchesTheNameAndReturnsTheServerProfile() async throws {
+        let saved = Self.meJSON.replacingOccurrences(of: "Kai Cenat", with: "QA Name")
+        let transport = StubTransport(.json(.ok, saved))
+
+        let profile = try await makeAPI(transport).updateDisplayName("QA Name", submission: IdempotentSubmission())
+
+        let sent = await transport.sent
+        let bodies = await transport.sentBodies
+        let keyName = try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))
+        XCTAssertEqual(sent.map(\.path), ["/v1/me"])
+        XCTAssertEqual(sent.map(\.method), [.patch])
+        XCTAssertNotNil(sent.first?.headerFields[keyName])
+        let body = try XCTUnwrap(bodies.first.flatMap { $0 })
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
+        XCTAssertEqual(json, ["display_name": "QA Name"])
+        XCTAssertEqual(profile.displayName, "QA Name")
+        XCTAssertEqual(profile.handle, "kaicenat")
+    }
+
+    func testARejectedDisplayNameMapsToTheInlineError() async throws {
+        let rejected = Self.problem(.displayNameInvalid, status: 422, "Use letters and spaces.")
+        let transport = try StubTransport.problem(rejected)
+
+        do {
+            _ = try await makeAPI(transport).updateDisplayName("x", submission: IdempotentSubmission())
+            XCTFail("expected a problem")
+        } catch let error as APIError {
+            XCTAssertEqual(ProfileSaveFailure(error), .invalidName("Use letters and spaces."))
+        }
+    }
+
+    func testARetriedNameAfterATransportErrorReusesTheKey() async throws {
+        let transport = StubTransport(scripted: [
+            .failure(URLError(.networkConnectionLost)),
+            .json(.ok, Self.meJSON),
+        ])
+        let api = makeAPI(transport)
+        let submission = IdempotentSubmission()
+
+        do {
+            _ = try await api.updateDisplayName("Kai Cenat", submission: submission)
+            XCTFail("expected the dropped connection")
+        } catch let error as APIError {
+            XCTAssertEqual(ProfileSaveFailure(error), .toast(ToastCopy.message(for: error)))
+        }
+        _ = try await api.updateDisplayName("Kai Cenat", submission: submission)
+
+        let keyName = try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))
+        let keys = await transport.sent.map { $0.headerFields[keyName] }
+        XCTAssertEqual(keys.count, 2)
+        XCTAssertNotNil(keys[0])
+        XCTAssertEqual(keys[0], keys[1])
+    }
+
+    func testUploadProfilePhotoSendsOneMultipartPhotoPart() async throws {
+        let uploaded = Self.meJSON.replacingOccurrences(of: "kai.jpg", with: "new.jpg")
+        let transport = StubTransport(.json(.ok, uploaded))
+        let jpeg = Data([0xFF, 0xD8, 0xFF, 0xE0, 0x01, 0x02])
+
+        let profile = try await makeAPI(transport).uploadProfilePhoto(jpeg, submission: IdempotentSubmission())
+
+        let sent = await transport.sent
+        let bodies = await transport.sentBodies
+        let keyName = try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))
+        XCTAssertEqual(sent.map(\.path), ["/v1/me/profile-photo"])
+        XCTAssertEqual(sent.map(\.method), [.post])
+        XCTAssertNotNil(sent.first?.headerFields[keyName])
+        let contentType = try XCTUnwrap(sent.first?.headerFields[.contentType])
+        XCTAssertTrue(contentType.hasPrefix("multipart/form-data; boundary="), contentType)
+        let body = try XCTUnwrap(bodies.first.flatMap { $0 })
+        XCTAssertNotNil(body.range(of: Data(#"name="photo""#.utf8)))
+        XCTAssertNotNil(body.range(of: jpeg))
+        XCTAssertEqual(profile.photoURL?.absoluteString, "https://cdn.example.com/photos/new.jpg")
+    }
+
+    func testARateLimitedPhotoShowsTheServerMessageAndKeepsTheKey() async throws {
+        let limited = try StubTransport.Reply.problem(
+            Self.problem(.rateLimited, status: 429, "Slow down. Try again soon."))
+        let transport = StubTransport(scripted: [limited, .json(.ok, Self.meJSON)])
+        let api = makeAPI(transport)
+        let submission = IdempotentSubmission()
+        let photo = Data([0xFF, 0xD8, 0xFF])
+
+        do {
+            _ = try await api.uploadProfilePhoto(photo, submission: submission)
+            XCTFail("expected rate_limited")
+        } catch let error as APIError {
+            XCTAssertEqual(ProfileSaveFailure(error), .toast("Slow down. Try again soon."))
+        }
+        XCTAssertTrue(submission.hasPendingKey, "a 429 is answered before the key is claimed")
+        _ = try await api.uploadProfilePhoto(photo, submission: submission)
+
+        let keyName = try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))
+        let keys = await transport.sent.map { $0.headerFields[keyName] }
+        XCTAssertEqual(keys[0], keys[1])
+        XCTAssertFalse(submission.hasPendingKey)
+    }
+
+    func testAFailureCarriesItsMessageWhereverItIsShown() {
+        XCTAssertEqual(ProfileSaveFailure.invalidName("Use letters and spaces.").message, "Use letters and spaces.")
+        XCTAssertEqual(ProfileSaveFailure.toast("Too many requests.").message, "Too many requests.")
+        XCTAssertEqual(ProfileSaveFailure(.inFlight), .toast(ToastCopy.message(for: .inFlight)))
+    }
+
     func testFractionalCreatedAtDecodesThroughTheClient() async throws {
         let json = Self.meJSON.replacingOccurrences(of: "2026-09-30T12:00:00Z", with: "2026-09-30T12:00:00.123456Z")
         let transport = StubTransport(.json(.ok, json))
@@ -162,6 +266,20 @@ final class SessionAPITests: XCTestCase {
     ) -> SessionAPI {
         SessionAPI(
             api: APIClient(serverURL: testServerURL, tokens: tokens, transport: transport)
+        )
+    }
+
+    private static func problem(
+        _ code: Components.Schemas.ErrorCode, status: Int, _ message: String
+    ) -> Components.Schemas.Problem {
+        Components.Schemas.Problem(
+            _type: .about_colon_blank,
+            title: "Rejected",
+            status: status,
+            code: code,
+            message: message,
+            traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
+            retryable: false
         )
     }
 
