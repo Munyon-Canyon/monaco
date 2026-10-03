@@ -230,6 +230,7 @@ type MarketRoutes interface {
 
 type TreasuryRoutes interface {
 	GetCabalActivity(context.Context, api.GetCabalActivityRequestObject) (api.GetCabalActivityResponseObject, error)
+	GetMyTxns(context.Context, api.GetMyTxnsRequestObject) (api.GetMyTxnsResponseObject, error)
 }
 
 type FundingRoutes interface {

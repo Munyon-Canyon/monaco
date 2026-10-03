@@ -1,7 +1,9 @@
 package treasury_test
 
 import (
+	"context"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -14,6 +16,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
@@ -76,6 +80,51 @@ type seededActivity struct {
 	asset  *string
 	actor  *ids.UserID
 	sig    *string
+}
+
+type seededUserTxn struct {
+	id        uuid.UUID
+	at        time.Time
+	user      ids.UserID
+	kind      string
+	status    string
+	amount    int64
+	wallets   []int64
+	cabal     *ids.CabalID
+	signature *string
+}
+
+func seedUserTxns(t *testing.T, pool *pgxpool.Pool, rows ...seededUserTxn) {
+	t.Helper()
+	for _, row := range rows {
+		var cabal any
+		if row.cabal != nil {
+			cabal = row.cabal.UUID()
+		}
+		if _, err := pool.Exec(t.Context(), `INSERT INTO user_txns
+			(id, user_id, cabal_id, kind, status, tx_signature, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			row.id, row.user.UUID(), cabal, row.kind, row.status, row.signature, row.at); err != nil {
+			t.Fatal(err)
+		}
+		wallets := row.wallets
+		if len(wallets) == 0 {
+			wallets = []int64{row.amount}
+		}
+		for seq, amount := range wallets {
+			if _, err := pool.Exec(t.Context(), `INSERT INTO user_txn_entries (txn_id, seq, account, asset, amount)
+				VALUES ($1, $2, 'wallet', $3, $4)`, row.id, seq, testkit.USDCMint, amount); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+}
+
+func wireUserTxn(r seededUserTxn, cabal any) map[string]any {
+	return map[string]any{
+		"id": r.id, "kind": r.kind, "status": r.status, "usdc_micros": strconv.FormatInt(r.amount, 10),
+		"cabal": cabal, "tx_signature": r.signature, "created_at": r.at.Format(time.RFC3339),
+	}
 }
 
 func seedActivity(t *testing.T, pool *pgxpool.Pool, cabal ids.CabalID, rows ...seededActivity) {
@@ -167,5 +216,95 @@ func TestActivityRoute_refusesABadCursorAndAnEmptyCabalReadsNoItems(t *testing.T
 	for _, cursor := range []string{"%25%25", "bm9jb2xvbg", "eDow", "MTow"} {
 		s.When(scenario.Get(path+"?cursor="+cursor)).
 			Then(scenario.ExpectStatus(http.StatusBadRequest), scenario.ExpectProblem(errs.CodeInvalidInput))
+	}
+}
+
+func TestUserTxnRoute_listsOnlyTheCallerHistoryWithStablePages(t *testing.T) {
+	t.Parallel()
+	s := scenario.New(t, withActivity())
+	c := testkit.NewCabal(t, s.DB(), testkit.WithMembers(2))
+	g, base := testkit.NewIDs(61), clock.Real{}.Now().UTC().Truncate(time.Second)
+	sig := string(swapSig)
+	oldest := seededUserTxn{
+		id: g.NewV7(), at: base.Add(-time.Minute), user: c.Creator.ID, kind: "deposit", status: "settled",
+		amount: 25000000,
+	}
+	middle := seededUserTxn{
+		id: g.NewV7(), at: base.Add(-time.Minute), user: c.Creator.ID, kind: "fund", status: "pending",
+		amount: -5000000, wallets: []int64{-7000000, 2000000},
+		cabal: &c.ID, signature: &sig,
+	}
+	newest := seededUserTxn{
+		id: g.NewV7(), at: base, user: c.Creator.ID, kind: "withdrawal", status: "failed", amount: -1000000,
+	}
+	other := seededUserTxn{
+		id: g.NewV7(), at: base.Add(time.Minute), user: c.Members[1].ID, kind: "deposit", status: "settled",
+		amount: 99000000,
+	}
+	seedUserTxns(t, s.DB(), oldest, middle, newest, other)
+	s.Given(scenario.AsSeededUser("creator", c.Creator.ID)).
+		When(
+			scenario.Get("/v1/me/txns?limit=2"),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("items", []any{
+				wireUserTxn(newest, nil),
+				wireUserTxn(middle, map[string]any{"id": c.ID, "name": "cabal " + c.ID.String()[24:]}),
+			}),
+			scenario.Remember("next_cursor", "cursor"),
+			scenario.Get("/v1/me/txns?limit=2&cursor={cursor}"),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("items", []any{wireUserTxn(oldest, nil)}),
+			scenario.ExpectJSON("next_cursor", nil),
+		)
+}
+
+func TestUserTxnRoute_returnsNullForAFundWhoseCabalIsGone(t *testing.T) {
+	t.Parallel()
+	s := scenario.New(t, withActivity())
+	user := testkit.SeedUser(t, s.DB(), testkit.UserOpts{})
+	gone := ids.CabalIDFrom(testkit.NewIDs(63).NewV7())
+	row := seededUserTxn{
+		id: testkit.NewIDs(64).NewV7(), at: clock.Real{}.Now().UTC().Truncate(time.Second), user: user.ID,
+		kind: "fund", status: "settled", amount: -5000000, cabal: &gone,
+	}
+	seedUserTxns(t, s.DB(), row)
+	s.Given(scenario.AsSeededUser("member", user.ID)).
+		When(scenario.Get("/v1/me/txns")).
+		Then(
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("items", []any{wireUserTxn(row, nil)}),
+			scenario.ExpectJSON("next_cursor", nil),
+		)
+}
+
+func TestUserTxnRoute_refusesInvalidPagesAndUnwiredCabalReads(t *testing.T) {
+	t.Parallel()
+	s := scenario.New(t, withActivity())
+	c := testkit.NewCabal(t, s.DB())
+	row := seededUserTxn{
+		id: testkit.NewIDs(62).NewV7(), at: clock.Real{}.Now().UTC(), user: c.Creator.ID,
+		kind: "fund", status: "settled", amount: -1, cabal: &c.ID,
+	}
+	seedUserTxns(t, s.DB(), row)
+	s.Given(scenario.AsSeededUser("creator", c.Creator.ID)).
+		When(scenario.Get("/v1/me/txns?limit=101")).
+		Then(scenario.ExpectStatus(http.StatusBadRequest), scenario.ExpectProblem(errs.CodeInvalidInput))
+	for _, cursor := range []string{"%25%25", "bm9jb2xvbg", "eDow", "MTow"} {
+		s.When(scenario.Get("/v1/me/txns?cursor="+cursor)).
+			Then(scenario.ExpectStatus(http.StatusBadRequest), scenario.ExpectProblem(errs.CodeInvalidInput))
+	}
+	reads := app.NewUserTxnReads(s.DB(), app.UnwiredReads{}, domain.MintAsset(testkit.USDCMint))
+	_, err := reads.List(t.Context(), app.ListUserTxns{UserID: c.Creator.ID, Limit: 101})
+	if errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("invalid limit error = %v, want %s", err, errs.CodeInvalidInput)
+	}
+	_, err = reads.List(t.Context(), app.ListUserTxns{UserID: c.Creator.ID})
+	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("unwired cabals error = %v, want %s", err, errs.CodeUpstreamUnavailable)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := reads.List(ctx, app.ListUserTxns{UserID: c.Creator.ID}); err == nil {
+		t.Fatal("a canceled read succeeded")
 	}
 }
