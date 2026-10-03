@@ -1,0 +1,19 @@
+flow: auth/sign-in
+expect-fail: S1
+
+The Stocks tab is titled Assets. S1.4 names the five tabs, so it must fail.
+scripts/qa/flow.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Assets/StocksTab.swift b/apps/mobile/Monaco/Features/Assets/StocksTab.swift
+index 49a16d31..e7aae694 100644
+--- a/apps/mobile/Monaco/Features/Assets/StocksTab.swift
++++ b/apps/mobile/Monaco/Features/Assets/StocksTab.swift
+@@ -1,7 +1,7 @@
+ import SwiftUI
+ 
+ enum StocksTab: TabContent {
+-    static let title = "Stocks"
++    static let title = "Assets"
+     static let systemImage = "chart.line.uptrend.xyaxis"
+     static let accessibilityIdentifier = "tab-assets"
+ 

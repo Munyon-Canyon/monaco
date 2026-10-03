@@ -1,0 +1,20 @@
+flow: auth/sign-in
+expect-fail: S2
+
+A saved Privy session is thrown away at launch. S2.2 must find the login form, not the tab bar.
+scripts/qa/flow.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Auth/PrivyAuthService.swift b/apps/mobile/Monaco/Features/Auth/PrivyAuthService.swift
+index f56e9890..bd6a2155 100644
+--- a/apps/mobile/Monaco/Features/Auth/PrivyAuthService.swift
++++ b/apps/mobile/Monaco/Features/Auth/PrivyAuthService.swift
+@@ -97,7 +97,8 @@ class PrivyAuthService: ObservableObject {
+         flow.restoring()
+         switch await privy.getAuthState() {
+         case .authenticated(let user):
+-            await storeAuthenticatedUser(user, isRestore: true)
++            _ = user
++            endSession(reason: LoginFailureCopy.sessionExpired)
+         case .unauthenticated:
+             AppLogger.session.notice("Session restore: Privy has no saved session")
+             endSession(reason: LoginFailureCopy.sessionExpired)
