@@ -87,6 +87,33 @@ public enum Flow01aOutcome: Sendable, Hashable, CaseIterable {
 	}
 }
 
+func TestRenderFlowOutcomeTestsSwift(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		flow   flows.Flow
+		assert string
+	}{
+		{flows.Flow{ID: "01a", Commands: []string{"SetHandle"}}, "assertRoundTrip"},
+		{flows.Flow{ID: "11"}, "assertCodesRoundTrip"},
+	} {
+		enum := "Flow" + tc.flow.ID + "Outcome"
+		want := `import MonacoFlows
+import XCTest
+
+extension ` + enum + `: WireOutcome {}
+
+final class ` + enum + `Tests: XCTestCase {
+    func testEveryWireCodeMapsBackToItsOutcome() {
+        ` + tc.assert + `(` + enum + `.self)
+    }
+}
+`
+		if got := renderFlowOutcomeTestsSwift(tc.flow); got != want {
+			t.Errorf("flow %s got:\n%s\nwant:\n%s", tc.flow.ID, got, want)
+		}
+	}
+}
+
 func TestFlowOutcomes_unknownCodeFails(t *testing.T) {
 	t.Parallel()
 	if _, err := flowOutcomes(flows.Flow{ID: "07", Outcomes: []flows.Outcome{"ok", "NoSuchCode"}}); err == nil {
@@ -99,14 +126,17 @@ func TestWriteFlowFiles_writesEveryFileAndPrunesStaleFlowFiles(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, flowsSwiftDir)
 	writeTree(t, root, map[string]string{
-		path.Join(flowsSwiftDir, "Flow99.gen.swift"):          "stale\n",
-		path.Join(flowsSwiftDir, "Flow99Scenarios.gen.swift"): "stale\n",
-		path.Join(flowsSwiftDir, "MonacoFlows.swift"):         "kept\n",
+		path.Join(flowsSwiftDir, "Flow99.gen.swift"):                 "stale\n",
+		path.Join(flowsSwiftDir, "Flow99Scenarios.gen.swift"):        "stale\n",
+		path.Join(flowsSwiftDir, "MonacoFlows.swift"):                "kept\n",
+		path.Join(flowTestsSwiftDir, "Flow99OutcomeTests.gen.swift"): "stale\n",
+		path.Join(flowTestsSwiftDir, "FlowOutcomeTests.swift"):       "kept\n",
 	})
 	files := map[string]string{
-		path.Join(flowsSwiftDir, "Flow00.gen.swift"):          "a\n",
-		path.Join(flowsSwiftDir, "Flow00Scenarios.gen.swift"): "b\n",
-		path.Join(flowsSwiftDir, "Flow01a.gen.swift"):         "c\n",
+		path.Join(flowsSwiftDir, "Flow00.gen.swift"):                 "a\n",
+		path.Join(flowsSwiftDir, "Flow00Scenarios.gen.swift"):        "b\n",
+		path.Join(flowsSwiftDir, "Flow01a.gen.swift"):                "c\n",
+		path.Join(flowTestsSwiftDir, "Flow00OutcomeTests.gen.swift"): "e\n",
 		scenarioManifest: "d\n",
 	}
 	if err := os.MkdirAll(filepath.Join(root, "scripts/qa"), 0o750); err != nil {
@@ -126,6 +156,17 @@ func TestWriteFlowFiles_writesEveryFileAndPrunesStaleFlowFiles(t *testing.T) {
 	want := []string{"Flow00.gen.swift", "Flow00Scenarios.gen.swift", "Flow01a.gen.swift", "MonacoFlows.swift"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("files = %q, want %q", got, want)
+	}
+	tests, err := os.ReadDir(filepath.Join(root, flowTestsSwiftDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotTests := make([]string, 0, len(tests))
+	for _, e := range tests {
+		gotTests = append(gotTests, e.Name())
+	}
+	if want := []string{"Flow00OutcomeTests.gen.swift", "FlowOutcomeTests.swift"}; !slices.Equal(gotTests, want) {
+		t.Fatalf("test files = %q, want %q", gotTests, want)
 	}
 	if body, err := fs.ReadFile(os.DirFS(root), scenarioManifest); err != nil || string(body) != "d\n" {
 		t.Fatalf("manifest = %q, %v", body, err)
@@ -207,7 +248,7 @@ func TestRunGenFlows(t *testing.T) {
 	}{
 		{
 			"writes the enums", nil,
-			0, "wrote 1 flow files to " + flowsSwiftDir + " and the " + scenarioManifest + " scenario block\n",
+			0, "wrote 2 flow files to " + flowsSwiftDir + " and " + flowTestsSwiftDir + " and the " + scenarioManifest + " scenario block\n",
 		},
 		{
 			"refuses a malformed flow file",
@@ -337,8 +378,9 @@ func TestRenderFlows_writesScenariosOnlyForBuiltFlowsInIDOrder(t *testing.T) {
 	}
 	slices.Sort(names)
 	want := []string{
-		"Flow00.gen.swift", "Flow00Scenarios.gen.swift", "Flow01.gen.swift", "Flow05.gen.swift",
-		"Flow23a.gen.swift", "Flow23aScenarios.gen.swift", "sample-screens.txt",
+		"Flow00.gen.swift", "Flow00OutcomeTests.gen.swift", "Flow00Scenarios.gen.swift",
+		"Flow01.gen.swift", "Flow01OutcomeTests.gen.swift", "Flow05.gen.swift", "Flow05OutcomeTests.gen.swift",
+		"Flow23a.gen.swift", "Flow23aOutcomeTests.gen.swift", "Flow23aScenarios.gen.swift", "sample-screens.txt",
 	}
 	if !slices.Equal(names, want) {
 		t.Errorf("files = %q, want %q", names, want)

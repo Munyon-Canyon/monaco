@@ -1,55 +1,14 @@
 import MonacoFlows
 import XCTest
 
-private protocol WireOutcome: CaseIterable, Equatable {
+protocol WireOutcome: CaseIterable, Equatable {
     static var flowID: String { get }
     static var commands: [String] { get }
     var code: String? { get }
     init?(code: String)
 }
 
-extension Flow00Outcome: WireOutcome {}
-extension Flow01Outcome: WireOutcome {}
-extension Flow01bOutcome: WireOutcome {}
-extension Flow01cOutcome: WireOutcome {}
-extension Flow01dOutcome: WireOutcome {}
-extension Flow01eOutcome: WireOutcome {}
-extension Flow02Outcome: WireOutcome {}
-extension Flow03Outcome: WireOutcome {}
-extension Flow04Outcome: WireOutcome {}
-extension Flow05Outcome: WireOutcome {}
-extension Flow10Outcome: WireOutcome {}
-extension Flow11Outcome: WireOutcome {}
-extension Flow13Outcome: WireOutcome {}
-extension Flow13aOutcome: WireOutcome {}
-extension Flow18Outcome: WireOutcome {}
-extension Flow20Outcome: WireOutcome {}
-extension Flow23Outcome: WireOutcome {}
-extension Flow23aOutcome: WireOutcome {}
-extension Flow28Outcome: WireOutcome {}
-
 final class FlowOutcomeTests: XCTestCase {
-    func testEveryWireCodeMapsBackToItsOutcome() {
-        assertRoundTrip(Flow00Outcome.self)
-        assertRoundTrip(Flow01Outcome.self)
-        assertRoundTrip(Flow01bOutcome.self)
-        assertRoundTrip(Flow01cOutcome.self)
-        assertRoundTrip(Flow01dOutcome.self)
-        assertRoundTrip(Flow01eOutcome.self)
-        assertRoundTrip(Flow02Outcome.self)
-        assertRoundTrip(Flow03Outcome.self)
-        assertRoundTrip(Flow04Outcome.self)
-        assertRoundTrip(Flow05Outcome.self)
-        assertRoundTrip(Flow10Outcome.self)
-        assertRoundTrip(Flow13Outcome.self)
-        assertRoundTrip(Flow13aOutcome.self)
-        assertRoundTrip(Flow18Outcome.self)
-        assertRoundTrip(Flow20Outcome.self)
-        assertRoundTrip(Flow23Outcome.self)
-        assertRoundTrip(Flow23aOutcome.self)
-        assertRoundTrip(Flow28Outcome.self)
-    }
-
     func testOkAndInterruptedCarryNoWireCode() {
         XCTAssertNil(Flow01Outcome.ok.code)
         XCTAssertNil(Flow01Outcome.interrupted.code)
@@ -63,8 +22,10 @@ final class FlowOutcomeTests: XCTestCase {
         XCTAssertEqual(Flow11Outcome(code: "slippage_exceeded"), .slippageExceeded)
         assertCodesRoundTrip(Flow11Outcome.self)
     }
+}
 
-    private func assertRoundTrip<Outcome: WireOutcome>(
+extension XCTestCase {
+    func assertRoundTrip<Outcome: WireOutcome>(
         _ type: Outcome.Type, file: StaticString = #filePath, line: UInt = #line
     ) {
         XCTAssertFalse(type.commands.isEmpty, file: file, line: line)
@@ -72,7 +33,7 @@ final class FlowOutcomeTests: XCTestCase {
         assertCodesRoundTrip(type, file: file, line: line)
     }
 
-    private func assertCodesRoundTrip<Outcome: WireOutcome>(
+    func assertCodesRoundTrip<Outcome: WireOutcome>(
         _ type: Outcome.Type, file: StaticString = #filePath, line: UInt = #line
     ) {
         XCTAssertFalse(type.flowID.isEmpty, file: file, line: line)
