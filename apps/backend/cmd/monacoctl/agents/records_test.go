@@ -1,7 +1,9 @@
 package agents
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -303,5 +305,35 @@ func TestRecords_aFreshCloneKeepsTheArmedStack(t *testing.T) {
 	if err != nil || rec.Armed == nil || rec.Armed.Top != 2 || !slices.Equal(rec.Armed.PRs, arm.PRs) ||
 		!rec.Armed.At.Equal(f.now) {
 		t.Fatalf("rec=%+v err=%v", rec, err)
+	}
+}
+
+func TestRecords_aWriteKeepsKeysThisBuildDoesNotKnow(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	env := f.Env(t)
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: "/w/40"})
+	raw := `{"ticket":40,"state":"exited","worktree":"/w/40","queued":{"top":2,"prs":[1,2]},` +
+		`"future":{"top":2,"note":"from a newer monacoctl"}}`
+	writeFile(t, env.recordPath(40), raw)
+	rec, err := env.localRecord(40)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := env.unmark(t.Context(), rec); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(env.recordPath(40))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var flat bytes.Buffer
+	var got map[string]json.RawMessage
+	if err := errors.Join(json.Compact(&flat, b), json.Unmarshal(flat.Bytes(), &got)); err != nil {
+		t.Fatal(err)
+	}
+	if string(got["future"]) != `{"top":2,"note":"from a newer monacoctl"}` || got["queued"] != nil ||
+		string(got["worktree"]) != `"/w/40"` {
+		t.Fatalf("record:\n%s", b)
 	}
 }

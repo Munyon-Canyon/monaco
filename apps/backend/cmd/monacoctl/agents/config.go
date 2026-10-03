@@ -57,6 +57,7 @@ type Config struct {
 	VerifierInstallation int
 	Milestone            string
 	QueueLabel           string
+	QueueConcurrency     int
 	Slots                int
 	MaxLoad              int
 	Budget               map[string]time.Duration
@@ -74,6 +75,7 @@ func parseConfig(r io.Reader) (Config, error) {
 	ints := map[string]*int{
 		"tracking": &c.Tracking, "lanes": &c.Lanes, "batch.size": &c.Batch,
 		"verifier_installation": &c.VerifierInstallation, "check.slots": &c.Slots, "dispatch.max_load": &c.MaxLoad,
+		"queue_concurrency": &c.QueueConcurrency,
 	}
 	lists := map[string]*[]string{"batch.shared": &c.Shared}
 	lines, err := logicalLines(r, configPath)

@@ -35,22 +35,25 @@ func dequeueCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) 
 		_, _ = fmt.Fprintf(stdout, "disarmed #%d; agents watch will not land it\n", n)
 		return nil
 	}
-	nums := rec.Queued.PRs
+	if err := env.releaseQueue(ctx, rec.Queued); err != nil {
+		return err
+	}
+	if err := env.unmark(ctx, rec); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(stdout, "dequeued %s; safe to push\n", prRefs(rec.Queued.PRs))
+	return nil
+}
+
+func (env *Env) releaseQueue(ctx context.Context, q *Queue) error {
 	for range dequeueTries {
-		held, err := env.release(ctx, nums)
-		if err != nil {
+		held, err := env.release(ctx, q.PRs)
+		if err != nil || !held {
 			return err
-		}
-		if !held {
-			if err := env.unmark(ctx, rec); err != nil {
-				return err
-			}
-			_, _ = fmt.Fprintf(stdout, "dequeued %s; safe to push\n", prRefs(nums))
-			return nil
 		}
 	}
 	return dequeueErr(errs.CodeVersionConflict, fmt.Sprintf(
-		"Graphite still holds #%d; remove it from the queue in the Graphite app, then rerun", n))
+		"Graphite still holds #%d; remove it from the queue in the Graphite app, then rerun", q.Top))
 }
 
 func (env *Env) heldRecord(ctx context.Context, top int) (Record, error) {

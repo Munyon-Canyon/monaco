@@ -291,6 +291,7 @@ func (env *Env) land(ctx context.Context, rec Record, stack []stackPR, stdout io
 	}
 	rec.Queued = &Queue{Top: top, PRs: nums}
 	rec.Armed = nil
+	rec.Settled = nil
 	rec.Changed = env.Now()
 	if err := env.storeRecord(ctx, rec); err != nil {
 		return err
@@ -337,7 +338,7 @@ func (env *Env) settle(ctx context.Context, rec Record, prs []stackPR, landed []
 		_, _ = fmt.Fprintf(
 			stdout, "#%d merged as %s; no worktree at %s, skipped gt sync\n", top.Number, sha, rec.Worktree,
 		)
-		return env.unmark(ctx, rec)
+		return env.conclude(ctx, rec, outcomeLanded, landedLine(rec.Queued))
 	}
 	if _, err := env.Run(
 		ctx,
@@ -351,10 +352,14 @@ func (env *Env) settle(ctx context.Context, rec Record, prs []stackPR, landed []
 	); err != nil {
 		first, _, _ := strings.Cut(strings.TrimSpace(err.Error()), "\n")
 		_, _ = fmt.Fprintf(stdout, "#%d merged as %s; gt sync failed in %s: %s\n", top.Number, sha, rec.Worktree, first)
-		return env.unmark(ctx, rec)
+		return env.conclude(ctx, rec, outcomeLanded, landedLine(rec.Queued))
 	}
 	_, _ = fmt.Fprintf(stdout, "#%d merged as %s; gt sync ran in %s\n", top.Number, sha, rec.Worktree)
-	return env.unmark(ctx, rec)
+	return env.conclude(ctx, rec, outcomeLanded, landedLine(rec.Queued))
+}
+
+func landedLine(q *Queue) string {
+	return fmt.Sprintf("stack #%d landed (%s)", q.Top, prRefs(q.PRs))
 }
 
 func (env *Env) landedEach(ctx context.Context, prs []stackPR) ([]bool, error) {
@@ -381,9 +386,7 @@ func (env *Env) queueState(p stackPR, landed bool, drafts []queueDraft) string {
 		return prLanded
 	case p.State != "OPEN":
 		return prEjected
-	case p.labeled(env.Config.QueueLabel),
-		slices.ContainsFunc(drafts, func(d queueDraft) bool { return d.State == "OPEN" && d.tests(p.Number) }),
-		env.justUnlabeled(p):
+	case p.labeled(env.Config.QueueLabel), draftHolds(drafts, p.Number), env.justUnlabeled(p):
 		return prQueued
 	default:
 		return prEjected
@@ -391,12 +394,38 @@ func (env *Env) queueState(p stackPR, landed bool, drafts []queueDraft) string {
 }
 
 func (env *Env) ejected(prs []stackPR, landed []bool, drafts []queueDraft) bool {
+	_, ok := env.firstEjected(prs, landed, drafts)
+	return ok
+}
+
+func (env *Env) firstEjected(prs []stackPR, landed []bool, drafts []queueDraft) (stackPR, bool) {
 	for i, p := range prs {
 		if env.queueState(p, landed[i], drafts) == prEjected {
-			return true
+			return p, true
 		}
 	}
-	return false
+	return stackPR{}, false
+}
+
+func ejectedWhy(out stackPR) string {
+	if out.State == "CLOSED" {
+		return "was closed without landing"
+	}
+	return "left the Graphite merge queue"
+}
+
+func (env *Env) ejectStack(ctx context.Context, rec Record, out stackPR) (string, error) {
+	if err := env.releaseQueue(ctx, rec.Queued); err != nil {
+		return "", err
+	}
+	line := fmt.Sprintf("stack #%d ejected: #%d %s", rec.Queued.Top, out.Number, ejectedWhy(out))
+	return line, env.conclude(ctx, rec, outcomeEjected, line)
+}
+
+func (env *Env) conclude(ctx context.Context, rec Record, outcome Outcome, detail string) error {
+	q := rec.Queued
+	rec.Settled = &Settlement{Top: q.Top, PRs: q.PRs, Outcome: outcome, Detail: detail, At: env.Now()}
+	return env.unmark(ctx, rec)
 }
 
 func (env *Env) unmark(ctx context.Context, rec Record) error {
@@ -434,15 +463,16 @@ func (env *Env) unqueueEjected(ctx context.Context, rs []Record, stdout io.Write
 		if err != nil {
 			return err
 		}
-		if !env.ejected(prs, landed, open) {
+		out, ok := env.firstEjected(prs, landed, open)
+		if !ok {
 			continue
+		}
+		if _, err := env.ejectStack(ctx, r, out); err != nil {
+			return err
 		}
 		_, _ = fmt.Fprintf(stdout, "unqueued: #%d; #%d left the Graphite merge queue. "+
 			"Fix the stack with gt modify and gt submit --stack --draft, then run land-stack %d\n",
 			r.Ticket, r.Queued.Top, r.Queued.Top)
-		if err := env.unmark(ctx, r); err != nil {
-			return err
-		}
 	}
 	return nil
 }

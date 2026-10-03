@@ -51,27 +51,39 @@ type stream struct {
 	reported map[int]bool
 }
 
-func (env *Env) watchStream(ctx context.Context, every time.Duration, out io.Writer) error {
-	s := &stream{
+func newStream(env *Env) *stream {
+	return &stream{
 		env: env, since: env.Now(), prev: map[string]bool{}, ejected: map[int]bool{}, blocks: map[string]string{},
 		seenOpen: map[int]bool{}, reported: map[int]bool{},
 	}
+}
+
+func (env *Env) watchStream(ctx context.Context, every time.Duration, out io.Writer) error {
+	s := newStream(env)
 	for {
-		env.trunk = nil
-		next := map[string]bool{}
-		for _, item := range s.round(ctx) {
-			if !s.prev[item] && !next[item] {
-				_, _ = io.WriteString(out, item+"\n")
-			}
-			next[item] = true
+		for _, item := range s.next(ctx) {
+			_, _ = io.WriteString(out, item+"\n")
 		}
-		s.prev = next
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-env.After(every):
 		}
 	}
+}
+
+func (s *stream) next(ctx context.Context) []string {
+	s.env.trunk = nil
+	seen := map[string]bool{}
+	var fresh []string
+	for _, item := range s.round(ctx) {
+		if !s.prev[item] && !seen[item] {
+			fresh = append(fresh, item)
+		}
+		seen[item] = true
+	}
+	s.prev = seen
+	return fresh
 }
 
 func (s *stream) round(ctx context.Context) []string {
@@ -96,6 +108,9 @@ func (s *stream) round(ctx context.Context) []string {
 			items = append(items, s.stack(ctx, r, data.drafts)...)
 		case r.Armed != nil:
 			items = append(items, env.landArmed(ctx, r)...)
+		}
+		if r.Settled != nil && r.Settled.At.After(s.since) {
+			items = append(items, r.Settled.Detail)
 		}
 	}
 	items = append(items, s.draftLines(data.drafts, queued)...)
@@ -133,7 +148,7 @@ func (s *stream) stack(ctx context.Context, r Record, drafts []queueDraft) []str
 		if err := env.settle(ctx, r, prs, each, io.Discard); err != nil {
 			return append(items, watchErr(fmt.Sprintf("settle #%d: ", top), err))
 		}
-		return append(items, fmt.Sprintf("stack #%d landed (%s)", top, prRefs(r.Queued.PRs)))
+		return append(items, landedLine(r.Queued))
 	case out.Number == 0:
 		return items
 	case !wasOut:
@@ -144,20 +159,16 @@ func (s *stream) stack(ctx context.Context, r Record, drafts []queueDraft) []str
 }
 
 func (s *stream) eject(ctx context.Context, r Record, out stackPR, drafts []queueDraft) []string {
-	top := r.Queued.Top
-	if err := s.env.unmark(ctx, r); err != nil {
-		return []string{watchErr(fmt.Sprintf("unmark #%d: ", top), err)}
-	}
-	why := "left the Graphite merge queue"
-	if out.State == "CLOSED" {
-		why = "was closed without landing"
+	line, err := s.env.ejectStack(ctx, r, out)
+	if err != nil {
+		return []string{watchErr(fmt.Sprintf("eject #%d: ", r.Queued.Top), err)}
 	}
 	s.reported[out.Number] = true
 	f := failure{
-		PR: out.Number, Head: out.HeadOID, Body: out.Body, Why: why,
+		PR: out.Number, Head: out.HeadOID, Body: out.Body, Why: ejectedWhy(out),
 		Job: queueJob(out.Number, out.Commits, drafts, time.Time{}),
 	}
-	return []string{fmt.Sprintf("stack #%d ejected: #%d %s", top, out.Number, why), s.block(ctx, f)}
+	return []string{line, s.block(ctx, f)}
 }
 
 func (s *stream) draftLines(drafts []queueDraft, queued []int) []string {
