@@ -4,3 +4,8 @@ var TradingSwapFinished = Msg{
 	Name:     "trading.swap.finished",
 	Required: []string{"swap_id", "source", "status", "failure_code"},
 }
+
+var TradingEngineBlocked = Msg{
+	Name:     "trading.engine.blocked",
+	Required: []string{"proposal_id", "cabal_id", "code", "have", "need"},
+}
