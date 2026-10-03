@@ -59,7 +59,7 @@ struct Sparkline: View {
 
 /// The path itself. `closed` drops the line to the baseline and back so the same
 /// geometry can be filled as an area under the curve.
-struct SparklineShape: Shape {
+nonisolated struct SparklineShape: Shape {
     let heights: [Double]
     var inset: CGFloat = 0
     var closed = false

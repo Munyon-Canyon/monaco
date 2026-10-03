@@ -22,8 +22,6 @@ protocol AppSessionDataSource: Sendable {
     func getPopularAssets(accessToken: String, limit: Int) async throws -> PopularAssetsResponse
 }
 
-extension MonacoAPIClient: AppSessionDataSource {}
-
 /// The session the store reads tokens from and reports rejected ones to. `PrivyAuthService`
 /// is the only implementation outside tests.
 @MainActor

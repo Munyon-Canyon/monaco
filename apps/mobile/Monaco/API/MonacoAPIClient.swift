@@ -37,7 +37,7 @@ private struct APIErrorBody: Decodable {
     let error: String
 }
 
-final class MonacoAPIClient {
+final class MonacoAPIClient: AppSessionDataSource {
     private let baseURL: URL
     /// Every request goes through the transport so an expired access token is
     /// refreshed and the request retried once instead of signing the user out.
