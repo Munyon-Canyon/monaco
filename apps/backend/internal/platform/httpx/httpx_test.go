@@ -93,6 +93,10 @@ func (healthz) GetCabalProposals(
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabalProposals")
 }
 
+func (healthz) GetProposal(context.Context, api.GetProposalRequestObject) (api.GetProposalResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetProposal")
+}
+
 func (healthz) PostProposalVote(
 	context.Context, api.PostProposalVoteRequestObject,
 ) (api.PostProposalVoteResponseObject, error) {

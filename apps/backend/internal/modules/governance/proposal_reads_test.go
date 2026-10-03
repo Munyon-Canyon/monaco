@@ -19,22 +19,24 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
 type readsDB struct {
 	proposalDB
 	cabal  uuid.UUID
 	caller uuid.UUID
+	swaps  *fakes.Trading
 }
 
 func newReadsDB(t *testing.T) readsDB {
 	t.Helper()
 	d := newProposalDB(t)
-	return readsDB{proposalDB: d, cabal: d.ids.NewV7(), caller: d.ids.NewV7()}
+	return readsDB{proposalDB: d, cabal: d.ids.NewV7(), caller: d.ids.NewV7(), swaps: fakes.NewTrading()}
 }
 
 func (d readsDB) reads() *app.ProposalReads {
-	return app.NewProposalReads(d.pool, threshold{rule: domain.RuleMajority})
+	return app.NewProposalReads(d.pool, threshold{rule: domain.RuleMajority}, d.swaps)
 }
 
 func (d readsDB) seed(t *testing.T, at time.Time, voters ...uuid.UUID) uuid.UUID {
@@ -156,7 +158,7 @@ func TestProposals_List_itemCarriesTallyBallotAndBlockedReason(t *testing.T) {
 	if !slices.Equal(page.Items, want) || page.NextCursor != "" || !page.Items[1].CreatedAt.Equal(d.now) {
 		t.Fatalf("page = %+v, want %+v and no cursor", page, want)
 	}
-	empty := readsDB{proposalDB: d.proposalDB, cabal: d.ids.NewV7(), caller: d.caller}
+	empty := readsDB{proposalDB: d.proposalDB, cabal: d.ids.NewV7(), caller: d.caller, swaps: d.swaps}
 	testkit.AssertQueries(t, "ListProposals empty page", func() {
 		if page := empty.list(t, app.FilterAll, 0, ""); len(page.Items) != 0 || page.Items == nil {
 			t.Errorf("empty cabal page = %+v, want an empty, non-nil list", page)
@@ -188,7 +190,7 @@ func TestProposals_List_failures(t *testing.T) {
 	t.Parallel()
 	d := newReadsDB(t)
 	req := app.ListProposals{CabalID: ids.CabalIDFrom(d.cabal), Caller: ids.UserIDFrom(d.caller)}
-	gone := app.NewProposalReads(d.pool, threshold{err: errs.New(errs.CodeCabalNotFound, "t")})
+	gone := app.NewProposalReads(d.pool, threshold{err: errs.New(errs.CodeCabalNotFound, "t")}, d.swaps)
 	if _, err := gone.List(t.Context(), req); errs.CodeOf(err) != errs.CodeCabalNotFound {
 		t.Errorf("List of an unknown cabal err = %v, want cabal_not_found", err)
 	}

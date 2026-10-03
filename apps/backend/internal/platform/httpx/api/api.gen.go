@@ -479,6 +479,30 @@ func (e HandleAvailabilityReason) Valid() bool {
 	}
 }
 
+// Defines values for LinkedSwapStatus.
+const (
+	LinkedSwapStatusConfirmed LinkedSwapStatus = "confirmed"
+	LinkedSwapStatusCreated   LinkedSwapStatus = "created"
+	LinkedSwapStatusFailed    LinkedSwapStatus = "failed"
+	LinkedSwapStatusSubmitted LinkedSwapStatus = "submitted"
+)
+
+// Valid indicates whether the value is a known member of the LinkedSwapStatus enum.
+func (e LinkedSwapStatus) Valid() bool {
+	switch e {
+	case LinkedSwapStatusConfirmed:
+		return true
+	case LinkedSwapStatusCreated:
+		return true
+	case LinkedSwapStatusFailed:
+		return true
+	case LinkedSwapStatusSubmitted:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MarketSessionNextState.
 const (
 	MarketSessionNextStateAfterHours  MarketSessionNextState = "after_hours"
@@ -1286,6 +1310,44 @@ type HandleAvailability struct {
 // Examples: reserved
 type HandleAvailabilityReason string
 
+// LinkedSwap The latest trade that executes the proposal.
+type LinkedSwap struct {
+	// FailureCode Why the trade failed. Null unless `status` is `failed`.
+	//
+	// Examples: null
+	FailureCode *string `json:"failure_code"`
+
+	// FailureMessage The user-facing message for a failed trade. Null unless `status` is `failed`.
+	//
+	// Examples: null
+	FailureMessage *string `json:"failure_message"`
+
+	// Retryable Whether a failed trade can be retried.
+	//
+	// Examples: false
+	Retryable bool `json:"retryable"`
+
+	// Status Where the trade is.
+	//
+	// Examples: confirmed
+	Status LinkedSwapStatus `json:"status"`
+
+	// SwapId The swap id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8060
+	SwapId openapi_types.UUID `json:"swap_id"`
+
+	// TxSignature The Solana transaction signature. Null before the trade is submitted.
+	//
+	// Examples: null
+	TxSignature *string `json:"tx_signature"`
+}
+
+// LinkedSwapStatus Where the trade is.
+//
+// Examples: confirmed
+type LinkedSwapStatus string
+
 // MarketSession The session the asset is in, computed on the server.
 //
 // Examples: {"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"}
@@ -1578,6 +1640,107 @@ type Proposal struct {
 	UsdcMicros *int64 `json:"usdc_micros"`
 }
 
+// ProposalDetail One proposal with its voters, the caller's permissions and its linked trade.
+type ProposalDetail struct {
+	// CabalId The cabal id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	CabalId openapi_types.UUID `json:"cabal_id"`
+
+	// CanVote The caller is in the voter set and the proposal is open.
+	//
+	// Examples: true
+	CanVote bool `json:"can_vote"`
+
+	// CanWithdraw The caller proposed it, it is open, and no other voter has a ballot.
+	//
+	// Examples: false
+	CanWithdraw bool `json:"can_withdraw"`
+
+	// CreatedAt When the proposal opened.
+	//
+	// Examples: 2026-10-03T15:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// ExpiresAt When voting closes.
+	//
+	// Examples: 2026-10-04T15:00:00Z
+	ExpiresAt time.Time `json:"expires_at"`
+
+	// Id The proposal id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+	Id openapi_types.UUID `json:"id"`
+
+	// Kind Whether the proposal spends USDC on the token or sells the token for USDC.
+	//
+	// Examples: buy
+	Kind ProposalKind `json:"kind"`
+
+	// MyBallot The caller's ballot. Null when the caller has not voted or is not a voter.
+	//
+	// Examples: null
+	MyBallot *BallotChoice `json:"my_ballot"`
+
+	// ProposerId The member who proposed it.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	ProposerId openapi_types.UUID `json:"proposer_id"`
+
+	// QuoteOutAmount The quoted output, in the output asset's base units, when the proposal opened.
+	//
+	// Examples: 105000000
+	QuoteOutAmount int64 `json:"quote_out_amount"`
+
+	// Status Where a proposal is in its lifecycle.
+	//
+	// Examples: open
+	Status ProposalStatus `json:"status"`
+
+	// StatusMessage The user-facing message for `status_reason`. Null when `status_reason` is null.
+	//
+	// Examples: null
+	StatusMessage *string `json:"status_message"`
+
+	// StatusReason The error code that blocked execution. Null unless `status` is `execution_blocked`.
+	//
+	// Examples: null
+	StatusReason *string `json:"status_reason"`
+
+	// Swap The latest trade linked to the proposal. Null when none exists.
+	//
+	// Examples: null
+	Swap *LinkedSwap `json:"swap"`
+
+	// Symbol The token symbol.
+	//
+	// Examples: AAPLx
+	Symbol string `json:"symbol"`
+
+	// Tally The ballots counted against the proposal's frozen voter set.
+	Tally Tally `json:"tally"`
+
+	// Thesis The proposer's reason, up to 280 characters.
+	//
+	// Examples: Earnings next week.
+	Thesis *string `json:"thesis"`
+
+	// TokenAmount Token base units a sell spends. Null for a buy.
+	//
+	// Examples: null
+	TokenAmount *int64 `json:"token_amount"`
+
+	// UsdcMicros USDC a buy spends, in micros. Null for a sell.
+	//
+	// Examples: 25000000
+	UsdcMicros *int64 `json:"usdc_micros"`
+
+	// Voters Every member of the frozen voter set, ordered by user id.
+	//
+	// Examples: []
+	Voters []ProposalVoter `json:"voters"`
+}
+
 // ProposalKind Whether the proposal spends USDC on the token or sells the token for USDC.
 //
 // Examples: buy
@@ -1600,6 +1763,24 @@ type ProposalList struct {
 //
 // Examples: open
 type ProposalStatus string
+
+// ProposalVoter One member of the proposal's frozen voter set.
+type ProposalVoter struct {
+	// CastAt When the ballot was last cast. Null until they vote.
+	//
+	// Examples: 2026-10-03T16:00:00Z
+	CastAt *time.Time `json:"cast_at"`
+
+	// Choice The voter's ballot. Null until they vote.
+	//
+	// Examples: yes
+	Choice *BallotChoice `json:"choice"`
+
+	// UserId The voter.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	UserId openapi_types.UUID `json:"user_id"`
+}
 
 // SetHandle A handle to claim for the caller.
 type SetHandle struct {
@@ -1948,6 +2129,9 @@ type ServerInterface interface {
 	// GetMyReferralCode Read the caller's invite code and links.
 	// (GET /v1/me/referral-code)
 	GetMyReferralCode(w http.ResponseWriter, r *http.Request)
+	// GetProposal Read one proposal.
+	// (GET /v1/proposals/{id})
+	GetProposal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// PostProposalVote Cast or change the caller's ballot on an open proposal.
 	// (POST /v1/proposals/{id}/votes)
 	PostProposalVote(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostProposalVoteParams)
@@ -2974,6 +3158,32 @@ func (siw *ServerInterfaceWrapper) GetMyReferralCode(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// GetProposal operation middleware
+func (siw *ServerInterfaceWrapper) GetProposal(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProposal(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PostProposalVote operation middleware
 func (siw *ServerInterfaceWrapper) PostProposalVote(w http.ResponseWriter, r *http.Request) {
 
@@ -3392,6 +3602,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/me/handle", wrapper.PutMeHandle)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/profile-photo", wrapper.PostProfilePhoto)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/referral-code", wrapper.GetMyReferralCode)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.GetProposal)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.PostProposalVote)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/stream", wrapper.GetStream)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/system/pings", wrapper.PostSystemPing)
@@ -4337,6 +4548,45 @@ func (response GetMyReferralCodedefaultApplicationProblemPlusJSONResponse) Visit
 	return err
 }
 
+type GetProposalRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetProposalResponseObject interface {
+	VisitGetProposalResponse(w http.ResponseWriter) error
+}
+
+type GetProposal200JSONResponse ProposalDetail
+
+func (response GetProposal200JSONResponse) VisitGetProposalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProposaldefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetProposaldefaultApplicationProblemPlusJSONResponse) VisitGetProposalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostProposalVoteRequestObject struct {
 	Id     openapi_types.UUID `json:"id"`
 	Params PostProposalVoteParams
@@ -4680,6 +4930,9 @@ type StrictServerInterface interface {
 	// GetMyReferralCode Read the caller's invite code and links.
 	// (GET /v1/me/referral-code)
 	GetMyReferralCode(ctx context.Context, request GetMyReferralCodeRequestObject) (GetMyReferralCodeResponseObject, error)
+	// GetProposal Read one proposal.
+	// (GET /v1/proposals/{id})
+	GetProposal(ctx context.Context, request GetProposalRequestObject) (GetProposalResponseObject, error)
 	// PostProposalVote Cast or change the caller's ballot on an open proposal.
 	// (POST /v1/proposals/{id}/votes)
 	PostProposalVote(ctx context.Context, request PostProposalVoteRequestObject) (PostProposalVoteResponseObject, error)
@@ -5400,6 +5653,32 @@ func (sh *strictHandler) GetMyReferralCode(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMyReferralCodeResponseObject); ok {
 		if err := validResponse.VisitGetMyReferralCodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetProposal operation middleware
+func (sh *strictHandler) GetProposal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetProposalRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProposal(ctx, request.(GetProposalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProposal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProposalResponseObject); ok {
+		if err := validResponse.VisitGetProposalResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
