@@ -3,6 +3,10 @@ import HTTPTypes
 import OpenAPIRuntime
 import Synchronization
 
+#if canImport(os)
+import os
+#endif
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -18,7 +22,15 @@ struct HeadersMiddleware: ClientMiddleware {
         next: @Sendable (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
     ) async throws -> (HTTPResponse, HTTPBody?) {
         var request = request
-        if let token = try await accessToken() {
+        if operationID != Operations.GetHealthz.id {
+            guard let token = try await accessToken(), !token.isEmpty else {
+                #if canImport(os)
+                Logger(subsystem: "com.monaco.app", category: "api").error(
+                    "Refusing unsigned API request operation=\(operationID, privacy: .public)"
+                )
+                #endif
+                throw APIError.missingAccessToken(operationID)
+            }
             request.headerFields[.authorization] = "Bearer \(token)"
         }
         return try await next(request, body, baseURL)
@@ -42,8 +54,7 @@ struct RefreshMiddleware: ClientMiddleware {
         let (response, responseBody) = try await next(request, body, baseURL)
         guard response.status == .unauthorized else { return (response, responseBody) }
         guard let sent = request.headerFields[.authorization], sent.hasPrefix(Self.bearerPrefix) else {
-            await tokens.endSession()
-            throw APIError.signedOut
+            throw APIError.missingAccessToken(operationID)
         }
         guard let fresh = try await tokens.refreshedToken(replacing: String(sent.dropFirst(Self.bearerPrefix.count)))
         else {
@@ -76,7 +87,7 @@ struct TimeoutMiddleware: ClientMiddleware {
         sleep = { try await clock.sleep(for: $0) }
     }
 
-    static func budget(for request: HTTPRequest, operationID: String) -> Duration {
+    static func budget(for request: HTTPRequest, operationID _: String) -> Duration {
         return request.headerFields[keyHeader] == nil ? read : keyedWrite
     }
 

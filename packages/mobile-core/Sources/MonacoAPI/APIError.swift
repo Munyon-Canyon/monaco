@@ -11,6 +11,7 @@ public enum APIError: Error, Sendable, Hashable {
     case problem(ProblemError)
     case transport(URLError)
     case signedOut
+    case missingAccessToken(String)
     case accountDeleted
     /// The first attempt of this submission is still running. Retry with the same
     /// `IdempotentSubmission`.
@@ -56,7 +57,7 @@ public enum APIError: Error, Sendable, Hashable {
             return (400..<500).contains(problem.status) && problem.status != 401 && problem.status != 429
         case .accountDeleted:
             return true
-        case .transport, .signedOut, .inFlight, .decoding:
+        case .transport, .signedOut, .missingAccessToken, .inFlight, .decoding:
             return false
         }
     }

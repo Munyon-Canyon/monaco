@@ -70,11 +70,8 @@ final class AppEnvironment {
             token: { try await tokens.accessToken() },
             refresh: { try await tokens.refreshedToken(replacing: $0) },
             endSession: { rejectedToken in
-                if let rejectedToken {
-                    await tokens.endSession(rejectedToken: rejectedToken)
-                } else {
-                    await tokens.endSession()
-                }
+                guard let rejectedToken else { return }
+                await tokens.endSession(rejectedToken: rejectedToken)
             }
         )
         self.init(auth: auth, tokens: tokens, hints: LiveHintConnection(stream))

@@ -1,5 +1,6 @@
 import HTTPTypes
 import MonacoAPI
+import MonacoCore
 import MonacoTestSupport
 import XCTest
 
@@ -17,14 +18,14 @@ final class APIClientTests: XCTestCase {
         try await Fixtures.client(transport).healthz()
 
         let sent = await transport.sent
-        XCTAssertEqual(sent.map { $0.headerFields[.authorization] }, ["Bearer token-1"])
+        XCTAssertEqual(sent.map { $0.headerFields[.authorization] }, [nil])
     }
 
     func testA401IsRetriedOnceWithTheRefreshedToken() async throws {
-        let transport = StubTransport(scripted: [Fixtures.problem(401, "unauthorized"), .ok("ok\n")])
+        let transport = StubTransport(scripted: [Fixtures.problem(401, "unauthorized"), Fixtures.ping])
         let tokens = StubTokenProvider(token: "stale", refreshes: ["fresh"])
 
-        try await Fixtures.client(transport, tokens: tokens).healthz()
+        _ = try await Fixtures.client(transport, tokens: tokens).ping(IdempotentSubmission())
 
         let sent = await transport.sent
         XCTAssertEqual(sent.map { $0.headerFields[.authorization] }, ["Bearer stale", "Bearer fresh"])
@@ -38,7 +39,9 @@ final class APIClientTests: XCTestCase {
         ])
         let tokens = StubTokenProvider(token: "stale", refreshes: ["fresh", "fresher"])
 
-        await assertThrows(.signedOut) { try await Fixtures.client(transport, tokens: tokens).healthz() }
+        await assertThrows(.signedOut) {
+            _ = try await Fixtures.client(transport, tokens: tokens).ping(IdempotentSubmission())
+        }
 
         let sent = await transport.sent
         XCTAssertEqual(sent.count, 2)
@@ -52,22 +55,44 @@ final class APIClientTests: XCTestCase {
         let transport = StubTransport(scripted: [Fixtures.problem(401, "unauthorized")])
         let tokens = StubTokenProvider(token: "stale")
 
-        await assertThrows(.signedOut) { try await Fixtures.client(transport, tokens: tokens).healthz() }
+        await assertThrows(.signedOut) {
+            _ = try await Fixtures.client(transport, tokens: tokens).ping(IdempotentSubmission())
+        }
 
         let sent = await transport.sent
         XCTAssertEqual(sent.count, 1)
     }
 
-    func testA401WithoutATokenSignsOutWithoutRefreshing() async throws {
+    func testABearerRequiredCallWithNoTokenIsNotSentAndDoesNotEndTheSession() async throws {
         let transport = StubTransport(scripted: [Fixtures.problem(401, "unauthorized")])
         let tokens = StubTokenProvider(token: nil, refreshes: ["fresh"])
 
-        await assertThrows(.signedOut) { try await Fixtures.client(transport, tokens: tokens).healthz() }
+        await assertThrows(.missingAccessToken("getMe")) {
+            _ = try await SessionAPI(api: Fixtures.client(transport, tokens: tokens)).me()
+        }
 
         let refreshed = await tokens.refreshed
         XCTAssertEqual(refreshed, [])
         let unsignedEndings = await tokens.unsignedEndings
-        XCTAssertEqual(unsignedEndings, 1)
+        XCTAssertEqual(unsignedEndings, 0)
+        let sent = await transport.sent
+        XCTAssertTrue(sent.isEmpty)
+    }
+
+    func testOnlyHealthzMayRunWithoutABearer() async throws {
+        let transport = StubTransport.ok("ok\n")
+        let client = Fixtures.client(transport, tokens: StubTokenProvider(token: nil))
+
+        await assertThrows(.missingAccessToken("postAuthSession")) {
+            _ = try await SessionAPI(api: client).openSession()
+        }
+        let unsignedSent = await transport.sent
+        XCTAssertTrue(unsignedSent.isEmpty)
+
+        try await client.healthz()
+        let sent = await transport.sent
+        XCTAssertEqual(sent.map(\.path), ["/healthz"])
+        XCTAssertNil(sent[0].headerFields[.authorization])
     }
 
     func testARefreshedWriteKeepsItsIdempotencyKey() async throws {
@@ -93,7 +118,7 @@ final class APIClientTests: XCTestCase {
     }
 }
 
-private actor DefaultToken: AccessTokenProvider {
+private actor DefaultToken: MonacoAPI.AccessTokenProvider {
     private(set) var ended = false
     func accessToken() async throws -> String? { nil }
     func refreshedToken(replacing _: String) async throws -> String? { nil }

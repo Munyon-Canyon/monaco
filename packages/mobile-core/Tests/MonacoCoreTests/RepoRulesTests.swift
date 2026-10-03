@@ -522,7 +522,10 @@ private enum RequiredReason {
         for (offset, row) in rows.enumerated() {
             let line = String(row)
             let range = NSRange(line.startIndex..., in: line)
-            for api in apis where api.regex.firstMatch(in: line, range: range) != nil {
+            for api in apis
+            where line.contains(api.token)
+                && api.regex.firstMatch(in: line, range: range) != nil
+            {
                 used.insert(api.category)
                 guard declared.contains(api.category) else {
                     missing.append(need(file.path, line: offset + 1, api: api))

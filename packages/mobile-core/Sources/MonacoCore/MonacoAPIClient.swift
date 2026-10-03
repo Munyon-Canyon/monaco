@@ -18,6 +18,7 @@ public enum LeaveGroupBlockReason: String, Equatable, Sendable {
 /// so an error state can show a support reference that matches the server logs.
 public enum MonacoAPIError: Error, Equatable {
     case invalidResponse
+    case missingAccessToken
     case httpStatus(Int, requestID: String? = nil)
     case leaveBlocked(LeaveGroupBlockReason)
     /// 4xx with a server `{"error": "..."}` message meant for the user.
@@ -34,7 +35,7 @@ public enum MonacoAPIError: Error, Equatable {
             return status
         case .rateLimited:
             return 429
-        case .invalidResponse, .leaveBlocked:
+        case .invalidResponse, .missingAccessToken, .leaveBlocked:
             return nil
         }
     }
@@ -45,7 +46,7 @@ public enum MonacoAPIError: Error, Equatable {
             .rejected(_, _, let requestID),
             .rateLimited(_, let requestID):
             return requestID
-        case .invalidResponse, .leaveBlocked:
+        case .invalidResponse, .missingAccessToken, .leaveBlocked:
             return nil
         }
     }
@@ -55,6 +56,8 @@ public enum MonacoAPIError: Error, Equatable {
     public static func == (lhs: MonacoAPIError, rhs: MonacoAPIError) -> Bool {
         switch (lhs, rhs) {
         case (.invalidResponse, .invalidResponse):
+            return true
+        case (.missingAccessToken, .missingAccessToken):
             return true
         case (.httpStatus(let a, _), .httpStatus(let b, _)):
             return a == b
@@ -357,7 +360,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
         guard let url = components.url else {
             throw MonacoAPIError.invalidResponse
         }
-
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         try await applyAuthorizationHeader(to: &request)
@@ -390,7 +392,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
         guard let url = components.url else {
             throw MonacoAPIError.invalidResponse
         }
-
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         try await applyAuthorizationHeader(to: &request)
@@ -778,8 +779,9 @@ public final class MonacoAPIClient: @unchecked Sendable {
     }
 
     private func applyAuthorizationHeader(to request: inout URLRequest) async throws {
-        guard let accessTokenProvider else { return }
-        guard let token = try await accessTokenProvider(), !token.isEmpty else { return }
+        guard let accessTokenProvider,
+            let token = try await accessTokenProvider(), !token.isEmpty
+        else { throw MonacoAPIError.missingAccessToken }
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     }
 
@@ -818,7 +820,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         try await applyAuthorizationHeader(to: &request)
         request.httpBody = try JSONEncoder().encode(GroupMessageRequestDTO(body: body))
-
         let response = try await send(request, route: "/v1/groups/{id}/messages", accepting: [201], mapping: .full)
         return try JSONDecoder().decode(GroupMessageDTO.self, from: response.data)
     }
@@ -826,5 +827,4 @@ public final class MonacoAPIClient: @unchecked Sendable {
     private struct GroupMessageRequestDTO: Encodable {
         let body: String
     }
-
 }

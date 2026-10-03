@@ -192,7 +192,10 @@ final class APITelemetryTests: XCTestCase {
         MockURLProtocol.requestHandler = { [self] request in
             respond(request, status: 200, body: #"{"groups":[]}"#)
         }
-        let client = MonacoAPIClient(baseURL: baseURL, session: makeMockURLSession())
+        let token = token
+        let client = MonacoAPIClient(
+            baseURL: baseURL, session: makeMockURLSession(), accessTokenProvider: { token }
+        )
 
         _ = try await client.groupLeaderboard()
 

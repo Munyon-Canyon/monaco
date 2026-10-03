@@ -125,7 +125,7 @@ final class SessionAPITests: XCTestCase {
         }
     }
 
-    func testARefreshed401InsideSessionBodyDecodesTheRetried200() async throws {
+    func testARefreshed401ForMeDecodesTheRetried200() async throws {
         let retry = Self.meJSON.replacingOccurrences(of: "Kai Cenat", with: "Retried")
         let denied = StubTransport.Reply.response(
             status: .unauthorized, contentType: "application/problem+json",
@@ -134,10 +134,10 @@ final class SessionAPITests: XCTestCase {
         let transport = StubTransport(scripted: [denied, .json(.ok, retry)])
         let tokens = StubTokenProvider(token: "stale", refreshes: ["fresh"])
 
-        let profile = try await makeAPI(transport, tokens: tokens).openSession()
+        let profile = try await makeAPI(transport, tokens: tokens).me()
 
         let sent = await transport.sent
-        XCTAssertEqual(sent.map(\.path), ["/v1/auth/session", "/v1/auth/session"])
+        XCTAssertEqual(sent.map(\.path), ["/v1/me", "/v1/me"])
         XCTAssertEqual(sent.map { $0.headerFields[.authorization] }, ["Bearer stale", "Bearer fresh"])
         XCTAssertEqual(profile.displayName, "Retried")
     }

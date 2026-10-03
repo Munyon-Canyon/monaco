@@ -20,27 +20,27 @@ final class HintStreamAuthTests: XCTestCase {
         let signedOut = await eventually { await stream.state == .signedOut }
         XCTAssertTrue(signedOut)
         XCTAssertEqual(ended.current, ["fresh"])
-        let quiet = await clock.state.until { $0.pending == 0 }
+        let quiet = await clock.state.until(within: .seconds(1)) { $0.pending == 0 }
         XCTAssertTrue(quiet, "a signed-out stream keeps no timers")
         await stream.stop()
     }
 
-    func testA401WithoutABearerEndsTheUnsignedSession() async {
-        let transport = FakeStreamTransport([.unauthorized], clock: clock)
+    func testANilTokenNeverConnectsOrEndsTheSession() async {
+        let transport = FakeStreamTransport(clock: clock)
         let endings = Watched(0)
         let stream = makeStream(
             transport,
             token: { nil },
-            endSession: { token in
-                XCTAssertNil(token)
-                endings.mutate { $0 += 1 }
-            }
+            endSession: { _ in endings.mutate { $0 += 1 } }
         )
-        await stream.start()
 
-        let signedOut = await eventually { await stream.state == .signedOut }
-        XCTAssertTrue(signedOut)
-        XCTAssertEqual(endings.current, 1)
+        await stream.start()
+        let reconnecting = await eventually { await stream.state == .reconnecting }
+
+        XCTAssertTrue(reconnecting)
+        XCTAssertTrue(transport.state.current.requests.isEmpty)
+        XCTAssertEqual(endings.current, 0)
+        await stream.stop()
     }
 
     private func makeStream(
