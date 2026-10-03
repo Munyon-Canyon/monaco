@@ -141,6 +141,7 @@ type CabalRoutes interface {
 type MarketRoutes interface {
 	GetAssets(context.Context, api.GetAssetsRequestObject) (api.GetAssetsResponseObject, error)
 	GetAsset(context.Context, api.GetAssetRequestObject) (api.GetAssetResponseObject, error)
+	GetAssetChart(context.Context, api.GetAssetChartRequestObject) (api.GetAssetChartResponseObject, error)
 }
 
 var _ api.StrictServerInterface = Routes{}

@@ -91,7 +91,9 @@ func (m *Module) RouteChecker() *app.RouteChecker {
 
 func (m *Module) Routes(r *httpx.Routes) {
 	list := app.NewListAssets(m.deps.Pool, m.deps.Clock)
-	r.MarketRoutes = adapters.HTTP{List: list, Detail: app.NewDetail(m.deps.Pool, list)}
+	r.MarketRoutes = adapters.HTTP{
+		List: list, Detail: app.NewDetail(m.deps.Pool, list), Chart: app.NewChart(m.deps.Pool, m.deps.Clock),
+	}
 }
 
 func (*Module) Consumers() []bus.Consumer { return nil }

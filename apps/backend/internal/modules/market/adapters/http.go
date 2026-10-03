@@ -2,8 +2,10 @@ package adapters
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
@@ -18,6 +20,7 @@ import (
 type HTTP struct {
 	List   app.Lister
 	Detail app.Detailer
+	Chart  app.Charter
 }
 
 var _ httpx.MarketRoutes = HTTP{}
@@ -52,6 +55,23 @@ func (h HTTP) GetAsset(ctx context.Context, req api.GetAssetRequestObject) (api.
 		return nil, err
 	}
 	return api.GetAsset200JSONResponse(body), nil
+}
+
+func (h HTTP) GetAssetChart(
+	ctx context.Context, req api.GetAssetChartRequestObject,
+) (api.GetAssetChartResponseObject, error) {
+	if err := caller(ctx); err != nil {
+		return nil, err
+	}
+	chart, err := h.Chart.Handle(ctx, req.Symbol, string(req.Params.Range))
+	if err != nil {
+		return nil, err
+	}
+	body, err := wireChart(chart)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetAssetChart200JSONResponse(body), nil
 }
 
 func listRequest(p api.GetAssetsParams) app.ListRequest {
@@ -147,6 +167,34 @@ func wireDetail(view app.AssetView) (api.AssetDetail, error) {
 		Tradable:      view.Summary.Asset.Tradable(),
 		OtherListings: wireListings(view.Others),
 		Attribution:   domain.Attribution,
+	}, nil
+}
+
+func wireChart(chart app.Chart) (api.AssetChart, error) {
+	points := make([]api.ChartPoint, 0, len(chart.Points))
+	for _, point := range chart.Points {
+		wired, err := wirePoint(point)
+		if err != nil {
+			return api.AssetChart{}, err
+		}
+		points = append(points, wired)
+	}
+	return api.AssetChart{
+		Range: api.AssetChartRange(chart.Range), BucketSeconds: int64(chart.Bucket / time.Second),
+		Points: points, Empty: chart.Empty, Attribution: domain.Attribution,
+	}, nil
+}
+
+func wirePoint(point app.Point) (api.ChartPoint, error) {
+	open, err := int64Micros(point.Open)
+	high, highErr := int64Micros(point.High)
+	low, lowErr := int64Micros(point.Low)
+	last, lastErr := int64Micros(point.Close)
+	if err = errors.Join(err, highErr, lowErr, lastErr); err != nil {
+		return api.ChartPoint{}, err
+	}
+	return api.ChartPoint{
+		T: point.At.UTC(), OpenMicros: open, HighMicros: high, LowMicros: low, CloseMicros: last,
 	}, nil
 }
 

@@ -40,6 +40,36 @@ func (e AccountStatus) Valid() bool {
 	}
 }
 
+// Defines values for AssetChartRange.
+const (
+	AssetChartRangeALL AssetChartRange = "ALL"
+	AssetChartRangeN1D AssetChartRange = "1D"
+	AssetChartRangeN1M AssetChartRange = "1M"
+	AssetChartRangeN1W AssetChartRange = "1W"
+	AssetChartRangeN1Y AssetChartRange = "1Y"
+	AssetChartRangeN3M AssetChartRange = "3M"
+)
+
+// Valid indicates whether the value is a known member of the AssetChartRange enum.
+func (e AssetChartRange) Valid() bool {
+	switch e {
+	case AssetChartRangeALL:
+		return true
+	case AssetChartRangeN1D:
+		return true
+	case AssetChartRangeN1M:
+		return true
+	case AssetChartRangeN1W:
+		return true
+	case AssetChartRangeN1Y:
+		return true
+	case AssetChartRangeN3M:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AssetIssuer.
 const (
 	Prestocks AssetIssuer = "prestocks"
@@ -550,10 +580,75 @@ func (e GetAssetsParamsFilter) Valid() bool {
 	}
 }
 
+// Defines values for GetAssetChartParamsRange.
+const (
+	GetAssetChartParamsRangeALL GetAssetChartParamsRange = "ALL"
+	GetAssetChartParamsRangeN1D GetAssetChartParamsRange = "1D"
+	GetAssetChartParamsRangeN1M GetAssetChartParamsRange = "1M"
+	GetAssetChartParamsRangeN1W GetAssetChartParamsRange = "1W"
+	GetAssetChartParamsRangeN1Y GetAssetChartParamsRange = "1Y"
+	GetAssetChartParamsRangeN3M GetAssetChartParamsRange = "3M"
+)
+
+// Valid indicates whether the value is a known member of the GetAssetChartParamsRange enum.
+func (e GetAssetChartParamsRange) Valid() bool {
+	switch e {
+	case GetAssetChartParamsRangeALL:
+		return true
+	case GetAssetChartParamsRangeN1D:
+		return true
+	case GetAssetChartParamsRangeN1M:
+		return true
+	case GetAssetChartParamsRangeN1W:
+		return true
+	case GetAssetChartParamsRangeN1Y:
+		return true
+	case GetAssetChartParamsRangeN3M:
+		return true
+	default:
+		return false
+	}
+}
+
 // AccountStatus The user's standing. A suspended account is read-only apart from withdraw and cash out, and a banned account can only withdraw and cash out.
 //
 // Examples: active
 type AccountStatus string
+
+// AssetChart The buckets for one asset and one range.
+//
+// Examples: {"attribution":"Data provided by CoinGecko","bucket_seconds":300,"empty":false,"points":[{"close_micros":110000000,"high_micros":130000000,"low_micros":90000000,"open_micros":100000000,"t":"2026-03-04T14:55:00Z"}],"range":"1D"}
+type AssetChart struct {
+	// Attribution The data source line the chart shows.
+	//
+	// Examples: Data provided by CoinGecko
+	Attribution string `json:"attribution"`
+
+	// BucketSeconds The width of each bucket, in seconds.
+	//
+	// Examples: 300
+	BucketSeconds int64 `json:"bucket_seconds"`
+
+	// Empty True when `points` is empty.
+	//
+	// Examples: false
+	Empty bool `json:"empty"`
+
+	// Points The buckets in time order. Empty when the asset has no samples in the range.
+	//
+	// Examples: [{"close_micros":110000000,"high_micros":130000000,"low_micros":90000000,"open_micros":100000000,"t":"2026-03-04T14:55:00Z"}]
+	Points []ChartPoint `json:"points"`
+
+	// Range The range that was requested.
+	//
+	// Examples: 1D
+	Range AssetChartRange `json:"range"`
+}
+
+// AssetChartRange The range that was requested.
+//
+// Examples: 1D
+type AssetChartRange string
 
 // AssetDetail One asset, the list fields plus the chain facts and the other listings.
 //
@@ -939,6 +1034,36 @@ type CastVoteRequest struct {
 	//
 	// Examples: yes
 	Choice BallotChoice `json:"choice"`
+}
+
+// ChartPoint One bucket of open, high, low and close, in USD micros.
+//
+// Examples: {"close_micros":110000000,"high_micros":130000000,"low_micros":90000000,"open_micros":100000000,"t":"2026-03-04T14:55:00Z"}
+type ChartPoint struct {
+	// CloseMicros The last sample in the bucket, in USD micros.
+	//
+	// Examples: 110000000
+	CloseMicros int64 `json:"close_micros"`
+
+	// HighMicros The highest sample in the bucket, in USD micros.
+	//
+	// Examples: 130000000
+	HighMicros int64 `json:"high_micros"`
+
+	// LowMicros The lowest sample in the bucket, in USD micros.
+	//
+	// Examples: 90000000
+	LowMicros int64 `json:"low_micros"`
+
+	// OpenMicros The first sample in the bucket, in USD micros.
+	//
+	// Examples: 100000000
+	OpenMicros int64 `json:"open_micros"`
+
+	// T The start of the bucket.
+	//
+	// Examples: 2026-03-04T14:55:00Z
+	T time.Time `json:"t"`
 }
 
 // CreateCabalRequest The name and rules for a new cabal.
@@ -1339,6 +1464,15 @@ type GetAssetsParams struct {
 // GetAssetsParamsFilter defines parameters for GetAssets.
 type GetAssetsParamsFilter string
 
+// GetAssetChartParams defines parameters for GetAssetChart.
+type GetAssetChartParams struct {
+	// Range How far back to read, and how wide each bucket is.
+	Range GetAssetChartParamsRange `form:"range" json:"range"`
+}
+
+// GetAssetChartParamsRange defines parameters for GetAssetChart.
+type GetAssetChartParamsRange string
+
 // PostAuthSessionParams defines parameters for PostAuthSession.
 type PostAuthSessionParams struct {
 	// Authorization The Privy access token as `Bearer <token>`. The route is public because no account exists on the first call, so the server verifies this header itself and answers unauthorized when it is missing or invalid.
@@ -1431,6 +1565,9 @@ type ServerInterface interface {
 	// GetAsset Read one asset.
 	// (GET /v1/assets/{symbol})
 	GetAsset(w http.ResponseWriter, r *http.Request, symbol string)
+	// GetAssetChart Read one asset's chart.
+	// (GET /v1/assets/{symbol}/chart)
+	GetAssetChart(w http.ResponseWriter, r *http.Request, symbol string, params GetAssetChartParams)
 	// PostAuthSession Open a session from a Privy access token.
 	// (POST /v1/auth/session)
 	PostAuthSession(w http.ResponseWriter, r *http.Request, params PostAuthSessionParams)
@@ -1593,6 +1730,48 @@ func (siw *ServerInterfaceWrapper) GetAsset(w http.ResponseWriter, r *http.Reque
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAsset(w, r, symbol)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAssetChart operation middleware
+func (siw *ServerInterfaceWrapper) GetAssetChart(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "symbol" -------------
+	var symbol string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "symbol", r.PathValue("symbol"), &symbol, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "symbol", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAssetChartParams
+
+	// ------------- Required query parameter "range" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "range", r.URL.Query(), &params.Range, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "range"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "range", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAssetChart(w, r, symbol, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2337,6 +2516,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/healthz", wrapper.GetHealthz)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/assets", wrapper.GetAssets)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/assets/{symbol}", wrapper.GetAsset)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/assets/{symbol}/chart", wrapper.GetAssetChart)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/auth/session", wrapper.PostAuthSession)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals", wrapper.GetCabals)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals", wrapper.PostCabal)
@@ -2461,6 +2641,46 @@ type GetAssetdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetAssetdefaultApplicationProblemPlusJSONResponse) VisitGetAssetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAssetChartRequestObject struct {
+	Symbol string `json:"symbol"`
+	Params GetAssetChartParams
+}
+
+type GetAssetChartResponseObject interface {
+	VisitGetAssetChartResponse(w http.ResponseWriter) error
+}
+
+type GetAssetChart200JSONResponse AssetChart
+
+func (response GetAssetChart200JSONResponse) VisitGetAssetChartResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAssetChartdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetAssetChartdefaultApplicationProblemPlusJSONResponse) VisitGetAssetChartResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -3130,6 +3350,9 @@ type StrictServerInterface interface {
 	// GetAsset Read one asset.
 	// (GET /v1/assets/{symbol})
 	GetAsset(ctx context.Context, request GetAssetRequestObject) (GetAssetResponseObject, error)
+	// GetAssetChart Read one asset's chart.
+	// (GET /v1/assets/{symbol}/chart)
+	GetAssetChart(ctx context.Context, request GetAssetChartRequestObject) (GetAssetChartResponseObject, error)
 	// PostAuthSession Open a session from a Privy access token.
 	// (POST /v1/auth/session)
 	PostAuthSession(ctx context.Context, request PostAuthSessionRequestObject) (PostAuthSessionResponseObject, error)
@@ -3288,6 +3511,33 @@ func (sh *strictHandler) GetAsset(w http.ResponseWriter, r *http.Request, symbol
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAssetResponseObject); ok {
 		if err := validResponse.VisitGetAssetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAssetChart operation middleware
+func (sh *strictHandler) GetAssetChart(w http.ResponseWriter, r *http.Request, symbol string, params GetAssetChartParams) {
+	var request GetAssetChartRequestObject
+
+	request.Symbol = symbol
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAssetChart(ctx, request.(GetAssetChartRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAssetChart")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAssetChartResponseObject); ok {
+		if err := validResponse.VisitGetAssetChartResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

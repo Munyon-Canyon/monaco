@@ -555,6 +555,143 @@ type hugeDetail struct{ view app.AssetView }
 
 func (h hugeDetail) Handle(context.Context, string) (app.AssetView, error) { return h.view, nil }
 
+func TestChart_BucketsOHLC(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	seedChartPrices(t, s, marketfake.AAPLx().Mint.String())
+	assertDayChart(t, chartOf(t, s.get(t, "/v1/assets/AAPLx/chart?range=1D")))
+	assertChartSpan(t, s, "1W", 3600, 2, 50_000_000, marketWhen().Add(-2*24*time.Hour))
+	assertChartSpan(t, s, "1M", 3600, 3, 40_000_000, marketWhen().Add(-10*24*time.Hour))
+	assertChartSpan(t, s, "3M", 3600, 4, 30_000_000, marketWhen().Add(-40*24*time.Hour))
+	assertChartSpan(t, s, "1Y", 86400, 5, 20_000_000, marketWhen().Add(-100*24*time.Hour).Truncate(24*time.Hour))
+	assertChartSpan(t, s, "ALL", 86400, 6, 10_000_000, marketWhen().Add(-400*24*time.Hour).Truncate(24*time.Hour))
+}
+
+func seedChartPrices(t *testing.T, s marketAPI, mint string) {
+	t.Helper()
+	s.price(t, mint, -400*24*time.Hour, 10_000_000)
+	s.price(t, mint, -100*24*time.Hour, 20_000_000)
+	s.price(t, mint, -40*24*time.Hour, 30_000_000)
+	s.price(t, mint, -10*24*time.Hour, 40_000_000)
+	s.price(t, mint, -2*24*time.Hour, 50_000_000)
+	s.price(t, mint, -6*time.Minute, 100_000_000)
+	s.price(t, mint, -4*time.Minute, 100_000_000)
+	s.price(t, mint, -3*time.Minute, 130_000_000)
+	s.price(t, mint, -2*time.Minute, 90_000_000)
+	s.price(t, mint, -time.Minute, 100_000_000)
+	s.price(t, mint, -40*time.Second, 110_000_000)
+	s.price(t, mint, -20*time.Second, 400_000_000)
+}
+
+func assertDayChart(t *testing.T, got api.AssetChart) {
+	t.Helper()
+	if got.Range != api.AssetChartRangeN1D || got.BucketSeconds != 300 || got.Empty || len(got.Points) != 2 {
+		t.Fatalf("day = %+v", got)
+	}
+	if got.Attribution != domain.Attribution {
+		t.Fatalf("attribution = %q", got.Attribution)
+	}
+	if !got.Points[0].T.Equal(marketWhen().Add(-10 * time.Minute)) {
+		t.Fatalf("open bucket = %s", got.Points[0].T)
+	}
+	assertOHLC(t, got.Points[0], 100_000_000, 100_000_000, 100_000_000, 100_000_000)
+	if !got.Points[1].T.Equal(marketWhen().Add(-5 * time.Minute)) {
+		t.Fatalf("close bucket = %s", got.Points[1].T)
+	}
+	assertOHLC(t, got.Points[1], 100_000_000, 130_000_000, 90_000_000, 110_000_000)
+}
+
+func assertChartSpan(t *testing.T, s marketAPI, raw string, bucket int64, n int, firstOpen int64, first time.Time) {
+	t.Helper()
+	got := chartOf(t, s.get(t, "/v1/assets/AAPLx/chart?range="+raw))
+	if got.Empty || got.BucketSeconds != bucket || len(got.Points) != n || got.Points[0].OpenMicros != firstOpen {
+		t.Fatalf("%s = %+v", raw, got)
+	}
+	if !got.Points[0].T.Equal(first) {
+		t.Fatalf("%s first = %s, want %s", raw, got.Points[0].T, first)
+	}
+	last := got.Points[n-1]
+	wantLast := marketWhen().Truncate(24 * time.Hour)
+	if bucket == 3600 {
+		wantLast = marketWhen().Add(-time.Hour)
+	}
+	if !last.T.Equal(wantLast) {
+		t.Fatalf("%s last = %s, want %s", raw, last.T, wantLast)
+	}
+	assertOHLC(t, last, 100_000_000, 130_000_000, 90_000_000, 110_000_000)
+}
+
+func assertOHLC(t *testing.T, point api.ChartPoint, open, high, low, last int64) {
+	t.Helper()
+	if point.OpenMicros != open || point.HighMicros != high || point.LowMicros != low || point.CloseMicros != last {
+		t.Fatalf("ohlc = %+v", point)
+	}
+}
+
+func chartOf(t *testing.T, rec *httptest.ResponseRecorder) api.AssetChart {
+	t.Helper()
+	if rec.Code != http.StatusOK {
+		t.Fatalf("chart = %d %s", rec.Code, rec.Body)
+	}
+	var chart api.AssetChart
+	if err := json.Unmarshal(rec.Body.Bytes(), &chart); err != nil {
+		t.Fatal(err)
+	}
+	return chart
+}
+
+func TestChart_EmptyPreIPO(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.insertClone(t, 5, "SPACEx", "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", "SpaceX", domain.KindPreIPO, 0)
+	rec := s.get(t, "/v1/assets/SPACEx/chart?range=1D")
+	got := chartOf(t, rec)
+	if !got.Empty || len(got.Points) != 0 || got.BucketSeconds != 300 || got.Range != api.AssetChartRangeN1D {
+		t.Fatalf("empty = %+v", got)
+	}
+	if got.Attribution != domain.Attribution || !strings.Contains(rec.Body.String(), `"points":[]`) {
+		t.Fatalf("body = %s", rec.Body)
+	}
+}
+
+func TestChart_rejectsABadRangeAndAnUnknownSymbol(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	bad := s.get(t, "/v1/assets/AAPLx/chart?range=NOPE")
+	if bad.Code != http.StatusBadRequest || problemCode(t, bad) != api.InvalidInput {
+		t.Fatalf("bad range = %d %s", bad.Code, bad.Body)
+	}
+	missing := s.get(t, "/v1/assets/NOPEx/chart?range=1D")
+	if missing.Code != http.StatusNotFound || problemCode(t, missing) != api.AssetNotFound {
+		t.Fatalf("missing = %d %s", missing.Code, missing.Body)
+	}
+}
+
+func TestChart_rejectsACallerThatIsNotAUser(t *testing.T) {
+	t.Parallel()
+	h := adapters.HTTP{}
+	_, err := h.GetAssetChart(t.Context(), api.GetAssetChartRequestObject{Symbol: "AAPLx"})
+	if errs.CodeOf(err) != errs.CodeUnauthorized {
+		t.Fatalf("no actor = %v", err)
+	}
+	huge := money.MicrosFromUint64(uint64(math.MaxInt64) + 1)
+	h.Chart = hugeChart{chart: app.Chart{
+		Range: domain.Chart1D, Bucket: 5 * time.Minute,
+		Points: []app.Point{{At: marketWhen(), Open: huge, High: huge, Low: huge, Close: huge}},
+	}}
+	user := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: testkit.NewIDs(1).NewV7().String()})
+	_, hugeErr := h.GetAssetChart(user, api.GetAssetChartRequestObject{Symbol: "AAPLx"})
+	if errs.CodeOf(hugeErr) != errs.CodeDecodeFailed {
+		t.Fatalf("huge = %v", hugeErr)
+	}
+}
+
+type hugeChart struct{ chart app.Chart }
+
+func (h hugeChart) Handle(context.Context, string, string) (app.Chart, error) { return h.chart, nil }
+
 func containsAll(body string, parts ...string) bool {
 	for _, part := range parts {
 		if !strings.Contains(body, part) {

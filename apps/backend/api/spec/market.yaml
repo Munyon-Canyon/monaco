@@ -80,6 +80,33 @@ paths:
                 $ref: "#/components/schemas/AssetDetail"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/assets/{symbol}/chart:
+    get:
+      operationId: getAssetChart
+      tags: [market]
+      summary: Read one asset's chart.
+      description: >-
+        Buckets the asset's stored prices for the requested range. A held spike is left out of the
+        buckets. An unknown symbol is `asset_not_found`. `ALL` starts at the first stored sample.
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          description: The ticker the app shows.
+          schema: {type: string, minLength: 1, maxLength: 64, examples: [AAPLx]}
+        - name: range
+          in: query
+          required: true
+          description: How far back to read, and how wide each bucket is.
+          schema: {type: string, enum: [1D, 1W, 1M, 3M, 1Y, ALL], examples: [1D]}
+      responses:
+        "200":
+          description: The chart.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AssetChart"}
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   schemas:
     AssetIssuer:
@@ -406,6 +433,100 @@ components:
         attribution:
           type: string
           description: The data source line the asset screen shows.
+          examples: ["Data provided by CoinGecko"]
+    ChartPoint:
+      type: object
+      description: One bucket of open, high, low and close, in USD micros.
+      examples:
+        - t: "2026-03-04T14:55:00Z"
+          open_micros: 100000000
+          high_micros: 130000000
+          low_micros: 90000000
+          close_micros: 110000000
+      additionalProperties: false
+      required:
+        - t
+        - open_micros
+        - high_micros
+        - low_micros
+        - close_micros
+      properties:
+        t:
+          type: string
+          format: date-time
+          description: The start of the bucket.
+          examples: ["2026-03-04T14:55:00Z"]
+        open_micros:
+          type: integer
+          format: int64
+          description: The first sample in the bucket, in USD micros.
+          examples: [100000000]
+        high_micros:
+          type: integer
+          format: int64
+          description: The highest sample in the bucket, in USD micros.
+          examples: [130000000]
+        low_micros:
+          type: integer
+          format: int64
+          description: The lowest sample in the bucket, in USD micros.
+          examples: [90000000]
+        close_micros:
+          type: integer
+          format: int64
+          description: The last sample in the bucket, in USD micros.
+          examples: [110000000]
+    AssetChart:
+      type: object
+      description: The buckets for one asset and one range.
+      examples:
+        - range: 1D
+          bucket_seconds: 300
+          points:
+            - t: "2026-03-04T14:55:00Z"
+              open_micros: 100000000
+              high_micros: 130000000
+              low_micros: 90000000
+              close_micros: 110000000
+          empty: false
+          attribution: Data provided by CoinGecko
+      additionalProperties: false
+      required:
+        - range
+        - bucket_seconds
+        - points
+        - empty
+        - attribution
+      properties:
+        range:
+          type: string
+          description: The range that was requested.
+          enum: [1D, 1W, 1M, 3M, 1Y, ALL]
+          examples: [1D]
+        bucket_seconds:
+          type: integer
+          format: int64
+          minimum: 1
+          description: The width of each bucket, in seconds.
+          examples: [300]
+        points:
+          type: array
+          description: The buckets in time order. Empty when the asset has no samples in the range.
+          examples:
+            - - t: "2026-03-04T14:55:00Z"
+                open_micros: 100000000
+                high_micros: 130000000
+                low_micros: 90000000
+                close_micros: 110000000
+          items:
+            $ref: "#/components/schemas/ChartPoint"
+        empty:
+          type: boolean
+          description: True when `points` is empty.
+          examples: [false]
+        attribution:
+          type: string
+          description: The data source line the chart shows.
           examples: ["Data provided by CoinGecko"]
     AssetList:
       type: object
