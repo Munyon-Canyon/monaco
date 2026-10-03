@@ -66,16 +66,6 @@ nonisolated final class AssetDetailCardsUITests: XCTestCase {
         return anyElement(app, identifier).exists
     }
 
-    /// Whatever stats cells the tree currently holds, so a failure says what it found
-    /// instead of only what it wanted.
-    @MainActor
-    private func visibleStatIdentifiers(_ app: XCUIApplication) -> [String] {
-        app.descendants(matching: .any)
-            .allElementsBoundByIndex
-            .map(\.identifier)
-            .filter { $0.hasPrefix("asset-stat") }
-    }
-
     @MainActor
     private func attachScreenshot(_ app: XCUIApplication, name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
@@ -92,7 +82,6 @@ nonisolated final class AssetDetailCardsUITests: XCTestCase {
 
         for identifier in [
             "asset-detail-position",
-            "asset-detail-stats",
             "asset-detail-about",
             "asset-detail-activity",
         ] {
@@ -271,31 +260,11 @@ nonisolated final class AssetDetailCardsUITests: XCTestCase {
         XCTAssertTrue(anyElement(app, "asset-about-toggle").exists, "the body is not clamped with a Show more")
     }
 
-    /// Two columns of money truncate at the accessibility text sizes, so the grid
-    /// falls back to one column. The card has to stay reachable through that switch —
-    /// the earlier version of this screen put a fixed height on a wrapping view and
-    /// the content overflowed rather than clipping.
-    ///
-    /// The cells themselves are asserted at the default text size, in
-    /// `testStatsGridCarriesTheCellsItCouldSource`. A `LazyVGrid` only builds the rows
-    /// near the viewport, and at these text sizes one card fills more than a screen,
-    /// so "which cells exist right now" is a fact about scroll position rather than
-    /// about the grid. The screenshot is what carries the layout claim here.
-    @MainActor
-    func testStatsGridSurvivesAnAccessibilityTextSize() throws {
-        let app = launch("open", textSize: "UICTContentSizeCategoryAccessibilityL")
-        waitForScreen(app, "stats at accessibility text size")
-
-        XCTAssertTrue(scrollTo(app, "asset-detail-stats", attempts: 12), "the stats grid never appeared")
-        attachScreenshot(app, name: "asset-detail-stats-accessibility-text")
-    }
-
     /// The position card was the only one below the chart that kept its side-by-side
     /// rows at the accessibility sizes: a cabal name truncated and the money beside it
     /// scaled itself down, which is the one thing on this screen that must never be
-    /// cut short. It stacks now, like the stats grid and the Pyth legs. What is
-    /// asserted is that the card and its rows survive the switch, the same claim
-    /// `testStatsGridSurvivesAnAccessibilityTextSize` makes. Like that test, the
+    /// cut short. It stacks now, like the Pyth legs. The card and its rows must
+    /// survive the switch. Like the default-size test, the
     /// screenshot shows the top of the page: at this size synthesized drags do not
     /// move it in the harness, which is its own open question.
     @MainActor
@@ -327,31 +296,4 @@ nonisolated final class AssetDetailCardsUITests: XCTestCase {
         attachScreenshot(app, name: "asset-detail-position-labelled-return")
     }
 
-    /// The honest-grid rule: a cell we could source is there, and a cell we could not
-    /// is absent rather than a dash. `statsComplete` has every figure; `statsPartial`
-    /// (the `sparse` scenario) has no year of history and no Pyth interval.
-    @MainActor
-    func testStatsGridCarriesTheCellsItCouldSource() throws {
-        let full = launch("open")
-        waitForScreen(full, "open")
-        XCTAssertTrue(scrollTo(full, "asset-detail-stats"), "the stats grid never appeared")
-        for cell in ["asset-stat-open", "asset-stat-prev-close", "asset-stat-certainty"] {
-            XCTAssertTrue(
-                scrollTo(full, cell),
-                "\(cell) is missing; on screen: \(visibleStatIdentifiers(full))"
-            )
-        }
-        attachScreenshot(full, name: "asset-detail-stats-complete")
-        full.terminate()
-
-        let partial = launch("sparse")
-        waitForScreen(partial, "sparse")
-        XCTAssertTrue(scrollTo(partial, "asset-detail-stats"), "the partial stats grid never appeared")
-        XCTAssertTrue(scrollTo(partial, "asset-stat-open"), "a sourced cell is missing")
-        XCTAssertFalse(
-            partial.descendants(matching: .any).matching(identifier: "asset-stat-52w-high").firstMatch.exists,
-            "a 52-week cell was drawn for a symbol with no year of history"
-        )
-        attachScreenshot(partial, name: "asset-detail-stats-partial")
-    }
 }
