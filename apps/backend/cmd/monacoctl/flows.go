@@ -2,6 +2,8 @@ package main
 
 import (
 	"cmp"
+	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -23,13 +25,16 @@ import (
 
 const (
 	backendDir = "apps/backend"
-	flowsUsage = "usage: monacoctl flows check [--from go-test.json | --structure-only]"
+	flowsUsage = "usage: monacoctl flows check [--from go-test.json | --structure-only]\n" +
+		"       monacoctl flows seed <id> <outcome>"
 )
 
-func flowsCmd(args []string, _, stderr io.Writer) int {
+func flowsCmd(environ, args []string, stdout, stderr io.Writer) int {
 	var tests io.Reader
 	structureOnly := false
 	switch {
+	case len(args) == 3 && args[0] == "seed":
+		return flowsSeed(context.Background(), os.DirFS("../.."), environ, args[1], args[2], stdout, stderr)
 	case slices.Equal(args, []string{"check", "--structure-only"}):
 		structureOnly = true
 	case slices.Equal(args, []string{"check"}):
@@ -142,4 +147,61 @@ func liveEnv(repo fs.FS, backend string, mods module.Set) flows.Env {
 	}
 }
 
-func toolFlows(_ toolEnv) tool { return flowsCmd }
+func toolFlows(env toolEnv) tool {
+	return func(args []string, stdout, stderr io.Writer) int { return flowsCmd(env.environ, args, stdout, stderr) }
+}
+
+func flowsSeed(ctx context.Context, repo fs.FS, environ []string, id, outcome string, stdout, stderr io.Writer) int {
+	parsed, _, err := readFlows(repo)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "monacoctl flows seed: %v\n", err)
+		return 1
+	}
+	flow, valid := flows.Flow{}, []string{}
+	for _, f := range parsed {
+		if f.ID == id {
+			flow = f
+			for _, o := range f.Outcomes {
+				valid = append(valid, string(o))
+			}
+		}
+	}
+	if !slices.Contains(valid, outcome) {
+		_, _ = fmt.Fprintf(stderr, "monacoctl flows seed: no outcome %s on flow %s; valid outcomes: %s\n",
+			outcome, id, cmp.Or(strings.Join(valid, ", "), "none, the flow is not in "+flows.File))
+		return 2
+	}
+	var names []string
+	for _, command := range flow.Commands {
+		names = append(names, flows.ScriptName(flow, command, flows.Outcome(outcome)))
+	}
+	i := slices.IndexFunc(names, func(n string) bool { return testflows.Seeds()[n] != nil })
+	if i < 0 {
+		_, _ = fmt.Fprintf(
+			stderr,
+			"monacoctl flows seed: flow %s outcome %s has no seeder %s in internal/testkit/flows/seed.go\n",
+			id,
+			outcome,
+			strings.Join(names, " or "),
+		)
+		return 1
+	}
+	name, seed := names[i], testflows.Seeds()[names[i]]
+	vars := map[string]string{}
+	for _, kv := range environ {
+		if k, v, found := strings.Cut(kv, "="); found {
+			vars[k] = v
+		}
+	}
+	result, err := seed(ctx, testflows.SeedEnv{
+		DatabaseURL: vars["DATABASE_URL"], NatsURL: vars["NATS_URL"],
+		FakesURL: vars["MONACO_FAKES_URL"], TokenKey: vars["MONACO_DEV_TOKEN_KEY"],
+	})
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "monacoctl flows seed: %s: %v\n", name, err)
+		return 1
+	}
+	body, _ := json.Marshal(result)
+	_, _ = fmt.Fprintf(stdout, "%s\n", body)
+	return 0
+}

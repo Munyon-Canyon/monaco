@@ -109,7 +109,12 @@ func decodePackages(data []byte) (map[string]listedPackage, error) {
 
 func flowsReaders() []string {
 	return []string{
-		"cmd/monacoctl", "cmd/monacoctl/agents", "cmd/monacoctl/verify", "internal/tools/flows", "internal/tools/gen",
+		"cmd/monacoctl",
+		"cmd/monacoctl/agents",
+		"cmd/monacoctl/verify",
+		"internal/testkit/flows",
+		"internal/tools/flows",
+		"internal/tools/gen",
 	}
 }
 

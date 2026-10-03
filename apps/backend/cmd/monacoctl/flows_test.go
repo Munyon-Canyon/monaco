@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +20,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	testflows "github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
@@ -152,7 +156,7 @@ func TestFlowsCheck_missingFileFails(t *testing.T) {
 
 func TestFlowsRejectsUnknownArguments(t *testing.T) {
 	t.Parallel()
-	for _, args := range [][]string{{"flows"}, {"flows", "lint"}, {"flows", "check", "--from"}, {"flows", "check", "-x", "f"}, {"flows", "check", "--structure-only", "x"}} {
+	for _, args := range [][]string{{"flows"}, {"flows", "lint"}, {"flows", "check", "--from"}, {"flows", "check", "-x", "f"}, {"flows", "check", "--structure-only", "x"}, {"flows", "seed", "00"}} {
 		var stdout, stderr bytes.Buffer
 		code := run(commands(), tools(nil), nil, args, &stdout, &stderr)
 		if code != 2 || stderr.String() != flowsUsage+"\n" {
@@ -240,5 +244,106 @@ func TestFlowsCheck_appRegistry(t *testing.T) {
 				t.Fatalf("code=%d stderr=\n%s\nwant code=%d stderr=\n%s", code, stderr.String(), tc.code, tc.stderr)
 			}
 		})
+	}
+}
+
+func runFlowsSeed(t *testing.T, environ []string, id, outcome string) (int, string, string) {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	code := flowsSeed(t.Context(), os.DirFS("../../../.."), environ, id, outcome, &stdout, &stderr)
+	return code, stdout.String(), stderr.String()
+}
+
+func TestFlowsSeed_signedInOutcomesMintATokenForANewUser(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	cfg := devNewUserConfig(t, pool, nil)
+	environ := []string{
+		"DATABASE_URL=" + cfg.DB.URL, "NATS_URL=" + cfg.NATS.URL, "MONACO_DEV_TOKEN_KEY=" + cfg.Auth.DevTokenKey,
+		"MONACO_FAKES_URL=" + strings.TrimSuffix(cfg.Privy.BaseURL, "/privy"),
+	}
+	seen := map[string]bool{}
+	for _, outcome := range []string{"ok", "InvalidInput", "crash:after-publish"} {
+		code, stdout, stderr := runFlowsSeed(t, environ, "00", outcome)
+		var got testflows.SeedResult
+		if err := json.Unmarshal([]byte(stdout), &got); code != 0 || err != nil || strings.Count(stdout, "\n") != 1 {
+			t.Fatalf("%s: code=%d stdout=%q stderr=%q err=%v", outcome, code, stdout, stderr, err)
+		}
+		if got.Token == "" || got.UserID == "" || got.IDs == nil || seen[got.UserID] {
+			t.Fatalf("%s: seed = %+v, want a token for a fresh user and an empty ids map", outcome, got)
+		}
+		seen[got.UserID] = true
+		assertDevTokenVerifies(t, cfg, got.Token, got.UserID)
+		if status, _ := devMe(t, pool, cfg, got.Token); status != http.StatusOK {
+			t.Fatalf("%s: GET /v1/me = %d, want the seeded user to exist", outcome, status)
+		}
+	}
+}
+
+func TestFlowsSeed_unauthorizedPrintsAnEmptyToken(t *testing.T) {
+	t.Parallel()
+	code, stdout, stderr := runFlowsSeed(t, nil, "00", "Unauthorized")
+	if code != 0 || stdout != `{"token":"","user_id":"","ids":{}}`+"\n" || stderr != "" {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
+
+func TestFlowsSeed_refusesWhatItCannotSeed(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, id, outcome string
+		code              int
+		stderr            string
+	}{
+		{
+			"unknown outcome", "00", "Bogus", 2,
+			"monacoctl flows seed: no outcome Bogus on flow 00; " +
+				"valid outcomes: ok, InvalidInput, Unauthorized, crash:after-publish\n",
+		},
+		{
+			"unknown flow", "99", "ok", 2,
+			"monacoctl flows seed: no outcome ok on flow 99; valid outcomes: none, the flow is not in flows.tsv\n",
+		},
+		{
+			"outcome without a seeder", "01", "ok", 1,
+			"monacoctl flows seed: flow 01 outcome ok has no seeder F01OpenSessionOK in internal/testkit/flows/seed.go\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			code, stdout, stderr := runFlowsSeed(t, nil, tc.id, tc.outcome)
+			if code != tc.code || stdout != "" || stderr != tc.stderr {
+				t.Fatalf(
+					"code=%d stdout=%q stderr=%q, want code=%d stderr=%q",
+					code,
+					stdout,
+					stderr,
+					tc.code,
+					tc.stderr,
+				)
+			}
+		})
+	}
+}
+
+func TestFlowsSeed_runsFromTheBackendDirectory(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	code := run(commands(), tools(nil), nil, []string{"flows", "seed", "00", "ok"}, &stdout, &stderr)
+	if code != 1 || !strings.HasPrefix(stderr.String(), "monacoctl flows seed: ") ||
+		!strings.Contains(stderr.String(), "flows.tsv") {
+		t.Fatalf(
+			"code=%d stderr=%q, want the missing flows.tsv of this test's working directory",
+			code,
+			stderr.String(),
+		)
+	}
+}
+
+func TestFlowsSeed_reportsASeederThatFails(t *testing.T) {
+	t.Parallel()
+	code, stdout, stderr := runFlowsSeed(t, nil, "00", "ok")
+	if code != 1 || stdout != "" || !strings.HasPrefix(stderr, "monacoctl flows seed: F00RecordPingOK: ") {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
 }
