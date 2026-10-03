@@ -176,7 +176,9 @@ func (env *Env) sharedInQueue(ctx context.Context, stack []stackPR, mine []strin
 	if len(shared) == 0 {
 		return nil
 	}
-	return landErr(fmt.Sprintf("not landing #%d: %s. Wait for %s to land, then run land-stack again",
+	return landErr(fmt.Sprintf(
+		"not landing #%d: %s. Wait for %s to land, then restack with gt (it changes these flows on staging) "+
+			"and run land-stack again",
 		stack[len(stack)-1].Number, strings.Join(shared, "; "), strings.Join(slices.Compact(tops), " and ")))
 }
 
