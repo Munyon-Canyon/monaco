@@ -2,12 +2,15 @@ package governance
 
 import (
 	"context"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
@@ -28,22 +31,61 @@ type Port interface {
 
 var _ Port = app.Queries{}
 
+type Ports = app.TradePorts
+
+type Option func(*Module)
+
+func WithPorts(p Ports) Option { return func(m *Module) { m.ports = &p } }
+
 type Module struct {
-	deps module.Deps
+	deps  module.Deps
+	ports *Ports
 }
 
-func New(d module.Deps) *Module { return &Module{deps: d} }
+func New(d module.Deps, opts ...Option) *Module {
+	m := &Module{deps: d}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
 
 func (*Module) Name() string { return "governance" }
 
 func (m *Module) Mount(r api.Mount) {
-	thresholds := cabalThresholds{cabals: cabal.New(m.deps).Queries()}
+	ports := m.tradePorts()
+	thresholds := cabalThresholds{cabals: ports.Cabals}
 	hints := adapters.Hints{Publish: m.deps.Bus}
 	governanceapi.Mount(adapters.HTTP{
+		Propose:  app.NewProposeTradeHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock, ports),
 		Vote:     app.NewCastVoteHandler(m.deps.UoW, m.deps.Pool, m.deps.Clock, thresholds, hints),
 		Withdraw: app.NewWithdrawProposalHandler(m.deps.UoW, m.deps.Clock, hints),
 		Reads:    app.NewProposalReads(m.deps.Pool, thresholds, trading.New(m.deps).Queries()),
 	}, r)
+}
+
+func (m *Module) tradePorts() Ports {
+	if m.ports != nil {
+		return *m.ports
+	}
+	deps := m.deps
+	if deps.Config.Jupiter.SwapBaseURL == "" {
+		deps.Config.Jupiter.SwapBaseURL = "http://jupiter.invalid"
+	}
+	if deps.Config.Jupiter.PriceBaseURL == "" {
+		deps.Config.Jupiter.PriceBaseURL = "http://jupiter.invalid"
+	}
+	if deps.Config.Timeouts.JupiterQuote == 0 {
+		deps.Config.Timeouts.JupiterQuote = time.Second
+	}
+	if deps.Config.Timeouts.JupiterExecute == 0 {
+		deps.Config.Timeouts.JupiterExecute = time.Second
+	}
+	markets := market.New(deps)
+	return Ports{
+		Cabals: cabal.New(m.deps).Queries(), Assets: markets.Catalog(), Routes: markets.RouteChecker(),
+		Treasury: treasury.New(m.deps).Queries(),
+	}
 }
 
 func (m *Module) Consumers() []bus.Consumer {

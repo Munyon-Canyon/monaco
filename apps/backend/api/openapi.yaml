@@ -589,6 +589,43 @@ paths:
                 $ref: "#/components/schemas/ProposalList"
         default:
           $ref: "#/components/responses/Problem"
+    post:
+      operationId: postCabalProposal
+      tags: [governance]
+      x-idempotent: true
+      summary: Propose a trade for the cabal to vote on.
+      description: >-
+        Checks that the caller is a member, that the asset is in the catalog and Jupiter can route
+        it, and that a buy fits the pot or a sell fits the cabal's holding. These checks are advisory:
+        the trade engine repeats them at execution. The voter set is copied from the cabal and never
+        changes after. The proposer casts no ballot of their own. A replay with the same
+        Idempotency-Key returns the first response.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The trade to propose. A buy sets `usdc_micros`, and a sell sets `token_amount`.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProposeTradeRequest"
+            example: {kind: buy, symbol: TSLAx, usdc_micros: 5000000, thesis: earnings}
+      responses:
+        "201":
+          description: The new proposal, as its detail shows it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProposalDetail"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/me/pending-votes:
     get:
       operationId: getMyPendingVotes
@@ -2165,6 +2202,27 @@ components:
           format: date-time
           description: When the ballot was last cast. Null until they vote.
           examples: ["2026-10-03T16:00:00Z"]
+    ProposeTradeRequest:
+      type: object
+      description: A trade to propose. A buy sets `usdc_micros` only, and a sell sets `token_amount` only.
+      additionalProperties: false
+      required: [kind, symbol]
+      properties:
+        kind: {$ref: "#/components/schemas/ProposalKind"}
+        symbol: {type: string, minLength: 1, maxLength: 32, description: The token symbol from the catalog., examples: [TSLAx]}
+        usdc_micros:
+          type: integer
+          format: int64
+          minimum: 1
+          description: USDC a buy spends, in micros.
+          examples: [5000000]
+        token_amount:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Token base units a sell spends.
+          examples: [1000000]
+        thesis: {type: string, maxLength: 280, description: "The proposer's reason, up to 280 characters.", examples: [earnings]}
     Tally:
       type: object
       description: The ballots counted against the proposal's frozen voter set.

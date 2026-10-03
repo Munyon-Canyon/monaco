@@ -10,9 +10,11 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/governanceapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type HTTP struct {
+	Propose  *app.ProposeTradeHandler
 	Vote     *app.CastVoteHandler
 	Withdraw *app.WithdrawProposalHandler
 	Reads    *app.ProposalReads
@@ -88,6 +90,30 @@ func (h HTTP) GetProposal(
 		return nil, err
 	}
 	return api.GetProposal200JSONResponse(out), nil
+}
+
+func (h HTTP) PostCabalProposal(
+	ctx context.Context, req api.PostCabalProposalRequestObject,
+) (api.PostCabalProposalResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	trade, err := domain.NewTrade(domain.Trade{
+		Kind: domain.Kind(req.Body.Kind), Symbol: req.Body.Symbol,
+		USDCMicros: money.MicrosFromUint64(amount(req.Body.UsdcMicros)), TokenAmount: amount(req.Body.TokenAmount),
+		Thesis: deref(req.Body.Thesis),
+	})
+	if err != nil {
+		return nil, err
+	}
+	opened, err := h.Propose.Open(ctx, app.ProposeTrade{
+		CabalID: ids.CabalIDFrom(req.Id), ProposerID: user, Trade: trade,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return api.PostCabalProposal201JSONResponse(wireOpenedProposal(opened)), nil
 }
 
 func (h HTTP) DeleteProposal(
@@ -184,6 +210,36 @@ func wireTally(t app.Tally) api.Tally {
 	return api.Tally{Yes: t.Yes, No: t.No, Voters: t.Voters, Needed: t.Needed}
 }
 
+func wireOpenedProposal(opened app.OpenedProposal) api.ProposalDetail {
+	d := opened.Draft
+	p := api.Proposal{
+		Id:             d.ID.UUID(),
+		CabalId:        d.CabalID.UUID(),
+		ProposerId:     d.ProposerID.UUID(),
+		Kind:           api.ProposalKind(d.Kind),
+		Symbol:         d.Symbol,
+		UsdcMicros:     positive(opened.USDCMicros),
+		TokenAmount:    positive(opened.TokenAmount),
+		QuoteOutAmount: opened.QuoteOutAmount,
+		Status:         api.ProposalStatusOpen,
+		ExpiresAt:      d.ExpiresAt,
+		CreatedAt:      opened.CreatedAt,
+		Tally:          wireTally(app.Tally{Voters: len(opened.Voters), Needed: opened.Needed}),
+	}
+	p.Thesis = present(d.Thesis)
+	voters := make([]api.ProposalVoter, len(opened.Voters))
+	for i, voter := range opened.Voters {
+		voters[i] = api.ProposalVoter{UserId: voter.UUID()}
+	}
+	return api.ProposalDetail{
+		Id: p.Id, CabalId: p.CabalId, ProposerId: p.ProposerId, Kind: p.Kind, Symbol: p.Symbol,
+		UsdcMicros: p.UsdcMicros, TokenAmount: p.TokenAmount, QuoteOutAmount: p.QuoteOutAmount, Thesis: p.Thesis,
+		Status: p.Status, StatusReason: p.StatusReason, StatusMessage: p.StatusMessage, ExpiresAt: p.ExpiresAt,
+		CreatedAt: p.CreatedAt, Tally: p.Tally, MyBallot: p.MyBallot, Voters: voters,
+		CanVote: opened.ProposerCanVote, CanWithdraw: true,
+	}
+}
+
 func present(s string) *string {
 	if s == "" {
 		return nil
@@ -192,6 +248,20 @@ func present(s string) *string {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func amount(v *int64) uint64 {
+	if v == nil || *v < 0 {
+		return 0
+	}
+	return uint64(*v)
+}
 
 func positive(n int64) *int64 {
 	if n <= 0 {
