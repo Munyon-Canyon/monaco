@@ -1,0 +1,75 @@
+package adapters
+
+import (
+	"context"
+	"log/slog"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+)
+
+const proposalSource = "proposal"
+
+type TradeOutcome struct{}
+
+func (TradeOutcome) Confirmed(ctx context.Context, tx db.Tx, e events.TradeConfirmed, at time.Time) error {
+	if e.Source.Kind != proposalSource {
+		return nil
+	}
+	return settle(ctx, tx, outcome{
+		proposal: e.Source.ID, to: domain.StatusExecuted, at: at,
+		emit: events.ProposalExecuted{V: 1, ProposalID: e.Source.ID, CabalID: e.CabalID, SwapID: e.SwapID},
+	})
+}
+
+func (TradeOutcome) Blocked(ctx context.Context, tx db.Tx, e events.TradeBlocked, at time.Time) error {
+	if e.Source.Kind != proposalSource {
+		return nil
+	}
+	return settle(ctx, tx, outcome{
+		proposal: e.Source.ID, to: domain.StatusExecutionBlocked, at: at,
+		reason: pgtype.Text{String: string(e.Code), Valid: true},
+		emit:   events.ProposalExecutionBlocked{V: 1, ProposalID: e.Source.ID, CabalID: e.CabalID, Code: e.Code},
+	})
+}
+
+type outcome struct {
+	proposal uuid.UUID
+	to       domain.Status
+	reason   pgtype.Text
+	at       time.Time
+	emit     events.Event
+}
+
+func settle(ctx context.Context, tx db.Tx, o outcome) error {
+	const op = "governance.TradeOutcome"
+	q := sqlc.New(tx.Queries())
+	moved, err := q.Transition(ctx, sqlc.TransitionParams{
+		ID: o.proposal, FromStatus: string(domain.StatusPassed), ToStatus: string(o.to), Reason: o.reason, At: o.at,
+	})
+	if err != nil {
+		return errs.Wrap(err, errs.CodeInternal, op)
+	}
+	if moved == 1 {
+		return tx.Events.Append(ctx, o.emit)
+	}
+	status, err := q.StatusByID(ctx, o.proposal)
+	if err != nil {
+		return errs.Wrap(err, errs.CodeInternal, op)
+	}
+	s := domain.Status(status)
+	if s == o.to || s == domain.StatusVoided {
+		return nil
+	}
+	if s == domain.StatusOpen {
+		return errs.New(errs.CodeProposalStillOpen, op)
+	}
+	return errs.New(errs.CodeVersionConflict, op, slog.String("status", status), slog.String("to", string(o.to)))
+}

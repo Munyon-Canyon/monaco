@@ -302,6 +302,7 @@ const (
 	PrivyUnavailable           ErrorCode = "privy_unavailable"
 	ProposalClosed             ErrorCode = "proposal_closed"
 	ProposalNotFound           ErrorCode = "proposal_not_found"
+	ProposalStillOpen          ErrorCode = "proposal_still_open"
 	RateLimited                ErrorCode = "rate_limited"
 	ReferralCodePending        ErrorCode = "referral_code_pending"
 	ReferralCodeUnknown        ErrorCode = "referral_code_unknown"
@@ -462,6 +463,8 @@ func (e ErrorCode) Valid() bool {
 	case ProposalClosed:
 		return true
 	case ProposalNotFound:
+		return true
+	case ProposalStillOpen:
 		return true
 	case RateLimited:
 		return true

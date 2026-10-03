@@ -45,7 +45,15 @@ func (m *Module) Routes(r *httpx.Routes) {
 }
 
 func (*Module) Consumers() []bus.Consumer {
-	return []bus.Consumer{}
+	return []bus.Consumer{
+		{
+			Durable: "governance",
+			Handlers: []bus.HandlerSpec{
+				bus.Handle("governance.trade_outcome.confirmed", adapters.TradeOutcome{}.Confirmed),
+				bus.Handle("governance.trade_outcome.blocked", adapters.TradeOutcome{}.Blocked),
+			},
+		},
+	}
 }
 
 func (m *Module) Pollers() []poller.Poller {
