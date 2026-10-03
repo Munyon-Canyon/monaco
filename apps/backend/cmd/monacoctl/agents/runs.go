@@ -61,6 +61,13 @@ func (env *Env) cleanHeadRuns(ctx context.Context, p stackPR, reran map[int64]in
 			busy = true
 		case !r.broken():
 		case reran[r.ID] == 0:
+			ci, err := env.GitHub.runsCI(ctx, r.ID)
+			if err != nil {
+				return false, err
+			}
+			if !ci {
+				continue
+			}
 			if err := env.GitHub.Rerun(ctx, r.ID); err != nil {
 				return false, landFailed(err)
 			}

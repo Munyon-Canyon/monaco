@@ -244,6 +244,24 @@ func (g *GitHub) Runs(ctx context.Context, sha string) ([]Run, error) {
 	}
 }
 
+func (g *GitHub) runsCI(ctx context.Context, id int64) (bool, error) {
+	var page struct {
+		Jobs []struct {
+			Name string `json:"name"`
+		} `json:"jobs"`
+	}
+	path := g.repo("/actions/runs/%d/jobs?per_page=%d&page=1", id, pageSize)
+	if err := g.call(ctx, http.MethodGet, path, "", nil, &page); err != nil {
+		return false, err
+	}
+	for _, j := range page.Jobs {
+		if strings.HasPrefix(j.Name, queueCIPrefix) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (g *GitHub) Rerun(ctx context.Context, id int64) error {
 	err := g.call(ctx, http.MethodPost, g.repo("/actions/runs/%d/rerun", id), "", nil, nil)
 	if err == nil {
