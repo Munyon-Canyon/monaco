@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"time"
 
@@ -243,6 +244,7 @@ const (
 	RpcUnavailable             ErrorCode = "rpc_unavailable"
 	SessionRequired            ErrorCode = "session_required"
 	SlippageExceeded           ErrorCode = "slippage_exceeded"
+	StorageUnavailable         ErrorCode = "storage_unavailable"
 	SwapFailed                 ErrorCode = "swap_failed"
 	SwapNotFound               ErrorCode = "swap_not_found"
 	SwapNotRetryable           ErrorCode = "swap_not_retryable"
@@ -403,6 +405,8 @@ func (e ErrorCode) Valid() bool {
 	case SessionRequired:
 		return true
 	case SlippageExceeded:
+		return true
+	case StorageUnavailable:
 		return true
 	case SwapFailed:
 		return true
@@ -1525,6 +1529,18 @@ type PatchMeParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// PostProfilePhotoMultipartBody defines parameters for PostProfilePhoto.
+type PostProfilePhotoMultipartBody struct {
+	// Photo Examples: avatar.png
+	Photo openapi_types.File `json:"photo"`
+}
+
+// PostProfilePhotoParams defines parameters for PostProfilePhoto.
+type PostProfilePhotoParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // PostProposalVoteParams defines parameters for PostProposalVote.
 type PostProposalVoteParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -1563,6 +1579,9 @@ type PostDeviceJSONRequestBody = DeviceRegistration
 
 // PatchMeJSONRequestBody defines body for PatchMe for application/json ContentType.
 type PatchMeJSONRequestBody = UpdateProfileRequest
+
+// PostProfilePhotoMultipartRequestBody defines body for PostProfilePhoto for multipart/form-data ContentType.
+type PostProfilePhotoMultipartRequestBody PostProfilePhotoMultipartBody
 
 // PostProposalVoteJSONRequestBody defines body for PostProposalVote for application/json ContentType.
 type PostProposalVoteJSONRequestBody = CastVoteRequest
@@ -1617,6 +1636,9 @@ type ServerInterface interface {
 	// GetMyCabals List the caller's cabals.
 	// (GET /v1/me/cabals)
 	GetMyCabals(w http.ResponseWriter, r *http.Request)
+	// PostProfilePhoto Upload a profile photo.
+	// (POST /v1/me/profile-photo)
+	PostProfilePhoto(w http.ResponseWriter, r *http.Request, params PostProfilePhotoParams)
 	// GetMyReferralCode Read the caller's invite code and links.
 	// (GET /v1/me/referral-code)
 	GetMyReferralCode(w http.ResponseWriter, r *http.Request)
@@ -2172,6 +2194,51 @@ func (siw *ServerInterfaceWrapper) GetMyCabals(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// PostProfilePhoto operation middleware
+func (siw *ServerInterfaceWrapper) PostProfilePhoto(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostProfilePhotoParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostProfilePhoto(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMyReferralCode operation middleware
 func (siw *ServerInterfaceWrapper) GetMyReferralCode(w http.ResponseWriter, r *http.Request) {
 
@@ -2594,6 +2661,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me", wrapper.GetMe)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/v1/me", wrapper.PatchMe)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/cabals", wrapper.GetMyCabals)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/profile-photo", wrapper.PostProfilePhoto)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/referral-code", wrapper.GetMyReferralCode)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.PostProposalVote)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/stream", wrapper.GetStream)
@@ -3140,6 +3208,46 @@ func (response GetMyCabalsdefaultApplicationProblemPlusJSONResponse) VisitGetMyC
 	return err
 }
 
+type PostProfilePhotoRequestObject struct {
+	Params PostProfilePhotoParams
+	Body   *multipart.Reader
+}
+
+type PostProfilePhotoResponseObject interface {
+	VisitPostProfilePhotoResponse(w http.ResponseWriter) error
+}
+
+type PostProfilePhoto200JSONResponse Me
+
+func (response PostProfilePhoto200JSONResponse) VisitPostProfilePhotoResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProfilePhotodefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PostProfilePhotodefaultApplicationProblemPlusJSONResponse) VisitPostProfilePhotoResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMyReferralCodeRequestObject struct {
 }
 
@@ -3491,6 +3599,9 @@ type StrictServerInterface interface {
 	// GetMyCabals List the caller's cabals.
 	// (GET /v1/me/cabals)
 	GetMyCabals(ctx context.Context, request GetMyCabalsRequestObject) (GetMyCabalsResponseObject, error)
+	// PostProfilePhoto Upload a profile photo.
+	// (POST /v1/me/profile-photo)
+	PostProfilePhoto(ctx context.Context, request PostProfilePhotoRequestObject) (PostProfilePhotoResponseObject, error)
 	// GetMyReferralCode Read the caller's invite code and links.
 	// (GET /v1/me/referral-code)
 	GetMyReferralCode(ctx context.Context, request GetMyReferralCodeRequestObject) (GetMyReferralCodeResponseObject, error)
@@ -3927,6 +4038,39 @@ func (sh *strictHandler) GetMyCabals(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMyCabalsResponseObject); ok {
 		if err := validResponse.VisitGetMyCabalsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostProfilePhoto operation middleware
+func (sh *strictHandler) PostProfilePhoto(w http.ResponseWriter, r *http.Request, params PostProfilePhotoParams) {
+	var request PostProfilePhotoRequestObject
+
+	request.Params = params
+
+	if reader, err := r.MultipartReader(); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode multipart body: %w", err))
+		return
+	} else {
+		request.Body = reader
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostProfilePhoto(ctx, request.(PostProfilePhotoRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostProfilePhoto")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostProfilePhotoResponseObject); ok {
+		if err := validResponse.VisitPostProfilePhotoResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

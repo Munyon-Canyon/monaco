@@ -16,9 +16,9 @@ extension Components.Schemas.ErrorCode {
             .photoInvalid, .postHogRejected, .postHogUnavailable, .potExceeded, .potValueZero, .privyUnavailable,
             .proposalClosed, .proposalNotFound, .rateLimited, .referralCodePending, .referralCodeUnknown,
             .relayerUnderfunded, .requestNotNeeded, .requestPending, .rpcUnavailable, .sessionRequired,
-            .slippageExceeded, .swapFailed, .swapNotFound, .swapNotRetryable, .unauthorized, .upstreamTimeout,
-            .upstreamUnavailable, .userBanned, .userNotFound, .versionConflict, .walletMismatch, .withdrawNotAllowed,
-            .xNotLinked:
+            .slippageExceeded, .storageUnavailable, .swapFailed, .swapNotFound, .swapNotRetryable, .unauthorized,
+            .upstreamTimeout, .upstreamUnavailable, .userBanned, .userNotFound, .versionConflict, .walletMismatch,
+            .withdrawNotAllowed, .xNotLinked:
             true
         }
     }

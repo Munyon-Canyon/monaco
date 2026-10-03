@@ -18,6 +18,8 @@ type UpdateProfileHandler struct {
 	Hints Hints
 }
 
+type UpdateProfile = UpdateProfileHandler
+
 func (h UpdateProfileHandler) Handle(ctx context.Context, id ids.UserID, raw string) (Me, error) {
 	name, err := domain.ParseDisplayName(raw)
 	if err != nil {

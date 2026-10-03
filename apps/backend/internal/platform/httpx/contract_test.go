@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -143,5 +144,65 @@ func TestValidate_withoutAResolvedRouteFailsClosed(t *testing.T) {
 	rec := postJSON(t, h.deps.wrap(c.validate(next)), "/v1/things", `{"amount":5}`)
 	if p := decodeProblem(t, rec); rec.Code != http.StatusInternalServerError || p.Code != "internal" || reached {
 		t.Fatalf("got %d %+v reached=%v, want 500 internal before the handler", rec.Code, p, reached)
+	}
+}
+
+func TestBodyLimit_usesTheOperationOverride(t *testing.T) {
+	t.Parallel()
+	spec := strings.Replace(bodySpec, "operationId: postThing", "operationId: postThing\n      x-max-body-bytes: 8", 1)
+	c, err := loadContract([]byte(spec))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var readErr error
+	mux := http.NewServeMux()
+	mux.Handle("POST /v1/things", c.resolve(c.limit(4)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, readErr = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusNoContent)
+	}))))
+	rec := postJSON(t, newHarness(t).deps.wrapContract(mux), "/v1/things", strings.Repeat("x", 9))
+	var tooLarge *http.MaxBytesError
+	if rec.Code != http.StatusNoContent || !errors.As(readErr, &tooLarge) || tooLarge.Limit != 8 {
+		t.Fatalf("status=%d err=%v", rec.Code, readErr)
+	}
+}
+
+func TestBodyLimit_rejectsInvalidExtension(t *testing.T) {
+	t.Parallel()
+	for _, raw := range []string{"0", "bad"} {
+		t.Run(raw, func(t *testing.T) {
+			t.Parallel()
+			spec := strings.Replace(
+				bodySpec, "operationId: postThing", "operationId: postThing\n      x-max-body-bytes: "+raw, 1,
+			)
+			c, err := loadContract([]byte(spec))
+			if err != nil {
+				t.Fatal(err)
+			}
+			mux := http.NewServeMux()
+			mux.Handle("POST /v1/things", c.resolve(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				t.Fatal("handler ran")
+			})))
+			rec := postJSON(t, newHarness(t).deps.wrapContract(mux), "/v1/things", `{}`)
+			if rec.Code != http.StatusInternalServerError {
+				t.Fatalf("status=%d body=%s", rec.Code, rec.Body)
+			}
+		})
+	}
+}
+
+func TestBodyLimit_withoutAResolvedRouteFailsClosed(t *testing.T) {
+	t.Parallel()
+	c, err := loadContract([]byte(bodySpec))
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("handler ran")
+	})
+	handler := newHarness(t).deps.wrapContract(c.limit(4)(next))
+	rec := postJSON(t, handler, "/v1/things", `{}`)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d", rec.Code)
 	}
 }

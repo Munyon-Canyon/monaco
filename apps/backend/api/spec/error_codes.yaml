@@ -78,6 +78,7 @@ components:
         - rpc_unavailable
         - session_required
         - slippage_exceeded
+        - storage_unavailable
         - swap_failed
         - swap_not_found
         - swap_not_retryable

@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
@@ -133,6 +134,26 @@ func TestPutAndDeletePrefix_roundTripsTheObject(t *testing.T) {
 	kept := "http://127.0.0.1:9/storage/v1/object/public/avatars/other/keep.png"
 	if status, _, got := readPublic(t, h, kept); status != http.StatusOK || !bytes.Equal(got, body) {
 		t.Fatalf("kept object = %d %q", status, got)
+	}
+}
+
+func TestProfilePhotos_storesAndDeletesAUsersPhotos(t *testing.T) {
+	t.Parallel()
+	c, h := liveClient(t)
+	userID, err := ids.ParseUserID("019c1da5-8000-7000-8000-000000000001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	photos := ProfilePhotos{Storage: c}
+	url, err := photos.Put(t.Context(), userID.String()+"/photo.png", "image/png", []byte{1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := photos.DeleteAll(t.Context(), userID); err != nil {
+		t.Fatal(err)
+	}
+	if status, _, _ := readPublic(t, h, url); status != http.StatusNotFound {
+		t.Fatalf("photo status = %d, want 404", status)
 	}
 }
 

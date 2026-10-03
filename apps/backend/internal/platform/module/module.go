@@ -1,6 +1,7 @@
 package module
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,6 +18,11 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
+type PhotoStore interface {
+	Put(context.Context, string, string, []byte) (string, error)
+	DeleteAll(context.Context, ids.UserID) error
+}
+
 type Deps struct {
 	Config     config.Config
 	Logger     *slog.Logger
@@ -28,6 +34,7 @@ type Deps struct {
 	HTTPClient func(name string, opts ...httpclient.Option) *httpclient.Client
 	Hub        *sse.Hub
 	APNs       apns.Sender
+	Photos     PhotoStore
 }
 
 type Module interface {

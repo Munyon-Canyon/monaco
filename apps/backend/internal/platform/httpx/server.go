@@ -46,7 +46,7 @@ func handler(
 		ErrorHandlerFunc: invalidRequest,
 		Middlewares:      middlewares(d, c),
 	})
-	return d.wrap(mux), nil
+	return d.wrapContract(mux), nil
 }
 
 func middlewares(d Deps, c *contract) []api.MiddlewareFunc {
@@ -54,7 +54,7 @@ func middlewares(d Deps, c *contract) []api.MiddlewareFunc {
 	if d.RateLimit != nil {
 		mws = append(mws, d.RateLimit)
 	}
-	return append(mws, Auth(d.Verifier), c.resolve)
+	return append(mws, Auth(d.Verifier), c.limit(d.MaxBodyBytes), c.resolve)
 }
 
 func invalidRequest(w http.ResponseWriter, r *http.Request, err error) {
@@ -108,6 +108,7 @@ type IdentityRoutes interface {
 	PostAuthSession(context.Context, api.PostAuthSessionRequestObject) (api.PostAuthSessionResponseObject, error)
 	GetMe(context.Context, api.GetMeRequestObject) (api.GetMeResponseObject, error)
 	PatchMe(context.Context, api.PatchMeRequestObject) (api.PatchMeResponseObject, error)
+	PostProfilePhoto(context.Context, api.PostProfilePhotoRequestObject) (api.PostProfilePhotoResponseObject, error)
 	GetHandleAvailability(
 		context.Context, api.GetHandleAvailabilityRequestObject,
 	) (api.GetHandleAvailabilityResponseObject, error)

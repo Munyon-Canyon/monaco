@@ -51,6 +51,12 @@ func (healthz) PatchMe(context.Context, api.PatchMeRequestObject) (api.PatchMeRe
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.PatchMe")
 }
 
+func (healthz) PostProfilePhoto(
+	context.Context, api.PostProfilePhotoRequestObject,
+) (api.PostProfilePhotoResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostProfilePhoto")
+}
+
 func (healthz) GetHandleAvailability(
 	context.Context, api.GetHandleAvailabilityRequestObject,
 ) (api.GetHandleAvailabilityResponseObject, error) {
