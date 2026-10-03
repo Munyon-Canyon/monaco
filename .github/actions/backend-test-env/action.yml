@@ -1,6 +1,6 @@
 name: Backend test environment
 description: >-
-  Everything apps/backend tests need on a fresh runner: Go from go.mod, the Go cache go-cache.yml saved,
+  Everything apps/backend tests need on a fresh runner: Go from go.mod, the Go cache staging.yml saved,
   the pinned atlas that builds the testkit template database, the pinned sqlc, and the tmpfs test Postgres.
   With db false, only Go and the Go cache.
 inputs:
@@ -8,6 +8,11 @@ inputs:
     description: Install atlas and sqlc and start the test Postgres.
     required: false
     default: 'true'
+  cache-leg:
+    description: >-
+      The backend matrix leg (its artifact name). Restores that leg's cache first, then any leg's.
+    required: false
+    default: ''
 runs:
   using: composite
   steps:
@@ -16,15 +21,18 @@ runs:
         go-version-file: apps/backend/go.mod
         cache: false
 
-    # go-cache.yml (on every push to staging or main) and the nightly warm-cache job save this cache.
-    # PRs and the merge queue restore it from staging, the default branch, and never save.
+    # Each backend matrix leg of the staging.yml run saves this cache under its own key, and the nightly
+    # warm-cache job saves one on main. PRs and the merge queue restore it from staging, the default branch,
+    # and never save. A backend leg restores its own leg's cache first; every other job takes the newest.
     - uses: actions/cache/restore@v4
       with:
         path: |
           ~/go/pkg/mod
           ~/.cache/go-build
-        key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
-        restore-keys: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
+        key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-${{ inputs.cache-leg }}
+        restore-keys: |
+          ${{ inputs.cache-leg != '' && format('go-{0}-{1}-{2}-', runner.os, hashFiles('**/go.sum'), inputs.cache-leg) || '' }}
+          go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
 
     - name: Download Go modules, retrying proxy errors
       shell: bash
