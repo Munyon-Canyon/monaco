@@ -45,7 +45,7 @@ func envWith(t *testing.T, tsv string) flows.Env {
 	backend := t.TempDir()
 	for name, body := range map[string]string{
 		"go.mod":                             "module example.com/backend\n\ngo 1.25\n",
-		"internal/modules/system/app/app.go": "package app\n\ntype Ping struct{}\n",
+		"internal/modules/system/app/app.go": "package app\n\ntype Ping struct{}\n\ntype RecordPing struct{}\n",
 	} {
 		if err := os.MkdirAll(filepath.Dir(filepath.Join(backend, name)), 0o750); err != nil {
 			t.Fatal(err)
@@ -136,7 +136,7 @@ func TestFlowsCheck(t *testing.T) {
 			if tc.acceptScripts {
 				env.Scripts = func(flows.Flow, string) bool { return true }
 			}
-			code := flowsCheck(env, strings.NewReader(tc.tests), tc.structureOnly, &stderr)
+			code := flowsCheck(env, strings.NewReader(tc.tests), tc.structureOnly, nil, &stderr)
 			if code != tc.code || stderr.String() != tc.stderr {
 				t.Fatalf("code=%d stderr=\n%s\nwant code=%d stderr=\n%s", code, stderr.String(), tc.code, tc.stderr)
 			}
@@ -149,14 +149,14 @@ func TestFlowsCheck_missingFileFails(t *testing.T) {
 	env := envWith(t, "")
 	env.Repo = fstest.MapFS{}
 	var stderr bytes.Buffer
-	if code := flowsCheck(env, nil, false, &stderr); code != 1 || !strings.Contains(stderr.String(), "flows.tsv") {
+	if code := flowsCheck(env, nil, false, nil, &stderr); code != 1 || !strings.Contains(stderr.String(), "flows.tsv") {
 		t.Fatalf("code=%d stderr=%q", code, stderr.String())
 	}
 }
 
 func TestFlowsRejectsUnknownArguments(t *testing.T) {
 	t.Parallel()
-	for _, args := range [][]string{{"flows"}, {"flows", "lint"}, {"flows", "check", "--from"}, {"flows", "check", "-x", "f"}, {"flows", "check", "--structure-only", "x"}, {"flows", "seed", "00"}} {
+	for _, args := range [][]string{{"flows"}, {"flows", "lint"}, {"flows", "check", "--from"}, {"flows", "check", "-x", "f"}, {"flows", "check", "--structure-only", "x"}, {"flows", "seed", "00"}, {"flows", "check", "--from", "x", "--structure-only"}} {
 		var stdout, stderr bytes.Buffer
 		code := run(commands(), tools(nil), nil, args, &stdout, &stderr)
 		if code != 2 || stderr.String() != flowsUsage+"\n" {
@@ -184,7 +184,7 @@ func TestFlowsCheck_fromAMissingFileFails(t *testing.T) {
 func TestFlowsCheck_failsWhenTheTestResultsCannotBeRead(t *testing.T) {
 	t.Parallel()
 	var stderr bytes.Buffer
-	code := flowsCheck(envWith(t, flows.Header+"\n"), iotest.ErrReader(io.ErrUnexpectedEOF), false, &stderr)
+	code := flowsCheck(envWith(t, flows.Header+"\n"), iotest.ErrReader(io.ErrUnexpectedEOF), false, nil, &stderr)
 	if code != 1 || !strings.HasPrefix(stderr.String(), "monacoctl flows check: ") ||
 		!strings.Contains(stderr.String(), io.ErrUnexpectedEOF.Error()) {
 		t.Fatalf("code=%d stderr=%q", code, stderr.String())
@@ -239,7 +239,7 @@ func TestFlowsCheck_appRegistry(t *testing.T) {
 			}
 			env.Scripts = func(flows.Flow, string) bool { return true }
 			var stderr bytes.Buffer
-			code := flowsCheck(env, nil, true, &stderr)
+			code := flowsCheck(env, nil, true, nil, &stderr)
 			if code != tc.code || stderr.String() != tc.stderr {
 				t.Fatalf("code=%d stderr=\n%s\nwant code=%d stderr=\n%s", code, stderr.String(), tc.code, tc.stderr)
 			}
@@ -323,6 +323,122 @@ func TestFlowsSeed_refusesWhatItCannotSeed(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+func xunit(cases ...string) string {
+	return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<testsuites>\n<testsuite name=\"TestResults\">\n" +
+		strings.Join(cases, "\n") + "\n</testsuite>\n</testsuites>\n"
+}
+
+func xcase(name, body string) string {
+	return `<testcase classname="MonacoCoreTests.F00IntegrationTests" name="` + name + `" time="0.1">` + body + `</testcase>`
+}
+
+func TestFlowsCheck_integrationXUnit(t *testing.T) {
+	t.Parallel()
+	backend := flows.Header + "\n" + "00\tPing\tsystem\tpoller:platform.retention\tRecordPing\tsystem.pinged\t\t" +
+		"ok;InvalidInput;Unauthorized;crash:after-publish\tbuilt\tdocs/flows.md#ping\n"
+	app := func(status string) string {
+		return flows.AppHeader + "\n00\tSystemPing\t" + status + "\tdocs/flows.md#ping\n"
+	}
+	ok := xcase("test_F00_RecordPing_ok", "")
+	invalid := xcase("test_F00_RecordPing_InvalidInput", "")
+	unauthorized := xcase("test_F00_RecordPing_Unauthorized", "")
+	interrupted := xcase("test_F00_RecordPing_interrupted", "")
+	const gap = "packages/flows/app/00.tsv:2: flow 00: app verified but F00IntegrationTests "
+	for _, tc := range []struct {
+		name, status, xunit string
+		noXUnit             bool
+		code                int
+		stderr              string
+	}{
+		{"every outcome passed", "verified", xunit(ok, invalid, unauthorized, interrupted), false, 0, ""},
+		{
+			"a missing crash outcome test", "verified", xunit(ok, invalid, unauthorized), false, 1,
+			gap + "lacks test_F00_RecordPing_interrupted\n",
+		},
+		{
+			"a skipped test", "verified",
+			xunit(ok, invalid, xcase("test_F00_RecordPing_Unauthorized", "<skipped/>"), interrupted), false, 1,
+			gap + "skipped test_F00_RecordPing_Unauthorized\n",
+		},
+		{
+			"a failed test", "verified",
+			xunit(xcase("test_F00_RecordPing_ok", `<failure message="failed"></failure>`), invalid, unauthorized, interrupted),
+			false, 1, gap + "has a failing test_F00_RecordPing_ok\n",
+		},
+		{
+			"a test in another class", "verified",
+			xunit(ok, invalid, unauthorized, strings.Replace(interrupted, "F00Integration", "SystemPingIntegration", 1)),
+			false, 1, gap + "lacks test_F00_RecordPing_interrupted\n",
+		},
+		{"a built app flow needs no integration test", "built", xunit(), false, 0, ""},
+		{
+			"without the flag the check says it skipped", "verified", "", true, 0,
+			"monacoctl flows check: skipped the integration tests of app verified flows 00; " +
+				"pass --integration-xunit to check them\n",
+		},
+		{"a file that is not xml fails", "verified", "<testsuites><testcase", false, 1, "monacoctl flows check: "},
+		{
+			"a test case that is not xml fails", "verified", xunit(xcase("test_F00_RecordPing_ok", "<failure>")), false, 1,
+			"monacoctl flows check: ",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			env := envWith(t, backend)
+			env.Repo.(fstest.MapFS)["packages/flows/app/00.tsv"] = &fstest.MapFile{Data: []byte(app(tc.status))}
+			env.Repo.(fstest.MapFS)["packages/mobile-core/Sources/MonacoSystem/Flow00SystemPingModel.swift"] = &fstest.MapFile{}
+			env.Scripts = func(flows.Flow, string) bool { return true }
+			var integration io.Reader
+			if !tc.noXUnit {
+				integration = strings.NewReader(tc.xunit)
+			}
+			var stderr bytes.Buffer
+			code := flowsCheck(env, nil, true, integration, &stderr)
+			if code != tc.code || !strings.HasPrefix(stderr.String(), tc.stderr) ||
+				(tc.code == 0 && stderr.String() != tc.stderr) {
+				t.Fatalf("code=%d stderr=\n%s\nwant code=%d stderr=\n%s", code, stderr.String(), tc.code, tc.stderr)
+			}
+		})
+	}
+}
+
+func TestFlowsCheck_integrationXUnitFromAMissingFileFails(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	missing := filepath.Join(t.TempDir(), "integration.xml")
+	args := []string{"flows", "check", "--structure-only", "--integration-xunit", missing}
+	if code := run(commands(), tools(nil), nil, args, &stdout, &stderr); code != 1 ||
+		!strings.Contains(stderr.String(), "integration.xml") {
+		t.Fatalf("code=%d stderr=%q", code, stderr.String())
+	}
+}
+
+func TestFlowsCheck_readsEveryInputBeforeTheRepo(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	for _, name := range []string{"go-test.json", "integration.xml"} {
+		if err := os.WriteFile(filepath.Join(dir, name), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	read, write, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = write.Close()
+	t.Cleanup(func() { _ = read.Close() })
+	for _, args := range [][]string{
+		{"--from", filepath.Join(dir, "go-test.json"), "--integration-xunit", filepath.Join(dir, "integration.xml")},
+		{},
+	} {
+		var stderr bytes.Buffer
+		if code := flowsCheckCmd(args, read, &stderr); code != 1 || !strings.Contains(stderr.String(), "flows.tsv") {
+			t.Fatalf("%q: code=%d stderr=%q, want the missing flows.tsv of this test's working directory", args, code,
+				stderr.String())
+		}
 	}
 }
 

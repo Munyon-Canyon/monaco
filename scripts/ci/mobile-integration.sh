@@ -109,6 +109,10 @@ done
   go build -o "$bindir/worker" ./cmd/worker
   go build -o "$bindir/fakes" ./cmd/fakes
   go build -o "$bindir/monacoctl" ./cmd/monacoctl
+  # The Swift tests run in a Linux container and run monacoctl flows seed there, so they need a
+  # Linux build of it even when this host is a Mac.
+  CGO_ENABLED=0 GOOS=linux GOARCH="$(docker version --format '{{.Server.Arch}}')" \
+    go build -o "$bindir/linux/monacoctl" ./cmd/monacoctl
 )
 
 keys="$root/apps/backend/print_fixture_keys.go"
@@ -180,11 +184,12 @@ api_addr="$(wait_addr "$logdir/api.log")"
 worker_addr="$(wait_addr "$logdir/worker.log")"
 api_url="http://${api_addr}"
 # Docker Desktop gives --network host the VM's loopback, not the Mac's, so off Linux the
-# container reaches the api by name.
-swift_api_url="$api_url"
+# container reaches the api, Postgres, NATS and the fakes by name.
+container_host=127.0.0.1
 if [[ "$(uname -s)" != Linux ]]; then
-  swift_api_url="http://host.docker.internal:${api_addr##*:}"
+  container_host=host.docker.internal
 fi
+swift_api_url="http://${container_host}:${api_addr##*:}"
 
 ready=0
 tries=0
@@ -206,11 +211,33 @@ fi
 set +e
 docker run --rm --network host \
   -v "$root:/w" -w /w/packages/mobile-core \
+  -v "$bindir/linux:/seed:ro" \
   -e MONACO_API_URL="$swift_api_url" -e MONACO_DEV_TOKEN="$dev_token" -e MONACO_DEV_USER="$dev_user" \
+  -e MONACO_SEED_BIN=/seed/monacoctl -e MONACO_SEED_DIR=/w/apps/backend \
+  -e DATABASE_URL="${DATABASE_URL/127.0.0.1/$container_host}" -e NATS_URL="${NATS_URL/127.0.0.1/$container_host}" \
+  -e MONACO_DEV_TOKEN_KEY="$token_key" -e MONACO_FAKES_URL="http://${container_host}:${fakes_addr##*:}" \
   swift:6.3-noble swift test --filter Integration \
   > "$logdir/swift.log" 2>&1
 swift_status=$?
 set -e
+
+# swift test writes no XCTest xunit file without --parallel, and --parallel reports a skipped
+# test as passed, so the xunit file monacoctl flows check reads is built from the serial log.
+python3 - "$logdir/swift.log" "$logdir/integration.xml" << 'PY'
+import re, sys
+from xml.sax.saxutils import quoteattr
+case = re.compile(r"^Test Case '-?\[?(?:\w+\.)?(\w+)[ .](\w+)\]?' (passed|failed|skipped)")
+body = {"passed": "", "failed": '<failure message="failed"/>', "skipped": "<skipped/>"}
+rows = []
+for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
+    m = case.match(line)
+    if m:
+        cls, name, result = m.groups()
+        rows.append(f"<testcase classname={quoteattr(cls)} name={quoteattr(name)}>{body[result]}</testcase>")
+with open(sys.argv[2], "w", encoding="utf-8") as out:
+    out.write('<?xml version="1.0" encoding="UTF-8"?>\n<testsuites>\n<testsuite name="Integration">\n')
+    out.write("\n".join(rows) + "\n</testsuite>\n</testsuites>\n")
+PY
 
 # Matches both the macOS XCTest format (Test Case quote dash-bracket Module.Class method
 # bracket-quote passed) and the swift-corelibs-xctest format on Linux (Test Case
@@ -230,3 +257,7 @@ if [[ "$swift_status" -ne 0 ]]; then
   exit "$swift_status"
 fi
 echo "mobile-integration: $executed Integration test(s) executed, none skipped"
+(
+  cd "$root/apps/backend"
+  "$bindir/monacoctl" flows check --structure-only --integration-xunit "$logdir/integration.xml"
+)

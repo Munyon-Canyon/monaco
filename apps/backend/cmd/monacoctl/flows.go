@@ -4,11 +4,13 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -25,36 +27,52 @@ import (
 
 const (
 	backendDir = "apps/backend"
-	flowsUsage = "usage: monacoctl flows check [--from go-test.json | --structure-only]\n" +
+	flowsUsage = "usage: monacoctl flows check [--from go-test.json | --structure-only] [--integration-xunit swift-xunit.xml]\n" +
 		"       monacoctl flows seed <id> <outcome>"
 )
 
 func flowsCmd(environ, args []string, stdout, stderr io.Writer) int {
-	var tests io.Reader
-	structureOnly := false
 	switch {
 	case len(args) == 3 && args[0] == "seed":
 		return flowsSeed(context.Background(), os.DirFS("../.."), environ, args[1], args[2], stdout, stderr)
-	case slices.Equal(args, []string{"check", "--structure-only"}):
-		structureOnly = true
-	case slices.Equal(args, []string{"check"}):
-		if info, err := os.Stdin.Stat(); err == nil && info.Mode()&os.ModeCharDevice == 0 {
-			tests = os.Stdin
+	case len(args) > 0 && args[0] == "check":
+		return flowsCheckCmd(args[1:], os.Stdin, stderr)
+	default:
+		_, _ = fmt.Fprintln(stderr, flowsUsage)
+		return 2
+	}
+}
+
+func flowsCheckCmd(args []string, stdin *os.File, stderr io.Writer) int {
+	set := flag.NewFlagSet("flows check", flag.ContinueOnError)
+	set.SetOutput(io.Discard)
+	from := set.String("from", "", "go test -json output")
+	structureOnly := set.Bool("structure-only", false, "skip the go test result check")
+	xunit := set.String("integration-xunit", "", "swift test --xunit-output file")
+	if err := set.Parse(args); err != nil || set.NArg() != 0 || (*from != "" && *structureOnly) {
+		_, _ = fmt.Fprintln(stderr, flowsUsage)
+		return 2
+	}
+	var tests, integration io.Reader
+	if *from == "" && !*structureOnly {
+		if info, err := stdin.Stat(); err == nil && info.Mode()&os.ModeCharDevice == 0 {
+			tests = stdin
 		}
-	case len(args) == 3 && args[0] == "check" && args[1] == "--from":
-		file, err := os.Open(args[2])
+	}
+	for name, into := range map[string]*io.Reader{*from: &tests, *xunit: &integration} {
+		if name == "" {
+			continue
+		}
+		file, err := os.Open(filepath.Clean(name))
 		if err != nil {
 			_, _ = fmt.Fprintf(stderr, "monacoctl flows check: %v\n", err)
 			return 1
 		}
 		defer func() { _ = file.Close() }()
-		tests = file
-	default:
-		_, _ = fmt.Fprintln(stderr, flowsUsage)
-		return 2
+		*into = file
 	}
 	env := liveEnv(os.DirFS("../.."), ".", registered.Build(declaringDeps()))
-	return flowsCheck(env, tests, structureOnly, stderr)
+	return flowsCheck(env, tests, *structureOnly, integration, stderr)
 }
 
 func declaringDeps() module.Deps {
@@ -62,7 +80,7 @@ func declaringDeps() module.Deps {
 	return module.Deps{Config: cfg, HTTPClient: httpclient.New}
 }
 
-func flowsCheck(env flows.Env, tests io.Reader, structureOnly bool, stderr io.Writer) int {
+func flowsCheck(env flows.Env, tests io.Reader, structureOnly bool, integration io.Reader, stderr io.Writer) int {
 	parsed, problems, err := readFlows(env.Repo)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "monacoctl flows check: %v\n", err)
@@ -85,6 +103,23 @@ func flowsCheck(env flows.Env, tests io.Reader, structureOnly bool, stderr io.Wr
 	problems = append(problems, flows.CheckApp(app, parsed, env)...)
 	problems = append(problems, flows.CheckAppModels(app, parsed, env)...)
 	problems = append(problems, flows.CheckNoAggregate(env.Repo, parsed)...)
+	if integration == nil {
+		if verified := appVerifiedIDs(app); len(verified) > 0 {
+			_, _ = fmt.Fprintf(
+				stderr,
+				"monacoctl flows check: skipped the integration tests of app verified flows %s; "+
+					"pass --integration-xunit to check them\n",
+				strings.Join(verified, ", "),
+			)
+		}
+	} else {
+		results, err := flows.ReadIntegrationXUnit(integration)
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "monacoctl flows check: %v\n", err)
+			return 1
+		}
+		problems = append(problems, flows.CheckIntegration(app, parsed, results)...)
+	}
 	slices.SortStableFunc(problems, func(a, b flows.Problem) int {
 		return cmp.Or(strings.Compare(a.File, b.File), a.Line-b.Line)
 	})
@@ -95,6 +130,16 @@ func flowsCheck(env flows.Env, tests io.Reader, structureOnly bool, stderr io.Wr
 		return 1
 	}
 	return 0
+}
+
+func appVerifiedIDs(app []flows.AppRow) []string {
+	var verified []string
+	for _, row := range app {
+		if row.Status == flows.AppVerified {
+			verified = append(verified, row.ID)
+		}
+	}
+	return verified
 }
 
 func readFlows(repo fs.FS) ([]flows.Flow, []flows.Problem, error) {

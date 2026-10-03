@@ -18,3 +18,4 @@ Dated record of changes to [backend-platform.md](../backend-platform.md). Add on
 - 2026-09-27: No comments in hand-written Go, only machine-read ones (`//go:` directives, generated files). Replaces the doc-comment allowance, `godox`, `nolintlint` and inline `//nolint`; adds an agent-time hook.
 - 2026-09-26: Testing expanded: 100% merged coverage, mutation, model-based, fuzz, jitter via synctest, chaos dispatcher, template-DB Postgres.
 - 2026-09-26: Proposed. Go, modular monolith, three-ring Clean Architecture enforced by depguard, generated contracts, lint config, flows table.
+- 2026-10-03: An app flow at `verified` needs one passing integration test per outcome, set up with `monacoctl flows seed`, and `monacoctl flows check --integration-xunit` enforces it in `mobile-integration.sh` (#1666).
