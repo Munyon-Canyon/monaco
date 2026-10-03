@@ -385,6 +385,36 @@ func TestCheckLedger_addsEventAmountsPastInt64(t *testing.T) {
 	}
 }
 
+func TestCheckLedger_reportsLedgerOnlyWalletBalancesForDepositEvents(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	user := f.user(t)
+	h := adapters.UserLedger{Ledger: f.ledger, IDs: f.ids, USDC: usdc}
+	e := events.DepositCredited{
+		V: 1, DepositID: f.ids.NewV7(), UserID: user.UUID(), TxSignature: "deposit",
+		AmountMicros: money.MicrosFromUint64(25),
+	}
+	if err := f.do(func(ctx context.Context, tx db.Tx) error {
+		return h.Handle(ctx, tx, e, f.clock.Now())
+	}); err != nil {
+		t.Fatal(err)
+	}
+	check := adapters.CheckLedger(usdc, map[events.Type]adapters.BalanceRule{
+		events.TypeDepositCredited: adapters.DepositCreditedBalances(usdc),
+	})
+	diffs, err := check(t.Context(), f.pool)
+	want := []string{"balance wallet:" + user.String() + " " + usdcMint + ": ledger 25, events 0"}
+	if err != nil || !slices.Equal(diffs, want) {
+		t.Fatalf("diffs = %q, %v, want %q", diffs, err, want)
+	}
+	cabal := f.cabal(t)
+	f.postFund(t, cabal, 10)
+	diffs, err = check(t.Context(), f.pool)
+	if err != nil || !slices.Equal(diffs, want) {
+		t.Fatalf("diffs with treasury balance = %q, %v, want %q", diffs, err, want)
+	}
+}
+
 func TestCheckLedger_failsWhenTheDatabaseDoes(t *testing.T) {
 	t.Parallel()
 	s := seed(t)

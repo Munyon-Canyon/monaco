@@ -114,6 +114,40 @@ func (q *Queries) CabalPositionDrift(ctx context.Context) ([]CabalPositionDriftR
 	return items, nil
 }
 
+const depositLedgerBalances = `-- name: DepositLedgerBalances :many
+SELECT ('wallet:' || t.user_id::text)::text AS owner, e.asset, sum(e.amount)::text AS balance
+FROM user_txn_entries e JOIN user_txns t ON t.id = e.txn_id
+WHERE e.account = 'wallet' AND t.kind = 'deposit' AND t.tx_signature IS NOT NULL
+GROUP BY t.user_id, e.asset
+ORDER BY 1, 2
+`
+
+type DepositLedgerBalancesRow struct {
+	Owner   string
+	Asset   string
+	Balance string
+}
+
+func (q *Queries) DepositLedgerBalances(ctx context.Context) ([]DepositLedgerBalancesRow, error) {
+	rows, err := q.db.Query(ctx, depositLedgerBalances)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DepositLedgerBalancesRow
+	for rows.Next() {
+		var i DepositLedgerBalancesRow
+		if err := rows.Scan(&i.Owner, &i.Asset, &i.Balance); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const ledgerBalances = `-- name: LedgerBalances :many
 SELECT ('wallet:' || t.user_id::text)::text AS owner, e.asset, sum(e.amount)::text AS balance
 FROM user_txn_entries e JOIN user_txns t ON t.id = e.txn_id
