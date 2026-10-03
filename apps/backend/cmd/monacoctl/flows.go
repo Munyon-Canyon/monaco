@@ -142,12 +142,17 @@ func affectedFlows(repo fs.FS, run execFunc, base string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	rows, _ := flows.ReadApp(repo)
-	app := map[string]flows.AppRow{}
-	for _, row := range rows {
-		app[row.ID] = row
+	var ops []string
+	if slices.ContainsFunc(changed, flows.SpecFile) {
+		fork, err := git("merge-base", base, "HEAD")
+		if err != nil {
+			return nil, err
+		}
+		before, _ := git("show", strings.TrimSpace(string(fork))+":"+flows.SpecPath)
+		after, _ := git("show", "HEAD:"+flows.SpecPath)
+		ops = flows.ChangedOperations(before, after)
 	}
-	return flows.Affected(changed, parsed, app), nil
+	return flows.Affected(changed, ops, parsed), nil
 }
 
 func declaringDeps() module.Deps {

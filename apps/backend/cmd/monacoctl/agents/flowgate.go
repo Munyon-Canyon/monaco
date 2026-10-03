@@ -15,11 +15,10 @@ var landedRef = regexp.MustCompile(`\(#(\d+)\)\s*$`)
 
 type registry struct {
 	flows []flows.Flow
-	apps  map[string]flows.AppRow
 }
 
-func (r registry) affected(changed []string) []string {
-	return flows.Affected(changed, r.flows, r.apps)
+func (r registry) affected(changed, ops []string) []string {
+	return flows.Affected(changed, ops, r.flows)
 }
 
 func (env *Env) flowGate(ctx context.Context, _ Record, stack []stackPR) error {
@@ -55,7 +54,30 @@ func (env *Env) stackFlows(ctx context.Context, prs []stackPR, top stackPR) (reg
 	if err != nil {
 		return registry{}, nil, err
 	}
-	return reg, reg.affected(changed), nil
+	ops, err := env.specOps(ctx, changed, "origin/"+env.Config.FeatureBranch, top.HeadOID)
+	if err != nil {
+		return registry{}, nil, err
+	}
+	return reg, reg.affected(changed, ops), nil
+}
+
+func (env *Env) specOps(ctx context.Context, changed []string, from, to string) ([]string, error) {
+	if !slices.ContainsFunc(changed, flows.SpecFile) {
+		return nil, nil
+	}
+	fork, err := env.git(ctx, "merge-base", from, to)
+	if err != nil {
+		return nil, err
+	}
+	before, err := env.git(ctx, "show", strings.TrimSpace(fork)+":"+flows.SpecPath)
+	if err != nil {
+		return nil, err
+	}
+	after, err := env.git(ctx, "show", to+":"+flows.SpecPath)
+	if err != nil {
+		return nil, err
+	}
+	return flows.ChangedOperations([]byte(before), []byte(after)), nil
 }
 
 func (env *Env) registryAt(ctx context.Context, rev string) (registry, error) {
@@ -68,17 +90,7 @@ func (env *Env) registryAt(ctx context.Context, rev string) (registry, error) {
 		rows, _ := flows.Parse(name, strings.NewReader(body))
 		parsed = append(parsed, rows...)
 	}
-	app, err := env.filesAt(ctx, rev, flows.AppDir)
-	if err != nil {
-		return registry{}, err
-	}
-	apps := map[string]flows.AppRow{}
-	for name, body := range app {
-		if row, ok, _ := flows.ParseApp(name, body); ok {
-			apps[row.ID] = row
-		}
-	}
-	return registry{flows: parsed, apps: apps}, nil
+	return registry{flows: parsed}, nil
 }
 
 func (env *Env) filesAt(ctx context.Context, rev, dir string) (map[string]string, error) {
@@ -114,12 +126,16 @@ func (env *Env) stagingMoved(ctx context.Context, reg registry, top stackPR, min
 	if err != nil {
 		return err
 	}
+	ops, err := env.specOps(ctx, paths, strings.TrimSpace(base), trunk)
+	if err != nil {
+		return err
+	}
 	var moved []string
-	for _, id := range reg.affected(paths) {
+	for _, id := range reg.affected(paths, ops) {
 		if !slices.Contains(mine, id) {
 			continue
 		}
-		by, err := env.lastChange(ctx, span, flowPaths(reg, paths, id))
+		by, err := env.lastChange(ctx, span, flowPaths(reg, paths, ops, id))
 		if err != nil {
 			return err
 		}
@@ -137,9 +153,9 @@ func (env *Env) changedOn(ctx context.Context, span string) ([]string, error) {
 	return strings.Fields(names), err
 }
 
-func flowPaths(reg registry, paths []string, id string) []string {
+func flowPaths(reg registry, paths, ops []string, id string) []string {
 	return slices.Sorted(slices.Values(slices.DeleteFunc(slices.Clone(paths), func(p string) bool {
-		return !slices.Contains(reg.affected([]string{p}), id)
+		return !slices.Contains(reg.affected([]string{p}, ops), id)
 	})))
 }
 
