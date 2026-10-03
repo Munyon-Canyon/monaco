@@ -20,7 +20,7 @@ tags:
   - name: cabal
     description: A group treasury and its members.
   - name: funding
-    description: The member wallet balance and its movement into and out of cabals.
+    description: The member wallet balance, card deposits, and money moving into and out of cabals.
   - name: governance
     description: Trade proposals and the votes that decide them.
   - name: health

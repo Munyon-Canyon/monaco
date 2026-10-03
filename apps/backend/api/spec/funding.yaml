@@ -13,6 +13,35 @@ paths:
               schema: {$ref: "#/components/schemas/Balance"}
               example: {available_micros: "22500000", on_chain_micros: "25000000", in_flight_micros: "2500000", deposit_address: 5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP, as_of: "2026-10-03T15:00:00Z"}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/onramp/sessions:
+    post:
+      operationId: createOnrampSession
+      tags: [funding]
+      x-idempotent: true
+      summary: Start a card deposit.
+      description: >-
+        Creates an onramp session for the caller and returns the one-time fund page URL. The URL carries
+        a single-use token that expires 10 minutes after creation and never the wallet address. The
+        server stores only the token's SHA-256 and appends `onramp.status_changed` with `to: created`.
+        A replay with the same Idempotency-Key returns the first response.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: An optional amount to prefill on the fund page and the cabal the user came from.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOnrampSessionRequest"
+      responses:
+        "201":
+          description: The session was created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnrampSessionCreated"
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   schemas:
     Balance:
@@ -26,3 +55,40 @@ components:
         in_flight_micros: {type: string, pattern: "^[0-9]+$", examples: ["2500000"]}
         deposit_address: {type: string, examples: [5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP]}
         as_of: {type: string, format: date-time, examples: ["2026-10-03T15:00:00Z"]}
+    OnrampMicros:
+      type: string
+      description: A USDC amount in micros, as a decimal string.
+      pattern: "^[1-9][0-9]{0,19}$"
+      examples: ["25000000"]
+    CreateOnrampSessionRequest:
+      type: object
+      description: What to prefill on the fund page.
+      additionalProperties: false
+      properties:
+        suggested_amount_micros:
+          $ref: "#/components/schemas/OnrampMicros"
+        cabal_id:
+          type: string
+          format: uuid
+          description: The cabal the user came from, when they did.
+          examples: [01890a5d-ac96-774b-bcce-b302099a8058]
+    OnrampSessionCreated:
+      type: object
+      description: A new onramp session and the page that runs it.
+      additionalProperties: false
+      required: [session_id, url, expires_at]
+      properties:
+        session_id:
+          type: string
+          format: uuid
+          description: The session id.
+          examples: [01890a5d-ac96-774b-bcce-b302099a8057]
+        url:
+          type: string
+          description: The fund page URL with its one-time token. Open it in the browser.
+          examples: ["https://monacolabs.xyz/fund?s=q2J9cZQxv0mYb5r8yS3dTt1uVw7xY9zA0bC2dE4fG6h"]
+        expires_at:
+          type: string
+          format: date-time
+          description: When the token stops working.
+          examples: ["2026-10-03T15:10:00Z"]

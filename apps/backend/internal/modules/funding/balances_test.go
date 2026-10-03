@@ -25,8 +25,10 @@ func TestModule(t *testing.T) {
 	if got := m.Name(); got != "funding" {
 		t.Fatalf("Name = %q, want funding", got)
 	}
-	if !testkit.Serves(m.Mount, "GET", "/v1/me/balance") {
-		t.Fatal("Mount does not serve GET /v1/me/balance")
+	for _, route := range [][2]string{{"GET", "/v1/me/balance"}, {"POST", "/v1/onramp/sessions"}} {
+		if !testkit.Serves(m.Mount, route[0], route[1]) {
+			t.Fatalf("Mount does not serve %s %s", route[0], route[1])
+		}
 	}
 	if got := m.Consumers(); len(got) != 0 {
 		t.Fatalf("Consumers = %v, want none", got)

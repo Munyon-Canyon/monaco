@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/fundingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 var _ api.StrictServerInterface = HTTP{}
@@ -17,6 +18,8 @@ var _ api.StrictServerInterface = HTTP{}
 type HTTP struct {
 	Balances port.Balances
 	Wallets  app.MemberWallets
+	Create   *app.CreateOnrampSessionHandler
+	IDs      ids.Generator
 }
 
 func (h HTTP) GetMyBalance(
@@ -43,6 +46,33 @@ func (h HTTP) GetMyBalance(
 		AvailableMicros: balance.AvailableMicros.String(), OnChainMicros: balance.OnChainMicros.String(),
 		InFlightMicros: inFlight.String(), DepositAddress: string(address), AsOf: balance.AsOf,
 	}), nil
+}
+
+func (h HTTP) CreateOnrampSession(
+	ctx context.Context, req api.CreateOnrampSessionRequestObject,
+) (api.CreateOnrampSessionResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var suggested *money.Micros
+	if raw := req.Body.SuggestedAmountMicros; raw != nil {
+		m, err := money.ParseMicros(*raw)
+		if err != nil {
+			return nil, errs.Wrap(err, errs.CodeInvalidInput, "funding.CreateOnrampSession",
+				slog.String("field", "suggested_amount_micros"))
+		}
+		suggested = &m
+	}
+	created, err := h.Create.Handle(ctx, app.CreateOnrampSession{
+		ID: h.IDs.NewV7(), UserID: user, SuggestedAmount: suggested, CabalID: req.Body.CabalId,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return api.CreateOnrampSession201JSONResponse{
+		SessionId: created.ID, Url: created.URL, ExpiresAt: created.ExpiresAt,
+	}, nil
 }
 
 func caller(ctx context.Context) (ids.UserID, error) {

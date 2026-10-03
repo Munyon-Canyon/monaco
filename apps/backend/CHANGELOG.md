@@ -10,6 +10,8 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 
 - The `admin` module.
 - The `funding` module.
+- Card deposit sessions: `POST /v1/onramp/sessions` returns a one-time fund page URL (`FUND_PAGE_URL`) whose token
+  expires in 10 minutes, and appends `onramp.status_changed`.
 - The `notify` module.
 - The `social` module.
 - The `referrals` module.
