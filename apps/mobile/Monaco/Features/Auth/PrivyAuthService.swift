@@ -1,3 +1,4 @@
+import AuthenticationServices
 import Combine
 import Foundation
 import MonacoAPI
@@ -8,8 +9,6 @@ import os
 /// Wraps Privy SDK init, session restore, SMS/email OTP login and access-token refresh.
 @MainActor
 class PrivyAuthService: ObservableObject {
-    typealias Phase = LoginFlow.Phase
-
     /// Where the login form is and what just happened to it. See `LoginFlow`.
     /// Settable so the Debug sample sign-in (a subclass) can put the form on any step; nothing in
     /// the app assigns it from outside.
@@ -39,7 +38,7 @@ class PrivyAuthService: ObservableObject {
     private static let revokeWait = Duration.seconds(2)
 
     /// What just happened to the login form. `flow.step` says which field is on screen.
-    var phase: Phase { flow.phase }
+    var phase: LoginPhase { flow.phase }
 
     /// Which field the login form is on, so a failed request never takes the code box away
     /// from a member who already has a code.
@@ -209,6 +208,30 @@ class PrivyAuthService: ObservableObject {
         }
     }
 
+    func loginWithApple() async {
+        await authorize(.apple) { try await self.privy.oAuth.login(with: .apple, appUrlScheme: "monaco") }
+    }
+
+    func loginWithGoogle() async {
+        await authorize(.google) { try await self.privy.oAuth.login(with: .google, appUrlScheme: "monaco") }
+    }
+
+    private func authorize(_ provider: LoginProvider, _ login: () async throws -> PrivyUser) async {
+        await awaitPendingRevoke()
+        guard flow.beginAuthorizing(provider) else { return }
+        lastSignOutReason = nil
+
+        do {
+            let user = try await login()
+            await storeAuthenticatedUser(user, isRestore: false)
+        } catch {
+            accessToken = nil
+            AppLogger.session.error(
+                "\(provider.rawValue, privacy: .public) sign-in failed: \(String(describing: error), privacy: .public)")
+            flow.authorizationFailed(Self.loginFailure(from: error, step: .authorize))
+        }
+    }
+
     /// "Change number" / switching sign-in method.
     func resetLoginFlow() {
         flow.returnToAddressEntry()
@@ -332,6 +355,9 @@ class PrivyAuthService: ObservableObject {
     }
 
     nonisolated static func loginFailure(from error: Error, step: LoginStep) -> LoginFailure {
+        if isUserCancellation(error) {
+            return .cancelled
+        }
         if error is URLError || (error as NSError).domain == NSURLErrorDomain {
             return .offline
         }
@@ -354,7 +380,7 @@ class PrivyAuthService: ObservableObject {
         {
             switch reason {
             case .incorrectCredentials:
-                return .codeRejected
+                return step == .authorize ? .other(detail: privyError.errorDescription) : .codeRejected
             case .failureDuringAuthentication(let underlying):
                 return loginFailure(from: underlying, step: step)
             default:
@@ -362,6 +388,13 @@ class PrivyAuthService: ObservableObject {
             }
         }
         return .other(detail: nil)
+    }
+
+    private nonisolated static func isUserCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if let webError = error as? ASWebAuthenticationSessionError, webError.code == .canceledLogin { return true }
+        if let appleError = error as? ASAuthorizationError, appleError.code == .canceled { return true }
+        return false
     }
 
     private func storeAuthenticatedUser(_ user: PrivyUser, isRestore: Bool) async {
@@ -391,7 +424,7 @@ class PrivyAuthService: ObservableObject {
                 // Couldn't reach Privy. The saved session is still good; let the user retry.
                 flow.restoreFailed(message: LoginFailureCopy.restoreOffline)
             } else {
-                flow.verifyFailed(message: LoginFailureCopy.tokenUnavailable)
+                flow.tokenUnavailable(message: LoginFailureCopy.tokenUnavailable)
             }
         }
     }

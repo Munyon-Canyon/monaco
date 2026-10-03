@@ -104,7 +104,6 @@ no_comments	apps/mobile/Monaco/Features/Auth/AuthTheme.swift	3
 no_comments	apps/mobile/Monaco/Features/Auth/E164PhoneNumber.swift	33
 no_comments	apps/mobile/Monaco/Features/Auth/EmailLoginView.swift	3
 no_comments	apps/mobile/Monaco/Features/Auth/LaunchScreenView.swift	5
-no_comments	apps/mobile/Monaco/Features/Auth/LoginFlow.swift	24
 no_comments	apps/mobile/Monaco/Features/Auth/LoginView.swift	16
 no_comments	apps/mobile/Monaco/Features/Auth/MonacoMark.swift	8
 no_comments	apps/mobile/Monaco/Features/Auth/MonacoSessionStore.swift	1
@@ -231,7 +230,6 @@ no_comments	apps/mobile/MonacoTests/HomeLeaderboardModelTests.swift	33
 no_comments	apps/mobile/MonacoTests/HomeStateTests.swift	21
 no_comments	apps/mobile/MonacoTests/JoinCabalCopyTests.swift	5
 no_comments	apps/mobile/MonacoTests/LoginErrorClassificationTests.swift	2
-no_comments	apps/mobile/MonacoTests/LoginFlowTests.swift	3
 no_comments	apps/mobile/MonacoTests/MonacoRemoteImageStoreTests.swift	1
 no_comments	apps/mobile/MonacoTests/MonacoTests.swift	9
 no_comments	apps/mobile/MonacoTests/MoneyFlowErrorInputTests.swift	13

@@ -12,7 +12,7 @@ struct OTPFieldCaptionTests {
     private let hint = OTPDestination.sms.invalidHint
 
     private func caption(
-        _ phase: LoginFlow.Phase,
+        _ phase: LoginPhase,
         codeStep: Bool = false,
         invalid: Bool = false,
         resent: Bool = false
