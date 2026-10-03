@@ -13,4 +13,5 @@ Every PR that touches `apps/mobile/**` must pass a local `just build mobile` and
 1. `monacoctl agents check` passes.
 2. Run `gt submit --stack --no-interactive --draft`.
 3. For each PR, write the body to a file and run `scripts/pr-body.sh <pr> "<title>" <file>`. It checks the title, body and commits, then marks the PR ready.
-4. Exit. The owner never calls `gh pr merge`.
+4. Run `monacoctl agents land-stack <top-pr>` once. It arms the stack, and the root's `agents watch` lands it once stage 1 passes. The verifier's `verify` status is advisory and does not hold the landing.
+5. Exit. The owner never calls `gh pr merge`.
