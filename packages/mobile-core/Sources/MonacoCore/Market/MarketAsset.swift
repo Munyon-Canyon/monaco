@@ -6,6 +6,53 @@ public enum MarketIssuer: String, Equatable, Sendable {
     case prestocks
 }
 
+extension MarketIssuer {
+    public var displayName: String? {
+        switch self {
+        case .tessera: "Tessera"
+        case .prestocks: "PreStocks"
+        case .xstocks: nil
+        }
+    }
+}
+
+public struct MarketListing: Equatable, Sendable, Identifiable {
+    public let symbol: String
+    public let ticker: String
+    public let name: String
+    public let issuer: MarketIssuer
+    public let kind: AssetKind
+    public let isTradable: Bool
+
+    public var id: String { symbol }
+
+    public init(
+        symbol: String,
+        ticker: String,
+        name: String,
+        issuer: MarketIssuer,
+        kind: AssetKind,
+        isTradable: Bool
+    ) {
+        self.symbol = symbol
+        self.ticker = ticker
+        self.name = name
+        self.issuer = issuer
+        self.kind = kind
+        self.isTradable = isTradable
+    }
+}
+
+public struct MarketAssetDetail: Equatable, Sendable {
+    public let asset: MarketAsset
+    public let otherListings: [MarketListing]
+
+    public init(asset: MarketAsset, otherListings: [MarketListing]) {
+        self.asset = asset
+        self.otherListings = otherListings
+    }
+}
+
 public struct MarketAsset: Equatable, Sendable, Identifiable {
     public let symbol: String
     public let ticker: String

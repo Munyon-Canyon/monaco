@@ -29,6 +29,57 @@ public enum MarketMapping {
         MarketAssetPage(assets: list.assets.map(asset), nextCursor: list.nextCursor)
     }
 
+    public static func detail(_ value: Components.Schemas.AssetDetail) -> MarketAssetDetail {
+        let kind = kind(value.kind)
+        let session = session(value.session)
+        let priceMicros = value.priceMicros
+        let changeBasisPoints = changeBasisPoints(value.changeBps)
+        let asset = MarketAsset(
+            symbol: value.symbol,
+            ticker: AssetSymbolFormatter.display(value.symbol, kind: kind),
+            name: name(value.displayName, symbol: value.symbol, kind: kind),
+            issuer: issuer(value.issuer),
+            kind: kind,
+            logoURL: logoURL(value.logoUrl),
+            priceMicros: priceMicros,
+            priceText: priceText(priceMicros),
+            changeBasisPoints: changeBasisPoints,
+            changeText: changeText(changeBasisPoints),
+            sparkline: SparklineSeries(usdcMicros: value.sparklineMicros ?? []),
+            session: session,
+            status: status(value.session, session: session),
+            showsSessionChip: !value.session.continuous
+        )
+        return MarketAssetDetail(asset: asset, otherListings: value.otherListings.map(listing))
+    }
+
+    public static func listing(_ value: Components.Schemas.AssetListing) -> MarketListing {
+        let kind = kind(value.kind)
+        return MarketListing(
+            symbol: value.symbol,
+            ticker: AssetSymbolFormatter.display(value.symbol, kind: kind),
+            name: name(value.displayName, symbol: value.symbol, kind: kind),
+            issuer: issuer(value.issuer),
+            kind: kind,
+            isTradable: value.tradable
+        )
+    }
+
+    public static func chart(_ value: Components.Schemas.AssetChart) -> AssetChartSeries {
+        AssetChartSeries(
+            range: chartRange(value.range),
+            points: value.points.map {
+                AssetChartPointDTO(
+                    timestamp: Int64($0.t.timeIntervalSince1970),
+                    priceUsdcMicros: $0.closeMicros,
+                    openUsdcMicros: $0.openMicros,
+                    highUsdcMicros: $0.highMicros,
+                    lowUsdcMicros: $0.lowMicros
+                )
+            }
+        )
+    }
+
     public static func session(_ wire: Components.Schemas.MarketSession) -> MarketSession {
         state(wire.state)
     }
@@ -62,6 +113,17 @@ public enum MarketMapping {
         case .open: .open
         case .afterHours: .afterHours
         case .closed: .closed
+        }
+    }
+
+    private static func chartRange(_ wire: Components.Schemas.AssetChart.RangePayload) -> AssetChartRange {
+        switch wire {
+        case ._1d: .oneDay
+        case ._1w: .oneWeek
+        case ._1m: .oneMonth
+        case ._3m: .threeMonths
+        case ._1y: .oneYear
+        case .all: .all
         }
     }
 
