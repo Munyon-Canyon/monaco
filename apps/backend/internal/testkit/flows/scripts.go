@@ -36,9 +36,15 @@ func Scripts() map[string]Script {
 		"F20FollowUnauthorized":           F20FollowUnauthorized,
 		"F20FollowCrashBeforeCommit":      F20FollowCrashBeforeCommit,
 		"F20UnfollowOK":                   F20UnfollowOK,
+
+		"F18SamplePricesOK":                 F18SamplePricesOK,
+		"F18SamplePricesJupiterUnavailable": F18SamplePricesJupiterUnavailable,
+		"F18SamplePricesUpstreamTimeout":    F18SamplePricesUpstreamTimeout,
 	}
 }
 
 func Env() map[string][]string {
-	return map[string][]string{}
+	return map[string][]string{
+		"18": {"MARKET_PRICE_POLL_INTERVAL=2s", "MONACO_TIMEOUT_JUPITER_QUOTE=1s"},
+	}
 }
