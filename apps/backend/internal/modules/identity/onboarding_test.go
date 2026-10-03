@@ -247,7 +247,7 @@ func TestLinkPhone_aFailureAtAnyStepWritesNothing(t *testing.T) {
 				UoW: db.New(f.pool, f.ids, testkit.NewClock(f.now)), Reads: f.pool,
 				Users: failingOnboardUsers{fail: fail}, Privy: f.privy, Clock: testkit.NewClock(f.now), Hints: f.hints,
 			})
-			if _, err := h.LinkPhone(t.Context(), u.ID); err == nil {
+			if _, err := h.LinkPhone(t.Context(), app.LinkPhone{UserID: u.ID}); err == nil {
 				t.Fatal("LinkPhone = nil error")
 			}
 			if phone, _, _ := f.storedPhone(t, u.ID); phone != "" {
@@ -371,7 +371,8 @@ func TestSkipOnboardingStep_skipsThePhoneOnceAndTheSocialsWithoutAMove(t *testin
 	none := f.seed(t, portSeed{wallet: true})
 	wantProblem(t, f.onboard(t, none.ID, "skip", `{"step":"socials"}`, "s1"), api.HandleRequired)
 	h := app.NewOnboarding(app.OnboardingDeps{Reads: f.pool, Users: adapters.Users{}})
-	if _, err := h.Skip(t.Context(), u.ID, "email"); errs.CodeOf(err) != errs.CodeInvalidInput {
+	_, err := h.Skip(t.Context(), app.SkipOnboardingStep{UserID: u.ID, Step: "email"})
+	if errs.CodeOf(err) != errs.CodeInvalidInput {
 		t.Fatalf("Skip(email) = %v, want invalid_input", err)
 	}
 }

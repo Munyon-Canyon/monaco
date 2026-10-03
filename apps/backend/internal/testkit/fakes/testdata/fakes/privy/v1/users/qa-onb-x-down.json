@@ -1,0 +1,1 @@
+{"status":200,"headers":{"Content-Type":"application/json"},"body":{"id":"did:privy:qa-onb-x-down","linked_accounts":[{"type":"email","address":"qa-onb-x-down@example.com"},{"type":"twitter_oauth","subject":"9100000003","username":"onb_x_down","verified_at":1790001000}]}}

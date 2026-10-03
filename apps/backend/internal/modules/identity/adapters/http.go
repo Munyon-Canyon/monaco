@@ -52,7 +52,7 @@ func (h HTTP) PostOnboardingPhone(
 	if err != nil {
 		return nil, err
 	}
-	me, err := h.Onboard.LinkPhone(ctx, user)
+	me, err := h.Onboard.LinkPhone(ctx, app.LinkPhone{UserID: user})
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (h HTTP) PostOnboardingSocials(
 	if err != nil {
 		return nil, err
 	}
-	me, err := h.Onboard.LinkSocials(ctx, user)
+	me, err := h.Onboard.LinkSocials(ctx, app.LinkSocials{UserID: user})
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func (h HTTP) PostOnboardingSkip(
 	if req.Body == nil {
 		return nil, errs.New(errs.CodeInvalidInput, "identity.PostOnboardingSkip")
 	}
-	me, err := h.Onboard.Skip(ctx, user, domain.OnboardingStep(req.Body.Step))
+	me, err := h.Onboard.Skip(ctx, app.SkipOnboardingStep{UserID: user, Step: domain.OnboardingStep(req.Body.Step)})
 	if err != nil {
 		return nil, err
 	}
