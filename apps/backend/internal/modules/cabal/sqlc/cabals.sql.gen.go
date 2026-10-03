@@ -231,6 +231,85 @@ func (q *Queries) LockCabalShared(ctx context.Context, id uuid.UUID) (uuid.UUID,
 	return id_2, err
 }
 
+const searchCabals = `-- name: SearchCabals :many
+SELECT c.id, c.name, c.picture_url, c.join_mode, c.created_at,
+  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count,
+  EXISTS (SELECT 1 FROM cabal_members m WHERE m.cabal_id = c.id AND m.user_id = $1) AS is_member,
+  r.status AS my_access_request_status
+FROM cabals c
+LEFT JOIN cabal_access_requests r ON r.cabal_id = c.id AND r.user_id = $1
+  AND r.direction = 'request' AND r.status = 'pending'
+WHERE c.status <> 'banned'
+  AND ($2::text = '' OR lower(c.name) LIKE '%' || lower($2::text) || '%')
+  AND (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id) > 0
+  AND (
+    $3::int IS NULL
+    OR (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int < $3::int
+    OR (
+      (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int = $3::int
+      AND (c.created_at, c.id) < ($4::timestamptz, $5::uuid)
+    )
+  )
+ORDER BY member_count DESC, c.created_at DESC, c.id DESC
+LIMIT $6::int
+`
+
+type SearchCabalsParams struct {
+	ActorID           uuid.UUID
+	Query             string
+	CursorMemberCount pgtype.Int4
+	CursorCreatedAt   pgtype.Timestamptz
+	CursorID          pgtype.UUID
+	PageSize          int32
+}
+
+type SearchCabalsRow struct {
+	ID                    uuid.UUID
+	Name                  string
+	PictureUrl            pgtype.Text
+	JoinMode              string
+	CreatedAt             time.Time
+	MemberCount           int32
+	IsMember              bool
+	MyAccessRequestStatus pgtype.Text
+}
+
+func (q *Queries) SearchCabals(ctx context.Context, arg SearchCabalsParams) ([]SearchCabalsRow, error) {
+	rows, err := q.db.Query(ctx, searchCabals,
+		arg.ActorID,
+		arg.Query,
+		arg.CursorMemberCount,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchCabalsRow
+	for rows.Next() {
+		var i SearchCabalsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.PictureUrl,
+			&i.JoinMode,
+			&i.CreatedAt,
+			&i.MemberCount,
+			&i.IsMember,
+			&i.MyAccessRequestStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setCabalPicture = `-- name: SetCabalPicture :execrows
 UPDATE cabals SET picture_url = $1, updated_at = $2
 WHERE id = $3

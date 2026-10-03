@@ -2,12 +2,19 @@ package cabal_test
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace/noop"
 
+	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/app"
@@ -15,9 +22,13 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -32,6 +43,28 @@ func (f createFixture) routes(users app.UserCards) adapters.HTTP {
 		users = identity.New(module.Deps{Pool: f.pool}).Queries()
 	}
 	return adapters.HTTP{Create: f.handler(), DB: f.pool, Users: users}
+}
+
+func (f createFixture) router(t *testing.T) (http.Handler, *auth.DevVerifier) {
+	t.Helper()
+	verifier, err := auth.NewDevVerifier(
+		config.Config{Env: config.EnvTest, Auth: config.Auth{DevTokenKey: "test-only"}}, f.clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := httpx.Handler(httpx.Deps{
+		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),
+		Tracer:       noop.NewTracerProvider(),
+		Clock:        f.clock,
+		IDs:          f.ids,
+		MaxBodyBytes: 1 << 20,
+		Idempotency:  db.NewIdempotencyStore(f.pool, f.clock),
+		Verifier:     verifier,
+	}, httpx.Routes{CabalRoutes: f.routes(nil)}, openapi.Spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return testkit.HTTP(t, h), verifier
 }
 
 func cabalPost(
@@ -332,8 +365,10 @@ func rejectCaller(
 	t.Helper()
 	_, postErr := h.PostCabal(ctx, req)
 	_, getErr := h.GetCabal(ctx, lookup)
-	if errs.CodeOf(postErr) != code || errs.CodeOf(getErr) != code || f.wallets.Creates() != 0 {
-		t.Fatalf("%s: post %v get %v creates %d", name, postErr, getErr, f.wallets.Creates())
+	_, searchErr := h.GetCabals(ctx, api.GetCabalsRequestObject{})
+	if errs.CodeOf(postErr) != code || errs.CodeOf(getErr) != code || errs.CodeOf(searchErr) != code ||
+		f.wallets.Creates() != 0 {
+		t.Fatalf("%s: post %v get %v search %v creates %d", name, postErr, getErr, searchErr, f.wallets.Creates())
 	}
 }
 
@@ -353,3 +388,243 @@ func deref(v *string) string {
 	}
 	return *v
 }
+
+func TestSearchCabals_listsMatchesAndExcludesIneligibleCabals(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	member := testkit.NewCabal(t, f.pool, testkit.WithMembers(2), testkit.WithJoinMode("request"))
+	banned := testkit.NewCabal(t, f.pool)
+	empty := testkit.NewCabal(t, f.pool)
+	nameCabal(t, f, member.ID.UUID(), "Friends Forever", "active")
+	nameCabal(t, f, banned.ID.UUID(), "Friendly Banned", "banned")
+	nameCabal(t, f, empty.ID.UUID(), "Friendly Empty", "active")
+	emptyCabal(t, f, empty.ID.UUID())
+	requestAccess(t, f, member.ID.UUID())
+	got, err := searchCabals(t, f, f.user.ID, "  FRIEND  ", nil, nil)
+	assertSearchMatch(t, got, err, member.ID.UUID())
+	all, err := searchCabals(t, f, member.Creator.ID, "", nil, nil)
+	assertSearchMember(t, all, err)
+}
+
+func assertSearchMatch(t *testing.T, got api.CabalSearchPage, err error, id uuid.UUID) {
+	t.Helper()
+	if err != nil || len(got.Items) != 1 || got.NextCursor != nil {
+		t.Fatalf("GetCabals = %+v, %v", got, err)
+	}
+	item := got.Items[0]
+	if item.Id != id || item.Name != "Friends Forever" || item.MemberCount != 2 || item.JoinMode != "request" ||
+		item.IsMember || deref(item.MyAccessRequestStatus) != "pending" {
+		t.Fatalf("item = %+v", item)
+	}
+}
+
+func assertSearchMember(t *testing.T, got api.CabalSearchPage, err error) {
+	t.Helper()
+	if err != nil || len(got.Items) != 1 || !got.Items[0].IsMember {
+		t.Fatalf("empty GetCabals = %+v, %v", got, err)
+	}
+}
+
+func nameCabal(t *testing.T, f createFixture, id uuid.UUID, name, status string) {
+	t.Helper()
+	_, err := f.pool.Exec(t.Context(), `UPDATE cabals SET name = $2, status = $3 WHERE id = $1`, id, name, status)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func emptyCabal(t *testing.T, f createFixture, id uuid.UUID) {
+	t.Helper()
+	if _, err := f.pool.Exec(t.Context(), `DELETE FROM cabal_members WHERE cabal_id = $1`, id); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func requestAccess(t *testing.T, f createFixture, cabalID uuid.UUID) {
+	t.Helper()
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO cabal_access_requests
+		(id, cabal_id, user_id, direction, status, created_at)
+		VALUES ($1, $2, $3, 'request', 'pending', now())`, f.ids.NewV7(), cabalID, f.user.ID.UUID())
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSearchCabals_refusesInvalidQueryLimitAndCursor(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	for _, request := range []api.GetCabalsRequestObject{
+		{Params: api.GetCabalsParams{Query: ptr("x")}},
+		{Params: api.GetCabalsParams{Limit: ptr(0)}},
+		{Params: api.GetCabalsParams{Limit: ptr(51)}},
+		{Params: api.GetCabalsParams{Cursor: ptr("!")}},
+		{Params: api.GetCabalsParams{Cursor: ptr(cabalCursor("not json"))}},
+		{Params: api.GetCabalsParams{Cursor: ptr(cabalCursor(`{"member_count":1,"created_at":"bad","id":"bad"}`))}},
+		{Params: api.GetCabalsParams{Cursor: ptr(cabalCursor(`{"member_count":0,"created_at":"2026-10-02T15:00:00Z","id":"bad"}`))}},
+	} {
+		_, err := f.routes(nil).GetCabals(f.actor(t.Context()), request)
+		if errs.CodeOf(err) != errs.CodeInvalidInput {
+			t.Fatalf("GetCabals = %v, want invalid input", err)
+		}
+	}
+}
+
+func TestSearchCabals_reportsAnUnavailableRead(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	if _, err := f.pool.Exec(t.Context(), `ALTER TABLE cabals RENAME TO cabals_gone`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := f.routes(nil).GetCabals(f.actor(t.Context()), api.GetCabalsRequestObject{})
+	if errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("GetCabals = %v, want internal", err)
+	}
+}
+
+func TestSearchCabals_cursorWalksEveryRowOnce(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	created := seedTiedCabals(t, f)
+	limit := 2
+	seen := make(map[uuid.UUID]struct{})
+	var cursor *string
+	for {
+		page, err := searchCabals(t, f, f.user.ID, "", &limit, cursor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, item := range page.Items {
+			if _, exists := seen[item.Id]; exists {
+				t.Fatalf("cabal %s appeared twice", item.Id)
+			}
+			seen[item.Id] = struct{}{}
+		}
+		if page.NextCursor == nil {
+			break
+		}
+		cursor = page.NextCursor
+	}
+	if len(seen) != len(created) {
+		t.Fatalf("saw %d cabals, want %d", len(seen), len(created))
+	}
+	assertAllCabalsSeen(t, created, seen)
+}
+
+func seedTiedCabals(t *testing.T, f createFixture) map[uuid.UUID]struct{} {
+	t.Helper()
+	created := make(map[uuid.UUID]struct{})
+	createdAt := time.Date(2026, 10, 2, 16, 0, 0, 0, time.UTC)
+	for range 5 {
+		c := testkit.NewCabal(t, f.pool, testkit.WithMembers(2))
+		if _, err := f.pool.Exec(
+			t.Context(), `UPDATE cabals SET created_at = $2 WHERE id = $1`, c.ID.UUID(), createdAt,
+		); err != nil {
+			t.Fatal(err)
+		}
+		created[c.ID.UUID()] = struct{}{}
+	}
+	return created
+}
+
+func assertAllCabalsSeen(t *testing.T, want, got map[uuid.UUID]struct{}) {
+	t.Helper()
+	for id := range want {
+		if _, ok := got[id]; !ok {
+			t.Fatalf("missing cabal %s", id)
+		}
+	}
+}
+
+func TestSearchCabals_routerAcceptsAnEmptyQuery(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	eligible := testkit.NewCabal(t, f.pool)
+	h, verifier := f.router(t)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/cabals?query=", nil)
+	req.Header.Set("Authorization", "Bearer "+verifier.Mint(f.user.ID.String(), f.clock.Now().Add(time.Hour)))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /v1/cabals?query= = %d %s, want 200", rec.Code, rec.Body)
+	}
+	var page api.CabalSearchPage
+	if err := json.Unmarshal(rec.Body.Bytes(), &page); err != nil {
+		t.Fatalf("decode response %s: %v", rec.Body, err)
+	}
+	if len(page.Items) != 1 || page.Items[0].Id != eligible.ID.UUID() {
+		t.Fatalf("response = %+v, want cabal %s", page, eligible.ID.UUID())
+	}
+}
+
+func TestSearchCabals_usesTheTrigramIndex(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	conn, err := f.pool.Acquire(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Release()
+	if _, err := conn.Exec(t.Context(), `SET enable_seqscan = off`); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _, _ = conn.Exec(t.Context(), `RESET enable_seqscan`) }()
+	rows, err := conn.Query(t.Context(), `EXPLAIN SELECT c.id, c.name, c.picture_url, c.join_mode, c.created_at,
+  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count,
+  EXISTS (SELECT 1 FROM cabal_members m WHERE m.cabal_id = c.id AND m.user_id = $1) AS is_member,
+  r.status AS my_access_request_status
+FROM cabals c
+LEFT JOIN cabal_access_requests r ON r.cabal_id = c.id AND r.user_id = $1
+  AND r.direction = 'request' AND r.status = 'pending'
+WHERE c.status <> 'banned'
+  AND ($2::text = '' OR lower(c.name) LIKE '%' || lower($2::text) || '%')
+  AND (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id) > 0
+  AND (
+    $3::int IS NULL
+    OR (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int < $3::int
+    OR (
+      (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int = $3::int
+      AND (c.created_at, c.id) < ($4::timestamptz, $5::uuid)
+    )
+  )
+ORDER BY member_count DESC, c.created_at DESC, c.id DESC
+LIMIT $6::int`, f.user.ID.UUID(), "fri", nil, nil, nil, int32(21))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var plan strings.Builder
+	for rows.Next() {
+		var line string
+		if err := rows.Scan(&line); err != nil {
+			t.Fatal(err)
+		}
+		plan.WriteString(line)
+	}
+	if err := rows.Err(); err != nil || !strings.Contains(plan.String(), "cabals_name_trgm_idx") {
+		t.Fatalf("plan = %q, %v", plan.String(), err)
+	}
+}
+
+func searchCabals(
+	t *testing.T, f createFixture, user ids.UserID, query string, limit *int, cursor *string,
+) (api.CabalSearchPage, error) {
+	t.Helper()
+	ctx := auth.WithActor(t.Context(), auth.Actor{
+		Kind: auth.ActorUser, ID: user.String(), Standing: auth.StandingActive,
+	})
+	result, err := f.routes(nil).GetCabals(ctx, api.GetCabalsRequestObject{
+		Params: api.GetCabalsParams{Query: &query, Limit: limit, Cursor: cursor},
+	})
+	if err != nil {
+		return api.CabalSearchPage{}, err
+	}
+	page, ok := result.(api.GetCabals200JSONResponse)
+	if !ok {
+		t.Fatalf("GetCabals = %T", result)
+	}
+	return api.CabalSearchPage(page), nil
+}
+
+func ptr[T any](value T) *T { return &value }
+
+func cabalCursor(value string) string { return base64.RawURLEncoding.EncodeToString([]byte(value)) }
