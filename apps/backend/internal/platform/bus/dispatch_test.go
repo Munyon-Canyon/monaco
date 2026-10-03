@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -336,6 +337,152 @@ func TestDispatch_handlesTheEventOnceAndAcksARedelivery(t *testing.T) {
 		},
 		map[string]any{"handler": "notify.push", "outcome": "duplicate", "code": "ok", "delivery": 2.0},
 	)
+}
+
+func TestDispatch_fetchedHandlerFetchesBeforeTheDeliveryTransactionAndAppliesOnce(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	var fetches atomic.Int32
+	var applying atomic.Bool
+	handler := bus.HandleFetched(
+		"notify.push",
+		func(ctx context.Context, _ events.SystemPinged) (string, error) {
+			if applying.Load() {
+				t.Fatal("fetch ran while apply was running")
+			}
+			var idleTransactions int
+			err := h.pool.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity `+
+				`WHERE datname = current_database() AND state LIKE 'idle in transaction%'`).Scan(&idleTransactions)
+			if err != nil {
+				return "", err
+			}
+			if idleTransactions != 0 {
+				return "", errs.New(errs.CodeInternal, "bus.fetch", slog.Int("idle_transactions", idleTransactions))
+			}
+			fetches.Add(1)
+			return "fetched", nil
+		},
+		func(ctx context.Context, tx db.Tx, e events.SystemPinged, value string, _ time.Time) error {
+			applying.Store(true)
+			defer applying.Store(false)
+			if value != "fetched" {
+				t.Fatalf("fetched value = %q, want fetched", value)
+			}
+			_, err := tx.Queries().Exec(
+				ctx, `INSERT INTO handled (handler, event_id) VALUES ('notify.push', $1)`, e.PingID,
+			)
+			return err
+		},
+	)
+	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{handler}})
+	h.publishPing(t)
+	msg := fromMsg(h.fetch(t, h.consumer(t)), 1)
+
+	reg.Dispatch(h.ctx(t), durable, msg)
+	redelivered := fromMsg(msg, 2)
+	reg.Dispatch(h.ctx(t), durable, redelivered)
+
+	if msg.verdict != "ack" || redelivered.verdict != "ack" || fetches.Load() != 1 {
+		t.Fatalf("verdicts = %q, %q; fetches = %d, want ack, ack, 1", msg.verdict, redelivered.verdict, fetches.Load())
+	}
+	if d, handled := h.deliveries(t), h.handled(t); len(d) != 1 || len(handled) != 1 {
+		t.Fatalf("event_deliveries = %v, handled = %v, want one each", d, handled)
+	}
+}
+
+func TestDispatch_fetchedHandlerErrorsDoNotWriteADelivery(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		err     error
+		verdict string
+	}{
+		{"retryable", errs.New(errs.CodeRPCUnavailable, "rpc.GetTransaction"), "nak"},
+		{"non retryable", errs.New(errs.CodeDecodeFailed, "rpc.Decode"), "term"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			handler := bus.HandleFetched(
+				"notify.push",
+				func(context.Context, events.SystemPinged) (struct{}, error) { return struct{}{}, tc.err },
+				func(context.Context, db.Tx, events.SystemPinged, struct{}, time.Time) error {
+					t.Fatal("apply ran after fetch failed")
+					return nil
+				},
+			)
+			reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{handler}})
+			h.publishPing(t)
+			msg := fromMsg(h.fetch(t, h.consumer(t)), 1)
+
+			reg.Dispatch(h.ctx(t), durable, msg)
+
+			if msg.verdict != tc.verdict || len(h.deliveries(t)) != 0 {
+				t.Fatalf("verdict = %q, deliveries = %v; want %q and none", msg.verdict, h.deliveries(t), tc.verdict)
+			}
+		})
+	}
+}
+
+func TestDispatch_fetchedHandlerNaksWhenTheDeliveryLookupFails(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	handler := bus.HandleFetched(
+		"notify.push",
+		func(context.Context, events.SystemPinged) (struct{}, error) {
+			t.Fatal("fetch ran after the delivery lookup failed")
+			return struct{}{}, nil
+		},
+		func(context.Context, db.Tx, events.SystemPinged, struct{}, time.Time) error {
+			t.Fatal("apply ran after the delivery lookup failed")
+			return nil
+		},
+	)
+	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{handler}})
+	h.publishPing(t)
+	msg := fromMsg(h.fetch(t, h.consumer(t)), 1)
+	h.pool.Close()
+
+	reg.Dispatch(h.ctx(t), durable, msg)
+	if msg.verdict != "nak" {
+		t.Fatalf("verdict = %q, want nak", msg.verdict)
+	}
+}
+
+func TestDispatch_fetchedHandlerAcknowledgesADeliveryThatRacesAfterFetch(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	var id uuid.UUID
+	var applies atomic.Int32
+	handler := bus.HandleFetched(
+		"notify.push",
+		func(ctx context.Context, _ events.SystemPinged) (struct{}, error) {
+			_, err := h.pool.Exec(
+				ctx,
+				`INSERT INTO event_deliveries (handler, event_id, code, handled_at) VALUES ('notify.push', $1, 'ok', now())`,
+				id,
+			)
+			return struct{}{}, err
+		},
+		func(context.Context, db.Tx, events.SystemPinged, struct{}, time.Time) error {
+			applies.Add(1)
+			return nil
+		},
+	)
+	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{handler}})
+	id = h.publishPing(t)
+	msg := fromMsg(h.fetch(t, h.consumer(t)), 1)
+
+	reg.Dispatch(h.ctx(t), durable, msg)
+
+	if msg.verdict != "ack" || applies.Load() != 0 || len(h.deliveries(t)) != 1 {
+		t.Fatalf(
+			"verdict = %q, applies = %d, deliveries = %v; want ack, 0, one",
+			msg.verdict,
+			applies.Load(),
+			h.deliveries(t),
+		)
+	}
 }
 
 func (h *harness) pingID(t *testing.T, eventID uuid.UUID) uuid.UUID {
