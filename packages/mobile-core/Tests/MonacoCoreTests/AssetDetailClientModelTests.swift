@@ -57,6 +57,28 @@ final class AssetDetailClientModelTests: XCTestCase {
         XCTAssertNotNil(model.lastError)
     }
 
+    func testKeepsDetailWhenItsChartFails() async {
+        let model = makeModel(
+            StubTransport.Reply.json(.ok, detail),
+            StubTransport.Reply.failure(URLError(.cannotLoadFromNetwork))
+        )
+
+        await model.load()
+
+        XCTAssertEqual(model.phase, .loaded)
+        XCTAssertEqual(model.detail?.ticker, "AAPL")
+        XCTAssertNotNil(model.chartError)
+    }
+
+    func testSelectsEachChartRangeBeforeReadingIt() async {
+        let model = makeModel(StubTransport.Reply.json(.ok, chart(range: "1Y")))
+
+        await model.loadChart(range: .oneYear)
+
+        XCTAssertEqual(model.selectedRange, .oneYear)
+        XCTAssertEqual(model.chart?.range, .oneYear)
+    }
+
     private func makeModel(_ responses: StubTransport.Reply...) -> AssetDetailClientModel {
         let api = APIClient(
             serverURL: testServerURL,
