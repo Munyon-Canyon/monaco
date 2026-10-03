@@ -783,6 +783,10 @@ func TestSilentStalls_saysRestackForAGreenTopWhoseChainSitsOnAGraphiteBaseOrConf
 	if got := f.Env(t).silentStalls(t.Context(), prs, rs); !slices.Equal(got, want) {
 		t.Fatalf("conflicting lower PR: %q", got)
 	}
+	prs[0].Mergeable = unsettled
+	if got := f.Env(t).silentStalls(t.Context(), prs, rs); len(got) != 0 {
+		t.Fatalf("unsettled lower PR: %q", got)
+	}
 }
 
 func TestWatch_flagsAConflictingPRUnderARecordOrLabeledOnEveryPass(t *testing.T) {
