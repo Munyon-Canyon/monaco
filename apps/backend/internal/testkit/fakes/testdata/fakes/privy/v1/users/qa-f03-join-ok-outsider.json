@@ -1,0 +1,1 @@
+{"status":200,"headers":{"Content-Type":"application/json"},"body":{"id":"did:privy:qa-f03-join-ok-outsider","linked_accounts":[{"type":"email","address":"qa-f03-join-ok-outsider@example.com"}]}}
