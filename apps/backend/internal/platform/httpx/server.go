@@ -16,11 +16,19 @@ import (
 )
 
 func Handler(d Deps, ssi api.StrictServerInterface, spec []byte) (http.Handler, error) {
-	return handler(d, ssi, spec, nil)
+	c, err := LoadContract(spec)
+	if err != nil {
+		return nil, err
+	}
+	return HandlerFor(d, ssi, c)
+}
+
+func HandlerFor(d Deps, ssi api.StrictServerInterface, c *Contract) (http.Handler, error) {
+	return handler(d, ssi, c, nil)
 }
 
 func handler(
-	d Deps, ssi api.StrictServerInterface, spec []byte, mws []api.StrictMiddlewareFunc,
+	d Deps, ssi api.StrictServerInterface, c *Contract, mws []api.StrictMiddlewareFunc,
 ) (http.Handler, error) {
 	if d.Idempotency == nil || d.Verifier == nil {
 		return nil, errs.New(
@@ -28,10 +36,6 @@ func handler(
 			"httpx.Handler",
 			slog.String("missing", "Deps.Idempotency or Deps.Verifier"),
 		)
-	}
-	c, err := loadContract(spec)
-	if err != nil {
-		return nil, err
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +53,7 @@ func handler(
 	return d.wrapContract(mux), nil
 }
 
-func middlewares(d Deps, c *contract) []api.MiddlewareFunc {
+func middlewares(d Deps, c *Contract) []api.MiddlewareFunc {
 	mws := []api.MiddlewareFunc{Idempotency(d.Idempotency), c.validate}
 	if d.RateLimit != nil {
 		mws = append(mws, d.RateLimit)

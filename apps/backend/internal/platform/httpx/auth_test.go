@@ -58,7 +58,7 @@ func devVerifier(t *testing.T, key string, now time.Time) *auth.DevVerifier {
 
 func authed(t *testing.T, h *harness, v auth.TokenVerifier) (http.Handler, *[]string) {
 	t.Helper()
-	c, err := loadContract([]byte(authSpec))
+	c, err := LoadContract([]byte(authSpec))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -353,7 +353,7 @@ paths:
 
 func standingRoutes(t *testing.T, h *harness, standing auth.Standing) http.Handler {
 	t.Helper()
-	c, err := loadContract([]byte(standingSpec))
+	c, err := LoadContract([]byte(standingSpec))
 	if err != nil {
 		t.Fatal(err)
 	}

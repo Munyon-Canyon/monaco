@@ -19,7 +19,11 @@ func TestRecordPing_overTheActorRateLimitIsRefusedWithoutAPing(t *testing.T) {
 	if bytes.Equal(spec, openapi.Spec) {
 		t.Fatalf("anchor %q is not in api/openapi.yaml", anchor)
 	}
-	scenario.New(t, withSystem(), scenario.WithSpec(spec)).
+	limited, err := scenario.LoadContract(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scenario.New(t, withSystem(), scenario.WithContract(limited)).
 		Given(scenario.AsUser("alice")).
 		When(
 			scenario.Post("/v1/system/pings", `{"note":"one"}`),
