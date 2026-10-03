@@ -1,0 +1,19 @@
+journey: cabals/create-cabal
+expect-fail: S1
+
+The Cabals toolbar + loses its identifier. S1.1 waits for it, so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalsTab.swift b/apps/mobile/Monaco/Features/Groups/CabalsTab.swift
+index cc5f2acc..ce88ffd9 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalsTab.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalsTab.swift
+@@ -50,7 +50,7 @@ private struct CabalsTabRoot: View {
+                                 .frame(width: 44, height: 44)
+                         }
+                         .accessibilityLabel("New cabal")
+-                        .accessibilityIdentifier("cabals-new-button")
++                        .accessibilityIdentifier("cabals-plus-button")
+                     }
+                 }
+             }

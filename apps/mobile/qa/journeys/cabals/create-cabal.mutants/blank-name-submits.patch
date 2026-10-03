@@ -1,0 +1,19 @@
+journey: cabals/create-cabal
+expect-fail: S3
+
+Create cabal only checks that the name is not empty, so three spaces enable it. S3.2 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CreateGroupView.swift b/apps/mobile/Monaco/Features/Groups/CreateGroupView.swift
+index 6fdc9454..56dbfed5 100644
+--- a/apps/mobile/Monaco/Features/Groups/CreateGroupView.swift
++++ b/apps/mobile/Monaco/Features/Groups/CreateGroupView.swift
+@@ -94,7 +94,7 @@ struct CreateGroupView: View {
+                     .frame(maxWidth: .infinity)
+                 }
+                 .buttonStyle(.monacoPrimary)
+-                .disabled(isCreating || form.input == nil || actions == nil)
++                .disabled(isCreating || form.name.isEmpty || actions == nil)
+                 .accessibilityIdentifier("create-group-submit")
+             }
+         }
