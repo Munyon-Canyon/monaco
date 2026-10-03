@@ -18,7 +18,7 @@ struct AppNavigatorTests {
     }
 }
 
-private struct ProbeRoute: AppRoute {
+nonisolated private struct ProbeRoute: AppRoute {
     let marker: String
 
     func destination() -> some View {

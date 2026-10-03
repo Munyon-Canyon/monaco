@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import MonacoAPI
 import MonacoCore
 import PrivySDK
 import os
@@ -499,4 +500,14 @@ class PrivyAuthService: ObservableObject {
         try? data.write(to: url, options: .atomic)
     }
     #endif
+}
+
+extension PrivyAuthService: nonisolated MonacoAPI.AccessTokenProvider {
+    func accessToken() async throws -> String? {
+        accessToken
+    }
+
+    func refreshedToken(replacing stale: String) async throws -> String? {
+        try await refreshedAccessToken(replacing: stale)
+    }
 }

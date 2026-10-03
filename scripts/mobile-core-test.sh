@@ -31,7 +31,7 @@ fi
 cd "$root/packages/mobile-core"
 mkdir -p .build
 status=0
-swift test --force-resolved-versions -Xswiftc -warnings-as-errors --enable-code-coverage "$@" 2>&1 | tee .build/test-output.txt || status=$?
+swift test --build-system native --force-resolved-versions -Xswiftc -warnings-as-errors --enable-code-coverage "$@" 2>&1 | tee .build/test-output.txt || status=$?
 ((status == 0)) || exit "$status"
 (($# == 0)) || exit 0
 

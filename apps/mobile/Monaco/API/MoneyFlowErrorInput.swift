@@ -1,7 +1,7 @@
 import Foundation
 import MonacoCore
 
-extension FlowErrorInput {
+nonisolated extension FlowErrorInput {
     /// Reduces whatever a money request threw to what `MoneyFlowCopy` words its failures from.
     /// Anything without an HTTP status that isn't provably "never sent" stays status-less, so
     /// the copy treats it as unconfirmed rather than inviting a second transfer.
