@@ -73,6 +73,38 @@ SELECT coalesce(sum(share_units), 0)::text AS share_units
 FROM user_positions
 WHERE cabal_id = sqlc.arg(cabal_id)::uuid;
 
+-- name: CabalUserPosition :one
+SELECT share_units::text AS share_units, contributed_micros::text AS contributed_micros,
+  withdrawn_micros::text AS withdrawn_micros
+FROM user_positions
+WHERE cabal_id = sqlc.arg(cabal_id)::uuid AND user_id = sqlc.arg(user_id)::uuid;
+
+-- name: UserStakes :many
+SELECT p.cabal_id, p.user_id, p.share_units::text AS share_units, p.contributed_micros::text AS contributed_micros,
+  p.withdrawn_micros::text AS withdrawn_micros,
+  coalesce((SELECT sum(all_positions.share_units) FROM user_positions AS all_positions
+    WHERE all_positions.cabal_id = p.cabal_id), 0)::text AS total_shares
+FROM user_positions AS p
+WHERE p.user_id = sqlc.arg(user_id)::uuid AND p.share_units > 0
+ORDER BY p.cabal_id;
+
+-- name: CabalStakeSnapshot :many
+WITH stake AS (
+  SELECT share_units, contributed_micros, withdrawn_micros
+  FROM user_positions
+  WHERE cabal_id = sqlc.arg(cabal_id)::uuid AND user_id = sqlc.arg(user_id)::uuid
+), total AS (
+  SELECT coalesce(sum(share_units), 0)::text AS share_units FROM user_positions
+  WHERE cabal_id = sqlc.arg(cabal_id)::uuid
+)
+SELECT stake.share_units::text AS share_units, stake.contributed_micros::text AS contributed_micros,
+  stake.withdrawn_micros::text AS withdrawn_micros, total.share_units AS total_shares,
+  positions.asset, coalesce(positions.units, 0)::text AS units,
+  coalesce(positions.cost_basis_micros, 0)::text AS cost_basis_micros
+FROM stake CROSS JOIN total
+LEFT JOIN cabal_positions AS positions ON positions.cabal_id = sqlc.arg(cabal_id)::uuid AND positions.units > 0
+ORDER BY positions.asset;
+
 -- name: ApplyUserPosition :one
 WITH updated AS (
   UPDATE user_positions AS p SET

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const applyCabalPosition = `-- name: ApplyCabalPosition :one
@@ -142,6 +143,67 @@ func (q *Queries) CabalPositions(ctx context.Context, cabalID uuid.UUID) ([]Caba
 	return items, nil
 }
 
+const cabalStakeSnapshot = `-- name: CabalStakeSnapshot :many
+WITH stake AS (
+  SELECT share_units, contributed_micros, withdrawn_micros
+  FROM user_positions
+  WHERE cabal_id = $1::uuid AND user_id = $2::uuid
+), total AS (
+  SELECT coalesce(sum(share_units), 0)::text AS share_units FROM user_positions
+  WHERE cabal_id = $1::uuid
+)
+SELECT stake.share_units::text AS share_units, stake.contributed_micros::text AS contributed_micros,
+  stake.withdrawn_micros::text AS withdrawn_micros, total.share_units AS total_shares,
+  positions.asset, coalesce(positions.units, 0)::text AS units,
+  coalesce(positions.cost_basis_micros, 0)::text AS cost_basis_micros
+FROM stake CROSS JOIN total
+LEFT JOIN cabal_positions AS positions ON positions.cabal_id = $1::uuid AND positions.units > 0
+ORDER BY positions.asset
+`
+
+type CabalStakeSnapshotParams struct {
+	CabalID uuid.UUID
+	UserID  uuid.UUID
+}
+
+type CabalStakeSnapshotRow struct {
+	ShareUnits        string
+	ContributedMicros string
+	WithdrawnMicros   string
+	TotalShares       string
+	Asset             pgtype.Text
+	Units             string
+	CostBasisMicros   string
+}
+
+func (q *Queries) CabalStakeSnapshot(ctx context.Context, arg CabalStakeSnapshotParams) ([]CabalStakeSnapshotRow, error) {
+	rows, err := q.db.Query(ctx, cabalStakeSnapshot, arg.CabalID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabalStakeSnapshotRow
+	for rows.Next() {
+		var i CabalStakeSnapshotRow
+		if err := rows.Scan(
+			&i.ShareUnits,
+			&i.ContributedMicros,
+			&i.WithdrawnMicros,
+			&i.TotalShares,
+			&i.Asset,
+			&i.Units,
+			&i.CostBasisMicros,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const cabalTotalShares = `-- name: CabalTotalShares :one
 SELECT coalesce(sum(share_units), 0)::text AS share_units
 FROM user_positions
@@ -153,6 +215,31 @@ func (q *Queries) CabalTotalShares(ctx context.Context, cabalID uuid.UUID) (stri
 	var share_units string
 	err := row.Scan(&share_units)
 	return share_units, err
+}
+
+const cabalUserPosition = `-- name: CabalUserPosition :one
+SELECT share_units::text AS share_units, contributed_micros::text AS contributed_micros,
+  withdrawn_micros::text AS withdrawn_micros
+FROM user_positions
+WHERE cabal_id = $1::uuid AND user_id = $2::uuid
+`
+
+type CabalUserPositionParams struct {
+	CabalID uuid.UUID
+	UserID  uuid.UUID
+}
+
+type CabalUserPositionRow struct {
+	ShareUnits        string
+	ContributedMicros string
+	WithdrawnMicros   string
+}
+
+func (q *Queries) CabalUserPosition(ctx context.Context, arg CabalUserPositionParams) (CabalUserPositionRow, error) {
+	row := q.db.QueryRow(ctx, cabalUserPosition, arg.CabalID, arg.UserID)
+	var i CabalUserPositionRow
+	err := row.Scan(&i.ShareUnits, &i.ContributedMicros, &i.WithdrawnMicros)
+	return i, err
 }
 
 const insertCabalEntry = `-- name: InsertCabalEntry :exec
@@ -330,4 +417,50 @@ func (q *Queries) SetTransferStatus(ctx context.Context, arg SetTransferStatusPa
 	var i SetTransferStatusRow
 	err := row.Scan(&i.CabalRows, &i.UserRows)
 	return i, err
+}
+
+const userStakes = `-- name: UserStakes :many
+SELECT p.cabal_id, p.user_id, p.share_units::text AS share_units, p.contributed_micros::text AS contributed_micros,
+  p.withdrawn_micros::text AS withdrawn_micros,
+  coalesce((SELECT sum(all_positions.share_units) FROM user_positions AS all_positions
+    WHERE all_positions.cabal_id = p.cabal_id), 0)::text AS total_shares
+FROM user_positions AS p
+WHERE p.user_id = $1::uuid AND p.share_units > 0
+ORDER BY p.cabal_id
+`
+
+type UserStakesRow struct {
+	CabalID           uuid.UUID
+	UserID            uuid.UUID
+	ShareUnits        string
+	ContributedMicros string
+	WithdrawnMicros   string
+	TotalShares       string
+}
+
+func (q *Queries) UserStakes(ctx context.Context, userID uuid.UUID) ([]UserStakesRow, error) {
+	rows, err := q.db.Query(ctx, userStakes, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserStakesRow
+	for rows.Next() {
+		var i UserStakesRow
+		if err := rows.Scan(
+			&i.CabalID,
+			&i.UserID,
+			&i.ShareUnits,
+			&i.ContributedMicros,
+			&i.WithdrawnMicros,
+			&i.TotalShares,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

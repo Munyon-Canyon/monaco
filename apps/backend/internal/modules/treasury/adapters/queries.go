@@ -2,6 +2,8 @@ package adapters
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"log/slog"
 	"math/big"
 	"time"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -34,6 +37,9 @@ type Queries struct {
 type queryStore interface {
 	CabalPositions(context.Context, uuid.UUID) ([]sqlc.CabalPositionsRow, error)
 	CabalTotalShares(context.Context, uuid.UUID) (string, error)
+	CabalUserPosition(context.Context, sqlc.CabalUserPositionParams) (sqlc.CabalUserPositionRow, error)
+	CabalStakeSnapshot(context.Context, sqlc.CabalStakeSnapshotParams) ([]sqlc.CabalStakeSnapshotRow, error)
+	UserStakes(context.Context, uuid.UUID) ([]sqlc.UserStakesRow, error)
 }
 
 var _ port.Queries = (*Queries)(nil)
@@ -166,6 +172,111 @@ func (q *Queries) TotalShares(ctx context.Context, cabalID ids.CabalID) (money.S
 		return money.SharesUnits{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.TotalShares")
 	}
 	return shares(value)
+}
+
+func (q *Queries) ShareUnits(ctx context.Context, cabalID ids.CabalID, userID ids.UserID) (money.SharesUnits, error) {
+	position, err := q.userPosition(ctx, cabalID, userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return money.SharesUnits{}, nil
+	}
+	if err != nil {
+		return money.SharesUnits{}, err
+	}
+	return shares(position.ShareUnits)
+}
+
+func (q *Queries) Stake(ctx context.Context, cabalID ids.CabalID, userID ids.UserID) (port.Stake, error) {
+	rows, err := q.q.CabalStakeSnapshot(ctx, sqlc.CabalStakeSnapshotParams{
+		CabalID: cabalID.UUID(), UserID: userID.UUID(),
+	})
+	if err != nil {
+		return port.Stake{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.Stake")
+	}
+	if len(rows) == 0 {
+		return port.Stake{CabalID: cabalID, UserID: userID}, nil
+	}
+	row := rows[0]
+	stake, err := stakeFields(
+		cabalID, userID, row.ShareUnits, row.ContributedMicros, row.WithdrawnMicros, row.TotalShares,
+	)
+	if err != nil {
+		return port.Stake{}, err
+	}
+	if stake.ShareUnits.IsZero() {
+		return stake, nil
+	}
+	assets := map[chain.SolanaAddress]app.Asset{}
+	positions := make([]port.Position, 0, len(rows))
+	for _, row := range rows {
+		if !row.Asset.Valid {
+			continue
+		}
+		position, err := q.position(ctx, row.Asset.String, row.Units, row.CostBasisMicros, assets)
+		if err != nil {
+			return port.Stake{}, err
+		}
+		positions = append(positions, position)
+	}
+	pot, err := q.potValuePositions(ctx, positions, assets)
+	if err != nil {
+		return port.Stake{}, err
+	}
+	stake.ValueMicros, err = domain.PayoutFor(stake.ShareUnits, stake.TotalShares, pot)
+	return stake, err
+}
+
+func (q *Queries) StakesOf(ctx context.Context, userID ids.UserID) ([]port.Stake, error) {
+	rows, err := q.q.UserStakes(ctx, userID.UUID())
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.StakesOf")
+	}
+	out := make([]port.Stake, 0, len(rows))
+	for _, row := range rows {
+		cabalID := ids.CabalIDFrom(row.CabalID)
+		stake, err := q.Stake(ctx, cabalID, userID)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, stake)
+	}
+	return out, nil
+}
+
+func (q *Queries) userPosition(
+	ctx context.Context, cabalID ids.CabalID, userID ids.UserID,
+) (sqlc.CabalUserPositionRow, error) {
+	row, err := q.q.CabalUserPosition(ctx, sqlc.CabalUserPositionParams{
+		CabalID: cabalID.UUID(), UserID: userID.UUID(),
+	})
+	if err != nil {
+		return sqlc.CabalUserPositionRow{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.userPosition")
+	}
+	return row, nil
+}
+
+func stakeFields(
+	cabalID ids.CabalID, userID ids.UserID, units, contributed, withdrawn, total string,
+) (port.Stake, error) {
+	shareUnits, err := shares(units)
+	if err != nil {
+		return port.Stake{}, err
+	}
+	contributedMicros, err := micros(contributed)
+	if err != nil {
+		return port.Stake{}, err
+	}
+	withdrawnMicros, err := micros(withdrawn)
+	if err != nil {
+		return port.Stake{}, err
+	}
+	totalShares, err := shares(total)
+	if err != nil {
+		return port.Stake{}, err
+	}
+	return port.Stake{
+		CabalID: cabalID, UserID: userID, ShareUnits: shareUnits, TotalShares: totalShares,
+		ContributedMicros: contributedMicros, WithdrawnMicros: withdrawnMicros,
+	}, nil
 }
 
 func (q *Queries) position(
