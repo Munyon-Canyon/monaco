@@ -8,5 +8,6 @@ func init() {
 		IdentityHandleSet,
 		IdentityPhoneConflict,
 		IdentityProfileUpdated,
+		IdentityXConflict,
 	)
 }

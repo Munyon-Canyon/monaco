@@ -147,11 +147,15 @@ func (u Users) Onboard(ctx context.Context, q sqlc.DBTX, id ids.UserID, sync dom
 	if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
 		return err
 	}
-	if pgErr.ConstraintName != "users_phone_hash_key" {
-		return err
+	switch pgErr.ConstraintName {
+	case "users_phone_hash_key":
+		observability.Degraded(ctx, observability.IdentityPhoneConflict, slog.String("user_id", id.String()))
+		return errs.New(errs.CodePhoneNotLinked, "identity.Users.Onboard")
+	case "users_x_user_id_key":
+		observability.Degraded(ctx, observability.IdentityXConflict, slog.String("user_id", id.String()))
+		return errs.New(errs.CodeXNotLinked, "identity.Users.Onboard")
 	}
-	observability.Degraded(ctx, observability.IdentityPhoneConflict, slog.String("user_id", id.String()))
-	return errs.New(errs.CodePhoneNotLinked, "identity.Users.Onboard")
+	return err
 }
 
 func (Users) UpdateAuthState(

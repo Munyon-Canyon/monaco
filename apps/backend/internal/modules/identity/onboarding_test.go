@@ -34,10 +34,10 @@ func (f httpFixture) onboardingUser(t *testing.T, handle string, privy app.Privy
 	return u
 }
 
-func (f httpFixture) linkPhone(t *testing.T, user ids.UserID, body, key string) *httptest.ResponseRecorder {
+func (f httpFixture) onboard(t *testing.T, user ids.UserID, step, body, key string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequestWithContext(
-		t.Context(), http.MethodPost, "/v1/me/onboarding/phone", strings.NewReader(body),
+		t.Context(), http.MethodPost, "/v1/me/onboarding/"+step, strings.NewReader(body),
 	)
 	req.Header.Set("Authorization", "Bearer "+f.verifier.Mint(user.String(), f.now.Add(time.Hour)))
 	req.Header.Set("Content-Type", "application/json")
@@ -116,7 +116,7 @@ func TestLinkPhone_storesThePrivyPhoneNotTheBodyAndMovesToAwaitingSocialsOnce(t 
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.onboardingUser(t, "phone_one", app.PrivyUser{PhoneE164: onboardNo})
-	rec := f.linkPhone(t, u.ID, `{"phone":"+15550000000"}`, "p1")
+	rec := f.onboard(t, u.ID, "phone", `{"phone":"+15550000000"}`, "p1")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("link = %d %s", rec.Code, rec.Body)
 	}
@@ -125,7 +125,7 @@ func TestLinkPhone_storesThePrivyPhoneNotTheBodyAndMovesToAwaitingSocialsOnce(t 
 	}
 	sum := sha256.Sum256([]byte(onboardNo))
 	f.wantStoredPhone(t, u.ID, sum[:])
-	again := f.linkPhone(t, u.ID, ``, "p2")
+	again := f.onboard(t, u.ID, "phone", ``, "p2")
 	if again.Code != http.StatusOK || decodeMe(t, again).AuthState != api.AWAITINGSOCIALS {
 		t.Fatalf("again = %d %s", again.Code, again.Body)
 	}
@@ -143,14 +143,14 @@ func TestLinkPhone_refusesWithoutAHandleBeforeAskingPrivy(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{wallet: true})
-	wantProblem(t, f.linkPhone(t, u.ID, ``, "p1"), api.HandleRequired)
+	wantProblem(t, f.onboard(t, u.ID, "phone", ``, "p1"), api.HandleRequired)
 }
 
 func TestLinkPhone_refusesWhenPrivyHasNoPhone(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.onboardingUser(t, "phone_none", app.PrivyUser{Email: "none@example.com"})
-	wantProblem(t, f.linkPhone(t, u.ID, ``, "p1"), api.PhoneNotLinked)
+	wantProblem(t, f.onboard(t, u.ID, "phone", ``, "p1"), api.PhoneNotLinked)
 	if got := f.authSteps(t, u.ID); len(got) != 0 {
 		t.Fatalf("auth steps = %+v, want none", got)
 	}
@@ -161,7 +161,7 @@ func TestLinkPhone_aPrivyOutageIsPrivyUnavailable(t *testing.T) {
 	f := newHTTPFixture(t)
 	u := f.onboardingUser(t, "phone_down", app.PrivyUser{PhoneE164: onboardNo})
 	f.privy.FailOnce("User", errs.New(errs.CodePrivyUnavailable, "test.privy"))
-	wantProblem(t, f.linkPhone(t, u.ID, ``, "p1"), api.PrivyUnavailable)
+	wantProblem(t, f.onboard(t, u.ID, "phone", ``, "p1"), api.PrivyUnavailable)
 }
 
 func TestLinkPhone_aNumberAnotherUserHoldsIsPhoneNotLinkedAndLoggedWithoutTheNumber(t *testing.T) {
@@ -170,7 +170,7 @@ func TestLinkPhone_aNumberAnotherUserHoldsIsPhoneNotLinkedAndLoggedWithoutTheNum
 	sum := sha256.Sum256([]byte(onboardNo))
 	f.seed(t, portSeed{phoneHash: sum[:], phoneVerified: true})
 	u := f.onboardingUser(t, "phone_clash", app.PrivyUser{PhoneE164: onboardNo})
-	wantProblem(t, f.linkPhone(t, u.ID, ``, "p1"), api.PhoneNotLinked)
+	wantProblem(t, f.onboard(t, u.ID, "phone", ``, "p1"), api.PhoneNotLinked)
 	logs := f.logs.Bytes()
 	if !bytes.Contains(logs, []byte("identity.phone.conflict")) {
 		t.Fatalf("logs lack identity.phone.conflict:\n%s", logs)
@@ -186,9 +186,14 @@ func TestOnboardAdapter_passesOtherUniqueViolationsThrough(t *testing.T) {
 	f := newHTTPFixture(t)
 	f.seed(t, portSeed{xUserID: "x-held"})
 	u := f.seed(t, portSeed{})
-	sync := domain.LinkSync{X: domain.Write[*domain.XAccount]{Changed: true, Value: &domain.XAccount{UserID: "x-held"}}}
+	if _, err := f.pool.Exec(t.Context(), `UPDATE users SET x_username = 'held' WHERE x_user_id = 'x-held';
+		CREATE UNIQUE INDEX test_unique_x_username ON users (x_username)`); err != nil {
+		t.Fatal(err)
+	}
+	x := &domain.XAccount{UserID: "x-free", Username: "held"}
+	sync := domain.LinkSync{X: domain.Write[*domain.XAccount]{Changed: true, Value: x}}
 	err := adapters.Users{}.Onboard(t.Context(), f.pool, u.ID, sync, f.now)
-	if err == nil || errs.CodeOf(err) == errs.CodePhoneNotLinked {
+	if err == nil || errs.CodeOf(err) == errs.CodeXNotLinked {
 		t.Fatalf("Onboard = %v, want the raw unique violation", err)
 	}
 	_, err = adapters.Users{}.LockByID(t.Context(), f.pool, ids.UserID{})
@@ -269,8 +274,130 @@ func TestHTTP_onboardingRefusesCallersThatAreNotAUser(t *testing.T) {
 	t.Parallel()
 	h := adapters.HTTP{}
 	agent := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorAgent, ID: "a1"})
-	_, err := h.PostOnboardingPhone(agent, api.PostOnboardingPhoneRequestObject{})
-	if errs.CodeOf(err) != errs.CodeForbidden {
-		t.Fatalf("PostOnboardingPhone err = %v, want forbidden", err)
+	_, phone := h.PostOnboardingPhone(agent, api.PostOnboardingPhoneRequestObject{})
+	_, socials := h.PostOnboardingSocials(agent, api.PostOnboardingSocialsRequestObject{})
+	_, skip := h.PostOnboardingSkip(agent, api.PostOnboardingSkipRequestObject{})
+	for name, err := range map[string]error{"phone": phone, "socials": socials, "skip": skip} {
+		if errs.CodeOf(err) != errs.CodeForbidden {
+			t.Errorf("%s err = %v, want forbidden", name, err)
+		}
 	}
+	user := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: testkit.NewIDs(9).NewV7().String()})
+	_, err := h.PostOnboardingSkip(user, api.PostOnboardingSkipRequestObject{})
+	if errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("PostOnboardingSkip with no body err = %v, want invalid_input", err)
+	}
+}
+
+const onboardX = "x-onboard-1"
+
+func xUser() *domain.XAccount { return &domain.XAccount{UserID: onboardX, Username: "onboard_on_x"} }
+
+func (f httpFixture) wantState(t *testing.T, rec *httptest.ResponseRecorder, want api.AuthState) api.Me {
+	t.Helper()
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d %s", rec.Code, rec.Body)
+	}
+	me := decodeMe(t, rec)
+	if me.AuthState != want {
+		t.Fatalf("auth_state = %s, want %s", me.AuthState, want)
+	}
+	return me
+}
+
+func (f httpFixture) wantSteps(t *testing.T, user ids.UserID, want ...events.UserAuthStateChanged) {
+	t.Helper()
+	got := f.authSteps(t, user)
+	if len(got) != len(want) {
+		t.Fatalf("auth steps = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("auth steps = %+v, want %+v", got, want)
+		}
+	}
+}
+
+func onboardStep(from, to string) events.UserAuthStateChanged {
+	return events.UserAuthStateChanged{From: from, To: to, Cause: "onboarding"}
+}
+
+func TestLinkSocials_storesThePrivyXAccountOnce(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	u := f.onboardingUser(t, "x_one", app.PrivyUser{Email: "x@example.com", X: xUser()})
+	me := f.wantState(t, f.onboard(t, u.ID, "socials", `{"x_user_id":"spoof"}`, "x1"), api.AWAITINGPHONE)
+	if me.XUsername == nil || *me.XUsername != "onboard_on_x" {
+		t.Fatalf("x_username = %v, want onboard_on_x", me.XUsername)
+	}
+	f.wantState(t, f.onboard(t, u.ID, "socials", ``, "x2"), api.AWAITINGPHONE)
+	f.wantSteps(t, u.ID, onboardStep("CREATED", "AWAITING_PHONE"))
+	var stored string
+	if err := f.pool.QueryRow(t.Context(), `SELECT x_user_id FROM users WHERE id = $1`, u.ID.UUID()).
+		Scan(&stored); err != nil || stored != onboardX {
+		t.Fatalf("x_user_id = %q, %v, want %s", stored, err, onboardX)
+	}
+	assertNoPII(t, f.logs.Bytes(), onboardX, "spoof")
+}
+
+func TestLinkSocials_refusesWhatItCannotLink(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	none := f.seed(t, portSeed{wallet: true})
+	wantProblem(t, f.onboard(t, none.ID, "socials", ``, "x1"), api.HandleRequired)
+	bare := f.onboardingUser(t, "x_bare", app.PrivyUser{Email: "bare@example.com"})
+	wantProblem(t, f.onboard(t, bare.ID, "socials", ``, "x1"), api.XNotLinked)
+	f.seed(t, portSeed{xUserID: onboardX})
+	clash := f.onboardingUser(t, "x_clash", app.PrivyUser{Email: "clash@example.com", X: xUser()})
+	wantProblem(t, f.onboard(t, clash.ID, "socials", ``, "x1"), api.XNotLinked)
+	logs := f.logs.Bytes()
+	if !bytes.Contains(logs, []byte("identity.x.conflict")) {
+		t.Fatalf("logs lack identity.x.conflict:\n%s", logs)
+	}
+	assertNoPII(t, logs, onboardX)
+	f.wantSteps(t, bare.ID)
+	f.wantSteps(t, clash.ID)
+}
+
+func TestSkipOnboardingStep_skipsThePhoneOnceAndTheSocialsWithoutAMove(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	u := f.onboardingUser(t, "skip_one", app.PrivyUser{})
+	f.wantState(t, f.onboard(t, u.ID, "skip", `{"step":"phone"}`, "s1"), api.AWAITINGPHONE)
+	f.wantState(t, f.onboard(t, u.ID, "skip", `{"step":"phone"}`, "s2"), api.AWAITINGPHONE)
+	f.wantState(t, f.onboard(t, u.ID, "skip", `{"step":"socials"}`, "s3"), api.AWAITINGPHONE)
+	f.wantSteps(t, u.ID, onboardStep("CREATED", "AWAITING_PHONE"))
+	wantProblem(t, f.onboard(t, u.ID, "skip", `{"step":"email"}`, "s4"), api.InvalidInput)
+	none := f.seed(t, portSeed{wallet: true})
+	wantProblem(t, f.onboard(t, none.ID, "skip", `{"step":"socials"}`, "s1"), api.HandleRequired)
+	h := app.NewOnboarding(app.OnboardingDeps{Reads: f.pool, Users: adapters.Users{}})
+	if _, err := h.Skip(t.Context(), u.ID, "email"); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("Skip(email) = %v, want invalid_input", err)
+	}
+}
+
+func TestOnboarding_eachPathEndsWhereTheAuthStateMachineSays(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	both := app.PrivyUser{PhoneE164: onboardNo, X: xUser()}
+	skipThenX := f.onboardingUser(t, "path_one", both)
+	f.wantState(t, f.onboard(t, skipThenX.ID, "skip", `{"step":"phone"}`, "a1"), api.AWAITINGPHONE)
+	f.wantState(t, f.onboard(t, skipThenX.ID, "socials", ``, "a2"), api.AWAITINGPHONE)
+	f.wantSteps(t, skipThenX.ID, onboardStep("CREATED", "AWAITING_PHONE"))
+
+	phoneThenSkip := f.onboardingUser(t, "path_two", app.PrivyUser{PhoneE164: "+14155550143"})
+	f.wantState(t, f.onboard(t, phoneThenSkip.ID, "phone", ``, "b1"), api.AWAITINGSOCIALS)
+	me := f.wantState(t, f.onboard(t, phoneThenSkip.ID, "skip", `{"step":"socials"}`, "b2"), api.AWAITINGSOCIALS)
+	if !me.PhoneLinked {
+		t.Fatal("skipping socials cleared the phone")
+	}
+	f.wantSteps(t, phoneThenSkip.ID, onboardStep("CREATED", "AWAITING_SOCIALS"))
+
+	phoneThenX := f.onboardingUser(t, "path_three", app.PrivyUser{PhoneE164: "+14155550144", X: &domain.XAccount{
+		UserID: "x-onboard-3", Username: "three_on_x",
+	}})
+	f.wantState(t, f.onboard(t, phoneThenX.ID, "phone", ``, "c1"), api.AWAITINGSOCIALS)
+	f.wantState(t, f.onboard(t, phoneThenX.ID, "socials", ``, "c2"), api.ONBOARDINGCOMPLETED)
+	f.wantSteps(t, phoneThenX.ID,
+		onboardStep("CREATED", "AWAITING_SOCIALS"), onboardStep("AWAITING_SOCIALS", "ONBOARDING_COMPLETED"))
 }

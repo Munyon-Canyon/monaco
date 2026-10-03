@@ -277,6 +277,18 @@ func (*actorProbe) PostOnboardingPhone(
 	return nil, errs.New(errs.CodeNotFound, "actorProbe.PostOnboardingPhone")
 }
 
+func (*actorProbe) PostOnboardingSocials(
+	context.Context, api.PostOnboardingSocialsRequestObject,
+) (api.PostOnboardingSocialsResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "actorProbe.PostOnboardingSocials")
+}
+
+func (*actorProbe) PostOnboardingSkip(
+	context.Context, api.PostOnboardingSkipRequestObject,
+) (api.PostOnboardingSkipResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "actorProbe.PostOnboardingSkip")
+}
+
 func (p *actorProbe) GetMe(ctx context.Context, _ api.GetMeRequestObject) (api.GetMeResponseObject, error) {
 	a, _ := auth.ActorFrom(ctx)
 	p.mu.Lock()
