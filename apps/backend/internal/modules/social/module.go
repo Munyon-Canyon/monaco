@@ -40,6 +40,7 @@ func (m *Module) Routes(r *httpx.Routes) {
 			UoW: m.deps.UoW, Users: m.users, IDs: m.deps.IDs, Clock: m.deps.Clock,
 		}),
 		Unfollow: app.NewUnfollowHandler(m.deps.UoW, m.deps.Clock),
+		Reads:    m.deps.Pool,
 	}
 }
 

@@ -31,11 +31,13 @@ The feed is a fifth bottom tab, **Feed**, between Home and Cabals (default 2026-
 feed_objects
   id             uuid      UUIDv7
   kind           text      trade | proposal | cabal_created | member_joined | price_move
-  ref_type       text      swaps | proposals | cabals | cabal_members | assets
+  ref_type       text      swaps | proposals | cabals | cabal_members | asset_price_moves, one per kind
   ref_id         uuid      source row
   cabal_id       uuid?     null for price_move and news
+  cabal_name     text?     snapshot, for search
   actor_id       uuid?     proposer, or null for system items
   asset_id       uuid?     stock the item is about
+  symbol         text?     snapshot, for the symbol filter and search
   title          text      rendered headline, e.g. "Alpha Cabal bought $500 of AAPLx"
   body           text?     thesis, news summary
   payload        jsonb     kind-specific snapshot: amounts, % move, tally, status
@@ -46,14 +48,18 @@ feed_objects
   updated_at     timestamptz
 
 feed_comments
-  id, feed_object_id, author_id, parent_comment_id?, body (1 to 1000 chars), created_at, deleted_at?
+  id, feed_object_id, author_id, parent_comment_id?, reply_to_user_id?, body (1 to 1000 chars), created_at,
+  deleted_at?, deleted_by?
+
+feed_mutes
+  user_id, target_type (kind | cabal | asset | user | item), target_id, label?, created_at
 ```
 
 Unique on `(ref_type, ref_id, kind)` so a redelivered event cannot create a duplicate item.
 
 `payload` is a snapshot so the list renders from one table without joins. Amounts in it are integer base units (`money.Micros`), and percentages are integer basis points, never floats ([Money and types](backend-platform.md#money-and-types)). The server renders `title` and every display string, so the app only formats ([Thin client](backend-platform.md#thin-client)). When the source changes (a proposal passes or executes), the `feed` consumer updates the feed row's `status` and `payload`. Tapping an item fetches the live source detail.
 
-The source rows (`swaps`, `proposals`, `cabals`, `cabal_members`, `assets`) belong to other modules. A `trade` item points at trading's `swaps` row, not at a ledger row. `news` joins `kind` when news ships. `ref_type` and `ref_id` are identifiers only. The feed never joins those tables; it reads what the event payload carried, or a module's read-only query port ([Dependency rules](backend-platform.md#dependency-rules-enforced-by-depguard)).
+The source rows (`swaps`, `proposals`, `cabals`, `cabal_members`, `asset_price_moves`) belong to other modules. A `trade` item points at trading's `swaps` row, not at a ledger row. `news` joins `kind` when news ships. `ref_type` and `ref_id` are identifiers only. The feed never joins those tables; it reads what the event payload carried, or a module's read-only query port ([Dependency rules](backend-platform.md#dependency-rules-enforced-by-depguard)).
 
 ## Writing feed items
 
@@ -84,6 +90,8 @@ GET /v1/feed?kind=proposal,trade&cabal_id=…&symbol=AAPL&q=earnings
 | `q` | Full-text search over the `search` column (Postgres `tsvector`, GIN index). Symbol and cabal-name matches rank first. |
 | `sort` | `new` (default, `created_at desc`) or `top`: `comment_count` plus votes, over items from the last 24 h (default 2026-09-27). |
 | `cursor` | Keyset pagination on `(created_at, id)`. No offset paging. |
+
+Each item in the response carries `title`, `detail` and `tone` (`neutral`, `positive` or `negative`), all rendered by the server from `payload`, and never the raw `payload`. `GET /v1/feed/{id}` returns one item plus `visible`, whether it passes the filters sent with the request. The cursor is opaque base64 of `(created_at, id)`. `q` filters with `websearch_to_tsquery` under both the `english` and `simple` configurations and keeps the newest-first order.
 
 This is a CQRS-lite query: it reads `feed_objects` directly through sqlc and bypasses the domain ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). `scope=mine` needs the viewer's cabals. The `social` module keeps that membership from `cabal.member_joined` and `cabal.member_left`, which it already consumes, or reads it through the `cabal` module's query port.
 

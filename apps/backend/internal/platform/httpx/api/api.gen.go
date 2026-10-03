@@ -215,6 +215,7 @@ const (
 	DbUnavailable              ErrorCode = "db_unavailable"
 	DecodeFailed               ErrorCode = "decode_failed"
 	DisplayNameInvalid         ErrorCode = "display_name_invalid"
+	FeedItemNotFound           ErrorCode = "feed_item_not_found"
 	Forbidden                  ErrorCode = "forbidden"
 	HandleInvalid              ErrorCode = "handle_invalid"
 	HandleRequired             ErrorCode = "handle_required"
@@ -331,6 +332,8 @@ func (e ErrorCode) Valid() bool {
 	case DecodeFailed:
 		return true
 	case DisplayNameInvalid:
+		return true
+	case FeedItemNotFound:
 		return true
 	case Forbidden:
 		return true
@@ -728,6 +731,57 @@ func (e GetCabalProposalsParamsFilter) Valid() bool {
 	case GetCabalProposalsParamsFilterClosed:
 		return true
 	case GetCabalProposalsParamsFilterOpen:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetFeedParamsScope.
+const (
+	GetFeedParamsScopeAll       GetFeedParamsScope = "all"
+	GetFeedParamsScopeFollowing GetFeedParamsScope = "following"
+)
+
+// Valid indicates whether the value is a known member of the GetFeedParamsScope enum.
+func (e GetFeedParamsScope) Valid() bool {
+	switch e {
+	case GetFeedParamsScopeAll:
+		return true
+	case GetFeedParamsScopeFollowing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetFeedParamsSort.
+const (
+	New GetFeedParamsSort = "new"
+)
+
+// Valid indicates whether the value is a known member of the GetFeedParamsSort enum.
+func (e GetFeedParamsSort) Valid() bool {
+	switch e {
+	case New:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetFeedItemParamsScope.
+const (
+	GetFeedItemParamsScopeAll       GetFeedItemParamsScope = "all"
+	GetFeedItemParamsScopeFollowing GetFeedItemParamsScope = "following"
+)
+
+// Valid indicates whether the value is a known member of the GetFeedItemParamsScope enum.
+func (e GetFeedItemParamsScope) Valid() bool {
+	switch e {
+	case GetFeedItemParamsScopeAll:
+		return true
+	case GetFeedItemParamsScopeFollowing:
 		return true
 	default:
 		return false
@@ -1292,6 +1346,108 @@ type DeviceRegistration struct {
 //
 // Examples: not_found
 type ErrorCode string
+
+// FeedItem One feed item with its display strings rendered.
+type FeedItem struct {
+	// ActorId The user who acted. Null for a system item.
+	//
+	// Examples: null
+	ActorId *openapi_types.UUID `json:"actor_id"`
+
+	// Body Free text, such as a proposal's thesis.
+	//
+	// Examples: null
+	Body *string `json:"body"`
+
+	// CabalId The cabal the item is about. Null for a price move.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	CabalId *openapi_types.UUID `json:"cabal_id"`
+
+	// CommentCount The number of comments.
+	//
+	// Examples: 0
+	CommentCount int32 `json:"comment_count"`
+
+	// CreatedAt When the item was created.
+	//
+	// Examples: 2026-10-03T08:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// Detail A rendered second line, if the item has one.
+	//
+	// Examples: Apple
+	Detail *string `json:"detail"`
+
+	// Id The item's id.
+	//
+	// Examples: 01920000-0000-7000-8000-000000000007
+	Id openapi_types.UUID `json:"id"`
+
+	// Kind `proposal`, `trade`, `price_move`, `cabal_created` or `member_joined`.
+	//
+	// Examples: trade
+	Kind string `json:"kind"`
+
+	// RefId The source row's id.
+	//
+	// Examples: 01920000-0000-7000-8000-000000000008
+	RefId openapi_types.UUID `json:"ref_id"`
+
+	// RefType The source the item points at, such as `swaps` for a trade.
+	//
+	// Examples: swaps
+	RefType string `json:"ref_type"`
+
+	// Status The source's status, for proposals.
+	//
+	// Examples: null
+	Status *string `json:"status"`
+
+	// Symbol The stock symbol, if the item is about one.
+	//
+	// Examples: AAPLx
+	Symbol *string `json:"symbol"`
+
+	// Title The rendered headline.
+	//
+	// Examples: Alpha Cabal bought $500 of AAPLx
+	Title string `json:"title"`
+
+	// Tone `neutral`, `positive` or `negative`, so the app can color the item without reading amounts.
+	//
+	// Examples: neutral
+	Tone string `json:"tone"`
+
+	// UpdatedAt When the item last changed.
+	//
+	// Examples: 2026-10-03T08:00:00Z
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// FeedItemDetail One feed item and whether it passes the request's filters.
+type FeedItemDetail struct {
+	// Item One feed item with its display strings rendered.
+	Item FeedItem `json:"item"`
+
+	// Visible True when the item passes the filters sent with the request.
+	//
+	// Examples: true
+	Visible bool `json:"visible"`
+}
+
+// FeedPage One page of feed items, newest first.
+type FeedPage struct {
+	// Items The page.
+	//
+	// Examples: []
+	Items []FeedItem `json:"items"`
+
+	// NextCursor The cursor for the next page. Null on the last page.
+	//
+	// Examples: null
+	NextCursor *string `json:"next_cursor"`
+}
 
 // FollowRequest Where a follow came from.
 type FollowRequest struct {
@@ -2097,6 +2253,60 @@ type DeleteDeviceParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// GetFeedParams defines parameters for GetFeed.
+type GetFeedParams struct {
+	// Kind A comma-separated list of kinds to include: `proposal`, `trade`, `price_move`, `cabal_created` and `member_joined`. Absent includes every kind.
+	Kind *string `form:"kind,omitempty" json:"kind,omitempty"`
+
+	// CabalId Include only items about this cabal.
+	CabalId *openapi_types.UUID `form:"cabal_id,omitempty" json:"cabal_id,omitempty"`
+
+	// Symbol Include only items about this stock symbol, ignoring case.
+	Symbol *string `form:"symbol,omitempty" json:"symbol,omitempty"`
+
+	// Q Full-text search over each item's symbol, cabal name, title and body. It filters the items and leaves the order newest first.
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// Scope `all` (the default) or `following`, the items whose actor the caller follows.
+	Scope *GetFeedParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// Sort `new` (the default): newest first.
+	Sort *GetFeedParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// Cursor The `next_cursor` from the previous page. Absent reads the first page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Page size. Defaults to 30 and cannot exceed 50.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetFeedParamsScope defines parameters for GetFeed.
+type GetFeedParamsScope string
+
+// GetFeedParamsSort defines parameters for GetFeed.
+type GetFeedParamsSort string
+
+// GetFeedItemParams defines parameters for GetFeedItem.
+type GetFeedItemParams struct {
+	// Kind A comma-separated list of kinds to include: `proposal`, `trade`, `price_move`, `cabal_created` and `member_joined`. Absent includes every kind.
+	Kind *string `form:"kind,omitempty" json:"kind,omitempty"`
+
+	// CabalId Include only items about this cabal.
+	CabalId *openapi_types.UUID `form:"cabal_id,omitempty" json:"cabal_id,omitempty"`
+
+	// Symbol Include only items about this stock symbol, ignoring case.
+	Symbol *string `form:"symbol,omitempty" json:"symbol,omitempty"`
+
+	// Q Full-text search over each item's symbol, cabal name, title and body. It filters the items and leaves the order newest first.
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// Scope `all` (the default) or `following`, the items whose actor the caller follows.
+	Scope *GetFeedItemParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+}
+
+// GetFeedItemParamsScope defines parameters for GetFeedItem.
+type GetFeedItemParamsScope string
+
 // PatchMeParams defines parameters for PatchMe.
 type PatchMeParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -2264,6 +2474,12 @@ type ServerInterface interface {
 	// DeleteDevice Remove one of the caller's device tokens.
 	// (DELETE /v1/devices/{token})
 	DeleteDevice(w http.ResponseWriter, r *http.Request, token string, params DeleteDeviceParams)
+	// GetFeed Read the feed.
+	// (GET /v1/feed)
+	GetFeed(w http.ResponseWriter, r *http.Request, params GetFeedParams)
+	// GetFeedItem Read one feed item.
+	// (GET /v1/feed/{id})
+	GetFeedItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetFeedItemParams)
 	// GetHandleAvailability Check whether the caller can claim a handle.
 	// (GET /v1/handles/{handle}/availability)
 	GetHandleAvailability(w http.ResponseWriter, r *http.Request, handle string)
@@ -3262,6 +3478,224 @@ func (siw *ServerInterfaceWrapper) DeleteDevice(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// GetFeed operation middleware
+func (siw *ServerInterfaceWrapper) GetFeed(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetFeedParams
+
+	// ------------- Optional query parameter "kind" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "kind", r.URL.Query(), &params.Kind, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "kind"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "kind", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cabal_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cabal_id", r.URL.Query(), &params.CabalId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cabal_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cabal_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "symbol" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "symbol", r.URL.Query(), &params.Symbol, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "symbol"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "symbol", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", r.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "q"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "q", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", r.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scope"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", r.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFeed(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFeedItem operation middleware
+func (siw *ServerInterfaceWrapper) GetFeedItem(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetFeedItemParams
+
+	// ------------- Optional query parameter "kind" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "kind", r.URL.Query(), &params.Kind, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "kind"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "kind", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cabal_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cabal_id", r.URL.Query(), &params.CabalId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cabal_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cabal_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "symbol" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "symbol", r.URL.Query(), &params.Symbol, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "symbol"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "symbol", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", r.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "q"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "q", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "scope" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "scope", r.URL.Query(), &params.Scope, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "scope"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scope", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFeedItem(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetHandleAvailability operation middleware
 func (siw *ServerInterfaceWrapper) GetHandleAvailability(w http.ResponseWriter, r *http.Request) {
 
@@ -4079,6 +4513,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/proposals", wrapper.GetCabalProposals)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/devices", wrapper.PostDevice)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/devices/{token}", wrapper.DeleteDevice)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed", wrapper.GetFeed)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed/{id}", wrapper.GetFeedItem)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/handles/{handle}/availability", wrapper.GetHandleAvailability)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/invite-codes/{code}", wrapper.GetCabalByCode)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me", wrapper.GetMe)
@@ -4836,6 +5272,85 @@ type DeleteDevicedefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response DeleteDevicedefaultApplicationProblemPlusJSONResponse) VisitDeleteDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFeedRequestObject struct {
+	Params GetFeedParams
+}
+
+type GetFeedResponseObject interface {
+	VisitGetFeedResponse(w http.ResponseWriter) error
+}
+
+type GetFeed200JSONResponse FeedPage
+
+func (response GetFeed200JSONResponse) VisitGetFeedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFeeddefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetFeeddefaultApplicationProblemPlusJSONResponse) VisitGetFeedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFeedItemRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetFeedItemParams
+}
+
+type GetFeedItemResponseObject interface {
+	VisitGetFeedItemResponse(w http.ResponseWriter) error
+}
+
+type GetFeedItem200JSONResponse FeedItemDetail
+
+func (response GetFeedItem200JSONResponse) VisitGetFeedItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFeedItemdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetFeedItemdefaultApplicationProblemPlusJSONResponse) VisitGetFeedItemResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -5682,6 +6197,12 @@ type StrictServerInterface interface {
 	// DeleteDevice Remove one of the caller's device tokens.
 	// (DELETE /v1/devices/{token})
 	DeleteDevice(ctx context.Context, request DeleteDeviceRequestObject) (DeleteDeviceResponseObject, error)
+	// GetFeed Read the feed.
+	// (GET /v1/feed)
+	GetFeed(ctx context.Context, request GetFeedRequestObject) (GetFeedResponseObject, error)
+	// GetFeedItem Read one feed item.
+	// (GET /v1/feed/{id})
+	GetFeedItem(ctx context.Context, request GetFeedItemRequestObject) (GetFeedItemResponseObject, error)
 	// GetHandleAvailability Check whether the caller can claim a handle.
 	// (GET /v1/handles/{handle}/availability)
 	GetHandleAvailability(ctx context.Context, request GetHandleAvailabilityRequestObject) (GetHandleAvailabilityResponseObject, error)
@@ -6313,6 +6834,59 @@ func (sh *strictHandler) DeleteDevice(w http.ResponseWriter, r *http.Request, to
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DeleteDeviceResponseObject); ok {
 		if err := validResponse.VisitDeleteDeviceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetFeed operation middleware
+func (sh *strictHandler) GetFeed(w http.ResponseWriter, r *http.Request, params GetFeedParams) {
+	var request GetFeedRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFeed(ctx, request.(GetFeedRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFeed")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFeedResponseObject); ok {
+		if err := validResponse.VisitGetFeedResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetFeedItem operation middleware
+func (sh *strictHandler) GetFeedItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetFeedItemParams) {
+	var request GetFeedItemRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFeedItem(ctx, request.(GetFeedItemRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFeedItem")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFeedItemResponseObject); ok {
+		if err := validResponse.VisitGetFeedItemResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

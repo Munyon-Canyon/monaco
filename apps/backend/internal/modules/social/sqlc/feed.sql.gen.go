@@ -13,6 +13,88 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getFeedItem = `-- name: GetFeedItem :one
+SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
+  f.comment_count, f.created_at, f.updated_at,
+  (
+    (cardinality($1::text[]) = 0 OR f.kind = ANY($1::text[]))
+    AND ($2::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id IS NOT DISTINCT FROM $2::uuid)
+    AND ($3::text = '' OR lower(coalesce(f.symbol, '')) = lower($3::text))
+    AND (
+      $4::text = ''
+      OR f.search @@ websearch_to_tsquery('english', $4::text)
+      OR f.search @@ websearch_to_tsquery('simple', $4::text)
+    )
+    AND (
+      NOT $5::bool
+      OR coalesce(f.actor_id IN (
+        SELECT followee_id FROM follows WHERE follower_id = $6::uuid AND deleted_at IS NULL
+      ), false)
+    )
+  )::bool AS visible
+FROM feed_objects f
+WHERE f.id = $7
+`
+
+type GetFeedItemParams struct {
+	Kinds     []string
+	CabalID   uuid.UUID
+	Symbol    string
+	Q         string
+	Following bool
+	Viewer    uuid.UUID
+	ID        uuid.UUID
+}
+
+type GetFeedItemRow struct {
+	ID           uuid.UUID
+	Kind         string
+	RefType      string
+	RefID        uuid.UUID
+	CabalID      pgtype.UUID
+	ActorID      pgtype.UUID
+	Symbol       pgtype.Text
+	Title        string
+	Body         pgtype.Text
+	Payload      []byte
+	Status       pgtype.Text
+	CommentCount int32
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	Visible      bool
+}
+
+func (q *Queries) GetFeedItem(ctx context.Context, arg GetFeedItemParams) (GetFeedItemRow, error) {
+	row := q.db.QueryRow(ctx, getFeedItem,
+		arg.Kinds,
+		arg.CabalID,
+		arg.Symbol,
+		arg.Q,
+		arg.Following,
+		arg.Viewer,
+		arg.ID,
+	)
+	var i GetFeedItemRow
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.RefType,
+		&i.RefID,
+		&i.CabalID,
+		&i.ActorID,
+		&i.Symbol,
+		&i.Title,
+		&i.Body,
+		&i.Payload,
+		&i.Status,
+		&i.CommentCount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Visible,
+	)
+	return i, err
+}
+
 const listFeed = `-- name: ListFeed :many
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
   f.comment_count, f.created_at, f.updated_at

@@ -31,6 +31,7 @@ components:
         - db_unavailable
         - decode_failed
         - display_name_invalid
+        - feed_item_not_found
         - forbidden
         - handle_invalid
         - handle_required

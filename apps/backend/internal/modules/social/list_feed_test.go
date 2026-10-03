@@ -125,6 +125,7 @@ func TestFeedQuery_Filters(t *testing.T) {
 	if _, err := f.pool.Exec(t.Context(), follow, f.gen.NewV7(), viewer.UUID(), carol.UUID(), unfollowed); err != nil {
 		t.Fatal(err)
 	}
+	all := []uuid.UUID{trade, tesla, proposal, move, joined}
 	for name, c := range map[string]struct {
 		filter app.FeedFilter
 		want   []uuid.UUID
@@ -148,6 +149,20 @@ func TestFeedQuery_Filters(t *testing.T) {
 		got := f.list(t, app.FeedQuery{Viewer: viewer, Filter: c.filter}).Items
 		if !sameSet(idsOf(got), c.want) {
 			t.Errorf("%s: got %v, want %v", name, idsOf(got), c.want)
+		}
+		f.wantVisibleExactly(t, viewer, c.filter, all, c.want)
+	}
+}
+
+func (f feedFixture) wantVisibleExactly(t *testing.T, viewer ids.UserID, filter app.FeedFilter, all, want []uuid.UUID) {
+	t.Helper()
+	for _, id := range all {
+		view, err := app.GetFeedItem(t.Context(), f.pool, viewer, id, filter)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if view.Item.ID != id || view.Visible != slices.Contains(want, id) {
+			t.Errorf("%+v: item %s visible = %v, want %v", filter, id, view.Visible, slices.Contains(want, id))
 		}
 	}
 }
@@ -266,5 +281,31 @@ func TestFeedQuery_defaultPageReadsTheNewestIndexWithoutASeqScan(t *testing.T) {
 	text := strings.Join(plan, "\n")
 	if strings.Contains(text, "Seq Scan") || !strings.Contains(text, "feed_objects_newest_idx") {
 		t.Fatalf("default feed page plan:\n%s\nwant an index scan on feed_objects_newest_idx and no seq scan", text)
+	}
+}
+
+func TestGetFeedItem_namesAnUnknownItem(t *testing.T) {
+	t.Parallel()
+	f := newFeedFixture(t)
+	_, err := app.GetFeedItem(t.Context(), f.pool, ids.NewUserID(f.gen), f.gen.NewV7(), app.FeedFilter{})
+	wantCode(t, err, errs.CodeFeedItemNotFound)
+}
+
+func TestGetFeedItem_failsOnAPayloadItCannotReadOrADatabaseFailure(t *testing.T) {
+	t.Parallel()
+	f := newFeedFixture(t)
+	id := f.gen.NewV7()
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO feed_objects (id, kind, ref_type, ref_id, title, payload,
+		created_at, updated_at) VALUES ($1, 'trade', 'swaps', $2, 't', '{"usdc_micros": 1.5}', now(), now())`,
+		id, f.gen.NewV7())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = app.GetFeedItem(t.Context(), f.pool, ids.NewUserID(f.gen), id, app.FeedFilter{})
+	wantCode(t, err, errs.CodeInternal)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := app.GetFeedItem(ctx, f.pool, ids.NewUserID(f.gen), id, app.FeedFilter{}); err == nil {
+		t.Fatal("GetFeedItem on a cancelled context succeeded")
 	}
 }

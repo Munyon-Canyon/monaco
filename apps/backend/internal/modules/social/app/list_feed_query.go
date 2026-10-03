@@ -62,11 +62,8 @@ func ListFeed(ctx context.Context, db sqlc.DBTX, q FeedQuery) (FeedPage, error) 
 	if q.Limit < 1 || q.Limit > FeedPageMax {
 		return FeedPage{}, errs.New(errs.CodeInvalidInput, op, slog.Int("limit", q.Limit))
 	}
-	params := sqlc.ListFeedParams{
-		Kinds: kindStrings(q.Filter.Kinds), CabalID: q.Filter.CabalID.UUID(),
-		Symbol: q.Filter.Symbol, Q: q.Filter.Q, Following: q.Filter.Scope == feed.ScopeFollowing,
-		Viewer: q.Viewer.UUID(), RowLimit: int32(q.Limit) + 1,
-	}
+	params := filterParams(q.Viewer, q.Filter)
+	params.RowLimit = int32(q.Limit) + 1
 	if q.After != nil {
 		params.HasCursor, params.AfterAt, params.AfterID = true, q.After.At, q.After.ID
 	}
@@ -102,6 +99,13 @@ func feedItemOf(row sqlc.ListFeedRow) (FeedItem, error) {
 		Status: row.Status.String, Tone: feed.RenderTone(kind, payload), CommentCount: row.CommentCount,
 		CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC(),
 	}, nil
+}
+
+func filterParams(viewer ids.UserID, f FeedFilter) sqlc.ListFeedParams {
+	return sqlc.ListFeedParams{
+		Kinds: kindStrings(f.Kinds), CabalID: f.CabalID.UUID(), Symbol: f.Symbol, Q: f.Q,
+		Following: f.Scope == feed.ScopeFollowing, Viewer: viewer.UUID(),
+	}
 }
 
 func kindStrings(kinds []feed.Kind) []string {
