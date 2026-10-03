@@ -149,36 +149,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
         return try JSONDecoder().decode(PlatformWithdrawalResponseDTO.self, from: response.data)
     }
 
-    /// `PATCH /v1/me` — set the signed-in user's display name.
-    public func updateProfile(displayName: String) async throws -> MeDTO {
-        let url = baseURL.appending(path: "v1/me")
-        var request = URLRequest(url: url)
-        request.httpMethod = "PATCH"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        try await applyAuthorizationHeader(to: &request)
-        request.httpBody = try JSONEncoder().encode(UpdateProfileRequestDTO(displayName: displayName))
-
-        let response = try await session.send(request, route: "/v1/me")
-        try Self.requireOK(response)
-        return try JSONDecoder().decode(MeDTO.self, from: response.data)
-    }
-
-    /// `POST /v1/me/profile-photo` — multipart field `photo`; jpeg, png, or webp up to 2MB.
-    public func uploadProfilePhoto(imageData: Data, mimeType: String) async throws -> MeDTO {
-        let boundary = "Boundary-\(UUID().uuidString)"
-        let url = baseURL.appending(path: "v1/me/profile-photo")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        try await applyAuthorizationHeader(to: &request)
-        request.httpBody = ProfilePhotoMultipart.body(imageData: imageData, mimeType: mimeType, boundary: boundary)
-
-        let response = try await session.send(
-            request, route: "/v1/me/profile-photo", timeout: MonacoRequestTimeout.upload)
-        try Self.requireOK(response)
-        return try JSONDecoder().decode(MeDTO.self, from: response.data)
-    }
-
     /// How much of a failed response a route keeps.
     enum ErrorMapping {
         /// Just the status. What most routes still do, because their callers pattern-match

@@ -312,7 +312,7 @@ struct AppSessionStoreBootstrapTests {
 
         let foreground = Task { await store.noteForeground(auth: auth) }
         while await transport.sent.count < 2 { await Task.yield() }
-        let outcome = await store.updateDisplayName("New name", auth: auth, optimistic: false)
+        let outcome = await saveNewName(store, auth: auth)
         #expect(outcome == .saved)
         await transport.releaseGate(.json(.ok, SessionWire.me))
         await foreground.value
@@ -327,7 +327,7 @@ struct AppSessionStoreBootstrapTests {
         let auth = StubAuth()
         await store.bootstrap(auth: auth)
 
-        let save = Task { await store.updateDisplayName("New name", auth: auth, optimistic: false) }
+        let save = Task { await saveNewName(store, auth: auth) }
         while await transport.sent.count < 2 { await Task.yield() }
         let foreground = Task { await store.noteForeground(auth: auth) }
         while await transport.sent.count < 3 { await Task.yield() }
@@ -402,7 +402,7 @@ struct AppSessionStoreBootstrapTests {
         let auth = StubAuth()
         await store.bootstrap(auth: auth)
 
-        let outcome = await store.updateDisplayName("New name", auth: auth, optimistic: false)
+        let outcome = await saveNewName(store, auth: auth)
 
         let sent = await transport.sent
         let bodies = await transport.sentBodies
@@ -430,7 +430,7 @@ struct AppSessionStoreBootstrapTests {
         let auth = StubAuth()
         await store.bootstrap(auth: auth)
 
-        let outcome = await store.updateDisplayName("New name", auth: auth, optimistic: false)
+        let outcome = await saveNewName(store, auth: auth)
 
         #expect(outcome == .failed("That name is unavailable."))
         #expect(auth.rejectedTokens.isEmpty)
@@ -479,6 +479,11 @@ private func boot(_ reply: StubTransport.Reply, dev: Bool = false) async -> (
     let auth = StubAuth()
     await store.bootstrap(auth: auth, devSession: dev)
     return (transport, store, auth, environment)
+}
+
+@MainActor
+private func saveNewName(_ store: AppSessionStore, auth: SessionAuthenticating) async -> ProfileSaveOutcome {
+    await store.updateDisplayName("New name", auth: auth, optimistic: false, submission: IdempotentSubmission())
 }
 
 private func sessionAPI(_ transport: StubTransport) -> SessionAPI {

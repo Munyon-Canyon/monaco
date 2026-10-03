@@ -18,20 +18,8 @@ struct ProfileTabView: View {
     /// closes, toast lands on the uncovered screen — can be exercised without a backend.
     var saveName: (any DisplayNameSaving)?
 
-    @State private var toast: MonacoToast?
-    @State private var showEditProfile = false
     @State private var confirmSignOut = false
     @State private var isSigningOut = false
-
-    private var displayName: String {
-        let name = session.profile?.displayName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return name.isEmpty ? "Member" : name
-    }
-
-    private var memberSince: String {
-        guard let createdAt = session.profile?.createdAt else { return "Your profile" }
-        return MemberSinceFormatter.format(createdAt)
-    }
 
     private var cabalRows: [ProfileCabalRow] {
         ProfileCabalRow.rows(home: session.home, dashboard: session.dashboard)
@@ -58,36 +46,11 @@ struct ProfileTabView: View {
         .pollWhileVisible(every: LiveRefreshCadence.resting) {
             try await session.pollLive(auth: auth)
         }
-        .monacoToast($toast)
-        .sheet(isPresented: $showEditProfile) {
-            NavigationStack {
-                ScrollView {
-                    ProfileNameEditor(auth: auth, initialDraft: initialNameDraft, saveName: saveName) {
-                        // Close first: the toast is an overlay on this screen, so it is
-                        // only readable once the sheet is out of the way.
-                        showEditProfile = false
-                        toast = MonacoToast(message: "Name updated.", isSuccess: true)
-                    }
-                }
-                .monacoCanvas()
-                .navigationTitle("Edit profile")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { showEditProfile = false }
-                    }
-                }
-            }
-            .presentationDetents([.medium])
-        }
         // `.contain` for the same reason as `profile-header` below and the chat root: a bare
         // identifier is handed to every descendant, so the whole profile tree reported itself
         // as "profile-root" and nothing inside it could be addressed.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("profile-root")
-        .onAppear {
-            if initiallyShowEditProfile { showEditProfile = true }
-        }
         .monacoFrameStats("Profile")
     }
 
@@ -112,8 +75,13 @@ struct ProfileTabView: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
                 // One ruled table: the three figures, then the cash line under them.
                 VStack(spacing: 0) {
-                    header
-                        .padding(.bottom, MonacoTheme.Space.l)
+                    ProfileHeader(
+                        initialNameDraft: initialNameDraft,
+                        initiallyShowEditProfile: initiallyShowEditProfile,
+                        initiallyShowFacePicker: initiallyShowFacePicker,
+                        saveName: saveName
+                    )
+                    .padding(.bottom, MonacoTheme.Space.l)
                     statRow
                     HomeBalanceRowSection(
                         auth: auth,
@@ -144,42 +112,6 @@ struct ProfileTabView: View {
             }
             .padding(.bottom, MonacoTheme.Space.xl)
         }
-    }
-
-    private var header: some View {
-        VStack(spacing: MonacoTheme.Space.s) {
-            ProfilePhotoPicker(auth: auth, size: 96, initiallyOpen: initiallyShowFacePicker) { toast = $0 }
-
-            HStack(spacing: MonacoTheme.Space.xs) {
-                Text(displayName)
-                    .font(MonacoTheme.Typo.display)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-
-                Button {
-                    showEditProfile = true
-                } label: {
-                    Image(systemName: "pencil")
-                        .font(MonacoTheme.Typo.captionStrong)
-                        .foregroundStyle(MonacoTheme.muted)
-                        .frame(width: 44, height: 44)
-                }
-                .accessibilityLabel("Edit profile")
-                .accessibilityIdentifier("profile-edit-button")
-            }
-
-            Text(memberSince)
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, MonacoTheme.Space.m)
-        // `.contain`, not `.combine`: the header holds two buttons (change photo, edit
-        // name). Combining collapsed them into one element that VoiceOver could only
-        // activate one way, and hid both identifiers from UI tests.
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("profile-header")
     }
 
     /// Three figures in a ruled band: what the member has in cabals, how it has done, and how
@@ -229,24 +161,7 @@ struct ProfileTabView: View {
     /// Withdraw is the balance card's "Cash out".
     private var accountActions: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            MonacoSectionHeader("Account")
-                .padding(.horizontal, MonacoTheme.Space.m)
-            MonacoGroupedList {
-
-                NavigationLink {
-                    AdvancedSettingsView()
-                } label: {
-                    MonacoRow(
-                        title: "Advanced",
-                        subtitle: "Block explorers",
-                        chevron: true,
-                        isLast: true,
-                        leading: { StockMark(systemImage: "link", size: 40) }
-                    )
-                }
-                .buttonStyle(.monacoRow)
-                .accessibilityIdentifier("profile-advanced-link")
-            }
+            ProfileSettings()
 
             // Signing out costs a fresh code by text to get back in, and the button sits
             // right under the Advanced row at the end of a scroll. Ask first, and keep it

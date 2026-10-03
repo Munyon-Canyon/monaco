@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import PhotosUI
 import SwiftUI
@@ -19,6 +20,7 @@ struct ProfilePhotoPicker: View {
 
     @State private var showFaces = false
     @State private var isUploading = false
+    @State private var submission = IdempotentSubmission()
 
     /// The animal the avatar shows now, so the sheet can ring it. Resolved the way
     /// `MonacoAvatar` resolves it, and nil once a photo is set.
@@ -88,7 +90,7 @@ struct ProfilePhotoPicker: View {
             onResult(MonacoToast(message: "That face is missing. Try another.", isSuccess: false))
             return
         }
-        await save(data, mimeType: "image/png", success: "You're \(animal.withArticle) now.")
+        await save(data, success: "You're \(animal.withArticle) now.")
     }
 
     private func upload(_ item: PhotosPickerItem) async {
@@ -111,13 +113,13 @@ struct ProfilePhotoPicker: View {
             return
         }
 
-        await save(prepared.data, mimeType: prepared.mimeType, success: "Profile photo updated.")
+        await save(prepared.data, success: "Profile photo updated.")
     }
 
-    private func save(_ data: Data, mimeType: String, success: String) async {
+    private func save(_ data: Data, success: String) async {
         isUploading = true
         defer { isUploading = false }
-        switch await session.uploadProfilePhoto(data, mimeType: mimeType, auth: auth) {
+        switch await session.saveProfilePhoto(data, auth: auth, submission: submission) {
         case .saved, .unchanged:
             onResult(MonacoToast(message: success, isSuccess: true))
         case .failed(let message):
