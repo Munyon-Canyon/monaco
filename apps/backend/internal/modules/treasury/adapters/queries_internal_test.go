@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
@@ -129,6 +130,91 @@ func TestQueryValueAndShareFailures(t *testing.T) {
 	}
 }
 
+func TestStakeFailureBranches(t *testing.T) {
+	t.Parallel()
+	cabal, user := ids.CabalID{}, ids.UserID{}
+	for _, values := range [][4]string{{"bad", "1", "1", "1"}, {"1", "bad", "1", "1"}, {"1", "1", "bad", "1"}, {"1", "1", "1", "bad"}} {
+		if _, err := stakeFields(cabal, user, values[0], values[1], values[2], values[3]); err == nil {
+			t.Fatal("stakeFields error = nil")
+		}
+	}
+	if _, err := newTestQueries(stakeStore{stake: []sqlc.CabalStakeSnapshotRow{{
+		ShareUnits: "bad", ContributedMicros: "1", WithdrawnMicros: "1", TotalShares: "1",
+	}}}, nil).Stake(t.Context(), cabal, user); err == nil {
+		t.Fatal("Stake malformed fields error = nil")
+	}
+	if _, err := newTestQueries(stakeStore{stake: []sqlc.CabalStakeSnapshotRow{{
+		ShareUnits: "1", ContributedMicros: "1", WithdrawnMicros: "1", TotalShares: "1",
+		Asset: pgtype.Text{String: "bad", Valid: true}, Units: "1", CostBasisMicros: "1",
+	}}}, nil).Stake(t.Context(), cabal, user); err == nil {
+		t.Fatal("Stake malformed position error = nil")
+	}
+	if got, err := newTestQueries(stakeStore{stake: []sqlc.CabalStakeSnapshotRow{{
+		ShareUnits: "0", ContributedMicros: "1", WithdrawnMicros: "1", TotalShares: "1",
+	}}}, nil).Stake(t.Context(), cabal, user); err != nil || !got.ValueMicros.IsZero() {
+		t.Fatalf("zero Stake() = %#v, %v", got, err)
+	}
+}
+
+func TestStakeQueryFailureBranches(t *testing.T) {
+	t.Parallel()
+	cabal, user := ids.CabalID{}, ids.UserID{}
+	failure := errs.New(errs.CodeDBUnavailable, "test")
+	q := newTestQueries(stakeStore{positionErr: failure}, nil)
+	if _, err := q.ShareUnits(t.Context(), cabal, user); err == nil {
+		t.Fatal("ShareUnits query error = nil")
+	}
+	q = newTestQueries(stakeStore{stakeErr: failure}, nil)
+	if _, err := q.Stake(t.Context(), cabal, user); err == nil {
+		t.Fatal("Stake query error = nil")
+	}
+	q = newTestQueries(stakeStore{}, nil)
+	if got, err := q.Stake(t.Context(), cabal, user); err != nil || got.CabalID != cabal || got.UserID != user {
+		t.Fatalf("empty Stake() = %#v, %v", got, err)
+	}
+}
+
+func TestStakesOfBranches(t *testing.T) {
+	t.Parallel()
+	cabal, user := ids.CabalID{}, ids.UserID{}
+	failure := errs.New(errs.CodeDBUnavailable, "test")
+	if _, err := newTestQueries(stakeStore{stakesErr: failure}, nil).StakesOf(t.Context(), user); err == nil {
+		t.Fatal("StakesOf query error = nil")
+	}
+	zeroStake := []sqlc.CabalStakeSnapshotRow{{
+		ShareUnits: "0", ContributedMicros: "1", WithdrawnMicros: "1", TotalShares: "1",
+	}}
+	if got, err := newTestQueries(stakeStore{
+		stake: zeroStake, stakes: []sqlc.UserStakesRow{{CabalID: cabal.UUID(), UserID: user.UUID()}},
+	}, nil).StakesOf(t.Context(), user); err != nil || len(got) != 1 {
+		t.Fatalf("StakesOf() = %#v, %v", got, err)
+	}
+	asset := "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp"
+	store := stakeStore{stake: []sqlc.CabalStakeSnapshotRow{{
+		ShareUnits: "1", ContributedMicros: "1", WithdrawnMicros: "1", TotalShares: "1",
+		Asset: pgtype.Text{String: asset, Valid: true}, Units: "1", CostBasisMicros: "1",
+	}}}
+	failingPrices := app.PriceReader(func(context.Context) (map[uuid.UUID]app.Price, error) {
+		return nil, errs.New(errs.CodeDBUnavailable, "test")
+	})
+	q := newTestQueries(store, failingPrices)
+	q.catalog = app.MintResolver(func(context.Context, chain.SolanaAddress) (app.Asset, error) {
+		return app.Asset{ChainChecked: true}, nil
+	})
+	if _, err := q.Stake(t.Context(), cabal, user); err == nil {
+		t.Fatal("Stake price error = nil")
+	}
+	q = newTestQueries(stakeStore{
+		stake: store.stake, stakes: []sqlc.UserStakesRow{{CabalID: cabal.UUID(), UserID: user.UUID()}},
+	}, failingPrices)
+	q.catalog = app.MintResolver(func(context.Context, chain.SolanaAddress) (app.Asset, error) {
+		return app.Asset{ChainChecked: true}, nil
+	})
+	if _, err := q.StakesOf(t.Context(), user); err == nil {
+		t.Fatal("StakesOf child error = nil")
+	}
+}
+
 func TestPositionValueUsesEffectiveUIMultiplier(t *testing.T) {
 	t.Parallel()
 	at := time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC)
@@ -194,8 +280,52 @@ type valueStore struct {
 	rows  []sqlc.CabalPositionsRow
 }
 
+type stakeStore struct {
+	stake       []sqlc.CabalStakeSnapshotRow
+	stakes      []sqlc.UserStakesRow
+	positionErr error
+	stakeErr    error
+	stakesErr   error
+}
+
+func (s stakeStore) CabalPositions(context.Context, uuid.UUID) ([]sqlc.CabalPositionsRow, error) {
+	return nil, nil
+}
+
+func (stakeStore) CabalTotalShares(context.Context, uuid.UUID) (string, error) { return "0", nil }
+
+func (s stakeStore) CabalUserPosition(
+	context.Context, sqlc.CabalUserPositionParams,
+) (sqlc.CabalUserPositionRow, error) {
+	return sqlc.CabalUserPositionRow{}, s.positionErr
+}
+
+func (s stakeStore) CabalStakeSnapshot(
+	context.Context, sqlc.CabalStakeSnapshotParams,
+) ([]sqlc.CabalStakeSnapshotRow, error) {
+	return s.stake, s.stakeErr
+}
+
+func (s stakeStore) UserStakes(context.Context, uuid.UUID) ([]sqlc.UserStakesRow, error) {
+	return s.stakes, s.stakesErr
+}
+
 func (s valueStore) CabalPositions(context.Context, uuid.UUID) ([]sqlc.CabalPositionsRow, error) {
 	return s.rows, nil
 }
 
 func (s valueStore) CabalTotalShares(context.Context, uuid.UUID) (string, error) { return s.total, nil }
+
+func (valueStore) CabalUserPosition(context.Context, sqlc.CabalUserPositionParams) (sqlc.CabalUserPositionRow, error) {
+	return sqlc.CabalUserPositionRow{}, nil
+}
+
+func (valueStore) CabalStakeSnapshot(
+	context.Context, sqlc.CabalStakeSnapshotParams,
+) ([]sqlc.CabalStakeSnapshotRow, error) {
+	return nil, nil
+}
+
+func (valueStore) UserStakes(context.Context, uuid.UUID) ([]sqlc.UserStakesRow, error) {
+	return nil, nil
+}

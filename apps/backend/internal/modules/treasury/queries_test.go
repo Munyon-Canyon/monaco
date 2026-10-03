@@ -176,6 +176,66 @@ func assertPotValueQueries(t *testing.T, q *adapters.Queries, cabal ids.CabalID,
 	}
 }
 
+func TestStakeAndStakesOf(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	user, other, redeemed, cabal := f.user(t), f.user(t), f.user(t), f.cabal(t)
+	mustPostFund(t, f, user, cabal, 100_000_000, 100)
+	mustPostFund(t, f, other, cabal, 50_000_000, 50)
+	mustPostFund(t, f, redeemed, cabal, 25_000_000, 25)
+	mustPostCashOut(t, f, redeemed, cabal, 25_000_000, 25)
+	q := newQueries(f)
+	stake, err := q.Stake(t.Context(), cabal, user)
+	if err != nil || stake.ValueMicros != money.MicrosFromUint64(100_000_000) || stake.TotalShares.Uint64() != 150 {
+		t.Fatalf("Stake() = %#v, %v", stake, err)
+	}
+	stakes, err := q.StakesOf(t.Context(), user)
+	if err != nil || len(stakes) != 1 || stakes[0] != stake {
+		t.Fatalf("StakesOf(user) = %#v, %v", stakes, err)
+	}
+	otherStakes, err := q.StakesOf(t.Context(), other)
+	if err != nil || len(otherStakes) != 1 || otherStakes[0].ShareUnits.Uint64() != 50 {
+		t.Fatalf("StakesOf(other) = %#v, %v", otherStakes, err)
+	}
+	redeemedStakes, err := q.StakesOf(t.Context(), redeemed)
+	if err != nil || len(redeemedStakes) != 0 {
+		t.Fatalf("StakesOf(redeemed) = %#v, %v", redeemedStakes, err)
+	}
+}
+
+func TestStake_NoHoldingsReturnsZeroValue(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	user, cabal := f.user(t), f.cabal(t)
+	mustPostFund(t, f, user, cabal, 100_000_000, 100)
+	if _, err := f.pool.Exec(t.Context(), "DELETE FROM cabal_positions WHERE cabal_id = $1", cabal.UUID()); err != nil {
+		t.Fatal(err)
+	}
+	stake, err := newQueries(f).Stake(t.Context(), cabal, user)
+	if err != nil || !stake.ValueMicros.IsZero() || stake.ShareUnits.Uint64() != 100 {
+		t.Fatalf("Stake() = %#v, %v", stake, err)
+	}
+}
+
+func TestQueries_EmptyMemberReadsZero(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	q := newQueries(f)
+	cabal, user := f.cabal(t), f.user(t)
+	units, err := q.ShareUnits(t.Context(), cabal, user)
+	if err != nil || !units.IsZero() {
+		t.Fatalf("ShareUnits() = %v, %v", units, err)
+	}
+	stake, err := q.Stake(t.Context(), cabal, user)
+	if err != nil || stake.CabalID != cabal || stake.UserID != user || !stake.ShareUnits.IsZero() {
+		t.Fatalf("Stake() = %#v, %v", stake, err)
+	}
+	stakes, err := q.StakesOf(t.Context(), user)
+	if err != nil || len(stakes) != 0 {
+		t.Fatalf("StakesOf() = %#v, %v", stakes, err)
+	}
+}
+
 func TestPositions_InvalidStoredMintFailsDecode(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -196,15 +256,40 @@ func TestQueries_CanceledReadsFail(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	q := newQueries(f)
-	cabal := f.cabal(t)
+	cabal, user := f.cabal(t), f.user(t)
 	for _, call := range []func() error{
 		func() error { _, err := q.Positions(ctx, cabal); return err },
 		func() error { _, err := q.PotValue(ctx, cabal); return err },
 		func() error { _, err := q.TotalShares(ctx, cabal); return err },
+		func() error { _, err := q.ShareUnits(ctx, cabal, user); return err },
+		func() error { _, err := q.Stake(ctx, cabal, user); return err },
+		func() error { _, err := q.StakesOf(ctx, user); return err },
 	} {
 		if call() == nil {
 			t.Fatal("error = nil")
 		}
+	}
+}
+
+func mustPostFund(t *testing.T, f fixture, user ids.UserID, cabal ids.CabalID, micros, shares int64) {
+	t.Helper()
+	u, c, err := f.fund(user, cabal, micros, shares, domain.TxnSettled)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.postPair(u, c); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mustPostCashOut(t *testing.T, f fixture, user ids.UserID, cabal ids.CabalID, micros, shares int64) {
+	t.Helper()
+	u, c, err := f.cashOut(user, cabal, micros, shares, domain.TxnSettled)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.postPair(u, c); err != nil {
+		t.Fatal(err)
 	}
 }
 
