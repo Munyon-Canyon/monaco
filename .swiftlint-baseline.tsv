@@ -30,7 +30,7 @@ force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/MarketSessionCopyTes
 force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/MonacoAPIClientTests.swift	20
 force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/MonacoHTTPTransportTests.swift	2
 force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/MoneyFlowCopyTests.swift	2
-force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/ProfileTests.swift	5
+force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/ProfileTests.swift	3
 force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/ProposalCommentsAPITests.swift	2
 force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/ProposalFeedFormatterTests.swift	1
 force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/ProposalsAPITests.swift	8
@@ -169,7 +169,7 @@ no_comments	apps/mobile/Monaco/Features/Profile/ProfileCabalsSection.swift	4
 no_comments	apps/mobile/Monaco/Features/Profile/ProfileNameEditor.swift	18
 no_comments	apps/mobile/Monaco/Features/Profile/ProfilePhotoPicker.swift	10
 no_comments	apps/mobile/Monaco/Features/Profile/ProfilePhotoUploadPreparer.swift	32
-no_comments	apps/mobile/Monaco/Features/Profile/ProfileTabView.swift	25
+no_comments	apps/mobile/Monaco/Features/Profile/ProfileTabView.swift	20
 no_comments	apps/mobile/Monaco/Features/Proposals/AgentKeyRevealView.swift	14
 no_comments	apps/mobile/Monaco/Features/Proposals/CommentThreadView.swift	39
 no_comments	apps/mobile/Monaco/Features/Proposals/ProposalCardView.swift	71
@@ -190,7 +190,7 @@ no_comments	apps/mobile/Monaco/Features/Redeem/CashOutAmountRule.swift	36
 no_comments	apps/mobile/Monaco/Features/Redeem/SellCabalView.swift	16
 no_comments	apps/mobile/Monaco/Features/Settings/AdvancedSettingsView.swift	1
 no_comments	apps/mobile/Monaco/Features/Settings/WithdrawView.swift	25
-no_comments	apps/mobile/Monaco/Features/Shell/AppSessionStore+Profile.swift	11
+no_comments	apps/mobile/Monaco/Features/Shell/AppSessionStore+Profile.swift	8
 no_comments	apps/mobile/Monaco/Features/Shell/AppSessionStore.swift	9
 no_comments	apps/mobile/Monaco/Features/Shell/MainTabView.swift	4
 no_comments	apps/mobile/Monaco/Features/Shell/SessionErrorMapping.swift	15
@@ -295,8 +295,7 @@ no_comments	packages/mobile-core/Sources/MonacoCore/MarketAssetDTO.swift	109
 no_comments	packages/mobile-core/Sources/MonacoCore/MarketSampleData.swift	67
 no_comments	packages/mobile-core/Sources/MonacoCore/MarketSessionCopy.swift	23
 no_comments	packages/mobile-core/Sources/MonacoCore/MarketStatusDTO.swift	23
-no_comments	packages/mobile-core/Sources/MonacoCore/MeDTO.swift	7
-no_comments	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	45
+no_comments	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	43
 no_comments	packages/mobile-core/Sources/MonacoCore/MonacoAPIConfiguration.swift	9
 no_comments	packages/mobile-core/Sources/MonacoCore/MonacoConfig.swift	3
 no_comments	packages/mobile-core/Sources/MonacoCore/MonacoSessionValidation.swift	2
@@ -308,7 +307,6 @@ no_comments	packages/mobile-core/Sources/MonacoCore/Networking/MonacoRequestTime
 no_comments	packages/mobile-core/Sources/MonacoCore/Networking/SingleFlight.swift	2
 no_comments	packages/mobile-core/Sources/MonacoCore/PreIpoCopy.swift	6
 no_comments	packages/mobile-core/Sources/MonacoCore/PrivyAuthConfig.swift	3
-no_comments	packages/mobile-core/Sources/MonacoCore/ProfilePhotoMultipart.swift	1
 no_comments	packages/mobile-core/Sources/MonacoCore/ProfileRules.swift	9
 no_comments	packages/mobile-core/Sources/MonacoCore/ProposalCommentDTO.swift	7
 no_comments	packages/mobile-core/Sources/MonacoCore/ProposalDTO.swift	7
@@ -353,14 +351,14 @@ no_comments	packages/mobile-core/Tests/MonacoCoreTests/MarketDataDTOTests.swift	
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/MarketRowBasisTests.swift	18
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/MarketSessionCopyTests.swift	11
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/MarketStatusDTOTests.swift	3
-no_comments	packages/mobile-core/Tests/MonacoCoreTests/MonacoAPIClientTests.swift	14
+no_comments	packages/mobile-core/Tests/MonacoCoreTests/MonacoAPIClientTests.swift	11
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/MonacoAPIConfigurationTests.swift	2
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/MonacoCoreTests.swift	3
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/MonacoHTTPTransportTests.swift	20
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/MoneyFlowCopyTests.swift	28
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/PreIpoCopyTests.swift	2
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/PrivyAuthConfigTests.swift	18
-no_comments	packages/mobile-core/Tests/MonacoCoreTests/ProfileTests.swift	5
+no_comments	packages/mobile-core/Tests/MonacoCoreTests/ProfileTests.swift	1
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/ProposalCommentTests.swift	24
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/ProposalCommentsAPITests.swift	18
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/ProposalDTOTests.swift	19
