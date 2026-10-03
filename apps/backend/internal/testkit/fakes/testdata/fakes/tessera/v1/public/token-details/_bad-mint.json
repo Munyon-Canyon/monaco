@@ -1,0 +1,7 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": [
+    {"id": "T-SpaceX", "name": "T-SpaceX", "symbol": "T-SpaceX", "code": "tSpaceX", "mint": "not-a-mint"}
+  ]
+}

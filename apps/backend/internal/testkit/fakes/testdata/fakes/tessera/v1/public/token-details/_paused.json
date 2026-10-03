@@ -1,0 +1,8 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": [
+    {"id": "T-SpaceX", "name": "T-SpaceX", "symbol": "T-SpaceX", "code": "tSpaceX", "sector": "Aerospace", "mint": "TSPXcLV76s6V2zDiZQ18kBfcbnjaE2ZzNT3ga2Pd99v", "paused": true},
+    {"id": "T-Stripe", "name": "T-Stripe", "symbol": "T-Stripe", "code": "tStripe", "sector": "Payments", "mint": ""}
+  ]
+}

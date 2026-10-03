@@ -142,6 +142,7 @@ func (s *Stack) processes(ctx context.Context) error {
 		"MONACO_JUPITER_SWAP_BASE_URL=http://"+fakes.addr+"/jupiter/swap/v2",
 		"MONACO_JUPITER_PRICE_BASE_URL=http://"+fakes.addr+"/jupiter/price/v3",
 		"XSTOCKS_BASE_URL=http://"+fakes.addr+"/xstocks",
+		"TESSERA_API_BASE_URL=http://"+fakes.addr+"/tessera",
 		"SOLANA_RPC_URL=http://"+fakes.addr+"/rpc/",
 		"SUPABASE_URL=http://"+fakes.addr,
 		"SUPABASE_SERVICE_ROLE_KEY=verify-service-role",
