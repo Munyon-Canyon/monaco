@@ -44,7 +44,7 @@ func TestSelectUnits_picksOutcomesByTargetAndSkipsPlannedFlows(t *testing.T) {
 			"03 RequestAccess RequestNotNeeded", "03 RequestAccess RequestPending", "03 DecideAccess NotCabalCreator",
 			"03 DecideAccess AccessRequestNotPending", "03 RevokeAccess AccessRequestNotPending",
 			"03 RevokeAccess CannotRevokeAccess",
-			"10 ok", "10 Unauthorized", "10 ProposalNotFound", "10 NotAVoter",
+			"05 ok", "05 RPCUnavailable", "10 ok", "10 Unauthorized", "10 ProposalNotFound", "10 NotAVoter",
 			"10 ProposalClosed", "13 ok", "13 Unauthorized", "13 ProposalNotFound",
 			"13 NotProposer", "13 ProposalClosed", "13 WithdrawNotAllowed", "18 ok", "18 JupiterUnavailable",
 			"18 UpstreamTimeout", "20 ok",

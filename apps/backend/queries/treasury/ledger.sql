@@ -32,7 +32,8 @@ WHERE NOT EXISTS (
   SELECT 1 FROM cabal_txns c WHERE c.transfer_id = sqlc.arg(transfer_id)::uuid AND c.status <> sqlc.arg(status)::text
   UNION ALL
   SELECT 1 FROM user_txns u WHERE u.transfer_id = sqlc.arg(transfer_id)::uuid AND u.status <> sqlc.arg(status)::text
-);
+)
+ON CONFLICT (id) DO NOTHING;
 
 -- name: InsertUserEntry :exec
 INSERT INTO user_txn_entries (txn_id, seq, account, asset, amount)
