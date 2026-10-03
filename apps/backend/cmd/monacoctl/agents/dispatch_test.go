@@ -297,7 +297,7 @@ func TestGates_surfaceALoadReadFailure(t *testing.T) {
 		!strings.Contains(out.String(), "dry-run: load gate would refuse: ") {
 		t.Fatalf("dry: %v %q", err, out.String())
 	}
-	env.Load = nil
+	env.Load, env.Config.MaxLoad = nil, 1000000
 	if _, err := env.loadGate(t.Context()); err != nil {
 		t.Fatalf("host load: %v", err)
 	}

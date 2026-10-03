@@ -257,7 +257,7 @@ func TestParseConfig_readsTheDispatchLoadCeilingAndRejectsBadValues(t *testing.T
 	}
 	for tail, want := range map[string]string{
 		"[dispatch]\nmax_load = 0\n":    "dispatch.max_load: want above 0, got 0",
-		"[dispatch]\nmax_load = high\n": "number: strconv.ParseFloat",
+		"[dispatch]\nmax_load = high\n": "int: strconv.Atoi",
 		"[dispatch]\nmax_load\n":        "want key = value",
 		"[dispatch]\nlanes_hint = 3\n":  `unknown key "dispatch.lanes_hint"`,
 	} {
