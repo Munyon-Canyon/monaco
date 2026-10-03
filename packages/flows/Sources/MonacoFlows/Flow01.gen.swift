@@ -4,7 +4,7 @@ public enum Flow01Outcome: Sendable, Hashable, CaseIterable {
     case ok, unauthorized, loginMethodNotAllowed, accountDeleted, privyUnavailable, interrupted
 
     public static let flowID = "01"
-    public static let command = "OpenSession"
+    public static let commands: [String] = ["OpenSession"]
 
     public var code: String? {
         switch self {

@@ -50,7 +50,7 @@ type Flow struct {
 	Name      string
 	Module    string
 	Trigger   string
-	Command   string
+	Commands  []string
 	Events    []string
 	Consumers []string
 	Outcomes  []Outcome
@@ -58,7 +58,7 @@ type Flow struct {
 	Doc       string
 }
 
-func TestName(f Flow, o Outcome) string {
+func TestName(f Flow, command string, o Outcome) string {
 	suffix := string(o)
 	if o == OutcomeOK {
 		suffix = "OK"
@@ -70,7 +70,7 @@ func TestName(f Flow, o Outcome) string {
 		}
 		suffix = b.String()
 	}
-	return "TestFlow" + f.ID + "_" + f.Command + "_" + suffix
+	return "TestFlow" + f.ID + "_" + command + "_" + suffix
 }
 
 type Problem struct {
@@ -147,7 +147,7 @@ func parseRow(line int, text string) (Flow, []Problem) {
 		Name:      cells[1],
 		Module:    cells[2],
 		Trigger:   cells[3],
-		Command:   cells[4],
+		Commands:  list(cells[4]),
 		Events:    list(cells[5]),
 		Consumers: list(cells[6]),
 		Status:    Status(cells[8]),
@@ -173,10 +173,12 @@ func rowShape(f Flow) []Problem {
 	if !f.Status.valid() {
 		bad("status %q is not planned, built or verified", f.Status)
 	}
-	if f.Command != "" && !identPattern.MatchString(f.Command) {
-		bad("command %q is not an exported Go identifier", f.Command)
+	for _, command := range f.Commands {
+		if !identPattern.MatchString(command) {
+			bad("command %q is not an exported Go identifier", command)
+		}
 	}
-	if f.Status.AtLeastBuilt() && f.Command == "" {
+	if f.Status.AtLeastBuilt() && len(f.Commands) == 0 {
 		bad("command is empty on a %s flow", f.Status)
 	}
 	return append(problems, outcomeShape(f)...)

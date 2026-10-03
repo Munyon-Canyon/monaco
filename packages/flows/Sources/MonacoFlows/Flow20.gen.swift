@@ -4,7 +4,7 @@ public enum Flow20Outcome: Sendable, Hashable, CaseIterable {
     case ok, cannotFollowSelf, userNotFound, userBanned, unauthorized, interrupted
 
     public static let flowID = "20"
-    public static let command = "Follow"
+    public static let commands: [String] = ["Follow"]
 
     public var code: String? {
         switch self {

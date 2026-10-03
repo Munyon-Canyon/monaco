@@ -4,7 +4,7 @@ public enum Flow18Outcome: Sendable, Hashable, CaseIterable {
     case ok, jupiterUnavailable, upstreamTimeout, interrupted
 
     public static let flowID = "18"
-    public static let command = "SamplePrices"
+    public static let commands: [String] = ["SamplePrices"]
 
     public var code: String? {
         switch self {
