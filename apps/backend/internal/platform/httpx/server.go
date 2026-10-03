@@ -101,7 +101,13 @@ type Routes struct {
 	SocialRoutes
 	SystemRoutes
 	CabalRoutes
+	CabalJoinRoutes
 	MarketRoutes
+}
+
+type CabalJoinRoutes interface {
+	PostCabalMember(context.Context, api.PostCabalMemberRequestObject) (api.PostCabalMemberResponseObject, error)
+	GetCabalByCode(context.Context, api.GetCabalByCodeRequestObject) (api.GetCabalByCodeResponseObject, error)
 }
 
 type GovernanceRoutes interface {

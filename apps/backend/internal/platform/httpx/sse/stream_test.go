@@ -37,6 +37,7 @@ type routes struct {
 	httpx.SocialRoutes
 	httpx.SystemRoutes
 	httpx.CabalRoutes
+	httpx.CabalJoinRoutes
 	httpx.MarketRoutes
 }
 

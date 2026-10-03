@@ -35,9 +35,11 @@ func New(d module.Deps, opts ...Option) *Module {
 func (*Module) Name() string { return "cabal" }
 
 func (m *Module) Routes(r *httpx.Routes) {
-	r.CabalRoutes = adapters.HTTP{
-		Create: m.CreateCabalHandler(), DB: m.deps.Pool, Users: identity.New(m.deps).Queries(),
+	h := adapters.HTTP{
+		Create: m.CreateCabalHandler(), Join: app.NewJoinCabalHandler(m.deps.UoW, m.deps.Clock),
+		DB: m.deps.Pool, Users: identity.New(m.deps).Queries(),
 	}
+	r.CabalRoutes, r.CabalJoinRoutes = h, h
 }
 
 func (m *Module) Consumers() []bus.Consumer {
