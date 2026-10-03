@@ -1,0 +1,19 @@
+journey: profile/edit
+expect-fail: S5
+
+The banner shows for every account. S5 expects none once onboarding is complete, so S5 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Home/OnboardingNudgeBanner.swift b/apps/mobile/Monaco/Features/Home/OnboardingNudgeBanner.swift
+index 2c53d9f6..c0b6d441 100644
+--- a/apps/mobile/Monaco/Features/Home/OnboardingNudgeBanner.swift
++++ b/apps/mobile/Monaco/Features/Home/OnboardingNudgeBanner.swift
+@@ -7,7 +7,7 @@ struct OnboardingNudgeBanner: View {
+ 
+     private var current: OnboardingNudge? {
+         guard !session.nudgeDismissed, let profile = session.profile else { return nil }
+-        return nudge(for: profile)
++        return nudge(for: profile) ?? .addPhone("Add your number to find friends")
+     }
+ 
+     private var isOpen: Binding<Bool> {

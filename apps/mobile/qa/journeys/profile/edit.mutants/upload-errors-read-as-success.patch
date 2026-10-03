@@ -1,0 +1,19 @@
+journey: profile/edit
+expect-fail: S4
+
+Every upload toasts success, even a rate-limited one. S4.3 expects the rate-limit message, so S4 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Profile/ProfilePhotoPicker.swift b/apps/mobile/Monaco/Features/Profile/ProfilePhotoPicker.swift
+index fa8a16c3..65ef87e8 100644
+--- a/apps/mobile/Monaco/Features/Profile/ProfilePhotoPicker.swift
++++ b/apps/mobile/Monaco/Features/Profile/ProfilePhotoPicker.swift
+@@ -123,7 +123,7 @@ struct ProfilePhotoPicker: View {
+         case .saved, .unchanged:
+             onResult(MonacoToast(message: success, isSuccess: true))
+         case .failed(let message):
+-            onResult(MonacoToast(message: message, isSuccess: false))
++            onResult(MonacoToast(message: success, isSuccess: true))
+         }
+     }
+ }
