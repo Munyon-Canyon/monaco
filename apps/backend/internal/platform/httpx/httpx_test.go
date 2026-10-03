@@ -117,6 +117,12 @@ func (healthz) GetMyPendingVotes(
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetMyPendingVotes")
 }
 
+func (healthz) DeleteProposal(
+	context.Context, api.DeleteProposalRequestObject,
+) (api.DeleteProposalResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.DeleteProposal")
+}
+
 func (healthz) GetProposal(context.Context, api.GetProposalRequestObject) (api.GetProposalResponseObject, error) {
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetProposal")
 }

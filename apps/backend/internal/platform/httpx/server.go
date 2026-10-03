@@ -135,6 +135,7 @@ type CabalJoinRoutes interface {
 }
 
 type GovernanceRoutes interface {
+	DeleteProposal(context.Context, api.DeleteProposalRequestObject) (api.DeleteProposalResponseObject, error)
 	GetCabalProposals(context.Context, api.GetCabalProposalsRequestObject) (api.GetCabalProposalsResponseObject, error)
 	GetMyPendingVotes(context.Context, api.GetMyPendingVotesRequestObject) (api.GetMyPendingVotesResponseObject, error)
 	GetProposal(context.Context, api.GetProposalRequestObject) (api.GetProposalResponseObject, error)

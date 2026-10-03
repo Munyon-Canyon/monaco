@@ -45,12 +45,15 @@ func TestSelectUnits_picksOutcomesByTargetAndSkipsPlannedFlows(t *testing.T) {
 			"03 DecideAccess AccessRequestNotPending", "03 RevokeAccess AccessRequestNotPending",
 			"03 RevokeAccess CannotRevokeAccess",
 			"10 ok", "10 Unauthorized", "10 ProposalNotFound", "10 NotAVoter",
-			"10 ProposalClosed", "18 ok", "18 JupiterUnavailable", "18 UpstreamTimeout", "20 ok",
+			"10 ProposalClosed", "13 ok", "13 Unauthorized", "13 ProposalNotFound", "13 NotProposer",
+			"13 ProposalClosed", "13 WithdrawNotAllowed", "18 ok", "18 JupiterUnavailable", "18 UpstreamTimeout", "20 ok",
 			"20 CannotFollowSelf", "20 UserNotFound", "20 UserBanned", "20 Unauthorized", "23 ok",
 			"23 DisplayNameInvalid", "23a ok", "23a PhotoInvalid", "23a StorageUnavailable", "23a RateLimited",
 		}},
 		{Target{Flow: "00", Outcome: "Unauthorized"}, []string{"00 Unauthorized"}},
-		{Target{CrashAt: "after-publish"}, []string{"00 crash:after-publish", "10 crash:after-publish"}},
+		{Target{CrashAt: "after-publish"}, []string{
+			"00 crash:after-publish", "10 crash:after-publish", "13 crash:after-publish",
+		}},
 		{Target{CrashAt: "before-commit"}, []string{
 			"01 crash:before-commit", "02 crash:before-commit", "20 crash:before-commit",
 		}},

@@ -14,8 +14,9 @@ import (
 )
 
 type HTTP struct {
-	Vote  *app.CastVoteHandler
-	Reads *app.ProposalReads
+	Vote     *app.CastVoteHandler
+	Withdraw *app.WithdrawProposalHandler
+	Reads    *app.ProposalReads
 }
 
 var _ httpx.GovernanceRoutes = HTTP{}
@@ -83,12 +84,38 @@ func (h HTTP) GetProposal(
 	if err != nil {
 		return nil, err
 	}
-	got, err := h.Reads.Get(ctx, app.GetProposal{ID: ids.ProposalIDFrom(req.Id), Caller: user})
+	out, err := h.detail(ctx, ids.ProposalIDFrom(req.Id), user)
 	if err != nil {
 		return nil, err
 	}
+	return api.GetProposal200JSONResponse(out), nil
+}
+
+func (h HTTP) DeleteProposal(
+	ctx context.Context, req api.DeleteProposalRequestObject,
+) (api.DeleteProposalResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	id := ids.ProposalIDFrom(req.Id)
+	if err := h.Withdraw.Handle(ctx, app.WithdrawProposal{ProposalID: id, ActorID: user}); err != nil {
+		return nil, err
+	}
+	out, err := h.detail(ctx, id, user)
+	if err != nil {
+		return nil, err
+	}
+	return api.DeleteProposal200JSONResponse(out), nil
+}
+
+func (h HTTP) detail(ctx context.Context, id ids.ProposalID, user ids.UserID) (api.ProposalDetail, error) {
+	got, err := h.Reads.Get(ctx, app.GetProposal{ID: id, Caller: user})
+	if err != nil {
+		return api.ProposalDetail{}, err
+	}
 	p := wireProposal(got.Proposal)
-	out := api.GetProposal200JSONResponse{
+	out := api.ProposalDetail{
 		Id: p.Id, CabalId: p.CabalId, ProposerId: p.ProposerId, Kind: p.Kind, Symbol: p.Symbol,
 		UsdcMicros: p.UsdcMicros, TokenAmount: p.TokenAmount, QuoteOutAmount: p.QuoteOutAmount, Thesis: p.Thesis,
 		Status: p.Status, StatusReason: p.StatusReason, StatusMessage: p.StatusMessage, ExpiresAt: p.ExpiresAt,

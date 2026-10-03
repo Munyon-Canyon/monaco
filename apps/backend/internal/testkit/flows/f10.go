@@ -21,6 +21,7 @@ const (
 )
 
 type openProposal struct {
+	path   string
 	votes  string
 	voters []ids.UserID
 }
@@ -32,7 +33,8 @@ func (seedT) Helper() {}
 func seedOpenProposal(s *scenario.Scenario, members int) openProposal {
 	c := testkit.NewCabal(seedT{s}, s.DB(), testkit.WithMembers(members))
 	id, now := ids.Real{}.NewV7(), time.Now().UTC()
-	p := openProposal{votes: "/v1/proposals/" + id.String() + "/votes"}
+	p := openProposal{path: "/v1/proposals/" + id.String()}
+	p.votes = p.path + "/votes"
 	params := sqlc.InsertProposalParams{
 		ID: id, CabalID: c.ID.UUID(), ProposerID: c.Creator.ID.UUID(), Kind: "buy", Symbol: "AAPLx",
 		Mint: "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp", UsdcMicros: pgtype.Int8{Int64: 5_000_000, Valid: true},
@@ -50,6 +52,17 @@ func seedOpenProposal(s *scenario.Scenario, members int) openProposal {
 
 func tally(yes, no, voters, needed int) map[string]int {
 	return map[string]int{"yes": yes, "no": no, "voters": voters, "needed": needed}
+}
+
+func f10Scripts() map[string]Script {
+	return map[string]Script{
+		"F10CastVoteOK":                F10CastVoteOK,
+		"F10CastVoteUnauthorized":      F10CastVoteUnauthorized,
+		"F10CastVoteProposalNotFound":  F10CastVoteProposalNotFound,
+		"F10CastVoteNotAVoter":         F10CastVoteNotAVoter,
+		"F10CastVoteProposalClosed":    F10CastVoteProposalClosed,
+		"F10CastVoteCrashAfterPublish": F10CastVoteCrashAfterPublish,
+	}
 }
 
 func F10CastVoteOK(s *scenario.Scenario) {

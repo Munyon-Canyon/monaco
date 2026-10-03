@@ -37,8 +37,9 @@ func (*Module) Name() string { return "governance" }
 func (m *Module) Routes(r *httpx.Routes) {
 	thresholds := cabalThresholds{cabals: cabal.New(m.deps).Queries()}
 	r.GovernanceRoutes = adapters.HTTP{
-		Vote:  app.NewCastVoteHandler(m.deps.UoW, m.deps.Pool, m.deps.Clock, thresholds),
-		Reads: app.NewProposalReads(m.deps.Pool, thresholds, trading.New(m.deps).Queries()),
+		Vote:     app.NewCastVoteHandler(m.deps.UoW, m.deps.Pool, m.deps.Clock, thresholds),
+		Withdraw: app.NewWithdrawProposalHandler(m.deps.UoW, m.deps.Clock),
+		Reads:    app.NewProposalReads(m.deps.Pool, thresholds, trading.New(m.deps).Queries()),
 	}
 }
 
