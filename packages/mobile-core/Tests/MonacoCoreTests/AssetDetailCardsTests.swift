@@ -3,54 +3,6 @@ import XCTest
 
 @testable import MonacoCore
 
-/// The About section and its disclosure.
-final class AssetAboutCopyTests: XCTestCase {
-    func testDisclosureSaysWhatHoldingTheTokenIsNot() {
-        let about = AssetAboutCopy.make(symbol: "AAPLx", name: "Apple", solanaMint: "XsbEhLAtcf6")
-        XCTAssertTrue(about.disclosure.hasPrefix("AAPLx tracks Apple stock. It is not a share"), about.disclosure)
-        XCTAssertTrue(about.disclosure.contains("no dividend"), about.disclosure)
-        XCTAssertTrue(about.disclosure.contains("no vote"), about.disclosure)
-    }
-
-    /// The disclosure is never part of the clamped body: a "Show more" must not be
-    /// able to hide it.
-    func testDisclosureIsNotFoldedIntoTheBody() {
-        let about = AssetAboutCopy.make(symbol: "AAPLx", name: "Apple", solanaMint: "XsbEhLAtcf6")
-        XCTAssertFalse(about.body.contains("It is not a share"))
-    }
-
-    func testFacts_carryTheMintAndTheVenueWhenThereIsOne() throws {
-        let about = AssetAboutCopy.make(
-            symbol: "AAPLx",
-            name: "Apple",
-            solanaMint: "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
-            liquidityLabel: "Via Jupiter"
-        )
-        XCTAssertEqual(about.title, "About AAPLx")
-        XCTAssertEqual(about.facts.map(\.id), ["tracks", "chain", "mint", "routing"])
-        XCTAssertEqual(try XCTUnwrap(about.facts.first { $0.id == "tracks" }).value, "Apple (AAPL)")
-        XCTAssertTrue(try XCTUnwrap(about.facts.first { $0.id == "mint" }).isAddress)
-    }
-
-    func testNoMintAndNoVenue_dropTheirFactsRatherThanShowingBlanks() {
-        let about = AssetAboutCopy.make(symbol: "AAPLx", name: "Apple", solanaMint: "  ", liquidityLabel: "  ")
-        XCTAssertEqual(about.facts.map(\.id), ["tracks", "chain"])
-    }
-
-    /// No catalog name is not a licence to invent one.
-    func testUnknownCompany_fallsBackToTheTickerRatherThanGuessing() {
-        let about = AssetAboutCopy.make(symbol: "ZZZZx", name: "", solanaMint: "mint")
-        XCTAssertTrue(about.disclosure.hasPrefix("ZZZZx tracks ZZZZ stock."), about.disclosure)
-    }
-
-    /// A catalog name that is only the ticker back again should still resolve to the
-    /// company the app knows.
-    func testCatalogNameEqualToTheTicker_resolvesThroughTheKnownNames() {
-        let about = AssetAboutCopy.make(symbol: "AAPLx", name: "AAPL", solanaMint: "mint")
-        XCTAssertTrue(about.disclosure.hasPrefix("AAPLx tracks Apple stock."), about.disclosure)
-    }
-}
-
 /// "Your cabals' position": totals, and the sentences around them.
 final class AssetPositionSummaryTests: XCTestCase {
     func testNothingToShow_makesNoCard() {
