@@ -223,6 +223,7 @@ const (
 	HandleTooSoon              ErrorCode = "handle_too_soon"
 	IdempotencyInFlight        ErrorCode = "idempotency_in_flight"
 	IdempotencyMismatch        ErrorCode = "idempotency_mismatch"
+	InsufficientFunds          ErrorCode = "insufficient_funds"
 	Internal                   ErrorCode = "internal"
 	InvalidAddress             ErrorCode = "invalid_address"
 	InvalidConfig              ErrorCode = "invalid_config"
@@ -345,6 +346,8 @@ func (e ErrorCode) Valid() bool {
 	case IdempotencyInFlight:
 		return true
 	case IdempotencyMismatch:
+		return true
+	case InsufficientFunds:
 		return true
 	case Internal:
 		return true

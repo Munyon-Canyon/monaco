@@ -39,6 +39,7 @@ components:
         - handle_too_soon
         - idempotency_in_flight
         - idempotency_mismatch
+        - insufficient_funds
         - internal
         - invalid_address
         - invalid_config
