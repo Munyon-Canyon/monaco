@@ -36,11 +36,20 @@ func (*Module) Name() string { return "treasury" }
 func (*Module) Routes(*httpx.Routes) {}
 
 func (m *Module) Consumers() []bus.Consumer {
+	activity := adapters.Activity{Hints: m.deps.Bus}
 	return []bus.Consumer{
 		{
 			Durable: "treasury_trades",
 			Handlers: []bus.HandlerSpec{
 				bus.Handle("treasury.trades", adapters.Trades{Ledger: m.ledger()}.Handle),
+			},
+		},
+		{
+			Durable: "treasury_activity",
+			Handlers: []bus.HandlerSpec{
+				bus.Handle("treasury.activity.submitted", activity.Submitted),
+				bus.Handle("treasury.activity.confirmed", activity.Confirmed),
+				bus.Handle("treasury.activity.failed", activity.Failed),
 			},
 		},
 	}
