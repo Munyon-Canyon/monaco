@@ -18,11 +18,15 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
-const RequestIDHeader = "X-Request-Id"
+const (
+	RequestIDHeader = "X-Request-Id"
+	FlowHeader      = "X-Monaco-Flow"
+)
 
 type Deps struct {
 	Logger       *slog.Logger
@@ -58,6 +62,7 @@ func (d Deps) wrapBody(next http.Handler, limitBody bool) http.Handler {
 		w.Header().Set(RequestIDHeader, id)
 		rec := &recorder{ResponseWriter: w}
 		ctx = observability.WithLogger(observability.WithRequestID(ctx, id), d.Logger)
+		ctx = faultpoint.WithFlow(ctx, r.Header.Get(FlowHeader))
 		ctx, actor := withActorSlot(ctx)
 		req := r.WithContext(ctx)
 		if limitBody {
@@ -93,10 +98,17 @@ func serveRecovered(ctx context.Context, next http.Handler, w *recorder, r *http
 		if err, ok := v.(error); ok && errors.Is(err, http.ErrAbortHandler) {
 			panic(v)
 		}
-		err := errs.New(errs.CodePanic, "httpx.recover", slog.String("panic", fmt.Sprint(v)),
-			slog.String("stack", string(debug.Stack())))
+		code := errs.CodePanic
+		op := "httpx.recover"
+		attrs := []slog.Attr{slog.String("panic", fmt.Sprint(v)), slog.String("stack", string(debug.Stack()))}
+		if faultpoint.IsCrash(v) {
+			code = errs.CodeFaultpoint
+			op = "faultpoint: crash at " + string(v.(faultpoint.Crash).Name)
+			attrs = nil
+		}
+		err := errs.New(code, op, attrs...)
 		if w.status != 0 {
-			logProblem(ctx, err, errs.CodePanic, http.StatusInternalServerError)
+			logProblem(ctx, err, code, errs.HTTPStatus(errs.KindOf(code)))
 			return
 		}
 		Problem(w, r, err)

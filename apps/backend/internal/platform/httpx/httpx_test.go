@@ -22,6 +22,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -583,6 +584,36 @@ func TestPanic_afterTheResponseStartedOnlyLogs(t *testing.T) {
 	access := linesNamed(lines, "http.request")
 	if len(problem) != 1 || problem[0]["code"] != "panic" || len(access) != 1 || access[0]["status"] != 202.0 {
 		t.Fatalf("lines = %v", lines)
+	}
+}
+
+func TestFaultpoint_respondsUnavailableProblem(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	handler := h.deps.wrap(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		panic(faultpoint.Crash{Name: faultpoint.BeforeCommit})
+	}))
+	resp := serveRaw(t, handler, http.MethodGet, "/x", nil)
+	p := decodeProblem(t, resp)
+	if resp.Code != http.StatusServiceUnavailable || p.Code != "faultpoint" || !p.Retryable {
+		t.Fatalf("response = %d %+v, want 503 faultpoint retryable", resp.Code, p)
+	}
+	problem := linesNamed(h.logs.lines(t), "http.problem")
+	if len(problem) != 1 || problem[0]["code"] != "faultpoint" || problem[0]["alert"] != false {
+		t.Fatalf("problem lines = %v", problem)
+	}
+}
+
+func TestFlowHeader_addsTheVerifierFlowToTheRequestContext(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	var got string
+	handler := h.deps.wrap(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		got = faultpoint.Flow(r.Context())
+	}))
+	resp := serveRaw(t, handler, http.MethodGet, "/x", http.Header{FlowHeader: {"01"}})
+	if resp.Code != http.StatusOK || got != "01" {
+		t.Fatalf("response = %d, flow = %q, want 200 and 01", resp.Code, got)
 	}
 }
 

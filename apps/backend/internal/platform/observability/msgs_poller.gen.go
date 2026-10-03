@@ -6,6 +6,7 @@ func init() {
 	register(
 		PollerTick,
 		PollerFailed,
+		PollerCrashed,
 		PollerSkipped,
 	)
 }

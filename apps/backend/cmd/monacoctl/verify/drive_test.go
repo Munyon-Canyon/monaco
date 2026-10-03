@@ -20,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/system"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
@@ -42,7 +43,7 @@ func servedEnvWith(t *testing.T, mods ...func(module.Deps) module.Module) Env {
 	return Env{
 		API: sv.URL, TokenKey: sv.TokenKey, Pool: sv.Pool, JS: sv.JS, Events: sv.Events,
 		DeadLetter: sv.DeadLetter, Subject: sv.Subject, Consumers: sv.Consumers, Logs: logs,
-		Arm: func(context.Context) error { return nil },
+		Arm: func(context.Context, Unit) error { return nil },
 	}
 }
 
@@ -67,12 +68,14 @@ func servedIdentityEnv(t *testing.T) Env {
 	return Env{
 		API: sv.URL, Fakes: upstream.URL, PrivyAppID: PrivyAppID, TokenKey: sv.TokenKey, Pool: sv.Pool, JS: sv.JS,
 		Events: sv.Events, DeadLetter: sv.DeadLetter, Consumers: sv.Consumers, Logs: logs,
-		Arm: func(context.Context) error { return nil },
+		Arm: func(context.Context, Unit) error { return nil },
 	}
 }
 
 func unservedEnv(api string) Env {
-	return Env{API: api, TokenKey: "verify-unserved", Logs: &Logs{}, Arm: func(context.Context) error { return nil }}
+	return Env{
+		API: api, TokenKey: "verify-unserved", Logs: &Logs{}, Arm: func(context.Context, Unit) error { return nil },
+	}
 }
 
 func flow01(t *testing.T, target Target) []Unit {
@@ -156,6 +159,83 @@ func TestVerifyUnits_flow00PassesOverHTTPWithAuthIdempotencyKeysAndSSE(t *testin
 			t.Errorf("output lacks %q:\n%s", want, out)
 		}
 	}
+}
+
+func TestDriver_restartsTheScopedProcessAfterACrashResponse(t *testing.T) {
+	t.Parallel()
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"code":"faultpoint"}`))
+	}))
+	t.Cleanup(api.Close)
+	var got struct {
+		flow  string
+		point faultpoint.Name
+		calls int
+	}
+	d, err := newDriver(Env{
+		API: api.URL, TokenKey: "verify-restart", Logs: &Logs{},
+		Crash: func(_ context.Context, u Unit, point faultpoint.Name) error {
+			got.flow, got.point, got.calls = u.Flow.ID, point, got.calls+1
+			return nil
+		},
+	}, DefaultBudget())
+	if err != nil {
+		t.Fatal(err)
+	}
+	u := Unit{
+		Flow:    tools.Flow{ID: "01", Trigger: "GET /restart"},
+		Outcome: "crash:before-commit",
+		Script: func(s *scenario.Scenario) {
+			s.When(scenario.Get("/restart"), scenario.ExpectStatus(http.StatusServiceUnavailable))
+		},
+	}
+	if err := d.script(t.Context(), u, &Result{Unit: u, Phases: map[Phase]time.Duration{}}); err != nil {
+		t.Fatalf("script = %v", err)
+	}
+	if got.flow != "01" || got.point != faultpoint.BeforeCommit || got.calls != 1 {
+		t.Fatalf("restart = %+v, want flow 01, before-commit, once", got)
+	}
+}
+
+func TestDriver_rejectsAnUnexpectedServiceUnavailableResponse(t *testing.T) {
+	t.Parallel()
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"code":"upstream_unavailable"}`))
+	}))
+	t.Cleanup(api.Close)
+	var calls int
+	d, err := newDriver(Env{
+		API: api.URL, TokenKey: "verify-restart", Logs: &Logs{},
+		Crash: func(context.Context, Unit, faultpoint.Name) error { calls++; return nil },
+	}, DefaultBudget())
+	if err != nil {
+		t.Fatal(err)
+	}
+	u := Unit{
+		Flow:    tools.Flow{ID: "01", Trigger: "GET /restart"},
+		Outcome: "crash:before-commit",
+		Script: func(s *scenario.Scenario) {
+			s.When(scenario.Get("/restart"), scenario.ExpectStatus(http.StatusServiceUnavailable))
+		},
+	}
+	err = d.script(t.Context(), u, &Result{Unit: u, Phases: map[Phase]time.Duration{}})
+	if err == nil || !strings.Contains(err.Error(), "observed 0 faultpoint responses, want 1") {
+		t.Fatalf("script = %v, want missing faultpoint failure", err)
+	}
+	if calls != 0 {
+		t.Fatalf("restart calls = %d, want 0", calls)
+	}
+}
+
+func TestEnterStage_dropsAStageAfterTheFlowIsCancelled(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	enterStage(ctx, make(chan scenario.Stage), scenario.StageGiven)
 }
 
 func plantedUnit(outcome string, script flows.Script) Unit {

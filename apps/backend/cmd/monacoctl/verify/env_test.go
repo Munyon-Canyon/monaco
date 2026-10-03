@@ -93,6 +93,9 @@ func TestStack_aRestartedWorkerKeepsTheFlowsVariables(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Up: %v", err)
 	}
+	if err := s.arm(t.Context()); err != nil {
+		t.Fatalf("arm: %v", err)
+	}
 	if err := s.crash(t.Context(), faultpoint.AfterPublish); err != nil {
 		t.Fatalf("restart after the crash: %v", err)
 	}

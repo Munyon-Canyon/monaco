@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"slices"
+	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
@@ -30,6 +31,17 @@ func Armed(ctx context.Context, name Name) context.Context {
 	return ArmedAfter(ctx, name, 0)
 }
 
+type flowKey struct{}
+
+func WithFlow(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, flowKey{}, id)
+}
+
+func Flow(ctx context.Context) string {
+	id, _ := ctx.Value(flowKey{}).(string)
+	return id
+}
+
 type Crash struct {
 	Name Name
 }
@@ -54,4 +66,15 @@ func checkKnown(name string) error {
 		return refuse(name, "unknown faultpoint")
 	}
 	return nil
+}
+
+func parse(name string) (Name, string, error) {
+	point, flow, hasFlow := strings.Cut(name, "@")
+	if point == "" || (hasFlow && (flow == "" || strings.Contains(flow, "@"))) {
+		return "", "", refuse(name, "invalid faultpoint")
+	}
+	if err := checkKnown(point); err != nil {
+		return "", "", err
+	}
+	return Name(point), flow, nil
 }

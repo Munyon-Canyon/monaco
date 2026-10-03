@@ -840,8 +840,10 @@ Modes:
 | `go run ./cmd/monacoctl verify flow 00` | One flow, every outcome in its `outcomes` cell except crash points. |
 | `go run ./cmd/monacoctl verify flow 00 --outcome InvalidInput` | One outcome. The fakes server is scripted to produce it. |
 | `go run ./cmd/monacoctl verify all --crash-at after-publish` | The `after-publish` crash point of every flow that has one. Kills the worker there, restarts it, and checks the flow converges to the same end state. |
+| `go run ./cmd/monacoctl verify all --crash-at before-commit` | The `before-commit` crash point of every flow that has one. Routes restart the api and pollers or consumers restart the worker. |
+| `go run ./cmd/monacoctl verify all --crash-at after-sign` | The `after-sign` crash point of every flow that has one. Routes restart the api and pollers or consumers restart the worker. |
 
-`scripts/ci/e2e.sh` runs `verify all`, then `verify all --crash-at after-publish`.
+`scripts/ci/e2e.sh` runs `verify all`, then `verify all --crash-at after-publish`, `before-commit` and `after-sign`.
 
 An evidence file holds: the commit SHA and whether the tree was dirty, the flow and outcomes run, each HTTP request and response (secrets redacted by the same slog handler), the `events` rows written, per-consumer acks and redeliveries, ledger balances per asset before and after, dead letters, the required log lines found, p50 and p95 handler latency, and pass or fail per invariant. Evidence from a dirty tree does not count.
 

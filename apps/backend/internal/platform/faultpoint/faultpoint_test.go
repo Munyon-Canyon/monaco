@@ -112,6 +112,13 @@ func TestConfigure_rejectsAnUnknownName(t *testing.T) {
 	}
 }
 
+func TestConfigure_rejectsAnInvalidScopedName(t *testing.T) {
+	t.Parallel()
+	if got := reason(t, faultpoint.Configure("before-commit@")); got != "invalid faultpoint" {
+		t.Fatalf("reason = %q, want invalid faultpoint", got)
+	}
+}
+
 func TestHit_unarmedNeverCrashes(t *testing.T) {
 	t.Parallel()
 	ctx := faultpoint.Armed(t.Context(), faultpoint.AfterSign)

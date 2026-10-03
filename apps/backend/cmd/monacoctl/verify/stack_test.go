@@ -264,6 +264,9 @@ func TestDown_namesTheExitStatusOfAWorkerThatCrashedBeforeTeardown(t *testing.T)
 	if err != nil {
 		t.Fatalf("Up: %v", err)
 	}
+	if err := s.arm(t.Context()); err != nil {
+		t.Fatalf("arm: %v", err)
+	}
 	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
 	select {
@@ -370,6 +373,9 @@ func TestHealthy_anArmedWorkerThatExitedCountsAsUpWithinASecond(t *testing.T) {
 		if err := step(ctx); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if err := s.arm(ctx); err != nil {
+		t.Fatal(err)
 	}
 	<-s.procs[procWorker].exited
 	within, stop := context.WithTimeout(ctx, time.Second)

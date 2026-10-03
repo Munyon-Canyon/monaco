@@ -25,6 +25,7 @@ const (
 	CodeInvalidConfig       Code = "invalid_config"
 	CodeInternal            Code = "internal"
 	CodePanic               Code = "panic"
+	CodeFaultpoint          Code = "faultpoint"
 )
 
 func platformRows() map[Code]Row {
@@ -96,6 +97,14 @@ func platformRows() map[Code]Row {
 		CodeDecodeFailed:   {Name: "DecodeFailed", Kind: KindInternal, Alert: true, Message: "Something went wrong."},
 		CodeInternal:       {Name: "Internal", Kind: KindInternal, Alert: true, Message: "Something went wrong."},
 		CodePanic:          {Name: "Panic", Kind: KindInternal, Alert: true, Message: "Something went wrong."},
+		CodeFaultpoint:     faultpointRow(),
+	}
+}
+
+func faultpointRow() Row {
+	return Row{
+		Name: "Faultpoint", Kind: KindUnavailable, Retryable: true,
+		Message: "The service is temporarily unavailable. Try again shortly.",
 	}
 }
 

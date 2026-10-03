@@ -145,10 +145,13 @@ func TestAwaitTick_againstAStackWaitsForATickWrittenAfterTheStepStarted(t *testi
 	remote := func(marked chan<- struct{}) func(T) *Scenario {
 		var once sync.Once
 		return func(r T) *Scenario {
-			return Against(r, Remote{Enter: func(Stage) {}, Logs: func(from int) ([]string, <-chan struct{}) {
-				defer once.Do(func() { close(marked) })
-				return stack.since(from)
-			}})
+			return Against(r.Context(), r, Remote{
+				Enter: func(Stage) {},
+				Logs: func(from int) ([]string, <-chan struct{}) {
+					defer once.Do(func() { close(marked) })
+					return stack.since(from)
+				},
+			})
 		}
 	}
 	cancelled, cancel := context.WithCancel(t.Context())

@@ -261,6 +261,7 @@ const (
 	DbUnavailable              ErrorCode = "db_unavailable"
 	DecodeFailed               ErrorCode = "decode_failed"
 	DisplayNameInvalid         ErrorCode = "display_name_invalid"
+	Faultpoint                 ErrorCode = "faultpoint"
 	FeedItemNotFound           ErrorCode = "feed_item_not_found"
 	Forbidden                  ErrorCode = "forbidden"
 	HandleInvalid              ErrorCode = "handle_invalid"
@@ -381,6 +382,8 @@ func (e ErrorCode) Valid() bool {
 	case DecodeFailed:
 		return true
 	case DisplayNameInvalid:
+		return true
+	case Faultpoint:
 		return true
 	case FeedItemNotFound:
 		return true

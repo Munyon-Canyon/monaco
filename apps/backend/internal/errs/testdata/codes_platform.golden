@@ -2,6 +2,7 @@ client_closed
 db_schema_behind
 db_unavailable
 decode_failed
+faultpoint
 forbidden
 idempotency_in_flight
 idempotency_mismatch

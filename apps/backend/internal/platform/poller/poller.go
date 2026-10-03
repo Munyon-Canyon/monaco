@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability/boundary"
 )
@@ -95,6 +96,8 @@ func (r *Runner) loop(ctx context.Context, p Poller) error {
 
 func (r *Runner) attempt(ctx context.Context, p Poller, lock *db.Lock) {
 	name := p.Name()
+	ctx = faultpoint.WithFlow(ctx, flow(name))
+	defer recoverAttempt(ctx, name)
 	r.mark(name, r.clock.Now())
 	lockCtx, cancelLock := context.WithTimeout(ctx, lockTimeout)
 	held, err := lock.Hold(lockCtx)
@@ -121,9 +124,38 @@ func (r *Runner) attempt(ctx context.Context, p Poller, lock *db.Lock) {
 		slog.Int64("duration_ms", r.clock.Now().Sub(start).Milliseconds()), slog.GroupAttrs("detail", report.Attrs...))
 }
 
+func flow(poller string) string {
+	switch poller {
+	case "funding.deposits":
+		return "05"
+	case "market.prices":
+		return "18"
+	case "identity.nudges":
+		return "28"
+	default:
+		return ""
+	}
+}
+
+func recoverAttempt(ctx context.Context, name string) {
+	v := recover()
+	if v == nil {
+		return
+	}
+	if !faultpoint.IsCrash(v) {
+		panic(v)
+	}
+	observability.Info(ctx, observability.PollerCrashed,
+		slog.String("poller", name), slog.String("code", string(errs.CodeFaultpoint)))
+	panic(v)
+}
+
 func tick(ctx context.Context, p Poller) (report Report, err error) {
 	defer func() {
 		if v := recover(); v != nil {
+			if faultpoint.IsCrash(v) {
+				panic(v)
+			}
 			err = errs.New(errs.CodePanic, "poller.tick", slog.String("panic", fmt.Sprint(v)),
 				slog.String("stack", string(debug.Stack())))
 		}

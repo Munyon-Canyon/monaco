@@ -65,6 +65,55 @@ func TestRouteMismatch_checksTheLastMatchingRequest(t *testing.T) {
 	}
 }
 
+func TestRouteMismatch_requiresAFaultpointResponseAndSuccessfulRetry(t *testing.T) {
+	t.Parallel()
+	route := "POST /v1/cabals"
+	res := &Result{Unit: Unit{
+		Flow: tools.Flow{ID: "02", Trigger: route}, Outcome: tools.Outcome("crash:before-commit"),
+	}, Exchanges: []scenario.Exchange{
+		{
+			Method: http.MethodPost, Path: "/v1/cabals", Status: http.StatusServiceUnavailable,
+			Response: []byte(`{"code":"faultpoint"}`),
+		},
+		{Method: http.MethodPost, Path: "/v1/cabals", Status: http.StatusCreated},
+	}}
+	if got := routeMismatch(res, route); got != "" {
+		t.Fatalf("routeMismatch = %q, want expected crash and retry", got)
+	}
+}
+
+func TestCrashRouteMismatch_explainsEachIncompleteRecovery(t *testing.T) {
+	t.Parallel()
+	route := "POST /v1/cabals"
+	crash := scenario.Exchange{
+		Method: http.MethodPost, Path: "/v1/cabals", Status: http.StatusServiceUnavailable,
+		Response: []byte(`{"code":"faultpoint"}`),
+	}
+	for name, tc := range map[string]struct {
+		calls []scenario.Exchange
+		want  string
+	}{
+		"wrong response": {
+			[]scenario.Exchange{{Method: http.MethodPost, Path: "/v1/cabals", Status: http.StatusOK}},
+			`POST /v1/cabals answered 200 code "", want 503 code "faultpoint"`,
+		},
+		"no retry": {[]scenario.Exchange{crash}, "POST /v1/cabals faultpoint response was not retried"},
+		"failed retry": {
+			[]scenario.Exchange{crash, {
+				Method: http.MethodPost, Path: "/v1/cabals", Status: http.StatusConflict,
+			}},
+			"POST /v1/cabals retry answered 409, want a 2xx",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if got := crashRouteMismatch(tc.calls, route); got != tc.want {
+				t.Fatalf("crashRouteMismatch = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestSettle_failsOnARequiredLineThatNeverLandsOnceTheDeadlinePasses(t *testing.T) {
 	t.Parallel()
 	d, res := healthzSettle(testkit.DB(t))

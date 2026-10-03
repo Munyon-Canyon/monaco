@@ -7,6 +7,7 @@ func init() {
 		DBLockLost,
 		TxCommitted,
 		TxRolledBack,
+		TxCrashed,
 		TxRetry,
 	)
 }

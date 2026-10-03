@@ -223,7 +223,7 @@ jobs:
       - name: Install the pinned atlas community build
         run: scripts/install-atlas.sh
 
-      - name: Every flow, then the after-publish crash point, against a throwaway stack
+      - name: Every flow, then every registered crash point, against a throwaway stack
         run: scripts/ci/e2e.sh
 
       - name: Upload the verify evidence
