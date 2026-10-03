@@ -178,6 +178,9 @@ func rowShape(f Flow) []Problem {
 			bad("command %q is not an exported Go identifier", command)
 		}
 	}
+	if n := len(f.Triggers()); n > 1 && n != len(f.Commands) {
+		bad("trigger lists %d triggers for %d commands; list one, or one per command in order", n, len(f.Commands))
+	}
 	if f.Status.AtLeastBuilt() && len(f.Commands) == 0 {
 		bad("command is empty on a %s flow", f.Status)
 	}

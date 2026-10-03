@@ -63,7 +63,7 @@ func TestTriggerKind_splitsThePollerAndConsumerPrefixesAndTreatsTheRestAsARoute(
 		"poller":                   {flows.TriggerRoute, "poller"},
 		"deposits:poller":          {flows.TriggerRoute, "deposits:poller"},
 	} {
-		if kind, name := (flows.Flow{Trigger: trigger}).TriggerKind(); kind != want.kind || name != want.name {
+		if kind, name := (flows.Flow{Trigger: trigger}).TriggerKind(""); kind != want.kind || name != want.name {
 			t.Errorf("TriggerKind(%q) = %s %q, want %s %q", trigger, kind, name, want.kind, want.name)
 		}
 	}
@@ -110,5 +110,30 @@ func TestCommands_findsOnlyTypesDeclaredInTheFlowsModuleAppPackage(t *testing.T)
 	}
 	if flows.Commands(filepath.Join(dir, "missing"))(flows.Flow{Module: "system"}, "Ping") {
 		t.Error("a command resolved from a backend directory that does not exist")
+	}
+}
+
+func TestTriggerKind_picksEachCommandsTrigger(t *testing.T) {
+	t.Parallel()
+	perCommand := flows.Flow{
+		Trigger:  "POST /v1/cabals/{id}/members; poller:cabal.sweep",
+		Commands: []string{"JoinCabal", "Sweep"},
+	}
+	shared := flows.Flow{Trigger: "POST /v1/cabals/{id}/members", Commands: []string{"JoinCabal", "RequestAccess"}}
+	for _, tc := range []struct {
+		flow    flows.Flow
+		command string
+		kind    flows.TriggerKind
+		name    string
+	}{
+		{perCommand, "JoinCabal", flows.TriggerRoute, "POST /v1/cabals/{id}/members"},
+		{perCommand, "Sweep", flows.TriggerPoller, "cabal.sweep"},
+		{perCommand, "Unknown", flows.TriggerRoute, "POST /v1/cabals/{id}/members"},
+		{shared, "RequestAccess", flows.TriggerRoute, "POST /v1/cabals/{id}/members"},
+		{flows.Flow{}, "", flows.TriggerRoute, ""},
+	} {
+		if kind, name := tc.flow.TriggerKind(tc.command); kind != tc.kind || name != tc.name {
+			t.Errorf("TriggerKind(%q) = %s %q, want %s %q", tc.command, kind, name, tc.kind, tc.name)
+		}
 	}
 }

@@ -72,6 +72,24 @@ func TestParse_splitsTheCommandCellIntoEachCommand(t *testing.T) {
 	}
 }
 
+func TestParse_takesOneTriggerOrOnePerCommand(t *testing.T) {
+	t.Parallel()
+	perCommand := fundRowWith(func(c []string) {
+		c[3], c[4] = "POST /v1/cabals/{id}/fund; DELETE /v1/cabals/{id}/fund", "FundCabal; Refund"
+	})
+	got, problems := flows.Parse(strings.NewReader(tsv(perCommand)))
+	if len(problems) != 0 || len(got) != 1 || !slices.Equal(got[0].Triggers(),
+		[]string{"POST /v1/cabals/{id}/fund", "DELETE /v1/cabals/{id}/fund"}) {
+		t.Fatalf("flows = %+v, problems = %v", got, lines(problems))
+	}
+	mismatched := fundRowWith(func(c []string) { c[3] = "POST /v1/cabals/{id}/fund; DELETE /v1/cabals/{id}/fund" })
+	_, problems = flows.Parse(strings.NewReader(tsv(mismatched)))
+	want := []string{"flows.tsv:2: trigger lists 2 triggers for 1 commands; list one, or one per command in order"}
+	if !slices.Equal(lines(problems), want) {
+		t.Fatalf("problems = %q, want %q", lines(problems), want)
+	}
+}
+
 func TestParse_rejectsMalformedRowsWithTheirLineNumber(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

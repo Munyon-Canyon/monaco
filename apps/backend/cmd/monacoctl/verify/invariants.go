@@ -67,7 +67,7 @@ func (d *driver) settle(ctx context.Context, res *Result) error {
 	if err := d.converge(ctx, res.Unit, ids); err != nil {
 		return err
 	}
-	kind, _ := res.Unit.Flow.TriggerKind()
+	kind, _ := res.Unit.Flow.TriggerKind(res.Unit.Command)
 	if kind == tools.TriggerRoute {
 		if msg := d.outcomeMismatch(res); msg != "" {
 			return &InvariantError{Flow: res.Unit.Name(), Msg: msg}
@@ -103,7 +103,7 @@ func (d *driver) awaitLogs(ctx context.Context, from int, needs []logNeed) ([]st
 }
 
 func (d *driver) outcomeMismatch(res *Result) string {
-	kind, name := res.Unit.Flow.TriggerKind()
+	kind, name := res.Unit.Flow.TriggerKind(res.Unit.Command)
 	if kind == tools.TriggerRoute {
 		return routeMismatch(res, name)
 	}
@@ -231,7 +231,7 @@ func (d *driver) wroteDurableEvent(ctx context.Context, names []string, since ti
 }
 
 func (d *driver) triggerLogs(u Unit) []logNeed {
-	kind, name := u.Flow.TriggerKind()
+	kind, name := u.Flow.TriggerKind(u.Command)
 	if kind != tools.TriggerRoute {
 		need, _ := d.triggerLine(u, kind, name)
 		return []logNeed{need}
