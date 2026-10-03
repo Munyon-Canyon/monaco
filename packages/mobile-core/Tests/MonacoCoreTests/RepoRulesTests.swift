@@ -8,14 +8,16 @@ struct RepoRule: Sendable {
     let message: String
     let failing: [String]
     let passing: [String]
+    var requiredLiteral: String?
     var skipsPreviewBlocks = false
-    var applies: @Sendable (_ path: String, _ contents: String) -> Bool = { _, _ in true }
+    var applies: @Sendable (_ path: String, _ contents: NSString) -> Bool = { _, _ in true }
     private let regex = RuleRegex()
 
-    func matches(in text: String) throws -> Int {
+    func matches(in text: NSString) throws -> Int {
+        if let requiredLiteral, text.range(of: requiredLiteral, options: .literal).location == NSNotFound { return 0 }
         let subject = skipsPreviewBlocks ? PreviewBlockStripping.apply(text) : text
         let regex = try regex.for(pattern: pattern)
-        return regex.numberOfMatches(in: subject, range: NSRange(subject.startIndex..., in: subject))
+        return regex.numberOfMatches(in: subject as String, range: NSRange(location: 0, length: subject.length))
     }
 }
 
@@ -34,22 +36,27 @@ private final class RuleRegex: @unchecked Sendable {
 }
 
 enum PreviewBlockStripping {
+    static func apply(_ text: NSString) -> NSString {
+        guard text.range(of: "#Preview", options: .literal).location != NSNotFound else { return text }
+        return apply(text as String) as NSString
+    }
+
     static func apply(_ text: String) -> String {
         var result = ""
         var index = text.startIndex
-        while index < text.endIndex {
-            if let end = previewEnd(in: text, from: index) {
+        while let start = text[index...].firstRange(of: "#Preview")?.lowerBound {
+            result += text[index..<start]
+            if let end = previewEnd(in: text, from: start) {
                 index = end
-                continue
+            } else {
+                result.append(text[start])
+                index = text.index(after: start)
             }
-            result.append(text[index])
-            index = text.index(after: index)
         }
-        return result
+        return result + text[index...]
     }
 
     private static func previewEnd(in text: String, from index: String.Index) -> String.Index? {
-        guard text[index...].hasPrefix("#Preview") else { return nil }
         guard let open = text[index...].firstIndex(of: "{") else { return nil }
         var depth = 0
         var cursor = open
@@ -178,7 +185,7 @@ enum RepoRules {
             applies: { path, contents in
                 let inDomain = path.range(of: #"Sources/MonacoCore/[^/]+/"#, options: .regularExpression) != nil
                 let networking = path.contains("Sources/MonacoCore/Networking/")
-                let micros = contents.range(of: "micros", options: .caseInsensitive) != nil
+                let micros = contents.range(of: "micros", options: .caseInsensitive).location != NSNotFound
                 return (inDomain && !networking) || micros
             }
         ),
@@ -304,7 +311,8 @@ enum RepoRules {
                     + "    case .unauthorized, .interrupted: break\n    }\n}",
                 "func show(_ mode: Mode) {\n    switch mode {\n    case .a: break\n    default: break\n    }\n}",
                 "let outcome: Flow01Outcome = .ok\nswitch code {\ncase \"x\": break\ndefault: break\n}",
-            ]
+            ],
+            requiredLiteral: "Flow"
         ),
         FeaturePatternRules.construct,
         FeaturePatternRules.viewHints,
@@ -388,7 +396,7 @@ enum RepoTree {
     private final class Cache: @unchecked Sendable {
         let lock = NSLock()
         var filesByDirectory: [String: [String]] = [:]
-        var contentsByPath: [String: String] = [:]
+        var contentsByPath: [String: NSString] = [:]
     }
 
     static func swiftFiles(under directory: String) -> [String] {
@@ -410,11 +418,12 @@ enum RepoTree {
         return result
     }
 
-    static func read(_ path: String) throws -> String {
+    static func read(_ path: String) throws -> NSString {
         cache.lock.lock()
         defer { cache.lock.unlock() }
         if let contents = cache.contentsByPath[path] { return contents }
-        let contents = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+        let contents = try NSString(
+            contentsOf: root.appendingPathComponent(path), encoding: String.Encoding.utf8.rawValue)
         cache.contentsByPath[path] = contents
         return contents
     }
@@ -434,7 +443,7 @@ enum RepoTree {
 
     static func allowed() throws -> [String: [String: Int]] {
         var rows: [String: [String: Int]] = [:]
-        for line in try read(allowlist).split(separator: "\n") {
+        for line in (try read(allowlist) as String).split(separator: "\n") {
             let fields = line.split(separator: "\t").map(String.init)
             guard fields.count == 3, let count = Int(fields[2]) else {
                 throw RepoRulesError.malformedRow(String(line))
@@ -518,6 +527,7 @@ private enum RequiredReason {
         used: inout Set<String>,
         missing: inout [String]
     ) {
+        guard apis.contains(where: { file.text.contains($0.token) }) else { return }
         let rows = file.text.split(separator: "\n", omittingEmptySubsequences: false)
         for (offset, row) in rows.enumerated() {
             let line = String(row)
@@ -544,10 +554,11 @@ final class RepoRulesTests: XCTestCase {
     func testEveryRuleFlagsItsFailingFixturesAndPassesItsPassingOnes() throws {
         for rule in RepoRules.all {
             for fixture in rule.failing {
-                XCTAssertGreaterThan(try rule.matches(in: fixture), 0, "\(rule.name) should flag: \(fixture)")
+                XCTAssertGreaterThan(
+                    try rule.matches(in: fixture as NSString), 0, "\(rule.name) should flag: \(fixture)")
             }
             for fixture in rule.passing {
-                XCTAssertEqual(try rule.matches(in: fixture), 0, "\(rule.name) should pass: \(fixture)")
+                XCTAssertEqual(try rule.matches(in: fixture as NSString), 0, "\(rule.name) should pass: \(fixture)")
             }
         }
     }
@@ -581,7 +592,7 @@ final class RepoRulesTests: XCTestCase {
         var files: [(path: String, text: String)] = []
         for root in RequiredReason.roots {
             for path in RepoTree.swiftFiles(under: root) {
-                files.append((path, try RepoTree.read(path)))
+                files.append((path, try RepoTree.read(path) as String))
             }
         }
         XCTAssertEqual(try RequiredReason.violations(files: files, declared: declared), [])
