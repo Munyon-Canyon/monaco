@@ -154,6 +154,7 @@ type fixture struct {
 	whoami   error
 	load     float64
 	lookPath func(string) (string, error)
+	onWait   func(n int)
 }
 
 type repoSnapshot struct {
@@ -274,6 +275,9 @@ func (f *fixture) clock(env *Env) {
 func (f *fixture) after(d time.Duration) <-chan time.Time {
 	f.now = f.now.Add(d)
 	f.waited = append(f.waited, d)
+	if f.onWait != nil {
+		f.onWait(len(f.waited))
+	}
 	fired := make(chan time.Time, 1)
 	fired <- f.now
 	return fired

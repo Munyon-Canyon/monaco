@@ -2,6 +2,7 @@ package agents
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"slices"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
+
+var errRequeued = errors.New("the stack was queued again during its release")
 
 const (
 	dequeueTries  = 3
@@ -35,7 +38,7 @@ func dequeueCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) 
 		_, _ = fmt.Fprintf(stdout, "disarmed #%d; agents watch will not land it\n", n)
 		return nil
 	}
-	if err := env.releaseQueue(ctx, rec.Queued); err != nil {
+	if err := env.releaseQueue(ctx, rec.Queued, nil); err != nil {
 		return err
 	}
 	if err := env.unmark(ctx, rec); err != nil {
@@ -45,8 +48,17 @@ func dequeueCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) 
 	return nil
 }
 
-func (env *Env) releaseQueue(ctx context.Context, q *Queue) error {
+func (env *Env) releaseQueue(ctx context.Context, q *Queue, stop func(context.Context) (bool, error)) error {
 	for range dequeueTries {
+		if stop != nil {
+			halt, err := stop(ctx)
+			if err != nil {
+				return err
+			}
+			if halt {
+				return errRequeued
+			}
+		}
 		held, err := env.release(ctx, q.PRs)
 		if err != nil || !held {
 			return err

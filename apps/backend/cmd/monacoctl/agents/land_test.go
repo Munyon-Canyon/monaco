@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -294,7 +295,7 @@ func TestLandStack_labelsEveryPRAndKeepsTheirBases(t *testing.T) {
 		t.Fatalf("queued %+v", q)
 	}
 	if got := posted(t, f, "POST /repos/o/r/issues/40/comments"); !strings.Contains(
-		got, `"queued":{"top":3,"prs":[1,2,3]}`,
+		got, `"queued":{"top":3,"prs":[1,2,3],"at":"2026-09-27T12:00:00Z"}`,
 	) {
 		t.Fatalf("published %q", got)
 	}
@@ -1251,5 +1252,98 @@ func TestWatchOnce_landsAnArmedStackThatWentGreen(t *testing.T) {
 	}
 	if r := f.owned(t); r.Armed != nil || r.Queued == nil || r.Queued.Top != 2 {
 		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
+	}
+}
+
+func requeuedDuringRelease(t *testing.T, at int, relabel bool) (*fixture, *stackGH, Queue) {
+	t.Helper()
+	f := newFixture(t)
+	s := queuedStack(t, f, "/w/40")
+	s.prs[2].Labels.Nodes = nil
+	again := Queue{Top: 2, PRs: []int{1, 2}, At: f.now.Add(time.Hour)}
+	f.onWait = func(n int) {
+		if n != at {
+			return
+		}
+		f.owner(t, Record{Ticket: 40, State: Exited, Worktree: "/w/40", Queued: &again})
+		if relabel {
+			labeled(s.prs[1], "merge-queue")
+			labeled(s.prs[2], "merge-queue")
+		}
+	}
+	return f, s, again
+}
+
+func TestEjectStack_leavesAStackQueuedWhenLandStackQueuesItAgainDuringTheRelease(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		at      int
+		relabel bool
+	}{
+		{"between release passes", 1, true},
+		{"after the last pass, before it concludes", dequeueChecks, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f, s, again := requeuedDuringRelease(t, tc.at, tc.relabel)
+			line, requeued, err := f.Env(t).ejectStack(t.Context(), f.owned(t), *s.prs[2])
+			if err != nil || !requeued || line != "stack #2 was re-queued during its release; left it queued" {
+				t.Fatalf("ejectStack = %q, %v, %v", line, requeued, err)
+			}
+			r := f.owned(t)
+			if r.Queued == nil || !r.Queued.At.Equal(again.At) || r.Settled != nil {
+				t.Fatalf("record queued %+v settled %+v, want the new queue kept", r.Queued, r.Settled)
+			}
+			if tc.relabel && (!s.prs[1].labeled("merge-queue") || !s.prs[2].labeled("merge-queue")) {
+				t.Fatalf("the release removed the labels the new land-stack added: %v %v",
+					s.prs[1].Labels, s.prs[2].Labels)
+			}
+		})
+	}
+}
+
+func TestEjectStack_reportsAnOwnerRecordItCannotReread(t *testing.T) {
+	t.Parallel()
+	for _, at := range []int{0, dequeueChecks} {
+		f := newFixture(t)
+		s := queuedStack(t, f, "/w/40")
+		s.prs[2].Labels.Nodes = nil
+		env := f.Env(t)
+		rec := f.owned(t)
+		gone := func() {
+			if err := os.Remove(env.recordPath(40)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if at == 0 {
+			gone()
+		} else {
+			f.onWait = func(n int) {
+				if n == at {
+					gone()
+				}
+			}
+		}
+		if _, _, err := env.ejectStack(t.Context(), rec, *s.prs[2]); err == nil {
+			t.Fatalf("record removed at wait %d: ejectStack returned no error", at)
+		}
+	}
+}
+
+func TestWatchOnce_leavesAStackQueuedAgainDuringItsReleaseAlone(t *testing.T) {
+	t.Parallel()
+	f, s, again := requeuedDuringRelease(t, 1, true)
+	f.noFailures()
+	code, stdout, stderr := f.agents(t, "watch", "--once")
+	if code != 0 || !strings.Contains(stdout, "stack #2 was re-queued during its release; left it queued\n") ||
+		strings.Contains(stdout, "unqueued:") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	if r := f.owned(t); r.Queued == nil || !r.Queued.At.Equal(again.At) {
+		t.Fatalf("queued %+v, want the new queue kept", r.Queued)
+	}
+	if !s.prs[2].labeled("merge-queue") {
+		t.Fatal("the release removed the label the new land-stack added")
 	}
 }

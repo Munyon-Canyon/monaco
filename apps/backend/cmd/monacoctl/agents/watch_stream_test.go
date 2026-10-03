@@ -178,6 +178,17 @@ func TestWatchStream_aStackListedByAnOpenDraftIsNotEjectedWithoutTheLabel(t *tes
 	}
 }
 
+func TestWatchStream_printsAStackQueuedAgainDuringItsReleaseWithoutAFailureBlock(t *testing.T) {
+	t.Parallel()
+	f, _, _ := requeuedDuringRelease(t, 1, true)
+	f.noFailures()
+	got := streamRounds(t, f, 3, func(int) {})
+	if !strings.Contains(got, "stack #2 was re-queued during its release; left it queued\n") ||
+		strings.Contains(got, "stack #2 ejected:") || strings.Contains(got, "fresh owner") {
+		t.Fatalf("stream:\n%s", got)
+	}
+}
+
 func TestWatchStream_printsAFailureBlockOnce(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -406,7 +417,8 @@ func TestWatchStream_landsAnArmedStackOnceStage1Passes(t *testing.T) {
 	}) {
 		t.Fatalf("labels %v", calls)
 	}
-	if r := f.owned(t); r.Armed != nil || r.Queued == nil || !slices.Equal(r.Queued.PRs, []int{1, 2}) {
+	if r := f.owned(t); r.Armed != nil || r.Queued == nil || !slices.Equal(r.Queued.PRs, []int{1, 2}) ||
+		r.Queued.At.IsZero() {
 		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
 	}
 }
