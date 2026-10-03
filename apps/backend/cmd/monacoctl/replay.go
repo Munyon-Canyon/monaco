@@ -51,7 +51,7 @@ func replayTool(environ []string) tool {
 		rep, err := replay.Run(ctx, replay.Options{
 			Source: pools[0], Target: pools[1], UoW: uow, Clock: clk,
 			Handlers: projections(cfg, pools[1], uow, clk),
-			To:       toID, Verify: *verify, Checks: replay.LedgerChecks(),
+			To:       toID, Verify: *verify, Checks: replay.LedgerChecks(cfg),
 		})
 		_, _ = fmt.Fprintf(
 			stdout,

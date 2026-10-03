@@ -12,9 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/adapters"
-	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
-	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -55,7 +53,7 @@ func (s seeded) exec(t *testing.T, sql string, args ...any) {
 func TestLedgerCheck_passesOnASeededLedgerAndNamesEveryDrift(t *testing.T) {
 	t.Parallel()
 	s := seed(t)
-	check := treasury.LedgerCheck()
+	check := treasury.LedgerCheck(testkit.Config())
 	if diffs, err := check.Check(t.Context(), s.f.pool); err != nil || len(diffs) != 0 {
 		t.Fatalf("seeded ledger = %q, %v, want no diffs", diffs, err)
 	}
@@ -150,7 +148,7 @@ func TestLedgerCheck_namesACostBasisThatDiffersFromItsEntries(t *testing.T) {
 	f := newFixture(t)
 	cabal := f.cabal(t)
 	f.postTrades(t, cabal, [2]int64{60, 3}, [2]int64{-25, -1})
-	check := treasury.LedgerCheck()
+	check := treasury.LedgerCheck(testkit.Config())
 	if diffs, err := check.Check(t.Context(), f.pool); err != nil || len(diffs) != 0 {
 		t.Fatalf("ledger = %q, %v, want no diffs", diffs, err)
 	}
@@ -190,7 +188,7 @@ func TestLedgerCheck_namesAPositionWithoutEntriesAndEntriesWithoutAPosition(t *t
 	if _, err := f.pool.Exec(t.Context(), stray, cabal.UUID()); err != nil {
 		t.Fatal(err)
 	}
-	diffs, err := treasury.LedgerCheck().Check(t.Context(), f.pool)
+	diffs, err := treasury.LedgerCheck(testkit.Config()).Check(t.Context(), f.pool)
 	prefix := "cabal_positions " + cabal.String() + " "
 	want := []string{
 		prefix + string(aapl) + ": entries 3, position 0",
@@ -214,7 +212,7 @@ func TestLedgerCheck_reportsASaleOfWhatTheLedgerNeverBoughtWithoutStopping(t *te
 		VALUES ($1, 0, 'treasury', 'SOLD', -5), ($1, 1, 'venue', 'SOLD', 5)`, txn); err != nil {
 		t.Fatal(err)
 	}
-	diffs, err := treasury.LedgerCheck().Check(t.Context(), f.pool)
+	diffs, err := treasury.LedgerCheck(testkit.Config()).Check(t.Context(), f.pool)
 	want := []string{"cabal_positions " + cabal.String() + " SOLD: entries -5, position 0"}
 	if err != nil || !slices.Equal(diffs, want) {
 		t.Fatalf("ledger = %q, %v, want %q", diffs, err, want)
@@ -260,7 +258,7 @@ func TestLedgerCheck_replaysHeadersWithSeveralTreasuryLegs(t *testing.T) {
 	if got := f.cabalPositions(t); !slices.Equal(got, want) {
 		t.Fatalf("cabal positions = %+v, want %+v", got, want)
 	}
-	if diffs, err := treasury.LedgerCheck().Check(t.Context(), f.pool); err != nil || len(diffs) != 0 {
+	if diffs, err := treasury.LedgerCheck(testkit.Config()).Check(t.Context(), f.pool); err != nil || len(diffs) != 0 {
 		t.Fatalf("ledger = %q, %v, want no diffs", diffs, err)
 	}
 }
@@ -281,24 +279,26 @@ func TestLedgerCheck_replaysCostBasisPastInt64(t *testing.T) {
 	if got := f.cabalPositions(t); !slices.Equal(got, want) {
 		t.Fatalf("cabal positions = %+v, want %+v", got, want)
 	}
-	if diffs, err := treasury.LedgerCheck().Check(t.Context(), f.pool); err != nil || len(diffs) != 0 {
+	if diffs, err := treasury.LedgerCheck(testkit.Config()).Check(t.Context(), f.pool); err != nil || len(diffs) != 0 {
 		t.Fatalf("ledger = %q, %v, want a cost of 10^19 released in big integers", diffs, err)
 	}
 }
 
-func TestLedgerCheck_pricesInTheDefaultConfiguredUSDC(t *testing.T) {
+func TestLedgerCheck_pricesEveryPositionInTheConfiguredUSDCMint(t *testing.T) {
 	t.Parallel()
-	cfg, err := config.Load([]string{
-		"MONACO_ENV=local", "DATABASE_URL=postgres://monaco@localhost:54322/monaco", "NATS_URL=nats://localhost:4222",
-	})
-	if err != nil {
+	const devnetUSDC = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+	f := newFixtureOn(t, config.Config{Solana: config.Solana{USDCMint: devnetUSDC}})
+	cabal := f.funded(t)
+	trade := buy(cabal, f.ids.NewV7(), 60_000_000, 3_000_000, 0)
+	trade.InMint = devnetUSDC
+	if err := f.deliver(t, trade, confirmedAt()); err != nil {
 		t.Fatal(err)
 	}
-	f := newFixture(t)
-	f.ledger = app.NewLedger(chain.SolanaAddress(cfg.Solana.USDCMint), f.clock)
-	f.postTrades(t, f.cabal(t), [2]int64{60, 3}, [2]int64{-25, -1})
-	if diffs, err := treasury.LedgerCheck().Check(t.Context(), f.pool); err != nil || len(diffs) != 0 {
-		t.Fatalf("ledger written with SOLANA_USDC_MINT %s = %q, %v, want no diffs", cfg.Solana.USDCMint, diffs, err)
+	wantPositions(t, f,
+		position{Asset: devnetUSDC, Units: "40000000", Cost: "40000000"},
+		position{Asset: string(aapl), Units: "3000000", Cost: "60000000"})
+	if diffs, err := treasury.LedgerCheck(testkit.Config()).Check(t.Context(), f.pool); err != nil || len(diffs) == 0 {
+		t.Fatalf("mainnet check of a devnet ledger = %q, %v, want cost drift", diffs, err)
 	}
 }
 
@@ -311,7 +311,7 @@ func TestLedgerCheck_replaysCostBasisInTheOrderTheEntriesWereWritten(t *testing.
 	if got := f.cabalPositions(t); !slices.Equal(got, want) {
 		t.Fatalf("cabal positions = %+v, want %+v", got, want)
 	}
-	if diffs, err := treasury.LedgerCheck().Check(t.Context(), f.pool); err != nil || len(diffs) != 0 {
+	if diffs, err := treasury.LedgerCheck(testkit.Config()).Check(t.Context(), f.pool); err != nil || len(diffs) != 0 {
 		t.Fatalf("ledger = %q, %v, want the replay to end where the writes did", diffs, err)
 	}
 }
@@ -340,7 +340,7 @@ func TestLedgerCheck_replaysInPostOrderWhenTheClockStepsBack(t *testing.T) {
 	if got := f.cabalPositions(t); !slices.Equal(got, want) {
 		t.Fatalf("cabal positions = %+v, want %+v", got, want)
 	}
-	if diffs, err := treasury.LedgerCheck().Check(t.Context(), f.pool); err != nil || len(diffs) != 0 {
+	if diffs, err := treasury.LedgerCheck(testkit.Config()).Check(t.Context(), f.pool); err != nil || len(diffs) != 0 {
 		t.Fatalf("ledger = %q, %v, want the replay to follow the posts, not their clock or ids", diffs, err)
 	}
 }
@@ -403,11 +403,11 @@ func TestCheckLedger_failsWhenTheDatabaseDoes(t *testing.T) {
 	_, err = withRule(t.Context(), s.f.pool)
 	wantCode(t, err, errs.CodeInternal)
 	s.exec(t, `ALTER TABLE cabal_txns DROP COLUMN seq`)
-	_, err = treasury.LedgerCheck().Check(t.Context(), s.f.pool)
+	_, err = treasury.LedgerCheck(testkit.Config()).Check(t.Context(), s.f.pool)
 	wantCode(t, err, errs.CodeInternal)
 	for _, table := range []string{"user_positions", "cabal_positions", "user_txns", "cabal_txn_entries"} {
 		s.exec(t, `DROP TABLE `+table+` CASCADE`)
-		_, err = treasury.LedgerCheck().Check(t.Context(), s.f.pool)
+		_, err = treasury.LedgerCheck(testkit.Config()).Check(t.Context(), s.f.pool)
 		t.Logf("without %s: %v", table, err)
 		wantCode(t, err, errs.CodeInternal)
 	}

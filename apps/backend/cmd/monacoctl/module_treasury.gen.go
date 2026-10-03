@@ -10,5 +10,5 @@ import (
 
 func init() {
 	registered.Add(func(d module.Deps) module.Module { return treasury.New(d) })
-	replay.RegisterLedgerCheck(treasury.LedgerCheck())
+	replay.RegisterLedgerCheck(treasury.LedgerCheck)
 }

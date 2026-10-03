@@ -98,7 +98,7 @@ func start(t *testing.T, o options) *app {
 		reg.Add(m)
 	}
 	set := reg.Build(module.Deps{
-		Clock: clock.Real{}, IDs: a.ids, Pool: pool, UoW: a.db, Bus: a.bus.Conn, Hub: hub,
+		Config: testkit.Config(), Clock: clock.Real{}, IDs: a.ids, Pool: pool, UoW: a.db, Bus: a.bus.Conn, Hub: hub,
 	})
 	a.consumers = a.observe(set.Consumers())
 	a.pollers = set.Pollers()

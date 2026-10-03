@@ -145,6 +145,7 @@ func (s *Stack) processes(ctx context.Context) error {
 		"TESSERA_API_BASE_URL=http://"+fakes.addr+"/tessera",
 		"PRESTOCKS_API_BASE_URL=http://"+fakes.addr+"/prestocks",
 		"SOLANA_RPC_URL=http://"+fakes.addr+"/rpc/",
+		"SOLANA_USDC_MINT="+string(testkit.USDCMint),
 		"SUPABASE_URL=http://"+fakes.addr,
 		"SUPABASE_SERVICE_ROLE_KEY=verify-service-role",
 		"MONACO_BUS_ACK_WAIT=100ms",

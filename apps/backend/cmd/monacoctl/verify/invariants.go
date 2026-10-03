@@ -15,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 	tools "github.com/monaco/monaco/apps/backend/internal/tools/flows"
 	"github.com/monaco/monaco/apps/backend/internal/tools/ops/replay"
@@ -25,7 +26,9 @@ type LedgerCheck struct {
 	Check func(ctx context.Context, pool *pgxpool.Pool) error
 }
 
-func LedgerChecks() []LedgerCheck { return fromReplay(replay.LedgerChecks()) }
+func LedgerChecks() []LedgerCheck {
+	return fromReplay(replay.LedgerChecks(testkit.Config()))
+}
 
 type LedgerDiffsError []string
 
