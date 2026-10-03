@@ -13,7 +13,8 @@
 		C0DE000330590361008E7964 /* MonacoCore in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE000230590361008E7964 /* MonacoCore */; };
 		C0DE000530590361008E7964 /* MonacoAPI in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE000430590361008E7964 /* MonacoAPI */; };
 		C0DE000630590361008E7964 /* MonacoTestClock in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE000730590361008E7964 /* MonacoTestClock */; };
-		C0DE000830590361008E7964 /* MonacoTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE000930590361008E7964 /* MonacoTestSupport */; };
+		C0DE001130590361008E7964 /* StubTokenProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE001030590361008E7964 /* StubTokenProvider.swift */; };
+		C0DE001330590361008E7964 /* StubTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE001230590361008E7964 /* StubTransport.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -39,6 +40,8 @@
 		B463062A30590360008E7964 /* MonacoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MonacoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B463064230590362008E7964 /* Privy.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Privy.xcconfig; sourceTree = "<group>"; };
 		B463064430590362008E7964 /* Monaco.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Monaco.xcconfig; sourceTree = "<group>"; };
+		C0DE001030590361008E7964 /* StubTokenProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubTokenProvider.swift; sourceTree = "<group>"; };
+		C0DE001230590361008E7964 /* StubTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubTransport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -77,7 +80,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				C0DE000630590361008E7964 /* MonacoTestClock in Frameworks */,
-				C0DE000830590361008E7964 /* MonacoTestSupport in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -98,6 +100,7 @@
 				B46306153059035D008E7964 /* Monaco */,
 				B463062330590360008E7964 /* MonacoTests */,
 				B463062D30590360008E7964 /* MonacoUITests */,
+				C0DE000F30590361008E7964 /* MonacoTestSupport */,
 				B46306143059035D008E7964 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -119,6 +122,16 @@
 				B463064230590362008E7964 /* Privy.xcconfig */,
 			);
 			path = Config;
+			sourceTree = "<group>";
+		};
+		C0DE000F30590361008E7964 /* MonacoTestSupport */ = {
+			isa = PBXGroup;
+			children = (
+				C0DE001030590361008E7964 /* StubTokenProvider.swift */,
+				C0DE001230590361008E7964 /* StubTransport.swift */,
+			);
+			name = MonacoTestSupport;
+			path = ../../packages/mobile-core/Sources/MonacoTestSupport;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -170,7 +183,6 @@
 			name = MonacoTests;
 			packageProductDependencies = (
 				C0DE000730590361008E7964 /* MonacoTestClock */,
-				C0DE000930590361008E7964 /* MonacoTestSupport */,
 			);
 			productName = MonacoTests;
 			productReference = B463062030590360008E7964 /* MonacoTests.xctest */;
@@ -285,6 +297,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C0DE001130590361008E7964 /* StubTokenProvider.swift in Sources */,
+				C0DE001330590361008E7964 /* StubTransport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -697,11 +711,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C0DE000130590361008E7964 /* XCLocalSwiftPackageReference "../../packages/mobile-core" */;
 			productName = MonacoTestClock;
-		};
-		C0DE000930590361008E7964 /* MonacoTestSupport */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = C0DE000130590361008E7964 /* XCLocalSwiftPackageReference "../../packages/mobile-core" */;
-			productName = MonacoTestSupport;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
