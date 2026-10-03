@@ -137,6 +137,12 @@ func (healthz) PostProposalVote(
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostProposalVote")
 }
 
+func (healthz) PostCabalProposal(
+	context.Context, api.PostCabalProposalRequestObject,
+) (api.PostCabalProposalResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostCabalProposal")
+}
+
 func (healthz) PostUserFollow(
 	context.Context, api.PostUserFollowRequestObject,
 ) (api.PostUserFollowResponseObject, error) {

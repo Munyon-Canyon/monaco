@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+09	Propose trade	governance	POST /v1/cabals/{id}/proposals	ProposeTrade	proposal.created		ok;InvalidInput;Unauthorized;NotCabalMember;AssetNotFound;AssetUntradable;NoRoute;PotExceeded;InsufficientFunds;JupiterUnavailable;PriceUnavailable;crash:after-publish	planned	docs/architecture/proposals.md#crud-surface

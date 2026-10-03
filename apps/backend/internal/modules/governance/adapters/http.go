@@ -11,9 +11,11 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type HTTP struct {
+	Propose  *app.ProposeTradeHandler
 	Vote     *app.CastVoteHandler
 	Withdraw *app.WithdrawProposalHandler
 	Reads    *app.ProposalReads
@@ -89,6 +91,32 @@ func (h HTTP) GetProposal(
 		return nil, err
 	}
 	return api.GetProposal200JSONResponse(out), nil
+}
+
+func (h HTTP) PostCabalProposal(
+	ctx context.Context, req api.PostCabalProposalRequestObject,
+) (api.PostCabalProposalResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	trade, err := domain.NewTrade(domain.Trade{
+		Kind: domain.Kind(req.Body.Kind), Symbol: req.Body.Symbol,
+		USDCMicros: money.MicrosFromUint64(amount(req.Body.UsdcMicros)), TokenAmount: amount(req.Body.TokenAmount),
+		Thesis: deref(req.Body.Thesis),
+	})
+	if err != nil {
+		return nil, err
+	}
+	id, err := h.Propose.Handle(ctx, app.ProposeTrade{CabalID: ids.CabalIDFrom(req.Id), ProposerID: user, Trade: trade})
+	if err != nil {
+		return nil, err
+	}
+	out, err := h.detail(ctx, id, user)
+	if err != nil {
+		return nil, err
+	}
+	return api.PostCabalProposal201JSONResponse(out), nil
 }
 
 func (h HTTP) DeleteProposal(
@@ -193,6 +221,20 @@ func present(s string) *string {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func amount(v *int64) uint64 {
+	if v == nil || *v < 0 {
+		return 0
+	}
+	return uint64(*v)
+}
 
 func positive(n int64) *int64 {
 	if n <= 0 {

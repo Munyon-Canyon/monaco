@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -15,7 +16,9 @@ import (
 )
 
 func withGovernance() scenario.Option {
-	return scenario.WithModules(func(d module.Deps) module.Module { return governance.New(d) })
+	return scenario.WithModules(func(d module.Deps) module.Module {
+		return governance.New(d, governance.WithPorts(governance.Ports{Cabals: cabal.New(d).Queries()}))
+	})
 }
 
 func TestFlow10_CastVote_OK(t *testing.T) {
