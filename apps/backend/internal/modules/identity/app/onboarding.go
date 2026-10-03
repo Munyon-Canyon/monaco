@@ -1,0 +1,98 @@
+package app
+
+import (
+	"context"
+	"time"
+
+	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+)
+
+type OnboardingUsers interface {
+	FindByID(ctx context.Context, q sqlc.DBTX, id ids.UserID) (domain.User, error)
+	LockByID(ctx context.Context, q sqlc.DBTX, id ids.UserID) (domain.User, error)
+	Onboard(ctx context.Context, q sqlc.DBTX, id ids.UserID, sync domain.LinkSync, at time.Time) error
+}
+
+type OnboardingDeps struct {
+	UoW   *db.UnitOfWork
+	Reads sqlc.DBTX
+	Users OnboardingUsers
+	Privy PrivyUsers
+	Clock clock.Clock
+	Hints Hints
+}
+
+type Onboarding struct{ d OnboardingDeps }
+
+func NewOnboarding(d OnboardingDeps) *Onboarding { return &Onboarding{d: d} }
+
+func (o *Onboarding) LinkPhone(ctx context.Context, id ids.UserID) (Me, error) {
+	return o.link(ctx, id, domain.PhoneVerified)
+}
+
+func (o *Onboarding) link(ctx context.Context, id ids.UserID, kind domain.AuthEventKind) (Me, error) {
+	u, err := o.withHandle(ctx, id)
+	if err != nil {
+		return Me{}, err
+	}
+	privy, err := o.d.Privy.User(ctx, PrivyUserID(u.PrivyUserID))
+	if err != nil {
+		return Me{}, err
+	}
+	return o.apply(ctx, id, kind, privy.Links())
+}
+
+func (o *Onboarding) withHandle(ctx context.Context, id ids.UserID) (domain.User, error) {
+	u, err := o.d.Users.FindByID(ctx, o.d.Reads, id)
+	if err != nil {
+		return domain.User{}, err
+	}
+	return u, domain.HandleSet(u)
+}
+
+func (o *Onboarding) apply(
+	ctx context.Context, id ids.UserID, kind domain.AuthEventKind, privy domain.Links,
+) (Me, error) {
+	err := o.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		u, err := o.d.Users.LockByID(ctx, tx.Queries(), id)
+		if err != nil {
+			return err
+		}
+		sync, err := domain.Onboard(u, kind, privy)
+		if err != nil || sync.Empty() {
+			return err
+		}
+		now := o.d.Clock.Now()
+		if err := o.d.Users.Onboard(ctx, tx.Queries(), id, sync, now); err != nil {
+			return err
+		}
+		if err := appendAuthSteps(ctx, tx, id, sync.Steps, now); err != nil {
+			return err
+		}
+		tx.AfterCommit(func(ctx context.Context) {
+			o.d.Hints.PublishHint(ctx, "user."+id.String()+".me_changed", nil)
+		})
+		return nil
+	})
+	if err != nil {
+		return Me{}, err
+	}
+	return GetMe(ctx, o.d.Reads, id)
+}
+
+func appendAuthSteps(ctx context.Context, tx db.Tx, id ids.UserID, steps []domain.AuthStep, at time.Time) error {
+	for _, step := range steps {
+		err := tx.Events.Append(ctx, events.UserAuthStateChanged{
+			V: 1, UserID: id.UUID(), From: string(step.From), To: string(step.To), Cause: string(step.Cause), At: at,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

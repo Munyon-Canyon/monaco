@@ -163,6 +163,27 @@ paths:
                 $ref: "#/components/schemas/Me"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/onboarding/phone:
+    post:
+      operationId: postOnboardingPhone
+      tags: [identity]
+      x-idempotent: true
+      summary: Store the phone the caller linked in Privy.
+      description: >-
+        Reads the verified phone from the caller's Privy user, never from the request, stores it and
+        advances `auth_state`. A caller with no handle gets handle_required, and a caller with no phone
+        linked in Privy gets phone_not_linked. Calling it again after it applied changes nothing.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The updated account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   schemas:
     AccountStatus:

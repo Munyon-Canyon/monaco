@@ -61,8 +61,13 @@ func (m *Module) Routes(r *httpx.Routes) {
 	if store == nil {
 		store = m.deps.Photos
 	}
+	m.ensurePrivy()
 	r.IdentityRoutes = adapters.HTTP{
 		Open: m.openSession(), Reads: m.deps.Pool, Clock: m.deps.Clock,
+		Onboard: app.NewOnboarding(app.OnboardingDeps{
+			UoW: m.deps.UoW, Reads: m.deps.Pool, Users: adapters.Users{}, Privy: m.privy, Clock: m.deps.Clock,
+			Hints: hints,
+		}),
 		SetHandle: app.NewSetHandle(app.SetHandleDeps{
 			UoW: m.deps.UoW, Reads: m.deps.Pool, Hints: hints, Users: adapters.Users{},
 			ClaimFacts: app.LoadLockedHandleClaimFacts,
@@ -75,16 +80,19 @@ func (m *Module) Routes(r *httpx.Routes) {
 	}
 }
 
-func (m *Module) openSession() *app.OpenSessionHandler {
-	users, wallets := m.privy, m.wallets
-	if users == nil {
-		client, err := privy.New(m.deps.Config, m.deps.Clock)
-		if err != nil {
-			panic(err)
-		}
-		users, wallets = privyadapter.Users{Client: client}, privyadapter.Wallets{Client: client}
+func (m *Module) ensurePrivy() {
+	if m.privy != nil {
+		return
 	}
-	rule, err := app.NewWalletRule(wallets, m.meters)
+	client, err := privy.New(m.deps.Config, m.deps.Clock)
+	if err != nil {
+		panic(err)
+	}
+	m.privy, m.wallets = privyadapter.Users{Client: client}, privyadapter.Wallets{Client: client}
+}
+
+func (m *Module) openSession() *app.OpenSessionHandler {
+	rule, err := app.NewWalletRule(m.wallets, m.meters)
 	if err != nil {
 		panic(err)
 	}
@@ -93,7 +101,7 @@ func (m *Module) openSession() *app.OpenSessionHandler {
 		Reads:   m.deps.Pool,
 		Users:   adapters.Users{},
 		Links:   adapters.Users{},
-		Privy:   users,
+		Privy:   m.privy,
 		Wallets: rule,
 		IDs:     m.deps.IDs,
 		Clock:   m.deps.Clock,

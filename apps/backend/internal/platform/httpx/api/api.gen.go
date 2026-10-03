@@ -2017,6 +2017,12 @@ type PutMeHandleParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// PostOnboardingPhoneParams defines parameters for PostOnboardingPhone.
+type PostOnboardingPhoneParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // PostProfilePhotoMultipartBody defines parameters for PostProfilePhoto.
 type PostProfilePhotoMultipartBody struct {
 	// Photo Examples: avatar.png
@@ -2154,6 +2160,9 @@ type ServerInterface interface {
 	// PutMeHandle Set the caller's handle.
 	// (PUT /v1/me/handle)
 	PutMeHandle(w http.ResponseWriter, r *http.Request, params PutMeHandleParams)
+	// PostOnboardingPhone Store the phone the caller linked in Privy.
+	// (POST /v1/me/onboarding/phone)
+	PostOnboardingPhone(w http.ResponseWriter, r *http.Request, params PostOnboardingPhoneParams)
 	// GetMyPendingVotes List the open proposals waiting on the caller's ballot.
 	// (GET /v1/me/pending-votes)
 	GetMyPendingVotes(w http.ResponseWriter, r *http.Request)
@@ -3133,6 +3142,51 @@ func (siw *ServerInterfaceWrapper) PutMeHandle(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// PostOnboardingPhone operation middleware
+func (siw *ServerInterfaceWrapper) PostOnboardingPhone(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostOnboardingPhoneParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostOnboardingPhone(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMyPendingVotes operation middleware
 func (siw *ServerInterfaceWrapper) GetMyPendingVotes(w http.ResponseWriter, r *http.Request) {
 
@@ -3648,6 +3702,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/v1/me", wrapper.PatchMe)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/cabals", wrapper.GetMyCabals)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/me/handle", wrapper.PutMeHandle)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/onboarding/phone", wrapper.PostOnboardingPhone)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/pending-votes", wrapper.GetMyPendingVotes)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/profile-photo", wrapper.PostProfilePhoto)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/referral-code", wrapper.GetMyReferralCode)
@@ -4519,6 +4574,45 @@ func (response PutMeHandledefaultApplicationProblemPlusJSONResponse) VisitPutMeH
 	return err
 }
 
+type PostOnboardingPhoneRequestObject struct {
+	Params PostOnboardingPhoneParams
+}
+
+type PostOnboardingPhoneResponseObject interface {
+	VisitPostOnboardingPhoneResponse(w http.ResponseWriter) error
+}
+
+type PostOnboardingPhone200JSONResponse Me
+
+func (response PostOnboardingPhone200JSONResponse) VisitPostOnboardingPhoneResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostOnboardingPhonedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PostOnboardingPhonedefaultApplicationProblemPlusJSONResponse) VisitPostOnboardingPhoneResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMyPendingVotesRequestObject struct {
 }
 
@@ -5011,6 +5105,9 @@ type StrictServerInterface interface {
 	// PutMeHandle Set the caller's handle.
 	// (PUT /v1/me/handle)
 	PutMeHandle(ctx context.Context, request PutMeHandleRequestObject) (PutMeHandleResponseObject, error)
+	// PostOnboardingPhone Store the phone the caller linked in Privy.
+	// (POST /v1/me/onboarding/phone)
+	PostOnboardingPhone(ctx context.Context, request PostOnboardingPhoneRequestObject) (PostOnboardingPhoneResponseObject, error)
 	// GetMyPendingVotes List the open proposals waiting on the caller's ballot.
 	// (GET /v1/me/pending-votes)
 	GetMyPendingVotes(ctx context.Context, request GetMyPendingVotesRequestObject) (GetMyPendingVotesResponseObject, error)
@@ -5686,6 +5783,32 @@ func (sh *strictHandler) PutMeHandle(w http.ResponseWriter, r *http.Request, par
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PutMeHandleResponseObject); ok {
 		if err := validResponse.VisitPutMeHandleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostOnboardingPhone operation middleware
+func (sh *strictHandler) PostOnboardingPhone(w http.ResponseWriter, r *http.Request, params PostOnboardingPhoneParams) {
+	var request PostOnboardingPhoneRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostOnboardingPhone(ctx, request.(PostOnboardingPhoneRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostOnboardingPhone")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostOnboardingPhoneResponseObject); ok {
+		if err := validResponse.VisitPostOnboardingPhoneResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
