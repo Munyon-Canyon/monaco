@@ -264,6 +264,7 @@ func (f *fixture) clock(env *Env) {
 	env.Now = func() time.Time { return f.now }
 	env.After = f.after
 	env.Load = func(context.Context, string) (float64, error) { return f.load, nil }
+	env.Start = func(string, ...string) error { return nil }
 	env.LookPath = f.lookPath
 	if env.LookPath == nil {
 		env.LookPath = foundCaffeinate
