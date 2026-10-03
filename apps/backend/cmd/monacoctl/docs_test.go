@@ -109,6 +109,12 @@ func TestDocsEventsPrintsTheRegistryCatalog(t *testing.T) {
 		"| `v` | `int` |\n| `follow_id` | `uuid.UUID` |\n" +
 		"| `follower_id` | `uuid.UUID` |\n| `followee_id` | `uuid.UUID` |\n" +
 		"| `removed_at` | `time.Time` |\n\n" +
+		"## `onramp.status_changed`\n\nSubject `events.onramp.status_changed`, version 1.\n\n" +
+		"| Field | Go type |\n| --- | --- |\n" +
+		"| `v` | `int` |\n| `session_id` | `uuid.UUID` |\n" +
+		"| `user_id` | `uuid.UUID` |\n| `from` | `*string` |\n" +
+		"| `to` | `string` |\n| `suggested_amount_micros` | `*money.Micros` |\n" +
+		"| `provider` | `*string` |\n\n" +
 		"## `price.tick`\n\n" +
 		"Core NATS subject `price.tick`, version 1, never stored.\n\n" +
 		"| Field | Go type |\n| --- | --- |\n" +

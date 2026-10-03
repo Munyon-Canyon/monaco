@@ -47,6 +47,7 @@ func fixtures(t *testing.T) map[events.Type]any {
 	}
 	sampled := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	cabal := newCabalFixtures(t)
+	opened, provider, suggested := "opened", "moonpay", money.MicrosFromUint64(25_000_000)
 	return map[events.Type]any{
 		events.TypeSystemPinged: events.SystemPinged{V: 1, PingID: id, UserID: user, Note: "reference flow"},
 		events.TypeDepositCredited: events.DepositCredited{
@@ -58,6 +59,10 @@ func fixtures(t *testing.T) map[events.Type]any {
 			TxSignature:   txSignature,
 			Slot:          123456,
 			BlockTime:     &sampled,
+		},
+		events.TypeOnrampStatusChanged: events.OnrampStatusChanged{
+			V: 1, SessionID: id, UserID: user, From: &opened, To: "confirmed",
+			SuggestedAmountMicros: &suggested, Provider: &provider,
 		},
 		events.TypeAssetPriceMoved: events.AssetPriceMoved{
 			V: 1, AssetID: id, Symbol: "AAPLx", AssetName: "Apple", ThresholdBps: 1000, ChangeBps: 1234,
