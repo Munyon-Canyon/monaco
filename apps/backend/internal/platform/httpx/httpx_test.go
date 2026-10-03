@@ -141,6 +141,24 @@ func (healthz) GetCabalByCode(
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabalByCode")
 }
 
+func (healthz) PostCabalAccessRequest(
+	context.Context, api.PostCabalAccessRequestRequestObject,
+) (api.PostCabalAccessRequestResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostCabalAccessRequest")
+}
+
+func (healthz) GetCabalAccessRequests(
+	context.Context, api.GetCabalAccessRequestsRequestObject,
+) (api.GetCabalAccessRequestsResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabalAccessRequests")
+}
+
+func (healthz) DeleteCabalAccessRequest(
+	context.Context, api.DeleteCabalAccessRequestRequestObject,
+) (api.DeleteCabalAccessRequestResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.DeleteCabalAccessRequest")
+}
+
 func (healthz) GetAsset(context.Context, api.GetAssetRequestObject) (api.GetAssetResponseObject, error) {
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetAsset")
 }

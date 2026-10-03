@@ -73,3 +73,47 @@ func addMember(ctx context.Context, tx db.Tx, m newMember, op string) error {
 		Via: string(m.via), RequestID: m.requestID,
 	})
 }
+
+func findRequest(
+	ctx context.Context, q *sqlc.Queries, cabalID ids.CabalID, requestID ids.AccessRequestID, op string,
+) (sqlc.CabalAccessRequest, domain.AccessRequest, error) {
+	row, err := q.FindAccessRequest(ctx, sqlc.FindAccessRequestParams{CabalID: cabalID.UUID(), ID: requestID.UUID()})
+	if errors.Is(err, sql.ErrNoRows) {
+		return sqlc.CabalAccessRequest{}, domain.AccessRequest{}, errs.New(errs.CodeNotFound, op)
+	}
+	if err != nil {
+		return sqlc.CabalAccessRequest{}, domain.AccessRequest{}, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	return row, domain.AccessRequest{
+		ID: requestID, Direction: domain.Direction(row.Direction), UserID: ids.UserIDFrom(row.UserID),
+		InvitedBy: ids.UserIDFrom(uuid.UUID(row.InvitedBy.Bytes)), ExpiresAt: row.ExpiresAt.Time,
+	}, nil
+}
+
+type settlement struct {
+	row   sqlc.CabalAccessRequest
+	event domain.AccessEvent
+	actor ids.UserID
+	at    time.Time
+}
+
+func settleRequest(ctx context.Context, tx db.Tx, s settlement, op string) (Access, error) {
+	next, err := domain.Next(domain.AccessStatus(s.row.Status), s.event)
+	if err != nil {
+		return Access{}, err
+	}
+	n, err := sqlc.New(tx.Queries()).DecideAccessRequest(ctx, sqlc.DecideAccessRequestParams{
+		Status: string(next), DecidedBy: s.actor.UUID(), Now: s.at, CabalID: s.row.CabalID, ID: s.row.ID,
+	})
+	if err != nil {
+		return Access{}, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	if n == 0 {
+		return Access{}, errs.New(errs.CodeAccessRequestNotPending, op)
+	}
+	err = tx.Events.Append(ctx, events.CabalAccessDecided{
+		V: 1, RequestID: s.row.ID, CabalID: s.row.CabalID, UserID: s.row.UserID, Direction: s.row.Direction,
+		Decision: string(next), ActorID: s.actor.UUID(),
+	})
+	return Access{ID: s.row.ID, Direction: s.row.Direction, Status: string(next)}, err
+}

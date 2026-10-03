@@ -288,6 +288,88 @@ paths:
               example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: null, my_access_request: null, invite_code: null, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/cabals/{id}/access-requests:
+    get:
+      operationId: getCabalAccessRequests
+      tags: [cabal]
+      summary: List the pending requests to join a cabal.
+      description: Creator only. Returns pending requests, oldest first. Invites are not listed here.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema: {type: string, format: uuid}
+        - name: status
+          in: query
+          required: false
+          description: Only `pending` is supported, which is also the default.
+          schema: {type: string, enum: [pending], default: pending}
+      responses:
+        "200":
+          description: The pending requests.
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: "#/components/schemas/CabalAccessRequest"}}
+              example: [{id: "01890a5d-ac96-774b-bcce-b302099a8059", user: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, created_at: "2026-10-02T15:00:00Z"}]
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: postCabalAccessRequest
+      tags: [cabal]
+      x-idempotent: true
+      summary: Ask to join a request cabal.
+      description: >-
+        Files a pending request that the creator approves or denies. An open cabal refuses with
+        request_not_needed, so the app joins it instead. A replay returns the first response.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema: {type: string, format: uuid}
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "201":
+          description: The pending request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CabalAccess"
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8059", direction: request, status: pending}
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/cabals/{id}/access-requests/{request_id}:
+    delete:
+      operationId: deleteCabalAccessRequest
+      tags: [cabal]
+      x-idempotent: true
+      summary: Withdraw a pending request or invite.
+      description: >-
+        The requester withdraws their own request. The inviter or the creator withdraws an invite.
+        A replay returns the first response.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema: {type: string, format: uuid}
+        - name: request_id
+          in: path
+          required: true
+          description: The request or invite id.
+          schema: {type: string, format: uuid}
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The request or invite, now revoked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CabalAccess"
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8059", direction: request, status: revoked}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/members:
     post:
       operationId: postCabalMember
@@ -1162,6 +1244,15 @@ components:
         id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
         direction: {type: string, description: "`request` or `invite`.", examples: [request]}
         status: {type: string, examples: [pending]}
+    CabalAccessRequest:
+      type: object
+      description: A pending request to join a cabal, as its creator sees it.
+      additionalProperties: false
+      required: [id, user, created_at]
+      properties:
+        id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
+        user: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
+        created_at: {type: string, format: date-time, examples: ["2026-10-02T15:00:00Z"]}
     CabalMember:
       type: object
       description: A cabal member, including vote standing.
