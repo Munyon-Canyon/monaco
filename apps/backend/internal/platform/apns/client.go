@@ -2,6 +2,7 @@ package apns
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"log/slog"
 	"net"
@@ -20,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/net/http2"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -53,6 +55,7 @@ type Client struct {
 	transport  http.RoundTripper
 	callerGone error
 	aborted    error
+	dialTLS    func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error)
 	endpoints  map[Environment]*endpoint
 }
 
@@ -64,6 +67,7 @@ func New(cfg config.Config, opts ...Option) (*Client, error) {
 		timeout:    cfg.Timeouts.APNs,
 		callerGone: errs.New(errs.CodeAPNSUnavailable, "apns.callerGone"),
 		aborted:    errs.New(errs.CodePanic, opSend),
+		dialTLS:    dialTLS,
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -127,6 +131,7 @@ func reachableSafely(u *url.URL) bool {
 func (c *Client) newEndpoint(env Environment, auth *token.Token, host string, plain bool) *endpoint {
 	client := apns2.NewTokenClient(auth)
 	client.Host = host
+	client.HTTPClient.Transport.(*http2.Transport).DialTLSContext = c.dialTLS
 	rt := client.HTTPClient.Transport
 	if plain {
 		client.HTTPClient = &http.Client{}
@@ -150,6 +155,15 @@ func (c *Client) newEndpoint(env Environment, auth *token.Token, host string, pl
 		return errors.Is(err, c.callerGone) || excluded != nil && excluded(err)
 	}
 	return &endpoint{client: client, breaker: gobreaker.NewTwoStepCircuitBreaker[struct{}](settings)}
+}
+
+func dialTLS(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
+	d := &tls.Dialer{NetDialer: &net.Dialer{Timeout: apns2.TLSDialTimeout, KeepAlive: apns2.TCPKeepAlive}, Config: cfg}
+	conn, err := d.DialContext(ctx, network, addr)
+	if err != nil {
+		err = errs.Wrap(err, errs.CodeAPNSUnavailable, "apns.DialTLS")
+	}
+	return conn, err
 }
 
 func tripAtFive(counts gobreaker.Counts) bool { return counts.ConsecutiveFailures >= tripAfter }
