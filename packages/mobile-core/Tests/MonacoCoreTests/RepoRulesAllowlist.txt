@@ -42,7 +42,7 @@ float-money	packages/mobile-core/Sources/MonacoCore/MarketAssetDTO.swift	1
 float-money	packages/mobile-core/Sources/MonacoCore/MarketSampleData.swift	10
 float-money	packages/mobile-core/Sources/MonacoCore/ProposalFeedFormatters.swift	2
 float-money	packages/mobile-core/Sources/MonacoCore/SparklineSeries.swift	12
-nonisolated-unsafe	apps/mobile/MonacoTests/MonacoRemoteImageStoreTests.swift	2
+nonisolated-unsafe	apps/mobile/MonacoTests/MonacoRemoteImageStoreTests.swift	1
 nonisolated-unsafe	packages/mobile-core/Sources/MonacoCore/SharedFormatters.swift	2
 observable-object	apps/mobile/Monaco/Features/Auth/PrivyAuthService.swift	4
 observable-object	apps/mobile/Monaco/Features/Deposit/PlatformBalanceLoader.swift	4

@@ -103,7 +103,7 @@ private struct HintProbeRoute: AppRoute {
     func destination() -> some View { EmptyView() }
 }
 
-private nonisolated final class FakeHintSource: HintConnecting, Sendable {
+nonisolated final class FakeHintSource: HintConnecting, Sendable {
     private let counts = Mutex<(starts: Int, stops: Int)>((0, 0))
 
     var starts: Int {

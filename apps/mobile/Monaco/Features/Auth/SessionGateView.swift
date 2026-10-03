@@ -15,13 +15,22 @@ struct SessionGateView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(AppSessionStore.self) private var session
 
+    private var debugDetail: String? {
+        #if DEBUG
+        session.errorDebugDetail
+        #else
+        nil
+        #endif
+    }
+
     var body: some View {
         Group {
             if let profile = session.profile {
                 routed(profile)
             } else if let message = session.errorMessage, !session.isLoading {
                 SessionFailureView(
-                    title: SessionGateCopy.openFailedTitle, message: message, detail: nil,
+                    title: SessionGateCopy.openFailedTitle, message: message,
+                    detail: debugDetail,
                     onRetry: {
                         await session.bootstrap(auth: environment.auth, devSession: environment.skipsSessionOpen)
                     },

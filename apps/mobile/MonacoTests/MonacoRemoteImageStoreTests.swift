@@ -106,8 +106,12 @@ nonisolated private final class AvatarStubProtocol: URLProtocol, @unchecked Send
         case failure(URLError)
     }
 
-    nonisolated(unsafe) private static var stubs: [URL: Stub] = [:]
-    nonisolated(unsafe) private static var counts: [URL: Int] = [:]
+    private struct State {
+        var stubs: [URL: Stub] = [:]
+        var counts: [URL: Int] = [:]
+    }
+
+    nonisolated(unsafe) private static var state = State()
     private static let lock = NSLock()
 
     nonisolated static func session() -> URLSession {
@@ -118,27 +122,26 @@ nonisolated private final class AvatarStubProtocol: URLProtocol, @unchecked Send
 
     nonisolated static func reset() {
         lock.lock()
-        stubs = [:]
-        counts = [:]
+        state = State()
         lock.unlock()
     }
 
     nonisolated static func respond(to url: URL, status: Int, body: Data) {
         lock.lock()
-        stubs[url] = .response(status: status, body: body)
+        state.stubs[url] = .response(status: status, body: body)
         lock.unlock()
     }
 
     nonisolated static func fail(_ url: URL, with error: URLError) {
         lock.lock()
-        stubs[url] = .failure(error)
+        state.stubs[url] = .failure(error)
         lock.unlock()
     }
 
     nonisolated static func requestCount(for url: URL) -> Int {
         lock.lock()
         defer { lock.unlock() }
-        return counts[url] ?? 0
+        return state.counts[url] ?? 0
     }
 
     nonisolated override class func canInit(with request: URLRequest) -> Bool { true }
@@ -147,8 +150,8 @@ nonisolated private final class AvatarStubProtocol: URLProtocol, @unchecked Send
     nonisolated override func startLoading() {
         guard let url = request.url else { return }
         Self.lock.lock()
-        Self.counts[url, default: 0] += 1
-        let stub = Self.stubs[url]
+        Self.state.counts[url, default: 0] += 1
+        let stub = Self.state.stubs[url]
         Self.lock.unlock()
 
         switch stub {
