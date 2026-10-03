@@ -91,7 +91,7 @@ type response struct {
 }
 
 type request struct {
-	method, path, body, key, token string
+	method, path, body, key, token, contentType string
 }
 
 type Step func(s *Scenario)
@@ -216,7 +216,10 @@ func (s *Scenario) send(req request) {
 	if err != nil {
 		s.t.Fatalf("scenario: %s %s: %v", req.method, req.path, err)
 	}
-	r.Header.Set("Content-Type", "application/json")
+	if req.contentType == "" {
+		req.contentType = "application/json"
+	}
+	r.Header.Set("Content-Type", req.contentType)
 	if req.token != "" {
 		r.Header.Set("Authorization", "Bearer "+req.token)
 	}

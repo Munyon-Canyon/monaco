@@ -2,6 +2,7 @@ package httpx
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -20,8 +21,9 @@ type contract struct {
 type routeKey struct{}
 
 type resolved struct {
-	route  *routers.Route
-	params map[string]string
+	route   *routers.Route
+	params  map[string]string
+	maxBody int64
 }
 
 func loadContract(spec []byte) (*contract, error) {
@@ -45,8 +47,44 @@ func (c *contract) resolve(next http.Handler) http.Handler {
 			Problem(w, r, errs.Wrap(err, errs.CodeInternal, "httpx.resolve"))
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), routeKey{}, resolved{route, params})))
+		maxBody, err := bodyLimit(route.Operation)
+		if err != nil {
+			Problem(w, r, err)
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), routeKey{}, resolved{route, params, maxBody})))
 	})
+}
+
+func bodyLimit(operation *openapi3.Operation) (int64, error) {
+	raw, ok := operation.Extensions["x-max-body-bytes"]
+	if !ok {
+		return 0, nil
+	}
+	encoded, _ := json.Marshal(raw)
+	var limit int64
+	if err := json.Unmarshal(encoded, &limit); err != nil || limit <= 0 {
+		return 0, errs.New(errs.CodeInvalidConfig, "httpx.bodyLimit")
+	}
+	return limit, nil
+}
+
+func (c *contract) limit(defaultLimit int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			res, ok := routeFrom(r.Context())
+			if !ok {
+				Problem(w, r, errs.New(errs.CodeInternal, "httpx.bodyLimit"))
+				return
+			}
+			limit := defaultLimit
+			if res.maxBody > 0 {
+				limit = res.maxBody
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func routeFrom(ctx context.Context) (resolved, bool) {

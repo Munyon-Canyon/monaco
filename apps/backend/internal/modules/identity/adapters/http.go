@@ -2,7 +2,11 @@ package adapters
 
 import (
 	"context"
+	"errors"
+	"io"
 	"log/slog"
+	"mime/multipart"
+	"net/http"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
@@ -17,6 +21,7 @@ import (
 type HTTP struct {
 	Open   *app.OpenSessionHandler
 	Update app.UpdateProfileHandler
+	Photo  app.UploadProfilePhotoHandler
 	Reads  sqlc.DBTX
 	Clock  clock.Clock
 }
@@ -84,6 +89,52 @@ func (h HTTP) PatchMe(ctx context.Context, req api.PatchMeRequestObject) (api.Pa
 		return nil, err
 	}
 	return api.PatchMe200JSONResponse(wireMe(me)), nil
+}
+
+func (h HTTP) PostProfilePhoto(
+	ctx context.Context, req api.PostProfilePhotoRequestObject,
+) (api.PostProfilePhotoResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	contentType, ext, body, err := photo(req.Body)
+	if err != nil {
+		return nil, err
+	}
+	me, err := h.Photo.Handle(ctx, user, contentType, ext, body)
+	if err != nil {
+		return nil, err
+	}
+	return api.PostProfilePhoto200JSONResponse(wireMe(me)), nil
+}
+
+func photo(reader *multipart.Reader) (string, string, []byte, error) {
+	const op = "identity.PostProfilePhoto"
+	if reader == nil {
+		return "", "", nil, errs.New(errs.CodePhotoInvalid, op)
+	}
+	part, err := reader.NextPart()
+	if err != nil || part.FormName() != "photo" {
+		return "", "", nil, errs.New(errs.CodePhotoInvalid, op)
+	}
+	body, err := io.ReadAll(part)
+	if err != nil || len(body) == 0 {
+		return "", "", nil, errs.New(errs.CodePhotoInvalid, op)
+	}
+	if _, err := reader.NextPart(); !errors.Is(err, io.EOF) {
+		return "", "", nil, errs.New(errs.CodePhotoInvalid, op)
+	}
+	switch http.DetectContentType(body) {
+	case "image/jpeg":
+		return "image/jpeg", "jpg", body, nil
+	case "image/png":
+		return "image/png", "png", body, nil
+	case "image/webp":
+		return "image/webp", "webp", body, nil
+	default:
+		return "", "", nil, errs.New(errs.CodePhotoInvalid, op)
+	}
 }
 
 func caller(ctx context.Context) (ids.UserID, error) {

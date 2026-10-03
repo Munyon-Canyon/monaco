@@ -264,6 +264,25 @@ func (q *Queries) SetDisplayName(ctx context.Context, arg SetDisplayNameParams) 
 	return result.RowsAffected(), nil
 }
 
+const setPhotoURL = `-- name: SetPhotoURL :execrows
+UPDATE users SET photo_url = $1::text, updated_at = $2
+WHERE id = $3 AND photo_url IS DISTINCT FROM $1::text
+`
+
+type SetPhotoURLParams struct {
+	PhotoUrl string
+	Now      time.Time
+	ID       uuid.UUID
+}
+
+func (q *Queries) SetPhotoURL(ctx context.Context, arg SetPhotoURLParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setPhotoURL, arg.PhotoUrl, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setUserEmail = `-- name: SetUserEmail :exec
 UPDATE users SET email = $1, updated_at = $2
 WHERE id = $3 AND email IS DISTINCT FROM $1
