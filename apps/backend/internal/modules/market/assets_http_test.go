@@ -364,6 +364,7 @@ type marketAPI struct {
 	handler http.Handler
 	token   string
 	when    time.Time
+	clock   *testkit.Clock
 }
 
 func newMarketAPI(t *testing.T, when time.Time) marketAPI {
@@ -390,7 +391,7 @@ func newMarketAPI(t *testing.T, when time.Time) marketAPI {
 		t.Fatal(err)
 	}
 	return marketAPI{
-		pool: pool, handler: testkit.HTTP(t, handler), when: when,
+		pool: pool, handler: testkit.HTTP(t, handler), when: when, clock: clk,
 		token: verifier.Mint(testkit.NewIDs(2).NewV7().String(), when.Add(time.Hour)),
 	}
 }
@@ -523,9 +524,42 @@ func assertOtherListing(t *testing.T, detail api.AssetDetail) {
 	}
 }
 
+func TestAssetDetail_servesTheUIMultiplierInForceAtRequestTime(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	step := s.when.Add(30 * time.Minute)
+	_, err := s.pool.Exec(t.Context(), `UPDATE assets SET ui_multiplier_next_num = 101, ui_multiplier_next_den = 100,
+		ui_multiplier_next_at = $1 WHERE symbol = 'AAPLx'`, step)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.pool.Exec(t.Context(),
+		`UPDATE assets SET ui_multiplier_num = 3, ui_multiplier_den = 2 WHERE symbol = 'TSLAx'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		at       time.Time
+		symbol   string
+		num, den int64
+	}{
+		{step.Add(-time.Second), "AAPLx", 1, 1},
+		{step, "AAPLx", 101, 100},
+		{step.Add(time.Second), "AAPLx", 101, 100},
+		{step.Add(time.Second), "TSLAx", 3, 2},
+	} {
+		s.clock.Set(tc.at)
+		got := detailOf(t, s.get(t, "/v1/assets/"+tc.symbol)).UiMultiplier
+		if got.Num != tc.num || got.Den != tc.den {
+			t.Fatalf("%s at %s = %d/%d, want %d/%d", tc.symbol, tc.at, got.Num, got.Den, tc.num, tc.den)
+		}
+	}
+}
+
 func TestAsset_rejectsACallerThatIsNotAUser(t *testing.T) {
 	t.Parallel()
-	h := adapters.HTTP{}
+	h := adapters.HTTP{Clock: testkit.NewClock(marketWhen())}
 	if _, err := h.GetAsset(
 		t.Context(),
 		api.GetAssetRequestObject{Symbol: "AAPLx"},

@@ -96,6 +96,7 @@ func (m *Module) Routes(r *httpx.Routes) {
 		List:   adapters.CacheList(list, cache),
 		Detail: app.NewDetail(m.deps.Pool, list),
 		Chart:  adapters.CacheChart(app.NewChart(m.deps.Pool, m.deps.Clock), cache),
+		Clock:  m.deps.Clock,
 	}
 }
 
