@@ -1,7 +1,7 @@
 journey: auth/sign-in
 expect-fail: S1
 
-The Stocks tab is titled Assets. S1.4 names the five tabs, so it must fail.
+The Stocks tab is titled Assets. S1.6 names the five tabs, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Assets/StocksTab.swift b/apps/mobile/Monaco/Features/Assets/StocksTab.swift

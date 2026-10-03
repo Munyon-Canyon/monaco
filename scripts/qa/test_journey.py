@@ -4,10 +4,15 @@
 Run: python3 scripts/qa/test_journey.py
 """
 
+import fcntl
 import json
+import os
 import sys
 import tempfile
+import threading
+import time
 import unittest
+import unittest.mock
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
@@ -246,6 +251,84 @@ class Accounts(Tree):
         self.assertEqual(accounts["A"]["phone"], "555")
 
 
+class QALock(unittest.TestCase):
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.path = str(Path(folder.name) / "qa.lock")
+
+    def held_elsewhere(self):
+        handle = open(self.path, "a")
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            handle.close()
+            return True
+        handle.close()
+        return False
+
+    def test_a_run_holds_the_lock_until_it_lets_go(self):
+        handle = journey.take_qa_lock(self.path)
+        self.assertTrue(self.held_elsewhere())
+        handle.close()
+        self.assertFalse(self.held_elsewhere())
+
+    def test_a_second_run_waits_for_the_first(self):
+        first = journey.take_qa_lock(self.path)
+        threading.Timer(0.3, first.close).start()
+        started = time.monotonic()
+        second = journey.take_qa_lock(self.path)
+        self.addCleanup(second.close)
+        self.assertGreaterEqual(time.monotonic() - started, 0.25)
+
+
+
+class BusyPorts(unittest.TestCase):
+    def lsof(self, answers):
+        calls = []
+
+        def run(args, **kwargs):
+            calls.append(args)
+            return type("Result", (), {"stdout": answers.get(args[-1], answers.get(args[3], ""))})()
+
+        return run, calls
+
+    def test_each_listener_is_named_with_its_worktree(self):
+        run, _ = self.lsof({"-iTCP:8081": "55430\n55429\n55430\n", "55429": "p55429\nfcwd\nn/w/644\n",
+                            "55430": "p55430\nfcwd\nn/w/644\n"})
+        busy = journey.listeners(run=run)
+        self.assertEqual(busy, [("55429", "/w/644"), ("55430", "/w/644")])
+        with self.assertRaisesRegex(journey.JourneyError,
+                                    r"port 8080 or 8081 is already in use by pid 55429 \(/w/644\), pid 55430 \(/w/644\)"):
+            journey.refuse_busy_ports(busy)
+
+    def test_free_ports_let_the_run_start_its_own_backend(self):
+        run, calls = self.lsof({})
+        self.assertEqual(journey.listeners(run=run), [])
+        self.assertEqual(len(calls), 1)
+        journey.refuse_busy_ports([])
+
+    def test_a_busy_port_stops_the_run_before_it_starts_a_backend(self):
+        saved = journey.listeners, journey.start_backend, journey.QA_LOCK
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+
+        def started(base_url, timeout=300):
+            self.fail("started a backend while another one listens")
+
+        journey.listeners = lambda: [("55430", "/w/644")]
+        journey.start_backend = started
+        self.addCleanup(lambda: setattr(journey, "listeners", saved[0]))
+        self.addCleanup(lambda: setattr(journey, "start_backend", saved[1]))
+        environ = dict(os.environ)
+        environ.pop("MONACO_API_BASE_URL", None)
+        with unittest.mock.patch.dict(os.environ, environ, clear=True), \
+                unittest.mock.patch.object(journey, "take_qa_lock", lambda: open(Path(folder.name) / "l", "a")):
+            with self.assertRaisesRegex(journey.JourneyError, "pid 55430 \\(/w/644\\)"):
+                with journey.journey_backend():
+                    self.fail("the run went ahead")
+
+
 class Backend(unittest.TestCase):
     def test_health_check_uses_the_configured_base_url(self):
         calls = []
@@ -268,48 +351,6 @@ class Backend(unittest.TestCase):
             raise OSError("offline")
 
         self.assertFalse(journey.backend_is_running("http://api.example", opener))
-
-
-class OpenAPIOutput(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.saved_root = journey.ROOT
-        self.saved_sh = journey.sh
-        journey.ROOT = Path(self.tmp.name)
-        self.derived = journey.ROOT / "derived"
-
-    def tearDown(self):
-        journey.ROOT = self.saved_root
-        journey.sh = self.saved_sh
-        self.tmp.cleanup()
-
-    def test_present_outputs_are_not_seeded(self):
-        output = journey.openapi_output(self.derived)
-        output.mkdir(parents=True)
-        for name in ("Types.swift", "Client.swift", "Server.swift"):
-            (output / name).touch()
-
-        def unexpected(*args, **kwargs):
-            self.fail("subprocess call: %r" % (args,))
-
-        journey.sh = unexpected
-        self.assertFalse(journey.seed_openapi_output(self.derived))
-
-    def test_missing_outputs_build_and_run_the_generator(self):
-        generator = journey.ROOT / "packages" / "mobile-core" / ".build" / "debug" / "swift-openapi-generator-tool"
-        generator.parent.mkdir(parents=True)
-        generator.touch()
-        calls = []
-
-        def stub(args, **kwargs):
-            calls.append(args)
-            return type("Result", (), {"returncode": 0})()
-
-        journey.sh = stub
-        self.assertTrue(journey.seed_openapi_output(self.derived))
-        self.assertEqual(calls[0], ["swift", "build", "--package-path", str(journey.ROOT / "packages" / "mobile-core")])
-        self.assertEqual(calls[1][1], "generate")
-        self.assertTrue((journey.openapi_output(self.derived) / "Server.swift").exists())
 
 
 class Runner(Tree):

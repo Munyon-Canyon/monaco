@@ -117,6 +117,7 @@ Git keeps the history. There are no `V2` copies of a doc or a test.
 
 A run passes its API URL under a QA-only name and uses dedicated journey simulators so shared simulator settings do not point it elsewhere.
 It reinstalls the app on dedicated journey simulators before every run, so every run starts signed out.
+`run` and `mutants` take `/tmp/monaco-qa.lock`, so one journey run on a machine uses the backend and the simulators at a time. Holding it, they refuse to start when anything already listens on 8080 or 8081 and name its pid and worktree. Then they start the backend with `just run backend` and stop it when the run ends. With `MONACO_API_BASE_URL` set, they use that backend instead and only check its `/healthz`.
 
 ```sh
 scripts/qa/journey.py check                                   # docs and tests agree

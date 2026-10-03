@@ -7,6 +7,8 @@ description: Journey QA for the iOS app. Use when asked to QA or test a journey 
 
 A **journey doc** (`docs/journeys/<area>/<journey>.md`) is the source of truth for QA. An XCUITest is built from it and stamped with its version. `scripts/qa/journey.py` checks, runs and measures it; read its `--help` for commands. The doc format, versioning and file layout are in `docs/journeys/README.md`. `auth/sign-in` is the worked example of every file.
 
+**Backend and the QA lock.** Every journey run needs the backend, and runs on one machine share its ports (:8080 api, :8081 worker) and the simulators. `journey.py run` and `mutants` handle both. They take `/tmp/monaco-qa.lock` (the lock `/usr/bin/lockf -k` holds) and wait for it. They refuse to go on when anything already listens on 8080 or 8081, and name its pid and worktree. Then they start `just run backend`, wait for `/healthz`, and stop the backend when the run ends. Don't start a backend for a journey yourself. Run `just migrate db` first if the backend log says `db_schema_behind`. To aim a run at a backend that is already up, set `MONACO_API_BASE_URL`. The run then only checks `/healthz`.
+
 When the journey doc and the app disagree, stop and report the **step id** and both sides. That disagreement is the finding: a stale doc or an app bug.
 
 ## Draft a journey doc

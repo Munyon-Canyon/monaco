@@ -12,7 +12,9 @@ The rules the checks enforce are in docs/journeys/README.md. Results go to
 """
 
 import argparse
+import contextlib
 import datetime
+import fcntl
 import json
 import os
 import re
@@ -144,7 +146,7 @@ def load_accounts(environ=None):
         row = dict(zip(header, cells))
         accounts[row["actor"]] = row
     for actor, row in accounts.items():
-        for field in ("phone", "email", "code"):
+        for field in ("phone", "email", "code", "name"):
             row[field] = environ.get("MONACO_QA_%s_%s" % (actor, field.upper()), row[field])
     return accounts
 
@@ -301,6 +303,90 @@ def backend_is_running(base_url=None, opener=None):
         return False
 
 
+QA_LOCK = "/tmp/monaco-qa.lock"
+BACKEND_PORTS = (8080, 8081)
+
+
+def take_qa_lock(path=QA_LOCK):
+    """Journey runs share the backend ports and the simulators, so one runs at a time per machine.
+
+    The lock is the one `/usr/bin/lockf -k /tmp/monaco-qa.lock` takes."""
+    handle = open(path, "a")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print("waiting for %s: another journey run holds it" % path, flush=True)
+        fcntl.flock(handle, fcntl.LOCK_EX)
+    return handle
+
+
+def listeners(ports=BACKEND_PORTS, run=None):
+    """[(pid, cwd)] of the processes listening on the backend ports."""
+    run = run or sh
+    found = run(["lsof", "-nP", "-sTCP:LISTEN", "-t"] + ["-iTCP:%d" % port for port in ports],
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout
+    result = []
+    for pid in sorted(set(found.split()), key=int):
+        fields = run(["lsof", "-a", "-p", pid, "-d", "cwd", "-Fn"],
+                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout
+        cwd = next((line[1:] for line in fields.splitlines() if line.startswith("n")), "?")
+        result.append((pid, cwd))
+    return result
+
+
+def refuse_busy_ports(busy, ports=BACKEND_PORTS):
+    if busy:
+        raise JourneyError(
+            "port %s is already in use by %s: stop that backend first, journey.py starts its own" % (
+                " or ".join(str(port) for port in ports),
+                ", ".join("pid %s (%s)" % (pid, cwd) for pid, cwd in busy)))
+
+
+def start_backend(base_url, timeout=300):
+    log = OUT / "backend.log"
+    OUT.mkdir(parents=True, exist_ok=True)
+    print("starting the backend (log: %s)" % os.path.relpath(str(log), str(ROOT)))
+    # The backend refuses unknown MONACO_ variables at boot, and a run's account overrides are MONACO_QA_.
+    env = {key: value for key, value in os.environ.items() if not key.startswith("MONACO_QA_")}
+    with open(str(log), "w") as out:
+        process = subprocess.Popen(["just", "run", "backend"], cwd=str(ROOT), env=env, stdout=out,
+                                   stderr=subprocess.STDOUT, start_new_session=True)
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if backend_is_running(base_url):
+            return process
+        if process.poll() is not None:
+            raise JourneyError("the backend stopped at boot, see %s" % log)
+        time.sleep(2)
+    stop_backend(process)
+    raise JourneyError("the backend did not answer /healthz within %d s, see %s" % (timeout, log))
+
+
+def stop_backend(process):
+    sh(["just", "stop", "backend"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        process.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGTERM)
+
+
+@contextlib.contextmanager
+def journey_backend():
+    """The api a run talks to. MONACO_API_BASE_URL names one that is already up; otherwise the run
+    takes the QA lock, refuses ports another process holds, and starts and stops its own backend."""
+    if "MONACO_API_BASE_URL" in os.environ:
+        yield require_backend()
+        return
+    with take_qa_lock():
+        refuse_busy_ports(listeners())
+        base_url = journey_api_base_url()
+        process = start_backend(base_url)
+        try:
+            yield base_url
+        finally:
+            stop_backend(process)
+
+
 def require_backend():
     base_url = journey_api_base_url()
     if not backend_is_running(base_url):
@@ -421,44 +507,12 @@ def xcodebuild(sim, *extra):
     ] + list(extra)
 
 
-def openapi_output(derived=None):
-    derived = derived or DERIVED
-    return derived / "Build" / "Intermediates.noindex" / "BuildToolPluginIntermediates" / "mobile-core.output" / "MonacoAPI" / "OpenAPIGenerator" / "GeneratedSources"
-
-
-def seed_openapi_output(derived=None):
-    output = openapi_output(derived)
-    expected = [output / name for name in ("Types.swift", "Client.swift", "Server.swift")]
-    if all(path.exists() for path in expected):
-        return False
-    package = ROOT / "packages" / "mobile-core"
-    sh([
-        "swift", "build", "--package-path", str(package),
-    ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    generators = list((package / ".build").rglob("swift-openapi-generator-tool"))
-    if not generators:
-        raise JourneyError("could not build swift-openapi-generator-tool")
-    output.mkdir(parents=True, exist_ok=True)
-    sh([
-        str(generators[0]), "generate", str(package / "Sources" / "MonacoAPI" / "openapi.yaml"),
-        "--config", str(package / "Sources" / "MonacoAPI" / "openapi-generator-config.yaml"),
-        "--output-directory", str(output),
-    ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    (output / "Server.swift").touch()
-    print("seeded OpenAPI plugin output because #1955 skips the Xcode plugin command")
-    return True
-
-
 def build(sim, log):
     """Build the app and the UI tests once."""
     sh(["scripts/ensure-ios-privy-config.sh", "generate"], check=True, stdout=subprocess.DEVNULL)
-    seeded = seed_openapi_output()
     print("building (log: %s)" % os.path.relpath(str(log), str(ROOT)))
     with open(str(log), "w") as out:
         code = sh(xcodebuild(sim, "build-for-testing"), stdout=out, stderr=subprocess.STDOUT).returncode
-    if seeded and code != 0 and "Build input files cannot be found" in log.read_text():
-        with open(str(log), "a") as out:
-            code = sh(xcodebuild(sim, "build-for-testing"), stdout=out, stderr=subprocess.STDOUT).returncode
     if code != 0:
         raise JourneyError("the build failed, see %s" % log)
 
@@ -466,7 +520,7 @@ def build(sim, log):
 def actor_environment(accounts, channel, prefix=""):
     env = {prefix + "MONACO_QA_JOURNEYS": "1", prefix + "MONACO_QA_CHANNEL": channel}
     for actor, row in accounts.items():
-        for field in ("phone", "email", "code"):
+        for field in ("phone", "email", "code", "name"):
             env["%sMONACO_QA_%s_%s" % (prefix, actor, field.upper())] = row[field]
     return env
 
@@ -680,9 +734,13 @@ def cmd_list(args):
 
 
 def cmd_run(args):
+    with journey_backend() as api_base_url:
+        return run_journey(args, api_base_url)
+
+
+def run_journey(args, api_base_url):
     journeys = load_journeys()
     journey = pick(journeys, args.journey)
-    api_base_url = require_backend()
     scenarios = args.scenario or journey.scenarios
     unknown = [s for s in scenarios if s not in journey.scenarios]
     if unknown:
@@ -710,9 +768,13 @@ def cmd_run(args):
 
 
 def cmd_mutants(args):
+    with journey_backend() as api_base_url:
+        return run_mutants(args, api_base_url)
+
+
+def run_mutants(args, api_base_url):
     journeys = load_journeys()
     journey = pick(journeys, args.journey)
-    api_base_url = require_backend()
     all_patches = journey.mutants()
     patches = [p for p in all_patches if not args.only or p.stem in args.only]
     old_handlers = {signum: signal.signal(signum, lambda signum, frame: (_ for _ in ()).throw(KeyboardInterrupt()))

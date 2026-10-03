@@ -10,6 +10,7 @@ struct JourneyAccount {
     let phone: String
     let email: String
     let code: String
+    let name: String
     let channel: Channel
 
     var address: String {
@@ -28,10 +29,13 @@ struct JourneyAccount {
         let email = environment[prefix + "EMAIL"] ?? ""
         let code = environment[prefix + "CODE"] ?? ""
         let channel = Channel(rawValue: environment["MONACO_QA_CHANNEL"] ?? "sms") ?? .sms
-        let account = JourneyAccount(actor: actor, phone: phone, email: email, code: code, channel: channel)
-        guard !account.address.isEmpty, code.count == 6 else {
+        let name = environment[prefix + "NAME"] ?? ""
+        let account = JourneyAccount(
+            actor: actor, phone: phone, email: email, code: code, name: name, channel: channel)
+        guard !account.address.isEmpty, code.count == 6, !name.isEmpty else {
             throw XCTSkip(
-                "no \(channel.rawValue) login for actor \(actor): set \(prefix)PHONE, \(prefix)EMAIL and \(prefix)CODE")
+                "no \(channel.rawValue) login for actor \(actor): set \(prefix)PHONE, \(prefix)EMAIL, \(prefix)CODE and \(prefix)NAME"
+            )
         }
         return account
     }
