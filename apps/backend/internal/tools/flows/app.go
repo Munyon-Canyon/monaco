@@ -11,6 +11,7 @@ import (
 
 const (
 	ModelRoot = "packages/mobile-core/Sources"
+	TestRoot  = "packages/mobile-core/Tests"
 	AppRoot   = "packages/flows"
 	AppDir    = AppRoot + "/app"
 	AppHeader = "id\tscreen\tstatus\tdoc"
@@ -135,7 +136,7 @@ func CheckAppModels(app []AppRow, backend []Flow, env Env) []Problem {
 		if !r.Status.AtLeastBuilt() || !ok || module == "" {
 			continue
 		}
-		dir := path.Join(ModelRoot, moduleTarget(module))
+		dir := path.Join(ModelRoot, ModuleTarget(module))
 		if models, _ := fs.Glob(env.Repo, path.Join(dir, "Flow"+r.ID+"*.swift")); len(models) > 0 {
 			continue
 		}
@@ -145,7 +146,7 @@ func CheckAppModels(app []AppRow, backend []Flow, env Env) []Problem {
 	return problems
 }
 
-func moduleTarget(module string) string {
+func ModuleTarget(module string) string {
 	return "Monaco" + strings.ToUpper(module[:1]) + module[1:]
 }
 

@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
 type reply struct {
@@ -1189,5 +1191,104 @@ func TestCheck_aPackageThatFailsWhenRerunAloneFailsTheRow(t *testing.T) {
 	if code != 1 || !strings.Contains(stdout, "go test -short  FAIL  go test") ||
 		!strings.Contains(stderr, "go test -short failed; see the log") {
 		t.Fatalf("rerun failure: %d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestCheck_aFlowChangeRunsTheFlowsRowForTheAffectedFlowsOnly(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.base(t, map[string]string{
+		flowsFile: flows.Header + "\n" +
+			"00\tPing\tsystem\tGET /p\tPing\t\t\tok\tbuilt\tdocs/f.md\n" +
+			"01\tSign in\tidentity\tGET /s\tSignIn\t\t\tok\tbuilt\tdocs/f.md\n",
+		"apps/backend/internal/modules/system/app.go": "package system\n",
+	})
+	h.commit(t, map[string]string{"packages/flows/app/00.tsv": "id\tscreen\tstatus\tdoc\n"})
+	h.replies = []reply{{prefix: "flows --affected --base origin/fb", out: "00\n"}}
+	code, stdout, stderr := h.check(t)
+	results := filepath.Join(h.stateDir(t, "flows"), h.head(t)[:12]+".json")
+	want := []string{
+		"apps/backend: flows --affected --base origin/fb",
+		"apps/backend: bash -c go test -tags faultpoints -json -run \"$1\" \"${@:3}\" > \"$2\" || true flows " +
+			"^TestFlow(00)_ " + results + " ./internal/modules/system/...",
+		"apps/backend: flows check --affected --base origin/fb --from " + results,
+		"apps/backend: mobile-core-test.sh --filter (F|Flow)(00)[^a-z0-9]",
+	}
+	if code != 0 || !strings.Contains(stdout, "  flows  ") {
+		t.Fatalf("check: %d %q %q", code, stdout, stderr)
+	}
+	for _, c := range want {
+		if !slices.Contains(h.calls, c) {
+			t.Errorf("missing %q in\n%s", c, strings.Join(h.calls, "\n"))
+		}
+	}
+
+	h.commit(t, map[string]string{"apps/backend/internal/testkit/flows/f01.go": "package flows\n"})
+	h.calls, h.replies = nil, []reply{{prefix: "flows --affected", out: ""}}
+	if code, stdout, stderr := h.check(t); code != 0 || !strings.Contains(stdout, "  flows  ") {
+		t.Fatalf("no affected flows: %d %q %q", code, stdout, stderr)
+	}
+	if got := slices.DeleteFunc(
+		slices.Clone(h.calls),
+		func(c string) bool { return !strings.Contains(c, "flows") },
+	); !slices.Equal(
+		got,
+		[]string{
+			"apps/backend: flows --affected --base origin/fb",
+			"apps/backend: flows check --affected --base origin/fb",
+		},
+	) {
+		t.Fatalf("no affected flows runs only the structure check: %q", got)
+	}
+}
+
+func TestCheck_theFlowsRowRunsOnlyForFlowPaths(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		file string
+		row  bool
+	}{
+		{"packages/flows/app/00.tsv", true},
+		{flowsFile, true},
+		{"apps/backend/internal/testkit/flows/f00.go", true},
+		{"packages/mobile-core/Tests/MonacoCoreTests/F00IntegrationTests.swift", true},
+		{"packages/mobile-core/Sources/MonacoSystem/Flow00SystemPingModel.swift", true},
+		{"packages/mobile-core/Sources/MonacoCore/Format.swift", false},
+		{"packages/mobile-core/Package.swift", false},
+		{"README.md", false},
+	} {
+		t.Run(tc.file, func(t *testing.T) {
+			t.Parallel()
+			h := newCheckHarness(t)
+			h.base(t, map[string]string{
+				flowsFile: flows.Header + "\n", "apps/backend/internal/modules/system/app.go": "package system\n",
+			})
+			h.commit(t, map[string]string{tc.file: "changed\n"})
+			code, stdout, stderr := h.check(t)
+			if ran := strings.Contains(stdout, "  flows  "); code != 0 || ran != tc.row {
+				t.Fatalf("flows row = %v, want %v: %d %q %q", ran, tc.row, code, stdout, stderr)
+			}
+		})
+	}
+}
+
+func TestCheck_theFlowsRowReportsWhatItCannotRead(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"packages/flows/app/00.tsv": "id\tscreen\tstatus\tdoc\n"})
+	h.replies = []reply{{prefix: "flows --affected", err: errors.New("no git")}}
+	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "find affected flows: no git") {
+		t.Fatalf("a failing flows --affected: %d %q", code, stderr)
+	}
+
+	h.replies = []reply{{prefix: "flows --affected", out: "00\n"}}
+	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "read "+flowsFile) {
+		t.Fatalf("no flows.tsv: %d %q", code, stderr)
+	}
+
+	h.commit(t, map[string]string{flowsFile: flows.Header + "\n"})
+	writeFile(t, h.stateDir(t, "flows"), "")
+	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "write "+h.stateDir(t, "flows")) {
+		t.Fatalf("an unwritable state dir: %d %q", code, stderr)
 	}
 }

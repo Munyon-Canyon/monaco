@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
 const (
@@ -274,26 +275,109 @@ func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkR
 	}
 	rows = append(rows, env.shellRows(changed)...)
 	rows = append(rows, env.testFileRows(changed)...)
-	if slices.ContainsFunc(changed, func(f string) bool {
-		return strings.HasPrefix(f, "packages/mobile-core/") || strings.HasPrefix(f, "packages/flows/") ||
-			strings.HasPrefix(
-				f,
-				"apps/mobile/",
-			) || f == openAPISpec || f == ".swift-format" || f == ".swiftlint.yml" || f == ".swiftlint-baseline.tsv"
-	}) {
-		rows = append(rows, checkRow{
-			label: "swift test", kind: "swift", dir: filepath.Join(env.Work, "packages", "mobile-core"),
-			cmds: [][]string{
-				{"swift", "format", "lint", "--strict", "--recursive", "--parallel", "../../apps/mobile", "."},
-				{"../../scripts/swiftlint-ratchet.sh"},
-				{"../../scripts/mobile-core-test.sh"},
-			},
-		})
+	swift := swiftChanged(changed)
+	if swift {
+		rows = append(rows, env.swiftRow())
+	}
+	if slices.ContainsFunc(changed, env.flowFile) {
+		row, err := env.flowsRow(ctx, parent, head, swift)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, row)
 	}
 	if row, ok := env.xcodeRow(changed); ok {
 		rows = append(rows, row)
 	}
 	return env.pathRows(ctx, rows, changed, parent, head)
+}
+
+func swiftChanged(changed []string) bool {
+	return slices.ContainsFunc(changed, func(f string) bool {
+		return strings.HasPrefix(f, "packages/mobile-core/") || strings.HasPrefix(f, "packages/flows/") ||
+			strings.HasPrefix(f, "apps/mobile/") || f == openAPISpec || f == ".swift-format" || f == ".swiftlint.yml" ||
+			f == ".swiftlint-baseline.tsv"
+	})
+}
+
+func (env *Env) swiftRow() checkRow {
+	return checkRow{
+		label: "swift test", kind: "swift", dir: filepath.Join(env.Work, "packages", "mobile-core"),
+		cmds: [][]string{
+			{"swift", "format", "lint", "--strict", "--recursive", "--parallel", "../../apps/mobile", "."},
+			{"../../scripts/swiftlint-ratchet.sh"},
+			{"../../scripts/mobile-core-test.sh"},
+		},
+	}
+}
+
+func (env *Env) flowFile(file string) bool {
+	if underAny(
+		file,
+		[]string{"packages/flows/", "apps/backend/internal/testkit/flows/", flows.TestRoot + "/", flowsFile},
+	) {
+		return true
+	}
+	target, _, found := strings.Cut(strings.TrimPrefix(file, flows.ModelRoot+"/"), "/")
+	if !found || !strings.HasPrefix(file, flows.ModelRoot+"/") {
+		return false
+	}
+	modules, _ := os.ReadDir(filepath.Join(env.Work, "apps", "backend", "internal", "modules"))
+	return slices.ContainsFunc(
+		modules,
+		func(m fs.DirEntry) bool { return m.IsDir() && flows.ModuleTarget(m.Name()) == target },
+	)
+}
+
+func (env *Env) flowsRow(ctx context.Context, parent, head string, swift bool) (checkRow, error) {
+	backend := filepath.Join(env.Work, "apps", "backend")
+	self, _ := os.Executable()
+	out, err := env.Run(ctx, backend, "", self, "flows", "--affected", "--base", parent)
+	if err != nil {
+		return checkRow{}, fmt.Errorf("find affected flows: %w", err)
+	}
+	ids := strings.Fields(string(out))
+	check := make([]string, 0, 8)
+	check = append(check, self, "flows", "check", "--affected", "--base", parent)
+	row := checkRow{label: "flows", kind: "flows", dir: backend, cmds: [][]string{check}}
+	if len(ids) == 0 {
+		return row, nil
+	}
+	registry, err := os.ReadFile(filepath.Join(env.Work, flowsFile))
+	if err != nil {
+		return checkRow{}, fmt.Errorf("read %s: %w", flowsFile, err)
+	}
+	parsed, _ := flows.Parse(bytes.NewReader(registry))
+	var pkgs []string
+	for _, f := range parsed {
+		if pkg := "./internal/modules/" + f.Module + "/..."; slices.Contains(ids, f.ID) && !slices.Contains(pkgs, pkg) {
+			pkgs = append(pkgs, pkg)
+		}
+	}
+	results, err := env.writeState("flows", head[:12]+".json", nil)
+	if err != nil {
+		return checkRow{}, err
+	}
+	alternatives := strings.Join(ids, "|")
+	row.cmds = [][]string{
+		slices.Concat([]string{
+			"bash", "-c", `go test -tags faultpoints -json -run "$1" "${@:3}" > "$2" || true`, "flows",
+			"^TestFlow(" + alternatives + ")_", results,
+		}, pkgs),
+		append(check, "--from", results),
+	}
+	if swift {
+		row.cmds = append(row.cmds, []string{
+			filepath.Join(
+				env.Work,
+				"scripts",
+				"mobile-core-test.sh",
+			),
+			"--filter",
+			"(F|Flow)(" + alternatives + ")[^a-z0-9]",
+		})
+	}
+	return row, nil
 }
 
 func (env *Env) xcodeRow(changed []string) (checkRow, bool) {
