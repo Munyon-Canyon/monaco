@@ -94,6 +94,9 @@ extension XCUIApplication {
     static func monacoForJourneys() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = []
+        if let baseURL = ProcessInfo.processInfo.environment["MONACO_QA_API_BASE_URL"], !baseURL.isEmpty {
+            app.launchEnvironment["MONACO_API_BASE_URL"] = baseURL
+        }
         return app
     }
 

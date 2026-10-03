@@ -4,6 +4,7 @@
 Run: python3 scripts/qa/test_journey.py
 """
 
+import json
 import sys
 import tempfile
 import unittest
@@ -19,6 +20,7 @@ version: 2          # bumped for the new button
 milestone: M9
 requires: []
 actors: [A]
+flows: [01]
 xcuitest: [ui/SignInJourney.swift, ui/SignInJourneyUITests.swift]
 ---
 
@@ -94,6 +96,7 @@ class FrontMatter(Tree):
         self.assertEqual(loaded.version, 2)
         self.assertEqual(loaded.requires, [])
         self.assertEqual(loaded.actors, ["A"])
+        self.assertEqual(loaded.flows, ["01"])
         self.assertEqual(loaded.xcuitest, ["ui/SignInJourney.swift", "ui/SignInJourneyUITests.swift"])
 
     def test_reads_scenarios_and_steps_but_not_preconditions(self):
@@ -220,6 +223,200 @@ class Accounts(Tree):
         accounts = journey.load_accounts(environ={"MONACO_QA_A_CODE": "654321"})
         self.assertEqual(accounts["A"]["code"], "654321")
         self.assertEqual(accounts["A"]["phone"], "555")
+
+
+class Backend(unittest.TestCase):
+    def test_health_check_uses_the_configured_base_url(self):
+        calls = []
+
+        class Response:
+            status = 200
+
+            def close(self):
+                return None
+
+        def opener(url, timeout):
+            calls.append((url, timeout))
+            return Response()
+
+        self.assertTrue(journey.backend_is_running("http://api.example/", opener))
+        self.assertEqual(calls, [("http://api.example/healthz", 2)])
+
+    def test_health_check_treats_a_connection_error_as_not_running(self):
+        def opener(url, timeout):
+            raise OSError("offline")
+
+        self.assertFalse(journey.backend_is_running("http://api.example", opener))
+
+
+class OpenAPIOutput(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.saved_root = journey.ROOT
+        self.saved_sh = journey.sh
+        journey.ROOT = Path(self.tmp.name)
+        self.derived = journey.ROOT / "derived"
+
+    def tearDown(self):
+        journey.ROOT = self.saved_root
+        journey.sh = self.saved_sh
+        self.tmp.cleanup()
+
+    def test_present_outputs_are_not_seeded(self):
+        output = journey.openapi_output(self.derived)
+        output.mkdir(parents=True)
+        for name in ("Types.swift", "Client.swift", "Server.swift"):
+            (output / name).touch()
+
+        def unexpected(*args, **kwargs):
+            self.fail("subprocess call: %r" % (args,))
+
+        journey.sh = unexpected
+        self.assertFalse(journey.seed_openapi_output(self.derived))
+
+    def test_missing_outputs_build_and_run_the_generator(self):
+        generator = journey.ROOT / "packages" / "mobile-core" / ".build" / "debug" / "swift-openapi-generator-tool"
+        generator.parent.mkdir(parents=True)
+        generator.touch()
+        calls = []
+
+        def stub(args, **kwargs):
+            calls.append(args)
+            return type("Result", (), {"returncode": 0})()
+
+        journey.sh = stub
+        self.assertTrue(journey.seed_openapi_output(self.derived))
+        self.assertEqual(calls[0], ["swift", "build", "--package-path", str(journey.ROOT / "packages" / "mobile-core")])
+        self.assertEqual(calls[1][1], "generate")
+        self.assertTrue((journey.openapi_output(self.derived) / "Server.swift").exists())
+
+
+class Runner(Tree):
+    def test_the_test_runner_passes_its_health_checked_api_url_to_the_app(self):
+        loaded = journey.load_journeys()["auth/sign-in"]
+        run_dir = journey.ROOT / "run"
+        run_dir.mkdir()
+        calls = []
+        saved_sh = journey.sh
+
+        def stub(args, **kwargs):
+            calls.append(kwargs["env"])
+            return type("Result", (), {"stdout": ""})()
+
+        journey.sh = stub
+        try:
+            journey.run_xcuitest(loaded, ["S1"], {"A": "sim"}, journey.load_accounts(environ={}),
+                                 "sms", run_dir, "http://127.0.0.1:8080")
+        finally:
+            journey.sh = saved_sh
+
+        self.assertEqual(calls[0]["TEST_RUNNER_MONACO_QA_API_BASE_URL"], "http://127.0.0.1:8080")
+
+
+class Simulators(Tree):
+    def setUp(self):
+        super().setUp()
+        self.saved_sh = journey.sh
+        self.loaded = journey.load_journeys()["auth/sign-in"]
+        self.devices = {
+            "com.apple.CoreSimulator.SimRuntime.iOS-26-5": [{
+                "udid": "gold",
+                "name": "Monaco Gold",
+                "isAvailable": True,
+                "deviceTypeIdentifier": "phone",
+            }],
+        }
+
+    def tearDown(self):
+        journey.sh = self.saved_sh
+        super().tearDown()
+
+    def result(self, stdout="", returncode=0):
+        return type("Result", (), {"stdout": stdout, "returncode": returncode})()
+
+    def test_an_unmapped_actor_gets_a_dedicated_simulator_built_like_gold(self):
+        calls = []
+
+        def stub(args, **kwargs):
+            calls.append(args)
+            if args == ["scripts/gold-sim-udid.sh"]:
+                return self.result("gold\n")
+            if args == ["xcrun", "simctl", "list", "devices", "--json"]:
+                return self.result(json.dumps({"devices": self.devices}))
+            if args[:3] == ["xcrun", "simctl", "create"]:
+                return self.result("journey-a\n")
+            self.fail("unexpected command: %r" % (args,))
+
+        journey.sh = stub
+        self.assertEqual(journey.resolve_simulators(self.loaded, {}), {"A": "journey-a"})
+        self.assertEqual(calls[-1], [
+            "xcrun", "simctl", "create", "Monaco Journeys A", "phone",
+            "com.apple.CoreSimulator.SimRuntime.iOS-26-5",
+        ])
+
+    def test_an_explicit_simulator_mapping_is_kept(self):
+        def unexpected(*args, **kwargs):
+            self.fail("simctl call: %r" % (args,))
+
+        journey.sh = unexpected
+        self.assertEqual(journey.resolve_simulators(self.loaded, {"A": "chosen"}), {"A": "chosen"})
+
+    def test_a_conflicting_simulator_environment_stops_the_run(self):
+        devices = {
+            "runtime": [{"udid": "journey-a", "name": "Monaco Journeys A", "isAvailable": True}],
+        }
+
+        def stub(args, **kwargs):
+            if args == ["xcrun", "simctl", "list", "devices", "--json"]:
+                return self.result(json.dumps({"devices": devices}))
+            if args == ["xcrun", "simctl", "getenv", "journey-a", "MONACO_API_BASE_URL"]:
+                return self.result("http://127.0.0.1:8082\n")
+            self.fail("unexpected command: %r" % (args,))
+
+        journey.sh = stub
+        with self.assertRaisesRegex(journey.JourneyError, "simulator Monaco Journeys A has MONACO_API_BASE_URL=http://127.0.0.1:8082"):
+            journey.check_simulator_api_environment({"A": "journey-a"}, "http://127.0.0.1:8080")
+
+    def test_only_dedicated_simulators_are_reset_without_fresh(self):
+        calls = []
+        self.loaded.actors = ["A", "B"]
+        devices = {
+            "runtime": [
+                {"udid": "journey-a", "name": "Monaco Journeys A", "isAvailable": True},
+                {"udid": "chosen-b", "name": "Chosen B", "isAvailable": True},
+            ],
+        }
+
+        def stub(args, **kwargs):
+            calls.append(args)
+            if args == ["xcrun", "simctl", "list", "devices", "--json"]:
+                return self.result(json.dumps({"devices": devices}))
+            return self.result()
+
+        journey.sh = stub
+        journey.reset_journey_simulators(self.loaded, {"A": "journey-a", "B": "chosen-b"}, {"B"}, False)
+        self.assertEqual(calls[1:], [
+            ["xcrun", "simctl", "boot", "journey-a"],
+            ["xcrun", "simctl", "bootstatus", "journey-a", "-b"],
+            ["xcrun", "simctl", "uninstall", "journey-a", "com.monaco.app"],
+        ])
+
+    def test_fresh_resets_an_explicit_simulator(self):
+        calls = []
+
+        def stub(args, **kwargs):
+            calls.append(args)
+            if args == ["xcrun", "simctl", "list", "devices", "--json"]:
+                return self.result(json.dumps({"devices": self.devices}))
+            return self.result()
+
+        journey.sh = stub
+        journey.reset_journey_simulators(self.loaded, {"A": "gold"}, {"A"}, True)
+        self.assertEqual(calls[1:], [
+            ["xcrun", "simctl", "boot", "gold"],
+            ["xcrun", "simctl", "bootstatus", "gold", "-b"],
+            ["xcrun", "simctl", "uninstall", "gold", "com.monaco.app"],
+        ])
 
 
 LOG = """Test Case '-[MonacoUITests.SignInJourneyUITests testS1SignIn]' started.

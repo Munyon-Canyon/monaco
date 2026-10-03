@@ -75,8 +75,8 @@ That keeps a run the same every time, and a failure always has one step to point
 
 Each actor has its own simulator and its own account, so no step signs out to switch members.
 
-- Actor A uses the gold simulator from `scripts/gold-sim-udid.sh`. Actor B uses a clone of it: `xcrun simctl clone "$SIMSLIM_UDID" "Monaco Gold B"`, made once per machine.
-- `scripts/qa/journey.py run <journey> --sim B=<udid>` maps the extra actor. With no mapping for B, the run stops and says so.
+- An unmapped actor uses a dedicated simulator named `Monaco Journeys <actor>`. The runner creates it with the gold simulator's device type and runtime, or the newest available iPhone and iOS runtime when no gold simulator exists.
+- `scripts/qa/journey.py run <journey> --sim B=<udid>` overrides an actor's dedicated simulator.
 - XCUITest drives one simulator per `xcodebuild` call, so a two-actor scenario runs as phases, each on its actor's simulator, in the doc's order. How a phase is named and how one actor hands a value to the next is in the skill's `xcuitest.md`.
 
 ## Journeys build on journeys
@@ -113,6 +113,9 @@ Git keeps the history. There are no `V2` copies of a doc or a test.
 - A journey that requires another does not pin its version. When a required journey's last screen changes (what it leaves on screen for the next journey), bump the journeys that require it too.
 
 ## Run and measure { #measure }
+
+A run passes its API URL under a QA-only name and uses dedicated journey simulators so shared simulator settings do not point it elsewhere.
+It reinstalls the app on dedicated journey simulators before every run, so every run starts signed out.
 
 ```sh
 scripts/qa/journey.py check                                   # docs and tests agree

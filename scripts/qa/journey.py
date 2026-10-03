@@ -21,6 +21,8 @@ import statistics
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -91,6 +93,7 @@ class Journey:
         self.version = meta.get("version")
         self.requires = _as_list(meta.get("requires", []))
         self.actors = _as_list(meta.get("actors", []))
+        self.flows = ["%02d" % flow if isinstance(flow, int) else flow for flow in _as_list(meta.get("flows", []))]
         self.xcuitest = _as_list(meta.get("xcuitest", []))
         funds = meta.get("funds", {})
         self.funds = funds if isinstance(funds, dict) else {}
@@ -275,6 +278,33 @@ def sh(args, **kwargs):
     return subprocess.run(args, cwd=str(ROOT), universal_newlines=True, **kwargs)
 
 
+def journey_api_base_url():
+    return os.environ.get("MONACO_API_BASE_URL", "http://127.0.0.1:8080")
+
+
+def backend_is_running(base_url=None, opener=None):
+    base_url = base_url or journey_api_base_url()
+    health_url = base_url.rstrip("/") + "/healthz"
+    try:
+        response = (opener or urllib.request.urlopen)(health_url, timeout=2)
+        status = getattr(response, "status", None)
+        if status is None:
+            status = response.getcode()
+        close = getattr(response, "close", None)
+        if close:
+            close()
+        return status == 200
+    except (OSError, urllib.error.URLError):
+        return False
+
+
+def require_backend():
+    base_url = journey_api_base_url()
+    if not backend_is_running(base_url):
+        raise JourneyError("the backend is not running: start it with just run backend")
+    return base_url
+
+
 def git_apply_check(patch):
     return sh(["git", "apply", "--check", str(patch)], stderr=subprocess.DEVNULL).returncode == 0
 
@@ -284,24 +314,93 @@ def build_label(mutant=None):
     return "%s+mutant:%s" % (sha, mutant) if mutant else sha
 
 
+def simulator_devices():
+    result = sh(["xcrun", "simctl", "list", "devices", "--json"], stdout=subprocess.PIPE, check=True)
+    return json.loads(result.stdout).get("devices", {})
+
+
+def simulator_template(devices):
+    gold = sh(["scripts/gold-sim-udid.sh"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    if gold.returncode == 0:
+        gold_udid = gold.stdout.strip()
+        for runtime, items in devices.items():
+            for item in items:
+                if item.get("udid") == gold_udid:
+                    return item["deviceTypeIdentifier"], runtime
+    runtimes = json.loads(sh(["xcrun", "simctl", "list", "runtimes", "--json"], stdout=subprocess.PIPE,
+                              check=True).stdout).get("runtimes", [])
+    available = [runtime for runtime in runtimes if runtime.get("isAvailable") and runtime.get("platform") == "iOS"]
+    if not available:
+        raise JourneyError("no available iOS simulator runtime")
+    runtime = max(available, key=lambda item: tuple(int(part) for part in item["version"].split(".")))
+    phones = [item for item in runtime.get("supportedDeviceTypes", []) if item.get("productFamily") == "iPhone"]
+    if not phones:
+        raise JourneyError("the newest available iOS runtime has no iPhone device type")
+    return phones[0]["identifier"], runtime["identifier"]
+
+
+def named_simulator(devices, name):
+    for items in devices.values():
+        for item in items:
+            if item.get("name") == name and item.get("isAvailable"):
+                return item["udid"]
+    return ""
+
+
 def resolve_simulators(journey, mapping):
     sims = dict(mapping)
-    first = journey.actors[0]
-    if first not in sims:
-        gold = sh(["scripts/gold-sim-udid.sh"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-        if gold.returncode == 0:
-            sims[first] = gold.stdout.strip()
-        else:
-            print("warning: no gold simulator (SIMSLIM_UDID); using the one `just run mobile` picks", file=sys.stderr)
-            sims[first] = sh(["scripts/resolve-ios-sim.sh"], stdout=subprocess.PIPE, check=True).stdout.strip()
     missing = [actor for actor in journey.actors if actor not in sims]
     if missing:
-        raise JourneyError(
-            "no simulator for actor %s. Clone the gold one once (xcrun simctl clone \"$SIMSLIM_UDID\" \"Monaco Gold %s\") "
-            "and pass --sim %s=<udid>" % (", ".join(missing), missing[0], missing[0]))
+        devices = simulator_devices()
+        device_type, runtime = simulator_template(devices)
+        for actor in missing:
+            name = "Monaco Journeys %s" % actor
+            sims[actor] = named_simulator(devices, name)
+            if not sims[actor]:
+                sims[actor] = sh(["xcrun", "simctl", "create", name, device_type, runtime],
+                                 stdout=subprocess.PIPE, check=True).stdout.strip()
+                print("created simulator %s" % name)
     if len(set(sims.values())) != len(sims):
         raise JourneyError("two actors share one simulator: %s" % sims)
     return sims
+
+
+def simulator_names(sims):
+    names = {}
+    for items in simulator_devices().values():
+        for item in items:
+            if item.get("udid") in sims.values():
+                names[item["udid"]] = item.get("name", item["udid"])
+    return names
+
+
+def check_simulator_api_environment(sims, api_base_url):
+    names = simulator_names(sims)
+    for udid in sims.values():
+        value = sh(["xcrun", "simctl", "getenv", udid, "MONACO_API_BASE_URL"], stdout=subprocess.PIPE,
+                   stderr=subprocess.DEVNULL).stdout.strip()
+        if value and value != api_base_url:
+            name = names.get(udid, udid)
+            raise JourneyError(
+                "simulator %s has MONACO_API_BASE_URL=%s in its environment, which overrides the journey's API. "
+                "Use another simulator with --sim, or clear it with: xcrun simctl spawn %s launchctl unsetenv "
+                "MONACO_API_BASE_URL" % (name, value, udid))
+
+
+def reset_journey_simulators(journey, sims, explicit_actors, fresh):
+    """Uninstall the app from dedicated simulators before one journey run."""
+    targets = [
+        (actor, sims[actor]) for actor in journey.actors
+        if fresh or actor not in explicit_actors
+    ]
+    names = simulator_names(dict(targets))
+    for actor, udid in targets:
+        sh(["xcrun", "simctl", "boot", udid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        sh(["xcrun", "simctl", "bootstatus", udid, "-b"], check=True,
+           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        sh(["xcrun", "simctl", "uninstall", udid, BUNDLE_ID],
+           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print("reset app on simulator %s" % names.get(udid, udid))
 
 
 def xcodebuild(sim, *extra):
@@ -309,18 +408,51 @@ def xcodebuild(sim, *extra):
         "scripts/qa/xcode-lock.sh", "xcode", "xcodebuild",
         "-project", "apps/mobile/Monaco.xcodeproj", "-scheme", "Monaco", "-configuration", "Debug",
         "-destination", "platform=iOS Simulator,id=%s" % sim,
-        "-derivedDataPath", str(DERIVED), "-skipPackagePluginValidation",
+        "-derivedDataPath", str(DERIVED), "-onlyUsePackageVersionsFromResolvedFile",
+        "-skipMacroValidation", "-skipPackagePluginValidation",
         # Ad-hoc signed: an unsigned build drops the Privy session (docs/how-to/local-simulator.md).
         "CODE_SIGN_IDENTITY=-", "CODE_SIGNING_REQUIRED=NO", "CODE_SIGNING_ALLOWED=YES",
     ] + list(extra)
 
 
+def openapi_output(derived=None):
+    derived = derived or DERIVED
+    return derived / "Build" / "Intermediates.noindex" / "BuildToolPluginIntermediates" / "mobile-core.output" / "MonacoAPI" / "OpenAPIGenerator" / "GeneratedSources"
+
+
+def seed_openapi_output(derived=None):
+    output = openapi_output(derived)
+    expected = [output / name for name in ("Types.swift", "Client.swift", "Server.swift")]
+    if all(path.exists() for path in expected):
+        return False
+    package = ROOT / "packages" / "mobile-core"
+    sh([
+        "swift", "build", "--package-path", str(package),
+    ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    generators = list((package / ".build").rglob("swift-openapi-generator-tool"))
+    if not generators:
+        raise JourneyError("could not build swift-openapi-generator-tool")
+    output.mkdir(parents=True, exist_ok=True)
+    sh([
+        str(generators[0]), "generate", str(package / "Sources" / "MonacoAPI" / "openapi.yaml"),
+        "--config", str(package / "Sources" / "MonacoAPI" / "openapi-generator-config.yaml"),
+        "--output-directory", str(output),
+    ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    (output / "Server.swift").touch()
+    print("seeded OpenAPI plugin output because #1955 skips the Xcode plugin command")
+    return True
+
+
 def build(sim, log):
     """Build the app and the UI tests once."""
     sh(["scripts/ensure-ios-privy-config.sh", "generate"], check=True, stdout=subprocess.DEVNULL)
+    seeded = seed_openapi_output()
     print("building (log: %s)" % os.path.relpath(str(log), str(ROOT)))
     with open(str(log), "w") as out:
         code = sh(xcodebuild(sim, "build-for-testing"), stdout=out, stderr=subprocess.STDOUT).returncode
+    if seeded and code != 0 and "Build input files cannot be found" in log.read_text():
+        with open(str(log), "a") as out:
+            code = sh(xcodebuild(sim, "build-for-testing"), stdout=out, stderr=subprocess.STDOUT).returncode
     if code != 0:
         raise JourneyError("the build failed, see %s" % log)
 
@@ -365,7 +497,7 @@ def split_by_test(output):
     return tests
 
 
-def run_xcuitest(journey, scenarios, sims, accounts, channel, run_dir):
+def run_xcuitest(journey, scenarios, sims, accounts, channel, run_dir, api_base_url):
     """One row per scenario. A scenario passes when every phase's test passed and none skipped.
 
     One-actor scenarios share one xcodebuild call, because starting the test runner costs more
@@ -391,6 +523,7 @@ def run_xcuitest(journey, scenarios, sims, accounts, channel, run_dir):
             env.update(actor_environment(accounts, channel, prefix="TEST_RUNNER_"))
             env["TEST_RUNNER_MONACO_QA_ACTOR"] = actor
             env["TEST_RUNNER_MONACO_QA_HANDOFF"] = str(handoff)
+            env["TEST_RUNNER_MONACO_QA_API_BASE_URL"] = api_base_url
             only = ["-only-testing:MonacoUITests/%s" % test for test in tests]
             started = time.time()
             done = sh(xcodebuild(sims[actor], *(only + ["test-without-building"])),
@@ -448,10 +581,10 @@ def record(journey, build_name, run_name, rows, summary, expected=None):
             out.write("\t".join(str(full.get(column, "")).replace("\t", " ") for column in COLUMNS) + "\n")
 
 
-def run_once(journey, journeys, args, sims, accounts, build_name, run_name, scenarios, expected=None):
+def run_once(journey, journeys, args, sims, accounts, build_name, run_name, scenarios, api_base_url, expected=None):
     run_dir = OUT / run_name
     run_dir.mkdir(parents=True, exist_ok=True)
-    rows, wall = run_xcuitest(journey, scenarios, sims, accounts, args.channel, run_dir)
+    rows, wall = run_xcuitest(journey, scenarios, sims, accounts, args.channel, run_dir, api_base_url)
     truth = run_truth(journey, accounts, args.channel)
     for row in rows:
         row["truth"] = truth
@@ -511,12 +644,15 @@ def cmd_list(args):
 def cmd_run(args):
     journeys = load_journeys()
     journey = pick(journeys, args.journey)
+    api_base_url = require_backend()
     scenarios = args.scenario or journey.scenarios
     unknown = [s for s in scenarios if s not in journey.scenarios]
     if unknown:
         raise JourneyError("%s has no scenario %s" % (journey.id, ", ".join(unknown)))
     accounts = load_accounts()
-    sims = resolve_simulators(journey, dict(pair.split("=", 1) for pair in args.sim))
+    mapping = dict(pair.split("=", 1) for pair in args.sim)
+    sims = resolve_simulators(journey, mapping)
+    check_simulator_api_environment(sims, api_base_url)
     OUT.mkdir(parents=True, exist_ok=True)
     funding = funding_notice(journey)
     if funding:
@@ -527,7 +663,8 @@ def cmd_run(args):
     for index in range(1, args.runs + 1):
         run_name = "%s-%s-%d" % (stamp(), journey.id.replace("/", "-"), index)
         print("run %d of %d" % (index, args.runs))
-        _, overall = run_once(journey, journeys, args, sims, accounts, build_label(), run_name, scenarios)
+        reset_journey_simulators(journey, sims, set(mapping), args.fresh)
+        _, overall = run_once(journey, journeys, args, sims, accounts, build_label(), run_name, scenarios, api_base_url)
         worst = max(worst, {"PASS": 0, "FAIL": 1, "ERROR": 2}[overall])
     if funding:
         print("this journey moved real USDC: cash out what is left and withdraw it to the Phantom agent wallet")
@@ -537,6 +674,7 @@ def cmd_run(args):
 def cmd_mutants(args):
     journeys = load_journeys()
     journey = pick(journeys, args.journey)
+    api_base_url = require_backend()
     all_patches = journey.mutants()
     patches = [p for p in all_patches if not args.only or p.stem in args.only]
     old_handlers = {signum: signal.signal(signum, lambda signum, frame: (_ for _ in ()).throw(KeyboardInterrupt()))
@@ -552,6 +690,7 @@ def cmd_mutants(args):
             raise JourneyError("the app sources have uncommitted changes: commit or set them aside before seeding bugs")
         accounts = load_accounts()
         sims = resolve_simulators(journey, dict(pair.split("=", 1) for pair in args.sim))
+        check_simulator_api_environment(sims, api_base_url)
         caught = 0
         for patch in patches:
             expected_fail = mutant_expectation(patch)
@@ -566,7 +705,7 @@ def cmd_mutants(args):
                 build(sims[journey.actors[0]], OUT / ("build-%s.log" % patch.stem))
                 run_name = "%s-%s-%s" % (stamp(), journey.id.replace("/", "-"), patch.stem)
                 rows, _ = run_once(journey, journeys, args, sims, accounts, build_label(patch.stem), run_name,
-                                   expected_fail, expected={s: "FAIL" for s in expected_fail})
+                                   expected_fail, api_base_url, expected={s: "FAIL" for s in expected_fail})
             finally:
                 if applied:
                     sh(["git", "apply", "-R", str(patch)], check=True)
@@ -651,12 +790,13 @@ def main(argv=None):
         sub.set_defaults(run=handler)
         sub.add_argument("journey", help="journey id, such as auth/sign-in")
         sub.add_argument("--sim", action="append", default=[], metavar="ACTOR=UDID",
-                         help="the simulator an actor uses; actor A defaults to the gold one")
+                         help="the simulator an actor uses; defaults to Monaco Journeys <actor>")
         sub.add_argument("--channel", choices=("sms", "email"), default="sms")
         if name == "run":
             sub.add_argument("--scenario", action="append", metavar="S1", help="default: every scenario")
             sub.add_argument("--runs", type=int, default=1)
             sub.add_argument("--no-build", action="store_true", help="reuse the last build")
+            sub.add_argument("--fresh", action="store_true", help="also reinstall the app on --sim simulators")
         else:
             sub.add_argument("--only", action="append", metavar="NAME", help="a seeded bug's file name, no .patch")
     args = parser.parse_args(argv)
