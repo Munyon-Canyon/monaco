@@ -116,6 +116,62 @@ func TestCheckNoAggregate_failsAFileNamingTwoFlows(t *testing.T) {
 	}
 }
 
+func TestCheckAppModels_requiresABuiltRowsModelInItsModuleTarget(t *testing.T) {
+	t.Parallel()
+	backend := []flows.Flow{{ID: "01", Module: "identity"}, {ID: "02", Module: "system"}}
+	row := func(id string, status flows.AppStatus) flows.AppRow {
+		return flows.AppRow{File: "packages/flows/app/" + id + ".tsv", Line: 2, ID: id, Status: status}
+	}
+	for _, tc := range []struct {
+		name   string
+		row    flows.AppRow
+		models []string
+		want   []string
+	}{
+		{
+			"built with its model", row("01", flows.AppBuilt),
+			[]string{"packages/mobile-core/Sources/MonacoIdentity/Flow01SignInModel.swift"},
+			nil,
+		},
+		{
+			"verified with its model", row("02", flows.AppVerified),
+			[]string{"packages/mobile-core/Sources/MonacoSystem/Flow02PingModel.swift"},
+			nil,
+		},
+		{"planned without a model", row("01", flows.AppPlanned), nil, nil},
+		{"none without a model", row("01", flows.AppNone), nil, nil},
+		{"built without a model", row("01", flows.AppBuilt), nil, []string{
+			"packages/flows/app/01.tsv:2: status built but no model Flow01*.swift in packages/mobile-core/Sources/MonacoIdentity",
+		}},
+		{
+			"verified with the model in another module", row("01", flows.AppVerified),
+			[]string{"packages/mobile-core/Sources/MonacoSystem/Flow01SignInModel.swift"},
+			[]string{
+				"packages/flows/app/01.tsv:2: status verified but no model Flow01*.swift in packages/mobile-core/Sources/MonacoIdentity",
+			},
+		},
+		{
+			"built with another flow's model", row("01", flows.AppBuilt),
+			[]string{"packages/mobile-core/Sources/MonacoIdentity/Flow02PingModel.swift"},
+			[]string{
+				"packages/flows/app/01.tsv:2: status built but no model Flow01*.swift in packages/mobile-core/Sources/MonacoIdentity",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			repo := fstest.MapFS{}
+			for _, m := range tc.models {
+				repo[m] = &fstest.MapFile{}
+			}
+			got := lines(flows.CheckAppModels([]flows.AppRow{tc.row}, backend, flows.Env{Repo: repo}))
+			if !slices.Equal(got, tc.want) {
+				t.Fatalf("problems = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestAppStatus_atLeastBuilt(t *testing.T) {
 	t.Parallel()
 	for status, want := range map[flows.AppStatus]bool{

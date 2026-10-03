@@ -109,7 +109,19 @@ FLOW_00 = "packages/flows/app/00.tsv"
 FLOW_01 = "packages/flows/app/01.tsv"
 BACKEND_FLOWS = "apps/backend/flows.tsv"
 
+GRAPH_TEST = "scripts/mobile_core_graph_test.go"
+GRAPH_SOURCE = """package scripts_test
+
+var allowedGraph = map[string][]string{
+	"MonacoSystem":  {},
+	"MonacoTrading": {"MonacoMarket"},
+}
+
+func graphProblems() {}
+"""
+
 BASE = {
+    GRAPH_TEST: GRAPH_SOURCE,
     FLOW_00: FLOW_HEADER + "00\tSystemPing\tbuilt\tdocs/a.md#ping\n",
     FLOW_01: FLOW_HEADER + "01\tSignIn\tverified\tdocs/a.md#login\n",
     BACKEND_FLOWS: "id\tflow\n00\tPing\n01\tSign in\n",
@@ -561,6 +573,15 @@ jobs:
             BACKEND_FLOWS: "id\tflow\n00\tPing\n",
             "packages/flows/app/02.tsv": FLOW_HEADER + "02\t-\tnone\tdocs/a.md#cabal\n",
         })
+
+    def test_edited_module_graph(self):
+        self.assert_flags(
+            {GRAPH_TEST: GRAPH_SOURCE.replace('{"MonacoMarket"}', '{"MonacoMarket", "MonacoCabal"}')},
+            f'{GRAPH_TEST}:5: module-graph: added `"MonacoTrading": {{"MonacoMarket", "MonacoCabal"}},`',
+        )
+
+    def test_module_graph_test_edit_outside_the_table_passes(self):
+        self.assert_clean({GRAPH_TEST: GRAPH_SOURCE.replace("graphProblems() {}", "graphProblems() { return }")})
 
     def test_label_overrides_every_rule(self):
         code, out = self.run_check({

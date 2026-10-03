@@ -21,6 +21,8 @@ Diffs BASE_SHA...HEAD_SHA and reports each finding as `path:line: <rule>: <what>
   language mode, unsafeFlags or treatAllWarnings in packages/mobile-core/Package.swift; or a
   `-warnings-as-errors` removed from a call site in a WARNINGS_FLAG_FILES file, unless that
   same line now calls scripts/mobile-core-test.sh, which carries the flag.
+- module-graph: an added or removed line inside the `allowedGraph` map of
+  scripts/mobile_core_graph_test.go, the table of imports each mobile-core module target may use.
 
 Reads BASE_SHA, HEAD_SHA and PR_LABELS (JSON list of label names) from the environment.
 Each finding becomes a GitHub `::warning` annotation plus a line in $GITHUB_STEP_SUMMARY, and
@@ -78,6 +80,7 @@ TEST_SCRIPT = "scripts/mobile-core-test.sh"
 FLOW_APP = re.compile(r"^packages/flows/app/([^/]+)\.tsv$")
 BACKEND_FLOWS = "apps/backend/flows.tsv"
 FLOW_RANK = {"planned": 1, "built": 2, "verified": 3}
+GRAPH_TEST = "scripts/mobile_core_graph_test.go"
 WARNINGS_FLAG_FILES = (
     "Justfile",
     ".github/workflows/ci-mobile-core.yml",
@@ -150,6 +153,30 @@ def exclusion_lines(yaml: str) -> set[int]:
         elif stripped.rstrip() == "exclusions:":
             indent = depth
     return lines
+
+
+def graph_lines(source: str) -> set[int]:
+    lines: set[int] = set()
+    inside = False
+    for number, text in enumerate(source.splitlines(), 1):
+        if text.startswith("var allowedGraph "):
+            inside = True
+        elif inside and text.startswith("}"):
+            break
+        elif inside:
+            lines.add(number)
+    return lines
+
+
+def graph_findings(added: list[Added], removed: list[Added], _base, head) -> list[Finding]:
+    changed = [c for c in added + removed if c.path == GRAPH_TEST]
+    if not changed:
+        return []
+    table = graph_lines(head(GRAPH_TEST))
+    return [
+        Finding(c.path, c.line, "module-graph", f"{'added' if c in added else 'removed'} `{c.text.strip()}`")
+        for c in changed if c.line in table
+    ]
 
 
 def is_swift_test(path: str) -> bool:
@@ -337,7 +364,7 @@ def check(added: list[Added], removed: list[Added], base, head, base_tests, head
     exclusions = exclusion_lines(head(GOLANGCI)) if any(a.path == GOLANGCI for a in added) else set()
     return (gate_findings(added, exclusions, base, head) + skip_findings(added)
             + removed_findings(base_tests, head_tests) + strictness_findings(added, removed, base, head)
-            + flow_status_findings(added, removed, base, head))
+            + flow_status_findings(added, removed, base, head) + graph_findings(added, removed, base, head))
 
 
 def findings(base: str, head: str) -> list[Finding]:

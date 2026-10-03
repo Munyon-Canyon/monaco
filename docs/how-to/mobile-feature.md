@@ -6,8 +6,10 @@ Logic lives in host-testable `packages/mobile-core`. The SwiftUI view only binds
 
 | Piece | Path |
 | --- | --- |
-| Model | `packages/mobile-core/Sources/MonacoCore/<Domain>/<Domain>Model.swift` |
+| Model | `packages/mobile-core/Sources/Monaco<Module>/Flow<id><Name>Model.swift` |
 | View | `apps/mobile/Monaco/Features/<Domain>/<Domain>View.swift` |
+
+`<Module>` is the target of the flow's backend module, as [Module targets](../architecture/ios.md#module-targets) explains. `scripts/gen-mobile-feature.sh` still scaffolds the model into `Sources/MonacoCore/<Domain>/` for legacy rewires until its follow-up moves it.
 
 The model imports neither SwiftUI nor Privy. The view calls no `APIClient` method of its own. Start a rewire with `scripts/gen-mobile-feature.sh <Domain>`, then swap the generated ping calls for the screen's operation. Putting the view on screen is [mobile-navigation.md](mobile-navigation.md) (#942). A sample harness is [Debug sample harnesses](mobile-harness.md) (#944).
 

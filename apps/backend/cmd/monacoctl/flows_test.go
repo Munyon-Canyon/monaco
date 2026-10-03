@@ -218,6 +218,13 @@ func TestFlowsCheck_appRegistry(t *testing.T) {
 		{"aggregate file", map[string]string{
 			"packages/flows/all.tsv": "id\n01\n02\n",
 		}, 1, "packages/flows/all.tsv: names flows 01 and 02; keep one flow per file\n"},
+		{"built without a model", map[string]string{
+			"packages/flows/app/01.tsv": app("01\tSystemPing\tbuilt\tdocs/flows.md#ping"),
+		}, 1, "packages/flows/app/01.tsv:2: status built but no model Flow01*.swift in packages/mobile-core/Sources/MonacoSystem\n"},
+		{"built with its model", map[string]string{
+			"packages/flows/app/01.tsv": app("01\tSystemPing\tbuilt\tdocs/flows.md#ping"),
+			"packages/mobile-core/Sources/MonacoSystem/Flow01SystemPingModel.swift": "",
+		}, 0, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
