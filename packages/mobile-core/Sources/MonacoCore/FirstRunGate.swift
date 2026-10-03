@@ -1,12 +1,8 @@
 import Foundation
 
-/// What the app shows once sign-in has succeeded.
 public enum FirstRunDestination: Equatable, Sendable {
-    /// The backend session has not opened yet: skeleton, or the session error.
     case session
-    /// The account has no display name. Ask for one before the tabs.
     case nameSetup
-    /// Straight into the tab shell.
     case app
 }
 
@@ -23,9 +19,8 @@ public enum FirstRunGate {
         displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// `nil` profile means the session is still opening, not that the name is missing.
-    public static func destination(for me: MeDTO?) -> FirstRunDestination {
-        guard let me else { return .session }
-        return needsDisplayName(me.displayName) ? .nameSetup : .app
+    public static func destination(for profile: SessionProfile?) -> FirstRunDestination {
+        guard let profile else { return .session }
+        return needsDisplayName(profile.displayName) ? .nameSetup : .app
     }
 }

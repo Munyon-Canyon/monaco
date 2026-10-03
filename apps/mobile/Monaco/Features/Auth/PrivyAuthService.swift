@@ -29,6 +29,12 @@ class PrivyAuthService: ObservableObject {
     /// Set the moment a sign-out starts, so a late 401 cannot stamp "session expired"
     /// over a sign-out the member asked for, and a second tap cannot start a second one.
     private var isSigningOut = false
+    var onSessionEnded: (@MainActor () -> Void)?
+    #if DEBUG
+    func adoptDevAccessToken(_ token: String) {
+        adoptAccessToken(token)
+    }
+    #endif
     /// Best-effort revoke of the Privy session, running after local state is already gone.
     private let pendingRevoke = PendingRevoke()
     /// Bumped by every successful sign-in, so a revoke started for an earlier session can
@@ -307,6 +313,7 @@ class PrivyAuthService: ObservableObject {
         guard !isSigningOut else { return }
         isSigningOut = true
         endSession(reason: reason)
+        onSessionEnded?()
 
         let privy = self.privy
         let epoch = signInEpoch

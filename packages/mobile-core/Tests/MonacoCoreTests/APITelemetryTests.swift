@@ -115,7 +115,7 @@ final class APITelemetryTests: XCTestCase {
         let (client, events) = makeClient()
 
         do {
-            _ = try await client.me()
+            _ = try await client.getHome()
             XCTFail("Expected decoding to throw")
         } catch {
             XCTAssertTrue(error is DecodingError)
@@ -123,7 +123,7 @@ final class APITelemetryTests: XCTestCase {
 
         let event = try XCTUnwrap(events.values.first)
         XCTAssertEqual(events.values.count, 1)
-        XCTAssertEqual(event.route, "/v1/me")
+        XCTAssertEqual(event.route, "/v1/home")
         XCTAssertEqual(event.outcome, .status(200))
         XCTAssertGreaterThan(event.durationMs, 0)
     }
@@ -168,7 +168,7 @@ final class APITelemetryTests: XCTestCase {
 
         let task = Task {
             withUnsafeCurrentTask { $0?.cancel() }
-            _ = try await client.me()
+            _ = try await client.getHome()
         }
         let result = await task.result
 
@@ -313,7 +313,7 @@ final class APITelemetryTests: XCTestCase {
         let (client, events) = makeClient()
 
         do {
-            _ = try await client.me()
+            _ = try await client.getHome()
             XCTFail("Expected the timeout to throw")
         } catch {
             XCTAssertEqual((error as? URLError)?.code, .timedOut)

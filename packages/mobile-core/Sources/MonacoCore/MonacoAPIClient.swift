@@ -146,16 +146,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
         return try JSONDecoder().decode(PlatformWithdrawalResponseDTO.self, from: response.data)
     }
 
-    public func me() async throws -> MeDTO {
-        let url = baseURL.appending(path: "v1/me")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        try await applyAuthorizationHeader(to: &request)
-
-        let response = try await send(request, route: "/v1/me")
-        return try JSONDecoder().decode(MeDTO.self, from: response.data)
-    }
-
     /// `PATCH /v1/me` — set the signed-in user's display name.
     public func updateProfile(displayName: String) async throws -> MeDTO {
         let url = baseURL.appending(path: "v1/me")

@@ -139,6 +139,16 @@ private struct Pair {
 struct MonacoContrastTests {
     private static let surfaces: [Color] = [MonacoTheme.canvas, MonacoTheme.surface, MonacoTheme.surfaceSunken]
 
+    @Test func adaptiveColorsResolveOnTheSwiftUIRendererQueue() async {
+        let canvas = MonacoTheme.canvas
+        let alpha = await Task.detached {
+            UIColor(canvas)
+                .resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))
+                .cgColor.alpha
+        }.value
+        #expect(alpha == 1)
+    }
+
     private static var textPairs: [Pair] {
         var pairs: [Pair] = []
         for surface in surfaces {

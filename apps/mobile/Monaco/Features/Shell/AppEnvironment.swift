@@ -11,6 +11,7 @@ final class AppEnvironment {
     let hints: any HintConnecting
     let auth: PrivyAuthService
     let navigator = AppNavigator()
+    let sessionStore: AppSessionStore
     var viewer: Viewer?
     #if DEBUG
     private(set) var devSessionActive = false
@@ -38,13 +39,21 @@ final class AppEnvironment {
         self.auth = auth
         self.tokens = tokens
         self.hints = hints
-        self.api = APIClient(serverURL: Config.api.baseURL, tokens: tokens)
+        let api = APIClient(serverURL: Config.api.baseURL, tokens: tokens)
+        self.api = api
+        self.sessionStore = AppSessionStore(apiClient: MonacoAPIClient(), sessions: SessionAPI(api: api))
         self.privyAuthenticated = isAuthenticated ?? Self.privyIsAuthenticated(auth)
         self.endAuthSession = endAuthSession ?? { await auth.logout() }
+        sessionStore.onProfileChange = { [weak self] next in
+            self?.viewer = next.map(Viewer.init)
+        }
         tokens.onSignedOut { [weak self] in
             Task { @MainActor in
                 await self?.signOut()
             }
+        }
+        auth.onSessionEnded = { [weak self] in
+            self?.clearSignedInState()
         }
     }
 
@@ -64,6 +73,7 @@ final class AppEnvironment {
         case .active:
             guard isSignedIn else { return }
             await hints.start()
+            await sessionStore.noteForeground(auth: auth)
             AppLogger.session.info("hint stream started")
         case .background:
             await hints.stop()
@@ -76,6 +86,7 @@ final class AppEnvironment {
     #if DEBUG
     func signIn(dev session: DevSession) async {
         tokens.use(session)
+        auth.adoptDevAccessToken(session.token)
         devSessionActive = true
         viewer = Viewer(userID: session.userID, handle: nil)
         await hints.start()
@@ -87,6 +98,8 @@ final class AppEnvironment {
         guard !isSigningOut else { return }
         isSigningOut = true
         defer { isSigningOut = false }
+        navigator.reset()
+        clearSignedInState()
         await hints.stop()
         AppLogger.session.info("hint stream stopped")
         #if DEBUG
@@ -104,5 +117,21 @@ final class AppEnvironment {
             }
             return false
         }
+    }
+
+    private func clearSignedInState() {
+        sessionStore.profile = nil
+        sessionStore.home = nil
+        sessionStore.errorMessage = nil
+        sessionStore.isLoading = false
+        viewer = nil
+    }
+
+    var skipsSessionOpen: Bool {
+        #if DEBUG
+        devSessionActive
+        #else
+        false
+        #endif
     }
 }

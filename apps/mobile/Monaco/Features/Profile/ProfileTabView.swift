@@ -24,12 +24,12 @@ struct ProfileTabView: View {
     @State private var isSigningOut = false
 
     private var displayName: String {
-        let name = session.me?.displayName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let name = session.profile?.displayName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return name.isEmpty ? "Member" : name
     }
 
     private var memberSince: String {
-        guard let createdAt = session.me?.createdAt else { return "Your profile" }
+        guard let createdAt = session.profile?.createdAt else { return "Your profile" }
         return MemberSinceFormatter.format(createdAt)
     }
 
@@ -39,12 +39,12 @@ struct ProfileTabView: View {
 
     var body: some View {
         MonacoScreen {
-            if session.me == nil, session.isLoading {
+            if session.profile == nil, session.isLoading {
                 ProgressView("Loading your profile…")
                     .tint(MonacoTheme.accent)
                     .foregroundStyle(MonacoTheme.muted)
                     .accessibilityIdentifier("profile-loading")
-            } else if session.me == nil {
+            } else if session.profile == nil {
                 loadError
             } else {
                 profileScroll
@@ -97,7 +97,7 @@ struct ProfileTabView: View {
                 .font(MonacoTheme.TypeRole.body)
                 .foregroundStyle(MonacoTheme.destructive)
             Button("Try again") {
-                Task { await session.bootstrap(auth: auth) }
+                Task { await session.bootstrap(auth: auth, devSession: session.skipsSessionOpen) }
             }
             .buttonStyle(.monacoPrimary)
         }

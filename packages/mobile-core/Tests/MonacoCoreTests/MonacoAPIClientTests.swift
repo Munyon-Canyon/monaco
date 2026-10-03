@@ -22,13 +22,7 @@ final class MonacoAPIClientTests: XCTestCase {
         MockURLProtocol.requestHandler = { request in
             capturedAuthorization = request.value(forHTTPHeaderField: "Authorization")
             let responseBody = """
-                {
-                  "userId": "550e8400-e29b-41d4-a716-446655440000",
-                  "displayName": "Alfred",
-                  "memberWalletAddress": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
-                  "profilePhotoUrl": null,
-                  "createdAt": "2026-09-01T14:30:00Z"
-                }
+                {"groups":[],"people":[]}
                 """
             let response = HTTPURLResponse(
                 url: request.url!,
@@ -47,7 +41,7 @@ final class MonacoAPIClientTests: XCTestCase {
         )
 
         // Act
-        _ = try await client.me()
+        _ = try await client.getHome()
 
         // Assert
         XCTAssertEqual(capturedAuthorization, expectedAuthorization)

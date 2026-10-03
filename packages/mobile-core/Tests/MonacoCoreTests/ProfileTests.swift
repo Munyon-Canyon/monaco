@@ -204,6 +204,13 @@ final class ProfileAPITests: XCTestCase {
 }
 
 final class MeDTOTests: XCTestCase {
+    func testDecode_missingDisplayAndWalletUseEmptyStrings() throws {
+        let dto = try JSONDecoder().decode(MeDTO.self, from: Data(#"{"userId":"u1"}"#.utf8))
+
+        XCTAssertEqual(dto.displayName, "")
+        XCTAssertEqual(dto.memberWalletAddress, "")
+    }
+
     func testDecode_toleratesMissingOptionalFields() throws {
         let json = #"{"userId":"u1","displayName":"","memberWalletAddress":"addr"}"#
 

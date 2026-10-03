@@ -30,6 +30,7 @@ public actor HintStream: HintSource {
     private let transport: any ClientTransport
     private let token: @Sendable () async throws -> String?
     private let refresh: @Sendable (String) async throws -> String?
+    private let endSession: @Sendable () async -> Void
     private let timer: StreamClock
     private let random: @Sendable () -> Double
     private let subscribers = Subscribers()
@@ -43,6 +44,7 @@ public actor HintStream: HintSource {
         transport: any ClientTransport = URLSessionTransport(),
         token: @escaping @Sendable () async throws -> String?,
         refresh: @escaping @Sendable (String) async throws -> String?,
+        endSession: @escaping @Sendable () async -> Void = {},
         clock: any Clock<Duration> = ContinuousClock(),
         random: @escaping @Sendable () -> Double = { Double.random(in: 0..<1) }
     ) {
@@ -50,6 +52,7 @@ public actor HintStream: HintSource {
         self.transport = transport
         self.token = token
         self.refresh = refresh
+        self.endSession = endSession
         self.timer = StreamClock(clock)
         self.random = random
     }
@@ -85,7 +88,10 @@ public actor HintStream: HintSource {
                 connectedFor = try await connect(bearer)
                 rejected = false
             } catch let error where ProblemError(error)?.status == 401 {
-                guard !rejected, let bearer else { return signOut() }
+                guard !rejected, let bearer else {
+                    await endSession()
+                    return signOut()
+                }
                 rejected = true
                 do {
                     guard let fresh = try await refresh(bearer) else { return signOut() }
