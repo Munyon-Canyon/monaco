@@ -1,4 +1,5 @@
 import Foundation
+import MonacoAPI
 import MonacoCore
 
 /// Result of a profile write, phrased for a toast.
@@ -34,7 +35,37 @@ extension AppSessionStore {
         guard normalized != current.displayName else {
             return .unchanged
         }
-        return .failed("Could not save your name. Try again.")
+        guard let sessions else {
+            return .failed("Could not save your name. Try again.")
+        }
+        guard let token = await accessToken(auth: auth) else {
+            return .failed("Sign in again to edit your profile.")
+        }
+        noteProfileWrite()
+        let writeGeneration = profileWriteGenerationValue()
+        let pending = current.withDisplayName(normalized)
+        if optimistic {
+            profile = pending
+        }
+        do {
+            let saved = try await sessions.patchMe(displayName: normalized)
+            guard writeGeneration == profileWriteGenerationValue() else {
+                return .failed("Sign in again to edit your profile.")
+            }
+            profile = saved
+        } catch {
+            if profile == pending {
+                profile = current
+            }
+            return await failure(
+                for: error,
+                auth: auth,
+                rejectedToken: token,
+                fallback: "Could not save your name. Try again."
+            )
+        }
+        refreshBoardsAfterProfileWrite(auth: auth)
+        return .saved
     }
 
     /// Uploads an already-prepared photo (see `ProfilePhotoUploadPreparer`).
@@ -46,14 +77,13 @@ extension AppSessionStore {
         guard let (client, token) = await profileClient(auth: auth) else {
             return .failed("Sign in again to change your photo.")
         }
-        let generation = refreshGenerationValue()
+        noteProfileWrite()
         let writeGeneration = profileWriteGenerationValue()
         do {
             let saved = try await client.uploadProfilePhoto(imageData: imageData, mimeType: mimeType)
-            guard mayWrite(generation), writeGeneration == profileWriteGenerationValue() else {
+            guard writeGeneration == profileWriteGenerationValue() else {
                 return .failed("Sign in again to change your photo.")
             }
-            noteProfileWrite()
             if let current = profile {
                 profile = current.replacing(from: saved)
             }
@@ -83,6 +113,12 @@ extension AppSessionStore {
         rejectedToken: String,
         fallback: String
     ) async -> ProfileSaveOutcome {
+        if let apiError = error as? APIError {
+            if case .accountDeleted = apiError {
+                await auth.signOut(reason: ToastCopy.message(for: .accountDeleted), rejectedToken: rejectedToken)
+            }
+            return .failed(ToastCopy.message(for: apiError))
+        }
         if case MonacoCore.MonacoAPIError.httpStatus(401, _) = error {
             await auth.signOutAfterRejectedSession(rejectedToken: rejectedToken)
             return .failed(LoginFailureCopy.sessionExpired)

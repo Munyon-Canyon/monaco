@@ -131,6 +131,7 @@ struct SessionWireCaptureMiddleware: ClientMiddleware {
         let (response, responseBody) = try await next(request, body, baseURL)
         guard let box = SessionWireCapture.box, let responseBody, response.status == .ok,
             operationID == Operations.GetMe.id || operationID == Operations.PostAuthSession.id
+                || operationID == Operations.PatchMe.id
         else {
             return (response, responseBody)
         }

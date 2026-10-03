@@ -52,6 +52,7 @@ public actor StubTransport: ClientTransport {
     private var gates: [CheckedContinuation<(HTTPResponse, HTTPBody?), Error>] = []
     private var waiters: [CheckedContinuation<Void, Never>] = []
     public private(set) var sent: [HTTPRequest] = []
+    public private(set) var sentBodies: [Data?] = []
 
     public init(_ reply: Reply) {
         mode = .fixed(reply)
@@ -68,11 +69,16 @@ public actor StubTransport: ClientTransport {
 
     public func send(
         _ request: HTTPRequest,
-        body _: HTTPBody?,
+        body: HTTPBody?,
         baseURL _: URL,
         operationID _: String
     ) async throws -> (HTTPResponse, HTTPBody?) {
         sent.append(request)
+        if let body {
+            sentBodies.append(try await Data(collecting: body, upTo: 64 * 1024))
+        } else {
+            sentBodies.append(nil)
+        }
         for waiter in waiters { waiter.resume() }
         waiters.removeAll()
         switch try nextReply() {

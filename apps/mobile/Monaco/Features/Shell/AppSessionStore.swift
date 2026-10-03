@@ -115,29 +115,13 @@ final class AppSessionStore {
 
     func noteForeground(auth: SessionAuthenticating) async {
         guard profile != nil, let token = await accessToken(auth: auth) else { return }
-        let generation = refreshGeneration
+        let (generation, profileGeneration) = (refreshGeneration, profileWriteGenerationValue())
         if let loaded = await loadProfile(auth: auth, token: token),
-            mayWrite(generation), profile != nil, await accessToken(auth: auth) == token
+            mayWrite(generation), profileGeneration == profileWriteGenerationValue(),
+            await accessToken(auth: auth) == token
         {
             profile = loaded
         }
-    }
-
-    private func failOpen(_ error: Error, rejectedToken: String, auth: SessionAuthenticating) async {
-        isLoading = false
-        if case APIError.accountDeleted = error {
-            await auth.signOut(reason: ToastCopy.message(for: .accountDeleted), rejectedToken: rejectedToken)
-            return
-        }
-        if case APIError.signedOut = error {
-            await auth.signOut(reason: LoginFailureCopy.sessionExpired, rejectedToken: rejectedToken)
-            return
-        }
-        let mapped = SessionErrorMapping.describe(error, apiBaseURL: Config.apiBaseURL)
-        errorMessage = mapped.message
-        #if DEBUG
-        errorDebugDetail = "\(mapped.debugDetail)\n\(Config.api.debugSummary)"
-        #endif
     }
 
     /// Reloads Home and Profile without changing a range the member already picked.
@@ -204,14 +188,8 @@ final class AppSessionStore {
         guard let sessions else { return nil }
         do {
             return try await sessions.me()
-        } catch APIError.accountDeleted {
-            await auth.signOut(reason: ToastCopy.message(for: .accountDeleted), rejectedToken: token)
-            return nil
-        } catch APIError.signedOut {
-            await auth.signOut(reason: LoginFailureCopy.sessionExpired, rejectedToken: token)
-            return nil
         } catch {
-            return nil
+            return await failedProfileLoad(error, token: token, auth: auth)
         }
     }
 
