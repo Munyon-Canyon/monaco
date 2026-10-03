@@ -177,7 +177,7 @@ struct GroupDetailSampleHarness: View {
             case .proposals:
                 ProposalFeedView(service: proposalService, groupId: view.id)
             case .stock(let symbol):
-                AssetDetailView(auth: auth, symbol: symbol)
+                AssetDetailClientView(symbol: symbol)
             case .addMoney, .chat:
                 Text("Not in the sample harness")
                     .foregroundStyle(MonacoTheme.muted)

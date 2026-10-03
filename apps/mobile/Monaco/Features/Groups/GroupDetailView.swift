@@ -344,7 +344,7 @@ struct GroupDetailView: View {
                 onRetry: { item in Task { await retryTransaction(item) } }
             )
         case .stock(let symbol):
-            AssetDetailView(auth: auth, symbol: symbol)
+            AssetDetailClientView(symbol: symbol)
         }
     }
 
