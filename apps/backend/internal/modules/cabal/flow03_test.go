@@ -130,3 +130,53 @@ func TestFlow03_RevokeAccess_CannotRevokeAccess(t *testing.T) {
 	t.Parallel()
 	flows.F03RevokeAccessCannotRevokeAccess(cabalScenario(t))
 }
+
+func TestFlow03_InviteMember_OK(t *testing.T) {
+	t.Parallel()
+	flows.F03InviteMemberOK(cabalScenario(t))
+}
+
+func TestFlow03_InviteMember_Unauthorized(t *testing.T) {
+	t.Parallel()
+	flows.F03InviteMemberUnauthorized(cabalScenario(t))
+}
+
+func TestFlow03_InviteMember_CabalNotFound(t *testing.T) {
+	t.Parallel()
+	flows.F03InviteMemberCabalNotFound(cabalScenario(t))
+}
+
+func TestFlow03_InviteMember_UserNotFound(t *testing.T) {
+	t.Parallel()
+	flows.F03InviteMemberUserNotFound(cabalScenario(t))
+}
+
+func TestFlow03_InviteMember_NotCabalMember(t *testing.T) {
+	t.Parallel()
+	flows.F03InviteMemberNotCabalMember(cabalScenario(t))
+}
+
+func TestFlow03_InviteMember_NotCabalCreator(t *testing.T) {
+	t.Parallel()
+	flows.F03InviteMemberNotCabalCreator(cabalScenario(t))
+}
+
+func TestFlow03_InviteMember_CabalBanned(t *testing.T) {
+	t.Parallel()
+	flows.F03InviteMemberCabalBanned(cabalScenario(t))
+}
+
+func TestFlow03_InviteMember_AlreadyMember(t *testing.T) {
+	t.Parallel()
+	flows.F03InviteMemberAlreadyMember(cabalScenario(t))
+}
+
+func TestFlow03_InviteMember_RequestPending(t *testing.T) {
+	t.Parallel()
+	flows.F03InviteMemberRequestPending(cabalScenario(t))
+}
+
+func TestFlow03_DecideAccess_InviteExpired(t *testing.T) {
+	t.Parallel()
+	flows.F03DecideAccessInviteExpired(cabalScenario(t))
+}
