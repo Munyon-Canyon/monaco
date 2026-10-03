@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -43,6 +44,7 @@ type SwapRequest struct {
 	QuoteOutAmount  uint64
 	SlippageBps     int64
 	SourceBatchSize int
+	StillWanted     func(ctx context.Context) (bool, error)
 }
 
 type Hints interface {
@@ -73,7 +75,7 @@ func (l *SwapLayer) Run(ctx context.Context, req SwapRequest, heartbeat func()) 
 	id, owned, err := l.claim(ctx, req, insert)
 	if err == nil && owned {
 		faultpoint.Hit(ctx, faultpoint.AfterCreate)
-		err = l.beating(ctx, heartbeat, func(ctx context.Context) error { return l.drive(ctx, req, id) })
+		err = l.beating(ctx, heartbeat, func(ctx context.Context) error { return l.start(ctx, req, id) })
 	}
 	if err != nil {
 		return SwapView{}, err
@@ -101,6 +103,22 @@ func (l *SwapLayer) claim(
 		return uuid.Nil, false, insertErr
 	}
 	return live.ID, false, nil
+}
+
+func (l *SwapLayer) start(ctx context.Context, req SwapRequest, id uuid.UUID) error {
+	if req.StillWanted == nil {
+		return l.drive(ctx, req, id)
+	}
+	wanted, err := req.StillWanted(ctx)
+	switch {
+	case err != nil:
+		_, failErr := l.move(ctx, req, id, failed(req, id, domain.FailureNeverSubmitted, ""))
+		return errors.Join(err, failErr)
+	case !wanted:
+		_, err := l.move(ctx, req, id, failed(req, id, domain.FailureSourceCancelled, ""))
+		return err
+	}
+	return l.drive(ctx, req, id)
 }
 
 func (l *SwapLayer) drive(ctx context.Context, req SwapRequest, id uuid.UUID) error {

@@ -26,8 +26,8 @@ SET status = 'failed', failure_code = @failure_code::text,
   failed_at = @failed_at::timestamptz, updated_at = @failed_at::timestamptz
 WHERE id = @id
   AND CASE status
-    WHEN 'created' THEN @failure_code::text = 'never_submitted'
-    WHEN 'submitted' THEN @failure_code::text IN ('blockhash_expired', 'jupiter_failed', 'force_resolved', 'source_cancelled')
+    WHEN 'created' THEN @failure_code::text IN ('never_submitted', 'source_cancelled')
+    WHEN 'submitted' THEN @failure_code::text IN ('blockhash_expired', 'jupiter_failed', 'force_resolved')
     ELSE false
   END;
 

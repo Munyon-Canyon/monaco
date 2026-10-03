@@ -77,7 +77,7 @@ func failsFrom() map[FailureCode]Status {
 		FailureBlockhashExpired: StatusSubmitted,
 		FailureJupiterFailed:    StatusSubmitted,
 		FailureForceResolved:    StatusSubmitted,
-		FailureSourceCancelled:  StatusSubmitted,
+		FailureSourceCancelled:  StatusCreated,
 	}
 }
 
