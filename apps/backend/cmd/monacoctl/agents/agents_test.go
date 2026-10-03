@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -400,5 +401,37 @@ func TestPoll_returnsFalseOnceTheLimitElapses(t *testing.T) {
 	t.Parallel()
 	if poll(10*time.Millisecond, func() bool { return false }) {
 		t.Fatal("poll() = true, want false once the limit elapses")
+	}
+}
+
+func hangingGH(t *testing.T) string {
+	t.Helper()
+	bin := t.TempDir()
+	script := fstest.MapFS{"gh": {Data: []byte("#!/bin/sh\nsleep 600\n"), Mode: 0o700}}
+	if err := os.CopyFS(bin, script); err != nil {
+		t.Fatal(err)
+	}
+	return bin + string(os.PathListSeparator) + os.Getenv("PATH")
+}
+
+func TestExec_aHungGHCallFailsAtItsDeadline(t *testing.T) {
+	t.Setenv("PATH", hangingGH(t))
+	t.Setenv("MONACO_GH_TIMEOUT", "300ms")
+	var err error
+	took := timed(func() {
+		_, err = Exec(t.Context(), "", "", "gh", "api", "graphql")
+	})
+	if took > ghTimeout()+execWaitDelay() {
+		t.Fatalf("returned in %s", took)
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want context.DeadlineExceeded", err)
+	}
+}
+
+func TestGHTimeout_defaultsToOneMinuteWithoutAValidOverride(t *testing.T) {
+	t.Setenv("MONACO_GH_TIMEOUT", "")
+	if d := ghTimeout(); d != time.Minute {
+		t.Fatalf("ghTimeout() = %s, want 1m", d)
 	}
 }
