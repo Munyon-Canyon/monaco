@@ -555,6 +555,18 @@ func (q *Queries) MemberStakesAt(ctx context.Context, at time.Time) ([]MemberSta
 	return items, nil
 }
 
+const ownsSignature = `-- name: OwnsSignature :one
+SELECT EXISTS (SELECT 1 FROM cabal_txns WHERE tx_signature = $1::text)
+  OR EXISTS (SELECT 1 FROM user_txns WHERE tx_signature = $1::text)
+`
+
+func (q *Queries) OwnsSignature(ctx context.Context, txSignature string) (pgtype.Bool, error) {
+	row := q.db.QueryRow(ctx, ownsSignature, txSignature)
+	var column_1 pgtype.Bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const setTransferStatus = `-- name: SetTransferStatus :one
 WITH c AS (
   UPDATE cabal_txns SET status = $1::text
@@ -630,4 +642,28 @@ func (q *Queries) UserStakes(ctx context.Context, userID uuid.UUID) ([]UserStake
 		return nil, err
 	}
 	return items, nil
+}
+
+const walletLedgerMicros = `-- name: WalletLedgerMicros :one
+SELECT coalesce((SELECT sum(e.amount) FROM user_txns t JOIN user_txn_entries e ON e.txn_id = t.id
+  WHERE t.user_id = $1::uuid AND t.status = 'settled' AND e.account = 'wallet'
+    AND e.asset = $2::text), 0)::text AS settled,
+  (SELECT count(*) FROM user_txns WHERE user_id = $1::uuid AND status = 'pending')::bigint AS pending
+`
+
+type WalletLedgerMicrosParams struct {
+	UserID uuid.UUID
+	Asset  string
+}
+
+type WalletLedgerMicrosRow struct {
+	Settled string
+	Pending int64
+}
+
+func (q *Queries) WalletLedgerMicros(ctx context.Context, arg WalletLedgerMicrosParams) (WalletLedgerMicrosRow, error) {
+	row := q.db.QueryRow(ctx, walletLedgerMicros, arg.UserID, arg.Asset)
+	var i WalletLedgerMicrosRow
+	err := row.Scan(&i.Settled, &i.Pending)
+	return i, err
 }

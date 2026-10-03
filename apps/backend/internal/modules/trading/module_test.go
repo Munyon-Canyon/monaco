@@ -1,6 +1,7 @@
 package trading_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
@@ -15,5 +16,8 @@ func TestModule_isNamedTradingAndServesNothingYet(t *testing.T) {
 	m.Routes(&routes)
 	if m.Name() != "trading" || len(m.Consumers()) != 0 || m.Pollers() != nil || routes != (httpx.Routes{}) {
 		t.Fatalf("module = %s, %d consumers, %v pollers, routes %+v", m.Name(), len(m.Consumers()), m.Pollers(), routes)
+	}
+	if reflect.ValueOf(m.SignatureOwner()).IsZero() {
+		t.Fatal("SignatureOwner() = zero value")
 	}
 }

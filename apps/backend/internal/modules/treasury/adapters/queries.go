@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
@@ -26,12 +27,14 @@ const usdcDecimals = 6
 const usdcMint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
 type Queries struct {
-	q       queryStore
-	history historyStore
-	catalog app.MintResolver
-	prices  app.PriceReader
-	clock   clock.Clock
-	usdc    chain.SolanaAddress
+	q         queryStore
+	history   historyStore
+	signature signatureStore
+	wallet    walletLedgerStore
+	catalog   app.MintResolver
+	prices    app.PriceReader
+	clock     clock.Clock
+	usdc      chain.SolanaAddress
 }
 
 type queryStore interface {
@@ -50,13 +53,57 @@ type historyStore interface {
 	MemberStakesAt(context.Context, time.Time) ([]sqlc.MemberStakesAtRow, error)
 }
 
+type signatureStore interface {
+	OwnsSignature(context.Context, string) (pgtype.Bool, error)
+}
+
+type walletLedgerStore interface {
+	WalletLedgerMicros(context.Context, sqlc.WalletLedgerMicrosParams) (sqlc.WalletLedgerMicrosRow, error)
+}
+
 var _ port.Queries = (*Queries)(nil)
 
 func NewQueries(
 	db sqlc.DBTX, catalog app.MintResolver, prices app.PriceReader, c clock.Clock, usdc chain.SolanaAddress,
 ) *Queries {
 	queries := sqlc.New(db)
-	return &Queries{q: queries, history: queries, catalog: catalog, prices: prices, clock: c, usdc: usdc}
+	return &Queries{
+		q:         queries,
+		history:   queries,
+		signature: queries,
+		wallet:    queries,
+		catalog:   catalog,
+		prices:    prices,
+		clock:     c,
+		usdc:      usdc,
+	}
+}
+
+func (q *Queries) OwnsSignature(ctx context.Context, sig chain.Signature) (bool, error) {
+	owned, err := q.signature.OwnsSignature(ctx, string(sig))
+	if err != nil {
+		return false, errs.Wrap(err, errs.CodeInternal, "treasury.OwnsSignature")
+	}
+	return owned.Bool, nil
+}
+
+func (q *Queries) WalletLedgerMicros(
+	ctx context.Context,
+	user ids.UserID,
+	mint chain.SolanaAddress,
+) (money.SignedMicros, int, error) {
+	row, err := q.wallet.WalletLedgerMicros(ctx, sqlc.WalletLedgerMicrosParams{
+		UserID: user.UUID(),
+		Asset:  string(mint),
+	})
+	if err != nil {
+		return money.SignedMicros{}, 0, errs.Wrap(err, errs.CodeInternal, "treasury.WalletLedgerMicros")
+	}
+	settled, err := money.ParseSignedMicros(row.Settled)
+	if err != nil {
+		return money.SignedMicros{}, 0, errs.Wrap(err, errs.CodeInternal, "treasury.WalletLedgerMicros")
+	}
+	return settled, int(row.Pending), nil
 }
 
 func (q *Queries) Positions(ctx context.Context, cabalID ids.CabalID) ([]port.Position, error) {

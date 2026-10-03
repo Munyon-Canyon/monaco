@@ -44,6 +44,9 @@ func TestModule_servesActivityConsumesTradeEventsAndHasNoPollers(t *testing.T) {
 	if _, ok := m.Queries().(*adapters.Queries); !ok {
 		t.Fatalf("Queries() = %T, want *adapters.Queries", m.Queries())
 	}
+	if m.SignatureOwner() == nil || m.WalletLedger() == nil {
+		t.Fatal("signature owner or wallet ledger = nil")
+	}
 }
 
 func TestModule_wireTakesMembersAndUsersFromTheBuiltSetAndFailsClosedWithout(t *testing.T) {

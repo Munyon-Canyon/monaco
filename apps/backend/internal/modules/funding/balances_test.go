@@ -2,6 +2,7 @@ package funding_test
 
 import (
 	"net/http"
+	"reflect"
 	"testing"
 	"time"
 
@@ -37,6 +38,9 @@ func TestModule(t *testing.T) {
 	}
 	if m.Pauses() == nil {
 		t.Fatal("Pauses = nil")
+	}
+	if reflect.TypeOf(m.SignatureOwner()).Name() != "UnwiredSignatureOwner" {
+		t.Fatalf("SignatureOwner() = %T, want adapters.UnwiredSignatureOwner", m.SignatureOwner())
 	}
 }
 

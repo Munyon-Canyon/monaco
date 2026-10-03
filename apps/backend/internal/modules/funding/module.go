@@ -57,13 +57,18 @@ func (m *Module) Balances() port.Balances {
 
 func (*Module) Pauses() port.Pauses { return adapters.UnwiredPauses{} }
 
+func (*Module) SignatureOwner() adapters.UnwiredSignatureOwner {
+	return adapters.UnwiredSignatureOwner{}
+}
+
 type (
-	Balances    = port.Balances
-	Balance     = port.Balance
-	Pauses      = port.Pauses
-	Pause       = port.Pause
-	PausedSet   = port.PausedSet
-	PauseReason = domain.PauseReason
+	Balances       = port.Balances
+	Balance        = port.Balance
+	Pauses         = port.Pauses
+	Pause          = port.Pause
+	PausedSet      = port.PausedSet
+	PauseReason    = domain.PauseReason
+	SignatureOwner = port.SignatureOwner
 )
 
 const (

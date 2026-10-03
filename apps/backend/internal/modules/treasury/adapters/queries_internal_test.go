@@ -67,6 +67,24 @@ func TestPositionAndAmountDecodingFailures(t *testing.T) {
 	}
 }
 
+func TestOwnershipAndWalletLedgerErrors(t *testing.T) {
+	t.Parallel()
+	q := &Queries{
+		signature: ownershipStore{err: errs.New(errs.CodeDBUnavailable, "test")},
+		wallet:    walletStore{err: errs.New(errs.CodeDBUnavailable, "test")},
+	}
+	if _, err := q.OwnsSignature(t.Context(), "signature"); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("OwnsSignature() code = %q, want %q", errs.CodeOf(err), errs.CodeInternal)
+	}
+	if _, _, err := q.WalletLedgerMicros(t.Context(), ids.UserID{}, ""); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("WalletLedgerMicros() code = %q, want %q", errs.CodeOf(err), errs.CodeInternal)
+	}
+	q.wallet = walletStore{row: sqlc.WalletLedgerMicrosRow{Settled: "not-a-number"}}
+	if _, _, err := q.WalletLedgerMicros(t.Context(), ids.UserID{}, ""); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("invalid WalletLedgerMicros() code = %q, want %q", errs.CodeOf(err), errs.CodeInternal)
+	}
+}
+
 func TestStakeReadBranches(t *testing.T) {
 	t.Parallel()
 	cabal, user := ids.CabalID{}, ids.UserID{}
@@ -340,6 +358,26 @@ type stakeStore struct {
 	total        string
 	stakeErr     error
 	stakesErr    error
+}
+
+type ownershipStore struct {
+	row pgtype.Bool
+	err error
+}
+
+func (s ownershipStore) OwnsSignature(context.Context, string) (pgtype.Bool, error) {
+	return s.row, s.err
+}
+
+type walletStore struct {
+	row sqlc.WalletLedgerMicrosRow
+	err error
+}
+
+func (s walletStore) WalletLedgerMicros(
+	context.Context, sqlc.WalletLedgerMicrosParams,
+) (sqlc.WalletLedgerMicrosRow, error) {
+	return s.row, s.err
 }
 
 func (s stakeStore) CabalPositions(context.Context, uuid.UUID) ([]sqlc.CabalPositionsRow, error) {

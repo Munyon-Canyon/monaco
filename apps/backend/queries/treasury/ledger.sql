@@ -40,6 +40,16 @@ INSERT INTO user_txn_entries (txn_id, seq, account, asset, amount)
 VALUES (sqlc.arg(txn_id)::uuid, sqlc.arg(seq)::smallint, sqlc.arg(account)::text, sqlc.arg(asset)::text,
   sqlc.arg(amount)::bigint);
 
+-- name: OwnsSignature :one
+SELECT EXISTS (SELECT 1 FROM cabal_txns WHERE tx_signature = sqlc.arg(tx_signature)::text)
+  OR EXISTS (SELECT 1 FROM user_txns WHERE tx_signature = sqlc.arg(tx_signature)::text);
+
+-- name: WalletLedgerMicros :one
+SELECT coalesce((SELECT sum(e.amount) FROM user_txns t JOIN user_txn_entries e ON e.txn_id = t.id
+  WHERE t.user_id = sqlc.arg(user_id)::uuid AND t.status = 'settled' AND e.account = 'wallet'
+    AND e.asset = sqlc.arg(asset)::text), 0)::text AS settled,
+  (SELECT count(*) FROM user_txns WHERE user_id = sqlc.arg(user_id)::uuid AND status = 'pending')::bigint AS pending;
+
 -- name: ApplyCabalPosition :one
 WITH updated AS (
   UPDATE cabal_positions AS p SET
