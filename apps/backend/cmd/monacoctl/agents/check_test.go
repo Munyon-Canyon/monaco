@@ -788,6 +788,39 @@ func TestCheck_theXcodeRowRunsForAnAppChangeOnDarwinOnly(t *testing.T) {
 	}
 }
 
+func TestCheck_theXcodeRowSkipsTestsTheAppNeverBuilds(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		file  string
+		xcode bool
+		swift bool
+	}{
+		{"packages/mobile-core/Tests/MonacoCoreTests/ATests.swift", false, true},
+		{"packages/mobile-core/Sources/MonacoCore/A.swift", true, true},
+		{"apps/mobile/Monaco/A.swift", true, true},
+		{"packages/mobile-core/Package.swift", true, true},
+		{"packages/mobile-core/Package.resolved", true, true},
+		{"packages/flows/README.md", false, true},
+	} {
+		t.Run(tc.file, func(t *testing.T) {
+			t.Parallel()
+			h := newCheckHarness(t)
+			h.goos = "darwin"
+			h.lookPath = func(string) (string, error) { return "/usr/bin/xcodebuild", nil }
+			h.commit(t, map[string]string{tc.file: "let a = 1\n"})
+			code, stdout, stderr := h.check(t)
+			ran := func(cmd string) bool {
+				return slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, cmd) })
+			}
+			xcode, swift := ran("xcodebuild"), ran("mobile-core-test.sh")
+			if code != 0 || xcode != tc.xcode || swift != tc.swift {
+				t.Fatalf("xcode %v swift %v, want %v %v: %d %q %q\n%s",
+					xcode, swift, tc.xcode, tc.swift, code, stdout, stderr, strings.Join(h.calls, "\n"))
+			}
+		})
+	}
+}
+
 func TestCheck_theXcodeBudgetStartsWhenTheLockIsTaken(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
