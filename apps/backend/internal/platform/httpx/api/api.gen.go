@@ -27,6 +27,7 @@ const (
 	CabalBanned                ErrorCode = "cabal_banned"
 	CabalNotFound              ErrorCode = "cabal_not_found"
 	CabalPaused                ErrorCode = "cabal_paused"
+	CabalStillPaused           ErrorCode = "cabal_still_paused"
 	CalendarExpired            ErrorCode = "calendar_expired"
 	CannotFollowSelf           ErrorCode = "cannot_follow_self"
 	CannotRevokeAccess         ErrorCode = "cannot_revoke_access"
@@ -144,6 +145,8 @@ func (e ErrorCode) Valid() bool {
 	case CabalNotFound:
 		return true
 	case CabalPaused:
+		return true
+	case CabalStillPaused:
 		return true
 	case CalendarExpired:
 		return true

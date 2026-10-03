@@ -14,3 +14,8 @@ var FundingBalanceClamped = Msg{
 	Name:     "funding.balance.clamped",
 	Required: []string{"user_id", "on_chain_micros", "in_flight_fund_micros"},
 }
+
+var FundingPauseChanged = Msg{
+	Name:     "funding.pause.changed",
+	Required: []string{"scope", "cabal_id", "reasons_before", "reasons_after"},
+}
