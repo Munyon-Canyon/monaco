@@ -22,7 +22,18 @@ struct PrivyAuthSettings: Equatable {
     }
 
     static var current: PrivyAuthSettings {
-        let environment = ProcessInfo.processInfo.environment
+        let settings = resolved
+        do {
+            try PrivyAuthConfig(appID: settings.appID, appClientID: settings.appClientID)
+                .requireConfigured(build: .current)
+        } catch {
+            fatalError("Privy configuration is invalid: \(error.localizedDescription)")
+        }
+        return settings
+    }
+
+    private static var resolved: PrivyAuthSettings {
+        let environment = MonacoBuildKind.current == .debug ? ProcessInfo.processInfo.environment : [:]
         return PrivyAuthSettings(
             appID: resolvedAppID(from: environment),
             appClientID: resolvedClientID(from: environment),

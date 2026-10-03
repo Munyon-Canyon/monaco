@@ -15,6 +15,8 @@ MONACO_ENVIRONMENT_DEFAULT_Release = production
 MONACO_ENVIRONMENT = $(MONACO_ENVIRONMENT_DEFAULT_$(CONFIGURATION))
 
 MONACO_API_BASE_URL = $(MONACO_API_BASE_URL_$(MONACO_ENVIRONMENT))
+PRIVY_APP_ID = $(PRIVY_APP_ID_$(MONACO_ENVIRONMENT))
+PRIVY_APP_CLIENT_ID = $(PRIVY_APP_CLIENT_ID_$(MONACO_ENVIRONMENT))
 
 // Push entitlement stays `development` in the file; archive export re-signs it as
 // production. The Info.plist key uses Apple's sandbox/production names.

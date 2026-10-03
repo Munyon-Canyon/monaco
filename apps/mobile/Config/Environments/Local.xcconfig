@@ -2,3 +2,5 @@
 // build refuses this environment at launch.
 // `$()` keeps xcconfig from reading `//` as the start of a comment.
 MONACO_API_BASE_URL_local = http:/$()/localhost:8080
+PRIVY_APP_ID_local = $(PRIVY_APP_ID_DEV)
+PRIVY_APP_CLIENT_ID_local = $(PRIVY_APP_CLIENT_ID_DEV)

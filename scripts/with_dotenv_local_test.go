@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -315,4 +316,60 @@ func sameFile(t *testing.T, a, b string) bool {
 		t.Fatal(err)
 	}
 	return os.SameFile(ai, bi)
+}
+
+func TestEnsureIosPrivyConfig_writesTheDevAndProductionAppsPerEnvironment(t *testing.T) {
+	t.Parallel()
+	s := newDotenvSandbox(t)
+	installEnsureFixture(t, s)
+	writeFile(t, filepath.Join(s.worktree, ".env.production"), "PRIVY_APP_ID=encrypted\n")
+
+	runEnsure(t, s, filepath.Join(s.worktree, "scripts", "ensure-ios-privy-config.sh"), "generate")
+
+	readProduction := false
+	for _, args := range dotenvxInvocations(t, s) {
+		if slices.Contains(args, ".env.production") {
+			readProduction = true
+		}
+	}
+	if !readProduction {
+		t.Error("dotenvx never read .env.production")
+	}
+	config := readFile(t, filepath.Join(s.worktree, "apps", "mobile", "Config", "Privy.local.xcconfig"))
+	for _, want := range []string{
+		"PRIVY_APP_ID_DEV = app-fake\n",
+		"PRIVY_APP_CLIENT_ID_DEV = client-fake\n",
+		"PRIVY_APP_ID_PRODUCTION = app-fake\n",
+		"PRIVY_APP_CLIENT_ID_PRODUCTION = client-fake\n",
+	} {
+		if !strings.Contains(config, want) {
+			t.Errorf("Privy.local.xcconfig lacks %q:\n%s", want, config)
+		}
+	}
+	plist := readFile(t, filepath.Join(s.worktree, "apps", "mobile", "Config", "Privy.local.Info.plist"))
+	if !strings.Contains(plist, "<string>$(PRIVY_APP_ID)</string>") || strings.Contains(plist, "app-fake") {
+		t.Errorf("Info.plist must take PRIVY_APP_ID from the build setting the environment selects:\n%s", plist)
+	}
+}
+
+func TestEnsureIosPrivyConfig_noProductionEnvLeavesProductionEmpty(t *testing.T) {
+	t.Parallel()
+	s := newDotenvSandbox(t)
+	installEnsureFixture(t, s)
+
+	runEnsure(t, s, filepath.Join(s.worktree, "scripts", "ensure-ios-privy-config.sh"), "generate")
+
+	config := readFile(t, filepath.Join(s.worktree, "apps", "mobile", "Config", "Privy.local.xcconfig"))
+	if !strings.Contains(config, "PRIVY_APP_ID_PRODUCTION = \n") || !strings.Contains(config, "PRIVY_APP_CLIENT_ID_PRODUCTION = \n") {
+		t.Errorf("production ids must stay empty without .env.production:\n%s", config)
+	}
+}
+
+func readFile(t *testing.T, path string) string {
+	t.Helper()
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(body)
 }

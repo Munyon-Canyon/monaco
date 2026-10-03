@@ -4,3 +4,6 @@
 // Must be https. Left empty, the app refuses to launch with this environment selected.
 MONACO_PRODUCTION_API_BASE_URL =
 MONACO_API_BASE_URL_production = $(MONACO_PRODUCTION_API_BASE_URL)
+// From .env.production. Left empty, the app refuses to launch with this environment selected.
+PRIVY_APP_ID_production = $(PRIVY_APP_ID_PRODUCTION)
+PRIVY_APP_CLIENT_ID_production = $(PRIVY_APP_CLIENT_ID_PRODUCTION)

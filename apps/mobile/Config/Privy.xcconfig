@@ -1,3 +1,4 @@
-// Privy settings for Monaco iOS (M1). Values come from repo-root .env.local via
-// scripts/ensure-ios-privy-config.sh → Config/Privy.local.xcconfig (gitignored).
+// Privy settings for Monaco iOS. scripts/ensure-ios-privy-config.sh writes the dev app ids
+// (.env.local) and the production app ids (.env.production) to Config/Privy.local.xcconfig
+// (gitignored); Monaco.xcconfig picks one pair per MONACO_ENVIRONMENT.
 #include "Privy.local.xcconfig"

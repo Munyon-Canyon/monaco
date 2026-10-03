@@ -97,4 +97,21 @@ final class PrivyAuthConfigTests: XCTestCase {
         XCTAssertFalse(config.smsLoginEnabled)
         XCTAssertFalse(config.emailLoginEnabled)
     }
+
+    func testRequireConfigured_refusesAReleaseBuildWithNoApp() {
+        let empty = PrivyAuthConfig(appID: "", appClientID: "")
+        XCTAssertThrowsError(try empty.requireConfigured(build: .release)) { error in
+            XCTAssertEqual(error as? PrivyAuthConfigError, .missingApp)
+        }
+        XCTAssertThrowsError(try PrivyAuthConfig(appID: "app-123", appClientID: "").requireConfigured(build: .release))
+    }
+
+    func testRequireConfigured_letsADebugBuildWithNoAppLaunch() {
+        XCTAssertNoThrow(try PrivyAuthConfig(appID: "", appClientID: "").requireConfigured(build: .debug))
+    }
+
+    func testRequireConfigured_letsAConfiguredReleaseBuildLaunch() {
+        let config = PrivyAuthConfig(appID: "app-123", appClientID: "client-456")
+        XCTAssertNoThrow(try config.requireConfigured(build: .release))
+    }
 }
