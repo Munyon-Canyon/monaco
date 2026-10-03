@@ -109,6 +109,52 @@ func (q *Queries) ApplyUserPosition(ctx context.Context, arg ApplyUserPositionPa
 	return i, err
 }
 
+const cabalPositions = `-- name: CabalPositions :many
+SELECT asset, units::text AS units, cost_basis_micros::text AS cost_basis_micros
+FROM cabal_positions
+WHERE cabal_id = $1::uuid AND units > 0
+ORDER BY asset
+`
+
+type CabalPositionsRow struct {
+	Asset           string
+	Units           string
+	CostBasisMicros string
+}
+
+func (q *Queries) CabalPositions(ctx context.Context, cabalID uuid.UUID) ([]CabalPositionsRow, error) {
+	rows, err := q.db.Query(ctx, cabalPositions, cabalID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabalPositionsRow
+	for rows.Next() {
+		var i CabalPositionsRow
+		if err := rows.Scan(&i.Asset, &i.Units, &i.CostBasisMicros); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const cabalTotalShares = `-- name: CabalTotalShares :one
+SELECT coalesce(sum(share_units), 0)::text AS share_units
+FROM user_positions
+WHERE cabal_id = $1::uuid
+`
+
+func (q *Queries) CabalTotalShares(ctx context.Context, cabalID uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, cabalTotalShares, cabalID)
+	var share_units string
+	err := row.Scan(&share_units)
+	return share_units, err
+}
+
 const insertCabalEntry = `-- name: InsertCabalEntry :exec
 INSERT INTO cabal_txn_entries (txn_id, seq, account, asset, amount)
 VALUES ($1::uuid, $2::smallint, $3::text, $4::text,

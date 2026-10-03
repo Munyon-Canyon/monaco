@@ -1,0 +1,251 @@
+package adapters
+
+import (
+	"context"
+	"log/slog"
+	"math/big"
+	"time"
+
+	"github.com/google/uuid"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+)
+
+const usdcDecimals = 6
+
+const usdcMint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+
+type Queries struct {
+	Unwired
+	q       queryStore
+	catalog app.MintResolver
+	prices  app.PriceReader
+	clock   clock.Clock
+	usdc    chain.SolanaAddress
+}
+
+type queryStore interface {
+	CabalPositions(context.Context, uuid.UUID) ([]sqlc.CabalPositionsRow, error)
+	CabalTotalShares(context.Context, uuid.UUID) (string, error)
+}
+
+var _ port.Queries = (*Queries)(nil)
+
+func NewQueries(
+	db sqlc.DBTX, catalog app.MintResolver, prices app.PriceReader, c clock.Clock, usdc chain.SolanaAddress,
+) *Queries {
+	return &Queries{q: sqlc.New(db), catalog: catalog, prices: prices, clock: c, usdc: usdc}
+}
+
+func (q *Queries) Positions(ctx context.Context, cabalID ids.CabalID) ([]port.Position, error) {
+	rows, err := q.q.CabalPositions(ctx, cabalID.UUID())
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.Positions")
+	}
+	assets := map[chain.SolanaAddress]app.Asset{}
+	positions := make([]port.Position, 0, len(rows))
+	for _, row := range rows {
+		position, err := q.position(ctx, row.Asset, row.Units, row.CostBasisMicros, assets)
+		if err != nil {
+			return nil, err
+		}
+		positions = append(positions, position)
+	}
+	return positions, nil
+}
+
+func (q *Queries) PotValue(ctx context.Context, cabalID ids.CabalID) (money.Micros, error) {
+	rows, err := q.q.CabalPositions(ctx, cabalID.UUID())
+	if err != nil {
+		return money.Micros{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.PotValue")
+	}
+	assets := map[chain.SolanaAddress]app.Asset{}
+	positions := make([]port.Position, 0, len(rows))
+	for _, row := range rows {
+		position, err := q.position(ctx, row.Asset, row.Units, row.CostBasisMicros, assets)
+		if err != nil {
+			return money.Micros{}, err
+		}
+		positions = append(positions, position)
+	}
+	return q.potValuePositions(ctx, positions, assets)
+}
+
+func (q *Queries) potValuePositions(
+	ctx context.Context, positions []port.Position, assets map[chain.SolanaAddress]app.Asset,
+) (money.Micros, error) {
+	needsPrices := false
+	for _, position := range positions {
+		if position.Mint != q.usdc {
+			needsPrices = true
+			break
+		}
+	}
+	prices := map[uuid.UUID]app.Price{}
+	if needsPrices {
+		var err error
+		prices, err = q.prices.LatestPrices(ctx)
+		if err != nil {
+			return money.Micros{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.PotValue")
+		}
+	}
+	var total money.Micros
+	for _, position := range positions {
+		value, err := q.positionValue(ctx, position, prices, assets)
+		if err != nil {
+			return money.Micros{}, err
+		}
+		total, err = total.Add(value)
+		if err != nil {
+			return money.Micros{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.PotValue")
+		}
+	}
+	return total, nil
+}
+
+func (q *Queries) positionValue(
+	ctx context.Context,
+	position port.Position,
+	prices map[uuid.UUID]app.Price,
+	assets map[chain.SolanaAddress]app.Asset,
+) (money.Micros, error) {
+	if position.Mint == q.usdc {
+		return money.MicrosFromUint64(position.Units.Uint64()), nil
+	}
+	asset, err := q.assetByAddress(ctx, position.Mint, assets)
+	if err != nil {
+		return money.Micros{}, priceUnavailable(err, position.Mint)
+	}
+	if !asset.ChainChecked {
+		return money.Micros{}, priceUnavailable(nil, position.Mint)
+	}
+	price, ok := prices[asset.ID]
+	if !ok || q.clock.Now().Sub(price.ObservedAt) > 5*time.Minute {
+		return money.Micros{}, priceUnavailable(nil, position.Mint)
+	}
+	scale, err := power10(position.Units.Decimals())
+	if err != nil {
+		return money.Micros{}, errs.Wrap(err, errs.CodeInvalidInput, "treasury.Queries.positionValue")
+	}
+	multiplierNum, multiplierDen := asset.UIMultiplierAt(q.clock.Now())
+	if multiplierNum <= 0 || multiplierDen <= 0 {
+		return money.Micros{}, errs.New(errs.CodeInvalidInput, "treasury.Queries.positionValue")
+	}
+	value, err := valueWithMultiplier(
+		position.Units.Uint64(), price.Micros.Uint64(), uint64(multiplierNum), scale, uint64(multiplierDen),
+	)
+	if err != nil {
+		return money.Micros{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.positionValue")
+	}
+	return money.MicrosFromUint64(value), nil
+}
+
+func valueWithMultiplier(units, price, multiplier, scale, divisor uint64) (uint64, error) {
+	numerator := new(big.Int).SetUint64(units)
+	numerator.Mul(numerator, new(big.Int).SetUint64(price))
+	numerator.Mul(numerator, new(big.Int).SetUint64(multiplier))
+	denominator := new(big.Int).SetUint64(scale)
+	denominator.Mul(denominator, new(big.Int).SetUint64(divisor))
+	numerator.Quo(numerator, denominator)
+	if !numerator.IsUint64() {
+		return 0, errs.New(errs.CodeInvalidInput, "treasury.Queries.valueWithMultiplier")
+	}
+	return numerator.Uint64(), nil
+}
+
+func (q *Queries) TotalShares(ctx context.Context, cabalID ids.CabalID) (money.SharesUnits, error) {
+	value, err := q.q.CabalTotalShares(ctx, cabalID.UUID())
+	if err != nil {
+		return money.SharesUnits{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.TotalShares")
+	}
+	return shares(value)
+}
+
+func (q *Queries) position(
+	ctx context.Context, assetRaw, unitsRaw, costRaw string, assets map[chain.SolanaAddress]app.Asset,
+) (port.Position, error) {
+	address, err := chain.ParseAddress(assetRaw)
+	if err != nil {
+		return port.Position{}, errs.Wrap(
+			err, errs.CodeDecodeFailed, "treasury.Queries.position", slog.String("asset", assetRaw),
+		)
+	}
+	decimals := uint8(usdcDecimals)
+	if address != q.usdc {
+		asset, err := q.assetByAddress(ctx, address, assets)
+		if err != nil {
+			return port.Position{}, priceUnavailable(err, address)
+		}
+		if !asset.ChainChecked {
+			return port.Position{}, priceUnavailable(nil, address)
+		}
+		decimals = asset.Decimals
+	}
+	units, err := micros(unitsRaw)
+	if err != nil {
+		return port.Position{}, err
+	}
+	cost, err := micros(costRaw)
+	if err != nil {
+		return port.Position{}, err
+	}
+	return port.Position{Mint: address, Units: money.NewBaseUnits(units.Uint64(), decimals), CostBasis: cost}, nil
+}
+
+func (q *Queries) assetByAddress(
+	ctx context.Context, address chain.SolanaAddress, assets map[chain.SolanaAddress]app.Asset,
+) (app.Asset, error) {
+	if asset, ok := assets[address]; ok {
+		return asset, nil
+	}
+	asset, err := q.catalog.AssetByMint(ctx, address)
+	if err != nil {
+		return app.Asset{}, err
+	}
+	assets[address] = asset
+	return asset, nil
+}
+
+func micros(raw string) (money.Micros, error) {
+	value, err := money.ParseMicros(raw)
+	if err != nil {
+		return money.Micros{}, errs.Wrap(
+			err, errs.CodeDecodeFailed, "treasury.Queries.micros", slog.String("value", raw),
+		)
+	}
+	return value, nil
+}
+
+func shares(raw string) (money.SharesUnits, error) {
+	value, err := money.ParseMicros(raw)
+	if err != nil {
+		return money.SharesUnits{}, errs.Wrap(
+			err, errs.CodeDecodeFailed, "treasury.Queries.shares", slog.String("value", raw),
+		)
+	}
+	return money.SharesUnitsFromUint64(value.Uint64()), nil
+}
+
+func priceUnavailable(cause error, mint chain.SolanaAddress) error {
+	return errs.Wrap(
+		cause, errs.CodePriceUnavailable, "treasury.Queries.PotValue", slog.String("mint", string(mint)),
+	)
+}
+
+func power10(decimals uint8) (uint64, error) {
+	if decimals > 19 {
+		return 0, errs.New(errs.CodeInvalidInput, "treasury.Queries.power10", slog.Uint64("decimals", uint64(decimals)))
+	}
+	value := uint64(1)
+	for range decimals {
+		value *= 10
+	}
+	return value, nil
+}
