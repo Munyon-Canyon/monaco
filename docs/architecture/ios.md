@@ -30,6 +30,31 @@ Screen work (colour, type, touch targets, accessibility and copy) follows the `i
 
 Each flow in `apps/backend/flows.tsv` has one app registry file at `packages/flows/app/<id>.tsv` that names its screen, its app status and its doc. `monacoctl flows check` joins the two on `id`. The spec is `packages/flows/README.md`.
 
+## Module targets
+
+`packages/mobile-core` has one Swift target per backend module in `apps/backend/internal/modules`. A target is named `Monaco` plus the capitalized module, so `identity` is `MonacoIdentity`. The prefix keeps `system` clear of Apple's `System` module. Every module target depends on `MonacoAPI` and `MonacoFlows`, and may import only the module targets in this table:
+
+| Target | Imports |
+| --- | --- |
+| `MonacoSystem` | none |
+| `MonacoIdentity` | none |
+| `MonacoAnalytics` | none |
+| `MonacoMarket` | none |
+| `MonacoNotify` | `MonacoIdentity` |
+| `MonacoReferrals` | `MonacoIdentity` |
+| `MonacoCabal` | `MonacoIdentity` |
+| `MonacoSocial` | `MonacoIdentity`, `MonacoCabal` |
+| `MonacoTreasury` | `MonacoCabal` |
+| `MonacoTrading` | `MonacoTreasury`, `MonacoMarket` |
+| `MonacoGovernance` | `MonacoCabal`, `MonacoTreasury` |
+| `MonacoRanking` | `MonacoCabal`, `MonacoMarket`, `MonacoTrading` |
+
+No module target imports `MonacoCore`. `MonacoCore` depends on all twelve and re-exports them in `Sources/MonacoCore/Modules.swift`, so the app and the tests keep one `import MonacoCore`.
+
+A flow's model goes in `Sources/Monaco<Module>/Flow<id><Name>Model.swift`, where `<Module>` is the `module` column of the flow's row in `apps/backend/flows.tsv`. `monacoctl flows check` fails an app row with status `built` or `verified` that has no `Flow<id>*.swift` in that directory. Legacy files in `Sources/MonacoCore` move only when a rewire touches them.
+
+`scripts/mobile_core_graph_test.go` reads `swift package dump-package` and fails on a target or an edge outside its `allowedGraph` table. Change the table, `Package.swift` and this section together. The `gate-changes` CI job flags any edit to `allowedGraph`.
+
 ## Not doing
 
 No Clean Architecture use-case layer, MVC, TCA, reducers or coordinator framework. MonacoCore is the boundary. A second layer is a second paved path.

@@ -10,6 +10,7 @@ import (
 )
 
 const (
+	ModelRoot = "packages/mobile-core/Sources"
 	AppRoot   = "packages/flows"
 	AppDir    = AppRoot + "/app"
 	AppHeader = "id\tscreen\tstatus\tdoc"
@@ -121,6 +122,31 @@ func appRowProblems(r AppRow, ids map[string]bool, backendFile string, docs docA
 		msgs = append(msgs, msg)
 	}
 	return msgs
+}
+
+func CheckAppModels(app []AppRow, backend []Flow, env Env) []Problem {
+	modules := map[string]string{}
+	for _, f := range backend {
+		modules[f.ID] = f.Module
+	}
+	var problems []Problem
+	for _, r := range app {
+		module, ok := modules[r.ID]
+		if !r.Status.AtLeastBuilt() || !ok || module == "" {
+			continue
+		}
+		dir := path.Join(ModelRoot, moduleTarget(module))
+		if models, _ := fs.Glob(env.Repo, path.Join(dir, "Flow"+r.ID+"*.swift")); len(models) > 0 {
+			continue
+		}
+		problems = append(problems, Problem{File: r.File, Line: r.Line, Msg: fmt.Sprintf(
+			"status %s but no model Flow%s*.swift in %s", r.Status, r.ID, dir)})
+	}
+	return problems
+}
+
+func moduleTarget(module string) string {
+	return "Monaco" + strings.ToUpper(module[:1]) + module[1:]
 }
 
 func flowIDs(backend []Flow) map[string]bool {

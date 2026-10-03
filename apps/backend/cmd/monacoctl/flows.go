@@ -78,6 +78,7 @@ func flowsCheck(env flows.Env, tests io.Reader, structureOnly bool, stderr io.Wr
 	app, appProblems := flows.ReadApp(env.Repo)
 	problems = append(problems, appProblems...)
 	problems = append(problems, flows.CheckApp(app, parsed, env)...)
+	problems = append(problems, flows.CheckAppModels(app, parsed, env)...)
 	problems = append(problems, flows.CheckNoAggregate(env.Repo, parsed)...)
 	slices.SortStableFunc(problems, func(a, b flows.Problem) int {
 		return cmp.Or(strings.Compare(a.File, b.File), a.Line-b.Line)
