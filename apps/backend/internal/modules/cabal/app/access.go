@@ -109,6 +109,26 @@ func findRequest(
 	}, nil
 }
 
+type dueInvite struct {
+	id, cabalID, userID uuid.UUID
+}
+
+func expireInvite(ctx context.Context, tx db.Tx, invite dueInvite, at time.Time, op string) (bool, error) {
+	n, err := sqlc.New(tx.Queries()).ExpireAccessRequest(ctx, sqlc.ExpireAccessRequestParams{
+		CabalID: invite.cabalID, ID: invite.id, Now: at,
+	})
+	if err != nil {
+		return false, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	if n == 0 {
+		return false, nil
+	}
+	return true, tx.Events.Append(ctx, events.CabalAccessDecided{
+		V: 1, RequestID: invite.id, CabalID: invite.cabalID, UserID: invite.userID,
+		Direction: string(domain.DirectionInvite), Decision: string(domain.AccessExpired),
+	})
+}
+
 type settlement struct {
 	row   sqlc.CabalAccessRequest
 	event domain.AccessEvent

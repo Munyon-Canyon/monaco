@@ -82,8 +82,12 @@ func Next(from AccessStatus, ev AccessEvent) (AccessStatus, error) {
 
 func InviteExpiry(now time.Time) time.Time { return now.Add(InviteLifetime) }
 
+func (r AccessRequest) PastDue(now time.Time) bool {
+	return r.Direction == DirectionInvite && r.ExpiresAt.Before(now)
+}
+
 func (r AccessRequest) CheckNotExpired(now time.Time) error {
-	if r.Direction == DirectionInvite && r.ExpiresAt.Before(now) {
+	if r.PastDue(now) {
 		return errs.New(errs.CodeInviteExpired, "cabal.AccessRequest.CheckNotExpired",
 			slog.Time("expires_at", r.ExpiresAt))
 	}

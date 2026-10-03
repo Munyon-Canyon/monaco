@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
@@ -53,33 +54,50 @@ func (h *DecideAccessHandler) Handle(ctx context.Context, cmd DecideAccess) (Acc
 		return Access{}, err
 	}
 	var decided Access
+	var expired bool
 	err = h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		var decideErr error
-		decided, decideErr = h.decide(ctx, tx, cmd, event)
+		decided, expired, decideErr = h.decide(ctx, tx, cmd, event)
 		return decideErr
 	})
 	if err != nil {
 		return Access{}, err
+	}
+	if expired {
+		return Access{}, errs.New(errs.CodeInviteExpired, decideAccessOp)
 	}
 	return decided, nil
 }
 
 func (h *DecideAccessHandler) decide(
 	ctx context.Context, tx db.Tx, cmd DecideAccess, event domain.AccessEvent,
-) (Access, error) {
+) (Access, bool, error) {
 	q := sqlc.New(tx.Queries())
 	cabal, actor, err := lockCabal(ctx, q, cmd.CabalID, cmd.ActorID, decideAccessOp)
 	if err != nil {
-		return Access{}, err
+		return Access{}, false, err
 	}
 	row, req, err := findRequest(ctx, q, cmd.CabalID, cmd.RequestID, decideAccessOp)
 	if err != nil {
-		return Access{}, err
+		return Access{}, false, err
 	}
 	if err := domain.CanDecide(actor, cabal, req); err != nil {
-		return Access{}, err
+		return Access{}, false, err
 	}
 	now := h.clock.Now()
+	if req.PastDue(now) && domain.AccessStatus(row.Status) == domain.AccessPending {
+		_, err := expireInvite(ctx, tx, dueInvite{id: row.ID, cabalID: row.CabalID, userID: row.UserID}, now,
+			decideAccessOp)
+		return Access{}, true, err
+	}
+	decided, err := h.settle(ctx, tx, cabal, row, req, cmd, event, now)
+	return decided, false, err
+}
+
+func (h *DecideAccessHandler) settle(
+	ctx context.Context, tx db.Tx, cabal domain.Cabal, row sqlc.CabalAccessRequest, req domain.AccessRequest,
+	cmd DecideAccess, event domain.AccessEvent, now time.Time,
+) (Access, error) {
 	if event == domain.AccessApprove {
 		if err := domain.CanAdmit(cabal, req, now); err != nil {
 			return Access{}, err

@@ -22,7 +22,7 @@ func TestModule_servesCabalsAndHintsTheCreator(t *testing.T) {
 	m.Routes(&routes)
 	consumers := m.Consumers()
 	if m.Name() != "cabal" || routes.CabalRoutes == nil || len(consumers) != 1 ||
-		consumers[0].Durable != "cabal_hints" || m.Pollers() != nil {
+		consumers[0].Durable != "cabal_hints" || len(m.Pollers()) != 1 {
 		t.Fatalf("module = %s, routes %v, consumers %v, pollers %v",
 			m.Name(), routes.CabalRoutes, consumers, m.Pollers())
 	}
