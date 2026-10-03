@@ -1,6 +1,6 @@
 import XCTest
 
-enum SignInFlow {
+enum SignInJourney {
     static let id = "auth/sign-in"
     static let version = 1
 
@@ -13,11 +13,11 @@ enum SignInFlow {
         case tabs
     }
 
-    static func recorder() -> FlowRecorder {
-        FlowRecorder(flow: id, version: version)
+    static func recorder() -> JourneyRecorder {
+        JourneyRecorder(journey: id, version: version)
     }
 
-    private static func addressField(_ app: XCUIApplication, _ channel: FlowAccount.Channel) -> XCUIElement {
+    private static func addressField(_ app: XCUIApplication, _ channel: JourneyAccount.Channel) -> XCUIElement {
         app.textFields[channel == .sms ? "smsPhoneField" : "emailAddressField"]
     }
 
@@ -31,7 +31,7 @@ enum SignInFlow {
         return index == 0 ? .tabs : .login
     }
 
-    static func startSignedOut(_ app: XCUIApplication, recorder: FlowRecorder) {
+    static func startSignedOut(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("P1", "launch to the login form") {
             app.launch()
             switch currentScreen(app) {
@@ -45,7 +45,7 @@ enum SignInFlow {
         }
     }
 
-    static func signIn(_ app: XCUIApplication, as account: FlowAccount, recorder: FlowRecorder) {
+    static func signIn(_ app: XCUIApplication, as account: JourneyAccount, recorder: JourneyRecorder) {
         let prefix = account.channel.rawValue
 
         recorder.step("S1.1", "choose the \(prefix) method") {
@@ -93,7 +93,7 @@ enum SignInFlow {
         }
     }
 
-    static func signOut(_ app: XCUIApplication, recorder: FlowRecorder) {
+    static func signOut(_ app: XCUIApplication, recorder: JourneyRecorder) {
         let signOut = app.buttons["profileSignOutButton"]
 
         recorder.step("S3.1", "open Profile") {
@@ -113,7 +113,7 @@ enum SignInFlow {
         }
     }
 
-    static func ensureSignedIn(_ app: XCUIApplication, as account: FlowAccount) {
+    static func ensureSignedIn(_ app: XCUIApplication, as account: JourneyAccount) {
         let recorder = recorder()
         startSignedOut(app, recorder: recorder)
         signIn(app, as: account, recorder: recorder)

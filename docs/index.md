@@ -36,7 +36,7 @@ Read these in order to understand the repo:
 | [Add a mobile route, deep link, tab or section](how-to/mobile-navigation.md) | Wiring a screen into the app shell: routes, deep links, tab roots and section slots |
 | [Debug login](how-to/debug-login.md) | "I can't sign in" |
 | [Overnight QA](how-to/overnight-qa.md) | The nightly test and screenshot run, and what CI runs |
-| [App flows](journeys/README.md) | The flow docs QA is built from, their XCUITests, and how to run and measure them |
+| [App journeys](journeys/README.md) | The journey docs QA is built from, their XCUITests, and how to run and measure them |
 | [Read iOS app logs](how-to/read-ios-logs.md) | Matching a Console.app line to an API request, crash diagnostics |
 | [Gardener](how-to/gardener.md) | The nightly dead-code, candidate-lint and generator-drift report |
 | [TestFlight](https://github.com/Munyon-Canyon/monaco/blob/main/apps/mobile/TestFlight.md) | Shipping an iOS build |

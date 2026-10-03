@@ -1,8 +1,8 @@
-flow: auth/sign-in
+journey: auth/sign-in
 expect-fail: S3
 
 Sign out no longer ends the Privy session, so the tab bar stays. S3.2 must fail.
-scripts/qa/flow.py mutants applies this, runs the test, and reverts it.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Shell/AppEnvironment.swift b/apps/mobile/Monaco/Features/Shell/AppEnvironment.swift
 index c4007b29..8ec40b14 100644

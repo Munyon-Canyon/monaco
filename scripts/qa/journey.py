@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Check, run and measure the app flows in docs/flows.
+"""Check, run and measure the app journeys in docs/journeys.
 
-  flow.py check                          docs and their XCUITest files agree
-  flow.py list                           every flow, its version and scenarios
-  flow.py run <flow> [options]           run a flow's XCUITest and record the result
-  flow.py mutants <flow> [options]       run a flow against its seeded bugs
-  flow.py report                         speed and correctness per flow
+  journey.py check                          docs and their XCUITest files agree
+  journey.py list                           every journey, its version and scenarios
+  journey.py run <journey> [options]           run a journey's XCUITest and record the result
+  journey.py mutants <journey> [options]       run a journey against its seeded bugs
+  journey.py report                         speed and correctness per journey
 
-The rules the checks enforce are in docs/flows/README.md. Results go to
-.logs/qa/flows/results.tsv, one row per scenario and one `*` row per run.
+The rules the checks enforce are in docs/journeys/README.md. Results go to
+.logs/qa/journeys/results.tsv, one row per scenario and one `*` row per run.
 """
 
 import argparse
@@ -33,39 +33,39 @@ BUNDLE_ID = "com.monaco.app"
 DRIVER = "xcuitest"
 
 COLUMNS = [
-    "time", "flow", "version", "scenario", "driver", "build", "run", "result", "expected",
+    "time", "journey", "version", "scenario", "driver", "build", "run", "result", "expected",
     "truth", "wall_s", "steps_ms", "failed_step", "log",
 ]
 
 
-class FlowError(Exception):
+class JourneyError(Exception):
     """A problem the person running the script can fix. Printed without a traceback."""
 
 
-# ---------------------------------------------------------------- flow docs
+# ---------------------------------------------------------------- journey docs
 
 
 def parse_front_matter(text):
-    """The subset of YAML a flow doc uses: scalars, inline lists, one level of nesting."""
+    """The subset of YAML a journey doc uses: scalars, inline lists, one level of nesting."""
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
-        raise FlowError("no front matter: the first line must be ---")
+        raise JourneyError("no front matter: the first line must be ---")
     try:
         end = lines[1:].index("---") + 1
     except ValueError:
-        raise FlowError("front matter is not closed with ---")
+        raise JourneyError("front matter is not closed with ---")
     meta, parent = {}, None
     for raw in lines[1:end]:
         line = re.sub(r"\s+#.*$", "", raw).rstrip()
         if not line.strip():
             continue
         if ":" not in line:
-            raise FlowError("front matter line has no key: %r" % raw)
+            raise JourneyError("front matter line has no key: %r" % raw)
         key, _, value = line.strip().partition(":")
         value = _scalar(value.strip())
         if line[0] in " \t":
             if parent is None:
-                raise FlowError("indented front matter line under no key: %r" % raw)
+                raise JourneyError("indented front matter line under no key: %r" % raw)
             meta[parent][key] = value
         elif value == "":
             meta[key], parent = {}, key
@@ -82,7 +82,7 @@ def _scalar(value):
     return value.strip("\"'")
 
 
-class Flow:
+class Journey:
     def __init__(self, path):
         self.path = path
         meta, body = parse_front_matter(path.read_text())
@@ -115,15 +115,15 @@ def _as_list(value):
     return value if isinstance(value, list) else [value]
 
 
-def load_flows():
-    flows = {}
+def load_journeys():
+    journeys = {}
     for path in sorted(DOCS.rglob("*.md")):
         if path.name == "README.md":
             continue
-        flow = Flow(path)
-        key = flow.id or str(path)
-        flows[key if key not in flows else str(path)] = flow
-    return flows
+        journey = Journey(path)
+        key = journey.id or str(path)
+        journeys[key if key not in journeys else str(path)] = journey
+    return journeys
 
 
 def load_accounts(environ=None):
@@ -155,7 +155,7 @@ def mutant_expectation(patch):
 # ---------------------------------------------------------------- check
 
 
-def check_flows(flows, accounts, git_apply_check=None):
+def check_journeys(journeys, accounts, git_apply_check=None):
     """Every way a doc and its XCUITest can disagree. Returns a list of 'path: message'."""
     problems = []
 
@@ -163,81 +163,81 @@ def check_flows(flows, accounts, git_apply_check=None):
         problems.append("%s: %s" % (os.path.relpath(str(path), str(ROOT)), message))
 
     by_id = {}
-    for flow in flows.values():
-        if flow.id in by_id:
-            bad(flow.path, "duplicate id %s in %s and %s" % (
-                flow.id, os.path.relpath(str(by_id[flow.id].path), str(ROOT)),
-                os.path.relpath(str(flow.path), str(ROOT))))
+    for journey in journeys.values():
+        if journey.id in by_id:
+            bad(journey.path, "duplicate id %s in %s and %s" % (
+                journey.id, os.path.relpath(str(by_id[journey.id].path), str(ROOT)),
+                os.path.relpath(str(journey.path), str(ROOT))))
         else:
-            by_id[flow.id] = flow
+            by_id[journey.id] = journey
 
-    for flow in flows.values():
-        expected_id = str(flow.path.relative_to(DOCS).with_suffix(""))
-        if flow.id != expected_id:
-            bad(flow.path, "id is %r, the path says %r" % (flow.id, expected_id))
-        if not isinstance(flow.version, int) or flow.version < 1:
-            bad(flow.path, "version must be a whole number from 1, got %r" % (flow.version,))
-        if not flow.scenarios:
-            bad(flow.path, "no scenario: add a '### S1 <name>' heading and its step table")
-        for scenario in flow.scenarios:
-            if not any(step.startswith(scenario + ".") for step in flow.steps):
-                bad(flow.path, "scenario %s has no step rows (| %s.1 | …)" % (scenario, scenario))
-        if not flow.actors:
-            bad(flow.path, "actors is empty")
-        for actor in flow.actors:
+    for journey in journeys.values():
+        expected_id = str(journey.path.relative_to(DOCS).with_suffix(""))
+        if journey.id != expected_id:
+            bad(journey.path, "id is %r, the path says %r" % (journey.id, expected_id))
+        if not isinstance(journey.version, int) or journey.version < 1:
+            bad(journey.path, "version must be a whole number from 1, got %r" % (journey.version,))
+        if not journey.scenarios:
+            bad(journey.path, "no scenario: add a '### S1 <name>' heading and its step table")
+        for scenario in journey.scenarios:
+            if not any(step.startswith(scenario + ".") for step in journey.steps):
+                bad(journey.path, "scenario %s has no step rows (| %s.1 | …)" % (scenario, scenario))
+        if not journey.actors:
+            bad(journey.path, "actors is empty")
+        for actor in journey.actors:
             if actor not in accounts:
-                bad(flow.path, "actor %s has no row in apps/mobile/qa/flows/accounts.tsv" % actor)
-        for actor, amount in flow.funds.items():
-            if actor not in flow.actors:
-                bad(flow.path, "funds names actor %s, which is not in actors" % actor)
+                bad(journey.path, "actor %s has no row in apps/mobile/qa/journeys/accounts.tsv" % actor)
+        for actor, amount in journey.funds.items():
+            if actor not in journey.actors:
+                bad(journey.path, "funds names actor %s, which is not in actors" % actor)
             if not isinstance(amount, int) or amount < 1:
-                bad(flow.path, "funds for actor %s must be whole USDC from 1, got %r" % (actor, amount))
-        for required in flow.requires:
+                bad(journey.path, "funds for actor %s must be whole USDC from 1, got %r" % (actor, amount))
+        for required in journey.requires:
             if required not in by_id:
-                bad(flow.path, "requires %r, which is not a flow doc" % required)
-        files = flow.driver_files()
+                bad(journey.path, "requires %r, which is not a journey doc" % required)
+        files = journey.driver_files()
         missing = [f for f in files if not f.exists()]
         for f in missing:
-            bad(f, "listed as a test file of %s but does not exist" % flow.id)
+            bad(f, "listed as a test file of %s but does not exist" % journey.id)
         if not files:
-            bad(flow.path, "no files listed under xcuitest")
+            bad(journey.path, "no files listed under xcuitest")
         elif not missing:
             combined = "\n".join(f.read_text() for f in files)
             # Swift files carry no comments here, so the stamp is the steps enum's constants.
-            stamped_flow = re.search(r'static let id = "([\w/-]+)"', combined)
+            stamped_journey = re.search(r'static let id = "([\w/-]+)"', combined)
             stamped_version = re.search(r"static let version = (\d+)", combined)
-            if not stamped_flow or stamped_flow.group(1) != flow.id:
-                bad(files[0], 'does not declare static let id = "%s"' % flow.id)
+            if not stamped_journey or stamped_journey.group(1) != journey.id:
+                bad(files[0], 'does not declare static let id = "%s"' % journey.id)
             if not stamped_version:
-                bad(files[0], "does not declare static let version = %s" % flow.version)
-            elif int(stamped_version.group(1)) != flow.version:
-                bad(files[0], "built from %s version %s, the doc is at version %s: rebuild it with the ios-flow-qa skill"
-                    % (flow.id, stamped_version.group(1), flow.version))
-            for step in flow.steps:
+                bad(files[0], "does not declare static let version = %s" % journey.version)
+            elif int(stamped_version.group(1)) != journey.version:
+                bad(files[0], "built from %s version %s, the doc is at version %s: rebuild it with the ios-journey-qa skill"
+                    % (journey.id, stamped_version.group(1), journey.version))
+            for step in journey.steps:
                 if '"%s"' % step not in combined:
                     bad(files[0], "no step %s" % step)
-            for scenario in flow.scenarios:
-                if not xcuitest_phases(flow, scenario):
+            for scenario in journey.scenarios:
+                if not xcuitest_phases(journey, scenario):
                     bad(files[-1], "no test method named test%s… for scenario %s" % (scenario, scenario))
-        for patch in flow.mutants():
+        for patch in journey.mutants():
             expected = mutant_expectation(patch)
             if not expected:
                 bad(patch, "no 'expect-fail: S…' line")
             for scenario in expected:
-                if scenario not in flow.scenarios:
-                    bad(patch, "expects %s to fail, which is not a scenario of %s" % (scenario, flow.id))
+                if scenario not in journey.scenarios:
+                    bad(patch, "expects %s to fail, which is not a scenario of %s" % (scenario, journey.id))
             if git_apply_check and not git_apply_check(patch):
                 bad(patch, "does not apply to this checkout (git apply --check)")
 
-    for flow in flows.values():
-        if _has_cycle(flow, by_id):
-            bad(flow.path, "requires form a cycle through %s" % flow.id)
+    for journey in journeys.values():
+        if _has_cycle(journey, by_id):
+            bad(journey.path, "requires form a cycle through %s" % journey.id)
     return problems
 
 
-def _has_cycle(flow, flows):
-    start = flow.id
-    stack, seen = [r for r in flow.requires if r in flows], set()
+def _has_cycle(journey, journeys):
+    start = journey.id
+    stack, seen = [r for r in journey.requires if r in journeys], set()
     while stack:
         current = stack.pop()
         if current == start:
@@ -245,18 +245,18 @@ def _has_cycle(flow, flows):
         if current in seen:
             continue
         seen.add(current)
-        stack.extend(r for r in flows[current].requires if r in flows)
+        stack.extend(r for r in journeys[current].requires if r in journeys)
     return False
 
 
-def xcuitest_phases(flow, scenario):
+def xcuitest_phases(journey, scenario):
     """[(phase, actor, 'Class/method')] for a scenario, in the order to run them.
 
     A one-actor scenario is one method, test<S1>…. A scenario with more actors is one method
     per phase, test<S1>Phase<n><actor>…, because one xcodebuild call drives one simulator.
     """
     phases = []
-    for path in flow.driver_files():
+    for path in journey.driver_files():
         if not path.exists():
             continue
         text = path.read_text()
@@ -264,7 +264,7 @@ def xcuitest_phases(flow, scenario):
         if not class_name:
             continue
         for method, phase, actor in re.findall(r"func (test%s(?!\d)(?:Phase(\d+)([A-Z]))?\w*)\(" % scenario, text):
-            phases.append((int(phase or 1), actor or flow.actors[0], "%s/%s" % (class_name.group(1), method)))
+            phases.append((int(phase or 1), actor or journey.actors[0], "%s/%s" % (class_name.group(1), method)))
     return sorted(phases)
 
 
@@ -284,9 +284,9 @@ def build_label(mutant=None):
     return "%s+mutant:%s" % (sha, mutant) if mutant else sha
 
 
-def resolve_simulators(flow, mapping):
+def resolve_simulators(journey, mapping):
     sims = dict(mapping)
-    first = flow.actors[0]
+    first = journey.actors[0]
     if first not in sims:
         gold = sh(["scripts/gold-sim-udid.sh"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         if gold.returncode == 0:
@@ -294,13 +294,13 @@ def resolve_simulators(flow, mapping):
         else:
             print("warning: no gold simulator (SIMSLIM_UDID); using the one `just run mobile` picks", file=sys.stderr)
             sims[first] = sh(["scripts/resolve-ios-sim.sh"], stdout=subprocess.PIPE, check=True).stdout.strip()
-    missing = [actor for actor in flow.actors if actor not in sims]
+    missing = [actor for actor in journey.actors if actor not in sims]
     if missing:
-        raise FlowError(
+        raise JourneyError(
             "no simulator for actor %s. Clone the gold one once (xcrun simctl clone \"$SIMSLIM_UDID\" \"Monaco Gold %s\") "
             "and pass --sim %s=<udid>" % (", ".join(missing), missing[0], missing[0]))
     if len(set(sims.values())) != len(sims):
-        raise FlowError("two actors share one simulator: %s" % sims)
+        raise JourneyError("two actors share one simulator: %s" % sims)
     return sims
 
 
@@ -322,11 +322,11 @@ def build(sim, log):
     with open(str(log), "w") as out:
         code = sh(xcodebuild(sim, "build-for-testing"), stdout=out, stderr=subprocess.STDOUT).returncode
     if code != 0:
-        raise FlowError("the build failed, see %s" % log)
+        raise JourneyError("the build failed, see %s" % log)
 
 
 def actor_environment(accounts, channel, prefix=""):
-    env = {prefix + "MONACO_QA_FLOWS": "1", prefix + "MONACO_QA_CHANNEL": channel}
+    env = {prefix + "MONACO_QA_JOURNEYS": "1", prefix + "MONACO_QA_CHANNEL": channel}
     for actor, row in accounts.items():
         for field in ("phone", "email", "code"):
             env["%sMONACO_QA_%s_%s" % (prefix, actor, field.upper())] = row[field]
@@ -334,11 +334,11 @@ def actor_environment(accounts, channel, prefix=""):
 
 
 def parse_steps(output, include_timings=False):
-    """(total ms of finished steps, the step that began and never ended) from FLOWSTEP lines."""
+    """(total ms of finished steps, the step that began and never ended) from JOURNEYSTEP lines."""
     total, open_steps, timings = 0, [], []
     for line in output.splitlines():
         cells = line.split("\t")
-        if len(cells) < 4 or cells[0] != "FLOWSTEP":
+        if len(cells) < 4 or cells[0] != "JOURNEYSTEP":
             continue
         if cells[1] == "begin":
             open_steps.append(cells[3])
@@ -365,7 +365,7 @@ def split_by_test(output):
     return tests
 
 
-def run_xcuitest(flow, scenarios, sims, accounts, channel, run_dir):
+def run_xcuitest(journey, scenarios, sims, accounts, channel, run_dir):
     """One row per scenario. A scenario passes when every phase's test passed and none skipped.
 
     One-actor scenarios share one xcodebuild call, because starting the test runner costs more
@@ -373,12 +373,12 @@ def run_xcuitest(flow, scenarios, sims, accounts, channel, run_dir):
     simulator. Returns (rows, wall seconds of every call).
     """
     handoff = run_dir / "handoff.json"
-    plan = {scenario: xcuitest_phases(flow, scenario) for scenario in scenarios}
+    plan = {scenario: xcuitest_phases(journey, scenario) for scenario in scenarios}
     for scenario, phases in plan.items():
         if not phases:
-            raise FlowError("%s has no test for %s" % (flow.id, scenario))
-    single = [s for s in scenarios if len(plan[s]) == 1 and plan[s][0][1] == flow.actors[0]]
-    calls = [(flow.actors[0], [plan[s][0][2] for s in single])] if single else []
+            raise JourneyError("%s has no test for %s" % (journey.id, scenario))
+    single = [s for s in scenarios if len(plan[s]) == 1 and plan[s][0][1] == journey.actors[0]]
+    calls = [(journey.actors[0], [plan[s][0][2] for s in single])] if single else []
     for scenario in scenarios:
         if scenario not in single:
             calls.extend((actor, [test]) for _, actor, test in plan[scenario])
@@ -423,8 +423,8 @@ def run_xcuitest(flow, scenarios, sims, accounts, channel, run_dir):
     return rows, "%.1f" % wall
 
 
-def run_truth(flow, accounts, channel):
-    script = flow.truth_script()
+def run_truth(journey, accounts, channel):
+    script = journey.truth_script()
     if not script:
         return "none"
     env = dict(os.environ)
@@ -432,7 +432,7 @@ def run_truth(flow, accounts, channel):
     return "ok" if sh([str(script)], env=env).returncode == 0 else "fail"
 
 
-def record(flow, build_name, run_name, rows, summary, expected=None):
+def record(journey, build_name, run_name, rows, summary, expected=None):
     """Append the scenario rows and the run's `*` row to results.tsv."""
     OUT.mkdir(parents=True, exist_ok=True)
     new_file = not RESULTS.exists()
@@ -441,103 +441,103 @@ def record(flow, build_name, run_name, rows, summary, expected=None):
         if new_file:
             out.write("\t".join(COLUMNS) + "\n")
         for row in rows + [summary]:
-            full = {"time": now, "flow": flow.id, "version": flow.version, "driver": DRIVER,
+            full = {"time": now, "journey": journey.id, "version": journey.version, "driver": DRIVER,
                     "build": build_name, "run": run_name,
                     "expected": (expected or {}).get(row["scenario"], "FAIL" if expected and row["scenario"] == "*" else "PASS")}
             full.update(row)
             out.write("\t".join(str(full.get(column, "")).replace("\t", " ") for column in COLUMNS) + "\n")
 
 
-def run_once(flow, flows, args, sims, accounts, build_name, run_name, scenarios, expected=None):
+def run_once(journey, journeys, args, sims, accounts, build_name, run_name, scenarios, expected=None):
     run_dir = OUT / run_name
     run_dir.mkdir(parents=True, exist_ok=True)
-    rows, wall = run_xcuitest(flow, scenarios, sims, accounts, args.channel, run_dir)
-    truth = run_truth(flow, accounts, args.channel)
+    rows, wall = run_xcuitest(journey, scenarios, sims, accounts, args.channel, run_dir)
+    truth = run_truth(journey, accounts, args.channel)
     for row in rows:
         row["truth"] = truth
     verdicts = [row["result"] for row in rows]
     overall = "ERROR" if "ERROR" in verdicts else ("FAIL" if "FAIL" in verdicts else "PASS")
     summary = {"scenario": "*", "result": overall, "truth": truth, "wall_s": wall,
                "steps_ms": sum(int(row.get("steps_ms") or 0) for row in rows) or ""}
-    record(flow, build_name, run_name, rows, summary, expected)
+    record(journey, build_name, run_name, rows, summary, expected)
     for row in rows:
         detail = " at %s" % row["failed_step"] if row.get("failed_step") else ""
         timing = " %ss" % row["wall_s"] if row.get("wall_s") else ""
-        print("  %s@%s %s %s%s%s" % (flow.id, flow.version, row["scenario"], row["result"], timing, detail))
+        print("  %s@%s %s %s%s%s" % (journey.id, journey.version, row["scenario"], row["result"], timing, detail))
     return rows, overall
 
 
-def funding_notice(flow):
-    """What the person running a money flow must have sent before it starts, or '' for other flows."""
-    if not flow.funds:
+def funding_notice(journey):
+    """What the person running a money journey must have sent before it starts, or '' for other journeys."""
+    if not journey.funds:
         return ""
-    amounts = ", ".join("%s USDC to actor %s" % (amount, actor) for actor, amount in sorted(flow.funds.items()))
-    return ("this flow moves real USDC. Before it starts, send %s from the Phantom agent wallet to the actor's "
-            "deposit address (docs/flows/README.md, Flows that move money)" % amounts)
+    amounts = ", ".join("%s USDC to actor %s" % (amount, actor) for actor, amount in sorted(journey.funds.items()))
+    return ("this journey moves real USDC. Before it starts, send %s from the Phantom agent wallet to the actor's "
+            "deposit address (docs/journeys/README.md, Journeys that move money)" % amounts)
 
 
 def stamp():
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
-def pick(flows, flow_id):
-    if flow_id not in flows:
-        raise FlowError("no flow %r. Known: %s" % (flow_id, ", ".join(sorted(flows))))
-    return flows[flow_id]
+def pick(journeys, journey_id):
+    if journey_id not in journeys:
+        raise JourneyError("no journey %r. Known: %s" % (journey_id, ", ".join(sorted(journeys))))
+    return journeys[journey_id]
 
 
 # ---------------------------------------------------------------- commands
 
 
 def cmd_check(args):
-    flows = load_flows()
-    problems = check_flows(flows, load_accounts(), git_apply_check)
+    journeys = load_journeys()
+    problems = check_journeys(journeys, load_accounts(), git_apply_check)
     for problem in problems:
         print(problem)
     if problems:
         return 1
-    print("%d flow%s checked: docs and tests agree" % (len(flows), "" if len(flows) == 1 else "s"))
+    print("%d journey%s checked: docs and tests agree" % (len(journeys), "" if len(journeys) == 1 else "s"))
     return 0
 
 
 def cmd_list(args):
-    for flow in load_flows().values():
-        requires = " requires " + ", ".join(flow.requires) if flow.requires else ""
-        print("%s@%s  %s  actors %s  %s%s" % (flow.id, flow.version, flow.meta.get("milestone", ""),
-                                             ",".join(flow.actors), " ".join(flow.scenarios), requires))
+    for journey in load_journeys().values():
+        requires = " requires " + ", ".join(journey.requires) if journey.requires else ""
+        print("%s@%s  %s  actors %s  %s%s" % (journey.id, journey.version, journey.meta.get("milestone", ""),
+                                             ",".join(journey.actors), " ".join(journey.scenarios), requires))
     return 0
 
 
 def cmd_run(args):
-    flows = load_flows()
-    flow = pick(flows, args.flow)
-    scenarios = args.scenario or flow.scenarios
-    unknown = [s for s in scenarios if s not in flow.scenarios]
+    journeys = load_journeys()
+    journey = pick(journeys, args.journey)
+    scenarios = args.scenario or journey.scenarios
+    unknown = [s for s in scenarios if s not in journey.scenarios]
     if unknown:
-        raise FlowError("%s has no scenario %s" % (flow.id, ", ".join(unknown)))
+        raise JourneyError("%s has no scenario %s" % (journey.id, ", ".join(unknown)))
     accounts = load_accounts()
-    sims = resolve_simulators(flow, dict(pair.split("=", 1) for pair in args.sim))
+    sims = resolve_simulators(journey, dict(pair.split("=", 1) for pair in args.sim))
     OUT.mkdir(parents=True, exist_ok=True)
-    funding = funding_notice(flow)
+    funding = funding_notice(journey)
     if funding:
         print(funding)
     if not args.no_build:
-        build(sims[flow.actors[0]], OUT / "build.log")
+        build(sims[journey.actors[0]], OUT / "build.log")
     worst = 0
     for index in range(1, args.runs + 1):
-        run_name = "%s-%s-%d" % (stamp(), flow.id.replace("/", "-"), index)
+        run_name = "%s-%s-%d" % (stamp(), journey.id.replace("/", "-"), index)
         print("run %d of %d" % (index, args.runs))
-        _, overall = run_once(flow, flows, args, sims, accounts, build_label(), run_name, scenarios)
+        _, overall = run_once(journey, journeys, args, sims, accounts, build_label(), run_name, scenarios)
         worst = max(worst, {"PASS": 0, "FAIL": 1, "ERROR": 2}[overall])
     if funding:
-        print("this flow moved real USDC: cash out what is left and withdraw it to the Phantom agent wallet")
+        print("this journey moved real USDC: cash out what is left and withdraw it to the Phantom agent wallet")
     return worst
 
 
 def cmd_mutants(args):
-    flows = load_flows()
-    flow = pick(flows, args.flow)
-    all_patches = flow.mutants()
+    journeys = load_journeys()
+    journey = pick(journeys, args.journey)
+    all_patches = journey.mutants()
     patches = [p for p in all_patches if not args.only or p.stem in args.only]
     old_handlers = {signum: signal.signal(signum, lambda signum, frame: (_ for _ in ()).throw(KeyboardInterrupt()))
                     for signum in (signal.SIGTERM, signal.SIGHUP)}
@@ -547,11 +547,11 @@ def cmd_mutants(args):
                 sh(["git", "apply", "-R", str(patch)], check=True)
                 print("reverted a seeded bug left applied by an earlier run: %s" % patch.stem)
         if not patches:
-            raise FlowError("%s has no seeded bugs under %s.mutants/" % (flow.id, flow.id))
+            raise JourneyError("%s has no seeded bugs under %s.mutants/" % (journey.id, journey.id))
         if sh(["git", "diff", "--quiet", "--", "apps/mobile/Monaco", "packages/mobile-core"]).returncode != 0:
-            raise FlowError("the app sources have uncommitted changes: commit or set them aside before seeding bugs")
+            raise JourneyError("the app sources have uncommitted changes: commit or set them aside before seeding bugs")
         accounts = load_accounts()
-        sims = resolve_simulators(flow, dict(pair.split("=", 1) for pair in args.sim))
+        sims = resolve_simulators(journey, dict(pair.split("=", 1) for pair in args.sim))
         caught = 0
         for patch in patches:
             expected_fail = mutant_expectation(patch)
@@ -563,9 +563,9 @@ def cmd_mutants(args):
             try:
                 sh(["git", "apply", str(patch)], check=True)
                 applied = True
-                build(sims[flow.actors[0]], OUT / ("build-%s.log" % patch.stem))
-                run_name = "%s-%s-%s" % (stamp(), flow.id.replace("/", "-"), patch.stem)
-                rows, _ = run_once(flow, flows, args, sims, accounts, build_label(patch.stem), run_name,
+                build(sims[journey.actors[0]], OUT / ("build-%s.log" % patch.stem))
+                run_name = "%s-%s-%s" % (stamp(), journey.id.replace("/", "-"), patch.stem)
+                rows, _ = run_once(journey, journeys, args, sims, accounts, build_label(patch.stem), run_name,
                                    expected_fail, expected={s: "FAIL" for s in expected_fail})
             finally:
                 if applied:
@@ -578,7 +578,7 @@ def cmd_mutants(args):
     finally:
         try:
             if "sims" in locals():
-                build(sims[flow.actors[0]], OUT / "build.log")
+                build(sims[journey.actors[0]], OUT / "build.log")
         finally:
             for signum, handler in old_handlers.items():
                 signal.signal(signum, handler)
@@ -587,15 +587,15 @@ def cmd_mutants(args):
 
 
 def summarize(rows):
-    """Per flow: speed on clean builds, flake rate, catch rate and false passes."""
+    """Per journey: speed on clean builds, flake rate, catch rate and false passes."""
     groups = {}
     for row in rows:
-        groups.setdefault((row["flow"], row["driver"]), []).append(row)
+        groups.setdefault((row["journey"], row["driver"]), []).append(row)
     table = []
-    for (flow, driver), group in sorted(groups.items()):
+    for (journey, driver), group in sorted(groups.items()):
         on_clean_build = [r for r in group if r["scenario"] == "*" and "+mutant:" not in r["build"]]
         # A run whose tests never started (the runner or the simulator fell over) says nothing
-        # about the flow: it is counted on its own, not as a flake.
+        # about the journey: it is counted on its own, not as a flake.
         clean = [r for r in on_clean_build if r["result"] != "ERROR"]
         passed = [r for r in clean if r["result"] == "PASS"]
         seeded = {}
@@ -610,7 +610,7 @@ def summarize(rows):
             return statistics.median(values) if values else None
 
         table.append({
-            "flow": flow, "driver": DRIVER, "runs": len(clean), "errors": len(on_clean_build) - len(clean),
+            "journey": journey, "driver": DRIVER, "runs": len(clean), "errors": len(on_clean_build) - len(clean),
             "flake": (len(clean) - len(passed)) / float(len(clean)) if clean else None,
             "wall_s": median("wall_s"), "steps_s": (median("steps_ms") or 0) / 1000.0 or None,
             "seeded": len(seeded), "caught": len(caught),
@@ -621,20 +621,20 @@ def summarize(rows):
 
 def cmd_report(args):
     if not RESULTS.exists():
-        raise FlowError("no results yet: run a flow first")
+        raise JourneyError("no results yet: run a journey first")
     lines = RESULTS.read_text().splitlines()
     rows = [dict(zip(lines[0].split("\t"), line.split("\t"))) for line in lines[1:]]
 
     def show(value, pattern="%.1f"):
         return "-" if value is None else pattern % value
 
-    print("| Flow | Runs | Did not start | Flake rate | Median wall s | Median steps s | Caught | False passes |")
+    print("| Journey | Runs | Did not start | Flake rate | Median wall s | Median steps s | Caught | False passes |")
     print("| --- | --- | --- | --- | --- | --- | --- | --- |")
     for item in summarize(rows):
         caught = "%d of %d" % (item["caught"], item["seeded"]) if item["seeded"] else "-"
         flake = "-" if item["flake"] is None else "%d%%" % round(item["flake"] * 100)
         print("| %s | %d | %d | %s | %s | %s | %s | %d |" % (
-            item["flow"], item["runs"], item["errors"], flake, show(item["wall_s"]), show(item["steps_s"]), caught,
+            item["journey"], item["runs"], item["errors"], flake, show(item["wall_s"]), show(item["steps_s"]), caught,
             item["false_passes"]))
     return 0
 
@@ -649,7 +649,7 @@ def main(argv=None):
     for name, handler in (("run", cmd_run), ("mutants", cmd_mutants)):
         sub = commands.add_parser(name)
         sub.set_defaults(run=handler)
-        sub.add_argument("flow", help="flow id, such as auth/sign-in")
+        sub.add_argument("journey", help="journey id, such as auth/sign-in")
         sub.add_argument("--sim", action="append", default=[], metavar="ACTOR=UDID",
                          help="the simulator an actor uses; actor A defaults to the gold one")
         sub.add_argument("--channel", choices=("sms", "email"), default="sms")
@@ -662,7 +662,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         return args.run(args)
-    except FlowError as error:
+    except JourneyError as error:
         print("error: %s" % error, file=sys.stderr)
         return 2
 
