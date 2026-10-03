@@ -80,9 +80,15 @@ components:
           enum: [pending, confirmed, failed]
           examples: [confirmed]
         asset:
+          type: [object, "null"]
           description: The stock bought or sold. Null when there is none or the catalog does not know it.
           examples: [{symbol: AAPLx, name: Apple}]
-          anyOf: [{$ref: "#/components/schemas/ActivityAsset"}, {type: "null"}]
+          x-go-type-name: ActivityAsset
+          additionalProperties: false
+          required: [symbol, name]
+          properties:
+            symbol: {type: string, description: The token symbol., examples: [AAPLx]}
+            name: {type: string, description: The display name., examples: [Apple]}
         usdc_micros:
           type: [integer, "null"]
           format: int64
@@ -94,28 +100,18 @@ components:
           description: Token base units bought or sold. Null until known.
           examples: [105000000]
         actor:
+          type: [object, "null"]
           description: The member who acted. Null for a trade the cabal voted for.
           examples: [null]
-          anyOf: [{$ref: "#/components/schemas/ActivityActor"}, {type: "null"}]
+          x-go-type-name: ActivityActor
+          additionalProperties: false
+          required: [user_id, handle, display_name]
+          properties:
+            user_id: {type: string, format: uuid, description: The member., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
+            handle: {type: string, description: The member's handle., examples: [ana]}
+            display_name: {type: string, description: The member's display name., examples: [Ana]}
         tx_signature:
           type: [string, "null"]
           description: The Solana transaction signature. Null until the transaction is sent.
           examples: [5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW]
         occurred_at: {type: string, format: date-time, description: When it started., examples: ["2026-10-03T15:00:00Z"]}
-    ActivityAsset:
-      type: object
-      description: A human-readable asset.
-      additionalProperties: false
-      required: [symbol, name]
-      properties:
-        symbol: {type: string, description: The token symbol., examples: [AAPLx]}
-        name: {type: string, description: The display name., examples: [Apple]}
-    ActivityActor:
-      type: object
-      description: The member behind a row.
-      additionalProperties: false
-      required: [user_id, handle, display_name]
-      properties:
-        user_id: {type: string, format: uuid, description: The member., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
-        handle: {type: string, description: The member's handle., examples: [ana]}
-        display_name: {type: string, description: The member's display name., examples: [Ana]}

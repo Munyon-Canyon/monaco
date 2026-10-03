@@ -131,7 +131,7 @@ func (h HTTP) detail(ctx context.Context, id ids.ProposalID, user ids.UserID) (a
 	}
 	if s := got.Swap; s != nil {
 		out.Swap = &api.LinkedSwap{
-			SwapId: s.ID.UUID(), Status: api.LinkedSwapStatus(s.Status), Retryable: s.Retryable,
+			SwapId: s.ID.UUID(), Status: api.ProposalDetailSwapStatus(s.Status), Retryable: s.Retryable,
 			FailureCode: present(string(s.FailureCode)), TxSignature: present(string(s.TxSignature)),
 		}
 		if s.Status == "failed" {

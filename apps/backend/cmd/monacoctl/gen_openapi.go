@@ -107,6 +107,10 @@ func (b *bundler) add(file, src string) error {
 	if len(doc.Content) != 1 || doc.Content[0].Kind != yaml.MappingNode {
 		return specProblem("%s: want a mapping at the top level", file)
 	}
+	if line := nullBranchLine(doc.Content[0]); line > 0 {
+		return specProblem("%s:%d: a null branch in anyOf or oneOf makes the Swift generator drop the property; "+
+			"write type: [object, \"null\"] with the properties inline instead", file, line)
+	}
 	isBase := file == baseSpec
 	if isBase {
 		b.raw = map[string][]string{}
@@ -130,6 +134,43 @@ func (b *bundler) add(file, src string) error {
 		return specProblem("%s: want both paths and components", file)
 	}
 	return nil
+}
+
+func nullBranchLine(node *yaml.Node) int {
+	if line := nullBranchHere(node); line > 0 {
+		return line
+	}
+	for _, child := range node.Content {
+		if line := nullBranchLine(child); line > 0 {
+			return line
+		}
+	}
+	return 0
+}
+
+func nullBranchHere(node *yaml.Node) int {
+	if node.Kind != yaml.MappingNode {
+		return 0
+	}
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		key, value := node.Content[i], node.Content[i+1]
+		if (key.Value == "anyOf" || key.Value == "oneOf") && slices.ContainsFunc(value.Content, isNullType) {
+			return key.Line
+		}
+	}
+	return 0
+}
+
+func isNullType(node *yaml.Node) bool {
+	if node.Kind != yaml.MappingNode {
+		return false
+	}
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i].Value == "type" && node.Content[i+1].Value == "null" {
+			return true
+		}
+	}
+	return false
 }
 
 func (b *bundler) addKey(file, key string, keyNode, value *yaml.Node, lines []string, end int) error {

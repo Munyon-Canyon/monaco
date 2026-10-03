@@ -536,30 +536,6 @@ func (e HandleAvailabilityReason) Valid() bool {
 	}
 }
 
-// Defines values for LinkedSwapStatus.
-const (
-	LinkedSwapStatusConfirmed LinkedSwapStatus = "confirmed"
-	LinkedSwapStatusCreated   LinkedSwapStatus = "created"
-	LinkedSwapStatusFailed    LinkedSwapStatus = "failed"
-	LinkedSwapStatusSubmitted LinkedSwapStatus = "submitted"
-)
-
-// Valid indicates whether the value is a known member of the LinkedSwapStatus enum.
-func (e LinkedSwapStatus) Valid() bool {
-	switch e {
-	case LinkedSwapStatusConfirmed:
-		return true
-	case LinkedSwapStatusCreated:
-		return true
-	case LinkedSwapStatusFailed:
-		return true
-	case LinkedSwapStatusSubmitted:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for MarketSessionNextState.
 const (
 	MarketSessionNextStateAfterHours  MarketSessionNextState = "after_hours"
@@ -620,6 +596,30 @@ const (
 func (e ProblemType) Valid() bool {
 	switch e {
 	case AboutBlank:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProposalDetailSwapStatus.
+const (
+	ProposalDetailSwapStatusConfirmed ProposalDetailSwapStatus = "confirmed"
+	ProposalDetailSwapStatusCreated   ProposalDetailSwapStatus = "created"
+	ProposalDetailSwapStatusFailed    ProposalDetailSwapStatus = "failed"
+	ProposalDetailSwapStatusSubmitted ProposalDetailSwapStatus = "submitted"
+)
+
+// Valid indicates whether the value is a known member of the ProposalDetailSwapStatus enum.
+func (e ProposalDetailSwapStatus) Valid() bool {
+	switch e {
+	case ProposalDetailSwapStatusConfirmed:
+		return true
+	case ProposalDetailSwapStatusCreated:
+		return true
+	case ProposalDetailSwapStatusFailed:
+		return true
+	case ProposalDetailSwapStatusSubmitted:
 		return true
 	default:
 		return false
@@ -864,37 +864,6 @@ type AccessDecisionRequestDecision string
 //
 // Examples: active
 type AccountStatus string
-
-// ActivityActor The member behind a row.
-type ActivityActor struct {
-	// DisplayName The member's display name.
-	//
-	// Examples: Ana
-	DisplayName string `json:"display_name"`
-
-	// Handle The member's handle.
-	//
-	// Examples: ana
-	Handle string `json:"handle"`
-
-	// UserId The member.
-	//
-	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
-	UserId openapi_types.UUID `json:"user_id"`
-}
-
-// ActivityAsset A human-readable asset.
-type ActivityAsset struct {
-	// Name The display name.
-	//
-	// Examples: Apple
-	Name string `json:"name"`
-
-	// Symbol The token symbol.
-	//
-	// Examples: AAPLx
-	Symbol string `json:"symbol"`
-}
 
 // AssetChart The buckets for one asset and one range.
 //
@@ -1191,6 +1160,17 @@ type Cabal struct {
 	TreasuryAddress string `json:"treasury_address"`
 }
 
+// CabalMembership Null when the caller is not a member.
+//
+// Examples: null
+type CabalMembership struct {
+	// CanVote Examples: true
+	CanVote bool `json:"can_vote"`
+
+	// Role Examples: creator
+	Role string `json:"role"`
+}
+
 // CabalAccess A pending request or invite.
 type CabalAccess struct {
 	// Direction `request` or `invite`.
@@ -1265,6 +1245,41 @@ type CabalActivity struct {
 	//
 	// Examples: 25000000
 	UsdcMicros *int64 `json:"usdc_micros"`
+}
+
+// ActivityActor The member who acted. Null for a trade the cabal voted for.
+//
+// Examples: null
+type ActivityActor struct {
+	// DisplayName The member's display name.
+	//
+	// Examples: Ana
+	DisplayName string `json:"display_name"`
+
+	// Handle The member's handle.
+	//
+	// Examples: ana
+	Handle string `json:"handle"`
+
+	// UserId The member.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	UserId openapi_types.UUID `json:"user_id"`
+}
+
+// ActivityAsset The stock bought or sold. Null when there is none or the catalog does not know it.
+//
+// Examples: {"name":"Apple","symbol":"AAPLx"}
+type ActivityAsset struct {
+	// Name The display name.
+	//
+	// Examples: Apple
+	Name string `json:"name"`
+
+	// Symbol The token symbol.
+	//
+	// Examples: AAPLx
+	Symbol string `json:"symbol"`
 }
 
 // CabalActivityKind What happened.
@@ -1358,15 +1373,6 @@ type CabalMember struct {
 
 	// UserId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
 	UserId openapi_types.UUID `json:"user_id"`
-}
-
-// CabalMembership The caller's standing in the cabal.
-type CabalMembership struct {
-	// CanVote Examples: true
-	CanVote bool `json:"can_vote"`
-
-	// Role Examples: creator
-	Role string `json:"role"`
 }
 
 // CabalPerson A user as shown on a cabal.
@@ -1719,44 +1725,6 @@ type InviteMemberRequest struct {
 	// Examples: kai
 	Handle string `json:"handle"`
 }
-
-// LinkedSwap The latest trade that executes the proposal.
-type LinkedSwap struct {
-	// FailureCode Why the trade failed. Null unless `status` is `failed`.
-	//
-	// Examples: null
-	FailureCode *string `json:"failure_code"`
-
-	// FailureMessage The user-facing message for a failed trade. Null unless `status` is `failed`.
-	//
-	// Examples: null
-	FailureMessage *string `json:"failure_message"`
-
-	// Retryable Whether a failed trade can be retried.
-	//
-	// Examples: false
-	Retryable bool `json:"retryable"`
-
-	// Status Where the trade is.
-	//
-	// Examples: confirmed
-	Status LinkedSwapStatus `json:"status"`
-
-	// SwapId The swap id.
-	//
-	// Examples: 01890a5d-ac96-774b-bcce-b302099a8060
-	SwapId openapi_types.UUID `json:"swap_id"`
-
-	// TxSignature The Solana transaction signature. Null before the trade is submitted.
-	//
-	// Examples: null
-	TxSignature *string `json:"tx_signature"`
-}
-
-// LinkedSwapStatus Where the trade is.
-//
-// Examples: confirmed
-type LinkedSwapStatus string
 
 // MarketSession The session the asset is in, computed on the server.
 //
@@ -2177,6 +2145,46 @@ type ProposalDetail struct {
 	//
 	// Examples: []
 	Voters []ProposalVoter `json:"voters"`
+}
+
+// ProposalDetailSwapStatus Where the trade is.
+//
+// Examples: confirmed
+type ProposalDetailSwapStatus string
+
+// LinkedSwap The latest trade linked to the proposal. Null when none exists.
+//
+// Examples: null
+type LinkedSwap struct {
+	// FailureCode Why the trade failed. Null unless `status` is `failed`.
+	//
+	// Examples: null
+	FailureCode *string `json:"failure_code"`
+
+	// FailureMessage The user-facing message for a failed trade. Null unless `status` is `failed`.
+	//
+	// Examples: null
+	FailureMessage *string `json:"failure_message"`
+
+	// Retryable Whether a failed trade can be retried.
+	//
+	// Examples: false
+	Retryable bool `json:"retryable"`
+
+	// Status Where the trade is.
+	//
+	// Examples: confirmed
+	Status ProposalDetailSwapStatus `json:"status"`
+
+	// SwapId The swap id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8060
+	SwapId openapi_types.UUID `json:"swap_id"`
+
+	// TxSignature The Solana transaction signature. Null before the trade is submitted.
+	//
+	// Examples: null
+	TxSignature *string `json:"tx_signature"`
 }
 
 // ProposalKind Whether the proposal spends USDC on the token or sells the token for USDC.

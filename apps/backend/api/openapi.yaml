@@ -1476,23 +1476,6 @@ components:
         banned account can only withdraw and cash out.
       examples: [active]
       enum: [active, suspended, banned]
-    ActivityActor:
-      type: object
-      description: The member behind a row.
-      additionalProperties: false
-      required: [user_id, handle, display_name]
-      properties:
-        user_id: {type: string, format: uuid, description: The member., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
-        handle: {type: string, description: The member's handle., examples: [ana]}
-        display_name: {type: string, description: The member's display name., examples: [Ana]}
-    ActivityAsset:
-      type: object
-      description: A human-readable asset.
-      additionalProperties: false
-      required: [symbol, name]
-      properties:
-        symbol: {type: string, description: The token symbol., examples: [AAPLx]}
-        name: {type: string, description: The display name., examples: [Apple]}
     AssetChart:
       type: object
       description: The buckets for one asset and one range.
@@ -1870,13 +1853,27 @@ components:
         creator: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
         member_count: {type: integer, format: int32, examples: [1]}
         members: {type: array, items: {$ref: "#/components/schemas/CabalMember"}, examples: [[]]}
-        me: {description: "Null when the caller is not a member.", examples: [null], anyOf: [{$ref: "#/components/schemas/CabalMembership"}, {type: "null"}]}
+        me:
+          type: [object, "null"]
+          description: "Null when the caller is not a member."
+          examples: [null]
+          x-go-type-name: CabalMembership
+          additionalProperties: false
+          required: [role, can_vote]
+          properties:
+            role: {type: string, examples: [creator]}
+            can_vote: {type: boolean, examples: [true]}
         my_access_request:
+          type: [object, "null"]
           description: "The caller's pending access request, or null."
           examples: [null]
-          anyOf:
-            - $ref: "#/components/schemas/CabalAccess"
-            - type: "null"
+          x-go-type: CabalAccess
+          additionalProperties: false
+          required: [id, direction, status]
+          properties:
+            id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
+            direction: {type: string, description: "`request` or `invite`.", examples: [request]}
+            status: {type: string, examples: [pending]}
         invite_code: {type: [string, "null"], description: The invite code. Null for a non-member., examples: [null]}
         treasury_address: {type: string, description: Solana address of the app-owned treasury wallet., examples: [Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf]}
     CabalAccess:
@@ -1915,9 +1912,15 @@ components:
           enum: [pending, confirmed, failed]
           examples: [confirmed]
         asset:
+          type: [object, "null"]
           description: The stock bought or sold. Null when there is none or the catalog does not know it.
           examples: [{symbol: AAPLx, name: Apple}]
-          anyOf: [{$ref: "#/components/schemas/ActivityAsset"}, {type: "null"}]
+          x-go-type-name: ActivityAsset
+          additionalProperties: false
+          required: [symbol, name]
+          properties:
+            symbol: {type: string, description: The token symbol., examples: [AAPLx]}
+            name: {type: string, description: The display name., examples: [Apple]}
         usdc_micros:
           type: [integer, "null"]
           format: int64
@@ -1929,9 +1932,16 @@ components:
           description: Token base units bought or sold. Null until known.
           examples: [105000000]
         actor:
+          type: [object, "null"]
           description: The member who acted. Null for a trade the cabal voted for.
           examples: [null]
-          anyOf: [{$ref: "#/components/schemas/ActivityActor"}, {type: "null"}]
+          x-go-type-name: ActivityActor
+          additionalProperties: false
+          required: [user_id, handle, display_name]
+          properties:
+            user_id: {type: string, format: uuid, description: The member., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
+            handle: {type: string, description: The member's handle., examples: [ana]}
+            display_name: {type: string, description: The member's display name., examples: [Ana]}
         tx_signature:
           type: [string, "null"]
           description: The Solana transaction signature. Null until the transaction is sent.
@@ -1986,14 +1996,6 @@ components:
         role: {type: string, description: "`creator` or `member`.", examples: [creator]}
         can_vote: {type: boolean, examples: [true]}
         joined_at: {type: string, format: date-time, examples: ["2026-09-30T12:00:00Z"]}
-    CabalMembership:
-      type: object
-      description: The caller's standing in the cabal.
-      additionalProperties: false
-      required: [role, can_vote]
-      properties:
-        role: {type: string, examples: [creator]}
-        can_vote: {type: boolean, examples: [true]}
     CabalPerson:
       type: object
       description: A user as shown on a cabal.
@@ -2358,31 +2360,6 @@ components:
       required: [handle]
       properties:
         handle: {type: string, description: The invitee's handle., examples: [kai]}
-    LinkedSwap:
-      type: object
-      description: The latest trade that executes the proposal.
-      additionalProperties: false
-      required: [swap_id, status, failure_code, failure_message, tx_signature, retryable]
-      properties:
-        swap_id: {type: string, format: uuid, description: The swap id., examples: [01890a5d-ac96-774b-bcce-b302099a8060]}
-        status:
-          type: string
-          description: Where the trade is.
-          enum: [created, submitted, confirmed, failed]
-          examples: [confirmed]
-        failure_code:
-          type: [string, "null"]
-          description: Why the trade failed. Null unless `status` is `failed`.
-          examples: [null]
-        failure_message:
-          type: [string, "null"]
-          description: The user-facing message for a failed trade. Null unless `status` is `failed`.
-          examples: [null]
-        tx_signature:
-          type: [string, "null"]
-          description: The Solana transaction signature. Null before the trade is submitted.
-          examples: [null]
-        retryable: {type: boolean, description: Whether a failed trade can be retried., examples: [false]}
     MarketSession:
       type: object
       description: The session the asset is in, computed on the server.
@@ -2688,7 +2665,9 @@ components:
         my_ballot:
           description: The caller's ballot. Null when the caller has not voted or is not a voter.
           examples: [null]
-          anyOf: [{$ref: "#/components/schemas/BallotChoice"}, {type: "null"}]
+          type: [string, "null"]
+          enum: ["yes", "no", null]
+          x-go-type: BallotChoice
     ProposalDetail:
       type: object
       description: One proposal with its voters, the caller's permissions and its linked trade.
@@ -2751,7 +2730,9 @@ components:
         my_ballot:
           description: The caller's ballot. Null when the caller has not voted or is not a voter.
           examples: [null]
-          anyOf: [{$ref: "#/components/schemas/BallotChoice"}, {type: "null"}]
+          type: [string, "null"]
+          enum: ["yes", "no", null]
+          x-go-type: BallotChoice
         voters:
           type: array
           description: Every member of the frozen voter set, ordered by user id.
@@ -2764,9 +2745,32 @@ components:
           description: The caller proposed it, it is open, and no other voter has a ballot.
           examples: [false]
         swap:
+          type: [object, "null"]
           description: The latest trade linked to the proposal. Null when none exists.
           examples: [null]
-          anyOf: [{$ref: "#/components/schemas/LinkedSwap"}, {type: "null"}]
+          x-go-type-name: LinkedSwap
+          additionalProperties: false
+          required: [swap_id, status, failure_code, failure_message, tx_signature, retryable]
+          properties:
+            swap_id: {type: string, format: uuid, description: The swap id., examples: [01890a5d-ac96-774b-bcce-b302099a8060]}
+            status:
+              type: string
+              description: Where the trade is.
+              enum: [created, submitted, confirmed, failed]
+              examples: [confirmed]
+            failure_code:
+              type: [string, "null"]
+              description: Why the trade failed. Null unless `status` is `failed`.
+              examples: [null]
+            failure_message:
+              type: [string, "null"]
+              description: The user-facing message for a failed trade. Null unless `status` is `failed`.
+              examples: [null]
+            tx_signature:
+              type: [string, "null"]
+              description: The Solana transaction signature. Null before the trade is submitted.
+              examples: [null]
+            retryable: {type: boolean, description: Whether a failed trade can be retried., examples: [false]}
     ProposalKind:
       type: string
       description: Whether the proposal spends USDC on the token or sells the token for USDC.
@@ -2803,7 +2807,9 @@ components:
         choice:
           description: The voter's ballot. Null until they vote.
           examples: ["yes"]
-          anyOf: [{$ref: "#/components/schemas/BallotChoice"}, {type: "null"}]
+          type: [string, "null"]
+          enum: ["yes", "no", null]
+          x-go-type: BallotChoice
         cast_at:
           type: [string, "null"]
           format: date-time

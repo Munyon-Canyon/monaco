@@ -189,7 +189,9 @@ components:
         my_ballot:
           description: The caller's ballot. Null when the caller has not voted or is not a voter.
           examples: [null]
-          anyOf: [{$ref: "#/components/schemas/BallotChoice"}, {type: "null"}]
+          type: [string, "null"]
+          enum: ["yes", "no", null]
+          x-go-type: BallotChoice
     ProposalList:
       type: object
       description: One page of a cabal's proposals.
@@ -216,37 +218,14 @@ components:
         choice:
           description: The voter's ballot. Null until they vote.
           examples: ["yes"]
-          anyOf: [{$ref: "#/components/schemas/BallotChoice"}, {type: "null"}]
+          type: [string, "null"]
+          enum: ["yes", "no", null]
+          x-go-type: BallotChoice
         cast_at:
           type: [string, "null"]
           format: date-time
           description: When the ballot was last cast. Null until they vote.
           examples: ["2026-10-03T16:00:00Z"]
-    LinkedSwap:
-      type: object
-      description: The latest trade that executes the proposal.
-      additionalProperties: false
-      required: [swap_id, status, failure_code, failure_message, tx_signature, retryable]
-      properties:
-        swap_id: {type: string, format: uuid, description: The swap id., examples: [01890a5d-ac96-774b-bcce-b302099a8060]}
-        status:
-          type: string
-          description: Where the trade is.
-          enum: [created, submitted, confirmed, failed]
-          examples: [confirmed]
-        failure_code:
-          type: [string, "null"]
-          description: Why the trade failed. Null unless `status` is `failed`.
-          examples: [null]
-        failure_message:
-          type: [string, "null"]
-          description: The user-facing message for a failed trade. Null unless `status` is `failed`.
-          examples: [null]
-        tx_signature:
-          type: [string, "null"]
-          description: The Solana transaction signature. Null before the trade is submitted.
-          examples: [null]
-        retryable: {type: boolean, description: Whether a failed trade can be retried., examples: [false]}
     ProposalDetail:
       type: object
       description: One proposal with its voters, the caller's permissions and its linked trade.
@@ -309,7 +288,9 @@ components:
         my_ballot:
           description: The caller's ballot. Null when the caller has not voted or is not a voter.
           examples: [null]
-          anyOf: [{$ref: "#/components/schemas/BallotChoice"}, {type: "null"}]
+          type: [string, "null"]
+          enum: ["yes", "no", null]
+          x-go-type: BallotChoice
         voters:
           type: array
           description: Every member of the frozen voter set, ordered by user id.
@@ -322,9 +303,32 @@ components:
           description: The caller proposed it, it is open, and no other voter has a ballot.
           examples: [false]
         swap:
+          type: [object, "null"]
           description: The latest trade linked to the proposal. Null when none exists.
           examples: [null]
-          anyOf: [{$ref: "#/components/schemas/LinkedSwap"}, {type: "null"}]
+          x-go-type-name: LinkedSwap
+          additionalProperties: false
+          required: [swap_id, status, failure_code, failure_message, tx_signature, retryable]
+          properties:
+            swap_id: {type: string, format: uuid, description: The swap id., examples: [01890a5d-ac96-774b-bcce-b302099a8060]}
+            status:
+              type: string
+              description: Where the trade is.
+              enum: [created, submitted, confirmed, failed]
+              examples: [confirmed]
+            failure_code:
+              type: [string, "null"]
+              description: Why the trade failed. Null unless `status` is `failed`.
+              examples: [null]
+            failure_message:
+              type: [string, "null"]
+              description: The user-facing message for a failed trade. Null unless `status` is `failed`.
+              examples: [null]
+            tx_signature:
+              type: [string, "null"]
+              description: The Solana transaction signature. Null before the trade is submitted.
+              examples: [null]
+            retryable: {type: boolean, description: Whether a failed trade can be retried., examples: [false]}
     PendingVote:
       type: object
       description: An open proposal that still needs the caller's ballot.
