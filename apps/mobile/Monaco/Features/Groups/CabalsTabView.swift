@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -26,10 +27,10 @@ struct CabalsTabView: View {
     init(
         auth: PrivyAuthService,
         dataSource: CabalsTabDataSource? = nil,
-        actions: CabalsActionSource? = nil
+        actions: CabalsActionSource
     ) {
         self.auth = auth
-        self.actions = actions ?? LiveCabalsActionSource(auth: auth)
+        self.actions = actions
         _model = State(initialValue: CabalsTabModel(dataSource: dataSource ?? LiveCabalsTabDataSource(auth: auth)))
     }
 
@@ -119,9 +120,7 @@ struct CabalsTabView: View {
                 route: route,
                 actions: actions,
                 onCreated: { created in
-                    // Replace the form with the new cabal. Back then lands on the
-                    // tab, not on a filled-in form that would create a second one.
-                    self.route = .cabal(id: created.groupId, name: created.name)
+                    self.route = .cabal(id: created.id, name: created.name)
                 },
                 onJoined: { groupId, groupName in
                     model.markJoined(groupID: groupId)
@@ -164,76 +163,17 @@ struct CabalsTabView: View {
     }
 }
 
-/// The `.medium` sheet behind the tab's trailing "New cabal" button: two
-/// choices as ruled rows, start fresh or join with a code someone shared.
-/// Internal rather than private so the Debug harness can open it on its own.
-struct NewCabalSheet: View {
-    let onCreate: () -> Void
-    let onJoin: () -> Void
-
-    /// The sheet is as tall as its two rows. A medium detent left the bottom half empty.
-    @State private var contentHeight: CGFloat = 0
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                Text("New cabal")
-                    .font(MonacoTheme.Typo.title)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .padding(.horizontal, MonacoTheme.Space.m)
-                    .padding(.top, MonacoTheme.Space.l)
-                    .accessibilityAddTraits(.isHeader)
-
-                MonacoGroupedList {
-                    Button(action: onCreate) {
-                        MonacoRow(
-                            title: "Start a cabal",
-                            subtitle: "Name it and set the rules",
-                            chevron: true
-                        ) {
-                            SunkenGlyphMark(systemImage: "plus", size: 40)
-                        }
-                    }
-                    .buttonStyle(.monacoRow)
-                    .accessibilityIdentifier("new-cabal-create-row")
-
-                    Button(action: onJoin) {
-                        MonacoRow(
-                            title: "Join with an invite code",
-                            subtitle: "Paste the code a friend sent you",
-                            chevron: true,
-                            isLast: true
-                        ) {
-                            SunkenGlyphMark(systemImage: "person.badge.plus", size: 40)
-                        }
-                    }
-                    .buttonStyle(.monacoRow)
-                    .accessibilityIdentifier("new-cabal-join-row")
-                }
-            }
-            .padding(.bottom, MonacoTheme.Space.xl)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .onGeometryChange(for: CGFloat.self) {
-                $0.size.height
-            } action: {
-                contentHeight = $0
-            }
-        }
-        .scrollBounceBehavior(.basedOnSize)
-        .monacoCanvas()
-        .presentationDetents(contentHeight > 0 ? [.height(contentHeight)] : [.medium])
-        .presentationDragIndicator(.visible)
-    }
-}
-
 #if DEBUG
 #Preview {
     let session = AppSessionStore(apiClient: MonacoAPIClient())
     session.home = CabalsTabSampleData.home
     return NavigationStack {
-        CabalsTabView(auth: PrivyAuthService(), dataSource: CabalsTabSampleData.DataSource())
-            .environment(session)
-            .monacoRootAppearance()
+        CabalsTabView(
+            auth: PrivyAuthService(), dataSource: CabalsTabSampleData.DataSource(),
+            actions: CabalsTabSampleData.Actions()
+        )
+        .environment(session)
+        .monacoRootAppearance()
     }
 }
 #endif

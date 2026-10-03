@@ -196,7 +196,7 @@ struct AppSessionStoreLeaderboardRangeTests {
         await store.selectLeaderboardRange(.oneDay, auth: auth)
         store.refreshAfterCreate(
             auth: auth,
-            created: CreateGroupResponse(groupId: "g-1", name: "Weekend", treasuryAddress: "addr")
+            created: Components.Schemas.Cabal.sample(role: "creator")
         )
         await store.awaitDeferredWork()
 

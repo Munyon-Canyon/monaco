@@ -1,4 +1,5 @@
 #if DEBUG
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -296,7 +297,7 @@ struct GroupNavSampleHarness: View {
         switch screen {
         case .start:
             CreateGroupView(auth: auth, actions: actions) { created in
-                replaceTop(with: .cabal(id: created.groupId, name: created.name, isNew: true))
+                replaceTop(with: .cabal(id: created.id, name: created.name, isNew: true))
             }
         case .joinCode:
             JoinGroupView(auth: auth, actions: actions) { groupId, name in

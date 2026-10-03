@@ -225,52 +225,6 @@ final class MonacoAPIClient: AppSessionDataSource {
         return payload.groups
     }
 
-    func createGroup(accessToken: String, name: String) async throws -> CreateGroupResponse {
-        try await createGroup(
-            accessToken: accessToken,
-            name: name,
-            joinPolicyMode: "open",
-            voterSetMode: "all_members",
-            voterMemberIds: [],
-            threshold: "majority",
-            voteExpirySeconds: 86_400
-        )
-    }
-
-    func createGroup(
-        accessToken: String,
-        name: String,
-        joinPolicyMode: String,
-        voterSetMode: String,
-        voterMemberIds: [String],
-        threshold: String,
-        voteExpirySeconds: Int64
-    ) async throws -> CreateGroupResponse {
-        let url = baseURL.appending(path: "v1/groups")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        try applyAuthorizationHeader(accessToken: accessToken, to: &request)
-        request.httpBody = try JSONEncoder().encode(
-            CreateGroupRulesRequest(
-                name: name,
-                joinPolicy: CreateGroupJoinPolicyRequest(mode: joinPolicyMode),
-                voterSet: CreateGroupVoterSetRequest(mode: voterSetMode, memberIds: voterMemberIds),
-                threshold: threshold,
-                voteExpirySeconds: voteExpirySeconds
-            )
-        )
-
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw MonacoAPIError.invalidResponse
-        }
-        guard http.statusCode == 200 else {
-            throw MonacoAPIError.httpStatus(http.statusCode)
-        }
-        return try JSONDecoder().decode(CreateGroupResponse.self, from: data)
-    }
-
     func withdrawToBalance(
         accessToken: String, groupId: String, shareAmountMicros: Int64? = nil, submission: IdempotentSubmission
     ) async throws -> WithdrawToBalanceJobDTO {
@@ -829,36 +783,6 @@ extension MonacoAPIClient {
         }
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     }
-}
-
-private struct CreateGroupJoinPolicyRequest: Encodable {
-    let mode: String
-}
-
-private struct CreateGroupVoterSetRequest: Encodable {
-    let mode: String
-    let memberIds: [String]
-
-    enum CodingKeys: String, CodingKey {
-        case mode
-        case memberIds
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(mode, forKey: .mode)
-        if mode == "named_subset" {
-            try container.encode(memberIds, forKey: .memberIds)
-        }
-    }
-}
-
-private struct CreateGroupRulesRequest: Encodable {
-    let name: String
-    let joinPolicy: CreateGroupJoinPolicyRequest
-    let voterSet: CreateGroupVoterSetRequest
-    let threshold: String
-    let voteExpirySeconds: Int64
 }
 
 private struct CreateDepositRequest: Encodable {

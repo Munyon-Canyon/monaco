@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -56,7 +57,7 @@ struct CabalsRouteDestination: View {
     /// flows end to end without a backend.
     let actions: CabalsActionSource
     /// A cabal was created; the owner replaces this screen with it.
-    var onCreated: (CreateGroupResponse) -> Void
+    var onCreated: (Components.Schemas.Cabal) -> Void
     /// The viewer is now a member; the owner replaces this screen with the cabal.
     var onJoined: (_ groupId: String, _ groupName: String?) -> Void
 

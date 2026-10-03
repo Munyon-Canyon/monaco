@@ -1,97 +1,7 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
-enum JoinPolicyMode: String, CaseIterable, Identifiable {
-    case open
-    case request
-
-    var id: String { rawValue }
-
-    /// "Anyone", not "Anyone with the link": the app has no invite links. What a member shares
-    /// is the invite code, and an open cabal also takes anyone who finds it in search.
-    var label: String {
-        switch self {
-        case .open: "Anyone"
-        case .request: "I approve"
-        }
-    }
-
-    /// What the choice means, under the rule on the Start a cabal screen.
-    var caption: String {
-        switch self {
-        case .open: "Anyone can join, from search or with the invite code."
-        case .request: "People ask to join, and you say yes or no."
-        }
-    }
-}
-
-enum VoterSetMode: String, CaseIterable, Identifiable {
-    case allMembers = "all_members"
-    case namedSubset = "named_subset"
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .allMembers: "Everyone"
-        case .namedSubset: "Just me"
-        }
-    }
-
-    var caption: String {
-        switch self {
-        case .allMembers: "Every member votes on each proposal."
-        case .namedSubset: "Only you vote on proposals."
-        }
-    }
-}
-
-enum VoteThresholdMode: String, CaseIterable, Identifiable {
-    case majority
-    case unanimous
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .majority: "Majority"
-        case .unanimous: "Everyone agrees"
-        }
-    }
-
-    /// The server's tally, in words: a majority passes once the yes votes outnumber every
-    /// other voter, cast or not; unanimity fails on the first no.
-    var caption: String {
-        switch self {
-        case .majority: "Passes once more than half the voters say yes."
-        case .unanimous: "Passes only if every voter says yes."
-        }
-    }
-}
-
-enum VoteExpiryOption: Int64, CaseIterable, Identifiable {
-    case oneHour = 3600
-    case oneDay = 86_400
-    case sevenDays = 604_800
-
-    var id: Int64 { rawValue }
-
-    var label: String {
-        switch self {
-        case .oneHour: "1 hour"
-        case .oneDay: "24 hours"
-        case .sevenDays: "7 days"
-        }
-    }
-
-    /// A proposal passes the moment it has the votes; the window only decides when one that
-    /// does not closes.
-    var caption: String {
-        "A vote that hasn't passed closes after \(label)."
-    }
-}
-
-/// The Start a cabal screen's own words. The rule labels and captions live on the enums above.
 enum CabalRulesCopy {
     static let screenTitle = "Start a cabal"
     static let namePlaceholder = "Cabal name"
@@ -103,51 +13,49 @@ enum CabalRulesCopy {
     static let expiryTitle = "Votes stay open"
     static let create = "Create cabal"
     static let creating = "Creating…"
+    static let created = "Cabal created."
 
     static var auditedStrings: [String] {
         [
             screenTitle, namePlaceholder, nameHint, sectionTitle, joinTitle, votersTitle, thresholdTitle, expiryTitle,
-            create, creating,
+            create, creating, created,
         ]
-            + JoinPolicyMode.allCases.flatMap { [$0.label, $0.caption] }
-            + VoterSetMode.allCases.flatMap { [$0.label, $0.caption] }
-            + VoteThresholdMode.allCases.flatMap { [$0.label, $0.caption] }
-            + VoteExpiryOption.allCases.flatMap { [$0.label, $0.caption] }
+            + CabalJoinMode.allCases.flatMap { [$0.label, $0.caption] }
+            + CabalVoterMode.allCases.flatMap { [$0.label, $0.caption] }
+            + CabalThreshold.allCases.flatMap { [$0.label, $0.caption] }
+            + CabalProposalExpiry.allCases.flatMap { [$0.label, $0.caption] }
+            + [CreateCabalForm.NameProblem.tooShort, .tooLong, .invalid].compactMap(\.message)
     }
 }
 
-/// Start a cabal: the name, then the rules it runs on — who can join, who votes, what it takes
-/// to pass, and how long a vote stays open. Nothing about money: the pot starts empty and fills
-/// once members add to it.
 struct CreateGroupView: View {
-    @ObservedObject var auth: PrivyAuthService
-    /// Present inside the signed-in shell; lightweight session patch after create.
+    @Environment(AppEnvironment.self) private var environment: AppEnvironment?
+    @Environment(ToastCenter.self) private var toasts: ToastCenter?
     @Environment(AppSessionStore.self) private var session: AppSessionStore?
-    /// The cabal exists. The owner of the stack replaces this form with it, so
-    /// Back lands on the Cabals tab instead of on a form that is still armed.
-    let onCreated: (CreateGroupResponse) -> Void
 
-    private let actions: CabalsActionSource
+    private let auth: PrivyAuthService?
+    private let injectedActions: CabalsActionSource?
+    private let onCreated: ((Components.Schemas.Cabal) -> Void)?
+
+    @State private var form = CreateCabalForm()
+    @State private var submission = IdempotentSubmission()
+    @State private var isCreating = false
 
     init(
-        auth: PrivyAuthService,
+        auth: PrivyAuthService? = nil,
         actions: CabalsActionSource? = nil,
-        onCreated: @escaping (CreateGroupResponse) -> Void = { _ in }
+        onCreated: ((Components.Schemas.Cabal) -> Void)? = nil
     ) {
         self.auth = auth
-        self.actions = actions ?? LiveCabalsActionSource(auth: auth)
+        self.injectedActions = actions
         self.onCreated = onCreated
     }
 
-    @State private var groupName = ""
-    @State private var joinPolicy: JoinPolicyMode = .open
-    @State private var voterSet: VoterSetMode = .allMembers
-    @State private var threshold: VoteThresholdMode = .majority
-    @State private var voteExpiry: VoteExpiryOption = .oneDay
-
-    @State private var errorMessage: String?
-    @State private var isCreating = false
-    @State private var toast: MonacoToast?
+    private var actions: CabalsActionSource? {
+        if let injectedActions { return injectedActions }
+        guard let environment else { return nil }
+        return LiveCabalsActionSource(auth: environment.auth, api: environment.api)
+    }
 
     var body: some View {
         ScrollView {
@@ -155,10 +63,10 @@ struct CreateGroupView: View {
                 nameField
                     .padding(.horizontal, MonacoTheme.Space.m)
                 CabalRulesSection(
-                    joinPolicy: $joinPolicy,
-                    voterSet: $voterSet,
-                    threshold: $threshold,
-                    voteExpiry: $voteExpiry,
+                    joinPolicy: $form.joinMode,
+                    voterSet: $form.voterMode,
+                    threshold: $form.threshold,
+                    voteExpiry: $form.expiry,
                     identifierPrefix: "create-rule"
                 )
                 .disabled(isCreating)
@@ -172,100 +80,86 @@ struct CreateGroupView: View {
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
             BottomCTA {
-                Button(isCreating ? CabalRulesCopy.creating : CabalRulesCopy.create) {
-                    Task { await createGroup() }
+                Button {
+                    Task { await create() }
+                } label: {
+                    HStack(spacing: MonacoTheme.Space.s) {
+                        if isCreating {
+                            ProgressView().tint(MonacoTheme.primaryButtonLabel)
+                            Text(CabalRulesCopy.creating)
+                        } else {
+                            Text(CabalRulesCopy.create)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.monacoPrimary)
-                .disabled(isCreating || !canSubmit)
+                .disabled(isCreating || form.input == nil || actions == nil)
                 .accessibilityIdentifier("create-group-submit")
             }
         }
-        .monacoToast($toast, placement: .aboveBottomCTA)
-        // A create that did not go through says so the way every other action in the app does,
-        // in a toast over the button rather than a banner inside the form.
-        .onChange(of: errorMessage) { _, message in
-            if let message { toast = MonacoToast(message: message) }
+        .onChange(of: form) { _, _ in
+            submission = IdempotentSubmission()
         }
     }
 
-    /// The field keeps `create-group-name`: the UI tests type into it by that name. Return only
-    /// puts the keyboard away; creating is the button's job, so a stray Return never starts a
-    /// cabal before the rules have been read.
     private var nameField: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            MonacoTextField(CabalRulesCopy.namePlaceholder, text: $groupName)
+            MonacoTextField(CabalRulesCopy.namePlaceholder, text: $form.name)
                 .submitLabel(.done)
                 .disabled(isCreating)
                 .accessibilityIdentifier("create-group-name")
-            Text(CabalRulesCopy.nameHint)
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
+            if let problem = nameProblemMessage {
+                Text(problem)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.loss)
+                    .accessibilityIdentifier("create-group-name-problem")
+            } else {
+                Text(CabalRulesCopy.nameHint)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.muted)
+            }
         }
     }
 
-    /// Only the name gates the button. "Just me" needs the creator's id, but
-    /// that is a reason to say so when the member taps — not to hand them a
-    /// dead button with no explanation.
-    private var canSubmit: Bool {
-        !groupName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    private var nameProblemMessage: String? {
+        guard !form.name.isEmpty else { return nil }
+        return form.nameProblem?.message
     }
 
-    private func createGroup() async {
-        // The disabled state only lands on the next render, so a fast double tap
-        // gets through it. Same guard the money screens use.
-        guard !isCreating else { return }
-
-        let trimmedName = groupName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else {
-            errorMessage = "Cabal name is required."
-            return
-        }
-
-        // Held for the whole run, including the profile read below, so there is
-        // no window where a second tap can start a second cabal.
+    private func create() async {
+        guard !isCreating, let input = form.input, let actions else { return }
         isCreating = true
-        errorMessage = nil
         defer { isCreating = false }
-
-        var memberIds: [String] = []
-        if voterSet == .namedSubset {
-            // "Just me" needs the creator's id. The signed-in profile is already
-            // in the shell; the form used to re-open a backend session and
-            // re-read /v1/me on every appearance.
-            if session?.profile?.userID == nil {
-                // Recover here rather than sending them away: this form is
-                // pushed, so "pull down on Cabals" costs them what they typed.
-                await session?.refresh(auth: auth)
-            }
-            guard let creatorUserId = session?.profile?.userID else {
-                errorMessage = "We couldn't confirm your profile. Check your connection, then tap Create cabal again."
-                return
-            }
-            memberIds = [creatorUserId]
-        }
-
         do {
-            let created = try await actions.createGroup(
-                name: trimmedName,
-                joinPolicyMode: joinPolicy.rawValue,
-                voterSetMode: voterSet.rawValue,
-                voterMemberIds: memberIds,
-                threshold: threshold.rawValue,
-                voteExpirySeconds: voteExpiry.rawValue
-            )
-            // #215: patch the session locally and refresh in the background; no full reload.
-            session?.refreshAfterCreate(auth: auth, created: created)
-            onCreated(created)
-        } catch MonacoAPIError.missingAccessToken {
-            errorMessage = "Sign in to create a cabal."
+            let cabal = try await actions.createCabal(input, submission: submission)
+            if let auth = auth ?? environment?.auth {
+                session?.refreshAfterCreate(auth: auth, created: cabal)
+            }
+            toasts?.show(success: CabalRulesCopy.created)
+            if let onCreated {
+                onCreated(cabal)
+            } else {
+                showCreated(cabal)
+            }
         } catch {
-            errorMessage = "Couldn't create this cabal. Try again."
+            toasts?.show(APIError(error))
         }
+    }
+
+    private func showCreated(_ cabal: Components.Schemas.Cabal) {
+        guard let navigator = environment?.navigator else { return }
+        if navigator.cabalsPath.last == AnyAppRoute(CreateCabalRoute()) {
+            navigator.cabalsPath.removeLast()
+        }
+        navigator.open(CabalRoute(id: cabal.id), in: .cabals)
     }
 }
 
+#if DEBUG
 #Preview {
     NavigationStack {
-        CreateGroupView(auth: PrivyAuthService())
+        CreateGroupView(actions: CabalsTabSampleData.Actions())
     }
 }
+#endif
