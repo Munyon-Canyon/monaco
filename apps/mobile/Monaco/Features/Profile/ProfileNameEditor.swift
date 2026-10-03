@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -28,6 +29,7 @@ struct ProfileNameEditor: View {
     @State private var draft: String
     @State private var isSaving = false
     @State private var saveError: String?
+    @State private var submission = IdempotentSubmission()
     @FocusState private var isFocused: Bool
 
     init(
@@ -110,7 +112,7 @@ struct ProfileNameEditor: View {
         if let saveName {
             outcome = await saveName.saveDisplayName(draft)
         } else {
-            outcome = await session.updateDisplayName(draft, auth: auth)
+            outcome = await session.updateDisplayName(draft, auth: auth, submission: submission)
         }
         isSaving = false
         switch outcome {

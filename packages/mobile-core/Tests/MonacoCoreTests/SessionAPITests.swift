@@ -46,20 +46,6 @@ final class SessionAPITests: XCTestCase {
         XCTAssertEqual(sent.first?.headerFields[.authorization], "Bearer token-1")
     }
 
-    func testPatchMeSendsTheNameWithTheSessionBearer() async throws {
-        let transport = StubTransport(.json(.ok, Self.meJSON))
-
-        let profile = try await makeAPI(transport).patchMe(displayName: "New name")
-
-        let sent = await transport.sent
-        let idempotencyKey = try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))
-        XCTAssertEqual(sent.map(\.path), ["/v1/me"])
-        XCTAssertEqual(sent.map(\.method), [.patch])
-        XCTAssertEqual(sent.first?.headerFields[.authorization], "Bearer token-1")
-        XCTAssertNotNil(sent.first?.headerFields[idempotencyKey])
-        XCTAssertEqual(profile.displayName, "Kai Cenat")
-    }
-
     func testUpdateDisplayNamePatchesTheNameAndReturnsTheServerProfile() async throws {
         let saved = Self.meJSON.replacingOccurrences(of: "Kai Cenat", with: "QA Name")
         let transport = StubTransport(.json(.ok, saved))

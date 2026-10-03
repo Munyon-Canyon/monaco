@@ -412,6 +412,41 @@ struct AppSessionStoreBootstrapTests {
         #expect(store.profile?.displayName == "Kai Cenat")
     }
 
+    @Test func aPhotoSaveStoresTheServerProfile() async throws {
+        let withPhoto = SessionWire.me.replacingOccurrences(
+            of: #""display_name":"Kai Cenat","#,
+            with: #""display_name":"Kai Cenat","photo_url":"https://cdn.test/kai.jpg","#
+        )
+        let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), .json(.ok, withPhoto)])
+        let store = AppSessionStore(apiClient: StubDataSource(), sessions: sessionAPI(transport))
+        let auth = StubAuth()
+        await store.bootstrap(auth: auth)
+
+        let outcome = await store.saveProfilePhoto(
+            Data([0xFF, 0xD8, 0xFF]), auth: auth, submission: IdempotentSubmission())
+
+        #expect(outcome == .saved)
+        #expect(await transport.sent.last?.path == "/v1/me/profile-photo")
+        #expect(store.profile?.photoURL?.absoluteString == "https://cdn.test/kai.jpg")
+    }
+
+    @Test func aRateLimitedPhotoSaveShowsTheServerMessage() async throws {
+        let problem = Components.Schemas.Problem(
+            _type: .about_colon_blank, title: "Too Many Requests", status: 429, code: .rateLimited,
+            message: "Slow down. Try again soon.", traceId: "trace", retryable: true
+        )
+        let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), try .problem(problem)])
+        let store = AppSessionStore(apiClient: StubDataSource(), sessions: sessionAPI(transport))
+        let auth = StubAuth()
+        await store.bootstrap(auth: auth)
+
+        let outcome = await store.saveProfilePhoto(
+            Data([0xFF, 0xD8, 0xFF]), auth: auth, submission: IdempotentSubmission())
+
+        #expect(outcome == .failed("Slow down. Try again soon."))
+        #expect(auth.rejectedTokens.isEmpty)
+    }
+
     @Test func aMissingTokenOnTheProfileReloadKeepsTheMemberSignedIn() async {
         let auth = StubAuth()
         let tokens = SessionTokens(

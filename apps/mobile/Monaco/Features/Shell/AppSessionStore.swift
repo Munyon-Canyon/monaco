@@ -34,7 +34,6 @@ extension PrivyAuthService: SessionAuthenticating {}
 @Observable
 @MainActor
 final class AppSessionStore {
-    typealias ProfileClientFactory = @MainActor @Sendable (String) -> MonacoCore.MonacoAPIClient
     var home: HomeViewDTO?
     var dashboard: HomeDashboardDTO?
     var profile: SessionProfile? { didSet { onProfileChange?(profile) } }
@@ -49,11 +48,11 @@ final class AppSessionStore {
     var errorDebugDetail: String?
     #endif
     var isLoading = true
+    var nudgeDismissed = false
     private(set) var leaderboardRange: HomeLeaderboardRange = .all
 
     let apiClient: AppSessionDataSource
     let sessions: SessionAPI?
-    let profileClientFactory: ProfileClientFactory
     var skipsSessionOpen = false
     private var refreshGeneration = 0
     private var dashboardGeneration = 0
@@ -63,17 +62,9 @@ final class AppSessionStore {
     /// Protects a local profile write from an older `/v1/me` response.
     private var profileWriteGeneration = 0
 
-    init(
-        apiClient: AppSessionDataSource,
-        sessions: SessionAPI? = nil,
-        profileClientFactory: ProfileClientFactory? = nil
-    ) {
+    init(apiClient: AppSessionDataSource, sessions: SessionAPI? = nil) {
         self.apiClient = apiClient
         self.sessions = sessions
-        self.profileClientFactory =
-            profileClientFactory ?? { token in
-                MonacoCore.MonacoAPIClient(baseURL: Config.apiBaseURL, accessTokenProvider: { token })
-            }
     }
 
     func bootstrap(auth: SessionAuthenticating, devSession: Bool = false) async {
@@ -248,6 +239,7 @@ final class AppSessionStore {
         errorDebugDetail = nil
         #endif
         isLoading = false
+        nudgeDismissed = false
         leaderboardRange = .all
         skipsSessionOpen = false
     }
