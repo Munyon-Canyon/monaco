@@ -125,7 +125,16 @@ func red(r gqlContext) bool { return r.Conclusion == "FAILURE" || r.Conclusion =
 func (c gqlCommit) stage1Red() bool {
 	for _, r := range c.latest() {
 		if r.Name == stage1Check {
-			return red(r)
+			return red(r) && !c.newerRunPending()
+		}
+	}
+	return false
+}
+
+func (c gqlCommit) newerRunPending() bool {
+	for _, r := range c.latest() {
+		if strings.HasPrefix(r.Name, "ci / ") && r.Name != stage1Check && r.Conclusion == "" {
+			return true
 		}
 	}
 	return false

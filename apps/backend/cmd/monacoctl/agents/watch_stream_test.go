@@ -2,6 +2,7 @@ package agents
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -10,6 +11,8 @@ import (
 	"testing"
 	"time"
 )
+
+const waiting12 = "#1 labeled, waiting for Graphite (stage 1 success)\n#2 labeled, waiting for Graphite (stage 1 success)\n"
 
 const mqTitle = "[Graphite MQ] Draft PR GROUP:spec_de1996 (PRs 1307, 1308, 1309)"
 
@@ -83,7 +86,7 @@ func TestWatchStream_printsTheStateOnceThenOnlyWhatChanged(t *testing.T) {
 		f.hub.on(graphqlRoute, draftData([]string{node, closedDraft(92, rollup(greenOK, flakeJob))}))
 	})
 	want := "#1 queued\n#2 queued\ndraft #90 open\ndraft #90 ci / ci-ok: pass\n" +
-		"draft #90 verify: pass\ndraft #90 ext: fail\ndraft #90 ci / Flake: fail\ndraft #90 closed\n"
+		"draft #90 verify: pass\ndraft #90 ext: fail\ndraft #90 ci / Flake: fail\n" + waiting12 + "draft #90 closed\n"
 	if got != want {
 		t.Fatalf("stream\n got %q\nwant %q", got, want)
 	}
@@ -100,7 +103,7 @@ func TestWatchStream_settlesAStackOnceEveryPRLanded(t *testing.T) {
 			s.prs[1].State, s.prs[2].State = "MERGED", "CLOSED"
 		}
 	})
-	want := "#1 queued\n#2 queued\n#1 landed\n#2 landed\nstack #2 landed (#1 #2)\n"
+	want := waiting12 + "#1 landed\n#2 landed\nstack #2 landed (#1 #2)\n"
 	if got != want {
 		t.Fatalf("stream\n got %q\nwant %q", got, want)
 	}
@@ -150,7 +153,7 @@ func TestWatchStream_ejectsAStackOnlyAfterTwoRoundsWithoutTheLabel(t *testing.T)
 			if strings.Contains(got, block) != tc.ejected || (f.owned(t).Queued == nil) != tc.ejected {
 				t.Fatalf("ejected = %v, want %v:\n%s", f.owned(t).Queued == nil, tc.ejected, got)
 			}
-			if !strings.HasPrefix(got, "#1 queued\n#2 queued\n#2 ejected\n") {
+			if !strings.HasPrefix(got, waiting12+"#2 ejected\n") {
 				t.Fatalf("stream:\n%s", got)
 			}
 			if tc.ejected && (s.prs[1].labeled("merge-queue") || s.prs[2].labeled("merge-queue")) {
@@ -394,7 +397,7 @@ func TestWatchStream_landsAnArmedStackOnceStage1Passes(t *testing.T) {
 		}
 	})
 	want := "armed stack #2 landing\nqueued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" +
-		"queued together: #1 #2\n#1 queued\n#2 queued\n"
+		"queued together: #1 #2\n" + waiting12
 	if got != want {
 		t.Fatalf("stream\n got %q\nwant %q", got, want)
 	}
@@ -425,6 +428,63 @@ func TestWatchStream_disarmsAnArmedStackWhoseStage1FailsOnce(t *testing.T) {
 	}
 	if r := f.owned(t); r.Armed != nil || r.Queued != nil {
 		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
+	}
+}
+
+func TestWatchStream_keepsAnArmedStackArmedWhileANewerRunReplacesACancelledOne(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := armedWatch(t, f)
+	got := streamRounds(t, f, 4, func(round int) {
+		switch round {
+		case 1:
+			*s.prs[2] = *stackOf(t, 2, "b2", "b1", "FAILURE", "")
+			rollup := &s.prs[2].Commits.Nodes[0].Commit.StatusCheckRollup.Contexts
+			rollup.Nodes = append(rollup.Nodes, gqlContext{Name: "ci / Lint", Status: "IN_PROGRESS"})
+		case 2:
+			*s.prs[2] = *green(t, 2, "b2", "b1")
+		}
+	})
+	if strings.Contains(got, "disarmed") || !strings.HasPrefix(got, "armed stack #2 landing\n") {
+		t.Fatalf("stream:\n%s", got)
+	}
+	if r := f.owned(t); r.Armed != nil || r.Queued == nil {
+		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
+	}
+}
+
+func TestWatchStream_namesALabeledPRNoDraftHoldsAndItsStage1(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := queuedStack(t, f, "/w/40")
+	*s.prs[2] = *labeled(stackOf(t, 2, "b2", "b1", "pending", ""), "merge-queue")
+	got := streamRounds(t, f, 2, func(int) {})
+	want := "#1 labeled, waiting for Graphite (stage 1 success)\n#2 labeled, waiting for Graphite (stage 1 pending)\n"
+	if got != want {
+		t.Fatalf("stream\n got %q\nwant %q", got, want)
+	}
+	if f.owned(t).Queued == nil {
+		t.Fatal("a labeled PR no draft holds was treated as ejected")
+	}
+}
+
+func TestWatchStream_namesAPRWhoseLabelWasJustRemovedWithoutEjectingIt(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := queuedStack(t, f, "/w/40")
+	got := streamRounds(t, f, 2, func(int) {})
+	s.prs[2].Labels.Nodes = nil
+	raw := fmt.Sprintf(`{"nodes":[{"__typename":"UnlabeledEvent","createdAt":%q,"label":{"name":"merge-queue"}}]}`,
+		f.now.Format(time.RFC3339))
+	if err := json.Unmarshal([]byte(raw), &s.prs[2].TimelineItems); err != nil {
+		t.Fatal(err)
+	}
+	got += streamRounds(t, f, 2, func(int) {})
+	if !strings.Contains(got, "#2 label just removed, waiting for Graphite\n") || strings.Contains(got, "ejected") {
+		t.Fatalf("stream:\n%s", got)
+	}
+	if f.owned(t).Queued == nil {
+		t.Fatal("a PR whose label was just removed was treated as ejected")
 	}
 }
 

@@ -293,3 +293,43 @@ func TestQueueJob_isEmptyWithNoDraftAndNoCommit(t *testing.T) {
 		t.Fatalf("queueJob = %+v, want none", got)
 	}
 }
+
+func TestStage1_aFailureFromACancelledRunWaitsForTheNewerRun(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		other gqlContext
+		want  string
+	}{
+		{"a newer run's job is in progress", gqlContext{Name: "ci / Lint", Status: "IN_PROGRESS"}, "pending"},
+		{"a newer run's job is queued", gqlContext{Name: "ci / Plan", Status: "QUEUED"}, "pending"},
+		{"every ci job finished", gqlContext{Name: "ci / Lint", Status: "COMPLETED", Conclusion: "CANCELLED"}, "failure"},
+		{"only a non-ci check is running", gqlContext{Name: formatCheck, Status: "IN_PROGRESS"}, "failure"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			p := stackOf(t, 1, "b1", "fb", "FAILURE", "")
+			rollup := &p.Commits.Nodes[0].Commit.StatusCheckRollup.Contexts
+			rollup.Nodes = append(rollup.Nodes, tc.other)
+			if got := p.flat("").Stage1; got != tc.want {
+				t.Fatalf("stage 1 = %q, want %q", got, tc.want)
+			}
+			if red := p.Commits.Nodes[0].Commit.stage1Red(); red != (tc.want == "failure") {
+				t.Fatalf("stage1Red = %v", red)
+			}
+		})
+	}
+}
+
+func TestStage1_aRunWhoseCIOKHasNotStartedIsPending(t *testing.T) {
+	t.Parallel()
+	p := stackOf(t, 1, "b1", "fb", "", "")
+	rollup := &p.Commits.Nodes[0].Commit.StatusCheckRollup.Contexts
+	if got := p.flat("").Stage1; got != "" {
+		t.Fatalf("stage 1 with no ci jobs = %q, want missing", got)
+	}
+	rollup.Nodes = append(rollup.Nodes, gqlContext{Name: "ci / Plan", Status: "IN_PROGRESS"})
+	if got := p.flat("").Stage1; got != "pending" {
+		t.Fatalf("stage 1 = %q, want pending", got)
+	}
+}

@@ -194,6 +194,9 @@ func (p gqlPR) flat(label string) ticketPR {
 		for _, x := range c.Commit.latest() {
 			t.note(x)
 		}
+		if (t.Stage1 == "" || t.Stage1 == "failure") && c.Commit.newerRunPending() {
+			t.Stage1 = "pending"
+		}
 	}
 	for _, e := range p.TimelineItems.Nodes {
 		if e.Label.Name == label {
