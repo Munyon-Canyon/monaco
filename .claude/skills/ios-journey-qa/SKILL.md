@@ -1,5 +1,5 @@
 ---
-name: ios-flow-qa
+name: ios-journey-qa
 description: Flow QA for the iOS app. Use when asked to QA or test a flow or a milestone's flows on the simulator, when a flow doc under docs/flows is added or its version changes, or when picking up a milestone's "Update the flows" ticket. For unit tests or a sample-harness screen use ios-verify.
 ---
 

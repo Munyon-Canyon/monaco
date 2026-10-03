@@ -24,9 +24,9 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DOCS = ROOT / "docs" / "flows"
-QA = ROOT / "apps" / "mobile" / "qa" / "flows"
-OUT = ROOT / ".logs" / "qa" / "flows"
+DOCS = ROOT / "docs" / "journeys"
+QA = ROOT / "apps" / "mobile" / "qa" / "journeys"
+OUT = ROOT / ".logs" / "qa" / "journeys"
 DERIVED = OUT / "derived"
 RESULTS = OUT / "results.tsv"
 BUNDLE_ID = "com.monaco.app"
