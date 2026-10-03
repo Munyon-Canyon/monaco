@@ -12,6 +12,7 @@ extension Flow00Outcome: WireOutcome {}
 extension Flow01Outcome: WireOutcome {}
 extension Flow02Outcome: WireOutcome {}
 extension Flow10Outcome: WireOutcome {}
+extension Flow11Outcome: WireOutcome {}
 extension Flow18Outcome: WireOutcome {}
 extension Flow20Outcome: WireOutcome {}
 extension Flow23Outcome: WireOutcome {}
@@ -37,12 +38,24 @@ final class FlowOutcomeTests: XCTestCase {
         XCTAssertEqual(Flow01Outcome.commands, ["OpenSession"])
     }
 
+    func testPlannedFlowWithoutACommandStillMapsItsWireCodes() {
+        XCTAssertEqual(Flow11Outcome.commands, [])
+        XCTAssertEqual(Flow11Outcome(code: "slippage_exceeded"), .slippageExceeded)
+        assertCodesRoundTrip(Flow11Outcome.self)
+    }
+
     private func assertRoundTrip<Outcome: WireOutcome>(
         _ type: Outcome.Type, file: StaticString = #filePath, line: UInt = #line
     ) {
-        XCTAssertFalse(type.flowID.isEmpty, file: file, line: line)
         XCTAssertFalse(type.commands.isEmpty, file: file, line: line)
         XCTAssertFalse(type.commands.contains(where: \.isEmpty), file: file, line: line)
+        assertCodesRoundTrip(type, file: file, line: line)
+    }
+
+    private func assertCodesRoundTrip<Outcome: WireOutcome>(
+        _ type: Outcome.Type, file: StaticString = #filePath, line: UInt = #line
+    ) {
+        XCTAssertFalse(type.flowID.isEmpty, file: file, line: line)
         for outcome in type.allCases {
             if let code = outcome.code {
                 XCTAssertEqual(type.init(code: code), outcome, "\(type) \(code)", file: file, line: line)
