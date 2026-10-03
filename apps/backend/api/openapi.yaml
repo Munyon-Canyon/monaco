@@ -472,6 +472,29 @@ paths:
               example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 2, members: [], me: {role: member, can_vote: true}, my_access_request: null, invite_code: ABCD2345, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/cabals/{id}/members/me:
+    delete:
+      operationId: deleteCabalMemberMe
+      tags: [cabal]
+      x-idempotent: true
+      summary: Leave a cabal.
+      description: >-
+        Removes the caller from the cabal, banned or not. A caller holding shares is refused with
+        leave_holds_shares, so the app routes them to cash out first. The last member is refused with
+        leave_last_member_pot_not_empty while the pot holds money, and the creator with
+        leave_creator_with_members while other members remain. A replay returns the first response.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema: {type: string, format: uuid}
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "204":
+          description: The caller is no longer a member.
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/picture:
     put:
       operationId: putCabalPicture

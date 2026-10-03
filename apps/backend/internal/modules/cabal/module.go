@@ -6,6 +6,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
@@ -14,8 +15,9 @@ import (
 )
 
 type Module struct {
-	deps    module.Deps
-	wallets app.TreasuryWallets
+	deps     module.Deps
+	wallets  app.TreasuryWallets
+	treasury app.TreasuryReads
 }
 
 type Option func(*Module)
@@ -24,8 +26,12 @@ func WithTreasuryWallets(wallets app.TreasuryWallets) Option {
 	return func(m *Module) { m.wallets = wallets }
 }
 
+func WithTreasuryReads(reads app.TreasuryReads) Option {
+	return func(m *Module) { m.treasury = reads }
+}
+
 func New(d module.Deps, opts ...Option) *Module {
-	m := &Module{deps: d}
+	m := &Module{deps: d, treasury: treasury.New(d).Queries()}
 	for _, opt := range opts {
 		opt(m)
 	}
@@ -43,6 +49,7 @@ func (m *Module) Routes(r *httpx.Routes) {
 		Decide:  app.NewDecideAccessHandler(m.deps.UoW, m.deps.Clock),
 		Update:  app.NewUpdateCabalHandler(m.deps.UoW, m.deps.Clock),
 		Picture: app.NewSetCabalPictureHandler(m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, m.deps.Photos),
+		Leave:   app.NewLeaveCabalHandler(m.deps.UoW, m.deps.Pool, m.treasury),
 		DB:      m.deps.Pool, Users: identity.New(m.deps).Queries(),
 	}
 	r.CabalRoutes, r.CabalJoinRoutes, r.CabalAccessRoutes, r.CabalPictureRoutes = h, h, h, h
@@ -58,6 +65,7 @@ func (m *Module) Consumers() []bus.Consumer {
 			bus.Handle("cabal.hints.access_requested", hints.AccessRequested),
 			bus.Handle("cabal.hints.access_decided", hints.AccessDecided),
 			bus.Handle("cabal.hints.updated", hints.Updated),
+			bus.Handle("cabal.hints.member_left", hints.MemberLeft),
 		},
 	}}
 }

@@ -29,6 +29,11 @@ func (h Hints) MemberJoined(_ context.Context, tx db.Tx, e events.CabalMemberJoi
 	return nil
 }
 
+func (h Hints) MemberLeft(_ context.Context, tx db.Tx, e events.CabalMemberLeft, _ time.Time) error {
+	h.after(tx, cabalHint(e.CabalID, "members"), "user."+e.UserID.String()+".cabals", accessHint(e.UserID))
+	return nil
+}
+
 func (h Hints) AccessDecided(_ context.Context, tx db.Tx, e events.CabalAccessDecided, _ time.Time) error {
 	h.after(tx, cabalHint(e.CabalID, "members"), cabalHint(e.CabalID, "access_requests"), accessHint(e.UserID))
 	return nil

@@ -33,6 +33,7 @@ type HTTP struct {
 	Decide  *app.DecideAccessHandler
 	Update  *app.UpdateCabalHandler
 	Picture *app.SetCabalPictureHandler
+	Leave   *app.LeaveCabalHandler
 	DB      sqlc.DBTX
 	Users   app.UserCards
 }
@@ -323,6 +324,19 @@ func (h HTTP) PostCabalMember(
 		return nil, err
 	}
 	return api.PostCabalMember200JSONResponse(wireCabal(view)), nil
+}
+
+func (h HTTP) DeleteCabalMemberMe(
+	ctx context.Context, req api.DeleteCabalMemberMeRequestObject,
+) (api.DeleteCabalMemberMeResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.Leave.Handle(ctx, app.LeaveCabal{ActorID: user, CabalID: ids.CabalIDFrom(req.Id)}); err != nil {
+		return nil, err
+	}
+	return api.DeleteCabalMemberMe204Response{}, nil
 }
 
 func (h HTTP) GetCabalByCode(

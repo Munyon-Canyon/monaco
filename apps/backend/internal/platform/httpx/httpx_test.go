@@ -209,6 +209,12 @@ func (healthz) GetCabalByCode(
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabalByCode")
 }
 
+func (healthz) DeleteCabalMemberMe(
+	context.Context, api.DeleteCabalMemberMeRequestObject,
+) (api.DeleteCabalMemberMeResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.DeleteCabalMemberMe")
+}
+
 func (healthz) PostCabalAccessRequest(
 	context.Context, api.PostCabalAccessRequestRequestObject,
 ) (api.PostCabalAccessRequestResponseObject, error) {

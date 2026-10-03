@@ -132,6 +132,9 @@ type CabalPictureRoutes interface {
 type CabalJoinRoutes interface {
 	PostCabalMember(context.Context, api.PostCabalMemberRequestObject) (api.PostCabalMemberResponseObject, error)
 	GetCabalByCode(context.Context, api.GetCabalByCodeRequestObject) (api.GetCabalByCodeResponseObject, error)
+	DeleteCabalMemberMe(
+		context.Context, api.DeleteCabalMemberMeRequestObject,
+	) (api.DeleteCabalMemberMeResponseObject, error)
 }
 
 type GovernanceRoutes interface {
