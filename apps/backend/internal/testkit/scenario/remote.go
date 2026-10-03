@@ -23,23 +23,28 @@ type Remote struct {
 	FakesURL   string
 	PrivyAppID string
 	ClientIP   string
+	Flow       string
+	Trigger    string
 	Pool       *pgxpool.Pool
 	Consumers  []bus.Consumer
 	Mint       func(userID string) string
 	Converge   func(ctx context.Context, eventIDs []string) error
 	Crash      func(ctx context.Context, point faultpoint.Name) error
+	Restart    func(ctx context.Context) error
 	Enter      func(stage Stage)
 	Exchanged  func(e Exchange)
 	Logs       func(from int) (lines []string, changed <-chan struct{})
 }
 
-func Against(t T, r Remote) *Scenario {
+func Against(ctx context.Context, t T, r Remote) *Scenario {
 	rm := &remote{Remote: r}
 	client := &http.Client{Transport: http.DefaultTransport.(*http.Transport).Clone()}
 	t.Cleanup(client.CloseIdleConnections)
-	return newScenario(t, &backend{
+	b := &backend{
 		baseURL:       r.URL,
 		clientIP:      r.ClientIP,
+		flow:          r.Flow,
+		trigger:       r.Trigger,
 		client:        client,
 		note:          newNotifier(),
 		pool:          r.Pool,
@@ -58,7 +63,15 @@ func Against(t T, r Remote) *Scenario {
 		seed:          rm.seed,
 		lines:         r.Logs,
 		tick:          func(T, string) func() { return func() {} },
-	})
+	}
+	if r.Restart != nil {
+		b.restart = func(t T) {
+			if err := r.Restart(ctx); err != nil {
+				t.Fatalf("scenario: restart after faultpoint: %v", err)
+			}
+		}
+	}
+	return newScenario(t, b)
 }
 
 type remote struct {

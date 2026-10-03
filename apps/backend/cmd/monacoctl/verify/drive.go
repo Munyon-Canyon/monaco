@@ -37,8 +37,8 @@ type Env struct {
 	Subject    func(subject string) string
 	Consumers  []bus.Consumer
 	Logs       *Logs
-	Crash      func(ctx context.Context, point faultpoint.Name) error
-	Arm        func(ctx context.Context) error
+	Crash      func(ctx context.Context, u Unit, point faultpoint.Name) error
+	Arm        func(ctx context.Context, u Unit) error
 }
 
 type Result struct {
@@ -106,7 +106,7 @@ func (d *driver) runAll(ctx context.Context, units []Unit, parallel int) []*Resu
 
 func (d *driver) run(ctx context.Context, u Unit) *Result {
 	res := &Result{Unit: u, Phases: map[Phase]time.Duration{}, startedAt: time.Now()}
-	if err := d.env.Arm(ctx); err != nil {
+	if err := d.env.Arm(ctx, u); err != nil {
 		res.fail(err)
 		return res
 	}
@@ -133,8 +133,11 @@ func (d *driver) script(ctx context.Context, u Unit, res *Result) error {
 	t := &flowT{ctx: func() context.Context { return ctx }}
 	stages := make(chan scenario.Stage, 16)
 	done := make(chan struct{})
+	_, trigger := u.Flow.TriggerKind(u.Command)
 	remote := scenario.Remote{
-		URL: d.env.API, FakesURL: d.env.Fakes, PrivyAppID: d.env.PrivyAppID, ClientIP: clientIP(u), Pool: d.env.Pool,
+		URL: d.env.API, FakesURL: d.env.Fakes, PrivyAppID: d.env.PrivyAppID, ClientIP: clientIP(u), Flow: u.Flow.ID,
+		Trigger:   trigger,
+		Pool:      d.env.Pool,
 		Consumers: d.env.Consumers,
 		Mint: func(id string) string {
 			res.mu.Lock()
@@ -143,13 +146,8 @@ func (d *driver) script(ctx context.Context, u Unit, res *Result) error {
 			return d.verifier.Mint(id, time.Now().Add(time.Hour))
 		},
 		Converge: func(ctx context.Context, ids []string) error { return d.converge(ctx, u, ids) },
-		Crash:    d.env.Crash,
-		Enter: func(s scenario.Stage) {
-			select {
-			case stages <- s:
-			case <-ctx.Done():
-			}
-		},
+		Crash:    func(ctx context.Context, point faultpoint.Name) error { return d.env.Crash(ctx, u, point) },
+		Enter:    func(s scenario.Stage) { enterStage(ctx, stages, s) },
 		Exchanged: func(e scenario.Exchange) {
 			res.mu.Lock()
 			res.Exchanges = append(res.Exchanges, e)
@@ -157,11 +155,14 @@ func (d *driver) script(ctx context.Context, u Unit, res *Result) error {
 		},
 		Logs: d.env.Logs.since,
 	}
-	go func() {
+	remote.Restart = d.restart(u)
+	go func(ctx context.Context) {
 		defer close(done)
 		defer t.runCleanups()
-		u.Script(scenario.Against(t, remote))
-	}()
+		s := scenario.Against(ctx, t, remote)
+		u.Script(s)
+		d.requireFault(t, u, s)
+	}(ctx)
 	phase, began := PhaseSeed, d.clock.Now()
 	timer := d.clock.NewTicker(d.budget.Seed)
 	defer func() { timer.Stop() }()
@@ -191,6 +192,27 @@ func (d *driver) script(ctx context.Context, u Unit, res *Result) error {
 		case <-ctx.Done():
 			return stopped(fmt.Errorf("flow %s: %w", u.Name(), context.Cause(ctx)))
 		}
+	}
+}
+
+func (d *driver) restart(u Unit) func(context.Context) error {
+	point, crash := u.Outcome.CrashPoint()
+	if !crash || d.env.Crash == nil {
+		return nil
+	}
+	return func(ctx context.Context) error { return d.env.Crash(ctx, u, faultpoint.Name(point)) }
+}
+
+func (d *driver) requireFault(t *flowT, u Unit, s *scenario.Scenario) {
+	if d.restart(u) != nil && s.Faults() != 1 {
+		t.Fatalf("flow %s observed %d faultpoint responses, want 1", u.Name(), s.Faults())
+	}
+}
+
+func enterStage(ctx context.Context, stages chan<- scenario.Stage, stage scenario.Stage) {
+	select {
+	case stages <- stage:
+	case <-ctx.Done():
 	}
 }
 

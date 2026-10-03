@@ -22,7 +22,7 @@ func TestDo_crashBeforeCommitRollsBackAndRePanicsTheCrash(t *testing.T) {
 			t.Fatalf("things=%d events=%d signals=%d after a crash before commit, want zeros",
 				h.count(t, "things"), h.count(t, "events"), h.pendingSignals())
 		}
-		h.assertOneLine(t, "tx.rolled_back", map[string]any{"code": "panic", "attempt": float64(1)})
+		h.assertOneLine(t, "tx.crashed", map[string]any{"code": "faultpoint", "attempt": float64(1)})
 	}()
 	_ = h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		if err := h.insertThing(ctx, tx, 1); err != nil {

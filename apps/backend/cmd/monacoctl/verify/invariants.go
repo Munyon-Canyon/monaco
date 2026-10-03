@@ -14,6 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
@@ -128,6 +129,9 @@ func routeMismatch(res *Result, route string) string {
 	if len(calls) == 0 {
 		return fmt.Sprintf("no %s request was sent", route)
 	}
+	if apiCrash(res.Unit) && faultpointResponse(calls[0]) {
+		return crashRouteMismatch(calls, route)
+	}
 	name, isCode := res.Unit.Outcome.CodeName()
 	if !isCode {
 		if got := calls[0]; got.Status >= http.StatusBadRequest {
@@ -144,6 +148,38 @@ func routeMismatch(res *Result, route string) string {
 		return fmt.Sprintf("%s answered %d code %q, want %d code %q", route, got.Status, body.Code, want, code)
 	}
 	return ""
+}
+
+func apiCrash(u Unit) bool {
+	point, crash := u.Outcome.CrashPoint()
+	return crash && processFor(u, faultpoint.Name(point)) == procAPI
+}
+
+func crashRouteMismatch(calls []scenario.Exchange, route string) string {
+	first := calls[0]
+	if !faultpointResponse(first) {
+		var body struct {
+			Code string `json:"code"`
+		}
+		_ = json.Unmarshal(first.Response, &body)
+		return fmt.Sprintf("%s answered %d code %q, want 503 code %q",
+			route, first.Status, body.Code, errs.CodeFaultpoint)
+	}
+	if len(calls) < 2 {
+		return route + " faultpoint response was not retried"
+	}
+	if got := calls[len(calls)-1]; got.Status >= http.StatusBadRequest {
+		return fmt.Sprintf("%s retry answered %d, want a 2xx", route, got.Status)
+	}
+	return ""
+}
+
+func faultpointResponse(call scenario.Exchange) bool {
+	var body struct {
+		Code string `json:"code"`
+	}
+	return call.Status == http.StatusServiceUnavailable && json.Unmarshal(call.Response, &body) == nil &&
+		body.Code == string(errs.CodeFaultpoint)
 }
 
 func (d *driver) triggerLine(u Unit, kind tools.TriggerKind, name string) (logNeed, string) {

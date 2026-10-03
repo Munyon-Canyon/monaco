@@ -63,3 +63,28 @@ func TestConfigure_armsEveryContextInTheProcessUntilCleared(t *testing.T) {
 		t.Fatalf("Hit after Configure(\"\") panicked with %v", p)
 	}
 }
+
+func TestConfigure_scopesTheProcessArmToAFlow(t *testing.T) {
+	t.Cleanup(func() { _ = faultpoint.Configure("") })
+	if err := faultpoint.Configure("before-commit@01"); err != nil {
+		t.Fatal(err)
+	}
+	if got := faultpoint.ConfiguredFlow(); got != "01" {
+		t.Fatalf("ConfiguredFlow = %q, want 01", got)
+	}
+	wrongFlow := faultpoint.WithFlow(t.Context(), "00")
+	if p := recovered(func() { faultpoint.Hit(wrongFlow, faultpoint.BeforeCommit) }); p != nil {
+		t.Fatalf("Hit in flow 00 recovered %v", p)
+	}
+	rightFlow := faultpoint.WithFlow(t.Context(), "01")
+	p := recovered(func() { faultpoint.Hit(rightFlow, faultpoint.BeforeCommit) })
+	if p != (faultpoint.Crash{Name: faultpoint.BeforeCommit}) {
+		t.Fatalf("Hit in flow 01 recovered %v, want Crash{before-commit}", p)
+	}
+	if err := faultpoint.Configure(""); err != nil {
+		t.Fatal(err)
+	}
+	if got := faultpoint.ConfiguredFlow(); got != "" {
+		t.Fatalf("ConfiguredFlow after clear = %q, want empty", got)
+	}
+}

@@ -32,6 +32,7 @@ components:
         - db_unavailable
         - decode_failed
         - display_name_invalid
+        - faultpoint
         - feed_item_not_found
         - forbidden
         - handle_invalid

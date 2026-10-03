@@ -106,8 +106,13 @@ func (u *UnitOfWork) run(
 		if r == nil {
 			return
 		}
-		observability.Info(ctx, observability.TxRolledBack,
-			slog.String("code", string(errs.CodePanic)), slog.Int("attempt", attempt))
+		if faultpoint.IsCrash(r) {
+			observability.Info(ctx, observability.TxCrashed,
+				slog.String("code", string(errs.CodeFaultpoint)), slog.Int("attempt", attempt))
+		} else {
+			observability.Info(ctx, observability.TxRolledBack,
+				slog.String("code", string(errs.CodePanic)), slog.Int("attempt", attempt))
+		}
 		rollbackAndRepanic(ctx, pgtx, r)
 	}()
 	if err := fn(ctx, tx); err != nil {

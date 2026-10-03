@@ -280,6 +280,7 @@ func PublishCrashingAt(point faultpoint.Name) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
 		s.app.crashAt(s.t, point)
+		s.app.faults++
 	}
 }
 

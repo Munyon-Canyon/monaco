@@ -67,11 +67,13 @@ type Stack struct {
 	Logs     *Logs
 	Crashes  int
 
-	opts   Options
-	env    []string
-	procs  map[string]*process
-	remove func(context.Context) error
-	armed  bool
+	opts      Options
+	env       []string
+	procs     map[string]*process
+	remove    func(context.Context) error
+	armed     bool
+	armedName string
+	apiEnv    []string
 }
 
 func Up(ctx context.Context, o Options) (*Stack, error) {
@@ -157,25 +159,43 @@ func (s *Stack) processes(ctx context.Context) error {
 		"PRIVY_AUTHORIZATION_PRIVATE_KEY="+upstreams.PrivyAuthorizationKeyConfig(),
 	)
 	s.Fakes = "http://" + fakes.addr
-	apiEnv, workerEnv := []string{"MONACO_HTTP_ADDR=127.0.0.1:0", "TRUST_PROXY_HEADERS=true"}, []string(nil)
+	apiEnv, workerEnv := []string{"TRUST_PROXY_HEADERS=true"}, []string(nil)
 	if s.opts.Faultpoint != "" {
 		apiEnv = append(apiEnv, "MONACO_BUS_API_RELAY=off")
-		workerEnv = append(workerEnv, "MONACO_FAULTPOINT="+s.opts.Faultpoint)
-		s.armed = true
 	}
-	api, err := s.start(ctx, procAPI, s.opts.Bins.API, apiEnv...)
+	s.apiEnv = apiEnv
+	if err := s.startAPI(ctx); err != nil {
+		return err
+	}
+	return s.startWorker(ctx, workerEnv...)
+}
+
+func (s *Stack) startAPI(ctx context.Context, extra ...string) error {
+	addr := "127.0.0.1:0"
+	if s.API != "" {
+		addr = strings.TrimPrefix(s.API, "http://")
+	}
+	api, err := s.start(ctx, procAPI, s.opts.Bins.API,
+		slices.Concat(s.apiEnv, []string{"MONACO_HTTP_ADDR=" + addr}, extra)...)
 	if err != nil {
 		return err
 	}
 	s.API = "http://" + api.addr
-	return s.startWorker(ctx, workerEnv...)
+	return nil
 }
 
 func (s *Stack) startWorker(ctx context.Context, extra ...string) error {
+	addr := "127.0.0.1:0"
+	if s.Worker != "" {
+		addr = strings.TrimPrefix(s.Worker, "http://")
+	}
 	worker, err := s.start(ctx, procWorker, s.opts.Bins.Worker,
-		slices.Concat([]string{"MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0"}, s.opts.WorkerEnv, extra)...)
+		slices.Concat([]string{"MONACO_WORKER_HEALTH_ADDR=" + addr}, s.opts.WorkerEnv, extra)...)
+	if err != nil {
+		return err
+	}
 	s.Worker = "http://" + worker.addr
-	return err
+	return nil
 }
 
 func (s *Stack) start(ctx context.Context, name, bin string, extra ...string) (*process, error) {
@@ -219,7 +239,7 @@ func (s *Stack) probe(ctx context.Context) (string, error) {
 	for name, target := range map[string]string{procAPI: s.API, procWorker: s.Worker} {
 		select {
 		case <-s.procs[name].exited:
-			if name == procWorker && s.armed {
+			if name == s.armedName {
 				continue
 			}
 			return "", fmt.Errorf("%w: %s exited before it was healthy: %w\n%s",

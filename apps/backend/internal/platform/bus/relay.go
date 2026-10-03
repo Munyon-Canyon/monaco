@@ -86,6 +86,7 @@ func (r *Relay) publish(ctx context.Context, row db.OutboxRow) error {
 	if err := r.conn.Publish(ctx, events.Type(row.Type).Subject(), row.Payload, id); err != nil {
 		return err
 	}
+	ctx = faultpoint.WithFlow(ctx, faultpoint.ConfiguredFlow())
 	faultpoint.Hit(ctx, faultpoint.AfterPublish)
 	return nil
 }

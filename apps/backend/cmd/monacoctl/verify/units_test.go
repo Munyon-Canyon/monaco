@@ -183,7 +183,7 @@ func TestDriver_reportsNATSArmAndTokenFailures(t *testing.T) {
 		!strings.Contains(got[0].Error(), "read MISSING") {
 		t.Errorf("global without the dead letter stream = %v", got)
 	}
-	d.env.Arm = func(context.Context) error { return errors.New("worker would not restart") }
+	d.env.Arm = func(context.Context, Unit) error { return errors.New("worker would not restart") }
 	u := flow00(t, Target{Flow: "00", Outcome: "ok"})[0]
 	if res := d.run(t.Context(), u); res.Failure != "worker would not restart" {
 		t.Errorf("run with a failing arm = %+v", res)

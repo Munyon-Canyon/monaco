@@ -16,10 +16,22 @@ type armed struct {
 	left atomic.Int64
 }
 
-var process atomic.Pointer[Name]
+type configured struct {
+	name Name
+	flow string
+}
+
+var process atomic.Pointer[configured]
+
+func ConfiguredFlow() string {
+	if p := process.Load(); p != nil {
+		return p.flow
+	}
+	return ""
+}
 
 func Hit(ctx context.Context, name Name) {
-	if p := process.Load(); p != nil && *p == name {
+	if p := process.Load(); p != nil && p.name == name && (p.flow == "" || p.flow == Flow(ctx)) {
 		panic(Crash{Name: name})
 	}
 	if a, ok := ctx.Value(armedKey{}).(*armed); ok && a.name == name && a.left.Add(-1) < 0 {
@@ -38,10 +50,10 @@ func Configure(name string) error {
 		process.Store(nil)
 		return nil
 	}
-	if err := checkKnown(name); err != nil {
+	point, flow, err := parse(name)
+	if err != nil {
 		return err
 	}
-	armed := Name(name)
-	process.Store(&armed)
+	process.Store(&configured{name: point, flow: flow})
 	return nil
 }

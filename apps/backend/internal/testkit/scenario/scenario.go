@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -68,6 +69,10 @@ type backend struct {
 	seed          func(t T, name string) []testkit.Seeded
 	lines         func(from int) ([]string, <-chan struct{})
 	tick          func(t T, poller string) (stop func())
+	flow          string
+	trigger       string
+	restart       func(t T)
+	faults        int
 }
 
 type Scenario struct {
@@ -170,6 +175,8 @@ func (s *Scenario) run(stage Stage, steps []Step) *Scenario {
 	return s
 }
 
+func (s *Scenario) Faults() int { return s.app.faults }
+
 func (s *Scenario) DB() *pgxpool.Pool { return s.app.pool }
 
 func (s *Scenario) Context() context.Context { return s.t.Context() }
@@ -244,6 +251,9 @@ func (s *Scenario) send(req request) {
 	if s.app.clientIP != "" {
 		r.Header.Set("X-Forwarded-For", s.app.clientIP)
 	}
+	if s.app.flow != "" && matchesTrigger(s.app.trigger, req.method, req.path) {
+		r.Header.Set(httpx.FlowHeader, s.app.flow)
+	}
 	started := time.Now()
 	resp, err := s.app.client.Do(r)
 	if err != nil {
@@ -265,6 +275,46 @@ func (s *Scenario) send(req request) {
 		Took:           time.Since(started),
 	})
 	s.last = &response{req: req, status: resp.StatusCode, header: resp.Header, body: body}
+	if s.isFaultpoint() {
+		s.app.faults++
+		if s.app.restart != nil {
+			s.app.restart(s.t)
+			s.app.restart = nil
+			s.reopenStreams()
+		}
+	}
+}
+
+func (s *Scenario) reopenStreams() {
+	for _, u := range s.users {
+		u.stream = openStream(s.t, s.app, u.token)
+	}
+}
+
+func (s *Scenario) isFaultpoint() bool {
+	var p api.Problem
+	return s.last.status == http.StatusServiceUnavailable && json.Unmarshal(s.last.body, &p) == nil &&
+		p.Code == api.ErrorCode("faultpoint")
+}
+
+func matchesTrigger(trigger, method, path string) bool {
+	wantMethod, wantPath, ok := strings.Cut(trigger, " ")
+	if !ok || wantMethod != method {
+		return false
+	}
+	wantParts, gotParts := strings.Split(wantPath, "/"), strings.Split(path, "/")
+	if len(wantParts) != len(gotParts) {
+		return false
+	}
+	for i, want := range wantParts {
+		if strings.HasPrefix(want, "{") && strings.HasSuffix(want, "}") {
+			continue
+		}
+		if want != gotParts[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Scenario) response() *response {
