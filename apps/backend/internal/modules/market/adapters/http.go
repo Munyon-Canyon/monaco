@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -21,6 +22,7 @@ type HTTP struct {
 	List   app.Lister
 	Detail app.Detailer
 	Chart  app.Charter
+	Clock  clock.Clock
 }
 
 var _ httpx.MarketRoutes = HTTP{}
@@ -50,7 +52,7 @@ func (h HTTP) GetAsset(ctx context.Context, req api.GetAssetRequestObject) (api.
 	if err != nil {
 		return nil, err
 	}
-	body, err := wireDetail(view)
+	body, err := wireDetail(view, h.Clock.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -143,11 +145,12 @@ func wireSummary(item app.Summary) (api.AssetSummary, error) {
 	return out, nil
 }
 
-func wireDetail(view app.AssetView) (api.AssetDetail, error) {
+func wireDetail(view app.AssetView, now time.Time) (api.AssetDetail, error) {
 	summary, err := wireSummary(view.Summary)
 	if err != nil {
 		return api.AssetDetail{}, err
 	}
+	multiplier := view.Summary.Asset.UIMultiplierAt(now)
 	return api.AssetDetail{
 		Symbol:          summary.Symbol,
 		DisplayName:     summary.DisplayName,
@@ -160,13 +163,10 @@ func wireDetail(view app.AssetView) (api.AssetDetail, error) {
 		SparklineMicros: summary.SparklineMicros,
 		Session:         summary.Session,
 		Decimals:        int(view.Summary.Asset.Decimals),
-		UiMultiplier: api.UiMultiplier{
-			Num: view.Summary.Asset.UIMultiplier.Num,
-			Den: view.Summary.Asset.UIMultiplier.Den,
-		},
-		Tradable:      view.Summary.Asset.Tradable(),
-		OtherListings: wireListings(view.Others),
-		Attribution:   domain.Attribution,
+		UiMultiplier:    api.UiMultiplier{Num: multiplier.Num, Den: multiplier.Den},
+		Tradable:        view.Summary.Asset.Tradable(),
+		OtherListings:   wireListings(view.Others),
+		Attribution:     domain.Attribution,
 	}, nil
 }
 
