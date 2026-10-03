@@ -7,7 +7,9 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
@@ -27,20 +29,46 @@ type Port interface {
 
 var _ Port = app.Queries{}
 
+type Ports = app.TradePorts
+
+type Option func(*Module)
+
+func WithPorts(p Ports) Option { return func(m *Module) { m.ports = &p } }
+
 type Module struct {
-	deps module.Deps
+	deps  module.Deps
+	ports *Ports
 }
 
-func New(d module.Deps) *Module { return &Module{deps: d} }
+func New(d module.Deps, opts ...Option) *Module {
+	m := &Module{deps: d}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
 
 func (*Module) Name() string { return "governance" }
 
 func (m *Module) Routes(r *httpx.Routes) {
-	thresholds := cabalThresholds{cabals: cabal.New(m.deps).Queries()}
+	ports := m.tradePorts()
+	thresholds := cabalThresholds{cabals: ports.Cabals}
 	r.GovernanceRoutes = adapters.HTTP{
+		Propose:  app.NewProposeTradeHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock, ports),
 		Vote:     app.NewCastVoteHandler(m.deps.UoW, m.deps.Pool, m.deps.Clock, thresholds),
 		Withdraw: app.NewWithdrawProposalHandler(m.deps.UoW, m.deps.Clock),
 		Reads:    app.NewProposalReads(m.deps.Pool, thresholds, trading.New(m.deps).Queries()),
+	}
+}
+
+func (m *Module) tradePorts() Ports {
+	if m.ports != nil {
+		return *m.ports
+	}
+	markets := market.New(m.deps)
+	return Ports{
+		Cabals: cabal.New(m.deps).Queries(), Assets: markets.Catalog(), Routes: markets.RouteChecker(),
+		Treasury: treasury.New(m.deps).Queries(),
 	}
 }
 

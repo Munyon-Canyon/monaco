@@ -16,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -26,7 +27,10 @@ import (
 
 func TestModule_isNamedGovernanceAndRunsTheExpiryPoller(t *testing.T) {
 	t.Parallel()
-	m := governance.New(module.Deps{})
+	var cfg config.Config
+	cfg.Jupiter.SwapBaseURL, cfg.Jupiter.PriceBaseURL = "https://jupiter.test/swap", "https://jupiter.test/price"
+	cfg.Timeouts.JupiterQuote, cfg.Timeouts.JupiterExecute = time.Second, time.Minute
+	m := governance.New(module.Deps{Config: cfg})
 	var routes httpx.Routes
 	m.Routes(&routes)
 	pollers := m.Pollers()
