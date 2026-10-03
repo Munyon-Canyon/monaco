@@ -3,6 +3,7 @@ import HTTPTypes
 import MonacoAPI
 import Testing
 
+import enum MonacoCore.FirstRunGate
 import enum MonacoCore.LoginFailureCopy
 import class MonacoCore.MonacoAPIClient
 import struct MonacoCore.SessionAPI
@@ -16,17 +17,23 @@ import struct MonacoCore.SessionProfile
 @MainActor
 private final class StubDataSource: AppSessionDataSource {
     var dashboardRequests: [HomeLeaderboardRange] = []
+    var balanceRequests: [String] = []
     /// Ranges whose response is held until the test releases it.
     var holdRanges: Set<HomeLeaderboardRange> = []
     /// Thrown by `getHomeDashboard`, one per call, oldest first. Empty means succeed.
     var dashboardErrors: [Error] = []
+    var balanceErrors: [Error] = []
 
     private var pendingDashboards: [HomeLeaderboardRange: CheckedContinuation<Void, Never>] = [:]
     private var arrivedRanges: Set<HomeLeaderboardRange> = []
     private var arrivalWaiters: [HomeLeaderboardRange: CheckedContinuation<Void, Never>] = [:]
 
     func getPlatformBalance(accessToken: String) async throws -> PlatformBalanceDTO {
-        PlatformBalanceDTO(availableUsdcMicros: 0, memberWalletAddress: "wallet", pendingAllocationMicros: 0)
+        balanceRequests.append(accessToken)
+        if !balanceErrors.isEmpty {
+            throw balanceErrors.removeFirst()
+        }
+        return PlatformBalanceDTO(availableUsdcMicros: 0, memberWalletAddress: "wallet", pendingAllocationMicros: 0)
     }
 
     func getHome(accessToken: String) async throws -> HomeViewDTO {
@@ -200,6 +207,24 @@ struct AppSessionStoreLeaderboardRangeTests {
 
 @MainActor
 struct AppSessionStoreBootstrapTests {
+    @Test func aFailedHomeLoadDoesNotCloseTheSessionGate() async throws {
+        let source = StubDataSource()
+        source.dashboardErrors = [MonacoAPIError.httpStatus(404)]
+        source.balanceErrors = [MonacoAPIError.httpStatus(404)]
+        let store = AppSessionStore(apiClient: source, sessions: sessionAPI(StubTransport(.json(.ok, SessionWire.me))))
+        let auth = StubAuth()
+
+        await store.bootstrap(auth: auth)
+
+        #expect(store.profile?.displayName == "Kai Cenat")
+        #expect(FirstRunGate.destination(for: store.profile) == .app)
+        #expect(store.isLoading == false)
+        #expect(source.balanceRequests == ["token-a"])
+        #expect(
+            HomeScreenState.resolve(dashboard: store.dashboard, errorMessage: store.errorMessage)
+                == .failed("Couldn't load this. Try again."))
+    }
+
     @Test func bootstrapDoesNotAskForTheProfileTwice() async throws {
         let (transport, store, auth, environment) = await boot(.json(.ok, SessionWire.me))
         await store.refresh(auth: auth)
