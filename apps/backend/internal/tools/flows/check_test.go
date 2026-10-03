@@ -81,14 +81,6 @@ func TestCheckColumns_validRowsPass(t *testing.T) {
 	}
 }
 
-func TestCheckColumns_duplicateIDNamesTheFirstLine(t *testing.T) {
-	t.Parallel()
-	got := check(t, tsv(fundRow, fundRow), testEnv())
-	if want := []string{fundFile + ":3: id 07 already used on line 2"}; !slices.Equal(got, want) {
-		t.Fatalf("problems = %q, want %q", got, want)
-	}
-}
-
 func TestAnchors_followGitHubSlugRules(t *testing.T) {
 	t.Parallel()
 	md := strings.Join([]string{

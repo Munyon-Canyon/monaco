@@ -73,7 +73,12 @@ func (env ciEnv) affected(ctx context.Context, base string) ([]string, error) {
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	changed := strings.Fields(string(diff))
+	rows, err := env.exec(ctx, env.moduleDir, nil, env.gitBin,
+		"diff", "--name-only", base+"...HEAD", "--", ":(top)"+flows.Dir)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	changed := slices.Concat(strings.Fields(string(diff)), strings.Fields(string(rows)))
 	if len(changed) == 0 {
 		return nil, nil
 	}
