@@ -249,9 +249,6 @@ func waitingOn(stack []stackPR) []string {
 		if t.Stage1 != "success" {
 			why = append(why, "stage 1 "+orMissing(t.Stage1))
 		}
-		if t.Format != "" && t.Format != "success" {
-			why = append(why, "PR format "+t.Format)
-		}
 		if len(why) > 0 {
 			out = append(out, fmt.Sprintf("#%d (%s)", p.Number, strings.Join(why, ", ")))
 		}

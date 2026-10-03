@@ -44,8 +44,7 @@ staging_ruleset() {
         strict_required_status_checks_policy: false,
         do_not_enforce_on_create: false,
         required_status_checks: [
-          {context: "ci / ci-ok", integration_id: $actions},
-          {context: "PR format (title, body and commits)", integration_id: $actions}
+          {context: "ci / ci-ok", integration_id: $actions}
         ]
       }}
     ]

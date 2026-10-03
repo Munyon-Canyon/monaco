@@ -225,14 +225,10 @@ func TestLandStack_refusesNamingEveryPRItWaitsOnAndChangesNothing(t *testing.T) 
 		stackOf(t, 2, "b2", "b1", "SUCCESS", ""),
 		stackOf(t, 3, "b3", "b2", "pending", "SUCCESS"),
 		stackOf(t, 4, "b4", "b3", "", "PENDING"),
-		withFormat(stackOf(t, 5, "b5", "b4", "SUCCESS", "SUCCESS"), ""),
-		withFormat(stackOf(t, 6, "b6", "b5", "SUCCESS", "SUCCESS"), "FAILURE"),
-		withFormat(stackOf(t, 7, "b7", "b6", "SUCCESS", "SUCCESS"), "SUCCESS"),
 	)
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
-	code, stdout, stderr := f.agents(t, "land-stack", "7")
-	want := "not landing #7; waiting on #1 (stage 1 failure), #3 (stage 1 pending), " +
-		"#4 (stage 1 missing), #5 (PR format pending), #6 (PR format failure)\n"
+	code, stdout, stderr := f.agents(t, "land-stack", "4")
+	want := "not landing #4; waiting on #1 (stage 1 failure), #3 (stage 1 pending), #4 (stage 1 missing)\n"
 	if code != 0 || stdout != want || stderr != "" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
@@ -1133,21 +1129,22 @@ func TestWatchOnce_waitsAMinuteBeforeEjectingAStackGraphiteJustUnlabeled(t *test
 	}
 }
 
-func TestLandStack_aSkippedPRFormatRunAfterASuccessDoesNotBlockARelanding(t *testing.T) {
+func TestLandStack_queuesAStackWhosePRFormatIsRedOrPending(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	s := newStackGH(t, f,
-		withFormat(withFormat(green(t, 1, "b1", "fb"), "SUCCESS"), "SKIPPED"),
-		withFormat(withFormat(green(t, 2, "b2", "b1"), "CANCELLED"), "SKIPPED"),
+	newStackGH(t, f,
+		withFormat(green(t, 1, "b1", "fb"), "FAILURE"),
+		withFormat(green(t, 2, "b2", "b1"), ""),
 	)
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
 	code, stdout, stderr := f.agents(t, "land-stack", "2")
-	if code != 0 || stdout != "armed #2; agents watch lands it once stage 1 passes "+
-		"(waiting on #2 (PR format skipped))\n" || stderr != "" {
+	if code != 0 ||
+		stdout != "queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #1 #2\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	if calls := s.lines(); len(calls) != 0 {
-		t.Fatalf("a refusal ran %v", calls)
+	want := []string{"POST /repos/o/r/issues/1/labels", "POST /repos/o/r/issues/2/labels"}
+	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, want) {
+		t.Fatalf("labels %v", got)
 	}
 }
 
