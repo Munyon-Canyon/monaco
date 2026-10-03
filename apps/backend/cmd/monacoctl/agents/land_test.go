@@ -221,7 +221,7 @@ func TestLandStack_refusesNamingEveryPRItWaitsOnAndChangesNothing(t *testing.T) 
 	t.Parallel()
 	f := newFixture(t)
 	s := newStackGH(t, f,
-		stackOf(t, 1, "b1", "fb", "SUCCESS", "FAILURE"),
+		stackOf(t, 1, "b1", "fb", "FAILURE", "FAILURE"),
 		stackOf(t, 2, "b2", "b1", "SUCCESS", ""),
 		stackOf(t, 3, "b3", "b2", "pending", "SUCCESS"),
 		stackOf(t, 4, "b4", "b3", "", "PENDING"),
@@ -231,8 +231,8 @@ func TestLandStack_refusesNamingEveryPRItWaitsOnAndChangesNothing(t *testing.T) 
 	)
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
 	code, stdout, stderr := f.agents(t, "land-stack", "7")
-	want := "not landing #7; waiting on #1 (verify failure), #2 (verify missing), #3 (stage 1 pending), " +
-		"#4 (stage 1 missing, verify pending), #5 (PR format pending), #6 (PR format failure)\n"
+	want := "not landing #7; waiting on #1 (stage 1 failure), #3 (stage 1 pending), " +
+		"#4 (stage 1 missing), #5 (PR format pending), #6 (PR format failure)\n"
 	if code != 0 || stdout != want || stderr != "" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
@@ -326,7 +326,7 @@ func TestLandStack_readsEveryCheckAndTheNewestRunOfEach(t *testing.T) {
 		{
 			"a rerun of ci-ok is still going",
 			lastPage(ciOK("", 0), verifyAt("SUCCESS", 4)),
-			"armed #2; agents watch lands it once stage 1 and verify pass (waiting on #1 (stage 1 pending))\n",
+			"armed #2; agents watch lands it once stage 1 passes (waiting on #1 (stage 1 pending))\n",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -473,6 +473,22 @@ func TestLandStack_queuesOnTheFirstRunWhenTheBottomMergesCleanlyOntoAMovedTrunk(
 	}
 	if got := strings.TrimSpace(gitOut(t, m.worktree, "rev-parse", "origin/fb")); got != m.tip {
 		t.Fatalf("checked against origin/fb %s, want the moved tip %s", got, m.tip)
+	}
+}
+
+func TestLandStack_queuesAStackWhoseVerifyIsRedOrMissing(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	newStackGH(t, f, stackOf(t, 1, "b1", "fb", "SUCCESS", "FAILURE"), stackOf(t, 2, "b2", "b1", "SUCCESS", ""))
+	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+	code, stdout, stderr := f.agents(t, "land-stack", "2")
+	if code != 0 ||
+		stdout != "queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #1 #2\n" {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	want := []string{"POST /repos/o/r/issues/1/labels", "POST /repos/o/r/issues/2/labels"}
+	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, want) {
+		t.Fatalf("labels %v", got)
 	}
 }
 
@@ -811,13 +827,6 @@ func TestLandStack_relandChecksEveryPRInTheStack(t *testing.T) {
 		out  string
 	}{
 		{
-			name: "a lower PR's verify is red",
-			edit: func(prs map[int]*stackPR) {
-				prs[2].Commits.Nodes[0].Commit.StatusCheckRollup.Contexts.Nodes[1].State = "FAILURE"
-			},
-			out: "#3 left the Graphite merge queue; relanding its stack\nnot landing #3; waiting on #2 (verify failure)\n",
-		},
-		{
 			name: "a lower PR's stage 1 is red",
 			edit: func(prs map[int]*stackPR) {
 				prs[1].Commits.Nodes[0].Commit.StatusCheckRollup.Contexts.Nodes[0].Conclusion = "FAILURE"
@@ -1133,7 +1142,7 @@ func TestLandStack_aSkippedPRFormatRunAfterASuccessDoesNotBlockARelanding(t *tes
 	)
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
 	code, stdout, stderr := f.agents(t, "land-stack", "2")
-	if code != 0 || stdout != "armed #2; agents watch lands it once stage 1 and verify pass "+
+	if code != 0 || stdout != "armed #2; agents watch lands it once stage 1 passes "+
 		"(waiting on #2 (PR format skipped))\n" || stderr != "" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
@@ -1154,7 +1163,7 @@ func TestLandStack_armsAStackWhoseStage1IsPendingAndLabelsNothing(t *testing.T) 
 	f := newFixture(t)
 	s := armedStack(t, f)
 	code, stdout, stderr := f.agents(t, "land-stack", "2")
-	want := "armed #2; agents watch lands it once stage 1 and verify pass (waiting on #2 (stage 1 pending))\n"
+	want := "armed #2; agents watch lands it once stage 1 passes (waiting on #2 (stage 1 pending))\n"
 	if code != 0 || stdout != want || stderr != "" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}

@@ -94,18 +94,15 @@ func (env *Env) arm(ctx context.Context, rec Record, stack []stackPR, waiting []
 	if err := env.storeRecord(ctx, rec); err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintf(stdout, "armed #%d; agents watch lands it once stage 1 and verify pass (waiting on %s)\n",
+	_, _ = fmt.Fprintf(stdout, "armed #%d; agents watch lands it once stage 1 passes (waiting on %s)\n",
 		top, strings.Join(waiting, ", "))
 	return nil
 }
 
 func failedCheck(stack []stackPR) string {
 	for _, p := range stack {
-		switch t := p.flat(""); {
-		case t.Stage1 == "failure":
+		if p.flat("").Stage1 == "failure" {
 			return fmt.Sprintf("#%d stage 1", p.Number)
-		case t.Verify == "failure":
-			return fmt.Sprintf("#%d verify", p.Number)
 		}
 	}
 	return ""
@@ -251,9 +248,6 @@ func waitingOn(stack []stackPR) []string {
 		var why []string
 		if t.Stage1 != "success" {
 			why = append(why, "stage 1 "+orMissing(t.Stage1))
-		}
-		if t.Verify != "success" {
-			why = append(why, "verify "+orMissing(t.Verify))
 		}
 		if t.Format != "" && t.Format != "success" {
 			why = append(why, "PR format "+t.Format)

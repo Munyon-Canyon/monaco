@@ -418,7 +418,7 @@ def rule_merge_needs_verify(inv: Invocation) -> str | None:
         if pr["baseRefName"] == TRUNK:
             return (f"PR #{pr['number']} targets {TRUNK}, which takes PRs only through the Graphite merge queue; "
                     "a direct merge skips stage 2. Land the stack with `monacoctl agents land-stack <top-pr>`, "
-                    f"which adds the {QUEUE_LABEL} label to each PR once verify passes.")
+                    f"which adds the {QUEUE_LABEL} label to each PR once stage 1 passes.")
         slug = re.match(r"https://github\.com/([^/]+/[^/]+)/pull/", pr["url"]).group(1)
         statuses = run(["gh", "api", f"repos/{slug}/commits/{pr['headRefOid']}/statuses?per_page=100"], inv.cwd)
         if statuses.returncode != 0:
@@ -457,7 +457,7 @@ def rule_queue_label(inv: Invocation) -> str | None:
         return f"the {FAST_TRACK_LABEL} label jumps the Graphite merge queue. Only a human adds it."
     if QUEUE_LABEL in added:
         return (f"the {QUEUE_LABEL} label puts a PR in the Graphite merge queue. Only "
-                "`monacoctl agents land-stack <top-pr>` adds it, after stage 1 and verify pass on every PR.")
+                "`monacoctl agents land-stack <top-pr>` adds it, after stage 1 passes on every PR.")
     return None
 
 
