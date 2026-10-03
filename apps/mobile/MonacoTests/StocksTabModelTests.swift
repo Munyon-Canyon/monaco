@@ -6,6 +6,7 @@ import Testing
 @testable import Monaco
 
 // The app target shadows these MonacoCore DTOs; pin the tests to the ones the views use.
+private typealias StocksTabModel = Monaco.StocksTabModel
 private typealias MarketAssetDTO = Monaco.MarketAssetDTO
 private typealias ListMarketAssetsResponse = Monaco.ListMarketAssetsResponse
 private typealias PopularAssetsResponse = Monaco.PopularAssetsResponse
