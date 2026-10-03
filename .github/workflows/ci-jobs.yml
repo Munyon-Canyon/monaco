@@ -2,8 +2,8 @@ name: CI jobs
 
 # Called by ci.yml and ci-retarget.yml through their `ci` job, so every check is named
 # "ci / <job>" and the required check is "ci / ci-ok". docs/architecture/ci.md#triggers
-# `stage: pr` runs stage 1, every check and test, on the top PR of a stack. `stage: queue` runs stage 2, only plan,
-# ready (build, vet, tidy, generated files) and ci-ok. `stage: staging` (staging.yml) runs every stage 1 job but the
+# `stage: pr` runs stage 1, every check and test, on the top PR of a stack. `stage: queue` runs stage 2 as one job:
+# every other job skips and ci-ok runs ready's steps (build, vet, tidy, generated files). `stage: staging` (staging.yml) runs every stage 1 job but the
 # flake reruns on each push to staging, as an advisory indicator. docs/architecture/ci.md#check-stages
 on:
   workflow_call:
@@ -239,7 +239,7 @@ jobs:
   ready:
     name: Ready (vet on go.mod's Go, tidy, generated files)
     needs: plan
-    if: needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
+    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -342,6 +342,7 @@ jobs:
 
   plan:
     name: Plan
+    if: inputs.stage != 'queue'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -625,20 +626,42 @@ jobs:
 
   # Required as "ci / ci-ok". A skipped check passes a required check, so ci-ok must never skip
   # once this workflow starts: keep always(), not !cancelled(), so a cancelled run fails it.
+  # In stage 2 every other job skips and ci-ok runs ready's steps itself, so a queue draft waits for one runner.
   ci-ok:
     name: ci-ok
     if: always()
     needs: [plan, lint, backend, backend-report, e2e, ready, vuln, scripts, mobile-core, mobile-integration, flake, flake-swift]
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: ${{ inputs.stage == 'queue' && 6 || 2 }}
     permissions:
+      contents: read
       actions: read
       checks: write
     steps:
       - uses: re-actors/alls-green@release/v1
+        if: inputs.stage != 'queue'
         with:
           jobs: ${{ toJSON(needs) }}
           allowed-skips: lint, backend, backend-report, e2e, ready, vuln, scripts, mobile-core, mobile-integration, flake, flake-swift
+
+      - uses: actions/checkout@v4
+        if: inputs.stage == 'queue'
+
+      - uses: ./.github/actions/backend-test-env
+        if: inputs.stage == 'queue'
+        with:
+          db: 'false'
+
+      - if: inputs.stage == 'queue'
+        run: scripts/install-sqlc.sh
+
+      - if: inputs.stage == 'queue'
+        run: scripts/ci/ready.sh
+
+      # A run cancelled before ci-ok starts skips every step above, and a job of skipped steps passes.
+      - name: Fail a cancelled queue run
+        if: inputs.stage == 'queue' && cancelled()
+        run: exit 1
 
       # The next stage 1 run of this PR reads this summary back to decide whether it can reuse this result.
       - name: Record the diff's patch ID on this check run
