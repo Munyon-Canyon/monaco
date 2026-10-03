@@ -44,6 +44,10 @@ type Module interface {
 	Pollers() []poller.Poller
 }
 
+type Wirer interface {
+	Wire(Set)
+}
+
 type Registry struct {
 	builders []func(Deps) Module
 }
@@ -71,7 +75,13 @@ func NewSet(mods ...Module) Set {
 		}
 		seen[m.Name()] = true
 	}
-	return mods
+	set := Set(mods)
+	for _, m := range set {
+		if w, ok := m.(Wirer); ok {
+			w.Wire(set)
+		}
+	}
+	return set
 }
 
 func (s Set) Routes() httpx.Routes {

@@ -4,9 +4,13 @@ import (
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
@@ -51,4 +55,42 @@ func TestModule_routesPanicWithoutAPrivyVerificationKey(t *testing.T) {
 	var routes httpx.Routes
 	identity.New(module.Deps{Config: cfg, Clock: clock.Real{}}).Routes(&routes)
 	t.Fatal("Routes did not panic")
+}
+
+func TestModule_wireTakesHoldingsFromFundingAndTreasuryInTheBuiltSet(t *testing.T) {
+	t.Parallel()
+	d := module.Deps{}
+	id := identity.New(d)
+	module.NewSet(id, funding.New(d), treasury.New(d))
+	stakes, balances := id.Holdings()
+	if stakes != treasury.New(d).Queries() || balances != funding.New(d).Balances() {
+		t.Fatalf("holdings = %T, %T, want treasury's Queries and funding's Balances", stakes, balances)
+	}
+}
+
+func TestModule_holdingsFailClosedWhenFundingAndTreasuryAreNotInTheSet(t *testing.T) {
+	t.Parallel()
+	id := identity.New(module.Deps{})
+	module.NewSet(id)
+	stakes, balances := id.Holdings()
+	user := ids.UserID{}
+	if _, err := stakes.(app.Stakes).StakesOf(t.Context(), user); errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("StakesOf err = %v, want upstream_unavailable", err)
+	}
+	_, err := balances.(app.Balances).Available(t.Context(), user)
+	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("Available err = %v, want upstream_unavailable", err)
+	}
+}
+
+func TestModule_withHoldingsWinsOverWire(t *testing.T) {
+	t.Parallel()
+	d := module.Deps{}
+	treasuryFake, balancesFake := fakes.NewTreasury(), fakes.NewBalances()
+	id := identity.New(d, identity.WithHoldings(treasuryFake, balancesFake))
+	module.NewSet(id, funding.New(d), treasury.New(d))
+	stakes, balances := id.Holdings()
+	if stakes != any(treasuryFake) || balances != any(balancesFake) {
+		t.Fatalf("holdings = %T, %T, want the injected fakes", stakes, balances)
+	}
 }

@@ -4,14 +4,14 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
+	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/authn"
 	privyadapter "github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/privy"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
-	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
+	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
@@ -53,7 +53,7 @@ func WithHoldings(stakes app.Stakes, balances app.Balances) Option {
 func New(d module.Deps, opts ...Option) *Module {
 	m := &Module{
 		deps: d, meters: otel.GetMeterProvider(),
-		stakes: treasury.New(d).Queries(), balances: funding.New(d).Balances(),
+		stakes: app.UnwiredHoldings{}, balances: app.UnwiredHoldings{},
 	}
 	for _, opt := range opts {
 		opt(m)
@@ -62,6 +62,23 @@ func New(d module.Deps, opts ...Option) *Module {
 }
 
 func (*Module) Name() string { return "identity" }
+
+func (m *Module) Wire(set module.Set) {
+	for _, mod := range set {
+		_, balancesUnwired := m.balances.(app.UnwiredHoldings)
+		_, stakesUnwired := m.stakes.(app.UnwiredHoldings)
+		switch provider := mod.(type) {
+		case interface{ Balances() fundingport.Balances }:
+			if balancesUnwired {
+				m.balances = provider.Balances()
+			}
+		case interface{ Queries() treasuryport.Queries }:
+			if stakesUnwired {
+				m.stakes = provider.Queries()
+			}
+		}
+	}
+}
 
 func (m *Module) Routes(r *httpx.Routes) {
 	hints := m.hints

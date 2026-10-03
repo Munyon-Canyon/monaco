@@ -91,7 +91,7 @@ internal/modules/governance/
 | `*/domain` | stdlib, `platform/money`, `events` | `app`, `adapters`, `platform/db`, `platform/bus`, `pgx`, `nats`, `net/http`, other modules |
 | `*/app` | own `domain`, `events`, `platform/{money,clock}` | `adapters`, `pgx`, `nats`, `net/http`, other modules' `app` or `domain` |
 | `*/adapters` | own `app` + `domain`, `platform/*`, drivers | other modules' packages |
-| module A | module B | never. Cross-module effects go through an event. Cross-module reads go through a read-only query port that lives in module B's `port` package, and module B's `module.go` re-exports it. |
+| module A | module B | never. Cross-module effects go through an event. Cross-module reads go through a read-only query port that lives in module B's `port` package, and module B's `module.go` re-exports it. When both roots would import each other, the reader side implements `Wire(module.Set)` and takes the port from the built set; its default fails closed. |
 | `cmd/*` | everything | nothing imports `cmd` |
 
 ### Table ownership
