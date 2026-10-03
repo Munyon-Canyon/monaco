@@ -94,6 +94,13 @@ func CanDecide(actor Actor, cabal Cabal, req AccessRequest) error {
 	return errs.New(errs.CodeInternal, op, slog.String("direction", string(req.Direction)))
 }
 
+func CanAdmit(cabal Cabal, req AccessRequest, now time.Time) error {
+	if cabal.Banned {
+		return errs.New(errs.CodeCabalBanned, "cabal.CanAdmit")
+	}
+	return req.CheckNotExpired(now)
+}
+
 func CanRevoke(actor Actor, cabal Cabal, req AccessRequest) error {
 	const op = "cabal.CanRevoke"
 	switch req.Direction {

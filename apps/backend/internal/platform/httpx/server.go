@@ -116,6 +116,9 @@ type CabalAccessRoutes interface {
 	DeleteCabalAccessRequest(
 		context.Context, api.DeleteCabalAccessRequestRequestObject,
 	) (api.DeleteCabalAccessRequestResponseObject, error)
+	PostCabalAccessDecision(
+		context.Context, api.PostCabalAccessDecisionRequestObject,
+	) (api.PostCabalAccessDecisionResponseObject, error)
 }
 
 type CabalJoinRoutes interface {

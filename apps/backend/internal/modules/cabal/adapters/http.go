@@ -30,6 +30,7 @@ type HTTP struct {
 	Join    *app.JoinCabalHandler
 	Request *app.RequestAccessHandler
 	Revoke  *app.RevokeAccessHandler
+	Decide  *app.DecideAccessHandler
 	DB      sqlc.DBTX
 	Users   app.UserCards
 }
@@ -275,6 +276,26 @@ func (h HTTP) DeleteCabalAccessRequest(
 		return nil, err
 	}
 	return api.DeleteCabalAccessRequest200JSONResponse(wireAccessValue(revoked)), nil
+}
+
+func (h HTTP) PostCabalAccessDecision(
+	ctx context.Context, req api.PostCabalAccessDecisionRequestObject,
+) (api.PostCabalAccessDecisionResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.Body == nil {
+		return nil, errs.New(errs.CodeInvalidInput, "cabal.PostCabalAccessDecision", slog.String("reason", "body"))
+	}
+	decided, err := h.Decide.Handle(ctx, app.DecideAccess{
+		ActorID: user, CabalID: ids.CabalIDFrom(req.Id), RequestID: ids.AccessRequestIDFrom(req.RequestId),
+		Decision: app.Decision(req.Body.Decision),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return api.PostCabalAccessDecision200JSONResponse(wireAccessValue(decided)), nil
 }
 
 func (h HTTP) GetCabalAccessRequests(
