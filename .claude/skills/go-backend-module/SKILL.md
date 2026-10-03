@@ -78,7 +78,7 @@ Every `TestMain` lives in `main_test.go` and is exactly `testkit.Main(m, ...)`. 
 
 ## The flows.tsv row
 
-A flow is one tab-separated line in `apps/backend/flows.tsv`. List cells use `;`. `monacoctl flows check` reads it. The command cell may list several commands. Then each outcome needs a test from at least one of them, each command needs at least one test, and only the pairs a command can return get a test.
+A flow is one tab-separated line in `apps/backend/flows.tsv`. List cells use `;`. `monacoctl flows check` reads it. The command cell may list several commands. Then each outcome needs a test from at least one of them, each command needs at least one test, and only the pairs a command can return get a test. The trigger cell then holds one trigger shared by every command, or one per command in the same order, and `monacoctl verify` checks each command's outcomes against its own trigger.
 
 | Status | Needs |
 | --- | --- |

@@ -256,3 +256,22 @@ func TestMarkdown_listsEveryCommandOfAMultiCommandRow(t *testing.T) {
 		t.Fatalf("feature map =\n%s\nwant %q and %q", got, want, tests)
 	}
 }
+
+func TestMarkdown_pairsEachCommandWithItsTrigger(t *testing.T) {
+	t.Parallel()
+	row := fundRowWith(func(c []string) {
+		c[3], c[4], c[7] = "POST /v1/cabals/{id}/fund;DELETE /v1/cabals/{id}/fund", "FundCabal;Refund", "ok"
+	})
+	parsed, problems := flows.Parse(strings.NewReader(tsv(row)))
+	if len(problems) != 0 {
+		t.Fatalf("parse problems = %v", lines(problems))
+	}
+	cell := "| `FundCabal` on `POST /v1/cabals/{id}/fund`, `Refund` on `DELETE /v1/cabals/{id}/fund` |"
+	if got := flows.Markdown(parsed); !strings.Contains(got, cell) {
+		t.Fatalf("markdown =\n%s\nwant %q", got, cell)
+	}
+	trigger := "- Trigger: `POST /v1/cabals/{id}/fund`, `DELETE /v1/cabals/{id}/fund`\n"
+	if got := flows.FeatureMap(parsed); !strings.Contains(got, trigger) {
+		t.Fatalf("feature map =\n%s\nwant %q", got, trigger)
+	}
+}
