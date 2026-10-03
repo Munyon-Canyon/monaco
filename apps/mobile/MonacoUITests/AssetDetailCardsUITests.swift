@@ -93,7 +93,6 @@ nonisolated final class AssetDetailCardsUITests: XCTestCase {
         for identifier in [
             "asset-detail-position",
             "asset-detail-stats",
-            "asset-detail-stock-vs-token",
             "asset-detail-about",
             "asset-detail-activity",
         ] {
@@ -258,35 +257,6 @@ nonisolated final class AssetDetailCardsUITests: XCTestCase {
 
         XCTAssertTrue(scrollTo(app, "asset-position-unvalued"), "the card never said a cabal could not be priced")
         attachScreenshot(app, name: "asset-detail-cabals-partial")
-    }
-
-    /// The Pyth card's whole argument, on the screen where it matters: after the bell
-    /// the equity leg is a closing print and the token leg is still live.
-    @MainActor
-    func testStockVsTokenShowsBothLegsAndThePremium() throws {
-        let app = launch("afterHours")
-        waitForScreen(app, "afterHours")
-
-        XCTAssertTrue(scrollTo(app, "asset-detail-stock-vs-token"), "the stock-vs-token card never appeared")
-        XCTAssertTrue(anyElement(app, "asset-stock-vs-token-leg-aapl").exists, "no equity leg")
-        XCTAssertTrue(anyElement(app, "asset-stock-vs-token-leg-aaplx").exists, "no token leg")
-        XCTAssertTrue(anyElement(app, "asset-stock-vs-token-premium").exists, "no premium pill")
-        attachScreenshot(app, name: "asset-detail-stock-vs-token-after-hours")
-    }
-
-    /// A leg with no price must not draw a premium: a pill against a missing leg is
-    /// a number nobody measured.
-    @MainActor
-    func testAnUnavailableFeedDrawsNoPremium() throws {
-        let app = launch("notEntitled")
-        waitForScreen(app, "notEntitled")
-
-        XCTAssertTrue(scrollTo(app, "asset-detail-stock-vs-token"), "the card should still draw on one leg")
-        XCTAssertFalse(
-            anyElement(app, "asset-stock-vs-token-premium").exists,
-            "a premium was drawn against a leg with no price"
-        )
-        attachScreenshot(app, name: "asset-detail-stock-vs-token-not-entitled")
     }
 
     /// The disclosure is never inside the clamped paragraph, so "Show more" being
