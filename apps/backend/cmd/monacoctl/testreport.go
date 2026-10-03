@@ -70,22 +70,31 @@ func testReportCmd(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	b := budget{warn: packageWarn, fail: packageFail, run: runBudget}
-	prefix := ""
 	if *ci {
 		b.run = 0
-		prefix = "::warning::"
 	}
 	rep.write(stdout, b)
-	return rep.gate(b, prefix, stdout, stderr)
+	return rep.gate(b, *ci, stdout, stderr)
 }
 
-func (r report) gate(b budget, prefix string, stdout, stderr io.Writer) int {
+func (r report) gate(b budget, ci bool, stdout, stderr io.Writer) int {
+	prefix := ""
+	if ci {
+		prefix = "::warning::"
+	}
 	for _, w := range r.warnings(b) {
 		_, _ = fmt.Fprintf(stdout, "%smonacoctl test-report: %s\n", prefix, w)
 	}
 	over := r.overBudget(b)
 	for _, o := range over {
-		_, _ = fmt.Fprintf(stderr, "monacoctl test-report: %s\n", o)
+		if ci {
+			_, _ = fmt.Fprintf(stdout, "%smonacoctl test-report: %s\n", prefix, o)
+		} else {
+			_, _ = fmt.Fprintf(stderr, "monacoctl test-report: %s\n", o)
+		}
+	}
+	if ci {
+		over = nil
 	}
 	for _, name := range r.failed {
 		_, _ = fmt.Fprintf(stderr, "failed: %s\n", name)

@@ -463,7 +463,7 @@ func TestDriver_reportsInvariantFailures(t *testing.T) {
 				tc.edit(&env, &u)
 			}
 			budget := DefaultBudget()
-			budget.Converge = virtualConverge
+			budget.Seed, budget.Flow, budget.Converge = time.Minute, time.Minute, virtualConverge
 			d, err := newDriver(env, budget)
 			if err != nil {
 				t.Fatal(err)

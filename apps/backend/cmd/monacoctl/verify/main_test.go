@@ -210,8 +210,11 @@ func backendDir(t *testing.T) string {
 
 func testBudget() Budget {
 	b := DefaultBudget()
-	b.Stack = time.Minute
-	b.Teardown = 5 * time.Second
+	b.Total = 5 * time.Minute
+	b.Stack = 4 * time.Minute
+	b.Flow = time.Minute
+	b.Converge = 2 * time.Minute
+	b.Teardown = 20 * time.Second
 	return b
 }
 
