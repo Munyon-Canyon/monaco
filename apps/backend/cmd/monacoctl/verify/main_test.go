@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -44,6 +45,7 @@ const (
 
 	fakeHoldEnv      = "VERIFY_FAKE_HOLD"
 	fakeStartedEnv   = "VERIFY_FAKE_STARTED"
+	fakeProbedEnv    = "VERIFY_FAKE_PROBED"
 	fakeNeedsEnv     = "VERIFY_FAKE_WORKER_NEEDS"
 	fakeCrashWaitEnv = "VERIFY_FAKE_CRASH_WAIT"
 	fakeCrashNowEnv  = "VERIFY_FAKE_CRASH_NOW"
@@ -123,11 +125,17 @@ func serveFake(ln net.Listener, mode string) <-chan struct{} {
 	}
 	mux := http.NewServeMux()
 	checked, once := make(chan struct{}), sync.Once{}
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+	var answered atomic.Int32
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(status)
-		once.Do(func() { close(checked) })
 		_, _ = fmt.Fprintf(os.Stderr,
 			`{"msg":"http.request","method":"GET","route":"/healthz","status":%d,"duration_ms":0}`+"\n", status)
+		once.Do(func() { close(checked) })
+		if addr := os.Getenv(fakeProbedEnv); addr != "" && answered.Add(1) == 2 {
+			if conn, err := new(net.Dialer).DialContext(r.Context(), "tcp", addr); err == nil {
+				_ = conn.Close()
+			}
+		}
 	})
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: time.Second}
 	go func() { _ = srv.Serve(ln) }()

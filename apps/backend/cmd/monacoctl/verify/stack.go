@@ -1,6 +1,7 @@
 package verify
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -49,6 +51,7 @@ type Options struct {
 	Faultpoint string
 	WorkerEnv  []string
 	Postgres   PostgresFunc
+	Clock      clock.Clock
 }
 
 type Stack struct {
@@ -77,11 +80,8 @@ func Up(ctx context.Context, o Options) (*Stack, error) {
 	if s.opts.Postgres == nil {
 		s.opts.Postgres = s.dockerPostgres
 	}
-	ctx, cancel := context.WithTimeoutCause(
-		ctx,
-		o.Budget.Stack,
-		&OverBudgetError{Phase: PhaseStack, Budget: o.Budget.Stack},
-	)
+	ctx, cancel := withDeadline(ctx, cmp.Or[clock.Clock](o.Clock, clock.Real{}), o.Budget.Stack,
+		&OverBudgetError{Phase: PhaseStack, Budget: o.Budget.Stack})
 	defer cancel()
 	for _, step := range []func(context.Context) error{
 		s.postgres, withoutContext(s.nats), s.schema, s.processes, s.healthy,
