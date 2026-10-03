@@ -101,6 +101,7 @@ type Routes struct {
 	SocialRoutes
 	SystemRoutes
 	CabalRoutes
+	FundingRoutes
 	CabalJoinRoutes
 	CabalAccessRoutes
 	CabalPictureRoutes
@@ -210,6 +211,12 @@ type CabalRoutes interface {
 	GetCabal(context.Context, api.GetCabalRequestObject) (api.GetCabalResponseObject, error)
 	GetMyCabals(context.Context, api.GetMyCabalsRequestObject) (api.GetMyCabalsResponseObject, error)
 	PatchCabal(context.Context, api.PatchCabalRequestObject) (api.PatchCabalResponseObject, error)
+}
+
+type FundingRoutes interface {
+	CreateOnrampSession(
+		context.Context, api.CreateOnrampSessionRequestObject,
+	) (api.CreateOnrampSessionResponseObject, error)
 }
 
 type MarketRoutes interface {

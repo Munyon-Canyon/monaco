@@ -1478,6 +1478,19 @@ type CreateCabalRequest struct {
 	VoterMode string `json:"voter_mode"`
 }
 
+// CreateOnrampSessionRequest What to prefill on the fund page.
+type CreateOnrampSessionRequest struct {
+	// CabalId The cabal the user came from, when they did.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	CabalId *openapi_types.UUID `json:"cabal_id,omitempty"`
+
+	// SuggestedAmountMicros A USDC amount in micros, as a decimal string.
+	//
+	// Examples: 25000000
+	SuggestedAmountMicros *OnrampMicros `json:"suggested_amount_micros,omitempty"`
+}
+
 // DeviceEnvironment The APNs environment that issued the token.
 //
 // Examples: production
@@ -1826,6 +1839,29 @@ type MyReferralCode struct {
 	//
 	// Examples: https://monacolabs.xyz/r/k7m4qx2p
 	Link string `json:"link"`
+}
+
+// OnrampMicros A USDC amount in micros, as a decimal string.
+//
+// Examples: 25000000
+type OnrampMicros = string
+
+// OnrampSessionCreated A new onramp session and the page that runs it.
+type OnrampSessionCreated struct {
+	// ExpiresAt When the token stops working.
+	//
+	// Examples: 2026-10-03T15:10:00Z
+	ExpiresAt time.Time `json:"expires_at"`
+
+	// SessionId The session id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+	SessionId openapi_types.UUID `json:"session_id"`
+
+	// Url The fund page URL with its one-time token. Open it in the browser.
+	//
+	// Examples: https://monacolabs.xyz/fund?s=q2J9cZQxv0mYb5r8yS3dTt1uVw7xY9zA0bC2dE4fG6h
+	Url string `json:"url"`
 }
 
 // PendingVote An open proposal that still needs the caller's ballot.
@@ -2526,6 +2562,12 @@ type PostProfilePhotoParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// CreateOnrampSessionParams defines parameters for CreateOnrampSession.
+type CreateOnrampSessionParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // DeleteProposalParams defines parameters for DeleteProposal.
 type DeleteProposalParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -2588,6 +2630,9 @@ type PostOnboardingSkipJSONRequestBody = SkipOnboardingStep
 
 // PostProfilePhotoMultipartRequestBody defines body for PostProfilePhoto for multipart/form-data ContentType.
 type PostProfilePhotoMultipartRequestBody PostProfilePhotoMultipartBody
+
+// CreateOnrampSessionJSONRequestBody defines body for CreateOnrampSession for application/json ContentType.
+type CreateOnrampSessionJSONRequestBody = CreateOnrampSessionRequest
 
 // PostProposalVoteJSONRequestBody defines body for PostProposalVote for application/json ContentType.
 type PostProposalVoteJSONRequestBody = CastVoteRequest
@@ -2708,6 +2753,9 @@ type ServerInterface interface {
 	// GetMyReferralCode Read the caller's invite code and links.
 	// (GET /v1/me/referral-code)
 	GetMyReferralCode(w http.ResponseWriter, r *http.Request)
+	// CreateOnrampSession Start a card deposit.
+	// (POST /v1/onramp/sessions)
+	CreateOnrampSession(w http.ResponseWriter, r *http.Request, params CreateOnrampSessionParams)
 	// DeleteProposal Withdraw the caller's proposal.
 	// (DELETE /v1/proposals/{id})
 	DeleteProposal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteProposalParams)
@@ -4423,6 +4471,51 @@ func (siw *ServerInterfaceWrapper) GetMyReferralCode(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// CreateOnrampSession operation middleware
+func (siw *ServerInterfaceWrapper) CreateOnrampSession(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateOnrampSessionParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateOnrampSession(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteProposal operation middleware
 func (siw *ServerInterfaceWrapper) DeleteProposal(w http.ResponseWriter, r *http.Request) {
 
@@ -4933,6 +5026,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/pending-votes", wrapper.GetMyPendingVotes)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/profile-photo", wrapper.PostProfilePhoto)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/referral-code", wrapper.GetMyReferralCode)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/onramp/sessions", wrapper.CreateOnrampSession)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.DeleteProposal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.GetProposal)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.PostProposalVote)
@@ -6344,6 +6438,46 @@ func (response GetMyReferralCodedefaultApplicationProblemPlusJSONResponse) Visit
 	return err
 }
 
+type CreateOnrampSessionRequestObject struct {
+	Params CreateOnrampSessionParams
+	Body   *CreateOnrampSessionJSONRequestBody
+}
+
+type CreateOnrampSessionResponseObject interface {
+	VisitCreateOnrampSessionResponse(w http.ResponseWriter) error
+}
+
+type CreateOnrampSession201JSONResponse OnrampSessionCreated
+
+func (response CreateOnrampSession201JSONResponse) VisitCreateOnrampSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateOnrampSessiondefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreateOnrampSessiondefaultApplicationProblemPlusJSONResponse) VisitCreateOnrampSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteProposalRequestObject struct {
 	Id     openapi_types.UUID `json:"id"`
 	Params DeleteProposalParams
@@ -6802,6 +6936,9 @@ type StrictServerInterface interface {
 	// GetMyReferralCode Read the caller's invite code and links.
 	// (GET /v1/me/referral-code)
 	GetMyReferralCode(ctx context.Context, request GetMyReferralCodeRequestObject) (GetMyReferralCodeResponseObject, error)
+	// CreateOnrampSession Start a card deposit.
+	// (POST /v1/onramp/sessions)
+	CreateOnrampSession(ctx context.Context, request CreateOnrampSessionRequestObject) (CreateOnrampSessionResponseObject, error)
 	// DeleteProposal Withdraw the caller's proposal.
 	// (DELETE /v1/proposals/{id})
 	DeleteProposal(ctx context.Context, request DeleteProposalRequestObject) (DeleteProposalResponseObject, error)
@@ -7865,6 +8002,39 @@ func (sh *strictHandler) GetMyReferralCode(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMyReferralCodeResponseObject); ok {
 		if err := validResponse.VisitGetMyReferralCodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateOnrampSession operation middleware
+func (sh *strictHandler) CreateOnrampSession(w http.ResponseWriter, r *http.Request, params CreateOnrampSessionParams) {
+	var request CreateOnrampSessionRequestObject
+
+	request.Params = params
+
+	var body CreateOnrampSessionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateOnrampSession(ctx, request.(CreateOnrampSessionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateOnrampSession")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateOnrampSessionResponseObject); ok {
+		if err := validResponse.VisitCreateOnrampSessionResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

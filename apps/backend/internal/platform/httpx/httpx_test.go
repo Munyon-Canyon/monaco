@@ -255,6 +255,12 @@ func (healthz) GetAssetChart(
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetAssetChart")
 }
 
+func (healthz) CreateOnrampSession(
+	context.Context, api.CreateOnrampSessionRequestObject,
+) (api.CreateOnrampSessionResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.CreateOnrampSession")
+}
+
 type stepClock struct {
 	clock.Real
 	mu  sync.Mutex

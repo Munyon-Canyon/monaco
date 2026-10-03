@@ -17,6 +17,8 @@ security:
 tags:
   - name: governance
     description: Trade proposals and the votes that decide them.
+  - name: funding
+    description: Card deposits and the fund page.
   - name: health
     description: Liveness of the API process.
   - name: identity

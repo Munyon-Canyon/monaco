@@ -20,7 +20,11 @@ func TestModule(t *testing.T) {
 	if got := m.Name(); got != "funding" {
 		t.Fatalf("Name = %q, want funding", got)
 	}
-	m.Routes(&httpx.Routes{})
+	var r httpx.Routes
+	m.Routes(&r)
+	if r.FundingRoutes == nil {
+		t.Fatal("Routes left FundingRoutes unset")
+	}
 	if got := m.Consumers(); len(got) != 0 {
 		t.Fatalf("Consumers = %v, want none", got)
 	}
