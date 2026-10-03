@@ -109,6 +109,68 @@ func TestCheckTests_builtFlowsNeedAPassingTestPerOutcome(t *testing.T) {
 	}
 }
 
+func TestCheckTests_aMultiCommandRowTakesEachOutcomeFromAnyCommandAndTestsEveryCommand(t *testing.T) {
+	t.Parallel()
+	row := fundRowWith(func(c []string) { c[4], c[7] = "FundCabal;Refund", "ok;InsufficientFunds" })
+	split := testJSON(passed("TestFlow07_FundCabal_OK"), passed("TestFlow07_Refund_InsufficientFunds"))
+	for _, tc := range []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{"each outcome from one command", split, nil},
+		{"an outcome from both commands", split + passed("TestFlow07_Refund_OK"), nil},
+		{
+			"an outcome no command tests", testJSON(passed("TestFlow07_FundCabal_OK"), passed("TestFlow07_Refund_OK")),
+			[]string{"flows.tsv:2: outcome InsufficientFunds has no test TestFlow07_FundCabal_InsufficientFunds " +
+				"or TestFlow07_Refund_InsufficientFunds in the go test -json input"},
+		},
+		{
+			"a command with no test",
+			testJSON(passed("TestFlow07_FundCabal_OK"), passed("TestFlow07_FundCabal_InsufficientFunds")),
+			[]string{"flows.tsv:2: command Refund has no flow test in the go test -json input"},
+		},
+		{
+			"one of two tests for an outcome failed",
+			split + `{"Action":"fail","Package":"p","Test":"TestFlow07_Refund_OK"}` + "\n",
+			[]string{"flows.tsv:2: outcome ok test TestFlow07_Refund_OK failed"},
+		},
+		{
+			"a test for a command the row does not list", split + passed("TestFlow07_Close_OK"),
+			[]string{"flows.tsv: test TestFlow07_Close_OK matches no flow outcome; delete the test or add its row"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			parsed, problems := flows.Parse(strings.NewReader(tsv(row)))
+			if len(problems) != 0 {
+				t.Fatalf("parse problems = %v", lines(problems))
+			}
+			results, err := flows.ReadTestResults(strings.NewReader(tc.input))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := lines(flows.CheckTests(parsed, results)); !slices.Equal(got, tc.want) {
+				t.Fatalf("problems = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCheckScripts_aMultiCommandRowNeedsOneScriptPerOutcomeFromAnyCommand(t *testing.T) {
+	t.Parallel()
+	row := fundRowWith(func(c []string) { c[4], c[7] = "FundCabal;Refund", "ok;InsufficientFunds" })
+	parsed, _ := flows.Parse(strings.NewReader(tsv(row)))
+	env := testEnv()
+	env.Scripts = func(_ flows.Flow, name string) bool { return name == "F07RefundOK" }
+	want := []string{"flows.tsv:2: built flow outcome InsufficientFunds has no script " +
+		"F07FundCabalInsufficientFunds or F07RefundInsufficientFunds in internal/testkit/flows; " +
+		"monacoctl verify all fails without it"}
+	if got := lines(flows.CheckScripts(parsed, env)); !slices.Equal(got, want) {
+		t.Fatalf("problems = %q, want %q", got, want)
+	}
+}
+
 func TestCheckScripts_builtFlowsNeedNonCrashScriptsAndVerifiedFlowsNeedEveryOutcome(t *testing.T) {
 	t.Parallel()
 	ok := "F07FundCabalOK"
@@ -148,12 +210,12 @@ func TestCheckScripts_builtFlowsNeedNonCrashScriptsAndVerifiedFlowsNeedEveryOutc
 
 func TestScriptName_isTheFlowTestNameWithoutTheTestPrefix(t *testing.T) {
 	t.Parallel()
-	f := flows.Flow{ID: "00", Command: "RecordPing"}
+	f := flows.Flow{ID: "00", Commands: []string{"RecordPing"}}
 	for o, want := range map[flows.Outcome]string{
 		"ok": "F00RecordPingOK", "InvalidInput": "F00RecordPingInvalidInput",
 		"crash:after-publish": "F00RecordPingCrashAfterPublish",
 	} {
-		if got := flows.ScriptName(f, o); got != want {
+		if got := flows.ScriptName(f, "RecordPing", o); got != want {
 			t.Errorf("ScriptName(%s) = %s, want %s", o, got, want)
 		}
 	}
@@ -173,5 +235,24 @@ func TestMarkdown_rendersTheRFCTable(t *testing.T) {
 		"| 27 | Dead letters \\| advisory | `consumer:$JS.EVENT.ADVISORY` | none | none |\n"
 	if got := flows.Markdown(parsed); got != want {
 		t.Fatalf("markdown =\n%s\nwant\n%s", got, want)
+	}
+}
+
+func TestMarkdown_listsEveryCommandOfAMultiCommandRow(t *testing.T) {
+	t.Parallel()
+	row := fundRowWith(func(c []string) { c[4], c[7] = "FundCabal;Refund", "ok" })
+	parsed, _ := flows.Parse(strings.NewReader(tsv(row)))
+	if got := flows.Markdown(
+		parsed,
+	); !strings.Contains(
+		got,
+		"| `FundCabal`, `Refund` on `POST /v1/cabals/{id}/fund` |",
+	) {
+		t.Fatalf("markdown =\n%s\nwant both commands in the trigger cell", got)
+	}
+	want := "- Command: `FundCabal`, `Refund`\n"
+	tests := "| `ok` | `TestFlow07_FundCabal_OK` or `TestFlow07_Refund_OK` |"
+	if got := flows.FeatureMap(parsed); !strings.Contains(got, want) || !strings.Contains(got, tests) {
+		t.Fatalf("feature map =\n%s\nwant %q and %q", got, want, tests)
 	}
 }

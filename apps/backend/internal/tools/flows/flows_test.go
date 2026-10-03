@@ -42,7 +42,7 @@ func TestParse_readsEveryColumnIntoATypedRow(t *testing.T) {
 	}
 	want := flows.Flow{
 		Line: 2, ID: "07", Name: "Fund cabal", Module: "treasury", Trigger: "POST /v1/cabals/{id}/fund",
-		Command: "FundCabal", Events: []string{"cabal.fund_submitted", "cabal.funded"},
+		Commands: []string{"FundCabal"}, Events: []string{"cabal.fund_submitted", "cabal.funded"},
 		Consumers: []string{"treasury.positions", "ranking"},
 		Outcomes:  []flows.Outcome{"ok", "InsufficientFunds", "crash:after-sign"},
 		Status:    flows.StatusBuilt, Doc: "docs/flows.md#fund",
@@ -54,9 +54,22 @@ func TestParse_readsEveryColumnIntoATypedRow(t *testing.T) {
 
 func equalFlow(a, b flows.Flow) bool {
 	return a.Line == b.Line && a.ID == b.ID && a.Name == b.Name && a.Module == b.Module &&
-		a.Trigger == b.Trigger && a.Command == b.Command && slices.Equal(a.Events, b.Events) &&
+		a.Trigger == b.Trigger && slices.Equal(a.Commands, b.Commands) && slices.Equal(a.Events, b.Events) &&
 		slices.Equal(a.Consumers, b.Consumers) && slices.Equal(a.Outcomes, b.Outcomes) &&
 		a.Status == b.Status && a.Doc == b.Doc
+}
+
+func TestParse_splitsTheCommandCellIntoEachCommand(t *testing.T) {
+	t.Parallel()
+	got, problems := flows.Parse(strings.NewReader(tsv(fundRowWith(func(c []string) { c[4] = "FundCabal; Refund" }))))
+	if len(problems) != 0 || len(got) != 1 || !slices.Equal(got[0].Commands, []string{"FundCabal", "Refund"}) {
+		t.Fatalf("flows = %+v, problems = %v; want commands FundCabal and Refund", got, lines(problems))
+	}
+	_, problems = flows.Parse(strings.NewReader(tsv(fundRowWith(func(c []string) { c[4] = "FundCabal;refund" }))))
+	if want := []string{`flows.tsv:2: command "refund" is not an exported Go identifier`}; !slices.Equal(
+		lines(problems), want) {
+		t.Fatalf("problems = %q, want %q", lines(problems), want)
+	}
 }
 
 func TestParse_rejectsMalformedRowsWithTheirLineNumber(t *testing.T) {
@@ -117,14 +130,14 @@ func TestParse_rejectsMalformedRowsWithTheirLineNumber(t *testing.T) {
 
 func TestTestName_namesOneTestPerOutcome(t *testing.T) {
 	t.Parallel()
-	f := flows.Flow{ID: "07", Command: "FundCabal"}
+	f := flows.Flow{ID: "07", Commands: []string{"FundCabal"}}
 	for outcome, want := range map[flows.Outcome]string{
 		"ok":                  "TestFlow07_FundCabal_OK",
 		"InsufficientFunds":   "TestFlow07_FundCabal_InsufficientFunds",
 		"crash:after-sign":    "TestFlow07_FundCabal_CrashAfterSign",
 		"crash:before-commit": "TestFlow07_FundCabal_CrashBeforeCommit",
 	} {
-		if got := flows.TestName(f, outcome); got != want {
+		if got := flows.TestName(f, "FundCabal", outcome); got != want {
 			t.Errorf("TestName(%s) = %s, want %s", outcome, got, want)
 		}
 	}
@@ -141,10 +154,10 @@ func TestSubRow_aLetterSuffixIsADistinctFlowWithItsOwnNames(t *testing.T) {
 	if ids := []string{parsed[0].ID, parsed[1].ID}; !slices.Equal(ids, []string{"01", "01a"}) {
 		t.Fatalf("ids = %q, want [01 01a]", ids)
 	}
-	if got, want := flows.TestName(parsed[1], flows.OutcomeOK), "TestFlow01a_SetHandle_OK"; got != want {
+	if got, want := flows.TestName(parsed[1], "SetHandle", flows.OutcomeOK), "TestFlow01a_SetHandle_OK"; got != want {
 		t.Errorf("TestName = %s, want %s", got, want)
 	}
-	if got, want := flows.ScriptName(parsed[1], flows.OutcomeOK), "F01aSetHandleOK"; got != want {
+	if got, want := flows.ScriptName(parsed[1], "SetHandle", flows.OutcomeOK), "F01aSetHandleOK"; got != want {
 		t.Errorf("ScriptName = %s, want %s", got, want)
 	}
 	env := testEnv()

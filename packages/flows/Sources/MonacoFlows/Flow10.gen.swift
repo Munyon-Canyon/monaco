@@ -4,7 +4,7 @@ public enum Flow10Outcome: Sendable, Hashable, CaseIterable {
     case ok, unauthorized, proposalNotFound, notAVoter, proposalClosed, interrupted
 
     public static let flowID = "10"
-    public static let command = "CastVote"
+    public static let commands: [String] = ["CastVote"]
 
     public var code: String? {
         switch self {

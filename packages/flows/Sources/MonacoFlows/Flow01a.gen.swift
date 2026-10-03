@@ -4,7 +4,7 @@ public enum Flow01aOutcome: Sendable, Hashable, CaseIterable {
     case ok, handleInvalid, handleReserved, handleTaken, handleTooSoon
 
     public static let flowID = "01a"
-    public static let command = "SetHandle"
+    public static let commands: [String] = ["SetHandle"]
 
     public var code: String? {
         switch self {

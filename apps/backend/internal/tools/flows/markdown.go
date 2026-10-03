@@ -7,8 +7,8 @@ func Markdown(flows []Flow) string {
 	b.WriteString("| # | Flow | Command / trigger | Events | Consumers |\n| --- | --- | --- | --- | --- |\n")
 	for _, f := range flows {
 		trigger := code(f.Trigger)
-		if f.Command != "" {
-			trigger = code(f.Command) + " on " + trigger
+		if len(f.Commands) > 0 {
+			trigger = codes(f.Commands) + " on " + trigger
 		}
 		cells := []string{f.ID, cell(f.Name), trigger, codes(f.Events), cell(orNone(strings.Join(f.Consumers, ", ")))}
 		b.WriteString("| " + strings.Join(cells, " | ") + " |\n")
@@ -46,7 +46,7 @@ func FeatureMap(flows []Flow) string {
 			{"Module", code(f.Module)},
 			{"Status", code(string(f.Status))},
 			{"Trigger", code(f.Trigger)},
-			{"Command", orNone(optionalCode(f.Command))},
+			{"Command", codes(f.Commands)},
 			{"Events", codes(f.Events)},
 			{"Consumers", codes(f.Consumers)},
 			{"Doc", code(f.Doc)},
@@ -58,7 +58,7 @@ func FeatureMap(flows []Flow) string {
 		for _, o := range f.Outcomes {
 			cells := []string{
 				code(string(o)),
-				code(TestName(f, o)),
+				testCells(f, o),
 				code("monacoctl verify flow " + f.ID + " --outcome " + string(o)),
 			}
 			b.WriteString("| " + strings.Join(cells, " | ") + " |\n")
@@ -67,9 +67,10 @@ func FeatureMap(flows []Flow) string {
 	return b.String()
 }
 
-func optionalCode(s string) string {
-	if s == "" {
-		return ""
+func testCells(f Flow, o Outcome) string {
+	names := make([]string, 0, len(f.Commands))
+	for _, command := range f.Commands {
+		names = append(names, code(TestName(f, command, o)))
 	}
-	return code(s)
+	return strings.Join(names, " or ")
 }

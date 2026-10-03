@@ -382,6 +382,25 @@ func TestFlow_writesOneNotImplementedTestPerOutcome(t *testing.T) {
 	}
 }
 
+func TestFlow_writesATestPerCommandAndOutcomeOfAMultiCommandRow(t *testing.T) {
+	t.Parallel()
+	root := withFlows(
+		t,
+		"7\tOpen\twallets\tPOST /v1/wallets\tOpenWallet;CloseWallet\t\t\tok;Blocked\tplanned\tdocs/x.md\n",
+	)
+	if _, err := gen.Apply(root, "flow", "7"); err != nil {
+		t.Fatal(err)
+	}
+	src := read(t, root, "internal/modules/wallets/flow7_test.go")
+	for _, name := range []string{
+		"TestFlow7_OpenWallet_OK", "TestFlow7_OpenWallet_Blocked", "TestFlow7_CloseWallet_OK", "TestFlow7_CloseWallet_Blocked",
+	} {
+		if !strings.Contains(src, "func "+name+"(t *testing.T) {") {
+			t.Errorf("flow7_test.go lacks %s:\n%s", name, src)
+		}
+	}
+}
+
 func TestFlow_rejectsRowsItCannotNameTestsFor(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct{ rows, id, want string }{
