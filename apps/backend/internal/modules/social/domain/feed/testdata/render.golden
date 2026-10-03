@@ -1,0 +1,14 @@
+proposal_buy	Alpha Cabal proposed buying $500 of AAPLx	3 voters	neutral
+proposal_buy_cents	Alpha Cabal proposed buying $1,234.56 of TSLAx	1 voter	neutral
+proposal_sell_no_amount	Alpha Cabal proposed selling NVDAx	2 yes, 1 no of 4 voters	neutral
+proposal_sell_amount	Alpha Cabal proposed selling $25.05 of NVDAx	1 yes, 0 no of 1 voter	neutral
+trade_buy	Alpha Cabal bought $12,500 of AAPLx	Apple	neutral
+trade_sell	Alpha Cabal sold $99.99 of AAPLx		neutral
+price_move_up	AAPLx is up 10.43% today	Apple · $187.42	positive
+price_move_down	TSLAx is down 5.07% today	Tesla · $1,250.00	negative
+price_move_flat_no_price	AAPLx is flat today		neutral
+cabal_created	alice started Alpha Cabal		neutral
+cabal_created_no_actor	Alpha Cabal is a new cabal		neutral
+member_joined	bob joined Alpha Cabal		neutral
+member_joined_no_actor	A new member joined Alpha Cabal		neutral
+unknown_kind			neutral
