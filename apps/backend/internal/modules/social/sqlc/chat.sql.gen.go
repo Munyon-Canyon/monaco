@@ -32,6 +32,59 @@ func (q *Queries) BumpChatReplies(ctx context.Context, arg BumpChatRepliesParams
 	return result.RowsAffected(), nil
 }
 
+const getChatCursor = `-- name: GetChatCursor :one
+SELECT created_at, id
+FROM cabal_messages
+WHERE id = $1 AND cabal_id = $2
+`
+
+type GetChatCursorParams struct {
+	ID      uuid.UUID
+	CabalID uuid.UUID
+}
+
+type GetChatCursorRow struct {
+	CreatedAt time.Time
+	ID        uuid.UUID
+}
+
+func (q *Queries) GetChatCursor(ctx context.Context, arg GetChatCursorParams) (GetChatCursorRow, error) {
+	row := q.db.QueryRow(ctx, getChatCursor, arg.ID, arg.CabalID)
+	var i GetChatCursorRow
+	err := row.Scan(&i.CreatedAt, &i.ID)
+	return i, err
+}
+
+const getChatMessage = `-- name: GetChatMessage :one
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at
+FROM cabal_messages
+WHERE id = $1 AND cabal_id = $2
+`
+
+type GetChatMessageParams struct {
+	ID      uuid.UUID
+	CabalID uuid.UUID
+}
+
+func (q *Queries) GetChatMessage(ctx context.Context, arg GetChatMessageParams) (CabalMessage, error) {
+	row := q.db.QueryRow(ctx, getChatMessage, arg.ID, arg.CabalID)
+	var i CabalMessage
+	err := row.Scan(
+		&i.ID,
+		&i.CabalID,
+		&i.AuthorID,
+		&i.Body,
+		&i.CreatedAt,
+		&i.ParentID,
+		&i.AlsoInChannel,
+		&i.ReplyCount,
+		&i.LastReplyAt,
+		&i.ProposalID,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const insertChatMessage = `-- name: InsertChatMessage :one
 INSERT INTO cabal_messages (id, cabal_id, author_id, body, created_at, parent_id, also_in_channel)
 VALUES (
@@ -82,6 +135,180 @@ func (q *Queries) InsertChatMessage(ctx context.Context, arg InsertChatMessagePa
 		&i.AlsoInChannel,
 	)
 	return i, err
+}
+
+const listChatChannel = `-- name: ListChatChannel :many
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at
+FROM cabal_messages
+WHERE cabal_id = $1
+  AND (parent_id IS NULL OR also_in_channel)
+  AND (deleted_at IS NULL OR (parent_id IS NULL AND reply_count > 0))
+  AND (
+    NOT $2::bool
+    OR (created_at, id) < ($3::timestamptz, $4::uuid)
+  )
+ORDER BY created_at DESC, id DESC
+LIMIT $5::int
+`
+
+type ListChatChannelParams struct {
+	CabalID   uuid.UUID
+	HasBefore bool
+	BeforeAt  time.Time
+	BeforeID  uuid.UUID
+	RowLimit  int32
+}
+
+func (q *Queries) ListChatChannel(ctx context.Context, arg ListChatChannelParams) ([]CabalMessage, error) {
+	rows, err := q.db.Query(ctx, listChatChannel,
+		arg.CabalID,
+		arg.HasBefore,
+		arg.BeforeAt,
+		arg.BeforeID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabalMessage
+	for rows.Next() {
+		var i CabalMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.CabalID,
+			&i.AuthorID,
+			&i.Body,
+			&i.CreatedAt,
+			&i.ParentID,
+			&i.AlsoInChannel,
+			&i.ReplyCount,
+			&i.LastReplyAt,
+			&i.ProposalID,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listChatChannelAfter = `-- name: ListChatChannelAfter :many
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at
+FROM cabal_messages
+WHERE cabal_id = $1
+  AND (parent_id IS NULL OR also_in_channel)
+  AND (deleted_at IS NULL OR (parent_id IS NULL AND reply_count > 0))
+  AND (created_at, id) > ($2::timestamptz, $3::uuid)
+ORDER BY created_at, id
+LIMIT $4::int
+`
+
+type ListChatChannelAfterParams struct {
+	CabalID  uuid.UUID
+	AfterAt  time.Time
+	AfterID  uuid.UUID
+	RowLimit int32
+}
+
+func (q *Queries) ListChatChannelAfter(ctx context.Context, arg ListChatChannelAfterParams) ([]CabalMessage, error) {
+	rows, err := q.db.Query(ctx, listChatChannelAfter,
+		arg.CabalID,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabalMessage
+	for rows.Next() {
+		var i CabalMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.CabalID,
+			&i.AuthorID,
+			&i.Body,
+			&i.CreatedAt,
+			&i.ParentID,
+			&i.AlsoInChannel,
+			&i.ReplyCount,
+			&i.LastReplyAt,
+			&i.ProposalID,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listChatReplies = `-- name: ListChatReplies :many
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at
+FROM cabal_messages
+WHERE parent_id = $1::uuid
+  AND deleted_at IS NULL
+  AND (
+    NOT $2::bool
+    OR (created_at, id) < ($3::timestamptz, $4::uuid)
+  )
+ORDER BY created_at DESC, id DESC
+LIMIT $5::int
+`
+
+type ListChatRepliesParams struct {
+	ParentID  uuid.UUID
+	HasBefore bool
+	BeforeAt  time.Time
+	BeforeID  uuid.UUID
+	RowLimit  int32
+}
+
+func (q *Queries) ListChatReplies(ctx context.Context, arg ListChatRepliesParams) ([]CabalMessage, error) {
+	rows, err := q.db.Query(ctx, listChatReplies,
+		arg.ParentID,
+		arg.HasBefore,
+		arg.BeforeAt,
+		arg.BeforeID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabalMessage
+	for rows.Next() {
+		var i CabalMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.CabalID,
+			&i.AuthorID,
+			&i.Body,
+			&i.CreatedAt,
+			&i.ParentID,
+			&i.AlsoInChannel,
+			&i.ReplyCount,
+			&i.LastReplyAt,
+			&i.ProposalID,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const lockChatMessage = `-- name: LockChatMessage :one
