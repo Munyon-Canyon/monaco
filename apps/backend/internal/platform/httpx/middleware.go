@@ -40,6 +40,7 @@ type Deps struct {
 	Verifier      auth.TokenVerifier
 	AdminVerifier auth.TokenVerifier
 	RateLimit     func(http.Handler) http.Handler
+	WebOrigins    []string
 }
 
 func (d Deps) wrap(next http.Handler) http.Handler {

@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -37,6 +38,42 @@ func TestLoad_refusesAFundPageURLThatCannotTakeTheTokenQuery(t *testing.T) {
 			"(empty or an absolute http(s) URL with no query or fragment)"
 		if err == nil || err.Error() != want {
 			t.Errorf("FUND_PAGE_URL=%s: Load error = %v, want %q", bad, err, want)
+		}
+	}
+}
+
+func TestWebAllowedOrigins_isTheSetListElseTheSiteAddingLocalhostOutsideDeploys(t *testing.T) {
+	t.Parallel()
+	site, local := config.DeployedWebOrigin, config.LocalWebOrigin
+	tests := []struct {
+		env, set string
+		want     []string
+	}{
+		{"local", "", []string{site, local}},
+		{"test", "", []string{site, local}},
+		{"staging", "", []string{site}},
+		{"production", "", []string{site}},
+		{"production", "https://a.example,https://b.example", []string{"https://a.example", "https://b.example"}},
+	}
+	for _, tt := range tests {
+		cfg := config.Config{Env: config.Env(tt.env), Web: config.Web{AllowedOrigins: tt.set}}
+		if got := cfg.WebAllowedOrigins(); !slices.Equal(got, tt.want) {
+			t.Errorf("env %s with %q: WebAllowedOrigins() = %v, want %v", tt.env, tt.set, got, tt.want)
+		}
+	}
+}
+
+func TestLoad_refusesAnOriginWithAPathOrAWildcard(t *testing.T) {
+	t.Parallel()
+	for _, bad := range []string{
+		"*", "https://monacolabs.xyz/", "https://monacolabs.xyz/fund", "monacolabs.xyz", "ftp://monacolabs.xyz",
+		"https://monacolabs.xyz,", "https://monacolabs.xyz, http://localhost:5173", "://bad",
+	} {
+		_, err := config.Load(append(required(), "WEB_ALLOWED_ORIGINS="+bad))
+		want := "config.Load: invalid_input: invalid WEB_ALLOWED_ORIGINS " +
+			"(empty or comma-separated http(s) origins with no path, such as https://monacolabs.xyz)"
+		if err == nil || err.Error() != want {
+			t.Errorf("WEB_ALLOWED_ORIGINS=%s: Load error = %v, want %q", bad, err, want)
 		}
 	}
 }

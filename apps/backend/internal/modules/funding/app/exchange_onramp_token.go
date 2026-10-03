@@ -21,6 +21,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
+type ExchangeOnrampToken struct {
+	Token domain.OnrampToken
+}
+
 type OnrampExchange struct {
 	SessionID       uuid.UUID
 	WalletAddress   chain.SolanaAddress
@@ -41,13 +45,13 @@ func NewExchangeOnrampTokenHandler(
 	return &ExchangeOnrampTokenHandler{uow: uow, clock: c, wallets: wallets, usdcMint: usdcMint}
 }
 
-func (h *ExchangeOnrampTokenHandler) Handle(ctx context.Context, token domain.OnrampToken) (OnrampExchange, error) {
+func (h *ExchangeOnrampTokenHandler) Handle(ctx context.Context, cmd ExchangeOnrampToken) (OnrampExchange, error) {
 	const op = "funding.ExchangeOnrampToken"
 	now := h.clock.Now()
 	var out OnrampExchange
 	err := h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		row, err := sqlc.New(tx.Queries()).OpenOnrampSession(ctx,
-			sqlc.OpenOnrampSessionParams{TokenHash: token.Hash(), Now: now})
+			sqlc.OpenOnrampSessionParams{TokenHash: cmd.Token.Hash(), Now: now})
 		if errors.Is(err, sql.ErrNoRows) {
 			return errs.New(errs.CodeOnrampLinkInvalid, op, slog.String("reason", "unknown"))
 		}

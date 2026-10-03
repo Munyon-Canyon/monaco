@@ -87,7 +87,7 @@ func (h HTTP) ExchangeOnrampToken(
 	if err != nil {
 		return nil, err
 	}
-	out, err := h.Exchange.Handle(ctx, token)
+	out, err := h.Exchange.Handle(ctx, app.ExchangeOnrampToken{Token: token})
 	if err != nil {
 		return nil, err
 	}
