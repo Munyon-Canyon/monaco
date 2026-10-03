@@ -14,6 +14,24 @@ INSERT INTO proposal_voters (proposal_id, voter_id)
 SELECT proposal.id, voter
 FROM proposal, unnest(@voter_ids::uuid[]) AS voter;
 
+-- name: OpenProposal :execrows
+WITH proposal AS (
+  INSERT INTO proposals (
+    id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, token_amount, thesis,
+    quote_out_amount, status, expires_at, created_at, updated_at
+  )
+  VALUES (
+    sqlc.arg(id), sqlc.arg(cabal_id), sqlc.arg(proposer_id), sqlc.arg(kind), sqlc.arg(symbol), sqlc.arg(mint),
+    NULLIF(sqlc.arg(usdc_micros)::text, '0')::bigint, NULLIF(sqlc.arg(token_amount)::text, '0')::bigint,
+    NULLIF(sqlc.arg(thesis)::text, ''), sqlc.arg(quote_out_amount)::text::bigint, 'open', sqlc.arg(expires_at),
+    sqlc.arg(created_at), sqlc.arg(created_at)
+  )
+  RETURNING id
+)
+INSERT INTO proposal_voters (proposal_id, voter_id)
+SELECT proposal.id, voter
+FROM proposal, unnest(sqlc.arg(voter_ids)::uuid[]) AS voter;
+
 -- name: UpsertBallot :exec
 INSERT INTO votes (proposal_id, voter_id, choice, cast_at)
 VALUES (@proposal_id, @voter_id, @choice, @cast_at)

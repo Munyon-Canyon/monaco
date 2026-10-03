@@ -94,3 +94,28 @@ func TestNewProposal_rejectsEachInvalidField(t *testing.T) {
 func sellPast(d *domain.Draft, tokens uint64) {
 	d.Kind, d.USDCMicros, d.TokenAmount = domain.KindSell, money.Micros{}, money.NewBaseUnits(tokens, xstockDecimals)
 }
+
+func TestNewTrade_keepsAValidTradeAndNamesTheBadField(t *testing.T) {
+	t.Parallel()
+	buy := domain.Trade{Kind: domain.KindBuy, Symbol: "AAPLx", USDCMicros: money.MicrosFromUint64(1)}
+	if got, err := domain.NewTrade(buy); err != nil || got != buy {
+		t.Errorf("NewTrade(%+v) = %+v, %v, want it back", buy, got, err)
+	}
+	for name, tc := range map[string]struct {
+		edit  func(*domain.Trade)
+		field string
+	}{
+		"blank symbol": {func(tr *domain.Trade) { tr.Symbol = " " }, "symbol"},
+		"unknown kind": {func(tr *domain.Trade) { tr.Kind = "hold" }, "kind"},
+		"both amounts": {func(tr *domain.Trade) { tr.TokenAmount = 1 }, "amount"},
+		"long thesis":  {func(tr *domain.Trade) { tr.Thesis = strings.Repeat("a", domain.MaxThesisRunes+1) }, "thesis"},
+	} {
+		tr := buy
+		tc.edit(&tr)
+		got, err := domain.NewTrade(tr)
+		if errs.CodeOf(err) != errs.CodeInvalidInput ||
+			!slices.ContainsFunc(errs.Detail(err), slog.String("field", tc.field).Equal) || got != (domain.Trade{}) {
+			t.Errorf("%s: NewTrade = %+v, %v, want invalid_input on %s", name, got, err, tc.field)
+		}
+	}
+}
