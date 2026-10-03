@@ -12,7 +12,9 @@ import (
 )
 
 func (f onrampFixture) http() adapters.HTTP {
-	return adapters.HTTP{Create: f.create, Exchange: f.exchange, IDs: testkit.NewIDs(41)}
+	return adapters.HTTP{
+		Create: f.create, Exchange: f.exchange, Report: f.report, Reads: f.pool, IDs: testkit.NewIDs(41),
+	}
 }
 
 func (f onrampFixture) caller(t *testing.T) context.Context {
@@ -121,5 +123,62 @@ func TestOnrampHTTP_createSurfacesAWriteFailure(t *testing.T) {
 		Body: &api.CreateOnrampSessionJSONRequestBody{},
 	}); err == nil {
 		t.Fatal("create error = nil")
+	}
+}
+
+func TestOnrampHTTP_reportThenGetAnswerTheSameSession(t *testing.T) {
+	t.Parallel()
+	f := newOnrampFixture(t)
+	id := f.opened(t, nil)
+	h := f.http()
+	provider := "moonpay"
+	resp, err := h.ReportOnrampStatus(f.caller(t), api.ReportOnrampStatusRequestObject{
+		Id: id, Body: &api.ReportOnrampStatusJSONRequestBody{Status: "confirmed", Provider: &provider},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reported, ok := resp.(api.ReportOnrampStatus200JSONResponse)
+	if !ok || reported.Status != "confirmed" || reported.CompletedAt == nil {
+		t.Fatalf("report response = %+v", resp)
+	}
+	got, err := h.GetOnrampSession(f.caller(t), api.GetOnrampSessionRequestObject{Id: id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	read, ok := got.(api.GetOnrampSession200JSONResponse)
+	if !ok || read.SessionId != reported.SessionId || read.Status != reported.Status || read.CompletedAt == nil ||
+		!read.CompletedAt.Equal(*reported.CompletedAt) || !read.CreatedAt.Equal(reported.CreatedAt) {
+		t.Fatalf("get = %+v, want %+v", got, reported)
+	}
+}
+
+func TestOnrampHTTP_reportAndGetRefuseBadCallersAndInput(t *testing.T) {
+	t.Parallel()
+	f := newOnrampFixture(t)
+	id := f.opened(t, nil)
+	h := f.http()
+	if _, err := h.ReportOnrampStatus(t.Context(), api.ReportOnrampStatusRequestObject{
+		Id: id, Body: &api.ReportOnrampStatusJSONRequestBody{Status: "confirmed"},
+	}); errs.CodeOf(err) != errs.CodeUnauthorized {
+		t.Fatalf("anonymous report = %v, want unauthorized", err)
+	}
+	if _, err := h.ReportOnrampStatus(f.caller(t), api.ReportOnrampStatusRequestObject{
+		Id: id, Body: &api.ReportOnrampStatusJSONRequestBody{Status: "opened"},
+	}); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("report of opened = %v, want invalid_input", err)
+	}
+	if _, err := h.ReportOnrampStatus(f.caller(t), api.ReportOnrampStatusRequestObject{
+		Id: f.ids.NewV7(), Body: &api.ReportOnrampStatusJSONRequestBody{Status: "failed"},
+	}); errs.CodeOf(err) != errs.CodeNotFound {
+		t.Fatalf("report of an unknown session = %v, want not_found", err)
+	}
+	if _, err := h.GetOnrampSession(t.Context(), api.GetOnrampSessionRequestObject{Id: id}); errs.CodeOf(err) !=
+		errs.CodeUnauthorized {
+		t.Fatalf("anonymous get = %v, want unauthorized", err)
+	}
+	if _, err := h.GetOnrampSession(f.caller(t), api.GetOnrampSessionRequestObject{Id: f.ids.NewV7()}); errs.CodeOf(
+		err) != errs.CodeNotFound {
+		t.Fatalf("get of an unknown session = %v, want not_found", err)
 	}
 }

@@ -617,6 +617,39 @@ func (e MarketState) Valid() bool {
 	}
 }
 
+// Defines values for OnrampSessionStatus.
+const (
+	OnrampSessionStatusCancelled OnrampSessionStatus = "cancelled"
+	OnrampSessionStatusConfirmed OnrampSessionStatus = "confirmed"
+	OnrampSessionStatusCreated   OnrampSessionStatus = "created"
+	OnrampSessionStatusExpired   OnrampSessionStatus = "expired"
+	OnrampSessionStatusFailed    OnrampSessionStatus = "failed"
+	OnrampSessionStatusOpened    OnrampSessionStatus = "opened"
+	OnrampSessionStatusSubmitted OnrampSessionStatus = "submitted"
+)
+
+// Valid indicates whether the value is a known member of the OnrampSessionStatus enum.
+func (e OnrampSessionStatus) Valid() bool {
+	switch e {
+	case OnrampSessionStatusCancelled:
+		return true
+	case OnrampSessionStatusConfirmed:
+		return true
+	case OnrampSessionStatusCreated:
+		return true
+	case OnrampSessionStatusExpired:
+		return true
+	case OnrampSessionStatusFailed:
+		return true
+	case OnrampSessionStatusOpened:
+		return true
+	case OnrampSessionStatusSubmitted:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProblemType.
 const (
 	AboutBlank ProblemType = "about:blank"
@@ -680,6 +713,30 @@ func (e ProposalStatus) Valid() bool {
 	case ProposalStatusVoided:
 		return true
 	case ProposalStatusWithdrawn:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReportOnrampStatusRequestStatus.
+const (
+	ReportOnrampStatusRequestStatusCancelled ReportOnrampStatusRequestStatus = "cancelled"
+	ReportOnrampStatusRequestStatusConfirmed ReportOnrampStatusRequestStatus = "confirmed"
+	ReportOnrampStatusRequestStatusFailed    ReportOnrampStatusRequestStatus = "failed"
+	ReportOnrampStatusRequestStatusSubmitted ReportOnrampStatusRequestStatus = "submitted"
+)
+
+// Valid indicates whether the value is a known member of the ReportOnrampStatusRequestStatus enum.
+func (e ReportOnrampStatusRequestStatus) Valid() bool {
+	switch e {
+	case ReportOnrampStatusRequestStatusCancelled:
+		return true
+	case ReportOnrampStatusRequestStatusConfirmed:
+		return true
+	case ReportOnrampStatusRequestStatusFailed:
+		return true
+	case ReportOnrampStatusRequestStatusSubmitted:
 		return true
 	default:
 		return false
@@ -1877,6 +1934,39 @@ type OnrampExchange struct {
 // Examples: 25000000
 type OnrampMicros = string
 
+// OnrampSession A card deposit session.
+type OnrampSession struct {
+	// CompletedAt When the session reached a final status, or null while it is live.
+	//
+	// Examples: 2026-10-03T15:04:00Z
+	CompletedAt *time.Time `json:"completed_at"`
+
+	// CreatedAt When the session was created.
+	//
+	// Examples: 2026-10-03T15:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// SessionId The session id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+	SessionId openapi_types.UUID `json:"session_id"`
+
+	// Status Where the session is in its status machine.
+	//
+	// Examples: confirmed
+	Status OnrampSessionStatus `json:"status"`
+
+	// SuggestedAmountMicros The amount the app suggested in USDC micros, or null.
+	//
+	// Examples: 25000000
+	SuggestedAmountMicros *string `json:"suggested_amount_micros"`
+}
+
+// OnrampSessionStatus Where the session is in its status machine.
+//
+// Examples: confirmed
+type OnrampSessionStatus string
+
 // OnrampSessionCreated A new onramp session and the page that runs it.
 type OnrampSessionCreated struct {
 	// ExpiresAt When the token stops working.
@@ -2213,6 +2303,24 @@ type ProposalVoter struct {
 	UserId openapi_types.UUID `json:"user_id"`
 }
 
+// ReportOnrampStatusRequest How the provider flow ended.
+type ReportOnrampStatusRequest struct {
+	// Provider The on-ramp provider Privy chose, when the page knows it.
+	//
+	// Examples: moonpay
+	Provider *string `json:"provider,omitempty"`
+
+	// Status confirmed when the user finished the provider flow, submitted when they left before confirmation, cancelled or failed when it threw.
+	//
+	// Examples: confirmed
+	Status ReportOnrampStatusRequestStatus `json:"status"`
+}
+
+// ReportOnrampStatusRequestStatus confirmed when the user finished the provider flow, submitted when they left before confirmation, cancelled or failed when it threw.
+//
+// Examples: confirmed
+type ReportOnrampStatusRequestStatus string
+
 // SetHandle A handle to claim for the caller.
 type SetHandle struct {
 	// Handle Examples: kai_one
@@ -2337,6 +2445,9 @@ type VoteResult struct {
 
 // IdempotencyKey Examples: 6f1c1a52-3a4e-4d0e-9d7b-2f7f3f5b9d10
 type IdempotencyKey = string
+
+// OnrampSessionId Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+type OnrampSessionId = openapi_types.UUID
 
 // UserId defines model for UserId.
 type UserId = openapi_types.UUID
@@ -2599,6 +2710,12 @@ type CreateOnrampSessionParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// ReportOnrampStatusParams defines parameters for ReportOnrampStatus.
+type ReportOnrampStatusParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // DeleteProposalParams defines parameters for DeleteProposal.
 type DeleteProposalParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -2667,6 +2784,9 @@ type CreateOnrampSessionJSONRequestBody = CreateOnrampSessionRequest
 
 // ExchangeOnrampTokenJSONRequestBody defines body for ExchangeOnrampToken for application/json ContentType.
 type ExchangeOnrampTokenJSONRequestBody = ExchangeOnrampTokenRequest
+
+// ReportOnrampStatusJSONRequestBody defines body for ReportOnrampStatus for application/json ContentType.
+type ReportOnrampStatusJSONRequestBody = ReportOnrampStatusRequest
 
 // PostProposalVoteJSONRequestBody defines body for PostProposalVote for application/json ContentType.
 type PostProposalVoteJSONRequestBody = CastVoteRequest
@@ -2793,6 +2913,12 @@ type ServerInterface interface {
 	// ExchangeOnrampToken Exchange a fund page token for the deposit address.
 	// (POST /v1/onramp/sessions/exchange)
 	ExchangeOnrampToken(w http.ResponseWriter, r *http.Request)
+	// GetOnrampSession Read one of the caller's card deposits.
+	// (GET /v1/onramp/sessions/{id})
+	GetOnrampSession(w http.ResponseWriter, r *http.Request, id OnrampSessionId)
+	// ReportOnrampStatus Report how the provider flow ended.
+	// (PATCH /v1/onramp/sessions/{id})
+	ReportOnrampStatus(w http.ResponseWriter, r *http.Request, id OnrampSessionId, params ReportOnrampStatusParams)
 	// DeleteProposal Withdraw the caller's proposal.
 	// (DELETE /v1/proposals/{id})
 	DeleteProposal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteProposalParams)
@@ -4567,6 +4693,86 @@ func (siw *ServerInterfaceWrapper) ExchangeOnrampToken(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// GetOnrampSession operation middleware
+func (siw *ServerInterfaceWrapper) GetOnrampSession(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id OnrampSessionId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetOnrampSession(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReportOnrampStatus operation middleware
+func (siw *ServerInterfaceWrapper) ReportOnrampStatus(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id OnrampSessionId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ReportOnrampStatusParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReportOnrampStatus(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteProposal operation middleware
 func (siw *ServerInterfaceWrapper) DeleteProposal(w http.ResponseWriter, r *http.Request) {
 
@@ -5079,6 +5285,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/referral-code", wrapper.GetMyReferralCode)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/onramp/sessions", wrapper.CreateOnrampSession)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/onramp/sessions/exchange", wrapper.ExchangeOnrampToken)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/onramp/sessions/{id}", wrapper.GetOnrampSession)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/v1/onramp/sessions/{id}", wrapper.ReportOnrampStatus)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.DeleteProposal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.GetProposal)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.PostProposalVote)
@@ -6569,6 +6777,86 @@ func (response ExchangeOnrampTokendefaultApplicationProblemPlusJSONResponse) Vis
 	return err
 }
 
+type GetOnrampSessionRequestObject struct {
+	Id OnrampSessionId `json:"id"`
+}
+
+type GetOnrampSessionResponseObject interface {
+	VisitGetOnrampSessionResponse(w http.ResponseWriter) error
+}
+
+type GetOnrampSession200JSONResponse OnrampSession
+
+func (response GetOnrampSession200JSONResponse) VisitGetOnrampSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetOnrampSessiondefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetOnrampSessiondefaultApplicationProblemPlusJSONResponse) VisitGetOnrampSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReportOnrampStatusRequestObject struct {
+	Id     OnrampSessionId `json:"id"`
+	Params ReportOnrampStatusParams
+	Body   *ReportOnrampStatusJSONRequestBody
+}
+
+type ReportOnrampStatusResponseObject interface {
+	VisitReportOnrampStatusResponse(w http.ResponseWriter) error
+}
+
+type ReportOnrampStatus200JSONResponse OnrampSession
+
+func (response ReportOnrampStatus200JSONResponse) VisitReportOnrampStatusResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReportOnrampStatusdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ReportOnrampStatusdefaultApplicationProblemPlusJSONResponse) VisitReportOnrampStatusResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteProposalRequestObject struct {
 	Id     openapi_types.UUID `json:"id"`
 	Params DeleteProposalParams
@@ -7033,6 +7321,12 @@ type StrictServerInterface interface {
 	// ExchangeOnrampToken Exchange a fund page token for the deposit address.
 	// (POST /v1/onramp/sessions/exchange)
 	ExchangeOnrampToken(ctx context.Context, request ExchangeOnrampTokenRequestObject) (ExchangeOnrampTokenResponseObject, error)
+	// GetOnrampSession Read one of the caller's card deposits.
+	// (GET /v1/onramp/sessions/{id})
+	GetOnrampSession(ctx context.Context, request GetOnrampSessionRequestObject) (GetOnrampSessionResponseObject, error)
+	// ReportOnrampStatus Report how the provider flow ended.
+	// (PATCH /v1/onramp/sessions/{id})
+	ReportOnrampStatus(ctx context.Context, request ReportOnrampStatusRequestObject) (ReportOnrampStatusResponseObject, error)
 	// DeleteProposal Withdraw the caller's proposal.
 	// (DELETE /v1/proposals/{id})
 	DeleteProposal(ctx context.Context, request DeleteProposalRequestObject) (DeleteProposalResponseObject, error)
@@ -8160,6 +8454,66 @@ func (sh *strictHandler) ExchangeOnrampToken(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ExchangeOnrampTokenResponseObject); ok {
 		if err := validResponse.VisitExchangeOnrampTokenResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetOnrampSession operation middleware
+func (sh *strictHandler) GetOnrampSession(w http.ResponseWriter, r *http.Request, id OnrampSessionId) {
+	var request GetOnrampSessionRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetOnrampSession(ctx, request.(GetOnrampSessionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetOnrampSession")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetOnrampSessionResponseObject); ok {
+		if err := validResponse.VisitGetOnrampSessionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReportOnrampStatus operation middleware
+func (sh *strictHandler) ReportOnrampStatus(w http.ResponseWriter, r *http.Request, id OnrampSessionId, params ReportOnrampStatusParams) {
+	var request ReportOnrampStatusRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body ReportOnrampStatusJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReportOnrampStatus(ctx, request.(ReportOnrampStatusRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReportOnrampStatus")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReportOnrampStatusResponseObject); ok {
+		if err := validResponse.VisitReportOnrampStatusResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

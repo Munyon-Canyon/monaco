@@ -13,6 +13,9 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
   expires in 10 minutes, and `POST /v1/onramp/sessions/exchange` trades the token once for the member wallet
   address. Each move appends `onramp.status_changed`. New codes `onramp_link_invalid`, `onramp_link_expired` and
   `onramp_invalid_transition`.
+- The fund page reports how the card purchase ended with `PATCH /v1/onramp/sessions/{id}`, the app reads it with
+  `GET /v1/onramp/sessions/{id}`, and the `funding.onramp-expiry` poller expires unused links after 10 minutes and
+  open sessions after 2 hours.
 - The `notify` module.
 - The `social` module.
 - The `referrals` module.

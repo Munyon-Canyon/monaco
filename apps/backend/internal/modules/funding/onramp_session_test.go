@@ -37,23 +37,26 @@ type onrampFixture struct {
 	user     testkit.SeededUser
 	create   *app.CreateOnrampSessionHandler
 	exchange *app.ExchangeOnrampTokenHandler
+	report   *app.ReportOnrampStatusHandler
+	hints    *hints
+	expiry   *app.OnrampExpiryPoller
 }
 
 func newOnrampFixture(t *testing.T) onrampFixture {
 	t.Helper()
 	pool := testkit.DB(t)
 	c := testkit.NewClock(clock.Real{}.Now().UTC().Truncate(time.Microsecond))
-	uow := db.New(pool, testkit.NewIDs(testkit.RandSeed(t)), c)
+	seed := testkit.RandSeed(t)
+	uow := db.New(pool, testkit.NewIDs(seed), c)
+	h := &hints{}
 	return onrampFixture{
-		ids: testkit.NewIDs(
-			testkit.RandSeed(t),
-		),
-		pool:   pool,
-		clock:  c,
+		ids: testkit.NewIDs(seed + 1), pool: pool, clock: c, hints: h,
 		user:   testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true}),
 		create: app.NewCreateOnrampSessionHandler(uow, c, fundPage),
 		exchange: app.NewExchangeOnrampTokenHandler(uow, c, identity.New(module.Deps{Pool: pool}).Queries(),
 			usdcMint),
+		report: app.NewReportOnrampStatusHandler(uow, c, h),
+		expiry: app.NewOnrampExpiryPoller(uow, c),
 	}
 }
 
