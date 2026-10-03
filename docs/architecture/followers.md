@@ -1,6 +1,6 @@
 # Followers & following
 
-**Status:** Decided 2026-09-26. Reconciled with [backend-platform.md](backend-platform.md) 2026-09-27: owned by the `social` module, flow 20 in [`flows.tsv`](backend-platform.md#flows), built in [Rollout](backend-platform.md#rollout) step 6.
+**Status:** Decided 2026-09-26. Reconciled with [backend-platform.md](backend-platform.md) 2026-09-27: owned by the `social` module, [flow 20](backend-platform.md#flows), built in [Rollout](backend-platform.md#rollout) step 6.
 
 ## Decision
 

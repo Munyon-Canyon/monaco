@@ -63,12 +63,13 @@ apps/backend/
 │   │   └── admin/                 admin actions, dead_letters
 │   └── testkit/                   fakes, fixtures, embedded NATS, Postgres container
 ├── migrations/                    atlas versioned SQL, forward-only
-├── flows.tsv                      every flow, its outcomes, and its test status (see Flows)
 ├── queries/                       sqlc .sql files, one dir per module
 ├── deployments/                   compose, Dockerfile, NATS stream config
 └── test/
     └── e2e/                       black-box: real binary, real PG + NATS, fake externals
 ```
+
+Flows live outside `apps/backend`, beside the app registry: `packages/flows/backend/<id>.tsv` holds one flow, its outcomes and its test status ([Flows](#flows)).
 
 A route ticket adds its paths and schemas to `api/spec/<module>.yaml`, and a new module starts with a stub there (`just gen module <name>` writes it). The `Touches` line of a route ticket names `apps/backend/api/spec/<module>.yaml`, which only that module's tickets own. `base.yaml` holds what more than one module uses, so a ticket that edits it names it. `monacoctl gen openapi` merges the files into `api/openapi.yaml`, which `[batch] shared` lists, because two tickets in different modules never edit the same spec file and any conflict in the bundle is settled by regenerating it. A path or schema defined in two spec files fails the bundler and names both.
 
@@ -192,7 +193,7 @@ How each behaves, so callers do not rediscover it:
 
 ## Errors
 
-One error type, one closed list of codes, one table that maps each code to everything a boundary needs. Every edge case is a row in that table and a row in [`flows.tsv`](#flows), so "did we handle X" is a lookup, not a code read.
+One error type, one closed list of codes, one table that maps each code to everything a boundary needs. Every edge case is a row in that table and a row in its [flow file](#flows), so "did we handle X" is a lookup, not a code read.
 
 ### Shape
 
@@ -252,7 +253,7 @@ Error handling that no test reaches is decoration. The rules that make each bran
 
 ### Outcomes as a map
 
-Each flow lists its outcomes in `flows.tsv`: the success path, every `Code` it can return, and every crash point (`after-create`, `after-sign`, `after-execute`, `before-commit`, `after-publish`). `after-create` covers a swap row committed as `created` whose process died before signing. A swap moves `created` → `submitted` in the same guarded write that stores its signed bytes, and that write commits before any send. So a `created` row was never signed or sent, and a crash after the send leaves the row in `submitted`. The trading sweeper fails any `created` row older than 2 min with no chain lookup. It resolves `submitted` rows through `getSignatureStatuses`. The crash-point test proves the flow converges. One acceptance scenario per outcome, named `TestFlow07_FundCabal_InsufficientFunds`. `monacoctl flows check` reads `go test -json` output and fails CI when an outcome in the TSV has no test that ran and passed. That is the codepath map: the file is the list, the test names are the proof, and the check is what keeps them equal.
+Each flow lists its outcomes in its file, `packages/flows/backend/<id>.tsv`: the success path, every `Code` it can return, and every crash point (`after-create`, `after-sign`, `after-execute`, `before-commit`, `after-publish`). `after-create` covers a swap row committed as `created` whose process died before signing. A swap moves `created` → `submitted` in the same guarded write that stores its signed bytes, and that write commits before any send. So a `created` row was never signed or sent, and a crash after the send leaves the row in `submitted`. The trading sweeper fails any `created` row older than 2 min with no chain lookup. It resolves `submitted` rows through `getSignatureStatuses`. The crash-point test proves the flow converges. One acceptance scenario per outcome, named `TestFlow07_FundCabal_InsufficientFunds`. `monacoctl flows check` reads `go test -json` output and fails CI when an outcome in a flow file has no test that ran and passed. That is the codepath map: the files are the list, the test names are the proof, and the check is what keeps them equal.
 
 ## Logs as evidence
 
@@ -484,7 +485,7 @@ Where the time went under the original 60 s budget. Every row was measured on 20
 | Template clone per test | Measured 2026-09-27, Postgres 16 in a tmpfs container with durability off, today's 29 migrations (26 tables, 9 MB), `GOMAXPROCS=4`, `-parallel 4`, `nice 19`. Raw SQL: create 27 ms, drop 19 ms. Through `pgtestdb` with pgx: 64 parallel tests, each cloning, running 5 queries and dropping, took 1.0 s of test phase, 15.5 ms per test amortized and 60 ms for one test on its own (the drop runs inside `t.Cleanup`, before the slot frees, so it is on the critical path). The same 64 tests serial on one shared database with `TRUNCATE` between them took 1.9 s, 30 ms each. A single clone costs more than a `TRUNCATE`; clone-per-test wins because it runs in parallel. `-race` makes it 48 ms per test amortized. With default `fsync`, drop alone is 169 ms, which is why the test container turns durability off. Building the template from all migrations takes 1.5 s, paid once when it is missing. CI gets its own number from `monacoctl bench db` in Rollout step 1. | `github.com/peterldowns/pgtestdb`, which caches its own template keyed by the migrator's hash and clones it per test. Per-test rollback isn't an option because the Unit of Work commits and the relay reads committed rows. |
 | Embedded NATS | Measured 2026-09-27 (M2, `GOMAXPROCS=4`, `nice 19`, nats-server v2.14.5): server start 27 ms, stop under 1 ms, 1.7 MiB heap. 32 parallel tests, each creating its own stream and consumer and moving 50 messages, took 114 ms of test time (3.6 ms per test amortized, 12.7 ms per test body). Plus about 0.2 s of binary load per NATS-importing package on a cold test cache. `-race` roughly triples the test phase. | One `nats-server` per package in `TestMain`, one stream per test. |
 | Property, model-based, fuzz seeds, jitter | Measured 2026-09-27 on pure domain code: 3 invariants × 100 cases, a model test of 20 steps × 100 runs, 60 fuzz seeds and fixed-seed synctest jitter took 10 to 30 ms in-process together. The package costs about 0.5 s, nearly all of it the fixed per-binary start, and about 1.5 s with `-race`. A model test against the real app layer pays one `testkit.Reset` (31 ms) per run, so 100 runs is about 3 s: those run with fewer runs under `-short`. | `just test backend` runs with `-short` and sets `RAPID_CHECKS=500 RAPID_STEPS=40`, because rapid divides both by its own `-short` factor (5 and 2) to land on 100 cases and about 20 attempted steps. They are env vars, not `-rapid.*` flags, because `go test ./...` passes a flag to every test binary and a binary that does not link rapid rejects it. Corpus seeds only. Fixed jitter seeds. Nightly runs 100,000 cases and `-fuzz` per target. |
-| Acceptance, one per `flows.tsv` outcome, in-process | Measured 2026-09-27 with a light stand-in scenario (own clone, 3 HTTP calls to an in-process `httptest.Server`, one pgx transaction writing two tables, rows asserted): 16.8 ms per scenario amortized at `-parallel 4`, 60 ms median and 80 ms p90 for one scenario on its own. 120 scenarios is about 2 s plus 0.4 s of binary load. Real scenarios do more work; budget 3× until the scaffold measures them. | HTTP against the in-process app, no binaries, no compose. |
+| Acceptance, one per flow outcome, in-process | Measured 2026-09-27 with a light stand-in scenario (own clone, 3 HTTP calls to an in-process `httptest.Server`, one pgx transaction writing two tables, rows asserted): 16.8 ms per scenario amortized at `-parallel 4`, 60 ms median and 80 ms p90 for one scenario on its own. 120 scenarios is about 2 s plus 0.4 s of binary load. Real scenarios do more work; budget 3× until the scaffold measures them. | HTTP against the in-process app, no binaries, no compose. |
 
 Measured on the scaffold (#485, 2026-09-27): 26 test packages, no NATS and no acceptance scenarios yet. `just test backend` runs `go test -json -race -shuffle=on -short -coverpkg=./... -coverprofile`, the non-race allocation pass, `test-report`, `flows check` and `coverage`, with the test cache cleared before each run and the build cache warm. The laptop is an 8-core Apple silicon Mac with a 1-minute load average of 14 to 30 from other agents, so these are loaded numbers:
 
@@ -556,13 +557,13 @@ Lint that makes the shared-state leak a compile-time failure:
 
 Each flow is a command, the events it emits, the consumers that react, and every outcome it can end in. The table below is the target state of the rewrite, not the current code. Most of rows 1 to 17 existed in the deleted legacy backend in some form; 18 to 28 are partly new. Nothing here is "future reference": every row becomes a test before its module's rollout step closes.
 
-### `flows.tsv` is the source of truth
+### The flow files are the source of truth
 
-The table below is a render. The file is `apps/backend/flows.tsv`, one line per flow, tab-separated, and it moves with the code. TSV over YAML because a flow is one line, the diff shows exactly which cell changed, `cut` and `awk` read it, and there is no indentation for an agent to get wrong. List cells use `;`.
+The table below is a render. Each flow is one file, `packages/flows/backend/<id>.tsv`: a tab-separated header line and one row, and it moves with the code. The file name stem equals the row's `id`, so two tickets conflict on the registry only when they own the same flow. `monacoctl flows check` fails a file with a second row, a wrong header or an id that differs from its name. Tools read every file and order the rows by `id`. TSV over YAML because a flow is one line, the diff shows exactly which cell changed, `cut` and `awk` read it, and there is no indentation for an agent to get wrong. List cells use `;`.
 
 | Column | Contents | Checked by |
 | --- | --- | --- |
-| `id` | `07`, or `01a` for a sub-row of flow 01 | unique; digits with at most one lowercase letter after them |
+| `id` | `07`, or `01a` for a sub-row of flow 01 | equals the file name stem; digits with at most one lowercase letter after them |
 | `flow` | `Fund cabal` | |
 | `module` | `treasury` | directory exists |
 | `trigger` | `POST /v1/cabals/{id}/fund` or `consumer:proposal.passed` or `poller:deposits` | route in `openapi.yaml`, subject in registry, or poller registered |
@@ -573,7 +574,7 @@ The table below is a render. The file is `apps/backend/flows.tsv`, one line per 
 | `status` | `planned`, `built`, `verified` | `built` needs every outcome test and a script for each non-crash outcome; `verified` needs a script per outcome (below) |
 | `doc` | `docs/architecture/deposits-withdrawals.md#fund` | file and anchor exist |
 
-The app registry lives beside it, one file per flow at `packages/flows/app/<id>.tsv`. Each file names the screen, the app status and the doc for one flow, and joins `flows.tsv` on `id` without copying any backend column. `monacoctl flows check` validates it with the backend rows. The spec is `packages/flows/README.md`.
+The app registry lives beside it, one file per flow at `packages/flows/app/<id>.tsv`. Each file names the screen, the app status and the doc for one flow, and joins the backend file on `id` without copying any backend column. `monacoctl flows check` validates it with the backend rows. The spec is `packages/flows/README.md`.
 
 An app status of `verified` needs one passing integration test per outcome, set up with `monacoctl flows seed`. The test is `test_F<id>_<Command>_<Outcome>` in class `F<id>IntegrationTests`, and every `crash:*` outcome shares one test that ends in `interrupted`, as the generated `Flow<id>Outcome` enum does. On a flow with several commands, a passing test under any one of them covers the outcome. Each test starts by running `monacoctl flows seed <id> <outcome>`. The command runs that outcome's `Seeder` from `internal/testkit/flows/seed.go` against the real database and prints the token, user id and ids the test needs as one JSON object. `scripts/ci/mobile-integration.sh` passes the Linux binary as `MONACO_SEED_BIN` and the directory to run it from as `MONACO_SEED_DIR`. After the Swift run it calls `monacoctl flows check --integration-xunit`, which fails a `verified` app flow whose outcome test is missing, skipped or failed. Without the flag the check skips this rule and says so.
 
@@ -814,7 +815,7 @@ What lives where:
 | Piece | Path | Contents |
 | --- | --- | --- |
 | Skill instructions | `.claude/skills/verify-backend/SKILL.md` (mirrored to `.cursor/skills/`) | When to run it, the commands, how to read evidence, what counts as a pass, and what to do on a failure. Short; the CLI does the work. |
-| Feature map | `.claude/skills/verify-backend/feature-map.md` | Generated from `flows.tsv` by `monacoctl docs flows`. Per flow: trigger, command, events, consumers, tables, outcomes, and the exact command that verifies it. Checked fresh in CI. |
+| Feature map | `.claude/skills/verify-backend/feature-map.md` | Generated from `packages/flows/backend/*.tsv` by `monacoctl docs flows`. Per flow: trigger, command, events, consumers, tables, outcomes, and the exact command that verifies it. Checked fresh in CI. |
 | The CLI | `cmd/monacoctl verify` | Stack, driver, invariant checks, evidence writer. Code, tested like any other code. |
 | Fakes server | `cmd/fakes`, built from `internal/testkit/fakes` | Privy, Jupiter, Solana RPC, Helius, xStocks, APNs and Ably over HTTP, replaying recorded fixtures. Scriptable per request: succeed, fail with a given error, delay, or hang. |
 | Flow scripts | `internal/testkit/flows/<id>.go` | The same steps as the flow's acceptance scenario, written once and run by both `go test` (in-process) and `verify` (against binaries). |
@@ -826,7 +827,7 @@ What one run does:
 1. **Stack up.** A throwaway Postgres container on its own port with data on tmpfs, never the dev container. An embedded NATS server. The fakes server. `api` and `worker` built with `-cover` and started with config that points every outside base URL at the fakes. The run fails fast if any piece is not healthy within 10 s.
 2. **Seed.** Replay the flow's starting scenario, for example `cabal-with-members` for flow 7.
 3. **Drive.** Run the flow script over HTTP with real auth headers, `Idempotency-Key`s and the SSE stream open.
-4. **Wait for convergence.** Poll until every event the flow emitted has been acked by every consumer in `flows.tsv`, or time out at 30 s. A timeout is a failure with the stuck consumer named.
+4. **Wait for convergence.** Poll until every event the flow emitted has been acked by every consumer in its flow file, or time out at 30 s. A timeout is a failure with the stuck consumer named.
 5. **Check invariants.** Ledger entries sum to zero per asset. Share units match the pot. No dead letters. No `KindInternal` in the logs. Every log line the flow must emit (registered in `msgs.go`) is present. For a route trigger, the HTTP status and `code` match the expected outcome.
 6. **Write evidence** and print a readable summary.
 7. **Tear down.** Stop the binaries, remove the container, merge coverage into `GOCOVERDIR`.
@@ -903,7 +904,7 @@ Agents in Claude Code on the web or CI install it with `npm install -g @withgrap
 ### Rules
 
 - **One PR is one verifiable unit.** It passes stage 0 (`monacoctl agents check`) and stage 1 on its own, without the PRs above it ([Verification scope](#verification-scope)). A PR that only makes sense with the next one gets merged with it.
-- **Order a stack so each PR proves the next.** Delete or rename first. Then schema and migration. Then `domain` and `app` with their tests. Then adapters and HTTP. Last, the `flows.tsv` status change with its flow scripts. The Rollout steps below are each one stack, not one PR.
+- **Order a stack so each PR proves the next.** Delete or rename first. Then schema and migration. Then `domain` and `app` with their tests. Then adapters and HTTP. Last, the flow file's status change with its flow scripts. The Rollout steps below are each one stack, not one PR.
 - **Size limit: under 1000 changed lines.** CI fails a PR at 1000 or more changed lines, counting added plus deleted lines in hand-written code, tests and docs. A pure rename counts as zero. Generated Go, `go.sum`, lockfiles, images, `testdata`, evidence files and rendered reference docs don't count; the list is `IGNORED` in `scripts/check-pr-size.py`. A human reviewer can add the `large-pr` label to let an oversized PR through, for example a mechanical change such as a rename; an agent adds it only when a human says to. Each PR of a stack is measured against its own base, the PR below it, so a stack of PRs that are each under the limit passes.
 - **Split a branch that grew too big.** When work piled up on one branch or at the top of a stack, split it before submitting. The `distribute-stack-changes` skill does it by copying exact hunks onto the lowest branch that owns each behavior, restacking after each commit, and checking the top branch has zero diff from a saved reference. It never rewrites the work. `gt split --by-hunk` does the same by hand. The skill lives in each person's `~/.agents/skills`, not in the repo.
 - **Title: what the PR changes.** For example `Add errs code table and problem+json mapping`: present tense, no issue number, no commit-type prefix such as `docs:` or `feat(x):`. Every stack starts from a GitHub issue in the write-ticket format, and each PR links it under Why (`Closes #212` or `Part of #212`).
@@ -936,7 +937,7 @@ Stage 1 runs no tests because stage 0 already ran the tests the change can affec
 Stage 0 diffs `HEAD` against `origin/staging` and picks its rows from the changed paths:
 
 - Every diff: `scripts/check-pr-size.py` and `scripts/check-gate-changes.py` with `BASE_SHA` set to the stack parent, so an upstack PR is measured against its own parent, as CI measures it. A gate-changes warning shows as a count on the passing row.
-- `apps/backend/**`: the packages `monacoctl ci affected` prints, seeded per changed file. A `.go` file seeds its package. A non-Go file seeds the nearest ancestor directory that is a package, which covers `migrations/*.sql`, `api/openapi.yaml`, `testdata/` and embedded files. `queries/<m>/**` seeds `internal/modules/<m>/sqlc`. `sqlc.yaml` seeds every package whose path ends in `/sqlc`. `flows.tsv` seeds the packages that read it (`flowsReaders` in `cmd/monacoctl/ci.go`). The walk then adds their importers and the packages whose tests import it. The result is `./...` when `go.mod`, `go.sum`, `.golangci.yml` or `internal/testkit/**` changed, or when a file has no package (a new package directory, `queries/platform/**`, a root file). The lint row runs the CI lint job's golangci-lint, nogo and `monacoctl lint comments` on them, and refuses a golangci-lint that differs from `apps/backend/.golangci-lint-version`.
+- `apps/backend/**`: the packages `monacoctl ci affected` prints, seeded per changed file. A `.go` file seeds its package. A non-Go file seeds the nearest ancestor directory that is a package, which covers `migrations/*.sql`, `api/openapi.yaml`, `testdata/` and embedded files. `queries/<m>/**` seeds `internal/modules/<m>/sqlc`. `sqlc.yaml` seeds every package whose path ends in `/sqlc`. A flow file under `packages/flows/backend/` seeds the packages that read the registry (`flowsReaders` in `cmd/monacoctl/ci.go`). The walk then adds their importers and the packages whose tests import it. The result is `./...` when `go.mod`, `go.sum`, `.golangci.yml` or `internal/testkit/**` changed, or when a file has no package (a new package directory, `queries/platform/**`, a root file). The lint row runs the CI lint job's golangci-lint, nogo and `monacoctl lint comments` on them, and refuses a golangci-lint that differs from `apps/backend/.golangci-lint-version`.
 - A `.sh` file, or an extensionless file with a `bash`, `sh` or `zsh` shebang: `bash -n` and `shellcheck`.
 - Any path: the `scripts/**/*_test.go` tests and `scripts/**/test_*.py` files that the diff touches or that name the changed file's basename in a string literal, for example `"agent-guard.py"`.
 - `packages/mobile-core/**` or `packages/flows/**`: `swift test`.
@@ -968,7 +969,7 @@ The PR's Proof section pastes the `monacoctl agents check` output and says that 
 
 ## Rollout
 
-1. Scaffold: module, lint, comment checker and its agent hook, CI, `platform/*`, `errs`, `testkit`, generators, empty `flows.tsv` with `monacoctl flows check` green, `verify-backend` skill with an empty feature map, mkdocs, CHANGELOG. The legacy backend, its migrations, its Go domain package and the reference trading bot are deleted first, as the step's opening stack. No features. Prove lint fails on a planted violation of each rule, and measure the test budget table on the scaffold to set the CI gate.
+1. Scaffold: module, lint, comment checker and its agent hook, CI, `platform/*`, `errs`, `testkit`, generators, an empty backend flow registry with `monacoctl flows check` green, `verify-backend` skill with an empty feature map, mkdocs, CHANGELOG. The legacy backend, its migrations, its Go domain package and the reference trading bot are deleted first, as the step's opening stack. No features. Prove lint fails on a planted violation of each rule, and measure the test budget table on the scaffold to set the CI gate.
 2. Events + relay + `bus.Dispatch` with the bus test suite green on embedded NATS.
 3. Identity, cabal, funding (deposits), treasury (fund, shares). E2E flows 1–7.
 4. Governance + trading. Flows 8–13, with crash-point tests. Flow 8 lands here because the pause it writes is what trading checks.

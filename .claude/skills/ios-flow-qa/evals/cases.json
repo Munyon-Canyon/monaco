@@ -45,7 +45,7 @@
     {
       "id": "backend-flow",
       "should_trigger": false,
-      "prompt": "Move flow 05 in apps/backend/flows.tsv to verified and tell me what evidence it needs."
+      "prompt": "Move flow 05 in packages/flows/backend/05.tsv to verified and tell me what evidence it needs."
     },
     {
       "id": "login-bug",

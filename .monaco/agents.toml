@@ -29,8 +29,9 @@ shared = [
   "docs/reference/**",
   # New files with unique timestamp names; atlas.sum is rehashed.
   "apps/backend/migrations/**",
+  # One file per flow; two tickets edit the same file only when they own the same flow.
+  "packages/flows/backend/**",
   # merge=union in .gitattributes.
-  "apps/backend/flows.tsv",
   "apps/backend/CHANGELOG.md",
   # One registrations file per module.
   "apps/backend/internal/events/**",

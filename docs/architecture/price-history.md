@@ -15,7 +15,7 @@ Charts are bucketed from `price_points` at read time and cached in memory per sy
 
 Pyth is out, for charts and for leaderboards (default 2026-09-27). Jupiter's undocumented `datapi.jup.ag` candle endpoint is out. Yahoo is out: the rewrite ports no Yahoo adapter, and the CoinGecko backfill runs before iOS cuts over, so the table already has history on day one (default 2026-09-27).
 
-In the rewrite the `market` module owns all of this: the catalog, `price_points`, the sampler, backfill, reconcile and the chart reads ([Repository layout](backend-platform.md#repository-layout)). The sampler is the price poller of flow 18 in [`flows.tsv`](backend-platform.md#flows). Each tick publishes one batched core-NATS message carrying every asset, never one message per asset, and nothing is stored as an event ([NATS hosting and budget](backend-platform.md#nats-hosting-and-budget)). `ranking` and the [SSE hub](backend-platform.md#sse-hub) consume it. The subject is `price.tick` everywhere (default 2026-09-27). The tick runs every 120 s (decided 2026-09-27).
+In the rewrite the `market` module owns all of this: the catalog, `price_points`, the sampler, backfill, reconcile and the chart reads ([Repository layout](backend-platform.md#repository-layout)). The sampler is the price poller of [flow 18](backend-platform.md#flows). Each tick publishes one batched core-NATS message carrying every asset, never one message per asset, and nothing is stored as an event ([NATS hosting and budget](backend-platform.md#nats-hosting-and-budget)). `ranking` and the [SSE hub](backend-platform.md#sse-hub) consume it. The subject is `price.tick` everywhere (default 2026-09-27). The tick runs every 120 s (decided 2026-09-27).
 
 ## Why
 
@@ -159,7 +159,7 @@ The rewrite ignores that code ([backend-platform.md](backend-platform.md)). This
 5. Retention poller.
 6. "Data provided by CoinGecko" attribution on the asset screen while on the Demo plan.
 
-Every step is a `flows.tsv` row with its outcomes tested before the step closes. `internal/jupitercharts`, `internal/yahoocharts`, `SparkWarmer` and `CHART_SOURCE` go when the old backend is deleted in step 7.
+Every step is a flow file with its outcomes tested before the step closes. `internal/jupitercharts`, `internal/yahoocharts`, `SparkWarmer` and `CHART_SOURCE` go when the old backend is deleted in step 7.
 
 ## Open questions
 

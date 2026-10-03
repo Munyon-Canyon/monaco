@@ -1,6 +1,6 @@
 ---
 name: go-backend-module
-description: Adds a command, query, consumer, provider or module to the Go backend end to end, from the generator to the flows.tsv row. Use when a backend ticket adds or changes behavior under apps/backend/internal/modules.
+description: Adds a command, query, consumer, provider or module to the Go backend end to end, from the generator to the flow file. Use when a backend ticket adds or changes behavior under apps/backend/internal/modules.
 ---
 
 # Go backend module
@@ -11,7 +11,7 @@ Every job has one paved path, and a generator writes its first copy. Start from 
 
 | Piece | Path |
 | --- | --- |
-| Flow row | `apps/backend/flows.tsv`, id `00` |
+| Flow file | `packages/flows/backend/00.tsv` |
 | Module wiring | `apps/backend/internal/modules/system/module.go` |
 | Domain type with a parse constructor | `apps/backend/internal/modules/system/domain/note.go` |
 | Command | `apps/backend/internal/modules/system/app/record_ping.go` |
@@ -76,9 +76,9 @@ Run `just gen provider <name>`. Wire types stay in the provider package. The fak
 
 Every `TestMain` lives in `main_test.go` and is exactly `testkit.Main(m, ...)`. It runs goleak.
 
-## The flows.tsv row
+## The flow file
 
-A flow is one tab-separated line in `apps/backend/flows.tsv`. List cells use `;`. `monacoctl flows check` reads it. The command cell may list several commands. Then each outcome needs a test from at least one of them, each command needs at least one test, and only the pairs a command can return get a test. The trigger cell then holds one trigger shared by every command, or one per command in the same order, and `monacoctl verify` checks each command's outcomes against its own trigger.
+A flow is one file, `packages/flows/backend/<id>.tsv`: the tab-separated header line and one row whose `id` equals the file name stem. List cells use `;`. `monacoctl flows check` reads every file and fails one with a second row, a wrong header or an id that differs from its name. The command cell may list several commands. Then each outcome needs a test from at least one of them, each command needs at least one test, and only the pairs a command can return get a test. The trigger cell then holds one trigger shared by every command, or one per command in the same order, and `monacoctl verify` checks each command's outcomes against its own trigger.
 
 | Status | Needs |
 | --- | --- |
@@ -86,12 +86,12 @@ A flow is one tab-separated line in `apps/backend/flows.tsv`. List cells use `;`
 | `built` | A command, a passing test per outcome named `TestFlow<id>_<Command>_<Outcome>` (`OK` for `ok`, `Crash<Point>` for `crash:<point>`), and a script for every non-crash outcome registered in `internal/testkit/flows/scripts.go`. |
 | `verified` | A script for every remaining outcome, including each crash outcome not already registered, in `Scripts()`. |
 
-1. Add the row as `planned` when the ticket starts.
+1. Add `packages/flows/backend/<id>.tsv` with the row as `planned` when the ticket starts.
 2. Run `just gen flow <id>`. Write the non-crash scripts in `internal/testkit/flows/f<id>.go`, register them in `Scripts()`, and make each test call its script. Then set `built`. Scripts for the non-crash outcomes ship with the `built` row.
 3. Crash scripts ship with the `verify all --crash-at <point>` line in `scripts/ci/e2e.sh` that runs them. Register the rest and set `verified`.
 4. Regenerate the docs with `just gen docs` and the feature map with `go run ./cmd/monacoctl docs flows --feature-map > ../../.claude/skills/verify-backend/feature-map.md`. `scripts/ci/ready.sh` fails when either is stale.
 
-A test named `TestFlow<id>_...` with no row fails the check. Deleting a flow deletes its row and its tests together.
+A test named `TestFlow<id>_...` with no row fails the check. Deleting a flow deletes its file and its tests together.
 
 ## Before you push
 

@@ -6,7 +6,7 @@
 
 The feed is one table, **FeedObject**, holding every kind of item the app shows in the feed. Reading the feed is a single paginated `GET` over that table, with filters, search and sort as query parameters. There is no ranking model for MVP: the default order is newest first. Users can comment on any feed item and reply to other comments, using one comment system, **FeedComment**, for every item kind, proposals included.
 
-The `social` module owns the feed, its comments and its mutes ([Repository layout](backend-platform.md#repository-layout)). Feed items are written by the module's `feed` consumer as side effects of events from other modules, never by clients directly. The consumer runs through `bus.Dispatch`, so a redelivered event is a no-op through `event_deliveries` ([event-bus.md](event-bus.md#consumers-and-handlers)). Comments are the only thing users write to the feed. Creating one is flow 21 in [`flows.tsv`](backend-platform.md#flows).
+The `social` module owns the feed, its comments and its mutes ([Repository layout](backend-platform.md#repository-layout)). Feed items are written by the module's `feed` consumer as side effects of events from other modules, never by clients directly. The consumer runs through `bus.Dispatch`, so a redelivered event is a no-op through `event_deliveries` ([event-bus.md](event-bus.md#consumers-and-handlers)). Comments are the only thing users write to the feed. Creating one is [flow 21](backend-platform.md#flows).
 
 ## In the app
 
@@ -96,7 +96,7 @@ Indexes: `(created_at desc, id)`, `(cabal_id, created_at desc)`, `(asset_id, cre
 - Any feed item can be commented on, with one exception. Non-members can view another cabal's proposal but not comment on it until moderation ships (default 2026-09-27); the refusal is an `errs` code on flow 21. Replies reference `parent_comment_id`. The app shows one level of nesting; deeper replies attach to the top-level comment and mention the person they reply to.
 - A reply's parent must belong to the same feed item (composite key, same pattern as today's `proposal_comments`).
 - `CreateComment` is a command with an `Idempotency-Key`, like every mutating call ([Thin client](backend-platform.md#thin-client)). One `uow.Do` inserts the comment, increments `feed_objects.comment_count` and appends `comment.created`. Its consumers are `notify`, `analytics` and the live hint (flow 21).
-- Refusals are `errs` codes, and each is an outcome on flow 21 in `flows.tsv` ([Errors](backend-platform.md#errors)): an empty or over-long body, an unknown feed item, a parent on another item.
+- Refusals are `errs` codes, and each is an outcome in flow 21's file, `packages/flows/backend/21.tsv` ([Errors](backend-platform.md#errors)): an empty or over-long body, an unknown feed item, a parent on another item.
 - Authors can delete their own comments. Deletion is soft (`deleted_at`) so reply threads keep their shape; the body renders as "deleted".
 - **Moderation** ships before non-member commenting opens (default 2026-09-27). Users can report a comment. Admins remove it through an audited `admin.action` (flow 26). Each user has a comment rate limit. Blocking users ships with it ([followers.md](followers.md)).
 - A reply to your comment, or a comment on your proposal, is a notification candidate (see below).

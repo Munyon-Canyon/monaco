@@ -35,7 +35,7 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
         git switch -c <n>-<slug>
         gt track --parent staging
 
-    Each further PR of the stack starts with `gt create <branch> -m "<subject>"`. Amend the current branch with `gt modify`, which also restacks the branches above it. Order the stack so each PR proves the next: deletions and renames, then schema, then `domain` and `app`, then adapters and HTTP, then the `flows.tsv` status change.
+    Each further PR of the stack starts with `gt create <branch> -m "<subject>"`. Amend the current branch with `gt modify`, which also restacks the branches above it. Order the stack so each PR proves the next: deletions and renames, then schema, then `domain` and `app`, then adapters and HTTP, then the flow file's status change.
 
 4. Write the change. Read `apps/backend/AGENTS.md` first for backend code, and the skill it names for the job:
 

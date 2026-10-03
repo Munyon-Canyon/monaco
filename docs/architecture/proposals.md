@@ -105,7 +105,7 @@ Routes follow the [`cabal` naming](backend-platform.md#decided). Every mutating 
 
 There is no `PATCH` for trade parameters. Changing what the cabal is voting on after votes are cast would invalidate those votes; withdraw and re-propose instead.
 
-The acceptance tests, outcome codes and crash points for flows 9, 10 and 13 live in [`flows.tsv`](backend-platform.md#flows), not here.
+The acceptance tests, outcome codes and crash points for flows 9, 10 and 13 live in their [flow files](backend-platform.md#flows), not here.
 
 ## Future: referencing a proposal from cabal chat
 

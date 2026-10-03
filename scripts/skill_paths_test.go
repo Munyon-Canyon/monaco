@@ -111,11 +111,11 @@ func TestSkillPaths_eachMirroredSkillIsUnder150LinesAndMirroredForCursor(t *test
 
 func TestSkillPaths_flagsAPlantedMissingPathAndSkipsNonPaths(t *testing.T) {
 	root := repoRoot(t)
-	markdown := "See `apps/backend/flows.tsv`, `internal/platform/db/uow.go#L1`, `./cmd/monacoctl`, " +
+	markdown := "See `packages/flows/backend/00.tsv`, `internal/platform/db/uow.go#L1`, `./cmd/monacoctl`, " +
 		"`apps/backend/internal/nope.go` and `math/big`. " +
 		"Not paths: `go run ./cmd/monacoctl verify`, `queries/<module>/x.sql`, `POST /v1/system/pings`, `/v1/system/pings`, `go.uber.org/goleak`, `system.pinged`, `https://x.dev/a`."
 	wantSpans := []string{
-		"apps/backend/flows.tsv", "internal/platform/db/uow.go", "./cmd/monacoctl", "apps/backend/internal/nope.go",
+		"packages/flows/backend/00.tsv", "internal/platform/db/uow.go", "./cmd/monacoctl", "apps/backend/internal/nope.go",
 		"math/big",
 	}
 	if got := pathSpans(markdown); !slices.Equal(got, wantSpans) {

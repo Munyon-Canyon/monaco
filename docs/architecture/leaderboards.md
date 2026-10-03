@@ -1,6 +1,6 @@
 # Leaderboards
 
-**Status:** Decided 2026-09-26. Direction set; cadences and thresholds are starting values to tune. Reconciled with [backend-platform.md](backend-platform.md) 2026-09-27: owned by the `ranking` module, flow 19 in [`flows.tsv`](backend-platform.md#flows), built in [Rollout](backend-platform.md#rollout) step 6. Prices come from the `market` module ([price-history.md](price-history.md)).
+**Status:** Decided 2026-09-26. Direction set; cadences and thresholds are starting values to tune. Reconciled with [backend-platform.md](backend-platform.md) 2026-09-27: owned by the `ranking` module, [flow 19](backend-platform.md#flows), built in [Rollout](backend-platform.md#rollout) step 6. Prices come from the `market` module ([price-history.md](price-history.md)).
 
 ## Decision
 
