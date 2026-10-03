@@ -22,6 +22,7 @@ type Remote struct {
 	URL        string
 	FakesURL   string
 	PrivyAppID string
+	ClientIP   string
 	Pool       *pgxpool.Pool
 	Consumers  []bus.Consumer
 	Mint       func(userID string) string
@@ -38,6 +39,7 @@ func Against(t T, r Remote) *Scenario {
 	t.Cleanup(client.CloseIdleConnections)
 	return newScenario(t, &backend{
 		baseURL:       r.URL,
+		clientIP:      r.ClientIP,
 		client:        client,
 		note:          newNotifier(),
 		pool:          r.Pool,
