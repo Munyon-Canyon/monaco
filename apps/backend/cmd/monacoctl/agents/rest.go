@@ -83,8 +83,6 @@ type restPull struct {
 	ClosedAt       *time.Time `json:"closed_at"`
 	MergedAt       *time.Time `json:"merged_at"`
 	MergeCommitSHA *string    `json:"merge_commit_sha"`
-	Mergeable      *bool      `json:"mergeable"`
-	MergeableState string     `json:"mergeable_state"`
 	UpdatedAt      time.Time  `json:"updated_at"`
 	Head           restRef    `json:"head"`
 	Base           restRef    `json:"base"`
@@ -129,10 +127,7 @@ func (g *GitHub) openPullsREST(ctx context.Context) ([]restPull, error) {
 	return pages[restPull](ctx, g, g.repo("/pulls?state=open"))
 }
 
-var (
-	errNoRESTMapping = errors.New("no REST mapping for query")
-	errMergeNoPull   = errors.New("merge query names no pull request")
-)
+var errNoRESTMapping = errors.New("no REST mapping for query")
 
 func (env *Env) restQuery(ctx context.Context, query string, out any) error {
 	payload, err := env.restPayload(ctx, query)
@@ -155,8 +150,6 @@ func (env *Env) restQuery(ctx context.Context, query string, out any) error {
 
 func queryKind(query string) string {
 	switch {
-	case strings.Contains(query, "potentialMergeCommit"):
-		return "merge"
 	case strings.Contains(query, "CROSS_REFERENCED_EVENT"):
 		return "timeline"
 	case strings.Contains(query, "fragment pr on PullRequest"):
@@ -174,8 +167,6 @@ func queryKind(query string) string {
 
 func (env *Env) restPayload(ctx context.Context, query string) (any, error) {
 	switch queryKind(query) {
-	case "merge":
-		return env.restMergePayload(ctx, query)
 	case "watch":
 		return env.restWatchPayload(ctx)
 	case "timeline":
@@ -243,73 +234,6 @@ func (env *Env) restOpenPayload(ctx context.Context) (any, error) {
 		nodes = append(nodes, p.asStack())
 	}
 	return map[string]any{"repository": map[string]any{"open": map[string]any{"nodes": nodes}}}, nil
-}
-
-func (env *Env) restMergePayload(ctx context.Context, query string) (any, error) {
-	nums := mergeNumbers(query)
-	if len(nums) == 0 {
-		return nil, errMergeNoPull
-	}
-	p, err := env.GitHub.restPull(ctx, nums[0])
-	if err != nil {
-		return nil, err
-	}
-	mergeable, parents, err := env.mergeParents(ctx, p)
-	if err != nil {
-		return nil, err
-	}
-	var tip struct {
-		Object struct {
-			SHA string `json:"sha"`
-		} `json:"object"`
-	}
-	if err := env.GitHub.call(
-		ctx, http.MethodGet, env.GitHub.repo("/git/ref/heads/%s", p.Base.Ref), "", nil, &tip,
-	); err != nil {
-		return nil, err
-	}
-	var commit any
-	if parents != nil {
-		commit = map[string]any{"parents": map[string]any{"nodes": parents}}
-	}
-	return map[string]any{"repository": map[string]any{"pullRequest": map[string]any{
-		"mergeable": mergeable, "baseRef": map[string]any{"target": map[string]string{"oid": tip.Object.SHA}},
-		"potentialMergeCommit": commit,
-	}}}, nil
-}
-
-func mergeNumbers(query string) []int {
-	matches := regexp.MustCompile(`pullRequest\(number:(\d+)\)`).FindAllStringSubmatch(query, -1)
-	nums := make([]int, 0, len(matches))
-	for _, m := range matches {
-		n, _ := strconv.Atoi(m[1])
-		nums = append(nums, n)
-	}
-	return nums
-}
-
-func (env *Env) mergeParents(ctx context.Context, p restPull) (string, []gqlOID, error) {
-	if p.MergeableState == "dirty" {
-		return "CONFLICTING", nil, nil
-	}
-	if p.Mergeable == nil || !*p.Mergeable || p.MergeCommitSHA == nil || *p.MergeCommitSHA == "" {
-		return "UNKNOWN", nil, nil
-	}
-	var commit struct {
-		Parents []struct {
-			SHA string `json:"sha"`
-		} `json:"parents"`
-	}
-	if err := env.GitHub.call(
-		ctx, http.MethodGet, env.GitHub.repo("/commits/%s", *p.MergeCommitSHA), "", nil, &commit,
-	); err != nil {
-		return "", nil, err
-	}
-	parents := make([]gqlOID, 0, len(commit.Parents))
-	for _, parent := range commit.Parents {
-		parents = append(parents, gqlOID{OID: parent.SHA})
-	}
-	return "MERGEABLE", parents, nil
 }
 
 func (env *Env) restDraftPayload(ctx context.Context) (any, error) {
