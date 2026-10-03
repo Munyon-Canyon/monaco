@@ -47,6 +47,7 @@ func TestLandStack_rerunsALeftoverCancelledRunBeforeAnyLabel(t *testing.T) {
 	setRuns(f, "b2-oid",
 		Run{ID: 7, WorkflowID: 1, Name: "ci", Status: "completed", Conclusion: "cancelled", Attempt: 1},
 		Run{ID: 8, WorkflowID: 2, Name: "pr-format", Status: "completed", Conclusion: "success", Attempt: 1})
+	setRun7Jobs(f, "ci / ci-ok")
 	rerunsInto(f, "b2-oid", 7,
 		Run{ID: 7, WorkflowID: 1, Name: "ci", Status: "in_progress", Attempt: 2},
 		Run{ID: 8, WorkflowID: 2, Name: "pr-format", Status: "completed", Conclusion: "success", Attempt: 1})
@@ -81,6 +82,7 @@ func TestLandStack_refusesWhenARerunFailsAgainAndLabelsNothing(t *testing.T) {
 	newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
 	setRuns(f, "b2-oid", Run{ID: 7, WorkflowID: 1, Name: "ci", Status: "completed", Conclusion: "failure", Attempt: 1})
+	setRun7Jobs(f, "ci / ci-ok")
 	rerunsInto(f, "b2-oid", 7,
 		Run{
 			ID: 7, WorkflowID: 1, Name: "ci", Status: "completed", Conclusion: "failure", Attempt: 2,
@@ -133,6 +135,7 @@ func TestLandStack_rerunFallsBackToRerunningOnlyTheFailedJobs(t *testing.T) {
 	newStackGH(t, f, green(t, 1, "b1", "fb"))
 	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
 	setRuns(f, "b1-oid", Run{ID: 7, WorkflowID: 1, Name: "ci", Status: "completed", Conclusion: "failure", Attempt: 1})
+	setRun7Jobs(f, "ci / ci-ok")
 	f.hub.status[rerunRoute(7)] = 403
 	f.hub.on("POST /repos/o/r/actions/runs/7/rerun-failed-jobs", "{}")
 	prev := f.hub.hook
@@ -167,14 +170,20 @@ func TestLandStack_runFailures(t *testing.T) {
 		{"listing runs fails", func(f *fixture) { failRoute(f, runsRoute("b1-oid")) }, "500"},
 		{"both reruns fail", func(f *fixture) {
 			setRuns(f, "b1-oid", broken)
+			setRun7Jobs(f, "ci / ci-ok")
 			failRoute(f, rerunRoute(7))
 			failRoute(f, rerunRoute(7)+"-failed-jobs")
 		}, "the stack is not marked queued"},
 		{"a run never finishes", func(f *fixture) { setRuns(f, "b1-oid", pending) }, "still not clean after 30m0s"},
 		{"a rerun never starts", func(f *fixture) {
 			setRuns(f, "b1-oid", broken)
+			setRun7Jobs(f, "ci / ci-ok")
 			f.hub.on(rerunRoute(7), "{}")
 		}, "still not clean after 30m0s"},
+		{"listing a run's jobs fails", func(f *fixture) {
+			setRuns(f, "b1-oid", broken)
+			failRoute(f, run7Jobs)
+		}, "500"},
 		{"listing pulls fails", func(f *fixture) { failRoute(f, list("/pulls?state=open")) }, "500"},
 		{"a held back PR's runs cannot be read", func(f *fixture) {
 			f.hub.on(list("/pulls?state=open"), []PR{{Title: "(PRs 1)", Head: Ref{Ref: "gtmq_x"}}})
@@ -318,6 +327,59 @@ func TestLandStack_waitsForAQueueSlotWhenGraphiteRunsItsMostDrafts(t *testing.T)
 			if !strings.Contains(stdout, tc.want) || tc.config != "queue_concurrency = 4\n" &&
 				strings.Contains(stdout, "run land-stack again") {
 				t.Fatalf("%q %q", stdout, stderr)
+			}
+		})
+	}
+}
+
+const run7Jobs = "GET /repos/" + testRepo + "/actions/runs/7/jobs?per_page=100&page=1"
+
+func setRun7Jobs(f *fixture, names ...string) {
+	jobs := make([]map[string]string, len(names))
+	for i, n := range names {
+		jobs[i] = map[string]string{"name": n}
+	}
+	f.hub.on(run7Jobs, map[string]any{"jobs": jobs})
+}
+
+func TestLandStack_rerunGateCoversOnlyTheCIWorkflow(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, workflow string
+		jobs           []string
+		refused        bool
+	}{
+		{"an advisory PR format run fails again", "PR format", []string{"PR format (title, body and commits)"}, false},
+		{"the CI run fails again", "CI", []string{"ci / go", "ci / ci-ok"}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+			f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+			failed := Run{
+				ID: 7, WorkflowID: 1, Name: tc.workflow, Status: "completed", Conclusion: "failure", Attempt: 1,
+				URL: "https://x/runs/7",
+			}
+			setRuns(f, "b2-oid", failed)
+			setRun7Jobs(f, tc.jobs...)
+			again := failed
+			again.Attempt = 2
+			rerunsInto(f, "b2-oid", 7, again)
+			code, stdout, stderr := f.agents(t, "land-stack", "2")
+			labels := f.hub.callsContaining("/labels")
+			if tc.refused {
+				refused := strings.Contains(stderr, `run "CI" ended failure again after a rerun`)
+				if code == 0 || !refused || len(labels) != 0 {
+					t.Fatalf("%d %q %q labels %v", code, stdout, stderr, labels)
+				}
+				return
+			}
+			if code != 0 || !strings.Contains(stdout, "queued #1 #2") || len(labels) == 0 {
+				t.Fatalf("%d %q %q labels %v", code, stdout, stderr, labels)
+			}
+			if got := f.hub.callsContaining("/rerun"); len(got) != 0 {
+				t.Fatalf("reran an advisory run: %v", got)
 			}
 		})
 	}
