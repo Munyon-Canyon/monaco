@@ -190,7 +190,7 @@ func TestCatalogPoller_updateKeepsTheIDAndFirstSeen(t *testing.T) {
 	}
 	updated := rig.asset(t, "AAPLx")
 	if updated.ID != first.ID || !updated.FirstSeenAt.Equal(inserted) || !updated.UpdatedAt.Equal(rig.clock.Now()) ||
-		updated.DisplayName != "Apple Inc. xStock" || updated.CompanyKey != "apple inc." || updated.LogoURL != "" {
+		updated.DisplayName != "Apple Inc." || updated.CompanyKey != "apple inc." || updated.LogoURL != "" {
 		t.Fatalf("updated AAPLx = %+v, want the new name, the first ID and first_seen_at, updated now", updated)
 	}
 	if tsla := rig.asset(t, "TSLAx"); !tsla.UpdatedAt.Equal(inserted) || tsla.PopularRank != 7 {

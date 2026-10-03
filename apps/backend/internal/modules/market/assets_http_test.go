@@ -57,7 +57,7 @@ func TestAssets_SearchByName(t *testing.T) {
 
 func assertAppleQuote(t *testing.T, got api.AssetSummary) {
 	t.Helper()
-	if got.DisplayName != "Apple xStock" || got.Issuer != api.Xstocks || got.Kind != api.AssetKindEquity {
+	if got.DisplayName != "Apple" || got.Issuer != api.Xstocks || got.Kind != api.AssetKindEquity {
 		t.Fatalf("AAPLx identity = %+v", got)
 	}
 	assertApplePrice(t, got)
@@ -414,7 +414,7 @@ func (s marketAPI) insertClone(
 		t.Fatal(err)
 	}
 	asset.Symbol, asset.Mint, asset.DisplayName, asset.Kind, asset.PopularRank = symbol, parsed, name, kind, rank
-	asset.CompanyKey = domain.CompanyKey(name)
+	asset.CompanyKey = domain.CompanyKey(asset.Issuer, name)
 	insert(t, s.pool, stamped(asset, s.when), nil)
 	return asset
 }

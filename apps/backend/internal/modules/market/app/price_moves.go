@@ -83,7 +83,7 @@ func (p *SamplePrices) recordMove(
 			return nil
 		}
 		moved := events.AssetPriceMoved{
-			V: 1, AssetID: a.ID.UUID(), Symbol: a.Symbol, AssetName: domain.CleanName(a.DisplayName),
+			V: 1, AssetID: a.ID.UUID(), Symbol: a.Symbol, AssetName: domain.DisplayName(a.Issuer, a.DisplayName),
 			ThresholdBps: int64(th), ChangeBps: change, MarkMicros: mark.Micros, PrevCloseMicros: ref.Micros,
 			TradingDay: day.String(), ObservedAt: mark.ObservedAt,
 		}

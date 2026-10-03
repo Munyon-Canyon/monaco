@@ -38,6 +38,10 @@ type Catalog interface {
 	ListAll(ctx context.Context) ([]Asset, error)
 }
 
+type CompanyListings interface {
+	Siblings(ctx context.Context, id AssetID) ([]Asset, error)
+}
+
 type SessionInfo = domain.SessionInfo
 
 type Calendar interface {
@@ -70,7 +74,10 @@ func New(d module.Deps) *Module { return &Module{deps: d} }
 
 func (*Module) Name() string { return "market" }
 
-var _ Catalog = (*app.Catalog)(nil)
+var (
+	_ Catalog         = (*app.Catalog)(nil)
+	_ CompanyListings = (*app.Catalog)(nil)
+)
 
 func (m *Module) Catalog() *app.Catalog { return app.NewCatalog(m.deps.Pool) }
 

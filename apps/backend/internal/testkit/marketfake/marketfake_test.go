@@ -51,3 +51,19 @@ func TestCatalogFake_listsTradableAndAllAndFailsWhereFaultsSay(t *testing.T) {
 		t.Fatalf("AssetBySymbol err = %v, want the scripted fault", err)
 	}
 }
+
+func TestCatalogFake_listsSiblingsByIssuerAndFailsForAnUnknownAsset(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	tessera, prestocks := marketfake.TSLAx(), marketfake.JPSTx()
+	tessera.Issuer, tessera.CompanyKey = "tessera", aapl.CompanyKey
+	prestocks.Issuer, prestocks.CompanyKey = "prestocks", aapl.CompanyKey
+	f := marketfake.NewCatalog(tessera, aapl, prestocks)
+	got, err := f.Siblings(t.Context(), aapl.ID)
+	if err != nil || !slices.Equal(got, []market.Asset{prestocks, tessera}) {
+		t.Fatalf("Siblings = %+v, %v, want prestocks then tessera", got, err)
+	}
+	if _, err := f.Siblings(t.Context(), market.AssetID{}); errs.CodeOf(err) != errs.CodeAssetNotFound {
+		t.Fatalf("unknown asset err = %v, want asset_not_found", err)
+	}
+}

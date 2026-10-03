@@ -13,16 +13,16 @@ import (
 
 type detailRead struct {
 	asset  func() (sqlc.Asset, error)
-	others func() ([]sqlc.OtherListingsRow, error)
+	others func() ([]sqlc.Asset, error)
 }
 
 func (r detailRead) AssetBySymbol(context.Context, string) (sqlc.Asset, error) {
 	return r.asset()
 }
 
-func (r detailRead) OtherListings(context.Context, sqlc.OtherListingsParams) ([]sqlc.OtherListingsRow, error) {
+func (r detailRead) SiblingAssets(context.Context, sqlc.SiblingAssetsParams) ([]sqlc.Asset, error) {
 	if r.others == nil {
-		return []sqlc.OtherListingsRow{}, nil
+		return []sqlc.Asset{}, nil
 	}
 	return r.others()
 }
@@ -52,18 +52,14 @@ func TestDetail_reportsAMissingAssetAndABadListing(t *testing.T) {
 			code: errs.CodeInternal,
 		},
 		{
-			read: detailRead{asset: ok, others: func() ([]sqlc.OtherListingsRow, error) { return nil, boom }},
+			read: detailRead{asset: ok, others: func() ([]sqlc.Asset, error) { return nil, boom }},
 			code: errs.CodeInternal,
 		},
 		{
-			read: detailRead{asset: ok, others: func() ([]sqlc.OtherListingsRow, error) {
-				return []sqlc.OtherListingsRow{{Symbol: "AAPLy", Issuer: "nope", Kind: "equity"}}, nil
-			}},
-			code: errs.CodeDecodeFailed,
-		},
-		{
-			read: detailRead{asset: ok, others: func() ([]sqlc.OtherListingsRow, error) {
-				return []sqlc.OtherListingsRow{{Symbol: "AAPLy", Issuer: "xstocks", Kind: "nope"}}, nil
+			read: detailRead{asset: ok, others: func() ([]sqlc.Asset, error) {
+				bad := apple
+				bad.Symbol, bad.Issuer = "AAPLy", "nope"
+				return []sqlc.Asset{bad}, nil
 			}},
 			code: errs.CodeDecodeFailed,
 		},

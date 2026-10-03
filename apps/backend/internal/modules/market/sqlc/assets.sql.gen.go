@@ -199,49 +199,48 @@ func (q *Queries) ListTradableAssets(ctx context.Context) ([]Asset, error) {
 	return items, nil
 }
 
-const otherListings = `-- name: OtherListings :many
-SELECT symbol::text AS symbol,
-  display_name::text AS display_name,
-  issuer::text AS issuer,
-  kind::text AS kind,
-  COALESCE(logo_url, '')::text AS logo_url,
-  (chain_checked_at IS NOT NULL AND coalesce(tradable_override, issuer_tradable))::boolean AS tradable
-FROM assets
+const siblingAssets = `-- name: SiblingAssets :many
+SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at, ui_multiplier_next_num, ui_multiplier_next_den, ui_multiplier_next_at FROM assets
 WHERE company_key = $1::text
-  AND symbol <> $2::text
-ORDER BY symbol
+  AND id <> $2::uuid
+ORDER BY issuer, symbol
 `
 
-type OtherListingsParams struct {
+type SiblingAssetsParams struct {
 	CompanyKey string
-	Symbol     string
+	ID         uuid.UUID
 }
 
-type OtherListingsRow struct {
-	Symbol      string
-	DisplayName string
-	Issuer      string
-	Kind        string
-	LogoUrl     string
-	Tradable    bool
-}
-
-func (q *Queries) OtherListings(ctx context.Context, arg OtherListingsParams) ([]OtherListingsRow, error) {
-	rows, err := q.db.Query(ctx, otherListings, arg.CompanyKey, arg.Symbol)
+func (q *Queries) SiblingAssets(ctx context.Context, arg SiblingAssetsParams) ([]Asset, error) {
+	rows, err := q.db.Query(ctx, siblingAssets, arg.CompanyKey, arg.ID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []OtherListingsRow
+	var items []Asset
 	for rows.Next() {
-		var i OtherListingsRow
+		var i Asset
 		if err := rows.Scan(
+			&i.ID,
 			&i.Symbol,
-			&i.DisplayName,
+			&i.Mint,
+			&i.Decimals,
 			&i.Issuer,
 			&i.Kind,
+			&i.DisplayName,
 			&i.LogoUrl,
-			&i.Tradable,
+			&i.UiMultiplierNum,
+			&i.UiMultiplierDen,
+			&i.IssuerTradable,
+			&i.TradableOverride,
+			&i.PopularRank,
+			&i.CompanyKey,
+			&i.FirstSeenAt,
+			&i.UpdatedAt,
+			&i.ChainCheckedAt,
+			&i.UiMultiplierNextNum,
+			&i.UiMultiplierNextDen,
+			&i.UiMultiplierNextAt,
 		); err != nil {
 			return nil, err
 		}

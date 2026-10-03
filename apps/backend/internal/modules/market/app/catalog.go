@@ -43,6 +43,23 @@ func (c *Catalog) ListAll(ctx context.Context) ([]domain.Asset, error) {
 	return many(rows, err, "market.Catalog.ListAll")
 }
 
+func (c *Catalog) Siblings(ctx context.Context, id domain.AssetID) ([]domain.Asset, error) {
+	asset, err := c.AssetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return siblings(ctx, c.q, asset)
+}
+
+type siblingReader interface {
+	SiblingAssets(context.Context, sqlc.SiblingAssetsParams) ([]sqlc.Asset, error)
+}
+
+func siblings(ctx context.Context, read siblingReader, asset domain.Asset) ([]domain.Asset, error) {
+	rows, err := read.SiblingAssets(ctx, sqlc.SiblingAssetsParams{CompanyKey: asset.CompanyKey, ID: asset.ID.UUID()})
+	return many(rows, err, "market.Catalog.Siblings")
+}
+
 func one(row sqlc.Asset, err error, op string, key slog.Attr) (domain.Asset, error) {
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
