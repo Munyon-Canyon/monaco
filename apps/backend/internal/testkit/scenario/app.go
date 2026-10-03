@@ -111,7 +111,7 @@ func start(t *testing.T, o options) *app {
 	stops = append(stops, stopConsumers)
 	a.relay = bus.NewRelay(a.bus.Conn, db.NewOutbox(pool, clock.Real{}), nil, clock.Real{})
 	stops = append(stops, background(ctx, a.runRelay))
-	a.server = httptest.NewServer(a.handler(t, pool, set.Routes(), o.spec, o.wrap))
+	a.server = httptest.NewServer(a.handler(t, pool, set.Routes(), o.contract, o.wrap))
 	stops = append(stops, a.server.Close)
 	return a
 }
@@ -124,17 +124,19 @@ func must(t *testing.T, err error) {
 }
 
 func (a *app) handler(
-	t *testing.T, pool *pgxpool.Pool, routes httpx.Routes, spec []byte, wrap func(http.Handler) http.Handler,
+	t *testing.T, pool *pgxpool.Pool, routes httpx.Routes, c *httpx.Contract, wrap func(http.Handler) http.Handler,
 ) http.Handler {
 	t.Helper()
-	if spec == nil {
-		spec = openapi.Spec
+	if c == nil {
+		var err error
+		c, err = LoadContract(openapi.Spec)
+		must(t, err)
 	}
-	policies, err := ratelimit.Load(spec)
+	policies, err := ratelimit.FromDocument(c.Document())
 	must(t, err)
 	limiter, err := ratelimit.New(pool, clock.Real{}, noop.NewMeterProvider())
 	must(t, err)
-	h, err := httpx.Handler(httpx.Deps{
+	h, err := httpx.HandlerFor(httpx.Deps{
 		Logger:       a.logger,
 		Tracer:       tracenoop.NewTracerProvider(),
 		Clock:        clock.Real{},
@@ -143,9 +145,9 @@ func (a *app) handler(
 		Idempotency:  db.NewIdempotencyStore(pool, clock.Real{}),
 		Verifier:     a.verifier,
 		RateLimit:    ratelimit.Middleware(limiter, policies, httpx.ActorKey, false),
-	}, routes, spec)
+	}, routes, c)
 	must(t, err)
-	checked := testkit.HTTP(t, h)
+	checked := testkit.HTTPAgainst(t, c.Document(), h)
 	served := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/stream" {
 			h.ServeHTTP(w, r)

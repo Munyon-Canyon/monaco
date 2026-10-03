@@ -33,7 +33,7 @@ paths:
 
 func validatedThings(t *testing.T, h *harness) (http.Handler, *[]string) {
 	t.Helper()
-	c, err := loadContract([]byte(bodySpec))
+	c, err := LoadContract([]byte(bodySpec))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,9 +124,9 @@ func TestHandler_refusesASpecItCannotLoadOrRoute(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			h, err := handler(newHarness(t).deps, unimplemented{}, []byte(spec), nil)
+			h, err := Handler(newHarness(t).deps, unimplemented{}, []byte(spec))
 			if h != nil || errs.CodeOf(err) != errs.CodeInvalidInput {
-				t.Fatalf("handler = %v, %v, want invalid_input and no handler", h, err)
+				t.Fatalf("Handler = %v, %v, want invalid_input and no handler", h, err)
 			}
 		})
 	}
@@ -135,7 +135,7 @@ func TestHandler_refusesASpecItCannotLoadOrRoute(t *testing.T) {
 func TestValidate_withoutAResolvedRouteFailsClosed(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	c, err := loadContract([]byte(bodySpec))
+	c, err := LoadContract([]byte(bodySpec))
 	if err != nil {
 		t.Fatal(err)
 	}

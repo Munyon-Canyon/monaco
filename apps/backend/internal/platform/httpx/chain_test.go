@@ -51,7 +51,7 @@ func (s *countingStore) Begin(ctx context.Context, actor, key string, hash []byt
 
 func chained(t *testing.T, h *harness) (http.Handler, *countingHandler, *countingStore) {
 	t.Helper()
-	c, err := loadContract([]byte(chainSpec))
+	c, err := LoadContract([]byte(chainSpec))
 	if err != nil {
 		t.Fatal(err)
 	}
