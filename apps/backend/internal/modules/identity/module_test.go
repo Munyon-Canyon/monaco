@@ -74,9 +74,10 @@ func TestModule_wireTakesHoldingsFromFundingAndTreasuryInTheBuiltSet(t *testing.
 	t.Parallel()
 	d := module.Deps{}
 	id := identity.New(d)
-	module.NewSet(id, funding.New(d), treasury.New(d))
+	fundingModule := funding.New(d)
+	module.NewSet(id, fundingModule, treasury.New(d))
 	stakes, balances := id.Holdings()
-	if reflect.TypeOf(stakes) != reflect.TypeOf(treasury.New(d).Queries()) || balances != funding.New(d).Balances() {
+	if reflect.TypeOf(stakes) != reflect.TypeOf(treasury.New(d).Queries()) || balances != fundingModule.Balances() {
 		t.Fatalf("holdings = %T, %T, want treasury's Queries and funding's Balances", stakes, balances)
 	}
 }

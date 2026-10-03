@@ -1106,6 +1106,24 @@ type AssetSummary struct {
 // Examples: CREATED
 type AuthState string
 
+// Balance The member wallet's on-chain USDC and currently spendable platform balance.
+type Balance struct {
+	// AsOf Examples: 2026-10-03T15:00:00Z
+	AsOf time.Time `json:"as_of"`
+
+	// AvailableMicros Examples: 22500000
+	AvailableMicros string `json:"available_micros"`
+
+	// DepositAddress Examples: 5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP
+	DepositAddress string `json:"deposit_address"`
+
+	// InFlightMicros Examples: 2500000
+	InFlightMicros string `json:"in_flight_micros"`
+
+	// OnChainMicros Examples: 25000000
+	OnChainMicros string `json:"on_chain_micros"`
+}
+
 // BallotChoice A voter's choice on a proposal.
 //
 // Examples: yes
@@ -2796,6 +2814,9 @@ type ServerInterface interface {
 	// PatchMe Update the signed-in user's profile.
 	// (PATCH /v1/me)
 	PatchMe(w http.ResponseWriter, r *http.Request, params PatchMeParams)
+	// GetMyBalance Read the caller's available platform balance.
+	// (GET /v1/me/balance)
+	GetMyBalance(w http.ResponseWriter, r *http.Request)
 	// GetMyCabalInvites List the invites waiting on the caller.
 	// (GET /v1/me/cabal-invites)
 	GetMyCabalInvites(w http.ResponseWriter, r *http.Request)
@@ -4367,6 +4388,20 @@ func (siw *ServerInterfaceWrapper) PatchMe(w http.ResponseWriter, r *http.Reques
 	handler.ServeHTTP(w, r)
 }
 
+// GetMyBalance operation middleware
+func (siw *ServerInterfaceWrapper) GetMyBalance(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMyBalance(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMyCabalInvites operation middleware
 func (siw *ServerInterfaceWrapper) GetMyCabalInvites(w http.ResponseWriter, r *http.Request) {
 
@@ -5152,6 +5187,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/me", wrapper.DeleteMe)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me", wrapper.GetMe)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/v1/me", wrapper.PatchMe)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/balance", wrapper.GetMyBalance)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/cabal-invites", wrapper.GetMyCabalInvites)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/cabals", wrapper.GetMyCabals)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/me/handle", wrapper.PutMeHandle)
@@ -6341,6 +6377,44 @@ func (response PatchMedefaultApplicationProblemPlusJSONResponse) VisitPatchMeRes
 	return err
 }
 
+type GetMyBalanceRequestObject struct {
+}
+
+type GetMyBalanceResponseObject interface {
+	VisitGetMyBalanceResponse(w http.ResponseWriter) error
+}
+
+type GetMyBalance200JSONResponse Balance
+
+func (response GetMyBalance200JSONResponse) VisitGetMyBalanceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyBalancedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetMyBalancedefaultApplicationProblemPlusJSONResponse) VisitGetMyBalanceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMyCabalInvitesRequestObject struct {
 }
 
@@ -7131,6 +7205,9 @@ type StrictServerInterface interface {
 	// PatchMe Update the signed-in user's profile.
 	// (PATCH /v1/me)
 	PatchMe(ctx context.Context, request PatchMeRequestObject) (PatchMeResponseObject, error)
+	// GetMyBalance Read the caller's available platform balance.
+	// (GET /v1/me/balance)
+	GetMyBalance(ctx context.Context, request GetMyBalanceRequestObject) (GetMyBalanceResponseObject, error)
 	// GetMyCabalInvites List the invites waiting on the caller.
 	// (GET /v1/me/cabal-invites)
 	GetMyCabalInvites(ctx context.Context, request GetMyCabalInvitesRequestObject) (GetMyCabalInvitesResponseObject, error)
@@ -8059,6 +8136,30 @@ func (sh *strictHandler) PatchMe(w http.ResponseWriter, r *http.Request, params 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PatchMeResponseObject); ok {
 		if err := validResponse.VisitPatchMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMyBalance operation middleware
+func (sh *strictHandler) GetMyBalance(w http.ResponseWriter, r *http.Request) {
+	var request GetMyBalanceRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMyBalance(ctx, request.(GetMyBalanceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMyBalance")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMyBalanceResponseObject); ok {
+		if err := validResponse.VisitGetMyBalanceResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -14,13 +14,20 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
-type Module struct{ deps module.Deps }
+type Module struct {
+	deps     module.Deps
+	balances port.Balances
+}
 
 func New(d module.Deps) *Module { return &Module{deps: d} }
 
 func (*Module) Name() string { return "funding" }
 
-func (*Module) Routes(*httpx.Routes) {}
+func (m *Module) Routes(r *httpx.Routes) {
+	r.FundingRoutes = adapters.HTTP{
+		Balances: m.Balances(), Wallets: app.WalletReader{Reader: identity.New(m.deps).Queries()},
+	}
+}
 
 func (*Module) Consumers() []bus.Consumer {
 	return []bus.Consumer{}
@@ -33,7 +40,20 @@ func (m *Module) Pollers() []poller.Poller {
 		cfg.Funding.DepositPollInterval, app.NewRPCLimiter(cfg.Funding.DepositRPCRate), m.deps.Bus)}
 }
 
-func (*Module) Balances() port.Balances { return adapters.UnwiredBalances{} }
+func (m *Module) Balances() port.Balances {
+	if m.balances != nil {
+		return m.balances
+	}
+	cfg := m.deps.Config
+	m.balances = adapters.NewBalances(
+		app.WalletReader{Reader: identity.New(m.deps).Queries()},
+		func() adapters.TokenBalances { return solana.New(cfg, m.deps.Clock) },
+		app.NoFundTransfers{},
+		m.deps.Clock,
+		chain.Mint{Address: chain.SolanaAddress(cfg.Solana.USDCMint), Decimals: 6},
+	)
+	return m.balances
+}
 
 func (*Module) Pauses() port.Pauses { return adapters.UnwiredPauses{} }
 

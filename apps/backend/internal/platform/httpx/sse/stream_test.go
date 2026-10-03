@@ -43,6 +43,7 @@ type routes struct {
 	httpx.CabalInviteRoutes
 	httpx.MarketRoutes
 	httpx.TreasuryRoutes
+	httpx.FundingRoutes
 }
 
 type unusedStore struct{ httpx.IdempotencyStore }

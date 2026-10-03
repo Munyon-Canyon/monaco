@@ -14,6 +14,7 @@ const depositWallet = "5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP"
 func F05CreditDepositOK(s *scenario.Scenario) {
 	user := seedDepositWallet(s)
 	s.Given(
+		scenario.AsSeededUser("member", user.ID),
 		scenario.FakeUpstream(fakes.Step{
 			Route: "/rpc/getSignaturesForAddress", Action: fakes.ActionSucceed,
 			Fixture: "/rpc/getSignaturesForAddress", Times: 100, Reset: true,
@@ -26,6 +27,7 @@ func F05CreditDepositOK(s *scenario.Scenario) {
 		scenario.AwaitTick("funding.deposits"),
 		scenario.AwaitTick("funding.deposits"),
 		expectDeposit(user),
+		scenario.EventuallyHint("balance_changed"),
 	).Then()
 }
 
