@@ -280,7 +280,10 @@ func stuckOnGraphiteBase(prs []watchPR, rs []Record, label string) []string {
 	return out
 }
 
-const conflicting = "CONFLICTING"
+const (
+	conflicting = "CONFLICTING"
+	unsettled   = "UNKNOWN"
+)
 
 func conflictLine(pr int, base string) string {
 	return fmt.Sprintf("#%d conflicts with %s; GitHub runs no CI until it is resolved: restack with gt and resubmit",
@@ -314,7 +317,7 @@ func (s stallScan) stall(ctx context.Context, p watchPR) string {
 		}
 		return ""
 	}
-	if p.IsDraft || labeled || marked || !p.green() || stackTop(s.prs, p) != p.Number {
+	if labeled || marked || !s.landable(p) {
 		return ""
 	}
 	r, ok := s.recordOf(ctx, p)
@@ -328,6 +331,16 @@ func (s stallScan) stall(ctx context.Context, p watchPR) string {
 	}
 	return fmt.Sprintf("#%d is green but not armed; owner record %d.json: run land-stack %d",
 		p.Number, r.Ticket, p.Number)
+}
+
+func (s stallScan) landable(top watchPR) bool {
+	if top.IsDraft || !top.green() || stackTop(s.prs, top) != top.Number {
+		return false
+	}
+	chain := chainDown(s.prs, top)
+	return !slices.ContainsFunc(s.prs, func(q watchPR) bool {
+		return q.Mergeable == unsettled && slices.Contains(chain, q.HeadRefName)
+	})
 }
 
 func restackReason(prs []watchPR, top watchPR) string {
