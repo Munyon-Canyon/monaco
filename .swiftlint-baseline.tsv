@@ -16,7 +16,6 @@ force_unwrapping	packages/mobile-core/Tests/MonacoAPITests/Fixtures.swift	1
 force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/APITelemetryTests.swift	4
 force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/AssetChartSeriesTests.swift	4
 force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/AssetDetailCardsTests.swift	1
-force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/CabalPictureTests.swift	2
 force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/DevBuyAPITests.swift	2
 force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/DisplayFormatterTests.swift	7
 force_unwrapping	packages/mobile-core/Tests/MonacoCoreTests/FormatterHotPathTests.swift	3
@@ -129,7 +128,7 @@ no_comments	apps/mobile/Monaco/Features/Deposit/PlatformBalanceLoader.swift	41
 no_comments	apps/mobile/Monaco/Features/Groups/ActivityDetailDestination.swift	1
 no_comments	apps/mobile/Monaco/Features/Groups/AgentDetailView.swift	15
 no_comments	apps/mobile/Monaco/Features/Groups/AgentSectionView.swift	17
-no_comments	apps/mobile/Monaco/Features/Groups/CabalPictureEditor.swift	37
+no_comments	apps/mobile/Monaco/Features/Groups/CabalPictureEditor.swift	26
 no_comments	apps/mobile/Monaco/Features/Groups/CabalPicturePicker.swift	19
 no_comments	apps/mobile/Monaco/Features/Groups/CabalsActionSource.swift	9
 no_comments	apps/mobile/Monaco/Features/Groups/CabalsLeaderboardSection.swift	5
@@ -139,11 +138,11 @@ no_comments	apps/mobile/Monaco/Features/Groups/CabalsSearchResultsSection.swift	
 no_comments	apps/mobile/Monaco/Features/Groups/CabalsStripSection.swift	15
 no_comments	apps/mobile/Monaco/Features/Groups/CabalsTabModel.swift	75
 no_comments	apps/mobile/Monaco/Features/Groups/CabalsTabView.swift	26
-no_comments	apps/mobile/Monaco/Features/Groups/CreateGroupView.swift	36
+no_comments	apps/mobile/Monaco/Features/Groups/CreateGroupView.swift	32
 no_comments	apps/mobile/Monaco/Features/Groups/GroupActivityListView.swift	1
 no_comments	apps/mobile/Monaco/Features/Groups/GroupActivitySection.swift	8
 no_comments	apps/mobile/Monaco/Features/Groups/GroupChatView.swift	143
-no_comments	apps/mobile/Monaco/Features/Groups/GroupDetailView.swift	121
+no_comments	apps/mobile/Monaco/Features/Groups/GroupDetailView.swift	118
 no_comments	apps/mobile/Monaco/Features/Groups/GroupDetailsSheet.swift	15
 no_comments	apps/mobile/Monaco/Features/Groups/GroupHeroSection.swift	26
 no_comments	apps/mobile/Monaco/Features/Groups/GroupPnLHistoryModel.swift	12
@@ -274,7 +273,6 @@ no_comments	packages/mobile-core/Sources/MonacoCore/AssetSocialLoadState.swift	2
 no_comments	packages/mobile-core/Sources/MonacoCore/AssetSocialSampleData.swift	26
 no_comments	packages/mobile-core/Sources/MonacoCore/AssetTradeBarState.swift	29
 no_comments	packages/mobile-core/Sources/MonacoCore/BuyQuoteDTO.swift	2
-no_comments	packages/mobile-core/Sources/MonacoCore/CabalPictureDTO.swift	5
 no_comments	packages/mobile-core/Sources/MonacoCore/CabalPositionRowFigures.swift	13
 no_comments	packages/mobile-core/Sources/MonacoCore/CatalogDTO.swift	1
 no_comments	packages/mobile-core/Sources/MonacoCore/DepositPollStateMachine.swift	6
@@ -296,7 +294,7 @@ no_comments	packages/mobile-core/Sources/MonacoCore/MarketSampleData.swift	67
 no_comments	packages/mobile-core/Sources/MonacoCore/MarketSessionCopy.swift	23
 no_comments	packages/mobile-core/Sources/MonacoCore/MarketStatusDTO.swift	23
 no_comments	packages/mobile-core/Sources/MonacoCore/MeDTO.swift	7
-no_comments	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	45
+no_comments	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	40
 no_comments	packages/mobile-core/Sources/MonacoCore/MonacoAPIConfiguration.swift	9
 no_comments	packages/mobile-core/Sources/MonacoCore/MonacoConfig.swift	3
 no_comments	packages/mobile-core/Sources/MonacoCore/MonacoSessionValidation.swift	2
@@ -328,7 +326,7 @@ no_comments	packages/mobile-core/Tests/MonacoCoreTests/APITelemetryTests.swift	5
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/AssetChartSeriesTests.swift	39
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/AssetDetailCardsTests.swift	45
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/AssetSocialDTOTests.swift	12
-no_comments	packages/mobile-core/Tests/MonacoCoreTests/CabalPictureTests.swift	16
+no_comments	packages/mobile-core/Tests/MonacoCoreTests/CabalPictureTests.swift	9
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/CabalPositionRowFiguresTests.swift	1
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/DepositPollTests.swift	3
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/DevBuyAPITests.swift	3

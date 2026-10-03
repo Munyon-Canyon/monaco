@@ -57,7 +57,9 @@ struct CabalScreen: View {
             }
         }
         .sheet(isPresented: $showsDetails) {
-            SectionStack(context: context, sections: details)
+            NavigationStack {
+                SectionStack(context: context, sections: details)
+            }
         }
     }
 }
