@@ -470,6 +470,91 @@ func problemCode(t *testing.T, rec *httptest.ResponseRecorder) api.ErrorCode {
 	return body.Code
 }
 
+func TestAssetDetail_OtherListings(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	mint := marketfake.AAPLx().Mint.String()
+	s.price(t, mint, -18*time.Hour-time.Minute, 100_000_000)
+	s.price(t, mint, -30*time.Minute, 110_000_000)
+	s.price(t, mint, -time.Minute, 200_000_000)
+	s.insertClone(t, 9, "AAPLy", "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", "Apple Other", domain.KindEquity, 0)
+	_, err := s.pool.Exec(t.Context(),
+		`UPDATE assets SET company_key = $1, tradable_override = false WHERE symbol = 'AAPLy'`,
+		marketfake.AAPLx().CompanyKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	detail := detailOf(t, s.get(t, "/v1/assets/AAPLx"))
+	assertApplePrice(t, api.AssetSummary{
+		LogoUrl: detail.LogoUrl, PriceMicros: detail.PriceMicros, PriceAsOf: detail.PriceAsOf,
+		ChangeBps: detail.ChangeBps, SparklineMicros: detail.SparklineMicros,
+	})
+	assertOtherListing(t, detail)
+	missing := s.get(t, "/v1/assets/NOPEx")
+	if missing.Code != http.StatusNotFound || problemCode(t, missing) != api.AssetNotFound {
+		t.Fatalf("missing = %d %s", missing.Code, missing.Body)
+	}
+}
+
+func detailOf(t *testing.T, rec *httptest.ResponseRecorder) api.AssetDetail {
+	t.Helper()
+	if rec.Code != http.StatusOK {
+		t.Fatalf("detail = %d %s", rec.Code, rec.Body)
+	}
+	var detail api.AssetDetail
+	if err := json.Unmarshal(rec.Body.Bytes(), &detail); err != nil {
+		t.Fatal(err)
+	}
+	return detail
+}
+
+func assertOtherListing(t *testing.T, detail api.AssetDetail) {
+	t.Helper()
+	if !detail.Tradable || detail.Decimals != 8 || detail.UiMultiplier.Num != 1 || detail.UiMultiplier.Den != 1 {
+		t.Fatalf("facts = %+v", detail)
+	}
+	if detail.Attribution != domain.Attribution || len(detail.OtherListings) != 1 {
+		t.Fatalf("listings = %+v %q", detail.OtherListings, detail.Attribution)
+	}
+	other := detail.OtherListings[0]
+	if other.Symbol != "AAPLy" || other.Tradable || other.DisplayName != "Apple Other" {
+		t.Fatalf("other = %+v", other)
+	}
+}
+
+func TestAsset_rejectsACallerThatIsNotAUser(t *testing.T) {
+	t.Parallel()
+	h := adapters.HTTP{}
+	if _, err := h.GetAsset(
+		t.Context(),
+		api.GetAssetRequestObject{Symbol: "AAPLx"},
+	); errs.CodeOf(
+		err,
+	) != errs.CodeUnauthorized {
+		t.Fatalf("no actor = %v", err)
+	}
+	when := marketWhen()
+	huge := money.MicrosFromUint64(uint64(math.MaxInt64) + 1)
+	h.Detail = hugeDetail{view: app.AssetView{Summary: app.Summary{
+		Asset:  domain.Asset{Symbol: "AAPLx", Decimals: 8, UIMultiplier: domain.Multiplier{Num: 1, Den: 1}},
+		Priced: true, Price: domain.Sample{Micros: huge, ObservedAt: when},
+	}}}
+	user := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: testkit.NewIDs(1).NewV7().String()})
+	if _, err := h.GetAsset(
+		user,
+		api.GetAssetRequestObject{Symbol: "AAPLx"},
+	); errs.CodeOf(
+		err,
+	) != errs.CodeDecodeFailed {
+		t.Fatalf("huge price = %v", err)
+	}
+}
+
+type hugeDetail struct{ view app.AssetView }
+
+func (h hugeDetail) Handle(context.Context, string) (app.AssetView, error) { return h.view, nil }
+
 func containsAll(body string, parts ...string) bool {
 	for _, part := range parts {
 		if !strings.Contains(body, part) {
