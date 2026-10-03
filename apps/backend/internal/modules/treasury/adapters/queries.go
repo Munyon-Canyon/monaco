@@ -26,8 +26,8 @@ const usdcDecimals = 6
 const usdcMint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
 type Queries struct {
-	Unwired
 	q       queryStore
+	history historyStore
 	catalog app.MintResolver
 	prices  app.PriceReader
 	clock   clock.Clock
@@ -42,12 +42,21 @@ type queryStore interface {
 	UserStakes(context.Context, uuid.UUID) ([]sqlc.UserStakesRow, error)
 }
 
+type historyStore interface {
+	CabalUserShareUnitsAt(context.Context, sqlc.CabalUserShareUnitsAtParams) (string, error)
+	CabalPositionSnapshotsAt(
+		context.Context, sqlc.CabalPositionSnapshotsAtParams,
+	) ([]sqlc.CabalPositionSnapshotsAtRow, error)
+	MemberStakesAt(context.Context, time.Time) ([]sqlc.MemberStakesAtRow, error)
+}
+
 var _ port.Queries = (*Queries)(nil)
 
 func NewQueries(
 	db sqlc.DBTX, catalog app.MintResolver, prices app.PriceReader, c clock.Clock, usdc chain.SolanaAddress,
 ) *Queries {
-	return &Queries{q: sqlc.New(db), catalog: catalog, prices: prices, clock: c, usdc: usdc}
+	queries := sqlc.New(db)
+	return &Queries{q: queries, history: queries, catalog: catalog, prices: prices, clock: c, usdc: usdc}
 }
 
 func (q *Queries) Positions(ctx context.Context, cabalID ids.CabalID) ([]port.Position, error) {
@@ -238,6 +247,69 @@ func (q *Queries) StakesOf(ctx context.Context, userID ids.UserID) ([]port.Stake
 			return nil, err
 		}
 		out = append(out, stake)
+	}
+	return out, nil
+}
+
+func (q *Queries) ShareUnitsAt(
+	ctx context.Context, cabalID ids.CabalID, userID ids.UserID, at time.Time,
+) (money.SharesUnits, error) {
+	value, err := q.history.CabalUserShareUnitsAt(ctx, sqlc.CabalUserShareUnitsAtParams{
+		At: at, CabalID: cabalID.UUID(), UserID: userID.UUID(),
+	})
+	if err != nil {
+		return money.SharesUnits{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.ShareUnitsAt")
+	}
+	return shares(value)
+}
+
+func (q *Queries) CabalPositionsAt(ctx context.Context, at time.Time) ([]port.CabalPositions, error) {
+	rows, err := q.history.CabalPositionSnapshotsAt(ctx, sqlc.CabalPositionSnapshotsAtParams{
+		At: at, Usdc: string(q.usdc),
+	})
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.CabalPositionsAt")
+	}
+	out := []port.CabalPositions{}
+	assets := map[chain.SolanaAddress]app.Asset{}
+	for _, row := range rows {
+		cabalID := ids.CabalIDFrom(row.CabalID)
+		if len(out) == 0 || out[len(out)-1].CabalID != cabalID {
+			shareUnits, err := shares(row.ShareUnits)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, port.CabalPositions{CabalID: cabalID, TotalShares: shareUnits})
+		}
+		position, err := q.position(ctx, row.Asset, row.Units, row.CostBasisMicros, assets)
+		if err != nil {
+			return nil, err
+		}
+		out[len(out)-1].Holdings = append(out[len(out)-1].Holdings, position)
+	}
+	return out, nil
+}
+
+func (q *Queries) MemberStakesAt(ctx context.Context, at time.Time) ([]port.MemberStake, error) {
+	rows, err := q.history.MemberStakesAt(ctx, at)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.MemberStakesAt")
+	}
+	out := make([]port.MemberStake, 0, len(rows))
+	for _, row := range rows {
+		shareUnits, err := shares(row.ShareUnits)
+		if err != nil {
+			return nil, err
+		}
+		net, err := money.ParseSignedMicros(row.NetContributedMicros)
+		if err != nil {
+			return nil, errs.Wrap(err, errs.CodeDecodeFailed, "treasury.Queries.MemberStakesAt")
+		}
+		out = append(out, port.MemberStake{
+			UserID: ids.UserIDFrom(row.UserID), CabalID: ids.CabalIDFrom(uuid.UUID(row.CabalID.Bytes)),
+			ShareUnits:           shareUnits,
+			NetContributedMicros: net,
+		})
 	}
 	return out, nil
 }

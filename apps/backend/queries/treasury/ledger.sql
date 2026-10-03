@@ -105,6 +105,86 @@ FROM stake CROSS JOIN total
 LEFT JOIN cabal_positions AS positions ON positions.cabal_id = sqlc.arg(cabal_id)::uuid AND positions.units > 0
 ORDER BY positions.asset;
 
+-- name: CabalPositionSnapshotsAt :many
+WITH RECURSIVE txn_usdc_paid AS (
+  SELECT txn_id, -sum(amount)::numeric AS paid
+  FROM cabal_txn_entries
+  WHERE account = 'treasury' AND asset = sqlc.arg(usdc)::text
+  GROUP BY txn_id
+), txn_positions AS (
+  SELECT t.cabal_id, t.seq, e.asset, sum(e.amount)::numeric AS delta,
+    coalesce(max(paid.paid), 0)::numeric AS paid
+  FROM cabal_txns AS t
+  JOIN cabal_txn_entries AS e ON e.txn_id = t.id
+  LEFT JOIN txn_usdc_paid AS paid ON paid.txn_id = t.id
+  WHERE t.created_at <= sqlc.arg(at)::timestamptz AND e.account = 'treasury'
+  GROUP BY t.id, t.cabal_id, t.seq, e.asset
+  HAVING sum(e.amount) <> 0
+), ordered_positions AS (
+  SELECT cabal_id, seq, asset, delta, paid,
+    row_number() OVER (PARTITION BY cabal_id, asset ORDER BY seq) AS ordinal
+  FROM txn_positions
+), replayed_positions AS (
+  SELECT cabal_id, asset, ordinal, delta AS units,
+    CASE
+      WHEN delta < 0 THEN 0::numeric
+      WHEN asset = sqlc.arg(usdc)::text THEN delta
+      ELSE greatest(paid, 0)
+    END AS cost_basis_micros
+  FROM ordered_positions
+  WHERE ordinal = 1
+
+  UNION ALL
+
+  SELECT next.cabal_id, next.asset, next.ordinal, replayed.units + next.delta,
+    CASE
+      WHEN next.delta < 0 THEN replayed.cost_basis_micros - div(
+        replayed.cost_basis_micros * -next.delta, greatest(replayed.units, 1))
+      WHEN next.asset = sqlc.arg(usdc)::text THEN replayed.cost_basis_micros + next.delta
+      ELSE replayed.cost_basis_micros + greatest(next.paid, 0)
+    END
+  FROM replayed_positions AS replayed
+  JOIN ordered_positions AS next
+    ON next.cabal_id = replayed.cabal_id AND next.asset = replayed.asset
+    AND next.ordinal = replayed.ordinal + 1
+), latest_positions AS (
+  SELECT DISTINCT ON (cabal_id, asset) cabal_id, asset, units, cost_basis_micros
+  FROM replayed_positions
+  ORDER BY cabal_id, asset, ordinal DESC
+), share_totals AS (
+  SELECT t.cabal_id, sum(e.amount)::text AS share_units
+  FROM user_txns AS t
+  JOIN user_txn_entries AS e ON e.txn_id = t.id
+  WHERE t.created_at <= sqlc.arg(at)::timestamptz AND e.account = 'holder'
+    AND e.asset = 'shares:' || t.cabal_id::text
+  GROUP BY t.cabal_id
+  HAVING sum(e.amount) > 0
+)
+SELECT positions.cabal_id, positions.asset, positions.units::text AS units,
+  positions.cost_basis_micros::text AS cost_basis_micros, totals.share_units
+FROM latest_positions AS positions
+JOIN share_totals AS totals ON totals.cabal_id = positions.cabal_id
+WHERE positions.units > 0
+ORDER BY positions.cabal_id, positions.asset;
+
+-- name: CabalUserShareUnitsAt :one
+SELECT coalesce(sum(e.amount), 0)::text AS share_units
+FROM user_txns AS t
+JOIN user_txn_entries AS e ON e.txn_id = t.id
+WHERE t.created_at <= sqlc.arg(at)::timestamptz AND t.cabal_id = sqlc.arg(cabal_id)::uuid
+  AND t.user_id = sqlc.arg(user_id)::uuid AND e.account = 'holder' AND e.asset = 'shares:' || t.cabal_id::text;
+
+-- name: MemberStakesAt :many
+SELECT t.user_id, coalesce(t.cabal_id, '00000000-0000-0000-0000-000000000000'::uuid) AS cabal_id,
+  sum(CASE WHEN e.account = 'holder' AND e.asset = 'shares:' || t.cabal_id::text
+  THEN e.amount ELSE 0 END)::text AS share_units,
+  sum(CASE WHEN e.account = 'cabal' THEN e.amount ELSE 0 END)::text AS net_contributed_micros
+FROM user_txns AS t
+JOIN user_txn_entries AS e ON e.txn_id = t.id
+	WHERE t.created_at <= sqlc.arg(at)::timestamptz AND t.cabal_id IS NOT NULL
+	GROUP BY t.user_id, t.cabal_id
+	ORDER BY t.user_id, t.cabal_id;
+
 -- name: ApplyUserPosition :one
 WITH updated AS (
   UPDATE user_positions AS p SET

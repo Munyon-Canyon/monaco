@@ -110,6 +110,108 @@ func (q *Queries) ApplyUserPosition(ctx context.Context, arg ApplyUserPositionPa
 	return i, err
 }
 
+const cabalPositionSnapshotsAt = `-- name: CabalPositionSnapshotsAt :many
+WITH RECURSIVE txn_usdc_paid AS (
+  SELECT txn_id, -sum(amount)::numeric AS paid
+  FROM cabal_txn_entries
+  WHERE account = 'treasury' AND asset = $1::text
+  GROUP BY txn_id
+), txn_positions AS (
+  SELECT t.cabal_id, t.seq, e.asset, sum(e.amount)::numeric AS delta,
+    coalesce(max(paid.paid), 0)::numeric AS paid
+  FROM cabal_txns AS t
+  JOIN cabal_txn_entries AS e ON e.txn_id = t.id
+  LEFT JOIN txn_usdc_paid AS paid ON paid.txn_id = t.id
+  WHERE t.created_at <= $2::timestamptz AND e.account = 'treasury'
+  GROUP BY t.id, t.cabal_id, t.seq, e.asset
+  HAVING sum(e.amount) <> 0
+), ordered_positions AS (
+  SELECT cabal_id, seq, asset, delta, paid,
+    row_number() OVER (PARTITION BY cabal_id, asset ORDER BY seq) AS ordinal
+  FROM txn_positions
+), replayed_positions AS (
+  SELECT cabal_id, asset, ordinal, delta AS units,
+    CASE
+      WHEN delta < 0 THEN 0::numeric
+      WHEN asset = $1::text THEN delta
+      ELSE greatest(paid, 0)
+    END AS cost_basis_micros
+  FROM ordered_positions
+  WHERE ordinal = 1
+
+  UNION ALL
+
+  SELECT next.cabal_id, next.asset, next.ordinal, replayed.units + next.delta,
+    CASE
+      WHEN next.delta < 0 THEN replayed.cost_basis_micros - div(
+        replayed.cost_basis_micros * -next.delta, greatest(replayed.units, 1))
+      WHEN next.asset = $1::text THEN replayed.cost_basis_micros + next.delta
+      ELSE replayed.cost_basis_micros + greatest(next.paid, 0)
+    END
+  FROM replayed_positions AS replayed
+  JOIN ordered_positions AS next
+    ON next.cabal_id = replayed.cabal_id AND next.asset = replayed.asset
+    AND next.ordinal = replayed.ordinal + 1
+), latest_positions AS (
+  SELECT DISTINCT ON (cabal_id, asset) cabal_id, asset, units, cost_basis_micros
+  FROM replayed_positions
+  ORDER BY cabal_id, asset, ordinal DESC
+), share_totals AS (
+  SELECT t.cabal_id, sum(e.amount)::text AS share_units
+  FROM user_txns AS t
+  JOIN user_txn_entries AS e ON e.txn_id = t.id
+  WHERE t.created_at <= $2::timestamptz AND e.account = 'holder'
+    AND e.asset = 'shares:' || t.cabal_id::text
+  GROUP BY t.cabal_id
+  HAVING sum(e.amount) > 0
+)
+SELECT positions.cabal_id, positions.asset, positions.units::text AS units,
+  positions.cost_basis_micros::text AS cost_basis_micros, totals.share_units
+FROM latest_positions AS positions
+JOIN share_totals AS totals ON totals.cabal_id = positions.cabal_id
+WHERE positions.units > 0
+ORDER BY positions.cabal_id, positions.asset
+`
+
+type CabalPositionSnapshotsAtParams struct {
+	Usdc string
+	At   time.Time
+}
+
+type CabalPositionSnapshotsAtRow struct {
+	CabalID         uuid.UUID
+	Asset           string
+	Units           string
+	CostBasisMicros string
+	ShareUnits      string
+}
+
+func (q *Queries) CabalPositionSnapshotsAt(ctx context.Context, arg CabalPositionSnapshotsAtParams) ([]CabalPositionSnapshotsAtRow, error) {
+	rows, err := q.db.Query(ctx, cabalPositionSnapshotsAt, arg.Usdc, arg.At)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabalPositionSnapshotsAtRow
+	for rows.Next() {
+		var i CabalPositionSnapshotsAtRow
+		if err := rows.Scan(
+			&i.CabalID,
+			&i.Asset,
+			&i.Units,
+			&i.CostBasisMicros,
+			&i.ShareUnits,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const cabalPositions = `-- name: CabalPositions :many
 SELECT asset, units::text AS units, cost_basis_micros::text AS cost_basis_micros
 FROM cabal_positions
@@ -240,6 +342,27 @@ func (q *Queries) CabalUserPosition(ctx context.Context, arg CabalUserPositionPa
 	var i CabalUserPositionRow
 	err := row.Scan(&i.ShareUnits, &i.ContributedMicros, &i.WithdrawnMicros)
 	return i, err
+}
+
+const cabalUserShareUnitsAt = `-- name: CabalUserShareUnitsAt :one
+SELECT coalesce(sum(e.amount), 0)::text AS share_units
+FROM user_txns AS t
+JOIN user_txn_entries AS e ON e.txn_id = t.id
+WHERE t.created_at <= $1::timestamptz AND t.cabal_id = $2::uuid
+  AND t.user_id = $3::uuid AND e.account = 'holder' AND e.asset = 'shares:' || t.cabal_id::text
+`
+
+type CabalUserShareUnitsAtParams struct {
+	At      time.Time
+	CabalID uuid.UUID
+	UserID  uuid.UUID
+}
+
+func (q *Queries) CabalUserShareUnitsAt(ctx context.Context, arg CabalUserShareUnitsAtParams) (string, error) {
+	row := q.db.QueryRow(ctx, cabalUserShareUnitsAt, arg.At, arg.CabalID, arg.UserID)
+	var share_units string
+	err := row.Scan(&share_units)
+	return share_units, err
 }
 
 const insertCabalEntry = `-- name: InsertCabalEntry :exec
@@ -386,6 +509,50 @@ SELECT pg_advisory_xact_lock(hashtextextended('cabal-ledger:' || $1::uuid::text,
 func (q *Queries) LockCabalLedger(ctx context.Context, cabalID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, lockCabalLedger, cabalID)
 	return err
+}
+
+const memberStakesAt = `-- name: MemberStakesAt :many
+SELECT t.user_id, coalesce(t.cabal_id, '00000000-0000-0000-0000-000000000000'::uuid) AS cabal_id,
+  sum(CASE WHEN e.account = 'holder' AND e.asset = 'shares:' || t.cabal_id::text
+  THEN e.amount ELSE 0 END)::text AS share_units,
+  sum(CASE WHEN e.account = 'cabal' THEN e.amount ELSE 0 END)::text AS net_contributed_micros
+FROM user_txns AS t
+JOIN user_txn_entries AS e ON e.txn_id = t.id
+	WHERE t.created_at <= $1::timestamptz AND t.cabal_id IS NOT NULL
+	GROUP BY t.user_id, t.cabal_id
+	ORDER BY t.user_id, t.cabal_id
+`
+
+type MemberStakesAtRow struct {
+	UserID               uuid.UUID
+	CabalID              pgtype.UUID
+	ShareUnits           string
+	NetContributedMicros string
+}
+
+func (q *Queries) MemberStakesAt(ctx context.Context, at time.Time) ([]MemberStakesAtRow, error) {
+	rows, err := q.db.Query(ctx, memberStakesAt, at)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MemberStakesAtRow
+	for rows.Next() {
+		var i MemberStakesAtRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.CabalID,
+			&i.ShareUnits,
+			&i.NetContributedMicros,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const setTransferStatus = `-- name: SetTransferStatus :one
