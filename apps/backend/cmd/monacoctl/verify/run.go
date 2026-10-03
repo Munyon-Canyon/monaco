@@ -132,6 +132,7 @@ func run(ctx context.Context, cfg Config, target Target) (err error) {
 	stack, err := Up(runCtx, Options{
 		Dir: cfg.Dir, Atlas: cfg.Atlas, Docker: cfg.Docker, Environ: cfg.Environ, Bins: bins,
 		Budget: cfg.Budget, Postgres: cfg.Postgres, CoverDir: cover, Faultpoint: target.CrashAt, WorkerEnv: env,
+		Clock: cfg.Clock,
 	})
 	rep.phases[PhaseStack] = time.Since(began)
 	defer func() {

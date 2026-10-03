@@ -71,6 +71,10 @@ func servedIdentityEnv(t *testing.T) Env {
 	}
 }
 
+func unservedEnv(api string) Env {
+	return Env{API: api, TokenKey: "verify-unserved", Logs: &Logs{}, Arm: func(context.Context) error { return nil }}
+}
+
 func flow01(t *testing.T, target Target) []Unit {
 	t.Helper()
 	all, err := readFlows(backendDir(t))
@@ -86,6 +90,7 @@ func flow01(t *testing.T, target Target) []Unit {
 
 func TestVerifyUnits_flow01PassesOverHTTPAgainstThePrivyFakes(t *testing.T) {
 	t.Parallel()
+	env := servedIdentityEnv(t)
 	for name, tc := range map[string]struct {
 		target Target
 		want   []string
@@ -101,7 +106,7 @@ func TestVerifyUnits_flow01PassesOverHTTPAgainstThePrivyFakes(t *testing.T) {
 			if err := verifyUnits(
 				t.Context(),
 				cfg,
-				servedIdentityEnv(t),
+				env,
 				newReport(t.Context(), tc.target, flow01(t, tc.target)),
 				parallelFlows,
 			); err != nil {
@@ -242,8 +247,8 @@ func TestDriver_aPlantedFlowThatSleepsPastItsBudgetFailsNamingTheFlowPhase(t *te
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			env := servedEnv(t)
-			env.API, _ = slowAPI(t)
+			api, _ := slowAPI(t)
+			env := unservedEnv(api)
 			budget := DefaultBudget()
 			tc.budget(&budget)
 			d, err := newDriver(env, budget)
@@ -264,10 +269,8 @@ func TestDriver_aPlantedFlowThatSleepsPastItsBudgetFailsNamingTheFlowPhase(t *te
 
 func TestDriver_stopsAFlowWhenTheRunIsCancelled(t *testing.T) {
 	t.Parallel()
-	env := servedEnv(t)
-	var arrived <-chan struct{}
-	env.API, arrived = slowAPI(t)
-	d, err := newDriver(env, DefaultBudget())
+	api, arrived := slowAPI(t)
+	d, err := newDriver(unservedEnv(api), DefaultBudget())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -317,7 +320,7 @@ func TestDriver_aFinishedFlowLeavesNoConnectionOpenSoTheAPIShutsDownAtOnce(t *te
 	var open func() []http.ConnState
 	env.API, open = connTracker(t)
 	budget := DefaultBudget()
-	budget.Converge = time.Hour
+	budget.Converge = virtualConverge
 	d, err := newDriver(env, budget)
 	if err != nil {
 		t.Fatal(err)
@@ -360,6 +363,7 @@ func TestDriver_convergenceTimesOutNamingTheStuckConsumer(t *testing.T) {
 
 func TestDriver_reportsInvariantFailures(t *testing.T) {
 	t.Parallel()
+	served := servedEnv(t)
 	post := func(s *scenario.Scenario) {
 		s.Given(scenario.AsUser("alice")).When(scenario.Post("/v1/system/pings", `{"note":"hi"}`))
 	}
@@ -403,14 +407,14 @@ func TestDriver_reportsInvariantFailures(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			env := servedEnv(t)
+			env := served
 			u := flow00(t, Target{Flow: "00", Outcome: "ok"})[0]
 			u.Outcome, u.Script = tools.Outcome(tc.outcome), tc.script
 			if tc.edit != nil {
 				tc.edit(&env, &u)
 			}
 			budget := DefaultBudget()
-			budget.Converge = time.Hour
+			budget.Converge = virtualConverge
 			d, err := newDriver(env, budget)
 			if err != nil {
 				t.Fatal(err)
