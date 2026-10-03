@@ -1,6 +1,6 @@
 # Chat
 
-**Status:** Decided 2026-09-27. The core shape was proposed 2026-09-26: store first then publish on Ably, one level of threads with "also send to channel", and a per-member seen watermark. Reconciled with [backend-platform.md](backend-platform.md) 2026-09-27: chat is flow 22 in [`flows.tsv`](backend-platform.md#flows), owned by the `social` module, built in [Rollout](backend-platform.md#rollout) step 6, and keeps Ably for delivery as the RFC decides. The remaining open points took defaults 2026-09-27.
+**Status:** Decided 2026-09-27. The core shape was proposed 2026-09-26: store first then publish on Ably, one level of threads with "also send to channel", and a per-member seen watermark. Reconciled with [backend-platform.md](backend-platform.md) 2026-09-27: chat is [flow 22](backend-platform.md#flows), owned by the `social` module, built in [Rollout](backend-platform.md#rollout) step 6, and keeps Ably for delivery as the RFC decides. The remaining open points took defaults 2026-09-27.
 
 ## Decision
 

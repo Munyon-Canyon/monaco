@@ -56,7 +56,7 @@ Work that can outlast the ack wait calls `stop := bus.KeepAlive(ctx)` and `defer
 
 - A module declares its consumers in `Consumers()` in its `module.go`. `apps/backend/cmd/worker/boot.go` starts every module's consumers.
 - Each consumer is a durable on the shared `EVENTS` stream, filtered to its handlers' event types. A module never creates a stream. The streams live in `apps/backend/internal/platform/bus/streams.go`.
-- The durable name is `<module>_<name>` and the handler name is `<module>.<name>`. The handler name is the `event_deliveries` key and the name in the `consumers` cell of `apps/backend/flows.tsv`.
+- The durable name is `<module>_<name>` and the handler name is `<module>.<name>`. The handler name is the `event_deliveries` key and the name in the `consumers` cell of the flow's file, `packages/flows/backend/<id>.tsv`.
 
 ## Add a consumer
 
@@ -83,4 +83,4 @@ Work that can outlast the ack wait calls `stop := bus.KeepAlive(ctx)` and `defer
 - [ ] No outbound call runs inside the transaction.
 - [ ] Post-commit side effects use `tx.AfterCommit`.
 - [ ] The chaos test converges.
-- [ ] `flows.tsv` names the handler in each flow that reaches it.
+- [ ] The file of each flow that reaches the handler names it in `consumers`.

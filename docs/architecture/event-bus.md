@@ -117,7 +117,7 @@ jetstream.ConsumerConfig{
 }
 ```
 
-A module with several handlers still has one durable. `bus.Dispatch` routes each message to the handlers registered for its subject, and each handler has its own name, such as `treasury.positions` (the names in `flows.tsv`'s `consumers` column).
+A module with several handlers still has one durable. `bus.Dispatch` routes each message to the handlers registered for its subject, and each handler has its own name, such as `treasury.positions` (the names in the flow files' `consumers` column).
 
 `MaxAckPending` 64 is the cross-process concurrency bound. In-process pools must not exceed it ([Concurrency rules](backend-platform.md#concurrency-rules), rule 8).
 
@@ -144,7 +144,7 @@ Handlers never call an outside service (APNs, PostHog) inside that transaction. 
 
 ### Who publishes, who subscribes
 
-`apps/backend/flows.tsv` is the source of truth for which command emits which event and which consumers react. [backend-platform.md](backend-platform.md#flows) renders it. This file no longer keeps its own table.
+The flow files, `packages/flows/backend/<id>.tsv`, are the source of truth for which command emits which event and which consumers react. [backend-platform.md](backend-platform.md#flows) renders it. This file no longer keeps its own table.
 
 Names changed from the 2026-09-26 table, to match the flows:
 
@@ -158,7 +158,7 @@ Names changed from the 2026-09-26 table, to match the flows:
 | `trade.blocked` sets the proposal to `execution_blocked` in the engine's transaction | `trading` emits `trade.blocked`; `governance` consumes it and emits `proposal.execution_blocked` |
 | Publishers named by service ("Proposal service", "Swap layer") | Publishers are modules (`governance`, `trading`, `treasury`, `funding`, …) |
 
-Rows added to `flows.tsv` on 2026-09-27 (defaults):
+Rows added to the flow registry on 2026-09-27 (defaults):
 
 | Event | Published by | Consumers |
 | --- | --- | --- |

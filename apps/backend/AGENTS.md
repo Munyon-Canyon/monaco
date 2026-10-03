@@ -18,7 +18,7 @@ Each module under `internal/modules` has `domain`, `app` and `adapters`, and imp
 - **Money means integer types plus `uow.Do`.** Amounts are `money.Micros`, `money.SignedMicros` or `money.BaseUnits`. Floats are banned. Every balance change and its event commit together inside `db.UnitOfWork.Do`. Read the `money-change` skill first.
 - **No comments in Go.** If you want one, you need a better name, a type, a test or an issue. Only `//go:` directives survive. `go run ./cmd/monacoctl lint comments` fails the rest.
 - **Use the generators.** `just gen module`, `just gen command`, `just gen query`, `just gen consumer`, `just gen provider` and `just gen flow` write the first copy. Copy what they emit, not what you remember.
-- **Every flow is a row.** A behavior change updates its row in `flows.tsv` and the `TestFlow<id>_<Command>_<Outcome>` tests it names.
+- **Every flow is a file.** A behavior change updates its row in `packages/flows/backend/<id>.tsv` and the `TestFlow<id>_<Command>_<Outcome>` tests it names.
 
 ## Before a push
 

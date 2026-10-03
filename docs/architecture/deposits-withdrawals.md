@@ -78,7 +78,7 @@ The deposit screen becomes two options: **Card** (opens the fund page) and **Cry
 
 ## Fund
 
-[Flow 7](backend-platform.md#flows), owned by the `treasury` module: `FundCabal` from `POST /v1/cabals/{id}/fund` moves an exact amount of platform balance from the member wallet to the cabal treasury through a Privy transfer, waits for confirmation, and mints share units at the live price. It appends `cabal.fund_submitted`, then `cabal.funded`. Its outcomes, including `InsufficientFunds`, `CabalPaused`, `PrivyUnavailable` and the `after-sign` and `before-commit` crash points, are the flow's row in [`flows.tsv`](backend-platform.md#outcomes-as-a-map). The balance and share rules are in [architecture.md](../architecture.md) (Deposit and fund a cabal) and [data-model.md](data-model.md#double-entry-ledgers).
+[Flow 7](backend-platform.md#flows), owned by the `treasury` module: `FundCabal` from `POST /v1/cabals/{id}/fund` moves an exact amount of platform balance from the member wallet to the cabal treasury through a Privy transfer, waits for confirmation, and mints share units at the live price. It appends `cabal.fund_submitted`, then `cabal.funded`. Its outcomes, including `InsufficientFunds`, `CabalPaused`, `PrivyUnavailable` and the `after-sign` and `before-commit` crash points, are the row in its [flow file](backend-platform.md#outcomes-as-a-map). The balance and share rules are in [architecture.md](../architecture.md) (Deposit and fund a cabal) and [data-model.md](data-model.md#double-entry-ledgers).
 
 The transfer's signature is stored before broadcast, like every treasury-touching transfer, so the external-deposit classifier below never mistakes a sweep for a stray transfer.
 

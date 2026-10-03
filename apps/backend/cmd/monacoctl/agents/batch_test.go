@@ -178,7 +178,7 @@ func liveTouches() map[int]string {
 		569: "`apps/backend/internal/modules/social/**`, `apps/backend/queries/social/**`, " +
 			"`apps/backend/migrations/**`, `apps/backend/sqlc.yaml`, `apps/backend/.golangci.yml`, " +
 			"`apps/backend/api/openapi.yaml`, `apps/backend/internal/platform/httpx/api/api.gen.go`, " +
-			"`apps/backend/flows.tsv`, `apps/backend/internal/events/follow.go`, " +
+			"`packages/flows/backend/20.tsv`, `apps/backend/internal/events/follow.go`, " +
 			"`apps/backend/internal/events/registry.go`, `apps/backend/internal/events/testdata/golden/follow.*`, " +
 			"`apps/backend/internal/errs/codes_*.go`, `apps/backend/internal/testkit/flows/f20.go`, " +
 			"`apps/backend/internal/testkit/scenarios/two-users.jsonl`, `apps/backend/cmd/api/module_social.gen.go`, " +
@@ -186,7 +186,7 @@ func liveTouches() map[int]string {
 			"`apps/backend/cmd/api/registry.go`, `apps/backend/CHANGELOG.md`",
 		555: "`apps/backend/internal/modules/cabal/**`, `apps/backend/internal/testkit/scenarios/**`, " +
 			"`apps/backend/internal/testkit/fakes/**`, `apps/backend/api/openapi.yaml`, " +
-			"`apps/backend/internal/platform/httpx/api/api.gen.go`, `apps/backend/flows.tsv`, " +
+			"`apps/backend/internal/platform/httpx/api/api.gen.go`, `packages/flows/backend/20.tsv`, " +
 			"`apps/backend/internal/testkit/flows/**`",
 	}
 }
@@ -229,7 +229,7 @@ func TestBatch_admitsTicketsThatOverlapOnlyOnSharedFiles(t *testing.T) {
 		"shared: #555 and #562 both touch apps/backend/internal/testkit/fakes/**, " + api,
 		"shared: #555 and #563 both touch apps/backend/internal/testkit/fakes/**, " + api,
 		"shared: #555 and #569 both touch apps/backend/internal/testkit/scenarios/**, " + api +
-			", apps/backend/flows.tsv, apps/backend/internal/testkit/flows/**",
+			", packages/flows/backend/20.tsv, apps/backend/internal/testkit/flows/**",
 	}, "\n") + "\n"
 	if code != 0 || stderr != "" || stdout != want {
 		t.Fatalf("code=%d stderr=%q stdout:\n%s\nwant:\n%s", code, stderr, stdout, want)
@@ -244,12 +244,12 @@ func TestBatch_refusesAnOverlapOutsideTheSharedFiles(t *testing.T) {
 		want   string
 	}{
 		"one module": {
-			[2]string{liveTouches()[555], "`apps/backend/flows.tsv`, `apps/backend/internal/modules/cabal/**`"},
+			[2]string{liveTouches()[555], "`packages/flows/backend/02.tsv`, `apps/backend/internal/modules/cabal/**`"},
 			"deferred #2: Touches apps/backend/internal/modules/cabal/** overlaps #1 apps/backend/internal/modules/cabal/**\n",
 		},
 		"a glob wider than the shared file": {
-			[2]string{"`apps/backend/flows.tsv`", "`apps/backend/*`"},
-			"deferred #2: Touches apps/backend/* overlaps #1 apps/backend/flows.tsv\n",
+			[2]string{"`packages/flows/backend/03.tsv`", "`packages/flows/**`"},
+			"deferred #2: Touches packages/flows/** overlaps #1 packages/flows/backend/03.tsv\n",
 		},
 	}
 	for name, tc := range cases {
@@ -265,6 +265,18 @@ func TestBatch_refusesAnOverlapOutsideTheSharedFiles(t *testing.T) {
 				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
 			}
 		})
+	}
+}
+
+func TestBatch_admitsTwoTicketsThatOwnDifferentFlowFiles(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	writeFile(t, filepath.Join(f.dir, configPath), sharedConfig(t, 6))
+	f.hub.on(get("/issues/1"), Issue{Number: 1, Body: "**Touches:** `packages/flows/backend/03.tsv`"})
+	f.hub.on(get("/issues/2"), Issue{Number: 2, Body: "**Touches:** `packages/flows/backend/04.tsv`"})
+	code, stdout, stderr := f.agents(t, "batch", "1", "2")
+	if want := "batch: #1 #2 (2 of 6) in " + f.Env(t).batchPath() + "\n"; code != 0 || stderr != "" || stdout != want {
+		t.Fatalf("code=%d stdout=%q stderr=%q, want %q", code, stdout, stderr, want)
 	}
 }
 

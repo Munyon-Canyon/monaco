@@ -1,6 +1,6 @@
 # Referrals
 
-**Status:** Decided 2026-09-26. No reward for now (decided 2026-09-27). Attribution and tracking only. Reconciled with [backend-platform.md](backend-platform.md) 2026-09-27: owned by the `referrals` module, flow 25 in [`flows.tsv`](backend-platform.md#flows), built in [Rollout](backend-platform.md#rollout) step 6.
+**Status:** Decided 2026-09-26. No reward for now (decided 2026-09-27). Attribution and tracking only. Reconciled with [backend-platform.md](backend-platform.md) 2026-09-27: owned by the `referrals` module, [flow 25](backend-platform.md#flows), built in [Rollout](backend-platform.md#rollout) step 6.
 
 ## Decision
 

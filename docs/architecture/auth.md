@@ -45,7 +45,7 @@ Then the app calls `POST /v1/auth/session` with the Privy access token. The rout
 5. In one transaction, creates the `users` row if the `privy_user_id` is new, attaches the wallet, refreshes `email`, and resyncs the links (see [`auth_state`](#auth_state)). A stored wallet whose address differs from Privy's is `WalletMismatch` and is never overwritten.
 6. After the commit, publishes the `me_changed` hint when anything changed, and returns `Me`. A suspended or banned user gets `Me` too, so the app can show the notice screen.
 
-In the rewrite this is flow 1 in [`flows.tsv`](backend-platform.md#flows), owned by the `identity` module. A first sign-in appends `user.created`; every state change appends `user.auth_state_changed`. Both go through `uow.Do` in the same transaction as the row ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). The `analytics`, `referrals` and `social` consumers react.
+In the rewrite this is [flow 1](backend-platform.md#flows), owned by the `identity` module. A first sign-in appends `user.created`; every state change appends `user.auth_state_changed`. Both go through `uow.Do` in the same transaction as the row ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). The `analytics`, `referrals` and `social` consumers react.
 
 Privy dashboard: enable SMS, email, Apple and Google as **login** methods on both Privy apps. Bundle `com.monaco.app` stays on both Privy iOS clients, and each iOS client allows the `monaco` app URL scheme, which the Apple and Google sheets redirect to.
 

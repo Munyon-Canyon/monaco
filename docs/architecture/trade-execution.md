@@ -87,7 +87,7 @@ The status is a Go type with a `transitions` table and a pure `Next(from, event)
 - The `events` table is append-only and is the audit log. The swap status is a projection of the latest event.
 - `events` rows are written only inside the same transaction as the state change they announce. Nothing publishes to NATS except the relay.
 
-**Crash points.** Flows 11 and 12 list these in [`flows.tsv`](backend-platform.md#outcomes-as-a-map), each with a crash-point test that restarts and asserts convergence:
+**Crash points.** Flows 11 and 12 list these in their [flow files](backend-platform.md#outcomes-as-a-map), each with a crash-point test that restarts and asserts convergence:
 
 | Crash point | What survives | What converges it |
 | --- | --- | --- |

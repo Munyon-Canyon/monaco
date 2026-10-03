@@ -7,7 +7,7 @@ description: Explains what monacoctl verify checks, how to read a failed ci / e2
 
 `monacoctl verify` runs the real `api` and `worker` binaries against a throwaway Postgres, an embedded NATS server and the fakes server. It drives each flow the way the app would and writes down what the system did. Unit and flow tests prove the code. `verify` proves the built binaries.
 
-`feature-map.md` in this directory lists every flow, each outcome's test, and the command that verifies it. It is generated from `apps/backend/flows.tsv`.
+`feature-map.md` in this directory lists every flow, each outcome's test, and the command that verifies it. It is generated from the flow files, `packages/flows/backend/<id>.tsv`.
 
 ## Who runs it
 
@@ -96,7 +96,7 @@ go run ./cmd/monacoctl verify all
 
 ## On failure
 
-Fix the code. Never weaken an invariant, raise a budget, skip an outcome, drop a consumer from `flows.tsv` or edit an evidence file to get green. If the invariant itself is wrong, that change is its own PR with its own reason.
+Fix the code. Never weaken an invariant, raise a budget, skip an outcome, drop a consumer from a flow file or edit an evidence file to get green. If the invariant itself is wrong, that change is its own PR with its own reason.
 
 ## Moving a flow to verified
 
