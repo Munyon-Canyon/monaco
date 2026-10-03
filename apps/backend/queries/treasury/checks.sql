@@ -31,13 +31,13 @@ ORDER BY 1, 2;
 
 -- name: CabalCosts :many
 WITH legs AS (
-  SELECT t.cabal_id, t.id AS txn_id, t.created_at, e.asset, sum(e.amount) AS units
+  SELECT t.cabal_id, t.id AS txn_id, t.seq, e.asset, sum(e.amount) AS units
   FROM cabal_txn_entries e JOIN cabal_txns t ON t.id = e.txn_id
   WHERE e.account = 'treasury'
-  GROUP BY t.cabal_id, t.id, t.created_at, e.asset
+  GROUP BY t.cabal_id, t.id, t.seq, e.asset
   HAVING sum(e.amount) <> 0
 ), costs AS (
-  SELECT l.cabal_id, l.asset, l.created_at, l.txn_id, false AS stored, l.units::text AS units,
+  SELECT l.cabal_id, l.asset, l.seq, false AS stored, l.units::text AS units,
     (CASE
       WHEN l.units < 0 THEN 0
       WHEN l.asset = sqlc.arg(usdc)::text THEN l.units
@@ -46,12 +46,12 @@ WITH legs AS (
     END)::text AS cost
   FROM legs l
   UNION ALL
-  SELECT p.cabal_id, p.asset, NULL::timestamptz, NULL::uuid, true, '0', p.cost_basis_micros::text
+  SELECT p.cabal_id, p.asset, NULL::bigint, true, '0', p.cost_basis_micros::text
   FROM cabal_positions p
 )
 SELECT cabal_id::text AS cabal_id, asset, stored, units, cost
 FROM costs
-ORDER BY cabal_id, asset, created_at, txn_id;
+ORDER BY cabal_id, asset, seq;
 
 -- name: UserPositionDrift :many
 WITH sums AS (

@@ -206,8 +206,8 @@ func TestLedgerCheck_reportsASaleOfWhatTheLedgerNeverBoughtWithoutStopping(t *te
 	t.Parallel()
 	f := newFixture(t)
 	cabal, txn := f.cabal(t), f.ids.NewV7()
-	if _, err := f.pool.Exec(t.Context(), `INSERT INTO cabal_txns (id, cabal_id, kind, status, created_at)
-		VALUES ($1, $2, 'swap', 'settled', now())`, txn, cabal.UUID()); err != nil {
+	if _, err := f.pool.Exec(t.Context(), `INSERT INTO cabal_txns (id, cabal_id, kind, status, created_at, seq)
+		VALUES ($1, $2, 'swap', 'settled', now(), 1)`, txn, cabal.UUID()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.pool.Exec(t.Context(), `INSERT INTO cabal_txn_entries (txn_id, seq, account, asset, amount)
@@ -316,7 +316,7 @@ func TestLedgerCheck_replaysCostBasisInTheOrderTheEntriesWereWritten(t *testing.
 	}
 }
 
-func TestLedgerCheck_replaysByPostTimeBeforeTxnID(t *testing.T) {
+func TestLedgerCheck_replaysInPostOrderWhenTheClockStepsBack(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	cabal := f.cabal(t)
@@ -329,8 +329,9 @@ func TestLedgerCheck_replaysByPostTimeBeforeTxnID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, txn := range []domain.CabalTxn{buy, sell} {
-		f.clock.Advance(time.Second)
+	start := f.clock.Now()
+	for i, txn := range []domain.CabalTxn{buy, sell} {
+		f.clock.Set(start.Add(time.Duration(2-i) * time.Second))
 		if err := f.postCabal(txn); err != nil {
 			t.Fatal(err)
 		}
@@ -340,7 +341,7 @@ func TestLedgerCheck_replaysByPostTimeBeforeTxnID(t *testing.T) {
 		t.Fatalf("cabal positions = %+v, want %+v", got, want)
 	}
 	if diffs, err := treasury.LedgerCheck().Check(t.Context(), f.pool); err != nil || len(diffs) != 0 {
-		t.Fatalf("ledger = %q, %v, want the replay to follow the posts, not the ids", diffs, err)
+		t.Fatalf("ledger = %q, %v, want the replay to follow the posts, not their clock or ids", diffs, err)
 	}
 }
 
@@ -401,7 +402,7 @@ func TestCheckLedger_failsWhenTheDatabaseDoes(t *testing.T) {
 	s.exec(t, `DROP TABLE events CASCADE`)
 	_, err = withRule(t.Context(), s.f.pool)
 	wantCode(t, err, errs.CodeInternal)
-	s.exec(t, `ALTER TABLE cabal_txns DROP COLUMN created_at`)
+	s.exec(t, `ALTER TABLE cabal_txns DROP COLUMN seq`)
 	_, err = treasury.LedgerCheck().Check(t.Context(), s.f.pool)
 	wantCode(t, err, errs.CodeInternal)
 	for _, table := range []string{"user_positions", "cabal_positions", "user_txns", "cabal_txn_entries"} {

@@ -2,12 +2,13 @@
 SELECT pg_advisory_xact_lock(hashtextextended('cabal-ledger:' || sqlc.arg(cabal_id)::uuid::text, 0));
 
 -- name: InsertCabalTxn :execrows
-INSERT INTO cabal_txns (id, cabal_id, kind, status, swap_id, transfer_id, tx_signature, created_at)
+INSERT INTO cabal_txns (id, cabal_id, kind, status, swap_id, transfer_id, tx_signature, created_at, seq)
 SELECT sqlc.arg(id)::uuid, sqlc.arg(cabal_id)::uuid, sqlc.arg(kind)::text, sqlc.arg(status)::text,
   NULLIF(sqlc.arg(swap_id)::uuid, '00000000-0000-0000-0000-000000000000'),
   NULLIF(sqlc.arg(transfer_id)::uuid, '00000000-0000-0000-0000-000000000000'),
   NULLIF(sqlc.arg(tx_signature)::text, ''),
-  sqlc.arg(created_at)::timestamptz
+  sqlc.arg(created_at)::timestamptz,
+  (SELECT coalesce(max(seq), 0) + 1 FROM cabal_txns WHERE cabal_id = sqlc.arg(cabal_id)::uuid)
 WHERE NOT EXISTS (
   SELECT 1 FROM cabal_txns c WHERE c.transfer_id = sqlc.arg(transfer_id)::uuid AND c.status <> sqlc.arg(status)::text
   UNION ALL
