@@ -5,7 +5,7 @@ version: 1
 milestone: M9
 requires: []
 actors: [A]
-xcuitest: [apps/mobile/MonacoUITests/Flows/SignInFlow.swift, apps/mobile/MonacoUITests/Flows/SignInFlowUITests.swift]
+xcuitest: [apps/mobile/MonacoUITests/Journeys/SignInFlow.swift, apps/mobile/MonacoUITests/Journeys/SignInFlowUITests.swift]
 ---
 
 # Sign in

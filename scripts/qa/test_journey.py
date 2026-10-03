@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import flow  # noqa: E402
+import journey as flow  # noqa: E402
 
 DOC = """---
 id: auth/sign-in
