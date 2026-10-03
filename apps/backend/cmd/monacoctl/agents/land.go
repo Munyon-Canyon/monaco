@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	stackFields = `number state closedAt baseRefName headRefName headRefOid body mergeCommit{oid} ` + labelFields + `
+	stackFields = `number state mergeable closedAt baseRefName headRefName headRefOid body mergeCommit{oid} ` + labelFields + `
 commits(last:1){nodes{commit{` + commitChecks + `}}}
 timelineItems(itemTypes:[UNLABELED_EVENT],last:20){nodes{__typename ... on UnlabeledEvent{createdAt label{name}}}}`
 	settleAfter = time.Minute
@@ -41,6 +41,7 @@ type stackPR struct {
 	gqlPR
 	Base        string `json:"baseRefName"`
 	Head        string `json:"headRefName"`
+	Mergeable   string `json:"mergeable"`
 	MergeCommit struct {
 		OID string `json:"oid"`
 	} `json:"mergeCommit"`
@@ -87,7 +88,7 @@ func landStackCmd(ctx context.Context, env *Env, args []string, stdout io.Writer
 
 func (env *Env) arm(ctx context.Context, rec Record, stack []stackPR, waiting []string, stdout io.Writer) error {
 	top := stack[len(stack)-1].Number
-	if failedCheck(stack) != "" {
+	if blocker(stack) != "" {
 		_, _ = fmt.Fprintf(stdout, "not landing #%d; waiting on %s\n", top, strings.Join(waiting, ", "))
 		return nil
 	}
@@ -101,10 +102,15 @@ func (env *Env) arm(ctx context.Context, rec Record, stack []stackPR, waiting []
 	return nil
 }
 
-func failedCheck(stack []stackPR) string {
+func blocker(stack []stackPR) string {
+	for _, p := range stack {
+		if p.Mergeable == conflicting {
+			return conflictLine(p.Number, p.Base)
+		}
+	}
 	for _, p := range stack {
 		if p.flat("").Stage1 == "failure" {
-			return fmt.Sprintf("#%d stage 1", p.Number)
+			return fmt.Sprintf("#%d stage 1 failed", p.Number)
 		}
 	}
 	return ""
@@ -116,8 +122,8 @@ func (env *Env) landArmed(ctx context.Context, r Record) []string {
 	if err != nil {
 		return []string{watchErr(fmt.Sprintf("armed stack #%d: ", top), err)}
 	}
-	if failed := failedCheck(stack); failed != "" {
-		return env.disarm(ctx, r, failed+" failed")
+	if failed := blocker(stack); failed != "" {
+		return env.disarm(ctx, r, failed)
 	}
 	if len(waitingOn(stack)) > 0 {
 		return nil
@@ -249,6 +255,10 @@ func prOn(line string, byHead map[string]stackPR) (stackPR, bool) {
 func waitingOn(stack []stackPR) []string {
 	var out []string
 	for _, p := range stack {
+		if p.Mergeable == conflicting {
+			out = append(out, conflictLine(p.Number, p.Base))
+			continue
+		}
 		t := p.flat("")
 		var why []string
 		if t.Stage1 != "success" {

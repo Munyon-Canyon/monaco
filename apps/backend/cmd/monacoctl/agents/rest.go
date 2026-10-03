@@ -329,7 +329,7 @@ func (env *Env) watchNode(ctx context.Context, p restPull) (map[string]any, erro
 	}
 	return map[string]any{
 		"number": p.Number, "body": p.Body, "headRefName": p.Head.Ref, "baseRefName": p.Base.Ref,
-		"headRefOid": p.Head.SHA, "labels": map[string]any{"nodes": p.Labels},
+		"headRefOid": p.Head.SHA, "isDraft": p.Draft, "labels": map[string]any{"nodes": p.Labels},
 		"commits": map[string]any{"nodes": []any{
 			map[string]any{"commit": map[string]any{"oid": p.Head.SHA}},
 		}},

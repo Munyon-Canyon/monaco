@@ -1316,3 +1316,33 @@ func TestWatchOnce_leavesAStackQueuedAgainDuringItsReleaseAlone(t *testing.T) {
 		t.Fatal("the release removed the label the new land-stack added")
 	}
 }
+
+func TestLandStack_namesAConflictAnywhereInTheStackInsteadOfStage1Missing(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	newStackGH(t, f,
+		conflicted(t, stackOf(t, 1, "b1", "fb", "", "")),
+		conflicted(t, stackOf(t, 2, "b2", "b1", "SUCCESS", "SUCCESS")),
+		stackOf(t, 3, "b3", "b2", "", ""),
+	)
+	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Exited})
+	code, stdout, stderr := f.agents(t, "land-stack", "3")
+	want := "not landing #3; waiting on " +
+		"#1 conflicts with fb; GitHub runs no CI until it is resolved: restack with gt and resubmit, " +
+		"#2 conflicts with b1; GitHub runs no CI until it is resolved: restack with gt and resubmit, " +
+		"#3 (stage 1 missing)\n"
+	if code != 0 || stdout != want || stderr != "" {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	if r := f.owned(t); r.Armed != nil || r.Queued != nil {
+		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
+	}
+}
+
+func conflicted(t *testing.T, p *stackPR) *stackPR {
+	t.Helper()
+	if err := json.Unmarshal([]byte(`{"mergeable":"CONFLICTING"}`), p); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
