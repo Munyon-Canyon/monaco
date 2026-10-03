@@ -109,6 +109,13 @@ func startWork(
 	if err := bindPush(ctx, &d); err != nil {
 		return health{}, err
 	}
+	set := mods.Build(d)
+	pollers := set.Pollers()
+	locks, err := openLockPool(ctx, d.Config.DB, pollers)
+	if err != nil {
+		return health{}, err
+	}
+	stops.add(func(context.Context) error { locks.Close(); return nil })
 	stopRelay, err := startRelay(context.WithoutCancel(ctx), d.Bus, d.Pool, d.UoW, d.Clock)
 	if err != nil {
 		return health{}, err
@@ -119,17 +126,15 @@ func startWork(
 		return health{}, err
 	}
 	stops.add(func(context.Context) error { return unregister() })
-	runner, err := poller.NewRunner(d.Pool, d.Clock, meters.Meter(pollerMeter))
+	runner, err := poller.NewRunner(locks, d.Clock, meters.Meter(pollerMeter))
 	if err != nil {
 		return health{}, err
 	}
-	set := mods.Build(d)
 	stopConsumers, err := startConsumers(ctx, d.Bus, d.UoW, d.Clock, set.Consumers(),
 		bus.WithAckWait(d.Config.Bus.AckWait))
 	if err != nil {
 		return health{}, err
 	}
-	pollers := set.Pollers()
 	stopPollers := startPollers(ctx, runner, pollers)
 	stopHints, err := startPriceHints(ctx, set, meters)
 	if err != nil {
@@ -210,6 +215,14 @@ func startConsumers(
 			<-stopped
 		}
 	}, nil
+}
+
+func openLockPool(ctx context.Context, cfg config.DB, pollers []poller.Poller) (*pgxpool.Pool, error) {
+	conns := int32(1)
+	for range pollers {
+		conns++
+	}
+	return db.Open(ctx, config.DB{URL: cfg.URL, MaxConns: conns})
 }
 
 func startPollers(ctx context.Context, runner *poller.Runner, pollers []poller.Poller) func() error {
