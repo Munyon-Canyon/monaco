@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -291,4 +292,16 @@ func TestRecords_publishEditsOnlyTheNewestTrustedRecordItsUserWrote(t *testing.T
 			t.Fatalf("done: %d %q", code, stderr)
 		}
 	})
+}
+
+func TestRecords_aFreshCloneKeepsTheArmedStack(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	arm := &Arm{Top: 2, PRs: []int{1, 2}, At: f.now}
+	f.ownerComments(40, ownerComment(11, Record{Ticket: 40, Model: opus, State: Exited, Armed: arm}))
+	rec, err := f.Env(t).record(t.Context(), 40)
+	if err != nil || rec.Armed == nil || rec.Armed.Top != 2 || !slices.Equal(rec.Armed.PRs, arm.PRs) ||
+		!rec.Armed.At.Equal(f.now) {
+		t.Fatalf("rec=%+v err=%v", rec, err)
+	}
 }

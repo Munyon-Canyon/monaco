@@ -33,6 +33,11 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	if err != nil {
 		return err
 	}
+	for _, r := range rs {
+		if r.Queued == nil && r.Armed != nil {
+			lines = append(lines, env.landArmed(ctx, r)...)
+		}
+	}
 	for _, line := range lines {
 		_, _ = fmt.Fprintln(stdout, line)
 	}

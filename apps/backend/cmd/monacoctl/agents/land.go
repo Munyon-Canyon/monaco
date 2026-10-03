@@ -32,6 +32,12 @@ type Queue struct {
 	PRs []int `json:"prs"`
 }
 
+type Arm struct {
+	Top int       `json:"top"`
+	PRs []int     `json:"prs"`
+	At  time.Time `json:"at"`
+}
+
 type stackPR struct {
 	gqlPR
 	Base        string `json:"baseRefName"`
@@ -65,16 +71,78 @@ func landStackCmd(ctx context.Context, env *Env, args []string, stdout io.Writer
 		if done, err := env.settleQueued(ctx, rec, stdout); done || err != nil {
 			return err
 		}
+		rec.Queued = nil
 	}
 	stack, err := env.stackOf(ctx, rec.Worktree, n, stdout)
 	if err != nil {
 		return err
 	}
 	if waiting := waitingOn(stack); len(waiting) > 0 {
-		_, _ = fmt.Fprintf(stdout, "not landing #%d; waiting on %s\n", n, strings.Join(waiting, ", "))
-		return nil
+		return env.arm(ctx, rec, stack, waiting, stdout)
 	}
 	return env.land(ctx, rec, stack, stdout)
+}
+
+func (env *Env) arm(ctx context.Context, rec Record, stack []stackPR, waiting []string, stdout io.Writer) error {
+	top := stack[len(stack)-1].Number
+	if failedCheck(stack) != "" {
+		_, _ = fmt.Fprintf(stdout, "not landing #%d; waiting on %s\n", top, strings.Join(waiting, ", "))
+		return nil
+	}
+	rec.Armed = &Arm{Top: top, PRs: numbers(stack), At: env.Now()}
+	rec.Changed = env.Now()
+	if err := env.storeRecord(ctx, rec); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(stdout, "armed #%d; agents watch lands it once stage 1 and verify pass (waiting on %s)\n",
+		top, strings.Join(waiting, ", "))
+	return nil
+}
+
+func failedCheck(stack []stackPR) string {
+	for _, p := range stack {
+		switch t := p.flat(""); {
+		case t.Stage1 == "failure":
+			return fmt.Sprintf("#%d stage 1", p.Number)
+		case t.Verify == "failure":
+			return fmt.Sprintf("#%d verify", p.Number)
+		}
+	}
+	return ""
+}
+
+func (env *Env) landArmed(ctx context.Context, r Record) []string {
+	top := r.Armed.Top
+	stack, err := env.stackOf(ctx, r.Worktree, top, io.Discard)
+	if err != nil {
+		return []string{watchErr(fmt.Sprintf("armed stack #%d: ", top), err)}
+	}
+	if failed := failedCheck(stack); failed != "" {
+		return env.disarm(ctx, r, failed+" failed")
+	}
+	if len(waitingOn(stack)) > 0 {
+		return nil
+	}
+	var out strings.Builder
+	err = env.land(ctx, r, stack, &out)
+	items := []string{fmt.Sprintf("armed stack #%d landing", top)}
+	for line := range strings.Lines(out.String()) {
+		items = append(items, strings.TrimSuffix(line, "\n"))
+	}
+	if err != nil {
+		return append(items, env.disarm(ctx, r, cmp.Or(cliText(err), err.Error()))...)
+	}
+	return items
+}
+
+func (env *Env) disarm(ctx context.Context, r Record, why string) []string {
+	top := r.Armed.Top
+	r.Armed = nil
+	r.Changed = env.Now()
+	if err := env.storeRecord(ctx, r); err != nil {
+		return []string{watchErr(fmt.Sprintf("disarm #%d: ", top), err)}
+	}
+	return []string{fmt.Sprintf("armed stack #%d disarmed: %s", top, why)}
 }
 
 func (env *Env) settleQueued(ctx context.Context, rec Record, stdout io.Writer) (bool, error) {
@@ -222,6 +290,7 @@ func (env *Env) land(ctx context.Context, rec Record, stack []stackPR, stdout io
 		}
 	}
 	rec.Queued = &Queue{Top: top, PRs: nums}
+	rec.Armed = nil
 	rec.Changed = env.Now()
 	if err := env.storeRecord(ctx, rec); err != nil {
 		return err
@@ -332,6 +401,7 @@ func (env *Env) ejected(prs []stackPR, landed []bool, drafts []queueDraft) bool 
 
 func (env *Env) unmark(ctx context.Context, rec Record) error {
 	rec.Queued = nil
+	rec.Armed = nil
 	rec.Changed = env.Now()
 	return env.storeRecord(ctx, rec)
 }

@@ -2,8 +2,10 @@ package agents
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -366,4 +368,121 @@ func TestWatchStream_rereadsTheTrunkEachRoundForASquashNotYetVisible(t *testing.
 	if got != want {
 		t.Fatalf("stream\n got %q\nwant %q", got, want)
 	}
+}
+
+func armedWatch(t *testing.T, f *fixture) *stackGH {
+	t.Helper()
+	s := newStackGH(t, f, green(t, 1, "b1", "fb"), stackOf(t, 2, "b2", "b1", "pending", "SUCCESS"))
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: "/w/40", Armed: &Arm{Top: 2, PRs: []int{1, 2}}})
+	f.noFailures()
+	return s
+}
+
+func TestWatchStream_landsAnArmedStackOnceStage1Passes(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := armedWatch(t, f)
+	got := streamRounds(t, f, 3, func(round int) {
+		if round == 1 {
+			*s.prs[2] = *green(t, 2, "b2", "b1")
+		}
+	})
+	want := "armed stack #2 landing\nqueued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" +
+		"queued together: #1 #2\n#1 queued\n#2 queued\n"
+	if got != want {
+		t.Fatalf("stream\n got %q\nwant %q", got, want)
+	}
+	if calls := f.hub.callsContaining("/labels"); !slices.Equal(calls, []string{
+		"POST /repos/o/r/issues/1/labels", "POST /repos/o/r/issues/2/labels",
+	}) {
+		t.Fatalf("labels %v", calls)
+	}
+	if r := f.owned(t); r.Armed != nil || r.Queued == nil || !slices.Equal(r.Queued.PRs, []int{1, 2}) {
+		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
+	}
+}
+
+func TestWatchStream_disarmsAnArmedStackWhoseStage1FailsOnce(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := armedWatch(t, f)
+	got := streamRounds(t, f, 4, func(round int) {
+		if round == 1 {
+			*s.prs[2] = *stackOf(t, 2, "b2", "b1", "FAILURE", "SUCCESS")
+		}
+	})
+	if want := "armed stack #2 disarmed: #2 stage 1 failed\n"; got != want {
+		t.Fatalf("stream\n got %q\nwant %q", got, want)
+	}
+	if calls := f.hub.callsContaining("/labels"); len(calls) != 0 {
+		t.Fatalf("labels %v", calls)
+	}
+	if r := f.owned(t); r.Armed != nil || r.Queued != nil {
+		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
+	}
+}
+
+func TestWatchStream_disarmsAnArmedStackThatCannotLand(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := armedWatch(t, f)
+	s.git["merge-tree"] = errors.New("merge-tree: boom")
+	got := streamRounds(t, f, 3, func(round int) {
+		if round == 1 {
+			*s.prs[2] = *green(t, 2, "b2", "b1")
+		}
+	})
+	if want := "armed stack #2 landing\narmed stack #2 disarmed: merge-tree: boom; the stack is not marked queued: " +
+		"run land-stack again, which relabels every PR\n"; got != want {
+		t.Fatalf("stream %q", got)
+	}
+	if r := f.owned(t); r.Armed != nil || r.Queued != nil {
+		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
+	}
+}
+
+func TestArm_failures(t *testing.T) {
+	t.Parallel()
+	t.Run("land-stack cannot write the arm", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		armedStack(t, f)
+		freeze(t, f.Env(t).recordPath(40))
+		code, _, stderr := f.agents(t, "land-stack", "2")
+		if code != 1 || !strings.Contains(stderr, "write owner record") {
+			t.Fatalf("%d %q", code, stderr)
+		}
+	})
+	t.Run("watch cannot write the disarm", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		s := armedWatch(t, f)
+		*s.prs[2] = *stackOf(t, 2, "b2", "b1", "FAILURE", "SUCCESS")
+		freeze(t, f.Env(t).recordPath(40))
+		got := streamRounds(t, f, 1, func(int) {})
+		if !strings.HasPrefix(got, "watch error: disarm #2: write owner record: ") || strings.Count(got, "\n") != 1 {
+			t.Fatalf("stream %q", got)
+		}
+	})
+	t.Run("watch cannot read the armed stack", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		s := armedWatch(t, f)
+		s.prs[2].State = "CLOSED"
+		got := streamRounds(t, f, 1, func(int) {})
+		if got != "watch error: armed stack #2: #2 is not an open PR\n" || f.owned(t).Armed == nil {
+			t.Fatalf("stream %q", got)
+		}
+	})
+	t.Run("dequeue cannot write the disarm", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		armedWatch(t, f)
+		freeze(t, f.Env(t).recordPath(40))
+		var out strings.Builder
+		err := dequeueCmd(t.Context(), f.Env(t), []string{"2"}, &out)
+		if err == nil || !strings.Contains(err.Error(), "write owner record") || out.Len() != 0 {
+			t.Fatalf("%v %q", err, out.String())
+		}
+	})
 }

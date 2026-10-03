@@ -17,7 +17,7 @@ You are dispatched when a PR opens. The prompt has the PR number, the ticket num
 - Write the report file first: the verdict, each finding with `file:line` and what to fix, and the checks snapshot.
 - On fail, run `monacoctl agents verdict fail …` with the report file, then exit.
 - On pass, run `monacoctl agents verdict pass …`, which posts `verify`. Then:
-  - Run `monacoctl agents land-stack <top>`, for a single PR or a stack, without asking. It adds the `merge-queue` label to each PR. If a PR still waits on stage 1, it says so and exits. Run it again later. A landed PR shows as closed, not merged.
+  - Run `monacoctl agents land-stack <top>`, for a single PR or a stack, without asking. It adds the `merge-queue` label to each PR. If a PR still waits on stage 1, it arms the stack and exits, and the root's `agents watch` lands it once stage 1 passes. Do not run it again. A landed PR shows as closed, not merged.
 
 Exit with the verdict, the head SHA, the findings and the report path.
 
