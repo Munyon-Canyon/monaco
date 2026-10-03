@@ -53,7 +53,7 @@ func ReadApp(repo fs.FS) ([]AppRow, []Problem) {
 			problems = append(problems, Problem{File: name, Msg: "read: " + err.Error()})
 			continue
 		}
-		row, ok, fileProblems := parseApp(name, string(body))
+		row, ok, fileProblems := ParseApp(name, string(body))
 		problems = append(problems, fileProblems...)
 		if ok {
 			rows = append(rows, row)
@@ -62,7 +62,7 @@ func ReadApp(repo fs.FS) ([]AppRow, []Problem) {
 	return rows, problems
 }
 
-func parseApp(name, body string) (AppRow, bool, []Problem) {
+func ParseApp(name, body string) (AppRow, bool, []Problem) {
 	var problems []Problem
 	bad := func(line int, format string, args ...any) {
 		problems = append(problems, Problem{File: name, Line: line, Msg: fmt.Sprintf(format, args...)})

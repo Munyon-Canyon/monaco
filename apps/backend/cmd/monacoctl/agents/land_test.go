@@ -35,6 +35,12 @@ type stackGH struct {
 
 	denied bool
 	gql    int
+
+	gitOut   map[string]string
+	gitCalls []string
+	gitFail  string
+	openFail int
+	opens    int
 }
 
 func newStackGH(t *testing.T, f *fixture, prs ...*stackPR) *stackGH {
@@ -47,6 +53,7 @@ func newStackGH(t *testing.T, f *fixture, prs ...*stackPR) *stackGH {
 		f.hub.on(fmt.Sprintf("POST /repos/%s/issues/%d/labels", testRepo, p.Number), "[]")
 		f.hub.on(fmt.Sprintf("DELETE /repos/%s/issues/%d/labels/merge-queue", testRepo, p.Number), "[]")
 		f.hub.on(fmt.Sprintf("DELETE /repos/%s/issues/%d/labels/ship-it", testRepo, p.Number), "[]")
+		f.hub.on(list(fmt.Sprintf("/pulls/%d/files?", p.Number)), "[]")
 	}
 	f.hub.on(list("/pulls?state=open"), []PR{{Number: 900, Title: "[Graphite MQ] Draft PR GROUP:x (PRs " +
 		strings.Join(nums, ", ") + ")", Head: Ref{Ref: "gtmq_x"}}})
@@ -126,6 +133,19 @@ var (
 )
 
 func (s *stackGH) run(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
+	if name == "git" && s.gitOut != nil {
+		line := strings.Join(args, " ")
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.gitCalls = append(s.gitCalls, line)
+		if s.gitFail != "" && strings.HasPrefix(line, s.gitFail) {
+			return nil, errors.New("git broke")
+		}
+		if out, ok := s.gitOut[line]; ok || args[0] == "fetch" || args[0] == "merge-tree" {
+			return []byte(out), nil
+		}
+		return nil, errors.New("unexpected git " + line)
+	}
 	if name == "git" && !s.repo && (args[0] == "fetch" || args[0] == "merge-tree") {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -179,6 +199,9 @@ func (s *stackGH) graphql(query string) ([]byte, error) {
 	}
 	repo := map[string]any{}
 	if strings.Contains(query, "open: pullRequests(states:OPEN") {
+		if s.opens++; s.opens == s.openFail {
+			return nil, errors.New("open pulls broke")
+		}
 		var open []*stackPR
 		for _, n := range slices.Sorted(maps.Keys(s.prs)) {
 			if s.prs[n].State == "OPEN" {
