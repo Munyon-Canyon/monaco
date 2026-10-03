@@ -9,3 +9,8 @@ var TradingSwapForceResolved = Msg{
 	Name:     "trading.swap.force_resolved",
 	Required: []string{"swap_id", "signature", "from", "to", "reason"},
 }
+
+var TradingEngineBlocked = Msg{
+	Name:     "trading.engine.blocked",
+	Required: []string{"proposal_id", "cabal_id", "code", "have", "need"},
+}
