@@ -626,6 +626,54 @@ paths:
                 $ref: "#/components/schemas/ProposalDetail"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/cabals/{id}/proposals/preview:
+    get:
+      operationId: getCabalProposalPreview
+      tags: [governance]
+      summary: Preview a trade before proposing it.
+      description: >-
+        Runs the checks a proposal runs and writes nothing. A trade the checks refuse still answers
+        200, with the refusal in `advisory_code` and `advisory_message`, so the review screen can show
+        it. Only members can preview.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema:
+            type: string
+            format: uuid
+        - name: kind
+          in: query
+          required: true
+          description: Whether the trade buys or sells the token.
+          schema:
+            $ref: "#/components/schemas/ProposalKind"
+        - name: symbol
+          in: query
+          required: true
+          description: The token symbol from the catalog.
+          schema: {type: string, minLength: 1, maxLength: 32, examples: [TSLAx]}
+        - name: usdc_micros
+          in: query
+          required: false
+          description: USDC a buy spends, in micros.
+          schema: {type: integer, format: int64, minimum: 1, examples: [5000000]}
+        - name: token_amount
+          in: query
+          required: false
+          description: Token base units a sell spends.
+          schema: {type: integer, format: int64, minimum: 1, examples: [1000000]}
+      responses:
+        "200":
+          description: The quote and the first check the trade fails, if any.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradePreview"
+              example: {quote_out_amount: 21000000, advisory_code: null, advisory_message: null, pot_value_micros: 100000000}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/me/pending-votes:
     get:
       operationId: getMyPendingVotes
@@ -2249,6 +2297,32 @@ components:
           minimum: 1
           description: Yes ballots the cabal's threshold rule needs to pass the proposal.
           examples: [2]
+    TradePreview:
+      type: object
+      description: What proposing the trade would quote, and the first check it fails.
+      additionalProperties: false
+      required: [quote_out_amount, advisory_code, advisory_message, pot_value_micros]
+      properties:
+        quote_out_amount:
+          type: [integer, "null"]
+          format: int64
+          description: The quoted output, in the output asset's base units. Null when Jupiter has no route or the asset is unknown.
+          examples: [21000000]
+        advisory_code:
+          type: [string, "null"]
+          description: >-
+            The error code a proposal of this trade would fail with now: asset_not_found,
+            asset_untradable, no_route, pot_exceeded or insufficient_funds. Null when every check passes.
+          examples: [null]
+        advisory_message:
+          type: [string, "null"]
+          description: The user-facing message for `advisory_code`. Null when `advisory_code` is null.
+          examples: [null]
+        pot_value_micros:
+          type: integer
+          format: int64
+          description: The cabal's total value, USDC plus priced holdings, in micros.
+          examples: [100000000]
     VoteResult:
       type: object
       description: The proposal after the caller's ballot.
