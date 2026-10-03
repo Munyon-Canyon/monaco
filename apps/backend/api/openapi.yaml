@@ -2166,6 +2166,7 @@ components:
         - cabal_banned
         - cabal_not_found
         - cabal_paused
+        - cabal_still_paused
         - calendar_expired
         - cannot_follow_self
         - cannot_revoke_access
