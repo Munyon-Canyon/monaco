@@ -87,7 +87,7 @@ func (d *driver) runAll(ctx context.Context, units []Unit, parallel int) []*Resu
 	g.SetLimit(parallel)
 	var pollers []int
 	for i, u := range units {
-		if kind, _ := u.Flow.TriggerKind(); kind == tools.TriggerPoller {
+		if kind, _ := u.Flow.TriggerKind(u.Command); kind == tools.TriggerPoller {
 			pollers = append(pollers, i)
 			continue
 		}

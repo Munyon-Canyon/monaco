@@ -66,7 +66,7 @@ func lookups(f Flow, env Env) []string {
 		format string
 	}{
 		{moduleDir, []string{f.Module}, "module %s has no directory under internal/modules"},
-		{env.Triggers, []string{f.Trigger}, "trigger %s is not a route, subject or poller"},
+		{env.Triggers, f.Triggers(), "trigger %s is not a route, subject or poller"},
 		{env.Commands, f.Commands, "command %s is not a type in internal/modules/" + f.Module + "/app"},
 		{env.Events, f.Events, "event %s is not in the events registry"},
 		{env.Consumers, f.Consumers, "consumer %s is not a registered durable"},

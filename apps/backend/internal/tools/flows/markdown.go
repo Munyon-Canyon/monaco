@@ -6,14 +6,26 @@ func Markdown(flows []Flow) string {
 	var b strings.Builder
 	b.WriteString("| # | Flow | Command / trigger | Events | Consumers |\n| --- | --- | --- | --- | --- |\n")
 	for _, f := range flows {
-		trigger := code(f.Trigger)
-		if len(f.Commands) > 0 {
-			trigger = codes(f.Commands) + " on " + trigger
-		}
+		trigger := commandTriggers(f)
 		cells := []string{f.ID, cell(f.Name), trigger, codes(f.Events), cell(orNone(strings.Join(f.Consumers, ", ")))}
 		b.WriteString("| " + strings.Join(cells, " | ") + " |\n")
 	}
 	return b.String()
+}
+
+func commandTriggers(f Flow) string {
+	triggers := f.Triggers()
+	if len(f.Commands) == 0 {
+		return codes(triggers)
+	}
+	if len(triggers) != len(f.Commands) || len(triggers) == 1 {
+		return codes(f.Commands) + " on " + code(f.Trigger)
+	}
+	pairs := make([]string, len(f.Commands))
+	for i, command := range f.Commands {
+		pairs[i] = code(command) + " on " + code(triggers[i])
+	}
+	return strings.Join(pairs, ", ")
 }
 
 func cell(s string) string { return strings.ReplaceAll(s, "|", `\|`) }
@@ -45,7 +57,7 @@ func FeatureMap(flows []Flow) string {
 		rows := [][2]string{
 			{"Module", code(f.Module)},
 			{"Status", code(string(f.Status))},
-			{"Trigger", code(f.Trigger)},
+			{"Trigger", codes(f.Triggers())},
 			{"Command", codes(f.Commands)},
 			{"Events", codes(f.Events)},
 			{"Consumers", codes(f.Consumers)},

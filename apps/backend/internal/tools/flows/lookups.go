@@ -18,7 +18,18 @@ const (
 	TriggerConsumer TriggerKind = "consumer"
 )
 
-func (f Flow) TriggerKind() (kind TriggerKind, name string) { return triggerKind(f.Trigger) }
+func (f Flow) Triggers() []string { return list(f.Trigger) }
+
+func (f Flow) TriggerKind(command string) (kind TriggerKind, name string) {
+	triggers := f.Triggers()
+	if i := slices.Index(f.Commands, command); i >= 0 && len(triggers) == len(f.Commands) {
+		return triggerKind(triggers[i])
+	}
+	if len(triggers) == 0 {
+		return triggerKind("")
+	}
+	return triggerKind(triggers[0])
+}
 
 func triggerKind(trigger string) (TriggerKind, string) {
 	for _, kind := range []TriggerKind{TriggerPoller, TriggerConsumer} {
