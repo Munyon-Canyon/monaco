@@ -88,7 +88,8 @@ jobs:
           : > "$fail"
           if [[ "$TEST_OUTCOME" == "failure" ]]; then printf 'Test mobile-core\t%s\n' "$RUNNER_TEMP/mobile-core.log" >> "$fail"; fi
           FAIL_LOGS="$fail" STEP_TIMES="$RUNNER_TEMP/step-times.tsv" TEST_LOG="$RUNNER_TEMP/mobile-core.log" scripts/ci/job-summary.sh >> "$GITHUB_STEP_SUMMARY"
-          grep -E '^(coverage|raise the floor|no coverage floor)' "$RUNNER_TEMP/mobile-core.log" >> "$GITHUB_STEP_SUMMARY" || true
+          grep -E '^(coverage|no coverage floor)' "$RUNNER_TEMP/mobile-core.log" | tee -a "$GITHUB_STEP_SUMMARY" || true
+          sed -n 's/^coverage rose: /::warning title=coverage rose::/p' "$RUNNER_TEMP/mobile-core.log" || true
 
       - name: Upload the test log
         if: always()

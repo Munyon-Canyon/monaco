@@ -569,6 +569,19 @@ jobs:
             "scripts/mobile-core-test.sh:1: strictness: removed `-warnings-as-errors`",
         )
 
+    def test_failing_exit_removed_from_test_script(self):
+        self.repo.base = self.repo.commit({"scripts/mobile-core-test.sh": "below && exit 1\nabove && exit 1\necho ok\n"})
+        self.assert_flags(
+            {"scripts/mobile-core-test.sh": "below && exit 1\necho ok\n"},
+            "scripts/mobile-core-test.sh:1: fail-path: failing exits 2 -> 1",
+        )
+
+    def test_failing_exit_moved_in_test_script(self):
+        self.repo.base = self.repo.commit({"scripts/mobile-core-test.sh": "below && exit 1\necho ok\n"})
+        code, out = self.run_check({"scripts/mobile-core-test.sh": "echo ok\nbelow && exit 1\nexit 0\n"})
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("fail-path", out)
+
     def test_deleted_flow_app_file(self):
         self.assert_flags({FLOW_00: None}, f"{FLOW_00}:1: flow-status: deleted the app registry file of flow 00")
 

@@ -26,6 +26,8 @@ Diffs BASE_SHA...HEAD_SHA and reports each finding as `path:line: <rule>: <what>
   same line now calls scripts/mobile-core-test.sh, which carries the flag.
 - module-graph: an added or removed line inside the `allowedGraph` map of
   scripts/mobile_core_graph_test.go, the table of imports each mobile-core module target may use.
+- fail-path: fewer failing exits (`exit` with a nonzero status) in scripts/mobile-core-test.sh at
+  head than at base, reported on the first removed one.
 
 Reads BASE_SHA, HEAD_SHA and PR_LABELS (JSON list of label names) from the environment.
 Each finding becomes a GitHub `::warning` annotation plus a line in $GITHUB_STEP_SUMMARY, and
@@ -80,6 +82,7 @@ PACKAGE_SWIFT = "packages/mobile-core/Package.swift"
 LOOSER_MANIFEST = re.compile(r"\.v[45]\b|\bunsafeFlags\b|\btreatAllWarnings\b")
 WARNINGS_FLAG = "-warnings-as-errors"
 TEST_SCRIPT = "scripts/mobile-core-test.sh"
+FAILING_EXIT = re.compile(r"\bexit\s+[1-9]")
 FLOW_APP = re.compile(r"^packages/flows/app/([^/]+)\.tsv$")
 BACKEND_FLOWS = "packages/flows/backend/{}.tsv"
 FLOW_RANK = {"planned": 1, "built": 2, "verified": 3}
@@ -271,6 +274,16 @@ def strictness_findings(added: list[Added], removed: list[Added], _base, _head) 
     return findings
 
 
+def fail_path_findings(removed: list[Added], base, head) -> list[Finding]:
+    gone = [r for r in removed if r.path == TEST_SCRIPT and FAILING_EXIT.search(r.text)]
+    if not gone:
+        return []
+    was, now = (len(FAILING_EXIT.findall(read_rev(TEST_SCRIPT))) for read_rev in (base, head))
+    if now >= was:
+        return []
+    return [Finding(TEST_SCRIPT, gone[0].line, "fail-path", f"failing exits {was} -> {now}")]
+
+
 def flow_status(text: str) -> str | None:
     rows = text.splitlines()
     cells = rows[1].split("\t") if len(rows) > 1 else []
@@ -418,7 +431,7 @@ def check(added: list[Added], removed: list[Added], base, head, head_ls, base_te
     return (gate_findings(added, exclusions, base, head) + skip_findings(added)
             + removed_findings(base_tests, head_tests) + strictness_findings(added, removed, base, head)
             + flow_status_findings(added, removed, base, head) + graph_findings(added, removed, base, head)
-            + scenario_manifest_findings(added, removed, head, head_ls))
+            + scenario_manifest_findings(added, removed, head, head_ls) + fail_path_findings(removed, base, head))
 
 
 def findings(base: str, head: str) -> list[Finding]:
