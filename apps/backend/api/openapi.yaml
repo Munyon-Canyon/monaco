@@ -873,7 +873,6 @@ components:
       description: The closed list of error codes. Generated from the errs table by monacoctl gen errors.
       examples: [not_found]
       enum:
-        # BEGIN GENERATED ErrorCode
         - access_request_not_pending
         - account_banned
         - account_deleted
@@ -958,7 +957,6 @@ components:
         - wallet_mismatch
         - withdraw_not_allowed
         - x_not_linked
-        # END GENERATED ErrorCode
     FollowRequest:
       type: object
       description: Where a follow came from.

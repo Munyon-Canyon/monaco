@@ -227,13 +227,79 @@ func TestUnknownCodeReadsAsInternal(t *testing.T) {
 	}
 }
 
-func TestAllListsTheCodesInTheirRecordedOrder(t *testing.T) {
-	t.Parallel()
-	raw, err := os.ReadFile("testdata/all_codes.golden")
+func areaFiles(t *testing.T) []string {
+	t.Helper()
+	paths, err := filepath.Glob("codes_*.go")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := strings.Fields(string(raw))
+	return slices.DeleteFunc(paths, func(p string) bool { return strings.HasSuffix(p, "_test.go") })
+}
+
+func readGolden(t *testing.T, path string) []string {
+	t.Helper()
+	dir, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = dir.Close() }()
+	raw, err := dir.ReadFile(filepath.Base(path))
+	if err != nil {
+		t.Errorf("%s: %v", path, err)
+		return nil
+	}
+	return strings.Fields(string(raw))
+}
+
+func goldenFor(source string) string {
+	return filepath.Join("testdata", strings.TrimSuffix(source, ".go")+".golden")
+}
+
+func TestEachAreaFileDeclaresExactlyTheCodesInItsGolden(t *testing.T) {
+	t.Parallel()
+	sources := areaFiles(t)
+	if len(sources) == 0 {
+		t.Fatal("no codes_*.go files found")
+	}
+	for _, source := range sources {
+		found := map[string]Code{}
+		collectFileCodes(t, source, found)
+		got := make([]string, 0, len(found))
+		for _, code := range found {
+			got = append(got, string(code))
+		}
+		slices.Sort(got)
+		if want := readGolden(t, goldenFor(source)); !slices.Equal(got, want) {
+			t.Errorf("%s declares %v, want %v from %s", source, got, want, goldenFor(source))
+		}
+	}
+}
+
+func TestEveryGoldenHasItsAreaFile(t *testing.T) {
+	t.Parallel()
+	goldens, err := filepath.Glob("testdata/*.golden")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sources := areaFiles(t)
+	for _, golden := range goldens {
+		if !slices.ContainsFunc(sources, func(s string) bool { return goldenFor(s) == golden }) {
+			t.Errorf("%s has no matching codes_<area>.go", golden)
+		}
+	}
+}
+
+func TestAllIsTheSortedUnionOfTheAreaGoldens(t *testing.T) {
+	t.Parallel()
+	goldens, err := filepath.Glob("testdata/codes_*.golden")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := make([]string, 0, len(All()))
+	for _, golden := range goldens {
+		want = append(want, readGolden(t, golden)...)
+	}
+	slices.Sort(want)
 	got := make([]string, 0, len(want))
 	for _, code := range All() {
 		got = append(got, string(code))
