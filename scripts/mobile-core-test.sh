@@ -3,8 +3,10 @@
 # and monacoctl agents check will from #965 PR 4. Runs swift test with warnings as errors and coverage,
 # then holds every single test to a 2 s budget and line coverage of Sources/ to this
 # platform's row in coverage-floor.txt. Extra arguments go to swift test and skip both
-# checks, because a partial run cannot be judged. --update-floor raises this platform's floor to the measured value and
-# refuses to lower it. Bash, awk and llvm-cov only: swift:6.3-noble has no python3 or jq.
+# checks, because a partial run cannot be judged. Coverage below the floor fails. Coverage more than 0.5 above it
+# never fails: the run rewrites this platform's row to the measured value, for the author to commit (a CI run's
+# rewrite is discarded, and ci-mobile-core.yml turns the line into a warning). --update-floor raises the row at any
+# margin and refuses to lower it. Bash, awk and llvm-cov only: swift:6.3-noble has no python3 or jq.
 # Rules: docs/architecture/ci.md#what-runs-where
 set -euo pipefail
 
@@ -98,13 +100,17 @@ floor="$(awk -v p="$platform" '$1 == p { print $2; exit }' "$floor_file" 2>/dev/
 
 below() { awk -v a="$1" -v b="$2" 'BEGIN { exit !(a + 0 < b + 0) }'; }
 
+write_floor() {
+  rows="$(awk -v p="$platform" '$1 != p' "$floor_file" 2>/dev/null || true)"
+  printf '%s\n%s %s\n' "$rows" "$platform" "$actual" | awk 'NF' | sort >"$floor_file"
+}
+
 if $update; then
   if [[ -n "$floor" ]] && below "$actual" "$floor"; then
     echo "refusing to lower the floor: $platform $floor -> $actual" >&2
     exit 1
   fi
-  rows="$(awk -v p="$platform" '$1 != p' "$floor_file" 2>/dev/null || true)"
-  printf '%s\n%s %s\n' "$rows" "$platform" "$actual" | awk 'NF' | sort >"$floor_file"
+  write_floor
   echo "coverage floor: $platform ${floor:-none} -> $actual"
   exit 0
 fi
@@ -120,7 +126,7 @@ if below "$actual" "$floor"; then
   exit 1
 fi
 if below "$(awk -v f="$floor" 'BEGIN { print f + 0.5 }')" "$actual"; then
-  echo "raise the floor: $platform $floor -> $actual (scripts/mobile-core-test.sh --update-floor)" >&2
-  exit 1
+  write_floor
+  echo "coverage rose: $platform $floor -> $actual (packages/mobile-core/coverage-floor.txt now holds $platform $actual: commit it)"
 fi
 echo "coverage: $platform $actual (floor $floor)"
