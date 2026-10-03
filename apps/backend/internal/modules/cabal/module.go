@@ -73,7 +73,9 @@ func (m *Module) Consumers() []bus.Consumer {
 	}}
 }
 
-func (*Module) Pollers() []poller.Poller { return nil }
+func (m *Module) Pollers() []poller.Poller {
+	return []poller.Poller{app.NewInviteExpiryPoller(m.deps.UoW, m.deps.Pool, m.deps.Clock)}
+}
 
 func (m *Module) Queries() port.Queries { return adapters.NewQueries(m.deps.Pool) }
 

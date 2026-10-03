@@ -8,3 +8,4 @@ Dated record of changes to [cabals.md](../cabals.md). Add one line per change, n
 - 2026-10-03: `LeaveCabal` re-checks the member count and role under a lock on the member rows. The `cabal.member_left` hints rescope the leaver's SSE connections (#605).
 - 2026-10-03: The invitee's inbox and a cabal's invite list are built, and the inbox reads a partial index on `user_id` (#604).
 - 2026-10-03: `InviteMember` is built at `POST /v1/cabals/{id}/invites`. Invites hint `user.<invitee>.cabal_invites` instead of the creator's request list (#604).
+- 2026-10-03: The `cabal.invite_expiry` poller is built, and a decision on a past-due invite expires it before refusing with `InviteExpired` (#604).
