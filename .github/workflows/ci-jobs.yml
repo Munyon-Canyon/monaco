@@ -2,8 +2,8 @@ name: CI jobs
 
 # Called by ci.yml and ci-retarget.yml through their `ci` job, so every check is named
 # "ci / <job>" and the required check is "ci / ci-ok". docs/architecture/ci.md#triggers
-# `stage: pr` runs stage 1, the repo-wide checks and no tests except mobile-core. `stage: queue` runs stage 2, stage 1
-# plus every test. docs/architecture/ci.md#check-stages
+# `stage: pr` runs stage 1, every check and test, on the top PR of a stack. `stage: queue` runs stage 2, only plan,
+# ready (build, vet, tidy, generated files) and ci-ok. docs/architecture/ci.md#check-stages
 on:
   workflow_call:
     inputs:
@@ -19,7 +19,7 @@ jobs:
   lint:
     name: Lint (golangci-lint, nogo, comments, OpenAPI, migrations)
     needs: plan
-    if: needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
+    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -92,12 +92,12 @@ jobs:
           git show "$base:apps/backend/api/openapi.yaml" > "$RUNNER_TEMP/base-openapi.yaml"
           ../../scripts/ci/oasdiff-breaking.sh "$RUNNER_TEMP/base-openapi.yaml" api/openapi.yaml
 
-  # Three legs run the passes of scripts/test-backend.sh side by side on their own runners; backend-report
+  # Four legs run the passes of scripts/test-backend.sh side by side on their own runners; backend-report
   # merges their output. A failed leg fails the matrix job, and ci-ok needs it.
   backend:
     name: Backend tests (${{ matrix.name }})
     needs: plan
-    if: inputs.stage == 'queue' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
+    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
@@ -110,9 +110,12 @@ jobs:
           - name: short 2 of 2
             pass: 'short:2/2'
             artifact: short-2
-          - name: rest
-            pass: rest
-            artifact: rest
+          - name: rest 1 of 2
+            pass: 'rest:1/2'
+            artifact: rest-1
+          - name: rest 2 of 2
+            pass: 'rest:2/2'
+            artifact: rest-2
     defaults:
       run:
         working-directory: apps/backend
@@ -154,7 +157,7 @@ jobs:
   backend-report:
     name: Backend tests report
     needs: [plan, backend]
-    if: inputs.stage == 'queue' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
+    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     defaults:
@@ -182,7 +185,7 @@ jobs:
   e2e:
     name: E2E (monacoctl verify on the real binaries)
     needs: plan
-    if: inputs.stage == 'queue' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
+    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
@@ -228,7 +231,7 @@ jobs:
   vuln:
     name: Vuln (govulncheck)
     needs: plan
-    if: needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
+    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 4
     defaults:
@@ -250,18 +253,18 @@ jobs:
 
   scripts:
     needs: plan
-    if: inputs.stage == 'queue' && (needs.plan.outputs.scripts == 'true' || needs.plan.outputs.unknown == 'true')
+    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.scripts == 'true' || needs.plan.outputs.unknown == 'true')
     uses: ./.github/workflows/ci-scripts.yml
 
   mobile-core:
     needs: plan
-    if: needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.mobile-core == 'true' || needs.plan.outputs.unknown == 'true')
+    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.mobile-core == 'true' || needs.plan.outputs.unknown == 'true')
     uses: ./.github/workflows/ci-mobile-core.yml
 
   mobile-integration:
     name: Mobile integration (mobile-core against the real API)
     needs: plan
-    if: inputs.stage == 'queue' && (needs.plan.outputs.mobile-core == 'true' || needs.plan.outputs.unknown == 'true')
+    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.mobile-core == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
@@ -304,16 +307,30 @@ jobs:
       backend-tests: ${{ steps.filter.outputs.backend-tests }}
       mobile-tests: ${{ steps.filter.outputs.mobile-tests }}
       scripts: ${{ steps.filter.outputs.scripts == 'true' || steps.every.outputs.scripts == 'true' }}
-      unknown: ${{ steps.every.outputs.unknown }}
+      # A stacked PR's base is the PR below it, so the filters see only this PR's own files: run everything.
+      unknown: ${{ steps.every.outputs.unknown == 'true' || steps.stacked.outputs.stacked == 'true' }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # Stage 2 never reuses: it tests the combined queue entry, not one PR's diff.
+      - name: Is this PR stacked on another PR
+        id: stacked
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          TRUNK: ${{ vars.FEATURE_BRANCH || 'main' }}
+        run: |
+          stacked=false
+          if [[ -n "$BASE_REF" && "$BASE_REF" != "$TRUNK" && "$BASE_REF" != main ]]; then
+            stacked=true
+          fi
+          echo "stacked=$stacked" | tee -a "$GITHUB_OUTPUT"
+
+      # Stage 2 never reuses: it tests the combined queue entry, not one PR's diff. A stacked PR never reuses
+      # either: its patch ID ignores the PRs below it, which a restack changes.
       - name: Reuse the last green stage 1 when the diff and workflow tree are unchanged
         id: reuse
-        if: inputs.stage == 'pr' && github.event.pull_request
+        if: inputs.stage == 'pr' && github.event.pull_request && steps.stacked.outputs.stacked != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -435,20 +452,20 @@ jobs:
         working-directory: scripts
         run: go test -short -count=1 ./ci/
 
-      - if: inputs.stage == 'queue' && steps.filter.outputs.web == 'true'
+      - if: inputs.stage != 'queue' && steps.reuse.outputs.reuse != 'true' && steps.filter.outputs.web == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
       - name: Web landing page tests
-        if: inputs.stage == 'queue' && steps.filter.outputs.web == 'true'
+        if: inputs.stage != 'queue' && steps.reuse.outputs.reuse != 'true' && steps.filter.outputs.web == 'true'
         working-directory: apps/web
         run: npm test
 
   flake:
     name: Flake (changed tests, count 20)
     needs: plan
-    if: inputs.stage == 'queue' && (needs.plan.outputs.backend-tests == 'true' || needs.plan.outputs.unknown == 'true')
+    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend-tests == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -456,10 +473,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The merge-base with trunk, so a stacked PR reruns the changed tests of the whole stack.
       - name: Resolve the base commit
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          BASE_REF: ${{ github.event.pull_request.base.ref || github.base_ref }}
           FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH || 'main' }}
         run: |
           base="$(scripts/ci/fetch-base.sh)"
@@ -483,7 +499,7 @@ jobs:
   flake-swift:
     name: Flake (changed Swift tests, count 10)
     needs: plan
-    if: inputs.stage == 'queue' && (needs.plan.outputs.mobile-tests == 'true' || needs.plan.outputs.unknown == 'true')
+    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.mobile-tests == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     container: swift:6.3-noble
@@ -497,10 +513,9 @@ jobs:
       - name: Trust the workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+      # The merge-base with trunk, so a stacked PR reruns the changed tests of the whole stack.
       - name: Resolve the base commit
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          BASE_REF: ${{ github.event.pull_request.base.ref || github.base_ref }}
           FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH || 'main' }}
         run: |
           base="$(scripts/ci/fetch-base.sh)"

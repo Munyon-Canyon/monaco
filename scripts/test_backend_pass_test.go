@@ -19,7 +19,14 @@ test)
   done
   echo '{"Time":"2026-09-27T10:00:00Z","Action":"pass","Package":"m/a","Elapsed":1}'
   ;;
-run) echo "$@" >>"$STUB_LOG" ;;
+run)
+  echo "$@" >>"$STUB_LOG"
+  prev=""
+  for a; do
+    case "$prev" in --from) cat "$a" >"$STUB_LOG.from" ;; --budget-exempt) cat "$a" >"$STUB_LOG.exempt" ;; esac
+    prev="$a"
+  done
+  ;;
 esac
 `
 
@@ -96,7 +103,8 @@ func TestTestBackendPass_reportMergesEveryFileUnderTheOutDir(t *testing.T) {
 		"short-1-of-2.json":  "a\n",
 		"short-2-of-2.json":  "b\n",
 		"rest.json":          "c\n",
-		"full.json":          "exempt\n",
+		"full-1-of-2.json":   "exempt1\n",
+		"full-2-of-2.json":   "exempt2\n",
 		"short-1-of-2.cover": "mode: atomic\nx 1\n",
 		"short-2-of-2.cover": "mode: atomic\ny 1\n",
 		"full.cover":         "mode: atomic\nz 1\n",
@@ -113,8 +121,45 @@ func TestTestBackendPass_reportMergesEveryFileUnderTheOutDir(t *testing.T) {
 	if len(calls) != 3 {
 		t.Fatalf("go calls = %q, want test-report, flows check and coverage", calls)
 	}
-	if !strings.Contains(calls[0], "test-report --from ") || !strings.Contains(calls[0], " --budget-exempt "+out+"/full.json") {
-		t.Fatalf("test-report call = %q, want the merged file and full.json as the budget-exempt input", calls[0])
+	if !strings.Contains(calls[0], "test-report --from ") || !strings.Contains(calls[0], " --budget-exempt ") {
+		t.Fatalf("test-report call = %q, want --from and --budget-exempt", calls[0])
+	}
+	if got := readOrEmpty(t, log+".exempt"); got != "exempt1\nexempt2\n" {
+		t.Fatalf("budget-exempt input = %q, want every full-*.json and nothing else", got)
+	}
+	if got := readOrEmpty(t, log+".from"); strings.Contains(got, "exempt") {
+		t.Fatalf("--from input = %q, want no full-*.json in it", got)
+	}
+}
+
+func TestTestBackendPass_restShardsSplitTheFullPackagesAndOnlyShardOneRunsFaultpoint(t *testing.T) {
+	t.Parallel()
+	out, log := t.TempDir(), filepath.Join(t.TempDir(), "log")
+	for _, pass := range []string{"rest:1/2", "rest:2/2"} {
+		if body, code := runPass(t, pass, out, log); code != 0 {
+			t.Fatalf("%s exited %d:\n%s", pass, code, body)
+		}
+	}
+	var full []string
+	faultpoint := 0
+	for _, call := range strings.Split(strings.TrimSpace(readOrEmpty(t, log)), "\n") {
+		switch {
+		case strings.Contains(call, "./internal/platform/faultpoint/"):
+			faultpoint++
+		case strings.Contains(call, "-coverpkg=./... "):
+			full = append(full, call)
+		}
+	}
+	if faultpoint != 1 {
+		t.Fatalf("faultpoint pass ran %d times, want once, in shard 1", faultpoint)
+	}
+	if len(full) != 2 || !strings.HasSuffix(full[0], " m/a m/c") || !strings.HasSuffix(full[1], " m/b m/d") {
+		t.Fatalf("full-pass calls = %q, want shard 1 on m/a m/c and shard 2 on m/b m/d", full)
+	}
+	for _, name := range []string{"rest.json", "full-1-of-2.json", "full-1-of-2.cover", "full-2-of-2.json", "full-2-of-2.cover"} {
+		if _, err := os.Stat(filepath.Join(out, name)); err != nil {
+			t.Fatalf("rest shard output missing: %v", err)
+		}
 	}
 }
 
@@ -122,8 +167,9 @@ func TestTestBackendPass_rejectsAnUnknownPassAnAbsentShardAndAnEmptyReport(t *te
 	t.Parallel()
 	log := filepath.Join(t.TempDir(), "log")
 	for _, tc := range []struct{ pass, want string }{
-		{"bogus", "is not short:<i>/<n>, rest or report"},
+		{"bogus", "is not short:<i>/<n>, rest, rest:<i>/<n> or report"},
 		{"short:3/2", "past the shard count"},
+		{"rest:3/2", "past the shard count"},
 		{"report", "no test output under"},
 	} {
 		body, code := runPass(t, tc.pass, t.TempDir(), log)
