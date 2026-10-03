@@ -73,15 +73,17 @@ func TestRecords_aFreshCloneRebuildsTheOwnerFromTheTicket(t *testing.T) {
 	}
 
 	newStackGH(t, f, green(t, 6, "b6", "fb"))
+	env := f.Env(t)
+	moved := fmt.Sprintf("record 40's worktree %s is not on this machine; using %s\n",
+		env.worktreePath(40), filepath.Dir(env.Common))
 	if code, stdout, stderr := f.agents(
 		t,
 		"land-stack",
 		"6",
 	); code != 0 ||
-		stdout != "queued #6\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #6\n" {
+		stdout != moved+"queued #6\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #6\n" {
 		t.Fatalf("land: %d %q %q", code, stdout, stderr)
 	}
-	env := f.Env(t)
 	rec, err := env.localRecord(40)
 	if err != nil || rec.Worktree != env.worktreePath(40) || rec.Branch != "h" || rec.Queued == nil {
 		t.Fatalf("rec=%+v err=%v", rec, err)

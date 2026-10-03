@@ -250,7 +250,7 @@ func TestLandStack_refusesNamingEveryPRItWaitsOnAndChangesNothing(t *testing.T) 
 		stackOf(t, 3, "b3", "b2", "pending", "SUCCESS"),
 		stackOf(t, 4, "b4", "b3", "", "PENDING"),
 	)
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 	code, stdout, stderr := f.agents(t, "land-stack", "4")
 	want := "not landing #4; waiting on #1 (stage 1 failure), #3 (stage 1 pending), #4 (stage 1 missing)\n"
 	if code != 0 || stdout != want || stderr != "" {
@@ -271,7 +271,7 @@ func TestLandStack_labelsEveryPRAndKeepsTheirBases(t *testing.T) {
 		green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"), green(t, 3, "b3", "b2"),
 		green(t, 7, "other", "fb"), green(t, 8, "above-other", "other"),
 	)
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 	code, stdout, stderr := f.agents(t, "land-stack", "3")
 	if code != 0 ||
 		stdout != "queued #1 #2 #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #1 #2 #3\n" {
@@ -310,7 +310,7 @@ func TestLandStack_labelsTheTopFirstSoGraphiteQueuesTheStackTogether(t *testing.
 	t.Parallel()
 	f := newFixture(t)
 	newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"), green(t, 3, "b3", "b2"))
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 	if code, _, stderr := f.agents(t, "land-stack", "3"); code != 0 {
 		t.Fatalf("%d %q", code, stderr)
 	}
@@ -325,7 +325,7 @@ func TestLandStack_queueingAgainClearsTheLastSettlement(t *testing.T) {
 	f := newFixture(t)
 	newStackGH(t, f, green(t, 1, "b1", "fb"))
 	last := &Settlement{Top: 1, PRs: []int{1}, Outcome: outcomeEjected, Detail: "stack #1 ejected", At: f.now}
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done, Settled: last})
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done, Settled: last})
 	if code, stdout, stderr := f.agents(t, "land-stack", "1"); code != 0 || f.owned(t).Settled != nil {
 		t.Fatalf("%d %q %q %+v", code, stdout, stderr, f.owned(t).Settled)
 	}
@@ -369,7 +369,7 @@ func TestLandStack_readsEveryCheckAndTheNewestRunOfEach(t *testing.T) {
 			paged := pagedStack(t, 1, "b1", "fb", ciOK("FAILURE", 1), ciOK("SUCCESS", 2))
 			s := newStackGH(t, f, paged, green(t, 2, "b2", "b1"))
 			s.pages = map[string]string{"b1": tc.rest}
-			f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+			f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 			if code, stdout, stderr := f.agents(t, "land-stack", "2"); code != 0 || stdout != tc.stdout {
 				t.Fatalf("%d %q %q", code, stdout, stderr)
 			}
@@ -395,7 +395,7 @@ func TestLandStack_failsWhenPagingChecksFails(t *testing.T) {
 			}
 			s := newStackGH(t, f, top, tc.other(t))
 			s.pages = map[string]string{tc.lost: `{"data":{"repository":{"c0":null}}}`}
-			f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+			f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 			code, _, stderr := f.agents(t, "land-stack", "1")
 			if code != 1 || !strings.Contains(stderr, "commit "+tc.lost+" lost its checks") || len(s.lines()) != 0 {
 				t.Fatalf("%d %q %v", code, stderr, s.lines())
@@ -408,7 +408,7 @@ func TestLandStack_aSinglePRGetsOnlyTheLabel(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	s := newStackGH(t, f, green(t, 5, "b5", "fb"))
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40"})
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir})
 	if code, stdout, stderr := f.agents(
 		t,
 		"land-stack",
@@ -432,7 +432,7 @@ func TestLandStack_labelsWithTheConfiguredQueueLabel(t *testing.T) {
 	labelled := strings.Replace(testConfig, "[batch]", "queue_label = \"ship-it\"\n[batch]", 1)
 	writeFile(t, filepath.Join(f.dir, configPath), labelled)
 	newStackGH(t, f, green(t, 5, "b5", "fb"))
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40"})
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir})
 	if code, stdout, stderr := f.agents(
 		t,
 		"land-stack",
@@ -510,11 +510,44 @@ func TestLandStack_queuesOnTheFirstRunWhenTheBottomMergesCleanlyOntoAMovedTrunk(
 	}
 }
 
+func TestLandStack_runsGitOnThisMachineWhenTheRecordsWorktreeIsElsewhere(t *testing.T) {
+	t.Parallel()
+	for _, checkedOut := range []bool{false, true} {
+		t.Run(fmt.Sprintf("top branch checked out %v", checkedOut), func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			m := movedStack(t, f, "c.txt")
+			git(t, f.dir, "init", "-q", "--template=", "-b", "fb")
+			git(t, f.dir, "remote", "add", "origin", filepath.Join(filepath.Dir(m.worktree), "origin.git"))
+			root := filepath.Dir(f.Env(t).Common)
+			want := root
+			if checkedOut {
+				git(t, f.dir, "fetch", "-q", "origin", "b1")
+				want = filepath.Join(root, ".worktrees", "b2")
+				git(t, f.dir, "worktree", "add", "-q", "-b", "b2", want, "FETCH_HEAD")
+			}
+			gone := "/elsewhere/.worktrees/603"
+			f.owner(t, Record{Ticket: 40, Worktree: gone, State: Done})
+			code, stdout, stderr := f.agents(t, "land-stack", "2")
+			if code != 0 || stdout != "record 40's worktree "+gone+" is not on this machine; using "+want+"\n"+
+				"queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #1 #2\n" {
+				t.Fatalf("%d %q %q", code, stdout, stderr)
+			}
+			if got := strings.TrimSpace(gitOut(t, want, "rev-parse", "origin/fb")); got != m.tip {
+				t.Fatalf("checked against origin/fb %s, want the moved tip %s", got, m.tip)
+			}
+			if got := f.owned(t).Worktree; got != gone {
+				t.Fatalf("record worktree %q, want %q kept", got, gone)
+			}
+		})
+	}
+}
+
 func TestLandStack_queuesAStackWhoseVerifyIsRedOrMissing(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	newStackGH(t, f, stackOf(t, 1, "b1", "fb", "SUCCESS", "FAILURE"), stackOf(t, 2, "b2", "b1", "SUCCESS", ""))
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 	code, stdout, stderr := f.agents(t, "land-stack", "2")
 	if code != 0 ||
 		stdout != "queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #1 #2\n" {
@@ -548,7 +581,7 @@ func TestLandStack_failsWithoutLabelsWhenGitCannotCheckTheMerge(t *testing.T) {
 			f := newFixture(t)
 			s := newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
 			s.git[step] = errors.New(step + ": boom")
-			f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+			f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 			code, stdout, stderr := f.agents(t, "land-stack", "2")
 			if code != 1 || stdout != "" || !strings.Contains(stderr, step+": boom") ||
 				!strings.Contains(stderr, "the stack is not marked queued") {
@@ -710,7 +743,7 @@ func TestLandStack_failures(t *testing.T) {
 				s.fail = ""
 			}
 			f.ownerComments(40)
-			rec := Record{Ticket: 40, Worktree: "/w/40"}
+			rec := Record{Ticket: 40, Worktree: f.dir}
 			if tt.rec != nil {
 				rec = *tt.rec
 			}
@@ -774,7 +807,7 @@ func TestPRRefs(t *testing.T) {
 func ejectedStack(t *testing.T, f *fixture) *stackGH {
 	t.Helper()
 	s := newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"), green(t, 3, "b3", "b2"))
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done, Queued: &Queue{Top: 3, PRs: []int{1, 2, 3}}})
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done, Queued: &Queue{Top: 3, PRs: []int{1, 2, 3}}})
 	return s
 }
 
@@ -895,8 +928,9 @@ func TestLandStack_readsTheStackFromGraphite(t *testing.T) {
 				stackOf(t, 9, "fb", "main", "SUCCESS", ""),
 			)
 			s.gtLog, s.fail = tc.gtLog, tc.fail
-			f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
-			if code, stdout, stderr := f.agents(t, "land-stack", "3"); code != 0 || stdout != tc.out {
+			f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
+			want := strings.ReplaceAll(tc.out, "/w/40", f.dir)
+			if code, stdout, stderr := f.agents(t, "land-stack", "3"); code != 0 || stdout != want {
 				t.Fatalf("%d %q %q", code, stdout, stderr)
 			}
 		})
@@ -1143,7 +1177,7 @@ func TestLandStack_queuesAStackWhosePRFormatIsRedOrPending(t *testing.T) {
 		withFormat(green(t, 1, "b1", "fb"), "FAILURE"),
 		withFormat(green(t, 2, "b2", "b1"), ""),
 	)
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 	code, stdout, stderr := f.agents(t, "land-stack", "2")
 	if code != 0 ||
 		stdout != "queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #1 #2\n" {
@@ -1158,7 +1192,7 @@ func TestLandStack_queuesAStackWhosePRFormatIsRedOrPending(t *testing.T) {
 func armedStack(t *testing.T, f *fixture) *stackGH {
 	t.Helper()
 	s := newStackGH(t, f, green(t, 1, "b1", "fb"), stackOf(t, 2, "b2", "b1", "pending", "SUCCESS"))
-	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: "/w/40"})
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: f.dir})
 	return s
 }
 
@@ -1196,7 +1230,7 @@ func TestLandStack_doesNotArmAStackWithAFailedCheck(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	newStackGH(t, f, stackOf(t, 1, "b1", "fb", "FAILURE", "SUCCESS"), stackOf(t, 2, "b2", "b1", "pending", "SUCCESS"))
-	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: "/w/40"})
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: f.dir})
 	code, stdout, _ := f.agents(t, "land-stack", "2")
 	if code != 0 || stdout != "not landing #2; waiting on #1 (stage 1 failure), #2 (stage 1 pending)\n" {
 		t.Fatalf("%d %q", code, stdout)
@@ -1227,14 +1261,14 @@ func TestWatchOnce_landsAnArmedStackThatWentGreen(t *testing.T) {
 func requeuedDuringRelease(t *testing.T, at int, relabel bool) (*fixture, *stackGH, Queue) {
 	t.Helper()
 	f := newFixture(t)
-	s := queuedStack(t, f, "/w/40")
+	s := queuedStack(t, f, f.dir)
 	s.prs[2].Labels.Nodes = nil
 	again := Queue{Top: 2, PRs: []int{1, 2}, At: f.now.Add(time.Hour)}
 	f.onWait = func(n int) {
 		if n != at {
 			return
 		}
-		f.owner(t, Record{Ticket: 40, State: Exited, Worktree: "/w/40", Queued: &again})
+		f.owner(t, Record{Ticket: 40, State: Exited, Worktree: f.dir, Queued: &again})
 		if relabel {
 			labeled(s.prs[1], "merge-queue")
 			labeled(s.prs[2], "merge-queue")
@@ -1276,7 +1310,7 @@ func TestEjectStack_reportsAnOwnerRecordItCannotReread(t *testing.T) {
 	t.Parallel()
 	for _, at := range []int{0, dequeueChecks} {
 		f := newFixture(t)
-		s := queuedStack(t, f, "/w/40")
+		s := queuedStack(t, f, f.dir)
 		s.prs[2].Labels.Nodes = nil
 		env := f.Env(t)
 		rec := f.owned(t)
@@ -1325,7 +1359,7 @@ func TestLandStack_namesAConflictAnywhereInTheStackInsteadOfStage1Missing(t *tes
 		conflicted(t, stackOf(t, 2, "b2", "b1", "SUCCESS", "SUCCESS")),
 		stackOf(t, 3, "b3", "b2", "", ""),
 	)
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Exited})
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Exited})
 	code, stdout, stderr := f.agents(t, "land-stack", "3")
 	want := "not landing #3; waiting on " +
 		"#1 conflicts with fb; GitHub runs no CI until it is resolved: restack with gt and resubmit, " +

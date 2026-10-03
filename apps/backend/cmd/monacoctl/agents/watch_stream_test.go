@@ -383,7 +383,7 @@ func TestWatchStream_rereadsTheTrunkEachRoundForASquashNotYetVisible(t *testing.
 func armedWatch(t *testing.T, f *fixture) *stackGH {
 	t.Helper()
 	s := newStackGH(t, f, green(t, 1, "b1", "fb"), stackOf(t, 2, "b2", "b1", "pending", "SUCCESS"))
-	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: "/w/40", Armed: &Arm{Top: 2, PRs: []int{1, 2}}})
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: f.dir, Armed: &Arm{Top: 2, PRs: []int{1, 2}}})
 	f.noFailures()
 	return s
 }

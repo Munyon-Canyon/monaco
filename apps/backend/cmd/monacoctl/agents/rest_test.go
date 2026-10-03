@@ -51,7 +51,7 @@ func TestLandStack_labelsThroughRESTWhenGraphQLIsForbidden(t *testing.T) {
 	f.hub.on(list("/issues/5/events?"), `[]`)
 	f.hub.on(list("/pulls?state=open"), "["+body+"]")
 	serveChecks(f, "b5-oid")
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40"})
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir})
 	code, stdout, stderr := f.agents(t, "land-stack", "5")
 	want := "queued #5\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" +
 		"no Graphite draft holds #5 after 3m0s; run land-stack again if it stays that way\n"
@@ -67,7 +67,7 @@ func TestLandStack_returnsAGraphQLErrorThatIsNotForbidden(t *testing.T) {
 	f := newFixture(t)
 	s := newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
 	s.fail = "gh api graphql"
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 	code, _, stderr := f.agents(t, "land-stack", "2")
 	if code != 1 || !strings.Contains(stderr, "boom") || len(f.hub.callsContaining("/pulls")) != 0 ||
 		len(f.hub.callsContaining("/commits/")) != 0 {
