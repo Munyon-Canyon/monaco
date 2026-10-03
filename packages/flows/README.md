@@ -9,6 +9,7 @@
 | `app/<id>.tsv` | One registry file per flow. |
 | `Package.swift` | The `MonacoFlows` Swift package, with no dependencies. |
 | `Sources/MonacoFlows/Flow<id>.gen.swift` | The outcome enum for one flow. Generated; see below. |
+| `Sources/MonacoFlows/Flow<id>Scenarios.gen.swift` | The harness scenario enum for one built or verified flow. Generated; see below. |
 
 ## Registry file
 
@@ -47,5 +48,11 @@ To add a flow, add its row to `apps/backend/flows.tsv`, then add `app/<id>.tsv`.
 - Every `crash:` outcome collapses into one last case, `interrupted`, because the app resends with the same idempotency key.
 - `code` returns the wire code string, such as `invalid_input`, and `nil` for `ok` and `interrupted`. `init?(code:)` is its exact inverse.
 - `flowID` and `command` repeat the row's id and command. The enum carries nothing else from the row.
+
+For each flow whose `status` here is `built` or `verified`, it also writes `Sources/MonacoFlows/Flow<id>Scenarios.gen.swift` and one line per scenario in the generated block of `scripts/qa/sample-screens.txt`:
+
+- `Flow<id>Scenario` has one case for each case of `Flow<id>Outcome` except `ok`, with the case name as its raw value. Flow 00 gives `invalidInput`, `unauthorized` and `interrupted`.
+- `matching(_:)` reads the launch arguments `-MonacoFlow <id> <case>`, such as `-MonacoFlow 00 unauthorized`, and returns that case, or `nil` for another flow or no flag.
+- The manifest block sits between `# BEGIN generated flow scenarios` and `# END generated flow scenarios`. `gen flows` rewrites only that block and keeps every line around it.
 
 Never edit a generated file. Change the row in `apps/backend/flows.tsv` and run `cd apps/backend && go run ./cmd/monacoctl gen flows`. On a restack, `merge=ours` in `.gitattributes` keeps the local copy, and the next `gen flows` rewrites it. A `switch` over a `Flow<id>Outcome` lists every case, with no `default:`, so a new backend outcome breaks the app build until the app handles it.
