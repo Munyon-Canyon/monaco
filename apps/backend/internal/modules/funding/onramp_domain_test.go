@@ -105,3 +105,21 @@ func TestRefuseOnrampToken_namesAnExpiredTokenAndCallsEveryOtherRefusalInvalid(t
 		}
 	}
 }
+
+func TestParseReportedOnrampStatus_acceptsOnlyWhatThePageReports(t *testing.T) {
+	t.Parallel()
+	for _, s := range domain.OnrampStatuses() {
+		got, err := domain.ParseReportedOnrampStatus(string(s))
+		reported := slices.Contains(domain.ReportedOnrampStatuses(), s)
+		if reported && (err != nil || got != s) {
+			t.Errorf("ParseReportedOnrampStatus(%s) = %s, %v", s, got, err)
+		}
+		if !reported && errs.CodeOf(err) != errs.CodeInvalidInput {
+			t.Errorf("ParseReportedOnrampStatus(%s) = %v, want invalid_input", s, err)
+		}
+	}
+	if got := domain.OnrampSources(domain.OnrampExpired); !slices.Equal(got,
+		[]domain.OnrampStatus{domain.OnrampCreated, domain.OnrampOpened}) {
+		t.Fatalf("OnrampSources(expired) = %v", got)
+	}
+}

@@ -25,7 +25,9 @@ func (m *Module) Routes(r *httpx.Routes) {
 		Create: app.NewCreateOnrampSessionHandler(m.deps.UoW, m.deps.Clock, cfg.FundPageURL()),
 		Exchange: app.NewExchangeOnrampTokenHandler(m.deps.UoW, m.deps.Clock, identity.New(m.deps).Queries(),
 			cfg.Solana.USDCMint),
-		IDs: m.deps.IDs,
+		Report: app.NewReportOnrampStatusHandler(m.deps.UoW, m.deps.Clock, m.deps.Bus),
+		Reads:  m.deps.Pool,
+		IDs:    m.deps.IDs,
 	}
 }
 
@@ -35,9 +37,12 @@ func (*Module) Consumers() []bus.Consumer {
 
 func (m *Module) Pollers() []poller.Poller {
 	cfg := m.deps.Config
-	return []poller.Poller{app.NewDepositPoller(m.deps.Pool, m.deps.UoW, m.deps.IDs, m.deps.Clock,
-		identity.New(m.deps).Queries(), solana.New(cfg, m.deps.Clock), chain.SolanaAddress(cfg.Solana.USDCMint),
-		cfg.Funding.DepositPollInterval, cfg.Funding.DepositRPCRate, m.deps.Bus)}
+	return []poller.Poller{
+		app.NewDepositPoller(m.deps.Pool, m.deps.UoW, m.deps.IDs, m.deps.Clock,
+			identity.New(m.deps).Queries(), solana.New(cfg, m.deps.Clock), chain.SolanaAddress(cfg.Solana.USDCMint),
+			cfg.Funding.DepositPollInterval, cfg.Funding.DepositRPCRate, m.deps.Bus),
+		app.NewOnrampExpiryPoller(m.deps.UoW, m.deps.Clock),
+	}
 }
 
 func (*Module) Balances() port.Balances { return adapters.UnwiredBalances{} }

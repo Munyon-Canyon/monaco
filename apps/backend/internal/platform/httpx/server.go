@@ -220,6 +220,10 @@ type FundingRoutes interface {
 	ExchangeOnrampToken(
 		context.Context, api.ExchangeOnrampTokenRequestObject,
 	) (api.ExchangeOnrampTokenResponseObject, error)
+	ReportOnrampStatus(
+		context.Context, api.ReportOnrampStatusRequestObject,
+	) (api.ReportOnrampStatusResponseObject, error)
+	GetOnrampSession(context.Context, api.GetOnrampSessionRequestObject) (api.GetOnrampSessionResponseObject, error)
 }
 
 type MarketRoutes interface {

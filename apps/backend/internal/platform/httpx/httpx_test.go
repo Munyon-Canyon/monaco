@@ -267,6 +267,18 @@ func (healthz) ExchangeOnrampToken(
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.ExchangeOnrampToken")
 }
 
+func (healthz) ReportOnrampStatus(
+	context.Context, api.ReportOnrampStatusRequestObject,
+) (api.ReportOnrampStatusResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.ReportOnrampStatus")
+}
+
+func (healthz) GetOnrampSession(
+	context.Context, api.GetOnrampSessionRequestObject,
+) (api.GetOnrampSessionResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetOnrampSession")
+}
+
 type stepClock struct {
 	clock.Real
 	mu  sync.Mutex
