@@ -7,4 +7,9 @@ var (
 	IdentityPhotoPurgeFailed    = Msg{Name: "identity.photo_purge.failed", Required: []string{"user_id"}}
 	IdentityProfileUpdated      = Msg{Name: "identity.profile.updated", Required: []string{"user_id"}}
 	IdentityXConflict           = Msg{Name: "identity.x.conflict", Required: []string{"user_id"}}
+
+	IdentityFirstDepositBelowThreshold = Msg{
+		Name: "identity.first_deposit.below_threshold", Required: []string{"amount_micros", "threshold_micros"},
+	}
+	IdentityFirstDepositAlreadySet = Msg{Name: "identity.first_deposit.already_set", Required: []string{"user_id"}}
 )

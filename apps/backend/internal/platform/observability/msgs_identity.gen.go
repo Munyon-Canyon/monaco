@@ -10,5 +10,7 @@ func init() {
 		IdentityPhotoPurgeFailed,
 		IdentityProfileUpdated,
 		IdentityXConflict,
+		IdentityFirstDepositBelowThreshold,
+		IdentityFirstDepositAlreadySet,
 	)
 }

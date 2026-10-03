@@ -25,8 +25,13 @@ func TestModule_registersItsRoutesAndTheNudgePoller(t *testing.T) {
 		identity.WithHoldings(fakes.NewTreasury(), fakes.NewBalances()))
 	var routes httpx.Routes
 	m.Routes(&routes)
-	if m.Name() != "identity" || routes.IdentityRoutes == nil || len(m.Consumers()) != 0 {
-		t.Fatalf("module = %s, routes %+v, consumers %v", m.Name(), routes, m.Consumers())
+	if m.Name() != "identity" || routes.IdentityRoutes == nil {
+		t.Fatalf("module = %s, routes %+v", m.Name(), routes)
+	}
+	consumers := m.Consumers()
+	if len(consumers) != 1 || consumers[0].Durable != "identity_first_deposit" ||
+		len(consumers[0].Handlers) != 1 || consumers[0].Handlers[0].Name != "identity.first_deposit" {
+		t.Fatalf("consumers = %v, want identity_first_deposit with handler identity.first_deposit", consumers)
 	}
 	pollers := m.Pollers()
 	if len(pollers) != 1 || pollers[0].Name() != "identity.nudges" || pollers[0].Interval() != 5*time.Hour {

@@ -142,7 +142,14 @@ func (m *Module) openSession() *app.OpenSessionHandler {
 }
 
 func (*Module) Consumers() []bus.Consumer {
-	return []bus.Consumer{}
+	return []bus.Consumer{
+		{
+			Durable: "identity_first_deposit",
+			Handlers: []bus.HandlerSpec{
+				bus.Handle("identity.first_deposit", adapters.FirstDeposit{}.Handle),
+			},
+		},
+	}
 }
 
 func (m *Module) Pollers() []poller.Poller {
