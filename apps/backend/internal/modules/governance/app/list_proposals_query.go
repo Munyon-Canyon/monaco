@@ -63,10 +63,11 @@ type ProposalPage struct {
 type ProposalReads struct {
 	q          *sqlc.Queries
 	thresholds Thresholds
+	swaps      Swaps
 }
 
-func NewProposalReads(db sqlc.DBTX, t Thresholds) *ProposalReads {
-	return &ProposalReads{q: sqlc.New(db), thresholds: t}
+func NewProposalReads(db sqlc.DBTX, t Thresholds, s Swaps) *ProposalReads {
+	return &ProposalReads{q: sqlc.New(db), thresholds: t, swaps: s}
 }
 
 type pageCursor struct {

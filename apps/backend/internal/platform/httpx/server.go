@@ -128,6 +128,7 @@ type CabalJoinRoutes interface {
 
 type GovernanceRoutes interface {
 	GetCabalProposals(context.Context, api.GetCabalProposalsRequestObject) (api.GetCabalProposalsResponseObject, error)
+	GetProposal(context.Context, api.GetProposalRequestObject) (api.GetProposalResponseObject, error)
 	PostProposalVote(context.Context, api.PostProposalVoteRequestObject) (api.PostProposalVoteResponseObject, error)
 }
 

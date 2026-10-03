@@ -76,6 +76,44 @@ func (h HTTP) GetCabalProposals(
 	return out, nil
 }
 
+func (h HTTP) GetProposal(
+	ctx context.Context, req api.GetProposalRequestObject,
+) (api.GetProposalResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	got, err := h.Reads.Get(ctx, app.GetProposal{ID: ids.ProposalIDFrom(req.Id), Caller: user})
+	if err != nil {
+		return nil, err
+	}
+	p := wireProposal(got.Proposal)
+	out := api.GetProposal200JSONResponse{
+		Id: p.Id, CabalId: p.CabalId, ProposerId: p.ProposerId, Kind: p.Kind, Symbol: p.Symbol,
+		UsdcMicros: p.UsdcMicros, TokenAmount: p.TokenAmount, QuoteOutAmount: p.QuoteOutAmount, Thesis: p.Thesis,
+		Status: p.Status, StatusReason: p.StatusReason, StatusMessage: p.StatusMessage, ExpiresAt: p.ExpiresAt,
+		CreatedAt: p.CreatedAt, Tally: p.Tally, MyBallot: p.MyBallot,
+		Voters: make([]api.ProposalVoter, len(got.Voters)), CanVote: got.CanVote, CanWithdraw: got.CanWithdraw,
+	}
+	for i, v := range got.Voters {
+		out.Voters[i] = api.ProposalVoter{UserId: v.UserID.UUID()}
+		if v.Choice != "" {
+			choice, at := api.BallotChoice(v.Choice), v.CastAt
+			out.Voters[i].Choice, out.Voters[i].CastAt = &choice, &at
+		}
+	}
+	if s := got.Swap; s != nil {
+		out.Swap = &api.LinkedSwap{
+			SwapId: s.ID.UUID(), Status: api.LinkedSwapStatus(s.Status), Retryable: s.Retryable,
+			FailureCode: present(string(s.FailureCode)), TxSignature: present(string(s.TxSignature)),
+		}
+		if s.Status == "failed" {
+			out.Swap.FailureMessage = ptr(errs.Message(errs.CodeSwapFailed))
+		}
+	}
+	return out, nil
+}
+
 func wireProposal(v app.ProposalView) api.Proposal {
 	out := api.Proposal{
 		Id: v.ID.UUID(), CabalId: v.CabalID.UUID(), ProposerId: v.ProposerID.UUID(), Kind: api.ProposalKind(v.Kind),
@@ -83,9 +121,7 @@ func wireProposal(v app.ProposalView) api.Proposal {
 		QuoteOutAmount: v.QuoteOut, Status: api.ProposalStatus(v.Status), ExpiresAt: v.ExpiresAt,
 		CreatedAt: v.CreatedAt, Tally: wireTally(v.Tally),
 	}
-	if v.Thesis != "" {
-		out.Thesis = &v.Thesis
-	}
+	out.Thesis = present(v.Thesis)
 	if v.StatusReason != "" {
 		reason, message := string(v.StatusReason), errs.Message(v.StatusReason)
 		out.StatusReason, out.StatusMessage = &reason, &message
@@ -100,6 +136,15 @@ func wireProposal(v app.ProposalView) api.Proposal {
 func wireTally(t app.Tally) api.Tally {
 	return api.Tally{Yes: t.Yes, No: t.No, Voters: t.Voters, Needed: t.Needed}
 }
+
+func present(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+func ptr[T any](v T) *T { return &v }
 
 func positive(n int64) *int64 {
 	if n <= 0 {

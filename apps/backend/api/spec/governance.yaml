@@ -52,6 +52,33 @@ paths:
                 $ref: "#/components/schemas/ProposalList"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/proposals/{id}:
+    get:
+      operationId: getProposal
+      tags: [governance]
+      summary: Read one proposal.
+      description: >-
+        Returns the proposal as the list shows it, plus every member of its frozen voter set with
+        their ballot, whether the caller can vote on it or withdraw it, and the latest trade linked
+        to it. A non-member sees the same proposal with `can_vote` and `can_withdraw` false.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The proposal id.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The proposal.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProposalDetail"
+              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, kind: buy, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: open, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, choice: "yes", cast_at: "2026-10-03T16:00:00Z"}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, choice: null, cast_at: null}], can_vote: true, can_withdraw: true, swap: null}
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   schemas:
     ProposalKind:
@@ -134,3 +161,122 @@ components:
           type: [string, "null"]
           description: The cursor for the next page. Null on the last page.
           examples: [null]
+    ProposalVoter:
+      type: object
+      description: One member of the proposal's frozen voter set.
+      additionalProperties: false
+      required: [user_id, choice, cast_at]
+      properties:
+        user_id: {type: string, format: uuid, description: The voter., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
+        choice:
+          description: The voter's ballot. Null until they vote.
+          examples: ["yes"]
+          anyOf: [{$ref: "#/components/schemas/BallotChoice"}, {type: "null"}]
+        cast_at:
+          type: [string, "null"]
+          format: date-time
+          description: When the ballot was last cast. Null until they vote.
+          examples: ["2026-10-03T16:00:00Z"]
+    LinkedSwap:
+      type: object
+      description: The latest trade that executes the proposal.
+      additionalProperties: false
+      required: [swap_id, status, failure_code, failure_message, tx_signature, retryable]
+      properties:
+        swap_id: {type: string, format: uuid, description: The swap id., examples: [01890a5d-ac96-774b-bcce-b302099a8060]}
+        status:
+          type: string
+          description: Where the trade is.
+          enum: [created, submitted, confirmed, failed]
+          examples: [confirmed]
+        failure_code:
+          type: [string, "null"]
+          description: Why the trade failed. Null unless `status` is `failed`.
+          examples: [null]
+        failure_message:
+          type: [string, "null"]
+          description: The user-facing message for a failed trade. Null unless `status` is `failed`.
+          examples: [null]
+        tx_signature:
+          type: [string, "null"]
+          description: The Solana transaction signature. Null before the trade is submitted.
+          examples: [null]
+        retryable: {type: boolean, description: Whether a failed trade can be retried., examples: [false]}
+    ProposalDetail:
+      type: object
+      description: One proposal with its voters, the caller's permissions and its linked trade.
+      additionalProperties: false
+      required:
+        - id
+        - cabal_id
+        - proposer_id
+        - kind
+        - symbol
+        - usdc_micros
+        - token_amount
+        - quote_out_amount
+        - thesis
+        - status
+        - status_reason
+        - status_message
+        - expires_at
+        - created_at
+        - tally
+        - my_ballot
+        - voters
+        - can_vote
+        - can_withdraw
+        - swap
+      properties:
+        id: {type: string, format: uuid, description: The proposal id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
+        cabal_id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
+        proposer_id: {type: string, format: uuid, description: The member who proposed it., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
+        kind: {$ref: "#/components/schemas/ProposalKind"}
+        symbol: {type: string, description: The token symbol., examples: [AAPLx]}
+        usdc_micros:
+          type: [integer, "null"]
+          format: int64
+          description: USDC a buy spends, in micros. Null for a sell.
+          examples: [25000000]
+        token_amount:
+          type: [integer, "null"]
+          format: int64
+          description: Token base units a sell spends. Null for a buy.
+          examples: [null]
+        quote_out_amount:
+          type: integer
+          format: int64
+          description: The quoted output, in the output asset's base units, when the proposal opened.
+          examples: [105000000]
+        thesis: {type: [string, "null"], description: "The proposer's reason, up to 280 characters.", examples: [Earnings next week.]}
+        status: {$ref: "#/components/schemas/ProposalStatus"}
+        status_reason:
+          type: [string, "null"]
+          description: The error code that blocked execution. Null unless `status` is `execution_blocked`.
+          examples: [null]
+        status_message:
+          type: [string, "null"]
+          description: The user-facing message for `status_reason`. Null when `status_reason` is null.
+          examples: [null]
+        expires_at: {type: string, format: date-time, description: When voting closes., examples: ["2026-10-04T15:00:00Z"]}
+        created_at: {type: string, format: date-time, description: When the proposal opened., examples: ["2026-10-03T15:00:00Z"]}
+        tally: {$ref: "#/components/schemas/Tally"}
+        my_ballot:
+          description: The caller's ballot. Null when the caller has not voted or is not a voter.
+          examples: [null]
+          anyOf: [{$ref: "#/components/schemas/BallotChoice"}, {type: "null"}]
+        voters:
+          type: array
+          description: Every member of the frozen voter set, ordered by user id.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/ProposalVoter"
+        can_vote: {type: boolean, description: "The caller is in the voter set and the proposal is open.", examples: [true]}
+        can_withdraw:
+          type: boolean
+          description: The caller proposed it, it is open, and no other voter has a ballot.
+          examples: [false]
+        swap:
+          description: The latest trade linked to the proposal. Null when none exists.
+          examples: [null]
+          anyOf: [{$ref: "#/components/schemas/LinkedSwap"}, {type: "null"}]
