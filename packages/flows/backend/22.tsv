@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+22	Chat	social	POST /v1/cabals/{id}/messages;DELETE /v1/cabals/{id}/messages/{message_id}	PostChatMessage;DeleteChatMessage	chat.message_posted		ok;NotCabalMember;ChatParentNotFound;ChatParentIsReply;ChatBodyInvalid;ChatMessageNotOwned;Unauthorized;crash:before-commit	built	docs/architecture/chat.md#send-flow
