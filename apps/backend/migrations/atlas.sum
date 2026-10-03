@@ -1,4 +1,4 @@
-h1:LBbFNVhG+nnOkIW/kbtLfac/eT4lscfih3O3ctQZ/Ag=
+h1:IE9jX81rBD2F0u+lYE+nqQ3zViORqU05Rzc8ZRCjfYI=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
@@ -22,3 +22,4 @@ h1:LBbFNVhG+nnOkIW/kbtLfac/eT4lscfih3O3ctQZ/Ag=
 20261003041426_market_ui_multiplier_schedule.sql h1:sg7WKmvMkoW/BExGOAXEnm8JNd+Xl3UHjzyaNR6C0mg=
 20261003080406_cabal_txn_seq.sql h1:E43l7uHVJvbz28qBOuISPT8noQyYf/SH6vMq0Kp4/3E=
 20261003105047_funding_init.sql h1:ZFnQUVENM7OBX9tB4m6gpufEBTTHgYsTjSZLHtyIVHw=
+20261003112249_trading_cashout_sell_plans.sql h1:R46+8TpfQ+JOqNoFTs5Zaie7+AYJHWu5bsz3peuVQ68=
