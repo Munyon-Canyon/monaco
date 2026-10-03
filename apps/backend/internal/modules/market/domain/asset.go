@@ -94,23 +94,33 @@ func NewMultiplier(num, den uint64) (Multiplier, error) {
 	return Multiplier{Num: int64(num), Den: int64(den)}, nil
 }
 
+type MultiplierStep struct {
+	To Multiplier
+	At time.Time
+}
+
+func (s MultiplierStep) Scheduled() bool { return s.To.Den != 0 }
+
+func (s MultiplierStep) Equal(o MultiplierStep) bool { return s.To == o.To && s.At.Equal(o.At) }
+
 type Asset struct {
-	ID             AssetID
-	Symbol         string
-	Mint           Mint
-	Decimals       uint8
-	Issuer         Issuer
-	Kind           Kind
-	DisplayName    string
-	LogoURL        string
-	UIMultiplier   Multiplier
-	ChainChecked   bool
-	IssuerTradable bool
-	Override       Override
-	PopularRank    int16
-	CompanyKey     string
-	FirstSeenAt    time.Time
-	UpdatedAt      time.Time
+	ID               AssetID
+	Symbol           string
+	Mint             Mint
+	Decimals         uint8
+	Issuer           Issuer
+	Kind             Kind
+	DisplayName      string
+	LogoURL          string
+	UIMultiplier     Multiplier
+	NextUIMultiplier MultiplierStep
+	ChainChecked     bool
+	IssuerTradable   bool
+	Override         Override
+	PopularRank      int16
+	CompanyKey       string
+	FirstSeenAt      time.Time
+	UpdatedAt        time.Time
 }
 
 func (a Asset) Tradable() bool {
@@ -125,6 +135,13 @@ func (a Asset) Tradable() bool {
 	case OverrideAuto:
 	}
 	return a.IssuerTradable
+}
+
+func (a Asset) UIMultiplierAt(t time.Time) Multiplier {
+	if a.NextUIMultiplier.Scheduled() && !t.Before(a.NextUIMultiplier.At) {
+		return a.NextUIMultiplier.To
+	}
+	return a.UIMultiplier
 }
 
 func CompanyKey(displayName string) string {

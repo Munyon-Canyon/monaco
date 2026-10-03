@@ -85,23 +85,34 @@ func toAsset(row sqlc.Asset) (domain.Asset, error) {
 		override = domain.OverrideOff
 	}
 	return domain.Asset{
-		ID:             id,
-		Symbol:         row.Symbol,
-		Mint:           mint,
-		Decimals:       decimals,
-		Issuer:         issuer,
-		Kind:           kind,
-		DisplayName:    row.DisplayName,
-		LogoURL:        row.LogoUrl.String,
-		UIMultiplier:   domain.Multiplier{Num: row.UiMultiplierNum, Den: row.UiMultiplierDen},
-		ChainChecked:   row.ChainCheckedAt.Valid,
-		IssuerTradable: row.IssuerTradable,
-		Override:       override,
-		PopularRank:    row.PopularRank.Int16,
-		CompanyKey:     row.CompanyKey,
-		FirstSeenAt:    row.FirstSeenAt,
-		UpdatedAt:      row.UpdatedAt,
+		ID:               id,
+		Symbol:           row.Symbol,
+		Mint:             mint,
+		Decimals:         decimals,
+		Issuer:           issuer,
+		Kind:             kind,
+		DisplayName:      row.DisplayName,
+		LogoURL:          row.LogoUrl.String,
+		UIMultiplier:     domain.Multiplier{Num: row.UiMultiplierNum, Den: row.UiMultiplierDen},
+		NextUIMultiplier: nextMultiplier(row),
+		ChainChecked:     row.ChainCheckedAt.Valid,
+		IssuerTradable:   row.IssuerTradable,
+		Override:         override,
+		PopularRank:      row.PopularRank.Int16,
+		CompanyKey:       row.CompanyKey,
+		FirstSeenAt:      row.FirstSeenAt,
+		UpdatedAt:        row.UpdatedAt,
 	}, nil
+}
+
+func nextMultiplier(row sqlc.Asset) domain.MultiplierStep {
+	if !row.UiMultiplierNextNum.Valid {
+		return domain.MultiplierStep{}
+	}
+	return domain.MultiplierStep{
+		To: domain.Multiplier{Num: row.UiMultiplierNextNum.Int64, Den: row.UiMultiplierNextDen.Int64},
+		At: row.UiMultiplierNextAt.Time,
+	}
 }
 
 func decimalsOf(v int16) (uint8, error) {

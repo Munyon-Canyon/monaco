@@ -33,6 +33,8 @@ func (c *Chain) Facts(
 	for address, cfg := range configs {
 		facts[byAddress[address]] = app.MintFact{
 			Decimals: cfg.Mint.Decimals, MultiplierNum: cfg.UIMultiplier.Num, MultiplierDen: cfg.UIMultiplier.Den,
+			NextMultiplierNum: cfg.NextUIMultiplier.Num, NextMultiplierDen: cfg.NextUIMultiplier.Den,
+			NextMultiplierAt: cfg.NextUIMultiplierAt,
 		}
 	}
 	errsByMint := make(map[domain.Mint]error, len(failures))
