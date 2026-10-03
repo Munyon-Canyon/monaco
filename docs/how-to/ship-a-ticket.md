@@ -133,7 +133,7 @@ The next owner reads the ticket, its comments and the draft PR. It makes a workt
 | 1. PR check | the PR is ready and based on `staging` | `plan`, `lint`, `ready`, `vuln`, PR format, PR size and `gate-changes`. No tests. A push with an unchanged diff reuses the last green result. |
 | 2. Queue check | the PR entered the Graphite merge queue, which runs it on a `gtmq_` draft PR | Stage 1, plus `backend` (the race suite with the per-package budget and 100% coverage), the tests `-short` skips, `e2e` (`scripts/ci/e2e.sh`), `flake` on changed test files, `scripts`, and `mobile-core` when its paths changed. No macOS job. |
 
-Only the bottom PR of a stack runs stage 1, since CI runs on PRs whose base is `staging`. The only required check is `ci / ci-ok`. `gate-changes` never blocks. [What runs where](../architecture/ci.md#what-runs-where) has every job.
+Only the top PR of a stack runs stage 1, the full suite; every PR below it passes `ci / ci-ok` with every job skipped, and `monacoctl agents check` is its proof. The queue's stage 2 runs only build, vet and generated files, and every push to `staging` runs the full suite again as an advisory indicator. The only required check is `ci / ci-ok`. `gate-changes` never blocks. [What runs where](../architecture/ci.md#what-runs-where) has every job.
 
 ## Read the checks
 
@@ -166,7 +166,7 @@ The result says which of these holds:
 | A failure that already exists on the `staging` tip | Not this PR's defect. Fix the tip in its own PR, land that first, then requeue this one. |
 | A merge conflict with a stack that landed ahead | Wait for that stack to land, restack onto the tip ([Restack a stack](run-a-milestone.md#restack-a-stack)), build every branch, and land again. |
 
-**A test flakes.** Fix it the same day, or move it to the nightly with an issue. Never skip it, never raise its budget, and never retry CI until it passes. The rule is in [Keeping it fast](../architecture/backend-platform.md#keeping-it-fast). The `flake` job reruns every changed test file 20 times, so a fix proves itself in stage 2.
+**A test flakes.** Fix it the same day, or move it to the nightly with an issue. Never skip it, never raise its budget, and never retry CI until it passes. The rule is in [Keeping it fast](../architecture/backend-platform.md#keeping-it-fast). The `flake` job reruns every changed test file 20 times, so a fix proves itself in stage 1.
 
 **The `e2e` job failed.** Follow `.claude/skills/verify-backend/SKILL.md`. It explains the `verify-evidence` artifact and how to reproduce one flow with `monacoctl verify flow <id>`.
 

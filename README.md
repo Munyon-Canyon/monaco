@@ -1,5 +1,7 @@
 # Monaco
 
+[![Staging](https://github.com/Munyon-Canyon/monaco/actions/workflows/staging.yml/badge.svg?branch=staging)](https://github.com/Munyon-Canyon/monaco/actions/workflows/staging.yml?query=branch%3Astaging)
+
 iOS app: friends pool USDC and buy tokenized US stocks on Solana.
 
 This README covers cloning, configuring and running the repo. To understand the system, start with the [docs index](docs/index.md): [product rules](docs/product.md), then [architecture](docs/architecture.md) (components, outside services, wallets and money flows).

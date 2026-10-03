@@ -3,12 +3,13 @@ name: CI jobs
 # Called by ci.yml and ci-retarget.yml through their `ci` job, so every check is named
 # "ci / <job>" and the required check is "ci / ci-ok". docs/architecture/ci.md#triggers
 # `stage: pr` runs stage 1, every check and test, on the top PR of a stack. `stage: queue` runs stage 2, only plan,
-# ready (build, vet, tidy, generated files) and ci-ok. docs/architecture/ci.md#check-stages
+# ready (build, vet, tidy, generated files) and ci-ok. `stage: staging` (staging.yml) runs every stage 1 job but the
+# flake reruns on each push to staging, as an advisory indicator. docs/architecture/ci.md#check-stages
 on:
   workflow_call:
     inputs:
       stage:
-        description: pr (a PR) or queue (a Graphite merge queue draft, head gtmq_*).
+        description: pr (a PR), queue (a Graphite merge queue draft, head gtmq_*) or staging (a push to staging).
         type: string
         required: true
 
@@ -309,7 +310,8 @@ jobs:
       mobile-tests: ${{ steps.top.outputs.skip != 'true' && steps.filter.outputs.mobile-tests == 'true' }}
       scripts: ${{ steps.top.outputs.skip != 'true' && (steps.filter.outputs.scripts == 'true' || steps.every.outputs.scripts == 'true') }}
       # A stacked PR's base is the PR below it, so the filters see only this PR's own files: run everything.
-      unknown: ${{ steps.top.outputs.skip != 'true' && (steps.every.outputs.unknown == 'true' || steps.stacked.outputs.stacked == 'true') }}
+      # The staging stage runs everything too.
+      unknown: ${{ steps.top.outputs.skip != 'true' && (steps.every.outputs.unknown == 'true' || steps.stacked.outputs.stacked == 'true' || inputs.stage == 'staging') }}
     steps:
       # CI runs on the top PR of a stack only. A PR that another open non-draft PR builds on reports every filter false,
       # so every job skips and its ci-ok passes; `monacoctl agents check` proved it before the push. Fails open.
@@ -496,7 +498,7 @@ jobs:
   flake:
     name: Flake (changed tests, count 20)
     needs: plan
-    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend-tests == 'true' || needs.plan.outputs.unknown == 'true')
+    if: inputs.stage == 'pr' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend-tests == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -530,7 +532,7 @@ jobs:
   flake-swift:
     name: Flake (changed Swift tests, count 10)
     needs: plan
-    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.mobile-tests == 'true' || needs.plan.outputs.unknown == 'true')
+    if: inputs.stage == 'pr' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.mobile-tests == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     container: swift:6.3-noble
