@@ -10,6 +10,9 @@ private protocol WireOutcome: CaseIterable, Equatable {
 
 extension Flow00Outcome: WireOutcome {}
 extension Flow01Outcome: WireOutcome {}
+extension Flow01bOutcome: WireOutcome {}
+extension Flow01cOutcome: WireOutcome {}
+extension Flow01dOutcome: WireOutcome {}
 extension Flow02Outcome: WireOutcome {}
 extension Flow03Outcome: WireOutcome {}
 extension Flow10Outcome: WireOutcome {}
@@ -23,6 +26,9 @@ final class FlowOutcomeTests: XCTestCase {
     func testEveryWireCodeMapsBackToItsOutcome() {
         assertRoundTrip(Flow00Outcome.self)
         assertRoundTrip(Flow01Outcome.self)
+        assertRoundTrip(Flow01bOutcome.self)
+        assertRoundTrip(Flow01cOutcome.self)
+        assertRoundTrip(Flow01dOutcome.self)
         assertRoundTrip(Flow02Outcome.self)
         assertRoundTrip(Flow03Outcome.self)
         assertRoundTrip(Flow10Outcome.self)

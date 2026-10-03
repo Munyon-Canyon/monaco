@@ -29,29 +29,38 @@ type OnboardingDeps struct {
 	Hints Hints
 }
 
+type LinkPhone struct{ UserID ids.UserID }
+
+type LinkSocials struct{ UserID ids.UserID }
+
+type SkipOnboardingStep struct {
+	UserID ids.UserID
+	Step   domain.OnboardingStep
+}
+
 type Onboarding struct{ d OnboardingDeps }
 
 func NewOnboarding(d OnboardingDeps) *Onboarding { return &Onboarding{d: d} }
 
-func (o *Onboarding) LinkPhone(ctx context.Context, id ids.UserID) (Me, error) {
-	return o.link(ctx, id, domain.PhoneVerified)
+func (o *Onboarding) LinkPhone(ctx context.Context, cmd LinkPhone) (Me, error) {
+	return o.link(ctx, cmd.UserID, domain.PhoneVerified)
 }
 
-func (o *Onboarding) LinkSocials(ctx context.Context, id ids.UserID) (Me, error) {
-	return o.link(ctx, id, domain.XLinked)
+func (o *Onboarding) LinkSocials(ctx context.Context, cmd LinkSocials) (Me, error) {
+	return o.link(ctx, cmd.UserID, domain.XLinked)
 }
 
-func (o *Onboarding) Skip(ctx context.Context, id ids.UserID, step domain.OnboardingStep) (Me, error) {
-	if _, err := o.withHandle(ctx, id); err != nil {
+func (o *Onboarding) Skip(ctx context.Context, cmd SkipOnboardingStep) (Me, error) {
+	if _, err := o.withHandle(ctx, cmd.UserID); err != nil {
 		return Me{}, err
 	}
-	switch step {
+	switch cmd.Step {
 	case domain.StepPhone:
-		return o.apply(ctx, id, domain.PhoneSkipped, domain.Links{})
+		return o.apply(ctx, cmd.UserID, domain.PhoneSkipped, domain.Links{})
 	case domain.StepSocials:
-		return GetMe(ctx, o.d.Reads, id)
+		return GetMe(ctx, o.d.Reads, cmd.UserID)
 	}
-	return Me{}, errs.New(errs.CodeInvalidInput, "identity.SkipOnboardingStep", slog.String("step", string(step)))
+	return Me{}, errs.New(errs.CodeInvalidInput, "identity.SkipOnboardingStep", slog.String("step", string(cmd.Step)))
 }
 
 func (o *Onboarding) link(ctx context.Context, id ids.UserID, kind domain.AuthEventKind) (Me, error) {

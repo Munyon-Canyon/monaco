@@ -1,26 +1,20 @@
 package flows
 
-import "github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
+import (
+	"maps"
+
+	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
+)
 
 type Script func(*scenario.Scenario)
 
 func Scripts() map[string]Script {
-	return map[string]Script{
+	scripts := identityScripts()
+	maps.Copy(scripts, map[string]Script{
 		"F00RecordPingOK":                          F00RecordPingOK,
 		"F00RecordPingInvalidInput":                F00RecordPingInvalidInput,
 		"F00RecordPingUnauthorized":                F00RecordPingUnauthorized,
 		"F00RecordPingCrashAfterPublish":           F00RecordPingCrashAfterPublish,
-		"F01OpenSessionOK":                         F01OpenSessionOK,
-		"F01OpenSessionUnauthorized":               F01OpenSessionUnauthorized,
-		"F01OpenSessionLoginMethodNotAllowed":      F01OpenSessionLoginMethodNotAllowed,
-		"F01OpenSessionAccountDeleted":             F01OpenSessionAccountDeleted,
-		"F01OpenSessionPrivyUnavailable":           F01OpenSessionPrivyUnavailable,
-		"F01OpenSessionCrashBeforeCommit":          F01OpenSessionCrashBeforeCommit,
-		"F01aSetHandleOK":                          F01aSetHandleOK,
-		"F01aSetHandleHandleInvalid":               F01aSetHandleHandleInvalid,
-		"F01aSetHandleHandleReserved":              F01aSetHandleHandleReserved,
-		"F01aSetHandleHandleTaken":                 F01aSetHandleHandleTaken,
-		"F01aSetHandleHandleTooSoon":               F01aSetHandleHandleTooSoon,
 		"F02CreateCabalOK":                         F02CreateCabalOK,
 		"F02CreateCabalInvalidInput":               F02CreateCabalInvalidInput,
 		"F02CreateCabalUnauthorized":               F02CreateCabalUnauthorized,
@@ -73,6 +67,34 @@ func Scripts() map[string]Script {
 		"F23aUploadProfilePhotoPhotoInvalid":       F23aUploadProfilePhotoPhotoInvalid,
 		"F23aUploadProfilePhotoStorageUnavailable": F23aUploadProfilePhotoStorageUnavailable,
 		"F23aUploadProfilePhotoRateLimited":        F23aUploadProfilePhotoRateLimited,
+	})
+	return scripts
+}
+
+func identityScripts() map[string]Script {
+	return map[string]Script{
+		"F01OpenSessionOK":                     F01OpenSessionOK,
+		"F01OpenSessionUnauthorized":           F01OpenSessionUnauthorized,
+		"F01OpenSessionLoginMethodNotAllowed":  F01OpenSessionLoginMethodNotAllowed,
+		"F01OpenSessionAccountDeleted":         F01OpenSessionAccountDeleted,
+		"F01OpenSessionPrivyUnavailable":       F01OpenSessionPrivyUnavailable,
+		"F01OpenSessionCrashBeforeCommit":      F01OpenSessionCrashBeforeCommit,
+		"F01aSetHandleOK":                      F01aSetHandleOK,
+		"F01aSetHandleHandleInvalid":           F01aSetHandleHandleInvalid,
+		"F01aSetHandleHandleReserved":          F01aSetHandleHandleReserved,
+		"F01aSetHandleHandleTaken":             F01aSetHandleHandleTaken,
+		"F01aSetHandleHandleTooSoon":           F01aSetHandleHandleTooSoon,
+		"F01bLinkPhoneOK":                      F01bLinkPhoneOK,
+		"F01bLinkPhoneHandleRequired":          F01bLinkPhoneHandleRequired,
+		"F01bLinkPhonePhoneNotLinked":          F01bLinkPhonePhoneNotLinked,
+		"F01bLinkPhonePrivyUnavailable":        F01bLinkPhonePrivyUnavailable,
+		"F01cLinkSocialsOK":                    F01cLinkSocialsOK,
+		"F01cLinkSocialsHandleRequired":        F01cLinkSocialsHandleRequired,
+		"F01cLinkSocialsXNotLinked":            F01cLinkSocialsXNotLinked,
+		"F01cLinkSocialsPrivyUnavailable":      F01cLinkSocialsPrivyUnavailable,
+		"F01dSkipOnboardingStepOK":             F01dSkipOnboardingStepOK,
+		"F01dSkipOnboardingStepHandleRequired": F01dSkipOnboardingStepHandleRequired,
+		"F01dSkipOnboardingStepInvalidInput":   F01dSkipOnboardingStepInvalidInput,
 	}
 }
 

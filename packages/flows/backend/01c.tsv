@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+01c	Link X	identity	POST /v1/me/onboarding/socials	LinkSocials	user.auth_state_changed		ok;HandleRequired;XNotLinked;PrivyUnavailable	built	docs/architecture/auth.md#onboarding
