@@ -26,7 +26,24 @@ type contract struct {
 
 func HTTP(tb testing.TB, h http.Handler) http.Handler {
 	tb.Helper()
-	c := loadContract(tb)
+	doc, err := openapi3.NewLoader().LoadFromData(openapi.Spec)
+	if err != nil {
+		tb.Fatalf("load api/openapi.yaml: %v", err)
+	}
+	if err := doc.Validate(context.WithoutCancel(tb.Context())); err != nil {
+		tb.Fatalf("api/openapi.yaml is not a valid OpenAPI document: %v", err)
+	}
+	doc.Servers = nil
+	return HTTPAgainst(tb, doc, h)
+}
+
+func HTTPAgainst(tb testing.TB, doc *openapi3.T, h http.Handler) http.Handler {
+	tb.Helper()
+	router, err := legacy.NewRouter(doc)
+	if err != nil {
+		tb.Fatalf("route api/openapi.yaml: %v", err)
+	}
+	c := contract{doc: doc, router: router}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, r)
@@ -38,23 +55,6 @@ func HTTP(tb testing.TB, h http.Handler) http.Handler {
 		w.WriteHeader(rec.Code)
 		_, _ = w.Write(rec.Body.Bytes())
 	})
-}
-
-func loadContract(tb testing.TB) contract {
-	tb.Helper()
-	doc, err := openapi3.NewLoader().LoadFromData(openapi.Spec)
-	if err != nil {
-		tb.Fatalf("load api/openapi.yaml: %v", err)
-	}
-	if err := doc.Validate(context.WithoutCancel(tb.Context())); err != nil {
-		tb.Fatalf("api/openapi.yaml is not a valid OpenAPI document: %v", err)
-	}
-	doc.Servers = nil
-	router, err := legacy.NewRouter(doc)
-	if err != nil {
-		tb.Fatalf("route api/openapi.yaml: %v", err)
-	}
-	return contract{doc: doc, router: router}
 }
 
 func (c contract) violation(r *http.Request, rec *httptest.ResponseRecorder) string {
