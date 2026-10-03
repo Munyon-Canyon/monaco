@@ -19,6 +19,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
+	tools "github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
 const parallelFlows = 4
@@ -48,10 +49,11 @@ type Result struct {
 	Users     []string
 	Events    []string
 
-	rows     []EventEvidence
-	logLines []string
-	logFrom  int
-	mu       sync.Mutex
+	rows      []EventEvidence
+	logLines  []string
+	logFrom   int
+	startedAt time.Time
+	mu        sync.Mutex
 }
 
 func (r *Result) Pass() bool { return r.Failure == "" }
@@ -83,18 +85,26 @@ func (d *driver) runAll(ctx context.Context, units []Unit, parallel int) []*Resu
 	results := make([]*Result, len(units))
 	var g errgroup.Group
 	g.SetLimit(parallel)
+	var pollers []int
 	for i, u := range units {
+		if kind, _ := u.Flow.TriggerKind(); kind == tools.TriggerPoller {
+			pollers = append(pollers, i)
+			continue
+		}
 		g.Go(func() error {
 			results[i] = d.run(ctx, u)
 			return nil
 		})
 	}
 	_ = g.Wait()
+	for _, i := range pollers {
+		results[i] = d.run(ctx, units[i])
+	}
 	return results
 }
 
 func (d *driver) run(ctx context.Context, u Unit) *Result {
-	res := &Result{Unit: u, Phases: map[Phase]time.Duration{}}
+	res := &Result{Unit: u, Phases: map[Phase]time.Duration{}, startedAt: time.Now()}
 	if err := d.env.Arm(ctx); err != nil {
 		res.fail(err)
 		return res
@@ -136,7 +146,7 @@ func (d *driver) script(ctx context.Context, u Unit, res *Result) error {
 		Enter: func(s scenario.Stage) {
 			select {
 			case stages <- s:
-			default:
+			case <-ctx.Done():
 			}
 		},
 		Exchanged: func(e scenario.Exchange) {

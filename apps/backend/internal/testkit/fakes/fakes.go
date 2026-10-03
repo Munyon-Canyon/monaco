@@ -36,6 +36,7 @@ type Step struct {
 	Delay   string            `json:"delay,omitempty"`
 	Times   int               `json:"times,omitempty"`
 	Fixture string            `json:"fixture,omitempty"`
+	Reset   bool              `json:"reset,omitempty"`
 }
 
 type fixture struct {
@@ -129,6 +130,9 @@ func (s *Server) script(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.mu.Lock()
+	if step.Reset {
+		s.scripts[step.Route] = nil
+	}
 	s.scripts[step.Route] = append(s.scripts[step.Route], sc)
 	s.mu.Unlock()
 	w.WriteHeader(http.StatusNoContent)

@@ -173,6 +173,18 @@ func TestScript_matchesMethodAndHeadersWithoutConsumingOtherCalls(t *testing.T) 
 	}
 }
 
+func TestScript_resetDropsStepsAlreadyQueuedOnTheRoute(t *testing.T) {
+	t.Parallel()
+	c := overHTTP(t)
+	script(t.Context(), t, c, fakes.Step{
+		Route: "/jupiter/_health", Action: fakes.ActionFail, Status: http.StatusNotFound, Times: 5,
+	})
+	script(t.Context(), t, c, fakes.Step{Route: "/jupiter/_health", Action: fakes.ActionSucceed, Reset: true})
+	if got := mustCall(t.Context(), t, c, http.MethodGet, "/jupiter/_health", ""); got.status != http.StatusOK {
+		t.Fatalf("status after reset = %d, want 200 from the fixture, not a leftover 404", got.status)
+	}
+}
+
 func TestScript_rejectsInvalidSteps(t *testing.T) {
 	t.Parallel()
 	c := overHTTP(t)
