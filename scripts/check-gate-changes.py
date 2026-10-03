@@ -13,6 +13,9 @@ Diffs BASE_SHA...HEAD_SHA and reports each finding as `path:line: <rule>: <what>
 - test-removed: a Go Test, Fuzz or Benchmark function, or a Swift `func test…(` or `@Test`
   function, present at base and absent everywhere at head, unless its base file still has at
   least as many of them (a rename).
+- flow-status: a deleted packages/flows/app/<id>.tsv, or its status lowered along
+  verified > built > planned. A move to none also counts, unless the same change deletes the
+  flow's row from apps/backend/flows.tsv.
 - strictness: an added Xcode setting that loosens SWIFT_VERSION (below 6),
   SWIFT_TREAT_WARNINGS_AS_ERRORS (NO) or SWIFT_STRICT_CONCURRENCY (not complete); an added `.v5`
   language mode, unsafeFlags or treatAllWarnings in packages/mobile-core/Package.swift; or a
@@ -72,6 +75,9 @@ PACKAGE_SWIFT = "packages/mobile-core/Package.swift"
 LOOSER_MANIFEST = re.compile(r"\.v[45]\b|\bunsafeFlags\b|\btreatAllWarnings\b")
 WARNINGS_FLAG = "-warnings-as-errors"
 TEST_SCRIPT = "scripts/mobile-core-test.sh"
+FLOW_APP = re.compile(r"^packages/flows/app/([^/]+)\.tsv$")
+BACKEND_FLOWS = "apps/backend/flows.tsv"
+FLOW_RANK = {"planned": 1, "built": 2, "verified": 3}
 WARNINGS_FLAG_FILES = (
     "Justfile",
     ".github/workflows/ci-mobile-core.yml",
@@ -231,6 +237,33 @@ def strictness_findings(added: list[Added], removed: list[Added], _base, _head) 
     return findings
 
 
+def flow_status(text: str) -> str | None:
+    rows = text.splitlines()
+    cells = rows[1].split("\t") if len(rows) > 1 else []
+    return cells[2] if len(cells) > 2 else None
+
+
+def has_flow_row(text: str, flow_id: str) -> bool:
+    return any(row.split("\t", 1)[0] == flow_id for row in text.splitlines()[1:])
+
+
+def flow_status_findings(added: list[Added], removed: list[Added], base, head) -> list[Finding]:
+    findings = []
+    for path in sorted({a.path for a in added + removed if FLOW_APP.match(a.path)}):
+        flow_id = FLOW_APP.match(path).group(1)
+        was, now = flow_status(base(path)), flow_status(head(path))
+        if was is None:
+            continue
+        if not head(path):
+            findings.append(Finding(path, 1, "flow-status", f"deleted the app registry file of flow {flow_id}"))
+        elif now == "none" and was != "none":
+            if has_flow_row(head(BACKEND_FLOWS), flow_id):
+                findings.append(Finding(path, 2, "flow-status", f"lowered flow {flow_id} {was} -> none"))
+        elif FLOW_RANK.get(now or "", 0) < FLOW_RANK.get(was, 0):
+            findings.append(Finding(path, 2, "flow-status", f"lowered flow {flow_id} {was} -> {now}"))
+    return findings
+
+
 def grep(patterns: list[str], rev: str | None, *pathspecs: str) -> list[tuple[str, int, str]]:
     args = [arg for p in patterns for arg in ("-e", p)]
     args += [rev] if rev else ["--untracked"]
@@ -303,7 +336,8 @@ def read(path: str) -> str:
 def check(added: list[Added], removed: list[Added], base, head, base_tests, head_tests) -> list[Finding]:
     exclusions = exclusion_lines(head(GOLANGCI)) if any(a.path == GOLANGCI for a in added) else set()
     return (gate_findings(added, exclusions, base, head) + skip_findings(added)
-            + removed_findings(base_tests, head_tests) + strictness_findings(added, removed, base, head))
+            + removed_findings(base_tests, head_tests) + strictness_findings(added, removed, base, head)
+            + flow_status_findings(added, removed, base, head))
 
 
 def findings(base: str, head: str) -> list[Finding]:

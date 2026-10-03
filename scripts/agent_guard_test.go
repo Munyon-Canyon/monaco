@@ -457,3 +457,23 @@ func TestAgentGuard_noPushToAStackInTheGraphiteQueue(t *testing.T) {
 		assertAllowed(t, guard(t, work, "gt submit --stack", queuedGH(t, heads)...), name)
 	}
 }
+
+func TestAgentGuard_editsOfGeneratedSwiftAreDenied(t *testing.T) {
+	t.Parallel()
+	edit := func(tool, file string) hookRun {
+		return runHook(t, "agent-guard.py", map[string]any{
+			"hook_event_name": "PreToolUse",
+			"tool_name":       tool,
+			"cwd":             t.TempDir(),
+			"tool_input":      map[string]any{"file_path": file},
+		})
+	}
+	for _, tool := range []string{"Edit", "Write", "MultiEdit"} {
+		file := "/repo/packages/flows/Sources/MonacoFlows/Flow00.gen.swift"
+		assertBlocked(t, edit(tool, file), tool+" "+file, "go run ./cmd/monacoctl gen flows")
+	}
+	cases := "/repo/packages/mobile-core/Tests/MonacoAPITests/ErrorCodeCases.gen.swift"
+	assertBlocked(t, edit("Edit", cases), "Edit "+cases, "go generate ./api")
+	plain := "/repo/packages/mobile-core/Sources/MonacoCore/SignInModel.swift"
+	assertAllowed(t, edit("Edit", plain), "Edit "+plain)
+}

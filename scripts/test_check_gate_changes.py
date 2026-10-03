@@ -104,7 +104,15 @@ PERF_BUDGETS = "apps/mobile/MonacoUITests/perf-budgets.tsv"
 PERF_ROWS = ("# Budgets only go down.\n# 2026-10-01, iPhone 17, iOS 26.3: medians 600, 610, 620 ms\n"
              "Home\tlaunch_first_frame_ms\t950\n")
 
+FLOW_HEADER = "id\tscreen\tstatus\tdoc\n"
+FLOW_00 = "packages/flows/app/00.tsv"
+FLOW_01 = "packages/flows/app/01.tsv"
+BACKEND_FLOWS = "apps/backend/flows.tsv"
+
 BASE = {
+    FLOW_00: FLOW_HEADER + "00\tSystemPing\tbuilt\tdocs/a.md#ping\n",
+    FLOW_01: FLOW_HEADER + "01\tSignIn\tverified\tdocs/a.md#login\n",
+    BACKEND_FLOWS: "id\tflow\n00\tPing\n01\tSign in\n",
     "apps/backend/coverage.exclude": "cmd/api/main.go\n",
     "apps/backend/mutants.allow": "",
     "apps/backend/.golangci.yml": GOLANGCI,
@@ -529,6 +537,30 @@ jobs:
             {"scripts/mobile-core-test.sh": "swift test\n"},
             "scripts/mobile-core-test.sh:1: strictness: removed `-warnings-as-errors`",
         )
+
+    def test_deleted_flow_app_file(self):
+        self.assert_flags({FLOW_00: None}, f"{FLOW_00}:1: flow-status: deleted the app registry file of flow 00")
+
+    def test_lowered_flow_status(self):
+        self.assert_flags(
+            {FLOW_00: BASE[FLOW_00].replace("built", "planned"), FLOW_01: BASE[FLOW_01].replace("verified", "built")},
+            f"{FLOW_00}:2: flow-status: lowered flow 00 built -> planned",
+            f"{FLOW_01}:2: flow-status: lowered flow 01 verified -> built",
+        )
+
+    def test_flow_status_moved_to_none(self):
+        self.assert_flags(
+            {FLOW_00: BASE[FLOW_00].replace("SystemPing\tbuilt", "-\tnone")},
+            f"{FLOW_00}:2: flow-status: lowered flow 00 built -> none",
+        )
+
+    def test_flow_status_raised_or_none_with_its_backend_row_deleted_passes(self):
+        self.assert_clean({
+            FLOW_00: BASE[FLOW_00].replace("built", "verified"),
+            FLOW_01: BASE[FLOW_01].replace("SignIn\tverified", "-\tnone"),
+            BACKEND_FLOWS: "id\tflow\n00\tPing\n",
+            "packages/flows/app/02.tsv": FLOW_HEADER + "02\t-\tnone\tdocs/a.md#cabal\n",
+        })
 
     def test_label_overrides_every_rule(self):
         code, out = self.run_check({

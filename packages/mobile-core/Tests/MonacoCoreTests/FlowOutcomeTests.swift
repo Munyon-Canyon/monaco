@@ -1,0 +1,52 @@
+import MonacoFlows
+import XCTest
+
+private protocol WireOutcome: CaseIterable, Equatable {
+    static var flowID: String { get }
+    static var command: String { get }
+    var code: String? { get }
+    init?(code: String)
+}
+
+extension Flow00Outcome: WireOutcome {}
+extension Flow01Outcome: WireOutcome {}
+extension Flow02Outcome: WireOutcome {}
+extension Flow10Outcome: WireOutcome {}
+extension Flow18Outcome: WireOutcome {}
+extension Flow20Outcome: WireOutcome {}
+extension Flow23Outcome: WireOutcome {}
+extension Flow23aOutcome: WireOutcome {}
+
+final class FlowOutcomeTests: XCTestCase {
+    func testEveryWireCodeMapsBackToItsOutcome() {
+        assertRoundTrip(Flow00Outcome.self)
+        assertRoundTrip(Flow01Outcome.self)
+        assertRoundTrip(Flow02Outcome.self)
+        assertRoundTrip(Flow10Outcome.self)
+        assertRoundTrip(Flow18Outcome.self)
+        assertRoundTrip(Flow20Outcome.self)
+        assertRoundTrip(Flow23Outcome.self)
+        assertRoundTrip(Flow23aOutcome.self)
+    }
+
+    func testOkAndInterruptedCarryNoWireCode() {
+        XCTAssertNil(Flow01Outcome.ok.code)
+        XCTAssertNil(Flow01Outcome.interrupted.code)
+        XCTAssertEqual(Flow01Outcome.unauthorized.code, "unauthorized")
+        XCTAssertEqual(Flow01Outcome.allCases.last, .interrupted)
+        XCTAssertEqual(Flow01Outcome.command, "OpenSession")
+    }
+
+    private func assertRoundTrip<Outcome: WireOutcome>(
+        _ type: Outcome.Type, file: StaticString = #filePath, line: UInt = #line
+    ) {
+        XCTAssertFalse(type.flowID.isEmpty, file: file, line: line)
+        XCTAssertFalse(type.command.isEmpty, file: file, line: line)
+        for outcome in type.allCases {
+            if let code = outcome.code {
+                XCTAssertEqual(type.init(code: code), outcome, "\(type) \(code)", file: file, line: line)
+            }
+        }
+        XCTAssertNil(type.init(code: "no_such_code"), "\(type)", file: file, line: line)
+    }
+}

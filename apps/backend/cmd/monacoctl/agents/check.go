@@ -275,8 +275,11 @@ func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkR
 	rows = append(rows, env.shellRows(changed)...)
 	rows = append(rows, env.testFileRows(changed)...)
 	if slices.ContainsFunc(changed, func(f string) bool {
-		return strings.HasPrefix(f, "packages/mobile-core/") || strings.HasPrefix(f, "apps/mobile/") ||
-			f == openAPISpec || f == ".swift-format" || f == ".swiftlint.yml" || f == ".swiftlint-baseline.tsv"
+		return strings.HasPrefix(f, "packages/mobile-core/") || strings.HasPrefix(f, "packages/flows/") ||
+			strings.HasPrefix(
+				f,
+				"apps/mobile/",
+			) || f == openAPISpec || f == ".swift-format" || f == ".swiftlint.yml" || f == ".swiftlint-baseline.tsv"
 	}) {
 		rows = append(rows, checkRow{
 			label: "swift test", kind: "swift", dir: filepath.Join(env.Work, "packages", "mobile-core"),
@@ -368,7 +371,7 @@ func (env *Env) pathRows(
 		build func() (checkRow, error)
 	}{
 		{
-			[]string{"apps/backend/", "scripts/ci/ready.sh", "scripts/gen-docs.sh", "scripts/install-sqlc.sh"},
+			[]string{"apps/backend/", "packages/flows/", "scripts/ci/ready.sh", "scripts/gen-docs.sh", "scripts/install-sqlc.sh"},
 			env.readyRow,
 		},
 		{

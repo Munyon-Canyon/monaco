@@ -333,6 +333,7 @@ jobs:
           filters: |
             backend:
               - 'apps/backend/**'
+              - 'packages/flows/**'
               - 'scripts/ci/ready.sh'
               - 'scripts/ci/oasdiff-*'
               - 'scripts/install-atlas.sh'
@@ -358,6 +359,7 @@ jobs:
               - 'scripts/ci/flake-tests-swift.sh'
             mobile-core:
               - 'packages/mobile-core/**'
+              - 'packages/flows/**'
               - 'apps/backend/api/openapi.yaml'
               - 'scripts/install-xcsift.sh'
               - '.xcode-version'
@@ -404,6 +406,7 @@ jobs:
               - '!apps/mobile/**'
               - '!apps/web/**'
               - '!packages/mobile-core/**'
+              - '!packages/flows/**'
               - '!scripts/**'
               - '!.github/**'
               - '!.claude/**'
