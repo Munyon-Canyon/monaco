@@ -198,6 +198,9 @@ def check_journeys(journeys, accounts, git_apply_check=None):
         for required in journey.requires:
             if required not in by_id:
                 bad(journey.path, "requires %r, which is not a journey doc" % required)
+        for flow in journey.flows:
+            if not (ROOT / "packages" / "flows" / "backend" / (flow + ".tsv")).exists():
+                bad(journey.path, "flows names %s, which has no packages/flows/backend/%s.tsv" % (flow, flow))
         files = journey.driver_files()
         missing = [f for f in files if not f.exists()]
         for f in missing:
@@ -230,7 +233,7 @@ def check_journeys(journeys, accounts, git_apply_check=None):
                 if scenario not in journey.scenarios:
                     bad(patch, "expects %s to fail, which is not a scenario of %s" % (scenario, journey.id))
             if git_apply_check and not git_apply_check(patch):
-                bad(patch, "does not apply to this checkout (git apply --check)")
+                bad(patch, "does not apply to this checkout for journey %s: regenerate this patch with the ios-journey-qa skill" % journey.id)
 
     for journey in journeys.values():
         if _has_cycle(journey, by_id):
@@ -377,6 +380,9 @@ def simulator_names(sims):
 def check_simulator_api_environment(sims, api_base_url):
     names = simulator_names(sims)
     for udid in sims.values():
+        sh(["xcrun", "simctl", "boot", udid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        sh(["xcrun", "simctl", "bootstatus", udid, "-b"], check=True,
+           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         value = sh(["xcrun", "simctl", "getenv", udid, "MONACO_API_BASE_URL"], stdout=subprocess.PIPE,
                    stderr=subprocess.DEVNULL).stdout.strip()
         if value and value != api_base_url:
@@ -633,6 +639,38 @@ def cmd_check(args):
     return 0
 
 
+def tsv_rows(path):
+    lines = [line.split("\t") for line in path.read_text().splitlines() if line.strip()]
+    if not lines:
+        return []
+    return [dict(zip(lines[0], cells)) for cells in lines[1:]]
+
+
+def cmd_coverage(args):
+    backend = ROOT / "packages" / "flows" / "backend"
+    app = ROOT / "packages" / "flows" / "app"
+    journeys = load_journeys()
+    print("| ID | Flow | Backend | App | Journeys |")
+    print("| --- | --- | --- | --- | --- |")
+    uncovered = []
+    for path in sorted(backend.glob("*.tsv")):
+        rows = tsv_rows(path)
+        if not rows:
+            continue
+        row = rows[0]
+        flow_id = row.get("id", path.stem)
+        app_rows = tsv_rows(app / (flow_id + ".tsv")) if (app / (flow_id + ".tsv")).exists() else []
+        app_status = app_rows[0].get("status", "-") if app_rows else "-"
+        listed = [item.id for item in journeys.values() if flow_id in item.flows]
+        if not listed:
+            uncovered.append(flow_id)
+        print("| %s | %s | %s | %s | %s |" % (
+            flow_id, row.get("flow", "-"), row.get("status", "-"), app_status,
+            ", ".join(listed) or "-"))
+    print("uncovered: %s" % (", ".join(uncovered) or "-"))
+    return 0
+
+
 def cmd_list(args):
     for journey in load_journeys().values():
         requires = " requires " + ", ".join(journey.requires) if journey.requires else ""
@@ -689,7 +727,8 @@ def cmd_mutants(args):
         if sh(["git", "diff", "--quiet", "--", "apps/mobile/Monaco", "packages/mobile-core"]).returncode != 0:
             raise JourneyError("the app sources have uncommitted changes: commit or set them aside before seeding bugs")
         accounts = load_accounts()
-        sims = resolve_simulators(journey, dict(pair.split("=", 1) for pair in args.sim))
+        mapping = dict(pair.split("=", 1) for pair in args.sim)
+        sims = resolve_simulators(journey, mapping)
         check_simulator_api_environment(sims, api_base_url)
         caught = 0
         for patch in patches:
@@ -700,6 +739,7 @@ def cmd_mutants(args):
             print("seeded bug %s: %s must fail" % (patch.stem, ", ".join(expected_fail)))
             applied = False
             try:
+                reset_journey_simulators(journey, sims, set(mapping), False)
                 sh(["git", "apply", str(patch)], check=True)
                 applied = True
                 build(sims[journey.actors[0]], OUT / ("build-%s.log" % patch.stem))
@@ -783,6 +823,7 @@ def main(argv=None):
     commands = parser.add_subparsers(dest="command")
     commands.required = True
     commands.add_parser("check").set_defaults(run=cmd_check)
+    commands.add_parser("coverage").set_defaults(run=cmd_coverage)
     commands.add_parser("list").set_defaults(run=cmd_list)
     commands.add_parser("report").set_defaults(run=cmd_report)
     for name, handler in (("run", cmd_run), ("mutants", cmd_mutants)):

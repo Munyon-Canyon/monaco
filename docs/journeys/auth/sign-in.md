@@ -59,6 +59,8 @@ Starts signed in (S1).
 
 After S1, the local database has a `users` row for actor A. `apps/mobile/qa/journeys/auth/sign-in.truth.sh` checks its configured Privy user ID.
 
+The row also exists after an earlier run, so a run that never reaches the backend still passes this check. The backend log line `POST /v1/auth/session` with status 200 during the run is the stronger sign, and `just reset db` gives a fresh database.
+
 ## Known failures on staging
 
 S1.4 currently fails after the code because staging serves neither `GET /v1/home/dashboard` nor `GET /v1/me/balance`.

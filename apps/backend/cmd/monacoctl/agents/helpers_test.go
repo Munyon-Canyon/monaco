@@ -218,6 +218,8 @@ func newFixtureFrom(t *testing.T, snap repoSnapshot) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	git(t, dir, "config", "gc.auto", "0")
+	git(t, dir, "config", "maintenance.auto", "false")
 	writeFile(t, filepath.Join(dir, configPath), testConfig)
 	h, srv := newHub(t)
 	return &fixture{

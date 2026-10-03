@@ -9,6 +9,14 @@ A **journey doc** (`docs/journeys/<area>/<journey>.md`) is the source of truth f
 
 When the journey doc and the app disagree, stop and report the **step id** and both sides. That disagreement is the finding: a stale doc or an app bug.
 
+## Draft a journey doc
+
+1. Read the mobile ticket, its Done when, its linked design doc, and the screens on staging. Done when the journey's user outcome is clear.
+2. List the backend flow ids it exercises from `packages/flows`. Done when every id has a backend TSV file.
+3. Write `docs/journeys/<area>/<journey>.md` in the README format. Done when every target exists in `apps/mobile/Monaco` or is a ticket gap to add.
+4. Run `scripts/qa/journey.py check`. Done when it exits 0.
+5. Open the doc for a person to review before building a test. Done when the reviewer has the doc.
+
 ## Build or update a journey's test
 
 1. Read the journey doc and every journey doc it `requires`. Done when you can list each scenario's step ids and each actor.

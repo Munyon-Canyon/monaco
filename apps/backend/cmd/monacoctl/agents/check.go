@@ -240,7 +240,23 @@ func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkR
 	if row, ok := env.xcodeRow(changed); ok {
 		rows = append(rows, row)
 	}
+	if journeyChanged(changed) {
+		rows = append(rows, checkRow{
+			label: "journeys", kind: "journeys", dir: env.Work,
+			cmds: [][]string{
+				{"python3", "scripts/qa/journey.py", "check"},
+				{"python3", "scripts/qa/test_journey.py"},
+				{"python3", "scripts/qa/test_skill_eval.py"},
+			},
+		})
+	}
 	return env.pathRows(ctx, rows, changed, parent, head)
+}
+
+func journeyChanged(changed []string) bool {
+	return slices.ContainsFunc(changed, func(file string) bool {
+		return underAny(file, []string{"apps/mobile/", "docs/journeys/", "apps/mobile/qa/", "scripts/qa/"})
+	})
 }
 
 func swiftChanged(changed []string) bool {

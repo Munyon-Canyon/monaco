@@ -18,6 +18,11 @@
       "prompt": "Logan added docs/journeys/cabal/create.md. Build the tests for it."
     },
     {
+      "id": "draft-journey-doc",
+      "should_trigger": true,
+      "prompt": "Draft the journey doc for the M10 create-cabal ticket."
+    },
+    {
       "id": "update-journeys-ticket",
       "should_trigger": true,
       "prompt": "Pick up the M10 'Update the journeys' ticket."

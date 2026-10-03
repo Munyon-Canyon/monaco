@@ -29,7 +29,7 @@ status=$?
 set -e
 
 if [[ $status -ne 0 ]]; then
-  error_line="$(awk '!/^with-dotenv-local:/ && !/^injected env/ { print; exit }' "$error_file")"
+  error_line="$(awk '!/^with-dotenv-local:/ && !/^⟐ injected env/ && !/^injected env/ { print; exit }' "$error_file")"
   [[ -n "$error_line" ]] && echo "$error_line" >&2
   echo "database cannot be reached" >&2
   exit 2
