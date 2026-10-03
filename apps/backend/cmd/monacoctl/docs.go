@@ -24,12 +24,10 @@ func docs(args []string, stdout, stderr io.Writer) int {
 		return 0
 	case slices.Equal(args, []string{"flows"}):
 		return docsFlows(os.DirFS("../.."), flows.Markdown, stdout, stderr)
-	case slices.Equal(args, []string{"flows", "--feature-map"}):
-		return docsFlows(os.DirFS("../.."), flows.FeatureMap, stdout, stderr)
 	case slices.Equal(args, []string{"logs"}):
 		return docsLogs(stdout, stderr)
 	default:
-		_, _ = fmt.Fprintln(stderr, "usage: monacoctl docs errors|events|flows [--feature-map]|logs")
+		_, _ = fmt.Fprintln(stderr, "usage: monacoctl docs errors|events|flows|logs")
 		return 2
 	}
 }

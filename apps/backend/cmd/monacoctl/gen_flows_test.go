@@ -168,6 +168,9 @@ func TestWriteFlowFiles_writesEveryFileAndPrunesStaleFlowFiles(t *testing.T) {
 	if want := []string{"Flow00OutcomeTests.gen.swift", "FlowOutcomeTests.swift"}; !slices.Equal(gotTests, want) {
 		t.Fatalf("test files = %q, want %q", gotTests, want)
 	}
+	if _, err := os.Stat(filepath.Join(root, featureMapDir, "99.md")); !os.IsNotExist(err) {
+		t.Fatalf("stale feature map page survived (%v)", err)
+	}
 	if body, err := fs.ReadFile(os.DirFS(root), scenarioManifest); err != nil || string(body) != "d\n" {
 		t.Fatalf("manifest = %q, %v", body, err)
 	}
@@ -248,7 +251,8 @@ func TestRunGenFlows(t *testing.T) {
 	}{
 		{
 			"writes the enums", nil,
-			0, "wrote 2 flow files to " + flowsSwiftDir + " and " + flowTestsSwiftDir + " and the " + scenarioManifest + " scenario block\n",
+			0, "wrote 3 flow files to " + flowsSwiftDir + ", " + flowTestsSwiftDir + " and " + featureMapDir +
+				" and the " + scenarioManifest + " scenario block\n",
 		},
 		{
 			"refuses a malformed flow file",
@@ -378,6 +382,7 @@ func TestRenderFlows_writesScenariosOnlyForBuiltFlowsInIDOrder(t *testing.T) {
 	}
 	slices.Sort(names)
 	want := []string{
+		"00.md", "01.md", "05.md", "23a.md",
 		"Flow00.gen.swift", "Flow00OutcomeTests.gen.swift", "Flow00Scenarios.gen.swift",
 		"Flow01.gen.swift", "Flow01OutcomeTests.gen.swift", "Flow05.gen.swift", "Flow05OutcomeTests.gen.swift",
 		"Flow23a.gen.swift", "Flow23aOutcomeTests.gen.swift", "Flow23aScenarios.gen.swift", "sample-screens.txt",

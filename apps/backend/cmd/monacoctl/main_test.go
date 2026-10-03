@@ -63,7 +63,6 @@ func TestMain_docsFlowsRendersTheRepoTSVFromTheBackendDir(t *testing.T) {
 		render func([]flows.Flow) string
 	}{
 		{[]string{"docs", "flows"}, flows.Markdown},
-		{[]string{"docs", "flows", "--feature-map"}, flows.FeatureMap},
 	} {
 		var want bytes.Buffer
 		if code := docsFlows(repo, tc.render, &want, io.Discard); code != 0 {
