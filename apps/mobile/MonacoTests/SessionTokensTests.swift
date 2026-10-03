@@ -96,5 +96,15 @@ struct SessionTokensTests {
         #expect(refreshed == nil)
         #expect(fired.withLock { $0 } == 0)
     }
+
+    @Test func endingAnOldTokenDoesNotSignOutTheCurrentSession() async {
+        let tokens = SessionTokens(privyToken: { "current" }, refresh: { _ in nil })
+        let fired = Mutex(0)
+        tokens.onSignedOut { fired.withLock { $0 += 1 } }
+
+        await tokens.endSession(rejectedToken: "old")
+
+        #expect(fired.withLock { $0 } == 0)
+    }
 }
 #endif

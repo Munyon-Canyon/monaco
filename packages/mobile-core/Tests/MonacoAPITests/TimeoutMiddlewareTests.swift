@@ -40,6 +40,16 @@ final class TimeoutMiddlewareTests: XCTestCase {
         XCTAssertTrue(submission.hasPendingKey, "a timed-out write keeps its key so the retry replays")
     }
 
+    func testASessionOpenTimesOutAt15SecondsWithoutAnIdempotencyKey() {
+        let request = HTTPRequest(
+            method: .post, scheme: "https", authority: "example.com", path: "/v1/auth/session"
+        )
+        XCTAssertEqual(
+            TimeoutMiddleware.budget(for: request, operationID: "postAuthSession"),
+            .seconds(15)
+        )
+    }
+
     func testAnAnswerInsideTheBudgetIsReturned() async throws {
         try await client(StubTransport.ok("ok\n"), clock: SkippingClock(skips: false)).healthz()
     }

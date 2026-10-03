@@ -45,6 +45,16 @@ nonisolated final class SessionTokens: AccessTokenProvider, Sendable {
         notifySignedOut()
     }
 
+    func endSession(rejectedToken: String) async {
+        #if DEBUG
+        if let dev = devSession.withLock({ $0 }) {
+            if dev.token == rejectedToken { notifySignedOut() }
+            return
+        }
+        #endif
+        if await privyToken() == rejectedToken { notifySignedOut() }
+    }
+
     func refreshedToken(replacing stale: String) async throws -> String? {
         #if DEBUG
         if let dev = devSession.withLock({ $0 }) {

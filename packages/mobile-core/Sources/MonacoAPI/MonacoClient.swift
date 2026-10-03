@@ -53,7 +53,7 @@ struct RefreshMiddleware: ClientMiddleware {
         retry.headerFields[.authorization] = Self.bearerPrefix + fresh
         let (retried, retriedBody) = try await next(retry, body, baseURL)
         guard retried.status != .unauthorized else {
-            await tokens.endSession()
+            await tokens.endSession(rejectedToken: fresh)
             throw APIError.signedOut
         }
         return (retried, retriedBody)
@@ -76,8 +76,8 @@ struct TimeoutMiddleware: ClientMiddleware {
         sleep = { try await clock.sleep(for: $0) }
     }
 
-    static func budget(for request: HTTPRequest) -> Duration {
-        request.headerFields[keyHeader] == nil ? read : keyedWrite
+    static func budget(for request: HTTPRequest, operationID: String) -> Duration {
+        return request.headerFields[keyHeader] == nil ? read : keyedWrite
     }
 
     func intercept(
@@ -87,7 +87,7 @@ struct TimeoutMiddleware: ClientMiddleware {
         operationID: String,
         next: @Sendable (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
     ) async throws -> (HTTPResponse, HTTPBody?) {
-        let budget = Self.budget(for: request)
+        let budget = Self.budget(for: request, operationID: operationID)
         return try await withoutActuallyEscaping(next) { next in
             try await withThrowingTaskGroup(of: (HTTPResponse, HTTPBody?).self) { group in
                 group.addTask { try await next(request, body, baseURL) }

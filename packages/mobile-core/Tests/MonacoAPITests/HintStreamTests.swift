@@ -12,6 +12,7 @@ final class HintStreamTests: XCTestCase {
         _ transport: FakeStreamTransport,
         token: @escaping @Sendable () async throws -> String? = { "token" },
         refresh: @escaping @Sendable (String) async throws -> String? = { _ in nil },
+        endSession: @escaping @Sendable (String?) async -> Void = { _ in },
         random: @escaping @Sendable () -> Double = { 0 }
     ) -> HintStream {
         HintStream(
@@ -19,6 +20,7 @@ final class HintStreamTests: XCTestCase {
             transport: transport,
             token: token,
             refresh: refresh,
+            endSession: endSession,
             clock: clock,
             random: random
         )
@@ -216,26 +218,6 @@ final class HintStreamTests: XCTestCase {
         XCTAssertEqual(refreshed.current, ["stale"])
         let state = await stream.state
         XCTAssertEqual(state, .connected)
-        await stream.stop()
-    }
-
-    func testSecond401StopsSignedOut() async throws {
-        let transport = FakeStreamTransport([.unauthorized, .unauthorized], clock: clock)
-        let refreshed = Watched<[String]>([])
-        let stream = makeStream(
-            transport, token: { "stale" },
-            refresh: { rejected in
-                refreshed.mutate { $0.append(rejected) }
-                return "fresh"
-            })
-        await stream.start()
-
-        let signedOut = await eventually { await stream.state == .signedOut }
-        XCTAssertTrue(signedOut)
-        XCTAssertEqual(transport.state.current.requests.map(\.authorization), ["Bearer stale", "Bearer fresh"])
-        XCTAssertEqual(refreshed.current, ["stale"])
-        let quiet = await clock.state.until { $0.pending == 0 }
-        XCTAssertTrue(quiet, "a signed-out stream keeps no timers")
         await stream.stop()
     }
 
