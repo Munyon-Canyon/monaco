@@ -56,6 +56,18 @@ WHERE c.status <> 'banned'
 ORDER BY member_count DESC, c.created_at DESC, c.id DESC
 LIMIT sqlc.arg(page_size)::int;
 
+-- name: ListMyCabals :many
+SELECT c.id, c.name, c.picture_url, m.role, m.can_vote, m.joined_at,
+  (SELECT count(*) FROM cabal_members cm WHERE cm.cabal_id = c.id)::int AS member_count,
+  CASE WHEN m.role = 'creator' AND c.join_mode = 'request' THEN
+    (SELECT count(*) FROM cabal_access_requests ar
+      WHERE ar.cabal_id = c.id AND ar.direction = 'request' AND ar.status = 'pending')::int
+  ELSE 0 END AS pending_request_count
+FROM cabal_members m
+JOIN cabals c ON c.id = m.cabal_id
+WHERE m.user_id = sqlc.arg(user_id)
+ORDER BY m.joined_at DESC, c.id DESC;
+
 -- name: UpdateCabal :execrows
 UPDATE cabals SET name = sqlc.arg(name), join_mode = sqlc.arg(join_mode), voter_mode = sqlc.arg(voter_mode),
   threshold = sqlc.arg(threshold), proposal_expiry_seconds = sqlc.arg(proposal_expiry_seconds),

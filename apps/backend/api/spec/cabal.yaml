@@ -86,6 +86,21 @@ paths:
               example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: null, my_access_request: null, invite_code: null, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/cabals:
+    get:
+      operationId: getMyCabals
+      tags: [cabal]
+      summary: List the caller's cabals.
+      description: Returns every cabal the caller belongs to, most recently joined first.
+      responses:
+        "200":
+          description: The caller's cabals.
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: "#/components/schemas/MyCabal"}}
+              example: [{id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, role: creator, can_vote: true, member_count: 3, joined_at: "2026-10-02T15:00:00Z", pending_request_count: 1}]
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/proposals/{id}/votes:
     post:
       operationId: postProposalVote
@@ -185,6 +200,20 @@ components:
         join_mode: {type: string, examples: [open]}
         is_member: {type: boolean}
         my_access_request_status: {type: [string, "null"], examples: [pending, null]}
+    MyCabal:
+      type: object
+      description: A cabal the caller belongs to.
+      additionalProperties: false
+      required: [id, name, picture_url, role, can_vote, member_count, joined_at, pending_request_count]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        picture_url: {type: [string, "null"]}
+        role: {type: string, examples: [creator]}
+        can_vote: {type: boolean}
+        member_count: {type: integer, format: int32}
+        joined_at: {type: string, format: date-time}
+        pending_request_count: {type: integer, format: int32}
     CabalRules:
       type: object
       description: How the cabal admits members and how it votes.

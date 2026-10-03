@@ -1030,6 +1030,20 @@ type Me struct {
 	XUsername *string `json:"x_username,omitempty"`
 }
 
+// MyCabal A cabal the caller belongs to.
+type MyCabal struct {
+	CanVote             bool               `json:"can_vote"`
+	Id                  openapi_types.UUID `json:"id"`
+	JoinedAt            time.Time          `json:"joined_at"`
+	MemberCount         int32              `json:"member_count"`
+	Name                string             `json:"name"`
+	PendingRequestCount int32              `json:"pending_request_count"`
+	PictureUrl          *string            `json:"picture_url"`
+
+	// Role Examples: creator
+	Role string `json:"role"`
+}
+
 // MyReferralCode The caller's invite code and the links that carry it.
 //
 // Examples: {"code":"k7m4qx2p","handle_link":"https://monacolabs.xyz/r/kaicenat","handle_unlocked":true,"link":"https://monacolabs.xyz/r/k7m4qx2p"}
@@ -1308,6 +1322,9 @@ type ServerInterface interface {
 	// GetMe Read the signed-in user's account.
 	// (GET /v1/me)
 	GetMe(w http.ResponseWriter, r *http.Request)
+	// GetMyCabals List the caller's cabals.
+	// (GET /v1/me/cabals)
+	GetMyCabals(w http.ResponseWriter, r *http.Request)
 	// GetMyReferralCode Read the caller's invite code and links.
 	// (GET /v1/me/referral-code)
 	GetMyReferralCode(w http.ResponseWriter, r *http.Request)
@@ -1736,6 +1753,20 @@ func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request)
 	handler.ServeHTTP(w, r)
 }
 
+// GetMyCabals operation middleware
+func (siw *ServerInterfaceWrapper) GetMyCabals(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMyCabals(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMyReferralCode operation middleware
 func (siw *ServerInterfaceWrapper) GetMyReferralCode(w http.ResponseWriter, r *http.Request) {
 
@@ -2154,6 +2185,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/devices/{token}", wrapper.DeleteDevice)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/handles/{handle}/availability", wrapper.GetHandleAvailability)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me", wrapper.GetMe)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/cabals", wrapper.GetMyCabals)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/referral-code", wrapper.GetMyReferralCode)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.PostProposalVote)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/stream", wrapper.GetStream)
@@ -2543,6 +2575,44 @@ func (response GetMedefaultApplicationProblemPlusJSONResponse) VisitGetMeRespons
 	return err
 }
 
+type GetMyCabalsRequestObject struct {
+}
+
+type GetMyCabalsResponseObject interface {
+	VisitGetMyCabalsResponse(w http.ResponseWriter) error
+}
+
+type GetMyCabals200JSONResponse []MyCabal
+
+func (response GetMyCabals200JSONResponse) VisitGetMyCabalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyCabalsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetMyCabalsdefaultApplicationProblemPlusJSONResponse) VisitGetMyCabalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMyReferralCodeRequestObject struct {
 }
 
@@ -2882,6 +2952,9 @@ type StrictServerInterface interface {
 	// GetMe Read the signed-in user's account.
 	// (GET /v1/me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
+	// GetMyCabals List the caller's cabals.
+	// (GET /v1/me/cabals)
+	GetMyCabals(ctx context.Context, request GetMyCabalsRequestObject) (GetMyCabalsResponseObject, error)
 	// GetMyReferralCode Read the caller's invite code and links.
 	// (GET /v1/me/referral-code)
 	GetMyReferralCode(ctx context.Context, request GetMyReferralCodeRequestObject) (GetMyReferralCodeResponseObject, error)
@@ -3208,6 +3281,30 @@ func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMeResponseObject); ok {
 		if err := validResponse.VisitGetMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMyCabals operation middleware
+func (sh *strictHandler) GetMyCabals(w http.ResponseWriter, r *http.Request) {
+	var request GetMyCabalsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMyCabals(ctx, request.(GetMyCabalsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMyCabals")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMyCabalsResponseObject); ok {
+		if err := validResponse.VisitGetMyCabalsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
