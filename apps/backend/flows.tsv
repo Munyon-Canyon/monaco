@@ -5,3 +5,5 @@ id	flow	module	trigger	command	events	consumers	outcomes	status	doc
 10	Vote / tally	governance	POST /v1/proposals/{id}/votes	CastVote	proposal.passed;proposal.failed;proposal.expired		ok;Unauthorized;ProposalNotFound;NotAVoter;ProposalClosed;crash:after-publish	built	docs/architecture/proposals.md#vote-path
 18	Prices	market	poller:market.prices	SamplePrices	price.tick;asset.price_moved		ok;JupiterUnavailable;UpstreamTimeout;crash:before-commit	planned	docs/architecture/price-history.md#writer-1-live-sampler
 20	Follow / unfollow	social	POST /v1/users/{id}/follow	Follow	follow.created;follow.removed		ok;CannotFollowSelf;UserNotFound;UserBanned;Unauthorized;crash:before-commit	built	docs/architecture/followers.md#writes
+23	Profile edit	identity	PATCH /v1/me	UpdateProfile	user.profile_updated		ok;DisplayNameInvalid	built	docs/architecture/backend-platform.md#flows
+23a	Profile photo	identity	POST /v1/me/profile-photo	UploadProfilePhoto	user.profile_updated		ok;PhotoInvalid;StorageUnavailable;RateLimited	built	docs/architecture/backend-platform.md#flows

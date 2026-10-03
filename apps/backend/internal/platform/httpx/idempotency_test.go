@@ -1,8 +1,10 @@
 package httpx
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -553,6 +555,54 @@ func TestIdempotency_anonymousCallersNeverShareAKey(t *testing.T) {
 	}
 	if next.calls.Load() != 4 {
 		t.Fatalf("handler ran %d times, want 4: the same body under two credentials is two requests", next.calls.Load())
+	}
+}
+
+func TestRequestHash_ignoresMultipartBoundaries(t *testing.T) {
+	t.Parallel()
+	form := func(t *testing.T) (*http.Request, []byte) {
+		t.Helper()
+		var body bytes.Buffer
+		writer := multipart.NewWriter(&body)
+		part, err := writer.CreateFormFile("photo", "avatar.png")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := part.Write([]byte("photo")); err != nil {
+			t.Fatal(err)
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatal(err)
+		}
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/me/profile-photo", nil)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		return req, body.Bytes()
+	}
+	firstRequest, firstBody := form(t)
+	secondRequest, secondBody := form(t)
+	got, want := requestHash(firstRequest, firstBody), requestHash(secondRequest, secondBody)
+	if !bytes.Equal(got, want) {
+		t.Fatalf("multipart hashes differ: %x and %x", got, want)
+	}
+}
+
+func TestIdempotencyBody_keepsMalformedMultipartBytes(t *testing.T) {
+	t.Parallel()
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/me/profile-photo", nil)
+	request.Header.Set("Content-Type", "multipart/form-data; boundary=b")
+	body := []byte("--b\r\nnot-a-header\r\n\r\nphoto")
+	if got := idempotencyBody(request, body); !bytes.Equal(got, body) {
+		t.Fatalf("malformed multipart body = %q, want original %q", got, body)
+	}
+}
+
+func TestIdempotencyBody_keepsIncompletePartBytes(t *testing.T) {
+	t.Parallel()
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/me/profile-photo", nil)
+	request.Header.Set("Content-Type", "multipart/form-data; boundary=b")
+	body := []byte("--b\r\nContent-Disposition: form-data; name=\"photo\"\r\n\r\nphoto")
+	if got := idempotencyBody(request, body); !bytes.Equal(got, body) {
+		t.Fatalf("incomplete multipart body = %q, want original %q", got, body)
 	}
 }
 

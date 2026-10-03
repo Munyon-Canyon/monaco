@@ -4,10 +4,14 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"io"
 	"log/slog"
 	"maps"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"time"
 
@@ -90,8 +94,34 @@ func actorKeyFrom(ctx context.Context, requestHash []byte, authorization string)
 func requestHash(r *http.Request, body []byte) []byte {
 	h := sha256.New()
 	_, _ = io.WriteString(h, r.Method+"\n"+r.URL.RequestURI()+"\n")
-	_, _ = h.Write(body)
+	_, _ = h.Write(idempotencyBody(r, body))
 	return h.Sum(nil)
+}
+
+func idempotencyBody(r *http.Request, body []byte) []byte {
+	mediaType, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "multipart/form-data" || params["boundary"] == "" {
+		return body
+	}
+	var canonical bytes.Buffer
+	reader := multipart.NewReader(bytes.NewReader(body), params["boundary"])
+	for {
+		part, err := reader.NextPart()
+		if errors.Is(err, io.EOF) {
+			return canonical.Bytes()
+		}
+		if err != nil {
+			return body
+		}
+		partBody, err := io.ReadAll(part)
+		if err != nil {
+			return body
+		}
+		_ = binary.Write(&canonical, binary.BigEndian, uint64(len(part.FormName())))
+		_, _ = io.WriteString(&canonical, part.FormName())
+		_ = binary.Write(&canonical, binary.BigEndian, uint64(len(partBody)))
+		_, _ = canonical.Write(partBody)
+	}
 }
 
 type claimed struct {
