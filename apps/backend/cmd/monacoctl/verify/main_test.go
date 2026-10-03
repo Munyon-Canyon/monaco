@@ -14,13 +14,27 @@ import (
 	"testing"
 	"time"
 
+	openapi "github.com/monaco/monaco/apps/backend/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
-var dispatcher string
+var (
+	dispatcher string
+	contract   *httpx.Contract
+)
 
 func TestMain(m *testing.M) {
-	testkit.Main(m, testkit.WithChild(fakeMain), testkit.WithNATS(), testkit.WithSetup(writeDispatcher))
+	testkit.Main(m, testkit.WithChild(fakeMain), testkit.WithNATS(), testkit.WithSetup(setup))
+}
+
+func setup() (func(), error) {
+	var err error
+	if contract, err = scenario.LoadContract(openapi.Spec); err != nil {
+		return nil, err
+	}
+	return writeDispatcher()
 }
 
 func writeDispatcher() (func(), error) {
