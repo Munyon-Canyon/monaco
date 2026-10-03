@@ -1,7 +1,7 @@
 ---
 id: auth/sign-in
 title: Sign in
-version: 2
+version: 3
 milestone: M9
 requires: []
 actors: [A]
@@ -19,9 +19,9 @@ The format of this doc is in [App journeys](../README.md).
 
 | Id | What must be true |
 | --- | --- |
-| P1 | The app is installed from a Debug build and shows the login form. A test that finds a saved session signs out first with S3 |
-| P2 | Actors A to C use the Privy test logins in `apps/mobile/qa/journeys/accounts.tsv` |
-| P3 | The simulator can reach `auth.privy.io`, and the local backend is running (`just migrate db`, then `just run backend`) and answers `GET http://127.0.0.1:8080/healthz` |
+| P1 | The app is installed from a Debug build and shows the login form. A test that finds a saved session signs out first: with S3 from the tab bar, or with `onboarding-sign-out` from the name screen |
+| P2 | Actors A to C use the Privy test logins in `apps/mobile/qa/journeys/accounts.tsv`, with the name each enters on a first sign-in. On a fresh backend database the account has no display name yet, so S1.5 enters it |
+| P3 | The simulator can reach `auth.privy.io`. The dev database is migrated (`just migrate db`). `journey.py` starts the local backend, which answers `GET http://127.0.0.1:8080/healthz` |
 
 The channel is text message unless the run sets `MONACO_QA_CHANNEL=email`. For email, read `sms` as `email` in every identifier, `smsPhoneField` as `emailAddressField`, and `{A.phone}` as `{A.email}`.
 
@@ -34,7 +34,9 @@ The channel is text message unless the run sets `MONACO_QA_CHANNEL=email`. For e
 | S1.1 | tap, only when the field is not already showing | "Text message" in the Sign-in method control | | `smsPhoneField` shows within 5 s |
 | S1.2 | type, then tap | `smsPhoneField`, then `smsSendCodeButton` | `{A.phone}` | The button reads "Send code" and is enabled before the tap |
 | S1.3 | type | `smsCodeField` | `{A.code}` | The field shows within 20 s of S1.2. The sixth digit submits the code. Continue (`smsVerifyButton`) is not tapped |
-| S1.4 | wait | the session-opening screen, then the tab bar | | The backend session opens. Home, Feed, Cabals, Stocks and Profile tabs show within 30 s, and `smsCodeField` is gone |
+| S1.4 | wait | the session-opening screen, then the tab bar, or the name screen (`onboarding-name-field`) on the account's first sign-in | | The backend session opens. One of them shows within 30 s, and `smsCodeField` is gone |
+| S1.5 | type, then tap, only when the name screen shows | `onboarding-name-field`, then `onboarding-continue` | `{A.name}` | The tab bar shows within 30 s |
+| S1.6 | wait | the tab bar | | Home, Feed, Cabals, Stocks and Profile tabs show |
 
 ### S2 The session survives a relaunch
 

@@ -1,6 +1,6 @@
 # The login each actor uses in a journey run. These are the Privy test logins from the README:
 # fixed codes, no real phone or inbox, safe to keep in git. scripts/qa/journey.py passes a row
-# to a test as MONACO_QA_<actor>_PHONE, _EMAIL and _CODE. Export those to use another login.
+# to a test as MONACO_QA_<actor>_PHONE, _EMAIL, _CODE and _NAME. Export those to use another login.
 actor	name	phone	email	code	privy_user_id
 A	Alfred	5555557177	test-8081@privy.io	465354	did:privy:cmu2ov1gm006v0cjv4wbasi80
 B	Bartholomez	5555559638	test-4952@privy.io	648588
