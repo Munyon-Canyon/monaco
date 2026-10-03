@@ -9,6 +9,10 @@ verifier_installation = 166018497
 milestone = "m8"
 # Adding this label to a PR queues it in the Graphite merge queue; removing it dequeues it.
 queue_label = "merge-queue"
+# Graphite's merge queue concurrency, the most queue drafts it runs at once. With that many gtmq_ drafts open,
+# land-stack and watch print "waiting for a Graphite queue slot" instead of "run land-stack again". Unset means
+# unknown. Three drafts ran at once on 2026-10-03, so the setting is at least 3.
+queue_concurrency = 3
 
 [batch]
 # The most tickets one batch admits.

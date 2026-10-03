@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -25,18 +26,34 @@ const (
 	Exited  State = "exited"
 )
 
+type Outcome string
+
+const (
+	outcomeLanded  Outcome = "landed"
+	outcomeEjected Outcome = "ejected"
+)
+
+type Settlement struct {
+	Top     int       `json:"top"`
+	PRs     []int     `json:"prs"`
+	Outcome Outcome   `json:"outcome"`
+	Detail  string    `json:"detail"`
+	At      time.Time `json:"at"`
+}
+
 type Record struct {
-	Ticket   int       `json:"ticket"`
-	Model    string    `json:"model"`
-	Worktree string    `json:"worktree"`
-	Branch   string    `json:"branch,omitempty"`
-	Base     string    `json:"base"`
-	State    State     `json:"state"`
-	AgentID  string    `json:"agent_id,omitempty"`
-	Queued   *Queue    `json:"queued,omitempty"`
-	Armed    *Arm      `json:"armed,omitempty"`
-	Started  time.Time `json:"started"`
-	Changed  time.Time `json:"changed"`
+	Ticket   int         `json:"ticket"`
+	Model    string      `json:"model"`
+	Worktree string      `json:"worktree"`
+	Branch   string      `json:"branch,omitempty"`
+	Base     string      `json:"base"`
+	State    State       `json:"state"`
+	AgentID  string      `json:"agent_id,omitempty"`
+	Queued   *Queue      `json:"queued,omitempty"`
+	Armed    *Arm        `json:"armed,omitempty"`
+	Settled  *Settlement `json:"settled,omitempty"`
+	Started  time.Time   `json:"started"`
+	Changed  time.Time   `json:"changed"`
 }
 
 func noRecord(ticket int) error {
@@ -74,9 +91,34 @@ func (env *Env) localRecord(ticket int) (Record, error) {
 	return r, nil
 }
 
+func jsonKeys(t reflect.Type) map[string]bool {
+	keys := map[string]bool{}
+	for i := range t.NumField() {
+		name, _, _ := strings.Cut(t.Field(i).Tag.Get("json"), ",")
+		keys[name] = true
+	}
+	return keys
+}
+
+func jsonKeepingUnknownKeys(path string, r Record) []byte {
+	out := map[string]json.RawMessage{}
+	if old, err := os.ReadFile(path); err == nil && json.Unmarshal(old, &out) == nil {
+		recordKeys := jsonKeys(reflect.TypeFor[Record]())
+		for k := range out {
+			if recordKeys[k] {
+				delete(out, k)
+			}
+		}
+	}
+	known, _ := json.Marshal(r)
+	_ = json.Unmarshal(known, &out)
+	data, _ := json.MarshalIndent(out, "", "  ")
+	return data
+}
+
 func (env *Env) saveRecord(r Record) error {
-	data, _ := json.MarshalIndent(r, "", "  ")
 	path := env.recordPath(r.Ticket)
+	data := jsonKeepingUnknownKeys(path, r)
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return fmt.Errorf("write owner record: %w", err)
 	}

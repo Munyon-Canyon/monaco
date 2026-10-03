@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -288,5 +289,36 @@ func TestNewestPerWorkflow_breaksCreatedAtTiesById(t *testing.T) {
 	got := newestPerWorkflow([]Run{{ID: 5, WorkflowID: 1, CreatedAt: at}, {ID: 6, WorkflowID: 1, CreatedAt: at}})
 	if len(got) != 1 || got[0].ID != 6 {
 		t.Fatalf("%v", got)
+	}
+}
+
+func TestLandStack_waitsForAQueueSlotWhenGraphiteRunsItsMostDrafts(t *testing.T) {
+	t.Parallel()
+	drafts := []PR{
+		{Title: "[Graphite MQ] Draft PR GROUP:a (PRs 5)", Head: Ref{Ref: "gtmq_a"}},
+		{Title: "[Graphite MQ] Draft PR GROUP:b (PRs 6)", Head: Ref{Ref: "gtmq_b"}},
+		{Title: "[Graphite MQ] Draft PR GROUP:c (PRs 7)", Head: Ref{Ref: "gtmq_c"}},
+		{Title: "unrelated", Head: Ref{Ref: "feature"}},
+	}
+	for _, tc := range []struct {
+		name, config, want string
+	}{
+		{"the concurrency is unknown", "", "waiting for a Graphite queue slot (3 drafts open)\n"},
+		{"the queue is full", "queue_concurrency = 3\n", "waiting for a Graphite queue slot (3 drafts open)\n"},
+		{"the queue has room", "queue_concurrency = 4\n", "no Graphite draft holds #1 after 3m0s"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			writeFile(t, filepath.Join(f.dir, configPath), tc.config+testConfig)
+			newStackGH(t, f, green(t, 1, "b1", "fb"))
+			f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+			f.hub.on(list("/pulls?state=open"), drafts)
+			_, stdout, stderr := f.agents(t, "land-stack", "1")
+			if !strings.Contains(stdout, tc.want) || tc.config != "queue_concurrency = 4\n" &&
+				strings.Contains(stdout, "run land-stack again") {
+				t.Fatalf("%q %q", stdout, stderr)
+			}
+		})
 	}
 }

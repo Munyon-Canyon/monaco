@@ -286,6 +286,17 @@ func TestLandStack_labelsEveryPRBottomToTopAndKeepsTheirBases(t *testing.T) {
 	}
 }
 
+func TestLandStack_queueingAgainClearsTheLastSettlement(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	newStackGH(t, f, green(t, 1, "b1", "fb"))
+	last := &Settlement{Top: 1, PRs: []int{1}, Outcome: outcomeEjected, Detail: "stack #1 ejected", At: f.now}
+	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done, Settled: last})
+	if code, stdout, stderr := f.agents(t, "land-stack", "1"); code != 0 || f.owned(t).Settled != nil {
+		t.Fatalf("%d %q %q %+v", code, stdout, stderr, f.owned(t).Settled)
+	}
+}
+
 func pagedStack(t *testing.T, n int, head, base string, first ...string) *stackPR {
 	t.Helper()
 	raw := fmt.Sprintf(`{"number":%d,"state":"OPEN","baseRefName":%q,"headRefName":%q,`+
@@ -941,6 +952,12 @@ func TestWatch_clearsTheQueuedMarkOfAnEjectedStack(t *testing.T) {
 	if calls := s.lines(); len(calls) != 0 {
 		t.Fatalf("watch ran %v", calls)
 	}
+	if s.prs[1].labeled("merge-queue") || s.prs[3].labeled("merge-queue") || !s.prs[5].labeled("merge-queue") {
+		t.Fatalf("labels after the ejection: #1 %v, #3 %v, #5 %v", s.prs[1].Labels, s.prs[3].Labels, s.prs[5].Labels)
+	}
+	if r := f.owned(t).Settled; r == nil || r.Detail != "stack #3 ejected: #2 left the Graphite merge queue" {
+		t.Fatalf("settled %+v", r)
+	}
 	if got := posted(t, f, "POST /repos/o/r/issues/40/comments"); !strings.Contains(got, `"queued":null`) {
 		t.Fatalf("published %q", got)
 	}
@@ -964,6 +981,20 @@ func TestWatch_unqueueFailures(t *testing.T) {
 		delete(f.hub.routes, graphqlRoute)
 		if code, _, stderr := f.agents(t, "watch", "--once"); code != 1 || !strings.Contains(stderr, "/graphql") {
 			t.Fatalf("%d %q", code, stderr)
+		}
+	})
+	t.Run("Graphite keeps holding part of the stack", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		ejectedStack(t, f)
+		f.hub.on(
+			graphqlRoute,
+			draftData([]string{queueDraftNode(90, "[Graphite MQ] Draft PR GROUP:x (PRs 1)", noRollup)}),
+		)
+		code, stdout, stderr := f.agents(t, "watch", "--once")
+		if code != 1 || !strings.Contains(stderr, "Graphite still holds #3") || strings.Contains(stdout, "unqueued") ||
+			f.owned(t).Queued == nil {
+			t.Fatalf("%d %q %q queued %+v", code, stdout, stderr, f.owned(t).Queued)
 		}
 	})
 	t.Run("the record cannot be written", func(t *testing.T) {

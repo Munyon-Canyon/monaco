@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -96,6 +97,10 @@ func (d queueDraft) runs(pr int, since time.Time) bool {
 	return d.State != "OPEN" && d.UpdatedAt.After(since) && d.tests(pr)
 }
 
+func draftHolds(drafts []queueDraft, pr int) bool {
+	return slices.ContainsFunc(drafts, func(d queueDraft) bool { return d.State == "OPEN" && d.tests(pr) })
+}
+
 func (d queueDraft) tests(pr int) bool {
 	return strings.HasPrefix(d.HeadRefName, draftPrefix) && (mentions(d.Title, pr) || mentions(d.Body, pr))
 }
@@ -170,7 +175,7 @@ func failures(prs []watchPR, queue queueRuns, trunk string, since time.Time) []f
 
 func (p watchPR) failure(queue queueRuns, since time.Time) (failure, bool) {
 	f := failure{PR: p.Number, Head: p.HeadRefOid, Body: p.Body}
-	if p.droppedByGraphite(queue.label, since) {
+	if p.droppedByGraphite(queue.label, since) && !draftHolds(queue.drafts, p.Number) {
 		f.Why, f.Job = droppedWhy, p.queueJob(queue.drafts, since)
 		return f, true
 	}

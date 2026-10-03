@@ -30,6 +30,9 @@ func streamRounds(t *testing.T, f *fixture, rounds int, between func(round int))
 	defer cancel()
 	n := 0
 	env.After = func(d time.Duration) <-chan time.Time {
+		if d == dequeueEvery {
+			return f.after(d)
+		}
 		if d != time.Minute {
 			t.Errorf("waited %s between rounds", d)
 		}
@@ -149,6 +152,9 @@ func TestWatchStream_ejectsAStackOnlyAfterTwoRoundsWithoutTheLabel(t *testing.T)
 			}
 			if !strings.HasPrefix(got, "#1 queued\n#2 queued\n#2 ejected\n") {
 				t.Fatalf("stream:\n%s", got)
+			}
+			if tc.ejected && (s.prs[1].labeled("merge-queue") || s.prs[2].labeled("merge-queue")) {
+				t.Fatalf("an ejected stack kept the label: #1 %v, #2 %v", s.prs[1].Labels, s.prs[2].Labels)
 			}
 		})
 	}
@@ -316,14 +322,14 @@ func TestWatchStream_reportsAFailedSettleOrUnmark(t *testing.T) {
 			t.Fatalf("stream:\n%s", got)
 		}
 	})
-	t.Run("unmark", func(t *testing.T) {
+	t.Run("an ejected stack whose record cannot be written", func(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t)
 		s := queuedStack(t, f, "/w/40")
 		s.prs[2].Labels.Nodes = nil
 		freeze(t, f.Env(t).recordPath(40))
 		got := streamRounds(t, f, 2, func(int) {})
-		if !strings.Contains(got, "watch error: unmark #2: ") || strings.Contains(got, "stack #2 ejected") {
+		if !strings.Contains(got, "watch error: eject #2: ") || strings.Contains(got, "stack #2 ejected") {
 			t.Fatalf("stream:\n%s", got)
 		}
 	})
@@ -485,4 +491,82 @@ func TestArm_failures(t *testing.T) {
 			t.Fatalf("%v %q", err, out.String())
 		}
 	})
+}
+
+func TestWatchStream_everyStreamReportsAStackThatAnotherStreamSettled(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		line string
+		end  func(s *stackGH)
+	}{
+		{"landed", "stack #2 landed (#1 #2)", func(s *stackGH) { s.prs[1].State, s.prs[2].State = "MERGED", "CLOSED" }},
+		{"ejected", "stack #2 ejected: #2 left the Graphite merge queue", func(s *stackGH) { s.prs[2].Labels.Nodes = nil }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			s := queuedStack(t, f, t.TempDir())
+			f.hub.on(get("/compare/fb...b2-oid"), `{"status":"identical"}`)
+			a, b := newStream(f.Env(t)), newStream(f.Env(t))
+			a.next(t.Context())
+			b.next(t.Context())
+			tc.end(s)
+			settled, other := make([]string, 0, 16), make([]string, 0, 16)
+			for range 3 {
+				f.now = f.now.Add(time.Minute)
+				settled = append(settled, a.next(t.Context())...)
+				other = append(other, b.next(t.Context())...)
+			}
+			if f.owned(t).Queued != nil || f.owned(t).Settled == nil {
+				t.Fatalf("record %+v", f.owned(t))
+			}
+			if n := slices.Index(settled, tc.line); n < 0 || slices.Contains(settled[n+1:], tc.line) {
+				t.Fatalf("settling stream: %q", settled)
+			}
+			if n := slices.Index(other, tc.line); n < 0 || slices.Contains(other[n+1:], tc.line) {
+				t.Fatalf("other stream: %q", other)
+			}
+		})
+	}
+}
+
+func TestWatchStream_aStreamStartedAfterASettlementPrintsNothingForIt(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	settled := &Settlement{
+		Top: 2, PRs: []int{1, 2}, Outcome: outcomeLanded, Detail: "stack #2 landed (#1 #2)",
+		At: f.now.Add(-time.Second),
+	}
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: "/w/40", Settled: settled})
+	f.noFailures()
+	s := newStream(f.Env(t))
+	f.now = f.now.Add(time.Minute)
+	if got := append(s.next(t.Context()), s.next(t.Context())...); slices.Contains(got, settled.Detail) {
+		t.Fatalf("stream: %q", got)
+	}
+}
+
+func TestWatchStream_aDroppedLabelIsNotReportedWhileAnOpenDraftListsThePR(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: "/w/40"})
+	node := watchNode(7, "fb", rollup(greenOK), dropped(f.now.Add(time.Minute)))
+	draft := queueDraftNode(90, "[Graphite MQ] Draft PR GROUP:spec_1 (PRs 7)", rollup(greenOK))
+	f.hub.on(graphqlRoute, draftData([]string{draft}, node))
+	s := newStream(f.Env(t))
+	f.now = f.now.Add(2 * time.Minute)
+	if got := strings.Join(s.next(t.Context()), "\n"); strings.Contains(got, "#7 dropped") {
+		t.Fatalf("stream:\n%s", got)
+	}
+	f.hub.on(graphqlRoute, draftData([]string{strings.Replace(draft, `"OPEN"`, `"CLOSED"`, 1)}, node))
+	if got := strings.Join(
+		s.next(t.Context()),
+		"\n",
+	); !strings.Contains(
+		got,
+		"#7 dropped from the Graphite merge queue",
+	) {
+		t.Fatalf("no drop once the draft closed:\n%s", got)
+	}
 }
