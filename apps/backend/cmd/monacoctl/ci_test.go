@@ -165,6 +165,7 @@ func TestReverseDepsSeedsNonGoFilesFromTheirPackage(t *testing.T) {
 		"internal/modules/cabal":      pkg("internal/modules/cabal", "internal/modules/cabal/sqlc"),
 		"internal/platform/db/sqlc":   pkg("internal/platform/db/sqlc"),
 		"internal/tools/flows":        pkg("internal/tools/flows"),
+		"internal/testkit/flows":      pkg("internal/testkit/flows"),
 		"cmd/monacoctl":               pkg("cmd/monacoctl"),
 		"cmd/monacoctl/agents":        pkg("cmd/monacoctl/agents"),
 		"cmd/monacoctl/verify":        pkg("cmd/monacoctl/verify"),
@@ -198,7 +199,7 @@ func TestReverseDepsSeedsNonGoFilesFromTheirPackage(t *testing.T) {
 			[]string{"flows.tsv"},
 			[]string{
 				"./cmd/monacoctl", "./cmd/monacoctl/agents", "./cmd/monacoctl/verify",
-				"./internal/tools/flows", "./internal/tools/gen",
+				"./internal/testkit/flows", "./internal/tools/flows", "./internal/tools/gen",
 			},
 		},
 		{"mixed seeds union", []string{"leaf/x.go", "api/openapi.yaml"}, []string{"./api", "./app", "./leaf"}},
