@@ -1,7 +1,6 @@
 import Foundation
 import HTTPTypes
 import MonacoAPI
-import MonacoTestSupport
 import Testing
 
 import enum MonacoCore.LoginFailureCopy
