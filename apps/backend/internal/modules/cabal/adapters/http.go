@@ -35,6 +35,7 @@ type HTTP struct {
 	Update  *app.UpdateCabalHandler
 	Picture *app.SetCabalPictureHandler
 	Leave   *app.LeaveCabalHandler
+	Invite  *app.InviteMemberHandler
 	DB      sqlc.DBTX
 	Users   app.UserCards
 	Clock   clock.Clock
@@ -428,6 +429,25 @@ func (h HTTP) GetCabalAccessRequests(
 		items = append(items, api.CabalAccessRequest{Id: p.ID, User: wirePerson(p.User), CreatedAt: p.CreatedAt})
 	}
 	return api.GetCabalAccessRequests200JSONResponse(items), nil
+}
+
+func (h HTTP) PostCabalInvite(
+	ctx context.Context, req api.PostCabalInviteRequestObject,
+) (api.PostCabalInviteResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.Body == nil || strings.TrimSpace(req.Body.Handle) == "" {
+		return nil, errs.New(errs.CodeInvalidInput, "cabal.PostCabalInvite", slog.String("reason", "handle"))
+	}
+	sent, err := h.Invite.Handle(ctx, app.InviteMember{
+		ActorID: user, CabalID: ids.CabalIDFrom(req.Id), Handle: strings.TrimSpace(req.Body.Handle),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return api.PostCabalInvite201JSONResponse(wireAccessValue(sent)), nil
 }
 
 func (h HTTP) GetCabalInvites(

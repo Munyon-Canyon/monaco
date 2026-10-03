@@ -275,14 +275,16 @@ func (q *Queries) LockCabalExclusive(ctx context.Context, id uuid.UUID) (uuid.UU
 
 const lockCabalForAccess = `-- name: LockCabalForAccess :one
 SELECT c.creator_id, c.join_mode, c.voter_mode, c.threshold, c.proposal_expiry_seconds, c.slippage_bps, c.status,
-  EXISTS (SELECT 1 FROM cabal_members m WHERE m.cabal_id = c.id AND m.user_id = $1) AS is_member
+  ARRAY(
+    SELECT m.user_id FROM cabal_members m WHERE m.cabal_id = c.id AND m.user_id = ANY($1::uuid[])
+  )::uuid[] AS member_ids
 FROM cabals c
 WHERE c.id = $2
 FOR SHARE OF c
 `
 
 type LockCabalForAccessParams struct {
-	UserID  uuid.UUID
+	UserIds []uuid.UUID
 	CabalID uuid.UUID
 }
 
@@ -294,11 +296,11 @@ type LockCabalForAccessRow struct {
 	ProposalExpirySeconds int32
 	SlippageBps           int32
 	Status                string
-	IsMember              bool
+	MemberIds             []uuid.UUID
 }
 
 func (q *Queries) LockCabalForAccess(ctx context.Context, arg LockCabalForAccessParams) (LockCabalForAccessRow, error) {
-	row := q.db.QueryRow(ctx, lockCabalForAccess, arg.UserID, arg.CabalID)
+	row := q.db.QueryRow(ctx, lockCabalForAccess, arg.UserIds, arg.CabalID)
 	var i LockCabalForAccessRow
 	err := row.Scan(
 		&i.CreatorID,
@@ -308,7 +310,7 @@ func (q *Queries) LockCabalForAccess(ctx context.Context, arg LockCabalForAccess
 		&i.ProposalExpirySeconds,
 		&i.SlippageBps,
 		&i.Status,
-		&i.IsMember,
+		&i.MemberIds,
 	)
 	return i, err
 }

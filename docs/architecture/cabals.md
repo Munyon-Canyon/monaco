@@ -66,7 +66,7 @@ There is exactly one creator per cabal, and the role never moves. There is no ad
 - A denied or revoked user can request again, which inserts a new row.
 - `JoinCabal` on a `request` cabal is refused with `JoinNeedsRequest`, and `RequestAccess` on an `open` cabal with `RequestNotNeeded`, so the app always calls the command that matches the mode it read.
 - `DecideAccess` approves or denies. It refuses an approval into a banned cabal with `CabalBanned` and an invite past `expires_at` with `InviteExpired`. The guarded update `WHERE status = 'pending'` lets one of two concurrent decisions win; the other gets `AccessRequestNotPending`.
-- The `cabal_hints` consumer publishes `cabal.<id>.members` and `user.<user_id>.cabal_access` for `cabal.member_joined` and `cabal.access_decided`, and `cabal.<id>.access_requests` for `cabal.access_requested` and `cabal.access_decided`. The api's SSE hub rescopes a phone to its new cabals when it routes `user.<user_id>.cabal_access`.
+- The `cabal_hints` consumer publishes `cabal.<id>.members` and `user.<user_id>.cabal_access` for `cabal.member_joined` and `cabal.access_decided`, and `cabal.<id>.access_requests` for `cabal.access_requested` and `cabal.access_decided` on a request. On an invite it publishes `user.<invitee>.cabal_invites` in place of `cabal.<id>.access_requests`. The api's SSE hub rescopes a phone to its new cabals when it routes `user.<user_id>.cabal_access`.
 - A member calling `JoinCabal` or `RequestAccess` is refused with `AlreadyMember`. A banned cabal refuses both with `CabalBanned`.
 - `GET /v1/invite-codes/{code}` resolves a pasted invite code to the cabal's id, name, picture, `join_mode` and member count, so the app can run the path for that mode.
 

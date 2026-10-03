@@ -14,7 +14,9 @@ SELECT id FROM cabals WHERE id = $1 FOR NO KEY UPDATE;
 
 -- name: LockCabalForAccess :one
 SELECT c.creator_id, c.join_mode, c.voter_mode, c.threshold, c.proposal_expiry_seconds, c.slippage_bps, c.status,
-  EXISTS (SELECT 1 FROM cabal_members m WHERE m.cabal_id = c.id AND m.user_id = sqlc.arg(user_id)) AS is_member
+  ARRAY(
+    SELECT m.user_id FROM cabal_members m WHERE m.cabal_id = c.id AND m.user_id = ANY(sqlc.arg(user_ids)::uuid[])
+  )::uuid[] AS member_ids
 FROM cabals c
 WHERE c.id = sqlc.arg(cabal_id)
 FOR SHARE OF c;

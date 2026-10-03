@@ -67,7 +67,7 @@ func TestHints_publishMembershipAndRequestHintsAfterCommit(t *testing.T) {
 	cabalID, user, request := f.ids.NewV7(), f.user.ID.UUID(), f.ids.NewV7()
 	members, requests := "cabal."+cabalID.String()+".members", "cabal."+cabalID.String()+".access_requests"
 	updated := "cabal." + cabalID.String() + ".updated"
-	access := "user." + user.String() + ".cabal_access"
+	access, invites := "user."+user.String()+".cabal_access", "user."+user.String()+".cabal_invites"
 	for _, tt := range []struct {
 		name   string
 		handle func(context.Context, adapters.Hints, db.Tx) error
@@ -89,6 +89,16 @@ func TestHints_publishMembershipAndRequestHintsAfterCommit(t *testing.T) {
 				V: 1, RequestID: request, CabalID: cabalID, UserID: user,
 			}, f.clock.Now())
 		}, []string{requests}},
+		{"invite access_requested", func(ctx context.Context, h adapters.Hints, tx db.Tx) error {
+			return h.AccessRequested(ctx, tx, events.CabalAccessRequested{
+				V: 1, RequestID: request, CabalID: cabalID, UserID: user, Direction: "invite",
+			}, f.clock.Now())
+		}, []string{invites}},
+		{"invite access_decided", func(ctx context.Context, h adapters.Hints, tx db.Tx) error {
+			return h.AccessDecided(ctx, tx, events.CabalAccessDecided{
+				V: 1, RequestID: request, CabalID: cabalID, UserID: user, Direction: "invite",
+			}, f.clock.Now())
+		}, []string{members, invites, access}},
 		{"updated", func(ctx context.Context, h adapters.Hints, tx db.Tx) error {
 			return h.Updated(ctx, tx, events.CabalUpdated{
 				V: 1, CabalID: cabalID, ActorID: user, Changes: events.CabalChanges{Name: ptr("Work pot")},

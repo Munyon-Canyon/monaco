@@ -1709,6 +1709,14 @@ type HandleAvailability struct {
 // Examples: reserved
 type HandleAvailabilityReason string
 
+// InviteMemberRequest Who to invite to a cabal.
+type InviteMemberRequest struct {
+	// Handle The invitee's handle.
+	//
+	// Examples: kai
+	Handle string `json:"handle"`
+}
+
 // LinkedSwap The latest trade that executes the proposal.
 type LinkedSwap struct {
 	// FailureCode Why the trade failed. Null unless `status` is `failed`.
@@ -2439,6 +2447,12 @@ type GetCabalInvitesParams struct {
 // GetCabalInvitesParamsStatus defines parameters for GetCabalInvites.
 type GetCabalInvitesParamsStatus string
 
+// PostCabalInviteParams defines parameters for PostCabalInvite.
+type PostCabalInviteParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // PostCabalMemberParams defines parameters for PostCabalMember.
 type PostCabalMemberParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -2643,6 +2657,9 @@ type PatchCabalJSONRequestBody = UpdateCabalRequest
 // PostCabalAccessDecisionJSONRequestBody defines body for PostCabalAccessDecision for application/json ContentType.
 type PostCabalAccessDecisionJSONRequestBody = AccessDecisionRequest
 
+// PostCabalInviteJSONRequestBody defines body for PostCabalInvite for application/json ContentType.
+type PostCabalInviteJSONRequestBody = InviteMemberRequest
+
 // PutCabalPictureMultipartRequestBody defines body for PutCabalPicture for multipart/form-data ContentType.
 type PutCabalPictureMultipartRequestBody PutCabalPictureMultipartBody
 
@@ -2717,6 +2734,9 @@ type ServerInterface interface {
 	// GetCabalInvites List the pending invites of a cabal.
 	// (GET /v1/cabals/{id}/invites)
 	GetCabalInvites(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalInvitesParams)
+	// PostCabalInvite Invite a user to a cabal by handle.
+	// (POST /v1/cabals/{id}/invites)
+	PostCabalInvite(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCabalInviteParams)
 	// PostCabalMember Join an open cabal.
 	// (POST /v1/cabals/{id}/members)
 	PostCabalMember(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCabalMemberParams)
@@ -3510,6 +3530,60 @@ func (siw *ServerInterfaceWrapper) GetCabalInvites(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCabalInvites(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostCabalInvite operation middleware
+func (siw *ServerInterfaceWrapper) PostCabalInvite(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostCabalInviteParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostCabalInvite(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5046,6 +5120,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/access-requests/{request_id}/decision", wrapper.PostCabalAccessDecision)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/activity", wrapper.GetCabalActivity)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/invites", wrapper.GetCabalInvites)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/invites", wrapper.PostCabalInvite)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/members", wrapper.PostCabalMember)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/members/me", wrapper.DeleteCabalMemberMe)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/picture", wrapper.DeleteCabalPicture)
@@ -5666,6 +5741,47 @@ type GetCabalInvitesdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetCabalInvitesdefaultApplicationProblemPlusJSONResponse) VisitGetCabalInvitesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostCabalInviteRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params PostCabalInviteParams
+	Body   *PostCabalInviteJSONRequestBody
+}
+
+type PostCabalInviteResponseObject interface {
+	VisitPostCabalInviteResponse(w http.ResponseWriter) error
+}
+
+type PostCabalInvite201JSONResponse CabalAccess
+
+func (response PostCabalInvite201JSONResponse) VisitPostCabalInviteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostCabalInvitedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PostCabalInvitedefaultApplicationProblemPlusJSONResponse) VisitPostCabalInviteResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -6953,6 +7069,9 @@ type StrictServerInterface interface {
 	// GetCabalInvites List the pending invites of a cabal.
 	// (GET /v1/cabals/{id}/invites)
 	GetCabalInvites(ctx context.Context, request GetCabalInvitesRequestObject) (GetCabalInvitesResponseObject, error)
+	// PostCabalInvite Invite a user to a cabal by handle.
+	// (POST /v1/cabals/{id}/invites)
+	PostCabalInvite(ctx context.Context, request PostCabalInviteRequestObject) (PostCabalInviteResponseObject, error)
 	// PostCabalMember Join an open cabal.
 	// (POST /v1/cabals/{id}/members)
 	PostCabalMember(ctx context.Context, request PostCabalMemberRequestObject) (PostCabalMemberResponseObject, error)
@@ -7499,6 +7618,40 @@ func (sh *strictHandler) GetCabalInvites(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetCabalInvitesResponseObject); ok {
 		if err := validResponse.VisitGetCabalInvitesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostCabalInvite operation middleware
+func (sh *strictHandler) PostCabalInvite(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCabalInviteParams) {
+	var request PostCabalInviteRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body PostCabalInviteJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostCabalInvite(ctx, request.(PostCabalInviteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostCabalInvite")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostCabalInviteResponseObject); ok {
+		if err := validResponse.VisitPostCabalInviteResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

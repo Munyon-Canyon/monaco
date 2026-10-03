@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,23 +30,41 @@ const (
 func lockCabal(
 	ctx context.Context, q *sqlc.Queries, cabalID ids.CabalID, user ids.UserID, op string,
 ) (domain.Cabal, domain.Actor, error) {
-	row, err := q.LockCabalForAccess(ctx, sqlc.LockCabalForAccessParams{CabalID: cabalID.UUID(), UserID: user.UUID()})
+	cabal, actors, err := lockCabalFor(ctx, q, cabalID, op, user)
+	if err != nil {
+		return domain.Cabal{}, domain.Actor{}, err
+	}
+	return cabal, actors[0], nil
+}
+
+func lockCabalFor(
+	ctx context.Context, q *sqlc.Queries, cabalID ids.CabalID, op string, users ...ids.UserID,
+) (domain.Cabal, []domain.Actor, error) {
+	raw := make([]uuid.UUID, 0, len(users))
+	for _, user := range users {
+		raw = append(raw, user.UUID())
+	}
+	row, err := q.LockCabalForAccess(ctx, sqlc.LockCabalForAccessParams{CabalID: cabalID.UUID(), UserIds: raw})
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Cabal{}, domain.Actor{}, errs.New(errs.CodeCabalNotFound, op)
+		return domain.Cabal{}, nil, errs.New(errs.CodeCabalNotFound, op)
 	}
 	if err != nil {
-		return domain.Cabal{}, domain.Actor{}, errs.Wrap(err, errs.CodeInternal, op)
+		return domain.Cabal{}, nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	rules, err := domain.NewRules(
 		row.JoinMode, row.VoterMode, row.Threshold, row.ProposalExpirySeconds, row.SlippageBps,
 	)
 	if err != nil {
-		return domain.Cabal{}, domain.Actor{}, errs.Wrap(err, errs.CodeInternal, op)
+		return domain.Cabal{}, nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	cabal := domain.Cabal{
 		CreatorID: ids.UserIDFrom(row.CreatorID), Rules: rules, Banned: row.Status == string(port.StatusBanned),
 	}
-	return cabal, domain.Actor{UserID: user, Member: row.IsMember}, nil
+	actors := make([]domain.Actor, 0, len(users))
+	for _, user := range users {
+		actors = append(actors, domain.Actor{UserID: user, Member: slices.Contains(row.MemberIds, user.UUID())})
+	}
+	return cabal, actors, nil
 }
 
 type newMember struct {
