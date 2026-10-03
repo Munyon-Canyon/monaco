@@ -24,6 +24,7 @@ extension Flow18Outcome: WireOutcome {}
 extension Flow20Outcome: WireOutcome {}
 extension Flow23Outcome: WireOutcome {}
 extension Flow23aOutcome: WireOutcome {}
+extension Flow28Outcome: WireOutcome {}
 
 final class FlowOutcomeTests: XCTestCase {
     func testEveryWireCodeMapsBackToItsOutcome() {
@@ -42,6 +43,7 @@ final class FlowOutcomeTests: XCTestCase {
         assertRoundTrip(Flow20Outcome.self)
         assertRoundTrip(Flow23Outcome.self)
         assertRoundTrip(Flow23aOutcome.self)
+        assertRoundTrip(Flow28Outcome.self)
     }
 
     func testOkAndInterruptedCarryNoWireCode() {

@@ -64,6 +64,7 @@ func Scripts() map[string]Script {
 	})
 	maps.Copy(scripts, f10Scripts())
 	maps.Copy(scripts, f13Scripts())
+	maps.Copy(scripts, f28Scripts())
 	return scripts
 }
 
@@ -101,5 +102,6 @@ func identityScripts() map[string]Script {
 func Env() map[string][]string {
 	return map[string][]string{
 		"18": {"MARKET_PRICE_POLL_INTERVAL=2s", "MONACO_TIMEOUT_JUPITER_QUOTE=1s"},
+		"28": {"IDENTITY_NUDGES_INTERVAL=1s"},
 	}
 }

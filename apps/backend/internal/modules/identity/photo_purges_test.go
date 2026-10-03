@@ -210,17 +210,18 @@ func TestModule_pollsWithTheInjectedStoreThenTheDepsStoreAndNeedsOne(t *testing.
 		{"the deps store is next", identity.New(deps), fromDeps},
 	} {
 		pollers := tc.mod.Pollers()
-		if len(pollers) != 1 {
-			t.Fatalf("%s: %d pollers, want 1", tc.name, len(pollers))
+		if len(pollers) != 2 || pollers[1].Name() != "identity.photo_purges" {
+			t.Fatalf("%s: pollers = %v, want the nudges and photo purge pollers", tc.name, pollers)
 		}
-		if _, err := pollers[0].Tick(t.Context()); err != nil {
+		if _, err := pollers[1].Tick(t.Context()); err != nil {
 			t.Fatal(err)
 		}
 		if got := tc.hit.calls(); len(got) != 1 || got[0] != gone.ID {
 			t.Fatalf("%s: store calls = %v, want one for %s", tc.name, got, gone.ID)
 		}
 	}
-	if got := identity.New(module.Deps{Pool: f.pool, Clock: clk}).Pollers(); got != nil {
-		t.Fatalf("pollers without a photo store = %v, want none", got)
+	got := identity.New(module.Deps{Pool: f.pool, Clock: clk}).Pollers()
+	if len(got) != 1 || got[0].Name() != "identity.nudges" {
+		t.Fatalf("pollers without a photo store = %v, want only identity.nudges", got)
 	}
 }

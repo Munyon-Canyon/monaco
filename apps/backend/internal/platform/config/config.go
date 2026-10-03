@@ -29,6 +29,7 @@ type Config struct {
 	Bus        Bus
 	OTel       OTel
 	Auth       Auth
+	Identity   Identity
 	Timeouts   Timeouts
 	Jupiter    Jupiter
 	XStocks    XStocks
@@ -42,6 +43,10 @@ type Config struct {
 	PostHog    PostHog
 	Supabase   Supabase
 	Faultpoint string
+}
+
+type Identity struct {
+	NudgesInterval time.Duration
 }
 
 type Auth struct {
@@ -317,6 +322,11 @@ func platformFields() []field {
 		text("OTEL_EXPORTER_OTLP_HEADERS", "", func(c *Config) *string { return &c.OTel.Headers }).secret(),
 		text("OTEL_SERVICE_NAME", "monaco", func(c *Config) *string { return &c.OTel.ServiceName }),
 		text("MONACO_DEV_TOKEN_KEY", "", func(c *Config) *string { return &c.Auth.DevTokenKey }).secret(),
+		duration(
+			"IDENTITY_NUDGES_INTERVAL",
+			24*time.Hour,
+			func(c *Config) *time.Duration { return &c.Identity.NudgesInterval },
+		),
 		duration("MONACO_TIMEOUT_RPC", 5*time.Second, func(c *Config) *time.Duration { return &c.Timeouts.RPC }),
 		duration("MONACO_TIMEOUT_PRIVY", 10*time.Second, func(c *Config) *time.Duration { return &c.Timeouts.Privy }),
 		duration("MONACO_TIMEOUT_APNS", 10*time.Second, func(c *Config) *time.Duration { return &c.Timeouts.APNs }),

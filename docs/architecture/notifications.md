@@ -149,7 +149,17 @@ Push only for MVP (default 2026-09-27). There is no in-app notification list and
 
 No other event pushes, so the RFC's [flows table](backend-platform.md#flows) lists `notify` as a consumer only of the events in this table. Referral attribution and qualification, price moves, funding, cash outs, withdrawals, agent lifecycle and admin actions send no push. Unfollows never notify.
 
-Follows are the only batched kind (default 2026-09-27). The first 3 follows of the day push one by one; past that they collapse into one "5 people followed you" push per day. No other kind is capped or batched.
+Follows are the only batched kind (default 2026-09-27). The first 3 follows of the day push one by one; past that they collapse into one "5 people followed you" push per day. No other kind is batched, and only onboarding nudges are capped (below).
+
+Onboarding nudges follow a fixed cadence (default 2026-10-03, #640). The `identity.nudges` poller runs every `IDENTITY_NUDGES_INTERVAL` (default `24h`) and appends one `user.nudge_due` for each user who meets all of these conditions:
+
+- The user's `auth_state` is `AWAITING_PHONE` (kind `add_phone`) or `AWAITING_SOCIALS` (kind `link_x`).
+- The account is `active` and not deleted.
+- The `auth_state` has not changed for at least 24 hours.
+- The user has no nudge yet, or the last one was at least 7 days ago.
+- The user has had fewer than 3 nudges in the current state.
+
+A user who stays stuck gets a nudge on days 1, 8 and 15, and then no more. Every `auth_state` change sets the count back to 0, so a user who unlinks later starts the cadence again. The event's `nudge_number` (1 to 3) says which nudge it is.
 
 - The Simulator cannot reliably get a real remote device token. To test how a push looks and where a tap goes, drag a `.apns` file onto the Simulator, or run `xcrun simctl push <udid> com.monaco.app payload.json`.
 - To test end to end (backend → APNs → phone), use a physical device running a debug build, which gets a sandbox token.

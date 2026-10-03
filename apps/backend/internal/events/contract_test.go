@@ -147,6 +147,9 @@ func userFixtures(t *testing.T) map[events.Type]any {
 			PhotoURL: "https://cdn.example.com/photos/kai.jpg",
 		},
 		events.TypeUserDeleted: events.UserDeleted{V: 1, UserID: user, At: time.Date(2026, 3, 3, 8, 0, 0, 0, time.UTC)},
+		events.TypeUserNudgeDue: events.UserNudgeDue{
+			V: 1, UserID: user, Kind: "add_phone", NudgeNumber: 1, At: time.Date(2026, 3, 3, 9, 0, 0, 0, time.UTC),
+		},
 	}
 }
 

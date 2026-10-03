@@ -2,6 +2,7 @@ package identity_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
@@ -16,14 +17,20 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
-func TestModule_registersItsRoutesAndNoConsumersOrPollersYet(t *testing.T) {
+func TestModule_registersItsRoutesAndTheNudgePoller(t *testing.T) {
 	t.Parallel()
-	m := identity.New(module.Deps{Config: privyConfig(), Clock: clock.Real{}},
+	cfg := privyConfig()
+	cfg.Identity.NudgesInterval = 5 * time.Hour
+	m := identity.New(module.Deps{Config: cfg, Clock: clock.Real{}},
 		identity.WithHoldings(fakes.NewTreasury(), fakes.NewBalances()))
 	var routes httpx.Routes
 	m.Routes(&routes)
-	if m.Name() != "identity" || routes.IdentityRoutes == nil || len(m.Consumers()) != 0 || m.Pollers() != nil {
-		t.Fatalf("module = %s, routes %+v, consumers %v, pollers %v", m.Name(), routes, m.Consumers(), m.Pollers())
+	if m.Name() != "identity" || routes.IdentityRoutes == nil || len(m.Consumers()) != 0 {
+		t.Fatalf("module = %s, routes %+v, consumers %v", m.Name(), routes, m.Consumers())
+	}
+	pollers := m.Pollers()
+	if len(pollers) != 1 || pollers[0].Name() != "identity.nudges" || pollers[0].Interval() != 5*time.Hour {
+		t.Fatalf("pollers = %v, want identity.nudges every IDENTITY_NUDGES_INTERVAL", pollers)
 	}
 }
 

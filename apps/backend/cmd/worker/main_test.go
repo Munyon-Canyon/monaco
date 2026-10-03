@@ -51,8 +51,8 @@ func bootEnv(t *testing.T, extra ...string) []string {
 func TestMain_servesHealthzUntilSIGTERMThenExitsZero(t *testing.T) {
 	t.Parallel()
 	p := testkit.StartMain(t, bootEnv(t, "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0"))
-	want := "nats ok\ndb ok\npoller:platform.retention ok\npoller:governance.proposal_expiry ok\npoller:identity.photo_purges ok\n" +
-		"poller:market.catalog ok\n" +
+	want := "nats ok\ndb ok\npoller:platform.retention ok\npoller:governance.proposal_expiry ok\npoller:identity.nudges ok\n" +
+		"poller:identity.photo_purges ok\npoller:market.catalog ok\n" +
 		"poller:market.prices ok\npoller:market.retention ok\n"
 	waitUntil(t, "a healthy worker", func() bool {
 		code, body := testkit.Get(t, "http://"+p.Addr+"/healthz")
