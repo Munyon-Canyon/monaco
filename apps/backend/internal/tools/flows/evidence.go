@@ -43,19 +43,19 @@ func ReadTestResults(r io.Reader) (TestResults, error) {
 	}
 }
 
-func CheckTests(flows []Flow, results TestResults) []Problem {
+func CheckTests(flows []Flow, results TestResults, ids []string) []Problem {
 	var problems []Problem
 	owned := map[string]bool{}
 	for _, f := range flows {
 		for _, name := range testNames(f) {
 			owned[name] = true
 		}
-		if f.Status.AtLeastBuilt() {
+		if f.Status.AtLeastBuilt() && selected(ids, f.ID) {
 			problems = append(problems, flowTestProblems(f, results)...)
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(results)) {
-		if flowTest.MatchString(name) && !owned[name] {
+		if m := flowTest.FindStringSubmatch(name); m != nil && selected(ids, m[1]) && !owned[name] {
 			problems = append(
 				problems,
 				problemf(0, "test %s matches no flow outcome; delete the test or add its row", name),
@@ -112,15 +112,18 @@ func flowTestProblems(f Flow, results TestResults) []Problem {
 	return problems
 }
 
-var flowTest = regexp.MustCompile(`^TestFlow[0-9]+[a-z]?_[^/]*$`)
+var flowTest = regexp.MustCompile(`^TestFlow([0-9]+[a-z]?)_[^/]*$`)
 
 func ScriptName(f Flow, command string, o Outcome) string {
 	return "F" + strings.ReplaceAll(strings.TrimPrefix(TestName(f, command, o), "TestFlow"), "_", "")
 }
 
-func CheckScripts(flows []Flow, env Env) []Problem {
+func CheckScripts(flows []Flow, env Env, ids []string) []Problem {
 	var problems []Problem
 	for _, f := range flows {
+		if !selected(ids, f.ID) {
+			continue
+		}
 		for _, o := range f.Outcomes {
 			var names []string
 			found := false

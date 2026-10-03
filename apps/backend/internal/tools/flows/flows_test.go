@@ -180,7 +180,7 @@ func TestSubRow_aLetterSuffixIsADistinctFlowWithItsOwnNames(t *testing.T) {
 	}
 	env := testEnv()
 	env.Commands = set("FundCabal", "SetHandle")
-	if got := lines(flows.CheckColumns(parsed, env)); len(got) != 0 {
+	if got := lines(flows.CheckColumns(parsed, env, nil)); len(got) != 0 {
 		t.Errorf("CheckColumns problems = %q, want none", got)
 	}
 }

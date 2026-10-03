@@ -28,38 +28,74 @@ import (
 const (
 	backendDir = "apps/backend"
 	flowsUsage = "usage: monacoctl flows check [--from go-test.json | --structure-only] [--integration-xunit swift-xunit.xml]\n" +
+		"                             [--affected --base <ref>]\n" +
+		"       monacoctl flows --affected --base <ref>\n" +
 		"       monacoctl flows seed <id> <outcome>"
 )
 
-func flowsCmd(environ, args []string, stdout, stderr io.Writer) int {
+func flowsCmd(environ, args []string, run execFunc, repo fs.FS, stdout, stderr io.Writer) int {
 	switch {
 	case len(args) == 3 && args[0] == "seed":
-		return flowsSeed(context.Background(), os.DirFS("../.."), environ, args[1], args[2], stdout, stderr)
+		return flowsSeed(context.Background(), repo, environ, args[1], args[2], stdout, stderr)
+	case len(args) > 0 && args[0] == "--affected":
+		flags, ok := parseCheckFlags(args)
+		if !ok || flags != (checkFlags{affected: true, base: flags.base}) {
+			_, _ = fmt.Fprintln(stderr, flowsUsage)
+			return 2
+		}
+		ids, err := affectedFlows(repo, run, flags.base)
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "monacoctl flows: %v\n", err)
+			return 1
+		}
+		printIDs(stdout, ids)
+		return 0
 	case len(args) > 0 && args[0] == "check":
-		return flowsCheckCmd(args[1:], os.Stdin, stderr)
+		return flowsCheckCmd(args[1:], os.Stdin, run, repo, stdout, stderr)
 	default:
 		_, _ = fmt.Fprintln(stderr, flowsUsage)
 		return 2
 	}
 }
 
-func flowsCheckCmd(args []string, stdin *os.File, stderr io.Writer) int {
+type checkFlags struct {
+	from, xunit, base       string
+	structureOnly, affected bool
+}
+
+func parseCheckFlags(args []string) (checkFlags, bool) {
+	var f checkFlags
 	set := flag.NewFlagSet("flows check", flag.ContinueOnError)
 	set.SetOutput(io.Discard)
-	from := set.String("from", "", "go test -json output")
-	structureOnly := set.Bool("structure-only", false, "skip the go test result check")
-	xunit := set.String("integration-xunit", "", "swift test --xunit-output file")
-	if err := set.Parse(args); err != nil || set.NArg() != 0 || (*from != "" && *structureOnly) {
+	set.StringVar(&f.from, "from", "", "go test -json output")
+	set.BoolVar(&f.structureOnly, "structure-only", false, "skip the go test result check")
+	set.StringVar(&f.xunit, "integration-xunit", "", "swift test --xunit-output file")
+	set.BoolVar(&f.affected, "affected", false, "check only the flows the diff against --base touches")
+	set.StringVar(&f.base, "base", "", "the ref --affected diffs against")
+	err := set.Parse(args)
+	return f, err == nil && set.NArg() == 0 && (f.from == "" || !f.structureOnly) && f.affected == (f.base != "")
+}
+
+func flowsCheckCmd(args []string, stdin *os.File, run execFunc, repo fs.FS, stdout, stderr io.Writer) int {
+	flags, ok := parseCheckFlags(args)
+	if !ok {
 		_, _ = fmt.Fprintln(stderr, flowsUsage)
 		return 2
 	}
+	var ids []string
+	if flags.affected {
+		var code int
+		if ids, code = checkedIDs(repo, run, flags.base, stdout, stderr); len(ids) == 0 {
+			return code
+		}
+	}
 	var tests, integration io.Reader
-	if *from == "" && !*structureOnly {
+	if flags.from == "" && !flags.structureOnly {
 		if info, err := stdin.Stat(); err == nil && info.Mode()&os.ModeCharDevice == 0 {
 			tests = stdin
 		}
 	}
-	for name, into := range map[string]*io.Reader{*from: &tests, *xunit: &integration} {
+	for name, into := range map[string]*io.Reader{flags.from: &tests, flags.xunit: &integration} {
 		if name == "" {
 			continue
 		}
@@ -71,8 +107,54 @@ func flowsCheckCmd(args []string, stdin *os.File, stderr io.Writer) int {
 		defer func() { _ = file.Close() }()
 		*into = file
 	}
-	env := liveEnv(os.DirFS("../.."), ".", registered.Build(declaringDeps()))
-	return flowsCheck(env, tests, *structureOnly, integration, stderr)
+	env := liveEnv(repo, ".", registered.Build(declaringDeps()))
+	return flowsCheck(env, ids, tests, flags.structureOnly, integration, stderr)
+}
+
+func checkedIDs(repo fs.FS, run execFunc, base string, stdout, stderr io.Writer) ([]string, int) {
+	ids, err := affectedFlows(repo, run, base)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "monacoctl flows check: %v\n", err)
+		return nil, 1
+	}
+	printIDs(stdout, ids)
+	if len(ids) == 0 {
+		_, _ = fmt.Fprintln(stderr, "monacoctl flows check: no affected flows")
+	}
+	return ids, 0
+}
+
+func printIDs(stdout io.Writer, ids []string) {
+	for _, id := range ids {
+		_, _ = fmt.Fprintln(stdout, id)
+	}
+}
+
+func affectedFlows(repo fs.FS, run execFunc, base string) ([]string, error) {
+	git := func(args ...string) ([]byte, error) { return run(context.Background(), ".", nil, "git", args...) }
+	names, err := git("diff", "--name-only", "--diff-filter=d", base+"...HEAD")
+	if err != nil {
+		return nil, err
+	}
+	changed := strings.Fields(string(names))
+	if registry := path.Join(backendDir, flows.File); slices.Contains(changed, registry) {
+		rows, err := git("diff", "-U0", base+"...HEAD", "--", flows.File)
+		if err != nil {
+			return nil, err
+		}
+		changed = slices.DeleteFunc(changed, func(f string) bool { return f == registry })
+		changed = append(changed, flows.ChangedRows(string(rows))...)
+	}
+	parsed, _, err := readFlows(repo)
+	if err != nil {
+		return nil, err
+	}
+	rows, _ := flows.ReadApp(repo)
+	app := map[string]flows.AppRow{}
+	for _, row := range rows {
+		app[row.ID] = row
+	}
+	return flows.Affected(changed, parsed, app), nil
 }
 
 func declaringDeps() module.Deps {
@@ -80,7 +162,14 @@ func declaringDeps() module.Deps {
 	return module.Deps{Config: cfg, HTTPClient: httpclient.New}
 }
 
-func flowsCheck(env flows.Env, tests io.Reader, structureOnly bool, integration io.Reader, stderr io.Writer) int {
+func flowsCheck(
+	env flows.Env,
+	ids []string,
+	tests io.Reader,
+	structureOnly bool,
+	integration io.Reader,
+	stderr io.Writer,
+) int {
 	parsed, problems, err := readFlows(env.Repo)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "monacoctl flows check: %v\n", err)
@@ -93,11 +182,11 @@ func flowsCheck(env flows.Env, tests io.Reader, structureOnly bool, integration 
 			return 1
 		}
 	}
-	problems = append(problems, flows.CheckColumns(parsed, env)...)
+	problems = append(problems, flows.CheckColumns(parsed, env, ids)...)
 	if !structureOnly {
-		problems = append(problems, flows.CheckTests(parsed, results)...)
+		problems = append(problems, flows.CheckTests(parsed, results, ids)...)
 	}
-	problems = append(problems, flows.CheckScripts(parsed, env)...)
+	problems = append(problems, flows.CheckScripts(parsed, env, ids)...)
 	app, appProblems := flows.ReadApp(env.Repo)
 	problems = append(problems, appProblems...)
 	problems = append(problems, flows.CheckApp(app, parsed, env)...)
@@ -193,7 +282,9 @@ func liveEnv(repo fs.FS, backend string, mods module.Set) flows.Env {
 }
 
 func toolFlows(env toolEnv) tool {
-	return func(args []string, stdout, stderr io.Writer) int { return flowsCmd(env.environ, args, stdout, stderr) }
+	return func(args []string, stdout, stderr io.Writer) int {
+		return flowsCmd(env.environ, args, runCommand, os.DirFS("../.."), stdout, stderr)
+	}
 }
 
 func flowsSeed(ctx context.Context, repo fs.FS, environ []string, id, outcome string, stdout, stderr io.Writer) int {

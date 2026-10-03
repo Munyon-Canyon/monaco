@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -136,7 +139,7 @@ func TestFlowsCheck(t *testing.T) {
 			if tc.acceptScripts {
 				env.Scripts = func(flows.Flow, string) bool { return true }
 			}
-			code := flowsCheck(env, strings.NewReader(tc.tests), tc.structureOnly, nil, &stderr)
+			code := flowsCheck(env, nil, strings.NewReader(tc.tests), tc.structureOnly, nil, &stderr)
 			if code != tc.code || stderr.String() != tc.stderr {
 				t.Fatalf("code=%d stderr=\n%s\nwant code=%d stderr=\n%s", code, stderr.String(), tc.code, tc.stderr)
 			}
@@ -149,14 +152,22 @@ func TestFlowsCheck_missingFileFails(t *testing.T) {
 	env := envWith(t, "")
 	env.Repo = fstest.MapFS{}
 	var stderr bytes.Buffer
-	if code := flowsCheck(env, nil, false, nil, &stderr); code != 1 || !strings.Contains(stderr.String(), "flows.tsv") {
+	if code := flowsCheck(
+		env,
+		nil,
+		nil,
+		false,
+		nil,
+		&stderr,
+	); code != 1 ||
+		!strings.Contains(stderr.String(), "flows.tsv") {
 		t.Fatalf("code=%d stderr=%q", code, stderr.String())
 	}
 }
 
 func TestFlowsRejectsUnknownArguments(t *testing.T) {
 	t.Parallel()
-	for _, args := range [][]string{{"flows"}, {"flows", "lint"}, {"flows", "check", "--from"}, {"flows", "check", "-x", "f"}, {"flows", "check", "--structure-only", "x"}, {"flows", "seed", "00"}, {"flows", "check", "--from", "x", "--structure-only"}} {
+	for _, args := range [][]string{{"flows"}, {"flows", "lint"}, {"flows", "check", "--from"}, {"flows", "check", "-x", "f"}, {"flows", "check", "--structure-only", "x"}, {"flows", "seed", "00"}, {"flows", "check", "--from", "x", "--structure-only"}, {"flows", "--affected"}, {"flows", "--affected", "--base", "x", "--structure-only"}, {"flows", "check", "--affected"}, {"flows", "check", "--base", "staging"}} {
 		var stdout, stderr bytes.Buffer
 		code := run(commands(), tools(nil), nil, args, &stdout, &stderr)
 		if code != 2 || stderr.String() != flowsUsage+"\n" {
@@ -184,7 +195,7 @@ func TestFlowsCheck_fromAMissingFileFails(t *testing.T) {
 func TestFlowsCheck_failsWhenTheTestResultsCannotBeRead(t *testing.T) {
 	t.Parallel()
 	var stderr bytes.Buffer
-	code := flowsCheck(envWith(t, flows.Header+"\n"), iotest.ErrReader(io.ErrUnexpectedEOF), false, nil, &stderr)
+	code := flowsCheck(envWith(t, flows.Header+"\n"), nil, iotest.ErrReader(io.ErrUnexpectedEOF), false, nil, &stderr)
 	if code != 1 || !strings.HasPrefix(stderr.String(), "monacoctl flows check: ") ||
 		!strings.Contains(stderr.String(), io.ErrUnexpectedEOF.Error()) {
 		t.Fatalf("code=%d stderr=%q", code, stderr.String())
@@ -239,7 +250,7 @@ func TestFlowsCheck_appRegistry(t *testing.T) {
 			}
 			env.Scripts = func(flows.Flow, string) bool { return true }
 			var stderr bytes.Buffer
-			code := flowsCheck(env, nil, true, nil, &stderr)
+			code := flowsCheck(env, nil, nil, true, nil, &stderr)
 			if code != tc.code || stderr.String() != tc.stderr {
 				t.Fatalf("code=%d stderr=\n%s\nwant code=%d stderr=\n%s", code, stderr.String(), tc.code, tc.stderr)
 			}
@@ -396,7 +407,7 @@ func TestFlowsCheck_integrationXUnit(t *testing.T) {
 				integration = strings.NewReader(tc.xunit)
 			}
 			var stderr bytes.Buffer
-			code := flowsCheck(env, nil, true, integration, &stderr)
+			code := flowsCheck(env, nil, nil, true, integration, &stderr)
 			if code != tc.code || !strings.HasPrefix(stderr.String(), tc.stderr) ||
 				(tc.code == 0 && stderr.String() != tc.stderr) {
 				t.Fatalf("code=%d stderr=\n%s\nwant code=%d stderr=\n%s", code, stderr.String(), tc.code, tc.stderr)
@@ -435,7 +446,15 @@ func TestFlowsCheck_readsEveryInputBeforeTheRepo(t *testing.T) {
 		{},
 	} {
 		var stderr bytes.Buffer
-		if code := flowsCheckCmd(args, read, &stderr); code != 1 || !strings.Contains(stderr.String(), "flows.tsv") {
+		if code := flowsCheckCmd(
+			args,
+			read,
+			runCommand,
+			os.DirFS("../.."),
+			io.Discard,
+			&stderr,
+		); code != 1 ||
+			!strings.Contains(stderr.String(), "flows.tsv") {
 			t.Fatalf("%q: code=%d stderr=%q, want the missing flows.tsv of this test's working directory", args, code,
 				stderr.String())
 		}
@@ -461,5 +480,141 @@ func TestFlowsSeed_reportsASeederThatFails(t *testing.T) {
 	code, stdout, stderr := runFlowsSeed(t, nil, "00", "ok")
 	if code != 1 || stdout != "" || !strings.HasPrefix(stderr, "monacoctl flows seed: F00RecordPingOK: ") {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
+
+func TestAffectedFlows(t *testing.T) {
+	t.Parallel()
+	repo := fstest.MapFS{
+		"apps/backend/flows.tsv": {Data: []byte(flows.Header + "\n" +
+			"00\tPing\tsystem\tGET /p\tPing\t\t\tok\tbuilt\tdocs/f.md\n" +
+			"01\tSign in\tidentity\tGET /s\tSignIn\t\t\tok\tbuilt\tdocs/f.md\n" +
+			"02\tCabal\tcabal\tGET /c\tCreate\t\t\tok\tbuilt\tdocs/f.md\n")},
+		"packages/flows/app/01.tsv": {Data: []byte(flows.AppHeader + "\n01\tSignIn\tbuilt\tdocs/f.md\n")},
+	}
+	for _, tc := range []struct {
+		name, names, rows string
+		want              []string
+	}{
+		{"an app row", "packages/flows/app/02.tsv\n", "", []string{"02"}},
+		{"nothing a flow owns", "README.md\n", "", nil},
+		{"a module", "apps/backend/internal/modules/identity/http.go\n", "", []string{"01"}},
+		{"the spec reaches app built flows", "apps/backend/api/openapi.yaml\n", "", []string{"01"}},
+		{
+			"only the changed rows of flows.tsv", "apps/backend/flows.tsv\nREADME.md\n",
+			"@@ -2 +2 @@\n-00\tPing\n+00\tPing!\n",
+			[]string{"00"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var calls [][]string
+			git := func(_ context.Context, _ string, _ []string, _ string, args ...string) ([]byte, error) {
+				calls = append(calls, args)
+				if args[0] == "diff" && args[1] == "-U0" {
+					return []byte(tc.rows), nil
+				}
+				return []byte(tc.names), nil
+			}
+			got, err := affectedFlows(repo, git, "staging")
+			if err != nil || !slices.Equal(got, tc.want) {
+				t.Fatalf("affectedFlows = %q, %v, want %q", got, err, tc.want)
+			}
+			if want := []string{
+				"diff",
+				"--name-only",
+				"--diff-filter=d",
+				"staging...HEAD",
+			}; !slices.Equal(
+				calls[0],
+				want,
+			) {
+				t.Fatalf("git %q, want %q", calls[0], want)
+			}
+		})
+	}
+}
+
+func TestAffectedFlows_reportsAFailingDiff(t *testing.T) {
+	t.Parallel()
+	git := func(context.Context, string, []string, string, ...string) ([]byte, error) {
+		return nil, io.ErrUnexpectedEOF
+	}
+	if _, err := affectedFlows(fstest.MapFS{}, git, "staging"); !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestFlowsAffectedCommands(t *testing.T) {
+	t.Parallel()
+	repo := fstest.MapFS{
+		"apps/backend/flows.tsv": {
+			Data: []byte(flows.Header + "\n00\tPing\tsystem\tGET /p\tPing\t\t\tok\tbuilt\tdocs/f.md\n"),
+		},
+	}
+	names := func(out string, err error) execFunc {
+		return func(_ context.Context, _ string, _ []string, _ string, args ...string) ([]byte, error) {
+			if args[1] == "-U0" {
+				return nil, io.ErrUnexpectedEOF
+			}
+			return []byte(out), err
+		}
+	}
+	for _, tc := range []struct {
+		name   string
+		args   []string
+		run    execFunc
+		repo   fs.FS
+		code   int
+		stdout string
+		stderr string
+	}{
+		{"ids", []string{"--affected", "--base", "b"}, names("packages/flows/app/00.tsv\n", nil), repo, 0, "00\n", ""},
+		{
+			"a failing diff",
+			[]string{"--affected", "--base", "b"},
+			names("", io.ErrUnexpectedEOF), repo, 1, "",
+			"monacoctl flows: " + io.ErrUnexpectedEOF.Error() + "\n",
+		},
+		{
+			"a failing row diff",
+			[]string{"--affected", "--base", "b"},
+			names("apps/backend/flows.tsv\n", nil), repo, 1, "",
+			"monacoctl flows: " + io.ErrUnexpectedEOF.Error() + "\n",
+		},
+		{
+			"no registry",
+			[]string{"--affected", "--base", "b"},
+			names("README.md\n", nil),
+			fstest.MapFS{},
+			1, "",
+			"monacoctl flows: ",
+		},
+		{
+			"check with no affected flow",
+			[]string{"check", "--affected", "--base", "b"},
+			names("README.md\n", nil), repo, 0,
+			"", "monacoctl flows check: no affected flows\n",
+		},
+		{
+			"check with a failing diff",
+			[]string{"check", "--affected", "--base", "b"},
+			names("", io.ErrUnexpectedEOF), repo,
+			1, "", "monacoctl flows check: " + io.ErrUnexpectedEOF.Error() + "\n",
+		},
+		{
+			"check prints the ids it checks",
+			[]string{"check", "--affected", "--base", "b", "--structure-only"},
+			names("packages/flows/app/00.tsv\n", nil), repo, 1, "00\n", "",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var stdout, stderr bytes.Buffer
+			code := flowsCmd(nil, tc.args, tc.run, tc.repo, &stdout, &stderr)
+			if code != tc.code || stdout.String() != tc.stdout || !strings.HasPrefix(stderr.String(), tc.stderr) {
+				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+			}
+		})
 	}
 }

@@ -36,7 +36,7 @@ func check(t *testing.T, body string, env flows.Env) []string {
 	if len(problems) != 0 {
 		t.Fatalf("parse problems = %v", lines(problems))
 	}
-	return lines(flows.CheckColumns(parsed, env))
+	return lines(flows.CheckColumns(parsed, env, nil))
 }
 
 func fundRowWith(edit func(cells []string)) string {
