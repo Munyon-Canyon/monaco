@@ -55,6 +55,17 @@ public struct SessionProfile: Equatable, Sendable {
         self.createdAt = createdAt
     }
 
+    public func replacing(from dto: MeDTO) -> SessionProfile {
+        var copy = self
+        copy.userID = dto.userId
+        copy.displayName = dto.displayName
+        copy.memberWalletAddress = dto.memberWalletAddress
+        let url = dto.profilePhotoUrl.flatMap { URL(string: $0) }
+        copy.photoURL = url?.scheme == nil ? nil : url
+        if let createdAt = dto.createdAt { copy.createdAt = createdAt }
+        return copy
+    }
+
     public init(_ me: Components.Schemas.Me) {
         self.init(
             userID: me.id,

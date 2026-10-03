@@ -128,6 +128,43 @@ final class SessionProfileTests: XCTestCase {
         }
     }
 
+    func testReplacingCopiesTheProfileFieldsAndKeepsAnOlderCreationDate() {
+        let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let profile = SessionProfile(
+            userID: "old-user", handle: "old", displayName: "Old", photoURL: URL(string: "https://cdn.test/old"),
+            authState: .created, accountStatus: .active, memberWalletAddress: "old-wallet", phoneLinked: false,
+            xUsername: nil, handleChangeableAt: nil, createdAt: createdAt
+        )
+        let dto = MeDTO(
+            userId: "new-user", displayName: "New", memberWalletAddress: "new-wallet",
+            profilePhotoUrl: "avatars/new.jpg"
+        )
+
+        let replaced = profile.replacing(from: dto)
+
+        XCTAssertEqual(replaced.userID, "new-user")
+        XCTAssertEqual(replaced.displayName, "New")
+        XCTAssertEqual(replaced.memberWalletAddress, "new-wallet")
+        XCTAssertNil(replaced.photoURL)
+        XCTAssertEqual(replaced.createdAt, createdAt)
+    }
+
+    func testReplacingTakesTheCreationDateWhenTheDTOHasOne() {
+        let createdAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let profile = SessionProfile(
+            userID: "user", handle: nil, displayName: "Old", photoURL: nil, authState: .created,
+            accountStatus: .active, memberWalletAddress: "wallet", phoneLinked: false, xUsername: nil,
+            handleChangeableAt: nil, createdAt: .distantPast
+        )
+
+        let replaced = profile.replacing(
+            from: MeDTO(
+                userId: "user", displayName: "New", memberWalletAddress: "wallet", createdAt: createdAt
+            ))
+
+        XCTAssertEqual(replaced.createdAt, createdAt)
+    }
+
     private static let minimumJSON = """
         {"id":"01890a5d-ac96-774b-bcce-b302099a8058","display_name":"","auth_state":"CREATED",\
         "account_status":"active","member_wallet_address":"wallet-1","phone_linked":false,\
