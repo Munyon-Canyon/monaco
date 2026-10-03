@@ -49,6 +49,7 @@ type Exchange struct {
 
 type backend struct {
 	baseURL       string
+	clientIP      string
 	client        *http.Client
 	note          *notifier
 	pool          *pgxpool.Pool
@@ -239,6 +240,9 @@ func (s *Scenario) send(req request) {
 	}
 	if req.key != "" {
 		r.Header.Set("Idempotency-Key", req.key)
+	}
+	if s.app.clientIP != "" {
+		r.Header.Set("X-Forwarded-For", s.app.clientIP)
 	}
 	started := time.Now()
 	resp, err := s.app.client.Do(r)

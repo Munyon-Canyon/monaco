@@ -154,7 +154,7 @@ func (s *Stack) processes(ctx context.Context) error {
 		"PRIVY_AUTHORIZATION_PRIVATE_KEY="+upstreams.PrivyAuthorizationKeyConfig(),
 	)
 	s.Fakes = "http://" + fakes.addr
-	apiEnv, workerEnv := []string{"MONACO_HTTP_ADDR=127.0.0.1:0"}, []string(nil)
+	apiEnv, workerEnv := []string{"MONACO_HTTP_ADDR=127.0.0.1:0", "TRUST_PROXY_HEADERS=true"}, []string(nil)
 	if s.opts.Faultpoint != "" {
 		apiEnv = append(apiEnv, "MONACO_BUS_API_RELAY=off")
 		workerEnv = append(workerEnv, "MONACO_FAULTPOINT="+s.opts.Faultpoint)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"runtime"
 	"slices"
 	"sync"
@@ -133,7 +134,7 @@ func (d *driver) script(ctx context.Context, u Unit, res *Result) error {
 	stages := make(chan scenario.Stage, 16)
 	done := make(chan struct{})
 	remote := scenario.Remote{
-		URL: d.env.API, FakesURL: d.env.Fakes, PrivyAppID: d.env.PrivyAppID, Pool: d.env.Pool,
+		URL: d.env.API, FakesURL: d.env.Fakes, PrivyAppID: d.env.PrivyAppID, ClientIP: clientIP(u), Pool: d.env.Pool,
 		Consumers: d.env.Consumers,
 		Mint: func(id string) string {
 			res.mu.Lock()
@@ -273,4 +274,11 @@ func (t *flowT) runCleanups() {
 	for _, f := range slices.Backward(cleanups) {
 		f()
 	}
+}
+
+func clientIP(u Unit) string {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(u.Name()))
+	sum := h.Sum(nil)
+	return fmt.Sprintf("10.%d.%d.%d", sum[1], sum[2], sum[3])
 }

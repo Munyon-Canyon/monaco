@@ -552,3 +552,20 @@ func TestCancelCause_namesTheCauseOnlyWhenAFailedFlowWasCancelled(t *testing.T) 
 		}
 	}
 }
+
+func TestClientIP_givesEachUnitItsOwnStableAddress(t *testing.T) {
+	t.Parallel()
+	join := Unit{
+		Flow: tools.Flow{ID: "03", Commands: []string{"JoinCabal", "RequestAccess"}}, Command: "JoinCabal",
+		Outcome: tools.OutcomeOK,
+	}
+	request := join
+	request.Command = "RequestAccess"
+	first, again, other := clientIP(join), clientIP(join), clientIP(request)
+	if first != again || first == other {
+		t.Fatalf("clientIP: join %s then %s, request %s", first, again, other)
+	}
+	if ip := net.ParseIP(first); ip == nil || !ip.IsPrivate() {
+		t.Fatalf("clientIP = %q, want a private address", first)
+	}
+}
