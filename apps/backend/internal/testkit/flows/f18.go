@@ -1,0 +1,219 @@
+package flows
+
+import (
+	"cmp"
+	"slices"
+	"time"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
+)
+
+const (
+	priceRoute   = "/jupiter/price/v3"
+	pricePoller  = "market.prices"
+	priceRepeats = 4
+	aaplMicros   = 254_371_234
+	tslaMicros   = 436_120_500
+)
+
+func F18SamplePricesOK(s *scenario.Scenario) {
+	var (
+		before  time.Time
+		scanned int
+	)
+	s.Given(
+		ensureSamplerCatalog(),
+		scenario.FakeUpstream(fakes.Step{
+			Route: priceRoute, Action: fakes.ActionSucceed, Fixture: priceRoute + "/catalog",
+			Times: priceRepeats, Reset: true,
+		}),
+	).When(
+		scenario.AwaitTick(pricePoller),
+		deletePricePoints(),
+		countAssets(&scanned),
+		captureBucket(&before),
+		scenario.AwaitTick(pricePoller),
+		func(s *scenario.Scenario) { scenario.ExpectTick(pricePoller, scanned, 2)(s) },
+		expectPricePointsBetween(before,
+			storedPrice{marketfake.AAPLx().Mint.String(), aaplMicros},
+			storedPrice{marketfake.TSLAx().Mint.String(), tslaMicros},
+		),
+	)
+}
+
+func F18SamplePricesJupiterUnavailable(s *scenario.Scenario) {
+	var bucket time.Time
+	s.Given(
+		ensureSamplerCatalog(),
+		deletePricePoints(),
+		seedSamplerPrices(&bucket),
+		scenario.FakeUpstream(fakes.Step{
+			Route: priceRoute, Action: fakes.ActionFail, Status: 500, Times: priceRepeats, Reset: true,
+		}),
+	).When(
+		scenario.AwaitTick(pricePoller),
+		scenario.AwaitTick(pricePoller),
+		scenario.ExpectTickFailed(pricePoller, string(errs.CodeJupiterUnavailable)),
+		expectPricePointsAt(bucket,
+			storedPrice{marketfake.AAPLx().Mint.String(), aaplMicros},
+			storedPrice{marketfake.TSLAx().Mint.String(), tslaMicros},
+		),
+	)
+}
+
+func F18SamplePricesUpstreamTimeout(s *scenario.Scenario) {
+	s.Given(
+		ensureSamplerCatalog(),
+		scenario.FakeUpstream(fakes.Step{
+			Route: priceRoute, Action: fakes.ActionHang, Times: priceRepeats, Reset: true,
+		}),
+	).When(
+		scenario.AwaitTick(pricePoller),
+		deletePricePoints(),
+		scenario.AwaitTick(pricePoller),
+		scenario.ExpectTickFailed(pricePoller, string(errs.CodeUpstreamTimeout)),
+		expectPricePoints(),
+	)
+}
+
+func ensureSamplerCatalog() scenario.Step {
+	return func(s *scenario.Scenario) {
+		now := time.Now().UTC()
+		for _, a := range marketfake.Fixtures() {
+			_, err := s.DB().Exec(s.Context(), `INSERT INTO assets (
+				id, symbol, mint, decimals, issuer, kind, display_name, issuer_tradable, company_key,
+				first_seen_at, updated_at)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+				ON CONFLICT DO NOTHING`,
+				a.ID.UUID(), a.Symbol, a.Mint.String(), int16(a.Decimals), string(a.Issuer), string(a.Kind),
+				a.DisplayName, a.IssuerTradable, a.CompanyKey, now, now)
+			if err != nil {
+				s.Fatalf("flows: seed %s: %v", a.Symbol, err)
+			}
+		}
+	}
+}
+
+func seedSamplerPrices(at *time.Time) scenario.Step {
+	return func(s *scenario.Scenario) {
+		bucket := domain.Bucket(time.Now().UTC())
+		*at = bucket
+		for _, row := range []storedPrice{
+			{marketfake.AAPLx().Mint.String(), aaplMicros},
+			{marketfake.TSLAx().Mint.String(), tslaMicros},
+		} {
+			_, err := s.DB().Exec(s.Context(), `INSERT INTO price_points (mint, ts, price_micros, source)
+				VALUES ($1, $2, $3, $4)
+				ON CONFLICT (mint, ts) DO NOTHING`, row.mint, bucket, row.micros, string(domain.SourceJupiter))
+			if err != nil {
+				s.Fatalf("flows: seed price %s: %v", row.mint, err)
+			}
+		}
+	}
+}
+
+func deletePricePoints() scenario.Step {
+	return func(s *scenario.Scenario) {
+		if _, err := s.DB().Exec(s.Context(), `DELETE FROM price_points`); err != nil {
+			s.Fatalf("flows: delete price_points: %v", err)
+		}
+	}
+}
+
+func countAssets(dst *int) scenario.Step {
+	return func(s *scenario.Scenario) {
+		if err := s.DB().QueryRow(s.Context(), `SELECT count(*) FROM assets`).Scan(dst); err != nil {
+			s.Fatalf("flows: count assets: %v", err)
+		}
+	}
+}
+
+func captureBucket(dst *time.Time) scenario.Step {
+	return func(*scenario.Scenario) { *dst = domain.Bucket(time.Now().UTC()) }
+}
+
+type storedPrice struct {
+	mint   string
+	micros int64
+}
+
+func expectPricePoints(want ...storedPrice) scenario.Step {
+	return expectPricePointsAt(domain.Bucket(time.Now().UTC()), want...)
+}
+
+func expectPricePointsAt(bucket time.Time, want ...storedPrice) scenario.Step {
+	return func(s *scenario.Scenario) {
+		rows, err := s.DB().Query(s.Context(),
+			`SELECT mint, ts, price_micros, source FROM price_points ORDER BY mint COLLATE "C"`)
+		if err != nil {
+			s.Fatalf("flows: read price_points: %v", err)
+		}
+		defer rows.Close()
+		var got []storedPrice
+		for rows.Next() {
+			var row storedPrice
+			var ts time.Time
+			var source string
+			if err := rows.Scan(&row.mint, &ts, &row.micros, &source); err != nil {
+				s.Fatalf("flows: scan price_points: %v", err)
+			}
+			if source != string(domain.SourceJupiter) || !ts.Equal(bucket) {
+				s.Fatalf("flows: price_points row %s at %s from %s, want %s at %s",
+					row.mint, ts, source, domain.SourceJupiter, bucket)
+			}
+			got = append(got, row)
+		}
+		if err := rows.Err(); err != nil {
+			s.Fatalf("flows: read price_points: %v", err)
+		}
+		slices.SortFunc(want, func(a, b storedPrice) int { return cmp.Compare(a.mint, b.mint) })
+		if !slices.Equal(got, want) {
+			s.Fatalf("flows: price_points = %+v, want %+v", got, want)
+		}
+	}
+}
+
+func expectPricePointsBetween(before time.Time, want ...storedPrice) scenario.Step {
+	return func(s *scenario.Scenario) {
+		after := domain.Bucket(time.Now().UTC())
+		rows, err := s.DB().Query(s.Context(),
+			`SELECT mint, ts, price_micros, source FROM price_points ORDER BY mint COLLATE "C"`)
+		if err != nil {
+			s.Fatalf("flows: read price_points: %v", err)
+		}
+		defer rows.Close()
+		var (
+			bucket time.Time
+			got    []storedPrice
+		)
+		for rows.Next() {
+			var row storedPrice
+			var ts time.Time
+			var source string
+			if err := rows.Scan(&row.mint, &ts, &row.micros, &source); err != nil {
+				s.Fatalf("flows: scan price_points: %v", err)
+			}
+			if source != string(domain.SourceJupiter) || !inBucketRange(ts, before, after, bucket) {
+				s.Fatalf("flows: price_points row %s at %s from %s, want one bucket from %s through %s",
+					row.mint, ts, source, before, after)
+			}
+			bucket = ts
+			got = append(got, row)
+		}
+		if err := rows.Err(); err != nil {
+			s.Fatalf("flows: read price_points: %v", err)
+		}
+		slices.SortFunc(want, func(a, b storedPrice) int { return cmp.Compare(a.mint, b.mint) })
+		if !slices.Equal(got, want) {
+			s.Fatalf("flows: price_points = %+v, want %+v", got, want)
+		}
+	}
+}
+
+func inBucketRange(ts, before, after, bucket time.Time) bool {
+	return !ts.Before(before) && !ts.After(after) && (bucket.IsZero() || ts.Equal(bucket))
+}

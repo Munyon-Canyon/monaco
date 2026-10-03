@@ -35,17 +35,19 @@ func readFlows(dir string) ([]tools.Flow, error) {
 func selectUnits(all []tools.Flow, target Target, scripts map[string]flows.Script) ([]Unit, error) {
 	var units []Unit
 	for _, f := range all {
-		if target.Flow != "" && f.ID != target.Flow || !f.Status.AtLeastBuilt() {
+		if !selectFlow(f, target) {
 			continue
 		}
 		for _, o := range f.Outcomes {
 			if !wanted(o, target) {
 				continue
 			}
-			script, ok := scripts[tools.ScriptName(f, o)]
-			if !ok {
-				return nil, fmt.Errorf("%w: flow %s outcome %s has no script %s in internal/testkit/flows",
-					fs.ErrNotExist, f.ID, o, tools.ScriptName(f, o))
+			script, selected, err := scriptFor(f, o, target, scripts)
+			if err != nil {
+				return nil, err
+			}
+			if !selected {
+				continue
 			}
 			units = append(units, Unit{Flow: f, Outcome: o, Script: script})
 		}
@@ -54,6 +56,24 @@ func selectUnits(all []tools.Flow, target Target, scripts map[string]flows.Scrip
 		return nil, fmt.Errorf("%w: no built flow outcome matches %+v", fs.ErrNotExist, target)
 	}
 	return units, nil
+}
+
+func selectFlow(f tools.Flow, target Target) bool {
+	return f.Status.AtLeastBuilt() && (target.Flow == "" || f.ID == target.Flow)
+}
+
+func scriptFor(
+	f tools.Flow, o tools.Outcome, target Target, scripts map[string]flows.Script,
+) (flows.Script, bool, error) {
+	script, ok := scripts[tools.ScriptName(f, o)]
+	if ok {
+		return script, true, nil
+	}
+	if target.Flow == "" && target.CrashAt != "" {
+		return nil, false, nil
+	}
+	return nil, false, fmt.Errorf("%w: flow %s outcome %s has no script %s in internal/testkit/flows",
+		fs.ErrNotExist, f.ID, o, tools.ScriptName(f, o))
 }
 
 func workerEnv(units []Unit, env map[string][]string) ([]string, error) {

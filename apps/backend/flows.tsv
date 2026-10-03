@@ -3,5 +3,5 @@ id	flow	module	trigger	command	events	consumers	outcomes	status	doc
 01	Sign in	identity	POST /v1/auth/session	OpenSession	user.created;user.auth_state_changed	referrals.mint_code	ok;Unauthorized;LoginMethodNotAllowed;AccountDeleted;PrivyUnavailable;crash:before-commit	built	docs/architecture/auth.md#login
 02	Create cabal	cabal	POST /v1/cabals	CreateCabal	cabal.created	cabal.hints	ok;InvalidInput;Unauthorized;PrivyUnavailable;crash:before-commit	built	docs/architecture/cabals.md#treasury-wallet
 10	Vote / tally	governance	POST /v1/proposals/{id}/votes	CastVote	proposal.passed;proposal.failed;proposal.expired		ok;Unauthorized;ProposalNotFound;NotAVoter;ProposalClosed;crash:after-publish	built	docs/architecture/proposals.md#vote-path
-18	Prices	market	poller:market.prices	SamplePrices	price.tick;asset.price_moved		ok;JupiterUnavailable;UpstreamTimeout;crash:before-commit	planned	docs/architecture/price-history.md#writer-1-live-sampler
+18	Prices	market	poller:market.prices	SamplePrices	price.tick;asset.price_moved		ok;JupiterUnavailable;UpstreamTimeout;crash:before-commit	built	docs/architecture/price-history.md#writer-1-live-sampler
 20	Follow / unfollow	social	POST /v1/users/{id}/follow	Follow	follow.created;follow.removed		ok;CannotFollowSelf;UserNotFound;UserBanned;Unauthorized;crash:before-commit	built	docs/architecture/followers.md#writes
