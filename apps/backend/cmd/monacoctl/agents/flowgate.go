@@ -22,14 +22,41 @@ func (r registry) affected(changed []string) []string {
 	return flows.Affected(changed, r.flows, r.apps)
 }
 
-func (env *Env) flowGate(ctx context.Context, _ Record, stack []stackPR) error {
+type flowHold []queuedFlows
+
+type queuedFlows struct {
+	top   int
+	flows []string
+}
+
+func (h flowHold) tops() []int {
+	out := make([]int, len(h))
+	for i, q := range h {
+		out[i] = q.top
+	}
+	return out
+}
+
+func (h flowHold) waits() []string {
+	out := make([]string, len(h))
+	for i, q := range h {
+		noun := "flow"
+		if len(q.flows) > 1 {
+			noun = "flows"
+		}
+		out[i] = fmt.Sprintf("queued stack #%d (%s %s)", q.top, noun, strings.Join(q.flows, ", "))
+	}
+	return out
+}
+
+func (env *Env) flowGate(ctx context.Context, _ Record, stack []stackPR) (flowHold, error) {
 	top := stack[len(stack)-1]
 	reg, mine, err := env.stackFlows(ctx, stack, top)
 	if err != nil || len(mine) == 0 {
-		return err
+		return nil, err
 	}
 	if err := env.stagingMoved(ctx, reg, top, mine); err != nil {
-		return err
+		return nil, err
 	}
 	return env.sharedInQueue(ctx, stack, mine)
 }
@@ -154,30 +181,23 @@ func (env *Env) lastChange(ctx context.Context, span string, paths []string) (st
 	return strings.TrimSpace(subject), nil
 }
 
-func (env *Env) sharedInQueue(ctx context.Context, stack []stackPR, mine []string) error {
+func (env *Env) sharedInQueue(ctx context.Context, stack []stackPR, mine []string) (flowHold, error) {
 	queued, err := env.labeledStacks(ctx, numbers(stack))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	var shared, tops []string
+	var hold flowHold
 	for _, q := range queued {
 		_, theirs, err := env.stackFlows(ctx, q.prs, q.top)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		ref := fmt.Sprintf("#%d", q.top.Number)
-		for _, id := range mine {
-			if slices.Contains(theirs, id) {
-				shared = append(shared, fmt.Sprintf("flow %s is in queued stack %s", id, ref))
-				tops = append(tops, ref)
-			}
+		shared := slices.DeleteFunc(slices.Clone(mine), func(id string) bool { return !slices.Contains(theirs, id) })
+		if len(shared) > 0 {
+			hold = append(hold, queuedFlows{top: q.top.Number, flows: shared})
 		}
 	}
-	if len(shared) == 0 {
-		return nil
-	}
-	return landErr(fmt.Sprintf("not landing #%d: %s. Wait for %s to land, then run land-stack again",
-		stack[len(stack)-1].Number, strings.Join(shared, "; "), strings.Join(slices.Compact(tops), " and ")))
+	return hold, nil
 }
 
 type labeledStack struct {

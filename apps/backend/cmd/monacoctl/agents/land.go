@@ -34,9 +34,10 @@ type Queue struct {
 }
 
 type Arm struct {
-	Top int       `json:"top"`
-	PRs []int     `json:"prs"`
-	At  time.Time `json:"at"`
+	Top    int       `json:"top"`
+	PRs    []int     `json:"prs"`
+	Behind []int     `json:"behind,omitempty"`
+	At     time.Time `json:"at"`
 }
 
 type stackPR struct {
@@ -78,28 +79,38 @@ func landStackCmd(ctx context.Context, env *Env, args []string, stdout io.Writer
 	if err != nil {
 		return err
 	}
-	if err := env.flowGate(ctx, rec, stack); err != nil {
+	hold, err := env.flowGate(ctx, rec, stack)
+	if err != nil {
 		return err
 	}
-	if waiting := waitingOn(stack); len(waiting) > 0 {
-		return env.arm(ctx, rec, stack, waiting, stdout)
+	if len(waitingOn(stack))+len(hold) > 0 {
+		return env.arm(ctx, rec, stack, hold, stdout)
 	}
 	return env.land(ctx, rec, stack, stdout)
 }
 
-func (env *Env) arm(ctx context.Context, rec Record, stack []stackPR, waiting []string, stdout io.Writer) error {
+func (env *Env) arm(ctx context.Context, rec Record, stack []stackPR, hold flowHold, stdout io.Writer) error {
 	top := stack[len(stack)-1].Number
+	stage1 := waitingOn(stack)
+	waiting := strings.Join(append(stage1, hold.waits()...), ", ")
 	if failedCheck(stack) != "" {
-		_, _ = fmt.Fprintf(stdout, "not landing #%d; waiting on %s\n", top, strings.Join(waiting, ", "))
+		_, _ = fmt.Fprintf(stdout, "not landing #%d; waiting on %s\n", top, waiting)
 		return nil
 	}
-	rec.Armed = &Arm{Top: top, PRs: numbers(stack), At: env.Now()}
+	rec.Armed = &Arm{Top: top, PRs: numbers(stack), Behind: hold.tops(), At: env.Now()}
 	rec.Changed = env.Now()
 	if err := env.storeRecord(ctx, rec); err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintf(stdout, "armed #%d; agents watch lands it once stage 1 passes (waiting on %s)\n",
-		top, strings.Join(waiting, ", "))
+	var until []string
+	if len(stage1) > 0 {
+		until = append(until, "stage 1 passes")
+	}
+	if len(hold) > 0 {
+		until = append(until, strings.ReplaceAll(prRefs(hold.tops()), " ", " and ")+" leaves the merge queue")
+	}
+	_, _ = fmt.Fprintf(stdout, "armed #%d; agents watch lands it once %s (waiting on %s)\n",
+		top, strings.Join(until, " and "), waiting)
 	return nil
 }
 
@@ -124,8 +135,12 @@ func (env *Env) landArmed(ctx context.Context, r Record) []string {
 	if len(waitingOn(stack)) > 0 {
 		return nil
 	}
-	if err := env.flowGate(ctx, r, stack); err != nil {
+	hold, err := env.flowGate(ctx, r, stack)
+	if err != nil {
 		return env.disarm(ctx, r, cmp.Or(cliText(err), err.Error()))
+	}
+	if len(hold) > 0 {
+		return env.holdArmed(ctx, r, hold)
 	}
 	var out strings.Builder
 	err = env.land(ctx, r, stack, &out)
@@ -137,6 +152,22 @@ func (env *Env) landArmed(ctx context.Context, r Record) []string {
 		return append(items, env.disarm(ctx, r, cmp.Or(cliText(err), err.Error()))...)
 	}
 	return items
+}
+
+func (env *Env) holdArmed(ctx context.Context, r Record, hold flowHold) []string {
+	top := r.Armed.Top
+	line := fmt.Sprintf("#%d waiting for %s", top, strings.Join(hold.waits(), ", "))
+	if slices.Equal(r.Armed.Behind, hold.tops()) {
+		return []string{line}
+	}
+	arm := *r.Armed
+	arm.Behind = hold.tops()
+	r.Armed = &arm
+	r.Changed = env.Now()
+	if err := env.storeRecord(ctx, r); err != nil {
+		return []string{watchErr(fmt.Sprintf("armed stack #%d: ", top), err)}
+	}
+	return []string{line}
 }
 
 func (env *Env) disarm(ctx context.Context, r Record, why string) []string {

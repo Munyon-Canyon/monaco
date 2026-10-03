@@ -94,9 +94,8 @@ func TestFlowGate_namesTheChangedBackendFlowFile(t *testing.T) {
 	}
 }
 
-func TestFlowGate_refusesAFlowInAnotherQueuedStack(t *testing.T) {
-	t.Parallel()
-	f := newFixture(t)
+func queuedOverlap(t *testing.T, f *fixture) *stackGH {
+	t.Helper()
 	q1, q2 := green(t, 6, "q1", "fb"), green(t, 7, "q2", "q1")
 	labeled(q1, "merge-queue")
 	labeled(q2, "merge-queue")
@@ -105,15 +104,89 @@ func TestFlowGate_refusesAFlowInAnotherQueuedStack(t *testing.T) {
 		7: {{Filename: "packages/mobile-core/Sources/MonacoSystem/Flow00SystemPingModel.swift"}},
 	}, q1, q2, green(t, 9, "unqueued", "fb"))
 	f.hub.on(list("/pulls/9/files?"), []File{{Filename: "packages/flows/app/00.tsv"}})
+	return s
+}
+
+func (s *stackGH) land(nums ...int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, n := range nums {
+		delete(s.prs, n)
+	}
+}
+
+func TestFlowGate_armsAStackWhoseFlowIsInAnotherQueuedStack(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := queuedOverlap(t, f)
 	code, stdout, stderr := f.agents(t, "land-stack", "2")
-	want := "not landing #2: flow 00 is in queued stack #7. Wait for #7 to land, then run land-stack again"
-	if code == 0 || !strings.Contains(stderr, want) || s.prs[2].labeled("merge-queue") {
+	want := "armed #2; agents watch lands it once #7 leaves the merge queue (waiting on queued stack #7 (flow 00))\n"
+	if code != 0 || stdout != want || s.prs[2].labeled("merge-queue") {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	if r := f.owned(t); r.Armed == nil || !slices.Equal(r.Armed.Behind, []int{7}) {
+		t.Fatalf("armed %+v", r.Armed)
 	}
 
 	f.hub.on(list("/pulls/7/files?"), []File{{Filename: "apps/backend/internal/modules/identity/app.go"}})
 	if code, stdout, stderr := f.agents(t, "land-stack", "2"); code != 0 || !s.prs[2].labeled("merge-queue") {
 		t.Fatalf("a queued stack on flow 01 only: %d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestFlowGate_keepsAStackArmedBehindAQueuedStackAndLandsItAfter(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := queuedOverlap(t, f)
+	both := []File{{Filename: "packages/flows/app/00.tsv"}, {Filename: "apps/backend/internal/modules/identity/app.go"}}
+	f.hub.on(list("/pulls/2/files?"), both)
+	f.hub.on(list("/pulls/7/files?"), both)
+	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done, Armed: &Arm{Top: 2, PRs: []int{1, 2}, At: f.now}})
+	f.noFailures()
+	for pass := range 2 {
+		code, stdout, stderr := f.agents(t, "watch", "--once")
+		if !strings.Contains(stdout, "#2 waiting for queued stack #7 (flows 00, 01)\n") ||
+			strings.Contains(stdout, "disarmed") || s.prs[2].labeled("merge-queue") {
+			t.Fatalf("pass %d: %d %q %q", pass, code, stdout, stderr)
+		}
+		if r := f.owned(t); r.Armed == nil || !slices.Equal(r.Armed.Behind, []int{7}) {
+			t.Fatalf("pass %d: armed %+v", pass, r.Armed)
+		}
+	}
+
+	s.land(6, 7)
+	code, stdout, stderr := f.agents(t, "watch", "--once")
+	if !strings.Contains(stdout, "armed stack #2 landing") || !s.prs[2].labeled("merge-queue") ||
+		f.owned(t).Queued == nil {
+		t.Fatalf("after #7 landed: %d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestFlowGate_reportsAWaitItCannotRecord(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	queuedOverlap(t, f)
+	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done, Armed: &Arm{Top: 2, PRs: []int{1, 2}, At: f.now}})
+	f.noFailures()
+	freeze(t, f.Env(t).recordPath(40))
+	if _, stdout, stderr := f.agents(t, "watch", "--once"); !strings.Contains(stdout,
+		"watch error: armed stack #2: write owner record") {
+		t.Fatalf("%q %q", stdout, stderr)
+	}
+}
+
+func TestFlowGate_disarmsAStackBehindAQueuedStackWhoseFlowAlsoChangedOnStaging(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := queuedOverlap(t, f)
+	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done, Armed: &Arm{Top: 2, PRs: []int{1, 2}, At: f.now}})
+	s.gitOut["diff --name-only base..origin/fb"] = "packages/flows/app/00.tsv\n"
+	s.gitOut["log -1 --format=%s base..origin/fb -- packages/flows/app/00.tsv"] = "Edit flow 00 (#77)\n"
+	f.noFailures()
+	code, stdout, stderr := f.agents(t, "watch", "--once")
+	if !strings.Contains(stdout, "armed stack #2 disarmed: not landing #2: flow 00 changed on staging") ||
+		f.owned(t).Armed != nil || s.prs[2].labeled("merge-queue") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 }
 
