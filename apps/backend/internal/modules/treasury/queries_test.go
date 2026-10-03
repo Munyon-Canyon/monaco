@@ -8,10 +8,12 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -180,10 +182,10 @@ func TestStakeAndStakesOf(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	user, other, redeemed, cabal := f.user(t), f.user(t), f.user(t), f.cabal(t)
-	mustPostFund(t, f, user, cabal, 100_000_000, 100)
-	mustPostFund(t, f, other, cabal, 50_000_000, 50)
-	mustPostFund(t, f, redeemed, cabal, 25_000_000, 25)
-	mustPostCashOut(t, f, redeemed, cabal, 25_000_000, 25)
+	mustFundHistory(t, f, user, cabal, 100_000_000, 100)
+	mustFundHistory(t, f, other, cabal, 50_000_000, 50)
+	mustFundHistory(t, f, redeemed, cabal, 25_000_000, 25)
+	mustCashOutHistory(t, f, redeemed, cabal, 25_000_000, 25)
 	q := newQueries(f)
 	stake, err := q.Stake(t.Context(), cabal, user)
 	if err != nil || stake.ValueMicros != money.MicrosFromUint64(100_000_000) || stake.TotalShares.Uint64() != 150 {
@@ -207,7 +209,7 @@ func TestStake_NoHoldingsReturnsZeroValue(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	user, cabal := f.user(t), f.cabal(t)
-	mustPostFund(t, f, user, cabal, 100_000_000, 100)
+	mustFundHistory(t, f, user, cabal, 100_000_000, 100)
 	if _, err := f.pool.Exec(t.Context(), "DELETE FROM cabal_positions WHERE cabal_id = $1", cabal.UUID()); err != nil {
 		t.Fatal(err)
 	}
@@ -271,7 +273,99 @@ func TestQueries_CanceledReadsFail(t *testing.T) {
 	}
 }
 
-func mustPostFund(t *testing.T, f fixture, user ids.UserID, cabal ids.CabalID, micros, shares int64) {
+func TestPositionsAndStakesAt(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	user, other, cabal := f.user(t), f.user(t), f.cabal(t)
+	q := adapterQueriesWithReader(f, app.PriceReader(func(context.Context) (map[uuid.UUID]app.Price, error) {
+		return map[uuid.UUID]app.Price{}, nil
+	}))
+	before := f.clock.Now().Add(-time.Nanosecond)
+	if got, err := q.CabalPositionsAt(t.Context(), before); err != nil || len(got) != 0 {
+		t.Fatalf("CabalPositionsAt(before) = %#v, %v", got, err)
+	}
+	mustFundHistory(t, f, user, cabal, 100_000_000, 100)
+	snapshots := make([]historySnapshot, 0, 9)
+	snapshots = append(snapshots, captureHistory(t, q, cabal, user, f.clock.Now(), []treasury.MemberStake{
+		wantMemberStake(user, cabal, 100, 100_000_000),
+	}))
+	f.clock.Advance(time.Second)
+	mustCashOutHistory(t, f, user, cabal, 100_000_000, 100)
+	snapshots = append(snapshots, captureHistory(t, q, cabal, user, f.clock.Now(), []treasury.MemberStake{
+		wantMemberStake(user, cabal, 0, 0),
+	}))
+	f.clock.Advance(time.Second)
+	mustFundHistory(t, f, user, cabal, 100_000_000, 100)
+	memberStakes := make([]treasury.MemberStake, 0, 2)
+	memberStakes = append(memberStakes, wantMemberStake(user, cabal, 100, 100_000_000))
+	snapshots = append(snapshots, captureHistory(t, q, cabal, user, f.clock.Now(), memberStakes))
+	f.clock.Advance(time.Second)
+	mustPostHistorySwap(t, f, cabal, 40_000_000, 200_000_000)
+	snapshots = append(snapshots, captureHistory(t, q, cabal, user, f.clock.Now(), memberStakes))
+	f.clock.Advance(time.Second)
+	mustPostHistorySwap(t, f, cabal, -10_000_000, -50_000_000)
+	snapshots = append(snapshots, captureHistory(t, q, cabal, user, f.clock.Now(), memberStakes))
+	f.clock.Advance(time.Second)
+	mustPostHistoryAssetSwap(t, f, cabal, domain.Asset(marketfake.TSLAx().Mint.Address()), 20_000_000, 25_000_000)
+	snapshots = append(snapshots, captureHistory(t, q, cabal, user, f.clock.Now(), memberStakes))
+	f.clock.Advance(time.Second)
+	mustPostHistorySwap(t, f, cabal, -5_000_000, -25_000_000)
+	snapshots = append(snapshots, captureHistory(t, q, cabal, user, f.clock.Now(), memberStakes))
+	f.clock.Advance(time.Second)
+	postNoCabalDeposit(t, f, f.user(t))
+	snapshots = append(snapshots, captureHistory(t, q, cabal, user, f.clock.Now(), memberStakes))
+	f.clock.Advance(time.Second)
+	mustFundHistory(t, f, other, cabal, 50_000_000, 50)
+	memberStakes = append(memberStakes, wantMemberStake(other, cabal, 50, 50_000_000))
+	snapshots = append(snapshots, captureHistory(t, q, cabal, user, f.clock.Now(), memberStakes))
+	for _, snapshot := range snapshots {
+		assertHistoricalSnapshot(t, q, snapshot)
+	}
+}
+
+func postNoCabalDeposit(t *testing.T, f fixture, user ids.UserID) {
+	t.Helper()
+	txn, err := domain.NewUserTxn(domain.UserTxnHeader{
+		ID: f.ids.NewV7(), UserID: user, Kind: domain.UserDeposit, Status: domain.TxnSettled,
+	}, []domain.UserEntry{
+		{Account: domain.UserWallet, Asset: usdc, Amount: amount(1)},
+		{Account: domain.UserExternal, Asset: usdc, Amount: amount(-1)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.do(func(ctx context.Context, tx db.Tx) error {
+		return f.ledger.PostUserTxn(ctx, tx, txn)
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mustPostHistorySwap(t *testing.T, f fixture, cabal ids.CabalID, micros, units int64) {
+	t.Helper()
+	txn, err := f.swap(cabal, micros, units)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.postCabal(txn); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mustPostHistoryAssetSwap(
+	t *testing.T, f fixture, cabal ids.CabalID, asset domain.Asset, micros, units int64,
+) {
+	t.Helper()
+	txn, err := swapForAsset(f, cabal, asset, micros, units)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.postCabal(txn); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mustFundHistory(t *testing.T, f fixture, user ids.UserID, cabal ids.CabalID, micros, shares int64) {
 	t.Helper()
 	u, c, err := f.fund(user, cabal, micros, shares, domain.TxnSettled)
 	if err != nil {
@@ -282,7 +376,7 @@ func mustPostFund(t *testing.T, f fixture, user ids.UserID, cabal ids.CabalID, m
 	}
 }
 
-func mustPostCashOut(t *testing.T, f fixture, user ids.UserID, cabal ids.CabalID, micros, shares int64) {
+func mustCashOutHistory(t *testing.T, f fixture, user ids.UserID, cabal ids.CabalID, micros, shares int64) {
 	t.Helper()
 	u, c, err := f.cashOut(user, cabal, micros, shares, domain.TxnSettled)
 	if err != nil {
@@ -291,6 +385,148 @@ func mustPostCashOut(t *testing.T, f fixture, user ids.UserID, cabal ids.CabalID
 	if err := f.postPair(u, c); err != nil {
 		t.Fatal(err)
 	}
+}
+
+type historySnapshot struct {
+	at        time.Time
+	cabal     ids.CabalID
+	user      ids.UserID
+	positions []treasury.CabalPositions
+	units     money.SharesUnits
+	members   []treasury.MemberStake
+}
+
+func captureHistory(
+	t *testing.T,
+	q *adapters.Queries,
+	cabal ids.CabalID,
+	user ids.UserID,
+	at time.Time,
+	wantMembers []treasury.MemberStake,
+) historySnapshot {
+	t.Helper()
+	livePositions, err := q.Positions(t.Context(), cabal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	liveShares, err := q.TotalShares(t.Context(), cabal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantPositions := cabalPositionsFromLive(cabal, livePositions, liveShares)
+	positions, err := q.CabalPositionsAt(t.Context(), at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sameCabalPositions(positions, wantPositions) {
+		t.Fatalf("CabalPositionsAt(%v) = %#v, want live %#v", at, positions, wantPositions)
+	}
+	units, err := q.ShareUnitsAt(t.Context(), cabal, user, at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantUnits := wantMembers[0].ShareUnits
+	if units != wantUnits {
+		t.Fatalf("ShareUnitsAt(%v) = %v, want %v", at, units, wantUnits)
+	}
+	members, err := q.MemberStakesAt(t.Context(), at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sameMemberStakes(members, wantMembers) {
+		t.Fatalf("MemberStakesAt(%v) = %#v, want %#v", at, members, wantMembers)
+	}
+	return historySnapshot{
+		at: at, cabal: cabal, user: user, positions: wantPositions, units: wantUnits, members: wantMembers,
+	}
+}
+
+func assertHistoricalSnapshot(t *testing.T, q *adapters.Queries, want historySnapshot) {
+	t.Helper()
+	positions, err := q.CabalPositionsAt(t.Context(), want.at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	units, err := q.ShareUnitsAt(t.Context(), want.cabal, want.user, want.at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	members, err := q.MemberStakesAt(t.Context(), want.at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	matches := sameCabalPositions(positions, want.positions) && units == want.units &&
+		sameMemberStakes(members, want.members)
+	if !matches {
+		t.Fatalf("history at %v does not match expected snapshot", want.at)
+	}
+}
+
+func cabalPositionsFromLive(
+	cabal ids.CabalID, holdings []treasury.Position, totalShares money.SharesUnits,
+) []treasury.CabalPositions {
+	if len(holdings) == 0 {
+		return nil
+	}
+	return []treasury.CabalPositions{{CabalID: cabal, Holdings: holdings, TotalShares: totalShares}}
+}
+
+func wantMemberStake(user ids.UserID, cabal ids.CabalID, shares uint64, net int64) treasury.MemberStake {
+	return treasury.MemberStake{
+		UserID: user, CabalID: cabal, ShareUnits: money.SharesUnitsFromUint64(shares),
+		NetContributedMicros: money.SignedMicrosFromInt64(net),
+	}
+}
+
+func sameCabalPositions(got, want []treasury.CabalPositions) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i].CabalID != want[i].CabalID || got[i].TotalShares != want[i].TotalShares ||
+			!samePositionSlices(got[i].Holdings, want[i].Holdings) {
+			return false
+		}
+	}
+	return true
+}
+
+func samePositionSlices(got, want []treasury.Position) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func sameMemberStakes(got, want []treasury.MemberStake) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func swapForAsset(
+	f fixture, cabal ids.CabalID, asset domain.Asset, micros, units int64,
+) (domain.CabalTxn, error) {
+	return domain.NewCabalTxn(domain.CabalTxnHeader{
+		ID: f.ids.NewV7(), CabalID: cabal, Kind: domain.CabalSwap, Status: domain.TxnSettled, SwapID: f.ids.NewV7(),
+		TxSignature: "5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZrRFMV6UjKdiSZkQUW",
+	}, []domain.CabalEntry{
+		{Account: domain.CabalTreasury, Asset: usdc, Amount: amount(-micros)},
+		{Account: domain.CabalVenue, Asset: usdc, Amount: amount(micros)},
+		{Account: domain.CabalTreasury, Asset: asset, Amount: amount(units)},
+		{Account: domain.CabalVenue, Asset: asset, Amount: amount(-units)},
+	})
 }
 
 func seedHolding(t *testing.T, f fixture) ids.CabalID {
