@@ -3,7 +3,7 @@ github.com/monaco/monaco/apps/backend/cmd/api	5.2
 github.com/monaco/monaco/apps/backend/cmd/fakes	1.7
 github.com/monaco/monaco/apps/backend/cmd/monacoctl	11.9
 github.com/monaco/monaco/apps/backend/cmd/monacoctl/agents	8.4
-github.com/monaco/monaco/apps/backend/cmd/monacoctl/verify	39.1
+github.com/monaco/monaco/apps/backend/cmd/monacoctl/verify	17.0
 github.com/monaco/monaco/apps/backend/cmd/worker	5.9
 github.com/monaco/monaco/apps/backend/internal/errs	1.6
 github.com/monaco/monaco/apps/backend/internal/events	1.5

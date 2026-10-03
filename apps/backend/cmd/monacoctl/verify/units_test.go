@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nats-io/nats.go/jetstream"
 
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 	tools "github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
@@ -148,7 +149,8 @@ func TestDriver_ignoresOtherTypesAndNamesAnIdleConsumer(t *testing.T) {
 
 func TestDriver_reportsNATSArmAndTokenFailures(t *testing.T) {
 	t.Parallel()
-	env := servedEnv(t)
+	env := unservedEnv("")
+	env.JS = testkit.NATS(t).JS
 	d, err := newDriver(env, DefaultBudget())
 	if err != nil {
 		t.Fatal(err)

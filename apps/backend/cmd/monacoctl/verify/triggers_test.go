@@ -151,6 +151,13 @@ func (p fixturePoller) Interval() time.Duration { return p.every }
 
 func (p fixturePoller) Tick(context.Context) (poller.Report, error) { return p.report, p.err }
 
+func pollerEnv(t *testing.T) Env {
+	t.Helper()
+	env := unservedEnv("")
+	env.Pool = testkit.DB(t)
+	return env
+}
+
 func tickAsTheWorker(t *testing.T, env Env, p poller.Poller) {
 	t.Helper()
 	runner, err := poller.NewRunner(env.Pool, clock.Real{}, noop.NewMeterProvider().Meter("verify"))
@@ -173,7 +180,7 @@ func tickAsTheWorker(t *testing.T, env Env, p poller.Poller) {
 	}, 5*time.Second)
 }
 
-const virtualConverge = time.Hour
+const virtualConverge = time.Second
 
 func failingConverge(b Budget) Budget {
 	b.Converge = virtualConverge
@@ -216,7 +223,7 @@ func TestVerify_aPollerFlowPassesOnATickAndNamesThePollerWhenNoneComes(t *testin
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			env := servedEnv(t)
+			env := pollerEnv(t)
 			tickAsTheWorker(t, env, fixturePoller{every: tc.every, report: poller.Report{Scanned: 3, Changed: 2}})
 			u := fixtureUnit(t, "95", "ok")
 			if tc.script != nil {
@@ -256,7 +263,7 @@ func TestVerify_aPollerCodeOutcomePassesOnlyOnAFailedTickWithThatCode(t *testing
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			env := servedEnv(t)
+			env := pollerEnv(t)
 			tickAsTheWorker(t, env, fixturePoller{every: 20 * time.Millisecond, err: tc.err})
 			u := fixtureUnit(t, "95", tc.outcome)
 			u.Script = awaitPrices

@@ -11,8 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 func TestUp_startsAHealthyStackAndDownStopsEveryProcess(t *testing.T) {
@@ -46,7 +49,9 @@ func TestUp_startsAHealthyStackAndDownStopsEveryProcess(t *testing.T) {
 func TestUp_aStackThatNeverGetsHealthyFailsNamingStackUp(t *testing.T) {
 	t.Parallel()
 	o := testOptions(t, fakeSick)
-	o.Budget.Stack = 2 * time.Second
+	clk := fakeClock()
+	o.Clock = clk
+	spendWhenProbedTwice(t, &o, clk)
 	s, err := Up(t.Context(), o)
 	defer func() { _ = s.Down(t.Context()) }()
 	var over *OverBudgetError
@@ -54,6 +59,27 @@ func TestUp_aStackThatNeverGetsHealthyFailsNamingStackUp(t *testing.T) {
 		!strings.Contains(err.Error(), "answered 503") {
 		t.Fatalf("Up = %v, want over budget in stack-up naming the sick health check", err)
 	}
+}
+
+func spendWhenProbedTwice(t *testing.T, o *Options, clk *testkit.Clock) {
+	t.Helper()
+	ln, err := new(net.ListenConfig).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	o.Environ = append(o.Environ, fakeProbedEnv+"="+ln.Addr().String())
+	var g errgroup.Group
+	g.Go(func() error {
+		if conn, err := ln.Accept(); err == nil {
+			_ = conn.Close()
+			clk.Advance(o.Budget.Stack)
+		}
+		return nil
+	})
+	t.Cleanup(func() {
+		_ = ln.Close()
+		_ = g.Wait()
+	})
 }
 
 func TestUp_namesTheProcessThatExitsBeforeListening(t *testing.T) {
