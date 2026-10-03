@@ -1,10 +1,11 @@
 # Auth & onboarding
 
-**Status:** Decided 2026-09-26; login and account-standing rules decided 2026-09-27; login methods changed 2026-09-29. X follow import is deferred past MVP. The backend shape (modules, events, errors, rollout) follows [backend-platform.md](backend-platform.md), which wins where the two differ.
+**Status:** Decided 2026-09-26; login and account-standing rules decided 2026-09-27; login methods changed 2026-09-29; Apple and Google added 2026-10-02. X follow import is deferred past MVP. The backend shape (modules, events, errors, rollout) follows [backend-platform.md](backend-platform.md), which wins where the two differ.
 
 ## Decision
 
-- **Login is SMS OTP or email OTP**, through Privy, in every build including production (decided 2026-09-29). Apple and Google sign-in are deferred (#541). Agents and simulators sign in the same way as users.
+- **Login is SMS OTP or email OTP**, through Privy, in every build including production (decided 2026-09-29). Sign in with Apple and Continue with Google sit under the OTP form as secondary buttons (#541, 2026-10-02). Agents and simulators sign in with OTP, the same way as users.
+- **Two Privy apps** (decided 2026-10-02): local and staging builds use the dev Privy app, so the staging backend verifies dev tokens; production builds use the production Privy app. A Release build whose environment has no Privy app refuses to launch.
 - After first login, onboarding asks for three things on separate screens:
   1. **Username (handle)**, unique across Monaco and required (decided 2026-09-27). It lives on `users.handle` and `identity` owns it. See [Handle](#handle).
   2. **Phone number**, verified by SMS code and linked to the same Privy user.
@@ -16,7 +17,7 @@
 
 ## Why
 
-- **OTP login** needs no Apple or Google account and works the same in every environment. Adding Apple later satisfies App Store guideline 4.8 once any third-party social login is offered.
+- **OTP login** needs no Apple or Google account and works the same in every environment. Apple ships with Google because App Store guideline 4.8 requires it once any third-party social login is offered.
 - **Phone and X are for the graph.** A phone used to sign in is not stored as the contact-matching number until the user finishes the phone step. The X link stays a separate, skippable ask, and the app nudges it later.
 - **Stored state columns** give the app, notifications and analytics a single, indexable answer to "where is this user", instead of each re-deriving it from linked accounts. Two columns, not one, because onboarding progress and account standing change independently: a banned user keeps their onboarding state, and "banned users who never gave a phone" stays answerable.
 
@@ -29,7 +30,11 @@ try await privy.sms.sendCode(to: phone)
 try await privy.sms.loginWithCode(code, sentTo: phone)
 try await privy.email.sendCode(to: email)
 try await privy.email.loginWithCode(code, sentTo: email)
+try await privy.oAuth.login(with: .apple, appUrlScheme: "monaco")
+try await privy.oAuth.login(with: .google, appUrlScheme: "monaco")
 ```
+
+Closing the Apple or Google sheet returns to the login screen with no toast. Any other sheet failure is toasted.
 
 Then the app calls `POST /v1/auth/session` with the Privy access token. The route is public, because no account exists on the first call, and takes no `Idempotency-Key`: finding or creating the user by `privy_user_id` is already idempotent. It is limited to 60 calls a minute per IP. The backend:
 
@@ -42,7 +47,7 @@ Then the app calls `POST /v1/auth/session` with the Privy access token. The rout
 
 In the rewrite this is flow 1 in [`flows.tsv`](backend-platform.md#flows), owned by the `identity` module. A first sign-in appends `user.created`; every state change appends `user.auth_state_changed`. Both go through `uow.Do` in the same transaction as the row ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). The `analytics`, `referrals` and `social` consumers react.
 
-Privy dashboard: enable SMS and email as **login** methods in every environment, and keep Apple and Google off until #541. Bundle `com.monaco.app` stays on the Privy iOS client.
+Privy dashboard: enable SMS, email, Apple and Google as **login** methods on both Privy apps. Bundle `com.monaco.app` stays on both Privy iOS clients, and each iOS client allows the `monaco` app URL scheme, which the Apple and Google sheets redirect to.
 
 ## Onboarding
 
@@ -182,7 +187,7 @@ New tables: `contact_matches (user_id, matched_user_id, source, created_at, dism
 
 ## Gap between this and the code
 
-Today: email OTP and SMS OTP login through Privy; `users` has `id`, `privy_user_id`, `display_name`, `profile_photo_url`, `created_at`. No state column, no phone, no X, no contacts.
+Today: email OTP and SMS OTP login through Privy, with Apple and Google beside them; `users` has `id`, `privy_user_id`, `display_name`, `profile_photo_url`, `created_at`. No state column, no phone, no X, no contacts.
 
 There is no migration path for existing users (decided 2026-09-27). The new backend starts on an empty database, so there is no backfill of `auth_state` and no dual login period.
 

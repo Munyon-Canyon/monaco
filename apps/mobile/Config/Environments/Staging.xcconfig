@@ -4,3 +4,6 @@
 // Must be https. Left empty, the app refuses to launch with this environment selected.
 MONACO_STAGING_API_BASE_URL =
 MONACO_API_BASE_URL_staging = $(MONACO_STAGING_API_BASE_URL)
+// Staging runs against the dev Privy app, so the staging backend verifies dev tokens.
+PRIVY_APP_ID_staging = $(PRIVY_APP_ID_DEV)
+PRIVY_APP_CLIENT_ID_staging = $(PRIVY_APP_CLIENT_ID_DEV)

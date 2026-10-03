@@ -67,3 +67,19 @@ public struct PrivyAuthConfig: Equatable, Sendable {
         }
     }
 }
+
+public enum PrivyAuthConfigError: Error, Equatable, LocalizedError {
+    case missingApp
+
+    public var errorDescription: String? {
+        "PRIVY_APP_ID and PRIVY_APP_CLIENT_ID are empty for the selected environment. A production build reads them from .env.production through scripts/ensure-ios-privy-config.sh."
+    }
+}
+
+extension PrivyAuthConfig {
+    public func requireConfigured(build: MonacoBuildKind) throws {
+        if build == .release && !isConfigured {
+            throw PrivyAuthConfigError.missingApp
+        }
+    }
+}
