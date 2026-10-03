@@ -7,8 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
-	"os"
 	"os/exec"
 	"slices"
 	"strconv"
@@ -332,27 +330,7 @@ func (env *Env) settle(ctx context.Context, rec Record, prs []stackPR, landed []
 		return nil
 	}
 	sha := shortSHA(cmp.Or(top.MergeCommit.OID, top.HeadOID))
-	if _, err := os.Stat(rec.Worktree); errors.Is(err, fs.ErrNotExist) {
-		_, _ = fmt.Fprintf(
-			stdout, "#%d merged as %s; no worktree at %s, skipped gt sync\n", top.Number, sha, rec.Worktree,
-		)
-		return env.conclude(ctx, rec, outcomeLanded, landedLine(rec.Queued))
-	}
-	if _, err := env.Run(
-		ctx,
-		rec.Worktree,
-		"",
-		"gt",
-		"sync",
-		"--no-interactive",
-		"--delete-all",
-		"--no-restack",
-	); err != nil {
-		first, _, _ := strings.Cut(strings.TrimSpace(err.Error()), "\n")
-		_, _ = fmt.Fprintf(stdout, "#%d merged as %s; gt sync failed in %s: %s\n", top.Number, sha, rec.Worktree, first)
-		return env.conclude(ctx, rec, outcomeLanded, landedLine(rec.Queued))
-	}
-	_, _ = fmt.Fprintf(stdout, "#%d merged as %s; gt sync ran in %s\n", top.Number, sha, rec.Worktree)
+	_, _ = fmt.Fprintf(stdout, "#%d merged as %s\n", top.Number, sha)
 	return env.conclude(ctx, rec, outcomeLanded, landedLine(rec.Queued))
 }
 

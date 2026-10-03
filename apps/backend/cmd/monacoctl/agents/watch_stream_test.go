@@ -108,8 +108,8 @@ func TestWatchStream_settlesAStackOnceEveryPRLanded(t *testing.T) {
 	if got != want {
 		t.Fatalf("stream\n got %q\nwant %q", got, want)
 	}
-	if lines := s.lines(); len(lines) != 1 || lines[0] != "gt sync --no-interactive --delete-all --no-restack" {
-		t.Fatalf("calls %v", lines)
+	if lines := s.lines(); len(lines) != 0 {
+		t.Fatalf("a landing ran %v; gt sync resets other lanes' unpushed branches", lines)
 	}
 	if f.owned(t).Queued != nil {
 		t.Fatal("kept the queued mark")
@@ -315,17 +315,6 @@ func TestWatchStream_printsEachErrorAsALineAndKeepsGoing(t *testing.T) {
 
 func TestWatchStream_reportsAFailedSettleOrUnmark(t *testing.T) {
 	t.Parallel()
-	t.Run("a failing gt sync still lands", func(t *testing.T) {
-		t.Parallel()
-		f := newFixture(t)
-		s := queuedStack(t, f, t.TempDir())
-		s.prs[1].State, s.prs[2].State = "MERGED", "MERGED"
-		s.fail = "gt sync"
-		got := streamRounds(t, f, 1, func(int) {})
-		if !strings.Contains(got, "stack #2 landed (#1 #2)\n") || f.owned(t).Queued != nil {
-			t.Fatalf("stream:\n%s", got)
-		}
-	})
 	t.Run("a landed stack whose record cannot be written", func(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t)

@@ -570,29 +570,18 @@ func TestLandStack_settlesTheQueuedStack(t *testing.T) {
 		stdout     string
 		calls      []string
 		stillQueue bool
-		gone       bool
 	}{
 		{
 			name: "every PR merged",
 			edit: func(prs map[int]*stackPR) {
 				prs[2].State, prs[3].State, prs[3].MergeCommit.OID = "MERGED", "MERGED", oid
 			},
-			stdout: "#3 merged as abcdef0; gt sync ran in WT\n",
-			calls:  []string{"gt sync --no-interactive --delete-all --no-restack"},
-		},
-		{
-			name: "every PR merged, in a clone without the worktree",
-			edit: func(prs map[int]*stackPR) {
-				prs[2].State, prs[3].State, prs[3].MergeCommit.OID = "MERGED", "MERGED", oid
-			},
-			stdout: "#3 merged as abcdef0; no worktree at WT, skipped gt sync\n",
-			gone:   true,
+			stdout: "#3 merged as abcdef0\n",
 		},
 		{
 			name:   "every PR closed by the Graphite fast-forward",
 			edit:   func(prs map[int]*stackPR) { prs[2].State, prs[3].State = "CLOSED", "CLOSED" },
-			stdout: "#3 merged as b3-oid; gt sync ran in WT\n",
-			calls:  []string{"gt sync --no-interactive --delete-all --no-restack"},
+			stdout: "#3 merged as b3-oid\n",
 		},
 		{
 			name:       "a lower PR closed by the queue while the top waits",
@@ -624,9 +613,6 @@ func TestLandStack_settlesTheQueuedStack(t *testing.T) {
 			f.hub.on(get("/compare/fb...b2-oid"), `{"status":"identical"}`)
 			f.hub.on(get("/compare/fb...b3-oid"), `{"status":"behind"}`)
 			wt := t.TempDir()
-			if tt.gone {
-				wt = filepath.Join(wt, "gone")
-			}
 			f.owner(t, Record{Ticket: 40, Worktree: wt, Queued: &Queue{Top: 3, PRs: []int{1, 2, 3}}})
 			code, stdout, stderr := f.agents(t, "land-stack", "3")
 			if code != 0 || stdout != strings.ReplaceAll(tt.stdout, "WT", wt) {
@@ -744,23 +730,6 @@ func TestLandStack_failures(t *testing.T) {
 
 func TestLandStack_settleFailures(t *testing.T) {
 	t.Parallel()
-	t.Run("gt sync", func(t *testing.T) {
-		t.Parallel()
-		f := newFixture(t)
-		bottom, top := green(t, 1, "b1", "fb"), green(t, 2, "b2", "fb")
-		bottom.State, top.State = "MERGED", "MERGED"
-		s := newStackGH(t, f, bottom, top)
-		s.fail = "gt sync"
-		wt := t.TempDir()
-		f.owner(t, Record{Ticket: 40, Worktree: wt, Queued: &Queue{Top: 2, PRs: []int{1, 2}}})
-		code, stdout, stderr := f.agents(t, "land-stack", "2")
-		if want := "#2 merged as b2-oid; gt sync failed in " + wt + ": "; code != 0 || !strings.Contains(stdout, want) {
-			t.Fatalf("%d %q %q", code, stdout, stderr)
-		}
-		if f.owned(t).Queued != nil {
-			t.Fatal("a failed gt sync kept the queued mark of a landed stack")
-		}
-	})
 	t.Run("the queue drafts cannot be read", func(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t)
