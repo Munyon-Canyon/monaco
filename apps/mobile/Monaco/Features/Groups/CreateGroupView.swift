@@ -154,7 +154,14 @@ struct CreateGroupView: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
                 nameField
                     .padding(.horizontal, MonacoTheme.Space.m)
-                rules
+                CabalRulesSection(
+                    joinPolicy: $joinPolicy,
+                    voterSet: $voterSet,
+                    threshold: $threshold,
+                    voteExpiry: $voteExpiry,
+                    identifierPrefix: "create-rule"
+                )
+                .disabled(isCreating)
             }
             .padding(.top, MonacoTheme.Space.m)
             .padding(.bottom, MonacoTheme.Space.xl)
@@ -193,50 +200,6 @@ struct CreateGroupView: View {
             Text(CabalRulesCopy.nameHint)
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.muted)
-        }
-    }
-
-    private var rules: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            MonacoSectionHeader(CabalRulesCopy.sectionTitle)
-                .padding(.horizontal, MonacoTheme.Space.m)
-
-            MonacoGroupedList {
-                CabalRuleRow(
-                    title: CabalRulesCopy.joinTitle,
-                    options: JoinPolicyMode.allCases,
-                    selection: $joinPolicy,
-                    label: { $0.label },
-                    caption: { $0.caption },
-                    identifier: "create-rule-join"
-                )
-                CabalRuleRow(
-                    title: CabalRulesCopy.votersTitle,
-                    options: VoterSetMode.allCases,
-                    selection: $voterSet,
-                    label: { $0.label },
-                    caption: { $0.caption },
-                    identifier: "create-rule-voters"
-                )
-                CabalRuleRow(
-                    title: CabalRulesCopy.thresholdTitle,
-                    options: VoteThresholdMode.allCases,
-                    selection: $threshold,
-                    label: { $0.label },
-                    caption: { $0.caption },
-                    identifier: "create-rule-threshold"
-                )
-                CabalRuleRow(
-                    title: CabalRulesCopy.expiryTitle,
-                    options: VoteExpiryOption.allCases,
-                    selection: $voteExpiry,
-                    label: { $0.label },
-                    caption: { $0.caption },
-                    identifier: "create-rule-expiry",
-                    isLast: true
-                )
-            }
-            .disabled(isCreating)
         }
     }
 
@@ -298,100 +261,6 @@ struct CreateGroupView: View {
         } catch {
             errorMessage = "Couldn't create this cabal. Try again."
         }
-    }
-}
-
-/// One rule on the Start a cabal screen: its name, what the current choice means, and the
-/// choice under them. A ruled row, so the four rules read as one table.
-private struct CabalRuleRow<Option: Hashable>: View {
-    let title: String
-    let options: [Option]
-    @Binding var selection: Option
-    let label: (Option) -> String
-    let caption: (Option) -> String
-    let identifier: String
-    var isLast = false
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(MonacoTheme.Typo.rowTitle)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .accessibilityAddTraits(.isHeader)
-                Text(caption(selection))
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .contentTransition(.opacity)
-                    .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: selection)
-            }
-            CabalRuleChoice(options: options, selection: $selection, label: label)
-        }
-        .padding(MonacoTheme.Space.m)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(alignment: .bottom) {
-            if !isLast {
-                MonacoRule()
-                    .padding(.leading, MonacoTheme.Space.m)
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier(identifier)
-    }
-}
-
-/// The segmented control at the default text sizes. At the accessibility sizes the options
-/// stack as full-width chips instead, where a two-up control would cut "Everyone agrees" short.
-private struct CabalRuleChoice<Option: Hashable>: View {
-    let options: [Option]
-    @Binding var selection: Option
-    let label: (Option) -> String
-
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    var body: some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            VStack(spacing: MonacoTheme.Space.s) {
-                ForEach(options, id: \.self) { option in
-                    stackedOption(option)
-                }
-            }
-        } else {
-            MonacoSegmented(options, selection: $selection, label: label)
-        }
-    }
-
-    private func stackedOption(_ option: Option) -> some View {
-        let isSelected = option == selection
-        return Button {
-            guard !isSelected else { return }
-            Haptics.selection()
-            selection = option
-        } label: {
-            HStack(spacing: MonacoTheme.Space.s) {
-                Text(label(option))
-                    .font(MonacoTheme.Typo.calloutStrong)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(MonacoTheme.Typo.calloutStrong)
-                        .accessibilityHidden(true)
-                }
-            }
-            .foregroundStyle(isSelected ? MonacoTheme.onBrand : MonacoTheme.ink)
-            .padding(.horizontal, MonacoTheme.Space.m)
-            .padding(.vertical, MonacoTheme.Space.s)
-            .frame(minHeight: 44)
-            .background(Capsule().fill(isSelected ? MonacoTheme.brandFill : MonacoTheme.surfaceSunken))
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 }
 
