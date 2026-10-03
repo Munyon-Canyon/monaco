@@ -131,6 +131,80 @@ func (e DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType) Valid() bool {
 	}
 }
 
+// ChatAuthor The author of a chat message. A deleted account has a null handle and an empty name.
+type ChatAuthor struct {
+	// DisplayName Empty when the user has none.
+	//
+	// Examples: Kai
+	DisplayName string `json:"display_name"`
+
+	// Handle Null until onboarding sets one.
+	//
+	// Examples: kai
+	Handle *string `json:"handle"`
+
+	// Id The author's user id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	Id openapi_types.UUID `json:"id"`
+
+	// PhotoUrl Null when the user has none.
+	//
+	// Examples: null
+	PhotoUrl *string `json:"photo_url"`
+}
+
+// ChatMessage One chat message.
+type ChatMessage struct {
+	// AlsoInChannel True on a reply that also shows in the channel.
+	//
+	// Examples: false
+	AlsoInChannel bool `json:"also_in_channel"`
+
+	// Author The author of a chat message. A deleted account has a null handle and an empty name.
+	Author ChatAuthor `json:"author"`
+
+	// Body Null on a deleted message.
+	//
+	// Examples: gm
+	Body *string `json:"body"`
+
+	// CreatedAt When the server stored it.
+	//
+	// Examples: 2026-10-03T12:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// Deleted True on a deleted top-level message kept for its thread.
+	//
+	// Examples: false
+	Deleted bool `json:"deleted"`
+
+	// Id The message id.
+	//
+	// Examples: 01920000-0000-7000-8000-000000000007
+	Id openapi_types.UUID `json:"id"`
+
+	// LastReplyAt When the newest reply was posted. Null with no replies.
+	//
+	// Examples: null
+	LastReplyAt *time.Time `json:"last_reply_at"`
+
+	// ParentId The top-level message this replies to. Null on a top-level message.
+	//
+	// Examples: null
+	ParentId *openapi_types.UUID `json:"parent_id"`
+
+	// ProposalId The proposal a proposal card message is about. Null otherwise.
+	//
+	// Examples: null
+	ProposalId *openapi_types.UUID `json:"proposal_id"`
+
+	// ReplyCount The replies to a top-level message. 0 on a reply.
+	//
+	// Examples: 0
+	ReplyCount int `json:"reply_count"`
+}
+
 // FeedItem One feed item with its display strings rendered.
 type FeedItem struct {
 	// ActorId The user who acted. Null for a system item.
@@ -293,6 +367,42 @@ type FollowsPage struct {
 	NextCursor *string `json:"next_cursor"`
 }
 
+// PostChatMessageRequest A chat message to post.
+type PostChatMessageRequest struct {
+	// AlsoInChannel Show the reply in the channel too. Needs a parent_id. Defaults to false.
+	//
+	// Examples: false
+	AlsoInChannel *bool `json:"also_in_channel,omitempty"`
+
+	// Body The text, trimmed by the server to 1 to 2000 Unicode scalars.
+	//
+	// Examples: gm
+	Body string `json:"body"`
+
+	// ParentId The top-level message this replies to. Absent for a top-level message.
+	//
+	// Examples: 01920000-0000-7000-8000-000000000007
+	ParentId *openapi_types.UUID `json:"parent_id,omitempty"`
+}
+
+// ChatCabalId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+type ChatCabalId = openapi_types.UUID
+
+// ChatMessageId Examples: 01920000-0000-7000-8000-000000000007
+type ChatMessageId = openapi_types.UUID
+
+// PostChatMessageParams defines parameters for PostChatMessage.
+type PostChatMessageParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// DeleteChatMessageParams defines parameters for DeleteChatMessage.
+type DeleteChatMessageParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // GetFeedParams defines parameters for GetFeed.
 type GetFeedParams struct {
 	// Kind A comma-separated list of kinds to include: `proposal`, `trade`, `price_move`, `cabal_created` and `member_joined`. Absent includes every kind.
@@ -392,6 +502,9 @@ type GetUserFollowingParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// PostChatMessageJSONRequestBody defines body for PostChatMessage for application/json ContentType.
+type PostChatMessageJSONRequestBody = PostChatMessageRequest
+
 // PutMeFeedMutesJSONRequestBody defines body for PutMeFeedMutes for application/json ContentType.
 type PutMeFeedMutesJSONRequestBody = FeedMuteRequest
 
@@ -400,6 +513,12 @@ type PostUserFollowJSONRequestBody = FollowRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// PostChatMessage Post a message to a cabal's chat.
+	// (POST /v1/cabals/{id}/messages)
+	PostChatMessage(w http.ResponseWriter, r *http.Request, id ChatCabalId, params PostChatMessageParams)
+	// DeleteChatMessage Delete one of the caller's chat messages.
+	// (DELETE /v1/cabals/{id}/messages/{message_id})
+	DeleteChatMessage(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, params DeleteChatMessageParams)
 	// GetFeed Read the feed.
 	// (GET /v1/feed)
 	GetFeed(w http.ResponseWriter, r *http.Request, params GetFeedParams)
@@ -437,6 +556,123 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// PostChatMessage operation middleware
+func (siw *ServerInterfaceWrapper) PostChatMessage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ChatCabalId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostChatMessageParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostChatMessage(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteChatMessage operation middleware
+func (siw *ServerInterfaceWrapper) DeleteChatMessage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ChatCabalId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "message_id" -------------
+	var messageId ChatMessageId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "message_id", r.PathValue("message_id"), &messageId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "message_id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteChatMessageParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteChatMessage(w, r, id, messageId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetFeed operation middleware
 func (siw *ServerInterfaceWrapper) GetFeed(w http.ResponseWriter, r *http.Request) {
@@ -1116,6 +1352,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/messages", wrapper.PostChatMessage)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}", wrapper.DeleteChatMessage)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed", wrapper.GetFeed)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed/{id}", wrapper.GetFeedItem)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/feed-mutes", wrapper.GetMeFeedMutes)
@@ -1127,6 +1365,82 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users/{id}/following", wrapper.GetUserFollowing)
 
 	return m
+}
+
+type PostChatMessageRequestObject struct {
+	Id     ChatCabalId `json:"id"`
+	Params PostChatMessageParams
+	Body   *PostChatMessageJSONRequestBody
+}
+
+type PostChatMessageResponseObject interface {
+	VisitPostChatMessageResponse(w http.ResponseWriter) error
+}
+
+type PostChatMessage201JSONResponse ChatMessage
+
+func (response PostChatMessage201JSONResponse) VisitPostChatMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostChatMessagedefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PostChatMessagedefaultApplicationProblemPlusJSONResponse) VisitPostChatMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteChatMessageRequestObject struct {
+	Id        ChatCabalId   `json:"id"`
+	MessageId ChatMessageId `json:"message_id"`
+	Params    DeleteChatMessageParams
+}
+
+type DeleteChatMessageResponseObject interface {
+	VisitDeleteChatMessageResponse(w http.ResponseWriter) error
+}
+
+type DeleteChatMessage204Response struct {
+}
+
+func (response DeleteChatMessage204Response) VisitDeleteChatMessageResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteChatMessagedefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response DeleteChatMessagedefaultApplicationProblemPlusJSONResponse) VisitDeleteChatMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetFeedRequestObject struct {
@@ -1478,6 +1792,12 @@ func (response GetUserFollowingdefaultApplicationProblemPlusJSONResponse) VisitG
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// PostChatMessage Post a message to a cabal's chat.
+	// (POST /v1/cabals/{id}/messages)
+	PostChatMessage(ctx context.Context, request PostChatMessageRequestObject) (PostChatMessageResponseObject, error)
+	// DeleteChatMessage Delete one of the caller's chat messages.
+	// (DELETE /v1/cabals/{id}/messages/{message_id})
+	DeleteChatMessage(ctx context.Context, request DeleteChatMessageRequestObject) (DeleteChatMessageResponseObject, error)
 	// GetFeed Read the feed.
 	// (GET /v1/feed)
 	GetFeed(ctx context.Context, request GetFeedRequestObject) (GetFeedResponseObject, error)
@@ -1544,6 +1864,68 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// PostChatMessage operation middleware
+func (sh *strictHandler) PostChatMessage(w http.ResponseWriter, r *http.Request, id ChatCabalId, params PostChatMessageParams) {
+	var request PostChatMessageRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body PostChatMessageJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostChatMessage(ctx, request.(PostChatMessageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostChatMessage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostChatMessageResponseObject); ok {
+		if err := validResponse.VisitPostChatMessageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteChatMessage operation middleware
+func (sh *strictHandler) DeleteChatMessage(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, params DeleteChatMessageParams) {
+	var request DeleteChatMessageRequestObject
+
+	request.Id = id
+	request.MessageId = messageId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteChatMessage(ctx, request.(DeleteChatMessageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteChatMessage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteChatMessageResponseObject); ok {
+		if err := validResponse.VisitDeleteChatMessageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetFeed operation middleware
