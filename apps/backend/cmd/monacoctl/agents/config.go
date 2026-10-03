@@ -23,6 +23,7 @@ var (
 
 const (
 	configPath      = ".monaco/agents.toml"
+	localConfigPath = ".monaco/agents.local.toml"
 	defaultLabel    = "merge-queue"
 	budgetSection   = "[check.budget]"
 	budgetPrefix    = "check.budget."
@@ -75,13 +76,13 @@ func parseConfig(r io.Reader) (Config, error) {
 		"verifier_installation": &c.VerifierInstallation, "check.slots": &c.Slots, "dispatch.max_load": &c.MaxLoad,
 	}
 	lists := map[string]*[]string{"batch.shared": &c.Shared}
-	lines, err := logicalLines(r)
+	lines, err := logicalLines(r, configPath)
 	if err != nil {
 		return Config{}, err
 	}
 	for _, l := range lines {
-		if err := applyConfigLine(&c, &section, seen, strs, ints, lists, l.n, l.text); err != nil {
-			return Config{}, err
+		if err := applyConfigLine(c.Budget, &section, seen, strs, ints, lists, l.text); err != nil {
+			return Config{}, configLineErr(configPath, l.n, err)
 		}
 	}
 	for _, key := range []string{
@@ -96,13 +97,8 @@ func parseConfig(r io.Reader) (Config, error) {
 			)
 		}
 	}
-	if c.Slots < 1 {
-		return Config{}, detailErr(errs.CodeDecodeFailed, "monacoctl.agents.config",
-			fmt.Sprintf("%s: check.slots: want at least 1, got %d", configPath, c.Slots))
-	}
-	if c.MaxLoad <= 0 {
-		return Config{}, detailErr(errs.CodeDecodeFailed, "monacoctl.agents.config",
-			fmt.Sprintf("%s: dispatch.max_load: want above 0, got %d", configPath, c.MaxLoad))
+	if err := checkCapacity(configPath, c); err != nil {
+		return Config{}, err
 	}
 	if c.QueueLabel == "" {
 		c.QueueLabel = defaultLabel
@@ -110,12 +106,46 @@ func parseConfig(r io.Reader) (Config, error) {
 	return c, nil
 }
 
+func applyLocalConfig(c Config, r io.Reader) (Config, error) {
+	section := ""
+	ints := map[string]*int{"lanes": &c.Lanes, "check.slots": &c.Slots, "dispatch.max_load": &c.MaxLoad}
+	lines, err := logicalLines(r, localConfigPath)
+	if err != nil {
+		return Config{}, err
+	}
+	for _, l := range lines {
+		if err := applyConfigLine(nil, &section, map[string]bool{}, nil, ints, nil, l.text); err != nil {
+			return Config{}, configLineErr(localConfigPath, l.n, err)
+		}
+	}
+	if c.Lanes < 1 {
+		return Config{}, detailErr(errs.CodeDecodeFailed, "monacoctl.agents.config",
+			fmt.Sprintf("%s: lanes: want at least 1, got %d", localConfigPath, c.Lanes))
+	}
+	if err := checkCapacity(localConfigPath, c); err != nil {
+		return Config{}, err
+	}
+	return c, nil
+}
+
+func checkCapacity(path string, c Config) error {
+	if c.Slots < 1 {
+		return detailErr(errs.CodeDecodeFailed, "monacoctl.agents.config",
+			fmt.Sprintf("%s: check.slots: want at least 1, got %d", path, c.Slots))
+	}
+	if c.MaxLoad <= 0 {
+		return detailErr(errs.CodeDecodeFailed, "monacoctl.agents.config",
+			fmt.Sprintf("%s: dispatch.max_load: want above 0, got %d", path, c.MaxLoad))
+	}
+	return nil
+}
+
 type configLine struct {
 	n    int
 	text string
 }
 
-func logicalLines(r io.Reader) ([]configLine, error) {
+func logicalLines(r io.Reader, path string) ([]configLine, error) {
 	var (
 		out  []configLine
 		open *configLine
@@ -136,10 +166,10 @@ func logicalLines(r io.Reader) ([]configLine, error) {
 		}
 	}
 	if err := sc.Err(); err != nil {
-		return nil, fmt.Errorf("read %s: %w", configPath, err)
+		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
 	if open != nil {
-		return nil, configLineErr(open.n, errWantList)
+		return nil, configLineErr(path, open.n, errWantList)
 	}
 	return out, nil
 }
@@ -151,8 +181,8 @@ func opensList(line string) bool {
 }
 
 func applyConfigLine(
-	c *Config, section *string, seen map[string]bool, strs map[string]*string, ints map[string]*int,
-	lists map[string]*[]string, n int, text string,
+	budget map[string]time.Duration, section *string, seen map[string]bool, strs map[string]*string,
+	ints map[string]*int, lists map[string]*[]string, text string,
 ) error {
 	line := strings.TrimSpace(text)
 	if line == "" || strings.HasPrefix(line, "#") {
@@ -177,24 +207,24 @@ func applyConfigLine(
 	case strings.HasPrefix(line, "["):
 		err = fmt.Errorf("%w %s", errUnknownSection, line)
 	case strings.HasPrefix(key, budgetPrefix):
-		err = assignBudget(c.Budget, strings.TrimPrefix(key, budgetPrefix), raw, ok)
+		err = assignBudget(budget, strings.TrimPrefix(key, budgetPrefix), raw, ok)
 	case lists[key] != nil:
 		*lists[key], err = parseList(raw)
 	default:
 		err = assignConfig(strs, ints, key, raw, ok)
 	}
 	if err != nil {
-		return configLineErr(n, err)
+		return err
 	}
 	seen[key] = true
 	return nil
 }
 
-func configLineErr(n int, err error) error {
+func configLineErr(path string, n int, err error) error {
 	return detailErr(
 		errs.CodeDecodeFailed,
 		"monacoctl.agents.config",
-		fmt.Sprintf("%s:%d: %s", configPath, n, err.Error()),
+		fmt.Sprintf("%s:%d: %s", path, n, err.Error()),
 	)
 }
 

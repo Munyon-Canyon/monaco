@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -264,5 +265,76 @@ func TestParseConfig_readsTheDispatchLoadCeilingAndRejectsBadValues(t *testing.T
 		if _, err := parseConfig(strings.NewReader(base + tail)); err == nil || !strings.Contains(cliText(err), want) {
 			t.Errorf("%q: got %v, want %q", tail, err, want)
 		}
+	}
+}
+
+func TestLoad_appliesTheLocalCapacityFromEveryWorktree(t *testing.T) {
+	t.Parallel()
+	f := newFixtureFrom(t, rootedRepo)
+	wt := filepath.Join(t.TempDir(), "wt")
+	git(t, f.dir, "worktree", "add", "-q", wt, "fb")
+	writeFile(t, filepath.Join(wt, configPath), testConfig)
+	tracked, err := parseConfig(strings.NewReader(testConfig))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{f.dir, wt} {
+		env, err := load(t.Context(), f.env, dir, hostless)
+		if err != nil || !reflect.DeepEqual(env.Config, tracked) || env.localConfig != "" {
+			t.Fatalf("%s without a local file: %+v %v", dir, env, err)
+		}
+	}
+	writeFile(t, filepath.Join(f.dir, ".git", localConfigPath), "lanes = 6\n[check]\nslots = 4\n")
+	want := tracked
+	want.Lanes, want.Slots = 6, 4
+	for _, dir := range []string{f.dir, wt} {
+		env, err := load(t.Context(), f.env, dir, hostless)
+		if err != nil || !reflect.DeepEqual(env.Config, want) ||
+			!strings.HasSuffix(env.localConfig, filepath.Join(".git", localConfigPath)) {
+			t.Fatalf("%s with a local file: %+v %v", dir, env, err)
+		}
+	}
+	writeFile(t, filepath.Join(f.dir, ".git", localConfigPath), "repo = \"x/y\"\n")
+	_, err = load(t.Context(), f.env, wt, hostless)
+	if err == nil || !strings.Contains(cliText(err), `.monaco/agents.local.toml:1: unknown key "repo"`) {
+		t.Fatalf("a policy key in the local file: %v", cliText(err))
+	}
+	monaco := filepath.Join(f.dir, ".git", ".monaco")
+	if err := os.RemoveAll(monaco); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, monaco, "not a directory\n")
+	_, err = load(t.Context(), f.env, wt, hostless)
+	if err == nil || !strings.Contains(err.Error(), "read local config") {
+		t.Fatalf("an unreadable local file: %v", err)
+	}
+}
+
+func TestApplyLocalConfig_acceptsOnlyCapacityWithinTheTrackedBounds(t *testing.T) {
+	t.Parallel()
+	tracked, err := parseConfig(strings.NewReader(testConfig))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := applyLocalConfig(tracked, strings.NewReader("[dispatch]\nmax_load = 20\n"))
+	if err != nil || got.MaxLoad != 20 || got.Lanes != tracked.Lanes || got.Slots != tracked.Slots {
+		t.Fatalf("max_load: %+v %v", got, err)
+	}
+	for body, want := range map[string]string{
+		"repo = \"x/y\"\n":               `.monaco/agents.local.toml:1: unknown key "repo"`,
+		"lanes = 6\n[batch]\nsize = 3\n": `.monaco/agents.local.toml:3: unknown key "batch.size"`,
+		"[check.budget]\ngo = \"90s\"\n": `.monaco/agents.local.toml:2: unknown key "check.budget.go"`,
+		"[check]\nslots = 0\n":           ".monaco/agents.local.toml: check.slots: want at least 1, got 0",
+		"lanes = 0\n":                    ".monaco/agents.local.toml: lanes: want at least 1, got 0",
+		"[dispatch]\nmax_load = 0\n":     ".monaco/agents.local.toml: dispatch.max_load: want above 0, got 0",
+		"lanes = [\n":                    ".monaco/agents.local.toml:1: want a list",
+	} {
+		if _, err := applyLocalConfig(tracked, strings.NewReader(body)); err == nil ||
+			!strings.Contains(cliText(err), want) {
+			t.Errorf("%q: got %v, want %q", body, cliText(err), want)
+		}
+	}
+	if tracked.Budget["go"] != defaultBudget()["go"] {
+		t.Fatalf("a rejected budget line changed the tracked budget: %v", tracked.Budget["go"])
 	}
 }

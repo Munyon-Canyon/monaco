@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -300,5 +301,25 @@ func TestGates_surfaceALoadReadFailure(t *testing.T) {
 	env.Load, env.Config.MaxLoad = nil, 1000000
 	if _, err := env.loadGate(t.Context()); err != nil {
 		t.Fatalf("host load: %v", err)
+	}
+}
+
+func TestDispatch_dryRunNamesTheLocalConfigOnlyWhenItExists(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	f.batch(t, 12)
+	f.hub.on(get("/issues/12"), Issue{Number: 12, Body: "**Milestone:** M7 · **Blocked by:** none · **Touches:** `a`"})
+	f.hub.on(list("/pulls?state=open"), []PR{})
+	f.ps()
+	code, stdout, stderr := f.agents(t, "dispatch", "12", "--model", "opus", "--dry-run")
+	if code != 0 || strings.Contains(stdout, "local config:") {
+		t.Fatalf("without a local file: code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+	local := filepath.Join(f.dir, ".git", localConfigPath)
+	writeFile(t, local, "lanes = 6\n[check]\nslots = 4\n")
+	code, stdout, stderr = f.agents(t, "dispatch", "12", "--model", "opus", "--dry-run")
+	want := filepath.Join(".git", localConfigPath) + " (lanes=6, check.slots=4, dispatch.max_load=12)\n"
+	if code != 0 || strings.Count(stdout, "local config: ") != 1 || !strings.Contains(stdout, want) {
+		t.Fatalf("with a local file: code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
 }

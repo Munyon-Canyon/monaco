@@ -37,6 +37,10 @@ func dispatchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer)
 	if err != nil {
 		return err
 	}
+	if env.localConfig != "" {
+		_, _ = fmt.Fprintf(stdout, "local config: %s (lanes=%d, check.slots=%d, dispatch.max_load=%d)\n",
+			env.localConfig, env.Config.Lanes, env.Config.Slots, env.Config.MaxLoad)
+	}
 	if _, err := env.Run(ctx, env.Work, "", "git", "fetch", "origin", env.Config.FeatureBranch); err != nil {
 		return err
 	}
