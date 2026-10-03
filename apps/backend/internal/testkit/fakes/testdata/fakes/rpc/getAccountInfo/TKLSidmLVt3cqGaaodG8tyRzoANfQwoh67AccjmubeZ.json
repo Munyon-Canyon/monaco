@@ -1,0 +1,75 @@
+{
+  "status": 200,
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "jsonrpc": "2.0",
+    "result": {
+      "context": {
+        "apiVersion": "4.3.0",
+        "slot": 452903582
+      },
+      "value": {
+        "data": {
+          "parsed": {
+            "info": {
+              "decimals": 9,
+              "extensions": [
+                {
+                  "extension": "transferFeeConfig",
+                  "state": {
+                    "newerTransferFee": {
+                      "epoch": 922,
+                      "maximumFee": 18446744073709551615,
+                      "transferFeeBasisPoints": 20
+                    },
+                    "olderTransferFee": {
+                      "epoch": 922,
+                      "maximumFee": 18446744073709551615,
+                      "transferFeeBasisPoints": 20
+                    },
+                    "transferFeeConfigAuthority": "EXvTtxurWBUNNCtLojaN8ZBJFNJPZFSH3szoih9hh7YW",
+                    "withdrawWithheldAuthority": "5P6aL1imw2Vi7GptqoRHPu8fowJvXM8eVrs8nWnxVx5h",
+                    "withheldAmount": 0
+                  }
+                },
+                {
+                  "extension": "metadataPointer",
+                  "state": {
+                    "authority": "EXvTtxurWBUNNCtLojaN8ZBJFNJPZFSH3szoih9hh7YW",
+                    "metadataAddress": "TKLSidmLVt3cqGaaodG8tyRzoANfQwoh67AccjmubeZ"
+                  }
+                },
+                {
+                  "extension": "tokenMetadata",
+                  "state": {
+                    "additionalMetadata": [],
+                    "mint": "TKLSidmLVt3cqGaaodG8tyRzoANfQwoh67AccjmubeZ",
+                    "name": "T-Kalshi",
+                    "symbol": "tKalshi",
+                    "updateAuthority": "EXvTtxurWBUNNCtLojaN8ZBJFNJPZFSH3szoih9hh7YW",
+                    "uri": "https://cdn.tesseralab.co/tessera/t-kalshi.json"
+                  }
+                }
+              ],
+              "freezeAuthority": "7n2PNcDXVDMK2m8dyV9cVPNY7p4jM4ZMHv7TzfibEt8o",
+              "isInitialized": true,
+              "mintAuthority": "EXvTtxurWBUNNCtLojaN8ZBJFNJPZFSH3szoih9hh7YW",
+              "supply": "1557874657593"
+            },
+            "type": "mint"
+          },
+          "program": "spl-token-2022",
+          "space": 492
+        },
+        "executable": false,
+        "lamports": 4315200,
+        "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+        "rentEpoch": 18446744073709551615,
+        "space": 492
+      }
+    },
+    "id": 1
+  }
+}

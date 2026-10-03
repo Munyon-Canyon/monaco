@@ -32,6 +32,7 @@ type Config struct {
 	Timeouts   Timeouts
 	Jupiter    Jupiter
 	XStocks    XStocks
+	Tessera    Tessera
 	Market     Market
 	Privy      Privy
 	Solana     Solana
@@ -86,6 +87,10 @@ type XStocks struct {
 	BaseURL string
 }
 
+type Tessera struct {
+	BaseURL string
+}
+
 type Market struct {
 	PricePollInterval time.Duration
 }
@@ -134,6 +139,7 @@ type Timeouts struct {
 	JupiterQuote    time.Duration
 	JupiterExecute  time.Duration
 	XStocks         time.Duration
+	Tessera         time.Duration
 	PostHog         time.Duration
 	Storage         time.Duration
 	HTTPServerRead  time.Duration
@@ -261,6 +267,33 @@ func (f field) secret() field {
 }
 
 func fields() []field {
+	return slices.Concat(platformFields(), marketFields())
+}
+
+func marketFields() []field {
+	return []field{
+		duration("MONACO_TIMEOUT_JUPITER_QUOTE", 5*time.Second,
+			func(c *Config) *time.Duration { return &c.Timeouts.JupiterQuote }),
+		duration("MONACO_TIMEOUT_JUPITER_EXECUTE", 2*time.Minute,
+			func(c *Config) *time.Duration { return &c.Timeouts.JupiterExecute }),
+		duration("MONACO_TIMEOUT_XSTOCKS", 15*time.Second,
+			func(c *Config) *time.Duration { return &c.Timeouts.XStocks }),
+		duration("MONACO_TIMEOUT_TESSERA", 15*time.Second,
+			func(c *Config) *time.Duration { return &c.Timeouts.Tessera }),
+		text("MONACO_JUPITER_SWAP_BASE_URL", "https://api.jup.ag/swap/v2",
+			func(c *Config) *string { return &c.Jupiter.SwapBaseURL }),
+		text("MONACO_JUPITER_PRICE_BASE_URL", "https://api.jup.ag/price/v3",
+			func(c *Config) *string { return &c.Jupiter.PriceBaseURL }),
+		text("JUPITER_API_KEY", "", func(c *Config) *string { return &c.Jupiter.APIKey }).secret(),
+		text("XSTOCKS_BASE_URL", "https://api.xstocks.fi", func(c *Config) *string { return &c.XStocks.BaseURL }),
+		text("TESSERA_API_BASE_URL", "https://rest-api.tessera.pe",
+			func(c *Config) *string { return &c.Tessera.BaseURL }),
+		duration("MARKET_PRICE_POLL_INTERVAL", 120*time.Second,
+			func(c *Config) *time.Duration { return &c.Market.PricePollInterval }),
+	}
+}
+
+func platformFields() []field {
 	return []field{
 		environment("MONACO_ENV", func(c *Config) *Env { return &c.Env }).required(),
 		text("MONACO_HTTP_ADDR", ":8080", func(c *Config) *string { return &c.HTTP.Addr }),
@@ -277,29 +310,12 @@ func fields() []field {
 		duration("MONACO_TIMEOUT_RPC", 5*time.Second, func(c *Config) *time.Duration { return &c.Timeouts.RPC }),
 		duration("MONACO_TIMEOUT_PRIVY", 10*time.Second, func(c *Config) *time.Duration { return &c.Timeouts.Privy }),
 		duration("MONACO_TIMEOUT_APNS", 10*time.Second, func(c *Config) *time.Duration { return &c.Timeouts.APNs }),
-		duration("MONACO_TIMEOUT_JUPITER_QUOTE", 5*time.Second,
-			func(c *Config) *time.Duration { return &c.Timeouts.JupiterQuote }),
-		duration("MONACO_TIMEOUT_JUPITER_EXECUTE", 2*time.Minute,
-			func(c *Config) *time.Duration { return &c.Timeouts.JupiterExecute }),
-		duration(
-			"MONACO_TIMEOUT_XSTOCKS",
-			15*time.Second,
-			func(c *Config) *time.Duration { return &c.Timeouts.XStocks },
-		),
 		duration("MONACO_TIMEOUT_HTTP_SERVER_READ", 10*time.Second,
 			func(c *Config) *time.Duration { return &c.Timeouts.HTTPServerRead }),
 		duration("MONACO_TIMEOUT_HTTP_SERVER_WRITE", 30*time.Second,
 			func(c *Config) *time.Duration { return &c.Timeouts.HTTPServerWrite }),
 		duration("MONACO_TIMEOUT_SHUTDOWN", 10*time.Second,
 			func(c *Config) *time.Duration { return &c.Timeouts.Shutdown }),
-		text("MONACO_JUPITER_SWAP_BASE_URL", "https://api.jup.ag/swap/v2",
-			func(c *Config) *string { return &c.Jupiter.SwapBaseURL }),
-		text("MONACO_JUPITER_PRICE_BASE_URL", "https://api.jup.ag/price/v3",
-			func(c *Config) *string { return &c.Jupiter.PriceBaseURL }),
-		text("JUPITER_API_KEY", "", func(c *Config) *string { return &c.Jupiter.APIKey }).secret(),
-		text("XSTOCKS_BASE_URL", "https://api.xstocks.fi", func(c *Config) *string { return &c.XStocks.BaseURL }),
-		duration("MARKET_PRICE_POLL_INTERVAL", 120*time.Second,
-			func(c *Config) *time.Duration { return &c.Market.PricePollInterval }),
 		text("PRIVY_APP_ID", "", func(c *Config) *string { return &c.Privy.AppID }),
 		text("PRIVY_APP_SECRET", "", func(c *Config) *string { return &c.Privy.AppSecret }).secret(),
 		text("PRIVY_VERIFICATION_KEY", "", func(c *Config) *string { return &c.Privy.VerificationKey }),
