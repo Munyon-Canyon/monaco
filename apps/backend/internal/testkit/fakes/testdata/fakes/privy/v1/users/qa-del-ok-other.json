@@ -1,0 +1,9 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {
+    "id": "did:privy:qa-del-ok-other",
+    "created_at": 1790001000,
+    "linked_accounts": [{"type": "phone", "number": "+14155550992", "phoneNumber": "+14155550992", "verified_at": 1790001000}]
+  }
+}
