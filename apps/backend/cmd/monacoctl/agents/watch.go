@@ -38,15 +38,16 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 			lines = append(lines, env.landArmed(ctx, r)...)
 		}
 	}
-	for _, line := range lines {
-		_, _ = fmt.Fprintln(stdout, line)
-	}
-	failed, err := env.failures(ctx)
+	failed, data, err := env.failures(ctx)
 	if err != nil {
 		return err
 	}
+	stuck := stuckOnGraphiteBase(data.prs, rs, env.Config.QueueLabel)
+	for _, line := range append(lines, stuck...) {
+		_, _ = fmt.Fprintln(stdout, line)
+	}
 	env.writeFailures(ctx, failed, stdout)
-	if flagged+len(failed) > 0 {
+	if flagged+len(stuck)+len(failed) > 0 {
 		return errs.New(errs.CodeForbidden, "monacoctl.agents.watch")
 	}
 	return nil
