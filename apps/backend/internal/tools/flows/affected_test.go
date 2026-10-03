@@ -35,6 +35,7 @@ func TestAffected(t *testing.T) {
 		{[]string{"packages/mobile-core/Tests/MonacoCoreTests/F00IntegrationTests.swift"}, nil, []string{"00"}},
 		{[]string{"packages/mobile-core/Tests/MonacoCoreTests/Flow02ModelTests.swift"}, nil, []string{"02"}},
 		{[]string{"packages/mobile-core/Tests/MonacoCoreTests/FlowOutcomeTests.swift"}, nil, nil},
+		{[]string{"packages/mobile-core/Tests/MonacoCoreTests/Flows/Flow01aOutcomeTests.gen.swift"}, nil, []string{"01a"}},
 		{[]string{"packages/mobile-core/Tests/MonacoAPITests/FakeStreamTransport.swift"}, nil, nil},
 		{[]string{"apps/backend/internal/testkit/flows/f01a.go"}, nil, []string{"01a"}},
 		{[]string{"apps/backend/internal/testkit/flows/seed.go"}, nil, nil},
