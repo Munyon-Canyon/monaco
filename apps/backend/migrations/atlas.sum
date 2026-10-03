@@ -1,4 +1,4 @@
-h1:ghMN8whhJ1MbRZTNoI2nuDfIjahp+7GY6xQimcEfwMc=
+h1:Yh7B29zSrVj1J41YjpgbVAr1OgLAoUQu6reWDsA5tLo=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
@@ -49,3 +49,4 @@ h1:ghMN8whhJ1MbRZTNoI2nuDfIjahp+7GY6xQimcEfwMc=
 20261005135107_treasury_cash_out_sells.sql h1:PTM4jknnxSGwUsZS0m8bblndbK4BCbNjzDJD18fGSvY=
 20261005143114_treasury_cash_out_payout_expiry.sql h1:6fE6oONsYp7xxbRYctUUVQ7b3jy2yNeNuw8fvzBy4NQ=
 20261005160148_funding_external_deposits.sql h1:WfaGYqi4zBhsGpMKaUHVhsubyY9SWbC5k6U7y2xf6Gw=
+20261006120000_social_chat.sql h1:mu6aAN0q0vyt26ojMf21u1HA3M3laQlKUPcAgtp4DdU=

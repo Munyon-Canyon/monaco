@@ -2539,6 +2539,11 @@ components:
         - cannot_follow_self
         - cannot_revoke_access
         - cash_out_in_progress
+        - chat_body_invalid
+        - chat_message_not_found
+        - chat_message_not_owned
+        - chat_parent_is_reply
+        - chat_parent_not_found
         - client_closed
         - coin_gecko_rate_limited
         - conservation_broken

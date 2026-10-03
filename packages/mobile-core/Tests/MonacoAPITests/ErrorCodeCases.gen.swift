@@ -27,6 +27,11 @@ extension Components.Schemas.ErrorCode {
         case .cannotFollowSelf: true
         case .cannotRevokeAccess: true
         case .cashOutInProgress: true
+        case .chatBodyInvalid: true
+        case .chatMessageNotFound: true
+        case .chatMessageNotOwned: true
+        case .chatParentIsReply: true
+        case .chatParentNotFound: true
         case .clientClosed: true
         case .coinGeckoRateLimited: true
         case .conservationBroken: true
