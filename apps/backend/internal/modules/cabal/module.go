@@ -51,6 +51,7 @@ func (m *Module) Routes(r *httpx.Routes) {
 		Update:  app.NewUpdateCabalHandler(m.deps.UoW, m.deps.Clock),
 		Picture: app.NewSetCabalPictureHandler(m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, m.deps.Photos),
 		Leave:   app.NewLeaveCabalHandler(m.deps.UoW, m.deps.Pool, m.treasury),
+		Invite:  app.NewInviteMemberHandler(m.deps.UoW, users, m.deps.IDs, m.deps.Clock),
 		DB:      m.deps.Pool, Users: users, Clock: m.deps.Clock,
 	}
 	r.CabalRoutes, r.CabalJoinRoutes, r.CabalAccessRoutes, r.CabalPictureRoutes = h, h, h, h

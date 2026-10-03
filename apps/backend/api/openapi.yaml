@@ -518,6 +518,46 @@ paths:
               example: [{request_id: "01890a5d-ac96-774b-bcce-b302099a8059", user: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, invited_by: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, expires_at: "2026-10-09T15:00:00Z"}]
         default:
           $ref: "#/components/responses/Problem"
+    post:
+      operationId: postCabalInvite
+      tags: [cabal]
+      x-idempotent: true
+      x-rate-limit:
+        actor:
+          rate: 20
+          per: 1h
+          burst: 20
+      summary: Invite a user to a cabal by handle.
+      description: >-
+        Any member invites in an open cabal; only the creator invites in a request cabal. The invite
+        stays pending for 7 days, and the invitee accepts or declines it through the decision route.
+        A user with a pending request or invite is refused with request_pending. A replay returns the
+        first response.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema: {type: string, format: uuid}
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: Who to invite.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteMemberRequest"
+            example: {handle: kai}
+      responses:
+        "201":
+          description: The pending invite.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CabalAccess"
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8059", direction: invite, status: pending}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/members:
     post:
       operationId: postCabalMember
@@ -2310,6 +2350,13 @@ components:
         user's X username.
       examples: [reserved]
       enum: [taken, reserved, invalid, too_soon]
+    InviteMemberRequest:
+      type: object
+      description: Who to invite to a cabal.
+      additionalProperties: false
+      required: [handle]
+      properties:
+        handle: {type: string, description: The invitee's handle., examples: [kai]}
     LinkedSwap:
       type: object
       description: The latest trade that executes the proposal.

@@ -151,6 +151,37 @@ func (q *Queries) InsertAccessRequest(ctx context.Context, arg InsertAccessReque
 	return result.RowsAffected(), nil
 }
 
+const insertInvite = `-- name: InsertInvite :execrows
+INSERT INTO cabal_access_requests (id, cabal_id, user_id, direction, invited_by, expires_at, created_at)
+VALUES ($1, $2, $3, 'invite', $4::uuid,
+  $5::timestamptz, $6)
+ON CONFLICT (cabal_id, user_id) WHERE status = 'pending' DO NOTHING
+`
+
+type InsertInviteParams struct {
+	ID        uuid.UUID
+	CabalID   uuid.UUID
+	UserID    uuid.UUID
+	InvitedBy uuid.UUID
+	ExpiresAt time.Time
+	Now       time.Time
+}
+
+func (q *Queries) InsertInvite(ctx context.Context, arg InsertInviteParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertInvite,
+		arg.ID,
+		arg.CabalID,
+		arg.UserID,
+		arg.InvitedBy,
+		arg.ExpiresAt,
+		arg.Now,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const listDueInvites = `-- name: ListDueInvites :many
 SELECT id, cabal_id, user_id, invited_by, expires_at FROM cabal_access_requests
 WHERE status = 'pending' AND direction = 'invite' AND expires_at < $1::timestamptz

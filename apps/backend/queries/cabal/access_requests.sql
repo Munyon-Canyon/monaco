@@ -4,6 +4,12 @@ VALUES (sqlc.arg(id), sqlc.arg(cabal_id), sqlc.arg(user_id), sqlc.arg(direction)
   sqlc.narg(expires_at), sqlc.arg(now))
 ON CONFLICT (cabal_id, user_id) WHERE status = 'pending' DO NOTHING;
 
+-- name: InsertInvite :execrows
+INSERT INTO cabal_access_requests (id, cabal_id, user_id, direction, invited_by, expires_at, created_at)
+VALUES (sqlc.arg(id), sqlc.arg(cabal_id), sqlc.arg(user_id), 'invite', sqlc.arg(invited_by)::uuid,
+  sqlc.arg(expires_at)::timestamptz, sqlc.arg(now))
+ON CONFLICT (cabal_id, user_id) WHERE status = 'pending' DO NOTHING;
+
 -- name: FindAccessRequest :one
 SELECT id, cabal_id, user_id, direction, invited_by, status, expires_at, decided_by, created_at, decided_at
 FROM cabal_access_requests

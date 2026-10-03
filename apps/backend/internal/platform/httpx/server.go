@@ -125,6 +125,7 @@ type CabalAccessRoutes interface {
 }
 
 type CabalInviteRoutes interface {
+	PostCabalInvite(context.Context, api.PostCabalInviteRequestObject) (api.PostCabalInviteResponseObject, error)
 	GetCabalInvites(context.Context, api.GetCabalInvitesRequestObject) (api.GetCabalInvitesResponseObject, error)
 	GetMyCabalInvites(
 		context.Context, api.GetMyCabalInvitesRequestObject,

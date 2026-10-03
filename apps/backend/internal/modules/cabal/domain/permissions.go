@@ -57,6 +57,20 @@ func CanInvite(actor Actor, cabal Cabal) error {
 	return errs.New(errs.CodeInternal, op, slog.String("join_mode", string(cabal.Rules.JoinMode())))
 }
 
+func CanInviteUser(inviter, invitee Actor, cabal Cabal) error {
+	const op = "cabal.CanInviteUser"
+	if err := CanInvite(inviter, cabal); err != nil {
+		return err
+	}
+	switch {
+	case cabal.Banned:
+		return errs.New(errs.CodeCabalBanned, op)
+	case invitee.Member:
+		return errs.New(errs.CodeAlreadyMember, op)
+	}
+	return nil
+}
+
 func CanJoin(actor Actor, cabal Cabal) error {
 	const op = "cabal.CanJoin"
 	switch {
