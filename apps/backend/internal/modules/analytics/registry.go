@@ -92,8 +92,6 @@ func (x exporter) send(
 			slog.String("uuid", c.UUID.String()), slog.String("code", string(errs.CodeOf(err))), slog.Any("err", err))
 		return err
 	}
-	observability.Info(ctx, observability.AnalyticsCaptureSent,
-		slog.String("event", c.Event), slog.String("uuid", c.UUID.String()))
 	return nil
 }
 
