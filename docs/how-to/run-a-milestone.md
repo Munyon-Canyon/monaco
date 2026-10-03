@@ -73,7 +73,7 @@ Do these once per milestone.
 
         bin/monacoctl agents status --publish
 
-    Run it again after every dispatch, merge and ejection. `agents-status.yml` also refreshes it on PR events and every 10 minutes while a batch is active.
+    Run it again after every dispatch, merge and ejection. `agents-status.yml` also refreshes it on every push to `staging` or `main` and every 10 minutes while a batch is active.
 
 4. Dispatch each admitted ticket:
 

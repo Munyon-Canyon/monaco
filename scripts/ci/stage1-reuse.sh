@@ -18,12 +18,23 @@ if [[ -z "$patch_id" ]]; then
   exit 0
 fi
 
+# Reuse only saves time, so a GitHub API failure such as the installation rate limit runs the full stage 1.
+fail_open() {
+  echo "::warning::stage 1 reuse lookup failed ($1), so the full stage 1 runs"
+  echo "reuse=false" >>"$GITHUB_OUTPUT"
+  exit 0
+}
+
+# Each SHA costs one API call; the newest few are where a green run of the same diff would be.
+max_shas=5
 last=""
-shas="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?branch=$HEAD_REF&event=pull_request&per_page=50" \
-  --jq '.workflow_runs[].head_sha' | awk '!seen[$0]++')"
+runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?branch=$HEAD_REF&event=pull_request&per_page=50" \
+  --jq '.workflow_runs[].head_sha')" || fail_open "list runs"
+shas="$(awk -v max="$max_shas" '!seen[$0]++ && ++n <= max' <<<"$runs")"
 for sha in $shas; do
   last="$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha/check-runs?check_name=ci%20%2F%20ci-ok&status=completed" \
-    --jq 'first(.check_runs[] | select(.conclusion == "success")) | .output.summary // "no patch ID"')"
+    --jq 'first(.check_runs[] | select(.conclusion == "success")) | .output.summary // "no patch ID"')" ||
+    fail_open "check runs of $sha"
   if [[ -n "$last" ]]; then
     echo "last green ci / ci-ok: $sha, $last"
     break

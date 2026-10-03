@@ -2,9 +2,9 @@ name: Agents status
 
 # Rewrites the tracking issue's status comment, so the operator reads it instead of asking.
 # batch.json lives under .git/pstack/ on the root's machine, so CI reads the batch the root last embedded in that comment.
+# No pull_request trigger: one run per PR event was the repo's top run count and spent the shared GITHUB_TOKEN rate limit
+# that required checks need. A merge reaches the comment through the push to the trunk.
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, closed]
   # Feature branches are <name>-<N>. The job skips a push to any other branch the pattern catches.
   push:
     branches: [main, staging, '*-[0-9]*']
@@ -13,10 +13,9 @@ on:
     - cron: '*/10 * * * *'
   workflow_dispatch:
 
-# One group per PR: GitHub keeps one pending run per group and cancels the one it replaces,
-# which leaves a red status check. The publish is idempotent, so parallel runs are safe.
+# The publish is idempotent, so a run never cancels the one in progress.
 concurrency:
-  group: agents-status-${{ github.event.pull_request.number || github.ref }}
+  group: agents-status-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:

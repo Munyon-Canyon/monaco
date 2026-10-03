@@ -17,6 +17,10 @@ while [[ $# -gt 0 ]]; do
   if [[ "$1" == --jq ]]; then filter="$2"; fi
   shift
 done
+if [[ -f "$FAKE_GH/fail" && "$endpoint" == *"$(cat "$FAKE_GH/fail")"* ]]; then
+  echo "gh: API rate limit exceeded for installation ID 1 (HTTP 403)" >&2
+  exit 1
+fi
 case "$endpoint" in
   */actions/runs\?*) file="$FAKE_GH/runs.json" ;;
   */commits/*/check-runs\?*) sha="${endpoint#*/commits/}"; file="$FAKE_GH/${sha%%/*}.json" ;;
@@ -77,18 +81,33 @@ func (r *reuseRepo) commit(name, body string) string {
 
 func (r *reuseRepo) greenRun(sha, summary string) {
 	r.t.Helper()
-	runs := map[string][]map[string]string{"workflow_runs": {{"head_sha": sha}}}
-	data, _ := json.Marshal(runs)
-	r.write(filepath.Join(r.fake, "runs.json"), string(data), 0o644)
+	r.runs(sha)
 	check := map[string]any{"conclusion": "success", "output": map[string]any{"summary": summary}}
 	if summary == "" {
 		check["output"] = map[string]any{"summary": nil}
 	}
-	data, _ = json.Marshal(map[string]any{"check_runs": []any{check}})
+	data, _ := json.Marshal(map[string]any{"check_runs": []any{check}})
 	r.write(filepath.Join(r.fake, sha+".json"), string(data), 0o644)
 }
 
+// runs lists the branch's workflow runs, newest first.
+func (r *reuseRepo) runs(shas ...string) {
+	r.t.Helper()
+	list := []map[string]string{}
+	for _, sha := range shas {
+		list = append(list, map[string]string{"head_sha": sha})
+	}
+	data, _ := json.Marshal(map[string]any{"workflow_runs": list})
+	r.write(filepath.Join(r.fake, "runs.json"), string(data), 0o644)
+}
+
 func (r *reuseRepo) run(base, head string) map[string]string {
+	r.t.Helper()
+	got, _ := r.runLog(base, head)
+	return got
+}
+
+func (r *reuseRepo) runLog(base, head string) (map[string]string, string) {
 	r.t.Helper()
 	root := repoRoot(r.t)
 	out := filepath.Join(r.t.TempDir(), "out")
@@ -98,7 +117,8 @@ func (r *reuseRepo) run(base, head string) map[string]string {
 		"PATH="+r.bin+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"FAKE_GH="+r.fake, "BASE_SHA="+base, "HEAD_SHA="+head, "HEAD_REF=feature",
 		"GITHUB_REPOSITORY=o/r", "GITHUB_OUTPUT="+out)
-	if log, err := cmd.CombinedOutput(); err != nil {
+	log, err := cmd.CombinedOutput()
+	if err != nil {
 		r.t.Fatalf("stage1-reuse.sh: %v\n%s", err, log)
 	}
 	data, err := os.ReadFile(out)
@@ -110,7 +130,7 @@ func (r *reuseRepo) run(base, head string) map[string]string {
 		k, v, _ := strings.Cut(line, "=")
 		got[k] = v
 	}
-	return got
+	return got, string(log)
 }
 
 func TestStage1Reuse_reusesOnlyAGreenResultForTheSameDiff(t *testing.T) {
@@ -213,5 +233,51 @@ func TestStage1Reuse_oldPatchIDSummaryDoesNotReuse(t *testing.T) {
 	}
 	if got["reuse"] != "false" {
 		t.Fatalf("old summary form: %v, want a full stage 1", got)
+	}
+}
+
+// greenRestack records a green ci-ok for the first push and returns a restack with the same diff, which reuses it.
+func greenRestack(t *testing.T) (r *reuseRepo, base, head, restacked string) {
+	t.Helper()
+	r = newReuseRepo(t)
+	first := r.git("rev-parse", "HEAD")
+	r.git("switch", "-q", "-c", "feature")
+	head = r.commit("change.txt", "one\n")
+	got := r.run(first, head)
+	r.greenRun(head, "patch-id: "+got["patch-id"]+" ci-id: "+got["ci-id"])
+	r.git("switch", "-q", "trunk")
+	base = r.commit("other.txt", "moved\n")
+	r.git("switch", "-q", "feature")
+	r.git("rebase", "-q", "trunk")
+	return r, base, head, r.git("rev-parse", "HEAD")
+}
+
+func TestStage1Reuse_apiFailureRunsTheFullStageWithAWarning(t *testing.T) {
+	for _, endpoint := range []string{"/actions/runs?", "/check-runs?"} {
+		r, base, _, restacked := greenRestack(t)
+		if got := r.run(base, restacked); got["reuse"] != "true" {
+			t.Fatalf("control before the planted failure: %v, want reuse", got)
+		}
+		r.write(filepath.Join(r.fake, "fail"), endpoint, 0o644)
+		got, log := r.runLog(base, restacked)
+		if got["reuse"] != "false" || got["patch-id"] == "" || len(got["ci-id"]) != 12 {
+			t.Fatalf("gh failing on %s: %v, want reuse=false with both IDs", endpoint, got)
+		}
+		if !strings.Contains(log, "::warning::stage 1 reuse lookup failed") {
+			t.Fatalf("gh failing on %s: no warning in\n%s", endpoint, log)
+		}
+	}
+}
+
+func TestStage1Reuse_looksAtTheFiveNewestDistinctSHAsOnly(t *testing.T) {
+	r, base, head, restacked := greenRestack(t)
+	newer := []string{"a1", "a2", "a3", "a4"}
+	r.runs(append(append([]string{}, newer...), newer[0], head)...)
+	if got := r.run(base, restacked); got["reuse"] != "true" {
+		t.Fatalf("green run at the fifth distinct SHA: %v, want reuse", got)
+	}
+	r.runs(append(append([]string{}, newer...), "a5", head)...)
+	if got := r.run(base, restacked); got["reuse"] != "false" {
+		t.Fatalf("green run at the sixth distinct SHA: %v, want a full stage 1", got)
 	}
 }

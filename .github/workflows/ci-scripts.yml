@@ -32,7 +32,17 @@ jobs:
           version: ${{ steps.golangci.outputs.version }}
           install-only: true
 
-      - uses: extractions/setup-just@v4
+      # A pinned release download, not extractions/setup-just: that action lists releases through the API,
+      # which fails the job when the shared GITHUB_TOKEN rate limit is spent.
+      - name: Install the pinned just
+        working-directory: ${{ runner.temp }}
+        run: |
+          v=1.58.0
+          f="just-${v}-x86_64-unknown-linux-musl.tar.gz"
+          curl -fsSLO "https://github.com/casey/just/releases/download/$v/$f"
+          echo "4a5cc2f53e6f0f8c59092a6cc38291eb729d46a7dd95d3ae582008881b84931d  $f" | sha256sum -c -
+          tar -xzf "$f" just
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
       - name: Test scripts
         working-directory: scripts
