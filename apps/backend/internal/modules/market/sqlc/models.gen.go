@@ -12,21 +12,24 @@ import (
 )
 
 type Asset struct {
-	ID               uuid.UUID
-	Symbol           string
-	Mint             string
-	Decimals         int16
-	Issuer           string
-	Kind             string
-	DisplayName      string
-	LogoUrl          pgtype.Text
-	UiMultiplierNum  int64
-	UiMultiplierDen  int64
-	IssuerTradable   bool
-	TradableOverride pgtype.Bool
-	PopularRank      pgtype.Int2
-	CompanyKey       string
-	FirstSeenAt      time.Time
-	UpdatedAt        time.Time
-	ChainCheckedAt   pgtype.Timestamptz
+	ID                  uuid.UUID
+	Symbol              string
+	Mint                string
+	Decimals            int16
+	Issuer              string
+	Kind                string
+	DisplayName         string
+	LogoUrl             pgtype.Text
+	UiMultiplierNum     int64
+	UiMultiplierDen     int64
+	IssuerTradable      bool
+	TradableOverride    pgtype.Bool
+	PopularRank         pgtype.Int2
+	CompanyKey          string
+	FirstSeenAt         time.Time
+	UpdatedAt           time.Time
+	ChainCheckedAt      pgtype.Timestamptz
+	UiMultiplierNextNum pgtype.Int8
+	UiMultiplierNextDen pgtype.Int8
+	UiMultiplierNextAt  pgtype.Timestamptz
 }

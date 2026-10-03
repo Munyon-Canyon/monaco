@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
@@ -22,8 +23,10 @@ type MintFacts struct {
 }
 
 type mintFact struct {
-	decimals uint8
-	num, den uint64
+	decimals         uint8
+	num, den         uint64
+	nextNum, nextDen uint64
+	nextAt           time.Time
 }
 
 func (f *MintFacts) Put(mint market.Mint, decimals uint8, multiplierNum, multiplierDen uint64) {
@@ -33,6 +36,14 @@ func (f *MintFacts) Put(mint market.Mint, decimals uint8, multiplierNum, multipl
 		f.facts = map[market.Mint]mintFact{}
 	}
 	f.facts[mint] = mintFact{decimals: decimals, num: multiplierNum, den: multiplierDen}
+}
+
+func (f *MintFacts) Schedule(mint market.Mint, nextNum, nextDen uint64, at time.Time) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	fact := f.facts[mint]
+	fact.nextNum, fact.nextDen, fact.nextAt = nextNum, nextDen, at
+	f.facts[mint] = fact
 }
 
 func (f *MintFacts) Facts(
@@ -60,7 +71,10 @@ func (f *MintFacts) Facts(
 			)
 			continue
 		}
-		answers[mint] = app.MintFact{Decimals: got.decimals, MultiplierNum: got.num, MultiplierDen: got.den}
+		answers[mint] = app.MintFact{
+			Decimals: got.decimals, MultiplierNum: got.num, MultiplierDen: got.den,
+			NextMultiplierNum: got.nextNum, NextMultiplierDen: got.nextDen, NextMultiplierAt: got.nextAt,
+		}
 	}
 	return answers, failures, nil
 }

@@ -221,3 +221,23 @@ func TestNewMultiplier_takesAPositiveFractionThatFitsTheColumns(t *testing.T) {
 		}
 	}
 }
+
+func TestUIMultiplierAt_switchesToTheScheduledMultiplierAtItsEffectiveSecond(t *testing.T) {
+	t.Parallel()
+	step := clock.Real{}.Now().Truncate(time.Second)
+	a := marketfake.AAPLx()
+	a.UIMultiplier = domain.Multiplier{Num: 3, Den: 2}
+	if got := a.UIMultiplierAt(step); got != a.UIMultiplier {
+		t.Fatalf("with nothing scheduled: UIMultiplierAt = %+v, want the current %+v", got, a.UIMultiplier)
+	}
+	a.NextUIMultiplier = domain.MultiplierStep{To: domain.Multiplier{Num: 2, Den: 1}, At: step}
+	for at, want := range map[time.Time]domain.Multiplier{
+		step.Add(-time.Nanosecond):    a.UIMultiplier,
+		step:                          a.NextUIMultiplier.To,
+		step.Add(30 * 24 * time.Hour): a.NextUIMultiplier.To,
+	} {
+		if got := a.UIMultiplierAt(at); got != want {
+			t.Fatalf("UIMultiplierAt(%s) with 2/1 from %s = %+v, want %+v", at, step, got, want)
+		}
+	}
+}

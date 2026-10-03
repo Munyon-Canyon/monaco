@@ -68,7 +68,7 @@ func (q *Queries) FirstSamplesSince(ctx context.Context, arg FirstSamplesSincePa
 }
 
 const listAssetsByRank = `-- name: ListAssetsByRank :many
-SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at FROM assets
+SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at, ui_multiplier_next_num, ui_multiplier_next_den, ui_multiplier_next_at FROM assets
 WHERE chain_checked_at IS NOT NULL
   AND coalesce(tradable_override, issuer_tradable)
   AND popular_rank IS NOT NULL
@@ -130,6 +130,9 @@ func (q *Queries) ListAssetsByRank(ctx context.Context, arg ListAssetsByRankPara
 			&i.FirstSeenAt,
 			&i.UpdatedAt,
 			&i.ChainCheckedAt,
+			&i.UiMultiplierNextNum,
+			&i.UiMultiplierNextDen,
+			&i.UiMultiplierNextAt,
 		); err != nil {
 			return nil, err
 		}
@@ -142,7 +145,7 @@ func (q *Queries) ListAssetsByRank(ctx context.Context, arg ListAssetsByRankPara
 }
 
 const listAssetsBySymbol = `-- name: ListAssetsBySymbol :many
-SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at FROM assets
+SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at, ui_multiplier_next_num, ui_multiplier_next_den, ui_multiplier_next_at FROM assets
 WHERE chain_checked_at IS NOT NULL
   AND coalesce(tradable_override, issuer_tradable)
   AND ($1::text = '' OR kind = $1::text)
@@ -206,6 +209,9 @@ func (q *Queries) ListAssetsBySymbol(ctx context.Context, arg ListAssetsBySymbol
 			&i.FirstSeenAt,
 			&i.UpdatedAt,
 			&i.ChainCheckedAt,
+			&i.UiMultiplierNextNum,
+			&i.UiMultiplierNextDen,
+			&i.UiMultiplierNextAt,
 		); err != nil {
 			return nil, err
 		}

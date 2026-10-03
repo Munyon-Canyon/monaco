@@ -56,8 +56,11 @@ func TestChain_readsTheMintDecimalsAndTheMultiplierInForce(t *testing.T) {
 	facts, failures, err := chainOverFakes(t).Facts(t.Context(), []domain.Mint{aapl})
 	got := facts[aapl]
 	if err != nil || len(failures) != 0 || got.Decimals != 8 ||
-		got.MultiplierNum != 10_032_690_125_398_187 || got.MultiplierDen != 10_000_000_000_000_000 {
-		t.Fatalf("Facts(AAPLx) = %+v, %v, %v, want 8 decimals and the chain's multiplier", facts, failures, err)
+		got.MultiplierNum != 10_032_690_125_398_187 || got.MultiplierDen != 10_000_000_000_000_000 ||
+		got.NextMultiplierNum != got.MultiplierNum || got.NextMultiplierDen != got.MultiplierDen ||
+		got.NextMultiplierAt.Unix() != 1786149000 {
+		t.Fatalf("Facts(AAPLx) = %+v, %v, %v, want 8 decimals and the chain's multiplier and schedule", facts,
+			failures, err)
 	}
 }
 
