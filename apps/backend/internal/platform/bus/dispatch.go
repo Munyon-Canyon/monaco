@@ -190,6 +190,10 @@ func Deliver(
 				slog.Any("panic", p), slog.String("stack", string(debug.Stack())))
 		}
 	}()
+	fetched, duplicate, err := fetchForDelivery(ctx, uow, h, id, ev)
+	if err != nil || duplicate {
+		return duplicate, err
+	}
 	at := clk.Now()
 	err = uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		inserted, err := sqlc.New(tx.Queries()).InsertDelivery(ctx, sqlc.InsertDeliveryParams{
@@ -202,9 +206,33 @@ func Deliver(
 			duplicate = true
 			return nil
 		}
-		return h.run(ctx, tx, ev, at)
+		return h.ApplyFetched(ctx, tx, ev, fetched, at)
 	})
 	return duplicate, err
+}
+
+func fetchForDelivery(
+	ctx context.Context,
+	uow *db.UnitOfWork,
+	h HandlerSpec,
+	id ids.EventID,
+	ev events.Event,
+) (any, bool, error) {
+	if h.fetch == nil {
+		return noFetchedResult{}, false, nil
+	}
+	duplicate, err := sqlc.New(uow.Reads()).DeliveryExists(ctx, sqlc.DeliveryExistsParams{
+		Handler: h.Name,
+		EventID: id.UUID(),
+	})
+	if err != nil {
+		return nil, false, errs.Wrap(err, errs.CodeDBUnavailable, "bus.Deliver")
+	}
+	if duplicate {
+		return nil, true, nil
+	}
+	fetched, err := h.Fetch(ctx, ev)
+	return fetched, false, err
 }
 
 type DeadLetter struct {

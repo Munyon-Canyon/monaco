@@ -71,3 +71,48 @@ func TestHandlerSpec_onCommitRunsOnlyAfterTheHandlerCommits(t *testing.T) {
 		t.Fatalf("OnCommit saw %v handled rows, want one call that sees the committed row", seen)
 	}
 }
+
+func TestHandlerSpec_fetchedHandlersSupportDirectApplyAndNilInterfaceResults(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	var fetches, applies int
+	spec := bus.HandleFetched(
+		"notify.push",
+		func(context.Context, events.SystemPinged) (any, error) {
+			fetches++
+			var result any
+			return result, nil
+		},
+		func(_ context.Context, _ db.Tx, _ events.SystemPinged, value any, _ time.Time) error {
+			applies++
+			if value != nil {
+				t.Fatalf("value = %v, want nil", value)
+			}
+			return nil
+		},
+	)
+	ev := events.SystemPinged{V: 1, PingID: h.ids.NewV7()}
+	if err := h.uow.Do(h.ctx(t), func(ctx context.Context, tx db.Tx) error {
+		return spec.Apply(ctx, tx, ev, time.Time{})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if fetches != 1 || applies != 1 {
+		t.Fatalf("fetches = %d, applies = %d, want 1 each", fetches, applies)
+	}
+	refused := errs.New(errs.CodeNotFound, "fetch.refuse")
+	refusing := bus.HandleFetched(
+		"notify.refuse",
+		func(context.Context, events.SystemPinged) (struct{}, error) { return struct{}{}, refused },
+		func(context.Context, db.Tx, events.SystemPinged, struct{}, time.Time) error {
+			t.Fatal("apply ran after fetch refused")
+			return nil
+		},
+	)
+	err := h.uow.Do(h.ctx(t), func(ctx context.Context, tx db.Tx) error {
+		return refusing.Apply(ctx, tx, ev, time.Time{})
+	})
+	if !errors.Is(err, refused) {
+		t.Fatalf("Apply() = %v, want %v", err, refused)
+	}
+}

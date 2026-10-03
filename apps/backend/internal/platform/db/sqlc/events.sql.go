@@ -83,6 +83,22 @@ func (q *Queries) DeleteDeliveriesBefore(ctx context.Context, arg DeleteDeliveri
 	return result.RowsAffected(), nil
 }
 
+const deliveryExists = `-- name: DeliveryExists :one
+SELECT EXISTS(SELECT 1 FROM event_deliveries WHERE handler = $1 AND event_id = $2)
+`
+
+type DeliveryExistsParams struct {
+	Handler string
+	EventID uuid.UUID
+}
+
+func (q *Queries) DeliveryExists(ctx context.Context, arg DeliveryExistsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, deliveryExists, arg.Handler, arg.EventID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const insertDelivery = `-- name: InsertDelivery :execrows
 INSERT INTO event_deliveries (handler, event_id, code, handled_at)
 VALUES ($1, $2, $3, $4)

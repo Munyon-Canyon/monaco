@@ -18,6 +18,9 @@ INSERT INTO event_deliveries (handler, event_id, code, handled_at)
 VALUES ($1, $2, $3, $4)
 ON CONFLICT DO NOTHING;
 
+-- name: DeliveryExists :one
+SELECT EXISTS(SELECT 1 FROM event_deliveries WHERE handler = $1 AND event_id = $2);
+
 -- name: DeleteDeliveriesBefore :execrows
 DELETE FROM event_deliveries
 WHERE (handler, event_id) IN (

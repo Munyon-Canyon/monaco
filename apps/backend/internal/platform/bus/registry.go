@@ -33,18 +33,42 @@ const (
 type Handler[E events.Event] func(ctx context.Context, tx db.Tx, e E, at time.Time) error
 
 type HandlerSpec struct {
-	Name string
-	typ  events.Type
-	run  func(ctx context.Context, tx db.Tx, e events.Event, at time.Time) error
+	Name  string
+	typ   events.Type
+	fetch func(ctx context.Context, e events.Event) (any, error)
+	run   func(ctx context.Context, tx db.Tx, e events.Event, fetched any, at time.Time) error
 }
+
+type fetchedResult[R any] struct{ value R }
+
+type noFetchedResult struct{}
 
 func Handle[E events.Event](name string, fn Handler[E]) HandlerSpec {
 	var zero E
 	return HandlerSpec{
 		Name: name,
 		typ:  zero.Type(),
-		run: func(ctx context.Context, tx db.Tx, e events.Event, at time.Time) error {
+		run: func(ctx context.Context, tx db.Tx, e events.Event, _ any, at time.Time) error {
 			return fn(ctx, tx, e.(E), at)
+		},
+	}
+}
+
+func HandleFetched[E events.Event, R any](
+	name string,
+	fetch func(ctx context.Context, e E) (R, error),
+	apply func(ctx context.Context, tx db.Tx, e E, result R, at time.Time) error,
+) HandlerSpec {
+	var zero E
+	return HandlerSpec{
+		Name: name,
+		typ:  zero.Type(),
+		fetch: func(ctx context.Context, e events.Event) (any, error) {
+			result, err := fetch(ctx, e.(E))
+			return fetchedResult[R]{value: result}, err
+		},
+		run: func(ctx context.Context, tx db.Tx, e events.Event, fetched any, at time.Time) error {
+			return apply(ctx, tx, e.(E), fetched.(fetchedResult[R]).value, at)
 		},
 	}
 }
@@ -52,13 +76,34 @@ func Handle[E events.Event](name string, fn Handler[E]) HandlerSpec {
 func (s HandlerSpec) Type() events.Type { return s.typ }
 
 func (s HandlerSpec) Apply(ctx context.Context, tx db.Tx, e events.Event, at time.Time) error {
-	return s.run(ctx, tx, e, at)
+	fetched, err := s.Fetch(ctx, e)
+	if err != nil {
+		return err
+	}
+	return s.ApplyFetched(ctx, tx, e, fetched, at)
+}
+
+func (s HandlerSpec) Fetch(ctx context.Context, e events.Event) (any, error) {
+	if s.fetch == nil {
+		return noFetchedResult{}, nil
+	}
+	return s.fetch(ctx, e)
+}
+
+func (s HandlerSpec) ApplyFetched(
+	ctx context.Context,
+	tx db.Tx,
+	e events.Event,
+	fetched any,
+	at time.Time,
+) error {
+	return s.run(ctx, tx, e, fetched, at)
 }
 
 func (s HandlerSpec) OnCommit(fn func(ctx context.Context, e events.Event)) HandlerSpec {
 	inner := s.run
-	s.run = func(ctx context.Context, tx db.Tx, e events.Event, at time.Time) error {
-		if err := inner(ctx, tx, e, at); err != nil {
+	s.run = func(ctx context.Context, tx db.Tx, e events.Event, fetched any, at time.Time) error {
+		if err := inner(ctx, tx, e, fetched, at); err != nil {
 			return err
 		}
 		tx.AfterCommit(func(ctx context.Context) { fn(ctx, e) })
@@ -69,9 +114,9 @@ func (s HandlerSpec) OnCommit(fn func(ctx context.Context, e events.Event)) Hand
 
 func (s HandlerSpec) Before(fn func(ctx context.Context, e events.Event)) HandlerSpec {
 	inner := s.run
-	s.run = func(ctx context.Context, tx db.Tx, e events.Event, at time.Time) error {
+	s.run = func(ctx context.Context, tx db.Tx, e events.Event, fetched any, at time.Time) error {
 		fn(ctx, e)
-		return inner(ctx, tx, e, at)
+		return inner(ctx, tx, e, fetched, at)
 	}
 	return s
 }

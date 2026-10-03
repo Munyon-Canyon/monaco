@@ -69,12 +69,16 @@ func SeedJSONL(t SeedT, pool *pgxpool.Pool, name string, raw []byte, consumers .
 			t.Fatalf("testkit.Seed: %s line %d: %v", name, n, err)
 		}
 		for _, h := range handlersFor(line.Type, consumers) {
+			fetched, err := h.Fetch(ctx, ev)
+			if err != nil {
+				t.Fatalf("testkit.Seed: %s line %d: %s: %v", name, n, h.Name, err)
+			}
 			if err := uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 				if _, err := tx.Queries().Exec(ctx, `INSERT INTO event_deliveries (handler, event_id, code, handled_at)
 					VALUES ($1, $2, 'ok', $3)`, h.Name, line.ID, line.CreatedAt); err != nil {
 					return err
 				}
-				return h.Apply(ctx, tx, ev, line.CreatedAt)
+				return h.ApplyFetched(ctx, tx, ev, fetched, line.CreatedAt)
 			}); err != nil {
 				t.Fatalf("testkit.Seed: %s line %d: %s: %v", name, n, h.Name, err)
 			}
