@@ -131,6 +131,12 @@ func runCLI(
 		return usage(stderr)
 	}
 	env, err := load(ctx, environ, dir, run)
+	if env != nil {
+		for _, key := range env.Config.Unknown {
+			_, _ = fmt.Fprintf(stderr,
+				"monacoctl agents: warning: unknown key %q in %s (newer config, or a typo)\n", key, configPath)
+		}
+	}
 	if env != nil && env.featureNote != "" {
 		_, _ = fmt.Fprintln(stderr, env.featureNote)
 	}

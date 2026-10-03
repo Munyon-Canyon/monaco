@@ -64,13 +64,12 @@ func TestMain_outsideARepositoryFails(t *testing.T) {
 func TestMain_configErrorsNameTheFileAndLine(t *testing.T) {
 	t.Parallel()
 	cases := map[string]string{
-		"":                                    "read config: open",
-		"lanes = 8\n":                         ".monaco/agents.toml: missing repo",
-		"# comment\n\nlanes\n":                ".monaco/agents.toml:3: want key = value",
-		"lanes = eight\n":                     `.monaco/agents.toml:1: int: strconv.Atoi: parsing "eight"`,
-		"repo = o/r\n":                        ".monaco/agents.toml:1: quote: invalid syntax",
-		"repo = \"o/r\"\ncolour = \"blue\"\n": `.monaco/agents.toml:2: unknown key "colour"`,
-		strings.Repeat("x", 70000):            "read .monaco/agents.toml: bufio.Scanner: token too long",
+		"":                         "read config: open",
+		"lanes = 8\n":              ".monaco/agents.toml: missing repo",
+		"# comment\n\nlanes\n":     ".monaco/agents.toml:3: want key = value",
+		"lanes = eight\n":          `.monaco/agents.toml:1: int: strconv.Atoi: parsing "eight"`,
+		"repo = o/r\n":             ".monaco/agents.toml:1: quote: invalid syntax",
+		strings.Repeat("x", 70000): "read .monaco/agents.toml: bufio.Scanner: token too long",
 	}
 	for content, want := range cases {
 		f := newFixture(t)
@@ -84,6 +83,15 @@ func TestMain_configErrorsNameTheFileAndLine(t *testing.T) {
 		if code != 1 || !strings.Contains(stderr, want) {
 			t.Fatalf("%.40q: code=%d stderr=%.200q want %q", content, code, stderr, want)
 		}
+	}
+	f := newFixture(t)
+	writeFile(t, filepath.Join(f.dir, configPath), testConfig+"colour = \"blue\"\n")
+	f.hub.on(list("/pulls?state=open"), []PR{})
+	f.noFailures()
+	code, _, stderr := f.agents(t, "watch", "--once")
+	if code != 0 || stderr != "monacoctl agents: warning: unknown key \"batch.colour\" in .monaco/agents.toml "+
+		"(newer config, or a typo)\n" {
+		t.Fatalf("an unknown key: code=%d stderr=%q", code, stderr)
 	}
 }
 
