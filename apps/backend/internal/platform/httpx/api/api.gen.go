@@ -794,6 +794,30 @@ type CabalRules struct {
 	VoterMode string `json:"voter_mode"`
 }
 
+// CabalSearchItem A public cabal in a search result.
+type CabalSearchItem struct {
+	Id       openapi_types.UUID `json:"id"`
+	IsMember bool               `json:"is_member"`
+
+	// JoinMode Examples: open
+	JoinMode    string `json:"join_mode"`
+	MemberCount int32  `json:"member_count"`
+
+	// MyAccessRequestStatus Examples: pending, null
+	MyAccessRequestStatus *string `json:"my_access_request_status"`
+	Name                  string  `json:"name"`
+	PictureUrl            *string `json:"picture_url"`
+}
+
+// CabalSearchPage One page of public cabals.
+type CabalSearchPage struct {
+	// Items Examples: []
+	Items []CabalSearchItem `json:"items"`
+
+	// NextCursor Examples: null
+	NextCursor *string `json:"next_cursor"`
+}
+
 // CastVoteRequest The ballot to cast.
 type CastVoteRequest struct {
 	// Choice A voter's choice on a proposal.
@@ -1177,6 +1201,18 @@ type PostAuthSessionParams struct {
 	Authorization *string `json:"Authorization,omitempty"`
 }
 
+// GetCabalsParams defines parameters for GetCabals.
+type GetCabalsParams struct {
+	// Query An empty, whitespace-only, or case-insensitive cabal-name substring.
+	Query *string `form:"query,omitempty" json:"query,omitempty"`
+
+	// Cursor An opaque cursor returned by the previous page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit The number of cabals to return, from 1 through 50. Defaults to 20.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // PostCabalParams defines parameters for PostCabal.
 type PostCabalParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -1251,6 +1287,9 @@ type ServerInterface interface {
 	// PostAuthSession Open a session from a Privy access token.
 	// (POST /v1/auth/session)
 	PostAuthSession(w http.ResponseWriter, r *http.Request, params PostAuthSessionParams)
+	// GetCabals Search public cabals.
+	// (GET /v1/cabals)
+	GetCabals(w http.ResponseWriter, r *http.Request, params GetCabalsParams)
 	// PostCabal Create a cabal and its treasury wallet.
 	// (POST /v1/cabals)
 	PostCabal(w http.ResponseWriter, r *http.Request, params PostCabalParams)
@@ -1419,6 +1458,65 @@ func (siw *ServerInterfaceWrapper) PostAuthSession(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostAuthSession(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCabals operation middleware
+func (siw *ServerInterfaceWrapper) GetCabals(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetCabalsParams
+
+	// ------------- Optional query parameter "query" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "query", r.URL.Query(), &params.Query, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "query"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "query", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCabals(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2049,6 +2147,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/healthz", wrapper.GetHealthz)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/assets", wrapper.GetAssets)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/auth/session", wrapper.PostAuthSession)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals", wrapper.GetCabals)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals", wrapper.PostCabal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}", wrapper.GetCabal)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/devices", wrapper.PostDevice)
@@ -2170,6 +2269,45 @@ type PostAuthSessiondefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response PostAuthSessiondefaultApplicationProblemPlusJSONResponse) VisitPostAuthSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCabalsRequestObject struct {
+	Params GetCabalsParams
+}
+
+type GetCabalsResponseObject interface {
+	VisitGetCabalsResponse(w http.ResponseWriter) error
+}
+
+type GetCabals200JSONResponse CabalSearchPage
+
+func (response GetCabals200JSONResponse) VisitGetCabalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCabalsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetCabalsdefaultApplicationProblemPlusJSONResponse) VisitGetCabalsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -2723,6 +2861,9 @@ type StrictServerInterface interface {
 	// PostAuthSession Open a session from a Privy access token.
 	// (POST /v1/auth/session)
 	PostAuthSession(ctx context.Context, request PostAuthSessionRequestObject) (PostAuthSessionResponseObject, error)
+	// GetCabals Search public cabals.
+	// (GET /v1/cabals)
+	GetCabals(ctx context.Context, request GetCabalsRequestObject) (GetCabalsResponseObject, error)
 	// PostCabal Create a cabal and its treasury wallet.
 	// (POST /v1/cabals)
 	PostCabal(ctx context.Context, request PostCabalRequestObject) (PostCabalResponseObject, error)
@@ -2872,6 +3013,32 @@ func (sh *strictHandler) PostAuthSession(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostAuthSessionResponseObject); ok {
 		if err := validResponse.VisitPostAuthSessionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCabals operation middleware
+func (sh *strictHandler) GetCabals(w http.ResponseWriter, r *http.Request, params GetCabalsParams) {
+	var request GetCabalsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCabals(ctx, request.(GetCabalsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCabals")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCabalsResponseObject); ok {
+		if err := validResponse.VisitGetCabalsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

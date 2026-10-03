@@ -148,6 +148,37 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
   /v1/cabals:
+    get:
+      operationId: getCabals
+      tags: [cabal]
+      summary: Search public cabals.
+      description: Returns non-banned cabals with members, optionally filtered by a case-insensitive name substring.
+      parameters:
+        - name: query
+          in: query
+          required: false
+          description: An empty, whitespace-only, or case-insensitive cabal-name substring.
+          schema: {type: string}
+        - name: cursor
+          in: query
+          required: false
+          description: An opaque cursor returned by the previous page.
+          schema: {type: string}
+        - name: limit
+          in: query
+          required: false
+          description: The number of cabals to return, from 1 through 50. Defaults to 20.
+          schema: {type: integer, minimum: 1, maximum: 50, default: 20}
+      responses:
+        "200":
+          description: The matching cabals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CabalSearchPage"
+              example: {items: [{id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, member_count: 3, join_mode: open, is_member: false, my_access_request_status: null}], next_cursor: null}
+        default:
+          $ref: "#/components/responses/Problem"
     post:
       operationId: postCabal
       tags: [cabal]
@@ -758,6 +789,30 @@ components:
         threshold: {type: string, examples: [majority]}
         proposal_expiry_seconds: {type: integer, format: int32, examples: [86400]}
         slippage_bps: {type: integer, format: int32, examples: [100]}
+    CabalSearchItem:
+      type: object
+      description: A public cabal in a search result.
+      additionalProperties: false
+      required: [id, name, picture_url, member_count, join_mode, is_member, my_access_request_status]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        picture_url: {type: [string, "null"]}
+        member_count: {type: integer, format: int32}
+        join_mode: {type: string, examples: [open]}
+        is_member: {type: boolean}
+        my_access_request_status: {type: [string, "null"], examples: [pending, null]}
+    CabalSearchPage:
+      type: object
+      description: One page of public cabals.
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/CabalSearchItem"}
+          examples: [[]]
+        next_cursor: {type: [string, "null"], examples: [null]}
     CastVoteRequest:
       type: object
       description: The ballot to cast.

@@ -99,6 +99,10 @@ func (healthz) PostCabal(context.Context, api.PostCabalRequestObject) (api.PostC
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostCabal")
 }
 
+func (healthz) GetCabals(context.Context, api.GetCabalsRequestObject) (api.GetCabalsResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabals")
+}
+
 func (healthz) GetCabal(context.Context, api.GetCabalRequestObject) (api.GetCabalResponseObject, error) {
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabal")
 }
