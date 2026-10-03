@@ -419,6 +419,7 @@ func prepBranch(t *testing.T) *fixture {
 	f := newFixtureFrom(t, rootedRepo)
 	git(t, f.dir, "remote", "add", "origin", f.dir)
 	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "fb")
+	f.noFailures()
 	return f
 }
 

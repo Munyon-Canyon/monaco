@@ -243,3 +243,26 @@ func TestParseConfig_readsTheCheckSlots(t *testing.T) {
 		}
 	}
 }
+
+func TestParseConfig_readsTheDispatchLoadCeilingAndRejectsBadValues(t *testing.T) {
+	t.Parallel()
+	base := strings.TrimSuffix(testConfig, "[batch]\nsize = 2\n") + "[batch]\nsize = 2\n"
+	cfg, err := parseConfig(strings.NewReader(base))
+	if err != nil || cfg.MaxLoad != 12 {
+		t.Fatalf("default: %v %v", cfg.MaxLoad, err)
+	}
+	cfg, err = parseConfig(strings.NewReader(base + "[dispatch]\nmax_load = 8\n"))
+	if err != nil || cfg.MaxLoad != 8 {
+		t.Fatalf("set: %v %v", cfg.MaxLoad, err)
+	}
+	for tail, want := range map[string]string{
+		"[dispatch]\nmax_load = 0\n":    "dispatch.max_load: want above 0, got 0",
+		"[dispatch]\nmax_load = high\n": "int: strconv.Atoi",
+		"[dispatch]\nmax_load\n":        "want key = value",
+		"[dispatch]\nlanes_hint = 3\n":  `unknown key "dispatch.lanes_hint"`,
+	} {
+		if _, err := parseConfig(strings.NewReader(base + tail)); err == nil || !strings.Contains(cliText(err), want) {
+			t.Errorf("%q: got %v, want %q", tail, err, want)
+		}
+	}
+}

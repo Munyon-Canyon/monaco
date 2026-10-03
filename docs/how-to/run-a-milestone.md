@@ -61,7 +61,7 @@ Do these once per milestone.
 
 ## Run a batch
 
-1. Check the machine. Run `uptime` and hold new dispatches while the 1-minute load is over about 12. Each owner runs `agents check`, and five at once pushed the load past 40 in M7.
+1. `agents dispatch` enforces the load gate (`[dispatch] max_load`) and the queue breaker (two `gtmq_` drafts closed in the last 60 minutes that failed on the same job), so there is nothing to check by hand. Send a pipeline fix with `--urgent`, which bypasses both.
 
 2. Pick the tickets:
 
