@@ -20,9 +20,12 @@ func New(d module.Deps) *Module { return &Module{deps: d} }
 func (*Module) Name() string { return "funding" }
 
 func (m *Module) Routes(r *httpx.Routes) {
+	cfg := m.deps.Config
 	r.FundingRoutes = adapters.HTTP{
-		Create: app.NewCreateOnrampSessionHandler(m.deps.UoW, m.deps.Clock, m.deps.Config.FundPageURL()),
-		IDs:    m.deps.IDs,
+		Create: app.NewCreateOnrampSessionHandler(m.deps.UoW, m.deps.Clock, cfg.FundPageURL()),
+		Exchange: app.NewExchangeOnrampTokenHandler(m.deps.UoW, m.deps.Clock, identity.New(m.deps).Queries(),
+			cfg.Solana.USDCMint),
+		IDs: m.deps.IDs,
 	}
 }
 

@@ -12,7 +12,7 @@ import (
 )
 
 func (f onrampFixture) http() adapters.HTTP {
-	return adapters.HTTP{Create: f.create, IDs: testkit.NewIDs(41)}
+	return adapters.HTTP{Create: f.create, Exchange: f.exchange, IDs: testkit.NewIDs(41)}
 }
 
 func (f onrampFixture) caller(t *testing.T) context.Context {
@@ -20,11 +20,12 @@ func (f onrampFixture) caller(t *testing.T) context.Context {
 	return auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: f.user.ID.String()})
 }
 
-func TestOnrampHTTP_createAnswersTheSessionAndItsURL(t *testing.T) {
+func TestOnrampHTTP_createThenExchangeRoundTripsTheAmount(t *testing.T) {
 	t.Parallel()
 	f := newOnrampFixture(t)
+	h := f.http()
 	amount := "25000000"
-	resp, err := f.http().CreateOnrampSession(f.caller(t), api.CreateOnrampSessionRequestObject{
+	resp, err := h.CreateOnrampSession(f.caller(t), api.CreateOnrampSessionRequestObject{
 		Body: &api.CreateOnrampSessionJSONRequestBody{SuggestedAmountMicros: &amount},
 	})
 	if err != nil {
@@ -34,14 +35,38 @@ func TestOnrampHTTP_createAnswersTheSessionAndItsURL(t *testing.T) {
 	if !ok {
 		t.Fatalf("create response = %T", resp)
 	}
-	tokenOf(t, created.Url)
-	evs := onrampEvents(t, f.pool)
-	if len(evs) != 1 || evs[0].SessionID != created.SessionId || evs[0].SuggestedAmountMicros.String() != amount {
-		t.Fatalf("events = %+v, want one created event for %s", evs, created.SessionId)
+	token := tokenOf(t, created.Url)
+	out, err := h.ExchangeOnrampToken(t.Context(), api.ExchangeOnrampTokenRequestObject{
+		Body: &api.ExchangeOnrampTokenJSONRequestBody{Token: token.Encode()},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := out.(api.ExchangeOnrampToken200JSONResponse)
+	if !ok || got.SessionId != created.SessionId || got.WalletAddress != string(f.user.Address) ||
+		got.SuggestedAmountMicros == nil || *got.SuggestedAmountMicros != amount || got.UsdcMint != usdcMint {
+		t.Fatalf("exchange response = %+v", out)
+	}
+	if _, err := h.ExchangeOnrampToken(t.Context(), api.ExchangeOnrampTokenRequestObject{
+		Body: &api.ExchangeOnrampTokenJSONRequestBody{Token: token.Encode()},
+	}); errs.CodeOf(err) != errs.CodeOnrampLinkInvalid {
+		t.Fatalf("second exchange = %v, want onramp_link_invalid", err)
 	}
 }
 
-func TestOnrampHTTP_createRefusesAnAmountPastUint64(t *testing.T) {
+func TestOnrampHTTP_exchangeWithoutAnAmountAnswersNull(t *testing.T) {
+	t.Parallel()
+	f := newOnrampFixture(t)
+	_, token := f.start(t, nil)
+	out, err := f.http().ExchangeOnrampToken(t.Context(), api.ExchangeOnrampTokenRequestObject{
+		Body: &api.ExchangeOnrampTokenJSONRequestBody{Token: token.Encode()},
+	})
+	if got, ok := out.(api.ExchangeOnrampToken200JSONResponse); err != nil || !ok || got.SuggestedAmountMicros != nil {
+		t.Fatalf("exchange = %+v, %v, want a null amount", out, err)
+	}
+}
+
+func TestOnrampHTTP_refusesBadInputBeforeTouchingTheDatabase(t *testing.T) {
 	t.Parallel()
 	f := newOnrampFixture(t)
 	h := f.http()
@@ -50,6 +75,11 @@ func TestOnrampHTTP_createRefusesAnAmountPastUint64(t *testing.T) {
 		Body: &api.CreateOnrampSessionJSONRequestBody{SuggestedAmountMicros: &tooBig},
 	}); errs.CodeOf(err) != errs.CodeInvalidInput {
 		t.Fatalf("create with %s = %v, want invalid_input", tooBig, err)
+	}
+	if _, err := h.ExchangeOnrampToken(t.Context(), api.ExchangeOnrampTokenRequestObject{
+		Body: &api.ExchangeOnrampTokenJSONRequestBody{Token: "short"},
+	}); errs.CodeOf(err) != errs.CodeOnrampLinkInvalid {
+		t.Fatalf("exchange of a malformed token = %v, want onramp_link_invalid", err)
 	}
 	if got := onrampEvents(t, f.pool); len(got) != 0 {
 		t.Fatalf("events = %+v, want none", got)
