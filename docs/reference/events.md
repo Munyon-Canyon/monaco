@@ -88,6 +88,28 @@ Subject `events.cabal.member_left`, version 1.
 | `user_id` | `uuid.UUID` |
 | `was_voter` | `bool` |
 
+## `cabal.paused`
+
+Subject `events.cabal.paused`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `pause_id` | `uuid.UUID` |
+| `cabal_id` | `*uuid.UUID` |
+| `reason` | `string` |
+| `scope` | `string` |
+
+## `cabal.resumed`
+
+Subject `events.cabal.resumed`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `cabal_id` | `*uuid.UUID` |
+| `scope` | `string` |
+
 ## `cabal.updated`
 
 Subject `events.cabal.updated`, version 1.

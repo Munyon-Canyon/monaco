@@ -47,6 +47,8 @@ func TestRegisteredEvents_tagPersonalFieldNames(t *testing.T) {
 		events.UserNudgeDue{},
 		events.FollowCreated{},
 		events.FollowRemoved{},
+		events.CabalPaused{},
+		events.CabalResumed{},
 	}
 	walked := make(map[events.Type]reflect.Type, len(samples))
 	for _, sample := range samples {

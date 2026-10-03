@@ -20,6 +20,7 @@ func rowGroups() []func() map[Code]Row {
 		platformRows, identityRows, treasuryRows, marketRows,
 		tradingRows, governanceRows, rankingRows, apnsRows,
 		analyticsRows, cabalRows, socialRows, referralsRows,
+		fundingRows,
 	}
 }
 

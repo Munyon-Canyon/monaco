@@ -6,7 +6,7 @@ extension Components.Schemas.ErrorCode {
         case .accessRequestNotPending, .accountBanned, .accountDeleted, .accountHasBalance, .accountHasPositions,
             .accountStatusTransition, .accountSuspended, .alreadyMember, .analyticsPii, .apnsAuthFailed,
             .apnsUnavailable, .assetNotFound, .assetUntradable, .authStateTransition, .cabalBanned, .cabalNotFound,
-            .calendarExpired, .cannotFollowSelf, .cannotRevokeAccess, .clientClosed, .conservationBroken,
+            .cabalPaused, .calendarExpired, .cannotFollowSelf, .cannotRevokeAccess, .clientClosed, .conservationBroken,
             .dbSchemaBehind, .dbUnavailable, .decodeFailed, .displayNameInvalid, .feedItemNotFound, .forbidden,
             .handleInvalid, .handleRequired, .handleReserved, .handleTaken, .handleTooSoon, .idempotencyInFlight,
             .idempotencyMismatch, .insufficientFunds, ._internal, .invalidAddress, .invalidConfig, .invalidInput,

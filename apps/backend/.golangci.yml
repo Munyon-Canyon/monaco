@@ -82,7 +82,7 @@ linters:
         - stdlib
         - 'github\.com/monaco/monaco/apps/backend/internal/events\.Event$'
         - 'github\.com/monaco/monaco/apps/backend/internal/platform/db/sqlc\.DBTX$'
-        - 'github\.com/monaco/monaco/apps/backend/internal/modules/\w+/port\.(Queries|Balances)$'
+        - 'github\.com/monaco/monaco/apps/backend/internal/modules/\w+/port\.(Queries|Balances|Pauses)$'
     reassign: { patterns: [".*"] }
     wrapcheck:
       ignore-package-globs: ["github.com/monaco/monaco/apps/backend/internal/*"]
