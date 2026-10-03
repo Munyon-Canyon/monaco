@@ -7,6 +7,11 @@ import XCTest
 
 #if canImport(FoundationNetworking)
 import FoundationNetworking
+import OpenAPIAsyncHTTPClient
+
+private func streamTransport() -> any ClientTransport { AsyncHTTPClientTransport() }
+#else
+private func streamTransport() -> any ClientTransport { URLSessionTransport() }
 #endif
 
 @MainActor
@@ -14,16 +19,31 @@ final class F00IntegrationTests: XCTestCase {
     func test_F00_RecordPing_ok() async throws {
         let (serverURL, seeded) = try seed("ok")
         XCTAssertFalse(seeded.token.isEmpty)
-        let model = pingModel(serverURL, token: seeded.token)
+        let stream = HintStream(
+            serverURL: serverURL,
+            transport: streamTransport(),
+            token: { seeded.token },
+            refresh: { _ in nil },
+            clock: ContinuousClock(),
+            random: { Double.random(in: 0..<1) }
+        )
+        let model = SystemPingModel(
+            api: APIClient(serverURL: serverURL, tokens: SeededToken(token: seeded.token)),
+            hints: stream
+        )
+        await stream.start()
+        let observe = Task { await model.observe() }
+        defer {
+            observe.cancel()
+            Task { await stream.stop() }
+        }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
 
         await model.send(note: "hi")
 
+        let echoed = await waitForEcho(model, until: deadline)
         let state = model.state
-        guard case .loaded(let ping) = state else {
-            XCTFail("expected the recorded ping, got \(state)")
-            return
-        }
-        XCTAssertEqual(ping.note, "hi")
+        XCTAssertTrue(echoed, "user \(seeded.userID) ping was not echoed within 3 s; state \(state)")
     }
 
     func test_F00_RecordPing_InvalidInput() async throws {
@@ -68,7 +88,19 @@ final class F00IntegrationTests: XCTestCase {
             return
         }
         let recorded = await transport.recordedID
+        let posts = await transport.posts
+        XCTAssertEqual(posts, 2)
         XCTAssertEqual(ping.id, recorded)
+    }
+
+    private func waitForEcho(_ model: SystemPingModel, until deadline: ContinuousClock.Instant) async -> Bool {
+        let clock = ContinuousClock()
+        while clock.now < deadline {
+            if case .loaded(let ping) = model.state, ping.echoed { return true }
+            try? await clock.sleep(for: .milliseconds(50))
+        }
+        if case .loaded(let ping) = model.state { return ping.echoed }
+        return false
     }
 
     private func pingModel(
@@ -146,6 +178,7 @@ private actor LoseFirstPost: ClientTransport {
     private let next = URLSessionTransport()
     private var lost = false
     private(set) var recordedID: String?
+    private(set) var posts = 0
 
     nonisolated func send(
         _ request: HTTPRequest,
@@ -156,7 +189,8 @@ private actor LoseFirstPost: ClientTransport {
         let (response, responseBody) = try await next.send(
             request, body: body, baseURL: baseURL, operationID: operationID
         )
-        guard operationID == "postSystemPing", await loseOnce() else { return (response, responseBody) }
+        guard operationID == "postSystemPing" else { return (response, responseBody) }
+        guard await loseOnce() else { return (response, responseBody) }
         if let responseBody {
             let data = try await Data(collecting: responseBody, upTo: 1 << 20)
             await record(try JSONDecoder().decode(Components.Schemas.Ping.self, from: data).id)
@@ -165,6 +199,7 @@ private actor LoseFirstPost: ClientTransport {
     }
 
     private func loseOnce() -> Bool {
+        posts += 1
         defer { lost = true }
         return !lost
     }
