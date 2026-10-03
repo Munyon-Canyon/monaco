@@ -51,6 +51,84 @@ func (q *Queries) LockPauseScope(ctx context.Context, cabalID uuid.UUID) error {
 	return err
 }
 
+const openPauses = `-- name: OpenPauses :many
+SELECT id, coalesce(cabal_id, '00000000-0000-0000-0000-000000000000')::uuid AS cabal_id, reason, created_at
+FROM cabal_pauses
+WHERE resolved_at IS NULL
+ORDER BY created_at, id
+`
+
+type OpenPausesRow struct {
+	ID        uuid.UUID
+	CabalID   uuid.UUID
+	Reason    string
+	CreatedAt time.Time
+}
+
+func (q *Queries) OpenPauses(ctx context.Context) ([]OpenPausesRow, error) {
+	rows, err := q.db.Query(ctx, openPauses)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []OpenPausesRow
+	for rows.Next() {
+		var i OpenPausesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CabalID,
+			&i.Reason,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const openPausesFor = `-- name: OpenPausesFor :many
+SELECT id, coalesce(cabal_id, '00000000-0000-0000-0000-000000000000')::uuid AS cabal_id, reason, created_at
+FROM cabal_pauses
+WHERE resolved_at IS NULL AND (cabal_id = $1::uuid OR cabal_id IS NULL)
+ORDER BY created_at, id
+`
+
+type OpenPausesForRow struct {
+	ID        uuid.UUID
+	CabalID   uuid.UUID
+	Reason    string
+	CreatedAt time.Time
+}
+
+func (q *Queries) OpenPausesFor(ctx context.Context, cabalID uuid.UUID) ([]OpenPausesForRow, error) {
+	rows, err := q.db.Query(ctx, openPausesFor, cabalID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []OpenPausesForRow
+	for rows.Next() {
+		var i OpenPausesForRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CabalID,
+			&i.Reason,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const openScopePauses = `-- name: OpenScopePauses :many
 SELECT reason FROM cabal_pauses
 WHERE resolved_at IS NULL

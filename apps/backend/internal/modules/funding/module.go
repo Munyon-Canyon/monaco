@@ -1,15 +1,22 @@
 package funding
 
 import (
+	"context"
+
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
+	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
@@ -35,7 +42,23 @@ func (m *Module) Pollers() []poller.Poller {
 
 func (*Module) Balances() port.Balances { return adapters.UnwiredBalances{} }
 
-func (*Module) Pauses() port.Pauses { return adapters.UnwiredPauses{} }
+func (m *Module) Pauses() port.Pauses { return adapters.NewPauses(m.deps.Pool) }
+
+func (*Module) PausesIn(tx db.Tx) port.Pauses { return adapters.NewPauses(tx.Queries()) }
+
+func (m *Module) PauseFromOps(ctx context.Context, cabalID *ids.CabalID, note string) (uuid.UUID, error) {
+	pause := app.NewPauseCabalHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock, m.deps.Bus)
+	return pause.Handle(opsActor(ctx), app.PauseCabal{CabalID: cabalID, Reason: domain.PauseReasonOps, Note: note})
+}
+
+func (m *Module) ResumeFromOps(ctx context.Context, cabalID *ids.CabalID) error {
+	resume := app.NewResumeCabalHandler(m.deps.UoW, m.deps.Clock, m.deps.Bus)
+	return resume.Handle(opsActor(ctx), app.ResumeCabal{CabalID: cabalID})
+}
+
+func opsActor(ctx context.Context) context.Context {
+	return auth.WithActor(ctx, auth.Actor{Kind: auth.ActorSystem, ID: "monacoctl"})
+}
 
 type (
 	Balances    = port.Balances
