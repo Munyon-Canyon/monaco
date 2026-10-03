@@ -240,7 +240,7 @@ func TestLandStack_refusesNamingEveryPRItWaitsOnAndChangesNothing(t *testing.T) 
 	}
 }
 
-func TestLandStack_labelsEveryPRBottomToTopAndKeepsTheirBases(t *testing.T) {
+func TestLandStack_labelsEveryPRAndKeepsTheirBases(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	s := newStackGH(t, f,
@@ -254,9 +254,9 @@ func TestLandStack_labelsEveryPRBottomToTopAndKeepsTheirBases(t *testing.T) {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	want := []string{
-		"POST /repos/o/r/issues/1/labels",
-		"POST /repos/o/r/issues/2/labels",
 		"POST /repos/o/r/issues/3/labels",
+		"POST /repos/o/r/issues/2/labels",
+		"POST /repos/o/r/issues/1/labels",
 	}
 	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, want) {
 		t.Fatalf("calls:\n%s", strings.Join(got, "\n"))
@@ -279,6 +279,20 @@ func TestLandStack_labelsEveryPRBottomToTopAndKeepsTheirBases(t *testing.T) {
 	if code != 0 || stdout != "#3 is queued in the Graphite merge queue\n" ||
 		len(f.hub.callsContaining("/labels")) != len(want) {
 		t.Fatalf("second call: %d %q %v", code, stdout, f.hub.callsContaining("/labels"))
+	}
+}
+
+func TestLandStack_labelsTheTopFirstSoGraphiteQueuesTheStackTogether(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"), green(t, 3, "b3", "b2"))
+	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", State: Done})
+	if code, _, stderr := f.agents(t, "land-stack", "3"); code != 0 {
+		t.Fatalf("%d %q", code, stderr)
+	}
+	got := f.hub.callsContaining("/labels")
+	if len(got) == 0 || got[0] != "POST /repos/o/r/issues/3/labels" {
+		t.Fatalf("the first label went to %v, want the top PR #3 so the bottom is never labeled alone", got)
 	}
 }
 
@@ -463,7 +477,7 @@ func TestLandStack_queuesOnTheFirstRunWhenTheBottomMergesCleanlyOntoAMovedTrunk(
 		stdout != "queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #1 #2\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	want := []string{"POST /repos/o/r/issues/1/labels", "POST /repos/o/r/issues/2/labels"}
+	want := []string{"POST /repos/o/r/issues/2/labels", "POST /repos/o/r/issues/1/labels"}
 	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, want) || len(f.waited) != 0 {
 		t.Fatalf("labels %v, waited %v", got, f.waited)
 	}
@@ -482,7 +496,7 @@ func TestLandStack_queuesAStackWhoseVerifyIsRedOrMissing(t *testing.T) {
 		stdout != "queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #1 #2\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	want := []string{"POST /repos/o/r/issues/1/labels", "POST /repos/o/r/issues/2/labels"}
+	want := []string{"POST /repos/o/r/issues/2/labels", "POST /repos/o/r/issues/1/labels"}
 	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, want) {
 		t.Fatalf("labels %v", got)
 	}
@@ -781,9 +795,9 @@ func TestLandStack_relandsAnEjectedStackWholeInOneCall(t *testing.T) {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	want := []string{
-		"POST /repos/o/r/issues/1/labels",
-		"POST /repos/o/r/issues/2/labels",
 		"POST /repos/o/r/issues/3/labels",
+		"POST /repos/o/r/issues/2/labels",
+		"POST /repos/o/r/issues/1/labels",
 	}
 	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, want) {
 		t.Fatalf("calls %v", got)
@@ -805,7 +819,7 @@ func TestLandStack_relandsWhatIsLeftWhenOnePRLostTheLabel(t *testing.T) {
 		stdout != "#3 left the Graphite merge queue; relanding its stack\nqueued #2 #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #2 #3\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	want := []string{"POST /repos/o/r/issues/2/labels", "POST /repos/o/r/issues/3/labels"}
+	want := []string{"POST /repos/o/r/issues/3/labels", "POST /repos/o/r/issues/2/labels"}
 	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, want) {
 		t.Fatalf("calls %v", got)
 	}
@@ -1142,7 +1156,7 @@ func TestLandStack_queuesAStackWhosePRFormatIsRedOrPending(t *testing.T) {
 		stdout != "queued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #1 #2\n" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	want := []string{"POST /repos/o/r/issues/1/labels", "POST /repos/o/r/issues/2/labels"}
+	want := []string{"POST /repos/o/r/issues/2/labels", "POST /repos/o/r/issues/1/labels"}
 	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, want) {
 		t.Fatalf("labels %v", got)
 	}

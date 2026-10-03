@@ -402,7 +402,7 @@ func TestWatchStream_landsAnArmedStackOnceStage1Passes(t *testing.T) {
 		t.Fatalf("stream\n got %q\nwant %q", got, want)
 	}
 	if calls := f.hub.callsContaining("/labels"); !slices.Equal(calls, []string{
-		"POST /repos/o/r/issues/1/labels", "POST /repos/o/r/issues/2/labels",
+		"POST /repos/o/r/issues/2/labels", "POST /repos/o/r/issues/1/labels",
 	}) {
 		t.Fatalf("labels %v", calls)
 	}
