@@ -14,7 +14,7 @@ import (
 func TestPort_statusFollowsTheGuardedTransition(t *testing.T) {
 	t.Parallel()
 	d := newProposalDB(t)
-	var port governance.Port = governance.New(module.Deps{Pool: d.pool}).Queries()
+	port := governance.New(module.Deps{Pool: d.pool}).Queries()
 	p := d.buy(d.ids.NewV7())
 	d.insert(t, p)
 	id := ids.ProposalIDFrom(p.ID)

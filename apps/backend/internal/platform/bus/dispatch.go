@@ -153,6 +153,7 @@ func failed(handler string, err error) result {
 
 func (r *Registry) handle(ctx context.Context, h HandlerSpec, id ids.EventID, ev events.Event) result {
 	began := r.clock.Now()
+	ctx = observability.WithActor(ctx, "system:"+h.Name)
 	duplicate, err := r.run(ctx, h, id, ev)
 	res := result{handler: h.Name, outcome: OutcomeAck, code: deliveryOK}
 	switch {
@@ -169,8 +170,43 @@ func (r *Registry) handle(ctx context.Context, h HandlerSpec, id ids.EventID, ev
 	return res
 }
 
-func (r *Registry) run(ctx context.Context, h HandlerSpec, id ids.EventID, ev events.Event) (bool, error) {
-	return Deliver(ctx, r.uow, r.clock, h, id, ev)
+func (r *Registry) run(ctx context.Context, h HandlerSpec, id ids.EventID, ev events.Event) (_ bool, err error) {
+	if h.own == nil {
+		return Deliver(ctx, r.uow, r.clock, h, id, ev)
+	}
+	defer recoverPanic(&err)
+	return false, h.own(ctx, Delivery{Handler: h.Name, EventID: id, At: r.clock.Now()}, ev)
+}
+
+type Delivery struct {
+	Handler string
+	EventID ids.EventID
+	At      time.Time
+}
+
+func (d Delivery) Record(ctx context.Context, tx db.Tx) (bool, error) {
+	n, err := sqlc.New(tx.Queries()).InsertDelivery(ctx, sqlc.InsertDeliveryParams{
+		Handler: d.Handler, EventID: d.EventID.UUID(), Code: deliveryOK, HandledAt: d.At,
+	})
+	return n == 1, err
+}
+
+func Heartbeat(ctx context.Context) func() {
+	k, ok := ctx.Value(keepAliveKey{}).(keepAlive)
+	if !ok {
+		return nil
+	}
+	return func() { _ = k.msg.InProgress() }
+}
+
+func recoverPanic(err *error) {
+	if p := recover(); p != nil {
+		if faultpoint.IsCrash(p) {
+			panic(p)
+		}
+		*err = errs.New(errs.CodePanic, "bus.Dispatch",
+			slog.Any("panic", p), slog.String("stack", string(debug.Stack())))
+	}
 }
 
 func Deliver(
@@ -181,15 +217,10 @@ func Deliver(
 	id ids.EventID,
 	ev events.Event,
 ) (duplicate bool, err error) {
-	defer func() {
-		if p := recover(); p != nil {
-			if faultpoint.IsCrash(p) {
-				panic(p)
-			}
-			err = errs.New(errs.CodePanic, "bus.Dispatch",
-				slog.Any("panic", p), slog.String("stack", string(debug.Stack())))
-		}
-	}()
+	if h.own != nil {
+		return true, nil
+	}
+	defer recoverPanic(&err)
 	fetched, duplicate, err := fetchForDelivery(ctx, uow, h, id, ev)
 	if err != nil || duplicate {
 		return duplicate, err

@@ -32,11 +32,14 @@ const (
 
 type Handler[E events.Event] func(ctx context.Context, tx db.Tx, e E, at time.Time) error
 
+type OwnHandler[E events.Event] func(ctx context.Context, d Delivery, e E) error
+
 type HandlerSpec struct {
 	Name  string
 	typ   events.Type
 	fetch func(ctx context.Context, e events.Event) (any, error)
 	run   func(ctx context.Context, tx db.Tx, e events.Event, fetched any, at time.Time) error
+	own   func(ctx context.Context, d Delivery, e events.Event) error
 }
 
 type fetchedResult[R any] struct{ value R }
@@ -73,9 +76,25 @@ func HandleFetched[E events.Event, R any](
 	}
 }
 
+func HandleOwn[E events.Event](name string, fn OwnHandler[E]) HandlerSpec {
+	var zero E
+	return HandlerSpec{
+		Name: name,
+		typ:  zero.Type(),
+		own: func(ctx context.Context, d Delivery, e events.Event) error {
+			return fn(ctx, d, e.(E))
+		},
+	}
+}
+
 func (s HandlerSpec) Type() events.Type { return s.typ }
 
+func (s HandlerSpec) OwnIdempotency() bool { return s.own != nil }
+
 func (s HandlerSpec) Apply(ctx context.Context, tx db.Tx, e events.Event, at time.Time) error {
+	if s.own != nil {
+		return nil
+	}
 	fetched, err := s.Fetch(ctx, e)
 	if err != nil {
 		return err
@@ -101,6 +120,16 @@ func (s HandlerSpec) ApplyFetched(
 }
 
 func (s HandlerSpec) OnCommit(fn func(ctx context.Context, e events.Event)) HandlerSpec {
+	if own := s.own; own != nil {
+		s.own = func(ctx context.Context, d Delivery, e events.Event) error {
+			if err := own(ctx, d, e); err != nil {
+				return err
+			}
+			fn(ctx, e)
+			return nil
+		}
+		return s
+	}
 	inner := s.run
 	s.run = func(ctx context.Context, tx db.Tx, e events.Event, fetched any, at time.Time) error {
 		if err := inner(ctx, tx, e, fetched, at); err != nil {
@@ -113,6 +142,13 @@ func (s HandlerSpec) OnCommit(fn func(ctx context.Context, e events.Event)) Hand
 }
 
 func (s HandlerSpec) Before(fn func(ctx context.Context, e events.Event)) HandlerSpec {
+	if own := s.own; own != nil {
+		s.own = func(ctx context.Context, d Delivery, e events.Event) error {
+			fn(ctx, e)
+			return own(ctx, d, e)
+		}
+		return s
+	}
 	inner := s.run
 	s.run = func(ctx context.Context, tx db.Tx, e events.Event, fetched any, at time.Time) error {
 		fn(ctx, e)
