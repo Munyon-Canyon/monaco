@@ -21,6 +21,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/posthogfake"
@@ -243,6 +244,48 @@ func TestClient_Capture_classifiesEveryStatusTheServerCanSend(t *testing.T) {
 				Capture(t.Context(), []app.Capture{sample()})
 			if want == "" && err != nil || want != "" && errs.CodeOf(err) != want {
 				t.Fatalf("status %d: Capture = %v, want code %q", status, err, want)
+			}
+		})
+	}
+}
+
+func sentLines(t *testing.T, logs *testkit.Logs) [][2]any {
+	t.Helper()
+	var sent [][2]any
+	for _, line := range logged(t, logs.Bytes()) {
+		if line["msg"] == "analytics.capture_sent" {
+			sent = append(sent, [2]any{line["event"], line["uuid"]})
+		}
+	}
+	return sent
+}
+
+func TestClient_Capture_logsCaptureSentOncePerCaptureOnlyAfterPostHogAccepts(t *testing.T) {
+	t.Parallel()
+	first, second := sample(), sample()
+	second.UUID, second.Event = testkit.NewIDs(2).NewV7(), "other"
+	accepted := [][2]any{{first.Event, first.UUID.String()}, {second.Event, second.UUID.String()}}
+	tests := map[string]struct {
+		status int
+		want   [][2]any
+	}{
+		"accepted": {http.StatusOK, accepted},
+		"rejected": {http.StatusBadRequest, nil},
+		"down":     {http.StatusServiceUnavailable, nil},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			var logs testkit.Logs
+			ctx := observability.WithLogger(t.Context(),
+				observability.NewLogger(config.Config{Env: config.EnvLocal}, &logs))
+			fake := posthogfake.New(t)
+			if tt.status != http.StatusOK {
+				fake.Fail(t, tt.status, 1)
+			}
+			err := newClient(t, fake.Host()).Capture(ctx, []app.Capture{first, second})
+			if sent := sentLines(t, &logs); (err == nil) != (tt.want != nil) || !reflect.DeepEqual(sent, tt.want) {
+				t.Fatalf("Capture = %v with capture_sent lines %v, want %v", err, sent, tt.want)
 			}
 		})
 	}

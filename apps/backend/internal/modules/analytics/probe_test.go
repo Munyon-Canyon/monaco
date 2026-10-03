@@ -118,6 +118,9 @@ func TestAnalytics_WithoutAnAPIKey_skipsTheCaptureAndAcks(t *testing.T) {
 		t.Fatalf("verdict %q with %d received and skipped lines %v, want ack, none received and one no_api_key line",
 			m.outcome, e.fake.Received(), skipped)
 	}
+	if sent := logged(t, e, "analytics.capture_sent"); len(sent) != 0 {
+		t.Fatalf("capture_sent lines = %v, want none without an API key", sent)
+	}
 }
 
 func exporting(c analytics.Capture, ok bool, err error) func(*analytics.Registry) {

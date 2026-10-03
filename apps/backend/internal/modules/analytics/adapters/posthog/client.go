@@ -16,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/analytics/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 const (
@@ -79,7 +80,14 @@ func (c Client) Capture(ctx context.Context, batch []app.Capture) error {
 	}
 	defer func() { _ = resp.Body.Close() }()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxDrained))
-	return statusError(resp.StatusCode, op)
+	if err := statusError(resp.StatusCode, op); err != nil {
+		return err
+	}
+	for _, capture := range batch {
+		observability.Info(ctx, observability.AnalyticsCaptureSent,
+			slog.String("event", capture.Event), slog.String("uuid", capture.UUID.String()))
+	}
+	return nil
 }
 
 func statusError(status int, op string) error {
