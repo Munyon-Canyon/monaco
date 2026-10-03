@@ -1,0 +1,26 @@
+name: Staging
+
+# The full suite on every push to staging, as an indicator only: no ruleset requires it and nothing waits on it.
+# A PR's own run already gated what lands; this run tests the combined trunk, which the light queue check does
+# not. The README badge shows its result. docs/architecture/ci.md#check-stages
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+# One run at a time and none cancelled: a newer push waits behind the active run, replacing any older pending one.
+concurrency:
+  group: staging-ci
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+  checks: write
+
+jobs:
+  staging:
+    uses: ./.github/workflows/ci-jobs.yml
+    with:
+      stage: staging
