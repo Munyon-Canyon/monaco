@@ -1,7 +1,6 @@
 package gen
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"slices"
@@ -12,14 +11,14 @@ import (
 
 func planFlow(root *os.Root, modPath string, args []string) (Plan, error) {
 	const op = "gen.planFlow"
-	raw, err := root.ReadFile(flows.File)
+	all, problems, err := flows.ReadAll(os.DirFS(filepath.Join(root.Name(), "..", "..")))
 	if err != nil {
 		return Plan{}, errs.Wrap(err, errs.CodeInvalidInput, op)
 	}
-	all, problems := flows.Parse(bytes.NewReader(raw))
 	i := slices.IndexFunc(all, func(f flows.Flow) bool { return f.ID == args[0] })
 	if i < 0 {
-		return Plan{}, invalid(op, "%s has no valid row with id %q (%d problems)", flows.File, args[0], len(problems))
+		return Plan{}, invalid(op, "%s/%s.tsv has no valid row with id %q (%d problems)",
+			flows.Dir, args[0], args[0], len(problems))
 	}
 	f := all[i]
 	if len(f.Commands) == 0 {

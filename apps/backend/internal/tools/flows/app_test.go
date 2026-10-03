@@ -70,7 +70,7 @@ func TestCheckApp_eachViolationFailsWithOneLine(t *testing.T) {
 		},
 		{
 			"id not in the backend", "99.tsv", appFile("99\tX\tplanned\tdocs/flows.md"),
-			"packages/flows/app/99.tsv:2: id 99 is not in apps/backend/flows.tsv; add the backend row first or delete this file",
+			"packages/flows/app/99.tsv:2: id 99 has no valid row in packages/flows/backend/99.tsv; add the backend row first or delete this file",
 		},
 		{
 			"unknown status", "00.tsv", appFile("00\tPing\tdone\tdocs/flows.md"),
@@ -209,5 +209,12 @@ func TestReadApp_andCheckNoAggregate_reportAnUnreadableFile(t *testing.T) {
 	}
 	if got := lines(flows.CheckNoAggregate(repo, appBackend())); !slices.Equal(got, want) {
 		t.Fatalf("CheckNoAggregate problems = %q, want %q", got, want)
+	}
+}
+
+func TestCheckNoAggregate_passesARepoWithNoFlowsPackage(t *testing.T) {
+	t.Parallel()
+	if got := flows.CheckNoAggregate(fstest.MapFS{"README.md": {Data: []byte("x\n")}}, nil); len(got) != 0 {
+		t.Fatalf("problems = %v, want none", got)
 	}
 }

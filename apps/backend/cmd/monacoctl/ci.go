@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
 const (
@@ -166,7 +167,7 @@ func seedDirs(byDir map[string]listedPackage, f string) []string {
 	switch {
 	case f == "sqlc.yaml":
 		return sqlcDirs(byDir)
-	case f == "flows.tsv":
+	case strings.HasPrefix(f, flows.Dir+"/"):
 		return flowsReaders()
 	case isQuery && nested:
 		return []string{"internal/modules/" + module + "/sqlc"}

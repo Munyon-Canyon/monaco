@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -78,10 +77,8 @@ func TestParseArgs_aCrashOutcomeArmsItsFaultpoint(t *testing.T) {
 
 func TestReadFlows_rejectsAMalformedFile(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, tools.File), []byte("id\tflow\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	dir := filepath.Join(t.TempDir(), "apps", "backend")
+	writeFlows(t, dir, "id\tflow\n90\tHealth\n")
 	if _, err := readFlows(dir); !errors.Is(err, fs.ErrInvalid) || !strings.Contains(err.Error(), "header must be") {
 		t.Fatalf("readFlows = %v, want the header problem", err)
 	}

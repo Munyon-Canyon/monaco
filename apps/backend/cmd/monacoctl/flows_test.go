@@ -57,11 +57,9 @@ func envWith(t *testing.T, tsv string) flows.Env {
 			t.Fatal(err)
 		}
 	}
-	repo := fstest.MapFS{
-		"apps/backend/flows.tsv":                          {Data: []byte(tsv)},
-		"apps/backend/internal/modules/system/app/app.go": {Data: []byte("package app\n")},
-		"docs/flows.md":                                   {Data: []byte("## Ping\n")},
-	}
+	repo := flowFS(tsv)
+	repo["apps/backend/internal/modules/system/app/app.go"] = &fstest.MapFile{Data: []byte("package app\n")}
+	repo["docs/flows.md"] = &fstest.MapFile{Data: []byte("## Ping\n")}
 	mods := module.NewSet(echoModule{})
 	return liveEnv(repo, backend, mods)
 }
@@ -85,41 +83,40 @@ func TestFlowsCheck(t *testing.T) {
 		code          int
 		stderr        string
 	}{
-		{"header only", flows.Header + "\n", "", false, false, 0, ""},
 		{"built row with every test passing", flows.Header + "\n" + pingRow + "\n", pass("TestFlow01_Ping_OK", "TestFlow01_Ping_Internal"), false, true, 0, ""},
 		{
 			"built row missing a test", flows.Header + "\n" + pingRow + "\n", pass("TestFlow01_Ping_OK"), false, true, 1,
-			"flows.tsv:2: outcome Internal has no test TestFlow01_Ping_Internal in the go test -json input\n",
+			"packages/flows/backend/01.tsv:2: outcome Internal has no test TestFlow01_Ping_Internal in the go test -json input\n",
 		},
 		{"structure only skips the test check", flows.Header + "\n" + pingRow + "\n", "", true, true, 0, ""},
 		{
 			"built row needs a script for each non-crash outcome",
 			flows.Header + "\n" + pingRow + "\n", pass("TestFlow01_Ping_OK", "TestFlow01_Ping_Internal"), false, false, 1,
-			"flows.tsv:2: built flow outcome ok has no script F01PingOK " +
+			"packages/flows/backend/01.tsv:2: built flow outcome ok has no script F01PingOK " +
 				"in internal/testkit/flows; monacoctl verify all fails without it\n" +
-				"flows.tsv:2: built flow outcome Internal has no script F01PingInternal " +
+				"packages/flows/backend/01.tsv:2: built flow outcome Internal has no script F01PingInternal " +
 				"in internal/testkit/flows; monacoctl verify all fails without it\n",
 		},
 		{
 			"verified row needs a script per outcome",
 			flows.Header + "\n" + strings.Replace(pingRow, "\tbuilt\t", "\tverified\t", 1) + "\n", "", true, false, 1,
-			"flows.tsv:2: verified flow outcome ok has no script F01PingOK in internal/testkit/flows for monacoctl verify all\n" +
-				"flows.tsv:2: verified flow outcome Internal has no script F01PingInternal in internal/testkit/flows for " +
+			"packages/flows/backend/01.tsv:2: verified flow outcome ok has no script F01PingOK in internal/testkit/flows for monacoctl verify all\n" +
+				"packages/flows/backend/01.tsv:2: verified flow outcome Internal has no script F01PingInternal in internal/testkit/flows for " +
 				"monacoctl verify all\n",
 		},
 		{
 			"structure only still checks the columns", flows.Header + "\n" +
 				strings.Replace(pingRow, "system.pinged", "system.exploded", 1) + "\n",
 			"", true, true, 1,
-			"flows.tsv:2: event system.exploded is not in the events registry\n",
+			"packages/flows/backend/01.tsv:2: event system.exploded is not in the events registry\n",
 		},
 		{
 			"live registry and errs table", flows.Header + "\n" +
 				strings.Replace(strings.Replace(pingRow, "system.pinged", "system.pinged;system.exploded", 1), "ok;Internal\tbuilt", "ok;Internal;NoSuchCode;crash:before-commit;crash:after-lunch\tplanned", 1) + "\n",
 			"", false, false, 1,
-			"flows.tsv:2: event system.exploded is not in the events registry\n" +
-				"flows.tsv:2: outcome NoSuchCode is not an errs code name\n" +
-				"flows.tsv:2: outcome crash:after-lunch is not a registered faultpoint\n",
+			"packages/flows/backend/01.tsv:2: event system.exploded is not in the events registry\n" +
+				"packages/flows/backend/01.tsv:2: outcome NoSuchCode is not an errs code name\n" +
+				"packages/flows/backend/01.tsv:2: outcome crash:after-lunch is not a registered faultpoint\n",
 		},
 		{
 			"live routes, commands and consumers", flows.Header + "\n" +
@@ -127,9 +124,9 @@ func TestFlowsCheck(t *testing.T) {
 				"03\tHealth\tsystem\tGET /healthz\tPing\t\t\tok\tplanned\tdocs/flows.md#ping\n" +
 				"04\tPinged\tsystem\tconsumer:system.pinged\tPing\t\tsystem.echo;system_echo\tok\tplanned\tdocs/flows.md#ping\n",
 			"", false, false, 1,
-			"flows.tsv:2: trigger POST /v1/pong is not a route, subject or poller\n" +
-				"flows.tsv:2: command Pong is not a type in internal/modules/system/app\n" +
-				"flows.tsv:2: consumer ghost.durable is not a registered durable\n",
+			"packages/flows/backend/02.tsv:2: trigger POST /v1/pong is not a route, subject or poller\n" +
+				"packages/flows/backend/02.tsv:2: command Pong is not a type in internal/modules/system/app\n" +
+				"packages/flows/backend/02.tsv:2: consumer ghost.durable is not a registered durable\n",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -160,7 +157,7 @@ func TestFlowsCheck_missingFileFails(t *testing.T) {
 		nil,
 		&stderr,
 	); code != 1 ||
-		!strings.Contains(stderr.String(), "flows.tsv") {
+		!strings.Contains(stderr.String(), flows.Dir) {
 		t.Fatalf("code=%d stderr=%q", code, stderr.String())
 	}
 }
@@ -195,7 +192,14 @@ func TestFlowsCheck_fromAMissingFileFails(t *testing.T) {
 func TestFlowsCheck_failsWhenTheTestResultsCannotBeRead(t *testing.T) {
 	t.Parallel()
 	var stderr bytes.Buffer
-	code := flowsCheck(envWith(t, flows.Header+"\n"), nil, iotest.ErrReader(io.ErrUnexpectedEOF), false, nil, &stderr)
+	code := flowsCheck(
+		envWith(t, flows.Header+"\n"+pingRow+"\n"),
+		nil,
+		iotest.ErrReader(io.ErrUnexpectedEOF),
+		false,
+		nil,
+		&stderr,
+	)
 	if code != 1 || !strings.HasPrefix(stderr.String(), "monacoctl flows check: ") ||
 		!strings.Contains(stderr.String(), io.ErrUnexpectedEOF.Error()) {
 		t.Fatalf("code=%d stderr=%q", code, stderr.String())
@@ -221,9 +225,9 @@ func TestFlowsCheck_appRegistry(t *testing.T) {
 		{"two data rows", map[string]string{
 			"packages/flows/app/01.tsv": app("01\tSystemPing\tplanned\tdocs/flows.md\n01\tOther\tplanned\tdocs/flows.md"),
 		}, 1, "packages/flows/app/01.tsv:3: extra data row \"01\\tOther\\tplanned\\tdocs/flows.md\"; keep exactly one row per file\n"},
-		{"id not in flows.tsv", map[string]string{
+		{"id with no backend row", map[string]string{
 			"packages/flows/app/99.tsv": app("99\tX\tplanned\tdocs/flows.md"),
-		}, 1, "packages/flows/app/99.tsv:2: id 99 is not in apps/backend/flows.tsv; add the backend row first or delete this file\n"},
+		}, 1, "packages/flows/app/99.tsv:2: id 99 has no valid row in packages/flows/backend/99.tsv; add the backend row first or delete this file\n"},
 		{"unknown status", map[string]string{
 			"packages/flows/app/01.tsv": app("01\tSystemPing\tdone\tdocs/flows.md"),
 		}, 1, "packages/flows/app/01.tsv:2: status \"done\" is not planned, built, verified or none\n"},
@@ -313,7 +317,7 @@ func TestFlowsSeed_refusesWhatItCannotSeed(t *testing.T) {
 		},
 		{
 			"unknown flow", "99", "ok", 2,
-			"monacoctl flows seed: no outcome ok on flow 99; valid outcomes: none, the flow is not in flows.tsv\n",
+			"monacoctl flows seed: no outcome ok on flow 99; valid outcomes: none, the flow has no packages/flows/backend/99.tsv\n",
 		},
 		{
 			"outcome without a seeder", "01", "ok", 1,
@@ -467,8 +471,8 @@ func TestFlowsCheck_readsEveryInputBeforeTheRepo(t *testing.T) {
 			io.Discard,
 			&stderr,
 		); code != 1 ||
-			!strings.Contains(stderr.String(), "flows.tsv") {
-			t.Fatalf("%q: code=%d stderr=%q, want the missing flows.tsv of this test's working directory", args, code,
+			!strings.Contains(stderr.String(), flows.Dir) {
+			t.Fatalf("%q: code=%d stderr=%q, want the missing flow files of this test's working directory", args, code,
 				stderr.String())
 		}
 	}
@@ -479,9 +483,9 @@ func TestFlowsSeed_runsFromTheBackendDirectory(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := run(commands(), tools(nil), nil, []string{"flows", "seed", "00", "ok"}, &stdout, &stderr)
 	if code != 1 || !strings.HasPrefix(stderr.String(), "monacoctl flows seed: ") ||
-		!strings.Contains(stderr.String(), "flows.tsv") {
+		!strings.Contains(stderr.String(), flows.Dir) {
 		t.Fatalf(
-			"code=%d stderr=%q, want the missing flows.tsv of this test's working directory",
+			"code=%d stderr=%q, want the missing flow files of this test's working directory",
 			code,
 			stderr.String(),
 		)
@@ -498,35 +502,28 @@ func TestFlowsSeed_reportsASeederThatFails(t *testing.T) {
 
 func TestAffectedFlows(t *testing.T) {
 	t.Parallel()
-	repo := fstest.MapFS{
-		"apps/backend/flows.tsv": {Data: []byte(flows.Header + "\n" +
-			"00\tPing\tsystem\tGET /p\tPing\t\t\tok\tbuilt\tdocs/f.md\n" +
-			"01\tSign in\tidentity\tGET /s\tSignIn\t\t\tok\tbuilt\tdocs/f.md\n" +
-			"02\tCabal\tcabal\tGET /c\tCreate\t\t\tok\tbuilt\tdocs/f.md\n")},
-		"packages/flows/app/01.tsv": {Data: []byte(flows.AppHeader + "\n01\tSignIn\tbuilt\tdocs/f.md\n")},
+	repo := flowFS(flows.Header + "\n" +
+		"00\tPing\tsystem\tGET /p\tPing\t\t\tok\tbuilt\tdocs/f.md\n" +
+		"01\tSign in\tidentity\tGET /s\tSignIn\t\t\tok\tbuilt\tdocs/f.md\n" +
+		"02\tCabal\tcabal\tGET /c\tCreate\t\t\tok\tbuilt\tdocs/f.md\n")
+	repo["packages/flows/app/01.tsv"] = &fstest.MapFile{
+		Data: []byte(flows.AppHeader + "\n01\tSignIn\tbuilt\tdocs/f.md\n"),
 	}
 	for _, tc := range []struct {
-		name, names, rows string
-		want              []string
+		name, names string
+		want        []string
 	}{
-		{"an app row", "packages/flows/app/02.tsv\n", "", []string{"02"}},
-		{"nothing a flow owns", "README.md\n", "", nil},
-		{"a module", "apps/backend/internal/modules/identity/http.go\n", "", []string{"01"}},
-		{"the spec reaches app built flows", "apps/backend/api/openapi.yaml\n", "", []string{"01"}},
-		{
-			"only the changed rows of flows.tsv", "apps/backend/flows.tsv\nREADME.md\n",
-			"@@ -2 +2 @@\n-00\tPing\n+00\tPing!\n",
-			[]string{"00"},
-		},
+		{"an app row", "packages/flows/app/02.tsv\n", []string{"02"}},
+		{"nothing a flow owns", "README.md\n", nil},
+		{"a module", "apps/backend/internal/modules/identity/http.go\n", []string{"01"}},
+		{"the spec reaches app built flows", "apps/backend/api/openapi.yaml\n", []string{"01"}},
+		{"a backend row", flows.Dir + "/00.tsv\nREADME.md\n", []string{"00"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var calls [][]string
 			git := func(_ context.Context, _ string, _ []string, _ string, args ...string) ([]byte, error) {
 				calls = append(calls, args)
-				if args[0] == "diff" && args[1] == "-U0" {
-					return []byte(tc.rows), nil
-				}
 				return []byte(tc.names), nil
 			}
 			got, err := affectedFlows(repo, git, "staging")
@@ -560,16 +557,9 @@ func TestAffectedFlows_reportsAFailingDiff(t *testing.T) {
 
 func TestFlowsAffectedCommands(t *testing.T) {
 	t.Parallel()
-	repo := fstest.MapFS{
-		"apps/backend/flows.tsv": {
-			Data: []byte(flows.Header + "\n00\tPing\tsystem\tGET /p\tPing\t\t\tok\tbuilt\tdocs/f.md\n"),
-		},
-	}
+	repo := flowFS(flows.Header + "\n00\tPing\tsystem\tGET /p\tPing\t\t\tok\tbuilt\tdocs/f.md\n")
 	names := func(out string, err error) execFunc {
-		return func(_ context.Context, _ string, _ []string, _ string, args ...string) ([]byte, error) {
-			if args[1] == "-U0" {
-				return nil, io.ErrUnexpectedEOF
-			}
+		return func(context.Context, string, []string, string, ...string) ([]byte, error) {
 			return []byte(out), err
 		}
 	}
@@ -587,12 +577,6 @@ func TestFlowsAffectedCommands(t *testing.T) {
 			"a failing diff",
 			[]string{"--affected", "--base", "b"},
 			names("", io.ErrUnexpectedEOF), repo, 1, "",
-			"monacoctl flows: " + io.ErrUnexpectedEOF.Error() + "\n",
-		},
-		{
-			"a failing row diff",
-			[]string{"--affected", "--base", "b"},
-			names("apps/backend/flows.tsv\n", nil), repo, 1, "",
 			"monacoctl flows: " + io.ErrUnexpectedEOF.Error() + "\n",
 		},
 		{

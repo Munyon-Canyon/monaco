@@ -32,7 +32,7 @@ func testEnv() flows.Env {
 
 func check(t *testing.T, body string, env flows.Env) []string {
 	t.Helper()
-	parsed, problems := flows.Parse(strings.NewReader(body))
+	parsed, problems := flows.Parse(fundFile, strings.NewReader(body))
 	if len(problems) != 0 {
 		t.Fatalf("parse problems = %v", lines(problems))
 	}
@@ -52,16 +52,16 @@ func TestCheckColumns_eachColumnFailsWithOneLine(t *testing.T) {
 		edit func(cells []string)
 		want string
 	}{
-		{"bad code", func(c []string) { c[7] = "ok;NoSuchCode" }, "flows.tsv:2: outcome NoSuchCode is not an errs code name"},
-		{"missing module", func(c []string) { c[2] = "ghost" }, "flows.tsv:2: module ghost has no directory under internal/modules"},
-		{"module is a file", func(c []string) { c[2] = "README.md" }, "flows.tsv:2: module README.md has no directory under internal/modules"},
-		{"unknown event", func(c []string) { c[5] = "cabal.funded;cabal.exploded" }, "flows.tsv:2: event cabal.exploded is not in the events registry"},
-		{"unknown trigger", func(c []string) { c[3] = "GET /v1/nothing" }, "flows.tsv:2: trigger GET /v1/nothing is not a route, subject or poller"},
-		{"unknown command", func(c []string) { c[4] = "Fund" }, "flows.tsv:2: command Fund is not a type in internal/modules/treasury/app"},
-		{"unknown consumer", func(c []string) { c[6] = "ghost" }, "flows.tsv:2: consumer ghost is not a registered durable"},
-		{"unknown faultpoint", func(c []string) { c[7] = "crash:after-lunch" }, "flows.tsv:2: outcome crash:after-lunch is not a registered faultpoint"},
-		{"missing doc", func(c []string) { c[9] = "docs/nope.md#fund" }, "flows.tsv:2: doc docs/nope.md does not exist"},
-		{"missing anchor", func(c []string) { c[9] = "docs/flows.md#not-a-heading" }, "flows.tsv:2: doc docs/flows.md has no heading with anchor #not-a-heading"},
+		{"bad code", func(c []string) { c[7] = "ok;NoSuchCode" }, fundFile + ":2: outcome NoSuchCode is not an errs code name"},
+		{"missing module", func(c []string) { c[2] = "ghost" }, fundFile + ":2: module ghost has no directory under internal/modules"},
+		{"module is a file", func(c []string) { c[2] = "README.md" }, fundFile + ":2: module README.md has no directory under internal/modules"},
+		{"unknown event", func(c []string) { c[5] = "cabal.funded;cabal.exploded" }, fundFile + ":2: event cabal.exploded is not in the events registry"},
+		{"unknown trigger", func(c []string) { c[3] = "GET /v1/nothing" }, fundFile + ":2: trigger GET /v1/nothing is not a route, subject or poller"},
+		{"unknown command", func(c []string) { c[4] = "Fund" }, fundFile + ":2: command Fund is not a type in internal/modules/treasury/app"},
+		{"unknown consumer", func(c []string) { c[6] = "ghost" }, fundFile + ":2: consumer ghost is not a registered durable"},
+		{"unknown faultpoint", func(c []string) { c[7] = "crash:after-lunch" }, fundFile + ":2: outcome crash:after-lunch is not a registered faultpoint"},
+		{"missing doc", func(c []string) { c[9] = "docs/nope.md#fund" }, fundFile + ":2: doc docs/nope.md does not exist"},
+		{"missing anchor", func(c []string) { c[9] = "docs/flows.md#not-a-heading" }, fundFile + ":2: doc docs/flows.md has no heading with anchor #not-a-heading"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -84,7 +84,7 @@ func TestCheckColumns_validRowsPass(t *testing.T) {
 func TestCheckColumns_duplicateIDNamesTheFirstLine(t *testing.T) {
 	t.Parallel()
 	got := check(t, tsv(fundRow, fundRow), testEnv())
-	if want := []string{"flows.tsv:3: id 07 already used on line 2"}; !slices.Equal(got, want) {
+	if want := []string{fundFile + ":3: id 07 already used on line 2"}; !slices.Equal(got, want) {
 		t.Fatalf("problems = %q, want %q", got, want)
 	}
 }

@@ -1201,9 +1201,8 @@ func TestCheck_aFlowChangeRunsTheFlowsRowForTheAffectedFlowsOnly(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
 	h.base(t, map[string]string{
-		flowsFile: flows.Header + "\n" +
-			"00\tPing\tsystem\tGET /p\tPing\t\t\tok\tbuilt\tdocs/f.md\n" +
-			"01\tSign in\tidentity\tGET /s\tSignIn\t\t\tok\tbuilt\tdocs/f.md\n",
+		flows.Dir + "/00.tsv":                         flows.Header + "\n00\tPing\tsystem\tGET /p\tPing\t\t\tok\tbuilt\tdocs/f.md\n",
+		flows.Dir + "/01.tsv":                         flows.Header + "\n01\tSign in\tidentity\tGET /s\tSignIn\t\t\tok\tbuilt\tdocs/f.md\n",
 		"apps/backend/internal/modules/system/app.go": "package system\n",
 	})
 	h.commit(t, map[string]string{"packages/flows/app/00.tsv": "id\tscreen\tstatus\tdoc\n"})
@@ -1252,7 +1251,7 @@ func TestCheck_theFlowsRowRunsOnlyForFlowPaths(t *testing.T) {
 		row  bool
 	}{
 		{"packages/flows/app/00.tsv", true},
-		{flowsFile, true},
+		{flows.Dir + "/00.tsv", true},
 		{"apps/backend/internal/testkit/flows/f00.go", true},
 		{"packages/mobile-core/Tests/MonacoCoreTests/F00IntegrationTests.swift", true},
 		{"packages/mobile-core/Sources/MonacoSystem/Flow00SystemPingModel.swift", true},
@@ -1264,7 +1263,7 @@ func TestCheck_theFlowsRowRunsOnlyForFlowPaths(t *testing.T) {
 			t.Parallel()
 			h := newCheckHarness(t)
 			h.base(t, map[string]string{
-				flowsFile: flows.Header + "\n", "apps/backend/internal/modules/system/app.go": "package system\n",
+				"apps/backend/internal/modules/system/app.go": "package system\n",
 			})
 			h.commit(t, map[string]string{tc.file: "changed\n"})
 			code, stdout, stderr := h.check(t)
@@ -1285,11 +1284,16 @@ func TestCheck_theFlowsRowReportsWhatItCannotRead(t *testing.T) {
 	}
 
 	h.replies = []reply{{prefix: "flows --affected", out: "00\n"}}
-	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "read "+flowsFile) {
-		t.Fatalf("no flows.tsv: %d %q", code, stderr)
+	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "read "+flows.Dir+": no flow files") {
+		t.Fatalf("no flow files: %d %q", code, stderr)
 	}
 
-	h.commit(t, map[string]string{flowsFile: flows.Header + "\n"})
+	h.commit(
+		t,
+		map[string]string{
+			flows.Dir + "/00.tsv": flows.Header + "\n00\tPing\tsystem\tGET /p\tPing\t\t\tok\tbuilt\tdocs/f.md\n",
+		},
+	)
 	writeFile(t, h.stateDir(t, "flows"), "")
 	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "write "+h.stateDir(t, "flows")) {
 		t.Fatalf("an unwritable state dir: %d %q", code, stderr)

@@ -210,13 +210,13 @@ func TestRunGenFlows(t *testing.T) {
 			0, "wrote 1 flow files to " + flowsSwiftDir + " and the " + scenarioManifest + " scenario block\n",
 		},
 		{
-			"refuses a malformed flows.tsv",
-			map[string]string{"apps/backend/flows.tsv": "id\n"},
-			1, "monacoctl: monacoctl.readFlowsTSV: flows.tsv:1: header must be",
+			"refuses a malformed flow file",
+			map[string]string{flows.Dir + "/01.tsv": "id\n"},
+			1, "monacoctl: monacoctl.readFlowsTSV: " + flows.Dir + "/01.tsv:1: header must be",
 		},
 		{
 			"refuses an unknown outcome",
-			map[string]string{"apps/backend/flows.tsv": strings.Replace(tsv, "ok;Internal", "ok;NoSuchCode", 1)},
+			map[string]string{flows.Dir + "/01.tsv": strings.Replace(tsv, "ok;Internal", "ok;NoSuchCode", 1)},
 			1, "monacoctl: monacoctl.flowOutcomes: flow 01 outcome NoSuchCode is not an errs code name",
 		},
 		{
@@ -238,7 +238,7 @@ func TestRunGenFlows(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
-			files := map[string]string{"apps/backend/flows.tsv": tsv, scenarioManifest: manifest}
+			files := map[string]string{flows.Dir + "/01.tsv": tsv, scenarioManifest: manifest}
 			maps.Copy(files, tc.files)
 			if files[scenarioManifest] == "" {
 				delete(files, scenarioManifest)
@@ -269,13 +269,13 @@ func TestWriteFlowFiles_failsWithoutAWritableRoot(t *testing.T) {
 	}
 }
 
-func TestGenFlows_readsFlowsTSVTwoDirectoriesUp(t *testing.T) {
+func TestGenFlows_readsTheFlowFilesTwoDirectoriesUp(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr strings.Builder
 	if code := gen([]string{"flows"}, &stdout, &stderr); code != 1 ||
-		!strings.Contains(stderr.String(), "apps/backend/flows.tsv") {
+		!strings.Contains(stderr.String(), "read "+flows.Dir+": no flow files") {
 		t.Fatalf(
-			"gen flows from cmd/monacoctl = %d %q, want 1 naming the repo-relative flows.tsv",
+			"gen flows from cmd/monacoctl = %d %q, want 1 naming the repo-relative flow directory",
 			code,
 			stderr.String(),
 		)
@@ -304,7 +304,7 @@ public enum Flow00Scenario: String, CaseIterable, Sendable {
 	}
 }
 
-func TestRenderFlows_writesScenariosOnlyForBuiltFlowsInFlowsTSVOrder(t *testing.T) {
+func TestRenderFlows_writesScenariosOnlyForBuiltFlowsInIDOrder(t *testing.T) {
 	t.Parallel()
 	row := func(id, outcomes string) string {
 		return strings.Replace(strings.Replace(pingRow, "01\t", id+"\t", 1), "ok;Internal", outcomes, 1)
@@ -314,20 +314,18 @@ func TestRenderFlows_writesScenariosOnlyForBuiltFlowsInFlowsTSVOrder(t *testing.
 			Data: []byte(flows.AppHeader + "\n" + id + "\tScreen\t" + status + "\tdocs/flows.md#ping\n"),
 		}
 	}
-	repo := fstest.MapFS{
-		"apps/backend/flows.tsv": {Data: []byte(flows.Header + "\n" + strings.Join([]string{
-			row("00", "ok;InvalidInput;crash:after-publish"),
-			row("01", "ok;Unauthorized"),
-			row("05", "ok"),
-			row("23a", "ok;PhotoInvalid;StorageUnavailable"),
-		}, "\n") + "\n")},
-		"packages/flows/app/00.tsv":  app("00", "built"),
-		"packages/flows/app/01.tsv":  app("01", "planned"),
-		"packages/flows/app/05.tsv":  app("05", "verified"),
-		"packages/flows/app/23a.tsv": app("23a", "verified"),
-		scenarioManifest: {
-			Data: []byte("a  -A\n\n" + scenarioBlockBegin + "\nold\n" + scenarioBlockEnd + "\n\nb  -B\n"),
-		},
+	repo := flowFS(flows.Header + "\n" + strings.Join([]string{
+		row("00", "ok;InvalidInput;crash:after-publish"),
+		row("01", "ok;Unauthorized"),
+		row("05", "ok"),
+		row("23a", "ok;PhotoInvalid;StorageUnavailable"),
+	}, "\n") + "\n")
+	repo["packages/flows/app/00.tsv"] = app("00", "built")
+	repo["packages/flows/app/01.tsv"] = app("01", "planned")
+	repo["packages/flows/app/05.tsv"] = app("05", "verified")
+	repo["packages/flows/app/23a.tsv"] = app("23a", "verified")
+	repo[scenarioManifest] = &fstest.MapFile{
+		Data: []byte("a  -A\n\n" + scenarioBlockBegin + "\nold\n" + scenarioBlockEnd + "\n\nb  -B\n"),
 	}
 	files, err := renderFlows(repo)
 	if err != nil {
@@ -392,7 +390,7 @@ func TestRunGenFlows_writesScenariosForBuiltFlowsAndIsIdempotent(t *testing.T) {
 	ping := "00\tPing\tsystem\tPOST /v1/system/pings\tRecordPing\tsystem.pinged\t\tok;InvalidInput;Unauthorized;crash:after-publish\tverified\tdocs/flows.md#ping"
 	stale := filepath.Join(root, flowsSwiftDir, "Flow07Scenarios.gen.swift")
 	writeTree(t, root, map[string]string{
-		"apps/backend/flows.tsv":    flows.Header + "\n" + ping + "\n",
+		flows.Dir + "/00.tsv":       flows.Header + "\n" + ping + "\n",
 		"packages/flows/app/00.tsv": flows.AppHeader + "\n00\tSystemPing\tbuilt\tdocs/flows.md#ping\n",
 		scenarioManifest:            "# screens\nhome  -MonacoHomeSample populated\n",
 		filepath.Join(flowsSwiftDir, "Flow07Scenarios.gen.swift"): "stale\n",

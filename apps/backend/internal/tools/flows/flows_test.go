@@ -14,6 +14,8 @@ import (
 const fundRow = "07\tFund cabal\ttreasury\tPOST /v1/cabals/{id}/fund\tFundCabal\tcabal.fund_submitted; cabal.funded\t" +
 	"treasury.positions;ranking\tok;InsufficientFunds;crash:after-sign\tbuilt\tdocs/flows.md#fund"
 
+const fundFile = flows.Dir + "/07.tsv"
+
 func tsv(rows ...string) string {
 	return strings.Join(append([]string{flows.Header}, rows...), "\n") + "\n"
 }
@@ -28,7 +30,7 @@ func lines(problems []flows.Problem) []string {
 
 func TestParse_headerOnlyFileHasNoFlowsAndNoProblems(t *testing.T) {
 	t.Parallel()
-	got, problems := flows.Parse(strings.NewReader(tsv()))
+	got, problems := flows.Parse(fundFile, strings.NewReader(tsv()))
 	if len(got) != 0 || len(problems) != 0 {
 		t.Fatalf("flows=%v problems=%v", got, lines(problems))
 	}
@@ -36,7 +38,7 @@ func TestParse_headerOnlyFileHasNoFlowsAndNoProblems(t *testing.T) {
 
 func TestParse_readsEveryColumnIntoATypedRow(t *testing.T) {
 	t.Parallel()
-	got, problems := flows.Parse(strings.NewReader(tsv(fundRow)))
+	got, problems := flows.Parse(fundFile, strings.NewReader(tsv(fundRow)))
 	if len(problems) != 0 {
 		t.Fatalf("problems = %v", lines(problems))
 	}
@@ -61,12 +63,18 @@ func equalFlow(a, b flows.Flow) bool {
 
 func TestParse_splitsTheCommandCellIntoEachCommand(t *testing.T) {
 	t.Parallel()
-	got, problems := flows.Parse(strings.NewReader(tsv(fundRowWith(func(c []string) { c[4] = "FundCabal; Refund" }))))
+	got, problems := flows.Parse(
+		fundFile,
+		strings.NewReader(tsv(fundRowWith(func(c []string) { c[4] = "FundCabal; Refund" }))),
+	)
 	if len(problems) != 0 || len(got) != 1 || !slices.Equal(got[0].Commands, []string{"FundCabal", "Refund"}) {
 		t.Fatalf("flows = %+v, problems = %v; want commands FundCabal and Refund", got, lines(problems))
 	}
-	_, problems = flows.Parse(strings.NewReader(tsv(fundRowWith(func(c []string) { c[4] = "FundCabal;refund" }))))
-	if want := []string{`flows.tsv:2: command "refund" is not an exported Go identifier`}; !slices.Equal(
+	_, problems = flows.Parse(
+		fundFile,
+		strings.NewReader(tsv(fundRowWith(func(c []string) { c[4] = "FundCabal;refund" }))),
+	)
+	if want := []string{fundFile + `:2: command "refund" is not an exported Go identifier`}; !slices.Equal(
 		lines(problems), want) {
 		t.Fatalf("problems = %q, want %q", lines(problems), want)
 	}
@@ -77,14 +85,14 @@ func TestParse_takesOneTriggerOrOnePerCommand(t *testing.T) {
 	perCommand := fundRowWith(func(c []string) {
 		c[3], c[4] = "POST /v1/cabals/{id}/fund; DELETE /v1/cabals/{id}/fund", "FundCabal; Refund"
 	})
-	got, problems := flows.Parse(strings.NewReader(tsv(perCommand)))
+	got, problems := flows.Parse(fundFile, strings.NewReader(tsv(perCommand)))
 	if len(problems) != 0 || len(got) != 1 || !slices.Equal(got[0].Triggers(),
 		[]string{"POST /v1/cabals/{id}/fund", "DELETE /v1/cabals/{id}/fund"}) {
 		t.Fatalf("flows = %+v, problems = %v", got, lines(problems))
 	}
 	mismatched := fundRowWith(func(c []string) { c[3] = "POST /v1/cabals/{id}/fund; DELETE /v1/cabals/{id}/fund" })
-	_, problems = flows.Parse(strings.NewReader(tsv(mismatched)))
-	want := []string{"flows.tsv:2: trigger lists 2 triggers for 1 commands; list one, or one per command in order"}
+	_, problems = flows.Parse(fundFile, strings.NewReader(tsv(mismatched)))
+	want := []string{fundFile + ":2: trigger lists 2 triggers for 1 commands; list one, or one per command in order"}
 	if !slices.Equal(lines(problems), want) {
 		t.Fatalf("problems = %q, want %q", lines(problems), want)
 	}
@@ -97,45 +105,45 @@ func TestParse_rejectsMalformedRowsWithTheirLineNumber(t *testing.T) {
 		body string
 		want []string
 	}{
-		{"empty file", "", []string{`flows.tsv:1: header must be "` + strings.ReplaceAll(flows.Header, "\t", `\t`) + `"`}},
-		{"wrong header", "id\tflow\n", []string{`flows.tsv:1: header must be "` + strings.ReplaceAll(flows.Header, "\t", `\t`) + `"`}},
-		{"short row", tsv("07\tFund cabal"), []string{"flows.tsv:2: has 2 columns, want 10"}},
-		{"blank line", tsv(""), []string{"flows.tsv:2: blank line"}},
+		{"empty file", "", []string{fundFile + `:1: header must be "` + strings.ReplaceAll(flows.Header, "\t", `\t`) + `"`}},
+		{"wrong header", "id\tflow\n", []string{fundFile + `:1: header must be "` + strings.ReplaceAll(flows.Header, "\t", `\t`) + `"`}},
+		{"short row", tsv("07\tFund cabal"), []string{fundFile + ":2: has 2 columns, want 10"}},
+		{"blank line", tsv(""), []string{fundFile + ":2: blank line"}},
 		{
 			"bad cells",
 			tsv("7A\t\t\t\tfundCabal\t\t\t\tdone\t"),
 			[]string{
-				`flows.tsv:2: id "7A" must be digits with at most one lowercase letter after them`,
-				"flows.tsv:2: flow is empty",
-				"flows.tsv:2: module is empty",
-				"flows.tsv:2: doc is empty",
-				`flows.tsv:2: status "done" is not planned, built or verified`,
-				`flows.tsv:2: command "fundCabal" is not an exported Go identifier`,
-				"flows.tsv:2: outcomes is empty",
+				fundFile + `:2: id "7A" must be digits with at most one lowercase letter after them`,
+				fundFile + ":2: flow is empty",
+				fundFile + ":2: module is empty",
+				fundFile + ":2: doc is empty",
+				fundFile + `:2: status "done" is not planned, built or verified`,
+				fundFile + `:2: command "fundCabal" is not an exported Go identifier`,
+				fundFile + ":2: outcomes is empty",
 			},
 		},
 		{
 			"built flow without a command",
 			tsv("07\tFund cabal\ttreasury\tt\t\t\t\tok;crash:After_Sign\tbuilt\tdocs/flows.md"),
 			[]string{
-				"flows.tsv:2: command is empty on a built flow",
-				"flows.tsv:2: outcome crash:After_Sign must name a kebab-case crash point",
+				fundFile + ":2: command is empty on a built flow",
+				fundFile + ":2: outcome crash:After_Sign must name a kebab-case crash point",
 			},
 		},
 		{
 			"two letters after the digits",
 			tsv(fundRowWith(func(c []string) { c[0] = "01ab" })),
-			[]string{`flows.tsv:2: id "01ab" must be digits with at most one lowercase letter after them`},
+			[]string{fundFile + `:2: id "01ab" must be digits with at most one lowercase letter after them`},
 		},
 		{
 			"a letter without digits",
 			tsv(fundRowWith(func(c []string) { c[0] = "a" })),
-			[]string{`flows.tsv:2: id "a" must be digits with at most one lowercase letter after them`},
+			[]string{fundFile + `:2: id "a" must be digits with at most one lowercase letter after them`},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, problems := flows.Parse(strings.NewReader(tc.body))
+			got, problems := flows.Parse(fundFile, strings.NewReader(tc.body))
 			if len(got) != 0 {
 				t.Fatalf("flows = %+v, want none", got)
 			}
@@ -165,7 +173,7 @@ func TestSubRow_aLetterSuffixIsADistinctFlowWithItsOwnNames(t *testing.T) {
 	t.Parallel()
 	parent := fundRowWith(func(c []string) { c[0] = "01" })
 	sub := fundRowWith(func(c []string) { c[0], c[4], c[7] = "01a", "SetHandle", "ok" })
-	parsed, problems := flows.Parse(strings.NewReader(tsv(parent, sub)))
+	parsed, problems := flows.Parse(fundFile, strings.NewReader(tsv(parent, sub)))
 	if len(problems) != 0 || len(parsed) != 2 {
 		t.Fatalf("flows = %+v, problems = %v", parsed, lines(problems))
 	}
@@ -187,10 +195,10 @@ func TestSubRow_aLetterSuffixIsADistinctFlowWithItsOwnNames(t *testing.T) {
 
 func TestParse_reportsAReadErrorAndTheMissingHeader(t *testing.T) {
 	t.Parallel()
-	parsed, problems := flows.Parse(iotest.ErrReader(io.ErrUnexpectedEOF))
+	parsed, problems := flows.Parse(fundFile, iotest.ErrReader(io.ErrUnexpectedEOF))
 	want := []string{
-		"flows.tsv: read: unexpected EOF",
-		"flows.tsv:1: header must be " + strconv.Quote(flows.Header),
+		fundFile + ": read: unexpected EOF",
+		fundFile + ":1: header must be " + strconv.Quote(flows.Header),
 	}
 	if len(parsed) != 0 || !slices.Equal(lines(problems), want) {
 		t.Fatalf("Parse = %v, %q; want no flows and %q", parsed, lines(problems), want)

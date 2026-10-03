@@ -77,13 +77,14 @@ func plantedScripts() map[string]flows.Script {
 func testConfig(t *testing.T) (Config, *bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
 	o := testOptions(t, "ok")
-	dir := t.TempDir()
+	dir := filepath.Join(t.TempDir(), "apps", "backend")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Symlink(filepath.Join(o.Dir, "migrations"), filepath.Join(dir, "migrations")); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, tools.File), []byte(plantedFlows), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writeFlows(t, dir, plantedFlows)
 	var stdout, stderr bytes.Buffer
 	return Config{
 		Dir: dir, Environ: o.Environ, Go: fakeGo(t), Atlas: o.Atlas, Budget: o.Budget, Postgres: o.Postgres,
@@ -153,10 +154,10 @@ func TestRun_failsWithTheReasonAndExitOne(t *testing.T) {
 		{"stack", func(_ *testing.T, cfg *Config) { cfg.Atlas = "/nonexistent/atlas" }, "migrate apply"},
 		{"flows", func(t *testing.T, cfg *Config) {
 			t.Helper()
-			if err := os.Remove(filepath.Join(cfg.Dir, tools.File)); err != nil {
+			if err := os.RemoveAll(filepath.Join(cfg.Dir, "..", "..", tools.Dir)); err != nil {
 				t.Fatal(err)
 			}
-		}, "read flows.tsv"},
+		}, "read " + tools.Dir + ": no flow files"},
 		{"script", func(_ *testing.T, cfg *Config) { cfg.Scripts = nil }, "flow 90 outcome ok has no script F90HealthOK"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -235,5 +236,20 @@ func TestBuild_withoutACrashPointBuildsWithoutTheFaultpointsTag(t *testing.T) {
 	args, err := os.ReadFile(filepath.Join(filepath.Dir(goBin), "args"))
 	if err != nil || !strings.HasPrefix(string(args), "build -cover -o ") {
 		t.Fatalf("go args = %q, %v", args, err)
+	}
+}
+
+func writeFlows(t *testing.T, backendDir, tsv string) {
+	t.Helper()
+	dir := filepath.Join(backendDir, "..", "..", tools.Dir)
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	header, rows, _ := strings.Cut(tsv, "\n")
+	for row := range strings.Lines(rows) {
+		id, _, _ := strings.Cut(row, "\t")
+		if err := os.WriteFile(filepath.Join(dir, id+".tsv"), []byte(header+"\n"+row), 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

@@ -42,10 +42,6 @@ func (env *Env) stackFlows(ctx context.Context, prs []stackPR, top stackPR) (reg
 			return registry{}, nil, err
 		}
 		for _, f := range files {
-			if f.Filename == flowsFile && f.Patch != "" {
-				changed = append(changed, flows.ChangedRows(f.Patch)...)
-				continue
-			}
 			changed = append(changed, f.Filename)
 		}
 	}
@@ -63,26 +59,40 @@ func (env *Env) stackFlows(ctx context.Context, prs []stackPR, top stackPR) (reg
 }
 
 func (env *Env) registryAt(ctx context.Context, rev string) (registry, error) {
-	body, err := env.git(ctx, "show", rev+":"+flowsFile)
+	backend, err := env.filesAt(ctx, rev, flows.Dir)
 	if err != nil {
 		return registry{}, err
 	}
-	parsed, _ := flows.Parse(strings.NewReader(body))
-	names, err := env.git(ctx, "ls-tree", "--name-only", rev, flows.AppDir+"/")
+	var parsed []flows.Flow
+	for name, body := range backend {
+		rows, _ := flows.Parse(name, strings.NewReader(body))
+		parsed = append(parsed, rows...)
+	}
+	app, err := env.filesAt(ctx, rev, flows.AppDir)
 	if err != nil {
 		return registry{}, err
 	}
 	apps := map[string]flows.AppRow{}
-	for _, name := range strings.Fields(names) {
-		body, err := env.git(ctx, "show", rev+":"+name)
-		if err != nil {
-			return registry{}, err
-		}
+	for name, body := range app {
 		if row, ok, _ := flows.ParseApp(name, body); ok {
 			apps[row.ID] = row
 		}
 	}
 	return registry{flows: parsed, apps: apps}, nil
+}
+
+func (env *Env) filesAt(ctx context.Context, rev, dir string) (map[string]string, error) {
+	names, err := env.git(ctx, "ls-tree", "--name-only", rev, dir+"/")
+	if err != nil {
+		return nil, err
+	}
+	files := map[string]string{}
+	for _, name := range strings.Fields(names) {
+		if files[name], err = env.git(ctx, "show", rev+":"+name); err != nil {
+			return nil, err
+		}
+	}
+	return files, nil
 }
 
 func (env *Env) git(ctx context.Context, args ...string) (string, error) {
@@ -105,7 +115,7 @@ func (env *Env) stagingMoved(ctx context.Context, reg registry, top stackPR, min
 		return err
 	}
 	var moved []string
-	for _, id := range reg.affected(slices.Collect(maps.Keys(paths))) {
+	for _, id := range reg.affected(paths) {
 		if !slices.Contains(mine, id) {
 			continue
 		}
@@ -122,38 +132,15 @@ func (env *Env) stagingMoved(ctx context.Context, reg registry, top stackPR, min
 		top.Number, strings.Join(moved, "; ")))
 }
 
-func (env *Env) changedOn(ctx context.Context, span string) (map[string]string, error) {
+func (env *Env) changedOn(ctx context.Context, span string) ([]string, error) {
 	names, err := env.git(ctx, "diff", "--name-only", span)
-	if err != nil {
-		return nil, err
-	}
-	paths := map[string]string{}
-	for _, f := range strings.Fields(names) {
-		paths[f] = f
-	}
-	if _, ok := paths[flowsFile]; !ok {
-		return paths, nil
-	}
-	rows, err := env.git(ctx, "diff", "-U0", span, "--", flowsFile)
-	if err != nil {
-		return nil, err
-	}
-	delete(paths, flowsFile)
-	for _, row := range flows.ChangedRows(rows) {
-		paths[row] = flowsFile
-	}
-	return paths, nil
+	return strings.Fields(names), err
 }
 
-func flowPaths(reg registry, paths map[string]string, id string) []string {
-	var out []string
-	for changed, path := range paths {
-		if slices.Contains(reg.affected([]string{changed}), id) && !slices.Contains(out, path) {
-			out = append(out, path)
-		}
-	}
-	slices.Sort(out)
-	return out
+func flowPaths(reg registry, paths []string, id string) []string {
+	return slices.Sorted(slices.Values(slices.DeleteFunc(slices.Clone(paths), func(p string) bool {
+		return !slices.Contains(reg.affected([]string{p}), id)
+	})))
 }
 
 func (env *Env) lastChange(ctx context.Context, span string, paths []string) (string, error) {

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Boot api, worker and fakes, then run mobile-core tests whose names contain Integration.
 # --flows <id,id,...> runs only the F<id>IntegrationTests classes of those flows: an id that is
-# not in apps/backend/flows.tsv exits 2, an id with no such class is skipped, and an empty list
+# with no packages/flows/backend/<id>.tsv exits 2, an id with no such class is skipped, and an empty list
 # (or no class left) exits 0 before anything boots.
 set -euo pipefail
 
@@ -14,8 +14,8 @@ if [[ "${1:-}" == --flows ]]; then
   requested=()
   IFS=, read -r -a requested <<<"$2"
   for id in ${requested[@]+"${requested[@]}"}; do
-    if ! cut -f1 "$root/apps/backend/flows.tsv" | grep -qx -- "$id"; then
-      echo "mobile-integration: unknown flow $id; not an id in apps/backend/flows.tsv" >&2
+    if [[ ! -f "$root/packages/flows/backend/$id.tsv" ]]; then
+      echo "mobile-integration: unknown flow $id; no packages/flows/backend/$id.tsv" >&2
       exit 2
     fi
     if grep -rqE "class F${id}IntegrationTests\b" "$root/packages/mobile-core/Tests"; then

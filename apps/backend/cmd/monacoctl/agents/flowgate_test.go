@@ -12,8 +12,10 @@ import (
 func gateGit(heads ...string) map[string]string {
 	out := map[string]string{}
 	for _, head := range heads {
-		out["show "+head+":"+flowsFile] = flows.Header + "\n" +
-			"00\tPing\tsystem\tGET /p\tRecordPing\t\t\tok\tbuilt\tdocs/f.md\n" +
+		out["ls-tree --name-only "+head+" "+flows.Dir+"/"] = flows.Dir + "/00.tsv\n" + flows.Dir + "/01.tsv\n"
+		out["show "+head+":"+flows.Dir+"/00.tsv"] = flows.Header + "\n" +
+			"00\tPing\tsystem\tGET /p\tRecordPing\t\t\tok\tbuilt\tdocs/f.md\n"
+		out["show "+head+":"+flows.Dir+"/01.tsv"] = flows.Header + "\n" +
 			"01\tSign in\tidentity\tGET /s\tSignIn\t\t\tok\tbuilt\tdocs/f.md\n"
 		out["ls-tree --name-only "+head+" "+flows.AppDir+"/"] = flows.AppDir + "/00.tsv\n"
 		out["show "+head+":"+flows.AppDir+"/00.tsv"] = flows.AppHeader + "\n00\tSystemPing\tbuilt\tdocs/f.md\n"
@@ -76,20 +78,17 @@ func TestFlowGate_refusesAFlowThatChangedOnStagingUntilTheStackIsRestacked(t *te
 	}
 }
 
-func TestFlowGate_namesTheChangedRowOfFlowsTSV(t *testing.T) {
+func TestFlowGate_namesTheChangedBackendFlowFile(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	s := gateStack(t, f, map[int][]File{
-		1: {{Filename: flowsFile, Patch: "@@ -2 +2 @@\n-00\tPing\n+00\tPing!\n"}},
-	})
-	s.gitOut["diff --name-only base..origin/fb"] = flowsFile + "\n"
-	s.gitOut["diff -U0 base..origin/fb -- "+flowsFile] = "@@ -2 +2 @@\n-00\tPing\n+00\tPong\n"
-	s.gitOut["log -1 --format=%s base..origin/fb -- "+flowsFile] = "Rename the ping (#78)\n"
+	s := gateStack(t, f, map[int][]File{1: {{Filename: flows.Dir + "/00.tsv"}}})
+	s.gitOut["diff --name-only base..origin/fb"] = flows.Dir + "/00.tsv\n"
+	s.gitOut["log -1 --format=%s base..origin/fb -- "+flows.Dir+"/00.tsv"] = "Rename the ping (#78)\n"
 	if code, _, stderr := f.agents(t, "land-stack", "2"); code == 0 ||
 		!strings.Contains(stderr, "flow 00 changed on staging since this stack's base (#78)") {
 		t.Fatalf("%d %q", code, stderr)
 	}
-	s.gitOut["diff -U0 base..origin/fb -- "+flowsFile] = "@@ -3 +3 @@\n-01\tSign in\n+01\tLog in\n"
+	s.gitOut["diff --name-only base..origin/fb"] = flows.Dir + "/01.tsv\n"
 	if code, stdout, stderr := f.agents(t, "land-stack", "2"); code != 0 {
 		t.Fatalf("another row changed: %d %q %q", code, stdout, stderr)
 	}
@@ -125,13 +124,13 @@ func TestFlowGate_failuresLabelNothing(t *testing.T) {
 		openFail             int
 	}{
 		{"fetch the stack head", "fetch --no-tags origin b2", "", 0},
-		{"read flows.tsv", "show b2-oid:" + flowsFile, "", 0},
-		{"list the app files", "ls-tree", "", 0},
+		{"list the backend flow files", "ls-tree --name-only b2-oid " + flows.Dir, "", 0},
+		{"read a backend flow file", "show b2-oid:" + flows.Dir + "/00.tsv", "", 0},
+		{"list the app files", "ls-tree --name-only b2-oid " + flows.AppDir, "", 0},
 		{"read an app file", "show b2-oid:packages/flows/app/00.tsv", "", 0},
 		{"fetch staging", "fetch --no-tags origin fb", "", 0},
 		{"merge-base", "merge-base", "", 0},
 		{"diff staging", "diff --name-only", "", 0},
-		{"diff flows.tsv rows", "diff -U0", "", 0},
 		{"log the change", "log -1", "", 0},
 		{"fetch a queued stack head", "fetch --no-tags origin q1", "", 0},
 		{"list the open PRs a second time", "", "", 2},
@@ -152,10 +151,9 @@ func TestFlowGate_failuresLabelNothing(t *testing.T) {
 			if tc.gitFail == "" || strings.HasSuffix(tc.gitFail, "q1") {
 				s.gitOut["diff --name-only base..origin/fb"] = ""
 			} else {
-				s.gitOut["diff --name-only base..origin/fb"] = flowsFile + "\n"
+				s.gitOut["diff --name-only base..origin/fb"] = flows.Dir + "/00.tsv\n"
 			}
-			s.gitOut["diff -U0 base..origin/fb -- "+flowsFile] = "+00\tPing\n"
-			s.gitOut["log -1 --format=%s base..origin/fb -- "+flowsFile] = "a hand-pushed commit\n"
+			s.gitOut["log -1 --format=%s base..origin/fb -- "+flows.Dir+"/00.tsv"] = "a hand-pushed commit\n"
 			s.gitFail, s.openFail = tc.gitFail, tc.openFail
 			if tc.files != "" {
 				f.hub.mu.Lock()

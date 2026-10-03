@@ -81,7 +81,7 @@ func TestMain_flowsCheckReadsTestResultsFromStdinOrFromUnlessStructureOnly(t *te
 	repo := t.TempDir()
 	backend := filepath.Join(repo, backendDir)
 	for file, body := range map[string]string{
-		filepath.Join(backend, flows.File):                            flows.Header + "\n00\tPing\tsystem\tGET /healthz\tRecordPing\t\t\tok\tbuilt\tdocs/flows.md#ping\n",
+		filepath.Join(repo, flows.Dir, "00.tsv"):                      flows.Header + "\n00\tPing\tsystem\tGET /healthz\tRecordPing\t\t\tok\tbuilt\tdocs/flows.md#ping\n",
 		filepath.Join(backend, "go.mod"):                              "module fixture\n",
 		filepath.Join(backend, "internal/modules/system/app/ping.go"): "package app\n\ntype RecordPing struct{}\n",
 		filepath.Join(repo, "docs/flows.md"):                          "# Ping\n",
@@ -98,7 +98,7 @@ func TestMain_flowsCheckReadsTestResultsFromStdinOrFromUnlessStructureOnly(t *te
 	if err := os.WriteFile(from, []byte(results), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	want := "flows.tsv: test TestFlow999999_NoSuchFlow matches no flow outcome; delete the test or add its row\n"
+	want := flows.Dir + ": test TestFlow999999_NoSuchFlow matches no flow outcome; delete the test or add its row\n"
 	for _, tc := range []struct {
 		name   string
 		stdin  string
@@ -112,7 +112,7 @@ func TestMain_flowsCheckReadsTestResultsFromStdinOrFromUnlessStructureOnly(t *te
 			"no results", "",
 			[]string{"flows", "check"},
 			1,
-			"flows.tsv:2: outcome ok has no test TestFlow00_RecordPing_OK in the go test -json input\n",
+			flows.Dir + "/00.tsv:2: outcome ok has no test TestFlow00_RecordPing_OK in the go test -json input\n",
 		},
 		{"structure only skips the test check", "", []string{"flows", "check", "--structure-only"}, 0, ""},
 	} {

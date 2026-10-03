@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+01	Sign in	identity	POST /v1/auth/session	OpenSession	user.created;user.auth_state_changed	referrals.mint_code	ok;Unauthorized;LoginMethodNotAllowed;AccountDeleted;PrivyUnavailable;crash:before-commit	built	docs/architecture/auth.md#login

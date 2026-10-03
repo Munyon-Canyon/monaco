@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+00	Ping	system	POST /v1/system/pings	RecordPing	system.pinged	system.echo	ok;InvalidInput;Unauthorized;crash:after-publish	verified	docs/architecture/backend-platform.md#flows

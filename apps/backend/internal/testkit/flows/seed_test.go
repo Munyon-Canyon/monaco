@@ -18,12 +18,10 @@ import (
 
 func appBuiltRows(t *testing.T, repo fs.FS) []toolflows.AppRow {
 	t.Helper()
-	file, err := repo.Open("apps/backend/" + toolflows.File)
+	backend, problems, err := toolflows.ReadAll(repo)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = file.Close() }()
-	backend, problems := toolflows.Parse(file)
 	app, appProblems := toolflows.ReadApp(repo)
 	if len(problems)+len(appProblems) > 0 {
 		t.Fatalf("fixture does not parse: %v %v", problems, appProblems)
@@ -68,7 +66,7 @@ func TestSeeds_problemsNameTheGap(t *testing.T) {
 	const row = "00\tPing\tsystem\tPOST /v1/system/pings\tRecordPing\tsystem.pinged\tsystem.echo\tok;Unauthorized\tverified\td.md#a\n"
 	repo := func(status string) fstest.MapFS {
 		return fstest.MapFS{
-			"apps/backend/flows.tsv": {Data: []byte(toolflows.Header + "\n" + row)},
+			toolflows.Dir + "/00.tsv": {Data: []byte(toolflows.Header + "\n" + row)},
 			"packages/flows/app/00.tsv": {
 				Data: []byte(toolflows.AppHeader + "\n00\tSystemPing\t" + status + "\td.md#a\n"),
 			},

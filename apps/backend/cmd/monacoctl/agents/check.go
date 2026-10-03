@@ -343,11 +343,10 @@ func (env *Env) flowsRow(ctx context.Context, parent, head string, swift bool) (
 	if len(ids) == 0 {
 		return row, nil
 	}
-	registry, err := os.ReadFile(filepath.Join(env.Work, flowsFile))
+	parsed, _, err := flows.ReadAll(os.DirFS(env.Work))
 	if err != nil {
-		return checkRow{}, fmt.Errorf("read %s: %w", flowsFile, err)
+		return checkRow{}, err
 	}
-	parsed, _ := flows.Parse(bytes.NewReader(registry))
 	var pkgs []string
 	for _, f := range parsed {
 		if pkg := "./internal/modules/" + f.Module + "/..."; slices.Contains(ids, f.ID) && !slices.Contains(pkgs, pkg) {

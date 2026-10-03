@@ -66,35 +66,35 @@ func TestCheckTests_builtFlowsNeedAPassingTestPerOutcome(t *testing.T) {
 		{"planned needs no tests", planned, "", nil},
 		{
 			"built with one test missing", fundRow, oneMissing,
-			[]string{"flows.tsv:2: outcome InsufficientFunds has no test TestFlow07_FundCabal_InsufficientFunds in the go test -json input"},
+			[]string{fundFile + ":2: outcome InsufficientFunds has no test TestFlow07_FundCabal_InsufficientFunds in the go test -json input"},
 		},
 		{
 			"built with one test failed", fundRow, oneFailed,
-			[]string{"flows.tsv:2: outcome crash:after-sign test TestFlow07_FundCabal_CrashAfterSign failed"},
+			[]string{fundFile + ":2: outcome crash:after-sign test TestFlow07_FundCabal_CrashAfterSign failed"},
 		},
 		{"planned row owns its tests", planned, pass07OK, nil},
 		{"non-flow tests and subtests are ignored", fundRow, all + testJSON(passed("TestFlowsCheck"), passed("TestFlow07_FundCabal_OK/sub")), nil},
 		{
 			"test for a deleted row", fundRow, all + passed("TestFlow09_Vote_OK"),
-			[]string{"flows.tsv: test TestFlow09_Vote_OK matches no flow outcome; delete the test or add its row"},
+			[]string{flows.Dir + ": test TestFlow09_Vote_OK matches no flow outcome; delete the test or add its row"},
 		},
 		{
 			"test for a removed outcome", fundRow, all + `{"Action":"fail","Package":"p","Test":"TestFlow07_FundCabal_Paused"}`,
-			[]string{"flows.tsv: test TestFlow07_FundCabal_Paused matches no flow outcome; delete the test or add its row"},
+			[]string{flows.Dir + ": test TestFlow07_FundCabal_Paused matches no flow outcome; delete the test or add its row"},
 		},
 		{"sub-row test matches its row", sub, passed("TestFlow01a_SetHandle_OK"), nil},
 		{
 			"test for a deleted sub-row", sub, testJSON(passed("TestFlow01a_SetHandle_OK"), passed("TestFlow01b_SetHandle_OK")),
-			[]string{"flows.tsv: test TestFlow01b_SetHandle_OK matches no flow outcome; delete the test or add its row"},
+			[]string{flows.Dir + ": test TestFlow01b_SetHandle_OK matches no flow outcome; delete the test or add its row"},
 		},
 		{
 			"uppercase letter does not make a flow test name", sub, passed("TestFlow01A_SetHandle_OK"),
-			[]string{"flows.tsv:2: outcome ok has no test TestFlow01a_SetHandle_OK in the go test -json input"},
+			[]string{fundFile + ":2: outcome ok has no test TestFlow01a_SetHandle_OK in the go test -json input"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			parsed, problems := flows.Parse(strings.NewReader(tsv(tc.row)))
+			parsed, problems := flows.Parse(fundFile, strings.NewReader(tsv(tc.row)))
 			if len(problems) != 0 {
 				t.Fatalf("parse problems = %v", lines(problems))
 			}
@@ -122,27 +122,27 @@ func TestCheckTests_aMultiCommandRowTakesEachOutcomeFromAnyCommandAndTestsEveryC
 		{"an outcome from both commands", split + passed("TestFlow07_Refund_OK"), nil},
 		{
 			"an outcome no command tests", testJSON(passed("TestFlow07_FundCabal_OK"), passed("TestFlow07_Refund_OK")),
-			[]string{"flows.tsv:2: outcome InsufficientFunds has no test TestFlow07_FundCabal_InsufficientFunds " +
+			[]string{fundFile + ":2: outcome InsufficientFunds has no test TestFlow07_FundCabal_InsufficientFunds " +
 				"or TestFlow07_Refund_InsufficientFunds in the go test -json input"},
 		},
 		{
 			"a command with no test",
 			testJSON(passed("TestFlow07_FundCabal_OK"), passed("TestFlow07_FundCabal_InsufficientFunds")),
-			[]string{"flows.tsv:2: command Refund has no flow test in the go test -json input"},
+			[]string{fundFile + ":2: command Refund has no flow test in the go test -json input"},
 		},
 		{
 			"one of two tests for an outcome failed",
 			split + `{"Action":"fail","Package":"p","Test":"TestFlow07_Refund_OK"}` + "\n",
-			[]string{"flows.tsv:2: outcome ok test TestFlow07_Refund_OK failed"},
+			[]string{fundFile + ":2: outcome ok test TestFlow07_Refund_OK failed"},
 		},
 		{
 			"a test for a command the row does not list", split + passed("TestFlow07_Close_OK"),
-			[]string{"flows.tsv: test TestFlow07_Close_OK matches no flow outcome; delete the test or add its row"},
+			[]string{flows.Dir + ": test TestFlow07_Close_OK matches no flow outcome; delete the test or add its row"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			parsed, problems := flows.Parse(strings.NewReader(tsv(row)))
+			parsed, problems := flows.Parse(fundFile, strings.NewReader(tsv(row)))
 			if len(problems) != 0 {
 				t.Fatalf("parse problems = %v", lines(problems))
 			}
@@ -160,10 +160,10 @@ func TestCheckTests_aMultiCommandRowTakesEachOutcomeFromAnyCommandAndTestsEveryC
 func TestCheckScripts_aMultiCommandRowNeedsOneScriptPerOutcomeFromAnyCommand(t *testing.T) {
 	t.Parallel()
 	row := fundRowWith(func(c []string) { c[4], c[7] = "FundCabal;Refund", "ok;InsufficientFunds" })
-	parsed, _ := flows.Parse(strings.NewReader(tsv(row)))
+	parsed, _ := flows.Parse(fundFile, strings.NewReader(tsv(row)))
 	env := testEnv()
 	env.Scripts = func(_ flows.Flow, name string) bool { return name == "F07RefundOK" }
-	want := []string{"flows.tsv:2: built flow outcome InsufficientFunds has no script " +
+	want := []string{fundFile + ":2: built flow outcome InsufficientFunds has no script " +
 		"F07FundCabalInsufficientFunds or F07RefundInsufficientFunds in internal/testkit/flows; " +
 		"monacoctl verify all fails without it"}
 	if got := lines(flows.CheckScripts(parsed, env, nil)); !slices.Equal(got, want) {
@@ -175,11 +175,11 @@ func TestCheckScripts_builtFlowsNeedNonCrashScriptsAndVerifiedFlowsNeedEveryOutc
 	t.Parallel()
 	ok := "F07FundCabalOK"
 	crash := "F07FundCabalCrashAfterSign"
-	builtMissing := "flows.tsv:2: built flow outcome ok has no script F07FundCabalOK " +
+	builtMissing := fundFile + ":2: built flow outcome ok has no script F07FundCabalOK " +
 		"in internal/testkit/flows; monacoctl verify all fails without it"
-	verifiedOK := "flows.tsv:2: verified flow outcome ok has no script F07FundCabalOK " +
+	verifiedOK := fundFile + ":2: verified flow outcome ok has no script F07FundCabalOK " +
 		"in internal/testkit/flows for monacoctl verify all"
-	verifiedCrash := "flows.tsv:2: verified flow outcome crash:after-sign has no script F07FundCabalCrashAfterSign " +
+	verifiedCrash := fundFile + ":2: verified flow outcome crash:after-sign has no script F07FundCabalCrashAfterSign " +
 		"in internal/testkit/flows for monacoctl verify all"
 	for _, tc := range []struct {
 		name, status string
@@ -200,7 +200,7 @@ func TestCheckScripts_builtFlowsNeedNonCrashScriptsAndVerifiedFlowsNeedEveryOutc
 			env := testEnv()
 			env.Scripts = func(_ flows.Flow, name string) bool { return slices.Contains(tc.scripts, name) }
 			row := fundRowWith(func(c []string) { c[7] = "ok;crash:after-sign"; c[8] = tc.status })
-			parsed, _ := flows.Parse(strings.NewReader(tsv(row)))
+			parsed, _ := flows.Parse(fundFile, strings.NewReader(tsv(row)))
 			if got := lines(flows.CheckScripts(parsed, env, nil)); !slices.Equal(got, tc.want) {
 				t.Fatalf("problems = %q, want %q", got, tc.want)
 			}
@@ -224,7 +224,7 @@ func TestScriptName_isTheFlowTestNameWithoutTheTestPrefix(t *testing.T) {
 func TestMarkdown_rendersTheRFCTable(t *testing.T) {
 	t.Parallel()
 	dead := "27\tDead letters | advisory\tadmin\tconsumer:$JS.EVENT.ADVISORY\t\t\t\tok\tplanned\tdocs/flows.md"
-	parsed, problems := flows.Parse(strings.NewReader(tsv(fundRow, dead)))
+	parsed, problems := flows.Parse(fundFile, strings.NewReader(tsv(fundRow, dead)))
 	if len(problems) != 0 {
 		t.Fatalf("parse problems = %v", lines(problems))
 	}
@@ -241,7 +241,7 @@ func TestMarkdown_rendersTheRFCTable(t *testing.T) {
 func TestMarkdown_listsEveryCommandOfAMultiCommandRow(t *testing.T) {
 	t.Parallel()
 	row := fundRowWith(func(c []string) { c[4], c[7] = "FundCabal;Refund", "ok" })
-	parsed, _ := flows.Parse(strings.NewReader(tsv(row)))
+	parsed, _ := flows.Parse(fundFile, strings.NewReader(tsv(row)))
 	if got := flows.Markdown(
 		parsed,
 	); !strings.Contains(
@@ -262,7 +262,7 @@ func TestMarkdown_pairsEachCommandWithItsTrigger(t *testing.T) {
 	row := fundRowWith(func(c []string) {
 		c[3], c[4], c[7] = "POST /v1/cabals/{id}/fund;DELETE /v1/cabals/{id}/fund", "FundCabal;Refund", "ok"
 	})
-	parsed, problems := flows.Parse(strings.NewReader(tsv(row)))
+	parsed, problems := flows.Parse(fundFile, strings.NewReader(tsv(row)))
 	if len(problems) != 0 {
 		t.Fatalf("parse problems = %v", lines(problems))
 	}

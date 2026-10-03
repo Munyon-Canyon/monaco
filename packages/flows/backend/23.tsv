@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+23	Profile edit	identity	PATCH /v1/me	UpdateProfile	user.profile_updated		ok;DisplayNameInvalid	built	docs/architecture/backend-platform.md#flows
