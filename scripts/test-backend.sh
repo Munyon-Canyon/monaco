@@ -72,32 +72,42 @@ print_failures() {
     | .Output' "$@"
 }
 
-# shard_packages i n prints the packages of shard i of n. Packages go to the least loaded shard, heaviest
-# first, weighed by .test-shards.tsv (package<TAB>seconds); a package missing from it weighs 5 s.
+# shard_packages i n table [pattern...] prints the packages of shard i of n over the patterns (default ./...).
+# Packages go to the least loaded shard, heaviest first, weighed by table (package<TAB>seconds); a package
+# missing from it weighs 5 s.
 shard_packages() {
-  go list ./... | sort | awk -v i="$1" -v n="$2" -v table=.test-shards.tsv -f "$script_dir/test-shard.awk"
+  local i="$1" n="$2" table="$3"
+  shift 3
+  go list "${@:-./...}" | sort | awk -v i="$i" -v n="$n" -v table="$table" -f "$script_dir/test-shard.awk"
+}
+
+# shard_list i n table pattern... fills the caller's pkgs array with shard i of n, or with the patterns when n is 1.
+shard_list() {
+  local i="$1" n="$2" table="$3" list line
+  shift 3
+  if [[ "$n" -eq 1 ]]; then
+    pkgs=("$@")
+    return 0
+  fi
+  list="$(shard_packages "$i" "$n" "$table" "$@")"
+  while IFS= read -r line; do
+    if [[ -n "$line" ]]; then
+      pkgs+=("$line")
+    fi
+  done <<<"$list"
+  if [[ "${#pkgs[@]}" -eq 0 ]]; then
+    echo "error: shard $i/$n has no packages." >&2
+    return 1
+  fi
 }
 
 short_pass() {
-  local i="$1" n="$2" name json cover list line pkgs=() status=0
+  local i="$1" n="$2" name json cover pkgs=() status=0
   shift 2
   name="short-$i-of-$n"
   json="$out/$name.json"
   cover="$out/$name.cover"
-  if [[ "$n" -eq 1 ]]; then
-    pkgs=(./...)
-  else
-    list="$(shard_packages "$i" "$n")"
-    while IFS= read -r line; do
-      if [[ -n "$line" ]]; then
-        pkgs+=("$line")
-      fi
-    done <<<"$list"
-    if [[ "${#pkgs[@]}" -eq 0 ]]; then
-      echo "error: shard $i/$n has no packages." >&2
-      return 1
-    fi
-  fi
+  shard_list "$i" "$n" .test-shards.tsv ./... || return 1
   # -p 4: at the default -p 8, eight test binaries each run their parallel tests at once and starve each
   # other; packages that take 3 s alone went over the 10 s package budget.
   go test -json -tags faultpoints -race -shuffle=on -short -p 4 -coverpkg=./... -coverprofile="$cover" "$@" "${pkgs[@]}" |
@@ -108,38 +118,59 @@ short_pass() {
   return "$status"
 }
 
+# rest_pass i n runs shard i of n of the non-short pass, split by .test-shards-full.tsv. Shard 1 also runs the
+# faultpoint package without its build tag and the allocation baselines.
 rest_pass() {
-  local json="$out/rest.json" json_full="$out/full.json" status=0 allocs=() dir
-  go test -json -race -short -coverpkg=./internal/platform/faultpoint/ -coverprofile="$out/rest-faultpoint.cover" "$@" \
-    ./internal/platform/faultpoint/ | tee "$json" | jq -rj --unbuffered "$summary" || status=1
+  local i="$1" n="$2" json="$out/rest.json" json_full cover_full status=0 allocs=() pkgs=() dir files=()
+  shift 2
+  json_full="$out/full-$i-of-$n.json"
+  cover_full="$out/full-$i-of-$n.cover"
+  if [[ "$i" -eq 1 ]]; then
+    files+=("$json")
+    go test -json -race -short -coverpkg=./internal/platform/faultpoint/ -coverprofile="$out/rest-faultpoint.cover" "$@" \
+      ./internal/platform/faultpoint/ | tee "$json" | jq -rj --unbuffered "$summary" || status=1
 
-  # -race makes sync.Pool drop items at random, so allocation baselines run in a second pass without it.
-  while IFS= read -r dir; do
-    allocs+=("$dir")
-  done < <(find . -name allocs_test.go -not -path '*/testdata/*' -exec dirname {} \; | sort -u)
-  if [[ "${#allocs[@]}" -gt 0 ]]; then
-    go test -json -short -run '^TestAllocs' "${allocs[@]}" | tee -a "$json" | jq -rj --unbuffered "$summary" || status=1
+    # -race makes sync.Pool drop items at random, so allocation baselines run in a second pass without it.
+    while IFS= read -r dir; do
+      allocs+=("$dir")
+    done < <(find . -name allocs_test.go -not -path '*/testdata/*' -exec dirname {} \; | sort -u)
+    if [[ "${#allocs[@]}" -gt 0 ]]; then
+      go test -json -short -run '^TestAllocs' "${allocs[@]}" | tee -a "$json" | jq -rj --unbuffered "$summary" || status=1
+    fi
   fi
 
-  go test -json -race -coverpkg=./... -coverprofile="$out/full.cover" "$@" ./internal/platform/ids/... \
-    ./internal/platform/lint/... ./internal/testkit/... ./internal/tools/gen/... ./cmd/monacoctl ./cmd/monacoctl/verify |
+  shard_list "$i" "$n" .test-shards-full.tsv ./internal/platform/ids/... ./internal/platform/lint/... \
+    ./internal/testkit/... ./internal/tools/gen/... ./cmd/monacoctl ./cmd/monacoctl/verify || return 1
+  files+=("$json_full")
+  go test -json -race -coverpkg=./... -coverprofile="$cover_full" "$@" "${pkgs[@]}" |
     tee "$json_full" | jq -rj --unbuffered "$summary" || status=1
   if [[ "$status" -ne 0 ]]; then
-    print_failures "$json" "$json_full"
+    print_failures "${files[@]}"
   fi
   return "$status"
 }
 
 # report_pass [start] merges every pass under $out and gates it. The full-run packages are exempt from the
-# per-package budget, so full.json goes to --budget-exempt and every other *.json to --from.
+# per-package budget, so every full*.json goes to --budget-exempt and every other *.json to --from.
 report_pass() {
-  local status=0 json="$work/go-test.json" cover="$work/cover.out" f have_json='' have_cover='' report
+  local status=0 json="$work/go-test.json" exempt="$work/full.json" cover="$work/cover.out" f have_json=''
+  local have_exempt='' have_cover='' report
   : >"$json"
+  : >"$exempt"
   for f in "$out"/*.json; do
-    if [[ -e "$f" && "$(basename "$f")" != full.json ]]; then
-      cat "$f" >>"$json"
-      have_json=1
+    if [[ ! -e "$f" ]]; then
+      continue
     fi
+    case "$(basename "$f")" in
+      full*.json)
+        cat "$f" >>"$exempt"
+        have_exempt=1
+        ;;
+      *)
+        cat "$f" >>"$json"
+        have_json=1
+        ;;
+    esac
   done
   for f in "$out"/*.cover; do
     if [[ -e "$f" ]]; then
@@ -156,8 +187,8 @@ report_pass() {
     return 1
   fi
   report=(--from "$json")
-  if [[ -e "$out/full.json" ]]; then
-    report+=(--budget-exempt "$out/full.json")
+  if [[ -n "$have_exempt" ]]; then
+    report+=(--budget-exempt "$exempt")
   fi
   if [[ -n "${1:-}" ]]; then
     report+=(--start "$1")
@@ -204,7 +235,7 @@ run_suite() {
     "")
       start="$(date +%s)"
       short_pass 1 1 "$@" || status=1
-      rest_pass "$@" || status=1
+      rest_pass 1 1 "$@" || status=1
       report_pass "$start" || status=1
       ;;
     short:[1-9]*/[1-9]*)
@@ -215,10 +246,18 @@ run_suite() {
       fi
       short_pass "${shard%/*}" "${shard#*/}" "$@" || status=1
       ;;
-    rest) rest_pass "$@" || status=1 ;;
+    rest:[1-9]*/[1-9]*)
+      shard="${pass#rest:}"
+      if [[ "${shard%/*}" -gt "${shard#*/}" ]]; then
+        echo "error: TEST_BACKEND_PASS=$pass: the shard index is past the shard count." >&2
+        return 2
+      fi
+      rest_pass "${shard%/*}" "${shard#*/}" "$@" || status=1
+      ;;
+    rest) rest_pass 1 1 "$@" || status=1 ;;
     report) report_pass || status=1 ;;
     *)
-      echo "error: TEST_BACKEND_PASS=$pass is not short:<i>/<n>, rest or report." >&2
+      echo "error: TEST_BACKEND_PASS=$pass is not short:<i>/<n>, rest, rest:<i>/<n> or report." >&2
       return 2
       ;;
   esac

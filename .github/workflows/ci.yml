@@ -3,8 +3,9 @@ name: CI
 # A draft skips the ci job, which leaves no "ci / ci-ok" check, so the PR cannot merge.
 # So does a PR based on Graphite's temporary graphite-base/N branch: Graphite deletes that base
 # after the restack and ci-retarget.yml runs on the retarget to the real trunk.
-# The Graphite merge queue tests what it is about to land on a draft PR whose head starts with gtmq_.
-# That draft runs stage 2. docs/architecture/ci.md#check-stages
+# A PR runs stage 1, every check and test. The Graphite merge queue tests what it is about to land on a
+# draft PR whose head starts with gtmq_; that draft runs stage 2, the light build, vet and generated-files
+# check. docs/architecture/ci.md#check-stages
 on:
   # Every PR, so a stacked PR whose base is another ticket branch gets CI on its own diff.
   pull_request:
