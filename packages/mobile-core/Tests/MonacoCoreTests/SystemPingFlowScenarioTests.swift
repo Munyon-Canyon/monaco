@@ -12,22 +12,13 @@ final class SystemPingFlowScenarioTests: XCTestCase {
 
             await model.send(note: "hi")
 
-            guard case .failed(let error) = model.state else {
-                XCTFail("\(scenario): expected a failed send, got \(model.state)")
-                continue
-            }
             switch scenario {
             case .invalidInput:
-                guard case .problem(let problem) = error else {
-                    XCTFail("invalidInput: expected a problem, got \(error)")
-                    continue
-                }
-                XCTAssertEqual(problem.status, 422)
-                XCTAssertEqual(Flow00Outcome(code: problem.code.wire), .invalidInput)
+                XCTAssertEqual(model.state, .invalidInput(message: "The note is too long."))
             case .unauthorized:
-                XCTAssertEqual(error, .signedOut)
+                XCTAssertEqual(model.state, .unauthorized)
             case .interrupted:
-                XCTAssertEqual(error, .transport(URLError(.networkConnectionLost)))
+                XCTAssertEqual(model.state, .failed(.transport(URLError(.networkConnectionLost))))
             }
             XCTAssertFalse(model.isSending, "\(scenario)")
         }
