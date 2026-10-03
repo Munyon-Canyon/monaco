@@ -152,6 +152,9 @@ func (c *Client) SignaturesFor(
 	if err := addresses("solana.SignaturesFor", addr); err != nil {
 		return nil, err
 	}
+	if limit < 1 || limit > 1000 {
+		return nil, errs.New(errs.CodeInvalidInput, "solana.SignaturesFor", slog.Int("limit", limit))
+	}
 	opts := map[string]any{"limit": limit, "commitment": "finalized"}
 	if before != "" {
 		opts["before"] = before
