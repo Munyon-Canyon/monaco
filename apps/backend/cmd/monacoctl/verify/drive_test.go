@@ -36,7 +36,7 @@ func servedEnv(t *testing.T) Env {
 func servedEnvWith(t *testing.T, mods ...func(module.Deps) module.Module) Env {
 	t.Helper()
 	logs := &Logs{}
-	sv := scenario.Serve(t,
+	sv := scenario.Serve(t, scenario.WithContract(contract),
 		scenario.WithModules(mods...),
 		scenario.WithLogs(&lineWriter{line: func(s string) { logs.add("app", s) }}))
 	return Env{
@@ -58,7 +58,7 @@ func servedIdentityEnv(t *testing.T) Env {
 		Timeouts: config.Timeouts{Privy: 10 * time.Second},
 	}
 	logs := &Logs{}
-	sv := scenario.Serve(t,
+	sv := scenario.Serve(t, scenario.WithContract(contract),
 		scenario.WithModules(func(d module.Deps) module.Module {
 			d.Config = cfg
 			return identity.New(d)
