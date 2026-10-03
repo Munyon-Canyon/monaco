@@ -1,12 +1,12 @@
 name: Warm the mobile caches
 
 # PR runs restore the Linux mobile-core cache and never save it, and a run can
-# restore only caches saved on its own branch or its base branch. So a push to a
-# base branch saves it here. No required check runs in this workflow, so it may
+# restore only caches saved on its own branch, its base branch or the default
+# branch (staging). So a push to a base branch saves it here. No required check runs in this workflow, so it may
 # filter on paths. docs/architecture/ci.md#fast-and-deterministic
 on:
   push:
-    branches: [main, 'backend-rewrite*']
+    branches: [staging, main, 'backend-rewrite*']
     paths:
       - packages/mobile-core/**
       - apps/backend/api/openapi.yaml
