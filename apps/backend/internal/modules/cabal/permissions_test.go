@@ -2,6 +2,7 @@ package cabal_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
@@ -225,5 +226,32 @@ func TestCanRequest_refusesABannedCabalThenAMemberThenAnOpenCabal(t *testing.T) 
 			t.Parallel()
 			runPermissionCases(t, tt.cases, func(a domain.Actor) error { return domain.CanRequest(a, tt.cabal) })
 		})
+	}
+}
+
+func TestCanAdmit_refusesABannedCabalAndAnExpiredInvite(t *testing.T) {
+	t.Parallel()
+	c := newCast(t)
+	now := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
+	active := c.cabal(t, "request")
+	banned := active
+	banned.Banned = true
+	fresh, stale := c.invite(), c.invite()
+	fresh.ExpiresAt, stale.ExpiresAt = now.Add(time.Hour), now.Add(-time.Second)
+	for _, tt := range []struct {
+		name  string
+		cabal domain.Cabal
+		req   domain.AccessRequest
+		want  errs.Code
+	}{
+		{"a request", active, c.request(), ""},
+		{"a fresh invite", active, fresh, ""},
+		{"an expired invite", active, stale, errs.CodeInviteExpired},
+		{"a banned cabal", banned, c.request(), errs.CodeCabalBanned},
+	} {
+		err := domain.CanAdmit(tt.cabal, tt.req, now)
+		if tt.want == "" && err != nil || tt.want != "" && errs.CodeOf(err) != tt.want {
+			t.Errorf("%s: %v, want %q", tt.name, err, tt.want)
+		}
 	}
 }

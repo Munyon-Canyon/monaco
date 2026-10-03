@@ -608,3 +608,46 @@ func TestHub_OneNATSSubscriptionServesEveryConnection(t *testing.T) {
 		}
 	}
 }
+
+func TestHub_AMembershipHintRescopesTheUserBeforeItIsDelivered(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	phone, other := f.user(t), f.user(t)
+	seven := f.cabal(t)
+	sub := f.register(t, phone)
+	f.members.set(phone, seven)
+	f.members.set(other, seven)
+	f.deliver(t, userHint(other, sse.MembershipChanged), userHint(phone, "cabals"), cabalHint(seven))
+	if got := next(t, sub); got != (sse.Hint{Key: sse.UserKey(phone), What: "cabals"}) {
+		t.Fatalf("hint = %+v, want the phone's cabals hint", got)
+	}
+	f.barrier(t)
+	nothingBuffered(t, sub)
+	f.deliver(t, userHint(phone, sse.MembershipChanged), cabalHint(seven))
+	if got := next(t, sub); got != (sse.Hint{Key: sse.UserKey(phone), What: sse.MembershipChanged}) {
+		t.Fatalf("hint = %+v, want the membership hint first", got)
+	}
+	if got := next(t, sub); got.Key != sse.CabalKey(seven) {
+		t.Fatalf("hint = %+v, want cabal 7 once the membership hint rescoped the phone", got)
+	}
+	if n := f.sum(t, "monaco_sse_rescope_failures_total"); n != 0 {
+		t.Fatalf("monaco_sse_rescope_failures_total = %d, want 0", n)
+	}
+}
+
+func TestHub_AFailedRescopeIsCountedAndTheHintStillDelivered(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	phone := f.user(t)
+	sub := f.register(t, phone)
+	f.members.mu.Lock()
+	f.members.err = errs.New(errs.CodeDBUnavailable, "test.CabalIDs")
+	f.members.mu.Unlock()
+	f.deliver(t, userHint(phone, sse.MembershipChanged))
+	if got := next(t, sub); got.Key != sse.UserKey(phone) || got.What != sse.MembershipChanged {
+		t.Fatalf("hint = %+v, want the membership hint", got)
+	}
+	if n := f.sum(t, "monaco_sse_rescope_failures_total"); n != 1 {
+		t.Fatalf("monaco_sse_rescope_failures_total = %d, want 1", n)
+	}
+}

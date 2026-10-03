@@ -4,8 +4,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/sse"
 )
 
 type HintPublisher interface {
@@ -17,8 +20,33 @@ type Hints struct {
 }
 
 func (h Hints) Handle(_ context.Context, tx db.Tx, e events.CabalCreated, _ time.Time) error {
-	tx.AfterCommit(func(ctx context.Context) {
-		h.Publish.PublishHint(ctx, "user."+e.CreatorID.String()+".cabals", nil)
-	})
+	h.after(tx, "user."+e.CreatorID.String()+".cabals")
 	return nil
 }
+
+func (h Hints) MemberJoined(_ context.Context, tx db.Tx, e events.CabalMemberJoined, _ time.Time) error {
+	h.after(tx, cabalHint(e.CabalID, "members"), accessHint(e.UserID))
+	return nil
+}
+
+func (h Hints) AccessDecided(_ context.Context, tx db.Tx, e events.CabalAccessDecided, _ time.Time) error {
+	h.after(tx, cabalHint(e.CabalID, "members"), cabalHint(e.CabalID, "access_requests"), accessHint(e.UserID))
+	return nil
+}
+
+func (h Hints) AccessRequested(_ context.Context, tx db.Tx, e events.CabalAccessRequested, _ time.Time) error {
+	h.after(tx, cabalHint(e.CabalID, "access_requests"))
+	return nil
+}
+
+func (h Hints) after(tx db.Tx, keys ...string) {
+	tx.AfterCommit(func(ctx context.Context) {
+		for _, key := range keys {
+			h.Publish.PublishHint(ctx, key, nil)
+		}
+	})
+}
+
+func cabalHint(cabal uuid.UUID, what string) string { return "cabal." + cabal.String() + "." + what }
+
+func accessHint(user uuid.UUID) string { return "user." + user.String() + "." + sse.MembershipChanged }

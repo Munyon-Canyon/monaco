@@ -195,6 +195,46 @@ paths:
               example: {id: "01890a5d-ac96-774b-bcce-b302099a8059", direction: request, status: revoked}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/cabals/{id}/access-requests/{request_id}/decision:
+    post:
+      operationId: postCabalAccessDecision
+      tags: [cabal]
+      x-idempotent: true
+      summary: Approve or deny a pending request or invite.
+      description: >-
+        The creator decides a request. The invitee accepts or declines an invite. Approving adds the
+        member in the same transaction; the member can vote when the cabal's voter_mode is all.
+        A replay returns the first response.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema: {type: string, format: uuid}
+        - name: request_id
+          in: path
+          required: true
+          description: The request or invite id.
+          schema: {type: string, format: uuid}
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The decision.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessDecisionRequest"
+            example: {decision: approve}
+      responses:
+        "200":
+          description: The request or invite after the decision.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CabalAccess"
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8059", direction: request, status: approved}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/invite-codes/{code}:
     get:
       operationId: getCabalByCode
@@ -307,6 +347,13 @@ components:
             - type: "null"
         invite_code: {type: [string, "null"], description: The invite code. Null for a non-member., examples: [null]}
         treasury_address: {type: string, description: Solana address of the app-owned treasury wallet., examples: [Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf]}
+    AccessDecisionRequest:
+      type: object
+      description: How to decide a pending request or invite.
+      additionalProperties: false
+      required: [decision]
+      properties:
+        decision: {type: string, enum: [approve, deny], examples: [approve]}
     CabalAccessRequest:
       type: object
       description: A pending request to join a cabal, as its creator sees it.

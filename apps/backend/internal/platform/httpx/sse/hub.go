@@ -22,6 +22,8 @@ type Key string
 
 const Global Key = "global"
 
+const MembershipChanged = "cabal_access"
+
 func UserKey(id ids.UserID) Key { return Key("user:" + id.String()) }
 
 func CabalKey(id ids.CabalID) Key { return Key("cabal:" + id.String()) }
@@ -52,6 +54,7 @@ type metrics struct {
 	hints       metric.Int64Counter
 	dropped     metric.Int64Counter
 	unknown     metric.Int64Counter
+	rescopes    metric.Int64Counter
 }
 
 func NewHub(members MembershipPort, meters metric.MeterProvider) (*Hub, error) {
@@ -64,7 +67,9 @@ func NewHub(members MembershipPort, meters metric.MeterProvider) (*Hub, error) {
 		metric.WithDescription("Hints dropped because the hub or a subscriber buffer was full."))
 	unknown, errUnknown := meter.Int64Counter("monaco_sse_unknown_subjects_total",
 		metric.WithDescription("Hints dropped because their subject names no hub key."))
-	if err := errors.Join(errConn, errHints, errDropped, errUnknown); err != nil {
+	rescopes, errRescopes := meter.Int64Counter("monaco_sse_rescope_failures_total",
+		metric.WithDescription("Membership hints whose user could not be rescoped to their new cabals."))
+	if err := errors.Join(errConn, errHints, errDropped, errUnknown, errRescopes); err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, "sse.NewHub")
 	}
 	return &Hub{
@@ -72,7 +77,9 @@ func NewHub(members MembershipPort, meters metric.MeterProvider) (*Hub, error) {
 		hints:   make(chan Hint, inbox),
 		ops:     make(chan func(context.Context, *state)),
 		stopped: make(chan struct{}),
-		metrics: metrics{connections: connections, hints: hints, dropped: dropped, unknown: unknown},
+		metrics: metrics{
+			connections: connections, hints: hints, dropped: dropped, unknown: unknown, rescopes: rescopes,
+		},
 	}, nil
 }
 
@@ -99,6 +106,9 @@ func (h *Hub) Deliver(ctx context.Context, subject string) {
 		return
 	}
 	h.metrics.hints.Add(ctx, 1)
+	if user, ok := membershipChange(subject); ok && h.Reregister(ctx, user) != nil {
+		h.metrics.rescopes.Add(ctx, 1)
+	}
 	select {
 	case h.hints <- hint:
 	default:
@@ -123,6 +133,15 @@ func parse(subject string) (Hint, bool) {
 		return Hint{Key: CabalKey(id), What: what}, err == nil
 	}
 	return Hint{}, false
+}
+
+func membershipChange(subject string) (ids.UserID, bool) {
+	tokens := strings.Split(subject, ".")
+	if len(tokens) != 3 || tokens[0] != "user" || tokens[2] != MembershipChanged {
+		return ids.UserID{}, false
+	}
+	user, err := ids.ParseUserID(tokens[1])
+	return user, err == nil
 }
 
 func (h *Hub) do(op func(context.Context, *state)) bool {

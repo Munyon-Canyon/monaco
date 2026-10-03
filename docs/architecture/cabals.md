@@ -62,9 +62,11 @@ There is exactly one creator per cabal, and the role never moves. There is no ad
 | requester | revoke | `revoked` | Emits `cabal.access_decided`. |
 
 - Requests do not expire. They stay `pending` until someone decides them.
-- One pending row per (cabal, user), in either direction: a partial unique index on `(cabal_id, user_id) WHERE status = 'pending'`. A second `RequestAccess` from the same user returns the existing request. A `RequestAccess` while an invite is pending is refused; the user accepts the invite instead.
+- One pending row per (cabal, user), in either direction: a partial unique index on `(cabal_id, user_id) WHERE status = 'pending'`. A second `RequestAccess` from the same user, or one while an invite is pending, is refused with `RequestPending`; the user accepts the invite instead.
 - A denied or revoked user can request again, which inserts a new row.
-- `JoinCabal` on a `request` cabal and `RequestAccess` on an `open` cabal are refused with a `Blocked`-kind code, so the app always calls the command that matches the mode it read.
+- `JoinCabal` on a `request` cabal is refused with `JoinNeedsRequest`, and `RequestAccess` on an `open` cabal with `RequestNotNeeded`, so the app always calls the command that matches the mode it read.
+- `DecideAccess` approves or denies. It refuses an approval into a banned cabal with `CabalBanned` and an invite past `expires_at` with `InviteExpired`. The guarded update `WHERE status = 'pending'` lets one of two concurrent decisions win; the other gets `AccessRequestNotPending`.
+- The `cabal_hints` consumer publishes `cabal.<id>.members` and `user.<user_id>.cabal_access` for `cabal.member_joined` and `cabal.access_decided`, and `cabal.<id>.access_requests` for `cabal.access_requested` and `cabal.access_decided`. The api's SSE hub rescopes a phone to its new cabals when it routes `user.<user_id>.cabal_access`.
 - A member calling `JoinCabal` or `RequestAccess` is refused with `AlreadyMember`. A banned cabal refuses both with `CabalBanned`.
 - `GET /v1/invite-codes/{code}` resolves a pasted invite code to the cabal's id, name, picture, `join_mode` and member count, so the app can run the path for that mode.
 

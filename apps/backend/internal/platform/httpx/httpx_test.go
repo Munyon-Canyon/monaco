@@ -153,6 +153,12 @@ func (healthz) GetCabalAccessRequests(
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabalAccessRequests")
 }
 
+func (healthz) PostCabalAccessDecision(
+	context.Context, api.PostCabalAccessDecisionRequestObject,
+) (api.PostCabalAccessDecisionResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostCabalAccessDecision")
+}
+
 func (healthz) DeleteCabalAccessRequest(
 	context.Context, api.DeleteCabalAccessRequestRequestObject,
 ) (api.DeleteCabalAccessRequestResponseObject, error) {
