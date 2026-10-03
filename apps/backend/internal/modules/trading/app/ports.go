@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
 type QuoteSpec struct {
@@ -54,4 +55,18 @@ type Signer interface {
 	Sign(
 		ctx context.Context, privyWalletID string, unsigned []byte,
 	) (signed []byte, signature chain.Signature, err error)
+}
+
+type Holding struct {
+	Mint   chain.Mint
+	Symbol string
+	Units  uint64
+}
+
+type Holdings interface {
+	Positions(ctx context.Context, cabal ids.CabalID) ([]Holding, error)
+}
+
+type Wallets interface {
+	TreasuryWallet(ctx context.Context, cabal ids.CabalID) (TreasuryWallet, error)
 }
