@@ -676,6 +676,23 @@ paths:
                 $ref: "#/components/schemas/Me"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/pending-votes:
+    get:
+      operationId: getMyPendingVotes
+      tags: [governance]
+      summary: List the open proposals waiting on the caller's ballot.
+      description: >-
+        Returns up to 50 open proposals, across every cabal, whose frozen voter set holds the caller
+        and that have no ballot from the caller yet, soonest to expire first.
+      responses:
+        "200":
+          description: The proposals waiting on the caller.
+          content:
+            application/json:
+              schema: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/PendingVote"}}
+              example: [{proposal_id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, kind: buy, symbol: AAPLx, expires_at: "2026-10-04T15:00:00Z"}]
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/me/profile-photo:
     post:
       operationId: postProfilePhoto
@@ -1864,6 +1881,17 @@ components:
           type: boolean
           description: True once the caller's first deposit is credited.
           examples: [true]
+    PendingVote:
+      type: object
+      description: An open proposal that still needs the caller's ballot.
+      additionalProperties: false
+      required: [proposal_id, cabal_id, kind, symbol, expires_at]
+      properties:
+        proposal_id: {type: string, format: uuid, description: The proposal id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
+        cabal_id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
+        kind: {$ref: "#/components/schemas/ProposalKind"}
+        symbol: {type: string, description: The token symbol., examples: [AAPLx]}
+        expires_at: {type: string, format: date-time, description: When voting closes., examples: ["2026-10-04T15:00:00Z"]}
     Ping:
       type: object
       description: A recorded ping.

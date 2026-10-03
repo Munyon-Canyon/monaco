@@ -114,6 +114,27 @@ func (h HTTP) GetProposal(
 	return out, nil
 }
 
+func (h HTTP) GetMyPendingVotes(
+	ctx context.Context, _ api.GetMyPendingVotesRequestObject,
+) (api.GetMyPendingVotesResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	pending, err := h.Reads.PendingVotes(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+	out := make(api.GetMyPendingVotes200JSONResponse, len(pending))
+	for i, v := range pending {
+		out[i] = api.PendingVote{
+			ProposalId: v.ProposalID.UUID(), CabalId: v.CabalID.UUID(), Kind: api.ProposalKind(v.Kind),
+			Symbol: v.Symbol, ExpiresAt: v.ExpiresAt,
+		}
+	}
+	return out, nil
+}
+
 func wireProposal(v app.ProposalView) api.Proposal {
 	out := api.Proposal{
 		Id: v.ID.UUID(), CabalId: v.CabalID.UUID(), ProposerId: v.ProposerID.UUID(), Kind: api.ProposalKind(v.Kind),
