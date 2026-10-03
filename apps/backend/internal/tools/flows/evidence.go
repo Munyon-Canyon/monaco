@@ -47,22 +47,11 @@ func CheckTests(flows []Flow, results TestResults) []Problem {
 	var problems []Problem
 	owned := map[string]bool{}
 	for _, f := range flows {
-		for _, o := range f.Outcomes {
-			name := TestName(f, o)
+		for _, name := range testNames(f) {
 			owned[name] = true
-			if !f.Status.AtLeastBuilt() {
-				continue
-			}
-			passed, ran := results[name]
-			switch {
-			case !ran:
-				problems = append(
-					problems,
-					problemf(f.Line, "outcome %s has no test %s in the go test -json input", o, name),
-				)
-			case !passed:
-				problems = append(problems, problemf(f.Line, "outcome %s test %s failed", o, name))
-			}
+		}
+		if f.Status.AtLeastBuilt() {
+			problems = append(problems, flowTestProblems(f, results)...)
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(results)) {
@@ -76,21 +65,74 @@ func CheckTests(flows []Flow, results TestResults) []Problem {
 	return problems
 }
 
+func testNames(f Flow) []string {
+	names := make([]string, 0, len(f.Commands)*len(f.Outcomes))
+	for _, o := range f.Outcomes {
+		for _, command := range f.Commands {
+			names = append(names, TestName(f, command, o))
+		}
+	}
+	return names
+}
+
+func flowTestProblems(f Flow, results TestResults) []Problem {
+	var problems []Problem
+	tested := map[string]bool{}
+	for _, o := range f.Outcomes {
+		var names []string
+		ran := false
+		for _, command := range f.Commands {
+			name := TestName(f, command, o)
+			names = append(names, name)
+			passed, seen := results[name]
+			if !seen {
+				continue
+			}
+			ran, tested[command] = true, true
+			if !passed {
+				problems = append(problems, problemf(f.Line, "outcome %s test %s failed", o, name))
+			}
+		}
+		if !ran {
+			problems = append(problems, problemf(f.Line,
+				"outcome %s has no test %s in the go test -json input", o, strings.Join(names, " or ")))
+		}
+	}
+	if len(f.Commands) < 2 {
+		return problems
+	}
+	for _, command := range f.Commands {
+		if !tested[command] {
+			problems = append(
+				problems,
+				problemf(f.Line, "command %s has no flow test in the go test -json input", command),
+			)
+		}
+	}
+	return problems
+}
+
 var flowTest = regexp.MustCompile(`^TestFlow[0-9]+[a-z]?_[^/]*$`)
 
-func ScriptName(f Flow, o Outcome) string {
-	return "F" + strings.ReplaceAll(strings.TrimPrefix(TestName(f, o), "TestFlow"), "_", "")
+func ScriptName(f Flow, command string, o Outcome) string {
+	return "F" + strings.ReplaceAll(strings.TrimPrefix(TestName(f, command, o), "TestFlow"), "_", "")
 }
 
 func CheckScripts(flows []Flow, env Env) []Problem {
 	var problems []Problem
 	for _, f := range flows {
 		for _, o := range f.Outcomes {
-			name := ScriptName(f, o)
-			if env.Scripts(f, name) {
+			var names []string
+			found := false
+			for _, command := range f.Commands {
+				name := ScriptName(f, command, o)
+				names = append(names, name)
+				found = found || env.Scripts(f, name)
+			}
+			if found {
 				continue
 			}
-			if problem, ok := missingScript(f, o, name); ok {
+			if problem, ok := missingScript(f, o, strings.Join(names, " or ")); ok {
 				problems = append(problems, problem)
 			}
 		}

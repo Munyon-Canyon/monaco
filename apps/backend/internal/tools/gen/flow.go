@@ -22,15 +22,19 @@ func planFlow(root *os.Root, modPath string, args []string) (Plan, error) {
 		return Plan{}, invalid(op, "%s has no valid row with id %q (%d problems)", flows.File, args[0], len(problems))
 	}
 	f := all[i]
-	if f.Command == "" {
+	if len(f.Commands) == 0 {
 		return Plan{}, invalid(op, "flow %s has no command to name its tests after", f.ID)
 	}
-	if err := requireModule(root, f.Module, f.Command, exportPattern); err != nil {
-		return Plan{}, err
+	for _, command := range f.Commands {
+		if err := requireModule(root, f.Module, command, exportPattern); err != nil {
+			return Plan{}, err
+		}
 	}
-	d := newData(modPath, f.Module, f.Command)
-	for _, o := range f.Outcomes {
-		d.Tests = append(d.Tests, flows.TestName(f, o))
+	d := newData(modPath, f.Module, f.Commands[0])
+	for _, command := range f.Commands {
+		for _, o := range f.Outcomes {
+			d.Tests = append(d.Tests, flows.TestName(f, command, o))
+		}
 	}
 	return Plan{Create: renderAll(d, map[string]string{
 		filepath.Join(moduleDir(f.Module), "flow"+f.ID+"_test.go"): "flow/flow_test.go.tmpl",

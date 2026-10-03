@@ -14,6 +14,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 	tools "github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
@@ -173,5 +174,28 @@ func TestDriver_reportsNATSArmAndTokenFailures(t *testing.T) {
 	env.TokenKey = ""
 	if err := verifyUnits(t.Context(), cfg, env, &report{}, 1); err == nil {
 		t.Error("verifyUnits without a token key succeeded")
+	}
+}
+
+func TestSelectUnits_runsEachCommandsScriptForAnOutcomeOfAMultiCommandFlow(t *testing.T) {
+	t.Parallel()
+	f := tools.Flow{
+		ID: "97", Status: tools.StatusBuilt, Commands: []string{"Join", "Leave"},
+		Outcomes: []tools.Outcome{"ok", "Blocked"},
+	}
+	noop := func(*scenario.Scenario) {}
+	scripts := map[string]flows.Script{"F97JoinOK": noop, "F97LeaveOK": noop, "F97LeaveBlocked": noop}
+	units, err := selectUnits([]tools.Flow{f}, Target{}, scripts)
+	got := make([]string, 0, len(units))
+	for _, u := range units {
+		got = append(got, u.Name())
+	}
+	if want := "97 Join ok,97 Leave ok,97 Leave Blocked"; err != nil || strings.Join(got, ",") != want {
+		t.Fatalf("selectUnits = %v, %v, want %s", got, err, want)
+	}
+	delete(scripts, "F97LeaveBlocked")
+	_, err = selectUnits([]tools.Flow{f}, Target{}, scripts)
+	if !errors.Is(err, fs.ErrNotExist) || !strings.Contains(err.Error(), "F97JoinBlocked or F97LeaveBlocked") {
+		t.Fatalf("selectUnits without a Blocked script = %v, want both candidate names", err)
 	}
 }
