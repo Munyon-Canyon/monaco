@@ -20,18 +20,21 @@ fi
 
 if [[ "$(uname -s)" == Darwin ]]; then
   platform=darwin
-  binary=.build/debug/MonacoCorePackageTests.xctest/Contents/MacOS/MonacoCorePackageTests
   llvm_cov=(xcrun llvm-cov)
 else
   platform=linux
-  binary=.build/debug/MonacoCorePackageTests.xctest
   llvm_cov=(llvm-cov)
 fi
 
+# Only stdout is teed into the file the timing parser reads. stderr goes straight to the
+# caller: a SwiftPM warning printed while tests run would otherwise land inside a buffered
+# "Test Case ... passed" line and leave that case untimed. Both XCTest and swift-testing
+# report on stdout. No --build-system flag: each toolchain's default is used, and the
+# coverage step below finds the test binaries wherever that build system put them.
 cd "$root/packages/mobile-core"
 mkdir -p .build
 status=0
-swift test --build-system native --force-resolved-versions -Xswiftc -warnings-as-errors --enable-code-coverage "$@" 2>&1 | tee .build/test-output.txt || status=$?
+swift test --force-resolved-versions -Xswiftc -warnings-as-errors --enable-code-coverage "$@" | tee .build/test-output.txt || status=$?
 ((status == 0)) || exit "$status"
 (($# == 0)) || exit 0
 
@@ -74,7 +77,20 @@ if [[ -n "$slow" ]]; then
 fi
 awk -F '\t' '$1 + 0 > m { m = $1 + 0; n = $2 } END { printf "slowest test: %s %ss (budget %s s)\n", n, m, b }' b="$budget" <<<"$timings"
 
-cov_args=(report "$binary" -instr-profile .build/debug/codecov/default.profdata -ignore-filename-regex='(\.build|Tests)/')
+# The native build system (Linux) links one MonacoCorePackageTests.xctest; Swift Build
+# (macOS, Swift 6.4 and later) links one bundle per test target. Every bundle next to the
+# codecov directory is passed to llvm-cov, which merges their coverage by source file.
+codecov="$(dirname "$(swift test --show-codecov-path)")"
+objects=()
+for bundle in "$(dirname "$codecov")"/*.xctest; do
+  if [[ -d "$bundle" ]]; then
+    objects+=(-object "$bundle/Contents/MacOS/$(basename "$bundle" .xctest)")
+  elif [[ -f "$bundle" ]]; then
+    objects+=(-object "$bundle")
+  fi
+done
+((${#objects[@]} > 0)) || { echo "no test binaries next to $codecov" >&2; exit 1; }
+cov_args=(report "${objects[@]:1}" -instr-profile "$codecov/default.profdata" -ignore-filename-regex='(\.build|Tests)/')
 report="$("${llvm_cov[@]}" "${cov_args[@]}")"
 actual="$(awk '$1 == "TOTAL" { sub(/%$/, "", $10); print $10 }' <<<"$report")"
 [[ -n "$actual" ]] || { echo "no TOTAL row in llvm-cov report" >&2; exit 1; }
