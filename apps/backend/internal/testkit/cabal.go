@@ -16,6 +16,8 @@ type cabalSpec struct {
 	members   int
 	joinMode  string
 	voterMode string
+	creator   *ids.UserID
+	joiners   []ids.UserID
 }
 
 type CabalOption func(*cabalSpec)
@@ -25,6 +27,12 @@ func WithMembers(n int) CabalOption { return func(s *cabalSpec) { s.members = n 
 func WithJoinMode(mode string) CabalOption { return func(s *cabalSpec) { s.joinMode = mode } }
 
 func WithVoterMode(mode string) CabalOption { return func(s *cabalSpec) { s.voterMode = mode } }
+
+func WithCreator(user ids.UserID) CabalOption { return func(s *cabalSpec) { s.creator = &user } }
+
+func WithJoiner(user ids.UserID) CabalOption {
+	return func(s *cabalSpec) { s.joiners = append(s.joiners, user) }
+}
 
 type SeededCabal struct {
 	ID              ids.CabalID
@@ -49,9 +57,7 @@ func NewCabal(t SeedT, pool *pgxpool.Pool, opts ...CabalOption) SeededCabal {
 		t.Fatalf("testkit.NewCabal: %v", err)
 	}
 	c := SeededCabal{ID: id, InviteCode: randomInviteCode(t), PrivyWalletID: "treasury-" + id.String()}
-	for range spec.members {
-		c.Members = append(c.Members, SeedUser(t, pool, UserOpts{}))
-	}
+	c.Members = seatMembers(t, pool, spec)
 	c.Creator = c.Members[0]
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
@@ -83,6 +89,21 @@ func NewCabal(t SeedT, pool *pgxpool.Pool, opts ...CabalOption) SeededCabal {
 		t.Fatalf("testkit.NewCabal: insert treasury wallet: %v", err)
 	}
 	return c
+}
+
+func seatMembers(t SeedT, pool *pgxpool.Pool, spec cabalSpec) []SeededUser {
+	t.Helper()
+	var members []SeededUser
+	if spec.creator != nil {
+		members = append(members, SeededUser{ID: *spec.creator})
+	}
+	for len(members) < spec.members {
+		members = append(members, SeedUser(t, pool, UserOpts{}))
+	}
+	for _, user := range spec.joiners {
+		members = append(members, SeededUser{ID: user})
+	}
+	return members
 }
 
 func randomInviteCode(t SeedT) string {

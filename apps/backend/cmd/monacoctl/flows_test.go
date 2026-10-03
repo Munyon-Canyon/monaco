@@ -296,6 +296,50 @@ func TestFlowsSeed_signedInOutcomesMintATokenForANewUser(t *testing.T) {
 	}
 }
 
+func TestFlowsSeed_leaveOutcomesSeatTheLeaverForEachRefusal(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	cfg := devNewUserConfig(t, pool, nil)
+	environ := []string{
+		"DATABASE_URL=" + cfg.DB.URL, "NATS_URL=" + cfg.NATS.URL, "MONACO_DEV_TOKEN_KEY=" + cfg.Auth.DevTokenKey,
+		"MONACO_FAKES_URL=" + strings.TrimSuffix(cfg.Privy.BaseURL, "/privy"),
+	}
+	type seat struct {
+		Role        string
+		Members     int
+		HoldsShares bool
+		Pot         string
+	}
+	for outcome, want := range map[string]seat{
+		"ok":                         {Role: "member", Members: 2, HoldsShares: false, Pot: ""},
+		"crash:before-commit":        {Role: "member", Members: 2, HoldsShares: false, Pot: ""},
+		"NotCabalMember":             {Role: "", Members: 1, HoldsShares: false, Pot: ""},
+		"LeaveHoldsShares":           {Role: "member", Members: 2, HoldsShares: true, Pot: "1000000"},
+		"LeaveCreatorWithMembers":    {Role: "creator", Members: 2, HoldsShares: false, Pot: ""},
+		"LeaveLastMemberPotNotEmpty": {Role: "creator", Members: 1, HoldsShares: false, Pot: "1"},
+		"PriceUnavailable":           {Role: "creator", Members: 1, HoldsShares: false, Pot: "1"},
+	} {
+		code, stdout, stderr := runFlowsSeed(t, environ, "04", outcome)
+		var got testflows.SeedResult
+		if err := json.Unmarshal([]byte(stdout), &got); code != 0 || err != nil {
+			t.Fatalf("%s: code=%d stdout=%q stderr=%q err=%v", outcome, code, stdout, stderr, err)
+		}
+		var have seat
+		if err := pool.QueryRow(t.Context(), `SELECT
+			coalesce((SELECT role FROM cabal_members WHERE cabal_id = $1 AND user_id = $2), ''),
+			(SELECT count(*) FROM cabal_members WHERE cabal_id = $1),
+			coalesce((SELECT share_units > 0 FROM user_positions WHERE cabal_id = $1 AND user_id = $2), false),
+			coalesce((SELECT string_agg(units::text, ',') FROM cabal_positions WHERE cabal_id = $1 AND units > 0), '')`,
+			got.IDs["cabal"], got.UserID,
+		).Scan(&have.Role, &have.Members, &have.HoldsShares, &have.Pot); err != nil {
+			t.Fatalf("%s: read the seeded cabal %q: %v", outcome, got.IDs["cabal"], err)
+		}
+		if have != want {
+			t.Fatalf("%s: seeded %+v, want %+v", outcome, have, want)
+		}
+	}
+}
+
 func TestFlowsSeed_unauthorizedPrintsAnEmptyToken(t *testing.T) {
 	t.Parallel()
 	code, stdout, stderr := runFlowsSeed(t, nil, "00", "Unauthorized")

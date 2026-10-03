@@ -32,6 +32,7 @@ struct CabalScreen: View {
     let sections: [any CabalSection.Type]
     let detailsSections: [any CabalSection.Type]
     @Environment(AppEnvironment.self) private var environment
+    @Environment(ToastCenter.self) private var toasts
     @State private var showsDetails = false
     @State private var heroScrolledAway = false
     @State private var titleModel: CabalActionsModel?
@@ -98,6 +99,7 @@ struct CabalScreen: View {
                     }
             }
             .presentationDetents([.medium, .large])
+            .monacoToastCenter(toasts)
         }
     }
 
