@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -19,10 +20,23 @@ import (
 type Ledger struct {
 	usdc  domain.Asset
 	clock clock.Clock
+	at    time.Time
 }
 
 func NewLedger(usdc chain.SolanaAddress, c clock.Clock) Ledger {
 	return Ledger{usdc: domain.MintAsset(usdc), clock: c}
+}
+
+func (l Ledger) At(at time.Time) Ledger {
+	l.at = at
+	return l
+}
+
+func (l Ledger) now() time.Time {
+	if l.at.IsZero() {
+		return l.clock.Now()
+	}
+	return l.at
 }
 
 func (Ledger) LockCabal(ctx context.Context, tx db.Tx, cabal ids.CabalID) error {
@@ -45,7 +59,7 @@ func (l Ledger) PostCabalTxn(ctx context.Context, tx db.Tx, t domain.CabalTxn) e
 	q := sqlc.New(tx.Queries())
 	n, err := q.InsertCabalTxn(ctx, sqlc.InsertCabalTxnParams{
 		ID: t.ID, CabalID: t.CabalID.UUID(), Kind: string(t.Kind), Status: string(t.Status), SwapID: t.SwapID,
-		TransferID: t.TransferID, TxSignature: string(t.TxSignature), CreatedAt: l.clock.Now(),
+		TransferID: t.TransferID, TxSignature: string(t.TxSignature), CreatedAt: l.now(),
 	})
 	if err != nil {
 		return err
@@ -66,7 +80,7 @@ func (l Ledger) PostCabalTxn(ctx context.Context, tx db.Tx, t domain.CabalTxn) e
 	for _, d := range deltas {
 		row, err := q.ApplyCabalPosition(ctx, sqlc.ApplyCabalPositionParams{
 			CabalID: t.CabalID.UUID(), Asset: string(d.Asset), Delta: d.Units.Int64(), CostIn: d.CostIn.String(),
-			UpdatedAt: l.clock.Now(),
+			UpdatedAt: l.now(),
 		})
 		if err != nil {
 			return err
@@ -95,7 +109,7 @@ func (l Ledger) PostUserTxn(ctx context.Context, tx db.Tx, t domain.UserTxn) err
 	q := sqlc.New(tx.Queries())
 	n, err := q.InsertUserTxn(ctx, sqlc.InsertUserTxnParams{
 		ID: t.ID, UserID: t.UserID.UUID(), CabalID: t.CabalID.UUID(), Kind: string(t.Kind), Status: string(t.Status),
-		TransferID: t.TransferID, TxSignature: string(t.TxSignature), CreatedAt: l.clock.Now(),
+		TransferID: t.TransferID, TxSignature: string(t.TxSignature), CreatedAt: l.now(),
 	})
 	if err != nil {
 		return err
@@ -117,7 +131,7 @@ func (l Ledger) PostUserTxn(ctx context.Context, tx db.Tx, t domain.UserTxn) err
 	}
 	row, err := q.ApplyUserPosition(ctx, sqlc.ApplyUserPositionParams{
 		UserID: t.UserID.UUID(), CabalID: t.CabalID.UUID(), Shares: delta.Shares.Int64(),
-		Contributed: delta.Contributed.String(), Withdrawn: delta.Withdrawn.String(), UpdatedAt: l.clock.Now(),
+		Contributed: delta.Contributed.String(), Withdrawn: delta.Withdrawn.String(), UpdatedAt: l.now(),
 	})
 	if err != nil {
 		return err
