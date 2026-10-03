@@ -63,6 +63,10 @@ func (healthz) GetHandleAvailability(
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetHandleAvailability")
 }
 
+func (healthz) PutMeHandle(context.Context, api.PutMeHandleRequestObject) (api.PutMeHandleResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.PutMeHandle")
+}
+
 func (healthz) PostDevice(context.Context, api.PostDeviceRequestObject) (api.PostDeviceResponseObject, error) {
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostDevice")
 }

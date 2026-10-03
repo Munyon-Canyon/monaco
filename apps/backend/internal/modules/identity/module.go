@@ -63,6 +63,10 @@ func (m *Module) Routes(r *httpx.Routes) {
 	}
 	r.IdentityRoutes = adapters.HTTP{
 		Open: m.openSession(), Reads: m.deps.Pool, Clock: m.deps.Clock,
+		SetHandle: app.NewSetHandle(app.SetHandleDeps{
+			UoW: m.deps.UoW, Reads: m.deps.Pool, Hints: hints, Users: adapters.Users{},
+			ClaimFacts: app.LoadLockedHandleClaimFacts,
+		}),
 		Update: app.UpdateProfileHandler{UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Hints: hints},
 		Photo: app.UploadProfilePhotoHandler{
 			UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, IDs: m.deps.IDs, Hints: hints,

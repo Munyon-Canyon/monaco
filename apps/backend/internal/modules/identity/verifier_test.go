@@ -265,6 +265,12 @@ func (p *actorProbe) GetHandleAvailability(
 	return nil, errs.New(errs.CodeNotFound, "actorProbe.GetHandleAvailability")
 }
 
+func (p *actorProbe) PutMeHandle(
+	context.Context, api.PutMeHandleRequestObject,
+) (api.PutMeHandleResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "actorProbe.PutMeHandle")
+}
+
 func (p *actorProbe) GetMe(ctx context.Context, _ api.GetMeRequestObject) (api.GetMeResponseObject, error) {
 	a, _ := auth.ActorFrom(ctx)
 	p.mu.Lock()

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -17,6 +18,17 @@ import (
 )
 
 type Users struct{}
+
+func (Users) SetHandle(ctx context.Context, q sqlc.DBTX, id ids.UserID, handle string, at time.Time) error {
+	_, err := sqlc.New(q).SetUserHandle(ctx, sqlc.SetUserHandleParams{
+		ID: id.UUID(), Handle: pgtype.Text{String: handle, Valid: true}, Now: pgtype.Timestamptz{Time: at, Valid: true},
+	})
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return errs.New(errs.CodeHandleTaken, "identity.SetHandle")
+	}
+	return err
+}
 
 func (Users) Create(ctx context.Context, q sqlc.DBTX, u domain.NewUser, at time.Time) (bool, error) {
 	n, err := sqlc.New(q).CreateUser(ctx, sqlc.CreateUserParams{

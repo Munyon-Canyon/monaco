@@ -426,6 +426,32 @@ paths:
               example: [{id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, role: creator, can_vote: true, member_count: 3, joined_at: "2026-10-02T15:00:00Z", pending_request_count: 1}]
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/handle:
+    put:
+      operationId: putMeHandle
+      tags: [identity]
+      x-idempotent: true
+      summary: Set the caller's handle.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The caller's new handle.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetHandle"
+            example:
+              handle: kai_one
+      responses:
+        "200":
+          description: The updated account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/me/profile-photo:
     post:
       operationId: postProfilePhoto
@@ -1615,6 +1641,17 @@ components:
       description: Where a proposal is in its lifecycle.
       enum: [open, passed, failed, expired, withdrawn, voided, executed, execution_blocked]
       examples: [open]
+    SetHandle:
+      type: object
+      description: A handle to claim for the caller.
+      additionalProperties: false
+      required: [handle]
+      properties:
+        handle:
+          type: string
+          examples: [kai_one]
+          minLength: 1
+          maxLength: 64
     Tally:
       type: object
       description: The ballots counted against the proposal's frozen voter set.

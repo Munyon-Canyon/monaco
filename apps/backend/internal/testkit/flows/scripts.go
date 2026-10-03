@@ -17,6 +17,11 @@ func Scripts() map[string]Script {
 		"F01OpenSessionAccountDeleted":        F01OpenSessionAccountDeleted,
 		"F01OpenSessionPrivyUnavailable":      F01OpenSessionPrivyUnavailable,
 		"F01OpenSessionCrashBeforeCommit":     F01OpenSessionCrashBeforeCommit,
+		"F01aSetHandleOK":                     F01aSetHandleOK,
+		"F01aSetHandleHandleInvalid":          F01aSetHandleHandleInvalid,
+		"F01aSetHandleHandleReserved":         F01aSetHandleHandleReserved,
+		"F01aSetHandleHandleTaken":            F01aSetHandleHandleTaken,
+		"F01aSetHandleHandleTooSoon":          F01aSetHandleHandleTooSoon,
 
 		"F02CreateCabalOK":                         F02CreateCabalOK,
 		"F02CreateCabalInvalidInput":               F02CreateCabalInvalidInput,

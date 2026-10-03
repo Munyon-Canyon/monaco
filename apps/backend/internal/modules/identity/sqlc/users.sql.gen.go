@@ -299,6 +299,25 @@ func (q *Queries) SetUserEmail(ctx context.Context, arg SetUserEmailParams) erro
 	return err
 }
 
+const setUserHandle = `-- name: SetUserHandle :execrows
+UPDATE users SET handle = $1, handle_changed_at = $2, updated_at = $2
+WHERE id = $3 AND deleted_at IS NULL
+`
+
+type SetUserHandleParams struct {
+	Handle pgtype.Text
+	Now    pgtype.Timestamptz
+	ID     uuid.UUID
+}
+
+func (q *Queries) SetUserHandle(ctx context.Context, arg SetUserHandleParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setUserHandle, arg.Handle, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setUserPhone = `-- name: SetUserPhone :exec
 UPDATE users SET phone_e164 = $1, phone_hash = $2,
   phone_verified_at = $3, updated_at = $4

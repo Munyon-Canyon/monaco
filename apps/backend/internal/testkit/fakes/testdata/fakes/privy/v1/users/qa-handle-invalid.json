@@ -1,0 +1,1 @@
+{"status":200,"headers":{"Content-Type":"application/json"},"body":{"id":"did:privy:qa-handle-invalid","linked_accounts":[{"type":"email","address":"qa-handle-invalid@example.com"}]}}

@@ -222,11 +222,25 @@ func (a *app) handledAll(handlers, eventIDs []string) bool {
 
 func (a *app) backend() *backend {
 	return &backend{
-		baseURL: a.server.URL, client: a.server.Client(), note: a.note, pool: a.pool, mint: a.mint,
-		privyToken: a.privyToken, script: a.scriptFakes, newUserID: a.newUserID,
-		enter: func(Stage) {}, exchanged: func(Exchange) {}, events: a.events, awaitHandled: a.awaitHandled,
-		published: a.published, hold: a.hold, crashAt: a.crashAt, seed: a.seed, lines: a.log.since,
-		tick: a.tickOnce,
+		baseURL:       a.server.URL,
+		client:        a.server.Client(),
+		note:          a.note,
+		pool:          a.pool,
+		mint:          a.mint,
+		privyToken:    a.privyToken,
+		script:        a.scriptFakes,
+		newUserID:     a.newUserID,
+		enter:         func(Stage) {},
+		exchanged:     func(Exchange) {},
+		events:        a.events,
+		eventPayloads: a.eventPayloads,
+		awaitHandled:  a.awaitHandled,
+		published:     a.published,
+		hold:          a.hold,
+		crashAt:       a.crashAt,
+		seed:          a.seed,
+		lines:         a.log.since,
+		tick:          a.tickOnce,
 	}
 }
 
@@ -271,6 +285,27 @@ func (a *app) events(t T, typ events.Type, _ []string) []string {
 	t.Helper()
 	rows, err := a.pool.Query(t.Context(), `SELECT id::text FROM events WHERE type = $1`, string(typ))
 	return scanIDs(t, typ, rows, err)
+}
+
+func (a *app) eventPayloads(t T, typ events.Type) [][]byte {
+	t.Helper()
+	rows, err := a.pool.Query(t.Context(), `SELECT payload FROM events WHERE type = $1 ORDER BY id`, string(typ))
+	if err != nil {
+		t.Fatalf("scenario: read %s event payloads: %v", typ, err)
+	}
+	defer rows.Close()
+	var payloads [][]byte
+	for rows.Next() {
+		var payload []byte
+		if err := rows.Scan(&payload); err != nil {
+			t.Fatalf("scenario: scan %s event payload: %v", typ, err)
+		}
+		payloads = append(payloads, payload)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("scenario: read %s event payloads: %v", typ, err)
+	}
+	return payloads
 }
 
 func scanIDs(t T, typ events.Type, rows pgx.Rows, err error) []string {

@@ -27,7 +27,7 @@ func HandleAvailability(
 	if !valid {
 		return Availability{Handle: folded, Available: false, Reason: "invalid"}, nil
 	}
-	row, err := loadClaimFacts(ctx, q, id, h.String())
+	row, err := LoadHandleClaimFacts(ctx, q, id, h.String())
 	if err != nil {
 		return Availability{}, err
 	}
@@ -50,7 +50,7 @@ func availabilityHandle(raw string) (domain.Handle, bool) {
 	return h, err == nil
 }
 
-func loadClaimFacts(
+func LoadHandleClaimFacts(
 	ctx context.Context, q sqlc.DBTX, id ids.UserID, handle string,
 ) (sqlc.HandleClaimFactsRow, error) {
 	const op = "identity.HandleAvailability"
@@ -62,6 +62,22 @@ func loadClaimFacts(
 		return sqlc.HandleClaimFactsRow{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	return row, nil
+}
+
+func LoadLockedHandleClaimFacts(
+	ctx context.Context, q sqlc.DBTX, id ids.UserID, handle string,
+) (sqlc.HandleClaimFactsRow, error) {
+	const op = "identity.SetHandle"
+	row, err := sqlc.New(q).LockedHandleClaimFacts(ctx, sqlc.LockedHandleClaimFactsParams{
+		Handle: handle, ID: id.UUID(),
+	})
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return sqlc.HandleClaimFactsRow{}, errs.New(errs.CodeUserNotFound, op)
+	case err != nil:
+		return sqlc.HandleClaimFactsRow{}, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	return sqlc.HandleClaimFactsRow(row), nil
 }
 
 func claimFacts(row sqlc.HandleClaimFactsRow, now time.Time) domain.HandleFacts {
