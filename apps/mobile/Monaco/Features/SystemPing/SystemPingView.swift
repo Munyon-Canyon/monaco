@@ -35,8 +35,14 @@ struct SystemPingView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await model.observe() }
         .onChange(of: model.state) { _, newState in
-            guard case .failed(let error) = newState else { return }
-            toast = MonacoToast(message: ToastCopy.message(for: error))
+            switch newState {
+            case .invalidInput(let message):
+                toast = MonacoToast(message: message)
+            case .failed(let error):
+                toast = MonacoToast(message: ToastCopy.message(for: error))
+            case .idle, .loading, .loaded, .unauthorized:
+                break
+            }
         }
         .monacoToast($toast)
     }
@@ -48,7 +54,7 @@ struct SystemPingView: View {
     @ViewBuilder
     private var status: some View {
         switch model.state {
-        case .idle:
+        case .idle, .invalidInput:
             Text("Not sent")
                 .foregroundStyle(MonacoTheme.secondaryText)
         case .loading:
@@ -59,6 +65,15 @@ struct SystemPingView: View {
                 .foregroundStyle(ping.echoed ? MonacoTheme.ink : MonacoTheme.secondaryText)
             Text(ping.note)
                 .foregroundStyle(MonacoTheme.primaryText)
+        case .unauthorized:
+            VStack(alignment: .leading, spacing: 4) {
+                Text("You're signed out")
+                    .foregroundStyle(MonacoTheme.primaryText)
+                Text("Sign in again to send a ping.")
+                    .foregroundStyle(MonacoTheme.secondaryText)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("system-ping-signed-out")
         case .failed(let error):
             Text(ToastCopy.message(for: error))
                 .foregroundStyle(MonacoTheme.primaryText)

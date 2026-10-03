@@ -7,10 +7,19 @@ import Observation
 import FoundationNetworking
 #endif
 
+public enum SystemPingState: Sendable, Equatable {
+    case idle
+    case loading
+    case loaded(Components.Schemas.Ping)
+    case invalidInput(message: String)
+    case unauthorized
+    case failed(APIError)
+}
+
 @Observable
 @MainActor
 public final class SystemPingModel {
-    public private(set) var state: LoadState<Components.Schemas.Ping> = .idle
+    public private(set) var state: SystemPingState = .idle
     public private(set) var isSending = false
 
     private let api: APIClient
@@ -70,7 +79,18 @@ public final class SystemPingModel {
             pingID = created.id
             await load()
         } catch {
-            state = .failed(APIError(error))
+            state = Self.state(for: APIError(error))
+        }
+    }
+
+    private static func state(for error: APIError) -> SystemPingState {
+        switch Flow00Outcome(error) {
+        case .invalidInput:
+            .invalidInput(message: ToastCopy.message(for: error))
+        case .unauthorized:
+            .unauthorized
+        case .ok, .interrupted, nil:
+            .failed(error)
         }
     }
 }
