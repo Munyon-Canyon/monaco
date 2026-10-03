@@ -7,6 +7,8 @@ import (
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
 const maxLines = 20
@@ -72,16 +74,45 @@ func forecast(ctx context.Context, env *Env) (files, flowRisks []risk, flowErr, 
 	if err != nil {
 		return overlaps(touched), nil, err, nil
 	}
+	flowed, err := env.flowed(ctx, reg, grouped, changed)
+	if err != nil {
+		return overlaps(touched), nil, err, nil
+	}
+	return overlaps(touched), overlaps(flowed), nil, nil
+}
+
+func (env *Env) flowed(
+	ctx context.Context, reg registry, grouped map[int][]PR, changed map[int][]string,
+) (map[string]map[int]bool, error) {
 	flowed := map[string]map[int]bool{}
 	for bottom, files := range changed {
-		for _, id := range reg.affected(files) {
+		ops, err := env.stackOps(ctx, grouped[bottom], files)
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range reg.affected(files, ops) {
 			if flowed[id] == nil {
 				flowed[id] = map[int]bool{}
 			}
 			flowed[id][bottom] = true
 		}
 	}
-	return overlaps(touched), overlaps(flowed), nil, nil
+	return flowed, nil
+}
+
+func (env *Env) stackOps(ctx context.Context, stack []PR, files []string) ([]string, error) {
+	if !slices.ContainsFunc(files, flows.SpecFile) {
+		return nil, nil
+	}
+	bases := map[string]bool{}
+	for _, pr := range stack {
+		bases[pr.Base.Ref] = true
+	}
+	top := stack[slices.IndexFunc(stack, func(pr PR) bool { return !bases[pr.Head.Ref] })]
+	if _, err := env.git(ctx, "fetch", "--no-tags", "origin", top.Head.Ref); err != nil {
+		return nil, err
+	}
+	return env.specOps(ctx, files, "origin/"+env.Config.FeatureBranch, top.Head.SHA)
 }
 
 func overlaps(touched map[string]map[int]bool) []risk {

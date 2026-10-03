@@ -17,13 +17,14 @@ func gateGit(heads ...string) map[string]string {
 			"00\tPing\tsystem\tGET /p\tRecordPing\t\t\tok\tbuilt\tdocs/f.md\n"
 		out["show "+head+":"+flows.Dir+"/01.tsv"] = flows.Header + "\n" +
 			"01\tSign in\tidentity\tGET /s\tSignIn\t\t\tok\tbuilt\tdocs/f.md\n"
-		out["ls-tree --name-only "+head+" "+flows.AppDir+"/"] = flows.AppDir + "/00.tsv\n"
-		out["show "+head+":"+flows.AppDir+"/00.tsv"] = flows.AppHeader + "\n00\tSystemPing\tbuilt\tdocs/f.md\n"
+		out["show "+head+":"+flows.SpecPath] = gateSpec + "  /s:\n    get: {}\n"
 	}
 	out["merge-base origin/fb b2-oid"] = "base\n"
 	out["diff --name-only base..origin/fb"] = ""
 	return out
 }
+
+const gateSpec = "paths:\n  /p:\n    get: {}\n"
 
 func gateStack(t *testing.T, f *fixture, files map[int][]File, extra ...*stackPR) *stackGH {
 	t.Helper()
@@ -126,8 +127,6 @@ func TestFlowGate_failuresLabelNothing(t *testing.T) {
 		{"fetch the stack head", "fetch --no-tags origin b2", "", 0},
 		{"list the backend flow files", "ls-tree --name-only b2-oid " + flows.Dir, "", 0},
 		{"read a backend flow file", "show b2-oid:" + flows.Dir + "/00.tsv", "", 0},
-		{"list the app files", "ls-tree --name-only b2-oid " + flows.AppDir, "", 0},
-		{"read an app file", "show b2-oid:packages/flows/app/00.tsv", "", 0},
 		{"fetch staging", "fetch --no-tags origin fb", "", 0},
 		{"merge-base", "merge-base", "", 0},
 		{"diff staging", "diff --name-only", "", 0},
@@ -163,6 +162,54 @@ func TestFlowGate_failuresLabelNothing(t *testing.T) {
 			code, _, stderr := f.agents(t, "land-stack", "2")
 			if code == 0 || s.prs[2].labeled("merge-queue") ||
 				!strings.Contains(stderr, "broke") && !strings.Contains(stderr, "404") {
+				t.Fatalf("%d %q", code, stderr)
+			}
+		})
+	}
+}
+
+func TestFlowGate_aSpecChangeGatesOnlyTheFlowsWhoseRoutesChanged(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	q1, q2 := green(t, 6, "q1", "fb"), green(t, 7, "q2", "q1")
+	labeled(q1, "merge-queue")
+	labeled(q2, "merge-queue")
+	s := gateStack(t, f, map[int][]File{
+		2: {{Filename: flows.SpecPath}, {Filename: "apps/backend/api/spec/identity.yaml"}},
+		7: {{Filename: "apps/backend/internal/modules/identity/app.go"}},
+	}, q1, q2)
+	s.gitOut["show base:"+flows.SpecPath] = gateSpec
+	want := "not landing #2: flow 01 is in queued stack #7"
+	if code, stdout, stderr := f.agents(t, "land-stack", "2"); code == 0 || !strings.Contains(stderr, want) {
+		t.Fatalf("a queued stack on flow 01: %d %q %q", code, stdout, stderr)
+	}
+
+	f.hub.on(list("/pulls/7/files?"), []File{
+		{Filename: "packages/mobile-core/Sources/MonacoSystem/Flow00SystemPingModel.swift"},
+	})
+	if code, stdout, stderr := f.agents(t, "land-stack", "2"); code != 0 || !s.prs[2].labeled("merge-queue") {
+		t.Fatalf("a queued stack on flow 00 only: %d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestFlowGate_specReadFailuresLabelNothing(t *testing.T) {
+	t.Parallel()
+	for _, gitFail := range []string{
+		"merge-base origin/fb b2-oid",
+		"show base:" + flows.SpecPath,
+		"show b2-oid:" + flows.SpecPath,
+		"merge-base base origin/fb",
+	} {
+		t.Run(gitFail, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			s := gateStack(t, f, map[int][]File{2: {{Filename: flows.SpecPath}}})
+			s.gitOut["show base:"+flows.SpecPath] = gateSpec
+			s.gitOut["diff --name-only base..origin/fb"] = flows.SpecPath + "\n"
+			s.gitOut["merge-base base origin/fb"] = "base\n"
+			s.gitFail = gitFail
+			code, _, stderr := f.agents(t, "land-stack", "2")
+			if code == 0 || s.prs[2].labeled("merge-queue") || !strings.Contains(stderr, "broke") {
 				t.Fatalf("%d %q", code, stderr)
 			}
 		})

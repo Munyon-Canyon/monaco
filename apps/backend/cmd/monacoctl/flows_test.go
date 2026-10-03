@@ -516,7 +516,7 @@ func TestAffectedFlows(t *testing.T) {
 		{"an app row", "packages/flows/app/02.tsv\n", []string{"02"}},
 		{"nothing a flow owns", "README.md\n", nil},
 		{"a module", "apps/backend/internal/modules/identity/http.go\n", []string{"01"}},
-		{"the spec reaches app built flows", "apps/backend/api/openapi.yaml\n", []string{"01"}},
+		{"the spec reaches the flows whose routes changed", "apps/backend/api/openapi.yaml\n", []string{"01"}},
 		{"a backend row", flows.Dir + "/00.tsv\nREADME.md\n", []string{"00"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -524,6 +524,14 @@ func TestAffectedFlows(t *testing.T) {
 			var calls [][]string
 			git := func(_ context.Context, _ string, _ []string, _ string, args ...string) ([]byte, error) {
 				calls = append(calls, args)
+				switch strings.Join(args, " ") {
+				case "merge-base staging HEAD":
+					return []byte("fork\n"), nil
+				case "show fork:" + flows.SpecPath:
+					return []byte("paths:\n  /p:\n    get: {}\n"), nil
+				case "show HEAD:" + flows.SpecPath:
+					return []byte("paths:\n  /p:\n    get: {}\n  /s:\n    get: {}\n"), nil
+				}
 				return []byte(tc.names), nil
 			}
 			got, err := affectedFlows(repo, git, "staging")
@@ -551,6 +559,20 @@ func TestAffectedFlows_reportsAFailingDiff(t *testing.T) {
 		return nil, io.ErrUnexpectedEOF
 	}
 	if _, err := affectedFlows(fstest.MapFS{}, git, "staging"); !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestAffectedFlows_reportsAFailingMergeBase(t *testing.T) {
+	t.Parallel()
+	repo := flowFS(flows.Header + "\n00\tPing\tsystem\tGET /p\tPing\t\t\tok\tbuilt\tdocs/f.md\n")
+	git := func(_ context.Context, _ string, _ []string, _ string, args ...string) ([]byte, error) {
+		if args[0] == "merge-base" {
+			return nil, io.ErrUnexpectedEOF
+		}
+		return []byte(flows.SpecPath + "\n"), nil
+	}
+	if _, err := affectedFlows(repo, git, "staging"); !errors.Is(err, io.ErrUnexpectedEOF) {
 		t.Fatalf("err = %v", err)
 	}
 }

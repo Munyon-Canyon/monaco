@@ -13,22 +13,23 @@ var (
 	flowPrefix = regexp.MustCompile(`^Flow([0-9]+[a-z]?)(?:[^a-z0-9]|$)`)
 	testPrefix = regexp.MustCompile(`^F(?:low)?([0-9]+[a-z]?)(?:[^a-z0-9]|$)`)
 	scriptFile = regexp.MustCompile(`^f([0-9]+[a-z]?)\.go$`)
+	namedFile  = regexp.MustCompile(`^(?:[Ff](?:low)?)?([0-9]+[a-z]?)(?:[^a-z0-9]|$)`)
 )
 
-func everyFlow() []string {
-	return []string{
-		AppRoot + "/Package.swift",
-		"apps/backend/internal/tools/flows/",
-		"apps/backend/internal/testkit/scenarios/",
-		"apps/backend/internal/testkit/fakes/",
-	}
+func everyFlow(file string) bool {
+	return file == AppRoot+"/Package.swift" || strings.HasPrefix(file, "apps/backend/internal/tools/flows/")
 }
 
-func Affected(changed []string, flows []Flow, apps map[string]AppRow) []string {
+func harness(file string) bool {
+	return strings.HasPrefix(file, "apps/backend/internal/testkit/scenarios/") ||
+		strings.HasPrefix(file, "apps/backend/internal/testkit/fakes/")
+}
+
+func Affected(changed, ops []string, flows []Flow) []string {
 	hit := map[string]bool{}
 	for _, file := range changed {
 		for _, f := range flows {
-			if touches(file, f, apps[f.ID]) {
+			if touches(file, f, ops) {
 				hit[f.ID] = true
 			}
 		}
@@ -38,14 +39,17 @@ func Affected(changed []string, flows []Flow, apps map[string]AppRow) []string {
 
 func selected(ids []string, id string) bool { return len(ids) == 0 || slices.Contains(ids, id) }
 
-func touches(file string, f Flow, app AppRow) bool {
+func touches(file string, f Flow, ops []string) bool {
 	switch {
-	case slices.ContainsFunc(everyFlow(), func(p string) bool {
-		return file == p || strings.HasSuffix(p, "/") && strings.HasPrefix(file, p)
-	}):
+	case everyFlow(file):
 		return true
-	case file == "apps/backend/api/openapi.yaml" || strings.HasPrefix(file, "apps/backend/api/spec/"):
-		return app.Status.AtLeastBuilt()
+	case SpecFile(file):
+		return slices.ContainsFunc(f.Triggers(), func(t string) bool { return slices.Contains(ops, t) })
+	case harness(file):
+		if id := match(namedFile, path.Base(file)); id != "" {
+			return id == f.ID
+		}
+		return strings.HasSuffix(file, ".go") && !strings.HasSuffix(file, "_test.go")
 	case strings.HasPrefix(file, "apps/backend/internal/modules/"):
 		module, _, _ := strings.Cut(strings.TrimPrefix(file, "apps/backend/internal/modules/"), "/")
 		return module == f.Module

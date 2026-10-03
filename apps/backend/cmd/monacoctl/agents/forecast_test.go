@@ -2,6 +2,7 @@ package agents
 
 import (
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -89,6 +90,61 @@ func TestForecast_listsAFlowTwoStacksTouchThroughDifferentFiles(t *testing.T) {
 	f.hub.on(list("/pulls/1705/files?"), []File{{Filename: "apps/backend/internal/modules/cabal/http.go"}})
 	if code, stdout, _ := f.agents(t, "forecast"); code != 0 || strings.Contains(stdout, "flows:") {
 		t.Fatalf("disjoint stacks: code=%d stdout=%q", code, stdout)
+	}
+}
+
+func specBranch(t *testing.T, f *fixture, branch, spec string) PR {
+	t.Helper()
+	git(t, f.dir, "checkout", "-q", "-b", branch, "origin/fb")
+	writeFile(t, filepath.Join(f.dir, flows.SpecPath), spec)
+	git(t, f.dir, "commit", "-qam", branch)
+	sha, err := exec.CommandContext(t.Context(), "git", "-C", f.dir, "rev-parse", "HEAD").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	git(t, f.dir, "checkout", "-q", "-")
+	head := pr(len(branch), branch, "fb", "")
+	head.Head.SHA = strings.TrimSpace(string(sha))
+	return head
+}
+
+func TestForecast_aSpecChangeReachesOnlyTheFlowsWhoseRoutesChanged(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	const base = "paths:\n  /p:\n    get: {}\n  /s:\n    get: {}\n"
+	writeFile(t, filepath.Join(f.dir, flows.SpecPath), base)
+	trunkRegistry(t, f)
+	git(t, f.dir, "remote", "add", "origin", f.dir)
+	ping := specBranch(t, f, "a", strings.Replace(base, "/p:\n    get: {}", "/p:\n    get: {summary: Ping.}", 1))
+	signIn := specBranch(t, f, "bb", strings.Replace(base, "/s:\n    get: {}", "/s:\n    get: {summary: In.}", 1))
+	again := specBranch(t, f, "ccc", strings.Replace(base, "/p:\n    get: {}", "/p:\n    get: {summary: P.}", 1))
+	f.hub.on(list("/pulls?state=open"), []PR{ping, signIn})
+	for _, p := range []PR{ping, signIn, again} {
+		f.hub.on(list(fmt.Sprintf("/pulls/%d/files?", p.Number)), []File{{Filename: flows.SpecPath}})
+	}
+	if code, stdout, stderr := f.agents(t, "forecast"); code != 0 || strings.Contains(stdout, "flows:") {
+		t.Fatalf("stacks on different routes: code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+
+	f.hub.on(list("/pulls?state=open"), []PR{ping, signIn, again})
+	want := "flows: 00 #1 #3\n"
+	if code, stdout, stderr := f.agents(t, "forecast"); code != 0 || !strings.HasSuffix(stdout, want) {
+		t.Fatalf("stacks on one route: code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
+
+func TestForecast_saysSoWhenAStackHeadCannotBeFetched(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	writeFile(t, filepath.Join(f.dir, flows.SpecPath), "paths: {}\n")
+	trunkRegistry(t, f)
+	git(t, f.dir, "remote", "add", "origin", f.dir)
+	f.hub.on(list("/pulls?state=open"), []PR{pr(1, "gone", "fb", ""), pr(2, "b", "fb", "")})
+	f.hub.on(list("/pulls/1/files?"), []File{{Filename: flows.SpecPath}})
+	f.hub.on(list("/pulls/2/files?"), []File{})
+	if code, stdout, _ := f.agents(t, "forecast"); code != 0 || !strings.Contains(stdout, "flows: not checked: ") ||
+		!strings.Contains(stdout, "gone") {
+		t.Fatalf("code=%d stdout=%q", code, stdout)
 	}
 }
 

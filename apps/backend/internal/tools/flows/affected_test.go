@@ -11,52 +11,56 @@ import (
 func TestAffected(t *testing.T) {
 	t.Parallel()
 	backend := []flows.Flow{
-		{ID: "00", Module: "system"},
-		{ID: "01", Module: "identity"},
-		{ID: "01a", Module: "identity"},
-		{ID: "02", Module: "cabal"},
-		{ID: "10", Module: "governance"},
-	}
-	app := map[string]flows.AppRow{
-		"00": {ID: "00", Status: flows.AppVerified},
-		"01": {ID: "01", Status: flows.AppBuilt},
-		"02": {ID: "02", Status: flows.AppPlanned},
+		{ID: "00", Module: "system", Trigger: "POST /v1/system/pings"},
+		{ID: "01", Module: "identity", Trigger: "POST /v1/auth/session"},
+		{ID: "01a", Module: "identity", Trigger: "PUT /v1/me/handle"},
+		{ID: "02", Module: "cabal", Trigger: "POST /v1/cabals;DELETE /v1/cabals/{id}"},
+		{ID: "10", Module: "governance", Trigger: "consumer:proposal.passed"},
 	}
 	every := []string{"00", "01", "01a", "02", "10"}
 	for _, tc := range []struct {
-		changed []string
-		want    []string
+		changed, ops, want []string
 	}{
-		{nil, nil},
-		{[]string{"README.md", "apps/backend/internal/platform/db/db.go", "docs/flows/00.md"}, nil},
-		{[]string{"packages/flows/app/00.tsv"}, []string{"00"}},
-		{[]string{"packages/flows/app/01a.tsv"}, []string{"01a"}},
-		{[]string{"packages/flows/app/99.tsv", "packages/flows/app/README.md"}, nil},
-		{[]string{"packages/flows/backend/10.tsv"}, []string{"10"}},
-		{[]string{"packages/flows/Sources/MonacoFlows/Flow01.gen.swift"}, []string{"01"}},
-		{[]string{"packages/flows/Sources/MonacoFlows/Flow01a.gen.swift"}, []string{"01a"}},
-		{[]string{"packages/flows/Sources/MonacoFlows/Flow00Scenarios.gen.swift"}, []string{"00"}},
-		{[]string{"packages/mobile-core/Sources/MonacoSystem/Flow00SystemPingModel.swift"}, []string{"00"}},
-		{[]string{"packages/mobile-core/Sources/MonacoSystem/Module.swift"}, nil},
-		{[]string{"packages/mobile-core/Tests/MonacoCoreTests/F00IntegrationTests.swift"}, []string{"00"}},
-		{[]string{"packages/mobile-core/Tests/MonacoCoreTests/Flow02ModelTests.swift"}, []string{"02"}},
-		{[]string{"packages/mobile-core/Tests/MonacoCoreTests/FlowOutcomeTests.swift"}, nil},
-		{[]string{"packages/mobile-core/Tests/MonacoAPITests/FakeStreamTransport.swift"}, nil},
-		{[]string{"apps/backend/internal/testkit/flows/f01a.go"}, []string{"01a"}},
-		{[]string{"apps/backend/internal/testkit/flows/seed.go"}, nil},
-		{[]string{"apps/backend/internal/modules/system/http.go"}, []string{"00"}},
-		{[]string{"apps/backend/internal/modules/identity/app/app.go"}, []string{"01", "01a"}},
-		{[]string{"apps/backend/internal/modules/funding/app.go"}, nil},
-		{[]string{"apps/backend/api/openapi.yaml"}, []string{"00", "01"}},
-		{[]string{"apps/backend/api/spec/cabal.yaml"}, []string{"00", "01"}},
-		{[]string{"packages/flows/Package.swift"}, every},
-		{[]string{"apps/backend/internal/tools/flows/check.go"}, every},
-		{[]string{"apps/backend/internal/testkit/scenarios/scenarios.go"}, every},
-		{[]string{"apps/backend/internal/testkit/fakes/privy.go"}, every},
-		{[]string{"packages/flows/app/10.tsv", "apps/backend/internal/modules/system/x.go"}, []string{"00", "10"}},
+		{nil, nil, nil},
+		{[]string{"README.md", "apps/backend/internal/platform/db/db.go", "docs/flows/00.md"}, nil, nil},
+		{[]string{"packages/flows/app/00.tsv"}, nil, []string{"00"}},
+		{[]string{"packages/flows/app/01a.tsv"}, nil, []string{"01a"}},
+		{[]string{"packages/flows/app/99.tsv", "packages/flows/app/README.md"}, nil, nil},
+		{[]string{"packages/flows/backend/10.tsv"}, nil, []string{"10"}},
+		{[]string{"packages/flows/Sources/MonacoFlows/Flow01.gen.swift"}, nil, []string{"01"}},
+		{[]string{"packages/flows/Sources/MonacoFlows/Flow01a.gen.swift"}, nil, []string{"01a"}},
+		{[]string{"packages/flows/Sources/MonacoFlows/Flow00Scenarios.gen.swift"}, nil, []string{"00"}},
+		{[]string{"packages/mobile-core/Sources/MonacoSystem/Flow00SystemPingModel.swift"}, nil, []string{"00"}},
+		{[]string{"packages/mobile-core/Sources/MonacoSystem/Module.swift"}, nil, nil},
+		{[]string{"packages/mobile-core/Tests/MonacoCoreTests/F00IntegrationTests.swift"}, nil, []string{"00"}},
+		{[]string{"packages/mobile-core/Tests/MonacoCoreTests/Flow02ModelTests.swift"}, nil, []string{"02"}},
+		{[]string{"packages/mobile-core/Tests/MonacoCoreTests/FlowOutcomeTests.swift"}, nil, nil},
+		{[]string{"packages/mobile-core/Tests/MonacoAPITests/FakeStreamTransport.swift"}, nil, nil},
+		{[]string{"apps/backend/internal/testkit/flows/f01a.go"}, nil, []string{"01a"}},
+		{[]string{"apps/backend/internal/testkit/flows/seed.go"}, nil, nil},
+		{[]string{"apps/backend/internal/modules/system/http.go"}, nil, []string{"00"}},
+		{[]string{"apps/backend/internal/modules/identity/app/app.go"}, nil, []string{"01", "01a"}},
+		{[]string{"apps/backend/internal/modules/funding/app.go"}, nil, nil},
+		{[]string{"apps/backend/api/openapi.yaml"}, nil, nil},
+		{[]string{"apps/backend/api/openapi.yaml"}, []string{"PUT /v1/me/handle"}, []string{"01a"}},
+		{[]string{"apps/backend/api/spec/cabal.yaml"}, []string{"DELETE /v1/cabals/{id}"}, []string{"02"}},
+		{[]string{"apps/backend/api/openapi.yaml"}, []string{"GET /v1/cabals/{id}", "POST /v1/auth/session"}, []string{"01"}},
+		{[]string{"README.md"}, []string{"POST /v1/auth/session"}, nil},
+		{[]string{"packages/flows/Package.swift"}, nil, every},
+		{[]string{"apps/backend/internal/tools/flows/check.go"}, nil, every},
+		{[]string{"apps/backend/internal/testkit/scenarios/scenarios.go"}, nil, every},
+		{[]string{"apps/backend/internal/testkit/fakes/privy.go"}, nil, every},
+		{[]string{"apps/backend/internal/testkit/fakes/f01a_handles.go"}, nil, []string{"01a"}},
+		{[]string{"apps/backend/internal/testkit/scenarios/02-cabal-with-creator.jsonl"}, nil, []string{"02"}},
+		{[]string{"apps/backend/internal/testkit/scenarios/flow10_votes.go"}, nil, []string{"10"}},
+		{[]string{"apps/backend/internal/testkit/scenarios/99-unknown.jsonl"}, nil, nil},
+		{[]string{"apps/backend/internal/testkit/scenarios/cabal-with-creator.jsonl"}, nil, nil},
+		{[]string{"apps/backend/internal/testkit/fakes/testdata/fakes/privy/v1/users/qa-onb-x-ok.json"}, nil, nil},
+		{[]string{"apps/backend/internal/testkit/fakes/fakes_test.go"}, nil, nil},
+		{[]string{"packages/flows/app/10.tsv", "apps/backend/internal/modules/system/x.go"}, nil, []string{"00", "10"}},
 	} {
-		if got := flows.Affected(tc.changed, backend, app); !slices.Equal(got, tc.want) {
-			t.Errorf("Affected(%q) = %q, want %q", tc.changed, got, tc.want)
+		if got := flows.Affected(tc.changed, tc.ops, backend); !slices.Equal(got, tc.want) {
+			t.Errorf("Affected(%q, %q) = %q, want %q", tc.changed, tc.ops, got, tc.want)
 		}
 	}
 }
