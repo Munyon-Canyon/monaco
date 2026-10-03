@@ -163,9 +163,12 @@ func (s *stream) stack(ctx context.Context, r Record, drafts []queueDraft) []str
 }
 
 func (s *stream) eject(ctx context.Context, r Record, out stackPR, drafts []queueDraft) []string {
-	line, err := s.env.ejectStack(ctx, r, out)
+	line, requeued, err := s.env.ejectStack(ctx, r, out)
 	if err != nil {
 		return []string{watchErr(fmt.Sprintf("eject #%d: ", r.Queued.Top), err)}
+	}
+	if requeued {
+		return []string{line}
 	}
 	s.reported[out.Number] = true
 	f := failure{

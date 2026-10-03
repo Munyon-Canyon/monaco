@@ -28,8 +28,9 @@ timelineItems(itemTypes:[UNLABELED_EVENT],last:20){nodes{__typename ... on Unlab
 )
 
 type Queue struct {
-	Top int   `json:"top"`
-	PRs []int `json:"prs"`
+	Top int       `json:"top"`
+	PRs []int     `json:"prs"`
+	At  time.Time `json:"at,omitzero"`
 }
 
 type Arm struct {
@@ -280,7 +281,7 @@ func (env *Env) land(ctx context.Context, rec Record, stack []stackPR, stdout io
 			return landFailed(err)
 		}
 	}
-	rec.Queued = &Queue{Top: top, PRs: nums}
+	rec.Queued = &Queue{Top: top, PRs: nums, At: env.Now()}
 	rec.Armed = nil
 	rec.Settled = nil
 	rec.Changed = env.Now()
@@ -411,12 +412,31 @@ func ejectedWhy(out stackPR) string {
 	return "left the Graphite merge queue"
 }
 
-func (env *Env) ejectStack(ctx context.Context, rec Record, out stackPR) (string, error) {
-	if err := env.releaseQueue(ctx, rec.Queued); err != nil {
-		return "", err
+func (env *Env) ejectStack(ctx context.Context, rec Record, out stackPR) (string, bool, error) {
+	stop := env.requeued(rec)
+	requeuedLine := fmt.Sprintf("stack #%d was re-queued during its release; left it queued", rec.Queued.Top)
+	err := env.releaseQueue(ctx, rec.Queued, stop)
+	if errors.Is(err, errRequeued) {
+		return requeuedLine, true, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	if again, err := stop(ctx); err != nil || again {
+		return requeuedLine, again, err
 	}
 	line := fmt.Sprintf("stack #%d ejected: #%d %s", rec.Queued.Top, out.Number, ejectedWhy(out))
-	return line, env.conclude(ctx, rec, outcomeEjected, line)
+	return line, false, env.conclude(ctx, rec, outcomeEjected, line)
+}
+
+func (env *Env) requeued(rec Record) func(context.Context) (bool, error) {
+	return func(ctx context.Context) (bool, error) {
+		cur, err := env.record(ctx, rec.Ticket)
+		if err != nil {
+			return false, err
+		}
+		return cur.Queued != nil && !cur.Queued.At.Equal(rec.Queued.At), nil
+	}
 }
 
 func (env *Env) conclude(ctx context.Context, rec Record, outcome Outcome, detail string) error {
@@ -464,8 +484,13 @@ func (env *Env) unqueueEjected(ctx context.Context, rs []Record, stdout io.Write
 		if !ok {
 			continue
 		}
-		if _, err := env.ejectStack(ctx, r, out); err != nil {
+		line, requeued, err := env.ejectStack(ctx, r, out)
+		if err != nil {
 			return err
+		}
+		if requeued {
+			_, _ = fmt.Fprintln(stdout, line)
+			continue
 		}
 		_, _ = fmt.Fprintf(stdout, "unqueued: #%d; #%d left the Graphite merge queue. "+
 			"Fix the stack with gt modify and gt submit --stack --draft, then run land-stack %d\n",
