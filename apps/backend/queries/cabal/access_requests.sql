@@ -41,7 +41,11 @@ WHERE cabal_id = sqlc.arg(cabal_id) AND direction = 'invite' AND status = 'pendi
 ORDER BY created_at, id;
 
 -- name: ListPendingInvitesForUser :many
-SELECT id, cabal_id, invited_by, expires_at, created_at FROM cabal_access_requests
-WHERE user_id = sqlc.arg(user_id) AND direction = 'invite' AND status = 'pending'
-  AND expires_at >= sqlc.arg(now)::timestamptz
-ORDER BY created_at, id;
+SELECT r.id, r.cabal_id, r.invited_by, r.expires_at, r.created_at, c.name AS cabal_name,
+  c.picture_url AS cabal_picture_url,
+  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count
+FROM cabal_access_requests r
+JOIN cabals c ON c.id = r.cabal_id
+WHERE r.user_id = sqlc.arg(user_id) AND r.direction = 'invite' AND r.status = 'pending'
+  AND r.expires_at >= sqlc.arg(now)::timestamptz AND c.status = 'active'
+ORDER BY r.created_at, r.id;

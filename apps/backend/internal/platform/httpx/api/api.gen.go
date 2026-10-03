@@ -761,6 +761,21 @@ func (e GetCabalAccessRequestsParamsStatus) Valid() bool {
 	}
 }
 
+// Defines values for GetCabalInvitesParamsStatus.
+const (
+	GetCabalInvitesParamsStatusPending GetCabalInvitesParamsStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the GetCabalInvitesParamsStatus enum.
+func (e GetCabalInvitesParamsStatus) Valid() bool {
+	switch e {
+	case GetCabalInvitesParamsStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetCabalProposalsParamsFilter.
 const (
 	GetCabalProposalsParamsFilterAll    GetCabalProposalsParamsFilter = "all"
@@ -1272,6 +1287,44 @@ type CabalActivityPage struct {
 	NextCursor *string `json:"next_cursor"`
 }
 
+// CabalInvite A pending invite, as its invitee sees it.
+type CabalInvite struct {
+	// Cabal The cabal an invite opens.
+	//
+	// Examples: {"id":"01890a5d-ac96-774b-bcce-b302099a8058","member_count":3,"name":"Friends","picture_url":null}
+	Cabal CabalInviteCabal `json:"cabal"`
+
+	// ExpiresAt Examples: 2026-10-09T15:00:00Z
+	ExpiresAt time.Time `json:"expires_at"`
+
+	// InvitedBy A user as shown on a cabal.
+	//
+	// Examples: {"display_name":"Kai","handle":"kai","photo_url":null,"user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}
+	InvitedBy CabalPerson `json:"invited_by"`
+
+	// RequestId The id to accept or decline.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	RequestId openapi_types.UUID `json:"request_id"`
+}
+
+// CabalInviteCabal The cabal an invite opens.
+type CabalInviteCabal struct {
+	// Id Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	Id openapi_types.UUID `json:"id"`
+
+	// MemberCount Examples: 3
+	MemberCount int32 `json:"member_count"`
+
+	// Name Examples: Friends
+	Name string `json:"name"`
+
+	// PictureUrl Null when the cabal has no picture.
+	//
+	// Examples: null
+	PictureUrl *string `json:"picture_url"`
+}
+
 // CabalMember A cabal member, including vote standing.
 type CabalMember struct {
 	// CanVote Examples: true
@@ -1396,6 +1449,25 @@ type CabalSearchPage struct {
 
 	// NextCursor Examples: null
 	NextCursor *string `json:"next_cursor"`
+}
+
+// CabalSentInvite A pending invite, as a member of its cabal sees it.
+type CabalSentInvite struct {
+	// ExpiresAt Examples: 2026-10-09T15:00:00Z
+	ExpiresAt time.Time `json:"expires_at"`
+
+	// InvitedBy A user as shown on a cabal.
+	//
+	// Examples: {"display_name":"Kai","handle":"kai","photo_url":null,"user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}
+	InvitedBy CabalPerson `json:"invited_by"`
+
+	// RequestId Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	RequestId openapi_types.UUID `json:"request_id"`
+
+	// User A user as shown on a cabal.
+	//
+	// Examples: {"display_name":"Kai","handle":"kai","photo_url":null,"user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}
+	User CabalPerson `json:"user"`
 }
 
 // CastVoteRequest The ballot to cast.
@@ -2358,6 +2430,15 @@ type GetCabalActivityParams struct {
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
+// GetCabalInvitesParams defines parameters for GetCabalInvites.
+type GetCabalInvitesParams struct {
+	// Status Only `pending` is supported, which is also the default.
+	Status *GetCabalInvitesParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+}
+
+// GetCabalInvitesParamsStatus defines parameters for GetCabalInvites.
+type GetCabalInvitesParamsStatus string
+
 // PostCabalMemberParams defines parameters for PostCabalMember.
 type PostCabalMemberParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -2633,6 +2714,9 @@ type ServerInterface interface {
 	// GetCabalActivity List a cabal's activity.
 	// (GET /v1/cabals/{id}/activity)
 	GetCabalActivity(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalActivityParams)
+	// GetCabalInvites List the pending invites of a cabal.
+	// (GET /v1/cabals/{id}/invites)
+	GetCabalInvites(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalInvitesParams)
 	// PostCabalMember Join an open cabal.
 	// (POST /v1/cabals/{id}/members)
 	PostCabalMember(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCabalMemberParams)
@@ -2675,6 +2759,9 @@ type ServerInterface interface {
 	// PatchMe Update the signed-in user's profile.
 	// (PATCH /v1/me)
 	PatchMe(w http.ResponseWriter, r *http.Request, params PatchMeParams)
+	// GetMyCabalInvites List the invites waiting on the caller.
+	// (GET /v1/me/cabal-invites)
+	GetMyCabalInvites(w http.ResponseWriter, r *http.Request)
 	// GetMyCabals List the caller's cabals.
 	// (GET /v1/me/cabals)
 	GetMyCabals(w http.ResponseWriter, r *http.Request)
@@ -3381,6 +3468,48 @@ func (siw *ServerInterfaceWrapper) GetCabalActivity(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCabalActivity(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCabalInvites operation middleware
+func (siw *ServerInterfaceWrapper) GetCabalInvites(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetCabalInvitesParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCabalInvites(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4147,6 +4276,20 @@ func (siw *ServerInterfaceWrapper) PatchMe(w http.ResponseWriter, r *http.Reques
 	handler.ServeHTTP(w, r)
 }
 
+// GetMyCabalInvites operation middleware
+func (siw *ServerInterfaceWrapper) GetMyCabalInvites(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMyCabalInvites(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMyCabals operation middleware
 func (siw *ServerInterfaceWrapper) GetMyCabals(w http.ResponseWriter, r *http.Request) {
 
@@ -4902,6 +5045,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/access-requests/{request_id}", wrapper.DeleteCabalAccessRequest)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/access-requests/{request_id}/decision", wrapper.PostCabalAccessDecision)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/activity", wrapper.GetCabalActivity)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/invites", wrapper.GetCabalInvites)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/members", wrapper.PostCabalMember)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/members/me", wrapper.DeleteCabalMemberMe)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/picture", wrapper.DeleteCabalPicture)
@@ -4916,6 +5060,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/me", wrapper.DeleteMe)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me", wrapper.GetMe)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/v1/me", wrapper.PatchMe)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/cabal-invites", wrapper.GetMyCabalInvites)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/cabals", wrapper.GetMyCabals)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/me/handle", wrapper.PutMeHandle)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/onboarding/phone", wrapper.PostOnboardingPhone)
@@ -5492,6 +5637,46 @@ func (response GetCabalActivitydefaultApplicationProblemPlusJSONResponse) VisitG
 	return err
 }
 
+type GetCabalInvitesRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetCabalInvitesParams
+}
+
+type GetCabalInvitesResponseObject interface {
+	VisitGetCabalInvitesResponse(w http.ResponseWriter) error
+}
+
+type GetCabalInvites200JSONResponse []CabalSentInvite
+
+func (response GetCabalInvites200JSONResponse) VisitGetCabalInvitesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCabalInvitesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetCabalInvitesdefaultApplicationProblemPlusJSONResponse) VisitGetCabalInvitesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostCabalMemberRequestObject struct {
 	Id     openapi_types.UUID `json:"id"`
 	Params PostCabalMemberParams
@@ -6012,6 +6197,44 @@ type PatchMedefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response PatchMedefaultApplicationProblemPlusJSONResponse) VisitPatchMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyCabalInvitesRequestObject struct {
+}
+
+type GetMyCabalInvitesResponseObject interface {
+	VisitGetMyCabalInvitesResponse(w http.ResponseWriter) error
+}
+
+type GetMyCabalInvites200JSONResponse []CabalInvite
+
+func (response GetMyCabalInvites200JSONResponse) VisitGetMyCabalInvitesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyCabalInvitesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetMyCabalInvitesdefaultApplicationProblemPlusJSONResponse) VisitGetMyCabalInvitesResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -6727,6 +6950,9 @@ type StrictServerInterface interface {
 	// GetCabalActivity List a cabal's activity.
 	// (GET /v1/cabals/{id}/activity)
 	GetCabalActivity(ctx context.Context, request GetCabalActivityRequestObject) (GetCabalActivityResponseObject, error)
+	// GetCabalInvites List the pending invites of a cabal.
+	// (GET /v1/cabals/{id}/invites)
+	GetCabalInvites(ctx context.Context, request GetCabalInvitesRequestObject) (GetCabalInvitesResponseObject, error)
 	// PostCabalMember Join an open cabal.
 	// (POST /v1/cabals/{id}/members)
 	PostCabalMember(ctx context.Context, request PostCabalMemberRequestObject) (PostCabalMemberResponseObject, error)
@@ -6769,6 +6995,9 @@ type StrictServerInterface interface {
 	// PatchMe Update the signed-in user's profile.
 	// (PATCH /v1/me)
 	PatchMe(ctx context.Context, request PatchMeRequestObject) (PatchMeResponseObject, error)
+	// GetMyCabalInvites List the invites waiting on the caller.
+	// (GET /v1/me/cabal-invites)
+	GetMyCabalInvites(ctx context.Context, request GetMyCabalInvitesRequestObject) (GetMyCabalInvitesResponseObject, error)
 	// GetMyCabals List the caller's cabals.
 	// (GET /v1/me/cabals)
 	GetMyCabals(ctx context.Context, request GetMyCabalsRequestObject) (GetMyCabalsResponseObject, error)
@@ -7250,6 +7479,33 @@ func (sh *strictHandler) GetCabalActivity(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// GetCabalInvites operation middleware
+func (sh *strictHandler) GetCabalInvites(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalInvitesParams) {
+	var request GetCabalInvitesRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCabalInvites(ctx, request.(GetCabalInvitesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCabalInvites")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCabalInvitesResponseObject); ok {
+		if err := validResponse.VisitGetCabalInvitesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // PostCabalMember operation middleware
 func (sh *strictHandler) PostCabalMember(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCabalMemberParams) {
 	var request PostCabalMemberRequestObject
@@ -7633,6 +7889,30 @@ func (sh *strictHandler) PatchMe(w http.ResponseWriter, r *http.Request, params 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PatchMeResponseObject); ok {
 		if err := validResponse.VisitPatchMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMyCabalInvites operation middleware
+func (sh *strictHandler) GetMyCabalInvites(w http.ResponseWriter, r *http.Request) {
+	var request GetMyCabalInvitesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMyCabalInvites(ctx, request.(GetMyCabalInvitesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMyCabalInvites")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMyCabalInvitesResponseObject); ok {
+		if err := validResponse.VisitGetMyCabalInvitesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

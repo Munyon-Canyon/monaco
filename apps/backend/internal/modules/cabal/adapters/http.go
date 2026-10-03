@@ -20,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -36,6 +37,7 @@ type HTTP struct {
 	Leave   *app.LeaveCabalHandler
 	DB      sqlc.DBTX
 	Users   app.UserCards
+	Clock   clock.Clock
 }
 
 var (
@@ -43,6 +45,7 @@ var (
 	_ httpx.CabalJoinRoutes    = HTTP{}
 	_ httpx.CabalAccessRoutes  = HTTP{}
 	_ httpx.CabalPictureRoutes = HTTP{}
+	_ httpx.CabalInviteRoutes  = HTTP{}
 )
 
 func (h HTTP) PostCabal(
@@ -425,6 +428,50 @@ func (h HTTP) GetCabalAccessRequests(
 		items = append(items, api.CabalAccessRequest{Id: p.ID, User: wirePerson(p.User), CreatedAt: p.CreatedAt})
 	}
 	return api.GetCabalAccessRequests200JSONResponse(items), nil
+}
+
+func (h HTTP) GetCabalInvites(
+	ctx context.Context, req api.GetCabalInvitesRequestObject,
+) (api.GetCabalInvitesResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	sent, err := app.ListCabalInvites(ctx, h.DB, h.Users, ids.CabalIDFrom(req.Id), user, h.Clock.Now())
+	if err != nil {
+		return nil, err
+	}
+	items := make([]api.CabalSentInvite, 0, len(sent))
+	for _, s := range sent {
+		items = append(items, api.CabalSentInvite{
+			RequestId: s.ID, User: wirePerson(s.User), InvitedBy: wirePerson(s.InvitedBy), ExpiresAt: s.ExpiresAt,
+		})
+	}
+	return api.GetCabalInvites200JSONResponse(items), nil
+}
+
+func (h HTTP) GetMyCabalInvites(
+	ctx context.Context, _ api.GetMyCabalInvitesRequestObject,
+) (api.GetMyCabalInvitesResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	received, err := app.ListMyInvites(ctx, h.DB, h.Users, user, h.Clock.Now())
+	if err != nil {
+		return nil, err
+	}
+	items := make([]api.CabalInvite, 0, len(received))
+	for _, r := range received {
+		items = append(items, api.CabalInvite{
+			RequestId: r.ID,
+			Cabal: api.CabalInviteCabal{
+				Id: r.Cabal.ID, Name: r.Cabal.Name, PictureUrl: r.Cabal.PictureURL, MemberCount: r.Cabal.MemberCount,
+			},
+			InvitedBy: wirePerson(r.InvitedBy), ExpiresAt: r.ExpiresAt,
+		})
+	}
+	return api.GetMyCabalInvites200JSONResponse(items), nil
 }
 
 func createCommand(user ids.UserID, req api.PostCabalRequestObject) (app.CreateCabal, error) {

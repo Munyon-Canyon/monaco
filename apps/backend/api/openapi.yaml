@@ -490,6 +490,34 @@ paths:
               example: {items: [{id: 01890a5d-ac96-774b-bcce-b302099a8060, kind: buy, status: confirmed, asset: {symbol: AAPLx, name: Apple}, usdc_micros: 25000000, units: 105000000, actor: null, tx_signature: 5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW, occurred_at: "2026-10-03T15:00:00Z"}], next_cursor: null}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/cabals/{id}/invites:
+    get:
+      operationId: getCabalInvites
+      tags: [cabal]
+      summary: List the pending invites of a cabal.
+      description: >-
+        Members only. Returns invites that are pending and not yet past their expiry, oldest first.
+        Requests to join are not listed here.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema: {type: string, format: uuid}
+        - name: status
+          in: query
+          required: false
+          description: Only `pending` is supported, which is also the default.
+          schema: {type: string, enum: [pending], default: pending}
+      responses:
+        "200":
+          description: The pending invites.
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: "#/components/schemas/CabalSentInvite"}}
+              example: [{request_id: "01890a5d-ac96-774b-bcce-b302099a8059", user: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, invited_by: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, expires_at: "2026-10-09T15:00:00Z"}]
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/members:
     post:
       operationId: postCabalMember
@@ -933,6 +961,23 @@ paths:
         "204":
           description: The account is deleted.
         default: {$ref: "#/components/responses/Problem"}
+  /v1/me/cabal-invites:
+    get:
+      operationId: getMyCabalInvites
+      tags: [cabal]
+      summary: List the invites waiting on the caller.
+      description: >-
+        Returns the caller's pending invites that are not yet past their expiry, oldest first.
+        Invites into a banned cabal are left out.
+      responses:
+        "200":
+          description: The caller's pending invites.
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: "#/components/schemas/CabalInvite"}}
+              example: [{request_id: "01890a5d-ac96-774b-bcce-b302099a8059", cabal: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, member_count: 3}, invited_by: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, expires_at: "2026-10-09T15:00:00Z"}]
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/me/cabals:
     get:
       operationId: getMyCabals
@@ -1868,6 +1913,26 @@ components:
           type: [string, "null"]
           description: The cursor for the next page. Null on the last page.
           examples: [null]
+    CabalInvite:
+      type: object
+      description: A pending invite, as its invitee sees it.
+      additionalProperties: false
+      required: [request_id, cabal, invited_by, expires_at]
+      properties:
+        request_id: {type: string, format: uuid, description: The id to accept or decline., examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
+        cabal: {$ref: "#/components/schemas/CabalInviteCabal", examples: [{id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, member_count: 3}]}
+        invited_by: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
+        expires_at: {type: string, format: date-time, examples: ["2026-10-09T15:00:00Z"]}
+    CabalInviteCabal:
+      type: object
+      description: The cabal an invite opens.
+      additionalProperties: false
+      required: [id, name, picture_url, member_count]
+      properties:
+        id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        name: {type: string, examples: [Friends]}
+        picture_url: {type: [string, "null"], description: Null when the cabal has no picture., examples: [null]}
+        member_count: {type: integer, format: int32, examples: [3]}
     CabalMember:
       type: object
       description: A cabal member, including vote standing.
@@ -1945,6 +2010,16 @@ components:
           items: {$ref: "#/components/schemas/CabalSearchItem"}
           examples: [[]]
         next_cursor: {type: [string, "null"], examples: [null]}
+    CabalSentInvite:
+      type: object
+      description: A pending invite, as a member of its cabal sees it.
+      additionalProperties: false
+      required: [request_id, user, invited_by, expires_at]
+      properties:
+        request_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
+        user: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
+        invited_by: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
+        expires_at: {type: string, format: date-time, examples: ["2026-10-09T15:00:00Z"]}
     CastVoteRequest:
       type: object
       description: The ballot to cast.

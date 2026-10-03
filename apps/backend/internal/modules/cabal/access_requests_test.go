@@ -1,6 +1,11 @@
 package cabal_test
 
 import (
+	"context"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -8,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -351,4 +357,82 @@ func TestAccessRequestQueries_anInviteStaysListedThroughItsExpiryInstantAndNotAf
 		wantIDs(t, "user list at "+tt.now.Sub(expires).String(),
 			idsOf(byUser, func(r sqlc.ListPendingInvitesForUserRow) uuid.UUID { return r.ID }), err, tt.want...)
 	}
+}
+
+func accessRequestQuery(t *testing.T, name string) string {
+	t.Helper()
+	body, err := os.ReadFile("../../../queries/cabal/access_requests.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, rest, ok := strings.Cut(string(body), "-- name: "+name+" ")
+	if !ok {
+		t.Fatalf("access_requests.sql has no query %s", name)
+	}
+	_, query, _ := strings.Cut(rest, "\n")
+	query, _, _ = strings.Cut(query, ";")
+	n := 0
+	return regexp.MustCompile(`sqlc\.n?arg\(\w+\)`).ReplaceAllStringFunc(query, func(string) string {
+		n++
+		return "$" + strconv.Itoa(n)
+	})
+}
+
+func TestAccessRequestQueries_theInviteInboxReadsThePendingUserIndex(t *testing.T) {
+	t.Parallel()
+	f := newQueries(t)
+	query := accessRequestQuery(t, "ListPendingInvitesForUser")
+	cabals := []testkit.SeededCabal{
+		testkit.NewCabal(t, f.pool, testkit.WithJoinMode("request")),
+		testkit.NewCabal(t, f.pool, testkit.WithJoinMode("request")),
+	}
+	for _, statement := range []string{
+		`INSERT INTO users (id, privy_user_id, login_provider, auth_state, auth_state_changed_at, account_status,
+			created_at, updated_at)
+		SELECT gen_random_uuid(), 'did:privy:inbox-' || g, 'sms', 'CREATED', now(), 'active', now(), now()
+		FROM generate_series(1, 4000) g`,
+		`INSERT INTO cabal_access_requests (id, cabal_id, user_id, direction, invited_by, expires_at, created_at)
+		SELECT gen_random_uuid(), c.id, u.id, 'invite', c.creator_id, now() + interval '7 days', now()
+		FROM users u, cabals c WHERE u.privy_user_id LIKE 'did:privy:inbox-%' AND c.id = ANY($1::uuid[])`,
+		`ANALYZE cabal_access_requests`,
+	} {
+		args := []any{}
+		if strings.Contains(statement, "$1") {
+			args = append(args, []uuid.UUID{cabals[0].ID.UUID(), cabals[1].ID.UUID()})
+		}
+		if _, err := f.pool.Exec(t.Context(), statement, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	plan := f.indexOnlyPlan(t, query, newID(), f.clock.Now())
+	if !strings.Contains(plan, "cabal_access_requests_pending_user_idx") {
+		t.Fatalf("plan does not use cabal_access_requests_pending_user_idx:\n%s", plan)
+	}
+}
+
+func (f queriesFixture) indexOnlyPlan(t *testing.T, query string, args ...any) string {
+	t.Helper()
+	var plan strings.Builder
+	err := f.uow.Do(t.Context(), func(ctx context.Context, tx db.Tx) error {
+		if _, err := tx.Queries().Exec(ctx, `SET LOCAL enable_seqscan = off`); err != nil {
+			return err
+		}
+		rows, err := tx.Queries().Query(ctx, "EXPLAIN "+query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var line string
+			if err := rows.Scan(&line); err != nil {
+				return err
+			}
+			plan.WriteString(line + "\n")
+		}
+		return rows.Err()
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return plan.String()
 }
