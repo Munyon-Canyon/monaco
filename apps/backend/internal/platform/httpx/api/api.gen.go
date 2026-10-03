@@ -614,6 +614,21 @@ func (e GetAssetChartParamsRange) Valid() bool {
 	}
 }
 
+// Defines values for GetCabalAccessRequestsParamsStatus.
+const (
+	Pending GetCabalAccessRequestsParamsStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the GetCabalAccessRequestsParamsStatus enum.
+func (e GetCabalAccessRequestsParamsStatus) Valid() bool {
+	switch e {
+	case Pending:
+		return true
+	default:
+		return false
+	}
+}
+
 // AccountStatus The user's standing. A suspended account is read-only apart from withdraw and cash out, and a banned account can only withdraw and cash out.
 //
 // Examples: active
@@ -926,6 +941,20 @@ type CabalAccess struct {
 
 	// Status Examples: pending
 	Status string `json:"status"`
+}
+
+// CabalAccessRequest A pending request to join a cabal, as its creator sees it.
+type CabalAccessRequest struct {
+	// CreatedAt Examples: 2026-10-02T15:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// Id Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	Id openapi_types.UUID `json:"id"`
+
+	// User A user as shown on a cabal.
+	//
+	// Examples: {"display_name":"Kai","handle":"kai","photo_url":null,"user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}
+	User CabalPerson `json:"user"`
 }
 
 // CabalMember A cabal member, including vote standing.
@@ -1539,6 +1568,27 @@ type PostCabalParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// GetCabalAccessRequestsParams defines parameters for GetCabalAccessRequests.
+type GetCabalAccessRequestsParams struct {
+	// Status Only `pending` is supported, which is also the default.
+	Status *GetCabalAccessRequestsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+}
+
+// GetCabalAccessRequestsParamsStatus defines parameters for GetCabalAccessRequests.
+type GetCabalAccessRequestsParamsStatus string
+
+// PostCabalAccessRequestParams defines parameters for PostCabalAccessRequest.
+type PostCabalAccessRequestParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// DeleteCabalAccessRequestParams defines parameters for DeleteCabalAccessRequest.
+type DeleteCabalAccessRequestParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // PostCabalMemberParams defines parameters for PostCabalMember.
 type PostCabalMemberParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -1661,6 +1711,15 @@ type ServerInterface interface {
 	// GetCabal Read one cabal.
 	// (GET /v1/cabals/{id})
 	GetCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// GetCabalAccessRequests List the pending requests to join a cabal.
+	// (GET /v1/cabals/{id}/access-requests)
+	GetCabalAccessRequests(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalAccessRequestsParams)
+	// PostCabalAccessRequest Ask to join a request cabal.
+	// (POST /v1/cabals/{id}/access-requests)
+	PostCabalAccessRequest(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCabalAccessRequestParams)
+	// DeleteCabalAccessRequest Withdraw a pending request or invite.
+	// (DELETE /v1/cabals/{id}/access-requests/{request_id})
+	DeleteCabalAccessRequest(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, requestId openapi_types.UUID, params DeleteCabalAccessRequestParams)
 	// PostCabalMember Join an open cabal.
 	// (POST /v1/cabals/{id}/members)
 	PostCabalMember(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCabalMemberParams)
@@ -2039,6 +2098,165 @@ func (siw *ServerInterfaceWrapper) GetCabal(w http.ResponseWriter, r *http.Reque
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCabal(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCabalAccessRequests operation middleware
+func (siw *ServerInterfaceWrapper) GetCabalAccessRequests(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetCabalAccessRequestsParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCabalAccessRequests(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostCabalAccessRequest operation middleware
+func (siw *ServerInterfaceWrapper) PostCabalAccessRequest(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostCabalAccessRequestParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostCabalAccessRequest(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteCabalAccessRequest operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCabalAccessRequest(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "request_id" -------------
+	var requestId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "request_id", r.PathValue("request_id"), &requestId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "request_id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteCabalAccessRequestParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteCabalAccessRequest(w, r, id, requestId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2832,6 +3050,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals", wrapper.GetCabals)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals", wrapper.PostCabal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}", wrapper.GetCabal)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/access-requests", wrapper.GetCabalAccessRequests)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/access-requests", wrapper.PostCabalAccessRequest)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/access-requests/{request_id}", wrapper.DeleteCabalAccessRequest)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/members", wrapper.PostCabalMember)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/devices", wrapper.PostDevice)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/devices/{token}", wrapper.DeleteDevice)
@@ -3154,6 +3375,127 @@ type GetCabaldefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetCabaldefaultApplicationProblemPlusJSONResponse) VisitGetCabalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCabalAccessRequestsRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetCabalAccessRequestsParams
+}
+
+type GetCabalAccessRequestsResponseObject interface {
+	VisitGetCabalAccessRequestsResponse(w http.ResponseWriter) error
+}
+
+type GetCabalAccessRequests200JSONResponse []CabalAccessRequest
+
+func (response GetCabalAccessRequests200JSONResponse) VisitGetCabalAccessRequestsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCabalAccessRequestsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetCabalAccessRequestsdefaultApplicationProblemPlusJSONResponse) VisitGetCabalAccessRequestsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostCabalAccessRequestRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params PostCabalAccessRequestParams
+}
+
+type PostCabalAccessRequestResponseObject interface {
+	VisitPostCabalAccessRequestResponse(w http.ResponseWriter) error
+}
+
+type PostCabalAccessRequest201JSONResponse CabalAccess
+
+func (response PostCabalAccessRequest201JSONResponse) VisitPostCabalAccessRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostCabalAccessRequestdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PostCabalAccessRequestdefaultApplicationProblemPlusJSONResponse) VisitPostCabalAccessRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteCabalAccessRequestRequestObject struct {
+	Id        openapi_types.UUID `json:"id"`
+	RequestId openapi_types.UUID `json:"request_id"`
+	Params    DeleteCabalAccessRequestParams
+}
+
+type DeleteCabalAccessRequestResponseObject interface {
+	VisitDeleteCabalAccessRequestResponse(w http.ResponseWriter) error
+}
+
+type DeleteCabalAccessRequest200JSONResponse CabalAccess
+
+func (response DeleteCabalAccessRequest200JSONResponse) VisitDeleteCabalAccessRequestResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteCabalAccessRequestdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteCabalAccessRequestdefaultApplicationProblemPlusJSONResponse) VisitDeleteCabalAccessRequestResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -3880,6 +4222,15 @@ type StrictServerInterface interface {
 	// GetCabal Read one cabal.
 	// (GET /v1/cabals/{id})
 	GetCabal(ctx context.Context, request GetCabalRequestObject) (GetCabalResponseObject, error)
+	// GetCabalAccessRequests List the pending requests to join a cabal.
+	// (GET /v1/cabals/{id}/access-requests)
+	GetCabalAccessRequests(ctx context.Context, request GetCabalAccessRequestsRequestObject) (GetCabalAccessRequestsResponseObject, error)
+	// PostCabalAccessRequest Ask to join a request cabal.
+	// (POST /v1/cabals/{id}/access-requests)
+	PostCabalAccessRequest(ctx context.Context, request PostCabalAccessRequestRequestObject) (PostCabalAccessRequestResponseObject, error)
+	// DeleteCabalAccessRequest Withdraw a pending request or invite.
+	// (DELETE /v1/cabals/{id}/access-requests/{request_id})
+	DeleteCabalAccessRequest(ctx context.Context, request DeleteCabalAccessRequestRequestObject) (DeleteCabalAccessRequestResponseObject, error)
 	// PostCabalMember Join an open cabal.
 	// (POST /v1/cabals/{id}/members)
 	PostCabalMember(ctx context.Context, request PostCabalMemberRequestObject) (PostCabalMemberResponseObject, error)
@@ -4179,6 +4530,88 @@ func (sh *strictHandler) GetCabal(w http.ResponseWriter, r *http.Request, id ope
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetCabalResponseObject); ok {
 		if err := validResponse.VisitGetCabalResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCabalAccessRequests operation middleware
+func (sh *strictHandler) GetCabalAccessRequests(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalAccessRequestsParams) {
+	var request GetCabalAccessRequestsRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCabalAccessRequests(ctx, request.(GetCabalAccessRequestsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCabalAccessRequests")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCabalAccessRequestsResponseObject); ok {
+		if err := validResponse.VisitGetCabalAccessRequestsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostCabalAccessRequest operation middleware
+func (sh *strictHandler) PostCabalAccessRequest(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCabalAccessRequestParams) {
+	var request PostCabalAccessRequestRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostCabalAccessRequest(ctx, request.(PostCabalAccessRequestRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostCabalAccessRequest")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostCabalAccessRequestResponseObject); ok {
+		if err := validResponse.VisitPostCabalAccessRequestResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteCabalAccessRequest operation middleware
+func (sh *strictHandler) DeleteCabalAccessRequest(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, requestId openapi_types.UUID, params DeleteCabalAccessRequestParams) {
+	var request DeleteCabalAccessRequestRequestObject
+
+	request.Id = id
+	request.RequestId = requestId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteCabalAccessRequest(ctx, request.(DeleteCabalAccessRequestRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteCabalAccessRequest")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteCabalAccessRequestResponseObject); ok {
+		if err := validResponse.VisitDeleteCabalAccessRequestResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

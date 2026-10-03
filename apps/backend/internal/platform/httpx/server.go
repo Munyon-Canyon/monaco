@@ -102,7 +102,20 @@ type Routes struct {
 	SystemRoutes
 	CabalRoutes
 	CabalJoinRoutes
+	CabalAccessRoutes
 	MarketRoutes
+}
+
+type CabalAccessRoutes interface {
+	PostCabalAccessRequest(
+		context.Context, api.PostCabalAccessRequestRequestObject,
+	) (api.PostCabalAccessRequestResponseObject, error)
+	GetCabalAccessRequests(
+		context.Context, api.GetCabalAccessRequestsRequestObject,
+	) (api.GetCabalAccessRequestsResponseObject, error)
+	DeleteCabalAccessRequest(
+		context.Context, api.DeleteCabalAccessRequestRequestObject,
+	) (api.DeleteCabalAccessRequestResponseObject, error)
 }
 
 type CabalJoinRoutes interface {

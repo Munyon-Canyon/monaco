@@ -38,6 +38,7 @@ type routes struct {
 	httpx.SystemRoutes
 	httpx.CabalRoutes
 	httpx.CabalJoinRoutes
+	httpx.CabalAccessRoutes
 	httpx.MarketRoutes
 }
 

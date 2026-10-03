@@ -26,15 +26,18 @@ import (
 )
 
 type HTTP struct {
-	Create *app.CreateCabalHandler
-	Join   *app.JoinCabalHandler
-	DB     sqlc.DBTX
-	Users  app.UserCards
+	Create  *app.CreateCabalHandler
+	Join    *app.JoinCabalHandler
+	Request *app.RequestAccessHandler
+	Revoke  *app.RevokeAccessHandler
+	DB      sqlc.DBTX
+	Users   app.UserCards
 }
 
 var (
-	_ httpx.CabalRoutes     = HTTP{}
-	_ httpx.CabalJoinRoutes = HTTP{}
+	_ httpx.CabalRoutes       = HTTP{}
+	_ httpx.CabalJoinRoutes   = HTTP{}
+	_ httpx.CabalAccessRoutes = HTTP{}
 )
 
 func (h HTTP) PostCabal(
@@ -244,6 +247,54 @@ func (h HTTP) GetCabalByCode(
 	}), nil
 }
 
+func (h HTTP) PostCabalAccessRequest(
+	ctx context.Context, req api.PostCabalAccessRequestRequestObject,
+) (api.PostCabalAccessRequestResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	filed, err := h.Request.Handle(ctx, app.RequestAccess{ActorID: user, CabalID: ids.CabalIDFrom(req.Id)})
+	if err != nil {
+		return nil, err
+	}
+	return api.PostCabalAccessRequest201JSONResponse(wireAccessValue(filed)), nil
+}
+
+func (h HTTP) DeleteCabalAccessRequest(
+	ctx context.Context, req api.DeleteCabalAccessRequestRequestObject,
+) (api.DeleteCabalAccessRequestResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	revoked, err := h.Revoke.Handle(ctx, app.RevokeAccess{
+		ActorID: user, CabalID: ids.CabalIDFrom(req.Id), RequestID: ids.AccessRequestIDFrom(req.RequestId),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return api.DeleteCabalAccessRequest200JSONResponse(wireAccessValue(revoked)), nil
+}
+
+func (h HTTP) GetCabalAccessRequests(
+	ctx context.Context, req api.GetCabalAccessRequestsRequestObject,
+) (api.GetCabalAccessRequestsResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	pending, err := app.ListAccessRequests(ctx, h.DB, h.Users, ids.CabalIDFrom(req.Id), user)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]api.CabalAccessRequest, 0, len(pending))
+	for _, p := range pending {
+		items = append(items, api.CabalAccessRequest{Id: p.ID, User: wirePerson(p.User), CreatedAt: p.CreatedAt})
+	}
+	return api.GetCabalAccessRequests200JSONResponse(items), nil
+}
+
 func createCommand(user ids.UserID, req api.PostCabalRequestObject) (app.CreateCabal, error) {
 	const op = "cabal.PostCabal"
 	if req.Body == nil {
@@ -299,13 +350,16 @@ func wireCabal(view app.CabalView) api.Cabal {
 			JoinMode: view.JoinMode, VoterMode: view.VoterMode, Threshold: view.Threshold,
 			ProposalExpirySeconds: view.ExpirySeconds, SlippageBps: view.SlippageBps,
 		},
-		Creator: api.CabalPerson{
-			UserId: view.Creator.UserID, Handle: nullString(view.Creator.Handle),
-			DisplayName: view.Creator.DisplayName, PhotoUrl: nullString(view.Creator.PhotoURL),
-		},
+		Creator:     wirePerson(view.Creator),
 		MemberCount: view.MemberCount, Members: members, Me: wireMe(view.Me),
 		MyAccessRequest: wireAccess(view.Access), InviteCode: view.InviteCode,
 		TreasuryAddress: string(view.TreasuryAddress),
+	}
+}
+
+func wirePerson(p app.Person) api.CabalPerson {
+	return api.CabalPerson{
+		UserId: p.UserID, Handle: nullString(p.Handle), DisplayName: p.DisplayName, PhotoUrl: nullString(p.PhotoURL),
 	}
 }
 
@@ -320,7 +374,12 @@ func wireAccess(access *app.Access) *api.CabalAccess {
 	if access == nil {
 		return nil
 	}
-	return &api.CabalAccess{Id: access.ID, Direction: access.Direction, Status: access.Status}
+	wired := wireAccessValue(*access)
+	return &wired
+}
+
+func wireAccessValue(access app.Access) api.CabalAccess {
+	return api.CabalAccess{Id: access.ID, Direction: access.Direction, Status: access.Status}
 }
 
 func nullString(value string) *string {

@@ -28,15 +28,21 @@ import (
 
 type accessFixture struct {
 	pool  *pgxpool.Pool
+	ids   *testkit.IDs
 	clock *testkit.Clock
 	uow   *db.UnitOfWork
+	users app.UserCards
 }
 
 func newAccess(t *testing.T) accessFixture {
 	t.Helper()
 	pool := testkit.DB(t)
 	clk := testkit.NewClock(clock.Real{}.Now().UTC().Truncate(time.Second))
-	return accessFixture{pool: pool, clock: clk, uow: db.New(pool, testkit.NewIDs(testkit.RandSeed(t)), clk)}
+	g := testkit.NewIDs(testkit.RandSeed(t))
+	return accessFixture{
+		pool: pool, ids: g, clock: clk, uow: db.New(pool, g, clk),
+		users: identity.New(module.Deps{Pool: pool}).Queries(),
+	}
 }
 
 func as(ctx context.Context, user ids.UserID) context.Context {
@@ -78,24 +84,24 @@ func (f accessFixture) membership(t *testing.T, c ids.CabalID, user ids.UserID) 
 	return m, true
 }
 
-func (f accessFixture) payloads(t *testing.T, typ events.Type) []map[string]any {
+func decoded[E any](t *testing.T, f accessFixture, typ events.Type) []E {
 	t.Helper()
 	rows, err := f.pool.Query(t.Context(), `SELECT payload FROM events WHERE type = $1 ORDER BY id`, string(typ))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer rows.Close()
-	var out []map[string]any
+	var out []E
 	for rows.Next() {
 		var raw []byte
 		if err := rows.Scan(&raw); err != nil {
 			t.Fatal(err)
 		}
-		var payload map[string]any
-		if err := json.Unmarshal(raw, &payload); err != nil {
+		var e E
+		if err := json.Unmarshal(raw, &e); err != nil {
 			t.Fatal(err)
 		}
-		out = append(out, payload)
+		out = append(out, e)
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
@@ -103,12 +109,12 @@ func (f accessFixture) payloads(t *testing.T, typ events.Type) []map[string]any 
 	return out
 }
 
-func (f accessFixture) joins(t *testing.T) []map[string]any {
+func (f accessFixture) joins(t *testing.T) []events.CabalMemberJoined {
 	t.Helper()
-	var out []map[string]any
-	for _, p := range f.payloads(t, events.TypeCabalMemberJoined) {
-		if p["via"] != "create" {
-			out = append(out, p)
+	var out []events.CabalMemberJoined
+	for _, e := range decoded[events.CabalMemberJoined](t, f, events.TypeCabalMemberJoined) {
+		if e.Via != "create" {
+			out = append(out, e)
 		}
 	}
 	return out
@@ -132,10 +138,9 @@ func TestJoinCabal_addsAVotingMemberToAnOpenCabalAndAppendsTheJoin(t *testing.T)
 	if m, ok := f.membership(t, c.ID, joiner); !ok || m != (membership{"member", true}) {
 		t.Fatalf("membership = %+v, %v; want a voting member", m, ok)
 	}
-	joins := f.joins(t)
-	if len(joins) != 1 || joins[0]["user_id"] != joiner.String() || joins[0]["cabal_id"] != c.ID.String() ||
-		joins[0]["role"] != "member" || joins[0]["via"] != "open" || joins[0]["request_id"] != nil {
-		t.Fatalf("member_joined events = %+v, want one open join by %s", joins, joiner)
+	want := events.CabalMemberJoined{V: 1, CabalID: c.ID.UUID(), UserID: joiner.UUID(), Role: "member", Via: "open"}
+	if joins := f.joins(t); len(joins) != 1 || joins[0] != want {
+		t.Fatalf("member_joined events = %+v, want %+v", joins, want)
 	}
 }
 
@@ -184,7 +189,7 @@ func TestJoinCabal_refusesWithoutWritingAnything(t *testing.T) {
 	}
 }
 
-func (f accessFixture) holdInsert(t *testing.T, statement string, args ...any) func() {
+func (f accessFixture) holdWrite(t *testing.T, statement string, args ...any) func() {
 	t.Helper()
 	held, release := make(chan struct{}), make(chan struct{})
 	var once sync.Once
@@ -206,13 +211,13 @@ func (f accessFixture) holdInsert(t *testing.T, statement string, args ...any) f
 	select {
 	case <-held:
 	case err := <-failed:
-		t.Fatalf("hold insert: %v", err)
+		t.Fatalf("hold write: %v", err)
 	}
 	return func() {
 		unblock()
 		holder.Wait()
 		if err := <-failed; err != nil {
-			t.Fatalf("hold insert: %v", err)
+			t.Fatalf("hold write: %v", err)
 		}
 	}
 }
@@ -232,7 +237,7 @@ func TestJoinCabal_reportsAJoinThatLostTheRaceToAConcurrentInsertAsAlreadyMember
 	f := newAccess(t)
 	c := testkit.NewCabal(t, f.pool)
 	joiner := f.user(t)
-	commit := f.holdInsert(t, `INSERT INTO cabal_members (cabal_id, user_id, role, can_vote, joined_at)
+	commit := f.holdWrite(t, `INSERT INTO cabal_members (cabal_id, user_id, role, can_vote, joined_at)
 		VALUES ($1, $2, 'member', true, now())`, c.ID.UUID(), joiner.UUID())
 	done := make(chan error, 1)
 	var joining sync.WaitGroup
@@ -270,9 +275,14 @@ func TestJoinCabal_wrapsStoreFailuresAsInternal(t *testing.T) {
 
 func (f accessFixture) routes(users app.UserCards) adapters.HTTP {
 	if users == nil {
-		users = identity.New(module.Deps{Pool: f.pool}).Queries()
+		users = f.users
 	}
-	return adapters.HTTP{Join: app.NewJoinCabalHandler(f.uow, f.clock), DB: f.pool, Users: users}
+	return adapters.HTTP{
+		Join:    app.NewJoinCabalHandler(f.uow, f.clock),
+		Request: app.NewRequestAccessHandler(f.uow, f.ids, f.clock),
+		Revoke:  app.NewRevokeAccessHandler(f.uow, f.clock),
+		DB:      f.pool, Users: users,
+	}
 }
 
 func TestPostCabalMember_returnsTheCabalAsItsNewMemberSeesIt(t *testing.T) {

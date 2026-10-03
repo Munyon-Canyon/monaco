@@ -36,10 +36,13 @@ func (*Module) Name() string { return "cabal" }
 
 func (m *Module) Routes(r *httpx.Routes) {
 	h := adapters.HTTP{
-		Create: m.CreateCabalHandler(), Join: app.NewJoinCabalHandler(m.deps.UoW, m.deps.Clock),
-		DB: m.deps.Pool, Users: identity.New(m.deps).Queries(),
+		Create:  m.CreateCabalHandler(),
+		Join:    app.NewJoinCabalHandler(m.deps.UoW, m.deps.Clock),
+		Request: app.NewRequestAccessHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock),
+		Revoke:  app.NewRevokeAccessHandler(m.deps.UoW, m.deps.Clock),
+		DB:      m.deps.Pool, Users: identity.New(m.deps).Queries(),
 	}
-	r.CabalRoutes, r.CabalJoinRoutes = h, h
+	r.CabalRoutes, r.CabalJoinRoutes, r.CabalAccessRoutes = h, h, h
 }
 
 func (m *Module) Consumers() []bus.Consumer {
