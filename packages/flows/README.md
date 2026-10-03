@@ -7,8 +7,8 @@
 | Path | Contents |
 | --- | --- |
 | `app/<id>.tsv` | One registry file per flow. |
-| `Package.swift` | The `MonacoFlows` Swift package. Arrives in #1664. |
-| `Sources/MonacoFlows/Flow<id>.gen.swift` | The outcome enum for one flow. Generated. Arrives in #1664. |
+| `Package.swift` | The `MonacoFlows` Swift package, with no dependencies. |
+| `Sources/MonacoFlows/Flow<id>.gen.swift` | The outcome enum for one flow. Generated; see below. |
 
 ## Registry file
 
@@ -37,3 +37,15 @@ To add a flow, add its row to `apps/backend/flows.tsv`, then add `app/<id>.tsv`.
 - Keep one flow per file. No file under `packages/flows` other than this README may name two flow ids, and `monacoctl flows check` fails one that does. Tools build any list of flows at run time. A single aggregate file would conflict on every parallel stack.
 - Never copy a backend column. Module, trigger, command, outcomes and codes live only in `apps/backend/flows.tsv`. The registry joins on `id`.
 - Never edit the outcome enums under `Sources/MonacoFlows`. `monacoctl gen flows` generates them from `apps/backend/flows.tsv`.
+
+## Generated Swift
+
+`monacoctl gen flows` writes `Sources/MonacoFlows/Flow<id>.gen.swift` for each row of `apps/backend/flows.tsv`, and deletes the file of a row that is gone. `go generate ./...` in `apps/backend` runs it, and `scripts/ci/ready.sh` fails when the output is stale. Each file holds one enum, `Flow<id>Outcome`, where `<id>` is the row id verbatim (`01a` gives `Flow01aOutcome`):
+
+- `ok` stays `ok`.
+- A code outcome becomes a case named for the code with a lowercase first letter, so `InvalidInput` becomes `invalidInput`. A Swift keyword is escaped with backticks.
+- Every `crash:` outcome collapses into one last case, `interrupted`, because the app resends with the same idempotency key.
+- `code` returns the wire code string, such as `invalid_input`, and `nil` for `ok` and `interrupted`. `init?(code:)` is its exact inverse.
+- `flowID` and `command` repeat the row's id and command. The enum carries nothing else from the row.
+
+Never edit a generated file. Change the row in `apps/backend/flows.tsv` and run `cd apps/backend && go run ./cmd/monacoctl gen flows`. On a restack, `merge=ours` in `.gitattributes` keeps the local copy, and the next `gen flows` rewrites it. A `switch` over a `Flow<id>Outcome` lists every case, with no `default:`, so a new backend outcome breaks the app build until the app handles it.

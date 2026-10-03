@@ -5,3 +5,4 @@ apps/backend/CHANGELOG.md merge=union
 docs/architecture/log/*.md merge=union
 apps/backend/api/openapi.yaml linguist-generated
 apps/backend/internal/platform/httpx/api/api.gen.go linguist-generated
+packages/flows/Sources/MonacoFlows/*.gen.swift merge=ours linguist-generated
