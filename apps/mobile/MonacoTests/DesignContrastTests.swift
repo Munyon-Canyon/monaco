@@ -15,8 +15,8 @@ import UIKit
 ///
 /// The old "known gap on purpose" note is gone with the blue brand. It said `brand` as *text* was
 /// 4.09:1 on `surfaceSunken` in dark and that nothing drew it there. Both halves were wrong by the
-/// time the forest palette landed: `MonacoSectionHeader`, `AssetAboutCard`, `AssetActivityCard` and
-/// the balance retry button all draw `brand` as a label, sometimes inside a sunken card. The pair
+/// time the forest palette landed: `MonacoSectionHeader`, `AssetActivityCard`, and the balance
+/// retry button all draw `brand` as a label, sometimes inside a sunken card. The pair
 /// is in the table now, and the forest `brand` clears AA on all three surfaces in both schemes.
 enum WCAGContrast {
     struct RGBA {

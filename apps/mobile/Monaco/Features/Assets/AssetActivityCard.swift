@@ -1,6 +1,26 @@
 import MonacoCore
 import SwiftUI
 
+struct AssetSectionTextButton: View {
+    let title: String
+    let action: () -> Void
+
+    private static let targetOutset: CGFloat = 11
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(MonacoTheme.Typo.calloutStrong)
+                .foregroundStyle(MonacoTheme.brand)
+                .padding(.vertical, Self.targetOutset)
+                .padding(.trailing, MonacoTheme.Space.m)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, -Self.targetOutset)
+    }
+}
+
 /// "Activity on AAPLx": what the member's cabals have actually done with this stock.
 ///
 /// Monaco's answer to a news feed. There is no news vendor behind this app, and a

@@ -284,24 +284,6 @@ struct AssetDetailView: View {
             if let detail = model.detail, detail.resolvedKind == .preIpo {
                 PreIpoDetailSection(detail: detail, openVariant: { route = .variant(symbol: $0) })
             }
-            // 2. Stats — open/high/low, 52-week range, trading cost           (#342)
-            if let grid = AssetStatsGrid.make(model.detail?.stats, currentUsdcMicros: model.detail?.priceUsdcMicros) {
-                AssetStatsCard(grid: grid)
-            }
-            // 3. Stock vs token — NASDAQ against the xStock, premium          (#347)
-            if let card = stockVsTokenCard {
-                StockVsTokenCardView(card: card)
-            }
-            // 4. About — what the token is, and the tracker disclosure        (#343)
-            if let detail = model.detail {
-                AssetAboutCard(
-                    about: AssetAboutCopy.make(
-                        symbol: detail.symbol,
-                        name: detail.name,
-                        solanaMint: detail.solanaMint,
-                        liquidityLabel: detail.liquidity.label
-                    ))
-            }
             // 5. Activity on this stock — proposals, fills and comments       (#344)
             if !social.activity.isEmpty {
                 AssetActivityCard(
@@ -311,18 +293,6 @@ struct AssetDetailView: View {
                 )
             }
         }
-    }
-
-    /// The Pyth comparison, built from the same detail payload the hero reads. Nil
-    /// when the backend sent no comparison, or when neither leg carries a price.
-    private var stockVsTokenCard: StockVsTokenCard? {
-        guard let detail = model.detail else { return nil }
-        return StockVsTokenCard.make(
-            symbol: detail.symbol,
-            name: ProposeStock.displayName(symbol: detail.symbol, catalogName: detail.name),
-            quotes: detail.stockVsToken,
-            market: model.marketStatus
-        )
     }
 
     /// The sticky bar. It replaces the inline action row, which sat below five cards
