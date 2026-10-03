@@ -521,3 +521,46 @@ func TestXcodeLockGroupInterruptStopsCommand(t *testing.T) {
 		}
 	})
 }
+
+func TestXcodeLockRecordsTheWaitOnceItTakesTheLock(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+	started := filepath.Join(e.dir, "holder.started")
+	release := filepath.Join(e.dir, "holder.release")
+	waited := filepath.Join(e.dir, "waited")
+	ran := filepath.Join(e.dir, "ran")
+
+	holder := e.start(e.dir, nil, append([]string{"xcode"}, holdUntil(started, release)...)...)
+	eventually(t, "the holder to hold the lock", func() bool { return exists(started) })
+	w := e.start(e.dir, []string{"MONACO_LOCK_WAITED=" + waited}, "xcode", "sh", "-c", `[ -s "$1" ] && touch "$2"`, "sh", waited, ran)
+	eventually(t, "the waiter to queue", func() bool { return countTickets(e.xcodeLock()+".queue") == 1 })
+	time.Sleep(1100 * time.Millisecond)
+	if exists(waited) {
+		t.Fatalf("the wait was recorded before the lock was taken")
+	}
+	if err := os.WriteFile(release, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code := holder.wait(t); code != 0 {
+		t.Fatalf("holder exit %d:\n%s", code, holder.stderr.String())
+	}
+	if code := w.wait(t); code != 0 || !exists(ran) {
+		t.Fatalf("waiter exit %d, ran before the wait was written: %v:\n%s", code, exists(ran), w.stderr.String())
+	}
+	got, err := os.ReadFile(waited)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := strconv.Atoi(strings.TrimSpace(string(got))); err != nil || n < 1 {
+		t.Fatalf("waited %q, want at least 1 whole second", got)
+	}
+
+	free := e.start(e.dir, []string{"MONACO_LOCK_WAITED=" + waited}, "xcode", "true")
+	if code := free.wait(t); code != 0 {
+		t.Fatalf("free lock exit %d:\n%s", code, free.stderr.String())
+	}
+	got, _ = os.ReadFile(waited)
+	if lines := strings.Fields(string(got)); len(lines) != 2 || lines[1] != "0" {
+		t.Fatalf("a free lock appends 0 after the first wait, got %q", got)
+	}
+}

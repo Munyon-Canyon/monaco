@@ -143,6 +143,7 @@ taken over or dropped.
 | --- | --- | --- |
 | `MONACO_LOCK_HOLD` | 1800 | Seconds the command may run. Past it the command is stopped, the script prints `command exceeded the <n>s hold cap` and exits 124. |
 | `MONACO_XCODE_LOCK_TIMEOUT` | 5400 | Seconds a waiter waits before it gives up with exit 75. |
+| `MONACO_LOCK_WAITED` | unset | File that gets one line, the whole seconds spent waiting, once the lock is taken. `monacoctl agents check` reads it to keep the wait out of the `xcode` budget and prints `waited 4m12s for xcode lock`. |
 | `MONACO_LOCK_POLL` | 2 | Seconds between checks while waiting. |
 
 The cap uses `timeout`, or `gtimeout` from Homebrew coreutils, and a shell watchdog when a

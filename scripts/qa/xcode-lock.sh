@@ -25,6 +25,9 @@
 #   MONACO_LOCK_HOLD           seconds the command may run before it is stopped and the
 #                              script exits 124 (default 1800)
 #   MONACO_LOCK_POLL           seconds between checks while waiting (default 2)
+#   MONACO_LOCK_WAITED         file to append the whole seconds spent waiting to, once the
+#                              lock is taken (`monacoctl agents check` keeps the wait out of
+#                              its budget this way)
 set -euo pipefail
 
 case "${1:-}" in
@@ -204,6 +207,9 @@ done
 
 rm -f "$queue_dir/$ticket"
 ticket=""
+if [[ -n "${MONACO_LOCK_WAITED:-}" ]]; then
+  echo "$((SECONDS - start))" >> "$MONACO_LOCK_WAITED"
+fi
 # cwd first: a waiter treats a lock with no pid yet as live, never as stale.
 printf '%s\n' "$PWD" > "$lock_dir/cwd"
 echo "$$" > "$lock_dir/pid"

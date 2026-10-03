@@ -45,7 +45,14 @@ type checkRow struct {
 	dir   string
 	cmds  [][]string
 	skip  string
+
+	lockWaited string
 }
+
+const (
+	xcodeLockWait = 90 * time.Minute
+	lockWaitedDir = "xcode-lock"
+)
 
 type timing struct {
 	name   string
@@ -337,12 +344,38 @@ func (env *Env) xcodeRow(changed []string) (checkRow, bool) {
 	if _, err := env.lookPath("xcodebuild"); err != nil {
 		return checkRow{}, false
 	}
+	waited := env.statePath(lockWaitedDir, strconv.Itoa(os.Getpid())+".waited")
+	locked := []string{
+		"env",
+		"MONACO_LOCK_WAITED=" + waited,
+		"MONACO_LOCK_HOLD=" + seconds(env.Config.Budget["xcode"]),
+		"MONACO_XCODE_LOCK_TIMEOUT=" + seconds(xcodeLockWait),
+		"bash", "-c",
+	}
 	cmds := env.installUnlessPresent("xcsift")
 	cmds = append(cmds,
-		[]string{"bash", "-c", xcodeScript("build-for-testing")},
-		[]string{"bash", "-c", xcodeScript("-only-testing:MonacoTests test-without-building")},
+		append(slices.Clone(locked), xcodeScript("build-for-testing")),
+		append(slices.Clone(locked), xcodeScript("-only-testing:MonacoTests test-without-building")),
 	)
-	return checkRow{label: "xcode", kind: "xcode", dir: env.Work, cmds: cmds}, true
+	return checkRow{label: "xcode", kind: "xcode", dir: env.Work, cmds: cmds, lockWaited: waited}, true
+}
+
+func seconds(d time.Duration) string {
+	return strconv.Itoa(int(d.Seconds()))
+}
+
+func lockWaited(file string) time.Duration {
+	if file == "" {
+		return 0
+	}
+	raw, _ := os.ReadFile(file)
+	var total time.Duration
+	for _, f := range strings.Fields(string(raw)) {
+		if n, err := strconv.Atoi(f); err == nil {
+			total += time.Duration(n) * time.Second
+		}
+	}
+	return total
 }
 
 func mobileTreeChanged(changed []string) bool {
@@ -737,16 +770,27 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 	}
 	budget := r.env.Config.Budget[row.kind]
 	if row.kind != packageKind {
+		limit := budget
+		if row.lockWaited != "" {
+			limit += xcodeLockWait * time.Duration(len(row.cmds))
+		}
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, budget)
+		ctx, cancel = context.WithTimeout(ctx, limit)
 		defer cancel()
+	}
+	if row.lockWaited != "" {
+		if _, err := r.env.writeState(lockWaitedDir, filepath.Base(row.lockWaited), nil); err != nil {
+			return err
+		}
 	}
 	rowStart, first := r.env.Now(), len(r.timings)
 	warnings := 0
+	var waited time.Duration
 	for _, cmd := range row.cmds {
 		text, err := r.exec(ctx, row, cmd)
 		warnings += strings.Count(text, "::warning ")
-		rescued, budgetErr := r.checkBudget(ctx, stdout, row, cmd, budget, rowStart, first)
+		waited = lockWaited(row.lockWaited)
+		rescued, budgetErr := r.checkBudget(ctx, stdout, row, cmd, budget, rowStart, waited, first)
 		if budgetErr != nil {
 			return budgetErr
 		}
@@ -755,10 +799,14 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 		}
 	}
 	note := ""
-	if warnings > 0 {
-		note = fmt.Sprintf("  %d warnings in the log", warnings)
+	if waited > 0 {
+		note += fmt.Sprintf("  waited %s for %s lock", waited, row.label)
 	}
-	_, _ = fmt.Fprintf(stdout, "  %-15s ok    %.1fs%s\n", row.label, r.env.Now().Sub(rowStart).Seconds(), note)
+	if warnings > 0 {
+		note += fmt.Sprintf("  %d warnings in the log", warnings)
+	}
+	took := r.env.Now().Sub(rowStart) - waited
+	_, _ = fmt.Fprintf(stdout, "  %-15s ok    %.1fs%s\n", row.label, took.Seconds(), note)
 	return nil
 }
 
@@ -777,6 +825,7 @@ func (r *checkRun) checkBudget(
 	cmd []string,
 	budget time.Duration,
 	rowStart time.Time,
+	waited time.Duration,
 	first int,
 ) (bool, error) {
 	if row.kind == packageKind {
@@ -785,7 +834,7 @@ func (r *checkRun) checkBudget(
 			return retried, err
 		}
 	}
-	return false, r.overBudget(stdout, row, budget, rowStart, r.timings[first:])
+	return false, r.overBudget(stdout, row, budget, rowStart, waited, r.timings[first:])
 }
 
 func (r *checkRun) exec(ctx context.Context, row checkRow, cmd []string) (string, error) {
@@ -897,7 +946,7 @@ func parseLoad(raw string) (float64, error) {
 }
 
 func (r *checkRun) overBudget(
-	stdout io.Writer, row checkRow, budget time.Duration, rowStart time.Time, timings []timing,
+	stdout io.Writer, row checkRow, budget time.Duration, rowStart time.Time, waited time.Duration, timings []timing,
 ) error {
 	var detail string
 	if row.kind == packageKind {
@@ -909,13 +958,16 @@ func (r *checkRun) overBudget(
 		detail = fmt.Sprintf("%s: package %s took %.1fs, over the %s per-package budget",
 			row.label, s.name, s.took.Seconds(), budget)
 	} else {
-		took := r.env.Now().Sub(rowStart)
+		took := r.env.Now().Sub(rowStart) - waited
 		if took <= budget {
 			return nil
 		}
 		s := slowest(timings)
 		detail = fmt.Sprintf("%s row over the %s %s budget after %.0fs; slowest: %s (%.1fs)",
 			row.label, budget, row.kind, took.Seconds(), s.name, s.took.Seconds())
+	}
+	if waited > 0 {
+		detail += fmt.Sprintf("; waited %s for %s lock, not counted", waited, row.label)
 	}
 	_, _ = fmt.Fprintf(stdout, "  %-15s over budget\n", row.label)
 	return detailErr(errs.CodeUpstreamTimeout, "monacoctl.agents.check", detail)
