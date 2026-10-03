@@ -34,6 +34,15 @@ func execWaitDelay() time.Duration {
 	return 10 * time.Second
 }
 
+func ghTimeout() time.Duration {
+	if testing.Testing() {
+		if d, err := time.ParseDuration(os.Getenv("MONACO_GH_TIMEOUT")); err == nil && d > 0 {
+			return d
+		}
+	}
+	return time.Minute
+}
+
 type Env struct {
 	Work        string
 	Common      string
@@ -292,6 +301,11 @@ func poll(limit time.Duration, done func() bool) bool {
 }
 
 func Exec(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
+	if name == "gh" {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, ghTimeout())
+		defer cancel()
+	}
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
@@ -302,6 +316,9 @@ func Exec(ctx context.Context, dir, stdin, name string, args ...string) ([]byte,
 	out, err := cmd.Output()
 	if cmd.Process != nil {
 		_ = killGroup(cmd.Process)
+	}
+	if err != nil && ctx.Err() != nil {
+		err = fmt.Errorf("%w: %w", ctx.Err(), err)
 	}
 	if err != nil {
 		return out, fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, bytes.TrimSpace(stderr.Bytes()))

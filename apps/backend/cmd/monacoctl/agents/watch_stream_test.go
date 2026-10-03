@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -628,5 +629,25 @@ func TestWatchStream_aDroppedLabelIsNotReportedWhileAnOpenDraftListsThePR(t *tes
 		"#7 dropped from the Graphite merge queue",
 	) {
 		t.Fatalf("no drop once the draft closed:\n%s", got)
+	}
+}
+
+func TestWatchStream_aHungGHCallFailsOnePassAndTheNextPassRuns(t *testing.T) {
+	t.Setenv("PATH", hangingGH(t))
+	t.Setenv("MONACO_GH_TIMEOUT", "300ms")
+	f := newFixture(t)
+	s := queuedStack(t, f, "/w/40")
+	var hung atomic.Bool
+	f.run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
+		if name == "gh" && args[0] == "api" && args[1] == "graphql" && hung.CompareAndSwap(false, true) {
+			return Exec(ctx, dir, stdin, name, args...)
+		}
+		return s.run(ctx, dir, stdin, name, args...)
+	}
+	got := streamRounds(t, f, 2, func(int) {})
+	if !hung.Load() || !strings.HasPrefix(got, "watch error: ") ||
+		!strings.Contains(got, "context deadline exceeded") ||
+		!strings.Contains(got, "\n#1 labeled, waiting for Graphite") {
+		t.Fatalf("stream:\n%s", got)
 	}
 }
