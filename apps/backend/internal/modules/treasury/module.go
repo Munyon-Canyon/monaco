@@ -3,6 +3,7 @@ package treasury
 import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -14,6 +15,16 @@ const usdcMainnet = domain.Asset("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
 
 type Module struct{}
 
+type Queries = port.Queries
+
+type Position = port.Position
+
+type Stake = port.Stake
+
+type CabalPositions = port.CabalPositions
+
+type MemberStake = port.MemberStake
+
 func New(module.Deps) *Module { return &Module{} }
 
 func (*Module) Name() string { return "treasury" }
@@ -23,6 +34,8 @@ func (*Module) Routes(*httpx.Routes) {}
 func (*Module) Consumers() []bus.Consumer { return nil }
 
 func (*Module) Pollers() []poller.Poller { return nil }
+
+func (*Module) Queries() port.Queries { return adapters.Unwired{} }
 
 func LedgerCheck() replay.LedgerCheck {
 	return replay.LedgerCheck{
