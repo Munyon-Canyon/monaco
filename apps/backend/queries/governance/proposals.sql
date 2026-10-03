@@ -87,3 +87,9 @@ SELECT
 FROM proposals AS p
 WHERE p.id = @id
 FOR UPDATE OF p;
+
+-- name: Void :one
+UPDATE proposals
+SET status = @to_status::text, void_reason = @reason::text, updated_at = @at::timestamptz
+WHERE id = @id AND status = ANY(@from_statuses::text[])
+RETURNING cabal_id;

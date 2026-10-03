@@ -257,6 +257,18 @@ func TestMarkdown_listsEveryCommandOfAMultiCommandRow(t *testing.T) {
 	}
 }
 
+func TestMarkdown_namesOnlyTheCommandOfARowWithNoTrigger(t *testing.T) {
+	t.Parallel()
+	row := fundRowWith(func(c []string) { c[3], c[8] = "", "planned" })
+	parsed, problems := flows.Parse(fundFile, strings.NewReader(tsv(row)))
+	if len(problems) != 0 {
+		t.Fatalf("parse problems = %v", lines(problems))
+	}
+	if got, cell := flows.Markdown(parsed), "| Fund cabal | `FundCabal` | "; !strings.Contains(got, cell) {
+		t.Fatalf("markdown =\n%s\nwant %q", got, cell)
+	}
+}
+
 func TestMarkdown_pairsEachCommandWithItsTrigger(t *testing.T) {
 	t.Parallel()
 	row := fundRowWith(func(c []string) {

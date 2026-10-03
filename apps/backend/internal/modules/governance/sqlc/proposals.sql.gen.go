@@ -330,3 +330,31 @@ func (q *Queries) UpsertBallot(ctx context.Context, arg UpsertBallotParams) erro
 	)
 	return err
 }
+
+const void = `-- name: Void :one
+UPDATE proposals
+SET status = $1::text, void_reason = $2::text, updated_at = $3::timestamptz
+WHERE id = $4 AND status = ANY($5::text[])
+RETURNING cabal_id
+`
+
+type VoidParams struct {
+	ToStatus     string
+	Reason       string
+	At           time.Time
+	ID           uuid.UUID
+	FromStatuses []string
+}
+
+func (q *Queries) Void(ctx context.Context, arg VoidParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, void,
+		arg.ToStatus,
+		arg.Reason,
+		arg.At,
+		arg.ID,
+		arg.FromStatuses,
+	)
+	var cabal_id uuid.UUID
+	err := row.Scan(&cabal_id)
+	return cabal_id, err
+}
