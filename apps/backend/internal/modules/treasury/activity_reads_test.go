@@ -126,8 +126,19 @@ func TestActivityHTTP_refusesACallerThatIsNotASignedInUser(t *testing.T) {
 		if tc.actor != nil {
 			ctx = auth.WithActor(ctx, *tc.actor)
 		}
-		if _, err := h.GetCabalActivity(ctx, api.GetCabalActivityRequestObject{}); errs.CodeOf(err) != tc.code {
-			t.Errorf("%s: err = %v, want %s", name, err, tc.code)
+		for _, call := range []func(context.Context) error{
+			func(ctx context.Context) error {
+				_, err := h.GetCabalActivity(ctx, api.GetCabalActivityRequestObject{})
+				return err
+			},
+			func(ctx context.Context) error {
+				_, err := h.GetMyTxns(ctx, api.GetMyTxnsRequestObject{})
+				return err
+			},
+		} {
+			if err := call(ctx); errs.CodeOf(err) != tc.code {
+				t.Errorf("%s: err = %v, want %s", name, err, tc.code)
+			}
 		}
 	}
 }

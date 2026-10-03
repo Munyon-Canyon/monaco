@@ -268,6 +268,10 @@ func (healthz) GetCabalActivity(
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabalActivity")
 }
 
+func (healthz) GetMyTxns(context.Context, api.GetMyTxnsRequestObject) (api.GetMyTxnsResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetMyTxns")
+}
+
 func (healthz) GetAsset(context.Context, api.GetAssetRequestObject) (api.GetAssetResponseObject, error) {
 	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetAsset")
 }

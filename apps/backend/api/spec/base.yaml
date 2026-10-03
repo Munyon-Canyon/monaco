@@ -29,6 +29,8 @@ tags:
     description: Invite codes and the links that carry them.
   - name: stream
     description: Live re-fetch hints over server-sent events.
+  - name: treasury
+    description: The member and cabal transaction ledgers.
   - name: cabal
     description: A group treasury and its members.
   - name: social

@@ -1,4 +1,5 @@
 DELETE /v1/me
 GET /v1/me
 GET /v1/me/balance
+GET /v1/me/txns
 GET /v1/stream

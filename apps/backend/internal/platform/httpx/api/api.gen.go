@@ -704,6 +704,51 @@ func (e SkipOnboardingStepStep) Valid() bool {
 	}
 }
 
+// Defines values for UserTxnKind.
+const (
+	UserTxnKindCashOut    UserTxnKind = "cash_out"
+	UserTxnKindDeposit    UserTxnKind = "deposit"
+	UserTxnKindFund       UserTxnKind = "fund"
+	UserTxnKindWithdrawal UserTxnKind = "withdrawal"
+)
+
+// Valid indicates whether the value is a known member of the UserTxnKind enum.
+func (e UserTxnKind) Valid() bool {
+	switch e {
+	case UserTxnKindCashOut:
+		return true
+	case UserTxnKindDeposit:
+		return true
+	case UserTxnKindFund:
+		return true
+	case UserTxnKindWithdrawal:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UserTxnStatus.
+const (
+	UserTxnStatusFailed  UserTxnStatus = "failed"
+	UserTxnStatusPending UserTxnStatus = "pending"
+	UserTxnStatusSettled UserTxnStatus = "settled"
+)
+
+// Valid indicates whether the value is a known member of the UserTxnStatus enum.
+func (e UserTxnStatus) Valid() bool {
+	switch e {
+	case UserTxnStatusFailed:
+		return true
+	case UserTxnStatusPending:
+		return true
+	case UserTxnStatusSettled:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetAssetsParamsFilter.
 const (
 	GetAssetsParamsFilterAll     GetAssetsParamsFilter = "all"
@@ -2353,6 +2398,82 @@ type UpdateProfileRequest struct {
 	DisplayName string `json:"display_name"`
 }
 
+// UserTxn One inbound, outbound or cabal transfer affecting the caller.
+type UserTxn struct {
+	// Cabal The cabal involved, when it remains available. Null for deposits, withdrawals, and deleted cabals.
+	//
+	// Examples: null
+	Cabal *UserTxnCabal `json:"cabal"`
+
+	// CreatedAt When the transaction was created.
+	//
+	// Examples: 2026-10-03T15:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// Id The transaction id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8060
+	Id openapi_types.UUID `json:"id"`
+
+	// Kind What happened.
+	//
+	// Examples: deposit
+	Kind UserTxnKind `json:"kind"`
+
+	// Status Where the transaction is.
+	//
+	// Examples: settled
+	Status UserTxnStatus `json:"status"`
+
+	// TxSignature The Solana transaction signature. Null until sent.
+	//
+	// Examples: null
+	TxSignature *string `json:"tx_signature"`
+
+	// UsdcMicros Signed USDC amount in micros from the caller's wallet perspective.
+	//
+	// Examples: 25000000
+	UsdcMicros string `json:"usdc_micros"`
+}
+
+// UserTxnCabal The cabal involved, when it remains available. Null for deposits, withdrawals, and deleted cabals.
+//
+// Examples: null
+type UserTxnCabal struct {
+	// Id The cabal id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	Id openapi_types.UUID `json:"id"`
+
+	// Name The cabal name.
+	//
+	// Examples: Moneymakers
+	Name string `json:"name"`
+}
+
+// UserTxnKind What happened.
+//
+// Examples: deposit
+type UserTxnKind string
+
+// UserTxnStatus Where the transaction is.
+//
+// Examples: settled
+type UserTxnStatus string
+
+// UserTxnPage One page of the caller's transaction history.
+type UserTxnPage struct {
+	// Items The page, newest first.
+	//
+	// Examples: []
+	Items []UserTxn `json:"items"`
+
+	// NextCursor The cursor for the next page. Null on the last page.
+	//
+	// Examples: null
+	NextCursor *string `json:"next_cursor"`
+}
+
 // VoteResult The proposal after the caller's ballot.
 type VoteResult struct {
 	// MyBallot A voter's choice on a proposal.
@@ -2647,6 +2768,15 @@ type PostProfilePhotoParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// GetMyTxnsParams defines parameters for GetMyTxns.
+type GetMyTxnsParams struct {
+	// Limit Page size. Defaults to 30 and cannot exceed 100.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor The `next_cursor` from the previous page. Absent reads the first page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
 // DeleteProposalParams defines parameters for DeleteProposal.
 type DeleteProposalParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -2844,6 +2974,9 @@ type ServerInterface interface {
 	// GetMyReferralCode Read the caller's invite code and links.
 	// (GET /v1/me/referral-code)
 	GetMyReferralCode(w http.ResponseWriter, r *http.Request)
+	// GetMyTxns List the caller's transaction history.
+	// (GET /v1/me/txns)
+	GetMyTxns(w http.ResponseWriter, r *http.Request, params GetMyTxnsParams)
 	// DeleteProposal Withdraw the caller's proposal.
 	// (DELETE /v1/proposals/{id})
 	DeleteProposal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteProposalParams)
@@ -4683,6 +4816,52 @@ func (siw *ServerInterfaceWrapper) GetMyReferralCode(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// GetMyTxns operation middleware
+func (siw *ServerInterfaceWrapper) GetMyTxns(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMyTxnsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMyTxns(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteProposal operation middleware
 func (siw *ServerInterfaceWrapper) DeleteProposal(w http.ResponseWriter, r *http.Request) {
 
@@ -5197,6 +5376,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/pending-votes", wrapper.GetMyPendingVotes)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/profile-photo", wrapper.PostProfilePhoto)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/referral-code", wrapper.GetMyReferralCode)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/txns", wrapper.GetMyTxns)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.DeleteProposal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.GetProposal)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.PostProposalVote)
@@ -6765,6 +6945,45 @@ func (response GetMyReferralCodedefaultApplicationProblemPlusJSONResponse) Visit
 	return err
 }
 
+type GetMyTxnsRequestObject struct {
+	Params GetMyTxnsParams
+}
+
+type GetMyTxnsResponseObject interface {
+	VisitGetMyTxnsResponse(w http.ResponseWriter) error
+}
+
+type GetMyTxns200JSONResponse UserTxnPage
+
+func (response GetMyTxns200JSONResponse) VisitGetMyTxnsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyTxnsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetMyTxnsdefaultApplicationProblemPlusJSONResponse) VisitGetMyTxnsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteProposalRequestObject struct {
 	Id     openapi_types.UUID `json:"id"`
 	Params DeleteProposalParams
@@ -7235,6 +7454,9 @@ type StrictServerInterface interface {
 	// GetMyReferralCode Read the caller's invite code and links.
 	// (GET /v1/me/referral-code)
 	GetMyReferralCode(ctx context.Context, request GetMyReferralCodeRequestObject) (GetMyReferralCodeResponseObject, error)
+	// GetMyTxns List the caller's transaction history.
+	// (GET /v1/me/txns)
+	GetMyTxns(ctx context.Context, request GetMyTxnsRequestObject) (GetMyTxnsResponseObject, error)
 	// DeleteProposal Withdraw the caller's proposal.
 	// (DELETE /v1/proposals/{id})
 	DeleteProposal(ctx context.Context, request DeleteProposalRequestObject) (DeleteProposalResponseObject, error)
@@ -8407,6 +8629,32 @@ func (sh *strictHandler) GetMyReferralCode(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMyReferralCodeResponseObject); ok {
 		if err := validResponse.VisitGetMyReferralCodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMyTxns operation middleware
+func (sh *strictHandler) GetMyTxns(w http.ResponseWriter, r *http.Request, params GetMyTxnsParams) {
+	var request GetMyTxnsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMyTxns(ctx, request.(GetMyTxnsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMyTxns")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMyTxnsResponseObject); ok {
+		if err := validResponse.VisitGetMyTxnsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

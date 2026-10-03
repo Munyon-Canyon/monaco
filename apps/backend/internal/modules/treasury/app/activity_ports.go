@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
@@ -11,8 +12,9 @@ import (
 type UnwiredReads struct{}
 
 var (
-	_ Members = UnwiredReads{}
-	_ Users   = UnwiredReads{}
+	_ Members    = UnwiredReads{}
+	_ Users      = UnwiredReads{}
+	_ CabalViews = UnwiredReads{}
 )
 
 func (UnwiredReads) IsMember(context.Context, ids.CabalID, ids.UserID) (bool, error) {
@@ -21,4 +23,8 @@ func (UnwiredReads) IsMember(context.Context, ids.CabalID, ids.UserID) (bool, er
 
 func (UnwiredReads) UsersByID(context.Context, []ids.UserID) (map[ids.UserID]identityport.UserCard, error) {
 	return nil, errs.New(errs.CodeUpstreamUnavailable, "treasury.UnwiredReads.UsersByID")
+}
+
+func (UnwiredReads) Cabals(context.Context, []ids.CabalID) (map[ids.CabalID]cabalport.CabalView, error) {
+	return nil, errs.New(errs.CodeUpstreamUnavailable, "treasury.UnwiredReads.Cabals")
 }

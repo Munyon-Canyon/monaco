@@ -1,4 +1,29 @@
 paths:
+  /v1/me/txns:
+    get:
+      operationId: getMyTxns
+      tags: [treasury]
+      summary: List the caller's transaction history.
+      x-allow-restricted: true
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 30 and cannot exceed 100.
+          schema: {type: integer, minimum: 1, maximum: 100, default: 30, examples: [30]}
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` from the previous page. Absent reads the first page.
+          schema: {type: string, maxLength: 512, examples: ["MTc3MjM2NjQwMDAwMDAwMDowMTg5MGE1ZC1hYzk2LTc3NGItYmNjZS1iMzAyMDk5YTgwNTc"]}
+      responses:
+        "200":
+          description: One page of the caller's transactions.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/UserTxnPage"}
+              example: {items: [{id: 01890a5d-ac96-774b-bcce-b302099a8060, kind: deposit, status: settled, usdc_micros: "25000000", cabal: null, tx_signature: 5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW, created_at: "2026-10-03T15:00:00Z"}], next_cursor: null}
+        default: {$ref: "#/components/responses/Problem"}
   /v1/cabals/{id}/activity:
     get:
       operationId: getCabalActivity
@@ -46,6 +71,43 @@ paths:
           $ref: "#/components/responses/Problem"
 components:
   schemas:
+    UserTxnPage:
+      type: object
+      description: One page of the caller's transaction history.
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          description: The page, newest first.
+          examples: [[]]
+          items: {$ref: "#/components/schemas/UserTxn"}
+        next_cursor:
+          type: [string, "null"]
+          description: The cursor for the next page. Null on the last page.
+          examples: [null]
+    UserTxn:
+      type: object
+      description: One inbound, outbound or cabal transfer affecting the caller.
+      additionalProperties: false
+      required: [id, kind, status, usdc_micros, cabal, tx_signature, created_at]
+      properties:
+        id: {type: string, format: uuid, description: The transaction id., examples: [01890a5d-ac96-774b-bcce-b302099a8060]}
+        kind: {type: string, enum: [deposit, withdrawal, fund, cash_out], description: What happened., examples: [deposit]}
+        status: {type: string, enum: [pending, settled, failed], description: Where the transaction is., examples: [settled]}
+        usdc_micros: {type: string, pattern: "^-?(0|[1-9][0-9]*)$", description: Signed USDC amount in micros from the caller's wallet perspective., examples: ["25000000"]}
+        cabal:
+          type: [object, "null"]
+          description: The cabal involved, when it remains available. Null for deposits, withdrawals, and deleted cabals.
+          examples: [null]
+          x-go-type-name: UserTxnCabal
+          additionalProperties: false
+          required: [id, name]
+          properties:
+            id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
+            name: {type: string, description: The cabal name., examples: [Moneymakers]}
+        tx_signature: {type: [string, "null"], description: The Solana transaction signature. Null until sent., examples: [null]}
+        created_at: {type: string, format: date-time, description: When the transaction was created., examples: ["2026-10-03T15:00:00Z"]}
     CabalActivityPage:
       type: object
       description: One page of a cabal's activity.
