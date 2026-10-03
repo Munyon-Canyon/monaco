@@ -9,7 +9,12 @@ public struct AssetDetailPresentation: Equatable, Sendable {
     public let priceMicros: Int64?
     public let changeBasisPoints: Int64?
     public let attribution: String
+    public let market: MarketAsset
+    public let otherListings: [AssetListingPresentation]
+    public let isTradable: Bool
 }
+
+public typealias AssetListingPresentation = MarketListing
 
 @Observable
 @MainActor
@@ -25,8 +30,10 @@ public final class AssetDetailClientModel {
     public private(set) var detail: AssetDetailPresentation?
     public private(set) var chart: AssetChartSeries?
     public private(set) var chartError: APIError?
+    public private(set) var selectedRange: AssetChartRange = .oneDay
     public private(set) var lastError: APIError?
     public private(set) var failureTick = 0
+    private var chartGeneration = 0
     private let api: APIClient
     private let symbol: String
 
@@ -54,6 +61,9 @@ public final class AssetDetailClientModel {
     }
 
     public func loadChart(range: AssetChartRange = .oneDay) async {
+        selectedRange = range
+        chartGeneration += 1
+        let issued = chartGeneration
         do {
             let response = try await api.read { client in
                 try await client.getAssetChart(
@@ -61,23 +71,29 @@ public final class AssetDetailClientModel {
                     query: .init(range: Self.wireRange(range))
                 ).ok.body.json
             }
+            guard issued == chartGeneration else { return }
             chart = MarketMapping.chart(response)
             chartError = nil
         } catch {
+            guard issued == chartGeneration else { return }
             chartError = APIError(error)
         }
     }
 
     private static func presentation(_ detail: Components.Schemas.AssetDetail) -> AssetDetailPresentation {
-        let kind: AssetKind = detail.kind == .equity ? .stock : .preIpo
+        let mapped = MarketMapping.detail(detail)
+        let market = mapped.asset
         return AssetDetailPresentation(
-            symbol: detail.symbol,
-            ticker: AssetSymbolFormatter.display(detail.symbol, kind: kind),
-            name: CatalogAssetNameFormatter.format(detail.displayName, kind: kind),
-            kind: kind,
+            symbol: market.symbol,
+            ticker: market.ticker,
+            name: market.name,
+            kind: market.kind,
             priceMicros: detail.priceMicros,
             changeBasisPoints: detail.changeBps.map(Int64.init),
-            attribution: detail.attribution
+            attribution: detail.attribution,
+            market: market,
+            otherListings: mapped.otherListings,
+            isTradable: detail.tradable
         )
     }
 
