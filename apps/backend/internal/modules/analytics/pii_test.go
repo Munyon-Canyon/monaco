@@ -58,9 +58,8 @@ func TestAnalytics_CheckNoPII_acceptsACaptureMadeOfIDsFlagsAndNames(t *testing.T
 	}
 }
 
-func TestAnalytics_CheckNoPII_acceptsValuesThatOnlyLookLikeIdentifiers(t *testing.T) {
-	t.Parallel()
-	lookalikes := map[string]string{
+func lookalikes() map[string]string {
+	return map[string]string{
 		"email without a dot":          "trader@localhost",
 		"phone without a plus":         "14155550100",
 		"phone too short":              "+123456",
@@ -72,13 +71,31 @@ func TestAnalytics_CheckNoPII_acceptsValuesThatOnlyLookLikeIdentifiers(t *testin
 		"hex id":                       "0190a5d000007000800000000000000a",
 		"a sentence":                   "bought the dip at 5 usdc",
 	}
-	for name, value := range lookalikes {
+}
+
+func TestAnalytics_CheckNoPII_acceptsValuesThatOnlyLookLikeIdentifiers(t *testing.T) {
+	t.Parallel()
+	for name, value := range lookalikes() {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			c := clean()
 			c.Properties["value"] = value
 			if err := analytics.CheckNoPII(c); err != nil {
 				t.Fatalf("CheckNoPII with %q = %v, want none", value, err)
+			}
+		})
+	}
+}
+
+func TestAnalytics_CheckNoPII_acceptsKeysThatOnlyLookLikeIdentifiers(t *testing.T) {
+	t.Parallel()
+	for name, value := range lookalikes() {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			c := clean()
+			c.Properties["members"] = map[string]any{value: 1}
+			if err := analytics.CheckNoPII(c); err != nil {
+				t.Fatalf("CheckNoPII with key %q = %v, want none", value, err)
 			}
 		})
 	}
@@ -155,6 +172,63 @@ func TestAnalytics_CheckNoPII_refusesEachValuePatternWhereverItSits(t *testing.T
 				got := refusal(t, tc.c)
 				if got["path"] != tc.path || got["reason"] != p.reason {
 					t.Errorf("%s: attrs = %v, want path %s and reason %s", where, got, tc.path, p.reason)
+				}
+			}
+		})
+	}
+}
+
+func TestAnalytics_CheckNoPII_refusesEachPatternAsAMapKeyWhereverItSits(t *testing.T) {
+	t.Parallel()
+	patterns := map[string]struct{ value, reason string }{
+		"email":      {"trader@example.com", "key_email"},
+		"phone":      {"+14155550100", "key_phone"},
+		"wallet key": {key(32), "key_wallet"},
+	}
+	for name, p := range patterns {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			inProperties, inSet, nested, listed := clean(), clean(), clean(), clean()
+			inProperties.Properties = map[string]any{p.value: 1}
+			inSet.Set = map[string]any{p.value: 1}
+			nested.Properties["cabal"] = map[string]any{"members": map[string]any{"!": 1, p.value: 1, "~": 1}}
+			listed.Properties["members"] = []any{"ok", map[string]any{p.value: true}}
+			for where, tc := range map[string]struct {
+				c    analytics.Capture
+				path string
+			}{
+				"properties": {inProperties, "properties.{0}"},
+				"set":        {inSet, "set.{0}"},
+				"nested":     {nested, "properties.cabal.members.{1}"},
+				"listed":     {listed, "properties.members[1].{0}"},
+			} {
+				got := refusal(t, tc.c)
+				if got["path"] != tc.path || got["reason"] != p.reason {
+					t.Errorf("%s: attrs = %v, want path %s and reason %s", where, got, tc.path, p.reason)
+				}
+			}
+		})
+	}
+}
+
+func TestAnalytics_CheckNoPII_neverEchoesAKeyAboveARefusal(t *testing.T) {
+	t.Parallel()
+	address := key(32)
+	for name, members := range map[string]any{
+		"holding a count":         map[string]any{address: 1},
+		"two levels over a value": map[string]any{address: map[string]any{"cabal": map[string]any{"email": "x"}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			c := clean()
+			c.Properties["members"] = members
+			err := analytics.CheckNoPII(c)
+			if err == nil || strings.Contains(err.Error(), address) {
+				t.Fatalf("CheckNoPII error %v is missing or echoes the key", err)
+			}
+			for k, v := range refusal(t, c) {
+				if strings.Contains(v, address) {
+					t.Fatalf("error attr %s=%q echoes the key", k, v)
 				}
 			}
 		})

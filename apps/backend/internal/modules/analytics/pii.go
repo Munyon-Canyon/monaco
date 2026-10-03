@@ -52,11 +52,11 @@ func scan(op, path string, node any) error {
 }
 
 func scanMap(op, path string, node map[string]any) error {
-	for _, key := range slices.Sorted(maps.Keys(node)) {
-		at := key
-		if path != "" {
-			at = path + "." + key
+	for i, key := range slices.Sorted(maps.Keys(node)) {
+		if kind := piiValue(key); kind != "" {
+			return refuse(op, join(path, "{"+strconv.Itoa(i)+"}"), keyReason(kind))
 		}
+		at := join(path, key)
 		if bannedKey(key) {
 			return refuse(op, at, "key")
 		}
@@ -65,6 +65,13 @@ func scanMap(op, path string, node map[string]any) error {
 		}
 	}
 	return nil
+}
+
+func join(path, key string) string {
+	if path == "" {
+		return key
+	}
+	return path + "." + key
 }
 
 func scanList(op, path string, node []any) error {
@@ -87,6 +94,13 @@ func bannedKey(key string) bool {
 		return true
 	}
 	return false
+}
+
+func keyReason(kind string) string {
+	if kind == "wallet_key" {
+		return "key_wallet"
+	}
+	return "key_" + kind
 }
 
 func piiValue(s string) string {
