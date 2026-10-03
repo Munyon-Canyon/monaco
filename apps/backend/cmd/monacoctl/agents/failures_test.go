@@ -16,12 +16,14 @@ import (
 )
 
 const (
-	flakeJob = `{"name":"ci / Flake","conclusion":"FAILURE","databaseId":11,"detailsUrl":"https://gh/job/11"}`
-	lintJob  = `{"name":"ci / Lint","conclusion":"TIMED_OUT","databaseId":12,"detailsUrl":"https://gh/job/12"}`
-	okJob    = `{"name":"ci / Lint","conclusion":"SUCCESS","databaseId":13,"detailsUrl":"https://gh/job/13"}`
-	redOK    = `{"name":"ci / ci-ok","conclusion":"FAILURE","databaseId":14,"detailsUrl":"https://gh/job/14"}`
-	greenOK  = `{"name":"ci / ci-ok","conclusion":"SUCCESS","databaseId":15,"detailsUrl":"https://gh/job/15"}`
-	noRollup = `{"statusCheckRollup":null}`
+	flakeJob   = `{"name":"ci / Flake","conclusion":"FAILURE","databaseId":11,"detailsUrl":"https://gh/job/11"}`
+	lintJob    = `{"name":"ci / Lint","conclusion":"TIMED_OUT","databaseId":12,"detailsUrl":"https://gh/job/12"}`
+	okJob      = `{"name":"ci / Lint","conclusion":"SUCCESS","databaseId":13,"detailsUrl":"https://gh/job/13"}`
+	redOK      = `{"name":"ci / ci-ok","conclusion":"FAILURE","databaseId":14,"detailsUrl":"https://gh/job/14"}`
+	goCacheJob = `{"name":"Build apps/backend and save the Go cache","conclusion":"FAILURE","databaseId":16}`
+	readyJob   = `{"name":"ci / Ready (staging)","conclusion":"FAILURE","databaseId":17}`
+	greenOK    = `{"name":"ci / ci-ok","conclusion":"SUCCESS","databaseId":15,"detailsUrl":"https://gh/job/15"}`
+	noRollup   = `{"statusCheckRollup":null}`
 )
 
 func rollup(runs ...string) string {
@@ -331,5 +333,18 @@ func TestStage1_aRunWhoseCIOKHasNotStartedIsPending(t *testing.T) {
 	rollup.Nodes = append(rollup.Nodes, gqlContext{Name: "ci / Plan", Status: "IN_PROGRESS"})
 	if got := p.flat("").Stage1; got != "pending" {
 		t.Fatalf("stage 1 = %q, want pending", got)
+	}
+}
+
+func TestQueueJob_namesTheQueueCIJobNotAPushOnlyWorkflow(t *testing.T) {
+	t.Parallel()
+	raw := strings.Replace(numberedDraft(4, time.Unix(1, 0), goCacheJob, flakeJob), `"body":""`, `"body":"#4"`, 1)
+	var d queueDraft
+	if err := json.Unmarshal([]byte(raw), &d); err != nil {
+		t.Fatal(err)
+	}
+	got := queueJob(4, lastCommits{}, []queueDraft{d}, time.Time{})
+	if got.Name != "ci / Flake" {
+		t.Fatalf("queueJob = %q, want ci / Flake", got.Name)
 	}
 }
