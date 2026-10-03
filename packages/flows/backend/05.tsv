@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-05	Crypto deposit	funding	poller:funding.deposits	CreditDeposit	deposit.credited	treasury.user_ledger	ok;RPCUnavailable;crash:before-commit	built	docs/architecture/deposits-withdrawals.md#crypto-deposit-flow
+05	Crypto deposit	funding	poller:funding.deposits	CreditDeposit	deposit.credited	treasury.user_ledger;identity.first_deposit	ok;RPCUnavailable;crash:before-commit	built	docs/architecture/deposits-withdrawals.md#crypto-deposit-flow

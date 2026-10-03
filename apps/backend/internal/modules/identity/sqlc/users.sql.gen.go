@@ -370,6 +370,25 @@ func (q *Queries) SetDisplayName(ctx context.Context, arg SetDisplayNameParams) 
 	return result.RowsAffected(), nil
 }
 
+const setFirstDepositAt = `-- name: SetFirstDepositAt :execrows
+UPDATE users SET first_deposit_at = $1::timestamptz, updated_at = $2
+WHERE id = $3 AND first_deposit_at IS NULL AND deleted_at IS NULL
+`
+
+type SetFirstDepositAtParams struct {
+	DepositedAt time.Time
+	Now         time.Time
+	ID          uuid.UUID
+}
+
+func (q *Queries) SetFirstDepositAt(ctx context.Context, arg SetFirstDepositAtParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setFirstDepositAt, arg.DepositedAt, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setPhotoURL = `-- name: SetPhotoURL :execrows
 UPDATE users SET photo_url = $1::text, updated_at = $2
 WHERE id = $3 AND photo_url IS DISTINCT FROM $1::text
