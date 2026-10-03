@@ -97,7 +97,11 @@ type engineEnv struct {
 
 func newEngineEnv(t *testing.T) *engineEnv {
 	t.Helper()
-	e := &engineEnv{layerEnv: newLayerEnv(t)}
+	return newEngineEnvOn(newLayerEnv(t))
+}
+
+func newEngineEnvOn(layer *layerEnv) *engineEnv {
+	e := &engineEnv{layerEnv: layer}
 	e.cabal = ids.CabalIDFrom(e.ids.NewV7())
 	e.wallet = cabal.TreasuryWallet{
 		CabalID: e.cabal, PrivyWalletID: treasuryWallet, Address: chainfake.WalletAddress(treasuryWallet),
@@ -126,9 +130,23 @@ func (e *engineEnv) quote(in, out platform.Mint, outAmount uint64, routable bool
 	})
 }
 
+type liveCabals struct{ e *engineEnv }
+
+func (c liveCabals) Status(ctx context.Context, id ids.CabalID) (cabal.Status, error) {
+	return c.e.cabals.Status(ctx, id)
+}
+
+func (c liveCabals) SlippageBps(ctx context.Context, id ids.CabalID) (int32, error) {
+	return c.e.cabals.SlippageBps(ctx, id)
+}
+
+func (c liveCabals) TreasuryWallet(ctx context.Context, id ids.CabalID) (cabal.TreasuryWallet, error) {
+	return c.e.cabals.TreasuryWallet(ctx, id)
+}
+
 func (e *engineEnv) ports() app.EnginePorts {
 	return app.EnginePorts{
-		Catalog: e.catalog, Cabals: e.cabals, Pauses: e.pauses, Proposals: e.proposals, Balances: e.balances,
+		Catalog: e.catalog, Cabals: liveCabals{e: e}, Pauses: e.pauses, Proposals: e.proposals, Balances: e.balances,
 	}
 }
 

@@ -17,10 +17,12 @@ final class FlowOutcomeTests: XCTestCase {
         XCTAssertEqual(Flow01Outcome.commands, ["OpenSession"])
     }
 
-    func testPlannedFlowWithoutACommandStillMapsItsWireCodes() {
-        XCTAssertEqual(Flow11Outcome.commands, [])
+    func testPlannedFlowCarriesItsRowCommandAndMapsItsWireCodes() {
+        XCTAssertEqual(Flow11Outcome.commands, ["ExecuteTrade"])
         XCTAssertEqual(Flow11Outcome(code: "slippage_exceeded"), .slippageExceeded)
-        assertCodesRoundTrip(Flow11Outcome.self)
+        XCTAssertEqual(Flow11Outcome(code: "insufficient_funds"), .insufficientFunds)
+        XCTAssertEqual(Flow11Outcome(code: "cabal_paused"), .cabalPaused)
+        assertRoundTrip(Flow11Outcome.self)
     }
 }
 
