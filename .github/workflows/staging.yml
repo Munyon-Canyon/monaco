@@ -24,3 +24,24 @@ jobs:
     uses: ./.github/workflows/ci-jobs.yml
     with:
       stage: staging
+
+  # Each backend leg above saves a per-SHA Go cache (ci-jobs.yml). Keep the newest per leg on this ref.
+  prune:
+    needs: [staging]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prune superseded Go caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ github.ref }}
+          PREFIX: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
+        run: |
+          scripts/ci/prune-caches.sh "$REF" \
+            "${PREFIX}short-1-" "${PREFIX}short-2-" "${PREFIX}rest-1-" "${PREFIX}rest-2-"

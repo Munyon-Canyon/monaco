@@ -129,6 +129,8 @@ jobs:
         run: find . -path '*/testdata/*' -exec touch -t 200001010000 {} +
 
       - uses: ./.github/actions/backend-test-env
+        with:
+          cache-leg: ${{ matrix.artifact }}
 
       - name: Read the pinned golangci-lint version
         id: golangci
@@ -154,6 +156,17 @@ jobs:
           path: ${{ runner.temp }}/test-out
           retention-days: 1
           if-no-files-found: error
+
+      # Only the staging run saves the Go cache, one key per leg, even after a test failure. The PR leg of the same
+      # name restores it through backend-test-env, and staging.yml's prune job keeps the newest per leg.
+      - name: Save this leg's Go cache
+        if: always() && inputs.stage == 'staging'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-${{ matrix.artifact }}-${{ github.sha }}
 
   backend-report:
     name: Backend tests report
