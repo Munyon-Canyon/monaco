@@ -210,11 +210,11 @@ func TestCabalQueries_setPictureSetsThenClears(t *testing.T) {
 	t.Parallel()
 	f := newQueries(t)
 	c := testkit.NewCabal(t, f.pool)
-	url := pgtype.Text{String: "https://cdn.example/cabals/c.png", Valid: true}
+	url := "https://cdn.example/cabals/c.png"
 	for _, step := range []struct {
-		picture pgtype.Text
+		picture string
 		want    pgtype.Text
-	}{{url, url}, {pgtype.Text{}, pgtype.Text{}}} {
+	}{{url, pgtype.Text{String: url, Valid: true}}, {"", pgtype.Text{}}} {
 		f.clock.Advance(time.Minute)
 		n, err := f.q.SetCabalPicture(t.Context(), sqlc.SetCabalPictureParams{
 			ID: c.ID.UUID(), PictureUrl: step.picture, Now: f.clock.Now(),

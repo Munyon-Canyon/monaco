@@ -86,7 +86,16 @@ func lockForEdit(
 	if err != nil {
 		return sqlc.FindCabalRow{}, domain.Cabal{}, errs.Wrap(err, errs.CodeInternal, updateCabalOp)
 	}
+	return editable(ctx, q, cabalID, actor)
+}
+
+func editable(
+	ctx context.Context, q *sqlc.Queries, cabalID ids.CabalID, actor ids.UserID,
+) (sqlc.FindCabalRow, domain.Cabal, error) {
 	row, err := q.FindCabal(ctx, cabalID.UUID())
+	if errors.Is(err, sql.ErrNoRows) {
+		return sqlc.FindCabalRow{}, domain.Cabal{}, errs.New(errs.CodeCabalNotFound, updateCabalOp)
+	}
 	if err != nil {
 		return sqlc.FindCabalRow{}, domain.Cabal{}, errs.Wrap(err, errs.CodeInternal, updateCabalOp)
 	}

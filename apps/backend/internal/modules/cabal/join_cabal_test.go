@@ -283,6 +283,7 @@ func (f accessFixture) routes(users app.UserCards) adapters.HTTP {
 		Revoke:  app.NewRevokeAccessHandler(f.uow, f.clock),
 		Decide:  app.NewDecideAccessHandler(f.uow, f.clock),
 		Update:  app.NewUpdateCabalHandler(f.uow, f.clock),
+		Picture: app.NewSetCabalPictureHandler(f.uow, f.pool, f.ids, f.clock, nil),
 		DB:      f.pool, Users: users,
 	}
 }

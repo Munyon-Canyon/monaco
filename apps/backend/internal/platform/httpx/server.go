@@ -103,6 +103,7 @@ type Routes struct {
 	CabalRoutes
 	CabalJoinRoutes
 	CabalAccessRoutes
+	CabalPictureRoutes
 	MarketRoutes
 }
 
@@ -119,6 +120,13 @@ type CabalAccessRoutes interface {
 	PostCabalAccessDecision(
 		context.Context, api.PostCabalAccessDecisionRequestObject,
 	) (api.PostCabalAccessDecisionResponseObject, error)
+}
+
+type CabalPictureRoutes interface {
+	PutCabalPicture(context.Context, api.PutCabalPictureRequestObject) (api.PutCabalPictureResponseObject, error)
+	DeleteCabalPicture(
+		context.Context, api.DeleteCabalPictureRequestObject,
+	) (api.DeleteCabalPictureResponseObject, error)
 }
 
 type CabalJoinRoutes interface {

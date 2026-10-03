@@ -2052,6 +2052,24 @@ type PostCabalMemberParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// DeleteCabalPictureParams defines parameters for DeleteCabalPicture.
+type DeleteCabalPictureParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// PutCabalPictureMultipartBody defines parameters for PutCabalPicture.
+type PutCabalPictureMultipartBody struct {
+	// Picture Examples: cabal.png
+	Picture openapi_types.File `json:"picture"`
+}
+
+// PutCabalPictureParams defines parameters for PutCabalPicture.
+type PutCabalPictureParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // GetCabalProposalsParams defines parameters for GetCabalProposals.
 type GetCabalProposalsParams struct {
 	// Filter Which proposals to return.
@@ -2160,6 +2178,9 @@ type PatchCabalJSONRequestBody = UpdateCabalRequest
 // PostCabalAccessDecisionJSONRequestBody defines body for PostCabalAccessDecision for application/json ContentType.
 type PostCabalAccessDecisionJSONRequestBody = AccessDecisionRequest
 
+// PutCabalPictureMultipartRequestBody defines body for PutCabalPicture for multipart/form-data ContentType.
+type PutCabalPictureMultipartRequestBody PutCabalPictureMultipartBody
+
 // PostDeviceJSONRequestBody defines body for PostDevice for application/json ContentType.
 type PostDeviceJSONRequestBody = DeviceRegistration
 
@@ -2228,6 +2249,12 @@ type ServerInterface interface {
 	// PostCabalMember Join an open cabal.
 	// (POST /v1/cabals/{id}/members)
 	PostCabalMember(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCabalMemberParams)
+	// DeleteCabalPicture Remove a cabal's picture.
+	// (DELETE /v1/cabals/{id}/picture)
+	DeleteCabalPicture(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteCabalPictureParams)
+	// PutCabalPicture Set a cabal's picture.
+	// (PUT /v1/cabals/{id}/picture)
+	PutCabalPicture(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PutCabalPictureParams)
 	// GetCabalProposals List a cabal's proposals.
 	// (GET /v1/cabals/{id}/proposals)
 	GetCabalProposals(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalProposalsParams)
@@ -2951,6 +2978,114 @@ func (siw *ServerInterfaceWrapper) PostCabalMember(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostCabalMember(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteCabalPicture operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCabalPicture(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteCabalPictureParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteCabalPicture(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutCabalPicture operation middleware
+func (siw *ServerInterfaceWrapper) PutCabalPicture(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PutCabalPictureParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutCabalPicture(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3939,6 +4074,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/access-requests/{request_id}", wrapper.DeleteCabalAccessRequest)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/access-requests/{request_id}/decision", wrapper.PostCabalAccessDecision)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/members", wrapper.PostCabalMember)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/picture", wrapper.DeleteCabalPicture)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/cabals/{id}/picture", wrapper.PutCabalPicture)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/proposals", wrapper.GetCabalProposals)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/devices", wrapper.PostDevice)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/devices/{token}", wrapper.DeleteDevice)
@@ -4510,6 +4647,87 @@ type PostCabalMemberdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response PostCabalMemberdefaultApplicationProblemPlusJSONResponse) VisitPostCabalMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteCabalPictureRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params DeleteCabalPictureParams
+}
+
+type DeleteCabalPictureResponseObject interface {
+	VisitDeleteCabalPictureResponse(w http.ResponseWriter) error
+}
+
+type DeleteCabalPicture200JSONResponse Cabal
+
+func (response DeleteCabalPicture200JSONResponse) VisitDeleteCabalPictureResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteCabalPicturedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteCabalPicturedefaultApplicationProblemPlusJSONResponse) VisitDeleteCabalPictureResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutCabalPictureRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params PutCabalPictureParams
+	Body   *multipart.Reader
+}
+
+type PutCabalPictureResponseObject interface {
+	VisitPutCabalPictureResponse(w http.ResponseWriter) error
+}
+
+type PutCabalPicture200JSONResponse Cabal
+
+func (response PutCabalPicture200JSONResponse) VisitPutCabalPictureResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutCabalPicturedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PutCabalPicturedefaultApplicationProblemPlusJSONResponse) VisitPutCabalPictureResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -5449,6 +5667,12 @@ type StrictServerInterface interface {
 	// PostCabalMember Join an open cabal.
 	// (POST /v1/cabals/{id}/members)
 	PostCabalMember(ctx context.Context, request PostCabalMemberRequestObject) (PostCabalMemberResponseObject, error)
+	// DeleteCabalPicture Remove a cabal's picture.
+	// (DELETE /v1/cabals/{id}/picture)
+	DeleteCabalPicture(ctx context.Context, request DeleteCabalPictureRequestObject) (DeleteCabalPictureResponseObject, error)
+	// PutCabalPicture Set a cabal's picture.
+	// (PUT /v1/cabals/{id}/picture)
+	PutCabalPicture(ctx context.Context, request PutCabalPictureRequestObject) (PutCabalPictureResponseObject, error)
 	// GetCabalProposals List a cabal's proposals.
 	// (GET /v1/cabals/{id}/proposals)
 	GetCabalProposals(ctx context.Context, request GetCabalProposalsRequestObject) (GetCabalProposalsResponseObject, error)
@@ -5941,6 +6165,67 @@ func (sh *strictHandler) PostCabalMember(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostCabalMemberResponseObject); ok {
 		if err := validResponse.VisitPostCabalMemberResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteCabalPicture operation middleware
+func (sh *strictHandler) DeleteCabalPicture(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteCabalPictureParams) {
+	var request DeleteCabalPictureRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteCabalPicture(ctx, request.(DeleteCabalPictureRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteCabalPicture")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteCabalPictureResponseObject); ok {
+		if err := validResponse.VisitDeleteCabalPictureResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutCabalPicture operation middleware
+func (sh *strictHandler) PutCabalPicture(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PutCabalPictureParams) {
+	var request PutCabalPictureRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	if reader, err := r.MultipartReader(); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode multipart body: %w", err))
+		return
+	} else {
+		request.Body = reader
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutCabalPicture(ctx, request.(PutCabalPictureRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutCabalPicture")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutCabalPictureResponseObject); ok {
+		if err := validResponse.VisitPutCabalPictureResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

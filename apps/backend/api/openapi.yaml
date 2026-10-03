@@ -472,6 +472,68 @@ paths:
               example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 2, members: [], me: {role: member, can_vote: true}, my_access_request: null, invite_code: ABCD2345, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/cabals/{id}/picture:
+    put:
+      operationId: putCabalPicture
+      tags: [cabal]
+      x-idempotent: true
+      x-max-body-bytes: 2097152
+      x-rate-limit: {actor: {rate: 1, per: 20s, burst: 3}}
+      summary: Set a cabal's picture.
+      description: >-
+        Creator only. Stores one JPEG, PNG or WebP picture of at most 2 MB, checked by its bytes, and replaces the
+        cabal's picture. A replay returns the first response.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema: {type: string, format: uuid}
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: One JPEG, PNG or WebP image in the required picture field.
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [picture]
+              properties:
+                picture: {type: string, format: binary, examples: [cabal.png]}
+      responses:
+        "200":
+          description: The cabal, as its creator sees it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cabal"
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: "https://example.supabase.co/storage/v1/object/public/avatars/cabals/01890a5d-ac96-774b-bcce-b302099a8058/01890a5d-ac96-774b-bcce-b302099a8059.png", status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: {role: creator, can_vote: true}, my_access_request: null, invite_code: ABCD2345, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteCabalPicture
+      tags: [cabal]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 1, per: 20s, burst: 3}}
+      summary: Remove a cabal's picture.
+      description: Creator only. Clears the cabal's picture. A cabal with no picture is returned unchanged.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema: {type: string, format: uuid}
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The cabal, as its creator sees it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cabal"
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: {role: creator, can_vote: true}, my_access_request: null, invite_code: ABCD2345, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/proposals:
     get:
       operationId: getCabalProposals
