@@ -19,7 +19,12 @@ func New(d module.Deps) *Module { return &Module{deps: d} }
 
 func (*Module) Name() string { return "funding" }
 
-func (*Module) Routes(*httpx.Routes) {}
+func (m *Module) Routes(r *httpx.Routes) {
+	r.FundingRoutes = adapters.HTTP{
+		Create: app.NewCreateOnrampSessionHandler(m.deps.UoW, m.deps.Clock, m.deps.Config.FundPageURL()),
+		IDs:    m.deps.IDs,
+	}
+}
 
 func (*Module) Consumers() []bus.Consumer {
 	return []bus.Consumer{}
