@@ -46,11 +46,11 @@ extension AppSessionStore {
         guard let (client, token) = await profileClient(auth: auth) else {
             return .failed("Sign in again to change your photo.")
         }
-        let generation = refreshGeneration
-        let writeGeneration = profileWriteGeneration
+        let generation = refreshGenerationValue()
+        let writeGeneration = profileWriteGenerationValue()
         do {
             let saved = try await client.uploadProfilePhoto(imageData: imageData, mimeType: mimeType)
-            guard mayWrite(generation), writeGeneration == profileWriteGeneration else {
+            guard mayWrite(generation), writeGeneration == profileWriteGenerationValue() else {
                 return .failed("Sign in again to change your photo.")
             }
             noteProfileWrite()

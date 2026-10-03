@@ -4,14 +4,7 @@ import Observation
 import SwiftUI
 import os
 
-/// The reads every tab shares. `MonacoAPIClient` is the production implementation;
-/// tests inject a stub so store behaviour can be checked without a server.
-///
-/// `@MainActor` here is not a decision about where decoding belongs — it matches what
-/// `MonacoAPIClient` already is (implicitly main-actor, #326 / cluster item 15), and a
-/// `nonisolated` protocol would not compile against it today. When `API/` is made
-/// non-isolated this annotation should come off with it, so the JSON decode stops running
-/// on the main thread.
+/// Shared app-session reads; production uses `MonacoAPIClient`, tests use a stub.
 @MainActor
 protocol AppSessionDataSource: Sendable {
     func getPlatformBalance(accessToken: String) async throws -> PlatformBalanceDTO
@@ -21,8 +14,7 @@ protocol AppSessionDataSource: Sendable {
     func getPopularAssets(accessToken: String, limit: Int) async throws -> PopularAssetsResponse
 }
 
-/// The session the store reads tokens from and reports rejected ones to. `PrivyAuthService`
-/// is the only implementation outside tests.
+/// The token source and rejected-session sink; production uses `PrivyAuthService`.
 @MainActor
 protocol SessionAuthenticating: AnyObject, Sendable {
     var accessToken: String? { get }
@@ -42,7 +34,6 @@ extension PrivyAuthService: SessionAuthenticating {}
 @Observable
 @MainActor
 final class AppSessionStore {
-    typealias SessionTokenProvider = @MainActor @Sendable () async -> String?
     typealias ProfileClientFactory = @MainActor @Sendable (String) -> MonacoCore.MonacoAPIClient
     var home: HomeViewDTO?
     var dashboard: HomeDashboardDTO?
@@ -58,33 +49,27 @@ final class AppSessionStore {
     var errorDebugDetail: String?
     #endif
     var isLoading = true
-    var leaderboardRange: HomeLeaderboardRange = .all
+    private(set) var leaderboardRange: HomeLeaderboardRange = .all
 
     let apiClient: AppSessionDataSource
-    private let sessions: SessionAPI?
-    let sessionToken: SessionTokenProvider?
+    let sessions: SessionAPI?
     let profileClientFactory: ProfileClientFactory
     var skipsSessionOpen = false
-    var refreshGeneration = 0
-    var dashboardGeneration = 0
-    var pollGeneration = 0
-    /// Home boards, popular assets and the P&L curve: started by a refresh but not awaited by
-    /// it. Owned here so the next refresh cancels what the last one left running, instead of
-    /// letting a session the member has left behind keep writing.
-    var deferredWork: [Task<Void, Never>] = []
-    /// Bumped by every self-profile write, so a `/v1/me` read that started before the write
-    /// cannot put the old name back.
-    var profileWriteGeneration = 0
+    private var refreshGeneration = 0
+    private var dashboardGeneration = 0
+    private var pollGeneration = 0
+    /// Deferred home work is cancelled before the next refresh.
+    private var deferredWork: [Task<Void, Never>] = []
+    /// Protects a local profile write from an older `/v1/me` response.
+    private var profileWriteGeneration = 0
 
     init(
         apiClient: AppSessionDataSource,
         sessions: SessionAPI? = nil,
-        profileClientFactory: ProfileClientFactory? = nil,
-        sessionToken: SessionTokenProvider? = nil
+        profileClientFactory: ProfileClientFactory? = nil
     ) {
         self.apiClient = apiClient
         self.sessions = sessions
-        self.sessionToken = sessionToken
         self.profileClientFactory =
             profileClientFactory ?? { token in
                 MonacoCore.MonacoAPIClient(baseURL: Config.apiBaseURL, accessTokenProvider: { token })
@@ -129,12 +114,10 @@ final class AppSessionStore {
     }
 
     func noteForeground(auth: SessionAuthenticating) async {
-        guard profile != nil, let token = auth.accessToken else { return }
+        guard profile != nil, let token = await accessToken(auth: auth) else { return }
         let generation = refreshGeneration
         if let loaded = await loadProfile(auth: auth, token: token),
-            mayWrite(generation),
-            profile != nil,
-            auth.accessToken == token
+            mayWrite(generation), profile != nil, await accessToken(auth: auth) == token
         {
             profile = loaded
         }
@@ -157,16 +140,14 @@ final class AppSessionStore {
         #endif
     }
 
-    /// Reloads what Home and Profile show. `leaderboardRange` is a *selection*: pass it only
-    /// when the member picked a range, and leave it out everywhere else so the board they are
-    /// looking at survives the refresh.
+    /// Reloads Home and Profile without changing a range the member already picked.
     func refresh(
         auth: SessionAuthenticating,
         accessToken: String? = nil,
         leaderboardRange: HomeLeaderboardRange? = nil,
         includeProfile: Bool = true
     ) async {
-        let token = accessToken ?? auth.accessToken
+        let token = await resolvedAccessToken(accessToken, auth: auth)
         guard let token else {
             errorMessage = "Missing sign-in token."
             isLoading = false
@@ -193,7 +174,7 @@ final class AppSessionStore {
             let loadedDashboard = try await dashboardLoad
             let loadedProfile = await meLoad
             let loadedBalance = try? await balanceLoad
-            finishRefresh(
+            await finishRefresh(
                 dashboard: loadedDashboard,
                 profile: loadedProfile,
                 balance: loadedBalance,
@@ -234,104 +215,63 @@ final class AppSessionStore {
         }
     }
 
-    /// One background poll of what Home and Profile show: dashboard, balance, joined cabals, and
-    /// the 1H curve. Unlike `refresh` it never raises an error or a loading flag, and it
-    /// only writes values the server actually changed — a poll that fails, or that comes back
-    /// identical, leaves the screen exactly as the member last saw it. A poll that lands does
-    /// clear a stale error banner, since the condition it described is over.
-    ///
-    /// Throws when the dashboard read fails so the caller's poll loop can back off. That includes
-    /// a 401: signing the member out is for a request they made, not one they never saw.
-    func pollLive(auth: SessionAuthenticating) async throws {
-        guard let token = auth.accessToken else { return }
-        let generation = refreshGeneration
-        let request = currentDashboardRequest()
+    private func resetGenerations() {
+        refreshGeneration += 1
+        dashboardGeneration += 1
         pollGeneration += 1
-        let poll = pollGeneration
-
-        async let dashboardLoad = apiClient.getHomeDashboard(accessToken: token, leaderboardRange: request.range)
-        async let balanceLoad = apiClient.getPlatformBalance(accessToken: token)
-        async let homeLoad = apiClient.getHome(accessToken: token)
-        async let seriesLoad = apiClient.getHomePnLSeries(accessToken: token, range: .oneHour)
-
-        let loadedDashboard = try await dashboardLoad
-        let balance = try? await balanceLoad
-        let boards = try? await homeLoad
-        let series = try? await seriesLoad
-
-        // A pull-to-refresh or a range change started while this was in flight: theirs is
-        // newer. So is a poll from the other tab that has already landed.
-        guard generation == refreshGeneration,
-            isCurrent(request),
-            poll == pollGeneration,
-            !Task.isCancelled
-        else { return }
-        QuietUpdate.apply(loadedDashboard, over: dashboard) { dashboard = $0 }
-        if let balance { QuietUpdate.apply(balance, over: platformBalance) { platformBalance = $0 } }
-        if let boards { QuietUpdate.apply(boards, over: home) { home = $0 } }
-        if let series { QuietUpdate.apply(series.points, over: homePnLSeries) { homePnLSeries = $0 } }
-        // Only once the screen actually has what the banner said was missing. A poll can
-        // land while bootstrap is still failing — `profile` and `home` never arrived — and
-        // clearing it there leaves an empty screen with the explanation wiped off it.
-        if profile != nil {
-            errorMessage = nil
-        }
+        profileWriteGeneration += 1
     }
 
-    /// Legacy home boards + popular strip. Does not block Home first paint.
-    func refreshDeferredHomePayloads(auth: SessionAuthenticating, accessToken: String? = nil) async {
-        await refreshHomeBoards(accessToken: accessToken ?? auth.accessToken)
-        await refreshPopular(auth: auth)
+    func refreshGenerationValue() -> Int { refreshGeneration }
+    func dashboardGenerationValue() -> Int { dashboardGeneration }
+    func pollGenerationValue() -> Int { pollGeneration }
+    func profileWriteGenerationValue() -> Int { profileWriteGeneration }
+    func deferredWorkValue() -> [Task<Void, Never>] { deferredWork }
+
+    func bumpProfileWriteGeneration() { profileWriteGeneration += 1 }
+
+    func nextDashboardRequest() -> DashboardRequest {
+        dashboardGeneration += 1
+        return DashboardRequest(range: leaderboardRange, generation: dashboardGeneration)
     }
 
-    /// Loads GET /v1/home for profile/cabals surfaces. Create-group flows (209) can call this alone.
-    func refreshHomeBoards(accessToken: String?) async {
-        guard let accessToken else { return }
-        let generation = refreshGeneration
-        do {
-            let boards = try await apiClient.getHome(accessToken: accessToken)
-            guard mayWrite(generation) else { return }
-            home = boards
-        } catch {
-            if error.isRequestCancellation { return }
-            if case MonacoAPIError.httpStatus(let status) = error, status == 401 {
-                return
-            }
-        }
+    func nextPollGeneration() -> Int {
+        pollGeneration += 1
+        return pollGeneration
     }
 
-    /// GET /v1/home/pnl-series for the Home chart. Does not block login or dashboard shell.
-    func refreshHomePnLSeries(auth: SessionAuthenticating, accessToken: String? = nil) async {
-        let token = accessToken ?? auth.accessToken
-        guard let token else { return }
-        let generation = refreshGeneration
-        isHomePnLSeriesLoading = homePnLSeries == nil
-        defer { isHomePnLSeriesLoading = false }
-        do {
-            let series = try await apiClient.getHomePnLSeries(accessToken: token, range: .oneHour)
-            guard mayWrite(generation) else { return }
-            homePnLSeries = series.points
-        } catch {
-            if error.isRequestCancellation { return }
-            if case MonacoAPIError.httpStatus(let status) = error, status == 401 {
-                await auth.signOutAfterRejectedSession(rejectedToken: token)
-            }
-        }
+    func setLeaderboardRange(_ range: HomeLeaderboardRange) {
+        leaderboardRange = range
     }
 
-    func refreshPopular(auth: SessionAuthenticating) async {
-        guard let token = auth.accessToken else { return }
-        let generation = refreshGeneration
-        do {
-            let popular = try await apiClient.getPopularAssets(accessToken: token, limit: 10)
-            guard mayWrite(generation) else { return }
-            popularAssets = popular.assets
-        } catch {
-            if error.isRequestCancellation { return }
-            if case MonacoAPIError.httpStatus(let status) = error, status == 401 {
-                await auth.signOutAfterRejectedSession(rejectedToken: token)
-            }
-        }
+    func replaceDeferredWork(with task: Task<Void, Never>) {
+        deferredWork.removeAll(where: \.isCancelled)
+        deferredWork.append(task)
+    }
+
+    func cancelAndClearDeferredWork() {
+        for task in deferredWork { task.cancel() }
+        deferredWork.removeAll()
+    }
+
+    func reset() {
+        cancelAndClearDeferredWork()
+        resetGenerations()
+        home = nil
+        dashboard = nil
+        profile = nil
+        platformBalance = nil
+        popularAssets = []
+        homePnLSeries = nil
+        isHomePnLSeriesLoading = false
+        isBalanceLoading = false
+        errorMessage = nil
+        #if DEBUG
+        errorDebugDetail = nil
+        #endif
+        isLoading = false
+        leaderboardRange = .all
+        skipsSessionOpen = false
     }
 
 }

@@ -2,8 +2,62 @@ import MonacoAPI
 import MonacoCore
 
 extension AppSessionStore {
+    func refreshDeferredHomePayloads(auth: SessionAuthenticating, accessToken: String? = nil) async {
+        await refreshHomeBoards(accessToken: accessToken ?? auth.accessToken)
+        await refreshPopular(auth: auth)
+    }
+
+    func refreshHomeBoards(accessToken: String?) async {
+        guard let accessToken else { return }
+        let generation = refreshGenerationValue()
+        do {
+            let boards = try await apiClient.getHome(accessToken: accessToken)
+            guard mayWrite(generation) else { return }
+            home = boards
+        } catch {
+            if error.isRequestCancellation { return }
+        }
+    }
+
+    func refreshHomePnLSeries(auth: SessionAuthenticating, accessToken: String? = nil) async {
+        let token = accessToken ?? auth.accessToken
+        guard let token else { return }
+        let generation = refreshGenerationValue()
+        isHomePnLSeriesLoading = homePnLSeries == nil
+        defer { isHomePnLSeriesLoading = false }
+        do {
+            let series = try await apiClient.getHomePnLSeries(accessToken: token, range: .oneHour)
+            guard mayWrite(generation) else { return }
+            homePnLSeries = series.points
+        } catch {
+            if error.isRequestCancellation { return }
+            if case MonacoAPIError.httpStatus(let status) = error, status == 401 {
+                await auth.signOutAfterRejectedSession(rejectedToken: token)
+            }
+        }
+    }
+
+    func refreshPopular(auth: SessionAuthenticating) async {
+        guard let token = auth.accessToken else { return }
+        let generation = refreshGenerationValue()
+        do {
+            let popular = try await apiClient.getPopularAssets(accessToken: token, limit: 10)
+            guard mayWrite(generation) else { return }
+            popularAssets = popular.assets
+        } catch {
+            if error.isRequestCancellation { return }
+            if case MonacoAPIError.httpStatus(let status) = error, status == 401 {
+                await auth.signOutAfterRejectedSession(rejectedToken: token)
+            }
+        }
+    }
+
+    func resolvedAccessToken(_ provided: String?, auth: SessionAuthenticating) async -> String? {
+        if let provided { return provided }
+        return await accessToken(auth: auth)
+    }
+
     func accessToken(auth: SessionAuthenticating) async -> String? {
-        if let token = await sessionToken?(), !token.isEmpty { return token }
         return auth.accessToken
     }
     var joinedCabals: [HomeGroupBoardRowDTO] {
@@ -11,20 +65,17 @@ extension AppSessionStore {
     }
 
     func noteProfileWrite() {
-        profileWriteGeneration += 1
+        bumpProfileWriteGeneration()
     }
 
     func awaitDeferredWork() async {
-        for task in deferredWork {
+        for task in deferredWorkValue() {
             await task.value
         }
     }
 
     func cancelDeferredWork() {
-        for task in deferredWork {
-            task.cancel()
-        }
-        deferredWork.removeAll()
+        cancelAndClearDeferredWork()
     }
 
     func refreshAfterCreate(auth: SessionAuthenticating, created: CreateGroupResponse) {
@@ -45,8 +96,8 @@ extension AppSessionStore {
     }
 
     private func deferredRefreshAfterCreate(auth: SessionAuthenticating) async {
-        guard let token = auth.accessToken else { return }
-        let generation = refreshGeneration
+        guard let token = await accessToken(auth: auth) else { return }
+        let generation = refreshGenerationValue()
         let request = beginDashboardRequest()
         do {
             async let homeLoad = apiClient.getHome(accessToken: token)
@@ -73,16 +124,15 @@ extension AppSessionStore {
     }
 
     func beginDashboardRequest() -> DashboardRequest {
-        dashboardGeneration += 1
-        return DashboardRequest(range: leaderboardRange, generation: dashboardGeneration)
+        nextDashboardRequest()
     }
 
     func currentDashboardRequest() -> DashboardRequest {
-        DashboardRequest(range: leaderboardRange, generation: dashboardGeneration)
+        DashboardRequest(range: leaderboardRange, generation: dashboardGenerationValue())
     }
 
     func isCurrent(_ request: DashboardRequest) -> Bool {
-        request.generation == dashboardGeneration && request.range == leaderboardRange
+        request.generation == dashboardGenerationValue() && request.range == leaderboardRange
     }
 
     func apply(_ loaded: HomeDashboardDTO, for request: DashboardRequest) {
@@ -91,12 +141,11 @@ extension AppSessionStore {
     }
 
     func startDeferredWork(_ work: @escaping @MainActor () async -> Void) {
-        deferredWork.removeAll(where: \.isCancelled)
-        deferredWork.append(Task { await work() })
+        replaceDeferredWork(with: Task { await work() })
     }
 
     func mayWrite(_ generation: Int) -> Bool {
-        generation == refreshGeneration && !Task.isCancelled
+        generation == refreshGenerationValue() && !Task.isCancelled
     }
 
     func finishRefresh(
@@ -108,10 +157,10 @@ extension AppSessionStore {
         request: DashboardRequest,
         auth: SessionAuthenticating,
         token: String
-    ) {
-        guard mayWrite(generation), auth.accessToken == token else { return }
+    ) async {
+        guard mayWrite(generation), await accessToken(auth: auth) == token else { return }
         apply(dashboard, for: request)
-        if let profile, profileGeneration == profileWriteGeneration, mayWrite(generation) {
+        if let profile, profileGeneration == profileWriteGenerationValue(), mayWrite(generation) {
             self.profile = profile
         }
         if let balance, mayWrite(generation) {
@@ -138,8 +187,8 @@ extension AppSessionStore {
     }
 
     func refreshDashboard(auth: SessionAuthenticating, leaderboardRange: HomeLeaderboardRange) async {
-        guard let token = auth.accessToken else { return }
-        self.leaderboardRange = leaderboardRange
+        guard let token = await accessToken(auth: auth) else { return }
+        setLeaderboardRange(leaderboardRange)
         let request = beginDashboardRequest()
         do {
             let loaded = try await apiClient.getHomeDashboard(
@@ -153,5 +202,30 @@ extension AppSessionStore {
                 await auth.signOutAfterRejectedSession(rejectedToken: token)
             }
         }
+    }
+
+    func pollLive(auth: SessionAuthenticating) async throws {
+        guard let token = await accessToken(auth: auth) else { return }
+        let generation = refreshGenerationValue()
+        let request = currentDashboardRequest()
+        let poll = nextPollGeneration()
+
+        async let dashboardLoad = apiClient.getHomeDashboard(accessToken: token, leaderboardRange: request.range)
+        async let balanceLoad = apiClient.getPlatformBalance(accessToken: token)
+        async let homeLoad = apiClient.getHome(accessToken: token)
+        async let seriesLoad = apiClient.getHomePnLSeries(accessToken: token, range: .oneHour)
+
+        let loadedDashboard = try await dashboardLoad
+        let balance = try? await balanceLoad
+        let boards = try? await homeLoad
+        let series = try? await seriesLoad
+        guard generation == refreshGenerationValue(), isCurrent(request), poll == pollGenerationValue(),
+            !Task.isCancelled
+        else { return }
+        QuietUpdate.apply(loadedDashboard, over: dashboard) { dashboard = $0 }
+        if let balance { QuietUpdate.apply(balance, over: platformBalance) { platformBalance = $0 } }
+        if let boards { QuietUpdate.apply(boards, over: home) { home = $0 } }
+        if let series { QuietUpdate.apply(series.points, over: homePnLSeries) { homePnLSeries = $0 } }
+        if profile != nil { errorMessage = nil }
     }
 }

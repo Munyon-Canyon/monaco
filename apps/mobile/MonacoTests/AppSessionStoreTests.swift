@@ -332,43 +332,6 @@ struct AppSessionStoreBootstrapTests {
         #expect(store.profile?.userID == "01890a5d-ac96-774b-bcce-b302099a9999")
     }
 
-    @Test func aPrivyProfileGateKeepsTheSessionBearerAfterAnUnavailableNameSave() async throws {
-        let tokens = SessionTokens(privyToken: { "privy-token" }, refresh: { _ in nil })
-        let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), .json(.ok, SessionWire.me)])
-        let store = AppSessionStore(
-            apiClient: StubDataSource(),
-            sessions: SessionAPI(api: APIClient(serverURL: testServerURL, tokens: tokens, transport: transport)),
-            sessionToken: { try? await tokens.accessToken() }
-        )
-        let auth = StubAuth()
-        await store.bootstrap(auth: auth)
-
-        let outcome = await store.updateDisplayName("New name", auth: auth, optimistic: false)
-        await store.noteForeground(auth: auth)
-
-        let sent = await transport.sent
-        #expect(outcome == .failed("Could not save your name. Try again."))
-        #expect(sent.map(\.path) == ["/v1/auth/session", "/v1/me"])
-        #expect(sent.allSatisfy { $0.headerFields[.authorization] == "Bearer privy-token" })
-        #expect(store.profile?.displayName == "Kai Cenat")
-    }
-
-    @Test func aDevProfileGateUsesTheDevSessionBearer() async throws {
-        let tokens = SessionTokens(privyToken: { "privy-token" }, refresh: { _ in nil })
-        tokens.use(DevSession(token: "dev-token", userID: "u-1"))
-        let transport = StubTransport(.json(.ok, SessionWire.me))
-        let store = AppSessionStore(
-            apiClient: StubDataSource(),
-            sessions: SessionAPI(api: APIClient(serverURL: testServerURL, tokens: tokens, transport: transport)),
-            sessionToken: { try? await tokens.accessToken() }
-        )
-
-        await store.bootstrap(auth: StubAuth(), devSession: true)
-
-        let sent = await transport.sent
-        #expect(sent.map(\.path) == ["/v1/me"])
-        #expect(sent.first?.headerFields[.authorization] == "Bearer dev-token")
-    }
 }
 
 @MainActor
@@ -403,14 +366,6 @@ private enum SessionWire {
         #"{"id":"01890a5d-ac96-774b-bcce-b302099a9999","handle":"bee","display_name":"Bee","auth_state":"CREATED","account_status":"active","member_wallet_address":"wallet-b","phone_linked":false,"created_at":"2026-09-30T12:00:00Z"}"#
     static let deleted =
         #"{"status":403,"code":"account_deleted","message":"x","trace_id":"t","retryable":false}"#
-    static let renamed =
-        #"{"userId":"01890a5d-ac96-774b-bcce-b302099a8058","displayName":"New name","memberWalletAddress":"wallet-1","createdAt":"2026-09-30T12:00:00Z"}"#
-}
-
-private func requestArrives(at url: URL) async {
-    while AvatarStubProtocol.requestCount(for: url) == 0 {
-        await Task.yield()
-    }
 }
 
 /// A 401 has to name the token the request actually carried. Naming whatever token is

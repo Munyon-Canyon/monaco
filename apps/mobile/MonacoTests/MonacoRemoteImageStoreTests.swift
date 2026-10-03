@@ -100,17 +100,15 @@ nonisolated final class MonacoRemoteImageStoreTests: XCTestCase {
 }
 
 /// Canned responses per URL, with a request counter.
-nonisolated final class AvatarStubProtocol: URLProtocol, @unchecked Sendable {
+nonisolated private final class AvatarStubProtocol: URLProtocol, @unchecked Sendable {
     private enum Stub {
         case response(status: Int, body: Data)
         case failure(URLError)
-        case gate
     }
 
     private struct State {
         var stubs: [URL: Stub] = [:]
         var counts: [URL: Int] = [:]
-        var pending: [URL: AvatarStubProtocol] = [:]
     }
 
     nonisolated(unsafe) private static var state = State()
@@ -140,26 +138,6 @@ nonisolated final class AvatarStubProtocol: URLProtocol, @unchecked Sendable {
         lock.unlock()
     }
 
-    nonisolated static func hold(_ url: URL) {
-        lock.lock()
-        state.stubs[url] = .gate
-        lock.unlock()
-    }
-
-    nonisolated static func release(_ url: URL, body: Data) {
-        lock.lock()
-        let instance = state.pending.removeValue(forKey: url)
-        lock.unlock()
-        guard let instance,
-            let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)
-        else {
-            return
-        }
-        instance.client?.urlProtocol(instance, didReceive: response, cacheStoragePolicy: .notAllowed)
-        instance.client?.urlProtocol(instance, didLoad: body)
-        instance.client?.urlProtocolDidFinishLoading(instance)
-    }
-
     nonisolated static func requestCount(for url: URL) -> Int {
         lock.lock()
         defer { lock.unlock() }
@@ -174,9 +152,6 @@ nonisolated final class AvatarStubProtocol: URLProtocol, @unchecked Sendable {
         Self.lock.lock()
         Self.state.counts[url, default: 0] += 1
         let stub = Self.state.stubs[url]
-        if case .gate = stub {
-            Self.state.pending[url] = self
-        }
         Self.lock.unlock()
 
         switch stub {
@@ -187,8 +162,6 @@ nonisolated final class AvatarStubProtocol: URLProtocol, @unchecked Sendable {
             client?.urlProtocolDidFinishLoading(self)
         case .failure(let error):
             client?.urlProtocol(self, didFailWithError: error)
-        case .gate:
-            break
         case nil:
             client?.urlProtocol(self, didFailWithError: URLError(.unsupportedURL))
         }
