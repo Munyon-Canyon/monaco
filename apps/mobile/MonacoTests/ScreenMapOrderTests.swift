@@ -13,6 +13,18 @@ struct ScreenMapOrderTests {
             ])
     }
 
+    @Test func cabalsTabFollowsTheScreenMap() {
+        #expect(
+            names(CabalsTabScreen.sections) == [
+                "CabalsJoinSlot", "CabalsInvitesSlot", "CabalsListSlot", "CabalsValueChartSlot", "CabalsBoardSlot",
+            ])
+    }
+
+    @Test func aTypedSearchHidesEverythingBelowIt() {
+        #expect(names(CabalsTabScreen.visible(CabalsTabScreen.sections, searching: true)) == ["CabalsJoinSlot"])
+        #expect(names(CabalsTabScreen.visible(CabalsTabScreen.sections, searching: false)).count == 5)
+    }
+
     @Test func cabalScreenFollowsTheScreenMap() {
         #expect(
             names(CabalScreen.sections) == [
