@@ -149,25 +149,26 @@ func TestCrossed_reportsEveryThresholdTheBasisPointChangeHasReached(t *testing.T
 func TestDisplayName(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		issuer    domain.Issuer
-		raw, want string
+		issuer            domain.Issuer
+		raw, symbol, want string
 	}{
-		{domain.IssuerTessera, "T-SpaceX", "SpaceX"},
-		{domain.IssuerTessera, " t-OpenAI ", "OpenAI"},
-		{domain.IssuerTessera, "T-", "T-"},
-		{domain.IssuerPreStocks, "SpaceX PreStocks", "SpaceX"},
-		{domain.IssuerPreStocks, "Figure AI PRESTOCKS", "Figure AI"},
-		{domain.IssuerPreStocks, " PreStocks", "PreStocks"},
-		{domain.IssuerXStocks, "Apple xStock", "Apple"},
-		{domain.IssuerXStocks, "  Tesla XSTOCK ", "Tesla"},
-		{domain.IssuerXStocks, "Apple", "Apple"},
-		{domain.IssuerXStocks, "T-Mobile US xStock", "T-Mobile US"},
-		{domain.IssuerPreStocks, "T-SpaceX", "T-SpaceX"},
-		{domain.IssuerTessera, "SpaceX PreStocks", "SpaceX PreStocks"},
-		{domain.Issuer("other"), " T-Rex xStock ", "T-Rex xStock"},
+		{domain.IssuerTessera, "T-SpaceX", "SPACEX", "SpaceX"},
+		{domain.IssuerTessera, " t-OpenAI ", "OPENAI", "OpenAI"},
+		{domain.IssuerTessera, "T-", "TES", "TES"},
+		{domain.IssuerPreStocks, "SpaceX PreStocks", "SPACEX", "SpaceX"},
+		{domain.IssuerPreStocks, "Figure AI PRESTOCKS", "FIGURE", "Figure AI"},
+		{domain.IssuerPreStocks, " PreStocks", "PRE", "PRE"},
+		{domain.IssuerXStocks, "Apple xStock", "AAPLx", "Apple"},
+		{domain.IssuerXStocks, "  Tesla XSTOCK ", "TSLAx", "Tesla"},
+		{domain.IssuerXStocks, "Apple", "AAPLx", "Apple"},
+		{domain.IssuerXStocks, "T-Mobile US xStock", "TMUSx", "T-Mobile US"},
+		{domain.IssuerPreStocks, "T-SpaceX", "SPACEX", "T-SpaceX"},
+		{domain.IssuerTessera, "SpaceX PreStocks", "SPACEX", "SpaceX PreStocks"},
+		{domain.Issuer("other"), " T-Rex xStock ", "TREX", "T-Rex xStock"},
+		{domain.IssuerXStocks, "   ", "EMPTYx", "EMPTYx"},
 	} {
-		if got := domain.DisplayName(tc.issuer, tc.raw); got != tc.want {
-			t.Fatalf("DisplayName(%s, %q) = %q, want %q", tc.issuer, tc.raw, got, tc.want)
+		if got := domain.DisplayName(tc.issuer, tc.raw, tc.symbol); got != tc.want {
+			t.Fatalf("DisplayName(%s, %q, %q) = %q, want %q", tc.issuer, tc.raw, tc.symbol, got, tc.want)
 		}
 	}
 }
@@ -199,20 +200,21 @@ func TestFirstAcceptedOnDay_usesTheFirstConfirmedSampleOfThatDay(t *testing.T) {
 	}
 }
 
-func TestCompanyKey_lowercasesTheDisplayNameSoIssuersOfOneCompanyShareIt(t *testing.T) {
+func TestCompanyKeyForAsset_lowercasesTheDisplayNameSoIssuersOfOneCompanyShareIt(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		issuer    domain.Issuer
-		raw, want string
+		issuer            domain.Issuer
+		raw, symbol, want string
 	}{
-		{domain.IssuerXStocks, "Apple xStock", "apple"},
-		{domain.IssuerXStocks, "  Alphabet Class A xStock ", "alphabet class a"},
-		{domain.IssuerXStocks, "JPMorgan Ultra-Short Income xStock", "jpmorgan ultra-short income"},
-		{domain.IssuerTessera, "T-SpaceX", "spacex"},
-		{domain.IssuerPreStocks, "SpaceX PreStocks", "spacex"},
+		{domain.IssuerXStocks, "Apple xStock", "AAPLx", "apple"},
+		{domain.IssuerXStocks, "  Alphabet Class A xStock ", "GOOGLx", "alphabet class a"},
+		{domain.IssuerXStocks, "JPMorgan Ultra-Short Income xStock", "JPSTx", "jpmorgan ultra-short income"},
+		{domain.IssuerTessera, "T-SpaceX", "TSPACEX", "spacex"},
+		{domain.IssuerPreStocks, "SpaceX PreStocks", "SPACEX", "spacex"},
+		{domain.IssuerXStocks, "xStock", "AAPLx", "aaplx"},
 	} {
-		if got := domain.CompanyKey(tc.issuer, tc.raw); got != tc.want {
-			t.Fatalf("CompanyKey(%s, %q) = %q, want %q", tc.issuer, tc.raw, got, tc.want)
+		if got := domain.CompanyKeyForAsset(tc.issuer, tc.raw, tc.symbol); got != tc.want {
+			t.Fatalf("CompanyKeyForAsset(%s, %q, %q) = %q, want %q", tc.issuer, tc.raw, tc.symbol, got, tc.want)
 		}
 	}
 }

@@ -55,6 +55,17 @@ func TestAssets_SearchByName(t *testing.T) {
 	}
 }
 
+func TestAssets_fixtureCatalogDoesNotExposeIssuerBranding(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	for _, a := range pageOf(t, s.get(t, "/v1/assets")).Assets {
+		if strings.Contains(strings.ToLower(a.DisplayName), "xstock") {
+			t.Fatalf("%s display name = %q, contains issuer branding", a.Symbol, a.DisplayName)
+		}
+	}
+}
+
 func assertAppleQuote(t *testing.T, got api.AssetSummary) {
 	t.Helper()
 	if got.DisplayName != "Apple" || got.Issuer != api.Xstocks || got.Kind != api.AssetKindEquity {

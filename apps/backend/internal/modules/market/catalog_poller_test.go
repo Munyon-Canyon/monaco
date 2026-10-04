@@ -172,6 +172,19 @@ func TestCatalogPoller_InsertsAndUpdates(t *testing.T) {
 	}
 }
 
+func TestCatalogPoller_fallsBackToTheSymbolForAnIssuerOnlyName(t *testing.T) {
+	t.Parallel()
+	xs := &provider{issuer: domain.IssuerXStocks}
+	aapl := listed(marketfake.AAPLx())
+	aapl.DisplayName = "xStock"
+	xs.serve(nil, aapl)
+	rig := newRig(t, xs)
+	rig.tick(t)
+	if got := rig.asset(t, "AAPLx").DisplayName; got != "AAPLx" {
+		t.Fatalf("display name = %q, want symbol fallback", got)
+	}
+}
+
 func TestCatalogPoller_updateKeepsTheIDAndFirstSeen(t *testing.T) {
 	t.Parallel()
 	xs := &provider{issuer: domain.IssuerXStocks}
