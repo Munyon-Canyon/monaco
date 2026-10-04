@@ -79,8 +79,8 @@ public struct ProposalsRepository: Sendable {
         }
     }
 
-    public func lookups(for proposals: [Proposal]) async throws -> ProposalLookups {
-        let cabalIDs = Set(proposals.map(\.cabalID))
+    public func lookups(for proposals: [Proposal], cabals extra: [String] = []) async throws -> ProposalLookups {
+        let cabalIDs = Set(proposals.map(\.cabalID) + extra)
         let symbols = Set(proposals.map(\.symbol))
         return try await withThrowingTaskGroup(of: Lookup.self) { group in
             for id in cabalIDs {
