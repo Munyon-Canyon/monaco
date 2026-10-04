@@ -11,6 +11,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
@@ -132,6 +133,35 @@ func TestAwaitTick_inProcessTicksThePollerOnceAndExpectTickChecksWhatItFound(t *
 	}
 }
 
+func TestAwaitMarkedTickAfterCrash_ignoresAnInFlightTick(t *testing.T) {
+	t.Parallel()
+	stack := &lineLog{note: newNotifier()}
+	s := Against(t.Context(), t, Remote{
+		Enter: func(Stage) {},
+		Logs:  stack.since,
+	})
+	s.When(MarkTick("market.prices"))
+	_, _ = fmt.Fprintln(stack, `{"msg":"poller.tick","poller":"market.prices","scanned":2,"changed":0}`)
+	_, _ = fmt.Fprintln(stack, "panic: faultpoint: crash at before-commit")
+	_, _ = fmt.Fprintln(stack, `{"msg":"poller.tick","poller":"market.prices","scanned":2,"changed":2}`)
+	s.When(
+		AwaitMarkedTickAfterCrash("market.prices", faultpoint.BeforeCommit),
+		ExpectTick("market.prices", 2, 2),
+	)
+}
+
+func TestAwaitMarkedTickAfterCrash_requiresAMark(t *testing.T) {
+	t.Parallel()
+	stack := &lineLog{note: newNotifier()}
+	got := failure(t, t.Context, func(r T) *Scenario {
+		return Against(t.Context(), r, Remote{Enter: func(Stage) {}, Logs: stack.since})
+	}, AwaitMarkedTickAfterCrash("market.prices", faultpoint.BeforeCommit))
+	const want = "scenario: AwaitMarkedTickAfterCrash(market.prices) needs MarkTick(market.prices) first"
+	if got != want {
+		t.Fatalf("failure = %q, want %q", got, want)
+	}
+}
+
 func TestAwaitTick_againstAStackWaitsForATickWrittenAfterTheStepStarted(t *testing.T) {
 	t.Parallel()
 	const (
@@ -173,4 +203,12 @@ func TestAwaitTick_againstAStackWaitsForATickWrittenAfterTheStepStarted(t *testi
 	if got != "" {
 		t.Fatalf("AwaitTick then ExpectTick against the stack = %q, want a pass", got)
 	}
+}
+
+func TestAwaitTickOrEarlier_againstAStackAcceptsTheStartupTick(t *testing.T) {
+	t.Parallel()
+	stack := &lineLog{note: newNotifier()}
+	_, _ = fmt.Fprintln(stack, `{"msg":"poller.tick","poller":"market.catalog","scanned":3,"changed":3}`)
+	s := Against(t.Context(), t, Remote{Enter: func(Stage) {}, Logs: stack.since})
+	s.When(AwaitTickOrEarlier("market.catalog"), ExpectTick("market.catalog", 3, 3))
 }

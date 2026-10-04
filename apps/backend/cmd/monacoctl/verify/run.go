@@ -155,9 +155,17 @@ func run(ctx context.Context, cfg Config, target Target) (err error) {
 		parallel = 1
 	}
 	return verifyUnits(runCtx, cfg, Env{
-		API: stack.API, Fakes: stack.Fakes, PrivyAppID: PrivyAppID, TokenKey: stack.TokenKey, Pool: stack.Pool,
-		JS: stack.NATS.JS, Events: bus.StreamEvents, DeadLetter: bus.StreamDeadLetter, Subject: stack.Bus.Subject,
-		Consumers: consumers, Logs: stack.Logs, Crash: stack.crashUnit, Arm: stack.armUnit,
+		API:        stack.API,
+		Fakes:      stack.Fakes,
+		PrivyAppID: PrivyAppID,
+		TokenKey:   stack.TokenKey,
+		Pool:       stack.Pool,
+		JS:         stack.NATS.JS,
+		Events:     bus.StreamEvents,
+		DeadLetter: bus.StreamDeadLetter,
+		NATS:       stack.NATS,
+		Subject:    stack.Bus.Subject,
+		Consumers:  consumers, Logs: stack.Logs, Crash: stack.crashUnit, Arm: stack.armUnit,
 	}, rep, parallel)
 }
 

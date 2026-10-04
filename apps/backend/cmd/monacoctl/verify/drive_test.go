@@ -78,6 +78,97 @@ func unservedEnv(api string) Env {
 	}
 }
 
+func TestDriverSubscribeCoreReceivesThePublishedMessage(t *testing.T) {
+	t.Parallel()
+	nats, err := testkit.StartEmbeddedNATS()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(nats.Stop)
+	d := &driver{env: Env{NATS: nats, Subject: func(subject string) string { return "verify." + subject }}}
+	messages := d.subscribeCore(t, "price.tick")
+	publisher, err := nats.Connect("verify-test-publisher")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(publisher.Close)
+	if err := publisher.Publish("verify.price.tick", []byte(`{"v":1}`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := publisher.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	var got []byte
+	testkit.Eventually(t, func() bool {
+		select {
+		case got = <-messages:
+			return true
+		default:
+			return false
+		}
+	}, time.Second)
+	if string(got) != `{"v":1}` {
+		t.Fatalf("message = %s", got)
+	}
+}
+
+func TestDriverSubscribeCoreNamesSetupFailures(t *testing.T) {
+	t.Parallel()
+	t.Run("connect", func(t *testing.T) {
+		t.Parallel()
+		d := &driver{env: Env{
+			NATS:    &testkit.EmbeddedNATS{URL: "nats://127.0.0.1:1"},
+			Subject: func(subject string) string { return subject },
+		}}
+		gotErr := subscribeCoreFailure(t, d, "price.tick")
+		if gotErr == nil || !strings.Contains(gotErr.Error(), "connect core") {
+			t.Fatalf("error = %v", gotErr)
+		}
+	})
+	t.Run("subscribe", func(t *testing.T) {
+		t.Parallel()
+		nats, err := testkit.StartEmbeddedNATS()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(nats.Stop)
+		d := &driver{env: Env{NATS: nats, Subject: func(string) string { return "bad subject" }}}
+		gotErr := subscribeCoreFailure(t, d, "price.tick")
+		if gotErr == nil || !strings.Contains(gotErr.Error(), "subscribe core") {
+			t.Fatalf("error = %v", gotErr)
+		}
+	})
+	t.Run("flush", func(t *testing.T) {
+		t.Parallel()
+		nats, err := testkit.StartEmbeddedNATS()
+		if err != nil {
+			t.Fatal(err)
+		}
+		d := &driver{env: Env{
+			NATS:            nats,
+			Subject:         func(subject string) string { return subject },
+			BeforeCoreFlush: nats.Stop,
+		}}
+		gotErr := subscribeCoreFailure(t, d, "price.tick")
+		if gotErr == nil || !strings.Contains(gotErr.Error(), "flush core") {
+			t.Fatalf("error = %v", gotErr)
+		}
+	})
+}
+
+func subscribeCoreFailure(t *testing.T, d *driver, subject string) error {
+	t.Helper()
+	flow := &flowT{ctx: t.Context}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		d.subscribeCore(flow, subject)
+	}()
+	<-done
+	flow.runCleanups()
+	return flow.err()
+}
+
 func flow01(t *testing.T, target Target) []Unit {
 	t.Helper()
 	all, err := readFlows(backendDir(t))

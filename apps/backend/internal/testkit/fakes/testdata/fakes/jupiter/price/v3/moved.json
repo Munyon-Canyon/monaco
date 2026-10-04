@@ -6,21 +6,21 @@
   "body": {
     "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp": {
       "usdPrice": 254.371234,
-      "blockId": 348004023,
+      "blockId": 348004024,
       "decimals": 8,
       "priceChange24h": 0.41
     },
     "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB": {
       "usdPrice": 436.1205,
-      "blockId": 348004023,
+      "blockId": 348004024,
       "decimals": 8,
       "priceChange24h": -1.2
     },
     "TSPXcLV76s6V2zDiZQ18kBfcbnjaE2ZzNT3ga2Pd99v": {
-      "usdPrice": 100,
-      "blockId": 348004023,
+      "usdPrice": 111,
+      "blockId": 348004024,
       "decimals": 8,
-      "priceChange24h": 0
+      "priceChange24h": 11
     }
   }
 }

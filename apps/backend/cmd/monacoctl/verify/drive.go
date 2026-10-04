@@ -19,6 +19,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 	tools "github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
@@ -26,19 +27,21 @@ import (
 const parallelFlows = 4
 
 type Env struct {
-	API        string
-	Fakes      string
-	PrivyAppID string
-	TokenKey   string
-	Pool       *pgxpool.Pool
-	JS         jetstream.JetStream
-	Events     string
-	DeadLetter string
-	Subject    func(subject string) string
-	Consumers  []bus.Consumer
-	Logs       *Logs
-	Crash      func(ctx context.Context, u Unit, point faultpoint.Name) error
-	Arm        func(ctx context.Context, u Unit) error
+	API             string
+	Fakes           string
+	PrivyAppID      string
+	TokenKey        string
+	Pool            *pgxpool.Pool
+	JS              jetstream.JetStream
+	Events          string
+	DeadLetter      string
+	NATS            *testkit.EmbeddedNATS
+	Subject         func(subject string) string
+	Consumers       []bus.Consumer
+	Logs            *Logs
+	Crash           func(ctx context.Context, u Unit, point faultpoint.Name) error
+	Arm             func(ctx context.Context, u Unit) error
+	BeforeCoreFlush func()
 }
 
 type Result struct {
@@ -153,7 +156,8 @@ func (d *driver) script(ctx context.Context, u Unit, res *Result) error {
 			res.Exchanges = append(res.Exchanges, e)
 			res.mu.Unlock()
 		},
-		Logs: d.env.Logs.since,
+		Logs:          d.env.Logs.since,
+		CoreSubscribe: d.subscribeCore,
 	}
 	remote.Restart = d.restart(u)
 	go func(ctx context.Context) {
@@ -193,6 +197,48 @@ func (d *driver) script(ctx context.Context, u Unit, res *Result) error {
 			return stopped(fmt.Errorf("flow %s: %w", u.Name(), context.Cause(ctx)))
 		}
 	}
+}
+
+func (d *driver) subscribeCore(t scenario.T, subject string) <-chan []byte {
+	t.Helper()
+	nc, err := d.env.NATS.Connect("monacoctl-verify")
+	if err != nil {
+		t.Fatalf("verify: connect core subscription for %s: %v", subject, err)
+	}
+	sub, err := nc.SubscribeSync(d.env.Subject(subject))
+	if err != nil {
+		nc.Close()
+		t.Fatalf("verify: subscribe core %s: %v", subject, err)
+	}
+	if d.env.BeforeCoreFlush != nil {
+		d.env.BeforeCoreFlush()
+	}
+	if err := nc.Flush(); err != nil {
+		_ = sub.Unsubscribe()
+		nc.Close()
+		t.Fatalf("verify: flush core %s: %v", subject, err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	messages := make(chan []byte, 1)
+	t.Cleanup(func() {
+		cancel()
+		_ = sub.Unsubscribe()
+		nc.Close()
+	})
+	go func() {
+		defer close(messages)
+		for {
+			message, err := sub.NextMsgWithContext(ctx)
+			if err != nil {
+				return
+			}
+			select {
+			case messages <- message.Data:
+			case <-ctx.Done():
+			}
+		}
+	}()
+	return messages
 }
 
 func (d *driver) restart(u Unit) func(context.Context) error {

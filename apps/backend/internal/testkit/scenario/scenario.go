@@ -69,6 +69,7 @@ type backend struct {
 	seed          func(t T, name string) []testkit.Seeded
 	lines         func(from int) ([]string, <-chan struct{})
 	tick          func(t T, poller string) (stop func())
+	coreSubscribe func(t T, subject string) <-chan []byte
 	flow          string
 	trigger       string
 	restart       func(t T)
@@ -84,6 +85,8 @@ type Scenario struct {
 	remember map[string]string
 	keys     int
 	ticks    map[string]tick
+	marks    map[string]int
+	core     map[string]<-chan []byte
 }
 
 type user struct {
@@ -157,7 +160,15 @@ func New(t *testing.T, opts ...Option) *Scenario {
 }
 
 func newScenario(t T, b *backend) *Scenario {
-	return &Scenario{t: t, app: b, users: map[string]*user{}, remember: map[string]string{}, ticks: map[string]tick{}}
+	return &Scenario{
+		t:        t,
+		app:      b,
+		users:    map[string]*user{},
+		remember: map[string]string{},
+		ticks:    map[string]tick{},
+		marks:    map[string]int{},
+		core:     map[string]<-chan []byte{},
+	}
 }
 
 func (s *Scenario) Given(steps ...Step) *Scenario { return s.run(StageGiven, steps) }
