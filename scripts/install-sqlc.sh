@@ -14,7 +14,7 @@ esac
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-curl -sSfL -o "$tmp/sqlc.tar.gz" \
+curl -sSfL --retry 3 --retry-delay 2 --retry-all-errors -o "$tmp/sqlc.tar.gz" \
   "https://github.com/sqlc-dev/sqlc/releases/download/v${version}/sqlc_${version}_${platform}.tar.gz"
 if command -v sha256sum >/dev/null 2>&1; then
   have="$(sha256sum "$tmp/sqlc.tar.gz" | awk '{print $1}')"

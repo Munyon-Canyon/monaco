@@ -17,8 +17,8 @@ esac
 url="https://release.ariga.io/atlas/atlas-community-${platform}-${version}"
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
-curl -sSfL -o "$tmp" "$url"
-want="$(curl -sSfL "${url}.sha256" | awk '{print $1}')"
+curl -sSfL --retry 3 --retry-delay 2 --retry-all-errors -o "$tmp" "$url"
+want="$(curl -sSfL --retry 3 --retry-delay 2 --retry-all-errors "${url}.sha256" | awk '{print $1}')"
 if command -v sha256sum >/dev/null 2>&1; then
   have="$(sha256sum "$tmp" | awk '{print $1}')"
 else
