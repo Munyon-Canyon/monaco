@@ -27,20 +27,21 @@ import (
 const parallelFlows = 4
 
 type Env struct {
-	API        string
-	Fakes      string
-	PrivyAppID string
-	TokenKey   string
-	Pool       *pgxpool.Pool
-	JS         jetstream.JetStream
-	Events     string
-	DeadLetter string
-	NATS       *testkit.EmbeddedNATS
-	Subject    func(subject string) string
-	Consumers  []bus.Consumer
-	Logs       *Logs
-	Crash      func(ctx context.Context, u Unit, point faultpoint.Name) error
-	Arm        func(ctx context.Context, u Unit) error
+	API             string
+	Fakes           string
+	PrivyAppID      string
+	TokenKey        string
+	Pool            *pgxpool.Pool
+	JS              jetstream.JetStream
+	Events          string
+	DeadLetter      string
+	NATS            *testkit.EmbeddedNATS
+	Subject         func(subject string) string
+	Consumers       []bus.Consumer
+	Logs            *Logs
+	Crash           func(ctx context.Context, u Unit, point faultpoint.Name) error
+	Arm             func(ctx context.Context, u Unit) error
+	BeforeCoreFlush func()
 }
 
 type Result struct {
@@ -209,6 +210,9 @@ func (d *driver) subscribeCore(t scenario.T, subject string) <-chan []byte {
 		nc.Close()
 		t.Fatalf("verify: subscribe core %s: %v", subject, err)
 	}
+	if d.env.BeforeCoreFlush != nil {
+		d.env.BeforeCoreFlush()
+	}
 	if err := nc.Flush(); err != nil {
 		_ = sub.Unsubscribe()
 		nc.Close()
@@ -231,7 +235,6 @@ func (d *driver) subscribeCore(t scenario.T, subject string) <-chan []byte {
 			select {
 			case messages <- message.Data:
 			case <-ctx.Done():
-				return
 			}
 		}
 	}()
