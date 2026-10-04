@@ -1,0 +1,19 @@
+journey: cabals/join
+expect-fail: S1
+
+The invite card is not in the cabal's details. S1.3 reads the code from it, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalInviteCodeSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalInviteCodeSlot.swift
+index e734c8c3..57dab46b 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalInviteCodeSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalInviteCodeSlot.swift
+@@ -4,7 +4,7 @@ import SwiftUI
+ import UIKit
+ 
+ enum CabalInviteCodeSlot: CabalSection {
+-    static let isLive = true
++    static let isLive = false
+ 
+     static func body(for context: CabalContext) -> some View {
+         CabalInviteCodeSection(cabalID: context.cabalID)
