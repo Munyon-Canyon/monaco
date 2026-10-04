@@ -172,34 +172,40 @@ struct CabalScreen: View {
 
 | Screen and context | Slot | Owner |
 | --- | --- | --- |
-| `Features/Home/HomeScreen.swift` | `HomeNudgeSlot` | #644 |
+| `Features/Home/HomeScreen.swift` (toolbar avatar opens the Profile tab) | `HomeNudgeSlot` | #644 |
+| | `HomePortfolioSlot` | #660 |
 | | `HomeBalanceSlot` | #610 |
 | | `HomePendingVotesSlot` | #612 |
-| | `HomePortfolioSlot` | #660 |
+| | `HomeCabalsSlot` | #660 |
 | | `HomePeopleBoardSlot` | #699 |
 | `Features/Profile/ProfileScreen.swift` | `ProfileHeaderSlot` | #644 |
-| | `ProfileBalanceSlot` | #610 |
 | | `ProfileFollowCountsSlot` | #620 |
+| | `ProfileStatsSlot` | #2140 |
+| | `ProfileBalanceSlot` | #610 |
+| | `ProfileCabalsSlot` | #2140 |
 | | `ProfileInviteSlot` | #682 |
 | | `ProfileFindFriendsSlot` | #663 |
 | | `ProfileSettingsSlot` | #2139 |
-| | `ProfileDeleteAccountSlot` | #695 |
 | `Features/Groups/CabalsTabScreen.swift` | `CabalsInvitesSlot` | #696 |
 | | `CabalsListSlot` | #606 |
 | | `CabalsJoinSlot` | #646 |
 | | `CabalsValueChartSlot` | #660 |
 | | `CabalsBoardSlot` | #699 |
 | `Features/Groups/CabalScreen.swift`, `CabalContext(cabalID: String)`, body | `CabalHeaderSlot` | #606 |
+| | `CabalPotSlot` | #2137 |
+| | `CabalValueChartSlot` | #660 |
+| | `CabalSliceSlot` | #2137 |
 | | `CabalPauseSlot` | #657 |
 | | `CabalJoinSlot` | #646 |
-| | `CabalPotSlot` | #2137 |
+| | `CabalActionsSlot` | #2134 |
 | | `CabalProposalsSlot` | #612 |
+| | `CabalHoldingsSlot` | #2137 |
+| | `CabalAgentSlot` | #691 |
 | | `CabalMemberBoardSlot` | #699 |
 | | `CabalActivitySlot` | #654 |
-| | `CabalChatSlot` | #676 |
-| | `CabalCashOutSlot` | #657 |
-| `CabalScreen` details sheet (toolbar "Details" button, hidden while no details slot is live) | `CabalInviteCodeSlot` | #646 |
+| `CabalScreen` details sheet, "Cabal details" (toolbar `info.circle` button, hidden while no details slot is live) | `CabalInviteCodeSlot` | #646 |
 | | `CabalInviteMemberSlot` | #696 |
+| | `CabalRulesSlot` | #2135 |
 | | `CabalTreasurySlot` | #651 |
 | | `CabalEditSlot` | #647 |
 | | `CabalLeaveSlot` | #697 |
@@ -221,13 +227,20 @@ exists, are declared ahead of time so an opener never waits on the screen's buil
 | `CabalRoute(id:)` | `Features/Groups/CabalRoute.swift` | #942 | many |
 | `UserProfileRoute(userID:)` | `Features/Profile/UserProfileRoute.swift` | #942 | many |
 | `ProposalRoute(proposalID:)` | `Features/Proposals/ProposalRoute.swift` | #942 | many |
-| `ProposeRoute(cabalID:)` | `Features/Proposals/ProposeRoute.swift` | #613 | #612 |
+| `ProposeRoute(cabalID:)` | `Features/Proposals/ProposeRoute.swift` | #613 | #612, #2134 |
 | `TransactionRoute(cabalID:transactionID:)` | `Features/Groups/TransactionRoute.swift` | #654 | #671, #705 |
 | `AssetRoute(symbol:)` | `Features/Assets/AssetRoute.swift` | #577 | #671 |
 | `DepositRoute(prefillMicros: Int64? = nil, cabalID: String? = nil)` | `Features/Deposit/DepositRoute.swift` | #610, then #650 | #610, #651, #682 |
 | `WithdrawRoute()` | `Features/Settings/WithdrawRoute.swift` | #652 | #610, #643 |
-| `CashOutRoute(cabalID:)` | `Features/Redeem/CashOutRoute.swift` | #657 | #697 |
+| `CashOutRoute(cabalID:)` | `Features/Redeem/CashOutRoute.swift` | #657 | #697, #2134 |
 | `HandleEditRoute()` | `Features/Onboarding/HandleEditRoute.swift` | #693 | #644 |
 | `DeleteAccountRoute()` | `Features/Settings/DeleteAccountRoute.swift` | #695 | #643, #695 |
+| `JoinRoute()` | `Features/Groups/JoinRoute.swift` | #646 | #606 |
+| `FundRoute(cabalID:)` | `Features/Deposit/FundRoute.swift` | #651 | #2134 |
+| `ChatRoute(cabalID:)` | `Features/Groups/ChatRoute.swift` | #676 | #2134 |
+| `SettingsRoute()` | `Features/Settings/SettingsRoute.swift` | #2139 | #2139 |
+| `AccountActivityRoute()` | `Features/Settings/AccountActivityRoute.swift` | #2138 | #2139 |
+| `AgentRoute(cabalID:)` | `Features/Groups/AgentRoute.swift` | #691 | #691 |
+| `ProposeFromAssetRoute(symbol:kind:)` | `Features/Proposals/ProposeFromAssetRoute.swift` | #613 | #577 |
 
 Ids are `String`s: the generated types these screens read do not exist yet.

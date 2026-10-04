@@ -3,9 +3,10 @@ import SwiftUI
 struct HomeScreen: View {
     static let sections: [any HomeSection.Type] = [
         HomeNudgeSlot.self,
+        HomePortfolioSlot.self,
         HomeBalanceSlot.self,
         HomePendingVotesSlot.self,
-        HomePortfolioSlot.self,
+        HomeCabalsSlot.self,
         HomePeopleBoardSlot.self,
     ]
 

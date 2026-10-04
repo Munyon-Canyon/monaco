@@ -3,12 +3,13 @@ import SwiftUI
 struct ProfileScreen: View {
     static let sections: [any ProfileSection.Type] = [
         ProfileHeaderSlot.self,
-        ProfileBalanceSlot.self,
         ProfileFollowCountsSlot.self,
+        ProfileStatsSlot.self,
+        ProfileBalanceSlot.self,
+        ProfileCabalsSlot.self,
         ProfileInviteSlot.self,
         ProfileFindFriendsSlot.self,
         ProfileSettingsSlot.self,
-        ProfileDeleteAccountSlot.self,
     ]
 
     @Environment(AppEnvironment.self) private var environment
