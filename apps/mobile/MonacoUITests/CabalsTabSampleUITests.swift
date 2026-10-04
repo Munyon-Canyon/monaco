@@ -217,33 +217,6 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
         XCTAssertTrue(tooShort.waitForExistence(timeout: 5), "too-short hint should appear")
     }
 
-    // MARK: - (f) Approval join screen
-
-    @MainActor
-    func testTeslaOrBustOpensAskToJoinScreen() throws {
-        let app = launchApp()
-
-        let field = searchField(app)
-        XCTAssertTrue(field.waitForExistence(timeout: 10), "search field should exist")
-        field.tap()
-        field.typeText("tesla")
-
-        let teslaResult = anyElement(app, "cabals-search-result-5b1f0c9e-0005-4c55-9a51-000000000005")
-        XCTAssertTrue(teslaResult.waitForExistence(timeout: 5), "Tesla or bust should be a search result")
-        teslaResult.tap()
-
-        let joinName = anyElement(app, "join-group-name")
-        XCTAssertTrue(joinName.waitForExistence(timeout: 8), "join screen should show the group name")
-        XCTAssertEqual(joinName.label, "Tesla or bust")
-
-        let askToJoin = app.buttons["Ask to join"]
-        XCTAssertTrue(
-            askToJoin.waitForExistence(timeout: 5), "button should be titled 'Ask to join' for approval cabals")
-
-        // Do NOT tap join-group-submit: there is no backend behind this sample harness.
-        attachScreenshot(app, name: "05-join-approval")
-    }
-
     // MARK: - (g) A thin range keeps the chart section and its picker (#294)
 
     @MainActor
@@ -387,61 +360,6 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
         XCTAssertFalse(
             app.textFields["create-group-name"].exists,
             "Back must not land on an armed New cabal form"
-        )
-    }
-
-    // MARK: - (l) Joining replaces the join form with the cabal (#293)
-
-    @MainActor
-    func testJoiningFromSearchReplacesTheJoinFormWithTheCabal() throws {
-        let app = launchApp()
-
-        let field = searchField(app)
-        XCTAssertTrue(field.waitForExistence(timeout: 10), "search field should exist")
-        field.tap()
-        field.typeText("dorm")
-
-        // Dorm 4B fund is open and the viewer is not in it, so this is a real join.
-        let dormRow = anyElement(app, "cabals-search-result-5b1f0c9e-0004-4c55-9a51-000000000004")
-        XCTAssertTrue(dormRow.waitForExistence(timeout: 5), "Dorm 4B fund should be a search result")
-        dormRow.tap()
-
-        let joinName = anyElement(app, "join-group-name")
-        XCTAssertTrue(joinName.waitForExistence(timeout: 8), "the join form should be pushed")
-        XCTAssertEqual(joinName.label, "Dorm 4B fund")
-
-        let submit = app.buttons["join-group-submit"]
-        XCTAssertTrue(scrollUntilHittable(app, submit), "Join cabal button should be reachable")
-        submit.tap()
-
-        XCTAssertTrue(
-            app.navigationBars["Dorm 4B fund"].waitForExistence(timeout: 10),
-            "a member who joined should land inside the cabal"
-        )
-        XCTAssertFalse(
-            app.buttons["join-group-submit"].exists,
-            "the join form must be gone, not underneath the cabal"
-        )
-
-        attachScreenshot(app, name: "10-joined-cabal")
-
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(
-            anyElement(app, "cabals-root").waitForExistence(timeout: 8),
-            "Back from a joined cabal should land on the Cabals tab"
-        )
-        XCTAssertFalse(
-            app.buttons["join-group-submit"].exists,
-            "Back must not land on a join form for a cabal the member is already in"
-        )
-
-        // And the row the member came from says so, rather than still offering
-        // to join a cabal they are in.
-        let joinedRow = anyElement(app, "cabals-search-result-5b1f0c9e-0004-4c55-9a51-000000000004")
-        XCTAssertTrue(joinedRow.waitForExistence(timeout: 5), "the search row should still be there")
-        XCTAssertTrue(
-            joinedRow.label.contains("You're in"),
-            "the row should read as joined, got: \(joinedRow.label)"
         )
     }
 

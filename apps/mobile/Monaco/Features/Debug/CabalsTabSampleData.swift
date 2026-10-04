@@ -87,9 +87,7 @@ enum CabalsTabSampleData {
 
     static let createdCabalID = "5b1f0c9e-0007-4c55-9a51-000000000007"
 
-    /// Stubbed writes. Create always succeeds; join answers the way the sample
-    /// cabal's own join policy would, so an approval cabal still ends on
-    /// "Request sent" rather than pretending the member is in.
+    /// A stubbed create that always succeeds.
     @MainActor
     struct Actions: CabalsActionSource {
         func createCabal(_ input: CreateCabalInput, submission: IdempotentSubmission) async throws
@@ -100,12 +98,6 @@ enum CabalsTabSampleData {
             created.id = createdCabalID
             created.name = input.name
             return created
-        }
-
-        func joinGroup(groupId: String) async throws -> JoinGroupOutcome {
-            try await Task.sleep(for: .milliseconds(120))
-            let mode = cabals.first { $0.id == groupId }?.mode ?? .open
-            return mode == .request ? .pending : .joined
         }
     }
 

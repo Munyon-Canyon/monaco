@@ -121,10 +121,6 @@ struct CabalsTabView: View {
                 actions: actions,
                 onCreated: { created in
                     self.route = .cabal(id: created.id, name: created.name)
-                },
-                onJoined: { groupId, groupName in
-                    model.markJoined(groupID: groupId)
-                    self.route = .cabal(id: groupId, name: groupName)
                 }
             )
         }

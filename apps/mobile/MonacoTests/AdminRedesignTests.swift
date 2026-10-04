@@ -47,35 +47,6 @@ struct CabalRulesCopyTests {
     }
 }
 
-/// The join screen's button has to match the cabal's policy: the approval UI test taps
-/// "Ask to join" by its title, and an open cabal must not read as a request.
-@MainActor
-struct JoinCabalScreenCopyTests {
-    @Test func theButtonMatchesTheCabalsPolicy() {
-        #expect(
-            JoinCabalScreenCopy.actionTitle(joinMode: .request, isJoining: false, requestPending: false)
-                == "Ask to join")
-        #expect(JoinCabalScreenCopy.actionTitle(joinMode: .open, isJoining: false, requestPending: false) == "Join")
-        #expect(JoinCabalScreenCopy.actionTitle(joinMode: nil, isJoining: false, requestPending: false) == "Join cabal")
-    }
-
-    @Test func theButtonSaysWhatIsHappening() {
-        #expect(
-            JoinCabalScreenCopy.actionTitle(joinMode: .request, isJoining: true, requestPending: false) == "Sending…")
-        #expect(JoinCabalScreenCopy.actionTitle(joinMode: .open, isJoining: true, requestPending: false) == "Joining…")
-        #expect(
-            JoinCabalScreenCopy.actionTitle(joinMode: .request, isJoining: false, requestPending: true)
-                == "Request sent")
-    }
-
-    @Test func theMemberLineIsOnlyWhatTheRowKnew() {
-        #expect(JoinCabalScreenCopy.memberLine(nil) == nil)
-        #expect(JoinCabalScreenCopy.memberLine(0) == nil)
-        #expect(JoinCabalScreenCopy.memberLine(1) == "1 member")
-        #expect(JoinCabalScreenCopy.memberLine(9) == "9 members")
-    }
-}
-
 /// The trading bot: what the server's status means to a member, and which key section the
 /// bot's screen shows for it.
 @MainActor
@@ -122,9 +93,12 @@ struct TradingBotTests {
 struct AdminCopyAuditTests {
     @Test func theNewCopyPassesTheMainFlowAudit() {
         let joinCopy = [
-            JoinCabalScreenCopy.title,
-            JoinCabalScreenCopy.explanation(joinMode: .open),
-            JoinCabalScreenCopy.explanation(joinMode: .request),
+            JoinCabalCopy.title,
+            JoinCabalModel.helper,
+            JoinCabalModel.notFoundMessage,
+            JoinCabalModel.malformedMessage,
+            CabalEntry.joinedToast,
+            CabalEntry.requestedToast,
         ]
 
         #expect(MainFlowCopyAudit.stringsAreClean(CabalRulesCopy.auditedStrings))

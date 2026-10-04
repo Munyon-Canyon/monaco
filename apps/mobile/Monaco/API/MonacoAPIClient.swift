@@ -237,24 +237,6 @@ final class MonacoAPIClient: AppSessionDataSource {
         return .httpStatus(status)
     }
 
-    func joinGroup(accessToken: String, groupId: String) async throws -> JoinGroupOutcome {
-        let url = baseURL.appending(path: "v1/groups/\(groupId)/join")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        try applyAuthorizationHeader(accessToken: accessToken, to: &request)
-        request.httpBody = Data("{}".utf8)
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw MonacoAPIError.invalidResponse }
-        switch http.statusCode {
-        case 204: return .joined
-        case 202: return try JSONDecoder().decode(JoinGroupStatusResponse.self, from: data).status
-        case 403: throw MonacoAPIError.httpStatus(403)
-        case 404: throw MonacoAPIError.httpStatus(404)
-        default: throw MonacoAPIError.httpStatus(http.statusCode)
-        }
-    }
-
     func listJoinRequests(accessToken: String, groupId: String) async throws -> [JoinRequestDTO] {
         let url = baseURL.appending(path: "v1/groups/\(groupId)/join-requests")
         var request = URLRequest(url: url)

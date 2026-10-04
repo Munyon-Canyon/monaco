@@ -39,10 +39,7 @@ struct CabalsLeaderboardSection: View {
                     ForEach(Array(model.leaderboard.enumerated()), id: \.element.id) { index, row in
                         Button {
                             onSelect(
-                                CabalsRoute(
-                                    row: row.groupID, name: row.name, isJoined: row.isJoined, joinMode: row.joinMode,
-                                    memberCount: row.memberCount, pictureUrl: row.pictureUrl
-                                ))
+                                CabalsRoute.cabal(id: row.groupID, name: row.name))
                         } label: {
                             CabalDiscoveryRowContent(
                                 rank: row.rank,

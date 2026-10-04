@@ -20,8 +20,6 @@ import SwiftUI
 /// - `start`      — Start a cabal; Create cabal lands on the new cabal.
 /// - `newCabal`   — the New cabal sheet over the tab.
 /// - `joinCode`   — join by pasting an invite code.
-/// - `join`       — join an open cabal picked from the board.
-/// - `askToJoin`  — ask to join a cabal whose admin approves members.
 /// - `bots`       — the trading bot's row on the cabal screen: active, paused, removed.
 /// - `bot`        — the bot's screen with the key a member copies.
 /// - `botRemoved` — the bot's screen after a vote removed it.
@@ -34,8 +32,6 @@ enum GroupNavSampleEntry: String, CaseIterable {
     case start
     case newCabal
     case joinCode
-    case join
-    case askToJoin
     case bots
     case bot
     case botRemoved
@@ -300,21 +296,7 @@ struct GroupNavSampleHarness: View {
                 replaceTop(with: .cabal(id: created.id, name: created.name, isNew: true))
             }
         case .joinCode:
-            JoinGroupView(auth: auth, actions: actions) { groupId, name in
-                replaceTop(
-                    with: .cabal(id: groupId, name: name ?? GroupNavSampleData.name(forCabal: groupId), isNew: false))
-            }
-        case .join(let cabal):
-            JoinGroupView(
-                auth: auth,
-                groupId: cabal.id,
-                groupName: cabal.name,
-                joinMode: cabal.mode,
-                memberCount: cabal.members,
-                actions: actions
-            ) { groupId, name in
-                replaceTop(with: .cabal(id: groupId, name: name ?? cabal.name, isNew: false))
-            }
+            JoinCabalView(model: .preview(joinMode: "open"))
         case .cabal(let id, let name, let isNew):
             GroupDetailView(
                 auth: auth,
@@ -327,8 +309,8 @@ struct GroupNavSampleHarness: View {
         }
     }
 
-    /// Replaces the form with what it produced, as the Cabals tab does, so Back from a new or
-    /// joined cabal lands on the root rather than on a form that is still armed.
+    /// Replaces the form with what it produced, as the Cabals tab does, so Back from a new
+    /// cabal lands on the root rather than on a form that is still armed.
     private func replaceTop(with screen: GroupNavSampleScreen) {
         if path.isEmpty {
             path = [screen]
@@ -348,7 +330,6 @@ struct GroupNavSampleHarness: View {
 private enum GroupNavSampleScreen: Hashable {
     case start
     case joinCode
-    case join(GroupNavSampleData.Discovered)
     case cabal(id: String, name: String, isNew: Bool)
     case bot(TradingBotSample)
 }
@@ -368,8 +349,6 @@ extension GroupNavSampleEntry {
         switch self {
         case .start: [.start]
         case .joinCode: [.joinCode]
-        case .join: [.join(GroupNavSampleData.openCabal)]
-        case .askToJoin: [.join(GroupNavSampleData.approvalCabal)]
         case .bot: [.bot(.active)]
         case .botRemoved: [.bot(.removed)]
         case .root, .list, .create, .newCabal, .bots: []
@@ -403,25 +382,6 @@ private enum TradingBotSample: CaseIterable, Hashable {
 }
 
 private enum GroupNavSampleData {
-    /// What a board or search row knows about a cabal the viewer is not in.
-    struct Discovered: Hashable {
-        let id: String
-        let name: String
-        let mode: GroupJoinMode
-        let members: Int
-    }
-
-    /// The same two cabals `CabalsTabSampleData` lists, so its join stub answers for each the
-    /// way its policy says: Dorm 4B fund lets anyone in, Tesla or bust asks its admin.
-    static let openCabal = Discovered(
-        id: "5b1f0c9e-0004-4c55-9a51-000000000004", name: "Dorm 4B fund", mode: .open, members: 9)
-    static let approvalCabal = Discovered(
-        id: "5b1f0c9e-0005-4c55-9a51-000000000005", name: "Tesla or bust", mode: .request, members: 5)
-
-    static func name(forCabal id: String) -> String {
-        CabalsTabSampleData.cabals.first { $0.id == id }?.name ?? GroupDetailSampleData.view.name
-    }
-
     /// The sample cabal under the name the flow arrived with. A cabal that was just started has
     /// an empty pot and one member.
     static func view(id: String, name: String, isNew: Bool) -> GroupViewDTO {
