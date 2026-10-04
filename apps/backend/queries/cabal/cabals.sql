@@ -43,6 +43,13 @@ FROM cabals c
 WHERE c.id = ANY(sqlc.arg(cabal_ids)::uuid[])
 ORDER BY c.created_at, c.id;
 
+-- name: AllCabals :many
+SELECT c.id, c.name, c.picture_url, c.creator_id, c.join_mode, c.voter_mode, c.threshold,
+  c.proposal_expiry_seconds, c.slippage_bps, c.invite_code, c.status, c.created_at, c.updated_at,
+  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count
+FROM cabals c
+ORDER BY c.created_at, c.id;
+
 -- name: SearchCabals :many
 SELECT c.id, c.name, c.picture_url, c.join_mode, c.created_at,
   (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count,

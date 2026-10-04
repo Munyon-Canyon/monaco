@@ -1,12 +1,14 @@
 {
   "allocs": {},
   "queries": {
+    "AllCabals": 1,
     "Cabal": 1,
     "Cabals 1000 ids": 1,
     "CabalsOf": 1,
     "IsMember": 1,
     "Member": 1,
     "Members": 1,
+    "MembersOf": 1,
     "Rules": 1,
     "SlippageBps": 1,
     "Status": 1,

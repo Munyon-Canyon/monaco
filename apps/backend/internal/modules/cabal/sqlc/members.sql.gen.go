@@ -150,6 +150,38 @@ func (q *Queries) ListMembers(ctx context.Context, cabalID uuid.UUID) ([]ListMem
 	return items, nil
 }
 
+const listMembersOf = `-- name: ListMembersOf :many
+SELECT cabal_id, user_id, role, can_vote, joined_at FROM cabal_members
+WHERE cabal_id = ANY($1::uuid[])
+ORDER BY cabal_id, joined_at, user_id
+`
+
+func (q *Queries) ListMembersOf(ctx context.Context, cabalIds []uuid.UUID) ([]CabalMember, error) {
+	rows, err := q.db.Query(ctx, listMembersOf, cabalIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabalMember
+	for rows.Next() {
+		var i CabalMember
+		if err := rows.Scan(
+			&i.CabalID,
+			&i.UserID,
+			&i.Role,
+			&i.CanVote,
+			&i.JoinedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listVoterIDs = `-- name: ListVoterIDs :many
 SELECT user_id FROM cabal_members
 WHERE cabal_id = $1 AND can_vote

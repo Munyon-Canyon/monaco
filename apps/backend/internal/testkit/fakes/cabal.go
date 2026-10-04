@@ -81,6 +81,19 @@ func (f *Cabal) Cabals(_ context.Context, cabalIDs []ids.CabalID) (map[ids.Cabal
 	return found, nil
 }
 
+func (f *Cabal) AllCabals(_ context.Context) ([]cabal.View, error) {
+	if err := f.Check("AllCabals"); err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	views := make([]cabal.View, len(f.cabals))
+	for i, seed := range f.cabals {
+		views[i] = f.viewOf(seed)
+	}
+	return views, nil
+}
+
 func (f *Cabal) IsMember(_ context.Context, id ids.CabalID, user ids.UserID) (bool, error) {
 	if err := f.Check("IsMember"); err != nil {
 		return false, err
@@ -113,6 +126,19 @@ func (f *Cabal) Members(_ context.Context, id ids.CabalID) ([]cabal.MemberView, 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.membersOf(id, func(cabal.MemberView) bool { return true }), nil
+}
+
+func (f *Cabal) MembersOf(_ context.Context, cabalIDs []ids.CabalID) (map[ids.CabalID][]cabal.MemberView, error) {
+	if err := f.Check("MembersOf"); err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	members := make(map[ids.CabalID][]cabal.MemberView, len(cabalIDs))
+	for _, id := range cabalIDs {
+		members[id] = f.membersOf(id, func(cabal.MemberView) bool { return true })
+	}
+	return members, nil
 }
 
 func (f *Cabal) VoterSet(_ context.Context, id ids.CabalID) ([]ids.UserID, error) {
