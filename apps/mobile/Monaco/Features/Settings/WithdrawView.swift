@@ -2,58 +2,40 @@ import MonacoAPI
 import MonacoCore
 import SwiftUI
 
-/// Cash out to an address: send available account USDC to an external Solana address.
+/// Withdraw: send available account USDC to an external Solana address.
 ///
-/// Owns the balance, the confirm step, the submission and its idempotency key.
-/// `WithdrawContent` is the entry layout and `WithdrawConfirmView` the step before sending.
+/// Owns the balance, the typed amount and address, and the reload toast. `WithdrawContent` is the
+/// entry layout and `WithdrawConfirmView` the step before sending. Nothing is sent from here.
 struct WithdrawView: View {
-    @ObservedObject var auth: PrivyAuthService
-
-    private let apiClient = MonacoAPIClient()
-
     @Environment(AppEnvironment.self) private var environment
     @State private var balanceSource: BalanceSource?
     @State private var destinationAddress = ""
     @State private var amountText = ""
-    @State private var isSubmitting = false
-    /// Idempotency key for the withdrawal in flight; a retry after a lost response reuses it.
-    @State private var withdrawalSubmission = IdempotentSubmission()
     @State private var showConfirm = false
-    /// Shown on the confirm screen, which covers this screen's toast while it is pushed.
-    @State private var submitFailure: FlowFailure?
     @State private var toast: MonacoToast?
-
-    private var balance: AccountBalance? {
-        balanceSource?.balance
-    }
-
-    private var form: WithdrawForm {
-        WithdrawForm(amountText: amountText, destinationAddress: destinationAddress, balance: balance)
-    }
 
     var body: some View {
         WithdrawContent(
             state: balanceSource?.state ?? .loading,
             amountText: $amountText,
             destinationAddress: $destinationAddress,
-            onContinue: {
-                submitFailure = nil
-                showConfirm = true
-            },
+            onContinue: { showConfirm = true },
             onRetry: { Task { await balanceSource?.load() } }
         )
         .monacoToast($toast, bottomInset: 72)
+        .onChange(of: balanceSource?.failureTick) { _, _ in
+            guard balanceSource?.balance != nil, let error = balanceSource?.lastError else { return }
+            toast = MonacoToast(message: BalanceSource.message(for: error))
+        }
         .navigationDestination(isPresented: $showConfirm) {
             WithdrawConfirmView(
                 destinationAddress: destinationAddress.trimmingCharacters(in: .whitespacesAndNewlines),
-                amountText: amountText,
-                isSubmitting: isSubmitting,
-                failure: submitFailure,
-                onConfirm: { Task { await submitWithdrawal() } }
+                amountText: amountText
             )
         }
         .task {
-            let source = preparedBalanceSource()
+            let source = balanceSource ?? BalanceSource(api: environment.api, hints: environment.hints)
+            balanceSource = source
             await source.load()
             await source.observe()
         }
@@ -61,60 +43,9 @@ struct WithdrawView: View {
             balanceSource?.setVisible(visible)
         }
     }
-
-    private func preparedBalanceSource() -> BalanceSource {
-        if let balanceSource { return balanceSource }
-        let created = BalanceSource(api: environment.api, hints: environment.hints)
-        balanceSource = created
-        return created
-    }
-
-    private func submitWithdrawal() async {
-        // The disabled state only lands on the next render; a second tap in the same frame
-        // must not start a second transfer.
-        guard !isSubmitting else { return }
-        guard let token = auth.accessToken else { return }
-        guard let value = AmountEntryText.decimal(amountText), value > 0,
-            let micros = AmountEntryText.micros(amountText)
-        else {
-            toast = MonacoToast(message: "Enter a valid amount.", isSuccess: false)
-            return
-        }
-
-        guard case .success(let address) = form.addressValidation else { return }
-        if let available = balance?.availableMicros, micros > available {
-            submitFailure = MoneyFlowCopy.cashOutFailure(
-                FlowErrorInput(status: 400, serverMessage: "amount exceeds available platform balance")
-            )
-            return
-        }
-
-        isSubmitting = true
-        submitFailure = nil
-        defer { isSubmitting = false }
-
-        do {
-            _ = try await apiClient.createPlatformWithdrawal(
-                accessToken: token,
-                amount: micros,
-                toAddress: address,
-                submission: withdrawalSubmission
-            )
-            Haptics.success()
-            toast = MonacoToast(message: "Cashing out. It lands in about a minute.", isSuccess: true)
-            destinationAddress = ""
-            amountText = ""
-            showConfirm = false
-            await balanceSource?.load()
-        } catch {
-            if error.isRequestCancellation { return }
-            submitFailure = MoneyFlowCopy.cashOutFailure(FlowErrorInput(error))
-            Haptics.warning()
-        }
-    }
 }
 
-/// What Cash out says and allows for the amount and address typed against the balance it has.
+/// What Withdraw says and allows for the amount and address typed against the balance it has.
 struct WithdrawForm: Equatable {
     let amountText: String
     let destinationAddress: String
@@ -139,11 +70,20 @@ struct WithdrawForm: Equatable {
     }
 
     var canContinue: Bool {
-        guard let value = AmountEntryText.decimal(amountText), value > 0 else { return false }
-        if let maxDollars, value > maxDollars { return false }
+        guard let micros = AmountEntryText.micros(amountText), micros > 0, problem == nil else { return false }
         if case .success = addressValidation { return true }
         return false
     }
+
+    /// Replaces the helper, in red, while the amount typed is more than the balance holds.
+    var problem: String? {
+        guard let availableMicros, let micros = AmountEntryText.micros(amountText), micros > availableMicros else {
+            return nil
+        }
+        return Self.overBalance
+    }
+
+    static let overBalance = "Not enough in your account balance."
 
     /// Nothing while the field is empty; otherwise why the pasted address can't be used.
     var addressProblem: String? {
@@ -160,7 +100,7 @@ struct WithdrawForm: Equatable {
     static let caveat = "A Solana address that accepts USDC. Transfers can't be undone."
 }
 
-/// Cash out's entry layout: the amount as the hero, the address it goes to in the market's
+/// Withdraw's entry layout: the amount as the hero, the address it goes to in the market's
 /// voice, and the two things to know about that address as captions under it.
 ///
 /// Pure: what the screen knows comes in, what the member does goes out.
@@ -193,20 +133,16 @@ struct WithdrawContent: View {
                     AmountEntrySkeleton(presetCount: 1)
                         .padding(.horizontal, MonacoTheme.Space.gutter)
                         .accessibilityIdentifier("withdraw-loading")
-                case .failed(let error):
-                    EmptyState(
-                        title: "Balance unavailable",
-                        message: ToastCopy.message(for: error),
-                        actionTitle: "Try again",
-                        action: onRetry
-                    )
-                    .accessibilityIdentifier("withdraw-balance-error")
+                case .failed:
+                    EmptyState(title: "Couldn't load your balance.", actionTitle: "Try again", action: onRetry)
+                        .accessibilityIdentifier("withdraw-balance-error")
                 case .loaded:
                     AmountEntry(
                         amountText: $amountText,
                         max: form.maxDollars,
                         presets: [.fraction(1, label: "Max")],
                         helper: form.balanceHelper,
+                        problem: form.problem,
                         showsKeyboardDoneButton: true
                     )
                     .padding(.horizontal, MonacoTheme.Space.gutter)
@@ -231,7 +167,7 @@ struct WithdrawContent: View {
                 }
             }
         }
-        .navigationTitle("Cash out")
+        .navigationTitle("Withdraw")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -269,87 +205,5 @@ private struct WithdrawAddressField: View {
     var body: some View {
         MonacoAddressField(
             placeholder: Self.placeholder, text: $text, accessibilityIdentifier: "withdraw-address-field")
-    }
-}
-
-/// The step before the money leaves: how much, where to, and the one thing that cannot be
-/// taken back. After a failure it says what happened above the facts, and its button resends
-/// only when the copy says that is safe.
-struct WithdrawConfirmView: View {
-    let destinationAddress: String
-    let amountText: String
-    let isSubmitting: Bool
-    let failure: FlowFailure?
-    let onConfirm: () -> Void
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                    Text("You're cashing out")
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.muted)
-                    MoneyText(decimalString: amountText, style: .hero)
-                }
-                .padding(.horizontal, MonacoTheme.Space.m)
-                .accessibilityElement(children: .combine)
-
-                if let failure {
-                    failureBlock(failure)
-                        .padding(.horizontal, MonacoTheme.Space.m)
-                }
-
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-                    MonacoGroupedList {
-                        ReceiptLine(label: "To", value: .address(destinationAddress))
-                        ReceiptLine(label: "From", value: .words("Account balance"))
-                        ReceiptLine(label: "Arrives", value: .words("About a minute"), isLast: true)
-                    }
-                    Text("Double-check the address. Transfers can't be undone.")
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, MonacoTheme.Space.m)
-                }
-            }
-            .padding(.top, MonacoTheme.Space.m)
-            .padding(.bottom, MonacoTheme.Space.xl)
-        }
-        .monacoCanvas()
-        .safeAreaInset(edge: .bottom) {
-            BottomCTA {
-                Button(isSubmitting ? "Sending…" : failure?.isRetryable == true ? "Try again" : "Cash out") {
-                    onConfirm()
-                }
-                .buttonStyle(.monacoPrimary)
-                .disabled(isSubmitting || failure?.isRetryable == false)
-                .accessibilityIdentifier("withdraw-confirm-button")
-            }
-        }
-        .navigationTitle("Confirm")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private func failureBlock(_ failure: FlowFailure) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
-            Image(systemName: "exclamationmark.circle.fill")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(MonacoTheme.loss)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                Text(failure.message)
-                    .font(MonacoTheme.Typo.bodyStrong)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let nextStep = failure.nextStep {
-                    Text(nextStep)
-                        .font(MonacoTheme.Typo.callout)
-                        .foregroundStyle(MonacoTheme.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("withdraw-confirm-failure")
     }
 }
