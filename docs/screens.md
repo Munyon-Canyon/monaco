@@ -52,12 +52,12 @@ CabalRoute ─┬─ i ──▶ Cabal details sheet (invite code, rules, treasu
             ├─ Chat ───────▶ ChatRoute
             ├─ proposal ───▶ ProposalRoute
             ├─ holding ────▶ AssetRoute
-            ├─ trading bot ▶ AgentRoute
+            ├─ trading bot ▶ AgentRoute (#691)
             └─ activity row ▶ TransactionRoute
 Stocks ── row ──▶ AssetRoute ── Propose buy ──▶ Pick a cabal ──▶ Amount ──▶ Review
 Profile ┬─ Followers / Following ──▶ FollowListRoute
         ├─ Invite friends ──▶ InviteRoute
-        ├─ Find friends ────▶ FriendsRoute (contacts and search)
+        ├─ Find friends ────▶ Friends on Monaco (#663, search from #2142)
         └─ Settings ────────▶ SettingsRoute ─┬─ Notifications
                                              ├─ Activity ──▶ AccountActivityRoute
                                              ├─ Withdraw ──▶ WithdrawRoute
@@ -66,7 +66,7 @@ Profile ┬─ Followers / Following ──▶ FollowListRoute
                                              └─ Delete account ──▶ DeleteAccountRoute
 ```
 
-#2134 adds the slots and route stubs this page names that do not exist yet: `HomeCabalsSlot`, `CabalSliceSlot`, `CabalValueChartSlot`, `CabalActionsSlot`, `CabalHoldingsSlot`, `CabalAgentSlot`, `CabalRulesSlot`, `ProfileStatsSlot`, `ProfileCabalsSlot`, and the routes `JoinRoute()`, `FundRoute(cabalID:)`, `ChatRoute(cabalID:)`, `SettingsRoute()`, `AccountActivityRoute()`. It removes the `CabalCashOutSlot`, `CabalChatSlot` and `ProfileDeleteAccountSlot` stubs, whose jobs move to the action row and Settings.
+#2134 adds the slots and route stubs this page names that do not exist yet: `HomeCabalsSlot`, `CabalSliceSlot`, `CabalValueChartSlot`, `CabalActionsSlot`, `CabalHoldingsSlot`, `CabalAgentSlot`, `CabalRulesSlot`, `ProfileStatsSlot`, `ProfileCabalsSlot`, and the routes `JoinRoute()`, `FundRoute(cabalID:)`, `ChatRoute(cabalID:)`, `SettingsRoute()`, `AccountActivityRoute()`, `AgentRoute(cabalID:)`, `ProposeFromAssetRoute(symbol:kind:)`. It removes the `CabalCashOutSlot`, `CabalChatSlot` and `ProfileDeleteAccountSlot` stubs, whose jobs move to the action row and Settings.
 
 ## Home
 
@@ -77,7 +77,7 @@ Pull to refresh. Refreshes on the hints its slots name. Toolbar: the viewer's av
 | 1 | `HomeNudgeSlot` | #644 | One onboarding nudge (link your phone, link X). Hidden when there is none |
 | 2 | `HomePortfolioSlot` | #660 | The ink hero: "Your money in cabals", the total in `moneyHero` with the digits rolling on change, a chip "▲ $0.14 · 0.1%" and "all time", an area chart of `GET /v1/me/pnl-history` with range chips 1H to All (default 1D). Empty: "$0.00", chip "$0.00 · all time", a flat hairline, no chips |
 | 3 | `HomeBalanceSlot` | #610 | A row with the coin glyph, "Account balance" and the amount from `GET /v1/me/balance`. Under it two text buttons, "Add money" (`DepositRoute()`) and "Withdraw" (`WithdrawRoute()`). While funds are moving, a grey line "$50.00 funding a cabal" |
-| 4 | `HomePendingVotesSlot` | #612 | "Needs your vote" with a count badge. One proposal card per pending vote (the card below), newest first, up to three, then "See all". Hidden when empty |
+| 4 | `HomePendingVotesSlot` | #612 | "Needs your vote" with a count badge. One proposal card per pending vote (the card below), soonest to close first, up to three, then "See all". Hidden when empty |
 | 5 | `HomeCabalsSlot` | #660 | "Your cabals". One row per cabal from `GET /v1/me/portfolio`: tile, name, "Pot $950.69", your slice value on the right over its return. Row opens `CabalRoute`. Empty: "No cabals yet" / "Start one with friends or join an open one." with an outline button "Browse cabals" that selects the Cabals tab |
 | 6 | `HomePeopleBoardSlot` | #699 | "Top investors", chips 1H 1D 1W 1M All (default All), the "Everyone" / "Friends" segment (Friends after #658), ranked rows (crown for first, then numbers, avatar, name, return over gain or loss), the viewer's row pinned at the bottom when off the page. Empty: "No investors yet" / "Fund a cabal to get on the board." |
 
@@ -91,7 +91,7 @@ Large title "Cabals". Toolbar "+" opens the **New cabal sheet** (#606): two rows
 | 2 | `CabalsInvitesSlot` | #696 | "Cabal invites" with Accept and Decline per row. Hidden when empty |
 | 3 | `CabalsListSlot` | #606 | "Your cabals" as horizontal cards: tile, name, pot value, a return chip, a request badge when `pending_request_count > 0` (creator only), an unread badge from chat (#704). The last card is a dashed "+ New cabal" that opens the New cabal sheet. Empty: "No cabals yet" / "Search above or start one with the + button." |
 | 4 | `CabalsValueChartSlot` | #660 | "Your cabals' return", one line per cabal in its tint, chips 1D 1W 1M All. Hidden when the viewer has no cabal |
-| 5 | `CabalsBoardSlot` | #699 | "Top cabals" / "Ranked by return across everyone on Monaco". Rows: rank, tile, name, "2 members · Open", return over pot value. Empty: "No cabal has put money in yet" / "The first one to fund takes the top spot." |
+| 5 | `CabalsBoardSlot` | #699 | "Top cabals" / "Ranked by return across everyone on Monaco". Rows: rank, tile, name, return over pot value. Empty: "No cabal has put money in yet" / "The first one to fund takes the top spot." |
 
 **Start a cabal** (#606). Title "Start a cabal". Name field with "Pick a name your friends will recognize." Then "The rules", each a title, a one-line description that changes with the choice, and a segmented control: "Who can join" ("Anyone" / "I approve"), "Who votes" ("Everyone" / "Just me"), "To pass" ("Majority" / "Everyone agrees"), "Votes stay open" ("1 hour" / "1 day" / "1 week", the three `proposal_expiry_seconds` values in [cabals.md](architecture/cabals.md#rules)). Primary "Create cabal", "Creating…" while it runs, then push `CabalRoute` with the toast "Cabal created."
 
@@ -99,7 +99,7 @@ Large title "Cabals". Toolbar "+" opens the **New cabal sheet** (#606): two rows
 
 ## Cabal screen (`CabalRoute`)
 
-Toolbar: back on the left, and an "i" button on the right that opens the details sheet. The title is empty over the hero and shows the cabal name once scrolled. While loading, a skeleton of the hero, four action circles and three rows. Load error: "Couldn't load this cabal." with "Try again".
+Toolbar: back on the left, and an "i" button on the right that opens the details sheet. The title is empty over the hero and shows the cabal name once scrolled (#2134). While loading, a skeleton of the hero, four action circles and three rows. Load error: "Couldn't load this cabal." with "Try again".
 
 | Order | Slot | Owner | Member | Non-member | Shows |
 | --- | --- | --- | --- | --- | --- |
@@ -114,7 +114,7 @@ Toolbar: back on the left, and an "i" button on the right that opens the details
 | 9 | `CabalHoldingsSlot` | #2137 | yes | yes | "Holdings": an allocation bar with a legend ("● GOOGL 25%  Cash 75%"), then one row per holding (logo, ticker, "0.73 shares · $341.58", value over its gain or loss) and a "Cash" row. Rows open `AssetRoute`. Empty pot: the Cash row and "Nothing bought yet. Propose the first buy." Zero pot: "Add money, then propose the first buy." |
 | 10 | `CabalAgentSlot` | #691 | yes | yes | "Trading bot": one row with the bot's name, "$200.00 budget" and its state ("Active", "Paused"). Opens the trading bot screen. Hidden when the cabal has no bot |
 | 11 | `CabalMemberBoardSlot` | #699 | yes | yes | "Leaderboard": ranked members with the viewer's row washed and labelled "You". Rows open `UserProfileRoute` |
-| 12 | `CabalActivitySlot` | #654 | yes | yes | "Activity" with "See all" past five rows. Rows: glyph, title ("Bought Alphabet", "Money added", "Cashed out", "Scout · Bought Nvidia"), age plus a status in amber ("Pending") or red ("Failed · Retry"), amount. Rows open `TransactionRoute`. Empty: "Nothing yet" / "Money added and trades show up here." |
+| 12 | `CabalActivitySlot` | #654 | yes | hidden | "Activity" with "See all" past five rows. Rows: glyph, title ("Bought Alphabet", "Money added", "Cashed out", "Scout · Bought Nvidia"), age plus a status in amber ("Pending") or red ("Failed · Retry"), amount. Rows open `TransactionRoute`. Empty: "Nothing yet" / "Money added and trades show up here." |
 
 **Cabal details sheet** ("i"). Title "Cabal details", "Done" at the top right. Detents medium and large.
 
@@ -135,7 +135,7 @@ Used by Home's "Needs your vote", the cabal's proposals and the proposals list (
 
 | Order | Slot | Owner | Shows |
 | --- | --- | --- | --- |
-| 1 | `ProposalDetailSlot` | #612 | The card's header and amount. "Proposed by Jordan · 33m". The tracker, then each voter's line ("Priya voted yes"). Voting buttons as on the card. "Why buy" with the reason as a quote. "Expected" with `quote_out_amount` as "about 0.73 shares at $341.57". A "Status" stepper "Voting", "Buying", "Done" with the time under the reached step; a failed trade shows "Couldn't buy" at the last step with the server's `status_message`, a "Retry" button when `retryable`, and a link to its `TransactionRoute`. The proposer sees "Withdraw proposal" while it is open (confirm "Withdraw this proposal?" / "Votes so far are dropped.", toast "Proposal withdrawn."). A gold coin burst plays once when a buy reaches Done |
+| 1 | `ProposalDetailSlot` | #612 | The card's header and amount. "Proposed by Jordan · 33m". The tracker, then each voter's line ("Priya voted yes"). Voting buttons as on the card. "Why buy" with the reason as a quote. "Expected" with `quote_out_amount` as "about 0.73 shares at $341.57". A "Status" stepper "Voting", "Buying", "Done" that marks the reached step; a failed trade shows "Couldn't buy" at the last step with `swap.failure_message`, a "Retry" button when `retryable`, and a link to its `TransactionRoute`. The proposer sees "Withdraw proposal" while it is open (confirm "Withdraw this proposal?" / "Votes so far are dropped.", toast "Proposal withdrawn."). A gold coin burst plays once when a buy reaches Done |
 | 2 | `ProposalCommentsSlot` | #711 | "Comments", the thread, and a composer pinned at the bottom, "Add a comment". Empty: "No comments yet" |
 
 ## Propose (#613)
@@ -146,7 +146,7 @@ Used by Home's "Needs your vote", the cabal's proposals and the proposals list (
 
 **From a stock.** The asset screen's "Propose buy" skips step 1. When the viewer can vote in more than one cabal it first pushes **Pick a cabal**: "Which cabal should buy GOOGL?" and one row per cabal with its pot. With one cabal it goes straight to Amount. With none it shows the sheet "Join a cabal first" with "Browse cabals".
 
-**Amount.** Title "Amount". The stock row. Amount entry with chips "$25", "$50", "$100", "Max" (Max is the pot), helper "The pot has $500.00". "+ Add a reason" expands a field "Why should the cabal buy this?" (500 characters, counter from 400). The `GET /v1/cabals/{id}/proposals/preview` result shows inline: over the pot "More than the pot has", no route "Can't buy <name> right now. Try a smaller amount or another stock." Both disable "Review", because the server refuses them ([product.md](product.md#trading)).
+**Amount.** Title "Amount". The stock row. Amount entry with chips "$25", "$50", "$100", "Max" (Max is the pot), helper "The pot has $500.00". "+ Add a reason" expands a field "Why should the cabal buy this?" (280 characters, the server's cap, with a counter from 230). The `GET /v1/cabals/{id}/proposals/preview` result shows inline: over the pot "More than the pot has", no route "Can't buy <name> right now. Try a smaller amount or another stock." Both disable "Review", because the server refuses them ([product.md](product.md#trading)).
 
 **Review.** Title "Review". "Buy $250.00 of GOOGL". Rows: "Cabal gets" "about 0.73 shares", "Price" "about $341.57 a share", "Pot" "50% of $500.00", "Who votes" the cabal. "Why buy" with the reason. Primary "Send to cabal". Success closes the flow with the toast "Proposal sent to Sunday Investors".
 
@@ -160,7 +160,7 @@ Used by Home's "Needs your vote", the cabal's proposals and the proposals list (
 
 **Cash out** (`CashOutRoute`, #657). Title "Cash out". Amount entry with "25%", "50%", "All", helper "Your slice is worth $200.15", explainer "We sell this much of your slice and move the cash to your account balance. You stay in the cabal.", primary "Cash out $50.03". Under $0.10: "Too small to cash out". No stake: "Nothing to cash out yet" / "Add money to this cabal first. Your slice shows up here." Pops back with "Cashing out $50.03. It lands in your balance in about a minute". The pot, slice and Home balance refresh on the job's hint.
 
-**Withdraw** (`WithdrawRoute`, #652). Title "Withdraw". Amount entry with "Max", helper "$850.03 available", "Send to" with the field "USDC address on Solana", inline address errors, the caveat "A Solana address that accepts USDC. Transfers can't be undone.", primary "Continue". **Confirm**: "You're withdrawing" over the amount, rows "To" (the full address), "From" "Account balance", "Arrives" "About a minute", the caption "Double-check the address. Transfers can't be undone.", primary "Withdraw". Toast "Withdrawing $50.00. It lands in about a minute." with a Solscan link.
+**Withdraw** (`WithdrawRoute`, #652). Title "Withdraw". Amount entry with "Max", helper "$850.03 available", "Send to" with the field "USDC address on Solana", inline address errors, the caveat "A Solana address that accepts USDC. Transfers can't be undone.", primary "Continue". **Confirm**: "You're withdrawing" over the amount, rows "To" (the full address), "From" "Account balance", "Arrives" "About a minute", the caption "Double-check the address. Transfers can't be undone.", primary "Withdraw". Toast "Withdrawing $50.00. It lands in about a minute." The Solscan link appears on the account activity receipt once the withdrawal confirms.
 
 **Account activity** (`AccountActivityRoute`, #2138). Title "Activity". `GET /v1/me/txns`, paged. Rows: glyph, title ("Deposit", "Withdrawal", "Funded Sunday Investors", "Cashed out of Sunday Investors"), date, status ("Pending" amber, "Failed" red), signed amount. A row opens a receipt with the amount, status, time and a "View on Solscan" link. Empty: "No activity yet" / "Deposits, withdrawals and cabal moves show up here."
 
@@ -180,7 +180,7 @@ Title is the cabal tile and name. Empty: the tile, the name, "No messages yet. S
 
 ## Trading bot (M23, #691)
 
-Title "Trading bot". The bot's name and state. "Budget" / "From the pot" / "$200.00", then "Spent" and "Holdings" from the bot's trades. The "Bot key" card: the key in mono, "Paste this key into your bot. Anyone in the cabal can copy it here until the bot is removed.", primary "Copy connect instructions", secondary "Copy key". Below, "Trades" lists the bot's swaps with their `reason`. Toast "Connect instructions copied".
+Title "Trading bot". The bot's name and state. "Budget" / "From the pot" / "$200.00", then "Spent" and "Holdings" from the bot's trades. The "Bot key" card: the key masked with "Show key" (the reveal is audited), "Paste this key into your bot. Anyone in the cabal can copy it here until the bot is removed.", primary "Copy connect instructions", secondary "Copy key". Below, "Trades" lists the bot's swaps with their `reason`. "Spent", "Holdings" and "Trades" need an agent read route that M23 does not ticket yet. Toast "Connect instructions copied".
 
 ## Profile tab
 
