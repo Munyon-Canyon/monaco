@@ -1,4 +1,3 @@
-feature-observable	apps/mobile/Monaco/Features/Assets/AssetDetailModel.swift	1
 feature-observable	apps/mobile/Monaco/Features/Assets/AssetSocialModel.swift	1
 feature-observable	apps/mobile/Monaco/Features/Assets/CabalHoldingsModel.swift	1
 feature-observable	apps/mobile/Monaco/Features/Assets/StocksTabModel.swift	1
@@ -19,7 +18,6 @@ fixed-font	apps/mobile/Monaco/Features/Proposals/ProposeChooserView.swift	1
 float-money	apps/mobile/Monaco/Design/MonacoAmountEntry.swift	4
 float-money	apps/mobile/Monaco/Design/MonacoMoney.swift	5
 float-money	apps/mobile/Monaco/Design/MonacoPreviewGallery.swift	5
-float-money	apps/mobile/Monaco/Features/Assets/AssetDetailModel.swift	1
 float-money	apps/mobile/Monaco/Features/Assets/AssetPositionCard.swift	3
 float-money	apps/mobile/Monaco/Features/Assets/PreIpoDetailSection.swift	1
 float-money	apps/mobile/Monaco/Features/Debug/AssetDetailSampleHarness.swift	1

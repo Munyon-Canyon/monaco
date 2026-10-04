@@ -25,7 +25,7 @@ struct LiveAssetSocialDataSource: AssetSocialDataSource {
 
 /// The social half of the stock screen: holdings, open votes and activity.
 ///
-/// Kept apart from `AssetDetailModel` on purpose. The price and the curve are about
+/// Kept apart from the retired asset-detail state on purpose. The price and the curve are about
 /// the market and are polled every ten seconds; this is about the member's own
 /// cabals, changes when somebody votes, and costs a pot valuation per cabal to read.
 /// Folding it into the detail model would have tied a heavy read to a fast poll.
@@ -72,8 +72,8 @@ final class AssetSocialModel {
 
     var holdings: [AssetHoldingDTO] { social?.holdings ?? [] }
 
-    /// Issue order of reads, so only the newest one may write. The same marker the
-    /// chart keeps per range (`AssetDetailModel.chartRequestSequence`), for the same
+    /// Issue order of reads, so only the newest one may write. This mirrors the
+    /// retired chart's per-range marker, for the same
     /// reason: two reads overlap here all the time — the one `.task` fires on appear,
     /// and the one the propose callback fires the moment a proposal lands — and
     /// without it the older answer can arrive last and put the pre-proposal card back
