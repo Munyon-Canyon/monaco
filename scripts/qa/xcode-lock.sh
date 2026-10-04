@@ -217,6 +217,7 @@ trap 'sig_name=INT; sig_rc=130; if (( running )); then if [[ -n "$child" ]]; the
 trap 'sig_name=TERM; sig_rc=143; if (( running )); then if [[ -n "$child" ]]; then kill -s TERM "$child" 2>/dev/null || true; fi; else exit 143; fi' TERM
 
 start=$SECONDS
+contended=0     # 1 once a wait loop ran; a free lock records 0, since $SECONDS can gain a second in a few ms
 
 # Live xcodebuilds building into $derived, one pid per line. Waiting xcode-lock.sh lines
 # are left out: they name xcodebuild only as an argument.
@@ -251,6 +252,7 @@ if [[ -n "$derived" ]]; then
     else
       blocker="pid ${builds//[[:space:]]/ } (an xcodebuild outside this lock)"
     fi
+    contended=1
     waited=$((SECONDS - start))
     if (( waited >= wait_limit )); then
       say "gave up after ${wait_limit}s waiting for $derived behind $blocker"
@@ -304,6 +306,7 @@ while true; do
       fi
     done
   fi
+  contended=1
   waited=$((SECONDS - start))
   if (( waited >= wait_limit )); then
     say "gave up after ${wait_limit}s waiting behind ${holders:-no holder}"
@@ -320,7 +323,7 @@ done
 rm -f "$queue_dir/$ticket"
 ticket=""
 if [[ -n "${MONACO_LOCK_WAITED:-}" ]]; then
-  echo "$((SECONDS - start))" >> "$MONACO_LOCK_WAITED"
+  echo "$(( contended ? SECONDS - start : 0 ))" >> "$MONACO_LOCK_WAITED"
 fi
 # cwd first: a waiter treats a lock with no pid yet as live, never as stale.
 printf '%s\n' "$PWD" > "$lock_dir/cwd"
