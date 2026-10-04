@@ -56,7 +56,7 @@ func banned() scenario.Step {
 }
 
 func refused(code errs.Code, typ events.Type, n int) []scenario.Step {
-	return []scenario.Step{scenario.ExpectProblem(code), scenario.ExpectEvents(typ, n)}
+	return []scenario.Step{scenario.ExpectProblem(code), scenario.ExpectEvents(typ, n), cabalHolds()}
 }
 
 func F03JoinCabalOK(s *scenario.Scenario) {
@@ -73,6 +73,7 @@ func F03JoinCabalOK(s *scenario.Scenario) {
 			scenario.ExpectEvents(events.TypeCabalMemberJoined, 2),
 			scenario.EventuallyPublished(events.TypeCabalMemberJoined, 2),
 			scenario.EventuallyHint("cabal_access"),
+			cabalHolds(),
 		)
 }
 
@@ -121,6 +122,7 @@ func F03RequestAccessOK(s *scenario.Scenario) {
 			scenario.SignIn(creatorOf("request-ok")),
 			scenario.Get(requestsPath+"?status=pending"),
 			scenario.ExpectStatus(http.StatusOK),
+			cabalHolds(),
 		)
 }
 
@@ -181,6 +183,7 @@ func F03DecideAccessOK(s *scenario.Scenario) {
 			scenario.EventuallyHint("cabal_access"),
 			scenario.Get(cabalsPath+"/{cabal}"),
 			scenario.ExpectJSON("me", map[string]any{"role": "member", "can_vote": false}),
+			cabalHolds(),
 		)
 }
 
@@ -235,6 +238,7 @@ func F03RevokeAccessOK(s *scenario.Scenario) {
 		Then(
 			scenario.ExpectEvents(events.TypeCabalAccessDecided, 1),
 			scenario.EventuallyPublished(events.TypeCabalAccessDecided, 1),
+			cabalHolds(),
 		)
 }
 

@@ -3,22 +3,13 @@ package cabal_test
 import (
 	"testing"
 
-	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
-	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
-func leaveScenario(t *testing.T, extra ...scenario.Option) (*scenario.Scenario, *fakes.Treasury) {
+func leaving(t *testing.T, extra ...scenario.Option) *scenario.Scenario {
 	t.Helper()
-	tr := fakes.NewTreasury()
-	return cabalScenarioWith(t, []cabal.Option{cabal.WithTreasuryReads(tr)}, extra...), tr
-}
-
-func leaving(t *testing.T) *scenario.Scenario {
-	t.Helper()
-	s, _ := leaveScenario(t)
-	return s
+	return cabalScenarioWith(t, nil, extra...)
 }
 
 func TestFlow04_LeaveCabal_OK(t *testing.T) {
@@ -38,12 +29,12 @@ func TestFlow04_LeaveCabal_NotCabalMember(t *testing.T) {
 
 func TestFlow04_LeaveCabal_LeaveHoldsShares(t *testing.T) {
 	t.Parallel()
-	flows.LeaveHoldingShares(leaveScenario(t))
+	flows.F04LeaveCabalLeaveHoldsShares(leaving(t))
 }
 
 func TestFlow04_LeaveCabal_LeaveLastMemberPotNotEmpty(t *testing.T) {
 	t.Parallel()
-	flows.LeaveLastOfAFullPot(leaveScenario(t))
+	flows.F04LeaveCabalLeaveLastMemberPotNotEmpty(leaving(t))
 }
 
 func TestFlow04_LeaveCabal_LeaveCreatorWithMembers(t *testing.T) {
@@ -53,5 +44,5 @@ func TestFlow04_LeaveCabal_LeaveCreatorWithMembers(t *testing.T) {
 
 func TestFlow04_LeaveCabal_PriceUnavailable(t *testing.T) {
 	t.Parallel()
-	flows.LeaveAnUnpricedPot(leaveScenario(t))
+	flows.F04LeaveCabalPriceUnavailable(leaving(t))
 }

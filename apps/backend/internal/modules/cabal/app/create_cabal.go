@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 const createCabalOp = "cabal.CreateCabal"
@@ -175,6 +176,10 @@ func (h *CreateCabalHandler) write(
 		return CreatedCabal{}, err
 	}
 	faultpoint.Hit(ctx, faultpoint.BeforeCommit)
+	tx.AfterCommit(func(ctx context.Context) {
+		observability.Info(ctx, observability.CabalCreated,
+			slog.String("cabal_id", id.String()), slog.String("treasury_address", string(address)))
+	})
 	return CreatedCabal{
 		ID: id, Name: cmd.Name.String(), InviteCode: code, TreasuryAddress: address, PrivyWalletID: walletID,
 	}, nil

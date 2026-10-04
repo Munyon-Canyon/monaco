@@ -5,10 +5,11 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
-	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
-	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
@@ -43,11 +44,38 @@ func joined(script string) []scenario.Step {
 	)
 }
 
-func treasuryFor(s *scenario.Scenario, tr *fakes.Treasury) *fakes.Treasury {
-	if tr == nil {
-		s.Fatalf("flows: flow 04 sets shares and the pot on a fakes.Treasury until treasury reads real ones")
+const unpricedMint chain.SolanaAddress = "So11111111111111111111111111111111111111112"
+
+func funded(micros uint64) scenario.Step {
+	return func(s *scenario.Scenario) {
+		testkit.NewLedger(s, s.DB()).WithFundedMember(s.ActorID(), cabalIn(s), money.MicrosFromUint64(micros))
 	}
-	return tr
+}
+
+func holding(mint chain.SolanaAddress, units uint64) scenario.Step {
+	return func(s *scenario.Scenario) {
+		testkit.NewLedger(s, s.DB()).WithHolding(cabalIn(s), mint, money.NewBaseUnits(units, 6))
+	}
+}
+
+func heldShares(s *scenario.Scenario) string {
+	var units string
+	err := s.DB().QueryRow(s.Context(),
+		`SELECT share_units::text FROM user_positions WHERE cabal_id = $1 AND user_id = $2`,
+		cabalIn(s).UUID(), s.ActorID().UUID(),
+	).Scan(&units)
+	if err != nil {
+		s.Fatalf("flows: read the leaver's share units: %v", err)
+	}
+	return units
+}
+
+func guarded(code errs.Code, have func(*scenario.Scenario) string) []scenario.Step {
+	return append(refused(code, events.TypeCabalMemberLeft, 0), func(s *scenario.Scenario) {
+		scenario.EventuallyLog(observability.HTTPProblem, map[string]string{
+			"code": string(code), "detail.have": have(s),
+		})(s)
+	})
 }
 
 func left() []scenario.Step {
@@ -55,6 +83,7 @@ func left() []scenario.Step {
 		scenario.ExpectEvents(events.TypeCabalMemberLeft, 1),
 		scenario.EventuallyPublished(events.TypeCabalMemberLeft, 1),
 		scenario.EventuallyHint("cabal_access"),
+		cabalHolds(),
 	}
 }
 
@@ -81,26 +110,16 @@ func F04LeaveCabalNotCabalMember(s *scenario.Scenario) {
 		Then(refused(errs.CodeNotCabalMember, events.TypeCabalMemberLeft, 0)...)
 }
 
-func F04LeaveCabalLeaveHoldsShares(s *scenario.Scenario) { LeaveHoldingShares(s, nil) }
-
-func LeaveHoldingShares(s *scenario.Scenario, tr *fakes.Treasury) {
-	s.Given(append(joined("shares"), func(s *scenario.Scenario) {
-		treasuryFor(s, tr).SetStake(treasury.Stake{
-			CabalID: cabalIn(s), UserID: s.ActorID(), ShareUnits: money.SharesUnitsFromUint64(1),
-		})
-	})...).
+func F04LeaveCabalLeaveHoldsShares(s *scenario.Scenario) {
+	s.Given(append(joined("shares"), funded(1_000_000))...).
 		When(scenario.Delete(leavePath)).
-		Then(refused(errs.CodeLeaveHoldsShares, events.TypeCabalMemberLeft, 0)...)
+		Then(guarded(errs.CodeLeaveHoldsShares, heldShares)...)
 }
 
-func F04LeaveCabalLeaveLastMemberPotNotEmpty(s *scenario.Scenario) { LeaveLastOfAFullPot(s, nil) }
-
-func LeaveLastOfAFullPot(s *scenario.Scenario, tr *fakes.Treasury) {
-	s.Given(append(founded("last"), func(s *scenario.Scenario) {
-		treasuryFor(s, tr).SetPotValue(cabalIn(s), money.MicrosFromUint64(1))
-	})...).
+func F04LeaveCabalLeaveLastMemberPotNotEmpty(s *scenario.Scenario) {
+	s.Given(append(founded("last"), holding(testkit.USDCMint, 1))...).
 		When(scenario.Delete(leavePath)).
-		Then(refused(errs.CodeLeaveLastMemberPotNotEmpty, events.TypeCabalMemberLeft, 0)...)
+		Then(guarded(errs.CodeLeaveLastMemberPotNotEmpty, func(*scenario.Scenario) string { return "1" })...)
 }
 
 func F04LeaveCabalLeaveCreatorWithMembers(s *scenario.Scenario) {
@@ -109,12 +128,8 @@ func F04LeaveCabalLeaveCreatorWithMembers(s *scenario.Scenario) {
 		Then(refused(errs.CodeLeaveCreatorWithMembers, events.TypeCabalMemberLeft, 0)...)
 }
 
-func F04LeaveCabalPriceUnavailable(s *scenario.Scenario) { LeaveAnUnpricedPot(s, nil) }
-
-func LeaveAnUnpricedPot(s *scenario.Scenario, tr *fakes.Treasury) {
-	s.Given(append(founded("unpriced"), func(s *scenario.Scenario) {
-		treasuryFor(s, tr).Fail("PotValue", errs.New(errs.CodePriceUnavailable, "flows.LeaveAnUnpricedPot"))
-	})...).
+func F04LeaveCabalPriceUnavailable(s *scenario.Scenario) {
+	s.Given(append(founded("unpriced"), holding(unpricedMint, 1))...).
 		When(scenario.Delete(leavePath)).
 		Then(refused(errs.CodePriceUnavailable, events.TypeCabalMemberLeft, 0)...)
 }

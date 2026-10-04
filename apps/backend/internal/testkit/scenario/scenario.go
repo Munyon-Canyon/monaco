@@ -181,6 +181,8 @@ func (s *Scenario) DB() *pgxpool.Pool { return s.app.pool }
 
 func (s *Scenario) Context() context.Context { return s.t.Context() }
 
+func (s *Scenario) Helper() { s.t.Helper() }
+
 func (s *Scenario) Fatalf(format string, args ...any) {
 	s.t.Helper()
 	s.t.Fatalf(format, args...)

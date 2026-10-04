@@ -2,10 +2,12 @@ package flows
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/app"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
@@ -47,6 +49,8 @@ func F02CreateCabalOK(s *scenario.Scenario) {
 			scenario.ExpectStatus(http.StatusOK),
 			scenario.ExpectJSON("invite_code", nil),
 			scenario.ExpectJSON("me", nil),
+			createdLogged(),
+			cabalHolds(),
 		)
 }
 
@@ -105,7 +109,8 @@ func F02CreateCabalCrashBeforeCommit(s *scenario.Scenario) {
 			scenario.ExpectEvents(events.TypeCabalCreated, 1),
 			scenario.EventuallyPublished(events.TypeCabalCreated, 1),
 			scenario.EventuallyHint("cabals"),
-			expectOneTreasury(),
+			createdLogged(),
+			cabalHolds(),
 		)
 }
 
@@ -121,14 +126,42 @@ func expectCabals(n int) scenario.Step {
 	}
 }
 
-func expectOneTreasury() scenario.Step {
+func createdLogged() scenario.Step {
 	return func(s *scenario.Scenario) {
-		var cabals, wallets int
-		err := s.DB().QueryRow(s.Context(),
-			`SELECT (SELECT count(*) FROM cabals), (SELECT count(*) FROM treasury_wallets)`,
-		).Scan(&cabals, &wallets)
-		if err != nil || cabals != 1 || wallets != 1 {
-			s.Fatalf("cabals %d wallets %d err %v, want one of each", cabals, wallets, err)
+		scenario.EventuallyLog(observability.CabalCreated, map[string]string{"cabal_id": s.Recall("cabal")})(s)
+	}
+}
+
+const cabalInvariants = `SELECT array_remove(ARRAY[
+	CASE WHEN EXISTS (SELECT 1 FROM cabal_members WHERE cabal_id = $1::uuid)
+		AND ((SELECT count(*) FROM treasury_wallets WHERE cabal_id = $1::uuid) <> 1
+			OR (SELECT count(*) FROM cabal_members WHERE cabal_id = $1::uuid AND role = 'creator') <> 1)
+		THEN 'a cabal with members has one treasury wallet and one creator' END,
+	CASE WHEN EXISTS (SELECT 1 FROM cabal_access_requests WHERE cabal_id = $1::uuid AND status = 'pending'
+		GROUP BY user_id HAVING count(*) > 1)
+		THEN 'a user has at most one pending access row' END,
+	CASE WHEN EXISTS (SELECT 1 FROM events j
+		WHERE j.type = 'cabal.member_joined' AND j.payload->>'cabal_id' = $1::uuid::text
+		AND NOT EXISTS (SELECT 1 FROM cabal_members m
+			WHERE m.cabal_id = $1::uuid AND m.user_id::text = j.payload->>'user_id')
+		AND NOT EXISTS (SELECT 1 FROM events l
+			WHERE l.type = 'cabal.member_left' AND l.payload->>'cabal_id' = $1::uuid::text
+			AND l.payload->>'user_id' = j.payload->>'user_id' AND l.id > j.id))
+		THEN 'every cabal.member_joined has a member row or a later cabal.member_left' END
+], NULL)`
+
+func cabalHolds() scenario.Step {
+	return func(s *scenario.Scenario) {
+		cabal := s.Recall("cabal")
+		if cabal == "" {
+			return
+		}
+		var broken []string
+		if err := s.DB().QueryRow(s.Context(), cabalInvariants, cabal).Scan(&broken); err != nil {
+			s.Fatalf("flows: check cabal %s invariants: %v", cabal, err)
+		}
+		if len(broken) > 0 {
+			s.Fatalf("flows: cabal %s breaks: %s", cabal, strings.Join(broken, "; "))
 		}
 	}
 }
