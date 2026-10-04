@@ -21,7 +21,7 @@ func newRoleRepo(t *testing.T) roleRepo {
 	for _, kv := range [][2]string{{"user.email", "a@example.com"}, {"user.name", "a"}, {"commit.gpgsign", "false"}} {
 		git(t, primary, "config", kv[0], kv[1])
 	}
-	writeRoleFile(t, filepath.Join(primary, ".monaco", "agents.toml"), "milestone = \"ms\"\n")
+	writeRoleFile(t, filepath.Join(primary, ".monaco", "agents.toml"), "milestone = \"m8\"\n")
 	writeRoleFile(t, filepath.Join(primary, "apps", "backend", "go.mod"), "module x\n")
 	writeRoleFile(t, filepath.Join(primary, "scripts", "go.mod"), "module y\n")
 	git(t, primary, "add", "-A")
@@ -32,7 +32,7 @@ func newRoleRepo(t *testing.T) roleRepo {
 	writeRoleFile(t, filepath.Join(common, ".monaco", "agents", "1.json"), `{"ticket":1,"worktree":"/elsewhere"}`)
 	writeRoleFile(t, filepath.Join(common, ".monaco", "agents", "2.json"), `not json`)
 	writeRoleFile(t, filepath.Join(common, ".monaco", "agents", "9.json"), `{"ticket":9,"worktree":"`+lane+`"}`)
-	return roleRepo{primary, lane, filepath.Join(common, "pstack", "ms", "checks")}
+	return roleRepo{primary, lane, filepath.Join(common, "pstack", "m8", "checks")}
 }
 
 func writeRoleFile(t *testing.T, path, body string) {
@@ -66,6 +66,37 @@ func TestAgentGuard_anOwnerPushesOnlyATreeThatAgentsCheckPassed(t *testing.T) {
 	commitFile(t, r.lane, "more.txt", "feat: more")
 	assertBlocked(t, guard(t, r.lane, "gt submit --stack --draft"), "gt submit after a new commit", "has not passed")
 	assertBlocked(t, guard(t, r.primary, "cd "+r.lane+" && git push origin ticket"), "cd into the lane", "has not passed")
+}
+
+func TestAgentGuard_aLocalMilestoneMovesTheCheckRecord(t *testing.T) {
+	push := "gt submit --stack --no-interactive --draft"
+	for _, c := range []struct {
+		name, local, recorded string
+		allowed               bool
+	}{
+		{"a record under the local milestone", `milestone = "m12"`, "m12", true},
+		{"a record under the committed milestone", `milestone = "m12"`, "m8", false},
+		{"a local file without a milestone keeps the committed one", "lanes = 2", "m8", true},
+		{"an undecodable local file counts as no record", "\xff", "m8", false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			r := newRoleRepo(t)
+			tree := strings.TrimSpace(gitOut(t, r.lane, "rev-parse", "HEAD^{tree}"))
+			writeRoleFile(t, filepath.Join(r.primary, ".git", ".monaco", "agents.local.toml"), c.local+"\n")
+			writeRoleFile(t, filepath.Join(r.primary, ".git", "pstack", c.recorded, "checks", tree), "head x\n")
+			if c.allowed {
+				assertAllowed(t, guard(t, r.lane, push), push)
+			} else {
+				assertBlocked(t, guard(t, r.lane, push), push, "has not passed on this tree")
+			}
+		})
+	}
+	t.Run("an unreadable local file counts as no record", func(t *testing.T) {
+		r := newRoleRepo(t)
+		r.markChecked(t)
+		writeRoleFile(t, filepath.Join(r.primary, ".git", ".monaco", "agents.local.toml", "x"), "")
+		assertBlocked(t, guard(t, r.lane, push), push, "has not passed on this tree")
+	})
 }
 
 func TestAgentGuard_anOwnerRunsNoHeavyTests(t *testing.T) {

@@ -594,16 +594,25 @@ def agent_role(cwd: str) -> Role | None:
     return None
 
 
+def milestone_in(path: str) -> str | None:
+    try:
+        with open(path) as f:
+            m = re.search(r'^\s*milestone\s*=\s*"([^"]+)"', f.read(), re.M)
+    except FileNotFoundError:
+        return None
+    return m.group(1) if m else None
+
+
 def checked_tree(role: Role, cwd: str) -> tuple[str, bool]:
     tree = run(["git", "rev-parse", "HEAD^{tree}"], cwd).stdout.strip()
     try:
-        with open(os.path.join(role.top, ".monaco", "agents.toml")) as f:
-            m = re.search(r'^\s*milestone\s*=\s*"([^"]+)"', f.read(), re.M)
-    except OSError:
-        m = None
-    if not tree or not m:
+        milestone = (milestone_in(os.path.join(role.common, ".monaco", "agents.local.toml"))
+                     or milestone_in(os.path.join(role.top, ".monaco", "agents.toml")))
+    except (OSError, ValueError):
+        milestone = None
+    if not tree or not milestone:
         return tree, False
-    return tree, os.path.isfile(os.path.join(role.common, "pstack", m.group(1), "checks", tree))
+    return tree, os.path.isfile(os.path.join(role.common, "pstack", milestone, "checks", tree))
 
 
 def rule_role_push_needs_check(inv: Invocation) -> str | None:
