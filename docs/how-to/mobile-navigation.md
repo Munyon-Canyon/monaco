@@ -134,6 +134,11 @@ not share the host screen's model. A screen with no live slot renders `NotMigrat
 Profile screen also shows a Sign out button under its slots, so a member can sign out before any
 slot is live.
 
+Home, Profile and the Cabals tab pull to refresh. Each tab root puts a `ScreenRefresh` in the
+environment and runs it from `.refreshable`. A slot that loads data registers its reload, keyed by
+the slot, from `@Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?`:
+`refresh?.register("balance") { await model.load() }`. A pull runs every registered reload at once.
+
 A slot is one stub file next to its screen. The cabal slots live in `Features/Groups/CabalSlots/`:
 
 ```swift

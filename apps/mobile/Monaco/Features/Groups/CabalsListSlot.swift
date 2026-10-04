@@ -13,7 +13,7 @@ enum CabalsListSlot: CabalsTabSection {
 private struct MyCabalsList: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
-    @Environment(CabalsTabRefresh.self) private var refresh: CabalsTabRefresh?
+    @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @State private var model: MonacoCore.CabalsTabModel?
     @State private var showsNewCabal = false
 

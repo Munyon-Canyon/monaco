@@ -102,7 +102,7 @@ final class CabalsTabModelTests: XCTestCase {
     }
 
     func testPullToRefreshRunsTheLatestReloadOfEverySection() async {
-        let refresh = CabalsTabRefresh()
+        let refresh = ScreenRefresh()
         var runs: [String] = []
         refresh.register("list") { runs.append("stale list") }
         refresh.register("list") { runs.append("list") }

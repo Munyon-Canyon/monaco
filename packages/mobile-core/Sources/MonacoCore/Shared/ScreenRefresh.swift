@@ -2,7 +2,7 @@ import Observation
 
 @Observable
 @MainActor
-public final class CabalsTabRefresh {
+public final class ScreenRefresh {
     private var reloads: [String: @MainActor () async -> Void] = [:]
 
     public init() {}
