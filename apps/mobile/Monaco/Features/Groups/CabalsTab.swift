@@ -14,7 +14,7 @@ enum CabalsTab: TabContent {
 private struct CabalsTabRoot: View {
     @Environment(\.accountRestricted) private var accountRestricted
     @State private var showsNewCabal = false
-    @State private var refresh = CabalsTabRefresh()
+    @State private var refresh = ScreenRefresh()
 
     var body: some View {
         CabalsTabScreen()

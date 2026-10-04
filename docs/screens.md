@@ -184,6 +184,8 @@ Title "Trading bot". The bot's name and state. "Budget" / "From the pot" / "$200
 
 ## Profile tab
 
+Pull to refresh, like Home.
+
 | Order | Slot | Owner | Shows |
 | --- | --- | --- | --- |
 | 1 | `ProfileHeaderSlot` | #644 | Centred: the photo picker (96 pt avatar with a camera badge, opens "Your face": eight animals and "Choose a photo"), the name with a pencil that opens "Edit profile", "@handle" (opens `HandleEditRoute`), "Member since Sep 2026" |
