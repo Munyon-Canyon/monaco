@@ -10,11 +10,7 @@ import (
 
 const nudgePoller = "identity.nudges"
 
-func f28Scripts() map[string]Script {
-	return map[string]Script{
-		"F28EmitNudgesOK": F28EmitNudgesOK,
-	}
-}
+func (defined) WorkerEnvF28() []string { return []string{"IDENTITY_NUDGES_INTERVAL=1s"} }
 
 func F28EmitNudgesOK(s *scenario.Scenario) {
 	var user ids.UserID

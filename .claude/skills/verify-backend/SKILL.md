@@ -21,8 +21,8 @@ The code is in `apps/backend/cmd/monacoctl/verify/`.
 
 1. Builds `./cmd/api`, `./cmd/worker` and `./cmd/fakes` with `-cover`, adding `-tags faultpoints` for a crash run.
 2. Starts a Postgres container named `monaco-verify-<run id>` on a random port with data on tmpfs. It never touches `monaco-postgres`.
-3. Starts NATS, applies the atlas migrations, and starts the binaries. The worker also gets the variables that `Env()` in `apps/backend/internal/testkit/flows/scripts.go` sets for the selected flows, such as a poll interval short enough for the flow budget.
-4. Runs each selected outcome's flow script from `apps/backend/internal/testkit/flows/scripts.go`, up to 4 at a time. A crash run goes one at a time.
+3. Starts NATS, applies the atlas migrations, and starts the binaries. The worker also gets the variables that the `WorkerEnvF<id>` method in each selected flow's `apps/backend/internal/testkit/flows/f<id>.go` sets, such as a poll interval short enough for the flow budget.
+4. Runs each selected outcome's flow script from the flow's `apps/backend/internal/testkit/flows/f<id>.go`, up to 4 at a time. A crash run goes one at a time.
 5. Waits for every emitted event to be handled by every consumer that watches it.
 6. Checks the invariants below, writes evidence, and tears down.
 
@@ -100,8 +100,8 @@ Fix the code. Never weaken an invariant, raise a budget, skip an outcome, drop a
 
 ## Moving a flow to verified
 
-1. The non-crash scripts already ship with the `built` row, in `apps/backend/internal/testkit/flows/f<id>.go` and `Scripts()`. The flow tests call those scripts. A poller flow's script waits for the next tick with `scenario.AwaitTick(poller)` and checks its counts with `scenario.ExpectTick(poller, scanned, changed)`. In process the step ticks the poller once itself. Against the binaries it waits on the worker, so add the flow's poll interval to `Env()`. A tick that was already running when the step started still counts, so await a second tick when the counts must reflect what the Given stage seeded.
-2. A crash script ships with the `verify all --crash-at <point>` line in `scripts/ci/e2e.sh` that runs it. Register that script, and the rest of the outcomes, in `Scripts()` in `apps/backend/internal/testkit/flows/scripts.go`.
+1. The non-crash scripts already ship with the `built` row, in `apps/backend/internal/testkit/flows/f<id>.go`, registered by `go generate ./cmd/monacoctl`. The flow tests call those scripts. A poller flow's script waits for the next tick with `scenario.AwaitTick(poller)` and checks its counts with `scenario.ExpectTick(poller, scanned, changed)`. In process the step ticks the poller once itself. Against the binaries it waits on the worker, so add the flow's poll interval as a `WorkerEnvF<id>` method in its `f<id>.go`. A tick that was already running when the step started still counts, so await a second tick when the counts must reflect what the Given stage seeded.
+2. A crash script ships with the `verify all --crash-at <point>` line in `scripts/ci/e2e.sh` that runs it. Write that script, and the rest of the outcomes, in the flow's `apps/backend/internal/testkit/flows/f<id>.go`, then run `go generate ./cmd/monacoctl`.
 3. Set the row's status to `verified` and regenerate the flow's feature map page from `apps/backend`:
 
 ```

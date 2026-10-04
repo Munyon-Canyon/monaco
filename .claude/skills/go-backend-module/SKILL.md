@@ -22,7 +22,7 @@ Every job has one paved path, and a generator writes its first copy. Start from 
 | Migration | `apps/backend/migrations/20260929120000_system.sql` |
 | Event | `apps/backend/internal/events/system.go`, registered in `apps/backend/internal/events/system_registrations.go` |
 | Contract | `apps/backend/api/spec/system.yaml`, bundled into `apps/backend/api/openapi.yaml` and generated into `apps/backend/internal/platform/httpx/api/api.gen.go` |
-| Flow scripts | `apps/backend/internal/testkit/flows/f00.go`, listed in `apps/backend/internal/testkit/flows/scripts.go` |
+| Flow scripts | `apps/backend/internal/testkit/flows/f00.go`, registered by its generated `apps/backend/internal/testkit/flows/f00.gen.go`. Each `f<id>.go` gets a generated `f<id>.gen.go` |
 | Flow tests | `apps/backend/internal/modules/system/flow00_test.go`, `apps/backend/internal/modules/system/flow00_crash_test.go` |
 
 ## Generators
@@ -83,11 +83,11 @@ A flow is one file, `packages/flows/backend/<id>.tsv`: the tab-separated header 
 | Status | Needs |
 | --- | --- |
 | `planned` | Valid shape. The module directory, trigger, events, consumers, outcome codes, crash points and doc anchor all resolve. |
-| `built` | A command, a passing test per outcome named `TestFlow<id>_<Command>_<Outcome>` (`OK` for `ok`, `Crash<Point>` for `crash:<point>`), and a script for every non-crash outcome registered in `internal/testkit/flows/scripts.go`. |
-| `verified` | A script for every remaining outcome, including each crash outcome not already registered, in `Scripts()`. |
+| `built` | A command, a passing test per outcome named `TestFlow<id>_<Command>_<Outcome>` (`OK` for `ok`, `Crash<Point>` for `crash:<point>`), and a script for every non-crash outcome in `internal/testkit/flows/f<id>.go`, registered by running `go generate ./cmd/monacoctl`. |
+| `verified` | A script for every remaining outcome, including each crash outcome not already registered. Run `go generate ./cmd/monacoctl` to register them. |
 
 1. Add `packages/flows/backend/<id>.tsv` with the row as `planned` when the ticket starts.
-2. Run `just gen flow <id>`. Write the non-crash scripts in `internal/testkit/flows/f<id>.go`, register them in `Scripts()`, and make each test call its script. Then set `built`. Scripts for the non-crash outcomes ship with the `built` row.
+2. Run `just gen flow <id>`. Write the non-crash scripts in `internal/testkit/flows/f<id>.go`, run `go generate ./cmd/monacoctl` to write its `f<id>.gen.go`, and make each test call its script. A poller flow's worker env is a `WorkerEnvF<id>` method in its `f<id>.go`, and an app flow's seeders are a `Seeds<Stem>` method there. Then set `built`. Scripts for the non-crash outcomes ship with the `built` row.
 3. Crash scripts ship with the `verify all --crash-at <point>` line in `scripts/ci/e2e.sh` that runs them. Register the rest and set `verified`.
 4. Regenerate the docs with `just gen docs` and the flow's feature map page with `go generate ./cmd/monacoctl`. `scripts/ci/ready.sh` fails when either is stale.
 
