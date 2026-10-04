@@ -11,9 +11,13 @@ struct SettingsCopyTests {
     @Test func theRowsReadInScreenOrder() {
         #expect(
             SettingsRow.allCases.map(\.title) == [
-                "Notifications", "Activity", "Withdraw", "Advanced", "Delete account",
+                "Notifications", "Activity", "Withdraw", "Blocked people", "Advanced", "Delete account",
             ])
         #expect(SettingsRow.advanced.subtitle == "Block explorers")
+    }
+
+    @Test func theBlockedPeopleRowOpensItsScreen() {
+        #expect(BlockedPeopleRoute().destination() is BlockedPeopleView)
     }
 
     @Test func theFooterNamesTheReleaseAndTheBuild() {
