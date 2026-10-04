@@ -67,6 +67,20 @@ func ActorKey(r *http.Request) (string, bool) {
 }
 
 func Auth(v auth.TokenVerifier) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler { return actorPassthrough(next, authVerify(v)(next)) }
+}
+
+func actorPassthrough(next, verified http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := auth.ActorFrom(r.Context()); ok {
+			next.ServeHTTP(w, r)
+			return
+		}
+		verified.ServeHTTP(w, r)
+	})
+}
+
+func authVerify(v auth.TokenVerifier) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			const op = "httpx.Auth"

@@ -1945,6 +1945,7 @@ components:
         - account_has_positions
         - account_status_transition
         - account_suspended
+        - admin_forbidden
         - already_member
         - analytics_pii
         - apns_auth_failed
@@ -2009,6 +2010,7 @@ components:
         - proposal_not_found
         - proposal_still_open
         - rate_limited
+        - reason_required
         - referral_code_pending
         - referral_code_unknown
         - relayer_underfunded

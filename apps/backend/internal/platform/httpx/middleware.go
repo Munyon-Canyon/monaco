@@ -30,15 +30,16 @@ const (
 )
 
 type Deps struct {
-	Logger       *slog.Logger
-	Env          config.Env
-	Tracer       trace.TracerProvider
-	Clock        clock.Clock
-	IDs          ids.Generator
-	MaxBodyBytes int64
-	Idempotency  IdempotencyStore
-	Verifier     auth.TokenVerifier
-	RateLimit    func(http.Handler) http.Handler
+	Logger        *slog.Logger
+	Env           config.Env
+	Tracer        trace.TracerProvider
+	Clock         clock.Clock
+	IDs           ids.Generator
+	MaxBodyBytes  int64
+	Idempotency   IdempotencyStore
+	Verifier      auth.TokenVerifier
+	AdminVerifier auth.TokenVerifier
+	RateLimit     func(http.Handler) http.Handler
 }
 
 func (d Deps) wrap(next http.Handler) http.Handler {

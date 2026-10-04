@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 
+	adminauthn "github.com/monaco/monaco/apps/backend/internal/modules/admin/adapters/authn"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
@@ -153,15 +154,16 @@ func newHandler(deps module.Deps, spec []byte, meters metric.MeterProvider) (htt
 		return nil, err
 	}
 	return httpx.Handler(httpx.Deps{
-		Logger:       deps.Logger,
-		Env:          deps.Config.Env,
-		Tracer:       otel.GetTracerProvider(),
-		Clock:        clock.Real{},
-		IDs:          ids.Real{},
-		MaxBodyBytes: int64(deps.Config.HTTP.MaxBodyBytes),
-		Idempotency:  db.NewIdempotencyStore(deps.Pool, clock.Real{}),
-		Verifier:     verifier,
-		RateLimit:    ratelimit.Middleware(limiter, policies, httpx.ActorKey, deps.Config.HTTP.TrustProxyHeaders),
+		Logger:        deps.Logger,
+		Env:           deps.Config.Env,
+		Tracer:        otel.GetTracerProvider(),
+		Clock:         clock.Real{},
+		IDs:           ids.Real{},
+		MaxBodyBytes:  int64(deps.Config.HTTP.MaxBodyBytes),
+		Idempotency:   db.NewIdempotencyStore(deps.Pool, clock.Real{}),
+		Verifier:      verifier,
+		AdminVerifier: adminauthn.NewAdminVerifier(verifier, deps.Pool),
+		RateLimit:     ratelimit.Middleware(limiter, policies, httpx.ActorKey, deps.Config.HTTP.TrustProxyHeaders),
 	}, registered.Build(deps).Mount, spec)
 }
 

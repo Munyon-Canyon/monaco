@@ -10,6 +10,7 @@ extension Components.Schemas.ErrorCode {
         case .accountHasPositions: true
         case .accountStatusTransition: true
         case .accountSuspended: true
+        case .adminForbidden: true
         case .alreadyMember: true
         case .analyticsPii: true
         case .apnsAuthFailed: true
@@ -74,6 +75,7 @@ extension Components.Schemas.ErrorCode {
         case .proposalNotFound: true
         case .proposalStillOpen: true
         case .rateLimited: true
+        case .reasonRequired: true
         case .referralCodePending: true
         case .referralCodeUnknown: true
         case .relayerUnderfunded: true
