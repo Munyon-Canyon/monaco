@@ -11,7 +11,7 @@ import (
 
 // simScripts are the scripts a scratch checkout carries; they find the checkout from
 // their own path, so each test runs real copies outside this repo's own worktree.
-var simScripts = []string{"lane-sim-udid.sh", "resolve-ios-sim.sh", "gold-sim-udid.sh"}
+var simScripts = []string{"lane-sim-udid.sh", "resolve-ios-sim.sh", "gold-sim-udid.sh", "stop-mobile.sh"}
 
 // simCheckout is a scratch git repo with the sim scripts committed. lane is "" for the
 // primary checkout, or the name of a linked worktree added under it.

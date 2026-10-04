@@ -121,7 +121,7 @@ To get QA cash back out: **Cash out** of the cabal (USDC returns to the account 
 | `./scripts/ios-sim`          | Monaco run with Privy env. Falls back to a stock sim if slim is missing                                                                                                |
 | `./scripts/ios-build`        | Monaco compile with Privy xcconfig                                                                                                                                     |
 
-Simulator UDID is **per machine**. Never commit one. Recipes call `scripts/resolve-ios-sim.sh`.
+Simulator UDID is **per machine**. Never commit one. Recipes call `scripts/resolve-ios-sim.sh`. A linked worktree gets its own simulator, so agents in separate worktrees build and run at once ([parallel agents](docs/how-to/local-simulator.md#parallel-agents-one-simulator-per-worktree)).
 
 ## Local env
 
@@ -214,7 +214,7 @@ Never `simctl erase` a sim you later want as gold. Never commit a UDID. Never ta
    # optional: echo "SIMSLIM_UDID=<YOUR_UDID>" >> .env
    ```
 
-   Agent QA that must hit gold uses `scripts/gold-sim-udid.sh`, which exits 1 unless `SIMSLIM_UDID` is set and that device exists. If slim verify fails, human recipes still use that UDID as a normal simulator.
+   Agent QA uses `scripts/gold-sim-udid.sh`. In a linked worktree it prints that worktree's own simulator; in the primary checkout it exits 1 unless `SIMSLIM_UDID` is set and that device exists. If slim verify fails, human recipes still use that UDID as a normal simulator.
 
 5. Slim profile. Repo copy: [`ci/profiles/base-slim.json`](ci/profiles/base-slim.json).
 

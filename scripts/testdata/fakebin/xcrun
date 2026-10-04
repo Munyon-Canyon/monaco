@@ -4,6 +4,7 @@
 Reads devices from FAKE_SIMCTL_DIR (devices.json, devices.txt). With FAKE_SIMCTL_STATE set,
 `create` adds a device there (and logs the call to create.log), and `list` shows it.
 FAKE_SIMCTL_CREATE_DELAY widens the window between a create starting and landing.
+`terminate`, `uninstall` and `delete` only log to calls.log there.
 """
 import fcntl, json, os, sys, time, uuid
 
@@ -50,6 +51,11 @@ if args[:1] == ["create"] and len(args) == 4 and state:
     with open(os.path.join(state, "create.log"), "a") as f:
         f.write(" ".join(args) + "\n")
     print(udid)
+    sys.exit(0)
+
+if args[:1] in (["terminate"], ["uninstall"], ["delete"]) and state:
+    with open(os.path.join(state, "calls.log"), "a") as f:
+        f.write(" ".join(args) + "\n")
     sys.exit(0)
 
 sys.exit("fake xcrun: unhandled %s" % " ".join(args))
