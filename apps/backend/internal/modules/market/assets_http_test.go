@@ -58,7 +58,7 @@ func TestAssets_SearchByName(t *testing.T) {
 func TestAssets_fixtureCatalogDoesNotExposeIssuerBranding(t *testing.T) {
 	t.Parallel()
 	s := newMarketAPI(t, marketWhen())
-	s.seedFixtures(t)
+	s.seedBrandedCatalogFixtures(t)
 	for _, a := range pageOf(t, s.get(t, "/v1/assets")).Assets {
 		if strings.Contains(strings.ToLower(a.DisplayName), "xstock") {
 			t.Fatalf("%s display name = %q, contains issuer branding", a.Symbol, a.DisplayName)
@@ -411,6 +411,27 @@ func (s marketAPI) seedFixtures(t *testing.T) {
 	t.Helper()
 	for _, asset := range marketfake.Fixtures() {
 		insert(t, s.pool, stamped(asset, s.when), nil)
+	}
+}
+
+func (s marketAPI) seedBrandedCatalogFixtures(t *testing.T) {
+	t.Helper()
+	fixtures := marketfake.Fixtures()
+	assets := make([]app.ProviderAsset, len(fixtures))
+	facts := &marketfake.MintFacts{}
+	for i, asset := range fixtures {
+		asset.DisplayName += " xStock"
+		assets[i] = listed(asset)
+		facts.Put(asset.Mint, asset.Decimals, 1, 1)
+	}
+	provider := &provider{issuer: domain.IssuerXStocks}
+	provider.serve(nil, assets...)
+	ids := testkit.NewIDs(3)
+	poller := app.NewCatalogPoller(
+		db.New(s.pool, ids, s.clock), s.pool, ids, s.clock, app.NewProviders(provider), facts,
+	)
+	if _, err := poller.Tick(t.Context()); err != nil {
+		t.Fatal(err)
 	}
 }
 
