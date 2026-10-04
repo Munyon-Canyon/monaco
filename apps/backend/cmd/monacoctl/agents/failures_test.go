@@ -223,6 +223,26 @@ func TestWatch_printsAFreshOwnerPromptForAnEjectedEntryOnce(t *testing.T) {
 	}
 }
 
+func TestWatch_reportsARedPROfAnotherRootsTicketWithoutRebuildingItsRecord(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.ownerComments(40, ownerComment(2, Record{Ticket: 40, Model: opus, State: Running}))
+	f.hub.on(graphqlRoute, failureData(watchNode(5, "fb", rollup(redOK), "")))
+	code, stdout, stderr := f.agents(t, "watch", "--once", "--verbose")
+	want := "#5 stage 1 is red\n  failing job: https://gh/job/14\n  fresh owner\n" +
+		"  ticket: 40\n  worktree: unknown\n  head: sha5\n"
+	if code != 1 || stderr != "" || !strings.HasPrefix(stdout, want) {
+		t.Errorf("code=%d stderr=%q stdout=\n%s", code, stderr, stdout)
+	}
+	kept, err := os.ReadDir(filepath.Join(f.Env(t).Common, recordsDir))
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	for _, e := range kept {
+		t.Errorf("watch wrote %s for a ticket this clone has no record of", e.Name())
+	}
+}
+
 func TestWatch_failuresSurfaceStateQueryAndRecordErrors(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
