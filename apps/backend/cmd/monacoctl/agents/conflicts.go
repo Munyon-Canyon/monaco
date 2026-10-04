@@ -27,7 +27,7 @@ func conflictsCmd(ctx context.Context, env *Env, args []string, stdout io.Writer
 	ticket, ok := pr.Ticket()
 	rec := Record{}
 	if ok {
-		rec, err = env.record(ctx, ticket)
+		rec, err = env.localRecord(ticket)
 		if err != nil && errs.CodeOf(err) != errs.CodeNotFound {
 			return err
 		}

@@ -285,22 +285,45 @@ func TestWatch_isQuietWhenEveryoneMoved(t *testing.T) {
 
 func TestConflicts_printsTheRebaseTask(t *testing.T) {
 	t.Parallel()
-	f := prepBranch(t)
-	base := f.head(t)
-	git(t, f.dir, "checkout", "-q", "-b", "side")
-	left := commitFile(t, f.dir, "c.go", "left\n")
-	git(t, f.dir, "checkout", "-q", "fb")
-	_ = commitFile(t, f.dir, "c.go", "right\n")
-	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "fb")
+	f := conflictingPR(t)
 	f.owner(t, Record{Ticket: 40, Worktree: f.dir, AgentID: "agt"})
-	f.hub.on(get("/pulls/5"), headed(5, left))
 	code, stdout, stderr := f.agents(t, "conflicts", "5")
 	if code != 0 || stderr != "" || !strings.Contains(stdout, "behind: yes") ||
 		!strings.Contains(stdout, "file: c.go") ||
 		!strings.Contains(stdout, "agent: agt") ||
 		!strings.Contains(stdout, "gt sync --no-interactive --no-restack, run gt restack, monacoctl agents check") {
-		t.Fatalf("code=%d stdout=%q stderr=%q base=%s", code, stdout, stderr, base)
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
+}
+
+func TestConflicts_printsTheRebaseTaskOfAnotherRootsTicketWithoutRebuildingItsRecord(t *testing.T) {
+	t.Parallel()
+	f := conflictingPR(t)
+	f.ownerComments(40, ownerComment(2, Record{Ticket: 40, Model: opus, State: Running}))
+	code, stdout, stderr := f.agents(t, "conflicts", "5")
+	want := "#5 behind: yes\nworktree: \nagent: \nfile: c.go\n"
+	if code != 0 || stderr != "" || !strings.HasPrefix(stdout, want) {
+		t.Errorf("code=%d stderr=%q stdout=%q", code, stderr, stdout)
+	}
+	kept, err := os.ReadDir(filepath.Join(f.Env(t).Common, recordsDir))
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	for _, e := range kept {
+		t.Errorf("conflicts wrote %s for a ticket this clone has no record of", e.Name())
+	}
+}
+
+func conflictingPR(t *testing.T) *fixture {
+	t.Helper()
+	f := prepBranch(t)
+	git(t, f.dir, "checkout", "-q", "-b", "side")
+	left := commitFile(t, f.dir, "c.go", "left\n")
+	git(t, f.dir, "checkout", "-q", "fb")
+	_ = commitFile(t, f.dir, "c.go", "right\n")
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "fb")
+	f.hub.on(get("/pulls/5"), headed(5, left))
+	return f
 }
 
 func TestStatus_publishesAndSkipsAnUnchangedComment(t *testing.T) {
