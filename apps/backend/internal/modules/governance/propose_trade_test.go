@@ -117,16 +117,26 @@ func newProposeHarness(t *testing.T) proposeHarness {
 }
 
 func (h proposeHarness) handler(g ids.Generator) *app.ProposeTradeHandler {
+	return h.handlerWithHints(g, app.NoHints{})
+}
+
+func (h proposeHarness) handlerWithHints(g ids.Generator, hints app.Hints) *app.ProposeTradeHandler {
 	p := h.w.ports()
 	m := guardedMarket{Assets: p.Assets, Routes: p.Routes, g: h.guard}
 	return app.NewProposeTradeHandler(h.guard, g, clock.Real{}, app.TradePorts{
 		Cabals: guardedCabals{p.Cabals, h.guard}, Assets: m, Routes: m, Treasury: guardedTreasury{p.Treasury, h.guard},
-	})
+	}, hints)
 }
 
 func (h proposeHarness) propose(g ids.Generator, trade domain.Trade) (ids.ProposalID, error) {
+	return h.proposeWithHints(g, trade, app.NoHints{})
+}
+
+func (h proposeHarness) proposeWithHints(g ids.Generator, trade domain.Trade, hints app.Hints) (ids.ProposalID, error) {
 	ctx := observability.WithActor(h.guard.t.Context(), "user:"+h.w.members[0].String())
-	return h.handler(g).Handle(ctx, app.ProposeTrade{CabalID: h.w.cabal, ProposerID: h.w.members[0], Trade: trade})
+	return h.handlerWithHints(g, hints).Handle(ctx, app.ProposeTrade{
+		CabalID: h.w.cabal, ProposerID: h.w.members[0], Trade: trade,
+	})
 }
 
 func buyAAPLFor(micros uint64) domain.Trade {
@@ -152,6 +162,32 @@ func TestProposeTrade_callsNoPortInsideTheTransaction(t *testing.T) {
 		if err != nil || len(voters) != len(h.w.members) {
 			t.Fatalf("%s voters = %d, %v, want %d", trade.Kind, len(voters), err, len(h.w.members))
 		}
+	}
+}
+
+type createdHints struct {
+	guard   *txGuard
+	created []string
+}
+
+func (h *createdHints) ProposalCreated(_ context.Context, cabal ids.CabalID, proposal ids.ProposalID) {
+	h.guard.port("ProposalCreated")
+	h.created = append(h.created, cabal.String()+":"+proposal.String())
+}
+
+func (*createdHints) ProposalUpdated(context.Context, ids.CabalID, ids.ProposalID) {}
+
+func TestProposeTrade_publishesCreatedAfterCommit(t *testing.T) {
+	t.Parallel()
+	h := newProposeHarness(t)
+	hints := &createdHints{guard: h.guard}
+	id, err := h.proposeWithHints(h.d.ids, buyAAPLFor(potMicros), hints)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := h.w.cabal.String() + ":" + id.String()
+	if len(hints.created) != 1 || hints.created[0] != want {
+		t.Fatalf("created hints = %q, want %q", hints.created, want)
 	}
 }
 
@@ -213,8 +249,12 @@ func TestProposeTrade_refusesWhatThePortsRefuse(t *testing.T) {
 	} {
 		h.w = newTradeWorld(t)
 		tc.arrange(h.w)
-		if _, err := h.propose(h.d.ids, tc.trade); errs.CodeOf(err) != tc.want {
+		hints := &createdHints{guard: h.guard}
+		if _, err := h.proposeWithHints(h.d.ids, tc.trade, hints); errs.CodeOf(err) != tc.want {
 			t.Errorf("%s: propose err = %v, want %s", name, err, tc.want)
+		}
+		if len(hints.created) != 0 {
+			t.Errorf("%s: created hints = %q, want none", name, hints.created)
 		}
 	}
 }
@@ -237,7 +277,7 @@ func TestProposeTrade_rejectsMalformedThresholdAfterOpening(t *testing.T) {
 	p := h.w.ports()
 	handler := app.NewProposeTradeHandler(h.guard, h.d.ids, clock.Real{}, app.TradePorts{
 		Cabals: malformedRules{p.Cabals}, Assets: p.Assets, Routes: p.Routes, Treasury: p.Treasury,
-	})
+	}, app.NoHints{})
 	ctx := observability.WithActor(t.Context(), "user:"+h.w.members[0].String())
 	_, err := handler.Handle(ctx, app.ProposeTrade{
 		CabalID: h.w.cabal, ProposerID: h.w.members[0], Trade: buyAAPLFor(potMicros),

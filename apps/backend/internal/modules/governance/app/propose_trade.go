@@ -71,10 +71,13 @@ type ProposeTradeHandler struct {
 	ids   ids.Generator
 	clock clock.Clock
 	ports TradePorts
+	hints Hints
 }
 
-func NewProposeTradeHandler(uow Transactor, g ids.Generator, c clock.Clock, p TradePorts) *ProposeTradeHandler {
-	return &ProposeTradeHandler{uow: uow, ids: g, clock: c, ports: p}
+func NewProposeTradeHandler(
+	uow Transactor, g ids.Generator, c clock.Clock, p TradePorts, hints Hints,
+) *ProposeTradeHandler {
+	return &ProposeTradeHandler{uow: uow, ids: g, clock: c, ports: p, hints: hints}
 }
 
 func (h *ProposeTradeHandler) Handle(ctx context.Context, cmd ProposeTrade) (ids.ProposalID, error) {
@@ -124,6 +127,7 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 	if err != nil {
 		return OpenedProposal{}, err
 	}
+	h.hints.ProposalCreated(ctx, cmd.CabalID, p.Draft().ID)
 	rule, err := domain.ParseThresholdRule(string(rules.Threshold))
 	if err != nil {
 		return OpenedProposal{}, err
