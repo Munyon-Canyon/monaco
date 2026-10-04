@@ -136,6 +136,29 @@ func (h HTTP) GetMe(ctx context.Context, _ api.GetMeRequestObject) (api.GetMeRes
 	return api.GetMe200JSONResponse(wireMe(me)), nil
 }
 
+func (h HTTP) SearchUsers(
+	ctx context.Context, req api.SearchUsersRequestObject,
+) (api.SearchUsersResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	users, err := app.SearchUsers(ctx, h.Reads, user, req.Params.Query)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]api.UserSummary, len(users))
+	for i, found := range users {
+		out[i] = api.UserSummary{
+			UserId:      found.ID.UUID(),
+			Handle:      found.Handle,
+			DisplayName: found.DisplayName,
+			PhotoUrl:    present(found.PhotoURL),
+		}
+	}
+	return api.SearchUsers200JSONResponse{Users: out}, nil
+}
+
 func (h HTTP) PatchMe(ctx context.Context, req api.PatchMeRequestObject) (api.PatchMeResponseObject, error) {
 	user, err := caller(ctx)
 	if err != nil {

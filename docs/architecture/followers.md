@@ -95,3 +95,8 @@ Each count is `count(*) FROM follows WHERE followee_id = $id AND deleted_at IS N
 None at the moment.
 
 Log: [log/followers.md](log/followers.md).
+# Search
+
+`GET /v1/users?query=` finds active and suspended people by handle prefix or display-name substring. It
+excludes the caller, banned and deleted accounts, deleted rows, and users without a handle; handle-prefix
+matches appear first.
