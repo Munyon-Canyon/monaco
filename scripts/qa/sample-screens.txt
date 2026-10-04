@@ -64,6 +64,13 @@ chat-closed-first-load        -MonacoChatSampleQA -MonacoChatSampleClosedFirstLo
 profile-save-failure          -MonacoProfileSample saveFailure
 profile-save-success          -MonacoProfileSample saveSuccess
 
+handle-first-run              -MonacoHandleSample firstRun
+handle-revoked                -MonacoHandleSample revoked
+handle-checking               -MonacoHandleSample checking
+handle-check-failed           -MonacoHandleSample checkFailed
+handle-saving                 -MonacoHandleSample saving
+handle-edit-locked            -MonacoHandleSample editLocked
+
 cabal-sell-and-leave          -MonacoGroupDetailSample sellAndLeave
 cabal-picture                 -MonacoGroupDetailSample picture
 cabal-no-picture              -MonacoGroupDetailSample noPicture

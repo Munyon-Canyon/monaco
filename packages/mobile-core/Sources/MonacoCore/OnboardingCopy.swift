@@ -1,7 +1,7 @@
 import Foundation
 
 public enum OnboardingCopy {
-    public static let handleTitle = "Choose your handle"
+    public static let handleTitle = "Pick your handle"
     public static let phoneTitle = "Add your phone number"
     public static let socialsTitle = "Connect your X account"
     public static let continueLabel = "Continue"

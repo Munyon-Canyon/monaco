@@ -96,3 +96,50 @@ extension HandleReason {
         }
     }
 }
+
+#if DEBUG
+public enum HandlePreviewAnswer: Sendable {
+    case available
+    case checking
+    case checkFailed
+    case saving
+}
+
+extension SessionAPI {
+    public static func handlePreview(_ answer: HandlePreviewAnswer) -> SessionAPI {
+        let serverURL = URL(string: "http://127.0.0.1:9") ?? URL(fileURLWithPath: "/")
+        let transport = HandlePreviewTransport(answer)
+        return SessionAPI(api: APIClient(serverURL: serverURL, tokens: HandlePreviewTokens(), transport: transport))
+    }
+}
+
+private struct HandlePreviewTokens: MonacoAPI.AccessTokenProvider {
+    func accessToken() async throws -> String? { "preview" }
+    func refreshedToken(replacing _: String) async throws -> String? { nil }
+}
+
+private struct HandlePreviewTransport: ClientTransport {
+    let answer: HandlePreviewAnswer
+
+    init(_ answer: HandlePreviewAnswer) {
+        self.answer = answer
+    }
+
+    func send(_ request: HTTPRequest, body _: HTTPBody?, baseURL _: URL, operationID: String) async throws
+        -> (HTTPResponse, HTTPBody?)
+    {
+        switch (answer, operationID) {
+        case (.checking, _), (.saving, Operations.PutMeHandle.id):
+            try await Task.sleep(for: .seconds(3600))
+            throw CancellationError()
+        case (.checkFailed, _):
+            throw URLError(.notConnectedToInternet)
+        default:
+            let handle = request.path?.split(separator: "/").dropLast().last.map(String.init) ?? ""
+            var response = HTTPResponse(status: .ok)
+            response.headerFields[.contentType] = "application/json"
+            return (response, HTTPBody(#"{"handle":"\#(handle)","available":true}"#))
+        }
+    }
+}
+#endif

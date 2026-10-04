@@ -209,6 +209,38 @@ final class HandleSessionAPITests: XCTestCase {
         }
     }
 
+    func testThePreviewAnswersEachHarnessScenario() async throws {
+        let available = try await SessionAPI.handlePreview(.available).handleAvailability("qa_handle_1")
+        XCTAssertEqual(available, .available("qa_handle_1"))
+        let beforeSaving = try await SessionAPI.handlePreview(.saving).handleAvailability("qa_handle_1")
+        XCTAssertEqual(beforeSaving, .available("qa_handle_1"))
+
+        do {
+            _ = try await SessionAPI.handlePreview(.checkFailed).handleAvailability("qa_handle_1")
+            XCTFail("expected a transport error")
+        } catch let error as APIError {
+            guard case .transport = error else { return XCTFail("\(error)") }
+        }
+
+        for (answer, call) in [
+            (HandlePreviewAnswer.checking, Self.check), (HandlePreviewAnswer.saving, Self.save),
+        ] {
+            let pending = Task { try await call(SessionAPI.handlePreview(answer)) }
+            await Task.yield()
+            pending.cancel()
+            let result = await pending.result
+            XCTAssertThrowsError(try result.get(), "\(answer) answers only when cancelled")
+        }
+    }
+
+    private static let check: @Sendable (SessionAPI) async throws -> Void = {
+        _ = try await $0.handleAvailability("qa_handle_1")
+    }
+
+    private static let save: @Sendable (SessionAPI) async throws -> Void = {
+        _ = try await $0.setHandle("qa_handle_1", submission: IdempotentSubmission())
+    }
+
     private static let meJSON = """
         {"id":"01890a5d-ac96-774b-bcce-b302099a8058","handle":"qa_handle_1","display_name":"Kai Cenat",\
         "photo_url":null,"auth_state":"CREATED","account_status":"active","member_wallet_address":"wallet-1",\
