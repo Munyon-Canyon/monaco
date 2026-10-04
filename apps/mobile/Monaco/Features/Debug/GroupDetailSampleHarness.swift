@@ -7,7 +7,7 @@ import UIKit
 /// Debug-only: the group screen and its pushed screens on canned data, no sign-in or backend.
 /// Launch with `-MonacoGroupDetailSample <scenario>`:
 /// `populated` · `empty` · `loading` · `details` (Cabal details sheet open) · `propose` (chooser sheet open)
-/// · `cashOut` · `receipt` (bought) · `receiptFailed` (failed sell) · `activity` (full list)
+/// · `receipt` (bought) · `receiptFailed` (failed sell) · `activity` (full list)
 /// · `picture` (cabal with a picture, viewer is its creator) · `noPicture` (creator, tinted
 /// initials, nothing to remove) · `pictureNotCreator` (has a picture, viewer is a plain member,
 /// so no controls) · `pictureUploadFailure` (every write is refused).
@@ -17,7 +17,6 @@ enum GroupDetailSampleScenario: String, CaseIterable {
     case loading
     case details
     case propose
-    case cashOut
     case receipt
     case receiptFailed
     case activity
@@ -82,8 +81,6 @@ struct GroupDetailSampleHarness: View {
     @ViewBuilder
     private var root: some View {
         switch scenario {
-        case .cashOut:
-            SellCabalView(auth: auth, groupId: "g1", maxShareUnits: 311_500_000, equityUsd: "311.50")
         case .receipt:
             TransactionReceiptView(receipt: TransactionReceipt(transaction: GroupDetailSampleData.boughtApple))
                 .monacoCanvas()
@@ -152,8 +149,6 @@ struct GroupDetailSampleHarness: View {
         }
         .navigationDestination(item: $route) { route in
             switch route {
-            case .cashOut(let shareUnits, let equityUsd):
-                SellCabalView(auth: auth, groupId: view.id, maxShareUnits: shareUnits, equityUsd: equityUsd)
             case .activity:
                 GroupActivityListView(
                     auth: auth, items: GroupDetailSampleData.activity, retryingTransactionIDs: [], onRetry: { _ in })
