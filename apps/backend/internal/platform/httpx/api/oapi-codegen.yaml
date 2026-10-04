@@ -1,5 +1,5 @@
 package: api
-output: api.gen.go
+output: ../internal/platform/httpx/api/api.gen.go
 generate:
   std-http-server: true
   strict-server: true
