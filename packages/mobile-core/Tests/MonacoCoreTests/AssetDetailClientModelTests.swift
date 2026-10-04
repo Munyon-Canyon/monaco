@@ -87,7 +87,7 @@ final class AssetDetailClientModelTests: XCTestCase {
             tokens: StubTokenProvider(token: "token-1"),
             transport: transport
         )
-        let model = AssetDetailClientModel(api: api, symbol: "AAPLx")
+        let model = AssetDetailClientModel(api: api, symbol: "AAPLx", hints: FakeHintStream())
 
         let week = Task { await model.loadChart(range: .oneWeek) }
         while await transport.sent.count < 1 { await Task.yield() }
@@ -146,12 +146,16 @@ final class AssetDetailClientModelTests: XCTestCase {
     }
 
     private func makeModel(_ responses: StubTransport.Reply...) -> AssetDetailClientModel {
+        makeModel(transport: StubTransport(scripted: responses), hints: FakeHintStream())
+    }
+
+    private func makeModel(transport: StubTransport, hints: FakeHintStream) -> AssetDetailClientModel {
         let api = APIClient(
             serverURL: testServerURL,
             tokens: StubTokenProvider(token: "token-1"),
-            transport: StubTransport(scripted: responses)
+            transport: transport
         )
-        return AssetDetailClientModel(api: api, symbol: "AAPLx")
+        return AssetDetailClientModel(api: api, symbol: "AAPLx", hints: hints)
     }
 
     private let detail = #"""
