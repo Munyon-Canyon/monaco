@@ -28,7 +28,7 @@ const (
 	CodeFaultpoint          Code = "faultpoint"
 )
 
-func platformRows() map[Code]Row {
+func (codeFiles) Platform() map[Code]Row {
 	storageUnavailable := CodeStorageUnavailable
 	return map[Code]Row{
 		CodeInvalidInput: {Name: "InvalidInput", Kind: KindInvalid, Message: "The request is not valid."},

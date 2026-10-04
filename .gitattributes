@@ -2,6 +2,7 @@ apps/backend/.golangci.yml merge=union linguist-generated
 docs/reference/*.md merge=union linguist-generated
 apps/backend/CHANGELOG.md merge=union
 docs/architecture/log/*.md merge=union
+apps/backend/internal/errs/testdata/codes_*.golden merge=union
 apps/backend/api/openapi.yaml linguist-generated
 apps/backend/internal/platform/httpx/api/api.gen.go linguist-generated
 packages/flows/Sources/MonacoFlows/*.gen.swift merge=ours linguist-generated

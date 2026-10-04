@@ -5,7 +5,7 @@ const (
 	CodeAPNSAuthFailed  Code = "apns_auth_failed"
 )
 
-func apnsRows() map[Code]Row {
+func (codeFiles) Apns() map[Code]Row {
 	return map[Code]Row{
 		CodeAPNSUnavailable: {
 			Name: "APNSUnavailable", Kind: KindUnavailable, Retryable: true,

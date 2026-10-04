@@ -5,7 +5,7 @@ const (
 	CodeReferralCodePending Code = "referral_code_pending"
 )
 
-func referralsRows() map[Code]Row {
+func (codeFiles) Referrals() map[Code]Row {
 	return map[Code]Row{
 		CodeReferralCodeUnknown: {Name: "ReferralCodeUnknown", Kind: KindNotFound, Message: "That code isn't valid"},
 		CodeReferralCodePending: {

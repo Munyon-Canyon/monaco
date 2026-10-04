@@ -148,6 +148,8 @@ Only the root restacks, one stack at a time.
 
     A conflict in `apps/backend/api/spec/<module>.yaml` is a real conflict, because only that module's tickets edit the file. Merge both sides by hand, keep every path and schema, and run `go generate ./...`. The bundler fails on a path or schema defined in two spec files and names both. A conflict in `apps/backend/api/openapi.yaml` or `api.gen.go` needs no hand merge: take either side and run `go generate ./...`, which rewrites both from the spec sources.
 
+    A conflict in `apps/backend/internal/errs/codes_*.go` is a real conflict, because taking either side drops the other branch's codes. Merge both sides by hand and keep every constant and row. A new feature's codes go in their own `codes_<module>_<feature>.go`, so this happens only when two tickets edit one existing area file.
+
     A conflict in any other file that `[batch] shared` lists in `.monaco/agents.toml` needs no hand merge. Take either side, then regenerate from `apps/backend` and commit the result:
 
         go generate ./...

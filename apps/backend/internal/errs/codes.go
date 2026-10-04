@@ -1,7 +1,9 @@
 package errs
 
 import (
+	"iter"
 	"maps"
+	"reflect"
 	"slices"
 )
 
@@ -15,30 +17,39 @@ type Row struct {
 	Message   string
 }
 
-func rowGroups() []func() map[Code]Row {
-	return []func() map[Code]Row{
-		platformRows, identityRows, treasuryRows, marketRows,
-		tradingRows, governanceRows, rankingRows, apnsRows,
-		analyticsRows, cabalRows, socialRows, referralsRows,
-		fundingRows,
+type codeFiles struct{}
+
+func codeFileRows() iter.Seq[map[Code]Row] {
+	return func(yield func(map[Code]Row) bool) {
+		files := reflect.ValueOf(codeFiles{})
+		for i := range files.NumMethod() {
+			rows, ok := files.Method(i).Interface().(func() map[Code]Row)
+			if ok && !yield(rows()) {
+				return
+			}
+		}
 	}
 }
 
 func table() map[Code]Row {
-	rows := map[Code]Row{}
-	for _, group := range rowGroups() {
-		maps.Copy(rows, group())
+	all := map[Code]Row{}
+	for rows := range codeFileRows() {
+		maps.Copy(all, rows)
 	}
-	return rows
+	return all
 }
 
 func row(code Code) Row {
-	for _, group := range rowGroups() {
-		if r, ok := group()[code]; ok {
+	platform := codeFiles{}.Platform()
+	if r, ok := platform[code]; ok {
+		return r
+	}
+	for rows := range codeFileRows() {
+		if r, ok := rows[code]; ok {
 			return r
 		}
 	}
-	return platformRows()[CodeInternal]
+	return platform[CodeInternal]
 }
 
 func Name(code Code) string { return row(code).Name }

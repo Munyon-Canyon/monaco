@@ -17,7 +17,7 @@ const (
 	CodeLeaveCreatorWithMembers    Code = "leave_creator_with_members"
 )
 
-func cabalRows() map[Code]Row {
+func (codeFiles) Cabal() map[Code]Row {
 	return map[Code]Row{
 		CodeCabalNotFound: {Name: "CabalNotFound", Kind: KindNotFound, Message: "We could not find that cabal."},
 		CodeNotCabalMember: {
