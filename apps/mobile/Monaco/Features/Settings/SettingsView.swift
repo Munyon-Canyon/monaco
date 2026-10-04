@@ -53,16 +53,19 @@ struct SettingsView: View {
     @Environment(AppEnvironment.self) private var environment
 
     var body: some View {
-        SettingsList { route in
+        SettingsList(permissions: LiveNotificationPermissionReader()) { route in
             environment.navigator.open(route, in: environment.navigator.selectedTab)
         }
     }
 }
 
 struct SettingsList: View {
+    let permissions: any NotificationPermissionReading
     let open: (any AppRoute) -> Void
 
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var notificationsOn: Bool?
 
     var body: some View {
         ScrollView {
@@ -86,6 +89,15 @@ struct SettingsList: View {
         .monacoCanvas()
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
+        .task { await readNotifications() }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { await readNotifications() }
+        }
+    }
+
+    private func readNotifications() async {
+        notificationsOn = await permissions.isAuthorized()
     }
 
     @ViewBuilder private func link(for row: SettingsRow) -> some View {
@@ -95,7 +107,15 @@ struct SettingsList: View {
                 guard let url = URL(string: UIApplication.openNotificationSettingsURLString) else { return }
                 openURL(url)
             } label: {
-                label(for: row)
+                MonacoRow(
+                    title: row.title,
+                    leading: { StockMark(systemImage: row.systemImage, size: 40) },
+                    trailing: {
+                        Text(notificationsOn.map { $0 ? "On" : "Off" } ?? "")
+                            .font(MonacoTheme.Typo.body)
+                            .foregroundStyle(MonacoTheme.muted)
+                    }
+                )
             }
         case .activity:
             Button {
@@ -129,7 +149,7 @@ struct SettingsList: View {
             title: row.title,
             titleColor: row == .deleteAccount ? MonacoTheme.destructive : MonacoTheme.ink,
             subtitle: row.subtitle,
-            chevron: row != .notifications && row != .deleteAccount,
+            chevron: row != .deleteAccount,
             isLast: row == SettingsRow.allCases.last,
             leading: { StockMark(systemImage: row.systemImage, size: 40) }
         )
@@ -138,6 +158,31 @@ struct SettingsList: View {
 
 #Preview {
     NavigationStack {
-        SettingsList { _ in }
+        SettingsList(permissions: FixedNotificationPermissionReader(authorized: true)) { _ in }
     }
 }
+
+#if DEBUG
+final class SettingsSampleHarnessEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
+        guard let flag = arguments.firstIndex(of: "-settingsHarness") else { return nil }
+        let authorized = arguments.indices.contains(flag + 1) && arguments[flag + 1] == "on"
+        return AnyView(SettingsHarnessScreen(authorized: authorized))
+    }
+}
+
+private struct SettingsHarnessScreen: View {
+    let authorized: Bool
+    @State private var path: [AnyAppRoute] = []
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            SettingsList(permissions: FixedNotificationPermissionReader(authorized: authorized)) {
+                path.append(AnyAppRoute($0))
+            }
+            .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
+        }
+    }
+}
+#endif
