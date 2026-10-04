@@ -60,7 +60,7 @@ func TestSelectUnits_picksOutcomesByTargetAndSkipsPlannedFlows(t *testing.T) {
 			"00 crash:after-publish", "10 crash:after-publish", "13 crash:after-publish",
 		}},
 		{Target{CrashAt: "before-commit"}, []string{
-			"01 crash:before-commit", "02 crash:before-commit", "20 crash:before-commit",
+			"01 crash:before-commit", "02 crash:before-commit", "18 crash:before-commit", "20 crash:before-commit",
 		}},
 	} {
 		units, err := selectUnits(all, tc.target, flows.Scripts())

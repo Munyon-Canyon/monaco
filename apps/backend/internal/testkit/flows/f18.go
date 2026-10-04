@@ -7,6 +7,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
@@ -77,6 +78,31 @@ func F18SamplePricesUpstreamTimeout(s *scenario.Scenario) {
 		scenario.AwaitTick(pricePoller),
 		scenario.ExpectTickFailed(pricePoller, string(errs.CodeUpstreamTimeout)),
 		expectPricePoints(),
+	)
+}
+
+func F18SamplePricesCrashBeforeCommit(s *scenario.Scenario) {
+	var (
+		before  time.Time
+		scanned int
+	)
+	s.Given(
+		scenario.MarkTick(pricePoller),
+		ensureSamplerCatalog(),
+		scenario.FakeUpstream(fakes.Step{
+			Route: priceRoute, Action: fakes.ActionSucceed, Fixture: priceRoute + "/catalog",
+			Times: priceRepeats, Reset: true,
+		}),
+	).When(
+		countAssets(&scanned),
+		captureBucket(&before),
+		scenario.PublishCrashingAt(faultpoint.BeforeCommit),
+		scenario.AwaitMarkedTickAfterCrash(pricePoller, faultpoint.BeforeCommit),
+		func(s *scenario.Scenario) { scenario.ExpectTick(pricePoller, scanned, 2)(s) },
+		expectPricePointsBetween(before,
+			storedPrice{marketfake.AAPLx().Mint.String(), aaplMicros},
+			storedPrice{marketfake.TSLAx().Mint.String(), tslaMicros},
+		),
 	)
 }
 
