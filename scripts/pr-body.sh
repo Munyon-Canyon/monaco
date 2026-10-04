@@ -22,8 +22,23 @@ else
     gh repo view --json nameWithOwner --jq .nameWithOwner
   )"
 fi
-view="$(gh api "repos/${repo}/pulls/${pr}" --jq '[.draft, .base.ref, .head.ref, .base.sha, .head.sha] | @tsv')"
-read -r draft base_ref head_ref base_sha head_sha <<<"$view"
+# A bare null would be an empty tab field that read collapses, so tostring makes it a word.
+view_jq='[.draft, .base.ref, .head.ref, .base.sha, .head.sha, (.mergeable | tostring), .mergeable_state] | @tsv'
+budget=30
+while :; do
+  view="$(gh api "repos/${repo}/pulls/${pr}" --jq "$view_jq")"
+  read -r draft base_ref head_ref base_sha head_sha mergeable _ <<<"$view"
+  [[ "$mergeable" == null && "$budget" -gt 0 ]] || break
+  sleep 2
+  budget=$((budget - 2))
+done
+case "$mergeable" in
+  false)
+    echo "PR ${pr} conflicts with its base; restack before it can get checks" >&2
+    exit 1
+    ;;
+  null) echo "pr-body: PR ${pr} mergeability is still unknown; continuing without the conflict check" >&2 ;;
+esac
 git cat-file -e "$base_sha^{commit}" 2>/dev/null || git fetch --quiet origin "$base_ref"
 git cat-file -e "$head_sha^{commit}" 2>/dev/null || git fetch --quiet origin "$head_ref"
 

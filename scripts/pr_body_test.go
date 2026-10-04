@@ -1,47 +1,64 @@
 package scripts_test
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 type prBodySandbox struct {
 	repo, calls, view string
+	mergeableReads    []string
 	env               []string
 }
 
 func newPrBodySandbox(t *testing.T) prBodySandbox {
 	t.Helper()
 	t.Setenv("PYENV_VERSION", "system")
+	if _, err := exec.LookPath("jq"); err != nil {
+		t.Fatalf("the fake gh runs the script's --jq filter through jq, as gh does: %v", err)
+	}
 	dir := t.TempDir()
 	s := prBodySandbox{
 		repo:  filepath.Join(dir, "repo"),
 		calls: filepath.Join(dir, "calls"),
 		view:  filepath.Join(dir, "view"),
 	}
+	writeExecutable(t, filepath.Join(dir, "bin", "sleep"), fmt.Sprintf("#!/bin/sh\necho \"sleep $*\" >> %q\n", s.calls))
 	writeExecutable(t, filepath.Join(dir, "bin", "gh"), fmt.Sprintf(`#!/bin/sh
-echo "$*" >> %q
+calls=%q
+view=%q
+echo "$*" >> "$calls"
 method=GET
 path=
+filter=
 prev=
 for arg in "$@"; do
   case "$prev" in
     -X) method=$arg ;;
+    --jq) filter=$arg ;;
   esac
   case "$arg" in
     repos/*) path=$arg ;;
   esac
   prev=$arg
 done
-read -r draft base_ref head_ref base_sha head_sha < %q
+base_ref=$(sed -n 1p "$view" | jq -r .base.ref)
+head_ref=$(sed -n 1p "$view" | jq -r .head.ref)
 case "$1" in
   api)
     case "$method $path" in
-      "GET repos/o/r/pulls/7") cat %q ;;
+      "GET repos/o/r/pulls/7")
+        n=$(grep -c '^api repos/o/r/pulls/7 ' "$calls")
+        line=$(sed -n "${n}p" "$view")
+        printf '%%s\n' "${line:-$(tail -n 1 "$view")}" | jq -r "$filter" ;;
       "GET repos/o/r/pulls?state=open&per_page=100&base=$head_ref") echo '[{"number":8,"body":"Part of #99"}]' ;;
       "GET repos/o/r/pulls?state=open&per_page=100&head=o:$base_ref") echo '[{"number":9,"body":"Part of #99"}]' ;;
       "PATCH repos/o/r/pulls/7") ;;
@@ -69,7 +86,7 @@ case "$1" in
     ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
-`, s.calls, s.view, s.view))
+`, s.calls, s.view))
 	env := make([]string, 0, len(os.Environ())+2)
 	for _, e := range os.Environ() {
 		if strings.HasPrefix(e, "GH_REPO=") || strings.HasPrefix(e, "PATH=") {
@@ -104,10 +121,23 @@ func (s prBodySandbox) run(t *testing.T, draft bool, base, title, body string) (
 	return s.runWith(t, draft, base, title, body, nil)
 }
 
+func prJSON(draft bool, base, head, mergeable string) string {
+	state := map[string]string{"true": "clean", "false": "dirty", "null": "unknown"}[mergeable]
+	return fmt.Sprintf(`{"draft":%t,"base":{"ref":"backend-rewrite-9","sha":%q},"head":{"ref":"ticket","sha":%q},"mergeable":%s,"mergeable_state":%q}`+"\n",
+		draft, base, head, mergeable, state)
+}
+
 func (s prBodySandbox) runWith(t *testing.T, draft bool, base, title, body string, extra []string) (string, error) {
 	t.Helper()
-	view := fmt.Sprintf("%t\tbackend-rewrite-9\tticket\t%s\t%s\n", draft, base, s.head(t))
-	if err := os.WriteFile(s.view, []byte(view), 0o600); err != nil {
+	answers := s.mergeableReads
+	if len(answers) == 0 {
+		answers = []string{"true"}
+	}
+	var view strings.Builder
+	for _, mergeable := range answers {
+		view.WriteString(prJSON(draft, base, s.head(t), mergeable))
+	}
+	if err := os.WriteFile(s.view, []byte(view.String()), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	_ = os.Remove(s.calls)
@@ -115,7 +145,9 @@ func (s prBodySandbox) runWith(t *testing.T, draft bool, base, title, body strin
 	if err := os.WriteFile(file, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command("bash", filepath.Join(repoRoot(t), "scripts", "pr-body.sh"), "7", title, file)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "bash", filepath.Join(repoRoot(t), "scripts", "pr-body.sh"), "7", title, file)
 	cmd.Dir = s.repo
 	cmd.Env = append(append([]string{}, s.env...), extra...)
 	out, err := cmd.CombinedOutput()
@@ -180,6 +212,39 @@ func changedPR(calls string) bool {
 
 func usedGraphQLList(calls string) bool {
 	return strings.Contains(calls, "pr list")
+}
+
+func exitCode(err error) int {
+	var exit *exec.ExitError
+	switch {
+	case err == nil:
+		return 0
+	case errors.As(err, &exit):
+		return exit.ExitCode()
+	default:
+		return -1
+	}
+}
+
+func pullReads(calls string) int {
+	return strings.Count("\n"+calls, "\napi repos/o/r/pulls/7 ")
+}
+
+func sleptSeconds(t *testing.T, calls string) int {
+	t.Helper()
+	total := 0
+	for _, line := range strings.Split(calls, "\n") {
+		secs, ok := strings.CutPrefix(line, "sleep ")
+		if !ok {
+			continue
+		}
+		n, err := strconv.Atoi(secs)
+		if err != nil {
+			t.Fatalf("unexpected sleep call %q", line)
+		}
+		total += n
+	}
+	return total
 }
 
 func TestPrBody_setsTitleAndBodyThenMarksOnlyADraftReady(t *testing.T) {
@@ -254,5 +319,63 @@ func TestPrBody_readsTheRepoWhenGHRepoIsUnset(t *testing.T) {
 	get := strings.Index(calls, "api repos/o/r/pulls/7 ")
 	if view < 0 || get < view {
 		t.Fatalf("want repo view before the pull read; got %q", calls)
+	}
+}
+
+const conflictMessage = "PR 7 conflicts with its base; restack before it can get checks"
+
+func TestPrBody_refusesAConflictingPRBeforeAnythingChanges(t *testing.T) {
+	s := newPrBodySandbox(t)
+	base := s.head(t)
+	commitFile(t, s.repo, "a.txt", "feat(bus): add the thing")
+	s.mergeableReads = []string{"false"}
+	for _, draft := range []bool{true, false} {
+		out, err := s.run(t, draft, base, "Add the thing", goodPrBody())
+		calls := s.ghCalls(t)
+		if exitCode(err) != 1 || !strings.Contains(out, conflictMessage) {
+			t.Errorf("draft=%t: want exit 1 and %q, got err=%v out=%q", draft, conflictMessage, err, out)
+		}
+		if changedPR(calls) || sleptSeconds(t, calls) != 0 {
+			t.Errorf("draft=%t: a conflict is final, so gh must change nothing and the script must not wait: %q", draft, calls)
+		}
+	}
+}
+
+func TestPrBody_waitsForGitHubToComputeMergeabilityBeforeDeciding(t *testing.T) {
+	s := newPrBodySandbox(t)
+	base := s.head(t)
+	commitFile(t, s.repo, "a.txt", "feat(bus): add the thing")
+
+	s.mergeableReads = []string{"null", "null", "false"}
+	out, err := s.run(t, true, base, "Add the thing", goodPrBody())
+	calls := s.ghCalls(t)
+	if exitCode(err) != 1 || !strings.Contains(out, conflictMessage) || changedPR(calls) || pullReads(calls) != 3 {
+		t.Fatalf("null, null, false: want 3 reads, then the refusal; got err=%v out=%q calls=%q", err, out, calls)
+	}
+
+	s.mergeableReads = []string{"null", "null", "true"}
+	if out, err := s.run(t, true, base, "Add the thing", goodPrBody()); err != nil {
+		t.Fatalf("null, null, true: %v\n%s", err, out)
+	}
+	calls = s.ghCalls(t)
+	if pullReads(calls) != 3 || sleptSeconds(t, calls) == 0 ||
+		!strings.Contains(calls, "pr ready 7\n") || !strings.Contains(calls, "api -X PATCH repos/o/r/pulls/7 ") {
+		t.Fatalf("null, null, true: want 3 reads with a wait between them, then ready and the patch; got %q", calls)
+	}
+}
+
+func TestPrBody_goesOnWhenMergeabilityStaysUnknown(t *testing.T) {
+	s := newPrBodySandbox(t)
+	base := s.head(t)
+	commitFile(t, s.repo, "a.txt", "feat(bus): add the thing")
+	s.mergeableReads = []string{"null"}
+	out, err := s.run(t, true, base, "Add the thing", goodPrBody())
+	if err != nil || !strings.Contains(out, "mergeability is still unknown") {
+		t.Fatalf("want the script to go on with a notice, got err=%v out=%q", err, out)
+	}
+	calls := s.ghCalls(t)
+	if slept := sleptSeconds(t, calls); slept == 0 || slept > 30 ||
+		!strings.Contains(calls, "pr ready 7\n") || !strings.Contains(calls, "api -X PATCH repos/o/r/pulls/7 ") {
+		t.Fatalf("want a wait of at most 30s, then ready and the patch; slept %ds, got %q", slept, calls)
 	}
 }
