@@ -3,6 +3,8 @@ package flows
 import (
 	"net/http"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -14,6 +16,56 @@ import (
 )
 
 const leavePath = membersPath + "/me"
+
+func (defined) SeedsF04() map[string]Seeder {
+	return map[string]Seeder{
+		"F04LeaveCabalOK":                         seedLeave(asMember, nil),
+		"F04LeaveCabalCrashBeforeCommit":          seedLeave(asMember, nil),
+		"F04LeaveCabalUnauthorized":               seedAnonymous,
+		"F04LeaveCabalNotCabalMember":             seedLeave(asOutsider, nil),
+		"F04LeaveCabalLeaveHoldsShares":           seedLeave(asMember, fundedLeaver),
+		"F04LeaveCabalLeaveCreatorWithMembers":    seedLeave(asCreatorWithMember, nil),
+		"F04LeaveCabalLeaveLastMemberPotNotEmpty": seedLeave(asCreator, potHolding(testkit.USDCMint)),
+		"F04LeaveCabalPriceUnavailable":           seedLeave(asCreator, potHolding(unpricedMint)),
+	}
+}
+
+func fundedLeaver(l *testkit.Ledger, cabal ids.CabalID, leaver ids.UserID) {
+	l.WithFundedMember(leaver, cabal, money.MicrosFromUint64(1_000_000))
+}
+
+func potHolding(mint chain.SolanaAddress) func(*testkit.Ledger, ids.CabalID, ids.UserID) {
+	return func(l *testkit.Ledger, cabal ids.CabalID, _ ids.UserID) {
+		l.WithHolding(cabal, mint, money.NewBaseUnits(1, 6))
+	}
+}
+
+func asMember(leaver ids.UserID) []testkit.CabalOption {
+	return []testkit.CabalOption{testkit.WithJoiner(leaver)}
+}
+
+func asOutsider(ids.UserID) []testkit.CabalOption { return nil }
+
+func asCreator(leaver ids.UserID) []testkit.CabalOption {
+	return []testkit.CabalOption{testkit.WithCreator(leaver)}
+}
+
+func asCreatorWithMember(leaver ids.UserID) []testkit.CabalOption {
+	return []testkit.CabalOption{testkit.WithCreator(leaver), testkit.WithMembers(2)}
+}
+
+func seedLeave(
+	seat func(leaver ids.UserID) []testkit.CabalOption,
+	fill func(l *testkit.Ledger, cabal ids.CabalID, leaver ids.UserID),
+) Seeder {
+	return seedSignedInWith(func(t testkit.SeedT, pool *pgxpool.Pool, leaver ids.UserID) map[string]string {
+		cabal := testkit.NewCabal(t, pool, seat(leaver)...)
+		if fill != nil {
+			fill(testkit.NewLedger(t, pool), cabal.ID, leaver)
+		}
+		return map[string]string{"cabal": cabal.ID.String()}
+	})
+}
 
 func cabalIn(s *scenario.Scenario) ids.CabalID {
 	id, err := ids.ParseCabalID(s.Recall("cabal"))

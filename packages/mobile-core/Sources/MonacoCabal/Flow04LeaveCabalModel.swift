@@ -95,3 +95,95 @@ public final class LeaveCabalModel {
         }
     }
 }
+
+#if DEBUG
+extension LeaveCabalModel {
+    public nonisolated static let previewCabalID = "00000000-0000-4000-8000-000000000004"
+
+    public static func preview(answering scenario: Flow04Scenario) -> LeaveCabalModel {
+        preview(transport: LeaveCabalPreviewTransport(role: "member", memberCount: 2, refusal: scenario))
+    }
+
+    public static func preview(role: String, memberCount: Int) -> LeaveCabalModel {
+        preview(transport: LeaveCabalPreviewTransport(role: role, memberCount: memberCount, refusal: nil))
+    }
+
+    private static func preview(transport: some ClientTransport) -> LeaveCabalModel {
+        let serverURL = URL(string: "http://127.0.0.1:9") ?? URL(fileURLWithPath: "/")
+        return LeaveCabalModel(
+            api: APIClient(serverURL: serverURL, tokens: LeaveCabalPreviewTokens(), transport: transport),
+            hints: LeaveCabalPreviewHints(),
+            cabalID: previewCabalID
+        )
+    }
+}
+
+private struct LeaveCabalPreviewTransport: ClientTransport {
+    let role: String
+    let memberCount: Int
+    let refusal: Flow04Scenario?
+
+    func send(
+        _ request: HTTPRequest,
+        body _: HTTPBody?,
+        baseURL _: URL,
+        operationID _: String
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        guard request.method == .delete else {
+            var response = HTTPResponse(status: .ok)
+            response.headerFields[.contentType] = "application/json"
+            let row =
+                #"{"id":"\#(LeaveCabalModel.previewCabalID)","name":"QA pot","picture_url":null,"#
+                + #""role":"\#(role)","can_vote":true,"member_count":\#(memberCount),"#
+                + #""joined_at":"2026-10-02T15:00:00Z","pending_request_count":0}"#
+            return (response, HTTPBody("[\(row)]"))
+        }
+        switch refusal {
+        case nil:
+            return (HTTPResponse(status: .noContent), nil)
+        case .unauthorized:
+            return Self.problem(401, code: "unauthorized", message: "Sign in to continue.")
+        case .notCabalMember:
+            return Self.problem(403, code: "not_cabal_member", message: "You are not a member of this cabal.")
+        case .leaveHoldsShares:
+            return Self.problem(
+                409, code: "leave_holds_shares", message: "Cash out your share of the pot before you leave this cabal.")
+        case .leaveLastMemberPotNotEmpty:
+            return Self.problem(
+                409, code: "leave_last_member_pot_not_empty",
+                message: "The pot still holds money, so the last member cannot leave yet.")
+        case .leaveCreatorWithMembers:
+            return Self.problem(
+                409, code: "leave_creator_with_members",
+                message: "The creator cannot leave while other members remain.")
+        case .priceUnavailable:
+            return Self.problem(
+                503, code: "price_unavailable", message: "Prices are temporarily unavailable. Try again in a moment.")
+        case .interrupted:
+            throw URLError(.networkConnectionLost)
+        }
+    }
+
+    private static func problem(_ status: Int, code: String, message: String) -> (HTTPResponse, HTTPBody?) {
+        var response = HTTPResponse(status: .init(code: status))
+        response.headerFields[.contentType] = "application/problem+json"
+        let body =
+            #"{"type":"about:blank","title":"Error","status":\#(status),"code":"\#(code)","#
+            + #""message":"\#(message)","trace_id":"00000000000000000000000000000000","retryable":false}"#
+        return (response, HTTPBody(body))
+    }
+}
+
+private struct LeaveCabalPreviewTokens: MonacoAPI.AccessTokenProvider {
+    func accessToken() async throws -> String? { "preview-token" }
+    func refreshedToken(replacing _: String) async throws -> String? { nil }
+}
+
+private struct LeaveCabalPreviewHints: HintSource {
+    func hints(matching _: HintFilter) -> AsyncStream<Hint> {
+        AsyncStream { continuation in
+            continuation.finish()
+        }
+    }
+}
+#endif

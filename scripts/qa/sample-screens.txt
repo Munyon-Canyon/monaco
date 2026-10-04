@@ -14,6 +14,9 @@ home-missed-vote              -MonacoHomeSample missedVote
 
 cabals-tab                    -MonacoCabalsTabSample
 
+cabal-leave-member            -MonacoCabalLeaveSample member
+cabal-leave-creator           -MonacoCabalLeaveSample creator
+
 group-nav-root                -MonacoGroupNavSample root
 group-nav-list                -MonacoGroupNavSample list
 group-nav-create              -MonacoGroupNavSample create
@@ -191,4 +194,11 @@ propose-review-large-text     -MonacoProposalFeedSample -MonacoProposeSample -Mo
 flow-00-invalid-input         -MonacoFlow 00 invalidInput
 flow-00-unauthorized          -MonacoFlow 00 unauthorized
 flow-00-interrupted           -MonacoFlow 00 interrupted
+flow-04-unauthorized          -MonacoFlow 04 unauthorized
+flow-04-not-cabal-member      -MonacoFlow 04 notCabalMember
+flow-04-leave-holds-shares    -MonacoFlow 04 leaveHoldsShares
+flow-04-leave-last-member-pot-not-empty -MonacoFlow 04 leaveLastMemberPotNotEmpty
+flow-04-leave-creator-with-members -MonacoFlow 04 leaveCreatorWithMembers
+flow-04-price-unavailable     -MonacoFlow 04 priceUnavailable
+flow-04-interrupted           -MonacoFlow 04 interrupted
 # END generated flow scenarios

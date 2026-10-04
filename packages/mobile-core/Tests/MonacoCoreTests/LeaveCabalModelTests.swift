@@ -53,6 +53,34 @@ final class LeaveCabalModelTests: XCTestCase {
         XCTAssertEqual(problem.message, "Something broke.")
     }
 
+    func testAStaleReadDoesNotOverwriteANewerOne() async {
+        let transport = StubTransport(scripted: [.gate, myCabals(role: "creator", members: 1)])
+        let model = makeModel(transport)
+        let first = Task { await model.load() }
+        let parked = await waitUntil { await transport.sent.count == 1 }
+
+        await model.load()
+        await transport.releaseGate(myCabals(role: "creator", members: 3))
+        await first.value
+
+        XCTAssertTrue(parked)
+        XCTAssertEqual(model.standing, .loaded(LeaveStanding(cabalName: "QA pot", canLeave: true)))
+    }
+
+    func testAStaleFailureDoesNotOverwriteANewerRead() async {
+        let transport = StubTransport(scripted: [.gate, myCabals(role: "member", members: 2)])
+        let model = makeModel(transport)
+        let first = Task { await model.load() }
+        let parked = await waitUntil { await transport.sent.count == 1 }
+
+        await model.load()
+        await transport.releaseGate(.failure(URLError(.networkConnectionLost)))
+        await first.value
+
+        XCTAssertTrue(parked)
+        XCTAssertEqual(model.standing, .loaded(LeaveStanding(cabalName: "QA pot", canLeave: true)))
+    }
+
     func testLeaveDeletesTheMembershipOnceAndNamesTheCabal() async throws {
         let transport = StubTransport(scripted: [myCabals(role: "member", members: 2), deleted()])
         let model = makeModel(transport)

@@ -3,8 +3,12 @@ package flows
 import (
 	"context"
 	"crypto/rand"
+	"errors"
+	"fmt"
 	"maps"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
 	privyadapter "github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/privy"
@@ -16,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
@@ -37,8 +42,8 @@ func Seeds() map[string]Seeder {
 
 const seedTokenTTL = time.Hour
 
-func seedSignedIn(ctx context.Context, env SeedEnv) (SeedResult, error) {
-	cfg, err := config.Load([]string{
+func seedConfig(env SeedEnv) (config.Config, error) {
+	return config.Load([]string{
 		"MONACO_ENV=test",
 		"DATABASE_URL=" + env.DatabaseURL,
 		"NATS_URL=" + env.NatsURL,
@@ -50,6 +55,10 @@ func seedSignedIn(ctx context.Context, env SeedEnv) (SeedResult, error) {
 		"PRIVY_AUTHORIZATION_KEY_ID=" + fakes.PrivyAuthorizationKeyID,
 		"PRIVY_AUTHORIZATION_PRIVATE_KEY=" + fakes.PrivyAuthorizationKeyConfig(),
 	})
+}
+
+func seedSignedIn(ctx context.Context, env SeedEnv) (SeedResult, error) {
+	cfg, err := seedConfig(env)
 	if err != nil {
 		return SeedResult{}, err
 	}
@@ -94,4 +103,51 @@ func NewDevUser(ctx context.Context, cfg config.Config) (app.DevUser, error) {
 		Privy: privyadapter.Users{Client: client}, Wallets: privyadapter.Wallets{Client: client},
 		IDs: ids.Real{}, Clock: clk, Hints: conn, Rand: rand.Reader,
 	})
+}
+
+var errSeed = errors.New("flows: seed")
+
+type seedFailure struct{ err error }
+
+type seederT struct{ ctx func() context.Context }
+
+func (seederT) Helper() {}
+
+func (t seederT) Context() context.Context { return t.ctx() }
+
+func (seederT) Fatalf(format string, args ...any) {
+	panic(seedFailure{fmt.Errorf("%w: %s", errSeed, fmt.Sprintf(format, args...))})
+}
+
+func seedSignedInWith(arrange func(t testkit.SeedT, pool *pgxpool.Pool, user ids.UserID) map[string]string) Seeder {
+	return func(ctx context.Context, env SeedEnv) (result SeedResult, err error) {
+		result, err = seedSignedIn(ctx, env)
+		if err != nil {
+			return SeedResult{}, err
+		}
+		user, err := ids.ParseUserID(result.UserID)
+		if err != nil {
+			return SeedResult{}, err
+		}
+		cfg, err := seedConfig(env)
+		if err != nil {
+			return SeedResult{}, err
+		}
+		pool, err := db.Open(ctx, cfg.DB)
+		if err != nil {
+			return SeedResult{}, err
+		}
+		defer pool.Close()
+		defer func() {
+			if r := recover(); r != nil {
+				failure, ok := r.(seedFailure)
+				if !ok {
+					panic(r)
+				}
+				result, err = SeedResult{}, failure.err
+			}
+		}()
+		maps.Copy(result.IDs, arrange(seederT{func() context.Context { return ctx }}, pool, user))
+		return result, nil
+	}
 }
