@@ -80,8 +80,7 @@ private final class StubDataSource: AppSessionDataSource {
             netWorthPercentReturn: nil,
             myGroups: [],
             pnlSeries1H: [],
-            leaderboard: HomeLeaderboardSectionDTO(range: range.rawValue, people: []),
-            missedProposals: []
+            leaderboard: HomeLeaderboardSectionDTO(range: range.rawValue, people: [])
         )
     }
 }

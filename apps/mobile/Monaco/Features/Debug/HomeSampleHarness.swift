@@ -54,7 +54,6 @@ struct HomeSampleHarness: View {
         )
 
         let joined = scenario != .empty
-        let missed = scenario == .missedVote || scenario == .populated
 
         // Pot values for the "Your cabals" subtitles; same cabals as `ProfileSampleHarness`.
         session.home = HomeViewDTO(
@@ -99,19 +98,7 @@ struct HomeSampleHarness: View {
                         HomePeopleBoardRowDTO(
                             userId: "u2", displayName: "Priya Shah", percentReturn: "0.081", dollarPnl: "+22.10"),
                     ] : []
-            ),
-            missedProposals: missed
-                ? [
-                    HomeMissedProposalRowDTO(
-                        groupId: "g1",
-                        groupName: "Weekend investors",
-                        proposalId: "p1",
-                        symbol: "AAPLx",
-                        status: "open",
-                        createdAt: Date().addingTimeInterval(-3600 * 2),
-                        expiresAt: Date().addingTimeInterval(3600 * 22)
-                    )
-                ] : []
+            )
         )
         return session
     }
