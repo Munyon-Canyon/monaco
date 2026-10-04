@@ -144,7 +144,7 @@ const listStaleCreated = `-- name: ListStaleCreated :many
 SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, source_batch_size, in_amount
 FROM swaps
 WHERE status = 'created' AND created_at < $1
-ORDER BY created_at, id
+ORDER BY updated_at, id
 LIMIT $2
 `
 
@@ -284,6 +284,25 @@ func (q *Queries) MarkSubmitted(ctx context.Context, arg MarkSubmittedParams) (i
 		arg.SubmittedAt,
 		arg.ID,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const touchCreated = `-- name: TouchCreated :execrows
+UPDATE swaps
+SET updated_at = $1
+WHERE id = $2 AND status = 'created'
+`
+
+type TouchCreatedParams struct {
+	UpdatedAt time.Time
+	ID        uuid.UUID
+}
+
+func (q *Queries) TouchCreated(ctx context.Context, arg TouchCreatedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, touchCreated, arg.UpdatedAt, arg.ID)
 	if err != nil {
 		return 0, err
 	}

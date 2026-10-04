@@ -169,6 +169,8 @@ func (l *SwapLayer) orderFailed(ctx context.Context, req SwapRequest, id uuid.UU
 }
 
 type step struct {
+	id      uuid.UUID
+	from    domain.Status
 	status  domain.Status
 	failure domain.FailureCode
 	apply   func(ctx context.Context, q *sqlc.Queries, at time.Time) (int64, error)
@@ -260,6 +262,7 @@ func (r SwapRequest) tradeSource() events.TradeSource {
 
 func submitted(req SwapRequest, id uuid.UUID, requestID string, signed []byte, signature chain.Signature) step {
 	return step{
+		id: id, from: domain.StatusCreated,
 		status: domain.StatusSubmitted,
 		apply: func(ctx context.Context, q *sqlc.Queries, at time.Time) (int64, error) {
 			return q.MarkSubmitted(ctx, sqlc.MarkSubmittedParams{
@@ -283,6 +286,7 @@ func confirmed(req SwapRequest, id uuid.UUID, signature chain.Signature, outAmou
 		usdc = outAmount
 	}
 	return step{
+		id: id, from: domain.StatusSubmitted,
 		status: domain.StatusConfirmed,
 		apply: func(ctx context.Context, q *sqlc.Queries, at time.Time) (int64, error) {
 			return q.FinishConfirmed(ctx, sqlc.FinishConfirmedParams{ID: id, OutAmount: column, ConfirmedAt: at})
@@ -300,7 +304,12 @@ func confirmed(req SwapRequest, id uuid.UUID, signature chain.Signature, outAmou
 }
 
 func failed(req SwapRequest, id uuid.UUID, code domain.FailureCode, jupiterCode string) step {
+	from := domain.StatusSubmitted
+	if code == domain.FailureNeverSubmitted {
+		from = domain.StatusCreated
+	}
 	return step{
+		id: id, from: from,
 		status: domain.StatusFailed, failure: code,
 		apply: func(ctx context.Context, q *sqlc.Queries, at time.Time) (int64, error) {
 			return q.FinishFailed(ctx, sqlc.FinishFailedParams{ID: id, FailureCode: string(code), FailedAt: at})
