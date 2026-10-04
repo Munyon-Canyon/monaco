@@ -218,6 +218,7 @@ reset *target:
         gold_udid="$(./scripts/resolve-ios-sim.sh)"
         xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco \
           -destination "platform=iOS Simulator,id=${gold_udid}" \
+          -derivedDataPath "$(git rev-parse --show-toplevel)/.build/DerivedData" \
           clean
         echo "xcodebuild clean complete"
         ;;

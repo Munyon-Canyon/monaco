@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
-# Print SIMSLIM_UDID. Agent QA and MobileBuildMCP use this. Fail if unset or missing.
+# Print the simulator agent QA and MobileBuildMCP drive. In a linked worktree (a lane),
+# or with MONACO_SIM_UDID set, that is the lane's own simulator (scripts/lane-sim-udid.sh).
+# In the primary checkout it is SIMSLIM_UDID, and this fails if that is unset or missing.
 # Human just run/build/stop uses scripts/resolve-ios-sim.sh instead (stock fallback).
 set -euo pipefail
+
+rc=0
+lane="$("$(dirname "${BASH_SOURCE[0]}")/lane-sim-udid.sh")" || rc=$?
+if (( rc == 0 )); then
+  printf '%s\n' "$lane"
+  exit 0
+elif (( rc != 3 )); then
+  exit "$rc"
+fi
 
 if [[ -z "${SIMSLIM_UDID:-}" ]]; then
   echo "error: SIMSLIM_UDID is unset." >&2

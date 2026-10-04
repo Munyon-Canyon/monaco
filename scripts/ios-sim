@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Monaco iOS sim launch with Privy env from dotenvx .env.local.
-# Prefers SimSlim gold when SIMSLIM_UDID exists and simslim is ready.
-# Otherwise warns and boots a stock Xcode simulator. Does not require ~/.local/bin/ios-sim.
+# In a linked worktree it builds, installs and launches on the lane's own simulator, so
+# several worktrees run at once. In the primary checkout it prefers SimSlim gold when
+# SIMSLIM_UDID exists and simslim is ready, else warns and boots a stock simulator.
+# Does not require ~/.local/bin/ios-sim.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -40,26 +42,18 @@ _ios_clipboard_bridge start
 
 # Ad-hoc sign the sim build (see docs/how-to/local-simulator.md#signing) so the Privy
 # session's keychain entry survives relaunch/reinstall instead of being dropped by an
-# unsigned build. -skipPackagePluginValidation: see scripts/ios-build.
-xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco \
+# unsigned build. -skipPackagePluginValidation: see scripts/ios-build. The derived data
+# path is this checkout's own, so the app installed below is never another worktree's.
+derived="$(git rev-parse --show-toplevel)/.build/DerivedData"
+./scripts/qa/xcode-lock.sh xcode xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco \
   -destination "platform=iOS Simulator,id=${udid}" \
   -configuration Debug \
+  -derivedDataPath "$derived" \
   -skipPackagePluginValidation \
   CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=YES \
   build
 
-app_path=""
-newest=0
-shopt -s nullglob
-for candidate in "${HOME}/Library/Developer/Xcode/DerivedData"/Monaco-*/Build/Products/Debug-iphonesimulator/Monaco.app; do
-  mt="$(stat -f %m "$candidate" 2>/dev/null || echo 0)"
-  if [[ "$mt" -gt "$newest" ]]; then
-    newest="$mt"
-    app_path="$candidate"
-  fi
-done
-shopt -u nullglob
-
+app_path="${derived}/Build/Products/Debug-iphonesimulator/Monaco.app"
 if [[ ! -d "$app_path" ]]; then
   echo "error: built app not found at ${app_path}" >&2
   exit 1

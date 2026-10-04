@@ -441,6 +441,8 @@ class Simulators(Tree):
     def setUp(self):
         super().setUp()
         self.saved_sh = journey.sh
+        self.saved_lane_name = journey.lane_name
+        journey.lane_name = lambda: None
         self.loaded = journey.load_journeys()["auth/sign-in"]
         self.devices = {
             "com.apple.CoreSimulator.SimRuntime.iOS-26-5": [{
@@ -453,6 +455,7 @@ class Simulators(Tree):
 
     def tearDown(self):
         journey.sh = self.saved_sh
+        journey.lane_name = self.saved_lane_name
         super().tearDown()
 
     def result(self, stdout="", returncode=0):
@@ -477,6 +480,42 @@ class Simulators(Tree):
             "xcrun", "simctl", "create", "Monaco Journeys A", "phone",
             "com.apple.CoreSimulator.SimRuntime.iOS-26-5",
         ])
+
+    def test_a_lane_names_its_actor_simulators_after_itself(self):
+        calls = []
+
+        def stub(args, **kwargs):
+            calls.append(args)
+            if args == ["scripts/gold-sim-udid.sh"]:
+                return self.result("gold\n")
+            if args == ["xcrun", "simctl", "list", "devices", "--json"]:
+                devices = dict(self.devices)
+                devices["other"] = [{"udid": "primary-a", "name": "Monaco Journeys A", "isAvailable": True}]
+                return self.result(json.dumps({"devices": devices}))
+            if args[:3] == ["xcrun", "simctl", "create"]:
+                return self.result("lane-a\n")
+            if args[:2] == ["git", "rev-parse"]:
+                return self.result(self.tmp.name + "\n")
+            self.fail("unexpected command: %r" % (args,))
+
+        journey.sh = stub
+        journey.lane_name = lambda: "agent-7"
+        self.assertEqual(journey.resolve_simulators(self.loaded, {}), {"A": "lane-a"})
+        self.assertIn(["xcrun", "simctl", "create", "Monaco Journeys agent-7 A", "phone",
+                       "com.apple.CoreSimulator.SimRuntime.iOS-26-5"], calls)
+        registry = Path(self.tmp.name, "monaco-lane-sims.tsv").read_text()
+        self.assertEqual(registry, "lane-a\tagent-7\tMonaco Journeys agent-7 A\n")
+
+    def test_lane_name_is_the_linked_worktree_directory(self):
+        journey.lane_name = self.saved_lane_name
+        root = Path(self.tmp.name)
+        git = ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
+        subprocess.run(git + ["init", "-q"], cwd=str(root), check=True)
+        subprocess.run(git + ["commit", "-q", "--allow-empty", "--no-verify", "-m", "x"], cwd=str(root), check=True)
+        self.assertIsNone(journey.lane_name())
+        subprocess.run(git + ["worktree", "add", "-q", str(root / "wt" / "agent-7")], cwd=str(root), check=True)
+        journey.ROOT = root / "wt" / "agent-7"
+        self.assertEqual(journey.lane_name(), "agent-7")
 
     def test_an_explicit_simulator_mapping_is_kept(self):
         def unexpected(*args, **kwargs):
