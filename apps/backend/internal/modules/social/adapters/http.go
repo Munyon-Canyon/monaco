@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
@@ -19,6 +21,71 @@ type HTTP struct {
 	Mute     *app.MuteHandler
 	Unmute   *app.UnmuteHandler
 	Reads    sqlc.DBTX
+	Users    app.Users
+}
+
+func (h HTTP) GetUserFollowers(
+	ctx context.Context, req api.GetUserFollowersRequestObject,
+) (api.GetUserFollowersResponseObject, error) {
+	body, err := h.listFollows(ctx, req.Id, req.Params.Cursor, req.Params.Limit, true)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetUserFollowers200JSONResponse(body), nil
+}
+
+func (h HTTP) GetUserFollowing(
+	ctx context.Context, req api.GetUserFollowingRequestObject,
+) (api.GetUserFollowingResponseObject, error) {
+	body, err := h.listFollows(ctx, req.Id, req.Params.Cursor, req.Params.Limit, false)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetUserFollowing200JSONResponse(body), nil
+}
+
+func (h HTTP) listFollows(
+	ctx context.Context, id uuid.UUID, cursor *string, limit *int, followers bool,
+) (api.FollowsPage, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return api.FollowsPage{}, err
+	}
+	q := app.FollowsQuery{Viewer: me, User: ids.UserIDFrom(id), Limit: app.FollowsPageDefault}
+	if limit != nil {
+		q.Limit = *limit
+	}
+	if cursor != nil {
+		after, err := domain.ParseKeyset(*cursor)
+		if err != nil {
+			return api.FollowsPage{}, err
+		}
+		q.After = &after
+	}
+	var page app.FollowsPage
+	if followers {
+		page, err = app.ListFollowers(ctx, h.Reads, h.Users, q)
+	} else {
+		page, err = app.ListFollowing(ctx, h.Reads, h.Users, q)
+	}
+	if err != nil {
+		return api.FollowsPage{}, err
+	}
+	body := api.FollowsPage{Items: make([]api.FollowUser, len(page.Items))}
+	for i, item := range page.Items {
+		body.Items[i] = api.FollowUser{
+			UserId:       item.User.ID.UUID(),
+			Handle:       item.User.Handle,
+			DisplayName:  item.User.DisplayName,
+			PhotoUrl:     optionalWireText(item.User.PhotoURL),
+			FollowedByMe: item.FollowedBy,
+		}
+	}
+	if page.Next != nil {
+		next := page.Next.Encode()
+		body.NextCursor = &next
+	}
+	return body, nil
 }
 
 func (h HTTP) PutMeFeedMutes(

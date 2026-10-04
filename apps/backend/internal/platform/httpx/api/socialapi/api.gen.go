@@ -271,6 +271,28 @@ type FollowState struct {
 	Following bool `json:"following"`
 }
 
+// FollowUser A listed user, with whether the caller follows them.
+type FollowUser struct {
+	DisplayName  string             `json:"display_name"`
+	FollowedByMe bool               `json:"followed_by_me"`
+	Handle       string             `json:"handle"`
+	PhotoUrl     *string            `json:"photo_url"`
+	UserId       openapi_types.UUID `json:"user_id"`
+}
+
+// FollowsPage One page of a user's followers or following, newest first.
+type FollowsPage struct {
+	// Items The page.
+	//
+	// Examples: []
+	Items []FollowUser `json:"items"`
+
+	// NextCursor The cursor for the next page. Null on the last page.
+	//
+	// Examples: null
+	NextCursor *string `json:"next_cursor"`
+}
+
 // GetFeedParams defines parameters for GetFeed.
 type GetFeedParams struct {
 	// Kind A comma-separated list of kinds to include: `proposal`, `trade`, `price_move`, `cabal_created` and `member_joined`. Absent includes every kind.
@@ -352,6 +374,24 @@ type PostUserFollowParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// GetUserFollowersParams defines parameters for GetUserFollowers.
+type GetUserFollowersParams struct {
+	// Cursor The `next_cursor` of the previous page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit The page size, 30 by default.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetUserFollowingParams defines parameters for GetUserFollowing.
+type GetUserFollowingParams struct {
+	// Cursor The `next_cursor` of the previous page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit The page size, 30 by default.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // PutMeFeedMutesJSONRequestBody defines body for PutMeFeedMutes for application/json ContentType.
 type PutMeFeedMutesJSONRequestBody = FeedMuteRequest
 
@@ -381,6 +421,12 @@ type ServerInterface interface {
 	// PostUserFollow Follow a user.
 	// (POST /v1/users/{id}/follow)
 	PostUserFollow(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params PostUserFollowParams)
+	// GetUserFollowers List a user's followers.
+	// (GET /v1/users/{id}/followers)
+	GetUserFollowers(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params GetUserFollowersParams)
+	// GetUserFollowing List the users a user follows.
+	// (GET /v1/users/{id}/following)
+	GetUserFollowing(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params GetUserFollowingParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -840,6 +886,116 @@ func (siw *ServerInterfaceWrapper) PostUserFollow(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// GetUserFollowers operation middleware
+func (siw *ServerInterfaceWrapper) GetUserFollowers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id externalRef0.UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetUserFollowersParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetUserFollowers(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetUserFollowing operation middleware
+func (siw *ServerInterfaceWrapper) GetUserFollowing(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id externalRef0.UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetUserFollowingParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetUserFollowing(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -967,6 +1123,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/me/feed-mutes/{target_type}/{target_id}", wrapper.DeleteMeFeedMutesTargetTypeTargetID)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/users/{id}/follow", wrapper.DeleteUserFollow)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/users/{id}/follow", wrapper.PostUserFollow)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users/{id}/followers", wrapper.GetUserFollowers)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users/{id}/following", wrapper.GetUserFollowing)
 
 	return m
 }
@@ -1238,6 +1396,86 @@ func (response PostUserFollowdefaultApplicationProblemPlusJSONResponse) VisitPos
 	return err
 }
 
+type GetUserFollowersRequestObject struct {
+	Id     externalRef0.UserId `json:"id"`
+	Params GetUserFollowersParams
+}
+
+type GetUserFollowersResponseObject interface {
+	VisitGetUserFollowersResponse(w http.ResponseWriter) error
+}
+
+type GetUserFollowers200JSONResponse FollowsPage
+
+func (response GetUserFollowers200JSONResponse) VisitGetUserFollowersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetUserFollowersdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetUserFollowersdefaultApplicationProblemPlusJSONResponse) VisitGetUserFollowersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetUserFollowingRequestObject struct {
+	Id     externalRef0.UserId `json:"id"`
+	Params GetUserFollowingParams
+}
+
+type GetUserFollowingResponseObject interface {
+	VisitGetUserFollowingResponse(w http.ResponseWriter) error
+}
+
+type GetUserFollowing200JSONResponse FollowsPage
+
+func (response GetUserFollowing200JSONResponse) VisitGetUserFollowingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetUserFollowingdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetUserFollowingdefaultApplicationProblemPlusJSONResponse) VisitGetUserFollowingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetFeed Read the feed.
@@ -1261,6 +1499,12 @@ type StrictServerInterface interface {
 	// PostUserFollow Follow a user.
 	// (POST /v1/users/{id}/follow)
 	PostUserFollow(ctx context.Context, request PostUserFollowRequestObject) (PostUserFollowResponseObject, error)
+	// GetUserFollowers List a user's followers.
+	// (GET /v1/users/{id}/followers)
+	GetUserFollowers(ctx context.Context, request GetUserFollowersRequestObject) (GetUserFollowersResponseObject, error)
+	// GetUserFollowing List the users a user follows.
+	// (GET /v1/users/{id}/following)
+	GetUserFollowing(ctx context.Context, request GetUserFollowingRequestObject) (GetUserFollowingResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -1497,6 +1741,60 @@ func (sh *strictHandler) PostUserFollow(w http.ResponseWriter, r *http.Request, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostUserFollowResponseObject); ok {
 		if err := validResponse.VisitPostUserFollowResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetUserFollowers operation middleware
+func (sh *strictHandler) GetUserFollowers(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params GetUserFollowersParams) {
+	var request GetUserFollowersRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetUserFollowers(ctx, request.(GetUserFollowersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetUserFollowers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetUserFollowersResponseObject); ok {
+		if err := validResponse.VisitGetUserFollowersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetUserFollowing operation middleware
+func (sh *strictHandler) GetUserFollowing(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params GetUserFollowingParams) {
+	var request GetUserFollowingRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetUserFollowing(ctx, request.(GetUserFollowingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetUserFollowing")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetUserFollowingResponseObject); ok {
+		if err := validResponse.VisitGetUserFollowingResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

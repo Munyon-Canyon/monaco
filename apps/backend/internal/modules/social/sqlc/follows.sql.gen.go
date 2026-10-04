@@ -12,6 +12,37 @@ import (
 	"github.com/google/uuid"
 )
 
+const followedAmong = `-- name: FollowedAmong :many
+SELECT followee_id FROM follows
+WHERE follower_id = $1::uuid AND followee_id = ANY($2::uuid[])
+  AND deleted_at IS NULL
+`
+
+type FollowedAmongParams struct {
+	FollowerID  uuid.UUID
+	FolloweeIds []uuid.UUID
+}
+
+func (q *Queries) FollowedAmong(ctx context.Context, arg FollowedAmongParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, followedAmong, arg.FollowerID, arg.FolloweeIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var followee_id uuid.UUID
+		if err := rows.Scan(&followee_id); err != nil {
+			return nil, err
+		}
+		items = append(items, followee_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertFollow = `-- name: InsertFollow :one
 INSERT INTO follows (id, follower_id, followee_id, source, created_at)
 VALUES ($1, $2, $3, $4, $5)
@@ -38,6 +69,106 @@ func (q *Queries) InsertFollow(ctx context.Context, arg InsertFollowParams) (uui
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const listFollowers = `-- name: ListFollowers :many
+SELECT follower_id, created_at FROM follows
+WHERE followee_id = $1::uuid AND deleted_at IS NULL
+  AND (
+    NOT $2::boolean
+    OR (created_at, follower_id) < ($3::timestamptz, $4::uuid)
+  )
+ORDER BY created_at DESC, follower_id DESC
+LIMIT $5::int
+`
+
+type ListFollowersParams struct {
+	UserID    uuid.UUID
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
+}
+
+type ListFollowersRow struct {
+	FollowerID uuid.UUID
+	CreatedAt  time.Time
+}
+
+func (q *Queries) ListFollowers(ctx context.Context, arg ListFollowersParams) ([]ListFollowersRow, error) {
+	rows, err := q.db.Query(ctx, listFollowers,
+		arg.UserID,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListFollowersRow
+	for rows.Next() {
+		var i ListFollowersRow
+		if err := rows.Scan(&i.FollowerID, &i.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFollowing = `-- name: ListFollowing :many
+SELECT followee_id, created_at FROM follows
+WHERE follower_id = $1::uuid AND deleted_at IS NULL
+  AND (
+    NOT $2::boolean
+    OR (created_at, followee_id) < ($3::timestamptz, $4::uuid)
+  )
+ORDER BY created_at DESC, followee_id DESC
+LIMIT $5::int
+`
+
+type ListFollowingParams struct {
+	UserID    uuid.UUID
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
+}
+
+type ListFollowingRow struct {
+	FolloweeID uuid.UUID
+	CreatedAt  time.Time
+}
+
+func (q *Queries) ListFollowing(ctx context.Context, arg ListFollowingParams) ([]ListFollowingRow, error) {
+	rows, err := q.db.Query(ctx, listFollowing,
+		arg.UserID,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListFollowingRow
+	for rows.Next() {
+		var i ListFollowingRow
+		if err := rows.Scan(&i.FolloweeID, &i.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const removeFollow = `-- name: RemoveFollow :one
