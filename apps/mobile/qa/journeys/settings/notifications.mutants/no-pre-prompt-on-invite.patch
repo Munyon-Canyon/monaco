@@ -1,0 +1,17 @@
+journey: settings/notifications
+expect-fail: S2, S3
+
+Accepting an invite never shows the push pre-prompt. S2.2 waits for it, and S3 then finds notifications off, so both must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalsInvitesSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalsInvitesSlot.swift
+--- a/apps/mobile/Monaco/Features/Groups/CabalsInvitesSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalsInvitesSlot.swift
+@@ -47,7 +47,6 @@
+             guard let toast else { return }
+             toasts.current = MonacoToast(message: toast.message, isSuccess: toast.isSuccess)
+             if toast.message == CabalEntry.joinedToast {
+-                Task { await environment.pushPrePrompt.noteCabalJoined(after: toasts) }
+             }
+         }
+     }

@@ -1,0 +1,18 @@
+journey: profile/overview
+expect-fail: S5
+
+The sign-out confirm keeps the old app's "a new code by text". S5.1 reads the spec's copy, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Profile/ProfileScreen.swift b/apps/mobile/Monaco/Features/Profile/ProfileScreen.swift
+--- a/apps/mobile/Monaco/Features/Profile/ProfileScreen.swift
++++ b/apps/mobile/Monaco/Features/Profile/ProfileScreen.swift
+@@ -13,7 +13,7 @@
+     ]
+ 
+     static let signOutTitle = "Sign out of Monaco?"
+-    static let signOutMessage = "Your money stays where it is. You'll need a new code to sign back in."
++    static let signOutMessage = "Your money stays where it is. You'll need a new code by text to sign back in."
+ 
+     @Environment(AppEnvironment.self) private var environment
+     let sections: [any ProfileSection.Type]

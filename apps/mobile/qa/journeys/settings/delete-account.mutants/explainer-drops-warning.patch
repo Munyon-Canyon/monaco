@@ -1,0 +1,18 @@
+journey: settings/delete-account
+expect-fail: S1
+
+The explainer drops "This can't be undone.". S1.3 reads the whole explainer, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/AccountCopy.swift b/packages/mobile-core/Sources/MonacoCore/AccountCopy.swift
+--- a/packages/mobile-core/Sources/MonacoCore/AccountCopy.swift
++++ b/packages/mobile-core/Sources/MonacoCore/AccountCopy.swift
+@@ -4,7 +4,7 @@
+     public static let deleteTitle = "Delete account"
+     public static let explainer =
+         "Deleting your account removes your name, photo, phone and X from Monaco. Your handle stays reserved. "
+-        + "Your transaction history stays, because cabal records need it. This can't be undone."
++        + "Your transaction history stays, because cabal records need it."
+     public static let cashOutStep = "Cash out of every cabal"
+     public static let sliceComingSoon = "Your slice in each cabal shows up here soon."
+     public static let noCabalMoney = "No cabal holds money of yours."

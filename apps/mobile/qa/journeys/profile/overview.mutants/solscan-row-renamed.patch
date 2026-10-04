@@ -1,0 +1,18 @@
+journey: profile/overview
+expect-fail: S4
+
+The explorer row reads "Solscan". S4.2 reads "Solscan explorer", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Settings/SettingsAdvancedLinks.swift b/apps/mobile/Monaco/Features/Settings/SettingsAdvancedLinks.swift
+--- a/apps/mobile/Monaco/Features/Settings/SettingsAdvancedLinks.swift
++++ b/apps/mobile/Monaco/Features/Settings/SettingsAdvancedLinks.swift
+@@ -10,7 +10,7 @@
+     static let explorerLinks: [SettingsExplorerLink] = [
+         SettingsExplorerLink(
+             id: "solscan",
+-            title: "Solscan explorer",
++            title: "Solscan",
+             url: URL(string: "https://solscan.io")!
+         ),
+         SettingsExplorerLink(

@@ -1,0 +1,17 @@
+journey: settings/delete-account
+expect-fail: S2
+
+Deleting the account keeps the session. S2.2 waits for the login form, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Settings/DeleteAccountView.swift b/apps/mobile/Monaco/Features/Settings/DeleteAccountView.swift
+--- a/apps/mobile/Monaco/Features/Settings/DeleteAccountView.swift
++++ b/apps/mobile/Monaco/Features/Settings/DeleteAccountView.swift
+@@ -30,7 +30,6 @@
+         let model = preparedModel()
+         await model.delete()
+         guard model.isDeleted else { return }
+-        await environment.signOut()
+         toasts.show(success: AccountCopy.deleted)
+     }
+ }

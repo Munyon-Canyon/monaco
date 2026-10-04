@@ -1,0 +1,26 @@
+journey: profile/overview
+expect-fail: S2
+
+Pull to refresh empties the Profile tab. S2.2 needs every section after the refresh, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Profile/ProfileTab.swift b/apps/mobile/Monaco/Features/Profile/ProfileTab.swift
+--- a/apps/mobile/Monaco/Features/Profile/ProfileTab.swift
++++ b/apps/mobile/Monaco/Features/Profile/ProfileTab.swift
+@@ -13,10 +13,14 @@
+ 
+ private struct ProfileTabRoot: View {
+     @State private var refresh = ScreenRefresh()
++    @State private var refreshed = false
+ 
+     var body: some View {
+-        ProfileScreen()
++        ProfileScreen(sections: refreshed ? [] : ProfileScreen.sections)
+             .environment(refresh)
+-            .refreshable { await refresh.run() }
++            .refreshable {
++                await refresh.run()
++                refreshed = true
++            }
+     }
+ }
