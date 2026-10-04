@@ -3,6 +3,7 @@ package agents
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -288,9 +289,12 @@ func shortSHA(sha string) string {
 	return sha
 }
 
-func (env *Env) stablePatch(ctx context.Context, baseRef string, pr int) (string, error) {
-	spec := fmt.Sprintf("+refs/pull/%d/head:refs/monaco/verdict/pr", pr)
-	if _, err := env.Run(
+func (env *Env) stablePatch(ctx context.Context, branch string, pr int) (id string, err error) {
+	prefix := fmt.Sprintf("refs/monaco/verdict/%d/%d/", pr, os.Getpid())
+	baseRef, headRef := prefix+"base", prefix+"pr"
+	defer func() { err = errors.Join(err, env.deleteVerdictRefs(ctx, baseRef, headRef)) }()
+	spec := fmt.Sprintf("+refs/pull/%d/head:%s", pr, headRef)
+	if _, err = env.Run(
 		ctx,
 		env.Work,
 		"",
@@ -298,16 +302,16 @@ func (env *Env) stablePatch(ctx context.Context, baseRef string, pr int) (string
 		"fetch",
 		"--no-tags",
 		"origin",
-		"+refs/heads/"+baseRef+":refs/monaco/verdict/base",
+		"+refs/heads/"+branch+":"+baseRef,
 		spec,
 	); err != nil {
 		return "", err
 	}
-	base, err := env.Run(ctx, env.Work, "", "git", "merge-base", "refs/monaco/verdict/base", "refs/monaco/verdict/pr")
+	fork, err := env.Run(ctx, env.Work, "", "git", "merge-base", baseRef, headRef)
 	if err != nil {
 		return "", err
 	}
-	diff, err := env.Run(ctx, env.Work, "", "git", "diff", strings.TrimSpace(string(base)), "refs/monaco/verdict/pr")
+	diff, err := env.Run(ctx, env.Work, "", "git", "diff", strings.TrimSpace(string(fork)), headRef)
 	if err != nil {
 		return "", err
 	}
@@ -320,4 +324,10 @@ func (env *Env) stablePatch(ctx context.Context, baseRef string, pr int) (string
 		return "", detailErr(errs.CodeDecodeFailed, "monacoctl.agents.verdict", "patch-id returned nothing")
 	}
 	return fields[0], nil
+}
+
+func (env *Env) deleteVerdictRefs(ctx context.Context, baseRef, headRef string) error {
+	script := fmt.Sprintf("delete %s\ndelete %s\n", baseRef, headRef)
+	_, err := env.Run(context.WithoutCancel(ctx), env.Work, script, "git", "update-ref", "--stdin")
+	return err
 }

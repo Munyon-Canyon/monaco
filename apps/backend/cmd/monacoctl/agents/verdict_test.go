@@ -13,7 +13,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+
+	"golang.org/x/sync/errgroup"
 )
 
 func TestVerdict_refusesAWeakerKindTheOwnerModelOrTheWrongSHA(t *testing.T) {
@@ -323,17 +326,99 @@ func TestStablePatch_reportsEachGitFailure(t *testing.T) {
 	}
 }
 
+func TestStablePatch_eachConcurrentCallRecordsItsOwnPatchID(t *testing.T) {
+	t.Parallel()
+	const calls = 2
+	f := newFixture(t)
+	remote := f.remote(t)
+	base, one, retarget := commits(t, remote)
+	git(t, remote, "checkout", "-q", "--detach", retarget)
+	two := commitFile(t, remote, "b.go", "package b\n")
+	git(t, remote, "update-ref", "refs/heads/fb", base)
+	git(t, remote, "update-ref", "refs/pull/1/head", one)
+	git(t, remote, "update-ref", "refs/pull/2/head", two)
+	want := [calls]string{patchID(t, remote, base, one), patchID(t, remote, base, two)}
+	if want[0] == want[1] {
+		t.Fatal("the two pull requests need different patch-ids")
+	}
+	env := f.Env(t)
+	var arrived atomic.Int32
+	fetched := make(chan struct{})
+	env.Run = atMergeBase(env.Run, func(ctx context.Context) error {
+		if arrived.Add(1) == calls {
+			close(fetched)
+		}
+		select {
+		case <-fetched:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	})
+	var got [calls]string
+	g, ctx := errgroup.WithContext(t.Context())
+	for i := range calls {
+		g.Go(func() (err error) {
+			got[i], err = env.stablePatch(ctx, "fb", i+1)
+			return err
+		})
+	}
+	if err := g.Wait(); err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("patch-ids %v, want %v", got, want)
+	}
+}
+
+func TestStablePatch_leavesNoVerdictRefsBehind(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	remote := f.remote(t)
+	base, head, _ := commits(t, remote)
+	git(t, remote, "update-ref", "refs/heads/fb", base)
+	git(t, remote, "update-ref", "refs/pull/5/head", head)
+	env := f.Env(t)
+	if id, err := env.stablePatch(t.Context(), "fb", 5); err != nil || id != patchID(t, remote, base, head) {
+		t.Fatalf("success: %q %v", id, err)
+	}
+	noVerdictRefs(t, f.dir)
+
+	env.Run = scripted(map[string]string{"merge-base": "merge-base down"}, nil)
+	if _, err := env.stablePatch(
+		t.Context(),
+		"fb",
+		5,
+	); err == nil ||
+		!strings.Contains(err.Error(), "merge-base down") {
+		t.Fatalf("failure: %v", err)
+	}
+	noVerdictRefs(t, f.dir)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	env.Run = atMergeBase(hostless, func(context.Context) error {
+		cancel()
+		return nil
+	})
+	if _, err := env.stablePatch(ctx, "fb", 5); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancel: %v", err)
+	}
+	noVerdictRefs(t, f.dir)
+}
+
 func TestVerdict_carryRepostsOrRefuses(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	base, head, other := commits(t, f.dir)
+	remote := f.remote(t)
+	base, head, other := commits(t, remote)
 	sha := head
 	f.owner(t, Record{Ticket: 40, Model: opus, State: Running})
 	f.hub.on(get("/pulls/5"), headed(5, sha))
 	f.hub.on(list("/pulls/5/files?"), []File{{Filename: "a.go", Additions: 1}})
 	f.hub.on("POST /repos/o/r/statuses/"+sha, "ok")
-	f.point(t, base, head)
-	f.skipFetch()
+	git(t, remote, "update-ref", "refs/heads/fb", base)
+	git(t, remote, "update-ref", "refs/pull/5/head", head)
 	report := f.report(t, "ok")
 	if code, _, stderr := f.agents(
 		t,
@@ -360,7 +445,7 @@ func TestVerdict_carryRepostsOrRefuses(t *testing.T) {
 		t.Fatalf("same: %d %q %q", code, stdout, stderr)
 	}
 	f.hub.on(get("/pulls/5"), headed(5, other))
-	f.point(t, base, other)
+	git(t, remote, "update-ref", "refs/pull/5/head", other)
 	f.hub.on("POST /repos/o/r/statuses/"+other, "ok")
 	if code, stdout, stderr := f.agents(
 		t,
@@ -374,9 +459,9 @@ func TestVerdict_carryRepostsOrRefuses(t *testing.T) {
 	if f.hub.authOf("POST /repos/o/r/statuses/"+other) != "token tok" {
 		t.Fatal(f.hub.authOf("POST /repos/o/r/statuses/" + other))
 	}
-	moved := commitFile(t, f.dir, "h.go", "changed\n")
+	moved := commitFile(t, remote, "h.go", "changed\n")
 	f.hub.on(get("/pulls/5"), headed(5, moved))
-	f.point(t, base, moved)
+	git(t, remote, "update-ref", "refs/pull/5/head", moved)
 	if code, _, stderr := f.agents(t, "verdict", "carry", "5"); code != 1 || !strings.Contains(stderr, "verify again") {
 		t.Fatalf("differ: %d %q", code, stderr)
 	}
@@ -612,20 +697,47 @@ func scripted(fail, ok map[string]string) Runner {
 	}
 }
 
-func (f *fixture) skipFetch() {
-	prev := f.run
-	f.run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
-		if name == "git" && len(args) > 0 && args[0] == "fetch" {
-			return nil, nil
+func (f *fixture) remote(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	git(t, dir, "init", "-q", "--template=", "-b", "main")
+	git(t, f.dir, "remote", "add", "origin", dir)
+	return dir
+}
+
+func atMergeBase(next Runner, hook func(context.Context) error) Runner {
+	return func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
+		if name == "git" && len(args) > 0 && args[0] == "merge-base" {
+			if err := hook(ctx); err != nil {
+				return nil, err
+			}
 		}
-		return prev(ctx, dir, stdin, name, args...)
+		return next(ctx, dir, stdin, name, args...)
 	}
 }
 
-func (f *fixture) point(t *testing.T, base, head string) {
+func patchID(t *testing.T, dir, base, head string) string {
 	t.Helper()
-	git(t, f.dir, "update-ref", "refs/monaco/verdict/base", base)
-	git(t, f.dir, "update-ref", "refs/monaco/verdict/pr", head)
+	diff, err := Exec(t.Context(), dir, "", "git", "diff", base, head)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := Exec(t.Context(), dir, string(diff), "git", "patch-id", "--stable")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Fields(string(out))[0]
+}
+
+func noVerdictRefs(t *testing.T, dir string) {
+	t.Helper()
+	out, err := Exec(t.Context(), dir, "", "git", "for-each-ref", "--format=%(refname)", "refs/monaco/verdict/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if left := strings.TrimSpace(string(out)); left != "" {
+		t.Fatalf("verdict refs left behind:\n%s", left)
+	}
 }
 
 func headed(n int, sha string) PR {
