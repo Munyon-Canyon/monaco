@@ -54,7 +54,7 @@ public final class CabalEditModel {
 
     public func patch(for edited: CabalSettings) -> Components.Schemas.UpdateCabalRequest? {
         guard let cabal else { return nil }
-        return CabalRulesDiff.patch(from: CabalSettings(cabal), to: edited, creatorID: cabal.creator.userId)
+        return CabalRulesDiff.patch(from: CabalSettings(cabal), to: edited)
     }
 
     public func load() async {

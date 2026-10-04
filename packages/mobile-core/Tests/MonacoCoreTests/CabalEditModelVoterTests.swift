@@ -152,8 +152,7 @@ extension CabalEditModelTests {
         await model.load()
         XCTAssertTrue(model.isCreator)
         let edited = CabalSettings(
-            name: "QA pot 2", joinMode: "request", voters: .justMe, threshold: "majority",
-            proposalExpirySeconds: 3600)
+            name: "QA pot 2", joinMode: "request", threshold: "majority", proposalExpirySeconds: 3600)
 
         let outcome = await model.save(edited)
 
@@ -167,5 +166,26 @@ extension CabalEditModelTests {
 
         XCTAssertFalse(model.isCreator)
         XCTAssertNil(model.cabal?.inviteCode)
+    }
+
+    func testAFormSaveAfterAVoterSaveLeavesTheVotersAlone() async throws {
+        let (model, transport, _) = make([
+            .json(.ok, Self.cabal(name: "QA pot", me: Self.creator, voters: nil)),
+            .json(.ok, Self.cabal(name: "QA pot", me: Self.creator, voters: [Self.creatorID, Self.jordanID])),
+            .json(.ok, Self.cabal(name: "QA pot 2", me: Self.creator, voters: [Self.creatorID, Self.jordanID])),
+        ])
+        await model.load()
+        var openedBeforeTheVoterSave = try XCTUnwrap(model.settings)
+        _ = await model.saveVoters(.list([Self.jordanID]))
+        openedBeforeTheVoterSave.name = "QA pot 2"
+
+        let outcome = await model.save(openedBeforeTheVoterSave)
+
+        XCTAssertEqual(outcome, .saved)
+        let bodies = await transport.sentBodies
+        let body = try XCTUnwrap(bodies.last ?? nil)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
+        XCTAssertEqual(json, ["name": "QA pot 2"])
+        XCTAssertEqual(model.voterChoice, .list([Self.creatorID, Self.jordanID]))
     }
 }

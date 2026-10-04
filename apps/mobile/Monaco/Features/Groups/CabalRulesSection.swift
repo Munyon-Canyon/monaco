@@ -7,6 +7,7 @@ struct CabalRulesSection: View {
     @Binding var threshold: CabalThreshold
     @Binding var voteExpiry: CabalProposalExpiry
     let identifierPrefix: String
+    var showsVoters = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -22,14 +23,16 @@ struct CabalRulesSection: View {
                     caption: { $0.caption },
                     identifier: "\(identifierPrefix)-join"
                 )
-                CabalRuleRow(
-                    title: CabalRulesCopy.votersTitle,
-                    options: CabalVoterMode.allCases,
-                    selection: $voterSet,
-                    label: { $0.label },
-                    caption: { $0.caption },
-                    identifier: "\(identifierPrefix)-voters"
-                )
+                if showsVoters {
+                    CabalRuleRow(
+                        title: CabalRulesCopy.votersTitle,
+                        options: CabalVoterMode.allCases,
+                        selection: $voterSet,
+                        label: { $0.label },
+                        caption: { $0.caption },
+                        identifier: "\(identifierPrefix)-voters"
+                    )
+                }
                 CabalRuleRow(
                     title: CabalRulesCopy.thresholdTitle,
                     options: CabalThreshold.allCases,
