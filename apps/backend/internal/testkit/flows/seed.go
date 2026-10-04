@@ -3,6 +3,7 @@ package flows
 import (
 	"context"
 	"crypto/rand"
+	"maps"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
@@ -29,12 +30,9 @@ type SeedResult struct {
 type Seeder func(ctx context.Context, env SeedEnv) (SeedResult, error)
 
 func Seeds() map[string]Seeder {
-	return map[string]Seeder{
-		"F00RecordPingOK":                seedSignedIn,
-		"F00RecordPingInvalidInput":      seedSignedIn,
-		"F00RecordPingUnauthorized":      seedAnonymous,
-		"F00RecordPingCrashAfterPublish": seedSignedIn,
-	}
+	seeds := map[string]Seeder{}
+	each("Seeds", func(_ string, out any) { maps.Copy(seeds, out.(map[string]Seeder)) })
+	return seeds
 }
 
 const seedTokenTTL = time.Hour
