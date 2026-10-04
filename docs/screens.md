@@ -198,7 +198,7 @@ Pull to refresh, like Home.
 | 8 | `ProfileSettingsSlot` | #2139 | Row "Settings" |
 |  | Sign out | shell | Destructive "Sign out" with the confirm "Sign out of Monaco?" / "Your money stays where it is. You'll need a new code to sign back in." |
 
-**Settings** (`SettingsRoute`, #2139). Title "Settings". Rows: "Notifications" (On or Off, opens the system settings when off, #2143), "Activity" (`AccountActivityRoute`), "Withdraw" (`WithdrawRoute`), "Blocked people" (#2145), "Advanced" / "Block explorers", "Terms" and "Privacy" (open in Safari), and destructive "Delete account" (`DeleteAccountRoute`, #695). Footer: app version.
+**Settings** (`SettingsRoute`, #2139). Title "Settings". Rows: "Notifications" (On or Off; while permission is undecided a tap asks for it, otherwise it opens iOS notification settings, #2143), "Activity" (`AccountActivityRoute`), "Withdraw" (`WithdrawRoute`), "Blocked people" (#2145), "Advanced" / "Block explorers", "Terms" and "Privacy" (open in Safari), and destructive "Delete account" (`DeleteAccountRoute`, #695). Footer: app version.
 
 **User profile** (`UserProfileRoute`). Header (#620): avatar, name, "@handle", follower counts, "Follow" or "Following", and a "…" menu with "Report" and "Block" (#2145). Hidden on your own profile: the Follow button and the menu. Then "Cabals you share" (#660): rows with pot figures. Empty: "No cabals in common" / "You and Maya aren't in a cabal together yet." A banned or deleted user: "This account isn't available."
 
