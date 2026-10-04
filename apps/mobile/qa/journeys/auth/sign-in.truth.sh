@@ -1,23 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-accounts="apps/mobile/qa/journeys/accounts.tsv"
-privy_user_id="$(awk -F '\t' '
-  $1 == "actor" {
-    for (i = 1; i <= NF; i++) {
-      if ($i == "actor") actor_column = i
-      if ($i == "privy_user_id") privy_user_id_column = i
-    }
-    next
-  }
-  actor_column != "" && $actor_column == "A" { print $privy_user_id_column; exit }
-' "$accounts")"
-
-if [[ -z "$privy_user_id" ]]; then
-  echo "missing Privy user ID for actor A" >&2
-  exit 1
-fi
-
+privy_user_id="$(apps/mobile/qa/journeys/privy-user-id.sh A)"
 query="SELECT id FROM users WHERE privy_user_id = :'value' LIMIT 1"
 
 error_file="$(mktemp)"
