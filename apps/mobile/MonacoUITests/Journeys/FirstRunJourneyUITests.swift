@@ -19,7 +19,7 @@ nonisolated final class FirstRunJourneyUITests: XCTestCase {
         let member = try FirstRunJourney.member()
         let other = try FirstRunJourney.otherMember()
         let app = XCUIApplication.monacoForJourneys()
-        FirstRunJourney.ensureFirstRunDone(app, as: member)
+        FirstRunJourney.ensureSignedIn(app, as: member)
         FirstRunJourney.numberLinkedElsewhere(app, other: other)
         attachScreenshot(of: app, named: "S2 Home after Not now")
     }
@@ -28,7 +28,7 @@ nonisolated final class FirstRunJourneyUITests: XCTestCase {
     func testS3RelaunchPastTheGate() throws {
         let member = try FirstRunJourney.member()
         let app = XCUIApplication.monacoForJourneys()
-        FirstRunJourney.ensureFirstRunDone(app, as: member)
+        FirstRunJourney.ensureSignedIn(app, as: member)
         FirstRunJourney.relaunchPastTheGate(app)
         attachScreenshot(of: app, named: "S3 Profile with the handle")
     }
@@ -38,7 +38,7 @@ nonisolated final class FirstRunJourneyUITests: XCTestCase {
         let member = try FirstRunJourney.member()
         let number = try FirstRunJourney.linkNumber()
         let app = XCUIApplication.monacoForJourneys()
-        FirstRunJourney.ensureFirstRunDone(app, as: member)
+        FirstRunJourney.ensureSignedIn(app, as: member)
         FirstRunJourney.linkANumber(app, number: number)
         attachScreenshot(of: app, named: "S4 Home with the X nudge")
     }

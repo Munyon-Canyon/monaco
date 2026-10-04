@@ -137,19 +137,21 @@ enum FirstRunJourney {
         }
     }
 
-    static func ensureFirstRunDone(_ app: XCUIApplication, as member: JourneyAccount) {
-        let recorder = recorder()
-        recorder.step("P6", "start signed in as C past the first run") {
+    static func ensureSignedIn(_ app: XCUIApplication, as member: JourneyAccount) {
+        recorder().step("P6", "start signed in as C") {
             app.launch()
-            let screen = SignInJourney.currentScreen(app)
-            if screen == .login {
+            if SignInJourney.currentScreen(app) == .login {
                 SignInJourney.enterCode(app, as: member, recorder: SignInJourney.recorder())
             }
-            XCTAssertTrue(
-                app.tab("Home").waitForExistence(timeout: signedInTimeout),
-                "P6: C did not reach the tab bar. Run S1 first, so C has a handle (P6)")
-            app.tab("Home").tap()
         }
+    }
+
+    static func openHome(_ app: XCUIApplication, step: String) {
+        XCTAssertTrue(
+            app.tab("Home").waitForExistence(timeout: signedInTimeout),
+            "\(step): C did not reach the tab bar within \(Int(signedInTimeout)) s. The setup script puts C past the first run (P6)"
+        )
+        app.tab("Home").tap()
     }
 
     static func numberLinkedElsewhere(_ app: XCUIApplication, other: JourneyAccount) {
@@ -157,6 +159,7 @@ enum FirstRunJourney {
         let skip = app.buttons["phone-step-skip"]
 
         recorder.step("S2.1", "the nudge opens the phone sheet") {
+            openHome(app, step: "S2.1")
             XCTAssertTrue(
                 waitForNudge(app, reading: addPhoneNudge, timeout: stepTimeout),
                 "S2.1: the nudge did not read '\(addPhoneNudge)', it read '\(nudge(app).label)'")
@@ -223,7 +226,7 @@ enum FirstRunJourney {
         let recorder = recorder()
 
         recorder.step("S4.1", "the nudge opens the phone sheet") {
-            app.tab("Home").tap()
+            openHome(app, step: "S4.1")
             XCTAssertTrue(
                 waitForNudge(app, reading: addPhoneNudge, timeout: stepTimeout),
                 "S4.1: the nudge did not read '\(addPhoneNudge)', it read '\(nudge(app).label)'")
