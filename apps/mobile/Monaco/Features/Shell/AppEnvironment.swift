@@ -160,7 +160,7 @@ final class AppEnvironment {
         if viewer != nil, !wasOpen { registerForPush() }
     }
 
-    private func registerForPush() {
+    func registerForPush() {
         Task { await AppDelegate.registerIfAuthorized() }
     }
 

@@ -54,7 +54,7 @@ struct SettingsView: View {
     @Environment(AppEnvironment.self) private var environment
 
     var body: some View {
-        SettingsList(authorization: LiveNotificationAuthorizing()) { route in
+        SettingsList(authorization: LiveNotificationAuthorizing(), register: environment.registerForPush) { route in
             environment.navigator.open(route, in: environment.navigator.selectedTab)
         }
     }
@@ -62,6 +62,7 @@ struct SettingsView: View {
 
 struct SettingsList: View {
     let authorization: any NotificationAuthorizing
+    let register: () -> Void
     let open: (any AppRoute) -> Void
 
     @Environment(\.openURL) private var openURL
@@ -101,12 +102,22 @@ struct SettingsList: View {
         status = await authorization.status()
     }
 
+    private func tapNotifications() async {
+        switch await authorization.status() {
+        case .notDetermined:
+            if await authorization.request() { register() }
+            await readNotifications()
+        case .denied, .authorized:
+            guard let url = URL(string: UIApplication.openNotificationSettingsURLString) else { return }
+            openURL(url)
+        }
+    }
+
     @ViewBuilder private func link(for row: SettingsRow) -> some View {
         switch row {
         case .notifications:
             Button {
-                guard let url = URL(string: UIApplication.openNotificationSettingsURLString) else { return }
-                openURL(url)
+                Task { await tapNotifications() }
             } label: {
                 MonacoRow(
                     title: row.title,
@@ -168,7 +179,7 @@ private struct FixedAuthorization: NotificationAuthorizing {
 
 #Preview {
     NavigationStack {
-        SettingsList(authorization: FixedAuthorization(current: .authorized)) { _ in }
+        SettingsList(authorization: FixedAuthorization(current: .authorized), register: {}) { _ in }
     }
 }
 
@@ -187,7 +198,7 @@ private struct SettingsHarnessScreen: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            SettingsList(authorization: FixedAuthorization(current: authorized ? .authorized : .denied)) {
+            SettingsList(authorization: FixedAuthorization(current: authorized ? .authorized : .denied), register: {}) {
                 path.append(AnyAppRoute($0))
             }
             .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
