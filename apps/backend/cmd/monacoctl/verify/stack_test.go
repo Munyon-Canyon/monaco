@@ -349,10 +349,10 @@ func TestOverBudget_namesThePhaseAndTheFlow(t *testing.T) {
 func TestWaitPostgres_returnsOnceTheServerAnswersEvenBeforeMigrations(t *testing.T) {
 	t.Parallel()
 	url := strings.Replace(config.TestDBURL(os.Environ()), "/monaco?", "/postgres?", 1)
-	if err := waitPostgres(t.Context(), url); err != nil {
+	if err := waitPostgres(t.Context(), url, pollEvery); err != nil {
 		t.Fatalf("waitPostgres on an unmigrated database = %v", err)
 	}
-	if err := waitPostgres(t.Context(), "::not a url"); err == nil {
+	if err := waitPostgres(t.Context(), "::not a url", pollEvery); err == nil {
 		t.Fatal("waitPostgres accepted an unparsable url")
 	}
 }

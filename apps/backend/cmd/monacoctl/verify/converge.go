@@ -1,6 +1,7 @@
 package verify
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"maps"
@@ -41,7 +42,7 @@ func (d *driver) flowEvents(ctx context.Context, users []string) ([]string, erro
 }
 
 func (d *driver) converge(ctx context.Context, u Unit, eventIDs []string) error {
-	tick := time.NewTicker(pollEvery)
+	tick := time.NewTicker(d.pollInterval())
 	defer tick.Stop()
 	for {
 		stuck, err := d.probe(ctx, u, eventIDs)
@@ -55,6 +56,8 @@ func (d *driver) converge(ctx context.Context, u Unit, eventIDs []string) error 
 		}
 	}
 }
+
+func (d *driver) pollInterval() time.Duration { return cmp.Or(d.env.PollEvery, pollEvery) }
 
 func (d *driver) probe(ctx context.Context, u Unit, eventIDs []string) (string, error) {
 	ctx, cancel := detached(ctx)

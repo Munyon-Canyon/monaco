@@ -222,12 +222,13 @@ func testOptions(t *testing.T, mode string) Options {
 	t.Helper()
 	dir := backendDir(t)
 	return Options{
-		Dir:      dir,
-		Atlas:    "true",
-		Environ:  fakeEnviron(mode),
-		Bins:     fakeBinaries(t),
-		Budget:   testBudget(),
-		Postgres: testPostgres(t),
+		Dir:       dir,
+		Atlas:     "true",
+		Environ:   fakeEnviron(mode),
+		Bins:      fakeBinaries(t),
+		Budget:    testBudget(),
+		Postgres:  testPostgres(t),
+		PollEvery: 5 * time.Millisecond,
 	}
 }
 
