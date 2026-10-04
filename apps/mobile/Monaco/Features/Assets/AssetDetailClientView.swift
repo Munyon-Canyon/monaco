@@ -69,6 +69,23 @@ struct AssetDetailClientView: View {
         }
         .monacoCanvas()
         .foregroundStyle(MonacoTheme.ink)
+        .safeAreaInset(edge: .bottom) {
+            BottomCTA {
+                VStack(spacing: MonacoTheme.Space.xs) {
+                    Button(AssetDetailBuyCTA.title(tradable: detail.isTradable)) {
+                        AssetDetailBuyCTA.open(symbol: symbol) {
+                            environment.navigator.open($0, in: $1)
+                        }
+                    }
+                    .buttonStyle(.monacoPrimary)
+                    .disabled(!detail.isTradable)
+                    .accessibilityIdentifier("asset-detail-propose-buy")
+                    Text("Your cabal votes before anything is bought")
+                        .font(MonacoTheme.Typo.caption)
+                        .foregroundStyle(MonacoTheme.muted)
+                }
+            }
+        }
         .accessibilityIdentifier("asset-detail-root")
     }
 
@@ -230,9 +247,19 @@ struct AssetDetailClientView: View {
     }
 }
 
+enum AssetDetailBuyCTA {
+    static func title(tradable: Bool) -> String {
+        tradable ? "Propose buy" : "Can't buy right now"
+    }
+
+    static func open(symbol: String, navigator: (ProposeFromAssetRoute, MainTab) -> Void) {
+        navigator(ProposeFromAssetRoute(symbol: symbol, kind: .buy), .stocks)
+    }
+}
+
 #if DEBUG
 private enum AssetDetailClientSampleScenario: String {
-    case open, sparse, fallbackSeries, emptyChart, chartFailed
+    case open, sparse, untradable, fallbackSeries, emptyChart, chartFailed
     static func matching(_ arguments: [String]) -> Self? {
         guard let index = arguments.firstIndex(of: "-MonacoAssetDetailSample"), arguments.indices.contains(index + 1)
         else { return nil }
@@ -252,7 +279,8 @@ private struct AssetDetailClientSampleHarness: View {
     init(scenario: AssetDetailClientSampleScenario) {
         self.scenario = scenario
         let isPreIpo = scenario == .sparse
-        let detail = isPreIpo ? Components.Schemas.AssetDetail.spaceX : .googl
+        var detail = isPreIpo ? Components.Schemas.AssetDetail.spaceX : .googl
+        if scenario == .untradable { detail.tradable = false }
         let range: AssetChartRange = scenario == .fallbackSeries ? .oneYear : .oneDay
         let chart = scenario == .emptyChart || scenario == .chartFailed ? nil : Self.chart(range: range)
         _model = State(
