@@ -21,7 +21,6 @@ typealias StockVsTokenDTO = MonacoCore.StockVsTokenDTO
 typealias ReferenceQuoteDTO = MonacoCore.ReferenceQuoteDTO
 typealias AssetChartPointDTO = MonacoCore.AssetChartPointDTO
 typealias AssetChartDTO = MonacoCore.AssetChartDTO
-typealias AssetChartRange = MonacoCore.AssetChartRange
 typealias MarketStatusDTO = MonacoCore.MarketStatusDTO
 typealias AssetSocialDTO = MonacoCore.AssetSocialDTO
 typealias AssetHoldingDTO = MonacoCore.AssetHoldingDTO
