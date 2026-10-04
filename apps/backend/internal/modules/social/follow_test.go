@@ -31,6 +31,8 @@ type fixture struct {
 	users    *fakes.Identity
 	follow   *app.FollowHandler
 	unfollow *app.UnfollowHandler
+	mute     *app.MuteHandler
+	unmute   *app.UnmuteHandler
 	alice    ids.UserID
 	bob      ids.UserID
 	banned   ids.UserID
@@ -58,6 +60,8 @@ func newFixture(t *testing.T) fixture {
 	}, nil)
 	f.follow = app.NewFollowHandler(app.FollowDeps{UoW: uow, Users: f.users, IDs: g, Clock: clk})
 	f.unfollow = app.NewUnfollowHandler(uow, clk)
+	f.mute = app.NewMuteHandler(uow, clk)
+	f.unmute = app.NewUnmuteHandler(uow)
 	return f
 }
 

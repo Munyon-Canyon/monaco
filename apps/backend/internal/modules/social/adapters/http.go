@@ -16,7 +16,44 @@ import (
 type HTTP struct {
 	Follow   *app.FollowHandler
 	Unfollow *app.UnfollowHandler
+	Mute     *app.MuteHandler
+	Unmute   *app.UnmuteHandler
 	Reads    sqlc.DBTX
+}
+
+func (h HTTP) PutMeFeedMutes(
+	ctx context.Context, req api.PutMeFeedMutesRequestObject,
+) (api.PutMeFeedMutesResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.Body == nil {
+		return nil, errs.New(errs.CodeInvalidInput, "social.PutMeFeedMutes")
+	}
+	cmd := app.Mute{
+		User: me, TargetType: string(req.Body.TargetType), TargetID: req.Body.TargetId,
+	}
+	if err := h.Mute.Handle(ctx, cmd); err != nil {
+		return nil, err
+	}
+	return api.PutMeFeedMutes204Response{}, nil
+}
+
+func (h HTTP) DeleteMeFeedMutesTargetTypeTargetID(
+	ctx context.Context, req api.DeleteMeFeedMutesTargetTypeTargetIDRequestObject,
+) (api.DeleteMeFeedMutesTargetTypeTargetIDResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cmd := app.Unmute{
+		User: me, TargetType: string(req.TargetType), TargetID: req.TargetId,
+	}
+	if err := h.Unmute.Handle(ctx, cmd); err != nil {
+		return nil, err
+	}
+	return api.DeleteMeFeedMutesTargetTypeTargetID204Response{}, nil
 }
 
 var _ api.StrictServerInterface = HTTP{}

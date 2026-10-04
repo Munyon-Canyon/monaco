@@ -1600,6 +1600,48 @@ paths:
                 $ref: "#/components/schemas/FeedItemDetail"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/feed-mutes:
+    put:
+      operationId: putMeFeedMutes
+      tags: [social]
+      x-idempotent: true
+      summary: Mute a feed target.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The feed target to mute.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedMuteRequest"
+            example: {target_type: asset, target_id: AAPLx}
+      responses:
+        "204": {description: The target is muted.}
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/feed-mutes/{target_type}/{target_id}:
+    delete:
+      operationId: deleteMeFeedMutesTargetTypeTargetID
+      tags: [social]
+      x-idempotent: true
+      summary: Unmute a feed target.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: target_type
+          in: path
+          required: true
+          description: What kind of target is muted.
+          schema: {type: string, enum: [kind, cabal, asset, user, item], examples: [asset]}
+        - name: target_id
+          in: path
+          required: true
+          description: The muted target's id.
+          schema: {type: string, maxLength: 64, examples: [AAPLx]}
+      responses:
+        "204": {description: The target is not muted.}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/users/{id}/follow:
     post:
       operationId: postUserFollow
@@ -3486,6 +3528,14 @@ components:
           type: boolean
           description: True when the item passes the filters sent with the request.
           examples: [true]
+    FeedMuteRequest:
+      type: object
+      description: The feed target to mute.
+      additionalProperties: false
+      required: [target_type, target_id]
+      properties:
+        target_type: {type: string, enum: [kind, cabal, asset, user, item], examples: [asset]}
+        target_id: {type: string, maxLength: 64, examples: [AAPLx]}
     FeedPage:
       type: object
       description: One page of feed items, newest first.

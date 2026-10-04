@@ -43,6 +43,8 @@ func (m *Module) http() adapters.HTTP {
 			UoW: m.deps.UoW, Users: m.users, IDs: m.deps.IDs, Clock: m.deps.Clock,
 		}),
 		Unfollow: app.NewUnfollowHandler(m.deps.UoW, m.deps.Clock),
+		Mute:     app.NewMuteHandler(m.deps.UoW, m.deps.Clock),
+		Unmute:   app.NewUnmuteHandler(m.deps.UoW),
 		Reads:    m.deps.Pool,
 	}
 }
