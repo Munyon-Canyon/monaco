@@ -5,7 +5,6 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -57,6 +56,17 @@ func TestCIPathFilter_scriptsRunWhenAFileTheyReadChanges(t *testing.T) {
 	filters := parsePathFilters(t)
 	for _, p := range outsideScriptsFilter(filters, readRepoPaths(t)) {
 		t.Errorf("%s is read by a scripts test but is not in the scripts filter of ci-jobs.yml", p)
+	}
+	opensWithoutReadRepo := []struct{ path, reader string }{
+		{".claude/skills/any/SKILL.md", "skill_paths_test.go"},
+		{".cursor/skills/any/SKILL.md", "skill_paths_test.go"},
+		{".github/pull_request_template.md", "test_check_pr_format.py"},
+		{"packages/mobile-core/Tests/MonacoCoreTests/LegacyFreezeTests.swift", "test_check_legacy_growth.py"},
+	}
+	for _, in := range opensWithoutReadRepo {
+		if len(outsideScriptsFilter(filters, []string{in.path})) > 0 {
+			t.Errorf("%s is opened by %s but is not in the scripts filter of ci-jobs.yml", in.path, in.reader)
+		}
 	}
 	planted := []string{"docs/not-read.md"}
 	if got := outsideScriptsFilter(filters, planted); !reflect.DeepEqual(got, planted) {
@@ -155,16 +165,13 @@ func readRepoPaths(t *testing.T) []string {
 
 func parsePathFilters(t *testing.T) map[string][]string {
 	t.Helper()
-	text, err := os.ReadFile(repoRoot(t) + "/.github/workflows/ci-jobs.yml")
-	if err != nil {
-		t.Fatal(err)
-	}
+	text := readRepo(t, repoRoot(t), ".github/workflows/ci-jobs.yml")
 	marker := "filters: |"
-	start := strings.Index(string(text), marker)
+	start := strings.Index(text, marker)
 	if start < 0 {
 		t.Fatal("ci-jobs.yml has no filters block")
 	}
-	rest := strings.Split(string(text)[start+len(marker):], "\n")
+	rest := strings.Split(text[start+len(marker):], "\n")
 	filters := map[string][]string{}
 	name := ""
 	nameRe := regexp.MustCompile(`^            ([a-z0-9-]+):\s*$`)
