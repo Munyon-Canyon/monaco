@@ -55,3 +55,17 @@ func TestPayoutFor(t *testing.T) {
 	_, err = domain.PayoutFor(units(0), units(0), money.MicrosFromUint64(10))
 	wantCode(t, err, errs.CodeInvalidInput)
 }
+
+func TestCashOutUnitsForRoundsUp(t *testing.T) {
+	t.Parallel()
+	got, err := domain.CashOutUnitsFor(
+		money.MicrosFromUint64(1), money.SharesUnitsFromUint64(3), money.MicrosFromUint64(10),
+	)
+	if err != nil || got.Uint64() != 1 {
+		t.Fatalf("CashOutUnitsFor = %v, %v", got, err)
+	}
+	_, err = domain.CashOutUnitsFor(
+		money.MicrosFromUint64(1), money.SharesUnitsFromUint64(1), money.Micros{},
+	)
+	wantCode(t, err, errs.CodeInvalidInput)
+}

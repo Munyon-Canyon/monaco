@@ -1,6 +1,7 @@
 package money
 
 import (
+	"cmp"
 	"database/sql/driver"
 	"log/slog"
 	"math/bits"
@@ -47,6 +48,8 @@ func (s SharesUnits) Sub(o SharesUnits) (SharesUnits, error) {
 }
 
 func (s SharesUnits) Uint64() uint64 { return s.v }
+
+func (s SharesUnits) Cmp(o SharesUnits) int { return cmp.Compare(s.v, o.v) }
 
 func (s SharesUnits) IsZero() bool { return s.v == 0 }
 

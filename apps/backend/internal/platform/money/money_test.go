@@ -112,6 +112,18 @@ func TestMicrosArithmetic(t *testing.T) {
 	wantCode(t, err, errs.CodeInvalidInput)
 }
 
+func TestMulDivCeil(t *testing.T) {
+	t.Parallel()
+	got, err := money.MulDivCeil(1, 2, 3)
+	if err != nil || got != 1 {
+		t.Fatalf("MulDivCeil = %d, %v", got, err)
+	}
+	_, err = money.MulDivCeil(1, 1, 0)
+	wantCode(t, err, errs.CodeInvalidInput)
+	_, err = money.MulDivCeil(math.MaxUint64, math.MaxUint64, 1)
+	wantCode(t, err, errs.CodeInvalidInput)
+}
+
 func TestCmp(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
