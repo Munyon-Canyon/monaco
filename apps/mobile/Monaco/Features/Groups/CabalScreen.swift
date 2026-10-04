@@ -1,3 +1,4 @@
+import MonacoCore
 import SwiftUI
 
 struct CabalScreen: View {
@@ -25,10 +26,15 @@ struct CabalScreen: View {
         CabalLeaveSlot.self,
     ]
 
+    private static let heroScrollDistance: CGFloat = 140
+
     let context: CabalContext
     let sections: [any CabalSection.Type]
     let detailsSections: [any CabalSection.Type]
+    @Environment(AppEnvironment.self) private var environment
     @State private var showsDetails = false
+    @State private var heroScrolledAway = false
+    @State private var titleModel: CabalActionsModel?
 
     init(
         cabalID: String,
@@ -50,20 +56,55 @@ struct CabalScreen: View {
                 SectionStack(context: context, sections: sections)
             }
         }
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            geometry.contentOffset.y + geometry.contentInsets.top > Self.heroScrollDistance
+        } action: { _, scrolledAway in
+            heroScrolledAway = scrolledAway
+        }
+        .navigationTitle(heroScrolledAway ? titleModel?.cabalName ?? "" : "")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            let model = preparedTitleModel()
+            await model.load()
+            await model.observe()
+        }
         .toolbar {
             if !SectionStack<CabalContext>.live(details).isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Details") {
+                    Button {
                         showsDetails = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
-                    .accessibilityIdentifier("cabalDetailsButton")
+                    .accessibilityLabel("Cabal details")
+                    .accessibilityIdentifier("cabal-details-button")
                 }
             }
         }
         .sheet(isPresented: $showsDetails) {
             NavigationStack {
                 SectionStack(context: context, sections: details)
+                    .navigationTitle("Cabal details")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Done") {
+                                showsDetails = false
+                            }
+                            .accessibilityIdentifier("cabal-details-done")
+                        }
+                    }
             }
+            .presentationDetents([.medium, .large])
         }
+    }
+
+    private func preparedTitleModel() -> CabalActionsModel {
+        if let titleModel { return titleModel }
+        let created = CabalActionsModel(cabalID: context.cabalID, api: environment.api, hints: environment.hints)
+        titleModel = created
+        return created
     }
 }

@@ -1,9 +1,152 @@
+import MonacoAPI
+import MonacoCore
 import SwiftUI
 
 enum CabalActionsSlot: CabalSection {
-    static let isLive = false
+    static let isLive = true
 
     static func body(for context: CabalContext) -> some View {
-        EmptyView()
+        CabalActionsLive(cabalID: context.cabalID)
     }
 }
+
+private struct CabalActionsLive: View {
+    let cabalID: String
+
+    @Environment(AppEnvironment.self) private var environment
+    @State private var model: CabalActionsModel?
+
+    var body: some View {
+        CabalActionsRow(model: model) { route in
+            environment.navigator.open(route, in: environment.navigator.selectedTab)
+        }
+        .task {
+            let model = preparedModel()
+            await model.load()
+            await model.observe()
+        }
+    }
+
+    private func preparedModel() -> CabalActionsModel {
+        if let model { return model }
+        let created = CabalActionsModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
+        model = created
+        return created
+    }
+}
+
+struct CabalActionsRow: View {
+    let model: CabalActionsModel?
+    let open: (any AppRoute) -> Void
+
+    @State private var toast: MonacoToast?
+
+    var body: some View {
+        content
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .monacoToast($toast)
+            .onChange(of: model?.toast) { _, message in
+                guard let model, let message else { return }
+                toast = MonacoToast(message: message)
+                model.dismissToast()
+            }
+    }
+
+    @ViewBuilder private var content: some View {
+        switch model?.actions ?? .loading {
+        case .loading:
+            HStack(spacing: 0) {
+                ForEach(0..<4, id: \.self) { _ in
+                    SkeletonBlock(width: 56, height: 56, radius: 28)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+        case .hidden:
+            EmptyView()
+        case .member(let canPropose):
+            if let model {
+                buttons(cabalID: model.cabalID, canPropose: canPropose)
+            }
+        case .failed:
+            HStack {
+                Text("Couldn't load this cabal.")
+                    .font(MonacoTheme.Typo.body)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                Spacer()
+                Button("Try again") {
+                    Task { await model?.load() }
+                }
+                .buttonStyle(.monacoSecondary)
+                .accessibilityIdentifier("cabal-actions-retry")
+            }
+        }
+    }
+
+    private func buttons(cabalID: String, canPropose: Bool) -> some View {
+        VStack(spacing: MonacoTheme.Space.s) {
+            HStack(alignment: .top, spacing: 0) {
+                action("Add money", "plus", id: "cabal-action-fund", FundRoute(cabalID: cabalID))
+                action("Propose", "arrow.up.right", id: "cabal-action-propose", ProposeRoute(cabalID: cabalID))
+                    .disabled(!canPropose)
+                action("Cash out", "arrow.down.left", id: "cabal-action-cash-out", CashOutRoute(cabalID: cabalID))
+                action("Chat", "bubble.left", id: "cabal-action-chat", ChatRoute(cabalID: cabalID))
+            }
+            if !canPropose {
+                Text("Only voters can propose")
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.muted)
+                    .accessibilityIdentifier("cabal-action-propose-caption")
+            }
+        }
+    }
+
+    private func action(_ title: String, _ systemImage: String, id: String, _ route: some AppRoute) -> some View {
+        CircleAction(title, systemImage: systemImage) { open(route) }
+            .frame(maxWidth: .infinity)
+            .accessibilityIdentifier(id)
+    }
+}
+
+#if DEBUG
+final class CabalActionsSampleHarnessEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
+        guard let flag = arguments.firstIndex(of: "-cabalActionsHarness") else { return nil }
+        let role = arguments.indices.contains(flag + 1) ? arguments[flag + 1] : "voter"
+        return AnyView(CabalActionsHarnessScreen(role: role))
+    }
+}
+
+private struct CabalActionsHarnessScreen: View {
+    let role: String
+    @State private var model: CabalActionsModel?
+    @State private var path: [AnyAppRoute] = []
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            VStack(spacing: 0) {
+                CabalActionsRow(model: model) { path.append(AnyAppRoute($0)) }
+                Spacer(minLength: 0)
+            }
+            .padding(.top, MonacoTheme.Space.gutter)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .monacoCanvas()
+            .navigationTitle("QA pot")
+            .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
+            .task {
+                let created = model ?? CabalActionsModel.preview(Self.sample(role))
+                model = created
+                await created.load()
+            }
+        }
+    }
+
+    private static func sample(_ role: String) -> Components.Schemas.Cabal {
+        switch role {
+        case "nonvoter": .sample(role: "member", canVote: false)
+        case "outsider": .sample(role: nil)
+        default: .sample(role: "member", canVote: true)
+        }
+    }
+}
+#endif
