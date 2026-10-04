@@ -113,7 +113,7 @@ public final class StocksTabModel {
         }
     }
     public func observe() async {
-        await refresher.observe(hints.hints(matching: .global(what: nil)))
+        await refresher.observe(hints.hints(matching: .global(what: "prices_updated")))
     }
     public func setVisible(_ visible: Bool) {
         refresher.setVisible(visible)

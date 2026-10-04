@@ -6,6 +6,42 @@ import XCTest
 
 @MainActor
 final class StocksTabRefreshTests: XCTestCase {
+    func testPriceHintsAndResyncRefreshButOtherGlobalHintsDoNot() async {
+        let transport = StubTransport(scripted: [
+            .json(.ok, Self.page(symbols: ["AAPLx"], price: "100000000", change: "1000", cursor: nil)),
+            .json(.ok, Self.page(symbols: ["AAPLx"], price: "200000000", change: "2000", cursor: nil)),
+            .json(.ok, Self.page(symbols: ["AAPLx"], price: "300000000", change: "3000", cursor: nil)),
+        ])
+        let hints = FakeHintStream()
+        let model = StocksTabModel(
+            api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport),
+            hints: hints,
+            clock: TestClock()
+        )
+        await model.load()
+        let observer = Task { await model.observe() }
+        addTeardownBlock { observer.cancel() }
+        let subscribed = await waitUntil { await hints.subscriberCount == 1 }
+        XCTAssertTrue(subscribed)
+
+        await hints.send(.changed(.global, what: "prices_updated", id: "1"))
+        let priceRefreshed = await waitUntil { model.rows.first?.priceMicros == 200_000_000 }
+        let priceRequests = await transport.sent.count
+        XCTAssertTrue(priceRefreshed)
+        XCTAssertEqual(priceRequests, 2)
+
+        await hints.send(.resync)
+        let resynced = await waitUntil { model.rows.first?.priceMicros == 300_000_000 }
+        let resyncRequests = await transport.sent.count
+        XCTAssertTrue(resynced)
+        XCTAssertEqual(resyncRequests, 3)
+
+        await hints.send(.changed(.global, what: "other", id: "2"))
+        for _ in 0..<10 { await Task.yield() }
+        let otherRequests = await transport.sent.count
+        XCTAssertEqual(otherRequests, 3)
+    }
+
     func testPriceRefreshPreventsPaginationUntilItsPagesFinish() async {
         let transport = StubTransport(scripted: [
             .json(.ok, Self.page(symbols: ["AAPLx"], price: "100000000", change: "1000", cursor: "page-2")),
