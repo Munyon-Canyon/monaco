@@ -18,20 +18,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
-func f13Scripts() map[string]Script {
-	return map[string]Script{
-		"F13WithdrawProposalOK":                 F13WithdrawProposalOK,
-		"F13WithdrawProposalUnauthorized":       F13WithdrawProposalUnauthorized,
-		"F13WithdrawProposalProposalNotFound":   F13WithdrawProposalProposalNotFound,
-		"F13WithdrawProposalNotProposer":        F13WithdrawProposalNotProposer,
-		"F13WithdrawProposalProposalClosed":     F13WithdrawProposalProposalClosed,
-		"F13WithdrawProposalWithdrawNotAllowed": F13WithdrawProposalWithdrawNotAllowed,
-		"F13WithdrawProposalCrashAfterPublish":  F13WithdrawProposalCrashAfterPublish,
-		"F13aVoidProposalOK":                    F13aVoidProposalOK,
-		"F13aVoidProposalLiveSwapExists":        F13aVoidProposalLiveSwapExists,
-	}
-}
-
 func F13WithdrawProposalOK(s *scenario.Scenario) {
 	p := seedOpenProposal(s, 3)
 	s.Given(scenario.AsSeededUser("alice", p.voters[0])).

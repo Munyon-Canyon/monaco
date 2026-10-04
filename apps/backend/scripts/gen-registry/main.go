@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
+	"go/format"
 	"go/parser"
 	"go/token"
 	"maps"
@@ -26,10 +27,12 @@ const (
 	workerDir   = "cmd/worker"
 	platformMod = "internal/platform/module"
 	modulesDir  = "internal/modules"
+	flowsDir    = "internal/testkit/flows"
 	replayPkg   = "internal/tools/ops/replay"
 	genSuffix   = ".gen.go"
 	testSuffix  = "_test.go"
 	toolPattern = `^tool[A-Z]\w*$`
+	flowPattern = `^F[0-9]+[a-z]?[A-Z]`
 )
 
 type plan map[string][]byte
@@ -98,7 +101,7 @@ func drift(root string) ([]string, error) {
 
 func build(root string) (plan, error) {
 	p := plan{}
-	for _, step := range []func(string, plan) error{planMsgs, planTools, planModules} {
+	for _, step := range []func(string, plan) error{planMsgs, planTools, planModules, planFlowScripts} {
 		if err := step(root, p); err != nil {
 			return nil, err
 		}
@@ -108,7 +111,7 @@ func build(root string) (plan, error) {
 
 func owned(root string) ([]string, error) {
 	var out []string
-	for _, dir := range []string{msgsDir, toolsDir, apiDir, workerDir} {
+	for _, dir := range []string{msgsDir, toolsDir, apiDir, workerDir, flowsDir} {
 		names, err := list(root, dir, func(name string) bool { return strings.HasSuffix(name, genSuffix) })
 		if err != nil {
 			return nil, err
@@ -313,6 +316,63 @@ func declares(name string) func(*ast.File) bool {
 			return ok && fn.Recv == nil && fn.Name.Name == name
 		})
 	}
+}
+
+func planFlowScripts(root string, p plan) error {
+	files, names, err := sources(root, flowsDir, "")
+	if err != nil {
+		return err
+	}
+	for i, f := range files {
+		entries, err := flowScripts(names[i], f)
+		if err != nil {
+			return err
+		}
+		if entries == "" {
+			continue
+		}
+		stem := strings.TrimSuffix(filepath.Base(names[i]), ".go")
+		rel := companion(names[i])
+		p.add(rel, f.Name.Name, nil, "func (defined) Scripts"+strings.ToUpper(stem[:1])+stem[1:]+
+			"() map[string]Script {\n\treturn map[string]Script{\n"+entries+"\t}\n}\n")
+		if p[rel], err = format.Source(p[rel]); err != nil {
+			return fmt.Errorf("format %s: %w", rel, err)
+		}
+	}
+	return nil
+}
+
+func flowScripts(rel string, f *ast.File) (string, error) {
+	pattern := regexp.MustCompile(flowPattern)
+	var entries strings.Builder
+	for _, decl := range f.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv != nil || !pattern.MatchString(fn.Name.Name) {
+			continue
+		}
+		if !isScript(fn.Type) {
+			return "", fmt.Errorf(
+				"%s: %s is named like a flow script but is not func(*scenario.Scenario)",
+				rel,
+				fn.Name.Name,
+			)
+		}
+		fmt.Fprintf(&entries, "\t\t%s: %s,\n", strconv.Quote(fn.Name.Name), fn.Name.Name)
+	}
+	return entries.String(), nil
+}
+
+func isScript(t *ast.FuncType) bool {
+	params := t.Params.List
+	if len(params) != 1 || len(params[0].Names) > 1 || (t.Results != nil && len(t.Results.List) > 0) {
+		return false
+	}
+	star, ok := params[0].Type.(*ast.StarExpr)
+	if !ok {
+		return false
+	}
+	sel, ok := star.X.(*ast.SelectorExpr)
+	return ok && isIdent(sel.X, "scenario") && sel.Sel.Name == "Scenario"
 }
 
 func companion(rel string) string {
