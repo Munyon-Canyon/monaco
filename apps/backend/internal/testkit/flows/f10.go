@@ -9,8 +9,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
@@ -22,10 +24,12 @@ const (
 )
 
 type openProposal struct {
-	id     ids.ProposalID
-	path   string
-	votes  string
-	voters []ids.UserID
+	id         ids.ProposalID
+	cabalID    ids.CabalID
+	proposerID ids.UserID
+	path       string
+	votes      string
+	voters     []ids.UserID
 }
 
 type seedT struct{ *scenario.Scenario }
@@ -35,7 +39,9 @@ func (seedT) Helper() {}
 func seedOpenProposal(s *scenario.Scenario, members int) openProposal {
 	c := testkit.NewCabal(seedT{s}, s.DB(), testkit.WithMembers(members))
 	id, now := ids.Real{}.NewV7(), time.Now().UTC()
-	p := openProposal{id: ids.ProposalIDFrom(id), path: "/v1/proposals/" + id.String()}
+	p := openProposal{
+		id: ids.ProposalIDFrom(id), cabalID: c.ID, proposerID: c.Creator.ID, path: "/v1/proposals/" + id.String(),
+	}
 	p.votes = p.path + "/votes"
 	params := sqlc.InsertProposalParams{
 		ID: id, CabalID: c.ID.UUID(), ProposerID: c.Creator.ID.UUID(), Kind: "buy", Symbol: "AAPLx",
@@ -56,9 +62,17 @@ func tally(yes, no, voters, needed int) map[string]int {
 	return map[string]int{"yes": yes, "no": no, "voters": voters, "needed": needed}
 }
 
+func passedProposal(p openProposal) events.ProposalPassed {
+	return events.ProposalPassed{
+		V: 1, ProposalID: p.id.UUID(), CabalID: p.cabalID.UUID(), ProposerID: p.proposerID.UUID(), Kind: "buy",
+		Symbol: "AAPLx", Mint: chain.SolanaAddress(aaplxMint), USDCMicros: money.MicrosFromUint64(5_000_000),
+		QuoteOutAmount: 21_000_000,
+	}
+}
+
 func F10CastVoteOK(s *scenario.Scenario) {
 	p := seedOpenProposal(s, 3)
-	s.Given(scenario.AsSeededUser("alice", p.voters[0])).
+	s.Given(scenario.AsUser("mallory"), scenario.AsSeededUser("alice", p.voters[0])).
 		When(
 			scenario.Post(p.votes, no),
 			scenario.ExpectStatus(http.StatusOK),
@@ -76,7 +90,10 @@ func F10CastVoteOK(s *scenario.Scenario) {
 		).
 		Then(
 			scenario.ExpectEvents(events.TypeProposalPassed, 1),
+			scenario.ExpectEventPayload(events.TypeProposalPassed, passedProposal(p)),
 			scenario.EventuallyPublished(events.TypeProposalPassed, 1),
+			scenario.EventuallyCabalHint(p.cabalID, "proposal_updated"),
+			scenario.NoHintFor("mallory", "proposal_updated", 100*time.Millisecond),
 		)
 }
 

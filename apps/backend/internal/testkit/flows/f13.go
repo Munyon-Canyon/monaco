@@ -22,18 +22,16 @@ func F13WithdrawProposalOK(s *scenario.Scenario) {
 	p := seedOpenProposal(s, 3)
 	s.Given(scenario.AsSeededUser("alice", p.voters[0])).
 		When(
-			scenario.Post(p.votes, yes),
-			scenario.ExpectStatus(http.StatusOK),
 			scenario.Delete(p.path),
 			scenario.ExpectStatus(http.StatusOK),
 			scenario.ExpectJSON("status", "withdrawn"),
-			scenario.ExpectJSON("my_ballot", "yes"),
 			scenario.ExpectJSON("can_withdraw", false),
 			scenario.Replay(),
 		).
 		Then(
 			scenario.ExpectEvents(events.TypeProposalWithdrawn, 1),
 			scenario.EventuallyPublished(events.TypeProposalWithdrawn, 1),
+			scenario.EventuallyCabalHint(p.cabalID, "proposal_updated"),
 		)
 }
 

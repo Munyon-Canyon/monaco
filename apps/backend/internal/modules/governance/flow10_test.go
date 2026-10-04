@@ -23,6 +23,11 @@ func TestFlow10_CastVote_OK(t *testing.T) {
 	flows.F10CastVoteOK(scenario.New(t, withGovernance()))
 }
 
+func TestProposalHints_MemberReceives_NonMemberDoesNot(t *testing.T) {
+	t.Parallel()
+	flows.F10CastVoteOK(scenario.New(t, withGovernance()))
+}
+
 func TestFlow10_CastVote_Unauthorized(t *testing.T) {
 	t.Parallel()
 	flows.F10CastVoteUnauthorized(scenario.New(t, withGovernance()))
