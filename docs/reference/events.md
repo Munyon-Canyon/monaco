@@ -121,6 +121,34 @@ Subject `events.cabal.updated`, version 1.
 | `actor_id` | `uuid.UUID` |
 | `changes` | `events.CabalChanges` |
 
+## `deposit.candidate_dismissed`
+
+Subject `events.deposit.candidate_dismissed`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `candidate_id` | `uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+| `wallet_address` | `chain.SolanaAddress` |
+| `tx_signature` | `chain.Signature` |
+| `reason` | `string` |
+
+## `deposit.candidate_seen`
+
+Subject `events.deposit.candidate_seen`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `candidate_id` | `uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+| `wallet_address` | `chain.SolanaAddress` |
+| `tx_signature` | `chain.Signature` |
+| `slot` | `int64` |
+| `block_time` | `*time.Time` |
+| `source` | `string` |
+
 ## `deposit.credited`
 
 Subject `events.deposit.credited`, version 1.

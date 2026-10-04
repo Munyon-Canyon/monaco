@@ -59,6 +59,14 @@ func fixtures(t *testing.T) map[events.Type]any {
 			Slot:          123456,
 			BlockTime:     &sampled,
 		},
+		events.TypeDepositCandidateSeen: events.DepositCandidateSeen{
+			V: 1, CandidateID: id, UserID: user, WalletAddress: "9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P",
+			TxSignature: txSignature, Slot: 123456, BlockTime: &sampled, Source: "poller",
+		},
+		events.TypeDepositCandidateDismissed: events.DepositCandidateDismissed{
+			V: 1, CandidateID: id, UserID: user, WalletAddress: "9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P",
+			TxSignature: txSignature, Reason: "not_deposit",
+		},
 		events.TypeAssetPriceMoved: events.AssetPriceMoved{
 			V: 1, AssetID: id, Symbol: "AAPLx", AssetName: "Apple", ThresholdBps: 1000, ChangeBps: 1234,
 			MarkMicros: money.MicrosFromUint64(220_000_000), PrevCloseMicros: money.MicrosFromUint64(200_000_000),

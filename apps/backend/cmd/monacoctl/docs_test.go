@@ -102,6 +102,26 @@ func TestDocsEventsPrintsTheRegistryCatalog(t *testing.T) {
 		"| `cabal_id` | `uuid.UUID` |\n" +
 		"| `actor_id` | `uuid.UUID` |\n" +
 		"| `changes` | `events.CabalChanges` |\n\n" +
+		"## `deposit.candidate_dismissed`\n\n" +
+		"Subject `events.deposit.candidate_dismissed`, version 1.\n\n" +
+		"| Field | Go type |\n| --- | --- |\n" +
+		"| `v` | `int` |\n" +
+		"| `candidate_id` | `uuid.UUID` |\n" +
+		"| `user_id` | `uuid.UUID` |\n" +
+		"| `wallet_address` | `chain.SolanaAddress` |\n" +
+		"| `tx_signature` | `chain.Signature` |\n" +
+		"| `reason` | `string` |\n\n" +
+		"## `deposit.candidate_seen`\n\n" +
+		"Subject `events.deposit.candidate_seen`, version 1.\n\n" +
+		"| Field | Go type |\n| --- | --- |\n" +
+		"| `v` | `int` |\n" +
+		"| `candidate_id` | `uuid.UUID` |\n" +
+		"| `user_id` | `uuid.UUID` |\n" +
+		"| `wallet_address` | `chain.SolanaAddress` |\n" +
+		"| `tx_signature` | `chain.Signature` |\n" +
+		"| `slot` | `int64` |\n" +
+		"| `block_time` | `*time.Time` |\n" +
+		"| `source` | `string` |\n\n" +
 		"## `deposit.credited`\n\n" +
 		"Subject `events.deposit.credited`, version 1.\n\n" +
 		"| Field | Go type |\n| --- | --- |\n" +

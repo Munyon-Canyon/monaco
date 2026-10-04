@@ -130,6 +130,68 @@ func (q *Queries) InsertDeposit(ctx context.Context, arg InsertDepositParams) (i
 	return result.RowsAffected(), nil
 }
 
+const insertDepositCandidate = `-- name: InsertDepositCandidate :execrows
+INSERT INTO deposit_candidates (
+  tx_signature, wallet_address, user_id, slot, block_time, source, status, seen_at
+) VALUES ($1, $2, $3, $4,
+  NULLIF($7::timestamptz, '0001-01-01 00:00:00+00'::timestamptz),
+  $5, 'pending', $6)
+ON CONFLICT (tx_signature, wallet_address) DO NOTHING
+`
+
+type InsertDepositCandidateParams struct {
+	TxSignature   string
+	WalletAddress string
+	UserID        uuid.UUID
+	Slot          int64
+	Source        string
+	SeenAt        time.Time
+	BlockTime     time.Time
+}
+
+func (q *Queries) InsertDepositCandidate(ctx context.Context, arg InsertDepositCandidateParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertDepositCandidate,
+		arg.TxSignature,
+		arg.WalletAddress,
+		arg.UserID,
+		arg.Slot,
+		arg.Source,
+		arg.SeenAt,
+		arg.BlockTime,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const resolveDepositCandidate = `-- name: ResolveDepositCandidate :execrows
+UPDATE deposit_candidates
+SET status = $1,
+    resolved_at = NULLIF($4::timestamptz, '0001-01-01T00:00:00Z'::timestamptz)
+WHERE tx_signature = $2 AND wallet_address = $3 AND status = 'pending'
+`
+
+type ResolveDepositCandidateParams struct {
+	Status        string
+	TxSignature   string
+	WalletAddress string
+	ResolvedAt    time.Time
+}
+
+func (q *Queries) ResolveDepositCandidate(ctx context.Context, arg ResolveDepositCandidateParams) (int64, error) {
+	result, err := q.db.Exec(ctx, resolveDepositCandidate,
+		arg.Status,
+		arg.TxSignature,
+		arg.WalletAddress,
+		arg.ResolvedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setDepositBackfill = `-- name: SetDepositBackfill :exec
 UPDATE deposit_cursors
 SET backfill_before_signature = $2::text,
