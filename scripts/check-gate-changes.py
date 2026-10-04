@@ -61,7 +61,6 @@ SWIFT_TEST_ATTR = re.compile(r"@Test\b")
 SWIFT_FUNC = re.compile(r"\bfunc (\w+)\s*[(<]")
 SWIFT_CONFIGS = {".swift-format", ".swiftlint.yml"}
 ROW_FILES = {
-    ".swiftlint-baseline.tsv",
     "packages/mobile-core/Tests/MonacoCoreTests/RepoRulesAllowlist.txt",
     "packages/mobile-core/legacy-baseline.tsv",
     "apps/mobile/MonacoUITests/AccessibilityAuditAllowlist.txt",

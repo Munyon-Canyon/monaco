@@ -94,7 +94,6 @@ UI_TESTS = "apps/mobile/MonacoUITests/LoginUITests.swift"
 XCCONFIG = "apps/mobile/Config/Monaco.xcconfig"
 PBXPROJ = "apps/mobile/Monaco.xcodeproj/project.pbxproj"
 ROWS = {
-    ".swiftlint-baseline.tsv": "force_unwrapping\tapps/mobile/Monaco/A.swift\t3\n",
     "packages/mobile-core/Tests/MonacoCoreTests/RepoRulesAllowlist.txt": "urlsession\tapps/mobile/Monaco/B.swift\t2\n",
     "packages/mobile-core/legacy-baseline.tsv": "apps/mobile/Monaco/API/C.swift\n",
     "apps/mobile/MonacoUITests/AccessibilityAuditAllowlist.txt": "CabalsTabSampleUITests\tcontrast\tbutton.join\n",
@@ -423,7 +422,7 @@ class CheckTest(unittest.TestCase):
                 files[path] = text.replace(f"\t{count}\n", f"\t{int(count) + 1}\n")
                 findings.append(f"{path}:{len(text.splitlines())}: gate-file: raised `{' '.join(key.split())}` "
                                 f"{count} -> {int(count) + 1}")
-        self.assertEqual(len(findings), 2)
+        self.assertEqual(len(findings), 1)
         self.assert_flags(files, *findings)
 
     def test_row_file_new_row_among_unchanged_rows(self):
@@ -471,7 +470,7 @@ class CheckTest(unittest.TestCase):
         self.assert_clean({
             "packages/mobile-core/Sources/MonacoCore/Fund.swift": "struct Fund { let disabled = XCTSkip.self }\n",
             "apps/mobile/.swiftlint.yml": "opt_in_rules:\n  - force_try\n",
-            ".swiftlint-baseline.tsv": ROWS[".swiftlint-baseline.tsv"].replace("\t3\n", "\t2\n"),
+            "packages/mobile-core/Tests/MonacoCoreTests/RepoRulesAllowlist.txt": ROWS["packages/mobile-core/Tests/MonacoCoreTests/RepoRulesAllowlist.txt"].replace("\t2\n", "\t1\n"),
             "packages/mobile-core/coverage-floor.txt": "darwin 89.80\nlinux 88.10\n",
             XCCONFIG: "SWIFT_VERSION = 6.0\nSWIFT_TREAT_WARNINGS_AS_ERRORS = YES\nSWIFT_STRICT_CONCURRENCY = complete\n",
             PBXPROJ: "\t\t\t\tSWIFT_VERSION = 6.0;\n\t\t\t\tSWIFT_STRICT_CONCURRENCY = complete;\n",
@@ -732,7 +731,7 @@ class WorktreeTest(unittest.TestCase):
         cases = {
             SWIFT_FILE: (SWIFT_TESTS.replace("        XCTAssertEqual", "        throw XCTSkip()\n        XCTAssertEqual")
                          .replace("    @Test func decodes() {}\n", ""), ("test-skip", "test-removed: `decodes` is gone")),
-            ".swiftlint-baseline.tsv": (ROWS[".swiftlint-baseline.tsv"].replace("\t3\n", "\t4\n"), ("gate-file: raised",)),
+            "packages/mobile-core/Tests/MonacoCoreTests/RepoRulesAllowlist.txt": (ROWS["packages/mobile-core/Tests/MonacoCoreTests/RepoRulesAllowlist.txt"].replace("\t2\n", "\t3\n"), ("gate-file: raised",)),
             PERF_BUDGETS: (PERF_ROWS.replace("\t950\n", "\t1000\n"), ("gate-file: raised",)),
             ".swiftlint.yml": ("opt_in_rules:\n  - force_unwrapping\n  - x\n", ("gate-file: added `- x`",)),
             "packages/mobile-core/coverage-floor.txt": ("darwin 80.00\nlinux 88.10\n", ("gate-file: lowered",)),
@@ -756,7 +755,7 @@ class WorktreeTest(unittest.TestCase):
 
     def test_lowered_swift_row_and_newer_swift_version_pass_silently(self):
         for path, text in (
-            (".swiftlint-baseline.tsv", ROWS[".swiftlint-baseline.tsv"].replace("\t3\n", "\t1\n")),
+            ("packages/mobile-core/Tests/MonacoCoreTests/RepoRulesAllowlist.txt", ROWS["packages/mobile-core/Tests/MonacoCoreTests/RepoRulesAllowlist.txt"].replace("\t2\n", "\t1\n")),
             (PERF_BUDGETS, PERF_ROWS.replace("\t950\n", "\t800\n")),
             (XCCONFIG, "SWIFT_VERSION = 6.0\n"),
             (APP_TESTS, BASE[APP_TESTS] + "\nfinal class MoreTests: XCTestCase {\n    func testMore() {}\n}\n"),

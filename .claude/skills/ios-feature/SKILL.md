@@ -27,5 +27,3 @@ scripts/gen-mobile-feature.sh <Domain>
 | `packages/mobile-core/Sources/MonacoAPI/Fixtures/<Domain>+Sample.swift` | DEBUG sample value | `swift test` |
 
 The copy still calls `postSystemPing` and `getSystemPing`. Replace those with the screen's operation, then delete the ping-only assertions that no longer apply.
-
-When the rewire deletes legacy code, shrink the `feature-observable` allowlist row in `packages/mobile-core/Tests/MonacoCoreTests/RepoRulesAllowlist.txt` when an `@Observable` class leaves `Features/`.
