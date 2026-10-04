@@ -338,7 +338,6 @@ no_comments	packages/mobile-core/Tests/MonacoCoreTests/HeldAssetsDTOTests.swift	
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/HomeDashboardDTOTests.swift	11
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/HomeViewDTOTests.swift	3
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/IdempotentSubmissionTransportTests.swift	25
-no_comments	packages/mobile-core/Tests/MonacoCoreTests/LegacyFreezeTests.swift	2
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/LiveRefreshSchedulingTests.swift	24
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/MainFlowCopyAuditTests.swift	3
 no_comments	packages/mobile-core/Tests/MonacoCoreTests/MarketAssetAPITests.swift	5

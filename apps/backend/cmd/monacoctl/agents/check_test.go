@@ -241,6 +241,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		"apps/backend: golangci-lint version --short",
 		pr + "check-pr-size.py",
 		pr + "check-gate-changes.py",
+		pr + "check-legacy-growth.py",
 		"apps/backend: go build -tags faultpoints ./internal/x ./cmd/api",
 		"apps/backend: go vet -tags faultpoints ./internal/x ./internal/t ./cmd/api",
 		"apps/backend: golangci-lint run ./internal/x ./internal/t ./cmd/api",
@@ -323,7 +324,7 @@ func TestCheck_overBudgetExitsOneNamingTheSlowestPackageAndRecordsNothing(t *tes
 	}}
 
 	code, stdout, stderr := h.check(t, "--base", "fb")
-	want := "go test -short: package ./internal/slow took 79.0s, over the 20s per-package budget"
+	want := "go test -short: package ./internal/slow took 80.0s, over the 20s per-package budget"
 	if code != 1 || !strings.Contains(stderr, want) {
 		t.Fatalf("over budget: %d %q %q", code, stdout, stderr)
 	}
@@ -491,8 +492,9 @@ func TestCheck_mirroredCommandsStillMatchTheirWorkflows(t *testing.T) {
 			"run: scripts/ci/oasdiff-breaking-test.sh",
 			"../../scripts/ci/oasdiff-breaking.sh",
 		},
-		"pr-format.yml": {"run: python3 scripts/check-pr-size.py", "run: python3 scripts/check-gate-changes.py"},
-		"docs.yml":      {"NO_MKDOCS_2_WARNING: 'true'", "mkdocs build --strict --site-dir site"},
+		"pr-format.yml":      {"run: python3 scripts/check-pr-size.py", "run: python3 scripts/check-gate-changes.py"},
+		"docs.yml":           {"NO_MKDOCS_2_WARNING: 'true'", "mkdocs build --strict --site-dir site"},
+		"ci-mobile-core.yml": {"python3 scripts/check-legacy-growth.py"},
 	} {
 		body, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "..", ".github", "workflows", file))
 		if err != nil {

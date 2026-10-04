@@ -2,8 +2,6 @@ import XCTest
 
 @testable import MonacoCore
 
-/// The legacy hand-written API code only shrinks. `legacy-baseline.tsv` at the package root holds
-/// today's counts; each rewire lowers its rows in the same PR that deletes the code.
 final class LegacyFreezeTests: XCTestCase {
 
     private static let repoRoot = URL(fileURLWithPath: #filePath)
@@ -13,11 +11,11 @@ final class LegacyFreezeTests: XCTestCase {
         .deletingLastPathComponent()
         .deletingLastPathComponent()
 
-    func testLegacyCode_matchesTheBaseline() throws {
-        let baselineURL = Self.repoRoot.appendingPathComponent("packages/mobile-core/legacy-baseline.tsv")
-        let baseline = try LegacyFreeze.parseBaseline(String(contentsOf: baselineURL, encoding: .utf8))
+    func testLegacyCode_staysInsideTheFrozenList() throws {
+        let listURL = Self.repoRoot.appendingPathComponent("packages/mobile-core/legacy-baseline.tsv")
+        let listed = try LegacyFreeze.parseBaseline(String(contentsOf: listURL, encoding: .utf8))
 
-        let violations = try LegacyFreeze.violations(baseline: baseline, repoRoot: Self.repoRoot)
+        let violations = try LegacyFreeze.violations(listed: listed, repoRoot: Self.repoRoot)
 
         XCTAssertEqual(violations, [], violations.joined(separator: "\n"))
     }
@@ -29,9 +27,31 @@ final class LegacyFreezeTests: XCTestCase {
         try plant(
             "let request = URLRequest(url: url)\n", at: "packages/mobile-core/Sources/MonacoAPI/Client.swift", in: root)
 
-        let violations = try LegacyFreeze.violations(baseline: [:], repoRoot: root)
+        let violations = try LegacyFreeze.violations(listed: [], repoRoot: root)
 
-        XCTAssertEqual(violations, ["legacy code grew: urlrequest apps/mobile/Monaco/Features/Planted.swift 0 -> 1"])
+        XCTAssertEqual(
+            violations, ["legacy pattern outside the list: urlrequest apps/mobile/Monaco/Features/Planted.swift"])
+    }
+
+    func testPlantedFileUnderAPI_isCaught() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try plant("struct NewDTO: Decodable {}\n", at: "apps/mobile/Monaco/API/DTOs/NewDTO.swift", in: root)
+
+        let violations = try LegacyFreeze.violations(listed: [], repoRoot: root)
+
+        XCTAssertEqual(violations, ["new file under API: apps/mobile/Monaco/API/DTOs/NewDTO.swift"])
+    }
+
+    func testGoneAndCleanListedFiles_areIgnored() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try plant("struct Clean {}\n", at: "apps/mobile/Monaco/API/Clean.swift", in: root)
+
+        let violations = try LegacyFreeze.violations(
+            listed: ["apps/mobile/Monaco/API/Clean.swift", "apps/mobile/Monaco/API/Gone.swift"], repoRoot: root)
+
+        XCTAssertEqual(violations, [])
     }
 
     func testAppSources_reachNoExternalProductHost() throws {
@@ -60,23 +80,17 @@ final class LegacyFreezeTests: XCTestCase {
 
 private enum LegacyFreeze {
     enum Metric: String, CaseIterable {
-        case lines, urlrequest, timer, poll
+        case urlrequest, timer, poll
         case groupsPath = "groups_path"
 
         var patterns: [String] {
             switch self {
-            case .lines: return []
             case .urlrequest: return ["URLRequest("]
             case .timer: return ["Timer.publish"]
             case .poll: return ["pollWhileVisible(", "PollLoop.run("]
             case .groupsPath: return ["\"/v1/groups"]
             }
         }
-    }
-
-    struct Row: Hashable {
-        let metric: Metric
-        let path: String
     }
 
     struct MalformedRow: Error, CustomStringConvertible {
@@ -86,69 +100,36 @@ private enum LegacyFreeze {
 
     static let scannedTrees = ["apps/mobile/Monaco", "packages/mobile-core/Sources"]
     static let exemptTree = "packages/mobile-core/Sources/MonacoAPI/"
-    static let dtoTree = "apps/mobile/Monaco/API/DTOs/"
-    static let lineCountedClients = [
-        "apps/mobile/Monaco/API/MonacoAPIClient.swift",
-        "packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift",
-        "apps/mobile/Monaco/Features/Shell/AppSessionStore.swift",
-    ]
+    static let apiTree = "apps/mobile/Monaco/API/"
 
-    static func parseBaseline(_ text: String) throws -> [Row: Int] {
-        var rows: [Row: Int] = [:]
-        for line in text.split(separator: "\n") where !line.hasPrefix("#") {
-            let fields = line.split(separator: "\t", omittingEmptySubsequences: false)
-            guard fields.count == 3, let metric = Metric(rawValue: String(fields[0])), let count = Int(fields[2]) else {
+    static func parseBaseline(_ text: String) throws -> Set<String> {
+        var paths: Set<String> = []
+        let body = text.hasSuffix("\n") ? text.dropLast() : Substring(text)
+        for line in body.split(separator: "\n", omittingEmptySubsequences: false) {
+            guard !line.isEmpty, !line.contains("\t") else {
                 throw MalformedRow(line: String(line))
             }
-            rows[Row(metric: metric, path: String(fields[1]))] = count
+            paths.insert(String(line))
         }
-        return rows
+        return paths
     }
 
-    static func measure(repoRoot: URL) throws -> [Row: Int] {
-        var counts: [Row: Int] = [:]
+    static func violations(listed: Set<String>, repoRoot: URL) throws -> [String] {
+        var violations: [String] = []
         for tree in scannedTrees {
             for file in SourceWalk.files(under: repoRoot.appendingPathComponent(tree)) {
                 let path = relativePath(of: file, under: repoRoot)
-                guard !path.hasPrefix(exemptTree) else { continue }
-                let isLineCounted = path.hasPrefix(dtoTree) || lineCountedClients.contains(path)
-                guard isLineCounted || file.pathExtension == "swift" else { continue }
-                let text = try String(contentsOf: file, encoding: .utf8)
-                if isLineCounted {
-                    counts[Row(metric: .lines, path: path)] = text.utf8.filter { $0 == UInt8(ascii: "\n") }.count
+                guard !path.hasPrefix(exemptTree), !listed.contains(path) else { continue }
+                if path.hasPrefix(apiTree) {
+                    violations.append("new file under API: \(path)")
                 }
                 guard file.pathExtension == "swift" else { continue }
-                for metric in Metric.allCases where metric != .lines {
-                    let matches = metric.patterns.reduce(0) { $0 + text.components(separatedBy: $1).count - 1 }
-                    if matches > 0 {
-                        counts[Row(metric: metric, path: path)] = matches
-                    }
+                let text = try String(contentsOf: file, encoding: .utf8)
+                for metric in Metric.allCases where metric.patterns.contains(where: text.contains) {
+                    violations.append("legacy pattern outside the list: \(metric.rawValue) \(path)")
                 }
             }
         }
-        return counts
-    }
-
-    static func violations(baseline: [Row: Int], repoRoot: URL) throws -> [String] {
-        let actual = try measure(repoRoot: repoRoot)
-        var violations: [String] = []
-        for (row, count) in actual {
-            let allowed = baseline[row] ?? 0
-            if count > allowed || baseline[row] == nil {
-                violations.append("legacy code grew: \(row.metric.rawValue) \(row.path) \(allowed) -> \(count)")
-            } else if count < allowed {
-                violations.append("lower the baseline: \(row.metric.rawValue) \(row.path) \(allowed) -> \(count)")
-            }
-        }
-        var droppedPaths: Set<String> = []
-        for (row, allowed) in baseline where actual[row] == nil {
-            if FileManager.default.fileExists(atPath: repoRoot.appendingPathComponent(row.path).path) {
-                violations.append("lower the baseline: \(row.metric.rawValue) \(row.path) \(allowed) -> 0")
-            } else {
-                droppedPaths.insert(row.path)
-            }
-        }
-        violations += droppedPaths.map { "drop the row: \($0)" }
         return violations.sorted()
     }
 

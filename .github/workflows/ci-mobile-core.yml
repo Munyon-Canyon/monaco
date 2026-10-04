@@ -106,6 +106,45 @@ jobs:
           path: packages/mobile-core/.build
           key: ${{ steps.build.outputs.cache-primary-key }}
 
+  # The swift container has no python3, so the growth check runs on its own runner. Against the
+  # merge base with trunk, so a stacked PR is judged for the whole stack.
+  legacy-growth:
+    name: Legacy growth (mobile)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Test the growth check
+        run: python3 scripts/test_check_legacy_growth.py
+
+      # Labels are read live: `gh run rerun` replays the original payload, which lacks a label
+      # added after it.
+      - name: Resolve the base and labels
+        env:
+          FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH || 'main' }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          base="$(scripts/ci/fetch-base.sh)"
+          labels='[]'
+          if [[ -n "$PR_NUMBER" ]]; then
+            labels="$(gh pr view "$PR_NUMBER" --json labels -q '[.labels[].name]')"
+          fi
+          {
+            echo "BASE_SHA=${base}"
+            echo "HEAD_SHA=$(git rev-parse HEAD)"
+            echo "PR_LABELS=${labels}"
+          } >> "$GITHUB_ENV"
+
+      - name: Check legacy growth
+        run: python3 scripts/check-legacy-growth.py
+
   swiftlint:
     name: SwiftLint ratchet
     runs-on: ubuntu-latest

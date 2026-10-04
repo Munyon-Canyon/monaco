@@ -441,6 +441,9 @@ func (env *Env) prRows(parent, head string) []checkRow {
 		{label: "gate changes", kind: "pr", dir: env.Work, cmds: [][]string{
 			append(slices.Clone(vars), "scripts/check-gate-changes.py"),
 		}},
+		{label: "legacy growth", kind: "pr", dir: env.Work, cmds: [][]string{
+			append(slices.Clone(vars), "scripts/check-legacy-growth.py"),
+		}},
 	}
 }
 
