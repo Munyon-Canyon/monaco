@@ -1,7 +1,7 @@
 import MonacoCore
 import SwiftUI
 
-/// Receipt for one activity row: deposit, buy, or sell. Loads the detail, then renders `TransactionReceiptView`.
+/// Receipt for one activity row: a buy or a sell. Loads the detail, then renders `TransactionReceiptView`.
 struct TransactionDetailView: View {
     @ObservedObject var auth: PrivyAuthService
     let activityItem: GroupActivityItemDTO
@@ -11,7 +11,6 @@ struct TransactionDetailView: View {
     private let apiClient = MonacoAPIClient()
 
     @State private var transaction: TransactionDetailDTO?
-    @State private var deposit: GetDepositResponse?
     @State private var errorMessage: String?
     @State private var isLoading = true
 
@@ -40,7 +39,6 @@ struct TransactionDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task(id: loadTaskID) {
             await loadDetail()
-            await pollDepositDetailWhilePending()
         }
         // A buy or sell opened while it is still going through settles a few seconds later, and
         // the receipt is exactly where a member watches for that.
@@ -55,9 +53,7 @@ struct TransactionDetailView: View {
     }
 
     private var receipt: TransactionReceipt? {
-        if let deposit { return TransactionReceipt(deposit: deposit) }
-        if let transaction { return TransactionReceipt(transaction: transaction) }
-        return nil
+        transaction.map(TransactionReceipt.init(transaction:))
     }
 
     private var loadTaskID: String {
@@ -72,7 +68,7 @@ struct TransactionDetailView: View {
         onRetry != nil && GroupActivityRules.canRetry(activityItem)
     }
 
-    /// A swap the receipt is showing as still on its way. Deposits have their own state machine.
+    /// A swap the receipt is showing as still on its way. A deposit row is never watched.
     private var isSwapStillGoingThrough: Bool {
         guard !isDeposit else { return false }
         guard let transaction else { return DepositStatusNormalizer.isPending(activityItem.status) }
@@ -93,13 +89,8 @@ struct TransactionDetailView: View {
         }
 
         do {
-            if isDeposit {
-                deposit = try await apiClient.getDeposit(accessToken: token, depositId: activityItem.id)
-            } else {
-                let latest = try await apiClient.getTransactionDetail(
-                    accessToken: token, transactionId: activityItem.id)
-                QuietUpdate.apply(latest, over: transaction) { transaction = $0 }
-            }
+            let latest = try await apiClient.getTransactionDetail(accessToken: token, transactionId: activityItem.id)
+            QuietUpdate.apply(latest, over: transaction) { transaction = $0 }
         } catch is CancellationError {
             return
         } catch {
@@ -109,27 +100,9 @@ struct TransactionDetailView: View {
             errorMessage = "Couldn't load this receipt"
         }
     }
-
-    private func pollDepositDetailWhilePending() async {
-        guard isDeposit else { return }
-        guard let token = auth.accessToken else { return }
-        var machine = DepositPollStateMachine()
-        if let status = deposit?.status {
-            machine.apply(status: status)
-        } else if DepositStatusNormalizer.isPending(activityItem.status) {
-            machine.apply(status: activityItem.status)
-        }
-        guard !machine.isTerminal else { return }
-
-        _ = await machine.pollUntilTerminal {
-            let latest = try await apiClient.getDeposit(accessToken: token, depositId: activityItem.id)
-            deposit = latest
-            return latest.status
-        }
-    }
 }
 
-/// Everything a receipt shows, derived from the deposit or swap DTO. No ids, no mints.
+/// Everything a receipt shows, derived from the swap DTO. No ids, no mints.
 struct TransactionReceipt: Equatable {
     /// A fact under the receipt's header. The label says what it is ("Shares"), so the value
     /// is only the figure ("1.0803").
@@ -154,24 +127,6 @@ struct TransactionReceipt: Equatable {
     let rows: [Row]
     let failureMessage: String?
     let signature: String?
-
-    init(deposit: GetDepositResponse) {
-        glyph = "plus"
-        status = Self.status(deposit.status)
-        // The same words the activity row uses, so a deposit still on its way into the pot is
-        // not headed "Money added" above a Pending chip.
-        headline =
-            switch status {
-            case .confirmed: "Money added"
-            case .failed: "Couldn't add money"
-            default: "Adding money"
-            }
-        amountMicros = deposit.amount
-        fallbackHero = nil
-        rows = [Row(label: "Date", value: Self.date(deposit.createdAt))]
-        failureMessage = status == .failed ? "The transfer didn't go through" : nil
-        signature = deposit.txSignature
-    }
 
     init(transaction: TransactionDetailDTO) {
         let action = transaction.action.lowercased()

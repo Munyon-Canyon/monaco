@@ -391,7 +391,6 @@ struct GroupDetailView: View {
         if let activity {
             QuietUpdate.apply(activity.items, over: activityItems) { activityItems = $0 }
             if activityError != nil { activityError = nil }
-            surfaceDepositFailureToasts(from: activity.items)
         } else if mode != .quiet, activityItems.isEmpty {
             activityError = "Couldn't load activity. Pull down to try again"
         }
@@ -418,11 +417,6 @@ struct GroupDetailView: View {
         activityItems.contains { item in
             item.kind.lowercased() == "deposit" && DepositStatusNormalizer.isPending(item.status)
         }
-    }
-
-    private func surfaceDepositFailureToasts(from items: [GroupActivityItemDTO]) {
-        guard let failure = DepositFailureToastTracker.consumeNewFailures(from: items).first else { return }
-        toast = MonacoToast(message: DepositFailureToastTracker.message(for: failure))
     }
 
     private func retryTransaction(_ item: GroupActivityItemDTO) async {

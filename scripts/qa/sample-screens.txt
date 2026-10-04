@@ -161,7 +161,6 @@ money-withdraw                -MonacoMoneyFlowSample withdraw
 money-withdraw-failed         -MonacoMoneyFlowSample withdrawFailed
 money-withdraw-confirm        -MonacoMoneyFlowSample withdrawConfirm
 money-withdraw-confirm-failed -MonacoMoneyFlowSample withdrawConfirmFailed
-money-receipt-pending         -MonacoMoneyFlowSample receiptPending
 money-receipt-loading         -MonacoMoneyFlowSample receiptLoading
 
 proposal-feed-closed              -MonacoProposalFeedSample -MonacoProposalSampleClosed

@@ -75,7 +75,6 @@ urlsession	packages/mobile-core/Sources/MonacoCore/Networking/MonacoHTTPTranspor
 urlsession	packages/mobile-core/Sources/MonacoCore/Networking/MonacoRequestTimeout.swift	7
 view-hints	apps/mobile/Monaco/Features/Shell/HintConnecting.swift	1
 wall-clock	packages/mobile-core/Sources/MonacoCore/AssetActivityCopy.swift	1
-wall-clock	packages/mobile-core/Sources/MonacoCore/DepositPollStateMachine.swift	1
 wall-clock	packages/mobile-core/Sources/MonacoCore/DiagnosticPayloadStore.swift	1
 wall-clock	packages/mobile-core/Sources/MonacoCore/DisplayFormatters.swift	1
 wall-clock	packages/mobile-core/Sources/MonacoCore/GroupChatDTO.swift	2
