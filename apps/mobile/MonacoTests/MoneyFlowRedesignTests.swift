@@ -42,6 +42,18 @@ struct FundCabalFormTests {
 
     /// The helper under the figure says what there is to fund with, and what is already on
     /// its way to a cabal, rather than the old "From your account balance" with no figure.
+    @Test func anAmountOverTheBalanceTurnsTheHelperRed() {
+        #expect(
+            WithdrawForm(amountText: "300", destinationAddress: "", balance: Fixture.balance(248_500_000)).problem
+                == "Not enough in your account balance.")
+        #expect(
+            WithdrawForm(amountText: "100", destinationAddress: "", balance: Fixture.balance(248_500_000)).problem
+                == nil)
+        #expect(
+            !WithdrawForm(amountText: "5", destinationAddress: outsideAddress, balance: Fixture.balance(0))
+                .canContinue)
+    }
+
     @Test func theHelperSaysWhatIsAvailable() {
         #expect(
             FundCabalForm(amountText: "", balance: Fixture.balance(248_500_000)).availability == "$248.50 available")
@@ -103,7 +115,7 @@ struct FundCabalStageTests {
     }
 }
 
-/// Cash out to an address: when Continue is live, and what the field says about an address.
+/// Withdraw: when Continue is live, and what the field says about an address.
 @MainActor
 struct WithdrawFormTests {
     @Test func continueNeedsAnAmountWithinTheBalanceAndAUsableAddress() {
@@ -135,6 +147,18 @@ struct WithdrawFormTests {
         #expect(
             WithdrawForm(amountText: "", destinationAddress: ownAddress, balance: Fixture.balance(1)).addressProblem
                 != nil)
+    }
+
+    @Test func anAmountOverTheBalanceTurnsTheHelperRed() {
+        #expect(
+            WithdrawForm(amountText: "300", destinationAddress: "", balance: Fixture.balance(248_500_000)).problem
+                == "Not enough in your account balance.")
+        #expect(
+            WithdrawForm(amountText: "100", destinationAddress: "", balance: Fixture.balance(248_500_000)).problem
+                == nil)
+        #expect(
+            !WithdrawForm(amountText: "5", destinationAddress: outsideAddress, balance: Fixture.balance(0))
+                .canContinue)
     }
 
     @Test func theHelperSaysWhatIsAvailable() {
@@ -228,6 +252,9 @@ struct MoneyFlowCopyTests {
                 FundCabalForm.overBalance,
                 FundCabalForm.comingSoon,
                 WithdrawForm.caveat,
+                WithdrawForm.overBalance,
+                WithdrawConfirmView.caveat,
+                WithdrawConfirmView.comingSoon,
                 PlatformBalanceCard.pendingLine(micros: 50_000_000) ?? "",
             ]
         #expect(MainFlowCopyAudit.stringsAreClean(strings))

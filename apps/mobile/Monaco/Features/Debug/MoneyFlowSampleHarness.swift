@@ -7,8 +7,8 @@ import SwiftUI
 /// Launch with `-MonacoMoneyFlowSample <scenario>`:
 /// `addMoney` (address and a balance with a fund on its way) · `addMoneyLoading` ·
 /// `addMoneyFailed` · `fundCabal` ($50 typed) · `fundCabalFunding` (nothing available, a fund on
-/// its way) · `fundCabalEmpty` (nothing to fund with yet) · `fundCabalLoading` · `withdraw` (Cash out to an address, amount and address typed) ·
-/// `withdrawFailed` (the balance could not be read) · `withdrawConfirm` · `withdrawConfirmFailed` ·
+/// its way) · `fundCabalEmpty` (nothing to fund with yet) · `fundCabalLoading` · `withdraw` (amount and address typed) ·
+/// `withdrawFailed` (the balance could not be read) · `withdrawConfirm` ·
 /// `receiptLoading`.
 ///
 /// Every screen is the product's own layout — `DepositContent`, `FundCabalContent`,
@@ -25,7 +25,6 @@ enum MoneyFlowSampleScenario: String, CaseIterable {
     case withdraw
     case withdrawFailed
     case withdrawConfirm
-    case withdrawConfirmFailed
     case receiptLoading
 
     static let launchArgument = "-MonacoMoneyFlowSample"
@@ -82,16 +81,8 @@ struct MoneyFlowSampleHarness: View {
                 onContinue: {},
                 onRetry: {}
             )
-        case .withdrawConfirm, .withdrawConfirmFailed:
-            WithdrawConfirmView(
-                destinationAddress: MoneyFlowSampleData.destination,
-                amountText: "100",
-                isSubmitting: false,
-                failure: scenario == .withdrawConfirmFailed
-                    ? MoneyFlowCopy.cashOutFailure(FlowErrorInput(isOffline: true))
-                    : nil,
-                onConfirm: {}
-            )
+        case .withdrawConfirm:
+            WithdrawConfirmView(destinationAddress: MoneyFlowSampleData.destination, amountText: "100")
         case .receiptLoading:
             TransactionReceiptSkeleton()
                 .monacoCanvas()
