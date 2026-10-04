@@ -239,6 +239,39 @@ func TestCheck_aChangeToAFileAScriptsTestReadsRunsThatTest(t *testing.T) {
 	}
 }
 
+func TestCheck_aDeletedOrRenamedFileRunsTheCitedPathTests(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{"a deleted file", []string{"rm", "-q", "docs/how-to/ship-a-ticket.md"}},
+		{"a renamed file", []string{"mv", "docs/how-to/ship-a-ticket.md", "docs/how-to/ship.md"}},
+	}
+	want := "scripts: go test -short -count=1 -run " +
+		"^(TestSkillPaths_everyBacktickedPathInABackendSkillExists|" +
+		"TestBackendAgentsMD_staysUnder60LinesAndCitesOnlyRealPaths)$ ./"
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newCheckHarness(t)
+			h.base(t, map[string]string{"docs/how-to/ship-a-ticket.md": "steps\n"})
+			git(t, h.dir, tc.args...)
+			git(t, h.dir, "commit", "-q", "-m", "change")
+			code, stdout, stderr := h.check(t)
+			var got []string
+			for _, c := range h.calls {
+				if strings.HasPrefix(c, "scripts: go test") {
+					got = append(got, c)
+				}
+			}
+			if code != 0 || !slices.Equal(got, []string{want}) {
+				t.Fatalf("check: %d %q %q\nscripts tests %q, want %q", code, stdout, stderr, got, want)
+			}
+		})
+	}
+}
+
 func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
@@ -462,8 +495,9 @@ func TestCheck_refusesBadInputAndReportsItsOwnFailures(t *testing.T) {
 	}
 
 	for name, r := range map[string]reply{
-		"read HEAD":             {prefix: "git rev-parse HEAD^{tree}", err: errors.New("x")},
-		"read the working tree": {prefix: "git status", err: errors.New("x")},
+		"read HEAD":              {prefix: "git rev-parse HEAD^{tree}", err: errors.New("x")},
+		"read the working tree":  {prefix: "git status", err: errors.New("x")},
+		"diff against origin/fb": {prefix: "git diff --name-only --diff-filter=DR", err: errors.New("x")},
 	} {
 		h.replies = []reply{r}
 		if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, name) {
