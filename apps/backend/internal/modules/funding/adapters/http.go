@@ -18,13 +18,32 @@ import (
 var _ api.StrictServerInterface = HTTP{}
 
 type HTTP struct {
-	Balances port.Balances
-	Wallets  app.MemberWallets
-	Create   *app.CreateOnrampSessionHandler
-	Exchange *app.ExchangeOnrampTokenHandler
-	Report   *app.ReportOnrampStatusHandler
-	Reads    sqlc.DBTX
-	IDs      ids.Generator
+	Balances    port.Balances
+	Wallets     app.MemberWallets
+	Create      *app.CreateOnrampSessionHandler
+	Exchange    *app.ExchangeOnrampTokenHandler
+	Report      *app.ReportOnrampStatusHandler
+	Withdrawals *app.WithdrawHandler
+	Reads       sqlc.DBTX
+	IDs         ids.Generator
+}
+
+func (h HTTP) Withdraw(ctx context.Context, req api.WithdrawRequestObject) (api.WithdrawResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	request, err := domain.ParseWithdrawalRequest(req.Body.AmountMicros, req.Body.ToAddress)
+	if err != nil {
+		return nil, err
+	}
+	got, err := h.Withdrawals.Handle(ctx, app.Withdraw{ID: h.IDs.NewV7(), UserID: user, Request: request})
+	if err != nil {
+		return nil, err
+	}
+	return api.Withdraw202JSONResponse(api.WithdrawAccepted{
+		WithdrawalId: got.ID, Status: api.WithdrawalStatus(got.Status), TxSignature: string(got.TxSignature),
+	}), nil
 }
 
 func (h HTTP) GetMyBalance(
