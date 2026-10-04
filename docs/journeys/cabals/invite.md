@@ -13,6 +13,10 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/InviteJourney.swift, apps/mobile/M
 
 A member answers an invite from the Cabals tab, then invites someone else to the same cabal by handle. The invitee sees the invite on their Cabals tab and answers it. The rules are [Cabals](../../architecture/cabals.md#invites).
 
+The copy is the Cabals tab's `CabalsInvitesSlot` and the details sheet's `CabalInviteMemberSlot` in [screens.md](../../screens.md#cabal-screen-cabalroute).
+
+The old app (`c838bd24`) had no invites. A member opened "i" on the cabal (`Groups/GroupDetailView.swift`), which showed `Groups/GroupDetailsSheet.swift` with the invite code, "Copy code" and "Share", and sent the code outside the app. That path is `cabals/join` S1.3 to S1.5. Invite by handle and the Cabals tab's invite rows are new in #696, so their Expect cells say "Old app: none".
+
 The format of this doc is in [App journeys](../README.md).
 
 ## Preconditions
@@ -31,16 +35,16 @@ The setup runs before every scenario, because S1 uses up the invite it makes. It
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap | the Cabals tab | | `cabals-invites` shows one `cabal-invite-row` within 10 s, naming `QA pot` and reading "invited you" |
-| S1.2 | A | tap | `cabal-invite-accept` | | The toast "You're in." shows within 10 s, and `cabal-details-button` shows within 15 s |
-| S1.3 | A | tap | `cabal-details-button` | | `cabal-invite-member-row` shows within 10 s |
-| S1.4 | A | tap | `cabal-invite-member-row` | | `invite-member-handle-field` and `invite-member-pending-empty` show within 10 s |
-| S1.5 | A | type, then tap | `invite-member-handle-field`, then `invite-member-send-button` | `@nobody_zz` | The toast "No one on Monaco has that handle." shows within 10 s |
-| S1.6 | A | clear, type, then tap | `invite-member-handle-field`, then `invite-member-send-button` | `@QA_B` | The toast "Invite sent." shows within 10 s. One `invite-member-pending-row` reads "@qa_b" and "Expires in 7 days" |
-| S1.7 | A | tap | `invite-member-revoke-button` | | The toast "Invite revoked." shows within 10 s, and `invite-member-pending-empty` shows |
-| S1.8 | A | type, then tap | `invite-member-handle-field`, then `invite-member-send-button` | `qa_b` | The toast "Invite sent." shows within 10 s, and one `invite-member-pending-row` reads "@qa_b". A refused second invite would toast "They already have a pending invite or request.", so this step also proves S1.7 revoked the first |
-| S1.9 | B | tap | the Cabals tab | | `cabals-invites` shows exactly one `cabal-invite-row` within 10 s, naming `QA pot` |
-| S1.10 | B | tap | `cabal-invite-decline` | | The toast "Invite declined." shows within 10 s, and no `cabal-invite-row` is left |
+| S1.1 | A | tap | the Cabals tab | | `cabals-invites` shows one `cabal-invite-row` within 10 s, naming `QA pot` and reading "invited you". screens.md: `CabalsInvitesSlot`, "Cabal invites". Old app: none, invites are new in #696 |
+| S1.2 | A | tap | `cabal-invite-accept` | | The toast "You're in." shows within 10 s, and `cabal-details-button` shows within 15 s. Old app: none, invites are new in #696 |
+| S1.3 | A | tap | `cabal-details-button` | | `cabal-invite-member-row` shows within 10 s. screens.md: `CabalInviteMemberSlot`, "Invite someone". Old app: "i" opened `GroupDetailsSheet`, which had the invite code and no invite by handle |
+| S1.4 | A | tap | `cabal-invite-member-row` | | `invite-member-handle-field` and `invite-member-pending-empty` show within 10 s. Old app: none, invites are new in #696 |
+| S1.5 | A | type, then tap | `invite-member-handle-field`, then `invite-member-send-button` | `@nobody_zz` | The toast "No one on Monaco has that handle." shows within 10 s. Old app: none, invites are new in #696 |
+| S1.6 | A | clear, type, then tap | `invite-member-handle-field`, then `invite-member-send-button` | `@QA_B` | The toast "Invite sent." shows within 10 s. One `invite-member-pending-row` reads "@qa_b" and "Expires in 7 days". Old app: none, invites are new in #696 |
+| S1.7 | A | tap | `invite-member-revoke-button` | | The toast "Invite revoked." shows within 10 s, and `invite-member-pending-empty` shows. Old app: none, invites are new in #696 |
+| S1.8 | A | type, then tap | `invite-member-handle-field`, then `invite-member-send-button` | `qa_b` | The toast "Invite sent." shows within 10 s, and one `invite-member-pending-row` reads "@qa_b". A refused second invite would toast "They already have a pending invite or request.", so this step also proves S1.7 revoked the first. Old app: none, invites are new in #696 |
+| S1.9 | B | tap | the Cabals tab | | `cabals-invites` shows exactly one `cabal-invite-row` within 10 s, naming `QA pot`. screens.md: `CabalsInvitesSlot`. Old app: none, invites are new in #696 |
+| S1.10 | B | tap | `cabal-invite-decline` | | The toast "Invite declined." shows within 10 s, and no `cabal-invite-row` is left. screens.md: `CabalsInvitesSlot`, Decline. Old app: none, invites are new in #696 |
 
 ## Ground truth
 
