@@ -57,7 +57,7 @@ func (m *Module) Mount(r api.Mount) {
 	thresholds := cabalThresholds{cabals: ports.Cabals}
 	hints := adapters.Hints{Publish: m.deps.Bus}
 	governanceapi.Mount(adapters.HTTP{
-		Propose:  app.NewProposeTradeHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock, ports),
+		Propose:  app.NewProposeTradeHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock, ports, hints),
 		Vote:     app.NewCastVoteHandler(m.deps.UoW, m.deps.Pool, m.deps.Clock, thresholds, hints),
 		Withdraw: app.NewWithdrawProposalHandler(m.deps.UoW, m.deps.Clock, hints),
 		Reads:    app.NewProposalReads(m.deps.Pool, thresholds, trading.New(m.deps).Queries()),
