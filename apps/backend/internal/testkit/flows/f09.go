@@ -85,9 +85,16 @@ func f09Member(c f09Cabal) scenario.Step { return scenario.AsSeededUser("alice",
 
 func F09ProposeTradeOK(s *scenario.Scenario) {
 	c := seedF09(s, "100000000")
-	s.Given(f09Member(c), func(s *scenario.Scenario) { f09Route(s, "25000000", fakes.ActionSucceed, "/jupiter/swap/v2/order") }).
+	s.Given(scenario.AsUser("mallory"), f09Member(c), func(s *scenario.Scenario) {
+		f09Route(s, "25000000", fakes.ActionSucceed, "/jupiter/swap/v2/order")
+	}).
 		When(scenario.Post(f09Path(c), f09Buy), scenario.ExpectStatus(http.StatusCreated), scenario.Replay()).
-		Then(scenario.ExpectEvents(events.TypeProposalCreated, 1), scenario.EventuallyPublished(events.TypeProposalCreated, 1))
+		Then(
+			scenario.ExpectEvents(events.TypeProposalCreated, 1),
+			scenario.EventuallyPublished(events.TypeProposalCreated, 1),
+			scenario.EventuallyCabalHint(c.id, "proposal_created"),
+			scenario.NoHintFor("mallory", "proposal_created", 100*time.Millisecond),
+		)
 }
 
 func F09ProposeTradeInvalidInput(s *scenario.Scenario) {
