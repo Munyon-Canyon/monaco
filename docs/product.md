@@ -153,7 +153,7 @@ Pot value is saved after every fund, trade and cash out, so charts and boards ca
 Also two steps, mirroring money in:
 
 1. **Cash out** (the **Cash out** button on the cabal screen). Pick an amount from a small minimum up to your whole stake; cashing out everything is the same flow at the maximum. Your shares are debited, your slice of stock is sold if the pot is short of USDC, and USDC equal to your share of the pot lands in your account balance. You get your fraction of the pot now, not the dollars you put in. If the sale raises less than your slice, you are paid what it raised and keep the shares that didn't cover.
-2. **Withdraw** (the **Cash out** button on the account balance card, on Home or Profile). Send USDC from your account balance to any Solana address you paste. This never touches cabal holdings.
+2. **Withdraw** (the **Withdraw** button on the account balance row, on Home or Profile). Send USDC from your account balance to any Solana address you paste. This never touches cabal holdings.
 
 Payouts are always USDC, never stock.
 
