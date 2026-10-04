@@ -596,6 +596,7 @@ Flow 00 (Ping) is the reference app flow, verified on both sides. Copy its files
 | Route | The request answered a 2xx, and `http.request` was logged | The request answered that code's status and `code`, and `http.request` and `http.problem` were logged |
 | `poller:<name>` | A `poller.tick` line for the poller | A `poller.tick.failed` line for the poller with that `code` |
 | `consumer:<subject>` | A `bus.dispatched` line on the subject with outcome `ack` | A `bus.dispatched` line on the subject with that `code` |
+| `ops:<Command>` | The operator command completed successfully | The operator command returned that code |
 
 A poller flow's script waits for the next tick with `scenario.AwaitTick(poller)` and checks its counts with `scenario.ExpectTick(poller, scanned, changed)`. The worker keeps each poller's production interval unless the flow's entry in `Env()` (`internal/testkit/flows/scripts.go`) sets a shorter one that fits the 15 s flow budget. Two selected flows that set one variable to different values fail the run before it builds anything.
 

@@ -125,7 +125,7 @@ func TestFlowsCheck(t *testing.T) {
 				"03\tHealth\tsystem\tGET /healthz\tPing\t\t\tok\tplanned\tdocs/flows.md#ping\n" +
 				"04\tPinged\tsystem\tconsumer:system.pinged\tPing\t\tsystem.echo;system_echo\tok\tplanned\tdocs/flows.md#ping\n",
 			"", false, false, 1,
-			"packages/flows/backend/02.tsv:2: trigger POST /v1/pong is not a route, subject or poller\n" +
+			"packages/flows/backend/02.tsv:2: trigger POST /v1/pong is not a route, subject, poller or operation\n" +
 				"packages/flows/backend/02.tsv:2: command Pong is not a type in internal/modules/system/app\n" +
 				"packages/flows/backend/02.tsv:2: consumer ghost.durable is not a registered durable\n",
 		},

@@ -26,6 +26,7 @@ type Remote struct {
 	Flow          string
 	Trigger       string
 	Pool          *pgxpool.Pool
+	Bus           *bus.Conn
 	Consumers     []bus.Consumer
 	Mint          func(userID string) string
 	Converge      func(ctx context.Context, eventIDs []string) error
@@ -49,6 +50,7 @@ func Against(ctx context.Context, t T, r Remote) *Scenario {
 		client:        client,
 		note:          newNotifier(),
 		pool:          r.Pool,
+		bus:           r.Bus,
 		privyToken:    func(sub string) string { return fakes.PrivyAccessToken(r.PrivyAppID, sub, time.Now(), time.Hour) },
 		script:        rm.scriptFakes(client),
 		mint:          func(id ids.UserID) string { return r.Mint(id.String()) },

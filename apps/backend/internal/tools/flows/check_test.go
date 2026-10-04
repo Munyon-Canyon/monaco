@@ -56,7 +56,7 @@ func TestCheckColumns_eachColumnFailsWithOneLine(t *testing.T) {
 		{"missing module", func(c []string) { c[2] = "ghost" }, fundFile + ":2: module ghost has no directory under internal/modules"},
 		{"module is a file", func(c []string) { c[2] = "README.md" }, fundFile + ":2: module README.md has no directory under internal/modules"},
 		{"unknown event", func(c []string) { c[5] = "cabal.funded;cabal.exploded" }, fundFile + ":2: event cabal.exploded is not in the events registry"},
-		{"unknown trigger", func(c []string) { c[3] = "GET /v1/nothing" }, fundFile + ":2: trigger GET /v1/nothing is not a route, subject or poller"},
+		{"unknown trigger", func(c []string) { c[3] = "GET /v1/nothing" }, fundFile + ":2: trigger GET /v1/nothing is not a route, subject, poller or operation"},
 		{"unknown command", func(c []string) { c[4] = "Fund" }, fundFile + ":2: command Fund is not a type in internal/modules/treasury/app"},
 		{"unknown consumer", func(c []string) { c[6] = "ghost" }, fundFile + ":2: consumer ghost is not a registered durable"},
 		{"unknown faultpoint", func(c []string) { c[7] = "crash:after-lunch" }, fundFile + ":2: outcome crash:after-lunch is not a registered faultpoint"},

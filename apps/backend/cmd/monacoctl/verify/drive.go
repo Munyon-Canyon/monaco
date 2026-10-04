@@ -32,6 +32,7 @@ type Env struct {
 	PrivyAppID      string
 	TokenKey        string
 	Pool            *pgxpool.Pool
+	Bus             *bus.Conn
 	JS              jetstream.JetStream
 	Events          string
 	DeadLetter      string
@@ -142,6 +143,7 @@ func (d *driver) script(ctx context.Context, u Unit, res *Result) error {
 		URL: d.env.API, FakesURL: d.env.Fakes, PrivyAppID: d.env.PrivyAppID, ClientIP: clientIP(u), Flow: u.Flow.ID,
 		Trigger:   trigger,
 		Pool:      d.env.Pool,
+		Bus:       d.env.Bus,
 		Consumers: d.env.Consumers,
 		Mint: func(id string) string {
 			res.mu.Lock()

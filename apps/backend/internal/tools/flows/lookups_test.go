@@ -31,7 +31,7 @@ func TestRoutes_listsEveryMethodAndPathInTheSpecSorted(t *testing.T) {
 	}
 }
 
-func TestTriggers_acceptsARouteAConsumedSubjectOrARegisteredPoller(t *testing.T) {
+func TestTriggers_acceptsARouteAConsumedSubjectARegisteredPollerOrAnOperation(t *testing.T) {
 	t.Parallel()
 	lookup := flows.Triggers([]byte(spec), []string{"proposal.passed"}, []string{"deposits"})
 	for trigger, want := range map[string]bool{
@@ -49,6 +49,12 @@ func TestTriggers_acceptsARouteAConsumedSubjectOrARegisteredPoller(t *testing.T)
 			t.Errorf("trigger %q = %v, want %v", trigger, got, want)
 		}
 	}
+	if !lookup(flows.Flow{Commands: []string{"VoidProposal"}}, "ops:VoidProposal") {
+		t.Error("ops trigger did not match its flow command")
+	}
+	if lookup(flows.Flow{Commands: []string{"VoidProposal"}}, "ops:Other") {
+		t.Error("ops trigger matched an unrelated command")
+	}
 }
 
 func TestTriggerKind_splitsThePollerAndConsumerPrefixesAndTreatsTheRestAsARoute(t *testing.T) {
@@ -60,6 +66,7 @@ func TestTriggerKind_splitsThePollerAndConsumerPrefixesAndTreatsTheRestAsARoute(
 		"POST /v1/system/pings":    {flows.TriggerRoute, "POST /v1/system/pings"},
 		"poller:market.prices":     {flows.TriggerPoller, "market.prices"},
 		"consumer:proposal.passed": {flows.TriggerConsumer, "proposal.passed"},
+		"ops:VoidProposal":         {flows.TriggerOps, "VoidProposal"},
 		"poller":                   {flows.TriggerRoute, "poller"},
 		"deposits:poller":          {flows.TriggerRoute, "deposits:poller"},
 	} {

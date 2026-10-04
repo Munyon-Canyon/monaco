@@ -160,6 +160,7 @@ func run(ctx context.Context, cfg Config, target Target) (err error) {
 		PrivyAppID: PrivyAppID,
 		TokenKey:   stack.TokenKey,
 		Pool:       stack.Pool,
+		Bus:        stack.Bus,
 		JS:         stack.NATS.JS,
 		Events:     bus.StreamEvents,
 		DeadLetter: bus.StreamDeadLetter,

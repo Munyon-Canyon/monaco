@@ -72,7 +72,7 @@ func (d *driver) settle(ctx context.Context, res *Result) error {
 		return err
 	}
 	kind, _ := res.Unit.Flow.TriggerKind(res.Unit.Command)
-	if kind == tools.TriggerRoute {
+	if kind == tools.TriggerRoute || kind == tools.TriggerOps {
 		if msg := d.outcomeMismatch(res); msg != "" {
 			return &InvariantError{Flow: res.Unit.Name(), Msg: msg}
 		}
@@ -80,7 +80,7 @@ func (d *driver) settle(ctx context.Context, res *Result) error {
 	needs := d.requiredLogs(ctx, res)
 	found, msg := d.awaitLogs(ctx, res.logFrom, needs)
 	res.logLines = found
-	if kind != tools.TriggerRoute {
+	if kind != tools.TriggerRoute && kind != tools.TriggerOps {
 		if mismatch := d.outcomeMismatch(res); mismatch != "" {
 			return &InvariantError{Flow: res.Unit.Name(), Msg: mismatch}
 		}
@@ -111,11 +111,46 @@ func (d *driver) outcomeMismatch(res *Result) string {
 	if kind == tools.TriggerRoute {
 		return routeMismatch(res, name)
 	}
+	if kind == tools.TriggerOps {
+		return operationMismatch(res, name)
+	}
 	need, missing := d.triggerLine(res.Unit, kind, name)
 	if slices.ContainsFunc(d.env.Logs.Lines()[res.logFrom:], func(l Line) bool { return lineMatches(l, need) }) {
 		return ""
 	}
 	return missing
+}
+
+func operationMismatch(res *Result, operation string) string {
+	var calls []scenario.Exchange
+	for _, e := range res.Exchanges {
+		if e.Operation == operation {
+			calls = append(calls, e)
+		}
+	}
+	if len(calls) == 0 {
+		return fmt.Sprintf("no %s operation was run", operation)
+	}
+	name, isCode := res.Unit.Outcome.CodeName()
+	if !isCode {
+		if got := calls[0]; got.Status >= http.StatusBadRequest {
+			return fmt.Sprintf(
+				"%s operation answered %d, want a 2xx for outcome %s", operation, got.Status, res.Unit.Outcome,
+			)
+		}
+		return ""
+	}
+	code, got := codeNamed(name), calls[len(calls)-1]
+	var body struct {
+		Code string `json:"code"`
+	}
+	_ = json.Unmarshal(got.Response, &body)
+	if want := errs.HTTPStatus(errs.KindOf(code)); got.Status != want || body.Code != string(code) {
+		return fmt.Sprintf(
+			"%s operation answered %d code %q, want %d code %q", operation, got.Status, body.Code, want, code,
+		)
+	}
+	return ""
 }
 
 func routeMismatch(res *Result, route string) string {
@@ -271,6 +306,9 @@ func (d *driver) wroteDurableEvent(ctx context.Context, names []string, since ti
 
 func (d *driver) triggerLogs(u Unit) []logNeed {
 	kind, name := u.Flow.TriggerKind(u.Command)
+	if kind == tools.TriggerOps {
+		return nil
+	}
 	if kind != tools.TriggerRoute {
 		need, _ := d.triggerLine(u, kind, name)
 		return []logNeed{need}
