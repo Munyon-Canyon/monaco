@@ -57,7 +57,7 @@ func Generators() []Generator {
 		{Kind: "consumer", Args: []string{"<module>", "<name>"}, plan: planConsumer},
 		{Kind: "provider", Args: []string{"<name>"}, plan: planProvider},
 		{Kind: "flow", Args: []string{"<id>"}, plan: planFlow},
-		{Kind: "sqlc", plan: planSqlc, post: syncSqlc},
+		{Kind: "sqlc", plan: planSqlc, post: SyncSqlc},
 	}
 }
 
@@ -150,7 +150,7 @@ func writeFile(root *os.Root, rel, body string) error {
 
 func Regenerate(ctx context.Context, dir string) error {
 	const op = "gen.Regenerate"
-	if err := syncSqlc(ctx, dir); err != nil {
+	if err := SyncSqlc(ctx, dir); err != nil {
 		return err
 	}
 	for _, cmd := range []*exec.Cmd{
@@ -163,6 +163,16 @@ func Regenerate(ctx context.Context, dir string) error {
 		}
 	}
 	return nil
+}
+
+func pinned(dir, name string) (bool, error) {
+	if _, err := os.Stat(filepath.Join(dir, "..", "..", ".bin", name)); err == nil {
+		return true, nil
+	}
+	if _, err := exec.LookPath(name); err == nil {
+		return false, nil
+	}
+	return false, invalid("gen.pinned", "%s is not in .bin or on PATH; run scripts/install-%s.sh", name, name)
 }
 
 func runQuiet(cmd *exec.Cmd, op string) error {

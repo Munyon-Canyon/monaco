@@ -31,11 +31,6 @@ GOTOOLCHAIN="${toolchain:?apps/backend/go.mod has no toolchain line}" go vet ./.
 go mod tidy -diff
 go generate ./...
 fresh "go generate ./..."
-sqlc=../../.bin/sqlc
-[[ -x "$sqlc" ]] || sqlc=sqlc
-"$sqlc" diff
-../../scripts/gen-docs.sh
-fresh "scripts/gen-docs.sh"
 go run ./cmd/monacoctl flows check --structure-only
 go run ./cmd/monacoctl migrate order
-echo "ready: vet on go.mod's toolchain, go.mod tidy, generated code, sqlc, reference docs, the flow files and migration order are all current"
+echo "ready: vet on go.mod's toolchain, go.mod tidy, everything go generate writes (sqlc, atlas.sum and the reference docs among it), the flow files and migration order are all current"

@@ -1,6 +1,9 @@
 package gen_test
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -61,5 +64,32 @@ func TestSqlc_takesNoArgumentsAndNamesAConfigWithoutMarkers(t *testing.T) {
 	_, err = run(t, unmarked, "sqlc")
 	if err == nil || !strings.Contains(err.Error(), "# BEGIN GENERATED modules") {
 		t.Fatalf("err = %v, want the missing marker named", err)
+	}
+}
+
+func TestGenerateSqlcAndHashMigrationsNameTheInstallScriptWhenTheToolIsMissing(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	dir := filepath.Join(t.TempDir(), "apps", "backend")
+	for tool, run := range map[string]func(context.Context, string) error{
+		"sqlc": gen.GenerateSqlc, "atlas": gen.HashMigrations,
+	} {
+		if err := run(
+			t.Context(),
+			dir,
+		); err == nil ||
+			!strings.Contains(err.Error(), "run scripts/install-"+tool+".sh") {
+			t.Errorf("%s missing: err = %v, want the install script", tool, err)
+		}
+	}
+}
+
+func TestGenerateSqlcSyncsTheConfigBeforeItRunsSqlc(t *testing.T) {
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "sqlc"), []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	if err := gen.GenerateSqlc(t.Context(), t.TempDir()); err == nil || !strings.Contains(err.Error(), "gen.SyncSqlc") {
+		t.Fatalf("GenerateSqlc without sqlc.yaml = %v, want the sync error", err)
 	}
 }

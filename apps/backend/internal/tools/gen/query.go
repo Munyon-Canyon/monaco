@@ -35,18 +35,29 @@ func regenerateQueries(ctx context.Context, dir string) error {
 	if err := Regenerate(ctx, dir); err != nil {
 		return err
 	}
+	return GenerateSqlc(ctx, dir)
+}
+
+func GenerateSqlc(ctx context.Context, dir string) error {
+	usePinned, err := pinned(dir, "sqlc")
+	if err != nil {
+		return err
+	}
+	if err := SyncSqlc(ctx, dir); err != nil {
+		return err
+	}
 	cmd := exec.CommandContext(ctx, "sqlc", "generate")
-	if _, err := os.Stat(filepath.Join(dir, "..", "..", ".bin", "sqlc")); err == nil {
+	if usePinned {
 		cmd = exec.CommandContext(ctx, "../../.bin/sqlc", "generate")
 	}
 	cmd.Dir = dir
-	return runQuiet(cmd, "gen.regenerateQueries")
+	return runQuiet(cmd, "gen.GenerateSqlc")
 }
 
 func planSqlc(*os.Root, string, []string) (Plan, error) { return Plan{}, nil }
 
-func syncSqlc(_ context.Context, dir string) error {
-	const op = "gen.syncSqlc"
+func SyncSqlc(_ context.Context, dir string) error {
+	const op = "gen.SyncSqlc"
 	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return errs.Wrap(err, errs.CodeInvalidInput, op)

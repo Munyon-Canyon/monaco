@@ -457,7 +457,7 @@ func (env *Env) pathRows(
 		build func() (checkRow, error)
 	}{
 		{
-			[]string{"apps/backend/", "packages/flows/", "scripts/ci/ready.sh", "scripts/gen-docs.sh", "scripts/install-sqlc.sh"},
+			[]string{"apps/backend/", "packages/flows/", "scripts/ci/ready.sh", "scripts/install-atlas.sh", "scripts/install-sqlc.sh"},
 			env.readyRow,
 		},
 		{
@@ -497,7 +497,9 @@ func underAny(file string, paths []string) bool {
 func (env *Env) readyRow() (checkRow, error) {
 	return checkRow{
 		label: "ready", kind: "ready", dir: env.Work,
-		cmds: append(env.installUnlessPresent("sqlc"), []string{"scripts/ci/ready.sh"}),
+		cmds: slices.Concat(
+			env.installUnlessPresent("atlas"), env.installUnlessPresent("sqlc"), [][]string{{"scripts/ci/ready.sh"}},
+		),
 	}, nil
 }
 

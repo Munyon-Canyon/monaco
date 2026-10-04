@@ -943,7 +943,7 @@ Stage 0 diffs `HEAD` against `origin/staging` and picks its rows from the change
 - A `.sh` file, or an extensionless file with a `bash`, `sh` or `zsh` shebang: `bash -n` and `shellcheck`.
 - Any path: the `scripts/**/*_test.go` tests and `scripts/**/test_*.py` files that the diff touches or that name the changed file's basename in a string literal, for example `"agent-guard.py"`.
 - `packages/mobile-core/**` or `packages/flows/**`: `swift test`.
-- `apps/backend/**`, `packages/flows/**`, `scripts/ci/ready.sh`, `scripts/gen-docs.sh` or `scripts/install-sqlc.sh`: `scripts/ci/ready.sh`, as the CI ready job runs it.
+- `apps/backend/**`, `packages/flows/**`, `scripts/ci/ready.sh`, `scripts/install-atlas.sh` or `scripts/install-sqlc.sh`: `scripts/ci/ready.sh`, as the CI ready job runs it.
 - `apps/backend/migrations/**`, `atlas.hcl` or `.atlas-version`: `monacoctl migrate lint`.
 - `apps/backend/api/openapi.yaml`, `.vacuum.yaml` or `scripts/ci/oasdiff-*`: the pinned vacuum lint in Docker, the oasdiff self-test, and oasdiff against the stack parent's spec.
 - `docs/**`, `mkdocs.yml`, `requirements-docs.txt` or `openapi.yaml`: `mkdocs build --strict` from the README's `.venv`, in the worktree or the main checkout. Without one the row prints `skip` and the install hint.

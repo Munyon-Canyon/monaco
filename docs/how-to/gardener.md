@@ -21,7 +21,7 @@ cat garden-report.md
 | --- | --- | --- |
 | Candidate lint | `golangci-lint` with `.golangci.yml` plus `.golangci.candidate.yml` | a violation of a stricter setting or a linter that is not on yet, grouped by linter |
 | Dead code | `deadcode -test ./...` at the version `internal/tools/garden` pins, through `go run` | a function nothing reaches from a `main` or a test |
-| Generator drift | `go generate ./...`, `sqlc generate` and `scripts/gen-docs.sh`, then `git status` and `git diff` | a file whose committed copy differs from what the generators write |
+| Generator drift | `go generate ./...`, then `git status` and `git diff` | a file whose committed copy differs from what the generators write |
 
 The report groups findings by check, counts them and gives each one as `file:line` from the repo root. A check that cannot run shows as `failed` with its error, the other checks still run, and the command exits 1.
 

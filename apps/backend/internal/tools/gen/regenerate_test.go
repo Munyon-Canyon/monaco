@@ -131,7 +131,7 @@ func TestRegenerate_failsWhenModulesIsNotADirectory(t *testing.T) {
 		t.Context(),
 		filepath.Join(root, "missing"),
 	); err == nil ||
-		!strings.Contains(err.Error(), "gen.syncSqlc") {
+		!strings.Contains(err.Error(), "gen.SyncSqlc") {
 		t.Fatalf("err = %v, want gen.syncSqlc", err)
 	}
 }

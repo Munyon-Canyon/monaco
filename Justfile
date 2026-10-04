@@ -250,13 +250,13 @@ migrate target:
         ;;
     esac
 
-# Regenerate checked-in files (`just gen docs`) or scaffold backend code (`just gen module <name>`, which also writes the module's first migration, `just gen migration <module> <name>`; `just gen help` lists every generator).
+# Regenerate every checked-in generated file (`just gen docs`, which runs `go generate ./...`) or scaffold backend code (`just gen module <name>`, which also writes the module's first migration, `just gen migration <module> <name>`; `just gen help` lists every generator).
 gen target *args:
     #!/usr/bin/env bash
     set -euo pipefail
     case "{{target}}" in
       docs)
-        ./scripts/gen-docs.sh
+        cd apps/backend && go generate ./...
         ;;
       module)
         cd apps/backend

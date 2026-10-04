@@ -10,11 +10,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 )
 
-//go:generate go run ../../scripts/gen-golangci ../..
-//go:generate go run ../../scripts/gen-registry ../..
-//go:generate go run -C ../.. ./cmd/monacoctl gen sqlc
-//go:generate go run -C ../.. ./cmd/gen flows
-
 type command func(cfg config.Config, args []string, stdout, stderr io.Writer) int
 
 type tool func(args []string, stdout, stderr io.Writer) int

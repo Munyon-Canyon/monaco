@@ -213,14 +213,18 @@ func gitParentMigrations(run Runner) func(context.Context) ([]string, error) {
 	}
 }
 
+func HashMigrations(ctx context.Context, dir string) error { return atlasHash(dir)(ctx) }
+
 func atlasHash(dir string) func(context.Context) error {
 	return func(ctx context.Context) error {
-		bin := "atlas"
-		pinned := filepath.Join(dir, "..", "..", ".bin", "atlas")
-		if _, err := os.Stat(pinned); err == nil {
-			bin = pinned
+		usePinned, err := pinned(dir, "atlas")
+		if err != nil {
+			return err
 		}
-		cmd := exec.CommandContext(ctx, bin, "migrate", "hash", "--dir", "file://"+migrationsDir)
+		cmd := exec.CommandContext(ctx, "atlas", "migrate", "hash", "--dir", "file://"+migrationsDir)
+		if usePinned {
+			cmd = exec.CommandContext(ctx, "../../.bin/atlas", "migrate", "hash", "--dir", "file://"+migrationsDir)
+		}
 		cmd.Dir = dir
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return errs.Wrap(problem(fmt.Sprintf("%s: %v\n%s", cmd, err, out)), errs.CodeInternal, "gen.atlasHash")

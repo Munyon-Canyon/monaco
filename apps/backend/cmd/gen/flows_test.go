@@ -310,7 +310,7 @@ func TestWriteFlowFiles_failsWithoutAWritableRoot(t *testing.T) {
 func TestGenFlows_readsTheFlowFilesTwoDirectoriesUp(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr strings.Builder
-	if code := run(steps(), []string{"flows"}, &stdout, &stderr); code != 1 ||
+	if code := run(steps(t.Context()), []string{"flows"}, &stdout, &stderr); code != 1 ||
 		!strings.Contains(stderr.String(), "read "+flows.Dir+": no flow files") {
 		t.Fatalf(
 			"gen flows from cmd/gen = %d %q, want 1 naming the repo-relative flow directory",
