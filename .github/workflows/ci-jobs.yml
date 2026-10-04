@@ -244,6 +244,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: ./.github/actions/backend-test-env
         with:
@@ -671,6 +673,8 @@ jobs:
 
       - uses: actions/checkout@v4
         if: inputs.stage == 'queue'
+        with:
+          fetch-depth: 0
 
       - uses: ./.github/actions/backend-test-env
         if: inputs.stage == 'queue'
