@@ -263,3 +263,113 @@ func TestFlowGate_disarmsAnArmedStackWhoseFlowMovedBeforeItWentGreen(t *testing.
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 }
+
+const (
+	pingModule      = "apps/backend/internal/modules/system/http.go"
+	signInModule    = "apps/backend/internal/modules/identity/http.go"
+	pingOnlyRefusal = "not landing #2: flow 00 changed on staging since this stack's base (#77). " +
+		"Restack with gt and rerun stage 1, then run land-stack again"
+)
+
+func problemSpec(pingSummary string, codes ...string) string {
+	route := func(summary string) string {
+		return "    get:\n      summary: " + summary +
+			"\n      responses:\n        default: {$ref: \"#/components/responses/Problem\"}\n"
+	}
+	return "paths:\n  /p:\n" + route(pingSummary) + "  /s:\n" + route("Sign in.") +
+		"components:\n  responses:\n    Problem:\n      content:\n        application/problem+json:\n" +
+		"          schema: {$ref: \"#/components/schemas/Problem\"}\n" +
+		"  schemas:\n    Problem:\n      type: object\n" +
+		"      properties:\n        code: {$ref: \"#/components/schemas/ErrorCode\"}\n" +
+		"    ErrorCode:\n      type: string\n      enum:\n        - " + strings.Join(codes, "\n        - ") + "\n"
+}
+
+func pingRow(outcomes string) string {
+	return flows.Header + "\n00\tPing\tsystem\tGET /p\tRecordPing\t\t\t" + outcomes + "\tbuilt\tdocs/f.md\n"
+}
+
+func errorCodeStack(t *testing.T, pingSummary string) (*fixture, *stackGH) {
+	t.Helper()
+	f := newFixture(t)
+	s := gateStack(t, f, map[int][]File{2: {
+		{Filename: flows.SpecPath},
+		{Filename: "apps/backend/internal/errs/codes_treasury.go"},
+		{Filename: "apps/backend/internal/errs/testdata/codes_treasury.golden"},
+		{Filename: "apps/backend/internal/platform/httpx/api/api.gen.go"},
+	}})
+	headCodes := []string{"not_found", "price_unavailable", "rpc_unavailable"}
+	s.gitOut["show base:"+flows.SpecPath] = problemSpec("Ping.", "not_found")
+	s.gitOut["show b2-oid:"+flows.SpecPath] = problemSpec(pingSummary, headCodes...)
+	s.gitOut["diff --name-only base..origin/fb"] = pingModule + "\n" + signInModule + "\n"
+	s.gitOut["log -1 --format=%s base..origin/fb -- "+pingModule] = "Record a ping note (#77)\n"
+	s.gitOut["log -1 --format=%s base..origin/fb -- "+signInModule] = "Rename sign in (#78)\n"
+	return f, s
+}
+
+func TestFlowGate_aNewErrorCodeAloneWaitsForNoFlowThatMovedOnStaging(t *testing.T) {
+	t.Parallel()
+	f, s := errorCodeStack(t, "Ping.")
+	if code, stdout, stderr := f.agents(t, "land-stack", "2"); code != 0 || !s.prs[2].labeled("merge-queue") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestFlowGate_aStackThatChangesARouteStillWaitsForTheFlowOfThatRoute(t *testing.T) {
+	t.Parallel()
+	f, s := errorCodeStack(t, "Ping again.")
+	code, stdout, stderr := f.agents(t, "land-stack", "2")
+	if code == 0 || !strings.Contains(stderr, pingOnlyRefusal) || s.prs[2].labeled("merge-queue") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestFlowGate_aNewErrorCodeWaitsForTheFlowsThatListItAsAnOutcome(t *testing.T) {
+	t.Parallel()
+	f, s := errorCodeStack(t, "Ping.")
+	for _, listed := range []string{"PriceUnavailable", "RPCUnavailable"} {
+		s.gitOut["show b2-oid:"+flows.Dir+"/00.tsv"] = pingRow("ok;" + listed)
+		code, stdout, stderr := f.agents(t, "land-stack", "2")
+		if code == 0 || !strings.Contains(stderr, pingOnlyRefusal) || s.prs[2].labeled("merge-queue") {
+			t.Fatalf("a flow that lists %s: %d %q %q", listed, code, stdout, stderr)
+		}
+	}
+
+	s.gitOut["show b2-oid:"+flows.Dir+"/00.tsv"] = pingRow("ok;InvalidInput")
+	if code, stdout, stderr := f.agents(t, "land-stack", "2"); code != 0 || !s.prs[2].labeled("merge-queue") {
+		t.Fatalf("a flow that lists another code: %d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestFlowGate_aCodeAddedOnStagingMovesOnlyTheFlowsThatListIt(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := gateStack(t, f, map[int][]File{2: {{Filename: "packages/flows/app/00.tsv"}}})
+	s.gitOut["merge-base base origin/fb"] = "base\n"
+	s.gitOut["diff --name-only base..origin/fb"] = "README.md\n" + flows.SpecPath + "\n"
+	s.gitOut["show base:"+flows.SpecPath] = problemSpec("Ping.", "not_found")
+	s.gitOut["show origin/fb:"+flows.SpecPath] = problemSpec("Ping.", "not_found", "price_unavailable")
+	s.gitOut["log -1 --format=%s base..origin/fb -- "+flows.SpecPath] = "Add price_unavailable (#80)\n"
+	s.gitOut["show b2-oid:"+flows.Dir+"/00.tsv"] = pingRow("ok;PriceUnavailable")
+	want := "flow 00 changed on staging since this stack's base (#80)"
+	if code, stdout, stderr := f.agents(t, "land-stack", "2"); code == 0 || !strings.Contains(stderr, want) ||
+		s.prs[2].labeled("merge-queue") {
+		t.Fatalf("a flow that lists the code: %d %q %q", code, stdout, stderr)
+	}
+
+	s.gitOut["show b2-oid:"+flows.Dir+"/00.tsv"] = pingRow("ok")
+	if code, stdout, stderr := f.agents(t, "land-stack", "2"); code != 0 || !s.prs[2].labeled("merge-queue") {
+		t.Fatalf("a flow that lists no new code: %d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestFlowGate_aSpecThatDoesNotParseCountsEveryRouteAsChanged(t *testing.T) {
+	t.Parallel()
+	f, s := errorCodeStack(t, "Ping.")
+	s.gitOut["show b2-oid:"+flows.SpecPath] = "paths: [\n"
+	want := "flow 00 changed on staging since this stack's base (#77); " +
+		"flow 01 changed on staging since this stack's base (#78)"
+	code, stdout, stderr := f.agents(t, "land-stack", "2")
+	if code == 0 || !strings.Contains(stderr, want) || s.prs[2].labeled("merge-queue") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+}
