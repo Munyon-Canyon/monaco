@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"slices"
+	"strings"
 	"sync"
 
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
@@ -15,14 +17,69 @@ type tick struct {
 }
 
 func AwaitTick(poller string) Step {
+	return awaitTick(poller, func(s *Scenario) int {
+		seen, _ := s.app.lines(0)
+		return len(seen)
+	}, "after the step started")
+}
+
+func MarkTick(poller string) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
 		seen, _ := s.app.lines(0)
-		from := len(seen)
+		s.marks[poller] = len(seen)
+	}
+}
+
+func AwaitMarkedTick(poller string) Step {
+	return awaitTick(poller, func(s *Scenario) int {
+		from, ok := s.marks[poller]
+		if !ok {
+			s.t.Fatalf("scenario: AwaitMarkedTick(%s) needs MarkTick(%s) first", poller, poller)
+		}
+		return from
+	}, "after it was marked")
+}
+
+func AwaitMarkedTickAfterCrash(poller string, point faultpoint.Name) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		from, ok := s.marks[poller]
+		if !ok {
+			s.t.Fatalf("scenario: AwaitMarkedTickAfterCrash(%s) needs MarkTick(%s) first", poller, poller)
+		}
+		stop := s.app.tick(s.t, poller)
+		defer stop()
+		crash := "faultpoint: crash at " + string(point)
+		crashed := false
+		var found tick
+		await(s.t, "a tick of poller "+poller+" after it crashed at "+string(point), func() (bool, <-chan struct{}) {
+			lines, changed := s.app.lines(from)
+			from += len(lines)
+			for _, line := range lines {
+				if !crashed {
+					crashed = strings.Contains(line, crash)
+					continue
+				}
+				if tick, ok := firstTick([]string{line}, poller); ok {
+					found = tick
+					return true, changed
+				}
+			}
+			return false, changed
+		})
+		s.ticks[poller] = found
+	}
+}
+
+func awaitTick(poller string, start func(*Scenario) int, since string) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		from := start(s)
 		stop := s.app.tick(s.t, poller)
 		defer stop()
 		var found tick
-		await(s.t, "a tick of poller "+poller+" after the step started", func() (bool, <-chan struct{}) {
+		await(s.t, "a tick of poller "+poller+" "+since, func() (bool, <-chan struct{}) {
 			lines, changed := s.app.lines(from)
 			from += len(lines)
 			var ok bool

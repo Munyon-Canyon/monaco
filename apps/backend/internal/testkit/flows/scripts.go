@@ -51,6 +51,7 @@ func Scripts() map[string]Script {
 		"F18SamplePricesOK":                        F18SamplePricesOK,
 		"F18SamplePricesJupiterUnavailable":        F18SamplePricesJupiterUnavailable,
 		"F18SamplePricesUpstreamTimeout":           F18SamplePricesUpstreamTimeout,
+		"F18SamplePricesCrashBeforeCommit":         F18SamplePricesCrashBeforeCommit,
 		"F20FollowOK":                              F20FollowOK,
 		"F20FollowCannotFollowSelf":                F20FollowCannotFollowSelf,
 		"F20FollowUserNotFound":                    F20FollowUserNotFound,

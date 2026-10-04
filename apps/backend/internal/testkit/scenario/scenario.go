@@ -84,6 +84,7 @@ type Scenario struct {
 	remember map[string]string
 	keys     int
 	ticks    map[string]tick
+	marks    map[string]int
 }
 
 type user struct {
@@ -157,7 +158,14 @@ func New(t *testing.T, opts ...Option) *Scenario {
 }
 
 func newScenario(t T, b *backend) *Scenario {
-	return &Scenario{t: t, app: b, users: map[string]*user{}, remember: map[string]string{}, ticks: map[string]tick{}}
+	return &Scenario{
+		t:        t,
+		app:      b,
+		users:    map[string]*user{},
+		remember: map[string]string{},
+		ticks:    map[string]tick{},
+		marks:    map[string]int{},
+	}
 }
 
 func (s *Scenario) Given(steps ...Step) *Scenario { return s.run(StageGiven, steps) }
