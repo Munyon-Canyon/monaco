@@ -14,6 +14,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
@@ -42,11 +43,11 @@ const (
 )
 
 type Exchange struct {
-	Method, Path, IdempotencyKey string
-	Request, Response            []byte
-	Status                       int
-	Started                      time.Time
-	Took                         time.Duration
+	Method, Path, Operation, IdempotencyKey string
+	Request, Response                       []byte
+	Status                                  int
+	Started                                 time.Time
+	Took                                    time.Duration
 }
 
 type backend struct {
@@ -196,6 +197,17 @@ func (s *Scenario) DB() *pgxpool.Pool { return s.app.pool }
 func (s *Scenario) Context() context.Context { return s.t.Context() }
 
 func (s *Scenario) Bus() *bus.Conn { return s.app.bus }
+
+func (s *Scenario) Operation(name string, err error) {
+	s.t.Helper()
+	e := Exchange{Operation: name, Status: http.StatusOK, Started: time.Now()}
+	if err != nil {
+		code := errs.CodeOf(err)
+		e.Status = errs.HTTPStatus(errs.KindOf(code))
+		e.Response, _ = json.Marshal(api.Problem{Code: api.ErrorCode(code)})
+	}
+	s.app.exchanged(e)
+}
 
 func (s *Scenario) Helper() { s.t.Helper() }
 

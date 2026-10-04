@@ -103,6 +103,7 @@ func voidFromOps(p openProposal, want errs.Code) scenario.Step {
 		pool, clk := s.DB(), clock.Real{}
 		deps := module.Deps{Clock: clk, IDs: ids.Real{}, Pool: pool, UoW: db.New(pool, ids.Real{}, clk), Bus: s.Bus()}
 		err := governance.New(deps).VoidFromOps(s.Context(), p.id, voidReason)
+		s.Operation("VoidProposal", err)
 		got := errs.Code("")
 		if err != nil {
 			got = errs.CodeOf(err)

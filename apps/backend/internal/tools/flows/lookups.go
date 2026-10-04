@@ -16,6 +16,7 @@ const (
 	TriggerRoute    TriggerKind = "route"
 	TriggerPoller   TriggerKind = "poller"
 	TriggerConsumer TriggerKind = "consumer"
+	TriggerOps      TriggerKind = "ops"
 )
 
 func (f Flow) Triggers() []string { return list(f.Trigger) }
@@ -32,7 +33,7 @@ func (f Flow) TriggerKind(command string) (kind TriggerKind, name string) {
 }
 
 func triggerKind(trigger string) (TriggerKind, string) {
-	for _, kind := range []TriggerKind{TriggerPoller, TriggerConsumer} {
+	for _, kind := range []TriggerKind{TriggerPoller, TriggerConsumer, TriggerOps} {
 		if name, ok := strings.CutPrefix(trigger, string(kind)+":"); ok {
 			return kind, name
 		}
@@ -46,8 +47,11 @@ func Members(values []string) Lookup {
 
 func Triggers(spec []byte, subjects, pollers []string) Lookup {
 	known := map[TriggerKind][]string{TriggerRoute: Routes(spec), TriggerPoller: pollers, TriggerConsumer: subjects}
-	return func(_ Flow, trigger string) bool {
+	return func(f Flow, trigger string) bool {
 		kind, name := triggerKind(trigger)
+		if kind == TriggerOps {
+			return slices.Contains(f.Commands, name)
+		}
 		return slices.Contains(known[kind], name)
 	}
 }

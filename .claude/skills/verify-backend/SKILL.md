@@ -40,6 +40,7 @@ Per outcome, in `apps/backend/cmd/monacoctl/verify/invariants.go` and `apps/back
 | Route | A 2xx, and an `http.request` line | That code's HTTP status and `code`, and `http.request` and `http.problem` lines |
 | `poller:<name>` | A `poller.tick` line for the poller | A `poller.tick.failed` line for the poller with that `code` |
 | `consumer:<subject>` | A `bus.dispatched` line on the subject with outcome `ack` | A `bus.dispatched` line on the subject with that `code` |
+| `ops:<Command>` | The operator command completed successfully | The operator command returned that code |
 
 - **Log lines.** Besides the trigger's lines, an outcome that is not a code needs a relay tick when the flow emits events and one dispatched line per watching handler. Every line must be written after the script started and carry its required attrs.
 

@@ -54,6 +54,47 @@ func fixtureScripts() map[string]flows.Script {
 	}
 }
 
+func TestOperationMismatch_judgesTheRecordedOperationOutcome(t *testing.T) {
+	t.Parallel()
+	flow := tools.Flow{ID: "13a", Trigger: "ops:VoidProposal"}
+	ok := scenario.Exchange{Operation: "VoidProposal", Status: http.StatusOK}
+	closed := scenario.Exchange{
+		Operation: "VoidProposal",
+		Status:    http.StatusUnprocessableEntity,
+		Response:  []byte(`{"code":"proposal_closed"}`),
+	}
+	for _, tc := range []struct {
+		outcome   string
+		exchanges []scenario.Exchange
+		wantEmpty bool
+	}{
+		{"ok", []scenario.Exchange{ok}, true},
+		{"ProposalClosed", []scenario.Exchange{ok, closed}, true},
+		{"ProposalClosed", []scenario.Exchange{ok}, false},
+		{"ok", nil, false},
+	} {
+		res := &Result{Unit: Unit{Flow: flow, Outcome: tools.Outcome(tc.outcome)}, Exchanges: tc.exchanges}
+		if got := operationMismatch(res, "VoidProposal"); (got == "") != tc.wantEmpty {
+			t.Errorf("operationMismatch(%s) = %q, want empty %v", tc.outcome, got, tc.wantEmpty)
+		}
+	}
+}
+
+func TestOperationTrigger_recordsItsOutcomeWithoutRequiringABinaryLog(t *testing.T) {
+	t.Parallel()
+	d := &driver{env: Env{Logs: &Logs{}}}
+	res := &Result{Unit: Unit{
+		Flow:    tools.Flow{ID: "13a", Trigger: "ops:VoidProposal"},
+		Outcome: tools.OutcomeOK,
+	}, Exchanges: []scenario.Exchange{{Operation: "VoidProposal", Status: http.StatusUnprocessableEntity}}}
+	if got := d.outcomeMismatch(res); got == "" {
+		t.Fatal("outcomeMismatch accepted a failed operation for ok")
+	}
+	if got := d.triggerLogs(res.Unit); got != nil {
+		t.Fatalf("triggerLogs = %v, want none", got)
+	}
+}
+
 func TestRouteMismatch_judgesACodeOutcomeByTheLastCallOnTheRoute(t *testing.T) {
 	t.Parallel()
 	const route = "POST /v1/system/pings"
