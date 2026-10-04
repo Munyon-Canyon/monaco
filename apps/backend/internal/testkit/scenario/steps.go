@@ -250,10 +250,11 @@ func eventPayloadMatches(got, want map[string]any) bool {
 func EventuallyEvent(typ events.Type) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
-		appended := s.app.events(s.t, typ, s.actors())
-		if len(appended) == 0 {
-			s.t.Fatalf("scenario: no %s event was appended", typ)
-		}
+		var appended []string
+		s.app.note.await(s.t, string(typ)+" event append", func() bool {
+			appended = s.app.events(s.t, typ, s.actors())
+			return len(appended) != 0
+		})
 		s.app.awaitHandled(s.t, typ, appended)
 	}
 }

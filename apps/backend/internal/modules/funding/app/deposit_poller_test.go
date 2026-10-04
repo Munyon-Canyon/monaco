@@ -16,7 +16,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
-	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -45,13 +44,6 @@ func (w *testWallets) MemberWallets(context.Context, ids.UserID, int) ([]port.Me
 
 type pollerRPC struct{ pages [][]solana.SignatureInfo }
 
-type closeLimiter struct{ close func() }
-
-func (l closeLimiter) Wait(context.Context) error {
-	l.close()
-	return nil
-}
-
 func (r *pollerRPC) SignaturesFor(
 	_ context.Context,
 	_ chain.SolanaAddress,
@@ -60,12 +52,6 @@ func (r *pollerRPC) SignaturesFor(
 	page := r.pages[0]
 	r.pages = r.pages[1:]
 	return page, nil
-}
-
-func (*pollerRPC) InboundTransfersForMint(
-	context.Context, chain.Signature, chain.SolanaAddress, chain.SolanaAddress,
-) ([]solana.Transfer, error) {
-	return nil, nil
 }
 
 func TestDepositPollerFetchesOnePageAndHonorsCancellation(t *testing.T) {
@@ -83,9 +69,6 @@ func TestDepositPollerFetchesOnePageAndHonorsCancellation(t *testing.T) {
 	if _, err := p.signaturesPage(ctx, "wallet", "", "until", 1000); err == nil {
 		t.Fatal("cancelled signaturesPage error = nil")
 	}
-	if _, err := p.scanSignature(ctx, port.MemberWallet{}, solana.SignatureInfo{}); err == nil {
-		t.Fatal("cancelled scanSignature error = nil")
-	}
 }
 
 func TestNewRPCLimiterDefaultsToTwentyPerSecond(t *testing.T) {
@@ -99,7 +82,7 @@ func TestNewRPCLimiterDefaultsToTwentyPerSecond(t *testing.T) {
 			t.Fatalf("NewRPCLimiter(%d) = %v/%d, want %v/%d", tc.in, l.Limit(), l.Burst(), tc.limit, tc.burst)
 		}
 	}
-	if p := NewDepositPoller(nil, nil, nil, nil, nil, nil, "usdc", time.Second, nil, nil); p.Interval() != time.Second {
+	if p := NewDepositPoller(nil, nil, nil, nil, nil, nil, "usdc", time.Second, nil); p.Interval() != time.Second {
 		t.Fatalf("interval = %s", p.Interval())
 	}
 }
@@ -186,25 +169,10 @@ func TestDepositPollerPagesMemberWalletReader(t *testing.T) {
 	}
 }
 
-func TestDepositPollerAmountForRejectsOverflow(t *testing.T) {
-	t.Parallel()
-	p := DepositPoller{usdc: "usdc"}
-	_, err := p.amountFor([]solana.Transfer{
-		{Mint: chain.Mint{Address: "usdc", Decimals: 6}, Net: money.NewBaseUnits(math.MaxUint64, 6)},
-		{Mint: chain.Mint{Address: "usdc", Decimals: 6}, Net: money.NewBaseUnits(1, 6)},
-	})
-	if err == nil {
-		t.Fatal("amountFor overflow error = nil")
-	}
-}
-
 func TestDepositPollerRejectsSlotsAboveInt64(t *testing.T) {
 	t.Parallel()
 	p := DepositPoller{}
 	sig := solana.SignatureInfo{Slot: uint64(math.MaxInt64) + 1}
-	if _, err := p.credit(t.Context(), port.MemberWallet{}, sig, money.MicrosFromUint64(1)); err == nil {
-		t.Fatal("credit overflow error = nil")
-	}
 	if err := p.advance(t.Context(), "wallet", "signature", sig.Slot); err == nil {
 		t.Fatal("advance overflow error = nil")
 	}
@@ -219,7 +187,7 @@ func TestDepositPollerWrapsAdvanceFailures(t *testing.T) {
 	pool.Close()
 	p := NewDepositPoller(
 		pool, db.New(pool, testkit.NewIDs(1), clock.Real{}), testkit.NewIDs(2), clock.Real{}, nil, nil,
-		"usdc", time.Second, NewRPCLimiter(1), nil,
+		"usdc", time.Second, NewRPCLimiter(1),
 	)
 	if err := p.advance(t.Context(), "wallet", "signature", 1); err == nil || errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("advance error = %v", err)
@@ -268,26 +236,13 @@ func TestDepositPollerRejectsInvalidBackfill(t *testing.T) {
 func TestDepositPollerReturnsFinishBackfillError(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
-	if _, err := pool.Exec(
-		t.Context(),
-		`INSERT INTO deposit_cursors (wallet_address, last_signature, cursor_slot, scanned_at)
-		VALUES ('wallet', '', 0, now())`,
-	); err != nil {
-		t.Fatal(err)
-	}
 	p := DepositPoller{
 		uow:   db.New(pool, testkit.NewIDs(90), clock.Real{}),
-		rpc:   &pollerRPC{},
-		limit: closeLimiter{close: pool.Close},
+		clock: clock.Real{},
 	}
-	_, err := p.processBackfillPage(
-		t.Context(),
-		port.MemberWallet{Address: "wallet"},
-		[]solana.SignatureInfo{{Signature: "signature", Slot: 1}},
-		&backfillCursor{},
-	)
-	if err == nil {
-		t.Fatal("processBackfillPage finish error = nil")
+	pool.Close()
+	if err := p.finishBackfill(t.Context(), "wallet", backfillCursor{head: "signature", slot: 1}); err == nil {
+		t.Fatal("finishBackfill error = nil")
 	}
 }
 

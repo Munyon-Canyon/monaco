@@ -22,6 +22,7 @@ type Module struct {
 	deps     module.Deps
 	balances port.Balances
 	owners   []app.SignatureOwner
+	limit    app.RPCLimiter
 }
 
 type lazyDepositReader struct {
@@ -39,7 +40,9 @@ func (r *lazyDepositReader) InboundTransfersForMint(
 	return r.reader.InboundTransfersForMint(ctx, sig, owner, mint)
 }
 
-func New(d module.Deps) *Module { return &Module{deps: d} }
+func New(d module.Deps) *Module {
+	return &Module{deps: d, limit: app.NewRPCLimiter(d.Config.Funding.DepositRPCRate)}
+}
 
 func (*Module) Name() string { return "funding" }
 
@@ -62,6 +65,7 @@ func (m *Module) Mount(r api.Mount) {
 func (m *Module) Consumers() []bus.Consumer {
 	resolver := app.NewDepositCandidateResolver(
 		&lazyDepositReader{cfg: m.deps},
+		m.limit,
 		chain.SolanaAddress(m.deps.Config.Solana.USDCMint),
 		m.owners,
 		app.NewCreditDepositHandler(m.deps.UoW, m.deps.Bus),
@@ -79,7 +83,7 @@ func (m *Module) Pollers() []poller.Poller {
 	cfg := m.deps.Config
 	return []poller.Poller{app.NewDepositPoller(m.deps.Pool, m.deps.UoW, m.deps.IDs, m.deps.Clock,
 		identity.New(m.deps).Queries(), solana.New(cfg, m.deps.Clock), chain.SolanaAddress(cfg.Solana.USDCMint),
-		cfg.Funding.DepositPollInterval, app.NewRPCLimiter(cfg.Funding.DepositRPCRate), m.deps.Bus)}
+		cfg.Funding.DepositPollInterval, m.limit)}
 }
 
 func (m *Module) Balances() port.Balances {

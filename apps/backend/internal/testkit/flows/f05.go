@@ -28,6 +28,7 @@ func F05CreditDepositOK(s *scenario.Scenario) {
 	).When(
 		scenario.AwaitTick("funding.deposits"),
 		scenario.AwaitTick("funding.deposits"),
+		scenario.EventuallyEvent(events.TypeDepositCredited),
 		expectDeposit(user),
 		scenario.EventuallyHint("balance_changed"),
 	).Then()

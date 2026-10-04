@@ -20,11 +20,12 @@ const importPath = "github.com/monaco/monaco/apps/backend/internal/platform/faul
 
 func registered() map[string]faultpoint.Name {
 	return map[string]faultpoint.Name{
-		"AfterCreate":  faultpoint.AfterCreate,
-		"AfterSign":    faultpoint.AfterSign,
-		"AfterExecute": faultpoint.AfterExecute,
-		"BeforeCommit": faultpoint.BeforeCommit,
-		"AfterPublish": faultpoint.AfterPublish,
+		"AfterCandidate": faultpoint.AfterCandidate,
+		"AfterCreate":    faultpoint.AfterCreate,
+		"AfterSign":      faultpoint.AfterSign,
+		"AfterExecute":   faultpoint.AfterExecute,
+		"BeforeCommit":   faultpoint.BeforeCommit,
+		"AfterPublish":   faultpoint.AfterPublish,
 	}
 }
 
