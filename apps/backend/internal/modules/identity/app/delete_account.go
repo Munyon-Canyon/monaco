@@ -14,6 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 type Balances interface {
@@ -61,7 +62,10 @@ func (h *DeleteAccount) Handle(ctx context.Context, id ids.UserID) error {
 		if err := tx.Events.Append(ctx, events.UserDeleted{V: 1, UserID: id.UUID(), At: at}); err != nil {
 			return err
 		}
-		tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, "user."+id.String()+".me_changed", nil) })
+		tx.AfterCommit(func(ctx context.Context) {
+			h.d.Hints.PublishHint(ctx, "user."+id.String()+".me_changed", nil)
+			observability.Info(ctx, observability.IdentityAccountDeleted, slog.String("user_id", id.String()))
+		})
 		return nil
 	})
 }

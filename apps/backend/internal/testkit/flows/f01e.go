@@ -5,6 +5,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
@@ -21,6 +22,7 @@ func F01eDeleteAccountOK(s *scenario.Scenario) {
 	s.Given(withHandle(deleteOK, deletedHandle)...).
 		When(scenario.Delete(me), scenario.ExpectStatus(http.StatusNoContent)).
 		Then(
+			actorLogged(observability.IdentityAccountDeleted),
 			scenario.ExpectEvents(events.TypeUserDeleted, 1),
 			scenario.EventuallyPublished(events.TypeUserDeleted, 1),
 			scenario.SignIn(deleteOK),

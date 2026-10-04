@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
@@ -9,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 type UpdateProfileHandler struct {
@@ -39,6 +41,7 @@ func (h UpdateProfileHandler) Handle(ctx context.Context, id ids.UserID, raw str
 		}
 		tx.AfterCommit(func(ctx context.Context) {
 			h.Hints.PublishHint(ctx, "user."+id.String()+".me_changed", nil)
+			observability.Info(ctx, observability.IdentityProfileUpdated, slog.String("user_id", id.String()))
 		})
 		return nil
 	})

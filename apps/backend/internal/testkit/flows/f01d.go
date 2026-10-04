@@ -31,6 +31,7 @@ func F01dSkipOnboardingStepOK(s *scenario.Scenario) {
 			scenario.ExpectEventPayload(events.TypeUserAuthStateChanged, map[string]any{
 				"from": "CREATED", "to": "AWAITING_PHONE", "cause": "onboarding",
 			}),
+			onboardingAdvanced("CREATED", "AWAITING_PHONE"),
 		)
 }
 
