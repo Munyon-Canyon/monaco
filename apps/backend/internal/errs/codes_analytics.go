@@ -6,7 +6,7 @@ const (
 	CodeAnalyticsPII       Code = "analytics_pii"
 )
 
-func analyticsRows() map[Code]Row {
+func (codeFiles) Analytics() map[Code]Row {
 	return map[Code]Row{
 		CodePostHogUnavailable: {
 			Name: "PostHogUnavailable", Kind: KindUnavailable, Retryable: true,

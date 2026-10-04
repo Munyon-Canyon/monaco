@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -250,7 +251,7 @@ func readGolden(t *testing.T, path string) []string {
 		t.Errorf("%s: %v", path, err)
 		return nil
 	}
-	return strings.Fields(string(raw))
+	return slices.Sorted(slices.Values(strings.Fields(string(raw))))
 }
 
 func goldenFor(source string) string {
@@ -308,5 +309,72 @@ func TestAllIsTheSortedUnionOfTheAreaGoldens(t *testing.T) {
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("All() = %v, want %v", got, want)
+	}
+}
+
+func tableMethodName(source string) string {
+	stem := strings.TrimSuffix(strings.TrimPrefix(source, "codes_"), ".go")
+	var b strings.Builder
+	for word := range strings.SplitSeq(stem, "_") {
+		runes := []rune(word)
+		if len(runes) == 0 {
+			continue
+		}
+		b.WriteRune(unicode.ToUpper(runes[0]))
+		b.WriteString(string(runes[1:]))
+	}
+	return b.String()
+}
+
+func tableMethods(t *testing.T, path string) []*ast.FuncDecl {
+	t.Helper()
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	var methods []*ast.FuncDecl
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv == nil || len(fn.Recv.List) != 1 {
+			continue
+		}
+		if recv, ok := fn.Recv.List[0].Type.(*ast.Ident); ok && recv.Name == "codeFiles" {
+			methods = append(methods, fn)
+		}
+	}
+	return methods
+}
+
+func returnsRowMap(fn *ast.FuncDecl) bool {
+	if fn.Type.Params.NumFields() != 0 || fn.Type.Results.NumFields() != 1 {
+		return false
+	}
+	m, ok := fn.Type.Results.List[0].Type.(*ast.MapType)
+	if !ok {
+		return false
+	}
+	key, keyOK := m.Key.(*ast.Ident)
+	value, valueOK := m.Value.(*ast.Ident)
+	return keyOK && valueOK && key.Name == "Code" && value.Name == "Row"
+}
+
+func TestEachCodeFileDeclaresOneTableMethodNamedForTheFile(t *testing.T) {
+	t.Parallel()
+	sources := areaFiles(t)
+	for _, source := range sources {
+		methods := tableMethods(t, source)
+		if len(methods) != 1 {
+			t.Errorf("%s declares %d codeFiles methods, want 1", source, len(methods))
+			continue
+		}
+		if got, want := methods[0].Name.Name, tableMethodName(source); got != want {
+			t.Errorf("%s: codeFiles method %s, want %s", source, got, want)
+		}
+		if !returnsRowMap(methods[0]) {
+			t.Errorf("%s: codeFiles.%s is not func() map[Code]Row", source, methods[0].Name.Name)
+		}
+	}
+	if got := reflect.TypeFor[codeFiles]().NumMethod(); got != len(sources) {
+		t.Errorf("codeFiles has %d methods, want one per code file (%d)", got, len(sources))
 	}
 }

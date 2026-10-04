@@ -11,7 +11,7 @@ const (
 	CodeProposalStillOpen  Code = "proposal_still_open"
 )
 
-func governanceRows() map[Code]Row {
+func (codeFiles) Governance() map[Code]Row {
 	return map[Code]Row{
 		CodeProposalNotFound: {Name: "ProposalNotFound", Kind: KindNotFound, Message: "That proposal was not found."},
 		CodeProposalClosed: {
