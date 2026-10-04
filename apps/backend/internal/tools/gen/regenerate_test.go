@@ -23,7 +23,7 @@ func stubBackend(t *testing.T, overrides map[string]string) string {
 		"apps/backend/sqlc.yaml":                    sqlcYAML,
 		"apps/backend/scripts/gen-golangci/main.go": okMain,
 		"apps/backend/scripts/gen-registry/main.go": okMain,
-		".bin/sqlc": "#!/bin/sh\nexit 0\n",
+		".bin/sqlc": "ok",
 	}
 	for rel, body := range overrides {
 		if body == "" {
@@ -32,9 +32,11 @@ func stubBackend(t *testing.T, overrides map[string]string) string {
 		}
 		files[rel] = body
 	}
+	sqlc, ok := files[".bin/sqlc"]
+	delete(files, ".bin/sqlc")
 	repo := tree(t, files)
-	if err := os.Chmod(filepath.Join(repo, ".bin", "sqlc"), 0o700); err != nil && !os.IsNotExist(err) {
-		t.Fatal(err)
+	if ok {
+		linkBin(t, filepath.Join(repo, ".bin", "sqlc"), sqlc)
 	}
 	return filepath.Join(repo, "apps", "backend")
 }
@@ -91,7 +93,7 @@ func TestRun_namesTheStepThatFailed(t *testing.T) {
 			map[string]string{"apps/backend/sqlc.yaml": "version: \"2\"\n"}, []string{"module", "ledger"}, "# BEGIN GENERATED modules",
 		},
 		"sqlc fails": {
-			map[string]string{".bin/sqlc": "#!/bin/sh\necho broken query >&2\nexit 1\n"},
+			map[string]string{".bin/sqlc": "broken"},
 			[]string{"query", "wallets", "GetWallet"},
 			"broken query",
 		},
