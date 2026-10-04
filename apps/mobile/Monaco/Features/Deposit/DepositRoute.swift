@@ -10,6 +10,6 @@ nonisolated struct DepositRoute: AppRoute {
     }
 
     @MainActor func destination() -> some View {
-        NotMigratedView(screen: "Deposit")
+        DepositView()
     }
 }

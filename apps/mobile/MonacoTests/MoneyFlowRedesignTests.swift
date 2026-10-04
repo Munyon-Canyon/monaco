@@ -1,4 +1,5 @@
 import Foundation
+import MonacoAPI
 import MonacoCore
 import Testing
 
@@ -16,6 +17,13 @@ private enum Fixture {
     static func balance(_ micros: Int64, pending: Int64 = 0) -> PlatformBalanceDTO {
         PlatformBalanceDTO(
             availableUsdcMicros: micros, memberWalletAddress: ownAddress, pendingAllocationMicros: pending)
+    }
+
+    static func account(depositAddress: String) -> AccountBalance {
+        AccountBalance(
+            availableMicros: 248_500_000, onChainMicros: 248_500_000, inFlightMicros: 0,
+            depositAddress: depositAddress, asOf: Date(timeIntervalSince1970: 1_759_579_200)
+        )
     }
 }
 
@@ -137,25 +145,24 @@ struct WithdrawFormTests {
     }
 }
 
-/// The deposit address card's three states, from the three values the load leaves behind.
+/// The deposit address card's three states, from the balance read that carries the address.
 @MainActor
 struct DepositAddressCardContentTests {
     @Test func aLoadInFlightWinsThenAnAddressThenWhatWentWrong() {
-        #expect(DepositAddressCard.Content.resolve(isLoading: true, address: ownAddress, errorMessage: nil) == .loading)
+        #expect(DepositAddressCard.Content.resolve(.idle) == .loading)
+        #expect(DepositAddressCard.Content.resolve(.loading) == .loading)
         #expect(
-            DepositAddressCard.Content.resolve(isLoading: false, address: ownAddress, errorMessage: nil)
+            DepositAddressCard.Content.resolve(.loaded(Fixture.account(depositAddress: ownAddress)))
                 == .ready(ownAddress))
         #expect(
-            DepositAddressCard.Content.resolve(
-                isLoading: false, address: nil, errorMessage: "Couldn't load your deposit address.")
+            DepositAddressCard.Content.resolve(.failed(.transport(URLError(.notConnectedToInternet))))
                 == .unavailable("Couldn't load your deposit address."))
     }
 
-    /// A cancelled load says nothing went wrong, and the card still offers a way on.
-    @Test func noAddressAndNoReasonIsNotReadyYet() {
+    @Test func anAddressThatCannotTakeMoneyIsNeverOffered() {
         #expect(
-            DepositAddressCard.Content.resolve(isLoading: false, address: nil, errorMessage: nil)
-                == .unavailable("Deposit address not ready yet."))
+            DepositAddressCard.Content.resolve(.loaded(Fixture.account(depositAddress: "")))
+                == .unavailable("Couldn't load your deposit address."))
     }
 }
 

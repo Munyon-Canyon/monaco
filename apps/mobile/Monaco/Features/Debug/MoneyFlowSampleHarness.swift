@@ -1,10 +1,11 @@
 #if DEBUG
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
 /// Debug-only: the money screens on canned data, with no sign-in and no backend.
 /// Launch with `-MonacoMoneyFlowSample <scenario>`:
-/// `addMoney` (address, a balance with a fund on its way, three cabals) · `addMoneyLoading` ·
+/// `addMoney` (address and a balance with a fund on its way) · `addMoneyLoading` ·
 /// `addMoneyFailed` · `fundCabal` (opened from a cabal, $50 typed) · `fundCabalPicker` (opened
 /// from Add money, three cabals to pick from) · `fundCabalEmpty` (nothing to fund with yet) ·
 /// `fundCabalLoading` · `withdraw` (Cash out to an address, amount and address typed) ·
@@ -66,15 +67,7 @@ struct MoneyFlowSampleHarness: View {
     private var root: some View {
         switch scenario {
         case .addMoney, .addMoneyLoading, .addMoneyFailed:
-            DepositContent(
-                auth: auth,
-                address: MoneyFlowSampleData.address(for: scenario),
-                balance: .amount(MoneyFlowSampleData.balance.availableUsdcMicros),
-                pendingAllocationMicros: MoneyFlowSampleData.pendingMicros,
-                joinedCabals: MoneyFlowSampleData.cabals,
-                onCopy: { _ in },
-                onRetry: {}
-            )
+            DepositContent(state: MoneyFlowSampleData.depositState(for: scenario), onCopy: { _ in }, onRetry: {})
         case .fundCabal, .fundCabalPicker, .fundCabalEmpty, .fundCabalLoading:
             FundCabalContent(
                 phase: MoneyFlowSampleData.fundPhase(for: scenario),
@@ -127,8 +120,6 @@ enum MoneyFlowSampleData {
     /// An outside Solana address that passes `SolanaAddress.validate`.
     static let destination = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
 
-    static let pendingMicros: Int64 = 50_000_000
-
     static let balance = PlatformBalanceDTO(
         availableUsdcMicros: 248_500_000,
         memberWalletAddress: depositAddress,
@@ -165,14 +156,14 @@ enum MoneyFlowSampleData {
         createdAt: "2026-09-18T11:40:00Z"
     )
 
-    static func address(for scenario: MoneyFlowSampleScenario) -> DepositAddressCard.Content {
+    static func depositState(for scenario: MoneyFlowSampleScenario) -> LoadState<AccountBalance> {
         switch scenario {
         case .addMoneyLoading:
             return .loading
         case .addMoneyFailed:
-            return .unavailable("No connection. Check your internet and try again.")
+            return .failed(.transport(URLError(.notConnectedToInternet)))
         default:
-            return .ready(depositAddress)
+            return (try? AccountBalance(.sample)).map(LoadState.loaded) ?? .loading
         }
     }
 

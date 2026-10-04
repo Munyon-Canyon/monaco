@@ -73,7 +73,7 @@ struct ProfileTabView: View {
             // Edge to edge, like Home: the ruled lists run to the screen's edges and each
             // section insets its own header.
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
-                // One ruled table: the three figures, then the cash line under them.
+                // One ruled table: the header, then the three figures.
                 VStack(spacing: 0) {
                     ProfileHeader(
                         initialNameDraft: initialNameDraft,
@@ -83,16 +83,6 @@ struct ProfileTabView: View {
                     )
                     .padding(.bottom, MonacoTheme.Space.l)
                     statRow
-                    HomeBalanceRowSection(
-                        auth: auth,
-                        balance: session.platformBalance,
-                        isBalanceLoading: session.isBalanceLoading,
-                        joinedCabals: session.joinedCabals,
-                        onRetryBalance: { Task { await session.refresh(auth: auth) } },
-                        identifierPrefix: "profile",
-                        balanceIdentifier: "profile-balance-value",
-                        rules: .bottom
-                    )
                 }
 
                 ProfileCabalsSection(

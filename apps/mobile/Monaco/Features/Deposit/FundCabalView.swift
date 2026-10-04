@@ -398,7 +398,10 @@ struct FundCabalContent: View {
     private func needsMoney(_ balance: PlatformBalanceDTO) -> some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
             MonacoGroupedList {
-                PlatformBalanceCard(balance: balance)
+                PlatformBalanceCard(
+                    display: .amount(balance.availableUsdcMicros),
+                    pendingAllocationMicros: balance.pendingAllocationMicros
+                )
             }
 
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
