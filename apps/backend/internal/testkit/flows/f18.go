@@ -12,6 +12,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
+func (defined) WorkerEnvF18() []string {
+	return []string{"MARKET_PRICE_POLL_INTERVAL=2s", "MONACO_TIMEOUT_JUPITER_QUOTE=1s"}
+}
+
 const (
 	priceRoute   = "/jupiter/price/v3"
 	pricePoller  = "market.prices"

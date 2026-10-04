@@ -56,17 +56,6 @@ func tally(yes, no, voters, needed int) map[string]int {
 	return map[string]int{"yes": yes, "no": no, "voters": voters, "needed": needed}
 }
 
-func f10Scripts() map[string]Script {
-	return map[string]Script{
-		"F10CastVoteOK":                F10CastVoteOK,
-		"F10CastVoteUnauthorized":      F10CastVoteUnauthorized,
-		"F10CastVoteProposalNotFound":  F10CastVoteProposalNotFound,
-		"F10CastVoteNotAVoter":         F10CastVoteNotAVoter,
-		"F10CastVoteProposalClosed":    F10CastVoteProposalClosed,
-		"F10CastVoteCrashAfterPublish": F10CastVoteCrashAfterPublish,
-	}
-}
-
 func F10CastVoteOK(s *scenario.Scenario) {
 	p := seedOpenProposal(s, 3)
 	s.Given(scenario.AsSeededUser("alice", p.voters[0])).

@@ -11,6 +11,8 @@ import (
 
 const depositWallet = "5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP"
 
+func (defined) WorkerEnvF05() []string { return []string{"FUNDING_DEPOSIT_POLL_INTERVAL=2s"} }
+
 func F05CreditDepositOK(s *scenario.Scenario) {
 	user := seedDepositWallet(s)
 	s.Given(

@@ -14,21 +14,6 @@ const (
 	myInvitesURL = "/v1/me/cabal-invites"
 )
 
-func f03InviteScripts() map[string]Script {
-	return map[string]Script{
-		"F03InviteMemberOK":              F03InviteMemberOK,
-		"F03InviteMemberUnauthorized":    F03InviteMemberUnauthorized,
-		"F03InviteMemberCabalNotFound":   F03InviteMemberCabalNotFound,
-		"F03InviteMemberUserNotFound":    F03InviteMemberUserNotFound,
-		"F03InviteMemberNotCabalMember":  F03InviteMemberNotCabalMember,
-		"F03InviteMemberNotCabalCreator": F03InviteMemberNotCabalCreator,
-		"F03InviteMemberCabalBanned":     F03InviteMemberCabalBanned,
-		"F03InviteMemberAlreadyMember":   F03InviteMemberAlreadyMember,
-		"F03InviteMemberRequestPending":  F03InviteMemberRequestPending,
-		"F03DecideAccessInviteExpired":   F03DecideAccessInviteExpired,
-	}
-}
-
 func inviteeOf(script string) string { return "did:privy:qa-f03-" + script + "-invitee" }
 
 func handleOf(script string) string { return "f03_" + strings.ReplaceAll(script, "-", "_") }

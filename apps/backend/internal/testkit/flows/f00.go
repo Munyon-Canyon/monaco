@@ -12,6 +12,15 @@ import (
 
 const pings = "/v1/system/pings"
 
+func (defined) SeedsF00() map[string]Seeder {
+	return map[string]Seeder{
+		"F00RecordPingOK":                seedSignedIn,
+		"F00RecordPingInvalidInput":      seedSignedIn,
+		"F00RecordPingUnauthorized":      seedAnonymous,
+		"F00RecordPingCrashAfterPublish": seedSignedIn,
+	}
+}
+
 func F00RecordPingOK(s *scenario.Scenario) {
 	s.Given(scenario.AsUser("alice")).
 		When(
