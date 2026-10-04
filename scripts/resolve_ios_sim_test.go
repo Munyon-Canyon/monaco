@@ -27,9 +27,7 @@ func simCheckout(t *testing.T, lane string) string {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(primary, "scripts", name), src, 0o755); err != nil {
-			t.Fatal(err)
-		}
+		writeExecutable(t, filepath.Join(primary, "scripts", name), string(src))
 	}
 	git := func(dir string, args ...string) {
 		t.Helper()
@@ -260,9 +258,7 @@ func TestResolveIOSSim_laneSlimsANewSimulator(t *testing.T) {
 	bin := t.TempDir()
 	calls := filepath.Join(t.TempDir(), "simslim.calls")
 	script := "#!/bin/sh\necho \"$*\" >> " + calls + "\n[ \"$1\" = on ]\n"
-	if err := os.WriteFile(filepath.Join(bin, "simslim"), []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writeExecutable(t, filepath.Join(bin, "simslim"), script)
 	home := t.TempDir()
 	profile := filepath.Join(home, ".config", "simslim", "base-slim.json")
 	if err := os.MkdirAll(filepath.Dir(profile), 0o755); err != nil {

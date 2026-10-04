@@ -13,9 +13,7 @@ func TestTestBackend_exitsOneAndPrintsTheFailedTestsWhenGoTestFails(t *testing.T
 	t.Parallel()
 	stub := t.TempDir()
 	goStub := "#!/bin/sh\necho '{\"Action\":\"fail\",\"Package\":\"p\",\"Test\":\"TestX\"}'\nexit 1\n"
-	if err := os.WriteFile(filepath.Join(stub, "go"), []byte(goStub), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writeExecutable(t, filepath.Join(stub, "go"), goStub)
 	cmd := exec.Command(filepath.Join(repoRoot(t), "scripts", "test-backend.sh"))
 	cmd.Dir = gitRepo(t)
 	cmd.Env = append(os.Environ(),
