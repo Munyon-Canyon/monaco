@@ -70,7 +70,6 @@ struct AssetsTabView: View {
             model.updateQuery(newValue)
         }
         .task {
-            model.seedPopular(session.popularAssets)
             await refreshTab()
         }
         .onChange(of: scenePhase) { _, phase in
@@ -378,17 +377,10 @@ struct AssetsTabView: View {
         async let catalogue: Void = model.refreshPopularIfStale()
         async let social: Void = model.refreshSocialIfStale()
         _ = await (catalogue, social)
-        syncPopularToSession()
     }
 
     private func forceRefreshTab() async {
         await model.refreshEverything()
-        syncPopularToSession()
-    }
-
-    private func syncPopularToSession() {
-        guard !model.popular.isEmpty else { return }
-        session.popularAssets = model.popular
     }
 
     private func centeredStatus<Content: View>(@ViewBuilder content: () -> Content) -> some View {

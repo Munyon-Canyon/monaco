@@ -51,10 +51,6 @@ private final class StubDataSource: AppSessionDataSource {
         HomePnLSeriesDTO(points: [])
     }
 
-    func getPopularAssets(accessToken: String, limit: Int) async throws -> PopularAssetsResponse {
-        PopularAssetsResponse(assets: [])
-    }
-
     func release(_ range: HomeLeaderboardRange) {
         pendingDashboards.removeValue(forKey: range)?.resume()
     }
