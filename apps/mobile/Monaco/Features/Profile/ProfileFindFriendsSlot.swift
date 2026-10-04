@@ -1,9 +1,26 @@
 import SwiftUI
 
 enum ProfileFindFriendsSlot: ProfileSection {
-    static let isLive = false
+    static let isLive = true
 
     static func body(for context: Void) -> some View {
-        EmptyView()
+        ProfileFindFriendsRow()
+    }
+}
+
+private struct ProfileFindFriendsRow: View {
+    var body: some View {
+        MonacoGroupedList {
+            NavigationLink(value: AnyAppRoute(FriendsRoute())) {
+                MonacoRow(
+                    title: "Find friends",
+                    chevron: true,
+                    isLast: true,
+                    leading: { StockMark(systemImage: "person.2", size: 40) }
+                )
+            }
+            .buttonStyle(.monacoRow)
+            .accessibilityIdentifier("profile-find-friends")
+        }
     }
 }
