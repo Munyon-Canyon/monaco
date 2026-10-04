@@ -204,12 +204,7 @@ struct ProposeBuyView: View {
     private func applyInitialSymbolIfNeeded() {
         guard !didApplyInitialSymbol, let initialSymbol, !initialSymbol.isEmpty else { return }
         didApplyInitialSymbol = true
-        let known = (session?.popularAssets ?? []).first {
-            $0.symbol.caseInsensitiveCompare(initialSymbol) == .orderedSame
-        }
-        picked =
-            known.map { ProposeStock(market: $0) }
-            ?? ProposeStock(symbol: initialSymbol, kind: initialKind, tokenDecimals: initialDecimals)
+        picked = ProposeStock(symbol: initialSymbol, kind: initialKind, tokenDecimals: initialDecimals)
     }
 
     /// Without a chooser sheet to dismiss, pop back to the picker and confirm here.
@@ -240,10 +235,6 @@ struct ProposeBuyView: View {
     }
 
     private func loadPopular(force: Bool = false) async {
-        if !force, let cached = session?.popularAssets, !cached.isEmpty {
-            popular = cached.map { ProposeStock(market: $0) }
-            return
-        }
         popularLoadFailed = false
         do {
             popular = try await service.popularStocks()
@@ -344,7 +335,7 @@ private struct ProposeAmountSkeleton: View {
 enum ProposeStockLogo {
     @MainActor
     static func url(for symbol: String, in session: AppSessionStore?) -> URL? {
-        session?.popularAssets.first { $0.symbol.caseInsensitiveCompare(symbol) == .orderedSame }?.logoURL
+        nil
     }
 }
 

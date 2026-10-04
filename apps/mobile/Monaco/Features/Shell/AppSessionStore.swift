@@ -10,7 +10,6 @@ protocol AppSessionDataSource: Sendable {
     func getHome(accessToken: String) async throws -> HomeViewDTO
     func getHomeDashboard(accessToken: String, leaderboardRange: HomeLeaderboardRange) async throws -> HomeDashboardDTO
     func getHomePnLSeries(accessToken: String, range: HomeLeaderboardRange) async throws -> HomePnLSeriesDTO
-    func getPopularAssets(accessToken: String, limit: Int) async throws -> PopularAssetsResponse
 }
 
 /// The token source and rejected-session sink; production uses `PrivyAuthService`.
@@ -37,7 +36,6 @@ final class AppSessionStore {
     var dashboard: HomeDashboardDTO?
     var profile: SessionProfile? { didSet { onProfileChange?(profile) } }
     var onProfileChange: ((SessionProfile?) -> Void)?
-    var popularAssets: [MarketAssetDTO] = []
     var homePnLSeries: [HomePnLSeriesPointDTO]?
     var isHomePnLSeriesLoading = false
     var errorMessage: String?
@@ -218,7 +216,6 @@ final class AppSessionStore {
         home = nil
         dashboard = nil
         profile = nil
-        popularAssets = []
         homePnLSeries = nil
         isHomePnLSeriesLoading = false
         errorMessage = nil

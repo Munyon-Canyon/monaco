@@ -36,7 +36,6 @@ extension AppSessionStore {
 
     func refreshDeferredHomePayloads(auth: SessionAuthenticating, accessToken: String? = nil) async {
         await refreshHomeBoards(accessToken: accessToken ?? auth.accessToken)
-        await refreshPopular(auth: auth)
     }
 
     func refreshHomeBoards(accessToken: String?) async {
@@ -61,21 +60,6 @@ extension AppSessionStore {
             let series = try await apiClient.getHomePnLSeries(accessToken: token, range: .oneHour)
             guard mayWrite(generation) else { return }
             homePnLSeries = series.points
-        } catch {
-            if error.isRequestCancellation { return }
-            if case MonacoAPIError.httpStatus(let status) = error, status == 401 {
-                await auth.signOutAfterRejectedSession(rejectedToken: token)
-            }
-        }
-    }
-
-    func refreshPopular(auth: SessionAuthenticating) async {
-        guard let token = auth.accessToken else { return }
-        let generation = refreshGenerationValue()
-        do {
-            let popular = try await apiClient.getPopularAssets(accessToken: token, limit: 10)
-            guard mayWrite(generation) else { return }
-            popularAssets = popular.assets
         } catch {
             if error.isRequestCancellation { return }
             if case MonacoAPIError.httpStatus(let status) = error, status == 401 {
