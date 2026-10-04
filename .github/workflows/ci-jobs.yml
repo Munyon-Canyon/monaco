@@ -298,6 +298,10 @@ jobs:
   mobile-core:
     needs: plan
     if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.mobile-core == 'true' || needs.plan.outputs.flows == 'true' || needs.plan.outputs.unknown == 'true')
+    # The legacy-growth job reads the PR's labels.
+    permissions:
+      contents: read
+      pull-requests: read
     uses: ./.github/workflows/ci-mobile-core.yml
 
   # Runs the F<id>IntegrationTests of only the flows the stack touches; a flow-path change that
@@ -487,6 +491,8 @@ jobs:
               - 'scripts/swiftlint-ratchet.sh'
               - 'scripts/gen-mobile-feature.sh'
               - 'scripts/ci/mobile-integration.sh'
+              - 'scripts/check-legacy-growth.py'
+              - 'scripts/test_check_legacy_growth.py'
             flows:
               - 'packages/flows/**'
               - 'apps/backend/api/**'

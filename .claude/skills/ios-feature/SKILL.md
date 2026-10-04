@@ -28,4 +28,4 @@ scripts/gen-mobile-feature.sh <Domain>
 
 The copy still calls `postSystemPing` and `getSystemPing`. Replace those with the screen's operation, then delete the ping-only assertions that no longer apply.
 
-When the rewire deletes legacy code, lower the #941 `packages/mobile-core/legacy-baseline.tsv` row for every metric removed, and shrink the `feature-observable` allowlist row in `packages/mobile-core/Tests/MonacoCoreTests/RepoRulesAllowlist.txt` when an `@Observable` class leaves `Features/`.
+When the rewire deletes legacy code, shrink the `feature-observable` allowlist row in `packages/mobile-core/Tests/MonacoCoreTests/RepoRulesAllowlist.txt` when an `@Observable` class leaves `Features/`.
