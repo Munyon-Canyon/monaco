@@ -88,7 +88,7 @@ A flow is one file, `packages/flows/backend/<id>.tsv`: the tab-separated header 
 
 1. Add `packages/flows/backend/<id>.tsv` with the row as `planned` when the ticket starts.
 2. Run `just gen flow <id>`. Write the non-crash scripts in `internal/testkit/flows/f<id>.go`, run `go generate ./cmd/monacoctl` to write its `f<id>.gen.go`, and make each test call its script. A poller flow's worker env is a `WorkerEnvF<id>` method in its `f<id>.go`, and an app flow's seeders are a `Seeds<Stem>` method there. Then set `built`. Scripts for the non-crash outcomes ship with the `built` row.
-3. Crash scripts ship with the `verify all --crash-at <point>` line in `scripts/ci/e2e.sh` that runs them. Register the rest and set `verified`.
+3. The `e2e` job runs a crash pass for every point that a `built` or `verified` flow has a script for, so a new crash script needs no CI edit. Register the rest and set `verified`.
 4. Regenerate the docs with `just gen docs` and the flow's feature map page with `go generate ./cmd/monacoctl`. `scripts/ci/ready.sh` fails when either is stale.
 
 A test named `TestFlow<id>_...` with no row fails the check. Deleting a flow deletes its file and its tests together.

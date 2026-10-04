@@ -20,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
@@ -640,5 +641,71 @@ func TestFlowsAffectedCommands(t *testing.T) {
 				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 			}
 		})
+	}
+}
+
+func TestFlowsCrashPoints(t *testing.T) {
+	t.Parallel()
+	all := []flows.Flow{
+		{
+			ID:       "30",
+			Status:   flows.StatusVerified,
+			Commands: []string{"Mute"},
+			Outcomes: []flows.Outcome{"ok", "crash:before-commit"},
+		},
+		{
+			ID:       "31",
+			Status:   flows.StatusBuilt,
+			Commands: []string{"Pin", "Unpin"},
+			Outcomes: []flows.Outcome{"crash:after-sign", "crash:after-publish"},
+		},
+		{
+			ID:       "32",
+			Status:   flows.StatusBuilt,
+			Commands: []string{"Star"},
+			Outcomes: []flows.Outcome{"crash:after-publish", "crash:after-create"},
+		},
+		{
+			ID:       "33",
+			Status:   flows.StatusPlanned,
+			Commands: []string{"Plan"},
+			Outcomes: []flows.Outcome{"crash:after-execute"},
+		},
+	}
+	scripts := map[string]bool{}
+	for _, f := range all {
+		for _, command := range f.Commands {
+			for _, o := range f.Outcomes {
+				scripts[flows.ScriptName(f, command, o)] = true
+			}
+		}
+	}
+	delete(scripts, flows.ScriptName(all[2], "Star", "crash:after-create"))
+	delete(scripts, flows.ScriptName(all[1], "Pin", "crash:after-sign"))
+	got := crashPoints(all, func(name string) bool { return scripts[name] })
+	if want := "after-publish,after-sign,before-commit"; strings.Join(got, ",") != want {
+		t.Fatalf("crashPoints = %v, want %s", got, want)
+	}
+}
+
+func TestFlowsCrashPoints_printsEachPointOfTheRepoOrFailsOnABadRepo(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	if code := flowsCrashPoints(os.DirFS("../../../.."), &stdout, &stderr); code != 0 {
+		t.Fatalf("code=%d stderr=%q", code, stderr.String())
+	}
+	points := strings.Fields(stdout.String())
+	if len(points) == 0 || !slices.IsSorted(points) {
+		t.Fatalf("flows crash-points = %q, want sorted points", stdout.String())
+	}
+	for _, p := range points {
+		if !faultpoint.Known(p) {
+			t.Errorf("flows crash-points printed %q, not a faultpoint", p)
+		}
+	}
+	stderr.Reset()
+	if code := run(commands(), tools(nil), nil, []string{"flows", "crash-points"}, &stdout, &stderr); code != 1 ||
+		!strings.Contains(stderr.String(), "monacoctl flows crash-points") {
+		t.Fatalf("crash-points without flow files: code=%d stderr=%q", code, stderr.String())
 	}
 }
