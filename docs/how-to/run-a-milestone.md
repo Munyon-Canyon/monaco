@@ -165,7 +165,7 @@ Only the root restacks, one stack at a time.
 
         gt submit --stack --no-interactive --draft
 
-5. Where a PR's diff did not change, repost its verdict on the new head: `bin/monacoctl agents verdict carry <pr>`. Where it changed, verify it again. Then land the stack.
+5. Where a PR's own added and removed lines did not change (its context lines may have), repost its verdict on the new head: `bin/monacoctl agents verdict carry <pr>`. Where it changed, verify it again. Then land the stack.
 
 Dequeue a stack before you restack it: remove the `merge-queue` label from each of its PRs.
 
