@@ -491,6 +491,29 @@ type Tally struct {
 	Yes int `json:"yes"`
 }
 
+// TradePreview What proposing the trade would quote, and the first check it fails.
+type TradePreview struct {
+	// AdvisoryCode The error code a proposal of this trade would fail with now: asset_not_found, asset_untradable, no_route, pot_exceeded or insufficient_funds. Null when every check passes.
+	//
+	// Examples: null
+	AdvisoryCode *string `json:"advisory_code"`
+
+	// AdvisoryMessage The user-facing message for `advisory_code`. Null when `advisory_code` is null.
+	//
+	// Examples: null
+	AdvisoryMessage *string `json:"advisory_message"`
+
+	// PotValueMicros The cabal's total value, USDC plus priced holdings, in micros.
+	//
+	// Examples: 100000000
+	PotValueMicros int64 `json:"pot_value_micros"`
+
+	// QuoteOutAmount The quoted output, in the output asset's base units. Null when Jupiter has no route or the asset is unknown.
+	//
+	// Examples: 21000000
+	QuoteOutAmount *int64 `json:"quote_out_amount"`
+}
+
 // VoteResult The proposal after the caller's ballot.
 type VoteResult struct {
 	// MyBallot A voter's choice on a proposal.
@@ -533,6 +556,21 @@ type PostCabalProposalParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// GetCabalProposalPreviewParams defines parameters for GetCabalProposalPreview.
+type GetCabalProposalPreviewParams struct {
+	// Kind Whether the trade buys or sells the token.
+	Kind ProposalKind `form:"kind" json:"kind"`
+
+	// Symbol The token symbol from the catalog.
+	Symbol string `form:"symbol" json:"symbol"`
+
+	// UsdcMicros USDC a buy spends, in micros.
+	UsdcMicros *int64 `form:"usdc_micros,omitempty" json:"usdc_micros,omitempty"`
+
+	// TokenAmount Token base units a sell spends.
+	TokenAmount *int64 `form:"token_amount,omitempty" json:"token_amount,omitempty"`
+}
+
 // DeleteProposalParams defines parameters for DeleteProposal.
 type DeleteProposalParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -559,6 +597,9 @@ type ServerInterface interface {
 	// PostCabalProposal Propose a trade for the cabal to vote on.
 	// (POST /v1/cabals/{id}/proposals)
 	PostCabalProposal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCabalProposalParams)
+	// GetCabalProposalPreview Preview a trade before proposing it.
+	// (GET /v1/cabals/{id}/proposals/preview)
+	GetCabalProposalPreview(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalProposalPreviewParams)
 	// GetMyPendingVotes List the open proposals waiting on the caller's ballot.
 	// (GET /v1/me/pending-votes)
 	GetMyPendingVotes(w http.ResponseWriter, r *http.Request)
@@ -695,6 +736,87 @@ func (siw *ServerInterfaceWrapper) PostCabalProposal(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostCabalProposal(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCabalProposalPreview operation middleware
+func (siw *ServerInterfaceWrapper) GetCabalProposalPreview(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetCabalProposalPreviewParams
+
+	// ------------- Required query parameter "kind" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "kind", r.URL.Query(), &params.Kind, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "kind"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "kind", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "symbol" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "symbol", r.URL.Query(), &params.Symbol, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "symbol"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "symbol", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "usdc_micros" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "usdc_micros", r.URL.Query(), &params.UsdcMicros, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "usdc_micros"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "usdc_micros", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "token_amount" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "token_amount", r.URL.Query(), &params.TokenAmount, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "token_amount"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "token_amount", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCabalProposalPreview(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -974,6 +1096,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/proposals", wrapper.GetCabalProposals)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/proposals", wrapper.PostCabalProposal)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/proposals/preview", wrapper.GetCabalProposalPreview)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/pending-votes", wrapper.GetMyPendingVotes)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.DeleteProposal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.GetProposal)
@@ -1052,6 +1175,46 @@ type PostCabalProposaldefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response PostCabalProposaldefaultApplicationProblemPlusJSONResponse) VisitPostCabalProposalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCabalProposalPreviewRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetCabalProposalPreviewParams
+}
+
+type GetCabalProposalPreviewResponseObject interface {
+	VisitGetCabalProposalPreviewResponse(w http.ResponseWriter) error
+}
+
+type GetCabalProposalPreview200JSONResponse TradePreview
+
+func (response GetCabalProposalPreview200JSONResponse) VisitGetCabalProposalPreviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCabalProposalPreviewdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetCabalProposalPreviewdefaultApplicationProblemPlusJSONResponse) VisitGetCabalProposalPreviewResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -1229,6 +1392,9 @@ type StrictServerInterface interface {
 	// PostCabalProposal Propose a trade for the cabal to vote on.
 	// (POST /v1/cabals/{id}/proposals)
 	PostCabalProposal(ctx context.Context, request PostCabalProposalRequestObject) (PostCabalProposalResponseObject, error)
+	// GetCabalProposalPreview Preview a trade before proposing it.
+	// (GET /v1/cabals/{id}/proposals/preview)
+	GetCabalProposalPreview(ctx context.Context, request GetCabalProposalPreviewRequestObject) (GetCabalProposalPreviewResponseObject, error)
 	// GetMyPendingVotes List the open proposals waiting on the caller's ballot.
 	// (GET /v1/me/pending-votes)
 	GetMyPendingVotes(ctx context.Context, request GetMyPendingVotesRequestObject) (GetMyPendingVotesResponseObject, error)
@@ -1336,6 +1502,33 @@ func (sh *strictHandler) PostCabalProposal(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostCabalProposalResponseObject); ok {
 		if err := validResponse.VisitPostCabalProposalResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCabalProposalPreview operation middleware
+func (sh *strictHandler) GetCabalProposalPreview(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalProposalPreviewParams) {
+	var request GetCabalProposalPreviewRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCabalProposalPreview(ctx, request.(GetCabalProposalPreviewRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCabalProposalPreview")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCabalProposalPreviewResponseObject); ok {
+		if err := validResponse.VisitGetCabalProposalPreviewResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
