@@ -5,6 +5,7 @@ import MonacoCore
 import MonacoTestClock
 import MonacoTestSupport
 import XCTest
+
 @MainActor
 final class StocksTabModelTests: XCTestCase {
     func testPopularLoadMapsTheServerNameAndPrice() async throws {
@@ -17,13 +18,17 @@ final class StocksTabModelTests: XCTestCase {
         XCTAssertEqual(model.phase, .loaded)
         XCTAssertTrue(model.held.isEmpty)
         let targets = await targets(transport)
-        XCTAssertEqual(targets.count, 1)
+        XCTAssertEqual(targets.count, 3)
         XCTAssertTrue(targets[0].contains("filter=popular"), targets[0])
         XCTAssertFalse(targets[0].contains("/held"))
     }
     func testPreIpoBrowseAsksForPreIpoOnly() async throws {
         let transport = StubTransport(scripted: [
             .json(.ok, Self.page(symbol: "AAPLx", name: "Apple xStock", kind: "equity")),
+            .json(
+                .ok,
+                Self.page(symbol: "tSpaceX", name: "T-SpaceX", kind: "pre_ipo", issuer: "tessera", continuous: true)),
+            .json(.ok, Self.page(symbol: "MSFTx", name: "Microsoft xStock", kind: "equity")),
             .json(
                 .ok,
                 Self.page(
@@ -37,17 +42,17 @@ final class StocksTabModelTests: XCTestCase {
         ])
         let model = makeModel(transport)
         await model.load()
-        await model.show(.preIpo)
-        XCTAssertEqual(model.browse, .preIpo)
-        XCTAssertEqual(model.rows.map(\.name), ["SpaceX"])
-        XCTAssertEqual(model.rows.map(\.kind), [.preIpo])
-        XCTAssertFalse(model.rows[0].showsSessionChip)
+        XCTAssertEqual(model.preIpo.rows.map(\.name), ["SpaceX"])
+        XCTAssertEqual(model.preIpo.rows.map(\.kind), [.preIpo])
+        XCTAssertFalse(model.preIpo.rows[0].showsSessionChip)
         let targets = await targets(transport)
-        XCTAssertTrue(targets.last?.contains("filter=pre_ipo") == true, targets.description)
+        XCTAssertTrue(targets[1].contains("filter=pre_ipo"), targets.description)
     }
     func testSearchWaitsThenSendsTheQueryAndDropsTheStalePage() async throws {
         let transport = StubTransport(scripted: [
             .json(.ok, Self.page(symbol: "AAPLx", name: "Apple xStock", kind: "equity")),
+            .json(.ok, Self.page(symbol: "tSpaceX", name: "T-SpaceX", kind: "pre_ipo", issuer: "tessera")),
+            .json(.ok, Self.page(symbol: "NVDAx", name: "NVIDIA xStock", kind: "equity")),
             .gate,
             .json(.ok, Self.page(symbol: "MSFTx", name: "Microsoft xStock", kind: "equity")),
         ])
@@ -58,13 +63,13 @@ final class StocksTabModelTests: XCTestCase {
         let firstParked = await clock.state.until { $0.pending == 1 }
         XCTAssertTrue(firstParked)
         clock.advance(by: StocksTabModel.searchDebounce)
-        let firstSent = await waitUntil { await self.targets(transport).count == 2 }
+        let firstSent = await waitUntil { await self.targets(transport).count == 4 }
         XCTAssertTrue(firstSent)
         model.setQuery("app")
         let secondParked = await clock.state.until { $0.pending == 1 }
         XCTAssertTrue(secondParked)
         clock.advance(by: StocksTabModel.searchDebounce)
-        let secondSent = await waitUntil { await self.targets(transport).count == 3 }
+        let secondSent = await waitUntil { await self.targets(transport).count == 5 }
         XCTAssertTrue(secondSent)
         let arrived = await waitUntil { model.rows.map(\.ticker) == ["MSFT"] }
         XCTAssertTrue(arrived)
@@ -72,14 +77,18 @@ final class StocksTabModelTests: XCTestCase {
         await Task.yield()
         XCTAssertEqual(model.rows.map(\.ticker), ["MSFT"])
         let targets = await targets(transport)
-        XCTAssertTrue(targets[1].contains("q=aa"), targets[1])
-        XCTAssertTrue(targets[2].contains("q=app"), targets[2])
+        XCTAssertTrue(targets[3].contains("q=aa"), targets[3])
+        XCTAssertTrue(targets[4].contains("q=app"), targets[4])
     }
     func testEmptySearchReturnsToThePopularFilter() async throws {
         let transport = StubTransport(scripted: [
             .json(.ok, Self.page(symbol: "AAPLx", name: "Apple xStock", kind: "equity")),
+            .json(.ok, Self.page(symbol: "tSpaceX", name: "T-SpaceX", kind: "pre_ipo", issuer: "tessera")),
+            .json(.ok, Self.page(symbol: "NVDAx", name: "NVIDIA xStock", kind: "equity")),
             .json(.ok, Self.page(symbol: "MSFTx", name: "Microsoft xStock", kind: "equity")),
             .json(.ok, Self.page(symbol: "AAPLx", name: "Apple xStock", kind: "equity")),
+            .json(.ok, Self.page(symbol: "tSpaceX", name: "T-SpaceX", kind: "pre_ipo", issuer: "tessera")),
+            .json(.ok, Self.page(symbol: "NVDAx", name: "NVIDIA xStock", kind: "equity")),
         ])
         let clock = TestClock()
         let model = makeModel(transport, clock: clock)
@@ -92,21 +101,48 @@ final class StocksTabModelTests: XCTestCase {
         let restored = await waitUntil { model.rows.map(\.ticker) == ["AAPL"] }
         XCTAssertTrue(restored)
         XCTAssertFalse(model.isSearching)
+        let reloaded = await waitUntil { await self.targets(transport).count == 7 }
+        XCTAssertTrue(reloaded)
         let targets = await targets(transport)
-        XCTAssertTrue(targets.last?.contains("filter=popular") == true, targets.description)
+        XCTAssertTrue(targets.count > 4 && targets[4].contains("filter=popular"), targets.description)
     }
     func testLoadMoreAppendsTheNextCursorPage() async throws {
         let transport = StubTransport(scripted: [
+            .json(.ok, Self.page(symbol: "AAPLx", name: "Apple xStock", kind: "equity")),
+            .json(.ok, Self.page(symbol: "tSpaceX", name: "T-SpaceX", kind: "pre_ipo", issuer: "tessera")),
             .json(.ok, Self.page(symbol: "AAPLx", name: "Apple xStock", kind: "equity", cursor: "cursor-2")),
             .json(.ok, Self.page(symbol: "TSLAx", name: "Tesla xStock", kind: "equity")),
         ])
         let model = makeModel(transport)
         await model.load()
         await model.loadMore()
-        XCTAssertEqual(model.rows.map(\.ticker), ["AAPL", "TSLA"])
+        XCTAssertEqual(model.all.rows.map(\.ticker), ["AAPL", "TSLA"])
         XCTAssertFalse(model.hasMore)
         let targets = await targets(transport)
-        XCTAssertTrue(targets[1].contains("cursor=cursor-2"), targets[1])
+        XCTAssertTrue(targets[3].contains("cursor=cursor-2"), targets[3])
+    }
+    func testSearchCanLoadMoreDisplayed() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, Self.page(symbol: "AAPLx", name: "Apple xStock", kind: "equity")),
+            .json(.ok, Self.page(symbol: "tSpaceX", name: "T-SpaceX", kind: "pre_ipo", issuer: "tessera")),
+            .json(.ok, Self.page(symbol: "NVDAx", name: "NVIDIA xStock", kind: "equity")),
+            .json(.ok, Self.page(symbol: "MSFTx", name: "Microsoft xStock", kind: "equity", cursor: "cursor-2")),
+            .json(.ok, Self.page(symbol: "TSLAx", name: "Tesla xStock", kind: "equity")),
+        ])
+        let clock = TestClock()
+        let model = makeModel(transport, clock: clock)
+        await model.load()
+        model.setQuery("tech")
+        _ = await clock.state.until { $0.pending == 1 }
+        clock.advance(by: StocksTabModel.searchDebounce)
+        let loaded = await waitUntil { model.rows.map(\.ticker) == ["MSFT"] }
+        XCTAssertTrue(loaded)
+        XCTAssertTrue(model.displayedHasMore)
+        await model.loadMoreDisplayed()
+        XCTAssertEqual(model.rows.map(\.ticker), ["MSFT", "TSLA"])
+        XCTAssertFalse(model.displayedHasMore)
+        let targets = await targets(transport)
+        XCTAssertTrue(targets[4].contains("q=tech") && targets[4].contains("cursor=cursor-2"), targets[4])
     }
     func testUnpricedRowRendersAnEmDash() async throws {
         let transport = StubTransport(
@@ -167,13 +203,17 @@ final class StocksTabModelTests: XCTestCase {
     func testFailedRefreshKeepsTheRows() async throws {
         let transport = StubTransport(scripted: [
             .json(.ok, Self.page(symbol: "AAPLx", name: "Apple xStock", kind: "equity")),
+            .json(.ok, Self.page(symbol: "tSpaceX", name: "T-SpaceX", kind: "pre_ipo", issuer: "tessera")),
+            .json(.ok, Self.page(symbol: "NVDAx", name: "NVIDIA xStock", kind: "equity")),
             .failure(URLError(.cannotConnectToHost)),
+            .json(.ok, Self.page(symbol: "tSpaceX", name: "T-SpaceX", kind: "pre_ipo", issuer: "tessera")),
+            .json(.ok, Self.page(symbol: "NVDAx", name: "NVIDIA xStock", kind: "equity")),
         ])
         let model = makeModel(transport)
         await model.load()
         await model.load()
         XCTAssertEqual(model.rows.map(\.ticker), ["AAPL"])
-        XCTAssertEqual(model.phase, .loaded)
+        XCTAssertEqual(model.popular.phase, .loaded)
         XCTAssertTrue(model.refreshFailed)
         XCTAssertGreaterThan(model.failureTick, 0)
     }
@@ -217,5 +257,33 @@ final class StocksTabModelTests: XCTestCase {
             {"symbol":"\(symbol)","display_name":"\(name)","issuer":"\(issuer)","kind":"\(kind)","logo_url":null,"price_micros":\(price),"price_as_of":null,"change_bps":\(change),"sparkline_micros":\(spark),"session":\(session)}
             """
         return #"{"assets":[\#(asset)],"next_cursor":\#(next)}"#
+    }
+}
+
+extension StocksTabModelTests {
+    func testStaleBrowseReplacementDoesNotBlockSearchPagination() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, Self.page(symbol: "AAPLx", name: "Apple xStock", kind: "equity")),
+            .json(.ok, Self.page(symbol: "tSpaceX", name: "T-SpaceX", kind: "pre_ipo", issuer: "tessera")),
+            .json(.ok, Self.page(symbol: "NVDAx", name: "NVIDIA xStock", kind: "equity")),
+            .gate,
+            .json(.ok, Self.page(symbol: "MSFTx", name: "Microsoft xStock", kind: "equity", cursor: "cursor-2")),
+            .json(.ok, Self.page(symbol: "TSLAx", name: "Tesla xStock", kind: "equity")),
+        ])
+        let clock = TestClock()
+        let model = makeModel(transport, clock: clock)
+        await model.load()
+        let stale = Task { await model.load() }
+        let staleStarted = await waitUntil { await self.targets(transport).count == 4 }
+        XCTAssertTrue(staleStarted)
+        model.setQuery("tech")
+        _ = await clock.state.until { $0.pending == 1 }
+        clock.advance(by: StocksTabModel.searchDebounce)
+        let searchLoaded = await waitUntil { model.rows.map(\.ticker) == ["MSFT"] }
+        XCTAssertTrue(searchLoaded)
+        await model.loadMoreDisplayed()
+        XCTAssertEqual(model.rows.map(\.ticker), ["MSFT", "TSLA"])
+        await transport.releaseGate(.json(.ok, Self.page(symbol: "AAPLx", name: "Apple xStock", kind: "equity")))
+        await stale.value
     }
 }

@@ -103,9 +103,9 @@ private struct StocksTabScreen: View {
                         .frame(maxWidth: .infinity)
                         .padding(.top, MonacoTheme.Space.s)
                 }
-                if model.hasMore {
+                if model.displayedHasMore {
                     Button(model.isLoadingMore ? "Loading…" : "Load more") {
-                        Task { await model.loadMore() }
+                        Task { await model.loadMoreDisplayed() }
                     }
                     .buttonStyle(.monacoSecondary)
                     .disabled(model.isLoadingMore)
