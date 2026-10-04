@@ -1,8 +1,0 @@
-package: api
-output: ../internal/platform/httpx/api/api.gen.go
-generate:
-  std-http-server: true
-  strict-server: true
-  models: true
-output-options:
-  skip-prune: true

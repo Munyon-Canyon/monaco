@@ -264,9 +264,6 @@ func TestCommittedAPIPackagesMatchTheSpecSources(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, rel := range filesUnder(t, out) {
-		if rel == genFile {
-			continue
-		}
 		if readText(t, filepath.Join(out, rel)) != readText(t, filepath.Join(committed, rel)) {
 			t.Errorf("%s is stale: run go generate ./... in apps/backend", rel)
 		}
