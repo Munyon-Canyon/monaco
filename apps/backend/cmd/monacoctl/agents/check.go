@@ -217,12 +217,23 @@ func (env *Env) stackParent(ctx context.Context, base string) string {
 	return parent
 }
 
-func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkRow, error) {
-	out, err := env.Run(ctx, env.Work, "", "git", "diff", "--name-only", "--diff-filter=d", base+"...HEAD")
+func (env *Env) diffNames(ctx context.Context, base, filter string) ([]string, error) {
+	out, err := env.Run(ctx, env.Work, "", "git", "diff", "--name-only", "--diff-filter="+filter, base+"...HEAD")
 	if err != nil {
 		return nil, fmt.Errorf("diff against %s: %w", base, err)
 	}
-	changed := strings.Fields(string(out))
+	return strings.Fields(string(out)), nil
+}
+
+func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkRow, error) {
+	changed, err := env.diffNames(ctx, base, "d")
+	if err != nil {
+		return nil, err
+	}
+	removed, err := env.diffNames(ctx, base, "DR")
+	if err != nil {
+		return nil, err
+	}
 	rows := env.prRows(parent, head)
 	if slices.ContainsFunc(changed, func(f string) bool { return strings.HasPrefix(f, "apps/backend/") }) {
 		goRows, err := env.goRows(ctx, base, head, changed)
@@ -232,7 +243,7 @@ func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkR
 		rows = append(rows, goRows...)
 	}
 	rows = append(rows, env.shellRows(changed)...)
-	rows = append(rows, env.testFileRows(changed)...)
+	rows = append(rows, env.testFileRows(changed, len(removed) > 0)...)
 	swift := swiftChanged(changed)
 	if swift {
 		rows = append(rows, env.swiftRow(parent))
@@ -704,8 +715,15 @@ func (env *Env) hasShellShebang(file string) bool {
 	return shebangRE.MatchString(line)
 }
 
-func (env *Env) testFileRows(changed []string) []checkRow {
+func (env *Env) testFileRows(changed []string, removed bool) []checkRow {
 	goTests, pyTests := env.affectedTests(changed)
+	if removed {
+		goTests["."] = append(
+			goTests["."],
+			"TestSkillPaths_everyBacktickedPathInABackendSkillExists",
+			"TestBackendAgentsMD_staysUnder60LinesAndCitesOnlyRealPaths",
+		)
+	}
 	var rows []checkRow
 	if len(goTests) > 0 {
 		row := checkRow{label: "scripts tests", kind: "scripts", dir: filepath.Join(env.Work, "scripts")}

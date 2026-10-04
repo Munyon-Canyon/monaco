@@ -531,6 +531,7 @@ jobs:
               - 'apps/backend/cmd/monacoctl/agents/agents.go'
               - '.github/pull_request_template.md'
               - 'packages/mobile-core/Tests/MonacoCoreTests/LegacyFreezeTests.swift'
+              - deleted: '**'
 
       # Negated patterns only exclude under `every`, so these two filters need their own step.
       # `unknown` is a changed file no filter above owns and no line below calls inert: it runs

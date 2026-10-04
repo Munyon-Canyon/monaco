@@ -35,7 +35,7 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := jobsFor(filters, tc.files)
+			got := jobsFor(filters, modified(tc.files...))
 			if !reflect.DeepEqual(got, tc.jobs) {
 				t.Fatalf("jobs = %v, want %v", got, tc.jobs)
 			}
@@ -44,7 +44,7 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 	if _, ok := filters["ios"]; ok {
 		t.Fatal("ios path filter is still in ci-jobs.yml")
 	}
-	got := jobsFor(filters, []string{"apps/mobile/App.swift"})
+	got := jobsFor(filters, modified("apps/mobile/App.swift"))
 	for _, job := range got {
 		if job == "backend" || job == "flake" {
 			t.Fatalf("apps/mobile change ran %s", job)
@@ -74,12 +74,46 @@ func TestCIPathFilter_scriptsRunWhenAFileTheyReadChanges(t *testing.T) {
 	}
 }
 
-func jobsFor(filters map[string][]string, files []string) []string {
+func TestCIPathFilter_scriptsRunWhenAPRDeletesOrRenamesAFile(t *testing.T) {
+	filters := parsePathFilters(t)
+	cases := []struct {
+		name    string
+		changes []change
+	}{
+		{"delete", []change{{"deleted", "docs/removed.md"}}},
+		{"rename", []change{{"deleted", "docs/before.md"}, {"added", "docs/after.md"}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := jobsFor(filters, tc.changes); !reflect.DeepEqual(got, []string{"scripts"}) {
+				t.Fatalf("jobs = %v, want [scripts]", got)
+			}
+		})
+	}
+}
+
+type filterRule struct{ status, pattern string }
+
+type change struct{ status, path string }
+
+func (r filterRule) matches(c change) bool {
+	return (r.status == "" || slices.Contains(strings.Split(r.status, "|"), c.status)) && globMatch(r.pattern, c.path)
+}
+
+func modified(paths ...string) []change {
+	changes := make([]change, len(paths))
+	for i, p := range paths {
+		changes[i] = change{"modified", p}
+	}
+	return changes
+}
+
+func jobsFor(filters map[string][]filterRule, changes []change) []string {
 	hit := map[string]bool{}
-	for name, pats := range filters {
-		for _, f := range files {
-			for _, pat := range pats {
-				if globMatch(pat, f) {
+	for name, rules := range filters {
+		for _, c := range changes {
+			for _, r := range rules {
+				if r.matches(c) {
 					hit[name] = true
 				}
 			}
@@ -107,10 +141,10 @@ func jobsFor(filters map[string][]string, files []string) []string {
 	return jobs
 }
 
-func outsideScriptsFilter(filters map[string][]string, paths []string) []string {
+func outsideScriptsFilter(filters map[string][]filterRule, paths []string) []string {
 	var out []string
 	for _, p := range paths {
-		if !slices.Contains(jobsFor(filters, []string{p}), "scripts") {
+		if !slices.Contains(jobsFor(filters, modified(p)), "scripts") {
 			out = append(out, p)
 		}
 	}
@@ -163,7 +197,7 @@ func readRepoPaths(t *testing.T) []string {
 	return slices.Compact(paths)
 }
 
-func parsePathFilters(t *testing.T) map[string][]string {
+func parsePathFilters(t *testing.T) map[string][]filterRule {
 	t.Helper()
 	text := readRepo(t, repoRoot(t), ".github/workflows/ci-jobs.yml")
 	marker := "filters: |"
@@ -172,10 +206,10 @@ func parsePathFilters(t *testing.T) map[string][]string {
 		t.Fatal("ci-jobs.yml has no filters block")
 	}
 	rest := strings.Split(text[start+len(marker):], "\n")
-	filters := map[string][]string{}
+	filters := map[string][]filterRule{}
 	name := ""
 	nameRe := regexp.MustCompile(`^            ([a-z0-9-]+):\s*$`)
-	patRe := regexp.MustCompile(`^              - '([^']+)'\s*$`)
+	patRe := regexp.MustCompile(`^              - (?:([a-z|]+): )?'([^']+)'\s*$`)
 	for _, line := range rest[1:] {
 		if strings.TrimSpace(line) == "" || !strings.HasPrefix(line, "            ") {
 			break
@@ -186,7 +220,7 @@ func parsePathFilters(t *testing.T) map[string][]string {
 			continue
 		}
 		if m := patRe.FindStringSubmatch(line); m != nil && name != "" {
-			filters[name] = append(filters[name], m[1])
+			filters[name] = append(filters[name], filterRule{status: m[1], pattern: m[2]})
 		}
 	}
 	if len(filters) == 0 {
