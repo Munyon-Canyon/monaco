@@ -19,51 +19,38 @@ import (
 
 func TestSelectUnits_picksOutcomesByTargetAndSkipsPlannedFlows(t *testing.T) {
 	t.Parallel()
-	all, err := readFlows(backendDir(t))
-	if err != nil {
-		t.Fatal(err)
+	all := []tools.Flow{
+		{
+			ID: "10", Status: tools.StatusBuilt, Commands: []string{"CastVote"},
+			Outcomes: []tools.Outcome{"ok", "NotAVoter", "crash:after-publish"},
+		},
+		{
+			ID: "20", Status: tools.StatusBuilt, Commands: []string{"Follow", "Unfollow"},
+			Outcomes: []tools.Outcome{"ok", "Unauthorized", "crash:before-commit"},
+		},
+		{ID: "98", Status: tools.StatusPlanned, Commands: []string{"Plan"}, Outcomes: []tools.Outcome{"ok"}},
 	}
-	all = append(all, tools.Flow{ID: "98", Status: tools.StatusPlanned, Outcomes: []tools.Outcome{"ok"}})
+	noop := func(*scenario.Scenario) {}
+	scripts := map[string]flows.Script{}
+	for _, f := range all {
+		for _, command := range f.Commands {
+			for _, o := range f.Outcomes {
+				scripts[tools.ScriptName(f, command, o)] = noop
+			}
+		}
+	}
+	delete(scripts, tools.ScriptName(all[1], "Unfollow", "Unauthorized"))
+	delete(scripts, tools.ScriptName(all[1], "Unfollow", "crash:before-commit"))
 	for _, tc := range []struct {
 		target Target
 		want   []string
 	}{
-		{Target{}, []string{
-			"00 ok", "00 InvalidInput", "00 Unauthorized", "01 ok", "01 Unauthorized", "01 LoginMethodNotAllowed",
-			"01 AccountDeleted", "01 PrivyUnavailable", "01a ok", "01a HandleInvalid", "01a HandleReserved",
-			"01a HandleTaken", "01a HandleTooSoon", "01b ok", "01b HandleRequired", "01b PhoneNotLinked",
-			"01b PrivyUnavailable", "01c ok", "01c HandleRequired", "01c XNotLinked", "01c PrivyUnavailable",
-			"01d ok", "01d HandleRequired", "01d InvalidInput", "02 ok", "02 InvalidInput", "02 Unauthorized",
-			"02 PrivyUnavailable",
-			"03 JoinCabal ok", "03 RequestAccess ok", "03 DecideAccess ok", "03 RevokeAccess ok", "03 InviteMember ok",
-			"03 DecideAccess InvalidInput", "03 JoinCabal Unauthorized", "03 RequestAccess Unauthorized",
-			"03 DecideAccess Unauthorized", "03 RevokeAccess Unauthorized", "03 InviteMember Unauthorized",
-			"03 JoinCabal CabalNotFound", "03 RequestAccess CabalNotFound", "03 DecideAccess CabalNotFound",
-			"03 RevokeAccess CabalNotFound", "03 InviteMember CabalNotFound", "03 JoinCabal CabalBanned",
-			"03 RequestAccess CabalBanned", "03 DecideAccess CabalBanned", "03 InviteMember CabalBanned",
-			"03 JoinCabal AlreadyMember", "03 RequestAccess AlreadyMember", "03 InviteMember AlreadyMember",
-			"03 JoinCabal JoinNeedsRequest", "03 RequestAccess RequestNotNeeded", "03 RequestAccess RequestPending",
-			"03 InviteMember RequestPending", "03 DecideAccess NotCabalCreator", "03 InviteMember NotCabalCreator",
-			"03 DecideAccess AccessRequestNotPending", "03 RevokeAccess AccessRequestNotPending",
-			"03 RevokeAccess CannotRevokeAccess", "03 InviteMember UserNotFound", "03 DecideAccess InviteExpired",
-			"03 InviteMember NotCabalMember",
-			"05 ok", "05 RPCUnavailable", "10 ok", "10 Unauthorized", "10 ProposalNotFound", "10 NotAVoter",
-			"10 ProposalClosed", "13 ok", "13 Unauthorized", "13 ProposalNotFound",
-			"13 NotProposer", "13 ProposalClosed", "13 WithdrawNotAllowed", "18 ok", "18 JupiterUnavailable",
-			"18 UpstreamTimeout", "20 ok",
-			"20 CannotFollowSelf", "20 UserNotFound", "20 UserBanned", "20 Unauthorized", "23 ok",
-			"23 DisplayNameInvalid", "23a ok", "23a PhotoInvalid", "23a StorageUnavailable", "23a RateLimited",
-			"28 ok",
-		}},
-		{Target{Flow: "00", Outcome: "Unauthorized"}, []string{"00 Unauthorized"}},
-		{Target{CrashAt: "after-publish"}, []string{
-			"00 crash:after-publish", "10 crash:after-publish", "13 crash:after-publish",
-		}},
-		{Target{CrashAt: "before-commit"}, []string{
-			"01 crash:before-commit", "02 crash:before-commit", "20 crash:before-commit",
-		}},
+		{Target{}, []string{"10 ok", "10 NotAVoter", "20 Follow ok", "20 Unfollow ok", "20 Follow Unauthorized"}},
+		{Target{Flow: "10", Outcome: "NotAVoter"}, []string{"10 NotAVoter"}},
+		{Target{CrashAt: "after-publish"}, []string{"10 crash:after-publish"}},
+		{Target{CrashAt: "before-commit"}, []string{"20 Follow crash:before-commit"}},
 	} {
-		units, err := selectUnits(all, tc.target, flows.Scripts())
+		units, err := selectUnits(all, tc.target, scripts)
 		got := make([]string, 0, len(units))
 		for _, u := range units {
 			got = append(got, u.Name())
@@ -72,8 +59,16 @@ func TestSelectUnits_picksOutcomesByTargetAndSkipsPlannedFlows(t *testing.T) {
 			t.Errorf("selectUnits(%+v) = %v, %v, want %v", tc.target, got, err, tc.want)
 		}
 	}
-	if _, err := selectUnits(all, Target{Flow: "98"}, flows.Scripts()); !errors.Is(err, fs.ErrNotExist) {
+	if _, err := selectUnits(all, Target{Flow: "98"}, scripts); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("selectUnits of a planned flow = %v, want nothing to verify", err)
+	}
+	unscripted := tools.Flow{
+		ID: "30", Status: tools.StatusBuilt, Commands: []string{"Mute"}, Outcomes: []tools.Outcome{"ok"},
+	}
+	missing := tools.ScriptName(unscripted, "Mute", "ok")
+	_, err := selectUnits(append(all, unscripted), Target{}, scripts)
+	if !errors.Is(err, fs.ErrNotExist) || !strings.Contains(err.Error(), missing) {
+		t.Fatalf("selectUnits of an outcome with no script = %v, want an error naming %s", err, missing)
 	}
 }
 
