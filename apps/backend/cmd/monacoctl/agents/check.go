@@ -367,7 +367,7 @@ func (env *Env) xcodeRow(changed []string) (checkRow, bool) {
 		"MONACO_XCODE_LOCK_TIMEOUT=" + seconds(xcodeLockWait),
 		"bash", "-c",
 	}
-	cmds := env.installUnlessPresent("xcsift")
+	cmds := env.installXcsift()
 	cmds = append(cmds,
 		append(slices.Clone(locked), xcodeScript("build-for-testing")),
 		append(slices.Clone(locked), xcodeScript("-only-testing:MonacoTests test-without-building")),
@@ -495,26 +495,21 @@ func underAny(file string, paths []string) bool {
 }
 
 func (env *Env) readyRow() (checkRow, error) {
-	return checkRow{
-		label: "ready", kind: "ready", dir: env.Work,
-		cmds: slices.Concat(
-			env.installUnlessPresent("atlas"), env.installUnlessPresent("sqlc"), [][]string{{"scripts/ci/ready.sh"}},
-		),
-	}, nil
+	return checkRow{label: "ready", kind: "ready", dir: env.Work, cmds: [][]string{{"scripts/ci/ready.sh"}}}, nil
 }
 
 func (env *Env) migrateRow() (checkRow, error) {
 	return checkRow{
 		label: "migrate lint", kind: "migrate", dir: filepath.Join(env.Work, "apps", "backend"),
-		cmds: append(env.installUnlessPresent("atlas"), []string{"go", "run", "./cmd/monacoctl", "migrate", "lint"}),
+		cmds: [][]string{{"go", "run", "./cmd/monacoctl", "migrate", "lint"}},
 	}, nil
 }
 
-func (env *Env) installUnlessPresent(tool string) [][]string {
-	if isFile(filepath.Join(env.Work, ".bin", tool)) {
+func (env *Env) installXcsift() [][]string {
+	if isFile(filepath.Join(env.Work, ".bin", "xcsift")) {
 		return nil
 	}
-	return [][]string{{filepath.Join(env.Work, "scripts", "install-"+tool+".sh")}}
+	return [][]string{{filepath.Join(env.Work, "scripts", "install-xcsift.sh")}}
 }
 
 func isFile(name string) bool {
@@ -775,10 +770,26 @@ func scannedGlobHit(testFile, changed string) bool {
 }
 
 func (r *checkRun) rows(ctx context.Context, rows []checkRow, stdout io.Writer) error {
+	if err := r.tools(stdout); err != nil {
+		return err
+	}
 	for _, row := range rows {
 		if err := r.row(ctx, row, stdout); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (r *checkRun) tools(stdout io.Writer) error {
+	for _, tool := range pinnedTools() {
+		if isFile(filepath.Join(r.env.Work, ".bin", tool)) {
+			continue
+		}
+		missing := ".bin/" + tool + " missing; run scripts/install-" + tool + ".sh"
+		_, _ = fmt.Fprintf(stdout, "  %-15s fail  %s\n", "tools", missing)
+		_, _ = fmt.Fprintf(&r.log, "fail tools: %s\n", missing)
+		return detailErr(errs.CodeInvalidInput, "monacoctl.agents.check", "tools failed; see the log")
 	}
 	return nil
 }

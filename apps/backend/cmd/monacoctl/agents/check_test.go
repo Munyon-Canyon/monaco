@@ -261,8 +261,6 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		".: python3 scripts/qa/journey.py check",
 		".: python3 scripts/qa/test_journey.py",
 		".: python3 scripts/qa/test_skill_eval.py",
-		".: install-atlas.sh",
-		".: install-sqlc.sh",
 		".: ready.sh",
 	}
 	if got := strings.Join(h.calls, "\n"); got != strings.Join(want, "\n") {
@@ -369,6 +367,40 @@ func TestCheck_aFailingRowStopsTheRunWithAnExcerpt(t *testing.T) {
 	if code != 1 || strings.Contains(stdout, "line 4\n") || !strings.Contains(stdout, "line 5\n") ||
 		!strings.Contains(stdout, "exit status 2\n") {
 		t.Fatalf("excerpt keeps the last %d lines: %d %q", excerptLines, code, stdout)
+	}
+}
+
+func TestCheck_aMissingPinnedToolIsTheFirstRowAndStopsTheRun(t *testing.T) {
+	t.Parallel()
+	for _, tool := range pinnedTools() {
+		t.Run(tool, func(t *testing.T) {
+			t.Parallel()
+			h := newCheckHarness(t)
+			tree := h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n", "x.sh": "echo\n"})
+			h.affected = "./internal/a\n"
+			if err := os.Remove(filepath.Join(h.work, ".bin", tool)); err != nil {
+				t.Fatal(err)
+			}
+			code, stdout, stderr := h.check(t)
+			want := "(base origin/fb, parent origin/fb)\n" +
+				"  tools           fail  .bin/" + tool + " missing; run scripts/install-" + tool + ".sh\n" +
+				"log: "
+			if code != 1 || !strings.Contains(stdout, want) || !strings.Contains(stderr, "tools failed; see the log") {
+				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+			}
+			if strings.Contains(stdout, "pr size") || slices.ContainsFunc(h.calls, func(c string) bool {
+				return strings.Contains(c, "check-pr-size.py")
+			}) {
+				t.Fatalf("a row ran after the tools row: %q %v", stdout, h.calls)
+			}
+			if _, err := os.Stat(filepath.Join(h.stateDir(t, "checks"), tree)); !os.IsNotExist(err) {
+				t.Fatalf("recorded a pass: %v", err)
+			}
+			log, err := os.ReadFile(filepath.Join(h.stateDir(t, "logs"), "check-"+tree[:12]+".log"))
+			if err != nil || !strings.Contains(string(log), "fail tools: .bin/"+tool+" missing") {
+				t.Fatalf("log: %q %v", log, err)
+			}
+		})
 	}
 }
 
@@ -485,9 +517,7 @@ func TestCheck_mirroredCommandsStillMatchTheirWorkflows(t *testing.T) {
 			"args: ./...",
 			"go run ./internal/platform/lint/nogo/cmd/nogo ./...",
 			"go run ./cmd/monacoctl lint comments",
-			"run: scripts/install-sqlc.sh",
 			"run: scripts/ci/ready.sh",
-			"run: scripts/install-atlas.sh",
 			"go run ./cmd/monacoctl migrate lint",
 			vacuumLint,
 			"run: scripts/ci/oasdiff-breaking-test.sh",
@@ -536,10 +566,7 @@ func TestCheck_pathRowsRunTheCIStepsForTheirPathsAgainstTheStackParent(t *testin
 		t.Fatalf("size against the stack parent: want %q in\n%s", size, strings.Join(h.calls, "\n"))
 	}
 	want := []string{
-		".: install-atlas.sh",
-		".: install-sqlc.sh",
 		".: ready.sh",
-		"apps/backend: install-atlas.sh",
 		"apps/backend: go run ./cmd/monacoctl migrate lint",
 		".: docker run --rm -v " + filepath.Join(h.work, "apps", "backend", "api") + ":/api:ro " + vacuumLint,
 		".: oasdiff-breaking-test.sh",
@@ -552,16 +579,14 @@ func TestCheck_pathRowsRunTheCIStepsForTheirPathsAgainstTheStackParent(t *testin
 		t.Fatalf("parent spec: %q %v", b, err)
 	}
 
-	for _, bin := range []string{".bin/sqlc", ".bin/atlas", ".venv/bin/mkdocs"} {
-		writeFile(t, filepath.Join(h.dir, bin), "#!/bin/sh\n")
-	}
+	writeFile(t, filepath.Join(h.dir, ".venv/bin/mkdocs"), "#!/bin/sh\n")
 	h.commit(t, map[string]string{"docs/index.md": "hi again\n", "apps/backend/migrations/1_a.sql": "select 2;\n"})
 	h.calls, h.replies = nil, []reply{{prefix: "gt parent", err: errors.New("untracked branch")}}
 	if code, stdout, stderr := h.check(
 		t,
 	); code != 0 ||
 		!strings.Contains(stdout, "(base origin/fb, parent origin/fb)") {
-		t.Fatalf("installed tools: %d %q %q", code, stdout, stderr)
+		t.Fatalf("mkdocs installed: %d %q %q", code, stdout, stderr)
 	}
 	for _, c := range []string{
 		".: ready.sh",
@@ -572,9 +597,6 @@ func TestCheck_pathRowsRunTheCIStepsForTheirPathsAgainstTheStackParent(t *testin
 		if !slices.Contains(h.calls, c) {
 			t.Errorf("missing %q in\n%s", c, strings.Join(h.calls, "\n"))
 		}
-	}
-	if slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, "install-") }) {
-		t.Errorf("installed a tool .bin already has: %v", h.calls)
 	}
 }
 

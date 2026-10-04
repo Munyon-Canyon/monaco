@@ -333,3 +333,168 @@ func TestDispatch_dryRunNamesTheLocalConfigOnlyWhenItExists(t *testing.T) {
 		t.Fatalf("with a local file: code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
 }
+
+func (f *fixture) allowDispatch(t *testing.T) {
+	t.Helper()
+	f.batch(t, 12)
+	f.hub.on(get("/issues/12"), Issue{Body: "no blockers"})
+	f.hub.on(list("/pulls?state=open"), []PR{})
+	f.ownerComments(12)
+	f.ps()
+}
+
+func TestDispatch_linksThePinnedToolsIntoTheWorktree(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	f.allowDispatch(t)
+	if code, _, stderr := f.agents(t, "dispatch", "12", "--model", "opus"); code != 0 {
+		t.Fatalf("code=%d stderr=%q", code, stderr)
+	}
+	env := f.Env(t)
+	rec, err := env.localRecord(12)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range pinnedTools() {
+		src, dst := env.cloneTool(tool), filepath.Join(rec.Worktree, ".bin", tool)
+		want, err := os.ReadFile(src)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := os.ReadFile(dst)
+		if err != nil || string(got) != string(want) || string(want) != "pinned "+tool+"\n" {
+			t.Fatalf("%s: worktree has %q, clone has %q, err %v", tool, got, want, err)
+		}
+		srcInfo, _ := os.Stat(src)
+		dstInfo, _ := os.Stat(dst)
+		if !os.SameFile(srcInfo, dstInfo) {
+			t.Fatalf("%s is a copy, want a hard link to the clone's", tool)
+		}
+	}
+}
+
+func TestDispatch_refusesBeforeAddingAWorktreeWhenTheCloneLacksAPinnedTool(t *testing.T) {
+	t.Parallel()
+	for _, tool := range pinnedTools() {
+		t.Run(tool, func(t *testing.T) {
+			t.Parallel()
+			f := prepBranch(t)
+			f.allowDispatch(t)
+			env := f.Env(t)
+			missing := env.cloneTool(tool)
+			if err := os.Remove(missing); err != nil {
+				t.Fatal(err)
+			}
+			want := "dispatch: " + missing + " is missing; run just install"
+			for _, args := range [][]string{
+				{"dispatch", "12", "--model", "opus"},
+				{"dispatch", "12", "--model", "opus", "--dry-run"},
+			} {
+				code, stdout, stderr := f.agents(t, args...)
+				if code != 1 || !strings.Contains(stderr, want) || strings.Contains(stdout, "spawn:") {
+					t.Fatalf("%v: code=%d stdout=%q stderr=%q", args, code, stdout, stderr)
+				}
+			}
+			if _, err := os.Stat(env.worktreePath(12)); !os.IsNotExist(err) {
+				t.Fatalf("worktree left behind: %v", err)
+			}
+			if _, err := os.Stat(env.recordPath(12)); !os.IsNotExist(err) {
+				t.Fatalf("record written: %v", err)
+			}
+			writeFile(t, missing, "pinned "+tool+"\n")
+			if code, _, stderr := f.agents(t, "dispatch", "12", "--model", "opus"); code != 0 {
+				t.Fatalf("retry after the install: code=%d stderr=%q", code, stderr)
+			}
+		})
+	}
+}
+
+func TestAddWorktree_reportsAToolItCannotProvide(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	env := f.Env(t)
+	src := env.cloneTool("atlas")
+	wt := filepath.Join(t.TempDir(), "wt")
+	env.Run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
+		if name == "git" && len(args) > 0 && args[0] == "worktree" {
+			return nil, os.WriteFile(wt, []byte("a file where the worktree should be\n"), 0o600)
+		}
+		return f.run(ctx, dir, stdin, name, args...)
+	}
+	if err := env.addWorktree(t.Context(), wt, "fb"); err == nil ||
+		!strings.Contains(err.Error(), "make "+filepath.Join(wt, ".bin")) {
+		t.Fatalf("link: got %v", err)
+	}
+	if err := os.Remove(src); err != nil {
+		t.Fatal(err)
+	}
+	if err := env.addWorktree(t.Context(), wt, "fb"); err == nil || !strings.Contains(err.Error(), "stat "+src) {
+		t.Fatalf("stat: got %v", err)
+	}
+}
+
+func TestLinkOrCopy_linksWhenItCanAndCopiesWhenItCannot(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		link func(oldname, newname string) error
+		same bool
+	}{
+		{"hard link", os.Link, true},
+		{"copy", func(string, string) error { return errors.New("cross-device link") }, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			src, dst := filepath.Join(dir, "clone", "sqlc"), filepath.Join(dir, "worktree", ".bin", "sqlc")
+			writeFile(t, src, "pinned\n")
+			if err := os.Chmod(src, 0o400); err != nil {
+				t.Fatal(err)
+			}
+			if err := linkOrCopy(tc.link, src, dst, 0o400); err != nil {
+				t.Fatal(err)
+			}
+			got, err := os.ReadFile(dst)
+			if err != nil || string(got) != "pinned\n" {
+				t.Fatalf("content %q, err %v", got, err)
+			}
+			srcInfo, _ := os.Stat(src)
+			dstInfo, _ := os.Stat(dst)
+			if os.SameFile(srcInfo, dstInfo) != tc.same || dstInfo.Mode().Perm() != 0o400 {
+				t.Fatalf("same file %v, mode %v; want same file %v, mode 0400", os.SameFile(srcInfo, dstInfo),
+					dstInfo.Mode().Perm(), tc.same)
+			}
+		})
+	}
+}
+
+func TestLinkOrCopy_namesTheStepThatFailed(t *testing.T) {
+	t.Parallel()
+	noLink := func(string, string) error { return errors.New("cross-device link") }
+	dir := t.TempDir()
+	good, gone, plain := filepath.Join(dir, "good"), filepath.Join(dir, "gone"), filepath.Join(dir, "plain")
+	writeFile(t, good, "pinned\n")
+	writeFile(t, plain, "already here\n")
+	tests := []struct{ name, src, dst, want string }{
+		{"make", good, filepath.Join(plain, "sqlc"), "make " + plain},
+		{"open", gone, filepath.Join(dir, "a", "sqlc"), "open " + gone},
+		{"create", good, plain, "create " + plain},
+		{"copy", dir, filepath.Join(dir, "b", "sqlc"), "copy " + dir},
+	}
+	for _, tc := range tests {
+		if err := linkOrCopy(noLink, tc.src, tc.dst, 0o600); err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s: got %v, want text %q", tc.name, err, tc.want)
+		}
+	}
+	if got, err := os.ReadFile(plain); err != nil || string(got) != "already here\n" {
+		t.Fatalf("a failed copy changed the existing file: %q %v", got, err)
+	}
+}
+
+func TestPinnedTools_areTheTwoBinariesGoGenerateAndMigrateNeed(t *testing.T) {
+	t.Parallel()
+	if got := strings.Join(pinnedTools(), " "); got != "atlas sqlc" {
+		t.Fatalf("got %q", got)
+	}
+}

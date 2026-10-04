@@ -2,6 +2,7 @@ package agents
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -122,6 +123,9 @@ func parseDispatch(args []string) (dispatchIn, error) {
 }
 
 func (env *Env) dispatchable(ctx context.Context, in dispatchIn, stdout io.Writer) error {
+	if err := env.toolsInstalled(); err != nil {
+		return err
+	}
 	if !in.urgent {
 		if err := env.inBatch(in.ticket); err != nil {
 			return err
@@ -402,6 +406,56 @@ func (env *Env) worktreePath(ticket int) string {
 func (env *Env) addWorktree(ctx context.Context, path, tip string) error {
 	if _, err := env.Run(ctx, env.Work, "", "git", "worktree", "add", "--detach", path, tip); err != nil {
 		return err
+	}
+	for _, tool := range pinnedTools() {
+		src := env.cloneTool(tool)
+		info, err := os.Stat(src)
+		if err != nil {
+			return fmt.Errorf("stat %s: %w", src, err)
+		}
+		if err := linkOrCopy(os.Link, src, filepath.Join(path, ".bin", tool), info.Mode().Perm()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func pinnedTools() []string { return []string{"atlas", "sqlc"} }
+
+func (env *Env) cloneTool(tool string) string {
+	return filepath.Join(filepath.Dir(env.Common), ".bin", tool)
+}
+
+func (env *Env) toolsInstalled() error {
+	for _, tool := range pinnedTools() {
+		if src := env.cloneTool(tool); !isFile(src) {
+			return detailErr(
+				errs.CodeInvalidInput, "monacoctl.agents.dispatch", "dispatch: "+src+" is missing; run just install",
+			)
+		}
+	}
+	return nil
+}
+
+func linkOrCopy(link func(oldname, newname string) error, src, dst string, mode os.FileMode) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o750); err != nil {
+		return fmt.Errorf("make %s: %w", filepath.Dir(dst), err)
+	}
+	if link(src, dst) == nil {
+		return nil
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("open %s: %w", src, err)
+	}
+	defer func() { _ = in.Close() }()
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+	if err != nil {
+		return fmt.Errorf("create %s: %w", dst, err)
+	}
+	_, err = io.Copy(out, in)
+	if err = errors.Join(err, out.Close()); err != nil {
+		return fmt.Errorf("copy %s to %s: %w", src, dst, err)
 	}
 	return nil
 }

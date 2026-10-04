@@ -221,6 +221,10 @@ func newFixtureFrom(t *testing.T, snap repoSnapshot) *fixture {
 	git(t, dir, "config", "gc.auto", "0")
 	git(t, dir, "config", "maintenance.auto", "false")
 	writeFile(t, filepath.Join(dir, configPath), testConfig)
+	writeFile(t, filepath.Join(dir, ".git", "info", "exclude"), ".bin/\n")
+	for _, tool := range pinnedTools() {
+		writeFile(t, filepath.Join(dir, ".bin", tool), "pinned "+tool+"\n")
+	}
 	h, srv := newHub(t)
 	return &fixture{
 		dir: dir, hub: h, home: home,
