@@ -348,6 +348,7 @@ func TestStablePatch_reportsEachGitFailure(t *testing.T) {
 			context.Background(),
 			Ref{Ref: "fb"},
 			5,
+			0,
 		); err == nil ||
 			!strings.Contains(err.Error(), step+" down") {
 			t.Fatalf("%s: %v", step, err)
@@ -360,6 +361,7 @@ func TestStablePatch_reportsEachGitFailure(t *testing.T) {
 		context.Background(),
 		Ref{Ref: "fb"},
 		5,
+		0,
 	); err == nil ||
 		!strings.Contains(cliText(err), "nothing") {
 		t.Fatal(err)
@@ -377,7 +379,7 @@ func TestStablePatch_eachConcurrentCallRecordsItsOwnPatchID(t *testing.T) {
 	git(t, remote, "update-ref", "refs/heads/fb", base)
 	git(t, remote, "update-ref", "refs/pull/1/head", one)
 	git(t, remote, "update-ref", "refs/pull/2/head", two)
-	want := [calls]string{patchID(t, remote, base, one), patchID(t, remote, base, two)}
+	want := [calls]string{patchID(t, remote, base, one, 0), patchID(t, remote, base, two, 0)}
 	if want[0] == want[1] {
 		t.Fatal("the two pull requests need different patch-ids")
 	}
@@ -399,7 +401,7 @@ func TestStablePatch_eachConcurrentCallRecordsItsOwnPatchID(t *testing.T) {
 	g, ctx := errgroup.WithContext(t.Context())
 	for i := range calls {
 		g.Go(func() (err error) {
-			got[i], err = env.stablePatch(ctx, Ref{Ref: "fb"}, i+1)
+			got[i], err = env.stablePatch(ctx, Ref{Ref: "fb"}, i+1, 0)
 			return err
 		})
 	}
@@ -419,7 +421,8 @@ func TestStablePatch_leavesNoVerdictRefsBehind(t *testing.T) {
 	git(t, remote, "update-ref", "refs/heads/fb", base)
 	git(t, remote, "update-ref", "refs/pull/5/head", head)
 	env := f.Env(t)
-	if id, err := env.stablePatch(t.Context(), Ref{Ref: "fb"}, 5); err != nil || id != patchID(t, remote, base, head) {
+	want := patchID(t, remote, base, head, 0)
+	if id, err := env.stablePatch(t.Context(), Ref{Ref: "fb"}, 5, 0); err != nil || id != want {
 		t.Fatalf("success: %q %v", id, err)
 	}
 	noVerdictRefs(t, f.dir)
@@ -429,6 +432,7 @@ func TestStablePatch_leavesNoVerdictRefsBehind(t *testing.T) {
 		t.Context(),
 		Ref{Ref: "fb"},
 		5,
+		0,
 	); err == nil ||
 		!strings.Contains(err.Error(), "merge-base down") {
 		t.Fatalf("failure: %v", err)
@@ -441,7 +445,7 @@ func TestStablePatch_leavesNoVerdictRefsBehind(t *testing.T) {
 		cancel()
 		return nil
 	})
-	if _, err := env.stablePatch(ctx, Ref{Ref: "fb"}, 5); !errors.Is(err, context.Canceled) {
+	if _, err := env.stablePatch(ctx, Ref{Ref: "fb"}, 5, 0); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancel: %v", err)
 	}
 	noVerdictRefs(t, f.dir)
@@ -479,7 +483,7 @@ func TestVerdict_postsTheSamePatchIDWithOrWithoutTheBaseBranch(t *testing.T) {
 				t.Fatalf("status calls %v body %q", posted, f.hub.body(status))
 			}
 			recorded, err := f.Env(t).loadVerdict(5)
-			if err != nil || recorded.PatchID != patchID(t, remote, base, head) {
+			if err != nil || recorded.PatchIDU0 != patchID(t, remote, base, head, 0) || recorded.PatchID != "" {
 				t.Fatalf("recorded %+v, %v", recorded, err)
 			}
 			noVerdictRefs(t, f.dir)
@@ -565,6 +569,131 @@ func TestVerdict_carryRepostsOrRefuses(t *testing.T) {
 	if shortSHA("abcd") != "abcd" || len([]rune(carried(strings.Repeat("a", 40), strings.Repeat("b", 200)))) != 140 {
 		t.Fatal("short or carried")
 	}
+}
+
+func TestVerdict_carryJudgesAPullRequestByItsOwnAddedAndRemovedLines(t *testing.T) {
+	t.Parallel()
+	const (
+		text          = "one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\n"
+		legacyVerdict = `{"pr":5,"sha":%q,"patch_id":%q,"state":"success","kind":"light","model":"sonnet",` +
+			`"description":"light by sonnet: ok"}` + "\n"
+	)
+	withAdded := func(base string, added ...string) string {
+		return strings.Replace(base, "five\n", "five\n"+strings.Join(added, "\n")+"\n", 1)
+	}
+	beside := strings.Replace(text, "four", "FOUR", 1)
+	far := strings.Replace(text, "one", "ONE", 1)
+	both := []string{"added one", "added two"}
+	cases := []struct {
+		name           string
+		trunk          string
+		added          []string
+		legacy         bool
+		sameU0, sameU3 bool
+		carries        bool
+	}{
+		{
+			name:  "a restack that changes a context line beside the hunk",
+			trunk: beside, added: both, sameU0: true, carries: true,
+		},
+		{
+			name:  "a restack after which an added line differs",
+			trunk: far, added: []string{"added one", "added 2"},
+		},
+		{
+			name:  "a patch that drops one of its added lines",
+			trunk: far, added: []string{"added one"},
+		},
+		{
+			name:  "a verdict without patch_id_u0 whose three-line patch-id matches",
+			trunk: far, added: both, legacy: true, sameU0: true, sameU3: true, carries: true,
+		},
+		{
+			name:  "a verdict without patch_id_u0 after a context line changed",
+			trunk: beside, added: both, legacy: true, sameU0: true,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			remote := f.remote(t)
+			base := commitFile(t, remote, "a.txt", text)
+			head := commitFile(t, remote, "a.txt", withAdded(text, both...))
+			git(t, remote, "checkout", "-q", "--detach", base)
+			trunk := commitFile(t, remote, "a.txt", c.trunk)
+			restacked := commitFile(t, remote, "a.txt", withAdded(c.trunk, c.added...))
+			for width, same := range map[int]bool{0: c.sameU0, 3: c.sameU3} {
+				was := patchID(t, remote, base, head, width)
+				now := patchID(t, remote, trunk, restacked, width)
+				if (was == now) != same {
+					t.Fatalf("patch-ids at -U%d equal %v, want %v", width, was == now, same)
+				}
+			}
+
+			f.pullAt(t, remote, base, head)
+			if c.legacy {
+				id := patchID(t, remote, base, head, 3)
+				writeFile(t, f.Env(t).verdictPath(5), fmt.Sprintf(legacyVerdict, head, id))
+			} else {
+				f.postPass(t, head)
+			}
+			before, err := f.Env(t).loadVerdict(5)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if u0 := patchID(t, remote, base, head, 0); !c.legacy {
+				if before.PatchIDU0 != u0 || before.PatchID != "" {
+					t.Fatalf("posted %+v, want only the patch-id %s without context lines", before, u0)
+				}
+			}
+
+			f.pullAt(t, remote, trunk, restacked)
+			status := "POST /repos/o/r/statuses/" + restacked
+			code, stdout, stderr := f.agents(t, "verdict", "carry", "5")
+			after, err := f.Env(t).loadVerdict(5)
+			if err != nil {
+				t.Fatal(err)
+			}
+			posted := f.hub.callsContaining(status)
+			if !c.carries {
+				if code != 1 || !strings.Contains(stderr, "patch-id differs from the recorded verdict; verify again") {
+					t.Fatalf("refused: code=%d stderr=%q", code, stderr)
+				}
+				if after != before || len(posted) != 0 {
+					t.Fatalf("a refused carry saved %+v over %+v and posted %v", after, before, posted)
+				}
+				return
+			}
+			want := before
+			want.SHA, want.Description = restacked, "carried from "+head[:7]+": "+before.Description
+			if code != 0 || stdout != "#5 carried from "+head[:7]+"\n" || stderr != "" {
+				t.Fatalf("carried: code=%d stdout=%q stderr=%q", code, stdout, stderr)
+			}
+			if after != want || len(posted) != 1 || !strings.Contains(f.hub.body(status), `"state":"success"`) {
+				t.Fatalf("a carry saved %+v, want %+v, and posted %v", after, want, posted)
+			}
+		})
+	}
+}
+
+func (f *fixture) postPass(t *testing.T, head string) {
+	t.Helper()
+	f.owner(t, Record{Ticket: 40, Model: opus, State: Running})
+	f.hub.on(list("/pulls/5/files?"), []File{{Filename: "a.go", Additions: 2}})
+	report := f.report(t, "ok")
+	args := []string{"verdict", "pass", "5", head, "--kind", "light", "--model", "sonnet", "--report", report}
+	if code, _, stderr := f.agents(t, args...); code != 0 {
+		t.Fatalf("post: %d %q", code, stderr)
+	}
+}
+
+func (f *fixture) pullAt(t *testing.T, remote, base, head string) {
+	t.Helper()
+	git(t, remote, "update-ref", "refs/heads/fb", base)
+	git(t, remote, "update-ref", "refs/pull/5/head", head)
+	f.hub.on(get("/pulls/5"), headed(5, head))
+	f.hub.on("POST /repos/o/r/statuses/"+head, "ok")
 }
 
 func TestVerdict_reportsDownstreamFailures(t *testing.T) {
@@ -796,9 +925,9 @@ func atMergeBase(next Runner, hook func(context.Context) error) Runner {
 	}
 }
 
-func patchID(t *testing.T, dir, base, head string) string {
+func patchID(t *testing.T, dir, base, head string, width int) string {
 	t.Helper()
-	diff, err := Exec(t.Context(), dir, "", "git", "diff", base, head)
+	diff, err := Exec(t.Context(), dir, "", "git", "diff", fmt.Sprintf("-U%d", width), base, head)
 	if err != nil {
 		t.Fatal(err)
 	}

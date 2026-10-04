@@ -18,10 +18,23 @@ type Verdict struct {
 	PR          int    `json:"pr"`
 	SHA         string `json:"sha"`
 	PatchID     string `json:"patch_id"`
+	PatchIDU0   string `json:"patch_id_u0"`
 	State       string `json:"state"`
 	Kind        string `json:"kind"`
 	Model       string `json:"model"`
 	Description string `json:"description"`
+}
+
+const (
+	ownLines      = 0
+	legacyContext = 3
+)
+
+func (v Verdict) recordedPatch() (id string, width int) {
+	if v.PatchIDU0 != "" {
+		return v.PatchIDU0, ownLines
+	}
+	return v.PatchID, legacyContext
 }
 
 type verdictIn struct {
@@ -62,7 +75,7 @@ func postVerdict(ctx context.Context, env *Env, args []string, stdout io.Writer)
 	if err != nil {
 		return err
 	}
-	patch, err := env.stablePatch(ctx, pr.Base, in.pr)
+	patch, err := env.stablePatch(ctx, pr.Base, in.pr, ownLines)
 	if err != nil {
 		return err
 	}
@@ -73,7 +86,7 @@ func postVerdict(ctx context.Context, env *Env, args []string, stdout io.Writer)
 		Verdict{
 			PR:          in.pr,
 			SHA:         in.sha,
-			PatchID:     patch,
+			PatchIDU0:   patch,
 			State:       in.state,
 			Kind:        in.kind,
 			Model:       in.model,
@@ -248,11 +261,12 @@ func carryCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 		_, _ = fmt.Fprintf(stdout, "#%d head unchanged\n", n)
 		return nil
 	}
-	id, err := env.stablePatch(ctx, pr.Base, n)
+	recorded, width := rec.recordedPatch()
+	id, err := env.stablePatch(ctx, pr.Base, n, width)
 	if err != nil {
 		return err
 	}
-	if id != rec.PatchID {
+	if id != recorded {
 		return detailErr(
 			errs.CodeInvalidInput,
 			"monacoctl.agents.verdict",
@@ -292,7 +306,7 @@ func shortSHA(sha string) string {
 	return sha
 }
 
-func (env *Env) stablePatch(ctx context.Context, base Ref, pr int) (id string, err error) {
+func (env *Env) stablePatch(ctx context.Context, base Ref, pr, width int) (id string, err error) {
 	prefix := fmt.Sprintf("refs/monaco/verdict/%d/%d/", pr, os.Getpid())
 	baseRef, headRef := prefix+"base", prefix+"pr"
 	defer func() { err = errors.Join(err, env.deleteVerdictRefs(ctx, baseRef, headRef)) }()
@@ -303,7 +317,8 @@ func (env *Env) stablePatch(ctx context.Context, base Ref, pr int) (id string, e
 	if err != nil {
 		return "", err
 	}
-	diff, err := env.Run(ctx, env.Work, "", "git", "diff", strings.TrimSpace(string(fork)), headRef)
+	unified := "-U" + strconv.Itoa(width)
+	diff, err := env.Run(ctx, env.Work, "", "git", "diff", unified, strings.TrimSpace(string(fork)), headRef)
 	if err != nil {
 		return "", err
 	}
