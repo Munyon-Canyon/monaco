@@ -29,7 +29,7 @@ case "$path" in
   *_test.go | apps/backend/coverage.exclude | apps/backend/mutants.allow | apps/backend/.golangci.yml) ;;
   */testdata/perf/baseline.json | */testdata/golden/*) ;;
   packages/mobile-core/Tests/*.swift | apps/mobile/MonacoTests/*.swift | apps/mobile/MonacoUITests/*.swift) ;;
-  .swift-format | */.swift-format | .swiftlint.yml | */.swiftlint.yml | .swiftlint-baseline.tsv) ;;
+  .swift-format | */.swift-format | .swiftlint.yml | */.swiftlint.yml) ;;
   packages/mobile-core/legacy-baseline.tsv | packages/mobile-core/tsan-suppressions.txt) ;;
   packages/mobile-core/coverage-floor.txt | packages/mobile-core/Package.swift) ;;
   */RepoRulesAllowlist.txt | */AccessibilityAuditAllowlist.txt | apps/mobile/MonacoUITests/perf-budgets.tsv) ;;

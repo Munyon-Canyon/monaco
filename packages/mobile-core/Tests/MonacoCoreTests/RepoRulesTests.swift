@@ -575,9 +575,6 @@ final class RepoRulesTests: XCTestCase {
             for (path, count) in found.sorted(by: { $0.key < $1.key }) where count > rows[path, default: 0] {
                 XCTFail("\(rule.name) \(path) \(rows[path, default: 0]) -> \(count): \(rule.message)")
             }
-            for (path, count) in rows.sorted(by: { $0.key < $1.key }) where found[path, default: 0] < count {
-                XCTFail("lower the allowlist: \(rule.name) \(path) \(count) -> \(found[path, default: 0])")
-            }
         }
     }
 

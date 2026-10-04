@@ -487,7 +487,6 @@ jobs:
               - 'apps/mobile/**/*.swift'
               - '.swift-format'
               - '.swiftlint.yml'
-              - '.swiftlint-baseline.tsv'
               - 'scripts/swiftlint-ratchet.sh'
               - 'scripts/gen-mobile-feature.sh'
               - 'scripts/ci/mobile-integration.sh'
