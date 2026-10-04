@@ -154,6 +154,22 @@ func holdUntil(started, release string) []string {
 	return []string{"sh", "-c", `touch "$1"; while [ ! -e "$2" ]; do sleep 0.05; done`, "sh", started, release}
 }
 
+// writeExecutable holds syscall.ForkLock while the file is open for writing, so no fork can copy the
+// descriptor. A child that holds the copy makes exec of the file fail with ETXTBSY until the child
+// itself execs (golang/go#22315).
+func writeExecutable(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	syscall.ForkLock.Lock()
+	err := os.WriteFile(path, []byte(body), 0o700)
+	syscall.ForkLock.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestXcodeLockArrivalOrder(t *testing.T) {
 	t.Parallel()
 	e := newLockEnv(t)
@@ -676,12 +692,7 @@ func TestXcodeLockWaitsForOrphanXcodebuild(t *testing.T) {
 	ran := filepath.Join(e.dir, "ran")
 
 	fake := filepath.Join(e.dir, "bin", "xcodebuild")
-	if err := os.MkdirAll(filepath.Dir(fake), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(fake, []byte("#!/bin/sh\nwhile [ ! -e \"$ORPHAN_RELEASE\" ]; do sleep 0.05; done\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writeExecutable(t, fake, "#!/bin/sh\nwhile [ ! -e \"$ORPHAN_RELEASE\" ]; do sleep 0.05; done\n")
 	orphan := exec.Command(fake, "-project", "Monaco.xcodeproj", "-derivedDataPath", derived, "build")
 	orphan.Env = append(os.Environ(), "ORPHAN_RELEASE="+release)
 	if err := orphan.Start(); err != nil {

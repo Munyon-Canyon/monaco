@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -53,8 +54,28 @@ func newReuseRepo(t *testing.T) *reuseRepo {
 	return r
 }
 
+// writeExecutable holds syscall.ForkLock while the file is open for writing, so no fork can copy the
+// descriptor. A child that holds the copy makes exec of the file fail with ETXTBSY until the child
+// itself execs (golang/go#22315).
+func writeExecutable(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	syscall.ForkLock.Lock()
+	err := os.WriteFile(path, []byte(body), 0o700)
+	syscall.ForkLock.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func (r *reuseRepo) write(name, body string, mode os.FileMode) {
 	r.t.Helper()
+	if mode&0o111 != 0 {
+		writeExecutable(r.t, name, body)
+		return
+	}
 	if err := os.WriteFile(name, []byte(body), mode); err != nil {
 		r.t.Fatal(err)
 	}
