@@ -18,7 +18,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability/boundary"
 )
@@ -36,7 +35,7 @@ type IdempotencyStore interface {
 	Release(ctx context.Context, actorKey, key string) error
 }
 
-func Idempotency(store IdempotencyStore) api.MiddlewareFunc {
+func Idempotency(store IdempotencyStore) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !mutating(r.Method) || optedOut(r.Context()) {

@@ -520,7 +520,12 @@ func TestHandler_requiresAnIdempotencyStore(t *testing.T) {
 	t.Parallel()
 	d := newHarness(t).deps
 	d.Idempotency = nil
-	if h, err := Handler(d, healthOnly{}, openapi.Spec); h != nil || errs.CodeOf(err) != errs.CodeInternal {
+	if h, err := Handler(
+		d,
+		mountPlatform(healthOnly{}),
+		openapi.Spec,
+	); h != nil ||
+		errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("Handler = %v, %v, want internal and no handler", h, err)
 	}
 }

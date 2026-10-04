@@ -16,7 +16,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/treasuryapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 	"github.com/monaco/monaco/apps/backend/internal/tools/ops/replay"
@@ -57,12 +58,12 @@ func (m *Module) Wire(set module.Set) {
 	}
 }
 
-func (m *Module) Routes(r *httpx.Routes) {
+func (m *Module) Mount(r api.Mount) {
 	names := catalogNames{Catalog: market.New(m.deps).Catalog()}
-	r.TreasuryRoutes = adapters.HTTP{
+	treasuryapi.Mount(adapters.HTTP{
 		Reads:    app.NewActivityReads(m.deps.Pool, m.members, m.users, names),
 		UserTxns: app.NewUserTxnReads(m.deps.Pool, m.cabals, usdc(m.deps.Config)),
-	}
+	}, r)
 }
 
 func (m *Module) Consumers() []bus.Consumer {

@@ -186,11 +186,10 @@ func devMe(t *testing.T, pool *pgxpool.Pool, cfg config.Config, token string) (i
 	if err != nil {
 		t.Fatal(err)
 	}
-	var routes httpx.Routes
-	identity.New(
+	mount := identity.New(
 		module.Deps{Pool: pool, UoW: db.New(pool, ids.Real{}, clk), IDs: ids.Real{}, Clock: clk},
 		identity.WithPrivy(&privyfake.Users{}, &privyfake.Wallets{}),
-	).Routes(&routes)
+	).Mount
 	handler, err := httpx.Handler(httpx.Deps{
 		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),
 		Tracer:       noop.NewTracerProvider(),
@@ -199,7 +198,7 @@ func devMe(t *testing.T, pool *pgxpool.Pool, cfg config.Config, token string) (i
 		MaxBodyBytes: 1 << 20,
 		Idempotency:  db.NewIdempotencyStore(pool, clk),
 		Verifier:     verifier,
-	}, routes, openapi.Spec)
+	}, mount, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -25,7 +25,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	apibase "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/marketapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -271,16 +272,16 @@ func TestAssets_rejectsABadRequest(t *testing.T) {
 		path   string
 		token  string
 		status int
-		code   api.ErrorCode
+		code   apibase.ErrorCode
 	}{
-		{path: "/v1/assets", status: http.StatusUnauthorized, code: api.Unauthorized},
-		{path: "/v1/assets?filter=nope", token: s.token, status: http.StatusBadRequest, code: api.InvalidInput},
-		{path: "/v1/assets?limit=51", token: s.token, status: http.StatusBadRequest, code: api.InvalidInput},
+		{path: "/v1/assets", status: http.StatusUnauthorized, code: apibase.Unauthorized},
+		{path: "/v1/assets?filter=nope", token: s.token, status: http.StatusBadRequest, code: apibase.InvalidInput},
+		{path: "/v1/assets?limit=51", token: s.token, status: http.StatusBadRequest, code: apibase.InvalidInput},
 		{
 			path:   "/v1/assets?cursor=" + url.QueryEscape("%%%"),
 			token:  s.token,
 			status: http.StatusBadRequest,
-			code:   api.InvalidInput,
+			code:   apibase.InvalidInput,
 		},
 	}
 	for _, tc := range cases {
@@ -314,7 +315,7 @@ func TestAssets_reportsABrokenCatalog(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	rec := s.getCtx(ctx, t, "/v1/assets", s.token)
-	if rec.Code != http.StatusInternalServerError || problemCode(t, rec) != api.Internal {
+	if rec.Code != http.StatusInternalServerError || problemCode(t, rec) != apibase.Internal {
 		t.Fatalf("cancelled = %d %s", rec.Code, rec.Body)
 	}
 	if _, err := s.pool.Exec(t.Context(),
@@ -322,7 +323,7 @@ func TestAssets_reportsABrokenCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec = s.get(t, "/v1/assets?q=aap")
-	if rec.Code != http.StatusInternalServerError || problemCode(t, rec) != api.DecodeFailed {
+	if rec.Code != http.StatusInternalServerError || problemCode(t, rec) != apibase.DecodeFailed {
 		t.Fatalf("bad mint = %d %s", rec.Code, rec.Body)
 	}
 }
@@ -332,7 +333,7 @@ func TestAssets_theCalendarExpiresOutsideItsYears(t *testing.T) {
 	s := newMarketAPI(t, time.Date(2030, 7, 1, 15, 0, 0, 0, time.UTC))
 	s.seedFixtures(t)
 	rec := s.get(t, "/v1/assets")
-	if rec.Code != http.StatusInternalServerError || problemCode(t, rec) != api.CalendarExpired {
+	if rec.Code != http.StatusInternalServerError || problemCode(t, rec) != apibase.CalendarExpired {
 		t.Fatalf("expired calendar = %d %s", rec.Code, rec.Body)
 	}
 }
@@ -387,8 +388,7 @@ func newMarketAPI(t *testing.T, when time.Time) marketAPI {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var routes httpx.Routes
-	market.New(module.Deps{Pool: pool, Clock: clk}).Routes(&routes)
+	mount := market.New(module.Deps{Pool: pool, Clock: clk}).Mount
 	handler, err := httpx.Handler(httpx.Deps{
 		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),
 		Tracer:       noop.NewTracerProvider(),
@@ -397,7 +397,7 @@ func newMarketAPI(t *testing.T, when time.Time) marketAPI {
 		MaxBodyBytes: 1 << 20,
 		Idempotency:  db.NewIdempotencyStore(pool, clk),
 		Verifier:     verifier,
-	}, routes, openapi.Spec)
+	}, mount, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -494,9 +494,9 @@ func pageOf(t *testing.T, rec *httptest.ResponseRecorder) api.AssetList {
 	return page
 }
 
-func problemCode(t *testing.T, rec *httptest.ResponseRecorder) api.ErrorCode {
+func problemCode(t *testing.T, rec *httptest.ResponseRecorder) apibase.ErrorCode {
 	t.Helper()
-	var body api.Problem
+	var body apibase.Problem
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode %s: %v", rec.Body, err)
 	}
@@ -525,7 +525,7 @@ func TestAssetDetail_OtherListings(t *testing.T) {
 	})
 	assertOtherListing(t, detail)
 	missing := s.get(t, "/v1/assets/NOPEx")
-	if missing.Code != http.StatusNotFound || problemCode(t, missing) != api.AssetNotFound {
+	if missing.Code != http.StatusNotFound || problemCode(t, missing) != apibase.AssetNotFound {
 		t.Fatalf("missing = %d %s", missing.Code, missing.Body)
 	}
 }
@@ -726,11 +726,11 @@ func TestChart_rejectsABadRangeAndAnUnknownSymbol(t *testing.T) {
 	s := newMarketAPI(t, marketWhen())
 	s.seedFixtures(t)
 	bad := s.get(t, "/v1/assets/AAPLx/chart?range=NOPE")
-	if bad.Code != http.StatusBadRequest || problemCode(t, bad) != api.InvalidInput {
+	if bad.Code != http.StatusBadRequest || problemCode(t, bad) != apibase.InvalidInput {
 		t.Fatalf("bad range = %d %s", bad.Code, bad.Body)
 	}
 	missing := s.get(t, "/v1/assets/NOPEx/chart?range=1D")
-	if missing.Code != http.StatusNotFound || problemCode(t, missing) != api.AssetNotFound {
+	if missing.Code != http.StatusNotFound || problemCode(t, missing) != apibase.AssetNotFound {
 		t.Fatalf("missing = %d %s", missing.Code, missing.Body)
 	}
 }

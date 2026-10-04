@@ -27,7 +27,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	apibase "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/cabalapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -62,7 +63,7 @@ func (f createFixture) router(t *testing.T) (http.Handler, *auth.DevVerifier) {
 		MaxBodyBytes: 1 << 20,
 		Idempotency:  db.NewIdempotencyStore(f.pool, f.clock),
 		Verifier:     verifier,
-	}, httpx.Routes{CabalRoutes: f.routes(nil)}, openapi.Spec)
+	}, func(m apibase.Mount) { api.Mount(f.routes(nil), m) }, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}

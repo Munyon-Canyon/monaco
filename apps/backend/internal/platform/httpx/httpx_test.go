@@ -24,16 +24,19 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/platformapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 type healthz struct {
-	api.StrictServerInterface
-	fn func(ctx context.Context) (api.GetHealthzResponseObject, error)
+	platformapi.StrictServerInterface
+	fn func(ctx context.Context) (platformapi.GetHealthzResponseObject, error)
 }
 
-func (h healthz) GetHealthz(ctx context.Context, _ api.GetHealthzRequestObject) (api.GetHealthzResponseObject, error) {
+func (h healthz) GetHealthz(
+	ctx context.Context, _ platformapi.GetHealthzRequestObject,
+) (platformapi.GetHealthzResponseObject, error) {
 	return h.fn(ctx)
 }
 
@@ -133,9 +136,13 @@ func serveRaw(
 	return rec
 }
 
-func mustHandler(t *testing.T, d Deps, ssi api.StrictServerInterface) http.Handler {
+func mountPlatform(ssi platformapi.StrictServerInterface) func(api.Mount) {
+	return func(m api.Mount) { platformapi.Mount(ssi, m) }
+}
+
+func mustHandler(t *testing.T, d Deps, ssi platformapi.StrictServerInterface) http.Handler {
 	t.Helper()
-	h, err := Handler(d, ssi, openapi.Spec)
+	h, err := Handler(d, mountPlatform(ssi), openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +181,7 @@ func linesNamed(lines []map[string]any, msg string) []map[string]any {
 func TestProblem_notFoundIs404ProblemJSONWithCodeAndTraceID(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	handler := mustHandler(t, h.deps, healthz{fn: func(context.Context) (api.GetHealthzResponseObject, error) {
+	handler := mustHandler(t, h.deps, healthz{fn: func(context.Context) (platformapi.GetHealthzResponseObject, error) {
 		return nil, errs.New(errs.CodeNotFound, "cabal.Get", slog.String("cabal_id", "c-secret-attr"))
 	}})
 
@@ -212,7 +219,7 @@ func TestProblem_bodyNeverCarriesErrOrAttrs(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	cause := errs.New(errs.CodeDBUnavailable, "db.Begin", slog.String("dsn_host", "attr-leak"))
-	handler := mustHandler(t, h.deps, healthz{fn: func(context.Context) (api.GetHealthzResponseObject, error) {
+	handler := mustHandler(t, h.deps, healthz{fn: func(context.Context) (platformapi.GetHealthzResponseObject, error) {
 		return nil, errs.Wrap(cause, errs.CodeUpstreamTimeout, "market.Poll", slog.String("provider", "attr-leak-2"))
 	}})
 	resp := h.do(t, handler, http.MethodGet, "/healthz", nil)
@@ -247,9 +254,13 @@ func TestProblem_statusRetryableAndAlertFollowTheCodeTable(t *testing.T) {
 		t.Run(string(tc.code), func(t *testing.T) {
 			t.Parallel()
 			h := newHarness(t)
-			handler := mustHandler(t, h.deps, healthz{fn: func(context.Context) (api.GetHealthzResponseObject, error) {
-				return nil, tc.err
-			}})
+			handler := mustHandler(
+				t,
+				h.deps,
+				healthz{fn: func(context.Context) (platformapi.GetHealthzResponseObject, error) {
+					return nil, tc.err
+				}},
+			)
 			resp := h.do(t, handler, http.MethodGet, "/healthz", nil)
 			p := decodeProblem(t, resp)
 			if resp.Code != tc.status || p.Status != tc.status || p.Code != tc.code ||
@@ -297,12 +308,12 @@ func TestPanic_respondsPanicProblemLogsOneErrorAndKeepsServing(t *testing.T) {
 	h := newHarness(t)
 	var calls int
 	srv := httptest.NewServer(testkit.HTTP(t, mustHandler(t, h.deps, healthz{
-		fn: func(context.Context) (api.GetHealthzResponseObject, error) {
+		fn: func(context.Context) (platformapi.GetHealthzResponseObject, error) {
 			calls++
 			if calls == 1 {
 				panic("boom")
 			}
-			return api.GetHealthz200TextResponse("ok\n"), nil
+			return platformapi.GetHealthz200TextResponse("ok\n"), nil
 		},
 	})))
 	defer srv.Close()
@@ -458,7 +469,7 @@ func TestAccessLog_andSpanNameTheRouteStatusAndDuration(t *testing.T) {
 func TestSpan_continuesAnIncomingTraceAndMarks5xxAsError(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	handler := mustHandler(t, h.deps, healthz{fn: func(context.Context) (api.GetHealthzResponseObject, error) {
+	handler := mustHandler(t, h.deps, healthz{fn: func(context.Context) (platformapi.GetHealthzResponseObject, error) {
 		return nil, errs.New(errs.CodeInternal, "x.Y")
 	}})
 	traceID := "4bf92f3577b34da6a3ce929d0e0e4736"

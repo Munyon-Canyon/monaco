@@ -21,7 +21,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -35,7 +35,7 @@ type echoModule struct{}
 
 func (echoModule) Name() string { return "system" }
 
-func (echoModule) Routes(*httpx.Routes) {}
+func (echoModule) Mount(api.Mount) {}
 
 func (echoModule) Consumers() []bus.Consumer {
 	echo := bus.Handle("system.echo", func(context.Context, db.Tx, events.SystemPinged, time.Time) error { return nil })

@@ -8,20 +8,18 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
-func (f feedFixture) routes() httpx.Routes {
+func (f feedFixture) routes() adapters.HTTP {
 	deps := module.Deps{Pool: f.pool, UoW: db.New(f.pool, f.gen, f.clock), IDs: f.gen, Clock: f.clock}
-	var routes httpx.Routes
-	social.New(deps, social.WithUsers(fakes.NewIdentity(nil, nil))).Routes(&routes)
-	return routes
+	return social.HTTPOf(social.New(deps, social.WithUsers(fakes.NewIdentity(nil, nil))))
 }
 
 func ptr[T any](v T) *T { return &v }

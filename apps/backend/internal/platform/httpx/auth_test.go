@@ -471,7 +471,12 @@ func TestHandler_requiresAVerifier(t *testing.T) {
 	t.Parallel()
 	d := newHarness(t).deps
 	d.Verifier = nil
-	if h, err := Handler(d, healthOnly{}, openapi.Spec); h != nil || errs.CodeOf(err) != errs.CodeInternal {
+	if h, err := Handler(
+		d,
+		mountPlatform(healthOnly{}),
+		openapi.Spec,
+	); h != nil ||
+		errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("Handler = %v, %v, want internal and no handler", h, err)
 	}
 }

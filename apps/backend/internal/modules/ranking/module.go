@@ -2,7 +2,7 @@ package ranking
 
 import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
@@ -13,7 +13,7 @@ func New(module.Deps) *Module { return &Module{} }
 
 func (*Module) Name() string { return "ranking" }
 
-func (*Module) Routes(*httpx.Routes) {}
+func (*Module) Mount(api.Mount) {}
 
 func (*Module) Consumers() []bus.Consumer {
 	return []bus.Consumer{}

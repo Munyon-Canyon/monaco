@@ -10,7 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/platformapi"
 )
 
 const Heartbeat = 15 * time.Second
@@ -26,7 +26,10 @@ type visit func(http.ResponseWriter) error
 
 func (v visit) VisitGetStreamResponse(w http.ResponseWriter) error { return v(w) }
 
-func (s Stream) GetStream(ctx context.Context, req api.GetStreamRequestObject) (api.GetStreamResponseObject, error) {
+func (s Stream) GetStream(
+	ctx context.Context,
+	req platformapi.GetStreamRequestObject,
+) (platformapi.GetStreamResponseObject, error) {
 	actor, ok := auth.ActorFrom(ctx)
 	if !ok {
 		return nil, errs.New(errs.CodeUnauthorized, "sse.Stream.GetStream")

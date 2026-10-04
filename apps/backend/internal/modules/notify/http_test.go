@@ -56,9 +56,8 @@ func newServer(t *testing.T, opts ...notify.Option) server {
 		t.Fatal(err)
 	}
 	logs := &testkit.Logs{}
-	var routes httpx.Routes
 	deps := module.Deps{Pool: pool, UoW: db.New(pool, g, clk), IDs: g, Clock: clk}
-	notify.New(deps, opts...).Routes(&routes)
+	mount := notify.New(deps, opts...).Mount
 	h, err := httpx.Handler(httpx.Deps{
 		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, logs),
 		Tracer:       noop.NewTracerProvider(),
@@ -67,7 +66,7 @@ func newServer(t *testing.T, opts ...notify.Option) server {
 		MaxBodyBytes: 1 << 20,
 		Idempotency:  db.NewIdempotencyStore(pool, clk),
 		Verifier:     verifier,
-	}, routes, openapi.Spec)
+	}, mount, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}

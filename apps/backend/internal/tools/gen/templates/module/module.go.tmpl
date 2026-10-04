@@ -2,7 +2,7 @@ package {{.Module}}
 
 import (
 	"{{.ModPath}}/internal/platform/bus"
-	"{{.ModPath}}/internal/platform/httpx"
+	"{{.ModPath}}/internal/platform/httpx/api"
 	"{{.ModPath}}/internal/platform/module"
 	"{{.ModPath}}/internal/platform/poller"
 )
@@ -13,7 +13,7 @@ func New(module.Deps) *Module { return &Module{} }
 
 func (*Module) Name() string { return "{{.Module}}" }
 
-func (*Module) Routes(*httpx.Routes) {}
+func (*Module) Mount(api.Mount) {}
 
 func (*Module) Consumers() []bus.Consumer {
 	return []bus.Consumer{}

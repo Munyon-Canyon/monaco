@@ -22,7 +22,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/cabalapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
@@ -41,13 +41,7 @@ type HTTP struct {
 	Clock   clock.Clock
 }
 
-var (
-	_ httpx.CabalRoutes        = HTTP{}
-	_ httpx.CabalJoinRoutes    = HTTP{}
-	_ httpx.CabalAccessRoutes  = HTTP{}
-	_ httpx.CabalPictureRoutes = HTTP{}
-	_ httpx.CabalInviteRoutes  = HTTP{}
-)
+var _ api.StrictServerInterface = HTTP{}
 
 func (h HTTP) PostCabal(
 	ctx context.Context, req api.PostCabalRequestObject,

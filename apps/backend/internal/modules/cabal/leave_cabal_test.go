@@ -13,8 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/cabalapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -244,9 +243,7 @@ func TestModule_leavesThroughTheTreasuryReadsItIsGiven(t *testing.T) {
 			Timeouts: config.Timeouts{Privy: time.Second},
 		},
 	}, cabal.WithTreasuryReads(&treasuryStub{shares: shares(1)}))
-	var routes httpx.Routes
-	m.Routes(&routes)
-	_, err := routes.DeleteCabalMemberMe(as(t.Context(), c.Members[1].ID),
+	_, err := cabal.HTTPOf(m).DeleteCabalMemberMe(as(t.Context(), c.Members[1].ID),
 		api.DeleteCabalMemberMeRequestObject{Id: c.ID.UUID()})
 	wantErr(t, err, errs.CodeLeaveHoldsShares)
 }

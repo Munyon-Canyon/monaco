@@ -11,21 +11,21 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/referrals"
 	"github.com/monaco/monaco/apps/backend/internal/modules/referrals/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 func TestModule_registersTheReferralsDurableWithMintCodeOnUserCreated(t *testing.T) {
 	t.Parallel()
 	m := referrals.New(module.Deps{})
-	var routes httpx.Routes
-	m.Routes(&routes)
 	consumers := m.Consumers()
-	if m.Name() != "referrals" || routes.ReferralsRoutes == nil || m.Pollers() != nil || len(consumers) != 1 ||
-		consumers[0].Durable != "referrals" || len(consumers[0].Handlers) != 1 ||
+	if m.Name() != "referrals" || !testkit.Serves(m.Mount, "GET", "/v1/me/referral-code") || m.Pollers() != nil ||
+		len(consumers) != 1 ||
+		consumers[0].Durable != "referrals" ||
+		len(consumers[0].Handlers) != 1 ||
 		consumers[0].Handlers[0].Name != "referrals.mint_code" ||
 		consumers[0].Handlers[0].Type() != events.TypeUserCreated {
-		t.Fatalf("module = %s, routes %+v, consumers %+v, pollers %v", m.Name(), routes, consumers, m.Pollers())
+		t.Fatalf("module = %s, consumers %+v, pollers %v", m.Name(), consumers, m.Pollers())
 	}
 }
 

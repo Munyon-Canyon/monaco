@@ -11,7 +11,6 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
@@ -67,7 +66,7 @@ func ActorKey(r *http.Request) (string, bool) {
 	return a.Key(), ok
 }
 
-func Auth(v auth.TokenVerifier) api.MiddlewareFunc {
+func Auth(v auth.TokenVerifier) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			const op = "httpx.Auth"

@@ -28,7 +28,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	apibase "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/identityapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/ratelimit"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -101,8 +102,8 @@ func TestSetHandle_concurrentClaimsProduceOneWinner(t *testing.T) {
 		case http.StatusOK:
 			ok++
 		case http.StatusUnprocessableEntity:
-			if got := decodeProblem(t, rec); got.Code != api.HandleTaken {
-				t.Fatalf("race problem = %s, want %s", got.Code, api.HandleTaken)
+			if got := decodeProblem(t, rec); got.Code != apibase.HandleTaken {
+				t.Fatalf("race problem = %s, want %s", got.Code, apibase.HandleTaken)
 			}
 			taken++
 		default:
@@ -141,10 +142,10 @@ func TestSetHandle_updatesTheProfileAndRejectsTakenNames(t *testing.T) {
 	if got := f.setHandle(t, first.ID, "kai_one"); got.Code != http.StatusOK {
 		t.Fatalf("same = %d %s", got.Code, got.Body)
 	}
-	if got := f.setHandle(t, second.ID, "admin"); decodeProblem(t, got).Code != api.HandleReserved {
+	if got := f.setHandle(t, second.ID, "admin"); decodeProblem(t, got).Code != apibase.HandleReserved {
 		t.Fatalf("reserved = %d %s", got.Code, got.Body)
 	}
-	if got := f.setHandle(t, second.ID, "kai_one"); decodeProblem(t, got).Code != api.HandleTaken {
+	if got := f.setHandle(t, second.ID, "kai_one"); decodeProblem(t, got).Code != apibase.HandleTaken {
 		t.Fatalf("taken = %d %s", got.Code, got.Body)
 	}
 	ready := f.now.Add(-domain.HandleChangeInterval)
@@ -187,7 +188,7 @@ func TestSetHandle_coversInvalidNoopAndAdapterDuplicate(t *testing.T) {
 	if got := f.setHandle(t, first.ID, "same_one"); got.Code != http.StatusOK {
 		t.Fatal(got.Code)
 	}
-	if got := f.setHandle(t, second.ID, "ab"); decodeProblem(t, got).Code != api.HandleInvalid {
+	if got := f.setHandle(t, second.ID, "ab"); decodeProblem(t, got).Code != apibase.HandleInvalid {
 		t.Fatal(got.Code)
 	}
 	err := adapters.Users{}.SetHandle(t.Context(), f.pool, second.ID, "same_one", f.now)
@@ -317,11 +318,11 @@ func TestGetHandleAvailability_refusesWhoIsNotASignedInUser(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	missing := f.availability(t, ids.UserID{}, "kai_1")
-	if got := decodeProblem(t, missing); missing.Code != http.StatusUnauthorized || got.Code != api.Unauthorized {
+	if got := decodeProblem(t, missing); missing.Code != http.StatusUnauthorized || got.Code != apibase.Unauthorized {
 		t.Fatalf("no token = %d %s, want 401 unauthorized", missing.Code, missing.Body)
 	}
 	unknown := f.availability(t, f.newID(t), "kai_1")
-	if got := decodeProblem(t, unknown); unknown.Code != http.StatusNotFound || got.Code != api.UserNotFound {
+	if got := decodeProblem(t, unknown); unknown.Code != http.StatusNotFound || got.Code != apibase.UserNotFound {
 		t.Fatalf("unknown user = %d %s, want 404 user_not_found", unknown.Code, unknown.Body)
 	}
 }
@@ -382,7 +383,7 @@ func TestGetHandleAvailability_the31stCallInAMinuteIsRateLimited(t *testing.T) {
 	rec := call(user.ID)
 	retry := rec.Header().Get("Retry-After")
 	seconds, convErr := strconv.Atoi(retry)
-	if got := decodeProblem(t, rec); rec.Code != http.StatusTooManyRequests || got.Code != api.RateLimited ||
+	if got := decodeProblem(t, rec); rec.Code != http.StatusTooManyRequests || got.Code != apibase.RateLimited ||
 		convErr != nil || seconds < 1 {
 		t.Fatalf("call 31 = %d %s Retry-After %q, want 429 rate_limited with Retry-After", rec.Code, rec.Body, retry)
 	}
@@ -402,10 +403,9 @@ func (f httpFixture) limitedHandler(t *testing.T) http.Handler {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var routes httpx.Routes
-	identity.New(module.Deps{
+	mount := identity.New(module.Deps{
 		Pool: f.pool, UoW: db.New(f.pool, f.ids, clk), IDs: f.ids, Clock: clk,
-	}, identity.WithPrivy(f.privy, f.wallets)).Routes(&routes)
+	}, identity.WithPrivy(f.privy, f.wallets)).Mount
 	h, err := httpx.Handler(httpx.Deps{
 		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),
 		Tracer:       tracenoop.NewTracerProvider(),
@@ -415,7 +415,7 @@ func (f httpFixture) limitedHandler(t *testing.T) http.Handler {
 		Idempotency:  db.NewIdempotencyStore(f.pool, clk),
 		Verifier:     f.verifier,
 		RateLimit:    ratelimit.Middleware(limiter, policies, httpx.ActorKey, false),
-	}, routes, openapi.Spec)
+	}, mount, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}

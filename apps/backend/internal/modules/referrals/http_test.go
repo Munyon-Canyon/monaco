@@ -23,7 +23,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	apibase "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/referralsapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -46,8 +47,7 @@ func newServer(t *testing.T) server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var routes httpx.Routes
-	referrals.New(module.Deps{Pool: pool}).Routes(&routes)
+	mount := referrals.New(module.Deps{Pool: pool}).Mount
 	h, err := httpx.Handler(httpx.Deps{
 		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),
 		Tracer:       noop.NewTracerProvider(),
@@ -56,7 +56,7 @@ func newServer(t *testing.T) server {
 		MaxBodyBytes: 1 << 20,
 		Idempotency:  db.NewIdempotencyStore(pool, clk),
 		Verifier:     verifier,
-	}, routes, openapi.Spec)
+	}, mount, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,11 +113,11 @@ func TestGetMyReferralCode_answersARetryable503BeforeTheCodeIsMinted(t *testing.
 	s := newServer(t)
 	user := seedOwner(t, s.pool, owner{handle: "kaicenat"})
 	rec := s.get(t, user)
-	var p api.Problem
+	var p apibase.Problem
 	if err := json.Unmarshal(rec.Body.Bytes(), &p); err != nil {
 		t.Fatal(err)
 	}
-	if rec.Code != http.StatusServiceUnavailable || p.Code != api.ReferralCodePending || !p.Retryable {
+	if rec.Code != http.StatusServiceUnavailable || p.Code != apibase.ReferralCodePending || !p.Retryable {
 		t.Fatalf("GET = %d %s, want 503 referral_code_pending with retryable true", rec.Code, rec.Body)
 	}
 }

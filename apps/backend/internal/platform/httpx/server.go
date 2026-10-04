@@ -12,24 +12,19 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/platformapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/sse"
 )
 
-func Handler(d Deps, ssi api.StrictServerInterface, spec []byte) (http.Handler, error) {
+func Handler(d Deps, mount func(api.Mount), spec []byte) (http.Handler, error) {
 	c, err := LoadContract(spec)
 	if err != nil {
 		return nil, err
 	}
-	return HandlerFor(d, ssi, c)
+	return HandlerFor(d, mount, c)
 }
 
-func HandlerFor(d Deps, ssi api.StrictServerInterface, c *Contract) (http.Handler, error) {
-	return handler(d, ssi, c, nil)
-}
-
-func handler(
-	d Deps, ssi api.StrictServerInterface, c *Contract, mws []api.StrictMiddlewareFunc,
-) (http.Handler, error) {
+func HandlerFor(d Deps, mount func(api.Mount), c *Contract) (http.Handler, error) {
 	if d.Idempotency == nil || d.Verifier == nil {
 		return nil, errs.New(
 			errs.CodeInternal,
@@ -41,20 +36,12 @@ func handler(
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		Problem(w, r, errs.New(errs.CodeNotFound, "httpx.route"))
 	})
-	strict := api.NewStrictHandlerWithOptions(ssi, mws, api.StrictHTTPServerOptions{
-		RequestErrorHandlerFunc:  invalidRequest,
-		ResponseErrorHandlerFunc: Problem,
-	})
-	api.HandlerWithOptions(strict, api.StdHTTPServerOptions{
-		BaseRouter:       mux,
-		ErrorHandlerFunc: invalidRequest,
-		Middlewares:      middlewares(d, c),
-	})
+	mount(api.Mount{Mux: mux, Middlewares: middlewares(d, c), InvalidRequest: invalidRequest, Problem: Problem})
 	return d.wrapContract(mux), nil
 }
 
-func middlewares(d Deps, c *Contract) []api.MiddlewareFunc {
-	mws := []api.MiddlewareFunc{Idempotency(d.Idempotency), c.validate}
+func middlewares(d Deps, c *Contract) []func(http.Handler) http.Handler {
+	mws := []func(http.Handler) http.Handler{Idempotency(d.Idempotency), c.validate}
 	if d.RateLimit != nil {
 		mws = append(mws, d.RateLimit)
 	}
@@ -237,10 +224,10 @@ type FundingRoutes interface {
 	GetMyBalance(context.Context, api.GetMyBalanceRequestObject) (api.GetMyBalanceResponseObject, error)
 }
 
-var _ api.StrictServerInterface = Routes{}
-
 type Health struct{}
 
-func (Health) GetHealthz(context.Context, api.GetHealthzRequestObject) (api.GetHealthzResponseObject, error) {
-	return api.GetHealthz200TextResponse("ok\n"), nil
+func (Health) GetHealthz(
+	context.Context, platformapi.GetHealthzRequestObject,
+) (platformapi.GetHealthzResponseObject, error) {
+	return platformapi.GetHealthz200TextResponse("ok\n"), nil
 }

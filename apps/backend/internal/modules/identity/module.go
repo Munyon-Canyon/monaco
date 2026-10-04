@@ -14,7 +14,8 @@ import (
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/identityapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
@@ -80,7 +81,7 @@ func (m *Module) Wire(set module.Set) {
 	}
 }
 
-func (m *Module) Routes(r *httpx.Routes) {
+func (m *Module) Mount(r api.Mount) {
 	hints := m.hints
 	if hints == nil {
 		hints = m.deps.Bus
@@ -90,7 +91,7 @@ func (m *Module) Routes(r *httpx.Routes) {
 		store = m.deps.Photos
 	}
 	m.ensurePrivy()
-	r.IdentityRoutes = adapters.HTTP{
+	identityapi.Mount(adapters.HTTP{
 		Open: m.openSession(), Reads: m.deps.Pool, Clock: m.deps.Clock,
 		Onboard: app.NewOnboarding(app.OnboardingDeps{
 			UoW: m.deps.UoW, Reads: m.deps.Pool, Users: adapters.Users{}, Privy: m.privy, Clock: m.deps.Clock,
@@ -109,7 +110,7 @@ func (m *Module) Routes(r *httpx.Routes) {
 			UoW: m.deps.UoW, Users: adapters.Users{}, Balances: m.balances, Stakes: m.stakes, Clock: m.deps.Clock,
 			Hints: hints,
 		}),
-	}
+	}, r)
 }
 
 func (m *Module) ensurePrivy() {

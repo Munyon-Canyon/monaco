@@ -9,7 +9,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
@@ -26,7 +25,9 @@ func TestModule(t *testing.T) {
 	if got := m.Name(); got != "funding" {
 		t.Fatalf("Name = %q, want funding", got)
 	}
-	m.Routes(&httpx.Routes{})
+	if !testkit.Serves(m.Mount, "GET", "/v1/me/balance") {
+		t.Fatal("Mount does not serve GET /v1/me/balance")
+	}
 	if got := m.Consumers(); len(got) != 0 {
 		t.Fatalf("Consumers = %v, want none", got)
 	}

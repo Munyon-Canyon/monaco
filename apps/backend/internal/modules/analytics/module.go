@@ -4,7 +4,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/analytics/adapters/posthog"
 	"github.com/monaco/monaco/apps/backend/internal/modules/analytics/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
@@ -22,7 +22,7 @@ func productExports() *Registry { return NewRegistry() }
 
 func (*Module) Name() string { return "analytics" }
 
-func (*Module) Routes(*httpx.Routes) {}
+func (*Module) Mount(api.Mount) {}
 
 func (m *Module) Consumers() []bus.Consumer {
 	var port app.PostHog = posthog.Noop{}

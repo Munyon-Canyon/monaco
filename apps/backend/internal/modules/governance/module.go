@@ -10,7 +10,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/governanceapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
@@ -35,13 +36,13 @@ func New(d module.Deps) *Module { return &Module{deps: d} }
 
 func (*Module) Name() string { return "governance" }
 
-func (m *Module) Routes(r *httpx.Routes) {
+func (m *Module) Mount(r api.Mount) {
 	thresholds := cabalThresholds{cabals: cabal.New(m.deps).Queries()}
-	r.GovernanceRoutes = adapters.HTTP{
+	governanceapi.Mount(adapters.HTTP{
 		Vote:     app.NewCastVoteHandler(m.deps.UoW, m.deps.Pool, m.deps.Clock, thresholds),
 		Withdraw: app.NewWithdrawProposalHandler(m.deps.UoW, m.deps.Clock),
 		Reads:    app.NewProposalReads(m.deps.Pool, thresholds, trading.New(m.deps).Queries()),
-	}
+	}, r)
 }
 
 func (*Module) Consumers() []bus.Consumer {

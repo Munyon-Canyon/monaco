@@ -20,7 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -32,7 +32,7 @@ type consumerModule []bus.Consumer
 
 func (consumerModule) Name() string { return "test" }
 
-func (consumerModule) Routes(*httpx.Routes) {}
+func (consumerModule) Mount(api.Mount) {}
 
 func (m consumerModule) Consumers() []bus.Consumer { return m }
 

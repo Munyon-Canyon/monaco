@@ -20,7 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	apibase "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
@@ -33,7 +33,7 @@ type readsOnly struct{ name string }
 
 func (r readsOnly) Name() string { return r.name }
 
-func (readsOnly) Routes(*httpx.Routes) {}
+func (readsOnly) Mount(apibase.Mount) {}
 
 func (readsOnly) Consumers() []bus.Consumer { return nil }
 

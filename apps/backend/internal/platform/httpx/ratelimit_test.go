@@ -21,7 +21,9 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/platformapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/ratelimit"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/sse"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -62,7 +64,12 @@ func TestHandler_ratelimitRefusesTheOverLimitRequest(t *testing.T) {
 		Idempotency:  db.NewIdempotencyStore(pool, clock.Real{}),
 		Verifier:     noVerifier{},
 		RateLimit:    ratelimit.Middleware(limiter, policies, httpx.ActorKey, false),
-	}, httpx.Routes{}, spec)
+	}, func(m api.Mount) {
+		platformapi.Mount(struct {
+			httpx.Health
+			sse.Stream
+		}{}, m)
+	}, spec)
 	if err != nil {
 		t.Fatal(err)
 	}

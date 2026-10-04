@@ -9,7 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
@@ -42,7 +42,7 @@ func New(d module.Deps) *Module { return &Module{deps: d} }
 
 func (*Module) Name() string { return "trading" }
 
-func (*Module) Routes(*httpx.Routes) {}
+func (*Module) Mount(api.Mount) {}
 
 func (*Module) Consumers() []bus.Consumer {
 	return []bus.Consumer{}

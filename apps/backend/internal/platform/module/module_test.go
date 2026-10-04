@@ -2,6 +2,8 @@ package module_test
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"slices"
 	"testing"
 	"time"
@@ -9,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/sse"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
@@ -22,13 +24,14 @@ type fake struct {
 	pollers   []string
 	routed    *[]string
 	built     module.Deps
-	routesSaw httpx.Routes
+	sawStream bool
 }
 
 func (f *fake) Name() string { return f.name }
 
-func (f *fake) Routes(r *httpx.Routes) {
-	f.routesSaw = *r
+func (f *fake) Mount(r api.Mount) {
+	_, pattern := r.Mux.Handler(httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/v1/stream", nil))
+	f.sawStream = pattern != ""
 	*f.routed = append(*f.routed, f.name)
 }
 
@@ -84,12 +87,14 @@ func TestRegistry_buildsThePlatformThenEachModuleInRegistrationOrder(t *testing.
 	if got := names(set, module.Module.Name); !slices.Equal(got, []string{"platform", "alpha", "beta"}) {
 		t.Fatalf("modules = %v, want platform, alpha, beta", got)
 	}
-	routes := set.Routes()
-	if want := sse.NewStream(hub, clk); routes.Stream != want || alpha.routesSaw.Stream != want {
+	mux := http.NewServeMux()
+	set.Mount(api.Mount{Mux: mux})
+	_, health := mux.Handler(httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil))
+	if !alpha.sawStream || health == "" {
 		t.Fatal("the platform module did not mount the stream route before the other modules")
 	}
 	if !slices.Equal(routed, []string{"alpha", "beta"}) {
-		t.Fatalf("Routes called on %v, want alpha then beta", routed)
+		t.Fatalf("Mount called on %v, want alpha then beta", routed)
 	}
 	durables := names(set.Consumers(), func(c bus.Consumer) string { return c.Durable })
 	if !slices.Equal(durables, []string{"alpha.a", "alpha.b", "beta.a"}) {

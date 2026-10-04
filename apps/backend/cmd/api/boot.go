@@ -161,7 +161,7 @@ func newHandler(deps module.Deps, spec []byte, meters metric.MeterProvider) (htt
 		Idempotency:  db.NewIdempotencyStore(deps.Pool, clock.Real{}),
 		Verifier:     verifier,
 		RateLimit:    ratelimit.Middleware(limiter, policies, httpx.ActorKey, deps.Config.HTTP.TrustProxyHeaders),
-	}, registered.Build(deps).Routes(), spec)
+	}, registered.Build(deps).Mount, spec)
 }
 
 func listen(ctx context.Context, cfg config.Config) (net.Listener, error) {

@@ -19,7 +19,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	apibase "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/identityapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -96,7 +97,7 @@ func (f httpFixture) wantStoredPhone(t *testing.T, user ids.UserID, sum []byte) 
 	}
 }
 
-func wantProblem(t *testing.T, rec *httptest.ResponseRecorder, code api.ErrorCode) {
+func wantProblem(t *testing.T, rec *httptest.ResponseRecorder, code apibase.ErrorCode) {
 	t.Helper()
 	if got := decodeProblem(t, rec); got.Code != code {
 		t.Fatalf("problem = %d %s, want %s", rec.Code, rec.Body, code)
@@ -143,14 +144,14 @@ func TestLinkPhone_refusesWithoutAHandleBeforeAskingPrivy(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{wallet: true})
-	wantProblem(t, f.onboard(t, u.ID, "phone", ``, "p1"), api.HandleRequired)
+	wantProblem(t, f.onboard(t, u.ID, "phone", ``, "p1"), apibase.HandleRequired)
 }
 
 func TestLinkPhone_refusesWhenPrivyHasNoPhone(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	u := f.onboardingUser(t, "phone_none", app.PrivyUser{Email: "none@example.com"})
-	wantProblem(t, f.onboard(t, u.ID, "phone", ``, "p1"), api.PhoneNotLinked)
+	wantProblem(t, f.onboard(t, u.ID, "phone", ``, "p1"), apibase.PhoneNotLinked)
 	if got := f.authSteps(t, u.ID); len(got) != 0 {
 		t.Fatalf("auth steps = %+v, want none", got)
 	}
@@ -161,7 +162,7 @@ func TestLinkPhone_aPrivyOutageIsPrivyUnavailable(t *testing.T) {
 	f := newHTTPFixture(t)
 	u := f.onboardingUser(t, "phone_down", app.PrivyUser{PhoneE164: onboardNo})
 	f.privy.FailOnce("User", errs.New(errs.CodePrivyUnavailable, "test.privy"))
-	wantProblem(t, f.onboard(t, u.ID, "phone", ``, "p1"), api.PrivyUnavailable)
+	wantProblem(t, f.onboard(t, u.ID, "phone", ``, "p1"), apibase.PrivyUnavailable)
 }
 
 func TestLinkPhone_aNumberAnotherUserHoldsIsPhoneNotLinkedAndLoggedWithoutTheNumber(t *testing.T) {
@@ -170,7 +171,7 @@ func TestLinkPhone_aNumberAnotherUserHoldsIsPhoneNotLinkedAndLoggedWithoutTheNum
 	sum := sha256.Sum256([]byte(onboardNo))
 	f.seed(t, portSeed{phoneHash: sum[:], phoneVerified: true})
 	u := f.onboardingUser(t, "phone_clash", app.PrivyUser{PhoneE164: onboardNo})
-	wantProblem(t, f.onboard(t, u.ID, "phone", ``, "p1"), api.PhoneNotLinked)
+	wantProblem(t, f.onboard(t, u.ID, "phone", ``, "p1"), apibase.PhoneNotLinked)
 	logs := f.logs.Bytes()
 	if !bytes.Contains(logs, []byte("identity.phone.conflict")) {
 		t.Fatalf("logs lack identity.phone.conflict:\n%s", logs)
@@ -344,12 +345,12 @@ func TestLinkSocials_refusesWhatItCannotLink(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	none := f.seed(t, portSeed{wallet: true})
-	wantProblem(t, f.onboard(t, none.ID, "socials", ``, "x1"), api.HandleRequired)
+	wantProblem(t, f.onboard(t, none.ID, "socials", ``, "x1"), apibase.HandleRequired)
 	bare := f.onboardingUser(t, "x_bare", app.PrivyUser{Email: "bare@example.com"})
-	wantProblem(t, f.onboard(t, bare.ID, "socials", ``, "x1"), api.XNotLinked)
+	wantProblem(t, f.onboard(t, bare.ID, "socials", ``, "x1"), apibase.XNotLinked)
 	f.seed(t, portSeed{xUserID: onboardX})
 	clash := f.onboardingUser(t, "x_clash", app.PrivyUser{Email: "clash@example.com", X: xUser()})
-	wantProblem(t, f.onboard(t, clash.ID, "socials", ``, "x1"), api.XNotLinked)
+	wantProblem(t, f.onboard(t, clash.ID, "socials", ``, "x1"), apibase.XNotLinked)
 	logs := f.logs.Bytes()
 	if !bytes.Contains(logs, []byte("identity.x.conflict")) {
 		t.Fatalf("logs lack identity.x.conflict:\n%s", logs)
@@ -367,9 +368,9 @@ func TestSkipOnboardingStep_skipsThePhoneOnceAndTheSocialsWithoutAMove(t *testin
 	f.wantState(t, f.onboard(t, u.ID, "skip", `{"step":"phone"}`, "s2"), api.AWAITINGPHONE)
 	f.wantState(t, f.onboard(t, u.ID, "skip", `{"step":"socials"}`, "s3"), api.AWAITINGPHONE)
 	f.wantSteps(t, u.ID, onboardStep("CREATED", "AWAITING_PHONE"))
-	wantProblem(t, f.onboard(t, u.ID, "skip", `{"step":"email"}`, "s4"), api.InvalidInput)
+	wantProblem(t, f.onboard(t, u.ID, "skip", `{"step":"email"}`, "s4"), apibase.InvalidInput)
 	none := f.seed(t, portSeed{wallet: true})
-	wantProblem(t, f.onboard(t, none.ID, "skip", `{"step":"socials"}`, "s1"), api.HandleRequired)
+	wantProblem(t, f.onboard(t, none.ID, "skip", `{"step":"socials"}`, "s1"), apibase.HandleRequired)
 	h := app.NewOnboarding(app.OnboardingDeps{Reads: f.pool, Users: adapters.Users{}})
 	_, err := h.Skip(t.Context(), app.SkipOnboardingStep{UserID: u.ID, Step: "email"})
 	if errs.CodeOf(err) != errs.CodeInvalidInput {

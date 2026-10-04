@@ -31,7 +31,9 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	apibase "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/identityapi"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/systemapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/ratelimit"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -88,13 +90,12 @@ func newHTTPFixture(t *testing.T) httpFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var routes httpx.Routes
-	identity.New(
+	mount := identity.New(
 		module.Deps{Pool: f.pool, UoW: db.New(f.pool, f.ids, clk), IDs: f.ids, Clock: clk},
 		identity.WithPrivy(fakeUsers, fakeWallets),
 		identity.WithHints(hints),
 		identity.WithPhotoStore(photos),
-	).Routes(&routes)
+	).Mount
 	h, err := httpx.Handler(httpx.Deps{
 		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, logs),
 		Tracer:       tracenoop.NewTracerProvider(),
@@ -104,7 +105,7 @@ func newHTTPFixture(t *testing.T) httpFixture {
 		Idempotency:  db.NewIdempotencyStore(f.pool, clk),
 		Verifier:     verifier,
 		RateLimit:    ratelimit.Middleware(limiter, limit, httpx.ActorKey, false),
-	}, routes, openapi.Spec)
+	}, mount, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,9 +215,9 @@ func decodeMe(t *testing.T, rec *httptest.ResponseRecorder) api.Me {
 	return me
 }
 
-func decodeProblem(t *testing.T, rec *httptest.ResponseRecorder) api.Problem {
+func decodeProblem(t *testing.T, rec *httptest.ResponseRecorder) apibase.Problem {
 	t.Helper()
-	var p api.Problem
+	var p apibase.Problem
 	if err := json.Unmarshal(rec.Body.Bytes(), &p); err != nil {
 		t.Fatalf("decode %s: %v", rec.Body, err)
 	}
@@ -312,7 +313,7 @@ func TestFlow23_UpdateProfile_DisplayNameInvalid(t *testing.T) {
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
 	rec := f.updateProfile(t, u.ID, `{"display_name":"   "}`)
-	if rec.Code != http.StatusBadRequest || decodeProblem(t, rec).Code != api.DisplayNameInvalid {
+	if rec.Code != http.StatusBadRequest || decodeProblem(t, rec).Code != apibase.DisplayNameInvalid {
 		t.Fatalf("update = %d %s", rec.Code, rec.Body)
 	}
 	if got := profileEvents(t, f); len(got) != 0 {
@@ -340,7 +341,7 @@ func TestFlow23a_UploadProfilePhoto_PhotoInvalid(t *testing.T) {
 	f := newHTTPFixture(t)
 	u := f.seed(t, portSeed{handle: "kai", name: "Kai", wallet: true})
 	rec := f.uploadPhoto(t, u.ID, []byte("GIF89a"))
-	if rec.Code != http.StatusBadRequest || decodeProblem(t, rec).Code != api.PhotoInvalid {
+	if rec.Code != http.StatusBadRequest || decodeProblem(t, rec).Code != apibase.PhotoInvalid {
 		t.Fatalf("upload = %d %s", rec.Code, rec.Body)
 	}
 }
@@ -392,7 +393,7 @@ func TestFlow23a_UploadProfilePhoto_StorageUnavailable(t *testing.T) {
 	f.photos.err = errs.New(errs.CodeUpstreamUnavailable, "test.photoStore")
 	u := f.seed(t, portSeed{handle: "kai", name: "Kai", photo: "https://img.example/old.png", wallet: true})
 	rec := f.uploadPhoto(t, u.ID, []byte("\x89PNG\r\n\x1a\nphoto"))
-	if rec.Code != http.StatusServiceUnavailable || decodeProblem(t, rec).Code != api.StorageUnavailable {
+	if rec.Code != http.StatusServiceUnavailable || decodeProblem(t, rec).Code != apibase.StorageUnavailable {
 		t.Fatalf("upload = %d %s", rec.Code, rec.Body)
 	}
 	if got := decodeMe(t, f.getMe(t, u.ID)).PhotoUrl; got == nil || *got != "https://img.example/old.png" {
@@ -521,7 +522,7 @@ func TestFlow23a_UploadProfilePhoto_RateLimited(t *testing.T) {
 		}
 	}
 	rec := f.uploadPhotoKey(t, u.ID, []byte("\x89PNG\r\n\x1a\nphoto"), "photo-rate-4")
-	if rec.Code != http.StatusTooManyRequests || decodeProblem(t, rec).Code != api.RateLimited {
+	if rec.Code != http.StatusTooManyRequests || decodeProblem(t, rec).Code != apibase.RateLimited {
 		t.Fatalf("fourth request = %d %s", rec.Code, rec.Body)
 	}
 }
@@ -582,10 +583,10 @@ func TestGetMe_overHTTPRefusesWhoIsNotASignedInUser(t *testing.T) {
 	for name, tc := range map[string]struct {
 		user   ids.UserID
 		status int
-		code   api.ErrorCode
+		code   apibase.ErrorCode
 	}{
-		"no token":                 {ids.UserID{}, http.StatusUnauthorized, api.Unauthorized},
-		"token without an account": {f.newID(t), http.StatusNotFound, api.UserNotFound},
+		"no token":                 {ids.UserID{}, http.StatusUnauthorized, apibase.Unauthorized},
+		"token without an account": {f.newID(t), http.StatusNotFound, apibase.UserNotFound},
 	} {
 		rec := f.getMe(t, tc.user)
 		if got := decodeProblem(t, rec); rec.Code != tc.status || got.Code != tc.code {
@@ -656,19 +657,19 @@ func TestPostAuthSession_refusesWhatItCannotSignIn(t *testing.T) {
 		setup         func(f httpFixture)
 		authorization string
 		status        int
-		code          api.ErrorCode
+		code          apibase.ErrorCode
 	}{
-		"no header":     {func(httpFixture) {}, "", http.StatusUnauthorized, api.Unauthorized},
-		"not a bearer":  {func(httpFixture) {}, "Basic YWxpY2U6eA==", http.StatusUnauthorized, api.Unauthorized},
-		"empty bearer":  {func(httpFixture) {}, "Bearer ", http.StatusUnauthorized, api.Unauthorized},
-		"unknown token": {func(httpFixture) {}, "Bearer nobody", http.StatusUnauthorized, api.Unauthorized},
+		"no header":     {func(httpFixture) {}, "", http.StatusUnauthorized, apibase.Unauthorized},
+		"not a bearer":  {func(httpFixture) {}, "Basic YWxpY2U6eA==", http.StatusUnauthorized, apibase.Unauthorized},
+		"empty bearer":  {func(httpFixture) {}, "Bearer ", http.StatusUnauthorized, apibase.Unauthorized},
+		"unknown token": {func(httpFixture) {}, "Bearer nobody", http.StatusUnauthorized, apibase.Unauthorized},
 		"no login method": {func(f httpFixture) {
 			f.privy.Seed(app.PrivyUser{ID: alice, X: &domain.XAccount{UserID: "1", Username: "a"}})
-		}, "Bearer " + string(alice), http.StatusForbidden, api.LoginMethodNotAllowed},
+		}, "Bearer " + string(alice), http.StatusForbidden, apibase.LoginMethodNotAllowed},
 		"privy down": {func(f httpFixture) {
 			f.privy.Seed(app.PrivyUser{ID: alice, PhoneE164: "+14155550100"})
 			f.privy.Fail("User", errs.New(errs.CodePrivyUnavailable, "test"))
-		}, "Bearer " + string(alice), http.StatusServiceUnavailable, api.PrivyUnavailable},
+		}, "Bearer " + string(alice), http.StatusServiceUnavailable, apibase.PrivyUnavailable},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -684,16 +685,16 @@ func TestPostAuthSession_refusesWhatItCannotSignIn(t *testing.T) {
 
 type openPing struct{}
 
-func (openPing) PostSystemPing(context.Context, api.PostSystemPingRequestObject) (
-	api.PostSystemPingResponseObject, error,
+func (openPing) PostSystemPing(context.Context, systemapi.PostSystemPingRequestObject) (
+	systemapi.PostSystemPingResponseObject, error,
 ) {
-	return api.PostSystemPing201JSONResponse{}, nil
+	return systemapi.PostSystemPing201JSONResponse{}, nil
 }
 
-func (openPing) GetSystemPing(context.Context, api.GetSystemPingRequestObject) (
-	api.GetSystemPingResponseObject, error,
+func (openPing) GetSystemPing(context.Context, systemapi.GetSystemPingRequestObject) (
+	systemapi.GetSystemPingResponseObject, error,
 ) {
-	return api.GetSystemPing200JSONResponse{}, nil
+	return systemapi.GetSystemPing200JSONResponse{}, nil
 }
 
 func TestAccountStanding_changesTheNextResponseWithoutARestart(t *testing.T) {
@@ -706,16 +707,18 @@ func TestAccountStanding_changesTheNextResponseWithoutARestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var routes httpx.Routes
-	identity.New(module.Deps{
+	m := identity.New(module.Deps{
 		Config: cfg, Pool: f.pool, UoW: db.New(f.pool, f.ids, clk), IDs: f.ids, Clock: clk,
-	}, identity.WithPrivy(&privyfake.Users{}, &privyfake.Wallets{})).Routes(&routes)
-	routes.SystemRoutes = openPing{}
+	}, identity.WithPrivy(&privyfake.Users{}, &privyfake.Wallets{}))
+	mount := func(r apibase.Mount) {
+		m.Mount(r)
+		systemapi.Mount(openPing{}, r)
+	}
 	handler, err := httpx.Handler(httpx.Deps{
 		Logger: observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),
 		Tracer: tracenoop.NewTracerProvider(), Clock: clk, IDs: f.ids, MaxBodyBytes: 1 << 20,
 		Idempotency: db.NewIdempotencyStore(f.pool, clk), Verifier: verifier,
-	}, routes, openapi.Spec)
+	}, mount, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -724,17 +727,17 @@ func TestAccountStanding_changesTheNextResponseWithoutARestart(t *testing.T) {
 	ping := "/v1/system/pings/" + testkit.NewIDs(9).NewV7().String()
 	for _, step := range []standingStep{
 		{method: http.MethodGet, path: "/v1/me", status: http.StatusOK},
-		{method: http.MethodPost, path: "/v1/system/pings", body: `{"note":"out"}`, status: http.StatusForbidden, code: api.AccountBanned},
+		{method: http.MethodPost, path: "/v1/system/pings", body: `{"note":"out"}`, status: http.StatusForbidden, code: apibase.AccountBanned},
 		{next: "suspended", method: http.MethodGet, path: ping, status: http.StatusOK},
-		{method: http.MethodPost, path: "/v1/system/pings", body: `{"note":"out"}`, status: http.StatusForbidden, code: api.AccountSuspended},
-		{next: "deleted", method: http.MethodGet, path: "/v1/me", status: http.StatusForbidden, code: api.AccountDeleted},
+		{method: http.MethodPost, path: "/v1/system/pings", body: `{"note":"out"}`, status: http.StatusForbidden, code: apibase.AccountSuspended},
+		{next: "deleted", method: http.MethodGet, path: "/v1/me", status: http.StatusForbidden, code: apibase.AccountDeleted},
 		{next: "active", method: http.MethodGet, path: ping, status: http.StatusOK},
 	} {
 		if step.next != "" {
 			setAccountStatus(t, f, user.ID, step.next)
 		}
 		rec := callStanding(t, handler, token, step)
-		got := api.ErrorCode("")
+		got := apibase.ErrorCode("")
 		if step.code != "" {
 			got = decodeProblem(t, rec).Code
 		}
@@ -750,7 +753,7 @@ type standingStep struct {
 	method, path string
 	body         string
 	status       int
-	code         api.ErrorCode
+	code         apibase.ErrorCode
 }
 
 func callStanding(t *testing.T, handler http.Handler, token string, step standingStep) *httptest.ResponseRecorder {

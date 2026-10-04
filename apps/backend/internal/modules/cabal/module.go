@@ -9,7 +9,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/cabalapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
@@ -40,9 +41,11 @@ func New(d module.Deps, opts ...Option) *Module {
 
 func (*Module) Name() string { return "cabal" }
 
-func (m *Module) Routes(r *httpx.Routes) {
+func (m *Module) Mount(r api.Mount) { cabalapi.Mount(m.http(), r) }
+
+func (m *Module) http() adapters.HTTP {
 	users := identity.New(m.deps).Queries()
-	h := adapters.HTTP{
+	return adapters.HTTP{
 		Create:  m.CreateCabalHandler(),
 		Join:    app.NewJoinCabalHandler(m.deps.UoW, m.deps.Clock),
 		Request: app.NewRequestAccessHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock),
@@ -54,8 +57,6 @@ func (m *Module) Routes(r *httpx.Routes) {
 		Invite:  app.NewInviteMemberHandler(m.deps.UoW, users, m.deps.IDs, m.deps.Clock),
 		DB:      m.deps.Pool, Users: users, Clock: m.deps.Clock,
 	}
-	r.CabalRoutes, r.CabalJoinRoutes, r.CabalAccessRoutes, r.CabalPictureRoutes = h, h, h, h
-	r.CabalInviteRoutes = h
 }
 
 func (m *Module) Consumers() []bus.Consumer {

@@ -5,7 +5,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/notifyapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
@@ -31,11 +32,11 @@ func New(d module.Deps, opts ...Option) *Module {
 
 func (*Module) Name() string { return "notify" }
 
-func (m *Module) Routes(r *httpx.Routes) {
-	r.NotifyRoutes = adapters.HTTP{
+func (m *Module) Mount(r api.Mount) {
+	notifyapi.Mount(adapters.HTTP{
 		Register:   app.NewRegisterDeviceHandler(m.deps.UoW, m.users, m.deps.IDs, m.deps.Clock),
 		Unregister: app.NewUnregisterDeviceHandler(m.deps.UoW),
-	}
+	}, r)
 }
 
 func (*Module) Consumers() []bus.Consumer {
