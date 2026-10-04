@@ -96,11 +96,6 @@ struct ProfileSampleHarness: View {
             photoURL: scenario == .photo || scenario == .cabals ? samplePhotoURL() : nil,
             createdAt: ISO8601DateFormatter().date(from: "2026-09-01T14:30:00Z")
         )
-        session.platformBalance = PlatformBalanceDTO(
-            availableUsdcMicros: 1_248_500_000,
-            memberWalletAddress: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
-            pendingAllocationMicros: 0
-        )
 
         let joined = scenario != .empty
         session.home = HomeViewDTO(

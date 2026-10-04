@@ -53,12 +53,6 @@ struct HomeSampleHarness: View {
             photoURL: scenario == .empty ? nil : ProfileSampleHarness.samplePhotoURL()
         )
 
-        session.platformBalance = PlatformBalanceDTO(
-            availableUsdcMicros: 248_500_000,
-            memberWalletAddress: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
-            pendingAllocationMicros: 0
-        )
-
         let joined = scenario != .empty
         let missed = scenario == .missedVote || scenario == .populated
 

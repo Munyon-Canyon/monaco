@@ -45,7 +45,6 @@ float-money	packages/mobile-core/Sources/MonacoCore/SparklineSeries.swift	12
 nonisolated-unsafe	apps/mobile/MonacoTests/MonacoRemoteImageStoreTests.swift	1
 nonisolated-unsafe	packages/mobile-core/Sources/MonacoCore/SharedFormatters.swift	2
 observable-object	apps/mobile/Monaco/Features/Auth/PrivyAuthService.swift	4
-observable-object	apps/mobile/Monaco/Features/Deposit/PlatformBalanceLoader.swift	4
 observable-object	apps/mobile/Monaco/Features/Groups/CabalPictureEditor.swift	4
 raw-color	apps/mobile/Monaco/Features/Debug/GroupDetailSampleHarness.swift	2
 raw-color	apps/mobile/Monaco/Features/Debug/ProfileSampleHarness.swift	5
@@ -69,7 +68,6 @@ unchecked-sendable	packages/mobile-core/Tests/MonacoCoreTests/MonacoHTTPTranspor
 unchecked-sendable	packages/mobile-core/Tests/MonacoCoreTests/StallingURLProtocol.swift	1
 urlsession	apps/mobile/Monaco/API/MonacoAPIClient.swift	1
 urlsession	apps/mobile/Monaco/Design/MonacoRemoteImageStore.swift	2
-urlsession	apps/mobile/Monaco/Features/Deposit/PlatformBalanceLoader.swift	1
 urlsession	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	1
 urlsession	packages/mobile-core/Sources/MonacoCore/Networking/MonacoHTTPTransport.swift	2
 urlsession	packages/mobile-core/Sources/MonacoCore/Networking/MonacoRequestTimeout.swift	7

@@ -11,7 +11,8 @@ struct WithdrawView: View {
 
     private let apiClient = MonacoAPIClient()
 
-    @StateObject private var balanceLoader = PlatformBalanceLoader()
+    @Environment(AppEnvironment.self) private var environment
+    @State private var balanceSource: BalanceSource?
     @State private var destinationAddress = ""
     @State private var amountText = ""
     @State private var isSubmitting = false
@@ -22,8 +23,8 @@ struct WithdrawView: View {
     @State private var submitFailure: FlowFailure?
     @State private var toast: MonacoToast?
 
-    private var balance: PlatformBalanceDTO? {
-        balanceLoader.balance
+    private var balance: AccountBalance? {
+        balanceSource?.balance
     }
 
     private var form: WithdrawForm {
@@ -32,14 +33,14 @@ struct WithdrawView: View {
 
     var body: some View {
         WithdrawContent(
-            phase: balanceLoader.phase,
+            state: balanceSource?.state ?? .loading,
             amountText: $amountText,
             destinationAddress: $destinationAddress,
             onContinue: {
                 submitFailure = nil
                 showConfirm = true
             },
-            onRetry: { Task { await balanceLoader.load(accessToken: auth.accessToken) } }
+            onRetry: { Task { await balanceSource?.load() } }
         )
         .monacoToast($toast, bottomInset: 72)
         .navigationDestination(isPresented: $showConfirm) {
@@ -51,9 +52,21 @@ struct WithdrawView: View {
                 onConfirm: { Task { await submitWithdrawal() } }
             )
         }
-        .task(id: auth.accessToken) {
-            await balanceLoader.load(accessToken: auth.accessToken)
+        .task {
+            let source = preparedBalanceSource()
+            await source.load()
+            await source.observe()
         }
+        .onScreenVisibilityChange { visible in
+            balanceSource?.setVisible(visible)
+        }
+    }
+
+    private func preparedBalanceSource() -> BalanceSource {
+        if let balanceSource { return balanceSource }
+        let created = BalanceSource(api: environment.api, hints: environment.hints)
+        balanceSource = created
+        return created
     }
 
     private func submitWithdrawal() async {
@@ -69,7 +82,7 @@ struct WithdrawView: View {
         }
 
         guard case .success(let address) = form.addressValidation else { return }
-        if let available = balance?.availableUsdcMicros, micros > available {
+        if let available = balance?.availableMicros, micros > available {
             submitFailure = MoneyFlowCopy.cashOutFailure(
                 FlowErrorInput(status: 400, serverMessage: "amount exceeds available platform balance")
             )
@@ -92,7 +105,7 @@ struct WithdrawView: View {
             destinationAddress = ""
             amountText = ""
             showConfirm = false
-            await balanceLoader.load(accessToken: token)
+            await balanceSource?.load()
         } catch {
             if error.isRequestCancellation { return }
             submitFailure = MoneyFlowCopy.cashOutFailure(FlowErrorInput(error))
@@ -109,11 +122,11 @@ struct WithdrawForm: Equatable {
     /// The member's own deposit address, which is never a destination.
     let ownDepositAddress: String?
 
-    init(amountText: String, destinationAddress: String, balance: PlatformBalanceDTO?) {
+    init(amountText: String, destinationAddress: String, balance: AccountBalance?) {
         self.amountText = amountText
         self.destinationAddress = destinationAddress
-        availableMicros = balance?.availableUsdcMicros
-        ownDepositAddress = balance?.memberWalletAddress
+        availableMicros = balance?.availableMicros
+        ownDepositAddress = balance?.depositAddress
     }
 
     var maxDollars: Decimal? {
@@ -152,14 +165,14 @@ struct WithdrawForm: Equatable {
 ///
 /// Pure: what the screen knows comes in, what the member does goes out.
 struct WithdrawContent: View {
-    let phase: PlatformBalanceLoader.Phase
+    let state: LoadState<AccountBalance>
     @Binding var amountText: String
     @Binding var destinationAddress: String
     let onContinue: () -> Void
     let onRetry: () -> Void
 
     private var form: WithdrawForm {
-        if case .loaded(let balance) = phase {
+        if case .loaded(let balance) = state {
             return WithdrawForm(amountText: amountText, destinationAddress: destinationAddress, balance: balance)
         }
         return WithdrawForm(amountText: amountText, destinationAddress: destinationAddress, balance: nil)
@@ -168,22 +181,22 @@ struct WithdrawContent: View {
     /// The amount pad, the destination field and the button belong together: whenever one is on
     /// screen, so are the others. A reload never takes them away mid-entry.
     private var showsForm: Bool {
-        if case .loaded = phase { return true }
+        if case .loaded = state { return true }
         return false
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
-                switch phase {
-                case .loading:
+                switch state {
+                case .idle, .loading:
                     AmountEntrySkeleton(presetCount: 1)
                         .padding(.horizontal, MonacoTheme.Space.gutter)
                         .accessibilityIdentifier("withdraw-loading")
-                case .failed(let message):
+                case .failed(let error):
                     EmptyState(
                         title: "Balance unavailable",
-                        message: message,
+                        message: ToastCopy.message(for: error),
                         actionTitle: "Try again",
                         action: onRetry
                     )

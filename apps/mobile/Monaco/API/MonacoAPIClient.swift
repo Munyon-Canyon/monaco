@@ -50,22 +50,6 @@ final class MonacoAPIClient: AppSessionDataSource {
         return try JSONDecoder().decode(HealthResponse.self, from: data)
     }
 
-    func getPlatformBalance(accessToken: String) async throws -> PlatformBalanceDTO {
-        let url = baseURL.appending(path: "v1/me/balance")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        try applyAuthorizationHeader(accessToken: accessToken, to: &request)
-
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw MonacoAPIError.invalidResponse
-        }
-        guard http.statusCode == 200 else {
-            throw MonacoAPIError.httpStatus(http.statusCode)
-        }
-        return try JSONDecoder().decode(PlatformBalanceDTO.self, from: data)
-    }
-
     func createPlatformWithdrawal(
         accessToken: String, amount: Int64, toAddress: String, submission: IdempotentSubmission
     ) async throws -> PlatformWithdrawalDTO {

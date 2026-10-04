@@ -134,14 +134,12 @@ extension AppSessionStore {
         do {
             async let homeLoad = apiClient.getHome(accessToken: token)
             async let dashboardLoad = apiClient.getHomeDashboard(accessToken: token, leaderboardRange: request.range)
-            async let balanceLoad = apiClient.getPlatformBalance(accessToken: token)
             let loadedHome = try await homeLoad
             guard mayWrite(generation) else { return }
             home = loadedHome
             let loadedDashboard = try await dashboardLoad
             guard mayWrite(generation) else { return }
             apply(loadedDashboard, for: request)
-            if let balance = try? await balanceLoad, mayWrite(generation) { platformBalance = balance }
         } catch {
             if error.isRequestCancellation { return }
             if case MonacoAPIError.httpStatus(let status) = error, status == 401 {
@@ -183,7 +181,6 @@ extension AppSessionStore {
     func finishRefresh(
         dashboard: HomeDashboardDTO,
         profile: SessionProfile?,
-        balance: PlatformBalanceDTO?,
         generation: Int,
         profileGeneration: Int,
         request: DashboardRequest,
@@ -195,12 +192,8 @@ extension AppSessionStore {
         if let profile, profileGeneration == profileWriteGenerationValue(), mayWrite(generation) {
             self.profile = profile
         }
-        if let balance, mayWrite(generation) {
-            platformBalance = balance
-        }
         guard mayWrite(generation) else { return }
         errorMessage = nil
-        isBalanceLoading = false
         startDeferredWork { [self] in
             async let deferred: Void = refreshDeferredHomePayloads(auth: auth, accessToken: token)
             async let pnlSeries: Void = refreshHomePnLSeries(auth: auth, accessToken: token)
@@ -243,19 +236,16 @@ extension AppSessionStore {
         let poll = nextPollGeneration()
 
         async let dashboardLoad = apiClient.getHomeDashboard(accessToken: token, leaderboardRange: request.range)
-        async let balanceLoad = apiClient.getPlatformBalance(accessToken: token)
         async let homeLoad = apiClient.getHome(accessToken: token)
         async let seriesLoad = apiClient.getHomePnLSeries(accessToken: token, range: .oneHour)
 
         let loadedDashboard = try await dashboardLoad
-        let balance = try? await balanceLoad
         let boards = try? await homeLoad
         let series = try? await seriesLoad
         guard generation == refreshGenerationValue(), isCurrent(request), poll == pollGenerationValue(),
             !Task.isCancelled
         else { return }
         QuietUpdate.apply(loadedDashboard, over: dashboard) { dashboard = $0 }
-        if let balance { QuietUpdate.apply(balance, over: platformBalance) { platformBalance = $0 } }
         if let boards { QuietUpdate.apply(boards, over: home) { home = $0 } }
         if let series { QuietUpdate.apply(series.points, over: homePnLSeries) { homePnLSeries = $0 } }
         if profile != nil { errorMessage = nil }

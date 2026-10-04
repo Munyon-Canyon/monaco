@@ -69,7 +69,7 @@ struct MoneyFlowSampleHarness: View {
             DepositContent(state: MoneyFlowSampleData.depositState(for: scenario), onCopy: { _ in }, onRetry: {})
         case .fundCabal, .fundCabalPicker, .fundCabalEmpty, .fundCabalLoading:
             FundCabalContent(
-                phase: MoneyFlowSampleData.fundPhase(for: scenario),
+                state: MoneyFlowSampleData.fundState(for: scenario),
                 joinedCabals: scenario == .fundCabalPicker
                     ? MoneyFlowSampleData.cabals : [MoneyFlowSampleData.cabals[0]],
                 isSingleCabalContext: scenario != .fundCabalPicker,
@@ -82,8 +82,8 @@ struct MoneyFlowSampleHarness: View {
             )
         case .withdraw, .withdrawFailed:
             WithdrawContent(
-                phase: scenario == .withdrawFailed
-                    ? .failed(PlatformBalanceLoader.message(for: URLError(.notConnectedToInternet)))
+                state: scenario == .withdrawFailed
+                    ? .failed(.transport(URLError(.notConnectedToInternet)))
                     : .loaded(MoneyFlowSampleData.balance),
                 amountText: $amountText,
                 destinationAddress: $destination,
@@ -115,17 +115,16 @@ enum MoneyFlowSampleData {
     /// An outside Solana address that passes `SolanaAddress.validate`.
     static let destination = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
 
-    static let balance = PlatformBalanceDTO(
-        availableUsdcMicros: 248_500_000,
-        memberWalletAddress: depositAddress,
-        pendingAllocationMicros: 0
-    )
+    static let balance = account(availableMicros: 248_500_000)
 
-    static let emptyBalance = PlatformBalanceDTO(
-        availableUsdcMicros: 0,
-        memberWalletAddress: depositAddress,
-        pendingAllocationMicros: 0
-    )
+    static let emptyBalance = account(availableMicros: 0)
+
+    private static func account(availableMicros: Int64) -> AccountBalance {
+        AccountBalance(
+            availableMicros: availableMicros, onChainMicros: availableMicros, inFlightMicros: 0,
+            depositAddress: depositAddress, asOf: Date(timeIntervalSince1970: 1_759_579_200)
+        )
+    }
 
     /// The Home harness's cabals, so their tints match across the gallery.
     static let cabals = [
@@ -151,7 +150,7 @@ enum MoneyFlowSampleData {
         }
     }
 
-    static func fundPhase(for scenario: MoneyFlowSampleScenario) -> PlatformBalanceLoader.Phase {
+    static func fundState(for scenario: MoneyFlowSampleScenario) -> LoadState<AccountBalance> {
         switch scenario {
         case .fundCabalLoading:
             return .loading

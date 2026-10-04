@@ -95,16 +95,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
         self.accessTokenProvider = accessTokenProvider
     }
 
-    public func platformBalance() async throws -> PlatformBalanceDTO {
-        let url = baseURL.appending(path: "v1/me/balance")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        try await applyAuthorizationHeader(to: &request)
-
-        let response = try await send(request, route: "/v1/me/balance")
-        return try JSONDecoder().decode(PlatformBalanceDTO.self, from: response.data)
-    }
-
     public func fundGroup(groupId: String, amount: Int64, submission: IdempotentSubmission) async throws
         -> FundGroupResponseDTO
     {

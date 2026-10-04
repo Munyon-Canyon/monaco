@@ -5,23 +5,15 @@ import Testing
 
 @testable import Monaco
 
-// The app target shadows this MonacoCore DTO; pin the tests to the one the screens use.
-private typealias PlatformBalanceDTO = Monaco.PlatformBalanceDTO
-
 private let ownAddress = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
 private let outsideAddress = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
 
 /// The screens' types are main-actor isolated (the app's default), so their fixtures are too.
 @MainActor
 private enum Fixture {
-    static func balance(_ micros: Int64, pending: Int64 = 0) -> PlatformBalanceDTO {
-        PlatformBalanceDTO(
-            availableUsdcMicros: micros, memberWalletAddress: ownAddress, pendingAllocationMicros: pending)
-    }
-
-    static func account(depositAddress: String) -> AccountBalance {
+    static func balance(_ micros: Int64, pending: Int64 = 0, depositAddress: String = ownAddress) -> AccountBalance {
         AccountBalance(
-            availableMicros: 248_500_000, onChainMicros: 248_500_000, inFlightMicros: 0,
+            availableMicros: micros, onChainMicros: micros + pending, inFlightMicros: pending,
             depositAddress: depositAddress, asOf: Date(timeIntervalSince1970: 1_759_579_200)
         )
     }
@@ -80,25 +72,25 @@ struct FundCabalFormTests {
 @MainActor
 struct FundCabalStageTests {
     @Test func aFirstLoadIsLoadingOrItsFailure() {
-        #expect(FundCabalStage.resolve(phase: .loading, hasCabals: true) == .loading)
+        #expect(FundCabalStage.resolve(state: .loading, hasCabals: true) == .loading)
         #expect(
-            FundCabalStage.resolve(phase: .failed("No connection. Check your internet."), hasCabals: true)
-                == .failed("No connection. Check your internet."))
+            FundCabalStage.resolve(state: .failed(.transport(URLError(.notConnectedToInternet))), hasCabals: true)
+                == .failed("You're offline. Try again."))
     }
 
     @Test func noCabalWinsOverAnyBalance() {
-        #expect(FundCabalStage.resolve(phase: .loaded(Fixture.balance(248_500_000)), hasCabals: false) == .noCabals)
+        #expect(FundCabalStage.resolve(state: .loaded(Fixture.balance(248_500_000)), hasCabals: false) == .noCabals)
     }
 
     @Test func anEmptyBalanceAsksForMoneyFirst() {
         let empty = Fixture.balance(0)
-        #expect(FundCabalStage.resolve(phase: .loaded(empty), hasCabals: true) == .needsMoney(empty))
+        #expect(FundCabalStage.resolve(state: .loaded(empty), hasCabals: true) == .needsMoney(empty))
         #expect(!FundCabalStage.needsMoney(empty).showsAmountEntry)
     }
 
     @Test func aBalanceShowsTheAmountPad() {
         let funded = Fixture.balance(248_500_000)
-        let stage = FundCabalStage.resolve(phase: .loaded(funded), hasCabals: true)
+        let stage = FundCabalStage.resolve(state: .loaded(funded), hasCabals: true)
         #expect(stage == .amount(funded))
         #expect(stage.showsAmountEntry)
     }
@@ -152,7 +144,7 @@ struct DepositAddressCardContentTests {
         #expect(DepositAddressCard.Content.resolve(.idle) == .loading)
         #expect(DepositAddressCard.Content.resolve(.loading) == .loading)
         #expect(
-            DepositAddressCard.Content.resolve(.loaded(Fixture.account(depositAddress: ownAddress)))
+            DepositAddressCard.Content.resolve(.loaded(Fixture.balance(248_500_000)))
                 == .ready(ownAddress))
         #expect(
             DepositAddressCard.Content.resolve(.failed(.transport(URLError(.notConnectedToInternet))))
@@ -161,7 +153,7 @@ struct DepositAddressCardContentTests {
 
     @Test func anAddressThatCannotTakeMoneyIsNeverOffered() {
         #expect(
-            DepositAddressCard.Content.resolve(.loaded(Fixture.account(depositAddress: "")))
+            DepositAddressCard.Content.resolve(.loaded(Fixture.balance(248_500_000, depositAddress: "")))
                 == .unavailable("Couldn't load your deposit address."))
     }
 }

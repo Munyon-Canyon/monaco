@@ -282,7 +282,7 @@ final class APITelemetryTests: XCTestCase {
         let (client, _) = makeClient()
 
         do {
-            _ = try await client.platformBalance()
+            _ = try await client.getHome()
             XCTFail("Expected 503 to throw")
         } catch {
             let id = try XCTUnwrap(sent.values.first ?? nil)

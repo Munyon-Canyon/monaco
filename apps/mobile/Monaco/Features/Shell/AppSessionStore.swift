@@ -7,7 +7,6 @@ import os
 /// Shared app-session reads; production uses `MonacoAPIClient`, tests use a stub.
 @MainActor
 protocol AppSessionDataSource: Sendable {
-    func getPlatformBalance(accessToken: String) async throws -> PlatformBalanceDTO
     func getHome(accessToken: String) async throws -> HomeViewDTO
     func getHomeDashboard(accessToken: String, leaderboardRange: HomeLeaderboardRange) async throws -> HomeDashboardDTO
     func getHomePnLSeries(accessToken: String, range: HomeLeaderboardRange) async throws -> HomePnLSeriesDTO
@@ -38,11 +37,9 @@ final class AppSessionStore {
     var dashboard: HomeDashboardDTO?
     var profile: SessionProfile? { didSet { onProfileChange?(profile) } }
     var onProfileChange: ((SessionProfile?) -> Void)?
-    var platformBalance: PlatformBalanceDTO?
     var popularAssets: [MarketAssetDTO] = []
     var homePnLSeries: [HomePnLSeriesPointDTO]?
     var isHomePnLSeriesLoading = false
-    var isBalanceLoading = false
     var errorMessage: String?
     #if DEBUG
     var errorDebugDetail: String?
@@ -139,20 +136,16 @@ final class AppSessionStore {
         let profileGeneration = profileWriteGeneration
 
         do {
-            isBalanceLoading = platformBalance == nil
             async let dashboardLoad = apiClient.getHomeDashboard(
                 accessToken: token,
                 leaderboardRange: request.range
             )
             async let meLoad: SessionProfile? = includeProfile ? await self.loadProfile(auth: auth, token: token) : nil
-            async let balanceLoad = apiClient.getPlatformBalance(accessToken: token)
             let loadedDashboard = try await dashboardLoad
             let loadedProfile = await meLoad
-            let loadedBalance = try? await balanceLoad
             await finishRefresh(
                 dashboard: loadedDashboard,
                 profile: loadedProfile,
-                balance: loadedBalance,
                 generation: generation,
                 profileGeneration: profileGeneration,
                 request: request,
@@ -168,10 +161,6 @@ final class AppSessionStore {
             if error.isRequestCancellation { return }
             guard generation == refreshGeneration else { return }
             errorMessage = "No connection. Check your internet and try again."
-        }
-
-        if generation == refreshGeneration {
-            isBalanceLoading = false
         }
     }
 
@@ -229,11 +218,9 @@ final class AppSessionStore {
         home = nil
         dashboard = nil
         profile = nil
-        platformBalance = nil
         popularAssets = []
         homePnLSeries = nil
         isHomePnLSeriesLoading = false
-        isBalanceLoading = false
         errorMessage = nil
         #if DEBUG
         errorDebugDetail = nil
