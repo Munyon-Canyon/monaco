@@ -125,7 +125,7 @@ enum SignInJourney {
             XCTAssertTrue(signOut.waitForExistence(timeout: 15), "S3.1: no Sign out button on Profile")
         }
 
-        let confirm = app.buttons["profile-sign-out-confirm"]
+        let confirm = app.buttons["profile-sign-out-confirm"].firstMatch
 
         recorder.step("S3.2", "tap Sign out and see the confirm") {
             app.scrollIntoReach(signOut)

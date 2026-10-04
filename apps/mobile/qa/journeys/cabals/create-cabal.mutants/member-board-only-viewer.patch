@@ -1,0 +1,19 @@
+journey: cabals/create-cabal
+expect-fail: S4
+
+The member board lists only the viewer, not every member. S4.7 looks for B on A's board, so S4 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalMemberBoardSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalMemberBoardSlot.swift
+index ba8e9249..0d02e440 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalMemberBoardSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalMemberBoardSlot.swift
+@@ -69,7 +69,7 @@ private struct CabalMemberBoard: View {
+             }
+             .padding(.horizontal, MonacoTheme.Space.gutter)
+         case .loaded(let cabal):
+-            rows(CabalMemberBoardSlot.ordered(cabal.members))
++            rows(CabalMemberBoardSlot.ordered(cabal.members).filter { $0.userId == environment.viewer?.userID })
+             Text("Rankings show up here soon.")
+                 .font(MonacoTheme.Typo.caption)
+                 .foregroundStyle(MonacoTheme.muted)

@@ -49,19 +49,22 @@ get() {
 }
 
 mine="$(get /v1/me/cabals)"
-cabal_id="$(python3 -c '
-import json, sys
-rows = [r for r in json.load(sys.stdin) if r["name"].startswith("QA pot ")]
-if not rows:
-    sys.exit("no QA pot cabal in GET /v1/me/cabals")
-newest = rows[0]["name"]
-count = sum(1 for r in rows if r["name"] == newest)
-if count != 1:
-    sys.exit("%s is listed %d times" % (newest, count))
-print(rows[0]["id"])
-' <<<"$mine")"
+handoff="${MONACO_QA_HANDOFF:-}"
+ran() {
+  [[ -n "$handoff" && -f "$handoff" ]] && grep -q "\"$1\"" "$handoff"
+}
 
-get "/v1/cabals/$cabal_id" | python3 -c '
+if ran cabalName; then
+  name="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["cabalName"])' "$handoff")"
+  cabal_id="$(python3 -c '
+import json, sys
+rows = [r for r in json.load(sys.stdin) if r["name"] == sys.argv[1]]
+if len(rows) != 1:
+    sys.exit("%s is listed %d times in GET /v1/me/cabals, want once" % (sys.argv[1], len(rows)))
+print(rows[0]["id"])
+' "$name" <<<"$mine")"
+
+  get "/v1/cabals/$cabal_id" | python3 -c '
 import json, sys
 cabal = json.load(sys.stdin)
 rules = cabal["rules"]
@@ -73,4 +76,24 @@ members = cabal["members"]
 if cabal["member_count"] != 1 or len(members) != 1 or not members[0]["can_vote"]:
     sys.exit("want one voting member, got %s" % members)
 print("%s: %s, one voting member" % (cabal["name"], json.dumps(rules, sort_keys=True)))
+  '
+fi
+
+if ran duo-invite-code; then
+  duo_id="$(python3 -c '
+import json, sys
+rows = [r for r in json.load(sys.stdin) if r["name"].startswith("QA duo ")]
+if not rows:
+    sys.exit("S4 ran, but no QA duo cabal is in GET /v1/me/cabals")
+print(rows[0]["id"])
+' <<<"$mine")"
+  get "/v1/cabals/$duo_id" | python3 -c '
+import json, sys
+cabal = json.load(sys.stdin)
+if cabal["rules"]["join_mode"] != "open":
+    sys.exit("%s: join_mode is %s, want open" % (cabal["name"], cabal["rules"]["join_mode"]))
+if cabal["member_count"] != 2:
+    sys.exit("%s: %d members, want 2" % (cabal["name"], cabal["member_count"]))
+print("%s: open, two members" % cabal["name"])
 '
+fi
