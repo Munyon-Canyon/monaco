@@ -71,6 +71,8 @@ SMS or email login, then handle picked (required)
 
 **Screen 3: X.** App calls `privy.oAuth.link(with: .twitter, appUrlScheme:)`. Then `POST /v1/me/onboarding/socials`; backend reads the linked X account (username and numeric X user id) from Privy server-side and stores it.
 
+**Fake X for dev users.** An agent or an XCUITest cannot sign in on x.com, so outside production a dev user (Privy email `dev-<suffix>@example.com`, made by `monacoctl dev token --user new`) can link a fake X account through `POST /v1/dev/me/x-link`, with an optional `username` that defaults to `dev_x_<suffix>`. The backend stores it in `dev_x_links`, and a decorator on the Privy adapter reports it as the user's X account, with the X user id `dev:<suffix>`. `POST /v1/me/onboarding/socials` then links it through the same code as a real account. `DELETE /v1/dev/me/x-link` removes it, so the next session unlinks X. Production never mounts either route: the router answers every `x-dev-only` operation with `not_found` before auth, and the module wires no handler and no decorator.
+
 **Skip.** The phone and X screens have Skip. The handle screen does not. Skipping phone sets `AWAITING_PHONE`; skipping X (with phone done) sets `AWAITING_SOCIALS`. The user lands in the app either way.
 
 **Already linked elsewhere.** Privy allows one account per type per user. If the phone or X account is linked to a different Privy user, linking fails; the screen says so and offers Skip.
