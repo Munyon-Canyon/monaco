@@ -14,23 +14,11 @@ verify() {
   echo "monacoctl verify $* took ${SECONDS}s"
 }
 
-verify_if_runnable() {
-  echo "::group::monacoctl verify $*"
-  SECONDS=0
-  output=$("$bin" verify "$@" 2>&1)
-  code=$?
-  printf '%s\n' "$output"
-  if [[ $code -ne 0 && $output != *"no built flow outcome matches"* ]]; then
-    status=1
-  elif [[ $code -ne 0 ]]; then
-    echo "monacoctl verify $* skipped: no runnable crash scenario"
-  fi
-  echo "::endgroup::"
-  echo "monacoctl verify $* took ${SECONDS}s"
-}
-
 verify all
-verify all --crash-at after-publish
-verify all --crash-at before-commit
-verify_if_runnable all --crash-at after-sign
+if ! points=$("$bin" flows crash-points); then
+  status=1
+fi
+for point in $points; do
+  verify all --crash-at "$point"
+done
 exit "$status"

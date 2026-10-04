@@ -29,7 +29,8 @@ const (
 	flowsUsage = "usage: monacoctl flows check [--from go-test.json | --structure-only] [--integration-xunit swift-xunit.xml]\n" +
 		"                             [--affected --base <ref> | --flows <id,id,...>]\n" +
 		"       monacoctl flows --affected --base <ref>\n" +
-		"       monacoctl flows seed <id> <outcome>"
+		"       monacoctl flows seed <id> <outcome>\n" +
+		"       monacoctl flows crash-points"
 )
 
 func flowsCmd(environ, args []string, run execFunc, repo fs.FS, stdout, stderr io.Writer) int {
@@ -51,6 +52,8 @@ func flowsCmd(environ, args []string, run execFunc, repo fs.FS, stdout, stderr i
 		return 0
 	case len(args) > 0 && args[0] == "check":
 		return flowsCheckCmd(args[1:], os.Stdin, run, repo, stdout, stderr)
+	case slices.Equal(args, []string{"crash-points"}):
+		return flowsCrashPoints(repo, stdout, stderr)
 	default:
 		_, _ = fmt.Fprintln(stderr, flowsUsage)
 		return 2
@@ -123,6 +126,39 @@ func checkedIDs(repo fs.FS, run execFunc, base string, stdout, stderr io.Writer)
 		_, _ = fmt.Fprintln(stderr, "monacoctl flows check: no affected flows")
 	}
 	return ids, 0
+}
+
+func flowsCrashPoints(repo fs.FS, stdout, stderr io.Writer) int {
+	all, err := readFlowsTSV(repo)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "monacoctl flows crash-points: %v\n", err)
+		return 1
+	}
+	scripts := testflows.Scripts()
+	printIDs(stdout, crashPoints(all, func(name string) bool {
+		_, ok := scripts[name]
+		return ok
+	}))
+	return 0
+}
+
+func crashPoints(all []flows.Flow, hasScript func(string) bool) []string {
+	var points []string
+	for _, f := range all {
+		if !f.Status.AtLeastBuilt() {
+			continue
+		}
+		for _, o := range f.Outcomes {
+			point, crash := o.CrashPoint()
+			if crash && slices.ContainsFunc(f.Commands, func(command string) bool {
+				return hasScript(flows.ScriptName(f, command, o))
+			}) {
+				points = append(points, point)
+			}
+		}
+	}
+	slices.Sort(points)
+	return slices.Compact(points)
 }
 
 func printIDs(stdout io.Writer, ids []string) {

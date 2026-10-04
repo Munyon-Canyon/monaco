@@ -11,7 +11,7 @@ description: Explains what monacoctl verify checks, how to read a failed ci / e2
 
 ## Who runs it
 
-- **The Graphite queue.** Stage 2 runs the `e2e` job in `.github/workflows/ci-jobs.yml`. It shows as `ci / E2E (monacoctl verify on the real binaries)`. The job runs `scripts/ci/e2e.sh`, which runs `verify all` and then `verify all --crash-at after-publish`. It uploads the `.verify` directory under `apps/backend` as the `verify-evidence` artifact, kept for 7 days.
+- **The Graphite queue.** Stage 2 runs the `e2e` job in `.github/workflows/ci-jobs.yml`. It shows as `ci / E2E (monacoctl verify on the real binaries)`. The job runs `scripts/ci/e2e.sh`, which runs `verify all` and then one `verify all --crash-at <point>` pass per crash point that `monacoctl flows crash-points` prints. It uploads the `.verify` directory under `apps/backend` as the `verify-evidence` artifact, kept for 7 days.
 - **Nightly.** `scripts/ci/nightly-backend.sh` runs `verify all` and uploads `nightly-verify-evidence`.
 - **Owners do not run it.** Stage 0 is `go run ./cmd/monacoctl agents check`. The agent guard in `scripts/agent-guard.py` blocks heavy test runs in owner worktrees. The operator or the root agent may reproduce a failure locally.
 
@@ -26,7 +26,7 @@ The code is in `apps/backend/cmd/monacoctl/verify/`.
 5. Waits for every emitted event to be handled by every consumer that watches it.
 6. Checks the invariants below, writes evidence, and tears down.
 
-Only flows at `built` or `verified` run. Without `--crash-at`, crash outcomes are skipped. Scripts for the non-crash outcomes ship with the `built` row. `monacoctl flows check` fails a `built` row that lacks one. A crash script ships with the `--crash-at` line in `scripts/ci/e2e.sh` that runs it, and the rest ship at `verified`.
+Only flows at `built` or `verified` run. Without `--crash-at`, crash outcomes are skipped. Scripts for the non-crash outcomes ship with the `built` row. `monacoctl flows check` fails a `built` row that lacks one. The `e2e` job runs a crash pass for every point that a `built` or `verified` flow has a script for, and the rest ship at `verified`.
 
 ## What it checks
 
@@ -92,7 +92,7 @@ go run ./cmd/monacoctl verify all
 
 - Every unit prints `PASS`, and the process exits 0.
 - Every evidence file has `"result": "pass"` and `"dirty": false`.
-- The run covered every outcome of every `built` or `verified` flow, including its crash points. `scripts/ci/e2e.sh` runs only `after-publish`. A flow that adds another crash point adds its `verify all --crash-at <point>` line there.
+- The run covered every outcome of every `built` or `verified` flow, including its crash points. The `e2e` job runs a crash pass for every point that a `built` or `verified` flow has a script for, so a new crash script needs no CI edit.
 
 ## On failure
 
@@ -101,7 +101,7 @@ Fix the code. Never weaken an invariant, raise a budget, skip an outcome, drop a
 ## Moving a flow to verified
 
 1. The non-crash scripts already ship with the `built` row, in `apps/backend/internal/testkit/flows/f<id>.go`, registered by `go generate ./cmd/monacoctl`. The flow tests call those scripts. A poller flow's script waits for the next tick with `scenario.AwaitTick(poller)` and checks its counts with `scenario.ExpectTick(poller, scanned, changed)`. In process the step ticks the poller once itself. Against the binaries it waits on the worker, so add the flow's poll interval as a `WorkerEnvF<id>` method in its `f<id>.go`. A tick that was already running when the step started still counts, so await a second tick when the counts must reflect what the Given stage seeded.
-2. A crash script ships with the `verify all --crash-at <point>` line in `scripts/ci/e2e.sh` that runs it. Write that script, and the rest of the outcomes, in the flow's `apps/backend/internal/testkit/flows/f<id>.go`, then run `go generate ./cmd/monacoctl`.
+2. The `e2e` job runs a crash pass for every point that a `built` or `verified` flow has a script for, so a new crash script needs no CI edit. Write that script, and the rest of the outcomes, in the flow's `apps/backend/internal/testkit/flows/f<id>.go`, then run `go generate ./cmd/monacoctl`.
 3. Set the row's status to `verified` and regenerate the flow's feature map page from `apps/backend`:
 
 ```
