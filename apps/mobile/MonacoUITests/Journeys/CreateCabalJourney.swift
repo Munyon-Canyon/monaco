@@ -76,8 +76,11 @@ enum CreateCabalJourney {
 
         recorder.step("S2.3", "double-tap Create cabal and land on the cabal") {
             app.scrollIntoReach(submit)
+            let frame = submit.frame
+            let spot = app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: frame.midX, dy: frame.midY))
             submit.tap()
-            if submit.exists && submit.isHittable { submit.tap() }
+            spot.tap()
             let hero = app.element("cabal-header-name")
             XCTAssertTrue(
                 hero.waitForExistence(timeout: createdTimeout),
@@ -110,7 +113,11 @@ enum CreateCabalJourney {
             XCTAssertTrue(
                 named.firstMatch.waitForExistence(timeout: formTimeout), "S2.6: '\(name)' is not on the Cabals list")
             XCTAssertEqual(named.count, 1, "S2.6: '\(name)' is on the Cabals list \(named.count) times")
-            XCTAssertTrue(app.buttons["cabals-list-new"].exists, "S2.6: no + New cabal card on the Cabals list")
+            let newCard = app.buttons["cabals-list-new"]
+            for _ in 0..<20 where !newCard.exists {
+                list.swipeLeft(velocity: .fast)
+            }
+            XCTAssertTrue(newCard.exists, "S2.6: no + New cabal card on the Cabals list")
         }
     }
 
