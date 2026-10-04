@@ -46,6 +46,26 @@ public struct APIClient: Sendable {
         }
     }
 
+    package func sessionSubmit(
+        _ submission: IdempotentSubmission,
+        payload: some Encodable & Sendable,
+        operation: String,
+        _ call: @Sendable (Client, String) async throws -> Void
+    ) async throws -> Data {
+        let box = SessionWireBox()
+        return try await SessionWireCapture.$box.withValue(box) {
+            try await submit(submission, payload: payload, operation: operation) { client, key in
+                do {
+                    try await call(client, key)
+                } catch {
+                    if box.load() == nil { throw error }
+                }
+                guard let data = box.load() else { throw APIError.decoding("session") }
+                return data
+            }
+        }
+    }
+
     public func read<Output>(_ call: @Sendable (Client) async throws -> Output) async throws -> Output {
         do {
             return try await call(client)
