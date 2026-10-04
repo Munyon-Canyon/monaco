@@ -51,7 +51,7 @@ enum_cases() {
     }' "$1"
 }
 
-# Flow id and outcome of each line in the block that monacoctl gen flows writes.
+# Flow id and outcome of each line in the block that cmd/gen flows writes.
 flow_scenarios() {
   awk '
     /^# BEGIN generated flow scenarios$/ { inside=1; next }

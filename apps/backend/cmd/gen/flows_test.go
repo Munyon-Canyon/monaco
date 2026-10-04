@@ -185,7 +185,7 @@ func TestCommittedFlowFilesMatchTheGenerator(t *testing.T) {
 	}
 	for name, want := range files {
 		if got, err := fs.ReadFile(repo, name); err != nil || string(got) != want {
-			t.Errorf("%s is stale or missing (%v); run go generate ./cmd/monacoctl", name, err)
+			t.Errorf("%s is stale or missing (%v); run go generate ./...", name, err)
 		}
 	}
 }
@@ -239,45 +239,40 @@ func TestWriteFlowFiles_reportsWriteAndPruneFailures(t *testing.T) {
 	}
 }
 
-func TestRunGenFlows(t *testing.T) {
+func TestGenFlows(t *testing.T) {
 	t.Parallel()
 	tsv := flows.Header + "\n" + pingRow + "\n"
 	manifest := "home  -MonacoHomeSample\n"
 	for _, tc := range []struct {
 		name  string
 		files map[string]string
-		code  int
-		out   string
+		err   string
 	}{
-		{
-			"writes the enums", nil,
-			0, "wrote 3 flow files to " + flowsSwiftDir + ", " + flowTestsSwiftDir + " and " + featureMapDir +
-				" and the " + scenarioManifest + " scenario block\n",
-		},
+		{"writes the enums", nil, ""},
 		{
 			"refuses a malformed flow file",
 			map[string]string{flows.Dir + "/01.tsv": "id\n"},
-			1, "monacoctl: monacoctl.readFlowsTSV: " + flows.Dir + "/01.tsv:1: header must be",
+			"gen.readFlowsTSV: " + flows.Dir + "/01.tsv:1: header must be",
 		},
 		{
 			"refuses an unknown outcome",
 			map[string]string{flows.Dir + "/01.tsv": strings.Replace(tsv, "ok;Internal", "ok;NoSuchCode", 1)},
-			1, "monacoctl: monacoctl.flowOutcomes: flow 01 outcome NoSuchCode is not an errs code name",
+			"gen.flowOutcomes: flow 01 outcome NoSuchCode is not an errs code name",
 		},
 		{
 			"refuses a broken app registry",
 			map[string]string{"packages/flows/app/01.tsv": "id\n"},
-			1, "monacoctl: monacoctl.readBuiltFlows: packages/flows/app/01.tsv:1",
+			"gen.readBuiltFlows: packages/flows/app/01.tsv:1",
 		},
 		{
 			"refuses a missing manifest",
 			map[string]string{scenarioManifest: ""},
-			1, "monacoctl: monacoctl.renderFlows",
+			"gen.renderFlows",
 		},
 		{
 			"refuses an unpaired marker",
 			map[string]string{scenarioManifest: scenarioBlockBegin + "\n"},
-			1, "monacoctl: monacoctl.spliceScenarioBlock",
+			"gen.spliceScenarioBlock",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -289,11 +284,9 @@ func TestRunGenFlows(t *testing.T) {
 				delete(files, scenarioManifest)
 			}
 			writeTree(t, root, files)
-			var stdout, stderr strings.Builder
-			code := runGenFlows(root, &stdout, &stderr)
-			if code != tc.code || !strings.HasPrefix(stdout.String()+stderr.String(), tc.out) {
-				t.Fatalf("code=%d stdout=%q stderr=%q, want %d %q",
-					code, stdout.String(), stderr.String(), tc.code, tc.out)
+			err := genFlows(root)
+			if tc.err == "" && err != nil || tc.err != "" && (err == nil || !strings.HasPrefix(err.Error(), tc.err)) {
+				t.Fatalf("genFlows = %v, want %q", err, tc.err)
 			}
 		})
 	}
@@ -317,10 +310,10 @@ func TestWriteFlowFiles_failsWithoutAWritableRoot(t *testing.T) {
 func TestGenFlows_readsTheFlowFilesTwoDirectoriesUp(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr strings.Builder
-	if code := gen([]string{"flows"}, &stdout, &stderr); code != 1 ||
+	if code := run(steps(), []string{"flows"}, &stdout, &stderr); code != 1 ||
 		!strings.Contains(stderr.String(), "read "+flows.Dir+": no flow files") {
 		t.Fatalf(
-			"gen flows from cmd/monacoctl = %d %q, want 1 naming the repo-relative flow directory",
+			"gen flows from cmd/gen = %d %q, want 1 naming the repo-relative flow directory",
 			code,
 			stderr.String(),
 		)
@@ -431,7 +424,7 @@ func TestSpliceScenarioBlock(t *testing.T) {
 	}
 }
 
-func TestRunGenFlows_writesScenariosForBuiltFlowsAndIsIdempotent(t *testing.T) {
+func TestGenFlows_writesScenariosForBuiltFlowsAndIsIdempotent(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	ping := "00\tPing\tsystem\tPOST /v1/system/pings\tRecordPing\tsystem.pinged\t\tok;InvalidInput;Unauthorized;crash:after-publish\tverified\tdocs/flows.md#ping"
@@ -453,9 +446,8 @@ func TestRunGenFlows_writesScenariosForBuiltFlowsAndIsIdempotent(t *testing.T) {
 		}
 		return all.String()
 	}
-	var stdout, stderr strings.Builder
-	if code := runGenFlows(root, &stdout, &stderr); code != 0 {
-		t.Fatalf("first run = %d %s", code, stderr.String())
+	if err := genFlows(root); err != nil {
+		t.Fatalf("first run: %v", err)
 	}
 	first := read()
 	for _, want := range []string{
@@ -472,10 +464,12 @@ func TestRunGenFlows_writesScenariosForBuiltFlowsAndIsIdempotent(t *testing.T) {
 	if _, err := os.Stat(stale); !os.IsNotExist(err) {
 		t.Errorf("Flow07Scenarios.gen.swift survived with no flow 07 (%v)", err)
 	}
-	if code := runGenFlows(root, &stdout, &stderr); code != 0 || read() != first {
-		t.Fatalf("second run = %d changed the output:\n%s", code, read())
+	if err := genFlows(root); err != nil || read() != first {
+		t.Fatalf("second run = %v changed the output:\n%s", err, read())
 	}
 }
+
+const pingRow = "01\tPing\tsystem\tpoller:platform.retention\tPing\tsystem.pinged\t\tok;Internal\tbuilt\tdocs/flows.md#ping"
 
 func writeTree(t *testing.T, root string, files map[string]string) {
 	t.Helper()
@@ -487,4 +481,14 @@ func writeTree(t *testing.T, root string, files map[string]string) {
 			t.Fatal(err)
 		}
 	}
+}
+
+func flowFS(tsv string) fstest.MapFS {
+	repo := fstest.MapFS{}
+	header, rows, _ := strings.Cut(tsv, "\n")
+	for row := range strings.Lines(rows) {
+		id, _, _ := strings.Cut(row, "\t")
+		repo[flows.Dir+"/"+strings.TrimSpace(id)+".tsv"] = &fstest.MapFile{Data: []byte(header + "\n" + row)}
+	}
+	return repo
 }

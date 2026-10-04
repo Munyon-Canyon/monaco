@@ -709,3 +709,11 @@ func TestFlowsCrashPoints_printsEachPointOfTheRepoOrFailsOnABadRepo(t *testing.T
 		t.Fatalf("crash-points without flow files: code=%d stderr=%q", code, stderr.String())
 	}
 }
+
+func TestReadFlowsTSV_namesTheFirstProblem(t *testing.T) {
+	t.Parallel()
+	if _, err := readFlowsTSV(flowFS(flows.Header + "\n01\tPing\n")); err == nil ||
+		!strings.Contains(err.Error(), "monacoctl.readFlowsTSV: "+flows.Dir+"/01.tsv:2: has 2 columns") {
+		t.Fatalf("readFlowsTSV = %v, want the first problem", err)
+	}
+}

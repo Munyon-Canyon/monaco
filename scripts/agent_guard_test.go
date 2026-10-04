@@ -470,7 +470,7 @@ func TestAgentGuard_editsOfGeneratedSwiftAreDenied(t *testing.T) {
 	}
 	for _, tool := range []string{"Edit", "Write", "MultiEdit"} {
 		file := "/repo/packages/flows/Sources/MonacoFlows/Flow00.gen.swift"
-		assertBlocked(t, edit(tool, file), tool+" "+file, "go run ./cmd/monacoctl gen flows")
+		assertBlocked(t, edit(tool, file), tool+" "+file, "go run ./cmd/gen flows")
 	}
 	cases := "/repo/packages/mobile-core/Tests/MonacoAPITests/ErrorCodeCases.gen.swift"
 	assertBlocked(t, edit("Edit", cases), "Edit "+cases, "go generate ./api")

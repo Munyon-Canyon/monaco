@@ -8,15 +8,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
-
-var oapiCodegenState sync.Mutex
 
 func TestMain(m *testing.M) {
 	testkit.Main(m, testkit.WithChild(main), testkit.WithNATS())

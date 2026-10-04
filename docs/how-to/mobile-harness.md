@@ -30,7 +30,7 @@ Launch flags stay exactly as they are (`-MonacoHomeSample populated`, `-MonacoCa
 
 Every flow whose app status in `packages/flows/app/<id>.tsv` is `built` or `verified` gets one harness scenario per outcome other than `ok`. A `crash:` outcome is the `interrupted` scenario. The launch flag is `-MonacoFlow <id> <outcome>`, such as `-MonacoFlow 00 unauthorized`.
 
-`monacoctl gen flows` generates two of the three parts:
+`cmd/gen flows` generates two of the three parts:
 
 - `Flow<id>Scenario` in `packages/flows/Sources/MonacoFlows/Flow<id>Scenarios.gen.swift`, whose `matching(_:)` reads the flag. `import MonacoCore` brings it into the app.
 - The lines between `# BEGIN generated flow scenarios` and `# END generated flow scenarios` in `scripts/qa/sample-screens.txt`. Never edit that block. `scripts/ci/ready.sh` fails when it is stale, and `scripts/check-gate-changes.py` warns on a hand edit inside it.

@@ -274,6 +274,14 @@ func readFlows(repo fs.FS) ([]flows.Flow, []flows.Problem, error) {
 	return parsed, problems, nil
 }
 
+func readFlowsTSV(repo fs.FS) ([]flows.Flow, error) {
+	parsed, problems, err := readFlows(repo)
+	if err == nil && len(problems) > 0 {
+		err = errs.New(errs.CodeInvalidInput, "monacoctl.readFlowsTSV: "+problems[0].String())
+	}
+	return parsed, err
+}
+
 func liveEnv(repo fs.FS, backend string, mods module.Set) flows.Env {
 	catalog := events.Catalog()
 	eventTypes := make([]string, 0, len(catalog))

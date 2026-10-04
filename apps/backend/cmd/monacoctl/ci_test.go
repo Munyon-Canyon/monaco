@@ -177,6 +177,7 @@ func TestReverseDepsSeedsNonGoFilesFromTheirPackage(t *testing.T) {
 		"internal/platform/db/sqlc":   pkg("internal/platform/db/sqlc"),
 		"internal/tools/flows":        pkg("internal/tools/flows"),
 		"internal/testkit/flows":      pkg("internal/testkit/flows"),
+		"cmd/gen":                     pkg("cmd/gen"),
 		"cmd/monacoctl":               pkg("cmd/monacoctl"),
 		"cmd/monacoctl/agents":        pkg("cmd/monacoctl/agents"),
 		"cmd/monacoctl/verify":        pkg("cmd/monacoctl/verify"),
@@ -209,7 +210,7 @@ func TestReverseDepsSeedsNonGoFilesFromTheirPackage(t *testing.T) {
 			"a backend flow file yields the flow readers",
 			[]string{"packages/flows/backend/03.tsv"},
 			[]string{
-				"./cmd/monacoctl", "./cmd/monacoctl/agents", "./cmd/monacoctl/verify",
+				"./cmd/gen", "./cmd/monacoctl", "./cmd/monacoctl/agents", "./cmd/monacoctl/verify",
 				"./internal/testkit/flows", "./internal/tools/flows", "./internal/tools/gen",
 			},
 		},
