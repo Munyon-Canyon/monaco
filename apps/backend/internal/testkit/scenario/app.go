@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -124,6 +125,8 @@ func start(t *testing.T, o options) *app {
 	return a
 }
 
+var defaultContract = sync.OnceValues(func() (*httpx.Contract, error) { return LoadContract(openapi.Spec) })
+
 func must(t *testing.T, err error) {
 	t.Helper()
 	if err != nil {
@@ -137,7 +140,7 @@ func (a *app) handler(
 	t.Helper()
 	if c == nil {
 		var err error
-		c, err = LoadContract(openapi.Spec)
+		c, err = defaultContract()
 		must(t, err)
 	}
 	policies, err := ratelimit.FromDocument(c.Document())

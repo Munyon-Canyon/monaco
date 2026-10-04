@@ -225,6 +225,10 @@ linters:
       - path: ^internal/testkit/(seed|db|nats|perf|chaos/seeds)\.go$
         linters: [gochecknoglobals]
         text: seedFlag|current|natsCurrent|perfUpdate|baselineMu
+      # A test binary parses api/openapi.yaml once and every served app shares the read-only result (#1713).
+      - path: ^internal/testkit/(http|scenario/app)\.go$
+        linters: [gochecknoglobals]
+        text: parsedSpec|contractOnce|defaultContract
       # testing.AllocsPerRun reads the process-wide malloc counter, so allocation tests run alone (#721).
       - path: allocs_test\.go$
         linters: [paralleltest]
