@@ -43,6 +43,8 @@ public final class AssetDetailClientModel {
     private var chartGeneration = 0
     private let api: APIClient?
     private let symbol: String
+    private let hints: (any HintSource)?
+    private let refresher: HintRefresher
 
     public var phase: Phase { detailPhase }
 
@@ -59,9 +61,15 @@ public final class AssetDetailClientModel {
         return chart.points.count < 2
     }
 
-    public init(api: APIClient, symbol: String) {
+    public init(api: APIClient, symbol: String, hints: any HintSource) {
         self.api = api
         self.symbol = symbol
+        self.hints = hints
+        let hook = ReloadHook()
+        refresher = HintRefresher { await hook.run?() }
+        hook.run = { [weak self] in
+            await self?.refresh()
+        }
     }
 
     #if DEBUG
@@ -73,6 +81,8 @@ public final class AssetDetailClientModel {
     ) {
         api = nil
         symbol = sampleDetail?.symbol ?? ""
+        hints = nil
+        refresher = HintRefresher {}
         detail = sampleDetail.map(Self.presentation)
         detailPhase = sampleDetail == nil ? .loading : .loaded
         self.chart = chart
@@ -100,10 +110,44 @@ public final class AssetDetailClientModel {
         }
     }
 
+    public func observe() async {
+        guard let hints else { return }
+        await refresher.observe(hints.hints(matching: .global(what: "prices_updated")))
+    }
+
+    public func setVisible(_ visible: Bool) {
+        refresher.setVisible(visible)
+    }
+
+    private func refresh() async {
+        guard let api else { return }
+        do {
+            let response = try await api.read { client in
+                try await client.getAsset(path: .init(symbol: symbol)).ok.body.json
+            }
+            detail = Self.presentation(response)
+            detailPhase = .loaded
+            lastError = nil
+            if selectedRange == .oneDay, chartPhase != .loading { await refreshChart() }
+        } catch {
+            lastError = APIError(error)
+            failureTick += 1
+        }
+    }
+
     public func loadChart(range: AssetChartRange = .oneDay) async {
         guard let api else { return }
         selectedRange = range
         chartPhase = .loading
+        await readChart(api: api, range: range, replacesChartPhase: true)
+    }
+
+    private func refreshChart() async {
+        guard let api else { return }
+        await readChart(api: api, range: selectedRange, replacesChartPhase: false)
+    }
+
+    private func readChart(api: APIClient, range: AssetChartRange, replacesChartPhase: Bool) async {
         chartGeneration += 1
         let issued = chartGeneration
         do {
@@ -121,7 +165,7 @@ public final class AssetDetailClientModel {
             guard issued == chartGeneration else { return }
             let error = APIError(error)
             chartError = error
-            chartPhase = .failed(error)
+            if replacesChartPhase { chartPhase = .failed(error) }
         }
     }
 
@@ -179,4 +223,8 @@ extension AssetChartRange {
         case .all: "All time"
         }
     }
+}
+
+private final class ReloadHook {
+    var run: (@MainActor () async -> Void)?
 }

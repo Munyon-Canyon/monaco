@@ -7,6 +7,7 @@ struct AssetDetailClientView: View {
     let symbol: String
     @State private var model: AssetDetailClientModel?
     @State private var scrubbedIndex: Int?
+    @State private var priceTick: MonacoPriceTick?
 
     init(symbol: String, model: AssetDetailClientModel? = nil) {
         self.symbol = symbol
@@ -17,7 +18,15 @@ struct AssetDetailClientView: View {
         content
             .navigationTitle(model?.detail?.ticker ?? AssetSymbolFormatter.display(symbol, kind: .stock))
             .navigationBarTitleDisplayMode(.inline)
-            .task { await start() }
+            .task {
+                await start()
+                await model?.observe()
+            }
+            .onScreenVisibilityChange { model?.setVisible($0) }
+            .onChange(of: model?.detail?.priceMicros) { oldPrice, newPrice in
+                guard let oldPrice, let newPrice, oldPrice != newPrice else { return }
+                priceTick = .init(sequence: (priceTick?.sequence ?? 0) + 1, isUp: newPrice > oldPrice)
+            }
     }
 
     @ViewBuilder
@@ -100,6 +109,11 @@ struct AssetDetailClientView: View {
             if let price = detail.priceMicros {
                 Text(UsdAmountFormatter.format(micros: price))
                     .font(MonacoTheme.Typo.quoteHero)
+                    .priceTickFlash(
+                        priceTick,
+                        in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.chip, style: .continuous),
+                        expand: MonacoTheme.Space.xs
+                    )
                     .accessibilityIdentifier("asset-detail-price")
             }
             if let change = model.rangeChange {
@@ -242,7 +256,9 @@ struct AssetDetailClientView: View {
     }
 
     private func start() async {
-        if model == nil { model = AssetDetailClientModel(api: environment.api, symbol: symbol) }
+        if model == nil {
+            model = AssetDetailClientModel(api: environment.api, symbol: symbol, hints: environment.hints)
+        }
         await model?.load()
     }
 }
