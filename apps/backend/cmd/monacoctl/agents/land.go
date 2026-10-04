@@ -117,7 +117,7 @@ func blocker(stack []stackPR) string {
 	return ""
 }
 
-func (env *Env) landArmed(ctx context.Context, r Record) []string {
+func (env *Env) landArmed(ctx context.Context, r Record, reran map[int64]int) []string {
 	top := r.Armed.Top
 	var out strings.Builder
 	stack, dir, err := env.stackOf(ctx, r, top, &out)
@@ -133,7 +133,17 @@ func (env *Env) landArmed(ctx context.Context, r Record) []string {
 	if err := env.flowGate(ctx, r, stack); err != nil {
 		return env.disarm(ctx, r, cmp.Or(cliText(err), err.Error()))
 	}
-	err = env.land(ctx, r, dir, stack, &out)
+	state, err := env.checkRuns(ctx, stack, reran, &out)
+	if err != nil {
+		disarmed := env.disarm(ctx, r, cmp.Or(cliText(err), err.Error()))
+		items := make([]string, 0, len(disarmed)+1)
+		items = append(items, fmt.Sprintf("armed stack #%d landing", top))
+		return append(items, disarmed...)
+	}
+	if state == runsPending {
+		return nil
+	}
+	err = env.queue(ctx, r, dir, stack, &out)
 	items := []string{fmt.Sprintf("armed stack #%d landing", top)}
 	for line := range strings.Lines(out.String()) {
 		items = append(items, strings.TrimSuffix(line, "\n"))
@@ -307,14 +317,18 @@ func orMissing(s string) string {
 }
 
 func (env *Env) land(ctx context.Context, rec Record, dir string, stack []stackPR, stdout io.Writer) error {
-	nums := make([]int, len(stack))
-	for i, p := range stack {
-		nums[i] = p.Number
-	}
-	top := nums[len(nums)-1]
 	if err := env.cleanRuns(ctx, stack, stdout); err != nil {
 		return err
 	}
+	if err := env.queue(ctx, rec, dir, stack, stdout); err != nil {
+		return err
+	}
+	return env.reportDraft(ctx, stack, stdout)
+}
+
+func (env *Env) queue(ctx context.Context, rec Record, dir string, stack []stackPR, stdout io.Writer) error {
+	nums := numbers(stack)
+	top := nums[len(nums)-1]
 	if err := env.mergeable(ctx, dir, stack[0], top); err != nil {
 		return err
 	}
@@ -332,7 +346,7 @@ func (env *Env) land(ctx context.Context, rec Record, dir string, stack []stackP
 	}
 	_, _ = fmt.Fprintf(stdout, "queued %s\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n",
 		prRefs(nums))
-	return env.reportDraft(ctx, stack, stdout)
+	return nil
 }
 
 func prRefs(nums []int) string {
