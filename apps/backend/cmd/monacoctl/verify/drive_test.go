@@ -34,6 +34,13 @@ func servedEnv(t *testing.T) Env {
 	return servedEnvWith(t, func(d module.Deps) module.Module { return system.New(d) })
 }
 
+func TestVerify_readOnlyUnitsShareAServedEnv(t *testing.T) {
+	t.Parallel()
+	env := servedEnv(t)
+	verifyFlow00(t, env)
+	runAllPollers(t, env)
+}
+
 func servedEnvWith(t *testing.T, mods ...func(module.Deps) module.Module) Env {
 	t.Helper()
 	logs := &Logs{}
@@ -233,13 +240,13 @@ func driveConfig(budget Budget) (Config, *bytes.Buffer) {
 	return Config{Budget: budget, Stdout: &out, Stderr: &out}, &out
 }
 
-func TestVerifyUnits_flow00PassesOverHTTPWithAuthIdempotencyKeysAndSSE(t *testing.T) {
-	t.Parallel()
+func verifyFlow00(t *testing.T, env Env) {
+	t.Helper()
 	cfg, out := driveConfig(DefaultBudget())
 	if err := verifyUnits(
 		t.Context(),
 		cfg,
-		servedEnv(t),
+		env,
 		newReport(t.Context(), Target{}, flow00(t, Target{Flow: "00"})),
 		parallelFlows,
 	); err != nil {
@@ -438,8 +445,8 @@ func TestDriver_aPlantedFlowThatSleepsPastItsBudgetFailsNamingTheFlowPhase(t *te
 	}
 }
 
-func TestRunAll_runsPollerUnitsAfterRouteUnitsFinish(t *testing.T) {
-	t.Parallel()
+func runAllPollers(t *testing.T, env Env) {
+	t.Helper()
 	var mu sync.Mutex
 	var order []string
 	mark := func(name string) {
@@ -460,7 +467,6 @@ func TestRunAll_runsPollerUnitsAfterRouteUnitsFinish(t *testing.T) {
 		Flow:   tools.Flow{ID: "18", Trigger: "poller:market.prices"},
 		Script: func(*scenario.Scenario) { mark("poller-start") },
 	}
-	env := servedEnv(t)
 	budget := DefaultBudget()
 	budget.Converge = 30 * time.Millisecond
 	d, err := newDriver(env, budget)
