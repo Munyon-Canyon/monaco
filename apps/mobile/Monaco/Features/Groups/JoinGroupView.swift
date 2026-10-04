@@ -43,6 +43,9 @@ struct JoinCabalView: View {
             navigator.cabalsPath.removeLast()
         }
         navigator.open(CabalRoute(id: joined.cabalID), in: .cabals)
+        if joined.toast == CabalEntry.joinedToast {
+            Task { await environment.pushPrePrompt.noteCabalJoined(after: toasts) }
+        }
     }
 }
 

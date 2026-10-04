@@ -1,3 +1,4 @@
+import MonacoCore
 import SwiftUI
 
 /// The five product tabs. Account actions (withdraw, advanced, sign out) live on Profile.
@@ -7,6 +8,7 @@ struct MainTabView: View {
 
     var body: some View {
         @Bindable var navigator = environment.navigator
+        @Bindable var pushPrePrompt = environment.pushPrePrompt
         TabView(selection: $navigator.selectedTab) {
             ForEach(MainTab.allCases) { tab in
                 NavigationStack(path: navigator.binding(for: tab)) {
@@ -29,6 +31,9 @@ struct MainTabView: View {
         .environment(\.selectedMainTab, navigator.selectedTab)
         .onChange(of: navigator.selectedTab) { _, _ in
             Haptics.selection()
+        }
+        .sheet(isPresented: $pushPrePrompt.isPresented, onDismiss: pushPrePrompt.notNow) {
+            PushPrePromptSheet(prompt: pushPrePrompt)
         }
     }
 }

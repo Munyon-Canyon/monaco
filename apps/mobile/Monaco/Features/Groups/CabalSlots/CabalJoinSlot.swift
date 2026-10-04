@@ -36,6 +36,9 @@ struct CabalJoinSection: View {
         .onChange(of: model?.toast) { _, toast in
             guard let toast else { return }
             toasts.current = MonacoToast(message: toast.message, isSuccess: toast.isSuccess)
+            if toast.message == CabalEntry.joinedToast {
+                Task { await environment.pushPrePrompt.noteCabalJoined(after: toasts) }
+            }
         }
     }
 

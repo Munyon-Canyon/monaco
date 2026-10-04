@@ -142,6 +142,7 @@ struct CreateGroupView: View {
             } else {
                 showCreated(cabal)
             }
+            Task { await environment?.pushPrePrompt.noteCabalJoined(after: toasts) }
         } catch {
             toasts?.show(APIError(error))
         }
