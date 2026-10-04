@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Print one iOS Simulator UDID on stdout.
-# Prefer SIMSLIM_UDID when that device exists. If SimSlim / PATH ios-sim is missing
+# In a linked worktree (a lane), or with MONACO_SIM_UDID set, print the lane's own
+# simulator (scripts/lane-sim-udid.sh). In the primary checkout:
+# prefer SIMSLIM_UDID when that device exists. If SimSlim / PATH ios-sim is missing
 # or not ready, warn on stderr and still use that UDID as a stock sim, or pick another.
 # Never commits a UDID. Never simctl erase.
 set -euo pipefail
@@ -88,6 +90,18 @@ print(booted or any_iphone or any_ios or "")
 emit() {
   printf '%s\n' "$1"
 }
+
+# MONACO_LANE_LOOKUP=off is how lane-sim-udid.sh asks for the primary checkout's pick.
+if [[ "${MONACO_LANE_LOOKUP:-}" != "off" ]]; then
+  rc=0
+  lane="$("$(dirname "${BASH_SOURCE[0]}")/lane-sim-udid.sh")" || rc=$?
+  if (( rc == 0 )); then
+    emit "$lane"
+    exit 0
+  elif (( rc != 3 )); then
+    exit "$rc"
+  fi
+fi
 
 if [[ -n "${SIMSLIM_UDID:-}" ]]; then
   if device_exists "$SIMSLIM_UDID"; then

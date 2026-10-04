@@ -1,19 +1,55 @@
-#!/usr/bin/env bash
-# Test double for xcrun simctl. Reads fixtures from FAKE_SIMCTL_DIR.
-set -euo pipefail
-if [[ "${1:-}" != "simctl" ]]; then
-  echo "fake xcrun: expected simctl" >&2
-  exit 1
-fi
-shift
-dir="${FAKE_SIMCTL_DIR:?}"
-if [[ "${1:-}" == "list" && "${2:-}" == "devices" && "${3:-}" == "available" ]]; then
-  if [[ "${4:-}" == "-j" ]]; then
-    cat "$dir/devices.json"
-    exit 0
-  fi
-  cat "$dir/devices.txt"
-  exit 0
-fi
-echo "fake xcrun: unhandled $*" >&2
-exit 1
+#!/usr/bin/env python3
+"""Test double for xcrun simctl.
+
+Reads devices from FAKE_SIMCTL_DIR (devices.json, devices.txt). With FAKE_SIMCTL_STATE set,
+`create` adds a device there (and logs the call to create.log), and `list` shows it.
+FAKE_SIMCTL_CREATE_DELAY widens the window between a create starting and landing.
+"""
+import fcntl, json, os, sys, time, uuid
+
+args = sys.argv[1:]
+if not args or args[0] != "simctl":
+    sys.exit("fake xcrun: expected simctl")
+args = args[1:]
+fixture = os.environ["FAKE_SIMCTL_DIR"]
+state = os.environ.get("FAKE_SIMCTL_STATE", "")
+
+
+def created():
+    path = os.path.join(state, "created.jsonl")
+    if not state or not os.path.exists(path):
+        return []
+    with open(path) as f:
+        return [json.loads(line) for line in f if line.strip()]
+
+
+if args[:3] == ["list", "devices", "available"]:
+    extra = created()
+    if args[3:] == ["-j"]:
+        with open(os.path.join(fixture, "devices.json")) as f:
+            data = json.load(f)
+        for d in extra:
+            data["devices"].setdefault(d["runtime"], []).append(
+                {"udid": d["udid"], "name": d["name"], "state": "Shutdown", "isAvailable": True,
+                 "deviceTypeIdentifier": d["deviceType"]})
+        json.dump(data, sys.stdout)
+    else:
+        with open(os.path.join(fixture, "devices.txt")) as f:
+            sys.stdout.write(f.read())
+        for d in extra:
+            print("    %s (%s) (Shutdown)" % (d["name"], d["udid"]))
+    sys.exit(0)
+
+if args[:1] == ["create"] and len(args) == 4 and state:
+    _, name, device_type, runtime = args
+    time.sleep(float(os.environ.get("FAKE_SIMCTL_CREATE_DELAY", "0")))
+    udid = str(uuid.uuid4()).upper()
+    with open(os.path.join(state, "created.jsonl"), "a") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        f.write(json.dumps({"udid": udid, "name": name, "deviceType": device_type, "runtime": runtime}) + "\n")
+    with open(os.path.join(state, "create.log"), "a") as f:
+        f.write(" ".join(args) + "\n")
+    print(udid)
+    sys.exit(0)
+
+sys.exit("fake xcrun: unhandled %s" % " ".join(args))

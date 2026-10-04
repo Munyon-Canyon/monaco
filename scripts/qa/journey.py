@@ -436,6 +436,31 @@ def named_simulator(devices, name):
     return ""
 
 
+def lane_name():
+    """The lane this checkout is: a linked worktree's directory name, or None for the primary checkout."""
+    result = subprocess.run(
+        ["git", "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir", "--show-toplevel"],
+        cwd=str(ROOT), universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    if result.returncode != 0:
+        return None
+    git_dir, common_dir, top = result.stdout.split("\n")[:3]
+    return None if git_dir == common_dir else Path(top).name
+
+
+def register_lane_simulator(udid, lane, name):
+    """Record a lane's simulator where scripts/stop-mobile.sh looks for them (see scripts/lane-sim-udid.sh)."""
+    common = sh(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                stdout=subprocess.PIPE, check=True).stdout.strip()
+    with open(os.path.join(common, "monaco-lane-sims.tsv"), "a") as registry:
+        registry.write("%s\t%s\t%s\n" % (udid, lane, name))
+
+
+def journey_simulator_name(actor):
+    """Actor simulators are per lane, so journeys in two worktrees never share one."""
+    lane = lane_name()
+    return "Monaco Journeys %s %s" % (lane, actor) if lane else "Monaco Journeys %s" % actor
+
+
 def resolve_simulators(journey, mapping):
     sims = dict(mapping)
     missing = [actor for actor in journey.actors if actor not in sims]
@@ -443,12 +468,15 @@ def resolve_simulators(journey, mapping):
         devices = simulator_devices()
         device_type, runtime = simulator_template(devices)
         for actor in missing:
-            name = "Monaco Journeys %s" % actor
+            name = journey_simulator_name(actor)
             sims[actor] = named_simulator(devices, name)
             if not sims[actor]:
                 sims[actor] = sh(["xcrun", "simctl", "create", name, device_type, runtime],
                                  stdout=subprocess.PIPE, check=True).stdout.strip()
                 print("created simulator %s" % name)
+                lane = lane_name()
+                if lane:
+                    register_lane_simulator(sims[actor], lane, name)
     if len(set(sims.values())) != len(sims):
         raise JourneyError("two actors share one simulator: %s" % sims)
     return sims
@@ -893,7 +921,7 @@ def main(argv=None):
         sub.set_defaults(run=handler)
         sub.add_argument("journey", help="journey id, such as auth/sign-in")
         sub.add_argument("--sim", action="append", default=[], metavar="ACTOR=UDID",
-                         help="the simulator an actor uses; defaults to Monaco Journeys <actor>")
+                         help="the simulator an actor uses; defaults to Monaco Journeys [<lane>] <actor>")
         sub.add_argument("--channel", choices=("sms", "email"), default="sms")
         if name == "run":
             sub.add_argument("--scenario", action="append", metavar="S1", help="default: every scenario")
