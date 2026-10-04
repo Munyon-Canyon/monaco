@@ -29,11 +29,15 @@ struct FundCabalFormTests {
     }
 
     @Test func anAmountOverTheBalanceCannotBeSent() {
-        #expect(FundCabalForm(amountText: "248.50", balance: Fixture.balance(248_500_000)).canSubmit)
-        #expect(!FundCabalForm(amountText: "248.51", balance: Fixture.balance(248_500_000)).canSubmit)
-        #expect(!FundCabalForm(amountText: "", balance: Fixture.balance(248_500_000)).canSubmit)
-        #expect(!FundCabalForm(amountText: "10", balance: Fixture.balance(0)).canSubmit)
-        #expect(!FundCabalForm(amountText: "10", balance: nil).canSubmit)
+        #expect(FundCabalForm(amountText: "248.50", balance: Fixture.balance(248_500_000)).problem == nil)
+        #expect(
+            FundCabalForm(amountText: "248.51", balance: Fixture.balance(248_500_000)).problem
+                == "Not enough in your account balance.")
+        #expect(FundCabalForm(amountText: "", balance: Fixture.balance(248_500_000)).problem == nil)
+        #expect(
+            FundCabalForm(amountText: "10", balance: Fixture.balance(0, pending: 300_000_000)).problem
+                == "Not enough in your account balance.")
+        #expect(FundCabalForm(amountText: "10", balance: nil).problem == nil)
     }
 
     /// The helper under the figure says what there is to fund with, and what is already on
@@ -43,13 +47,16 @@ struct FundCabalFormTests {
             FundCabalForm(amountText: "", balance: Fixture.balance(248_500_000)).availability == "$248.50 available")
         #expect(
             FundCabalForm(amountText: "", balance: Fixture.balance(198_500_000, pending: 50_000_000)).availability
-                == "$198.50 available · $50.00 funding a cabal"
+                == "$198.50 available · $50.00 funding"
+        )
+        #expect(
+            FundCabalForm(amountText: "", balance: Fixture.balance(1_000_000_000, pending: 300_000_000)).availability
+                == "$1,000.00 available · $300.00 funding"
         )
         #expect(FundCabalForm(amountText: "", balance: nil).availability == nil)
     }
 
-    /// With a cabal to pick, the picker sits under the pad, so the line under the figure is
-    /// what says where the money goes while the member types.
+    /// The line under the pad names the cabal once its name has loaded.
     @Test func theNoteNamesTheCabalWhenThereIsAChoice() {
         #expect(
             FundCabalForm.note(into: nil)
@@ -72,26 +79,26 @@ struct FundCabalFormTests {
 @MainActor
 struct FundCabalStageTests {
     @Test func aFirstLoadIsLoadingOrItsFailure() {
-        #expect(FundCabalStage.resolve(state: .loading, hasCabals: true) == .loading)
-        #expect(
-            FundCabalStage.resolve(state: .failed(.transport(URLError(.notConnectedToInternet))), hasCabals: true)
-                == .failed("You're offline. Try again."))
-    }
-
-    @Test func noCabalWinsOverAnyBalance() {
-        #expect(FundCabalStage.resolve(state: .loaded(Fixture.balance(248_500_000)), hasCabals: false) == .noCabals)
+        #expect(FundCabalStage.resolve(state: .loading) == .loading)
+        #expect(FundCabalStage.resolve(state: .failed(.transport(URLError(.notConnectedToInternet)))) == .failed)
     }
 
     @Test func anEmptyBalanceAsksForMoneyFirst() {
-        let empty = Fixture.balance(0)
-        #expect(FundCabalStage.resolve(state: .loaded(empty), hasCabals: true) == .needsMoney(empty))
-        #expect(!FundCabalStage.needsMoney(empty).showsAmountEntry)
+        #expect(FundCabalStage.resolve(state: .loaded(Fixture.balance(0))) == .needsMoney)
+        #expect(!FundCabalStage.needsMoney.showsAmountEntry)
     }
 
     @Test func aBalanceShowsTheAmountPad() {
         let funded = Fixture.balance(248_500_000)
-        let stage = FundCabalStage.resolve(state: .loaded(funded), hasCabals: true)
+        let stage = FundCabalStage.resolve(state: .loaded(funded))
         #expect(stage == .amount(funded))
+        #expect(stage.showsAmountEntry)
+    }
+
+    @Test func moneyInFlightStillShowsTheAmountPad() {
+        let funding = Fixture.balance(0, pending: 300_000_000)
+        let stage = FundCabalStage.resolve(state: .loaded(funding))
+        #expect(stage == .amount(funding))
         #expect(stage.showsAmountEntry)
     }
 }
@@ -218,6 +225,8 @@ struct MoneyFlowCopyTests {
                 DepositAddressCard.networkNote,
                 FundCabalForm.note(into: nil),
                 FundCabalForm.note(into: "Weekend investors"),
+                FundCabalForm.overBalance,
+                FundCabalForm.comingSoon,
                 WithdrawForm.caveat,
                 PlatformBalanceCard.pendingLine(micros: 50_000_000) ?? "",
             ]

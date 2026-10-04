@@ -159,7 +159,7 @@ money-add                     -MonacoMoneyFlowSample addMoney
 money-add-loading             -MonacoMoneyFlowSample addMoneyLoading
 money-add-failed              -MonacoMoneyFlowSample addMoneyFailed
 money-fund                    -MonacoMoneyFlowSample fundCabal
-money-fund-picker             -MonacoMoneyFlowSample fundCabalPicker
+money-fund-funding            -MonacoMoneyFlowSample fundCabalFunding
 money-fund-empty              -MonacoMoneyFlowSample fundCabalEmpty
 money-fund-loading            -MonacoMoneyFlowSample fundCabalLoading
 money-withdraw                -MonacoMoneyFlowSample withdraw

@@ -1,115 +1,49 @@
 import MonacoAPI
+import MonacoCabal
 import MonacoCore
 import SwiftUI
-import UIKit
 
-/// Fund this cabal: move account balance into a joined cabal's pot.
+/// Fund this cabal: move account balance into one cabal's pot.
 ///
-/// Owns the balance, the submission and its idempotency key, and the toasts. `FundCabalContent`
-/// is the layout.
+/// Owns the balance, the cabal's name and the reload toast. `FundCabalContent` is the layout.
 struct FundCabalView: View {
-    @ObservedObject var auth: PrivyAuthService
-    let joinedCabals: [HomeGroupBoardRowDTO]
-    var preselectedGroupId: String?
-    var onFunded: () async -> Void = {}
-
-    private let apiClient = MonacoAPIClient()
+    let cabalID: String
 
     @Environment(AppEnvironment.self) private var environment
     @State private var balanceSource: BalanceSource?
-    @State private var selectedGroupId: String?
+    @State private var cabal: CabalActionsModel?
     @State private var amountText = ""
-    @State private var isSubmitting = false
-    /// Idempotency key for the fund request in flight; a retry after a lost response reuses it.
-    @State private var fundSubmission = IdempotentSubmission()
     @State private var toast: MonacoToast?
-
-    private var isSingleCabalContext: Bool {
-        preselectedGroupId != nil
-    }
-
-    private var selectedCabalName: String? {
-        joinedCabals.first(where: { $0.groupId == selectedGroupId })?.name
-    }
-
-    private var balance: AccountBalance? {
-        balanceSource?.balance
-    }
 
     var body: some View {
         FundCabalContent(
             state: balanceSource?.state ?? .loading,
-            joinedCabals: joinedCabals,
-            isSingleCabalContext: isSingleCabalContext,
-            selectedGroupId: $selectedGroupId,
+            cabalName: cabal?.cabalName,
             amountText: $amountText,
-            isSubmitting: isSubmitting,
-            onSubmit: { Task { await submitFund() } },
             onRetry: { Task { await balanceSource?.load() } },
-            onCopyAddress: copyAddress
+            onAddMoney: {
+                environment.navigator.open(DepositRoute(cabalID: cabalID), in: environment.navigator.selectedTab)
+            }
         )
         .monacoToast($toast, bottomInset: 72)
+        .onChange(of: balanceSource?.failureTick) { _, _ in
+            guard balanceSource?.balance != nil, let error = balanceSource?.lastError else { return }
+            toast = MonacoToast(message: BalanceSource.message(for: error))
+        }
         .task {
-            if selectedGroupId == nil {
-                selectedGroupId = preselectedGroupId ?? joinedCabals.first?.groupId
-            }
-            let source = preparedBalanceSource()
+            let cabal =
+                self.cabal ?? CabalActionsModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
+            self.cabal = cabal
+            await cabal.load()
+        }
+        .task {
+            let source = balanceSource ?? BalanceSource(api: environment.api, hints: environment.hints)
+            balanceSource = source
             await source.load()
             await source.observe()
         }
         .onScreenVisibilityChange { visible in
             balanceSource?.setVisible(visible)
-        }
-    }
-
-    private func preparedBalanceSource() -> BalanceSource {
-        if let balanceSource { return balanceSource }
-        let created = BalanceSource(api: environment.api, hints: environment.hints)
-        balanceSource = created
-        return created
-    }
-
-    private func copyAddress(_ address: String) {
-        UIPasteboard.general.string = address
-        toast = MonacoToast(message: "Address copied.", isSuccess: true)
-    }
-
-    private func submitFund() async {
-        // The disabled state only lands on the next render; a second tap in the same frame
-        // must not fund the pot twice.
-        guard !isSubmitting else { return }
-        guard let token = auth.accessToken else { return }
-        guard let groupId = selectedGroupId else { return }
-        guard let value = AmountEntryText.decimal(amountText), value > 0,
-            let micros = AmountEntryText.micros(amountText)
-        else {
-            toast = MonacoToast(message: "Enter a valid amount.", isSuccess: false)
-            return
-        }
-        if let available = balance?.availableMicros, micros > available {
-            toast = MonacoToast(message: "More than you have. Try a smaller amount.", isSuccess: false)
-            return
-        }
-
-        isSubmitting = true
-        defer { isSubmitting = false }
-
-        let fundedAmountLabel = AmountEntryText.display(amountText)
-        do {
-            _ = try await apiClient.fundGroup(
-                accessToken: token, groupId: groupId, amount: micros, submission: fundSubmission)
-            Haptics.success()
-            let name = selectedCabalName ?? "your cabal"
-            toast = MonacoToast(message: "Adding \(fundedAmountLabel) to \(name)…", isSuccess: true)
-            amountText = ""
-            // A reload here leaves the amount pad and the button exactly where they are: the
-            // loader keeps the balance on screen while it refreshes.
-            await balanceSource?.load()
-            await onFunded()
-        } catch {
-            if error.isRequestCancellation { return }
-            toast = MonacoToast(
-                message: MoneyFlowCopy.fundCabalFailure(FlowErrorInput(error)).summary, isSuccess: false)
         }
     }
 }
@@ -119,22 +53,20 @@ struct FundCabalView: View {
 enum FundCabalStage: Equatable {
     /// Nothing to show yet: the first balance read is still running.
     case loading
-    /// The first read failed. Carries what to tell the member.
-    case failed(String)
-    case noCabals
-    /// A balance with nothing in it: the member has to add money before they can fund.
-    case needsMoney(AccountBalance)
+    /// The first read failed, so there is nothing to keep on screen.
+    case failed
+    /// Nothing available and nothing on its way: the member has to add money first.
+    case needsMoney
     case amount(AccountBalance)
 
-    static func resolve(state: LoadState<AccountBalance>, hasCabals: Bool) -> FundCabalStage {
+    static func resolve(state: LoadState<AccountBalance>) -> FundCabalStage {
         switch state {
         case .idle, .loading:
             return .loading
-        case .failed(let error):
-            return .failed(ToastCopy.message(for: error))
+        case .failed:
+            return .failed
         case .loaded(let balance):
-            if !hasCabals { return .noCabals }
-            if balance.availableMicros <= 0 { return .needsMoney(balance) }
+            if balance.availableMicros == 0 && balance.inFlightMicros == 0 { return .needsMoney }
             return .amount(balance)
         }
     }
@@ -147,14 +79,16 @@ enum FundCabalStage: Equatable {
 
 /// What Fund this cabal says and allows for the amount typed against the balance it has.
 struct FundCabalForm: Equatable {
+    static let overBalance = "Not enough in your account balance."
+
     let amountText: String
     let availableMicros: Int64?
-    let pendingAllocationMicros: Int64
+    let inFlightMicros: Int64
 
     init(amountText: String, balance: AccountBalance?) {
         self.amountText = amountText
         availableMicros = balance?.availableMicros
-        pendingAllocationMicros = balance?.inFlightMicros ?? 0
+        inFlightMicros = balance?.inFlightMicros ?? 0
     }
 
     /// The most the pad takes: the whole balance. Nil while there is nothing to fund with.
@@ -169,23 +103,23 @@ struct FundCabalForm: Equatable {
         return "Add \(AmountEntryText.display(amountText)) to the pot"
     }
 
-    var canSubmit: Bool {
-        guard let value = AmountEntryText.decimal(amountText), value > 0 else { return false }
-        if let maxDollars { return value <= maxDollars }
-        return false
-    }
-
     /// The line under the figure: what there is to fund with, and what is already on its way.
     var availability: String? {
         guard let availableMicros else { return nil }
         let available = "\(UsdAmountFormatter.format(micros: availableMicros)) available"
-        guard let pending = PlatformBalanceCard.pendingLine(micros: pendingAllocationMicros) else { return available }
-        return "\(available) · \(pending)"
+        guard inFlightMicros > 0 else { return available }
+        return "\(available) · \(UsdAmountFormatter.format(micros: inFlightMicros)) funding"
+    }
+
+    /// Replaces the helper, in red, while the amount typed is more than the balance holds.
+    var problem: String? {
+        guard let availableMicros, let micros = AmountEntryText.micros(amountText), micros > availableMicros else {
+            return nil
+        }
+        return Self.overBalance
     }
 
     /// What funding does, under the pad. Cash out's says the same thing the other way round.
-    /// With a cabal to pick, it names the one picked: the picker sits below the pad, and this is
-    /// the line still on screen while the member types.
     static func note(into cabalName: String?) -> String {
         guard let cabalName, !cabalName.isEmpty else {
             return "The money leaves your account balance and joins the pot. Your slice grows by the same amount."
@@ -193,26 +127,26 @@ struct FundCabalForm: Equatable {
         return
             "The money leaves your account balance and joins the \(cabalName) pot. Your slice grows by the same amount."
     }
+
+    static let treasuryNote =
+        "To add money to this cabal, use Fund. Sending USDC straight to the treasury will be returned and pauses the cabal's trading."
+
+    static let comingSoon = "Funding opens soon."
 }
 
-/// Fund this cabal's layout: the amount as the hero, the balance it comes out of, the cabals to
-/// choose from when there is more than one, and a button that reads the amount.
+/// Fund this cabal's layout: the amount as the hero, the balance it comes out of, and a button
+/// that reads the amount.
 ///
 /// Pure: what the screen knows comes in, what the member does goes out.
 struct FundCabalContent: View {
     let state: LoadState<AccountBalance>
-    let joinedCabals: [HomeGroupBoardRowDTO]
-    /// Opened from one cabal's screen: no picker, and the title says "this cabal".
-    let isSingleCabalContext: Bool
-    @Binding var selectedGroupId: String?
+    let cabalName: String?
     @Binding var amountText: String
-    let isSubmitting: Bool
-    let onSubmit: () -> Void
     let onRetry: () -> Void
-    let onCopyAddress: (String) -> Void
+    let onAddMoney: () -> Void
 
     private var stage: FundCabalStage {
-        .resolve(state: state, hasCabals: !joinedCabals.isEmpty)
+        .resolve(state: state)
     }
 
     private var form: FundCabalForm {
@@ -222,43 +156,31 @@ struct FundCabalContent: View {
         return FundCabalForm(amountText: amountText, balance: nil)
     }
 
-    private var showsPicker: Bool {
-        !isSingleCabalContext && !joinedCabals.isEmpty
-    }
-
-    private var selectedCabalName: String? {
-        joinedCabals.first(where: { $0.groupId == selectedGroupId })?.name
-    }
-
     var body: some View {
         ScrollView {
-            // No horizontal padding on the stack: the picker's rules run edge to edge, and the
-            // amount insets itself. The amount comes first even when there is a cabal to pick:
-            // the pad rises on arrival, and a picker above it pushed the chips and the helper
-            // under the keyboard. The note under the pad names the cabal instead, so the
-            // destination is on screen while the member types.
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
-                stageContent
-                if showsPicker, stage.showsAmountEntry {
-                    cabalPicker
-                }
-            }
-            // The figure starts where Cash out's does, so the two read as one pair.
-            .padding(.top, MonacoTheme.Space.xl)
-            .padding(.bottom, MonacoTheme.Space.xl)
+            stageContent
+                // The figure starts where Cash out's does, so the two read as one pair.
+                .padding(.top, MonacoTheme.Space.xl)
+                .padding(.bottom, MonacoTheme.Space.xl)
         }
         .monacoCanvas()
         .safeAreaInset(edge: .bottom) {
             if stage.showsAmountEntry {
                 BottomCTA {
-                    Button(isSubmitting ? "Adding money…" : form.ctaTitle, action: onSubmit)
-                        .buttonStyle(.monacoPrimary)
-                        .disabled(isSubmitting || selectedGroupId == nil || !form.canSubmit)
-                        .accessibilityIdentifier("fund-cabal-submit-button")
+                    VStack(spacing: MonacoTheme.Space.s) {
+                        Text(FundCabalForm.comingSoon)
+                            .font(MonacoTheme.Typo.caption)
+                            .foregroundStyle(MonacoTheme.muted)
+                        Button(form.ctaTitle) {}
+                            .buttonStyle(.monacoPrimary)
+                            .disabled(true)
+                    }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("fund-submit-coming")
                 }
             }
         }
-        .navigationTitle(isSingleCabalContext ? "Fund this cabal" : "Fund a cabal")
+        .navigationTitle("Fund this cabal")
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("fund-cabal-view")
     }
@@ -270,68 +192,21 @@ struct FundCabalContent: View {
             AmountEntrySkeleton()
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 .accessibilityIdentifier("fund-cabal-loading")
-        case .failed(let message):
+        case .failed:
+            EmptyState(title: "Couldn't load your balance.", actionTitle: "Try again", action: onRetry)
+                .accessibilityIdentifier("fund-cabal-balance-error")
+        case .needsMoney:
             EmptyState(
-                title: "Balance unavailable",
-                message: message,
-                actionTitle: "Try again",
-                action: onRetry
+                title: "Add money first",
+                message: "Send USDC on Solana to your deposit address, then fund this cabal.",
+                actionTitle: "Add money",
+                action: onAddMoney
             )
-            .accessibilityIdentifier("fund-cabal-balance-error")
-        case .noCabals:
-            EmptyState(
-                title: "No cabal to fund",
-                message: "Join a cabal first, then fund it from your account balance."
-            )
-        case .needsMoney(let balance):
-            needsMoney(balance)
+            .accessibilityIdentifier("fund-cabal-needs-money")
         case .amount:
             amountEntry
         }
     }
-
-    // MARK: - Picker
-
-    /// Each joined cabal as a row, the chosen one ticked. The pot is on the row so the member
-    /// can tell two cabals with similar names apart by what is in them.
-    private var cabalPicker: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            MonacoSectionHeader("Pick a cabal")
-                .padding(.horizontal, MonacoTheme.Space.m)
-
-            MonacoGroupedList {
-                ForEach(joinedCabals) { cabal in
-                    let isSelected = cabal.groupId == selectedGroupId
-                    Button {
-                        guard !isSelected else { return }
-                        Haptics.selection()
-                        selectedGroupId = cabal.groupId
-                    } label: {
-                        MonacoRow(
-                            title: cabal.name,
-                            subtitle: CabalPositionRowFigures.potSubtitle(potValueUsd: cabal.potValueUsd),
-                            isLast: cabal.groupId == joinedCabals.last?.groupId
-                        ) {
-                            CabalMark(groupId: cabal.groupId, name: cabal.name, pictureUrl: cabal.pictureUrl)
-                        } trailing: {
-                            Image(systemName: "checkmark")
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(MonacoTheme.brand)
-                                .opacity(isSelected ? 1 : 0)
-                                .accessibilityHidden(true)
-                        }
-                    }
-                    .buttonStyle(.monacoRow)
-                    .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-                    .accessibilityIdentifier("fund-cabal-picker-\(cabal.groupId)")
-                }
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("fund-cabal-picker")
-    }
-
-    // MARK: - Amount
 
     private var amountEntry: some View {
         VStack(spacing: MonacoTheme.Space.l) {
@@ -340,41 +215,17 @@ struct FundCabalContent: View {
                 max: form.maxDollars,
                 presets: [.dollars(25), .dollars(50), .dollars(100), .fraction(1, label: "Max")],
                 helper: form.availability,
+                problem: form.problem,
                 showsKeyboardDoneButton: true
             )
-            AmountEntryNote(FundCabalForm.note(into: showsPicker ? selectedCabalName : nil))
+            AmountEntryNote(FundCabalForm.note(into: cabalName))
+            Text(FundCabalForm.treasuryNote)
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.muted)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("fund-cabal-treasury-note")
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
-    }
-
-    // MARK: - Nothing to fund with
-
-    /// The balance at zero, and the address that fills it — the same card Add money leads with.
-    private func needsMoney(_ balance: AccountBalance) -> some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
-            MonacoGroupedList {
-                PlatformBalanceCard(state: .loaded(balance))
-            }
-
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                MonacoSectionHeader("Add money first")
-                Text(
-                    "Send USDC on Solana to your deposit address. Your account balance updates when it arrives, then you can fund \(isSingleCabalContext ? "this cabal" : "a cabal")."
-                )
-                .font(MonacoTheme.Typo.callout)
-                .foregroundStyle(MonacoTheme.muted)
-                .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.horizontal, MonacoTheme.Space.m)
-
-            DepositAddressCard(
-                content: DepositAddress.usable(balance.depositAddress).map(DepositAddressCard.Content.ready)
-                    ?? .unavailable("Deposit address not ready yet."),
-                addressIdentifier: "fund-cabal-deposit-address",
-                copyIdentifier: "fund-cabal-copy-deposit-address",
-                onCopy: onCopyAddress
-            )
-            .padding(.horizontal, MonacoTheme.Space.m)
-        }
     }
 }
