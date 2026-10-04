@@ -95,16 +95,11 @@ public final class CabalAccessModel {
     }
 
     public func observe() async {
-        let streams = [
+        await refresher.observe([
             hints.hints(matching: .cabal(id: cabalID, what: "access_requests")),
             hints.hints(matching: .cabal(id: cabalID, what: "members")),
             hints.hints(matching: .user(what: "cabal_access")),
-        ]
-        await withTaskGroup(of: Void.self) { group in
-            for stream in streams {
-                group.addTask { await self.refresher.observe(stream) }
-            }
-        }
+        ])
     }
 
     public func setVisible(_ visible: Bool) {
