@@ -361,7 +361,6 @@ nonisolated final class MonacoUITests: XCTestCase {
         XCTAssertTrue(fundAction.waitForExistence(timeout: 10))
         app.scrollToElement(fundAction)
         XCTAssertTrue(fundAction.isHittable)
-        XCTAssertTrue(app.buttons["group-action-sell"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["deposit-usdc-link"].exists)
 
         fundAction.tap()

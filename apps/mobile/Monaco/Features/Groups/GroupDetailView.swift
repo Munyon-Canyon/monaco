@@ -4,13 +4,6 @@ import SwiftUI
 
 /// Screens pushed from the group screen's action row and section headers.
 enum GroupDetailRoute: Hashable {
-    /// Cash out, carrying the slice as it stood when the member tapped.
-    ///
-    /// The figure travels in the route rather than being read live from the cabal, because
-    /// cashing everything out turns the slice to nothing: a screen reading it live rewrites
-    /// itself as "Nothing to cash out yet" at the very moment it succeeds, a blink before it
-    /// dismisses.
-    case cashOut(shareUnits: Int64, equityUsd: String)
     case chat
     case proposals
     case activity
@@ -249,15 +242,6 @@ struct GroupDetailView: View {
     @ViewBuilder
     private func destination(for route: GroupDetailRoute) -> some View {
         switch route {
-        case .cashOut(let shareUnits, let equityUsd):
-            SellCabalView(
-                auth: auth,
-                groupId: groupId,
-                maxShareUnits: shareUnits,
-                equityUsd: equityUsd,
-                onSold: { await refreshQuietly() },
-                onToast: { toast = $0 }
-            )
         case .chat:
             GroupChatView(auth: auth, groupId: groupId, groupName: displayName)
         case .proposals:
@@ -474,7 +458,7 @@ struct GroupDetailContent: View {
                         pictureEditor: pictureEditor,
                         onPictureResult: onToast
                     )
-                    GroupActionRow(slice: view.you, onRoute: onRoute, onPropose: onPropose)
+                    GroupActionRow(onRoute: onRoute, onPropose: onPropose)
                         .padding(.horizontal, MonacoTheme.Space.m)
                 }
 
@@ -523,19 +507,14 @@ struct GroupDetailContent: View {
     }
 }
 
-/// Propose · Cash out · Chat, directly under the hero.
+/// Propose · Chat, directly under the hero.
 struct GroupActionRow: View {
-    /// The member's slice, read here so Cash out is pushed with the figures that were on screen.
-    let slice: MemberSliceDTO
     let onRoute: (GroupDetailRoute) -> Void
     let onPropose: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             action("Propose", systemImage: "arrow.up.right", id: "group-action-propose", perform: onPropose)
-            action("Cash out", systemImage: "arrow.down.left", id: "group-action-sell") {
-                onRoute(.cashOut(shareUnits: Int64(slice.shareUnits) ?? 0, equityUsd: slice.equityUsd))
-            }
             action("Chat", systemImage: "bubble.left", id: "group-action-chat") { onRoute(.chat) }
         }
     }
