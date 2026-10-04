@@ -358,6 +358,20 @@ func EventuallyPublished(typ events.Type, n uint64) Step {
 	}
 }
 
+func Eventually(what string, done func(*Scenario) bool) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		await(s.t, what, func() (bool, <-chan struct{}) {
+			if done(s) {
+				return true, nil
+			}
+			changed := make(chan struct{})
+			time.AfterFunc(publishPoll, func() { close(changed) })
+			return false, changed
+		})
+	}
+}
+
 func SeededUser(name, status string) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
