@@ -477,43 +477,6 @@ paths:
               example: [{id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, role: creator, can_vote: true, member_count: 3, joined_at: "2026-10-02T15:00:00Z", pending_request_count: 1}]
         default:
           $ref: "#/components/responses/Problem"
-  /v1/proposals/{id}/votes:
-    post:
-      operationId: postProposalVote
-      tags: [governance]
-      x-idempotent: true
-      summary: Cast or change the caller's ballot on an open proposal.
-      description: >-
-        Stores the caller's ballot and tallies it against the proposal's frozen voter set and the
-        cabal's threshold rule. A deciding ballot moves the proposal to `passed` or `failed` in the
-        same transaction. Execution of a passed proposal is asynchronous, so the client sees
-        `executed` or `execution_blocked` later. A replay with the same Idempotency-Key returns the
-        first response.
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: The proposal id.
-          schema:
-            type: string
-            format: uuid
-        - $ref: "#/components/parameters/IdempotencyKey"
-      requestBody:
-        description: The caller's choice.
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CastVoteRequest"
-      responses:
-        "200":
-          description: The ballot was stored. `status` is the proposal's status after the tally.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/VoteResult"
-        default:
-          $ref: "#/components/responses/Problem"
 components:
   schemas:
     CreateCabalRequest:
@@ -727,64 +690,3 @@ components:
         id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
         direction: {type: string, description: "`request` or `invite`.", examples: [request]}
         status: {type: string, examples: [pending]}
-    BallotChoice:
-      type: string
-      description: A voter's choice on a proposal.
-      enum: ["yes", "no"]
-      examples: ["yes"]
-    CastVoteRequest:
-      type: object
-      description: The ballot to cast.
-      additionalProperties: false
-      required: [choice]
-      properties:
-        choice:
-          $ref: "#/components/schemas/BallotChoice"
-    ProposalStatus:
-      type: string
-      description: Where a proposal is in its lifecycle.
-      enum: [open, passed, failed, expired, withdrawn, voided, executed, execution_blocked]
-      examples: [open]
-    Tally:
-      type: object
-      description: The ballots counted against the proposal's frozen voter set.
-      additionalProperties: false
-      required: [yes, no, voters, needed]
-      properties:
-        "yes":
-          type: integer
-          minimum: 0
-          description: Ballots for the proposal.
-          examples: [2]
-        "no":
-          type: integer
-          minimum: 0
-          description: Ballots against the proposal.
-          examples: [1]
-        voters:
-          type: integer
-          minimum: 1
-          description: Members in the voter set frozen when the proposal opened.
-          examples: [3]
-        needed:
-          type: integer
-          minimum: 1
-          description: Yes ballots the cabal's threshold rule needs to pass the proposal.
-          examples: [2]
-    VoteResult:
-      type: object
-      description: The proposal after the caller's ballot.
-      additionalProperties: false
-      required: [proposal_id, status, tally, my_ballot]
-      properties:
-        proposal_id:
-          type: string
-          format: uuid
-          description: The proposal id.
-          examples: [01890a5d-ac96-774b-bcce-b302099a8057]
-        status:
-          $ref: "#/components/schemas/ProposalStatus"
-        tally:
-          $ref: "#/components/schemas/Tally"
-        my_ballot:
-          $ref: "#/components/schemas/BallotChoice"

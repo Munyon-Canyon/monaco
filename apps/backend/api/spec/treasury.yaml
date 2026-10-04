@@ -27,7 +27,7 @@ paths:
   /v1/cabals/{id}/activity:
     get:
       operationId: getCabalActivity
-      tags: [cabal]
+      tags: [treasury]
       summary: List a cabal's activity.
       description: >-
         Returns one page of the cabal's buys, sells, funds and cash outs, newest first, pending and failed

@@ -71,7 +71,7 @@ apps/backend/
 
 Flows live outside `apps/backend`, beside the app registry: `packages/flows/backend/<id>.tsv` holds one flow, its outcomes and its test status ([Flows](#flows)).
 
-A route ticket adds its paths and schemas to `api/spec/<module>.yaml`, and a new module starts with a stub there (`just gen module <name>` writes it). The `Touches` line of a route ticket names `apps/backend/api/spec/<module>.yaml`, which only that module's tickets own. `base.yaml` holds what more than one module uses, so a ticket that edits it names it. `monacoctl gen openapi` merges the files into `api/openapi.yaml`, which `[batch] shared` lists, because two tickets in different modules never edit the same spec file and any conflict in the bundle is settled by regenerating it. A path or schema defined in two spec files fails the bundler and names both.
+A route ticket adds its paths and schemas to `api/spec/<module>.yaml`, and a new module starts with a stub there (`just gen module <name>` writes it). The `Touches` line of a route ticket names `apps/backend/api/spec/<module>.yaml`, which only that module's tickets own. `base.yaml` holds what more than one module uses, so a ticket that edits it names it. `monacoctl gen openapi` merges the files into `api/openapi.yaml`, which `[batch] shared` lists, because two tickets in different modules never edit the same spec file and any conflict in the bundle is settled by regenerating it. The bundle groups paths and components by spec file, so lanes in different modules write different regions of it. A path or schema defined in two spec files fails the bundler and names both.
 
 Each module has the same four directories, and a `port` package when it exports a query port. Nothing else.
 
