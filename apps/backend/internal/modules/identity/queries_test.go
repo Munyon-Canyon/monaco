@@ -75,7 +75,7 @@ func (f portFixture) seed(t *testing.T, s portSeed) testkit.SeededUser {
 	}
 	if _, err := f.pool.Exec(t.Context(), `UPDATE users SET display_name = $2, photo_url = NULLIF($3::text, ''),
 		phone_hash = $4, phone_verified_at = $5, x_user_id = NULLIF($6::text, ''), first_deposit_at = $7,
-		created_at = $8, deleted_at = COALESCE(deleted_at, $9) WHERE id = $1`,
+		auth_state_changed_at = $8, created_at = $8, deleted_at = COALESCE(deleted_at, $9) WHERE id = $1`,
 		u.ID.UUID(), s.name, s.photo, s.phoneHash, verifiedAt, s.xUserID, s.firstDeposit, f.created(),
 		deletedAt); err != nil {
 		t.Fatalf("seed user: %v", err)
@@ -128,8 +128,11 @@ func portSameCard(t *testing.T, got, want identity.UserCard) {
 	}
 	gotDeposit, wantDeposit := deposit(got), deposit(want)
 	gotAt, wantAt := got.CreatedAt, want.CreatedAt
+	gotChanged, wantChanged := got.AuthStateChangedAt, want.AuthStateChangedAt
 	got.FirstDepositAt, want.FirstDepositAt, got.CreatedAt, want.CreatedAt = nil, nil, time.Time{}, time.Time{}
-	if got != want || gotDeposit != wantDeposit || !gotAt.Equal(wantAt) || gotAt.Location() != time.UTC {
+	got.AuthStateChangedAt, want.AuthStateChangedAt = time.Time{}, time.Time{}
+	if got != want || gotDeposit != wantDeposit || !gotAt.Equal(wantAt) || gotAt.Location() != time.UTC ||
+		!gotChanged.Equal(wantChanged) || gotChanged.Location() != time.UTC {
 		t.Fatalf("card = %+v created %s (%s) first deposit %s, want %+v created %s first deposit %s",
 			got, gotAt, gotAt.Location(), gotDeposit, want, wantAt, wantDeposit)
 	}
@@ -152,10 +155,11 @@ func TestQueries_usersByIDCarriesEveryFieldOfTheCard(t *testing.T) {
 	portSameCard(t, cards[full.ID], identity.UserCard{
 		ID: full.ID, Handle: "kaicenat", DisplayName: "Kai Cenat", PhotoURL: "https://img.example/kai.png",
 		AuthState: identity.AuthOnboardingCompleted, AccountStatus: identity.AccountSuspended, PhoneVerified: true,
-		XLinked: true, CreatedAt: f.created(), FirstDepositAt: &deposit,
+		XLinked: true, AuthStateChangedAt: f.created(), CreatedAt: f.created(), FirstDepositAt: &deposit,
 	})
 	portSameCard(t, cards[bare.ID], identity.UserCard{
-		ID: bare.ID, AuthState: identity.AuthCreated, AccountStatus: identity.AccountActive, CreatedAt: f.created(),
+		ID: bare.ID, AuthState: identity.AuthCreated, AccountStatus: identity.AccountActive,
+		AuthStateChangedAt: f.created(), CreatedAt: f.created(),
 	})
 }
 
