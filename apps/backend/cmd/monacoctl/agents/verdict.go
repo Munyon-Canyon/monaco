@@ -62,7 +62,7 @@ func postVerdict(ctx context.Context, env *Env, args []string, stdout io.Writer)
 	if err != nil {
 		return err
 	}
-	patch, err := env.stablePatch(ctx, pr.Base.Ref, in.pr)
+	patch, err := env.stablePatch(ctx, pr.Base, in.pr)
 	if err != nil {
 		return err
 	}
@@ -245,7 +245,7 @@ func carryCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 		_, _ = fmt.Fprintf(stdout, "#%d head unchanged\n", n)
 		return nil
 	}
-	id, err := env.stablePatch(ctx, pr.Base.Ref, n)
+	id, err := env.stablePatch(ctx, pr.Base, n)
 	if err != nil {
 		return err
 	}
@@ -289,22 +289,11 @@ func shortSHA(sha string) string {
 	return sha
 }
 
-func (env *Env) stablePatch(ctx context.Context, branch string, pr int) (id string, err error) {
+func (env *Env) stablePatch(ctx context.Context, base Ref, pr int) (id string, err error) {
 	prefix := fmt.Sprintf("refs/monaco/verdict/%d/%d/", pr, os.Getpid())
 	baseRef, headRef := prefix+"base", prefix+"pr"
 	defer func() { err = errors.Join(err, env.deleteVerdictRefs(ctx, baseRef, headRef)) }()
-	spec := fmt.Sprintf("+refs/pull/%d/head:%s", pr, headRef)
-	if _, err = env.Run(
-		ctx,
-		env.Work,
-		"",
-		"git",
-		"fetch",
-		"--no-tags",
-		"origin",
-		"+refs/heads/"+branch+":"+baseRef,
-		spec,
-	); err != nil {
+	if err = env.fetchVerdictRefs(ctx, base, pr, baseRef, headRef); err != nil {
 		return "", err
 	}
 	fork, err := env.Run(ctx, env.Work, "", "git", "merge-base", baseRef, headRef)
@@ -324,6 +313,31 @@ func (env *Env) stablePatch(ctx context.Context, branch string, pr int) (id stri
 		return "", detailErr(errs.CodeDecodeFailed, "monacoctl.agents.verdict", "patch-id returned nothing")
 	}
 	return fields[0], nil
+}
+
+func (env *Env) fetchVerdictRefs(ctx context.Context, base Ref, pr int, baseRef, headRef string) error {
+	fetch := func(baseSource string) error {
+		_, err := env.Run(
+			ctx,
+			env.Work,
+			"",
+			"git",
+			"fetch",
+			"--no-tags",
+			"origin",
+			"+"+baseSource+":"+baseRef,
+			fmt.Sprintf("+refs/pull/%d/head:%s", pr, headRef),
+		)
+		return err
+	}
+	byBranch := fetch("refs/heads/" + base.Ref)
+	if byBranch == nil {
+		return nil
+	}
+	if bySHA := fetch(base.SHA); bySHA != nil {
+		return errors.Join(byBranch, bySHA)
+	}
+	return nil
 }
 
 func (env *Env) deleteVerdictRefs(ctx context.Context, baseRef, headRef string) error {

@@ -306,7 +306,7 @@ func TestStablePatch_reportsEachGitFailure(t *testing.T) {
 		)
 		if _, err := env.stablePatch(
 			context.Background(),
-			"fb",
+			Ref{Ref: "fb"},
 			5,
 		); err == nil ||
 			!strings.Contains(err.Error(), step+" down") {
@@ -318,7 +318,7 @@ func TestStablePatch_reportsEachGitFailure(t *testing.T) {
 	env.Run = scripted(nil, map[string]string{"fetch": "", "merge-base": "a\n", "diff": "d\n", "patch-id": "\n"})
 	if _, err := env.stablePatch(
 		context.Background(),
-		"fb",
+		Ref{Ref: "fb"},
 		5,
 	); err == nil ||
 		!strings.Contains(cliText(err), "nothing") {
@@ -359,7 +359,7 @@ func TestStablePatch_eachConcurrentCallRecordsItsOwnPatchID(t *testing.T) {
 	g, ctx := errgroup.WithContext(t.Context())
 	for i := range calls {
 		g.Go(func() (err error) {
-			got[i], err = env.stablePatch(ctx, "fb", i+1)
+			got[i], err = env.stablePatch(ctx, Ref{Ref: "fb"}, i+1)
 			return err
 		})
 	}
@@ -379,7 +379,7 @@ func TestStablePatch_leavesNoVerdictRefsBehind(t *testing.T) {
 	git(t, remote, "update-ref", "refs/heads/fb", base)
 	git(t, remote, "update-ref", "refs/pull/5/head", head)
 	env := f.Env(t)
-	if id, err := env.stablePatch(t.Context(), "fb", 5); err != nil || id != patchID(t, remote, base, head) {
+	if id, err := env.stablePatch(t.Context(), Ref{Ref: "fb"}, 5); err != nil || id != patchID(t, remote, base, head) {
 		t.Fatalf("success: %q %v", id, err)
 	}
 	noVerdictRefs(t, f.dir)
@@ -387,7 +387,7 @@ func TestStablePatch_leavesNoVerdictRefsBehind(t *testing.T) {
 	env.Run = scripted(map[string]string{"merge-base": "merge-base down"}, nil)
 	if _, err := env.stablePatch(
 		t.Context(),
-		"fb",
+		Ref{Ref: "fb"},
 		5,
 	); err == nil ||
 		!strings.Contains(err.Error(), "merge-base down") {
@@ -401,10 +401,50 @@ func TestStablePatch_leavesNoVerdictRefsBehind(t *testing.T) {
 		cancel()
 		return nil
 	})
-	if _, err := env.stablePatch(ctx, "fb", 5); !errors.Is(err, context.Canceled) {
+	if _, err := env.stablePatch(ctx, Ref{Ref: "fb"}, 5); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancel: %v", err)
 	}
 	noVerdictRefs(t, f.dir)
+}
+
+func TestVerdict_postsTheSamePatchIDWithOrWithoutTheBaseBranch(t *testing.T) {
+	t.Parallel()
+	for name, deleted := range map[string]bool{"branch present": false, "branch deleted": true} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			remote := f.remote(t)
+			git(t, remote, "config", "uploadpack.allowReachableSHA1InWant", "true")
+			base, head, _ := commits(t, remote)
+			git(t, remote, "update-ref", "refs/heads/fb", base)
+			git(t, remote, "update-ref", "refs/pull/5/head", head)
+			if deleted {
+				git(t, remote, "update-ref", "-d", "refs/heads/fb")
+			}
+			f.owner(t, Record{Ticket: 40, Model: opus, State: Running})
+			pull := headed(5, head)
+			pull.Base.SHA = base
+			f.hub.on(get("/pulls/5"), pull)
+			f.hub.on(list("/pulls/5/files?"), []File{{Filename: "a.go", Additions: 1}})
+			status := "POST /repos/o/r/statuses/" + head
+			f.hub.on(status, "ok")
+			code, _, stderr := f.agents(
+				t, "verdict", "pass", "5", head, "--kind", "light", "--model", "sonnet", "--report", f.report(t, "ok"),
+			)
+			if code != 0 {
+				t.Fatalf("code=%d stderr=%q", code, stderr)
+			}
+			if posted := f.hub.callsContaining(status); len(posted) != 1 ||
+				!strings.Contains(f.hub.body(status), `"state":"success"`) {
+				t.Fatalf("status calls %v body %q", posted, f.hub.body(status))
+			}
+			recorded, err := f.Env(t).loadVerdict(5)
+			if err != nil || recorded.PatchID != patchID(t, remote, base, head) {
+				t.Fatalf("recorded %+v, %v", recorded, err)
+			}
+			noVerdictRefs(t, f.dir)
+		})
+	}
 }
 
 func TestVerdict_carryRepostsOrRefuses(t *testing.T) {
