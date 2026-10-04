@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/adminapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/cabalapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/fundingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/governanceapi"
@@ -22,6 +23,9 @@ import (
 
 func DecodeOnly(m api.Mount) {
 	decoded := func(context.Context, http.ResponseWriter, *http.Request, any) (any, error) { return nil, nil }
+	adminapi.Mount(struct {
+		adminapi.StrictServerInterface
+	}{}, m, func(adminapi.StrictHandlerFunc, string) adminapi.StrictHandlerFunc { return decoded })
 	cabalapi.Mount(struct {
 		cabalapi.StrictServerInterface
 	}{}, m, func(cabalapi.StrictHandlerFunc, string) cabalapi.StrictHandlerFunc { return decoded })
