@@ -22,20 +22,24 @@ const (
 
 var draftPRs = regexp.MustCompile(`\(PRs? ([\d, ]+)\)`)
 
+type runsState uint8
+
+const (
+	runsClean runsState = iota
+	runsPending
+	runsBroken
+)
+
 func (env *Env) cleanRuns(ctx context.Context, stack []stackPR, stdout io.Writer) error {
 	reran := map[int64]int{}
 	deadline := env.Now().Add(runsFor)
 	for {
-		pending := false
-		for _, p := range stack {
-			busy, err := env.cleanHeadRuns(ctx, p, reran, stdout)
-			if err != nil {
-				return err
-			}
-			pending = pending || busy
+		state, err := env.checkRuns(ctx, stack, reran, stdout)
+		if err != nil {
+			return err
 		}
 		switch {
-		case !pending:
+		case state == runsClean:
 			return nil
 		case !env.Now().Before(deadline):
 			return landErr(fmt.Sprintf(
@@ -47,6 +51,26 @@ func (env *Env) cleanRuns(ctx context.Context, stack []stackPR, stdout io.Writer
 		case <-env.After(runsEvery):
 		}
 	}
+}
+
+func (env *Env) checkRuns(
+	ctx context.Context,
+	stack []stackPR,
+	reran map[int64]int,
+	stdout io.Writer,
+) (runsState, error) {
+	pending := false
+	for _, p := range stack {
+		busy, err := env.cleanHeadRuns(ctx, p, reran, stdout)
+		if err != nil {
+			return runsBroken, err
+		}
+		pending = pending || busy
+	}
+	if pending {
+		return runsPending, nil
+	}
+	return runsClean, nil
 }
 
 func (env *Env) cleanHeadRuns(ctx context.Context, p stackPR, reran map[int64]int, stdout io.Writer) (bool, error) {

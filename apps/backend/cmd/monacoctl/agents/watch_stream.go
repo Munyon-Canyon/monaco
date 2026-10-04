@@ -49,12 +49,13 @@ type stream struct {
 	blocks   map[string]string
 	seenOpen map[int]bool
 	reported map[int]bool
+	reran    map[int64]int
 }
 
 func newStream(env *Env) *stream {
 	return &stream{
 		env: env, since: env.Now(), prev: map[string]bool{}, ejected: map[int]bool{}, blocks: map[string]string{},
-		seenOpen: map[int]bool{}, reported: map[int]bool{},
+		seenOpen: map[int]bool{}, reported: map[int]bool{}, reran: map[int64]int{},
 	}
 }
 
@@ -108,7 +109,7 @@ func (s *stream) round(ctx context.Context) ([]string, []string) {
 			queued = append(queued, r.Queued.PRs...)
 			items = append(items, s.stack(ctx, r, data.drafts)...)
 		case r.Armed != nil:
-			items = append(items, env.landArmed(ctx, r)...)
+			items = append(items, env.landArmed(ctx, r, s.reran)...)
 		}
 		if r.Settled != nil && r.Settled.At.After(s.since) {
 			items = append(items, r.Settled.Detail)

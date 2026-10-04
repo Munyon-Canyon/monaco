@@ -438,8 +438,7 @@ func TestWatchStream_landsAnArmedStackOnceStage1Passes(t *testing.T) {
 			*s.prs[2] = *green(t, 2, "b2", "b1")
 		}
 	})
-	want := "armed stack #2 landing\nqueued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" +
-		"queued together: #1 #2\n" + waiting12
+	want := "armed stack #2 landing\nqueued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" + waiting12
 	if got != want {
 		t.Fatalf("stream\n got %q\nwant %q", got, want)
 	}
@@ -450,6 +449,74 @@ func TestWatchStream_landsAnArmedStackOnceStage1Passes(t *testing.T) {
 	}
 	if r := f.owned(t); r.Armed != nil || r.Queued == nil || !slices.Equal(r.Queued.PRs, []int{1, 2}) ||
 		r.Queued.At.IsZero() {
+		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
+	}
+}
+
+func TestWatchStream_leavesAnArmedStackPendingWithoutWaitingForRuns(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := armedWatch(t, f)
+	*s.prs[2] = *green(t, 2, "b2", "b1")
+	setRuns(f, "b2-oid", Run{ID: 7, WorkflowID: 1, Name: "ci", Status: "in_progress", Attempt: 1})
+	_ = streamRounds(t, f, 2, func(int) {})
+	if slices.Contains(f.waited, runsEvery) || slices.Contains(f.waited, draftEvery) {
+		t.Fatalf("watch pass waited %v", f.waited)
+	}
+	if r := f.owned(t); r.Armed == nil || r.Queued != nil {
+		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
+	}
+}
+
+func TestWatchStream_rerunsABrokenRunOnlyOnceAcrossPasses(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := armedWatch(t, f)
+	*s.prs[2] = *green(t, 2, "b2", "b1")
+	setRuns(f, "b2-oid", Run{ID: 7, WorkflowID: 1, Name: "ci", Status: "completed", Conclusion: "failure", Attempt: 1})
+	setRun7Jobs(f, "ci / ci-ok")
+	f.hub.on(rerunRoute(7), "{}")
+	_ = streamRounds(t, f, 3, func(int) {})
+	if calls := f.hub.callsContaining(rerunRoute(7)); len(calls) != 1 {
+		t.Fatalf("reruns %v", calls)
+	}
+}
+
+func TestWatchStream_disarmsAnArmedStackWhenARerunFailsAgain(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	stack := armedWatch(t, f)
+	*stack.prs[2] = *green(t, 2, "b2", "b1")
+	setRuns(f, "b2-oid", Run{
+		ID: 7, WorkflowID: 1, Name: "ci", Status: "completed", Conclusion: "failure", Attempt: 2,
+	})
+	got := f.Env(t).landArmed(t.Context(), f.owned(t), map[int64]int{7: 1})
+	lines := strings.Join(got, "\n")
+	if !strings.Contains(lines, "armed stack #2 disarmed: #2: run \"ci\" ended failure again after a rerun") {
+		t.Fatalf("lines\n%s", got)
+	}
+	if r := f.owned(t); r.Armed != nil || r.Queued != nil {
+		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
+	}
+}
+
+func TestWatchStream_queuesAnArmedStackOnTheFirstPassAfterRunsAreClean(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := armedWatch(t, f)
+	*s.prs[2] = *green(t, 2, "b2", "b1")
+	setRuns(f, "b2-oid", Run{ID: 7, WorkflowID: 1, Name: "ci", Status: "in_progress", Attempt: 1})
+	got := streamRounds(t, f, 3, func(round int) {
+		if round == 1 {
+			setRuns(f, "b2-oid", Run{
+				ID: 7, WorkflowID: 1, Name: "ci", Status: "completed", Conclusion: "success", Attempt: 1,
+			})
+		}
+	})
+	if !strings.HasPrefix(got, "armed stack #2 landing\nqueued #1 #2\n") {
+		t.Fatalf("stream\n%s", got)
+	}
+	if r := f.owned(t); r.Armed != nil || r.Queued == nil {
 		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
 	}
 }
