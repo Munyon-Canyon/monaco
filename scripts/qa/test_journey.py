@@ -439,7 +439,7 @@ class Runner(Tree):
 
         def stub(args, **kwargs):
             if args[0].endswith("setup.sh"):
-                calls.append(("setup", args[1], kwargs["env"]["MONACO_QA_RUN"]))
+                calls.append(("setup", args[1], kwargs["env"]["MONACO_QA_RUN"], kwargs["env"]["MONACO_QA_HANDOFF"]))
                 return type("Result", (), {"returncode": 0})()
             calls.append(("test", [a for a in args if a.startswith("-only-testing")]))
             return type("Result", (), {"stdout": ""})()
@@ -452,9 +452,9 @@ class Runner(Tree):
             journey.sh = saved_sh
 
         self.assertEqual(calls, [
-            ("setup", "S1", "RUN123"),
+            ("setup", "S1", "RUN123", str(run_dir / "handoff.json")),
             ("test", ["-only-testing:MonacoUITests/SignInJourneyUITests/testS1SignIn"]),
-            ("setup", "S2", "RUN123"),
+            ("setup", "S2", "RUN123", str(run_dir / "handoff.json")),
             ("test", ["-only-testing:MonacoUITests/SignInJourneyUITests/testS2Relaunch"]),
         ])
 
@@ -484,11 +484,13 @@ class Runner(Tree):
 
         journey.sh = stub
         try:
-            self.assertEqual(journey.run_truth(loaded, journey.load_accounts(environ={}), "sms", "RUN123"), "ok")
+            self.assertEqual(journey.run_truth(
+                loaded, journey.load_accounts(environ={}), "sms", "RUN123", journey.ROOT / "run" / "handoff.json"), "ok")
         finally:
             journey.sh = saved_sh
         self.assertEqual(seen[0]["MONACO_QA_CHANNEL"], "sms")
         self.assertEqual(seen[0]["MONACO_QA_RUN"], "RUN123")
+        self.assertEqual(seen[0]["MONACO_QA_HANDOFF"], str(journey.ROOT / "run" / "handoff.json"))
 
 
 class Simulators(Tree):
