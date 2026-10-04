@@ -3,6 +3,8 @@ package events
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -34,22 +36,35 @@ func mustPanic(t *testing.T, want string, fn func()) {
 	fn()
 }
 
+func goldenTypes(t *testing.T) []Type {
+	t.Helper()
+	paths, err := filepath.Glob("testdata/golden/*.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	version := regexp.MustCompile(`\.v[0-9]+\.json$`)
+	types := make([]Type, 0, len(paths))
+	for _, path := range paths {
+		types = append(types, Type(version.ReplaceAllString(filepath.Base(path), "")))
+	}
+	slices.Sort(types)
+	return slices.Compact(types)
+}
+
 func TestSubjects(t *testing.T) {
 	t.Parallel()
-	want := []string{
-		"events.asset.price_moved",
-		"events.cabal.access_decided", "events.cabal.access_requested", "events.cabal.created",
-		"events.cabal.member_joined", "events.cabal.member_left", "events.cabal.paused", "events.cabal.resumed",
-		"events.cabal.updated", "events.deposit.credited",
-		"events.follow.created", "events.follow.removed",
-		"events.proposal.created", "events.proposal.executed", "events.proposal.execution_blocked",
-		"events.proposal.expired", "events.proposal.failed", "events.proposal.passed", "events.proposal.voided",
-		"events.proposal.withdrawn", "events.system.pinged", "events.trade.blocked", "events.trade.confirmed",
-		"events.trade.failed", "events.trade.submitted", "events.user.auth_state_changed", "events.user.created",
-		"events.user.deleted", "events.user.nudge_due", "events.user.profile_updated",
+	r := newRegistry(registrations())
+	var want []string
+	for _, typ := range goldenTypes(t) {
+		if !r[typ].core {
+			want = append(want, "events."+string(typ))
+		}
 	}
 	if got := Subjects(); !slices.Equal(got, want) {
-		t.Fatalf("Subjects() = %q, want %q", got, want)
+		t.Fatalf("Subjects() = %q, want one per non-core golden in testdata/golden: %q", got, want)
+	}
+	if got := TypeSystemPinged.Subject(); got != "events.system.pinged" {
+		t.Fatalf("TypeSystemPinged.Subject() = %q, want events.system.pinged", got)
 	}
 }
 
@@ -187,17 +202,8 @@ func TestCatalog(t *testing.T) {
 	for _, e := range got {
 		types = append(types, e.Type)
 	}
-	if want := []Type{
-		TypeAssetPriceMoved,
-		TypeCabalAccessDecided, TypeCabalAccessRequested, TypeCabalCreated, TypeCabalMemberJoined,
-		TypeCabalMemberLeft, TypeCabalPaused, TypeCabalResumed, TypeCabalUpdated, TypeDepositCredited,
-		TypeFollowCreated, TypeFollowRemoved, TypePriceTick,
-		TypeProposalCreated, TypeProposalExecuted, TypeProposalExecutionBlocked, TypeProposalExpired,
-		TypeProposalFailed, TypeProposalPassed, TypeProposalVoided, TypeProposalWithdrawn,
-		TypeSystemPinged, TypeTradeBlocked, TypeTradeConfirmed, TypeTradeFailed, TypeTradeSubmitted,
-		TypeUserAuthStateChanged, TypeUserCreated, TypeUserDeleted, TypeUserNudgeDue, TypeUserProfileUpdated,
-	}; !slices.Equal(types, want) {
-		t.Fatalf("Catalog() types = %q, want %q", types, want)
+	if want := goldenTypes(t); !slices.Equal(types, want) {
+		t.Fatalf("Catalog() types = %q, want one per golden in testdata/golden: %q", types, want)
 	}
 	e := got[slices.Index(types, TypeSystemPinged)]
 	checkAssetPriceMoved(t, got[slices.Index(types, TypeAssetPriceMoved)])
