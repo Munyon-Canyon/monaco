@@ -14,7 +14,7 @@ struct ActivityDetailDestination: View {
     var body: some View {
         Group {
             if useProposalDetail {
-                ProposalDetailView(auth: auth, proposalId: activityItem.id)
+                ProposalScreen(proposalID: activityItem.id)
             } else {
                 TransactionDetailView(
                     auth: auth,

@@ -14,7 +14,6 @@ fixed-font	apps/mobile/Monaco/Features/Groups/TransactionDetailView.swift	1
 fixed-font	apps/mobile/Monaco/Features/Profile/ProfilePhotoPicker.swift	1
 fixed-font	apps/mobile/Monaco/Features/Proposals/CommentThreadView.swift	2
 fixed-font	apps/mobile/Monaco/Features/Proposals/ProposalCardView.swift	1
-fixed-font	apps/mobile/Monaco/Features/Proposals/ProposalDetailView.swift	1
 fixed-font	apps/mobile/Monaco/Features/Proposals/ProposeChooserView.swift	1
 float-money	apps/mobile/Monaco/Design/MonacoAmountEntry.swift	4
 float-money	apps/mobile/Monaco/Design/MonacoMoney.swift	5

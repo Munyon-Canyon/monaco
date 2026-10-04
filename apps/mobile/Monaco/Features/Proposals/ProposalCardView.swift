@@ -668,3 +668,8 @@ struct ProposalCardSkeleton: View {
         .accessibilityLabel("Loading")
     }
 }
+
+enum ProposalVoteChoice: String {
+    case yes
+    case no
+}
