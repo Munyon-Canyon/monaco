@@ -101,6 +101,7 @@ private struct HandleStepForm: View {
         .monacoCanvas()
         .navigationTitle(mode == .edit ? "Handle" : "")
         .navigationBarTitleDisplayMode(.inline)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("onboarding-handle-step")
         .task { for await next in checker.statuses { status = next } }
         .task {

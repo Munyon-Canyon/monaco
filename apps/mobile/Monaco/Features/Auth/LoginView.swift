@@ -101,6 +101,7 @@ struct LoginView: View {
 
             if methods.count > 1 {
                 MonacoSegmented(methods, selection: $selectedMethod) { $0.rawValue }
+                    .accessibilityElement(children: .contain)
                     .accessibilityLabel("Sign-in method")
                     // Switching method mid-send would leave the in-flight request to report
                     // success against the other form: an email screen showing a code step
