@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -23,7 +24,23 @@ type Treasury struct {
 	memberStakesAt   []treasury.MemberStake
 }
 
-var _ treasury.Queries = (*Treasury)(nil)
+var (
+	_ treasury.Queries        = (*Treasury)(nil)
+	_ treasury.SignatureOwner = (*Treasury)(nil)
+	_ treasury.WalletLedger   = (*Treasury)(nil)
+)
+
+func (f *Treasury) OwnsSignature(context.Context, chain.Signature) (bool, error) {
+	return false, f.Check("OwnsSignature")
+}
+
+func (f *Treasury) WalletLedgerMicros(
+	context.Context,
+	ids.UserID,
+	chain.SolanaAddress,
+) (money.SignedMicros, int, error) {
+	return money.SignedMicros{}, 0, f.Check("WalletLedgerMicros")
+}
 
 func NewTreasury() *Treasury {
 	return &Treasury{

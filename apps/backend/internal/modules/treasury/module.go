@@ -29,15 +29,15 @@ type Module struct {
 	cabals  app.CabalViews
 }
 
-type Queries = port.Queries
-
-type Position = port.Position
-
-type Stake = port.Stake
-
-type CabalPositions = port.CabalPositions
-
-type MemberStake = port.MemberStake
+type (
+	Queries        = port.Queries
+	Position       = port.Position
+	Stake          = port.Stake
+	CabalPositions = port.CabalPositions
+	MemberStake    = port.MemberStake
+	SignatureOwner = port.SignatureOwner
+	WalletLedger   = port.WalletLedger
+)
 
 func New(d module.Deps) *Module {
 	return &Module{deps: d, members: app.UnwiredReads{}, users: app.UnwiredReads{}, cabals: app.UnwiredReads{}}
@@ -95,6 +95,14 @@ func (m *Module) Consumers() []bus.Consumer {
 func (*Module) Pollers() []poller.Poller { return nil }
 
 func (m *Module) Queries() port.Queries {
+	return m.reads()
+}
+
+func (m *Module) SignatureOwner() *adapters.Queries { return m.reads() }
+
+func (m *Module) WalletLedger() *adapters.Queries { return m.reads() }
+
+func (m *Module) reads() *adapters.Queries {
 	marketModule := market.New(m.deps)
 	return adapters.NewQueries(
 		m.deps.Pool, marketResolver(marketModule.Catalog()), marketPrices(marketModule.Prices()), m.deps.Clock,

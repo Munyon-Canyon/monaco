@@ -61,3 +61,11 @@ type Queries interface {
 	StakesReader
 	HistoricalReader
 }
+
+type SignatureOwner interface {
+	OwnsSignature(ctx context.Context, sig chain.Signature) (bool, error)
+}
+
+type WalletLedger interface {
+	WalletLedgerMicros(ctx context.Context, user ids.UserID, mint chain.SolanaAddress) (money.SignedMicros, int, error)
+}

@@ -49,3 +49,5 @@ func (*Module) Consumers() []bus.Consumer {
 func (*Module) Pollers() []poller.Poller { return nil }
 
 func (m *Module) Queries() app.Queries { return app.NewQueries(m.deps.Pool) }
+
+func (m *Module) SignatureOwner() app.Queries { return m.Queries() }
