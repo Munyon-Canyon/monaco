@@ -131,6 +131,11 @@ enum SessionWireCapture {
 
 struct SessionWireCaptureMiddleware: ClientMiddleware {
     private static let limit = 64 * 1024
+    private static let profileOperations: Set<String> = [
+        Operations.GetMe.id, Operations.PostAuthSession.id, Operations.PatchMe.id, Operations.PostProfilePhoto.id,
+        Operations.PutMeHandle.id, Operations.PostOnboardingPhone.id, Operations.PostOnboardingSocials.id,
+        Operations.PostOnboardingSkip.id,
+    ]
 
     func intercept(
         _ request: HTTPRequest,
@@ -141,9 +146,7 @@ struct SessionWireCaptureMiddleware: ClientMiddleware {
     ) async throws -> (HTTPResponse, HTTPBody?) {
         let (response, responseBody) = try await next(request, body, baseURL)
         guard let box = SessionWireCapture.box, let responseBody, response.status == .ok,
-            operationID == Operations.GetMe.id || operationID == Operations.PostAuthSession.id
-                || operationID == Operations.PatchMe.id || operationID == Operations.PostProfilePhoto.id
-                || operationID == Operations.PutMeHandle.id
+            Self.profileOperations.contains(operationID)
         else {
             return (response, responseBody)
         }
