@@ -91,7 +91,7 @@ public final class CabalInvitesModel {
     }
 
     public func accept(_ invite: ReceivedCabalInvite) async -> Bool {
-        await answer(invite, decision: .approve, success: "You're in.")
+        await answer(invite, decision: .approve, success: CabalEntry.joinedToast)
     }
 
     public func decline(_ invite: ReceivedCabalInvite) async {
