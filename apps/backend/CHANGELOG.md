@@ -8,6 +8,7 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 
 ### Added
 
+- The `admin` module.
 - The `funding` module.
 - The `notify` module.
 - The `social` module.
