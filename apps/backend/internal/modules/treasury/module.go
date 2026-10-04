@@ -5,8 +5,10 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
+	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/adapters"
@@ -18,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/treasuryapi"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 	"github.com/monaco/monaco/apps/backend/internal/tools/ops/replay"
@@ -28,6 +31,7 @@ type Module struct {
 	members app.Members
 	users   app.Users
 	cabals  app.CabalViews
+	pauses  app.CashOutPauses
 }
 
 type (
@@ -41,7 +45,15 @@ type (
 )
 
 func New(d module.Deps) *Module {
-	return &Module{deps: d, members: app.UnwiredReads{}, users: app.UnwiredReads{}, cabals: app.UnwiredReads{}}
+	return &Module{
+		deps: d, members: app.UnwiredReads{}, users: app.UnwiredReads{}, cabals: app.UnwiredReads{},
+		pauses: app.CashOutPauseFunc(func(context.Context, ids.CabalID) (app.CashOutPause, error) {
+			return app.CashOutPause{}, errs.New(
+				errs.CodeUpstreamUnavailable,
+				"treasury.UnwiredCashOutPauses",
+			)
+		}),
+	}
 }
 
 func (*Module) Name() string { return "treasury" }
@@ -54,6 +66,16 @@ func (m *Module) Wire(set module.Set) {
 			m.cabals = provider.Queries()
 		case interface{ Queries() identityport.Queries }:
 			m.users = provider.Queries()
+		case interface{ Pauses() fundingport.Pauses }:
+			pauses := provider.Pauses()
+			m.pauses = app.CashOutPauseFunc(func(ctx context.Context, cabal ids.CabalID) (app.CashOutPause, error) {
+				pause, err := pauses.IsPaused(ctx, cabal)
+				reasons := make([]string, len(pause.Reasons))
+				for i, reason := range pause.Reasons {
+					reasons[i] = string(reason)
+				}
+				return app.CashOutPause{Paused: pause.Paused, Reasons: reasons, Since: pause.Since}, err
+			})
 		}
 	}
 }
@@ -63,12 +85,26 @@ func (m *Module) Mount(r api.Mount) {
 	treasuryapi.Mount(adapters.HTTP{
 		Reads:    app.NewActivityReads(m.deps.Pool, m.members, m.users, names),
 		UserTxns: app.NewUserTxnReads(m.deps.Pool, m.cabals, usdc(m.deps.Config)),
+		CashOut: app.NewCashOutHandler(
+			m.deps.UoW,
+			m.ledger(),
+			m.reads(),
+			m.pauses,
+			m.deps.Clock,
+			m.deps.IDs,
+			m.deps.Pool,
+		),
 	}, r)
 }
 
 func (m *Module) Consumers() []bus.Consumer {
 	activity := adapters.Activity{Hints: m.deps.Bus}
-	userLedger := adapters.UserLedger{Ledger: m.ledger(), IDs: m.deps.IDs, USDC: usdc(m.deps.Config), Hints: m.deps.Bus}
+	userLedger := adapters.UserLedger{
+		Ledger: m.ledger(),
+		IDs:    m.deps.IDs,
+		USDC:   usdc(m.deps.Config),
+		Hints:  m.deps.Bus,
+	}
 	return []bus.Consumer{
 		{
 			Durable: "treasury_trades",
@@ -106,7 +142,10 @@ func (m *Module) WalletLedger() *adapters.Queries { return m.reads() }
 func (m *Module) reads() *adapters.Queries {
 	marketModule := market.New(m.deps)
 	return adapters.NewQueries(
-		m.deps.Pool, marketResolver(marketModule.Catalog()), marketPrices(marketModule.Prices()), m.deps.Clock,
+		m.deps.Pool,
+		marketResolver(marketModule.Catalog()),
+		marketPrices(marketModule.Prices()),
+		m.deps.Clock,
 		chain.SolanaAddress(m.deps.Config.Solana.USDCMint),
 	)
 }
