@@ -22,6 +22,7 @@ type HTTP struct {
 	Update    app.UpdateProfileHandler
 	Photo     app.UploadProfilePhotoHandler
 	Delete    *app.DeleteAccount
+	DevX      *app.DevXLink
 	Reads     sqlc.DBTX
 	Clock     clock.Clock
 }
@@ -221,12 +222,38 @@ func present(s string) *string {
 	return &s
 }
 
-func (HTTP) PostDevXLink(context.Context, api.PostDevXLinkRequestObject) (api.PostDevXLinkResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "identity.PostDevXLink")
+func (h HTTP) PostDevXLink(
+	ctx context.Context, req api.PostDevXLinkRequestObject,
+) (api.PostDevXLinkResponseObject, error) {
+	if h.DevX == nil {
+		return nil, errs.New(errs.CodeNotFound, "identity.PostDevXLink")
+	}
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	username := ""
+	if req.Body != nil && req.Body.Username != nil {
+		username = *req.Body.Username
+	}
+	if err := h.DevX.Link(ctx, user, username); err != nil {
+		return nil, err
+	}
+	return api.PostDevXLink204Response{}, nil
 }
 
-func (HTTP) DeleteDevXLink(
-	context.Context, api.DeleteDevXLinkRequestObject,
+func (h HTTP) DeleteDevXLink(
+	ctx context.Context, _ api.DeleteDevXLinkRequestObject,
 ) (api.DeleteDevXLinkResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "identity.DeleteDevXLink")
+	if h.DevX == nil {
+		return nil, errs.New(errs.CodeNotFound, "identity.DeleteDevXLink")
+	}
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.DevX.Unlink(ctx, user); err != nil {
+		return nil, err
+	}
+	return api.DeleteDevXLink204Response{}, nil
 }

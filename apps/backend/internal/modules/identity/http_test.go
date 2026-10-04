@@ -73,6 +73,11 @@ func (*photoStore) DeleteAll(context.Context, ids.UserID) error { return nil }
 
 func newHTTPFixture(t *testing.T) httpFixture {
 	t.Helper()
+	return newHTTPFixtureIn(t, config.EnvTest, config.EnvTest)
+}
+
+func newHTTPFixtureIn(t *testing.T, routerEnv, moduleEnv config.Env) httpFixture {
+	t.Helper()
 	f := newPortFixture(t)
 	clk := testkit.NewClock(f.now)
 	verifier, err := auth.NewDevVerifier(
@@ -91,13 +96,17 @@ func newHTTPFixture(t *testing.T) httpFixture {
 		t.Fatal(err)
 	}
 	mount := identity.New(
-		module.Deps{Pool: f.pool, UoW: db.New(f.pool, f.ids, clk), IDs: f.ids, Clock: clk},
+		module.Deps{
+			Config: config.Config{Env: moduleEnv}, Pool: f.pool, UoW: db.New(f.pool, f.ids, clk),
+			IDs: f.ids, Clock: clk,
+		},
 		identity.WithPrivy(fakeUsers, fakeWallets),
 		identity.WithHints(hints),
 		identity.WithPhotoStore(photos),
 	).Mount
 	h, err := httpx.Handler(httpx.Deps{
 		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, logs),
+		Env:          routerEnv,
 		Tracer:       tracenoop.NewTracerProvider(),
 		Clock:        clk,
 		IDs:          f.ids,
