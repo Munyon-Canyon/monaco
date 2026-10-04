@@ -30,6 +30,7 @@ type Registration struct {
 	core    bool
 	current int
 	fields  []Field
+	goType  reflect.Type
 	decode  func(payload []byte, attrs []slog.Attr) (Event, error)
 }
 
@@ -49,13 +50,15 @@ type Entry struct {
 func Register[E Event](t Type, current int) Registration {
 	var zero E
 	mustRegister(zero.Type(), t, current)
-	return Registration{typ: t, current: current, fields: fieldsOf(reflect.TypeFor[E]()), decode: decodeInto[E]}
+	goType := reflect.TypeFor[E]()
+	return Registration{typ: t, current: current, fields: fieldsOf(goType), goType: goType, decode: decodeInto[E]}
 }
 
 func RegisterCore[C Core](t Type, current int) Registration {
 	var zero C
 	mustRegister(zero.Type(), t, current)
-	return Registration{typ: t, core: true, current: current, fields: fieldsOf(reflect.TypeFor[C]())}
+	goType := reflect.TypeFor[C]()
+	return Registration{typ: t, core: true, current: current, fields: fieldsOf(goType), goType: goType}
 }
 
 func mustRegister(reported, t Type, current int) {
