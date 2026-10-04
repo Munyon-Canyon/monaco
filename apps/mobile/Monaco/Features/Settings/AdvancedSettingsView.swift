@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Block-explorer links, reachable from Profile's account actions.
+/// Block-explorer links, reachable from Settings.
 struct AdvancedSettingsView: View {
     var body: some View {
         ScrollView {
