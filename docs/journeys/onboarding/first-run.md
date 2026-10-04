@@ -13,7 +13,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/FirstRunJourney.swift, apps/mobile
 
 A new member signs in, picks a handle, and skips the phone and X steps to reach Home. Home then nudges them to add a number. They try a number that belongs to someone else, relaunch and stay past the gate, then link a number of their own. A new dev user links a fake X account and the nudge goes away. The design is [Navigation](../../screens.md#navigation), and the states come from [`auth_state`](../../architecture/auth.md#auth_state).
 
-The format of this doc is in [App journeys](../README.md).
+The format of this doc is in [App journeys](../README.md). The Old app column names the old app's tap or element at `c838bd24` for each step, or says the step is new in the spec. The old first run was one screen, `Onboarding/OnboardingNameView.swift`.
 
 ## Preconditions
 
@@ -33,55 +33,55 @@ The format of this doc is in [App journeys](../README.md).
 
 Starts signed out, with C a new member (P2).
 
-| Step | Action | Target | Input | Expect |
-| --- | --- | --- | --- | --- |
-| S1.1 | launch, then sign in by email | the login form, as in [auth/sign-in](../auth/sign-in.md) | `{C.email}`, `{C.code}` | `onboarding-handle-step` shows within 30 s, not the tab bar, with "Pick your handle" and `handle-step-subtext` reading "This is how people find you on Monaco." |
-| S1.2 | type | `handle-step-field` | `takenHandle` (P4) | `handle-step-status` reads "That handle is taken." within 5 s, and `onboarding-handle-step-continue` is disabled |
-| S1.3 | clear, then type | `handle-step-field` | `qa_cayman` | `handle-step-status` reads "@qa_cayman is available" within 5 s, and `onboarding-handle-step-continue` is enabled |
-| S1.4 | tap | `onboarding-handle-step-continue` | | `onboarding-phone-step` shows within 10 s with "Add your number" and "We match your contacts to find friends. Your number stays private." |
-| S1.5 | tap | `phone-step-skip` | | `onboarding-socials-step` shows within 10 s with "Connect X" and "Find people you follow on Monaco." |
-| S1.6 | tap | `socials-step-skip` | | The tab bar shows on Home within 10 s, and `onboarding-nudge` reads "Add your number to find friends" |
+| Step | Action | Target | Input | Expect | Old app |
+| --- | --- | --- | --- | --- | --- |
+| S1.1 | launch, then sign in by email | the login form, as in [auth/sign-in](../auth/sign-in.md) | `{C.email}`, `{C.code}` | `onboarding-handle-step` shows within 30 s, not the tab bar, with "Pick your handle" and `handle-step-subtext` reading "This is how people find you on Monaco." | Gate `.nameSetup` opened `OnboardingNameView`, "What should friends call you?" |
+| S1.2 | type | `handle-step-field` | `takenHandle` (P4) | `handle-step-status` reads "That handle is taken." within 5 s, and `onboarding-handle-step-continue` is disabled | None, new in spec (#693) |
+| S1.3 | clear, then type | `handle-step-field` | `qa_cayman` | `handle-step-status` reads "@qa_cayman is available" within 5 s, and `onboarding-handle-step-continue` is enabled | None, new in spec (#693) |
+| S1.4 | tap | `onboarding-handle-step-continue` | | `onboarding-phone-step` shows within 10 s with "Add your number" and "We match your contacts to find friends. Your number stays private." | `onboarding-continue` ("Continue") |
+| S1.5 | tap | `phone-step-skip` | | `onboarding-socials-step` shows within 10 s with "Connect X" and "Find people you follow on Monaco." | None, new in spec (#694) |
+| S1.6 | tap | `socials-step-skip` | | The tab bar shows on Home within 10 s, and `onboarding-nudge` reads "Add your number to find friends" | "Continue" went straight to the tabs |
 
 ### S2 A number linked to someone else
 
 Starts from S1 (P6).
 
-| Step | Action | Target | Input | Expect |
-| --- | --- | --- | --- | --- |
-| S2.1 | tap | `onboarding-nudge-open` | | A sheet shows `onboarding-phone-step` within 5 s with "Add your number", and `phone-step-skip` reads "Not now" |
-| S2.2 | type, then tap | `phone-step-number-field`, then `phone-step-send-code` | `{B.phone}` | `phone-step-sent-to` reads "Code sent to" and the number within 20 s |
-| S2.3 | type | `phone-step-code-field` | `{B.code}` | The sixth digit submits the code. `phone-step-caption` reads "This number is linked to another account." within 20 s, and `phone-step-skip` reads "Not now" |
-| S2.4 | tap | `phone-step-skip` | | The sheet closes within 5 s, and `onboarding-nudge` still reads "Add your number to find friends" |
+| Step | Action | Target | Input | Expect | Old app |
+| --- | --- | --- | --- | --- | --- |
+| S2.1 | tap | `onboarding-nudge-open` | | A sheet shows `onboarding-phone-step` within 5 s with "Add your number", and `phone-step-skip` reads "Not now" | None, new in spec (#694) |
+| S2.2 | type, then tap | `phone-step-number-field`, then `phone-step-send-code` | `{B.phone}` | `phone-step-sent-to` reads "Code sent to" and the number within 20 s | None, new in spec (#694) |
+| S2.3 | type | `phone-step-code-field` | `{B.code}` | The sixth digit submits the code. `phone-step-caption` reads "This number is linked to another account." within 20 s, and `phone-step-skip` reads "Not now" | None, new in spec (#694) |
+| S2.4 | tap | `phone-step-skip` | | The sheet closes within 5 s, and `onboarding-nudge` still reads "Add your number to find friends" | None, new in spec (#694) |
 
 ### S3 The gate stays open after a relaunch
 
 Starts from S1 (P6).
 
-| Step | Action | Target | Input | Expect |
-| --- | --- | --- | --- | --- |
-| S3.1 | relaunch | the app | | The tab bar shows on Home within 30 s, never `onboarding-handle-step` or `onboarding-phone-step`, and `onboarding-nudge` reads "Add your number to find friends" |
-| S3.2 | tap | the Profile tab | | `profile-handle` reads "@qa_cayman" within 15 s |
+| Step | Action | Target | Input | Expect | Old app |
+| --- | --- | --- | --- | --- | --- |
+| S3.1 | relaunch | the app | | The tab bar shows on Home within 30 s, never `onboarding-handle-step` or `onboarding-phone-step`, and `onboarding-nudge` reads "Add your number to find friends" | The gate skipped `.nameSetup` once the name was set |
+| S3.2 | tap | the Profile tab | | `profile-handle` reads "@qa_cayman" within 15 s | `profile-header` on the Profile tab |
 
 ### S4 Link a number
 
 Starts from S1 (P6), with `{L.phone}` free (P3).
 
-| Step | Action | Target | Input | Expect |
-| --- | --- | --- | --- | --- |
-| S4.1 | tap, then tap | the Home tab, then `onboarding-nudge-open` | | A sheet shows `onboarding-phone-step` within 5 s with "Add your number" |
-| S4.2 | type, then tap | `phone-step-number-field`, then `phone-step-send-code` | `{L.phone}` | `phone-step-sent-to` reads "Code sent to" and the number within 20 s |
-| S4.3 | type | `phone-step-code-field` | `{L.code}` | The sixth digit submits the code. The sheet closes within 20 s, `monaco-toast-banner` reads "Number added.", and `onboarding-nudge` reads "Connect X to find people you follow" |
+| Step | Action | Target | Input | Expect | Old app |
+| --- | --- | --- | --- | --- | --- |
+| S4.1 | tap, then tap | the Home tab, then `onboarding-nudge-open` | | A sheet shows `onboarding-phone-step` within 5 s with "Add your number" | None, new in spec (#694) |
+| S4.2 | type, then tap | `phone-step-number-field`, then `phone-step-send-code` | `{L.phone}` | `phone-step-sent-to` reads "Code sent to" and the number within 20 s | None, new in spec (#694) |
+| S4.3 | type | `phone-step-code-field` | `{L.code}` | The sixth digit submits the code. The sheet closes within 20 s, `monaco-toast-banner` reads "Number added.", and `onboarding-nudge` reads "Connect X to find people you follow" | None, new in spec (#694) |
 
 ### S5 Link X as a new dev user
 
 Starts with a new dev user at `AWAITING_SOCIALS` (P7). The app launches with `MONACO_DEV_TOKEN` set to `devToken` and `MONACO_FAKE_X=1`, so "Connect X" calls the dev route instead of opening x.com.
 
-| Step | Action | Target | Input | Expect |
-| --- | --- | --- | --- | --- |
-| S5.1 | launch, then sign out | the app, then `profileSignOutButton` when C is still signed in | | `devSignInButton` shows on the login form within 30 s |
-| S5.2 | tap | `devSignInButton` | | The tab bar shows on Home within 30 s, and `onboarding-nudge` reads "Connect X to find people you follow" |
-| S5.3 | tap | `onboarding-nudge-open` | | A sheet shows `onboarding-socials-step` within 5 s with "Connect X", and `socials-step-skip` reads "Not now" |
-| S5.4 | tap | `socials-step-connect` | | The sheet closes within 20 s with no web sheet, `monaco-toast-banner` reads "X connected.", and `onboarding-nudge` does not show on Home |
+| Step | Action | Target | Input | Expect | Old app |
+| --- | --- | --- | --- | --- | --- |
+| S5.1 | launch, then sign out | the app, then `profileSignOutButton` when C is still signed in | | `devSignInButton` shows on the login form within 30 s | None, new in spec (#694) |
+| S5.2 | tap | `devSignInButton` | | The tab bar shows on Home within 30 s, and `onboarding-nudge` reads "Connect X to find people you follow" | None, new in spec (#694) |
+| S5.3 | tap | `onboarding-nudge-open` | | A sheet shows `onboarding-socials-step` within 5 s with "Connect X", and `socials-step-skip` reads "Not now" | None, new in spec (#694) |
+| S5.4 | tap | `socials-step-connect` | | The sheet closes within 20 s with no web sheet, `monaco-toast-banner` reads "X connected.", and `onboarding-nudge` does not show on Home | None, new in spec (#694) |
 
 ## Ground truth
 
@@ -93,6 +93,7 @@ None.
 
 ## Not covered
 
+- The old app's name step, "What should friends call you?" with "Shown on votes, leaderboards and in chat." and "Add a photo (optional)". The spec's first run is handle, phone and X ([Navigation](../../screens.md#navigation)), and the name and photo moved to the Profile tab, which [profile/edit](../profile/edit.md) covers.
 - An X link through the real OAuth sheet on x.com. Only a person can complete it.
 - A dev user linking a phone. The dev sign-in opens a backend session but no Privy session, and Privy refuses a link without one ("Missing auth token."). So C links the number in S4 and a dev user links X in S5.
 - The busy labels "Saving…", "Linking…" and "Connecting…". The local backend answers before a poll sees them. `OnboardingFlowTests` covers the activity states.
