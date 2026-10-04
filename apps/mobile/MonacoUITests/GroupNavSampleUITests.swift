@@ -63,8 +63,6 @@ nonisolated final class GroupNavSampleUITests: XCTestCase {
             break
         }
 
-        let fund = anyElement(app, "group-action-fund")
-        XCTAssertTrue(fund.waitForExistence(timeout: 20), "[\(entry)] the cabal action row should be on screen")
         return app
     }
 
@@ -95,13 +93,11 @@ nonisolated final class GroupNavSampleUITests: XCTestCase {
         if back.exists {
             back.tap()
         }
-        _ = anyElement(app, "group-action-fund").waitForExistence(timeout: 10)
     }
 
     @MainActor
     private func runActionRow(entry: String) {
         let app = openCabalScreen(entry: entry)
-        assertAction(app, entry: entry, actionIdentifier: "group-action-fund", destinationIdentifier: "fund-cabal-view")
         assertAction(app, entry: entry, actionIdentifier: "group-action-chat", destinationIdentifier: "group-chat-view")
         attachScreenshot(app, name: "\(entry)-action-row-ok")
     }

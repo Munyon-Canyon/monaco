@@ -70,15 +70,15 @@ struct DeleteAccountContent: View {
                 .buttonStyle(.monacoDestructive)
                 .disabled(isDeleting)
                 .accessibilityIdentifier("delete-account-button")
+                .confirmationDialog(AccountCopy.confirmTitle, isPresented: $confirming, titleVisibility: .visible) {
+                    Button(AccountCopy.confirmDelete, role: .destructive) {
+                        Task { await delete() }
+                    }
+                    .accessibilityIdentifier("delete-account-confirm")
+                    Button(AccountCopy.cancel, role: .cancel) {}
+                        .accessibilityIdentifier("delete-account-cancel")
+                }
             }
-        }
-        .confirmationDialog(AccountCopy.confirmTitle, isPresented: $confirming, titleVisibility: .visible) {
-            Button(AccountCopy.confirmDelete, role: .destructive) {
-                Task { await delete() }
-            }
-            .accessibilityIdentifier("delete-account-confirm")
-            Button(AccountCopy.cancel, role: .cancel) {}
-                .accessibilityIdentifier("delete-account-cancel")
         }
         .navigationTitle(AccountCopy.deleteTitle)
         .navigationBarTitleDisplayMode(.inline)

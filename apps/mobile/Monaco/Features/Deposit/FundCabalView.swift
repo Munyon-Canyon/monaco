@@ -100,7 +100,9 @@ struct FundCabalForm: Equatable {
     /// The button reads the amount, so the member sees what they are about to send.
     var ctaTitle: String {
         guard let value = AmountEntryText.decimal(amountText), value > 0 else { return "Add money" }
-        return "Add \(AmountEntryText.display(amountText)) to the pot"
+        let isWhole = (AmountEntryText.micros(amountText) ?? 0) % 1_000_000 == 0
+        let amount = isWhole ? AmountEntryText.display(amountText) : UsdAmountFormatter.format(decimal: value)
+        return "Add \(amount) to the pot"
     }
 
     /// The line under the figure: what there is to fund with, and what is already on its way.

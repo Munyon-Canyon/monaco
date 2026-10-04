@@ -12,7 +12,8 @@ struct FeedView: View {
     }
 
     var body: some View {
-        Group {
+        ZStack {
+            MonacoTheme.canvas.ignoresSafeArea()
             if let model {
                 FeedScreen(model: model)
             }
