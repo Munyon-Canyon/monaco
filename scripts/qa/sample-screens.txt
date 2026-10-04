@@ -61,6 +61,9 @@ cabal-invites                 -MonacoCabalInvitesSample
 join-cabal-open               -MonacoJoinCabalSample open
 join-cabal-request            -MonacoJoinCabalSample request
 cabals-search                 -MonacoCabalsSearchSample
+cabal-join-open               -MonacoCabalJoinSample open
+cabal-join-request            -MonacoCabalJoinSample request
+cabal-join-creator            -MonacoCabalJoinSample creator
 
 propose-from-stock            -MonacoProposalFeedSample -MonacoProposeSampleStock
 
