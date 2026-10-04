@@ -10,6 +10,7 @@ final class AppEnvironment {
     let api: APIClient
     let hints: any HintConnecting
     let auth: PrivyAuthService
+    let linking: any AccountLinking
     let navigator = AppNavigator()
     let sessionStore: AppSessionStore
     var viewer: Viewer?
@@ -42,6 +43,7 @@ final class AppEnvironment {
         self.hints = hints
         let api = APIClient(serverURL: Config.api.baseURL, tokens: tokens)
         self.api = api
+        self.linking = PrivyAccountLinker(privy: auth.privy, api: api)
         self.sessionStore =
             sessionStore
             ?? AppSessionStore(
