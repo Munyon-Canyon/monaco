@@ -65,6 +65,12 @@ public struct SessionAPI: Sendable {
         }
         return try SessionProfile(json: data)
     }
+
+    public func deleteAccount(submission: IdempotentSubmission) async throws {
+        try await api.submit(submission, payload: "", operation: "deleteMe") { client, key in
+            _ = try await client.deleteMe(.init(headers: .init(idempotencyKey: key))).noContent
+        }
+    }
 }
 
 public enum ProfileSaveFailure: Equatable, Sendable {
