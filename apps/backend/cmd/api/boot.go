@@ -154,6 +154,7 @@ func newHandler(deps module.Deps, spec []byte, meters metric.MeterProvider) (htt
 	}
 	return httpx.Handler(httpx.Deps{
 		Logger:       deps.Logger,
+		Env:          deps.Config.Env,
 		Tracer:       otel.GetTracerProvider(),
 		Clock:        clock.Real{},
 		IDs:          ids.Real{},

@@ -9,7 +9,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"time"
@@ -115,6 +117,14 @@ type AccountStatus string
 //
 // Examples: CREATED
 type AuthState string
+
+// DevXLink A fake X account for a dev user.
+type DevXLink struct {
+	// Username The X username to store, without the @.
+	//
+	// Examples: qa_x
+	Username *string `json:"username,omitempty"`
+}
 
 // HandleAvailability Whether the caller can claim a handle, and the reason when they cannot.
 //
@@ -232,6 +242,18 @@ type PostAuthSessionParams struct {
 	Authorization *string `json:"Authorization,omitempty"`
 }
 
+// DeleteDevXLinkParams defines parameters for DeleteDevXLink.
+type DeleteDevXLinkParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// PostDevXLinkParams defines parameters for PostDevXLink.
+type PostDevXLinkParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // DeleteMeParams defines parameters for DeleteMe.
 type DeleteMeParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -280,6 +302,9 @@ type PostProfilePhotoParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// PostDevXLinkJSONRequestBody defines body for PostDevXLink for application/json ContentType.
+type PostDevXLinkJSONRequestBody = DevXLink
+
 // PatchMeJSONRequestBody defines body for PatchMe for application/json ContentType.
 type PatchMeJSONRequestBody = UpdateProfileRequest
 
@@ -297,6 +322,12 @@ type ServerInterface interface {
 	// PostAuthSession Open a session from a Privy access token.
 	// (POST /v1/auth/session)
 	PostAuthSession(w http.ResponseWriter, r *http.Request, params PostAuthSessionParams)
+	// DeleteDevXLink Remove a dev user's fake X account.
+	// (DELETE /v1/dev/me/x-link)
+	DeleteDevXLink(w http.ResponseWriter, r *http.Request, params DeleteDevXLinkParams)
+	// PostDevXLink Link a fake X account to a dev user.
+	// (POST /v1/dev/me/x-link)
+	PostDevXLink(w http.ResponseWriter, r *http.Request, params PostDevXLinkParams)
 	// GetHandleAvailability Check whether the caller can claim a handle.
 	// (GET /v1/handles/{handle}/availability)
 	GetHandleAvailability(w http.ResponseWriter, r *http.Request, handle string)
@@ -367,6 +398,96 @@ func (siw *ServerInterfaceWrapper) PostAuthSession(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostAuthSession(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteDevXLink operation middleware
+func (siw *ServerInterfaceWrapper) DeleteDevXLink(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteDevXLinkParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteDevXLink(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostDevXLink operation middleware
+func (siw *ServerInterfaceWrapper) PostDevXLink(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostDevXLinkParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostDevXLink(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -852,6 +973,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/auth/session", wrapper.PostAuthSession)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/dev/me/x-link", wrapper.DeleteDevXLink)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dev/me/x-link", wrapper.PostDevXLink)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/handles/{handle}/availability", wrapper.GetHandleAvailability)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/me", wrapper.DeleteMe)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me", wrapper.GetMe)
@@ -893,6 +1016,73 @@ type PostAuthSessiondefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response PostAuthSessiondefaultApplicationProblemPlusJSONResponse) VisitPostAuthSessionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteDevXLinkRequestObject struct {
+	Params DeleteDevXLinkParams
+}
+
+type DeleteDevXLinkResponseObject interface {
+	VisitDeleteDevXLinkResponse(w http.ResponseWriter) error
+}
+
+type DeleteDevXLink204Response struct {
+}
+
+func (response DeleteDevXLink204Response) VisitDeleteDevXLinkResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteDevXLinkdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response DeleteDevXLinkdefaultApplicationProblemPlusJSONResponse) VisitDeleteDevXLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostDevXLinkRequestObject struct {
+	Params PostDevXLinkParams
+	Body   *PostDevXLinkJSONRequestBody
+}
+
+type PostDevXLinkResponseObject interface {
+	VisitPostDevXLinkResponse(w http.ResponseWriter) error
+}
+
+type PostDevXLink204Response struct {
+}
+
+func (response PostDevXLink204Response) VisitPostDevXLinkResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type PostDevXLinkdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PostDevXLinkdefaultApplicationProblemPlusJSONResponse) VisitPostDevXLinkResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -1257,6 +1447,12 @@ type StrictServerInterface interface {
 	// PostAuthSession Open a session from a Privy access token.
 	// (POST /v1/auth/session)
 	PostAuthSession(ctx context.Context, request PostAuthSessionRequestObject) (PostAuthSessionResponseObject, error)
+	// DeleteDevXLink Remove a dev user's fake X account.
+	// (DELETE /v1/dev/me/x-link)
+	DeleteDevXLink(ctx context.Context, request DeleteDevXLinkRequestObject) (DeleteDevXLinkResponseObject, error)
+	// PostDevXLink Link a fake X account to a dev user.
+	// (POST /v1/dev/me/x-link)
+	PostDevXLink(ctx context.Context, request PostDevXLinkRequestObject) (PostDevXLinkResponseObject, error)
 	// GetHandleAvailability Check whether the caller can claim a handle.
 	// (GET /v1/handles/{handle}/availability)
 	GetHandleAvailability(ctx context.Context, request GetHandleAvailabilityRequestObject) (GetHandleAvailabilityResponseObject, error)
@@ -1344,6 +1540,68 @@ func (sh *strictHandler) PostAuthSession(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostAuthSessionResponseObject); ok {
 		if err := validResponse.VisitPostAuthSessionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteDevXLink operation middleware
+func (sh *strictHandler) DeleteDevXLink(w http.ResponseWriter, r *http.Request, params DeleteDevXLinkParams) {
+	var request DeleteDevXLinkRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteDevXLink(ctx, request.(DeleteDevXLinkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteDevXLink")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteDevXLinkResponseObject); ok {
+		if err := validResponse.VisitDeleteDevXLinkResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostDevXLink operation middleware
+func (sh *strictHandler) PostDevXLink(w http.ResponseWriter, r *http.Request, params PostDevXLinkParams) {
+	var request PostDevXLinkRequestObject
+
+	request.Params = params
+
+	var body PostDevXLinkJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostDevXLink(ctx, request.(PostDevXLinkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostDevXLink")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostDevXLinkResponseObject); ok {
+		if err := validResponse.VisitPostDevXLinkResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
