@@ -83,13 +83,13 @@ A flow is one file, `packages/flows/backend/<id>.tsv`: the tab-separated header 
 | Status | Needs |
 | --- | --- |
 | `planned` | Valid shape. The module directory, trigger, events, consumers, outcome codes, crash points and doc anchor all resolve. |
-| `built` | A command, a passing test per outcome named `TestFlow<id>_<Command>_<Outcome>` (`OK` for `ok`, `Crash<Point>` for `crash:<point>`), and a script for every non-crash outcome in `internal/testkit/flows/f<id>.go`, registered by running `go generate ./cmd/monacoctl`. |
-| `verified` | A script for every remaining outcome, including each crash outcome not already registered. Run `go generate ./cmd/monacoctl` to register them. |
+| `built` | A command, a passing test per outcome named `TestFlow<id>_<Command>_<Outcome>` (`OK` for `ok`, `Crash<Point>` for `crash:<point>`), and a script for every non-crash outcome in `internal/testkit/flows/f<id>.go`, registered by running `go generate ./...`. |
+| `verified` | A script for every remaining outcome, including each crash outcome not already registered. Run `go generate ./...` to register them. |
 
 1. Add `packages/flows/backend/<id>.tsv` with the row as `planned` when the ticket starts.
-2. Run `just gen flow <id>`. Write the non-crash scripts in `internal/testkit/flows/f<id>.go`, run `go generate ./cmd/monacoctl` to write its `f<id>.gen.go`, and make each test call its script. A poller flow's worker env is a `WorkerEnvF<id>` method in its `f<id>.go`, and an app flow's seeders are a `Seeds<Stem>` method there. Then set `built`. Scripts for the non-crash outcomes ship with the `built` row.
+2. Run `just gen flow <id>`. Write the non-crash scripts in `internal/testkit/flows/f<id>.go`, run `go generate ./...` to write its `f<id>.gen.go`, and make each test call its script. A poller flow's worker env is a `WorkerEnvF<id>` method in its `f<id>.go`, and an app flow's seeders are a `Seeds<Stem>` method there. Then set `built`. Scripts for the non-crash outcomes ship with the `built` row.
 3. The `e2e` job runs a crash pass for every point that a `built` or `verified` flow has a script for, so a new crash script needs no CI edit. Register the rest and set `verified`.
-4. Regenerate the docs with `just gen docs` and the flow's feature map page with `go generate ./cmd/monacoctl`. `scripts/ci/ready.sh` fails when either is stale.
+4. Regenerate the docs and the flow's feature map page with `go generate ./...` from `apps/backend`. `scripts/ci/ready.sh` fails when either is stale.
 
 A test named `TestFlow<id>_...` with no row fails the check. Deleting a flow deletes its file and its tests together.
 

@@ -66,7 +66,7 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
     - After a restack, run it again. When the PR's diff against its parent is unchanged, it prints `stage 0 carried from tree <old> (same diff against <parent>)`, records the new tree and runs no rows. Any changed line, including a regenerated file that now differs, runs it in full. `check --fresh` forces a full run.
     - A package over the budget is retried once, alone (`-p 1`, no coverage flags). If it passes within the budget, the row prints `over budget under load (load1 <x>), <pkg> passed alone in <s>s` and goes on. If it is still over or fails, the row fails and names the rerun timing, so the code is the cause, not the load.
 
-    - Before stage 0, run what the change must regenerate, and commit the output. CI's `ready` job (`scripts/ci/ready.sh`) fails on a stale `go generate ./...`, `go mod tidy`, sqlc output, `scripts/gen-docs.sh` output or the `verify-backend` feature map. `scripts/ci/ready.sh` runs the same steps locally on a committed tree.
+    - Before stage 0, run what the change must regenerate, and commit the output. The one regeneration command is `go generate ./...` from `apps/backend`. It writes sqlc output, `docs/reference/`, `atlas.sum`, the `verify-backend` feature map and every other generated file. CI's `ready` job (`scripts/ci/ready.sh`) fails when it leaves a diff or `go mod tidy` is stale. `scripts/ci/ready.sh` runs the same steps locally on a committed tree.
 
     Never run `just test backend`, `go test -race` or `go test ./...` from `apps/backend` as an owner. Never run mutation testing locally. The Graphite merge queue runs the full suite, and the nightly runs mutation.
 
@@ -164,7 +164,7 @@ The result says which of these holds:
 | Infra flake: a Go proxy or Docker Hub error, a `curl` 500 while installing a tool, a runner timeout with every package `ok`, a run cancelled by a newer one | Requeue with no code change: `monacoctl agents land-stack <top-pr>`, which adds the `merge-queue` label again to each PR of the stack. For a failed PR-stage job, `gh run rerun <run-id> --failed` once. |
 | A real test failure, including a package over the 20 s budget | A fresh owner fixes it on the same branch with `gt modify` and `gt submit --stack --no-interactive --draft`. The verifier reviews the new head, then `land-stack` runs again. |
 | A failure that already exists on the `staging` tip | Not this PR's defect. Fix the tip in its own PR, land that first, then requeue this one. |
-| A merge conflict with a stack that landed ahead | Wait for that stack to land, restack onto the tip ([Restack a stack](run-a-milestone.md#restack-a-stack)), build every branch, and land again. |
+| A merge conflict with a stack that landed ahead | Wait for that stack to land, restack onto the tip ([Restack a stack](run-a-milestone.md#restack-a-stack)), build every branch, and land again. A restack that stops on a generated file (no conflict markers, `merge=binary`) needs only `go generate ./... && git add -A && gt continue` from `apps/backend`, after any hand-written file in the stop is resolved by hand. |
 
 **A test flakes.** Fix it the same day, or move it to the nightly with an issue. Never skip it, never raise its budget, and never retry CI until it passes. The rule is in [Keeping it fast](../architecture/backend-platform.md#keeping-it-fast). The `flake` job reruns every changed test file 20 times, so a fix proves itself in stage 1.
 
