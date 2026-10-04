@@ -1,6 +1,8 @@
 package flows
 
 import (
+	"encoding/json"
+	"net/http"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -33,8 +35,26 @@ func F05CreditDepositOK(s *scenario.Scenario) {
 		scenario.AwaitTick("funding.deposits"),
 		scenario.AwaitTick("funding.deposits"),
 		expectDeposit(user),
-		scenario.EventuallyHint("balance_changed"),
+		scenario.EventuallyHints("balance_changed", 2),
+		scenario.Get("/v1/me/txns"),
+		scenario.ExpectStatus(http.StatusOK),
+		scenario.ExpectField("items", oneDeposit),
 	).Then()
+}
+
+func oneDeposit(s *scenario.Scenario, raw json.RawMessage) {
+	var items []struct {
+		Kind       string `json:"kind"`
+		Status     string `json:"status"`
+		USDCMicros string `json:"usdc_micros"`
+	}
+	if err := json.Unmarshal(raw, &items); err != nil {
+		s.Fatalf("flows: decode txns: %v", err)
+	}
+	if len(items) != 1 || items[0].Kind != "deposit" || items[0].Status != "settled" ||
+		items[0].USDCMicros != "27500000" {
+		s.Fatalf("flows: txns = %+v, want one settled deposit of 27500000", items)
+	}
 }
 
 func F05CreditDepositRPCUnavailable(s *scenario.Scenario) {

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -187,6 +188,13 @@ func ExpectJSON(field string, want any) Step {
 	}
 }
 
+func ExpectField(field string, check func(s *Scenario, raw json.RawMessage)) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		check(s, s.field(field))
+	}
+}
+
 func ExpectRemembered(field, name string) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
@@ -304,16 +312,24 @@ func EventuallyEvent(typ events.Type) Step {
 	}
 }
 
-func EventuallyHint(what string) Step {
+func EventuallyHint(what string) Step { return EventuallyHints(what, 1) }
+
+func EventuallyHints(what string, n int) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
 		if s.actor == nil {
-			s.t.Fatal("scenario: EventuallyHint needs AsUser first")
+			s.t.Fatal("scenario: EventuallyHints needs AsUser first")
 		}
 		u := s.actor
 		want := sse.Hint{Key: sse.UserKey(u.id), What: what}
-		s.app.note.await(s.t, "hint "+string(want.Key)+" "+what, func() bool {
-			return slices.Contains(u.stream.hints, want)
+		s.app.note.await(s.t, strconv.Itoa(n)+" hints "+string(want.Key)+" "+what, func() bool {
+			got := 0
+			for _, h := range u.stream.hints {
+				if h == want {
+					got++
+				}
+			}
+			return got >= n
 		})
 	}
 }
