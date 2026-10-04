@@ -44,6 +44,7 @@ final class MarketMappingTests: XCTestCase {
         XCTAssertEqual(asset.status.nextTransition, nextBell)
         XCTAssertFalse(asset.status.earlyClose)
         XCTAssertNil(asset.status.holiday)
+        XCTAssertTrue(asset.isTradable)
     }
 
     func testUnpricedAssetRendersEmDashAndNoSparkline() {
@@ -71,6 +72,17 @@ final class MarketMappingTests: XCTestCase {
         XCTAssertEqual(asset.session, .closed)
         XCTAssertFalse(asset.status.isOpen)
         XCTAssertTrue(asset.status.afterHours)
+    }
+
+    func testUntradableAssetStaysInTheCatalog() {
+        let asset = MarketMapping.asset(
+            summary(
+                symbol: "AMBRx", displayName: "Amber", issuer: .xstocks, kind: .equity, logoUrl: nil,
+                priceMicros: nil, priceAsOf: nil, changeBps: nil, sparklineMicros: nil,
+                session: session(state: .closed), tradable: false
+            ))
+
+        XCTAssertFalse(asset.isTradable)
     }
 
     func testNegativeChangeAndBlankLogoStayReadable() {
@@ -127,6 +139,7 @@ final class MarketMappingTests: XCTestCase {
         XCTAssertEqual(asset.session, .open)
         XCTAssertFalse(asset.status.isOpen)
         XCTAssertFalse(asset.status.afterHours)
+        XCTAssertTrue(asset.isTradable)
         XCTAssertNil(asset.status.nextSession)
     }
 
@@ -259,7 +272,8 @@ extension MarketMappingTests {
         priceAsOf: Date?,
         changeBps: Int32?,
         sparklineMicros: [Int64]?,
-        session: Components.Schemas.MarketSession
+        session: Components.Schemas.MarketSession,
+        tradable: Bool = true
     ) -> Components.Schemas.AssetSummary {
         Components.Schemas.AssetSummary(
             symbol: symbol,
@@ -271,7 +285,8 @@ extension MarketMappingTests {
             priceAsOf: priceAsOf,
             changeBps: changeBps,
             sparklineMicros: sparklineMicros,
-            session: session
+            session: session,
+            tradable: tradable
         )
     }
 

@@ -473,7 +473,7 @@ private struct SampleProposeStepScreen: View {
     var body: some View {
         switch step {
         case .buy:
-            ProposeBuyView(service: service, groupId: groupId, pot: pot, onProposed: onProposed)
+            ProposeBuyStockView(groupId: groupId, pot: pot, service: service, onProposed: onProposed)
         case .amount:
             ProposeAmountView(
                 service: service,
