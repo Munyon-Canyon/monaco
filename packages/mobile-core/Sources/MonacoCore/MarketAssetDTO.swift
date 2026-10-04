@@ -231,18 +231,8 @@ public struct AssetLiquidityDTO: Codable, Equatable, Sendable {
 /// is the equity's, while the hero price is the token's. A current price above "the
 /// day's high" is therefore two instruments, not a bug, and the label is what makes
 /// that readable instead of alarming.
-public enum MarketPriceBasis: String, Codable, Sendable {
-    /// The equity on NASDAQ/NYSE: `Equity.US.AAPL/USD`.
-    case underlying
-    /// The xStock itself: `Crypto.AAPLX/USD`, or its on-chain price.
-    case token
-    case unknown
-
-    public init(from decoder: Decoder) throws {
-        let raw = try decoder.singleValueContainer().decode(String.self)
-        self = MarketPriceBasis(rawValue: raw) ?? .unknown
-    }
-}
+public typealias AssetChartPointDTO = MarketChartPoint
+public typealias AssetChartSource = MarketChartSource
 
 public struct AssetStatsDTO: Codable, Equatable, Sendable {
     public let openUsdcMicros: Int64?
@@ -636,72 +626,6 @@ public struct AssetDetailDTO: Codable, Equatable, Sendable {
         holders = try container.decodeIfPresent(Int.self, forKey: .holders)
         variantCount = try container.decodeIfPresent(Int.self, forKey: .variantCount)
         variants = try container.decodeIfPresent([AssetVariantDTO].self, forKey: .variants)
-    }
-}
-
-public struct AssetChartPointDTO: Codable, Equatable, Sendable, Identifiable {
-    public let timestamp: Int64
-    public let priceUsdcMicros: Int64
-    /// Candle fields, present when the series came from Benchmarks. All zero when
-    /// the sampled Hermes fallback produced the series, which only knows a price
-    /// at an instant.
-    public let openUsdcMicros: Int64
-    public let highUsdcMicros: Int64
-    public let lowUsdcMicros: Int64
-
-    public var id: Int64 { timestamp }
-
-    public var date: Date {
-        Date(timeIntervalSince1970: TimeInterval(timestamp))
-    }
-
-    public var chartValue: Double {
-        Double(priceUsdcMicros) / 1_000_000
-    }
-
-    /// True when this point can be drawn as a candle rather than only as a close.
-    public var hasCandle: Bool {
-        openUsdcMicros > 0 && highUsdcMicros > 0 && lowUsdcMicros > 0
-    }
-
-    public init(
-        timestamp: Int64,
-        priceUsdcMicros: Int64,
-        openUsdcMicros: Int64 = 0,
-        highUsdcMicros: Int64 = 0,
-        lowUsdcMicros: Int64 = 0
-    ) {
-        self.timestamp = timestamp
-        self.priceUsdcMicros = priceUsdcMicros
-        self.openUsdcMicros = openUsdcMicros
-        self.highUsdcMicros = highUsdcMicros
-        self.lowUsdcMicros = lowUsdcMicros
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case timestamp, priceUsdcMicros, openUsdcMicros, highUsdcMicros, lowUsdcMicros
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        timestamp = try container.decode(Int64.self, forKey: .timestamp)
-        priceUsdcMicros = try container.decode(Int64.self, forKey: .priceUsdcMicros)
-        openUsdcMicros = try container.decodeIfPresent(Int64.self, forKey: .openUsdcMicros) ?? 0
-        highUsdcMicros = try container.decodeIfPresent(Int64.self, forKey: .highUsdcMicros) ?? 0
-        lowUsdcMicros = try container.decodeIfPresent(Int64.self, forKey: .lowUsdcMicros) ?? 0
-    }
-}
-
-/// Which upstream produced a series: a dense Benchmarks candle series, or the
-/// sparse sampled Hermes fallback.
-public enum AssetChartSource: String, Codable, Sendable {
-    case benchmarks
-    case hermes
-    case unknown
-
-    public init(from decoder: Decoder) throws {
-        let raw = try decoder.singleValueContainer().decode(String.self)
-        self = AssetChartSource(rawValue: raw) ?? .unknown
     }
 }
 

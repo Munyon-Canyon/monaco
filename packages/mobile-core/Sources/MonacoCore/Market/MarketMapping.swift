@@ -71,7 +71,7 @@ public enum MarketMapping {
         AssetChartSeries(
             range: chartRange(value.range),
             points: value.points.map {
-                AssetChartPointDTO(
+                MarketChartPoint(
                     timestamp: Int64($0.t.timeIntervalSince1970),
                     priceUsdcMicros: $0.closeMicros,
                     openUsdcMicros: $0.openMicros,
@@ -89,9 +89,9 @@ public enum MarketMapping {
     public static func status(
         _ wire: Components.Schemas.MarketSession,
         session: MarketSession
-    ) -> MarketStatusDTO {
+    ) -> MarketStatus {
         let open = session == .open && !wire.continuous
-        return MarketStatusDTO(
+        return MarketStatus(
             session: session,
             isOpen: open,
             afterHours: !wire.continuous && !open,

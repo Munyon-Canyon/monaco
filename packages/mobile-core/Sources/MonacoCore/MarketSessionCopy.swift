@@ -37,7 +37,7 @@ public enum MarketSessionCopy {
     /// or a session name this build does not know. A chip that guesses is worse than
     /// no chip on the screen where someone decides to trade.
     public static func chip(
-        for market: MarketStatusDTO?,
+        for market: MarketStatus?,
         locale: Locale = .autoupdatingCurrent,
         timeZone: TimeZone = .autoupdatingCurrent
     ) -> MarketSessionChipCopy? {
@@ -73,17 +73,17 @@ public enum MarketSessionCopy {
     /// "Closes 4:00 PM" — only when the server said when, and only while that is still
     /// ahead of the `asOf` it priced at. A transition already in the past is a stale
     /// payload, and "closes 4:00 PM" at 5pm is worse than no second line.
-    private static func closeTimeDetail(_ market: MarketStatusDTO, locale: Locale, timeZone: TimeZone) -> String? {
+    private static func closeTimeDetail(_ market: MarketStatus, locale: Locale, timeZone: TimeZone) -> String? {
         guard let transition = upcomingTransition(market) else { return nil }
         return "Closes \(time(transition, locale: locale, timeZone: timeZone))"
     }
 
-    private static func openTimeDetail(_ market: MarketStatusDTO, locale: Locale, timeZone: TimeZone) -> String? {
+    private static func openTimeDetail(_ market: MarketStatus, locale: Locale, timeZone: TimeZone) -> String? {
         guard market.nextSession == .open, let transition = upcomingTransition(market) else { return nil }
         return "Opens \(time(transition, locale: locale, timeZone: timeZone))"
     }
 
-    private static func upcomingTransition(_ market: MarketStatusDTO) -> Date? {
+    private static func upcomingTransition(_ market: MarketStatus) -> Date? {
         guard let transition = market.nextTransition else { return nil }
         guard let asOf = market.asOf else { return transition }
         return transition > asOf ? transition : nil
