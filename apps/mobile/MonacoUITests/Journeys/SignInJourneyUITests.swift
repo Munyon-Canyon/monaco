@@ -43,11 +43,11 @@ nonisolated final class SignInJourneyUITests: XCTestCase {
         SignInJourney.ensureSignedIn(app, as: account)
         SignInJourney.signOut(app, recorder: recorder)
 
-        recorder.step("S3.3", "relaunch and stay on the login form") {
+        recorder.step("S3.4", "relaunch and stay on the login form") {
             app.terminate()
             app.launch()
             XCTAssertEqual(
-                SignInJourney.currentScreen(app), .login, "S3.3: a relaunch after sign-out did not show the login form")
+                SignInJourney.currentScreen(app), .login, "S3.4: a relaunch after sign-out did not show the login form")
         }
         attachScreenshot(of: app, named: "S3-signed-out")
     }

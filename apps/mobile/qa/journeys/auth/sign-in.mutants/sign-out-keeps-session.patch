@@ -1,7 +1,7 @@
 journey: auth/sign-in
 expect-fail: S3
 
-Sign out no longer ends the Privy session, so the tab bar stays. S3.2 must fail.
+Sign out no longer ends the Privy session, so the tab bar stays. S3.3 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Shell/AppEnvironment.swift b/apps/mobile/Monaco/Features/Shell/AppEnvironment.swift

@@ -144,7 +144,7 @@ nonisolated final class ProfileNameSaveSampleUITests: XCTestCase {
     func testSignOutAsksBeforeItSignsOut() throws {
         let app = launchApp("cabals")
 
-        let signOut = app.buttons["profile-sign-out"]
+        let signOut = app.buttons["profileSignOutButton"]
         XCTAssertTrue(signOut.waitForExistence(timeout: 10), "Sign out should be on the profile")
         signOut.tap()
 

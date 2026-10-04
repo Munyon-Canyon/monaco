@@ -12,6 +12,22 @@ enum ProfileSaveOutcome: Equatable {
 /// Self-profile writes. After a save, `profile` holds the server copy and home boards are
 /// refetched so the new name and photo show up on the people and member boards.
 extension AppSessionStore {
+    func reloadProfile(auth: SessionAuthenticating) async {
+        guard let sessions, let token = await accessToken(auth: auth) else { return }
+        let writeGeneration = profileWriteGenerationValue()
+        let showsSkeleton = profile == nil
+        if showsSkeleton { isLoading = true }
+        defer { if showsSkeleton { isLoading = false } }
+        do {
+            let loaded = try await sessions.me()
+            guard writeGeneration == profileWriteGenerationValue() else { return }
+            profile = loaded
+        } catch {
+            if error.isRequestCancellation { return }
+            _ = await failedProfileLoad(error, token: token, auth: auth)
+        }
+    }
+
     /// Optimistically renames the signed-in user, rolling back if the server rejects it.
     func updateDisplayName(
         _ draft: String,

@@ -1,7 +1,7 @@
 ---
 id: auth/sign-in
 title: Sign in
-version: 4
+version: 5
 milestone: M9
 requires: []
 actors: [A]
@@ -54,8 +54,9 @@ Starts signed in (S1).
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
 | S3.1 | tap | the Profile tab | | `profileSignOutButton` shows within 15 s |
-| S3.2 | tap | `profileSignOutButton` | | The login form shows within 30 s and the tab bar is gone. No dialog asks first |
-| S3.3 | relaunch | the app | | The login form shows within 30 s |
+| S3.2 | tap | `profileSignOutButton` | | The dialog "Sign out of Monaco?" shows within 5 s |
+| S3.3 | tap | `profile-sign-out-confirm` | | The login form shows within 30 s and the tab bar is gone |
+| S3.4 | relaunch | the app | | The login form shows within 30 s |
 
 ## Ground truth
 
