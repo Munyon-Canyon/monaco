@@ -16,7 +16,8 @@ extension AppSessionStore {
     func updateDisplayName(
         _ draft: String,
         auth: SessionAuthenticating,
-        optimistic: Bool = true
+        optimistic: Bool = true,
+        submission: IdempotentSubmission
     ) async -> ProfileSaveOutcome {
         guard let current = profile else {
             return .failed("Your profile is still loading.")
@@ -44,7 +45,7 @@ extension AppSessionStore {
             profile = pending
         }
         do {
-            let saved = try await sessions.patchMe(displayName: normalized)
+            let saved = try await sessions.updateDisplayName(normalized, submission: submission)
             guard writeGeneration == profileWriteGenerationValue() else {
                 return .failed("Sign in again to edit your profile.")
             }
@@ -54,90 +55,45 @@ extension AppSessionStore {
             if profile == pending {
                 profile = current
             }
-            return await failure(
-                for: error,
-                auth: auth,
-                rejectedToken: token,
-                fallback: "Could not save your name. Try again."
-            )
+            return await failure(for: error, auth: auth, rejectedToken: token)
         }
         refreshBoardsAfterProfileWrite(auth: auth)
         return .saved
     }
 
-    /// Uploads an already-prepared photo (see `ProfilePhotoUploadPreparer`).
-    func uploadProfilePhoto(
-        _ imageData: Data,
-        mimeType: String,
-        auth: SessionAuthenticating
+    func saveProfilePhoto(
+        _ photo: Data,
+        auth: SessionAuthenticating,
+        submission: IdempotentSubmission
     ) async -> ProfileSaveOutcome {
-        guard let (client, token) = await profileClient(auth: auth) else {
+        guard let sessions, let token = await accessToken(auth: auth), !token.isEmpty else {
             return .failed("Sign in again to change your photo.")
         }
         noteProfileWrite()
         let writeGeneration = profileWriteGenerationValue()
         do {
-            let saved = try await client.uploadProfilePhoto(imageData: imageData, mimeType: mimeType)
+            let saved = try await sessions.uploadProfilePhoto(photo, submission: submission)
             guard writeGeneration == profileWriteGenerationValue() else {
                 return .failed("Sign in again to change your photo.")
             }
-            if let current = profile {
-                profile = current.replacing(from: saved)
-            }
+            profile = saved
+            noteProfileWrite()
         } catch {
-            return await failure(
-                for: error,
-                auth: auth,
-                rejectedToken: token,
-                fallback: "Could not upload your photo. Try again."
-            )
+            return await failure(for: error, auth: auth, rejectedToken: token)
         }
         refreshBoardsAfterProfileWrite(auth: auth)
         return .saved
     }
 
-    /// The client for this write plus the token it runs under, so a 401 can be reported
-    /// against the token that was actually rejected.
-    private func profileClient(auth: SessionAuthenticating) async -> (MonacoCore.MonacoAPIClient, String)? {
-        guard let token = await accessToken(auth: auth), !token.isEmpty else { return nil }
-        let client = profileClientFactory(token)
-        return (client, token)
-    }
-
     private func failure(
         for error: Error,
         auth: SessionAuthenticating,
-        rejectedToken: String,
-        fallback: String
+        rejectedToken: String
     ) async -> ProfileSaveOutcome {
-        if let apiError = error as? APIError {
-            if case .accountDeleted = apiError {
-                await auth.signOut(reason: ToastCopy.message(for: .accountDeleted), rejectedToken: rejectedToken)
-            }
-            return .failed(ToastCopy.message(for: apiError))
+        let apiError = APIError(error)
+        if case .accountDeleted = apiError {
+            await auth.signOut(reason: ToastCopy.message(for: .accountDeleted), rejectedToken: rejectedToken)
         }
-        if case MonacoCore.MonacoAPIError.httpStatus(401, _) = error {
-            await auth.signOutAfterRejectedSession(rejectedToken: rejectedToken)
-            return .failed(LoginFailureCopy.sessionExpired)
-        }
-        return .failed(Self.profileErrorMessage(for: error, fallback: fallback))
-    }
-
-    static func profileErrorMessage(for error: Error, fallback: String) -> String {
-        switch error {
-        case MonacoCore.MonacoAPIError.rejected(_, let message, _):
-            return message
-        case MonacoCore.MonacoAPIError.rateLimited(let retryAfter, _):
-            if let retryAfter, retryAfter > 0 {
-                return "Too many changes. Try again in \(retryAfter)s."
-            }
-            return "Too many changes. Try again in a minute."
-        case MonacoCore.MonacoAPIError.httpStatus(503, _):
-            return "Photo uploads are not set up on this server."
-        case let urlError as URLError where urlError.code != .cancelled:
-            return "Could not reach Monaco. Check your connection."
-        default:
-            return fallback
-        }
+        return .failed(ProfileSaveFailure(apiError).message)
     }
 }
