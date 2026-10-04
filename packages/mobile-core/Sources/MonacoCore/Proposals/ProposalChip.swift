@@ -14,3 +14,23 @@ public enum ProposalChip {
         }
     }
 }
+
+public enum ProposalStepper: Equatable, Sendable {
+    case voting
+    case trading
+    case done
+    case failed(String)
+
+    public static func state(status: ProposalStatus, isSell: Bool, swapFailed: Bool = false) -> Self {
+        let action = isSell ? "sell" : "buy"
+        if swapFailed || status == .executionBlocked { return .failed("Couldn't \(action)") }
+        return switch status {
+        case .open: .voting
+        case .passed: .trading
+        case .executed: .done
+        case .failed, .expired, .withdrawn, .voided:
+            .failed(ProposalChip.label(status: status, isSell: isSell) ?? "Couldn't \(action)")
+        case .executionBlocked: .failed("Couldn't \(action)")
+        }
+    }
+}
