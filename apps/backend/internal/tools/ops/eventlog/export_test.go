@@ -24,6 +24,8 @@ const (
 	ping     = "01890a5d-ac96-774b-bcce-b302099a8057"
 )
 
+func anonymizeKey() []byte { return []byte("01234567890123456789012345678901") }
+
 func export(t *testing.T, pool *pgxpool.Pool, o eventlog.Options) string {
 	t.Helper()
 	var out bytes.Buffer
@@ -78,8 +80,8 @@ func TestExport_anonymizeHashesActorsAndPIIFieldsDeterministically(t *testing.T)
 	t.Parallel()
 	pool := testkit.DB(t)
 	testkit.Seed(t, pool, "one-user-with-ping")
-	got := export(t, pool, eventlog.Options{Anonymize: true})
-	if again := export(t, pool, eventlog.Options{Anonymize: true}); again != got {
+	got := export(t, pool, eventlog.Options{Anonymize: true, Key: anonymizeKey()})
+	if again := export(t, pool, eventlog.Options{Anonymize: true, Key: anonymizeKey()}); again != got {
 		t.Fatalf("anonymized exports differ:\n%s\n%s", got, again)
 	}
 	var line eventlog.Line
@@ -90,16 +92,17 @@ func TestExport_anonymizeHashesActorsAndPIIFieldsDeterministically(t *testing.T)
 	if err := json.Unmarshal(line.Payload, &payload); err != nil {
 		t.Fatal(err)
 	}
-	hashed := eventlog.Pseudonym(user)
+	hashed := eventlog.Pseudonym(anonymizeKey(), user)
 	if strings.Contains(got, user) || strings.Contains(got, "seeded") || line.Actor != "user:"+hashed ||
-		payload["user_id"] != hashed || payload["note"] != eventlog.Pseudonym("seeded") || payload["ping_id"] != ping {
+		payload["user_id"] != hashed || payload["note"] != eventlog.Pseudonym(anonymizeKey(), "seeded") || payload["ping_id"] != ping {
 		t.Fatalf("anonymized line = %s, want the user id and note hashed and the ping id kept", got)
 	}
-	if _, err := uuid.Parse(hashed); err != nil || !strings.HasPrefix(eventlog.Pseudonym("seeded"), "anon-") {
+	if _, err := uuid.Parse(hashed); err != nil ||
+		!strings.HasPrefix(eventlog.Pseudonym(anonymizeKey(), "seeded"), "anon-") {
 		t.Fatalf(
 			"pseudonyms %s and %s, want a uuid for a uuid and anon- for text",
 			hashed,
-			eventlog.Pseudonym("seeded"),
+			eventlog.Pseudonym(anonymizeKey(), "seeded"),
 		)
 	}
 	t.Run("seed the anonymized export", func(t *testing.T) {
@@ -135,7 +138,7 @@ func mustUUID(t *testing.T, raw string) uuid.UUID {
 
 func pseudonymOf(t *testing.T, u uuid.UUID) uuid.UUID {
 	t.Helper()
-	return mustUUID(t, eventlog.Pseudonym(u.String()))
+	return mustUUID(t, eventlog.Pseudonym(anonymizeKey(), u.String()))
 }
 
 func decodeExported(t *testing.T, line string) events.Event {
@@ -160,7 +163,7 @@ func TestExport_anonymizeReachesUserIDsInsideANestedChangeList(t *testing.T) {
 	updated.Changes.VoterIDs = []uuid.UUID{creator, member}
 	pool := testkit.DB(t)
 	testkit.SeedJSONL(t, pool, "cabal updated", cabalLine(t, updated, user))
-	got := export(t, pool, eventlog.Options{Anonymize: true})
+	got := export(t, pool, eventlog.Options{Anonymize: true, Key: anonymizeKey()})
 	for _, real := range []uuid.UUID{creator, member} {
 		if strings.Contains(got, real.String()) {
 			t.Fatalf("anonymized export still holds %s:\n%s", real, got)
@@ -190,7 +193,10 @@ func TestExport_anonymizeKeepsATimeFieldAndAnAbsentIDAndPseudonymizesTheScalarID
 	}
 	pool := testkit.DB(t)
 	testkit.SeedJSONL(t, pool, "cabal access", append(cabalLine(t, requested, user), cabalLine(t, expired, user)...))
-	lines := strings.Split(strings.TrimSpace(export(t, pool, eventlog.Options{Anonymize: true})), "\n")
+	lines := strings.Split(
+		strings.TrimSpace(export(t, pool, eventlog.Options{Anonymize: true, Key: anonymizeKey()})),
+		"\n",
+	)
 	wantRequested, wantExpired := requested, expired
 	wantRequested.UserID, wantRequested.ActorID = pseudonymOf(t, member), pseudonymOf(t, creator)
 	wantExpired.UserID = pseudonymOf(t, member)
@@ -244,7 +250,9 @@ func TestExport_failsOnAnUnreadableLogAnUndecodablePayloadOrAFailedWrite(t *test
 	if _, err := pool.Exec(t.Context(), `UPDATE events SET payload = '{"v": 9}'`); err != nil {
 		t.Fatal(err)
 	}
-	if err := eventlog.Export(t.Context(), pool, &bytes.Buffer{}, eventlog.Options{Anonymize: true}); errs.CodeOf(
+	if err := eventlog.Export(
+		t.Context(), pool, &bytes.Buffer{}, eventlog.Options{Anonymize: true, Key: anonymizeKey()},
+	); errs.CodeOf(
 		err,
 	) != errs.CodeDecodeFailed {
 		t.Fatalf("anonymized export of an undecodable payload = %v, want decode_failed", err)
@@ -259,6 +267,34 @@ func TestExport_failsOnAnUnreadableLogAnUndecodablePayloadOrAFailedWrite(t *test
 		err,
 	) != errs.CodeInternal {
 		t.Fatalf("export from a closed pool = %v, want internal", err)
+	}
+}
+
+func TestPseudonym_isKeyedAndUsesVersionEightUUIDs(t *testing.T) {
+	t.Parallel()
+	other := []byte("abcdefghijklmnopqrstuvwxyz012345")
+	for _, input := range []string{user, "a private note"} {
+		got := eventlog.Pseudonym(anonymizeKey(), input)
+		if got != eventlog.Pseudonym(anonymizeKey(), input) {
+			t.Fatalf("pseudonym for %q changes with the same key", input)
+		}
+		if got == eventlog.Pseudonym(other, input) {
+			t.Fatalf("pseudonym for %q does not change with the key", input)
+		}
+	}
+	parsed, err := uuid.Parse(eventlog.Pseudonym(anonymizeKey(), user))
+	if err != nil || parsed.Version() != 8 {
+		t.Fatalf("uuid pseudonym = %q, version = %d, err = %v; want version 8", parsed, parsed.Version(), err)
+	}
+}
+
+func TestExport_anonymizeNeedsAtLeastA32ByteKey(t *testing.T) {
+	t.Parallel()
+	err := eventlog.Export(
+		t.Context(), testkit.DB(t), &bytes.Buffer{}, eventlog.Options{Anonymize: true, Key: make([]byte, 16)},
+	)
+	if errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("export with a 16-byte key = %v, want invalid_input", err)
 	}
 }
 

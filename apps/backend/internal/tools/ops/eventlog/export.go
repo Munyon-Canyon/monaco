@@ -2,11 +2,13 @@ package eventlog
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"reflect"
 	"strings"
 	"time"
@@ -23,6 +25,7 @@ type Options struct {
 	AggregateType string
 	AggregateID   uuid.UUID
 	Anonymize     bool
+	Key           []byte
 }
 
 type Line struct {
@@ -35,6 +38,9 @@ type Line struct {
 
 func Export(ctx context.Context, pool *pgxpool.Pool, w io.Writer, o Options) error {
 	const op = "eventlog.Export"
+	if o.Anonymize && len(o.Key) < 32 {
+		return errs.New(errs.CodeInvalidInput, op, slog.String("reason", "anonymize needs a 32-byte key"))
+	}
 	rows, _ := pool.Query(ctx, `SELECT id, type, actor_type || ':' || actor_id, created_at, payload FROM events
 		WHERE $1 = '' OR (aggregate_type = $1 AND aggregate_id = $2) ORDER BY id`, o.AggregateType, o.AggregateID)
 	lines, err := pgx.CollectRows(rows, pgx.RowToStructByPos[Line])
@@ -45,7 +51,7 @@ func Export(ctx context.Context, pool *pgxpool.Pool, w io.Writer, o Options) err
 	for _, l := range lines {
 		l.CreatedAt = l.CreatedAt.UTC()
 		if o.Anonymize {
-			if l, err = anonymize(l); err != nil {
+			if l, err = anonymize(l, o.Key); err != nil {
 				return err
 			}
 		}
@@ -56,7 +62,7 @@ func Export(ctx context.Context, pool *pgxpool.Pool, w io.Writer, o Options) err
 	return nil
 }
 
-func anonymize(l Line) (Line, error) {
+func anonymize(l Line, key []byte) (Line, error) {
 	var head struct {
 		V int `json:"v"`
 	}
@@ -65,20 +71,20 @@ func anonymize(l Line) (Line, error) {
 	if err != nil {
 		return l, err
 	}
-	return anonymizeEvent(l, ev)
+	return anonymizeEvent(l, ev, key)
 }
 
-func anonymizeEvent(l Line, ev any) (Line, error) {
+func anonymizeEvent(l Line, ev any, key []byte) (Line, error) {
 	actorType, actorID, _ := strings.Cut(l.Actor, ":")
-	l.Actor = actorType + ":" + Pseudonym(actorID)
+	l.Actor = actorType + ":" + Pseudonym(key, actorID)
 	var fields map[string]any
 	_ = json.Unmarshal(l.Payload, &fields)
-	scrub(reflect.ValueOf(ev), fields)
+	scrub(reflect.ValueOf(ev), fields, key)
 	l.Payload, _ = json.Marshal(fields)
 	return l, nil
 }
 
-func scrub(v reflect.Value, fields map[string]any) {
+func scrub(v reflect.Value, fields map[string]any, key []byte) {
 	v = follow(v)
 	if v.Kind() != reflect.Struct {
 		return
@@ -92,29 +98,29 @@ func scrub(v reflect.Value, fields map[string]any) {
 		}
 		switch f.Tag.Get("pii") {
 		case "true":
-			fields[name] = pseudonymize(child)
+			fields[name] = pseudonymize(key, child)
 			continue
 		case "keys":
-			hashed, ok := hashKeys(child)
+			hashed, ok := hashKeys(key, child)
 			if !ok {
 				continue
 			}
 			fields[name] = hashed
-			scrubMap(follow(v.Field(i)), hashed)
+			scrubMap(follow(v.Field(i)), hashed, key)
 			continue
 		}
-		scrubOne(v.Field(i), child)
+		scrubOne(v.Field(i), child, key)
 	}
 }
 
-func hashKeys(child any) (map[string]any, bool) {
+func hashKeys(secret []byte, child any) (map[string]any, bool) {
 	obj, ok := child.(map[string]any)
 	if !ok {
 		return nil, false
 	}
 	rebuilt := make(map[string]any, len(obj))
 	for key, val := range obj {
-		rebuilt[Pseudonym(key)] = val
+		rebuilt[Pseudonym(secret, key)] = val
 	}
 	return rebuilt, true
 }
@@ -136,7 +142,7 @@ func derefType(t reflect.Type) reflect.Type {
 	return t
 }
 
-func scrubOne(v reflect.Value, child any) {
+func scrubOne(v reflect.Value, child any, key []byte) {
 	v = follow(v)
 	switch {
 	case v.Kind() == reflect.Struct:
@@ -144,17 +150,17 @@ func scrubOne(v reflect.Value, child any) {
 		if !ok {
 			return
 		}
-		scrub(v, nested)
+		scrub(v, nested, key)
 	case v.Kind() == reflect.Map:
-		scrubMap(v, child)
+		scrubMap(v, child, key)
 	case v.Kind() == reflect.Interface && !v.IsNil():
-		scrubOne(v.Elem(), child)
+		scrubOne(v.Elem(), child, key)
 	case v.Kind() == reflect.Slice || v.Kind() == reflect.Array:
-		scrubIndexed(v, child)
+		scrubIndexed(v, child, key)
 	}
 }
 
-func scrubIndexed(v reflect.Value, child any) {
+func scrubIndexed(v reflect.Value, child any, key []byte) {
 	elem := derefType(v.Type().Elem())
 	if elem.Kind() != reflect.Struct && elem.Kind() != reflect.Map &&
 		elem.Kind() != reflect.Slice && elem.Kind() != reflect.Array {
@@ -169,36 +175,37 @@ func scrubIndexed(v reflect.Value, child any) {
 		if i < v.Len() {
 			cur = v.Index(i)
 		}
-		scrubOne(cur, item)
+		scrubOne(cur, item, key)
 	}
 }
 
-func scrubMap(v reflect.Value, child any) {
+func scrubMap(v reflect.Value, child any, key []byte) {
 	obj, ok := child.(map[string]any)
 	if !ok {
 		return
 	}
 	for _, val := range obj {
-		scrubOne(reflect.Zero(v.Type().Elem()), val)
+		scrubOne(reflect.Zero(v.Type().Elem()), val, key)
 	}
 }
 
-func pseudonymize(node any) any {
+func pseudonymize(key []byte, node any) any {
 	list, isList := node.([]any)
 	if !isList {
-		return Pseudonym(fmt.Sprint(node))
+		return Pseudonym(key, fmt.Sprint(node))
 	}
 	out := make([]any, len(list))
 	for i, element := range list {
-		out[i] = Pseudonym(fmt.Sprint(element))
+		out[i] = Pseudonym(key, fmt.Sprint(element))
 	}
 	return out
 }
 
-func Pseudonym(s string) string {
+func Pseudonym(key []byte, s string) string {
 	if _, err := uuid.Parse(s); err == nil {
-		return uuid.NewSHA1(uuid.NameSpaceURL, []byte("monaco:"+s)).String()
+		return uuid.NewHash(hmac.New(sha256.New, key), uuid.NameSpaceURL, []byte(s), 8).String()
 	}
-	sum := sha256.Sum256([]byte("monaco:" + s))
-	return "anon-" + hex.EncodeToString(sum[:8])
+	mac := hmac.New(sha256.New, key)
+	_, _ = mac.Write([]byte(s))
+	return "anon-" + hex.EncodeToString(mac.Sum(nil)[:8])
 }

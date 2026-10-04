@@ -8,6 +8,8 @@ import (
 
 const scrubUser = "01890a5d-ac96-774b-bcce-b302099a8058"
 
+func scrubKey() []byte { return []byte("01234567890123456789012345678901") }
+
 type taggedID struct {
 	UserID string `json:"user_id" pii:"true"`
 	Label  string `json:"label"`
@@ -83,7 +85,7 @@ func anonymizedFields(t *testing.T, ev any, payload []byte) map[string]any {
 			t.Fatal(err)
 		}
 	}
-	line, err := anonymizeEvent(Line{Actor: "user:" + scrubUser, Payload: payload}, ev)
+	line, err := anonymizeEvent(Line{Actor: "user:" + scrubUser, Payload: payload}, ev, scrubKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +107,7 @@ func object(t *testing.T, fields map[string]any, key string) map[string]any {
 
 func wantHashedID(t *testing.T, got map[string]any) {
 	t.Helper()
-	if got["user_id"] != Pseudonym(scrubUser) || got["label"] != "keep" {
+	if got["user_id"] != Pseudonym(scrubKey(), scrubUser) || got["label"] != "keep" {
 		t.Fatalf("object = %#v, want user_id hashed and label kept", got)
 	}
 }
@@ -208,7 +210,7 @@ func wantMember(t *testing.T, node any) {
 	if !ok {
 		t.Fatalf("member = %#v, want an object", node)
 	}
-	if got["user_id"] != Pseudonym(scrubUser) || got["role"] != "voter" {
+	if got["user_id"] != Pseudonym(scrubKey(), scrubUser) || got["role"] != "voter" {
 		t.Fatalf("member = %#v, want user_id hashed and role kept", got)
 	}
 }
@@ -316,7 +318,7 @@ func wantKeyed(t *testing.T, fields map[string]any) {
 	if _, ok := items[scrubUser]; ok {
 		t.Fatalf("items = %#v, want the raw key hashed", items)
 	}
-	wantHashedID(t, object(t, items, Pseudonym(scrubUser)))
+	wantHashedID(t, object(t, items, Pseudonym(scrubKey(), scrubUser)))
 }
 
 func TestScrub_hashesKeysAndTaggedFieldsOfAKeyedMap(t *testing.T) {
@@ -346,7 +348,7 @@ func TestScrub_copiesAKeyedMapThatIsNotAnObject(t *testing.T) {
 func TestScrub_copiesANonStruct(t *testing.T) {
 	t.Parallel()
 	fields := map[string]any{"user_id": scrubUser}
-	scrub(reflect.ValueOf(0), fields)
+	scrub(reflect.ValueOf(0), fields, scrubKey())
 	if fields["user_id"] != scrubUser {
 		t.Fatalf("non-struct = %#v, want the field copied", fields)
 	}

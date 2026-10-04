@@ -9,7 +9,10 @@ import (
 
 func TestEventsExport_writesTheLogAsSeedLines(t *testing.T) {
 	t.Parallel()
-	env := opsEnv(seededFlow00(t).Config().ConnString())
+	env := append(
+		opsEnv(seededFlow00(t).Config().ConnString()),
+		"MONACO_EXPORT_KEY=3031323334353637383930313233343536373839303132333435363738393031",
+	)
 	for _, tc := range []struct {
 		args []string
 		want string
@@ -38,6 +41,9 @@ func TestEventsExport_refusesBadArgumentsAndAnUnreachableDatabase(t *testing.T) 
 		{env, []string{"events", "export", "--aggregate", "system"}, 2, eventsUsage + "\n"},
 		{env, []string{"events", "export", "--aggregate", ":01890a5d-ac96-774b-bcce-b302099a8057"}, 2, eventsUsage + "\n"},
 		{opsEnv(unreachable), []string{"events", "export"}, 1, "monacoctl: db.Open: "},
+		{env, []string{"events", "export", "--anonymize"}, 2, anonymizeKeyError + "\n"},
+		{append(env, "MONACO_EXPORT_KEY=not-hex"), []string{"events", "export", "--anonymize"}, 2, anonymizeKeyError + "\n"},
+		{append(env, "MONACO_EXPORT_KEY=30313233343536373839303132333435"), []string{"events", "export", "--anonymize"}, 2, anonymizeKeyError + "\n"},
 	} {
 		code, _, stderr := runOps(tc.environ, tc.args...)
 		if code != tc.code || !strings.HasPrefix(stderr, tc.stderr) {
