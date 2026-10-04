@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 
 enum SettingsRow: CaseIterable, Identifiable {
-    case notifications, activity, withdraw, advanced, deleteAccount
+    case notifications, activity, withdraw, blockedPeople, advanced, deleteAccount
 
     var id: Self { self }
 
@@ -12,6 +12,7 @@ enum SettingsRow: CaseIterable, Identifiable {
         case .notifications: "Notifications"
         case .activity: "Activity"
         case .withdraw: "Withdraw"
+        case .blockedPeople: "Blocked people"
         case .advanced: "Advanced"
         case .deleteAccount: "Delete account"
         }
@@ -26,6 +27,7 @@ enum SettingsRow: CaseIterable, Identifiable {
         case .notifications: "bell"
         case .activity: "clock.arrow.circlepath"
         case .withdraw: "arrow.down.left"
+        case .blockedPeople: "hand.raised"
         case .advanced: "link"
         case .deleteAccount: "trash"
         }
@@ -36,6 +38,7 @@ enum SettingsRow: CaseIterable, Identifiable {
         case .notifications: "settings-notifications"
         case .activity: "settings-activity"
         case .withdraw: "settings-withdraw"
+        case .blockedPeople: "settings-blocked-people"
         case .advanced: "settings-advanced"
         case .deleteAccount: "settings-delete-account"
         }
@@ -138,6 +141,12 @@ struct SettingsList: View {
         case .withdraw:
             Button {
                 open(WithdrawRoute())
+            } label: {
+                label(for: row)
+            }
+        case .blockedPeople:
+            Button {
+                open(BlockedPeopleRoute())
             } label: {
                 label(for: row)
             }
