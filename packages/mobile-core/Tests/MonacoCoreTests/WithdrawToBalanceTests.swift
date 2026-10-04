@@ -13,35 +13,6 @@ final class WithdrawToBalanceTests: XCTestCase {
         super.tearDown()
     }
 
-    func testLeaveGroup_withWithdrawStake_sendsBody() async throws {
-        let token = TestFixtures.fixtureSessionToken
-        var capturedRequest: URLRequest?
-
-        MockURLProtocol.requestHandler = { request in
-            capturedRequest = request
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: 204,
-                httpVersion: nil,
-                headerFields: nil
-            )!
-            return (response, Data())
-        }
-
-        let client = MonacoAPIClient(
-            baseURL: URL(string: "https://api.test")!,
-            session: makeMockURLSession(),
-            accessTokenProvider: { token }
-        )
-
-        try await client.leaveGroup(groupId: "g1", withdrawStake: true, submission: IdempotentSubmission())
-
-        let request = try XCTUnwrap(capturedRequest)
-        let body = try XCTUnwrap(Self.httpBody(from: request))
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Bool])
-        XCTAssertEqual(json["withdrawStake"], true)
-    }
-
     func testWithdrawToBalance_callsEndpoint() async throws {
         let token = TestFixtures.fixtureSessionToken
         var capturedPath: String?
@@ -78,19 +49,4 @@ final class WithdrawToBalanceTests: XCTestCase {
         return URLSession(configuration: configuration)
     }
 
-    private static func httpBody(from request: URLRequest) -> Data? {
-        if let body = request.httpBody { return body }
-        guard let stream = request.httpBodyStream else { return nil }
-        stream.open()
-        defer { stream.close() }
-        var data = Data()
-        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: 1024)
-        defer { buffer.deallocate() }
-        while stream.hasBytesAvailable {
-            let read = stream.read(buffer, maxLength: 1024)
-            if read <= 0 { break }
-            data.append(buffer, count: read)
-        }
-        return data
-    }
 }

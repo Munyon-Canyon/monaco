@@ -55,8 +55,6 @@ struct CabalsRouteDestination: View {
     /// The create and join writes, so the tab's sample harness can drive both
     /// flows end to end without a backend.
     let actions: CabalsActionSource
-    /// The viewer joined, left, or created a cabal: reload the tab.
-    var onChanged: () async -> Void
     /// A cabal was created; the owner replaces this screen with it.
     var onCreated: (CreateGroupResponse) -> Void
     /// The viewer is now a member; the owner replaces this screen with the cabal.
@@ -65,7 +63,7 @@ struct CabalsRouteDestination: View {
     var body: some View {
         switch route {
         case .cabal(let id, let name):
-            GroupDetailView(auth: auth, groupId: id, groupName: name, onLeft: onChanged)
+            GroupDetailView(auth: auth, groupId: id, groupName: name)
         case .join(let id, let name, let mode, let memberCount, let pictureUrl):
             JoinGroupView(
                 auth: auth, groupId: id, groupName: name, joinMode: mode,

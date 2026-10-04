@@ -33,26 +33,17 @@ private nonisolated enum GroupDetailRefreshMode {
 }
 
 /// Group screen: hero, action row, open votes, holdings, leaderboard, and activity.
-/// Owns loading, polling, leave, retry, and join-request state; `GroupDetailContent` is the layout.
+/// Owns loading, polling, retry, and join-request state; `GroupDetailContent` is the layout.
 struct GroupDetailView: View {
     @ObservedObject var auth: PrivyAuthService
     let groupId: String
     let groupName: String?
     let initialView: GroupViewDTO?
-    var onLeft: () async -> Void = {}
 
     private let apiClient = MonacoAPIClient()
-    // NB: no `@Environment(\.dismiss)` here on purpose — see `DismissWhenActive`.
     @Environment(AppSessionStore.self) private var session: AppSessionStore?
 
     @State private var groupView: GroupViewDTO?
-    @State private var showLeaveConfirmation = false
-    @State private var showWithdrawLeaveConfirmation = false
-    @State private var isLeaving = false
-    /// Which leave is running, so the progress cover can say whether the slice is being sold.
-    @State private var leavingSellsSlice = false
-    /// Idempotency key for the leave request in flight; a retry after a lost response reuses it.
-    @State private var leaveSubmission = IdempotentSubmission()
     /// One idempotency key holder per transaction being retried; retries of different rows overlap.
     @State private var retrySubmissions: [String: IdempotentSubmission] = [:]
     @State private var activityItems: [GroupActivityItemDTO] = []
@@ -78,10 +69,7 @@ struct GroupDetailView: View {
     @State private var showProposeSheet = false
     /// The propose sheet's height; the chooser raises it to `.large` while a flow is pushed.
     @State private var showDetailsSheet = false
-    @State private var leaveRequestedFromDetails = false
     @State private var heroScrolledAway = false
-    /// Set once leaving succeeded; `DismissWhenActive` pops the screen.
-    @State private var hasLeft = false
 
     /// Whether the open-votes preview has a proposal collecting votes right now.
     @State private var hasOpenVotes = false
@@ -109,14 +97,12 @@ struct GroupDetailView: View {
         auth: PrivyAuthService,
         groupId: String,
         groupName: String? = nil,
-        initialView: GroupViewDTO? = nil,
-        onLeft: @escaping () async -> Void = {}
+        initialView: GroupViewDTO? = nil
     ) {
         self.auth = auth
         self.groupId = groupId
         self.groupName = groupName
         self.initialView = initialView
-        self.onLeft = onLeft
         _isLoading = State(initialValue: initialView == nil)
         _proposalService = State(initialValue: LiveProposalFeedService(auth: auth))
         _pnl = State(
@@ -131,14 +117,13 @@ struct GroupDetailView: View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .monacoCanvas()
-            .groupLeaveProgress(isLeaving: isLeaving, isSellingSlice: leavingSellsSlice)
             // The hero carries the name; the bar only shows it once the hero scrolls away.
             .navigationTitle(groupView == nil || heroScrolledAway ? displayName : "")
             .navigationBarTitleDisplayMode(.inline)
             .cabalHeroNavigationBar(isOverHero: groupView != nil && !heroScrolledAway)
 
             .toolbar {
-                if groupView != nil, !isLeaving {
+                if groupView != nil {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
                             showDetailsSheet = true
@@ -153,7 +138,6 @@ struct GroupDetailView: View {
             .navigationDestination(item: $route) { route in
                 destination(for: route)
             }
-            .background(DismissWhenActive(isActive: hasLeft))
             // The first appearance loads; coming back from a pushed screen does not. The poll
             // loop below already knows how stale its data is and ticks straight away when it is.
             .task(id: loadTaskID) {
@@ -165,7 +149,7 @@ struct GroupDetailView: View {
                 didInitialLoad = true
                 try? await refreshGate.runNow { try await refresh(.initial) }
             }
-            .pollWhileVisible(every: pollInterval, isActive: groupView != nil && !hasLeft, gate: refreshGate) {
+            .pollWhileVisible(every: pollInterval, isActive: groupView != nil, gate: refreshGate) {
                 try await refresh(.quiet)
             }
             // A range chip on the hero: read that window if it has not been read yet.
@@ -196,33 +180,12 @@ struct GroupDetailView: View {
                     ProposeSheet(auth: auth, groupId: groupId, groupView: groupView, onProposed: proposalSent)
                 }
             }
-            .sheet(isPresented: $showDetailsSheet, onDismiss: presentLeaveConfirmationIfRequested) {
+            .sheet(isPresented: $showDetailsSheet) {
                 if let groupView {
-                    GroupDetailsSheet(
-                        groupId: groupId,
-                        treasuryAddress: groupView.treasuryAddress,
-                        isLeaving: isLeaving,
-                        onLeave: {
-                            leaveRequestedFromDetails = true
-                            showDetailsSheet = false
-                        }
-                    )
+                    GroupDetailsSheet(groupId: groupId, treasuryAddress: groupView.treasuryAddress)
                 }
             }
             .monacoToast($toast)
-            .confirmationDialog("Leave \(displayName)?", isPresented: $showLeaveConfirmation, titleVisibility: .visible)
-        {
-            Button("Leave cabal", role: .destructive) { Task { await leaveGroup(withdrawStake: false) } }
-        } message: {
-            Text("You'll lose access to this cabal's votes and chat.")
-        }
-            .confirmationDialog(
-                "Leave \(displayName)?", isPresented: $showWithdrawLeaveConfirmation, titleVisibility: .visible
-            ) {
-                Button("Sell and leave", role: .destructive) { Task { await leaveGroup(withdrawStake: true) } }
-            } message: {
-                Text("We'll sell your slice at today's prices and move the cash to your account balance.")
-            }
     }
 
     @ViewBuilder
@@ -363,17 +326,6 @@ struct GroupDetailView: View {
         toast = MonacoToast(message: "Proposal sent to \(displayName)", isSuccess: true)
     }
 
-    /// The details sheet asks to leave; the confirmation shows once the sheet is gone.
-    private func presentLeaveConfirmationIfRequested() {
-        guard leaveRequestedFromDetails, let groupView else { return }
-        leaveRequestedFromDetails = false
-        if hasDeployedStake(in: groupView) {
-            showWithdrawLeaveConfirmation = true
-        } else {
-            showLeaveConfirmation = true
-        }
-    }
-
     /// The one way this screen reads itself.
     ///
     /// The cabal, its activity and — for an admin — the people waiting to join are read together
@@ -396,9 +348,6 @@ struct GroupDetailView: View {
             }
             return
         }
-        // Leaving owns the screen while it runs; refreshing would only race the pop.
-        guard !isLeaving, !hasLeft else { return }
-
         if mode == .initial {
             isLoading = true
             activityLoading = true
@@ -433,7 +382,7 @@ struct GroupDetailView: View {
             viewFailure = error
         }
 
-        guard !Task.isCancelled, !hasLeft else { return }
+        guard !Task.isCancelled else { return }
 
         if let loadedView {
             QuietUpdate.apply(loadedView, over: groupView) { groupView = $0 }
@@ -474,60 +423,6 @@ struct GroupDetailView: View {
     private func surfaceDepositFailureToasts(from items: [GroupActivityItemDTO]) {
         guard let failure = DepositFailureToastTracker.consumeNewFailures(from: items).first else { return }
         toast = MonacoToast(message: DepositFailureToastTracker.message(for: failure))
-    }
-
-    private func hasDeployedStake(in view: GroupViewDTO) -> Bool {
-        (Int64(view.you.shareUnits) ?? 0) > 0
-    }
-
-    private func leaveGroup(withdrawStake: Bool) async {
-        guard let token = auth.accessToken, !isLeaving else { return }
-        leavingSellsSlice = withdrawStake
-        isLeaving = true
-        do {
-            try await apiClient.leaveGroup(
-                accessToken: token, groupId: groupId, withdrawStake: withdrawStake, submission: leaveSubmission)
-            if withdrawStake {
-                toast = MonacoToast(message: "Cash moved to your account balance", isSuccess: true)
-            }
-            // The cover stays up until the screen is on its way out. `onLeft()` is a network
-            // round trip at every call site, and clearing `isLeaving` here would hand back the
-            // action row, the back button and the details item for the length of it — on a cabal
-            // the member has just left, still showing the slice they left with, because nothing
-            // has re-read it yet. Only the failure paths below put the screen back in the
-            // member's hands, which is also all `refreshQuietly()` needs to run.
-            await onLeft()
-            hasLeft = true
-            return
-        } catch MonacoAPIError.leaveBlocked(let reason) {
-            isLeaving = false
-            toast = MonacoToast(message: leaveBlockedMessage(for: reason))
-        } catch MonacoAPIError.httpStatus {
-            isLeaving = false
-            toast = MonacoToast(message: "Couldn't leave this cabal. Try again")
-        } catch {
-            isLeaving = false
-            // The request never got an answer. Selling the slice can take most of a minute, so
-            // it may well have gone through — don't tell the member to do it all over again.
-            toast = MonacoToast(
-                message: withdrawStake
-                    ? "We couldn't confirm that. Check your slice below before trying again"
-                    : "Couldn't leave this cabal. Try again")
-        }
-        // A refused leave can still have sold the slice: the server sells first and checks the
-        // cabal's rules afterwards. Re-read the cabal so what is on screen is what is true now.
-        await refreshQuietly()
-    }
-
-    private func leaveBlockedMessage(for reason: LeaveGroupBlockReason) -> String {
-        switch reason {
-        case .shareUnitsRemaining: return "Cash out your slice first."
-        case .lastMemberWithTreasury: return "You're the last member and the pot still has money in it."
-        case .pendingRedeem: return "Your cash out is still finishing. Try again in a minute."
-        case .soleRemainingVote: return "Vote on the open proposals before you leave."
-        case .creatorMustTransfer: return "Hand the cabal to another member before you leave."
-        case .unknown: return "You can't leave this cabal right now."
-        }
     }
 
     private func retryTransaction(_ item: GroupActivityItemDTO) async {
@@ -641,7 +536,7 @@ struct GroupDetailView: View {
         switch apiError {
         case .httpStatus(let code): return code
         case .apiError(let status, _): return status
-        case .invalidResponse, .missingAccessToken, .leaveBlocked: return nil
+        case .invalidResponse, .missingAccessToken: return nil
         }
     }
 }
@@ -656,79 +551,6 @@ extension View {
             .animation(.easeInOut(duration: 0.2), value: isOverHero)
     }
 
-    /// The cabal screen while a leave is running.
-
-    ///
-    /// Leaving sells a slice and waits for the payout to confirm, which can take most of a
-    /// minute. For that whole time the screen says what is happening and takes no taps: an idle
-    /// looking screen invites a second tap, or a second money flow on a cabal being left.
-    func groupLeaveProgress(isLeaving: Bool, isSellingSlice: Bool) -> some View {
-        disabled(isLeaving)
-            // `disabled()` stops taps but leaves the rows reachable by VoiceOver swipe, so the
-            // member can still walk an action row that does nothing. Hide the content behind
-            // the cover the same way the cover hides it visually.
-            .accessibilityHidden(isLeaving)
-            .overlay {
-                if isLeaving {
-                    GroupLeaveProgressCover(isSellingSlice: isSellingSlice)
-                }
-            }
-            .animation(.easeInOut(duration: 0.2), value: isLeaving)
-            .navigationBarBackButtonHidden(isLeaving)
-    }
-}
-
-struct GroupLeaveProgressCover: View {
-    let isSellingSlice: Bool
-
-    var body: some View {
-        ZStack {
-            MonacoTheme.canvas.opacity(0.94)
-                .ignoresSafeArea()
-            VStack(spacing: 14) {
-                ProgressView()
-                    .tint(MonacoTheme.ink)
-                Text(isSellingSlice ? "Selling your slice…" : "Leaving the cabal…")
-                    .font(MonacoTheme.Typo.rowTitle)
-                    .foregroundStyle(MonacoTheme.ink)
-                Text("This can take a minute. Keep the app open.")
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .multilineTextAlignment(.center)
-            }
-            .padding(24)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.updatesFrequently)
-        .accessibilityIdentifier("group-leaving-cover")
-    }
-}
-
-/// Invisible helper that pops its screen once `isActive` turns true.
-///
-/// It exists so that `GroupDetailView` does not read `@Environment(\.dismiss)` itself.
-/// `GroupDetailView` also declares `.navigationDestination(item:)` for the screens its
-/// action row pushes, and SwiftUI recomputes a pushed view's `DismissAction` whenever the
-/// stack's contents change. Reading both in one body makes pushing a screen invalidate the
-/// very body that declares the push, which invalidates the dismiss action again: the group
-/// screen spins the main thread instead of navigating, and Add money / Cash out / Chat do
-/// nothing. Keeping the dismiss dependency in a leaf that renders nothing confines that
-/// churn to a view with no navigation of its own.
-///
-/// `GroupNavSampleUITests` covers every entry path the product uses; it hangs without this.
-private struct DismissWhenActive: View {
-    let isActive: Bool
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        Color.clear
-            .frame(width: 0, height: 0)
-            .accessibilityHidden(true)
-            .allowsHitTesting(false)
-            .onChange(of: isActive) { _, nowActive in
-                if nowActive { dismiss() }
-            }
-    }
 }
 
 /// Scrollable layout of the group screen. Pure: data in, actions out.

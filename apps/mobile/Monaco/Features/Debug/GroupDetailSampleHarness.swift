@@ -8,7 +8,6 @@ import UIKit
 /// Launch with `-MonacoGroupDetailSample <scenario>`:
 /// `populated` · `empty` · `loading` · `details` (Cabal details sheet open) · `propose` (chooser sheet open)
 /// · `cashOut` · `receipt` (bought) · `receiptFailed` (failed sell) · `activity` (full list)
-/// · `sellAndLeave` (the screen while the slice is being sold)
 /// · `picture` (cabal with a picture, viewer is its creator) · `noPicture` (creator, tinted
 /// initials, nothing to remove) · `pictureNotCreator` (has a picture, viewer is a plain member,
 /// so no controls) · `pictureUploadFailure` (every write is refused).
@@ -22,7 +21,6 @@ enum GroupDetailSampleScenario: String, CaseIterable {
     case receipt
     case receiptFailed
     case activity
-    case sellAndLeave
     case picture
     case noPicture
     case pictureNotCreator
@@ -73,10 +71,6 @@ struct GroupDetailSampleHarness: View {
             ))
     }
 
-    /// The one scenario that stands in for a leave in flight, read wherever the product reads
-    /// `isLeaving`, so the harness and the product gate on the same thing.
-    private var isLeaving: Bool { scenario == .sellAndLeave }
-
     var body: some View {
         NavigationStack {
             root
@@ -110,7 +104,7 @@ struct GroupDetailSampleHarness: View {
                 .monacoCanvas()
                 .navigationTitle("Weekend investors")
                 .navigationBarTitleDisplayMode(.inline)
-        case .populated, .empty, .details, .propose, .sellAndLeave:
+        case .populated, .empty, .details, .propose:
             groupScreen(scenario == .empty ? GroupDetailSampleData.emptyView : GroupDetailSampleData.view)
         case .picture, .noPicture, .pictureNotCreator, .pictureUploadFailure:
             groupScreen(GroupDetailSampleData.pictureView(for: scenario))
@@ -144,26 +138,19 @@ struct GroupDetailSampleHarness: View {
 
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .monacoCanvas()
-        // The same cover the real screen puts up while a leave is running.
-        .groupLeaveProgress(isLeaving: isLeaving, isSellingSlice: true)
         .navigationTitle(heroScrolledAway ? view.name : "")
         .navigationBarTitleDisplayMode(.inline)
         .cabalHeroNavigationBar(isOverHero: !heroScrolledAway)
 
         .toolbar {
-            // `GroupDetailView` drops this item entirely while a leave runs, so the harness
-            // drops it under the same condition. Rendering it regardless would leave the
-            // leave-in-progress test asserting against an item the product never shows.
-            if !isLeaving {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showDetails = true
-                    } label: {
-                        Image(systemName: "info.circle")
-                    }
-                    .accessibilityLabel("Cabal details")
-                    .accessibilityIdentifier("group-details-button")
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showDetails = true
+                } label: {
+                    Image(systemName: "info.circle")
                 }
+                .accessibilityLabel("Cabal details")
+                .accessibilityIdentifier("group-details-button")
             }
         }
         .navigationDestination(item: $route) { route in
@@ -186,7 +173,7 @@ struct GroupDetailSampleHarness: View {
             ProposeSheet(auth: auth, groupId: view.id, groupView: view)
         }
         .sheet(isPresented: $showDetails) {
-            GroupDetailsSheet(groupId: view.id, treasuryAddress: view.treasuryAddress, isLeaving: false, onLeave: {})
+            GroupDetailsSheet(groupId: view.id, treasuryAddress: view.treasuryAddress)
         }
         .monacoToast($toast)
         .task {

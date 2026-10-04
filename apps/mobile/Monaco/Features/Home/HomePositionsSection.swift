@@ -7,7 +7,6 @@ struct HomePositionsSection: View {
     /// Pot value per cabal from `/v1/home`, which lands after the dashboard; rows show their
     /// "Pot …" subtitle once it has.
     var potValuesUsd: [String: String] = [:]
-    var onLeft: () async -> Void = {}
     var onBrowseCabals: () -> Void = {}
 
     var body: some View {
@@ -31,8 +30,7 @@ struct HomePositionsSection: View {
                             GroupDetailView(
                                 auth: auth,
                                 groupId: row.groupId,
-                                groupName: row.name,
-                                onLeft: onLeft
+                                groupName: row.name
                             )
                         } label: {
                             CabalPositionRow(

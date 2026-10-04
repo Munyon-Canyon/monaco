@@ -5,22 +5,12 @@ import MonacoAPI
 import FoundationNetworking
 #endif
 
-public enum LeaveGroupBlockReason: String, Equatable, Sendable {
-    case shareUnitsRemaining = "share_units_remaining"
-    case lastMemberWithTreasury = "last_member_with_treasury"
-    case pendingRedeem = "pending_redeem"
-    case soleRemainingVote = "sole_remaining_vote"
-    case creatorMustTransfer = "creator_must_transfer"
-    case unknown
-}
-
 /// Failures the API answered with carry the `X-Request-Id` the request was sent under,
 /// so an error state can show a support reference that matches the server logs.
 public enum MonacoAPIError: Error, Equatable {
     case invalidResponse
     case missingAccessToken
     case httpStatus(Int, requestID: String? = nil)
-    case leaveBlocked(LeaveGroupBlockReason)
     /// 4xx with a server `{"error": "..."}` message meant for the user.
     case rejected(status: Int, message: String, requestID: String? = nil)
     /// 429. `retryAfterSeconds` comes from the `Retry-After` header when present.
@@ -35,7 +25,7 @@ public enum MonacoAPIError: Error, Equatable {
             return status
         case .rateLimited:
             return 429
-        case .invalidResponse, .missingAccessToken, .leaveBlocked:
+        case .invalidResponse, .missingAccessToken:
             return nil
         }
     }
@@ -46,7 +36,7 @@ public enum MonacoAPIError: Error, Equatable {
             .rejected(_, _, let requestID),
             .rateLimited(_, let requestID):
             return requestID
-        case .invalidResponse, .missingAccessToken, .leaveBlocked:
+        case .invalidResponse, .missingAccessToken:
             return nil
         }
     }
@@ -60,8 +50,6 @@ public enum MonacoAPIError: Error, Equatable {
         case (.missingAccessToken, .missingAccessToken):
             return true
         case (.httpStatus(let a, _), .httpStatus(let b, _)):
-            return a == b
-        case (.leaveBlocked(let a), .leaveBlocked(let b)):
             return a == b
         case (.rejected(let aStatus, let aMessage, _), .rejected(let bStatus, let bMessage, _)):
             return aStatus == bStatus && aMessage == bMessage
@@ -502,22 +490,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
         return try JSONDecoder().decode(ProposalCommentDTO.self, from: response.data)
     }
 
-    public func leaveGroup(groupId: String, withdrawStake: Bool = false, submission: IdempotentSubmission) async throws
-    {
-        let url = baseURL.appending(path: "v1/groups/\(groupId)/leave")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        try await applyAuthorizationHeader(to: &request)
-        request.httpBody = try MonacoHTTPTransport.idempotentBodyEncoder().encode(
-            LeaveGroupRequestDTO(withdrawStake: withdrawStake))
-        let response = try await send(
-            request, route: "/v1/groups/{id}/leave", accepting: [204, 409], submission: submission)
-        if response.statusCode == 409 {
-            throw MonacoAPIError.leaveBlocked(parseLeaveConflict(from: response.data))
-        }
-    }
-
     public func withdrawToBalance(groupId: String, shareAmountMicros: Int64? = nil, submission: IdempotentSubmission)
         async throws -> WithdrawToBalanceJobDTO
     {
@@ -698,14 +670,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
     private struct CommentRequestDTO: Encodable {
         let body: String
         let parentId: String?
-    }
-
-    private func parseLeaveConflict(from data: Data) -> LeaveGroupBlockReason {
-        struct Body: Decodable { let reason: String? }
-        guard let body = try? JSONDecoder().decode(Body.self, from: data), let reason = body.reason,
-            let parsed = LeaveGroupBlockReason(rawValue: reason)
-        else { return .unknown }
-        return parsed
     }
 
     private func applyAuthorizationHeader(to request: inout URLRequest) async throws {

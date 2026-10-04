@@ -28,10 +28,9 @@ nonisolated extension FlowErrorInput {
             self.init(isSignInUnavailable: true)
         case let urlError as URLError where Self.neverSentURLErrorCodes.contains(urlError.code):
             self.init(isOffline: true)
-        // `invalidResponse` and `leaveBlocked` deliberately have no case: an unreadable
-        // reply is genuinely unconfirmed, and a blocked leave never reaches money copy
-        // (GroupDetailView catches it with its own wording). Giving either a fabricated
-        // status here would word it as an in-flight money request. Pinned by tests.
+        // `invalidResponse` deliberately has no case: an unreadable reply is genuinely
+        // unconfirmed, and a fabricated status here would word it as an in-flight money
+        // request. Pinned by tests.
         default:
             self.init()
         }

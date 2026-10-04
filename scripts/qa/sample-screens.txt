@@ -71,7 +71,6 @@ handle-check-failed           -MonacoHandleSample checkFailed
 handle-saving                 -MonacoHandleSample saving
 handle-edit-locked            -MonacoHandleSample editLocked
 
-cabal-sell-and-leave          -MonacoGroupDetailSample sellAndLeave
 cabal-picture                 -MonacoGroupDetailSample picture
 cabal-no-picture              -MonacoGroupDetailSample noPicture
 cabal-picture-not-creator     -MonacoGroupDetailSample pictureNotCreator

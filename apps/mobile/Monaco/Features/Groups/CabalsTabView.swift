@@ -118,7 +118,6 @@ struct CabalsTabView: View {
                 auth: auth,
                 route: route,
                 actions: actions,
-                onChanged: refreshAll,
                 onCreated: { created in
                     // Replace the form with the new cabal. Back then lands on the
                     // tab, not on a filled-in form that would create a second one.

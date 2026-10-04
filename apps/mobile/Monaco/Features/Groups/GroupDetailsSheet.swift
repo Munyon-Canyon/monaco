@@ -6,12 +6,10 @@ import UIKit
 /// The invite code is what a member comes here for, so it is the one card: the code, Copy and
 /// Share. The cabal's account on Solana follows as a quiet ruled section for developers — a raw
 /// address is the most "crypto" thing in the app, so it is here and not on the cabal screen, and
-/// even here it comes second. Leave sits at the bottom.
+/// even here it comes second.
 struct GroupDetailsSheet: View {
     let groupId: String
     let treasuryAddress: String?
-    let isLeaving: Bool
-    let onLeave: () -> Void
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -29,15 +27,6 @@ struct GroupDetailsSheet: View {
                     if let treasuryAddress, !treasuryAddress.isEmpty {
                         developerSection(treasuryAddress)
                     }
-
-                    Button(role: .destructive, action: onLeave) {
-                        Text(isLeaving ? "Leaving…" : "Leave cabal")
-                    }
-                    .buttonStyle(.monacoDestructive)
-                    .monacoFullWidthButtons()
-                    .disabled(isLeaving)
-                    .padding(.horizontal, MonacoTheme.Space.m)
-                    .accessibilityIdentifier("group-action-leave")
                 }
                 .padding(.top, MonacoTheme.Space.m)
                 .padding(.bottom, MonacoTheme.Space.xl)
