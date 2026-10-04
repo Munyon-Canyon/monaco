@@ -137,7 +137,30 @@ func (q *Queries) PotValue(ctx context.Context, cabalID ids.CabalID) (money.Micr
 		}
 		positions = append(positions, position)
 	}
-	return q.potValuePositions(ctx, positions, assets)
+	total, err := q.potValuePositions(ctx, positions, assets)
+	if err != nil {
+		return money.Micros{}, err
+	}
+	return subtractCashOutReservation(total, cashOutReservedMicros(rows))
+}
+
+func cashOutReservedMicros(rows []sqlc.CabalPositionsRow) string {
+	if len(rows) == 0 {
+		return "0"
+	}
+	return rows[0].CashOutReservedMicros
+}
+
+func subtractCashOutReservation(total money.Micros, raw string) (money.Micros, error) {
+	reserved, err := money.ParseMicros(raw)
+	if err != nil {
+		return money.Micros{}, errs.Wrap(err, errs.CodeDecodeFailed, "treasury.Queries.PotValue")
+	}
+	available, err := total.Sub(reserved)
+	if err != nil {
+		return money.Micros{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.PotValue")
+	}
+	return available, nil
 }
 
 func (q *Queries) potValuePositions(
