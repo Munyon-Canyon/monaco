@@ -490,3 +490,53 @@ func TestAtlasHash_fallsBackToAtlasOnPath(t *testing.T) {
 		t.Fatalf("atlas args = %q", got)
 	}
 }
+
+func TestMigrationOrder_flagsAFileAtOrBelowItsParentsNewest(t *testing.T) {
+	t.Parallel()
+	staging := []string{"20261001000000_a.sql", "20261003000000_s.sql"}
+	for name, tc := range map[string]struct {
+		commits []gen.MigrationCommit
+		want    []string
+	}{
+		"never rebased": {
+			[]gen.MigrationCommit{{SHA: "aaa", Added: []string{"20261002000000_two.sql"}, Before: staging}},
+			[]string{"aaa adds 20261002000000_two.sql at or below 20261003000000_s.sql; " +
+				"run just gen migration --rebase on that branch"},
+		},
+		"equal prefix": {
+			[]gen.MigrationCommit{{SHA: "aaa", Added: []string{"20261003000000_t.sql"}, Before: staging}},
+			[]string{"aaa adds 20261003000000_t.sql at or below 20261003000000_s.sql; " +
+				"run just gen migration --rebase on that branch"},
+		},
+		"upstack file below its downstack file": {
+			[]gen.MigrationCommit{
+				{SHA: "one", Added: []string{"20261004000000_one.sql"}, Before: staging},
+				{
+					SHA: "two", Added: []string{"20261003500000_two.sql"},
+					Before: append(slices.Clone(staging), "20261004000000_one.sql"),
+				},
+			},
+			[]string{"two adds 20261003500000_two.sql at or below 20261004000000_one.sql; " +
+				"run just gen migration --rebase on that branch"},
+		},
+		"clean stack": {
+			[]gen.MigrationCommit{
+				{SHA: "one", Added: []string{"20261004000000_one.sql"}, Before: staging},
+				{SHA: "docs", Before: append(slices.Clone(staging), "20261004000000_one.sql")},
+				{
+					SHA: "two", Added: []string{"20261004000100_two.sql"},
+					Before: append(slices.Clone(staging), "20261004000000_one.sql"),
+				},
+			},
+			nil,
+		},
+		"first migration": {[]gen.MigrationCommit{{SHA: "init", Added: []string{"20261001000000_a.sql"}}}, nil},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if got := gen.MigrationOrder(tc.commits); !slices.Equal(got, tc.want) {
+				t.Fatalf("MigrationOrder = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
