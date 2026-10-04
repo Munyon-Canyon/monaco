@@ -17,15 +17,23 @@ import (
 const (
 	lastRunState = "last-run"
 	draftPrefix  = "gtmq_"
-	failureQuery = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){` +
-		`pullRequests(states:OPEN,first:100){nodes{number body isDraft mergeable headRefName baseRefName headRefOid ` +
+)
+
+func failureQuery(after string) string {
+	drafts := ""
+	if after == "" {
+		drafts = `drafts: pullRequests(states:[OPEN,CLOSED],last:30,orderBy:{field:UPDATED_AT,direction:ASC}){nodes{` +
+			`number state title body headRefName updatedAt commits(last:1){nodes{commit{...runs}}}}}`
+	}
+	return `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){` +
+		`pullRequests(` + openPage(after) + `){pageInfo{hasNextPage endCursor} ` +
+		`nodes{number body isDraft mergeable headRefName baseRefName headRefOid ` +
 		labelFields + ` commits(last:1){nodes{commit{...runs}}} ` +
 		`timelineItems(itemTypes:[UNLABELED_EVENT],last:20){nodes{` +
 		`... on UnlabeledEvent{createdAt label{name} actor{login}}}}}} ` +
-		`drafts: pullRequests(states:[OPEN,CLOSED],last:30,orderBy:{field:UPDATED_AT,direction:ASC}){nodes{` +
-		`number state title body headRefName updatedAt commits(last:1){nodes{commit{...runs}}}}}}}` +
+		drafts + `}}` +
 		"\nfragment runs on Commit{" + commitChecks + "}"
-)
+}
 
 type lastCommits = struct {
 	Nodes []struct {
@@ -427,31 +435,40 @@ func stackTop(prs []watchPR, p watchPR) int {
 }
 
 func (env *Env) watchData(ctx context.Context) (watchData, error) {
-	var data struct {
-		Repository struct {
-			PullRequests struct {
-				Nodes []watchPR `json:"nodes"`
-			} `json:"pullRequests"`
-			Drafts struct {
-				Nodes []queueDraft `json:"nodes"`
-			} `json:"drafts"`
-		} `json:"repository"`
-	}
-	if err := env.graphQL(ctx, failureQuery, &data); err != nil {
-		return watchData{}, err
+	var prs []watchPR
+	var drafts []queueDraft
+	for after := ""; ; {
+		var data struct {
+			Repository struct {
+				PullRequests struct {
+					PageInfo gqlPageInfo `json:"pageInfo"`
+					Nodes    []watchPR   `json:"nodes"`
+				} `json:"pullRequests"`
+				Drafts struct {
+					Nodes []queueDraft `json:"nodes"`
+				} `json:"drafts"`
+			} `json:"repository"`
+		}
+		if err := env.graphQL(ctx, failureQuery(after), &data); err != nil {
+			return watchData{}, err
+		}
+		prs = append(prs, data.Repository.PullRequests.Nodes...)
+		drafts = append(drafts, data.Repository.Drafts.Nodes...)
+		if after = data.Repository.PullRequests.PageInfo.next(); after == "" {
+			break
+		}
 	}
 	var commits []*gqlCommit
-	for i := range data.Repository.PullRequests.Nodes {
-		commits = append(commits, data.Repository.PullRequests.Nodes[i].commits()...)
+	for i := range prs {
+		commits = append(commits, prs[i].commits()...)
 	}
-	drafts := data.Repository.Drafts.Nodes
 	for i := range drafts {
 		commits = append(commits, drafts[i].commits()...)
 	}
 	if err := env.readChecks(ctx, commits, env.graphQL); err != nil {
 		return watchData{}, err
 	}
-	return watchData{prs: data.Repository.PullRequests.Nodes, drafts: drafts}, nil
+	return watchData{prs: prs, drafts: drafts}, nil
 }
 
 func (env *Env) lastRun() (time.Time, error) {
