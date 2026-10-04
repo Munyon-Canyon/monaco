@@ -52,7 +52,9 @@ stock fallback.
 - **Build slots.** `scripts/qa/xcode-lock.sh` runs one xcodebuild per 16 GB of RAM
   at once and one `swift test` per 8 GB. A 16 GB Mac still builds one at a time; a
   64 GB Mac builds four. Waiters queue in arrival order. See
-  [Build slots](overnight-qa.md#build-slots).
+  [Build slots](overnight-qa.md#build-slots). Two builds never share one
+  `-derivedDataPath`, which fails with `database is locked`: the second waits for
+  the first, and for any xcodebuild still building there outside the lock.
 - **Stop.** `just stop mobile` in a lane stops only that lane's xcodebuild and
   uninstalls the app only on the lane's simulators. In the primary checkout it
   spares the simulators of live lanes and deletes the simulators of lanes whose

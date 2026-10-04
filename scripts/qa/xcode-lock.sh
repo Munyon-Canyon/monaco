@@ -23,6 +23,12 @@
 # pruned or taken over (by the oldest waiter only). The holder records `pid` and `cwd` in
 # its slot, and a waiter logs its queue position and every holder's pid and cwd every 60 s.
 #
+# Two xcodebuilds on one `-derivedDataPath` fail with "unable to attach DB: database is
+# locked", whatever the slot count. So a command that names `-derivedDataPath <dir>` first
+# takes `<dir>.lock` (mkdir, with pid and cwd), and also waits while any xcodebuild outside
+# this wrapper still builds into `<dir>`, such as one orphaned by a killed run. Only then
+# does it queue for a slot.
+#
 # Environment:
 #   MONACO_XCODE_SLOTS         `xcode` slots (default max(1, RAM GB / 16))
 #   MONACO_SWIFTPM_SLOTS       `swiftpm` slots (default max(1, RAM GB / 8))
@@ -84,6 +90,16 @@ now_ns() {
 }
 
 have_lock=0
+have_derived=0  # 1 once this process holds $derived_lock
+derived=""      # the command's -derivedDataPath, if it names one
+prev=""
+for arg in "$@"; do
+  if [[ "$prev" == "-derivedDataPath" ]]; then
+    derived="${arg%/}"
+  fi
+  prev="$arg"
+done
+derived_lock="${derived:+$derived.lock}"
 ticket=""
 running=0       # 1 while the held command (or its limiter) may be alive
 child=""        # pid of the command, or of the `timeout` that wraps it
@@ -108,6 +124,10 @@ release() {
   if (( have_lock )); then
     rm -rf "$lock_dir"
     have_lock=0
+  fi
+  if (( have_derived )); then
+    rm -rf "$derived_lock"
+    have_derived=0
   fi
 }
 
@@ -189,9 +209,6 @@ run_capped() {
   return "$rc"
 }
 
-mkdir -p "$queue_dir"
-ticket="$(now_ns).$$"
-: > "$queue_dir/$ticket"
 trap release EXIT
 # INT and TERM. While waiting in the queue, just exit. While the command runs, pass the
 # signal on and let run_capped wait for the command to exit, so the lock is never released
@@ -200,6 +217,58 @@ trap 'sig_name=INT; sig_rc=130; if (( running )); then if [[ -n "$child" ]]; the
 trap 'sig_name=TERM; sig_rc=143; if (( running )); then if [[ -n "$child" ]]; then kill -s TERM "$child" 2>/dev/null || true; fi; else exit 143; fi' TERM
 
 start=$SECONDS
+
+# Live xcodebuilds building into $derived, one pid per line. Waiting xcode-lock.sh lines
+# are left out: they name xcodebuild only as an argument.
+outside_builds() {
+  local pid cmd
+  ps -axww -o pid,command | while read -r pid cmd; do
+    if [[ "$cmd" == *xcodebuild* && "$cmd" != *xcode-lock* ]] &&
+      [[ " $cmd " == *" -derivedDataPath $derived "* || " $cmd " == *" -derivedDataPath $derived/ "* ]]; then
+      echo "$pid"
+    fi
+  done
+}
+
+if [[ -n "$derived" ]]; then
+  mkdir -p "${derived_lock%/*}"
+  next_log=0
+  while true; do
+    owner="$(cat "$derived_lock/pid" 2>/dev/null || true)"
+    if [[ -n "$owner" ]] && ! kill -0 "$owner" 2>/dev/null; then
+      say "taking over stale $derived_lock from pid $owner"
+      rm -rf "$derived_lock"
+    fi
+    builds="$(outside_builds)"
+    if [[ -z "$builds" ]] && mkdir "$derived_lock" 2>/dev/null; then
+      have_derived=1
+      printf '%s\n' "$PWD" > "$derived_lock/cwd"
+      echo "$$" > "$derived_lock/pid"
+      break
+    fi
+    if [[ -d "$derived_lock" ]]; then
+      blocker="pid ${owner:-unknown} ($(cat "$derived_lock/cwd" 2>/dev/null || echo unknown))"
+    else
+      blocker="pid ${builds//[[:space:]]/ } (an xcodebuild outside this lock)"
+    fi
+    waited=$((SECONDS - start))
+    if (( waited >= wait_limit )); then
+      say "gave up after ${wait_limit}s waiting for $derived behind $blocker"
+      release
+      exit 75
+    fi
+    if (( waited >= next_log )); then
+      say "waiting for $derived behind $blocker (${waited}s)"
+      next_log=$((waited-waited%60+60))
+    fi
+    sleep "$poll"
+  done
+fi
+
+mkdir -p "$queue_dir"
+ticket="$(now_ns).$$"
+: > "$queue_dir/$ticket"
+
 next_log=0
 while true; do
   tickets="$(live_tickets)"

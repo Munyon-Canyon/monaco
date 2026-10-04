@@ -618,3 +618,99 @@ func TestXcodeLockSlotsRunHoldersTogether(t *testing.T) {
 		t.Fatalf("a slot dir is still present after every caller exited")
 	}
 }
+
+// Two builds into one derived data path fail with "database is locked", so a second caller
+// on the same -derivedDataPath waits even while a slot is free, and a caller on another
+// path still runs beside the first.
+func TestXcodeLockSameDerivedDataSerializes(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+	two := []string{"MONACO_XCODE_SLOTS=2"}
+	derived := filepath.Join(e.dir, "checkout", ".build", "DerivedData")
+	other := filepath.Join(e.dir, "other", ".build", "DerivedData")
+	aIn, bIn, cIn := filepath.Join(e.dir, "a.in"), filepath.Join(e.dir, "b.in"), filepath.Join(e.dir, "c.in")
+	aRelease, cRelease := filepath.Join(e.dir, "a.release"), filepath.Join(e.dir, "c.release")
+
+	a := e.start(e.dir, two, append(append([]string{"xcode"}, holdUntil(aIn, aRelease)...), "-derivedDataPath", derived)...)
+	eventually(t, "the first build to run", func() bool { return exists(aIn) })
+	aPid := readPid(t, derived+".lock/pid")
+
+	b := e.start(e.dir, two, "xcode", "sh", "-c", `touch "$1"`, "sh", bIn, "-derivedDataPath", derived+"/")
+	c := e.start(e.dir, two, append(append([]string{"xcode"}, holdUntil(cIn, cRelease)...), "-derivedDataPath", other)...)
+	eventually(t, "the build on another path to run", func() bool { return exists(cIn) })
+	eventually(t, "the second build on the same path to wait", func() bool {
+		return strings.Contains(b.stderr.String(), "waiting for "+derived+" behind pid "+strconv.Itoa(aPid)+" (")
+	})
+	time.Sleep(300 * time.Millisecond)
+	if exists(bIn) {
+		t.Fatalf("second build ran while the first held %s", derived)
+	}
+
+	if err := os.WriteFile(aRelease, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code := a.wait(t); code != 0 {
+		t.Fatalf("first build exit %d:\n%s", code, a.stderr.String())
+	}
+	if code := b.wait(t); code != 0 || !exists(bIn) {
+		t.Fatalf("second build exit %d, ran %v:\n%s", code, exists(bIn), b.stderr.String())
+	}
+	if err := os.WriteFile(cRelease, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code := c.wait(t); code != 0 {
+		t.Fatalf("other-path build exit %d:\n%s", code, c.stderr.String())
+	}
+	if exists(derived+".lock") || exists(other+".lock") {
+		t.Fatalf("a derived data lock is still present after every caller exited")
+	}
+}
+
+// An xcodebuild left running by a killed wrapper holds no lock dir, yet it still owns the
+// build database. The next caller on its path waits for it to exit.
+func TestXcodeLockWaitsForOrphanXcodebuild(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+	derived := filepath.Join(e.dir, "checkout", ".build", "DerivedData")
+	release := filepath.Join(e.dir, "orphan.release")
+	ran := filepath.Join(e.dir, "ran")
+
+	fake := filepath.Join(e.dir, "bin", "xcodebuild")
+	if err := os.MkdirAll(filepath.Dir(fake), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fake, []byte("#!/bin/sh\nwhile [ ! -e \"$ORPHAN_RELEASE\" ]; do sleep 0.05; done\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	orphan := exec.Command(fake, "-project", "Monaco.xcodeproj", "-derivedDataPath", derived, "build")
+	orphan.Env = append(os.Environ(), "ORPHAN_RELEASE="+release)
+	if err := orphan.Start(); err != nil {
+		t.Fatal(err)
+	}
+	orphanDone := make(chan error, 1)
+	go func() { orphanDone <- orphan.Wait() }()
+	t.Cleanup(func() {
+		_ = orphan.Process.Kill()
+		<-orphanDone
+	})
+
+	w := e.start(e.dir, nil, "xcode", "sh", "-c", `touch "$1"`, "sh", ran, "-derivedDataPath", derived)
+	eventually(t, "the caller to wait for the orphan", func() bool {
+		return strings.Contains(w.stderr.String(), "behind pid "+strconv.Itoa(orphan.Process.Pid)+" (an xcodebuild outside this lock)")
+	})
+	time.Sleep(300 * time.Millisecond)
+	if exists(ran) {
+		t.Fatalf("caller ran while an orphaned xcodebuild still built into %s", derived)
+	}
+
+	if err := os.WriteFile(release, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-orphanDone; err != nil {
+		t.Fatalf("orphan: %v", err)
+	}
+	orphanDone <- nil
+	if code := w.wait(t); code != 0 || !exists(ran) {
+		t.Fatalf("caller exit %d, ran %v:\n%s", code, exists(ran), w.stderr.String())
+	}
+}
