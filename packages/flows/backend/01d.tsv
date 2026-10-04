@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-01d	Skip onboarding step	identity	POST /v1/me/onboarding/skip	SkipOnboardingStep	user.auth_state_changed		ok;HandleRequired;InvalidInput	built	docs/architecture/auth.md#onboarding
+01d	Skip onboarding step	identity	POST /v1/me/onboarding/skip	SkipOnboardingStep	user.auth_state_changed		ok;HandleRequired;InvalidInput	verified	docs/architecture/auth.md#onboarding

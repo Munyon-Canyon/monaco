@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-28	Nudges	identity	poller:identity.nudges	EmitNudges	user.nudge_due		ok;crash:before-commit	built	docs/architecture/auth.md#nudges
+28	Nudges	identity	poller:identity.nudges	EmitNudges	user.nudge_due		ok;crash:before-commit	verified	docs/architecture/auth.md#nudges
