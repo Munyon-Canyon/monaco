@@ -42,6 +42,7 @@ type Env struct {
 	Crash           func(ctx context.Context, u Unit, point faultpoint.Name) error
 	Arm             func(ctx context.Context, u Unit) error
 	BeforeCoreFlush func()
+	PollEvery       time.Duration
 }
 
 type Result struct {

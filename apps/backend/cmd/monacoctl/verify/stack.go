@@ -52,6 +52,7 @@ type Options struct {
 	WorkerEnv  []string
 	Postgres   PostgresFunc
 	Clock      clock.Clock
+	PollEvery  time.Duration
 }
 
 type Stack struct {
@@ -120,7 +121,7 @@ func withoutContext(step func() error) func(context.Context) error {
 }
 
 func (s *Stack) schema(ctx context.Context) error {
-	if err := waitPostgres(ctx, s.DBURL); err != nil {
+	if err := waitPostgres(ctx, s.DBURL, s.pollInterval()); err != nil {
 		return err
 	}
 	if err := migrate(ctx, s.opts.Atlas, filepath.Join(s.opts.Dir, "migrations"), s.DBURL); err != nil {
@@ -212,7 +213,7 @@ func (s *Stack) start(ctx context.Context, name, bin string, extra ...string) (*
 }
 
 func (s *Stack) healthy(ctx context.Context) error {
-	tick := time.NewTicker(pollEvery)
+	tick := time.NewTicker(s.pollInterval())
 	defer tick.Stop()
 	last := ""
 	for {
@@ -233,6 +234,8 @@ func (s *Stack) healthy(ctx context.Context) error {
 		}
 	}
 }
+
+func (s *Stack) pollInterval() time.Duration { return cmp.Or(s.opts.PollEvery, pollEvery) }
 
 func (s *Stack) probe(ctx context.Context) (string, error) {
 	sick := ""
@@ -311,8 +314,8 @@ func newRunID() string {
 	return hex.EncodeToString(b[:])
 }
 
-func waitPostgres(ctx context.Context, url string) error {
-	tick := time.NewTicker(pollEvery)
+func waitPostgres(ctx context.Context, url string, interval time.Duration) error {
+	tick := time.NewTicker(interval)
 	defer tick.Stop()
 	for {
 		pool, err := db.Open(ctx, config.DB{URL: url, MaxConns: 1})
