@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-01b	Link phone	identity	POST /v1/me/onboarding/phone	LinkPhone	user.auth_state_changed		ok;HandleRequired;PhoneNotLinked;PrivyUnavailable	built	docs/architecture/auth.md#onboarding
+01b	Link phone	identity	POST /v1/me/onboarding/phone	LinkPhone	user.auth_state_changed		ok;HandleRequired;PhoneNotLinked;PrivyUnavailable	verified	docs/architecture/auth.md#onboarding

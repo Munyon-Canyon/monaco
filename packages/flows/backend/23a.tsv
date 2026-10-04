@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-23a	Profile photo	identity	POST /v1/me/profile-photo	UploadProfilePhoto	user.profile_updated		ok;PhotoInvalid;StorageUnavailable;RateLimited	built	docs/architecture/backend-platform.md#flows
+23a	Profile photo	identity	POST /v1/me/profile-photo	UploadProfilePhoto	user.profile_updated		ok;PhotoInvalid;StorageUnavailable;RateLimited	verified	docs/architecture/backend-platform.md#flows
