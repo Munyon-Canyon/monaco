@@ -3,6 +3,7 @@
 //  Monaco
 //
 
+import Combine
 import MonacoCore
 import SwiftUI
 import os
@@ -33,6 +34,9 @@ struct MonacoApp: App {
                 .tint(MonacoTheme.ink)
                 .onChange(of: scenePhase) { _, phase in
                     Task { await appEnvironment.sceneDidChange(phase) }
+                }
+                .onReceive(appEnvironment.auth.$accessToken.removeDuplicates()) { _ in
+                    Task { await appEnvironment.sessionDidChange(scenePhase: scenePhase) }
                 }
                 .onOpenURL { url in
                     DeepLinkRouter.handle(url, navigator: appEnvironment.navigator)
