@@ -117,6 +117,42 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
     }
 
     @MainActor
+    func testDetailModelHidesWithdrawWhenTheServerDisallowsIt() async throws {
+        let model = ProposalDetailModel(
+            id: "p", cabalID: "c", repository: repository(StubTransport(.json(.ok, detailBody))),
+            hints: FakeHintStream())
+        await model.load()
+        XCTAssertFalse(model.canWithdraw)
+    }
+
+    @MainActor
+    func testDetailModelWithdrawReplaysItsIdempotencyKeyAfterAnError() async throws {
+        let transport = StubTransport(.json(.internalServerError, #"{"message":"Try again"}"#))
+        let model = ProposalDetailModel(
+            id: "p", cabalID: "c", repository: repository(transport), hints: FakeHintStream())
+        await model.withdraw()
+        await model.withdraw()
+        let key = try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))
+        let sent = await transport.sent
+        let keys = sent.compactMap { $0.headerFields[key] }
+        XCTAssertEqual(keys.count, 2)
+        XCTAssertEqual(keys.first, keys.last)
+    }
+
+    @MainActor
+    func testDetailModelRecordsWithdrawThenRefreshesItsState() async throws {
+        let withdrawn = detailBody.replacingOccurrences(of: #""status":"open""#, with: #""status":"withdrawn""#)
+        let transport = StubTransport(scripted: [
+            .json(.ok, withdrawn), .json(.ok, withdrawn), .json(.ok, cabalBody), .json(.ok, assetBody),
+        ])
+        let model = ProposalDetailModel(
+            id: "p", cabalID: "c", repository: repository(transport), hints: FakeHintStream())
+        await model.withdraw()
+        XCTAssertTrue(model.didWithdraw)
+        XCTAssertEqual(model.value?.summary.status, .withdrawn)
+    }
+
+    @MainActor
     func testDetailModelVotesThenReloads() async throws {
         let transport = StubTransport(scripted: [
             .json(

@@ -16,6 +16,7 @@ private struct ProposalDetailSlotView: View {
     @State private var model: ProposalDetailModel?
     @State private var priorStatus: ProposalStatus?
     @State private var showBurst = false
+    @State private var confirmingWithdrawal = false
 
     var body: some View {
         Group {
@@ -28,6 +29,13 @@ private struct ProposalDetailSlotView: View {
                                 await model?.vote(choice)
                                 if model?.errorMessage == nil { toasts.show(success: "Vote in") }
                             }
+                        }
+                        if model?.canWithdraw == true {
+                            Button("Withdraw proposal", role: .destructive) {
+                                confirmingWithdrawal = true
+                            }
+                            .buttonStyle(.monacoDestructive)
+                            .accessibilityIdentifier("proposal-withdraw")
                         }
                         votes(detail)
                         reason(detail)
@@ -59,6 +67,24 @@ private struct ProposalDetailSlotView: View {
         .onChange(of: model?.value?.summary.status) { old, new in
             priorStatus = old
             showBurst = old == .open && new == .executed && model?.value?.summary.kind == "buy"
+        }
+        .confirmationDialog("Withdraw this proposal?", isPresented: $confirmingWithdrawal, titleVisibility: .visible) {
+            Button("Withdraw", role: .destructive) {
+                Task {
+                    let model = preparedModel()
+                    await model.withdraw()
+                    if model.didWithdraw {
+                        toasts.show(success: "Proposal withdrawn.")
+                    } else if let message = model.errorMessage {
+                        toasts.current = MonacoToast(message: message)
+                    }
+                }
+            }
+            .accessibilityIdentifier("proposal-withdraw-confirm")
+            Button("Cancel", role: .cancel) {}
+                .accessibilityIdentifier("proposal-withdraw-cancel")
+        } message: {
+            Text("Votes so far are dropped.")
         }
     }
 

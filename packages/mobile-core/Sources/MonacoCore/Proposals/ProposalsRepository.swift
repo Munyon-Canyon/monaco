@@ -137,7 +137,7 @@ public struct PendingVote: Identifiable, Equatable, Sendable {
 public enum ProposalFilter: String, Sendable { case open, closed }
 
 public struct ProposalsRepository: Sendable {
-    private let api: APIClient
+    let api: APIClient
 
     public init(api: APIClient) { self.api = api }
 

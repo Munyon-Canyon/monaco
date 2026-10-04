@@ -30,18 +30,21 @@ public final class ProposalDetailModel {
     public private(set) var members: [ProposalMember] = []
     public private(set) var asset: ProposalAsset?
     public private(set) var errorMessage: String?
+    public private(set) var didWithdraw = false
     private let id: String
     private let cabalID: String
     private let repository: ProposalsRepository
     private let hints: any HintSource
     private let refresher: HintRefresher
     private let submission = IdempotentSubmission()
+    private let proposeService: any ProposeService
 
     public init(id: String, cabalID: String, repository: ProposalsRepository, hints: any HintSource) {
         self.id = id
         self.cabalID = cabalID
         self.repository = repository
         self.hints = hints
+        proposeService = LiveProposeService(api: repository.api)
         let hook = ProposalReloadHook()
         refresher = HintRefresher { await hook.run?() }
         hook.run = { [weak self] in await self?.load() }
@@ -63,6 +66,20 @@ public final class ProposalDetailModel {
     public func vote(_ choice: String) async {
         do {
             try await repository.vote(id: id, choice: choice, submission: submission)
+            await load()
+        } catch {
+            errorMessage = ToastCopy.message(for: APIError(error))
+        }
+    }
+
+    public var canWithdraw: Bool { value?.summary.canWithdraw == true }
+
+    public func withdraw() async {
+        didWithdraw = false
+        do {
+            try await proposeService.withdraw(proposalID: id, submission: submission)
+            didWithdraw = true
+            errorMessage = nil
             await load()
         } catch {
             errorMessage = ToastCopy.message(for: APIError(error))
