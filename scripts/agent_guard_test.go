@@ -477,3 +477,85 @@ func TestAgentGuard_editsOfGeneratedSwiftAreDenied(t *testing.T) {
 	plain := "/repo/packages/mobile-core/Sources/MonacoCore/SignInModel.swift"
 	assertAllowed(t, edit("Edit", plain), "Edit "+plain)
 }
+
+func runShellHook(t *testing.T, dir, script, input string, env ...string) (int, string, string) {
+	t.Helper()
+	cmd := exec.Command("bash", filepath.Join(dir, "scripts", script))
+	cmd.Dir = t.TempDir()
+	cmd.Env = append(os.Environ(), env...)
+	cmd.Stdin = strings.NewReader(input)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		return exit.ExitCode(), stdout.String(), stderr.String()
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return 0, stdout.String(), stderr.String()
+}
+
+func fileInLinkedWorktree(t *testing.T, repo, rel, src string) string {
+	t.Helper()
+	lane := filepath.Join(repo, ".worktrees", "lane")
+	git(t, repo, "worktree", "add", "-q", "--detach", lane)
+	path := filepath.Join(lane, rel)
+	writeFile(t, path, src)
+	return path
+}
+
+func fileInAnotherClone(t *testing.T, repo, rel, src string) string {
+	t.Helper()
+	clone := filepath.Join(t.TempDir(), "other")
+	git(t, filepath.Dir(clone), "clone", "-q", repo, clone)
+	path := filepath.Join(clone, rel)
+	writeFile(t, path, src)
+	return path
+}
+
+const (
+	perfBudgets  = "apps/mobile/MonacoUITests/perf-budgets.tsv"
+	raisedBudget = "Home\tlaunch_first_frame_ms\t1000\n"
+)
+
+func gatesHookRepo(t *testing.T) string {
+	t.Helper()
+	root := repoRoot(t)
+	dir := t.TempDir()
+	for _, rel := range []string{"scripts/agent-guard-gates.sh", "scripts/check-gate-changes.py"} {
+		copyFile(t, filepath.Join(root, rel), filepath.Join(dir, rel))
+	}
+	writeFile(t, filepath.Join(dir, perfBudgets), "Home\tlaunch_first_frame_ms\t950\n")
+	git(t, dir, "init", "-q")
+	git(t, dir, "add", ".")
+	git(t, dir, "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "base")
+	return dir
+}
+
+func TestAgentGuardGates_checksAnEditInALinkedWorktree(t *testing.T) {
+	t.Parallel()
+	dir := gatesHookRepo(t)
+	path := fileInLinkedWorktree(t, dir, perfBudgets, raisedBudget)
+
+	code, stdout, stderr := runShellHook(t, dir, "agent-guard-gates.sh", claudeInput(path))
+
+	want := perfBudgets + ":1: gate-file: raised `Home launch_first_frame_ms` 950 -> 1000."
+	if code != 2 || stdout != "" || !strings.HasPrefix(stderr, want) {
+		t.Fatalf("exit=%d stdout=%q stderr=%q, want 2, no stdout, stderr starting %q", code, stdout, stderr, want)
+	}
+}
+
+func TestAgentGuardGates_ignoresAnEditInAnotherClone(t *testing.T) {
+	t.Parallel()
+	dir := gatesHookRepo(t)
+	path := fileInAnotherClone(t, dir, perfBudgets, raisedBudget)
+
+	code, stdout, stderr := runShellHook(t, dir, "agent-guard-gates.sh", claudeInput(path))
+
+	if code != 0 || stdout != "" || stderr != "" {
+		t.Fatalf("exit=%d stdout=%q stderr=%q, want 0 and no output", code, stdout, stderr)
+	}
+}
