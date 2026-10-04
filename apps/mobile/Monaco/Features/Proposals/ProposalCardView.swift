@@ -621,3 +621,50 @@ private struct ProposalFooterLabelStyle: LabelStyle {
         }
     }
 }
+
+struct ProposalCardSkeleton: View {
+    var showsChrome = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+                HStack(spacing: MonacoTheme.Space.sm) {
+                    SkeletonBlock(width: 40, height: 40, radius: 20)
+                    VStack(alignment: .leading, spacing: 6) {
+                        SkeletonBlock(width: 64, height: 15)
+                        SkeletonBlock(width: 36, height: 11)
+                    }
+                    Spacer(minLength: MonacoTheme.Space.s)
+                    SkeletonBlock(width: 88, height: 11)
+                }
+                SkeletonBlock(width: 120, height: 28)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                SkeletonBlock(width: 96, height: 13)
+                SkeletonBlock(height: 12)
+                SkeletonBlock(width: 200, height: 12)
+            }
+            SkeletonBlock(width: 190, height: 11)
+            HStack(spacing: MonacoTheme.Space.s) {
+                SkeletonBlock(height: MonacoButtonMetrics.minimumHeight, radius: MonacoButtonMetrics.minimumHeight / 2)
+                SkeletonBlock(height: MonacoButtonMetrics.minimumHeight, radius: MonacoButtonMetrics.minimumHeight / 2)
+            }
+        }
+        .padding(showsChrome ? MonacoTheme.Space.m : 0)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            if showsChrome {
+                RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
+                    .fill(MonacoTheme.surface)
+            }
+        }
+        .overlay {
+            if showsChrome {
+                RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
+                    .strokeBorder(MonacoTheme.hairline, lineWidth: 1)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading")
+    }
+}
