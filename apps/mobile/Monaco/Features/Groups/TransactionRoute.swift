@@ -5,6 +5,6 @@ nonisolated struct TransactionRoute: AppRoute {
     let transactionID: String
 
     @MainActor func destination() -> some View {
-        NotMigratedView(screen: "Transaction")
+        CabalTransactionView(cabalID: cabalID, transactionID: transactionID)
     }
 }
