@@ -199,6 +199,46 @@ func TestAffectedTests_selectsAGlobTheTestFileDeclares(t *testing.T) {
 	}
 }
 
+func TestCheck_aChangeToAFileAScriptsTestReadsRunsThatTest(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		changed string
+		want    []string
+	}{
+		{
+			"a file a scripts test reads", "docs/agents/owner.md",
+			[]string{"scripts: go test -short -count=1 -run ^(TestBriefs_dispatchPromptStaysUnder400Tokens)$ ./"},
+		},
+		{"a file no scripts test reads", "docs/agents/verifier.md", nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newCheckHarness(t)
+			h.base(t, map[string]string{
+				"docs/agents/owner.md":    "brief\n",
+				"docs/agents/verifier.md": "brief\n",
+				"scripts/agent_briefs_test.go": `func TestBriefs_dispatchPromptStaysUnder400Tokens(t *testing.T) {
+	_ = readRepo(t, repoRoot(t), "docs/agents/owner.md")
+}
+`,
+			})
+			h.commit(t, map[string]string{tc.changed: "changed\n"})
+			code, stdout, stderr := h.check(t)
+			var got []string
+			for _, c := range h.calls {
+				if strings.HasPrefix(c, "scripts: go test") {
+					got = append(got, c)
+				}
+			}
+			if code != 0 || !slices.Equal(got, tc.want) {
+				t.Fatalf("check: %d %q %q\nscripts tests %q, want %q", code, stdout, stderr, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)

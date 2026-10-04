@@ -1,9 +1,16 @@
 package scripts_test
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -46,6 +53,17 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 	}
 }
 
+func TestCIPathFilter_scriptsRunWhenAFileTheyReadChanges(t *testing.T) {
+	filters := parsePathFilters(t)
+	for _, p := range outsideScriptsFilter(filters, readRepoPaths(t)) {
+		t.Errorf("%s is read by a scripts test but is not in the scripts filter of ci-jobs.yml", p)
+	}
+	planted := []string{"docs/not-read.md"}
+	if got := outsideScriptsFilter(filters, planted); !reflect.DeepEqual(got, planted) {
+		t.Fatalf("planted path outside the filter: got %v, want %v", got, planted)
+	}
+}
+
 func jobsFor(filters map[string][]string, files []string) []string {
 	hit := map[string]bool{}
 	for name, pats := range filters {
@@ -77,6 +95,62 @@ func jobsFor(filters map[string][]string, files []string) []string {
 		jobs = append(jobs, "actionlint")
 	}
 	return jobs
+}
+
+func outsideScriptsFilter(filters map[string][]string, paths []string) []string {
+	var out []string
+	for _, p := range paths {
+		if !slices.Contains(jobsFor(filters, []string{p}), "scripts") {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func readRepoPaths(t *testing.T) []string {
+	t.Helper()
+	fset := token.NewFileSet()
+	var paths []string
+	err := filepath.WalkDir(filepath.Join(repoRoot(t), "scripts"), func(file string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if d.Name() == "testdata" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(file, "_test.go") {
+			return nil
+		}
+		parsed, err := parser.ParseFile(fset, file, nil, parser.SkipObjectResolution)
+		if err != nil {
+			return err
+		}
+		ast.Inspect(parsed, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok || len(call.Args) != 3 {
+				return true
+			}
+			fn, _ := call.Fun.(*ast.Ident)
+			lit, _ := call.Args[2].(*ast.BasicLit)
+			if fn != nil && fn.Name == "readRepo" && lit != nil && lit.Kind == token.STRING {
+				p, _ := strconv.Unquote(lit.Value)
+				paths = append(paths, p)
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paths) == 0 {
+		t.Fatal("found no readRepo call with a literal path in the scripts tests")
+	}
+	slices.Sort(paths)
+	return slices.Compact(paths)
 }
 
 func parsePathFilters(t *testing.T) map[string][]string {

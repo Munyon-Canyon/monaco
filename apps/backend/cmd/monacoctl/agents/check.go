@@ -741,7 +741,8 @@ func (env *Env) affectedTests(changed []string) (goTests map[string][]string, py
 		}
 		body, _ := fs.ReadFile(scripts, p)
 		if !slices.ContainsFunc(changed, func(f string) bool {
-			return f == "scripts/"+p || bytes.Contains(body, []byte(`"`+path.Base(f)+`"`)) || scannedGlobHit(p, f)
+			return f == "scripts/"+p || bytes.Contains(body, []byte(`"`+path.Base(f)+`"`)) ||
+				bytes.Contains(body, []byte(`"`+f+`"`)) || scannedGlobHit(p, f)
 		}) {
 			return nil
 		}
