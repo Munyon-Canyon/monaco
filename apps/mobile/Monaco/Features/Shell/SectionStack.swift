@@ -1,5 +1,9 @@
 import SwiftUI
 
+extension EnvironmentValues {
+    @Entry var sectionScrollProxy: ScrollViewProxy? = nil
+}
+
 struct SectionStack<Context>: View {
     let context: Context
     let sections: [any ScreenSection<Context>.Type]
@@ -9,12 +13,15 @@ struct SectionStack<Context>: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: MonacoTheme.Space.gutter) {
-                ForEach(Array(Self.live(sections).enumerated()), id: \.offset) { _, section in
-                    AnyView(section.body(for: context))
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: MonacoTheme.Space.gutter) {
+                    ForEach(Array(Self.live(sections).enumerated()), id: \.offset) { _, section in
+                        AnyView(section.body(for: context))
+                    }
                 }
             }
+            .environment(\.sectionScrollProxy, proxy)
         }
     }
 }
