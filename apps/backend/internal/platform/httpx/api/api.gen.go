@@ -16,6 +16,7 @@ const (
 	AccountHasPositions        ErrorCode = "account_has_positions"
 	AccountStatusTransition    ErrorCode = "account_status_transition"
 	AccountSuspended           ErrorCode = "account_suspended"
+	AdminForbidden             ErrorCode = "admin_forbidden"
 	AlreadyMember              ErrorCode = "already_member"
 	AnalyticsPii               ErrorCode = "analytics_pii"
 	ApnsAuthFailed             ErrorCode = "apns_auth_failed"
@@ -80,6 +81,7 @@ const (
 	ProposalNotFound           ErrorCode = "proposal_not_found"
 	ProposalStillOpen          ErrorCode = "proposal_still_open"
 	RateLimited                ErrorCode = "rate_limited"
+	ReasonRequired             ErrorCode = "reason_required"
 	ReferralCodePending        ErrorCode = "referral_code_pending"
 	ReferralCodeUnknown        ErrorCode = "referral_code_unknown"
 	RelayerUnderfunded         ErrorCode = "relayer_underfunded"
@@ -120,6 +122,8 @@ func (e ErrorCode) Valid() bool {
 	case AccountStatusTransition:
 		return true
 	case AccountSuspended:
+		return true
+	case AdminForbidden:
 		return true
 	case AlreadyMember:
 		return true
@@ -248,6 +252,8 @@ func (e ErrorCode) Valid() bool {
 	case ProposalStillOpen:
 		return true
 	case RateLimited:
+		return true
+	case ReasonRequired:
 		return true
 	case ReferralCodePending:
 		return true

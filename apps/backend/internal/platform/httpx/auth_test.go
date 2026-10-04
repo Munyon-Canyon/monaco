@@ -130,6 +130,25 @@ func TestAuth_openOperationsSkipTheVerifier(t *testing.T) {
 	}
 }
 
+func TestAuth_keepsAnActorInstalledByEarlierMiddleware(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		actor, ok := auth.ActorFrom(r.Context())
+		if !ok || actor.Kind != auth.ActorAdmin {
+			t.Fatalf("actor = %#v, ok = %t", actor, ok)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	ctx := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorAdmin, ID: "admin"})
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "http://example.test/v1/admin/me", nil)
+	rec := httptest.NewRecorder()
+	h.deps.wrap(Auth(stubVerifier(nil))(next)).ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNoContent)
+	}
+}
+
 func TestAuth_missingOrRejectedCredentialsAre401(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)

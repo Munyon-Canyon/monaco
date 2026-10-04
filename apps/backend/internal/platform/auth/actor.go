@@ -27,6 +27,7 @@ const (
 type Actor struct {
 	Kind     ActorKind
 	ID       string
+	Role     string
 	Standing Standing
 }
 

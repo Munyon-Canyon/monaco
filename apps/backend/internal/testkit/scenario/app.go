@@ -23,6 +23,7 @@ import (
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	adminauthn "github.com/monaco/monaco/apps/backend/internal/modules/admin/adapters/authn"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
@@ -148,14 +149,15 @@ func (a *app) handler(
 	limiter, err := ratelimit.New(pool, clock.Real{}, noop.NewMeterProvider())
 	must(t, err)
 	h, err := httpx.HandlerFor(httpx.Deps{
-		Logger:       a.logger,
-		Tracer:       tracenoop.NewTracerProvider(),
-		Clock:        clock.Real{},
-		IDs:          a.ids,
-		MaxBodyBytes: 1 << 20,
-		Idempotency:  db.NewIdempotencyStore(pool, clock.Real{}),
-		Verifier:     a.verifier,
-		RateLimit:    ratelimit.Middleware(limiter, policies, httpx.ActorKey, false),
+		Logger:        a.logger,
+		Tracer:        tracenoop.NewTracerProvider(),
+		Clock:         clock.Real{},
+		IDs:           a.ids,
+		MaxBodyBytes:  1 << 20,
+		Idempotency:   db.NewIdempotencyStore(pool, clock.Real{}),
+		Verifier:      a.verifier,
+		AdminVerifier: adminauthn.NewAdminVerifier(a.verifier, pool),
+		RateLimit:     ratelimit.Middleware(limiter, policies, httpx.ActorKey, false),
 	}, mount, c)
 	must(t, err)
 	checked := testkit.HTTPAgainst(t, c.Document(), h)
