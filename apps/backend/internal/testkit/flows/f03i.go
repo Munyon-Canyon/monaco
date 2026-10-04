@@ -65,6 +65,7 @@ func F03InviteMemberOK(s *scenario.Scenario) {
 			scenario.ExpectEvents(events.TypeCabalMemberJoined, 2),
 			scenario.Get(cabalsPath+"/{cabal}"),
 			scenario.ExpectJSON("me", map[string]any{"role": "member", "can_vote": true}),
+			cabalHolds(),
 		)
 }
 
@@ -149,5 +150,6 @@ func F03DecideAccessInviteExpired(s *scenario.Scenario) {
 			scenario.ExpectEvents(events.TypeCabalAccessDecided, 1),
 			scenario.ExpectEventPayload(events.TypeCabalAccessDecided, map[string]any{"decision": "expired"}),
 			scenario.ExpectEvents(events.TypeCabalMemberJoined, 1),
+			cabalHolds(),
 		)
 }

@@ -3,7 +3,6 @@ package testkit
 import (
 	"context"
 	"strconv"
-	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -23,13 +22,13 @@ const USDCMint chain.SolanaAddress = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt
 func Config() config.Config { return config.Config{Solana: config.Solana{USDCMint: string(USDCMint)}} }
 
 type Ledger struct {
-	t      *testing.T
+	t      SeedT
 	uow    *db.UnitOfWork
 	ledger app.Ledger
 	ids    ids.Generator
 }
 
-func NewLedger(t *testing.T, pool *pgxpool.Pool) *Ledger {
+func NewLedger(t SeedT, pool *pgxpool.Pool) *Ledger {
 	t.Helper()
 	return &Ledger{
 		t: t, uow: db.New(pool, ids.Real{}, clock.Real{}), ids: ids.Real{},

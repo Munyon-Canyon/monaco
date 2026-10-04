@@ -31,7 +31,7 @@ func crashFirstLeave(point faultpoint.Name) func(http.Handler) http.Handler {
 func TestFlow04_LeaveCabal_CrashBeforeCommit(t *testing.T) {
 	t.Parallel()
 	logs := &testkit.Logs{}
-	s, _ := leaveScenario(
+	s := leaving(
 		t,
 		scenario.WithLogs(logs),
 		scenario.WithRequestMiddleware(crashFirstLeave(faultpoint.BeforeCommit)),

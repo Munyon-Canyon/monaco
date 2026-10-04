@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
@@ -33,6 +34,7 @@ func cabalScenarioWith(t *testing.T, opts []cabal.Option, extra ...scenario.Opti
 			AuthorizationPrivateKey: fakes.PrivyAuthorizationKeyConfig(),
 			AuthorizationKeyID:      fakes.PrivyAuthorizationKeyID,
 		},
+		Solana:   config.Solana{USDCMint: string(testkit.USDCMint)},
 		Timeouts: config.Timeouts{Privy: 10 * time.Second},
 	}
 	withCfg := func(build func(module.Deps) module.Module) func(module.Deps) module.Module {

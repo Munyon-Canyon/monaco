@@ -1,6 +1,8 @@
 package flows
 
 import (
+	"time"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -10,6 +12,8 @@ import (
 )
 
 const depositWallet = "5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP"
+
+func scannedBeforeEveryWallet() time.Time { return time.Unix(-1, 0).UTC() }
 
 func (defined) WorkerEnvF05() []string { return []string{"FUNDING_DEPOSIT_POLL_INTERVAL=2s"} }
 
@@ -61,8 +65,9 @@ func seedDepositWallet(s *scenario.Scenario) testkit.SeededUser {
 	if _, err := s.DB().Exec(
 		s.Context(),
 		`INSERT INTO deposit_cursors (wallet_address, last_signature, cursor_slot, scanned_at)
-		VALUES ($1, '', 0, now()) ON CONFLICT (wallet_address) DO NOTHING`,
+		VALUES ($1, '', 0, $2) ON CONFLICT (wallet_address) DO NOTHING`,
 		user.Address,
+		scannedBeforeEveryWallet(),
 	); err != nil {
 		s.Fatalf("flows: seed deposit cursor: %v", err)
 	}
