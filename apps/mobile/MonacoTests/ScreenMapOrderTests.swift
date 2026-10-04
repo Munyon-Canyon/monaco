@@ -67,6 +67,11 @@ struct ScreenMapOrderTests {
         #expect(view is AccountActivityView)
     }
 
+    @Test func theDeleteAccountRouteRendersItsScreen() {
+        let view: Any = DeleteAccountRoute().destination()
+        #expect(view is DeleteAccountView)
+    }
+
     private func names<T>(_ sections: [T]) -> [String] {
         sections.map { String(describing: $0) }
     }
