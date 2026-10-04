@@ -25,7 +25,11 @@ func TestCoreStepsReadTheSubscribedMessage(t *testing.T) {
 func TestExpectCoreRequiresASubscription(t *testing.T) {
 	t.Parallel()
 	got := failure(t, t.Context, func(r T) *Scenario {
-		return Against(t.Context(), r, Remote{Enter: func(Stage) {}, Logs: (&lineLog{note: newNotifier()}).since})
+		return Against(t.Context(), r, Remote{
+			Enter:         func(Stage) {},
+			Logs:          (&lineLog{note: newNotifier()}).since,
+			CoreSubscribe: func(T, string) <-chan []byte { return make(chan []byte) },
+		})
 	}, ExpectCore("price.tick", func([]byte) error { return nil }))
 	const want = "scenario: ExpectCore(price.tick) needs SubscribeCore(price.tick) first"
 	if got != want {

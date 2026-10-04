@@ -154,7 +154,7 @@ func expectPriceTick(prices int) scenario.Step {
 func ensureSamplerCatalog() scenario.Step {
 	return func(s *scenario.Scenario) {
 		now := time.Now().UTC()
-		for _, a := range marketfake.Fixtures() {
+		for _, a := range append(marketfake.Fixtures(), marketfake.TSpaceX()) {
 			_, err := s.DB().Exec(s.Context(), `INSERT INTO assets (
 				id, symbol, mint, decimals, issuer, kind, display_name, issuer_tradable, company_key,
 				first_seen_at, updated_at)
