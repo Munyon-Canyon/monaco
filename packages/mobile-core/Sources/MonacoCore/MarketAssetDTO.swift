@@ -765,19 +765,3 @@ public struct AssetChartDTO: Codable, Equatable, Sendable {
         market = try container.decodeIfPresent(MarketStatusDTO.self, forKey: .market)
     }
 }
-
-public enum AssetChartRange: String, Codable, CaseIterable, Sendable {
-    case oneDay = "1D"
-    case oneWeek = "1W"
-    case oneMonth = "1M"
-    case threeMonths = "3M"
-    case oneYear = "1Y"
-    case all = "ALL"
-
-    public var label: String { rawValue }
-
-    /// True for the ranges the day-change baseline applies to. Over a month or a
-    /// year, "previous close" means the close before the window, which is not the
-    /// number a day chart's dashed line is about.
-    public var showsPreviousCloseBaseline: Bool { self == .oneDay }
-}
