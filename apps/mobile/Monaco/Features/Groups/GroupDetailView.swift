@@ -55,11 +55,6 @@ struct GroupDetailView: View {
     @State private var isLoading: Bool
     /// The blocking first load has run at least once; re-appearing is the poll loop's job.
     @State private var didInitialLoad = false
-    @State private var joinRequests: [JoinRequestDTO] = []
-    /// Cleared the first time the server refuses the admin-only list, so a plain member's screen
-    /// stops sending a request it already knows will be refused on every load and every tick.
-    @State private var viewerMayBeAdmin = true
-    @State private var decidingRequestIDs: Set<String> = []
     @State private var proposalService: LiveProposalFeedService
     /// The pot's curve on the hero: one slot per range, re-read with the rest of the screen.
     @State private var pnl: GroupPnLHistoryModel
@@ -202,14 +197,9 @@ struct GroupDetailView: View {
                 activityLoading: activityLoading,
                 activityError: activityError,
                 retryingTransactionIDs: retryingTransactionIDs,
-                joinRequests: joinRequests,
-                decidingRequestIDs: decidingRequestIDs,
                 onRoute: { route = $0 },
                 onPropose: { showProposeSheet = true },
                 onRetry: { item in Task { await retryTransaction(item) } },
-                onDecideJoinRequest: { request, approve in
-                    Task { await decideJoinRequest(request, approve: approve) }
-                },
                 onToast: { toast = $0 },
                 onHeroScrolledAway: { heroScrolledAway = $0 },
                 heroChart: pnl.chart,
@@ -365,13 +355,11 @@ struct GroupDetailView: View {
 
         async let viewLoad = apiClient.getGroupView(accessToken: token, groupId: groupId)
         async let activityLoad = apiClient.getGroupActivity(accessToken: token, groupId: groupId)
-        async let joinLoad = readJoinRequests(token: token)
         // The curve rides along with the rest of the read; its failures are its own, and a
         // quiet one leaves the drawn curve alone.
         async let curveLoad: Void = pnl.load(range: pnl.range, quietly: mode == .quiet)
 
         let activity = try? await activityLoad
-        let joinRequestsRead = await joinLoad
         await curveLoad
 
         var loadedView: GroupViewDTO?
@@ -394,7 +382,6 @@ struct GroupDetailView: View {
         } else if mode != .quiet, activityItems.isEmpty {
             activityError = "Couldn't load activity. Pull down to try again"
         }
-        apply(joinRequestsRead)
 
         guard let viewFailure, !viewFailure.isRequestCancellation else { return }
         if mode == .quiet { throw viewFailure }
@@ -452,87 +439,6 @@ struct GroupDetailView: View {
             toast = MonacoToast(message: "Retry didn't go through. Try again")
         }
     }
-
-    /// What one read of the admin-only join requests found.
-    private struct JoinRequestsRead {
-        var outcome: JoinRequestsLoadOutcome
-        var requests: [JoinRequestDTO] = []
-        var viewerMayStillBeAdmin = true
-    }
-
-    /// Reads the people waiting to join. Answers with what to do rather than throwing: a dropped
-    /// request or an offline blip must never blink a pending request away from the admin who was
-    /// about to answer it.
-    private func readJoinRequests(token: String) async -> JoinRequestsRead {
-        guard viewerMayBeAdmin else { return JoinRequestsRead(outcome: .keep) }
-        do {
-            let requests = try await apiClient.listJoinRequests(accessToken: token, groupId: groupId)
-            return JoinRequestsRead(outcome: .replace, requests: requests)
-        } catch {
-            let status = httpStatus(of: error)
-            let wasCancelled = error.isRequestCancellation
-            return JoinRequestsRead(
-                outcome: GroupDetailRefreshPolicy.joinRequestsOutcome(
-                    failureStatus: status, wasCancelled: wasCancelled),
-                viewerMayStillBeAdmin: wasCancelled
-                    || GroupDetailRefreshPolicy.viewerMayBeAdmin(afterFailureStatus: status)
-            )
-        }
-    }
-
-    private func apply(_ read: JoinRequestsRead) {
-        if !read.viewerMayStillBeAdmin { viewerMayBeAdmin = false }
-        switch read.outcome {
-        case .replace:
-            QuietUpdate.apply(read.requests, over: joinRequests) { joinRequests = $0 }
-        case .clear:
-            if !joinRequests.isEmpty { joinRequests = [] }
-        case .keep:
-            break
-        }
-    }
-
-    private func decideJoinRequest(_ request: JoinRequestDTO, approve: Bool) async {
-        guard let token = auth.accessToken else {
-            toast = MonacoToast(message: "Sign in again to answer requests.")
-            return
-        }
-        guard !decidingRequestIDs.contains(request.id) else { return }
-        decidingRequestIDs.insert(request.id)
-        defer { decidingRequestIDs.remove(request.id) }
-        let name = request.displayName.isEmpty ? "Member" : request.displayName
-        do {
-            if approve {
-                try await apiClient.approveJoinRequest(accessToken: token, groupId: groupId, requestId: request.id)
-            } else {
-                try await apiClient.denyJoinRequest(accessToken: token, groupId: groupId, requestId: request.id)
-            }
-            toast = MonacoToast(message: approve ? "\(name) is in" : "Request declined", isSuccess: true)
-        } catch {
-            if error.isRequestCancellation { return }
-            guard GroupDetailRefreshPolicy.joinRequestAlreadyAnswered(failureStatus: httpStatus(of: error)) else {
-                // Still there to answer: keep the row so the admin can try again.
-                toast = MonacoToast(message: "Couldn't update the request. Try again")
-                return
-            }
-            // Answered on another device, or withdrawn. Take the row away rather than leave
-            // buttons on screen that can only ever fail.
-            joinRequests.removeAll { $0.id == request.id }
-            toast = MonacoToast(message: "\(name)'s request was already answered")
-        }
-        // A new member changes the member board and everyone's slice; both come back quietly.
-        await refreshQuietly()
-    }
-
-    /// The status the server answered with, or nil when the request never reached one.
-    private func httpStatus(of error: Error) -> Int? {
-        guard let apiError = error as? MonacoAPIError else { return nil }
-        switch apiError {
-        case .httpStatus(let code): return code
-        case .apiError(let status, _): return status
-        case .invalidResponse, .missingAccessToken: return nil
-        }
-    }
 }
 
 extension View {
@@ -559,12 +465,9 @@ struct GroupDetailContent: View {
     let activityLoading: Bool
     let activityError: String?
     let retryingTransactionIDs: Set<String>
-    let joinRequests: [JoinRequestDTO]
-    let decidingRequestIDs: Set<String>
     let onRoute: (GroupDetailRoute) -> Void
     let onPropose: () -> Void
     let onRetry: (GroupActivityItemDTO) -> Void
-    let onDecideJoinRequest: (JoinRequestDTO, Bool) -> Void
     let onToast: (MonacoToast) -> Void
     var onHeroScrolledAway: (Bool) -> Void = { _ in }
     /// Nil on read-only surfaces; the hero then draws a plain mark.
@@ -590,14 +493,6 @@ struct GroupDetailContent: View {
                     )
                     GroupActionRow(slice: view.you, onRoute: onRoute, onPropose: onPropose)
                         .padding(.horizontal, MonacoTheme.Space.m)
-                }
-
-                if !joinRequests.isEmpty {
-                    GroupJoinRequestsCard(
-                        requests: joinRequests,
-                        decidingRequestIDs: decidingRequestIDs,
-                        onDecide: onDecideJoinRequest
-                    )
                 }
 
                 VStack(alignment: .leading, spacing: 0) {
@@ -668,68 +563,6 @@ struct GroupActionRow: View {
         CircleAction(title, systemImage: systemImage, action: perform)
             .frame(maxWidth: .infinity)
             .accessibilityIdentifier(id)
-    }
-}
-
-/// Admin-only: people waiting to join, answered inline in a ruled list.
-struct GroupJoinRequestsCard: View {
-    let requests: [JoinRequestDTO]
-    let decidingRequestIDs: Set<String>
-    let onDecide: (JoinRequestDTO, Bool) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            MonacoSectionHeader(
-                requests.count == 1 ? "1 person wants to join" : "\(requests.count) people want to join"
-            )
-            .padding(.horizontal, MonacoTheme.Space.m)
-            MonacoGroupedList {
-                ForEach(requests) { request in
-                    let name = request.displayName.isEmpty ? "Member" : request.displayName
-                    HStack(spacing: MonacoTheme.Space.sm) {
-                        MonacoAvatar(
-                            photoURL: request.profilePhotoUrl, displayName: name, size: 40, seed: request.userId)
-                        Text(name)
-                            .font(MonacoTheme.Typo.rowTitle)
-                            .foregroundStyle(MonacoTheme.ink)
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .layoutPriority(1)
-                        Button("Deny") { onDecide(request, false) }
-                            .font(MonacoTheme.Typo.calloutStrong)
-                            .lineLimit(1)
-                            .fixedSize()
-                            .foregroundStyle(MonacoTheme.muted)
-                            .frame(minWidth: 44, minHeight: 44)
-                            .accessibilityIdentifier("join-request-deny-\(request.id)")
-                        Button("Approve") {
-                            Haptics.success()
-                            onDecide(request, true)
-                        }
-                        .font(MonacoTheme.Typo.calloutStrong)
-                        .lineLimit(1)
-                        .fixedSize()
-                        .foregroundStyle(MonacoTheme.primaryButtonLabel)
-                        .padding(.horizontal, 14)
-                        .frame(minHeight: 36)
-                        .background(Capsule().fill(MonacoTheme.primaryButtonFill))
-                        .frame(minHeight: 44)
-                        .accessibilityIdentifier("join-request-approve-\(request.id)")
-                    }
-                    .disabled(decidingRequestIDs.contains(request.id))
-                    .opacity(decidingRequestIDs.contains(request.id) ? 0.5 : 1)
-                    .padding(.horizontal, MonacoTheme.Space.m)
-                    .padding(.vertical, 6)
-                    .frame(minHeight: 60)
-                    .overlay(alignment: .bottom) {
-                        if request.id != requests.last?.id {
-                            MonacoRule().padding(.leading, MonacoTheme.Space.m + 40 + MonacoTheme.Space.sm)
-                        }
-                    }
-                }
-            }
-        }
-        .accessibilityIdentifier("group-join-requests")
     }
 }
 

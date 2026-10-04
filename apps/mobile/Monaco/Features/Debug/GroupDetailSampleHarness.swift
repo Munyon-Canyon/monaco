@@ -123,12 +123,9 @@ struct GroupDetailSampleHarness: View {
             activityLoading: false,
             activityError: nil,
             retryingTransactionIDs: [],
-            joinRequests: scenario == .empty ? [] : GroupDetailSampleData.joinRequests,
-            decidingRequestIDs: [],
             onRoute: { route = $0 },
             onPropose: { showPropose = true },
             onRetry: { _ in },
-            onDecideJoinRequest: { _, _ in },
             onToast: { toast = $0 },
             onHeroScrolledAway: { heroScrolledAway = $0 },
             pictureEditor: pictureEditor,
@@ -255,16 +252,6 @@ enum GroupDetailSampleData {
         proposals: nil,
         agent: nil
     )
-
-    /// One request with a profile photo, one falling back to initials.
-    static let joinRequests = [
-        JoinRequestDTO(
-            id: "jr1", userId: "u9", displayName: "Priya Nair",
-            profilePhotoUrl: ProfileSampleHarness.samplePhotoURL()?.absoluteString,
-            requestedAt: "2026-09-18T10:00:00Z"
-        ),
-        JoinRequestDTO(id: "jr2", userId: "u10", displayName: "Jordan Hale", requestedAt: "2026-09-18T11:00:00Z"),
-    ]
 
     static var activity: [GroupActivityItemDTO] {
         let iso = ISO8601DateFormatter()
