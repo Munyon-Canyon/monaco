@@ -43,7 +43,7 @@ func recordBody(r Record) string {
 	)
 }
 
-func (env *Env) rebuildRecord(ctx context.Context, ticket int) (Record, error) {
+func (env *Env) recordFromComment(ctx context.Context, ticket int) (Record, error) {
 	all, err := env.issueComments(ctx, ticket)
 	if err != nil {
 		return Record{}, err
@@ -62,9 +62,16 @@ func (env *Env) rebuildRecord(ctx context.Context, ticket int) (Record, error) {
 			fmt.Sprintf("the owner record comment on #%d does not decode: %v", ticket, err),
 		)
 	}
-	r := Record{
+	return Record{
 		Ticket: ticket, Model: s.Model, Worktree: env.worktreePath(ticket), Branch: s.Branch, Base: s.Base,
 		State: s.State, Queued: s.Queued, Armed: s.Armed, Started: s.Started, Changed: s.Changed,
+	}, nil
+}
+
+func (env *Env) rebuildRecord(ctx context.Context, ticket int) (Record, error) {
+	r, err := env.recordFromComment(ctx, ticket)
+	if err != nil {
+		return Record{}, err
 	}
 	return r, env.saveRecord(r)
 }

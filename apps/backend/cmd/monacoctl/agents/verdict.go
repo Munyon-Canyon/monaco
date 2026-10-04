@@ -87,7 +87,10 @@ func postVerdict(ctx context.Context, env *Env, args []string, stdout io.Writer)
 }
 
 func (env *Env) recordBranch(ctx context.Context, ticket int, branch string) error {
-	r, err := env.record(ctx, ticket)
+	r, err := env.localRecord(ticket)
+	if errs.CodeOf(err) == errs.CodeNotFound {
+		return nil
+	}
 	if err != nil {
 		return err
 	}

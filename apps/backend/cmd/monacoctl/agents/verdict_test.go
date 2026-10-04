@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -84,6 +85,45 @@ func TestVerdict_refusesAWeakerKindTheOwnerModelOrTheWrongSHA(t *testing.T) {
 	); code != 1 ||
 		!strings.Contains(stderr, "owner record") {
 		t.Fatalf("missing: %d %q", code, stderr)
+	}
+}
+
+func TestVerdict_checksTheOwnerModelOfAnotherRootsTicketWithoutRebuildingItsRecord(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	sha := strings.Repeat("c", 40)
+	f.ownerComments(40, ownerComment(2, Record{Ticket: 40, Model: sonnet, State: Running}))
+	f.hub.on(get("/pulls/5"), headed(5, sha))
+	f.hub.on(list("/pulls/5/files?"), []File{{Filename: "a.go", Additions: 1}})
+	status := "POST /repos/o/r/statuses/" + sha
+	f.hub.on(status, "ok")
+	f.scriptGit(map[string]string{"fetch": "", "merge-base": "abc\n", "diff": "d\n", "patch-id": "id x\n"}, nil)
+	report := f.report(t, "ok")
+	verdict := func(model string) (int, string, string) {
+		return f.agents(t, "verdict", "pass", "5", sha, "--kind", "full", "--model", model, "--report", report)
+	}
+
+	code, _, stderr := verdict(sonnet)
+	if code != 1 || !strings.Contains(stderr, "verifier model sonnet equals the owner model sonnet on #40") ||
+		f.hub.body(status) != "" {
+		t.Fatalf("same model: code=%d stderr=%q status body %q", code, stderr, f.hub.body(status))
+	}
+	if saved := f.agentsDirEntries(t); len(saved) != 0 {
+		t.Errorf("the refused verdict saved %v for a ticket this clone has no record of", saved)
+	}
+
+	code, stdout, stderr := verdict(opus)
+	if code != 0 || stderr != "" || stdout != "#5 success full by opus: ok\n" ||
+		!strings.Contains(f.hub.body(status), `"state":"success"`) {
+		t.Fatalf("other model: code=%d stdout=%q stderr=%q status body %q", code, stdout, stderr, f.hub.body(status))
+	}
+	if saved := f.agentsDirEntries(t); !slices.Equal(saved, []string{"verdicts"}) {
+		t.Errorf("the posted verdict saved %v, want only its own verdict under verdicts", saved)
+	}
+	for _, call := range f.hub.callsContaining("/issues/") {
+		if !strings.HasPrefix(call, "GET ") {
+			t.Errorf("the posted verdict wrote %q to a ticket this clone has no record of", call)
+		}
 	}
 }
 
