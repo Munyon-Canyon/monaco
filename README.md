@@ -101,10 +101,10 @@ To get QA cash back out: **Cash out** of the cabal (USDC returns to the account 
 | `just encrypt`               | `dotenvx encrypt` on `.env.local` (and `.env.production` if present)                                                                                                   |
 | `just decrypt`               | `dotenvx decrypt` on `.env.local` (and `.env.production` if present)                                                                                                   |
 | `just show-env`              | Print decrypted `.env.local` keys/values via dotenvx (`export KEY='value'` lines; `.env.production` omitted). Needs `.env.local`, dotenvx, and `.env.keys` or Keychain |
-| `just run`                   | `just run backend` in the background, then `just run mobile`                                                                                                           |
-| `just run backend`           | `bin/api` on `API_ADDR` (default `:8080`) and `bin/worker` on `WORKER_HEALTH_ADDR` (default `:8081`); both serve `GET /healthz`                                        |
+| `just run`                   | `just run backend` in the background, then `just run mobile`; prints a `==>` line per step. Ctrl+C or a failed build stops both                                        |
+| `just run backend`           | `bin/api` on `MONACO_HTTP_ADDR` (default `:8080`) and `bin/worker` on `MONACO_WORKER_HEALTH_ADDR` (default `:8081`); both serve `GET /healthz`                         |
 | `just run mobile`            | iOS with Privy xcconfig + `SIMCTL_CHILD_*` via `./scripts/ios-sim`                                                                                                     |
-| Logs                         | `just run*` tee stdout/stderr to `.logs/<timestamp>/` (`api.log`, `worker.log`, `mobile.log`)                                                                          |
+| Logs                         | `just run*` tee stdout/stderr to `.logs/<timestamp>/` (`api.log`, `worker.log`, `mobile.log`, `xcodebuild.log`)                                                        |
 | `just stop`                  | `just stop backend`, then `just stop mobile`                                                                                                                           |
 | `just stop backend`          | SIGTERM `bin/api` and `bin/worker`, wait for both to exit                                                                                                              |
 | `just stop mobile`           | Terminate Monaco on the resolved sim; stop `xcodebuild` if running                                                                                                     |
@@ -113,7 +113,7 @@ To get QA cash back out: **Cash out** of the cabal (USDC returns to the account 
 | `just reset mobile`          | Stop app + `xcodebuild clean` on the resolved sim                                                                                                                      |
 | `just reset db`              | Wipe the local Docker Postgres volume only and start it empty; NATS data is kept (localhost only, dotenvx)                                                             |
 | `just migrate db`            | Apply pending migrations to the `.env.local` database, then print its revision. `just run backend` never migrates; a behind database stops boot with `db_schema_behind` |
-| `just killports`             | Kill listeners on API port (default 8080; not Postgres 54322)                                                                                                          |
+| `just killports`             | Kill listeners on the api and worker ports (default 8080 and 8081; not Postgres 54322)                                                                                 |
 | `just test backend`          | `go test -race -shuffle=on -short ./...` in `apps/backend`, the slowest-ten report and 90 s budget, then the `scripts/` Go tests                                       |
 | `just test mobile`           | Host `swift test` in `packages/mobile-core` — fast, no secrets                                                                                                         |
 | `just build backend`         | `go build` of `bin/api`, `bin/worker`, `bin/monacoctl`                                                                                                                 |

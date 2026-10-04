@@ -10,6 +10,15 @@ monaco_log_stamp() {
   date +"%Y-%m-%dT%H-%M-%S"
 }
 
+# One progress line for just run, set apart from the service logs around it.
+monaco_step() {
+  if [[ -n "${NO_COLOR:-}" ]]; then
+    printf '==> %s\n' "$*"
+  else
+    printf '\033[1;36m==> %s\033[0m\n' "$*"
+  fi
+}
+
 monaco_init_logs() {
   if [[ -n "${MONACO_LOG_DIR:-}" && -d "${MONACO_LOG_DIR}" ]]; then
     return 0

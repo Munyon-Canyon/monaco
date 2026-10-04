@@ -124,25 +124,52 @@ run *app:
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ -z "{{app}}" ]]; then
+      # Bash starts a background job with SIGINT ignored, so Ctrl-C never reaches the
+      # backend. Stop it by name on every exit instead: Ctrl-C, a failed mobile build, or
+      # the backend exiting on its own.
+      trap 'just stop backend >/dev/null 2>&1 || true' EXIT
+      trap 'exit 130' INT
+      trap 'exit 143' TERM
+      source ./scripts/run-with-logs.sh
+      monaco_init_logs
       just run backend &
       backend_pid=$!
       just run mobile
-      echo "Simulator launched. Backend still running; Ctrl+C or just stop backend to stop it."
+      monaco_step "ready: app on the simulator, backend on :8080. Ctrl+C stops everything."
       wait "$backend_pid"
       exit 0
     fi
     case "{{app}}" in
       backend)
+        source ./scripts/run-with-logs.sh
+        monaco_step "backend: building api, worker and monacoctl"
         just build backend
         ./scripts/require-docker.sh
+        monaco_step "backend: starting postgres and nats"
         docker compose up -d --wait postgres nats
-        source ./scripts/run-with-logs.sh
         monaco_init_logs
+        monaco_step "backend: starting api and worker"
         env -u MONACO_LOG_DIR -u MONACO_DOTENVX {{_dotenvx}} "$PWD/bin/api" > >(tee -a "${MONACO_LOG_DIR}/api.log") 2>&1 &
         api_pid=$!
         env -u MONACO_LOG_DIR -u MONACO_DOTENVX {{_dotenvx}} "$PWD/bin/worker" > >(tee -a "${MONACO_LOG_DIR}/worker.log") 2>&1 &
         worker_pid=$!
-        trap 'kill -TERM "$api_pid" "$worker_pid" 2>/dev/null || true' INT TERM
+        api_port="${MONACO_HTTP_ADDR:-:8080}"; api_port="${api_port##*:}"
+        worker_port="${MONACO_WORKER_HEALTH_ADDR:-:8081}"; worker_port="${worker_port##*:}"
+        (
+          for _ in $(seq 1 120); do
+            if curl -fsS -o /dev/null "http://localhost:${api_port}/healthz" 2>/dev/null &&
+              curl -fsS -o /dev/null "http://localhost:${worker_port}/healthz" 2>/dev/null; then
+              monaco_step "backend: running (api http://localhost:${api_port}, worker :${worker_port})"
+              exit 0
+            fi
+            sleep 0.5
+          done
+          monaco_step "backend: not healthy after 60s; see ${MONACO_LOG_DIR}/api.log and worker.log"
+        ) &
+        ready_pid=$!
+        # By name, not by pid: the pids are the dotenvx wrappers, and the INT trap never
+        # fires when `just run` started this as a background job (SIGINT ignored).
+        trap 'kill "$ready_pid" 2>/dev/null || true; pkill -TERM -f "^${PWD}/bin/(api|worker)$" || true' INT TERM EXIT
         wait "$api_pid" "$worker_pid"
         ;;
       mobile)
@@ -272,17 +299,15 @@ gen target *args:
 killports:
     #!/usr/bin/env bash
     set -euo pipefail
-    # App dev ports only — Postgres stays up (use just reset db for volume wipe).
-    port=8080
-    if [[ -n "${API_ADDR:-}" ]]; then
-      port="${API_ADDR##*:}"
-    elif command -v dotenvx >/dev/null 2>&1 && [[ -f .env.local ]]; then
-      addr="$(dotenvx get API_ADDR -f .env.local 2>/dev/null || true)"
-      if [[ -n "$addr" ]]; then
-        port="${addr##*:}"
+    # App dev ports only (api and worker health); Postgres stays up (just reset db wipes it).
+    port_of() {
+      local key=$1 addr="${!1:-}"
+      if [[ -z "$addr" ]] && command -v dotenvx >/dev/null 2>&1 && [[ -f .env.local ]]; then
+        addr="$(dotenvx get "$key" -f .env.local 2>/dev/null || true)"
       fi
-    fi
-    ./scripts/kill-listeners.sh "$port"
+      if [[ -n "$addr" ]]; then echo "${addr##*:}"; else echo "$2"; fi
+    }
+    ./scripts/kill-listeners.sh "$(port_of MONACO_HTTP_ADDR 8080)" "$(port_of MONACO_WORKER_HEALTH_ADDR 8081)"
 
 # Overnight QA loop: backend, host tests, app unit tests, then each sample UI test class
 # one at a time on a slimmed simulator. Report lands in .logs/qa/<timestamp>/report.md.
