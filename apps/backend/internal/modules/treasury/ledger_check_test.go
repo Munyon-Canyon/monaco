@@ -389,7 +389,7 @@ func TestCheckLedger_reportsLedgerOnlyWalletBalancesForDepositEvents(t *testing.
 	t.Parallel()
 	f := newFixture(t)
 	user := f.user(t)
-	h := adapters.UserLedger{Ledger: f.ledger, IDs: f.ids, USDC: usdc}
+	h := adapters.UserLedger{Ledger: f.ledger, IDs: f.ids, USDC: usdc, Hints: &hints{}}
 	e := events.DepositCredited{
 		V: 1, DepositID: f.ids.NewV7(), UserID: user.UUID(), TxSignature: "deposit",
 		AmountMicros: money.MicrosFromUint64(25),

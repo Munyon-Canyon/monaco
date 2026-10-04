@@ -18,7 +18,7 @@ func TestUserLedgerProperty_replaysKeepDepositsBalanced(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	user := f.user(t)
-	h := adapters.UserLedger{Ledger: f.ledger, IDs: f.ids, USDC: usdc}
+	h := adapters.UserLedger{Ledger: f.ledger, IDs: f.ids, USDC: usdc, Hints: &hints{}}
 	rapid.Check(t, func(rt *rapid.T) {
 		deposits, want := replayDeposits(rt, f, user, h)
 		assertDepositTxnsBalance(rt, f, deposits)

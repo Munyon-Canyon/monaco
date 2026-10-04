@@ -68,7 +68,7 @@ func (m *Module) Mount(r api.Mount) {
 
 func (m *Module) Consumers() []bus.Consumer {
 	activity := adapters.Activity{Hints: m.deps.Bus}
-	userLedger := adapters.UserLedger{Ledger: m.ledger(), IDs: m.deps.IDs, USDC: usdc(m.deps.Config)}
+	userLedger := adapters.UserLedger{Ledger: m.ledger(), IDs: m.deps.IDs, USDC: usdc(m.deps.Config), Hints: m.deps.Bus}
 	return []bus.Consumer{
 		{
 			Durable: "treasury_trades",

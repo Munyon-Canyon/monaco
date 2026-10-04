@@ -18,6 +18,7 @@ type UserLedger struct {
 	Ledger app.Ledger
 	IDs    ids.Generator
 	USDC   domain.Asset
+	Hints  Hints
 }
 
 func (h UserLedger) Handle(ctx context.Context, tx db.Tx, e events.DepositCredited, _ time.Time) error {
@@ -25,8 +26,9 @@ func (h UserLedger) Handle(ctx context.Context, tx db.Tx, e events.DepositCredit
 	if err != nil {
 		return err
 	}
+	user := ids.UserIDFrom(e.UserID)
 	txn, err := domain.NewUserTxn(domain.UserTxnHeader{
-		ID: e.DepositID, UserID: ids.UserIDFrom(e.UserID), Kind: domain.UserDeposit,
+		ID: e.DepositID, UserID: user, Kind: domain.UserDeposit,
 		Status: domain.TxnSettled, TxSignature: e.TxSignature,
 	}, []domain.UserEntry{
 		{Account: domain.UserWallet, Asset: h.USDC, Amount: amount},
@@ -38,7 +40,13 @@ func (h UserLedger) Handle(ctx context.Context, tx db.Tx, e events.DepositCredit
 	if err != nil {
 		return err
 	}
-	return h.Ledger.PostUserTxn(ctx, tx, txn)
+	if err := h.Ledger.PostUserTxn(ctx, tx, txn); err != nil {
+		return err
+	}
+	tx.AfterCommit(func(ctx context.Context) {
+		h.Hints.PublishHint(ctx, events.UserBalanceChangedHint(user), nil)
+	})
+	return nil
 }
 
 func DepositCreditedBalances(usdc domain.Asset) BalanceRule {
