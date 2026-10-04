@@ -1,38 +1,35 @@
-# Shrink-only. When two rewires both lower a row, keep the smaller count, and rerun LegacyFreezeTests to confirm it.
-lines	apps/mobile/Monaco/API/DTOs/BuyQuoteDTO.swift	8
-lines	apps/mobile/Monaco/API/DTOs/CatalogAssetDTO.swift	5
-lines	apps/mobile/Monaco/API/DTOs/CreateGroupResponse.swift	7
-lines	apps/mobile/Monaco/API/DTOs/DepositResponses.swift	20
-lines	apps/mobile/Monaco/API/DTOs/DevBuyResponse.swift	15
-lines	apps/mobile/Monaco/API/DTOs/GetGroupResponse.swift	6
-lines	apps/mobile/Monaco/API/DTOs/GroupActivityDTO.swift	63
-lines	apps/mobile/Monaco/API/DTOs/GroupViewDTO.swift	19
-lines	apps/mobile/Monaco/API/DTOs/HealthResponse.swift	5
-lines	apps/mobile/Monaco/API/DTOs/HomeDashboardDTO.swift	97
-lines	apps/mobile/Monaco/API/DTOs/HomeViewDTO.swift	33
-lines	apps/mobile/Monaco/API/DTOs/JoinRequestDTO.swift	23
-lines	apps/mobile/Monaco/API/DTOs/MarketAssetDTO.swift	39
-lines	apps/mobile/Monaco/API/DTOs/PlatformBalanceDTO.swift	19
-lines	apps/mobile/Monaco/API/DTOs/PlatformWithdrawalDTO.swift	15
-lines	apps/mobile/Monaco/API/DTOs/RedeemJobDTO.swift	6
-lines	apps/mobile/Monaco/API/DTOs/TransactionDetailDTO.swift	72
-lines	apps/mobile/Monaco/API/DTOs/WithdrawToBalanceDTO.swift	17
-lines	apps/mobile/Monaco/API/MonacoAPIClient.swift	955
-urlrequest	apps/mobile/Monaco/API/MonacoAPIClient.swift	33
-poll	apps/mobile/Monaco/Features/Assets/AssetDetailView.swift	2
-poll	apps/mobile/Monaco/Features/Deposit/DepositView.swift	1
-poll	apps/mobile/Monaco/Features/Deposit/FundCabalView.swift	1
-poll	apps/mobile/Monaco/Features/Groups/GroupChatView.swift	1
-poll	apps/mobile/Monaco/Features/Groups/GroupDetailView.swift	1
-poll	apps/mobile/Monaco/Features/Groups/ProposalHistorySection.swift	1
-poll	apps/mobile/Monaco/Features/Groups/TransactionDetailView.swift	1
-poll	apps/mobile/Monaco/Features/Home/HomeView.swift	1
-poll	apps/mobile/Monaco/Features/Profile/ProfileTabView.swift	1
-poll	apps/mobile/Monaco/Features/Proposals/ProposalDetailView.swift	1
-poll	apps/mobile/Monaco/Features/Proposals/ProposalFeedView.swift	1
-poll	apps/mobile/Monaco/Support/LiveRefresh.swift	3
-groups_path	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	15
-lines	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	790
-lines	apps/mobile/Monaco/Features/Shell/AppSessionStore.swift	255
-urlrequest	packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift	30
-urlrequest	packages/mobile-core/Sources/MonacoCore/Networking/MonacoHTTPTransport.swift	1
+apps/mobile/Monaco/API/DTOs/BuyQuoteDTO.swift
+apps/mobile/Monaco/API/DTOs/CatalogAssetDTO.swift
+apps/mobile/Monaco/API/DTOs/CreateGroupResponse.swift
+apps/mobile/Monaco/API/DTOs/DepositResponses.swift
+apps/mobile/Monaco/API/DTOs/DevBuyResponse.swift
+apps/mobile/Monaco/API/DTOs/GetGroupResponse.swift
+apps/mobile/Monaco/API/DTOs/GroupActivityDTO.swift
+apps/mobile/Monaco/API/DTOs/GroupViewDTO.swift
+apps/mobile/Monaco/API/DTOs/HealthResponse.swift
+apps/mobile/Monaco/API/DTOs/HomeDashboardDTO.swift
+apps/mobile/Monaco/API/DTOs/HomeViewDTO.swift
+apps/mobile/Monaco/API/DTOs/JoinRequestDTO.swift
+apps/mobile/Monaco/API/DTOs/MarketAssetDTO.swift
+apps/mobile/Monaco/API/DTOs/PlatformBalanceDTO.swift
+apps/mobile/Monaco/API/DTOs/PlatformWithdrawalDTO.swift
+apps/mobile/Monaco/API/DTOs/RedeemJobDTO.swift
+apps/mobile/Monaco/API/DTOs/TransactionDetailDTO.swift
+apps/mobile/Monaco/API/DTOs/WithdrawToBalanceDTO.swift
+apps/mobile/Monaco/API/MonacoAPIClient.swift
+apps/mobile/Monaco/API/MoneyFlowErrorInput.swift
+apps/mobile/Monaco/Features/Assets/AssetDetailView.swift
+apps/mobile/Monaco/Features/Deposit/DepositView.swift
+apps/mobile/Monaco/Features/Deposit/FundCabalView.swift
+apps/mobile/Monaco/Features/Groups/GroupChatView.swift
+apps/mobile/Monaco/Features/Groups/GroupDetailView.swift
+apps/mobile/Monaco/Features/Groups/ProposalHistorySection.swift
+apps/mobile/Monaco/Features/Groups/TransactionDetailView.swift
+apps/mobile/Monaco/Features/Home/HomeView.swift
+apps/mobile/Monaco/Features/Profile/ProfileTabView.swift
+apps/mobile/Monaco/Features/Proposals/ProposalDetailView.swift
+apps/mobile/Monaco/Features/Proposals/ProposalFeedView.swift
+apps/mobile/Monaco/Features/Shell/AppSessionStore.swift
+apps/mobile/Monaco/Support/LiveRefresh.swift
+packages/mobile-core/Sources/MonacoCore/MonacoAPIClient.swift
+packages/mobile-core/Sources/MonacoCore/Networking/MonacoHTTPTransport.swift

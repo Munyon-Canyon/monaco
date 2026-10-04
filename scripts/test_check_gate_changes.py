@@ -96,7 +96,7 @@ PBXPROJ = "apps/mobile/Monaco.xcodeproj/project.pbxproj"
 ROWS = {
     ".swiftlint-baseline.tsv": "force_unwrapping\tapps/mobile/Monaco/A.swift\t3\n",
     "packages/mobile-core/Tests/MonacoCoreTests/RepoRulesAllowlist.txt": "urlsession\tapps/mobile/Monaco/B.swift\t2\n",
-    "packages/mobile-core/legacy-baseline.tsv": "# keep the smaller count\nlines\tapps/mobile/Monaco/API/C.swift\t120\n",
+    "packages/mobile-core/legacy-baseline.tsv": "apps/mobile/Monaco/API/C.swift\n",
     "apps/mobile/MonacoUITests/AccessibilityAuditAllowlist.txt": "CabalsTabSampleUITests\tcontrast\tbutton.join\n",
     "packages/mobile-core/tsan-suppressions.txt": "race:libdispatch\n",
 }
@@ -423,14 +423,13 @@ class CheckTest(unittest.TestCase):
                 files[path] = text.replace(f"\t{count}\n", f"\t{int(count) + 1}\n")
                 findings.append(f"{path}:{len(text.splitlines())}: gate-file: raised `{' '.join(key.split())}` "
                                 f"{count} -> {int(count) + 1}")
-        self.assertEqual(len(findings), 3)
+        self.assertEqual(len(findings), 2)
         self.assert_flags(files, *findings)
 
     def test_row_file_new_row_among_unchanged_rows(self):
         path = "packages/mobile-core/legacy-baseline.tsv"
-        code, out = self.run_check({path: "# keep the smaller count\nlines\tapps/mobile/Monaco/API/B.swift\t4\n"
-                                          "lines\tapps/mobile/Monaco/API/C.swift\t120\n"})
-        self.assertIn("new row `lines apps/mobile/Monaco/API/B.swift 4`", out)
+        code, out = self.run_check({path: "apps/mobile/Monaco/API/B.swift\napps/mobile/Monaco/API/C.swift\n"})
+        self.assertIn("new row `apps/mobile/Monaco/API/B.swift`", out)
         self.assertNotIn("C.swift", out)
 
     def test_raised_or_new_perf_budget(self):

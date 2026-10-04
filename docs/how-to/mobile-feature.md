@@ -41,4 +41,4 @@ User-facing strings say "cabal", not "club" or "group". Show a stock's name or s
 
 ## When you delete legacy code
 
-Lower the #941 `packages/mobile-core/legacy-baseline.tsv` row for every metric you remove, in the same change. A count below the baseline fails until the row shrinks.
+Delete the legacy code and leave `packages/mobile-core/legacy-baseline.tsv` alone. That file is the frozen list of paths where legacy code may live, and it empties at #713. Growth in a listed file fails the `legacy growth` row of `monacoctl agents check` and the `Legacy growth (mobile)` CI job.
