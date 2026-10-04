@@ -28,258 +28,13 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-type healthz func(ctx context.Context) (api.GetHealthzResponseObject, error)
+type healthz struct {
+	api.StrictServerInterface
+	fn func(ctx context.Context) (api.GetHealthzResponseObject, error)
+}
 
 func (h healthz) GetHealthz(ctx context.Context, _ api.GetHealthzRequestObject) (api.GetHealthzResponseObject, error) {
-	return h(ctx)
-}
-
-func (healthz) GetStream(context.Context, api.GetStreamRequestObject) (api.GetStreamResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetStream")
-}
-
-func (healthz) GetMyBalance(context.Context, api.GetMyBalanceRequestObject) (api.GetMyBalanceResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetMyBalance")
-}
-
-func (healthz) PostAuthSession(
-	context.Context, api.PostAuthSessionRequestObject,
-) (api.PostAuthSessionResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostAuthSession")
-}
-
-func (healthz) GetMe(context.Context, api.GetMeRequestObject) (api.GetMeResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetMe")
-}
-
-func (healthz) PatchMe(context.Context, api.PatchMeRequestObject) (api.PatchMeResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.PatchMe")
-}
-
-func (healthz) DeleteMe(context.Context, api.DeleteMeRequestObject) (api.DeleteMeResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.DeleteMe")
-}
-
-func (healthz) PostProfilePhoto(
-	context.Context, api.PostProfilePhotoRequestObject,
-) (api.PostProfilePhotoResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostProfilePhoto")
-}
-
-func (healthz) GetHandleAvailability(
-	context.Context, api.GetHandleAvailabilityRequestObject,
-) (api.GetHandleAvailabilityResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetHandleAvailability")
-}
-
-func (healthz) PutMeHandle(context.Context, api.PutMeHandleRequestObject) (api.PutMeHandleResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.PutMeHandle")
-}
-
-func (healthz) PostOnboardingPhone(
-	context.Context, api.PostOnboardingPhoneRequestObject,
-) (api.PostOnboardingPhoneResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostOnboardingPhone")
-}
-
-func (healthz) PostOnboardingSocials(
-	context.Context, api.PostOnboardingSocialsRequestObject,
-) (api.PostOnboardingSocialsResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostOnboardingSocials")
-}
-
-func (healthz) PostOnboardingSkip(
-	context.Context, api.PostOnboardingSkipRequestObject,
-) (api.PostOnboardingSkipResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostOnboardingSkip")
-}
-
-func (healthz) PostDevice(context.Context, api.PostDeviceRequestObject) (api.PostDeviceResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostDevice")
-}
-
-func (healthz) DeleteDevice(context.Context, api.DeleteDeviceRequestObject) (api.DeleteDeviceResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.DeleteDevice")
-}
-
-func (healthz) GetMyReferralCode(
-	context.Context, api.GetMyReferralCodeRequestObject,
-) (api.GetMyReferralCodeResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetMyReferralCode")
-}
-
-func (healthz) PostSystemPing(
-	context.Context, api.PostSystemPingRequestObject,
-) (api.PostSystemPingResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostSystemPing")
-}
-
-func (healthz) GetCabalProposals(
-	context.Context, api.GetCabalProposalsRequestObject,
-) (api.GetCabalProposalsResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabalProposals")
-}
-
-func (healthz) GetMyPendingVotes(
-	context.Context, api.GetMyPendingVotesRequestObject,
-) (api.GetMyPendingVotesResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetMyPendingVotes")
-}
-
-func (healthz) DeleteProposal(
-	context.Context, api.DeleteProposalRequestObject,
-) (api.DeleteProposalResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.DeleteProposal")
-}
-
-func (healthz) GetProposal(context.Context, api.GetProposalRequestObject) (api.GetProposalResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetProposal")
-}
-
-func (healthz) PostProposalVote(
-	context.Context, api.PostProposalVoteRequestObject,
-) (api.PostProposalVoteResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostProposalVote")
-}
-
-func (healthz) PostUserFollow(
-	context.Context, api.PostUserFollowRequestObject,
-) (api.PostUserFollowResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostUserFollow")
-}
-
-func (healthz) DeleteUserFollow(
-	context.Context, api.DeleteUserFollowRequestObject,
-) (api.DeleteUserFollowResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.DeleteUserFollow")
-}
-
-func (healthz) GetFeed(context.Context, api.GetFeedRequestObject) (api.GetFeedResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetFeed")
-}
-
-func (healthz) GetFeedItem(context.Context, api.GetFeedItemRequestObject) (api.GetFeedItemResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetFeedItem")
-}
-
-func (healthz) GetSystemPing(context.Context, api.GetSystemPingRequestObject) (api.GetSystemPingResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetSystemPing")
-}
-
-func (healthz) PostCabal(context.Context, api.PostCabalRequestObject) (api.PostCabalResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostCabal")
-}
-
-func (healthz) GetCabals(context.Context, api.GetCabalsRequestObject) (api.GetCabalsResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabals")
-}
-
-func (healthz) GetCabal(context.Context, api.GetCabalRequestObject) (api.GetCabalResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabal")
-}
-
-func (healthz) GetAssets(context.Context, api.GetAssetsRequestObject) (api.GetAssetsResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetAssets")
-}
-
-func (healthz) GetMyCabals(context.Context, api.GetMyCabalsRequestObject) (api.GetMyCabalsResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetMyCabals")
-}
-
-func (healthz) PatchCabal(context.Context, api.PatchCabalRequestObject) (api.PatchCabalResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.PatchCabal")
-}
-
-func (healthz) PutCabalPicture(
-	context.Context, api.PutCabalPictureRequestObject,
-) (api.PutCabalPictureResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.PutCabalPicture")
-}
-
-func (healthz) DeleteCabalPicture(
-	context.Context, api.DeleteCabalPictureRequestObject,
-) (api.DeleteCabalPictureResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.DeleteCabalPicture")
-}
-
-func (healthz) PostCabalMember(
-	context.Context, api.PostCabalMemberRequestObject,
-) (api.PostCabalMemberResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostCabalMember")
-}
-
-func (healthz) GetCabalByCode(
-	context.Context, api.GetCabalByCodeRequestObject,
-) (api.GetCabalByCodeResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabalByCode")
-}
-
-func (healthz) DeleteCabalMemberMe(
-	context.Context, api.DeleteCabalMemberMeRequestObject,
-) (api.DeleteCabalMemberMeResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.DeleteCabalMemberMe")
-}
-
-func (healthz) PostCabalAccessRequest(
-	context.Context, api.PostCabalAccessRequestRequestObject,
-) (api.PostCabalAccessRequestResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostCabalAccessRequest")
-}
-
-func (healthz) GetCabalAccessRequests(
-	context.Context, api.GetCabalAccessRequestsRequestObject,
-) (api.GetCabalAccessRequestsResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabalAccessRequests")
-}
-
-func (healthz) PostCabalAccessDecision(
-	context.Context, api.PostCabalAccessDecisionRequestObject,
-) (api.PostCabalAccessDecisionResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostCabalAccessDecision")
-}
-
-func (healthz) PostCabalInvite(
-	context.Context, api.PostCabalInviteRequestObject,
-) (api.PostCabalInviteResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.PostCabalInvite")
-}
-
-func (healthz) GetCabalInvites(
-	context.Context, api.GetCabalInvitesRequestObject,
-) (api.GetCabalInvitesResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabalInvites")
-}
-
-func (healthz) GetMyCabalInvites(
-	context.Context, api.GetMyCabalInvitesRequestObject,
-) (api.GetMyCabalInvitesResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetMyCabalInvites")
-}
-
-func (healthz) DeleteCabalAccessRequest(
-	context.Context, api.DeleteCabalAccessRequestRequestObject,
-) (api.DeleteCabalAccessRequestResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.DeleteCabalAccessRequest")
-}
-
-func (healthz) GetCabalActivity(
-	context.Context, api.GetCabalActivityRequestObject,
-) (api.GetCabalActivityResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetCabalActivity")
-}
-
-func (healthz) GetMyTxns(context.Context, api.GetMyTxnsRequestObject) (api.GetMyTxnsResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetMyTxns")
-}
-
-func (healthz) GetAsset(context.Context, api.GetAssetRequestObject) (api.GetAssetResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetAsset")
-}
-
-func (healthz) GetAssetChart(
-	context.Context, api.GetAssetChartRequestObject,
-) (api.GetAssetChartResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "test.healthz.GetAssetChart")
+	return h.fn(ctx)
 }
 
 type stepClock struct {
@@ -419,9 +174,9 @@ func linesNamed(lines []map[string]any, msg string) []map[string]any {
 func TestProblem_notFoundIs404ProblemJSONWithCodeAndTraceID(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	handler := mustHandler(t, h.deps, healthz(func(context.Context) (api.GetHealthzResponseObject, error) {
+	handler := mustHandler(t, h.deps, healthz{fn: func(context.Context) (api.GetHealthzResponseObject, error) {
 		return nil, errs.New(errs.CodeNotFound, "cabal.Get", slog.String("cabal_id", "c-secret-attr"))
-	}))
+	}})
 
 	resp := h.do(t, handler, http.MethodGet, "/healthz", nil)
 	if resp.Code != http.StatusNotFound {
@@ -457,9 +212,9 @@ func TestProblem_bodyNeverCarriesErrOrAttrs(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	cause := errs.New(errs.CodeDBUnavailable, "db.Begin", slog.String("dsn_host", "attr-leak"))
-	handler := mustHandler(t, h.deps, healthz(func(context.Context) (api.GetHealthzResponseObject, error) {
+	handler := mustHandler(t, h.deps, healthz{fn: func(context.Context) (api.GetHealthzResponseObject, error) {
 		return nil, errs.Wrap(cause, errs.CodeUpstreamTimeout, "market.Poll", slog.String("provider", "attr-leak-2"))
-	}))
+	}})
 	resp := h.do(t, handler, http.MethodGet, "/healthz", nil)
 	body := resp.Body.Bytes()
 	for _, leak := range []string{"attr-leak", "db.Begin", "market.Poll", "db_unavailable"} {
@@ -492,9 +247,9 @@ func TestProblem_statusRetryableAndAlertFollowTheCodeTable(t *testing.T) {
 		t.Run(string(tc.code), func(t *testing.T) {
 			t.Parallel()
 			h := newHarness(t)
-			handler := mustHandler(t, h.deps, healthz(func(context.Context) (api.GetHealthzResponseObject, error) {
+			handler := mustHandler(t, h.deps, healthz{fn: func(context.Context) (api.GetHealthzResponseObject, error) {
 				return nil, tc.err
-			}))
+			}})
 			resp := h.do(t, handler, http.MethodGet, "/healthz", nil)
 			p := decodeProblem(t, resp)
 			if resp.Code != tc.status || p.Status != tc.status || p.Code != tc.code ||
@@ -541,14 +296,15 @@ func TestPanic_respondsPanicProblemLogsOneErrorAndKeepsServing(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	var calls int
-	srv := httptest.NewServer(testkit.HTTP(t, mustHandler(t, h.deps, healthz(
-		func(context.Context) (api.GetHealthzResponseObject, error) {
+	srv := httptest.NewServer(testkit.HTTP(t, mustHandler(t, h.deps, healthz{
+		fn: func(context.Context) (api.GetHealthzResponseObject, error) {
 			calls++
 			if calls == 1 {
 				panic("boom")
 			}
 			return api.GetHealthz200TextResponse("ok\n"), nil
-		}))))
+		},
+	})))
 	defer srv.Close()
 
 	status, header, body := getOver(t, srv, "/healthz")
@@ -702,9 +458,9 @@ func TestAccessLog_andSpanNameTheRouteStatusAndDuration(t *testing.T) {
 func TestSpan_continuesAnIncomingTraceAndMarks5xxAsError(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	handler := mustHandler(t, h.deps, healthz(func(context.Context) (api.GetHealthzResponseObject, error) {
+	handler := mustHandler(t, h.deps, healthz{fn: func(context.Context) (api.GetHealthzResponseObject, error) {
 		return nil, errs.New(errs.CodeInternal, "x.Y")
-	}))
+	}})
 	traceID := "4bf92f3577b34da6a3ce929d0e0e4736"
 	header := http.Header{"Traceparent": {"00-" + traceID + "-00f067aa0ba902b7-01"}}
 	p := decodeProblem(t, h.do(t, handler, http.MethodGet, "/healthz", header))
