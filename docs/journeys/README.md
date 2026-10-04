@@ -30,7 +30,7 @@ Every milestone carries one "Update the journeys" ticket. Its Done-when is `scri
 | `apps/mobile/MonacoUITests/Journeys/` | The XCUITest: one `<Journey>Journey.swift` with the steps, one `<Journey>JourneyUITests.swift` with a test per scenario |
 | `apps/mobile/qa/journeys/<area>/<journey>.mutants/` | Seeded bugs for the catch rate |
 | `apps/mobile/qa/journeys/<area>/<journey>.truth.sh` | The ground truth check, run after each run |
-| `apps/mobile/qa/journeys/<area>/<journey>.setup.sh` | Optional. Run with the scenario id before each scenario, to put the backend in the state the scenario starts from |
+| `apps/mobile/qa/journeys/<area>/<journey>.setup.sh` | Optional. Run with the scenario id before each scenario, to put the backend in the state the scenario starts from. It can pass a value to the test through the hand-off file |
 | `apps/mobile/qa/journeys/accounts.tsv` | The login each actor uses |
 | `scripts/qa/journey.py` | Checks, runs and measures journeys |
 
@@ -66,6 +66,8 @@ A scenario is a `###` heading that starts with its id (`### S1 Sign in`) and a t
 A step that has no accessibility identifier to target is a gap in the app. Add the identifier in the same ticket.
 
 `scripts/qa/journey.py` passes the run values to the test, the setup script and the truth check as `MONACO_QA_RUN` and `MONACO_QA_REFUND_ADDRESS`. It makes `MONACO_QA_RUN` for each run, so a value one run writes never matches one an earlier run left on the same database. It reads `MONACO_QA_REFUND_ADDRESS` from the environment and refuses to start a journey with `funds` without it.
+
+The setup script and the truth check also get `MONACO_QA_HANDOFF`, the run's hand-off file: a JSON object of strings that the test reads with `JourneyHandoff.read`. A setup script writes a value there that only it can make, such as a dev token, and the truth check reads back what the run left there, such as the dev user's id.
 
 A state the app cannot reach, such as an `auth_state` a test login never passes through, comes from the journey's setup script, never from a person editing the database. The setup and truth scripts reach Postgres through `apps/mobile/qa/journeys/psql.sh`, which uses the host `psql` or the one in the Compose `monaco-postgres` container.
 

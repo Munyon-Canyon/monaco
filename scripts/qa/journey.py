@@ -628,6 +628,7 @@ def run_xcuitest(journey, scenarios, sims, accounts, channel, run_dir, api_base_
                 out.flush()
                 env = dict(os.environ)
                 env.update(actor_environment(accounts, channel, run_id))
+                env["MONACO_QA_HANDOFF"] = str(handoff)
                 if sh([str(setup), starts], env=env, stdout=out, stderr=subprocess.STDOUT).returncode != 0:
                     raise JourneyError("%s could not set up %s, see %s" % (
                         os.path.relpath(str(setup), str(ROOT)), starts, os.path.relpath(str(log), str(ROOT))))
@@ -669,12 +670,13 @@ def run_xcuitest(journey, scenarios, sims, accounts, channel, run_dir, api_base_
     return rows, "%.1f" % wall
 
 
-def run_truth(journey, accounts, channel, run_id):
+def run_truth(journey, accounts, channel, run_id, handoff):
     script = journey.truth_script()
     if not script:
         return "none"
     env = dict(os.environ)
     env.update(actor_environment(accounts, channel, run_id))
+    env["MONACO_QA_HANDOFF"] = str(handoff)
     return "ok" if sh([str(script)], env=env).returncode == 0 else "fail"
 
 
@@ -700,7 +702,7 @@ def run_once(journey, journeys, args, sims, accounts, build_name, run_name, scen
     run_id = new_run_id()
     print("  {QA.run} is %s" % run_id)
     rows, wall = run_xcuitest(journey, scenarios, sims, accounts, args.channel, run_dir, api_base_url, run_id)
-    truth = run_truth(journey, accounts, args.channel, run_id)
+    truth = run_truth(journey, accounts, args.channel, run_id, run_dir / "handoff.json")
     for row in rows:
         row["truth"] = truth
     verdicts = [row["result"] for row in rows]
