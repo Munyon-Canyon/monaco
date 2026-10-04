@@ -20,19 +20,19 @@ public struct AssetChartSeries: Equatable, Sendable {
     /// order would silently return the wrong point rather than fail; it also drops
     /// repeats, because the drawing side keys its marks by timestamp and two
     /// samples at one instant are two marks with one identity.
-    public let points: [AssetChartPointDTO]
+    public let points: [MarketChartPoint]
     /// The close of the regular session before this window, when the source knew
     /// one. Only the day chart has a use for it.
     public let previousCloseUsdcMicros: Int64?
-    public let source: AssetChartSource?
+    public let source: MarketChartSource?
     public let basis: MarketPriceBasis?
     public let basisSymbol: String?
 
     public init(
         range: AssetChartRange,
-        points: [AssetChartPointDTO],
+        points: [MarketChartPoint],
         previousCloseUsdcMicros: Int64? = nil,
-        source: AssetChartSource? = nil,
+        source: MarketChartSource? = nil,
         basis: MarketPriceBasis? = nil,
         basisSymbol: String? = nil
     ) {
@@ -72,9 +72,9 @@ public struct AssetChartSeries: Equatable, Sendable {
     /// duplicate identity, which SwiftUI warns about and then renders wrong. The
     /// last sample for an instant wins, on the same "a later read is a better read"
     /// rule the quiet poll uses.
-    private static func canonical(_ points: [AssetChartPointDTO]) -> [AssetChartPointDTO] {
+    private static func canonical(_ points: [MarketChartPoint]) -> [MarketChartPoint] {
         let sorted = points.sorted { $0.timestamp < $1.timestamp }
-        var deduplicated: [AssetChartPointDTO] = []
+        var deduplicated: [MarketChartPoint] = []
         deduplicated.reserveCapacity(sorted.count)
         for point in sorted {
             if deduplicated.last?.timestamp == point.timestamp {
@@ -95,9 +95,9 @@ public struct AssetChartSeries: Equatable, Sendable {
 
     public var highValue: Double { points.map(\.chartValue).max() ?? 0 }
 
-    public var lastPoint: AssetChartPointDTO? { points.last }
+    public var lastPoint: MarketChartPoint? { points.last }
 
-    public func point(at index: Int) -> AssetChartPointDTO? {
+    public func point(at index: Int) -> MarketChartPoint? {
         points.indices.contains(index) ? points[index] : nil
     }
 
@@ -167,7 +167,7 @@ public struct AssetChartSeries: Equatable, Sendable {
     /// index the series does not have is nil rather than the end: a caller that
     /// trusts an index it computed elsewhere should get nothing, not a plausible
     /// number for a different point.
-    private func target(at index: Int?) -> AssetChartPointDTO? {
+    private func target(at index: Int?) -> MarketChartPoint? {
         guard let index else { return points.last }
         return point(at: index)
     }
@@ -209,7 +209,7 @@ public struct AssetChartSeries: Equatable, Sendable {
         return after < before ? high : low
     }
 
-    public func nearestPoint(to date: Date) -> AssetChartPointDTO? {
+    public func nearestPoint(to date: Date) -> MarketChartPoint? {
         nearestIndex(to: date).flatMap(point(at:))
     }
 

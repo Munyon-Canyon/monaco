@@ -10,7 +10,7 @@ final class MarketSessionCopyTests: XCTestCase {
     private let easternUS = Locale(identifier: "en_US@hours=h12")
     private let newYork = TimeZone(identifier: "America/New_York")!
 
-    private func chip(_ market: MarketStatusDTO?) -> MarketSessionChipCopy? {
+    private func chip(_ market: MarketStatus?) -> MarketSessionChipCopy? {
         MarketSessionCopy.chip(for: market, locale: easternUS, timeZone: newYork)
     }
 
@@ -62,7 +62,7 @@ final class MarketSessionCopyTests: XCTestCase {
     /// A transition already behind the instant the payload was priced at is a stale
     /// payload. "Opens half an hour ago" is worse than saying the token is trading.
     func testATransitionInThePastIsNotACountdown() throws {
-        let market = MarketStatusDTO(
+        let market = MarketStatus(
             session: .preMarket,
             isOpen: false,
             afterHours: true,
@@ -93,7 +93,7 @@ final class MarketSessionCopyTests: XCTestCase {
     /// decodes to `.unknown`. Both draw no chip rather than a guess.
     func testNoChipWithoutASession() {
         XCTAssertNil(chip(nil))
-        XCTAssertNil(chip(MarketStatusDTO(session: .unknown, isOpen: false, afterHours: true)))
+        XCTAssertNil(chip(MarketStatus(session: .unknown, isOpen: false, afterHours: true)))
     }
 
     func testSpokenFormJoinsBothHalves() {

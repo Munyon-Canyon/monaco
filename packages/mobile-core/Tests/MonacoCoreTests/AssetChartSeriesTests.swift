@@ -19,7 +19,7 @@ final class AssetChartSeriesTests: XCTestCase {
     ) -> AssetChartSeries {
         let start = Int64(tuesday.timeIntervalSince1970)
         let points = prices.enumerated().map { index, price in
-            AssetChartPointDTO(timestamp: start + Int64(index) * stepSeconds, priceUsdcMicros: price)
+            MarketChartPoint(timestamp: start + Int64(index) * stepSeconds, priceUsdcMicros: price)
         }
         return AssetChartSeries(range: range, points: points, previousCloseUsdcMicros: previousClose)
     }
@@ -68,9 +68,9 @@ final class AssetChartSeriesTests: XCTestCase {
     /// return the wrong sample. The series sorts instead.
     func testPointsAreSortedSoTheSearchStaysCorrect() {
         let unsorted = [
-            AssetChartPointDTO(timestamp: 300, priceUsdcMicros: 3),
-            AssetChartPointDTO(timestamp: 100, priceUsdcMicros: 1),
-            AssetChartPointDTO(timestamp: 200, priceUsdcMicros: 2),
+            MarketChartPoint(timestamp: 300, priceUsdcMicros: 3),
+            MarketChartPoint(timestamp: 100, priceUsdcMicros: 1),
+            MarketChartPoint(timestamp: 200, priceUsdcMicros: 2),
         ]
         let chart = AssetChartSeries(range: .oneDay, points: unsorted)
 
@@ -194,10 +194,10 @@ final class AssetChartSeriesTests: XCTestCase {
         let chart = AssetChartSeries(
             range: .oneDay,
             points: [
-                AssetChartPointDTO(timestamp: start, priceUsdcMicros: 100_000_000),
-                AssetChartPointDTO(timestamp: start + 300, priceUsdcMicros: 101_000_000),
-                AssetChartPointDTO(timestamp: start + 300, priceUsdcMicros: 102_000_000),
-                AssetChartPointDTO(timestamp: start + 600, priceUsdcMicros: 103_000_000),
+                MarketChartPoint(timestamp: start, priceUsdcMicros: 100_000_000),
+                MarketChartPoint(timestamp: start + 300, priceUsdcMicros: 101_000_000),
+                MarketChartPoint(timestamp: start + 300, priceUsdcMicros: 102_000_000),
+                MarketChartPoint(timestamp: start + 600, priceUsdcMicros: 103_000_000),
             ])
 
         XCTAssertEqual(chart.points.map(\.timestamp), [start, start + 300, start + 600])
@@ -212,9 +212,9 @@ final class AssetChartSeriesTests: XCTestCase {
         let chart = AssetChartSeries(
             range: .oneWeek,
             points: [
-                AssetChartPointDTO(timestamp: start + 600, priceUsdcMicros: 103_000_000),
-                AssetChartPointDTO(timestamp: start, priceUsdcMicros: 100_000_000),
-                AssetChartPointDTO(timestamp: start + 600, priceUsdcMicros: 104_000_000),
+                MarketChartPoint(timestamp: start + 600, priceUsdcMicros: 103_000_000),
+                MarketChartPoint(timestamp: start, priceUsdcMicros: 100_000_000),
+                MarketChartPoint(timestamp: start + 600, priceUsdcMicros: 104_000_000),
             ])
 
         XCTAssertEqual(chart.points.map(\.timestamp), [start, start + 600])
