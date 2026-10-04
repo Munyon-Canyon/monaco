@@ -3,19 +3,23 @@ import SwiftUI
 struct CabalScreen: View {
     static let sections: [any CabalSection.Type] = [
         CabalHeaderSlot.self,
+        CabalPotSlot.self,
+        CabalValueChartSlot.self,
+        CabalSliceSlot.self,
         CabalPauseSlot.self,
         CabalJoinSlot.self,
-        CabalPotSlot.self,
+        CabalActionsSlot.self,
         CabalProposalsSlot.self,
+        CabalHoldingsSlot.self,
+        CabalAgentSlot.self,
         CabalMemberBoardSlot.self,
         CabalActivitySlot.self,
-        CabalChatSlot.self,
-        CabalCashOutSlot.self,
     ]
 
     static let detailsSections: [any CabalSection.Type] = [
         CabalInviteCodeSlot.self,
         CabalInviteMemberSlot.self,
+        CabalRulesSlot.self,
         CabalTreasurySlot.self,
         CabalEditSlot.self,
         CabalLeaveSlot.self,

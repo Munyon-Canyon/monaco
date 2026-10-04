@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum CabalChatSlot: CabalSection {
+enum CabalAgentSlot: CabalSection {
     static let isLive = false
 
     static func body(for context: CabalContext) -> some View {
