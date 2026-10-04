@@ -5,8 +5,8 @@ import UIKit
 
 /// Fund this cabal: move account balance into a joined cabal's pot.
 ///
-/// Owns the balance, the submission and its idempotency key, the sweep it watches and the
-/// toasts. `FundCabalContent` is the layout.
+/// Owns the balance, the submission and its idempotency key, and the toasts. `FundCabalContent`
+/// is the layout.
 struct FundCabalView: View {
     @ObservedObject var auth: PrivyAuthService
     let joinedCabals: [HomeGroupBoardRowDTO]
@@ -21,16 +21,7 @@ struct FundCabalView: View {
     @State private var isSubmitting = false
     /// Idempotency key for the fund request in flight; a retry after a lost response reuses it.
     @State private var fundSubmission = IdempotentSubmission()
-    /// The fund whose sweep this screen is watching, if any.
-    @State private var sweep: FundSweep?
     @State private var toast: MonacoToast?
-
-    /// One fund on its way into the pot, kept as a value so `.task(id:)` owns the watching.
-    private struct FundSweep: Equatable {
-        let depositId: String
-        let cabalName: String
-        let amountLabel: String
-    }
 
     private var isSingleCabalContext: Bool {
         preselectedGroupId != nil
@@ -63,27 +54,11 @@ struct FundCabalView: View {
             }
             await balanceLoader.load(accessToken: auth.accessToken)
         }
-        .task(id: sweep) {
-            guard let sweep else { return }
-            await watchFundSweep(sweep)
-        }
-        .pollWhileVisible(every: DepositPolling.balanceInterval, isActive: auth.accessToken != nil) {
-            try await refreshBalance()
-        }
     }
 
     private func copyAddress(_ address: String) {
         UIPasteboard.general.string = address
         toast = MonacoToast(message: "Address copied.", isSuccess: true)
-    }
-
-    /// The background poll. It never shows a spinner or an error; it only announces money arriving.
-    private func refreshBalance() async throws {
-        let hadNothing = (balance?.availableUsdcMicros ?? 0) == 0
-        guard let fresh = try await balanceLoader.refresh(accessToken: auth.accessToken) else { return }
-        if hadNothing, fresh.availableUsdcMicros > 0 {
-            toast = MonacoToast(message: "USDC arrived. You can fund your cabal now.", isSuccess: true)
-        }
     }
 
     private func submitFund() async {
@@ -108,7 +83,7 @@ struct FundCabalView: View {
 
         let fundedAmountLabel = AmountEntryText.display(amountText)
         do {
-            let fund = try await apiClient.fundGroup(
+            _ = try await apiClient.fundGroup(
                 accessToken: token, groupId: groupId, amount: micros, submission: fundSubmission)
             Haptics.success()
             let name = selectedCabalName ?? "your cabal"
@@ -118,44 +93,11 @@ struct FundCabalView: View {
             // loader keeps the balance on screen while it refreshes.
             await balanceLoader.load(accessToken: token)
             await onFunded()
-            sweep = FundSweep(depositId: fund.depositId, cabalName: name, amountLabel: fundedAmountLabel)
         } catch {
             if error.isRequestCancellation { return }
             toast = MonacoToast(
                 message: MoneyFlowCopy.fundCabalFailure(FlowErrorInput(error)).summary, isSuccess: false)
         }
-    }
-
-    /// Watches one fund until the pot has it. Structured, so it stops with the screen instead of
-    /// polling on for two minutes to post a toast nobody is there to read — Activity on the cabal
-    /// carries the outcome either way.
-    private func watchFundSweep(_ sweep: FundSweep) async {
-        guard let token = auth.accessToken else { return }
-        var machine = DepositPollStateMachine()
-        let phase = await machine.pollUntilTerminal {
-            let deposit = try await apiClient.getDeposit(accessToken: token, depositId: sweep.depositId)
-            return deposit.status
-        }
-        guard !Task.isCancelled else { return }
-        switch phase {
-        case .credited:
-            toast = MonacoToast(message: "Added \(sweep.amountLabel) to \(sweep.cabalName).", isSuccess: true)
-            await onFunded()
-        case .failed:
-            toast = MonacoToast(message: "Couldn't add money to the cabal. Try again.", isSuccess: false)
-            await onFunded()
-        case .idle, .awaitingSweep:
-            toast = MonacoToast(
-                message: "Still adding \(sweep.amountLabel) to \(sweep.cabalName). Check activity for updates.",
-                isSuccess: true
-            )
-        }
-
-        // This fund has been watched to its end and spoken for. Forgetting it stops `.task(id:)`
-        // from starting the watch again on the next re-appear — switching tabs tears this task
-        // down, and coming back would otherwise re-poll a deposit that already landed and toast
-        // money from a previous session as if it had just arrived.
-        self.sweep = nil
     }
 }
 

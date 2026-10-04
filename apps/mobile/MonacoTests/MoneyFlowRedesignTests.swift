@@ -166,7 +166,7 @@ struct DepositAddressCardContentTests {
     }
 }
 
-/// The receipt's words and facts, from the DTOs the screen loads.
+/// The receipt's words and facts, from the swap DTO the screen loads.
 @MainActor
 struct TransactionReceiptRedesignTests {
     private var boughtApple: TransactionDetailDTO {
@@ -179,13 +179,6 @@ struct TransactionReceiptRedesignTests {
         )
     }
 
-    private func deposit(_ status: String) -> GetDepositResponse {
-        GetDepositResponse(
-            depositId: "d1", groupId: "g1", amount: 100_000_000, status: status, fromAddress: nil,
-            txSignature: nil, shareUnits: 0, createdAt: "2026-09-18T11:40:00Z"
-        )
-    }
-
     /// The label says what the fact is, so the value is only the figure.
     @Test func aBuyListsSharesAndThePriceAShareAsFigures() {
         let receipt = TransactionReceipt(transaction: boughtApple)
@@ -194,14 +187,6 @@ struct TransactionReceiptRedesignTests {
         #expect(receipt.rows[0].value == "1.0803")
         #expect(receipt.rows[1].value == "$231.41")
         #expect(receipt.solscanURL != nil)
-    }
-
-    /// A deposit still on its way into the pot is not headed "Money added".
-    @Test func aDepositsHeadlineFollowsItsState() {
-        #expect(TransactionReceipt(deposit: deposit("confirmed")).headline == "Money added")
-        #expect(TransactionReceipt(deposit: deposit("pending")).headline == "Adding money")
-        #expect(TransactionReceipt(deposit: deposit("failed")).headline == "Couldn't add money")
-        #expect(TransactionReceipt(deposit: deposit("pending")).status == .pending)
     }
 
     @Test func sharesDropTrailingZeros() {

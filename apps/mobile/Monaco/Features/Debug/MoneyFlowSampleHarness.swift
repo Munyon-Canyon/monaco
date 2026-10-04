@@ -10,7 +10,7 @@ import SwiftUI
 /// from Add money, three cabals to pick from) · `fundCabalEmpty` (nothing to fund with yet) ·
 /// `fundCabalLoading` · `withdraw` (Cash out to an address, amount and address typed) ·
 /// `withdrawFailed` (the balance could not be read) · `withdrawConfirm` · `withdrawConfirmFailed` ·
-/// `receiptPending` (money on its way into a pot) · `receiptLoading`.
+/// `receiptLoading`.
 ///
 /// Every screen is the product's own layout — `DepositContent`, `FundCabalContent`,
 /// `WithdrawContent`, `WithdrawConfirmView`, `TransactionReceiptView` — fed sample values in
@@ -27,7 +27,6 @@ enum MoneyFlowSampleScenario: String, CaseIterable {
     case withdrawFailed
     case withdrawConfirm
     case withdrawConfirmFailed
-    case receiptPending
     case receiptLoading
 
     static let launchArgument = "-MonacoMoneyFlowSample"
@@ -101,10 +100,6 @@ struct MoneyFlowSampleHarness: View {
                     : nil,
                 onConfirm: {}
             )
-        case .receiptPending:
-            TransactionReceiptView(receipt: TransactionReceipt(deposit: MoneyFlowSampleData.pendingDeposit))
-                .monacoCanvas()
-                .navigationBarTitleDisplayMode(.inline)
         case .receiptLoading:
             TransactionReceiptSkeleton()
                 .monacoCanvas()
@@ -144,17 +139,6 @@ enum MoneyFlowSampleData {
             groupId: "g3", name: "Index huggers", potValueUsd: "120.00", percentReturn: nil, dollarPnl: "+0.00",
             isJoined: true),
     ]
-
-    static let pendingDeposit = GetDepositResponse(
-        depositId: "d1",
-        groupId: "g1",
-        amount: 100_000_000,
-        status: "pending",
-        fromAddress: depositAddress,
-        txSignature: nil,
-        shareUnits: 0,
-        createdAt: "2026-09-18T11:40:00Z"
-    )
 
     static func depositState(for scenario: MoneyFlowSampleScenario) -> LoadState<AccountBalance> {
         switch scenario {

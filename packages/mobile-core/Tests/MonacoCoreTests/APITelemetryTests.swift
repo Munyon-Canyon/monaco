@@ -262,7 +262,7 @@ final class APITelemetryTests: XCTestCase {
             APIRouteTemplate.redacting(path: "/v1/groups/\(groupID)/withdraw-to-balance"),
             "/v1/groups/{id}/withdraw-to-balance"
         )
-        XCTAssertEqual(APIRouteTemplate.redacting(path: "/v1/deposits/981234"), "/v1/deposits/{id}")
+        XCTAssertEqual(APIRouteTemplate.redacting(path: "/v1/proposals/981234"), "/v1/proposals/{id}")
         XCTAssertEqual(APIRouteTemplate.redacting(path: "/v1/assets/SOL/chart"), "/v1/assets/{id}/chart")
         XCTAssertEqual(APIRouteTemplate.redacting(path: "/v1/users/did:privy:cm3x9/groups"), "/v1/users/{id}/groups")
         XCTAssertEqual(
