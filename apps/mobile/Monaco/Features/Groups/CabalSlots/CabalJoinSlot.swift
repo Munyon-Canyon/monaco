@@ -102,7 +102,13 @@ private struct CabalPendingRequestRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-            NavigationLink(value: AnyAppRoute(UserProfileRoute(userID: request.userID))) {
+            NavigationLink(
+                value: AnyAppRoute(
+                    UserProfileRoute(
+                        userID: request.userID,
+                        preview: UserPreview(displayName: request.name, handle: nil, photoURL: request.photoURL)
+                    ))
+            ) {
                 HStack(spacing: MonacoTheme.Space.sm) {
                     MonacoAvatar(photoURL: request.photoURL, displayName: request.name, size: 40, seed: request.userID)
                     Text(request.name)

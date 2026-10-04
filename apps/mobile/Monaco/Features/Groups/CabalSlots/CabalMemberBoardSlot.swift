@@ -81,7 +81,14 @@ private struct CabalMemberBoard: View {
     private func rows(_ members: [Components.Schemas.CabalMember]) -> some View {
         VStack(spacing: 0) {
             ForEach(Array(members.enumerated()), id: \.element.userId) { index, member in
-                NavigationLink(value: AnyAppRoute(UserProfileRoute(userID: member.userId))) {
+                NavigationLink(
+                    value: AnyAppRoute(
+                        UserProfileRoute(
+                            userID: member.userId,
+                            preview: UserPreview(
+                                displayName: member.displayName, handle: member.handle, photoURL: member.photoUrl)
+                        ))
+                ) {
                     CabalMemberRow(
                         member: member,
                         isViewer: member.userId == environment.viewer?.userID,

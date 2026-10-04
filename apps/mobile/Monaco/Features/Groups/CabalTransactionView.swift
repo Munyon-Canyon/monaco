@@ -76,7 +76,13 @@ struct CabalTransactionView: View {
                         .accessibilityIdentifier("cabal-txn-asset")
                 }
                 if let name = row.actorName, let actorID = row.actorID {
-                    NavigationLink(value: AnyAppRoute(UserProfileRoute(userID: actorID))) {
+                    NavigationLink(
+                        value: AnyAppRoute(
+                            UserProfileRoute(
+                                userID: actorID,
+                                preview: UserPreview(displayName: name, handle: row.actorHandle, photoURL: nil)
+                            ))
+                    ) {
                         ReceiptLine(label: "By", value: .words(name))
                             .contentShape(Rectangle())
                     }
