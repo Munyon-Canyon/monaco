@@ -165,7 +165,9 @@ Only the root restacks, one stack at a time.
 
         gt submit --stack --no-interactive --draft
 
-5. Where a PR's own added and removed lines did not change (its context lines may have), repost its verdict on the new head: `bin/monacoctl agents verdict carry <pr>`. Where it changed, verify it again. Then land the stack.
+    If the stack's owner stopped on `pr-body.sh`'s "conflicts with its base" refusal, every PR it had not marked ready is still a draft and gets no checks. For each of them, run `scripts/pr-body.sh <pr> "<title>" <file>` with the body file the owner named and a title that says what the PR changes. Run `land-stack` yourself in step 5, since the owner did not.
+
+5. Where a PR's own added and removed lines did not change (its context lines may have), repost its verdict on the new head: `bin/monacoctl agents verdict carry <pr>`. After a restack that needed a hand merge, verify the stack again instead of carrying: a carry ignores where in a file the PR's lines sit. Where it changed, verify it again. Then land the stack.
 
 Dequeue a stack before you restack it: remove the `merge-queue` label from each of its PRs.
 
