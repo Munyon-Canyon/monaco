@@ -64,6 +64,36 @@ func (e CabalActivityStatus) Valid() bool {
 	}
 }
 
+// Defines values for CashOutJobStatus.
+const (
+	CashOutJobStatusCompleted CashOutJobStatus = "completed"
+	CashOutJobStatusFailed    CashOutJobStatus = "failed"
+	CashOutJobStatusPartial   CashOutJobStatus = "partial"
+	CashOutJobStatusPaying    CashOutJobStatus = "paying"
+	CashOutJobStatusSelling   CashOutJobStatus = "selling"
+	CashOutJobStatusStarted   CashOutJobStatus = "started"
+)
+
+// Valid indicates whether the value is a known member of the CashOutJobStatus enum.
+func (e CashOutJobStatus) Valid() bool {
+	switch e {
+	case CashOutJobStatusCompleted:
+		return true
+	case CashOutJobStatusFailed:
+		return true
+	case CashOutJobStatusPartial:
+		return true
+	case CashOutJobStatusPaying:
+		return true
+	case CashOutJobStatusSelling:
+		return true
+	case CashOutJobStatusStarted:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UserTxnKind.
 const (
 	UserTxnKindCashOut    UserTxnKind = "cash_out"
@@ -215,6 +245,69 @@ type CabalActivityPage struct {
 	NextCursor *string `json:"next_cursor"`
 }
 
+// CashOutJob An asynchronous cash-out job.
+type CashOutJob struct {
+	// CabalId Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	CabalId openapi_types.UUID `json:"cabal_id"`
+
+	// CreatedAt Examples: 2026-10-03T15:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// Id Examples: 01890a5d-ac96-774b-bcce-b302099a8060
+	Id openapi_types.UUID `json:"id"`
+
+	// PayoutMicros Examples: 25000000
+	PayoutMicros string `json:"payout_micros"`
+
+	// ResultCode Examples: null
+	ResultCode *string `json:"result_code"`
+
+	// SellUsdcMicros Examples: 0
+	SellUsdcMicros string `json:"sell_usdc_micros"`
+
+	// ShareUnits Examples: 100
+	ShareUnits string `json:"share_units"`
+
+	// Status Examples: started
+	Status CashOutJobStatus `json:"status"`
+
+	// UpdatedAt Examples: 2026-10-03T15:00:00Z
+	UpdatedAt time.Time `json:"updated_at"`
+
+	// UserId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	UserId openapi_types.UUID `json:"user_id"`
+}
+
+// CashOutJobStatus Examples: started
+type CashOutJobStatus string
+
+// CashOutPreview The caller's cash-out value and whether it is paused.
+type CashOutPreview struct {
+	// MinMicros Examples: 100000
+	MinMicros string `json:"min_micros"`
+
+	// Pause Examples: null
+	Pause *struct {
+		Reasons []string  `json:"reasons"`
+		Since   time.Time `json:"since"`
+	} `json:"pause"`
+
+	// ShareUnits Examples: 100
+	ShareUnits string `json:"share_units"`
+
+	// SliceMicros Examples: 25000000
+	SliceMicros string `json:"slice_micros"`
+}
+
+// CashOutRequest A choice between cashing out all shares or a USDC amount.
+type CashOutRequest struct {
+	// All Examples: true
+	All *bool `json:"all,omitempty"`
+
+	// UsdcMicros Examples: 25000000
+	UsdcMicros *string `json:"usdc_micros,omitempty"`
+}
+
 // UserTxn One inbound, outbound or cabal transfer affecting the caller.
 type UserTxn struct {
 	// Cabal The cabal involved, when it remains available. Null for deposits, withdrawals, and deleted cabals.
@@ -300,6 +393,12 @@ type GetCabalActivityParams struct {
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
+// PostCashOutParams defines parameters for PostCashOut.
+type PostCashOutParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // GetMyTxnsParams defines parameters for GetMyTxns.
 type GetMyTxnsParams struct {
 	// Limit Page size. Defaults to 30 and cannot exceed 100.
@@ -309,11 +408,23 @@ type GetMyTxnsParams struct {
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
+// PostCashOutJSONRequestBody defines body for PostCashOut for application/json ContentType.
+type PostCashOutJSONRequestBody = CashOutRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// GetCabalActivity List a cabal's activity.
 	// (GET /v1/cabals/{id}/activity)
 	GetCabalActivity(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalActivityParams)
+	// PostCashOut Start a cash out to the caller's platform balance.
+	// (POST /v1/cabals/{id}/cashouts)
+	PostCashOut(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCashOutParams)
+	// GetCashOutPreview Preview the caller's available cash out.
+	// (GET /v1/cabals/{id}/cashouts/preview)
+	GetCashOutPreview(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// GetCashOutJob Read one cash out job.
+	// (GET /v1/cabals/{id}/cashouts/{job_id})
+	GetCashOutJob(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, jobId openapi_types.UUID)
 	// GetMyTxns List the caller's transaction history.
 	// (GET /v1/me/txns)
 	GetMyTxns(w http.ResponseWriter, r *http.Request, params GetMyTxnsParams)
@@ -374,6 +485,121 @@ func (siw *ServerInterfaceWrapper) GetCabalActivity(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCabalActivity(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostCashOut operation middleware
+func (siw *ServerInterfaceWrapper) PostCashOut(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostCashOutParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostCashOut(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCashOutPreview operation middleware
+func (siw *ServerInterfaceWrapper) GetCashOutPreview(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCashOutPreview(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCashOutJob operation middleware
+func (siw *ServerInterfaceWrapper) GetCashOutJob(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "job_id" -------------
+	var jobId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "job_id", r.PathValue("job_id"), &jobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "job_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCashOutJob(w, r, id, jobId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -550,6 +776,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/activity", wrapper.GetCabalActivity)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/cashouts", wrapper.PostCashOut)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/cashouts/preview", wrapper.GetCashOutPreview)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/cashouts/{job_id}", wrapper.GetCashOutJob)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/txns", wrapper.GetMyTxns)
 
 	return m
@@ -584,6 +813,126 @@ type GetCabalActivitydefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetCabalActivitydefaultApplicationProblemPlusJSONResponse) VisitGetCabalActivityResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostCashOutRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params PostCashOutParams
+	Body   *PostCashOutJSONRequestBody
+}
+
+type PostCashOutResponseObject interface {
+	VisitPostCashOutResponse(w http.ResponseWriter) error
+}
+
+type PostCashOut202JSONResponse CashOutJob
+
+func (response PostCashOut202JSONResponse) VisitPostCashOutResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostCashOutdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PostCashOutdefaultApplicationProblemPlusJSONResponse) VisitPostCashOutResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCashOutPreviewRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetCashOutPreviewResponseObject interface {
+	VisitGetCashOutPreviewResponse(w http.ResponseWriter) error
+}
+
+type GetCashOutPreview200JSONResponse CashOutPreview
+
+func (response GetCashOutPreview200JSONResponse) VisitGetCashOutPreviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCashOutPreviewdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetCashOutPreviewdefaultApplicationProblemPlusJSONResponse) VisitGetCashOutPreviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCashOutJobRequestObject struct {
+	Id    openapi_types.UUID `json:"id"`
+	JobId openapi_types.UUID `json:"job_id"`
+}
+
+type GetCashOutJobResponseObject interface {
+	VisitGetCashOutJobResponse(w http.ResponseWriter) error
+}
+
+type GetCashOutJob200JSONResponse CashOutJob
+
+func (response GetCashOutJob200JSONResponse) VisitGetCashOutJobResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCashOutJobdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetCashOutJobdefaultApplicationProblemPlusJSONResponse) VisitGetCashOutJobResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -639,6 +988,15 @@ type StrictServerInterface interface {
 	// GetCabalActivity List a cabal's activity.
 	// (GET /v1/cabals/{id}/activity)
 	GetCabalActivity(ctx context.Context, request GetCabalActivityRequestObject) (GetCabalActivityResponseObject, error)
+	// PostCashOut Start a cash out to the caller's platform balance.
+	// (POST /v1/cabals/{id}/cashouts)
+	PostCashOut(ctx context.Context, request PostCashOutRequestObject) (PostCashOutResponseObject, error)
+	// GetCashOutPreview Preview the caller's available cash out.
+	// (GET /v1/cabals/{id}/cashouts/preview)
+	GetCashOutPreview(ctx context.Context, request GetCashOutPreviewRequestObject) (GetCashOutPreviewResponseObject, error)
+	// GetCashOutJob Read one cash out job.
+	// (GET /v1/cabals/{id}/cashouts/{job_id})
+	GetCashOutJob(ctx context.Context, request GetCashOutJobRequestObject) (GetCashOutJobResponseObject, error)
 	// GetMyTxns List the caller's transaction history.
 	// (GET /v1/me/txns)
 	GetMyTxns(ctx context.Context, request GetMyTxnsRequestObject) (GetMyTxnsResponseObject, error)
@@ -703,6 +1061,93 @@ func (sh *strictHandler) GetCabalActivity(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetCabalActivityResponseObject); ok {
 		if err := validResponse.VisitGetCabalActivityResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostCashOut operation middleware
+func (sh *strictHandler) PostCashOut(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCashOutParams) {
+	var request PostCashOutRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body PostCashOutJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostCashOut(ctx, request.(PostCashOutRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostCashOut")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostCashOutResponseObject); ok {
+		if err := validResponse.VisitPostCashOutResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCashOutPreview operation middleware
+func (sh *strictHandler) GetCashOutPreview(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetCashOutPreviewRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCashOutPreview(ctx, request.(GetCashOutPreviewRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCashOutPreview")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCashOutPreviewResponseObject); ok {
+		if err := validResponse.VisitGetCashOutPreviewResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCashOutJob operation middleware
+func (sh *strictHandler) GetCashOutJob(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, jobId openapi_types.UUID) {
+	var request GetCashOutJobRequestObject
+
+	request.Id = id
+	request.JobId = jobId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCashOutJob(ctx, request.(GetCashOutJobRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCashOutJob")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCashOutJobResponseObject); ok {
+		if err := validResponse.VisitGetCashOutJobResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

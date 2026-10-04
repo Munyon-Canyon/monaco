@@ -1,4 +1,59 @@
 paths:
+  /v1/cabals/{id}/cashouts:
+    post:
+      operationId: postCashOut
+      tags: [treasury]
+      x-idempotent: true
+      x-allow-restricted: true
+      summary: Start a cash out to the caller's platform balance.
+      description: Reserves the caller's cabal shares and starts the asynchronous cash-out job.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema: {type: string, format: uuid}
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The requested cash-out amount or all-shares selection.
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CashOutRequest"}
+            example: {all: true}
+      responses:
+        "202":
+          description: The cash out job was reserved for processing.
+          content:
+            application/json: {schema: {$ref: "#/components/schemas/CashOutJob"}, example: {id: 01890a5d-ac96-774b-bcce-b302099a8060, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8059, user_id: 01890a5d-ac96-774b-bcce-b302099a8058, share_units: "100", payout_micros: "25000000", sell_usdc_micros: "0", status: started, result_code: null, created_at: "2026-10-03T15:00:00Z", updated_at: "2026-10-03T15:00:00Z"}}
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/cabals/{id}/cashouts/preview:
+    get:
+      operationId: getCashOutPreview
+      tags: [treasury]
+      x-allow-restricted: true
+      summary: Preview the caller's available cash out.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema: {type: string, format: uuid}
+      responses:
+        "200": {description: The current cash-out preview., content: {application/json: {schema: {$ref: "#/components/schemas/CashOutPreview"}, example: {slice_micros: "25000000", share_units: "100", min_micros: "100000", pause: null}}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/cabals/{id}/cashouts/{job_id}:
+    get:
+      operationId: getCashOutJob
+      tags: [treasury]
+      x-allow-restricted: true
+      summary: Read one cash out job.
+      parameters:
+        - {name: id, in: path, required: true, description: The cabal id., schema: {type: string, format: uuid}}
+        - {name: job_id, in: path, required: true, description: The cash-out job id., schema: {type: string, format: uuid}}
+      responses:
+        "200": {description: The job., content: {application/json: {schema: {$ref: "#/components/schemas/CashOutJob"}, example: {id: 01890a5d-ac96-774b-bcce-b302099a8060, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8059, user_id: 01890a5d-ac96-774b-bcce-b302099a8058, share_units: "100", payout_micros: "25000000", sell_usdc_micros: "0", status: started, result_code: null, created_at: "2026-10-03T15:00:00Z", updated_at: "2026-10-03T15:00:00Z"}}}}
+        default: {$ref: "#/components/responses/Problem"}
   /v1/me/txns:
     get:
       operationId: getMyTxns
@@ -71,6 +126,39 @@ paths:
           $ref: "#/components/responses/Problem"
 components:
   schemas:
+    CashOutRequest:
+      type: object
+      description: A choice between cashing out all shares or a USDC amount.
+      additionalProperties: false
+      properties:
+        usdc_micros: {type: string, pattern: "^(0|[1-9][0-9]*)$", examples: ["25000000"]}
+        all: {type: boolean, examples: [true]}
+    CashOutPreview:
+      type: object
+      description: The caller's cash-out value and whether it is paused.
+      additionalProperties: false
+      required: [slice_micros, share_units, min_micros, pause]
+      properties:
+        slice_micros: {type: string, pattern: "^(0|[1-9][0-9]*)$", examples: ["25000000"]}
+        share_units: {type: string, pattern: "^(0|[1-9][0-9]*)$", examples: ["100"]}
+        min_micros: {type: string, pattern: "^(0|[1-9][0-9]*)$", examples: ["100000"]}
+        pause: {type: [object, "null"], additionalProperties: false, required: [reasons, since], examples: [null], properties: {reasons: {type: array, items: {type: string}}, since: {type: string, format: date-time}}}
+    CashOutJob:
+      type: object
+      description: An asynchronous cash-out job.
+      additionalProperties: false
+      required: [id, cabal_id, user_id, share_units, payout_micros, sell_usdc_micros, status, result_code, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid, examples: [01890a5d-ac96-774b-bcce-b302099a8060]}
+        cabal_id: {type: string, format: uuid, examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
+        user_id: {type: string, format: uuid, examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
+        share_units: {type: string, pattern: "^(0|[1-9][0-9]*)$", examples: ["100"]}
+        payout_micros: {type: string, pattern: "^(0|[1-9][0-9]*)$", examples: ["25000000"]}
+        sell_usdc_micros: {type: string, pattern: "^(0|[1-9][0-9]*)$", examples: ["0"]}
+        status: {type: string, enum: [started, selling, paying, completed, partial, failed], examples: [started]}
+        result_code: {type: [string, "null"], examples: [null]}
+        created_at: {type: string, format: date-time, examples: ["2026-10-03T15:00:00Z"]}
+        updated_at: {type: string, format: date-time, examples: ["2026-10-03T15:00:00Z"]}
     UserTxnPage:
       type: object
       description: One page of the caller's transaction history.
