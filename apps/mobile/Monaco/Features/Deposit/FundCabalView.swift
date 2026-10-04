@@ -15,7 +15,8 @@ struct FundCabalView: View {
 
     private let apiClient = MonacoAPIClient()
 
-    @StateObject private var balanceLoader = PlatformBalanceLoader()
+    @Environment(AppEnvironment.self) private var environment
+    @State private var balanceSource: BalanceSource?
     @State private var selectedGroupId: String?
     @State private var amountText = ""
     @State private var isSubmitting = false
@@ -31,29 +32,41 @@ struct FundCabalView: View {
         joinedCabals.first(where: { $0.groupId == selectedGroupId })?.name
     }
 
-    private var balance: PlatformBalanceDTO? {
-        balanceLoader.balance
+    private var balance: AccountBalance? {
+        balanceSource?.balance
     }
 
     var body: some View {
         FundCabalContent(
-            phase: balanceLoader.phase,
+            state: balanceSource?.state ?? .loading,
             joinedCabals: joinedCabals,
             isSingleCabalContext: isSingleCabalContext,
             selectedGroupId: $selectedGroupId,
             amountText: $amountText,
             isSubmitting: isSubmitting,
             onSubmit: { Task { await submitFund() } },
-            onRetry: { Task { await balanceLoader.load(accessToken: auth.accessToken) } },
+            onRetry: { Task { await balanceSource?.load() } },
             onCopyAddress: copyAddress
         )
         .monacoToast($toast, bottomInset: 72)
-        .task(id: auth.accessToken) {
+        .task {
             if selectedGroupId == nil {
                 selectedGroupId = preselectedGroupId ?? joinedCabals.first?.groupId
             }
-            await balanceLoader.load(accessToken: auth.accessToken)
+            let source = preparedBalanceSource()
+            await source.load()
+            await source.observe()
         }
+        .onScreenVisibilityChange { visible in
+            balanceSource?.setVisible(visible)
+        }
+    }
+
+    private func preparedBalanceSource() -> BalanceSource {
+        if let balanceSource { return balanceSource }
+        let created = BalanceSource(api: environment.api, hints: environment.hints)
+        balanceSource = created
+        return created
     }
 
     private func copyAddress(_ address: String) {
@@ -73,7 +86,7 @@ struct FundCabalView: View {
             toast = MonacoToast(message: "Enter a valid amount.", isSuccess: false)
             return
         }
-        if let available = balance?.availableUsdcMicros, micros > available {
+        if let available = balance?.availableMicros, micros > available {
             toast = MonacoToast(message: "More than you have. Try a smaller amount.", isSuccess: false)
             return
         }
@@ -91,7 +104,7 @@ struct FundCabalView: View {
             amountText = ""
             // A reload here leaves the amount pad and the button exactly where they are: the
             // loader keeps the balance on screen while it refreshes.
-            await balanceLoader.load(accessToken: token)
+            await balanceSource?.load()
             await onFunded()
         } catch {
             if error.isRequestCancellation { return }
@@ -110,18 +123,18 @@ enum FundCabalStage: Equatable {
     case failed(String)
     case noCabals
     /// A balance with nothing in it: the member has to add money before they can fund.
-    case needsMoney(PlatformBalanceDTO)
-    case amount(PlatformBalanceDTO)
+    case needsMoney(AccountBalance)
+    case amount(AccountBalance)
 
-    static func resolve(phase: PlatformBalanceLoader.Phase, hasCabals: Bool) -> FundCabalStage {
-        switch phase {
-        case .loading:
+    static func resolve(state: LoadState<AccountBalance>, hasCabals: Bool) -> FundCabalStage {
+        switch state {
+        case .idle, .loading:
             return .loading
-        case .failed(let message):
-            return .failed(message)
+        case .failed(let error):
+            return .failed(ToastCopy.message(for: error))
         case .loaded(let balance):
             if !hasCabals { return .noCabals }
-            if balance.availableUsdcMicros <= 0 { return .needsMoney(balance) }
+            if balance.availableMicros <= 0 { return .needsMoney(balance) }
             return .amount(balance)
         }
     }
@@ -138,10 +151,10 @@ struct FundCabalForm: Equatable {
     let availableMicros: Int64?
     let pendingAllocationMicros: Int64
 
-    init(amountText: String, balance: PlatformBalanceDTO?) {
+    init(amountText: String, balance: AccountBalance?) {
         self.amountText = amountText
-        availableMicros = balance?.availableUsdcMicros
-        pendingAllocationMicros = balance?.pendingAllocationMicros ?? 0
+        availableMicros = balance?.availableMicros
+        pendingAllocationMicros = balance?.inFlightMicros ?? 0
     }
 
     /// The most the pad takes: the whole balance. Nil while there is nothing to fund with.
@@ -187,7 +200,7 @@ struct FundCabalForm: Equatable {
 ///
 /// Pure: what the screen knows comes in, what the member does goes out.
 struct FundCabalContent: View {
-    let phase: PlatformBalanceLoader.Phase
+    let state: LoadState<AccountBalance>
     let joinedCabals: [HomeGroupBoardRowDTO]
     /// Opened from one cabal's screen: no picker, and the title says "this cabal".
     let isSingleCabalContext: Bool
@@ -199,11 +212,11 @@ struct FundCabalContent: View {
     let onCopyAddress: (String) -> Void
 
     private var stage: FundCabalStage {
-        .resolve(phase: phase, hasCabals: !joinedCabals.isEmpty)
+        .resolve(state: state, hasCabals: !joinedCabals.isEmpty)
     }
 
     private var form: FundCabalForm {
-        if case .loaded(let balance) = phase {
+        if case .loaded(let balance) = state {
             return FundCabalForm(amountText: amountText, balance: balance)
         }
         return FundCabalForm(amountText: amountText, balance: nil)
@@ -337,13 +350,10 @@ struct FundCabalContent: View {
     // MARK: - Nothing to fund with
 
     /// The balance at zero, and the address that fills it — the same card Add money leads with.
-    private func needsMoney(_ balance: PlatformBalanceDTO) -> some View {
+    private func needsMoney(_ balance: AccountBalance) -> some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
             MonacoGroupedList {
-                PlatformBalanceCard(
-                    display: .amount(balance.availableUsdcMicros),
-                    pendingAllocationMicros: balance.pendingAllocationMicros
-                )
+                PlatformBalanceCard(state: .loaded(balance))
             }
 
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -358,7 +368,7 @@ struct FundCabalContent: View {
             .padding(.horizontal, MonacoTheme.Space.m)
 
             DepositAddressCard(
-                content: DepositAddress.usable(balance.memberWalletAddress).map(DepositAddressCard.Content.ready)
+                content: DepositAddress.usable(balance.depositAddress).map(DepositAddressCard.Content.ready)
                     ?? .unavailable("Deposit address not ready yet."),
                 addressIdentifier: "fund-cabal-deposit-address",
                 copyIdentifier: "fund-cabal-copy-deposit-address",

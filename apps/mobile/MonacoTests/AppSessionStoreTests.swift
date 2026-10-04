@@ -17,24 +17,14 @@ import struct MonacoCore.SessionProfile
 @MainActor
 private final class StubDataSource: AppSessionDataSource {
     var dashboardRequests: [HomeLeaderboardRange] = []
-    var balanceRequests: [String] = []
     /// Ranges whose response is held until the test releases it.
     var holdRanges: Set<HomeLeaderboardRange> = []
     /// Thrown by `getHomeDashboard`, one per call, oldest first. Empty means succeed.
     var dashboardErrors: [Error] = []
-    var balanceErrors: [Error] = []
 
     private var pendingDashboards: [HomeLeaderboardRange: CheckedContinuation<Void, Never>] = [:]
     private var arrivedRanges: Set<HomeLeaderboardRange> = []
     private var arrivalWaiters: [HomeLeaderboardRange: CheckedContinuation<Void, Never>] = [:]
-
-    func getPlatformBalance(accessToken: String) async throws -> PlatformBalanceDTO {
-        balanceRequests.append(accessToken)
-        if !balanceErrors.isEmpty {
-            throw balanceErrors.removeFirst()
-        }
-        return PlatformBalanceDTO(availableUsdcMicros: 0, memberWalletAddress: "wallet", pendingAllocationMicros: 0)
-    }
 
     func getHome(accessToken: String) async throws -> HomeViewDTO {
         HomeViewDTO(groups: [], people: [])
@@ -210,7 +200,6 @@ struct AppSessionStoreBootstrapTests {
     @Test func aFailedHomeLoadDoesNotCloseTheSessionGate() async throws {
         let source = StubDataSource()
         source.dashboardErrors = [MonacoAPIError.httpStatus(404)]
-        source.balanceErrors = [MonacoAPIError.httpStatus(404)]
         let store = AppSessionStore(apiClient: source, sessions: sessionAPI(StubTransport(.json(.ok, SessionWire.me))))
         let auth = StubAuth()
 
@@ -219,7 +208,6 @@ struct AppSessionStoreBootstrapTests {
         #expect(store.profile?.displayName == "Kai Cenat")
         #expect(FirstRunGate.destination(for: store.profile, onboardingCursor: .start) == .app(restricted: false))
         #expect(store.isLoading == false)
-        #expect(source.balanceRequests == ["token-a"])
         #expect(
             HomeScreenState.resolve(dashboard: store.dashboard, errorMessage: store.errorMessage)
                 == .failed("Couldn't load this. Try again."))
@@ -347,9 +335,6 @@ struct AppSessionStoreBootstrapTests {
         store.profile = try? SessionProfile(json: Data(SessionWire.me.utf8))
         store.home = HomeViewDTO(groups: [], people: [])
         store.dashboard = StubDataSource.dashboard(range: .all)
-        store.platformBalance = PlatformBalanceDTO(
-            availableUsdcMicros: 1, memberWalletAddress: "a", pendingAllocationMicros: 0
-        )
         let environment = AppEnvironment(
             auth: PrivyAuthService.processInstance ?? PrivyAuthService(), hints: FakeHintSource(),
             sessionStore: store, isAuthenticated: { true }, endAuthSession: {}
@@ -365,7 +350,6 @@ struct AppSessionStoreBootstrapTests {
         #expect(store.profile == nil)
         #expect(store.home == nil)
         #expect(store.dashboard == nil)
-        #expect(store.platformBalance == nil)
         #expect(store.homePnLSeries == nil)
     }
 
@@ -385,7 +369,6 @@ struct AppSessionStoreBootstrapTests {
         while await transport.sent.count < 2 { await Task.yield() }
         #expect(store.profile == nil)
         #expect(store.dashboard == nil)
-        #expect(store.platformBalance == nil)
 
         await transport.releaseGate(.json(.ok, SessionWire.next))
         await openingB.value

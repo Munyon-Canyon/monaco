@@ -1,21 +1,5 @@
 import Foundation
 
-public struct PlatformBalanceDTO: Codable, Equatable, Sendable {
-    public let availableUsdcMicros: Int64
-    public let memberWalletAddress: String
-    public let pendingAllocationMicros: Int64
-
-    public init(
-        availableUsdcMicros: Int64,
-        memberWalletAddress: String,
-        pendingAllocationMicros: Int64
-    ) {
-        self.availableUsdcMicros = availableUsdcMicros
-        self.memberWalletAddress = memberWalletAddress
-        self.pendingAllocationMicros = pendingAllocationMicros
-    }
-}
-
 public struct FundGroupRequestDTO: Encodable, Sendable {
     public let amount: Int64
 
