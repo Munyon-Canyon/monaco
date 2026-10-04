@@ -149,7 +149,7 @@ private final class StocksTabSampleDataSource: StocksTabDataSource {
 
 private struct SampleStocksFailure: Error {}
 
-final class StocksTabSampleHarnessEntry: SampleHarnessEntry {
+final class LegacyStocksTabSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
         guard let scenario = StocksTabSampleScenario.matching(arguments) else { return nil }
