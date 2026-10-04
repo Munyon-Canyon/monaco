@@ -170,7 +170,7 @@ struct GroupDetailSampleHarness: View {
             ProposeSheet(auth: auth, groupId: view.id, groupView: view)
         }
         .sheet(isPresented: $showDetails) {
-            GroupDetailsSheet(groupId: view.id, treasuryAddress: view.treasuryAddress)
+            GroupDetailsSheet(treasuryAddress: view.treasuryAddress)
         }
         .monacoToast($toast)
         .task {

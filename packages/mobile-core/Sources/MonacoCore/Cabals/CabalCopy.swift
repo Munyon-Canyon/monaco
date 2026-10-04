@@ -6,6 +6,10 @@ public enum CabalCopy {
         count == 1 ? "1 member" : "\(count) members"
     }
 
+    public static func inviteShareText(code: String) -> String {
+        "Join my cabal on Monaco with code \(code)"
+    }
+
     public static func requestCount(_ count: Int32) -> String {
         count == 1 ? "1 request to join" : "\(count) requests to join"
     }
