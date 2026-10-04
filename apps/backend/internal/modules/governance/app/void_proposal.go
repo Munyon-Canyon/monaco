@@ -31,10 +31,13 @@ type VoidProposalHandler struct {
 	reads sqlc.DBTX
 	clock clock.Clock
 	swaps LiveSwaps
+	hints Hints
 }
 
-func NewVoidProposalHandler(uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock, s LiveSwaps) *VoidProposalHandler {
-	return &VoidProposalHandler{uow: uow, reads: reads, clock: c, swaps: s}
+func NewVoidProposalHandler(
+	uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock, s LiveSwaps, hints Hints,
+) *VoidProposalHandler {
+	return &VoidProposalHandler{uow: uow, reads: reads, clock: c, swaps: s, hints: hints}
 }
 
 func (h *VoidProposalHandler) Handle(ctx context.Context, cmd VoidProposal) error {
@@ -46,7 +49,8 @@ func (h *VoidProposalHandler) Handle(ctx context.Context, cmd VoidProposal) erro
 	case actor.Kind != auth.ActorAdmin && actor.Kind != auth.ActorSystem:
 		return errs.New(errs.CodeForbidden, op, slog.String("actor_kind", string(actor.Kind)))
 	}
-	if _, err := sqlc.New(h.reads).CabalOfProposal(ctx, cmd.ProposalID.UUID()); err != nil {
+	cabal, err := sqlc.New(h.reads).CabalOfProposal(ctx, cmd.ProposalID.UUID())
+	if err != nil {
 		return lookupFailed(err, op)
 	}
 	live, err := h.swaps.HasLiveSwap(ctx, trading.Source{Kind: "proposal", ID: cmd.ProposalID.UUID()})
@@ -56,7 +60,7 @@ func (h *VoidProposalHandler) Handle(ctx context.Context, cmd VoidProposal) erro
 	if live {
 		return errs.New(errs.CodeLiveSwapExists, op)
 	}
-	return h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+	err = h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		sources := domain.Sources(domain.EventVoid)
 		from := make([]string, len(sources))
 		for i, s := range sources {
@@ -77,4 +81,9 @@ func (h *VoidProposalHandler) Handle(ctx context.Context, cmd VoidProposal) erro
 			Reason: string(cmd.Reason),
 		})
 	})
+	if err != nil {
+		return err
+	}
+	h.hints.ProposalUpdated(ctx, ids.CabalIDFrom(cabal), cmd.ProposalID)
+	return nil
 }

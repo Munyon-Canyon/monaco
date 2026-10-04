@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
@@ -22,10 +23,11 @@ type ExpiryPoller struct {
 	uow   *db.UnitOfWork
 	reads sqlc.DBTX
 	clock clock.Clock
+	hints Hints
 }
 
-func NewExpiryPoller(uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock) *ExpiryPoller {
-	return &ExpiryPoller{uow: uow, reads: reads, clock: c}
+func NewExpiryPoller(uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock, hints Hints) *ExpiryPoller {
+	return &ExpiryPoller{uow: uow, reads: reads, clock: c, hints: hints}
 }
 
 func (*ExpiryPoller) Name() string { return "governance.proposal_expiry" }
@@ -64,6 +66,9 @@ func (p *ExpiryPoller) expire(ctx context.Context, row sqlc.DueForExpiryRow, now
 	})
 	if err != nil {
 		return false, err
+	}
+	if expired {
+		p.hints.ProposalUpdated(ctx, ids.CabalIDFrom(row.CabalID), ids.ProposalIDFrom(row.ID))
 	}
 	return expired, nil
 }
