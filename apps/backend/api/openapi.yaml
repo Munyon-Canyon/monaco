@@ -1966,6 +1966,7 @@ components:
         - display_name_invalid
         - faultpoint
         - feed_item_not_found
+        - feed_item_pending
         - forbidden
         - handle_invalid
         - handle_required

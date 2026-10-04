@@ -31,8 +31,8 @@ func TestFeedConsumerQueries_roundTripSnapshotsAndItem(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := q.UpsertFeedMembership(t.Context(), sqlc.UpsertFeedMembershipParams{
-		CabalID: cabal, UserID: member, JoinedAt: f.now,
+	if _, err := q.UpsertFeedMembership(t.Context(), sqlc.UpsertFeedMembershipParams{
+		CabalID: cabal, UserID: member, JoinedAt: f.now, EventID: f.gen.NewV7(),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -59,12 +59,12 @@ func TestFeedConsumerQueries_roundTripSnapshotsAndItem(t *testing.T) {
 	if err != nil || name != "Alpha" || !joined.Equal(f.now) || count != 1 {
 		t.Fatalf("snapshot = %q %s %d, %v; want Alpha %s 1", name, joined, count, err, f.now)
 	}
-	if err := q.DeleteFeedMembership(t.Context(), sqlc.DeleteFeedMembershipParams{
-		CabalID: cabal, UserID: member,
+	if _, err := q.DeleteFeedMembership(t.Context(), sqlc.DeleteFeedMembershipParams{
+		CabalID: cabal, UserID: member, EventID: f.gen.NewV7(), At: f.now,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	err = f.pool.QueryRow(t.Context(), `SELECT count(*) FROM feed_memberships`).Scan(&count)
+	err = f.pool.QueryRow(t.Context(), `SELECT count(*) FROM feed_memberships WHERE active`).Scan(&count)
 	if err != nil || count != 0 {
 		t.Fatalf("memberships = %d, %v; want 0", count, err)
 	}

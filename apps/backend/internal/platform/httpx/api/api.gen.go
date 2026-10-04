@@ -37,6 +37,7 @@ const (
 	DisplayNameInvalid         ErrorCode = "display_name_invalid"
 	Faultpoint                 ErrorCode = "faultpoint"
 	FeedItemNotFound           ErrorCode = "feed_item_not_found"
+	FeedItemPending            ErrorCode = "feed_item_pending"
 	Forbidden                  ErrorCode = "forbidden"
 	HandleInvalid              ErrorCode = "handle_invalid"
 	HandleRequired             ErrorCode = "handle_required"
@@ -161,6 +162,8 @@ func (e ErrorCode) Valid() bool {
 	case Faultpoint:
 		return true
 	case FeedItemNotFound:
+		return true
+	case FeedItemPending:
 		return true
 	case Forbidden:
 		return true

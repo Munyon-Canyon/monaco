@@ -31,6 +31,7 @@ extension Components.Schemas.ErrorCode {
         case .displayNameInvalid: true
         case .faultpoint: true
         case .feedItemNotFound: true
+        case .feedItemPending: true
         case .forbidden: true
         case .handleInvalid: true
         case .handleRequired: true
