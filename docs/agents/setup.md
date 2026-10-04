@@ -11,7 +11,7 @@ This page sets up a clone so that Claude Code runs the same agent workflow the M
         claude plugin install superpowers@claude-plugins-official --scope project
 
 4. Run `/plugin` in Claude Code and confirm that each plugin in the table below is listed and enabled.
-5. Optional: to fit the agent workflow to this machine, set `lanes`, `[check] slots` or `[dispatch] max_load` in `.git/.monaco/agents.local.toml`. The file overrides `.monaco/agents.toml` for every worktree of this clone, is never committed and accepts no other key. `monacoctl agents dispatch` prints a `local config:` line while it is in effect.
+5. Optional: to fit the agent workflow to this machine, or to run a milestone other than the committed one, set `lanes`, `[check] slots`, `[dispatch] max_load`, `tracking` or `milestone` in `.git/.monaco/agents.local.toml`. The file overrides `.monaco/agents.toml` for every worktree of this clone, is never committed and accepts no other key. The `Agents status` workflow refreshes only the committed tracking issue's comment, so a root on a local `tracking` runs `status --publish` itself. `monacoctl agents dispatch` prints a `local config:` line while it is in effect.
 
 ## Secrets in worktrees
 

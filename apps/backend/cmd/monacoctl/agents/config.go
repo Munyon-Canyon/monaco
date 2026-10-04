@@ -119,19 +119,30 @@ func parseConfig(r io.Reader) (Config, error) {
 
 func applyLocalConfig(c Config, r io.Reader) (Config, error) {
 	section := ""
-	ints := map[string]*int{"lanes": &c.Lanes, "check.slots": &c.Slots, "dispatch.max_load": &c.MaxLoad}
+	strs := map[string]*string{"milestone": &c.Milestone}
+	ints := map[string]*int{
+		"lanes": &c.Lanes, "check.slots": &c.Slots, "dispatch.max_load": &c.MaxLoad, "tracking": &c.Tracking,
+	}
 	lines, err := logicalLines(r, localConfigPath)
 	if err != nil {
 		return Config{}, err
 	}
 	for _, l := range lines {
-		if err := applyConfigLine(nil, &section, map[string]bool{}, nil, ints, nil, l.text); err != nil {
+		if err := applyConfigLine(nil, &section, map[string]bool{}, strs, ints, nil, l.text); err != nil {
 			return Config{}, configLineErr(localConfigPath, l.n, err)
 		}
 	}
 	if c.Lanes < 1 {
 		return Config{}, detailErr(errs.CodeDecodeFailed, "monacoctl.agents.config",
 			fmt.Sprintf("%s: lanes: want at least 1, got %d", localConfigPath, c.Lanes))
+	}
+	if c.Tracking < 1 {
+		return Config{}, detailErr(errs.CodeDecodeFailed, "monacoctl.agents.config",
+			fmt.Sprintf("%s: tracking: want at least 1, got %d", localConfigPath, c.Tracking))
+	}
+	if c.Milestone == "" {
+		return Config{}, detailErr(errs.CodeDecodeFailed, "monacoctl.agents.config",
+			fmt.Sprintf("%s: milestone: want a name, got %q", localConfigPath, c.Milestone))
 	}
 	if err := checkCapacity(localConfigPath, c); err != nil {
 		return Config{}, err
