@@ -110,6 +110,9 @@ tab lights up by replacing its `root()` body in its own file.
 
 ## Add a section slot
 
+What each slot shows, in which order, and who builds it is in the [screen map](../screens.md). This
+section is how to wire one.
+
 Some shared screens — Home, Profile, the Cabals tab, the cabal screen, a user's profile and
 proposal detail — are split into sections so a ticket can own one part of a screen without
 editing the file every other ticket owns. `Shell/ScreenSection.swift` (#942) declares:
@@ -179,7 +182,7 @@ struct CabalScreen: View {
 | | `ProfileFollowCountsSlot` | #620 |
 | | `ProfileInviteSlot` | #682 |
 | | `ProfileFindFriendsSlot` | #663 |
-| | `ProfileSettingsSlot` | #644 |
+| | `ProfileSettingsSlot` | #2139 |
 | | `ProfileDeleteAccountSlot` | #695 |
 | `Features/Groups/CabalsTabScreen.swift` | `CabalsInvitesSlot` | #696 |
 | | `CabalsListSlot` | #606 |
@@ -189,7 +192,7 @@ struct CabalScreen: View {
 | `Features/Groups/CabalScreen.swift`, `CabalContext(cabalID: String)`, body | `CabalHeaderSlot` | #606 |
 | | `CabalPauseSlot` | #657 |
 | | `CabalJoinSlot` | #646 |
-| | `CabalPotSlot` | #651 |
+| | `CabalPotSlot` | #2137 |
 | | `CabalProposalsSlot` | #612 |
 | | `CabalMemberBoardSlot` | #699 |
 | | `CabalActivitySlot` | #654 |
