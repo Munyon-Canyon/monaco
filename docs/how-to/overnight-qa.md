@@ -107,19 +107,21 @@ Only the scheduled run and manual runs on `main` touch issues; PR runs print wha
 The alert job uses `GITHUB_TOKEN` with `contents: read` and `issues: write`. GitHub disables
 schedules after 60 days without repository activity; re-enable from the Actions tab.
 
-## One build at a time
+## Build slots
 
-`scripts/qa/xcode-lock.sh <class> <command...>` holds a machine-wide lock around a heavy
-local step. Wrap any `xcodebuild` or `swift` build or test you start by hand (or from an
-agent) while the overnight run is going, so builds never compete for memory. The class says
-which limit applies:
+`scripts/qa/xcode-lock.sh <class> <command...>` holds one of a class's machine-wide slots
+around a heavy local step. Wrap any `xcodebuild` or `swift` build or test you start by hand
+(or from an agent) while the overnight run is going, so builds never exhaust memory. The
+class says which limit applies:
 
-| Class | Wrap | Cost | Lock dir |
-| --- | --- | --- | --- |
-| `xcode` | `xcodebuild` and simulator runs | 3 to 7 GB each, so one at a time | `/private/tmp/monaco-xcodebuild.lock` (`MONACO_XCODE_LOCK_DIR`) |
-| `swiftpm` | `swift build` and `swift test` in `packages/mobile-core` | about 1 to 1.5 GB each, and every core while cold | `/private/tmp/monaco-swiftpm.lock` (`MONACO_SWIFTPM_LOCK_DIR`) |
+| Class | Wrap | Cost | Slots | Lock dir |
+| --- | --- | --- | --- | --- |
+| `xcode` | `xcodebuild` and simulator runs | 3 to 7 GB each | one per 16 GB of RAM, at least 1 (`MONACO_XCODE_SLOTS`) | `/private/tmp/monaco-xcodebuild.lock` (`MONACO_XCODE_LOCK_DIR`) |
+| `swiftpm` | `swift build` and `swift test` in `packages/mobile-core` | about 1 to 1.5 GB each, and every core while cold | one per 8 GB of RAM, at least 1 (`MONACO_SWIFTPM_SLOTS`) | `/private/tmp/monaco-swiftpm.lock` (`MONACO_SWIFTPM_LOCK_DIR`) |
 
-The classes are separate locks, so one `xcode` holder and one `swiftpm` holder run at the
+A 16 GB Mac gets one `xcode` slot, so its builds run one at a time. A 64 GB Mac gets four,
+so agents in four worktrees build at once. Slot 1 is the lock dir itself and slot k is
+`<lock dir>.<k>`. The classes are separate, so `xcode` and `swiftpm` holders run at the
 same time. Go, lint and shell steps need no lock. A call with no class, such as
 `scripts/qa/xcode-lock.sh xcodebuild ...`, runs as `xcode`.
 
@@ -128,15 +130,16 @@ scripts/qa/xcode-lock.sh xcode xcodebuild -project apps/mobile/Monaco.xcodeproj 
 scripts/qa/xcode-lock.sh swiftpm bash -c 'cd packages/mobile-core && swift test'
 ```
 
-Waiters take the lock in arrival order. Each writes a ticket in `<lock dir>.queue/` and
-goes when its ticket is the oldest one whose process is still alive, so a later arrival
-never overtakes it. Every 60 seconds a waiter logs where it stands:
+Waiters take slots in arrival order. Each writes a ticket in `<lock dir>.queue/` and goes
+when its position among the tickets whose process is still alive is no greater than the
+number of free slots, so a later arrival never overtakes it. Every 60 seconds a waiter logs
+where it stands and names every holder:
 
 ```text
 xcode-lock(xcode): queue position 2 behind pid 4121 (/Users/dev/monaco/.worktrees/1241) (120s)
 ```
 
-The holder's `pid` and `cwd` are in the lock dir. A lock or ticket whose pid is gone is
+Each holder's `pid` and `cwd` are in its slot dir. A slot or ticket whose pid is gone is
 taken over or dropped.
 
 | Variable | Default | Meaning |
