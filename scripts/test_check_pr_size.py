@@ -23,6 +23,7 @@ class CountTest(unittest.TestCase):
         numstat = (
             "400\t0\tapps/backend/internal/db/queries.gen.go\n"
             "900\t12\tapps/backend/go.sum\n"
+            "1878\t1852\tapps/backend/api/openapi.yaml\n"
             "50\t0\tapps/backend/test/evidence/07.json\n"
             "7\t1\tapps/backend/internal/app/fund.go\n"
         )
