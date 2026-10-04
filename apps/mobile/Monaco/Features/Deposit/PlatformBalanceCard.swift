@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -27,14 +28,10 @@ struct PlatformBalanceCard: View {
         self.valueIdentifier = valueIdentifier
     }
 
-    /// A balance the screen holds itself. `nil` is loading while `isLoading`, unavailable after,
-    /// never $0.00 — see `HomeBalanceDisplay`.
-    init(balance: PlatformBalanceDTO?, isLoading: Bool = false, valueIdentifier: String = "platform-balance-value") {
-        self.init(
-            display: .resolve(balance: balance, isLoading: isLoading),
-            pendingAllocationMicros: balance?.pendingAllocationMicros ?? 0,
-            valueIdentifier: valueIdentifier
-        )
+    init(state: LoadState<AccountBalance>, valueIdentifier: String = "platform-balance-value") {
+        var inFlightMicros: Int64 = 0
+        if case .loaded(let balance) = state { inFlightMicros = balance.inFlightMicros }
+        self.init(display: .resolve(state), pendingAllocationMicros: inFlightMicros, valueIdentifier: valueIdentifier)
     }
 
     /// "$50.00 funding a cabal", or nil when nothing is on its way.
@@ -48,6 +45,17 @@ struct PlatformBalanceCard: View {
     private var isStacked: Bool { dynamicTypeSize.isAccessibilitySize }
 
     var body: some View {
+        if display == .loading {
+            BoardRowSkeleton(rows: 1)
+                .accessibilityElement()
+                .accessibilityLabel("Loading your account balance")
+                .accessibilityIdentifier("platform-balance-loading")
+        } else {
+            row
+        }
+    }
+
+    private var row: some View {
         Group {
             if isStacked {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -93,15 +101,10 @@ struct PlatformBalanceCard: View {
 
     @ViewBuilder
     private var figure: some View {
-        switch display {
-        case .amount(let micros):
+        if case .amount(let micros) = display {
             MoneyText(micros: micros, style: .row)
                 .accessibilityIdentifier(valueIdentifier)
-        case .loading:
-            ProgressView()
-                .tint(MonacoTheme.accent)
-                .accessibilityIdentifier("platform-balance-loading")
-        case .unavailable:
+        } else {
             // A dash, not a figure: a balance that could not be read is not an empty account.
             Text("—")
                 .moneyFont(.row)

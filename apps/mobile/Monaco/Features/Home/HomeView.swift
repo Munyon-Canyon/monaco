@@ -63,13 +63,6 @@ struct HomeView: View {
         missedProposals.map(\.expiresAt)
     }
 
-    private var balanceIsUnavailable: Bool {
-        HomeBalanceDisplay.resolve(
-            balance: session.platformBalance,
-            isLoading: session.isBalanceLoading
-        ) == .unavailable
-    }
-
     var body: some View {
         Group {
             switch HomeScreenState.resolve(dashboard: session.dashboard, errorMessage: session.errorMessage) {
@@ -98,11 +91,6 @@ struct HomeView: View {
         }
         .onChange(of: loadedLeaderboardRange) { _, _ in
             leaderboard.reconcile(from: leaderboardSource)
-        }
-        .onChange(of: balanceIsUnavailable) { _, unavailable in
-            if unavailable {
-                AppLogger.session.error("Home: account balance unavailable — the balance read left it unset")
-            }
         }
         .task(id: missedVoteExpiries) {
             await advanceVotesClock()
@@ -151,17 +139,6 @@ struct HomeView: View {
                         embedded: dashboard.pnlSeries1H,
                         hasCabals: !dashboard.myGroups.isEmpty
                     )
-                )
-
-                HomeBalanceRowSection(
-                    auth: auth,
-                    balance: session.platformBalance,
-                    isBalanceLoading: session.isBalanceLoading,
-                    joinedCabals: joinedCabals,
-                    isRetryingBalance: isRetrying,
-                    // Shares `retryLoad`'s in-flight guard: retrying the balance is the same
-                    // three-request refresh, so it cannot be stacked by tapping repeatedly.
-                    onRetryBalance: { Task { await retryLoad() } }
                 )
 
                 // Gated on the rows still open rather than on the payload: a section that
