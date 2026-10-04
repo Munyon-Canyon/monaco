@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
 const bundleBase = `openapi: 3.1.0
@@ -43,7 +45,7 @@ func TestBundleOpenAPI_mergesEverySpecFileInSortedOrder(t *testing.T) {
 		"market.yaml":  specModule("market.yaml", "/v1/assets", "Asset"),
 		"trading.yaml": specModule("trading.yaml", "/v1/orders", "Order"),
 	})
-	got, err := bundleOpenAPI(dir)
+	got, err := bundleOpenAPI(dir, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,12 +94,12 @@ func TestBundleOpenAPI_isStable(t *testing.T) {
 	dir := writeSpecDir(t, map[string]string{
 		"base.yaml": bundleBase, "b.yaml": specModule("b.yaml", "/b", "B"), "a.yaml": specModule("a.yaml", "/a", "A"),
 	})
-	first, err := bundleOpenAPI(dir)
+	first, err := bundleOpenAPI(dir, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for range 5 {
-		again, err := bundleOpenAPI(dir)
+		again, err := bundleOpenAPI(dir, nil)
 		if err != nil || string(again) != string(first) {
 			t.Fatalf("bundle changed between runs (%v):\n%s\nvs\n%s", err, first, again)
 		}
@@ -129,7 +131,7 @@ func TestBundleOpenAPI_namesBothFilesOfADuplicate(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			_, err := bundleOpenAPI(writeSpecDir(t, tc.files))
+			_, err := bundleOpenAPI(writeSpecDir(t, tc.files), nil)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("err = %v, want it to contain %q", err, tc.want)
 			}
@@ -196,7 +198,7 @@ func TestBundleOpenAPI_refusesSpecsItCannotBundle(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			_, err := bundleOpenAPI(writeSpecDir(t, tc.files))
+			_, err := bundleOpenAPI(writeSpecDir(t, tc.files), nil)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("err = %v, want it to contain %q", err, tc.want)
 			}
@@ -208,7 +210,7 @@ func TestBundleOpenAPI_checksTagsOnOperationsAndNotOnPathParameters(t *testing.T
 	t.Parallel()
 	module := "paths:\n  /a/{id}:\n    parameters:\n      - name: id\n        in: path\n    get:\n      tags: [a]\n"
 	dir := writeSpecDir(t, map[string]string{"base.yaml": bundleBase, "a.yaml": module})
-	if _, err := bundleOpenAPI(dir); err != nil {
+	if _, err := bundleOpenAPI(dir, nil); err != nil {
 		t.Fatalf("path-level parameters were checked as an operation: %v", err)
 	}
 }
@@ -217,7 +219,7 @@ func TestBundleOpenAPI_keepsEveryBlockByteForByte(t *testing.T) {
 	t.Parallel()
 	module := "paths:\n  /a:\n    get:\n      description: >-\n        folded\n        text\n      tags: [a]\n      x-flags: [x, y]\n"
 	dir := writeSpecDir(t, map[string]string{"base.yaml": bundleBase, "a.yaml": module})
-	got, err := bundleOpenAPI(dir)
+	got, err := bundleOpenAPI(dir, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,7 +230,7 @@ func TestBundleOpenAPI_keepsEveryBlockByteForByte(t *testing.T) {
 
 func TestCommittedBundleMatchesTheSpecSources(t *testing.T) {
 	t.Parallel()
-	want, err := bundleOpenAPI("../../api/spec")
+	want, err := bundleOpenAPI("../../api/spec", errs.All())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +281,7 @@ func TestBundleOpenAPI_branchesAddingRoutesToDifferentModulesMergeWithoutConflic
 	git(t, repo, "commit", "-q", "-m", "trading route")
 
 	git(t, repo, "merge", "-q", "--no-edit", "cabal-route")
-	got, err := bundleOpenAPI(specs)
+	got, err := bundleOpenAPI(specs, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -303,7 +305,7 @@ func TestBundleOpenAPI_bundlesFromDifferentModulesMergeWithoutConflict(t *testin
 	defer func() { _ = root.Close() }()
 	commitBundle := func(msg string) {
 		t.Helper()
-		bundle, err := bundleOpenAPI(filepath.Join(repo, "api", "spec"))
+		bundle, err := bundleOpenAPI(filepath.Join(repo, "api", "spec"), nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -343,7 +345,7 @@ func TestBundleOpenAPI_bundlesFromDifferentModulesMergeWithoutConflict(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := bundleOpenAPI(filepath.Join(repo, "api", "spec"))
+	want, err := bundleOpenAPI(filepath.Join(repo, "api", "spec"), nil)
 	if err != nil || string(got) != string(want) {
 		t.Fatalf("merged bundle differs from regenerating the merged specs (%v)", err)
 	}
@@ -357,7 +359,7 @@ func TestGenOpenAPI_writesTheBundleAndReportsDuplicates(t *testing.T) {
 	if code := gen([]string{"openapi", dir, out}, &stdout, &stderr); code != 0 {
 		t.Fatalf("gen openapi = %d, stderr %q", code, stderr.String())
 	}
-	want, err := bundleOpenAPI(dir)
+	want, err := bundleOpenAPI(dir, errs.All())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,12 +378,12 @@ func TestGenOpenAPI_writesTheBundleAndReportsDuplicates(t *testing.T) {
 
 func TestBundleOpenAPI_keepsAnEmptyPathsMapAndTrimsBlankLinesBetweenEntries(t *testing.T) {
 	t.Parallel()
-	only, err := bundleOpenAPI(writeSpecDir(t, map[string]string{"base.yaml": bundleBase}))
+	only, err := bundleOpenAPI(writeSpecDir(t, map[string]string{"base.yaml": bundleBase}), nil)
 	if err != nil || !strings.Contains(string(only), "\npaths: {}\n") {
 		t.Fatalf("base alone: err = %v, bundle:\n%s", err, only)
 	}
 	spaced := "paths:\n  /a:\n    get: {tags: [a]}\n\n  /b:\n    get: {tags: [a]}\n\n"
-	got, err := bundleOpenAPI(writeSpecDir(t, map[string]string{"base.yaml": bundleBase, "a.yaml": spaced}))
+	got, err := bundleOpenAPI(writeSpecDir(t, map[string]string{"base.yaml": bundleBase, "a.yaml": spaced}), nil)
 	want := "paths:\n  # api/spec/a.yaml\n  /a:\n    get: {tags: [a]}\n  /b:\n    get: {tags: [a]}\ncomponents:"
 	if err != nil || !strings.Contains(string(got), want) {
 		t.Fatalf("blank lines were kept: err = %v, bundle:\n%s", err, got)
@@ -417,13 +419,13 @@ func TestBundleOpenAPI_aNewModuleStubChangesNothing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	alone, err := bundleOpenAPI(writeSpecDir(t, map[string]string{"base.yaml": bundleBase}))
+	alone, err := bundleOpenAPI(writeSpecDir(t, map[string]string{"base.yaml": bundleBase}), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	withStub, err := bundleOpenAPI(writeSpecDir(t, map[string]string{
 		"base.yaml": bundleBase, "wallets.yaml": string(stub),
-	}))
+	}), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
