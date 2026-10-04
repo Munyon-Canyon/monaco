@@ -6,13 +6,73 @@
 package adminapi
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+
+	externalRef0 "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for AdminRole.
+const (
+	Moderator AdminRole = "moderator"
+	Operator  AdminRole = "operator"
+	Viewer    AdminRole = "viewer"
+)
+
+// Valid indicates whether the value is a known member of the AdminRole enum.
+func (e AdminRole) Valid() bool {
+	switch e {
+	case Moderator:
+		return true
+	case Operator:
+		return true
+	case Viewer:
+		return true
+	default:
+		return false
+	}
+}
+
+// AdminMe An active administrator and their role.
+//
+// Examples: {"role":"operator","user_id":"019cc330-1111-7000-8000-000000000001"}
+type AdminMe struct {
+	// Role The administrator's access level.
+	//
+	// Examples: operator
+	Role AdminRole `json:"role"`
+
+	// UserId The administrator's user id.
+	//
+	// Examples: 019cc330-1111-7000-8000-000000000001
+	UserId openapi_types.UUID `json:"user_id"`
+}
+
+// AdminRole The administrator's access level.
+//
+// Examples: operator
+type AdminRole string
+
+// Admins The active administrator list.
+//
+// Examples: {"admins":[{"role":"operator","user_id":"019cc330-1111-7000-8000-000000000001"}]}
+type Admins struct {
+	// Admins Every non-revoked administrator.
+	Admins []AdminMe `json:"admins"`
+}
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// GetAdmins List current administrators.
+	// (GET /v1/admin/admins)
+	GetAdmins(w http.ResponseWriter, r *http.Request)
+	// GetAdminMe Read the active administrator role.
+	// (GET /v1/admin/me)
+	GetAdminMe(w http.ResponseWriter, r *http.Request)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -23,6 +83,34 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetAdmins operation middleware
+func (siw *ServerInterfaceWrapper) GetAdmins(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdmins(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminMe operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminMe(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 type UnescapedCookieParamError struct {
 	ParamName string
@@ -138,11 +226,102 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		}
 	}
 
+	wrapper := ServerInterfaceWrapper{
+		Handler:            si,
+		HandlerMiddlewares: options.Middlewares,
+		ErrorHandlerFunc:   options.ErrorHandlerFunc,
+	}
+
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/admins", wrapper.GetAdmins)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/me", wrapper.GetAdminMe)
+
 	return m
+}
+
+type GetAdminsRequestObject struct {
+}
+
+type GetAdminsResponseObject interface {
+	VisitGetAdminsResponse(w http.ResponseWriter) error
+}
+
+type GetAdmins200JSONResponse Admins
+
+func (response GetAdmins200JSONResponse) VisitGetAdminsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetAdminsdefaultApplicationProblemPlusJSONResponse) VisitGetAdminsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminMeRequestObject struct {
+}
+
+type GetAdminMeResponseObject interface {
+	VisitGetAdminMeResponse(w http.ResponseWriter) error
+}
+
+type GetAdminMe200JSONResponse AdminMe
+
+func (response GetAdminMe200JSONResponse) VisitGetAdminMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminMedefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetAdminMedefaultApplicationProblemPlusJSONResponse) VisitGetAdminMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// GetAdmins List current administrators.
+	// (GET /v1/admin/admins)
+	GetAdmins(ctx context.Context, request GetAdminsRequestObject) (GetAdminsResponseObject, error)
+	// GetAdminMe Read the active administrator role.
+	// (GET /v1/admin/me)
+	GetAdminMe(ctx context.Context, request GetAdminMeRequestObject) (GetAdminMeResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -182,4 +361,52 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// GetAdmins operation middleware
+func (sh *strictHandler) GetAdmins(w http.ResponseWriter, r *http.Request) {
+	var request GetAdminsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdmins(ctx, request.(GetAdminsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdmins")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminsResponseObject); ok {
+		if err := validResponse.VisitGetAdminsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminMe operation middleware
+func (sh *strictHandler) GetAdminMe(w http.ResponseWriter, r *http.Request) {
+	var request GetAdminMeRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminMe(ctx, request.(GetAdminMeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminMe")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminMeResponseObject); ok {
+		if err := validResponse.VisitGetAdminMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }

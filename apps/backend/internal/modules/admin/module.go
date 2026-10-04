@@ -1,19 +1,21 @@
 package admin
 
 import (
+	"github.com/monaco/monaco/apps/backend/internal/modules/admin/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	adminapi "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/adminapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
-type Module struct{}
+type Module struct{ deps module.Deps }
 
-func New(module.Deps) *Module { return &Module{} }
+func New(deps module.Deps) *Module { return &Module{deps: deps} }
 
 func (*Module) Name() string { return "admin" }
 
-func (*Module) Mount(api.Mount) {}
+func (m *Module) Mount(mount api.Mount) { adminapi.Mount(adapters.HTTP{Pool: m.deps.Pool}, mount) }
 
 func (*Module) Consumers() []bus.Consumer {
 	return []bus.Consumer{}

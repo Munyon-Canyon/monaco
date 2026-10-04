@@ -1,1 +1,63 @@
-paths: {}
+paths:
+  /v1/admin/me:
+    get:
+      operationId: getAdminMe
+      tags: [admin]
+      x-admin-role: viewer
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Read the active administrator role.
+      description: Returns the authenticated administrator and their active role.
+      responses:
+        "200":
+          description: The active administrator.
+          content: {application/json: {schema: {$ref: "#/components/schemas/AdminMe"}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/admins:
+    get:
+      operationId: getAdmins
+      tags: [admin]
+      x-admin-role: operator
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: List current administrators.
+      description: Returns every non-revoked administrator. Operator access is required.
+      responses:
+        "200":
+          description: Current administrators.
+          content: {application/json: {schema: {$ref: "#/components/schemas/Admins"}}}
+        default: {$ref: "#/components/responses/Problem"}
+components:
+  schemas:
+    AdminMe:
+      type: object
+      description: An active administrator and their role.
+      examples:
+        - user_id: 019cc330-1111-7000-8000-000000000001
+          role: operator
+      additionalProperties: false
+      required: [user_id, role]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          description: The administrator's user id.
+          examples: [019cc330-1111-7000-8000-000000000001]
+        role: {$ref: "#/components/schemas/AdminRole"}
+    Admins:
+      type: object
+      description: The active administrator list.
+      examples:
+        - admins:
+            - user_id: 019cc330-1111-7000-8000-000000000001
+              role: operator
+      additionalProperties: false
+      required: [admins]
+      properties:
+        admins:
+          type: array
+          description: Every non-revoked administrator.
+          items: {$ref: "#/components/schemas/AdminMe"}
+    AdminRole:
+      type: string
+      description: The administrator's access level.
+      enum: [viewer, moderator, operator]
+      examples: [operator]

@@ -15,6 +15,10 @@ servers:
 security:
   - bearerAuth: []
 tags:
+  - name: admin
+    description: Administrator access to Monaco operations.
+  - name: cabal
+    description: A group treasury and its members.
   - name: funding
     description: The member wallet balance and its movement into and out of cabals.
   - name: governance
@@ -23,22 +27,20 @@ tags:
     description: Liveness of the API process.
   - name: identity
     description: The signed-in user and their account.
+  - name: market
+    description: The asset catalog, prices and charts.
   - name: notify
     description: The devices that receive the signed-in user's push notifications.
   - name: referrals
     description: Invite codes and the links that carry them.
-  - name: stream
-    description: Live re-fetch hints over server-sent events.
-  - name: treasury
-    description: The member and cabal transaction ledgers.
-  - name: cabal
-    description: A group treasury and its members.
   - name: social
     description: Who follows whom.
+  - name: stream
+    description: Live re-fetch hints over server-sent events.
   - name: system
     description: The reference flow that exercises every backend layer end to end.
-  - name: market
-    description: The asset catalog, prices and charts.
+  - name: treasury
+    description: The member and cabal transaction ledgers.
 paths: {}
 components:
   parameters:
