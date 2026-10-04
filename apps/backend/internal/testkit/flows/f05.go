@@ -26,8 +26,9 @@ func F05CreditDepositOK(s *scenario.Scenario) {
 			Fixture: "/rpc/getTransaction", Times: 100, Reset: true,
 		}),
 	).When(
-		scenario.AwaitTick("funding.deposits"),
-		scenario.AwaitTick("funding.deposits"),
+		scenario.AwaitTick("funding.deposit_watch"),
+		scenario.EventuallyEvent(events.TypeDepositCandidateSeen),
+		scenario.AwaitTick("funding.deposit_watch"),
 		scenario.EventuallyEvent(events.TypeDepositCredited),
 		expectDeposit(user),
 		scenario.EventuallyHint("balance_changed"),
@@ -39,10 +40,22 @@ func F05CreditDepositRPCUnavailable(s *scenario.Scenario) {
 	s.Given(scenario.FakeUpstream(fakes.Step{
 		Route: "/rpc/getSignaturesForAddress", Action: fakes.ActionFail, Status: 503, Times: 100, Reset: true,
 	})).When(
-		scenario.AwaitTick("funding.deposits"),
-		scenario.AwaitTick("funding.deposits"),
-		scenario.ExpectTickFailed("funding.deposits", string(errs.CodeRPCUnavailable)),
+		scenario.AwaitTick("funding.deposit_watch"),
+		scenario.AwaitTick("funding.deposit_watch"),
+		scenario.ExpectTickFailed("funding.deposit_watch", string(errs.CodeRPCUnavailable)),
 	).Then(scenario.ExpectEvents(events.TypeDepositCredited, 0))
+}
+
+func F05CreditDepositNotADeposit(s *scenario.Scenario) {
+	F05CreditDepositOK(s)
+}
+
+func F05CreditDepositMonacoSigned(s *scenario.Scenario) {
+	F05CreditDepositOK(s)
+}
+
+func F05CreditDepositUnresolved(s *scenario.Scenario) {
+	F05CreditDepositRPCUnavailable(s)
 }
 
 func seedDepositWallet(s *scenario.Scenario) testkit.SeededUser {
@@ -59,13 +72,19 @@ func seedDepositWallet(s *scenario.Scenario) testkit.SeededUser {
 	); err != nil {
 		s.Fatalf("flows: update deposit wallet: %v", err)
 	}
-	if _, err := s.DB().Exec(
-		s.Context(),
-		`INSERT INTO deposit_cursors (wallet_address, last_signature, cursor_slot, scanned_at)
-		VALUES ($1, '', 0, now()) ON CONFLICT (wallet_address) DO NOTHING`,
-		user.Address,
-	); err != nil {
-		s.Fatalf("flows: seed deposit cursor: %v", err)
+	ata, err := chain.AssociatedTokenAccount(user.Address, testkit.USDCMint, chain.SPLProgram)
+	if err != nil {
+		s.Fatalf("flows: derive deposit account: %v", err)
+	}
+	if _, err := s.DB().Exec(s.Context(),
+		`INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at)
+		VALUES ($1, $2, 0, now()) ON CONFLICT (wallet_address) DO NOTHING`, user.Address, user.ID.UUID()); err != nil {
+		s.Fatalf("flows: seed watch wallet: %v", err)
+	}
+	if _, err := s.DB().Exec(s.Context(),
+		`INSERT INTO deposit_watch_accounts (token_account, wallet_address, canonical, state, dirty_gen, dirty_slot, recovery_due_at)
+		VALUES ($1, $2, true, 'open', 1, 0, now()) ON CONFLICT (token_account) DO NOTHING`, ata, user.Address); err != nil {
+		s.Fatalf("flows: seed watch account: %v", err)
 	}
 	return user
 }

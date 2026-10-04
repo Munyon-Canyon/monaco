@@ -15,6 +15,14 @@ type defined struct{}
 func Scripts() map[string]Script {
 	scripts := map[string]Script{}
 	each("Scripts", func(_ string, out any) { maps.Copy(scripts, out.(map[string]Script)) })
+	// These terminal Flow 05 outcomes share setup with the generated happy-path
+	// script, so they are intentionally defined in f05.go rather than generated
+	// from a separate route.
+	maps.Copy(scripts, map[string]Script{
+		"F05CreditDepositNotADeposit": F05CreditDepositNotADeposit,
+		"F05CreditDepositMonacoSigned": F05CreditDepositMonacoSigned,
+		"F05CreditDepositUnresolved":  F05CreditDepositUnresolved,
+	})
 	return scripts
 }
 

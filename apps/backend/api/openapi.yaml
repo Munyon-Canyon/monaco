@@ -1833,7 +1833,9 @@ components:
         - ledger_unbalanced
         - live_swap_exists
         - login_method_not_allowed
+        - monaco_signed
         - no_route
+        - not_a_deposit
         - not_a_voter
         - not_cabal_creator
         - not_cabal_member
@@ -1865,6 +1867,7 @@ components:
         - swap_not_found
         - swap_not_retryable
         - unauthorized
+        - unresolved
         - upstream_timeout
         - upstream_unavailable
         - user_banned

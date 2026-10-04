@@ -60,7 +60,9 @@ const (
 	LedgerUnbalanced           ErrorCode = "ledger_unbalanced"
 	LiveSwapExists             ErrorCode = "live_swap_exists"
 	LoginMethodNotAllowed      ErrorCode = "login_method_not_allowed"
+	MonacoSigned               ErrorCode = "monaco_signed"
 	NoRoute                    ErrorCode = "no_route"
+	NotADeposit                ErrorCode = "not_a_deposit"
 	NotAVoter                  ErrorCode = "not_a_voter"
 	NotCabalCreator            ErrorCode = "not_cabal_creator"
 	NotCabalMember             ErrorCode = "not_cabal_member"
@@ -92,6 +94,7 @@ const (
 	SwapNotFound               ErrorCode = "swap_not_found"
 	SwapNotRetryable           ErrorCode = "swap_not_retryable"
 	Unauthorized               ErrorCode = "unauthorized"
+	Unresolved                 ErrorCode = "unresolved"
 	UpstreamTimeout            ErrorCode = "upstream_timeout"
 	UpstreamUnavailable        ErrorCode = "upstream_unavailable"
 	UserBanned                 ErrorCode = "user_banned"
@@ -207,7 +210,11 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case LoginMethodNotAllowed:
 		return true
+	case MonacoSigned:
+		return true
 	case NoRoute:
+		return true
+	case NotADeposit:
 		return true
 	case NotAVoter:
 		return true
@@ -270,6 +277,8 @@ func (e ErrorCode) Valid() bool {
 	case SwapNotRetryable:
 		return true
 	case Unauthorized:
+		return true
+	case Unresolved:
 		return true
 	case UpstreamTimeout:
 		return true

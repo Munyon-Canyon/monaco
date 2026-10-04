@@ -6,5 +6,8 @@ func (defined) ScriptsF05() map[string]Script {
 	return map[string]Script{
 		"F05CreditDepositOK":             F05CreditDepositOK,
 		"F05CreditDepositRPCUnavailable": F05CreditDepositRPCUnavailable,
+		"F05CreditDepositNotADeposit":    F05CreditDepositNotADeposit,
+		"F05CreditDepositMonacoSigned":   F05CreditDepositMonacoSigned,
+		"F05CreditDepositUnresolved":     F05CreditDepositUnresolved,
 	}
 }

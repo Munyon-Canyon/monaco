@@ -7,13 +7,18 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
+	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
@@ -47,6 +52,46 @@ func TestFlow05_CreditDeposit_OK(t *testing.T) {
 func TestFlow05_CreditDeposit_RPCUnavailable(t *testing.T) {
 	t.Parallel()
 	flows.F05CreditDepositRPCUnavailable(flow05Scenario(t))
+}
+
+func TestFlow05_CreditDeposit_NotADeposit(t *testing.T) {
+	t.Parallel()
+	f := newCandidateFixture(t)
+	candidate := f.candidate()
+	if got := newCandidateDispatch(t, f, candidateRPC{}).deliver(t, candidate); got != bus.OutcomeAck {
+		t.Fatalf("delivery = %q, want ack", got)
+	}
+	if got := f.candidateStatus(t, candidate.Signature); got != "not_deposit" {
+		t.Fatalf("status = %q, want not_deposit", got)
+	}
+}
+
+func TestFlow05_CreditDeposit_MonacoSigned(t *testing.T) {
+	t.Parallel()
+	f := newCandidateFixture(t)
+	candidate := f.candidate()
+	d := newCandidateDispatch(t, f, candidateRPC{transfers: []solana.Transfer{{
+		Mint: chain.Mint{Address: testkit.USDCMint, Decimals: 6}, Net: money.NewBaseUnits(1, 6),
+	}}}, candidateOwner{owned: true})
+	if got := d.deliver(t, candidate); got != bus.OutcomeAck {
+		t.Fatalf("delivery = %q, want ack", got)
+	}
+	if got := f.candidateStatus(t, candidate.Signature); got != "ours" {
+		t.Fatalf("status = %q, want ours", got)
+	}
+}
+
+func TestFlow05_CreditDeposit_Unresolved(t *testing.T) {
+	t.Parallel()
+	f := newCandidateFixture(t)
+	candidate := f.candidate()
+	d := newCandidateDispatch(t, f, candidateRPC{err: errs.New(errs.CodeDecodeFailed, "test.rpc")})
+	if got := d.deliver(t, candidate); got != bus.OutcomeTerm {
+		t.Fatalf("delivery = %q, want term", got)
+	}
+	if got := f.candidateStatus(t, candidate.Signature); got != "pending" {
+		t.Fatalf("status = %q, want pending", got)
+	}
 }
 
 func flow05Scenario(t *testing.T) *scenario.Scenario {

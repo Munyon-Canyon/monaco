@@ -54,7 +54,9 @@ extension Components.Schemas.ErrorCode {
         case .ledgerUnbalanced: true
         case .liveSwapExists: true
         case .loginMethodNotAllowed: true
+        case .monacoSigned: true
         case .noRoute: true
+        case .notADeposit: true
         case .notAVoter: true
         case .notCabalCreator: true
         case .notCabalMember: true
@@ -86,6 +88,7 @@ extension Components.Schemas.ErrorCode {
         case .swapNotFound: true
         case .swapNotRetryable: true
         case .unauthorized: true
+        case .unresolved: true
         case .upstreamTimeout: true
         case .upstreamUnavailable: true
         case .userBanned: true

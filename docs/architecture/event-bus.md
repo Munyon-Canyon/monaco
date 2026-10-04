@@ -167,6 +167,7 @@ Rows added to the flow registry on 2026-09-27 (defaults):
 | `user.nudge_due` | `identity` (daily onboarding job) | `notify` |
 | `referral.attributed` | `referrals` | `social` |
 | `deposit.credited`, `withdrawal.confirmed` | `funding` | adds `treasury`, which writes `user_txns` |
+| `deposit.candidate_seen`, `deposit.candidate_dismissed` | `funding` | `funding.resolve_deposit_candidate` |
 | `deposit.credited` | `funding` | adds `identity`, which sets `users.first_deposit_at` on the first deposit of at least $10, and drops `referrals` (decided 2026-09-27) |
 
 A new `analytics` module exports to PostHog. It consumes flows 7, 10, 11, 14, 20 and 21 in addition to those that already listed analytics (default 2026-09-27).
