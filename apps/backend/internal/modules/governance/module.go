@@ -38,9 +38,10 @@ func (*Module) Name() string { return "governance" }
 
 func (m *Module) Mount(r api.Mount) {
 	thresholds := cabalThresholds{cabals: cabal.New(m.deps).Queries()}
+	hints := adapters.Hints{Publish: m.deps.Bus}
 	governanceapi.Mount(adapters.HTTP{
-		Vote:     app.NewCastVoteHandler(m.deps.UoW, m.deps.Pool, m.deps.Clock, thresholds),
-		Withdraw: app.NewWithdrawProposalHandler(m.deps.UoW, m.deps.Clock),
+		Vote:     app.NewCastVoteHandler(m.deps.UoW, m.deps.Pool, m.deps.Clock, thresholds, hints),
+		Withdraw: app.NewWithdrawProposalHandler(m.deps.UoW, m.deps.Clock, hints),
 		Reads:    app.NewProposalReads(m.deps.Pool, thresholds, trading.New(m.deps).Queries()),
 	}, r)
 }

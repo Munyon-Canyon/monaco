@@ -60,7 +60,7 @@ func (d voteDB) open(t *testing.T, voters int) (sqlc.InsertProposalParams, []uui
 }
 
 func (d voteDB) handler(t threshold) *app.CastVoteHandler {
-	return app.NewCastVoteHandler(d.uow, d.pool, d.clk, t)
+	return app.NewCastVoteHandler(d.uow, d.pool, d.clk, t, app.NoHints{})
 }
 
 func (voteDB) cast(
