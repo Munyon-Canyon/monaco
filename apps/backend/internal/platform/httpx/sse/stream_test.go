@@ -27,25 +27,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
-type routes struct {
-	httpx.Health
-	sse.Stream
-	httpx.GovernanceRoutes
-	httpx.IdentityRoutes
-	httpx.NotifyRoutes
-	httpx.ReferralsRoutes
-	httpx.SocialRoutes
-	httpx.SystemRoutes
-	httpx.CabalRoutes
-	httpx.CabalJoinRoutes
-	httpx.CabalAccessRoutes
-	httpx.CabalPictureRoutes
-	httpx.CabalInviteRoutes
-	httpx.MarketRoutes
-	httpx.TreasuryRoutes
-	httpx.FundingRoutes
-}
-
 type unusedStore struct{ httpx.IdempotencyStore }
 
 type server struct {
@@ -64,7 +45,7 @@ func newServer(t *testing.T, f *fixture, timeouts config.Timeouts) server {
 		Logger: observability.NewLogger(config.Config{}, io.Discard), Tracer: noop.NewTracerProvider(),
 		Clock: clock.Real{}, IDs: ids.Real{}, MaxBodyBytes: 1 << 10,
 		Idempotency: unusedStore{}, Verifier: verifier,
-	}, routes{Stream: sse.NewStream(f.hub, clock.Real{})}, openapi.Spec)
+	}, httpx.Routes{Stream: sse.NewStream(f.hub, clock.Real{})}, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}
