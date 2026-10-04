@@ -35,22 +35,10 @@ func renderSwiftCases(codes []errs.Code) string {
 	b.WriteString("@testable import MonacoAPI\n\n")
 	b.WriteString("extension Components.Schemas.ErrorCode {\n")
 	b.WriteString("    var isListed: Bool {\n        switch self {\n")
-	line := "        case"
-	for i, code := range codes {
-		item := " ." + swiftCaseName(code)
-		if i < len(codes)-1 {
-			item += ","
-		} else {
-			item += ":"
-		}
-		if len(line)+len(item) > swiftLineWidth {
-			b.WriteString(line + "\n")
-			line = "            "
-			item = strings.TrimPrefix(item, " ")
-		}
-		line += item
+	for _, code := range codes {
+		b.WriteString("        case ." + swiftCaseName(code) + ": true\n")
 	}
-	b.WriteString(line + "\n            true\n        }\n    }\n}\n")
+	b.WriteString("        }\n    }\n}\n")
 	return b.String()
 }
 
