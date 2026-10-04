@@ -307,9 +307,12 @@ nonisolated final class MonacoUITests: XCTestCase {
 
         tabButton(app, "Profile").tap()
         attachScreenshot(app, name: "issue-207-profile")
-        let signOut = app.buttons["profile-sign-out"].exists ? app.buttons["profile-sign-out"] : app.buttons["Sign out"]
+        let signOut = app.buttons["profileSignOutButton"]
         XCTAssertTrue(signOut.waitForExistence(timeout: 10))
         signOut.tap()
+        let confirm = app.buttons["profile-sign-out-confirm"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "sign out should ask to confirm")
+        confirm.tap()
         XCTAssertTrue(app.textFields["Phone number"].waitForExistence(timeout: 20), "sign out should return to login")
         attachScreenshot(app, name: "issue-207-signed-out")
     }

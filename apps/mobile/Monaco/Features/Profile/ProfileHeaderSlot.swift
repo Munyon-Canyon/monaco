@@ -9,15 +9,23 @@ enum ProfileHeaderSlot: ProfileSection {
     }
 }
 
+struct ProfileHeaderPresets {
+    var nameDraft: String?
+    var showsEditProfile = false
+    var showsFacePicker = false
+    var saveName: (any DisplayNameSaving)?
+}
+
+extension EnvironmentValues {
+    @Entry var profileHeaderPresets = ProfileHeaderPresets()
+}
+
 struct ProfileHeader: View {
     @EnvironmentObject private var auth: PrivyAuthService
     @Environment(AppSessionStore.self) private var session
     @Environment(ToastCenter.self) private var toasts
-
-    var initialNameDraft: String?
-    var initiallyShowEditProfile = false
-    var initiallyShowFacePicker = false
-    var saveName: (any DisplayNameSaving)?
+    @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
+    @Environment(\.profileHeaderPresets) private var presets
 
     @State private var showEditProfile = false
 
@@ -34,13 +42,24 @@ struct ProfileHeader: View {
     var body: some View {
         VStack(spacing: MonacoTheme.Space.m) {
             OnboardingNudgeBanner()
-            identity
+            if session.profile != nil {
+                identity
+            } else if session.isLoading {
+                skeleton
+            } else {
+                loadFailure
+            }
         }
         .padding(.top, MonacoTheme.Space.m)
+        .task {
+            refresh?.register("profile-header") { [session, auth] in
+                await session.reloadProfile(auth: auth)
+            }
+        }
         .sheet(isPresented: $showEditProfile) {
             NavigationStack {
                 ScrollView {
-                    ProfileNameEditor(auth: auth, initialDraft: initialNameDraft, saveName: saveName) {
+                    ProfileNameEditor(auth: auth, initialDraft: presets.nameDraft, saveName: presets.saveName) {
                         showEditProfile = false
                         toasts.show(success: "Name updated.")
                     }
@@ -57,13 +76,42 @@ struct ProfileHeader: View {
             .presentationDetents([.medium])
         }
         .onAppear {
-            if initiallyShowEditProfile { showEditProfile = true }
+            if presets.showsEditProfile { showEditProfile = true }
         }
+    }
+
+    private var skeleton: some View {
+        VStack(spacing: MonacoTheme.Space.s) {
+            SkeletonBlock(width: 96, height: 96, radius: 48)
+            SkeletonBlock(width: 168, height: 28)
+            SkeletonBlock(width: 112, height: 14)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading your profile")
+        .accessibilityIdentifier("profile-header-loading")
+    }
+
+    private var loadFailure: some View {
+        HStack(spacing: MonacoTheme.Space.s) {
+            Text("Couldn't load your profile.")
+                .font(MonacoTheme.Typo.body)
+                .foregroundStyle(MonacoTheme.secondaryText)
+            Spacer(minLength: 0)
+            Button("Try again") {
+                Task { await session.reloadProfile(auth: auth) }
+            }
+            .buttonStyle(.monacoSecondary)
+            .accessibilityIdentifier("profile-header-retry")
+        }
+        .padding(.horizontal, MonacoTheme.Space.m)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("profile-header-error")
     }
 
     private var identity: some View {
         VStack(spacing: MonacoTheme.Space.s) {
-            ProfilePhotoPicker(auth: auth, size: 96, initiallyOpen: initiallyShowFacePicker) {
+            ProfilePhotoPicker(auth: auth, size: 96, initiallyOpen: presets.showsFacePicker) {
                 toasts.current = $0
             }
 

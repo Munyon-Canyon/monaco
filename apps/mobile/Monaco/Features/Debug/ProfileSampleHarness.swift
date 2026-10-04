@@ -36,32 +36,47 @@ enum ProfileSampleScenario: String, CaseIterable {
 struct ProfileSampleHarness: View {
     let scenario: ProfileSampleScenario
     @ObservedObject var auth: PrivyAuthService
-    @State private var session: AppSessionStore
+    @State private var environment: AppEnvironment
+    @State private var refresh = ScreenRefresh()
 
     init(scenario: ProfileSampleScenario, auth: PrivyAuthService) {
         self.scenario = scenario
         self.auth = auth
-        _session = State(initialValue: Self.makeSession(for: scenario))
+        let environment = AppEnvironment(
+            auth: auth,
+            hints: SilentHints(),
+            sessionStore: AppSessionStore(apiClient: MonacoAPIClient()),
+            isAuthenticated: { true },
+            endAuthSession: {}
+        )
+        Self.fill(environment.sessionStore, for: scenario)
+        _environment = State(initialValue: environment)
     }
 
     var body: some View {
         NavigationStack {
-            ProfileTabView(
-                auth: auth,
-                initialNameDraft: Self.nameDraft(for: scenario),
-                initiallyShowEditProfile: scenario == .validation
-                    || scenario == .saveFailure
-                    || scenario == .saveSuccess,
-                initiallyShowFacePicker: scenario == .facePicker,
-                saveName: saveNameOverride
-            )
+            ProfileScreen()
+                .refreshable { await refresh.run() }
+                .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
         }
         .defaultScrollAnchor(scenario == .cabals || scenario == .empty ? .bottom : .top)
-        .environment(session)
+        .environment(environment)
+        .environment(environment.sessionStore)
+        .environment(refresh)
+        .environment(\.profileHeaderPresets, presets)
+    }
+
+    private var presets: ProfileHeaderPresets {
+        ProfileHeaderPresets(
+            nameDraft: Self.nameDraft(for: scenario),
+            showsEditProfile: scenario == .validation || scenario == .saveFailure || scenario == .saveSuccess,
+            showsFacePicker: scenario == .facePicker,
+            saveName: saveNameOverride
+        )
     }
 
     private var saveNameOverride: (any DisplayNameSaving)? {
-        scenario == .saveSuccess ? AcceptingNameStore(session: session) : nil
+        scenario == .saveSuccess ? AcceptingNameStore(session: environment.sessionStore) : nil
     }
 
     private static func nameDraft(for scenario: ProfileSampleScenario) -> String? {
@@ -76,16 +91,15 @@ struct ProfileSampleHarness: View {
         }
     }
 
-    private static func makeSession(for scenario: ProfileSampleScenario) -> AppSessionStore {
-        let session = AppSessionStore(apiClient: MonacoAPIClient())
+    private static func fill(_ session: AppSessionStore, for scenario: ProfileSampleScenario) {
         session.isLoading = false
         switch scenario {
         case .loading:
             session.isLoading = true
-            return session
+            return
         case .error:
             session.errorMessage = "Could not connect to Monaco."
-            return session
+            return
         default:
             break
         }
@@ -134,7 +148,6 @@ struct ProfileSampleHarness: View {
             leaderboard: HomeLeaderboardSectionDTO(range: "ALL", people: []),
             missedProposals: []
         )
-        return session
     }
 
     static func sampleProfile(userID: String, displayName: String, photoURL: URL?, createdAt: Date? = nil)
@@ -179,6 +192,12 @@ struct ProfileSampleHarness: View {
             return nil
         }
     }
+}
+
+private nonisolated struct SilentHints: HintConnecting {
+    func hints(matching _: HintFilter) -> AsyncStream<Hint> { AsyncStream { $0.finish() } }
+    func start() async {}
+    func stop() async {}
 }
 
 /// A store that accepts the save, standing in for the profile endpoint. Writes the name back

@@ -2,7 +2,7 @@ import XCTest
 
 enum SignInJourney {
     static let id = "auth/sign-in"
-    static let version = 4
+    static let version = 5
 
     private static let launchTimeout: TimeInterval = 30
     private static let codeSentTimeout: TimeInterval = 20
@@ -125,15 +125,22 @@ enum SignInJourney {
             XCTAssertTrue(signOut.waitForExistence(timeout: 15), "S3.1: no Sign out button on Profile")
         }
 
-        recorder.step("S3.2", "tap Sign out and land on the login form") {
+        let confirm = app.buttons["profile-sign-out-confirm"]
+
+        recorder.step("S3.2", "tap Sign out and see the confirm") {
             app.scrollIntoReach(signOut)
             signOut.tap()
+            XCTAssertTrue(confirm.waitForExistence(timeout: 5), "S3.2: Sign out did not ask to confirm")
+        }
+
+        recorder.step("S3.3", "confirm and land on the login form") {
+            confirm.tap()
             XCTAssertTrue(
                 app.tab("Home").waitForNonExistence(timeout: signedInTimeout),
-                "S3.2: the tab bar remained on screen within \(Int(signedInTimeout)) s after sign-out"
+                "S3.3: the tab bar remained on screen within \(Int(signedInTimeout)) s after sign-out"
             )
-            XCTAssertEqual(currentScreen(app), .login, "S3.2: the login form did not come back after sign-out")
-            XCTAssertFalse(app.tab("Home").exists, "S3.2: the tab bar is still on screen after sign-out")
+            XCTAssertEqual(currentScreen(app), .login, "S3.3: the login form did not come back after sign-out")
+            XCTAssertFalse(app.tab("Home").exists, "S3.3: the tab bar is still on screen after sign-out")
         }
     }
 
