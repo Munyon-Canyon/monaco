@@ -1,13 +1,9 @@
 package scripts_test
 
 import (
-	"bytes"
 	"encoding/json"
-	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -57,22 +53,7 @@ func swiftGuardRepo(t *testing.T, withLint bool) string {
 
 func runSwiftGuard(t *testing.T, dir, input string) (int, string, string) {
 	t.Helper()
-	cmd := exec.Command("bash", filepath.Join(dir, "scripts/agent-guard-swift-lint.sh"))
-	cmd.Dir = t.TempDir()
-	cmd.Env = append(os.Environ(), "PATH="+filepath.Join(dir, "bin")+":/usr/bin:/bin")
-	cmd.Stdin = strings.NewReader(input)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	var exit *exec.ExitError
-	if errors.As(err, &exit) {
-		return exit.ExitCode(), stdout.String(), stderr.String()
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	return 0, stdout.String(), stderr.String()
+	return runShellHook(t, dir, "agent-guard-swift-lint.sh", input, "PATH="+filepath.Join(dir, "bin")+":/usr/bin:/bin")
 }
 
 func TestAgentGuardSwiftLint_claudeCodeGetsExit2WithTheOffendingLine(t *testing.T) {
@@ -119,6 +100,18 @@ func TestAgentGuardSwiftLint_reportsASwiftlintCrash(t *testing.T) {
 	}
 }
 
+func TestAgentGuardSwiftLint_checksAnEditInALinkedWorktree(t *testing.T) {
+	dir := swiftGuardRepo(t, true)
+	const rel = "apps/mobile/Monaco/Lane.swift"
+	path := fileInLinkedWorktree(t, dir, rel, "let groups_path = BAD_FORMAT\n")
+	want := rel + ":1: AlwaysUseLowerCamelCase: rename the constant: let groups_path = BAD_FORMAT"
+
+	code, stdout, stderr := runSwiftGuard(t, dir, claudeInput(path))
+	if code != 2 || stdout != "" || stderr != want+"\n" {
+		t.Fatalf("exit=%d stdout=%q stderr=%q, want 2 and %q", code, stdout, stderr, want)
+	}
+}
+
 func TestAgentGuardSwiftLint_allowsCleanNonSwiftAndOutside(t *testing.T) {
 	dir := swiftGuardRepo(t, true)
 	for name, path := range map[string]string{
@@ -127,6 +120,7 @@ func TestAgentGuardSwiftLint_allowsCleanNonSwiftAndOutside(t *testing.T) {
 		"swift outside":    filepath.Join(dir, "scripts/Tool.swift"),
 		"deleted file":     filepath.Join(dir, "apps/mobile/Monaco/Gone.swift"),
 		"outside the repo": "/etc/hosts",
+		"another clone":    fileInAnotherClone(t, dir, "apps/mobile/Monaco/Bad.swift", "let groups_path = BAD_FORMAT\n"),
 	} {
 		t.Run(name, func(t *testing.T) {
 			code, stdout, stderr := runSwiftGuard(t, dir, claudeInput(path))

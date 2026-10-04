@@ -1,13 +1,9 @@
 package scripts_test
 
 import (
-	"bytes"
 	"encoding/json"
-	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -25,6 +21,9 @@ func commentsHookRepo(t *testing.T) string {
 		copyFile(t, filepath.Join(root, rel), filepath.Join(dir, rel))
 	}
 	copyBackendPackages(t, root, dir, "./cmd/monacoctl")
+	git(t, dir, "init", "-q")
+	git(t, dir, "add", ".")
+	git(t, dir, "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "base")
 	files := map[string]string{
 		"apps/backend/internal/modules/foo/bad.go":         "package foo\n\nfunc Two() int {\n\treturn 2 // two\n}\n",
 		"apps/backend/internal/modules/foo/ok.go":          "package foo\n\nfunc Three() int { return 3 }\n",
@@ -50,21 +49,7 @@ func commentsHookRepo(t *testing.T) string {
 
 func runCommentsHook(t *testing.T, dir, input string) (int, string, string) {
 	t.Helper()
-	cmd := exec.Command("bash", filepath.Join(dir, "scripts/agent-guard-go-comments.sh"))
-	cmd.Dir = t.TempDir()
-	cmd.Stdin = strings.NewReader(input)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	var exit *exec.ExitError
-	if errors.As(err, &exit) {
-		return exit.ExitCode(), stdout.String(), stderr.String()
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	return 0, stdout.String(), stderr.String()
+	return runShellHook(t, dir, "agent-guard-go-comments.sh", input)
 }
 
 func claudeInput(path string) string {
@@ -103,9 +88,24 @@ func TestAgentGuardGoComments_cursorGetsTheOffendingLineAsAdditionalContext(t *t
 	}
 }
 
+func TestAgentGuardGoComments_checksAnEditInALinkedWorktree(t *testing.T) {
+	t.Parallel()
+	dir := commentsHookRepo(t)
+	const rel = "apps/backend/internal/modules/foo/lane.go"
+	path := fileInLinkedWorktree(t, dir, rel, "package foo\n\nfunc Four() int {\n\treturn 4 // four\n}\n")
+
+	code, stdout, stderr := runCommentsHook(t, dir, claudeInput(path))
+
+	want := rel + ":4: comment not allowed: return 4 // four\n" + commentsHookMessage + "\n"
+	if code != 2 || stdout != "" || stderr != want {
+		t.Fatalf("exit=%d stdout=%q stderr=%q, want 2, no stdout, %q", code, stdout, stderr, want)
+	}
+}
+
 func TestAgentGuardGoComments_allowsEverythingElse(t *testing.T) {
 	t.Parallel()
 	dir := commentsHookRepo(t)
+	other := fileInAnotherClone(t, dir, "apps/backend/internal/modules/foo/bad.go", "package foo\n\nfunc Two() int {\n\treturn 2 // two\n}\n")
 	for name, path := range map[string]string{
 		"clean backend go file": filepath.Join(dir, "apps/backend/internal/modules/foo/ok.go"),
 		"backend testdata":      filepath.Join(dir, "apps/backend/internal/modules/foo/testdata/fx.go"),
@@ -113,6 +113,7 @@ func TestAgentGuardGoComments_allowsEverythingElse(t *testing.T) {
 		"go outside backend":    filepath.Join(dir, "scripts/tool.go"),
 		"deleted file":          filepath.Join(dir, "apps/backend/gone.go"),
 		"outside the repo":      "/etc/hosts",
+		"another clone":         other,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

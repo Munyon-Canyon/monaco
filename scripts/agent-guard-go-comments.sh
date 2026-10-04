@@ -4,6 +4,7 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd -P)"
+common="$(git -C "$root" rev-parse --path-format=absolute --git-common-dir)"
 
 read -r event path < <(python3 -c '
 import json, sys
@@ -20,8 +21,10 @@ pass() {
 
 if [[ "$path" == /* ]]; then
   [[ -e "$path" ]] || pass
-  path="$(cd "$(dirname "$path")" && pwd -P)/$(basename "$path")"
-  [[ "$path" == "$root"/* ]] || pass
+  dir="$(cd "$(dirname "$path")" && pwd -P)"
+  path="$dir/$(basename "$path")"
+  root="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || pass
+  [[ "$(git -C "$root" rev-parse --path-format=absolute --git-common-dir)" == "$common" ]] || pass
   path="${path#"$root"/}"
 fi
 

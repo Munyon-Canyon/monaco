@@ -24,6 +24,10 @@ This page sets up a clone so that Claude Code runs the same agent workflow the M
 
 A keys file counts only when it has a `DOTENV_PRIVATE_KEY_LOCAL=` line. The script prints the source it used to stderr and never reads or prints the key. A worktree under `.worktrees/` needs nothing extra. Never copy or symlink `.env.keys` into a worktree.
 
+## Edit hooks in worktrees
+
+The `PostToolUse` hooks `scripts/agent-guard-go-comments.sh`, `scripts/agent-guard-gates.sh` and `scripts/agent-guard-swift-lint.sh` check an edit in any worktree of the clone, whichever checkout the session is rooted at, and run that worktree's own checkers on the file.
+
 ## Plugins
 
 `.claude/settings.json` declares these plugins under `enabledPlugins` and their marketplaces under `extraKnownMarketplaces`. `claude-plugins-official` needs no marketplace entry, because Claude Code knows it by default. The M7 flow ran on the versions listed.
