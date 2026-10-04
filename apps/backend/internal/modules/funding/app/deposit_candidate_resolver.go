@@ -31,6 +31,7 @@ type DepositTransferReader interface {
 
 type DepositCandidateResolver struct {
 	reader  DepositTransferReader
+	limit   RPCLimiter
 	usdc    chain.SolanaAddress
 	owners  []SignatureOwner
 	credits *CreditDepositHandler
@@ -44,18 +45,24 @@ type DepositCandidateResolution struct {
 
 func NewDepositCandidateResolver(
 	reader DepositTransferReader,
+	limit RPCLimiter,
 	usdc chain.SolanaAddress,
 	owners []SignatureOwner,
 	credits *CreditDepositHandler,
 	g ids.Generator,
 ) DepositCandidateResolver {
-	return DepositCandidateResolver{reader: reader, usdc: usdc, owners: owners, credits: credits, ids: g}
+	return DepositCandidateResolver{reader: reader, limit: limit, usdc: usdc, owners: owners, credits: credits, ids: g}
 }
 
 func (r DepositCandidateResolver) Fetch(
 	ctx context.Context,
 	e events.DepositCandidateSeen,
 ) (DepositCandidateResolution, error) {
+	if err := r.limit.Wait(ctx); err != nil {
+		err = errs.Wrap(err, errs.CodeRPCUnavailable, "funding.DepositCandidateResolver.Fetch")
+		r.unresolved(ctx, e.WalletAddress, err)
+		return DepositCandidateResolution{}, err
+	}
 	transfers, err := r.reader.InboundTransfersForMint(ctx, e.TxSignature, e.WalletAddress, r.usdc)
 	if err != nil {
 		if errs.CodeOf(err) == errs.CodeNotFound {

@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"math"
 	"time"
@@ -20,6 +19,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
@@ -346,31 +346,29 @@ func (p *DepositPoller) waitRPC(ctx context.Context) error {
 func (p *DepositPoller) scanSignature(
 	ctx context.Context, wallet port.MemberWallet, sig solana.SignatureInfo,
 ) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, errs.Wrap(err, errs.CodeInternal, "funding.DepositPoller.scanSignature")
+	}
 	if sig.Failed {
 		return 0, nil
 	}
-	if err := p.waitRPC(ctx); err != nil {
-		return 0, fmt.Errorf("funding.DepositPoller.scanSignature: %w", err)
+	if sig.Slot > math.MaxInt64 {
+		return 0, errs.New(errs.CodeInternal, "funding.DepositPoller.scanSignature")
 	}
-	transfers, err := p.rpc.InboundTransfersForMint(ctx, sig.Signature, wallet.Address, p.usdc)
+	slot := int64(sig.Slot & math.MaxInt64)
+	var inserted int
+	err := p.uow.Do(observability.WithActor(ctx, "system:funding.deposits"), func(ctx context.Context, tx db.Tx) error {
+		var err error
+		inserted, err = NewCandidateRecorder(p.ids, p.clock.Now).Record(ctx, tx, []DepositCandidate{{
+			Signature: sig.Signature, Wallet: wallet.Address, UserID: wallet.UserID,
+			Slot: slot, BlockTime: sig.BlockTime, Source: "poller",
+		}})
+		return err
+	})
 	if err != nil {
-		return 0, err
+		return 0, errs.Wrap(err, errs.CodeOf(err), "funding.DepositPoller.scanSignature")
 	}
-	amount, err := p.amountFor(transfers)
-	if err != nil {
-		return 0, err
-	}
-	if amount.IsZero() {
-		return 0, nil
-	}
-	credited, err := p.credit(ctx, wallet, sig, amount)
-	if err != nil {
-		return 0, err
-	}
-	if credited {
-		return 1, nil
-	}
-	return 0, nil
+	return inserted, nil
 }
 
 func (p *DepositPoller) amountFor(transfers []solana.Transfer) (money.Micros, error) {
