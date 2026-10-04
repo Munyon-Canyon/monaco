@@ -141,7 +141,7 @@ final class APITelemetryTests: XCTestCase {
             let (client, events) = makeClient()
 
             do {
-                _ = try await client.getProposalDetail(proposalId: "42")
+                _ = try await client.getGroupView(groupId: "42")
                 XCTFail("Expected \(code) to throw")
             } catch {
                 XCTAssertEqual((error as? URLError)?.code, code)
@@ -149,7 +149,7 @@ final class APITelemetryTests: XCTestCase {
 
             let event = try XCTUnwrap(events.values.first)
             XCTAssertEqual(events.values.count, 1)
-            XCTAssertEqual(event.route, "/v1/proposals/{id}")
+            XCTAssertEqual(event.route, "/v1/groups/{id}/view")
             XCTAssertEqual(event.outcome, .transportError(category))
             XCTAssertGreaterThan(event.durationMs, 0)
             XCTAssertNil(event.statusCode)

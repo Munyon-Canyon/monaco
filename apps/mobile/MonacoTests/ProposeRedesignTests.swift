@@ -54,13 +54,8 @@ struct ProposeScreenCopyTests {
     /// The receipt heads the reason the way the proposal's screen will, so the member sees what
     /// the cabal will see.
     @Test func theReceiptHeadsTheReasonAsTheProposalDoes() {
-        #expect(
-            ProposeScreenCopy.reasonTitle(isSell: false)
-                == ProposalFeedCopy.reasonTitle(for: ProposalDTO(id: "b", symbol: "AAPLx", status: "open")))
-        #expect(
-            ProposeScreenCopy.reasonTitle(isSell: true)
-                == ProposalFeedCopy.reasonTitle(
-                    for: ProposalDTO(id: "s", symbol: "AAPLx", status: "open", kind: "sell")))
+        #expect(ProposeScreenCopy.reasonTitle(isSell: false) == ProposalCardCopy.reasonTitle(.buy))
+        #expect(ProposeScreenCopy.reasonTitle(isSell: true) == ProposalCardCopy.reasonTitle(.sell))
     }
 
     @Test func thePickerAsksWhichCabalForTheStock() {

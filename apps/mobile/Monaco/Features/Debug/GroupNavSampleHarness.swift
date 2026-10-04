@@ -394,7 +394,6 @@ private enum GroupNavSampleData {
             pot: base.pot,
             you: base.you,
             members: base.members,
-            proposals: base.proposals,
             agent: base.agent,
             isCreator: isNew
         )

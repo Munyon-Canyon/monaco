@@ -406,45 +406,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
         return try JSONDecoder().decode(CreateProposalResponseDTO.self, from: response.data)
     }
 
-    public func castVote(proposalId: String, choice: String) async throws {
-        let url = baseURL.appending(path: "v1/proposals/\(proposalId)/votes")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        try await applyAuthorizationHeader(to: &request)
-        request.httpBody = try JSONEncoder().encode(VoteRequestDTO(choice: choice))
-
-        _ = try await send(request, route: "/v1/proposals/{id}/votes", accepting: [200, 204])
-    }
-
-    public func listGroupProposals(groupId: String, tab: ProposalFeedTab) async throws -> ProposalListResponseDTO {
-        var components = URLComponents(
-            url: baseURL.appending(path: "v1/groups/\(groupId)/proposals"),
-            resolvingAgainstBaseURL: false
-        )!
-        components.queryItems = [URLQueryItem(name: "tab", value: tab.rawValue)]
-        guard let url = components.url else {
-            throw MonacoAPIError.invalidResponse
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        try await applyAuthorizationHeader(to: &request)
-
-        let response = try await send(request, route: "/v1/groups/{id}/proposals")
-        return try JSONDecoder().decode(ProposalListResponseDTO.self, from: response.data)
-    }
-
-    public func getProposalDetail(proposalId: String) async throws -> ProposalDTO {
-        let url = baseURL.appending(path: "v1/proposals/\(proposalId)")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        try await applyAuthorizationHeader(to: &request)
-
-        let response = try await send(request, route: "/v1/proposals/{id}")
-        return try JSONDecoder().decode(ProposalDTO.self, from: response.data)
-    }
-
     public func listProposalComments(proposalId: String) async throws -> ProposalCommentsResponseDTO {
         let url = baseURL.appending(path: "v1/proposals/\(proposalId)/comments")
         var request = URLRequest(url: url)
@@ -624,10 +585,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
             if let tokenAmount { try container.encode(tokenAmount, forKey: .tokenAmount) }
             if let thesis { try container.encode(thesis, forKey: .thesis) }
         }
-    }
-
-    private struct VoteRequestDTO: Encodable {
-        let choice: String
     }
 
     private struct CommentRequestDTO: Encodable {

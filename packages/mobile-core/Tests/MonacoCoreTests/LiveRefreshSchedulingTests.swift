@@ -12,21 +12,6 @@ final class LiveRefreshSchedulingTests: XCTestCase {
 
     // MARK: Cadence
 
-    func testCadence_fiveSecondsWhileAProposalIsOpenOrExecuting_fifteenOtherwise() {
-        let open = ProposalDTO(id: "p1", symbol: "AAPLx", status: "open")
-        let executing = ProposalDTO(
-            id: "p2", symbol: "AAPLx", status: "passed", kind: "buy", execution: ProposalExecutionDTO(state: "pending"))
-        let done = ProposalDTO(
-            id: "p3", symbol: "AAPLx", status: "passed", kind: "buy",
-            execution: ProposalExecutionDTO(state: "confirmed"))
-        let rejected = ProposalDTO(id: "p4", symbol: "AAPLx", status: "failed")
-
-        XCTAssertEqual(LiveRefreshCadence.watching([done, open]), .seconds(5))
-        XCTAssertEqual(LiveRefreshCadence.watching([executing]), .seconds(5))
-        XCTAssertEqual(LiveRefreshCadence.watching([done, rejected]), .seconds(15))
-        XCTAssertEqual(LiveRefreshCadence.watching([]), .seconds(15))
-    }
-
     // MARK: PollSchedule
 
     func testSchedule_healthy_staysOnTheBaseInterval() {
