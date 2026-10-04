@@ -1,0 +1,19 @@
+journey: cabals/leave
+expect-fail: S2
+
+The creator with other members is offered Leave cabal. S2.2 waits for the creator note, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalLeaveSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalLeaveSlot.swift
+index 512450b4..f7e309c1 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalLeaveSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalLeaveSlot.swift
+@@ -41,7 +41,7 @@ struct CabalLeaveSection: View {
+         switch model?.standing {
+         case .loaded(let standing?):
+             VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+-                if standing.canLeave {
++                if standing.canLeave || true {
+                     leaveButton(standing)
+                 } else {
+                     Text("You can leave once everyone else has left.")

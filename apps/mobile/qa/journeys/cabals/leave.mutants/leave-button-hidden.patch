@@ -1,0 +1,19 @@
+journey: cabals/leave
+expect-fail: S1 S3
+
+The details sheet has no leave slot. S1.2 and S3.2 wait for cabalLeaveButton, so both must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalLeaveSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalLeaveSlot.swift
+index 512450b4..5bb45f88 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalLeaveSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalLeaveSlot.swift
+@@ -3,7 +3,7 @@ import MonacoCore
+ import SwiftUI
+ 
+ enum CabalLeaveSlot: CabalSection {
+-    static let isLive = true
++    static let isLive = false
+ 
+     static func body(for context: CabalContext) -> some View {
+         CabalLeaveSection(cabalID: context.cabalID)

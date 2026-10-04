@@ -1,0 +1,19 @@
+journey: cabals/browse
+expect-fail: S2
+
+The Cabals tab has no return chart section. S2.1 waits for cabals-value-chart, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalsValueChartSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalsValueChartSlot.swift
+index 797f5d9a..ab039e50 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalsValueChartSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalsValueChartSlot.swift
+@@ -3,7 +3,7 @@ import MonacoCore
+ import SwiftUI
+ 
+ enum CabalsValueChartSlot: CabalsTabSection {
+-    static let isLive = true
++    static let isLive = false
+ 
+     static func body(for context: Void) -> some View {
+         CabalsValueChart()
