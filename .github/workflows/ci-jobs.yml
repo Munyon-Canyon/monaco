@@ -253,6 +253,8 @@ jobs:
 
       - run: scripts/install-sqlc.sh
 
+      - run: scripts/install-atlas.sh
+
       - run: scripts/ci/ready.sh
 
   vuln:
@@ -459,7 +461,6 @@ jobs:
               - 'scripts/install-atlas.sh'
               - 'scripts/install-sqlc.sh'
               - 'scripts/install-govulncheck.sh'
-              - 'scripts/gen-docs.sh'
               - 'scripts/test-backend.sh'
               - 'scripts/test-shard.awk'
               - 'scripts/ci/e2e.sh'
@@ -683,6 +684,9 @@ jobs:
 
       - if: inputs.stage == 'queue'
         run: scripts/install-sqlc.sh
+
+      - if: inputs.stage == 'queue'
+        run: scripts/install-atlas.sh
 
       - if: inputs.stage == 'queue'
         run: scripts/ci/ready.sh

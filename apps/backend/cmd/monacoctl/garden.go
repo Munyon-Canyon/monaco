@@ -41,7 +41,6 @@ func (env gardenEnv) run(args []string, stdout, stderr io.Writer) int {
 	cfg := garden.Config{
 		ModuleDir:    env.wd,
 		GolangciLint: "golangci-lint",
-		Sqlc:         localBin(env.wd, "sqlc"),
 		TempDir:      os.TempDir(),
 		Exec:         env.exec,
 	}

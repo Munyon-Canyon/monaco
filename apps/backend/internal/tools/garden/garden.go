@@ -54,7 +54,6 @@ type Exec func(ctx context.Context, dir, name string, args ...string) (Result, e
 type Config struct {
 	ModuleDir    string
 	GolangciLint string
-	Sqlc         string
 	TempDir      string
 	Exec         Exec
 	Mutants      func(ctx context.Context) ([]Finding, error)
@@ -262,11 +261,7 @@ func (s session) mutants(ctx context.Context) ([]Finding, error) {
 }
 
 func (s session) generators() [][]string {
-	return [][]string{
-		{"go", "generate", "./..."},
-		{s.Sqlc, "generate"},
-		{"bash", filepath.Join(s.top, "scripts", "gen-docs.sh")},
-	}
+	return [][]string{{"go", "generate", "./..."}}
 }
 
 func (s session) drift(ctx context.Context) ([]Finding, error) {

@@ -261,6 +261,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		".: python3 scripts/qa/journey.py check",
 		".: python3 scripts/qa/test_journey.py",
 		".: python3 scripts/qa/test_skill_eval.py",
+		".: install-atlas.sh",
 		".: install-sqlc.sh",
 		".: ready.sh",
 	}
@@ -535,6 +536,7 @@ func TestCheck_pathRowsRunTheCIStepsForTheirPathsAgainstTheStackParent(t *testin
 		t.Fatalf("size against the stack parent: want %q in\n%s", size, strings.Join(h.calls, "\n"))
 	}
 	want := []string{
+		".: install-atlas.sh",
 		".: install-sqlc.sh",
 		".: ready.sh",
 		"apps/backend: install-atlas.sh",

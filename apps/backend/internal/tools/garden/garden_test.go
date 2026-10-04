@@ -58,7 +58,6 @@ func run(t *testing.T, tools *fakeTools, mutants func(context.Context) ([]garden
 	report, err := garden.Run(t.Context(), garden.Config{
 		ModuleDir:    moduleDir(t),
 		GolangciLint: "golangci-lint",
-		Sqlc:         "/repo/.bin/sqlc",
 		TempDir:      t.TempDir(),
 		Exec:         tools.exec,
 		Mutants:      mutants,
@@ -113,7 +112,7 @@ func TestRun_groupsLintByLinterAndDriftByFileWithTheFirstChangedLine(t *testing.
 			t.Fatalf("report lacks %q:\n%s", want, md)
 		}
 	}
-	generators := []string{"go generate ./...", "sqlc generate", "bash /repo/scripts/gen-docs.sh"}
+	generators := []string{"go generate ./..."}
 	for _, g := range generators {
 		if !slices.Contains(tools.calls, g) {
 			t.Fatalf("generator %q not run; calls:\n%s", g, strings.Join(tools.calls, "\n"))

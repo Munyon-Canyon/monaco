@@ -30,9 +30,9 @@ func TestEveryStepFailsOutsideTheBackendDir(t *testing.T) {
 	t.Parallel()
 	oapiCodegenState.Lock()
 	defer oapiCodegenState.Unlock()
-	for _, s := range steps() {
+	for _, s := range steps(t.Context()) {
 		var out strings.Builder
-		if code := run(steps(), []string{s.name}, &out, &out); code != 1 ||
+		if code := run(steps(t.Context()), []string{s.name}, &out, &out); code != 1 ||
 			!strings.HasPrefix(out.String(), "gen "+s.name+": ") {
 			t.Errorf("gen %s from cmd/gen = %d %q, want 1 and the step's error", s.name, code, out.String())
 		}
@@ -85,5 +85,35 @@ func TestRunStopsAtTheFirstFailingStepAndNamesIt(t *testing.T) {
 	code := run(fakeSteps(&ran, "b"), []string{"all"}, &out, &out)
 	if code != 1 || !slices.Equal(ran, []string{"a", "b"}) || out.String() != "gen a ok\ngen b: boom\n" {
 		t.Fatalf("run all = %d, ran %v, output %q", code, ran, out.String())
+	}
+}
+
+func TestAllRunsEveryStepInOrder(t *testing.T) {
+	t.Parallel()
+	var ran []string
+	all := steps(t.Context())
+	names := make([]string, len(all))
+	for i := range all {
+		names[i] = all[i].name
+		all[i].run = func() error { ran = append(ran, names[i]); return nil }
+	}
+	want := []string{"golangci", "registry", "sqlc", "errors", "openapi", "httpapi", "flows", "docs", "hash"}
+	if !slices.Equal(names, want) {
+		t.Fatalf("steps = %v, want %v", names, want)
+	}
+	var out strings.Builder
+	if code := run(all, []string{"all"}, &out, &out); code != 0 || !slices.Equal(ran, want) {
+		t.Fatalf("run all = %d, ran %v, output %q", code, ran, out.String())
+	}
+}
+
+func TestQuietReturnsTheCommandOutputOnlyOnFailure(t *testing.T) {
+	t.Parallel()
+	if err := quiet(exec.CommandContext(t.Context(), "go", "version")); err != nil {
+		t.Fatalf("go version: %v", err)
+	}
+	err := quiet(exec.CommandContext(t.Context(), "go", "nope"))
+	if err == nil || !strings.Contains(err.Error(), "go nope") || !strings.Contains(err.Error(), "unknown command") {
+		t.Fatalf("go nope: %v", err)
 	}
 }
