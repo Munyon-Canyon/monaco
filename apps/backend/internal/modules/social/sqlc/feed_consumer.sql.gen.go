@@ -13,19 +13,55 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const deleteFeedMembership = `-- name: DeleteFeedMembership :exec
-DELETE FROM feed_memberships
-WHERE cabal_id = $1 AND user_id = $2
+const deleteFeedMembership = `-- name: DeleteFeedMembership :execrows
+INSERT INTO feed_memberships (cabal_id, user_id, joined_at, event_id, active)
+VALUES ($1, $2, $3, $4, false)
+ON CONFLICT (cabal_id, user_id) DO UPDATE SET
+  event_id = excluded.event_id,
+  active = false
+WHERE feed_memberships.event_id < excluded.event_id
 `
 
 type DeleteFeedMembershipParams struct {
 	CabalID uuid.UUID
 	UserID  uuid.UUID
+	At      time.Time
+	EventID uuid.UUID
 }
 
-func (q *Queries) DeleteFeedMembership(ctx context.Context, arg DeleteFeedMembershipParams) error {
-	_, err := q.db.Exec(ctx, deleteFeedMembership, arg.CabalID, arg.UserID)
-	return err
+func (q *Queries) DeleteFeedMembership(ctx context.Context, arg DeleteFeedMembershipParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteFeedMembership,
+		arg.CabalID,
+		arg.UserID,
+		arg.At,
+		arg.EventID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const feedCabalExists = `-- name: FeedCabalExists :one
+SELECT EXISTS(SELECT 1 FROM feed_cabals WHERE cabal_id = $1)
+`
+
+func (q *Queries) FeedCabalExists(ctx context.Context, cabalID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, feedCabalExists, cabalID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const feedCabalName = `-- name: FeedCabalName :one
+SELECT name FROM feed_cabals WHERE cabal_id = $1
+`
+
+func (q *Queries) FeedCabalName(ctx context.Context, cabalID uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, feedCabalName, cabalID)
+	var name string
+	err := row.Scan(&name)
+	return name, err
 }
 
 const insertFeedConsumerItem = `-- name: InsertFeedConsumerItem :exec
@@ -85,19 +121,32 @@ func (q *Queries) UpsertFeedCabal(ctx context.Context, arg UpsertFeedCabalParams
 	return err
 }
 
-const upsertFeedMembership = `-- name: UpsertFeedMembership :exec
-INSERT INTO feed_memberships (cabal_id, user_id, joined_at)
-VALUES ($1, $2, $3)
-ON CONFLICT (cabal_id, user_id) DO UPDATE SET joined_at = excluded.joined_at
+const upsertFeedMembership = `-- name: UpsertFeedMembership :execrows
+INSERT INTO feed_memberships (cabal_id, user_id, joined_at, event_id, active)
+VALUES ($1, $2, $3, $4, true)
+ON CONFLICT (cabal_id, user_id) DO UPDATE SET
+  joined_at = excluded.joined_at,
+  event_id = excluded.event_id,
+  active = true
+WHERE feed_memberships.event_id < excluded.event_id
 `
 
 type UpsertFeedMembershipParams struct {
 	CabalID  uuid.UUID
 	UserID   uuid.UUID
 	JoinedAt time.Time
+	EventID  uuid.UUID
 }
 
-func (q *Queries) UpsertFeedMembership(ctx context.Context, arg UpsertFeedMembershipParams) error {
-	_, err := q.db.Exec(ctx, upsertFeedMembership, arg.CabalID, arg.UserID, arg.JoinedAt)
-	return err
+func (q *Queries) UpsertFeedMembership(ctx context.Context, arg UpsertFeedMembershipParams) (int64, error) {
+	result, err := q.db.Exec(ctx, upsertFeedMembership,
+		arg.CabalID,
+		arg.UserID,
+		arg.JoinedAt,
+		arg.EventID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

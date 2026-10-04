@@ -54,6 +54,8 @@ func (m *Module) Consumers() []bus.Consumer {
 			Durable: "social_feed",
 			Handlers: []bus.HandlerSpec{
 				bus.HandleFetched("social.feed", feed.FetchCreated, feed.ApplyCreated),
+				bus.HandleFetched("social.feed.joined", feed.FetchJoined, feed.ApplyJoined),
+				bus.Handle("social.feed.left", feed.Left),
 			},
 		},
 	}
