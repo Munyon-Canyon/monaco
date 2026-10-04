@@ -97,6 +97,7 @@ struct CabalScreen: View {
                             .accessibilityIdentifier("cabal-details-done")
                         }
                     }
+                    .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
             }
             .presentationDetents([.medium, .large])
             .monacoToastCenter(toasts)

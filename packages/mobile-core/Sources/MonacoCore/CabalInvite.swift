@@ -20,13 +20,13 @@ public enum CabalInvite {
     private static let day: TimeInterval = 24 * 60 * 60
 }
 
-public struct CabalInviteStanding: Equatable, Sendable {
-    public enum JoinMode: Equatable, Sendable {
+public struct CabalInviteStanding: Hashable, Sendable {
+    public enum JoinMode: Hashable, Sendable {
         case open
         case request
     }
 
-    public enum Role: Equatable, Sendable {
+    public enum Role: Hashable, Sendable {
         case creator
         case member
     }
