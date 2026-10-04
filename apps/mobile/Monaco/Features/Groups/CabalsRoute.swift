@@ -18,34 +18,12 @@ enum CabalsRoute: Hashable, Identifiable {
     /// A cabal the viewer is already in. The name is what the row that pushed
     /// it knew; the invite-code route has none until the cabal loads.
     case cabal(id: String, name: String?)
-    /// A cabal picked from the board or search that the viewer is not in yet. The member
-    /// count and picture are what the row knew, so the join screen can lead with them.
-    case join(id: String, name: String, mode: GroupJoinMode, memberCount: Int?, pictureUrl: String?)
     /// Join by pasting an invite code a friend shared.
     case joinByCode
     /// The "New cabal" form.
     case create
 
     var id: Self { self }
-
-    /// The route a discovery row leads to, from what that row knows.
-    init(
-        row groupId: String,
-        name: String,
-        isJoined: Bool,
-        joinMode: GroupJoinMode,
-        memberCount: Int? = nil,
-        pictureUrl: String? = nil
-    ) {
-        switch GroupDiscoveryDestination(isJoined: isJoined, joinMode: joinMode) {
-        case .detail:
-            self = .cabal(id: groupId, name: name)
-        case .join:
-            self = .join(id: groupId, name: name, mode: .open, memberCount: memberCount, pictureUrl: pictureUrl)
-        case .requestToJoin:
-            self = .join(id: groupId, name: name, mode: .request, memberCount: memberCount, pictureUrl: pictureUrl)
-        }
-    }
 }
 
 /// Builds the screen behind a route. The Cabals tab declares this once, so no
@@ -53,26 +31,17 @@ enum CabalsRoute: Hashable, Identifiable {
 struct CabalsRouteDestination: View {
     @ObservedObject var auth: PrivyAuthService
     let route: CabalsRoute
-    /// The create and join writes, so the tab's sample harness can drive both
-    /// flows end to end without a backend.
+    /// The create write, so the tab's sample harness can drive it without a backend.
     let actions: CabalsActionSource
     /// A cabal was created; the owner replaces this screen with it.
     var onCreated: (Components.Schemas.Cabal) -> Void
-    /// The viewer is now a member; the owner replaces this screen with the cabal.
-    var onJoined: (_ groupId: String, _ groupName: String?) -> Void
 
     var body: some View {
         switch route {
         case .cabal(let id, let name):
             GroupDetailView(auth: auth, groupId: id, groupName: name)
-        case .join(let id, let name, let mode, let memberCount, let pictureUrl):
-            JoinGroupView(
-                auth: auth, groupId: id, groupName: name, joinMode: mode,
-                memberCount: memberCount, pictureUrl: pictureUrl,
-                actions: actions, onJoined: onJoined
-            )
         case .joinByCode:
-            JoinGroupView(auth: auth, actions: actions, onJoined: onJoined)
+            JoinCabalView()
         case .create:
             CreateGroupView(auth: auth, actions: actions, onCreated: onCreated)
         }

@@ -58,6 +58,8 @@ chat-offline                  -MonacoChatSampleQA -MonacoChatSampleOffline
 cabals-tab-unavailable        -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario cabalsUnavailable
 cabals-tab-loading            -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario cabalsLoading
 cabal-invites                 -MonacoCabalInvitesSample
+join-cabal-open               -MonacoJoinCabalSample open
+join-cabal-request            -MonacoJoinCabalSample request
 
 propose-from-stock            -MonacoProposalFeedSample -MonacoProposeSampleStock
 
@@ -134,8 +136,6 @@ stocks-tab-full-bottom        -MonacoStocksTabSample full -MonacoStocksTabScroll
 group-nav-start               -MonacoGroupNavSample start
 group-nav-new-cabal           -MonacoGroupNavSample newCabal
 group-nav-join-code           -MonacoGroupNavSample joinCode
-group-nav-join                -MonacoGroupNavSample join
-group-nav-ask-to-join         -MonacoGroupNavSample askToJoin
 group-nav-bots                -MonacoGroupNavSample bots
 group-nav-bot                 -MonacoGroupNavSample bot
 group-nav-bot-removed         -MonacoGroupNavSample botRemoved

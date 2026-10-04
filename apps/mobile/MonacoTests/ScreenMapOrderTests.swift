@@ -40,7 +40,6 @@ struct ScreenMapOrderTests {
 
     @Test func routeStubsRenderTheirPlaceholder() {
         let stubs: [(Any, String)] = [
-            (JoinRoute().destination(), "Join a cabal"),
             (FundRoute(cabalID: "c").destination(), "Fund this cabal"),
             (ChatRoute(cabalID: "c").destination(), "Chat"),
             (AgentRoute(cabalID: "c").destination(), "Trading bot"),
