@@ -294,9 +294,10 @@ func TestLoad_appliesTheLocalCapacityFromEveryWorktree(t *testing.T) {
 			t.Fatalf("%s without a local file: %+v %v", dir, env, err)
 		}
 	}
-	writeFile(t, filepath.Join(f.dir, ".git", localConfigPath), "lanes = 6\n[check]\nslots = 4\n")
+	writeFile(t, filepath.Join(f.dir, ".git", localConfigPath),
+		"lanes = 6\ntracking = 512\nmilestone = \"m12\"\n[check]\nslots = 4\n")
 	want := tracked
-	want.Lanes, want.Slots = 6, 4
+	want.Lanes, want.Slots, want.Tracking, want.Milestone = 6, 4, 512, "m12"
 	for _, dir := range []string{f.dir, wt} {
 		env, err := load(t.Context(), f.env, dir, hostless)
 		if err != nil || !reflect.DeepEqual(env.Config, want) ||
@@ -320,7 +321,7 @@ func TestLoad_appliesTheLocalCapacityFromEveryWorktree(t *testing.T) {
 	}
 }
 
-func TestApplyLocalConfig_acceptsOnlyCapacityWithinTheTrackedBounds(t *testing.T) {
+func TestApplyLocalConfig_acceptsCapacityTrackingAndMilestoneWithinBounds(t *testing.T) {
 	t.Parallel()
 	tracked, err := parseConfig(strings.NewReader(testConfig))
 	if err != nil {
@@ -330,12 +331,20 @@ func TestApplyLocalConfig_acceptsOnlyCapacityWithinTheTrackedBounds(t *testing.T
 	if err != nil || got.MaxLoad != 20 || got.Lanes != tracked.Lanes || got.Slots != tracked.Slots {
 		t.Fatalf("max_load: %+v %v", got, err)
 	}
+	applied := tracked
+	applied.Tracking, applied.Milestone = 512, "m12"
+	got, err = applyLocalConfig(tracked, strings.NewReader("tracking = 512\nmilestone = \"m12\"\n"))
+	if err != nil || !reflect.DeepEqual(got, applied) {
+		t.Fatalf("tracking and milestone: %+v %v, want %+v", got, err, applied)
+	}
 	for body, want := range map[string]string{
 		"repo = \"x/y\"\n":               `.monaco/agents.local.toml:1: unknown key "repo"`,
 		"lanes = 6\n[batch]\nsize = 3\n": `.monaco/agents.local.toml:3: unknown key "batch.size"`,
 		"[check.budget]\ngo = \"90s\"\n": `.monaco/agents.local.toml:2: unknown key "check.budget.go"`,
 		"[check]\nslots = 0\n":           ".monaco/agents.local.toml: check.slots: want at least 1, got 0",
 		"lanes = 0\n":                    ".monaco/agents.local.toml: lanes: want at least 1, got 0",
+		"tracking = 0\n":                 ".monaco/agents.local.toml: tracking: want at least 1, got 0",
+		"milestone = \"\"\n":             `.monaco/agents.local.toml: milestone: want a name, got ""`,
 		"[dispatch]\nmax_load = 0\n":     ".monaco/agents.local.toml: dispatch.max_load: want above 0, got 0",
 		"lanes = [\n":                    ".monaco/agents.local.toml:1: want a list",
 	} {

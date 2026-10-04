@@ -326,9 +326,10 @@ func TestDispatch_dryRunNamesTheLocalConfigOnlyWhenItExists(t *testing.T) {
 		t.Fatalf("without a local file: code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
 	local := filepath.Join(f.dir, ".git", localConfigPath)
-	writeFile(t, local, "lanes = 6\n[check]\nslots = 4\n")
+	writeFile(t, local, "lanes = 6\ntracking = 512\n[check]\nslots = 4\n")
 	code, stdout, stderr = f.agents(t, "dispatch", "12", "--model", "opus", "--dry-run")
-	want := filepath.Join(".git", localConfigPath) + " (lanes=6, check.slots=4, dispatch.max_load=12)\n"
+	want := filepath.Join(".git", localConfigPath) +
+		" (lanes=6, check.slots=4, dispatch.max_load=12, tracking=512, milestone=ms)\n"
 	if code != 0 || strings.Count(stdout, "local config: ") != 1 || !strings.Contains(stdout, want) {
 		t.Fatalf("with a local file: code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
