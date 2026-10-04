@@ -225,23 +225,21 @@ struct OTPLoginForm: View {
     }
 
     private var codeField: some View {
-        TextField(
-            "6-digit code",
-            text: $otpCode,
-            prompt: Text("6-digit code")
-                .font(MonacoTheme.Typo.body)
-                .foregroundStyle(MonacoTheme.disabledLabel)
-        )
-        .font(MonacoTheme.Typo.data)
-        // Only once there are digits: tracked out, the placeholder would read as a code too.
-        .tracking(otpCode.isEmpty ? 0 : OTPCode.tracking)
-        .keyboardType(.numberPad)
-        .textContentType(.oneTimeCode)
+        OTPCodeField(
+            code: $otpCode,
+            isFocused: focusedField == .code,
+            isInvalid: codeWasRejected,
+            identifier: "\(destination.identifierPrefix)CodeField"
+        ) { code in
+            // Autofill drops all six digits in at once: don't make them tap Continue too.
+            guard !auth.flow.isBusy else { return }
+            Task { await submitCode(code) }
+        }
         .focused($focusedField, equals: .code)
-        .authTextFieldStyle(isFocused: focusedField == .code, isInvalid: codeWasRejected)
-        .accessibilityIdentifier("\(destination.identifierPrefix)CodeField")
         .onChange(of: otpCode) { _, newValue in
-            codeChanged(to: newValue)
+            if !newValue.isEmpty {
+                resent = false
+            }
         }
     }
 
@@ -347,19 +345,6 @@ struct OTPLoginForm: View {
         }
     }
 
-    private func codeChanged(to newValue: String) {
-        let sanitized = String(newValue.filter(\.isASCIIDigit).prefix(OTPCode.length))
-        if sanitized != newValue {
-            otpCode = sanitized
-        }
-        if !sanitized.isEmpty {
-            resent = false
-        }
-        // Autofill drops all six digits in at once: don't make them tap Continue too.
-        guard sanitized.count == OTPCode.length, !auth.flow.isBusy else { return }
-        Task { await submitCode(sanitized) }
-    }
-
     private func submitCode(_ code: String) async {
         guard code.count == OTPCode.length, !auth.flow.isBusy, let sentTo = sentDestination else { return }
         await verify(code, sentTo: sentTo)
@@ -409,12 +394,5 @@ struct OTPLoginForm: View {
     /// Changes whenever the block under the field changes height, so it is revealed again.
     private var revealKey: String {
         "\(isCodeStep)|\(caption?.text ?? "")"
-    }
-}
-
-extension Character {
-    /// `isNumber` also matches "½" and non-Latin digits, which no OTP field wants.
-    fileprivate var isASCIIDigit: Bool {
-        isASCII && isNumber
     }
 }
