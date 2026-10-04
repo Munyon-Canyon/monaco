@@ -1,3 +1,4 @@
+import MonacoCore
 import SwiftUI
 import UIKit
 
@@ -53,19 +54,19 @@ struct SettingsView: View {
     @Environment(AppEnvironment.self) private var environment
 
     var body: some View {
-        SettingsList(permissions: LiveNotificationPermissionReader()) { route in
+        SettingsList(authorization: LiveNotificationAuthorizing()) { route in
             environment.navigator.open(route, in: environment.navigator.selectedTab)
         }
     }
 }
 
 struct SettingsList: View {
-    let permissions: any NotificationPermissionReading
+    let authorization: any NotificationAuthorizing
     let open: (any AppRoute) -> Void
 
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
-    @State private var notificationsOn: Bool?
+    @State private var status: PushAuthorization?
 
     var body: some View {
         ScrollView {
@@ -97,7 +98,7 @@ struct SettingsList: View {
     }
 
     private func readNotifications() async {
-        notificationsOn = await permissions.isAuthorized()
+        status = await authorization.status()
     }
 
     @ViewBuilder private func link(for row: SettingsRow) -> some View {
@@ -111,7 +112,7 @@ struct SettingsList: View {
                     title: row.title,
                     leading: { StockMark(systemImage: row.systemImage, size: 40) },
                     trailing: {
-                        Text(notificationsOn.map { $0 ? "On" : "Off" } ?? "")
+                        Text(status.map { $0 == .authorized ? "On" : "Off" } ?? "")
                             .font(MonacoTheme.Typo.body)
                             .foregroundStyle(MonacoTheme.muted)
                     }
@@ -156,13 +157,21 @@ struct SettingsList: View {
     }
 }
 
+#if DEBUG
+private struct FixedAuthorization: NotificationAuthorizing {
+    let current: PushAuthorization
+
+    func status() async -> PushAuthorization { current }
+
+    func request() async -> Bool { current == .authorized }
+}
+
 #Preview {
     NavigationStack {
-        SettingsList(permissions: FixedNotificationPermissionReader(authorized: true)) { _ in }
+        SettingsList(authorization: FixedAuthorization(current: .authorized)) { _ in }
     }
 }
 
-#if DEBUG
 final class SettingsSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
@@ -178,7 +187,7 @@ private struct SettingsHarnessScreen: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            SettingsList(permissions: FixedNotificationPermissionReader(authorized: authorized)) {
+            SettingsList(authorization: FixedAuthorization(current: authorized ? .authorized : .denied)) {
                 path.append(AnyAppRoute($0))
             }
             .navigationDestination(for: AnyAppRoute.self) { $0.destination() }

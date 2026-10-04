@@ -1,21 +1,21 @@
+import MonacoCore
 import UserNotifications
+import os
 
-protocol NotificationPermissionReading: Sendable {
-    func isAuthorized() async -> Bool
-}
+@MainActor
+struct LiveNotificationAuthorizing: NotificationAuthorizing {
+    func status() async -> PushAuthorization {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        return PushAuthorization(PushAuthorizationStatus(settings.authorizationStatus))
+    }
 
-struct LiveNotificationPermissionReader: NotificationPermissionReading {
-    func isAuthorized() async -> Bool {
-        switch await UNUserNotificationCenter.current().notificationSettings().authorizationStatus {
-        case .authorized, .provisional, .ephemeral: true
-        case .denied, .notDetermined: false
-        @unknown default: false
+    func request() async -> Bool {
+        do {
+            return try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+        } catch {
+            AppLogger.session.error(
+                "Notification permission request failed: \(String(describing: error), privacy: .public)")
+            return false
         }
     }
-}
-
-struct FixedNotificationPermissionReader: NotificationPermissionReading {
-    let authorized: Bool
-
-    func isAuthorized() async -> Bool { authorized }
 }

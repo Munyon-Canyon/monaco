@@ -14,6 +14,7 @@ final class AppEnvironment {
     let navigator = AppNavigator()
     let sessionStore: AppSessionStore
     let push: PushRegistrar
+    let pushPrePrompt: PushPrePrompt
     var viewer: Viewer?
     #if DEBUG
     private(set) var devSessionActive = false
@@ -53,6 +54,11 @@ final class AppEnvironment {
             clock: ContinuousClock()
         )
         self.push = push
+        self.pushPrePrompt = PushPrePrompt(
+            authorization: LiveNotificationAuthorizing(),
+            defaults: .standard,
+            register: { Task { await AppDelegate.registerIfAuthorized() } }
+        )
         self.linking = PrivyAccountLinker(privy: auth.privy, api: api)
         self.sessionStore =
             sessionStore
