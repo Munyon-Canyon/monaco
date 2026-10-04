@@ -6,6 +6,6 @@ enum FeedTab: TabContent {
     static let accessibilityIdentifier = "tab-feed"
 
     static func root() -> some View {
-        NotMigratedView(screen: "Feed")
+        FeedView()
     }
 }
