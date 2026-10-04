@@ -56,17 +56,11 @@ struct OnboardingNudgeBanner: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("onboarding-nudge")
             .sheet(isPresented: isOpen) {
-                NavigationStack {
-                    NotMigratedView(screen: current.screenTitle)
-                        .navigationTitle(current.screenTitle)
-                        .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .confirmationAction) {
-                                Button("Done") { opened = nil }
-                            }
-                        }
+                switch opened {
+                case .addPhone: PhoneStepView(mode: .sheet)
+                case .linkX: SocialsStepView(mode: .sheet)
+                case nil: EmptyView()
                 }
-                .presentationDetents([.medium])
             }
         }
     }
@@ -77,13 +71,6 @@ extension OnboardingNudge {
         switch self {
         case .addPhone: "phone.fill"
         case .linkX: "person.2.fill"
-        }
-    }
-
-    fileprivate var screenTitle: String {
-        switch self {
-        case .addPhone: "Add your number"
-        case .linkX: "Connect X"
         }
     }
 }
