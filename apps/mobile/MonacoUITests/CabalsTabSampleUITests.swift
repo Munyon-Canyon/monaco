@@ -81,26 +81,6 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
         return newCard
     }
 
-    /// The search field is `cabals-search-field` on its container HStack; the
-    /// actual text field inside carries `monaco-search-field`. Try several
-    /// ways to find it so the test tolerates either identifier resolving.
-    @MainActor
-    private func searchField(_ app: XCUIApplication) -> XCUIElement {
-        let outerTextField = app.textFields["cabals-search-field"]
-        if outerTextField.waitForExistence(timeout: 2) {
-            return outerTextField
-        }
-        let innerTextField = app.textFields["monaco-search-field"]
-        if innerTextField.waitForExistence(timeout: 2) {
-            return innerTextField
-        }
-        let outerAny = anyElement(app, "cabals-search-field")
-        if outerAny.waitForExistence(timeout: 2) {
-            return outerAny
-        }
-        return app.textFields.firstMatch
-    }
-
     // MARK: - (a) Overview
 
     @MainActor
@@ -160,61 +140,6 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
         XCTAssertGreaterThan(visibleRows, 0, "expected at least one ranked leaderboard row visible after scrolling")
 
         attachScreenshot(app, name: "02-leaderboard")
-    }
-
-    // MARK: - (c) Search results
-
-    @MainActor
-    func testSearchWeekShowsTwoResults() throws {
-        let app = launchApp()
-
-        let field = searchField(app)
-        XCTAssertTrue(field.waitForExistence(timeout: 10), "search field should exist")
-        field.tap()
-        field.typeText("week")
-
-        // Debounce is 300ms; give it real headroom.
-        let results = anyElement(app, "cabals-search-results")
-        XCTAssertTrue(results.waitForExistence(timeout: 5), "search results container should appear")
-
-        let weekendInvestors = anyElement(app, "cabals-search-result-5b1f0c9e-0001-4c55-9a51-000000000001")
-        let weekendWarriors = anyElement(app, "cabals-search-result-5b1f0c9e-0006-4c55-9a51-000000000006")
-        XCTAssertTrue(weekendInvestors.waitForExistence(timeout: 5), "Weekend investors should be a result")
-        XCTAssertTrue(weekendWarriors.waitForExistence(timeout: 5), "Weekend warriors should be a result")
-
-        attachScreenshot(app, name: "03-search-results")
-    }
-
-    // MARK: - (d) Search empty state
-
-    @MainActor
-    func testSearchZzzzShowsEmptyState() throws {
-        let app = launchApp()
-
-        let field = searchField(app)
-        XCTAssertTrue(field.waitForExistence(timeout: 10), "search field should exist")
-        field.tap()
-        field.typeText("zzzz")
-
-        let empty = anyElement(app, "cabals-search-empty")
-        XCTAssertTrue(empty.waitForExistence(timeout: 5), "empty search state should appear")
-
-        attachScreenshot(app, name: "04-search-empty")
-    }
-
-    // MARK: - (e) Search too-short hint
-
-    @MainActor
-    func testSearchSingleCharacterShowsTooShortHint() throws {
-        let app = launchApp()
-
-        let field = searchField(app)
-        XCTAssertTrue(field.waitForExistence(timeout: 10), "search field should exist")
-        field.tap()
-        field.typeText("w")
-
-        let tooShort = anyElement(app, "cabals-search-too-short")
-        XCTAssertTrue(tooShort.waitForExistence(timeout: 5), "too-short hint should appear")
     }
 
     // MARK: - (g) A thin range keeps the chart section and its picker (#294)

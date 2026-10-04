@@ -206,21 +206,19 @@ final class APITelemetryTests: XCTestCase {
 
     func testNoTokenQueryValueOrPathIDReachesTheObserver() async throws {
         let queryValue = "whales-only-search"
-        let cursor = "cursor-9f8e7d"
         MockURLProtocol.requestHandler = { [self] request in
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer \(token)")
             return respond(request, status: 500, body: #"{"error":"boom \#(queryValue)"}"#)
         }
         let (client, events) = makeClient()
 
-        _ = try? await client.searchGroups(query: queryValue, cursor: cursor)
         _ = try? await client.searchAssets(groupId: groupID, query: queryValue)
         _ = try? await client.fundGroup(groupId: groupID, amount: 123_456_789, submission: IdempotentSubmission())
 
-        XCTAssertEqual(events.values.count, 3)
+        XCTAssertEqual(events.values.count, 2)
         for event in events.values {
             let recorded = String(describing: event)
-            for secret in [token, queryValue, cursor, groupID, "?"] {
+            for secret in [token, queryValue, groupID, "?"] {
                 XCTAssertFalse(recorded.contains(secret), "\(secret) leaked into \(recorded)")
             }
         }

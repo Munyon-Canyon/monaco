@@ -147,20 +147,6 @@ enum CabalsTabSampleData {
             }
             return MyGroupsPnLHistoryDTO(range: range.rawValue, series: series)
         }
-
-        func search(query: String, cursor: String?) async throws -> GroupSearchResponseDTO {
-            try await Task.sleep(for: .milliseconds(150))
-            let matches = cabals.filter { $0.name.localizedCaseInsensitiveContains(query) }
-            return GroupSearchResponseDTO(
-                groups: matches.map {
-                    GroupDiscoveryRowDTO(
-                        groupID: $0.id, name: $0.name, memberCount: $0.members, potValueUsd: $0.pot,
-                        percentReturn: $0.percent, dollarPnl: $0.pnl, isJoined: $0.joined, joinMode: $0.mode
-                    )
-                },
-                nextCursor: nil
-            )
-        }
     }
 }
 
