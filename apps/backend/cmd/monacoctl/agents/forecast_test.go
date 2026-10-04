@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -61,6 +62,53 @@ func TestForecast_capsTheListAtTwentyLines(t *testing.T) {
 	}
 }
 
+func crowdedStacks(t *testing.T, f *fixture, sharedFiles, flowCount int) {
+	t.Helper()
+	var registry strings.Builder
+	registry.WriteString(flows.Header + "\n")
+	for i := range flowCount {
+		_, _ = fmt.Fprintf(&registry, "%02d\tFlow\tsystem\tGET /f%02d\tRecord%02d\t\t\tok\tbuilt\tdocs/f.md\n", i, i, i)
+	}
+	writeFile(t, filepath.Join(f.dir, flows.Dir, "00.tsv"), registry.String())
+	git(t, f.dir, "add", "-A")
+	git(t, f.dir, "commit", "-qm", "registry")
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "HEAD")
+	f.hub.on(list("/pulls?state=open"), []PR{pr(1, "a", "fb", ""), pr(2, "b", "fb", "")})
+	shared := make([]File, 0, sharedFiles+1)
+	for i := range sharedFiles {
+		shared = append(shared, File{Filename: fmt.Sprintf("f%02d.go", i)})
+	}
+	system := "apps/backend/internal/modules/system/"
+	f.hub.on(list("/pulls/1/files?"), append(slices.Clone(shared), File{Filename: system + "a.go"}))
+	f.hub.on(list("/pulls/2/files?"), append(shared, File{Filename: system + "b.go"}))
+}
+
+func TestForecast_keepsEveryFlowLineWhenTheFileListIsCapped(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	crowdedStacks(t, f, 30, 3)
+	code, stdout, _ := f.agents(t, "forecast")
+	lines := strings.Split(strings.TrimSuffix(stdout, "\n"), "\n")
+	flowLines := []string{"flows: 00 #1 #2", "flows: 01 #1 #2", "flows: 02 #1 #2"}
+	if code != 0 || len(lines) != maxLines || !slices.Equal(lines[:3], flowLines) ||
+		lines[3] != "30 files touched by more than one open stack into fb:" || lines[maxLines-1] != "  and 15 more" {
+		t.Fatalf("code=%d lines=%d stdout=%q", code, len(lines), stdout)
+	}
+}
+
+func TestForecast_keepsOneFileEntryWhenFlowLinesFillTheCap(t *testing.T) {
+	t.Parallel()
+	const flowCount = 20
+	f := newFixture(t)
+	crowdedStacks(t, f, 5, flowCount)
+	code, stdout, _ := f.agents(t, "forecast", "--verbose")
+	lines := strings.Split(strings.TrimSuffix(stdout, "\n"), "\n")
+	files := []string{"5 files touched by more than one open stack into fb:", "  f00.go  #1 #2", "  and 4 more"}
+	if code != 0 || len(lines) != flowCount+len(files) || !slices.Equal(lines[flowCount:], files) {
+		t.Fatalf("code=%d lines=%d stdout=%q", code, len(lines), stdout)
+	}
+}
+
 func TestForecast_failsWhenGitHubFails(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -82,7 +130,7 @@ func TestForecast_listsAFlowTwoStacksTouchThroughDifferentFiles(t *testing.T) {
 	f.hub.on(list("/pulls/1705/files?"), []File{{Filename: "apps/backend/internal/modules/system/http.go"}})
 	f.hub.on(list("/pulls/1709/files?"), []File{{Filename: flows.Dir + "/01.tsv"}})
 	code, stdout, stderr := f.agents(t, "forecast")
-	want := "no file is touched by more than one open stack into fb\nflows: 00 #1701 #1705\n"
+	want := "flows: 00 #1701 #1705\nno file is touched by more than one open stack into fb\n"
 	if code != 0 || stdout != want || stderr != "" {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
@@ -128,7 +176,7 @@ func TestForecast_aSpecChangeReachesOnlyTheFlowsWhoseRoutesChanged(t *testing.T)
 
 	f.hub.on(list("/pulls?state=open"), []PR{ping, signIn, again})
 	want := "flows: 00 #1 #3\n"
-	if code, stdout, stderr := f.agents(t, "forecast"); code != 0 || !strings.HasSuffix(stdout, want) {
+	if code, stdout, stderr := f.agents(t, "forecast"); code != 0 || !strings.HasPrefix(stdout, want) {
 		t.Fatalf("stacks on one route: code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
 }
@@ -154,7 +202,7 @@ func TestForecast_saysSoWithoutTheTrunkRegistry(t *testing.T) {
 	f.hub.on(list("/pulls?state=open"), []PR{pr(1, "a", "fb", ""), pr(2, "b", "fb", "")})
 	f.hub.on(list("/pulls/1/files?"), []File{})
 	f.hub.on(list("/pulls/2/files?"), []File{})
-	if code, stdout, _ := f.agents(t, "forecast"); code != 0 || !strings.Contains(stdout, "flows: not checked: ") ||
+	if code, stdout, _ := f.agents(t, "forecast"); code != 0 || !strings.HasPrefix(stdout, "flows: not checked: ") ||
 		!strings.Contains(stdout, "origin/fb") {
 		t.Fatalf("code=%d stdout=%q", code, stdout)
 	}

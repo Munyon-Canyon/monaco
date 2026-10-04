@@ -30,24 +30,29 @@ func printForecast(ctx context.Context, env *Env, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
+	var flowLines []string
+	if flowErr != nil {
+		flowLines = append(flowLines, "flows: not checked: "+strings.TrimSpace(flowErr.Error()))
+	}
+	for _, r := range flowRisks {
+		flowLines = append(flowLines, "flows: "+r.path+" "+prList(r.bottoms))
+	}
+	for _, line := range flowLines {
+		_, _ = fmt.Fprintln(stdout, line)
+	}
 	trunk := env.Config.FeatureBranch
 	if len(risks) == 0 {
 		_, _ = fmt.Fprintf(stdout, "no file is touched by more than one open stack into %s\n", trunk)
 	} else {
 		_, _ = fmt.Fprintf(stdout, "%d files touched by more than one open stack into %s:\n", len(risks), trunk)
 	}
+	limit := max(maxLines-2-len(flowLines), 1)
 	for i, r := range risks {
-		if i == maxLines-2 {
+		if i == limit {
 			_, _ = fmt.Fprintf(stdout, "  and %d more\n", len(risks)-i)
 			break
 		}
 		_, _ = fmt.Fprintf(stdout, "  %s  %s\n", r.path, prList(r.bottoms))
-	}
-	if flowErr != nil {
-		_, _ = fmt.Fprintf(stdout, "flows: not checked: %s\n", strings.TrimSpace(flowErr.Error()))
-	}
-	for _, r := range flowRisks {
-		_, _ = fmt.Fprintf(stdout, "flows: %s %s\n", r.path, prList(r.bottoms))
 	}
 	return nil
 }
