@@ -217,7 +217,7 @@ struct AppSessionStoreBootstrapTests {
         await store.bootstrap(auth: auth)
 
         #expect(store.profile?.displayName == "Kai Cenat")
-        #expect(FirstRunGate.destination(for: store.profile) == .app)
+        #expect(FirstRunGate.destination(for: store.profile, onboardingCursor: .start) == .app(restricted: false))
         #expect(store.isLoading == false)
         #expect(source.balanceRequests == ["token-a"])
         #expect(
