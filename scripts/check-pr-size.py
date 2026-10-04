@@ -33,6 +33,7 @@ FAST_TRACK_HEAVY = ("apps/backend/", ".github/", "docker-compose.yml")
 IGNORED = [
     "*.gen.go",
     "*_gen.go",
+    "apps/backend/api/openapi.yaml",
     "apps/backend/.golangci.yml",
     "*.pb.go",
     "go.sum",
