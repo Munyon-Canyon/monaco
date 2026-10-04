@@ -26,9 +26,18 @@ struct HomeBalanceRowSection: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var model: BalanceSource?
 
+    static func showsRetryRow(_ state: LoadState<AccountBalance>) -> Bool {
+        if case .failed = state { return true }
+        return false
+    }
+
     var body: some View {
         MonacoGroupedList {
-            PlatformBalanceCard(state: model?.state ?? .loading, valueIdentifier: balanceIdentifier)
+            if let model, Self.showsRetryRow(model.state) {
+                retryRow(model)
+            } else {
+                PlatformBalanceCard(state: model?.state ?? .loading, valueIdentifier: balanceIdentifier)
+            }
             actions
                 .padding(.leading, MonacoTheme.Space.m + 44 + MonacoTheme.Space.sm)
                 .padding(.trailing, MonacoTheme.Space.m)
@@ -44,9 +53,26 @@ struct HomeBalanceRowSection: View {
             model?.setVisible(visible)
         }
         .onChange(of: model?.failureTick) { _, _ in
-            guard let error = model?.lastError else { return }
+            guard model?.balance != nil, let error = model?.lastError else { return }
             toasts.current = MonacoToast(message: BalanceSource.message(for: error))
         }
+    }
+
+    private func retryRow(_ model: BalanceSource) -> some View {
+        HStack(spacing: MonacoTheme.Space.sm) {
+            Text("Couldn't load your balance.")
+                .font(MonacoTheme.Typo.body)
+                .foregroundStyle(MonacoTheme.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: MonacoTheme.Space.s)
+            Button("Try again") {
+                Task { await model.load() }
+            }
+            .buttonStyle(.monacoSecondary)
+            .accessibilityIdentifier("\(identifierPrefix)-balance-retry")
+        }
+        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.vertical, MonacoTheme.Space.sm)
     }
 
     @ViewBuilder

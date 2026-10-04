@@ -31,6 +31,13 @@ struct HomeBalanceDisplayTests {
         #expect(HomeBalanceDisplay.resolve(.loaded(balance(micros: 0))) == .amount(0))
     }
 
+    @Test func onlyAFirstLoadFailureShowsTheRetryRow() {
+        #expect(HomeBalanceRowSection.showsRetryRow(.failed(.transport(URLError(.notConnectedToInternet)))))
+        #expect(!HomeBalanceRowSection.showsRetryRow(.loaded(balance(micros: 248_500_000))))
+        #expect(!HomeBalanceRowSection.showsRetryRow(.loading))
+        #expect(!HomeBalanceRowSection.showsRetryRow(.idle))
+    }
+
     @Test func theRowSaysWhatIsFundingACabal() {
         let row = PlatformBalanceCard(state: .loaded(balance(micros: 198_500_000, inFlight: 50_000_000)))
         #expect(row.pendingAllocationMicros == 50_000_000)
