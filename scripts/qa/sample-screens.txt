@@ -60,6 +60,7 @@ cabals-tab-loading            -MonacoCabalsTabSample -MonacoCabalsTabSampleScena
 cabal-invites                 -MonacoCabalInvitesSample
 join-cabal-open               -MonacoJoinCabalSample open
 join-cabal-request            -MonacoJoinCabalSample request
+cabals-search                 -MonacoCabalsSearchSample
 
 propose-from-stock            -MonacoProposalFeedSample -MonacoProposeSampleStock
 
