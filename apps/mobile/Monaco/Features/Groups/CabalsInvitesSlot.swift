@@ -13,7 +13,7 @@ enum CabalsInvitesSlot: CabalsTabSection {
 struct CabalInvitesSection: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
-    @Environment(CabalsTabRefresh.self) private var refresh: CabalsTabRefresh?
+    @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @State private var model: CabalInvitesModel?
 
     init(model: CabalInvitesModel? = nil) {
