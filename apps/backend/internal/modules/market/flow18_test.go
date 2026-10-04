@@ -24,6 +24,9 @@ func priceScenario(t *testing.T) *scenario.Scenario {
 			cfg := moduleConfig()
 			cfg.Jupiter.PriceBaseURL = srv.URL + "/jupiter/price/v3"
 			cfg.Jupiter.SwapBaseURL = srv.URL + "/jupiter/swap/v2"
+			cfg.XStocks.BaseURL = srv.URL + "/xstocks"
+			cfg.Tessera.BaseURL = srv.URL + "/tessera"
+			cfg.PreStocks.BaseURL = srv.URL + "/prestocks"
 			cfg.Jupiter.APIKey = "test-key"
 			cfg.Market.PricePollInterval = time.Second
 			cfg.Timeouts.JupiterQuote = 200 * time.Millisecond

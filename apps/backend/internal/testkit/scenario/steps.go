@@ -227,6 +227,10 @@ func ExpectAllEvents(typ events.Type, n int) Step {
 	}
 }
 
+func CountAllEvents(typ events.Type, dst *int) Step {
+	return func(s *Scenario) { *dst = len(s.app.eventPayloads(s.t, typ)) }
+}
+
 func ExpectLogs(message string, n int) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
@@ -242,6 +246,20 @@ func ExpectLogs(message string, n int) Step {
 		}
 		if got != n {
 			s.t.Fatalf("scenario: %d %s log lines, want %d", got, message, n)
+		}
+	}
+}
+
+func CountLogs(message string, dst *int) Step {
+	return func(s *Scenario) {
+		lines, _ := s.app.lines(0)
+		for _, line := range lines {
+			var entry struct {
+				Message string `json:"msg"`
+			}
+			if json.Unmarshal([]byte(line), &entry) == nil && entry.Message == message {
+				*dst++
+			}
 		}
 	}
 }

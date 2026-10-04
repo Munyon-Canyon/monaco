@@ -36,8 +36,12 @@ var errUnexpectedPriceTick = errors.New("unexpected price tick")
 
 func F18SamplePricesOK(s *scenario.Scenario) {
 	var (
-		before  time.Time
-		scanned int
+		before    time.Time
+		reference time.Time
+		sampled   time.Time
+		scanned   int
+		moves     int
+		moveLogs  int
 	)
 	s.Given(
 		scenario.AwaitTickOrEarlier("market.catalog"),
@@ -45,8 +49,10 @@ func F18SamplePricesOK(s *scenario.Scenario) {
 		countAssets(&scanned),
 	).When(
 		scenario.AwaitTick(pricePoller),
+		scenario.CountAllEvents(events.TypeAssetPriceMoved, &moves),
+		scenario.CountLogs("market.price_moved", &moveLogs),
 		deletePricePoints(),
-		seedSpaceXReference(),
+		seedSpaceXReference(&reference),
 		captureBucket(&before),
 		scenario.FakeUpstream(fakes.Step{
 			Route: priceRoute, Action: fakes.ActionSucceed, Fixture: priceRoute + "/moved",
@@ -54,10 +60,11 @@ func F18SamplePricesOK(s *scenario.Scenario) {
 		}),
 		scenario.SubscribeCore(string(events.TypePriceTick)),
 		scenario.AwaitTick(pricePoller),
-		expectMovedTick(scanned),
+		capturePriceBucket(spaceXMint, &sampled),
+		expectMovedTick(scanned, &reference, &sampled),
 		expectPriceTick(3),
-		expectMovedPricePoints(&before),
-		expectPriceMoves(),
+		expectMovedPricePoints(&before, &reference, &sampled),
+		expectPriceMoves(&reference, &sampled, &moves, &moveLogs),
 	)
 }
 
@@ -105,15 +112,15 @@ func F18SamplePricesCrashBeforeCommit(s *scenario.Scenario) {
 		scenario.AwaitTickOrEarlier("market.catalog"),
 		ensureSamplerCatalog(),
 		countAssets(&scanned),
+		scenario.MarkTick(pricePoller),
 		scenario.FakeUpstream(fakes.Step{
 			Route: priceRoute, Action: fakes.ActionSucceed, Fixture: priceRoute + "/catalog",
 			Times: priceRepeats, Reset: true,
 		}),
 	).When(
-		scenario.MarkTick(pricePoller),
-		scenario.SubscribeCore(string(events.TypePriceTick)),
 		captureBucket(&before),
 		scenario.PublishCrashingAt(faultpoint.BeforeCommit),
+		scenario.SubscribeCore(string(events.TypePriceTick)),
 		scenario.AwaitMarkedTickAfterCrash(pricePoller, faultpoint.BeforeCommit),
 		func(s *scenario.Scenario) { scenario.ExpectTick(pricePoller, scanned, 3)(s) },
 		expectPriceTick(3),
@@ -140,29 +147,23 @@ func expectPriceTick(prices int) scenario.Step {
 	})
 }
 
-func expectPriceMoves() scenario.Step {
+func expectPriceMoves(reference, sampled *time.Time, moves, moveLogs *int) scenario.Step {
 	return func(s *scenario.Scenario) {
-		now := time.Now().UTC()
-		start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-		count := movedSpaceX(now, start) * 2
-		scenario.ExpectAllEvents(events.TypeAssetPriceMoved, count)(s)
-		scenario.ExpectLogs("market.price_moved", count)(s)
+		count := movedSpaceX(*reference, *sampled) * 2
+		scenario.ExpectAllEvents(events.TypeAssetPriceMoved, *moves+count)(s)
+		scenario.ExpectLogs("market.price_moved", *moveLogs+count)(s)
 	}
 }
 
-func expectMovedTick(scanned int) scenario.Step {
+func expectMovedTick(scanned int, reference, sampled *time.Time) scenario.Step {
 	return func(s *scenario.Scenario) {
-		now := time.Now().UTC()
-		start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-		scenario.ExpectTick(pricePoller, scanned, 2+movedSpaceX(now, start))(s)
+		scenario.ExpectTick(pricePoller, scanned, 2+insertedSpaceX(*reference, *sampled))(s)
 	}
 }
 
-func expectMovedPricePoints(before *time.Time) scenario.Step {
+func expectMovedPricePoints(before, reference, sampled *time.Time) scenario.Step {
 	return func(s *scenario.Scenario) {
-		now := time.Now().UTC()
-		start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-		spaceX := int64(100_000_000 + movedSpaceX(now, start)*11_000_000)
+		spaceX := int64(100_000_000 + insertedSpaceX(*reference, *sampled)*11_000_000)
 		expectPricePointsAfter(before,
 			storedPrice{marketfake.AAPLx().Mint.String(), aaplMicros},
 			storedPrice{marketfake.TSLAx().Mint.String(), tslaMicros},
@@ -171,8 +172,15 @@ func expectMovedPricePoints(before *time.Time) scenario.Step {
 	}
 }
 
-func movedSpaceX(now, start time.Time) int {
-	return min(1, int(now.Sub(start)/domain.SampleBucket))
+func insertedSpaceX(reference, sampled time.Time) int {
+	return min(1, int(sampled.Sub(reference)/domain.SampleBucket))
+}
+
+func movedSpaceX(reference, sampled time.Time) int {
+	if !reference.Truncate(24 * time.Hour).Equal(sampled.Truncate(24 * time.Hour)) {
+		return 0
+	}
+	return insertedSpaceX(reference, sampled)
 }
 
 func ensureSamplerCatalog() scenario.Step {
@@ -211,10 +219,11 @@ func seedSamplerPrices(at *time.Time) scenario.Step {
 	}
 }
 
-func seedSpaceXReference() scenario.Step {
+func seedSpaceXReference(at *time.Time) scenario.Step {
 	return func(s *scenario.Scenario) {
 		now := time.Now().UTC()
 		start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		*at = start
 		if _, err := s.DB().Exec(s.Context(), `INSERT INTO price_points (mint, ts, price_micros, source)
 			VALUES ($1, $2, $3, $4)`, spaceXMint, start, 100_000_000, string(domain.SourceJupiter)); err != nil {
 			s.Fatalf("flows: seed SpaceX reference: %v", err)
@@ -240,6 +249,15 @@ func countAssets(dst *int) scenario.Step {
 
 func captureBucket(dst *time.Time) scenario.Step {
 	return func(*scenario.Scenario) { *dst = domain.Bucket(time.Now().UTC()) }
+}
+
+func capturePriceBucket(mint string, dst *time.Time) scenario.Step {
+	return func(s *scenario.Scenario) {
+		row := s.DB().QueryRow(s.Context(), `SELECT max(ts) FROM price_points WHERE mint = $1`, mint)
+		if err := row.Scan(dst); err != nil {
+			s.Fatalf("flows: read price bucket for %s: %v", mint, err)
+		}
+	}
 }
 
 type storedPrice struct {
