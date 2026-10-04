@@ -260,3 +260,20 @@ func TestDepositPollerReturnsBackfillQueryFailures(t *testing.T) {
 		t.Fatal("setBackfill query error = nil")
 	}
 }
+
+func TestDepositPollerReturnsBackfillTouchFailures(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	if _, err := pool.Exec(
+		t.Context(),
+		`INSERT INTO deposit_cursors (wallet_address, last_signature, cursor_slot, scanned_at) VALUES ('wallet', 'old', 1, now());
+		 CREATE FUNCTION fail_backfill_touch() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fail'; END $$;
+		 CREATE TRIGGER fail_backfill_touch BEFORE UPDATE ON deposit_cursors FOR EACH ROW WHEN (NEW.scanned_at IS DISTINCT FROM OLD.scanned_at) EXECUTE FUNCTION fail_backfill_touch()`,
+	); err != nil {
+		t.Fatal(err)
+	}
+	p := DepositPoller{uow: db.New(pool, testkit.NewIDs(92), clock.Real{}), clock: clock.Real{}}
+	if err := p.setBackfill(t.Context(), "wallet", "before", "head", 1); err == nil {
+		t.Fatal("setBackfill touch error = nil")
+	}
+}

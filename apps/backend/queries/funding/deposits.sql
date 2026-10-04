@@ -53,3 +53,50 @@ UPDATE deposit_candidates
 SET status = $1,
     resolved_at = NULLIF(sqlc.arg(resolved_at)::timestamptz, '0001-01-01T00:00:00Z'::timestamptz)
 WHERE tx_signature = $2 AND wallet_address = $3 AND status = 'pending';
+
+-- name: DepositWatchDirtyAccounts :many
+SELECT a.token_account, a.wallet_address, w.user_id, a.dirty_gen, a.clean_gen,
+  a.dirty_slot, a.observed_slot, a.high_signature, a.high_slot, a.page_before,
+  a.page_top_signature, a.page_top_slot
+FROM deposit_watch_accounts a
+JOIN deposit_watch_wallets w ON w.wallet_address = a.wallet_address
+WHERE a.dirty_gen > a.clean_gen AND a.state != 'foreign'
+ORDER BY a.dirty_slot, a.token_account
+LIMIT $1;
+
+-- name: DepositWatchKnownWallets :many
+SELECT wallet_address
+FROM deposit_watch_wallets
+WHERE wallet_address = ANY(sqlc.arg(wallet_addresses)::text[]);
+
+-- name: InsertDepositWatchWallet :exec
+INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (wallet_address) DO NOTHING;
+
+-- name: InsertDepositWatchAccount :exec
+INSERT INTO deposit_watch_accounts (
+  token_account, wallet_address, canonical, state, last_amount, observed_slot,
+  high_signature, high_slot, recovery_due_at
+) VALUES ($1, $2, $3, $4, sqlc.arg(last_amount)::text::numeric, sqlc.arg(observed_slot)::bigint,
+  NULLIF(sqlc.arg(high_signature)::text, ''), sqlc.arg(high_slot)::bigint, sqlc.arg(recovery_due_at)::timestamptz)
+ON CONFLICT (token_account) DO NOTHING;
+
+-- name: CheckpointDepositWatchPage :exec
+UPDATE deposit_watch_accounts
+SET page_before = NULLIF(sqlc.arg(page_before)::text, ''),
+    page_top_signature = CASE WHEN page_top_signature IS NULL AND sqlc.arg(page_top_signature)::text <> '' THEN sqlc.arg(page_top_signature)::text ELSE page_top_signature END,
+    page_top_slot = CASE WHEN page_top_slot IS NULL AND sqlc.arg(page_top_slot)::bigint > 0 THEN sqlc.arg(page_top_slot)::bigint ELSE page_top_slot END,
+    scanned_at = sqlc.arg(scanned_at)::timestamptz
+WHERE token_account = $1;
+
+-- name: CompleteDepositWatchPage :exec
+UPDATE deposit_watch_accounts
+SET high_signature = page_top_signature,
+    high_slot = COALESCE(page_top_slot, high_slot),
+    page_before = NULL,
+    page_top_signature = NULL,
+    page_top_slot = NULL,
+    clean_gen = GREATEST(clean_gen, $2),
+    scanned_at = sqlc.arg(scanned_at)::timestamptz
+WHERE token_account = $1;

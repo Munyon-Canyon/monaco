@@ -81,9 +81,9 @@ func (m *Module) Consumers() []bus.Consumer {
 
 func (m *Module) Pollers() []poller.Poller {
 	cfg := m.deps.Config
-	return []poller.Poller{app.NewDepositPoller(m.deps.Pool, m.deps.UoW, m.deps.IDs, m.deps.Clock,
+	return []poller.Poller{app.NewDepositWatch(m.deps.Pool, m.deps.UoW, m.deps.IDs, m.deps.Clock,
 		identity.New(m.deps).Queries(), solana.New(cfg, m.deps.Clock), chain.SolanaAddress(cfg.Solana.USDCMint),
-		cfg.Funding.DepositPollInterval, m.limit)}
+		cfg.Funding.DepositPollInterval, cfg.Funding.DepositTickBudget, m.limit)}
 }
 
 func (m *Module) Balances() port.Balances {
