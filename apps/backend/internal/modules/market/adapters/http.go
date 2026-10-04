@@ -120,10 +120,11 @@ func wirePage(page app.Page) (api.AssetList, error) {
 }
 
 func wireSummary(item app.Summary) (api.AssetSummary, error) {
+	tradable := item.Asset.Tradable()
 	out := api.AssetSummary{
 		Symbol: item.Asset.Symbol, DisplayName: item.Asset.DisplayName,
 		Issuer: api.AssetIssuer(item.Asset.Issuer), Kind: api.AssetKind(item.Asset.Kind),
-		LogoUrl: present(item.Asset.LogoURL), Session: wireSession(item.Session),
+		LogoUrl: present(item.Asset.LogoURL), Session: wireSession(item.Session), Tradable: &tradable,
 	}
 	if !item.Priced {
 		return out, nil

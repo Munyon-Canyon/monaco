@@ -2835,6 +2835,7 @@ components:
             early_close: false
             next_state: after_hours
             next_transition: "2026-03-04T21:00:00Z"
+          tradable: true
       additionalProperties: false
       required:
         - symbol
@@ -2897,6 +2898,10 @@ components:
         session:
           $ref: "#/components/schemas/MarketSession"
           description: The session this asset is in.
+        tradable:
+          type: boolean
+          description: True when this asset can be bought.
+          examples: [true]
     ChartPoint:
       type: object
       description: One bucket of open, high, low and close, in USD micros.

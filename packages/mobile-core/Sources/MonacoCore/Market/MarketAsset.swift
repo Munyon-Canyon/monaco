@@ -68,6 +68,7 @@ public struct MarketAsset: Equatable, Sendable, Identifiable {
     public let session: MarketSession
     public let status: MarketStatusDTO
     public let showsSessionChip: Bool
+    public let isTradable: Bool
 
     public var id: String { symbol }
 
@@ -85,7 +86,8 @@ public struct MarketAsset: Equatable, Sendable, Identifiable {
         sparkline: SparklineSeries?,
         session: MarketSession,
         status: MarketStatusDTO,
-        showsSessionChip: Bool
+        showsSessionChip: Bool,
+        isTradable: Bool
     ) {
         self.symbol = symbol
         self.ticker = ticker
@@ -101,6 +103,7 @@ public struct MarketAsset: Equatable, Sendable, Identifiable {
         self.session = session
         self.status = status
         self.showsSessionChip = showsSessionChip
+        self.isTradable = isTradable
     }
 }
 

@@ -366,7 +366,7 @@ type AssetListing struct {
 
 // AssetSummary One tradable asset as the list draws it, with the price already chosen.
 //
-// Examples: {"change_bps":1000,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx"}
+// Examples: {"change_bps":1000,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","tradable":true}
 type AssetSummary struct {
 	// ChangeBps The move in basis points against the last US close for an equity, or against the first sample of the UTC day for a pre-IPO token. Null when that reference does not exist.
 	//
@@ -417,6 +417,11 @@ type AssetSummary struct {
 	//
 	// Examples: AAPLx
 	Symbol string `json:"symbol"`
+
+	// Tradable True when this asset can be bought.
+	//
+	// Examples: true
+	Tradable *bool `json:"tradable,omitempty"`
 }
 
 // ChartPoint One bucket of open, high, low and close, in USD micros.

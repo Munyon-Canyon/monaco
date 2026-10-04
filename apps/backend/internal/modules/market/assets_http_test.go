@@ -69,7 +69,8 @@ func TestAssets_fixtureCatalogDoesNotExposeIssuerBranding(t *testing.T) {
 
 func assertAppleQuote(t *testing.T, got api.AssetSummary) {
 	t.Helper()
-	if got.DisplayName != "Apple" || got.Issuer != api.Xstocks || got.Kind != api.AssetKindEquity {
+	if got.DisplayName != "Apple" || got.Issuer != api.Xstocks || got.Kind != api.AssetKindEquity ||
+		got.Tradable == nil || !*got.Tradable {
 		t.Fatalf("AAPLx identity = %+v", got)
 	}
 	assertApplePrice(t, got)

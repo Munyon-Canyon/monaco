@@ -21,7 +21,8 @@ public enum MarketMapping {
             sparkline: SparklineSeries(usdcMicros: summary.sparklineMicros ?? []),
             session: session,
             status: status(summary.session, session: session),
-            showsSessionChip: !summary.session.continuous
+            showsSessionChip: !summary.session.continuous,
+            isTradable: summary.tradable ?? false
         )
     }
 
@@ -48,7 +49,8 @@ public enum MarketMapping {
             sparkline: SparklineSeries(usdcMicros: value.sparklineMicros ?? []),
             session: session,
             status: status(value.session, session: session),
-            showsSessionChip: !value.session.continuous
+            showsSessionChip: !value.session.continuous,
+            isTradable: value.tradable
         )
         return MarketAssetDetail(asset: asset, otherListings: value.otherListings.map(listing))
     }
