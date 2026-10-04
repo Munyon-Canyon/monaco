@@ -7,7 +7,6 @@ final class CabalRulesDiffTests: XCTestCase {
     private let current = CabalSettings(
         name: "QA pot",
         joinMode: "open",
-        voters: .everyone,
         threshold: "unanimous",
         proposalExpirySeconds: 86_400
     )
@@ -15,7 +14,7 @@ final class CabalRulesDiffTests: XCTestCase {
     private func patch(_ edit: (inout CabalSettings) -> Void) -> Components.Schemas.UpdateCabalRequest {
         var edited = current
         edit(&edited)
-        return CabalRulesDiff.patch(from: current, to: edited, creatorID: creatorID)
+        return CabalRulesDiff.patch(from: current, to: edited)
     }
 
     func testNoChangeGivesAnEmptyBody() {
@@ -45,20 +44,7 @@ final class CabalRulesDiffTests: XCTestCase {
         XCTAssertEqual(patch { $0.proposalExpirySeconds = 3600 }, .init(proposalExpirySeconds: 3600))
     }
 
-    func testJustMeSendsAListNamingOnlyTheCreator() {
-        XCTAssertEqual(patch { $0.voters = .justMe }, .init(voterMode: "list", voterIds: [creatorID]))
-    }
-
-    func testEveryoneSendsAllWithNoVoterIDs() {
-        let justMe = CabalSettings(
-            name: "QA pot", joinMode: "open", voters: .justMe, threshold: "unanimous", proposalExpirySeconds: 86_400)
-
-        let body = CabalRulesDiff.patch(from: justMe, to: current, creatorID: creatorID)
-
-        XCTAssertEqual(body, .init(voterMode: "all"))
-    }
-
-    func testSettingsReadAListVoterSetAsJustMe() throws {
+    func testSettingsReadTheRulesButNotTheVoters() throws {
         let raw =
             ##"{"id":"\##(creatorID)","name":"QA pot","picture_url":null,"status":"active","##
             + ##""rules":{"join_mode":"request","voter_mode":"list","threshold":"majority","##
@@ -71,7 +57,7 @@ final class CabalRulesDiffTests: XCTestCase {
         XCTAssertEqual(
             CabalSettings(cabal),
             CabalSettings(
-                name: "QA pot", joinMode: "request", voters: .justMe, threshold: "majority", proposalExpirySeconds: 3600
+                name: "QA pot", joinMode: "request", threshold: "majority", proposalExpirySeconds: 3600
             )
         )
     }

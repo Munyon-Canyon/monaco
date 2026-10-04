@@ -73,6 +73,18 @@ final class CabalRulesSummaryTests: XCTestCase {
         XCTAssertEqual(value, "Kai and @jordan")
     }
 
+    func testAMemberWithNeitherNameNorHandleShowsNothing() {
+        var member = Components.Schemas.Cabal.sampleWithMembers(role: nil).members[1]
+        member.displayName = ""
+        member.handle = nil
+
+        XCTAssertEqual(member.shownName, "")
+    }
+
+    func testAListWithNobodyVotingReadsEmpty() {
+        XCTAssertEqual(summary(voting([])).voters.value, "")
+    }
+
     func testUnknownServerValuesShowAsSent() {
         let rows = summary {
             $0.rules.joinMode = "invite_only"

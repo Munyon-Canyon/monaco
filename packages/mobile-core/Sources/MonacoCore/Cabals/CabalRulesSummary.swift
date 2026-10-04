@@ -44,18 +44,20 @@ public struct CabalRulesSummary: Equatable, Sendable {
             let voting = cabal.members.filter(\.canVote)
             let creatorID = cabal.creator.userId
             let creatorFirst = voting.filter { $0.userId == creatorID } + voting.filter { $0.userId != creatorID }
-            return joined(creatorFirst.map(name))
+            return joined(creatorFirst.map(\.shownName))
         }
-    }
-
-    private static func name(_ member: Components.Schemas.CabalMember) -> String {
-        if !member.displayName.isEmpty { return member.displayName }
-        return member.handle.map { "@\($0)" } ?? ""
     }
 
     private static func joined(_ names: [String]) -> String {
         guard let last = names.last else { return "" }
         guard names.count > 1 else { return last }
         return names.dropLast().joined(separator: ", ") + " and " + last
+    }
+}
+
+extension Components.Schemas.CabalMember {
+    public var shownName: String {
+        if !displayName.isEmpty { return displayName }
+        return handle.map { "@\($0)" } ?? ""
     }
 }

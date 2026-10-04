@@ -9,9 +9,10 @@ enum EditCabalCopy {
     static let saving = "Saving…"
     static let saved = "Cabal updated."
     static let rulesFooter = "Rule changes apply to new proposals. Open votes keep their rules."
+    static let votersRow = "Voters"
 
     static var auditedStrings: [String] {
-        [rowTitle, screenTitle, save, saving, saved, rulesFooter]
+        [rowTitle, screenTitle, save, saving, saved, rulesFooter, votersRow]
     }
 }
 
@@ -49,10 +50,11 @@ struct EditCabalView: View {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                     CabalRulesSection(
                         joinPolicy: joinPolicy,
-                        voterSet: voterSet,
+                        voterSet: .constant(.everyone),
                         threshold: threshold,
                         voteExpiry: voteExpiry,
-                        identifierPrefix: "edit-rule"
+                        identifierPrefix: "edit-rule",
+                        showsVoters: false
                     )
                     Text(EditCabalCopy.rulesFooter)
                         .font(MonacoTheme.Typo.caption)
@@ -62,6 +64,7 @@ struct EditCabalView: View {
                         .accessibilityIdentifier("edit-cabal-rules-footer")
                 }
                 .disabled(model.isSaving)
+                votersRow
             }
             .padding(.top, MonacoTheme.Space.m)
             .padding(.bottom, MonacoTheme.Space.xl)
@@ -90,6 +93,25 @@ struct EditCabalView: View {
             .accessibilityIdentifier("edit-cabal-name")
     }
 
+    private var votersRow: some View {
+        MonacoGroupedList {
+            NavigationLink {
+                CabalVotersView(model: model)
+            } label: {
+                MonacoRow(
+                    title: EditCabalCopy.votersRow,
+                    subtitle: CabalRulesSummary(model.cabal ?? cabal).voters.value,
+                    chevron: true,
+                    isLast: true,
+                    leading: { StockMark(systemImage: "person.2", size: 40) }
+                )
+            }
+            .buttonStyle(MonacoRowButtonStyle())
+            .accessibilityIdentifier("edit-cabal-voters")
+        }
+        .disabled(model.isSaving)
+    }
+
     private var canSave: Bool {
         guard !model.isSaving, !edited.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return false
@@ -113,13 +135,6 @@ struct EditCabalView: View {
         Binding(
             get: { CabalJoinMode(rawValue: edited.joinMode) ?? .open },
             set: { edited.joinMode = $0.rawValue }
-        )
-    }
-
-    private var voterSet: Binding<CabalVoterMode> {
-        Binding(
-            get: { edited.voters == .justMe ? .justMe : .everyone },
-            set: { edited.voters = $0 == .justMe ? .justMe : .everyone }
         )
     }
 
