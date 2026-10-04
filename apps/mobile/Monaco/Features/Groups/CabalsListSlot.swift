@@ -13,14 +13,18 @@ enum CabalsListSlot: CabalsTabSection {
 private struct MyCabalsList: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
+    @Environment(CabalsTabRefresh.self) private var refresh: CabalsTabRefresh?
     @State private var model: MonacoCore.CabalsTabModel?
+    @State private var showsNewCabal = false
 
     var body: some View {
-        MyCabalsContent(model: model, open: open)
+        MyCabalsContent(model: model, open: open, create: { showsNewCabal = true })
             .onAppear {
                 let model = preparedModel()
+                refresh?.register("cabals-list") { await model.load() }
                 Task { await model.load() }
             }
+            .newCabalSheet(isPresented: $showsNewCabal)
             .onChange(of: model?.failureTick) { _, _ in
                 guard case .loaded = model?.state, let error = model?.lastError else { return }
                 toasts.show(error)
@@ -43,6 +47,7 @@ private struct MyCabalsList: View {
 private struct MyCabalsContent: View {
     let model: MonacoCore.CabalsTabModel?
     let open: (Components.Schemas.MyCabal) -> Void
+    let create: () -> Void
 
     static let cardSize = CGSize(width: 168, height: 128)
 
@@ -85,6 +90,11 @@ private struct MyCabalsContent: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("cabals-list-card-\(cabal.id)")
                 }
+                Button(action: create) {
+                    NewCabalCard(size: Self.cardSize)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("cabals-list-new")
             }
             .padding(.horizontal, MonacoTheme.Space.m)
             .padding(.vertical, 2)
@@ -155,5 +165,27 @@ private struct MyCabalCard: View {
                 .strokeBorder(tint.fill.opacity(0.22), lineWidth: 1)
         }
         .accessibilityElement(children: .combine)
+    }
+}
+
+private struct NewCabalCard: View {
+    let size: CGSize
+
+    var body: some View {
+        VStack(spacing: MonacoTheme.Space.s) {
+            Image(systemName: "plus")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(MonacoTheme.muted)
+            Text("New cabal")
+                .font(MonacoTheme.Typo.calloutStrong)
+                .foregroundStyle(MonacoTheme.muted)
+        }
+        .frame(width: size.width, height: size.height)
+        .overlay {
+            RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
+                .strokeBorder(MonacoTheme.hairline, style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("New cabal")
     }
 }

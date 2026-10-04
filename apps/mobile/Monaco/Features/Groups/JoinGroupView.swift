@@ -101,11 +101,11 @@ struct JoinGroupView: View {
         joinMode: GroupJoinMode? = nil,
         memberCount: Int? = nil,
         pictureUrl: String? = nil,
-        actions: CabalsActionSource? = nil,
+        actions: CabalsActionSource,
         onJoined: @escaping (_ groupId: String, _ groupName: String?) -> Void = { _, _ in }
     ) {
         self.auth = auth
-        self.actions = actions ?? LiveCabalsActionSource(auth: auth)
+        self.actions = actions
         self.groupName = groupName
         self.joinMode = joinMode
         self.memberCount = memberCount
@@ -300,13 +300,16 @@ private struct InviteCodeField: View {
     }
 }
 
+#if DEBUG
 #Preview {
     NavigationStack {
         JoinGroupView(
             auth: PrivyAuthService(),
             groupId: "5b1f0c9e-0005-4c55-9a51-000000000005",
             groupName: "Weekend investors",
-            joinMode: .request
+            joinMode: .request,
+            actions: CabalsTabSampleData.Actions()
         )
     }
 }
+#endif

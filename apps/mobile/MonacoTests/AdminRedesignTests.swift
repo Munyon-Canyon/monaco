@@ -9,10 +9,10 @@ import Testing
 @MainActor
 struct CabalRulesCopyTests {
     @Test func everyChoiceSaysWhatItMeansAndEachSaysSomethingDifferent() {
-        let joinCaptions = JoinPolicyMode.allCases.map { $0.caption }
-        let voterCaptions = VoterSetMode.allCases.map { $0.caption }
-        let thresholdCaptions = VoteThresholdMode.allCases.map { $0.caption }
-        let expiryCaptions = VoteExpiryOption.allCases.map { $0.caption }
+        let joinCaptions = CabalJoinMode.allCases.map { $0.caption }
+        let voterCaptions = CabalVoterMode.allCases.map { $0.caption }
+        let thresholdCaptions = CabalThreshold.allCases.map { $0.caption }
+        let expiryCaptions = CabalProposalExpiry.allCases.map { $0.caption }
 
         for captions in [joinCaptions, voterCaptions, thresholdCaptions, expiryCaptions] {
             #expect(captions.allSatisfy { !$0.isEmpty })
@@ -23,27 +23,27 @@ struct CabalRulesCopyTests {
     /// The app has no invite links. What a member shares is the invite code, so the join rule
     /// must not promise a link that does not exist.
     @Test func joiningNeverPromisesALink() {
-        for mode in JoinPolicyMode.allCases {
+        for mode in CabalJoinMode.allCases {
             #expect(!mode.label.lowercased().contains("link"))
             #expect(!mode.caption.lowercased().contains("link"))
         }
     }
 
     @Test func theVoteWindowCaptionNamesItsOwnWindow() {
-        for option in VoteExpiryOption.allCases {
+        for option in CabalProposalExpiry.allCases {
             #expect(option.caption.contains(option.label))
         }
     }
 
     /// The server still gets the values it validates; only the words changed.
     @Test func theRulesStillSendTheServersValues() {
-        #expect(JoinPolicyMode.open.rawValue == "open")
-        #expect(JoinPolicyMode.request.rawValue == "request")
-        #expect(VoterSetMode.allMembers.rawValue == "all_members")
-        #expect(VoterSetMode.namedSubset.rawValue == "named_subset")
-        #expect(VoteThresholdMode.majority.rawValue == "majority")
-        #expect(VoteThresholdMode.unanimous.rawValue == "unanimous")
-        #expect(VoteExpiryOption.oneDay.rawValue == 86_400)
+        #expect(CabalJoinMode.open.rawValue == "open")
+        #expect(CabalJoinMode.request.rawValue == "request")
+        #expect(CabalVoterMode.everyone.rawValue == "all")
+        #expect(CabalVoterMode.justMe.rawValue == "list")
+        #expect(CabalThreshold.majority.rawValue == "majority")
+        #expect(CabalThreshold.unanimous.rawValue == "unanimous")
+        #expect(CabalProposalExpiry.oneDay.rawValue == 86_400)
     }
 }
 

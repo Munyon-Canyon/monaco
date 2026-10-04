@@ -1,4 +1,5 @@
 #if DEBUG
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -84,33 +85,21 @@ enum CabalsTabSampleData {
         )
     }
 
-    /// The cabal the sample create flow produces. Fixed, like everything else
-    /// here, so the test can name the screen it expects to land on.
-    static let createdCabal = CreateGroupResponse(
-        groupId: "5b1f0c9e-0007-4c55-9a51-000000000007",
-        name: "Lunch money",
-        treasuryAddress: "SampleTreasury1111111111111111111111111111"
-    )
+    static let createdCabalID = "5b1f0c9e-0007-4c55-9a51-000000000007"
 
     /// Stubbed writes. Create always succeeds; join answers the way the sample
     /// cabal's own join policy would, so an approval cabal still ends on
     /// "Request sent" rather than pretending the member is in.
     @MainActor
     struct Actions: CabalsActionSource {
-        func createGroup(
-            name: String,
-            joinPolicyMode: String,
-            voterSetMode: String,
-            voterMemberIds: [String],
-            threshold: String,
-            voteExpirySeconds: Int64
-        ) async throws -> CreateGroupResponse {
+        func createCabal(_ input: CreateCabalInput, submission: IdempotentSubmission) async throws
+            -> Components.Schemas.Cabal
+        {
             try await Task.sleep(for: .milliseconds(120))
-            return CreateGroupResponse(
-                groupId: createdCabal.groupId,
-                name: name,
-                treasuryAddress: createdCabal.treasuryAddress
-            )
+            var created = Components.Schemas.Cabal.sample(role: "creator")
+            created.id = createdCabalID
+            created.name = input.name
+            return created
         }
 
         func joinGroup(groupId: String) async throws -> JoinGroupOutcome {

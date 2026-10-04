@@ -110,17 +110,17 @@ extension AppSessionStore {
         cancelAndClearDeferredWork()
     }
 
-    func refreshAfterCreate(auth: SessionAuthenticating, created: CreateGroupResponse) {
+    func refreshAfterCreate(auth: SessionAuthenticating, created: Components.Schemas.Cabal) {
         insertJoinedCabal(from: created)
         startDeferredWork { [self] in await deferredRefreshAfterCreate(auth: auth) }
     }
 
-    private func insertJoinedCabal(from created: CreateGroupResponse) {
+    private func insertJoinedCabal(from created: Components.Schemas.Cabal) {
         let row = HomeGroupBoardRowDTO(
-            groupId: created.groupId, name: created.name, potValueUsd: "0.00", percentReturn: nil, dollarPnl: "+0.00",
+            groupId: created.id, name: created.name, potValueUsd: "0.00", percentReturn: nil, dollarPnl: "+0.00",
             isJoined: true)
         if let current = home {
-            guard !current.groups.contains(where: { $0.groupId == created.groupId }) else { return }
+            guard !current.groups.contains(where: { $0.groupId == created.id }) else { return }
             home = HomeViewDTO(groups: [row] + current.groups, people: current.people)
         } else {
             home = HomeViewDTO(groups: [row], people: [])

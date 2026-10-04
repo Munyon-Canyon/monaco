@@ -109,31 +109,31 @@ struct EditCabalView: View {
         }
     }
 
-    private var joinPolicy: Binding<JoinPolicyMode> {
+    private var joinPolicy: Binding<CabalJoinMode> {
         Binding(
-            get: { JoinPolicyMode(rawValue: edited.joinMode) ?? .open },
+            get: { CabalJoinMode(rawValue: edited.joinMode) ?? .open },
             set: { edited.joinMode = $0.rawValue }
         )
     }
 
-    private var voterSet: Binding<VoterSetMode> {
+    private var voterSet: Binding<CabalVoterMode> {
         Binding(
-            get: { edited.voters == .justMe ? .namedSubset : .allMembers },
-            set: { edited.voters = $0 == .namedSubset ? .justMe : .everyone }
+            get: { edited.voters == .justMe ? .justMe : .everyone },
+            set: { edited.voters = $0 == .justMe ? .justMe : .everyone }
         )
     }
 
-    private var threshold: Binding<VoteThresholdMode> {
+    private var threshold: Binding<CabalThreshold> {
         Binding(
-            get: { VoteThresholdMode(rawValue: edited.threshold) ?? .majority },
+            get: { CabalThreshold(rawValue: edited.threshold) ?? .majority },
             set: { edited.threshold = $0.rawValue }
         )
     }
 
-    private var voteExpiry: Binding<VoteExpiryOption> {
+    private var voteExpiry: Binding<CabalProposalExpiry> {
         Binding(
-            get: { VoteExpiryOption(rawValue: Int64(edited.proposalExpirySeconds)) ?? .oneDay },
-            set: { edited.proposalExpirySeconds = Int32($0.rawValue) }
+            get: { CabalProposalExpiry(rawValue: edited.proposalExpirySeconds) ?? .oneDay },
+            set: { edited.proposalExpirySeconds = $0.rawValue }
         )
     }
 }

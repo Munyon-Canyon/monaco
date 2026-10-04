@@ -1,10 +1,11 @@
+import MonacoCore
 import SwiftUI
 
 struct CabalRulesSection: View {
-    @Binding var joinPolicy: JoinPolicyMode
-    @Binding var voterSet: VoterSetMode
-    @Binding var threshold: VoteThresholdMode
-    @Binding var voteExpiry: VoteExpiryOption
+    @Binding var joinPolicy: CabalJoinMode
+    @Binding var voterSet: CabalVoterMode
+    @Binding var threshold: CabalThreshold
+    @Binding var voteExpiry: CabalProposalExpiry
     let identifierPrefix: String
 
     var body: some View {
@@ -15,7 +16,7 @@ struct CabalRulesSection: View {
             MonacoGroupedList {
                 CabalRuleRow(
                     title: CabalRulesCopy.joinTitle,
-                    options: JoinPolicyMode.allCases,
+                    options: CabalJoinMode.allCases,
                     selection: $joinPolicy,
                     label: { $0.label },
                     caption: { $0.caption },
@@ -23,7 +24,7 @@ struct CabalRulesSection: View {
                 )
                 CabalRuleRow(
                     title: CabalRulesCopy.votersTitle,
-                    options: VoterSetMode.allCases,
+                    options: CabalVoterMode.allCases,
                     selection: $voterSet,
                     label: { $0.label },
                     caption: { $0.caption },
@@ -31,7 +32,7 @@ struct CabalRulesSection: View {
                 )
                 CabalRuleRow(
                     title: CabalRulesCopy.thresholdTitle,
-                    options: VoteThresholdMode.allCases,
+                    options: CabalThreshold.allCases,
                     selection: $threshold,
                     label: { $0.label },
                     caption: { $0.caption },
@@ -39,7 +40,7 @@ struct CabalRulesSection: View {
                 )
                 CabalRuleRow(
                     title: CabalRulesCopy.expiryTitle,
-                    options: VoteExpiryOption.allCases,
+                    options: CabalProposalExpiry.allCases,
                     selection: $voteExpiry,
                     label: { $0.label },
                     caption: { $0.caption },

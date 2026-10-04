@@ -101,6 +101,18 @@ final class CabalsTabModelTests: XCTestCase {
         XCTAssertEqual(CabalCopy.requestCount(2), "2 requests to join")
     }
 
+    func testPullToRefreshRunsTheLatestReloadOfEverySection() async {
+        let refresh = CabalsTabRefresh()
+        var runs: [String] = []
+        refresh.register("list") { runs.append("stale list") }
+        refresh.register("list") { runs.append("list") }
+        refresh.register("chart") { runs.append("chart") }
+
+        await refresh.run()
+
+        XCTAssertEqual(runs.sorted(), ["chart", "list"])
+    }
+
     private func myCabal(role: String, pending: Int32) -> Components.Schemas.MyCabal {
         .init(
             id: "c-1", name: "QA pot", pictureUrl: nil, role: role, canVote: true, memberCount: 2,
