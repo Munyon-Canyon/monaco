@@ -36,6 +36,7 @@ struct CabalScreen: View {
     @State private var showsDetails = false
     @State private var heroScrolledAway = false
     @State private var titleModel: CabalActionsModel?
+    @State private var retryTick = 0
 
     init(
         cabalID: String,
@@ -57,6 +58,7 @@ struct CabalScreen: View {
                 SectionStack(context: context, sections: sections)
             }
         }
+        .environment(\.cabalRetry, CabalRetry(tick: retryTick) { retryTick += 1 })
         .onScrollGeometryChange(for: Bool.self) { geometry in
             geometry.contentOffset.y + geometry.contentInsets.top > Self.heroScrollDistance
         } action: { _, scrolledAway in
@@ -64,7 +66,7 @@ struct CabalScreen: View {
         }
         .navigationTitle(heroScrolledAway ? titleModel?.cabalName ?? "" : "")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
+        .task(id: retryTick) {
             let model = preparedTitleModel()
             await model.load()
             await model.observe()
@@ -110,4 +112,13 @@ struct CabalScreen: View {
         titleModel = created
         return created
     }
+}
+
+struct CabalRetry {
+    var tick = 0
+    var retry: (() -> Void)?
+}
+
+extension EnvironmentValues {
+    @Entry var cabalRetry = CabalRetry()
 }

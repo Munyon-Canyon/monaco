@@ -14,13 +14,14 @@ private struct CabalActionsLive: View {
     let cabalID: String
 
     @Environment(AppEnvironment.self) private var environment
+    @Environment(\.cabalRetry) private var retry
     @State private var model: CabalActionsModel?
 
     var body: some View {
         CabalActionsRow(model: model) { route in
             environment.navigator.open(route, in: environment.navigator.selectedTab)
         }
-        .task {
+        .task(id: retry.tick) {
             let model = preparedModel()
             await model.load()
             await model.observe()
@@ -55,29 +56,21 @@ struct CabalActionsRow: View {
     @ViewBuilder private var content: some View {
         switch model?.actions ?? .loading {
         case .loading:
-            HStack(spacing: 0) {
-                ForEach(0..<4, id: \.self) { _ in
-                    SkeletonBlock(width: 56, height: 56, radius: 28)
-                        .frame(maxWidth: .infinity)
+            VStack(spacing: MonacoTheme.Space.gutter) {
+                HStack(spacing: 0) {
+                    ForEach(0..<4, id: \.self) { _ in
+                        SkeletonBlock(width: 56, height: 56, radius: 28)
+                            .frame(maxWidth: .infinity)
+                    }
                 }
+                BoardRowSkeleton(rows: 3)
             }
-        case .hidden:
+            .accessibilityHidden(true)
+        case .hidden, .failed:
             EmptyView()
         case .member(let canPropose):
             if let model {
                 buttons(cabalID: model.cabalID, canPropose: canPropose)
-            }
-        case .failed:
-            HStack {
-                Text("Couldn't load this cabal.")
-                    .font(MonacoTheme.Typo.body)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                Spacer()
-                Button("Try again") {
-                    Task { await model?.load() }
-                }
-                .buttonStyle(.monacoSecondary)
-                .accessibilityIdentifier("cabal-actions-retry")
             }
         }
     }

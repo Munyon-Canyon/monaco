@@ -10,6 +10,17 @@ struct SectionStackTests {
 
         #expect(result.map { String(describing: $0) } == ["TestSectionC", "TestSectionA"])
     }
+
+    @Test func liveStillFiltersAndKeepsOrderUnderTheScrollReader() {
+        let sections: [any ScreenSection<CabalContext>.Type] = [
+            TestSectionA.self, TestSectionB.self, TestSectionC.self,
+        ]
+        let stack = SectionStack(context: CabalContext(cabalID: "cabal-1"), sections: sections)
+
+        #expect(
+            SectionStack<CabalContext>.live(stack.sections).map { String(describing: $0) }
+                == ["TestSectionA", "TestSectionC"])
+    }
 }
 
 private enum TestSectionA: @MainActor CabalSection {
