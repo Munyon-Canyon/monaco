@@ -17,7 +17,7 @@ Repo-agnostic fast smoke loop: **one slim simulator**, **one MobAI claim**, tigh
 | SimSlim | Disable unused sim daemons; verify/doctor | Tap UI, build, screenshot |
 | MobAI + mobai-mcp | claim, start_bridge, execute_dsl, install_app | Compile Swift; slim RAM |
 | xcodebuild / MobileBuildMCP | Build, install, optional snapshot-ui | Cut sim RAM or manage fleet |
-| Agent | discover → profile → build → drive → fix | Stock sim forever; parallel fleet |
+| Agent | discover → profile → build → drive → fix | Stock sim forever; drive another lane's sim |
 
 **Default:** 1 sim (~0.9 GB slim vs ~4 GB stock). **Rare:** 2–3 sims (clone gold after slim-once). No 12-sim farm.
 
@@ -29,7 +29,7 @@ Repo-agnostic fast smoke loop: **one slim simulator**, **one MobAI claim**, tigh
 - Day-1 smoke after a feature: launch, primary nav, one critical path — not full regression.
 - Unit tests first (no sim). Expand tiers only after smoke is green.
 
-**Skip this skill** when user needs true parallel regression at scale, Pro-first multi-agent fleet, or web automation (not available on iOS sim).
+**Skip this skill** for web automation (not available on iOS sim). Parallel agents in separate worktrees each run this loop on their own lane simulator: scripted taps go through the XCUITest journeys (`scripts/qa/journey.py`), ad-hoc taps through an MCP that takes a simulator id per call, with the lane UDID from `scripts/gold-sim-udid.sh`.
 
 ---
 
@@ -76,7 +76,7 @@ simslim on <GOLD_UDID> --profile ci/profiles/base-slim.json --json
 
 Keep gold **booted between agent sessions** when possible. For 2–3 sims: clone gold after slim-once (clone inherits slim + apps).
 
-**Monaco:** UDID is **per machine**. Never copy a UUID from this repo or another laptop. After slim-once, `export SIMSLIM_UDID=<udid>` (shell rc and/or plain `.env`). `scripts/gold-sim-udid.sh` prints it or exits 1. `just build mobile` / `just reset mobile` / `./scripts/ios-sim` use `scripts/resolve-ios-sim.sh` (stock fallback). `scripts/stop-mobile.sh` uninstalls `com.monaco.app` on every available sim. MobileBuildMCP: `--simulator-id "$SIMSLIM_UDID"`. Stock Simulator without slim: README **Without slim sim**.
+**Monaco:** UDID is **per machine**. Never copy a UUID from this repo or another laptop. After slim-once, `export SIMSLIM_UDID=<udid>` (shell rc and/or plain `.env`). In the primary checkout `scripts/gold-sim-udid.sh` prints it or exits 1. In a linked worktree it prints the worktree's own lane simulator, `Monaco <lane>`, created on first use (`docs/how-to/local-simulator.md#parallel-agents-one-simulator-per-worktree`). `just build mobile` / `just reset mobile` / `./scripts/ios-sim` use `scripts/resolve-ios-sim.sh` (stock fallback in primary). `scripts/stop-mobile.sh` uninstalls `com.monaco.app` on the lane's sims in a worktree, and on every sim except live lanes' in the primary checkout. MobileBuildMCP: `--simulator-id "$(scripts/gold-sim-udid.sh)"`. Stock Simulator without slim: README **Without slim sim**.
 
 **Every session** before driving UI:
 
@@ -196,7 +196,7 @@ Use same UDID MobAI will claim. `build-and-run`, `snapshot-ui`, `screenshot` —
 | Fail | `save_screenshot` + `ui_tree`; `debug_attach` if crash |
 | Done | `release_device` |
 
-**Concurrency:** MobAI Free = **1 concurrent device** — enough for default loop. For 2–3 flows on Free: **sequential** claim → drive → release per task. Pro allows 2–3+ parallel on separate sims.
+**Concurrency:** MobAI Free = **1 concurrent device** — enough for one agent's loop. Parallel agents in separate worktrees do not share MobAI: each drives its own lane simulator with the XCUITest journeys or an MCP that takes a simulator id per call.
 
 Example DSL sketch (adapt to actual MobAI schema):
 

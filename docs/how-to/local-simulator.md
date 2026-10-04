@@ -32,6 +32,42 @@ trap for exactly this bug, and both have been updated to the ad-hoc flags
 above. If you're pasting an `xcodebuild` command from an old doc or PR,
 double check it doesn't carry `CODE_SIGNING_ALLOWED=NO` forward.
 
+## Parallel agents: one simulator per worktree
+
+Each linked git worktree is a lane, named by its directory. A lane gets its own
+simulator, its own build cache and a share of the machine's build slots, so agents
+in separate worktrees build and run the app at the same time without touching each
+other. The primary checkout is not a lane and keeps the gold `SIMSLIM_UDID` with the
+stock fallback.
+
+- **Simulator.** `scripts/lane-sim-udid.sh` prints the lane's simulator,
+  `Monaco <lane>`. The first call creates it with the gold simulator's device type
+  and runtime, and slims it once when `simslim` and a profile are installed.
+  `scripts/resolve-ios-sim.sh` and `scripts/gold-sim-udid.sh` return it in a lane,
+  so `just run mobile`, `monacoctl agents check` and MobileBuildMCP's
+  `--simulator-id` all use it. Journey actors get `Monaco Journeys <lane> <actor>`.
+- **Build cache.** `scripts/ios-build` and `scripts/ios-sim` build into the
+  checkout's `.build/DerivedData`, the cache `monacoctl agents check` uses, and
+  `ios-sim` installs the app built there.
+- **Build slots.** `scripts/qa/xcode-lock.sh` runs one xcodebuild per 16 GB of RAM
+  at once and one `swift test` per 8 GB. A 16 GB Mac still builds one at a time; a
+  64 GB Mac builds four. Waiters queue in arrival order. See
+  [Build slots](overnight-qa.md#build-slots).
+- **Stop.** `just stop mobile` in a lane stops only that lane's xcodebuild and
+  uninstalls the app only on the lane's simulators. In the primary checkout it
+  spares the simulators of live lanes and deletes the simulators of lanes whose
+  worktree is gone. Lane simulators are recorded in `monaco-lane-sims.tsv` in the
+  git common dir.
+- **Taps.** Drive a lane's app with the XCUITest journeys (`scripts/qa/journey.py`)
+  or with an MCP that takes a simulator id on each call. Each agent passes its own
+  lane UDID from `scripts/gold-sim-udid.sh` and never another lane's.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `MONACO_SIM_UDID` | unset | Use this simulator in any checkout, lane or primary. Nothing is created. |
+| `MONACO_XCODE_SLOTS` | RAM GB / 16, at least 1 | xcodebuild processes that may run at once. |
+| `MONACO_SWIFTPM_SLOTS` | RAM GB / 8, at least 1 | `swift build` and `swift test` processes that may run at once. |
+
 ## SimSlim profiles
 
 `scripts/simslim-profile.json` is Monaco's SimSlim capability profile
