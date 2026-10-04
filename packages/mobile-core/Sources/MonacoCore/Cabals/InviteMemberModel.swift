@@ -65,8 +65,7 @@ public final class InviteMemberModel {
     public func load() async {
         generation += 1
         let mine = generation
-        if case .loaded = state {
-        } else {
+        if !isLoaded {
             state = .loading
         }
         let cabalID = cabalID
@@ -79,12 +78,17 @@ public final class InviteMemberModel {
         } catch {
             guard mine == generation else { return }
             let failure = APIError(error)
-            if case .loaded = state {
+            if isLoaded {
                 show(ToastCopy.message(for: failure), success: false)
             } else {
                 state = .failed(failure)
             }
         }
+    }
+
+    private var isLoaded: Bool {
+        if case .loaded = state { return true }
+        return false
     }
 
     public func observe() async {

@@ -57,6 +57,7 @@ chat-offline                  -MonacoChatSampleQA -MonacoChatSampleOffline
 
 cabals-tab-unavailable        -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario cabalsUnavailable
 cabals-tab-loading            -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario cabalsLoading
+cabal-invites                 -MonacoCabalInvitesSample
 
 propose-from-stock            -MonacoProposalFeedSample -MonacoProposeSampleStock
 
