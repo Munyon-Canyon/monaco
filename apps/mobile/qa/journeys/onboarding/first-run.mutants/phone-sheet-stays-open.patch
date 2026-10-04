@@ -1,0 +1,18 @@
+journey: onboarding/first-run
+expect-fail: S4
+
+The phone sheet stays open after the number links. S4 expects it to close, so S4 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Onboarding/PhoneStepView.swift b/apps/mobile/Monaco/Features/Onboarding/PhoneStepView.swift
+index 95d5d940..cb89055c 100644
+--- a/apps/mobile/Monaco/Features/Onboarding/PhoneStepView.swift
++++ b/apps/mobile/Monaco/Features/Onboarding/PhoneStepView.swift
+@@ -293,7 +293,6 @@ private struct PhoneStepForm: View {
+             case .sheet:
+                 session.profile = profile
+                 toasts.show(success: LinkCopy.phoneAdded)
+-                dismiss()
+             }
+         }
+     }

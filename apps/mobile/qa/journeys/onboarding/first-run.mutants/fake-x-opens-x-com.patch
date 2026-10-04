@@ -1,0 +1,19 @@
+journey: onboarding/first-run
+expect-fail: S5
+
+MONACO_FAKE_X is ignored, so Connect X opens the real X sign-in sheet. S5 expects the dev route to link X with no web sheet, so S5 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Auth/PrivyAccountLinker.swift b/apps/mobile/Monaco/Features/Auth/PrivyAccountLinker.swift
+index 091109b1..20686ae8 100644
+--- a/apps/mobile/Monaco/Features/Auth/PrivyAccountLinker.swift
++++ b/apps/mobile/Monaco/Features/Auth/PrivyAccountLinker.swift
+@@ -35,7 +35,7 @@ actor PrivyAccountLinker: AccountLinking {
+ 
+     func linkX() async throws {
+         #if DEBUG
+-        if ProcessInfo.processInfo.environment["MONACO_FAKE_X"] == "1" {
++        if ProcessInfo.processInfo.environment["MONACO_FAKE_X"] == "never" {
+             try await linkFakeX()
+             return
+         }

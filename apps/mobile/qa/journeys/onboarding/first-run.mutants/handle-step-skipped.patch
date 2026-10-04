@@ -1,0 +1,18 @@
+journey: onboarding/first-run
+expect-fail: S1
+
+The gate never opens the handle step. S1 expects it right after sign-in, so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/FirstRunGate.swift b/packages/mobile-core/Sources/MonacoCore/FirstRunGate.swift
+index 68efc418..32655da1 100644
+--- a/packages/mobile-core/Sources/MonacoCore/FirstRunGate.swift
++++ b/packages/mobile-core/Sources/MonacoCore/FirstRunGate.swift
+@@ -19,7 +19,6 @@ public enum FirstRunGate {
+     ) -> FirstRunDestination {
+         guard let profile else { return .session }
+         if profile.accountStatus == .banned { return .restricted(.banned) }
+-        if profile.handle == nil { return .handle }
+         if profile.authState == .created { return .phone }
+         if onboardingCursor == .socials,
+             profile.authState == .awaitingSocials || profile.authState == .awaitingPhone

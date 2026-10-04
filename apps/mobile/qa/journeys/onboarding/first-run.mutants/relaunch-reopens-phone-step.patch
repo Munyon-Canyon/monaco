@@ -1,0 +1,19 @@
+journey: onboarding/first-run
+expect-fail: S3
+
+The gate sends a member who skipped the phone back to the phone step. S3 expects Home after a relaunch, so S3 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/FirstRunGate.swift b/packages/mobile-core/Sources/MonacoCore/FirstRunGate.swift
+index 68efc418..cf16336c 100644
+--- a/packages/mobile-core/Sources/MonacoCore/FirstRunGate.swift
++++ b/packages/mobile-core/Sources/MonacoCore/FirstRunGate.swift
+@@ -20,7 +20,7 @@ public enum FirstRunGate {
+         guard let profile else { return .session }
+         if profile.accountStatus == .banned { return .restricted(.banned) }
+         if profile.handle == nil { return .handle }
+-        if profile.authState == .created { return .phone }
++        if profile.authState == .created || profile.authState == .awaitingPhone { return .phone }
+         if onboardingCursor == .socials,
+             profile.authState == .awaitingSocials || profile.authState == .awaitingPhone
+         {

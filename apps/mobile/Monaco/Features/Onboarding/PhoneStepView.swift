@@ -98,6 +98,7 @@ private struct PhoneStepForm: View {
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom) { actions }
         .monacoCanvas()
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("onboarding-phone-step")
         .onAppear { focused = .number }
         .onChange(of: isCodeStep) { _, codeStep in

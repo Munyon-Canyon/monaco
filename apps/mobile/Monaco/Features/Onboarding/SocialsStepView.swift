@@ -67,6 +67,7 @@ private struct SocialsStepForm: View {
         }
         .safeAreaInset(edge: .bottom) { actions }
         .monacoCanvas()
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("onboarding-socials-step")
     }
 
