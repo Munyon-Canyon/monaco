@@ -836,7 +836,7 @@ func TestCheck_theXcodeBudgetStartsWhenTheLockIsTaken(t *testing.T) {
 		t.Fatal(err)
 	}
 	lockDir := filepath.Join(t.TempDir(), "xcode.lock")
-	lockEnv := append(os.Environ(), "MONACO_XCODE_LOCK_DIR="+lockDir, "MONACO_LOCK_POLL=0.1")
+	lockEnv := append(os.Environ(), "MONACO_XCODE_LOCK_DIR="+lockDir, "MONACO_XCODE_SLOTS=1", "MONACO_LOCK_POLL=0.1")
 	holder := exec.CommandContext(t.Context(), script, "xcode", "sh", "-c", "echo held; sleep 2")
 	holder.Env = lockEnv
 	held, err := holder.StdoutPipe()

@@ -14,7 +14,8 @@ import (
 )
 
 // lockEnv is one scratch lock setup: both classes point into a temp dir, so a test never
-// touches /private/tmp or another test's lock.
+// touches /private/tmp or another test's lock. Each class has one slot unless a call's
+// extraEnv sets more, so the RAM-sized default never decides a test.
 type lockEnv struct {
 	t      *testing.T
 	dir    string
@@ -81,6 +82,8 @@ func (e *lockEnv) start(workdir string, extraEnv []string, args ...string) *call
 		"MONACO_XCODE_LOCK_DIR="+e.xcodeLock(),
 		"MONACO_SWIFTPM_LOCK_DIR="+e.swiftpmLock(),
 		"MONACO_LOCK_POLL=0.1",
+		"MONACO_XCODE_SLOTS=1",
+		"MONACO_SWIFTPM_SLOTS=1",
 	)
 	cmd.Env = append(cmd.Env, e.extra...)
 	cmd.Env = append(cmd.Env, extraEnv...)
@@ -562,5 +565,56 @@ func TestXcodeLockRecordsTheWaitOnceItTakesTheLock(t *testing.T) {
 	got, _ = os.ReadFile(waited)
 	if lines := strings.Fields(string(got)); len(lines) != 2 || lines[1] != "0" {
 		t.Fatalf("a free lock appends 0 after the first wait, got %q", got)
+	}
+}
+
+// With two slots, two holders run at once in different slots and a third caller waits until
+// one of them leaves, naming both holders while it waits.
+func TestXcodeLockSlotsRunHoldersTogether(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+	two := []string{"MONACO_XCODE_SLOTS=2"}
+	aIn, bIn, cIn := filepath.Join(e.dir, "a.in"), filepath.Join(e.dir, "b.in"), filepath.Join(e.dir, "c.in")
+	aRelease, bRelease := filepath.Join(e.dir, "a.release"), filepath.Join(e.dir, "b.release")
+
+	a := e.start(e.dir, two, append([]string{"xcode"}, holdUntil(aIn, aRelease)...)...)
+	b := e.start(e.dir, two, append([]string{"xcode"}, holdUntil(bIn, bRelease)...)...)
+	eventually(t, "both holders to run at once", func() bool { return exists(aIn) && exists(bIn) })
+	if !exists(e.xcodeLock()) || !exists(e.xcodeLock()+".2") {
+		t.Fatalf("holders are not in slots 1 and 2")
+	}
+	aPid := readPid(t, filepath.Join(e.xcodeLock(), "pid"))
+	bPid := readPid(t, filepath.Join(e.xcodeLock()+".2", "pid"))
+
+	c := e.start(e.dir, two, "xcode", "touch", cIn)
+	eventually(t, "the third caller to queue", func() bool {
+		return strings.Contains(c.stderr.String(), "queue position 1 behind ")
+	})
+	log := c.stderr.String()
+	if !strings.Contains(log, "pid "+strconv.Itoa(aPid)+" (") || !strings.Contains(log, "pid "+strconv.Itoa(bPid)+" (") {
+		t.Fatalf("waiter log does not name both holders %d and %d:\n%s", aPid, bPid, log)
+	}
+	time.Sleep(500 * time.Millisecond)
+	if exists(cIn) {
+		t.Fatalf("third caller ran while both slots were held")
+	}
+
+	if err := os.WriteFile(bRelease, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code := b.wait(t); code != 0 {
+		t.Fatalf("holder b exit %d:\n%s", code, b.stderr.String())
+	}
+	if code := c.wait(t); code != 0 || !exists(cIn) {
+		t.Fatalf("third caller exit %d, ran %v:\n%s", code, exists(cIn), c.stderr.String())
+	}
+	if err := os.WriteFile(aRelease, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code := a.wait(t); code != 0 {
+		t.Fatalf("holder a exit %d:\n%s", code, a.stderr.String())
+	}
+	if exists(e.xcodeLock()) || exists(e.xcodeLock()+".2") {
+		t.Fatalf("a slot dir is still present after every caller exited")
 	}
 }

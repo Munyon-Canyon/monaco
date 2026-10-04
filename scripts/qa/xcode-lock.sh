@@ -1,24 +1,31 @@
 #!/usr/bin/env bash
-# Run one command while holding a machine-wide build lock, one lock per class.
+# Run one command while holding one of a class's machine-wide build slots.
 #
-# Several xcodebuild / swift-build processes at once exhaust memory on a 16 GB Mac
-# (each takes several GB) and the simulators start crashing. Heavy local steps go
-# through this wrapper, and the class says which limit applies:
+# Too many xcodebuild / swift-build processes at once exhaust memory (each takes several
+# GB) and the simulators start crashing. Heavy local steps go through this wrapper, and
+# the class says which limit applies:
 #
-#   scripts/qa/xcode-lock.sh xcode xcodebuild -project ... test   # one at a time (3 to 7 GB each)
-#   scripts/qa/xcode-lock.sh swiftpm swift test                   # SwiftPM builds (1 to 1.5 GB each)
+#   scripts/qa/xcode-lock.sh xcode xcodebuild -project ... test   # 3 to 7 GB each
+#   scripts/qa/xcode-lock.sh swiftpm swift test                   # 1 to 1.5 GB each
 #   scripts/qa/xcode-lock.sh xcodebuild -project ... test         # no class: same as `xcode`
 #
-# The classes are independent: an `xcode` holder and a `swiftpm` holder run together.
-# Go, lint and shell steps need no lock.
+# Each class has N slots, sized from physical RAM unless set: `xcode` one per 16 GB,
+# `swiftpm` one per 8 GB, at least 1. A 16 GB Mac runs one xcodebuild at a time; a 64 GB
+# Mac runs four, so agents in separate worktrees build at once. The classes are
+# independent: `xcode` and `swiftpm` holders run together. Go, lint and shell steps need
+# no lock.
 #
-# The lock is a directory (mkdir is atomic). Waiters queue first-come first-served:
-# each writes a ticket `<lockdir>.queue/<epoch-ns>.<pid>` and takes the lock only when
-# its ticket is the oldest live one. A ticket or a lock whose pid is gone is stale
-# (`kill -0`) and is pruned or taken over. The holder records `pid` and `cwd` in the
-# lock dir, and a waiter logs its queue position and the holder's cwd every 60 s.
+# A slot is a directory (mkdir is atomic): slot 1 is `<lockdir>`, slot k is `<lockdir>.<k>`.
+# Waiters queue first-come first-served: each writes a ticket
+# `<lockdir>.queue/<epoch-ns>.<pid>` and takes a slot only while its ticket's position
+# among the live tickets is no greater than the number of free slots, so no later caller
+# passes an earlier one. A ticket or a slot whose pid is gone is stale (`kill -0`) and is
+# pruned or taken over (by the oldest waiter only). The holder records `pid` and `cwd` in
+# its slot, and a waiter logs its queue position and every holder's pid and cwd every 60 s.
 #
 # Environment:
+#   MONACO_XCODE_SLOTS         `xcode` slots (default max(1, RAM GB / 16))
+#   MONACO_SWIFTPM_SLOTS       `swiftpm` slots (default max(1, RAM GB / 8))
 #   MONACO_XCODE_LOCK_DIR      `xcode` lock dir (default /private/tmp/monaco-xcodebuild.lock)
 #   MONACO_SWIFTPM_LOCK_DIR    `swiftpm` lock dir (default /private/tmp/monaco-swiftpm.lock)
 #   MONACO_XCODE_LOCK_TIMEOUT  seconds a waiter waits before exit 75 (default 5400)
@@ -40,11 +47,22 @@ if [[ $# -eq 0 ]]; then
   exit 2
 fi
 
+ram_gb=$(( $(sysctl -n hw.memsize 2>/dev/null || echo 0) / 1073741824 ))
 case "$class" in
-  xcode) lock_dir="${MONACO_XCODE_LOCK_DIR:-/private/tmp/monaco-xcodebuild.lock}" ;;
-  swiftpm) lock_dir="${MONACO_SWIFTPM_LOCK_DIR:-/private/tmp/monaco-swiftpm.lock}" ;;
+  xcode)
+    base_dir="${MONACO_XCODE_LOCK_DIR:-/private/tmp/monaco-xcodebuild.lock}"
+    slots="${MONACO_XCODE_SLOTS:-$((ram_gb / 16))}"
+    ;;
+  swiftpm)
+    base_dir="${MONACO_SWIFTPM_LOCK_DIR:-/private/tmp/monaco-swiftpm.lock}"
+    slots="${MONACO_SWIFTPM_SLOTS:-$((ram_gb / 8))}"
+    ;;
 esac
-queue_dir="$lock_dir.queue"
+if ! [[ "$slots" =~ ^[0-9]+$ ]] || (( slots < 1 )); then
+  slots=1
+fi
+queue_dir="$base_dir.queue"
+lock_dir=""     # the slot this process holds, once it holds one
 wait_limit="${MONACO_XCODE_LOCK_TIMEOUT:-5400}"
 hold_cap="${MONACO_LOCK_HOLD:-1800}"
 poll="${MONACO_LOCK_POLL:-2}"
@@ -90,6 +108,14 @@ release() {
   if (( have_lock )); then
     rm -rf "$lock_dir"
     have_lock=0
+  fi
+}
+
+slot_dir() {
+  if (( $1 == 1 )); then
+    echo "$base_dir"
+  else
+    echo "$base_dir.$1"
   fi
 }
 
@@ -177,29 +203,46 @@ start=$SECONDS
 next_log=0
 while true; do
   tickets="$(live_tickets)"
-  oldest="$(head -n1 <<< "$tickets")"
-  owner="$(cat "$lock_dir/pid" 2>/dev/null || true)"
-  if [[ "$oldest" == "$ticket" ]]; then
-    if mkdir "$lock_dir" 2>/dev/null; then
-      have_lock=1
-      break
-    fi
-    if [[ -n "$owner" ]] && ! kill -0 "$owner" 2>/dev/null; then
-      say "taking over stale lock from pid $owner"
-      rm -rf "$lock_dir"
+  position="$(awk -v t="$ticket" '$0 == t { print NR }' <<< "$tickets")"
+  free=0
+  holders=""
+  k=0
+  while (( k < slots )); do
+    k=$((k + 1))
+    dir="$(slot_dir "$k")"
+    if [[ ! -d "$dir" ]]; then
+      free=$((free + 1))
       continue
     fi
+    owner="$(cat "$dir/pid" 2>/dev/null || true)"
+    if [[ -n "$owner" ]] && ! kill -0 "$owner" 2>/dev/null && [[ "$position" == 1 ]]; then
+      say "taking over stale lock from pid $owner"
+      rm -rf "$dir"
+      free=$((free + 1))
+      continue
+    fi
+    holders="${holders:+$holders, }pid ${owner:-unknown} ($(cat "$dir/cwd" 2>/dev/null || echo unknown))"
+  done
+  if [[ -n "$position" ]] && (( position <= free )); then
+    k=0
+    while (( k < slots )); do
+      k=$((k + 1))
+      dir="$(slot_dir "$k")"
+      if mkdir "$dir" 2>/dev/null; then
+        lock_dir="$dir"
+        have_lock=1
+        break 2
+      fi
+    done
   fi
   waited=$((SECONDS - start))
   if (( waited >= wait_limit )); then
-    say "gave up after ${wait_limit}s waiting for pid ${owner:-unknown}"
+    say "gave up after ${wait_limit}s waiting behind ${holders:-no holder}"
     release
     exit 75
   fi
   if (( waited >= next_log )); then
-    position="$(awk -v t="$ticket" '$0 == t { print NR }' <<< "$tickets")"
-    holder_cwd="$(cat "$lock_dir/cwd" 2>/dev/null || true)"
-    say "queue position ${position:-?} behind pid ${owner:-unknown} (${holder_cwd:-unknown}) (${waited}s)"
+    say "queue position ${position:-?} behind ${holders:-pid unknown (unknown)} (${waited}s)"
     next_log=$((waited-waited%60+60))
   fi
   sleep "$poll"
