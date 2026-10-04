@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
@@ -54,23 +56,35 @@ func (p *SwapSweeper) Tick(ctx context.Context) (poller.Report, error) {
 	if err != nil {
 		return poller.Report{}, errs.Wrap(err, errs.CodeInternal, "trading.SwapSweeper.created")
 	}
-	report, failures := poller.Report{Scanned: len(created)}, []error{}
+	report := poller.Report{Scanned: len(created)}
+	report, createdErr := p.resolveCreated(ctx, now, report, nil, created)
+	submitted, submittedErr := p.staleSubmitted(ctx, now, nil)
+	report.Scanned += len(submitted)
+	if submittedErr == nil && len(submitted) > 0 {
+		report, submittedErr = p.resolve(ctx, now, report, nil, submitted)
+	}
+	return report, errors.Join(createdErr, submittedErr)
+}
+
+func (p *SwapSweeper) resolveCreated(
+	ctx context.Context,
+	now time.Time,
+	report poller.Report,
+	submittedErr error,
+	created []sqlc.ListStaleCreatedRow,
+) (poller.Report, error) {
+	failures := make([]error, 0, 1+len(created))
+	failures = append(failures, submittedErr)
 	for _, row := range created {
 		moved, moveErr := p.failCreated(ctx, now, row)
 		if moved {
 			report.Changed++
+		} else {
+			moveErr = errors.Join(moveErr, p.rotateCreated(ctx, row.ID, now))
 		}
 		failures = append(failures, moveErr)
 	}
-	submitted, err := p.staleSubmitted(ctx, now, failures)
-	if err != nil {
-		return report, err
-	}
-	report.Scanned += len(submitted)
-	if len(submitted) == 0 {
-		return report, errors.Join(failures...)
-	}
-	return p.resolve(ctx, now, report, failures, submitted)
+	return report, errors.Join(failures...)
 }
 
 func (p *SwapSweeper) staleSubmitted(
@@ -140,6 +154,14 @@ func (p *SwapSweeper) rotate(ctx context.Context, id uuid.UUID, now time.Time) e
 		return nil
 	}
 	return errs.Wrap(err, errs.CodeInternal, "trading.SwapSweeper.rotate")
+}
+
+func (p *SwapSweeper) rotateCreated(ctx context.Context, id uuid.UUID, now time.Time) error {
+	_, err := sqlc.New(p.reads).TouchCreated(ctx, sqlc.TouchCreatedParams{ID: id, UpdatedAt: now})
+	if err == nil {
+		return nil
+	}
+	return errs.Wrap(err, errs.CodeInternal, "trading.SwapSweeper.rotateCreated")
 }
 
 func (p *SwapSweeper) failCreated(
@@ -267,11 +289,25 @@ func (p *SwapSweeper) move(
 		}
 		moved = true
 		tx.AfterCommit(func(ctx context.Context) {
-			p.hints.PublishHint(ctx, "cabal."+req.CabalID.UUID().String()+".swap_updated", nil)
+			p.committed(ctx, req, s)
 		})
 		return nil
 	})
 	return moved && err == nil, err
+}
+
+func (p *SwapSweeper) committed(ctx context.Context, req SwapRequest, s step) {
+	p.hints.PublishHint(
+		ctx,
+		"cabal."+req.CabalID.UUID().String()+".swap_updated",
+		fmt.Appendf(nil, `{"swap_id":%q}`, s.id),
+	)
+	observability.Info(ctx, observability.TradingSwapFinished,
+		slog.String("swap_id", s.id.String()),
+		slog.String("source", string(req.Source.Kind)+":"+req.Source.ID.String()),
+		slog.String("status", string(s.status)),
+		slog.String("failure_code", string(s.failure)),
+		slog.String("before_status", string(s.from)))
 }
 
 func sweepRequest(

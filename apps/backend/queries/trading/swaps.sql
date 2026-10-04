@@ -40,7 +40,7 @@ WHERE source_kind = @source_kind AND source_id = @source_id AND in_mint = @in_mi
 SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, source_batch_size, in_amount
 FROM swaps
 WHERE status = 'created' AND created_at < @older_than
-ORDER BY created_at, id
+ORDER BY updated_at, id
 LIMIT @max_rows;
 
 -- name: ListStaleSubmitted :many
@@ -55,3 +55,8 @@ LIMIT @max_rows;
 UPDATE swaps
 SET updated_at = @updated_at
 WHERE id = @id AND status = 'submitted';
+
+-- name: TouchCreated :execrows
+UPDATE swaps
+SET updated_at = @updated_at
+WHERE id = @id AND status = 'created';
