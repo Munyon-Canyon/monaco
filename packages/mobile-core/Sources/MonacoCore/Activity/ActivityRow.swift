@@ -34,6 +34,7 @@ public struct ActivityRow: Identifiable, Equatable, Sendable {
     public let assetLine: String?
     public let actorName: String?
     public let actorID: String?
+    public let actorHandle: String?
     public let solscanURL: URL?
 
     public init(_ activity: Components.Schemas.CabalActivity, now: Date, timeZone: TimeZone = .current) {
@@ -51,6 +52,7 @@ public struct ActivityRow: Identifiable, Equatable, Sendable {
         self.assetLine = activity.asset.map { "\($0.name) · \(AssetSymbolFormatter.display($0.symbol))" }
         self.actorName = activity.actor.map { $0.displayName.isEmpty ? "@\($0.handle)" : $0.displayName }
         self.actorID = activity.actor?.userId
+        self.actorHandle = activity.actor?.handle
         self.solscanURL = activity.txSignature.flatMap { URL(string: "https://solscan.io/tx/\($0)") }
     }
 
