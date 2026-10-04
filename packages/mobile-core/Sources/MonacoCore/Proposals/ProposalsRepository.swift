@@ -16,6 +16,14 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
     public let cabalID: String
     public let kind: String
     public let symbol: String
+    public let proposerID: String
+    public let thesis: String?
+    public let usdcMicros: Int64?
+    public let tokenAmount: Int64?
+    public let quoteOutAmount: Int64
+    public let createdAt: Date
+    public let tally: ProposalTally
+    public let myBallot: String?
     public let status: ProposalStatus
     public let statusMessage: String?
     public let expiresAt: Date
@@ -33,6 +41,14 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
         cabalID = proposal.cabalId
         kind = proposal.kind.rawValue
         symbol = proposal.symbol
+        proposerID = proposal.proposerId
+        thesis = proposal.thesis
+        usdcMicros = proposal.usdcMicros
+        tokenAmount = proposal.tokenAmount
+        quoteOutAmount = proposal.quoteOutAmount
+        createdAt = proposal.createdAt
+        tally = ProposalTally(proposal.tally)
+        myBallot = proposal.myBallot?.rawValue
         status = ProposalStatus(proposal.status)
         statusMessage = proposal.statusMessage
         expiresAt = proposal.expiresAt
@@ -44,8 +60,58 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
 
 public struct ProposalDetail: Identifiable, Equatable, Sendable {
     public let summary: ProposalSummary
-    public let voterIDs: [String]
+    public let voters: [ProposalVoter]
     public var id: String { summary.id }
+}
+
+public struct ProposalTally: Equatable, Sendable {
+    public let yes: Int
+    public let no: Int
+    public let voters: Int
+    public let needed: Int
+
+    init(_ value: Components.Schemas.Tally) {
+        yes = value.yes
+        no = value.no
+        voters = value.voters
+        needed = value.needed
+    }
+}
+
+public struct ProposalVoter: Equatable, Sendable, Identifiable {
+    public let id: String
+    public let ballot: String?
+
+    init(_ value: Components.Schemas.ProposalVoter) {
+        id = value.userId
+        ballot = value.choice?.rawValue
+    }
+}
+
+public struct ProposalMember: Equatable, Sendable, Identifiable {
+    public let id: String
+    public let name: String
+    public let photoURL: URL?
+
+    init(_ value: Components.Schemas.CabalMember) {
+        id = value.userId
+        name = value.displayName
+        photoURL = value.photoUrl.flatMap(URL.init(string:))
+    }
+}
+
+public struct ProposalAsset: Equatable, Sendable {
+    public let displayName: String
+    public let kind: AssetKind
+    public let decimals: Int
+    public let logoURL: URL?
+
+    init(_ value: Components.Schemas.AssetDetail) {
+        displayName = value.displayName
+        kind = AssetKind(raw: value.kind.rawValue)
+        decimals = value.decimals
+        logoURL = value.logoUrl.flatMap(URL.init(string:))
+    }
 }
 
 public struct PendingVote: Identifiable, Equatable, Sendable {
@@ -110,7 +176,19 @@ public struct ProposalsRepository: Sendable {
                 canWithdraw: value.canWithdraw,
                 swap: ProposalSwap(value.swap)
             )
-            return ProposalDetail(summary: summary, voterIDs: value.voters.map(\.userId))
+            return ProposalDetail(summary: summary, voters: value.voters.map(ProposalVoter.init))
+        }
+    }
+
+    public func members(cabalID: String) async throws -> [ProposalMember] {
+        try await api.read { client in
+            try await client.getCabal(path: .init(id: cabalID)).ok.body.json.members.map(ProposalMember.init)
+        }
+    }
+
+    public func asset(symbol: String) async throws -> ProposalAsset {
+        try await api.read { client in
+            ProposalAsset(try await client.getAsset(path: .init(symbol: symbol)).ok.body.json)
         }
     }
 
