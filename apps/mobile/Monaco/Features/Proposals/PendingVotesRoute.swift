@@ -1,28 +1,19 @@
 import MonacoCore
 import SwiftUI
 
-enum HomePendingVotesSlot: HomeSection {
-    static let isLive = true
-
-    static func body(for context: Void) -> some View {
-        HomePendingVotes()
-    }
+nonisolated struct PendingVotesRoute: AppRoute {
+    @MainActor func destination() -> some View { PendingVotesScreen() }
 }
 
-private struct HomePendingVotes: View {
+private struct PendingVotesScreen: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var model: PendingVotesModel?
 
     var body: some View {
-        Group {
-            if let model, !model.votes.isEmpty {
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                    HStack {
-                        MonacoSectionHeader("Needs your vote", count: model.votes.count)
-                        Spacer()
-                        NavigationLink("See all", value: PendingVotesRoute())
-                    }
-                    ForEach(model.votes.prefix(3)) { vote in
+        ScrollView {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                if let model {
+                    ForEach(model.votes) { vote in
                         if let detail = model.details[vote.id] {
                             NavigationLink(value: AnyAppRoute(ProposalRoute(proposalID: vote.id))) {
                                 ProposalCard(proposal: detail.summary, asset: nil, members: [])
@@ -32,7 +23,9 @@ private struct HomePendingVotes: View {
                     }
                 }
             }
+            .padding(MonacoTheme.Space.m)
         }
+        .navigationTitle("Needs your vote")
         .task { await preparedModel().load() }
     }
 
