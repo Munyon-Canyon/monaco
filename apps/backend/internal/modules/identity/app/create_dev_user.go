@@ -69,7 +69,7 @@ func devSuffix(r io.Reader) (string, error) {
 
 func settleDevUser(ctx context.Context, d CreateDevUserDeps, suffix string) (DevUser, error) {
 	handle := "dev_" + suffix
-	privyID, err := d.Privy.Create(ctx, "dev-"+suffix+"@example.com")
+	privyID, err := d.Privy.Create(ctx, domain.DevEmail(suffix))
 	if err != nil {
 		return DevUser{}, err
 	}

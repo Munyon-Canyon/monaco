@@ -14,6 +14,7 @@ import (
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/identityapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -110,18 +111,30 @@ func (m *Module) Mount(r api.Mount) {
 			UoW: m.deps.UoW, Users: adapters.Users{}, Balances: m.balances, Stakes: m.stakes, Clock: m.deps.Clock,
 			Hints: hints,
 		}),
+		DevX: m.devXLink(),
 	}, r)
 }
 
+func (m *Module) devXLink() *app.DevXLink {
+	if m.deps.Config.Env == config.EnvProduction {
+		return nil
+	}
+	return app.NewDevXLink(app.DevXLinkDeps{
+		UoW: m.deps.UoW, Reads: m.deps.Pool, Users: adapters.Users{}, Privy: m.privy, Clock: m.deps.Clock,
+	})
+}
+
 func (m *Module) ensurePrivy() {
-	if m.privy != nil {
-		return
+	if m.privy == nil {
+		client, err := privy.New(m.deps.Config, m.deps.Clock)
+		if err != nil {
+			panic(err)
+		}
+		m.privy, m.wallets = privyadapter.Users{Client: client}, privyadapter.Wallets{Client: client}
 	}
-	client, err := privy.New(m.deps.Config, m.deps.Clock)
-	if err != nil {
-		panic(err)
+	if _, wrapped := m.privy.(adapters.DevX); !wrapped && m.deps.Config.Env != config.EnvProduction {
+		m.privy = adapters.DevX{PrivyUsers: m.privy, Reads: m.deps.Pool}
 	}
-	m.privy, m.wallets = privyadapter.Users{Client: client}, privyadapter.Wallets{Client: client}
 }
 
 func (m *Module) openSession() *app.OpenSessionHandler {
