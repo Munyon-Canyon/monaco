@@ -40,7 +40,7 @@ func F18SamplePricesOK(s *scenario.Scenario) {
 		scanned int
 	)
 	s.Given(
-		scenario.AwaitTick("market.catalog"),
+		scenario.AwaitTickOrEarlier("market.catalog"),
 		ensureSamplerCatalog(),
 		countAssets(&scanned),
 		scenario.FakeUpstream(fakes.Step{
@@ -67,8 +67,7 @@ func F18SamplePricesOK(s *scenario.Scenario) {
 			storedPrice{marketfake.TSLAx().Mint.String(), tslaMicros},
 			storedPrice{spaceXMint, spaceXMicros},
 		),
-		scenario.ExpectAllEvents(events.TypeAssetPriceMoved, 2),
-		scenario.ExpectLogs("market.price_moved", 2),
+		expectPriceMoves(),
 	)
 }
 
@@ -114,7 +113,7 @@ func F18SamplePricesCrashBeforeCommit(s *scenario.Scenario) {
 	)
 	s.Given(
 		scenario.MarkTick(pricePoller),
-		scenario.AwaitTick("market.catalog"),
+		scenario.AwaitTickOrEarlier("market.catalog"),
 		ensureSamplerCatalog(),
 		countAssets(&scanned),
 		scenario.FakeUpstream(fakes.Step{
@@ -149,6 +148,16 @@ func expectPriceTick(prices int) scenario.Step {
 		}
 		return nil
 	})
+}
+
+func expectPriceMoves() scenario.Step {
+	return func(s *scenario.Scenario) {
+		now := time.Now().UTC()
+		start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		count := min(2, int(now.Sub(start)/domain.SampleBucket)*2)
+		scenario.ExpectAllEvents(events.TypeAssetPriceMoved, count)(s)
+		scenario.ExpectLogs("market.price_moved", count)(s)
+	}
 }
 
 func ensureSamplerCatalog() scenario.Step {

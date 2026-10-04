@@ -23,6 +23,10 @@ func AwaitTick(poller string) Step {
 	}, "after the step started")
 }
 
+func AwaitTickOrEarlier(poller string) Step {
+	return awaitTick(poller, func(*Scenario) int { return 0 }, "once")
+}
+
 func MarkTick(poller string) Step {
 	return func(s *Scenario) {
 		s.t.Helper()

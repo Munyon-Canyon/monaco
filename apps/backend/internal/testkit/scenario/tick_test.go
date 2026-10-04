@@ -205,3 +205,11 @@ func TestAwaitTick_againstAStackWaitsForATickWrittenAfterTheStepStarted(t *testi
 		t.Fatalf("AwaitTick then ExpectTick against the stack = %q, want a pass", got)
 	}
 }
+
+func TestAwaitTickOrEarlier_againstAStackAcceptsTheStartupTick(t *testing.T) {
+	t.Parallel()
+	stack := &lineLog{note: newNotifier()}
+	_, _ = fmt.Fprintln(stack, `{"msg":"poller.tick","poller":"market.catalog","scanned":3,"changed":3}`)
+	s := Against(t.Context(), t, Remote{Enter: func(Stage) {}, Logs: stack.since})
+	s.When(AwaitTickOrEarlier("market.catalog"), ExpectTick("market.catalog", 3, 3))
+}
