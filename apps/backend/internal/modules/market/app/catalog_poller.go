@@ -98,11 +98,11 @@ func (p *CatalogPoller) apply(ctx context.Context, c issuerCatalog) (int, error)
 		rows.Mints = append(rows.Mints, a.Mint.String())
 		rows.Decimals = append(rows.Decimals, int16(a.Decimals))
 		rows.Kinds = append(rows.Kinds, string(a.Kind))
-		rows.DisplayNames = append(rows.DisplayNames, domain.DisplayName(c.issuer, a.DisplayName))
+		rows.DisplayNames = append(rows.DisplayNames, domain.DisplayName(c.issuer, a.DisplayName, a.Symbol))
 		rows.LogoUrls = append(rows.LogoUrls, a.LogoURL)
 		rows.IssuerTradables = append(rows.IssuerTradables, a.Tradable)
 		rows.PopularRanks = append(rows.PopularRanks, domain.PopularRank(a.Symbol))
-		rows.CompanyKeys = append(rows.CompanyKeys, domain.CompanyKey(c.issuer, a.DisplayName))
+		rows.CompanyKeys = append(rows.CompanyKeys, domain.CompanyKeyForAsset(c.issuer, a.DisplayName, a.Symbol))
 	}
 	var changed int64
 	err := p.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
