@@ -8,8 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	codegen "github.com/monaco/monaco/apps/backend/internal/tools/gen"
 )
 
 func fakeAtlas(name string) atlas {
@@ -138,15 +140,16 @@ func TestMigrate_explainsTheFixWhenThePinnedAtlasIsMissing(t *testing.T) {
 
 func TestMigrate_rejectsUnknownSubcommandOrExtraArgsWithoutRunningAtlas(t *testing.T) {
 	t.Parallel()
-	listing := "usage: monacoctl <command> [args]\n  apply\n  lint\n  status\n"
+	listing := "usage: monacoctl <command> [args]\n  apply\n  lint\n  order\n  status\n"
 	for _, tc := range []struct {
 		args []string
 		want string
 	}{
 		{nil, listing},
 		{[]string{"down"}, "monacoctl: unknown command \"down\"\n" + listing},
-		{[]string{"apply", "extra"}, "usage: monacoctl migrate apply|status|lint\n"},
-		{[]string{"lint", "extra"}, "usage: monacoctl migrate apply|status|lint\n"},
+		{[]string{"apply", "extra"}, "usage: monacoctl migrate apply|status|lint|order\n"},
+		{[]string{"lint", "extra"}, "usage: monacoctl migrate apply|status|lint|order\n"},
+		{[]string{"order", "extra"}, "usage: monacoctl migrate apply|status|lint|order\n"},
 	} {
 		var stdout, stderr bytes.Buffer
 		code := migrateTool(fakeAtlas("pinned"), validMigrateEnviron())(tc.args, &stdout, &stderr)
@@ -272,5 +275,98 @@ func TestRunIn_runsInTheDirAndNamesTheCommandOnFailure(t *testing.T) {
 	_, err = runIn(dir)(t.Context(), "git", "ls-tree", "nope")
 	if err == nil || !strings.Contains(err.Error(), "git ls-tree nope") {
 		t.Fatalf("err = %v, want it to name the command", err)
+	}
+}
+
+func orderRepo(t *testing.T) (repo, backend string) {
+	t.Helper()
+	repo = t.TempDir()
+	backend = filepath.Join(repo, "apps", "backend")
+	writeMigration(t, backend, "20261001000000_a.sql")
+	writeMigration(t, backend, "20261003000000_s.sql")
+	git(t, repo, "init", "-q")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-q", "-m", "staging")
+	return repo, backend
+}
+
+func writeMigration(t *testing.T, backend, name string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(backend, "migrations"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(backend, "migrations", name), []byte("select 1;"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func migrateOrder(backend string) (int, string, string) {
+	var stdout, stderr bytes.Buffer
+	code := migrateTool(atlas{dir: backend}, nil)([]string{"order"}, &stdout, &stderr)
+	return code, stdout.String(), stderr.String()
+}
+
+func TestMigrateOrder_failsBelowOriginStagingAndPassesAfterRebase(t *testing.T) {
+	t.Parallel()
+	repo, backend := orderRepo(t)
+	git(t, repo, "update-ref", "refs/remotes/origin/staging", "HEAD")
+	git(t, repo, "switch", "-q", "-c", "two")
+	writeMigration(t, backend, "20261002000000_two.sql")
+	git(t, repo, "add", ".")
+	git(t, repo, "commit", "-q", "-m", "two")
+
+	code, stdout, stderr := migrateOrder(backend)
+	want := " adds 20261002000000_two.sql at or below 20261003000000_s.sql; run just gen migration --rebase on that branch\n"
+	if code != 1 || !strings.HasSuffix(stdout, want) || stderr != "" {
+		t.Fatalf("before rebase: code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+
+	m := codegen.Migrator{
+		Dir: backend,
+		Now: func() time.Time { return time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC) },
+		Parent: func(context.Context) ([]string, error) {
+			return []string{"20261001000000_a.sql", "20261003000000_s.sql"}, nil
+		},
+		Hash: func(context.Context) error { return nil },
+	}
+	if _, err := m.Run(t.Context(), []string{"--rebase"}); err != nil {
+		t.Fatal(err)
+	}
+	git(t, repo, "add", "-A")
+	git(t, repo, "commit", "-q", "--amend", "--no-edit")
+	if code, stdout, stderr := migrateOrder(backend); code != 0 || stdout != "" || stderr != "" {
+		t.Fatalf("after rebase: code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
+
+func TestMigrateOrder_explainsAMissingOriginStaging(t *testing.T) {
+	t.Parallel()
+	_, backend := orderRepo(t)
+	if code, stdout, stderr := migrateOrder(backend); code != 1 || stdout != "" ||
+		stderr != "monacoctl: origin/staging is missing; fetch it\n" {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
+
+func TestMigrationCommits_stopsOnTheFirstGitFailure(t *testing.T) {
+	t.Parallel()
+	boom := errors.New("boom")
+	for _, failing := range []string{"rev-list", "diff-tree", "ls-tree"} {
+		git := func(_ context.Context, _ string, args ...string) ([]byte, error) {
+			if args[0] == failing {
+				return nil, boom
+			}
+			return []byte("abc\n"), nil
+		}
+		var stdout, stderr bytes.Buffer
+		if code := migrationOrder(
+			t.Context(),
+			git,
+			&stdout,
+			&stderr,
+		); code != 1 ||
+			!strings.Contains(stderr.String(), "boom") {
+			t.Fatalf("%s failing: code=%d stderr=%q", failing, code, stderr.String())
+		}
 	}
 }

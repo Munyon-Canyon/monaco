@@ -112,14 +112,74 @@ func migrateTool(a atlas, environ []string) tool {
 			"--dev-url", "docker://postgres/16/dev", "--latest", "1",
 		}, stdout, stderr)
 	}
+	order := func(args []string, stdout, stderr io.Writer) int {
+		if len(args) != 0 {
+			return migrateUsage(stderr)
+		}
+		return migrationOrder(context.Background(), runIn(a.dir), stdout, stderr)
+	}
 	return func(args []string, stdout, stderr io.Writer) int {
 		cmds := map[string]command{"apply": onDB("apply"), "status": onDB("status")}
-		return run(cmds, map[string]tool{"lint": lint}, environ, args, stdout, stderr)
+		return run(cmds, map[string]tool{"lint": lint, "order": order}, environ, args, stdout, stderr)
 	}
 }
 
+func migrationOrder(ctx context.Context, git codegen.Runner, stdout, stderr io.Writer) int {
+	if _, err := git(ctx, "git", "rev-parse", "--verify", "--quiet", "origin/staging^{commit}"); err != nil {
+		_, _ = fmt.Fprintln(stderr, "monacoctl: origin/staging is missing; fetch it")
+		return 1
+	}
+	commits, err := migrationCommits(ctx, git)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "monacoctl: %v\n", err)
+		return 1
+	}
+	lines := codegen.MigrationOrder(commits)
+	for _, line := range lines {
+		_, _ = fmt.Fprintln(stdout, line)
+	}
+	if len(lines) > 0 {
+		return 1
+	}
+	return 0
+}
+
+func migrationCommits(ctx context.Context, git codegen.Runner) ([]codegen.MigrationCommit, error) {
+	out, err := git(ctx, "git", "rev-list", "--reverse", "--no-merges", "origin/staging..HEAD")
+	if err != nil {
+		return nil, err
+	}
+	var commits []codegen.MigrationCommit
+	for _, sha := range strings.Fields(string(out)) {
+		added, err := sqlNames(git(ctx, "git", "diff-tree", "--no-commit-id", "--name-only", "--diff-filter=A", "-r",
+			sha, "--", "migrations/"))
+		if err != nil {
+			return nil, err
+		}
+		before, err := sqlNames(git(ctx, "git", "ls-tree", "--name-only", sha+"^", "migrations/"))
+		if err != nil {
+			return nil, err
+		}
+		commits = append(commits, codegen.MigrationCommit{SHA: sha, Added: added, Before: before})
+	}
+	return commits, nil
+}
+
+func sqlNames(out []byte, err error) ([]string, error) {
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, line := range strings.Fields(string(out)) {
+		if name := filepath.Base(line); strings.HasSuffix(name, ".sql") {
+			names = append(names, name)
+		}
+	}
+	return names, nil
+}
+
 func migrateUsage(stderr io.Writer) int {
-	_, _ = fmt.Fprintln(stderr, "usage: monacoctl migrate apply|status|lint")
+	_, _ = fmt.Fprintln(stderr, "usage: monacoctl migrate apply|status|lint|order")
 	return 2
 }
 

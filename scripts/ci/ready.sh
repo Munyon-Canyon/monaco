@@ -37,4 +37,5 @@ sqlc=../../.bin/sqlc
 ../../scripts/gen-docs.sh
 fresh "scripts/gen-docs.sh"
 go run ./cmd/monacoctl flows check --structure-only
-echo "ready: vet on go.mod's toolchain, go.mod tidy, generated code, sqlc, reference docs and the flow files are all current"
+go run ./cmd/monacoctl migrate order
+echo "ready: vet on go.mod's toolchain, go.mod tidy, generated code, sqlc, reference docs, the flow files and migration order are all current"

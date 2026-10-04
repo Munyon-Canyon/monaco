@@ -143,6 +143,36 @@ func RebasePlan(onDisk, parent []string, now time.Time) [][2]string {
 	return renames
 }
 
+type MigrationCommit struct {
+	SHA    string
+	Added  []string
+	Before []string
+}
+
+func MigrationOrder(commits []MigrationCommit) []string {
+	var lines []string
+	for _, c := range commits {
+		newest := ""
+		for _, name := range c.Before {
+			if newest == "" || migrationVersion(name) > migrationVersion(newest) {
+				newest = name
+			}
+		}
+		for _, file := range c.Added {
+			if newest != "" && migrationVersion(file) <= migrationVersion(newest) {
+				lines = append(lines, fmt.Sprintf(
+					"%s adds %s at or below %s; run just gen migration --rebase on that branch", c.SHA, file, newest))
+			}
+		}
+	}
+	return lines
+}
+
+func migrationVersion(name string) string {
+	version, _, _ := strings.Cut(name, "_")
+	return version
+}
+
 func migrationNames(root *os.Root) ([]string, error) {
 	entries, err := fs.ReadDir(root.FS(), migrationsDir)
 	if err != nil {
