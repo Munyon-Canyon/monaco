@@ -180,8 +180,12 @@ func TestCatalogPoller_fallsBackToTheSymbolForAnIssuerOnlyName(t *testing.T) {
 	xs.serve(nil, aapl)
 	rig := newRig(t, xs)
 	rig.tick(t)
-	if got := rig.asset(t, "AAPLx").DisplayName; got != "AAPLx" {
+	asset := rig.asset(t, "AAPLx")
+	if got := asset.DisplayName; got != "AAPLx" {
 		t.Fatalf("display name = %q, want symbol fallback", got)
+	}
+	if got := asset.CompanyKey; got != "aaplx" {
+		t.Fatalf("company key = %q, want symbol fallback", got)
 	}
 }
 

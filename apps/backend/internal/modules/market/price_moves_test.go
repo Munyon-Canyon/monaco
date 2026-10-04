@@ -26,6 +26,7 @@ import (
 func TestPriceMoved_UpTen(t *testing.T) {
 	t.Parallel()
 	aapl := marketfake.AAPLx()
+	aapl.DisplayName = "xStock"
 	at := openInstant(t, clock.Real{}.Now())
 	rig, q := newMoveRig(t, at, aapl)
 	info := equitySession(t, rig.clock.Now())
@@ -406,7 +407,8 @@ func wantMove(
 	observed time.Time,
 ) {
 	t.Helper()
-	if got.V != 1 || got.AssetID != a.ID.UUID() || got.Symbol != a.Symbol || got.AssetName != "Apple" ||
+	if got.V != 1 || got.AssetID != a.ID.UUID() || got.Symbol != a.Symbol ||
+		got.AssetName != domain.DisplayName(a.Issuer, a.DisplayName, a.Symbol) ||
 		got.ThresholdBps != threshold || got.ChangeBps != change || got.PrevCloseMicros != usd(200_000_000) ||
 		got.MarkMicros != usd(mark) || got.TradingDay != day || !got.ObservedAt.Equal(observed) {
 		t.Fatalf("event = %+v, want %s threshold %d change %d on %s at %s",
