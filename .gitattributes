@@ -4,7 +4,7 @@ apps/backend/CHANGELOG.md merge=union
 docs/architecture/log/*.md merge=union
 apps/backend/internal/errs/testdata/codes_*.golden merge=union
 apps/backend/api/openapi.yaml linguist-generated
-apps/backend/internal/platform/httpx/api/api.gen.go linguist-generated
+apps/backend/internal/platform/httpx/api/**/*.gen.go linguist-generated
 packages/flows/Sources/MonacoFlows/*.gen.swift merge=ours linguist-generated
 packages/mobile-core/Tests/MonacoCoreTests/Flows/*.gen.swift linguist-generated
 .claude/skills/verify-backend/feature-map/*.md linguist-generated
