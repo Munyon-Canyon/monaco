@@ -1,0 +1,19 @@
+journey: cabals/invite
+expect-fail: S2
+
+Share on the invite card does nothing. S2.4 waits for the share sheet, so S2 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalInviteCodeSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalInviteCodeSlot.swift
+index e734c8c3..84a78656 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalInviteCodeSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalInviteCodeSlot.swift
+@@ -75,7 +75,7 @@ struct CabalInviteCodeCard: View {
+                 }
+                 .buttonStyle(.monacoPrimary)
+                 .accessibilityIdentifier("cabal-invite-copy")
+-                ShareLink(item: CabalCopy.inviteShareText(code: code)) {
++                Button(action: {}) {
+                     Label(CabalDetailsCopy.share, systemImage: "square.and.arrow.up")
+                 }
+                 .buttonStyle(.monacoSecondary)
