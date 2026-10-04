@@ -118,7 +118,7 @@ func (env *Env) plan(ctx context.Context, pr PR) (Plan, error) {
 		p.NoOwner = "the PR body names no Part of or Closes ticket"
 		return p, nil
 	}
-	r, err := env.record(ctx, ticket)
+	r, err := env.peekRecord(ctx, ticket)
 	switch {
 	case errs.CodeOf(err) == errs.CodeNotFound:
 		p.NoOwner = cliText(err)

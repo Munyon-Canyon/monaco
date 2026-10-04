@@ -76,6 +76,14 @@ func (env *Env) record(ctx context.Context, ticket int) (Record, error) {
 	return env.rebuildRecord(ctx, ticket)
 }
 
+func (env *Env) peekRecord(ctx context.Context, ticket int) (Record, error) {
+	r, err := env.localRecord(ticket)
+	if errs.CodeOf(err) != errs.CodeNotFound {
+		return r, err
+	}
+	return env.recordFromComment(ctx, ticket)
+}
+
 func (env *Env) localRecord(ticket int) (Record, error) {
 	data, err := os.ReadFile(env.recordPath(ticket))
 	if errors.Is(err, fs.ErrNotExist) {

@@ -172,6 +172,22 @@ func TestVerifyPlan_neverPicksTheOwnersModel(t *testing.T) {
 	}
 }
 
+func TestVerifyPlan_picksTheVerifierForAnotherRootsTicketWithoutRebuildingItsRecord(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.ownerComments(40, ownerComment(2, Record{Ticket: 40, Model: sonnet, State: Running}))
+	f.hub.on(get("/pulls/5"), pr(5, "h", "fb", "Part of #40"))
+	f.hub.on(list("/pulls/5/files?"), []File{{Filename: "a.go", Additions: 1}})
+	code, stdout, stderr := f.agents(t, "verify-plan", "5")
+	want := "owner: #40 sonnet\n" + verifierSpawn(opus, "40")
+	if code != 0 || stderr != "" || !strings.HasSuffix(stdout, want) {
+		t.Errorf("code=%d stderr=%q stdout=%q", code, stderr, stdout)
+	}
+	if saved := f.agentsDirEntries(t); len(saved) != 0 {
+		t.Errorf("verify-plan saved %v for a ticket this clone has no record of", saved)
+	}
+}
+
 func TestVerifyPlan_reportsAMissingTicketAndBadRecords(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -282,4 +298,17 @@ func (f *fixture) owner(t *testing.T, r Record) {
 		t.Fatal(err)
 	}
 	f.ownerComments(r.Ticket)
+}
+
+func (f *fixture) agentsDirEntries(t *testing.T) []string {
+	t.Helper()
+	entries, err := os.ReadDir(filepath.Join(f.Env(t).Common, recordsDir))
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	return names
 }
