@@ -22,7 +22,9 @@ private struct ProposalDetailSlotView: View {
             if let detail = model?.value {
                 ScrollView {
                     VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
-                        ProposalCard(proposal: detail, asset: model?.asset, members: model?.members ?? []) { choice in
+                        ProposalCard(
+                            proposal: detail.summary, asset: model?.asset, members: model?.members ?? []
+                        ) { choice in
                             Task {
                                 await model?.vote(choice)
                                 if model?.errorMessage == nil { toasts.show(success: "Vote in") }
