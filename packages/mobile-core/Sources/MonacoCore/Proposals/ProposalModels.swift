@@ -27,6 +27,8 @@ public final class ProposalListModel {
 @MainActor
 public final class ProposalDetailModel {
     public private(set) var value: ProposalDetail?
+    public private(set) var members: [ProposalMember] = []
+    public private(set) var asset: ProposalAsset?
     public private(set) var errorMessage: String?
     private let id: String
     private let cabalID: String
@@ -47,7 +49,12 @@ public final class ProposalDetailModel {
 
     public func load() async {
         do {
-            value = try await repository.detail(id: id)
+            let detail = try await repository.detail(id: id)
+            async let members = try? repository.members(cabalID: detail.summary.cabalID)
+            async let asset = try? repository.asset(symbol: detail.summary.symbol)
+            value = detail
+            self.members = await members ?? []
+            self.asset = await asset
             errorMessage = nil
         } catch {
             errorMessage = ToastCopy.message(for: APIError(error))

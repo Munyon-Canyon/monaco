@@ -61,9 +61,26 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
             #"{"id":"p","cabal_id":"c","proposer_id":"u","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"open","status_reason":null,"status_message":null,"expires_at":"2026-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":null,"voters":[{"user_id":"u","choice":null,"cast_at":null}],"can_vote":true,"can_withdraw":false,"swap":null}"#
         let detail = try await repository(StubTransport(.json(.ok, body))).detail(id: "p")
         XCTAssertEqual(detail.id, "p")
-        XCTAssertEqual(detail.voterIDs, ["u"])
+        XCTAssertEqual(detail.voters.map(\.id), ["u"])
+        XCTAssertNil(detail.voters.first?.ballot)
+        XCTAssertEqual(detail.summary.proposerID, "u")
+        XCTAssertEqual(detail.summary.tally.needed, 1)
         XCTAssertTrue(detail.summary.canVote)
         XCTAssertFalse(detail.summary.canWithdraw)
+    }
+
+    func testMembersAndAssetExposeScreenMetadata() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, cabalBody),
+            .json(.ok, assetBody),
+        ])
+        let repository = repository(transport)
+        let members = try await repository.members(cabalID: "c")
+        let asset = try await repository.asset(symbol: "AAPLx")
+        XCTAssertEqual(members.map(\.name), ["Jordan"])
+        XCTAssertEqual(asset.displayName, "Apple")
+        XCTAssertEqual(asset.kind, .stock)
+        XCTAssertEqual(asset.decimals, 8)
     }
 
     @MainActor
@@ -188,6 +205,14 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
 
     private var listBody: String {
         #"{"proposals":[{"id":"p","cabal_id":"c","proposer_id":"u","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"open","status_reason":null,"status_message":null,"expires_at":"2026-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":null}],"next_cursor":null}"#
+    }
+
+    private var cabalBody: String {
+        #"{"id":"c","name":"Cabal","picture_url":null,"status":"active","rules":{"join_mode":"open","voter_mode":"all","threshold":"majority","proposal_expiry_seconds":86400,"slippage_bps":100},"creator":{"user_id":"u","handle":"jordan","display_name":"Jordan","photo_url":null},"member_count":1,"members":[{"user_id":"u","handle":"jordan","display_name":"Jordan","photo_url":null,"role":"creator","can_vote":true,"joined_at":"2026-01-01T00:00:00Z"}],"me":{"role":"creator","can_vote":true},"my_access_request":null,"invite_code":"CODE","treasury_address":"treasury"}"#
+    }
+
+    private var assetBody: String {
+        #"{"symbol":"AAPLx","display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":null,"price_micros":null,"price_as_of":null,"change_bps":null,"sparkline_micros":null,"session":{"state":"open","continuous":false,"holiday":"","early_close":false,"next_state":null,"next_transition":null},"decimals":8,"ui_multiplier":{"num":1,"den":1},"tradable":true,"other_listings":[],"attribution":"test"}"#
     }
 
     private var detailBody: String {
