@@ -65,6 +65,62 @@ func TestShellBins_skipsCasePatterns(t *testing.T) {
 	}
 }
 
+func TestShellBins_ignoresSeparatorsInsideQuotes(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		src  string
+		want []string
+	}{
+		{
+			name: "semicolon inside double quotes",
+			src:  `echo "a; restack now"`,
+		},
+		{
+			name: "and inside single quotes",
+			src:  `printf '%s && cannot\n' x`,
+		},
+		{
+			name: "pipe inside quotes then a real pipe",
+			src:  `run-x "a|b" | run-y`,
+			want: []string{"run-x", "run-y"},
+		},
+		{
+			name: "every separator outside quotes",
+			src:  `run-x; run-y && run-z || run-w`,
+			want: []string{"run-x", "run-y", "run-z", "run-w"},
+		},
+		{
+			name: "command substitution inside double quotes",
+			src:  `out="$(run-v)"`,
+			want: []string{"run-v"},
+		},
+		{
+			name: "clobber redirect is not a pipe",
+			src:  `run-u >| file`,
+			want: []string{"run-u"},
+		},
+		{
+			name: "escaped quote does not end double quotes",
+			src:  `echo "a\"; restack"`,
+		},
+		{
+			name: "backslash is plain inside single quotes",
+			src:  `echo 'a\'; run-t`,
+			want: []string{"run-t"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := shellBins(tc.src, nil)
+			if !slices.Equal(got, tc.want) {
+				t.Fatalf("shellBins() = %#v, want %#v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestToolManifest_plantedUnknownBinaryFails(t *testing.T) {
 	have := map[string]bool{"go": true, "jq": true}
 	missing := absent([]string{"not-a-real-monaco-tool"}, have)
@@ -268,15 +324,7 @@ func shellBins(src string, funcs map[string]bool) []string {
 		} else {
 			caseDepth += delta
 		}
-		scan = strings.ReplaceAll(scan, "&&", " ; ")
-		scan = strings.ReplaceAll(scan, "||", " ; ")
-		for _, seg := range strings.Split(scan, ";") {
-			if i := strings.Index(seg, " | "); i >= 0 {
-				for _, part := range strings.Split(seg, " | ") {
-					bins = append(bins, commandWord(part, builtin, funcs)...)
-				}
-				continue
-			}
+		for _, seg := range splitCommands(scan) {
 			bins = append(bins, commandWord(seg, builtin, funcs)...)
 		}
 		if sub := regexp.MustCompile(`\$\(([A-Za-z][A-Za-z0-9+_-]*)`).FindAllStringSubmatch(scan, -1); sub != nil {
@@ -386,6 +434,39 @@ func shellWords(line string) []string {
 	return words
 }
 
+func splitCommands(line string) []string {
+	var segs []string
+	inSingle, inDouble := false, false
+	start := 0
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		switch {
+		case inSingle:
+			if c == '\'' {
+				inSingle = false
+			}
+		case c == '\\':
+			i++
+		case inDouble:
+			if c == '"' {
+				inDouble = false
+			}
+		case c == '\'':
+			inSingle = true
+		case c == '"':
+			inDouble = true
+		case c == ';' || (c == '|' && !strings.HasSuffix(line[:i], ">")):
+			segs = append(segs, line[start:i])
+			start = i + 1
+		case strings.HasPrefix(line[i:], "&&"):
+			segs = append(segs, line[start:i])
+			i++
+			start = i + 1
+		}
+	}
+	return append(segs, line[start:])
+}
+
 func commandWord(seg string, builtin, funcs map[string]bool) []string {
 	fields := strings.Fields(seg)
 	i := 0
@@ -410,7 +491,7 @@ func keepBin(word string, builtin, funcs map[string]bool) bool {
 		return false
 	}
 	switch word {
-	case "api", "bad", "build-for-testing", "cannot", "clean", "closes", "command", "compose", "continuing", "create", "delta", "depth", "error", "full", "get", "has", "import", "inside", "issue", "lines", "list", "must", "next", "no", "not", "number", "or", "pr", "print", "re-slimming", "restack", "merge-base", "rev-parse", "run", "scripts", "see", "skipping", "test-without-building", "the", "ubuntu-latest", "version", "qa-report", "ios-sim-clipboard-bridge", "Log", "Nightly", "Print", "Result", "Seconds", "Step", "Ctrl+C":
+	case "api", "bad", "clean", "closes", "command", "compose", "delta", "depth", "error", "get", "has", "import", "inside", "issue", "lines", "list", "must", "next", "number", "or", "pr", "print", "merge-base", "rev-parse", "run", "scripts", "ubuntu-latest", "version", "qa-report", "ios-sim-clipboard-bridge", "Nightly", "Print", "Test", "synchronous_commit":
 		return false
 	}
 	return true
