@@ -44,6 +44,12 @@ type guardedCabals struct {
 	g *txGuard
 }
 
+type malformedRules struct{ app.Cabals }
+
+func (malformedRules) Rules(context.Context, ids.CabalID) (cabal.Rules, error) {
+	return cabal.Rules{Threshold: "bad"}, nil
+}
+
 func (c guardedCabals) IsMember(ctx context.Context, id ids.CabalID, user ids.UserID) (bool, error) {
 	c.g.port("IsMember")
 	return c.Cabals.IsMember(ctx, id, user)
@@ -222,5 +228,21 @@ func TestProposeTrade_aFailedInsertWritesNothing(t *testing.T) {
 	}
 	if _, err := h.propose(same, sellAAPL(2)); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("second insert with the same id err = %v, want internal", err)
+	}
+}
+
+func TestProposeTrade_rejectsMalformedThresholdAfterOpening(t *testing.T) {
+	t.Parallel()
+	h := newProposeHarness(t)
+	p := h.w.ports()
+	handler := app.NewProposeTradeHandler(h.guard, h.d.ids, clock.Real{}, app.TradePorts{
+		Cabals: malformedRules{p.Cabals}, Assets: p.Assets, Routes: p.Routes, Treasury: p.Treasury,
+	})
+	ctx := observability.WithActor(t.Context(), "user:"+h.w.members[0].String())
+	_, err := handler.Handle(ctx, app.ProposeTrade{
+		CabalID: h.w.cabal, ProposerID: h.w.members[0], Trade: buyAAPLFor(potMicros),
+	})
+	if errs.CodeOf(err) != errs.CodeDecodeFailed {
+		t.Fatalf("Handle err = %v, want decode_failed", err)
 	}
 }

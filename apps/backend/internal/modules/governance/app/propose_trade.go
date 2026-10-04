@@ -55,6 +55,17 @@ type ProposeTrade struct {
 	Trade      domain.Trade
 }
 
+type OpenedProposal struct {
+	Draft           domain.Draft
+	Voters          []ids.UserID
+	CreatedAt       time.Time
+	Needed          int
+	ProposerCanVote bool
+	USDCMicros      int64
+	TokenAmount     int64
+	QuoteOutAmount  int64
+}
+
 type ProposeTradeHandler struct {
 	uow   Transactor
 	ids   ids.Generator
@@ -67,24 +78,32 @@ func NewProposeTradeHandler(uow Transactor, g ids.Generator, c clock.Clock, p Tr
 }
 
 func (h *ProposeTradeHandler) Handle(ctx context.Context, cmd ProposeTrade) (ids.ProposalID, error) {
+	opened, err := h.Open(ctx, cmd)
+	if err != nil {
+		return ids.ProposalID{}, err
+	}
+	return opened.Draft.ID, nil
+}
+
+func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (OpenedProposal, error) {
 	const op = "governance.ProposeTrade"
 	if err := member(ctx, h.ports.Cabals, cmd.CabalID, cmd.ProposerID); err != nil {
-		return ids.ProposalID{}, err
+		return OpenedProposal{}, err
 	}
 	rules, err := h.ports.Cabals.Rules(ctx, cmd.CabalID)
 	if err != nil {
-		return ids.ProposalID{}, err
+		return OpenedProposal{}, err
 	}
 	voters, err := h.ports.Cabals.VoterSet(ctx, cmd.CabalID)
 	if err != nil {
-		return ids.ProposalID{}, err
+		return OpenedProposal{}, err
 	}
 	if len(voters) == 0 {
-		return ids.ProposalID{}, errs.New(errs.CodeInvalidInput, op, slog.String("field", "voters"))
+		return OpenedProposal{}, errs.New(errs.CodeInvalidInput, op, slog.String("field", "voters"))
 	}
 	asset, quote, err := h.assess(ctx, cmd)
 	if err != nil {
-		return ids.ProposalID{}, err
+		return OpenedProposal{}, err
 	}
 	now := h.clock.Now()
 	p, err := domain.NewProposal(domain.Draft{
@@ -94,7 +113,7 @@ func (h *ProposeTradeHandler) Handle(ctx context.Context, cmd ProposeTrade) (ids
 		QuoteOut: quote.OutAmount.Uint64(), ExpiresAt: now.Add(rules.ProposalExpiry),
 	})
 	if err != nil {
-		return ids.ProposalID{}, err
+		return OpenedProposal{}, err
 	}
 	err = h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		if _, err := sqlc.New(tx.Queries()).OpenProposal(ctx, openParams(p.Draft(), voters, now)); err != nil {
@@ -103,9 +122,26 @@ func (h *ProposeTradeHandler) Handle(ctx context.Context, cmd ProposeTrade) (ids
 		return tx.Events.Append(ctx, created(p.Draft(), len(voters)))
 	})
 	if err != nil {
-		return ids.ProposalID{}, err
+		return OpenedProposal{}, err
 	}
-	return p.Draft().ID, nil
+	rule, err := domain.ParseThresholdRule(string(rules.Threshold))
+	if err != nil {
+		return OpenedProposal{}, err
+	}
+	canVote := false
+	for _, voter := range voters {
+		canVote = canVote || voter == cmd.ProposerID
+	}
+	return OpenedProposal{
+		Draft: p.Draft(), Voters: voters, CreatedAt: now, Needed: rule.Needed(len(voters)), ProposerCanVote: canVote,
+		USDCMicros: decimal(p.Draft().USDCMicros.String()), TokenAmount: decimal(p.Draft().TokenAmount.String()),
+		QuoteOutAmount: decimal(strconv.FormatUint(p.Draft().QuoteOut, 10)),
+	}, nil
+}
+
+func decimal(raw string) int64 {
+	n, _ := strconv.ParseInt(raw, 10, 64)
+	return n
 }
 
 func (h *ProposeTradeHandler) assess(ctx context.Context, cmd ProposeTrade) (market.Asset, market.RouteCheck, error) {
