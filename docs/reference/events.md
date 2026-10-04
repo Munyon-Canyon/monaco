@@ -518,6 +518,34 @@ Subject `events.ranking.snapshot_written`, version 1.
 | `rows_written` | `int` |
 | `cabals_excluded` | `int` |
 
+## `referral.attributed`
+
+Subject `events.referral.attributed`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `referral_id` | `uuid.UUID` |
+| `referrer_id` | `uuid.UUID` |
+| `referee_id` | `uuid.UUID` |
+| `code_kind` | `string` |
+| `source` | `string` |
+| `attributed_at` | `time.Time` |
+
+## `referral.qualified`
+
+Subject `events.referral.qualified`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `referral_id` | `uuid.UUID` |
+| `referrer_id` | `uuid.UUID` |
+| `referee_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `amount_micros` | `money.Micros` |
+| `qualified_at` | `time.Time` |
+
 ## `system.pinged`
 
 Subject `events.system.pinged`, version 1.

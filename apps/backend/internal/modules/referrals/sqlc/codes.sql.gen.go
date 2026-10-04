@@ -12,6 +12,38 @@ import (
 	"github.com/google/uuid"
 )
 
+const insertReferral = `-- name: InsertReferral :one
+INSERT INTO referrals (id, referrer_id, referee_id, code, code_kind, source, status, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, 'attributed', $7)
+ON CONFLICT (referee_id) DO NOTHING
+RETURNING id
+`
+
+type InsertReferralParams struct {
+	ID           uuid.UUID
+	ReferrerID   uuid.UUID
+	RefereeID    uuid.UUID
+	Code         string
+	CodeKind     string
+	Source       string
+	AttributedAt time.Time
+}
+
+func (q *Queries) InsertReferral(ctx context.Context, arg InsertReferralParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, insertReferral,
+		arg.ID,
+		arg.ReferrerID,
+		arg.RefereeID,
+		arg.Code,
+		arg.CodeKind,
+		arg.Source,
+		arg.AttributedAt,
+	)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const mintReferralCode = `-- name: MintReferralCode :one
 WITH inserted AS (
   INSERT INTO referral_codes (code, user_id, created_at)
@@ -36,6 +68,17 @@ func (q *Queries) MintReferralCode(ctx context.Context, arg MintReferralCodePara
 	var minted bool
 	err := row.Scan(&minted)
 	return minted, err
+}
+
+const referralAttached = `-- name: ReferralAttached :one
+SELECT EXISTS (SELECT 1 FROM referrals WHERE referee_id = $1)
+`
+
+func (q *Queries) ReferralAttached(ctx context.Context, refereeID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, referralAttached, refereeID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const referralCodeOfUser = `-- name: ReferralCodeOfUser :one

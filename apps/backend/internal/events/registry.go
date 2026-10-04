@@ -26,6 +26,7 @@ func registrations() []Registration {
 		adminRegistrations(),
 		treasuryRegistrations(),
 		notifyRegistrations(),
+		referralRegistrations(),
 	)
 }
 

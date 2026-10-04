@@ -106,8 +106,11 @@ const (
 	ProposalStillOpen ErrorCode = "proposal_still_open"
 	RateLimited ErrorCode = "rate_limited"
 	ReasonRequired ErrorCode = "reason_required"
+	ReferralAlreadyAttached ErrorCode = "referral_already_attached"
 	ReferralCodePending ErrorCode = "referral_code_pending"
 	ReferralCodeUnknown ErrorCode = "referral_code_unknown"
+	ReferralSelf ErrorCode = "referral_self"
+	ReferralWindowClosed ErrorCode = "referral_window_closed"
 	RelayerUnderfunded ErrorCode = "relayer_underfunded"
 	RequestNotNeeded ErrorCode = "request_not_needed"
 	RequestPending ErrorCode = "request_pending"
@@ -330,9 +333,15 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case ReasonRequired:
 		return true
+	case ReferralAlreadyAttached:
+		return true
 	case ReferralCodePending:
 		return true
 	case ReferralCodeUnknown:
+		return true
+	case ReferralSelf:
+		return true
+	case ReferralWindowClosed:
 		return true
 	case RelayerUnderfunded:
 		return true

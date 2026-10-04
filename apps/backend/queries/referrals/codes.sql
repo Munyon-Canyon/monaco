@@ -15,3 +15,12 @@ SELECT user_id FROM referral_codes WHERE code = sqlc.arg(code);
 
 -- name: ReferralCodeOfUser :one
 SELECT code FROM referral_codes WHERE user_id = sqlc.arg(owner);
+
+-- name: ReferralAttached :one
+SELECT EXISTS (SELECT 1 FROM referrals WHERE referee_id = sqlc.arg(referee_id));
+
+-- name: InsertReferral :one
+INSERT INTO referrals (id, referrer_id, referee_id, code, code_kind, source, status, created_at)
+VALUES (sqlc.arg(id), sqlc.arg(referrer_id), sqlc.arg(referee_id), sqlc.arg(code), sqlc.arg(code_kind), sqlc.arg(source), 'attributed', sqlc.arg(attributed_at))
+ON CONFLICT (referee_id) DO NOTHING
+RETURNING id;
