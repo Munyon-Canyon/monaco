@@ -24,6 +24,14 @@ type CabalAccessRequest struct {
 	DecidedAt pgtype.Timestamptz
 }
 
+type CabalMember struct {
+	CabalID  uuid.UUID
+	UserID   uuid.UUID
+	Role     string
+	CanVote  bool
+	JoinedAt time.Time
+}
+
 type TreasuryWallet struct {
 	CabalID       uuid.UUID
 	PrivyWalletID string

@@ -12,6 +12,11 @@ SELECT user_id, role, can_vote, joined_at FROM cabal_members
 WHERE cabal_id = $1
 ORDER BY joined_at, user_id;
 
+-- name: ListMembersOf :many
+SELECT cabal_id, user_id, role, can_vote, joined_at FROM cabal_members
+WHERE cabal_id = ANY(sqlc.arg(cabal_ids)::uuid[])
+ORDER BY cabal_id, joined_at, user_id;
+
 -- name: ListVoterIDs :many
 SELECT user_id FROM cabal_members
 WHERE cabal_id = $1 AND can_vote

@@ -63,6 +63,11 @@ type MemberReader interface {
 	CabalsOf(ctx context.Context, user ids.UserID) ([]ids.CabalID, error)
 }
 
+type BatchReader interface {
+	AllCabals(ctx context.Context) ([]CabalView, error)
+	MembersOf(ctx context.Context, cabalIDs []ids.CabalID) (map[ids.CabalID][]MemberView, error)
+}
+
 type TreasuryReader interface {
 	TreasuryWallet(ctx context.Context, id ids.CabalID) (TreasuryWallet, error)
 	TreasuryWallets(ctx context.Context) ([]TreasuryWallet, error)
@@ -71,5 +76,6 @@ type TreasuryReader interface {
 type Queries interface {
 	ViewReader
 	MemberReader
+	BatchReader
 	TreasuryReader
 }

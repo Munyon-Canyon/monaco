@@ -24,6 +24,23 @@ var _ port.Queries = Postgres{}
 
 func NewQueries(db sqlc.DBTX) Postgres { return Postgres{q: sqlc.New(db)} }
 
+func (r Postgres) AllCabals(ctx context.Context) ([]port.CabalView, error) {
+	const op = "cabal.AllCabals"
+	rows, err := r.q.AllCabals(ctx)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	cabals := make([]port.CabalView, 0, len(rows))
+	for _, row := range rows {
+		view, err := viewOf(op, sqlc.FindCabalRow(row))
+		if err != nil {
+			return nil, err
+		}
+		cabals = append(cabals, view)
+	}
+	return cabals, nil
+}
+
 func (r Postgres) Cabal(ctx context.Context, id ids.CabalID) (port.CabalView, error) {
 	const op = "cabal.Cabal"
 	row, err := r.find(ctx, op, id)
@@ -91,6 +108,34 @@ func (r Postgres) Members(ctx context.Context, id ids.CabalID) ([]port.MemberVie
 			return nil, err
 		}
 		members = append(members, memberOf(user, row.Role, row.CanVote, row.JoinedAt))
+	}
+	return members, nil
+}
+
+func (r Postgres) MembersOf(ctx context.Context, cabalIDs []ids.CabalID) (map[ids.CabalID][]port.MemberView, error) {
+	const op = "cabal.MembersOf"
+	raw := make([]uuid.UUID, len(cabalIDs))
+	for i, id := range cabalIDs {
+		raw[i] = id.UUID()
+	}
+	rows, err := r.q.ListMembersOf(ctx, raw)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	members := make(map[ids.CabalID][]port.MemberView, len(cabalIDs))
+	for _, id := range cabalIDs {
+		members[id] = nil
+	}
+	for _, row := range rows {
+		cabal, err := cabalID(op, row.CabalID)
+		if err != nil {
+			return nil, err
+		}
+		user, err := userID(op, row.UserID)
+		if err != nil {
+			return nil, err
+		}
+		members[cabal] = append(members[cabal], memberOf(user, row.Role, row.CanVote, row.JoinedAt))
 	}
 	return members, nil
 }

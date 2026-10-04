@@ -13,6 +13,66 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const allCabals = `-- name: AllCabals :many
+SELECT c.id, c.name, c.picture_url, c.creator_id, c.join_mode, c.voter_mode, c.threshold,
+  c.proposal_expiry_seconds, c.slippage_bps, c.invite_code, c.status, c.created_at, c.updated_at,
+  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count
+FROM cabals c
+ORDER BY c.created_at, c.id
+`
+
+type AllCabalsRow struct {
+	ID                    uuid.UUID
+	Name                  string
+	PictureUrl            pgtype.Text
+	CreatorID             uuid.UUID
+	JoinMode              string
+	VoterMode             string
+	Threshold             string
+	ProposalExpirySeconds int32
+	SlippageBps           int32
+	InviteCode            string
+	Status                string
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	MemberCount           int32
+}
+
+func (q *Queries) AllCabals(ctx context.Context) ([]AllCabalsRow, error) {
+	rows, err := q.db.Query(ctx, allCabals)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AllCabalsRow
+	for rows.Next() {
+		var i AllCabalsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.PictureUrl,
+			&i.CreatorID,
+			&i.JoinMode,
+			&i.VoterMode,
+			&i.Threshold,
+			&i.ProposalExpirySeconds,
+			&i.SlippageBps,
+			&i.InviteCode,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.MemberCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findCabal = `-- name: FindCabal :one
 SELECT c.id, c.name, c.picture_url, c.creator_id, c.join_mode, c.voter_mode, c.threshold,
   c.proposal_expiry_seconds, c.slippage_bps, c.invite_code, c.status, c.created_at, c.updated_at,

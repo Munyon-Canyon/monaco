@@ -53,7 +53,8 @@ func TestQueries_everyMethodIsOneRoundTripAndTreasuryWalletsServes1000CabalsInOn
 	ctx := t.Context()
 	a, user := w.id("a"), w.users[0]
 	for name, call := range map[string]func() error{
-		"Cabal": func() error { _, err := q.Cabal(ctx, a); return err },
+		"AllCabals": func() error { _, err := q.AllCabals(ctx); return err },
+		"Cabal":     func() error { _, err := q.Cabal(ctx, a); return err },
 		"Cabals 1000 ids": func() error {
 			got, err := q.Cabals(ctx, asked)
 			if err == nil && len(got) != bulk {
@@ -64,6 +65,7 @@ func TestQueries_everyMethodIsOneRoundTripAndTreasuryWalletsServes1000CabalsInOn
 		"IsMember":    func() error { _, err := q.IsMember(ctx, a, user); return err },
 		"Member":      func() error { _, err := q.Member(ctx, a, user); return err },
 		"Members":     func() error { _, err := q.Members(ctx, a); return err },
+		"MembersOf":   func() error { _, err := q.MembersOf(ctx, []ids.CabalID{a, w.id("b")}); return err },
 		"VoterSet":    func() error { _, err := q.VoterSet(ctx, a); return err },
 		"Rules":       func() error { _, err := q.Rules(ctx, a); return err },
 		"SlippageBps": func() error { _, err := q.SlippageBps(ctx, a); return err },
@@ -122,16 +124,27 @@ func TestQueries_aRowWhoseIDIsNotV7IsDecodeFailed(t *testing.T) {
 		t.Fatal(err)
 	}
 	q := cabal.New(module.Deps{Pool: pool}).Queries()
+	_, allCabals := q.AllCabals(ctx)
 	_, byV4Cabal := q.Cabal(ctx, ids.CabalIDFrom(v4Cabal))
 	_, byV4Creator := q.Cabal(ctx, w.id("d"))
 	_, batch := q.Cabals(ctx, []ids.CabalID{w.id("a"), ids.CabalIDFrom(v4Cabal)})
 	_, members := q.Members(ctx, w.id("c"))
+	_, membersWithV4Cabal := q.MembersOf(ctx, []ids.CabalID{ids.CabalIDFrom(v4Cabal)})
+	_, membersWithV4User := q.MembersOf(ctx, []ids.CabalID{w.id("c")})
 	_, voters := q.VoterSet(ctx, w.id("c"))
 	_, wallets := q.TreasuryWallets(ctx)
 	_, cabals := q.CabalsOf(ctx, w.users[0])
 	for name, err := range map[string]error{
-		"Cabal with a v4 cabal id": byV4Cabal, "Cabal with a v4 creator": byV4Creator, "Cabals": batch,
-		"Members": members, "VoterSet": voters, "TreasuryWallets": wallets, "CabalsOf": cabals,
+		"AllCabals":                 allCabals,
+		"Cabal with a v4 cabal id":  byV4Cabal,
+		"Cabal with a v4 creator":   byV4Creator,
+		"Cabals":                    batch,
+		"Members":                   members,
+		"MembersOf with a v4 cabal": membersWithV4Cabal,
+		"MembersOf with a v4 user":  membersWithV4User,
+		"VoterSet":                  voters,
+		"TreasuryWallets":           wallets,
+		"CabalsOf":                  cabals,
 	} {
 		if errs.CodeOf(err) != errs.CodeDecodeFailed {
 			t.Errorf("%s err = %v, want decode_failed", name, err)
@@ -147,11 +160,13 @@ func TestQueries_databaseFailuresAreInternalAndKeepTheirCause(t *testing.T) {
 	q := cabal.New(module.Deps{Pool: pool}).Queries()
 	id, user := ids.CabalID{}, ids.UserID{}
 	for name, call := range map[string]func() error{
+		"AllCabals":      func() error { _, err := q.AllCabals(ctx); return err },
 		"Cabal":          func() error { _, err := q.Cabal(ctx, id); return err },
 		"Cabals":         func() error { _, err := q.Cabals(ctx, []ids.CabalID{id}); return err },
 		"IsMember":       func() error { _, err := q.IsMember(ctx, id, user); return err },
 		"Member":         func() error { _, err := q.Member(ctx, id, user); return err },
 		"Members":        func() error { _, err := q.Members(ctx, id); return err },
+		"MembersOf":      func() error { _, err := q.MembersOf(ctx, []ids.CabalID{id}); return err },
 		"VoterSet":       func() error { _, err := q.VoterSet(ctx, id); return err },
 		"Rules":          func() error { _, err := q.Rules(ctx, id); return err },
 		"SlippageBps":    func() error { _, err := q.SlippageBps(ctx, id); return err },
