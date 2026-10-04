@@ -33,6 +33,23 @@ public struct SessionAPI: Sendable {
         return try SessionProfile(json: data)
     }
 
+    public func handleAvailability(_ handle: String) async throws -> HandleStatus {
+        let reply = try await api.read { client in
+            try await client.getHandleAvailability(path: .init(handle: handle)).ok.body.json
+        }
+        guard !reply.available else { return .available(handle) }
+        return .unavailable(handle, reply.reason.map(HandleReason.init) ?? .invalid)
+    }
+
+    public func setHandle(_ handle: String, submission: IdempotentSubmission) async throws -> SessionProfile {
+        let request = Components.Schemas.SetHandle(handle: handle)
+        let data = try await api.sessionSubmit(submission, payload: request, operation: "putMeHandle") {
+            client, key in
+            _ = try await client.putMeHandle(.init(headers: .init(idempotencyKey: key), body: .json(request))).ok
+        }
+        return try SessionProfile(json: data)
+    }
+
     public func uploadProfilePhoto(_ photo: Data, submission: IdempotentSubmission) async throws -> SessionProfile {
         let data = try await api.sessionSubmit(submission, payload: photo, operation: "postProfilePhoto") {
             client, key in
@@ -65,6 +82,17 @@ public enum ProfileSaveFailure: Equatable, Sendable {
     public var message: String {
         switch self {
         case .invalidName(let message), .toast(let message): message
+        }
+    }
+}
+
+extension HandleReason {
+    init(_ reason: Components.Schemas.HandleAvailabilityReason) {
+        switch reason {
+        case .taken: self = .taken
+        case .reserved: self = .reserved
+        case .invalid: self = .invalid
+        case .tooSoon: self = .tooSoon
         }
     }
 }

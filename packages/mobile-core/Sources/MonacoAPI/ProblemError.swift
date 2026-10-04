@@ -32,6 +32,7 @@ public struct ProblemError: Error, Sendable, Hashable, Decodable, LocalizedError
     public let message: String
     public let traceID: String
     public let retryable: Bool
+    public internal(set) var retryAfterSeconds: Int? = nil
 
     public var errorDescription: String? { message }
 
@@ -87,7 +88,9 @@ struct ProblemMiddleware: ClientMiddleware {
             return (response, responseBody)
         }
         let data = try await Data(collecting: responseBody, upTo: Self.maxBodyBytes)
-        throw try JSONDecoder().decode(ProblemError.self, from: data)
+        var problem = try JSONDecoder().decode(ProblemError.self, from: data)
+        problem.retryAfterSeconds = response.headerFields[.retryAfter].flatMap { Int($0) }
+        throw problem
     }
 
     private static func isProblem(_ response: HTTPResponse) -> Bool {
