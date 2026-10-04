@@ -27,6 +27,59 @@ final class AssetDetailClientModelTests: XCTestCase {
         XCTAssertEqual(model.chart?.points.map(\.priceUsdcMicros), [110_000_000, 111_000_000])
     }
 
+    func testShowsTheDayRangeChangeAndLabelFromTheChart() async throws {
+        let model = makeModel(
+            try reply(Components.Schemas.AssetDetail.googl),
+            try reply(chart(range: "1D", prices: [100_000_000, 101_250_000]))
+        )
+
+        await model.load()
+
+        XCTAssertEqual(model.rangeChange?.basisPoints, 125)
+        XCTAssertEqual(model.rangeChange?.label, "Past day · GOOGL")
+    }
+
+    func testShowsTheWeekRangeChangeAndLabelFromTheChart() async throws {
+        let model = makeModel(
+            try reply(Components.Schemas.AssetDetail.googl),
+            try reply(chart(range: "1W", prices: [200_000_000, 198_000_000]))
+        )
+
+        await model.load()
+        await model.loadChart(range: AssetChartRange.oneWeek)
+
+        XCTAssertEqual(model.rangeChange?.basisPoints, -100)
+        XCTAssertEqual(model.rangeChange?.label, "Past week · GOOGL")
+    }
+
+    func testRecognizesShortHistory() async throws {
+        let model = makeModel(
+            try reply(Components.Schemas.AssetDetail.googl), try reply(Components.Schemas.AssetChart.oneDay)
+        )
+
+        await model.load()
+
+        XCTAssertTrue(model.isShortHistory)
+    }
+
+    func testMapsEverySessionFromTheDetail() async throws {
+        for session in [MarketSession.open, .preMarket, .afterHours, .closed] {
+            let detail = Components.Schemas.AssetDetail(
+                symbol: "GOOGLx", displayName: "Alphabet xStock", issuer: .xstocks, kind: .equity,
+                logoUrl: nil, priceMicros: 1, priceAsOf: nil, changeBps: nil, sparklineMicros: [],
+                session: .init(
+                    state: marketState(for: session), continuous: false,
+                    holiday: "", earlyClose: false),
+                decimals: 8, uiMultiplier: .init(num: 1, den: 1), tradable: true, otherListings: [], attribution: "Test"
+            )
+            let model = makeModel(try reply(detail), try reply(Components.Schemas.AssetChart.empty))
+
+            await model.load()
+
+            XCTAssertEqual(model.detail?.session, session)
+        }
+    }
+
     func testKeepsTheNewestChartRangeWhenAnEarlierRequestFinishesFirst() async {
         let transport = StubTransport(scripted: [.gate, .json(.ok, chart(range: "1Y"))])
         let api = APIClient(
@@ -68,6 +121,7 @@ final class AssetDetailClientModelTests: XCTestCase {
         XCTAssertEqual(model.phase, .loaded)
         XCTAssertEqual(model.detail?.ticker, "AAPL")
         XCTAssertNotNil(model.chartError)
+        if case .failed = model.chartPhase {} else { XCTFail("chartPhase = \(model.chartPhase)") }
     }
 
     func testSelectsEachChartRangeBeforeReadingIt() async {
@@ -77,6 +131,18 @@ final class AssetDetailClientModelTests: XCTestCase {
 
         XCTAssertEqual(model.selectedRange, .oneYear)
         XCTAssertEqual(model.chart?.range, .oneYear)
+    }
+
+    func testKeepsTheChartLoadedWhenItIsEmpty() async throws {
+        let model = makeModel(
+            try reply(Components.Schemas.AssetDetail.googl), try reply(Components.Schemas.AssetChart.empty)
+        )
+
+        await model.load()
+
+        XCTAssertEqual(model.chartPhase, AssetDetailClientModel.Phase.loaded)
+        XCTAssertEqual(model.chart?.points.count, 0)
+        XCTAssertNil(model.rangeChange?.basisPoints)
     }
 
     private func makeModel(_ responses: StubTransport.Reply...) -> AssetDetailClientModel {
@@ -100,5 +166,43 @@ final class AssetDetailClientModelTests: XCTestCase {
         #"""
         {"range":"\#(range)","bucket_seconds":300,"points":[],"empty":true,"attribution":"Data provided by CoinGecko"}
         """#
+    }
+
+    private func chart(range: String, prices: [Int64]) -> Components.Schemas.AssetChart {
+        .init(
+            range: chartRange(for: range), bucketSeconds: 300,
+            points: prices.enumerated().map { index, price in
+                .init(
+                    t: Date(timeIntervalSince1970: 1_772_596_200 + Double(index)), openMicros: price,
+                    highMicros: price, lowMicros: price, closeMicros: price)
+            },
+            empty: prices.isEmpty, attribution: "Test"
+        )
+    }
+
+    private func reply<T: Encodable>(_ value: T) throws -> StubTransport.Reply {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return .json(.ok, String(decoding: try encoder.encode(value), as: UTF8.self))
+    }
+
+    private func marketState(for session: MarketSession) -> Components.Schemas.MarketState {
+        switch session {
+        case .open: .open
+        case .preMarket: .preMarket
+        case .afterHours: .afterHours
+        case .closed, .unknown: .closed
+        }
+    }
+
+    private func chartRange(for range: String) -> Components.Schemas.AssetChart.RangePayload {
+        switch range {
+        case "1D": ._1d
+        case "1W": ._1w
+        case "1M": ._1m
+        case "3M": ._3m
+        case "1Y": ._1y
+        default: .all
+        }
     }
 }

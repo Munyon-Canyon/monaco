@@ -9,12 +9,18 @@ public struct AssetDetailPresentation: Equatable, Sendable {
     public let priceMicros: Int64?
     public let changeBasisPoints: Int64?
     public let attribution: String
+    public let session: MarketSession
     public let market: MarketAsset
     public let otherListings: [AssetListingPresentation]
     public let isTradable: Bool
 }
 
 public typealias AssetListingPresentation = MarketListing
+
+public struct AssetRangeChange: Equatable, Sendable {
+    public let basisPoints: Int64?
+    public let label: String
+}
 
 @Observable
 @MainActor
@@ -26,7 +32,8 @@ public final class AssetDetailClientModel {
         case failed(APIError)
     }
 
-    public private(set) var phase: Phase = .idle
+    public private(set) var detailPhase: Phase = .idle
+    public private(set) var chartPhase: Phase = .idle
     public private(set) var detail: AssetDetailPresentation?
     public private(set) var chart: AssetChartSeries?
     public private(set) var chartError: APIError?
@@ -34,34 +41,69 @@ public final class AssetDetailClientModel {
     public private(set) var lastError: APIError?
     public private(set) var failureTick = 0
     private var chartGeneration = 0
-    private let api: APIClient
+    private let api: APIClient?
     private let symbol: String
+
+    public var phase: Phase { detailPhase }
+
+    public var rangeChange: AssetRangeChange? {
+        guard let detail else { return nil }
+        return AssetRangeChange(
+            basisPoints: Self.basisPoints(for: chart),
+            label: "\(selectedRange.moveLabel) · \(detail.ticker)"
+        )
+    }
+
+    public var isShortHistory: Bool {
+        guard let chart else { return false }
+        return chart.points.count < 2
+    }
 
     public init(api: APIClient, symbol: String) {
         self.api = api
         self.symbol = symbol
     }
 
+    #if DEBUG
+    public init(
+        sampleDetail: Components.Schemas.AssetDetail?,
+        chart: AssetChartSeries?,
+        selectedRange: AssetChartRange = .oneDay,
+        chartPhase: Phase = .loaded
+    ) {
+        api = nil
+        symbol = sampleDetail?.symbol ?? ""
+        detail = sampleDetail.map(Self.presentation)
+        detailPhase = sampleDetail == nil ? .loading : .loaded
+        self.chart = chart
+        self.selectedRange = selectedRange
+        self.chartPhase = chartPhase
+    }
+    #endif
+
     public func load() async {
-        if detail == nil { phase = .loading }
+        guard let api else { return }
+        if detail == nil { detailPhase = .loading }
         do {
             let response = try await api.read { client in
                 try await client.getAsset(path: .init(symbol: symbol)).ok.body.json
             }
             detail = Self.presentation(response)
-            phase = .loaded
+            detailPhase = .loaded
             lastError = nil
             await loadChart()
         } catch {
             let error = APIError(error)
             lastError = error
             failureTick += 1
-            if detail == nil { phase = .failed(error) }
+            if detail == nil { detailPhase = .failed(error) }
         }
     }
 
     public func loadChart(range: AssetChartRange = .oneDay) async {
+        guard let api else { return }
         selectedRange = range
+        chartPhase = .loading
         chartGeneration += 1
         let issued = chartGeneration
         do {
@@ -74,9 +116,12 @@ public final class AssetDetailClientModel {
             guard issued == chartGeneration else { return }
             chart = MarketMapping.chart(response)
             chartError = nil
+            chartPhase = .loaded
         } catch {
             guard issued == chartGeneration else { return }
-            chartError = APIError(error)
+            let error = APIError(error)
+            chartError = error
+            chartPhase = .failed(error)
         }
     }
 
@@ -91,10 +136,22 @@ public final class AssetDetailClientModel {
             priceMicros: detail.priceMicros,
             changeBasisPoints: detail.changeBps.map(Int64.init),
             attribution: detail.attribution,
+            session: market.session,
             market: market,
             otherListings: mapped.otherListings,
             isTradable: detail.tradable
         )
+    }
+
+    private static func basisPoints(for chart: AssetChartSeries?) -> Int64? {
+        guard let first = chart?.points.first?.priceUsdcMicros,
+            let last = chart?.points.last?.priceUsdcMicros,
+            first > 0
+        else { return nil }
+        let (change, changeOverflow) = last.subtractingReportingOverflow(first)
+        let (scaled, scaleOverflow) = change.multipliedReportingOverflow(by: 10_000)
+        guard !changeOverflow, !scaleOverflow else { return nil }
+        return scaled / first
     }
 
     private static func wireRange(
@@ -107,6 +164,19 @@ public final class AssetDetailClientModel {
         case .threeMonths: ._3m
         case .oneYear: ._1y
         case .all: .all
+        }
+    }
+}
+
+extension AssetChartRange {
+    var moveLabel: String {
+        switch self {
+        case .oneDay: "Past day"
+        case .oneWeek: "Past week"
+        case .oneMonth: "Past month"
+        case .threeMonths: "Past three months"
+        case .oneYear: "Past year"
+        case .all: "All time"
         }
     }
 }
