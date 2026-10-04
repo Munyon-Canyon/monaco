@@ -13,7 +13,6 @@ enum GroupDetailRoute: Hashable {
     /// dismisses.
     case cashOut(shareUnits: Int64, equityUsd: String)
     case chat
-    case proposals
     case activity
     /// A holding on the cabal screen, opened as the stock it is. The row already
     /// shows the day's shape and its change; tapping it should go where those
@@ -55,7 +54,6 @@ struct GroupDetailView: View {
     @State private var isLoading: Bool
     /// The blocking first load has run at least once; re-appearing is the poll loop's job.
     @State private var didInitialLoad = false
-    @State private var proposalService: LiveProposalFeedService
     /// The pot's curve on the hero: one slot per range, re-read with the rest of the screen.
     @State private var pnl: GroupPnLHistoryModel
 
@@ -99,7 +97,6 @@ struct GroupDetailView: View {
         self.groupName = groupName
         self.initialView = initialView
         _isLoading = State(initialValue: initialView == nil)
-        _proposalService = State(initialValue: LiveProposalFeedService(auth: auth))
         _pnl = State(
             initialValue: GroupPnLHistoryModel(groupId: groupId, source: LiveGroupPnLHistorySource(auth: auth)))
     }
@@ -190,8 +187,6 @@ struct GroupDetailView: View {
                 auth: auth,
                 view: groupView,
                 currentUserId: session?.profile?.userID,
-                proposalService: proposalService,
-                proposalRefreshToken: "\(proposalRefreshCount)",
                 onOpenVotesChange: openVotesChanged,
                 activityItems: activityItems,
                 activityLoading: activityLoading,
@@ -277,8 +272,6 @@ struct GroupDetailView: View {
             )
         case .chat:
             GroupChatView(auth: auth, groupId: groupId, groupName: displayName)
-        case .proposals:
-            ProposalFeedView(service: proposalService, groupId: groupId)
         case .activity:
             GroupActivityListView(
                 auth: auth,
@@ -458,8 +451,6 @@ struct GroupDetailContent: View {
     @ObservedObject var auth: PrivyAuthService
     let view: GroupViewDTO
     let currentUserId: String?
-    let proposalService: ProposalFeedService
-    let proposalRefreshToken: String
     var onOpenVotesChange: (Bool) -> Void = { _ in }
     let activityItems: [GroupActivityItemDTO]
     let activityLoading: Bool
@@ -496,14 +487,6 @@ struct GroupDetailContent: View {
                 }
 
                 VStack(alignment: .leading, spacing: 0) {
-                    ProposalHistorySection(
-                        service: proposalService,
-                        groupId: view.id,
-                        refreshToken: proposalRefreshToken,
-                        onOpenVotesChange: onOpenVotesChange,
-                        onSeeAll: { onRoute(.proposals) },
-                        onToast: onToast
-                    )
                     PotSectionView(
                         pot: view.pot,
                         groupId: view.id,
