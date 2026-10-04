@@ -256,7 +256,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		"scripts: go test -short -count=1 -run ^(TestReadsFoo)$ ./ci",
 		".: python3 -m unittest scripts/test_new.py scripts/test_tool.py",
 		"packages/mobile-core: swift format lint --strict --recursive --parallel ../../apps/mobile .",
-		"packages/mobile-core: swiftlint-ratchet.sh",
+		"packages/mobile-core: swiftlint-ratchet.sh --base origin/fb",
 		"packages/mobile-core: mobile-core-test.sh",
 		".: python3 scripts/qa/journey.py check",
 		".: python3 scripts/qa/test_journey.py",

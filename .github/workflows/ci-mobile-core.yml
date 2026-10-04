@@ -145,13 +145,36 @@ jobs:
       - name: Check legacy growth
         run: python3 scripts/check-legacy-growth.py
 
+  # No swiftlint container: the ratchet needs git for the base blobs, so it runs the pinned image
+  # through Docker on the runner.
   swiftlint:
     name: SwiftLint ratchet
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    container: ghcr.io/realm/swiftlint:0.65.0
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve the base and labels
+        env:
+          FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH || 'main' }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          base="$(scripts/ci/fetch-base.sh)"
+          echo "swiftlint base: ${base}"
+          labels='[]'
+          if [[ -n "$PR_NUMBER" ]]; then
+            labels="$(gh pr view "$PR_NUMBER" --json labels -q '[.labels[].name]')"
+          fi
+          {
+            echo "BASE_SHA=${base}"
+            echo "PR_LABELS=${labels}"
+          } >> "$GITHUB_ENV"
 
       - name: Run the ratchet
-        run: scripts/swiftlint-ratchet.sh
+        run: scripts/swiftlint-ratchet.sh --base "$BASE_SHA"

@@ -235,7 +235,7 @@ func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkR
 	rows = append(rows, env.testFileRows(changed)...)
 	swift := swiftChanged(changed)
 	if swift {
-		rows = append(rows, env.swiftRow())
+		rows = append(rows, env.swiftRow(parent))
 	}
 	if slices.ContainsFunc(changed, env.flowFile) {
 		row, err := env.flowsRow(ctx, parent, head, swift)
@@ -269,17 +269,16 @@ func journeyChanged(changed []string) bool {
 func swiftChanged(changed []string) bool {
 	return slices.ContainsFunc(changed, func(f string) bool {
 		return strings.HasPrefix(f, "packages/mobile-core/") || strings.HasPrefix(f, "packages/flows/") ||
-			strings.HasPrefix(f, "apps/mobile/") || f == openAPISpec || f == ".swift-format" || f == ".swiftlint.yml" ||
-			f == ".swiftlint-baseline.tsv"
+			strings.HasPrefix(f, "apps/mobile/") || f == openAPISpec || f == ".swift-format" || f == ".swiftlint.yml"
 	})
 }
 
-func (env *Env) swiftRow() checkRow {
+func (env *Env) swiftRow(parent string) checkRow {
 	return checkRow{
 		label: "swift test", kind: "swift", dir: filepath.Join(env.Work, "packages", "mobile-core"),
 		cmds: [][]string{
 			{"swift", "format", "lint", "--strict", "--recursive", "--parallel", "../../apps/mobile", "."},
-			{"../../scripts/swiftlint-ratchet.sh"},
+			{"../../scripts/swiftlint-ratchet.sh", "--base", parent},
 			{"../../scripts/mobile-core-test.sh"},
 		},
 	}

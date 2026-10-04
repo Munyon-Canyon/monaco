@@ -410,7 +410,7 @@ func keepBin(word string, builtin, funcs map[string]bool) bool {
 		return false
 	}
 	switch word {
-	case "api", "bad", "build-for-testing", "cannot", "clean", "closes", "command", "compose", "continuing", "create", "delta", "depth", "error", "full", "get", "has", "import", "inside", "issue", "lines", "list", "must", "next", "no", "not", "number", "or", "pr", "print", "re-slimming", "rev-parse", "run", "scripts", "see", "skipping", "test-without-building", "the", "ubuntu-latest", "version", "qa-report", "ios-sim-clipboard-bridge", "Log", "Nightly", "Print", "Result", "Seconds", "Step", "Ctrl+C":
+	case "api", "bad", "build-for-testing", "cannot", "clean", "closes", "command", "compose", "continuing", "create", "delta", "depth", "error", "full", "get", "has", "import", "inside", "issue", "lines", "list", "must", "next", "no", "not", "number", "or", "pr", "print", "re-slimming", "merge-base", "rev-parse", "run", "scripts", "see", "skipping", "test-without-building", "the", "ubuntu-latest", "version", "qa-report", "ios-sim-clipboard-bridge", "Log", "Nightly", "Print", "Result", "Seconds", "Step", "Ctrl+C":
 		return false
 	}
 	return true

@@ -10,14 +10,19 @@ import (
 
 const ratchetCSVHeader = "file,line,character,severity,type,reason,rule_id\n"
 
+const ratchetBaseTree = ".build/swiftlint-base."
+
+const ratchetBaseDir = `base="$(printf '%s\n' "$@" | sed -n 's#^\(\.build/swiftlint-base\.[^/]*\)/.*#\1#p' | head -n 1)"`
+
 type ratchetRepo struct {
-	dir  string
-	bin  string
-	csv  string
-	args string
+	dir     string
+	bin     string
+	headCSV string
+	baseCSV string
+	args    string
 }
 
-func newRatchetRepo(t *testing.T, baseline string) ratchetRepo {
+func newRatchetRepo(t *testing.T) ratchetRepo {
 	t.Helper()
 	root := repoRoot(t)
 	dir, err := filepath.EvalSymlinks(t.TempDir())
@@ -29,19 +34,38 @@ func newRatchetRepo(t *testing.T, baseline string) ratchetRepo {
 	}
 	writeRatchetFile(t, filepath.Join(dir, "apps/mobile/Monaco/A.swift"), "let a = [1].first!\nlet b = [2].first!\n// note\n")
 	writeRatchetFile(t, filepath.Join(dir, "packages/mobile-core/Sources/B.swift"), "let c = [3].first!\n")
-	writeRatchetFile(t, filepath.Join(dir, ".swiftlint-baseline.tsv"), baseline)
-	r := ratchetRepo{dir: dir, bin: t.TempDir(), csv: filepath.Join(t.TempDir(), "lint.csv")}
-	r.args = filepath.Join(filepath.Dir(r.csv), "args")
+	git(t, dir, "init", "-q")
+	git(t, dir, "add", ".")
+	git(t, dir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "base")
+	git(t, dir, "update-ref", "refs/remotes/origin/staging", "HEAD")
+	stubs := t.TempDir()
+	r := ratchetRepo{
+		dir:     dir,
+		bin:     t.TempDir(),
+		headCSV: filepath.Join(stubs, "head.csv"),
+		baseCSV: filepath.Join(stubs, "base.csv"),
+		args:    filepath.Join(stubs, "args"),
+	}
+	writeRatchetFile(t, r.baseCSV, ratchetCSVHeader)
 	writeRatchetFile(t, filepath.Join(r.bin, "swiftlint"), `#!/bin/sh
 if [ "$1" = version ]; then echo "${STUB_SWIFTLINT_VERSION:-0.65.0}"; exit 0; fi
-echo "$@" > "$STUB_ARGS"
-cat "$STUB_CSV"
+echo "$@" >> "$STUB_ARGS"
+`+ratchetBaseDir+`
+case "$*" in
+  *.build/swiftlint-base*) sed "s#@BASE@#$base#" "$STUB_BASE_CSV" ;;
+  *) cat "$STUB_CSV" ;;
+esac
 exit 2
 `)
 	writeRatchetFile(t, filepath.Join(r.bin, "docker"), `#!/bin/sh
 [ "$1" = info ] && exit 0
-echo "$@" > "$STUB_ARGS"
-sed "s#^$STUB_ROOT/#/repo/#" "$STUB_CSV"
+echo "$@" >> "$STUB_ARGS"
+`+ratchetBaseDir+`
+case "$*" in
+  *.build/swiftlint-base*) csv="$STUB_BASE_CSV" ;;
+  *) csv="$STUB_CSV" ;;
+esac
+sed -e "s#@BASE@#$base#" -e "s#^$STUB_ROOT/#/repo/#" "$csv"
 exit 2
 `)
 	return r
@@ -57,14 +81,29 @@ func writeRatchetFile(t *testing.T, path, body string) {
 	}
 }
 
-func (r ratchetRepo) lintFinds(t *testing.T, rows ...string) {
+func (r ratchetRepo) edit(t *testing.T, rel, body string) {
+	t.Helper()
+	writeRatchetFile(t, filepath.Join(r.dir, rel), body)
+}
+
+func (r ratchetRepo) writeCSV(t *testing.T, path, prefix string, rows []string) {
 	t.Helper()
 	var b strings.Builder
 	b.WriteString(ratchetCSVHeader)
 	for _, row := range rows {
-		b.WriteString(r.dir + "/" + row + "\n")
+		b.WriteString(r.dir + "/" + prefix + row + "\n")
 	}
-	writeRatchetFile(t, r.csv, b.String())
+	writeRatchetFile(t, path, b.String())
+}
+
+func (r ratchetRepo) headFinds(t *testing.T, rows ...string) {
+	t.Helper()
+	r.writeCSV(t, r.headCSV, "", rows)
+}
+
+func (r ratchetRepo) baseFinds(t *testing.T, rows ...string) {
+	t.Helper()
+	r.writeCSV(t, r.baseCSV, "@BASE@/", rows)
 }
 
 func (r ratchetRepo) run(t *testing.T, env []string, args ...string) (int, string) {
@@ -73,9 +112,11 @@ func (r ratchetRepo) run(t *testing.T, env []string, args ...string) (int, strin
 	cmd.Dir = r.dir
 	cmd.Env = append(os.Environ(),
 		"PATH="+r.bin+":/usr/bin:/bin",
-		"STUB_CSV="+r.csv,
+		"STUB_CSV="+r.headCSV,
+		"STUB_BASE_CSV="+r.baseCSV,
 		"STUB_ARGS="+r.args,
 		"STUB_ROOT="+r.dir,
+		"PR_LABELS=",
 	)
 	cmd.Env = append(cmd.Env, env...)
 	out, err := cmd.CombinedOutput()
@@ -88,43 +129,44 @@ func (r ratchetRepo) run(t *testing.T, env []string, args ...string) (int, strin
 	return 0, string(out)
 }
 
-func (r ratchetRepo) baseline(t *testing.T) string {
+func (r ratchetRepo) lintCalls(t *testing.T) []string {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join(r.dir, ".swiftlint-baseline.tsv"))
+	b, err := os.ReadFile(r.args)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return string(b)
+	return strings.Split(strings.TrimSpace(string(b)), "\n")
 }
 
 const (
-	unwrapA1  = `apps/mobile/Monaco/A.swift,1,18,Warning,Force Unwrapping,Force unwrapping should be avoided,force_unwrapping`
-	unwrapA2  = `apps/mobile/Monaco/A.swift,2,18,Warning,Force Unwrapping,Force unwrapping should be avoided,force_unwrapping`
-	commentA3 = `apps/mobile/Monaco/A.swift,3,1,Error,No comments,"No comments in Swift. Use a better name, a type, a test, or an issue.",no_comments`
-	unwrapB1  = `packages/mobile-core/Sources/B.swift,1,18,Warning,Force Unwrapping,Force unwrapping should be avoided,force_unwrapping`
+	aSwift    = "apps/mobile/Monaco/A.swift"
+	unwrapA1  = aSwift + `,1,18,Warning,Force Unwrapping,Force unwrapping should be avoided,force_unwrapping`
+	unwrapA2  = aSwift + `,2,18,Warning,Force Unwrapping,Force unwrapping should be avoided,force_unwrapping`
+	commentA3 = aSwift + `,3,1,Error,No comments,"No comments in Swift. Use a better name, a type, a test, or an issue.",no_comments`
 )
 
-const ratchetBaseline = "force_unwrapping\tapps/mobile/Monaco/A.swift\t2\n" +
-	"force_unwrapping\tpackages/mobile-core/Sources/B.swift\t1\n" +
-	"no_comments\tapps/mobile/Monaco/A.swift\t1\n"
-
-func TestSwiftlintRatchet_passesAtTheBaselineAndLintsBothTreesByDefault(t *testing.T) {
-	r := newRatchetRepo(t, ratchetBaseline)
-	r.lintFinds(t, unwrapA1, unwrapA2, commentA3, unwrapB1, unwrapB1)
+func TestSwiftlintRatchet_passesWhenNoChangedFileGrowsAndLintsOnlyChangedFiles(t *testing.T) {
+	r := newRatchetRepo(t)
+	r.edit(t, aSwift, "let a = [1].first!\nlet b = [2].first!\n// note\nlet d = 4\n")
+	r.baseFinds(t, unwrapA1, unwrapA2, commentA3)
+	r.headFinds(t, unwrapA1, unwrapA2, commentA3)
 	code, out := r.run(t, nil)
 	if code != 0 {
-		t.Fatalf("expected a pass at the baseline, code=%d out=%s", code, out)
+		t.Fatalf("expected a pass, code=%d out=%s", code, out)
 	}
-	args, _ := os.ReadFile(r.args)
-	if got := strings.TrimSpace(string(args)); got != "lint --quiet --force-exclude --reporter csv apps/mobile packages/mobile-core" {
-		t.Fatalf("unexpected swiftlint args %q", got)
+	calls := r.lintCalls(t)
+	head, base := "lint --quiet --force-exclude --reporter csv "+aSwift, "lint --quiet --force-exclude --reporter csv "+ratchetBaseTree
+	if len(calls) != 2 || calls[0] != head || !strings.HasPrefix(calls[1], base) || !strings.HasSuffix(calls[1], "/"+aSwift) {
+		t.Fatalf("swiftlint calls %q, want the changed file at head and its base copy", calls)
 	}
 }
 
 func TestSwiftlintRatchet_failsWhenACountGrowsAndPrintsTheLines(t *testing.T) {
-	r := newRatchetRepo(t, "force_unwrapping\tapps/mobile/Monaco/A.swift\t1\n")
-	r.lintFinds(t, unwrapA1, unwrapA2, commentA3)
-	code, out := r.run(t, nil, "apps/mobile/Monaco/A.swift")
+	r := newRatchetRepo(t)
+	r.edit(t, aSwift, "let a = [1].first!\nlet b = [2].first!\n// note\nlet d = 4\n")
+	r.baseFinds(t, unwrapA1)
+	r.headFinds(t, unwrapA1, unwrapA2, commentA3)
+	code, out := r.run(t, nil, aSwift)
 	if code != 1 {
 		t.Fatalf("expected exit 1, code=%d out=%s", code, out)
 	}
@@ -140,55 +182,80 @@ func TestSwiftlintRatchet_failsWhenACountGrowsAndPrintsTheLines(t *testing.T) {
 	}
 }
 
-func TestSwiftlintRatchet_fullRunDemandsALowerBaselineButANamedPathDoesNot(t *testing.T) {
-	r := newRatchetRepo(t, ratchetBaseline)
-	r.lintFinds(t, unwrapA1, commentA3)
-	code, out := r.run(t, nil)
-	if code != 1 {
-		t.Fatalf("expected the full run to fail, code=%d out=%s", code, out)
+func TestSwiftlintRatchet_aShrinkPassesWithNoStoredFile(t *testing.T) {
+	r := newRatchetRepo(t)
+	r.edit(t, aSwift, "let a = [1].first!\n")
+	r.baseFinds(t, unwrapA1, unwrapA2, commentA3)
+	r.headFinds(t, unwrapA1)
+	if code, out := r.run(t, nil); code != 0 {
+		t.Fatalf("a shrink must pass, code=%d out=%s", code, out)
 	}
-	for _, want := range []string{
-		"lower the baseline: force_unwrapping apps/mobile/Monaco/A.swift 2 -> 1",
-		"lower the baseline: force_unwrapping packages/mobile-core/Sources/B.swift 1 -> 0",
-	} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("missing %q in:\n%s", want, out)
-		}
+	status, err := exec.Command("git", "-C", r.dir, "status", "--porcelain", "--untracked-files=all").Output()
+	if err != nil {
+		t.Fatal(err)
 	}
-	if code, out := r.run(t, nil, filepath.Join(r.dir, "apps/mobile/Monaco/A.swift")); code != 0 {
-		t.Fatalf("a named-path run checks growth only, code=%d out=%s", code, out)
+	if got := strings.TrimSpace(string(status)); got != "M "+aSwift {
+		t.Fatalf("the ratchet must leave only the edit behind, status=%q", got)
 	}
 }
 
-func TestSwiftlintRatchet_updateLowersRowsAndRefusesToRaiseThem(t *testing.T) {
-	r := newRatchetRepo(t, ratchetBaseline)
-	r.lintFinds(t, unwrapA1, commentA3)
-	if code, out := r.run(t, nil, "--update"); code != 0 {
-		t.Fatalf("expected --update to lower the rows, code=%d out=%s", code, out)
+func TestSwiftlintRatchet_gateChangeApprovedWaivesGrowth(t *testing.T) {
+	r := newRatchetRepo(t)
+	r.edit(t, aSwift, "let a = [1].first!\nlet b = [2].first!\n// note\nlet d = 4\n")
+	r.baseFinds(t, unwrapA1)
+	r.headFinds(t, unwrapA1, unwrapA2)
+	if code, out := r.run(t, []string{`PR_LABELS=["fast-track"]`}); code != 1 {
+		t.Fatalf("another label must not waive growth, code=%d out=%s", code, out)
 	}
-	want := "force_unwrapping\tapps/mobile/Monaco/A.swift\t1\nno_comments\tapps/mobile/Monaco/A.swift\t1\n"
-	if got := r.baseline(t); got != want {
-		t.Fatalf("baseline after --update:\n%q\nwant:\n%q", got, want)
-	}
-	r.lintFinds(t, unwrapA1, unwrapA2, commentA3)
-	code, out := r.run(t, nil, "--update")
-	if code != 1 || !strings.Contains(out, "swiftlint grew: force_unwrapping apps/mobile/Monaco/A.swift 1 -> 2") {
-		t.Fatalf("expected --update to refuse a rise, code=%d out=%s", code, out)
-	}
-	if got := r.baseline(t); got != want {
-		t.Fatalf("--update wrote on a rise:\n%q", got)
+	code, out := r.run(t, []string{`PR_LABELS=["fast-track","gate-change-approved"]`})
+	if code != 0 || !strings.Contains(out, "swiftlint growth approved by gate-change-approved") ||
+		!strings.Contains(out, "swiftlint grew: force_unwrapping apps/mobile/Monaco/A.swift 1 -> 2") {
+		t.Fatalf("expected the label to waive the growth and still report it, code=%d out=%s", code, out)
 	}
 }
 
 func TestSwiftlintRatchet_fallsBackToThePinnedImageAndStripsItsMount(t *testing.T) {
-	r := newRatchetRepo(t, ratchetBaseline)
-	r.lintFinds(t, unwrapA1, unwrapA2, commentA3, unwrapB1, unwrapB1)
+	r := newRatchetRepo(t)
+	r.edit(t, aSwift, "let a = [1].first!\nlet b = [2].first!\n// note\nlet d = 4\n")
+	r.baseFinds(t, unwrapA1, unwrapA2, commentA3)
+	r.headFinds(t, unwrapA1, unwrapA2, commentA3)
 	code, out := r.run(t, []string{"STUB_SWIFTLINT_VERSION=0.1.0"})
 	if code != 0 {
-		t.Fatalf("expected a pass through docker, code=%d out=%s", code, out)
+		t.Fatalf("expected a pass through docker with /repo and the base tree stripped, code=%d out=%s", code, out)
 	}
-	args, _ := os.ReadFile(r.args)
-	if !strings.Contains(string(args), "--entrypoint swiftlint ghcr.io/realm/swiftlint:0.65.0 lint") {
-		t.Fatalf("expected the pinned image, args=%s", args)
+	for _, call := range r.lintCalls(t) {
+		if !strings.Contains(call, "-v "+r.dir+":/repo -w /repo --entrypoint swiftlint ghcr.io/realm/swiftlint:0.65.0 lint") {
+			t.Fatalf("expected the pinned image, call=%s", call)
+		}
+	}
+}
+
+func TestSwiftlintRatchet_aRenamedFileComparesAgainstItsOldPath(t *testing.T) {
+	r := newRatchetRepo(t)
+	const renamed = "apps/mobile/Monaco/Renamed.swift"
+	git(t, r.dir, "mv", aSwift, renamed)
+	r.baseFinds(t, strings.Replace(unwrapA1, aSwift, renamed, 1))
+	r.headFinds(t, strings.Replace(unwrapA1, aSwift, renamed, 1))
+	code, out := r.run(t, nil)
+	if code != 0 {
+		t.Fatalf("a rename with an unchanged violation must pass, code=%d out=%s", code, out)
+	}
+	calls := r.lintCalls(t)
+	if len(calls) != 2 || !strings.Contains(calls[1], ratchetBaseTree) || !strings.HasSuffix(calls[1], "/"+renamed) {
+		t.Fatalf("expected the old blob linted at the new path, calls=%q", calls)
+	}
+}
+
+func TestSwiftlintRatchet_aNewFileCountsFromZero(t *testing.T) {
+	r := newRatchetRepo(t)
+	const added = "apps/mobile/Monaco/C.swift"
+	r.edit(t, added, "let e = [5].first!\n")
+	r.headFinds(t, added+`,1,18,Warning,Force Unwrapping,Force unwrapping should be avoided,force_unwrapping`)
+	code, out := r.run(t, nil)
+	if code != 1 || !strings.Contains(out, "swiftlint grew: force_unwrapping "+added+" 0 -> 1") {
+		t.Fatalf("expected a new file to fail 0 -> 1, code=%d out=%s", code, out)
+	}
+	if calls := r.lintCalls(t); len(calls) != 1 {
+		t.Fatalf("a new file has no base copy to lint, calls=%q", calls)
 	}
 }
