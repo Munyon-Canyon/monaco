@@ -573,19 +573,48 @@ func (env *Env) graphqlCLI(ctx context.Context, query string, out any) error {
 }
 
 func (env *Env) openPulls(ctx context.Context) ([]stackPR, error) {
-	var data struct {
-		Repository struct {
-			Open struct {
-				Nodes []stackPR `json:"nodes"`
-			} `json:"open"`
-		} `json:"repository"`
+	var open []stackPR
+	for after := ""; ; {
+		var data struct {
+			Repository struct {
+				Open struct {
+					PageInfo gqlPageInfo `json:"pageInfo"`
+					Nodes    []stackPR   `json:"nodes"`
+				} `json:"open"`
+			} `json:"repository"`
+		}
+		q := repoQuery + "open: pullRequests(" + openPage(after) + "){pageInfo{hasNextPage endCursor} " +
+			"nodes{" + stackFields + "}}}}"
+		if err := env.graphqlGH(ctx, q, &data); err != nil {
+			return nil, err
+		}
+		open = append(open, data.Repository.Open.Nodes...)
+		if after = data.Repository.Open.PageInfo.next(); after == "" {
+			break
+		}
 	}
-	q := repoQuery + "open: pullRequests(states:OPEN,first:100){nodes{" + stackFields + "}}}}"
-	if err := env.graphqlGH(ctx, q, &data); err != nil {
-		return nil, err
-	}
-	open := data.Repository.Open.Nodes
 	return open, env.readStackChecks(ctx, open)
+}
+
+const openPageSize = 20
+
+type gqlPageInfo struct {
+	HasNextPage bool   `json:"hasNextPage"`
+	EndCursor   string `json:"endCursor"`
+}
+
+func (p gqlPageInfo) next() string {
+	if !p.HasNextPage {
+		return ""
+	}
+	return p.EndCursor
+}
+
+func openPage(after string) string {
+	if after == "" {
+		return fmt.Sprintf("states:OPEN,first:%d", openPageSize)
+	}
+	return fmt.Sprintf("states:OPEN,first:%d,after:%q", openPageSize, after)
 }
 
 func (env *Env) readStackChecks(ctx context.Context, prs []stackPR) error {

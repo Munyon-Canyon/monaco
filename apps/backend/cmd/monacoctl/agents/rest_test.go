@@ -300,8 +300,8 @@ func TestRESTQueryErrors(t *testing.T) {
 	if queryKind("zzz") != "query" || queryKind(openDrafts) != "drafts" ||
 		queryKind("open: pullRequests") != "open" ||
 		queryKind("fragment pr on PullRequest") != "stack" ||
-		queryKind(failureQuery) != "watch" || queryKind(ticketQuery([]int{1})) != "timeline" ||
-		queryKind(repoQuery+"open: pullRequests(states:OPEN,first:100){nodes{"+stackFields+"}}}}") != "open" ||
+		queryKind(failureQuery("")) != "watch" || queryKind(ticketQuery([]int{1})) != "timeline" ||
+		queryKind(repoQuery+"open: pullRequests("+openPage("")+"){nodes{"+stackFields+"}}}}") != "open" ||
 		queryKind(repoQuery+"}}\nfragment pr on PullRequest{"+stackFields+"}") != "stack" {
 		t.Fatal(queryKind("zzz"))
 	}
@@ -427,7 +427,7 @@ func TestWatch_readsFailuresThroughRESTWhenGraphQLIsForbidden(t *testing.T) {
 			} `json:"drafts"`
 		} `json:"repository"`
 	}
-	if err := env.restQuery(t.Context(), failureQuery, &watched); err != nil {
+	if err := env.restQuery(t.Context(), failureQuery(""), &watched); err != nil {
 		t.Fatal(err)
 	}
 	prs, got := watched.Repository.PullRequests.Nodes, watched.Repository.Drafts.Nodes
@@ -536,4 +536,41 @@ func TestStatus_readsTimelinesThroughRESTWhenGraphQLIsForbidden(t *testing.T) {
 	f.hub.on(get("/commits/h11"), "boom")
 	_, err = env.restTimelinePayload(t.Context(), ticketQuery([]int{5}))
 	wantErr(t, err, "boom")
+}
+
+func TestOpenPRs_pageUntilGitHubSaysDone(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	env := f.Env(t)
+	f.hub.onQuery("UNLABELED_EVENT", `{"data":{"repository":{"pullRequests":{`+
+		`"pageInfo":{"hasNextPage":true,"endCursor":"CUR1"},"nodes":[{"number":1}]},`+
+		`"drafts":{"nodes":[{"number":9,"headRefName":"gtmq_a"}]}}}}`)
+	f.hub.onQuery("CUR1", `{"data":{"repository":{"pullRequests":{`+
+		`"pageInfo":{"hasNextPage":false,"endCursor":"CUR2"},"nodes":[{"number":2}]}}}}`)
+	got, err := env.watchData(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	gql := f.hub.callsContaining("POST /graphql")
+	if len(got.prs) != 2 || got.prs[0].Number != 1 || got.prs[1].Number != 2 ||
+		len(got.drafts) != 1 || got.drafts[0].Number != 9 || len(gql) != 2 {
+		t.Fatalf("%+v %v", got, gql)
+	}
+
+	var queries []string
+	env.Run = func(_ context.Context, _, _, _ string, args ...string) ([]byte, error) {
+		q := args[3]
+		queries = append(queries, q)
+		if strings.Contains(q, `after:"C1"`) {
+			return []byte(`{"data":{"repository":{"open":{"pageInfo":{"hasNextPage":false},` +
+				`"nodes":[{"number":4}]}}}}`), nil
+		}
+		return []byte(`{"data":{"repository":{"open":{"pageInfo":{"hasNextPage":true,"endCursor":"C1"},` +
+			`"nodes":[{"number":3}]}}}}`), nil
+	}
+	open, err := env.openPulls(t.Context())
+	if err != nil || len(open) != 2 || open[0].Number != 3 || open[1].Number != 4 || len(queries) != 2 ||
+		!strings.Contains(queries[0], "first:20)") {
+		t.Fatalf("%v %+v %q", err, open, queries)
+	}
 }
