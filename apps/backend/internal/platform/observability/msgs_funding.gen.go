@@ -7,5 +7,6 @@ func init() {
 		FundingDepositDuplicate,
 		FundingDepositCredited,
 		FundingBalanceClamped,
+		FundingPauseChanged,
 	)
 }

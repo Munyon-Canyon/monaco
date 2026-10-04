@@ -21,6 +21,7 @@ extension Components.Schemas.ErrorCode {
         case .cabalBanned: true
         case .cabalNotFound: true
         case .cabalPaused: true
+        case .cabalStillPaused: true
         case .calendarExpired: true
         case .cannotFollowSelf: true
         case .cannotRevokeAccess: true
