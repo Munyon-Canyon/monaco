@@ -1,7 +1,7 @@
 journey: profile/edit
-expect-fail: S3
+expect-fail: S8
 
-The handle is a dead button. S3.1 expects the handle editor, so S3 must fail.
+The handle is a dead button. S8.1 expects the handle editor, so S8 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Profile/ProfileHeaderSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileHeaderSlot.swift

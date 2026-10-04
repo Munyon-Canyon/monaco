@@ -1,7 +1,7 @@
 journey: profile/edit
-expect-fail: S5
+expect-fail: S7
 
-The banner shows for every account. S5 expects none once onboarding is complete, so S5 must fail.
+The banner shows for every account. S7 expects none once onboarding is complete, so S7 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Home/OnboardingNudgeBanner.swift b/apps/mobile/Monaco/Features/Home/OnboardingNudgeBanner.swift

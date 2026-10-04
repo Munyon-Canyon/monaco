@@ -102,6 +102,7 @@ struct ProfileHeader: View {
             Text(memberSince)
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.muted)
+                .accessibilityIdentifier("profile-member-since")
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .contain)

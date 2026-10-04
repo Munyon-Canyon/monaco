@@ -1,0 +1,19 @@
+journey: profile/edit
+expect-fail: S2
+
+An emptied name field shows no rule. S2.2 expects "Display name is required.", so S2 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Profile/ProfileNameEditor.swift b/apps/mobile/Monaco/Features/Profile/ProfileNameEditor.swift
+index 60b2ee1e..c1b63c13 100644
+--- a/apps/mobile/Monaco/Features/Profile/ProfileNameEditor.swift
++++ b/apps/mobile/Monaco/Features/Profile/ProfileNameEditor.swift
+@@ -65,7 +65,7 @@ struct ProfileNameEditor: View {
+                 label: "Display name",
+                 hint: "Shown on leaderboards and in your cabals.",
+                 // A name is already set, so emptying the field is a real error here.
+-                showsValidationWhenEmpty: !savedName.isEmpty,
++                showsValidationWhenEmpty: false,
+                 saveError: saveError,
+                 focus: $isFocused,
+                 onSubmit: { Task { await save() } }

@@ -1,7 +1,7 @@
 journey: profile/edit
-expect-fail: S2
+expect-fail: S1
 
-The rename toast says "Name saved." S2.3 expects "Name updated.", so S2 must fail.
+The rename toast says "Name saved." S1.3 expects "Name updated.", so S1 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Profile/ProfileHeaderSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileHeaderSlot.swift
