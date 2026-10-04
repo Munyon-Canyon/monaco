@@ -18,6 +18,9 @@ func swiftGuardRepo(t *testing.T, withLint bool) string {
 	copyFile(t, filepath.Join(root, "scripts/agent-guard-swift-lint.sh"), filepath.Join(dir, "scripts/agent-guard-swift-lint.sh"))
 	copyFile(t, filepath.Join(root, "scripts/swiftlint-ratchet.sh"), filepath.Join(dir, "scripts/swiftlint-ratchet.sh"))
 	writeStub(t, filepath.Join(dir, "scripts/require-docker.sh"), "#!/bin/bash\nexit 1\n")
+	git(t, dir, "init", "-q")
+	git(t, dir, "add", ".")
+	git(t, dir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "base")
 	bin := filepath.Join(dir, "bin")
 	if err := os.MkdirAll(bin, 0o755); err != nil {
 		t.Fatal(err)
