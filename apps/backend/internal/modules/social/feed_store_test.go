@@ -8,16 +8,67 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/feedtest"
 )
+
+func TestFeedConsumerQueries_roundTripSnapshotsAndItem(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	q := sqlc.New(f.pool)
+	cabal, member, item := f.gen.NewV7(), f.gen.NewV7(), f.gen.NewV7()
+	if err := q.UpsertFeedCabal(t.Context(), sqlc.UpsertFeedCabalParams{
+		CabalID: cabal, Name: "Alpha", At: f.now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpsertFeedMembership(t.Context(), sqlc.UpsertFeedMembershipParams{
+		CabalID: cabal, UserID: member, JoinedAt: f.now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	params := sqlc.InsertFeedConsumerItemParams{
+		ID: item, Kind: "cabal_created", RefType: "cabals", RefID: cabal,
+		CabalID:   pgtype.UUID{Bytes: cabal, Valid: true},
+		CabalName: pgtype.Text{String: "Alpha", Valid: true},
+		ActorID:   pgtype.UUID{Bytes: member, Valid: true},
+		Title:     "member started Alpha", Payload: []byte(`{}`), At: f.now,
+	}
+	if err := q.InsertFeedConsumerItem(t.Context(), params); err != nil {
+		t.Fatal(err)
+	}
+	params.ID = f.gen.NewV7()
+	if err := q.InsertFeedConsumerItem(t.Context(), params); err != nil {
+		t.Fatal(err)
+	}
+	var name string
+	var joined time.Time
+	var count int
+	err := f.pool.QueryRow(t.Context(), `SELECT c.name, m.joined_at, (SELECT count(*) FROM feed_objects)
+		FROM feed_cabals c JOIN feed_memberships m ON m.cabal_id = c.cabal_id
+		WHERE c.cabal_id = $1 AND m.user_id = $2`, cabal, member).Scan(&name, &joined, &count)
+	if err != nil || name != "Alpha" || !joined.Equal(f.now) || count != 1 {
+		t.Fatalf("snapshot = %q %s %d, %v; want Alpha %s 1", name, joined, count, err, f.now)
+	}
+	if err := q.DeleteFeedMembership(t.Context(), sqlc.DeleteFeedMembershipParams{
+		CabalID: cabal, UserID: member,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	err = f.pool.QueryRow(t.Context(), `SELECT count(*) FROM feed_memberships`).Scan(&count)
+	if err != nil || count != 0 {
+		t.Fatalf("memberships = %d, %v; want 0", count, err)
+	}
+}
 
 type feedFixture struct {
 	pool  *pgxpool.Pool
