@@ -1,3 +1,4 @@
+import MonacoCore
 import SwiftUI
 
 struct ProposalScreen: View {
@@ -8,6 +9,7 @@ struct ProposalScreen: View {
 
     let context: ProposalContext
     let sections: [any ProposalSection.Type]
+    @State private var refresh = ScreenRefresh()
 
     init(proposalID: String, sections: [any ProposalSection.Type] = Self.sections) {
         self.context = ProposalContext(proposalID: proposalID)
@@ -20,6 +22,8 @@ struct ProposalScreen: View {
             NotMigratedView(screen: "Proposal")
         } else {
             SectionStack(context: context, sections: sections)
+                .environment(refresh)
+                .refreshable { await refresh.run() }
         }
     }
 }
