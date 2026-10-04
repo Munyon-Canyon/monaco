@@ -100,12 +100,12 @@ Fix the code. Never weaken an invariant, raise a budget, skip an outcome, drop a
 
 ## Moving a flow to verified
 
-1. The non-crash scripts already ship with the `built` row, in `apps/backend/internal/testkit/flows/f<id>.go`, registered by `go generate ./cmd/monacoctl`. The flow tests call those scripts. A poller flow's script waits for the next tick with `scenario.AwaitTick(poller)` and checks its counts with `scenario.ExpectTick(poller, scanned, changed)`. In process the step ticks the poller once itself. Against the binaries it waits on the worker, so add the flow's poll interval as a `WorkerEnvF<id>` method in its `f<id>.go`. A tick that was already running when the step started still counts, so await a second tick when the counts must reflect what the Given stage seeded.
-2. The `e2e` job runs a crash pass for every point that a `built` or `verified` flow has a script for, so a new crash script needs no CI edit. Write that script, and the rest of the outcomes, in the flow's `apps/backend/internal/testkit/flows/f<id>.go`, then run `go generate ./cmd/monacoctl`.
+1. The non-crash scripts already ship with the `built` row, in `apps/backend/internal/testkit/flows/f<id>.go`, registered by `go generate ./...`. The flow tests call those scripts. A poller flow's script waits for the next tick with `scenario.AwaitTick(poller)` and checks its counts with `scenario.ExpectTick(poller, scanned, changed)`. In process the step ticks the poller once itself. Against the binaries it waits on the worker, so add the flow's poll interval as a `WorkerEnvF<id>` method in its `f<id>.go`. A tick that was already running when the step started still counts, so await a second tick when the counts must reflect what the Given stage seeded.
+2. The `e2e` job runs a crash pass for every point that a `built` or `verified` flow has a script for, so a new crash script needs no CI edit. Write that script, and the rest of the outcomes, in the flow's `apps/backend/internal/testkit/flows/f<id>.go`, then run `go generate ./...`.
 3. Set the row's status to `verified` and regenerate the flow's feature map page from `apps/backend`:
 
 ```
-go generate ./cmd/monacoctl
+go generate ./...
 ```
 
 `scripts/ci/ready.sh` fails when a feature map page is stale.
