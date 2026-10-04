@@ -41,7 +41,7 @@ dev_tools=(
   apt-get awk basename bc benchstat brew caffeinate cat chmod cp curl cut date dirname
   docker dotenvx du ffmpeg ffprobe find gh git go golangci-lint grep gt head id
   install jq just kill ln ls lsof magick mkdir mktemp mv npm oasdiff open pgrep
-  pkill python3 rm sed seq sha256sum shasum simslim sleep sort swift sysctl tail
+  pkill ps python3 rm sed seq sha256sum shasum simslim sleep sort swift sysctl tail
   tar tee tr uname uuidgen wc xcode-select xcodebuild xcrun
 )
 : "${dev_tools[@]}"
