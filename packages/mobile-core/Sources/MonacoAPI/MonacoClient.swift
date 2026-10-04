@@ -143,6 +143,7 @@ struct SessionWireCaptureMiddleware: ClientMiddleware {
         guard let box = SessionWireCapture.box, let responseBody, response.status == .ok,
             operationID == Operations.GetMe.id || operationID == Operations.PostAuthSession.id
                 || operationID == Operations.PatchMe.id || operationID == Operations.PostProfilePhoto.id
+                || operationID == Operations.PutMeHandle.id
         else {
             return (response, responseBody)
         }
