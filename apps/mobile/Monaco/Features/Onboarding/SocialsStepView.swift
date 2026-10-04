@@ -11,7 +11,8 @@ struct SocialsStepView: View {
     var body: some View {
         SocialsStepForm(
             mode: mode,
-            model: XLinkModel(linking: environment.linking, onboarding: OnboardingAPI(api: environment.api)),
+            model: XLinkModel(
+                linking: environment.linking, onboarding: OnboardingAPI(api: environment.api), clock: ContinuousClock()),
             onContinue: onContinue,
             onSignOut: { await environment.signOut() })
     }

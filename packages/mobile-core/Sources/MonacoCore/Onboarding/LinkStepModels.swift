@@ -54,12 +54,35 @@ public enum LinkCopy {
         }
     }
 
+    public static let freshLinkWaits: [Duration] = [.milliseconds(500), .seconds(1), .seconds(2)]
+
     static func result(for error: any Error) -> (LinkStepResult, LinkStepCaption?) {
         let apiError = APIError(error)
         if case .problem(let problem) = apiError, notLinkedCodes.contains(problem.code.wire) {
             return (.toast(problem.message), nil)
         }
         return (.stay, .error(ToastCopy.message(for: apiError)))
+    }
+
+    static func isNotLinked(_ error: any Error) -> Bool {
+        if case .problem(let problem) = APIError(error) { return notLinkedCodes.contains(problem.code.wire) }
+        return false
+    }
+
+    @MainActor
+    static func store(
+        waits: [Duration], sleep: (Duration) async throws -> Void, _ call: () async throws -> SessionProfile
+    ) async -> (LinkStepResult, LinkStepCaption?) {
+        var waits = waits
+        while true {
+            do {
+                return (.finished(try await call()), nil)
+            } catch {
+                guard isNotLinked(error), !waits.isEmpty, (try? await sleep(waits.removeFirst())) != nil else {
+                    return result(for: error)
+                }
+            }
+        }
     }
 
     private static let notLinkedCodes: Set<String> = ["phone_not_linked", "x_not_linked"]
@@ -93,6 +116,7 @@ public final class PhoneLinkModel {
 
     private let linking: any AccountLinking
     private let onboarding: OnboardingAPI
+    private let sleep: @Sendable (Duration) async throws -> Void
     private var linkedUpstream = false
     private var storeSubmission = IdempotentSubmission()
     private let skipSubmission = IdempotentSubmission()
@@ -101,6 +125,7 @@ public final class PhoneLinkModel {
         self.linking = linking
         self.onboarding = onboarding
         cooldown = ResendCooldown(clock: clock)
+        sleep = { try await clock.sleep(for: $0) }
     }
 
     public var isBusy: Bool { activity != .idle }
@@ -158,7 +183,8 @@ public final class PhoneLinkModel {
         activity = .linking
         defer { activity = .idle }
         caption = nil
-        if !linkedUpstream {
+        let fresh = !linkedUpstream
+        if fresh {
             do {
                 try await linking.linkPhone(code: code)
             } catch {
@@ -167,7 +193,7 @@ public final class PhoneLinkModel {
             }
             linkedUpstream = true
         }
-        return await store { [onboarding, storeSubmission] in
+        return await store(waits: fresh ? LinkCopy.freshLinkWaits : []) { [onboarding, storeSubmission] in
             try await onboarding.linkPhone(submission: storeSubmission)
         }
     }
@@ -182,14 +208,10 @@ public final class PhoneLinkModel {
         }
     }
 
-    private func store(_ call: () async throws -> SessionProfile) async -> LinkStepResult {
-        do {
-            return .finished(try await call())
-        } catch {
-            let (result, caption) = LinkCopy.result(for: error)
-            self.caption = caption
-            return result
-        }
+    private func store(waits: [Duration] = [], _ call: () async throws -> SessionProfile) async -> LinkStepResult {
+        let (result, caption) = await LinkCopy.store(waits: waits, sleep: sleep, call)
+        self.caption = caption
+        return result
     }
 
     private func fail(_ error: any Error) {
@@ -214,13 +236,15 @@ public final class XLinkModel {
 
     private let linking: any AccountLinking
     private let onboarding: OnboardingAPI
+    private let sleep: @Sendable (Duration) async throws -> Void
     private var linkedUpstream = false
     private let storeSubmission = IdempotentSubmission()
     private let skipSubmission = IdempotentSubmission()
 
-    public init(linking: any AccountLinking, onboarding: OnboardingAPI) {
+    public init(linking: any AccountLinking, onboarding: OnboardingAPI, clock: some Clock<Duration>) {
         self.linking = linking
         self.onboarding = onboarding
+        sleep = { try await clock.sleep(for: $0) }
     }
 
     public var isBusy: Bool { activity != .idle }
@@ -231,7 +255,8 @@ public final class XLinkModel {
         defer { activity = .idle }
         caption = nil
         linkedElsewhere = false
-        if !linkedUpstream {
+        let fresh = !linkedUpstream
+        if fresh {
             do {
                 try await linking.linkX()
             } catch {
@@ -242,7 +267,7 @@ public final class XLinkModel {
             }
             linkedUpstream = true
         }
-        return await store { [onboarding, storeSubmission] in
+        return await store(waits: fresh ? LinkCopy.freshLinkWaits : []) { [onboarding, storeSubmission] in
             try await onboarding.linkSocials(submission: storeSubmission)
         }
     }
@@ -257,13 +282,9 @@ public final class XLinkModel {
         }
     }
 
-    private func store(_ call: () async throws -> SessionProfile) async -> LinkStepResult {
-        do {
-            return .finished(try await call())
-        } catch {
-            let (result, caption) = LinkCopy.result(for: error)
-            self.caption = caption
-            return result
-        }
+    private func store(waits: [Duration] = [], _ call: () async throws -> SessionProfile) async -> LinkStepResult {
+        let (result, caption) = await LinkCopy.store(waits: waits, sleep: sleep, call)
+        self.caption = caption
+        return result
     }
 }
