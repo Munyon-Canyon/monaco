@@ -257,6 +257,9 @@ func scrub(v any) any {
 
 func sensitive(key string) bool {
 	key = strings.ToLower(key)
+	if slices.Contains([]string{"phone", "phone_number", "phone_hash", "x_user_id"}, key) {
+		return true
+	}
 	for _, word := range []string{"token", "secret", "password", "authorization", "private", "signature"} {
 		if strings.Contains(key, word) {
 			return true
