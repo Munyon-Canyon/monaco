@@ -7,8 +7,8 @@ import XCTest
 
 @MainActor
 final class CabalEditModelTests: XCTestCase {
-    private static let cabalID = "01890a5d-ac96-774b-bcce-b302099a8058"
-    private static let creatorID = "01890a5d-ac96-774b-bcce-b302099a8059"
+    static let cabalID = "01890a5d-ac96-774b-bcce-b302099a8058"
+    static let creatorID = "01890a5d-ac96-774b-bcce-b302099a8059"
 
     func testLoadReadsTheCabalAndSeesTheCreator() async {
         let (model, transport, _) = make([.json(.ok, Self.cabal(name: "QA pot", me: Self.creator))])
@@ -122,7 +122,7 @@ final class CabalEditModelTests: XCTestCase {
         await model.load()
         let observer = Task { await model.observe() }
         addTeardownBlock { observer.cancel() }
-        let subscribed = await waitUntil { await hints.subscriberCount == 1 }
+        let subscribed = await waitUntil { await hints.subscriberCount == 2 }
         XCTAssertTrue(subscribed)
 
         await hints.send(.changed(.cabal("someone-else"), what: "updated", id: "1"))
@@ -155,52 +155,11 @@ final class CabalEditModelTests: XCTestCase {
         await model.load()
 
         XCTAssertEqual(model.cabal?.name, "QA pot")
+        XCTAssertEqual(model.failureTick, 1)
+        XCTAssertEqual(model.lastError, .transport(URLError(.networkConnectionLost)))
     }
 
-    func testAHiddenSheetWaitsUntilItIsVisibleToReadAgain() async {
-        let (model, transport, hints) = make([
-            .json(.ok, Self.cabal(name: "QA pot", me: Self.creator)),
-            .json(.ok, Self.cabal(name: "QA pot 2", me: Self.creator)),
-        ])
-        await model.load()
-        let observer = Task { await model.observe() }
-        addTeardownBlock { observer.cancel() }
-        _ = await waitUntil { await hints.subscriberCount == 1 }
-        model.setVisible(false)
-
-        await hints.send(.changed(.cabal(Self.cabalID), what: "updated", id: "1"))
-        _ = await waitUntil { false }
-        let whileHidden = await transport.sent.count
-        model.setVisible(true)
-
-        XCTAssertEqual(whileHidden, 1)
-        let refreshed = await waitUntil { model.cabal?.name == "QA pot 2" }
-        XCTAssertTrue(refreshed)
-    }
-
-    func testThePreviewSavesEveryChangedRule() async throws {
-        let model = CabalEditModel.preview(.sample(role: "creator"))
-        await model.load()
-        XCTAssertTrue(model.isCreator)
-        let edited = CabalSettings(
-            name: "QA pot 2", joinMode: "request", voters: .justMe, threshold: "majority",
-            proposalExpirySeconds: 3600)
-
-        let outcome = await model.save(edited)
-
-        XCTAssertEqual(outcome, .saved)
-        XCTAssertEqual(model.settings, edited)
-    }
-
-    func testTheSampleForANonMemberHasNoMembershipOrInviteCode() async {
-        let model = CabalEditModel.preview(.sample(role: nil))
-        await model.load()
-
-        XCTAssertFalse(model.isCreator)
-        XCTAssertNil(model.cabal?.inviteCode)
-    }
-
-    private func make(
+    func make(
         _ replies: [StubTransport.Reply]
     ) -> (CabalEditModel, StubTransport, FakeHintStream) {
         let transport = StubTransport(scripted: replies)
@@ -213,7 +172,7 @@ final class CabalEditModelTests: XCTestCase {
         return (model, transport, hints)
     }
 
-    private func waitUntil(_ predicate: @escaping () async -> Bool) async -> Bool {
+    func waitUntil(_ predicate: @escaping () async -> Bool) async -> Bool {
         for _ in 0..<500 {
             if await predicate() { return true }
             await Task.yield()
@@ -221,9 +180,31 @@ final class CabalEditModelTests: XCTestCase {
         return await predicate()
     }
 
-    private static let creator = #"{"role":"creator","can_vote":true}"#
+    static let creator = #"{"role":"creator","can_vote":true}"#
+    static let jordanID = "01890a5d-ac96-774b-bcce-b302099a8061"
+    static let priyaID = "01890a5d-ac96-774b-bcce-b302099a8062"
 
-    private static func cabal(name: String, me: String) -> String {
+    static func cabal(name: String, me: String, voters: [String]?, members: [String]? = nil) -> String {
+        let ids = members ?? [creatorID, jordanID, priyaID]
+        let names = [creatorID: "kai", jordanID: "jordan", priyaID: "priya"]
+        let rows = ids.map { id in
+            let handle = names[id] ?? "someone"
+            let canVote = voters.map { $0.contains(id) } ?? true
+            return ##"{"user_id":"\##(id)","handle":"\##(handle)","display_name":"\##(handle.capitalized)","##
+                + ##""photo_url":null,"role":"\##(id == creatorID ? "creator" : "member")","##
+                + ##""can_vote":\##(canVote),"joined_at":"2026-09-30T12:00:00Z"}"##
+        }
+        let mode = voters == nil ? "all" : "list"
+        let memberList = rows.joined(separator: ",")
+        return cabal(name: name, me: me)
+            .replacingOccurrences(of: #""voter_mode":"all""#, with: #""voter_mode":"\#(mode)""#)
+            .replacingOccurrences(
+                of: #""member_count":2,"members":[]"#,
+                with: #""member_count":\#(ids.count),"members":[\#(memberList)]"#
+            )
+    }
+
+    static func cabal(name: String, me: String) -> String {
         ##"{"id":"\##(cabalID)","name":"\##(name)","picture_url":null,"status":"active","##
             + ##""rules":{"join_mode":"open","voter_mode":"all","threshold":"unanimous","##
             + ##""proposal_expiry_seconds":86400,"slippage_bps":100},"##

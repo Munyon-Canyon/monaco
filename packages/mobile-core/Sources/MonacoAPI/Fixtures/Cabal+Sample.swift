@@ -24,4 +24,22 @@ extension Components.Schemas.Cabal {
             treasuryAddress: "treasury-1"
         )
     }
+
+    public static func sampleWithMembers(role: String?) -> Self {
+        var cabal = sample(role: role)
+        let joined = Date(timeIntervalSince1970: 1_790_000_000)
+        cabal.memberCount = 3
+        cabal.members = [
+            .init(
+                userId: cabal.creator.userId, handle: "kai", displayName: "Kai", photoUrl: nil, role: "creator",
+                canVote: true, joinedAt: joined),
+            .init(
+                userId: "01890a5d-ac96-774b-bcce-b302099a8061", handle: "jordan", displayName: "Jordan", photoUrl: nil,
+                role: "member", canVote: true, joinedAt: joined),
+            .init(
+                userId: "01890a5d-ac96-774b-bcce-b302099a8062", handle: "priya", displayName: "Priya", photoUrl: nil,
+                role: "member", canVote: true, joinedAt: joined),
+        ]
+        return cabal
+    }
 }
