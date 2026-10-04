@@ -213,16 +213,21 @@ func (q *Queries) CabalPositionSnapshotsAt(ctx context.Context, arg CabalPositio
 }
 
 const cabalPositions = `-- name: CabalPositions :many
-SELECT asset, units::text AS units, cost_basis_micros::text AS cost_basis_micros
+SELECT asset, units::text AS units, cost_basis_micros::text AS cost_basis_micros,
+  (SELECT coalesce(sum(payout_micros), 0)::text
+   FROM cash_out_jobs
+   WHERE cabal_id = $1::uuid
+     AND status IN ('started', 'selling', 'paying')) AS cash_out_reserved_micros
 FROM cabal_positions
 WHERE cabal_id = $1::uuid AND units > 0
 ORDER BY asset
 `
 
 type CabalPositionsRow struct {
-	Asset           string
-	Units           string
-	CostBasisMicros string
+	Asset                 string
+	Units                 string
+	CostBasisMicros       string
+	CashOutReservedMicros string
 }
 
 func (q *Queries) CabalPositions(ctx context.Context, cabalID uuid.UUID) ([]CabalPositionsRow, error) {
@@ -234,7 +239,12 @@ func (q *Queries) CabalPositions(ctx context.Context, cabalID uuid.UUID) ([]Caba
 	var items []CabalPositionsRow
 	for rows.Next() {
 		var i CabalPositionsRow
-		if err := rows.Scan(&i.Asset, &i.Units, &i.CostBasisMicros); err != nil {
+		if err := rows.Scan(
+			&i.Asset,
+			&i.Units,
+			&i.CostBasisMicros,
+			&i.CashOutReservedMicros,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

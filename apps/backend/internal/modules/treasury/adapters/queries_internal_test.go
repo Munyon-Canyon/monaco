@@ -19,6 +19,35 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
+func TestSubtractCashOutReservation(t *testing.T) {
+	t.Parallel()
+	tests := map[string]struct {
+		total money.Micros
+		raw   string
+		want  money.Micros
+		code  errs.Code
+	}{
+		"subtracts reservation":       {total: money.MicrosFromUint64(10), raw: "3", want: money.MicrosFromUint64(7)},
+		"rejects invalid reservation": {total: money.MicrosFromUint64(10), raw: "bad", code: errs.CodeDecodeFailed},
+		"rejects over reservation":    {total: money.MicrosFromUint64(3), raw: "10", code: errs.CodeInvalidInput},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			got, err := subtractCashOutReservation(tt.total, tt.raw)
+			if tt.code != "" {
+				if errs.CodeOf(err) != tt.code {
+					t.Fatalf("code = %q, err %v, want %q", errs.CodeOf(err), err, tt.code)
+				}
+				return
+			}
+			if err != nil || got != tt.want {
+				t.Fatalf("subtractCashOutReservation = (%v, %v)", got, err)
+			}
+		})
+	}
+}
+
 func TestPositionAndAmountDecodingFailures(t *testing.T) {
 	t.Parallel()
 	queries := &Queries{usdc: usdcMint}

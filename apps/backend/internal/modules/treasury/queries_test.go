@@ -38,6 +38,33 @@ func TestPotValue_USDCOnly(t *testing.T) {
 	}
 }
 
+func TestPotValue_SubtractsLiveCashOutReservations(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	user, cabal := f.user(t), f.cabal(t)
+	u, c, err := f.fund(user, cabal, 100_000_000, 100, domain.TxnSettled)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.postPair(u, c); err != nil {
+		t.Fatal(err)
+	}
+	insert := `INSERT INTO cash_out_jobs
+  (id, cabal_id, user_id, share_units, payout_micros, status, created_at, updated_at)
+VALUES ($1, $2, $3, 10, 30000000, $4, $5, $5)`
+	for _, status := range []string{"started", "selling", "paying", "completed", "partial", "failed"} {
+		if _, err := f.pool.Exec(
+			t.Context(), insert, f.ids.NewV7(), cabal.UUID(), f.user(t).UUID(), status, f.clock.Now(),
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := newQueries(f).PotValue(t.Context(), cabal)
+	if err != nil || got != money.MicrosFromUint64(10_000_000) {
+		t.Fatalf("PotValue() = %v, %v", got, err)
+	}
+}
+
 func TestPotValue_WithHoldings(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)

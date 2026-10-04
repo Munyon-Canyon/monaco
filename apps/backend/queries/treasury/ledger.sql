@@ -73,7 +73,11 @@ SELECT (units - sqlc.arg(delta)::bigint)::text AS before, units::text AS after
 FROM (SELECT units FROM updated UNION ALL SELECT units FROM inserted) AS applied;
 
 -- name: CabalPositions :many
-SELECT asset, units::text AS units, cost_basis_micros::text AS cost_basis_micros
+SELECT asset, units::text AS units, cost_basis_micros::text AS cost_basis_micros,
+  (SELECT coalesce(sum(payout_micros), 0)::text
+   FROM cash_out_jobs
+   WHERE cabal_id = sqlc.arg(cabal_id)::uuid
+     AND status IN ('started', 'selling', 'paying')) AS cash_out_reserved_micros
 FROM cabal_positions
 WHERE cabal_id = sqlc.arg(cabal_id)::uuid AND units > 0
 ORDER BY asset;
