@@ -19,21 +19,22 @@ import (
 )
 
 type Remote struct {
-	URL        string
-	FakesURL   string
-	PrivyAppID string
-	ClientIP   string
-	Flow       string
-	Trigger    string
-	Pool       *pgxpool.Pool
-	Consumers  []bus.Consumer
-	Mint       func(userID string) string
-	Converge   func(ctx context.Context, eventIDs []string) error
-	Crash      func(ctx context.Context, point faultpoint.Name) error
-	Restart    func(ctx context.Context) error
-	Enter      func(stage Stage)
-	Exchanged  func(e Exchange)
-	Logs       func(from int) (lines []string, changed <-chan struct{})
+	URL           string
+	FakesURL      string
+	PrivyAppID    string
+	ClientIP      string
+	Flow          string
+	Trigger       string
+	Pool          *pgxpool.Pool
+	Consumers     []bus.Consumer
+	Mint          func(userID string) string
+	Converge      func(ctx context.Context, eventIDs []string) error
+	Crash         func(ctx context.Context, point faultpoint.Name) error
+	Restart       func(ctx context.Context) error
+	Enter         func(stage Stage)
+	Exchanged     func(e Exchange)
+	Logs          func(from int) (lines []string, changed <-chan struct{})
+	CoreSubscribe func(t T, subject string) <-chan []byte
 }
 
 func Against(ctx context.Context, t T, r Remote) *Scenario {
@@ -63,6 +64,7 @@ func Against(ctx context.Context, t T, r Remote) *Scenario {
 		seed:          rm.seed,
 		lines:         r.Logs,
 		tick:          func(T, string) func() { return func() {} },
+		coreSubscribe: r.CoreSubscribe,
 	}
 	if r.Restart != nil {
 		b.restart = func(t T) {

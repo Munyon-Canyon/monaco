@@ -290,6 +290,14 @@ type EmbeddedNATS struct {
 	s   *natsServer
 }
 
+func (e *EmbeddedNATS) Connect(name string) (*nats.Conn, error) {
+	conn, err := nats.Connect(e.URL, nats.Name(name))
+	if err != nil {
+		return nil, fmt.Errorf("connect %s: %w", name, err)
+	}
+	return conn, nil
+}
+
 func StartEmbeddedNATS() (*EmbeddedNATS, error) {
 	s, err := startNATS()
 	if err != nil {

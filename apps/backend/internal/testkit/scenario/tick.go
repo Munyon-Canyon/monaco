@@ -31,16 +31,6 @@ func MarkTick(poller string) Step {
 	}
 }
 
-func AwaitMarkedTick(poller string) Step {
-	return awaitTick(poller, func(s *Scenario) int {
-		from, ok := s.marks[poller]
-		if !ok {
-			s.t.Fatalf("scenario: AwaitMarkedTick(%s) needs MarkTick(%s) first", poller, poller)
-		}
-		return from
-	}, "after it was marked")
-}
-
 func AwaitMarkedTickAfterCrash(poller string, point faultpoint.Name) Step {
 	return func(s *Scenario) {
 		s.t.Helper()

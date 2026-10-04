@@ -105,11 +105,6 @@ func TestAwaitTick_inProcessTicksThePollerOnceAndExpectTickChecksWhatItFound(t *
 			"scenario: ExpectTick(fixture.prices) needs AwaitTick(fixture.prices) first",
 		},
 		{
-			"no mark",
-			[]Step{AwaitMarkedTick("fixture.prices")},
-			"scenario: AwaitMarkedTick(fixture.prices) needs MarkTick(fixture.prices) first",
-		},
-		{
 			"failed code",
 			[]Step{AwaitTick("fixture.failing"), ExpectTickFailed("fixture.failing", "upstream_unavailable")},
 			"",
@@ -139,18 +134,6 @@ func TestAwaitTick_inProcessTicksThePollerOnceAndExpectTickChecksWhatItFound(t *
 	}
 }
 
-func TestAwaitMarkedTick_againstAStackReadsTheRecoveryTick(t *testing.T) {
-	t.Parallel()
-	stack := &lineLog{note: newNotifier()}
-	s := Against(t.Context(), t, Remote{
-		Enter: func(Stage) {},
-		Logs:  stack.since,
-	})
-	s.When(MarkTick("market.prices"))
-	_, _ = fmt.Fprintln(stack, `{"msg":"poller.tick","poller":"market.prices","scanned":2,"changed":2}`)
-	s.When(AwaitMarkedTick("market.prices"), ExpectTick("market.prices", 2, 2))
-}
-
 func TestAwaitMarkedTickAfterCrash_ignoresAnInFlightTick(t *testing.T) {
 	t.Parallel()
 	stack := &lineLog{note: newNotifier()}
@@ -166,6 +149,18 @@ func TestAwaitMarkedTickAfterCrash_ignoresAnInFlightTick(t *testing.T) {
 		AwaitMarkedTickAfterCrash("market.prices", faultpoint.BeforeCommit),
 		ExpectTick("market.prices", 2, 2),
 	)
+}
+
+func TestAwaitMarkedTickAfterCrash_requiresAMark(t *testing.T) {
+	t.Parallel()
+	stack := &lineLog{note: newNotifier()}
+	got := failure(t, t.Context, func(r T) *Scenario {
+		return Against(t.Context(), r, Remote{Enter: func(Stage) {}, Logs: stack.since})
+	}, AwaitMarkedTickAfterCrash("market.prices", faultpoint.BeforeCommit))
+	const want = "scenario: AwaitMarkedTickAfterCrash(market.prices) needs MarkTick(market.prices) first"
+	if got != want {
+		t.Fatalf("failure = %q, want %q", got, want)
+	}
 }
 
 func TestAwaitTick_againstAStackWaitsForATickWrittenAfterTheStepStarted(t *testing.T) {

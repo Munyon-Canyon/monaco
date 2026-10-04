@@ -2,10 +2,14 @@ package flows
 
 import (
 	"cmp"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"slices"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
@@ -23,7 +27,12 @@ const (
 	priceRepeats = 4
 	aaplMicros   = 254_371_234
 	tslaMicros   = 436_120_500
+	spaceXMicros = 111_000_000
 )
+
+const spaceXMint = "TSPXcLV76s6V2zDiZQ18kBfcbnjaE2ZzNT3ga2Pd99v"
+
+var errUnexpectedPriceTick = errors.New("unexpected price tick")
 
 func F18SamplePricesOK(s *scenario.Scenario) {
 	var (
@@ -31,22 +40,35 @@ func F18SamplePricesOK(s *scenario.Scenario) {
 		scanned int
 	)
 	s.Given(
+		scenario.AwaitTick("market.catalog"),
 		ensureSamplerCatalog(),
+		countAssets(&scanned),
 		scenario.FakeUpstream(fakes.Step{
 			Route: priceRoute, Action: fakes.ActionSucceed, Fixture: priceRoute + "/catalog",
-			Times: priceRepeats, Reset: true,
+			Times: 1, Reset: true,
 		}),
+		scenario.SubscribeCore(string(events.TypePriceTick)),
 	).When(
 		scenario.AwaitTick(pricePoller),
+		func(s *scenario.Scenario) { scenario.ExpectTick(pricePoller, scanned, 3)(s) },
+		expectPriceTick(3),
 		deletePricePoints(),
-		countAssets(&scanned),
+		seedSpaceXReference(),
 		captureBucket(&before),
+		scenario.FakeUpstream(fakes.Step{
+			Route: priceRoute, Action: fakes.ActionSucceed, Fixture: priceRoute + "/moved",
+			Times: priceRepeats,
+		}),
 		scenario.AwaitTick(pricePoller),
-		func(s *scenario.Scenario) { scenario.ExpectTick(pricePoller, scanned, 2)(s) },
-		expectPricePointsBetween(before,
+		func(s *scenario.Scenario) { scenario.ExpectTick(pricePoller, scanned, 3)(s) },
+		expectPriceTick(3),
+		expectPricePointsAfter(&before,
 			storedPrice{marketfake.AAPLx().Mint.String(), aaplMicros},
 			storedPrice{marketfake.TSLAx().Mint.String(), tslaMicros},
+			storedPrice{spaceXMint, spaceXMicros},
 		),
+		scenario.ExpectAllEvents(events.TypeAssetPriceMoved, 2),
+		scenario.ExpectLogs("market.price_moved", 2),
 	)
 }
 
@@ -92,22 +114,41 @@ func F18SamplePricesCrashBeforeCommit(s *scenario.Scenario) {
 	)
 	s.Given(
 		scenario.MarkTick(pricePoller),
+		scenario.AwaitTick("market.catalog"),
 		ensureSamplerCatalog(),
+		countAssets(&scanned),
 		scenario.FakeUpstream(fakes.Step{
 			Route: priceRoute, Action: fakes.ActionSucceed, Fixture: priceRoute + "/catalog",
 			Times: priceRepeats, Reset: true,
 		}),
+		scenario.SubscribeCore(string(events.TypePriceTick)),
 	).When(
-		countAssets(&scanned),
 		captureBucket(&before),
 		scenario.PublishCrashingAt(faultpoint.BeforeCommit),
 		scenario.AwaitMarkedTickAfterCrash(pricePoller, faultpoint.BeforeCommit),
-		func(s *scenario.Scenario) { scenario.ExpectTick(pricePoller, scanned, 2)(s) },
-		expectPricePointsBetween(before,
+		func(s *scenario.Scenario) { scenario.ExpectTick(pricePoller, scanned, 3)(s) },
+		expectPriceTick(3),
+		expectPricePointsAfter(&before,
 			storedPrice{marketfake.AAPLx().Mint.String(), aaplMicros},
 			storedPrice{marketfake.TSLAx().Mint.String(), tslaMicros},
+			storedPrice{spaceXMint, 100_000_000},
 		),
 	)
+}
+
+func expectPriceTick(prices int) scenario.Step {
+	return scenario.ExpectCore(string(events.TypePriceTick), func(data []byte) error {
+		var tick events.PriceTick
+		if err := json.Unmarshal(data, &tick); err != nil {
+			return fmt.Errorf("decode price tick: %w", err)
+		}
+		if tick.V != 1 || len(tick.Prices) != prices {
+			return fmt.Errorf(
+				"%w: v%d with %d prices, want v1 with %d", errUnexpectedPriceTick, tick.V, len(tick.Prices), prices,
+			)
+		}
+		return nil
+	})
 }
 
 func ensureSamplerCatalog() scenario.Step {
@@ -142,6 +183,17 @@ func seedSamplerPrices(at *time.Time) scenario.Step {
 			if err != nil {
 				s.Fatalf("flows: seed price %s: %v", row.mint, err)
 			}
+		}
+	}
+}
+
+func seedSpaceXReference() scenario.Step {
+	return func(s *scenario.Scenario) {
+		now := time.Now().UTC()
+		start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		if _, err := s.DB().Exec(s.Context(), `INSERT INTO price_points (mint, ts, price_micros, source)
+			VALUES ($1, $2, $3, $4)`, spaceXMint, start, 100_000_000, string(domain.SourceJupiter)); err != nil {
+			s.Fatalf("flows: seed SpaceX reference: %v", err)
 		}
 	}
 }
@@ -211,7 +263,7 @@ func expectPricePointsBetween(before time.Time, want ...storedPrice) scenario.St
 	return func(s *scenario.Scenario) {
 		after := domain.Bucket(time.Now().UTC())
 		rows, err := s.DB().Query(s.Context(),
-			`SELECT mint, ts, price_micros, source FROM price_points ORDER BY mint COLLATE "C"`)
+			`SELECT mint, ts, price_micros, source FROM price_points WHERE ts >= $1 ORDER BY mint COLLATE "C"`, before)
 		if err != nil {
 			s.Fatalf("flows: read price_points: %v", err)
 		}
@@ -242,6 +294,10 @@ func expectPricePointsBetween(before time.Time, want ...storedPrice) scenario.St
 			s.Fatalf("flows: price_points = %+v, want %+v", got, want)
 		}
 	}
+}
+
+func expectPricePointsAfter(before *time.Time, want ...storedPrice) scenario.Step {
+	return func(s *scenario.Scenario) { expectPricePointsBetween(*before, want...)(s) }
 }
 
 func inBucketRange(ts, before, after, bucket time.Time) bool {
