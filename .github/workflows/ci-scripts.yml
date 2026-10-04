@@ -47,3 +47,6 @@ jobs:
       - name: Test scripts
         working-directory: scripts
         run: go test -short ./...
+
+      - name: Test Python scripts
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
