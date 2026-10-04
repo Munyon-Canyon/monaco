@@ -110,7 +110,6 @@ func F18SamplePricesCrashBeforeCommit(s *scenario.Scenario) {
 			Times: priceRepeats, Reset: true,
 		}),
 	).When(
-		scenario.AwaitTick(pricePoller),
 		scenario.MarkTick(pricePoller),
 		scenario.SubscribeCore(string(events.TypePriceTick)),
 		captureBucket(&before),
