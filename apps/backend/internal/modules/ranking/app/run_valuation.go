@@ -7,6 +7,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
@@ -24,6 +26,7 @@ type CabalValue struct {
 	CabalID     ids.CabalID
 	Value       money.Micros
 	NavPerShare money.Micros
+	TotalShares money.SharesUnits
 	Flags       []domain.Flag
 }
 
@@ -32,7 +35,25 @@ type Valuation struct {
 	PricesAsOf time.Time
 	Cabals     []CabalValue
 	Flagged    []CabalValue
+	Entries    []Entry
 	Excluded   int
+}
+
+type Entry struct {
+	Board             string    `json:"board"`
+	Range             string    `json:"range"`
+	Rank              int       `json:"rank"`
+	SubjectID         uuid.UUID `json:"subject_id"`
+	SubjectName       string    `json:"subject_name"`
+	SubjectHandle     *string   `json:"subject_handle"`
+	SubjectPictureURL *string   `json:"subject_picture_url"`
+	SubjectCreatedAt  time.Time `json:"subject_created_at"`
+	ValueMicros       int64     `json:"value_micros"`
+	PnLMicros         int64     `json:"pnl_micros"`
+	ReturnBps         *int64    `json:"return_bps"`
+	PricesAsOf        time.Time `json:"prices_as_of"`
+	ComputedAt        time.Time `json:"computed_at"`
+	Flags             []string  `json:"flags"`
 }
 
 type RunValuation struct {
@@ -293,7 +314,12 @@ func (r RunValuation) values(
 		}
 		values = append(
 			values,
-			CabalValue{CabalID: result.Val.cabalID, Value: result.Val.nav.Value, NavPerShare: result.Val.nav.PerShare},
+			CabalValue{
+				CabalID:     result.Val.cabalID,
+				Value:       result.Val.nav.Value,
+				NavPerShare: result.Val.nav.PerShare,
+				TotalShares: result.Val.position.TotalShares,
+			},
 		)
 	}
 	return values, flagged, nil

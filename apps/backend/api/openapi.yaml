@@ -3095,6 +3095,7 @@ components:
         - pot_exceeded
         - pot_value_zero
         - price_unavailable
+        - prices_stale
         - privy_unavailable
         - proposal_closed
         - proposal_not_found

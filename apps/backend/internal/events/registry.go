@@ -19,6 +19,7 @@ func registrations() []Registration {
 		governanceRegistrations(),
 		cabalRegistrations(),
 		marketRegistrations(),
+		rankingRegistrations(),
 		identityRegistrations(),
 		socialRegistrations(),
 		fundingRegistrations(),
