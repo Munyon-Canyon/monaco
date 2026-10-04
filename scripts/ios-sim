@@ -13,8 +13,13 @@ if [[ "${MONACO_PRIVY_ENV:-}" != "1" ]]; then
   exec "$repo_root/scripts/with-ios-privy-env.sh" "$0" "$@"
 fi
 
+# shellcheck source=scripts/run-with-logs.sh
+source "$repo_root/scripts/run-with-logs.sh"
+
 bundle_id="com.monaco.app"
+monaco_step "mobile: picking a simulator"
 udid="$(./scripts/resolve-ios-sim.sh)"
+sim_name="$(xcrun simctl list devices | sed -n "s/^ *\(.*\) (${udid}).*/\1/p" | head -1)"
 
 if command -v simslim >/dev/null 2>&1 && [[ -n "${SIMSLIM_UDID:-}" && "$udid" == "$SIMSLIM_UDID" ]]; then
   profile="${SIMSLIM_PROFILE:-}"
@@ -45,13 +50,26 @@ _ios_clipboard_bridge start
 # unsigned build. -skipPackagePluginValidation: see scripts/ios-build. The derived data
 # path is this checkout's own, so the app installed below is never another worktree's.
 derived="$(git rev-parse --show-toplevel)/.build/DerivedData"
-./scripts/qa/xcode-lock.sh xcode xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco \
+# xcodebuild prints thousands of lines; they go to a file so the step lines stay readable.
+log_dir="${MONACO_LOG_DIR:-$repo_root/.logs}"
+mkdir -p "$log_dir"
+build_log="$log_dir/xcodebuild.log"
+monaco_step "mobile: building the iOS app for ${sim_name:-$udid} (log: $build_log)"
+rc=0
+# shellcheck disable=SC2016 # $1 and $@ expand in the inner bash
+./scripts/qa/xcode-lock.sh xcode bash -c 'log=$1; shift; exec "$@" > "$log" 2>&1' _ "$build_log" \
+  xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco \
   -destination "platform=iOS Simulator,id=${udid}" \
   -configuration Debug \
   -derivedDataPath "$derived" \
   -skipPackagePluginValidation \
   CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=YES \
-  build
+  build || rc=$?
+if (( rc != 0 )); then
+  grep -E '(^|: )(fatal )?error: |\*\* BUILD FAILED \*\*' "$build_log" | awk '!seen[$0]++' | tail -40 >&2 || true
+  monaco_step "mobile: build failed (exit $rc); full log: $build_log" >&2
+  exit "$rc"
+fi
 
 app_path="${derived}/Build/Products/Debug-iphonesimulator/Monaco.app"
 if [[ ! -d "$app_path" ]]; then
@@ -59,8 +77,10 @@ if [[ ! -d "$app_path" ]]; then
   exit 1
 fi
 
+monaco_step "mobile: booting ${sim_name:-$udid}"
 xcrun simctl boot "$udid" >/dev/null 2>&1 || true
-xcrun simctl bootstatus "$udid" -b
+xcrun simctl bootstatus "$udid" -b >/dev/null
+monaco_step "mobile: installing and launching ${bundle_id}"
 xcrun simctl install "$udid" "$app_path"
-xcrun simctl launch "$udid" "$bundle_id"
-echo "launched ${bundle_id} on ${udid}"
+xcrun simctl launch "$udid" "$bundle_id" >/dev/null
+monaco_step "mobile: ready on ${sim_name:-simulator} (${udid})"
