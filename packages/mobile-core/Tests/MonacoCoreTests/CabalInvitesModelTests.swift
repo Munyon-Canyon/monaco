@@ -30,7 +30,7 @@ final class CabalInvitesModelTests: XCTestCase {
         let invite = try XCTUnwrap(model.invites.first)
         let accepted = await model.accept(invite)
         XCTAssertTrue(accepted)
-        XCTAssertEqual(model.toast?.message, "You're in.")
+        XCTAssertEqual(model.toast?.message, CabalEntry.joinedToast)
         XCTAssertEqual(model.toast?.isSuccess, true)
         XCTAssertEqual(model.state, .loaded([]))
         let sent = await transport.sent
