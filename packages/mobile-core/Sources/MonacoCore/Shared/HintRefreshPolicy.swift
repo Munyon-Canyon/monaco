@@ -79,9 +79,27 @@ public final class HintRefresher {
     }
 
     public func observe(_ hints: AsyncStream<Hint>) async {
+        await observe(hints, resyncs: true)
+    }
+
+    public func observe(_ streams: [AsyncStream<Hint>]) async {
+        await withTaskGroup(of: Void.self) { group in
+            for (index, stream) in streams.enumerated() {
+                group.addTask { await self.observe(stream, resyncs: index == 0) }
+            }
+        }
+    }
+
+    private func observe(_ hints: AsyncStream<Hint>, resyncs: Bool) async {
         for await hint in hints {
             didObserveHint()
-            let input: HintRefreshPolicy.Input = if case .resync = hint { .resync } else { .hint }
+            let input: HintRefreshPolicy.Input
+            if case .resync = hint {
+                guard resyncs else { continue }
+                input = .resync
+            } else {
+                input = .hint
+            }
             guard policy.send(input) == .refreshNow else { continue }
             beginRefresh()
         }

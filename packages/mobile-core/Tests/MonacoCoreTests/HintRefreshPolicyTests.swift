@@ -91,6 +91,32 @@ final class HintRefresherTests: XCTestCase {
         XCTAssertEqual(gate.refreshCount, 1)
     }
 
+    func testAResyncOnEveryStreamRefreshesOnce() async {
+        let gate = RefreshGate()
+        let refresher = HintRefresher(
+            refresh: { await gate.enter() },
+            didObserveHint: { gate.observeHint() }
+        )
+        let (first, firstContinuation) = AsyncStream<Hint>.makeStream()
+        let (second, secondContinuation) = AsyncStream<Hint>.makeStream()
+        let observing = Task { await refresher.observe([first, second]) }
+
+        firstContinuation.yield(.resync)
+        await gate.waitForRefreshes(1)
+        gate.releaseOne()
+        await gate.waitForFinishes(1)
+        secondContinuation.yield(.resync)
+        await gate.waitForHints(2)
+        secondContinuation.yield(Self.hint(1))
+        await gate.waitForRefreshes(2)
+        gate.releaseOne()
+        firstContinuation.finish()
+        secondContinuation.finish()
+        await observing.value
+
+        XCTAssertEqual(gate.refreshCount, 2)
+    }
+
     private static func hint(_ id: Int) -> Hint {
         Hint(key: "global", what: "feed", id: "\(id)") ?? .resync
     }

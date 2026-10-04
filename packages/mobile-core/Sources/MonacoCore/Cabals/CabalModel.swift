@@ -53,12 +53,7 @@ public final class CabalModel {
     }
 
     public func observe() async {
-        await withTaskGroup(of: Void.self) { group in
-            for what in Self.refreshingHints {
-                let stream = hints.hints(matching: .cabal(id: cabalID, what: what))
-                group.addTask { await self.refresher.observe(stream) }
-            }
-        }
+        await refresher.observe(Self.refreshingHints.map { hints.hints(matching: .cabal(id: cabalID, what: $0)) })
     }
 
     public func setVisible(_ visible: Bool) {
