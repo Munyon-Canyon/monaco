@@ -329,10 +329,10 @@ func TestGen_migrationRoutesToTheMigratorAndReportsItsFiles(t *testing.T) {
 	}
 	stderr.Reset()
 	files := codegen.Migrator{
-		Dir:     root,
-		Now:     func() time.Time { return time.Date(2026, 10, 2, 13, 0, 0, 0, time.UTC) },
-		Staging: func(context.Context) ([]string, error) { return nil, nil },
-		Hash:    func(context.Context) error { return nil },
+		Dir:    root,
+		Now:    func() time.Time { return time.Date(2026, 10, 2, 13, 0, 0, 0, time.UTC) },
+		Parent: func(context.Context) ([]string, error) { return nil, nil },
+		Hash:   func(context.Context) error { return nil },
 	}
 	if code := migrate(files, []string{"social", "follows"}, &stdout, &stderr); code != 0 ||
 		stdout.String() != "migrations/20261002130000_social_follows.sql\n" {

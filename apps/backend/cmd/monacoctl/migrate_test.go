@@ -261,3 +261,16 @@ func TestMigrate_failsAndNamesTheSearchWhenNoBackendModuleIsFound(t *testing.T) 
 		t.Fatalf("code=%d stdout=%q stderr=%q, want %q", code, stdout.String(), stderr.String(), want)
 	}
 }
+
+func TestRunIn_runsInTheDirAndNamesTheCommandOnFailure(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	out, err := runIn(dir)(t.Context(), "pwd", "-P")
+	if resolved, _ := filepath.EvalSymlinks(dir); err != nil || strings.TrimSpace(string(out)) != resolved {
+		t.Fatalf("pwd = %q, %v; want %s", out, err, resolved)
+	}
+	_, err = runIn(dir)(t.Context(), "git", "ls-tree", "nope")
+	if err == nil || !strings.Contains(err.Error(), "git ls-tree nope") {
+		t.Fatalf("err = %v, want it to name the command", err)
+	}
+}

@@ -25,7 +25,7 @@ components:
 func toolGen(env toolEnv) tool {
 	return func(args []string, stdout, stderr io.Writer) int {
 		if len(args) > 0 && args[0] == "migration" {
-			return migrate(codegen.NewMigrator(env.wd), args[1:], stdout, stderr)
+			return migrate(codegen.NewMigrator(env.wd, runIn(env.wd)), args[1:], stdout, stderr)
 		}
 		if len(args) > 0 {
 			if g, ok := codegen.Find(args[0]); ok {
