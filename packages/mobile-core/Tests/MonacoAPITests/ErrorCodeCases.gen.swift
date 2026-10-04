@@ -105,6 +105,7 @@ extension Components.Schemas.ErrorCode {
         case .versionConflict: true
         case .walletMismatch: true
         case .withdrawNotAllowed: true
+        case .withdrawToOwnWallet: true
         case .xNotLinked: true
         }
     }

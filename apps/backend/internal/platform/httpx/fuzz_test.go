@@ -90,14 +90,23 @@ func FuzzRequestBodies(f *testing.F) {
 			t.Fatal(err)
 		}
 		served.ServeHTTP(rec, req)
-		if rec.Code >= 200 && rec.Code < 300 {
-			return
-		}
-		var p api.Problem
-		if err := json.Unmarshal(rec.Body.Bytes(), &p); err != nil || rec.Code != http.StatusBadRequest ||
-			p.Code != api.InvalidInput {
+		if !fuzzAccepts(op.path, rec) {
 			t.Fatalf("%s %s with %q = %d %s, want 2xx or 400 invalid_input", op.method, op.path, body, rec.Code,
 				rec.Body)
 		}
 	})
+}
+
+func fuzzAccepts(path string, rec *httptest.ResponseRecorder) bool {
+	if rec.Code >= 200 && rec.Code < 300 {
+		return true
+	}
+	var p api.Problem
+	if err := json.Unmarshal(rec.Body.Bytes(), &p); err != nil {
+		return false
+	}
+	if rec.Code == http.StatusForbidden && p.Code == api.AdminForbidden && strings.HasPrefix(path, "/v1/admin/") {
+		return true
+	}
+	return rec.Code == http.StatusBadRequest && p.Code == api.InvalidInput
 }

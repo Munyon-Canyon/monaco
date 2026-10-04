@@ -19,12 +19,17 @@ type TokenBalances interface {
 	TokenBalance(context.Context, chain.SolanaAddress, chain.Mint) (money.BaseUnits, error)
 }
 
+type Outflows struct {
+	Funds       app.Outflows
+	Withdrawals app.Outflows
+}
+
 type Balances struct {
 	wallets  app.MemberWallets
 	newRPC   func() TokenBalances
 	rpc      TokenBalances
 	once     sync.Once
-	outflows app.Outflows
+	outflows Outflows
 	clock    clock.Clock
 	usdc     chain.Mint
 }
@@ -34,7 +39,7 @@ var _ port.Balances = (*Balances)(nil)
 func NewBalances(
 	wallets app.MemberWallets,
 	newRPC func() TokenBalances,
-	outflows app.Outflows,
+	outflows Outflows,
 	clk clock.Clock,
 	usdc chain.Mint,
 ) *Balances {
@@ -55,22 +60,37 @@ func (b *Balances) Available(ctx context.Context, user ids.UserID) (port.Balance
 	if onChain.Decimals() != b.usdc.Decimals {
 		return port.Balance{}, errs.New(errs.CodeDecodeFailed, op)
 	}
-	fund, err := b.outflows.InFlightMicros(ctx, user)
+	fund, err := b.outflows.Funds.InFlightMicros(ctx, user)
 	if err != nil {
 		return port.Balance{}, errs.Wrap(err, errs.CodeOf(err), op)
 	}
-	available, err := money.MicrosFromUint64(onChain.Uint64()).Sub(fund)
-	clamped := err != nil
-	if clamped {
-		available = money.Micros{}
+	withdrawals, err := b.outflows.Withdrawals.InFlightMicros(ctx, user)
+	if err != nil {
+		return port.Balance{}, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	available, err := spendable(onChainMicros(onChain), fund, withdrawals)
+	if err != nil {
 		observability.Degraded(ctx, observability.FundingBalanceClamped,
 			slog.String("user_id", user.String()), slog.String("on_chain_micros", onChain.String()),
-			slog.String("in_flight_fund_micros", fund.String()))
+			slog.String("in_flight_fund_micros", fund.String()),
+			slog.String("in_flight_withdrawal_micros", withdrawals.String()))
 	}
 	return port.Balance{
-		OnChainMicros: onChainMicros(onChain), InFlightFundMicros: fund,
+		OnChainMicros: onChainMicros(onChain), InFlightFundMicros: fund, InFlightWithdrawalMicros: withdrawals,
 		AvailableMicros: available, AsOf: b.clock.Now(),
 	}, nil
+}
+
+func spendable(onChain, fund, withdrawals money.Micros) (money.Micros, error) {
+	afterFund, err := onChain.Sub(fund)
+	if err != nil {
+		return money.Micros{}, err
+	}
+	left, err := afterFund.Sub(withdrawals)
+	if err != nil {
+		return money.Micros{}, err
+	}
+	return left, nil
 }
 
 func onChainMicros(value money.BaseUnits) money.Micros { return money.MicrosFromUint64(value.Uint64()) }

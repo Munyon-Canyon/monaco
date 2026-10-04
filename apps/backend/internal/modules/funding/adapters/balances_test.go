@@ -111,7 +111,8 @@ func TestBalancesAvailableReturnsDependenciesErrors(t *testing.T) {
 	boom := errs.New(errs.CodeInternal, "test")
 	user := ids.UserIDFrom(ids.Real{}.NewV7())
 	newBalances := func(wallets balanceWallets, rpc balanceRPC, outflows balanceOutflows) *adapters.Balances {
-		return adapters.NewBalances(wallets, func() adapters.TokenBalances { return rpc }, outflows,
+		return adapters.NewBalances(wallets, func() adapters.TokenBalances { return rpc },
+			adapters.Outflows{Funds: outflows, Withdrawals: balanceOutflows{}},
 			testkit.NewClock(time.Time{}), chain.Mint{Decimals: 6})
 	}
 	for name, b := range map[string]*adapters.Balances{
@@ -119,6 +120,10 @@ func TestBalancesAvailableReturnsDependenciesErrors(t *testing.T) {
 		"rpc":      newBalances(balanceWallets{}, balanceRPC{err: boom}, balanceOutflows{}),
 		"outflow":  newBalances(balanceWallets{}, balanceRPC{amount: money.NewBaseUnits(1, 6)}, balanceOutflows{err: boom}),
 		"decimals": newBalances(balanceWallets{}, balanceRPC{amount: money.NewBaseUnits(1, 5)}, balanceOutflows{}),
+		"withdrawals": adapters.NewBalances(balanceWallets{},
+			func() adapters.TokenBalances { return balanceRPC{amount: money.NewBaseUnits(1, 6)} },
+			adapters.Outflows{Funds: balanceOutflows{}, Withdrawals: balanceOutflows{err: boom}},
+			testkit.NewClock(time.Time{}), chain.Mint{Decimals: 6}),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -136,12 +141,17 @@ func TestBalance_AvailableSubtractsInFlight(t *testing.T) {
 	b := adapters.NewBalances(
 		balanceWallets{address: "wallet"},
 		func() adapters.TokenBalances { return balanceRPC{amount: money.NewBaseUnits(10, 6)} },
-		balanceOutflows{amount: money.MicrosFromUint64(3)},
+		adapters.Outflows{
+			Funds: balanceOutflows{
+				amount: money.MicrosFromUint64(3),
+			},
+			Withdrawals: balanceOutflows{amount: money.MicrosFromUint64(2)},
+		},
 		testkit.NewClock(now), chain.Mint{Address: "usdc", Decimals: 6},
 	)
 	got, err := b.Available(t.Context(), user)
 	if err != nil || got.OnChainMicros.String() != "10" || got.InFlightFundMicros.String() != "3" ||
-		got.AvailableMicros.String() != "7" || !got.AsOf.Equal(now) {
+		got.InFlightWithdrawalMicros.String() != "2" || got.AvailableMicros.String() != "5" || !got.AsOf.Equal(now) {
 		t.Fatalf("Available = %+v, %v", got, err)
 	}
 }
@@ -154,12 +164,24 @@ func TestBalance_AvailableClampsAtZero(t *testing.T) {
 	b := adapters.NewBalances(
 		balanceWallets{},
 		func() adapters.TokenBalances { return balanceRPC{amount: money.NewBaseUnits(3, 6)} },
-		balanceOutflows{amount: money.MicrosFromUint64(10)},
+		adapters.Outflows{Funds: balanceOutflows{amount: money.MicrosFromUint64(10)}, Withdrawals: balanceOutflows{}},
 		testkit.NewClock(time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC)), chain.Mint{Address: "usdc", Decimals: 6},
 	)
 	got, err := b.Available(ctx, user)
 	if err != nil || !got.AvailableMicros.IsZero() {
 		t.Fatalf("Available = %+v, %v", got, err)
+	}
+	withdrawing := adapters.NewBalances(
+		balanceWallets{},
+		func() adapters.TokenBalances { return balanceRPC{amount: money.NewBaseUnits(3, 6)} },
+		adapters.Outflows{
+			Funds:       balanceOutflows{amount: money.MicrosFromUint64(1)},
+			Withdrawals: balanceOutflows{amount: money.MicrosFromUint64(4)},
+		},
+		testkit.NewClock(time.Time{}), chain.Mint{Address: "usdc", Decimals: 6},
+	)
+	if got, err := withdrawing.Available(t.Context(), user); err != nil || !got.AvailableMicros.IsZero() {
+		t.Fatalf("Available with withdrawals = %+v, %v", got, err)
 	}
 	var line map[string]any
 	if err := json.Unmarshal([]byte(strings.TrimSpace(string(logs.Bytes()))), &line); err != nil ||

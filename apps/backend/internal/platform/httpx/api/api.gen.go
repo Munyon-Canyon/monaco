@@ -111,6 +111,7 @@ const (
 	VersionConflict            ErrorCode = "version_conflict"
 	WalletMismatch             ErrorCode = "wallet_mismatch"
 	WithdrawNotAllowed         ErrorCode = "withdraw_not_allowed"
+	WithdrawToOwnWallet        ErrorCode = "withdraw_to_own_wallet"
 	XNotLinked                 ErrorCode = "x_not_linked"
 )
 
@@ -320,6 +321,8 @@ func (e ErrorCode) Valid() bool {
 	case WalletMismatch:
 		return true
 	case WithdrawNotAllowed:
+		return true
+	case WithdrawToOwnWallet:
 		return true
 	case XNotLinked:
 		return true
