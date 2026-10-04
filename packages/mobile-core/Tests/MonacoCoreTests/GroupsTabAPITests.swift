@@ -12,94 +12,6 @@ final class GroupsTabAPITests: XCTestCase {
         super.tearDown()
     }
 
-    // MARK: - searchGroups
-
-    func testSearchGroups_sendsQueryLimitAndCursor_andDecodesResponse() async throws {
-        // Arrange
-        let token = TestFixtures.fixtureSessionToken
-        var capturedPath: String?
-        var capturedQueryItems: [URLQueryItem]?
-        var capturedAuthorization: String?
-
-        let fixtureURL = try XCTUnwrap(
-            Bundle.module.url(forResource: "groups_search", withExtension: "json")
-        )
-        let fixtureData = try Data(contentsOf: fixtureURL)
-
-        MockURLProtocol.requestHandler = { request in
-            capturedPath = request.url?.path
-            capturedQueryItems = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems
-            capturedAuthorization = request.value(forHTTPHeaderField: "Authorization")
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: 200,
-                httpVersion: nil,
-                headerFields: ["Content-Type": "application/json"]
-            )!
-            return (response, fixtureData)
-        }
-
-        let client = MonacoAPIClient(
-            baseURL: URL(string: "https://api.test")!,
-            session: makeMockURLSession(),
-            accessTokenProvider: { token }
-        )
-
-        // Act
-        let result = try await client.searchGroups(query: "weekend", limit: 10, cursor: "page2")
-
-        // Assert
-        XCTAssertEqual(capturedPath, "/v1/groups/search")
-        XCTAssertEqual(
-            capturedQueryItems,
-            [
-                URLQueryItem(name: "q", value: "weekend"),
-                URLQueryItem(name: "limit", value: "10"),
-                URLQueryItem(name: "cursor", value: "page2"),
-            ])
-        XCTAssertEqual(capturedAuthorization, "Bearer \(token)")
-        XCTAssertEqual(result.groups.count, 2)
-        XCTAssertEqual(result.nextCursor, "eyJvZmZzZXQiOjIwfQ==")
-    }
-
-    func testSearchGroups_withoutCursor_omitsCursorQueryItem() async throws {
-        // Arrange
-        var capturedQueryItems: [URLQueryItem]?
-
-        let fixtureURL = try XCTUnwrap(
-            Bundle.module.url(forResource: "groups_search", withExtension: "json")
-        )
-        let fixtureData = try Data(contentsOf: fixtureURL)
-
-        MockURLProtocol.requestHandler = { request in
-            capturedQueryItems = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: 200,
-                httpVersion: nil,
-                headerFields: ["Content-Type": "application/json"]
-            )!
-            return (response, fixtureData)
-        }
-
-        let client = MonacoAPIClient(
-            baseURL: URL(string: "https://api.test")!,
-            session: makeMockURLSession(),
-            accessTokenProvider: { TestFixtures.fixtureSessionToken }
-        )
-
-        // Act
-        _ = try await client.searchGroups(query: "weekend", limit: 20, cursor: nil)
-
-        // Assert
-        XCTAssertEqual(
-            capturedQueryItems,
-            [
-                URLQueryItem(name: "q", value: "weekend"),
-                URLQueryItem(name: "limit", value: "20"),
-            ])
-    }
-
     // MARK: - groupLeaderboard
 
     func testGroupLeaderboard_sendsLimit_andDecodesResponse() async throws {
@@ -255,7 +167,7 @@ final class GroupsTabAPITests: XCTestCase {
 
         // Act / Assert
         do {
-            _ = try await client.searchGroups(query: "weekend", limit: 20, cursor: nil)
+            _ = try await client.groupLeaderboard()
             XCTFail("Expected httpStatus(401) to be thrown")
         } catch let MonacoAPIError.httpStatus(code, _) {
             XCTAssertEqual(code, 401)
@@ -282,7 +194,7 @@ final class GroupsTabAPITests: XCTestCase {
 
         // Act / Assert
         do {
-            _ = try await client.searchGroups(query: "weekend", limit: 20, cursor: nil)
+            _ = try await client.groupLeaderboard()
             XCTFail("Expected a DecodingError to be thrown")
         } catch is DecodingError {
             // expected

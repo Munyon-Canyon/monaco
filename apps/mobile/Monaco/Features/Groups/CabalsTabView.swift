@@ -2,14 +2,13 @@ import MonacoAPI
 import MonacoCore
 import SwiftUI
 
-/// Cabals tab: P&L of your cabals, search, your cabals strip, and the
+/// Cabals tab: P&L of your cabals, your cabals strip, and the
 /// platform-wide board.
 struct CabalsTabView: View {
     @ObservedObject var auth: PrivyAuthService
     @Environment(AppSessionStore.self) private var session
     @Environment(\.accountRestricted) private var accountRestricted
     @State private var model: CabalsTabModel
-    @State private var searchText = ""
     @State private var showNewCabalSheet = false
     /// The pushed screen, if any. One item for the whole tab: see `CabalsRoute`.
     @State private var route: CabalsRoute?
@@ -54,23 +53,14 @@ struct CabalsTabView: View {
                 // Edge to edge: the strip and the ruled lists run to the screen's edges, and
                 // each section insets its own header.
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
-                    MonacoSearchField(placeholder: "Find a cabal by name", text: $searchText)
-                        .padding(.horizontal, MonacoTheme.Space.m)
-                        .accessibilityIdentifier("cabals-search-field")
-
-                    if model.isSearching {
-
-                        CabalsSearchResultsSection(model: model, onSelect: { route = $0 })
-                    } else {
-                        CabalsStripSection(
-                            rows: session.joinedCabals,
-                            state: stripState,
-                            onSelect: { route = $0 },
-                            onRetry: { Task { await loadCabals() } }
-                        )
-                        CabalsPnLChartSection(model: model, hasCabals: !session.joinedCabals.isEmpty)
-                        CabalsLeaderboardSection(model: model, onSelect: { route = $0 })
-                    }
+                    CabalsStripSection(
+                        rows: session.joinedCabals,
+                        state: stripState,
+                        onSelect: { route = $0 },
+                        onRetry: { Task { await loadCabals() } }
+                    )
+                    CabalsPnLChartSection(model: model, hasCabals: !session.joinedCabals.isEmpty)
+                    CabalsLeaderboardSection(model: model, onSelect: { route = $0 })
                 }
                 .padding(.bottom, MonacoTheme.Space.xl)
             }
@@ -130,9 +120,6 @@ struct CabalsTabView: View {
         .task {
             if session.home == nil { await loadCabals() }
             await model.reload(hasCabals: !session.joinedCabals.isEmpty)
-        }
-        .onChange(of: searchText) { _, newValue in
-            model.updateQuery(newValue)
         }
         .onChange(of: joinedIDs) { _, ids in
             // Joined, created, or left a cabal somewhere in the app.

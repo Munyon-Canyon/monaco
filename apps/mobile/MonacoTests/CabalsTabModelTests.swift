@@ -1,6 +1,5 @@
 import Foundation
 import MonacoCore
-import MonacoTestClock
 import Testing
 
 @testable import Monaco
@@ -35,8 +34,6 @@ private final class CallGate {
 
 @MainActor
 private final class RecordingDataSource: CabalsTabDataSource {
-    var searches: [(query: String, cursor: String?)] = []
-    var searchError: Error?
     var pnlRanges: [GroupPnLRange] = []
     /// Reads that have come back. `pnlRanges` records arrival, this records exit.
     var pnlCompletions = 0
@@ -45,16 +42,8 @@ private final class RecordingDataSource: CabalsTabDataSource {
     var boardLoads = 0
     /// Points per cabal, per range, for the chart tests.
     var seriesByRange: [GroupPnLRange: [GroupPnLSeriesDTO]] = [:]
-    /// Held open so a test can drive what happens while a search is in flight.
-    var searchGate: (() async -> Void)?
-    let clock = TestClock()
-    let searchesDone = Watched(0)
-    /// The same, for the chart reads.
+    /// Held open so a test can drive what happens while a chart read is in flight.
     var pnlGate: (() async -> Void)?
-    /// Cursor the next page comes back with.
-    var nextCursor: String?
-
-    var queries: [String] { searches.map(\.query) }
 
     func leaderboard() async throws -> GroupLeaderboardResponseDTO {
         boardLoads += 1
@@ -67,21 +56,6 @@ private final class RecordingDataSource: CabalsTabDataSource {
         pnlCompletions += 1
         if let pnlError { throw pnlError }
         return MyGroupsPnLHistoryDTO(range: range.rawValue, series: seriesByRange[range] ?? [])
-    }
-
-    func search(query: String, cursor: String?) async throws -> GroupSearchResponseDTO {
-        searches.append((query, cursor))
-        if let searchGate { await searchGate() }
-        if !Task.isCancelled {
-            searchesDone.mutate { $0 += 1 }
-        }
-        if let searchError { throw searchError }
-        let suffix = cursor.map { "-\($0)" } ?? ""
-        let row = GroupDiscoveryRowDTO(
-            groupID: "g-\(query)\(suffix)", name: "Weekend \(query)", memberCount: 2, potValueUsd: "10.00",
-            percentReturn: nil, dollarPnl: "+0.00", isJoined: false, joinMode: .open
-        )
-        return GroupSearchResponseDTO(groups: query == "none" ? [] : [row], nextCursor: nextCursor)
     }
 }
 
@@ -104,84 +78,6 @@ private func sampleSeries(id: String, points: Int) -> GroupPnLSeriesDTO {
 
 @MainActor
 struct CabalsTabModelTests {
-
-    @Test func typingQuicklySendsOnlyTheLastQuery() async throws {
-        // Arrange
-        let source = RecordingDataSource()
-        let model = make(source)
-
-        // Act
-        model.updateQuery("we")
-        model.updateQuery("wee")
-        model.updateQuery("week")
-        await settle(source)
-
-        // Assert
-        #expect(source.queries == ["week"])
-        #expect(model.searchState == .results)
-        #expect(model.results.map(\.groupID) == ["g-week"])
-    }
-
-    @Test func singleCharacterNeverHitsTheServer() async throws {
-        let source = RecordingDataSource()
-        let model = make(source)
-
-        model.updateQuery(" w ")
-
-        #expect(source.clock.state.current.pending == 0)
-        #expect(source.queries.isEmpty)
-        #expect(model.searchState == .tooShort)
-    }
-
-    @Test func clearingTheQueryCancelsThePendingSearch() async throws {
-        let source = RecordingDataSource()
-        let model = make(source)
-
-        model.updateQuery("weekend")
-        _ = await source.clock.state.until { $0.pending >= 1 }
-        model.clearSearch()
-
-        #expect(source.clock.state.current.pending == 0)
-        #expect(source.queries.isEmpty)
-        #expect(model.searchState == .idle)
-        #expect(!model.isSearching)
-    }
-
-    @Test func noMatchesShowsEmptyState() async throws {
-        let source = RecordingDataSource()
-        let model = make(source)
-
-        model.updateQuery("none")
-        await settle(source)
-
-        #expect(model.searchState == .empty)
-    }
-
-    @Test func serverFailureShowsRetryableError() async throws {
-        let source = RecordingDataSource()
-        source.searchError = Monaco.MonacoAPIError.httpStatus(500)
-        let model = make(source)
-
-        model.updateQuery("weekend")
-        await settle(source)
-        #expect(model.searchState == .failed)
-
-        source.searchError = nil
-        model.retrySearch()
-        await waitForSearch(source)
-        #expect(model.searchState == .results)
-    }
-
-    @Test func expiredSessionIsReportedInsteadOfAnError() async throws {
-        let source = RecordingDataSource()
-        source.searchError = Monaco.MonacoAPIError.httpStatus(401)
-        let model = make(source)
-
-        model.updateQuery("weekend")
-        await settle(source)
-
-        #expect(model.sessionExpired)
-    }
 
     @Test func changingRangeReloadsTheChart() async throws {
         let source = RecordingDataSource()
@@ -332,144 +228,11 @@ struct CabalsTabModelTests {
         #expect(model.seriesRange == .oneMonth)
         #expect(CabalsTabModel.isChartable(model.series))
     }
-
-    // MARK: - Membership (#293)
-
-    @Test func joiningPatchesTheBoardAndTheSearchResults() async throws {
-        // Arrange
-        let source = RecordingDataSource()
-        source.boardRows = [
-            GroupLeaderboardRowDTO(
-                rank: 1, groupID: "g-week", name: "Weekend week", memberCount: 2, potValueUsd: "10.00",
-                percentReturn: nil, dollarPnl: "+0.00", isJoined: false, joinMode: .open
-            )
-        ]
-        let model = make(source)
-        await model.reload()
-        model.updateQuery("week")
-        await settle(source)
-        #expect(model.results.first?.isJoined == false)
-
-        // Act
-        model.markJoined(groupID: "g-week")
-
-        // Assert: both lists say "you're in" without waiting for a reload or
-        // for the member to retype the query.
-        #expect(model.results.first?.isJoined == true)
-        #expect(model.leaderboard.first?.isJoined == true)
-    }
-
-    @Test func aJoinSurvivesTheBoardReloadThatFollowsIt() async throws {
-        // Arrange: the server keeps answering "not joined", which is what a
-        // read-after-write lag or a cached board query looks like from here.
-        let source = RecordingDataSource()
-        source.boardRows = [
-            GroupLeaderboardRowDTO(
-                rank: 1, groupID: "g-week", name: "Weekend week", memberCount: 2, potValueUsd: "10.00",
-                percentReturn: nil, dollarPnl: "+0.00", isJoined: false, joinMode: .open
-            )
-        ]
-        let model = make(source)
-        await model.reload()
-        model.updateQuery("week")
-        await settle(source)
-
-        model.markJoined(groupID: "g-week")
-        #expect(model.leaderboard.first?.isJoined == true)
-
-        // Act: joining refreshes the session, membership changes, and the tab
-        // reloads the board and re-runs the search.
-        await model.reload()
-        model.updateQuery("week")
-        await settle(source)
-
-        // Assert: the row the member just joined does not flip back to "· Open"
-        // a second later.
-        #expect(model.leaderboard.first?.isJoined == true)
-        #expect(model.results.first?.isJoined == true)
-    }
-
-    // MARK: - Search pagination (#332)
-
-    @Test func changingTheQueryCancelsAnInFlightLoadMore() async throws {
-        // Arrange: page one comes back with a cursor, then the next page hangs.
-        let source = RecordingDataSource()
-        source.nextCursor = "cursor-1"
-        let model = make(source)
-        model.updateQuery("week")
-        await settle(source)
-        #expect(model.nextCursor == "cursor-1")
-
-        let clock = source.clock
-        source.searchGate = { try? await clock.sleep(for: .milliseconds(600)) }
-        model.loadMore()
-        #expect(model.isLoadingMore)
-
-        // Act: the member edits the query while page two is still out.
-        source.searchGate = nil
-        source.nextCursor = nil
-        model.updateQuery("rent")
-        await settle(source)
-
-        // Assert: the new results are not stuck behind the orphaned page.
-        #expect(!model.isLoadingMore)
-        #expect(model.results.map(\.groupID) == ["g-rent"])
-    }
-
-    @Test func aFailedLoadMoreSaysSoInsteadOfGoingQuiet() async throws {
-        let source = RecordingDataSource()
-        source.nextCursor = "cursor-1"
-        let model = make(source)
-        model.updateQuery("week")
-        await settle(source)
-
-        source.searchError = Monaco.MonacoAPIError.httpStatus(500)
-        model.loadMore()
-        await waitForSearch(source)
-
-        #expect(model.loadMoreFailed)
-        #expect(!model.isLoadingMore)
-        #expect(model.results.map(\.groupID) == ["g-week"])
-    }
-
-    @Test func retryingASearchSkipsTheDebounce() async throws {
-        let source = RecordingDataSource()
-        source.searchError = Monaco.MonacoAPIError.httpStatus(500)
-        let model = make(source)
-        model.updateQuery("week")
-        await settle(source)
-        #expect(model.searchState == .failed)
-
-        source.searchError = nil
-        let slept = source.clock.state.current.requested.count
-        model.retrySearch()
-        await waitForSearch(source)
-
-        #expect(source.clock.state.current.requested.count == slept)
-        #expect(model.searchState == .results)
-    }
 }
 
 extension CabalsTabModelTests {
     fileprivate func make(_ source: RecordingDataSource) -> CabalsTabModel {
-        CabalsTabModel(dataSource: source, sleepClock: source.clock)
-    }
-
-    fileprivate func settle(_ source: RecordingDataSource) async {
-        let mark = source.searchesDone.current
-        let slept = source.clock.state.current.requested.count
-        let debounce = CabalsTabModel.searchDebounce
-        _ = await source.clock.state.until { state in
-            state.requested.count > slept && state.pending >= 1
-                && state.requested.last == debounce
-        }
-        source.clock.advance(by: CabalsTabModel.searchDebounce)
-        _ = await source.searchesDone.until { $0 > mark }
-    }
-
-    fileprivate func waitForSearch(_ source: RecordingDataSource) async {
-        let mark = source.searchesDone.current
-        _ = await source.searchesDone.until { $0 > mark }
+        CabalsTabModel(dataSource: source)
     }
 
     fileprivate func waitUntil(_ description: String, _ condition: () -> Bool) async throws {

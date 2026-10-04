@@ -303,12 +303,6 @@ final class MonacoAPIClient: AppSessionDataSource {
     // MARK: Groups tab (#148). Requests and DTOs live in MonacoCore; these wrappers
     // add the session token and map MonacoCore errors onto this client's errors.
 
-    func searchGroups(accessToken: String, query: String, limit: Int = 20, cursor: String? = nil) async throws
-        -> GroupSearchResponseDTO
-    {
-        try await withCoreClient(accessToken) { try await $0.searchGroups(query: query, limit: limit, cursor: cursor) }
-    }
-
     func groupLeaderboard(accessToken: String, limit: Int = 20) async throws -> GroupLeaderboardResponseDTO {
         try await withCoreClient(accessToken) { try await $0.groupLeaderboard(limit: limit) }
     }

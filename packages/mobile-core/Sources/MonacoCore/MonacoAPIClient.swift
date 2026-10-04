@@ -506,23 +506,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
 
     // MARK: Groups tab (#148)
 
-    /// Case-insensitive name search. `query` must be 2...64 characters after
-    /// trimming (see `GroupSearchQuery`); pass the previous page's
-    /// `nextCursor` to continue.
-    public func searchGroups(query: String, limit: Int = 20, cursor: String? = nil) async throws
-        -> GroupSearchResponseDTO
-    {
-        var items = [
-            URLQueryItem(name: "q", value: query),
-            URLQueryItem(name: "limit", value: String(limit)),
-        ]
-        if let cursor {
-            items.append(URLQueryItem(name: "cursor", value: cursor))
-        }
-        return try await getJSON(
-            path: "v1/groups/search", route: "/v1/groups/search", queryItems: items, as: GroupSearchResponseDTO.self)
-    }
-
     /// Platform-wide cabals ranked by percent return (server caps limit at 50).
     public func groupLeaderboard(limit: Int = 20) async throws -> GroupLeaderboardResponseDTO {
         try await getJSON(
