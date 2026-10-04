@@ -35,14 +35,16 @@ var (
 func MigrationUsage() string { return migrationUsage }
 
 type Migrator struct {
-	Dir     string
-	Now     func() time.Time
-	Staging func(ctx context.Context) ([]string, error)
-	Hash    func(ctx context.Context) error
+	Dir    string
+	Now    func() time.Time
+	Parent func(ctx context.Context) ([]string, error)
+	Hash   func(ctx context.Context) error
 }
 
-func NewMigrator(dir string) Migrator {
-	return Migrator{Dir: dir, Now: clock.Real{}.Now, Staging: gitStagingMigrations(dir), Hash: atlasHash(dir)}
+type Runner func(ctx context.Context, name string, args ...string) ([]byte, error)
+
+func NewMigrator(dir string, run Runner) Migrator {
+	return Migrator{Dir: dir, Now: clock.Real{}.Now, Parent: gitParentMigrations(run), Hash: atlasHash(dir)}
 }
 
 func (m Migrator) Run(ctx context.Context, args []string) ([]string, error) {
@@ -82,13 +84,13 @@ func (m Migrator) rebase(ctx context.Context, root *os.Root) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	base, err := m.Staging(ctx)
+	parent, err := m.Parent(ctx)
 	if err != nil {
 		return nil, err
 	}
 	const op = "gen.Migrator.rebase"
 	var touched []string
-	for _, r := range RebasePlan(onDisk, base, m.Now()) {
+	for _, r := range RebasePlan(onDisk, parent, m.Now()) {
 		from, to := filepath.Join(migrationsDir, r[0]), filepath.Join(migrationsDir, r[1])
 		if _, err := root.Lstat(to); !errors.Is(err, fs.ErrNotExist) {
 			return touched, errs.Wrap(cmp.Or(err, fs.ErrExist), errs.CodeInternal, op, slog.String("file", to))
@@ -115,15 +117,15 @@ func NextPrefix(names []string, now time.Time) string {
 	return next.Format(prefixLayout)
 }
 
-func RebasePlan(onDisk, base []string, now time.Time) [][2]string {
+func RebasePlan(onDisk, parent []string, now time.Time) [][2]string {
 	var own []string
 	for _, name := range slices.Sorted(slices.Values(onDisk)) {
-		if migrationFile.MatchString(name) && !slices.Contains(base, name) {
+		if migrationFile.MatchString(name) && !slices.Contains(parent, name) {
 			own = append(own, name)
 		}
 	}
 	newest := ""
-	for _, name := range base {
+	for _, name := range parent {
 		if m := migrationFile.FindStringSubmatch(name); m != nil {
 			newest = max(newest, m[1])
 		}
@@ -131,7 +133,7 @@ func RebasePlan(onDisk, base []string, now time.Time) [][2]string {
 	if len(own) == 0 || own[0][:14] > newest {
 		return nil
 	}
-	taken := slices.Concat(base, onDisk)
+	taken := slices.Concat(parent, onDisk)
 	renames := make([][2]string, len(own))
 	for i, name := range own {
 		to := NextPrefix(taken, now) + name[14:]
@@ -155,13 +157,21 @@ func migrationNames(root *os.Root) ([]string, error) {
 	return names, nil
 }
 
-func gitStagingMigrations(dir string) func(context.Context) ([]string, error) {
+func gitParentMigrations(run Runner) func(context.Context) ([]string, error) {
 	return func(ctx context.Context) ([]string, error) {
-		cmd := exec.CommandContext(ctx, "git", "ls-tree", "--name-only", migrationBase, migrationsDir+"/")
-		cmd.Dir = dir
-		out, err := cmd.Output()
+		const op = "gen.gitParentMigrations"
+		out, err := run(ctx, "gt", "parent", "--no-interactive")
+		parent, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
+		if err != nil || parent == "" {
+			return nil, invalid(op, "gt parent found no Graphite parent: "+
+				"finish the restack, check out the branch and rerun gen migration --rebase")
+		}
+		if parent == "staging" {
+			parent = migrationBase
+		}
+		out, err = run(ctx, "git", "ls-tree", "--name-only", parent, migrationsDir+"/")
 		if err != nil {
-			return nil, errs.Wrap(problem(cmd.String()+": "+err.Error()), errs.CodeInternal, "gen.gitStagingMigrations")
+			return nil, errs.Wrap(err, errs.CodeInternal, op)
 		}
 		var names []string
 		for line := range strings.Lines(string(out)) {

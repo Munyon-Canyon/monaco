@@ -15,8 +15,8 @@ func Apply(root, kind string, args ...string) ([]string, error) {
 
 func Check(what string, err error) { check(what, err) }
 
-func StagingMigrations(dir string) ([]string, error) {
-	return gitStagingMigrations(dir)(context.Background())
+func ParentMigrations(run Runner) ([]string, error) {
+	return gitParentMigrations(run)(context.Background())
 }
 
 func AtlasHash(dir string) error { return atlasHash(dir)(context.Background()) }

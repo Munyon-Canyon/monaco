@@ -104,16 +104,26 @@ func TestRebasePlan_movesOnlyTheBranchsFilesAboveStagingInTheirOrder(t *testing.
 	}
 }
 
-func migrator(t *testing.T, files map[string]string, staging []string, now string) (gen.Migrator, *int) {
+func TestRebasePlan_leavesTheDownstackMigrationAlone(t *testing.T) {
+	t.Parallel()
+	parent := []string{"20261003000000_s.sql", "20261004000000_one.sql"}
+	onDisk := []string{"20261003000000_s.sql", "20261004000000_one.sql", "20261002000000_two.sql"}
+	got := gen.RebasePlan(onDisk, parent, at(t, "20261003120000"))
+	if want := [][2]string{{"20261002000000_two.sql", "20261004000001_two.sql"}}; !slices.Equal(got, want) {
+		t.Fatalf("RebasePlan = %v, want %v", got, want)
+	}
+}
+
+func migrator(t *testing.T, files map[string]string, parent []string, now string) (gen.Migrator, *int) {
 	t.Helper()
 	files["go.mod"] = "module example.com/app\n"
 	files["internal/modules/social/module.go"] = "package social\n"
 	hashes := 0
 	return gen.Migrator{
-		Dir:     tree(t, files),
-		Now:     func() time.Time { return at(t, now) },
-		Staging: func(context.Context) ([]string, error) { return staging, nil },
-		Hash:    func(context.Context) error { hashes++; return nil },
+		Dir:    tree(t, files),
+		Now:    func() time.Time { return at(t, now) },
+		Parent: func(context.Context) ([]string, error) { return parent, nil },
+		Hash:   func(context.Context) error { hashes++; return nil },
 	}, &hashes
 }
 
@@ -226,34 +236,91 @@ func TestMigrator_rebaseRenamesNothingButRehashesWhenTheBranchAlreadySortsAboveS
 	}
 }
 
-func TestStagingMigrations_listsTheSqlFilesOfOriginStaging(t *testing.T) {
+func gtRunner(t *testing.T, dir string, gt func() ([]byte, error)) gen.Runner {
+	t.Helper()
+	return func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		if name == "gt" {
+			if got := strings.Join(args, " "); got != "parent --no-interactive" {
+				t.Errorf("gt %s, want gt parent --no-interactive", got)
+			}
+			return gt()
+		}
+		cmd := exec.CommandContext(ctx, name, args...)
+		cmd.Dir = dir
+		return cmd.Output()
+	}
+}
+
+func prints(out string) func() ([]byte, error) {
+	return func() ([]byte, error) { return []byte(out), nil }
+}
+
+func gitRepo(t *testing.T, files map[string]string) string {
+	t.Helper()
+	dir := tree(t, files)
+	git(t, dir, "init", "-q")
+	git(t, dir, "add", ".")
+	git(t, dir, "commit", "-q", "-m", "staging")
+	git(t, dir, "update-ref", "refs/remotes/origin/staging", "HEAD")
+	return dir
+}
+
+func TestGitParentMigrations_mapsStagingToOriginStaging(t *testing.T) {
 	t.Parallel()
-	dir := tree(t, map[string]string{
+	dir := gitRepo(t, map[string]string{
 		"migrations/20261001000000_a.sql": "a",
 		"migrations/atlas.sum":            "sum",
 		"other/20261001000001_b.sql":      "b",
 	})
-	for _, args := range [][]string{
-		{"init", "-q"},
-		{"add", "."},
-		{"-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "staging"},
-		{"update-ref", "refs/remotes/origin/staging", "HEAD"},
-	} {
-		cmd := exec.CommandContext(t.Context(), "git", append([]string{"-C", dir}, args...)...)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
-		}
-	}
-	got, err := gen.StagingMigrations(dir)
+	git(t, dir, "branch", "-m", "work")
+	got, err := gen.ParentMigrations(gtRunner(t, dir, prints("staging\n")))
 	if want := []string{"20261001000000_a.sql"}; err != nil || !slices.Equal(got, want) {
-		t.Fatalf("StagingMigrations = %v, %v; want %v", got, err, want)
+		t.Fatalf("ParentMigrations = %v, %v; want %v", got, err, want)
 	}
 }
 
-func TestStagingMigrations_failsOutsideAGitRepoWithOriginStaging(t *testing.T) {
+func TestGitParentMigrations_listsTheParentBranchsTree(t *testing.T) {
 	t.Parallel()
-	if _, err := gen.StagingMigrations(t.TempDir()); err == nil {
-		t.Fatal("StagingMigrations succeeded in a directory with no origin/staging")
+	dir := gitRepo(t, map[string]string{"migrations/20261003000000_s.sql": "s"})
+	git(t, dir, "switch", "-q", "-c", "2105-a")
+	writeIn(t, dir, "migrations/20261004000000_one.sql", "one")
+	git(t, dir, "add", ".")
+	git(t, dir, "commit", "-q", "-m", "one")
+	git(t, dir, "switch", "-q", "-c", "2105-b")
+	got, err := gen.ParentMigrations(gtRunner(t, dir, prints("2105-a\nignored\n")))
+	if want := []string{"20261003000000_s.sql", "20261004000000_one.sql"}; err != nil || !slices.Equal(got, want) {
+		t.Fatalf("ParentMigrations = %v, %v; want %v", got, err, want)
+	}
+}
+
+func TestGitParentMigrations_failsWhenGtPrintsNoParent(t *testing.T) {
+	t.Parallel()
+	dir := gitRepo(t, map[string]string{"migrations/20261001000000_a.sql": "a"})
+	for name, gt := range map[string]func() ([]byte, error){
+		"prints nothing": prints(""),
+		"fails":          func() ([]byte, error) { return nil, errs.New(errs.CodeInternal, "test.gt") },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			got, err := gen.ParentMigrations(gtRunner(t, dir, gt))
+			if errs.CodeOf(err) != errs.CodeInvalidInput || got != nil {
+				t.Fatalf("ParentMigrations = %v, %v; want CodeInvalidInput and no origin/staging fallback", got, err)
+			}
+			if !strings.Contains(
+				err.Error(),
+				"finish the restack, check out the branch and rerun gen migration --rebase",
+			) {
+				t.Fatalf("error %q does not say how to recover", err)
+			}
+		})
+	}
+}
+
+func TestGitParentMigrations_failsWhenTheParentTreeIsUnreadable(t *testing.T) {
+	t.Parallel()
+	_, err := gen.ParentMigrations(gtRunner(t, t.TempDir(), prints("staging")))
+	if errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("ParentMigrations = %v, want CodeInternal in a directory with no origin/staging", err)
 	}
 }
 
@@ -277,11 +344,11 @@ func TestMigrator_runFailsWhenTheBackendOrMigrationsDirIsMissing(t *testing.T) {
 	}
 }
 
-func TestMigrator_rebaseStopsWhenStagingIsUnreadable(t *testing.T) {
+func TestMigrator_rebaseStopsWhenTheParentIsUnreadable(t *testing.T) {
 	t.Parallel()
 	boom := errs.New(errs.CodeInternal, "test.boom")
 	m, hashes := migrator(t, referralsOnly(), nil, "20261002130000")
-	m.Staging = func(context.Context) ([]string, error) { return nil, boom }
+	m.Parent = func(context.Context) ([]string, error) { return nil, boom }
 	if _, err := m.Run(context.Background(), []string{"--rebase"}); !errors.Is(err, boom) || *hashes != 0 {
 		t.Fatalf("Run = %v, hashes %d; want boom and no hash", err, *hashes)
 	}
@@ -339,7 +406,7 @@ func TestMigrator_rebaseKeepsBothBodiesWhenOwnFilesShareASuffixAcrossStagingsNew
 func TestMigrator_rebaseRefusesToRenameOntoAnExistingFile(t *testing.T) {
 	t.Parallel()
 	m, hashes := migrator(t, map[string]string{"migrations/20261001000000_social_a.sql": "a"}, nil, "20261002130000")
-	m.Staging = func(context.Context) ([]string, error) { return []string{"20261002120003_referrals.sql"}, nil }
+	m.Parent = func(context.Context) ([]string, error) { return []string{"20261002120003_referrals.sql"}, nil }
 	taken := filepath.Join(m.Dir, "migrations", "20261002130000_social_a.sql")
 	m.Now = func() time.Time {
 		if err := os.WriteFile(taken, []byte("other"), 0o600); err != nil {
@@ -361,7 +428,7 @@ func TestMigrator_rebaseRefusesToRenameOntoAnExistingFile(t *testing.T) {
 func TestMigrator_rebaseFailsWhenARenameSourceVanishes(t *testing.T) {
 	t.Parallel()
 	m, hashes := migrator(t, map[string]string{"migrations/20261001000000_social_a.sql": "a"}, nil, "20261002130000")
-	m.Staging = func(context.Context) ([]string, error) { return []string{"20261002120003_referrals.sql"}, nil }
+	m.Parent = func(context.Context) ([]string, error) { return []string{"20261002120003_referrals.sql"}, nil }
 	m.Now = func() time.Time {
 		if err := os.Remove(filepath.Join(m.Dir, "migrations", "20261001000000_social_a.sql")); err != nil {
 			t.Error(err)
@@ -374,13 +441,19 @@ func TestMigrator_rebaseFailsWhenARenameSourceVanishes(t *testing.T) {
 	}
 }
 
-func fakeAtlas(t *testing.T, path, script string) {
+func linkBin(t *testing.T, path, script string) {
 	t.Helper()
+	src, err := filepath.Abs(filepath.Join("testdata", "fakebin", script))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	body := []byte("#!/bin/sh\n" + script + "\n")
-	if err := os.WriteFile(path, body, 0o700); err != nil {
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(src, path); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -392,14 +465,14 @@ func TestAtlasHash_runsMigrateHashOnTheMigrationsDirWithThePinnedBuildFirst(t *t
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	fakeAtlas(t, filepath.Join(top, ".bin", "atlas"), `echo "$@" > hashed.txt`)
+	linkBin(t, filepath.Join(top, ".bin", "atlas"), "record")
 	if err := gen.AtlasHash(dir); err != nil {
 		t.Fatal(err)
 	}
 	if got, want := read(t, dir, "hashed.txt"), "migrate hash --dir file://migrations\n"; got != want {
 		t.Fatalf("atlas args = %q, want %q", got, want)
 	}
-	fakeAtlas(t, filepath.Join(top, ".bin", "atlas"), `echo "no good" >&2; exit 3`)
+	linkBin(t, filepath.Join(top, ".bin", "atlas"), "fail")
 	if err := gen.AtlasHash(dir); err == nil || !strings.Contains(err.Error(), "no good") {
 		t.Fatalf("AtlasHash = %v, want the atlas output in the error", err)
 	}
@@ -407,7 +480,7 @@ func TestAtlasHash_runsMigrateHashOnTheMigrationsDirWithThePinnedBuildFirst(t *t
 
 func TestAtlasHash_fallsBackToAtlasOnPath(t *testing.T) {
 	bin := t.TempDir()
-	fakeAtlas(t, filepath.Join(bin, "atlas"), `echo "$@" > hashed.txt`)
+	linkBin(t, filepath.Join(bin, "atlas"), "record")
 	t.Setenv("PATH", bin)
 	dir := t.TempDir()
 	if err := gen.AtlasHash(dir); err != nil {

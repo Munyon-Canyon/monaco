@@ -16,6 +16,7 @@ import (
 	"golang.org/x/mod/modfile"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	codegen "github.com/monaco/monaco/apps/backend/internal/tools/gen"
 )
 
 const backendModule = "github.com/monaco/monaco/apps/backend"
@@ -155,6 +156,18 @@ func (a atlas) pinned(stderr io.Writer) bool {
 		return false
 	}
 	return true
+}
+
+func runIn(dir string) codegen.Runner {
+	return func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		cmd := exec.CommandContext(ctx, name, args...)
+		cmd.Dir = dir
+		out, err := cmd.Output()
+		if err != nil {
+			return out, fmt.Errorf("%s: %w", cmd, err)
+		}
+		return out, nil
+	}
 }
 
 func toolMigrate(env toolEnv) tool {

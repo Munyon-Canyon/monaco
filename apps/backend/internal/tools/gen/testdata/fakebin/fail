@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "no good" >&2
+exit 3
