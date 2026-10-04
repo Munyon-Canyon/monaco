@@ -114,9 +114,9 @@ func TestDepositPollerStartsNewWalletsAtTheChainTip(t *testing.T) {
 	var count int
 	if err := pool.QueryRow(
 		ctx,
-		`SELECT count(*) FROM deposits WHERE tx_signature = 'later'`,
+		`SELECT count(*) FROM deposit_candidates WHERE tx_signature = 'later'`,
 	).Scan(&count); err != nil || count != 1 {
-		t.Fatalf("later deposits = %d, %v", count, err)
+		t.Fatalf("later candidates = %d, %v", count, err)
 	}
 }
 
@@ -192,12 +192,12 @@ func TestDepositPollerCheckpointsCompletedSignaturesWhenTheTickEndsMidPage(t *te
 	)
 	ctx, cancel := context.WithCancel(observability.WithActor(t.Context(), "system:poller.funding.deposits"))
 	pollerClock.Advance(time.Second)
-	budget.left, budget.cancel = 3, cancel
-	if _, err := p.Tick(ctx); err == nil {
-		t.Fatal("Tick deadline error = nil")
+	budget.left, budget.cancel = 1, cancel
+	if _, err := p.Tick(ctx); err != nil {
+		t.Fatal(err)
 	}
 	resumeCtx := observability.WithActor(t.Context(), "system:poller.funding.deposits")
-	assertBackfillFrontier(resumeCtx, t, pool, user.Address, "sig999", "sig1000")
+	assertBackfillFrontier(resumeCtx, t, pool, user.Address, "sig1", "sig1000")
 	assertCursorScannedAt(resumeCtx, t, pool, user.Address, now.Add(time.Second))
 	budget.left = 2
 	if _, err := p.Tick(resumeCtx); err != nil {
@@ -238,15 +238,15 @@ func assertMidPageProgress(
 	ctx context.Context, t *testing.T, pool *pgxpool.Pool, address chain.SolanaAddress, transferCalls int,
 ) {
 	t.Helper()
-	if transferCalls != 3 {
-		t.Fatalf("transfer calls = %d, want 3", transferCalls)
+	if transferCalls != 0 {
+		t.Fatalf("transfer calls = %d, want 0", transferCalls)
 	}
 	var deposits int
 	err := pool.QueryRow(
-		ctx, `SELECT count(*) FROM deposits WHERE wallet_address = $1`, address,
+		ctx, `SELECT count(*) FROM deposit_candidates WHERE wallet_address = $1`, address,
 	).Scan(&deposits)
 	if err != nil || deposits != 3 {
-		t.Fatalf("deposits = %d, %v; want 3", deposits, err)
+		t.Fatalf("candidates = %d, %v; want 3", deposits, err)
 	}
 	var cursor string
 	err = pool.QueryRow(
@@ -302,7 +302,7 @@ func TestDepositPollerDoesNotCreditBeforeTheCursorAfterACompletedBackfillCrash(t
 	}
 	var deposits int
 	if err := pool.QueryRow(
-		ctx, `SELECT count(*) FROM deposits WHERE wallet_address = $1`, user.Address,
+		ctx, `SELECT count(*) FROM deposit_candidates WHERE wallet_address = $1`, user.Address,
 	).Scan(&deposits); err != nil {
 		t.Fatal(err)
 	}
@@ -379,7 +379,7 @@ func assertBackfillProgress(
 	}
 	rows, err := pool.Query(
 		ctx,
-		`SELECT tx_signature, count(*) FROM deposits WHERE wallet_address = $1 GROUP BY tx_signature`,
+		`SELECT tx_signature, count(*) FROM deposit_candidates WHERE wallet_address = $1 GROUP BY tx_signature`,
 		address,
 	)
 	if err != nil {
@@ -402,7 +402,7 @@ func assertBackfillProgress(
 	}
 	want := map[string]int{"sig2500": 1, "sig1501": 1, "sig1500": 1, "sig501": 1, "sig1": 1}
 	if fmt.Sprint(got) != fmt.Sprint(want) {
-		t.Fatalf("deposits = %v, want %v", got, want)
+		t.Fatalf("candidates = %v, want %v", got, want)
 	}
 	var cursor string
 	if err := pool.QueryRow(
@@ -427,14 +427,13 @@ func (r *depositRPC) InboundTransfersForMint(
 	return r.transfers, r.err
 }
 
-func TestDepositPollerReportsSignatureAndTransferFailures(t *testing.T) {
+func TestDepositPollerReportsSignatureFailures(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		rpc  depositRPC
 	}{
 		{"signatures", depositRPC{signErr: errs.New(errs.CodeRPCUnavailable, "test.rpc")}},
-		{"transfers", depositRPC{signatures: []solana.SignatureInfo{{Signature: depositSignature, Slot: 42, BlockTime: depositBlockTime()}}, transferErr: errs.New(errs.CodeRPCUnavailable, "test.rpc")}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -524,17 +523,15 @@ func TestDepositPollerAdvancesFailedSignatureAndRejectsOverflow(t *testing.T) {
 	if report, err := p.Tick(t.Context()); err != nil || report.Changed != 0 {
 		t.Fatalf("failed Tick = %+v, %v", report, err)
 	}
-	rpc.signatures = []solana.SignatureInfo{{Signature: "overflow", Slot: 43, BlockTime: depositBlockTime()}}
-	rpc.transfers = []solana.Transfer{
-		{Mint: chain.Mint{Address: testkit.USDCMint, Decimals: 6}, Net: money.NewBaseUnits(math.MaxUint64, 6)},
-		{Mint: chain.Mint{Address: testkit.USDCMint, Decimals: 6}, Net: money.NewBaseUnits(1, 6)},
-	}
+	rpc.signatures = []solana.SignatureInfo{{
+		Signature: "overflow", Slot: math.MaxUint64, BlockTime: depositBlockTime(),
+	}}
 	if _, err := p.Tick(t.Context()); err == nil {
 		t.Fatal("overflow Tick error = nil")
 	}
 }
 
-func TestDepositPollerReportsCreditFailureWithoutActor(t *testing.T) {
+func TestDepositPollerRecordsCandidatesWithoutActor(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
@@ -546,8 +543,8 @@ func TestDepositPollerReportsCreditFailureWithoutActor(t *testing.T) {
 		},
 	}
 	p := newDepositPoller(t, pool, user, now, &rpc, 35, 36)
-	if _, err := p.Tick(t.Context()); err == nil {
-		t.Fatal("Tick error = nil")
+	if report, err := p.Tick(t.Context()); err != nil || report.Changed != 1 {
+		t.Fatalf("Tick = %+v, %v", report, err)
 	}
 }
 
@@ -588,7 +585,7 @@ func testDepositPollerAdvancesPastOtherTokens(t *testing.T) {
 	}
 	p := newDepositPoller(t, pool, user, now, &rpc, 11, 12)
 	report, err := p.Tick(t.Context())
-	if err != nil || report.Scanned != 1 || report.Changed != 0 {
+	if err != nil || report.Scanned != 1 || report.Changed != 1 {
 		t.Fatalf("Tick = %+v, %v calls=%d/%d", report, err, rpc.signCalls, rpc.transferCalls)
 	}
 	var cursor string
@@ -624,8 +621,8 @@ func testDepositPollerCreditsOneDepositOnlyOnce(t *testing.T) {
 		t.Fatalf("second Tick = %+v, %v", report, err)
 	}
 	var count int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM deposits`).Scan(&count); err != nil || count != 1 {
-		t.Fatalf("deposits = %d, %v", count, err)
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM deposit_candidates`).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("candidates = %d, %v", count, err)
 	}
 }
 
@@ -646,7 +643,7 @@ func TestDepositPoller_creditsWhenRPCOmitsBlockTime(t *testing.T) {
 		t.Fatalf("Tick = %+v, %v", report, err)
 	}
 	var blockTime *time.Time
-	err := pool.QueryRow(ctx, `SELECT block_time FROM deposits WHERE tx_signature = $1`, depositSignature).
+	err := pool.QueryRow(ctx, `SELECT block_time FROM deposit_candidates WHERE tx_signature = $1`, depositSignature).
 		Scan(&blockTime)
 	if err != nil {
 		t.Fatal(err)

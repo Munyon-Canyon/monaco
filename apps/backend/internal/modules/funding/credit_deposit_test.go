@@ -164,6 +164,31 @@ func TestCreditDeposit_duplicateDoesNotMoveCursorBackward(t *testing.T) {
 	}
 }
 
+func TestCreditDepositDefersCursor(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	now := clock.Real{}.Now().UTC()
+	handler := app.NewCreditDepositHandler(db.New(pool, testkit.NewIDs(17), testkit.NewClock(now)), &hints{})
+	cmd := app.CreditDeposit{
+		ID: testkit.NewIDs(18).NewV7(), UserID: user.ID, WalletAddress: user.Address,
+		TxSignature: "signature", Amount: money.MicrosFromUint64(1), Slot: 1, CreditedAt: now,
+		CursorSignature: "signature", DeferCursor: true,
+	}
+	ctx := observability.WithActor(t.Context(), "system:funding.deposits")
+	if credited, err := handler.Handle(ctx, cmd); err != nil || !credited {
+		t.Fatalf("Handle = %v, %v, want true nil", credited, err)
+	}
+	var cursors int
+	const cursorCount = `SELECT count(*) FROM deposit_cursors WHERE wallet_address = $1`
+	if err := pool.QueryRow(t.Context(), cursorCount, user.Address).Scan(&cursors); err != nil {
+		t.Fatal(err)
+	}
+	if cursors != 0 {
+		t.Fatalf("cursors = %d, want 0", cursors)
+	}
+}
+
 func TestCreditDeposit_rollsBackOnEachWriteFailure(t *testing.T) {
 	t.Parallel()
 	check := func(t *testing.T, table string) {

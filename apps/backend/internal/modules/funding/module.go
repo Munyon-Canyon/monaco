@@ -18,9 +18,12 @@ type Module struct {
 	deps     module.Deps
 	balances port.Balances
 	owners   []app.SignatureOwner
+	limit    app.RPCLimiter
 }
 
-func New(d module.Deps) *Module { return &Module{deps: d} }
+func New(d module.Deps) *Module {
+	return &Module{deps: d, limit: app.NewRPCLimiter(d.Config.Funding.DepositRPCRate)}
+}
 
 func (*Module) Name() string { return "funding" }
 
@@ -44,6 +47,7 @@ func (m *Module) Consumers() []bus.Consumer {
 	cfg := m.deps.Config
 	resolver := app.NewDepositCandidateResolver(
 		solana.New(cfg, m.deps.Clock),
+		m.limit,
 		chain.SolanaAddress(cfg.Solana.USDCMint),
 		m.owners,
 		app.NewCreditDepositHandler(m.deps.UoW, m.deps.Bus),
@@ -61,7 +65,7 @@ func (m *Module) Pollers() []poller.Poller {
 	cfg := m.deps.Config
 	return []poller.Poller{app.NewDepositPoller(m.deps.Pool, m.deps.UoW, m.deps.IDs, m.deps.Clock,
 		identity.New(m.deps).Queries(), solana.New(cfg, m.deps.Clock), chain.SolanaAddress(cfg.Solana.USDCMint),
-		cfg.Funding.DepositPollInterval, app.NewRPCLimiter(cfg.Funding.DepositRPCRate), m.deps.Bus)}
+		cfg.Funding.DepositPollInterval, m.limit, m.deps.Bus)}
 }
 
 func (m *Module) Balances() port.Balances {

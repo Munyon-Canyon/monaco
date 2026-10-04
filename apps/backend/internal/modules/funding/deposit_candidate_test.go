@@ -40,6 +40,10 @@ type candidateOwner struct {
 	err   error
 }
 
+type candidateLimiter struct{ err error }
+
+func (l candidateLimiter) Wait(context.Context) error { return l.err }
+
 func (o candidateOwner) OwnsSignature(context.Context, chain.Signature) (bool, error) {
 	return o.owned, o.err
 }
@@ -108,7 +112,7 @@ func candidateResolver(
 	owners ...app.SignatureOwner,
 ) app.DepositCandidateResolver {
 	return app.NewDepositCandidateResolver(
-		rpc, testkit.USDCMint, owners,
+		rpc, app.NewRPCLimiter(1000), testkit.USDCMint, owners,
 		app.NewCreditDepositHandler(f.uow, &hints{}), f.ids,
 	)
 }
@@ -245,6 +249,12 @@ func TestDepositCandidateResolver_fetchMapsNotFoundAndOwnerFailures(t *testing.T
 	t.Parallel()
 	f := newCandidateFixture(t)
 	e := f.event()
+	if _, err := app.NewDepositCandidateResolver(
+		candidateRPC{}, candidateLimiter{err: context.Canceled}, testkit.USDCMint, nil,
+		app.NewCreditDepositHandler(f.uow, &hints{}), f.ids,
+	).Fetch(t.Context(), e); errs.CodeOf(err) != errs.CodeRPCUnavailable {
+		t.Fatalf("limiter code = %q, want %q", errs.CodeOf(err), errs.CodeRPCUnavailable)
+	}
 	if _, err := candidateResolver(
 		f,
 		candidateRPC{err: errs.New(errs.CodeNotFound, "rpc")},
