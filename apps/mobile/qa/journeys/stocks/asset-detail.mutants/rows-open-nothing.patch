@@ -1,0 +1,19 @@
+journey: stocks/asset-detail
+expect-fail: S2, S4
+
+A Stocks row opens nothing. S2.1 and S4.1 expect the asset screen, so S2 and S4 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Assets/StocksTabView.swift b/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
+index a0c5fd50..f8ab0d86 100644
+--- a/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
++++ b/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
+@@ -39,7 +39,7 @@ struct StocksTabView: View {
+ 
+     private func open(_ asset: MarketAsset) {
+         Haptics.selection()
+-        environment.navigator.open(AssetRoute(symbol: asset.symbol), in: .stocks)
++        _ = asset
+     }
+ }
+ 

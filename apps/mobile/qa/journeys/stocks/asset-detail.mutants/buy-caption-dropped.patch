@@ -1,0 +1,19 @@
+journey: stocks/asset-detail
+expect-fail: S1
+
+The caption under Propose buy reads "Buy now". S1.6 expects "Your cabal votes before anything is bought", so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift b/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift
+index 5d6959e0..894aa604 100644
+--- a/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift
++++ b/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift
+@@ -89,7 +89,7 @@ struct AssetDetailClientView: View {
+                     .buttonStyle(.monacoPrimary)
+                     .disabled(!detail.isTradable)
+                     .accessibilityIdentifier("asset-detail-propose-buy")
+-                    Text("Your cabal votes before anything is bought")
++                    Text("Buy now")
+                         .font(MonacoTheme.Typo.caption)
+                         .foregroundStyle(MonacoTheme.muted)
+                 }
