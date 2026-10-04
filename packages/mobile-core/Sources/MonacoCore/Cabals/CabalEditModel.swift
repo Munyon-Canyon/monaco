@@ -14,11 +14,14 @@ public final class CabalEditModel {
     public let cabalID: String
     public private(set) var state: LoadState<Components.Schemas.Cabal> = .idle
     public private(set) var isSaving = false
+    public private(set) var lastError: APIError?
+    public private(set) var failureTick = 0
 
     private let api: APIClient
     private let hints: any HintSource
     private let refresher: HintRefresher
     private let submission = IdempotentSubmission()
+    private let voterSubmission = IdempotentSubmission()
     private var generation = 0
 
     public init(cabalID: String, api: APIClient, hints: any HintSource) {
@@ -45,6 +48,10 @@ public final class CabalEditModel {
         cabal.map(CabalSettings.init)
     }
 
+    public var voterChoice: CabalVoterChoice? {
+        cabal.map(CabalVoterChoice.init)
+    }
+
     public func patch(for edited: CabalSettings) -> Components.Schemas.UpdateCabalRequest? {
         guard let cabal else { return nil }
         return CabalRulesDiff.patch(from: CabalSettings(cabal), to: edited, creatorID: cabal.creator.userId)
@@ -63,16 +70,25 @@ public final class CabalEditModel {
             }
             guard mine == generation else { return }
             state = .loaded(loaded)
+            lastError = nil
         } catch {
             guard mine == generation else { return }
             if cabal == nil {
                 state = .failed(APIError(error))
+            } else {
+                lastError = APIError(error)
+                failureTick += 1
             }
         }
     }
 
     public func observe() async {
-        await refresher.observe(hints.hints(matching: .cabal(id: cabalID, what: "updated")))
+        await withTaskGroup(of: Void.self) { group in
+            for what in ["updated", "members"] {
+                let stream = hints.hints(matching: .cabal(id: cabalID, what: what))
+                group.addTask { await self.refresher.observe(stream) }
+            }
+        }
     }
 
     public func setVisible(_ visible: Bool) {
@@ -98,6 +114,35 @@ public final class CabalEditModel {
             return .saved
         } catch {
             return .failed(ToastCopy.message(for: APIError(error)))
+        }
+    }
+
+    public func saveVoters(_ choice: CabalVoterChoice) async -> SaveOutcome {
+        guard !isSaving, let cabal else { return .unchanged }
+        let creatorID = cabal.creator.userId
+        let body = choice.patch(creatorID: creatorID)
+        guard body != CabalVoterChoice(cabal).patch(creatorID: creatorID) else { return .unchanged }
+        isSaving = true
+        defer { isSaving = false }
+        let cabalID = cabalID
+        do {
+            let saved = try await api.submit(voterSubmission, payload: body, operation: "patchCabal") { client, key in
+                try await client.patchCabal(
+                    path: .init(id: cabalID),
+                    headers: .init(idempotencyKey: key),
+                    body: .json(body)
+                ).ok.body.json
+            }
+            generation += 1
+            state = .loaded(saved)
+            return .saved
+        } catch {
+            let error = APIError(error)
+            if case .problem(let problem) = error, problem.code == .known(.invalidInput) {
+                await load()
+                return .failed("Someone you picked isn't in the cabal anymore.")
+            }
+            return .failed(ToastCopy.message(for: error))
         }
     }
 }
@@ -139,13 +184,21 @@ private actor CabalPreviewTransport: ClientTransport {
         }
         var response = HTTPResponse(status: .ok)
         response.headerFields[.contentType] = "application/json"
-        return (response, HTTPBody(try JSONEncoder().encode(cabal)))
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return (response, HTTPBody(try encoder.encode(cabal)))
     }
 
     private func apply(_ change: Components.Schemas.UpdateCabalRequest) {
         if let name = change.name { cabal.name = name }
         if let joinMode = change.joinMode { cabal.rules.joinMode = joinMode }
-        if let voterMode = change.voterMode { cabal.rules.voterMode = voterMode }
+        if let voterMode = change.voterMode {
+            cabal.rules.voterMode = voterMode
+            let voters = Set(change.voterIds ?? [])
+            for index in cabal.members.indices {
+                cabal.members[index].canVote = voterMode != "list" || voters.contains(cabal.members[index].userId)
+            }
+        }
         if let threshold = change.threshold { cabal.rules.threshold = threshold }
         if let expiry = change.proposalExpirySeconds { cabal.rules.proposalExpirySeconds = expiry }
     }
