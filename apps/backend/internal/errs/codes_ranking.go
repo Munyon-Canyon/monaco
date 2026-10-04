@@ -4,7 +4,7 @@ const (
 	CodeConservationBroken Code = "conservation_broken"
 )
 
-func rankingRows() map[Code]Row {
+func (codeFiles) Ranking() map[Code]Row {
 	return map[Code]Row{
 		CodeConservationBroken: {
 			Name:    "ConservationBroken",

@@ -6,7 +6,7 @@ const (
 	CodeUserBanned       Code = "user_banned"
 )
 
-func socialRows() map[Code]Row {
+func (codeFiles) Social() map[Code]Row {
 	return map[Code]Row{
 		CodeCannotFollowSelf: {Name: "CannotFollowSelf", Kind: KindInvalid, Message: "You cannot follow yourself."},
 		CodeFeedItemNotFound: {Name: "FeedItemNotFound", Kind: KindNotFound, Message: "This item is not in the feed."},
