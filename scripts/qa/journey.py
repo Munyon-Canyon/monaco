@@ -17,6 +17,7 @@ import datetime
 import fcntl
 import json
 import os
+import random
 import re
 import signal
 import statistics
@@ -111,6 +112,10 @@ class Journey:
 
     def truth_script(self):
         script = QA / (self.id + ".truth.sh")
+        return script if script.exists() else None
+
+    def setup_script(self):
+        script = QA / (self.id + ".setup.sh")
         return script if script.exists() else None
 
 
@@ -545,8 +550,16 @@ def build(sim, log):
         raise JourneyError("the build failed, see %s" % log)
 
 
-def actor_environment(accounts, channel, prefix=""):
-    env = {prefix + "MONACO_QA_JOURNEYS": "1", prefix + "MONACO_QA_CHANNEL": channel}
+def new_run_id():
+    """{QA.run}: a short id unique to one run, so a value a run writes never matches an earlier run's."""
+    alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+    return "".join(random.SystemRandom().choice(alphabet) for _ in range(6))
+
+
+def actor_environment(accounts, channel, run_id, prefix=""):
+    env = {prefix + "MONACO_QA_JOURNEYS": "1", prefix + "MONACO_QA_CHANNEL": channel, prefix + "MONACO_QA_RUN": run_id}
+    if os.environ.get("MONACO_QA_REFUND_ADDRESS"):
+        env[prefix + "MONACO_QA_REFUND_ADDRESS"] = os.environ["MONACO_QA_REFUND_ADDRESS"]
     for actor, row in accounts.items():
         for field in ("phone", "email", "code", "name"):
             env["%sMONACO_QA_%s_%s" % (prefix, actor, field.upper())] = row[field]
@@ -585,34 +598,46 @@ def split_by_test(output):
     return tests
 
 
-def run_xcuitest(journey, scenarios, sims, accounts, channel, run_dir, api_base_url):
+def run_xcuitest(journey, scenarios, sims, accounts, channel, run_dir, api_base_url, run_id):
     """One row per scenario. A scenario passes when every phase's test passed and none skipped.
 
     One-actor scenarios share one xcodebuild call, because starting the test runner costs more
     than the tests. A scenario with phases runs them one call at a time, each on its actor's
-    simulator. Returns (rows, wall seconds of every call).
+    simulator. A journey with a setup script runs every scenario in calls of its own, after
+    `<journey>.setup.sh <scenario>` has put the backend in that scenario's starting state.
+    Returns (rows, wall seconds of every call).
     """
     handoff = run_dir / "handoff.json"
+    setup = journey.setup_script()
     plan = {scenario: xcuitest_phases(journey, scenario) for scenario in scenarios}
     for scenario, phases in plan.items():
         if not phases:
             raise JourneyError("%s has no test for %s" % (journey.id, scenario))
-    single = [s for s in scenarios if len(plan[s]) == 1 and plan[s][0][1] == journey.actors[0]]
-    calls = [(journey.actors[0], [plan[s][0][2] for s in single])] if single else []
+    single = [] if setup else [s for s in scenarios if len(plan[s]) == 1 and plan[s][0][1] == journey.actors[0]]
+    calls = [(None, journey.actors[0], [plan[s][0][2] for s in single])] if single else []
     for scenario in scenarios:
         if scenario not in single:
-            calls.extend((actor, [test]) for _, actor, test in plan[scenario])
+            calls.extend((scenario if index == 0 else None, actor, [test])
+                         for index, (_, actor, test) in enumerate(plan[scenario]))
 
     outcomes, wall = {}, 0.0
     log = run_dir / "xcuitest.log"
     with open(str(log), "w") as out:
-        for actor, tests in calls:
+        for starts, actor, tests in calls:
+            if setup and starts:
+                out.flush()
+                env = dict(os.environ)
+                env.update(actor_environment(accounts, channel, run_id))
+                if sh([str(setup), starts], env=env, stdout=out, stderr=subprocess.STDOUT).returncode != 0:
+                    raise JourneyError("%s could not set up %s, see %s" % (
+                        os.path.relpath(str(setup), str(ROOT)), starts, os.path.relpath(str(log), str(ROOT))))
             env = dict(os.environ)
-            env.update(actor_environment(accounts, channel, prefix="TEST_RUNNER_"))
+            env.update(actor_environment(accounts, channel, run_id, prefix="TEST_RUNNER_"))
             env["TEST_RUNNER_MONACO_QA_ACTOR"] = actor
             env["TEST_RUNNER_MONACO_QA_HANDOFF"] = str(handoff)
             env["TEST_RUNNER_MONACO_QA_API_BASE_URL"] = api_base_url
-            only = ["-only-testing:MonacoUITests/%s" % test for test in tests]
+            # A failed test otherwise waits up to 600 s for a sysdiagnose the journey log never reads.
+            only = ["-only-testing:MonacoUITests/%s" % test for test in tests] + ["-collect-test-diagnostics", "never"]
             started = time.time()
             done = sh(xcodebuild(sims[actor], *(only + ["test-without-building"])),
                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
@@ -644,12 +669,12 @@ def run_xcuitest(journey, scenarios, sims, accounts, channel, run_dir, api_base_
     return rows, "%.1f" % wall
 
 
-def run_truth(journey, accounts, channel):
+def run_truth(journey, accounts, channel, run_id):
     script = journey.truth_script()
     if not script:
         return "none"
     env = dict(os.environ)
-    env.update(actor_environment(accounts, channel))
+    env.update(actor_environment(accounts, channel, run_id))
     return "ok" if sh([str(script)], env=env).returncode == 0 else "fail"
 
 
@@ -672,8 +697,10 @@ def record(journey, build_name, run_name, rows, summary, expected=None):
 def run_once(journey, journeys, args, sims, accounts, build_name, run_name, scenarios, api_base_url, expected=None):
     run_dir = OUT / run_name
     run_dir.mkdir(parents=True, exist_ok=True)
-    rows, wall = run_xcuitest(journey, scenarios, sims, accounts, args.channel, run_dir, api_base_url)
-    truth = run_truth(journey, accounts, args.channel)
+    run_id = new_run_id()
+    print("  {QA.run} is %s" % run_id)
+    rows, wall = run_xcuitest(journey, scenarios, sims, accounts, args.channel, run_dir, api_base_url, run_id)
+    truth = run_truth(journey, accounts, args.channel, run_id)
     for row in rows:
         row["truth"] = truth
     verdicts = [row["result"] for row in rows]
@@ -695,6 +722,13 @@ def funding_notice(journey):
     amounts = ", ".join("%s USDC to actor %s" % (amount, actor) for actor, amount in sorted(journey.funds.items()))
     return ("this journey moves real USDC. Before it starts, send %s from the Phantom agent wallet to the actor's "
             "deposit address (docs/journeys/README.md, Journeys that move money)" % amounts)
+
+
+def require_refund_address():
+    """{QA.refund_address}: where a money journey sends what is left, the Phantom MCP agent wallet."""
+    if not os.environ.get("MONACO_QA_REFUND_ADDRESS"):
+        raise JourneyError("this journey moves real USDC: export MONACO_QA_REFUND_ADDRESS, the Phantom MCP agent "
+                           "wallet's address, so the run can send what is left back (docs/journeys/README.md)")
 
 
 def stamp():
@@ -780,6 +814,7 @@ def run_journey(args, api_base_url):
     OUT.mkdir(parents=True, exist_ok=True)
     funding = funding_notice(journey)
     if funding:
+        require_refund_address()
         print(funding)
     if not args.no_build:
         build(sims[journey.actors[0]], OUT / "build.log")

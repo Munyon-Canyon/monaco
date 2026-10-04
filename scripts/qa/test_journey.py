@@ -210,6 +210,15 @@ class Funds(Tree):
         self.assertIn("funds names actor B, which is not in actors", problems)
         self.assertIn("funds for actor A must be whole USDC from 1, got 'lots'", problems)
 
+    def test_a_money_run_refuses_to_start_without_a_refund_address(self):
+        with unittest.mock.patch.dict(os.environ, {"MONACO_QA_REFUND_ADDRESS": ""}):
+            with self.assertRaisesRegex(journey.JourneyError, "MONACO_QA_REFUND_ADDRESS"):
+                journey.require_refund_address()
+        with unittest.mock.patch.dict(os.environ, {"MONACO_QA_REFUND_ADDRESS": "Phantom1"}):
+            journey.require_refund_address()
+            env = journey.actor_environment({}, "sms", "RUN123", prefix="TEST_RUNNER_")
+        self.assertEqual(env["TEST_RUNNER_MONACO_QA_REFUND_ADDRESS"], "Phantom1")
+
 
 class Composition(Tree):
     def add(self, journey_id, requires):
@@ -413,11 +422,55 @@ class Runner(Tree):
         journey.sh = stub
         try:
             journey.run_xcuitest(loaded, ["S1"], {"A": "sim"}, journey.load_accounts(environ={}),
-                                 "sms", run_dir, "http://127.0.0.1:8080")
+                                 "sms", run_dir, "http://127.0.0.1:8080", "RUN123")
         finally:
             journey.sh = saved_sh
 
         self.assertEqual(calls[0]["TEST_RUNNER_MONACO_QA_API_BASE_URL"], "http://127.0.0.1:8080")
+        self.assertEqual(calls[0]["TEST_RUNNER_MONACO_QA_RUN"], "RUN123")
+
+    def test_a_setup_script_runs_before_each_scenario_in_a_call_of_its_own(self):
+        loaded = journey.load_journeys()["auth/sign-in"]
+        self.write("qa/auth/sign-in.setup.sh", "#!/usr/bin/env bash\n")
+        run_dir = journey.ROOT / "run"
+        run_dir.mkdir()
+        calls = []
+        saved_sh = journey.sh
+
+        def stub(args, **kwargs):
+            if args[0].endswith("setup.sh"):
+                calls.append(("setup", args[1], kwargs["env"]["MONACO_QA_RUN"]))
+                return type("Result", (), {"returncode": 0})()
+            calls.append(("test", [a for a in args if a.startswith("-only-testing")]))
+            return type("Result", (), {"stdout": ""})()
+
+        journey.sh = stub
+        try:
+            journey.run_xcuitest(loaded, ["S1", "S2"], {"A": "sim"}, journey.load_accounts(environ={}),
+                                 "sms", run_dir, "http://127.0.0.1:8080", "RUN123")
+        finally:
+            journey.sh = saved_sh
+
+        self.assertEqual(calls, [
+            ("setup", "S1", "RUN123"),
+            ("test", ["-only-testing:MonacoUITests/SignInJourneyUITests/testS1SignIn"]),
+            ("setup", "S2", "RUN123"),
+            ("test", ["-only-testing:MonacoUITests/SignInJourneyUITests/testS2Relaunch"]),
+        ])
+
+    def test_a_failed_setup_stops_the_run_before_its_scenario(self):
+        loaded = journey.load_journeys()["auth/sign-in"]
+        self.write("qa/auth/sign-in.setup.sh", "#!/usr/bin/env bash\n")
+        run_dir = journey.ROOT / "run"
+        run_dir.mkdir()
+        saved_sh = journey.sh
+        journey.sh = lambda args, **kwargs: type("Result", (), {"returncode": 2, "stdout": ""})()
+        try:
+            with self.assertRaisesRegex(journey.JourneyError, "could not set up S1"):
+                journey.run_xcuitest(loaded, ["S1"], {"A": "sim"}, journey.load_accounts(environ={}),
+                                     "sms", run_dir, "http://127.0.0.1:8080", "RUN123")
+        finally:
+            journey.sh = saved_sh
 
     def test_the_truth_check_receives_the_actor_environment(self):
         loaded = journey.load_journeys()["auth/sign-in"]
@@ -431,10 +484,11 @@ class Runner(Tree):
 
         journey.sh = stub
         try:
-            self.assertEqual(journey.run_truth(loaded, journey.load_accounts(environ={}), "sms"), "ok")
+            self.assertEqual(journey.run_truth(loaded, journey.load_accounts(environ={}), "sms", "RUN123"), "ok")
         finally:
             journey.sh = saved_sh
         self.assertEqual(seen[0]["MONACO_QA_CHANNEL"], "sms")
+        self.assertEqual(seen[0]["MONACO_QA_RUN"], "RUN123")
 
 
 class Simulators(Tree):
