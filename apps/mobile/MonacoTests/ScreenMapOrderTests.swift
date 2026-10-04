@@ -43,13 +43,17 @@ struct ScreenMapOrderTests {
             (JoinRoute().destination(), "Join a cabal"),
             (FundRoute(cabalID: "c").destination(), "Fund this cabal"),
             (ChatRoute(cabalID: "c").destination(), "Chat"),
-            (AccountActivityRoute().destination(), "Activity"),
             (AgentRoute(cabalID: "c").destination(), "Trading bot"),
             (ProposeFromAssetRoute(symbol: "GOOGLx", kind: .buy).destination(), "Propose"),
         ]
         for (view, screen) in stubs {
             #expect((view as? NotMigratedView)?.screen == screen)
         }
+    }
+
+    @Test func theActivityRouteRendersItsScreen() {
+        let view: Any = AccountActivityRoute().destination()
+        #expect(view is AccountActivityView)
     }
 
     private func names<T>(_ sections: [T]) -> [String] {
