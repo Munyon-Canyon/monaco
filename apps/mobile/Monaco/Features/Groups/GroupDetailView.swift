@@ -4,7 +4,6 @@ import SwiftUI
 
 /// Screens pushed from the group screen's action row and section headers.
 enum GroupDetailRoute: Hashable {
-    case addMoney
     /// Cash out, carrying the slice as it stood when the member tapped.
     ///
     /// The figure travels in the route rather than being read live from the cabal, because
@@ -250,22 +249,6 @@ struct GroupDetailView: View {
     @ViewBuilder
     private func destination(for route: GroupDetailRoute) -> some View {
         switch route {
-        case .addMoney:
-            FundCabalView(
-                auth: auth,
-                joinedCabals: [
-                    HomeGroupBoardRowDTO(
-                        groupId: groupId,
-                        name: displayName,
-                        potValueUsd: groupView?.resolvedPotTotalUsd ?? "0",
-                        percentReturn: nil,
-                        dollarPnl: groupView?.you.dollarPnl ?? "+0.00",
-                        isJoined: true
-                    )
-                ],
-                preselectedGroupId: groupId,
-                onFunded: { await refreshQuietly() }
-            )
         case .cashOut(let shareUnits, let equityUsd):
             SellCabalView(
                 auth: auth,
@@ -507,7 +490,6 @@ struct GroupDetailContent: View {
                     PotSectionView(
                         pot: view.pot,
                         groupId: view.id,
-                        onAddMoney: { onRoute(.addMoney) },
                         onOpenStock: { onRoute(.stock(symbol: $0)) }
                     )
                 }
@@ -541,7 +523,7 @@ struct GroupDetailContent: View {
     }
 }
 
-/// Add money · Propose · Cash out · Chat, directly under the hero.
+/// Propose · Cash out · Chat, directly under the hero.
 struct GroupActionRow: View {
     /// The member's slice, read here so Cash out is pushed with the figures that were on screen.
     let slice: MemberSliceDTO
@@ -550,7 +532,6 @@ struct GroupActionRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
-            action("Add money", systemImage: "plus", id: "group-action-fund") { onRoute(.addMoney) }
             action("Propose", systemImage: "arrow.up.right", id: "group-action-propose", perform: onPropose)
             action("Cash out", systemImage: "arrow.down.left", id: "group-action-sell") {
                 onRoute(.cashOut(shareUnits: Int64(slice.shareUnits) ?? 0, equityUsd: slice.equityUsd))

@@ -6,9 +6,8 @@ import SwiftUI
 /// Debug-only: the money screens on canned data, with no sign-in and no backend.
 /// Launch with `-MonacoMoneyFlowSample <scenario>`:
 /// `addMoney` (address and a balance with a fund on its way) · `addMoneyLoading` ·
-/// `addMoneyFailed` · `fundCabal` (opened from a cabal, $50 typed) · `fundCabalPicker` (opened
-/// from Add money, three cabals to pick from) · `fundCabalEmpty` (nothing to fund with yet) ·
-/// `fundCabalLoading` · `withdraw` (Cash out to an address, amount and address typed) ·
+/// `addMoneyFailed` · `fundCabal` ($50 typed) · `fundCabalFunding` (nothing available, a fund on
+/// its way) · `fundCabalEmpty` (nothing to fund with yet) · `fundCabalLoading` · `withdraw` (Cash out to an address, amount and address typed) ·
 /// `withdrawFailed` (the balance could not be read) · `withdrawConfirm` · `withdrawConfirmFailed` ·
 /// `receiptLoading`.
 ///
@@ -20,7 +19,7 @@ enum MoneyFlowSampleScenario: String, CaseIterable {
     case addMoneyLoading
     case addMoneyFailed
     case fundCabal
-    case fundCabalPicker
+    case fundCabalFunding
     case fundCabalEmpty
     case fundCabalLoading
     case withdraw
@@ -45,14 +44,12 @@ struct MoneyFlowSampleHarness: View {
 
     @State private var amountText: String
     @State private var destination: String
-    @State private var selectedGroupId: String?
 
     init(scenario: MoneyFlowSampleScenario, auth: PrivyAuthService) {
         self.scenario = scenario
         self.auth = auth
         _amountText = State(initialValue: MoneyFlowSampleData.amountText(for: scenario))
         _destination = State(initialValue: scenario == .withdraw ? MoneyFlowSampleData.destination : "")
-        _selectedGroupId = State(initialValue: MoneyFlowSampleData.cabals.first?.groupId)
     }
 
     var body: some View {
@@ -67,18 +64,13 @@ struct MoneyFlowSampleHarness: View {
         switch scenario {
         case .addMoney, .addMoneyLoading, .addMoneyFailed:
             DepositContent(state: MoneyFlowSampleData.depositState(for: scenario), onCopy: { _ in }, onRetry: {})
-        case .fundCabal, .fundCabalPicker, .fundCabalEmpty, .fundCabalLoading:
+        case .fundCabal, .fundCabalFunding, .fundCabalEmpty, .fundCabalLoading:
             FundCabalContent(
                 state: MoneyFlowSampleData.fundState(for: scenario),
-                joinedCabals: scenario == .fundCabalPicker
-                    ? MoneyFlowSampleData.cabals : [MoneyFlowSampleData.cabals[0]],
-                isSingleCabalContext: scenario != .fundCabalPicker,
-                selectedGroupId: $selectedGroupId,
+                cabalName: "Weekend investors",
                 amountText: $amountText,
-                isSubmitting: false,
-                onSubmit: {},
                 onRetry: {},
-                onCopyAddress: { _ in }
+                onAddMoney: {}
             )
         case .withdraw, .withdrawFailed:
             WithdrawContent(
@@ -119,25 +111,15 @@ enum MoneyFlowSampleData {
 
     static let emptyBalance = account(availableMicros: 0)
 
-    private static func account(availableMicros: Int64) -> AccountBalance {
+    static let fundingBalance = account(availableMicros: 0, inFlightMicros: 50_000_000)
+
+    private static func account(availableMicros: Int64, inFlightMicros: Int64 = 0) -> AccountBalance {
         AccountBalance(
-            availableMicros: availableMicros, onChainMicros: availableMicros, inFlightMicros: 0,
+            availableMicros: availableMicros, onChainMicros: availableMicros + inFlightMicros,
+            inFlightMicros: inFlightMicros,
             depositAddress: depositAddress, asOf: Date(timeIntervalSince1970: 1_759_579_200)
         )
     }
-
-    /// The Home harness's cabals, so their tints match across the gallery.
-    static let cabals = [
-        HomeGroupBoardRowDTO(
-            groupId: "g1", name: "Weekend investors", potValueUsd: "548.20", percentReturn: "0.124",
-            dollarPnl: "+48.20", isJoined: true),
-        HomeGroupBoardRowDTO(
-            groupId: "g2", name: "Semis or bust", potValueUsd: "2310.75", percentReturn: "-0.031", dollarPnl: "-73.90",
-            isJoined: true),
-        HomeGroupBoardRowDTO(
-            groupId: "g3", name: "Index huggers", potValueUsd: "120.00", percentReturn: nil, dollarPnl: "+0.00",
-            isJoined: true),
-    ]
 
     static func depositState(for scenario: MoneyFlowSampleScenario) -> LoadState<AccountBalance> {
         switch scenario {
@@ -156,6 +138,8 @@ enum MoneyFlowSampleData {
             return .loading
         case .fundCabalEmpty:
             return .loaded(emptyBalance)
+        case .fundCabalFunding:
+            return .loaded(fundingBalance)
         default:
             return .loaded(balance)
         }
