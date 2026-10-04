@@ -177,7 +177,7 @@ struct GroupDetailView: View {
             }
             .sheet(isPresented: $showDetailsSheet) {
                 if let groupView {
-                    GroupDetailsSheet(groupId: groupId, treasuryAddress: groupView.treasuryAddress)
+                    GroupDetailsSheet(treasuryAddress: groupView.treasuryAddress)
                 }
             }
             .monacoToast($toast)

@@ -45,4 +45,8 @@ final class InviteCodeTests: XCTestCase {
     func testEmptyIsRejected() {
         XCTAssertNil(InviteCode(""))
     }
+
+    func testTheShareTextCarriesTheCode() {
+        XCTAssertEqual(CabalCopy.inviteShareText(code: "ABCD2345XY"), "Join my cabal on Monaco with code ABCD2345XY")
+    }
 }
