@@ -180,9 +180,7 @@ func newPruneRepo(t *testing.T) *pruneRepo {
 	t.Helper()
 	dir := t.TempDir()
 	bin := t.TempDir()
-	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(fakePruneGH), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writeExecutable(t, filepath.Join(bin, "gh"), fakePruneGH)
 	return &pruneRepo{
 		dir:    dir,
 		script: filepath.Join("..", "..", "scripts", "ci", "prune-caches.sh"),

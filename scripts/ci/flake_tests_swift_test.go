@@ -146,9 +146,7 @@ func TestFlakeTestsSwift_runsTenTimesAndNamesTheFirstRedIteration(t *testing.T) 
 	shim := "#!/bin/sh\necho x >> \"$COUNT_FILE\"\n" +
 		"n=$(($(wc -l < \"$COUNT_FILE\")))\n" +
 		"[ -z \"$FAIL_ON\" ] || [ \"$n\" != \"$FAIL_ON\" ] || exit 1\n"
-	if err := os.WriteFile(filepath.Join(bin, "swift"), []byte(shim), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writeExecutable(t, filepath.Join(bin, "swift"), shim)
 	if err := os.MkdirAll(filepath.Join(root, "packages", "mobile-core"), 0o755); err != nil {
 		t.Fatal(err)
 	}
