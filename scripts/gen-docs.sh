@@ -16,7 +16,6 @@ page() {
 }
 
 "$bin/monacoctl" docs events > "$ref/events.md"
-page "Flows" flows "\`packages/flows/backend/*.tsv\`"
 page "Error codes" errors "the \`internal/errs\` code table"
 page "Log messages" logs "the \`internal/platform/observability\` message registry"
-echo "wrote $ref/{events,flows,errors,logs}.md"
+echo "wrote $ref/{events,errors,logs}.md"
