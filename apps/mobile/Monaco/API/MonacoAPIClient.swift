@@ -237,37 +237,6 @@ final class MonacoAPIClient: AppSessionDataSource {
         return .httpStatus(status)
     }
 
-    func listJoinRequests(accessToken: String, groupId: String) async throws -> [JoinRequestDTO] {
-        let url = baseURL.appending(path: "v1/groups/\(groupId)/join-requests")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        try applyAuthorizationHeader(accessToken: accessToken, to: &request)
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw MonacoAPIError.invalidResponse }
-        guard http.statusCode == 200 else { throw MonacoAPIError.httpStatus(http.statusCode) }
-        return try JSONDecoder().decode(JoinRequestsListResponse.self, from: data).items
-    }
-
-    func approveJoinRequest(accessToken: String, groupId: String, requestId: String) async throws {
-        try await decideJoinRequest(accessToken: accessToken, groupId: groupId, requestId: requestId, approve: true)
-    }
-
-    func denyJoinRequest(accessToken: String, groupId: String, requestId: String) async throws {
-        try await decideJoinRequest(accessToken: accessToken, groupId: groupId, requestId: requestId, approve: false)
-    }
-
-    private func decideJoinRequest(accessToken: String, groupId: String, requestId: String, approve: Bool) async throws
-    {
-        let action = approve ? "approve" : "deny"
-        let url = baseURL.appending(path: "v1/groups/\(groupId)/join-requests/\(requestId)/\(action)")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        try applyAuthorizationHeader(accessToken: accessToken, to: &request)
-        let (_, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw MonacoAPIError.invalidResponse }
-        guard http.statusCode == 204 else { throw MonacoAPIError.httpStatus(http.statusCode) }
-    }
-
     func getGroup(accessToken: String, groupId: String) async throws -> GetGroupResponse {
         let url = baseURL.appending(path: "v1/groups/\(groupId)")
         var request = URLRequest(url: url)
