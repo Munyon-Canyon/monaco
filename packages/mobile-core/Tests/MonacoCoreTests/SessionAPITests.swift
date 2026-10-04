@@ -100,6 +100,18 @@ final class SessionAPITests: XCTestCase {
         XCTAssertEqual(keys[0], keys[1])
     }
 
+    func testDeleteAccountSendsDeleteMeWithAnIdempotencyKey() async throws {
+        let transport = StubTransport(.response(HTTPResponse(status: .noContent), Data()))
+
+        try await makeAPI(transport).deleteAccount(submission: IdempotentSubmission())
+
+        let sent = await transport.sent
+        let keyName = try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))
+        XCTAssertEqual(sent.map(\.path), ["/v1/me"])
+        XCTAssertEqual(sent.map(\.method), [.delete])
+        XCTAssertNotNil(sent.first?.headerFields[keyName])
+    }
+
     func testUploadProfilePhotoSendsOneMultipartPhotoPart() async throws {
         let uploaded = Self.meJSON.replacingOccurrences(of: "kai.jpg", with: "new.jpg")
         let transport = StubTransport(.json(.ok, uploaded))
