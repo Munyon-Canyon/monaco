@@ -30,9 +30,24 @@ const followInvariants = `SELECT
 	(SELECT count(*) FROM events WHERE type = 'follow.removed' AND payload->>'follower_id' = $1::text AND payload->>'followee_id' = $2::text),
 	(SELECT count(*) FROM events WHERE type IN ('follow.created', 'follow.removed') AND payload->>'follower_id' = $1::text AND payload->>'followee_id' = $2::text AND published_at IS NULL)`
 
+func followRelayed() scenario.Step {
+	return scenario.Eventually("all follow events relayed", func(s *scenario.Scenario) bool {
+		follower, followee := s.Recall("alice"), s.Recall("bob")
+		var unpublished int
+		if err := s.DB().QueryRow(s.Context(), `SELECT count(*) FROM events
+			WHERE type IN ('follow.created', 'follow.removed')
+			AND payload->>'follower_id' = $1::text AND payload->>'followee_id' = $2::text
+			AND published_at IS NULL`, follower, followee).Scan(&unpublished); err != nil {
+			s.Fatalf("flows: count unrelayed follow events: %v", err)
+		}
+		return unpublished == 0
+	})
+}
+
 func followHolds() scenario.Step {
 	return func(s *scenario.Scenario) {
 		follower, followee := s.Recall("alice"), s.Recall("bob")
+		followRelayed()(s)
 		var live, created, removed, unpublished int
 		if err := s.DB().QueryRow(s.Context(), followInvariants, follower, followee).
 			Scan(&live, &created, &removed, &unpublished); err != nil {
