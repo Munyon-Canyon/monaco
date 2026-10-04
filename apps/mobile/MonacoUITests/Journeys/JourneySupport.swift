@@ -19,6 +19,7 @@ struct JourneyAccount {
 
     static func load(
         actor: String = ProcessInfo.processInfo.environment["MONACO_QA_ACTOR"] ?? "A",
+        channel: Channel? = nil,
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) throws -> JourneyAccount {
         guard environment["MONACO_QA_JOURNEYS"] == "1" else {
@@ -28,7 +29,7 @@ struct JourneyAccount {
         let phone = environment[prefix + "PHONE"] ?? ""
         let email = environment[prefix + "EMAIL"] ?? ""
         let code = environment[prefix + "CODE"] ?? ""
-        let channel = Channel(rawValue: environment["MONACO_QA_CHANNEL"] ?? "sms") ?? .sms
+        let channel = channel ?? Channel(rawValue: environment["MONACO_QA_CHANNEL"] ?? "sms") ?? .sms
         let name = environment[prefix + "NAME"] ?? ""
         let account = JourneyAccount(
             actor: actor, phone: phone, email: email, code: code, name: name, channel: channel)

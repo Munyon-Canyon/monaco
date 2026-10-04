@@ -22,13 +22,16 @@ enum SignInJourney {
         app.textFields[channel == .sms ? "smsPhoneField" : "emailAddressField"]
     }
 
-    private static let firstRunSignOuts = ["onboarding-handle-step-sign-out", "onboarding-phone-step-sign-out"]
+    private static let firstRunSignOuts = [
+        "onboarding-handle-step-sign-out", "onboarding-phone-step-sign-out", "onboarding-socials-step-sign-out",
+    ]
 
     static func currentScreen(_ app: XCUIApplication, timeout: TimeInterval = launchTimeout) -> Screen? {
         let candidates: [(XCUIElement, Screen)] = [
             (app.tab("Home"), .tabs),
             (app.buttons[firstRunSignOuts[0]], .firstRunStep),
             (app.buttons[firstRunSignOuts[1]], .firstRunStep),
+            (app.buttons[firstRunSignOuts[2]], .firstRunStep),
             (app.textFields["smsPhoneField"], .login),
             (app.textFields["emailAddressField"], .login),
         ]
@@ -55,7 +58,7 @@ enum SignInJourney {
         }
     }
 
-    static func signIn(_ app: XCUIApplication, as account: JourneyAccount, recorder: JourneyRecorder) {
+    static func enterCode(_ app: XCUIApplication, as account: JourneyAccount, recorder: JourneyRecorder) {
         let prefix = account.channel.rawValue
 
         recorder.step("S1.1", "choose the \(prefix) method") {
@@ -90,6 +93,11 @@ enum SignInJourney {
             codeField.tap()
             codeField.typeText(account.code)
         }
+    }
+
+    static func signIn(_ app: XCUIApplication, as account: JourneyAccount, recorder: JourneyRecorder) {
+        enterCode(app, as: account, recorder: recorder)
+        let prefix = account.channel.rawValue
 
         recorder.step("S1.4", "open the backend session and land on the tab bar") {
             let landed = currentScreen(app, timeout: signedInTimeout)
