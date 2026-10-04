@@ -28,6 +28,7 @@ func steps() []step {
 		{"openapi", func() error { return genOpenAPI(specDir, "api/openapi.yaml") }},
 		{"httpapi", func() error { return genAPIs(specDir, apiDir, backendModule+"/"+apiDir, errs.All()) }},
 		{"flows", func() error { return genFlows("../..") }},
+		{"docs", func() error { return genDocs("../../docs/reference") }},
 	}
 }
 
