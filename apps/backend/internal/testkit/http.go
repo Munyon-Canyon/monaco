@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -24,26 +26,46 @@ type contract struct {
 	router routers.Router
 }
 
-func HTTP(tb testing.TB, h http.Handler) http.Handler {
-	tb.Helper()
+var parsedSpec = sync.OnceValues(func() (*openapi3.T, error) {
 	doc, err := openapi3.NewLoader().LoadFromData(openapi.Spec)
 	if err != nil {
-		tb.Fatalf("load api/openapi.yaml: %v", err)
+		return nil, fmt.Errorf("load api/openapi.yaml: %w", err)
 	}
-	if err := doc.Validate(context.WithoutCancel(tb.Context())); err != nil {
-		tb.Fatalf("api/openapi.yaml is not a valid OpenAPI document: %v", err)
+	if err := doc.Validate(context.Background()); err != nil {
+		return nil, fmt.Errorf("api/openapi.yaml is not a valid OpenAPI document: %w", err)
 	}
 	doc.Servers = nil
+	return doc, nil
+})
+
+var contractOnce sync.Map
+
+func contractOf(doc *openapi3.T) (contract, error) {
+	build, _ := contractOnce.LoadOrStore(doc, sync.OnceValues(func() (contract, error) {
+		router, err := legacy.NewRouter(doc)
+		if err != nil {
+			return contract{}, fmt.Errorf("route api/openapi.yaml: %w", err)
+		}
+		return contract{doc: doc, router: router}, nil
+	}))
+	return build.(func() (contract, error))()
+}
+
+func HTTP(tb testing.TB, h http.Handler) http.Handler {
+	tb.Helper()
+	doc, err := parsedSpec()
+	if err != nil {
+		tb.Fatal(err)
+	}
 	return HTTPAgainst(tb, doc, h)
 }
 
 func HTTPAgainst(tb testing.TB, doc *openapi3.T, h http.Handler) http.Handler {
 	tb.Helper()
-	router, err := legacy.NewRouter(doc)
+	c, err := contractOf(doc)
 	if err != nil {
-		tb.Fatalf("route api/openapi.yaml: %v", err)
+		tb.Fatal(err)
 	}
-	c := contract{doc: doc, router: router}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, r)
