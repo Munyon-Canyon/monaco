@@ -34,12 +34,33 @@ actor PrivyAccountLinker: AccountLinking {
     }
 
     func linkX() async throws {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["MONACO_FAKE_X"] == "1" {
+            try await linkFakeX()
+            return
+        }
+        #endif
         do {
             _ = try await privy.oAuth.link(with: .twitter, appUrlScheme: "monaco")
         } catch {
             throw Self.failure(error, step: "Link X", credential: .oAuth)
         }
     }
+
+    #if DEBUG
+    private struct FakeXLink: Encodable, Sendable {}
+
+    private func linkFakeX() async throws {
+        do {
+            try await api.submit(IdempotentSubmission(), payload: FakeXLink(), operation: "postDevXLink") {
+                client, key in
+                _ = try await client.postDevXLink(.init(headers: .init(idempotencyKey: key))).noContent
+            }
+        } catch {
+            throw Self.failure(error, step: "Link fake X", credential: .oAuth)
+        }
+    }
+    #endif
 
     enum Credential {
         case phone

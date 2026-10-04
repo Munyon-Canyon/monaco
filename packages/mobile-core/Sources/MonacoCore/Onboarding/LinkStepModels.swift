@@ -30,6 +30,7 @@ public enum LinkCopy {
     public static let connectX = "Connect X"
     public static let connecting = "Connecting\u{2026}"
     public static let xLinkedElsewhere = "This X account is linked to another account."
+    public static let xConnected = "X connected."
 
     public static let skip = "Skip"
     public static let notNow = "Not now"
@@ -39,8 +40,8 @@ public enum LinkCopy {
 
     public static let auditedStrings = [
         phoneTitle, phoneSubtext, sendCode, sendingCode, linking, changeNumber, newCodeSent,
-        phoneLinkedElsewhere, invalidCode, phoneAdded, xTitle, xSubtext, connectX, connecting, xLinkedElsewhere, skip,
-        notNow, unknown, ResendCooldown.readyLabel,
+        phoneLinkedElsewhere, invalidCode, phoneAdded, xTitle, xSubtext, connectX, connecting, xLinkedElsewhere,
+        xConnected, skip, notNow, unknown, ResendCooldown.readyLabel,
     ]
 
     static func caption(for error: LinkError, linkedElsewhere: String) -> LinkStepCaption? {
