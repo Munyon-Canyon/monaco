@@ -41,170 +41,7 @@ tags:
   - name: market
     description: The asset catalog, prices and charts.
 paths:
-  /healthz:
-    get:
-      operationId: getHealthz
-      tags: [health]
-      summary: Report that the API process is serving.
-      description: Returns ok while the process accepts requests. It checks no dependency.
-      security: []
-      responses:
-        "200":
-          description: The process is serving.
-          content:
-            text/plain:
-              schema:
-                type: string
-                const: "ok\n"
-        default:
-          $ref: "#/components/responses/Problem"
-  /v1/assets:
-    get:
-      operationId: getAssets
-      tags: [market]
-      summary: List tradable assets.
-      description: >-
-        Returns the tradable catalog, one page at a time. `q` matches the start of a symbol or any
-        part of a display name, ignoring case. `popular` orders by the curated rank. `pre_ipo`
-        keeps only pre-IPO tokens. A price the hold rule has not accepted is null, never zero.
-      parameters:
-        - name: q
-          in: query
-          required: false
-          description: Case-insensitive symbol prefix or display-name search. Absent lists the filter.
-          schema:
-            type: string
-            maxLength: 80
-            examples: [apple]
-        - name: filter
-          in: query
-          required: false
-          description: Which tradable assets to return, and how to order them.
-          schema:
-            type: string
-            enum: [all, popular, pre_ipo]
-            default: all
-            examples: [popular]
-        - name: limit
-          in: query
-          required: false
-          description: Page size. Defaults to 20 and cannot exceed 50.
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 50
-            default: 20
-            examples: [20]
-        - name: cursor
-          in: query
-          required: false
-          description: The `next_cursor` from the previous page. Absent reads the first page.
-          schema:
-            type: string
-            maxLength: 512
-            examples: ["c0FBUEx4ADAxOTIwMDAwLTAwMDAtNzAwMC04MDAwLTAwMDAwMDAwMDAwMQ"]
-      responses:
-        "200":
-          description: One page of tradable assets.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AssetList"
-        default:
-          $ref: "#/components/responses/Problem"
-  /v1/assets/{symbol}:
-    get:
-      operationId: getAsset
-      tags: [market]
-      summary: Read one asset.
-      description: >-
-        Returns one known asset, tradable or not, with the held price and the other listings of the
-        same company. An unknown symbol is `asset_not_found`.
-      parameters:
-        - name: symbol
-          in: path
-          required: true
-          description: The ticker the app shows.
-          schema:
-            type: string
-            minLength: 1
-            maxLength: 64
-            examples: [AAPLx]
-      responses:
-        "200":
-          description: The asset.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AssetDetail"
-        default:
-          $ref: "#/components/responses/Problem"
-  /v1/assets/{symbol}/chart:
-    get:
-      operationId: getAssetChart
-      tags: [market]
-      summary: Read one asset's chart.
-      description: >-
-        Buckets the asset's stored prices for the requested range. A held spike is left out of the
-        buckets. An unknown symbol is `asset_not_found`. `ALL` starts at the first stored sample.
-      parameters:
-        - name: symbol
-          in: path
-          required: true
-          description: The ticker the app shows.
-          schema: {type: string, minLength: 1, maxLength: 64, examples: [AAPLx]}
-        - name: range
-          in: query
-          required: true
-          description: How far back to read, and how wide each bucket is.
-          schema: {type: string, enum: [1D, 1W, 1M, 3M, 1Y, ALL], examples: [1D]}
-      responses:
-        "200":
-          description: The chart.
-          content:
-            application/json:
-              schema: {$ref: "#/components/schemas/AssetChart"}
-        default:
-          $ref: "#/components/responses/Problem"
-  /v1/auth/session:
-    post:
-      operationId: postAuthSession
-      tags: [identity]
-      security: []
-      x-idempotent: false
-      x-rate-limit:
-        ip:
-          rate: 60
-          per: 1m
-          burst: 60
-      summary: Open a session from a Privy access token.
-      description: >-
-        Verifies the Privy access token in the Authorization header, finds or creates the user by
-        their Privy id, reuses the user's one member wallet and returns the account. The first call
-        for a Privy user creates the account and appends `user.created`. Calling it again changes
-        nothing, so it takes no Idempotency-Key. It also brings the account back in line with the
-        phone and X accounts linked in Privy. Sign-in is by phone number or email through Privy; a
-        Privy user with neither is login_method_not_allowed, and a deleted account is account_deleted.
-      parameters:
-        - name: Authorization
-          in: header
-          required: false
-          description: >-
-            The Privy access token as `Bearer <token>`. The route is public because no account exists
-            on the first call, so the server verifies this header itself and answers unauthorized when
-            it is missing or invalid.
-          schema:
-            type: string
-            examples: ["Bearer eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkaWQ6cHJpdnk6cWEtMSJ9.c2lnbmF0dXJl"]
-      responses:
-        "200":
-          description: The caller's account, with its `auth_state`.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Me"
-        default:
-          $ref: "#/components/responses/Problem"
+  # api/spec/cabal.yaml
   /v1/cabals:
     get:
       operationId: getCabals
@@ -449,51 +286,6 @@ paths:
               example: {id: "01890a5d-ac96-774b-bcce-b302099a8059", direction: request, status: approved}
         default:
           $ref: "#/components/responses/Problem"
-  /v1/cabals/{id}/activity:
-    get:
-      operationId: getCabalActivity
-      tags: [cabal]
-      summary: List a cabal's activity.
-      description: >-
-        Returns one page of the cabal's buys, sells, funds and cash outs, newest first, pending and failed
-        ones included. Only members can read it; anyone else gets `not_cabal_member`. Asset and actor names
-        are resolved for display, and raw mints are never returned.
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: The cabal id.
-          schema:
-            type: string
-            format: uuid
-        - name: limit
-          in: query
-          required: false
-          description: Page size. Defaults to 30 and cannot exceed 100.
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 30
-            examples: [30]
-        - name: cursor
-          in: query
-          required: false
-          description: The `next_cursor` from the previous page. Absent reads the first page.
-          schema:
-            type: string
-            maxLength: 512
-            examples: ["MTc3MjM2NjQwMDAwMDAwMDowMTg5MGE1ZC1hYzk2LTc3NGItYmNjZS1iMzAyMDk5YTgwNTc"]
-      responses:
-        "200":
-          description: One page of the cabal's activity.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CabalActivityPage"
-              example: {items: [{id: 01890a5d-ac96-774b-bcce-b302099a8060, kind: buy, status: confirmed, asset: {symbol: AAPLx, name: Apple}, usdc_micros: 25000000, units: 105000000, actor: null, tx_signature: 5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW, occurred_at: "2026-10-03T15:00:00Z"}], next_cursor: null}
-        default:
-          $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/invites:
     get:
       operationId: getCabalInvites
@@ -674,6 +466,76 @@ paths:
               example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: {role: creator, can_vote: true}, my_access_request: null, invite_code: ABCD2345, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/invite-codes/{code}:
+    get:
+      operationId: getCabalByCode
+      tags: [cabal]
+      summary: Look up a cabal by its invite code.
+      description: Resolves a pasted invite code to the cabal it opens, so the app can join or request access.
+      parameters:
+        - name: code
+          in: path
+          required: true
+          description: The cabal's invite code.
+          schema: {type: string}
+      responses:
+        "200":
+          description: The cabal the code opens.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CabalPreview"
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, join_mode: request, member_count: 3}
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/cabal-invites:
+    get:
+      operationId: getMyCabalInvites
+      tags: [cabal]
+      summary: List the invites waiting on the caller.
+      description: >-
+        Returns the caller's pending invites that are not yet past their expiry, oldest first.
+        Invites into a banned cabal are left out.
+      responses:
+        "200":
+          description: The caller's pending invites.
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: "#/components/schemas/CabalInvite"}}
+              example: [{request_id: "01890a5d-ac96-774b-bcce-b302099a8059", cabal: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, member_count: 3}, invited_by: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, expires_at: "2026-10-09T15:00:00Z"}]
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/cabals:
+    get:
+      operationId: getMyCabals
+      tags: [cabal]
+      summary: List the caller's cabals.
+      description: Returns every cabal the caller belongs to, most recently joined first.
+      responses:
+        "200":
+          description: The caller's cabals.
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: "#/components/schemas/MyCabal"}}
+              example: [{id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, role: creator, can_vote: true, member_count: 3, joined_at: "2026-10-02T15:00:00Z", pending_request_count: 1}]
+        default:
+          $ref: "#/components/responses/Problem"
+  # api/spec/funding.yaml
+  /v1/me/balance:
+    get:
+      operationId: getMyBalance
+      tags: [funding]
+      summary: Read the caller's available platform balance.
+      x-allow-restricted: true
+      responses:
+        "200":
+          description: The current balance.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Balance"}
+              example: {available_micros: "22500000", on_chain_micros: "25000000", in_flight_micros: "2500000", deposit_address: 5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP, as_of: "2026-10-03T15:00:00Z"}
+        default: {$ref: "#/components/responses/Problem"}
+  # api/spec/governance.yaml
   /v1/cabals/{id}/proposals:
     get:
       operationId: getCabalProposals
@@ -727,6 +589,480 @@ paths:
                 $ref: "#/components/schemas/ProposalList"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/pending-votes:
+    get:
+      operationId: getMyPendingVotes
+      tags: [governance]
+      summary: List the open proposals waiting on the caller's ballot.
+      description: >-
+        Returns up to 50 open proposals, across every cabal, whose frozen voter set holds the caller
+        and that have no ballot from the caller yet, soonest to expire first.
+      responses:
+        "200":
+          description: The proposals waiting on the caller.
+          content:
+            application/json:
+              schema: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/PendingVote"}}
+              example: [{proposal_id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, kind: buy, symbol: AAPLx, expires_at: "2026-10-04T15:00:00Z"}]
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/proposals/{id}:
+    get:
+      operationId: getProposal
+      tags: [governance]
+      summary: Read one proposal.
+      description: >-
+        Returns the proposal as the list shows it, plus every member of its frozen voter set with
+        their ballot, whether the caller can vote on it or withdraw it, and the latest trade linked
+        to it. A non-member sees the same proposal with `can_vote` and `can_withdraw` false.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The proposal id.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The proposal.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProposalDetail"
+              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, kind: buy, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: open, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, choice: "yes", cast_at: "2026-10-03T16:00:00Z"}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, choice: null, cast_at: null}], can_vote: true, can_withdraw: true, swap: null}
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteProposal
+      tags: [governance]
+      x-idempotent: true
+      summary: Withdraw the caller's proposal.
+      description: >-
+        Moves the caller's open proposal to `withdrawn` and appends `proposal.withdrawn`. Only the
+        proposer can withdraw, and only before any other member has voted; the proposer's own ballot
+        does not count. A replay with the same Idempotency-Key returns the first response.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The proposal id.
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The withdrawn proposal.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProposalDetail"
+              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, kind: buy, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: withdrawn, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, choice: "yes", cast_at: "2026-10-03T16:00:00Z"}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, choice: null, cast_at: null}], can_vote: false, can_withdraw: false, swap: null}
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/proposals/{id}/votes:
+    post:
+      operationId: postProposalVote
+      tags: [governance]
+      x-idempotent: true
+      summary: Cast or change the caller's ballot on an open proposal.
+      description: >-
+        Stores the caller's ballot and tallies it against the proposal's frozen voter set and the
+        cabal's threshold rule. A deciding ballot moves the proposal to `passed` or `failed` in the
+        same transaction. Execution of a passed proposal is asynchronous, so the client sees
+        `executed` or `execution_blocked` later. A replay with the same Idempotency-Key returns the
+        first response.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The proposal id.
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The caller's choice.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CastVoteRequest"
+      responses:
+        "200":
+          description: The ballot was stored. `status` is the proposal's status after the tally.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VoteResult"
+        default:
+          $ref: "#/components/responses/Problem"
+  # api/spec/identity.yaml
+  /v1/auth/session:
+    post:
+      operationId: postAuthSession
+      tags: [identity]
+      security: []
+      x-idempotent: false
+      x-rate-limit:
+        ip:
+          rate: 60
+          per: 1m
+          burst: 60
+      summary: Open a session from a Privy access token.
+      description: >-
+        Verifies the Privy access token in the Authorization header, finds or creates the user by
+        their Privy id, reuses the user's one member wallet and returns the account. The first call
+        for a Privy user creates the account and appends `user.created`. Calling it again changes
+        nothing, so it takes no Idempotency-Key. It also brings the account back in line with the
+        phone and X accounts linked in Privy. Sign-in is by phone number or email through Privy; a
+        Privy user with neither is login_method_not_allowed, and a deleted account is account_deleted.
+      parameters:
+        - name: Authorization
+          in: header
+          required: false
+          description: >-
+            The Privy access token as `Bearer <token>`. The route is public because no account exists
+            on the first call, so the server verifies this header itself and answers unauthorized when
+            it is missing or invalid.
+          schema:
+            type: string
+            examples: ["Bearer eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkaWQ6cHJpdnk6cWEtMSJ9.c2lnbmF0dXJl"]
+      responses:
+        "200":
+          description: The caller's account, with its `auth_state`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/handles/{handle}/availability:
+    get:
+      operationId: getHandleAvailability
+      tags: [identity]
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 30}, ip: {rate: 60, per: 1m, burst: 60}}
+      summary: Check whether the caller can claim a handle.
+      description: >-
+        Compares the handle with the reserved list, the profanity list, the referral-code shape,
+        other users' X usernames and the caller's own handle. `available` is false with a `reason`
+        of `invalid`, `reserved`, `taken` or `too_soon`. The caller's current handle is available.
+        Profanity and code shape are reported as `reserved`, and another user's X username as
+        `taken`.
+      parameters:
+        - name: handle
+          in: path
+          required: true
+          description: The handle to check, before it is stored. It is compared in lowercase.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 64
+            examples: [KaiCenat]
+      responses:
+        "200":
+          description: Whether the handle is available to the caller, and why not.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HandleAvailability"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me:
+    get:
+      operationId: getMe
+      x-allow-restricted: true
+      tags: [identity]
+      summary: Read the signed-in user's account.
+      description: >-
+        Returns the caller's own `Me`: handle, display name, `auth_state`, `account_status` and the
+        member wallet address. A suspended or banned user gets it too, so the app can show the notice
+        screen. A deleted account is user_not_found.
+      responses:
+        "200":
+          description: The caller's account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        default:
+          $ref: "#/components/responses/Problem"
+    patch:
+      operationId: patchMe
+      x-idempotent: true
+      tags: [identity]
+      summary: Update the signed-in user's profile.
+      description: Replaces the caller's normalized display name; an unchanged name is a no-op.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The display name to normalize and save for the caller.
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/UpdateProfileRequest"}
+      responses:
+        "200":
+          description: The updated account.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Me"}
+        default: {$ref: "#/components/responses/Problem"}
+    delete:
+      operationId: deleteMe
+      x-idempotent: true
+      x-allow-restricted: true
+      tags: [identity]
+      summary: Delete the signed-in user's account.
+      description: >-
+        Deletes the caller's account once nothing is left in it. A stake in any cabal is
+        account_has_positions and any platform balance is account_has_balance; cash out and withdraw
+        first. Deletion scrubs the caller's personal fields and keeps the handle, so no one can claim it.
+        A suspended or banned user may delete too. Every later request with the same token is
+        account_deleted.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "204":
+          description: The account is deleted.
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/me/handle:
+    put:
+      operationId: putMeHandle
+      tags: [identity]
+      x-idempotent: true
+      summary: Set the caller's handle.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The caller's new handle.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetHandle"
+            example:
+              handle: kai_one
+      responses:
+        "200":
+          description: The updated account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/onboarding/phone:
+    post:
+      operationId: postOnboardingPhone
+      tags: [identity]
+      x-idempotent: true
+      summary: Store the phone the caller linked in Privy.
+      description: >-
+        Reads the verified phone from the caller's Privy user, never from the request, stores it and
+        advances `auth_state`. A caller with no handle gets handle_required, and a caller with no phone
+        linked in Privy gets phone_not_linked. Calling it again after it applied changes nothing.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The updated account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/onboarding/skip:
+    post:
+      operationId: postOnboardingSkip
+      tags: [identity]
+      x-idempotent: true
+      summary: Skip an onboarding step.
+      description: >-
+        Skipping `phone` moves a CREATED caller to AWAITING_PHONE. Skipping `socials` changes no state,
+        and the app moves on. A skip never clears a stored phone or X account. A caller with no handle
+        gets handle_required.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The step to skip.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SkipOnboardingStep"
+            example:
+              step: phone
+      responses:
+        "200":
+          description: The updated account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/onboarding/socials:
+    post:
+      operationId: postOnboardingSocials
+      tags: [identity]
+      x-idempotent: true
+      summary: Store the X account the caller linked in Privy.
+      description: >-
+        Reads the X user id and username from the caller's Privy user, never from the request, stores
+        them and advances `auth_state`. A caller with no handle gets handle_required, and a caller with
+        no X account linked in Privy gets x_not_linked. Calling it again after it applied changes nothing.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The updated account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/profile-photo:
+    post:
+      operationId: postProfilePhoto
+      x-idempotent: true
+      x-max-body-bytes: 2097152
+      x-rate-limit: {actor: {rate: 1, per: 20s, burst: 3}}
+      tags: [identity]
+      summary: Upload a profile photo.
+      description: Stores a JPEG, PNG, or WebP profile photo for the caller.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: One JPEG, PNG, or WebP image in the required photo field.
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [photo]
+              properties:
+                photo: {type: string, format: binary, examples: [avatar.png]}
+      responses:
+        "200":
+          description: The updated account.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Me"}
+        default: {$ref: "#/components/responses/Problem"}
+  # api/spec/market.yaml
+  /v1/assets:
+    get:
+      operationId: getAssets
+      tags: [market]
+      summary: List tradable assets.
+      description: >-
+        Returns the tradable catalog, one page at a time. `q` matches the start of a symbol or any
+        part of a display name, ignoring case. `popular` orders by the curated rank. `pre_ipo`
+        keeps only pre-IPO tokens. A price the hold rule has not accepted is null, never zero.
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Case-insensitive symbol prefix or display-name search. Absent lists the filter.
+          schema:
+            type: string
+            maxLength: 80
+            examples: [apple]
+        - name: filter
+          in: query
+          required: false
+          description: Which tradable assets to return, and how to order them.
+          schema:
+            type: string
+            enum: [all, popular, pre_ipo]
+            default: all
+            examples: [popular]
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 20 and cannot exceed 50.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+            examples: [20]
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` from the previous page. Absent reads the first page.
+          schema:
+            type: string
+            maxLength: 512
+            examples: ["c0FBUEx4ADAxOTIwMDAwLTAwMDAtNzAwMC04MDAwLTAwMDAwMDAwMDAwMQ"]
+      responses:
+        "200":
+          description: One page of tradable assets.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetList"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/assets/{symbol}:
+    get:
+      operationId: getAsset
+      tags: [market]
+      summary: Read one asset.
+      description: >-
+        Returns one known asset, tradable or not, with the held price and the other listings of the
+        same company. An unknown symbol is `asset_not_found`.
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          description: The ticker the app shows.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 64
+            examples: [AAPLx]
+      responses:
+        "200":
+          description: The asset.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetDetail"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/assets/{symbol}/chart:
+    get:
+      operationId: getAssetChart
+      tags: [market]
+      summary: Read one asset's chart.
+      description: >-
+        Buckets the asset's stored prices for the requested range. A held spike is left out of the
+        buckets. An unknown symbol is `asset_not_found`. `ALL` starts at the first stored sample.
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          description: The ticker the app shows.
+          schema: {type: string, minLength: 1, maxLength: 64, examples: [AAPLx]}
+        - name: range
+          in: query
+          required: true
+          description: How far back to read, and how wide each bucket is.
+          schema: {type: string, enum: [1D, 1W, 1M, 3M, 1Y, ALL], examples: [1D]}
+      responses:
+        "200":
+          description: The chart.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AssetChart"}
+        default:
+          $ref: "#/components/responses/Problem"
+  # api/spec/notify.yaml
   /v1/devices:
     post:
       operationId: postDevice
@@ -779,6 +1115,77 @@ paths:
           description: The caller no longer has this token registered.
         default:
           $ref: "#/components/responses/Problem"
+  # api/spec/platform.yaml
+  /healthz:
+    get:
+      operationId: getHealthz
+      tags: [health]
+      summary: Report that the API process is serving.
+      description: Returns ok while the process accepts requests. It checks no dependency.
+      security: []
+      responses:
+        "200":
+          description: The process is serving.
+          content:
+            text/plain:
+              schema:
+                type: string
+                const: "ok\n"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/stream:
+    get:
+      operationId: getStream
+      x-allow-restricted: true
+      tags: [stream]
+      summary: Stream re-fetch hints for the caller.
+      description: >-
+        Opens a server-sent event stream. Each `hint` event names a key the caller may read
+        (`user:<id>`, `cabal:<id>` or `global`) and what changed; the app re-fetches that screen
+        through its normal GET. Hints are droppable, so a missed hint costs one re-fetch. A comment
+        line arrives every 15 seconds as a heartbeat. A reconnect that sends Last-Event-ID first
+        gets one `resync` event, telling the app to re-fetch everything it shows.
+      parameters:
+        - name: Last-Event-ID
+          in: header
+          required: false
+          description: The id of the last event the app received before it reconnected.
+          schema:
+            type: string
+            examples: ["42"]
+      responses:
+        "200":
+          description: >-
+            The stream. `event: hint` carries `data: {"key":"cabal:<id>","what":"updated"}` and an
+            `id`. `event: resync` carries `data: {}`.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                examples:
+                  - "id: 1\nevent: hint\ndata: {\"key\":\"global\",\"what\":\"feed\"}\n\n"
+        default:
+          $ref: "#/components/responses/Problem"
+  # api/spec/referrals.yaml
+  /v1/me/referral-code:
+    get:
+      operationId: getMyReferralCode
+      tags: [referrals]
+      summary: Read the caller's invite code and links.
+      description: >-
+        Returns the caller's random code and its link. `handle_link` is set and `handle_unlocked` is
+        true once the caller's first deposit is credited. A user whose code is not minted yet gets
+        referral_code_pending, a retryable 503, so the app tries again.
+      responses:
+        "200":
+          description: The caller's invite code.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyReferralCode"
+        default:
+          $ref: "#/components/responses/Problem"
+  # api/spec/social.yaml
   /v1/feed:
     get:
       operationId: getFeed
@@ -894,525 +1301,6 @@ paths:
                 $ref: "#/components/schemas/FeedItemDetail"
         default:
           $ref: "#/components/responses/Problem"
-  /v1/handles/{handle}/availability:
-    get:
-      operationId: getHandleAvailability
-      tags: [identity]
-      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 30}, ip: {rate: 60, per: 1m, burst: 60}}
-      summary: Check whether the caller can claim a handle.
-      description: >-
-        Compares the handle with the reserved list, the profanity list, the referral-code shape,
-        other users' X usernames and the caller's own handle. `available` is false with a `reason`
-        of `invalid`, `reserved`, `taken` or `too_soon`. The caller's current handle is available.
-        Profanity and code shape are reported as `reserved`, and another user's X username as
-        `taken`.
-      parameters:
-        - name: handle
-          in: path
-          required: true
-          description: The handle to check, before it is stored. It is compared in lowercase.
-          schema:
-            type: string
-            minLength: 1
-            maxLength: 64
-            examples: [KaiCenat]
-      responses:
-        "200":
-          description: Whether the handle is available to the caller, and why not.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HandleAvailability"
-        default:
-          $ref: "#/components/responses/Problem"
-  /v1/invite-codes/{code}:
-    get:
-      operationId: getCabalByCode
-      tags: [cabal]
-      summary: Look up a cabal by its invite code.
-      description: Resolves a pasted invite code to the cabal it opens, so the app can join or request access.
-      parameters:
-        - name: code
-          in: path
-          required: true
-          description: The cabal's invite code.
-          schema: {type: string}
-      responses:
-        "200":
-          description: The cabal the code opens.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CabalPreview"
-              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, join_mode: request, member_count: 3}
-        default:
-          $ref: "#/components/responses/Problem"
-  /v1/me:
-    get:
-      operationId: getMe
-      x-allow-restricted: true
-      tags: [identity]
-      summary: Read the signed-in user's account.
-      description: >-
-        Returns the caller's own `Me`: handle, display name, `auth_state`, `account_status` and the
-        member wallet address. A suspended or banned user gets it too, so the app can show the notice
-        screen. A deleted account is user_not_found.
-      responses:
-        "200":
-          description: The caller's account.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Me"
-        default:
-          $ref: "#/components/responses/Problem"
-    patch:
-      operationId: patchMe
-      x-idempotent: true
-      tags: [identity]
-      summary: Update the signed-in user's profile.
-      description: Replaces the caller's normalized display name; an unchanged name is a no-op.
-      parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
-      requestBody:
-        description: The display name to normalize and save for the caller.
-        required: true
-        content:
-          application/json:
-            schema: {$ref: "#/components/schemas/UpdateProfileRequest"}
-      responses:
-        "200":
-          description: The updated account.
-          content:
-            application/json:
-              schema: {$ref: "#/components/schemas/Me"}
-        default: {$ref: "#/components/responses/Problem"}
-    delete:
-      operationId: deleteMe
-      x-idempotent: true
-      x-allow-restricted: true
-      tags: [identity]
-      summary: Delete the signed-in user's account.
-      description: >-
-        Deletes the caller's account once nothing is left in it. A stake in any cabal is
-        account_has_positions and any platform balance is account_has_balance; cash out and withdraw
-        first. Deletion scrubs the caller's personal fields and keeps the handle, so no one can claim it.
-        A suspended or banned user may delete too. Every later request with the same token is
-        account_deleted.
-      parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
-      responses:
-        "204":
-          description: The account is deleted.
-        default: {$ref: "#/components/responses/Problem"}
-  /v1/me/balance:
-    get:
-      operationId: getMyBalance
-      tags: [funding]
-      summary: Read the caller's available platform balance.
-      x-allow-restricted: true
-      responses:
-        "200":
-          description: The current balance.
-          content:
-            application/json:
-              schema: {$ref: "#/components/schemas/Balance"}
-              example: {available_micros: "22500000", on_chain_micros: "25000000", in_flight_micros: "2500000", deposit_address: 5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP, as_of: "2026-10-03T15:00:00Z"}
-        default: {$ref: "#/components/responses/Problem"}
-  /v1/me/cabal-invites:
-    get:
-      operationId: getMyCabalInvites
-      tags: [cabal]
-      summary: List the invites waiting on the caller.
-      description: >-
-        Returns the caller's pending invites that are not yet past their expiry, oldest first.
-        Invites into a banned cabal are left out.
-      responses:
-        "200":
-          description: The caller's pending invites.
-          content:
-            application/json:
-              schema: {type: array, items: {$ref: "#/components/schemas/CabalInvite"}}
-              example: [{request_id: "01890a5d-ac96-774b-bcce-b302099a8059", cabal: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, member_count: 3}, invited_by: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, expires_at: "2026-10-09T15:00:00Z"}]
-        default:
-          $ref: "#/components/responses/Problem"
-  /v1/me/cabals:
-    get:
-      operationId: getMyCabals
-      tags: [cabal]
-      summary: List the caller's cabals.
-      description: Returns every cabal the caller belongs to, most recently joined first.
-      responses:
-        "200":
-          description: The caller's cabals.
-          content:
-            application/json:
-              schema: {type: array, items: {$ref: "#/components/schemas/MyCabal"}}
-              example: [{id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, role: creator, can_vote: true, member_count: 3, joined_at: "2026-10-02T15:00:00Z", pending_request_count: 1}]
-        default:
-          $ref: "#/components/responses/Problem"
-  /v1/me/handle:
-    put:
-      operationId: putMeHandle
-      tags: [identity]
-      x-idempotent: true
-      summary: Set the caller's handle.
-      parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
-      requestBody:
-        description: The caller's new handle.
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SetHandle"
-            example:
-              handle: kai_one
-      responses:
-        "200":
-          description: The updated account.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Me"
-        default:
-          $ref: "#/components/responses/Problem"
-  /v1/me/onboarding/phone:
-    post:
-      operationId: postOnboardingPhone
-      tags: [identity]
-      x-idempotent: true
-      summary: Store the phone the caller linked in Privy.
-      description: >-
-        Reads the verified phone from the caller's Privy user, never from the request, stores it and
-        advances `auth_state`. A caller with no handle gets handle_required, and a caller with no phone
-        linked in Privy gets phone_not_linked. Calling it again after it applied changes nothing.
-      parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
-      responses:
-        "200":
-          description: The updated account.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Me"
-        default:
-          $ref: "#/components/responses/Problem"
-  /v1/me/onboarding/skip:
-    post:
-      operationId: postOnboardingSkip
-      tags: [identity]
-      x-idempotent: true
-      summary: Skip an onboarding step.
-      description: >-
-        Skipping `phone` moves a CREATED caller to AWAITING_PHONE. Skipping `socials` changes no state,
-        and the app moves on. A skip never clears a stored phone or X account. A caller with no handle
-        gets handle_required.
-      parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
-      requestBody:
-        description: The step to skip.
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SkipOnboardingStep"
-            example:
-              step: phone
-      responses:
-        "200":
-          description: The updated account.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Me"
-        default:
-          $ref: "#/components/responses/Problem"
-  /v1/me/onboarding/socials:
-    post:
-      operationId: postOnboardingSocials
-      tags: [identity]
-      x-idempotent: true
-      summary: Store the X account the caller linked in Privy.
-      description: >-
-        Reads the X user id and username from the caller's Privy user, never from the request, stores
-        them and advances `auth_state`. A caller with no handle gets handle_required, and a caller with
-        no X account linked in Privy gets x_not_linked. Calling it again after it applied changes nothing.
-      parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
-      responses:
-        "200":
-          description: The updated account.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Me"
-        default:
-          $ref: "#/components/responses/Problem"
-  /v1/me/pending-votes:
-    get:
-      operationId: getMyPendingVotes
-      tags: [governance]
-      summary: List the open proposals waiting on the caller's ballot.
-      description: >-
-        Returns up to 50 open proposals, across every cabal, whose frozen voter set holds the caller
-        and that have no ballot from the caller yet, soonest to expire first.
-      responses:
-        "200":
-          description: The proposals waiting on the caller.
-          content:
-            application/json:
-              schema: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/PendingVote"}}
-              example: [{proposal_id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, kind: buy, symbol: AAPLx, expires_at: "2026-10-04T15:00:00Z"}]
-        default:
-          $ref: "#/components/responses/Problem"
-  /v1/me/profile-photo:
-    post:
-      operationId: postProfilePhoto
-      x-idempotent: true
-      x-max-body-bytes: 2097152
-      x-rate-limit: {actor: {rate: 1, per: 20s, burst: 3}}
-      tags: [identity]
-      summary: Upload a profile photo.
-      description: Stores a JPEG, PNG, or WebP profile photo for the caller.
-      parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
-      requestBody:
-        description: One JPEG, PNG, or WebP image in the required photo field.
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required: [photo]
-              properties:
-                photo: {type: string, format: binary, examples: [avatar.png]}
-      responses:
-        "200":
-          description: The updated account.
-          content:
-            application/json:
-              schema: {$ref: "#/components/schemas/Me"}
-        default: {$ref: "#/components/responses/Problem"}
-  /v1/me/referral-code:
-    get:
-      operationId: getMyReferralCode
-      tags: [referrals]
-      summary: Read the caller's invite code and links.
-      description: >-
-        Returns the caller's random code and its link. `handle_link` is set and `handle_unlocked` is
-        true once the caller's first deposit is credited. A user whose code is not minted yet gets
-        referral_code_pending, a retryable 503, so the app tries again.
-      responses:
-        "200":
-          description: The caller's invite code.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MyReferralCode"
-        default:
-          $ref: "#/components/responses/Problem"
-  /v1/me/txns:
-    get:
-      operationId: getMyTxns
-      tags: [treasury]
-      summary: List the caller's transaction history.
-      x-allow-restricted: true
-      parameters:
-        - name: limit
-          in: query
-          required: false
-          description: Page size. Defaults to 30 and cannot exceed 100.
-          schema: {type: integer, minimum: 1, maximum: 100, default: 30, examples: [30]}
-        - name: cursor
-          in: query
-          required: false
-          description: The `next_cursor` from the previous page. Absent reads the first page.
-          schema: {type: string, maxLength: 512, examples: ["MTc3MjM2NjQwMDAwMDAwMDowMTg5MGE1ZC1hYzk2LTc3NGItYmNjZS1iMzAyMDk5YTgwNTc"]}
-      responses:
-        "200":
-          description: One page of the caller's transactions.
-          content:
-            application/json:
-              schema: {$ref: "#/components/schemas/UserTxnPage"}
-              example: {items: [{id: 01890a5d-ac96-774b-bcce-b302099a8060, kind: deposit, status: settled, usdc_micros: "25000000", cabal: null, tx_signature: 5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW, created_at: "2026-10-03T15:00:00Z"}], next_cursor: null}
-        default: {$ref: "#/components/responses/Problem"}
-  /v1/proposals/{id}:
-    get:
-      operationId: getProposal
-      tags: [governance]
-      summary: Read one proposal.
-      description: >-
-        Returns the proposal as the list shows it, plus every member of its frozen voter set with
-        their ballot, whether the caller can vote on it or withdraw it, and the latest trade linked
-        to it. A non-member sees the same proposal with `can_vote` and `can_withdraw` false.
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: The proposal id.
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: The proposal.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ProposalDetail"
-              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, kind: buy, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: open, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, choice: "yes", cast_at: "2026-10-03T16:00:00Z"}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, choice: null, cast_at: null}], can_vote: true, can_withdraw: true, swap: null}
-        default:
-          $ref: "#/components/responses/Problem"
-    delete:
-      operationId: deleteProposal
-      tags: [governance]
-      x-idempotent: true
-      summary: Withdraw the caller's proposal.
-      description: >-
-        Moves the caller's open proposal to `withdrawn` and appends `proposal.withdrawn`. Only the
-        proposer can withdraw, and only before any other member has voted; the proposer's own ballot
-        does not count. A replay with the same Idempotency-Key returns the first response.
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: The proposal id.
-          schema:
-            type: string
-            format: uuid
-        - $ref: "#/components/parameters/IdempotencyKey"
-      responses:
-        "200":
-          description: The withdrawn proposal.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ProposalDetail"
-              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, kind: buy, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: withdrawn, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, choice: "yes", cast_at: "2026-10-03T16:00:00Z"}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, choice: null, cast_at: null}], can_vote: false, can_withdraw: false, swap: null}
-        default:
-          $ref: "#/components/responses/Problem"
-  /v1/proposals/{id}/votes:
-    post:
-      operationId: postProposalVote
-      tags: [governance]
-      x-idempotent: true
-      summary: Cast or change the caller's ballot on an open proposal.
-      description: >-
-        Stores the caller's ballot and tallies it against the proposal's frozen voter set and the
-        cabal's threshold rule. A deciding ballot moves the proposal to `passed` or `failed` in the
-        same transaction. Execution of a passed proposal is asynchronous, so the client sees
-        `executed` or `execution_blocked` later. A replay with the same Idempotency-Key returns the
-        first response.
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: The proposal id.
-          schema:
-            type: string
-            format: uuid
-        - $ref: "#/components/parameters/IdempotencyKey"
-      requestBody:
-        description: The caller's choice.
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CastVoteRequest"
-      responses:
-        "200":
-          description: The ballot was stored. `status` is the proposal's status after the tally.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/VoteResult"
-        default:
-          $ref: "#/components/responses/Problem"
-  /v1/stream:
-    get:
-      operationId: getStream
-      x-allow-restricted: true
-      tags: [stream]
-      summary: Stream re-fetch hints for the caller.
-      description: >-
-        Opens a server-sent event stream. Each `hint` event names a key the caller may read
-        (`user:<id>`, `cabal:<id>` or `global`) and what changed; the app re-fetches that screen
-        through its normal GET. Hints are droppable, so a missed hint costs one re-fetch. A comment
-        line arrives every 15 seconds as a heartbeat. A reconnect that sends Last-Event-ID first
-        gets one `resync` event, telling the app to re-fetch everything it shows.
-      parameters:
-        - name: Last-Event-ID
-          in: header
-          required: false
-          description: The id of the last event the app received before it reconnected.
-          schema:
-            type: string
-            examples: ["42"]
-      responses:
-        "200":
-          description: >-
-            The stream. `event: hint` carries `data: {"key":"cabal:<id>","what":"updated"}` and an
-            `id`. `event: resync` carries `data: {}`.
-          content:
-            text/event-stream:
-              schema:
-                type: string
-                examples:
-                  - "id: 1\nevent: hint\ndata: {\"key\":\"global\",\"what\":\"feed\"}\n\n"
-        default:
-          $ref: "#/components/responses/Problem"
-  /v1/system/pings:
-    post:
-      operationId: postSystemPing
-      tags: [system]
-      x-idempotent: true
-      summary: Record a ping for the caller.
-      description: >-
-        Writes a ping and appends `system.pinged`. The `system.echo` consumer then marks the ping
-        echoed and sends the caller a `ping_echoed` hint on `/v1/stream`. A replay with the same
-        Idempotency-Key returns the first response and records nothing new.
-      parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
-      requestBody:
-        description: The note to record with the ping.
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PingRequest"
-      responses:
-        "201":
-          description: The ping was recorded. `echoed` is false until the consumer runs.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Ping"
-        default:
-          $ref: "#/components/responses/Problem"
-  /v1/system/pings/{id}:
-    get:
-      operationId: getSystemPing
-      tags: [system]
-      summary: Read one of the caller's pings.
-      description: Returns the ping with `echoed` computed on the server. Another user's ping is not_found.
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: The ping id from the create response.
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: The ping.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Ping"
-        default:
-          $ref: "#/components/responses/Problem"
   /v1/users/{id}/follow:
     post:
       operationId: postUserFollow
@@ -1466,8 +1354,132 @@ paths:
                 $ref: "#/components/schemas/FollowState"
         default:
           $ref: "#/components/responses/Problem"
+  # api/spec/system.yaml
+  /v1/system/pings:
+    post:
+      operationId: postSystemPing
+      tags: [system]
+      x-idempotent: true
+      summary: Record a ping for the caller.
+      description: >-
+        Writes a ping and appends `system.pinged`. The `system.echo` consumer then marks the ping
+        echoed and sends the caller a `ping_echoed` hint on `/v1/stream`. A replay with the same
+        Idempotency-Key returns the first response and records nothing new.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The note to record with the ping.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PingRequest"
+      responses:
+        "201":
+          description: The ping was recorded. `echoed` is false until the consumer runs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ping"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/system/pings/{id}:
+    get:
+      operationId: getSystemPing
+      tags: [system]
+      summary: Read one of the caller's pings.
+      description: Returns the ping with `echoed` computed on the server. Another user's ping is not_found.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The ping id from the create response.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The ping.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ping"
+        default:
+          $ref: "#/components/responses/Problem"
+  # api/spec/treasury.yaml
+  /v1/cabals/{id}/activity:
+    get:
+      operationId: getCabalActivity
+      tags: [treasury]
+      summary: List a cabal's activity.
+      description: >-
+        Returns one page of the cabal's buys, sells, funds and cash outs, newest first, pending and failed
+        ones included. Only members can read it; anyone else gets `not_cabal_member`. Asset and actor names
+        are resolved for display, and raw mints are never returned.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 30 and cannot exceed 100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 30
+            examples: [30]
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` from the previous page. Absent reads the first page.
+          schema:
+            type: string
+            maxLength: 512
+            examples: ["MTc3MjM2NjQwMDAwMDAwMDowMTg5MGE1ZC1hYzk2LTc3NGItYmNjZS1iMzAyMDk5YTgwNTc"]
+      responses:
+        "200":
+          description: One page of the cabal's activity.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CabalActivityPage"
+              example: {items: [{id: 01890a5d-ac96-774b-bcce-b302099a8060, kind: buy, status: confirmed, asset: {symbol: AAPLx, name: Apple}, usdc_micros: 25000000, units: 105000000, actor: null, tx_signature: 5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW, occurred_at: "2026-10-03T15:00:00Z"}], next_cursor: null}
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/txns:
+    get:
+      operationId: getMyTxns
+      tags: [treasury]
+      summary: List the caller's transaction history.
+      x-allow-restricted: true
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 30 and cannot exceed 100.
+          schema: {type: integer, minimum: 1, maximum: 100, default: 30, examples: [30]}
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` from the previous page. Absent reads the first page.
+          schema: {type: string, maxLength: 512, examples: ["MTc3MjM2NjQwMDAwMDAwMDowMTg5MGE1ZC1hYzk2LTc3NGItYmNjZS1iMzAyMDk5YTgwNTc"]}
+      responses:
+        "200":
+          description: One page of the caller's transactions.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/UserTxnPage"}
+              example: {items: [{id: 01890a5d-ac96-774b-bcce-b302099a8060, kind: deposit, status: settled, usdc_micros: "25000000", cabal: null, tx_signature: 5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW, created_at: "2026-10-03T15:00:00Z"}], next_cursor: null}
+        default: {$ref: "#/components/responses/Problem"}
 components:
   parameters:
+  # api/spec/base.yaml
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -1489,6 +1501,7 @@ components:
         type: string
         format: uuid
   securitySchemes:
+  # api/spec/base.yaml
     bearerAuth:
       type: http
       scheme: bearer
@@ -1498,6 +1511,7 @@ components:
         list, such as /healthz, take no token. The token format belongs to the identity module;
         local development and tests use HS256 dev tokens from `monacoctl dev token`.
   responses:
+  # api/spec/base.yaml
     Problem:
       description: An RFC 9457 problem. Switch on `code`; show `message`.
       content:
@@ -1505,6 +1519,52 @@ components:
           schema:
             $ref: "#/components/schemas/Problem"
   schemas:
+  # api/spec/base.yaml
+    Problem:
+      type: object
+      description: An RFC 9457 problem details body with a stable Monaco error code.
+      examples:
+        - type: about:blank
+          title: Not Found
+          status: 404
+          code: not_found
+          message: Not found.
+          trace_id: 4bf92f3577b34da6a3ce929d0e0e4736
+          retryable: false
+      additionalProperties: false
+      required: [type, title, status, code, message, trace_id, retryable]
+      properties:
+        type:
+          type: string
+          description: Always about:blank. The code field carries the problem type.
+          const: about:blank
+        title:
+          type: string
+          description: The HTTP status phrase.
+          examples: [Not Found]
+        status:
+          type: integer
+          description: The HTTP status code of this response.
+          minimum: 400
+          maximum: 599
+          examples: [404]
+        code:
+          $ref: "#/components/schemas/ErrorCode"
+          examples: [not_found]
+        message:
+          type: string
+          description: A user-facing sentence the app shows as is.
+          examples: [Not found.]
+        trace_id:
+          type: string
+          description: The W3C trace id of the request. Logs and traces carry the same id.
+          pattern: "^[0-9a-f]{32}$"
+          examples: [4bf92f3577b34da6a3ce929d0e0e4736]
+        retryable:
+          type: boolean
+          description: True when the same request may succeed if sent again later.
+          examples: [false]
+  # api/spec/cabal.yaml
     AccessDecisionRequest:
       type: object
       description: How to decide a pending request or invite.
@@ -1512,6 +1572,596 @@ components:
       required: [decision]
       properties:
         decision: {type: string, enum: [approve, deny], examples: [approve]}
+    Cabal:
+      type: object
+      description: One cabal, as a signed-in user is allowed to see it.
+      additionalProperties: false
+      required:
+        [id, name, picture_url, status, rules, creator, member_count, members, me, my_access_request, invite_code, treasury_address]
+      properties:
+        id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        name: {type: string, examples: [Kai]}
+        picture_url: {type: [string, "null"], description: Null when the cabal has no picture., examples: [null]}
+        status: {type: string, description: "`active` or `banned`.", examples: [active]}
+        rules: {$ref: "#/components/schemas/CabalRules", examples: [{join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}]}
+        creator: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
+        member_count: {type: integer, format: int32, examples: [1]}
+        members: {type: array, items: {$ref: "#/components/schemas/CabalMember"}, examples: [[]]}
+        me:
+          type: [object, "null"]
+          description: "Null when the caller is not a member."
+          examples: [null]
+          x-go-type-name: CabalMembership
+          additionalProperties: false
+          required: [role, can_vote]
+          properties:
+            role: {type: string, examples: [creator]}
+            can_vote: {type: boolean, examples: [true]}
+        my_access_request:
+          type: [object, "null"]
+          description: "The caller's pending access request, or null."
+          examples: [null]
+          x-go-type: CabalAccess
+          additionalProperties: false
+          required: [id, direction, status]
+          properties:
+            id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
+            direction: {type: string, description: "`request` or `invite`.", examples: [request]}
+            status: {type: string, examples: [pending]}
+        invite_code: {type: [string, "null"], description: The invite code. Null for a non-member., examples: [null]}
+        treasury_address: {type: string, description: Solana address of the app-owned treasury wallet., examples: [Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf]}
+    CabalAccess:
+      type: object
+      description: A pending request or invite.
+      additionalProperties: false
+      required: [id, direction, status]
+      properties:
+        id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
+        direction: {type: string, description: "`request` or `invite`.", examples: [request]}
+        status: {type: string, examples: [pending]}
+    CabalAccessRequest:
+      type: object
+      description: A pending request to join a cabal, as its creator sees it.
+      additionalProperties: false
+      required: [id, user, created_at]
+      properties:
+        id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
+        user: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
+        created_at: {type: string, format: date-time, examples: ["2026-10-02T15:00:00Z"]}
+    CabalInvite:
+      type: object
+      description: A pending invite, as its invitee sees it.
+      additionalProperties: false
+      required: [request_id, cabal, invited_by, expires_at]
+      properties:
+        request_id: {type: string, format: uuid, description: The id to accept or decline., examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
+        cabal: {$ref: "#/components/schemas/CabalInviteCabal", examples: [{id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, member_count: 3}]}
+        invited_by: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
+        expires_at: {type: string, format: date-time, examples: ["2026-10-09T15:00:00Z"]}
+    CabalInviteCabal:
+      type: object
+      description: The cabal an invite opens.
+      additionalProperties: false
+      required: [id, name, picture_url, member_count]
+      properties:
+        id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        name: {type: string, examples: [Friends]}
+        picture_url: {type: [string, "null"], description: Null when the cabal has no picture., examples: [null]}
+        member_count: {type: integer, format: int32, examples: [3]}
+    CabalMember:
+      type: object
+      description: A cabal member, including vote standing.
+      additionalProperties: false
+      required: [user_id, handle, display_name, photo_url, role, can_vote, joined_at]
+      properties:
+        user_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        handle: {type: [string, "null"], description: "The member handle. Null until onboarding sets one.", examples: [kai]}
+        display_name: {type: string, description: "The member name. Empty when the user has none.", examples: [Kai]}
+        photo_url: {type: [string, "null"], description: "The member photo. Null when the user has none.", examples: [null]}
+        role: {type: string, description: "`creator` or `member`.", examples: [creator]}
+        can_vote: {type: boolean, examples: [true]}
+        joined_at: {type: string, format: date-time, examples: ["2026-09-30T12:00:00Z"]}
+    CabalPerson:
+      type: object
+      description: A user as shown on a cabal.
+      additionalProperties: false
+      required: [user_id, handle, display_name, photo_url]
+      properties:
+        user_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        handle: {type: [string, "null"], description: Null until onboarding sets one., examples: [kai]}
+        display_name: {type: string, description: Empty when the user has none., examples: [Kai]}
+        photo_url: {type: [string, "null"], description: Null when the user has none., examples: [null]}
+    CabalPreview:
+      type: object
+      description: What a non-member sees of a cabal before joining it.
+      additionalProperties: false
+      required: [id, name, picture_url, join_mode, member_count]
+      properties:
+        id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        name: {type: string, examples: [Friends]}
+        picture_url: {type: [string, "null"], description: Null when the cabal has no picture., examples: [null]}
+        join_mode: {type: string, description: "`open` or `request`.", examples: [request]}
+        member_count: {type: integer, format: int32, examples: [3]}
+    CabalRules:
+      type: object
+      description: How the cabal admits members and how it votes.
+      additionalProperties: false
+      required: [join_mode, voter_mode, threshold, proposal_expiry_seconds, slippage_bps]
+      properties:
+        join_mode: {type: string, examples: [open]}
+        voter_mode: {type: string, examples: [all]}
+        threshold: {type: string, examples: [majority]}
+        proposal_expiry_seconds: {type: integer, format: int32, examples: [86400]}
+        slippage_bps: {type: integer, format: int32, examples: [100]}
+    CabalSearchItem:
+      type: object
+      description: A public cabal in a search result.
+      additionalProperties: false
+      required: [id, name, picture_url, member_count, join_mode, is_member, my_access_request_status]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        picture_url: {type: [string, "null"]}
+        member_count: {type: integer, format: int32}
+        join_mode: {type: string, examples: [open]}
+        is_member: {type: boolean}
+        my_access_request_status: {type: [string, "null"], examples: [pending, null]}
+    CabalSearchPage:
+      type: object
+      description: One page of public cabals.
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/CabalSearchItem"}
+          examples: [[]]
+        next_cursor: {type: [string, "null"], examples: [null]}
+    CabalSentInvite:
+      type: object
+      description: A pending invite, as a member of its cabal sees it.
+      additionalProperties: false
+      required: [request_id, user, invited_by, expires_at]
+      properties:
+        request_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
+        user: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
+        invited_by: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
+        expires_at: {type: string, format: date-time, examples: ["2026-10-09T15:00:00Z"]}
+    CreateCabalRequest:
+      type: object
+      description: The name and rules for a new cabal.
+      additionalProperties: false
+      required: [name, join_mode, voter_mode, threshold, proposal_expiry_seconds]
+      properties:
+        name: {type: string, description: "Cabal name, 3 to 40 characters.", examples: [Kai]}
+        join_mode: {type: string, description: "`open` or `request`.", examples: [open]}
+        voter_mode: {type: string, description: "all, or list starting with the creator.", examples: [all]}
+        threshold: {type: string, description: "`majority` or `unanimous`.", examples: [majority]}
+        proposal_expiry_seconds: {type: integer, format: int32, description: "One of 3600, 86400 or 604800.", examples: [86400]}
+        slippage_bps: {type: integer, format: int32, description: "Basis points from 1 to 300. Omitted means 100.", examples: [100]}
+    InviteMemberRequest:
+      type: object
+      description: Who to invite to a cabal.
+      additionalProperties: false
+      required: [handle]
+      properties:
+        handle: {type: string, description: The invitee's handle., examples: [kai]}
+    MyCabal:
+      type: object
+      description: A cabal the caller belongs to.
+      additionalProperties: false
+      required: [id, name, picture_url, role, can_vote, member_count, joined_at, pending_request_count]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        picture_url: {type: [string, "null"]}
+        role: {type: string, examples: [creator]}
+        can_vote: {type: boolean}
+        member_count: {type: integer, format: int32}
+        joined_at: {type: string, format: date-time}
+        pending_request_count: {type: integer, format: int32}
+    UpdateCabalRequest:
+      type: object
+      description: The cabal fields to change. An omitted field keeps its value.
+      additionalProperties: false
+      properties:
+        name: {type: string, description: "Cabal name, 3 to 40 characters.", examples: [Work pot]}
+        join_mode: {type: string, description: "`open` or `request`.", examples: [request]}
+        voter_mode: {type: string, description: "`all` or `list`.", examples: [list]}
+        voter_ids:
+          type: array
+          description: Every voter, the creator included. Only with voter_mode list.
+          items: {type: string, format: uuid}
+          examples: [["01890a5d-ac96-774b-bcce-b302099a8058"]]
+        threshold: {type: string, description: "`majority` or `unanimous`.", examples: [unanimous]}
+        proposal_expiry_seconds: {type: integer, format: int32, description: "One of 3600, 86400 or 604800.", examples: [3600]}
+        slippage_bps: {type: integer, format: int32, description: "Basis points from 1 to 300.", examples: [50]}
+  # api/spec/error_codes.yaml
+    ErrorCode:
+      type: string
+      description: The closed list of error codes. Generated from the errs table by monacoctl gen errors.
+      examples: [not_found]
+      enum:
+        - access_request_not_pending
+        - account_banned
+        - account_deleted
+        - account_has_balance
+        - account_has_positions
+        - account_status_transition
+        - account_suspended
+        - already_member
+        - analytics_pii
+        - apns_auth_failed
+        - apns_unavailable
+        - asset_not_found
+        - asset_untradable
+        - auth_state_transition
+        - cabal_banned
+        - cabal_not_found
+        - cabal_paused
+        - calendar_expired
+        - cannot_follow_self
+        - cannot_revoke_access
+        - client_closed
+        - conservation_broken
+        - db_schema_behind
+        - db_unavailable
+        - decode_failed
+        - display_name_invalid
+        - faultpoint
+        - feed_item_not_found
+        - forbidden
+        - handle_invalid
+        - handle_required
+        - handle_reserved
+        - handle_taken
+        - handle_too_soon
+        - idempotency_in_flight
+        - idempotency_mismatch
+        - insufficient_funds
+        - internal
+        - invalid_address
+        - invalid_config
+        - invalid_input
+        - invite_expired
+        - join_needs_request
+        - jupiter_rejected
+        - jupiter_unavailable
+        - leave_creator_with_members
+        - leave_holds_shares
+        - leave_last_member_pot_not_empty
+        - ledger_unbalanced
+        - live_swap_exists
+        - login_method_not_allowed
+        - no_route
+        - not_a_voter
+        - not_cabal_creator
+        - not_cabal_member
+        - not_found
+        - not_proposer
+        - panic
+        - phone_not_linked
+        - photo_invalid
+        - post_hog_rejected
+        - post_hog_unavailable
+        - pot_exceeded
+        - pot_value_zero
+        - price_unavailable
+        - privy_unavailable
+        - proposal_closed
+        - proposal_not_found
+        - proposal_still_open
+        - rate_limited
+        - referral_code_pending
+        - referral_code_unknown
+        - relayer_underfunded
+        - request_not_needed
+        - request_pending
+        - rpc_unavailable
+        - session_required
+        - slippage_exceeded
+        - storage_unavailable
+        - swap_failed
+        - swap_not_found
+        - swap_not_retryable
+        - unauthorized
+        - upstream_timeout
+        - upstream_unavailable
+        - user_banned
+        - user_not_found
+        - version_conflict
+        - wallet_mismatch
+        - withdraw_not_allowed
+        - x_not_linked
+  # api/spec/funding.yaml
+    Balance:
+      type: object
+      description: The member wallet's on-chain USDC and currently spendable platform balance.
+      additionalProperties: false
+      required: [available_micros, on_chain_micros, in_flight_micros, deposit_address, as_of]
+      properties:
+        available_micros: {type: string, pattern: "^[0-9]+$", examples: ["22500000"]}
+        on_chain_micros: {type: string, pattern: "^[0-9]+$", examples: ["25000000"]}
+        in_flight_micros: {type: string, pattern: "^[0-9]+$", examples: ["2500000"]}
+        deposit_address: {type: string, examples: [5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP]}
+        as_of: {type: string, format: date-time, examples: ["2026-10-03T15:00:00Z"]}
+  # api/spec/governance.yaml
+    BallotChoice:
+      type: string
+      description: A voter's choice on a proposal.
+      enum: ["yes", "no"]
+      examples: ["yes"]
+    CastVoteRequest:
+      type: object
+      description: The ballot to cast.
+      additionalProperties: false
+      required: [choice]
+      properties:
+        choice:
+          $ref: "#/components/schemas/BallotChoice"
+    PendingVote:
+      type: object
+      description: An open proposal that still needs the caller's ballot.
+      additionalProperties: false
+      required: [proposal_id, cabal_id, kind, symbol, expires_at]
+      properties:
+        proposal_id: {type: string, format: uuid, description: The proposal id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
+        cabal_id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
+        kind: {$ref: "#/components/schemas/ProposalKind"}
+        symbol: {type: string, description: The token symbol., examples: [AAPLx]}
+        expires_at: {type: string, format: date-time, description: When voting closes., examples: ["2026-10-04T15:00:00Z"]}
+    Proposal:
+      type: object
+      description: One proposal as the caller sees it, with its tally and the caller's ballot.
+      additionalProperties: false
+      required:
+        - id
+        - cabal_id
+        - proposer_id
+        - kind
+        - symbol
+        - usdc_micros
+        - token_amount
+        - quote_out_amount
+        - thesis
+        - status
+        - status_reason
+        - status_message
+        - expires_at
+        - created_at
+        - tally
+        - my_ballot
+      properties:
+        id: {type: string, format: uuid, description: The proposal id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
+        cabal_id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
+        proposer_id: {type: string, format: uuid, description: The member who proposed it., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
+        kind: {$ref: "#/components/schemas/ProposalKind"}
+        symbol: {type: string, description: The token symbol., examples: [AAPLx]}
+        usdc_micros:
+          type: [integer, "null"]
+          format: int64
+          description: USDC a buy spends, in micros. Null for a sell.
+          examples: [25000000]
+        token_amount:
+          type: [integer, "null"]
+          format: int64
+          description: Token base units a sell spends. Null for a buy.
+          examples: [null]
+        quote_out_amount:
+          type: integer
+          format: int64
+          description: The quoted output, in the output asset's base units, when the proposal opened.
+          examples: [105000000]
+        thesis: {type: [string, "null"], description: "The proposer's reason, up to 280 characters.", examples: [Earnings next week.]}
+        status: {$ref: "#/components/schemas/ProposalStatus"}
+        status_reason:
+          type: [string, "null"]
+          description: The error code that blocked execution. Null unless `status` is `execution_blocked`.
+          examples: [null]
+        status_message:
+          type: [string, "null"]
+          description: The user-facing message for `status_reason`. Null when `status_reason` is null.
+          examples: [null]
+        expires_at: {type: string, format: date-time, description: When voting closes., examples: ["2026-10-04T15:00:00Z"]}
+        created_at: {type: string, format: date-time, description: When the proposal opened., examples: ["2026-10-03T15:00:00Z"]}
+        tally: {$ref: "#/components/schemas/Tally"}
+        my_ballot:
+          description: The caller's ballot. Null when the caller has not voted or is not a voter.
+          examples: [null]
+          type: [string, "null"]
+          enum: ["yes", "no", null]
+          x-go-type: BallotChoice
+    ProposalDetail:
+      type: object
+      description: One proposal with its voters, the caller's permissions and its linked trade.
+      additionalProperties: false
+      required:
+        - id
+        - cabal_id
+        - proposer_id
+        - kind
+        - symbol
+        - usdc_micros
+        - token_amount
+        - quote_out_amount
+        - thesis
+        - status
+        - status_reason
+        - status_message
+        - expires_at
+        - created_at
+        - tally
+        - my_ballot
+        - voters
+        - can_vote
+        - can_withdraw
+        - swap
+      properties:
+        id: {type: string, format: uuid, description: The proposal id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
+        cabal_id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
+        proposer_id: {type: string, format: uuid, description: The member who proposed it., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
+        kind: {$ref: "#/components/schemas/ProposalKind"}
+        symbol: {type: string, description: The token symbol., examples: [AAPLx]}
+        usdc_micros:
+          type: [integer, "null"]
+          format: int64
+          description: USDC a buy spends, in micros. Null for a sell.
+          examples: [25000000]
+        token_amount:
+          type: [integer, "null"]
+          format: int64
+          description: Token base units a sell spends. Null for a buy.
+          examples: [null]
+        quote_out_amount:
+          type: integer
+          format: int64
+          description: The quoted output, in the output asset's base units, when the proposal opened.
+          examples: [105000000]
+        thesis: {type: [string, "null"], description: "The proposer's reason, up to 280 characters.", examples: [Earnings next week.]}
+        status: {$ref: "#/components/schemas/ProposalStatus"}
+        status_reason:
+          type: [string, "null"]
+          description: The error code that blocked execution. Null unless `status` is `execution_blocked`.
+          examples: [null]
+        status_message:
+          type: [string, "null"]
+          description: The user-facing message for `status_reason`. Null when `status_reason` is null.
+          examples: [null]
+        expires_at: {type: string, format: date-time, description: When voting closes., examples: ["2026-10-04T15:00:00Z"]}
+        created_at: {type: string, format: date-time, description: When the proposal opened., examples: ["2026-10-03T15:00:00Z"]}
+        tally: {$ref: "#/components/schemas/Tally"}
+        my_ballot:
+          description: The caller's ballot. Null when the caller has not voted or is not a voter.
+          examples: [null]
+          type: [string, "null"]
+          enum: ["yes", "no", null]
+          x-go-type: BallotChoice
+        voters:
+          type: array
+          description: Every member of the frozen voter set, ordered by user id.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/ProposalVoter"
+        can_vote: {type: boolean, description: "The caller is in the voter set and the proposal is open.", examples: [true]}
+        can_withdraw:
+          type: boolean
+          description: The caller proposed it, it is open, and no other voter has a ballot.
+          examples: [false]
+        swap:
+          type: [object, "null"]
+          description: The latest trade linked to the proposal. Null when none exists.
+          examples: [null]
+          x-go-type-name: LinkedSwap
+          additionalProperties: false
+          required: [swap_id, status, failure_code, failure_message, tx_signature, retryable]
+          properties:
+            swap_id: {type: string, format: uuid, description: The swap id., examples: [01890a5d-ac96-774b-bcce-b302099a8060]}
+            status:
+              type: string
+              description: Where the trade is.
+              enum: [created, submitted, confirmed, failed]
+              examples: [confirmed]
+            failure_code:
+              type: [string, "null"]
+              description: Why the trade failed. Null unless `status` is `failed`.
+              examples: [null]
+            failure_message:
+              type: [string, "null"]
+              description: The user-facing message for a failed trade. Null unless `status` is `failed`.
+              examples: [null]
+            tx_signature:
+              type: [string, "null"]
+              description: The Solana transaction signature. Null before the trade is submitted.
+              examples: [null]
+            retryable: {type: boolean, description: Whether a failed trade can be retried., examples: [false]}
+    ProposalKind:
+      type: string
+      description: Whether the proposal spends USDC on the token or sells the token for USDC.
+      enum: [buy, sell]
+      examples: [buy]
+    ProposalList:
+      type: object
+      description: One page of a cabal's proposals.
+      additionalProperties: false
+      required: [proposals, next_cursor]
+      properties:
+        proposals:
+          type: array
+          description: The page, newest first.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/Proposal"
+        next_cursor:
+          type: [string, "null"]
+          description: The cursor for the next page. Null on the last page.
+          examples: [null]
+    ProposalStatus:
+      type: string
+      description: Where a proposal is in its lifecycle.
+      enum: [open, passed, failed, expired, withdrawn, voided, executed, execution_blocked]
+      examples: [open]
+    ProposalVoter:
+      type: object
+      description: One member of the proposal's frozen voter set.
+      additionalProperties: false
+      required: [user_id, choice, cast_at]
+      properties:
+        user_id: {type: string, format: uuid, description: The voter., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
+        choice:
+          description: The voter's ballot. Null until they vote.
+          examples: ["yes"]
+          type: [string, "null"]
+          enum: ["yes", "no", null]
+          x-go-type: BallotChoice
+        cast_at:
+          type: [string, "null"]
+          format: date-time
+          description: When the ballot was last cast. Null until they vote.
+          examples: ["2026-10-03T16:00:00Z"]
+    Tally:
+      type: object
+      description: The ballots counted against the proposal's frozen voter set.
+      additionalProperties: false
+      required: [yes, no, voters, needed]
+      properties:
+        "yes":
+          type: integer
+          minimum: 0
+          description: Ballots for the proposal.
+          examples: [2]
+        "no":
+          type: integer
+          minimum: 0
+          description: Ballots against the proposal.
+          examples: [1]
+        voters:
+          type: integer
+          minimum: 1
+          description: Members in the voter set frozen when the proposal opened.
+          examples: [3]
+        needed:
+          type: integer
+          minimum: 1
+          description: Yes ballots the cabal's threshold rule needs to pass the proposal.
+          examples: [2]
+    VoteResult:
+      type: object
+      description: The proposal after the caller's ballot.
+      additionalProperties: false
+      required: [proposal_id, status, tally, my_ballot]
+      properties:
+        proposal_id:
+          type: string
+          format: uuid
+          description: The proposal id.
+          examples: [01890a5d-ac96-774b-bcce-b302099a8057]
+        status:
+          $ref: "#/components/schemas/ProposalStatus"
+        tally:
+          $ref: "#/components/schemas/Tally"
+        my_ballot:
+          $ref: "#/components/schemas/BallotChoice"
+  # api/spec/identity.yaml
     AccountStatus:
       type: string
       description: >-
@@ -1519,6 +2169,151 @@ components:
         banned account can only withdraw and cash out.
       examples: [active]
       enum: [active, suspended, banned]
+    AuthState:
+      type: string
+      description: >-
+        Where the user is in onboarding. `CREATED` means onboarding has not finished, `AWAITING_PHONE`
+        and `AWAITING_SOCIALS` mean the user still owes that step, and `ONBOARDING_COMPLETED` means the
+        phone and X are both linked. The app routes the first-run flow and shows nudge banners from it.
+      examples: [CREATED]
+      enum: [CREATED, AWAITING_PHONE, AWAITING_SOCIALS, ONBOARDING_COMPLETED]
+    HandleAvailability:
+      type: object
+      description: Whether the caller can claim a handle, and the reason when they cannot.
+      examples:
+        - handle: admin
+          available: false
+          reason: reserved
+      additionalProperties: false
+      required: [handle, available]
+      properties:
+        handle:
+          type: string
+          description: The handle that was checked, in lowercase.
+          examples: [admin]
+        available:
+          type: boolean
+          description: True when the caller can claim the handle, including when it is already theirs.
+          examples: [false]
+        reason:
+          $ref: "#/components/schemas/HandleAvailabilityReason"
+          description: Why the handle is not available. Absent when `available` is true.
+    HandleAvailabilityReason:
+      type: string
+      description: >-
+        Why a handle cannot be claimed. `reserved` covers the reserved list, profanity and
+        referral-code shape. `taken` covers another user, including a deleted one, and another
+        user's X username.
+      examples: [reserved]
+      enum: [taken, reserved, invalid, too_soon]
+    Me:
+      type: object
+      description: >-
+        The signed-in user's own account, as the app needs it to route and to draw the profile. It
+        carries no email and no phone number.
+      examples:
+        - id: 01890a5d-ac96-774b-bcce-b302099a8058
+          handle: kaicenat
+          display_name: Kai Cenat
+          auth_state: ONBOARDING_COMPLETED
+          account_status: active
+          member_wallet_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf
+          phone_linked: true
+          x_username: kaicenat
+          handle_changeable_at: "2026-10-30T12:00:00Z"
+          created_at: "2026-09-30T12:00:00Z"
+      additionalProperties: false
+      required:
+        - id
+        - display_name
+        - auth_state
+        - account_status
+        - member_wallet_address
+        - phone_linked
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The user id.
+          examples: [01890a5d-ac96-774b-bcce-b302099a8058]
+        handle:
+          type: string
+          description: The user's unique handle, lowercase. Absent until onboarding sets one.
+          pattern: "^[a-z0-9_]{3,20}$"
+          examples: [kaicenat]
+        display_name:
+          type: string
+          description: The name shown on the profile. It falls back to the handle, and is empty when the user has neither.
+          examples: [Kai Cenat]
+        photo_url:
+          type: string
+          format: uri
+          description: The profile photo. Absent when the user has none.
+          examples: ["https://cdn.example.com/photos/kai.jpg"]
+        auth_state:
+          $ref: "#/components/schemas/AuthState"
+          description: Where the user is in onboarding.
+          examples: [CREATED]
+        account_status:
+          $ref: "#/components/schemas/AccountStatus"
+          description: The user's standing.
+          examples: [active]
+        member_wallet_address:
+          type: string
+          description: The Solana address of the user's member wallet. Deposits go here.
+          examples: [Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf]
+        phone_linked:
+          type: boolean
+          description: True once the user's phone is verified and stored.
+          examples: [true]
+        x_username:
+          type: string
+          description: The linked X username. Absent when no X account is linked.
+          examples: [kaicenat]
+        handle_changeable_at:
+          type: string
+          format: date-time
+          description: The time the user may change the handle again. Absent until the handle has been set.
+          examples: ["2026-10-30T12:00:00Z"]
+        created_at:
+          type: string
+          format: date-time
+          description: When the account was created.
+          examples: ["2026-09-30T12:00:00Z"]
+    SetHandle:
+      type: object
+      description: A handle to claim for the caller.
+      additionalProperties: false
+      required: [handle]
+      properties:
+        handle:
+          type: string
+          examples: [kai_one]
+          minLength: 1
+          maxLength: 64
+    SkipOnboardingStep:
+      type: object
+      description: An onboarding step the caller skips.
+      additionalProperties: false
+      required: [step]
+      properties:
+        step:
+          type: string
+          enum: [phone, socials]
+          examples: [phone]
+    UpdateProfileRequest:
+      type: object
+      description: The profile fields a signed-in user may update.
+      examples: [{display_name: Kai Cenat}]
+      additionalProperties: false
+      required: [display_name]
+      properties:
+        display_name:
+          type: string
+          description: The caller's display name, normalized before it is stored.
+          examples: [Kai Cenat]
+  # api/spec/market.yaml
     AssetChart:
       type: object
       description: The buckets for one asset and one range.
@@ -1868,262 +2663,6 @@ components:
         session:
           $ref: "#/components/schemas/MarketSession"
           description: The session this asset is in.
-    AuthState:
-      type: string
-      description: >-
-        Where the user is in onboarding. `CREATED` means onboarding has not finished, `AWAITING_PHONE`
-        and `AWAITING_SOCIALS` mean the user still owes that step, and `ONBOARDING_COMPLETED` means the
-        phone and X are both linked. The app routes the first-run flow and shows nudge banners from it.
-      examples: [CREATED]
-      enum: [CREATED, AWAITING_PHONE, AWAITING_SOCIALS, ONBOARDING_COMPLETED]
-    Balance:
-      type: object
-      description: The member wallet's on-chain USDC and currently spendable platform balance.
-      additionalProperties: false
-      required: [available_micros, on_chain_micros, in_flight_micros, deposit_address, as_of]
-      properties:
-        available_micros: {type: string, pattern: "^[0-9]+$", examples: ["22500000"]}
-        on_chain_micros: {type: string, pattern: "^[0-9]+$", examples: ["25000000"]}
-        in_flight_micros: {type: string, pattern: "^[0-9]+$", examples: ["2500000"]}
-        deposit_address: {type: string, examples: [5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP]}
-        as_of: {type: string, format: date-time, examples: ["2026-10-03T15:00:00Z"]}
-    BallotChoice:
-      type: string
-      description: A voter's choice on a proposal.
-      enum: ["yes", "no"]
-      examples: ["yes"]
-    Cabal:
-      type: object
-      description: One cabal, as a signed-in user is allowed to see it.
-      additionalProperties: false
-      required:
-        [id, name, picture_url, status, rules, creator, member_count, members, me, my_access_request, invite_code, treasury_address]
-      properties:
-        id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
-        name: {type: string, examples: [Kai]}
-        picture_url: {type: [string, "null"], description: Null when the cabal has no picture., examples: [null]}
-        status: {type: string, description: "`active` or `banned`.", examples: [active]}
-        rules: {$ref: "#/components/schemas/CabalRules", examples: [{join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}]}
-        creator: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
-        member_count: {type: integer, format: int32, examples: [1]}
-        members: {type: array, items: {$ref: "#/components/schemas/CabalMember"}, examples: [[]]}
-        me:
-          type: [object, "null"]
-          description: "Null when the caller is not a member."
-          examples: [null]
-          x-go-type-name: CabalMembership
-          additionalProperties: false
-          required: [role, can_vote]
-          properties:
-            role: {type: string, examples: [creator]}
-            can_vote: {type: boolean, examples: [true]}
-        my_access_request:
-          type: [object, "null"]
-          description: "The caller's pending access request, or null."
-          examples: [null]
-          x-go-type: CabalAccess
-          additionalProperties: false
-          required: [id, direction, status]
-          properties:
-            id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
-            direction: {type: string, description: "`request` or `invite`.", examples: [request]}
-            status: {type: string, examples: [pending]}
-        invite_code: {type: [string, "null"], description: The invite code. Null for a non-member., examples: [null]}
-        treasury_address: {type: string, description: Solana address of the app-owned treasury wallet., examples: [Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf]}
-    CabalAccess:
-      type: object
-      description: A pending request or invite.
-      additionalProperties: false
-      required: [id, direction, status]
-      properties:
-        id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
-        direction: {type: string, description: "`request` or `invite`.", examples: [request]}
-        status: {type: string, examples: [pending]}
-    CabalAccessRequest:
-      type: object
-      description: A pending request to join a cabal, as its creator sees it.
-      additionalProperties: false
-      required: [id, user, created_at]
-      properties:
-        id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
-        user: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
-        created_at: {type: string, format: date-time, examples: ["2026-10-02T15:00:00Z"]}
-    CabalActivity:
-      type: object
-      description: One buy, sell, fund or cash out in a cabal.
-      additionalProperties: false
-      required: [id, kind, status, asset, usdc_micros, units, actor, tx_signature, occurred_at]
-      properties:
-        id: {type: string, format: uuid, description: The source id. For a buy or sell it is the swap id., examples: [01890a5d-ac96-774b-bcce-b302099a8060]}
-        kind:
-          type: string
-          description: What happened.
-          enum: [buy, sell, fund, cash_out]
-          examples: [buy]
-        status:
-          type: string
-          description: Where it is. A confirmed or failed row never goes back to pending.
-          enum: [pending, confirmed, failed]
-          examples: [confirmed]
-        asset:
-          type: [object, "null"]
-          description: The stock bought or sold. Null when there is none or the catalog does not know it.
-          examples: [{symbol: AAPLx, name: Apple}]
-          x-go-type-name: ActivityAsset
-          additionalProperties: false
-          required: [symbol, name]
-          properties:
-            symbol: {type: string, description: The token symbol., examples: [AAPLx]}
-            name: {type: string, description: The display name., examples: [Apple]}
-        usdc_micros:
-          type: [integer, "null"]
-          format: int64
-          description: USDC spent or received, in micros. Null until known.
-          examples: [25000000]
-        units:
-          type: [integer, "null"]
-          format: int64
-          description: Token base units bought or sold. Null until known.
-          examples: [105000000]
-        actor:
-          type: [object, "null"]
-          description: The member who acted. Null for a trade the cabal voted for.
-          examples: [null]
-          x-go-type-name: ActivityActor
-          additionalProperties: false
-          required: [user_id, handle, display_name]
-          properties:
-            user_id: {type: string, format: uuid, description: The member., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
-            handle: {type: string, description: The member's handle., examples: [ana]}
-            display_name: {type: string, description: The member's display name., examples: [Ana]}
-        tx_signature:
-          type: [string, "null"]
-          description: The Solana transaction signature. Null until the transaction is sent.
-          examples: [5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW]
-        occurred_at: {type: string, format: date-time, description: When it started., examples: ["2026-10-03T15:00:00Z"]}
-    CabalActivityPage:
-      type: object
-      description: One page of a cabal's activity.
-      additionalProperties: false
-      required: [items, next_cursor]
-      properties:
-        items:
-          type: array
-          description: The page, newest first.
-          examples: [[]]
-          items:
-            $ref: "#/components/schemas/CabalActivity"
-        next_cursor:
-          type: [string, "null"]
-          description: The cursor for the next page. Null on the last page.
-          examples: [null]
-    CabalInvite:
-      type: object
-      description: A pending invite, as its invitee sees it.
-      additionalProperties: false
-      required: [request_id, cabal, invited_by, expires_at]
-      properties:
-        request_id: {type: string, format: uuid, description: The id to accept or decline., examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
-        cabal: {$ref: "#/components/schemas/CabalInviteCabal", examples: [{id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, member_count: 3}]}
-        invited_by: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
-        expires_at: {type: string, format: date-time, examples: ["2026-10-09T15:00:00Z"]}
-    CabalInviteCabal:
-      type: object
-      description: The cabal an invite opens.
-      additionalProperties: false
-      required: [id, name, picture_url, member_count]
-      properties:
-        id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
-        name: {type: string, examples: [Friends]}
-        picture_url: {type: [string, "null"], description: Null when the cabal has no picture., examples: [null]}
-        member_count: {type: integer, format: int32, examples: [3]}
-    CabalMember:
-      type: object
-      description: A cabal member, including vote standing.
-      additionalProperties: false
-      required: [user_id, handle, display_name, photo_url, role, can_vote, joined_at]
-      properties:
-        user_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
-        handle: {type: [string, "null"], description: "The member handle. Null until onboarding sets one.", examples: [kai]}
-        display_name: {type: string, description: "The member name. Empty when the user has none.", examples: [Kai]}
-        photo_url: {type: [string, "null"], description: "The member photo. Null when the user has none.", examples: [null]}
-        role: {type: string, description: "`creator` or `member`.", examples: [creator]}
-        can_vote: {type: boolean, examples: [true]}
-        joined_at: {type: string, format: date-time, examples: ["2026-09-30T12:00:00Z"]}
-    CabalPerson:
-      type: object
-      description: A user as shown on a cabal.
-      additionalProperties: false
-      required: [user_id, handle, display_name, photo_url]
-      properties:
-        user_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
-        handle: {type: [string, "null"], description: Null until onboarding sets one., examples: [kai]}
-        display_name: {type: string, description: Empty when the user has none., examples: [Kai]}
-        photo_url: {type: [string, "null"], description: Null when the user has none., examples: [null]}
-    CabalPreview:
-      type: object
-      description: What a non-member sees of a cabal before joining it.
-      additionalProperties: false
-      required: [id, name, picture_url, join_mode, member_count]
-      properties:
-        id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
-        name: {type: string, examples: [Friends]}
-        picture_url: {type: [string, "null"], description: Null when the cabal has no picture., examples: [null]}
-        join_mode: {type: string, description: "`open` or `request`.", examples: [request]}
-        member_count: {type: integer, format: int32, examples: [3]}
-    CabalRules:
-      type: object
-      description: How the cabal admits members and how it votes.
-      additionalProperties: false
-      required: [join_mode, voter_mode, threshold, proposal_expiry_seconds, slippage_bps]
-      properties:
-        join_mode: {type: string, examples: [open]}
-        voter_mode: {type: string, examples: [all]}
-        threshold: {type: string, examples: [majority]}
-        proposal_expiry_seconds: {type: integer, format: int32, examples: [86400]}
-        slippage_bps: {type: integer, format: int32, examples: [100]}
-    CabalSearchItem:
-      type: object
-      description: A public cabal in a search result.
-      additionalProperties: false
-      required: [id, name, picture_url, member_count, join_mode, is_member, my_access_request_status]
-      properties:
-        id: {type: string, format: uuid}
-        name: {type: string}
-        picture_url: {type: [string, "null"]}
-        member_count: {type: integer, format: int32}
-        join_mode: {type: string, examples: [open]}
-        is_member: {type: boolean}
-        my_access_request_status: {type: [string, "null"], examples: [pending, null]}
-    CabalSearchPage:
-      type: object
-      description: One page of public cabals.
-      additionalProperties: false
-      required: [items, next_cursor]
-      properties:
-        items:
-          type: array
-          items: {$ref: "#/components/schemas/CabalSearchItem"}
-          examples: [[]]
-        next_cursor: {type: [string, "null"], examples: [null]}
-    CabalSentInvite:
-      type: object
-      description: A pending invite, as a member of its cabal sees it.
-      additionalProperties: false
-      required: [request_id, user, invited_by, expires_at]
-      properties:
-        request_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
-        user: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
-        invited_by: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
-        expires_at: {type: string, format: date-time, examples: ["2026-10-09T15:00:00Z"]}
-    CastVoteRequest:
-      type: object
-      description: The ballot to cast.
-      additionalProperties: false
-      required: [choice]
-      properties:
-        choice:
-          $ref: "#/components/schemas/BallotChoice"
     ChartPoint:
       type: object
       description: One bucket of open, high, low and close, in USD micros.
@@ -2166,18 +2705,70 @@ components:
           format: int64
           description: The last sample in the bucket, in USD micros.
           examples: [110000000]
-    CreateCabalRequest:
+    MarketSession:
       type: object
-      description: The name and rules for a new cabal.
+      description: The session the asset is in, computed on the server.
+      examples:
+        - state: open
+          continuous: false
+          holiday: ""
+          early_close: false
+          next_state: after_hours
+          next_transition: "2026-03-04T21:00:00Z"
       additionalProperties: false
-      required: [name, join_mode, voter_mode, threshold, proposal_expiry_seconds]
+      required: [state, continuous, holiday, early_close, next_state, next_transition]
       properties:
-        name: {type: string, description: "Cabal name, 3 to 40 characters.", examples: [Kai]}
-        join_mode: {type: string, description: "`open` or `request`.", examples: [open]}
-        voter_mode: {type: string, description: "all, or list starting with the creator.", examples: [all]}
-        threshold: {type: string, description: "`majority` or `unanimous`.", examples: [majority]}
-        proposal_expiry_seconds: {type: integer, format: int32, description: "One of 3600, 86400 or 604800.", examples: [86400]}
-        slippage_bps: {type: integer, format: int32, description: "Basis points from 1 to 300. Omitted means 100.", examples: [100]}
+        state:
+          $ref: "#/components/schemas/MarketState"
+          description: The session state at the time of the response.
+          examples: [open]
+        continuous:
+          type: boolean
+          description: True for a pre-IPO token, which trades without a US session.
+          examples: [false]
+        holiday:
+          type: string
+          description: The US market holiday name. Empty when the day is not a holiday.
+          examples: [""]
+        early_close:
+          type: boolean
+          description: True when the regular session closes early today.
+          examples: [false]
+        next_state:
+          description: The next session state. Null when the asset trades continuously.
+          examples: [after_hours]
+          type: [string, "null"]
+          enum: [pre_market, open, after_hours, closed, null]
+        next_transition:
+          type: [string, "null"]
+          format: date-time
+          description: When `next_state` begins. Null when the asset trades continuously.
+          examples: ["2026-03-04T21:00:00Z"]
+    MarketState:
+      type: string
+      description: Where the underlying US session is.
+      examples: [open]
+      enum: [pre_market, open, after_hours, closed]
+    UiMultiplier:
+      type: object
+      description: The whole tokens in one display unit, as an exact fraction.
+      examples:
+        - num: 1
+          den: 1
+      additionalProperties: false
+      required: [num, den]
+      properties:
+        num:
+          type: integer
+          format: int64
+          description: The numerator.
+          examples: [1]
+        den:
+          type: integer
+          format: int64
+          description: The denominator.
+          examples: [1]
+  # api/spec/notify.yaml
     DeviceEnvironment:
       type: string
       description: The APNs environment that issued the token.
@@ -2198,102 +2789,36 @@ components:
           examples: ["0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0"]
         environment:
           $ref: "#/components/schemas/DeviceEnvironment"
-    ErrorCode:
-      type: string
-      description: The closed list of error codes. Generated from the errs table by monacoctl gen errors.
-      examples: [not_found]
-      enum:
-        - access_request_not_pending
-        - account_banned
-        - account_deleted
-        - account_has_balance
-        - account_has_positions
-        - account_status_transition
-        - account_suspended
-        - already_member
-        - analytics_pii
-        - apns_auth_failed
-        - apns_unavailable
-        - asset_not_found
-        - asset_untradable
-        - auth_state_transition
-        - cabal_banned
-        - cabal_not_found
-        - cabal_paused
-        - calendar_expired
-        - cannot_follow_self
-        - cannot_revoke_access
-        - client_closed
-        - conservation_broken
-        - db_schema_behind
-        - db_unavailable
-        - decode_failed
-        - display_name_invalid
-        - faultpoint
-        - feed_item_not_found
-        - forbidden
-        - handle_invalid
-        - handle_required
-        - handle_reserved
-        - handle_taken
-        - handle_too_soon
-        - idempotency_in_flight
-        - idempotency_mismatch
-        - insufficient_funds
-        - internal
-        - invalid_address
-        - invalid_config
-        - invalid_input
-        - invite_expired
-        - join_needs_request
-        - jupiter_rejected
-        - jupiter_unavailable
-        - leave_creator_with_members
-        - leave_holds_shares
-        - leave_last_member_pot_not_empty
-        - ledger_unbalanced
-        - live_swap_exists
-        - login_method_not_allowed
-        - no_route
-        - not_a_voter
-        - not_cabal_creator
-        - not_cabal_member
-        - not_found
-        - not_proposer
-        - panic
-        - phone_not_linked
-        - photo_invalid
-        - post_hog_rejected
-        - post_hog_unavailable
-        - pot_exceeded
-        - pot_value_zero
-        - price_unavailable
-        - privy_unavailable
-        - proposal_closed
-        - proposal_not_found
-        - proposal_still_open
-        - rate_limited
-        - referral_code_pending
-        - referral_code_unknown
-        - relayer_underfunded
-        - request_not_needed
-        - request_pending
-        - rpc_unavailable
-        - session_required
-        - slippage_exceeded
-        - storage_unavailable
-        - swap_failed
-        - swap_not_found
-        - swap_not_retryable
-        - unauthorized
-        - upstream_timeout
-        - upstream_unavailable
-        - user_banned
-        - user_not_found
-        - version_conflict
-        - wallet_mismatch
-        - withdraw_not_allowed
-        - x_not_linked
+  # api/spec/referrals.yaml
+    MyReferralCode:
+      type: object
+      description: The caller's invite code and the links that carry it.
+      examples:
+        - code: k7m4qx2p
+          link: https://monacolabs.xyz/r/k7m4qx2p
+          handle_link: https://monacolabs.xyz/r/kaicenat
+          handle_unlocked: true
+      additionalProperties: false
+      required: [code, link, handle_link, handle_unlocked]
+      properties:
+        code:
+          type: string
+          description: The random 8-character code. It never changes.
+          pattern: "^[23456789abcdefghjkmnpqrstuvwxyz]{8}$"
+          examples: [k7m4qx2p]
+        link:
+          type: string
+          description: The invite link for the random code.
+          examples: ["https://monacolabs.xyz/r/k7m4qx2p"]
+        handle_link:
+          type: [string, "null"]
+          description: The invite link for the caller's handle, or null until the first deposit unlocks it.
+          examples: ["https://monacolabs.xyz/r/kaicenat"]
+        handle_unlocked:
+          type: boolean
+          description: True once the caller's first deposit is credited.
+          examples: [true]
+  # api/spec/social.yaml
     FeedItem:
       type: object
       description: One feed item with its display strings rendered.
@@ -2380,214 +2905,7 @@ components:
           type: boolean
           description: True after a follow and false after an unfollow.
           examples: [true]
-    HandleAvailability:
-      type: object
-      description: Whether the caller can claim a handle, and the reason when they cannot.
-      examples:
-        - handle: admin
-          available: false
-          reason: reserved
-      additionalProperties: false
-      required: [handle, available]
-      properties:
-        handle:
-          type: string
-          description: The handle that was checked, in lowercase.
-          examples: [admin]
-        available:
-          type: boolean
-          description: True when the caller can claim the handle, including when it is already theirs.
-          examples: [false]
-        reason:
-          $ref: "#/components/schemas/HandleAvailabilityReason"
-          description: Why the handle is not available. Absent when `available` is true.
-    HandleAvailabilityReason:
-      type: string
-      description: >-
-        Why a handle cannot be claimed. `reserved` covers the reserved list, profanity and
-        referral-code shape. `taken` covers another user, including a deleted one, and another
-        user's X username.
-      examples: [reserved]
-      enum: [taken, reserved, invalid, too_soon]
-    InviteMemberRequest:
-      type: object
-      description: Who to invite to a cabal.
-      additionalProperties: false
-      required: [handle]
-      properties:
-        handle: {type: string, description: The invitee's handle., examples: [kai]}
-    MarketSession:
-      type: object
-      description: The session the asset is in, computed on the server.
-      examples:
-        - state: open
-          continuous: false
-          holiday: ""
-          early_close: false
-          next_state: after_hours
-          next_transition: "2026-03-04T21:00:00Z"
-      additionalProperties: false
-      required: [state, continuous, holiday, early_close, next_state, next_transition]
-      properties:
-        state:
-          $ref: "#/components/schemas/MarketState"
-          description: The session state at the time of the response.
-          examples: [open]
-        continuous:
-          type: boolean
-          description: True for a pre-IPO token, which trades without a US session.
-          examples: [false]
-        holiday:
-          type: string
-          description: The US market holiday name. Empty when the day is not a holiday.
-          examples: [""]
-        early_close:
-          type: boolean
-          description: True when the regular session closes early today.
-          examples: [false]
-        next_state:
-          description: The next session state. Null when the asset trades continuously.
-          examples: [after_hours]
-          type: [string, "null"]
-          enum: [pre_market, open, after_hours, closed, null]
-        next_transition:
-          type: [string, "null"]
-          format: date-time
-          description: When `next_state` begins. Null when the asset trades continuously.
-          examples: ["2026-03-04T21:00:00Z"]
-    MarketState:
-      type: string
-      description: Where the underlying US session is.
-      examples: [open]
-      enum: [pre_market, open, after_hours, closed]
-    Me:
-      type: object
-      description: >-
-        The signed-in user's own account, as the app needs it to route and to draw the profile. It
-        carries no email and no phone number.
-      examples:
-        - id: 01890a5d-ac96-774b-bcce-b302099a8058
-          handle: kaicenat
-          display_name: Kai Cenat
-          auth_state: ONBOARDING_COMPLETED
-          account_status: active
-          member_wallet_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf
-          phone_linked: true
-          x_username: kaicenat
-          handle_changeable_at: "2026-10-30T12:00:00Z"
-          created_at: "2026-09-30T12:00:00Z"
-      additionalProperties: false
-      required:
-        - id
-        - display_name
-        - auth_state
-        - account_status
-        - member_wallet_address
-        - phone_linked
-        - created_at
-      properties:
-        id:
-          type: string
-          format: uuid
-          description: The user id.
-          examples: [01890a5d-ac96-774b-bcce-b302099a8058]
-        handle:
-          type: string
-          description: The user's unique handle, lowercase. Absent until onboarding sets one.
-          pattern: "^[a-z0-9_]{3,20}$"
-          examples: [kaicenat]
-        display_name:
-          type: string
-          description: The name shown on the profile. It falls back to the handle, and is empty when the user has neither.
-          examples: [Kai Cenat]
-        photo_url:
-          type: string
-          format: uri
-          description: The profile photo. Absent when the user has none.
-          examples: ["https://cdn.example.com/photos/kai.jpg"]
-        auth_state:
-          $ref: "#/components/schemas/AuthState"
-          description: Where the user is in onboarding.
-          examples: [CREATED]
-        account_status:
-          $ref: "#/components/schemas/AccountStatus"
-          description: The user's standing.
-          examples: [active]
-        member_wallet_address:
-          type: string
-          description: The Solana address of the user's member wallet. Deposits go here.
-          examples: [Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf]
-        phone_linked:
-          type: boolean
-          description: True once the user's phone is verified and stored.
-          examples: [true]
-        x_username:
-          type: string
-          description: The linked X username. Absent when no X account is linked.
-          examples: [kaicenat]
-        handle_changeable_at:
-          type: string
-          format: date-time
-          description: The time the user may change the handle again. Absent until the handle has been set.
-          examples: ["2026-10-30T12:00:00Z"]
-        created_at:
-          type: string
-          format: date-time
-          description: When the account was created.
-          examples: ["2026-09-30T12:00:00Z"]
-    MyCabal:
-      type: object
-      description: A cabal the caller belongs to.
-      additionalProperties: false
-      required: [id, name, picture_url, role, can_vote, member_count, joined_at, pending_request_count]
-      properties:
-        id: {type: string, format: uuid}
-        name: {type: string}
-        picture_url: {type: [string, "null"]}
-        role: {type: string, examples: [creator]}
-        can_vote: {type: boolean}
-        member_count: {type: integer, format: int32}
-        joined_at: {type: string, format: date-time}
-        pending_request_count: {type: integer, format: int32}
-    MyReferralCode:
-      type: object
-      description: The caller's invite code and the links that carry it.
-      examples:
-        - code: k7m4qx2p
-          link: https://monacolabs.xyz/r/k7m4qx2p
-          handle_link: https://monacolabs.xyz/r/kaicenat
-          handle_unlocked: true
-      additionalProperties: false
-      required: [code, link, handle_link, handle_unlocked]
-      properties:
-        code:
-          type: string
-          description: The random 8-character code. It never changes.
-          pattern: "^[23456789abcdefghjkmnpqrstuvwxyz]{8}$"
-          examples: [k7m4qx2p]
-        link:
-          type: string
-          description: The invite link for the random code.
-          examples: ["https://monacolabs.xyz/r/k7m4qx2p"]
-        handle_link:
-          type: [string, "null"]
-          description: The invite link for the caller's handle, or null until the first deposit unlocks it.
-          examples: ["https://monacolabs.xyz/r/kaicenat"]
-        handle_unlocked:
-          type: boolean
-          description: True once the caller's first deposit is credited.
-          examples: [true]
-    PendingVote:
-      type: object
-      description: An open proposal that still needs the caller's ballot.
-      additionalProperties: false
-      required: [proposal_id, cabal_id, kind, symbol, expires_at]
-      properties:
-        proposal_id: {type: string, format: uuid, description: The proposal id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
-        cabal_id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
-        kind: {$ref: "#/components/schemas/ProposalKind"}
-        symbol: {type: string, description: The token symbol., examples: [AAPLx]}
-        expires_at: {type: string, format: date-time, description: When voting closes., examples: ["2026-10-04T15:00:00Z"]}
+  # api/spec/system.yaml
     Ping:
       type: object
       description: A recorded ping.
@@ -2619,351 +2937,76 @@ components:
           description: Free text, at most 140 characters.
           maxLength: 140
           examples: [hi]
-    Problem:
+  # api/spec/treasury.yaml
+    CabalActivity:
       type: object
-      description: An RFC 9457 problem details body with a stable Monaco error code.
-      examples:
-        - type: about:blank
-          title: Not Found
-          status: 404
-          code: not_found
-          message: Not found.
-          trace_id: 4bf92f3577b34da6a3ce929d0e0e4736
-          retryable: false
+      description: One buy, sell, fund or cash out in a cabal.
       additionalProperties: false
-      required: [type, title, status, code, message, trace_id, retryable]
+      required: [id, kind, status, asset, usdc_micros, units, actor, tx_signature, occurred_at]
       properties:
-        type:
+        id: {type: string, format: uuid, description: The source id. For a buy or sell it is the swap id., examples: [01890a5d-ac96-774b-bcce-b302099a8060]}
+        kind:
           type: string
-          description: Always about:blank. The code field carries the problem type.
-          const: about:blank
-        title:
-          type: string
-          description: The HTTP status phrase.
-          examples: [Not Found]
+          description: What happened.
+          enum: [buy, sell, fund, cash_out]
+          examples: [buy]
         status:
-          type: integer
-          description: The HTTP status code of this response.
-          minimum: 400
-          maximum: 599
-          examples: [404]
-        code:
-          $ref: "#/components/schemas/ErrorCode"
-          examples: [not_found]
-        message:
           type: string
-          description: A user-facing sentence the app shows as is.
-          examples: [Not found.]
-        trace_id:
-          type: string
-          description: The W3C trace id of the request. Logs and traces carry the same id.
-          pattern: "^[0-9a-f]{32}$"
-          examples: [4bf92f3577b34da6a3ce929d0e0e4736]
-        retryable:
-          type: boolean
-          description: True when the same request may succeed if sent again later.
-          examples: [false]
-    Proposal:
-      type: object
-      description: One proposal as the caller sees it, with its tally and the caller's ballot.
-      additionalProperties: false
-      required:
-        - id
-        - cabal_id
-        - proposer_id
-        - kind
-        - symbol
-        - usdc_micros
-        - token_amount
-        - quote_out_amount
-        - thesis
-        - status
-        - status_reason
-        - status_message
-        - expires_at
-        - created_at
-        - tally
-        - my_ballot
-      properties:
-        id: {type: string, format: uuid, description: The proposal id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
-        cabal_id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
-        proposer_id: {type: string, format: uuid, description: The member who proposed it., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
-        kind: {$ref: "#/components/schemas/ProposalKind"}
-        symbol: {type: string, description: The token symbol., examples: [AAPLx]}
-        usdc_micros:
-          type: [integer, "null"]
-          format: int64
-          description: USDC a buy spends, in micros. Null for a sell.
-          examples: [25000000]
-        token_amount:
-          type: [integer, "null"]
-          format: int64
-          description: Token base units a sell spends. Null for a buy.
-          examples: [null]
-        quote_out_amount:
-          type: integer
-          format: int64
-          description: The quoted output, in the output asset's base units, when the proposal opened.
-          examples: [105000000]
-        thesis: {type: [string, "null"], description: "The proposer's reason, up to 280 characters.", examples: [Earnings next week.]}
-        status: {$ref: "#/components/schemas/ProposalStatus"}
-        status_reason:
-          type: [string, "null"]
-          description: The error code that blocked execution. Null unless `status` is `execution_blocked`.
-          examples: [null]
-        status_message:
-          type: [string, "null"]
-          description: The user-facing message for `status_reason`. Null when `status_reason` is null.
-          examples: [null]
-        expires_at: {type: string, format: date-time, description: When voting closes., examples: ["2026-10-04T15:00:00Z"]}
-        created_at: {type: string, format: date-time, description: When the proposal opened., examples: ["2026-10-03T15:00:00Z"]}
-        tally: {$ref: "#/components/schemas/Tally"}
-        my_ballot:
-          description: The caller's ballot. Null when the caller has not voted or is not a voter.
-          examples: [null]
-          type: [string, "null"]
-          enum: ["yes", "no", null]
-          x-go-type: BallotChoice
-    ProposalDetail:
-      type: object
-      description: One proposal with its voters, the caller's permissions and its linked trade.
-      additionalProperties: false
-      required:
-        - id
-        - cabal_id
-        - proposer_id
-        - kind
-        - symbol
-        - usdc_micros
-        - token_amount
-        - quote_out_amount
-        - thesis
-        - status
-        - status_reason
-        - status_message
-        - expires_at
-        - created_at
-        - tally
-        - my_ballot
-        - voters
-        - can_vote
-        - can_withdraw
-        - swap
-      properties:
-        id: {type: string, format: uuid, description: The proposal id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
-        cabal_id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
-        proposer_id: {type: string, format: uuid, description: The member who proposed it., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
-        kind: {$ref: "#/components/schemas/ProposalKind"}
-        symbol: {type: string, description: The token symbol., examples: [AAPLx]}
-        usdc_micros:
-          type: [integer, "null"]
-          format: int64
-          description: USDC a buy spends, in micros. Null for a sell.
-          examples: [25000000]
-        token_amount:
-          type: [integer, "null"]
-          format: int64
-          description: Token base units a sell spends. Null for a buy.
-          examples: [null]
-        quote_out_amount:
-          type: integer
-          format: int64
-          description: The quoted output, in the output asset's base units, when the proposal opened.
-          examples: [105000000]
-        thesis: {type: [string, "null"], description: "The proposer's reason, up to 280 characters.", examples: [Earnings next week.]}
-        status: {$ref: "#/components/schemas/ProposalStatus"}
-        status_reason:
-          type: [string, "null"]
-          description: The error code that blocked execution. Null unless `status` is `execution_blocked`.
-          examples: [null]
-        status_message:
-          type: [string, "null"]
-          description: The user-facing message for `status_reason`. Null when `status_reason` is null.
-          examples: [null]
-        expires_at: {type: string, format: date-time, description: When voting closes., examples: ["2026-10-04T15:00:00Z"]}
-        created_at: {type: string, format: date-time, description: When the proposal opened., examples: ["2026-10-03T15:00:00Z"]}
-        tally: {$ref: "#/components/schemas/Tally"}
-        my_ballot:
-          description: The caller's ballot. Null when the caller has not voted or is not a voter.
-          examples: [null]
-          type: [string, "null"]
-          enum: ["yes", "no", null]
-          x-go-type: BallotChoice
-        voters:
-          type: array
-          description: Every member of the frozen voter set, ordered by user id.
-          examples: [[]]
-          items:
-            $ref: "#/components/schemas/ProposalVoter"
-        can_vote: {type: boolean, description: "The caller is in the voter set and the proposal is open.", examples: [true]}
-        can_withdraw:
-          type: boolean
-          description: The caller proposed it, it is open, and no other voter has a ballot.
-          examples: [false]
-        swap:
+          description: Where it is. A confirmed or failed row never goes back to pending.
+          enum: [pending, confirmed, failed]
+          examples: [confirmed]
+        asset:
           type: [object, "null"]
-          description: The latest trade linked to the proposal. Null when none exists.
-          examples: [null]
-          x-go-type-name: LinkedSwap
+          description: The stock bought or sold. Null when there is none or the catalog does not know it.
+          examples: [{symbol: AAPLx, name: Apple}]
+          x-go-type-name: ActivityAsset
           additionalProperties: false
-          required: [swap_id, status, failure_code, failure_message, tx_signature, retryable]
+          required: [symbol, name]
           properties:
-            swap_id: {type: string, format: uuid, description: The swap id., examples: [01890a5d-ac96-774b-bcce-b302099a8060]}
-            status:
-              type: string
-              description: Where the trade is.
-              enum: [created, submitted, confirmed, failed]
-              examples: [confirmed]
-            failure_code:
-              type: [string, "null"]
-              description: Why the trade failed. Null unless `status` is `failed`.
-              examples: [null]
-            failure_message:
-              type: [string, "null"]
-              description: The user-facing message for a failed trade. Null unless `status` is `failed`.
-              examples: [null]
-            tx_signature:
-              type: [string, "null"]
-              description: The Solana transaction signature. Null before the trade is submitted.
-              examples: [null]
-            retryable: {type: boolean, description: Whether a failed trade can be retried., examples: [false]}
-    ProposalKind:
-      type: string
-      description: Whether the proposal spends USDC on the token or sells the token for USDC.
-      enum: [buy, sell]
-      examples: [buy]
-    ProposalList:
+            symbol: {type: string, description: The token symbol., examples: [AAPLx]}
+            name: {type: string, description: The display name., examples: [Apple]}
+        usdc_micros:
+          type: [integer, "null"]
+          format: int64
+          description: USDC spent or received, in micros. Null until known.
+          examples: [25000000]
+        units:
+          type: [integer, "null"]
+          format: int64
+          description: Token base units bought or sold. Null until known.
+          examples: [105000000]
+        actor:
+          type: [object, "null"]
+          description: The member who acted. Null for a trade the cabal voted for.
+          examples: [null]
+          x-go-type-name: ActivityActor
+          additionalProperties: false
+          required: [user_id, handle, display_name]
+          properties:
+            user_id: {type: string, format: uuid, description: The member., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
+            handle: {type: string, description: The member's handle., examples: [ana]}
+            display_name: {type: string, description: The member's display name., examples: [Ana]}
+        tx_signature:
+          type: [string, "null"]
+          description: The Solana transaction signature. Null until the transaction is sent.
+          examples: [5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW]
+        occurred_at: {type: string, format: date-time, description: When it started., examples: ["2026-10-03T15:00:00Z"]}
+    CabalActivityPage:
       type: object
-      description: One page of a cabal's proposals.
+      description: One page of a cabal's activity.
       additionalProperties: false
-      required: [proposals, next_cursor]
+      required: [items, next_cursor]
       properties:
-        proposals:
+        items:
           type: array
           description: The page, newest first.
           examples: [[]]
           items:
-            $ref: "#/components/schemas/Proposal"
+            $ref: "#/components/schemas/CabalActivity"
         next_cursor:
           type: [string, "null"]
           description: The cursor for the next page. Null on the last page.
           examples: [null]
-    ProposalStatus:
-      type: string
-      description: Where a proposal is in its lifecycle.
-      enum: [open, passed, failed, expired, withdrawn, voided, executed, execution_blocked]
-      examples: [open]
-    ProposalVoter:
-      type: object
-      description: One member of the proposal's frozen voter set.
-      additionalProperties: false
-      required: [user_id, choice, cast_at]
-      properties:
-        user_id: {type: string, format: uuid, description: The voter., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
-        choice:
-          description: The voter's ballot. Null until they vote.
-          examples: ["yes"]
-          type: [string, "null"]
-          enum: ["yes", "no", null]
-          x-go-type: BallotChoice
-        cast_at:
-          type: [string, "null"]
-          format: date-time
-          description: When the ballot was last cast. Null until they vote.
-          examples: ["2026-10-03T16:00:00Z"]
-    SetHandle:
-      type: object
-      description: A handle to claim for the caller.
-      additionalProperties: false
-      required: [handle]
-      properties:
-        handle:
-          type: string
-          examples: [kai_one]
-          minLength: 1
-          maxLength: 64
-    SkipOnboardingStep:
-      type: object
-      description: An onboarding step the caller skips.
-      additionalProperties: false
-      required: [step]
-      properties:
-        step:
-          type: string
-          enum: [phone, socials]
-          examples: [phone]
-    Tally:
-      type: object
-      description: The ballots counted against the proposal's frozen voter set.
-      additionalProperties: false
-      required: [yes, no, voters, needed]
-      properties:
-        "yes":
-          type: integer
-          minimum: 0
-          description: Ballots for the proposal.
-          examples: [2]
-        "no":
-          type: integer
-          minimum: 0
-          description: Ballots against the proposal.
-          examples: [1]
-        voters:
-          type: integer
-          minimum: 1
-          description: Members in the voter set frozen when the proposal opened.
-          examples: [3]
-        needed:
-          type: integer
-          minimum: 1
-          description: Yes ballots the cabal's threshold rule needs to pass the proposal.
-          examples: [2]
-    UiMultiplier:
-      type: object
-      description: The whole tokens in one display unit, as an exact fraction.
-      examples:
-        - num: 1
-          den: 1
-      additionalProperties: false
-      required: [num, den]
-      properties:
-        num:
-          type: integer
-          format: int64
-          description: The numerator.
-          examples: [1]
-        den:
-          type: integer
-          format: int64
-          description: The denominator.
-          examples: [1]
-    UpdateCabalRequest:
-      type: object
-      description: The cabal fields to change. An omitted field keeps its value.
-      additionalProperties: false
-      properties:
-        name: {type: string, description: "Cabal name, 3 to 40 characters.", examples: [Work pot]}
-        join_mode: {type: string, description: "`open` or `request`.", examples: [request]}
-        voter_mode: {type: string, description: "`all` or `list`.", examples: [list]}
-        voter_ids:
-          type: array
-          description: Every voter, the creator included. Only with voter_mode list.
-          items: {type: string, format: uuid}
-          examples: [["01890a5d-ac96-774b-bcce-b302099a8058"]]
-        threshold: {type: string, description: "`majority` or `unanimous`.", examples: [unanimous]}
-        proposal_expiry_seconds: {type: integer, format: int32, description: "One of 3600, 86400 or 604800.", examples: [3600]}
-        slippage_bps: {type: integer, format: int32, description: "Basis points from 1 to 300.", examples: [50]}
-    UpdateProfileRequest:
-      type: object
-      description: The profile fields a signed-in user may update.
-      examples: [{display_name: Kai Cenat}]
-      additionalProperties: false
-      required: [display_name]
-      properties:
-        display_name:
-          type: string
-          description: The caller's display name, normalized before it is stored.
-          examples: [Kai Cenat]
     UserTxn:
       type: object
       description: One inbound, outbound or cabal transfer affecting the caller.
@@ -3001,20 +3044,3 @@ components:
           type: [string, "null"]
           description: The cursor for the next page. Null on the last page.
           examples: [null]
-    VoteResult:
-      type: object
-      description: The proposal after the caller's ballot.
-      additionalProperties: false
-      required: [proposal_id, status, tally, my_ballot]
-      properties:
-        proposal_id:
-          type: string
-          format: uuid
-          description: The proposal id.
-          examples: [01890a5d-ac96-774b-bcce-b302099a8057]
-        status:
-          $ref: "#/components/schemas/ProposalStatus"
-        tally:
-          $ref: "#/components/schemas/Tally"
-        my_ballot:
-          $ref: "#/components/schemas/BallotChoice"

@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -28,8 +29,9 @@ func writeSpecDir(t *testing.T, files map[string]string) string {
 	return dir
 }
 
-func specModule(path, schema string) string {
+func specModule(file, path, schema string) string {
 	return "paths:\n  " + path + ":\n    get:\n      operationId: op" + schema + "\n" +
+		"      tags: [" + strings.TrimSuffix(file, ".yaml") + "]\n" +
 		"components:\n  schemas:\n    " + schema + ":\n      type: string\n"
 }
 
@@ -37,9 +39,9 @@ func TestBundleOpenAPI_mergesEverySpecFileInSortedOrder(t *testing.T) {
 	t.Parallel()
 	dir := writeSpecDir(t, map[string]string{
 		"base.yaml":    bundleBase,
-		"cabal.yaml":   specModule("/v1/cabals", "Cabal"),
-		"market.yaml":  specModule("/v1/assets", "Asset"),
-		"trading.yaml": specModule("/v1/orders", "Order"),
+		"cabal.yaml":   specModule("cabal.yaml", "/v1/cabals", "Cabal"),
+		"market.yaml":  specModule("market.yaml", "/v1/assets", "Asset"),
+		"trading.yaml": specModule("trading.yaml", "/v1/orders", "Order"),
 	})
 	got, err := bundleOpenAPI(dir)
 	if err != nil {
@@ -50,25 +52,35 @@ openapi: 3.1.0
 info:
   title: T
 paths:
-  /v1/assets:
-    get:
-      operationId: opAsset
+  # api/spec/cabal.yaml
   /v1/cabals:
     get:
       operationId: opCabal
+      tags: [cabal]
+  # api/spec/market.yaml
+  /v1/assets:
+    get:
+      operationId: opAsset
+      tags: [market]
+  # api/spec/trading.yaml
   /v1/orders:
     get:
       operationId: opOrder
+      tags: [trading]
 components:
   schemas:
-    Asset:
-      type: string
-    Cabal:
-      type: string
-    Order:
-      type: string
+  # api/spec/base.yaml
     Problem:
       type: object
+  # api/spec/cabal.yaml
+    Cabal:
+      type: string
+  # api/spec/market.yaml
+    Asset:
+      type: string
+  # api/spec/trading.yaml
+    Order:
+      type: string
 `
 	if string(got) != want {
 		t.Fatalf("bundle =\n%s\nwant\n%s", got, want)
@@ -78,7 +90,7 @@ components:
 func TestBundleOpenAPI_isStable(t *testing.T) {
 	t.Parallel()
 	dir := writeSpecDir(t, map[string]string{
-		"base.yaml": bundleBase, "b.yaml": specModule("/b", "B"), "a.yaml": specModule("/a", "A"),
+		"base.yaml": bundleBase, "b.yaml": specModule("b.yaml", "/b", "B"), "a.yaml": specModule("a.yaml", "/a", "A"),
 	})
 	first, err := bundleOpenAPI(dir)
 	if err != nil {
@@ -100,18 +112,18 @@ func TestBundleOpenAPI_namesBothFilesOfADuplicate(t *testing.T) {
 	}{
 		"path": {
 			map[string]string{
-				"base.yaml": bundleBase, "a.yaml": specModule("/v1/x", "A"), "b.yaml": specModule("/v1/x", "B"),
+				"base.yaml": bundleBase, "a.yaml": specModule("a.yaml", "/v1/x", "A"), "b.yaml": specModule("b.yaml", "/v1/x", "B"),
 			},
 			"path /v1/x is defined in both a.yaml and b.yaml",
 		},
 		"schema": {
 			map[string]string{
-				"base.yaml": bundleBase, "a.yaml": specModule("/a", "Same"), "b.yaml": specModule("/b", "Same"),
+				"base.yaml": bundleBase, "a.yaml": specModule("a.yaml", "/a", "Same"), "b.yaml": specModule("b.yaml", "/b", "Same"),
 			},
 			"schema Same is defined in both a.yaml and b.yaml",
 		},
 		"schema already in base": {
-			map[string]string{"base.yaml": bundleBase, "a.yaml": specModule("/a", "Problem")},
+			map[string]string{"base.yaml": bundleBase, "a.yaml": specModule("a.yaml", "/a", "Problem")},
 			"schema Problem is defined in both base.yaml and a.yaml",
 		},
 	} {
@@ -131,7 +143,7 @@ func TestBundleOpenAPI_refusesSpecsItCannotBundle(t *testing.T) {
 		files map[string]string
 		want  string
 	}{
-		"no base":           {map[string]string{"a.yaml": specModule("/a", "A")}, "base.yaml"},
+		"no base":           {map[string]string{"a.yaml": specModule("a.yaml", "/a", "A")}, "base.yaml"},
 		"extra top key":     {map[string]string{"base.yaml": bundleBase, "a.yaml": "servers: []\n"}, `top-level key "servers"`},
 		"bad indent":        {map[string]string{"base.yaml": bundleBase, "a.yaml": "paths:\n    /a:\n      get: {}\n"}, "indented 2 spaces"},
 		"flow style paths":  {map[string]string{"base.yaml": bundleBase, "a.yaml": "paths: {/a: {get: {}}}\n"}, "block style"},
@@ -143,6 +155,18 @@ func TestBundleOpenAPI_refusesSpecsItCannotBundle(t *testing.T) {
 		"components kind bad indent": {
 			map[string]string{"base.yaml": bundleBase, "a.yaml": "components:\n    schemas:\n      X:\n        type: string\n"},
 			"components.schemas must be indented two spaces",
+		},
+		"operation tagged for another module": {
+			map[string]string{"base.yaml": bundleBase, "a.yaml": "paths:\n  /a:\n    post:\n      tags: [b]\n"},
+			"a.yaml: post /a has tags [b], want [a]",
+		},
+		"operation without a tag": {
+			map[string]string{"base.yaml": bundleBase, "a.yaml": "paths:\n  /a:\n    get: {}\n"},
+			"a.yaml: get /a has tags [], want [a]",
+		},
+		"operation that is not a mapping": {
+			map[string]string{"base.yaml": bundleBase, "a.yaml": "paths:\n  /a:\n    get: x\n"},
+			"a.yaml: get /a has tags [], want [a]",
 		},
 		"paths scalar": {map[string]string{"base.yaml": bundleBase, "a.yaml": "paths: 3\n"}, "path entries must be a mapping"},
 		"anyOf with a null branch": {
@@ -180,9 +204,18 @@ func TestBundleOpenAPI_refusesSpecsItCannotBundle(t *testing.T) {
 	}
 }
 
+func TestBundleOpenAPI_checksTagsOnOperationsAndNotOnPathParameters(t *testing.T) {
+	t.Parallel()
+	module := "paths:\n  /a/{id}:\n    parameters:\n      - name: id\n        in: path\n    get:\n      tags: [a]\n"
+	dir := writeSpecDir(t, map[string]string{"base.yaml": bundleBase, "a.yaml": module})
+	if _, err := bundleOpenAPI(dir); err != nil {
+		t.Fatalf("path-level parameters were checked as an operation: %v", err)
+	}
+}
+
 func TestBundleOpenAPI_keepsEveryBlockByteForByte(t *testing.T) {
 	t.Parallel()
-	module := "paths:\n  /a:\n    get:\n      description: >-\n        folded\n        text\n      tags: [x, y]\n"
+	module := "paths:\n  /a:\n    get:\n      description: >-\n        folded\n        text\n      tags: [a]\n      x-flags: [x, y]\n"
 	dir := writeSpecDir(t, map[string]string{"base.yaml": bundleBase, "a.yaml": module})
 	got, err := bundleOpenAPI(dir)
 	if err != nil {
@@ -229,7 +262,7 @@ func TestBundleOpenAPI_branchesAddingRoutesToDifferentModulesMergeWithoutConflic
 	if err != nil {
 		t.Fatal(err)
 	}
-	route := "  /v1/cabals/{id}/rules:\n    get:\n      operationId: getCabalRules\n"
+	route := "  /v1/cabals/{id}/rules:\n    get:\n      operationId: getCabalRules\n      tags: [cabal]\n"
 	edited := strings.Replace(string(body), "components:\n", route+"components:\n", 1)
 	if err := root.WriteFile("cabal.yaml", []byte(edited), 0o600); err != nil {
 		t.Fatal(err)
@@ -238,7 +271,7 @@ func TestBundleOpenAPI_branchesAddingRoutesToDifferentModulesMergeWithoutConflic
 
 	git(t, repo, "switch", "-q", "trunk")
 	git(t, repo, "switch", "-q", "-c", "trading-route")
-	trading := "paths:\n  /v1/orders:\n    get:\n      operationId: getOrders\n"
+	trading := "paths:\n  /v1/orders:\n    get:\n      operationId: getOrders\n      tags: [trading]\n"
 	if err := root.WriteFile("trading.yaml", []byte(trading), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -257,9 +290,68 @@ func TestBundleOpenAPI_branchesAddingRoutesToDifferentModulesMergeWithoutConflic
 	}
 }
 
+func TestBundleOpenAPI_bundlesFromDifferentModulesMergeWithoutConflict(t *testing.T) {
+	t.Parallel()
+	repo := t.TempDir()
+	if err := os.CopyFS(filepath.Join(repo, "api", "spec"), os.DirFS("../../api/spec")); err != nil {
+		t.Fatal(err)
+	}
+	root, err := os.OpenRoot(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = root.Close() }()
+	commitBundle := func(msg string) {
+		t.Helper()
+		bundle, err := bundleOpenAPI(filepath.Join(repo, "api", "spec"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := root.WriteFile("api/openapi.yaml", bundle, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		git(t, repo, "add", ".")
+		git(t, repo, "commit", "-q", "-m", msg)
+	}
+	addRoute := func(branch, file, path, op string) {
+		t.Helper()
+		git(t, repo, "switch", "-q", "-c", branch, "trunk")
+		body, err := root.ReadFile("api/spec/" + file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		route := "  " + path + ":\n    get:\n      operationId: " + op + "\n      tags: [" +
+			strings.TrimSuffix(file, ".yaml") + "]\n"
+		edited := strings.Replace(string(body), "components:\n", route+"components:\n", 1)
+		if err := root.WriteFile("api/spec/"+file, []byte(edited), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		commitBundle(branch)
+	}
+	git(t, repo, "init", "-q", "-b", "trunk")
+	commitBundle("specs")
+	addRoute("cabal-route", "cabal.yaml", "/v1/cabals/{id}/archive", "postCabalArchive")
+	addRoute("treasury-route", "treasury.yaml", "/v1/cabals/{id}/activity/summary", "getCabalActivitySummary")
+
+	merge := exec.CommandContext(t.Context(), "git", "-c", "user.name=t", "-c", "user.email=t@example.com",
+		"-c", "commit.gpgsign=false", "merge", "--no-edit", "cabal-route")
+	merge.Dir = repo
+	if out, err := merge.CombinedOutput(); err != nil {
+		t.Fatalf("merging two module routes conflicted in the committed bundle: %v\n%s", err, out)
+	}
+	got, err := root.ReadFile("api/openapi.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := bundleOpenAPI(filepath.Join(repo, "api", "spec"))
+	if err != nil || string(got) != string(want) {
+		t.Fatalf("merged bundle differs from regenerating the merged specs (%v)", err)
+	}
+}
+
 func TestGenOpenAPI_writesTheBundleAndReportsDuplicates(t *testing.T) {
 	t.Parallel()
-	dir := writeSpecDir(t, map[string]string{"base.yaml": bundleBase, "a.yaml": specModule("/a", "A")})
+	dir := writeSpecDir(t, map[string]string{"base.yaml": bundleBase, "a.yaml": specModule("a.yaml", "/a", "A")})
 	out := filepath.Join(t.TempDir(), "openapi.yaml")
 	var stdout, stderr strings.Builder
 	if code := gen([]string{"openapi", dir, out}, &stdout, &stderr); code != 0 {
@@ -272,7 +364,7 @@ func TestGenOpenAPI_writesTheBundleAndReportsDuplicates(t *testing.T) {
 	if got, err := readSpec(t, out); err != nil || string(got) != string(want) {
 		t.Fatalf("wrote %q (%v), want the bundle", got, err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "b.yaml"), []byte(specModule("/a", "B")), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "b.yaml"), []byte(specModule("b.yaml", "/a", "B")), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	stderr.Reset()
@@ -288,9 +380,10 @@ func TestBundleOpenAPI_keepsAnEmptyPathsMapAndTrimsBlankLinesBetweenEntries(t *t
 	if err != nil || !strings.Contains(string(only), "\npaths: {}\n") {
 		t.Fatalf("base alone: err = %v, bundle:\n%s", err, only)
 	}
-	spaced := "paths:\n  /a:\n    get: {}\n\n  /b:\n    get: {}\n\n"
+	spaced := "paths:\n  /a:\n    get: {tags: [a]}\n\n  /b:\n    get: {tags: [a]}\n\n"
 	got, err := bundleOpenAPI(writeSpecDir(t, map[string]string{"base.yaml": bundleBase, "a.yaml": spaced}))
-	if err != nil || !strings.Contains(string(got), "paths:\n  /a:\n    get: {}\n  /b:\n    get: {}\ncomponents:") {
+	want := "paths:\n  # api/spec/a.yaml\n  /a:\n    get: {tags: [a]}\n  /b:\n    get: {tags: [a]}\ncomponents:"
+	if err != nil || !strings.Contains(string(got), want) {
 		t.Fatalf("blank lines were kept: err = %v, bundle:\n%s", err, got)
 	}
 }
