@@ -51,14 +51,24 @@ func bootEnv(t *testing.T, extra ...string) []string {
 
 func TestMain_servesHealthzUntilSIGTERMThenExitsZero(t *testing.T) {
 	t.Parallel()
-	p := testkit.StartMain(t, bootEnv(t, "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0"))
-	want := "nats ok\ndb ok\npoller:platform.retention ok\npoller:cabal.invite_expiry ok\npoller:funding.deposits ok\n" +
-		"poller:governance.proposal_expiry ok\npoller:identity.nudges ok\n" +
-		"poller:identity.photo_purges ok\npoller:market.catalog ok\n" +
-		"poller:market.prices ok\npoller:market.retention ok\n"
+	env := bootEnv(t, "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0")
+	cfg, err := config.Load(env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := workDeps(module.Deps{Config: cfg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want strings.Builder
+	want.WriteString("nats ok\ndb ok\n")
+	for _, poller := range registered.Build(d).Pollers() {
+		want.WriteString("poller:" + poller.Name() + " ok\n")
+	}
+	p := testkit.StartMain(t, env)
 	waitUntil(t, "a healthy worker", func() bool {
 		code, body := testkit.Get(t, "http://"+p.Addr+"/healthz")
-		return code == http.StatusOK && body == want
+		return code == http.StatusOK && body == want.String()
 	})
 	if stderr, err := p.Terminate(); err != nil {
 		t.Fatalf("worker after SIGTERM: %v\n%s", err, stderr)
