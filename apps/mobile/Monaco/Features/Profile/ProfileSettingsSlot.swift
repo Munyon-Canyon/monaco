@@ -4,30 +4,27 @@ enum ProfileSettingsSlot: ProfileSection {
     static let isLive = true
 
     static func body(for context: Void) -> some View {
-        ProfileSettings()
+        ProfileSettingsRow()
     }
 }
 
-struct ProfileSettings: View {
+private struct ProfileSettingsRow: View {
+    @Environment(AppEnvironment.self) private var environment
+
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            MonacoSectionHeader("Account")
-                .padding(.horizontal, MonacoTheme.Space.m)
-            MonacoGroupedList {
-                NavigationLink {
-                    AdvancedSettingsView()
-                } label: {
-                    MonacoRow(
-                        title: "Advanced",
-                        subtitle: "Block explorers",
-                        chevron: true,
-                        isLast: true,
-                        leading: { StockMark(systemImage: "link", size: 40) }
-                    )
-                }
-                .buttonStyle(.monacoRow)
-                .accessibilityIdentifier("profile-advanced-link")
+        MonacoGroupedList {
+            Button {
+                environment.navigator.open(SettingsRoute(), in: .profile)
+            } label: {
+                MonacoRow(
+                    title: "Settings",
+                    chevron: true,
+                    isLast: true,
+                    leading: { StockMark(systemImage: "gearshape", size: 40) }
+                )
             }
+            .buttonStyle(.monacoRow)
+            .accessibilityIdentifier("profile-settings-row")
         }
     }
 }

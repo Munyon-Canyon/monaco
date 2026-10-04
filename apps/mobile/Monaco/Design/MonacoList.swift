@@ -119,6 +119,7 @@ struct MonacoRule: View {
 struct MonacoRow<Leading: View, Trailing: View>: View {
     private let title: String
     private let titleFont: Font
+    private let titleColor: Color
     private let subtitle: String?
     private let subtitleColor: Color
     private let chevron: Bool
@@ -131,6 +132,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
     init(
         title: String,
         titleFont: Font = MonacoTheme.Typo.rowTitle,
+        titleColor: Color = MonacoTheme.ink,
         subtitle: String? = nil,
         subtitleColor: Color = MonacoTheme.muted,
         chevron: Bool = false,
@@ -140,6 +142,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
     ) {
         self.title = title
         self.titleFont = titleFont
+        self.titleColor = titleColor
         self.subtitle = subtitle
         self.subtitleColor = subtitleColor
         self.chevron = chevron
@@ -163,7 +166,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(titleFont)
-                .foregroundStyle(MonacoTheme.ink)
+                .foregroundStyle(titleColor)
                 .lineLimit(layout.titleLineLimit)
                 .truncationMode(.tail)
             if let subtitle, !subtitle.isEmpty {
@@ -296,6 +299,7 @@ extension MonacoRow where Trailing == EmptyView {
     init(
         title: String,
         titleFont: Font = MonacoTheme.Typo.rowTitle,
+        titleColor: Color = MonacoTheme.ink,
         subtitle: String? = nil,
         subtitleColor: Color = MonacoTheme.muted,
         chevron: Bool = false,
@@ -305,6 +309,7 @@ extension MonacoRow where Trailing == EmptyView {
         self.init(
             title: title,
             titleFont: titleFont,
+            titleColor: titleColor,
             subtitle: subtitle,
 
             subtitleColor: subtitleColor,

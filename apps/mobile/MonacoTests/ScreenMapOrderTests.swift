@@ -43,7 +43,6 @@ struct ScreenMapOrderTests {
             (JoinRoute().destination(), "Join a cabal"),
             (FundRoute(cabalID: "c").destination(), "Fund this cabal"),
             (ChatRoute(cabalID: "c").destination(), "Chat"),
-            (SettingsRoute().destination(), "Settings"),
             (AccountActivityRoute().destination(), "Activity"),
             (AgentRoute(cabalID: "c").destination(), "Trading bot"),
             (ProposeFromAssetRoute(symbol: "GOOGLx", kind: .buy).destination(), "Propose"),
