@@ -22,7 +22,7 @@ import (
 func (d voteDB) withdraw(t *testing.T, proposal, actor uuid.UUID) error {
 	t.Helper()
 	ctx := observability.WithActor(t.Context(), "user:"+actor.String())
-	return app.NewWithdrawProposalHandler(d.uow, d.clk).Handle(ctx, app.WithdrawProposal{
+	return app.NewWithdrawProposalHandler(d.uow, d.clk, app.NoHints{}).Handle(ctx, app.WithdrawProposal{
 		ProposalID: ids.ProposalIDFrom(proposal), ActorID: ids.UserIDFrom(actor),
 	})
 }
@@ -81,7 +81,10 @@ func TestHTTP_DeleteProposal(t *testing.T) {
 	d := newReadsDB(t)
 	p := d.proposedBy(t, d.caller)
 	uow := db.New(d.pool, d.ids, testkit.NewClock(d.now))
-	h := adapters.HTTP{Withdraw: app.NewWithdrawProposalHandler(uow, testkit.NewClock(d.now)), Reads: d.reads()}
+	h := adapters.HTTP{
+		Withdraw: app.NewWithdrawProposalHandler(uow, testkit.NewClock(d.now), app.NoHints{}),
+		Reads:    d.reads(),
+	}
 	req := api.DeleteProposalRequestObject{Id: p}
 	if _, err := h.DeleteProposal(t.Context(), req); errs.CodeOf(err) != errs.CodeUnauthorized {
 		t.Fatalf("DeleteProposal with no actor = %v, want unauthorized", err)
