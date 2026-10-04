@@ -43,10 +43,13 @@ type CastVoteHandler struct {
 	reads      sqlc.DBTX
 	clock      clock.Clock
 	thresholds Thresholds
+	hints      Hints
 }
 
-func NewCastVoteHandler(uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock, t Thresholds) *CastVoteHandler {
-	return &CastVoteHandler{uow: uow, reads: reads, clock: c, thresholds: t}
+func NewCastVoteHandler(
+	uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock, t Thresholds, hints Hints,
+) *CastVoteHandler {
+	return &CastVoteHandler{uow: uow, reads: reads, clock: c, thresholds: t, hints: hints}
 }
 
 func (h *CastVoteHandler) Handle(ctx context.Context, cmd CastVote) (CastVoteResult, error) {
@@ -68,6 +71,7 @@ func (h *CastVoteHandler) Handle(ctx context.Context, cmd CastVote) (CastVoteRes
 	if err != nil {
 		return CastVoteResult{}, err
 	}
+	h.hints.ProposalUpdated(ctx, ids.CabalIDFrom(cabal), cmd.ProposalID)
 	return out, nil
 }
 

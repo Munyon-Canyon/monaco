@@ -21,15 +21,17 @@ type WithdrawProposal struct {
 type WithdrawProposalHandler struct {
 	uow   *db.UnitOfWork
 	clock clock.Clock
+	hints Hints
 }
 
-func NewWithdrawProposalHandler(uow *db.UnitOfWork, c clock.Clock) *WithdrawProposalHandler {
-	return &WithdrawProposalHandler{uow: uow, clock: c}
+func NewWithdrawProposalHandler(uow *db.UnitOfWork, c clock.Clock, hints Hints) *WithdrawProposalHandler {
+	return &WithdrawProposalHandler{uow: uow, clock: c, hints: hints}
 }
 
 func (h *WithdrawProposalHandler) Handle(ctx context.Context, cmd WithdrawProposal) error {
 	const op = "governance.WithdrawProposal"
-	return h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+	var cabalID ids.CabalID
+	err := h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		q := sqlc.New(tx.Queries())
 		p, err := q.LockForWithdraw(ctx, cmd.ProposalID.UUID())
 		switch {
@@ -42,6 +44,7 @@ func (h *WithdrawProposalHandler) Handle(ctx context.Context, cmd WithdrawPropos
 		case p.OthersVoted:
 			return errs.New(errs.CodeWithdrawNotAllowed, op)
 		}
+		cabalID = ids.CabalIDFrom(p.CabalID)
 		if _, err := q.Transition(ctx, sqlc.TransitionParams{
 			ID: p.ID, FromStatus: string(domain.StatusOpen), ToStatus: string(domain.StatusWithdrawn),
 			At: h.clock.Now(),
@@ -52,4 +55,9 @@ func (h *WithdrawProposalHandler) Handle(ctx context.Context, cmd WithdrawPropos
 			V: 1, ProposalID: p.ID, CabalID: p.CabalID, ProposerID: p.ProposerID,
 		})
 	})
+	if err != nil {
+		return err
+	}
+	h.hints.ProposalUpdated(ctx, cabalID, cmd.ProposalID)
+	return nil
 }
