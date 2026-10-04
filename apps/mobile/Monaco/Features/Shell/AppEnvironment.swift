@@ -13,6 +13,7 @@ final class AppEnvironment {
     let linking: any AccountLinking
     let navigator = AppNavigator()
     let sessionStore: AppSessionStore
+    let push: PushRegistrar
     var viewer: Viewer?
     #if DEBUG
     private(set) var devSessionActive = false
@@ -29,6 +30,8 @@ final class AppEnvironment {
         return privyAuthenticated()
     }
 
+    var hasOpenSession: Bool { isSignedIn && viewer != nil }
+
     init(
         auth: PrivyAuthService,
         tokens: SessionTokens? = nil,
@@ -43,6 +46,13 @@ final class AppEnvironment {
         self.hints = hints
         let api = APIClient(serverURL: Config.api.baseURL, tokens: tokens)
         self.api = api
+        let push = PushRegistrar(
+            service: DeviceAPI(api: api),
+            environment: PushEnvironment(
+                infoValue: Bundle.main.object(forInfoDictionaryKey: "MonacoAPSEnvironment") as? String),
+            clock: ContinuousClock()
+        )
+        self.push = push
         self.linking = PrivyAccountLinker(privy: auth.privy, api: api)
         self.sessionStore =
             sessionStore
@@ -52,16 +62,19 @@ final class AppEnvironment {
         self.privyAuthenticated = isAuthenticated ?? Self.privyIsAuthenticated(auth)
         self.endAuthSession = endAuthSession ?? { await auth.logout() }
         self.sessionStore.onProfileChange = { [weak self] next in
-            self?.viewer = next.map(Viewer.init)
+            self?.sessionDidChange(next)
         }
         tokens.onSignedOut { [weak self] in
             Task { @MainActor in
                 await self?.signOut()
             }
         }
+        auth.pushRegistrar = push
         auth.onSessionEnded = { [weak self] in
             self?.clearSignedInState()
+            Task { await push.reset() }
         }
+        AppDelegate.environment = self
     }
 
     convenience init() {
@@ -83,6 +96,7 @@ final class AppEnvironment {
         switch phase {
         case .active:
             guard isSignedIn else { return }
+            registerForPush()
             await hints.start()
             await sessionStore.noteForeground(auth: auth)
             AppLogger.session.info("hint stream started")
@@ -105,6 +119,7 @@ final class AppEnvironment {
         auth.adoptDevAccessToken(session.token)
         devSessionActive = true
         viewer = Viewer(userID: session.userID, handle: nil)
+        registerForPush()
         await hints.start()
         AppLogger.session.info("hint stream started")
     }
@@ -131,6 +146,16 @@ final class AppEnvironment {
             }
             return false
         }
+    }
+
+    private func sessionDidChange(_ profile: SessionProfile?) {
+        let wasOpen = viewer != nil
+        viewer = profile.map(Viewer.init)
+        if viewer != nil, !wasOpen { registerForPush() }
+    }
+
+    private func registerForPush() {
+        Task { await AppDelegate.registerIfAuthorized() }
     }
 
     private func clearSignedInState() {

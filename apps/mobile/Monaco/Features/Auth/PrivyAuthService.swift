@@ -30,6 +30,7 @@ class PrivyAuthService: ObservableObject {
     /// over a sign-out the member asked for, and a second tap cannot start a second one.
     private var isSigningOut = false
     var onSessionEnded: (@MainActor () -> Void)?
+    var pushRegistrar: PushRegistrar?
     #if DEBUG
     func adoptDevAccessToken(_ token: String) {
         adoptAccessToken(token)
@@ -42,6 +43,7 @@ class PrivyAuthService: ObservableObject {
     private var signInEpoch = 0
     /// How long a new sign-in will wait out a revoke before going ahead anyway.
     private static let revokeWait = Duration.seconds(2)
+    private static let pushUnregisterWait = Duration.seconds(3)
 
     /// What just happened to the login form. `flow.step` says which field is on screen.
     var phase: LoginPhase { flow.phase }
@@ -246,7 +248,17 @@ class PrivyAuthService: ObservableObject {
     // MARK: Sign out
 
     func logout() async {
+        await unregisterPushToken()
         performLogout(reason: nil)
+    }
+
+    private func unregisterPushToken() async {
+        guard let pushRegistrar else { return }
+        do {
+            try await pushRegistrar.unregister(within: Self.pushUnregisterWait)
+        } catch {
+            AppLogger.session.error("Push token removal failed: \(String(describing: error), privacy: .public)")
+        }
     }
 
     /// Same as `logout()`, but records why so LoginView can explain it instead of
