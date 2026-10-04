@@ -96,7 +96,11 @@ func (c *Client) call(ctx context.Context, method string, params []any, into any
 		return errs.Wrap(err, errs.CodeDecodeFailed, op)
 	}
 	if r.Error != nil {
-		return errs.New(errs.CodeRPCUnavailable, op,
+		code := errs.CodeRPCUnavailable
+		if r.Error.Code == -32015 {
+			code = errs.CodeDecodeFailed
+		}
+		return errs.New(code, op,
 			slog.Int("rpc_code", r.Error.Code), slog.String("rpc_message", r.Error.Message))
 	}
 	if err := json.Unmarshal(r.Result, into); err != nil {

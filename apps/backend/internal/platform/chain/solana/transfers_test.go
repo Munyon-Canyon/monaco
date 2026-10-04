@@ -2,6 +2,7 @@ package solana_test
 
 import (
 	"log/slog"
+	"net/http"
 	"slices"
 	"strings"
 	"testing"
@@ -102,6 +103,18 @@ func TestInboundTransfers_failures(t *testing.T) {
 	wantCode(t, err, errs.CodeInvalidAddress)
 	_, err = client(replying(200, "")).MintConfig(t.Context(), "bad")
 	wantCode(t, err, errs.CodeInvalidAddress)
+}
+
+func TestInboundTransfersForMint_rejectsUnsupportedTransactionVersion(t *testing.T) {
+	t.Parallel()
+	_, err := client(
+		replying(
+			http.StatusOK,
+			`{"jsonrpc":"2.0","id":1,"error":{"code":-32015,"message":"Transaction version (1) is not supported"}}`,
+		),
+	).
+		InboundTransfersForMint(t.Context(), deposit, member, usdcMint)
+	wantCode(t, err, errs.CodeDecodeFailed)
 }
 
 func TestInboundTransfers_ignoresATokenBalanceIndexedExactlyOnePastTheAccountKeys(t *testing.T) {

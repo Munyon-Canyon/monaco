@@ -99,7 +99,7 @@ func (m *Module) Queries() port.Queries {
 	return m.reads()
 }
 
-func (m *Module) SignatureOwner() *adapters.Queries { return m.reads() }
+func (m *Module) SignatureOwner() chain.SignatureOwnerFunc { return m.reads().OwnsSignature }
 
 func (m *Module) WalletLedger() *adapters.Queries { return m.reads() }
 

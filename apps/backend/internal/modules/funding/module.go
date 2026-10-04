@@ -1,6 +1,9 @@
 package funding
 
 import (
+	"context"
+	"sync"
+
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
@@ -18,11 +21,37 @@ import (
 type Module struct {
 	deps     module.Deps
 	balances port.Balances
+	owners   []app.SignatureOwner
+}
+
+type lazyDepositReader struct {
+	cfg    module.Deps
+	once   sync.Once
+	reader app.DepositTransferReader
+}
+
+func (r *lazyDepositReader) InboundTransfersForMint(
+	ctx context.Context,
+	sig chain.Signature,
+	owner, mint chain.SolanaAddress,
+) ([]solana.Transfer, error) {
+	r.once.Do(func() { r.reader = solana.New(r.cfg.Config, r.cfg.Clock) })
+	return r.reader.InboundTransfersForMint(ctx, sig, owner, mint)
 }
 
 func New(d module.Deps) *Module { return &Module{deps: d} }
 
 func (*Module) Name() string { return "funding" }
+
+func (m *Module) Wire(set module.Set) {
+	for _, mod := range set {
+		if provider, ok := mod.(interface {
+			SignatureOwner() chain.SignatureOwnerFunc
+		}); ok {
+			m.owners = append(m.owners, provider.SignatureOwner())
+		}
+	}
+}
 
 func (m *Module) Mount(r api.Mount) {
 	fundingapi.Mount(adapters.HTTP{
@@ -30,8 +59,20 @@ func (m *Module) Mount(r api.Mount) {
 	}, r)
 }
 
-func (*Module) Consumers() []bus.Consumer {
-	return []bus.Consumer{}
+func (m *Module) Consumers() []bus.Consumer {
+	resolver := app.NewDepositCandidateResolver(
+		&lazyDepositReader{cfg: m.deps},
+		chain.SolanaAddress(m.deps.Config.Solana.USDCMint),
+		m.owners,
+		app.NewCreditDepositHandler(m.deps.UoW, m.deps.Bus),
+		m.deps.IDs,
+	)
+	return []bus.Consumer{{
+		Durable: "funding",
+		Handlers: []bus.HandlerSpec{
+			bus.HandleFetched("funding.resolve_deposit_candidate", resolver.Fetch, resolver.Apply),
+		},
+	}}
 }
 
 func (m *Module) Pollers() []poller.Poller {
@@ -58,8 +99,8 @@ func (m *Module) Balances() port.Balances {
 
 func (*Module) Pauses() port.Pauses { return adapters.UnwiredPauses{} }
 
-func (*Module) SignatureOwner() adapters.UnwiredSignatureOwner {
-	return adapters.UnwiredSignatureOwner{}
+func (*Module) SignatureOwner() chain.SignatureOwnerFunc {
+	return adapters.UnwiredSignatureOwner{}.OwnsSignature
 }
 
 type (

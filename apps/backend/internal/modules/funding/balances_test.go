@@ -2,12 +2,15 @@ package funding_test
 
 import (
 	"net/http"
-	"reflect"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -28,8 +31,9 @@ func TestModule(t *testing.T) {
 	if !testkit.Serves(m.Mount, "GET", "/v1/me/balance") {
 		t.Fatal("Mount does not serve GET /v1/me/balance")
 	}
-	if got := m.Consumers(); len(got) != 0 {
-		t.Fatalf("Consumers = %v, want none", got)
+	if got := m.Consumers(); len(got) != 1 || got[0].Durable != "funding" || len(got[0].Handlers) != 1 ||
+		got[0].Handlers[0].Name != "funding.resolve_deposit_candidate" {
+		t.Fatalf("Consumers = %v, want funding.resolve_deposit_candidate", got)
 	}
 	if got := m.Pollers(); len(got) != 1 || got[0].Name() != "funding.deposits" {
 		t.Fatalf("Pollers = %v, want funding.deposits", got)
@@ -40,8 +44,8 @@ func TestModule(t *testing.T) {
 	if m.Pauses() == nil {
 		t.Fatal("Pauses = nil")
 	}
-	if reflect.TypeOf(m.SignatureOwner()).Name() != "UnwiredSignatureOwner" {
-		t.Fatalf("SignatureOwner() = %T, want adapters.UnwiredSignatureOwner", m.SignatureOwner())
+	if owned, err := m.SignatureOwner().OwnsSignature(t.Context(), "signature"); err != nil || owned {
+		t.Fatalf("SignatureOwner() = %t, %v, want false nil", owned, err)
 	}
 }
 
@@ -49,6 +53,31 @@ func TestBalance_ModuleBuildsWithoutRPCConfig(t *testing.T) {
 	t.Parallel()
 	if funding.New(module.Deps{}).Balances() == nil {
 		t.Fatal("Balances = nil")
+	}
+}
+
+func TestModule_ConsumersBuildWithoutRPCConfig(t *testing.T) {
+	t.Parallel()
+	if got := funding.New(module.Deps{}).Consumers(); len(got) != 1 {
+		t.Fatalf("Consumers = %v, want one consumer", got)
+	}
+}
+
+func TestModule_ConsumerCreatesTheSolanaReaderOnFirstFetch(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"error":{"code":-32015,"message":"unsupported"}}`))
+	}))
+	t.Cleanup(srv.Close)
+	m := funding.New(module.Deps{Config: config.Config{
+		Solana:   config.Solana{RPCURL: srv.URL, USDCMint: string(testkit.USDCMint)},
+		Timeouts: config.Timeouts{RPC: time.Second},
+	}, Clock: clock.Real{}})
+	_, err := m.Consumers()[0].Handlers[0].Fetch(t.Context(), events.DepositCandidateSeen{
+		WalletAddress: chain.AddressOf(make([]byte, 32)), TxSignature: "signature",
+	})
+	if errs.CodeOf(err) != errs.CodeDecodeFailed {
+		t.Fatalf("Fetch error = %v, want decode_failed", err)
 	}
 }
 
