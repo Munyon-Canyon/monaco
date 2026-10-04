@@ -47,8 +47,16 @@ func (m *Module) http() adapters.HTTP {
 	}
 }
 
-func (*Module) Consumers() []bus.Consumer {
-	return []bus.Consumer{}
+func (m *Module) Consumers() []bus.Consumer {
+	feed := adapters.Feed{Bus: m.deps.Bus, Users: m.users, IDs: m.deps.IDs}
+	return []bus.Consumer{
+		{
+			Durable: "social_feed",
+			Handlers: []bus.HandlerSpec{
+				bus.HandleFetched("social.feed", feed.FetchCreated, feed.ApplyCreated),
+			},
+		},
+	}
 }
 
 func (*Module) Pollers() []poller.Poller { return nil }
