@@ -46,20 +46,23 @@ func (m *Module) Mount(r api.Mount) {
 	}, r)
 }
 
-func (*Module) Consumers() []bus.Consumer {
+func (m *Module) Consumers() []bus.Consumer {
+	hints := adapters.Hints{Publish: m.deps.Bus}
+	outcomes := adapters.TradeOutcome{Hints: hints}
 	return []bus.Consumer{
 		{
 			Durable: "governance",
 			Handlers: []bus.HandlerSpec{
-				bus.Handle("governance.trade_outcome.confirmed", adapters.TradeOutcome{}.Confirmed),
-				bus.Handle("governance.trade_outcome.blocked", adapters.TradeOutcome{}.Blocked),
+				bus.Handle("governance.trade_outcome.confirmed", outcomes.Confirmed),
+				bus.Handle("governance.trade_outcome.blocked", outcomes.Blocked),
 			},
 		},
 	}
 }
 
 func (m *Module) Pollers() []poller.Poller {
-	return []poller.Poller{app.NewExpiryPoller(m.deps.UoW, m.deps.Pool, m.deps.Clock)}
+	hints := adapters.Hints{Publish: m.deps.Bus}
+	return []poller.Poller{app.NewExpiryPoller(m.deps.UoW, m.deps.Pool, m.deps.Clock, hints)}
 }
 
 func (m *Module) Queries() app.Queries { return app.NewQueries(m.deps.Pool) }
@@ -70,6 +73,8 @@ func (m *Module) VoidFromOps(ctx context.Context, id ProposalID, rawReason strin
 		return err
 	}
 	ctx = auth.WithActor(ctx, auth.Actor{Kind: auth.ActorSystem, ID: "monacoctl"})
-	voids := app.NewVoidProposalHandler(m.deps.UoW, m.deps.Pool, m.deps.Clock, trading.New(m.deps).Queries())
+	voids := app.NewVoidProposalHandler(
+		m.deps.UoW, m.deps.Pool, m.deps.Clock, trading.New(m.deps).Queries(), adapters.Hints{Publish: m.deps.Bus},
+	)
 	return voids.Handle(ctx, app.VoidProposal{ProposalID: id, Reason: reason})
 }

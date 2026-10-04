@@ -10,31 +10,33 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
 const proposalSource = "proposal"
 
-type TradeOutcome struct{}
+type TradeOutcome struct{ Hints app.Hints }
 
-func (TradeOutcome) Confirmed(ctx context.Context, tx db.Tx, e events.TradeConfirmed, at time.Time) error {
+func (h TradeOutcome) Confirmed(ctx context.Context, tx db.Tx, e events.TradeConfirmed, at time.Time) error {
 	if e.Source.Kind != proposalSource {
 		return nil
 	}
-	return settle(ctx, tx, outcome{
-		proposal: e.Source.ID, to: domain.StatusExecuted, at: at,
+	return settle(ctx, tx, h.Hints, outcome{
+		proposal: e.Source.ID, cabal: e.CabalID, to: domain.StatusExecuted, at: at,
 		emit: events.ProposalExecuted{V: 1, ProposalID: e.Source.ID, CabalID: e.CabalID, SwapID: e.SwapID},
 	})
 }
 
-func (TradeOutcome) Blocked(ctx context.Context, tx db.Tx, e events.TradeBlocked, at time.Time) error {
+func (h TradeOutcome) Blocked(ctx context.Context, tx db.Tx, e events.TradeBlocked, at time.Time) error {
 	if e.Source.Kind != proposalSource {
 		return nil
 	}
-	return settle(ctx, tx, outcome{
-		proposal: e.Source.ID, to: domain.StatusExecutionBlocked, at: at,
+	return settle(ctx, tx, h.Hints, outcome{
+		proposal: e.Source.ID, cabal: e.CabalID, to: domain.StatusExecutionBlocked, at: at,
 		reason: pgtype.Text{String: string(e.Code), Valid: true},
 		emit:   events.ProposalExecutionBlocked{V: 1, ProposalID: e.Source.ID, CabalID: e.CabalID, Code: e.Code},
 	})
@@ -42,13 +44,14 @@ func (TradeOutcome) Blocked(ctx context.Context, tx db.Tx, e events.TradeBlocked
 
 type outcome struct {
 	proposal uuid.UUID
+	cabal    uuid.UUID
 	to       domain.Status
 	reason   pgtype.Text
 	at       time.Time
 	emit     events.Event
 }
 
-func settle(ctx context.Context, tx db.Tx, o outcome) error {
+func settle(ctx context.Context, tx db.Tx, hints app.Hints, o outcome) error {
 	const op = "governance.TradeOutcome"
 	q := sqlc.New(tx.Queries())
 	moved, err := q.Transition(ctx, sqlc.TransitionParams{
@@ -58,7 +61,13 @@ func settle(ctx context.Context, tx db.Tx, o outcome) error {
 		return errs.Wrap(err, errs.CodeInternal, op)
 	}
 	if moved == 1 {
-		return tx.Events.Append(ctx, o.emit)
+		if err := tx.Events.Append(ctx, o.emit); err != nil {
+			return err
+		}
+		tx.AfterCommit(func(ctx context.Context) {
+			hints.ProposalUpdated(ctx, ids.CabalIDFrom(o.cabal), ids.ProposalIDFrom(o.proposal))
+		})
+		return nil
 	}
 	status, err := q.StatusByID(ctx, o.proposal)
 	if err != nil {

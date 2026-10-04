@@ -18,7 +18,7 @@ import (
 )
 
 func (d voteDB) void(ctx context.Context, swaps *fakes.Trading, proposal uuid.UUID) error {
-	return app.NewVoidProposalHandler(d.uow, d.pool, d.clk, swaps).Handle(ctx, app.VoidProposal{
+	return app.NewVoidProposalHandler(d.uow, d.pool, d.clk, swaps, app.NoHints{}).Handle(ctx, app.VoidProposal{
 		ProposalID: ids.ProposalIDFrom(proposal), Reason: "spam",
 	})
 }
