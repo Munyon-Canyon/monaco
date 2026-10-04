@@ -2,14 +2,14 @@ import MonacoCore
 import SwiftUI
 
 struct ProposalCard: View {
-    let proposal: ProposalDetail
+    let proposal: ProposalSummary
     let asset: ProposalAsset?
     let members: [ProposalMember]
     var vote: (String) -> Void = { _ in }
 
     @State private var changing = false
 
-    private var summary: ProposalSummary { proposal.summary }
+    private var summary: ProposalSummary { proposal }
     private var isSell: Bool { summary.kind == "sell" }
     private var voter: ProposalMember? { members.first { $0.id == summary.proposerID } }
     private var canVote: Bool { summary.status == .open && summary.canVote }
