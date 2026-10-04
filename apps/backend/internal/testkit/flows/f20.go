@@ -24,6 +24,33 @@ func followUsers() scenario.Step {
 	}
 }
 
+const followInvariants = `SELECT
+	(SELECT count(*) FROM follows WHERE follower_id = $1::uuid AND followee_id = $2::uuid AND deleted_at IS NULL),
+	(SELECT count(*) FROM events WHERE type = 'follow.created' AND payload->>'follower_id' = $1::text AND payload->>'followee_id' = $2::text),
+	(SELECT count(*) FROM events WHERE type = 'follow.removed' AND payload->>'follower_id' = $1::text AND payload->>'followee_id' = $2::text),
+	(SELECT count(*) FROM events WHERE type IN ('follow.created', 'follow.removed') AND payload->>'follower_id' = $1::text AND payload->>'followee_id' = $2::text AND published_at IS NULL)`
+
+func followHolds() scenario.Step {
+	return func(s *scenario.Scenario) {
+		follower, followee := s.Recall("alice"), s.Recall("bob")
+		var live, created, removed, unpublished int
+		if err := s.DB().QueryRow(s.Context(), followInvariants, follower, followee).
+			Scan(&live, &created, &removed, &unpublished); err != nil {
+			s.Fatalf("flows: check follow %s -> %s invariants: %v", follower, followee, err)
+		}
+		if unpublished != 0 {
+			s.Fatalf("flows: follow %s -> %s has %d unrelayed events", follower, followee, unpublished)
+		}
+		if (live == 0 && created == 0 && removed == 0) ||
+			(live == 1 && created == 1 && removed == 0) ||
+			(live == 1 && created == 2 && removed == 1) {
+			return
+		}
+		s.Fatalf("flows: follow %s -> %s has live/created/removed = %d/%d/%d",
+			follower, followee, live, created, removed)
+	}
+}
+
 func F20FollowOK(s *scenario.Scenario) {
 	s.Given(followUsers(), scenario.AsUser("alice")).
 		When(
@@ -38,6 +65,7 @@ func F20FollowOK(s *scenario.Scenario) {
 		Then(
 			scenario.ExpectEvents(events.TypeFollowCreated, 1),
 			scenario.EventuallyPublished(events.TypeFollowCreated, 1),
+			followHolds(),
 		)
 }
 
@@ -69,6 +97,7 @@ func F20FollowCrashBeforeCommit(s *scenario.Scenario) {
 	s.Given(followUsers(), scenario.AsUser("alice")).
 		When(
 			scenario.Post(followPath("{bob}"), `{}`),
+			followHolds(),
 			scenario.Retry(),
 			scenario.ExpectStatus(http.StatusOK),
 			scenario.ExpectJSON("following", true),
@@ -76,6 +105,7 @@ func F20FollowCrashBeforeCommit(s *scenario.Scenario) {
 		Then(
 			scenario.ExpectEvents(events.TypeFollowCreated, 1),
 			scenario.EventuallyPublished(events.TypeFollowCreated, 1),
+			followHolds(),
 		)
 }
 
@@ -95,6 +125,8 @@ func F20UnfollowOK(s *scenario.Scenario) {
 		Then(
 			scenario.ExpectEvents(events.TypeFollowCreated, 2),
 			scenario.ExpectEvents(events.TypeFollowRemoved, 1),
+			scenario.EventuallyPublished(events.TypeFollowCreated, 2),
 			scenario.EventuallyPublished(events.TypeFollowRemoved, 1),
+			followHolds(),
 		)
 }
