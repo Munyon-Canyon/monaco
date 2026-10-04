@@ -22,6 +22,7 @@ import (
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -62,6 +63,12 @@ type app struct {
 	privyAppID string
 }
 
+type cabalMemberships struct{ queries cabal.Queries }
+
+func (m cabalMemberships) CabalIDs(ctx context.Context, user ids.UserID) ([]ids.CabalID, error) {
+	return m.queries.CabalsOf(ctx, user)
+}
+
 func start(t *testing.T, o options) *app {
 	t.Helper()
 	pool := testkit.DB(t)
@@ -90,7 +97,7 @@ func start(t *testing.T, o options) *app {
 		}
 		cancel()
 	})
-	hub, err := sse.NewHub(sse.NoMemberships{}, noop.NewMeterProvider())
+	hub, err := sse.NewHub(cabalMemberships{cabal.New(module.Deps{Pool: pool}).Queries()}, noop.NewMeterProvider())
 	must(t, err)
 	stops = append(stops, background(ctx, hub.Run))
 	must(t, a.bus.Conn.SubscribeHints(ctx, hub.Deliver))

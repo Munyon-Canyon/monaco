@@ -318,6 +318,50 @@ func EventuallyHint(what string) Step {
 	}
 }
 
+func EventuallyCabalHint(cabalID ids.CabalID, what string) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		if s.actor == nil {
+			s.t.Fatal("scenario: EventuallyCabalHint needs AsUser first")
+		}
+		u := s.actor
+		want := sse.Hint{Key: sse.CabalKey(cabalID), What: what}
+		s.app.note.await(s.t, "hint "+string(want.Key)+" "+what, func() bool {
+			return slices.Contains(u.stream.hints, want)
+		})
+	}
+}
+
+func NoHintFor(user, what string, within time.Duration) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		u, ok := s.users[user]
+		if !ok {
+			s.t.Fatalf("scenario: NoHintFor needs user %q first", user)
+		}
+		deadline := time.NewTimer(within)
+		defer deadline.Stop()
+		for {
+			s.app.note.mu.Lock()
+			for _, hint := range u.stream.hints {
+				if hint.What == what {
+					s.app.note.mu.Unlock()
+					s.t.Fatalf("scenario: user %q received hint %q", user, what)
+				}
+			}
+			changed := s.app.note.changed
+			s.app.note.mu.Unlock()
+			select {
+			case <-deadline.C:
+				return
+			case <-changed:
+			case <-s.t.Context().Done():
+				s.t.Fatalf("scenario: user %q hint check stopped: %v", user, context.Cause(s.t.Context()))
+			}
+		}
+	}
+}
+
 func HoldRelay() Step {
 	return func(s *Scenario) { s.app.hold() }
 }
