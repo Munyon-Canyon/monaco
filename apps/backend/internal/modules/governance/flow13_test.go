@@ -42,6 +42,11 @@ func TestFlow13a_VoidProposal_OK(t *testing.T) {
 	flows.F13aVoidProposalOK(scenario.New(t, withGovernance()))
 }
 
+func TestFlow13a_VoidProposal_ProposalClosed(t *testing.T) {
+	t.Parallel()
+	flows.F13aVoidProposalProposalClosed(scenario.New(t, withGovernance()))
+}
+
 func TestFlow13a_VoidProposal_LiveSwapExists(t *testing.T) {
 	t.Parallel()
 	flows.F13aVoidProposalLiveSwapExists(scenario.New(t, withGovernance()))

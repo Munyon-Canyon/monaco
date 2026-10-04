@@ -12,6 +12,7 @@ func (defined) ScriptsF13() map[string]Script {
 		"F13WithdrawProposalWithdrawNotAllowed": F13WithdrawProposalWithdrawNotAllowed,
 		"F13WithdrawProposalCrashAfterPublish":  F13WithdrawProposalCrashAfterPublish,
 		"F13aVoidProposalOK":                    F13aVoidProposalOK,
+		"F13aVoidProposalProposalClosed":        F13aVoidProposalProposalClosed,
 		"F13aVoidProposalLiveSwapExists":        F13aVoidProposalLiveSwapExists,
 	}
 }

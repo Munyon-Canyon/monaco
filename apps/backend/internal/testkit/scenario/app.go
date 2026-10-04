@@ -232,6 +232,7 @@ func (a *app) backend() *backend {
 	return &backend{
 		baseURL:       a.server.URL,
 		client:        a.server.Client(),
+		bus:           a.bus.Conn,
 		note:          a.note,
 		pool:          a.pool,
 		mint:          a.mint,

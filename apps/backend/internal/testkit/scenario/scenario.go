@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
@@ -52,6 +53,7 @@ type backend struct {
 	baseURL       string
 	clientIP      string
 	client        *http.Client
+	bus           *bus.Conn
 	note          *notifier
 	pool          *pgxpool.Pool
 	mint          func(id ids.UserID) string
@@ -192,6 +194,8 @@ func (s *Scenario) Faults() int { return s.app.faults }
 func (s *Scenario) DB() *pgxpool.Pool { return s.app.pool }
 
 func (s *Scenario) Context() context.Context { return s.t.Context() }
+
+func (s *Scenario) Bus() *bus.Conn { return s.app.bus }
 
 func (s *Scenario) Helper() { s.t.Helper() }
 

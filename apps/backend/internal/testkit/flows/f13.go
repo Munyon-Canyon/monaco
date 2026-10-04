@@ -101,7 +101,7 @@ const voidReason = "test void"
 func voidFromOps(p openProposal, want errs.Code) scenario.Step {
 	return func(s *scenario.Scenario) {
 		pool, clk := s.DB(), clock.Real{}
-		deps := module.Deps{Clock: clk, IDs: ids.Real{}, Pool: pool, UoW: db.New(pool, ids.Real{}, clk)}
+		deps := module.Deps{Clock: clk, IDs: ids.Real{}, Pool: pool, UoW: db.New(pool, ids.Real{}, clk), Bus: s.Bus()}
 		err := governance.New(deps).VoidFromOps(s.Context(), p.id, voidReason)
 		got := errs.Code("")
 		if err != nil {
@@ -159,7 +159,7 @@ func liveSwap(p openProposal) scenario.Step {
 
 func F13aVoidProposalOK(s *scenario.Scenario) {
 	open, passed := seedOpenProposal(s, 3), seedOpenProposal(s, 1)
-	s.Given(scenario.AsSeededUser("alice", passed.voters[0])).
+	s.Given(scenario.AsSeededUser("bob", open.voters[0]), scenario.AsSeededUser("alice", passed.voters[0])).
 		When(
 			scenario.Post(passed.votes, yes),
 			scenario.ExpectJSON("status", "passed"),
@@ -173,7 +173,18 @@ func F13aVoidProposalOK(s *scenario.Scenario) {
 			scenario.ExpectJSON("status", "voided"),
 			voidFromOps(open, errs.CodeProposalClosed),
 		).
-		Then(voidedEvents(open, 1), voidedEvents(passed, 1))
+		Then(
+			voidedEvents(open, 1),
+			voidedEvents(passed, 1),
+			scenario.EventuallyCabalHint(open.cabalID, "proposal_updated"),
+		)
+}
+
+func F13aVoidProposalProposalClosed(s *scenario.Scenario) {
+	p := seedOpenProposal(s, 1)
+	s.Given(scenario.AsSeededUser("alice", p.voters[0])).
+		When(voidFromOps(p, ""), voidFromOps(p, errs.CodeProposalClosed)).
+		Then(voidedEvents(p, 1), scenario.EventuallyCabalHint(p.cabalID, "proposal_updated"))
 }
 
 func F13aVoidProposalLiveSwapExists(s *scenario.Scenario) {
