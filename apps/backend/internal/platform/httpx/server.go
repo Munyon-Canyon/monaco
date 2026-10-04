@@ -44,7 +44,7 @@ func middlewares(d Deps, c *Contract) []func(http.Handler) http.Handler {
 	if d.RateLimit != nil {
 		mws = append(mws, d.RateLimit)
 	}
-	return append(mws, Auth(d.Verifier), c.limit(d.MaxBodyBytes), c.resolve)
+	return append(mws, Auth(d.Verifier), c.limit(d.MaxBodyBytes), refuseDevOnly(d.Env), c.resolve)
 }
 
 func invalidRequest(w http.ResponseWriter, r *http.Request, err error) {

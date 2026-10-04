@@ -253,6 +253,52 @@ paths:
                 $ref: "#/components/schemas/Me"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/dev/me/x-link:
+    post:
+      operationId: postDevXLink
+      tags: [identity]
+      x-idempotent: true
+      x-dev-only: true
+      summary: Link a fake X account to a dev user.
+      description: >-
+        Outside production only. Stores a fake X account for a caller whose Privy email is
+        `dev-<suffix>@example.com`, so `POST /v1/me/onboarding/socials` and the next session link it as
+        if Privy reported it. The X user id is `dev:<suffix>`, and the username defaults to
+        `dev_x_<suffix>`. Calling it again replaces the stored username. Any other caller, and every
+        caller in production, gets not_found.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The fake X username. Omit it for `dev_x_<suffix>`.
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DevXLink"
+            example:
+              username: qa_x
+      responses:
+        "204":
+          description: The fake X account is stored for the caller.
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteDevXLink
+      tags: [identity]
+      x-idempotent: true
+      x-dev-only: true
+      summary: Remove a dev user's fake X account.
+      description: >-
+        Outside production only. Deletes the caller's fake X account, so the next session unlinks X as a
+        real Privy unlink does. A caller with no fake X account also gets 204. A caller whose Privy email
+        is not `dev-<suffix>@example.com`, and every caller in production, gets not_found.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "204":
+          description: The caller has no fake X account.
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   schemas:
     AccountStatus:
@@ -385,6 +431,16 @@ components:
         user's X username.
       examples: [reserved]
       enum: [taken, reserved, invalid, too_soon]
+    DevXLink:
+      type: object
+      description: A fake X account for a dev user.
+      additionalProperties: false
+      properties:
+        username:
+          type: string
+          description: The X username to store, without the @.
+          pattern: "^[A-Za-z0-9_]{1,15}$"
+          examples: [qa_x]
     SkipOnboardingStep:
       type: object
       description: An onboarding step the caller skips.

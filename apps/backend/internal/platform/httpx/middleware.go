@@ -18,6 +18,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -30,6 +31,7 @@ const (
 
 type Deps struct {
 	Logger       *slog.Logger
+	Env          config.Env
 	Tracer       trace.TracerProvider
 	Clock        clock.Clock
 	IDs          ids.Generator

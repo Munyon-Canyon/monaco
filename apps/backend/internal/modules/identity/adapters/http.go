@@ -220,3 +220,13 @@ func present(s string) *string {
 	}
 	return &s
 }
+
+func (HTTP) PostDevXLink(context.Context, api.PostDevXLinkRequestObject) (api.PostDevXLinkResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "identity.PostDevXLink")
+}
+
+func (HTTP) DeleteDevXLink(
+	context.Context, api.DeleteDevXLinkRequestObject,
+) (api.DeleteDevXLinkResponseObject, error) {
+	return nil, errs.New(errs.CodeNotFound, "identity.DeleteDevXLink")
+}
