@@ -82,8 +82,8 @@ func TestGenErrors_writesTheSchemaTheBundlerMerges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(bundle), "\n    ErrorCode:\n      type: string\n") ||
-		!strings.Contains(string(bundle), "\n        - x_not_linked\n    Problem:\n") ||
+	if !strings.Contains(string(bundle), "\n  # api/spec/error_codes.yaml\n    ErrorCode:\n      type: string\n") ||
+		!strings.HasSuffix(string(bundle), "\n        - x_not_linked\n") ||
 		strings.Contains(string(bundle), "monacoctl gen errors from") {
 		t.Fatalf("bundle =\n%s", bundle)
 	}

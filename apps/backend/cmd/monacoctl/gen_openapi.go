@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"io/fs"
 	"maps"
@@ -133,6 +134,58 @@ func (b *bundler) add(file, src string) error {
 	if isBase && (!slices.Contains(found, "paths") || !slices.Contains(found, "components")) {
 		return specProblem("%s: want both paths and components", file)
 	}
+	return tagProblem(file, doc.Content[0])
+}
+
+func tagProblem(file string, top *yaml.Node) error {
+	if slices.Contains([]string{baseSpec, "error_codes.yaml", "platform.yaml"}, file) {
+		return nil
+	}
+	stem := strings.TrimSuffix(file, ".yaml")
+	paths := mappingValue(top, "paths")
+	for i := 0; paths != nil && i+1 < len(paths.Content); i += 2 {
+		item := paths.Content[i+1]
+		for j := 0; item.Kind == yaml.MappingNode && j+1 < len(item.Content); j += 2 {
+			method := item.Content[j].Value
+			tags := operationTags(item.Content[j+1])
+			if isHTTPMethod(method) && !slices.Equal(tags, []string{stem}) {
+				return specProblem("%s: %s %s has tags [%s], want [%s]", file, method, paths.Content[i].Value,
+					strings.Join(tags, ", "), stem)
+			}
+		}
+	}
+	return nil
+}
+
+func operationTags(op *yaml.Node) []string {
+	seq := mappingValue(op, "tags")
+	if seq == nil {
+		return nil
+	}
+	tags := make([]string, 0, len(seq.Content))
+	for _, tag := range seq.Content {
+		tags = append(tags, tag.Value)
+	}
+	return tags
+}
+
+func isHTTPMethod(key string) bool {
+	switch key {
+	case "get", "put", "post", "delete", "options", "head", "patch", "trace":
+		return true
+	}
+	return false
+}
+
+func mappingValue(node *yaml.Node, key string) *yaml.Node {
+	if node.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i].Value == key {
+			return node.Content[i+1]
+		}
+	}
 	return nil
 }
 
@@ -259,12 +312,12 @@ func (b *bundler) render() string {
 				continue
 			}
 			out = append(out, "paths:")
-			out = append(out, b.paths.sorted()...)
+			out = append(out, b.paths.groupedByFile()...)
 		case "components":
 			out = append(out, "components:")
 			for _, kind := range b.kindList {
 				out = append(out, "  "+kind+":")
-				out = append(out, b.kinds[kind].sorted()...)
+				out = append(out, b.kinds[kind].groupedByFile()...)
 			}
 		default:
 			out = append(out, b.raw[key]...)
@@ -273,10 +326,17 @@ func (b *bundler) render() string {
 	return strings.Join(out, "\n") + "\n"
 }
 
-func (g *group) sorted() []string {
+func (g *group) groupedByFile() []string {
+	keys := slices.SortedFunc(maps.Keys(g.entries), func(a, b string) int {
+		return cmp.Or(cmp.Compare(g.entries[a].file, g.entries[b].file), cmp.Compare(a, b))
+	})
 	var out []string
-	for _, key := range slices.Sorted(maps.Keys(g.entries)) {
-		out = append(out, g.entries[key].lines...)
+	for i, key := range keys {
+		entry := g.entries[key]
+		if i == 0 || g.entries[keys[i-1]].file != entry.file {
+			out = append(out, "  # api/spec/"+entry.file)
+		}
+		out = append(out, entry.lines...)
 	}
 	return out
 }
