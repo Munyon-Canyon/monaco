@@ -50,6 +50,7 @@ func migrate(m codegen.Migrator, args []string, stdout, stderr io.Writer) int {
 func genUsage(stderr io.Writer) int {
 	_, _ = fmt.Fprintln(stderr, "usage: monacoctl gen errors <ErrorCodeCases.gen.swift>")
 	_, _ = fmt.Fprintln(stderr, "       monacoctl gen openapi <spec-dir> <openapi.yaml>")
+	_, _ = fmt.Fprintln(stderr, "       monacoctl gen apis <spec-dir> <api-package-dir>")
 	_, _ = fmt.Fprintln(stderr, "       monacoctl gen flows")
 	for _, g := range codegen.Generators() {
 		_, _ = fmt.Fprintln(stderr, "       monacoctl "+g.Usage())
@@ -59,12 +60,18 @@ func genUsage(stderr io.Writer) int {
 }
 
 func gen(args []string, stdout, stderr io.Writer) int {
-	if len(args) == 1 && args[0] == "flows" {
+	switch {
+	case len(args) == 1 && args[0] == "flows":
 		return runGenFlows("../..", stdout, stderr)
-	}
-	if len(args) == 3 && args[0] == "openapi" {
+	case len(args) == 3 && args[0] == "openapi":
 		return runGenOpenAPI([3]string(args), stdout, stderr)
+	case len(args) == 3 && args[0] == "apis":
+		return runGenAPIs([3]string(args), stdout, stderr)
 	}
+	return genErrors(args, stdout, stderr)
+}
+
+func genErrors(args []string, stdout, stderr io.Writer) int {
 	if len(args) != 2 || args[0] != "errors" {
 		return genUsage(stderr)
 	}
