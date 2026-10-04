@@ -9,8 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/system/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/system/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/systemapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
@@ -20,7 +19,7 @@ type HTTP struct {
 	IDs    ids.Generator
 }
 
-var _ httpx.SystemRoutes = HTTP{}
+var _ api.StrictServerInterface = HTTP{}
 
 func (h HTTP) PostSystemPing(
 	ctx context.Context, req api.PostSystemPingRequestObject,

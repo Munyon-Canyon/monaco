@@ -17,7 +17,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	apibase "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/identityapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -34,7 +35,7 @@ func TestDeleteMe_isUpstreamUnavailableUntilTheTreasuryPortIsWired(t *testing.T)
 	req.Header.Set("Idempotency-Key", "delete-1")
 	rec := httptest.NewRecorder()
 	f.handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusServiceUnavailable || decodeProblem(t, rec).Code != api.UpstreamUnavailable {
+	if rec.Code != http.StatusServiceUnavailable || decodeProblem(t, rec).Code != apibase.UpstreamUnavailable {
 		t.Fatalf("DELETE /v1/me = %d %s, want 503 upstream_unavailable", rec.Code, rec.Body)
 	}
 	if rec := f.getMe(t, u.ID); rec.Code != http.StatusOK {
@@ -70,8 +71,7 @@ func TestDeleteMe_theSamePrivyTokenIsAccountDeletedOnLaterRequests(t *testing.T)
 	t.Parallel()
 	f := newVerifierFixture(t)
 	user := testkit.SeedUser(t, f.pool, testkit.UserOpts{Handle: "del_token", WithWallet: true})
-	var routes httpx.Routes
-	identity.New(
+	mount := identity.New(
 		module.Deps{
 			Pool:  f.pool,
 			UoW:   db.New(f.pool, testkit.NewIDs(9), f.clock),
@@ -81,12 +81,12 @@ func TestDeleteMe_theSamePrivyTokenIsAccountDeletedOnLaterRequests(t *testing.T)
 		identity.WithPrivy(&privyfake.Users{}, &privyfake.Wallets{}),
 		identity.WithHints(&recordedHints{}),
 		identity.WithHoldings(fakes.NewTreasury(), fakes.NewBalances()),
-	).Routes(&routes)
+	).Mount
 	h, err := httpx.Handler(httpx.Deps{
 		Logger: observability.NewLogger(config.Config{Env: config.EnvTest}, &testkit.Logs{}),
 		Tracer: tracenoop.NewTracerProvider(), Clock: f.clock, IDs: testkit.NewIDs(11), MaxBodyBytes: 1 << 20,
 		Idempotency: db.NewIdempotencyStore(f.pool, f.clock), Verifier: f.verifier(t, config.EnvTest),
-	}, routes, openapi.Spec)
+	}, mount, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestDeleteMe_theSamePrivyTokenIsAccountDeletedOnLaterRequests(t *testing.T)
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
 		if rec.Code != r.status ||
-			r.status == http.StatusForbidden && decodeProblem(t, rec).Code != api.AccountDeleted {
+			r.status == http.StatusForbidden && decodeProblem(t, rec).Code != apibase.AccountDeleted {
 			t.Fatalf("%s %s = %d %s, want %d", r.method, r.path, rec.Code, rec.Body, r.status)
 		}
 	}

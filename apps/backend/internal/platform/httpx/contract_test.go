@@ -124,7 +124,7 @@ func TestHandler_refusesASpecItCannotLoadOrRoute(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			h, err := Handler(newHarness(t).deps, unimplemented{}, []byte(spec))
+			h, err := Handler(newHarness(t).deps, mountPlatform(unimplemented{}), []byte(spec))
 			if h != nil || errs.CodeOf(err) != errs.CodeInvalidInput {
 				t.Fatalf("Handler = %v, %v, want invalid_input and no handler", h, err)
 			}

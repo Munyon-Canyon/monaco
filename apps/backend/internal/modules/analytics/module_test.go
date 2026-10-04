@@ -1,22 +1,19 @@
 package analytics_test
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/analytics"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 func TestModule_isNamedAnalyticsAndHasNoRoutesPollersOrConsumerWhileNothingIsExported(t *testing.T) {
 	t.Parallel()
 	m := analytics.New(module.Deps{})
-	var routes httpx.Routes
-	m.Routes(&routes)
-	if m.Name() != "analytics" || !reflect.DeepEqual(routes, httpx.Routes{}) || m.Consumers() != nil ||
+	if m.Name() != "analytics" || testkit.Serves(m.Mount, "GET", "/v1/assets") || m.Consumers() != nil ||
 		m.Pollers() != nil {
-		t.Fatalf("module %s has routes %+v, consumers %v, pollers %v; want none", m.Name(), routes, m.Consumers(),
+		t.Fatalf("module %s serves routes, consumers %v, pollers %v; want none", m.Name(), m.Consumers(),
 			m.Pollers())
 	}
 }

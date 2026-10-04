@@ -29,6 +29,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/ratelimit"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/sse"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -111,7 +112,7 @@ func start(t *testing.T, o options) *app {
 	stops = append(stops, stopConsumers)
 	a.relay = bus.NewRelay(a.bus.Conn, db.NewOutbox(pool, clock.Real{}), nil, clock.Real{})
 	stops = append(stops, background(ctx, a.runRelay))
-	a.server = httptest.NewServer(a.handler(t, pool, set.Routes(), o.contract, o.wrap))
+	a.server = httptest.NewServer(a.handler(t, pool, set.Mount, o.contract, o.wrap))
 	stops = append(stops, a.server.Close)
 	return a
 }
@@ -124,7 +125,7 @@ func must(t *testing.T, err error) {
 }
 
 func (a *app) handler(
-	t *testing.T, pool *pgxpool.Pool, routes httpx.Routes, c *httpx.Contract, wrap func(http.Handler) http.Handler,
+	t *testing.T, pool *pgxpool.Pool, mount func(api.Mount), c *httpx.Contract, wrap func(http.Handler) http.Handler,
 ) http.Handler {
 	t.Helper()
 	if c == nil {
@@ -145,7 +146,7 @@ func (a *app) handler(
 		Idempotency:  db.NewIdempotencyStore(pool, clock.Real{}),
 		Verifier:     a.verifier,
 		RateLimit:    ratelimit.Middleware(limiter, policies, httpx.ActorKey, false),
-	}, routes, c)
+	}, mount, c)
 	must(t, err)
 	checked := testkit.HTTPAgainst(t, c.Document(), h)
 	served := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

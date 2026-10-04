@@ -19,7 +19,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	apibase "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/systemapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -41,8 +42,7 @@ func newServer(t *testing.T) server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var routes httpx.Routes
-	system.New(module.Deps{Pool: f.pool, UoW: f.uow, IDs: f.ids, Clock: clk}).Routes(&routes)
+	mount := system.New(module.Deps{Pool: f.pool, UoW: f.uow, IDs: f.ids, Clock: clk}).Mount
 	h, err := httpx.Handler(httpx.Deps{
 		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),
 		Tracer:       noop.NewTracerProvider(),
@@ -51,7 +51,7 @@ func newServer(t *testing.T) server {
 		MaxBodyBytes: 1 << 20,
 		Idempotency:  db.NewIdempotencyStore(f.pool, clk),
 		Verifier:     verifier,
-	}, routes, openapi.Spec)
+	}, mount, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,9 +89,9 @@ func pingOf(t *testing.T, rec *httptest.ResponseRecorder) api.Ping {
 	return p
 }
 
-func problemOf(t *testing.T, rec *httptest.ResponseRecorder) api.ErrorCode {
+func problemOf(t *testing.T, rec *httptest.ResponseRecorder) apibase.ErrorCode {
 	t.Helper()
-	var p api.Problem
+	var p apibase.Problem
 	decode(t, rec, &p)
 	return p.Code
 }
@@ -119,7 +119,7 @@ func TestPostSystemPing_recordsOnceAndReplaysTheSameResponseForTheSameKey(t *tes
 		t.Fatalf("GET = %d %s, want 200 %+v", got.Code, got.Body, ping)
 	}
 	other := s.do(t, http.MethodGet, "/v1/system/pings/"+ping.Id.String(), s.token(userID(t, s.ids).String()), "", "")
-	if other.Code != http.StatusNotFound || problemOf(t, other) != api.NotFound {
+	if other.Code != http.StatusNotFound || problemOf(t, other) != apibase.NotFound {
 		t.Fatalf("GET as another user = %d %s, want 404 not_found", other.Code, other.Body)
 	}
 }
@@ -130,10 +130,10 @@ func TestPostSystemPing_refusesALongNoteAndAMissingToken(t *testing.T) {
 	for name, tc := range map[string]struct {
 		token, body string
 		status      int
-		code        api.ErrorCode
+		code        apibase.ErrorCode
 	}{
-		"long note": {s.token(s.user.String()), `{"note":"` + strings.Repeat("a", 141) + `"}`, 400, api.InvalidInput},
-		"no token":  {"", `{"note":"hi"}`, 401, api.Unauthorized},
+		"long note": {s.token(s.user.String()), `{"note":"` + strings.Repeat("a", 141) + `"}`, 400, apibase.InvalidInput},
+		"no token":  {"", `{"note":"hi"}`, 401, apibase.Unauthorized},
 	} {
 		rec := s.do(t, http.MethodPost, "/v1/system/pings", tc.token, "k-"+name, tc.body)
 		if rec.Code != tc.status || problemOf(t, rec) != tc.code {
@@ -152,7 +152,7 @@ func TestPostSystemPing_answersInternalWhenThePingCannotBeWritten(t *testing.T) 
 		t.Fatal(err)
 	}
 	rec := s.do(t, http.MethodPost, "/v1/system/pings", s.token(s.user.String()), "k1", `{"note":"hi"}`)
-	if rec.Code != http.StatusInternalServerError || problemOf(t, rec) != api.Internal {
+	if rec.Code != http.StatusInternalServerError || problemOf(t, rec) != apibase.Internal {
 		t.Fatalf("POST = %d %s, want 500 internal", rec.Code, rec.Body)
 	}
 }

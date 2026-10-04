@@ -9,7 +9,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/referrals/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/referrals/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/referralsapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
@@ -35,7 +36,7 @@ func New(d module.Deps, opts ...Option) *Module {
 
 func (*Module) Name() string { return "referrals" }
 
-func (m *Module) Routes(r *httpx.Routes) { r.ReferralsRoutes = adapters.HTTP{Codes: m.Resolver()} }
+func (m *Module) Mount(r api.Mount) { referralsapi.Mount(adapters.HTTP{Codes: m.Resolver()}, r) }
 
 func (m *Module) Consumers() []bus.Consumer {
 	return []bus.Consumer{

@@ -18,7 +18,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
@@ -282,7 +282,7 @@ type fixtureConsumers struct{ handlers []bus.HandlerSpec }
 
 func (fixtureConsumers) Name() string { return "fixture" }
 
-func (fixtureConsumers) Routes(*httpx.Routes) {}
+func (fixtureConsumers) Mount(api.Mount) {}
 
 func (m fixtureConsumers) Consumers() []bus.Consumer {
 	return []bus.Consumer{{Durable: "verify_fixture", Handlers: m.handlers}}

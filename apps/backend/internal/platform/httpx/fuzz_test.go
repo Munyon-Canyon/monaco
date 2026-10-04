@@ -14,6 +14,8 @@ import (
 	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/apiall"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/platformapi"
 )
 
 type operation struct{ method, path string }
@@ -34,15 +36,13 @@ func specOperations(tb testing.TB) []operation {
 	return ops
 }
 
-type unimplemented struct{ api.StrictServerInterface }
+type unimplemented struct {
+	platformapi.StrictServerInterface
+}
 
 type healthOnly struct {
 	Health
 	unimplemented
-}
-
-func decodedOK(api.StrictHandlerFunc, string) api.StrictHandlerFunc {
-	return func(context.Context, http.ResponseWriter, *http.Request, any) (any, error) { return nil, nil }
 }
 
 func FuzzRequestBodies(f *testing.F) {
@@ -68,7 +68,7 @@ func FuzzRequestBodies(f *testing.F) {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer fuzz")
 		rec := httptest.NewRecorder()
-		served, err := handler(h.deps, unimplemented{}, c, []api.StrictMiddlewareFunc{decodedOK})
+		served, err := HandlerFor(h.deps, apiall.DecodeOnly, c)
 		if err != nil {
 			t.Fatal(err)
 		}

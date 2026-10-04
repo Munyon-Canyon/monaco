@@ -5,18 +5,17 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/system"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 func TestModule_servesPingsAndRegistersTheEchoConsumer(t *testing.T) {
 	t.Parallel()
 	m := system.New(module.Deps{})
-	var routes httpx.Routes
-	m.Routes(&routes)
 	consumers := m.Consumers()
-	if m.Name() != "system" || routes.SystemRoutes == nil || m.Pollers() != nil || len(consumers) != 1 {
-		t.Fatalf("module = %s, routes %v, %d consumers, %v pollers", m.Name(), routes.SystemRoutes, len(consumers),
+	if m.Name() != "system" || !testkit.Serves(m.Mount, "POST", "/v1/system/pings") || m.Pollers() != nil ||
+		len(consumers) != 1 {
+		t.Fatalf("module = %s, %d consumers, %v pollers", m.Name(), len(consumers),
 			m.Pollers())
 	}
 	c := consumers[0]

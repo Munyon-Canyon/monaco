@@ -5,7 +5,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
@@ -34,8 +35,10 @@ func New(d module.Deps, opts ...Option) *Module {
 
 func (*Module) Name() string { return "social" }
 
-func (m *Module) Routes(r *httpx.Routes) {
-	r.SocialRoutes = adapters.HTTP{
+func (m *Module) Mount(r api.Mount) { socialapi.Mount(m.http(), r) }
+
+func (m *Module) http() adapters.HTTP {
+	return adapters.HTTP{
 		Follow: app.NewFollowHandler(app.FollowDeps{
 			UoW: m.deps.UoW, Users: m.users, IDs: m.deps.IDs, Clock: m.deps.Clock,
 		}),

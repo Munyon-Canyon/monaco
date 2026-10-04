@@ -18,7 +18,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
@@ -28,11 +27,9 @@ import (
 func TestModule_isNamedGovernanceAndRunsTheExpiryPoller(t *testing.T) {
 	t.Parallel()
 	m := governance.New(module.Deps{})
-	var routes httpx.Routes
-	m.Routes(&routes)
 	pollers := m.Pollers()
-	if m.Name() != "governance" || routes.GovernanceRoutes == nil {
-		t.Fatalf("module = %s, routes %+v", m.Name(), routes)
+	if m.Name() != "governance" || !testkit.Serves(m.Mount, "GET", "/v1/cabals/c/proposals") {
+		t.Fatalf("module %s does not serve its proposals list", m.Name())
 	}
 	var handlers []string
 	for _, c := range m.Consumers() {

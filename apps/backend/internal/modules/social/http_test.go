@@ -9,19 +9,17 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 )
 
-func (f fixture) routes() httpx.Routes {
+func (f fixture) routes() adapters.HTTP {
 	deps := module.Deps{Pool: f.pool, UoW: db.New(f.pool, f.gen, f.clock), IDs: f.gen, Clock: f.clock}
-	var routes httpx.Routes
-	social.New(deps, social.WithUsers(f.users)).Routes(&routes)
-	return routes
+	return social.HTTPOf(social.New(deps, social.WithUsers(f.users)))
 }
 
 func asUser(ctx context.Context, id ids.UserID) context.Context {

@@ -13,6 +13,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/platformapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/sse"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
@@ -39,7 +41,7 @@ type Deps struct {
 
 type Module interface {
 	Name() string
-	Routes(r *httpx.Routes)
+	Mount(m api.Mount)
 	Consumers() []bus.Consumer
 	Pollers() []poller.Poller
 }
@@ -84,12 +86,10 @@ func NewSet(mods ...Module) Set {
 	return set
 }
 
-func (s Set) Routes() httpx.Routes {
-	var r httpx.Routes
+func (s Set) Mount(r api.Mount) {
 	for _, m := range s {
-		m.Routes(&r)
+		m.Mount(r)
 	}
-	return r
 }
 
 func (s Set) Consumers() []bus.Consumer {
@@ -114,7 +114,12 @@ type platform struct {
 
 func (platform) Name() string { return "platform" }
 
-func (p platform) Routes(r *httpx.Routes) { r.Stream = sse.NewStream(p.d.Hub, p.d.Clock) }
+func (p platform) Mount(r api.Mount) {
+	platformapi.Mount(struct {
+		httpx.Health
+		sse.Stream
+	}{Stream: sse.NewStream(p.d.Hub, p.d.Clock)}, r)
+}
 
 func (platform) Consumers() []bus.Consumer { return nil }
 

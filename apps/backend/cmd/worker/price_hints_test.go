@@ -11,7 +11,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -24,7 +24,7 @@ type priceHintFunc struct {
 
 func (p priceHintFunc) Name() string { return p.name }
 
-func (priceHintFunc) Routes(*httpx.Routes) {}
+func (priceHintFunc) Mount(api.Mount) {}
 
 func (priceHintFunc) Consumers() []bus.Consumer { return nil }
 

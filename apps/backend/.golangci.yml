@@ -309,7 +309,7 @@ linters:
         linters: [ireturn]
       # oapi-codegen strict handlers must return the generated per-operation response interface.
       - linters: [ireturn]
-        text: returns interface \(github\.com/monaco/monaco/apps/backend/internal/platform/httpx/api\.\w+ResponseObject\)
+        text: returns interface \(github\.com/monaco/monaco/apps/backend/internal/platform/httpx/api/\w+api\.\w+ResponseObject\)
       # A fake OTel meter has to return the metric interfaces it implements.
       - path: ^internal/platform/(bus/meter|httpx/sse/hub)_test\.go$|^internal/testkit/meters\.go$
         linters: [ireturn]

@@ -8,8 +8,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/notifyapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
@@ -18,7 +17,7 @@ type HTTP struct {
 	Unregister *app.UnregisterDeviceHandler
 }
 
-var _ httpx.NotifyRoutes = HTTP{}
+var _ api.StrictServerInterface = HTTP{}
 
 func (h HTTP) PostDevice(ctx context.Context, req api.PostDeviceRequestObject) (api.PostDeviceResponseObject, error) {
 	user, err := caller(ctx)

@@ -19,7 +19,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/marketapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
@@ -100,15 +101,15 @@ func (m *Module) RouteChecker() *app.RouteChecker {
 	return app.NewRouteChecker(m.Catalog(), quoter, m.deps.Clock)
 }
 
-func (m *Module) Routes(r *httpx.Routes) {
+func (m *Module) Mount(r api.Mount) {
 	list := app.NewListAssets(m.deps.Pool, m.deps.Clock)
 	cache := adapters.NewCache(m.deps.Clock)
-	r.MarketRoutes = adapters.HTTP{
+	marketapi.Mount(adapters.HTTP{
 		List:   adapters.CacheList(list, cache),
 		Detail: app.NewDetail(m.deps.Pool, list),
 		Chart:  adapters.CacheChart(app.NewChart(m.deps.Pool, m.deps.Clock), cache),
 		Clock:  m.deps.Clock,
-	}
+	}, r)
 }
 
 func (*Module) Consumers() []bus.Consumer { return nil }

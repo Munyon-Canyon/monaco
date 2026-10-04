@@ -7,8 +7,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/referrals/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/referralsapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
@@ -16,7 +15,7 @@ type HTTP struct {
 	Codes app.Resolver
 }
 
-var _ httpx.ReferralsRoutes = HTTP{}
+var _ api.StrictServerInterface = HTTP{}
 
 func (h HTTP) GetMyReferralCode(
 	ctx context.Context, _ api.GetMyReferralCodeRequestObject,

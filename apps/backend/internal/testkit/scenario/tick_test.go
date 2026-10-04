@@ -11,7 +11,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
@@ -46,7 +46,7 @@ type fixtureModule struct{ pollers []poller.Poller }
 
 func (fixtureModule) Name() string { return "fixture" }
 
-func (fixtureModule) Routes(*httpx.Routes) {}
+func (fixtureModule) Mount(api.Mount) {}
 
 func (fixtureModule) Consumers() []bus.Consumer { return nil }
 

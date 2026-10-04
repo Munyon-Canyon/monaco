@@ -11,7 +11,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -24,10 +23,8 @@ func TestModule_registersItsRoutesAndTheNudgePoller(t *testing.T) {
 	cfg.Identity.NudgesInterval = 5 * time.Hour
 	m := identity.New(module.Deps{Config: cfg, Clock: clock.Real{}},
 		identity.WithHoldings(fakes.NewTreasury(), fakes.NewBalances()))
-	var routes httpx.Routes
-	m.Routes(&routes)
-	if m.Name() != "identity" || routes.IdentityRoutes == nil {
-		t.Fatalf("module = %s, routes %+v", m.Name(), routes)
+	if m.Name() != "identity" || !testkit.Serves(m.Mount, "POST", "/v1/auth/session") {
+		t.Fatalf("module %s does not serve POST /v1/auth/session", m.Name())
 	}
 	consumers := m.Consumers()
 	if len(consumers) != 1 || consumers[0].Durable != "identity_first_deposit" ||
@@ -50,9 +47,8 @@ func TestModule_routesPanicWhenTheWalletMeterCannotBeCreated(t *testing.T) {
 	}()
 	m := identity.New(module.Deps{Config: privyConfig(), Clock: clock.Real{}},
 		identity.WithMeters(testkit.FailingGauges{Prefix: "identity_"}))
-	var routes httpx.Routes
-	m.Routes(&routes)
-	t.Fatal("Routes did not panic")
+	testkit.Serves(m.Mount, "GET", "/")
+	t.Fatal("Mount did not panic")
 }
 
 func TestModule_routesPanicWithoutAPrivyVerificationKey(t *testing.T) {
@@ -65,9 +61,8 @@ func TestModule_routesPanicWithoutAPrivyVerificationKey(t *testing.T) {
 	}()
 	cfg := privyConfig()
 	cfg.Privy.VerificationKey = ""
-	var routes httpx.Routes
-	identity.New(module.Deps{Config: cfg, Clock: clock.Real{}}).Routes(&routes)
-	t.Fatal("Routes did not panic")
+	testkit.Serves(identity.New(module.Deps{Config: cfg, Clock: clock.Real{}}).Mount, "GET", "/")
+	t.Fatal("Mount did not panic")
 }
 
 func TestModule_wireTakesHoldingsFromFundingAndTreasuryInTheBuiltSet(t *testing.T) {

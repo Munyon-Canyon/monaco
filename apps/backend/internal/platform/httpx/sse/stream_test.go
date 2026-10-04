@@ -22,6 +22,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/platformapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/sse"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -45,7 +46,12 @@ func newServer(t *testing.T, f *fixture, timeouts config.Timeouts) server {
 		Logger: observability.NewLogger(config.Config{}, io.Discard), Tracer: noop.NewTracerProvider(),
 		Clock: clock.Real{}, IDs: ids.Real{}, MaxBodyBytes: 1 << 10,
 		Idempotency: unusedStore{}, Verifier: verifier,
-	}, httpx.Routes{Stream: sse.NewStream(f.hub, clock.Real{})}, openapi.Spec)
+	}, func(m api.Mount) {
+		platformapi.Mount(struct {
+			httpx.Health
+			sse.Stream
+		}{Stream: sse.NewStream(f.hub, clock.Real{})}, m)
+	}, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +263,8 @@ func (deadlineFails) SetWriteDeadline(time.Time) error {
 func visit(ctx context.Context, t *testing.T, f *fixture, w http.ResponseWriter) <-chan error {
 	t.Helper()
 	actor := auth.Actor{Kind: auth.ActorUser, ID: f.user(t).String()}
-	resp, err := sse.NewStream(f.hub, clock.Real{}).GetStream(auth.WithActor(ctx, actor), api.GetStreamRequestObject{})
+	resp, err := sse.NewStream(f.hub, clock.Real{}).
+		GetStream(auth.WithActor(ctx, actor), platformapi.GetStreamRequestObject{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,14 +342,14 @@ func TestStream_refusesCallersTheHubRejects(t *testing.T) {
 	stream := sse.NewStream(f.hub, clock.Real{})
 	if _, err := stream.GetStream(
 		t.Context(),
-		api.GetStreamRequestObject{},
+		platformapi.GetStreamRequestObject{},
 	); errs.CodeOf(
 		err,
 	) != errs.CodeUnauthorized {
 		t.Fatalf("GetStream without an actor = %v, want unauthorized", err)
 	}
 	agent := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorAgent, ID: f.user(t).String()})
-	if _, err := stream.GetStream(agent, api.GetStreamRequestObject{}); errs.CodeOf(err) != errs.CodeForbidden {
+	if _, err := stream.GetStream(agent, platformapi.GetStreamRequestObject{}); errs.CodeOf(err) != errs.CodeForbidden {
 		t.Fatalf("GetStream as an agent = %v, want forbidden", err)
 	}
 }

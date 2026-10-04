@@ -11,19 +11,17 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 func TestModule_servesActivityConsumesTradeEventsAndHasNoPollers(t *testing.T) {
 	t.Parallel()
 	m := treasury.New(module.Deps{})
-	var routes httpx.Routes
-	m.Routes(&routes)
-	served := routes.TreasuryRoutes
-	routes.TreasuryRoutes = nil
-	if m.Name() != "treasury" || served == nil || routes != (httpx.Routes{}) || m.Pollers() != nil {
-		t.Fatalf("module = %s, routes %+v, pollers %v", m.Name(), routes, m.Pollers())
+	if m.Name() != "treasury" || !testkit.Serves(m.Mount, "GET", "/v1/me/txns") ||
+		!testkit.Serves(m.Mount, "GET", "/v1/cabals/c/activity") || testkit.Serves(m.Mount, "GET", "/v1/cabals") ||
+		m.Pollers() != nil {
+		t.Fatalf("module = %s, pollers %v", m.Name(), m.Pollers())
 	}
 	var got []string
 	for _, c := range m.Consumers() {

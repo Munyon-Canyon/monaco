@@ -11,8 +11,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 func TestModule_buildsARouteChecker(t *testing.T) {
@@ -29,9 +29,7 @@ func TestModule_isNamedMarketAndMountsTheCatalog(t *testing.T) {
 	if m.Name() != "market" {
 		t.Fatalf("Name = %q, want market", m.Name())
 	}
-	var r httpx.Routes
-	m.Routes(&r)
-	if r.MarketRoutes == nil {
+	if !testkit.Serves(m.Mount, "GET", "/v1/assets") {
 		t.Fatal("Routes mounted no catalog")
 	}
 	if got := m.Consumers(); len(got) != 0 {

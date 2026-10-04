@@ -13,7 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/governanceapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"

@@ -12,8 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/marketapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -25,7 +24,7 @@ type HTTP struct {
 	Clock  clock.Clock
 }
 
-var _ httpx.MarketRoutes = HTTP{}
+var _ api.StrictServerInterface = HTTP{}
 
 func (h HTTP) GetAssets(
 	ctx context.Context, req api.GetAssetsRequestObject,

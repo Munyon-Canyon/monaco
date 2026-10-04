@@ -28,7 +28,9 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
-	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	apibase "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/identityapi"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/systemapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -253,77 +255,38 @@ type actorProbe struct {
 	seen []auth.Actor
 }
 
-func (p *actorProbe) PostAuthSession(context.Context, api.PostAuthSessionRequestObject) (
-	api.PostAuthSessionResponseObject, error,
-) {
-	return nil, errs.New(errs.CodeNotFound, "actorProbe.PostAuthSession")
-}
-
-func (p *actorProbe) GetHandleAvailability(
-	context.Context, api.GetHandleAvailabilityRequestObject,
-) (api.GetHandleAvailabilityResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "actorProbe.GetHandleAvailability")
-}
-
-func (p *actorProbe) PutMeHandle(
-	context.Context, api.PutMeHandleRequestObject,
-) (api.PutMeHandleResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "actorProbe.PutMeHandle")
-}
-
-func (*actorProbe) PostOnboardingPhone(
-	context.Context, api.PostOnboardingPhoneRequestObject,
-) (api.PostOnboardingPhoneResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "actorProbe.PostOnboardingPhone")
-}
-
-func (*actorProbe) PostOnboardingSocials(
-	context.Context, api.PostOnboardingSocialsRequestObject,
-) (api.PostOnboardingSocialsResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "actorProbe.PostOnboardingSocials")
-}
-
-func (*actorProbe) PostOnboardingSkip(
-	context.Context, api.PostOnboardingSkipRequestObject,
-) (api.PostOnboardingSkipResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "actorProbe.PostOnboardingSkip")
-}
-
-func (p *actorProbe) GetMe(ctx context.Context, _ api.GetMeRequestObject) (api.GetMeResponseObject, error) {
+func (p *actorProbe) record(ctx context.Context) {
 	a, _ := auth.ActorFrom(ctx)
 	p.mu.Lock()
 	p.seen = append(p.seen, a)
 	p.mu.Unlock()
+}
+
+type identityProbe struct {
+	api.StrictServerInterface
+	*actorProbe
+}
+
+func (p identityProbe) GetMe(ctx context.Context, _ api.GetMeRequestObject) (api.GetMeResponseObject, error) {
+	p.record(ctx)
 	return nil, errs.New(errs.CodeNotFound, "actorProbe.GetMe")
 }
 
-func (*actorProbe) PatchMe(context.Context, api.PatchMeRequestObject) (api.PatchMeResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "actorProbe.PatchMe")
+type systemProbe struct {
+	systemapi.StrictServerInterface
+	*actorProbe
 }
 
-func (*actorProbe) DeleteMe(context.Context, api.DeleteMeRequestObject) (api.DeleteMeResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "actorProbe.DeleteMe")
-}
-
-func (*actorProbe) PostProfilePhoto(
-	context.Context, api.PostProfilePhotoRequestObject,
-) (api.PostProfilePhotoResponseObject, error) {
-	return nil, errs.New(errs.CodeNotFound, "actorProbe.PostProfilePhoto")
-}
-
-func (p *actorProbe) PostSystemPing(context.Context, api.PostSystemPingRequestObject) (
-	api.PostSystemPingResponseObject, error,
+func (systemProbe) PostSystemPing(context.Context, systemapi.PostSystemPingRequestObject) (
+	systemapi.PostSystemPingResponseObject, error,
 ) {
 	return nil, errs.New(errs.CodeNotFound, "actorProbe.PostSystemPing")
 }
 
-func (p *actorProbe) GetSystemPing(ctx context.Context, _ api.GetSystemPingRequestObject) (
-	api.GetSystemPingResponseObject, error,
+func (p systemProbe) GetSystemPing(ctx context.Context, _ systemapi.GetSystemPingRequestObject) (
+	systemapi.GetSystemPingResponseObject, error,
 ) {
-	a, _ := auth.ActorFrom(ctx)
-	p.mu.Lock()
-	p.seen = append(p.seen, a)
-	p.mu.Unlock()
+	p.record(ctx)
 	return nil, errs.New(errs.CodeNotFound, "actorProbe.GetSystemPing")
 }
 
@@ -342,7 +305,10 @@ func TestVerifier_behindTheAuthMiddlewarePutsTheStandingInContextAndLogsNoToken(
 		MaxBodyBytes: 1 << 20,
 		Idempotency:  db.NewIdempotencyStore(f.pool, f.clock),
 		Verifier:     f.verifier(t, config.EnvTest),
-	}, httpx.Routes{IdentityRoutes: probe, SystemRoutes: probe}, openapi.Spec)
+	}, func(m apibase.Mount) {
+		api.Mount(identityProbe{actorProbe: probe}, m)
+		systemapi.Mount(systemProbe{actorProbe: probe}, m)
+	}, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}
