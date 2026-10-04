@@ -1,0 +1,19 @@
+journey: profile/edit
+expect-fail: S3
+
+A photo picked from the library is dropped without an upload. S3.2 expects "Profile photo updated.", so S3 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Profile/ProfilePhotoPicker.swift b/apps/mobile/Monaco/Features/Profile/ProfilePhotoPicker.swift
+index fa8a16c3..728baa1e 100644
+--- a/apps/mobile/Monaco/Features/Profile/ProfilePhotoPicker.swift
++++ b/apps/mobile/Monaco/Features/Profile/ProfilePhotoPicker.swift
+@@ -74,7 +74,7 @@ struct ProfilePhotoPicker: View {
+                 },
+                 onPickPhoto: { item in
+                     showFaces = false
+-                    Task { await upload(item) }
++                    _ = item
+                 }
+             )
+         }

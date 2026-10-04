@@ -1,0 +1,21 @@
+journey: profile/edit
+expect-fail: S4
+
+A rename never reaches the server: the header and the toast show it, and a relaunch loses it. S4.1 expects the new name after a relaunch, so S4 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Shell/AppSessionStore+Profile.swift b/apps/mobile/Monaco/Features/Shell/AppSessionStore+Profile.swift
+index ba4f0c43..d6e1a09c 100644
+--- a/apps/mobile/Monaco/Features/Shell/AppSessionStore+Profile.swift
++++ b/apps/mobile/Monaco/Features/Shell/AppSessionStore+Profile.swift
+@@ -45,7 +45,9 @@ extension AppSessionStore {
+             profile = pending
+         }
+         do {
+-            let saved = try await sessions.updateDisplayName(normalized, submission: submission)
++            _ = sessions
++            let saved = pending
++            try Task.checkCancellation()
+             guard writeGeneration == profileWriteGenerationValue() else {
+                 return .failed("Sign in again to edit your profile.")
+             }

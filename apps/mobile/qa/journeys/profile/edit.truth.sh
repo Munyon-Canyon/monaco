@@ -1,44 +1,37 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-accounts="apps/mobile/qa/journeys/accounts.tsv"
-privy_user_id="$(awk -F '\t' '
-  $1 == "actor" {
-    for (i = 1; i <= NF; i++) {
-      if ($i == "actor") actor_column = i
-      if ($i == "privy_user_id") privy_user_id_column = i
-    }
-    next
-  }
-  actor_column != "" && $actor_column == "A" { print $privy_user_id_column; exit }
-' "$accounts")"
-
-if [[ -z "$privy_user_id" ]]; then
-  echo "missing Privy user ID for actor A" >&2
-  exit 1
-fi
-
-query="SELECT id FROM users WHERE privy_user_id = :'value' AND photo_url IS NOT NULL LIMIT 1"
-psql_script="psql \"\$DATABASE_URL\" -v ON_ERROR_STOP=1 -v value=\"\$1\" -tA"
+privy_user_id="$(apps/mobile/qa/journeys/privy-user-id.sh A)"
+expected_name="Alfred ${MONACO_QA_RUN:?journey.py sets MONACO_QA_RUN}"
+query="SELECT display_name, photo_url IS NOT NULL FROM users WHERE privy_user_id = :'value'"
 
 error_file="$(mktemp)"
 trap 'rm -f "$error_file"' EXIT
 set +e
-user_id="$(printf '%s\n' "$query" | scripts/with-dotenv-local.sh bash -c "$psql_script" bash "$privy_user_id" 2>"$error_file")"
+row="$(printf '%s\n' "$query" | scripts/with-dotenv-local.sh apps/mobile/qa/journeys/psql.sh \
+  -v ON_ERROR_STOP=1 -v value="$privy_user_id" -tA -F $'\t' 2>"$error_file")"
 status=$?
 set -e
 
+if [[ $status -eq 127 ]]; then
+  grep -m1 "psql not found" "$error_file" >&2 || echo "psql not found (install it, or start Compose postgres)" >&2
+  exit 2
+fi
+
 if [[ $status -ne 0 ]]; then
-  error_line="$(awk '!/^with-dotenv-local:/ && !/^injected env/ { print; exit }' "$error_file")"
+  error_line="$(awk '!/^with-dotenv-local:/ && !/injected env/ { print; exit }' "$error_file")"
   [[ -n "$error_line" ]] && echo "$error_line" >&2
   echo "database cannot be reached" >&2
   exit 2
 fi
 
-if [[ -n "$user_id" ]]; then
-  echo "actor A has a profile photo"
-  exit 0
+IFS=$'\t' read -r display_name has_photo <<<"$row"
+if [[ "$display_name" != "$expected_name" ]]; then
+  echo "actor A's display_name is '$display_name', not '$expected_name'"
+  exit 1
 fi
-
-echo "actor A has no profile photo"
-exit 1
+if [[ "$has_photo" != "t" ]]; then
+  echo "actor A has no profile photo"
+  exit 1
+fi
+echo "actor A is '$expected_name' with a profile photo"

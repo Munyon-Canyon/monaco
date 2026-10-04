@@ -41,6 +41,16 @@ struct JourneyAccount {
     }
 }
 
+enum JourneyRun {
+    static func id(environment: [String: String] = ProcessInfo.processInfo.environment) throws -> String {
+        guard let run = environment["MONACO_QA_RUN"], !run.isEmpty else {
+            XCTFail("no {QA.run}: scripts/qa/journey.py sets MONACO_QA_RUN for each run")
+            throw CocoaError(.keyValueValidation)
+        }
+        return run
+    }
+}
+
 final class JourneyRecorder {
     let journey: String
     let version: Int
