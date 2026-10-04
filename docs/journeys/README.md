@@ -131,6 +131,9 @@ It reinstalls the app on dedicated journey simulators before every run, so every
 scripts/qa/journey.py check                                   # docs and tests agree
 scripts/qa/journey.py run auth/sign-in                        # every scenario, once
 scripts/qa/journey.py run auth/sign-in --runs 10              # for the flake rate
+scripts/qa/journey.py run --all                               # every journey, one build, one backend
+scripts/qa/journey.py run auth/sign-in --timeout 600          # a longer budget than 300 s
+scripts/qa/journey.py run auth/sign-in --rebuild              # build even when the stamp matches
 scripts/qa/journey.py mutants auth/sign-in                    # catch rate against the seeded bugs
 scripts/qa/journey.py report                                  # the table across every run so far
 ```
@@ -144,6 +147,16 @@ Each run appends a row to `.logs/qa/journeys/results.tsv`:
 | Flake rate | Failures over all clean runs of the journey that started |
 | Catch rate | Seeded bugs the test failed on, over the seeded bugs it ran |
 | False passes | Seeded bugs not caught, plus clean runs that passed while the ground truth check failed |
+
+`run` builds the app once per checkout. After a build it writes `.logs/qa/journeys/derived/build.stamp`, the sha256 of `HEAD`, the uncommitted diff of `apps/mobile` and `packages/mobile-core`, and their untracked files. The next `run` prints `reusing build <stamp>` and skips `build-for-testing` while the stamp matches and the `.xctestrun` file is still under `derived/Build/Products`. `--rebuild` builds anyway, and `--no-build` never builds. `mutants` always builds and deletes the stamp after it reverts a patch.
+
+`run --all` runs every journey in `requires` order, ties by id, on one build and one backend, and exits with the worst result. It skips a journey with a `funds` block, printing `SKIP funds`, unless `MONACO_QA_REFUND_ADDRESS` is set.
+
+`--timeout` (seconds, default 300) is the budget for one journey run: its setup scripts, every test call and the truth check together. The build is outside it. When the budget runs out, the run stops the running command and its children, gives the unfinished scenarios the result `TIMEOUT`, and prints `<journey> timed out after <n> s in <scenario> <phase>`. A `TIMEOUT` counts as a failure in the report and exits 1.
+
+A setup script seeds through `scripts/qa/seed.sh`. A test never taps to create its starting state. The helper's `qa_api` calls a route as an actor, `qa_flow_seed` runs `monacoctl flows seed`, and `qa_sql` is for a state no route or flow seed can reach.
+
+Parallel lanes each use their own checkout's `derived/` and `Monaco Journeys <lane> <actor>` simulators under `xcode-lock.sh` slots. `/tmp/monaco-qa.lock` stays one per machine while the backend ports are shared.
 
 A seeded bug is a patch under `<journey>.mutants/` that breaks one thing the doc promises. Its first lines say which scenarios must fail. `mutants` applies each patch, rebuilds, runs the test, and reverts the patch.
 

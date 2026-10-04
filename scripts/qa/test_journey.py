@@ -4,6 +4,7 @@
 Run: python3 scripts/qa/test_journey.py
 """
 
+import contextlib
 import fcntl
 import json
 import os
@@ -709,6 +710,177 @@ class Report(unittest.TestCase):
     def test_a_pass_the_ground_truth_denies_is_a_false_pass(self):
         item = journey.summarize([self.row(scenario="*", result="PASS", wall_s="10", truth="fail")])[0]
         self.assertEqual(item["false_passes"], 1)
+
+
+class Output(Tree):
+    """Points results, builds and run folders at the throwaway tree."""
+
+    def setUp(self):
+        super().setUp()
+        self.saved_out = (journey.OUT, journey.DERIVED, journey.RESULTS)
+        journey.OUT = journey.ROOT / "out"
+        journey.DERIVED = journey.OUT / "derived"
+        journey.RESULTS = journey.OUT / "results.tsv"
+
+    def tearDown(self):
+        journey.OUT, journey.DERIVED, journey.RESULTS = self.saved_out
+        super().tearDown()
+
+
+class Budget(Output):
+    def test_a_hung_test_call_is_killed_with_its_group_and_its_scenarios_time_out(self):
+        pids = journey.ROOT / "pids"
+        hang = self.write("hang.sh", "#!/bin/sh\necho $$ > %s\nsleep 60 &\necho $! >> %s\nwait\n" % (pids, pids))
+        hang.chmod(0o755)
+        args = ["run", "auth/sign-in", "--no-build", "--timeout", "2"]
+        with unittest.mock.patch.object(journey, "journey_backend", lambda: _yielding("http://127.0.0.1:8080")), \
+                unittest.mock.patch.object(journey, "resolve_simulators", lambda journey_, mapping: {"A": "sim"}), \
+                unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sims, url: None), \
+                unittest.mock.patch.object(journey, "reset_journey_simulators", lambda *a: None), \
+                unittest.mock.patch.object(journey, "build_label", lambda mutant=None: "abc"), \
+                unittest.mock.patch.object(journey, "xcodebuild", lambda sim, *extra: [str(hang)]), \
+                redirect_stdout(StringIO()) as printed:
+            started = time.monotonic()
+            code = journey.main(args)
+            took = time.monotonic() - started
+
+        self.assertEqual(code, 1)
+        self.assertLess(took, 10)
+        self.assertIn("auth/sign-in timed out after 2 s in S1,S2 test", printed.getvalue())
+        rows = [line.split("\t") for line in journey.RESULTS.read_text().splitlines()[1:]]
+        results = {row[journey.COLUMNS.index("scenario")]: row[journey.COLUMNS.index("result")] for row in rows}
+        self.assertEqual(results, {"S1": "TIMEOUT", "S2": "TIMEOUT", "*": "TIMEOUT"})
+        leader, child = (int(pid) for pid in pids.read_text().split())
+        with self.assertRaises(ProcessLookupError):
+            os.killpg(leader, 0)
+        with self.assertRaises(ProcessLookupError):
+            os.kill(child, 0)
+
+    def test_a_timeout_counts_as_a_failed_run_in_the_report(self):
+        row = {"journey": "auth/sign-in", "driver": "xcuitest", "build": "abc", "scenario": "*", "result": "TIMEOUT",
+               "expected": "PASS", "truth": "none", "wall_s": "300", "steps_ms": ""}
+        self.assertEqual(journey.summarize([row])[0]["flake"], 1.0)
+
+
+@contextlib.contextmanager
+def _yielding(value):
+    yield value
+
+
+class Stamp(Output):
+    def setUp(self):
+        super().setUp()
+        self.write("apps/mobile/App.swift", "let a = 1\n")
+        self.write("docs/notes.md", "notes\n")
+        for args in (["init", "-q"], ["add", "."], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "x"]):
+            subprocess.run(["git"] + args, cwd=str(journey.ROOT), check=True)
+
+    def test_the_stamp_changes_only_with_the_app_sources(self):
+        first = journey.build_stamp()
+        self.assertEqual(journey.build_stamp(), first)
+        self.write("docs/notes.md", "other notes\n")
+        self.assertEqual(journey.build_stamp(), first)
+        self.write("apps/mobile/App.swift", "let a = 2\n")
+        edited = journey.build_stamp()
+        self.assertNotEqual(edited, first)
+        self.write("apps/mobile/New.swift", "let b = 1\n")
+        added = journey.build_stamp()
+        self.assertNotEqual(added, edited)
+        self.write("apps/mobile/New.swift", "let b = 2\n")
+        self.assertNotEqual(journey.build_stamp(), added)
+
+    def test_a_matching_stamp_and_test_bundle_skip_the_build(self):
+        built = []
+        with unittest.mock.patch.object(journey, "build", lambda sim, log, current=None: built.append(current)), \
+                redirect_stdout(StringIO()) as printed:
+            journey.ensure_build("sim", journey.OUT / "build.log")
+            self.write("out/derived/build.stamp", journey.build_stamp() + "\n")
+            self.write("out/derived/Build/Products/Monaco.xctestrun", "")
+            journey.ensure_build("sim", journey.OUT / "build.log")
+            journey.ensure_build("sim", journey.OUT / "build.log", rebuild=True)
+        self.assertEqual(len(built), 2)
+        self.assertIn("reusing build %s" % journey.build_stamp()[:8], printed.getvalue())
+
+
+class All(Output):
+    def test_every_journey_runs_after_what_it_requires_on_one_build_and_one_backend(self):
+        self.write("docs/journeys/cabals/join.md", DOC.replace("auth/sign-in", "cabals/join").replace(
+            "requires: []", "requires: [cabals/create]"))
+        self.write("docs/journeys/cabals/create.md", DOC.replace("auth/sign-in", "cabals/create").replace(
+            "requires: []", "requires: [auth/sign-in]"))
+        self.write("docs/journeys/cabals/fund.md", DOC.replace("auth/sign-in", "cabals/fund").replace(
+            "requires: []", "requires: []\nfunds:\n  A: 5"))
+        backends, builds, ran = [], [], []
+
+        @contextlib.contextmanager
+        def backend():
+            backends.append(1)
+            yield "http://127.0.0.1:8080"
+
+        def run_once(journey_, *a, **k):
+            ran.append(journey_.id)
+            return [], "PASS"
+
+        with unittest.mock.patch.object(journey, "journey_backend", backend), \
+                unittest.mock.patch.object(journey, "resolve_simulators", lambda journey_, mapping: {"A": "sim"}), \
+                unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sims, url: None), \
+                unittest.mock.patch.object(journey, "reset_journey_simulators", lambda *a: None), \
+                unittest.mock.patch.object(journey, "ensure_build", lambda sim, log, rebuild=False: builds.append(sim)), \
+                unittest.mock.patch.object(journey, "run_once", run_once), \
+                unittest.mock.patch.object(journey, "build_label", lambda mutant=None: "abc"), \
+                unittest.mock.patch.dict(os.environ, {"MONACO_QA_REFUND_ADDRESS": ""}), \
+                redirect_stdout(StringIO()) as printed:
+            code = journey.main(["run", "--all"])
+
+        self.assertEqual(code, 0)
+        self.assertEqual(ran, ["auth/sign-in", "cabals/create", "cabals/join"])
+        self.assertEqual((len(backends), len(builds)), (1, 1))
+        self.assertIn("cabals/fund SKIP funds", printed.getvalue())
+
+    def test_run_needs_a_journey_or_all(self):
+        with redirect_stdout(StringIO()), unittest.mock.patch("sys.stderr", StringIO()) as err:
+            self.assertEqual(journey.main(["run"]), 2)
+        self.assertIn("name one journey, or pass --all", err.getvalue())
+
+
+class Seed(unittest.TestCase):
+    """scripts/qa/seed.sh against a local server, with the token stubbed."""
+
+    def setUp(self):
+        import http.server
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                code, body = (200, b'{"id":"c1"}') if self.path == "/ok" else (404, b'{"error":"no cabal"}')
+                self.send_response(code)
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        self.server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+    def qa_api(self, path):
+        script = 'source scripts/qa/seed.sh; qa_token() { echo tok; }; qa_api A GET %s' % path
+        env = dict(os.environ, MONACO_API_BASE_URL="http://127.0.0.1:%d" % self.server.server_port)
+        return subprocess.run(["bash", "-c", script], cwd=str(Path(__file__).resolve().parents[2]), env=env,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+
+    def test_a_2xx_prints_the_body(self):
+        done = self.qa_api("/ok")
+        self.assertEqual((done.returncode, done.stdout), (0, '{"id":"c1"}'))
+
+    def test_a_4xx_fails_and_prints_the_body(self):
+        done = self.qa_api("/missing")
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("HTTP 404", done.stderr)
+        self.assertIn('{"error":"no cabal"}', done.stderr)
 
 
 if __name__ == "__main__":

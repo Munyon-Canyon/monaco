@@ -4,6 +4,7 @@
   journey.py check                          docs and their XCUITest files agree
   journey.py list                           every journey, its version and scenarios
   journey.py run <journey> [options]           run a journey's XCUITest and record the result
+  journey.py run --all [options]               every journey in requires order, one build, one backend
   journey.py mutants <journey> [options]       run a journey against its seeded bugs
   journey.py report                         speed and correctness per journey
 
@@ -15,6 +16,8 @@ import argparse
 import contextlib
 import datetime
 import fcntl
+import hashlib
+import heapq
 import json
 import os
 import random
@@ -284,8 +287,55 @@ def xcuitest_phases(journey, scenario):
 # ---------------------------------------------------------------- running
 
 
-def sh(args, **kwargs):
-    return subprocess.run(args, cwd=str(ROOT), universal_newlines=True, **kwargs)
+class BudgetExpired(Exception):
+    """A journey run's budget ran out while a subprocess ran. Carries the output it wrote first."""
+
+    def __init__(self, output=""):
+        super().__init__("budget expired")
+        self.output = output or ""
+
+
+class Budget:
+    """The seconds one journey run may take: setup scripts, test calls and the truth check together."""
+
+    def __init__(self, seconds):
+        self.seconds = seconds
+        self.deadline = time.monotonic() + seconds
+
+    def left(self):
+        remaining = self.deadline - time.monotonic()
+        if remaining <= 0:
+            raise BudgetExpired()
+        return remaining
+
+
+def sh(args, timeout=None, **kwargs):
+    """Run a command from the repo root. With a timeout, it runs in its own process group, and on
+    expiry the group gets SIGTERM, then SIGKILL after 10 s, and BudgetExpired is raised."""
+    if timeout is None:
+        return subprocess.run(args, cwd=str(ROOT), universal_newlines=True, **kwargs)
+    process = subprocess.Popen(args, cwd=str(ROOT), universal_newlines=True, start_new_session=True, **kwargs)
+    try:
+        stdout, _ = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise BudgetExpired(kill_group(process))
+    return subprocess.CompletedProcess(args, process.returncode, stdout)
+
+
+def kill_group(process, grace=10):
+    """SIGTERM a process group, SIGKILL it after `grace` seconds, and return what it wrote."""
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(process.pid, signal.SIGTERM)
+    try:
+        stdout, _ = process.communicate(timeout=grace)
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(process.pid, signal.SIGKILL)
+        stdout, _ = process.communicate()
+    # The leader can exit on SIGTERM while a child it started ignores it.
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(process.pid, signal.SIGKILL)
+    return stdout
 
 
 def journey_api_base_url():
@@ -540,14 +590,57 @@ def xcodebuild(sim, *extra):
     ] + list(extra)
 
 
-def build(sim, log):
-    """Build the app and the UI tests once."""
+APP_SOURCES = ("apps/mobile", "packages/mobile-core")
+
+
+def build_stamp():
+    """sha256 of HEAD, the uncommitted diff of the app sources, and their untracked files."""
+    digest = hashlib.sha256()
+    git = lambda *args: sh(["git"] + list(args), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout or ""
+    digest.update(git("rev-parse", "HEAD").encode())
+    digest.update(git("diff", "HEAD", "--", *APP_SOURCES).encode())
+    untracked = git("ls-files", "--others", "--exclude-standard", "--", *APP_SOURCES)
+    digest.update(untracked.encode())
+    # The names alone miss an edit to a file that is not committed yet.
+    for name in untracked.splitlines():
+        with contextlib.suppress(OSError):
+            digest.update((ROOT / name).read_bytes())
+    return digest.hexdigest()
+
+
+def stamp_file():
+    return DERIVED / "build.stamp"
+
+
+def build_is_current(current):
+    """The last build is of these sources and its test bundle is still there."""
+    path = stamp_file()
+    return (path.exists() and path.read_text().strip() == current
+            and any((DERIVED / "Build" / "Products").glob("*.xctestrun")))
+
+
+def ensure_build(sim, log, rebuild=False):
+    """Build unless the stamp says the last build is of these sources. Returns True when it built."""
+    current = build_stamp()
+    if not rebuild and build_is_current(current):
+        print("reusing build %s" % current[:8])
+        return False
+    build(sim, log, current)
+    return True
+
+
+def build(sim, log, current=None):
+    """Build the app and the UI tests, and stamp the build with the sources it came from."""
+    with contextlib.suppress(FileNotFoundError):
+        stamp_file().unlink()
     sh(["scripts/ensure-ios-privy-config.sh", "generate"], check=True, stdout=subprocess.DEVNULL)
     print("building (log: %s)" % os.path.relpath(str(log), str(ROOT)))
     with open(str(log), "w") as out:
         code = sh(xcodebuild(sim, "build-for-testing"), stdout=out, stderr=subprocess.STDOUT).returncode
     if code != 0:
         raise JourneyError("the build failed, see %s" % log)
+    DERIVED.mkdir(parents=True, exist_ok=True)
+    stamp_file().write_text((current or build_stamp()) + "\n")
 
 
 def new_run_id():
@@ -598,14 +691,16 @@ def split_by_test(output):
     return tests
 
 
-def run_xcuitest(journey, scenarios, sims, accounts, channel, run_dir, api_base_url, run_id):
+def run_xcuitest(journey, scenarios, sims, accounts, channel, run_dir, api_base_url, run_id, budget=None):
     """One row per scenario. A scenario passes when every phase's test passed and none skipped.
 
     One-actor scenarios share one xcodebuild call, because starting the test runner costs more
     than the tests. A scenario with phases runs them one call at a time, each on its actor's
     simulator. A journey with a setup script runs every scenario in calls of its own, after
     `<journey>.setup.sh <scenario>` has put the backend in that scenario's starting state.
-    Returns (rows, wall seconds of every call).
+    With a budget, every call gets what is left of it, and when it runs out the scenarios not
+    finished get TIMEOUT. Returns (rows, wall seconds of every call, '<scenario> <phase>' where
+    the budget ran out or None).
     """
     handoff = run_dir / "handoff.json"
     setup = journey.setup_script()
@@ -614,35 +709,47 @@ def run_xcuitest(journey, scenarios, sims, accounts, channel, run_dir, api_base_
         if not phases:
             raise JourneyError("%s has no test for %s" % (journey.id, scenario))
     single = [] if setup else [s for s in scenarios if len(plan[s]) == 1 and plan[s][0][1] == journey.actors[0]]
-    calls = [(None, journey.actors[0], [plan[s][0][2] for s in single])] if single else []
+    calls = [(None, ",".join(single), "test", journey.actors[0], [plan[s][0][2] for s in single])] if single else []
     for scenario in scenarios:
         if scenario not in single:
-            calls.extend((scenario if index == 0 else None, actor, [test])
-                         for index, (_, actor, test) in enumerate(plan[scenario]))
+            calls.extend((scenario if index == 0 else None, scenario,
+                          "phase %d" % phase if len(plan[scenario]) > 1 else "test", actor, [test])
+                         for index, (phase, actor, test) in enumerate(plan[scenario]))
+    left = budget.left if budget else (lambda: None)
 
-    outcomes, wall = {}, 0.0
+    outcomes, wall, timed_out, partial = {}, 0.0, None, ""
     log = run_dir / "xcuitest.log"
     with open(str(log), "w") as out:
-        for starts, actor, tests in calls:
-            if setup and starts:
-                out.flush()
+        for starts, label, phase, actor, tests in calls:
+            try:
+                if setup and starts:
+                    phase_now = "setup"
+                    out.flush()
+                    env = dict(os.environ)
+                    env.update(actor_environment(accounts, channel, run_id))
+                    env["MONACO_QA_HANDOFF"] = str(handoff)
+                    if sh([str(setup), starts], env=env, stdout=out, stderr=subprocess.STDOUT,
+                          timeout=left()).returncode != 0:
+                        raise JourneyError("%s could not set up %s, see %s" % (
+                            os.path.relpath(str(setup), str(ROOT)), starts, os.path.relpath(str(log), str(ROOT))))
+                phase_now = phase
                 env = dict(os.environ)
-                env.update(actor_environment(accounts, channel, run_id))
-                env["MONACO_QA_HANDOFF"] = str(handoff)
-                if sh([str(setup), starts], env=env, stdout=out, stderr=subprocess.STDOUT).returncode != 0:
-                    raise JourneyError("%s could not set up %s, see %s" % (
-                        os.path.relpath(str(setup), str(ROOT)), starts, os.path.relpath(str(log), str(ROOT))))
-            env = dict(os.environ)
-            env.update(actor_environment(accounts, channel, run_id, prefix="TEST_RUNNER_"))
-            env["TEST_RUNNER_MONACO_QA_ACTOR"] = actor
-            env["TEST_RUNNER_MONACO_QA_HANDOFF"] = str(handoff)
-            env["TEST_RUNNER_MONACO_QA_API_BASE_URL"] = api_base_url
-            # A failed test otherwise waits up to 600 s for a sysdiagnose the journey log never reads.
-            only = ["-only-testing:MonacoUITests/%s" % test for test in tests] + ["-collect-test-diagnostics", "never"]
-            started = time.time()
-            done = sh(xcodebuild(sims[actor], *(only + ["test-without-building"])),
-                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
-            wall += time.time() - started
+                env.update(actor_environment(accounts, channel, run_id, prefix="TEST_RUNNER_"))
+                env["TEST_RUNNER_MONACO_QA_ACTOR"] = actor
+                env["TEST_RUNNER_MONACO_QA_HANDOFF"] = str(handoff)
+                env["TEST_RUNNER_MONACO_QA_API_BASE_URL"] = api_base_url
+                # A failed test otherwise waits up to 600 s for a sysdiagnose the journey log never reads.
+                only = ["-only-testing:MonacoUITests/%s" % test for test in tests] + ["-collect-test-diagnostics", "never"]
+                started = time.time()
+                try:
+                    done = sh(xcodebuild(sims[actor], *(only + ["test-without-building"])),
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, timeout=left())
+                finally:
+                    wall += time.time() - started
+            except BudgetExpired as expired:
+                out.write(expired.output)
+                partial, timed_out = expired.output, "%s %s" % (label, phase_now)
+                break
             out.write(done.stdout)
             outcomes.update(split_by_test(done.stdout))
 
@@ -651,6 +758,9 @@ def run_xcuitest(journey, scenarios, sims, accounts, channel, run_dir, api_base_
     for scenario in scenarios:
         result, seconds, steps_ms, failed_step = "PASS", 0.0, 0, ""
         for _, _, test in plan[scenario]:
+            if timed_out and test.split("/")[1] not in outcomes:
+                result, failed_step = "TIMEOUT", parse_steps(partial)[1] or timed_out
+                break
             verdict, took, body = outcomes.get(test.split("/")[1], ("missing", 0.0, ""))
             ms, open_step, timings = parse_steps(body, include_timings=True)
             step_lines.extend("%s\t%s\t%d\t%d\n" % ((scenario,) + timing) for timing in timings)
@@ -667,17 +777,21 @@ def run_xcuitest(journey, scenarios, sims, accounts, channel, run_dir, api_base_
             "steps_ms": steps_ms, "failed_step": failed_step, "log": os.path.relpath(str(log), str(ROOT)),
         })
     (run_dir / "steps.tsv").write_text("".join(step_lines))
-    return rows, "%.1f" % wall
+    return rows, "%.1f" % wall, timed_out
 
 
-def run_truth(journey, accounts, channel, run_id, handoff):
+
+def run_truth(journey, accounts, channel, run_id, handoff, budget=None):
     script = journey.truth_script()
     if not script:
         return "none"
     env = dict(os.environ)
     env.update(actor_environment(accounts, channel, run_id))
     env["MONACO_QA_HANDOFF"] = str(handoff)
-    return "ok" if sh([str(script)], env=env).returncode == 0 else "fail"
+    try:
+        return "ok" if sh([str(script)], env=env, timeout=budget.left() if budget else None).returncode == 0 else "fail"
+    except BudgetExpired:
+        return "timeout"
 
 
 def record(journey, build_name, run_name, rows, summary, expected=None):
@@ -701,12 +815,18 @@ def run_once(journey, journeys, args, sims, accounts, build_name, run_name, scen
     run_dir.mkdir(parents=True, exist_ok=True)
     run_id = new_run_id()
     print("  {QA.run} is %s" % run_id)
-    rows, wall = run_xcuitest(journey, scenarios, sims, accounts, args.channel, run_dir, api_base_url, run_id)
-    truth = run_truth(journey, accounts, args.channel, run_id, run_dir / "handoff.json")
+    budget = Budget(args.timeout)
+    rows, wall, timed_out = run_xcuitest(journey, scenarios, sims, accounts, args.channel, run_dir, api_base_url,
+                                         run_id, budget)
+    truth = run_truth(journey, accounts, args.channel, run_id, run_dir / "handoff.json", budget)
+    if truth == "timeout" and not timed_out:
+        timed_out = "* truth"
+    if timed_out:
+        print("%s timed out after %d s in %s" % (journey.id, budget.seconds, timed_out))
     for row in rows:
         row["truth"] = truth
-    verdicts = [row["result"] for row in rows]
-    overall = "ERROR" if "ERROR" in verdicts else ("FAIL" if "FAIL" in verdicts else "PASS")
+    verdicts = [row["result"] for row in rows] + (["TIMEOUT"] if timed_out else [])
+    overall = next((v for v in ("ERROR", "TIMEOUT", "FAIL") if v in verdicts), "PASS")
     summary = {"scenario": "*", "result": overall, "truth": truth, "wall_s": wall,
                "steps_ms": sum(int(row.get("steps_ms") or 0) for row in rows) or ""}
     record(journey, build_name, run_name, rows, summary, expected)
@@ -797,14 +917,71 @@ def cmd_list(args):
     return 0
 
 
+EXIT_CODES = {"PASS": 0, "FAIL": 1, "TIMEOUT": 1, "ERROR": 2}
+
+
 def cmd_run(args):
+    if args.all == bool(args.journey):
+        raise JourneyError("name one journey, or pass --all")
+    if args.all and args.scenario:
+        raise JourneyError("--scenario names one journey's scenarios: drop it with --all")
+    builder = once_builder(args)
     with journey_backend() as api_base_url:
-        return run_journey(args, api_base_url)
+        if not args.all:
+            return run_journey(args, api_base_url, args.journey, builder)
+        return run_all(args, api_base_url, builder)
 
 
-def run_journey(args, api_base_url):
+def once_builder(args):
+    """Builds at most once per invocation, and not at all when the stamp matches or --no-build."""
+    done = []
+
+    def builder(sim):
+        if not args.no_build and not done:
+            ensure_build(sim, OUT / "build.log", args.rebuild)
+        done.append(sim)
+    return builder
+
+
+def requires_order(journeys):
+    """Journey ids with each after the journeys it requires, ties by id."""
+    by_id = {journey.id: journey for journey in journeys.values()}
+    waiting = {key: {r for r in journey.requires if r in by_id} for key, journey in by_id.items()}
+    ready = [key for key, needs in waiting.items() if not needs]
+    heapq.heapify(ready)
+    order = []
+    while ready:
+        current = heapq.heappop(ready)
+        order.append(current)
+        for key, needs in waiting.items():
+            if current in needs:
+                needs.discard(current)
+                if not needs:
+                    heapq.heappush(ready, key)
+    return order
+
+
+def run_all(args, api_base_url, builder):
+    """Every journey in requires order on one build and one backend. Returns the worst exit code."""
     journeys = load_journeys()
-    journey = pick(journeys, args.journey)
+    worst = 0
+    for journey_id in requires_order(journeys):
+        if journeys[journey_id].funds and not os.environ.get("MONACO_QA_REFUND_ADDRESS"):
+            print("%s SKIP funds" % journey_id)
+            continue
+        print("== %s" % journey_id, flush=True)
+        try:
+            code = run_journey(args, api_base_url, journey_id, builder)
+        except JourneyError as error:
+            print("error: %s: %s" % (journey_id, error), file=sys.stderr)
+            code = 2
+        worst = max(worst, code)
+    return worst
+
+
+def run_journey(args, api_base_url, journey_id, builder):
+    journeys = load_journeys()
+    journey = pick(journeys, journey_id)
     scenarios = args.scenario or journey.scenarios
     unknown = [s for s in scenarios if s not in journey.scenarios]
     if unknown:
@@ -818,15 +995,14 @@ def run_journey(args, api_base_url):
     if funding:
         require_refund_address()
         print(funding)
-    if not args.no_build:
-        build(sims[journey.actors[0]], OUT / "build.log")
+    builder(sims[journey.actors[0]])
     worst = 0
     for index in range(1, args.runs + 1):
         run_name = "%s-%s-%d" % (stamp(), journey.id.replace("/", "-"), index)
         print("run %d of %d" % (index, args.runs))
         reset_journey_simulators(journey, sims, set(mapping), args.fresh)
         _, overall = run_once(journey, journeys, args, sims, accounts, build_label(), run_name, scenarios, api_base_url)
-        worst = max(worst, {"PASS": 0, "FAIL": 1, "ERROR": 2}[overall])
+        worst = max(worst, EXIT_CODES[overall])
     if funding:
         print("this journey moved real USDC: cash out what is left and withdraw it to the Phantom agent wallet")
     return worst
@@ -876,6 +1052,8 @@ def run_mutants(args, api_base_url):
             finally:
                 if applied:
                     sh(["git", "apply", "-R", str(patch)], check=True)
+                    with contextlib.suppress(FileNotFoundError):
+                        stamp_file().unlink()
             if all(row["result"] == "FAIL" for row in rows):
                 caught += 1
                 print("  caught")
@@ -956,14 +1134,18 @@ def main(argv=None):
     for name, handler in (("run", cmd_run), ("mutants", cmd_mutants)):
         sub = commands.add_parser(name)
         sub.set_defaults(run=handler)
-        sub.add_argument("journey", help="journey id, such as auth/sign-in")
+        sub.add_argument("journey", nargs="?" if name == "run" else None, help="journey id, such as auth/sign-in")
         sub.add_argument("--sim", action="append", default=[], metavar="ACTOR=UDID",
                          help="the simulator an actor uses; defaults to Monaco Journeys [<lane>] <actor>")
         sub.add_argument("--channel", choices=("sms", "email"), default="sms")
+        sub.add_argument("--timeout", type=int, default=300, metavar="SECONDS",
+                         help="budget for one journey run: setup, tests and truth check (default 300)")
         if name == "run":
             sub.add_argument("--scenario", action="append", metavar="S1", help="default: every scenario")
             sub.add_argument("--runs", type=int, default=1)
+            sub.add_argument("--all", action="store_true", help="every journey, in requires order, on one build")
             sub.add_argument("--no-build", action="store_true", help="reuse the last build")
+            sub.add_argument("--rebuild", action="store_true", help="build even when the stamp matches")
             sub.add_argument("--fresh", action="store_true", help="also reinstall the app on --sim simulators")
         else:
             sub.add_argument("--only", action="append", metavar="NAME", help="a seeded bug's file name, no .patch")
