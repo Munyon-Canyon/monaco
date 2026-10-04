@@ -88,16 +88,24 @@ func startRelay(
 	}, nil
 }
 
-func startWork(
-	ctx context.Context, stops *shutdown, meters metric.MeterProvider, mods *module.Registry, d module.Deps,
-) (health, error) {
+func workDeps(d module.Deps) (module.Deps, error) {
 	d.Clock, d.IDs, d.HTTPClient = clock.Real{}, ids.Real{}, httpclient.New
 	d.UoW = db.New(d.Pool, d.IDs, d.Clock)
 	store, err := storage.New(d.Config)
 	if err != nil {
-		return health{}, err
+		return module.Deps{}, err
 	}
 	d.Photos = storage.ProfilePhotos{Storage: store}
+	return d, nil
+}
+
+func startWork(
+	ctx context.Context, stops *shutdown, meters metric.MeterProvider, mods *module.Registry, d module.Deps,
+) (health, error) {
+	d, err := workDeps(d)
+	if err != nil {
+		return health{}, err
+	}
 	if err := bindPush(ctx, &d); err != nil {
 		return health{}, err
 	}
