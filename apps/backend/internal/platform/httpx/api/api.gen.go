@@ -91,6 +91,7 @@ const (
 	SwapFailed                 ErrorCode = "swap_failed"
 	SwapNotFound               ErrorCode = "swap_not_found"
 	SwapNotRetryable           ErrorCode = "swap_not_retryable"
+	SwapNotStuck               ErrorCode = "swap_not_stuck"
 	Unauthorized               ErrorCode = "unauthorized"
 	UpstreamTimeout            ErrorCode = "upstream_timeout"
 	UpstreamUnavailable        ErrorCode = "upstream_unavailable"
@@ -268,6 +269,8 @@ func (e ErrorCode) Valid() bool {
 	case SwapNotFound:
 		return true
 	case SwapNotRetryable:
+		return true
+	case SwapNotStuck:
 		return true
 	case Unauthorized:
 		return true

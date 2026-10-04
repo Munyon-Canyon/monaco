@@ -38,7 +38,7 @@ func TestQueries_swapReadsEveryFieldOfTheRow(t *testing.T) {
 	id := ids.SwapIDFrom(row.ID)
 	want := trading.SwapView{
 		ID: id, CabalID: ids.CabalIDFrom(row.CabalID), Source: proposal(row.SourceID), Action: domain.ActionBuy,
-		Symbol: "AAPLx", InAmount: 25_000_000, Status: domain.StatusCreated, CreatedAt: d.now,
+		Symbol: "AAPLx", InAmount: 25_000_000, OutDecimals: 8, Status: domain.StatusCreated, CreatedAt: d.now,
 	}
 	got, err := d.port.Swap(t.Context(), id)
 	if err != nil || !got.CreatedAt.Equal(want.CreatedAt) {
@@ -52,7 +52,7 @@ func TestQueries_swapReadsEveryFieldOfTheRow(t *testing.T) {
 	d.confirm(t, row.ID)
 	got, err = d.port.SwapBySignature(t.Context(), "sig-1")
 	if err != nil || got.ID != id || got.Status != domain.StatusConfirmed || got.OutAmount != 104_900_000 ||
-		got.TxSignature != "sig-1" || !got.ConfirmedAt.Equal(d.now) || got.Retryable {
+		got.OutDecimals != 8 || got.TxSignature != "sig-1" || !got.ConfirmedAt.Equal(d.now) || got.Retryable {
 		t.Fatalf("SwapBySignature after confirm = %+v, %v", got, err)
 	}
 }

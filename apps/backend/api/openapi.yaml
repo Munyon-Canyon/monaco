@@ -1910,6 +1910,7 @@ components:
         - swap_failed
         - swap_not_found
         - swap_not_retryable
+        - swap_not_stuck
         - unauthorized
         - upstream_timeout
         - upstream_unavailable

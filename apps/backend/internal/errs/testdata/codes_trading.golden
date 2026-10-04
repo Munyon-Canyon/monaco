@@ -3,3 +3,4 @@ slippage_exceeded
 swap_failed
 swap_not_found
 swap_not_retryable
+swap_not_stuck
