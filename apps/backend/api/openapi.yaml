@@ -1084,6 +1084,31 @@ paths:
             application/json:
               schema: {$ref: "#/components/schemas/Me"}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/users:
+    get:
+      operationId: searchUsers
+      tags: [identity]
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 30}}
+      summary: Search people by handle or display name.
+      parameters:
+        - name: query
+          in: query
+          required: true
+          description: A handle prefix or display-name substring to find.
+          schema: {type: string, minLength: 1, maxLength: 50}
+      responses:
+        "200":
+          description: Matching people.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/UserSearchResult"}
+              example:
+                users:
+                  - user_id: 01890a5d-ac96-774b-bcce-b302099a8058
+                    handle: maya
+                    display_name: Maya Angelou
+                    photo_url: https://img.example/maya.png
+        default: {$ref: "#/components/responses/Problem"}
   # api/spec/market.yaml
   /v1/assets:
     get:
@@ -2502,6 +2527,25 @@ components:
           type: string
           description: The caller's display name, normalized before it is stored.
           examples: [Kai Cenat]
+    UserSearchResult:
+      type: object
+      description: The people matching a search, with handle-prefix matches first.
+      required: [users]
+      properties:
+        users:
+          type: array
+          examples:
+            - [{user_id: 01890a5d-ac96-774b-bcce-b302099a8058, handle: maya, display_name: Maya Angelou, photo_url: https://img.example/maya.png}]
+          items: {$ref: "#/components/schemas/UserSummary"}
+    UserSummary:
+      type: object
+      description: A searchable person's public profile summary.
+      required: [user_id, handle, display_name]
+      properties:
+        user_id: {type: string, format: uuid}
+        handle: {type: string}
+        display_name: {type: string}
+        photo_url: {type: [string, "null"]}
   # api/spec/market.yaml
     AssetChart:
       type: object

@@ -129,6 +129,58 @@ func (f httpFixture) uploadPhoto(t *testing.T, user ids.UserID, body []byte) *ht
 	return f.uploadPhotoKey(t, user, body, "photo-1")
 }
 
+func TestSearchUsers_HTTP(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	caller := f.seed(t, portSeed{handle: "caller"})
+	f.seed(t, portSeed{handle: "maya"})
+	request := func(query string) *httptest.ResponseRecorder {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/users?query="+query, nil)
+		req.Header.Set("Authorization", "Bearer "+f.verifier.Mint(caller.ID.String(), f.now.Add(time.Hour)))
+		rec := httptest.NewRecorder()
+		f.handler.ServeHTTP(rec, req)
+		return rec
+	}
+	if rec := request("ma"); rec.Code != http.StatusOK {
+		t.Fatalf("search status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if rec := request("a"); rec.Code != http.StatusBadRequest {
+		t.Fatalf("short search status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func TestSearchUsers_RateLimit(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	caller := f.seed(t, portSeed{handle: "caller"})
+	f.seed(t, portSeed{handle: "maya"})
+	for range 30 {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/users?query=ma", nil)
+		req.Header.Set("Authorization", "Bearer "+f.verifier.Mint(caller.ID.String(), f.now.Add(time.Hour)))
+		rec := httptest.NewRecorder()
+		f.handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("search status = %d, want %d", rec.Code, http.StatusOK)
+		}
+	}
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/users?query=ma", nil)
+	req.Header.Set("Authorization", "Bearer "+f.verifier.Mint(caller.ID.String(), f.now.Add(time.Hour)))
+	rec := httptest.NewRecorder()
+	f.handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusTooManyRequests || decodeProblem(t, rec).Code != apibase.RateLimited {
+		t.Fatalf("search status = %d, want %d", rec.Code, http.StatusTooManyRequests)
+	}
+}
+
+func TestHTTP_searchUsersRefusesCallersThatAreNotAUser(t *testing.T) {
+	t.Parallel()
+	h := adapters.HTTP{}
+	ctx := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorAgent, ID: "a1"})
+	if _, err := h.SearchUsers(ctx, api.SearchUsersRequestObject{}); errs.CodeOf(err) != errs.CodeForbidden {
+		t.Fatalf("SearchUsers err = %v, want %s", err, errs.CodeForbidden)
+	}
+}
+
 func (f httpFixture) uploadPhotoKey(
 	t *testing.T, user ids.UserID, body []byte, key string,
 ) *httptest.ResponseRecorder {

@@ -236,6 +236,20 @@ type UpdateProfileRequest struct {
 	DisplayName string `json:"display_name"`
 }
 
+// UserSearchResult The people matching a search, with handle-prefix matches first.
+type UserSearchResult struct {
+	// Users Examples: [{"display_name":"Maya Angelou","handle":"maya","photo_url":"https://img.example/maya.png","user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}]
+	Users []UserSummary `json:"users"`
+}
+
+// UserSummary A searchable person's public profile summary.
+type UserSummary struct {
+	DisplayName string             `json:"display_name"`
+	Handle      string             `json:"handle"`
+	PhotoUrl    *string            `json:"photo_url,omitempty"`
+	UserId      openapi_types.UUID `json:"user_id"`
+}
+
 // PostAuthSessionParams defines parameters for PostAuthSession.
 type PostAuthSessionParams struct {
 	// Authorization The Privy access token as `Bearer <token>`. The route is public because no account exists on the first call, so the server verifies this header itself and answers unauthorized when it is missing or invalid.
@@ -302,6 +316,12 @@ type PostProfilePhotoParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// SearchUsersParams defines parameters for SearchUsers.
+type SearchUsersParams struct {
+	// Query A handle prefix or display-name substring to find.
+	Query string `form:"query" json:"query"`
+}
+
 // PostDevXLinkJSONRequestBody defines body for PostDevXLink for application/json ContentType.
 type PostDevXLinkJSONRequestBody = DevXLink
 
@@ -355,6 +375,9 @@ type ServerInterface interface {
 	// PostProfilePhoto Upload a profile photo.
 	// (POST /v1/me/profile-photo)
 	PostProfilePhoto(w http.ResponseWriter, r *http.Request, params PostProfilePhotoParams)
+	// SearchUsers Search people by handle or display name.
+	// (GET /v1/users)
+	SearchUsers(w http.ResponseWriter, r *http.Request, params SearchUsersParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -852,6 +875,39 @@ func (siw *ServerInterfaceWrapper) PostProfilePhoto(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// SearchUsers operation middleware
+func (siw *ServerInterfaceWrapper) SearchUsers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SearchUsersParams
+
+	// ------------- Required query parameter "query" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "query", r.URL.Query(), &params.Query, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "query"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "query", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SearchUsers(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -984,6 +1040,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/onboarding/skip", wrapper.PostOnboardingSkip)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/onboarding/socials", wrapper.PostOnboardingSocials)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/profile-photo", wrapper.PostProfilePhoto)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users", wrapper.SearchUsers)
 
 	return m
 }
@@ -1442,6 +1499,45 @@ func (response PostProfilePhotodefaultApplicationProblemPlusJSONResponse) VisitP
 	return err
 }
 
+type SearchUsersRequestObject struct {
+	Params SearchUsersParams
+}
+
+type SearchUsersResponseObject interface {
+	VisitSearchUsersResponse(w http.ResponseWriter) error
+}
+
+type SearchUsers200JSONResponse UserSearchResult
+
+func (response SearchUsers200JSONResponse) VisitSearchUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SearchUsersdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response SearchUsersdefaultApplicationProblemPlusJSONResponse) VisitSearchUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// PostAuthSession Open a session from a Privy access token.
@@ -1480,6 +1576,9 @@ type StrictServerInterface interface {
 	// PostProfilePhoto Upload a profile photo.
 	// (POST /v1/me/profile-photo)
 	PostProfilePhoto(ctx context.Context, request PostProfilePhotoRequestObject) (PostProfilePhotoResponseObject, error)
+	// SearchUsers Search people by handle or display name.
+	// (GET /v1/users)
+	SearchUsers(ctx context.Context, request SearchUsersRequestObject) (SearchUsersResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -1862,6 +1961,32 @@ func (sh *strictHandler) PostProfilePhoto(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostProfilePhotoResponseObject); ok {
 		if err := validResponse.VisitPostProfilePhotoResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SearchUsers operation middleware
+func (sh *strictHandler) SearchUsers(w http.ResponseWriter, r *http.Request, params SearchUsersParams) {
+	var request SearchUsersRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SearchUsers(ctx, request.(SearchUsersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SearchUsers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SearchUsersResponseObject); ok {
+		if err := validResponse.VisitSearchUsersResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
