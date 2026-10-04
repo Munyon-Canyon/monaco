@@ -3,10 +3,14 @@ import MonacoAPI
 
 public struct ProposalSwap: Equatable, Sendable {
     public let status: String
+    public let id: String?
+    public let failureMessage: String?
     public let retryable: Bool
 
     init(_ swap: Components.Schemas.ProposalDetail.SwapPayload?) {
         status = swap?.status.rawValue ?? ""
+        id = swap?.swapId
+        failureMessage = swap?.failureMessage
         retryable = swap?.retryable ?? false
     }
 }

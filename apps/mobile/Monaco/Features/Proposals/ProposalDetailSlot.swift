@@ -14,6 +14,8 @@ private struct ProposalDetailSlotView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @State private var model: ProposalDetailModel?
+    @State private var priorStatus: ProposalStatus?
+    @State private var showBurst = false
 
     var body: some View {
         Group {
@@ -29,6 +31,7 @@ private struct ProposalDetailSlotView: View {
                         votes(detail)
                         reason(detail)
                         expected(detail)
+                        status(detail)
                     }
                     .padding(MonacoTheme.Space.m)
                 }
@@ -52,6 +55,10 @@ private struct ProposalDetailSlotView: View {
             await model.load()
         }
         .onScreenVisibilityChange { model?.setVisible($0) }
+        .onChange(of: model?.value?.summary.status) { old, new in
+            priorStatus = old
+            showBurst = old == .open && new == .executed && model?.value?.summary.kind == "buy"
+        }
     }
 
     private func votes(_ detail: ProposalDetail) -> some View {
@@ -83,6 +90,40 @@ private struct ProposalDetailSlotView: View {
             } else {
                 Text("Quote pending").font(MonacoTheme.Typo.callout).foregroundStyle(MonacoTheme.muted)
             }
+        }
+    }
+
+    private func status(_ detail: ProposalDetail) -> some View {
+        let summary = detail.summary
+        let failedSwap = summary.swap?.status == "failed"
+        let state = ProposalStepper.state(
+            status: summary.status, isSell: summary.kind == "sell", swapFailed: failedSwap)
+        return VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+            MonacoSectionHeader("Status")
+            HStack(spacing: MonacoTheme.Space.s) {
+                step(
+                    "Voting", active: state == .voting,
+                    stamp: summary.createdAt.formatted(date: .abbreviated, time: .shortened))
+                step(summary.kind == "sell" ? "Selling" : "Buying", active: state == .trading)
+                step("Done", active: state == .done)
+            }
+            if case .failed(let title) = state {
+                Text(summary.swap?.failureMessage ?? summary.statusMessage ?? title).foregroundStyle(MonacoTheme.loss)
+            }
+            if let swapID = summary.swap?.id {
+                NavigationLink(value: AnyAppRoute(TransactionRoute(cabalID: summary.cabalID, transactionID: swapID))) {
+                    Label("View transaction", systemImage: "arrow.up.right.square")
+                }
+            }
+            if showBurst { ProposalCoinBurst() }
+        }
+    }
+
+    private func step(_ title: String, active: Bool, stamp: String? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(active ? MonacoTheme.Typo.calloutStrong : MonacoTheme.Typo.callout).foregroundStyle(
+                active ? MonacoTheme.ink : MonacoTheme.muted)
+            if let stamp { Text(stamp).font(MonacoTheme.Typo.micro).foregroundStyle(MonacoTheme.muted) }
         }
     }
 
