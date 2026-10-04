@@ -38,11 +38,11 @@ To add a flow, add `backend/<id>.tsv`, then add `app/<id>.tsv`. To list every ro
 
 - Keep one flow per file. No file under `packages/flows` other than this README may name two flow ids, and `monacoctl flows check` fails one that does. Tools build any list of flows at run time. A single aggregate file would conflict on every parallel stack.
 - Never copy a backend column. Module, trigger, command, outcomes and codes live only in `backend/<id>.tsv`. The app registry joins on `id`.
-- Never edit the outcome enums under `Sources/MonacoFlows`. `monacoctl gen flows` generates them from `backend/*.tsv`.
+- Never edit the outcome enums under `Sources/MonacoFlows`. `cmd/gen flows` generates them from `backend/*.tsv`.
 
 ## Generated Swift
 
-`monacoctl gen flows` writes `Sources/MonacoFlows/Flow<id>.gen.swift` for each file in `backend/`, and deletes the file of a flow that is gone. `go generate ./...` in `apps/backend` runs it, and `scripts/ci/ready.sh` fails when the output is stale. Each file holds one enum, `Flow<id>Outcome`, where `<id>` is the row id verbatim (`01a` gives `Flow01aOutcome`):
+`cmd/gen flows` writes `Sources/MonacoFlows/Flow<id>.gen.swift` for each file in `backend/`, and deletes the file of a flow that is gone. `go generate ./...` in `apps/backend` runs it, and `scripts/ci/ready.sh` fails when the output is stale. Each file holds one enum, `Flow<id>Outcome`, where `<id>` is the row id verbatim (`01a` gives `Flow01aOutcome`):
 
 - `ok` stays `ok`.
 - A code outcome becomes a case named for the code with a lowercase first letter, so `InvalidInput` becomes `invalidInput`. A Swift keyword is escaped with backticks.
@@ -56,4 +56,4 @@ For each flow whose `status` here is `built` or `verified`, it also writes `Sour
 - `matching(_:)` reads the launch arguments `-MonacoFlow <id> <case>`, such as `-MonacoFlow 00 unauthorized`, and returns that case, or `nil` for another flow or no flag.
 - The manifest block sits between `# BEGIN generated flow scenarios` and `# END generated flow scenarios`. `gen flows` rewrites only that block and keeps every line around it. [Debug sample harnesses](../../docs/how-to/mobile-harness.md#flow-scenarios) says what the app adds for each scenario.
 
-Never edit a generated file. Change the row in `backend/<id>.tsv` and run `cd apps/backend && go run ./cmd/monacoctl gen flows`. On a restack, `merge=ours` in `.gitattributes` keeps the local copy, and the next `gen flows` rewrites it. A `switch` over a `Flow<id>Outcome` lists every case, with no `default:`, so a new backend outcome breaks the app build until the app handles it.
+Never edit a generated file. Change the row in `backend/<id>.tsv` and run `cd apps/backend && go run ./cmd/gen flows`. On a restack, `merge=ours` in `.gitattributes` keeps the local copy, and the next `gen flows` rewrites it. A `switch` over a `Flow<id>Outcome` lists every case, with no `default:`, so a new backend outcome breaks the app build until the app handles it.

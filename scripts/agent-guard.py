@@ -821,7 +821,7 @@ def generated_file_reason(file_path: str) -> str | None:
     if os.path.basename(file_path) == ERROR_CODE_CASES:
         return "generated file; run: cd apps/backend && go generate ./api"
     if file_path.endswith(".gen.swift"):
-        return "generated file; run: cd apps/backend && go run ./cmd/monacoctl gen flows"
+        return "generated file; run: cd apps/backend && go run ./cmd/gen flows"
     return None
 
 

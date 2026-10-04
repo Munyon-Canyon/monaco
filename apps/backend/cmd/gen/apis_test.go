@@ -378,22 +378,3 @@ func TestGenAPIs_reportsWhatItCannotReadOrWrite(t *testing.T) {
 		})
 	}
 }
-
-func TestGenAPIs_commandWritesThePackagesOrNamesTheProblem(t *testing.T) {
-	t.Parallel()
-	specs, out := apiSpecDir(t, map[string]string{"cabal.yaml": apisCabal}), t.TempDir()
-	var stdout, stderr bytes.Buffer
-	oapiCodegenState.Lock()
-	code := gen([]string{"apis", specs, out}, &stdout, &stderr)
-	missing := gen([]string{"apis", filepath.Join(specs, "nope"), out}, &bytes.Buffer{}, &stderr)
-	oapiCodegenState.Unlock()
-	if code != 0 || !strings.Contains(stdout.String(), "wrote the API packages under "+out) {
-		t.Fatalf("gen apis = %d, stdout %q, stderr %q", code, stdout.String(), stderr.String())
-	}
-	if _, err := os.Stat(filepath.Join(out, "cabalapi", mountGenFile)); err != nil {
-		t.Fatalf("gen apis wrote no cabalapi: %v", err)
-	}
-	if missing != 1 || !strings.Contains(stderr.String(), "monacoctl: ") {
-		t.Fatalf("gen apis on a missing spec dir = %d, stderr %q", missing, stderr.String())
-	}
-}

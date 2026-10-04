@@ -17,7 +17,7 @@ Diffs BASE_SHA...HEAD_SHA and reports each finding as `path:line: <rule>: <what>
   verified > built > planned. A move to none also counts, unless the same change deletes the
   flow's backend row, packages/flows/backend/<id>.tsv.
 - scenario-manifest: an added or removed line inside the generated block of
-  scripts/qa/sample-screens.txt, unless the whole block now matches what `monacoctl gen flows`
+  scripts/qa/sample-screens.txt, unless the whole block now matches what `cmd/gen flows`
   writes from the Flow<id>Scenarios.gen.swift enums at head (a regeneration).
 - strictness: an added Xcode setting that loosens SWIFT_VERSION (below 6),
   SWIFT_TREAT_WARNINGS_AS_ERRORS (NO) or SWIFT_STRICT_CONCURRENCY (not complete); an added `.v5`

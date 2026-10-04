@@ -45,11 +45,11 @@ func renderSwiftCases(codes []errs.Code) string {
 func writeSwiftCases(path string, codes []errs.Code) error {
 	dir, err := os.OpenRoot(filepath.Dir(path))
 	if err != nil {
-		return errs.Wrap(err, errs.CodeInvalidInput, "monacoctl.writeSwiftCases")
+		return errs.Wrap(err, errs.CodeInvalidInput, "gen.writeSwiftCases")
 	}
 	defer func() { _ = dir.Close() }()
 	if err := dir.WriteFile(filepath.Base(path), []byte(renderSwiftCases(codes)), 0o600); err != nil {
-		return errs.Wrap(err, errs.CodeInternal, "monacoctl.writeSwiftCases")
+		return errs.Wrap(err, errs.CodeInternal, "gen.writeSwiftCases")
 	}
 	return nil
 }
