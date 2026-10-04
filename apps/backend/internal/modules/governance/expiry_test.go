@@ -17,7 +17,9 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-func (d voteDB) expiry() *app.ExpiryPoller { return app.NewExpiryPoller(d.uow, d.pool, d.clk) }
+func (d voteDB) expiry() *app.ExpiryPoller {
+	return app.NewExpiryPoller(d.uow, d.pool, d.clk, app.NoHints{})
+}
 
 func (d voteDB) tick(ctx context.Context) (poller.Report, error) {
 	return d.expiry().Tick(observability.WithActor(ctx, "system:poller.governance.proposal_expiry"))
