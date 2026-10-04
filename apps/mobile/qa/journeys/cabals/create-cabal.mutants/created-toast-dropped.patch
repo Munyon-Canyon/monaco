@@ -1,0 +1,18 @@
+journey: cabals/create-cabal
+expect-fail: S2
+
+Creating a cabal no longer says "Cabal created." S2.4 waits for that toast, so S2 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CreateGroupView.swift b/apps/mobile/Monaco/Features/Groups/CreateGroupView.swift
+index 6fdc9454..0604eb7b 100644
+--- a/apps/mobile/Monaco/Features/Groups/CreateGroupView.swift
++++ b/apps/mobile/Monaco/Features/Groups/CreateGroupView.swift
+@@ -136,7 +136,6 @@ struct CreateGroupView: View {
+             if let auth = auth ?? environment?.auth {
+                 session?.refreshAfterCreate(auth: auth, created: cabal)
+             }
+-            toasts?.show(success: CabalRulesCopy.created)
+             if let onCreated {
+                 onCreated(cabal)
+             } else {
