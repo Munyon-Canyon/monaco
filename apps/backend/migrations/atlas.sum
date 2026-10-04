@@ -1,4 +1,4 @@
-h1:RQZIFx8L2sV8JDHQgAJ6KORCHUyORp03a3XX/jCtS1I=
+h1:Iv56h+/V03G3mYRSJfgbwXfoOq8oSLaqVWXwi2t/884=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
@@ -31,3 +31,4 @@ h1:RQZIFx8L2sV8JDHQgAJ6KORCHUyORp03a3XX/jCtS1I=
 20261003151904_cabal_invites_user_idx.sql h1:z+NIMPlrdKzKql7QXR5XhWEN9qZXQTkZ3og4Zx9RsS8=
 20261003224210_treasury_signature_indexes.sql h1:hwTiR/i1fCXEHXrHRaLFUicszejabPy/Bh7ZXLb8Aao=
 20261004002721_funding_deposit_backfill_cursor.sql h1:VKxczjI5PPSCxVWQrPqcLyR4qq4Aj90MtEfwZrrxRew=
+20261004005154_trading_swap_recovery.sql h1:daFJv3y6v93/9h5TFdKZWcpy+40cl3UPZfE2zaiQV3s=

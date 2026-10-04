@@ -183,8 +183,8 @@ func TestBlockhashValid_readsTheConfirmedValidity(t *testing.T) {
 	if err != nil || !valid {
 		t.Fatalf("BlockhashValid = %t, %v", valid, err)
 	}
-	if got := string(u.requests()[0].params[1]); got != `{"commitment":"confirmed"}` {
-		t.Fatalf("commitment = %s, want confirmed", got)
+	if got := string(u.requests()[0].params[1]); got != `{"commitment":"finalized"}` {
+		t.Fatalf("commitment = %s, want finalized", got)
 	}
 	if _, err = client(result(`{"value":false}`)).BlockhashValid(t.Context(), hash); err != nil {
 		t.Fatal(err)
@@ -193,6 +193,11 @@ func TestBlockhashValid_readsTheConfirmedValidity(t *testing.T) {
 		t.Context(), "bad",
 	); errs.CodeOf(err) != errs.CodeInvalidAddress {
 		t.Fatalf("invalid hash = %v", err)
+	}
+	for _, body := range []string{`null`, `{}`, `{"value":null}`} {
+		if _, err = client(result(body)).BlockhashValid(t.Context(), hash); errs.CodeOf(err) != errs.CodeDecodeFailed {
+			t.Fatalf("BlockhashValid(%s) = %v", body, err)
+		}
 	}
 	if _, err = client(replying(503, "")).BlockhashValid(
 		t.Context(), hash,
