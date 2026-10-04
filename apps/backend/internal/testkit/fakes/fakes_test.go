@@ -163,17 +163,18 @@ func TestScript_failsTheNextNCallsThenReplaysAgain(t *testing.T) {
 	}
 }
 
-func TestScript_matchesMethodAndHeadersWithoutConsumingOtherCalls(t *testing.T) {
+func TestScript_matchesMethodHeadersAndQueryWithoutConsumingOtherCalls(t *testing.T) {
 	t.Parallel()
 	c := overHTTP(t)
 	script(t.Context(), t, c, fakes.Step{
 		Route: "/jupiter/_health", Method: http.MethodPost, Headers: map[string]string{"X-Test-Key": "match"},
+		Query:  map[string]string{"kind": "match"},
 		Action: fakes.ActionFail, Status: http.StatusServiceUnavailable,
 	})
 	if got := mustCall(t.Context(), t, c, http.MethodGet, "/jupiter/_health", ""); got.status != http.StatusOK {
 		t.Fatalf("GET = %d, want 200", got.status)
 	}
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "/jupiter/_health", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "/jupiter/_health?kind=match", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

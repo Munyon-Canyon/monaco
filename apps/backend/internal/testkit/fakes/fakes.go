@@ -30,6 +30,7 @@ type Step struct {
 	Route   string            `json:"route"`
 	Method  string            `json:"method,omitempty"`
 	Headers map[string]string `json:"headers,omitempty"`
+	Query   map[string]string `json:"query,omitempty"`
 	Action  Action            `json:"action"`
 	Status  int               `json:"status,omitempty"`
 	Body    json.RawMessage   `json:"body,omitempty"`
@@ -54,6 +55,7 @@ type scripted struct {
 	fixture string
 	method  string
 	headers map[string]string
+	query   map[string]string
 }
 
 type fieldError string
@@ -148,7 +150,7 @@ func parse(step Step, upstreams []string) (*scripted, error) {
 	}
 	sc := &scripted{
 		action: step.Action, status: step.Status, body: step.Body, left: max(step.Times, 1), fixture: step.Fixture,
-		method: step.Method, headers: step.Headers,
+		method: step.Method, headers: step.Headers, query: step.Query,
 	}
 	switch step.Action {
 	case ActionSucceed, ActionHang:
@@ -201,6 +203,11 @@ func (s scripted) matches(r *http.Request) bool {
 	}
 	for key, want := range s.headers {
 		if r.Header.Get(key) != want {
+			return false
+		}
+	}
+	for key, want := range s.query {
+		if r.URL.Query().Get(key) != want {
 			return false
 		}
 	}

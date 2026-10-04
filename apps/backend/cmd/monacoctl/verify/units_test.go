@@ -80,6 +80,24 @@ func TestParseArgs_aCrashOutcomeArmsItsFaultpoint(t *testing.T) {
 	}
 }
 
+func TestFlow09Scripts_pinEveryProposeTradeOutcome(t *testing.T) {
+	t.Parallel()
+	flow := tools.Flow{
+		ID: "09", Status: tools.StatusBuilt, Commands: []string{"ProposeTrade"},
+		Outcomes: []tools.Outcome{
+			"ok", "InvalidInput", "Unauthorized", "NotCabalMember", "AssetNotFound", "AssetUntradable",
+			"NoRoute", "PotExceeded", "InsufficientFunds", "JupiterUnavailable", "PriceUnavailable",
+			"crash:after-publish",
+		},
+	}
+	for _, outcome := range flow.Outcomes {
+		name := tools.ScriptName(flow, flow.Commands[0], outcome)
+		if _, ok := flows.Scripts()[name]; !ok {
+			t.Errorf("Scripts() has no %s", name)
+		}
+	}
+}
+
 func TestReadFlows_rejectsAMalformedFile(t *testing.T) {
 	t.Parallel()
 	dir := filepath.Join(t.TempDir(), "apps", "backend")
