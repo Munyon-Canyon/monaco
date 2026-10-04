@@ -288,8 +288,7 @@ nonisolated final class MonacoUITests: XCTestCase {
         if cabalRow.waitForExistence(timeout: 8) {
             cabalRow.tap()
             XCTAssertTrue(
-                app.buttons["group-action-fund"].waitForExistence(timeout: 12)
-                    || app.navigationBars.element.waitForExistence(timeout: 8),
+                app.navigationBars.element.waitForExistence(timeout: 8),
                 "cabal row should push detail or join"
             )
             attachScreenshot(app, name: "issue-161-cabal-detail")
@@ -357,14 +356,6 @@ nonisolated final class MonacoUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Treasury address"].waitForExistence(timeout: 30))
 
-        let fundAction = app.buttons["group-action-fund"]
-        XCTAssertTrue(fundAction.waitForExistence(timeout: 10))
-        app.scrollToElement(fundAction)
-        XCTAssertTrue(fundAction.isHittable)
-        XCTAssertFalse(app.buttons["deposit-usdc-link"].exists)
-
-        fundAction.tap()
-
         XCTAssertTrue(app.navigationBars["Fund this cabal"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.textFields["fund-cabal-amount-field"].waitForExistence(timeout: 10))
         attachScreenshot(app, name: "m2-t13-deposit-reachable")
@@ -403,11 +394,6 @@ nonisolated final class MonacoUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Treasury address"].waitForExistence(timeout: 30))
         attachScreenshot(app, name: "m2-t13-xbmcp-03-treasury")
-
-        let fundAction = app.buttons["group-action-fund"]
-        XCTAssertTrue(fundAction.waitForExistence(timeout: 10))
-        app.scrollToElement(fundAction)
-        fundAction.tap()
 
         XCTAssertTrue(app.navigationBars["Fund this cabal"].waitForExistence(timeout: 10))
 

@@ -28,6 +28,13 @@ struct FundCabalFormTests {
         #expect(FundCabalForm(amountText: "50", balance: Fixture.balance(248_500_000)).ctaTitle == "Add $50 to the pot")
     }
 
+    @Test func maxReadsTheAmountWithCents() {
+        let balance = Fixture.balance(248_500_000)
+        let max = FundCabalForm(amountText: "", balance: balance).maxDollars.map(AmountEntryText.plain) ?? ""
+        #expect(FundCabalForm(amountText: max, balance: balance).ctaTitle == "Add $248.50 to the pot")
+        #expect(FundCabalForm(amountText: "500", balance: balance).ctaTitle == "Add $500 to the pot")
+    }
+
     @Test func anAmountOverTheBalanceCannotBeSent() {
         #expect(FundCabalForm(amountText: "248.50", balance: Fixture.balance(248_500_000)).problem == nil)
         #expect(

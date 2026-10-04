@@ -5,13 +5,15 @@ import SwiftUI
 struct FeedView: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var model: FeedModel?
+    private let makeModel: @MainActor (AppEnvironment) -> FeedModel
 
-    init(model: FeedModel? = nil) {
-        _model = State(initialValue: model)
+    init(makeModel: @escaping @MainActor (AppEnvironment) -> FeedModel = FeedView.liveModel) {
+        self.makeModel = makeModel
     }
 
     var body: some View {
-        Group {
+        ZStack {
+            MonacoTheme.canvas.ignoresSafeArea()
             if let model {
                 FeedScreen(model: model)
             }
@@ -32,9 +34,13 @@ struct FeedView: View {
 
     private func preparedModel() -> FeedModel {
         if let model { return model }
-        let created = FeedModel(api: environment.api, hints: environment.hints, clock: ContinuousClock())
+        let created = makeModel(environment)
         model = created
         return created
+    }
+
+    static func liveModel(_ environment: AppEnvironment) -> FeedModel {
+        FeedModel(api: environment.api, hints: environment.hints, clock: ContinuousClock())
     }
 }
 
@@ -167,7 +173,7 @@ private struct FeedHarnessScreen: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            FeedView(model: .preview(mode, clock: ContinuousClock()))
+            FeedView(makeModel: { _ in .preview(mode, clock: ContinuousClock()) })
                 .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
         }
     }
