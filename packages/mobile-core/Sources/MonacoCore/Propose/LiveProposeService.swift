@@ -7,14 +7,26 @@ public struct LiveProposeService: ProposeService {
         self.api = api
     }
 
-    public func preview(groupID _: String, draft _: ProposalDraft) async throws {
-        throw APIError.decoding("proposal preview is not implemented until #1928")
+    public func preview(cabalID: String, draft: ProposalDraft) async throws -> ProposePreview {
+        let reply = try await api.read { client in
+            try await client.getCabalProposalPreview(
+                path: .init(id: cabalID), query: draft.previewQuery
+            ).ok.body.json
+        }
+        return ProposePreview(reply)
     }
 
     public func propose(
-        groupID _: String, draft _: ProposalDraft, submission _: IdempotentSubmission
+        cabalID: String, draft: ProposalDraft, submission: IdempotentSubmission
     ) async throws -> String {
-        throw APIError.decoding("proposal submission is not implemented until #1929")
+        let request = draft.request
+        let reply = try await api.submit(submission, payload: request, operation: Operations.PostCabalProposal.id) {
+            client, key in
+            try await client.postCabalProposal(
+                path: .init(id: cabalID), headers: .init(idempotencyKey: key), body: .json(request)
+            ).created.body.json
+        }
+        return reply.id
     }
 
     public func withdraw(proposalID: String, submission: IdempotentSubmission) async throws {
@@ -23,6 +35,31 @@ public struct LiveProposeService: ProposeService {
         ) { client, key in
             try await client.deleteProposal(path: .init(id: proposalID), headers: .init(idempotencyKey: key)).ok
         }
+    }
+}
+
+extension ProposalDraft {
+    fileprivate var previewQuery: Operations.GetCabalProposalPreview.Input.Query {
+        switch self {
+        case .buy(let symbol, let usdcMicros, _): .init(kind: .buy, symbol: symbol, usdcMicros: usdcMicros)
+        case .sell(let symbol, let tokenAmount, _): .init(kind: .sell, symbol: symbol, tokenAmount: tokenAmount)
+        }
+    }
+
+    fileprivate var request: Components.Schemas.ProposeTradeRequest {
+        switch self {
+        case .buy(let symbol, let usdcMicros, let thesis):
+            .init(kind: .buy, symbol: symbol, usdcMicros: usdcMicros, thesis: thesis.trimmedOrNil)
+        case .sell(let symbol, let tokenAmount, let thesis):
+            .init(kind: .sell, symbol: symbol, tokenAmount: tokenAmount, thesis: thesis.trimmedOrNil)
+        }
+    }
+}
+
+extension String {
+    fileprivate var trimmedOrNil: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 
