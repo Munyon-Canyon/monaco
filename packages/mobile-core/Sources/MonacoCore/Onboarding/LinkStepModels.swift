@@ -23,6 +23,7 @@ public enum LinkCopy {
     public static let newCodeSent = "New code sent."
     public static let phoneLinkedElsewhere = "This number is linked to another account."
     public static let invalidCode = "That code didn't work. Check it and try again."
+    public static let phoneAdded = "Number added."
 
     public static let xTitle = "Connect X"
     public static let xSubtext = "Find people you follow on Monaco."
@@ -38,7 +39,7 @@ public enum LinkCopy {
 
     public static let auditedStrings = [
         phoneTitle, phoneSubtext, sendCode, sendingCode, linking, changeNumber, newCodeSent,
-        phoneLinkedElsewhere, invalidCode, xTitle, xSubtext, connectX, connecting, xLinkedElsewhere, skip,
+        phoneLinkedElsewhere, invalidCode, phoneAdded, xTitle, xSubtext, connectX, connecting, xLinkedElsewhere, skip,
         notNow, unknown, ResendCooldown.readyLabel,
     ]
 

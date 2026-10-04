@@ -2,7 +2,6 @@ import Foundation
 
 public enum OnboardingCopy {
     public static let handleTitle = "Pick your handle"
-    public static let phoneTitle = "Add your phone number"
     public static let socialsTitle = "Connect your X account"
     public static let continueLabel = "Continue"
     public static let signOut = "Sign out"
@@ -16,7 +15,7 @@ public enum OnboardingCopy {
     public static let underReviewNotice = "Your account is under review. You can still withdraw and cash out."
 
     public static let auditedStrings = [
-        handleTitle, phoneTitle, socialsTitle, continueLabel, signOut,
+        handleTitle, socialsTitle, continueLabel, signOut,
         restrictedTitle, restrictedBody, withdraw, cashOut, deleteAccount,
         underReviewNotice,
     ]

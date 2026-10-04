@@ -7,6 +7,7 @@ enum AppLogger {
     nonisolated private static let subsystem = Bundle.main.bundleIdentifier ?? "com.monaco.app"
 
     static let session = Logger(subsystem: subsystem, category: "session")
+    nonisolated static let linking = Logger(subsystem: subsystem, category: "linking")
     /// One line per API request; see `APILogTelemetry`.
     nonisolated static let api = Logger(subsystem: subsystem, category: "api")
     /// Crash, hang, CPU and disk-write reports delivered by MetricKit.
