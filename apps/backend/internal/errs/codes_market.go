@@ -6,7 +6,7 @@ const (
 	CodeCalendarExpired Code = "calendar_expired"
 )
 
-func marketRows() map[Code]Row {
+func (codeFiles) Market() map[Code]Row {
 	return map[Code]Row{
 		CodeAssetNotFound: {
 			Name: "AssetNotFound", Kind: KindNotFound, Message: "That asset is not in the catalog.",

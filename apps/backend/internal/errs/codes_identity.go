@@ -23,7 +23,7 @@ const (
 	CodeWalletMismatch          Code = "wallet_mismatch"
 )
 
-func identityRows() map[Code]Row {
+func (codeFiles) Identity() map[Code]Row {
 	return map[Code]Row{
 		CodeUserNotFound:    {Name: "UserNotFound", Kind: KindNotFound, Message: "We could not find that account."},
 		CodeSessionRequired: {Name: "SessionRequired", Kind: KindUnauthorized, Message: "Sign in to continue."},

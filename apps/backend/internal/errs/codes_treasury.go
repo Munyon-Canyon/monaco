@@ -7,7 +7,7 @@ const (
 	CodeInsufficientFunds Code = "insufficient_funds"
 )
 
-func treasuryRows() map[Code]Row {
+func (codeFiles) Treasury() map[Code]Row {
 	return map[Code]Row{
 		CodePotValueZero: {Name: "PotValueZero", Kind: KindBlocked, Message: "This cabal's pot has no value."},
 		CodePriceUnavailable: {

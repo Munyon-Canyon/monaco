@@ -8,7 +8,7 @@ const (
 	CodeSwapFailed       Code = "swap_failed"
 )
 
-func tradingRows() map[Code]Row {
+func (codeFiles) Trading() map[Code]Row {
 	return map[Code]Row{
 		CodeSwapNotFound: {Name: "SwapNotFound", Kind: KindNotFound, Message: "That trade was not found."},
 		CodeSwapNotRetryable: {
