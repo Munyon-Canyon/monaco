@@ -80,7 +80,7 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
 
         scripts/pr-body.sh <pr> "<title>" <file>
 
-    The script runs the full PR format check locally, sets the title and body, and marks a draft ready, which starts stage 1. Fix whatever it reports and run it again. Never set a body with `gh pr edit --body` and never run `gh pr ready` yourself.
+    The script runs the full PR format check locally, sets the title and body, and marks a draft ready, which starts stage 1. Fix whatever it reports and run it again. One refusal is not yours to fix: when the PR conflicts with its base, the script exits with "conflicts with its base" before it changes anything. Only the root restacks, so report the PR and its body file and stop. Never set a body with `gh pr edit --body` and never run `gh pr ready` yourself.
 
     - **Title:** what the PR changes, in the present tense, with no issue number and no `feat:` style prefix. For example, "Name the child that spent the verify teardown budget".
     - **Body:** the six sections of `.github/pull_request_template.md`: TLDR, Why, What changed, Proof, What came up, Reviewer focus. The `pr-summary` skill in `.claude/skills` drafts it.
