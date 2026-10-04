@@ -27,6 +27,26 @@ struct HintLifecycleTests {
         #expect(hints.starts == 0)
     }
 
+    @Test func signingInWhileActiveStartsTheStream() async {
+        let hints = FakeHintSource()
+        let environment = environment(hints: hints, signedIn: true)
+
+        await environment.sessionDidChange(scenePhase: .active)
+
+        #expect(hints.starts == 1)
+    }
+
+    @Test func aSessionChangeWhileSignedOutOrInTheBackgroundStartsNothing() async {
+        let hints = FakeHintSource()
+        let signedOut = environment(hints: hints, signedIn: false)
+        let signedIn = environment(hints: hints, signedIn: true)
+
+        await signedOut.sessionDidChange(scenePhase: .active)
+        await signedIn.sessionDidChange(scenePhase: .background)
+
+        #expect(hints.starts == 0)
+    }
+
     @Test func backgroundStopsTheStream() async {
         let hints = FakeHintSource()
         let environment = environment(hints: hints, signedIn: true)

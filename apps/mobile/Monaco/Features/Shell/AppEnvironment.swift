@@ -94,6 +94,11 @@ final class AppEnvironment {
         }
     }
 
+    func sessionDidChange(scenePhase: ScenePhase) async {
+        guard scenePhase == .active, isSignedIn else { return }
+        await hints.start()
+    }
+
     #if DEBUG
     func signIn(dev session: DevSession) async {
         tokens.use(session)
