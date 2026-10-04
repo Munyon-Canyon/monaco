@@ -2,7 +2,6 @@ package funding_test
 
 import (
 	"net/http"
-	"reflect"
 	"testing"
 	"time"
 
@@ -27,8 +26,9 @@ func TestModule(t *testing.T) {
 		t.Fatalf("Name = %q, want funding", got)
 	}
 	m.Routes(&httpx.Routes{})
-	if got := m.Consumers(); len(got) != 0 {
-		t.Fatalf("Consumers = %v, want none", got)
+	if got := m.Consumers(); len(got) != 1 || got[0].Durable != "funding" || len(got[0].Handlers) != 1 ||
+		got[0].Handlers[0].Name != "funding.resolve_deposit_candidate" {
+		t.Fatalf("Consumers = %v, want funding.resolve_deposit_candidate", got)
 	}
 	if got := m.Pollers(); len(got) != 1 || got[0].Name() != "funding.deposits" {
 		t.Fatalf("Pollers = %v, want funding.deposits", got)
@@ -39,8 +39,8 @@ func TestModule(t *testing.T) {
 	if m.Pauses() == nil {
 		t.Fatal("Pauses = nil")
 	}
-	if reflect.TypeOf(m.SignatureOwner()).Name() != "UnwiredSignatureOwner" {
-		t.Fatalf("SignatureOwner() = %T, want adapters.UnwiredSignatureOwner", m.SignatureOwner())
+	if owned, err := m.SignatureOwner().OwnsSignature(t.Context(), "signature"); err != nil || owned {
+		t.Fatalf("SignatureOwner() = %t, %v, want false nil", owned, err)
 	}
 }
 

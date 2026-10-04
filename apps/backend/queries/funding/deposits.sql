@@ -39,3 +39,17 @@ WHERE wallet_address = $1;
 INSERT INTO deposit_cursors (wallet_address, last_signature, cursor_slot, scanned_at)
 VALUES ($1, '', 0, $2)
 ON CONFLICT (wallet_address) DO UPDATE SET scanned_at = EXCLUDED.scanned_at;
+
+-- name: InsertDepositCandidate :execrows
+INSERT INTO deposit_candidates (
+  tx_signature, wallet_address, user_id, slot, block_time, source, status, seen_at
+) VALUES ($1, $2, $3, $4,
+  NULLIF(sqlc.arg(block_time)::timestamptz, '0001-01-01 00:00:00+00'::timestamptz),
+  $5, 'pending', $6)
+ON CONFLICT (tx_signature, wallet_address) DO NOTHING;
+
+-- name: ResolveDepositCandidate :execrows
+UPDATE deposit_candidates
+SET status = $1,
+    resolved_at = NULLIF(sqlc.arg(resolved_at)::timestamptz, '0001-01-01T00:00:00Z'::timestamptz)
+WHERE tx_signature = $2 AND wallet_address = $3 AND status = 'pending';

@@ -6,6 +6,10 @@ func init() {
 	register(
 		FundingDepositDuplicate,
 		FundingDepositCredited,
+		FundingCandidateRecorded,
+		FundingCandidateResolved,
+		FundingCandidateDismissed,
+		FundingCandidateUnresolved,
 		FundingBalanceClamped,
 	)
 }

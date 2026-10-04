@@ -17,11 +17,22 @@ import (
 type Module struct {
 	deps     module.Deps
 	balances port.Balances
+	owners   []app.SignatureOwner
 }
 
 func New(d module.Deps) *Module { return &Module{deps: d} }
 
 func (*Module) Name() string { return "funding" }
+
+func (m *Module) Wire(set module.Set) {
+	for _, mod := range set {
+		if provider, ok := mod.(interface {
+			SignatureOwner() chain.SignatureOwnerFunc
+		}); ok {
+			m.owners = append(m.owners, provider.SignatureOwner())
+		}
+	}
+}
 
 func (m *Module) Routes(r *httpx.Routes) {
 	r.FundingRoutes = adapters.HTTP{
@@ -29,8 +40,21 @@ func (m *Module) Routes(r *httpx.Routes) {
 	}
 }
 
-func (*Module) Consumers() []bus.Consumer {
-	return []bus.Consumer{}
+func (m *Module) Consumers() []bus.Consumer {
+	cfg := m.deps.Config
+	resolver := app.NewDepositCandidateResolver(
+		solana.New(cfg, m.deps.Clock),
+		chain.SolanaAddress(cfg.Solana.USDCMint),
+		m.owners,
+		app.NewCreditDepositHandler(m.deps.UoW, m.deps.Bus),
+		m.deps.IDs,
+	)
+	return []bus.Consumer{{
+		Durable: "funding",
+		Handlers: []bus.HandlerSpec{
+			bus.HandleFetched("funding.resolve_deposit_candidate", resolver.Fetch, resolver.Apply),
+		},
+	}}
 }
 
 func (m *Module) Pollers() []poller.Poller {
@@ -57,8 +81,8 @@ func (m *Module) Balances() port.Balances {
 
 func (*Module) Pauses() port.Pauses { return adapters.UnwiredPauses{} }
 
-func (*Module) SignatureOwner() adapters.UnwiredSignatureOwner {
-	return adapters.UnwiredSignatureOwner{}
+func (*Module) SignatureOwner() chain.SignatureOwnerFunc {
+	return adapters.UnwiredSignatureOwner{}.OwnsSignature
 }
 
 type (
