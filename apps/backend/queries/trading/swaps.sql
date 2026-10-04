@@ -31,6 +31,12 @@ WHERE id = @id
     ELSE false
   END;
 
+-- name: SwapForForceResolve :one
+SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, in_amount, out_mint, out_decimals,
+  source_batch_size, status, tx_signature
+FROM swaps
+WHERE tx_signature = @tx_signature::text;
+
 -- name: ClaimLive :one
 SELECT id, status
 FROM swaps

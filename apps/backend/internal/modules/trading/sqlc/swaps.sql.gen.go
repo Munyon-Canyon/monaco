@@ -290,6 +290,50 @@ func (q *Queries) MarkSubmitted(ctx context.Context, arg MarkSubmittedParams) (i
 	return result.RowsAffected(), nil
 }
 
+const swapForForceResolve = `-- name: SwapForForceResolve :one
+SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, in_amount, out_mint, out_decimals,
+  source_batch_size, status, tx_signature
+FROM swaps
+WHERE tx_signature = $1::text
+`
+
+type SwapForForceResolveRow struct {
+	ID              uuid.UUID
+	CabalID         uuid.UUID
+	SourceKind      string
+	SourceID        uuid.UUID
+	Action          string
+	Symbol          string
+	InMint          string
+	InAmount        int64
+	OutMint         string
+	OutDecimals     int16
+	SourceBatchSize int32
+	Status          string
+	TxSignature     pgtype.Text
+}
+
+func (q *Queries) SwapForForceResolve(ctx context.Context, txSignature string) (SwapForForceResolveRow, error) {
+	row := q.db.QueryRow(ctx, swapForForceResolve, txSignature)
+	var i SwapForForceResolveRow
+	err := row.Scan(
+		&i.ID,
+		&i.CabalID,
+		&i.SourceKind,
+		&i.SourceID,
+		&i.Action,
+		&i.Symbol,
+		&i.InMint,
+		&i.InAmount,
+		&i.OutMint,
+		&i.OutDecimals,
+		&i.SourceBatchSize,
+		&i.Status,
+		&i.TxSignature,
+	)
+	return i, err
+}
+
 const touchCreated = `-- name: TouchCreated :execrows
 UPDATE swaps
 SET updated_at = $1

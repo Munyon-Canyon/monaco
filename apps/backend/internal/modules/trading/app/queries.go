@@ -22,6 +22,7 @@ type SwapView struct {
 	Action      domain.Action
 	Symbol      string
 	InAmount    uint64
+	OutDecimals int16
 	OutAmount   uint64
 	Status      domain.Status
 	FailureCode domain.FailureCode
@@ -106,6 +107,7 @@ func view(op string, r sqlc.SwapView) (SwapView, error) {
 		Action:      action,
 		Symbol:      r.Symbol,
 		InAmount:    in,
+		OutDecimals: r.OutDecimals,
 		OutAmount:   out,
 		Status:      status,
 		FailureCode: failure,

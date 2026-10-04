@@ -19,6 +19,7 @@ type SwapView struct {
 	Action      string
 	Symbol      string
 	InAmount    int64
+	OutDecimals int16
 	OutAmount   pgtype.Int8
 	Status      string
 	FailureCode pgtype.Text

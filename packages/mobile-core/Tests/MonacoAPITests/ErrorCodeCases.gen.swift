@@ -85,6 +85,7 @@ extension Components.Schemas.ErrorCode {
         case .swapFailed: true
         case .swapNotFound: true
         case .swapNotRetryable: true
+        case .swapNotStuck: true
         case .unauthorized: true
         case .upstreamTimeout: true
         case .upstreamUnavailable: true
