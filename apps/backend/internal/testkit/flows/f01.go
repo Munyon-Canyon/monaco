@@ -6,6 +6,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
@@ -48,7 +49,33 @@ func F01OpenSessionOK(s *scenario.Scenario) {
 			scenario.Get(me),
 			scenario.ExpectStatus(http.StatusOK),
 			scenario.ExpectRemembered("id", "user"),
+			sessionOpened("true"),
+			sessionOpened("false"),
+			oneWallet,
 		)
+}
+
+func sessionOpened(created string) scenario.Step {
+	return func(s *scenario.Scenario) {
+		scenario.EventuallyLog(observability.IdentitySessionOpened,
+			map[string]string{"user_id": s.Recall("user"), "created": created})(s)
+	}
+}
+
+func oneWallet(s *scenario.Scenario) {
+	var n int
+	if err := s.DB().QueryRow(s.Context(), `SELECT count(*) FROM user_wallets WHERE user_id = $1::uuid`,
+		s.Recall("user")).Scan(&n); err != nil || n != 1 {
+		s.Fatalf("flows: user_wallets rows for %s = %d, %v; want 1", s.Recall("user"), n, err)
+	}
+}
+
+func onboardingAdvanced(from, to string) scenario.Step {
+	return func(s *scenario.Scenario) {
+		scenario.EventuallyLog(observability.IdentityOnboardingAdvanced, map[string]string{
+			"user_id": s.ActorID().String(), "from": from, "to": to, "cause": "onboarding",
+		})(s)
+	}
 }
 
 func F01OpenSessionUnauthorized(s *scenario.Scenario) {

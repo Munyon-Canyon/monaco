@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 type OnboardingUsers interface {
@@ -121,6 +122,11 @@ func appendAuthSteps(ctx context.Context, tx db.Tx, id ids.UserID, steps []domai
 		if err != nil {
 			return err
 		}
+		tx.AfterCommit(func(ctx context.Context) {
+			observability.Info(ctx, observability.IdentityOnboardingAdvanced, slog.String("user_id", id.String()),
+				slog.String("from", string(step.From)), slog.String("to", string(step.To)),
+				slog.String("cause", string(step.Cause)))
+		})
 	}
 	return nil
 }

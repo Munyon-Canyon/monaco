@@ -70,15 +70,20 @@ func (h *OpenSessionHandler) Handle(ctx context.Context, cmd OpenSession) (Me, e
 	if err != nil {
 		return Me{}, err
 	}
-	var id ids.UserID
+	var (
+		id      ids.UserID
+		created bool
+	)
 	err = h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		var err error
-		id, err = h.settle(ctx, tx, s)
+		id, created, err = h.settle(ctx, tx, s)
 		return err
 	})
 	if err != nil {
 		return Me{}, err
 	}
+	observability.Info(ctx, observability.IdentitySessionOpened,
+		slog.String("user_id", id.String()), slog.Bool("created", created))
 	return GetMe(ctx, h.d.Reads, id)
 }
 
@@ -122,33 +127,33 @@ func (h *OpenSessionHandler) stored(ctx context.Context, privyID PrivyUserID) (*
 	return row.Wallet, true, nil
 }
 
-func (h *OpenSessionHandler) settle(ctx context.Context, tx db.Tx, s session) (ids.UserID, error) {
+func (h *OpenSessionHandler) settle(ctx context.Context, tx db.Tx, s session) (ids.UserID, bool, error) {
 	now := h.d.Clock.Now()
 	q := tx.Queries()
 	row, created, err := h.lock(ctx, q, s, now)
 	if err != nil {
-		return ids.UserID{}, err
+		return ids.UserID{}, false, err
 	}
 	ctx = observability.WithActor(ctx, auth.Actor{Kind: auth.ActorUser, ID: row.ID.String()}.Key())
 	if err := h.refresh(ctx, q, row, s, now); err != nil {
-		return ids.UserID{}, err
+		return ids.UserID{}, false, err
 	}
 	changed, err := h.syncLinks(ctx, tx, row, s.user.Links(), now)
 	if err != nil {
-		return ids.UserID{}, err
+		return ids.UserID{}, false, err
 	}
 	if created {
 		err := tx.Events.Append(ctx, events.UserCreated{
 			V: 1, UserID: row.ID.UUID(), LoginProvider: string(s.provider), CreatedAt: now,
 		})
 		if err != nil {
-			return ids.UserID{}, err
+			return ids.UserID{}, false, err
 		}
 	}
 	if created || changed {
 		h.announce(tx, row.ID)
 	}
-	return row.ID, nil
+	return row.ID, created, nil
 }
 
 func (h *OpenSessionHandler) refresh(

@@ -5,6 +5,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
@@ -12,7 +13,7 @@ import (
 func F23UpdateProfileOK(s *scenario.Scenario) {
 	s.Given(scenario.SignIn(privyProfileOK)).
 		When(scenario.Patch(me, `{"display_name":"Kai Q"}`), scenario.ExpectStatus(http.StatusOK)).
-		Then(scenario.ExpectEvents(events.TypeUserProfileUpdated, 1))
+		Then(scenario.ExpectEvents(events.TypeUserProfileUpdated, 1), actorLogged(observability.IdentityProfileUpdated))
 }
 
 func F23UpdateProfileDisplayNameInvalid(s *scenario.Scenario) {
@@ -24,7 +25,7 @@ func F23UpdateProfileDisplayNameInvalid(s *scenario.Scenario) {
 func F23aUploadProfilePhotoOK(s *scenario.Scenario) {
 	s.Given(scenario.SignIn(privyPhotoOK)).
 		When(scenario.PostPhoto("/v1/me/profile-photo", []byte("\x89PNG\r\n\x1a\nphoto")), scenario.ExpectStatus(http.StatusOK)).
-		Then(scenario.ExpectEvents(events.TypeUserProfileUpdated, 1))
+		Then(scenario.ExpectEvents(events.TypeUserProfileUpdated, 1), actorLogged(observability.IdentityProfileUpdated))
 }
 
 func F23aUploadProfilePhotoPhotoInvalid(s *scenario.Scenario) {
@@ -56,4 +57,10 @@ func F23aUploadProfilePhotoRateLimited(s *scenario.Scenario) {
 			scenario.PostPhoto("/v1/me/profile-photo", []byte("\x89PNG\r\n\x1a\nphoto")),
 			scenario.ExpectProblem(errs.CodeRateLimited),
 		)
+}
+
+func actorLogged(msg observability.Msg) scenario.Step {
+	return func(s *scenario.Scenario) {
+		scenario.EventuallyLog(msg, map[string]string{"user_id": s.ActorID().String()})(s)
+	}
 }

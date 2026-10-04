@@ -4,6 +4,7 @@ package flows
 
 func (defined) ScriptsF28() map[string]Script {
 	return map[string]Script{
-		"F28EmitNudgesOK": F28EmitNudgesOK,
+		"F28EmitNudgesOK":                F28EmitNudgesOK,
+		"F28EmitNudgesCrashBeforeCommit": F28EmitNudgesCrashBeforeCommit,
 	}
 }

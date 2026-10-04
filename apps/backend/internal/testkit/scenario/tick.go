@@ -84,6 +84,14 @@ func awaitTick(poller string, start func(*Scenario) int, since string) Step {
 	}
 }
 
+func TickCrashingAt(poller string, point faultpoint.Name) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		s.app.tickCrash(s.t, poller, point)
+		s.app.faults++
+	}
+}
+
 func ExpectTickFailed(poller, code string) Step {
 	return func(s *Scenario) {
 		s.t.Helper()

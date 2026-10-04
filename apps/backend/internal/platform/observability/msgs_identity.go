@@ -7,6 +7,12 @@ var (
 	IdentityPhotoPurgeFailed    = Msg{Name: "identity.photo_purge.failed", Required: []string{"user_id"}}
 	IdentityProfileUpdated      = Msg{Name: "identity.profile.updated", Required: []string{"user_id"}}
 	IdentityXConflict           = Msg{Name: "identity.x.conflict", Required: []string{"user_id"}}
+	IdentityAccountDeleted      = Msg{Name: "identity.account.deleted", Required: []string{"user_id"}}
+	IdentitySessionOpened       = Msg{Name: "identity.session.opened", Required: []string{"user_id", "created"}}
+
+	IdentityOnboardingAdvanced = Msg{
+		Name: "identity.onboarding.advanced", Required: []string{"user_id", "from", "to", "cause"},
+	}
 
 	IdentityFirstDepositBelowThreshold = Msg{
 		Name: "identity.first_deposit.below_threshold", Required: []string{"amount_micros", "threshold_micros"},

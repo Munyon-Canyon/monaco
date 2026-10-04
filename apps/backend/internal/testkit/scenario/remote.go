@@ -65,6 +65,7 @@ func Against(ctx context.Context, t T, r Remote) *Scenario {
 		lines:         r.Logs,
 		tick:          func(T, string) func() { return func() {} },
 		coreSubscribe: r.CoreSubscribe,
+		tickCrash:     rm.tickCrash,
 	}
 	if r.Restart != nil {
 		b.restart = func(t T) {
@@ -153,6 +154,11 @@ func (r *remote) crashAt(t T, point faultpoint.Name) {
 	if err := r.Crash(t.Context(), point); err != nil {
 		t.Fatalf("scenario: crash at %s: %v", point, err)
 	}
+}
+
+func (r *remote) tickCrash(t T, _ string, point faultpoint.Name) {
+	t.Helper()
+	r.crashAt(t, point)
 }
 
 func (r *remote) seed(t T, name string) []testkit.Seeded {

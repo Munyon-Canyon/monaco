@@ -41,12 +41,24 @@ func F01bLinkPhoneOK(s *scenario.Scenario) {
 			scenario.ExpectStatus(http.StatusOK),
 			scenario.ExpectJSON("auth_state", "AWAITING_SOCIALS"),
 			scenario.ExpectJSON("phone_linked", true),
+			scenario.FakeUpstream(fakes.Step{
+				Route: privyUserPath + phoneOK, Action: fakes.ActionSucceed,
+				Fixture: privyUserPath + "qa-onb-phone-ok-x",
+			}),
+			scenario.Post(linkSocialsPath, ``),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("auth_state", "ONBOARDING_COMPLETED"),
 		)...).
 		Then(
-			scenario.ExpectEvents(events.TypeUserAuthStateChanged, 1),
+			scenario.ExpectEvents(events.TypeUserAuthStateChanged, 2),
 			scenario.ExpectEventPayload(events.TypeUserAuthStateChanged, map[string]any{
 				"from": "CREATED", "to": "AWAITING_SOCIALS", "cause": "onboarding",
 			}),
+			scenario.ExpectEventPayload(events.TypeUserAuthStateChanged, map[string]any{
+				"from": "AWAITING_SOCIALS", "to": "ONBOARDING_COMPLETED", "cause": "onboarding",
+			}),
+			onboardingAdvanced("CREATED", "AWAITING_SOCIALS"),
+			onboardingAdvanced("AWAITING_SOCIALS", "ONBOARDING_COMPLETED"),
 		)
 }
 

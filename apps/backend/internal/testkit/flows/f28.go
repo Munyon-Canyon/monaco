@@ -4,7 +4,9 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
@@ -16,6 +18,20 @@ func F28EmitNudgesOK(s *scenario.Scenario) {
 	var user ids.UserID
 	s.Given(seedAwaitingPhone(&user, 25*time.Hour)).
 		When(
+			scenario.AwaitTick(nudgePoller),
+			scenario.AwaitTick(nudgePoller),
+		).
+		Then(
+			expectOneNudge(&user, "add_phone"),
+			scenario.EventuallyLog(observability.PollerTick, map[string]string{"poller": nudgePoller, "changed": "1"}),
+		)
+}
+
+func F28EmitNudgesCrashBeforeCommit(s *scenario.Scenario) {
+	var user ids.UserID
+	s.Given(seedAwaitingPhone(&user, 25*time.Hour)).
+		When(
+			scenario.TickCrashingAt(nudgePoller, faultpoint.BeforeCommit),
 			scenario.AwaitTick(nudgePoller),
 			scenario.AwaitTick(nudgePoller),
 		).

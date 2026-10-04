@@ -242,18 +242,42 @@ func (a *app) backend() *backend {
 		seed:          a.seed,
 		lines:         a.log.since,
 		tick:          a.tickOnce,
+		tickCrash:     a.tickCrashing,
 	}
 }
 
 func (a *app) tickOnce(t T, name string) func() {
 	t.Helper()
+	p := a.pollers[a.pollerAt(t, name)]
+	return background(observability.WithLogger(t.Context(), a.logger), func(ctx context.Context) {
+		_ = a.runner.Run(ctx, p)
+	})
+}
+
+func (a *app) tickCrashing(t T, name string, point faultpoint.Name) {
+	t.Helper()
+	p := a.pollers[a.pollerAt(t, name)]
+	ctx := auth.WithActor(observability.WithLogger(t.Context(), a.logger),
+		auth.Actor{Kind: auth.ActorSystem, ID: "poller." + name})
+	ctx = faultpoint.Armed(ctx, point)
+	var err error
+	crashed := func() (v any) {
+		defer func() { v = recover() }()
+		_, err = p.Tick(ctx)
+		return nil
+	}()
+	if crashed != (faultpoint.Crash{Name: point}) {
+		t.Fatalf("scenario: poller %s tick = %v (err %v), want a crash at %s", name, crashed, err, point)
+	}
+}
+
+func (a *app) pollerAt(t T, name string) int {
+	t.Helper()
 	i := slices.IndexFunc(a.pollers, func(p poller.Poller) bool { return p.Name() == name })
 	if i < 0 {
 		t.Fatalf("scenario: no module registers poller %s", name)
 	}
-	return background(observability.WithLogger(t.Context(), a.logger), func(ctx context.Context) {
-		_ = a.runner.Run(ctx, a.pollers[i])
-	})
+	return i
 }
 
 func (a *app) mint(id ids.UserID) string {

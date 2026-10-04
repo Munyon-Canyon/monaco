@@ -70,6 +70,7 @@ type backend struct {
 	lines         func(from int) ([]string, <-chan struct{})
 	tick          func(t T, poller string) (stop func())
 	coreSubscribe func(t T, subject string) <-chan []byte
+	tickCrash     func(t T, poller string, point faultpoint.Name)
 	flow          string
 	trigger       string
 	restart       func(t T)

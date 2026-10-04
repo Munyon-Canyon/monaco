@@ -10,6 +10,9 @@ func init() {
 		IdentityPhotoPurgeFailed,
 		IdentityProfileUpdated,
 		IdentityXConflict,
+		IdentityAccountDeleted,
+		IdentitySessionOpened,
+		IdentityOnboardingAdvanced,
 		IdentityFirstDepositBelowThreshold,
 		IdentityFirstDepositAlreadySet,
 	)

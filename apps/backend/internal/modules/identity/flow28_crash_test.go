@@ -9,9 +9,10 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 )
 
-func TestFlow28_EmitNudges_CrashBeforeCommit(t *testing.T) {
+func TestEmitNudges_aCrashBeforeCommitRetriesBothKindsOnce(t *testing.T) {
 	t.Parallel()
 	r := newNudgeRig(t)
 	phone := seedNudgeRow(t, r.pool, r.clock.Now(), nudgeRow{state: "AWAITING_PHONE", changedAgo: 25 * time.Hour})
@@ -39,4 +40,9 @@ func TestFlow28_EmitNudges_CrashBeforeCommit(t *testing.T) {
 			t.Fatalf("nudges for %s = %+v, want one %s nudge", user, got, kind)
 		}
 	}
+}
+
+func TestFlow28_EmitNudges_CrashBeforeCommit(t *testing.T) {
+	t.Parallel()
+	flows.F28EmitNudgesCrashBeforeCommit(identityScenario(t))
 }
