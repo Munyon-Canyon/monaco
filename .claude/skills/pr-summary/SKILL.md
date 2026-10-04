@@ -81,7 +81,7 @@ gt submit --stack --no-interactive --draft
 scripts/pr-body.sh <n> "<what changes>" <file>
 ```
 
-Then land. Once the stack is submitted and verified, run `monacoctl agents land-stack <top-pr>` once without asking, unless the user said not to in this conversation, then `monacoctl agents watch` under Monitor. If stage 1 is still running, `land-stack` arms the stack, and `agents watch` lands it once stage 1 and `verify` pass, or prints `armed stack #<top> disarmed: ...` when one fails. It adds the `merge-queue` label to every PR of the stack for the Graphite queue. Never run `gh pr merge` and never add `merge-queue` or `fast-track` by hand. A landed PR shows as closed, not merged.
+Then land. Once the stack is submitted and verified, run `monacoctl agents land-stack <top-pr>` once without asking, unless the user said not to in this conversation, then `monacoctl agents watch` under Monitor. If stage 1 is still running, `land-stack` arms the stack, and `agents watch` lands it once stage 1 passes, or prints `armed stack #<top> disarmed: ...` when it fails. It adds the `merge-queue` label to every PR of the stack for the Graphite queue. Never run `gh pr merge` and never add `merge-queue` or `fast-track` by hand. A landed PR shows as closed, not merged.
 
 ## Example
 
