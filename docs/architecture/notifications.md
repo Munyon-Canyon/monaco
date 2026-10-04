@@ -30,12 +30,12 @@ One key works for both sandbox and production, and for every app on the team.
 
 ### Device registration (iOS)
 
-The app asks for permission at a moment the user understands, for example right after login or after their first trade, not at cold launch. Once the user allows it, the app registers for remote notifications and posts the token to the backend.
+The app asks for permission at a moment the user understands, after the user's first create or join of a cabal, through a sheet shown once per install (#2143), never at cold launch. Once the user allows it, the app registers for remote notifications and posts the token to the backend.
 
 ```swift
 // AppDelegate, wired into the SwiftUI App with @UIApplicationDelegateAdaptor
 func requestPushPermission() {
-    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
         guard granted else { return }
         DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() }
     }
