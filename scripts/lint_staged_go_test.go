@@ -60,12 +60,7 @@ func copyFile(t *testing.T, from, to string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(to, b, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writeExecutable(t, to, string(b))
 }
 
 func git(t *testing.T, dir string, args ...string) {

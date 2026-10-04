@@ -39,9 +39,7 @@ func runPass(t *testing.T, pass, out, log string) (string, int) {
 func runPassFrom(t *testing.T, pass, out, log, dir, script string) (string, int) {
 	t.Helper()
 	stub := t.TempDir()
-	if err := os.WriteFile(filepath.Join(stub, "go"), []byte(passGoStub), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writeExecutable(t, filepath.Join(stub, "go"), passGoStub)
 	cmd := exec.Command(filepath.Join(repoRoot(t), "scripts", "test-backend.sh"))
 	cmd.Dir = gitRepo(t)
 	if script != "" {

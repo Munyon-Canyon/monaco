@@ -73,12 +73,7 @@ exit 2
 
 func writeRatchetFile(t *testing.T, path, body string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writeExecutable(t, path, body)
 }
 
 func (r ratchetRepo) edit(t *testing.T, rel, body string) {

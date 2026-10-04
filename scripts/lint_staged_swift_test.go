@@ -28,9 +28,7 @@ func swiftLintRepo(t *testing.T) string {
 
 func writeStub(t *testing.T, path, src string) {
 	t.Helper()
-	if err := os.WriteFile(path, []byte(src), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writeExecutable(t, path, src)
 }
 
 func stageSwift(t *testing.T, dir, rel, src string) (string, error) {

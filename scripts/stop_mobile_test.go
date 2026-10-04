@@ -115,10 +115,7 @@ func TestStopMobile_stopsOnlyThisCheckoutsXcodebuild(t *testing.T) {
 	}
 	lane := filepath.Join(primary, ".worktrees", "live")
 	bin := t.TempDir()
-	writeTestFile(t, filepath.Join(bin, "xcodebuild"), "#!/bin/sh\nsleep 30\n")
-	if err := os.Chmod(filepath.Join(bin, "xcodebuild"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writeExecutable(t, filepath.Join(bin, "xcodebuild"), "#!/bin/sh\nsleep 30\n")
 	start := func(checkout string) *exec.Cmd {
 		cmd := exec.Command(filepath.Join(bin, "xcodebuild"), "-derivedDataPath", filepath.Join(checkout, ".build", "DerivedData"))
 		if err := cmd.Start(); err != nil {

@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -26,12 +27,18 @@ shift
 exec "$@"
 `
 
+// writeExecutable holds syscall.ForkLock while the file is open for writing, so no fork can copy the
+// descriptor. A child that holds the copy makes exec of the file fail with ETXTBSY until the child
+// itself execs (golang/go#22315).
 func writeExecutable(t *testing.T, path, body string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte(body), 0o700); err != nil {
+	syscall.ForkLock.Lock()
+	err := os.WriteFile(path, []byte(body), 0o700)
+	syscall.ForkLock.Unlock()
+	if err != nil {
 		t.Fatal(err)
 	}
 }
