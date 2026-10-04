@@ -86,11 +86,11 @@ func (env *Env) flowed(
 ) (map[string]map[int]bool, error) {
 	flowed := map[string]map[int]bool{}
 	for bottom, files := range changed {
-		ops, err := env.stackOps(ctx, grouped[bottom], files)
+		spec, err := env.stackSpecDiff(ctx, grouped[bottom], files)
 		if err != nil {
 			return nil, err
 		}
-		for _, id := range reg.affected(files, ops) {
+		for _, id := range reg.affected(files, spec) {
 			if flowed[id] == nil {
 				flowed[id] = map[int]bool{}
 			}
@@ -100,9 +100,9 @@ func (env *Env) flowed(
 	return flowed, nil
 }
 
-func (env *Env) stackOps(ctx context.Context, stack []PR, files []string) ([]string, error) {
+func (env *Env) stackSpecDiff(ctx context.Context, stack []PR, files []string) (specDiff, error) {
 	if !slices.ContainsFunc(files, flows.SpecFile) {
-		return nil, nil
+		return specDiff{}, nil
 	}
 	bases := map[string]bool{}
 	for _, pr := range stack {
@@ -110,9 +110,9 @@ func (env *Env) stackOps(ctx context.Context, stack []PR, files []string) ([]str
 	}
 	top := stack[slices.IndexFunc(stack, func(pr PR) bool { return !bases[pr.Head.Ref] })]
 	if _, err := env.git(ctx, "fetch", "--no-tags", "origin", top.Head.Ref); err != nil {
-		return nil, err
+		return specDiff{}, err
 	}
-	return env.specOps(ctx, files, "origin/"+env.Config.FeatureBranch, top.Head.SHA)
+	return env.diffSpec(ctx, files, "origin/"+env.Config.FeatureBranch, top.Head.SHA)
 }
 
 func overlaps(touched map[string]map[int]bool) []risk {

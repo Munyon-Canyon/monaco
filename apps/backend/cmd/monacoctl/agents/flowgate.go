@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
@@ -17,8 +19,30 @@ type registry struct {
 	flows []flows.Flow
 }
 
-func (r registry) affected(changed, ops []string) []string {
-	return flows.Affected(changed, ops, r.flows)
+type specDiff struct {
+	ops        []string
+	addedCodes []string
+}
+
+func (r registry) affected(changed []string, spec specDiff) []string {
+	ids := flows.Affected(changed, spec.ops, r.flows)
+	if slices.ContainsFunc(changed, flows.SpecFile) {
+		for _, f := range r.flows {
+			if spec.addsCodeListedBy(f) {
+				ids = append(ids, f.ID)
+			}
+		}
+	}
+	return slices.Compact(slices.Sorted(slices.Values(ids)))
+}
+
+func (s specDiff) addsCodeListedBy(f flows.Flow) bool {
+	return slices.ContainsFunc(f.Outcomes, func(o flows.Outcome) bool {
+		name, isCode := o.CodeName()
+		return isCode && slices.ContainsFunc(s.addedCodes, func(code string) bool {
+			return strings.EqualFold(strings.ReplaceAll(code, "_", ""), name)
+		})
+	})
 }
 
 func (env *Env) flowGate(ctx context.Context, _ Record, stack []stackPR) error {
@@ -54,30 +78,50 @@ func (env *Env) stackFlows(ctx context.Context, prs []stackPR, top stackPR) (reg
 	if err != nil {
 		return registry{}, nil, err
 	}
-	ops, err := env.specOps(ctx, changed, "origin/"+env.Config.FeatureBranch, top.HeadOID)
+	spec, err := env.diffSpec(ctx, changed, "origin/"+env.Config.FeatureBranch, top.HeadOID)
 	if err != nil {
 		return registry{}, nil, err
 	}
-	return reg, reg.affected(changed, ops), nil
+	return reg, reg.affected(changed, spec), nil
 }
 
-func (env *Env) specOps(ctx context.Context, changed []string, from, to string) ([]string, error) {
+func (env *Env) diffSpec(ctx context.Context, changed []string, from, to string) (specDiff, error) {
 	if !slices.ContainsFunc(changed, flows.SpecFile) {
-		return nil, nil
+		return specDiff{}, nil
 	}
 	fork, err := env.git(ctx, "merge-base", from, to)
 	if err != nil {
-		return nil, err
+		return specDiff{}, err
 	}
 	before, err := env.git(ctx, "show", strings.TrimSpace(fork)+":"+flows.SpecPath)
 	if err != nil {
-		return nil, err
+		return specDiff{}, err
 	}
 	after, err := env.git(ctx, "show", to+":"+flows.SpecPath)
 	if err != nil {
-		return nil, err
+		return specDiff{}, err
 	}
-	return flows.ChangedOperations([]byte(before), []byte(after)), nil
+	beforeCodes, beforeRest := splitErrorCodes(before)
+	afterCodes, afterRest := splitErrorCodes(after)
+	added := slices.DeleteFunc(afterCodes, func(code string) bool { return slices.Contains(beforeCodes, code) })
+	return specDiff{ops: flows.ChangedOperations(beforeRest, afterRest), addedCodes: added}, nil
+}
+
+func splitErrorCodes(doc string) ([]string, []byte) {
+	var root map[string]any
+	_ = yaml.Unmarshal([]byte(doc), &root)
+	components, _ := root["components"].(map[string]any)
+	schemas, _ := components["schemas"].(map[string]any)
+	schema, _ := schemas["ErrorCode"].(map[string]any)
+	enum, _ := schema["enum"].([]any)
+	delete(schema, "enum")
+	rest, _ := yaml.Marshal(root)
+	codes := make([]string, 0, len(enum))
+	for _, entry := range enum {
+		code, _ := entry.(string)
+		codes = append(codes, code)
+	}
+	return codes, rest
 }
 
 func (env *Env) registryAt(ctx context.Context, rev string) (registry, error) {
@@ -126,16 +170,16 @@ func (env *Env) stagingMoved(ctx context.Context, reg registry, top stackPR, min
 	if err != nil {
 		return err
 	}
-	ops, err := env.specOps(ctx, paths, strings.TrimSpace(base), trunk)
+	spec, err := env.diffSpec(ctx, paths, strings.TrimSpace(base), trunk)
 	if err != nil {
 		return err
 	}
 	var moved []string
-	for _, id := range reg.affected(paths, ops) {
+	for _, id := range reg.affected(paths, spec) {
 		if !slices.Contains(mine, id) {
 			continue
 		}
-		by, err := env.lastChange(ctx, span, flowPaths(reg, paths, ops, id))
+		by, err := env.lastChange(ctx, span, flowPaths(reg, paths, spec, id))
 		if err != nil {
 			return err
 		}
@@ -153,9 +197,9 @@ func (env *Env) changedOn(ctx context.Context, span string) ([]string, error) {
 	return strings.Fields(names), err
 }
 
-func flowPaths(reg registry, paths, ops []string, id string) []string {
+func flowPaths(reg registry, paths []string, spec specDiff, id string) []string {
 	return slices.Sorted(slices.Values(slices.DeleteFunc(slices.Clone(paths), func(p string) bool {
-		return !slices.Contains(reg.affected([]string{p}, ops), id)
+		return !slices.Contains(reg.affected([]string{p}, spec), id)
 	})))
 }
 
