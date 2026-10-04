@@ -1,0 +1,19 @@
+journey: governance/vote
+expect-fail: S2 S3
+
+The cabal screen does not show its proposals. S2.1 and S3.1 wait for the proposal card under "Needs your vote", so both must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalProposalsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalProposalsSlot.swift
+index 3b3a69d1..63c22c5c 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalProposalsSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalProposalsSlot.swift
+@@ -2,7 +2,7 @@ import MonacoCore
+ import SwiftUI
+ 
+ enum CabalProposalsSlot: CabalSection {
+-    static let isLive = true
++    static let isLive = false
+ 
+     static func body(for context: CabalContext) -> some View {
+         CabalProposals(cabalID: context.cabalID)

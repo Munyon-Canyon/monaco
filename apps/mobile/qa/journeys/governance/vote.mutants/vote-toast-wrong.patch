@@ -1,0 +1,19 @@
+journey: governance/vote
+expect-fail: S1
+
+The Proposal screen's vote toast reads "Voted" instead of "Vote in". S1.3 waits for "Vote in", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Proposals/ProposalDetailSlot.swift b/apps/mobile/Monaco/Features/Proposals/ProposalDetailSlot.swift
+index fd88526e..19a3be77 100644
+--- a/apps/mobile/Monaco/Features/Proposals/ProposalDetailSlot.swift
++++ b/apps/mobile/Monaco/Features/Proposals/ProposalDetailSlot.swift
+@@ -26,7 +26,7 @@ private struct ProposalDetailSlotView: View {
+                             choice in
+                             Task {
+                                 await model?.vote(choice)
+-                                if model?.errorMessage == nil { toasts.show(success: "Vote in") }
++                                if model?.errorMessage == nil { toasts.show(success: "Voted") }
+                             }
+                         }
+                         votes(detail)
