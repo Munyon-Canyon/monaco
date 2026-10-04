@@ -171,3 +171,14 @@ func TestVerifyUnits_namesTheOverBudgetPhaseAndStopsOnCollectFailures(t *testing
 		t.Fatalf("collect = %v", err)
 	}
 }
+
+func TestRedact_hidesPhoneNumbersAndXIDsButKeepsTheirFlags(t *testing.T) {
+	t.Parallel()
+	got := redact([]byte(`{"phone":"+15550000000","x_user_id":"9100000001","phone_linked":true,` +
+		`"user":{"phone_hash":"ab12","phone_number":"+14155550111","x_username":"kai"}}`))
+	want := `{"phone":"***","phone_linked":true,` +
+		`"user":{"phone_hash":"***","phone_number":"***","x_username":"kai"},"x_user_id":"***"}`
+	if string(got) != want {
+		t.Fatalf("redact = %s, want %s", got, want)
+	}
+}
