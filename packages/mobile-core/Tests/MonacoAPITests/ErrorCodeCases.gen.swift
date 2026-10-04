@@ -3,23 +3,97 @@
 extension Components.Schemas.ErrorCode {
     var isListed: Bool {
         switch self {
-        case .accessRequestNotPending, .accountBanned, .accountDeleted, .accountHasBalance, .accountHasPositions,
-            .accountStatusTransition, .accountSuspended, .alreadyMember, .analyticsPii, .apnsAuthFailed,
-            .apnsUnavailable, .assetNotFound, .assetUntradable, .authStateTransition, .cabalBanned, .cabalNotFound,
-            .cabalPaused, .calendarExpired, .cannotFollowSelf, .cannotRevokeAccess, .clientClosed, .conservationBroken,
-            .dbSchemaBehind, .dbUnavailable, .decodeFailed, .displayNameInvalid, .faultpoint, .feedItemNotFound,
-            .forbidden, .handleInvalid, .handleRequired, .handleReserved, .handleTaken, .handleTooSoon,
-            .idempotencyInFlight, .idempotencyMismatch, .insufficientFunds, ._internal, .invalidAddress, .invalidConfig,
-            .invalidInput, .inviteExpired, .joinNeedsRequest, .jupiterRejected, .jupiterUnavailable,
-            .leaveCreatorWithMembers, .leaveHoldsShares, .leaveLastMemberPotNotEmpty, .ledgerUnbalanced,
-            .liveSwapExists, .loginMethodNotAllowed, .noRoute, .notAVoter, .notCabalCreator, .notCabalMember, .notFound,
-            .notProposer, .panic, .phoneNotLinked, .photoInvalid, .postHogRejected, .postHogUnavailable, .potExceeded,
-            .potValueZero, .priceUnavailable, .privyUnavailable, .proposalClosed, .proposalNotFound, .proposalStillOpen,
-            .rateLimited, .referralCodePending, .referralCodeUnknown, .relayerUnderfunded, .requestNotNeeded,
-            .requestPending, .rpcUnavailable, .sessionRequired, .slippageExceeded, .storageUnavailable, .swapFailed,
-            .swapNotFound, .swapNotRetryable, .unauthorized, .upstreamTimeout, .upstreamUnavailable, .userBanned,
-            .userNotFound, .versionConflict, .walletMismatch, .withdrawNotAllowed, .xNotLinked:
-            true
+        case .accessRequestNotPending: true
+        case .accountBanned: true
+        case .accountDeleted: true
+        case .accountHasBalance: true
+        case .accountHasPositions: true
+        case .accountStatusTransition: true
+        case .accountSuspended: true
+        case .alreadyMember: true
+        case .analyticsPii: true
+        case .apnsAuthFailed: true
+        case .apnsUnavailable: true
+        case .assetNotFound: true
+        case .assetUntradable: true
+        case .authStateTransition: true
+        case .cabalBanned: true
+        case .cabalNotFound: true
+        case .cabalPaused: true
+        case .calendarExpired: true
+        case .cannotFollowSelf: true
+        case .cannotRevokeAccess: true
+        case .clientClosed: true
+        case .conservationBroken: true
+        case .dbSchemaBehind: true
+        case .dbUnavailable: true
+        case .decodeFailed: true
+        case .displayNameInvalid: true
+        case .faultpoint: true
+        case .feedItemNotFound: true
+        case .forbidden: true
+        case .handleInvalid: true
+        case .handleRequired: true
+        case .handleReserved: true
+        case .handleTaken: true
+        case .handleTooSoon: true
+        case .idempotencyInFlight: true
+        case .idempotencyMismatch: true
+        case .insufficientFunds: true
+        case ._internal: true
+        case .invalidAddress: true
+        case .invalidConfig: true
+        case .invalidInput: true
+        case .inviteExpired: true
+        case .joinNeedsRequest: true
+        case .jupiterRejected: true
+        case .jupiterUnavailable: true
+        case .leaveCreatorWithMembers: true
+        case .leaveHoldsShares: true
+        case .leaveLastMemberPotNotEmpty: true
+        case .ledgerUnbalanced: true
+        case .liveSwapExists: true
+        case .loginMethodNotAllowed: true
+        case .noRoute: true
+        case .notAVoter: true
+        case .notCabalCreator: true
+        case .notCabalMember: true
+        case .notFound: true
+        case .notProposer: true
+        case .panic: true
+        case .phoneNotLinked: true
+        case .photoInvalid: true
+        case .postHogRejected: true
+        case .postHogUnavailable: true
+        case .potExceeded: true
+        case .potValueZero: true
+        case .priceUnavailable: true
+        case .privyUnavailable: true
+        case .proposalClosed: true
+        case .proposalNotFound: true
+        case .proposalStillOpen: true
+        case .rateLimited: true
+        case .referralCodePending: true
+        case .referralCodeUnknown: true
+        case .relayerUnderfunded: true
+        case .requestNotNeeded: true
+        case .requestPending: true
+        case .rpcUnavailable: true
+        case .sessionRequired: true
+        case .slippageExceeded: true
+        case .storageUnavailable: true
+        case .swapFailed: true
+        case .swapNotFound: true
+        case .swapNotRetryable: true
+        case .unauthorized: true
+        case .upstreamTimeout: true
+        case .upstreamUnavailable: true
+        case .userBanned: true
+        case .userNotFound: true
+        case .versionConflict: true
+        case .walletMismatch: true
+        case .withdrawNotAllowed: true
+        case .xNotLinked: true
         }
     }
 }
