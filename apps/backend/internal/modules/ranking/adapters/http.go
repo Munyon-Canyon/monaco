@@ -16,6 +16,7 @@ import (
 type HTTP struct {
 	Boards app.Boards
 	Cabals app.CabalCheck
+	Pages  app.PageLoader
 }
 
 var _ api.StrictServerInterface = HTTP{}
@@ -78,6 +79,7 @@ func (h HTTP) serve(
 	if err != nil {
 		return api.LeaderboardPage{}, err
 	}
+	in.Pages = h.Pages
 	if board.viewer != nil {
 		id := board.viewer.UUID()
 		in.Viewer = &id
