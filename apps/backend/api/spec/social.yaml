@@ -95,8 +95,10 @@ paths:
         - name: scope
           in: query
           required: false
-          description: "`all` (the default) or `following`, the items whose actor the caller follows."
-          schema: {type: string, enum: [all, following], default: all, examples: [following]}
+          description: >-
+            `all` (the default), `following` (the items whose actor the caller follows) or `mine` (the items
+            of the cabals the caller is in, without price moves).
+          schema: {type: string, enum: [all, following, mine], default: all, examples: [mine]}
         - name: sort
           in: query
           required: false
@@ -162,8 +164,10 @@ paths:
         - name: scope
           in: query
           required: false
-          description: "`all` (the default) or `following`, the items whose actor the caller follows."
-          schema: {type: string, enum: [all, following], default: all, examples: [following]}
+          description: >-
+            `all` (the default), `following` (the items whose actor the caller follows) or `mine` (the items
+            of the cabals the caller is in, without price moves).
+          schema: {type: string, enum: [all, following, mine], default: all, examples: [mine]}
       responses:
         "200":
           description: The feed item.

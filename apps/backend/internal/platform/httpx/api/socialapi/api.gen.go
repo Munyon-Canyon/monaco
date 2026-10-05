@@ -51,6 +51,7 @@ func (e FeedMuteRequestTargetType) Valid() bool {
 const (
 	GetFeedParamsScopeAll       GetFeedParamsScope = "all"
 	GetFeedParamsScopeFollowing GetFeedParamsScope = "following"
+	GetFeedParamsScopeMine      GetFeedParamsScope = "mine"
 )
 
 // Valid indicates whether the value is a known member of the GetFeedParamsScope enum.
@@ -59,6 +60,8 @@ func (e GetFeedParamsScope) Valid() bool {
 	case GetFeedParamsScopeAll:
 		return true
 	case GetFeedParamsScopeFollowing:
+		return true
+	case GetFeedParamsScopeMine:
 		return true
 	default:
 		return false
@@ -84,6 +87,7 @@ func (e GetFeedParamsSort) Valid() bool {
 const (
 	GetFeedItemParamsScopeAll       GetFeedItemParamsScope = "all"
 	GetFeedItemParamsScopeFollowing GetFeedItemParamsScope = "following"
+	GetFeedItemParamsScopeMine      GetFeedItemParamsScope = "mine"
 )
 
 // Valid indicates whether the value is a known member of the GetFeedItemParamsScope enum.
@@ -92,6 +96,8 @@ func (e GetFeedItemParamsScope) Valid() bool {
 	case GetFeedItemParamsScopeAll:
 		return true
 	case GetFeedItemParamsScopeFollowing:
+		return true
+	case GetFeedItemParamsScopeMine:
 		return true
 	default:
 		return false
@@ -279,7 +285,7 @@ type GetFeedParams struct {
 	// Q Full-text search over each item's symbol, cabal name, title and body. It filters the items and leaves the order newest first.
 	Q *string `form:"q,omitempty" json:"q,omitempty"`
 
-	// Scope `all` (the default) or `following`, the items whose actor the caller follows.
+	// Scope `all` (the default), `following` (the items whose actor the caller follows) or `mine` (the items of the cabals the caller is in, without price moves).
 	Scope *GetFeedParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
 	// Sort `new` (the default): newest first.
@@ -312,7 +318,7 @@ type GetFeedItemParams struct {
 	// Q Full-text search over each item's symbol, cabal name, title and body. It filters the items and leaves the order newest first.
 	Q *string `form:"q,omitempty" json:"q,omitempty"`
 
-	// Scope `all` (the default) or `following`, the items whose actor the caller follows.
+	// Scope `all` (the default), `following` (the items whose actor the caller follows) or `mine` (the items of the cabals the caller is in, without price moves).
 	Scope *GetFeedItemParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 }
 

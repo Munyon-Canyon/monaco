@@ -33,6 +33,7 @@ type Scope string
 const (
 	ScopeAll       Scope = "all"
 	ScopeFollowing Scope = "following"
+	ScopeMine      Scope = "mine"
 )
 
 func ParseScope(raw string) (Scope, error) {
@@ -41,6 +42,8 @@ func ParseScope(raw string) (Scope, error) {
 		return ScopeAll, nil
 	case ScopeFollowing:
 		return ScopeFollowing, nil
+	case ScopeMine:
+		return ScopeMine, nil
 	default:
 		return "", errs.New(errs.CodeInvalidInput, "feed.ParseScope", slog.String("scope", raw))
 	}
