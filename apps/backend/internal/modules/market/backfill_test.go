@@ -282,6 +282,7 @@ func TestBackfill_aFailedMintKeepsItsCodeAndNothingIsWritten(t *testing.T) {
 		t.Fatalf("done = %v, last_code = %q, points = %d, want pending with the code and no rows",
 			done, code, len(r.points(t, aapl)))
 	}
+	r.clock.Advance(11 * time.Minute)
 	if _, err := r.tick(t); err != nil {
 		t.Fatal(err)
 	}
@@ -490,5 +491,64 @@ func TestBackfill_aRowThePointsTableRejectsFailsTheWholeMint(t *testing.T) {
 	if done, code := r.status(t, aapl); done || code == "" || len(r.points(t, aapl)) != 0 {
 		t.Fatalf("done = %v, last_code = %q, points = %d, want pending with a code and no rows from any window",
 			done, code, len(r.points(t, aapl)))
+	}
+}
+
+func TestBackfill_aFailingMintBacksOffExponentiallyUpToADay(t *testing.T) {
+	t.Parallel()
+	r := newBackfillRig(t)
+	aapl := marketfake.AAPLx().Mint
+	r.pend(t, aapl)
+	r.history.Fail("MarketChart", errs.New(errs.CodeDecodeFailed, "test"))
+	calls := func() int { return len(r.history.Calls()) }
+	step := func(wait time.Duration, wantCalls int) {
+		t.Helper()
+		r.clock.Advance(wait)
+		_, _ = r.tick(t)
+		if calls() != wantCalls {
+			t.Fatalf("%d calls after waiting %v, want %d", calls(), wait, wantCalls)
+		}
+	}
+	step(0, 1)
+	step(9*time.Minute+59*time.Second, 1)
+	step(time.Second, 2)
+	step(19*time.Minute+59*time.Second, 2)
+	step(time.Second, 3)
+	r.exec(t, `UPDATE price_backfills SET attempts = 30, last_attempt_at = $1 WHERE mint = $2`,
+		r.clock.Now(), aapl.String())
+	step(23*time.Hour+59*time.Minute, 3)
+	step(time.Minute, 4)
+	if done, code := r.status(t, aapl); done || code != "decode_failed" {
+		t.Fatalf("done = %v, last_code = %q, want pending with decode_failed", done, code)
+	}
+}
+
+func TestBackfill_aRateLimitDoesNotBackOffTheMint(t *testing.T) {
+	t.Parallel()
+	r := newBackfillRig(t)
+	aapl := marketfake.AAPLx().Mint
+	r.pend(t, aapl)
+	r.history.FailOnce("MarketChart", errs.New(errs.CodeCoinGeckoRateLimited, "test"))
+	if _, err := r.tick(t); errs.CodeOf(err) != errs.CodeCoinGeckoRateLimited {
+		t.Fatalf("tick err = %v, want coin_gecko_rate_limited", err)
+	}
+	if report, err := r.tick(t); err != nil || report.Scanned != 1 {
+		t.Fatalf("next tick = %+v, %v, want the mint tried again at once", report, err)
+	}
+}
+
+func TestBackfill_theDailyNowPointNeverReplacesAFinerBucket(t *testing.T) {
+	t.Parallel()
+	r := newBackfillRig(t)
+	aapl := marketfake.AAPLx().Mint
+	r.history.Put(aapl, 1, sample(r.day.Add(40*time.Second), 105_000_000))
+	r.history.Put(aapl, 90, sample(r.day.Add(5*time.Minute), 110_000_000))
+	r.history.Put(aapl, 365, sample(r.day.Add(13*time.Hour+22*time.Minute), 120_000_000))
+	r.pend(t, aapl)
+	if _, err := r.tick(t); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.points(t, aapl); len(got) != 1 || got[r.day] != "105000000/coingecko" {
+		t.Fatalf("points = %v, want the 5 minute 105 in the midnight bucket all three windows share", got)
 	}
 }

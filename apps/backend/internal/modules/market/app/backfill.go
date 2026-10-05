@@ -25,7 +25,7 @@ type historyWindow struct {
 	bucket time.Duration
 }
 
-func backfillWindows() []historyWindow {
+func finestFirstWindows() []historyWindow {
 	return []historyWindow{
 		{days: 1, bucket: 5 * time.Minute},
 		{days: 90, bucket: time.Hour},
@@ -57,7 +57,8 @@ func (b *Backfill) Tick(ctx context.Context) (poller.Report, error) {
 		observability.Degraded(ctx, observability.MarketBackfillSkippedNoKey)
 		return poller.Report{}, nil
 	}
-	pending, err := sqlc.New(b.reads).PendingBackfills(ctx, backfillBatch)
+	pending, err := sqlc.New(b.reads).PendingBackfills(ctx,
+		sqlc.PendingBackfillsParams{Now: b.clock.Now(), BatchLimit: backfillBatch})
 	if err != nil {
 		return poller.Report{}, errs.Wrap(err, errs.CodeOf(err), "market.Backfill.Tick")
 	}
@@ -116,9 +117,9 @@ func (b *Backfill) backfill(ctx context.Context, raw string) (int, int, error) {
 	if err != nil {
 		return 0, 0, b.fail(ctx, raw, errs.Wrap(err, errs.CodeInvalidAddress, op, slog.String("mint", raw)))
 	}
-	answers := make([][]Sample, 0, len(backfillWindows()))
+	answers := make([][]Sample, 0, len(finestFirstWindows()))
 	calls := 0
-	for _, w := range backfillWindows() {
+	for _, w := range finestFirstWindows() {
 		calls++
 		samples, err := b.history.MarketChart(ctx, mint, w.days)
 		if err != nil {
@@ -130,7 +131,7 @@ func (b *Backfill) backfill(ctx context.Context, raw string) (int, int, error) {
 	err = b.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		q := sqlc.New(tx.Queries())
 		rows = 0
-		for i, w := range backfillWindows() {
+		for i, w := range finestFirstWindows() {
 			n, err := q.InsertBackfilledPricePoints(ctx, insertParams(mint, w, answers[i]))
 			if err != nil {
 				return err
@@ -159,7 +160,10 @@ func insertParams(mint domain.Mint, w historyWindow, samples []Sample) sqlc.Inse
 func (b *Backfill) fail(ctx context.Context, mint string, cause error) error {
 	err := b.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		return sqlc.New(tx.Queries()).FailBackfill(ctx,
-			sqlc.FailBackfillParams{Mint: mint, Code: string(errs.CodeOf(cause))})
+			sqlc.FailBackfillParams{
+				Mint: mint, Code: string(errs.CodeOf(cause)), Now: b.clock.Now(),
+				BackOff: errs.CodeOf(cause) != errs.CodeCoinGeckoRateLimited,
+			})
 	})
 	return errors.Join(cause, err)
 }

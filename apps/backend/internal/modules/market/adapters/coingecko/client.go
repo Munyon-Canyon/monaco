@@ -20,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 const (
@@ -88,7 +89,12 @@ func (c *Client) MarketChart(ctx context.Context, mint domain.Mint, days int) ([
 	if err := json.NewDecoder(io.LimitReader(resp.Body, maxBody)).Decode(&w); err != nil {
 		return nil, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.Int("days", days))
 	}
-	return samples(w, op)
+	out, dropped, err := samples(w, op)
+	if dropped > 0 {
+		observability.Degraded(ctx, observability.MarketCoinGeckoSubMicroDropped,
+			slog.String("mint", mint.String()), slog.Int("days", days), slog.Int("dropped", dropped))
+	}
+	return out, err
 }
 
 func rateLimited(err error) bool {
@@ -100,23 +106,25 @@ func rateLimited(err error) bool {
 	return false
 }
 
-func samples(w chartWire, op string) ([]app.Sample, error) {
+func samples(w chartWire, op string) ([]app.Sample, int, error) {
 	out := make([]app.Sample, 0, len(w.Prices))
+	dropped := 0
 	for _, p := range w.Prices {
 		ms, err := p[0].Int64()
 		if err != nil {
-			return nil, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("ts", string(p[0])))
+			return nil, 0, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("ts", string(p[0])))
 		}
 		price, ok := parsePrice(p[1])
 		if !ok {
-			return nil, errs.New(errs.CodeDecodeFailed, op, slog.String("price", string(p[1])))
+			return nil, 0, errs.New(errs.CodeDecodeFailed, op, slog.String("price", string(p[1])))
 		}
 		if price.IsZero() {
+			dropped++
 			continue
 		}
 		out = append(out, app.Sample{At: time.UnixMilli(ms).UTC(), Price: price})
 	}
-	return out, nil
+	return out, dropped, nil
 }
 
 var decimalNumber = regexp.MustCompile(`^[0-9]{1,40}(\.[0-9]{1,40})?([eE][-+]?[0-9]{1,3})?$`)
