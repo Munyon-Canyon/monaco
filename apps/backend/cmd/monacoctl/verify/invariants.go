@@ -72,7 +72,8 @@ func (d *driver) settle(ctx context.Context, res *Result) error {
 		return err
 	}
 	kind, _ := res.Unit.Flow.TriggerKind(res.Unit.Command)
-	if kind == tools.TriggerRoute || kind == tools.TriggerOps {
+	_, accepted := acceptedForConsumers(res)
+	if (kind == tools.TriggerRoute || kind == tools.TriggerOps) && !accepted {
 		if msg := d.outcomeMismatch(res); msg != "" {
 			return &InvariantError{Flow: res.Unit.Name(), Msg: msg}
 		}
@@ -80,15 +81,21 @@ func (d *driver) settle(ctx context.Context, res *Result) error {
 	needs := d.requiredLogs(ctx, res)
 	found, msg := d.awaitLogs(ctx, res.logFrom, needs)
 	res.logLines = found
-	if kind != tools.TriggerRoute && kind != tools.TriggerOps {
-		if mismatch := d.outcomeMismatch(res); mismatch != "" {
-			return &InvariantError{Flow: res.Unit.Name(), Msg: mismatch}
-		}
+	if mismatch := d.lateMismatch(res, kind, accepted, msg); mismatch != "" {
+		return &InvariantError{Flow: res.Unit.Name(), Msg: mismatch}
 	}
 	if msg != "" {
 		return &InvariantError{Flow: res.Unit.Name(), Msg: msg}
 	}
 	return nil
+}
+
+func (d *driver) lateMismatch(res *Result, kind tools.TriggerKind, accepted bool, logsMissing string) string {
+	checkedEarly := kind == tools.TriggerRoute || kind == tools.TriggerOps
+	if !checkedEarly || accepted && logsMissing != "" {
+		return d.outcomeMismatch(res)
+	}
+	return ""
 }
 
 func (d *driver) awaitLogs(ctx context.Context, from int, needs []logNeed) ([]string, string) {
@@ -153,7 +160,7 @@ func operationMismatch(res *Result, operation string) string {
 	return ""
 }
 
-func routeMismatch(res *Result, route string) string {
+func routeCalls(res *Result, route string) []scenario.Exchange {
 	method, path, _ := strings.Cut(route, " ")
 	var calls []scenario.Exchange
 	for _, e := range res.Exchanges {
@@ -161,6 +168,23 @@ func routeMismatch(res *Result, route string) string {
 			calls = append(calls, e)
 		}
 	}
+	return calls
+}
+
+func acceptedForConsumers(res *Result) (errs.Code, bool) {
+	kind, route := res.Unit.Flow.TriggerKind(res.Unit.Command)
+	name, isCode := res.Unit.Outcome.CodeName()
+	if kind != tools.TriggerRoute || !isCode || len(res.Unit.Flow.Consumers) == 0 {
+		return "", false
+	}
+	calls := routeCalls(res, route)
+	accepted := len(calls) > 0 && calls[len(calls)-1].Status >= http.StatusOK &&
+		calls[len(calls)-1].Status < http.StatusMultipleChoices
+	return codeNamed(name), accepted
+}
+
+func routeMismatch(res *Result, route string) string {
+	calls := routeCalls(res, route)
 	if len(calls) == 0 {
 		return fmt.Sprintf("no %s request was sent", route)
 	}
@@ -267,6 +291,9 @@ type logNeed struct {
 
 func (d *driver) requiredLogs(ctx context.Context, res *Result) []logNeed {
 	needs := d.triggerLogs(res.Unit)
+	if code, accepted := acceptedForConsumers(res); accepted {
+		return append(needs[:1], logNeed{observability.BusDispatched, map[string]string{"code": string(code)}})
+	}
 	if _, isCode := res.Unit.Outcome.CodeName(); isCode {
 		return needs
 	}
