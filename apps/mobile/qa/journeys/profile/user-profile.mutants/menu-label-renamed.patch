@@ -1,0 +1,19 @@
+journey: profile/user-profile
+expect-fail: S1
+
+The "…" menu is labelled "Options". S1.4 reads "More", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Profile/UserProfileMoreMenu.swift b/apps/mobile/Monaco/Features/Profile/UserProfileMoreMenu.swift
+index 69caa7cb0..e53b86b49 100644
+--- a/apps/mobile/Monaco/Features/Profile/UserProfileMoreMenu.swift
++++ b/apps/mobile/Monaco/Features/Profile/UserProfileMoreMenu.swift
+@@ -13,7 +13,7 @@ struct UserProfileMoreMenu: View {
+             Image(systemName: "ellipsis")
+                 .frame(minWidth: 44, minHeight: 44)
+         }
+-        .accessibilityLabel("More")
++        .accessibilityLabel("Options")
+         .accessibilityIdentifier("user-profile-more")
+     }
+ }
