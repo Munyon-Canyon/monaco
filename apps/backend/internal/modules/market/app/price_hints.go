@@ -50,6 +50,6 @@ func (p *PriceHints) note(ctx context.Context) {
 	}
 	p.once = true
 	p.last = now
-	p.bus.PublishHint(ctx, priceHintKey, nil)
 	p.sent.Add(ctx, 1)
+	p.bus.PublishHint(ctx, priceHintKey, nil)
 }
