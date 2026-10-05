@@ -373,12 +373,13 @@ func (env *Env) lanesOpen(ctx context.Context, stdout io.Writer) error {
 		return err
 	}
 	n := 0
+	var remote []int
 	for _, r := range rs {
 		if r.State == Exited {
 			continue
 		}
 		if !worktreeHere(r) {
-			_, _ = fmt.Fprintf(stdout, "not counted: #%d (worktree on another machine)\n", r.Ticket)
+			remote = append(remote, r.Ticket)
 			continue
 		}
 		is, err := env.GitHub.Issue(ctx, r.Ticket)
@@ -390,6 +391,14 @@ func (env *Env) lanesOpen(ctx context.Context, stdout io.Writer) error {
 			continue
 		}
 		n++
+	}
+	if len(remote) > 0 {
+		shown := prList(remote[:min(len(remote), 10)])
+		if len(remote) > 10 {
+			shown += " ..."
+		}
+		_, _ = fmt.Fprintf(stdout,
+			"not counted: %d records with worktrees on another machine (%s)\n", len(remote), shown)
 	}
 	if n >= env.Config.Lanes {
 		return detailErr(
