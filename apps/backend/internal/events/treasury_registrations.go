@@ -6,5 +6,6 @@ func treasuryRegistrations() []Registration {
 		Register[FundSubmitted](TypeFundSubmitted, 1),
 		Register[Funded](TypeFunded, 1),
 		Register[FundFailed](TypeFundFailed, 1),
+		Register[CashOutFailed](TypeCashOutFailed, 1),
 	}
 }
