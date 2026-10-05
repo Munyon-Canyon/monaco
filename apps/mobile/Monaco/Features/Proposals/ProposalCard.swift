@@ -5,27 +5,30 @@ struct ProposalCard: View {
     private let summary: ProposalSummary
     let asset: ProposalAsset?
     let members: [ProposalMember]
+    private let paused: Bool
     private let vote: (String) -> Void
 
     @State private var changing = false
 
     init(
-        proposal: ProposalSummary, asset: ProposalAsset?, members: [ProposalMember],
+        proposal: ProposalSummary, asset: ProposalAsset?, members: [ProposalMember], paused: Bool = false,
         vote: @escaping (String) -> Void = { _ in }
     ) {
         summary = proposal
         self.asset = asset
         self.members = members
+        self.paused = paused
         self.vote = vote
     }
 
     init(
-        proposal: ProposalDetail, asset: ProposalAsset?, members: [ProposalMember],
+        proposal: ProposalDetail, asset: ProposalAsset?, members: [ProposalMember], paused: Bool = false,
         vote: @escaping (String) -> Void = { _ in }
     ) {
         summary = proposal.summary
         self.asset = asset
         self.members = members
+        self.paused = paused
         self.vote = vote
     }
 
@@ -46,6 +49,12 @@ struct ProposalCard: View {
                     .lineLimit(3)
             }
             tracker
+            if paused && summary.status == .open {
+                Text(ProposalCardCopy.pausedCaption)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.muted)
+                    .accessibilityIdentifier("proposal-paused-caption")
+            }
             actions
         }
         .padding(MonacoTheme.Space.m)

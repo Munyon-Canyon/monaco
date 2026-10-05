@@ -24,4 +24,9 @@ final class ProposalCardCopyTests: XCTestCase {
         XCTAssertEqual(ProposalCardCopy.sellAmount(atomics: "60170000", decimals: 8, kind: .stock), "0.6017 shares")
         XCTAssertEqual(ProposalCardCopy.sellAmount(atomics: "60170000", decimals: 8, kind: .preIpo), "0.6017 tokens")
     }
+
+    func testCaptionCopyIsTheScreenMapSentence() async throws {
+        XCTAssertEqual(
+            ProposalCardCopy.pausedCaption, "Trading is paused. If this passes, it won't buy until trading resumes.")
+    }
 }

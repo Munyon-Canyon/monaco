@@ -184,6 +184,12 @@ public struct ProposalsRepository: Sendable {
         }
     }
 
+    public func isPaused(cabalID: String) async throws -> Bool {
+        try await api.read { client in
+            try await client.getCashOutPreview(path: .init(id: cabalID)).ok.body.json.pause != nil
+        }
+    }
+
     public func members(cabalID: String) async throws -> [ProposalMember] {
         try await api.read { client in
             try await client.getCabal(path: .init(id: cabalID)).ok.body.json.members.map(ProposalMember.init)
