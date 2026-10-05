@@ -4,6 +4,7 @@ GET /v1/cabals/{id}/cashouts/{job_id}
 GET /v1/me
 GET /v1/me/balance
 GET /v1/me/txns
+GET /v1/me/withdrawals/{id}
 GET /v1/stream
 POST /v1/cabals/{id}/cashouts
 POST /v1/me/withdrawals

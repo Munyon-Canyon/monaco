@@ -46,6 +46,35 @@ func (h HTTP) Withdraw(ctx context.Context, req api.WithdrawRequestObject) (api.
 	}), nil
 }
 
+func (h HTTP) GetMyWithdrawal(
+	ctx context.Context, req api.GetMyWithdrawalRequestObject,
+) (api.GetMyWithdrawalResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	row, err := app.GetWithdrawal(ctx, h.Reads, req.Id, user)
+	if err != nil {
+		return nil, err
+	}
+	out := api.Withdrawal{
+		WithdrawalId: row.ID, Status: api.WithdrawalStatus(row.Status), AmountMicros: row.AmountMicros,
+		ToAddress: row.ToAddress, TxSignature: optional(row.TxSignature), FailCode: optional(row.FailCode),
+		CreatedAt: row.CreatedAt,
+	}
+	if row.CompletedAt.Valid {
+		out.CompletedAt = &row.CompletedAt.Time
+	}
+	return api.GetMyWithdrawal200JSONResponse(out), nil
+}
+
+func optional(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
 func (h HTTP) GetMyBalance(
 	ctx context.Context,
 	_ api.GetMyBalanceRequestObject,
