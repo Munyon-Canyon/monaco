@@ -128,6 +128,8 @@ func flow(poller string) string {
 	switch poller {
 	case "funding.deposits":
 		return "05"
+	case "funding.withdrawals":
+		return "15"
 	case "market.prices":
 		return "18"
 	case "identity.nudges":
