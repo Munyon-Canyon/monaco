@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/sqlc"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -38,4 +40,34 @@ func (o WithdrawalOutflows) InFlightMicros(ctx context.Context, user ids.UserID)
 		return money.Micros{}, err
 	}
 	return money.ParseMicros(raw)
+}
+
+type WithdrawalReads struct{ Reads sqlc.DBTX }
+
+var _ port.Withdrawals = WithdrawalReads{}
+
+func (r WithdrawalReads) OpenWithdrawals(
+	ctx context.Context, user ids.UserID, page port.WithdrawalPage,
+) ([]port.OpenWithdrawal, error) {
+	params := sqlc.ListOpenWithdrawalsParams{UserID: user.UUID(), RowLimit: page.Limit}
+	if page.Before != nil {
+		params.HasCursor, params.CursorAt, params.CursorID = true, page.Before.At, page.Before.ID
+	}
+	rows, err := sqlc.New(r.Reads).ListOpenWithdrawals(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]port.OpenWithdrawal, len(rows))
+	for i, row := range rows {
+		out[i] = port.OpenWithdrawal{
+			ID:        row.ID,
+			Failed:    domain.WithdrawalStatus(row.Status) == domain.WithdrawalFailed,
+			Delta:     money.SignedMicrosFromInt64(row.Amount),
+			CreatedAt: row.CreatedAt,
+		}
+		if row.TxSignature.Valid {
+			out[i].TxSignature = &row.TxSignature.String
+		}
+	}
+	return out, nil
 }

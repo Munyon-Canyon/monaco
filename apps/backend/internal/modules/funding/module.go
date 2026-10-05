@@ -113,6 +113,8 @@ func (m *Module) Balances() port.Balances {
 	return m.balances
 }
 
+func (m *Module) Withdrawals() port.Withdrawals { return app.WithdrawalReads{Reads: m.deps.Pool} }
+
 func (m *Module) Pauses() port.Pauses { return adapters.NewPauses(m.deps.Pool) }
 
 func (*Module) PausesIn(tx db.Tx) port.Pauses { return adapters.NewPauses(tx.Queries()) }

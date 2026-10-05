@@ -1,9 +1,12 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"log/slog"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +15,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
+	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -49,17 +53,20 @@ type UserTxnPage struct {
 }
 
 type UserTxnReads struct {
-	q      *sqlc.Queries
-	cabals CabalViews
-	usdc   domain.Asset
+	q           *sqlc.Queries
+	cabals      CabalViews
+	withdrawals fundingport.Withdrawals
+	usdc        domain.Asset
 }
 
 type CabalViews interface {
 	Cabals(context.Context, []ids.CabalID) (map[ids.CabalID]cabalport.CabalView, error)
 }
 
-func NewUserTxnReads(db sqlc.DBTX, cabals CabalViews, usdc domain.Asset) *UserTxnReads {
-	return &UserTxnReads{q: sqlc.New(db), cabals: cabals, usdc: usdc}
+func NewUserTxnReads(
+	db sqlc.DBTX, cabals CabalViews, withdrawals fundingport.Withdrawals, usdc domain.Asset,
+) *UserTxnReads {
+	return &UserTxnReads{q: sqlc.New(db), cabals: cabals, withdrawals: withdrawals, usdc: usdc}
 }
 
 func (r *UserTxnReads) List(ctx context.Context, req ListUserTxns) (UserTxnPage, error) {
@@ -74,56 +81,92 @@ func (r *UserTxnReads) List(ctx context.Context, req ListUserTxns) (UserTxnPage,
 	if err != nil {
 		return UserTxnPage{}, err
 	}
-	page := UserTxnPage{Items: []UserTxnView{}}
-	if len(rows) > int(limit) {
-		rows = rows[:limit]
-		last := rows[len(rows)-1]
-		page.NextCursor = encodeUserTxnCursor(last.CreatedAt, last.ID)
+	withdrawalPage := fundingport.WithdrawalPage{Limit: limit + 1}
+	if cursor.ok {
+		withdrawalPage.Before = &fundingport.WithdrawalCursor{At: cursor.at, ID: cursor.id}
 	}
-	cabals, err := r.cabalsFor(ctx, rows)
+	open, err := r.withdrawals.OpenWithdrawals(ctx, req.UserID, withdrawalPage)
 	if err != nil {
 		return UserTxnPage{}, err
 	}
+	views := make([]UserTxnView, 0, len(rows)+len(open))
 	for _, row := range rows {
-		page.Items = append(page.Items, userTxnView(row, cabals))
+		views = append(views, ledgerTxnView(row))
 	}
+	for _, w := range open {
+		views = append(views, withdrawalTxnView(w))
+	}
+	slices.SortFunc(views, newestFirst)
+	page := UserTxnPage{}
+	if len(views) > int(limit) {
+		views = views[:limit]
+		last := views[len(views)-1]
+		page.NextCursor = encodeUserTxnCursor(last.CreatedAt, last.ID)
+	}
+	if err := r.nameCabals(ctx, views); err != nil {
+		return UserTxnPage{}, err
+	}
+	page.Items = views
 	return page, nil
 }
 
-func (r *UserTxnReads) cabalsFor(
-	ctx context.Context, rows []sqlc.ListUserTxnsRow,
-) (map[ids.CabalID]cabalport.CabalView, error) {
-	idsByCabal := map[ids.CabalID]struct{}{}
-	for _, row := range rows {
-		if row.CabalID.Valid {
-			idsByCabal[ids.CabalIDFrom(row.CabalID.Bytes)] = struct{}{}
-		}
-	}
-	if len(idsByCabal) == 0 {
-		return map[ids.CabalID]cabalport.CabalView{}, nil
-	}
-	cabalIDs := make([]ids.CabalID, 0, len(idsByCabal))
-	for id := range idsByCabal {
-		cabalIDs = append(cabalIDs, id)
-	}
-	return r.cabals.Cabals(ctx, cabalIDs)
-}
-
-func userTxnView(row sqlc.ListUserTxnsRow, cabals map[ids.CabalID]cabalport.CabalView) UserTxnView {
+func ledgerTxnView(row sqlc.ListUserTxnsRow) UserTxnView {
 	v := UserTxnView{
 		ID: row.ID, Kind: domain.UserTxnKind(row.Kind), Status: domain.TxnStatus(row.Status),
 		USDCMicros: row.Amount, CreatedAt: row.CreatedAt.UTC(),
 	}
 	if row.CabalID.Valid {
-		id := ids.CabalIDFrom(row.CabalID.Bytes)
-		if cabal, ok := cabals[id]; ok {
-			v.Cabal = &UserTxnCabal{ID: id, Name: cabal.Name}
-		}
+		v.Cabal = &UserTxnCabal{ID: ids.CabalIDFrom(row.CabalID.Bytes)}
 	}
 	if row.TxSignature.Valid {
 		v.TxSignature = &row.TxSignature.String
 	}
 	return v
+}
+
+func withdrawalTxnView(w fundingport.OpenWithdrawal) UserTxnView {
+	status := domain.TxnPending
+	if w.Failed {
+		status = domain.TxnFailed
+	}
+	return UserTxnView{
+		ID: w.ID, Kind: domain.UserWithdrawal, Status: status, USDCMicros: w.Delta.Int64(),
+		TxSignature: w.TxSignature, CreatedAt: w.CreatedAt.UTC(),
+	}
+}
+
+func newestFirst(a, b UserTxnView) int {
+	if c := b.CreatedAt.Compare(a.CreatedAt); c != 0 {
+		return c
+	}
+	return bytes.Compare(b.ID[:], a.ID[:])
+}
+
+func (r *UserTxnReads) nameCabals(ctx context.Context, views []UserTxnView) error {
+	idsByCabal := map[ids.CabalID]struct{}{}
+	for _, v := range views {
+		if v.Cabal != nil {
+			idsByCabal[v.Cabal.ID] = struct{}{}
+		}
+	}
+	if len(idsByCabal) == 0 {
+		return nil
+	}
+	cabals, err := r.cabals.Cabals(ctx, slices.Collect(maps.Keys(idsByCabal)))
+	if err != nil {
+		return err
+	}
+	for i, v := range views {
+		if v.Cabal == nil {
+			continue
+		}
+		if cabal, ok := cabals[v.Cabal.ID]; ok {
+			views[i].Cabal.Name = cabal.Name
+		} else {
+			views[i].Cabal = nil
+		}
+	}
+	return nil
 }
 
 type userTxnCursor struct {

@@ -131,6 +131,63 @@ func (q *Queries) InsertWithdrawal(ctx context.Context, arg InsertWithdrawalPara
 	return err
 }
 
+const listOpenWithdrawals = `-- name: ListOpenWithdrawals :many
+SELECT id, status, (-amount_micros)::bigint AS amount, tx_signature, created_at
+FROM withdrawals
+WHERE user_id = $1 AND status <> 'confirmed'
+  AND (NOT $2::bool OR (created_at, id) < ($3::timestamptz, $4::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT $5
+`
+
+type ListOpenWithdrawalsParams struct {
+	UserID    uuid.UUID
+	HasCursor bool
+	CursorAt  time.Time
+	CursorID  uuid.UUID
+	RowLimit  int32
+}
+
+type ListOpenWithdrawalsRow struct {
+	ID          uuid.UUID
+	Status      string
+	Amount      int64
+	TxSignature pgtype.Text
+	CreatedAt   time.Time
+}
+
+func (q *Queries) ListOpenWithdrawals(ctx context.Context, arg ListOpenWithdrawalsParams) ([]ListOpenWithdrawalsRow, error) {
+	rows, err := q.db.Query(ctx, listOpenWithdrawals,
+		arg.UserID,
+		arg.HasCursor,
+		arg.CursorAt,
+		arg.CursorID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOpenWithdrawalsRow
+	for rows.Next() {
+		var i ListOpenWithdrawalsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Status,
+			&i.Amount,
+			&i.TxSignature,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStaleCreatedWithdrawals = `-- name: ListStaleCreatedWithdrawals :many
 SELECT id, user_id, amount_micros::text AS amount_micros
 FROM withdrawals
