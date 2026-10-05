@@ -1,0 +1,19 @@
+journey: money/activity
+expect-fail: S1
+
+A settled receipt reads "Settled" instead of "Done". S1.2 checks the status, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Treasury/AccountActivityRow.swift b/packages/mobile-core/Sources/MonacoCore/Treasury/AccountActivityRow.swift
+index 2fd4ffdf..46c1c894 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Treasury/AccountActivityRow.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Treasury/AccountActivityRow.swift
+@@ -18,7 +18,7 @@ public struct AccountActivityRow: Identifiable, Equatable, Sendable {
+         public var receiptLabel: String {
+             switch self {
+             case .pending: "Pending"
+-            case .settled: "Done"
++            case .settled: "Settled"
+             case .failed: "Failed"
+             }
+         }

@@ -1,0 +1,19 @@
+journey: money/deposit
+expect-fail: S1
+
+Copy address toasts "Copied." S1.3 waits for "Address copied.", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Deposit/DepositView.swift b/apps/mobile/Monaco/Features/Deposit/DepositView.swift
+index 4a9aa9f6..5c95f5e1 100644
+--- a/apps/mobile/Monaco/Features/Deposit/DepositView.swift
++++ b/apps/mobile/Monaco/Features/Deposit/DepositView.swift
+@@ -35,7 +35,7 @@ struct DepositView: View {
+ 
+     private func copyAddress(_ address: String) {
+         UIPasteboard.general.string = address
+-        toasts.show(success: "Address copied.")
++        toasts.show(success: "Copied.")
+     }
+ 
+     private func preparedModel() -> BalanceSource {

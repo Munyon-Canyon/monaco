@@ -1,0 +1,19 @@
+journey: money/fund-cabal
+expect-fail: S1
+
+The button reads "Fund $1" instead of "Add $1 to the pot". S1.5 waits for it, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Deposit/FundCabalView.swift b/apps/mobile/Monaco/Features/Deposit/FundCabalView.swift
+index 63be888e..e1f4141b 100644
+--- a/apps/mobile/Monaco/Features/Deposit/FundCabalView.swift
++++ b/apps/mobile/Monaco/Features/Deposit/FundCabalView.swift
+@@ -102,7 +102,7 @@ struct FundCabalForm: Equatable {
+         guard let value = AmountEntryText.decimal(amountText), value > 0 else { return "Add money" }
+         let isWhole = (AmountEntryText.micros(amountText) ?? 0) % 1_000_000 == 0
+         let amount = isWhole ? AmountEntryText.display(amountText) : UsdAmountFormatter.format(decimal: value)
+-        return "Add \(amount) to the pot"
++        return "Fund \(amount)"
+     }
+ 
+     /// The line under the figure: what there is to fund with, and what is already on its way.
