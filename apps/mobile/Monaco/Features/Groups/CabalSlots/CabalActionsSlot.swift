@@ -10,12 +10,17 @@ enum CabalActionsSlot: CabalSection {
     }
 }
 
-private struct CabalActionsLive: View {
+struct CabalActionsLive: View {
     let cabalID: String
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.cabalRetry) private var retry
     @State private var model: CabalActionsModel?
+
+    init(cabalID: String, model: CabalActionsModel? = nil) {
+        self.cabalID = cabalID
+        _model = State(initialValue: model)
+    }
 
     var body: some View {
         CabalActionsRow(model: model) { route in
@@ -67,7 +72,7 @@ struct CabalActionsRow: View {
             }
             .accessibilityHidden(true)
         case .hidden, .failed:
-            EmptyView()
+            Color.clear.frame(height: 0)
         case .member(let canPropose):
             if let model {
                 buttons(cabalID: model.cabalID, canPropose: canPropose)

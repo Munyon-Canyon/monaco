@@ -12,6 +12,7 @@ enum CabalSliceSlot: CabalSection {
 private struct CabalSlice: View {
     let cabalID: String
     @Environment(AppEnvironment.self) private var environment
+    @Environment(\.cabalRetry) private var retry
     @State private var model: CabalActionsModel?
 
     var body: some View {
@@ -33,7 +34,7 @@ private struct CabalSlice: View {
                 Color.clear.frame(height: 0)
             }
         }
-        .task {
+        .task(id: retry.tick) {
             let model = preparedModel()
             await model.load()
             await model.observe()
