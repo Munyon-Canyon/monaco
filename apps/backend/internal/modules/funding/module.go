@@ -88,7 +88,8 @@ func (m *Module) Pollers() []poller.Poller {
 	return []poller.Poller{
 		app.NewDepositPoller(m.deps.Pool, m.deps.UoW, m.deps.IDs, m.deps.Clock,
 			identity.New(m.deps).Queries(), solana.New(cfg, m.deps.Clock), chain.SolanaAddress(cfg.Solana.USDCMint),
-			cfg.Funding.DepositPollInterval, app.NewRPCLimiter(cfg.Funding.DepositRPCRate), m.deps.Bus),
+			cfg.Funding.DepositPollInterval, app.NewRPCLimiter(cfg.Funding.DepositRPCRate), m.deps.Bus,
+		).SkipOwned(treasury.New(m.deps).SignatureOwner()),
 		app.NewOnrampExpiryPoller(m.deps.UoW, m.deps.Clock),
 		withdrawals,
 	}
