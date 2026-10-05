@@ -43,20 +43,18 @@ final class IdempotentSubmissionTransportTests: XCTestCase {
         _ = try await client.createPlatformWithdrawal(
             amount: 5_000_000, toAddress: "Dest111", submission: IdempotentSubmission())
         _ = try await client.withdrawToBalance(groupId: "g1", shareAmountMicros: 10, submission: IdempotentSubmission())
-        _ = try await client.createProposal(
-            groupId: "g1", symbol: "AAPLx", usdc: 5_000_000, submission: IdempotentSubmission())
         _ = try await client.postRedeem(
             groupId: "g1", shareUnits: "1", payoutAddress: "Dest111", payoutProof: "proof",
             submission: IdempotentSubmission()
         )
 
         let keys = recorder.requests.map { $0.value(forHTTPHeaderField: IdempotentSubmission.keyHeader) }
-        XCTAssertEqual(keys.count, 5)
+        XCTAssertEqual(keys.count, 4)
         for (request, key) in zip(recorder.requests, keys) {
             let key = try XCTUnwrap(key, "no Idempotency-Key on \(request.url?.path ?? "")")
             XCTAssertNotNil(UUID(uuidString: key), "\(key) is not a UUID")
         }
-        XCTAssertEqual(Set(keys.compactMap { $0 }).count, 5, "separate submissions must not share a key")
+        XCTAssertEqual(Set(keys.compactMap { $0 }).count, 4, "separate submissions must not share a key")
     }
 
     // MARK: - Retry of the same submission

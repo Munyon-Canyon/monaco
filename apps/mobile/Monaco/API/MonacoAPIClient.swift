@@ -465,74 +465,6 @@ final class MonacoAPIClient: AppSessionDataSource {
         return try JSONDecoder().decode(AssetSocialDTO.self, from: data)
     }
 
-    func postQuote(
-        accessToken: String,
-        groupId: String,
-        symbol: String,
-        kind: String = "buy",
-        usdc: Int64? = nil,
-        tokenAmount: Int64? = nil,
-        selectBestVariant: Bool = false
-    ) async throws -> BuyQuoteDTO {
-        let url = baseURL.appending(path: "v1/groups/\(groupId)/quotes")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        try applyAuthorizationHeader(accessToken: accessToken, to: &request)
-        request.httpBody = try JSONEncoder().encode(
-            QuoteRequest(
-                symbol: symbol, kind: kind, usdc: usdc, tokenAmount: tokenAmount, selectBestVariant: selectBestVariant)
-        )
-
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw MonacoAPIError.invalidResponse
-        }
-        guard http.statusCode == 200 else {
-            throw MonacoAPIError.httpStatus(http.statusCode)
-        }
-        return try JSONDecoder().decode(BuyQuoteDTO.self, from: data)
-    }
-
-    func createProposal(
-        accessToken: String,
-        groupId: String,
-        kind: String = "buy",
-        symbol: String? = nil,
-        usdcMicros: Int64? = nil,
-        tokenAmount: Int64? = nil,
-        agentDisplayName: String? = nil,
-        allocationUsdcMicros: Int64? = nil,
-        thesis: String? = nil,
-        submission: IdempotentSubmission
-    ) async throws -> CreateProposalResponse {
-        let url = baseURL.appending(path: "v1/groups/\(groupId)/proposals")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        try applyAuthorizationHeader(accessToken: accessToken, to: &request)
-        request.httpBody = try MonacoHTTPTransport.idempotentBodyEncoder().encode(
-            ProposalRequest(
-                kind: kind,
-                symbol: symbol,
-                usdc: usdcMicros,
-                tokenAmount: tokenAmount,
-                agentDisplayName: agentDisplayName,
-                allocationUsdcMicros: allocationUsdcMicros,
-                thesis: thesis
-            )
-        )
-
-        let (data, response) = try await session.data(for: request, submission: submission)
-        guard let http = response as? HTTPURLResponse else {
-            throw MonacoAPIError.invalidResponse
-        }
-        guard http.statusCode == 200 else {
-            throw apiFailure(status: http.statusCode, data: data)
-        }
-        return try JSONDecoder().decode(CreateProposalResponse.self, from: data)
-    }
-
     func postRedeem(
         accessToken: String,
         groupId: String,
@@ -595,51 +527,6 @@ extension MonacoAPIClient {
     }
 }
 
-private struct QuoteRequest: Encodable {
-    let symbol: String
-    let kind: String?
-    let usdc: Int64?
-    let tokenAmount: Int64?
-    let selectBestVariant: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case symbol, kind, usdc, tokenAmount, selectBestVariant
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(symbol, forKey: .symbol)
-        if let kind { try container.encode(kind, forKey: .kind) }
-        if let usdc { try container.encode(usdc, forKey: .usdc) }
-        if let tokenAmount { try container.encode(tokenAmount, forKey: .tokenAmount) }
-        if selectBestVariant { try container.encode(true, forKey: .selectBestVariant) }
-    }
-}
-
-private struct ProposalRequest: Encodable {
-    let kind: String?
-    let symbol: String?
-    let usdc: Int64?
-    let tokenAmount: Int64?
-    let agentDisplayName: String?
-    let allocationUsdcMicros: Int64?
-    let thesis: String?
-
-    enum CodingKeys: String, CodingKey {
-        case kind, symbol, usdc, tokenAmount, agentDisplayName, allocationUsdcMicros, thesis
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        if let kind { try container.encode(kind, forKey: .kind) }
-        if let symbol { try container.encode(symbol, forKey: .symbol) }
-        if let usdc { try container.encode(usdc, forKey: .usdc) }
-        if let tokenAmount { try container.encode(tokenAmount, forKey: .tokenAmount) }
-        if let agentDisplayName { try container.encode(agentDisplayName, forKey: .agentDisplayName) }
-        if let allocationUsdcMicros { try container.encode(allocationUsdcMicros, forKey: .allocationUsdcMicros) }
-        if let thesis { try container.encode(thesis, forKey: .thesis) }
-    }
-}
 private struct RedeemSubmitRequest: Encodable {
     let shareUnits: String
     let payoutAddress: String
