@@ -568,6 +568,7 @@ func (q *Queries) MemberStakesAt(ctx context.Context, at time.Time) ([]MemberSta
 const ownsSignature = `-- name: OwnsSignature :one
 SELECT EXISTS (SELECT 1 FROM cabal_txns WHERE tx_signature = $1::text)
   OR EXISTS (SELECT 1 FROM user_txns WHERE tx_signature = $1::text)
+  OR EXISTS (SELECT 1 FROM cash_out_payouts WHERE signature = $1::text)
 `
 
 func (q *Queries) OwnsSignature(ctx context.Context, txSignature string) (pgtype.Bool, error) {

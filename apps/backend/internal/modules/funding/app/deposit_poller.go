@@ -11,6 +11,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -62,6 +63,7 @@ type DepositPoller struct {
 	period  time.Duration
 	hints   HintPublisher
 	limit   RPCLimiter
+	owner   fundingport.SignatureOwner
 }
 
 type memberWallet struct {
@@ -85,6 +87,18 @@ func NewDepositPoller(
 		reads: reads, uow: uow, ids: g, clock: c, wallets: wallets, rpc: rpc, usdc: usdc,
 		period: period, hints: hints, limit: limit,
 	}
+}
+
+func (p *DepositPoller) SkipOwned(owner fundingport.SignatureOwner) *DepositPoller {
+	p.owner = owner
+	return p
+}
+
+func (p *DepositPoller) owns(ctx context.Context, sig chain.Signature) (bool, error) {
+	if p.owner == nil {
+		return false, nil
+	}
+	return p.owner.OwnsSignature(ctx, sig)
 }
 
 func (*DepositPoller) Name() string { return "funding.deposits" }
@@ -348,6 +362,10 @@ func (p *DepositPoller) scanSignature(
 ) (int, error) {
 	if sig.Failed {
 		return 0, nil
+	}
+	owned, err := p.owns(ctx, sig.Signature)
+	if err != nil || owned {
+		return 0, err
 	}
 	if err := p.waitRPC(ctx); err != nil {
 		return 0, fmt.Errorf("funding.DepositPoller.scanSignature: %w", err)
