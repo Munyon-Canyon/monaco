@@ -76,7 +76,7 @@ gates = {
     "mobile-core": "cd packages/mobile-core && swift test",
     "scripts": "cd scripts && go test ./...",
     "workflows": 'docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12',
-    "web": "cd apps/web && npm test",
+    "web": "cd apps/web && npm ci && npm test",
 }
 seen = set()
 for name in order:
