@@ -2,7 +2,7 @@ import XCTest
 
 enum FeedBrowseJourney {
     static let id = "feed/browse"
-    static let version = 1
+    static let version = 2
     static let searchPlaceholder = "Search the feed"
     static let chips = ["All", "Proposals", "Trades", "Price moves", "Cabals"]
 
@@ -20,6 +20,18 @@ enum FeedBrowseJourney {
     static func openFeed(_ app: XCUIApplication, step: String) {
         app.tab("Feed").tap()
         XCTAssertTrue(app.element("feed-root").waitForExistence(timeout: 15), "\(step): no Feed tab within 15 s")
+    }
+
+    static func tapChip(_ app: XCUIApplication, _ title: String) {
+        let chip = app.element("feed-chip-\(title)")
+        var swipes = 0
+        while !chip.isHittable, swipes < 4,
+            let anchor = chips.map({ app.element("feed-chip-\($0)") }).first(where: { $0.isHittable })
+        {
+            if chip.frame.minX > anchor.frame.minX { anchor.swipeLeft() } else { anchor.swipeRight() }
+            swipes += 1
+        }
+        chip.tap()
     }
 
     static func replaceQuery(_ app: XCUIApplication, with text: String) {
@@ -45,7 +57,7 @@ enum FeedBrowseJourney {
         }
 
         recorder.step("S1.2", "the Cabals chip shows the seeded cabal") {
-            app.element("feed-chip-Cabals").tap()
+            tapChip(app, "Cabals")
             XCTAssertTrue(
                 text(app, containing: "started \(joinedCabal(run: run))").waitForExistence(timeout: 15),
                 "S1.2: no 'started \(joinedCabal(run: run))' cell within 15 s"
@@ -76,7 +88,11 @@ enum FeedBrowseJourney {
     static func following(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S2.1", "Following hides people A does not follow") {
             openFeed(app, step: "S2.1")
-            app.element("feed-scope").buttons["Following"].firstMatch.tap()
+            let following = app.buttons.matching(identifier: "feed-scope").matching(
+                NSPredicate(format: "label == 'Following'")
+            ).firstMatch
+            XCTAssertTrue(following.waitForExistence(timeout: 5), "S2.1: no 'Following' in feed-scope")
+            following.tap()
             XCTAssertFalse(
                 text(app, containing: "started \(joinedCabal(run: run))").waitForExistence(timeout: 5),
                 "S2.1: Following shows a cabal started by someone A does not follow"
@@ -95,7 +111,7 @@ enum FeedBrowseJourney {
     static func cellTaps(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S3.1", "a cabal cell opens the cabal") {
             openFeed(app, step: "S3.1")
-            app.element("feed-chip-Cabals").tap()
+            tapChip(app, "Cabals")
             let cell = text(app, containing: "started \(joinedCabal(run: run))")
             XCTAssertTrue(cell.waitForExistence(timeout: 15), "S3.1: no 'started \(joinedCabal(run: run))' cell")
             cell.tap()
@@ -108,7 +124,7 @@ enum FeedBrowseJourney {
 
         recorder.step("S3.2", "a proposal cell opens the proposal") {
             app.navigationBars.buttons.element(boundBy: 0).tap()
-            app.element("feed-chip-Proposals").tap()
+            tapChip(app, "Proposals")
             let cell = app.descendants(matching: .any)
                 .matching(NSPredicate(format: "identifier BEGINSWITH 'feed-cell-'")).firstMatch
             XCTAssertTrue(
@@ -122,7 +138,7 @@ enum FeedBrowseJourney {
 
         recorder.step("S3.3", "hide a cell") {
             app.navigationBars.buttons.element(boundBy: 0).tap()
-            app.element("feed-chip-Cabals").tap()
+            tapChip(app, "Cabals")
             let cell = text(app, containing: "started \(joinedCabal(run: run))")
             XCTAssertTrue(cell.waitForExistence(timeout: 15), "S3.3: no 'started \(joinedCabal(run: run))' cell")
             cell.press(forDuration: 1)
