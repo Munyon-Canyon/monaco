@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -22,6 +23,8 @@ type Treasury struct {
 	stakes           []treasury.Stake
 	cabalPositionsAt []treasury.CabalPositions
 	memberStakesAt   []treasury.MemberStake
+	contributions    map[ids.CabalID][]port.ContributionPoint
+	stakeHistory     map[ids.UserID][]port.StakePoint
 }
 
 var (
@@ -44,9 +47,11 @@ func (f *Treasury) WalletLedgerMicros(
 
 func NewTreasury() *Treasury {
 	return &Treasury{
-		positions:   map[ids.CabalID][]treasury.Position{},
-		potValues:   map[ids.CabalID]money.Micros{},
-		totalShares: map[ids.CabalID]money.SharesUnits{},
+		positions:     map[ids.CabalID][]treasury.Position{},
+		potValues:     map[ids.CabalID]money.Micros{},
+		totalShares:   map[ids.CabalID]money.SharesUnits{},
+		contributions: map[ids.CabalID][]port.ContributionPoint{},
+		stakeHistory:  map[ids.UserID][]port.StakePoint{},
 	}
 }
 
@@ -90,6 +95,38 @@ func (f *Treasury) SetMemberStakesAt(stakes []treasury.MemberStake) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.memberStakesAt = slices.Clone(stakes)
+}
+
+func (f *Treasury) SetCabalContributionHistory(cabalID ids.CabalID, points []port.ContributionPoint) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.contributions[cabalID] = slices.Clone(points)
+}
+
+func (f *Treasury) SetUserStakeHistory(userID ids.UserID, points []port.StakePoint) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.stakeHistory[userID] = slices.Clone(points)
+}
+
+func (f *Treasury) CabalContributionHistory(
+	_ context.Context, cabalID ids.CabalID,
+) ([]port.ContributionPoint, error) {
+	if err := f.Check("CabalContributionHistory"); err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]port.ContributionPoint{}, f.contributions[cabalID]...), nil
+}
+
+func (f *Treasury) UserStakeHistory(_ context.Context, userID ids.UserID) ([]port.StakePoint, error) {
+	if err := f.Check("UserStakeHistory"); err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]port.StakePoint{}, f.stakeHistory[userID]...), nil
 }
 
 func (f *Treasury) Positions(_ context.Context, cabalID ids.CabalID) ([]treasury.Position, error) {

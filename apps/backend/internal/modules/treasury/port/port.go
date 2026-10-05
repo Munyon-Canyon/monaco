@@ -38,6 +38,18 @@ type MemberStake struct {
 	NetContributedMicros money.SignedMicros
 }
 
+type ContributionPoint struct {
+	At             time.Time
+	NetContributed money.SignedMicros
+}
+
+type StakePoint struct {
+	CabalID        ids.CabalID
+	At             time.Time
+	ShareUnits     money.SharesUnits
+	NetContributed money.SignedMicros
+}
+
 type PositionsReader interface {
 	Positions(ctx context.Context, cabalID ids.CabalID) ([]Position, error)
 	PotValue(ctx context.Context, cabalID ids.CabalID) (money.Micros, error)
@@ -56,10 +68,16 @@ type HistoricalReader interface {
 	MemberStakesAt(ctx context.Context, t time.Time) ([]MemberStake, error)
 }
 
+type HistoryReader interface {
+	CabalContributionHistory(ctx context.Context, cabalID ids.CabalID) ([]ContributionPoint, error)
+	UserStakeHistory(ctx context.Context, userID ids.UserID) ([]StakePoint, error)
+}
+
 type Queries interface {
 	PositionsReader
 	StakesReader
 	HistoricalReader
+	HistoryReader
 }
 
 type SignatureOwner interface {
