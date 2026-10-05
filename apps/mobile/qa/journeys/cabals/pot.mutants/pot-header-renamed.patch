@@ -5,15 +5,15 @@ The hero says "In the pool". S1.1 waits for "In the pot", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPotSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPotSlot.swift
-index 52374778..3ef032a5 100644
+index 600b9e7d4..8e320120b 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPotSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPotSlot.swift
-@@ -5,7 +5,7 @@ enum CabalPotSlot: CabalSection {
+@@ -41,7 +41,7 @@ struct CabalPotBand: View {
  
-     static func body(for context: CabalContext) -> some View {
+     var body: some View {
          CabalInkBand {
 -            Text("In the pot")
 +            Text("In the pool")
-                 .font(MonacoTheme.Typo.captionStrong)
+                 .font(MonacoTheme.Typo.caption)
                  .foregroundStyle(MonacoTheme.onHero)
                  .accessibilityAddTraits(.isHeader)
