@@ -43,11 +43,27 @@ struct ProposeFromAssetScreen: View {
     }
 
     private func pick(_ cabals: [Components.Schemas.MyCabal]) -> some View {
-        List(cabals, id: \.id) { cabal in
-            NavigationLink(cabal.name) { amount(cabal) }
+        ScrollView {
+            MonacoGroupedList {
+                ForEach(cabals, id: \.id) { cabal in
+                    NavigationLink {
+                        amount(cabal)
+                    } label: {
+                        ProposePickCabalRow(name: cabal.name, cabalID: cabal.id, isLast: cabal.id == cabals.last?.id)
+                    }
+                    .buttonStyle(.monacoRow)
+                    .accessibilityIdentifier("propose-pick-cabal-\(cabal.id)")
+                }
+            }
+            .padding(.top, MonacoTheme.Space.s)
         }
-        .navigationTitle(
-            "Which cabal should \(kind == .buy ? "buy" : "sell") \(AssetSymbolFormatter.display(symbol))?")
+        .monacoCanvas()
+        .navigationTitle(pickTitle)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var pickTitle: String {
+        "Which cabal should \(kind == .buy ? "buy" : "sell") \(AssetSymbolFormatter.display(symbol))?"
     }
 
     @ViewBuilder
@@ -67,4 +83,24 @@ struct ProposeFromAssetScreen: View {
 
 nonisolated enum ProposeKind: Hashable, Sendable {
     case buy, sell
+}
+
+private struct ProposePickCabalRow: View {
+    let name: String
+    let cabalID: String
+    let isLast: Bool
+
+    var body: some View {
+        MonacoRow(title: name, chevron: true, isLast: isLast) {
+            EmptyView()
+        } trailing: {
+            CabalPotModelHost(cabalID: cabalID) { pot in
+                if let summary = pot?.summary {
+                    Text(summary.potValue).font(MonacoTheme.Typo.caption).foregroundStyle(MonacoTheme.muted)
+                } else {
+                    SkeletonBlock(width: 56, height: 12)
+                }
+            }
+        }
+    }
 }

@@ -1,3 +1,5 @@
+import MonacoAPI
+import MonacoCore
 import SwiftUI
 
 nonisolated struct ProposeRoute: AppRoute {
@@ -23,11 +25,9 @@ struct ProposeChooserScreen: View {
                 .buttonStyle(.monacoRow)
                 .accessibilityIdentifier("propose-kind-buy")
 
-                ProposeChooserRow(
-                    title: "Sell something the cabal owns", detail: "Nothing to sell yet",
-                    systemImage: ProposeGlyph.sell, isEnabled: false, isLast: true
-                )
-                .accessibilityIdentifier("propose-kind-sell")
+                CabalPotModelHost(cabalID: cabalID) { pot in
+                    ProposeSellChooserRow(pot: pot)
+                }
             }
             .padding(.top, MonacoTheme.Space.s)
         }
@@ -39,11 +39,56 @@ struct ProposeChooserScreen: View {
     }
 }
 
+private struct ProposeSellChooserRow: View {
+    let pot: CabalPotModel?
+
+    var body: some View {
+        switch pot?.state ?? .loading {
+        case .idle, .loading:
+            ProposeChooserRow(
+                title: "Sell something the cabal owns", detail: "Loading holdings", systemImage: ProposeGlyph.sell,
+                isEnabled: false, isLast: true
+            )
+            .redacted(reason: .placeholder)
+            .accessibilityIdentifier("propose-kind-sell-loading")
+        case .failed:
+            Button {
+                Task { await pot?.load() }
+            } label: {
+                ProposeChooserRow(
+                    title: "Sell something the cabal owns", detail: "Couldn't load holdings.",
+                    systemImage: ProposeGlyph.sell, retryTitle: "Try again", isLast: true)
+            }
+            .buttonStyle(.monacoRow)
+            .accessibilityIdentifier("propose-kind-sell-failed")
+        case .loaded(let summary):
+            if let pot, !summary.sellable.isEmpty {
+                NavigationLink {
+                    ProposeSellView(pot: pot)
+                } label: {
+                    row(summary)
+                }
+                .buttonStyle(.monacoRow)
+                .accessibilityIdentifier("propose-kind-sell")
+            } else {
+                row(summary).accessibilityIdentifier("propose-kind-sell")
+            }
+        }
+    }
+
+    private func row(_ summary: CabalPotSummary) -> some View {
+        ProposeChooserRow(
+            title: "Sell something the cabal owns", detail: ProposeHolding.chooserDetail(summary.sellable),
+            systemImage: ProposeGlyph.sell, isEnabled: !summary.sellable.isEmpty, isLast: true)
+    }
+}
+
 struct ProposeChooserRow: View {
     let title: String
     let detail: String
     let systemImage: String
     var isEnabled = true
+    var retryTitle: String?
     var isLast = false
 
     var body: some View {
@@ -60,7 +105,9 @@ struct ProposeChooserRow: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            if isEnabled {
+            if let retryTitle {
+                Text(retryTitle).font(MonacoTheme.Typo.bodyStrong).foregroundStyle(MonacoTheme.ink)
+            } else if isEnabled {
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(MonacoTheme.tertiaryText)
