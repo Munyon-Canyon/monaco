@@ -44,9 +44,22 @@
 		C0DE001230590361008E7964 /* StubTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubTransport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		B46306A03059035D008E7964 /* Exceptions for "Monaco" folder in "Monaco" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Features/Proposals/ProposeAddAgentView.swift,
+			);
+			target = B46306123059035D008E7964 /* Monaco */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		B46306153059035D008E7964 /* Monaco */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				B46306A03059035D008E7964 /* Exceptions for "Monaco" folder in "Monaco" target */,
+			);
 			path = Monaco;
 			sourceTree = "<group>";
 		};

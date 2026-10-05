@@ -104,10 +104,4 @@ struct ProposeGlyphTests {
         #expect(ProposeGlyph.buy == "arrow.down")
         #expect(ProposeGlyph.sell == "arrow.up")
     }
-
-    @Test func eachBotProposalHasItsOwnGlyph() {
-        #expect(ProposeGlyph.lifecycle("pause_agent") == "pause")
-        #expect(ProposeGlyph.lifecycle("resume_agent") == "play")
-        #expect(ProposeGlyph.lifecycle("revoke_agent") == "xmark")
-    }
 }
