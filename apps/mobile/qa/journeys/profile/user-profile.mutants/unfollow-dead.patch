@@ -1,0 +1,19 @@
+journey: profile/user-profile
+expect-fail: S2
+
+"Following" does nothing when tapped. S2.3 waits for "Follow" again, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift b/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
+index 0cd3502aa..8b5f43879 100644
+--- a/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
++++ b/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
+@@ -106,7 +106,7 @@ private struct UserProfileHeader: View {
+     private func followButton(_ model: FollowButtonModel) -> some View {
+         Group {
+             if model.following {
+-                Button("Following") { Task { await model.toggle() } }
++                Button("Following") {}
+                     .buttonStyle(.monacoSecondary)
+             } else {
+                 Button("Follow") { Task { await model.toggle() } }
