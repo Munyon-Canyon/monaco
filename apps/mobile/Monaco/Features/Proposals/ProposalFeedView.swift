@@ -118,9 +118,7 @@ struct ProposalFeedView: View {
                     proposal: proposal,
                     isVoting: votingIDs.contains(proposal.id),
                     onVote: { choice in Task { await vote(choice, on: proposal) } },
-                    destination: {
-                        ProposalDetailView(service: service, proposalId: proposal.id, initialProposal: proposal)
-                    },
+                    destination: { ProposalScreen(proposalID: proposal.id) },
                     viewerChoice: votes.choice(for: proposal, viewerId: service.viewerId),
                     viewerId: service.viewerId,
                     highlight: proposal.id == highlightProposalId
