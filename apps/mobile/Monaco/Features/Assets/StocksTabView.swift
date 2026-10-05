@@ -6,21 +6,27 @@ struct StocksTabView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @State private var model: MonacoCore.StocksTabModel?
+    private let makeModel: @MainActor (AppEnvironment) -> MonacoCore.StocksTabModel
 
-    init(model: MonacoCore.StocksTabModel? = nil) { _model = State(initialValue: model) }
+    init(makeModel: @escaping @MainActor (AppEnvironment) -> MonacoCore.StocksTabModel = StocksTabView.liveModel) {
+        self.makeModel = makeModel
+    }
 
     var body: some View {
-        Group { if let model { StocksTabScreen(model: model, open: open) } }
-            .navigationTitle(StocksTab.title)
-            .navigationBarTitleDisplayMode(.large)
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("assets-root")
-            .task { await start() }
-            .onScreenVisibilityChange { model?.setVisible($0) }
-            .onChange(of: model?.failureTick) { _, _ in
-                guard let error = model?.lastError else { return }
-                toasts.show(error)
-            }
+        ZStack {
+            Color.clear
+            if let model { StocksTabScreen(model: model, open: open) }
+        }
+        .navigationTitle(StocksTab.title)
+        .navigationBarTitleDisplayMode(.large)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("assets-root")
+        .task { await start() }
+        .onScreenVisibilityChange { model?.setVisible($0) }
+        .onChange(of: model?.failureTick) { _, _ in
+            guard let error = model?.lastError else { return }
+            toasts.show(error)
+        }
     }
 
     private func start() async {
@@ -31,10 +37,13 @@ struct StocksTabView: View {
 
     private func preparedModel() -> MonacoCore.StocksTabModel {
         if let model { return model }
-        let created = MonacoCore.StocksTabModel(
-            api: environment.api, hints: environment.hints, clock: ContinuousClock())
+        let created = makeModel(environment)
         model = created
         return created
+    }
+
+    static func liveModel(_ environment: AppEnvironment) -> MonacoCore.StocksTabModel {
+        MonacoCore.StocksTabModel(api: environment.api, hints: environment.hints, clock: ContinuousClock())
     }
 
     private func open(_ asset: MarketAsset) {
