@@ -8,8 +8,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	trading "github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -273,5 +275,27 @@ func TestDevSeed_userWithBalancePostsABalancedSettledDeposit(t *testing.T) {
 	if kind != "deposit" || status != "settled" || wallet != "25000000" || out["amount_micros"] != wallet || sum != 0 {
 		t.Fatalf("%s %s, wallet +%s, entries sum %d, out %v; want a settled 25 USDC deposit that balances",
 			status, kind, wallet, sum, out)
+	}
+}
+
+func TestDevSeed_cabalWithFailedTradeLeavesARetryableSwapOnAPassedProposal(t *testing.T) {
+	t.Parallel()
+	pool, out := seedDevOnTestDB(t, "cabal-with-failed-trade", "A")
+	swap, err := trading.New(pool).SwapDetail(t.Context(), uuid.MustParse(out["swap_id"]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var status, activity string
+	var members int
+	if err := pool.QueryRow(t.Context(), `SELECT p.status,
+		(SELECT count(*) FROM cabal_members m WHERE m.cabal_id = p.cabal_id),
+		(SELECT string_agg(a.kind || '/' || a.status, ',') FROM cabal_activity a WHERE a.cabal_id = p.cabal_id)
+		FROM proposals p WHERE p.id = $1`, out["proposal_id"]).Scan(&status, &members, &activity); err != nil {
+		t.Fatal(err)
+	}
+	if !swap.Retryable || swap.Status != "failed" || swap.SourceID.String() != out["proposal_id"] ||
+		swap.CabalID.String() != out["cabal_id"] || status != "passed" || members != 3 || activity != "buy/failed" {
+		t.Fatalf("swap %+v, proposal %s, %d members, activity %q; want a retryable failed buy of the passed "+
+			"proposal in a three-member cabal, shown as a failed buy", swap, status, members, activity)
 	}
 }
