@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
 func TestSOLBalance_readsLamportsAsNineDecimalBaseUnits(t *testing.T) {
@@ -143,7 +144,10 @@ func TestAccounts_andTokenAccountsMapRPCAndAccountDecodeFailures(t *testing.T) {
 
 func TestSignatureStatuses_mapsFinalizedProcessingAndNotFound(t *testing.T) {
 	t.Parallel()
-	c, u, _ := overFakes(t)
+	c, u, srv := overFakes(t)
+	script(t, srv, fakes.Step{
+		Route: "/rpc/getSignatureStatuses", Action: fakes.ActionSucceed, Fixture: "/rpc/getSignatureStatuses/mixed",
+	})
 	sigs := []chain.Signature{"a", "b", "c", "d"}
 	got, err := c.SignatureStatuses(t.Context(), sigs)
 	if err != nil {
@@ -208,13 +212,16 @@ func TestBlockhashValid_readsTheConfirmedValidity(t *testing.T) {
 
 func TestSignatureStatuses_edges(t *testing.T) {
 	t.Parallel()
-	c, u, _ := overFakes(t)
+	c, u, srv := overFakes(t)
 	if got, err := c.SignatureStatuses(t.Context(), nil); got != nil || err != nil ||
 		len(u.requests()) != 0 {
 		t.Fatalf("no signatures = %v, %v with %d calls", got, err, len(u.requests()))
 	}
 	_, err := c.SignatureStatuses(t.Context(), make([]chain.Signature, 257))
 	wantCode(t, err, errs.CodeInvalidInput)
+	script(t, srv, fakes.Step{
+		Route: "/rpc/getSignatureStatuses", Action: fakes.ActionSucceed, Fixture: "/rpc/getSignatureStatuses/mixed",
+	})
 	_, err = c.SignatureStatuses(t.Context(), []chain.Signature{"only-one"})
 	wantCode(t, err, errs.CodeDecodeFailed)
 	_, err = client(replying(503, "")).SignatureStatuses(t.Context(), []chain.Signature{"a"})

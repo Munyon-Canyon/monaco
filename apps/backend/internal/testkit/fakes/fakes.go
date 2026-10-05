@@ -78,6 +78,9 @@ type Server struct {
 	swaps        map[string]SetSwap
 	orders       map[string]swapOrder
 	orderCount   uint64
+	landed       map[string]landedSwap
+	blockhashes  map[string]bool
+	unexecuted   map[string]bool
 	nextUser     int
 }
 
@@ -95,6 +98,9 @@ func newFrom(fsys fs.FS, root string) *Server {
 		balances:     map[string]map[string]tokenBalance{},
 		swaps:        map[string]SetSwap{},
 		orders:       map[string]swapOrder{},
+		landed:       map[string]landedSwap{},
+		blockhashes:  map[string]bool{},
+		unexecuted:   map[string]bool{},
 		upstreams:    upstreamsIn(fsys, root),
 	}
 	s.mux.HandleFunc("POST /_script", s.script)
@@ -103,6 +109,9 @@ func newFrom(fsys fs.FS, root string) *Server {
 	s.mux.HandleFunc("POST /_wallet", s.setWallet)
 	s.live.HandleFunc("POST /rpc/sendTransaction", sendTransaction)
 	s.live.HandleFunc("GET "+orderRoute, s.jupiterOrder)
+	s.live.HandleFunc("POST /rpc/getSignatureStatuses", s.signatureStatuses)
+	s.live.HandleFunc("POST /rpc/isBlockhashValid", s.blockhashValid)
+	s.live.HandleFunc("POST /rpc/getTransaction", s.swapTransaction)
 	s.live.HandleFunc("POST "+executeRoute, s.jupiterExecute)
 	s.live.HandleFunc("GET /privy/v1/users/{id}", s.privyUser)
 	s.live.HandleFunc("POST /privy/v1/users", s.privyCreateUser)
