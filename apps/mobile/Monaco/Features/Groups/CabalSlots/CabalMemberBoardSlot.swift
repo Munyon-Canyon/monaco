@@ -27,6 +27,7 @@ private struct CabalMemberBoard: View {
     let cabalID: String
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.cabalRetry) private var retry
     @State private var model: CabalModel?
 
     var body: some View {
@@ -37,9 +38,9 @@ private struct CabalMemberBoard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
-        .task {
+        .task(id: retry.tick) {
             let model = preparedModel()
-            if model.cabal == nil { await model.load() }
+            await model.load()
             await model.observe()
         }
         .onScreenVisibilityChange { visible in

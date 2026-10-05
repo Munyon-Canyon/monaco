@@ -3,7 +3,7 @@ import XCTest
 
 enum JoinJourney {
     static let id = "cabals/join"
-    static let version = 1
+    static let version = 2
 
     static let codeKey = "invite-code"
     static let screenTimeout: TimeInterval = 15
@@ -248,6 +248,10 @@ enum JoinJourney {
             XCTAssertTrue(
                 waitForLabel(app.element("cabal-member-count"), containing: "2 members", timeout: screenTimeout),
                 "S1.14: the hero does not read 2 members: \(app.element("cabal-member-count").label)"
+            )
+            XCTAssertTrue(
+                app.element("cabal-action-fund").waitForExistence(timeout: screenTimeout),
+                "S1.14: no member actions on the cabal within \(Int(screenTimeout)) s"
             )
         }
     }

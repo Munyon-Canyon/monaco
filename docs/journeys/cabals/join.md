@@ -1,7 +1,7 @@
 ---
 id: cabals/join
 title: Join a cabal
-version: 1
+version: 2
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -46,7 +46,7 @@ The setup creates both cabals through the API, so this journey does not depend o
 | S1.11 | A | tap | `cabal-join-approve` | | The toast "Approved." shows within 10 s. `cabal-join-requests-heading` is gone, and `cabal-member-count` reads "2 members" within 10 s. Old app: Approve on `GroupDetailView` toasted "<name> is in"; staging toasts "Approved." |
 | S1.12 | B | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA pot {QA.run}` | `cabal-action-fund` shows within 15 s, and there is no `cabal-join-requested` or `cabal-join-button`. screens.md: `CabalActionsSlot` for a member. Old app: `GroupDetailView`'s member action row |
 | S1.13 | B | tap, clear, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA open {QA.run}` | `cabal-join-button` reads "Join cabal" within 15 s. screens.md: `CabalJoinSlot`, "Join cabal". Old app: Join on a search result's `GroupDetailView` |
-| S1.14 | B | tap | `cabal-join-button` | | The toast "You're in." shows within 10 s, and `cabal-member-count` reads "2 members" within 15 s. Old app: the same toast on `GroupDetailView` |
+| S1.14 | B | tap | `cabal-join-button` | | The toast "You're in." shows within 10 s, `cabal-member-count` reads "2 members" within 15 s, and `cabal-action-fund` shows within 15 s without reopening the cabal. Old app: the same toast on `GroupDetailView` |
 
 ## Ground truth
 
@@ -62,4 +62,3 @@ None known.
 - A seeing B's request arrive on a screen already open, and B's screen turning into a member's without a relaunch. Each phase relaunches the app on its actor's simulator, so S1.10 and S1.12 load the cabal fresh. `CabalAccessModelTests` covers the hint that refreshes an open screen.
 - Deny and Cancel request. `CabalAccessModelTests` covers both on the host.
 - Share. It opens the system share sheet, which the journey does not drive.
-- The member actions after S1.14's in-place join. They stay hidden until the cabal is reopened (#2320); S1.12 checks them after a reopen.
