@@ -75,6 +75,8 @@ struct CabalActivitySection: View {
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("cabal-activity")
+        } else {
+            Color.clear.frame(height: 0)
         }
     }
 

@@ -80,4 +80,51 @@ struct TaskOnEmptyViewRuleTests {
             """
         #expect(TaskOnEmptyViewRule.violations(in: source).isEmpty)
     }
+
+    @Test
+    func flagsATaskOnAChildWhoseBodyCanBeEmpty() {
+        let source = Self.actions(hidden: "EmptyView()")
+        let emptyTypes = TaskOnEmptyViewRule.emptyTypes(in: source)
+        #expect(emptyTypes == ["CabalActionsRow"])
+        #expect(TaskOnEmptyViewRule.violations(in: source, emptyTypes: emptyTypes) == [3])
+    }
+
+    @Test
+    func passesATaskOnAChildThatKeepsAZeroHeightView() {
+        let source = Self.actions(hidden: "Color.clear.frame(height: 0)")
+        let emptyTypes = TaskOnEmptyViewRule.emptyTypes(in: source)
+        #expect(emptyTypes.isEmpty)
+        #expect(TaskOnEmptyViewRule.violations(in: source, emptyTypes: emptyTypes).isEmpty)
+    }
+
+    private static func actions(hidden: String) -> String {
+        """
+        private struct CabalActionsLive: View {
+            var body: some View {
+                CabalActionsRow(model: model) { route in
+                    open(route)
+                }
+                .task(id: retry.tick) { await load() }
+            }
+        }
+
+        struct CabalActionsRow: View {
+            var body: some View {
+                content
+                    .padding(.horizontal, 16)
+            }
+
+            @ViewBuilder private var content: some View {
+                switch model?.actions ?? .loading {
+                case .loading:
+                    ProgressView()
+                case .hidden, .failed:
+                    \(hidden)
+                case .member:
+                    Text("Add money")
+                }
+            }
+        }
+        """
+    }
 }

@@ -61,6 +61,8 @@ struct CabalEditEntry: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("cabal-edit-row")
+        } else {
+            Color.clear.frame(height: 0)
         }
     }
 }
