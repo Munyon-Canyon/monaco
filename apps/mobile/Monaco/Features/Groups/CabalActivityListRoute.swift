@@ -33,10 +33,7 @@ private struct CabalActivityListView: View {
             await model.observe()
         }
         .onScreenVisibilityChange { model?.setVisible($0) }
-        .onChange(of: model?.failureTick) { _, _ in
-            guard let error = model?.lastError else { return }
-            toasts.show(error)
-        }
+        .cabalActivityToasts(model, in: toasts)
     }
 
     private func preparedModel() -> CabalActivityModel {
