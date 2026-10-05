@@ -129,6 +129,55 @@ func TestLandStack_saysSoWhenNoGraphiteDraftAppears(t *testing.T) {
 	}
 }
 
+func TestLandStack_saysTheStackWaitsForADraftSlotWhenGraphiteTookTheLabel(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, actor, want string }{
+		{"Graphite took the labels", "graphite-app", "#1 #2 taken by Graphite, waiting for a draft slot after 3m0s\n"},
+		{
+			"a person removed the labels", "logan",
+			"no Graphite draft holds #1 #2 after 3m0s; run land-stack again if it stays that way\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			s := newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+			f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
+			f.hub.on(list("/pulls?state=open"), "[]")
+			f.onWait = func(n int) {
+				if n != 1 {
+					return
+				}
+				for _, p := range s.prs {
+					setUnlabels(t, p, unlabel(f.now, "merge-queue", tc.actor))
+				}
+			}
+			code, stdout, stderr := f.agents(t, "land-stack", "2")
+			if code != 0 || !strings.HasSuffix(stdout, tc.want) {
+				t.Fatalf("%d %q %q", code, stdout, stderr)
+			}
+		})
+	}
+}
+
+func TestLandStack_failsWhenTheStackCannotBeReadAfterTheDraftWait(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := newStackGH(t, f, green(t, 1, "b1", "fb"))
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
+	f.hub.on(list("/pulls?state=open"), "[]")
+	f.onWait = func(n int) {
+		if n == 1 {
+			s.fail = "gh api graphql"
+		}
+	}
+	code, stdout, stderr := f.agents(t, "land-stack", "1")
+	if code != 1 || !strings.Contains(stderr, "boom") || strings.Contains(stdout, "run land-stack again") ||
+		f.owned(t).Queued == nil {
+		t.Fatalf("%d %q %q queued %+v", code, stdout, stderr, f.owned(t).Queued)
+	}
+}
+
 func TestLandStack_rerunFallsBackToRerunningOnlyTheFailedJobs(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
