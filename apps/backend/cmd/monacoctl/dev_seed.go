@@ -14,10 +14,14 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	cabalmod "github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	governance "github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -39,7 +43,12 @@ type devScenario func(t testkit.SeedT, deps module.Deps, actor func(letter strin
 var errBadActor = errors.New("bad --actor")
 
 func devScenarios() map[string]devScenario {
-	return map[string]devScenario{"cabal-with-confirmed-trade": seedConfirmedTrade}
+	return map[string]devScenario{
+		"cabal-with-confirmed-trade": seedConfirmedTrade,
+		"cabal-with-members":         seedCabalWithMembers,
+		"cabal-with-open-proposal":   seedOpenProposal,
+		"user-with-balance":          seedUserWithBalance,
+	}
 }
 
 type openDB func(ctx context.Context, cfg config.DB) (*pgxpool.Pool, error)
@@ -156,6 +165,65 @@ func seedConfirmedTrade(t testkit.SeedT, deps module.Deps, actor func(string) id
 	return out
 }
 
+func seedCabalWithMembers(t testkit.SeedT, deps module.Deps, actor func(string) ids.UserID) map[string]string {
+	cabal := newDevCabal(t, deps, actor)
+	raw := devScenarioJSONL(t, "cabal-with-members", map[string]string{
+		"01890a5d-ac96-774b-bcce-b302099a8070": cabal.ID.String(),
+		"01890a5d-ac96-774b-bcce-b302099a8071": actor("A").String(),
+		"01890a5d-ac96-774b-bcce-b302099a8072": actor("B").String(),
+		"01890a5d-ac96-774b-bcce-b302099a8073": actor("C").String(),
+	})
+	testkit.SeedJSONL(t, deps.Pool, "cabal-with-members", raw, cabalmod.New(deps).Consumers()...)
+	return map[string]string{"cabal_id": cabal.ID.String(), "invite_code": cabal.InviteCode}
+}
+
+func seedOpenProposal(t testkit.SeedT, deps module.Deps, actor func(string) ids.UserID) map[string]string {
+	cabal := newDevCabal(t, deps, actor)
+	id, now := ids.Real{}.NewV7(), clock.Real{}.Now().UTC()
+	params := governance.InsertProposalParams{
+		ID: id, CabalID: cabal.ID.UUID(), ProposerID: actor("A").UUID(), Kind: "buy", Symbol: "AAPLx",
+		Mint: devProposalMint, UsdcMicros: pgtype.Int8{Int64: 5_000_000, Valid: true},
+		QuoteOutAmount: 21_000_000, ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now,
+	}
+	for _, m := range cabal.Members {
+		params.VoterIds = append(params.VoterIds, m.ID.UUID())
+	}
+	_, err := governance.New(deps.Pool).InsertProposal(t.Context(), params)
+	failSeed(t, err, "insert proposal")
+	raw := devScenarioJSONL(t, "cabal-with-open-proposal", map[string]string{
+		"01890a5d-ac96-774b-bcce-b302099a8091": cabal.ID.String(),
+		"01890a5d-ac96-774b-bcce-b302099a8092": actor("A").String(),
+		"01890a5d-ac96-774b-bcce-b302099a8096": actor("B").String(),
+		"01890a5d-ac96-774b-bcce-b302099a8097": actor("C").String(),
+		"01890a5d-ac96-774b-bcce-b302099a8099": id.String(),
+	})
+	testkit.SeedJSONL(t, deps.Pool, "cabal-with-open-proposal", raw, cabalmod.New(deps).Consumers()...)
+	return map[string]string{
+		"cabal_id": cabal.ID.String(), "invite_code": cabal.InviteCode, "proposal_id": id.String(),
+		"asset_mint": devProposalMint, "symbol": "AAPLx",
+	}
+}
+
+const devProposalMint = "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp"
+
+func newDevCabal(t testkit.SeedT, deps module.Deps, actor func(string) ids.UserID) testkit.SeededCabal {
+	return testkit.NewCabal(t, deps.Pool, testkit.WithCreator(actor("A")),
+		testkit.WithJoiner(actor("B")), testkit.WithJoiner(actor("C")))
+}
+
+func seedUserWithBalance(t testkit.SeedT, deps module.Deps, actor func(string) ids.UserID) map[string]string {
+	raw := devScenarioJSONL(t, "user-with-balance", map[string]string{
+		"01890a5d-ac96-774b-bcce-b302099a80b2": actor("A").String(),
+	})
+	out := map[string]string{}
+	for _, s := range testkit.SeedJSONL(t, deps.Pool, "user-with-balance", raw, treasury.New(deps).Consumers()...) {
+		if deposit, ok := s.Event.(events.DepositCredited); ok {
+			out["deposit_id"], out["amount_micros"] = deposit.DepositID.String(), deposit.AmountMicros.String()
+		}
+	}
+	return out
+}
+
 var (
 	uuidPattern      = regexp.MustCompile(`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`)
 	signaturePattern = regexp.MustCompile(`"tx_signature":"([1-9A-HJ-NP-Za-km-z]+)"`)
@@ -164,9 +232,7 @@ var (
 func devScenarioJSONL(t testkit.SeedT, name string, keep map[string]string) []byte {
 	t.Helper()
 	raw, err := testkit.Scenario(name)
-	if err != nil {
-		t.Fatalf("scenario %s: %v", name, err)
-	}
+	failSeed(t, err, "scenario "+name)
 	fresh := map[string]string{}
 	for _, id := range uuidPattern.FindAll(raw, -1) {
 		if _, ok := fresh[string(id)]; !ok {
@@ -185,4 +251,11 @@ func devScenarioJSONL(t testkit.SeedT, name string, keep map[string]string) []by
 		raw = bytes.ReplaceAll(raw, []byte(old), []byte(id))
 	}
 	return raw
+}
+
+func failSeed(t testkit.SeedT, err error, what string) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("%s: %v", what, err)
+	}
 }
