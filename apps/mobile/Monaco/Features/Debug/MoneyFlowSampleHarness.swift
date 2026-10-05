@@ -8,11 +8,10 @@ import SwiftUI
 /// `addMoney` (address and a balance with a fund on its way) · `addMoneyLoading` ·
 /// `addMoneyFailed` · `fundCabal` ($50 typed) · `fundCabalFunding` (nothing available, a fund on
 /// its way) · `fundCabalEmpty` (nothing to fund with yet) · `fundCabalLoading` · `withdraw` (amount and address typed) ·
-/// `withdrawFailed` (the balance could not be read) · `withdrawConfirm` ·
-/// `receiptLoading`.
+/// `withdrawFailed` (the balance could not be read) · `withdrawConfirm`.
 ///
 /// Every screen is the product's own layout — `DepositContent`, `FundCabalContent`,
-/// `WithdrawContent`, `WithdrawConfirmView`, `TransactionReceiptView` — fed sample values in
+/// `WithdrawContent`, `WithdrawConfirmView` — fed sample values in
 /// place of the network, so what is shot here is what ships.
 enum MoneyFlowSampleScenario: String, CaseIterable {
     case addMoney
@@ -25,7 +24,6 @@ enum MoneyFlowSampleScenario: String, CaseIterable {
     case withdraw
     case withdrawFailed
     case withdrawConfirm
-    case receiptLoading
 
     static let launchArgument = "-MonacoMoneyFlowSample"
 
@@ -83,10 +81,6 @@ struct MoneyFlowSampleHarness: View {
             )
         case .withdrawConfirm:
             WithdrawConfirmView(destinationAddress: MoneyFlowSampleData.destination, amountText: "100")
-        case .receiptLoading:
-            TransactionReceiptSkeleton()
-                .monacoCanvas()
-                .navigationBarTitleDisplayMode(.inline)
         }
     }
 }

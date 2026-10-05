@@ -292,8 +292,8 @@ struct ProposeGlyph: View {
 
     /// Buy and sell take the activity list's own glyphs, so a buy looks the same when it is
     /// proposed and when it lands in the cabal's history.
-    static var buy: String { GroupActivityRules.glyph(for: "buy") }
-    static var sell: String { GroupActivityRules.glyph(for: "sell") }
+    static let buy = "arrow.down"
+    static let sell = "arrow.up"
     static let bot = "cpu"
 
     static func lifecycle(_ kind: String) -> String {

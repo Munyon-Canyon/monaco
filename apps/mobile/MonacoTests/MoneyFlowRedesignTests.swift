@@ -196,38 +196,6 @@ struct DepositAddressCardContentTests {
     }
 }
 
-/// The receipt's words and facts, from the swap DTO the screen loads.
-@MainActor
-struct TransactionReceiptRedesignTests {
-    private var boughtApple: TransactionDetailDTO {
-        TransactionDetailDTO(
-            transactionId: "t5", groupId: "g1", action: "buy", status: "confirmed", amountMicros: 250_000_000,
-            inputMint: nil, outputMint: nil, inputSymbol: "USDC", outputSymbol: "AAPLx",
-            txSignature: "4mZaQ8nJv2kPp7sWfLr3bXy9TcHd6eUoGi1AqRsNmVtK", executeRequestId: nil, proposalId: "p1",
-            costBasisPrice: 250_000_000, costBasisAmount: 108_034_000, createdAt: "2026-09-16T14:02:00Z",
-            confirmedAt: "2026-09-16T14:02:09Z", failureReason: nil, proceedsUsdcMicros: nil
-        )
-    }
-
-    /// The label says what the fact is, so the value is only the figure.
-    @Test func aBuyListsSharesAndThePriceAShareAsFigures() {
-        let receipt = TransactionReceipt(transaction: boughtApple)
-        #expect(receipt.headline == "Bought Apple")
-        #expect(receipt.rows.map(\.label) == ["Shares", "Price a share", "Date"])
-        #expect(receipt.rows[0].value == "1.0803")
-        #expect(receipt.rows[1].value == "$231.41")
-        #expect(receipt.solscanURL != nil)
-    }
-
-    @Test func sharesDropTrailingZeros() {
-        #expect(TransactionReceipt.sharesFigure(1.08034) == "1.0803")
-        #expect(TransactionReceipt.sharesFigure(1) == "1")
-        #expect(TransactionReceipt.sharesFigure(0.25) == "0.25")
-        #expect(TransactionReceipt.sharesFigure(10) == "10")
-        #expect(TransactionReceipt.sharesFigure(100.5) == "100.5")
-    }
-}
-
 /// Preset chips take two rows only at the accessibility sizes, each chip exactly once.
 @MainActor
 struct AmountEntryPresetRowTests {

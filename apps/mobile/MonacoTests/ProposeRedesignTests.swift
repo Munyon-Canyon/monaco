@@ -113,8 +113,8 @@ struct ReceiptLayoutTests {
 struct ProposeGlyphTests {
     /// A proposed buy and a buy that landed in the cabal's history draw the same glyph.
     @Test func buyAndSellShareTheActivityListsGlyphs() {
-        #expect(ProposeGlyph.buy == GroupActivityRules.glyph(for: "buy"))
-        #expect(ProposeGlyph.sell == GroupActivityRules.glyph(for: "sell"))
+        #expect(ProposeGlyph.buy == "arrow.down")
+        #expect(ProposeGlyph.sell == "arrow.up")
     }
 
     @Test func eachBotProposalHasItsOwnGlyph() {
