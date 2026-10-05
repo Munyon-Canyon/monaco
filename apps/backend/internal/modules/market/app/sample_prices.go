@@ -62,7 +62,9 @@ func (p *SamplePrices) Tick(ctx context.Context) (poller.Report, error) {
 	if err != nil {
 		return poller.Report{}, err
 	}
-	answered, sampleErr := p.source.Prices(ctx, need.mints)
+	fetchCtx, cancelFetch := context.WithTimeout(ctx, p.interval/2)
+	answered, sampleErr := p.source.Prices(fetchCtx, need.mints)
+	cancelFetch()
 	rows := sqlc.InsertPricePointsParams{Ts: at, Source: string(domain.SourceJupiter)}
 	for _, m := range need.mints {
 		if stored, ok := storable(answered, m); ok {

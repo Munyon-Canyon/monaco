@@ -558,3 +558,25 @@ func TestSamplePrices_anEmptyCatalogAsksForNothing(t *testing.T) {
 		t.Fatalf("Tick over an empty catalog = %+v, %v, asked %v", report, err, asked.tick(0))
 	}
 }
+
+type stalledSource struct{}
+
+func (stalledSource) Prices(ctx context.Context, _ []domain.Mint) (map[domain.Mint]money.Micros, error) {
+	<-ctx.Done()
+	return nil, errs.Wrap(context.Cause(ctx), errs.CodeUpstreamTimeout, "test.stalledSource")
+}
+
+func TestSamplePrices_aFetchThatWaitsOutItsTimeStillLeavesTheTickTimeToStore(t *testing.T) {
+	t.Parallel()
+	r := newSampleRig(t, fixed(&quotes{}), marketfake.AAPLx())
+	ids := testkit.NewIDs(7)
+	p := app.NewSamplePrices(
+		db.New(r.pool, ids, r.clock), r.pool, ids, r.clock, stalledSource{}, r.ticks, 2*time.Second,
+	)
+	ctx, cancel := context.WithTimeout(t.Context(), p.Interval())
+	defer cancel()
+	_, err := p.Tick(ctx)
+	if errs.CodeOf(err) != errs.CodeUpstreamTimeout {
+		t.Fatalf("Tick = %v, want the fetch's upstream_timeout, not an expired store", err)
+	}
+}
