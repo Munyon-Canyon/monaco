@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "external_deposit_id": "019b76da-a802-7a11-9c3e-2b4f1d8e6a10",
+  "cabal_id": "019b76da-a801-7863-8a77-496679994ce3",
+  "bounce_signature": "4cu1Tu8V1ZuQdTNo5qjiDtDfaFsoaKmRW6dXW8pVSsHMhPcV1wsCDzDLrCzTehfLfSTQSva26SS7uUUVB8nswqp9",
+  "recipient": "9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P",
+  "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "amount": "25000000"
+}

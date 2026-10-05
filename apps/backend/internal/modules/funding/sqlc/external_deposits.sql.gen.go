@@ -29,6 +29,43 @@ func (q *Queries) AdvanceWatchCursor(ctx context.Context, arg AdvanceWatchCursor
 	return err
 }
 
+const externalDepositForBounce = `-- name: ExternalDepositForBounce :one
+SELECT id, cabal_id, sender, coalesce(return_address, '')::text AS return_address, mint, amount::text AS amount,
+  status, coalesce(bounce_signature, '')::text AS bounce_signature, bounce_signed_tx, bounce_attempts
+FROM external_deposits WHERE id = $1
+`
+
+type ExternalDepositForBounceRow struct {
+	ID              uuid.UUID
+	CabalID         uuid.UUID
+	Sender          string
+	ReturnAddress   string
+	Mint            string
+	Amount          string
+	Status          string
+	BounceSignature string
+	BounceSignedTx  []byte
+	BounceAttempts  int32
+}
+
+func (q *Queries) ExternalDepositForBounce(ctx context.Context, id uuid.UUID) (ExternalDepositForBounceRow, error) {
+	row := q.db.QueryRow(ctx, externalDepositForBounce, id)
+	var i ExternalDepositForBounceRow
+	err := row.Scan(
+		&i.ID,
+		&i.CabalID,
+		&i.Sender,
+		&i.ReturnAddress,
+		&i.Mint,
+		&i.Amount,
+		&i.Status,
+		&i.BounceSignature,
+		&i.BounceSignedTx,
+		&i.BounceAttempts,
+	)
+	return i, err
+}
+
 const externalDepositSeen = `-- name: ExternalDepositSeen :one
 SELECT EXISTS (SELECT 1 FROM external_deposits WHERE signature = $1::text)
 `
@@ -38,6 +75,24 @@ func (q *Queries) ExternalDepositSeen(ctx context.Context, signature string) (bo
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const failBounce = `-- name: FailBounce :execrows
+UPDATE external_deposits SET status = 'bounce_failed'
+WHERE id = $1::uuid AND status = $2::text
+`
+
+type FailBounceParams struct {
+	ID         uuid.UUID
+	FromStatus string
+}
+
+func (q *Queries) FailBounce(ctx context.Context, arg FailBounceParams) (int64, error) {
+	result, err := q.db.Exec(ctx, failBounce, arg.ID, arg.FromStatus)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const insertExternalDeposit = `-- name: InsertExternalDeposit :execrows
@@ -85,6 +140,30 @@ func (q *Queries) InsertExternalDeposit(ctx context.Context, arg InsertExternalD
 	return result.RowsAffected(), nil
 }
 
+const openExternalDepositPauses = `-- name: OpenExternalDepositPauses :many
+SELECT id FROM cabal_pauses WHERE external_deposit_id = $1::uuid AND resolved_at IS NULL ORDER BY id
+`
+
+func (q *Queries) OpenExternalDepositPauses(ctx context.Context, externalDepositID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, openExternalDepositPauses, externalDepositID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const ownsBounceSignature = `-- name: OwnsBounceSignature :one
 SELECT EXISTS (SELECT 1 FROM external_deposits WHERE bounce_signature = $1::text)
 `
@@ -94,6 +173,52 @@ func (q *Queries) OwnsBounceSignature(ctx context.Context, signature string) (bo
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const returnBounce = `-- name: ReturnBounce :execrows
+UPDATE external_deposits SET status = 'returned', resolved_at = $1::timestamptz
+WHERE id = $2::uuid AND status = 'bouncing' AND bounce_signature = $3::text
+`
+
+type ReturnBounceParams struct {
+	ResolvedAt      time.Time
+	ID              uuid.UUID
+	BounceSignature string
+}
+
+func (q *Queries) ReturnBounce(ctx context.Context, arg ReturnBounceParams) (int64, error) {
+	result, err := q.db.Exec(ctx, returnBounce, arg.ResolvedAt, arg.ID, arg.BounceSignature)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const startBounce = `-- name: StartBounce :execrows
+UPDATE external_deposits
+SET status = 'bouncing', bounce_signature = $1::text,
+  bounce_signed_tx = $2::bytea, bounce_attempts = bounce_attempts + 1
+WHERE id = $3::uuid AND status = $4::text
+`
+
+type StartBounceParams struct {
+	BounceSignature string
+	BounceSignedTx  []byte
+	ID              uuid.UUID
+	FromStatus      string
+}
+
+func (q *Queries) StartBounce(ctx context.Context, arg StartBounceParams) (int64, error) {
+	result, err := q.db.Exec(ctx, startBounce,
+		arg.BounceSignature,
+		arg.BounceSignedTx,
+		arg.ID,
+		arg.FromStatus,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const watchCursor = `-- name: WatchCursor :one

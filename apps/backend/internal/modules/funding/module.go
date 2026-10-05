@@ -2,8 +2,10 @@ package funding
 
 import (
 	"context"
+	"sync"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/adapters"
@@ -19,6 +21,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/fundingapi"
@@ -96,8 +100,27 @@ func (m *Module) usdc() chain.Mint {
 	return chain.Mint{Address: chain.SolanaAddress(m.deps.Config.Solana.USDCMint), Decimals: 6}
 }
 
-func (*Module) Consumers() []bus.Consumer {
-	return []bus.Consumer{}
+func (m *Module) Consumers() []bus.Consumer {
+	return []bus.Consumer{
+		{
+			Durable: "funding_bounce",
+			Handlers: []bus.HandlerSpec{
+				bus.HandleOwn("funding.bounce", adapters.Bounce{Bouncer: m.Bouncer(), UoW: m.deps.UoW}.Handle),
+			},
+		},
+	}
+}
+
+func (m *Module) Bouncer() *app.Bouncer {
+	cfg := m.deps.Config
+	failed, _ := otel.GetMeterProvider().Meter("github.com/monaco/monaco/apps/backend/internal/modules/funding").
+		Int64Counter("funding_bounce_failed_total")
+	return app.NewBouncer(app.BounceDeps{
+		UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Hints: m.deps.Bus,
+		Chain:      newLazyChain(cfg, m.deps.Clock),
+		Treasuries: cabal.New(m.deps).Queries(),
+		Transfers:  m.lazyTransfers(), Failed: failed,
+	})
 }
 
 func (m *Module) Pollers() []poller.Poller {
@@ -183,3 +206,23 @@ const (
 	PauseReasonExternalDeposit = domain.PauseReasonExternalDeposit
 	PauseReasonOps             = domain.PauseReasonOps
 )
+
+type lazyChain struct{ client func() *solana.Client }
+
+func newLazyChain(cfg config.Config, clk clock.Clock) lazyChain {
+	return lazyChain{client: sync.OnceValue(func() *solana.Client { return solana.New(cfg, clk) })}
+}
+
+func (c lazyChain) SignatureStatuses(ctx context.Context, sigs []chain.Signature) ([]solana.Status, error) {
+	return c.client().SignatureStatuses(ctx, sigs)
+}
+
+func (c lazyChain) MintConfig(ctx context.Context, mint chain.SolanaAddress) (solana.MintConfig, error) {
+	return c.client().MintConfig(ctx, mint)
+}
+
+func (c lazyChain) Accounts(
+	ctx context.Context, addrs []chain.SolanaAddress, minContextSlot uint64,
+) (uint64, []solana.TokenAccountState, error) {
+	return c.client().Accounts(ctx, addrs, minContextSlot)
+}

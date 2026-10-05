@@ -25,3 +25,21 @@ func (CabalExternalDepositDetected) Type() Type { return TypeCabalExternalDeposi
 func (CabalExternalDepositDetected) AggregateType() string { return cabalAggregate }
 
 func (e CabalExternalDepositDetected) AggregateID() uuid.UUID { return e.CabalID }
+
+const TypeCabalExternalDepositBounced Type = "cabal.external_deposit_bounced"
+
+type CabalExternalDepositBounced struct {
+	V                 int                 `json:"v"`
+	ExternalDepositID uuid.UUID           `json:"external_deposit_id"`
+	CabalID           uuid.UUID           `json:"cabal_id"`
+	BounceSignature   chain.Signature     `json:"bounce_signature"`
+	Recipient         chain.SolanaAddress `json:"recipient"           pii:"true"`
+	Mint              chain.SolanaAddress `json:"mint"`
+	Amount            uint64              `json:"amount,string"`
+}
+
+func (CabalExternalDepositBounced) Type() Type { return TypeCabalExternalDepositBounced }
+
+func (CabalExternalDepositBounced) AggregateType() string { return cabalAggregate }
+
+func (e CabalExternalDepositBounced) AggregateID() uuid.UUID { return e.CabalID }
