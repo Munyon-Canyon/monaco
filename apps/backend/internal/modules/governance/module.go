@@ -14,6 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/governanceapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -107,6 +108,10 @@ func (m *Module) Pollers() []poller.Poller {
 }
 
 func (m *Module) Queries() port.Queries { return app.NewQueries(m.deps.Pool) }
+
+func (m *Module) ProposedMints(ctx context.Context) ([]chain.SolanaAddress, error) {
+	return adapters.NewProposedMints(m.deps.Pool).ProposedMints(ctx)
+}
 
 func (m *Module) VoidFromOps(ctx context.Context, id ProposalID, rawReason string) error {
 	reason, err := domain.ParseVoidReason(rawReason)

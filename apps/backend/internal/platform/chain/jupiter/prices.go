@@ -66,7 +66,7 @@ func (c *Client) Prices(ctx context.Context, mints []Mint) (map[Mint]Price, erro
 	batches := slices.Collect(slices.Chunk(mints, pricesPerCall))
 	answers, err := concurrency.FanOut(ctx, priceCalls, batches, c.answerBatch)
 	if err != nil {
-		return nil, err
+		return nil, errs.Wrap(err, errs.CodeUpstreamTimeout, "jupiter.Prices")
 	}
 	out := make(map[Mint]Price, len(mints))
 	failed := make([]error, 0, len(answers))

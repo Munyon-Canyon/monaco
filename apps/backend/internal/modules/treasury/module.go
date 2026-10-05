@@ -252,6 +252,10 @@ func (m *Module) Queries() port.Queries {
 	return m.reads()
 }
 
+func (m *Module) HeldMints(ctx context.Context) ([]chain.SolanaAddress, error) {
+	return adapters.NewHeldMints(m.deps.Pool).HeldMints(ctx)
+}
+
 func (m *Module) SignatureOwner() *adapters.Queries { return m.reads() }
 
 func (m *Module) WalletLedger() *adapters.Queries { return m.reads() }
