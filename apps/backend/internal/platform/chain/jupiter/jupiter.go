@@ -104,7 +104,7 @@ func New(cfg config.Config, clk clock.Clock, opts ...httpclient.Option) *Client 
 		apiKey:  cfg.Jupiter.APIKey,
 		clock:   clk,
 		window:  cfg.Timeouts.JupiterExecute,
-		pace:    newPace(clk),
+		pace:    newPace(clk, int(cfg.Jupiter.RateLimit)),
 	}
 }
 

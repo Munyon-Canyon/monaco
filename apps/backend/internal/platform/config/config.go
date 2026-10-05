@@ -117,6 +117,7 @@ type Jupiter struct {
 	SwapBaseURL  string
 	PriceBaseURL string
 	APIKey       string
+	RateLimit    int32
 }
 
 type CoinGecko struct {
@@ -342,6 +343,7 @@ func marketFields() []field {
 		text("MONACO_JUPITER_PRICE_BASE_URL", "https://api.jup.ag/price/v3",
 			func(c *Config) *string { return &c.Jupiter.PriceBaseURL }),
 		text("JUPITER_API_KEY", "", func(c *Config) *string { return &c.Jupiter.APIKey }).secret(),
+		count("MONACO_JUPITER_RATE_LIMIT", 8, func(c *Config) *int32 { return &c.Jupiter.RateLimit }),
 		text("COINGECKO_BASE_URL", "https://api.coingecko.com/api/v3",
 			func(c *Config) *string { return &c.CoinGecko.BaseURL }),
 		text("COINGECKO_API_KEY", "", func(c *Config) *string { return &c.CoinGecko.APIKey }).secret(),

@@ -1,6 +1,7 @@
 package jupiter
 
 import (
+	"cmp"
 	"context"
 	"slices"
 	"sync"
@@ -26,6 +27,7 @@ const (
 
 type pace struct {
 	clock clock.Clock
+	limit int
 
 	mu      sync.Mutex
 	spent   []time.Time
@@ -34,13 +36,15 @@ type pace struct {
 
 type waiter struct{ granted bool }
 
-func newPace(clk clock.Clock) *pace { return &pace{clock: clk} }
+func newPace(clk clock.Clock, limit int) *pace {
+	return &pace{clock: clk, limit: cmp.Or(limit, paceLimit)}
+}
 
-func (l lane) limit() int {
+func (p *pace) laneLimit(l lane) int {
 	if l == priceLane {
-		return paceLimit - paceReserve
+		return max(p.limit-paceReserve, 1)
 	}
-	return paceLimit
+	return p.limit
 }
 
 func (p *pace) take(ctx context.Context, l lane) error {
@@ -74,7 +78,7 @@ func (p *pace) grant() {
 	}
 	p.spent = p.spent[expired:]
 	for l := range lanes {
-		for len(p.waiting[l]) > 0 && len(p.spent) < l.limit() {
+		for len(p.waiting[l]) > 0 && len(p.spent) < p.laneLimit(l) {
 			p.waiting[l][0].granted = true
 			p.waiting[l] = p.waiting[l][1:]
 			p.spent = append(p.spent, now)
