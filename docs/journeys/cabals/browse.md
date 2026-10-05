@@ -1,7 +1,7 @@
 ---
 id: cabals/browse
 title: Browse and search cabals
-version: 1
+version: 2
 milestone: M10
 requires: [auth/sign-in]
 actors: [A]
@@ -35,7 +35,7 @@ The format of this doc is in [App journeys](../README.md).
 | S1.2 | A | tap | the `cabals-list-card-<id>` for `QA mine {QA.run}` | | `cabal-header-name` reads `QA mine {QA.run}` within 15 s |
 | S1.3 | A | tap, then type | the Cabals tab, then `cabals-search-field` | `QA open {QA.run}` | One `cabals-search-result-<id>` names `QA open {QA.run}` with "1 member · Open", and its `cabals-search-enter-<id>` is labelled "Join QA open {QA.run}" within 10 s |
 | S1.4 | A | tap | the `cabals-search-enter-<id>` | | The toast "You're in." shows within 10 s |
-| S1.5 | A | clear, then type | `cabals-search-field` | `QA ask {QA.run}` | One `cabals-search-result-<id>` names `QA ask {QA.run}` with "1 member · By request", and its `cabals-search-enter-<id>` is labelled "Ask to join QA ask {QA.run}" within 10 s |
+| S1.5 | A | wait for the toast to close, clear the field, then type | `cabals-search-field` | `QA ask {QA.run}` | One `cabals-search-result-<id>` names `QA ask {QA.run}` with "1 member · By request", and its `cabals-search-enter-<id>` is labelled "Ask to join QA ask {QA.run}" within 10 s |
 | S1.6 | A | tap | the `cabals-search-enter-<id>` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s, and the row shows `cabals-search-requested` "Request sent" |
 
 ### S2 Your cabals' return

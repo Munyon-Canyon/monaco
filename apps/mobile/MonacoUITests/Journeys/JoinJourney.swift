@@ -51,9 +51,14 @@ enum JoinJourney {
     static func search(_ app: XCUIApplication, for query: String, step: String) {
         let field = searchField(app)
         XCTAssertTrue(field.waitForExistence(timeout: 10), "\(step): no search field on the Cabals tab")
-        let clear = app.buttons["Clear search"]
-        if clear.exists { clear.tap() }
+        app.waitForToastGone()
         field.tap()
+        if let text = field.value as? String, !text.isEmpty, text != field.placeholderValue {
+            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: text.count))
+        }
+        let current = field.value as? String ?? ""
+        XCTAssertTrue(
+            current.isEmpty || current == field.placeholderValue, "\(step): search field still holds \(current)")
         field.typeText(query)
     }
 
