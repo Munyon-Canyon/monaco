@@ -8,12 +8,16 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
-const depositWallet = "5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP"
+const (
+	depositWallet = "5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP"
+	depositPoller = "funding.deposits"
+)
 
 func scannedBeforeEveryWallet() time.Time { return time.Unix(-1, 0).UTC() }
 
@@ -21,7 +25,19 @@ func (defined) WorkerEnvF05() []string { return []string{"FUNDING_DEPOSIT_POLL_I
 
 func F05CreditDepositOK(s *scenario.Scenario) {
 	user := seedDepositWallet(s)
-	s.Given(
+	s.Given(oneInboundTransfer(user)...).When(
+		scenario.AwaitTick(depositPoller),
+		scenario.AwaitTick(depositPoller),
+		expectDeposit(user),
+		scenario.EventuallyHints("balance_changed", 2),
+		scenario.Get("/v1/me/txns"),
+		scenario.ExpectStatus(http.StatusOK),
+		scenario.ExpectField("items", oneDeposit),
+	).Then()
+}
+
+func oneInboundTransfer(user testkit.SeededUser) []scenario.Step {
+	return []scenario.Step{
 		scenario.AsSeededUser("member", user.ID),
 		scenario.FakeUpstream(fakes.Step{
 			Route: "/rpc/getSignaturesForAddress", Action: fakes.ActionSucceed,
@@ -31,15 +47,17 @@ func F05CreditDepositOK(s *scenario.Scenario) {
 			Route: "/rpc/getTransaction", Action: fakes.ActionSucceed,
 			Fixture: "/rpc/getTransaction", Times: 100, Reset: true,
 		}),
-	).When(
-		scenario.AwaitTick("funding.deposits"),
-		scenario.AwaitTick("funding.deposits"),
+	}
+}
+
+func F05CreditDepositCrashBeforeCommit(s *scenario.Scenario) {
+	user := seedDepositWallet(s)
+	s.Given(oneInboundTransfer(user)...).When(
+		scenario.TickCrashingAt(depositPoller, faultpoint.BeforeCommit),
+		scenario.AwaitTick(depositPoller),
+		scenario.AwaitTick(depositPoller),
 		expectDeposit(user),
-		scenario.EventuallyHints("balance_changed", 2),
-		scenario.Get("/v1/me/txns"),
-		scenario.ExpectStatus(http.StatusOK),
-		scenario.ExpectField("items", oneDeposit),
-	).Then()
+	).Then(scenario.ExpectAllEvents(events.TypeDepositCredited, 1))
 }
 
 func oneDeposit(s *scenario.Scenario, raw json.RawMessage) {
@@ -62,9 +80,9 @@ func F05CreditDepositRPCUnavailable(s *scenario.Scenario) {
 	s.Given(scenario.FakeUpstream(fakes.Step{
 		Route: "/rpc/getSignaturesForAddress", Action: fakes.ActionFail, Status: 503, Times: 100, Reset: true,
 	})).When(
-		scenario.AwaitTick("funding.deposits"),
-		scenario.AwaitTick("funding.deposits"),
-		scenario.ExpectTickFailed("funding.deposits", string(errs.CodeRPCUnavailable)),
+		scenario.AwaitTick(depositPoller),
+		scenario.AwaitTick(depositPoller),
+		scenario.ExpectTickFailed(depositPoller, string(errs.CodeRPCUnavailable)),
 	).Then(scenario.ExpectEvents(events.TypeDepositCredited, 0))
 }
 
