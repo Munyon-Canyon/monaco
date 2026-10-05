@@ -48,7 +48,8 @@ func wirePot(p port.CabalPot) (api.GetCabalPotResponseObject, error) {
 	}
 	for i, h := range p.Holdings {
 		out.Holdings[i] = api.CabalHolding{
-			Symbol: h.Symbol, DisplayName: h.DisplayName, Units: h.Units,
+			Symbol: h.Symbol, DisplayName: h.DisplayName, Kind: api.CabalHoldingKind(h.Kind), Units: h.Units,
+			TokenAmount: w.micros(money.MicrosFromUint64(h.TokenAmount.Uint64())),
 			PriceMicros: w.micros(h.PriceMicros), ValueMicros: w.micros(h.ValueMicros), WeightBps: h.WeightBps,
 			CostBasisMicros: w.micros(h.CostBasisMicros), PnlMicros: h.PnLMicros.Int64(),
 		}

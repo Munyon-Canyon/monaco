@@ -602,7 +602,7 @@ func adapterQueriesWithReader(f fixture, reader app.PriceReader) *adapters.Queri
 		for _, asset := range marketfake.Fixtures() {
 			if string(mint) == string(asset.Mint.Address()) {
 				return app.Asset{
-					ID: asset.ID.UUID(), Symbol: asset.Symbol, DisplayName: asset.DisplayName,
+					ID: asset.ID.UUID(), Symbol: asset.Symbol, DisplayName: asset.DisplayName, Kind: string(asset.Kind),
 					Decimals: asset.Decimals, ChainChecked: asset.ChainChecked,
 				}, nil
 			}

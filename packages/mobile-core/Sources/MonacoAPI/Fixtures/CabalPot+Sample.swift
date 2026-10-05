@@ -6,8 +6,9 @@ extension Components.Schemas.CabalPot {
         potValueMicros: 1_000_000_000, cashMicros: 750_000_000, cashWeightBps: 7500, pnlMicros: 730_000,
         holdings: [
             Components.Schemas.CabalHolding(
-                symbol: "GOOGLx", displayName: "Alphabet", units: "0.7300", priceMicros: 342_470_000,
-                valueMicros: 250_000_000, weightBps: 2500, costBasisMicros: 249_270_000, pnlMicros: 730_000)
+                symbol: "GOOGLx", displayName: "Alphabet", kind: .equity, units: "0.7300", tokenAmount: 73_000_000,
+                priceMicros: 342_470_000, valueMicros: 250_000_000, weightBps: 2500, costBasisMicros: 249_270_000,
+                pnlMicros: 730_000)
         ],
         me: MePayload(
             shareUnits: 380_000_000, valueMicros: 380_150_000, sliceBps: 3800, netContributedMicros: 380_000_000,

@@ -95,7 +95,8 @@ final class CabalPotSummaryTests: XCTestCase {
         -> Components.Schemas.CabalHolding
     {
         .init(
-            symbol: symbol, displayName: symbol, units: units, priceMicros: 10_000_000, valueMicros: 10_000_000,
-            weightBps: weightBps, costBasisMicros: 10_000_000 - pnlMicros, pnlMicros: pnlMicros)
+            symbol: symbol, displayName: symbol, kind: .equity, units: units, tokenAmount: 100_000_000,
+            priceMicros: 10_000_000, valueMicros: 10_000_000, weightBps: weightBps,
+            costBasisMicros: 10_000_000 - pnlMicros, pnlMicros: pnlMicros)
     }
 }

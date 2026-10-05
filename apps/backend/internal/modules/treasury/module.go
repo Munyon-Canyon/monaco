@@ -271,7 +271,7 @@ func marketResolver(catalog market.Catalog) app.MintResolver {
 			return app.Asset{}, err
 		}
 		return app.Asset{
-			ID: asset.ID.UUID(), Symbol: asset.Symbol, DisplayName: asset.DisplayName,
+			ID: asset.ID.UUID(), Symbol: asset.Symbol, DisplayName: asset.DisplayName, Kind: string(asset.Kind),
 			Decimals: asset.Decimals, ChainChecked: asset.ChainChecked,
 			UIMultiplierNum: asset.UIMultiplier.Num, UIMultiplierDen: asset.UIMultiplier.Den,
 			NextUIMultiplierNum: asset.NextUIMultiplier.To.Num,

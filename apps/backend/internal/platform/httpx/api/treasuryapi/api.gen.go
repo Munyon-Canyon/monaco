@@ -64,6 +64,24 @@ func (e CabalActivityStatus) Valid() bool {
 	}
 }
 
+// Defines values for CabalHoldingKind.
+const (
+	Equity CabalHoldingKind = "equity"
+	PreIpo CabalHoldingKind = "pre_ipo"
+)
+
+// Valid indicates whether the value is a known member of the CabalHoldingKind enum.
+func (e CabalHoldingKind) Valid() bool {
+	switch e {
+	case Equity:
+		return true
+	case PreIpo:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CashOutJobStatus.
 const (
 	CashOutJobStatusCompleted CashOutJobStatus = "completed"
@@ -284,6 +302,11 @@ type CabalHolding struct {
 	// Examples: Apple
 	DisplayName string `json:"display_name"`
 
+	// Kind Whether the token tracks a listed equity or a pre-IPO company.
+	//
+	// Examples: equity
+	Kind CabalHoldingKind `json:"kind"`
+
 	// PnlMicros Signed gain, value minus cost basis, in micros.
 	//
 	// Examples: 20000000
@@ -298,6 +321,11 @@ type CabalHolding struct {
 	//
 	// Examples: AAPLx
 	Symbol string `json:"symbol"`
+
+	// TokenAmount The token base units the cabal holds, what a sell of all of it spends.
+	//
+	// Examples: 73000000
+	TokenAmount int64 `json:"token_amount"`
 
 	// Units Shares as the user sees them, rounded down to 4 decimal places.
 	//
@@ -314,6 +342,11 @@ type CabalHolding struct {
 	// Examples: 5000
 	WeightBps int32 `json:"weight_bps"`
 }
+
+// CabalHoldingKind Whether the token tracks a listed equity or a pre-IPO company.
+//
+// Examples: equity
+type CabalHoldingKind string
 
 // CabalPot A cabal's pot valued from one price read, with the caller's slice.
 type CabalPot struct {
