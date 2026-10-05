@@ -5,16 +5,22 @@
   },
   "body": {
     "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp": {
-      "usdPrice": 254.371234,
-      "blockId": 348004023,
+      "createdAt": "2025-06-30T14:00:00Z",
       "decimals": 8,
-      "priceChange24h": 0.41
+      "stockData": {
+        "id": "xstocks",
+        "price": 254.371234,
+        "mcap": 516152903.35
+      }
     },
     "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB": {
-      "usdPrice": 436.1205,
-      "blockId": 348004023,
+      "createdAt": "2025-06-30T14:00:00Z",
       "decimals": 8,
-      "priceChange24h": -1.2
+      "stockData": {
+        "id": "xstocks",
+        "price": 436.1205,
+        "mcap": 516152903.35
+      }
     },
     "TSPXcLV76s6V2zDiZQ18kBfcbnjaE2ZzNT3ga2Pd99v": {
       "usdPrice": 100,
