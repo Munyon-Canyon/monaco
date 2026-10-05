@@ -6,7 +6,7 @@ import UIKit
 
 /// Debug-only: the group screen and its pushed screens on canned data, no sign-in or backend.
 /// Launch with `-MonacoGroupDetailSample <scenario>`:
-/// `populated` · `empty` · `loading` · `details` (Cabal details sheet open) · `propose` (chooser sheet open)
+/// `populated` · `empty` · `loading` · `details` (Cabal details sheet open)
 /// · `picture` (cabal with a picture, viewer is its creator) · `noPicture` (creator, tinted
 /// initials, nothing to remove) · `pictureNotCreator` (has a picture, viewer is a plain member,
 /// so no controls) · `pictureUploadFailure` (every write is refused).
@@ -15,7 +15,6 @@ enum GroupDetailSampleScenario: String, CaseIterable {
     case empty
     case loading
     case details
-    case propose
     case picture
     case noPicture
     case pictureNotCreator
@@ -46,7 +45,6 @@ struct GroupDetailSampleHarness: View {
         return session
     }()
     @State private var showDetails = false
-    @State private var showPropose = false
     @State private var route: GroupDetailRoute?
     @State private var toast: MonacoToast?
     @State private var heroScrolledAway = false
@@ -82,7 +80,7 @@ struct GroupDetailSampleHarness: View {
                 .monacoCanvas()
                 .navigationTitle("Weekend investors")
                 .navigationBarTitleDisplayMode(.inline)
-        case .populated, .empty, .details, .propose:
+        case .populated, .empty, .details:
             groupScreen(scenario == .empty ? GroupDetailSampleData.emptyView : GroupDetailSampleData.view)
         case .picture, .noPicture, .pictureNotCreator, .pictureUploadFailure:
             groupScreen(GroupDetailSampleData.pictureView(for: scenario))
@@ -96,7 +94,7 @@ struct GroupDetailSampleHarness: View {
             view: view,
             currentUserId: GroupDetailSampleData.viewerId,
             onRoute: { route = $0 },
-            onPropose: { showPropose = true },
+            onPropose: {},
             onToast: { toast = $0 },
             onHeroScrolledAway: { heroScrolledAway = $0 },
             pictureEditor: pictureEditor,
@@ -130,16 +128,12 @@ struct GroupDetailSampleHarness: View {
                     .foregroundStyle(MonacoTheme.muted)
             }
         }
-        .sheet(isPresented: $showPropose) {
-            ProposeSheet(auth: auth, groupId: view.id, groupView: view)
-        }
         .sheet(isPresented: $showDetails) {
             GroupDetailsSheet(treasuryAddress: view.treasuryAddress)
         }
         .monacoToast($toast)
         .task {
             if scenario == .details { showDetails = true }
-            if scenario == .propose { showPropose = true }
         }
     }
 }

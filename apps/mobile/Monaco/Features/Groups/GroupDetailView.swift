@@ -32,6 +32,7 @@ struct GroupDetailView: View {
 
     private let apiClient = MonacoAPIClient()
     @Environment(AppSessionStore.self) private var session: AppSessionStore?
+    @Environment(AppEnvironment.self) private var environment: AppEnvironment?
 
     @State private var groupView: GroupViewDTO?
     /// One idempotency key holder per transaction being retried; retries of different rows overlap.
@@ -44,8 +45,6 @@ struct GroupDetailView: View {
     @State private var pnl: GroupPnLHistoryModel
 
     @State private var route: GroupDetailRoute?
-    @State private var showProposeSheet = false
-    /// The propose sheet's height; the chooser raises it to `.large` while a flow is pushed.
     @State private var showDetailsSheet = false
     @State private var heroScrolledAway = false
 
@@ -131,14 +130,6 @@ struct GroupDetailView: View {
                     try? await refresh(.userInitiated)
                 }
             }
-            .sheet(
-                isPresented: $showProposeSheet,
-                onDismiss: {}
-            ) {
-                if let groupView {
-                    ProposeSheet(auth: auth, groupId: groupId, groupView: groupView, onProposed: proposalSent)
-                }
-            }
             .sheet(isPresented: $showDetailsSheet) {
                 if let groupView {
                     GroupDetailsSheet(treasuryAddress: groupView.treasuryAddress)
@@ -155,7 +146,10 @@ struct GroupDetailView: View {
                 view: groupView,
                 currentUserId: session?.profile?.userID,
                 onRoute: { route = $0 },
-                onPropose: { showProposeSheet = true },
+                onPropose: {
+                    guard let environment else { return }
+                    environment.navigator.open(ProposeRoute(cabalID: groupId), in: environment.navigator.selectedTab)
+                },
                 onToast: { toast = $0 },
                 onHeroScrolledAway: { heroScrolledAway = $0 },
                 heroChart: pnl.chart,
@@ -215,14 +209,6 @@ struct GroupDetailView: View {
 
     private var loadTaskID: String {
         "\(groupId)-\(auth.accessToken ?? "")"
-    }
-
-    /// Called by the propose sheet once the cabal has the proposal: close the sheet and confirm.
-    /// Closing the sheet reloads the open votes.
-    private func proposalSent(_ proposalId: String) {
-        showProposeSheet = false
-        Haptics.success()
-        toast = MonacoToast(message: "Proposal sent to \(displayName)", isSuccess: true)
     }
 
     /// The one way this screen reads itself.
