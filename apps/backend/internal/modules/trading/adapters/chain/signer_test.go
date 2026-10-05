@@ -10,8 +10,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/chainfake"
 )
 
-func swapTx(treasury string) []byte {
-	return chainfake.Unsigned(chainfake.RelayerAddress(), chainfake.WalletAddress(treasury))
+func swapTx() []byte {
+	return chainfake.Unsigned(chainfake.RelayerAddress(), chainfake.WalletAddress("wallet-a"))
 }
 
 func TestSigner_namesTheRelayerAsFeePayer(t *testing.T) {
@@ -25,7 +25,7 @@ func TestSigner_namesTheRelayerAsFeePayer(t *testing.T) {
 func TestSigner_returnsBothSignaturesAndTheFeePayersAsTheTransactionID(t *testing.T) {
 	t.Parallel()
 	s := chain.NewSigner(&chainfake.Signer{}, chainfake.Relayer())
-	signed, sig, err := s.Sign(t.Context(), "wallet-a", swapTx("wallet-a"))
+	signed, sig, err := s.Sign(t.Context(), "wallet-a", swapTx())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func (passthrough) SignTransaction(_ context.Context, _ string, unsigned []byte)
 
 func TestSigner_refusesWhatTheTreasuryDidNotSign(t *testing.T) {
 	t.Parallel()
-	_, _, err := chain.NewSigner(passthrough{}, chainfake.Relayer()).Sign(t.Context(), "wallet-a", swapTx("wallet-a"))
+	_, _, err := chain.NewSigner(passthrough{}, chainfake.Relayer()).Sign(t.Context(), "wallet-a", swapTx())
 	if errs.CodeOf(err) != errs.CodeDecodeFailed {
 		t.Fatalf("Privy bytes without the treasury signature = %v, want decode_failed", err)
 	}
@@ -68,7 +68,7 @@ func TestSigner_passesPrivyFailuresThrough(t *testing.T) {
 	t.Parallel()
 	var fake chainfake.Signer
 	fake.FailOnce("SignTransaction", errs.New(errs.CodePrivyUnavailable, "test"))
-	_, _, err := chain.NewSigner(&fake, chainfake.Relayer()).Sign(t.Context(), "wallet-a", swapTx("wallet-a"))
+	_, _, err := chain.NewSigner(&fake, chainfake.Relayer()).Sign(t.Context(), "wallet-a", swapTx())
 	if errs.CodeOf(err) != errs.CodePrivyUnavailable {
 		t.Fatalf("Privy down = %v, want privy_unavailable", err)
 	}
@@ -83,5 +83,19 @@ func TestSigner_refusesBytesThatAreNotATransaction(t *testing.T) {
 	_, _, err := chain.NewSigner(junk{}, chainfake.Relayer()).Sign(t.Context(), "wallet-a", []byte{1})
 	if errs.CodeOf(err) != errs.CodeDecodeFailed {
 		t.Fatalf("junk signed bytes = %v, want decode_failed", err)
+	}
+}
+
+type junkCoSigner struct{}
+
+func (junkCoSigner) Address() platform.SolanaAddress { return chainfake.RelayerAddress() }
+
+func (junkCoSigner) CoSign(context.Context, []byte) ([]byte, error) { return []byte{0}, nil }
+
+func TestSigner_refusesCoSignedBytesThatAreNotATransaction(t *testing.T) {
+	t.Parallel()
+	_, _, err := chain.NewSigner(&chainfake.Signer{}, junkCoSigner{}).Sign(t.Context(), "wallet-a", swapTx())
+	if errs.CodeOf(err) != errs.CodeDecodeFailed {
+		t.Fatalf("junk co-signed bytes = %v, want decode_failed", err)
 	}
 }
