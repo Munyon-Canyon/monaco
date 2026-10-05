@@ -28,7 +28,7 @@ func TestModule_registersTheEngineAsItsOwnIdempotentConsumer(t *testing.T) {
 	}})
 	consumers := m.Consumers()
 	if m.Name() != "trading" || len(m.Pollers()) != 1 || testkit.Serves(m.Mount, "GET", "/v1/assets") ||
-		len(consumers) != 1 {
+		len(consumers) != 2 {
 		t.Fatalf("module = %s, %d consumers, %v pollers", m.Name(), len(consumers), m.Pollers())
 	}
 	if reflect.ValueOf(m.SignatureOwner()).IsZero() {
