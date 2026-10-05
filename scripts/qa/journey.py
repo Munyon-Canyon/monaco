@@ -923,20 +923,52 @@ def run_once(journey, journeys, args, sims, accounts, build_name, run_name, scen
     return rows, overall
 
 
-def funding_notice(journey):
-    """What the person running a money journey must have sent before it starts, or '' for other journeys."""
+def monacoctl():
+    """The built bin/monacoctl, or go run of the source when it is not built."""
+    if (ROOT / "bin" / "monacoctl").exists():
+        return ["bin/monacoctl"]
+    return ["go", "-C", "apps/backend", "run", "./cmd/monacoctl"]
+
+
+def with_dotenv(args):
+    result = sh(["scripts/with-dotenv-local.sh"] + args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def actor_user_id(row):
+    """The actor's Monaco user id in the local database, or '' before the actor's first sign-in."""
+    privy_user_id = row.get("privy_user_id", "")
+    if not re.match(r"^did:privy:[a-z0-9]+$", privy_user_id):
+        return ""
+    query = "SELECT id FROM users WHERE privy_user_id = '%s'" % privy_user_id
+    return with_dotenv(["apps/mobile/qa/journeys/psql.sh", "-tAc", query])
+
+
+def funding_notice(journey, accounts, user_id=actor_user_id):
+    """What the person running a money journey must have sent before it starts, or '' for other journeys.
+    Each actor is funded from the QA pot with monacoctl qa fund, or from the Phantom agent wallet."""
     if not journey.funds:
         return ""
-    amounts = ", ".join("%s USDC to actor %s" % (amount, actor) for actor, amount in sorted(journey.funds.items()))
-    return ("this journey moves real USDC. Before it starts, send %s from the Phantom agent wallet to the actor's "
-            "deposit address (docs/journeys/README.md, Journeys that move money)" % amounts)
+    lines = ["this journey moves real USDC. Before it starts, fund each actor from one of the two QA wallets "
+             "(docs/journeys/README.md, Journeys that move money):"]
+    for actor, amount in sorted(journey.funds.items()):
+        user = user_id(accounts.get(actor, {})) or "<%s's user id, after its first sign-in>" % actor
+        lines.append("  actor %s, %s USDC: scripts/with-dotenv-local.sh bin/monacoctl qa fund --user %s --usdc %s, "
+                     "or send %s USDC from the Phantom agent wallet to %s's deposit address"
+                     % (actor, amount, user, amount, amount, actor))
+    return "\n".join(lines)
 
 
-def require_refund_address():
-    """{QA.refund_address}: where a money journey sends what is left, the Phantom MCP agent wallet."""
-    if not os.environ.get("MONACO_QA_REFUND_ADDRESS"):
-        raise JourneyError("this journey moves real USDC: export MONACO_QA_REFUND_ADDRESS, the Phantom MCP agent "
-                           "wallet's address, so the run can send what is left back (docs/journeys/README.md)")
+def refund_address():
+    """{QA.refund_address}: where a money journey sends what is left. An exported MONACO_QA_REFUND_ADDRESS
+    (the Phantom agent wallet) wins; otherwise it is the QA pot's address from monacoctl qa pot --address."""
+    address = os.environ.get("MONACO_QA_REFUND_ADDRESS") or with_dotenv(monacoctl() + ["qa", "pot", "--address"])
+    if not address:
+        raise JourneyError("this journey moves real USDC and has no refund address: decrypt .env.local so "
+                           "monacoctl qa pot --address works, or export MONACO_QA_REFUND_ADDRESS, the Phantom "
+                           "agent wallet's address (docs/journeys/README.md)")
+    os.environ["MONACO_QA_REFUND_ADDRESS"] = address
+    return address
 
 
 def stamp():
@@ -1052,9 +1084,12 @@ def run_all(args, api_base_url, builder):
     journeys = load_journeys()
     worst = 0
     for journey_id in requires_order(journeys):
-        if journeys[journey_id].funds and not os.environ.get("MONACO_QA_REFUND_ADDRESS"):
-            print("%s SKIP funds" % journey_id)
-            continue
+        if journeys[journey_id].funds:
+            try:
+                refund_address()
+            except JourneyError:
+                print("%s SKIP funds" % journey_id)
+                continue
         print("== %s" % journey_id, flush=True)
         try:
             code = run_journey(args, api_base_url, journey_id, builder)
@@ -1077,9 +1112,9 @@ def run_journey(args, api_base_url, journey_id, builder):
     sims = resolve_simulators(journey, mapping)
     check_simulator_api_environment(sims, api_base_url)
     OUT.mkdir(parents=True, exist_ok=True)
-    funding = funding_notice(journey)
+    funding = funding_notice(journey, accounts)
+    refund = refund_address() if funding else ""
     if funding:
-        require_refund_address()
         print(funding)
     builder(sims[journey.actors[0]])
     worst = 0
@@ -1090,7 +1125,8 @@ def run_journey(args, api_base_url, journey_id, builder):
         _, overall = run_once(journey, journeys, args, sims, accounts, build_label(), run_name, scenarios, api_base_url)
         worst = max(worst, EXIT_CODES[overall])
     if funding:
-        print("this journey moved real USDC: cash out what is left and withdraw it to the Phantom agent wallet")
+        print("this journey moved real USDC: cash out what is left and withdraw it to %s, the run's "
+              "{QA.refund_address}" % refund)
     return worst
 
 
