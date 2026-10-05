@@ -2,6 +2,7 @@ package treasury
 
 import (
 	"context"
+	"sync"
 
 	"github.com/google/uuid"
 
@@ -17,6 +18,9 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
@@ -28,12 +32,14 @@ import (
 )
 
 type Module struct {
-	deps    module.Deps
-	members app.Members
-	users   app.Users
-	cabals  app.CabalViews
-	pauses  app.CashOutPauses
-	fund    fundDeps
+	deps            module.Deps
+	members         app.Members
+	users           app.Users
+	cabals          app.CabalViews
+	pauses          app.CashOutPauses
+	fund            fundDeps
+	treasuryWallets app.TreasuryWallets
+	memberWallets   app.MemberWallets
 }
 
 type fundDeps struct {
@@ -60,6 +66,7 @@ type (
 func New(d module.Deps) *Module {
 	return &Module{
 		deps: d, members: app.UnwiredReads{}, users: app.UnwiredReads{}, cabals: app.UnwiredReads{},
+		treasuryWallets: app.UnwiredReads{}, memberWallets: app.UnwiredReads{},
 		pauses: app.CashOutPauseFunc(func(context.Context, ids.CabalID) (app.CashOutPause, error) {
 			return app.CashOutPause{}, errs.New(
 				errs.CodeUpstreamUnavailable,
@@ -78,9 +85,11 @@ func (m *Module) Wire(set module.Set) {
 			m.members = provider.Queries()
 			m.cabals = provider.Queries()
 			m.fund.cabals = provider.Queries()
+			m.treasuryWallets = provider.Queries()
 		case interface{ Queries() identityport.Queries }:
 			m.users = provider.Queries()
 			m.fund.wallets = provider.Queries()
+			m.memberWallets = provider.Queries()
 		}
 		if provider, ok := mod.(interface{ Pauses() fundingport.Pauses }); ok {
 			pauses := provider.Pauses()
@@ -141,6 +150,7 @@ func (m *Module) Consumers() []bus.Consumer {
 		Hints:  m.deps.Bus,
 	}
 	cashOut := adapters.CashOut{Sales: app.NewCashOutSales(m.ledger(), m.deps.IDs)}
+	payout := adapters.CashOutPayout{Payouts: m.payouts(), UoW: m.deps.UoW}
 	return []bus.Consumer{
 		{
 			Durable: "treasury_trades",
@@ -168,6 +178,10 @@ func (m *Module) Consumers() []bus.Consumer {
 			},
 		},
 		{
+			Durable:  "treasury_cashout_payout",
+			Handlers: []bus.HandlerSpec{bus.HandleOwn("treasury.cashout_payout", payout.Handle)},
+		},
+		{
 			Durable: "treasury_user_ledger",
 			Handlers: []bus.HandlerSpec{
 				bus.Handle("treasury.user_ledger", userLedger.Handle),
@@ -179,11 +193,50 @@ func (m *Module) Consumers() []bus.Consumer {
 
 func (m *Module) Pollers() []poller.Poller {
 	cfg := m.deps.Config
-	return []poller.Poller{adapters.FundPoller{Settler: app.NewFundSettler(app.FundSettlerDeps{
-		Reads: m.deps.Pool, UoW: m.deps.UoW, IDs: m.deps.IDs, Clock: m.deps.Clock,
-		Chain: adapters.NewStatuses(cfg, m.deps.Clock), Transfers: adapters.NewTransfers(cfg, m.deps.Clock),
-		Pot: m.reads(), Ledger: m.ledger(), USDC: usdc(cfg), Hints: m.deps.Bus,
-	})}}
+	return []poller.Poller{
+		adapters.FundPoller{Settler: app.NewFundSettler(app.FundSettlerDeps{
+			Reads: m.deps.Pool, UoW: m.deps.UoW, IDs: m.deps.IDs, Clock: m.deps.Clock,
+			Chain: adapters.NewStatuses(cfg, m.deps.Clock), Transfers: adapters.NewTransfers(cfg, m.deps.Clock),
+			Pot: m.reads(), Ledger: m.ledger(), USDC: usdc(cfg), Hints: m.deps.Bus,
+		})},
+		adapters.CashOutSweeper{Payouts: m.payouts()},
+	}
+}
+
+func (m *Module) payouts() *app.CashOutPayouts {
+	cfg := m.deps.Config
+	return app.NewCashOutPayouts(app.CashOutPayoutDeps{
+		UoW: m.deps.UoW, Reads: m.deps.Pool, Ledger: m.ledger(), IDs: m.deps.IDs, Clock: m.deps.Clock,
+		Chain:     adapters.PayoutChain{Solana: m.lazyStatuses()},
+		Transfers: m.lazyTransfers(),
+		Wallets:   app.PayoutWalletReads{Cabals: m.treasuryWallets, Members: m.memberWallets},
+		USDC:      chain.Mint{Address: chain.SolanaAddress(cfg.Solana.USDCMint), Decimals: 6},
+		Hints:     m.deps.Bus,
+	})
+}
+
+func (m *Module) lazyStatuses() func() adapters.SignatureStatuses {
+	return sync.OnceValue(func() adapters.SignatureStatuses { return m.statuses() })
+}
+
+func (m *Module) lazyTransfers() func() (app.PayoutTransfers, error) {
+	return func() (app.PayoutTransfers, error) { return m.transfers() }
+}
+
+func (m *Module) statuses() *solana.Client {
+	return solana.New(m.deps.Config, m.deps.Clock)
+}
+
+func (m *Module) transfers() (*relayer.Transfers, error) {
+	signer, err := privy.New(m.deps.Config, m.deps.Clock)
+	if err != nil {
+		return nil, err
+	}
+	r, err := relayer.New(m.deps.Config, solana.New(m.deps.Config, m.deps.Clock))
+	if err != nil {
+		return nil, err
+	}
+	return relayer.NewTransfers(r, signer), nil
 }
 
 func (m *Module) Queries() port.Queries {

@@ -16,17 +16,25 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	apibase "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
-func TestModule_settlesFundsOnAPoller(t *testing.T) {
+func TestModule_pollsFundsAndSweepsCashOuts(t *testing.T) {
 	t.Parallel()
-	if p := treasury.New(module.Deps{}).Pollers(); len(p) != 1 || p[0].Name() != "treasury.fund-transfers" {
-		t.Fatalf("pollers = %v, want treasury.fund-transfers", p)
+	pollers := treasury.New(module.Deps{}).Pollers()
+	names := make([]string, 0, len(pollers))
+	for _, p := range pollers {
+		names = append(names, p.Name())
+	}
+	if want := []string{"treasury.fund-transfers", "treasury.cashout-sweeper"}; !slices.Equal(names, want) {
+		t.Fatalf("pollers = %v, want %v", names, want)
 	}
 }
 
@@ -36,7 +44,7 @@ func TestModule_servesActivityAndConsumesTradeEvents(t *testing.T) {
 	if m.Name() != "treasury" || !testkit.Serves(m.Mount, "GET", "/v1/me/txns") ||
 		!testkit.Serves(m.Mount, "GET", "/v1/cabals/c/activity") || testkit.Serves(m.Mount, "GET", "/v1/cabals") ||
 		!testkit.Serves(m.Mount, "GET", "/v1/fund-transfers/f") {
-		t.Fatalf("module = %s", m.Name())
+		t.Fatalf("module = %s, pollers %v", m.Name(), m.Pollers())
 	}
 	var got []string
 	for _, c := range m.Consumers() {
@@ -55,6 +63,7 @@ func TestModule_servesActivityAndConsumesTradeEvents(t *testing.T) {
 		"treasury_cashout treasury.cashout " + string(events.TypeCashOutStarted),
 		"treasury_cashout treasury.cashout.confirmed " + string(events.TypeTradeConfirmed),
 		"treasury_cashout treasury.cashout.failed " + string(events.TypeTradeFailed),
+		"treasury_cashout_payout treasury.cashout_payout " + string(events.TypeCashOutStarted),
 		"treasury_user_ledger treasury.user_ledger " + string(events.TypeDepositCredited),
 		"treasury_user_ledger treasury.withdrawal_ledger " + string(events.TypeWithdrawalConfirmed),
 	}
@@ -127,5 +136,41 @@ func TestModule_wireTakesMembersAndUsersFromTheBuiltSetAndFailsClosedWithout(t *
 	if reflect.TypeOf(members) != reflect.TypeOf(cabal.New(d).Queries()) ||
 		reflect.TypeOf(users) != reflect.TypeOf(identity.New(d).Queries()) {
 		t.Fatalf("reads = %T, %T, want cabal's and identity's Queries", members, users)
+	}
+	treasuryWallets, memberWallets := alone.PayoutWallets()
+	if _, ok := treasuryWallets.(app.UnwiredReads); !ok {
+		t.Fatalf("treasury wallets = %T, want app.UnwiredReads", treasuryWallets)
+	}
+	if _, ok := memberWallets.(app.UnwiredReads); !ok {
+		t.Fatalf("member wallets = %T, want app.UnwiredReads", memberWallets)
+	}
+	treasuryWallets, memberWallets = wired.PayoutWallets()
+	if reflect.TypeOf(treasuryWallets) != reflect.TypeOf(cabal.New(d).Queries()) ||
+		reflect.TypeOf(memberWallets) != reflect.TypeOf(identity.New(d).Queries()) {
+		t.Fatalf("payout wallets = %T, %T, want cabal's and identity's Queries", treasuryWallets, memberWallets)
+	}
+}
+
+func TestModule_payoutTransfersNeedPrivyAndRelayerKeys(t *testing.T) {
+	t.Parallel()
+	privy := config.Privy{BaseURL: "http://127.0.0.1", VerificationKey: fakes.PrivyVerificationKey()}
+	relayer := config.Relayer{PrivateKey: chain.EncodeBase58(fakes.FixtureKey("relayer"))}
+	timeouts := config.Timeouts{Privy: time.Second, RPC: time.Second}
+	rpc := config.Solana{RPCURL: "http://127.0.0.1/rpc/"}
+	for name, c := range map[string]struct {
+		cfg config.Config
+		ok  bool
+	}{
+		"no privy key":   {cfg: config.Config{Relayer: relayer, Timeouts: timeouts, Solana: rpc}},
+		"no relayer key": {cfg: config.Config{Privy: privy, Timeouts: timeouts, Solana: rpc}},
+		"both":           {cfg: config.Config{Privy: privy, Relayer: relayer, Timeouts: timeouts, Solana: rpc}, ok: true},
+	} {
+		m := treasury.New(module.Deps{Config: c.cfg, Clock: testkit.NewClock(time.Time{})})
+		if err := m.BuildTransfers(); (err == nil) != c.ok {
+			t.Errorf("%s: BuildTransfers = %v", name, err)
+		}
+		if m.Statuses() == nil {
+			t.Errorf("%s: no signature status reader", name)
+		}
 	}
 }

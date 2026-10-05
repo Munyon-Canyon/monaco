@@ -38,14 +38,16 @@ type Hints interface {
 }
 
 type CashOutPayoutDeps struct {
-	UoW    *db.UnitOfWork
-	Reads  sqlc.DBTX
-	Ledger Ledger
-	IDs    ids.Generator
-	Clock  clock.Clock
-	Chain  PayoutChain
-	USDC   chain.Mint
-	Hints  Hints
+	UoW       *db.UnitOfWork
+	Reads     sqlc.DBTX
+	Ledger    Ledger
+	IDs       ids.Generator
+	Clock     clock.Clock
+	Chain     PayoutChain
+	Transfers func() (PayoutTransfers, error)
+	Wallets   PayoutWallets
+	USDC      chain.Mint
+	Hints     Hints
 }
 
 type CashOutPayouts struct{ d CashOutPayoutDeps }
@@ -103,10 +105,14 @@ func (p *CashOutPayouts) Advance(ctx context.Context, jobID uuid.UUID, wait time
 
 func (p *CashOutPayouts) step(ctx context.Context, job payoutJob) (pace, error) {
 	switch domain.NextPayoutStep(job.status, job.selling, job.latest) {
-	case domain.PayoutIdle, domain.PayoutSign, domain.PayoutSend:
+	case domain.PayoutIdle:
 		return paceStop, nil
 	case domain.PayoutGiveUp:
 		return paceStop, p.fail(ctx, job, 0)
+	case domain.PayoutSign:
+		return paceAgain, p.sign(ctx, job)
+	case domain.PayoutSend:
+		return paceAgain, p.send(ctx, job)
 	case domain.PayoutCheck:
 	}
 	return p.check(ctx, job)
@@ -124,7 +130,9 @@ func (p *CashOutPayouts) check(ctx context.Context, job payoutJob) (pace, error)
 		return paceStop, p.fail(ctx, job, job.latest.Number)
 	case domain.PayoutLapsed:
 		return paceAgain, p.lapse(ctx, job)
-	case domain.PayoutMissing, domain.PayoutInFlight:
+	case domain.PayoutMissing:
+		p.broadcast(ctx, job)
+	case domain.PayoutInFlight:
 	}
 	return paceWait, nil
 }
