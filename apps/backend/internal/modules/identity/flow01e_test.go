@@ -3,6 +3,7 @@ package identity_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
@@ -46,7 +47,11 @@ func deleteScenario(
 	users, wallets := privyadapter.Users{Client: client}, privyadapter.Wallets{Client: client}
 	return scenario.New(t, append([]scenario.Option{
 		scenario.WithModules(func(d module.Deps) module.Module {
-			return identity.New(d, identity.WithPrivy(users, wallets), identity.WithHoldings(stakes, balances))
+			d.Config.Identity.PhotoPurgesInterval = time.Second
+			return identity.New(d,
+				identity.WithPrivy(users, wallets), identity.WithHoldings(stakes, balances),
+				identity.WithPhotoStore(&photoStore{}),
+			)
 		}),
 		scenario.WithPrivy(upstreams, privyAppID),
 	}, extra...)...)

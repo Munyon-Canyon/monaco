@@ -130,7 +130,7 @@ func TestPhotoPurges_deletesADeletedUsersPhotosOnceAndLeavesEveryoneElse(t *test
 	active := testkit.SeedUser(t, f.pool, testkit.UserOpts{})
 	goneURL, activeURL := bucket.put(t, gone.ID), bucket.put(t, active.ID)
 	store := &purgeStore{PhotoStore: bucket.photos}
-	p := app.NewPhotoPurges(f.pool, store, clk)
+	p := app.NewPhotoPurges(f.pool, store, clk, time.Minute)
 	if p.Name() != "identity.photo_purges" || p.Interval() != time.Minute {
 		t.Fatalf("poller = %s every %s, want identity.photo_purges every 1m", p.Name(), p.Interval())
 	}
@@ -163,7 +163,7 @@ func TestPhotoPurges_aStorageErrorLeavesTheRowAndWarnsOnce(t *testing.T) {
 	logs := &testkit.Logs{}
 	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
 	store := &purgeStore{err: errs.New(errs.CodeStorageUnavailable, "test.storage")}
-	r, err := app.NewPhotoPurges(f.pool, store, testkit.NewClock(f.now)).Tick(ctx)
+	r, err := app.NewPhotoPurges(f.pool, store, testkit.NewClock(f.now), time.Minute).Tick(ctx)
 	if err != nil || r.Scanned != 1 || r.Changed != 0 {
 		t.Fatalf("tick = %+v, %v, want 1 scanned and 0 changed", r, err)
 	}
@@ -182,11 +182,12 @@ func TestPhotoPurges_returnsTheDatabaseError(t *testing.T) {
 	testkit.SeedUser(t, f.pool, testkit.UserOpts{AccountStatus: "deleted"})
 	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := app.NewPhotoPurges(f.pool, &purgeStore{}, testkit.NewClock(f.now)).Tick(canceled); err == nil {
+	if _, err := app.NewPhotoPurges(f.pool, &purgeStore{}, testkit.NewClock(f.now), time.Minute).
+		Tick(canceled); err == nil {
 		t.Fatal("tick on a canceled context succeeded")
 	}
 	ctx, stop := context.WithCancel(t.Context())
-	r, err := app.NewPhotoPurges(f.pool, &purgeStore{during: stop}, testkit.NewClock(f.now)).Tick(ctx)
+	r, err := app.NewPhotoPurges(f.pool, &purgeStore{during: stop}, testkit.NewClock(f.now), time.Minute).Tick(ctx)
 	if err == nil || r.Scanned != 1 || r.Changed != 0 {
 		t.Fatalf("tick that loses its context mid-row = %+v, %v, want the mark to fail", r, err)
 	}
