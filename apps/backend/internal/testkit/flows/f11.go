@@ -110,9 +110,9 @@ func (t trade) pass() []scenario.Step {
 	}
 }
 
-func (t trade) ends(want events.Type, n int) scenario.Step {
+func (t trade) ends(want events.Type) scenario.Step {
 	return scenario.Eventually(string(want)+" for cabal "+t.cabalID.String(), func(s *scenario.Scenario) bool {
-		return t.count(s, want) >= n
+		return t.count(s, want) > 0
 	})
 }
 
@@ -141,7 +141,7 @@ func (t trade) expect(want map[events.Type]int) scenario.Step {
 func (t trade) run(s *scenario.Scenario, given []scenario.Step, end events.Type, want map[events.Type]int) {
 	s.Given(append(t.given, given...)...).
 		When(t.pass()...).
-		Then(t.ends(end, 1), t.expect(want))
+		Then(t.ends(end), t.expect(want))
 }
 
 func (t trade) blocks(s *scenario.Scenario, code errs.Code, given ...scenario.Step) {
