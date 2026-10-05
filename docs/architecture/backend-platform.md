@@ -528,7 +528,7 @@ Lint that makes the shared-state leak a compile-time failure:
 | Hard-coded IDs that collide across tests | `forbidigo` bans `uuid\.MustParse` and `uuid\.Must` in `_test.go`. |
 | A test that is not parallel and hides an order dependency | `paralleltest`, `tparallel`, `-shuffle=on`. |
 | Two tests with the same name in a package, so two databases get the same name | `testkit.DB` panics on a duplicate `t.Name()` within a run. |
-| Leftover state after a failure | `pgtestdb` keeps a failed test's database for debugging. That is useful for one failure and dangerous for many: 500 failing tests would keep about 4.5 GB, and on 2026-09-27 kept clones from a failing benchmark filled a 1 GB tmpfs and killed the container. So `testkit.DB` keeps at most the first 5 failed databases per run and drops the rest, `TestMain` drops every `t_*` and `testdb_*` database older than one hour at start, and the test container's tmpfs is sized at 2 GB. |
+| Leftover state after a failure | `pgtestdb` keeps a failed test's database for debugging. That is useful for one failure and dangerous for many: 500 failing tests would keep about 4.5 GB, and on 2026-09-27 kept clones from a failing benchmark filled a 1 GB tmpfs and killed the container. So `testkit.DB` drops a failed test's database like a passing one. With `MONACO_TEST_KEEP_FAILED=1` it keeps at most the first 5 failed databases per run and drops the rest. `TestMain` drops every `t_*` and `testdb_*` database older than 15 minutes at start, and the test container's tmpfs is sized at 2 GB. On 2026-10-04 concurrent `agents check` runs, each keeping 5 failed databases for an hour, filled that tmpfs twice (#2609). |
 
 ### Keeping it deterministic
 
