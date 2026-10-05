@@ -65,6 +65,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 		Privy:     config.Privy{BaseURL: "https://api.privy.io"},
 		APNs:      config.APNs{Topic: "com.monaco.app"},
 		PostHog:   config.PostHog{Host: "https://us.i.posthog.com"},
+		Trade:     config.Trade{Engine: config.TradeEngineLive},
 		Solana: config.Solana{
 			RPCURL:   "https://api.mainnet-beta.solana.com",
 			USDCMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
@@ -204,6 +205,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		Web: config.Web{
 			FundPageURL: "https://fund.example/fund", AllowedOrigins: "https://fund.example,http://127.0.0.1:5173",
 		},
+		Trade:      config.Trade{Engine: config.TradeEngineLive},
 		Faultpoint: "before-commit",
 	}
 	if !reflect.DeepEqual(cfg, want) {
@@ -292,6 +294,16 @@ func TestLoadFailures(t *testing.T) {
 			environ: append(required(), "MONACO_BUS_ACK_WAIT=0s", "MONACO_BUS_API_RELAY=maybe"),
 			want: "config.Load: invalid_input: invalid MONACO_BUS_ACK_WAIT (empty or a positive duration like 100ms), " +
 				"MONACO_BUS_API_RELAY (on or off)",
+		},
+		{
+			name:    "trade engine outside its two values",
+			environ: append(required(), "TRADE_ENGINE=paper"),
+			want:    "config.Load: invalid_input: invalid TRADE_ENGINE (live or stub)",
+		},
+		{
+			name:    "stub trade engine outside local dev",
+			environ: append(required(), "MONACO_ENV=test", "TRADE_ENGINE=stub"),
+			want:    "config.Load: invalid_input: invalid TRADE_ENGINE (stub runs only in local dev)",
 		},
 		{
 			name:    "staging without the APNs key names every missing key",
@@ -489,6 +501,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"MONACO_FAULTPOINT", ""},
 		{"MONACO_BUS_ACK_WAIT", ""},
 		{"MONACO_BUS_API_RELAY", "on"},
+		{"TRADE_ENGINE", "live"},
 		{"TRUST_PROXY_HEADERS", "false"},
 		{"FUND_PAGE_URL", ""},
 		{"WEB_ALLOWED_ORIGINS", ""},

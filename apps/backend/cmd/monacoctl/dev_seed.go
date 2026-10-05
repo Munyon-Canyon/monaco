@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"net/url"
 	"regexp"
 	"slices"
 	"strings"
@@ -96,16 +95,7 @@ func devSeedScenarioOn(cfg config.Config, open openDB, args []string, stdout, st
 	return 0
 }
 
-func devSeedAllowed(cfg config.Config) bool {
-	if cfg.Env != config.EnvLocal {
-		return false
-	}
-	u, err := url.Parse(cfg.DB.URL)
-	if err != nil || strings.TrimPrefix(u.Path, "/") != "monaco" {
-		return false
-	}
-	return slices.Contains([]string{"localhost", "127.0.0.1", "::1"}, u.Hostname())
-}
+func devSeedAllowed(cfg config.Config) bool { return cfg.LocalDev() }
 
 func parseDevSeedArgs(args []string) (name string, actors map[string]ids.UserID, asJSON, ok bool) {
 	if len(args) == 0 || devScenarios()[args[0]] == nil {

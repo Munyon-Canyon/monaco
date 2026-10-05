@@ -18,6 +18,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/tradingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -120,6 +121,9 @@ func (m *Module) retry(ctx context.Context, d bus.Delivery, ev events.TradeRetry
 }
 
 func (m *Module) engineAdapter() adapters.Engine {
+	if m.deps.Config.Trade.Engine == config.TradeEngineStub {
+		return adapters.Engine{Stub: &adapters.StubEngine{UoW: m.deps.UoW}}
+	}
 	m.once.Do(func() { m.trades = m.engine() })
 	return adapters.Engine{Trades: m.trades}
 }

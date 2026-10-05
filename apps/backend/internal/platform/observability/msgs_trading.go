@@ -19,3 +19,8 @@ var TradingRetryRequested = Msg{
 	Name:     "trading.retry.requested",
 	Required: []string{"swap_id", "cabal_id", "proposal_id", "requested_by"},
 }
+
+var TradingEngineStubbed = Msg{
+	Name:     "trading.engine.stubbed",
+	Required: []string{"proposal_id", "kind", "symbol", "usdc_micros"},
+}
