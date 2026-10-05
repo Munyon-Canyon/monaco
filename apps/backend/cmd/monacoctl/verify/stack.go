@@ -18,6 +18,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -159,6 +160,7 @@ func (s *Stack) processes(ctx context.Context) error {
 		"PRIVY_BASE_URL=http://"+fakes.addr+"/privy",
 		"PRIVY_AUTHORIZATION_KEY_ID="+upstreams.PrivyAuthorizationKeyID,
 		"PRIVY_AUTHORIZATION_PRIVATE_KEY="+upstreams.PrivyAuthorizationKeyConfig(),
+		"RELAYER_PRIVATE_KEY="+chain.EncodeBase58(upstreams.FixtureKey("verify-relayer")),
 	)
 	s.Fakes = "http://" + fakes.addr
 	apiEnv, workerEnv := []string{"TRUST_PROXY_HEADERS=true"}, []string(nil)
