@@ -34,3 +34,8 @@ var TreasuryFundSettled = Msg{
 	Name:     "treasury.fund.settled",
 	Required: []string{"transfer_id", "cabal_id", "share_units", "status_before", "status_after"},
 }
+
+var TreasuryCashOutSaleSettled = Msg{
+	Name:     "treasury.cashout.sale_settled",
+	Required: []string{"job_id", "cabal_id", "before", "after", "paid_micros", "returned_units"},
+}
