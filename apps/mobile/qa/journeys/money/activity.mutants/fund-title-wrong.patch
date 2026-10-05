@@ -1,0 +1,19 @@
+journey: money/activity
+expect-fail: S2
+
+A fund row reads "Added to …" instead of "Funded …". S2.1 waits for "Funded QA activity …", so it must fail (it fails today too, #651).
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Treasury/AccountActivityRow.swift b/packages/mobile-core/Sources/MonacoCore/Treasury/AccountActivityRow.swift
+index 2fd4ffdf..851cdced 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Treasury/AccountActivityRow.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Treasury/AccountActivityRow.swift
+@@ -63,7 +63,7 @@ public struct AccountActivityRow: Identifiable, Equatable, Sendable {
+         switch kind {
+         case .deposit: ("Deposit", "arrow.down.to.line")
+         case .withdrawal: ("Withdrawal", "arrow.up.right")
+-        case .fund: ("Funded \(cabalName)", "plus")
++        case .fund: ("Added to \(cabalName)", "plus")
+         case .cashOut: ("Cashed out of \(cabalName)", "arrow.down.left")
+         }
+     }

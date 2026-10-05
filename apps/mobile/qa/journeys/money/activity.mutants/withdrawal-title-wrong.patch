@@ -1,0 +1,19 @@
+journey: money/activity
+expect-fail: S3
+
+A withdrawal row reads "Withdraw". S3.1 waits for "Withdrawal", so it must fail (it fails today too, #652).
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Treasury/AccountActivityRow.swift b/packages/mobile-core/Sources/MonacoCore/Treasury/AccountActivityRow.swift
+index 2fd4ffdf..9032d430 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Treasury/AccountActivityRow.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Treasury/AccountActivityRow.swift
+@@ -62,7 +62,7 @@ public struct AccountActivityRow: Identifiable, Equatable, Sendable {
+     ) -> (title: String, glyph: String) {
+         switch kind {
+         case .deposit: ("Deposit", "arrow.down.to.line")
+-        case .withdrawal: ("Withdrawal", "arrow.up.right")
++        case .withdrawal: ("Withdraw", "arrow.up.right")
+         case .fund: ("Funded \(cabalName)", "plus")
+         case .cashOut: ("Cashed out of \(cabalName)", "arrow.down.left")
+         }
