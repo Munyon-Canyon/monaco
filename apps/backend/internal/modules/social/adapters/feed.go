@@ -22,6 +22,7 @@ type Feed struct {
 	Bus   *bus.Conn
 	Users app.Users
 	IDs   ids.Generator
+	UoW   *db.UnitOfWork
 }
 
 func (h Feed) Handle(ctx context.Context, tx db.Tx, e events.CabalCreated, at time.Time) error {

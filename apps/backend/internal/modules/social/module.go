@@ -48,7 +48,7 @@ func (m *Module) http() adapters.HTTP {
 }
 
 func (m *Module) Consumers() []bus.Consumer {
-	feed := adapters.Feed{Bus: m.deps.Bus, Users: m.users, IDs: m.deps.IDs}
+	feed := adapters.Feed{Bus: m.deps.Bus, Users: m.users, IDs: m.deps.IDs, UoW: m.deps.UoW}
 	return []bus.Consumer{
 		{
 			Durable: "social_feed",
@@ -56,6 +56,8 @@ func (m *Module) Consumers() []bus.Consumer {
 				bus.HandleFetched("social.feed", feed.FetchCreated, feed.ApplyCreated),
 				bus.HandleFetched("social.feed.joined", feed.FetchJoined, feed.ApplyJoined),
 				bus.Handle("social.feed.left", feed.Left),
+				bus.HandleFetched("social.feed.profile_updated", feed.FetchProfile, feed.ApplyProfile),
+				bus.Handle("social.feed.cabal_updated", feed.CabalUpdated),
 			},
 		},
 	}
