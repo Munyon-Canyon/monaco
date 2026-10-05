@@ -4,6 +4,87 @@ import SwiftUI
 import UIKit
 
 struct DepositView: View {
+    let prefillMicros: Int64?
+    let cabalID: String?
+
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(ToastCenter.self) private var toasts
+
+    var body: some View {
+        @Bindable var deposit = environment.cardDeposit
+        DepositChooser(
+            creating: deposit.isCreating,
+            onCard: { Task { await deposit.start(suggestedMicros: prefillMicros, cabalID: cabalID) } }
+        )
+        .fullScreenCover(
+            item: Binding(get: { deposit.page }, set: { if $0 == nil { deposit.browserClosed() } })
+        ) { page in
+            SafariView(url: page.url)
+                .ignoresSafeArea()
+                .onOpenURL { url in
+                    guard case .depositComplete(let id) = DeepLink.parse(url) else { return }
+                    Task { await deposit.redirected(sessionID: id) }
+                }
+        }
+        .onChange(of: deposit.messageTick) { _, _ in
+            guard let message = deposit.message else { return }
+            toasts.current = MonacoToast(message: message)
+        }
+    }
+}
+
+struct DepositChooser: View {
+    let creating: Bool
+    let onCard: () -> Void
+
+    var body: some View {
+        ScrollView {
+            MonacoGroupedList {
+                Button(action: onCard) {
+                    MonacoRow(title: "Card", subtitle: "Pay with card or Apple Pay", chevron: !creating) {
+                        Image(systemName: "creditcard")
+                            .font(.title3)
+                            .foregroundStyle(MonacoTheme.ink)
+                    } trailing: {
+                        if creating {
+                            ProgressView()
+                                .accessibilityIdentifier("deposit-card-spinner")
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Card")
+                .accessibilityHint("Pay with card or Apple Pay")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityIdentifier("deposit-card-row")
+
+                NavigationLink(value: AnyAppRoute(DepositAddressRoute())) {
+                    MonacoRow(title: "Crypto", subtitle: "Send USDC on Solana", chevron: true, isLast: true) {
+                        StockMark(symbol: "USDC", size: 40)
+                    } trailing: {
+                        EmptyView()
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Crypto")
+                .accessibilityHint("Send USDC on Solana")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityIdentifier("deposit-crypto-row")
+            }
+            .disabled(creating)
+            .padding(.top, MonacoTheme.Space.m)
+        }
+        .monacoCanvas()
+        .navigationTitle("Add money")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct DepositAddressView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @State private var model: BalanceSource?

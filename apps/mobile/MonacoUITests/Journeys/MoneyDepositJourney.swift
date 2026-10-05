@@ -53,6 +53,12 @@ enum MoneyDepositJourney {
 
         recorder.step("S1.2", "open Add money") {
             openAddMoney(app, step: "S1.2")
+            let crypto = app.buttons["Crypto"]
+            XCTAssertTrue(crypto.waitForExistence(timeout: 10), "S1.2: no Crypto on Add money")
+            crypto.tap()
+            XCTAssertTrue(
+                app.staticTexts["Your deposit address"].waitForExistence(timeout: screenTimeout),
+                "S1.2: no Your deposit address")
             XCTAssertTrue(app.staticTexts["Your deposit address"].exists, "S1.2: no Your deposit address")
             XCTAssertTrue(
                 app.element("deposit-address-value").waitForExistence(timeout: screenTimeout),
@@ -91,7 +97,7 @@ enum MoneyDepositJourney {
             openAddMoney(app, step: "S2.1")
             XCTAssertTrue(
                 app.buttons["Card"].waitForExistence(timeout: 10) && app.buttons["Crypto"].exists,
-                "S2.1: Add money has no Card and Crypto chooser (known failure, #650)"
+                "S2.1: Add money has no Card and Crypto chooser"
             )
         }
     }
