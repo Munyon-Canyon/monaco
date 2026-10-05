@@ -16,10 +16,18 @@
 #   qa_flow_seed <flow> <outcome>         bin/monacoctl flows seed
 #   qa_seed_scenario <name> [actor ...]   bin/monacoctl dev seed-scenario, each actor owning its scenario letter;
 #                                         exports each seeded id uppercased (CABAL_ID, ASSET_MINT, ...)
+#   qa_fake_usdc <actor> <usdc>           sets the actor's on-chain USDC on bin/fakes (QA_FAKES_URL), e.g. 25 or 0.5
+#
+# QA_FAKE_RPC=1 exported before sourcing points SOLANA_RPC_URL at bin/fakes, so a backend started from this
+# shell (just run backend, journey.py) reads balances that qa_fake_usdc sets instead of mainnet.
 
 QA_ROOT="$(git rev-parse --show-toplevel)"
 QA_API="${MONACO_API_BASE_URL:-http://127.0.0.1:8080}"
 QA_ACCOUNTS="$QA_ROOT/apps/mobile/qa/journeys/accounts.tsv"
+QA_FAKES="${QA_FAKES_URL:-http://127.0.0.1:8099}"
+if [[ "${QA_FAKE_RPC:-}" == 1 ]]; then
+  export SOLANA_RPC_URL="$QA_FAKES/rpc/"
+fi
 
 # with-dotenv-local.sh prints what it injected; a setup log only needs the command's own errors.
 _qa_quiet() {
@@ -126,4 +134,26 @@ qa_seed_scenario() {
     export "$(tr '[:lower:]' '[:upper:]' <<< "$key")=$value"
   done < "$out"
   rm -f "$out"
+}
+
+qa_fake_usdc() {
+  local actor="$1" usdc="$2" id address micros body
+  id="$(qa_user_id "$actor")" || return 1
+  address="$(qa_sql -v id="$id" <<< "SELECT address FROM user_wallets WHERE user_id = :'id'")"
+  if [[ -z "$address" ]]; then
+    echo "actor $actor has no member wallet: sign in as $actor once first" >&2
+    return 1
+  fi
+  if ! micros="$(python3 -c 'import decimal,sys; v = decimal.Decimal(sys.argv[1]) * 10**6
+assert v >= 0 and v == v.to_integral_value(), "usdc must be >= 0 with at most 6 decimals"
+print(int(v))' "$usdc")"; then
+    echo "qa_fake_usdc: bad amount $usdc" >&2
+    return 1
+  fi
+  body="$(printf '{"owner":"%s","mint":"%s","amount":"%s","decimals":6}' \
+    "$address" "${SOLANA_USDC_MINT:-EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v}" "$micros")"
+  if ! curl -fsS -X POST "$QA_FAKES/_balance" -H "Content-Type: application/json" -d "$body"; then
+    echo "qa_fake_usdc: POST $QA_FAKES/_balance failed: is bin/fakes running there?" >&2
+    return 1
+  fi
 }
