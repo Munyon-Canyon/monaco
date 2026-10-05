@@ -61,6 +61,13 @@ Valuation needs, per cabal: units of each asset held, USDC held, total share uni
 
 **Pot value is `treasury`'s.** `treasury` exports `PotValue(ctx, cabalID) (money.Micros, error)` on its query port: the cabal's USDC plus every holding at the latest `market` price. `ranking`, `governance` (the propose-time pot check, [proposals.md](proposals.md#crud-surface)) and `cabal` read pot value there and never compute it themselves. The batch job below applies the same definition in memory from one price read, so every row on a board shares `prices_as_of`.
 
+The cabal screen reads the pot through `GET /v1/cabals/{id}/pot` (`treasury`'s `CabalPot`). One request makes one price read, and only when the pot holds a stock, so the pot, its holdings and the caller's slice always agree. It returns `pot_value_micros` (equal to `PotValue`), `cash_micros`, each holding with its units, price, value, weight and gain over cost basis, the cabal's all-time `pnl_micros` and `return_bps` over net contributed, `prices_as_of`, and `me`, the caller's share units, value, slice and gain. `me` is null for a non-member. Weights and slices are floored basis points that sum to 10000, with the remainder on the largest row. A holding without a price fresher than 5 minutes returns `price_unavailable`; the pot is never valued at cost basis. Any signed-in user may read it, and a banned cabal stays readable.
+
+The app refreshes the pot on two hints:
+
+- `cabal.<id>.activity_changed` (`events.CabalActivityChangedHint`), which `treasury` publishes after commit when a trade is submitted, confirmed or fails. A fund and a cash out completion publish it too once their modules add it.
+- `global.prices_updated`, which the `market` poller publishes when prices move.
+
 Treasury USDC comes from the ledger, **not an RPC**. A reconcile job (per cabal, every few minutes, staggered) compares on-chain balances to the ledger. A mismatch it cannot explain is either an external deposit (bounced, see [deposits-withdrawals.md](deposits-withdrawals.md#direct-transfers-to-a-cabal-treasury-are-not-allowed)) or a bug; either way the cabal is flagged and excluded from boards until resolved. The flag reaches `ranking` through the same port.
 
 Cost basis is stored on `cabal_positions`, not recomputed with a query per holding.

@@ -82,7 +82,7 @@ func (h Activity) record(ctx context.Context, tx db.Tx, a domain.Activity, at ti
 		return err
 	}
 	tx.AfterCommit(func(ctx context.Context) {
-		h.Hints.PublishHint(ctx, "cabal."+a.CabalID.String()+".activity_changed", nil)
+		h.Hints.PublishHint(ctx, events.CabalActivityChangedHint(a.CabalID), nil)
 	})
 	return nil
 }
