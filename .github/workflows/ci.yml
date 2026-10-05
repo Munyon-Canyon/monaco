@@ -4,12 +4,16 @@ name: CI
 # So does a PR based on Graphite's temporary graphite-base/N branch: Graphite deletes that base
 # after the restack and ci-retarget.yml runs on the retarget to the real trunk.
 # A PR runs stage 1, every check and test. The Graphite merge queue tests what it is about to land on a
-# draft PR whose head starts with gtmq_; that draft runs stage 2, the light build, vet and generated-files
-# check. docs/architecture/ci.md#check-stages
+# branch whose name starts with gtmq_; the push to that branch runs stage 2, the light build, vet and
+# generated-files check. docs/architecture/ci.md#check-stages
 on:
   # Every PR, so a stacked PR whose base is another ticket branch gets CI on its own diff.
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  # Not the queue's draft PR: a draft based on the draft below it closes when that one lands and its branch is
+  # deleted, and a draft closed before GitHub started its pull_request run never gets one (#2844).
+  push:
+    branches: ['gtmq_**']
   workflow_dispatch:
 
 concurrency:
@@ -25,8 +29,9 @@ permissions:
 jobs:
   ci:
     if: >-
-      ${{ (!github.event.pull_request.draft || startsWith(github.head_ref, 'gtmq_')) &&
-      !startsWith(github.base_ref, 'graphite-base/') }}
+      ${{ github.event_name != 'pull_request' ||
+      (!github.event.pull_request.draft && !startsWith(github.head_ref, 'gtmq_') &&
+      !startsWith(github.base_ref, 'graphite-base/')) }}
     uses: ./.github/workflows/ci-jobs.yml
     with:
-      stage: ${{ startsWith(github.head_ref, 'gtmq_') && 'queue' || 'pr' }}
+      stage: ${{ startsWith(github.head_ref || github.ref_name, 'gtmq_') && 'queue' || 'pr' }}
