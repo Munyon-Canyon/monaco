@@ -38,44 +38,67 @@ func TestDispatch_extractsTheTraceAndAddsTheJoinKeys(t *testing.T) {
 	})
 }
 
-func TestKeepAlive_sendsInProgressOnEveryTickUntilStopped(t *testing.T) {
+func TestKeepAlive_sendsInProgressEveryHalfAckWaitUntilStopped(t *testing.T) {
 	t.Parallel()
-	h := newHarness(t)
-	var msg *fakeMsg
-	var afterStop int32
-	slow := bus.Handle("notify.push", func(ctx context.Context, _ db.Tx, _ events.SystemPinged, _ time.Time) error {
-		stop := bus.KeepAlive(ctx)
-		deadline := time.After(waitLong)
-		for tick := int32(1); tick <= 3; tick++ {
-			h.clock.Advance(10 * time.Second)
-			select {
-			case <-msg.progressed:
-			case <-deadline:
-				return fmt.Errorf("tick %d sent %d InProgress", tick, msg.inProgress.Load())
+	for _, tc := range []struct {
+		name  string
+		opts  []bus.RegistryOption
+		every time.Duration
+	}{
+		{"BackOff deadline", nil, 10 * time.Second},
+		{"short ack wait", []bus.RegistryOption{bus.WithAckWait(testkit.DefaultAckWait)}, testkit.DefaultAckWait / 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			id, payload := h.appendPing(t)
+			msg := &fakeMsg{
+				subject: h.bus.Conn.Subject(events.TypeSystemPinged.Subject()),
+				header:  nats.Header{jetstream.MsgIDHeader: []string{id.String()}},
+				data:    payload, meta: &jetstream.MsgMetadata{NumDelivered: 1},
+				progressed: make(chan struct{}, 8),
 			}
-			if n := msg.inProgress.Load(); n != tick {
-				return fmt.Errorf("tick %d sent %d InProgress", tick, n)
+			var afterStop int32
+			slow := bus.Handle("notify.push",
+				func(ctx context.Context, _ db.Tx, _ events.SystemPinged, _ time.Time) error {
+					err := tickThrice(ctx, h, msg, tc.every)
+					afterStop = msg.inProgress.Load()
+					return err
+				})
+			reg, err := bus.NewRegistry(h.bus.Conn, h.uow, h.clock,
+				[]bus.Consumer{{Durable: durable, Handlers: []bus.HandlerSpec{slow}}}, tc.opts...)
+			if err != nil {
+				t.Fatal(err)
 			}
-		}
-		stop()
-		h.clock.Advance(30 * time.Second)
-		afterStop = msg.inProgress.Load()
-		return nil
-	})
-	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{slow}})
-	id, payload := h.appendPing(t)
-	msg = &fakeMsg{
-		subject: h.bus.Conn.Subject(events.TypeSystemPinged.Subject()),
-		header:  nats.Header{jetstream.MsgIDHeader: []string{id.String()}},
-		data:    payload, meta: &jetstream.MsgMetadata{NumDelivered: 1},
-		progressed: make(chan struct{}, 8),
-	}
 
-	reg.Dispatch(h.ctx(t), durable, msg)
-	if msg.verdict != "ack" || afterStop != 3 {
-		t.Fatalf("verdict %q, %d InProgress after stop; want ack and 3, one per 10 s tick and none after stop\n%s",
-			msg.verdict, afterStop, h.logs.bytes())
+			reg.Dispatch(h.ctx(t), durable, msg)
+			if msg.verdict != "ack" || afterStop != 3 {
+				t.Fatalf("verdict %q, %d InProgress after stop; want ack and 3, one per %s tick, none after\n%s",
+					msg.verdict, afterStop, tc.every, h.logs.bytes())
+			}
+		})
 	}
+}
+
+func tickThrice(ctx context.Context, h *harness, msg *fakeMsg, every time.Duration) error {
+	stop := bus.KeepAlive(ctx)
+	deadline := time.After(waitLong)
+	for tick := int32(1); tick <= 3; tick++ {
+		h.clock.Advance(every)
+		select {
+		case <-msg.progressed:
+		case <-deadline:
+			stop()
+			return fmt.Errorf("tick %d sent %d InProgress", tick, msg.inProgress.Load())
+		}
+		if n := msg.inProgress.Load(); n != tick {
+			stop()
+			return fmt.Errorf("tick %d sent %d InProgress", tick, n)
+		}
+	}
+	stop()
+	h.clock.Advance(3 * every)
+	return nil
 }
 
 func (h *harness) consumerInfo(t *testing.T) *jetstream.ConsumerInfo {

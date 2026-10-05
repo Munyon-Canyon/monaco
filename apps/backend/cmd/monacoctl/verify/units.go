@@ -16,6 +16,7 @@ type Unit struct {
 	Command string
 	Outcome tools.Outcome
 	Script  flows.Script
+	Alone   bool
 }
 
 func (u Unit) Name() string {
@@ -72,7 +73,9 @@ func outcomeUnits(
 		name := tools.ScriptName(f, command, o)
 		names = append(names, name)
 		if script, ok := scripts[name]; ok {
-			units = append(units, Unit{Flow: f, Command: command, Outcome: o, Script: script})
+			units = append(units, Unit{
+				Flow: f, Command: command, Outcome: o, Script: script, Alone: flows.Alone(script),
+			})
 		}
 	}
 	if len(units) > 0 || (target.Flow == "" && target.CrashAt != "") {

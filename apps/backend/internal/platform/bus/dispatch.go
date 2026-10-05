@@ -49,7 +49,7 @@ func (r *Registry) Dispatch(ctx context.Context, durable string, msg jetstream.M
 	delivery := numDelivered(msg)
 	ctx = observability.Extract(ctx, natsCarrier(msg.Headers()))
 	ctx = observability.WithConsumer(ctx, durable, delivery)
-	ctx = withKeepAlive(ctx, msg, r.clock)
+	ctx = withKeepAlive(ctx, msg, r.clock, r.keepAliveEvery())
 	handlers := r.route(c, msg.Subject())
 	results := make([]result, 0, len(handlers))
 	id, ev, err := r.decode(handlers, msg)
@@ -74,12 +74,20 @@ type keepAliveKey struct{}
 type keepAlive struct {
 	msg   jetstream.Msg
 	clock clock.Clock
+	every time.Duration
 }
 
 const keepAliveEvery = 10 * time.Second
 
-func withKeepAlive(ctx context.Context, msg jetstream.Msg, clk clock.Clock) context.Context {
-	return context.WithValue(ctx, keepAliveKey{}, keepAlive{msg: msg, clock: clk})
+func (r *Registry) keepAliveEvery() time.Duration {
+	if r.ackWait > 0 {
+		return min(keepAliveEvery, r.ackWait/2)
+	}
+	return keepAliveEvery
+}
+
+func withKeepAlive(ctx context.Context, msg jetstream.Msg, clk clock.Clock, every time.Duration) context.Context {
+	return context.WithValue(ctx, keepAliveKey{}, keepAlive{msg: msg, clock: clk, every: every})
 }
 
 func KeepAlive(ctx context.Context) func() {
@@ -87,7 +95,7 @@ func KeepAlive(ctx context.Context) func() {
 	if !ok {
 		return func() {}
 	}
-	ticker := k.clock.NewTicker(keepAliveEvery)
+	ticker := k.clock.NewTicker(k.every)
 	stop := make(chan struct{})
 	done := make(chan struct{})
 	go func() {

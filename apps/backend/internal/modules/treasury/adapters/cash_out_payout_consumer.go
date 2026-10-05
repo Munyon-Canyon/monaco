@@ -17,7 +17,8 @@ type CashOutPayout struct {
 
 func (c CashOutPayout) Handle(ctx context.Context, d bus.Delivery, ev events.CashOutStarted) error {
 	ctx = auth.WithActor(ctx, auth.Actor{Kind: auth.ActorSystem, ID: d.Handler})
-	if err := c.Payouts.Advance(ctx, ev.JobID, app.CashOutPayoutWait, bus.Heartbeat(ctx)); err != nil {
+	defer bus.KeepAlive(ctx)()
+	if err := c.Payouts.Advance(ctx, ev.JobID, app.CashOutPayoutWait, nil); err != nil {
 		return err
 	}
 	return c.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {

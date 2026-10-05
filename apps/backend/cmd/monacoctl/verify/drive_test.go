@@ -467,30 +467,43 @@ func runAllPollers(t *testing.T, env Env) {
 		Flow:   tools.Flow{ID: "18", Trigger: "poller:market.prices"},
 		Script: func(*scenario.Scenario) { mark("poller-start") },
 	}
+	alone := route("alone")
+	alone.Alone = true
 	budget := DefaultBudget()
 	budget.Converge = 30 * time.Millisecond
 	d, err := newDriver(env, budget)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if results := d.runAll(t.Context(), []Unit{route("a"), poller, route("b")}, 2); len(results) != 3 {
-		t.Fatalf("results = %d, want 3", len(results))
+	if results := d.runAll(t.Context(), []Unit{route("a"), poller, alone, route("b")}, 2); len(results) != 4 {
+		t.Fatalf("results = %d, want 4", len(results))
 	}
 	mu.Lock()
 	defer mu.Unlock()
+	if problem := serialLast(order); problem != "" {
+		t.Fatalf("order = %q, want %s", order, problem)
+	}
+}
+
+func serialLast(order []string) string {
 	ended := map[string]bool{}
+	started := 0
 	for _, name := range order {
-		if name == "poller-start" {
-			if !ended["a-end"] || !ended["b-end"] {
-				t.Fatalf("order = %q, want both route scripts to finish before the poller starts", order)
-			}
-			return
+		serial := name == "poller-start" || name == "alone-start"
+		if serial && (!ended["a-end"] || !ended["b-end"] || started != len(ended)) {
+			return "each poller and alone script to start after every other script ended"
 		}
-		if strings.HasSuffix(name, "-end") {
+		if strings.HasSuffix(name, "-start") {
+			started++
+		}
+		if strings.HasSuffix(name, "-end") || name == "poller-start" {
 			ended[name] = true
 		}
 	}
-	t.Fatalf("order = %q, want the poller to start", order)
+	if !ended["poller-start"] || !ended["alone-end"] {
+		return "the poller and the alone script to run"
+	}
+	return ""
 }
 
 func TestDriver_stopsAFlowWhenTheRunIsCancelled(t *testing.T) {
