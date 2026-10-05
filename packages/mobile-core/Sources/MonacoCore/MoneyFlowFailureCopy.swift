@@ -6,6 +6,11 @@ public enum WithdrawFailure: Equatable, Sendable {
     case toast(String)
 }
 
+public enum FundFailure: Equatable, Sendable {
+    case needsMoney(String)
+    case toast(String)
+}
+
 /// What the screen should offer after a money request failed.
 public enum FlowRecovery: Equatable, Sendable {
     /// Sending again is a fresh submission. Either the request provably never ran, or the
@@ -100,12 +105,6 @@ public struct FlowErrorInput: Equatable, Sendable {
 }
 
 /// Failure copy for the money flows.
-///
-/// The backend already writes some 4xx bodies as member-facing sentences ("Cash out at
-/// least $0.10.", "The pot could not raise enough USDC…"); those are passed straight
-/// through. The rest are internal strings ("amount exceeds available platform balance"),
-/// so they are translated here instead of being shown raw or swallowed by a generic
-/// "Try again" that tells the member nothing.
 public enum MoneyFlowCopy {
     public static func withdrawFailure(_ error: APIError) -> WithdrawFailure {
         guard case .problem(let problem) = error, case .known(let code) = problem.code else {
@@ -120,37 +119,19 @@ public enum MoneyFlowCopy {
         }
     }
 
-    // MARK: - Fund a cabal (POST /v1/groups/{id}/fund)
+    // MARK: - Fund a cabal (POST /v1/cabals/{id}/fund)
 
-    public static func fundCabalFailure(_ input: FlowErrorInput) -> FlowFailure {
-        if input.isSignInUnavailable { return signInUnavailableFailure(action: "add that money") }
-        if input.isOffline { return offlineFailure(action: "add that money") }
-        switch input.status {
-        // The deposit the member already sent is still running under its idempotency key.
-        // Reported as a flat failure this reads as "nothing happened", while the money may
-        // be landing; the retry has to go back under the same key.
-        case 409:
-            return FlowFailure(
-                message: "Your last deposit is still finishing.",
-                recovery: .resendSame,
-                nextStep: "Give it a minute, then check the cabal's balance."
-            )
-        case 400 where matches(input, "amount exceeds available platform balance"):
-            return FlowFailure(
-                message: "That's more than your account balance.",
-                recovery: .none,
-                nextStep: "Add USDC to your balance, or use the Max button."
-            )
-        case 403:
-            return FlowFailure(
-                message: "You have to be a member of this cabal to add money to it.",
-                recovery: .none,
-                nextStep: "Join the cabal first."
-            )
-        case 404:
-            return FlowFailure(message: "That cabal no longer exists.", recovery: .none)
-        default:
-            return generic(input, action: "add that money")
+    public static let notEnoughBalance = "Not enough in your account balance."
+
+    public static func fundCabalFailure(_ error: APIError) -> FundFailure {
+        guard case .problem(let problem) = error, case .known(let code) = problem.code else {
+            return .toast(ToastCopy.message(for: error))
+        }
+        switch code {
+        case .insufficientFunds: return .needsMoney(notEnoughBalance)
+        case .cabalPaused: return .toast("Trading in this cabal is paused. You can fund it again once it resumes.")
+        case .notCabalMember: return .toast("Join this cabal to fund it.")
+        default: return .toast(ToastCopy.message(for: error))
         }
     }
 
@@ -267,8 +248,4 @@ public enum MoneyFlowCopy {
         recovery: .resendSame,
         nextStep: "Check your balance first — if it didn't arrive, send the same amount again."
     )
-
-    private static func matches(_ input: FlowErrorInput, _ expected: String) -> Bool {
-        input.serverMessage?.lowercased() == expected
-    }
 }

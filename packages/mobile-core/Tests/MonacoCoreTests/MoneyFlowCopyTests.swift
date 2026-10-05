@@ -9,13 +9,9 @@ import FoundationNetworking
 
 final class MoneyFlowCopyTests: XCTestCase {
     func testOffline_saysNothingWasSentAndAllowsRetry() {
-        for failure in [
-            MoneyFlowCopy.fundCabalFailure(.offline()),
-            MoneyFlowCopy.sellStakeFailure(.offline()),
-        ] {
-            XCTAssertTrue(failure.isRetryable)
-            XCTAssertEqual(failure.nextStep, "Check your internet and try again — nothing was sent.")
-        }
+        let failure = MoneyFlowCopy.sellStakeFailure(.offline())
+        XCTAssertTrue(failure.isRetryable)
+        XCTAssertEqual(failure.nextStep, "Check your internet and try again — nothing was sent.")
     }
 
     func testNoStatus_isUnconfirmedAndSendsTheSameSubmissionAgain() {
@@ -26,13 +22,11 @@ final class MoneyFlowCopyTests: XCTestCase {
         XCTAssertEqual(failure.recovery, .resendSame)
         XCTAssertTrue(failure.isRetryable)
         XCTAssertTrue(failure.mustResendSameSubmission)
-        XCTAssertEqual(MoneyFlowCopy.fundCabalFailure(FlowErrorInput()), MoneyFlowCopy.unconfirmed)
-        XCTAssertEqual(MoneyFlowCopy.sellStakeFailure(FlowErrorInput()), MoneyFlowCopy.unconfirmed)
     }
 
     func testServerError_isAFreshTry_becauseTheBackendReleasedTheKey() {
-        let failure = MoneyFlowCopy.fundCabalFailure(FlowErrorInput(status: 502, serverMessage: "bad gateway"))
-        XCTAssertEqual(failure.message, "We couldn't add that money.")
+        let failure = MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 502, serverMessage: "bad gateway"))
+        XCTAssertEqual(failure.message, "We couldn't cash out.")
         XCTAssertTrue(failure.isRetryable)
         // `Idempotency.run` releases the key on 5xx so the retry reaches the handler again.
         // Calling this `.resendSame` would promise a replay the server has thrown away.
@@ -43,19 +37,10 @@ final class MoneyFlowCopyTests: XCTestCase {
 
     /// A 409 on a money route means an attempt is still holding the key the app just sent,
     /// and that attempt may be landing the money. It is never a fresh submission.
-    func testConflict_isAReplayOnEveryMoneyFlow_neverAFreshSubmission() {
-        for failure in [
-            MoneyFlowCopy.fundCabalFailure(FlowErrorInput(status: 409)),
-            MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 409)),
-        ] {
-            XCTAssertEqual(failure.recovery, .resendSame)
-            XCTAssertTrue(failure.mustResendSameSubmission)
-        }
-        // Fund used to fall through to generic(), which worded an in-flight deposit as a
-        // flat failure and offered a fresh send while the key was still pending.
-        let fund = MoneyFlowCopy.fundCabalFailure(FlowErrorInput(status: 409))
-        XCTAssertEqual(fund.message, "Your last deposit is still finishing.")
-        XCTAssertNotEqual(fund.message, "We couldn't add that money.")
+    func testConflict_isAReplay_neverAFreshSubmission() {
+        let failure = MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 409))
+        XCTAssertEqual(failure.recovery, .resendSame)
+        XCTAssertTrue(failure.mustResendSameSubmission)
         XCTAssertEqual(
             MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 409)).message,
             "Your last cash out is still finishing."
@@ -79,33 +64,14 @@ final class MoneyFlowCopyTests: XCTestCase {
         XCTAssertEqual(failure.nextStep, "Try again in a moment — nothing was sent.")
         XCTAssertEqual(failure.recovery, .retry)
         XCTAssertNotEqual(failure, MoneyFlowCopy.unconfirmed)
-        XCTAssertEqual(
-            MoneyFlowCopy.fundCabalFailure(FlowErrorInput(isSignInUnavailable: true)).message,
-            "We couldn't check your sign-in, so we didn't add that money."
-        )
     }
 
     func testRecovery_separatesAFreshTryFromAReplay() {
-        XCTAssertEqual(MoneyFlowCopy.fundCabalFailure(.offline()).recovery, .retry)
-        XCTAssertEqual(MoneyFlowCopy.fundCabalFailure(FlowErrorInput(status: 429)).recovery, .retry)
+        XCTAssertEqual(MoneyFlowCopy.sellStakeFailure(.offline()).recovery, .retry)
+        XCTAssertEqual(MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 429)).recovery, .retry)
         XCTAssertEqual(MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 409)).recovery, .resendSame)
         XCTAssertEqual(MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 401)).recovery, .none)
-        XCTAssertEqual(MoneyFlowCopy.fundCabalFailure(FlowErrorInput(status: 404)).recovery, .none)
-    }
-
-    func testFundCabal_statusSpecificCopy() {
-        XCTAssertEqual(
-            MoneyFlowCopy.fundCabalFailure(
-                FlowErrorInput(status: 400, serverMessage: "amount exceeds available platform balance")
-            ).message,
-            "That's more than your account balance."
-        )
-        XCTAssertEqual(
-            MoneyFlowCopy.fundCabalFailure(FlowErrorInput(status: 403)).message,
-            "You have to be a member of this cabal to add money to it."
-        )
-        XCTAssertEqual(
-            MoneyFlowCopy.fundCabalFailure(FlowErrorInput(status: 404)).message, "That cabal no longer exists.")
+        XCTAssertEqual(MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 404)).recovery, .none)
     }
 
     func testSellStake_memberFacingServerCopyPassesThrough() {
@@ -129,7 +95,7 @@ final class MoneyFlowCopyTests: XCTestCase {
     /// member sends the same amount again under the pending key, and the backend answers
     /// 409 `in_progress`. Both steps have to keep a way forward and keep the same key.
     func testTimeoutThenInProgressConflict_staysAReplayThroughout() {
-        let timedOut = MoneyFlowCopy.fundCabalFailure(FlowErrorInput())
+        let timedOut = MoneyFlowCopy.sellStakeFailure(FlowErrorInput())
         XCTAssertEqual(timedOut.recovery, .resendSame)
 
         let submission = IdempotentSubmission { "key-1" }
@@ -150,7 +116,7 @@ final class MoneyFlowCopyTests: XCTestCase {
         XCTAssertTrue(submission.hasPendingKey)
         XCTAssertEqual(submission.key(for: request), first, "the retry must ride the same key")
 
-        let stillRunning = MoneyFlowCopy.fundCabalFailure(FlowErrorInput(status: 409))
+        let stillRunning = MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 409))
         XCTAssertEqual(stillRunning.recovery, .resendSame)
         XCTAssertTrue(stillRunning.isRetryable)
     }
@@ -159,13 +125,13 @@ final class MoneyFlowCopyTests: XCTestCase {
         let expired = MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 401))
         XCTAssertEqual(expired.summary, "Your session expired. Sign in again to cash out.")
         XCTAssertFalse(expired.isRetryable)
-        XCTAssertTrue(MoneyFlowCopy.fundCabalFailure(FlowErrorInput(status: 429)).isRetryable)
+        XCTAssertTrue(MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 429)).isRetryable)
     }
 
     /// Same PR, same `Retry-After` header: chat read it and the money flows threw it away,
     /// so a throttled member was told "a moment" in one place and "60 seconds" in the other.
     func testRateLimited_readsTheServersRetryAfter_likeChatAlreadyDoes() {
-        let counted = MoneyFlowCopy.fundCabalFailure(
+        let counted = MoneyFlowCopy.sellStakeFailure(
             FlowErrorInput(status: 429, retryAfterSeconds: 60)
         )
         XCTAssertEqual(counted.nextStep, "Try again in 60 seconds.")
@@ -209,21 +175,15 @@ final class MoneyFlowCopyTests: XCTestCase {
             FlowErrorInput(status: 503),
         ]
         for input in freshSubmissionIsSafe {
-            for failure in [
-                MoneyFlowCopy.fundCabalFailure(input),
-                MoneyFlowCopy.sellStakeFailure(input),
-            ] {
-                XCTAssertEqual(failure.recovery, .retry, "expected a fresh retry for \(input)")
-            }
+            XCTAssertEqual(
+                MoneyFlowCopy.sellStakeFailure(input).recovery, .retry, "expected a fresh retry for \(input)")
         }
 
         // Everything with an unknown or in-flight outcome must replay the pending key, and
         // everything that would fail the same way must offer nothing at all.
         XCTAssertEqual(MoneyFlowCopy.unconfirmed.recovery, .resendSame)
-        for flow in [MoneyFlowCopy.fundCabalFailure, MoneyFlowCopy.sellStakeFailure] {
-            XCTAssertEqual(flow(FlowErrorInput(status: 409)).recovery, .resendSame)
-            XCTAssertEqual(flow(FlowErrorInput()).recovery, .resendSame)
-        }
+        XCTAssertEqual(MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 409)).recovery, .resendSame)
+        XCTAssertEqual(MoneyFlowCopy.sellStakeFailure(FlowErrorInput()).recovery, .resendSame)
         XCTAssertEqual(MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 401)).recovery, .none)
     }
 
@@ -265,5 +225,24 @@ final class MoneyFlowFailureCopyTests: XCTestCase {
             MoneyFlowCopy.withdrawFailure(.transport(URLError(.notConnectedToInternet))),
             .toast("You're offline. Try again."))
         XCTAssertEqual(MoneyFlowCopy.withdrawFailure(.inFlight), .toast("Still working on it."))
+    }
+
+    func testFundCodesBranchAndEverythingElseToastsTheServerMessage() {
+        XCTAssertEqual(
+            MoneyFlowCopy.fundCabalFailure(problem(422, .insufficientFunds, "short")),
+            .needsMoney("Not enough in your account balance."))
+        XCTAssertEqual(
+            MoneyFlowCopy.fundCabalFailure(problem(409, .cabalPaused, "paused")),
+            .toast("Trading in this cabal is paused. You can fund it again once it resumes."))
+        XCTAssertEqual(
+            MoneyFlowCopy.fundCabalFailure(problem(403, .notCabalMember, "no")),
+            .toast("Join this cabal to fund it."))
+        XCTAssertEqual(
+            MoneyFlowCopy.fundCabalFailure(problem(409, .potValueZero, "The pot has no value right now.")),
+            .toast("The pot has no value right now."))
+        XCTAssertEqual(
+            MoneyFlowCopy.fundCabalFailure(problem(503, .privyUnavailable, "Wallet signing is down. Try again.")),
+            .toast("Wallet signing is down. Try again."))
+        XCTAssertEqual(MoneyFlowCopy.fundCabalFailure(.inFlight), .toast("Still working on it."))
     }
 }

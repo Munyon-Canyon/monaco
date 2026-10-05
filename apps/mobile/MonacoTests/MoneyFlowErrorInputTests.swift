@@ -87,7 +87,7 @@ nonisolated final class MoneyFlowErrorInputTests: XCTestCase {
         XCTAssertNil(input.status)
         XCTAssertFalse(input.isOffline)
         XCTAssertFalse(input.isSignInUnavailable)
-        XCTAssertEqual(MoneyFlowCopy.fundCabalFailure(input), MoneyFlowCopy.unconfirmed)
+        XCTAssertEqual(MoneyFlowCopy.sellStakeFailure(input), MoneyFlowCopy.unconfirmed)
     }
 
     func testAmbiguousFailures_areUnconfirmed() {
@@ -95,7 +95,7 @@ nonisolated final class MoneyFlowErrorInputTests: XCTestCase {
         XCTAssertEqual(
             MoneyFlowCopy.sellStakeFailure(FlowErrorInput(URLError(.networkConnectionLost))), MoneyFlowCopy.unconfirmed)
         XCTAssertEqual(
-            MoneyFlowCopy.fundCabalFailure(FlowErrorInput(Monaco.MonacoAPIError.invalidResponse)),
+            MoneyFlowCopy.sellStakeFailure(FlowErrorInput(Monaco.MonacoAPIError.invalidResponse)),
             MoneyFlowCopy.unconfirmed)
         let malformed = DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "bad json"))
         XCTAssertEqual(MoneyFlowCopy.sellStakeFailure(FlowErrorInput(malformed)), MoneyFlowCopy.unconfirmed)
