@@ -42,6 +42,7 @@ func bootEnv(t *testing.T, extra ...string) []string {
 			"XSTOCKS_BASE_URL=" + upstreams.URL + "/xstocks",
 			"TESSERA_API_BASE_URL=" + upstreams.URL + "/tessera",
 			"PRESTOCKS_API_BASE_URL=" + upstreams.URL + "/prestocks",
+			"COINGECKO_BASE_URL=" + upstreams.URL + "/coingecko",
 			"MONACO_JUPITER_PRICE_BASE_URL=" + upstreams.URL + "/jupiter/price/v3",
 			"SOLANA_RPC_URL=" + upstreams.URL + "/rpc/",
 			"FUNDING_DEPOSIT_POLL_INTERVAL=1s",

@@ -14,5 +14,6 @@ type Sample struct {
 }
 
 type PriceHistory interface {
+	Configured() bool
 	MarketChart(ctx context.Context, mint domain.Mint, days int) ([]Sample, error)
 }

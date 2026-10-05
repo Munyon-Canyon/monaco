@@ -8,4 +8,7 @@ func Bucket(at time.Time) time.Time { return at.Truncate(SampleBucket) }
 
 type Source string
 
-const SourceJupiter Source = "jupiter"
+const (
+	SourceJupiter   Source = "jupiter"
+	SourceCoinGecko Source = "coingecko"
+)

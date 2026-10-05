@@ -7,6 +7,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/coingecko"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/jupiterprices"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/jupiterquote"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/mintfacts"
@@ -143,7 +144,13 @@ func (m *Module) Pollers() []poller.Poller {
 		app.NewCatalogPoller(m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, providers, facts),
 		m.samplePrices(),
 		app.NewRetention(m.deps.UoW, m.deps.Clock),
+		app.NewBackfill(m.deps.UoW, m.deps.Pool, m.deps.Clock, m.priceHistory()),
 	}
+}
+
+func (m *Module) priceHistory() *coingecko.Client {
+	cfg := m.deps.Config
+	return coingecko.New(m.deps.HTTPClient("coingecko", coingecko.Options(cfg)...), cfg.CoinGecko.APIKey)
 }
 
 func (m *Module) PriceHints(ctx context.Context, meter metric.Meter) (func(), error) {
