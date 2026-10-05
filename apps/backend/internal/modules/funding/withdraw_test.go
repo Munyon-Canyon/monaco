@@ -84,6 +84,8 @@ type withdrawFixture struct {
 	transfers *stubTransfers
 	handler   *app.WithdrawHandler
 	now       time.Time
+	clock     *testkit.Clock
+	uow       *db.UnitOfWork
 }
 
 func newWithdrawFixture(t *testing.T, onChain uint64, opts ...func(*app.WithdrawDeps)) *withdrawFixture {
@@ -94,9 +96,10 @@ func newWithdrawFixture(t *testing.T, onChain uint64, opts ...func(*app.Withdraw
 		hints: &hints{}, transfers: &stubTransfers{}, now: clock.Real{}.Now().UTC().Truncate(time.Microsecond),
 	}
 	clk := testkit.NewClock(f.now)
+	f.clock, f.uow = clk, db.New(pool, testkit.NewIDs(5), clk)
 	usdc := chain.Mint{Address: testkit.USDCMint, Decimals: 6}
 	deps := app.WithdrawDeps{
-		UoW: db.New(pool, testkit.NewIDs(5), clk),
+		UoW: f.uow,
 		Balances: adapters.NewBalances(
 			signingWalletAddress{f.user.Address},
 			func() adapters.TokenBalances { return chainBalance{micros: onChain} },
