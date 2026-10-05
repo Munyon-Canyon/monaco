@@ -67,9 +67,16 @@ func (h Activity) trade(
 
 func (h Activity) record(ctx context.Context, tx db.Tx, a domain.Activity, at time.Time) error {
 	n, err := sqlc.New(tx.Queries()).UpsertActivity(ctx, sqlc.UpsertActivityParams{
-		ID: a.ID, CabalID: a.CabalID.UUID(), Kind: string(a.Kind), Status: string(a.Status),
-		Asset: text(string(a.Asset)), UsdcMicros: number(a.USDCMicros), Units: number(a.Units),
-		TxSignature: text(string(a.TxSignature)), At: at,
+		ID:          a.ID,
+		CabalID:     a.CabalID.UUID(),
+		Kind:        string(a.Kind),
+		Status:      string(a.Status),
+		ActorUserID: actor(a.Actor),
+		Asset:       text(string(a.Asset)),
+		UsdcMicros:  number(a.USDCMicros),
+		Units:       number(a.Units),
+		TxSignature: text(string(a.TxSignature)),
+		At:          at,
 	})
 	if err != nil || n == 0 {
 		return err
@@ -78,6 +85,31 @@ func (h Activity) record(ctx context.Context, tx db.Tx, a domain.Activity, at ti
 		h.Hints.PublishHint(ctx, "cabal."+a.CabalID.String()+".activity_changed", nil)
 	})
 	return nil
+}
+
+func (h Activity) FundSubmitted(ctx context.Context, tx db.Tx, e events.FundSubmitted, at time.Time) error {
+	return h.record(ctx, tx, domain.FundActivity(domain.Fund{
+		TransferID: e.TransferID, CabalID: ids.CabalIDFrom(e.CabalID), UserID: ids.UserIDFrom(e.UserID),
+		USDCMicros: e.AmountMicros.Uint64(), TxSignature: e.TxSignature,
+	}, domain.ActivityPending), at)
+}
+
+func (h Activity) Funded(ctx context.Context, tx db.Tx, e events.Funded, at time.Time) error {
+	return h.record(ctx, tx, domain.FundActivity(domain.Fund{
+		TransferID: e.TransferID, CabalID: ids.CabalIDFrom(e.CabalID), UserID: ids.UserIDFrom(e.UserID),
+		USDCMicros: e.AmountMicros.Uint64(), ShareUnits: e.ShareUnits.Uint64(), TxSignature: e.TxSignature,
+	}, domain.ActivityConfirmed), at)
+}
+
+func (h Activity) FundFailed(ctx context.Context, tx db.Tx, e events.FundFailed, at time.Time) error {
+	return h.record(ctx, tx, domain.FundActivity(domain.Fund{
+		TransferID: e.TransferID, CabalID: ids.CabalIDFrom(e.CabalID), UserID: ids.UserIDFrom(e.UserID),
+		USDCMicros: e.AmountMicros.Uint64(),
+	}, domain.ActivityFailed), at)
+}
+
+func actor(user ids.UserID) pgtype.UUID {
+	return pgtype.UUID{Bytes: user.UUID(), Valid: !user.IsZero()}
 }
 
 func text(s string) pgtype.Text { return pgtype.Text{String: s, Valid: s != ""} }

@@ -28,3 +28,27 @@ func (h HTTP) FundCabal(ctx context.Context, req api.FundCabalRequestObject) (ap
 	}
 	return api.FundCabal202JSONResponse{TransferId: id, Status: api.FundTransferStatus(domain.FundSubmitted)}, nil
 }
+
+func (h HTTP) GetFundTransfer(
+	ctx context.Context, req api.GetFundTransferRequestObject,
+) (api.GetFundTransferResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	view, err := GetFundTransfer(ctx, h.FundReads, user, req.Id)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetFundTransfer200JSONResponse{
+		Status: api.FundTransferStatus(view.Status), AmountMicros: view.AmountMicros,
+		ShareUnits: optional(view.ShareUnits), FailCode: optional(view.FailCode),
+	}, nil
+}
+
+func optional(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}

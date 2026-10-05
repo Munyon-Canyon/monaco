@@ -102,9 +102,10 @@ func (m *Module) Wire(set module.Set) {
 func (m *Module) Mount(r api.Mount) {
 	names := catalogNames{Catalog: market.New(m.deps).Catalog()}
 	treasuryapi.Mount(adapters.HTTP{
-		Reads:    app.NewActivityReads(m.deps.Pool, m.members, m.users, names),
-		UserTxns: app.NewUserTxnReads(m.deps.Pool, m.cabals, usdc(m.deps.Config)),
-		Fund:     m.fundCabalHandler(adapters.NewTransfers(m.deps.Config, m.deps.Clock)),
+		Reads:     app.NewActivityReads(m.deps.Pool, m.members, m.users, names),
+		UserTxns:  app.NewUserTxnReads(m.deps.Pool, m.cabals, usdc(m.deps.Config)),
+		FundReads: m.deps.Pool,
+		Fund:      m.fundCabalHandler(adapters.NewTransfers(m.deps.Config, m.deps.Clock)),
 		CashOut: app.NewCashOutHandler(
 			m.deps.UoW,
 			m.ledger(),
@@ -149,6 +150,9 @@ func (m *Module) Consumers() []bus.Consumer {
 				bus.Handle("treasury.activity.submitted", activity.Submitted),
 				bus.Handle("treasury.activity.confirmed", activity.Confirmed),
 				bus.Handle("treasury.activity.failed", activity.Failed),
+				bus.Handle("treasury.activity.fund_submitted", activity.FundSubmitted),
+				bus.Handle("treasury.activity.funded", activity.Funded),
+				bus.Handle("treasury.activity.fund_failed", activity.FundFailed),
 			},
 		},
 		{
