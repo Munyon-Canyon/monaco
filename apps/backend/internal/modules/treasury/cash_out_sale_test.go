@@ -28,7 +28,11 @@ type saleRig struct {
 
 func newSaleRig(t *testing.T, invested uint64) *saleRig {
 	t.Helper()
-	f := newFixture(t)
+	return newSaleRigOn(t, newFixture(t), invested)
+}
+
+func newSaleRigOn(t *testing.T, f fixture, invested uint64) *saleRig {
+	t.Helper()
 	r := &saleRig{f: f, alice: f.user(t), bob: f.user(t), cabal: f.cabal(t)}
 	cashOutFund(t, f, r.alice, r.cabal, 50_000_000)
 	cashOutFund(t, f, r.bob, r.cabal, 50_000_000)
