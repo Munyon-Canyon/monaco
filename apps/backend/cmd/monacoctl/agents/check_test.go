@@ -23,6 +23,9 @@ import (
 
 var testDBEnvRE = regexp.MustCompile(`^env TEST_DATABASE_URL=\S+ `)
 
+const dropDeadClones = `.: docker exec monaco-postgres-test sh -c psql -U "$POSTGRES_USER" -Atc "` + dropDeadRunClones +
+	`" | psql -U "$POSTGRES_USER" -q`
+
 func upTestDB(slot int) string {
 	if slot == 0 {
 		return ".: docker compose -p monaco --profile test up -d --wait postgres-test"
@@ -340,6 +343,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		pr + "check-gate-changes.py",
 		pr + "check-legacy-growth.py",
 		upTestDB(0),
+		dropDeadClones,
 		"apps/backend: go build -o /dev/null -tags faultpoints ./internal/x ./cmd/api",
 		"apps/backend: go vet -tags faultpoints ./internal/x ./internal/t ./cmd/api",
 		"apps/backend: golangci-lint run --allow-parallel-runners ./internal/x ./internal/t ./cmd/api",
@@ -421,7 +425,7 @@ func TestCheck_overBudgetExitsOneNamingTheSlowestPackageAndRecordsNothing(t *tes
 	}}
 
 	code, stdout, stderr := h.check(t, "--base", "fb")
-	want := "go test -short: package ./internal/slow took 81.0s, over the 20s per-package budget"
+	want := "go test -short: package ./internal/slow took 82.0s, over the 20s per-package budget"
 	if code != 1 || !strings.Contains(stderr, want) {
 		t.Fatalf("over budget: %d %q %q", code, stdout, stderr)
 	}
@@ -1123,7 +1127,7 @@ func TestCheck_eachBusySlotGetsItsOwnTestDatabaseAndAShareOfTheCPUs(t *testing.T
 	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a // again\n", compose: "ports: []\n"})
 	goTest = h.goTest(t, p, "./internal/a")[0]
 	if code, _, stderr := h.check(t); code != 0 || !slices.Contains(h.calls, upTestDB(0)) ||
-		!slices.Contains(h.calls, goTest) {
+		!slices.Contains(h.calls, dropDeadClones) || !slices.Contains(h.calls, goTest) {
 		t.Fatalf(
 			"a tree without per-slot containers: %d %q\n%s\nwant %s",
 			code,
