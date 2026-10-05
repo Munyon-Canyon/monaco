@@ -20,8 +20,8 @@ The format of this doc is in [App journeys](../README.md).
 | Id | What must be true |
 | --- | --- |
 | P1 | Everything [auth/sign-in](../auth/sign-in.md) needs |
-| P2 | Before each scenario, `scripts/qa/journey.py` runs `apps/mobile/qa/journeys/stocks/browse.setup.sh` with the scenario id. It upserts three catalogue rows into `assets` and two `price_points` samples for each, stamped one day ago and now. No step taps to create them |
-| P3 | `JRNYAx` is an `equity` named "Journey Alpha" with `popular_rank` 1, priced $123.45. `JRNYPx` is a `pre_ipo` named "Journey Private", priced $50.00. `JRNYZx` is an `equity` named "Journey Zulu" with no `popular_rank`, priced $10.00 |
+| P2 | Before each scenario, `scripts/qa/journey.py` runs `apps/mobile/qa/journeys/stocks/browse.setup.sh` with the scenario id. It runs `apps/mobile/qa/journeys/stocks/browse.catalogue.sql`, which upserts four catalogue rows into `assets`, marked chain-checked and tradable by override, and two `price_points` samples for each, stamped one day ago and now. No step taps to create them |
+| P3 | `JRNYAx` is an `equity` named "Journey Alpha" with `popular_rank` 1, priced $123.45. `JRNYPx` is a `pre_ipo` named "Journey Private", priced $50.00. `JRNYZx` is an `equity` named "Journey Zulu" with no `popular_rank`, priced $10.00. The fourth row, `JRNYQx`, is a second listing of "Journey Private" that [stocks/asset-detail](asset-detail.md) reads |
 | P4 | The market data is the seeded rows. The run never calls the live Jupiter API: `journey.py` starts the local backend, and the steps read only what `GET /v1/assets` serves from the database |
 
 ## Scenarios
@@ -58,7 +58,7 @@ Starts signed in (auth/sign-in).
 
 ## Ground truth
 
-Browsing writes nothing. After a run, `apps/mobile/qa/journeys/stocks/browse.truth.sh` checks that the three seeded rows still hold the values P3 gives, so a run that read anything else read another catalogue, and that no proposal names a seeded asset.
+Browsing writes nothing. After a run, `apps/mobile/qa/journeys/stocks/browse.truth.sh` checks that the three seeded rows still hold the values P3 gives, so a run that read anything else read another catalogue, and that no proposal names a seeded asset. It then deletes the seeded rows and their samples, so the dev Stocks tab shows only the real catalogue between runs.
 
 ## Known failures on staging
 

@@ -1,0 +1,19 @@
+journey: stocks/browse
+expect-fail: S1
+
+The Popular section is titled "Trending". S1.2 expects the "Popular" header, so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Assets/StocksTabView.swift b/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
+index a0c5fd50..da7aaf14 100644
+--- a/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
++++ b/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
+@@ -67,7 +67,7 @@ private struct StocksTabScreen: View {
+         if model.isSearching {
+             search
+         } else if hasRows || hasPendingSections {
+-            section("Popular", state: model.popular)
++            section("Trending", state: model.popular)
+             section("Pre-IPO", state: model.preIpo)
+             section("All stocks", state: model.all, loadsMore: true)
+         } else if hasFailure {

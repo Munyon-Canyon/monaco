@@ -20,7 +20,7 @@ The format of this doc is in [App journeys](../README.md).
 | Id | What must be true |
 | --- | --- |
 | P1 | Everything [auth/sign-in](../auth/sign-in.md) needs, and the Stocks tab [stocks/browse](browse.md) opens |
-| P2 | Before each scenario, `scripts/qa/journey.py` runs `apps/mobile/qa/journeys/stocks/asset-detail.setup.sh` with the scenario id. It upserts the catalogue rows of [stocks/browse](browse.md) (P3 there) and adds `JRNYQx`, a second `pre_ipo` listing of "Journey Private" from issuer `tessera`, with the same `company_key` as `JRNYPx`. Each row gets two `price_points` samples, stamped one day ago and now. No step taps to create them |
+| P2 | Before each scenario, `scripts/qa/journey.py` runs `apps/mobile/qa/journeys/stocks/asset-detail.setup.sh` with the scenario id. It runs `apps/mobile/qa/journeys/stocks/browse.setup.sh`, which upserts the catalogue rows of [stocks/browse](browse.md) (P3 there), among them `JRNYQx`, a second `pre_ipo` listing of "Journey Private" from issuer `tessera`, with the same `company_key` as `JRNYPx`. Each row gets two `price_points` samples, stamped one day ago and now. No step taps to create them |
 | P3 | `JRNYAx` is `issuer_tradable`, so its Propose buy is enabled |
 | P4 | S4 needs a cabal of A's that holds `JRNYAx`. A treasury position comes only from a confirmed trade, and the trade path is #2136's, so the setup script seeds no holding and S4 runs against a member with none |
 | P5 | The run never calls the live Jupiter API. The steps read only what `GET /v1/assets/{symbol}` and its chart serve from the seeded rows |
@@ -74,7 +74,7 @@ Starts signed in (auth/sign-in), with a cabal of A's holding `JRNYAx` (P4).
 
 ## Ground truth
 
-Looking at a stock writes nothing, and S1.7 only opens the propose screen. After a run, `apps/mobile/qa/journeys/stocks/asset-detail.truth.sh` checks that the seeded rows still hold the values P2 gives, and that no proposal names a seeded asset.
+Looking at a stock writes nothing, and S1.7 only opens the propose screen. After a run, `apps/mobile/qa/journeys/stocks/asset-detail.truth.sh` checks that the seeded rows still hold the values P2 gives, and that no proposal names a seeded asset, then deletes the seeded rows.
 
 ## Known failures on staging
 

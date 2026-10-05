@@ -1,0 +1,19 @@
+journey: stocks/asset-detail
+expect-fail: S3
+
+"Also available from" is titled "Other issuers". S3.4 expects "Also available from", so S3 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift b/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift
+index 5d6959e0..c0864d4a 100644
+--- a/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift
++++ b/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift
+@@ -228,7 +228,7 @@ struct AssetDetailClientView: View {
+     private func otherListings(_ listings: [AssetListingPresentation]) -> some View {
+         if !listings.isEmpty {
+             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+-                MonacoSectionHeader("Also available from")
++                MonacoSectionHeader("Other issuers")
+                 MonacoGroupedList {
+                     ForEach(listings) { listing in
+                         Button {
