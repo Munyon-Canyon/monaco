@@ -13,6 +13,7 @@ import (
 	chainadapters "github.com/monaco/monaco/apps/backend/internal/modules/trading/adapters/chain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
+	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
@@ -55,6 +56,7 @@ type Module struct {
 	signer Signer
 	once   sync.Once
 	trades *app.ExecuteTradeHandler
+	sells  *app.SellForCashOutHandler
 }
 
 type Option func(*Module)
@@ -86,6 +88,10 @@ func (m *Module) Wire(set module.Set) {
 			if m.ports.Proposals == nil {
 				m.ports.Proposals = provider.Queries()
 			}
+		case interface{ Queries() treasuryport.Queries }:
+			if m.ports.Positions == nil {
+				m.ports.Positions = provider.Queries()
+			}
 		case interface{ Pauses() fundingport.Pauses }:
 			if m.ports.Pauses == nil {
 				m.ports.Pauses = provider.Pauses()
@@ -109,7 +115,18 @@ func (m *Module) Consumers() []bus.Consumer {
 			bus.HandleOwn("trading.engine", m.execute),
 			bus.HandleOwn("trading.engine.retry", m.retry),
 		},
+	}, {
+		Durable:  "trading_cashout_sell",
+		Handlers: []bus.HandlerSpec{bus.HandleOwn("trading.cashout_sell", m.cashOutSell)},
 	}}
+}
+
+func (m *Module) cashOutSell(ctx context.Context, d bus.Delivery, ev events.CashOutStarted) error {
+	if m.deps.Config.Trade.Engine == config.TradeEngineStub {
+		return adapters.StubEngine{UoW: m.deps.UoW}.HandleCashOut(ctx, d, ev)
+	}
+	m.once.Do(m.build)
+	return adapters.CashOutSell{Sells: m.sells, UoW: m.deps.UoW}.Handle(ctx, d, ev)
 }
 
 func (m *Module) execute(ctx context.Context, d bus.Delivery, ev events.ProposalPassed) error {
@@ -124,7 +141,7 @@ func (m *Module) engineAdapter() adapters.Engine {
 	if m.deps.Config.Trade.Engine == config.TradeEngineStub {
 		return adapters.Engine{Stub: &adapters.StubEngine{UoW: m.deps.UoW}}
 	}
-	m.once.Do(func() { m.trades = m.engine() })
+	m.once.Do(m.build)
 	return adapters.Engine{Trades: m.trades}
 }
 
@@ -137,7 +154,7 @@ func (m *Module) Queries() app.Queries { return app.NewQueries(m.deps.Pool) }
 
 func (m *Module) SignatureOwner() app.Queries { return m.Queries() }
 
-func (m *Module) engine() *app.ExecuteTradeHandler {
+func (m *Module) build() {
 	cfg, clk := m.deps.Config, m.deps.Clock
 	venue := m.venue
 	if venue == nil {
@@ -155,9 +172,15 @@ func (m *Module) engine() *app.ExecuteTradeHandler {
 		UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: clk, IDs: m.deps.IDs, Venue: venue, Signer: signer,
 		Hints: m.deps.Bus,
 	})
-	return app.NewExecuteTradeHandler(app.ExecuteTradeDeps{
-		Layer: layer, UoW: m.deps.UoW, Reads: m.deps.Pool, Venue: venue, Ports: m.enginePorts(),
-		USDC: chain.Mint{Address: chain.SolanaAddress(cfg.Solana.USDCMint), Decimals: usdcDecimals},
+	usdc := chain.Mint{Address: chain.SolanaAddress(cfg.Solana.USDCMint), Decimals: usdcDecimals}
+	ports := m.enginePorts()
+	m.trades = app.NewExecuteTradeHandler(app.ExecuteTradeDeps{
+		Layer: layer, UoW: m.deps.UoW, Reads: m.deps.Pool, Venue: venue, Ports: ports, USDC: usdc,
+	})
+	m.sells = app.NewSellForCashOutHandler(app.SellForCashOutDeps{
+		Layer: layer, UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: clk, Venue: venue, USDC: usdc,
+		Holdings: app.LedgerHoldings{Ledger: ports.Positions, Catalog: ports.Catalog, USDC: usdc},
+		Wallets:  app.CabalWallets{Cabals: ports.Cabals},
 	})
 }
 
@@ -182,6 +205,9 @@ func (m *Module) modulePorts() EnginePorts {
 	}
 	if p.Proposals == nil {
 		p.Proposals = app.UnwiredProposals{}
+	}
+	if p.Positions == nil {
+		p.Positions = app.UnwiredPositions{}
 	}
 	return p
 }
