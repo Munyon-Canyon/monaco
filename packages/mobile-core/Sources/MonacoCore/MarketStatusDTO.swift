@@ -21,13 +21,6 @@ public enum MarketSession: String, Codable, Sendable, CaseIterable {
     public var isRegularSession: Bool { self == .open }
 }
 
-/// The market session an asset response was built in, with the next boundary.
-///
-/// Every timestamp is UTC — the app converts for display and never the other way
-/// round. This rides on the envelope rather than on each row because it is one
-/// fact about the exchange, not a property of an individual stock.
-public typealias MarketStatusDTO = MarketStatus
-
 /// An RFC3339 timestamp as the backend writes it.
 ///
 /// The market payloads mix timestamps with plain numbers, and the asset routes are
