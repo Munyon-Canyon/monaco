@@ -481,3 +481,16 @@ Subject `events.user.profile_updated`, version 1.
 | `handle` | `string` |
 | `display_name` | `string` |
 | `photo_url` | `string` |
+
+## `withdrawal.submitted`
+
+Subject `events.withdrawal.submitted`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `withdrawal_id` | `uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+| `amount_micros` | `money.Micros` |
+| `to_address` | `chain.SolanaAddress` |
+| `tx_signature` | `chain.Signature` |

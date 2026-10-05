@@ -13,6 +13,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
@@ -36,12 +38,36 @@ func (m *Module) Mount(r api.Mount) {
 	wallets := app.WalletReader{Reader: identity.New(m.deps).Queries()}
 	fundingapi.Mount(adapters.HTTP{
 		Balances: m.Balances(), Wallets: wallets,
-		Create:   app.NewCreateOnrampSessionHandler(m.deps.UoW, m.deps.Clock, cfg.FundPageURL()),
-		Exchange: app.NewExchangeOnrampTokenHandler(m.deps.UoW, m.deps.Clock, wallets, cfg.Solana.USDCMint),
-		Report:   app.NewReportOnrampStatusHandler(m.deps.UoW, m.deps.Clock, m.deps.Bus),
-		Reads:    m.deps.Pool,
-		IDs:      m.deps.IDs,
+		Create:      app.NewCreateOnrampSessionHandler(m.deps.UoW, m.deps.Clock, cfg.FundPageURL()),
+		Exchange:    app.NewExchangeOnrampTokenHandler(m.deps.UoW, m.deps.Clock, wallets, cfg.Solana.USDCMint),
+		Report:      app.NewReportOnrampStatusHandler(m.deps.UoW, m.deps.Clock, m.deps.Bus),
+		Reads:       m.deps.Pool,
+		IDs:         m.deps.IDs,
+		Withdrawals: app.NewWithdrawHandler(m.withdrawDeps(wallets)),
 	}, r)
+}
+
+func (m *Module) withdrawDeps(wallets app.WalletReader) app.WithdrawDeps {
+	return app.WithdrawDeps{
+		UoW: m.deps.UoW, Balances: m.Balances(), Wallets: wallets, Hints: m.deps.Bus, Clock: m.deps.Clock,
+		USDC: m.usdc(), Transfers: func() (app.Transfers, error) { return m.transfers() },
+	}
+}
+
+func (m *Module) transfers() (*relayer.Transfers, error) {
+	signer, err := privy.New(m.deps.Config, m.deps.Clock)
+	if err != nil {
+		return nil, err
+	}
+	r, err := relayer.New(m.deps.Config, solana.New(m.deps.Config, m.deps.Clock))
+	if err != nil {
+		return nil, err
+	}
+	return relayer.NewTransfers(r, signer), nil
+}
+
+func (m *Module) usdc() chain.Mint {
+	return chain.Mint{Address: chain.SolanaAddress(m.deps.Config.Solana.USDCMint), Decimals: 6}
 }
 
 func (*Module) Consumers() []bus.Consumer {
@@ -68,7 +94,7 @@ func (m *Module) Balances() port.Balances {
 		func() adapters.TokenBalances { return solana.New(cfg, m.deps.Clock) },
 		adapters.Outflows{Funds: app.NoFundTransfers{}, Withdrawals: app.WithdrawalOutflows{Reads: m.deps.Pool}},
 		m.deps.Clock,
-		chain.Mint{Address: chain.SolanaAddress(cfg.Solana.USDCMint), Decimals: 6},
+		m.usdc(),
 	)
 	return m.balances
 }

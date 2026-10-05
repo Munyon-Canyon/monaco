@@ -125,6 +125,34 @@ paths:
                 $ref: "#/components/schemas/OnrampSession"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/withdrawals:
+    post:
+      operationId: withdraw
+      tags: [funding]
+      x-idempotent: true
+      x-allow-restricted: true
+      summary: Send platform balance to a Solana address.
+      description: >-
+        Signs a USDC transfer from the caller's member wallet to `to_address`, stores its signature,
+        then broadcasts it. The withdrawal confirms later. A replay with the same Idempotency-Key returns
+        the first response and sends nothing new. A banned or suspended user can still withdraw.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The amount and the destination address.
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/WithdrawRequest"}
+            example: {amount_micros: "2000000", to_address: 9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P}
+      responses:
+        "202":
+          description: The transfer is signed and sent. `status` is `submitted` until it confirms.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WithdrawAccepted"}
+              example: {withdrawal_id: 01890a5d-ac96-774b-bcce-b302099a8057, status: submitted, tx_signature: 5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW}
+        default: {$ref: "#/components/responses/Problem"}
 components:
   parameters:
     OnrampSessionId:
@@ -271,3 +299,31 @@ components:
           format: date-time
           description: When the session reached a final status, or null while it is live.
           examples: ["2026-10-03T15:04:00Z"]
+    WithdrawalStatus:
+      type: string
+      description: created, then submitted, then confirmed. created or submitted can end in failed.
+      enum: [created, submitted, confirmed, failed]
+    WithdrawRequest:
+      type: object
+      description: A withdrawal of platform balance to any Solana address.
+      additionalProperties: false
+      required: [amount_micros, to_address]
+      properties:
+        amount_micros:
+          type: string
+          pattern: "^[0-9]+$"
+          description: USDC micros, at least 1000000.
+          examples: ["2000000"]
+        to_address:
+          type: string
+          description: The destination Solana wallet. It cannot be the caller's own member wallet.
+          examples: [9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P]
+    WithdrawAccepted:
+      type: object
+      description: A signed and sent withdrawal.
+      additionalProperties: false
+      required: [withdrawal_id, status, tx_signature]
+      properties:
+        withdrawal_id: {type: string, format: uuid, examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
+        status: {$ref: "#/components/schemas/WithdrawalStatus", examples: [submitted]}
+        tx_signature: {type: string, examples: [5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW]}

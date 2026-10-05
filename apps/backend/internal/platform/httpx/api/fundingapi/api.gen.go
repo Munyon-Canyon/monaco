@@ -75,6 +75,30 @@ func (e ReportOnrampStatusRequestStatus) Valid() bool {
 	}
 }
 
+// Defines values for WithdrawalStatus.
+const (
+	WithdrawalStatusConfirmed WithdrawalStatus = "confirmed"
+	WithdrawalStatusCreated   WithdrawalStatus = "created"
+	WithdrawalStatusFailed    WithdrawalStatus = "failed"
+	WithdrawalStatusSubmitted WithdrawalStatus = "submitted"
+)
+
+// Valid indicates whether the value is a known member of the WithdrawalStatus enum.
+func (e WithdrawalStatus) Valid() bool {
+	switch e {
+	case WithdrawalStatusConfirmed:
+		return true
+	case WithdrawalStatusCreated:
+		return true
+	case WithdrawalStatusFailed:
+		return true
+	case WithdrawalStatusSubmitted:
+		return true
+	default:
+		return false
+	}
+}
+
 // Balance The member wallet's on-chain USDC and currently spendable platform balance.
 type Balance struct {
 	// AsOf Examples: 2026-10-03T15:00:00Z
@@ -211,8 +235,44 @@ type ReportOnrampStatusRequest struct {
 // Examples: confirmed
 type ReportOnrampStatusRequestStatus string
 
+// WithdrawAccepted A signed and sent withdrawal.
+type WithdrawAccepted struct {
+	// Status created, then submitted, then confirmed. created or submitted can end in failed.
+	//
+	// Examples: submitted
+	Status WithdrawalStatus `json:"status"`
+
+	// TxSignature Examples: 5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW
+	TxSignature string `json:"tx_signature"`
+
+	// WithdrawalId Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+	WithdrawalId openapi_types.UUID `json:"withdrawal_id"`
+}
+
+// WithdrawRequest A withdrawal of platform balance to any Solana address.
+type WithdrawRequest struct {
+	// AmountMicros USDC micros, at least 1000000.
+	//
+	// Examples: 2000000
+	AmountMicros string `json:"amount_micros"`
+
+	// ToAddress The destination Solana wallet. It cannot be the caller's own member wallet.
+	//
+	// Examples: 9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P
+	ToAddress string `json:"to_address"`
+}
+
+// WithdrawalStatus created, then submitted, then confirmed. created or submitted can end in failed.
+type WithdrawalStatus string
+
 // OnrampSessionId Examples: 01890a5d-ac96-774b-bcce-b302099a8057
 type OnrampSessionId = openapi_types.UUID
+
+// WithdrawParams defines parameters for Withdraw.
+type WithdrawParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
 
 // CreateOnrampSessionParams defines parameters for CreateOnrampSession.
 type CreateOnrampSessionParams struct {
@@ -225,6 +285,9 @@ type ReportOnrampStatusParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
+
+// WithdrawJSONRequestBody defines body for Withdraw for application/json ContentType.
+type WithdrawJSONRequestBody = WithdrawRequest
 
 // CreateOnrampSessionJSONRequestBody defines body for CreateOnrampSession for application/json ContentType.
 type CreateOnrampSessionJSONRequestBody = CreateOnrampSessionRequest
@@ -240,6 +303,9 @@ type ServerInterface interface {
 	// GetMyBalance Read the caller's available platform balance.
 	// (GET /v1/me/balance)
 	GetMyBalance(w http.ResponseWriter, r *http.Request)
+	// Withdraw Send platform balance to a Solana address.
+	// (POST /v1/me/withdrawals)
+	Withdraw(w http.ResponseWriter, r *http.Request, params WithdrawParams)
 	// CreateOnrampSession Start a card deposit.
 	// (POST /v1/onramp/sessions)
 	CreateOnrampSession(w http.ResponseWriter, r *http.Request, params CreateOnrampSessionParams)
@@ -268,6 +334,51 @@ func (siw *ServerInterfaceWrapper) GetMyBalance(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMyBalance(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// Withdraw operation middleware
+func (siw *ServerInterfaceWrapper) Withdraw(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params WithdrawParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.Withdraw(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -537,6 +648,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/balance", wrapper.GetMyBalance)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/withdrawals", wrapper.Withdraw)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/onramp/sessions", wrapper.CreateOnrampSession)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/onramp/sessions/exchange", wrapper.ExchangeOnrampToken)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/onramp/sessions/{id}", wrapper.GetOnrampSession)
@@ -572,6 +684,46 @@ type GetMyBalancedefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetMyBalancedefaultApplicationProblemPlusJSONResponse) VisitGetMyBalanceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WithdrawRequestObject struct {
+	Params WithdrawParams
+	Body   *WithdrawJSONRequestBody
+}
+
+type WithdrawResponseObject interface {
+	VisitWithdrawResponse(w http.ResponseWriter) error
+}
+
+type Withdraw202JSONResponse WithdrawAccepted
+
+func (response Withdraw202JSONResponse) VisitWithdrawResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WithdrawdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response WithdrawdefaultApplicationProblemPlusJSONResponse) VisitWithdrawResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -747,6 +899,9 @@ type StrictServerInterface interface {
 	// GetMyBalance Read the caller's available platform balance.
 	// (GET /v1/me/balance)
 	GetMyBalance(ctx context.Context, request GetMyBalanceRequestObject) (GetMyBalanceResponseObject, error)
+	// Withdraw Send platform balance to a Solana address.
+	// (POST /v1/me/withdrawals)
+	Withdraw(ctx context.Context, request WithdrawRequestObject) (WithdrawResponseObject, error)
 	// CreateOnrampSession Start a card deposit.
 	// (POST /v1/onramp/sessions)
 	CreateOnrampSession(ctx context.Context, request CreateOnrampSessionRequestObject) (CreateOnrampSessionResponseObject, error)
@@ -817,6 +972,39 @@ func (sh *strictHandler) GetMyBalance(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMyBalanceResponseObject); ok {
 		if err := validResponse.VisitGetMyBalanceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Withdraw operation middleware
+func (sh *strictHandler) Withdraw(w http.ResponseWriter, r *http.Request, params WithdrawParams) {
+	var request WithdrawRequestObject
+
+	request.Params = params
+
+	var body WithdrawJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.Withdraw(ctx, request.(WithdrawRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Withdraw")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(WithdrawResponseObject); ok {
+		if err := validResponse.VisitWithdrawResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

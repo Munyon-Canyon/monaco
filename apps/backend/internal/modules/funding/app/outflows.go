@@ -21,6 +21,11 @@ func (r WalletReader) MemberWalletAddress(ctx context.Context, user ids.UserID) 
 	return wallet.Address, err
 }
 
+func (r WalletReader) SigningWallet(ctx context.Context, user ids.UserID) (chain.Wallet, error) {
+	wallet, err := r.Reader.MemberWallet(ctx, user)
+	return chain.Wallet{ID: wallet.PrivyWalletID, Address: wallet.Address}, err
+}
+
 type Outflows interface {
 	InFlightMicros(context.Context, ids.UserID) (money.Micros, error)
 }

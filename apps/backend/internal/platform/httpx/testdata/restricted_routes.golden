@@ -6,3 +6,4 @@ GET /v1/me/balance
 GET /v1/me/txns
 GET /v1/stream
 POST /v1/cabals/{id}/cashouts
+POST /v1/me/withdrawals
