@@ -2,7 +2,7 @@ import XCTest
 
 enum SettingsDeleteAccountJourney {
     static let id = "settings/delete-account"
-    static let version = 3
+    static let version = 4
 
     static let explainer =
         "Deleting your account removes your name, photo, phone and X from Monaco. Your handle stays reserved. "
@@ -12,7 +12,6 @@ enum SettingsDeleteAccountJourney {
     static let noCabalMoney = "No cabal holds money of yours."
     static let confirmTitle = "Delete your Monaco account?"
     static let deleted = "Your account was deleted."
-    static let sliceComingSoon = "Your slice in each cabal shows up here soon."
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -130,27 +129,21 @@ enum SettingsDeleteAccountJourney {
         }
     }
 
-    static func cabalOnChecklist(
+    static func emptyCabalOffChecklist(
         _ app: XCUIApplication, devToken: String, cabalID: String, cabalName: String, recorder: JourneyRecorder
     ) {
-        recorder.step("S3.1", "open Delete account as a cabal member") {
+        recorder.step("S3.1", "open Delete account as a member of an empty cabal") {
             devSignIn(app, devToken: devToken, step: "S3.1")
             openDeleteAccount(app, step: "S3.1")
         }
 
-        recorder.step("S3.2", "the cabal is on the cash-out step") {
-            let row = app.element("delete-account-cabal-\(cabalID)")
-            XCTAssertTrue(row.waitForExistence(timeout: 15), "S3.2: no row for '\(cabalName)'")
-            XCTAssertTrue(row.label.contains(cabalName), "S3.2: the row reads '\(row.label)', not '\(cabalName)'")
+        recorder.step("S3.2", "the cash-out step reads Done without the cabal") {
+            XCTAssertTrue(
+                waitUntil(15) { stepText(app, "delete-account-step-cash-out").contains(noCabalMoney) },
+                "S3.2: '\(cashOutStep)' does not read '\(noCabalMoney)' for a member with no slice")
             XCTAssertFalse(
-                stepText(app, "delete-account-step-cash-out").contains(noCabalMoney),
-                "S3.2: '\(cashOutStep)' reads Done for a cabal member")
-        }
-
-        recorder.step("S3.3", "the cash-out step shows the member's slice") {
-            XCTAssertFalse(
-                stepText(app, "delete-account-step-cash-out").contains(sliceComingSoon),
-                "S3.3: the step reads '\(sliceComingSoon)' instead of the slice (#2136)")
+                app.element("delete-account-cabal-\(cabalID)").exists,
+                "S3.2: '\(cabalName)' is listed although the member's slice is $0.00")
         }
     }
 }

@@ -1,16 +1,28 @@
 import MonacoAPI
 import Observation
 
-public struct DeleteAccountChecklist: Equatable, Sendable {
-    public let balance: AccountBalance
-    public let cabals: [Components.Schemas.MyCabal]
+public struct CabalSlice: Equatable, Sendable, Identifiable {
+    public let cabal: Components.Schemas.MyCabal
+    public let valueMicros: Int64
 
-    public init(balance: AccountBalance, cabals: [Components.Schemas.MyCabal]) {
-        self.balance = balance
-        self.cabals = cabals
+    public init(cabal: Components.Schemas.MyCabal, valueMicros: Int64) {
+        self.cabal = cabal
+        self.valueMicros = valueMicros
     }
 
-    public var isCashedOut: Bool { cabals.isEmpty }
+    public var id: String { cabal.id }
+}
+
+public struct DeleteAccountChecklist: Equatable, Sendable {
+    public let balance: AccountBalance
+    public let slices: [CabalSlice]
+
+    public init(balance: AccountBalance, slices: [CabalSlice]) {
+        self.balance = balance
+        self.slices = slices
+    }
+
+    public var isCashedOut: Bool { slices.isEmpty }
     public var isWithdrawn: Bool { balance.availableMicros == 0 && balance.inFlightMicros == 0 }
 
     public func isDone(_ step: DeleteAccountBlocker) -> Bool {
@@ -57,9 +69,9 @@ public final class DeleteAccountModel {
         if checklist == nil { state = .loading }
         do {
             async let balance = api.read { try await $0.getMyBalance().ok.body.json }
-            async let cabals = api.read { try await $0.getMyCabals().ok.body.json }
+            async let slices = Self.slices(api)
             let loaded = DeleteAccountChecklist(
-                balance: try AccountBalance(try await balance), cabals: try await cabals)
+                balance: try AccountBalance(try await balance), slices: try await slices)
             guard issued == generation else { return }
             state = .loaded(loaded)
         } catch {
@@ -71,6 +83,23 @@ public final class DeleteAccountModel {
                 fail(ToastCopy.message(for: error))
             }
         }
+    }
+
+    private nonisolated static func slices(_ api: APIClient) async throws -> [CabalSlice] {
+        let cabals = try await api.read { try await $0.getMyCabals().ok.body.json }
+        let held = try await withThrowingTaskGroup(of: (String, Int64)?.self) { group in
+            for cabal in cabals {
+                group.addTask {
+                    let pot = try await api.read { try await $0.getCabalPot(path: .init(id: cabal.id)).ok.body.json }
+                    guard let me = pot.me, me.shareUnits > 0 else { return nil }
+                    return (cabal.id, me.valueMicros)
+                }
+            }
+            var held: [String: Int64] = [:]
+            for try await case (let id, let value)? in group { held[id] = value }
+            return held
+        }
+        return cabals.compactMap { cabal in held[cabal.id].map { CabalSlice(cabal: cabal, valueMicros: $0) } }
     }
 
     public func delete() async {
