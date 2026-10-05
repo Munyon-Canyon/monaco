@@ -15,6 +15,7 @@ import (
 
 type Catalog interface {
 	AssetBySymbol(ctx context.Context, symbol string) (market.Asset, error)
+	AssetByMint(ctx context.Context, mint market.Mint) (market.Asset, error)
 }
 
 type Cabals interface {

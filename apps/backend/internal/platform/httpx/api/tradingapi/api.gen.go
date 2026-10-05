@@ -11,11 +11,72 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	externalRef0 "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for SwapDetailAction.
+const (
+	Buy  SwapDetailAction = "buy"
+	Sell SwapDetailAction = "sell"
+)
+
+// Valid indicates whether the value is a known member of the SwapDetailAction enum.
+func (e SwapDetailAction) Valid() bool {
+	switch e {
+	case Buy:
+		return true
+	case Sell:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SwapDetailSourceKind.
+const (
+	Cashout  SwapDetailSourceKind = "cashout"
+	Proposal SwapDetailSourceKind = "proposal"
+)
+
+// Valid indicates whether the value is a known member of the SwapDetailSourceKind enum.
+func (e SwapDetailSourceKind) Valid() bool {
+	switch e {
+	case Cashout:
+		return true
+	case Proposal:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SwapDetailStatus.
+const (
+	Confirmed SwapDetailStatus = "confirmed"
+	Created   SwapDetailStatus = "created"
+	Failed    SwapDetailStatus = "failed"
+	Submitted SwapDetailStatus = "submitted"
+)
+
+// Valid indicates whether the value is a known member of the SwapDetailStatus enum.
+func (e SwapDetailStatus) Valid() bool {
+	switch e {
+	case Confirmed:
+		return true
+	case Created:
+		return true
+	case Failed:
+		return true
+	case Submitted:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for SwapRetryAcceptedStatus.
 const (
@@ -31,6 +92,115 @@ func (e SwapRetryAcceptedStatus) Valid() bool {
 		return false
 	}
 }
+
+// SwapDetail One trade a cabal made.
+type SwapDetail struct {
+	// Action Whether the treasury bought or sold the asset.
+	//
+	// Examples: buy
+	Action SwapDetailAction `json:"action"`
+
+	// AssetName The asset's display name.
+	//
+	// Examples: Apple
+	AssetName string `json:"asset_name"`
+
+	// CabalId The cabal whose treasury traded.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	CabalId openapi_types.UUID `json:"cabal_id"`
+
+	// ConfirmedAt When the trade confirmed on chain. Null until then.
+	//
+	// Examples: null
+	ConfirmedAt *time.Time `json:"confirmed_at"`
+
+	// CreatedAt When the swap row was created.
+	//
+	// Examples: 2026-10-03T15:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// FailureCode Why the trade failed. Null unless `status` is `failed`.
+	//
+	// Examples: jupiter_failed
+	FailureCode *string `json:"failure_code"`
+
+	// FailureMessage The user-facing message for a failed trade. Null unless `status` is `failed`.
+	//
+	// Examples: The trade did not go through.
+	FailureMessage *string `json:"failure_message"`
+
+	// Id The swap id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+	Id openapi_types.UUID `json:"id"`
+
+	// Retryable Whether the retry route would accept this swap.
+	//
+	// Examples: true
+	Retryable bool `json:"retryable"`
+
+	// Source What asked for the trade.
+	Source SwapSource `json:"source"`
+
+	// Status Where the trade is.
+	//
+	// Examples: failed
+	Status SwapDetailStatus `json:"status"`
+
+	// Symbol The token symbol.
+	//
+	// Examples: AAPLx
+	Symbol string `json:"symbol"`
+
+	// TokenAmount Token base units bought or sold. Null until a buy confirms.
+	//
+	// Examples: null
+	TokenAmount *int64 `json:"token_amount"`
+
+	// TokenDecimals Decimals of `token_amount`.
+	//
+	// Examples: 8
+	TokenDecimals int `json:"token_decimals"`
+
+	// TxSignature The Solana transaction signature. Null before the trade is submitted.
+	//
+	// Examples: 5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW
+	TxSignature *string `json:"tx_signature"`
+
+	// UsdcMicros USDC spent or received, in micros. Null until a sell confirms.
+	//
+	// Examples: 25000000
+	UsdcMicros *int64 `json:"usdc_micros"`
+}
+
+// SwapDetailAction Whether the treasury bought or sold the asset.
+//
+// Examples: buy
+type SwapDetailAction string
+
+// SwapDetailSourceKind A passed proposal or a cash out.
+//
+// Examples: proposal
+type SwapDetailSourceKind string
+
+// SwapSource What asked for the trade.
+type SwapSource struct {
+	// Id The proposal or cash out id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	Id openapi_types.UUID `json:"id"`
+
+	// Kind A passed proposal or a cash out.
+	//
+	// Examples: proposal
+	Kind SwapDetailSourceKind `json:"kind"`
+}
+
+// SwapDetailStatus Where the trade is.
+//
+// Examples: failed
+type SwapDetailStatus string
 
 // SwapRetryAccepted A retry the trade engine will run.
 type SwapRetryAccepted struct {
@@ -58,6 +228,9 @@ type PostSwapRetryParams struct {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// GetSwap Read one trade.
+	// (GET /v1/swaps/{id})
+	GetSwap(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// PostSwapRetry Retry a failed trade.
 	// (POST /v1/swaps/{id}/retry)
 	PostSwapRetry(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostSwapRetryParams)
@@ -71,6 +244,32 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetSwap operation middleware
+func (siw *ServerInterfaceWrapper) GetSwap(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSwap(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // PostSwapRetry operation middleware
 func (siw *ServerInterfaceWrapper) PostSwapRetry(w http.ResponseWriter, r *http.Request) {
@@ -246,9 +445,49 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/swaps/{id}", wrapper.GetSwap)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/swaps/{id}/retry", wrapper.PostSwapRetry)
 
 	return m
+}
+
+type GetSwapRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetSwapResponseObject interface {
+	VisitGetSwapResponse(w http.ResponseWriter) error
+}
+
+type GetSwap200JSONResponse SwapDetail
+
+func (response GetSwap200JSONResponse) VisitGetSwapResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSwapdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetSwapdefaultApplicationProblemPlusJSONResponse) VisitGetSwapResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type PostSwapRetryRequestObject struct {
@@ -293,6 +532,9 @@ func (response PostSwapRetrydefaultApplicationProblemPlusJSONResponse) VisitPost
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// GetSwap Read one trade.
+	// (GET /v1/swaps/{id})
+	GetSwap(ctx context.Context, request GetSwapRequestObject) (GetSwapResponseObject, error)
 	// PostSwapRetry Retry a failed trade.
 	// (POST /v1/swaps/{id}/retry)
 	PostSwapRetry(ctx context.Context, request PostSwapRetryRequestObject) (PostSwapRetryResponseObject, error)
@@ -335,6 +577,32 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// GetSwap operation middleware
+func (sh *strictHandler) GetSwap(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetSwapRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSwap(ctx, request.(GetSwapRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSwap")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSwapResponseObject); ok {
+		if err := validResponse.VisitGetSwapResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // PostSwapRetry operation middleware

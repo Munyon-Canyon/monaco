@@ -97,6 +97,7 @@ func (m *Module) Mount(r api.Mount) {
 	ports := m.modulePorts()
 	tradingapi.Mount(adapters.HTTP{
 		Retry: app.NewRetryTradeHandler(m.deps.UoW, m.deps.Pool, ports.Cabals, ports.Proposals),
+		Swaps: app.NewSwapDetailReads(m.deps.Pool, ports.Cabals, ports.Catalog),
 	}, r)
 }
 
@@ -158,9 +159,6 @@ func (m *Module) engine() *app.ExecuteTradeHandler {
 
 func (m *Module) enginePorts() EnginePorts {
 	p := m.modulePorts()
-	if p.Catalog == nil {
-		p.Catalog = market.New(m.deps).Catalog()
-	}
 	if p.Balances == nil {
 		p.Balances = solana.New(m.deps.Config, m.deps.Clock)
 	}
@@ -169,6 +167,9 @@ func (m *Module) enginePorts() EnginePorts {
 
 func (m *Module) modulePorts() EnginePorts {
 	p := m.ports
+	if p.Catalog == nil {
+		p.Catalog = market.New(m.deps).Catalog()
+	}
 	if p.Cabals == nil {
 		p.Cabals = app.UnwiredCabals{}
 	}

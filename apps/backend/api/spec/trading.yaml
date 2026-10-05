@@ -1,4 +1,32 @@
 paths:
+  /v1/swaps/{id}:
+    get:
+      operationId: getSwap
+      tags: [trading]
+      summary: Read one trade.
+      description: >-
+        Returns a swap with its asset, amounts, status and, for a failed swap, why it failed. Only
+        members of the swap's cabal can read it; anyone else gets `not_cabal_member`. The asset name and
+        decimals come from the catalog, and raw mints are never returned. `retryable` is true only for
+        the latest swap of a proposal when that swap failed.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The swap id.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The swap.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SwapDetail"
+              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, source: {kind: proposal, id: 01890a5d-ac96-774b-bcce-b302099a8059}, action: buy, symbol: AAPLx, asset_name: Apple, token_decimals: 8, usdc_micros: 25000000, token_amount: null, status: failed, failure_code: jupiter_failed, failure_message: The trade did not go through., tx_signature: 5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW, created_at: "2026-10-03T15:00:00Z", confirmed_at: null, retryable: true}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/swaps/{id}/retry:
     post:
       operationId: postSwapRetry
@@ -49,3 +77,69 @@ components:
           description: Always `retry_requested`.
           enum: [retry_requested]
           examples: [retry_requested]
+    SwapDetail:
+      type: object
+      description: One trade a cabal made.
+      additionalProperties: false
+      required: [id, cabal_id, source, action, symbol, asset_name, token_decimals, usdc_micros, token_amount, status, failure_code, failure_message, tx_signature, created_at, confirmed_at, retryable]
+      properties:
+        id: {type: string, format: uuid, description: The swap id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
+        cabal_id: {type: string, format: uuid, description: The cabal whose treasury traded., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
+        source:
+          type: object
+          description: What asked for the trade.
+          x-go-type-name: SwapSource
+          additionalProperties: false
+          required: [kind, id]
+          properties:
+            kind:
+              type: string
+              description: A passed proposal or a cash out.
+              enum: [proposal, cashout]
+              examples: [proposal]
+            id: {type: string, format: uuid, description: The proposal or cash out id., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
+        action:
+          type: string
+          description: Whether the treasury bought or sold the asset.
+          enum: [buy, sell]
+          examples: [buy]
+        symbol: {type: string, description: The token symbol., examples: [AAPLx]}
+        asset_name: {type: string, description: The asset's display name., examples: [Apple]}
+        token_decimals: {type: integer, minimum: 0, maximum: 255, description: Decimals of `token_amount`., examples: [8]}
+        usdc_micros:
+          type: [integer, "null"]
+          format: int64
+          description: USDC spent or received, in micros. Null until a sell confirms.
+          examples: [25000000]
+        token_amount:
+          type: [integer, "null"]
+          format: int64
+          description: Token base units bought or sold. Null until a buy confirms.
+          examples: [null]
+        status:
+          type: string
+          description: Where the trade is.
+          enum: [created, submitted, confirmed, failed]
+          examples: [failed]
+        failure_code:
+          type: [string, "null"]
+          description: Why the trade failed. Null unless `status` is `failed`.
+          examples: [jupiter_failed]
+        failure_message:
+          type: [string, "null"]
+          description: The user-facing message for a failed trade. Null unless `status` is `failed`.
+          examples: [The trade did not go through.]
+        tx_signature:
+          type: [string, "null"]
+          description: The Solana transaction signature. Null before the trade is submitted.
+          examples: [5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW]
+        created_at: {type: string, format: date-time, description: When the swap row was created., examples: ["2026-10-03T15:00:00Z"]}
+        confirmed_at:
+          type: [string, "null"]
+          format: date-time
+          description: When the trade confirmed on chain. Null until then.
+          examples: [null]
+        retryable:
+          type: boolean
+          description: Whether the retry route would accept this swap.
+          examples: [true]

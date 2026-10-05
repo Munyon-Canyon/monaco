@@ -21,6 +21,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
 
 type retryServer struct {
@@ -40,7 +41,9 @@ func newRetryServer(t *testing.T) retryServer {
 		t.Fatal(err)
 	}
 	m := trading.New(module.Deps{Config: cfg, Pool: e.pool, UoW: db.New(e.pool, e.ids, clk), IDs: e.ids, Clock: clk},
-		trading.WithEnginePorts(trading.EnginePorts{Cabals: e.cabals, Proposals: e.proposals}))
+		trading.WithEnginePorts(trading.EnginePorts{
+			Cabals: e.cabals, Proposals: e.proposals, Catalog: marketfake.NewCatalog(marketfake.Fixtures()...),
+		}))
 	h, err := httpx.Handler(httpx.Deps{
 		Logger: observability.NewLogger(cfg, io.Discard), Tracer: noop.NewTracerProvider(), Clock: clk, IDs: e.ids,
 		MaxBodyBytes: 1 << 20, Idempotency: db.NewIdempotencyStore(e.pool, clk), Verifier: verifier,
@@ -115,6 +118,10 @@ func TestRetryHTTP_callerMustBeAUser(t *testing.T) {
 	_, err := adapters.HTTP{}.PostSwapRetry(t.Context(), tradingapi.PostSwapRetryRequestObject{})
 	if errs.CodeOf(err) != errs.CodeUnauthorized {
 		t.Errorf("no actor: err = %v, want unauthorized", err)
+	}
+	_, err = adapters.HTTP{}.GetSwap(t.Context(), tradingapi.GetSwapRequestObject{})
+	if errs.CodeOf(err) != errs.CodeUnauthorized {
+		t.Errorf("GetSwap with no actor: err = %v, want unauthorized", err)
 	}
 	for name, tc := range cases {
 		ctx := auth.WithActor(t.Context(), tc.actor)
