@@ -198,13 +198,27 @@ class Funds(Tree):
         self.write("docs/journeys/auth/sign-in.md", DOC.replace("actors: [A]\n", "actors: [A]\nfunds:\n" + lines))
 
     def test_a_journey_without_funds_has_no_notice(self):
-        self.assertEqual(journey.funding_notice(journey.load_journeys()["auth/sign-in"]), "")
+        self.assertEqual(journey.funding_notice(journey.load_journeys()["auth/sign-in"], {}), "")
 
-    def test_a_money_journey_says_what_to_send_to_whom(self):
+    def test_a_money_journey_offers_the_qa_pot_and_the_phantom_wallet_per_actor(self):
         self.fund("  A: 2\n")
         self.assertEqual(self.problems(), [])
-        self.assertIn("send 2 USDC to actor A from the Phantom agent wallet",
-                      journey.funding_notice(journey.load_journeys()["auth/sign-in"]))
+        accounts = {"A": {"privy_user_id": "did:privy:abc"}}
+        notice = journey.funding_notice(journey.load_journeys()["auth/sign-in"], accounts,
+                                        user_id=lambda row: "uuid-" + row["privy_user_id"][-3:])
+        self.assertIn("bin/monacoctl qa fund --user uuid-abc --usdc 2", notice)
+        self.assertIn("or send 2 USDC from the Phantom agent wallet to A's deposit address", notice)
+        before_sign_in = journey.funding_notice(journey.load_journeys()["auth/sign-in"], accounts,
+                                                user_id=lambda row: "")
+        self.assertIn("qa fund --user <A's user id, after its first sign-in> --usdc 2", before_sign_in)
+
+    def test_the_user_id_lookup_quotes_only_a_privy_id(self):
+        with unittest.mock.patch.object(journey, "with_dotenv", lambda args: "never"):
+            self.assertEqual(journey.actor_user_id({"privy_user_id": "x'; DROP TABLE users; --"}), "")
+        seen = []
+        with unittest.mock.patch.object(journey, "with_dotenv", lambda args: seen.append(args) or "u-1"):
+            self.assertEqual(journey.actor_user_id({"privy_user_id": "did:privy:abc"}), "u-1")
+        self.assertIn("SELECT id FROM users WHERE privy_user_id = 'did:privy:abc'", seen[0])
 
     def test_funds_for_an_unknown_actor_or_a_bad_amount_are_named(self):
         self.fund("  B: 2\n  A: lots\n")
@@ -212,14 +226,29 @@ class Funds(Tree):
         self.assertIn("funds names actor B, which is not in actors", problems)
         self.assertIn("funds for actor A must be whole USDC from 1, got 'lots'", problems)
 
-    def test_a_money_run_refuses_to_start_without_a_refund_address(self):
-        with unittest.mock.patch.dict(os.environ, {"MONACO_QA_REFUND_ADDRESS": ""}):
-            with self.assertRaisesRegex(journey.JourneyError, "MONACO_QA_REFUND_ADDRESS"):
-                journey.require_refund_address()
-        with unittest.mock.patch.dict(os.environ, {"MONACO_QA_REFUND_ADDRESS": "Phantom1"}):
-            journey.require_refund_address()
+    def test_an_exported_phantom_refund_address_wins_over_the_pot(self):
+        asked = []
+        with unittest.mock.patch.dict(os.environ, {"MONACO_QA_REFUND_ADDRESS": "Phantom1"}), \
+                unittest.mock.patch.object(journey, "with_dotenv", lambda args: asked.append(args) or "Pot1"):
+            self.assertEqual(journey.refund_address(), "Phantom1")
             env = journey.actor_environment({}, "sms", "RUN123", prefix="TEST_RUNNER_")
         self.assertEqual(env["TEST_RUNNER_MONACO_QA_REFUND_ADDRESS"], "Phantom1")
+        self.assertEqual(asked, [])
+
+    def test_without_an_export_the_refund_address_is_the_qa_pot(self):
+        asked = []
+        with unittest.mock.patch.dict(os.environ, {"MONACO_QA_REFUND_ADDRESS": ""}), \
+                unittest.mock.patch.object(journey, "with_dotenv", lambda args: asked.append(args) or "Pot1"):
+            self.assertEqual(journey.refund_address(), "Pot1")
+            env = journey.actor_environment({}, "sms", "RUN123", prefix="TEST_RUNNER_")
+        self.assertEqual(env["TEST_RUNNER_MONACO_QA_REFUND_ADDRESS"], "Pot1")
+        self.assertEqual(asked[0][-3:], ["qa", "pot", "--address"])
+
+    def test_a_money_run_refuses_to_start_with_no_refund_address(self):
+        with unittest.mock.patch.dict(os.environ, {"MONACO_QA_REFUND_ADDRESS": ""}), \
+                unittest.mock.patch.object(journey, "with_dotenv", lambda args: ""):
+            with self.assertRaisesRegex(journey.JourneyError, "monacoctl qa pot --address"):
+                journey.refund_address()
 
 
 class Composition(Tree):
@@ -1013,6 +1042,7 @@ class All(Output):
                 unittest.mock.patch.object(journey, "run_once", run_once), \
                 unittest.mock.patch.object(journey, "build_label", lambda mutant=None: "abc"), \
                 unittest.mock.patch.dict(os.environ, {"MONACO_QA_REFUND_ADDRESS": ""}), \
+                unittest.mock.patch.object(journey, "with_dotenv", lambda args: ""), \
                 redirect_stdout(StringIO()) as printed:
             code = journey.main(["run", "--all"])
 
