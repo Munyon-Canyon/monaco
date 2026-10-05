@@ -33,6 +33,7 @@ class PrivyAuthService: ObservableObject {
     var pushRegistrar: PushRegistrar?
     #if DEBUG
     func adoptDevAccessToken(_ token: String) {
+        sessionStore.clear()
         adoptAccessToken(token)
     }
     #endif
