@@ -30,6 +30,7 @@
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"slice of structs","users":[{"Email":"***","Name":"ada"},{"Email":"***","Name":"bob"}]}
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"slice of maps","creds":[{"cluster":"mainnet","token":"***"}]}
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"array of strings with a jwt","headers":["ok","***"]}
+{"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"onramp link token","token":"***","onramp_token":"***","fund_url":"https://monacolabs.xyz/fund?s=***","body":{"token":"***"}}
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"opaque authorization scheme","header":"***"}
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"sensitive query params","url":"https://rpc.example/v1?api_key=***&cluster=mainnet&Token=***"}
 {"time":"2026-09-27T12:00:00Z","level":"INFO","msg":"redaction.case","case":"struct with sensitive fields","user":{"Name":"ada","Email":"***","access_token":"***","Nested":{"Name":"bob","Email":"***","access_token":"***","Nested":null}}}

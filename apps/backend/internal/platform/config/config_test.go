@@ -147,6 +147,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"MONACO_BUS_ACK_WAIT=100ms",
 		"MONACO_BUS_API_RELAY=off",
 		"FUND_PAGE_URL=https://fund.example/fund",
+		"WEB_ALLOWED_ORIGINS=https://fund.example,http://127.0.0.1:5173",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -195,12 +196,14 @@ func TestLoadReadsEveryKey(t *testing.T) {
 			AuthorizationPrivateKey: "wallet-auth:key", AuthorizationKeyID: "quorum-id",
 			WebhookSecret: "whsec_x", BaseURL: "http://fakes/privy",
 		},
-		Solana:     config.Solana{RPCURL: "http://fakes/rpc", USDCMint: "mint"},
-		Relayer:    config.Relayer{PrivateKey: "relayer-key"},
-		APNs:       config.APNs{KeyP8: "p8-key", KeyID: "key-id", TeamID: "team-id", Topic: "com.example.app"},
-		PostHog:    config.PostHog{APIKey: "ph-secret", Host: "http://fakes/posthog"},
-		Supabase:   config.Supabase{URL: "http://127.0.0.1:54321", ServiceRoleKey: "sb-secret"},
-		Web:        config.Web{FundPageURL: "https://fund.example/fund"},
+		Solana:   config.Solana{RPCURL: "http://fakes/rpc", USDCMint: "mint"},
+		Relayer:  config.Relayer{PrivateKey: "relayer-key"},
+		APNs:     config.APNs{KeyP8: "p8-key", KeyID: "key-id", TeamID: "team-id", Topic: "com.example.app"},
+		PostHog:  config.PostHog{APIKey: "ph-secret", Host: "http://fakes/posthog"},
+		Supabase: config.Supabase{URL: "http://127.0.0.1:54321", ServiceRoleKey: "sb-secret"},
+		Web: config.Web{
+			FundPageURL: "https://fund.example/fund", AllowedOrigins: "https://fund.example,http://127.0.0.1:5173",
+		},
 		Faultpoint: "before-commit",
 	}
 	if !reflect.DeepEqual(cfg, want) {
@@ -488,6 +491,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"MONACO_BUS_API_RELAY", "on"},
 		{"TRUST_PROXY_HEADERS", "false"},
 		{"FUND_PAGE_URL", ""},
+		{"WEB_ALLOWED_ORIGINS", ""},
 	}
 	if len(got) != len(tests) {
 		t.Fatalf("Redacted has %d keys, want %d: %v", len(got), len(tests), got)

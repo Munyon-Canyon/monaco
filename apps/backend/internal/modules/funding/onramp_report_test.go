@@ -19,7 +19,7 @@ import (
 func (f onrampFixture) opened(t *testing.T, suggested *money.Micros) uuid.UUID {
 	t.Helper()
 	created, token := f.start(t, suggested)
-	if _, err := f.exchange.Handle(t.Context(), token); err != nil {
+	if _, err := f.exchange.Handle(t.Context(), app.ExchangeOnrampToken{Token: token}); err != nil {
 		t.Fatal(err)
 	}
 	return created.ID

@@ -164,6 +164,7 @@ func newHandler(deps module.Deps, spec []byte, meters metric.MeterProvider) (htt
 		Verifier:      verifier,
 		AdminVerifier: adminauthn.NewAdminVerifier(verifier, deps.Pool),
 		RateLimit:     ratelimit.Middleware(limiter, policies, httpx.ActorKey, deps.Config.HTTP.TrustProxyHeaders),
+		WebOrigins:    deps.Config.WebAllowedOrigins(),
 	}, registered.Build(deps).Mount, spec)
 }
 

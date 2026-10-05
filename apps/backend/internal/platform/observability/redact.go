@@ -23,7 +23,8 @@ var (
 	jwt             = regexp.MustCompile(`eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*`)
 	bearerToken     = regexp.MustCompile(`(?i)\bbearer\s+\S+`)
 	sensitiveQuery  = regexp.MustCompile(
-		`(?i)([?&][^=&#\s]*(phone|email|token|key|seed|signature|secret|authorization|password|mnemonic)[^=&#\s]*=)[^&#\s]*`,
+		`(?i)([?&](?:[^=&#\s]*(?:phone|email|token|key|seed|signature|secret|authorization|password|mnemonic)` +
+			`[^=&#\s]*|s)=)[^&#\s]*`,
 	)
 )
 

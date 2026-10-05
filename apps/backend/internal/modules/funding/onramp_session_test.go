@@ -212,7 +212,7 @@ func TestExchangeOnrampToken_opensTheSessionOnceAndReturnsTheWallet(t *testing.T
 	f := newOnrampFixture(t)
 	suggested := money.MicrosFromUint64(25_000_000)
 	created, token := f.start(t, &suggested)
-	got, err := f.exchange.Handle(t.Context(), token)
+	got, err := f.exchange.Handle(t.Context(), app.ExchangeOnrampToken{Token: token})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +223,8 @@ func TestExchangeOnrampToken_opensTheSessionOnceAndReturnsTheWallet(t *testing.T
 		t.Fatalf("exchange = %+v, want %+v", got, want)
 	}
 	assertOpenedAt(t, f.pool, created.ID, f.clock.Now())
-	if _, err := f.exchange.Handle(t.Context(), token); errs.CodeOf(err) != errs.CodeOnrampLinkInvalid {
+	_, err = f.exchange.Handle(t.Context(), app.ExchangeOnrampToken{Token: token})
+	if errs.CodeOf(err) != errs.CodeOnrampLinkInvalid {
 		t.Fatalf("second exchange = %v, want onramp_link_invalid", err)
 	}
 	evs := onrampEvents(t, f.pool)
@@ -262,7 +263,7 @@ func TestExchangeOnrampToken_withoutAnAmountReturnsNull(t *testing.T) {
 	t.Parallel()
 	f := newOnrampFixture(t)
 	_, token := f.start(t, nil)
-	got, err := f.exchange.Handle(t.Context(), token)
+	got, err := f.exchange.Handle(t.Context(), app.ExchangeOnrampToken{Token: token})
 	if err != nil || got.SuggestedAmount != nil {
 		t.Fatalf("exchange = %+v, %v, want a null amount", got, err)
 	}
@@ -275,7 +276,8 @@ func TestExchangeOnrampToken_refusesAnExpiredOrUnknownTokenWithoutWriting(t *tes
 		f := newOnrampFixture(t)
 		_, token := f.start(t, nil)
 		f.clock.Advance(11 * time.Minute)
-		if _, err := f.exchange.Handle(t.Context(), token); errs.CodeOf(err) != errs.CodeOnrampLinkExpired {
+		_, err := f.exchange.Handle(t.Context(), app.ExchangeOnrampToken{Token: token})
+		if errs.CodeOf(err) != errs.CodeOnrampLinkExpired {
 			t.Fatalf("exchange = %v, want onramp_link_expired", err)
 		}
 		assertOnlyCreated(t, f.pool)
@@ -285,7 +287,8 @@ func TestExchangeOnrampToken_refusesAnExpiredOrUnknownTokenWithoutWriting(t *tes
 		f := newOnrampFixture(t)
 		_, token := f.start(t, nil)
 		f.exec(t, `UPDATE onramp_sessions SET status = 'expired'`)
-		if _, err := f.exchange.Handle(t.Context(), token); errs.CodeOf(err) != errs.CodeOnrampLinkExpired {
+		_, err := f.exchange.Handle(t.Context(), app.ExchangeOnrampToken{Token: token})
+		if errs.CodeOf(err) != errs.CodeOnrampLinkExpired {
 			t.Fatalf("exchange = %v, want onramp_link_expired", err)
 		}
 	})
@@ -294,7 +297,8 @@ func TestExchangeOnrampToken_refusesAnExpiredOrUnknownTokenWithoutWriting(t *tes
 		f := newOnrampFixture(t)
 		f.start(t, nil)
 		stranger := domain.NewOnrampToken([domain.OnrampTokenBytes]byte{1})
-		if _, err := f.exchange.Handle(t.Context(), stranger); errs.CodeOf(err) != errs.CodeOnrampLinkInvalid {
+		_, err := f.exchange.Handle(t.Context(), app.ExchangeOnrampToken{Token: stranger})
+		if errs.CodeOf(err) != errs.CodeOnrampLinkInvalid {
 			t.Fatalf("exchange = %v, want onramp_link_invalid", err)
 		}
 		assertOnlyCreated(t, f.pool)
@@ -332,7 +336,8 @@ func TestExchangeOnrampToken_rollsBackTheOpenWhenAStepFails(t *testing.T) {
 			f := newOnrampFixture(t)
 			_, token := f.start(t, nil)
 			f.exec(t, tt.setup)
-			if _, err := f.exchange.Handle(t.Context(), token); errs.CodeOf(err) != tt.want {
+			_, err := f.exchange.Handle(t.Context(), app.ExchangeOnrampToken{Token: token})
+			if errs.CodeOf(err) != tt.want {
 				t.Fatalf("exchange = %v, want %s", err, tt.want)
 			}
 			var status string
@@ -351,7 +356,8 @@ func TestExchangeOnrampToken_failsWhenTheSessionTableIsGone(t *testing.T) {
 	f := newOnrampFixture(t)
 	_, token := f.start(t, nil)
 	f.exec(t, `ALTER TABLE onramp_sessions RENAME TO onramp_sessions_gone`)
-	if _, err := f.exchange.Handle(t.Context(), token); errs.CodeOf(err) != errs.CodeInternal {
+	_, err := f.exchange.Handle(t.Context(), app.ExchangeOnrampToken{Token: token})
+	if errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("exchange = %v, want internal", err)
 	}
 }
