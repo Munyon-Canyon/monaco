@@ -1,0 +1,19 @@
+journey: profile/find-friends
+expect-fail: S1
+
+"Not now" does nothing. S1.3 waits for the Profile header, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Friends/ContactsExplainerView.swift b/apps/mobile/Monaco/Features/Friends/ContactsExplainerView.swift
+index ca1ed9131..bb547588c 100644
+--- a/apps/mobile/Monaco/Features/Friends/ContactsExplainerView.swift
++++ b/apps/mobile/Monaco/Features/Friends/ContactsExplainerView.swift
+@@ -22,7 +22,7 @@ struct ContactsExplainerView: View {
+                     .buttonStyle(.monacoPrimary)
+                     .disabled(true)
+                     .accessibilityIdentifier("friends-find-coming")
+-                Button("Not now") { dismiss() }
++                Button("Not now") {}
+                     .buttonStyle(.monacoSecondary)
+                     .accessibilityIdentifier("friends-not-now")
+             }
