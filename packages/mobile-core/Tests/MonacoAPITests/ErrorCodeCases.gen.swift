@@ -89,6 +89,7 @@ extension Components.Schemas.ErrorCode {
         case .requestNotNeeded: true
         case .requestPending: true
         case .rpcUnavailable: true
+        case .saleShort: true
         case .sessionRequired: true
         case .slippageExceeded: true
         case .storageUnavailable: true
@@ -96,7 +97,6 @@ extension Components.Schemas.ErrorCode {
         case .swapNotFound: true
         case .swapNotRetryable: true
         case .swapNotStuck: true
-        case .treasuryShort: true
         case .unauthorized: true
         case .upstreamTimeout: true
         case .upstreamUnavailable: true

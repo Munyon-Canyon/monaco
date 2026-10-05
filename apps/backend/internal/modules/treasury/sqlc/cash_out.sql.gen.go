@@ -98,19 +98,22 @@ func (q *Queries) CashOutShares(ctx context.Context, arg CashOutSharesParams) (C
 	return i, err
 }
 
-const cashOutTreasuryUSDC = `-- name: CashOutTreasuryUSDC :one
-SELECT greatest(coalesce((SELECT units FROM cabal_positions
-  WHERE cabal_id = $1::uuid AND asset = $2::text), 0) - coalesce((SELECT sum(payout_micros)
-  FROM cash_out_jobs WHERE cabal_id = $1::uuid AND status NOT IN ('completed', 'partial', 'failed')), 0), 0)::text
+const cashOutShortfall = `-- name: CashOutShortfall :one
+SELECT greatest($1::text::numeric - greatest(coalesce((SELECT units FROM cabal_positions
+  WHERE cabal_id = $2::uuid AND asset = $3::text), 0) - coalesce((SELECT
+    sum(CASE WHEN status = 'paying' THEN payout_micros ELSE payout_micros - sell_usdc_micros END)
+  FROM cash_out_jobs WHERE cabal_id = $2::uuid AND status IN ('started', 'selling', 'paying')), 0), 0),
+  0)::text
 `
 
-type CashOutTreasuryUSDCParams struct {
-	CabalID uuid.UUID
-	Asset   string
+type CashOutShortfallParams struct {
+	PayoutMicros string
+	CabalID      uuid.UUID
+	Asset        string
 }
 
-func (q *Queries) CashOutTreasuryUSDC(ctx context.Context, arg CashOutTreasuryUSDCParams) (string, error) {
-	row := q.db.QueryRow(ctx, cashOutTreasuryUSDC, arg.CabalID, arg.Asset)
+func (q *Queries) CashOutShortfall(ctx context.Context, arg CashOutShortfallParams) (string, error) {
+	row := q.db.QueryRow(ctx, cashOutShortfall, arg.PayoutMicros, arg.CabalID, arg.Asset)
 	var column_1 string
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -121,16 +124,17 @@ INSERT INTO cash_out_jobs
   (id, cabal_id, user_id, share_units, payout_micros, sell_usdc_micros, status, created_at, updated_at)
 VALUES ($1::uuid, $2::uuid, $3::uuid,
   $4::text::numeric, $5::text::numeric,
-  0, 'started', $6::timestamptz, $6::timestamptz)
+  $6::text::numeric, 'started', $7::timestamptz, $7::timestamptz)
 `
 
 type InsertCashOutJobParams struct {
-	ID           uuid.UUID
-	CabalID      uuid.UUID
-	UserID       uuid.UUID
-	ShareUnits   string
-	PayoutMicros string
-	At           time.Time
+	ID             uuid.UUID
+	CabalID        uuid.UUID
+	UserID         uuid.UUID
+	ShareUnits     string
+	PayoutMicros   string
+	SellUsdcMicros string
+	At             time.Time
 }
 
 func (q *Queries) InsertCashOutJob(ctx context.Context, arg InsertCashOutJobParams) error {
@@ -140,6 +144,7 @@ func (q *Queries) InsertCashOutJob(ctx context.Context, arg InsertCashOutJobPara
 		arg.UserID,
 		arg.ShareUnits,
 		arg.PayoutMicros,
+		arg.SellUsdcMicros,
 		arg.At,
 	)
 	return err
