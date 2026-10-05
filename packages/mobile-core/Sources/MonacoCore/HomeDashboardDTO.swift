@@ -7,7 +7,6 @@ public struct HomeDashboardDTO: Codable, Equatable, Sendable {
     public let myGroups: [HomeMyGroupRowDTO]
     public let pnlSeries1H: [HomePnLSeriesPointDTO]
     public let leaderboard: HomeLeaderboardSectionDTO
-    public let missedProposals: [HomeMissedProposalRowDTO]
 
     public init(
         netWorthUsd: String,
@@ -15,8 +14,7 @@ public struct HomeDashboardDTO: Codable, Equatable, Sendable {
         netWorthPercentReturn: String?,
         myGroups: [HomeMyGroupRowDTO],
         pnlSeries1H: [HomePnLSeriesPointDTO],
-        leaderboard: HomeLeaderboardSectionDTO,
-        missedProposals: [HomeMissedProposalRowDTO]
+        leaderboard: HomeLeaderboardSectionDTO
     ) {
         self.netWorthUsd = netWorthUsd
         self.netWorthDollarPnl = netWorthDollarPnl
@@ -24,7 +22,6 @@ public struct HomeDashboardDTO: Codable, Equatable, Sendable {
         self.myGroups = myGroups
         self.pnlSeries1H = pnlSeries1H
         self.leaderboard = leaderboard
-        self.missedProposals = missedProposals
     }
 }
 
@@ -99,46 +96,6 @@ public struct HomeLeaderboardSectionDTO: Codable, Equatable, Sendable {
     }
 }
 
-public struct HomeMissedProposalRowDTO: Codable, Equatable, Sendable, Identifiable {
-    public let groupID: String
-    public let groupName: String
-    public let proposalID: String
-    public let symbol: String
-    public let status: String
-    public let createdAt: Date
-    public let expiresAt: Date
-
-    public var id: String { proposalID }
-
-    public init(
-        groupID: String,
-        groupName: String,
-        proposalID: String,
-        symbol: String,
-        status: String,
-        createdAt: Date,
-        expiresAt: Date
-    ) {
-        self.groupID = groupID
-        self.groupName = groupName
-        self.proposalID = proposalID
-        self.symbol = symbol
-        self.status = status
-        self.createdAt = createdAt
-        self.expiresAt = expiresAt
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case groupID = "groupId"
-        case groupName
-        case proposalID = "proposalId"
-        case symbol
-        case status
-        case createdAt
-        case expiresAt
-    }
-}
-
 public enum HomeLeaderboardRange: String, CaseIterable, Sendable {
     case oneHour = "1H"
     case oneDay = "1D"
@@ -162,14 +119,6 @@ public struct HomePnLSeriesDTO: Codable, Equatable, Sendable {
 
     public init(points: [HomePnLSeriesPointDTO]) {
         self.points = points
-    }
-}
-
-public struct HomeMissedProposalsDTO: Codable, Equatable, Sendable {
-    public let proposals: [HomeMissedProposalRowDTO]
-
-    public init(proposals: [HomeMissedProposalRowDTO]) {
-        self.proposals = proposals
     }
 }
 

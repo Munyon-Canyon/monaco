@@ -29,7 +29,6 @@ private final class StubCabalHoldingsDataSource: CabalHoldingsDataSource {
                 shareUnits: "1", equityUsd: "1.00", slicePercent: "1", dollarPnl: "+0.00", percentReturn: nil
             ),
             members: [],
-            proposals: nil,
             agent: nil
         )
     }

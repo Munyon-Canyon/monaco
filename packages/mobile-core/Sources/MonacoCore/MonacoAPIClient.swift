@@ -240,16 +240,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
         return try monacoISO8601JSONDecoder().decode(HomePnLSeriesDTO.self, from: response.data)
     }
 
-    public func getHomeMissedProposals() async throws -> HomeMissedProposalsDTO {
-        let url = baseURL.appending(path: "v1/home/missed-proposals")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        try await applyAuthorizationHeader(to: &request)
-
-        let response = try await send(request, route: "/v1/home/missed-proposals")
-        return try monacoISO8601JSONDecoder().decode(HomeMissedProposalsDTO.self, from: response.data)
-    }
-
     public func searchAssets(
         groupId: String,
         query: String,
@@ -412,34 +402,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
         request.httpBody = try JSONEncoder().encode(VoteRequestDTO(choice: choice))
 
         _ = try await send(request, route: "/v1/proposals/{id}/votes", accepting: [200, 204])
-    }
-
-    public func listGroupProposals(groupId: String, tab: ProposalFeedTab) async throws -> ProposalListResponseDTO {
-        var components = URLComponents(
-            url: baseURL.appending(path: "v1/groups/\(groupId)/proposals"),
-            resolvingAgainstBaseURL: false
-        )!
-        components.queryItems = [URLQueryItem(name: "tab", value: tab.rawValue)]
-        guard let url = components.url else {
-            throw MonacoAPIError.invalidResponse
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        try await applyAuthorizationHeader(to: &request)
-
-        let response = try await send(request, route: "/v1/groups/{id}/proposals")
-        return try JSONDecoder().decode(ProposalListResponseDTO.self, from: response.data)
-    }
-
-    public func getProposalDetail(proposalId: String) async throws -> ProposalDTO {
-        let url = baseURL.appending(path: "v1/proposals/\(proposalId)")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        try await applyAuthorizationHeader(to: &request)
-
-        let response = try await send(request, route: "/v1/proposals/{id}")
-        return try JSONDecoder().decode(ProposalDTO.self, from: response.data)
     }
 
     public func listProposalComments(proposalId: String) async throws -> ProposalCommentsResponseDTO {

@@ -10,7 +10,6 @@ design-gallery-toast          -MonacoDesignGallery -MonacoDesignGalleryTab toast
 home-populated                -MonacoHomeSample populated
 home-empty                    -MonacoHomeSample empty
 home-loading                  -MonacoHomeSample loading
-home-missed-vote              -MonacoHomeSample missedVote
 
 cabals-tab                    -MonacoCabalsTabSample
 

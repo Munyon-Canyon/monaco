@@ -145,8 +145,7 @@ struct ProfileSampleHarness: View {
                         dollarPnl: "+0.00", percentReturn: nil),
                 ] : [],
             pnlSeries1H: [],
-            leaderboard: HomeLeaderboardSectionDTO(range: "ALL", people: []),
-            missedProposals: []
+            leaderboard: HomeLeaderboardSectionDTO(range: "ALL", people: [])
         )
     }
 
